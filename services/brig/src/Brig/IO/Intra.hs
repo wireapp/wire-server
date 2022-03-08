@@ -80,6 +80,7 @@ import Brig.RPC
 import Brig.Types
 import Brig.Types.User.Event
 import qualified Brig.User.Search.Index as Search
+import Cassandra (MonadClient)
 import Conduit (runConduit, (.|))
 import Control.Error (ExceptT)
 import Control.Lens (view, (.~), (?~), (^.))
@@ -254,7 +255,7 @@ dispatchNotifications orig conn e = case e of
 
 notifyUserDeletionLocals :: UserId -> Maybe ConnId -> List1 Event -> (AppIO r) ()
 notifyUserDeletionLocals deleted conn event = do
-  recipients <- list1 deleted <$> lookupContactList deleted
+  recipients <- list1 deleted <$> wrapClient (lookupContactList deleted)
   notify event deleted Push.RouteDirect conn (pure recipients)
 
 notifyUserDeletionRemotes :: UserId -> (AppIO r) ()
@@ -398,9 +399,9 @@ notifyContacts events orig route conn = do
   env <- ask
   notify events orig route conn $
     runAppT env $
-      list1 orig <$> liftA2 (++) contacts teamContacts
+      list1 orig <$> liftA2 (++) (wrapClient contacts) teamContacts
   where
-    contacts :: (AppIO r) [UserId]
+    contacts :: MonadClient m => m [UserId]
     contacts = lookupContactList orig
     teamContacts :: (AppIO r) [UserId]
     teamContacts = screenMemberList =<< getTeamContacts orig

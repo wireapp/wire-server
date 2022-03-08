@@ -1082,7 +1082,7 @@ deleteAccount account@(accountUser -> user) = do
   tombstone <- mkTombstone
   wrapClient $ Data.insertAccount tombstone Nothing Nothing False
   Intra.rmUser uid (userAssets user)
-  wrapClient (Data.lookupClients uid) >>= mapM_ (Data.rmClient uid . clientId)
+  wrapClient (Data.lookupClients uid) >>= mapM_ (wrapClient . Data.rmClient uid . clientId)
   luid <- qualifyLocal uid
   Intra.onUserEvent uid Nothing (UserDeleted (qUntagged luid))
   -- Note: Connections can only be deleted afterwards, since

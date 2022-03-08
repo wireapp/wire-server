@@ -326,18 +326,18 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   blacklistedEm <- lift $ wrapClient $ Blacklist.exists uke
   when blacklistedEm $
     throwStd blacklistedEmail
-  emailTaken <- lift $ isJust <$> Data.lookupKey uke
+  emailTaken <- lift $ isJust <$> wrapClient (Data.lookupKey uke)
   when emailTaken $
     throwStd emailExists
 
   -- Validate phone
   inviteePhone <- for (irInviteePhone body) $ \p -> do
-    validatedPhone <- maybe (throwStd (errorDescriptionTypeToWai @InvalidPhone)) return =<< lift (Phone.validatePhone p)
+    validatedPhone <- maybe (throwStd (errorDescriptionTypeToWai @InvalidPhone)) return =<< lift (wrapClient $ Phone.validatePhone p)
     let ukp = userPhoneKey validatedPhone
     blacklistedPh <- lift $ wrapClient $ Blacklist.exists ukp
     when blacklistedPh $
       throwStd (errorDescriptionTypeToWai @BlacklistedPhone)
-    phoneTaken <- lift $ isJust <$> Data.lookupKey ukp
+    phoneTaken <- lift $ isJust <$> wrapClient (Data.lookupKey ukp)
     when phoneTaken $
       throwStd phoneExists
     return validatedPhone

@@ -47,7 +47,7 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
     -- find uid given handle
     go1 :: Bool -> Handle -> (AppIO r) (Maybe EJPDResponseItem)
     go1 includeContacts' handle = do
-      mbUid <- lookupHandle handle
+      mbUid <- wrapClient $ lookupHandle handle
       mbUsr <- maybe (pure Nothing) (wrapClient . lookupUser NoPendingInvitations) mbUid
       maybe (pure Nothing) (fmap Just . go2 includeContacts') mbUsr
 
@@ -63,7 +63,7 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
         if includeContacts'
           then do
             contacts :: [(UserId, RelationWithHistory)] <-
-              Conn.lookupContactListWithRelation uid
+              wrapClient $ Conn.lookupContactListWithRelation uid
 
             contactsFull :: [Maybe (Relation, EJPDResponseItem)] <-
               forM contacts $ \(uid', relationDropHistory -> rel) -> do

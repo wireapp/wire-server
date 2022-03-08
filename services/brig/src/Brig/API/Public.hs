@@ -521,19 +521,19 @@ clearPropertiesH (u ::: c) = lift (API.clearProperties u c) >> return empty
 
 getPropertyH :: UserId ::: Public.PropertyKey ::: JSON -> (Handler r) Response
 getPropertyH (u ::: k ::: _) = do
-  val <- lift $ API.lookupProperty u k
+  val <- lift . wrapClient $ API.lookupProperty u k
   return $ case val of
     Nothing -> setStatus status404 empty
     Just v -> json (v :: Public.PropertyValue)
 
 listPropertyKeysH :: UserId ::: JSON -> (Handler r) Response
 listPropertyKeysH (u ::: _) = do
-  keys <- lift (API.lookupPropertyKeys u)
+  keys <- lift $ wrapClient (API.lookupPropertyKeys u)
   pure $ json (keys :: [Public.PropertyKey])
 
 listPropertyKeysAndValuesH :: UserId ::: JSON -> (Handler r) Response
 listPropertyKeysAndValuesH (u ::: _) = do
-  keysAndVals <- lift (API.lookupPropertyKeysAndValues u)
+  keysAndVals <- lift $ wrapClient (API.lookupPropertyKeysAndValues u)
   pure $ json (keysAndVals :: Public.PropertyKeysAndValues)
 
 getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> (Handler r) Public.ClientPrekey
@@ -688,7 +688,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
     for_ (liftM2 (,) userEmail epair) $ \(e, p) ->
       sendActivationEmail e userDisplayName p (Just userLocale) newUserTeam
     for_ (liftM2 (,) userPhone ppair) $ \(p, c) ->
-      sendActivationSms p c (Just userLocale)
+      wrapClient $ sendActivationSms p c (Just userLocale)
     for_ (liftM3 (,,) userEmail (createdUserTeam result) newUserTeam) $ \(e, ct, ut) ->
       sendWelcomeEmail e ct ut (Just userLocale)
   cok <-
@@ -765,7 +765,7 @@ listUsersByIdsOrHandles self q = do
   where
     getIds :: [Handle] -> (Handler r) [Qualified UserId]
     getIds localHandles = do
-      localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
+      localUsers <- catMaybes <$> traverse (lift . wrapClient . API.lookupHandle) localHandles
       domain <- viewFederationDomain
       pure $ map (`Qualified` domain) localUsers
     byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
@@ -787,7 +787,7 @@ changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
   (adata, pn) <- API.changePhone u phone
   loc <- lift $ wrapClient $ API.lookupLocale u
   let apair = (activationKey adata, activationCode adata)
-  lift $ sendActivationSms pn apair loc
+  lift . wrapClient $ sendActivationSms pn apair loc
 
 removePhone :: UserId -> ConnId -> (Handler r) (Maybe Public.RemoveIdentityError)
 removePhone self conn =
@@ -819,7 +819,7 @@ checkHandlesH :: JSON ::: UserId ::: JsonRequest Public.CheckHandles -> (Handler
 checkHandlesH (_ ::: _ ::: req) = do
   Public.CheckHandles hs num <- parseJsonBody req
   let handles = mapMaybe parseHandle (fromRange hs)
-  free <- lift $ API.checkHandles handles (fromRange num)
+  free <- lift . wrapClient $ API.checkHandles handles (fromRange num)
   return $ json (free :: [Handle])
 
 -- | This endpoint returns UserHandleInfo instead of UserProfile for backwards
@@ -848,7 +848,7 @@ beginPasswordReset (Public.NewPasswordReset target) = do
   loc <- lift $ wrapClient $ API.lookupLocale u
   lift $ case target of
     Left email -> sendPasswordResetMail email pair loc
-    Right phone -> sendPasswordResetSms phone pair loc
+    Right phone -> wrapClient $ sendPasswordResetSms phone pair loc
 
 completePasswordResetH :: JSON ::: JsonRequest Public.CompletePasswordReset -> (Handler r) Response
 completePasswordResetH (_ ::: req) = do
@@ -962,7 +962,7 @@ getLocalConnection self other = do
 getConnection :: UserId -> Qualified UserId -> (Handler r) (Maybe Public.UserConnection)
 getConnection self other = do
   lself <- qualifyLocal self
-  lift $ Data.lookupConnection lself other
+  lift . wrapClient $ Data.lookupConnection lself other
 
 deleteUser ::
   UserId ->
@@ -1027,7 +1027,7 @@ activateH (k ::: c) = do
 activate :: Public.Activate -> (Handler r) ActivationRespWithStatus
 activate (Public.Activate tgt code dryrun)
   | dryrun = do
-    API.preverify tgt code !>> actError
+    mapExceptT wrapClient (API.preverify tgt code) !>> actError
     return ActivationRespDryRun
   | otherwise = do
     result <- API.activate tgt code Nothing !>> actError

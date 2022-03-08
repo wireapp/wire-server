@@ -369,7 +369,7 @@ listActivatedAccounts elh includePendingInvitations = do
   case elh of
     Left us -> byIds (fromList us)
     Right hs -> do
-      us <- mapM API.lookupHandle (fromList hs)
+      us <- mapM (wrapClient . API.lookupHandle) (fromList hs)
       byIds (catMaybes us)
   where
     byIds :: [UserId] -> (AppIO r) [UserAccount]
@@ -442,7 +442,7 @@ getAccountStatusH (_ ::: usr) = do
 
 getConnectionsStatusUnqualified :: ConnectionsStatusRequest -> Maybe Relation -> (Handler r) [ConnectionStatus]
 getConnectionsStatusUnqualified ConnectionsStatusRequest {csrFrom, csrTo} flt = lift $ do
-  r <- maybe (API.lookupConnectionStatus' csrFrom) (API.lookupConnectionStatus csrFrom) csrTo
+  r <- maybe (wrapClient $ API.lookupConnectionStatus' csrFrom) (wrapClient . API.lookupConnectionStatus csrFrom) csrTo
   return $ maybe r (filterByRelation r) flt
   where
     filterByRelation l rel = filter ((== rel) . csStatus) l
@@ -591,7 +591,7 @@ checkHandleInternalH =
 
 getContactListH :: JSON ::: UserId -> (Handler r) Response
 getContactListH (_ ::: uid) = do
-  contacts <- lift $ API.lookupContactList uid
+  contacts <- lift . wrapClient $ API.lookupContactList uid
   return $ json $ UserIds contacts
 
 -- Utilities

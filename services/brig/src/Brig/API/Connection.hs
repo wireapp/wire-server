@@ -407,7 +407,7 @@ updateConnectionInternal = \case
         for_ [s2o, o2s] $ \(uconn :: UserConnection) -> lift $ do
           lfrom <- qualifyLocal (ucFrom uconn)
           traverse_ (Intra.blockConv lfrom Nothing) (ucConvId uconn)
-          uconn' <- Data.updateConnection uconn (mkRelationWithHistory (ucStatus uconn) MissingLegalholdConsent)
+          uconn' <- wrapClient $ Data.updateConnection uconn (mkRelationWithHistory (ucStatus uconn) MissingLegalholdConsent)
           let ev = ConnectionUpdated uconn' (Just $ ucStatus uconn) Nothing
           Intra.onConnectionEvent (tUnqualified self) Nothing ev
 
@@ -431,7 +431,7 @@ updateConnectionInternal = \case
           where
             go :: Maybe UserId -> ExceptT ConnectionError (AppT r IO) ()
             go mbStart = do
-              page <- lift $ Data.lookupLocalConnections user mbStart pageSize
+              page <- lift . wrapClient $ Data.lookupLocalConnections user mbStart pageSize
               handleConns (resultList page)
               case resultList page of
                 (conn : rest) ->

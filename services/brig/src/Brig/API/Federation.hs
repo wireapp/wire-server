@@ -79,7 +79,7 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
     then do
       self <- qualifyLocal ncrTo
       let other = toRemoteUnsafe originDomain ncrFrom
-      mconnection <- lift $ Data.lookupConnection self (qUntagged other)
+      mconnection <- lift . wrapClient $ Data.lookupConnection self (qUntagged other)
       maction <- lift $ performRemoteAction self other mconnection ncrAction
       pure $ NewConnectionResponseOk maction
     else pure NewConnectionResponseUserNotActivated
@@ -96,7 +96,7 @@ getUserByHandle domain handle = do
   if not performHandleLookup
     then pure Nothing
     else lift $ do
-      maybeOwnerId <- API.lookupHandle handle
+      maybeOwnerId <- wrapClient $ API.lookupHandle handle
       case maybeOwnerId of
         Nothing ->
           pure Nothing
@@ -150,7 +150,7 @@ searchUsers domain (SearchRequest searchTerm) = do
     exactHandleSearch n
       | n > 0 = do
         let maybeHandle = parseHandle searchTerm
-        maybeOwnerId <- maybe (pure Nothing) (lift . API.lookupHandle) maybeHandle
+        maybeOwnerId <- maybe (pure Nothing) (lift . wrapClient . API.lookupHandle) maybeHandle
         case maybeOwnerId of
           Nothing -> pure []
           Just foundUser -> lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
