@@ -260,9 +260,12 @@ notifyUserDeletionLocals deleted conn event = do
 
 notifyUserDeletionRemotes :: UserId -> (AppIO r) ()
 notifyUserDeletionRemotes deleted = do
-  runConduit $
-    Data.lookupRemoteConnectedUsersC deleted (fromInteger (natVal (Proxy @UserDeletedNotificationMaxConnections)))
-      .| C.mapM_ fanoutNotifications
+  e <- ask
+  fmap
+    wrapClient
+    runConduit
+    $ Data.lookupRemoteConnectedUsersC deleted (fromInteger (natVal (Proxy @UserDeletedNotificationMaxConnections)))
+      .| C.mapM_ (liftIO . runAppT e . fanoutNotifications)
   where
     fanoutNotifications :: [Remote UserId] -> (AppIO r) ()
     fanoutNotifications = mapM_ notifyBackend . bucketRemote
@@ -280,7 +283,7 @@ notifyUserDeletionRemotes deleted = do
           whenLeft eitherFErr $
             logFederationError (tDomain uids)
 
-    logFederationError :: Domain -> FederationError -> AppT r IO ()
+    logFederationError :: Log.MonadLogger m => Domain -> FederationError -> m ()
     logFederationError domain fErr =
       Log.err $
         Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)

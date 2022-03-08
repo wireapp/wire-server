@@ -29,7 +29,7 @@ import qualified Brig.API.Client as Client
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types (PasswordResetError (..))
-import Brig.App (AppIO, internalEvents, settings, viewFederationDomain, wrapClient)
+import Brig.App (AppIO, internalEvents, runAppT, settings, viewFederationDomain, wrapClient)
 import qualified Brig.Code as Code
 import qualified Brig.Data.Client as User
 import qualified Brig.Data.User as User
@@ -658,15 +658,18 @@ deleteService pid sid del = do
 
 finishDeleteService :: ProviderId -> ServiceId -> (AppIO r) ()
 finishDeleteService pid sid = do
+  e <- ask
   mbSvc <- wrapClient $ DB.lookupService pid sid
   for_ mbSvc $ \svc -> do
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
-    runConduit $
-      User.lookupServiceUsers pid sid
-        .| C.mapM_ (pooledMapConcurrentlyN_ 16 kick)
+    fmap
+      wrapClient
+      runConduit
+      $ User.lookupServiceUsers pid sid
+        .| C.mapM_ (liftIO . runAppT e . pooledMapConcurrentlyN_ 16 kick)
     RPC.removeServiceConn pid sid
-    DB.deleteService pid sid name tags
+    wrapClient $ DB.deleteService pid sid name tags
   where
     kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
 
@@ -780,6 +783,7 @@ data UpdateServiceWhitelistResp
 
 updateServiceWhitelist :: UserId -> ConnId -> TeamId -> Public.UpdateServiceWhitelist -> (Handler r) UpdateServiceWhitelistResp
 updateServiceWhitelist uid con tid upd = do
+  e <- ask
   let pid = updateServiceWhitelistProvider upd
       sid = updateServiceWhitelistService upd
       newWhitelisted = updateServiceWhitelistStatus upd
@@ -798,16 +802,18 @@ updateServiceWhitelist uid con tid upd = do
       -- When the service is de-whitelisted, remove its bots from team
       -- conversations
       lift $
-        runConduit $
-          User.lookupServiceUsersForTeam pid sid tid
+        fmap
+          wrapClient
+          runConduit
+          $ User.lookupServiceUsersForTeam pid sid tid
             .| C.mapM_
-              ( pooledMapConcurrentlyN_
-                  16
-                  ( \(bid, cid) ->
-                      deleteBot uid (Just con) bid cid
-                  )
+              ( liftIO . runAppT e
+                  . pooledMapConcurrentlyN_
+                    16
+                    ( uncurry (deleteBot uid (Just con))
+                    )
               )
-      DB.deleteServiceWhitelist (Just tid) pid sid
+      mapExceptT wrapClient $ DB.deleteServiceWhitelist (Just tid) pid sid
       return UpdateServiceWhitelistRespChanged
 
 addBotH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.AddBot -> (Handler r) Response
