@@ -161,7 +161,7 @@ newActivation uk timeout u = do
         <$> randIntegerZeroToNMinusOne 1000000
 
 -- | Lookup an activation code and it's associated owner (if any) for a 'UserKey'.
-lookupActivationCode :: (MonadIO m, MonadClient m) => UserKey -> m (Maybe (Maybe UserId, ActivationCode))
+lookupActivationCode :: MonadClient m => UserKey -> m (Maybe (Maybe UserId, ActivationCode))
 lookupActivationCode k =
   liftIO (mkActivationKey k)
     >>= retry x1 . query1 codeSelect . params LocalQuorum . Identity
