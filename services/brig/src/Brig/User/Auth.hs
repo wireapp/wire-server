@@ -218,9 +218,7 @@ catchSuspendInactiveUser uid errval = do
 
 newAccess ::
   forall u a r.
-  ( ZAuth.UserTokenLike u,
-    ZAuth.TokenPair u a
-  ) =>
+  ZAuth.TokenPair u a =>
   UserId ->
   CookieType ->
   Maybe CookieLabel ->
