@@ -93,7 +93,7 @@ tests _cl _at opts p db b c g =
         [ test p "success" $ testAddGetClientVerificationCode db b g,
           test p "missing code" $ testAddGetClientMissingCode b g,
           test p "wrong code" $ testAddGetClientWrongCode b g,
-          test p "expired" $ testAddGetClientCodeExpired db b g
+          test p "expired code" $ testAddGetClientCodeExpired db b g
         ],
       test p "post /clients - 201 (no pwd)" $ testAddGetClient False b c,
       test p "post /clients - 403" $ testClientReauthentication b,
