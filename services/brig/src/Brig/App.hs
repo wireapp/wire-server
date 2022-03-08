@@ -72,6 +72,7 @@ where
 
 import Bilge (Manager, MonadHttp, RequestId (..), newManager, withResponse)
 import qualified Bilge as RPC
+import Bilge.IO (MonadHttp (handleRequestWithCont))
 import Bilge.RPC (HasRequestId (..))
 import qualified Brig.AWS as AWS
 import qualified Brig.Calling as Calling
@@ -463,22 +464,32 @@ newtype AppT r m a = AppT
 
 type AppIO r = AppT r IO
 
-instance MonadIO m => MonadLogger (AppT r m) where
+instance MonadIO m => MonadLogger (ReaderT Env m) where
   log l m = do
     g <- view applog
     r <- view requestId
     Log.log g l $ field "request" (unRequestId r) ~~ m
 
+instance MonadIO m => MonadLogger (AppT r m) where
+  log l = AppT . LC.log l
+
 instance MonadIO m => MonadLogger (ExceptT err (AppT r m)) where
   log l m = lift (LC.log l m)
 
-instance (Monad m, MonadIO m) => MonadHttp (AppT r m) where
+instance MonadIO m => MonadHttp (ReaderT Env m) where
   handleRequestWithCont req handler = do
     manager <- view httpManager
     liftIO $ withResponse req manager handler
 
-instance MonadIO m => MonadZAuth (AppT r m) where
+instance MonadIO m => MonadHttp (AppT r m) where
+  handleRequestWithCont req handler =
+    AppT $ handleRequestWithCont req handler
+
+instance MonadIO m => MonadZAuth (ReaderT Env m) where
   liftZAuth za = view zauthEnv >>= \e -> runZAuth e za
+
+instance MonadIO m => MonadZAuth (AppT r m) where
+  liftZAuth za = AppT $ liftZAuth za
 
 instance MonadIO m => MonadZAuth (ExceptT err (AppT r m)) where
   liftZAuth = lift . liftZAuth
@@ -493,14 +504,26 @@ wrapClient m = do
   env <- ask
   runClient c $ runReaderT m env
 
-instance MonadIndexIO (AppIO r) where
+instance MonadIO m => MonadIndexIO (ReaderT Env m) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
+
+instance MonadIndexIO (AppIO r) where
+  liftIndexIO m = AppT $ liftIndexIO m
 
 instance (MonadIndexIO (AppT r m), Monad m) => MonadIndexIO (ExceptT err (AppT r m)) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
-instance Monad m => HasRequestId (AppT r m) where
+instance Monad m => HasRequestId (ReaderT Env m) where
   getRequestId = view requestId
+
+instance Monad m => HasRequestId (AppT r m) where
+  getRequestId = AppT getRequestId
+
+-- instance MonadUnliftIO m => MonadUnliftIO (ReaderT Env m) where
+--   withRunInIO inner =
+--     ReaderT $ \r ->
+--       withRunInIO $ \run ->
+--         inner (run . flip runReaderT r)
 
 instance MonadUnliftIO m => MonadUnliftIO (AppT r m) where
   withRunInIO inner =

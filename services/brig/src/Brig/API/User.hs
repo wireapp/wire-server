@@ -311,7 +311,7 @@ createUser new = do
         maybe
           (throwE RegisterErrorInvalidPhone)
           return
-          =<< lift (validatePhone p)
+          =<< lift (wrapClient $ validatePhone p)
 
       for_ (catMaybes [userEmailKey <$> email, userPhoneKey <$> phone]) $ \k ->
         verifyUniquenessAndCheckBlacklist k !>> identityErrorToRegisterError
@@ -525,7 +525,7 @@ changeHandle uid mconn hdl allowScim = do
     claim u = do
       unless (isJust (userIdentity u)) $
         throwE ChangeHandleNoIdentity
-      claimed <- lift $ claimHandle (userId u) (userHandle u) hdl
+      claimed <- lift . wrapClient $ claimHandle (userId u) (userHandle u) hdl
       unless claimed $
         throwE ChangeHandleExists
       lift $ Intra.onUserEvent uid mconn (handleUpdated uid hdl)
@@ -541,7 +541,7 @@ data CheckHandleResp
 checkHandle :: Text -> API.Handler r CheckHandleResp
 checkHandle uhandle = do
   xhandle <- validateHandle uhandle
-  owner <- lift $ lookupHandle xhandle
+  owner <- lift . wrapClient $ lookupHandle xhandle
   if
       | isJust owner ->
         -- Handle is taken (=> getHandleInfo will return 200)
@@ -560,7 +560,7 @@ checkHandle uhandle = do
 --------------------------------------------------------------------------------
 -- Check Handles
 
-checkHandles :: [Handle] -> Word -> (AppIO r) [Handle]
+checkHandles :: MonadClient m => [Handle] -> Word -> m [Handle]
 checkHandles check num = reverse <$> collectFree [] check num
   where
     collectFree free _ 0 = return free
@@ -635,7 +635,7 @@ changePhone u phone = do
     maybe
       (throwE InvalidNewPhone)
       return
-      =<< lift (validatePhone phone)
+      =<< lift (wrapClient $ validatePhone phone)
   let pk = userPhoneKey canonical
   available <- lift . wrapClient $ Data.keyAvailable pk (Just u)
   unless available $
@@ -828,7 +828,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
       maybe
         (throwE $ InvalidRecipient (userPhoneKey phone))
         return
-        =<< lift (validatePhone phone)
+        =<< lift (wrapClient $ validatePhone phone)
     let pk = userPhoneKey canonical
     exists <- lift $ isJust <$> wrapClient (Data.lookupKey pk)
     when exists $
@@ -846,8 +846,8 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
     void . forPhoneKey pk $ \ph ->
       lift $
         if call
-          then sendActivationCall ph p loc
-          else sendActivationSms ph p loc
+          then wrapClient $ sendActivationCall ph p loc
+          else wrapClient $ sendActivationSms ph p loc
   where
     notFound = throwM . UserDisplayNameNotFound
     mkPair k c u = do
@@ -884,7 +884,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
           _otherwise ->
             sendActivationMail em name p loc' ident
 
-mkActivationKey :: ActivationTarget -> ExceptT ActivationError (AppIO r) ActivationKey
+mkActivationKey :: (MonadClient m, MonadReader Env m) => ActivationTarget -> ExceptT ActivationError m ActivationKey
 mkActivationKey (ActivateKey k) = return k
 mkActivationKey (ActivateEmail e) = do
   ek <-
@@ -1042,7 +1042,7 @@ deleteUser uid pwd = do
           let n = userDisplayName (accountUser a)
           either
             (\e -> lift $ sendDeletionEmail n e k v l)
-            (\p -> lift $ sendDeletionSms p k v l)
+            (\p -> lift $ wrapClient $ sendDeletionSms p k v l)
             target
             `onException` mapExceptT wrapClient (Code.delete k Code.AccountDeletion)
           return $! Just $! Code.codeTTL c

@@ -60,7 +60,6 @@ import qualified Brig.ZAuth as ZAuth
 import Cassandra
 import Control.Error hiding (bool)
 import Control.Lens (to, view)
-import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString)
 import Data.Handle (Handle)
 import Data.Id
@@ -82,36 +81,31 @@ data Access u = Access
   }
 
 sendLoginCode ::
-  ( MonadClient m,
-    MonadReader Env m,
-    Log.MonadLogger m,
-    MonadCatch m
-  ) =>
   Phone ->
   Bool ->
   Bool ->
-  ExceptT SendLoginCodeError m PendingLoginCode
+  ExceptT SendLoginCodeError (AppIO r) PendingLoginCode
 sendLoginCode phone call force = do
   pk <-
     maybe
       (throwE $ SendLoginInvalidPhone phone)
       (return . userPhoneKey)
-      =<< lift (validatePhone phone)
-  user <- lift $ Data.lookupKey pk
+      =<< lift (wrapClient $ validatePhone phone)
+  user <- lift . wrapClient $ Data.lookupKey pk
   case user of
     Nothing -> throwE $ SendLoginInvalidPhone phone
     Just u -> do
-      -- Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.sendLoginCode")
-      pw <- lift $ Data.lookupPassword u
+      Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.sendLoginCode")
+      pw <- lift . wrapClient $ Data.lookupPassword u
       unless (isNothing pw || force) $
         throwE SendLoginPasswordExists
       lift $ do
-        l <- Data.lookupLocale u
-        c <- Data.createLoginCode u
+        l <- wrapClient $ Data.lookupLocale u
+        c <- wrapClient $ Data.createLoginCode u
         void . forPhoneKey pk $ \ph ->
           if call
-            then sendLoginCall ph (pendingLoginCode c) l
-            else sendLoginSms ph (pendingLoginCode c) l
+            then wrapClient $ sendLoginCall ph (pendingLoginCode c) l
+            else wrapClient $ sendLoginSms ph (pendingLoginCode c) l
         return c
 
 lookupLoginCode :: (MonadClient m, Log.MonadLogger m, MonadReader Env m) => Phone -> m (Maybe PendingLoginCode)
@@ -123,7 +117,6 @@ lookupLoginCode phone =
       Data.lookupLoginCode u
 
 login ::
-  ZAuth.MonadZAuth (ReaderT Env Client) =>
   Login ->
   CookieType ->
   ExceptT LoginError (AppIO r) (Access ZAuth.User)
@@ -199,16 +192,15 @@ renewAccess uts at = do
   return $ Access at' ck'
 
 revokeAccess ::
-  (MonadClient m, Log.MonadLogger (ExceptT AuthError m)) =>
   UserId ->
   PlainTextPassword ->
   [CookieId] ->
   [CookieLabel] ->
-  ExceptT AuthError m ()
+  ExceptT AuthError (AppIO r) ()
 revokeAccess u pw cc ll = do
-  Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.revokeAccess")
-  Data.authenticate u pw
-  lift $ revokeCookies u cc ll
+  lift $ Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.revokeAccess")
+  mapExceptT wrapClient $ Data.authenticate u pw
+  lift . wrapClient $ revokeCookies u cc ll
 
 --------------------------------------------------------------------------------
 -- Internal
