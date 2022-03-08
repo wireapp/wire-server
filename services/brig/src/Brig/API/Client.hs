@@ -134,7 +134,11 @@ addClient u con ip new = do
               then Just . maybe (Set.singleton lhcaps) (Set.insert lhcaps)
               else id
           lhcaps = ClientSupportsLegalholdImplicitConsent
-  (clt, old, count) <- Data.addClient u clientId' new maxPermClients loc caps !>> ClientDataError
+  (clt, old, count) <-
+    mapExceptT
+      wrapClient
+      (Data.addClient u clientId' new maxPermClients loc caps)
+      !>> ClientDataError
   let usr = accountUser acc
   lift $ do
     for_ old $ execDelete u con
@@ -271,9 +275,9 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 execDelete :: UserId -> Maybe ConnId -> Client -> (AppIO r) ()
 execDelete u con c = do
   Intra.rmClient u (clientId c)
-  for_ (clientCookie c) $ \l -> Auth.revokeCookies u [] [l]
+  for_ (clientCookie c) $ \l -> wrapClient $ Auth.revokeCookies u [] [l]
   Intra.onClientEvent u con (ClientRemoved u c)
-  Data.rmClient u (clientId c)
+  wrapClient $ Data.rmClient u (clientId c)
 
 -- | Defensive measure when no prekey is found for a
 -- requested client: Ensure that the client does indeed

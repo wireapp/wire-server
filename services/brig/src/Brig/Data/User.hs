@@ -192,7 +192,7 @@ authenticate u pw =
 -- | Password reauthentication. If the account has a password, reauthentication
 -- is mandatory. If the account has no password and no password is given,
 -- reauthentication is a no-op.
-reauthenticate :: MonadClient m => (MonadClient m) => UserId -> Maybe PlainTextPassword -> ExceptT ReAuthError m ()
+reauthenticate :: MonadClient m => UserId -> Maybe PlainTextPassword -> ExceptT ReAuthError m ()
 reauthenticate u pw =
   lift (lookupAuth u) >>= \case
     Nothing -> throwE (ReAuthError AuthInvalidUser)
