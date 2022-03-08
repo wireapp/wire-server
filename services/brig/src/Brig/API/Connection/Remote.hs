@@ -159,11 +159,12 @@ transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
 
   -- create connection
   connection <-
-    wrapClient $ Data.insertConnection
-      self
-      (qUntagged other)
-      (relationWithHistory rel)
-      qcnv
+    wrapClient $
+      Data.insertConnection
+        self
+        (qUntagged other)
+        (relationWithHistory rel)
+        qcnv
 
   -- send event
   pushEvent self mzcon connection
