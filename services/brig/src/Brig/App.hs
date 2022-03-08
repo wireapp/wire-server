@@ -72,7 +72,6 @@ where
 
 import Bilge (Manager, MonadHttp, RequestId (..), newManager, withResponse)
 import qualified Bilge as RPC
-import Bilge.IO (MonadHttp (handleRequestWithCont))
 import Bilge.RPC (HasRequestId (..))
 import qualified Brig.AWS as AWS
 import qualified Brig.Calling as Calling
