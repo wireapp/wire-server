@@ -379,6 +379,8 @@ type PasswordAuthenticationFailed = ErrorDescription 403 "password-authenticatio
 
 type CodeAuthenticationFailed = ErrorDescription 403 "code-authentication-failed" "Code authentication failed."
 
+type CodeAuthenticationRequired = ErrorDescription 403 "code-authentication-required" "Code authentication is required."
+
 type MLSProtocolError = ErrorDescription 400 "mls-protocol-error" "MLS protocol error"
 
 mlsProtocolError :: Text -> MLSProtocolError

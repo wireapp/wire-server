@@ -33,7 +33,7 @@ import Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import Web.Scim.Class.Auth as Scim.Auth
 import Web.Scim.Class.User as Scim.User
 import Wire.API.Cookie
-import Wire.API.ErrorDescription (CanThrow, CodeAuthenticationFailed, PasswordAuthenticationFailed)
+import Wire.API.ErrorDescription
 import Wire.API.Routes.Public
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
@@ -207,6 +207,7 @@ type APIScim =
     :<|> "auth-tokens"
       :> CanThrow PasswordAuthenticationFailed
       :> CanThrow CodeAuthenticationFailed
+      :> CanThrow CodeAuthenticationRequired
       :> APIScimToken
 
 type ScimSiteAPI tag = ToServantApi (ScimSite tag)
