@@ -58,7 +58,7 @@ newtype BudgetKey = BudgetKey Text
 --
 -- FUTUREWORK: exceptions are not handled very nicely, but it's not clear what it would mean
 -- to improve this.
-withBudget :: MonadClient m => BudgetKey -> Budget -> m a -> m (Budgeted a)
+withBudget :: forall m (a :: *). MonadClient m => BudgetKey -> Budget -> m a -> m (Budgeted a)
 withBudget k b ma = do
   Budget ttl val <- fromMaybe b <$> lookupBudget k
   let remaining = val - 1
