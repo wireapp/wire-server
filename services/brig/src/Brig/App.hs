@@ -424,13 +424,13 @@ initCredentials secretFile = do
   dat <- loadSecret secretFile
   return $ either (\e -> error $ "Could not load secrets from " ++ show secretFile ++ ": " ++ e) id dat
 
-userTemplates :: Monad m => Maybe Locale -> AppT r m (Locale, UserTemplates)
+userTemplates :: MonadReader Env m => Maybe Locale -> m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates
 
-providerTemplates :: Monad m => Maybe Locale -> AppT r m (Locale, ProviderTemplates)
+providerTemplates :: MonadReader Env m => Maybe Locale -> m (Locale, ProviderTemplates)
 providerTemplates l = forLocale l <$> view provTemplates
 
-teamTemplates :: Monad m => Maybe Locale -> AppT r m (Locale, TeamTemplates)
+teamTemplates :: MonadReader Env m => Maybe Locale -> m (Locale, TeamTemplates)
 teamTemplates l = forLocale l <$> view tmTemplates
 
 closeEnv :: Env -> IO ()

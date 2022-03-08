@@ -26,7 +26,7 @@ module Brig.Data.PasswordReset
   )
 where
 
-import Brig.App (AppIO, Env, currentTime)
+import Brig.App (Env, currentTime)
 import Brig.Data.Instances ()
 import Brig.Types
 import Cassandra

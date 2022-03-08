@@ -34,7 +34,7 @@ import Data.Id
 import Imports
 
 -- | Claim a new handle for an existing 'User'.
-claimHandle :: MonadClient m => UserId -> Maybe Handle -> Handle -> m Bool
+claimHandle :: (MonadClient m, MonadReader Env m) => UserId -> Maybe Handle -> Handle -> m Bool
 claimHandle uid oldHandle newHandle =
   isJust <$> do
     owner <- lookupHandle newHandle

@@ -191,7 +191,7 @@ sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
 
 -- | Validate a phone number. Returns the canonical
 -- E.164 format of the given phone number on success.
-validatePhone :: Phone -> (AppIO r) (Maybe Phone)
+validatePhone :: (MonadClient m, MonadReader Env m) => Phone -> m (Maybe Phone)
 validatePhone (Phone p)
   | isTestPhone p = return (Just (Phone p))
   | otherwise = do

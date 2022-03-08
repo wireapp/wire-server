@@ -309,7 +309,7 @@ updateFeatureConferenceCalling uid mbStatus = do
   pure mbStatus
   where
     update :: PrepQuery W (Maybe ApiFt.TeamFeatureStatusValue, UserId) ()
-    update = fromString $ "update user set feature_conference_calling = ? where id = ?"
+    update = fromString "update user set feature_conference_calling = ? where id = ?"
 
 deleteEmail :: MonadClient m => UserId -> m ()
 deleteEmail u = retry x5 $ write userEmailDelete (params LocalQuorum (Identity u))
@@ -381,12 +381,12 @@ lookupName u =
 
 lookupPassword :: MonadClient m => UserId -> m (Maybe Password)
 lookupPassword u =
-  join . fmap runIdentity
+  (runIdentity =<<)
     <$> retry x1 (query1 passwordSelect (params LocalQuorum (Identity u)))
 
 lookupStatus :: MonadClient m => UserId -> m (Maybe AccountStatus)
 lookupStatus u =
-  join . fmap runIdentity
+  (runIdentity =<<)
     <$> retry x1 (query1 statusSelect (params LocalQuorum (Identity u)))
 
 lookupRichInfo :: MonadClient m => UserId -> m (Maybe RichInfoAssocList)
@@ -422,7 +422,7 @@ lookupUsers hpi usrs = do
   domain <- viewFederationDomain
   toUsers domain loc hpi <$> retry x1 (query usersSelect (params LocalQuorum (Identity usrs)))
 
-lookupAccount :: MonadClient m => UserId -> m (Maybe UserAccount)
+lookupAccount :: (MonadClient m, MonadReader Env m) => UserId -> m (Maybe UserAccount)
 lookupAccount u = listToMaybe <$> lookupAccounts [u]
 
 lookupAccounts :: (MonadClient m, MonadReader Env m) => [UserId] -> m [UserAccount]
