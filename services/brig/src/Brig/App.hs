@@ -494,10 +494,6 @@ instance MonadIO m => MonadZAuth (AppT r m) where
 instance MonadIO m => MonadZAuth (ExceptT err (AppT r m)) where
   liftZAuth = lift . liftZAuth
 
--- instance (MonadThrow m, MonadCatch m, MonadIO m) => MonadClient (AppT r m) where
---   liftClient m = view casClient >>= \c -> runClient c m
---   localState f = local (over casClient f)
-
 wrapClient :: ReaderT Env Cas.Client a -> AppT r IO a
 wrapClient m = do
   c <- view casClient
@@ -518,12 +514,6 @@ instance Monad m => HasRequestId (ReaderT Env m) where
 
 instance Monad m => HasRequestId (AppT r m) where
   getRequestId = AppT getRequestId
-
--- instance MonadUnliftIO m => MonadUnliftIO (ReaderT Env m) where
---   withRunInIO inner =
---     ReaderT $ \r ->
---       withRunInIO $ \run ->
---         inner (run . flip runReaderT r)
 
 instance MonadUnliftIO m => MonadUnliftIO (AppT r m) where
   withRunInIO inner =
