@@ -624,9 +624,10 @@ updateServiceConn pid sid upd = do
       let name = serviceProfileName svc
       let tags = unsafeRange (serviceProfileTags svc)
       -- Update index, make it visible over search
-      if sconEnabled scon
-        then mapExceptT wrapClient $ DB.deleteServiceIndexes pid sid name tags
-        else mapExceptT wrapClient $ DB.insertServiceIndexes pid sid name tags
+      mapExceptT wrapClient $
+        if sconEnabled scon
+          then DB.deleteServiceIndexes pid sid name tags
+          else DB.insertServiceIndexes pid sid name tags
 
 -- TODO: Send informational email to provider.
 
