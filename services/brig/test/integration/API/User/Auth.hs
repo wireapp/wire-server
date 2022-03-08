@@ -384,7 +384,7 @@ testLoginVerify6DigitEmailCodeSuccess brig galley db = do
   Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   key <- Code.mkKey (Code.ForEmail email)
-  Just vcode <- lookupCode db key Code.AccountLogin
+  Just vcode <- Util.lookupCode db key Code.AccountLogin
   checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue vcode)
 
 testLoginVerify6DigitResendCodeSuccess :: Brig -> Galley -> DB.ClientState -> Http ()
@@ -398,7 +398,7 @@ testLoginVerify6DigitResendCodeSuccess brig galley db = do
           const (Just "code-authentication-failed") === errorLabel
   let getCodeFromDb = do
         key <- Code.mkKey (Code.ForEmail email)
-        Just c <- lookupCode db key Code.AccountLogin
+        Just c <- Util.lookupCode db key Code.AccountLogin
         pure c
 
   Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
@@ -452,13 +452,10 @@ testLoginVerify6DigitExpiredCodeFails brig galley db = do
   Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   key <- Code.mkKey (Code.ForEmail email)
-  Just vcode <- lookupCode db key Code.AccountLogin
+  Just vcode <- Util.lookupCode db key Code.AccountLogin
   -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
   threadDelay $ (5 * 1000000) + 1000000
   checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue vcode)
-
-lookupCode :: MonadIO m => DB.ClientState -> Code.Key -> Code.Scope -> m (Maybe Code.Code)
-lookupCode db key = liftIO . DB.runClient db . Code.lookup key
 
 -- The testLoginFailure test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2

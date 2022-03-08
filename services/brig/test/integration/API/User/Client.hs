@@ -22,12 +22,16 @@ module API.User.Client
   )
 where
 
+import qualified API.Team.Util as Util
 import API.User.Util
+import qualified API.User.Util as Util
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
+import qualified Brig.Code as Code
 import qualified Brig.Options as Opt
 import Brig.Types
 import Brig.Types.User.Auth hiding (user)
+import qualified Cassandra as DB
 import Control.Lens (at, preview, (.~), (^.), (^?))
 import Data.Aeson
 import Data.Aeson.Lens
@@ -38,6 +42,7 @@ import qualified Data.Map as Map
 import Data.Qualified (Qualified (..))
 import Data.Range (unsafeRange)
 import qualified Data.Set as Set
+import Data.Text.Ascii (AsciiChars (validate))
 import qualified Data.Vector as Vec
 import Gundeck.Types.Notification
 import Imports
@@ -49,7 +54,9 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
+import qualified Wire.API.Team.Feature as Public
 import Wire.API.User (LimitedQualifiedUserIdList (LimitedQualifiedUserIdList))
+import qualified Wire.API.User as Public
 import Wire.API.User.Client
   ( ClientCapability (ClientSupportsLegalholdImplicitConsent),
     ClientCapabilityList (ClientCapabilityList),
@@ -61,8 +68,8 @@ import Wire.API.User.Client
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
-tests _cl _at opts p b c g =
+tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> TestTree
+tests _cl _at opts p db b c g =
   testGroup
     "client"
     [ test p "delete /clients/:client 403 - can't delete legalhold clients" $
@@ -81,6 +88,13 @@ tests _cl _at opts p b c g =
       test p "post /users/list-clients - 200" $ testListClientsBulk opts b,
       test p "post /users/list-clients/v2 - 200" $ testListClientsBulkV2 opts b,
       test p "post /clients - 201 (pwd)" $ testAddGetClient True b c,
+      testGroup
+        "post /clients - verification code"
+        [ test p "success" $ testAddGetClientVerificationCode db b g,
+          test p "missing code" $ testAddGetClientMissingCode b g,
+          test p "wrong code" $ testAddGetClientWrongCode b g,
+          test p "expired" $ testAddGetClientCodeExpired db b g
+        ],
       test p "post /clients - 201 (no pwd)" $ testAddGetClient False b c,
       test p "post /clients - 403" $ testClientReauthentication b,
       test p "get /clients - 200" $ testListClients b,
@@ -95,6 +109,67 @@ tests _cl _at opts p b c g =
       test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g,
       test p "client/prekeys/race" $ testPreKeyRace b
     ]
+
+testAddGetClientVerificationCode :: DB.ClientState -> Brig -> Galley -> Http ()
+testAddGetClientVerificationCode db brig galley = do
+  (u, tid) <- Util.createUserWithTeam' brig
+  let uid = userId u
+  let Just email = userEmail u
+  let checkLoginSucceeds b = login brig b PersistentCookie !!! const 200 === statusCode
+  let addClient' :: Maybe Code.Value -> Http Client
+      addClient' codeValue = responseJsonError =<< addClient brig uid (defNewClientWithVerificationCode codeValue PermanentClientType [head somePrekeys] (head someLastPrekeys))
+
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
+  k <- Code.mkKey (Code.ForEmail email)
+  (fmap Code.codeValue -> codeValue) <- lookupCode db k Code.AccountLogin
+  checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
+  c <- addClient' codeValue
+  getClient brig uid (clientId c) !!! do
+    const 200 === statusCode
+    const (Just c) === responseJsonMaybe
+
+testAddGetClientMissingCode :: Brig -> Galley -> Http ()
+testAddGetClientMissingCode brig galley = do
+  (u, tid) <- Util.createUserWithTeam' brig
+  let uid = userId u
+  let addClient' codeValue = addClient brig uid (defNewClientWithVerificationCode codeValue PermanentClientType [head somePrekeys] (head someLastPrekeys))
+
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  addClient' Nothing !!! do
+    const 403 === statusCode
+    const (Just "code-authentication-required") === fmap Error.label . responseJsonMaybe
+
+testAddGetClientWrongCode :: Brig -> Galley -> Http ()
+testAddGetClientWrongCode brig galley = do
+  (u, tid) <- Util.createUserWithTeam' brig
+  let uid = userId u
+  let addClient' codeValue = addClient brig uid (defNewClientWithVerificationCode codeValue PermanentClientType [head somePrekeys] (head someLastPrekeys))
+
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
+  addClient' (Just wrongCode) !!! do
+    const 403 === statusCode
+    const (Just "code-authentication-failed") === fmap Error.label . responseJsonMaybe
+
+testAddGetClientCodeExpired :: DB.ClientState -> Brig -> Galley -> Http ()
+testAddGetClientCodeExpired db brig galley = do
+  (u, tid) <- Util.createUserWithTeam' brig
+  let uid = userId u
+  let Just email = userEmail u
+  let checkLoginSucceeds b = login brig b PersistentCookie !!! const 200 === statusCode
+  let addClient' codeValue = addClient brig uid (defNewClientWithVerificationCode codeValue PermanentClientType [head somePrekeys] (head someLastPrekeys))
+
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
+  k <- Code.mkKey (Code.ForEmail email)
+  (fmap Code.codeValue -> codeValue) <- lookupCode db k Code.AccountLogin
+  checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
+  -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
+  threadDelay $ (5 * 1000000) + 1000
+  addClient' codeValue !!! do
+    const 403 === statusCode
+    const (Just "code-authentication-failed") === fmap Error.label . responseJsonMaybe
 
 testAddGetClient :: Bool -> Brig -> Cannon -> Http ()
 testAddGetClient hasPwd brig cannon = do
