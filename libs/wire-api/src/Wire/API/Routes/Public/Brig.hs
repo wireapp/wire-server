@@ -176,7 +176,7 @@ type UserAPI =
       )
     :<|> Named
            "send-verification-code"
-           ( Summary "Send a verification code to a given email address. It's currently not implemented for all available actions. If a non-implemented action is give, this endpoint will return with a 400 error."
+           ( Summary "Send a verification code to a given email address."
                :> "verification-code"
                :> "send"
                :> ReqBody '[JSON] SendVerificationCode
