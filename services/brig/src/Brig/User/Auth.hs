@@ -24,6 +24,7 @@ module Brig.User.Auth
     renewAccess,
     validateTokens,
     revokeAccess,
+    verifyCode,
 
     -- * Internal
     lookupLoginCode,
@@ -73,6 +74,7 @@ import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.User (VerificationAction (..))
 
 data Access u = Access
   { accessToken :: !AccessToken,
@@ -122,33 +124,16 @@ login (PasswordLogin li pw label code) typ = do
     AuthSuspended -> throwE LoginSuspended
     AuthEphemeral -> throwE LoginEphemeral
     AuthPendingInvitation -> throwE LoginPendingActivation
-  verifyCode code uid
+  verifyLoginCode code uid
   newAccess @ZAuth.User @ZAuth.Access uid typ label
   where
-    verifyCode :: Maybe Code.Value -> UserId -> ExceptT LoginError (AppIO r) ()
-    verifyCode mbCode u = do
-      (mbEmail, mbTeamId) <- getEmailAndTeamId u
-      featureEnabled <- lift $ do
-        mbFeatureEnabled <- Intra.getVerificationCodeEnabled `traverse` mbTeamId
-        pure $ fromMaybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus == Public.TeamFeatureEnabled) mbFeatureEnabled
-      when featureEnabled $ do
-        case mbCode of
-          Nothing -> loginFailedWith LoginCodeRequired u
-          Just c ->
-            case mbEmail of
-              Nothing -> loginFailedNoEmail u
-              Just email -> do
-                key <- Code.mkKey $ Code.ForEmail email
-                codeValid <- isJust <$> Code.verify key Code.AccountLogin c
-                unless codeValid $ loginFailedWith LoginCodeInvalid u
-
-    getEmailAndTeamId :: UserId -> ExceptT LoginError (AppIO r) (Maybe Email, Maybe TeamId)
-    getEmailAndTeamId u = lift $ do
-      mbAccount <- Data.lookupAccount u
-      pure (userEmail <$> accountUser =<< mbAccount, userTeam <$> accountUser =<< mbAccount)
-
-    loginFailedNoEmail :: UserId -> ExceptT LoginError (AppIO r) ()
-    loginFailedNoEmail = loginFailed
+    verifyLoginCode :: Maybe Code.Value -> UserId -> ExceptT LoginError (AppIO r) ()
+    verifyLoginCode mbCode uid = do
+      verifyCode mbCode Login uid
+        `catchE` \case
+          VerificationCodeNoPendingCode -> loginFailedWith LoginCodeInvalid uid
+          VerificationCodeRequired -> loginFailedWith LoginCodeRequired uid
+          VerificationCodeNoEmail -> loginFailed uid
 login (SmsLogin phone code label) typ = do
   uid <- resolveLoginId (LoginByPhone phone)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
@@ -157,6 +142,26 @@ login (SmsLogin phone code label) typ = do
   unless ok $
     loginFailed uid
   newAccess @ZAuth.User @ZAuth.Access uid typ label
+
+verifyCode :: Maybe Code.Value -> VerificationAction -> UserId -> ExceptT VerificationCodeError (AppIO r) ()
+verifyCode mbCode action uid = do
+  (mbEmail, mbTeamId) <- getEmailAndTeamId uid
+  featureEnabled <- lift $ do
+    mbFeatureEnabled <- Intra.getVerificationCodeEnabled `traverse` mbTeamId
+    pure $ fromMaybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus == Public.TeamFeatureEnabled) mbFeatureEnabled
+  when featureEnabled $ do
+    case (mbCode, mbEmail) of
+      (Just code, Just email) -> do
+        key <- Code.genKey <$> Code.mk6DigitGen (Code.ForEmail email)
+        codeValid <- isJust <$> Code.verify key (Code.scopeFromAction action) code
+        unless codeValid $ throwE VerificationCodeNoPendingCode
+      (Nothing, _) -> throwE VerificationCodeRequired
+      (_, Nothing) -> throwE VerificationCodeNoEmail
+  where
+    getEmailAndTeamId :: UserId -> ExceptT e (AppIO r) (Maybe Email, Maybe TeamId)
+    getEmailAndTeamId u = lift $ do
+      mbAccount <- Data.lookupAccount u
+      pure (userEmail <$> accountUser =<< mbAccount, userTeam <$> accountUser =<< mbAccount)
 
 loginFailedWith :: LoginError -> UserId -> ExceptT LoginError (AppIO r) ()
 loginFailedWith e uid = decrRetryLimit uid >> throwE e
@@ -333,6 +338,9 @@ ssoLogin :: SsoLogin -> CookieType -> ExceptT LoginError (AppIO r) (Access ZAuth
 ssoLogin (SsoLogin uid label) typ = do
   Data.reauthenticate uid Nothing `catchE` \case
     ReAuthMissingPassword -> pure ()
+    ReAuthNoPendingCode -> pure ()
+    ReAuthVerificationCodeRequired -> pure ()
+    ReAuthNoEmail -> pure ()
     ReAuthError e -> case e of
       AuthInvalidUser -> throwE LoginFailed
       AuthInvalidCredentials -> pure ()

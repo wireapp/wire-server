@@ -25,6 +25,7 @@ module Brig.User.Email
     sendDeletionEmail,
     sendNewClientEmail,
     sendLoginVerificationMail,
+    sendGenerateScimTokenVerificationMail,
 
     -- * Re-exports
     validateEmail,
@@ -55,6 +56,12 @@ sendVerificationMail to pair loc = do
 
 sendLoginVerificationMail :: Email -> Code.Value -> Maybe Locale -> (AppIO r) ()
 sendLoginVerificationMail email code mbLocale = do
+  tpl <- verificationScimTokenEmail . snd <$> userTemplates mbLocale
+  branding <- view templateBranding
+  Email.sendMail $ renderSecondFactorVerificationEmail tpl email code branding
+
+sendGenerateScimTokenVerificationMail :: Email -> Code.Value -> Maybe Locale -> (AppIO r) ()
+sendGenerateScimTokenVerificationMail email code mbLocale = do
   tpl <- verificationLoginEmail . snd <$> userTemplates mbLocale
   branding <- view templateBranding
   Email.sendMail $ renderSecondFactorVerificationEmail tpl email code branding

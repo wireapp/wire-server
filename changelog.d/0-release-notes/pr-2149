@@ -1,0 +1,1 @@
+Internal endpoint for re-authentication (`GET "/i/users/:uid/reauthenticate"`) in brig has changed in a backwards compatible way. Spar depends on this change for creating a SCIM token with 2nd password challenge. It's best to deploy Brig before Spar.

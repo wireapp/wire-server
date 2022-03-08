@@ -54,6 +54,7 @@ import qualified Data.Binary.Builder as BB
 import Data.ByteArray.Encoding (Base (..), convertToBase)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import qualified Data.CaseInsensitive as CI
+import Data.Code as Code
 import Data.Handle (Handle)
 import Data.Id (ScimTokenId, TeamId, UserId)
 import Data.Json.Util ((#))
@@ -84,7 +85,6 @@ import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
-import Wire.API.User.Activation
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile as BT
 import qualified Wire.API.User.RichInfo as RI
@@ -369,7 +369,7 @@ data CreateScimToken = CreateScimToken
     -- | User password, which we ask for because creating a token is a "powerful" operation
     createScimTokenPassword :: !(Maybe PlainTextPassword),
     -- | User code (sent by email), for 2nd factor to 'createScimTokenPassword'
-    createScimTokenCode :: !(Maybe ActivationCode)
+    createScimTokenCode :: !(Maybe Code.Value)
   }
   deriving (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CreateScimToken)

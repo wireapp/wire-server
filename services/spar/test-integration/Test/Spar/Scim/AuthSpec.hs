@@ -28,12 +28,18 @@ where
 
 import Bilge
 import Bilge.Assert
+import qualified Brig.Types.User as Brig
 import Cassandra as Cas
 import Control.Lens
+import Data.Aeson (encode)
 import qualified Data.ByteString.Base64 as ES
+import Data.ByteString.Conversion (toByteString')
+import qualified Data.Code as Code
 import Data.Id (ScimTokenId, TeamId, UserId, randomId)
 import Data.Misc (PlainTextPassword (..))
+import Data.Range (unsafeRange)
 import Data.String.Conversions (cs)
+import Data.Text.Ascii (AsciiChars (validate))
 import Data.Time (UTCTime)
 import Data.Time.Clock (getCurrentTime)
 import qualified Galley.Types.Teams as Galley
@@ -44,6 +50,9 @@ import qualified SAML2.WebSSO.Test.Util as SAML
 import Spar.Scim
 import Text.RawString.QQ (r)
 import Util
+import qualified Wire.API.Team.Feature as Public
+import Wire.API.User (VerificationAction (GenerateScimToken))
+import qualified Wire.API.User as Public
 
 -- | Tests for authentication and operations with provisioning tokens ('ScimToken's).
 spec :: SpecWith TestEnv
@@ -65,6 +74,7 @@ specCreateToken = describe "POST /auth-tokens" $ do
   it "requires the team to have no more than one IdP" testNumIdPs
   it "authorizes only admins and owners" testCreateTokenAuthorizesOnlyAdmins
   it "requires a password" testCreateTokenRequiresPassword
+  it "works with verification code" testCreateTokenWithVerificationCode
 
 -- FUTUREWORK: we should also test that for a password-less user, e.g. for an SSO user,
 -- reauthentication is not required. We currently (2019-03-05) can't test that because
@@ -92,6 +102,53 @@ testCreateToken = do
   let fltr = filterBy "externalId" "67c196a0-cd0e-11ea-93c7-ef550ee48502"
   listUsers_ (Just token) (Just fltr) (env ^. teSpar)
     !!! const 200 === statusCode
+
+testCreateTokenWithVerificationCode :: TestSpar ()
+testCreateTokenWithVerificationCode = do
+  env <- ask
+  (owner, teamId, _) <- registerTestIdP
+  setSndFactorPasswordChallengeStatus (env ^. teGalley) teamId Public.TeamFeatureEnabled
+  user <- getUserBrig owner
+  let email = fromMaybe undefined (Brig.userEmail =<< user)
+
+  let reqMissingCode = CreateScimToken "testCreateToken" (Just defPassword) Nothing
+  createTokenFailsWith owner reqMissingCode 403 "code-authentication-required"
+
+  let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
+  let reqWrongCode = CreateScimToken "testCreateToken" (Just defPassword) (Just wrongCode)
+  createTokenFailsWith owner reqWrongCode 403 "code-authentication-failed"
+
+  requestVerificationCode (env ^. teBrig) email GenerateScimToken
+  code <- getVerificationCode (env ^. teBrig) owner GenerateScimToken
+  let reqWithCode = CreateScimToken "testCreateToken" (Just defPassword) (Just code)
+  CreateScimTokenResponse token _ <- createToken owner reqWithCode
+
+  -- Try to do @GET /Users@ and check that it succeeds
+  let fltr = filterBy "externalId" "67c196a0-cd0e-11ea-93c7-ef550ee48502"
+  listUsers_ (Just token) (Just fltr) (env ^. teSpar)
+    !!! const 200 === statusCode
+
+setSndFactorPasswordChallengeStatus :: GalleyReq -> TeamId -> Public.TeamFeatureStatusValue -> TestSpar ()
+setSndFactorPasswordChallengeStatus galley tid status = do
+  let js = RequestBodyLBS $ encode $ Public.TeamFeatureStatusNoConfig status
+  call $
+    put (galley . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge] . contentJson . body js)
+      !!! const 200 === statusCode
+
+requestVerificationCode :: BrigReq -> Brig.Email -> VerificationAction -> TestSpar ()
+requestVerificationCode brig email action = do
+  let js = RequestBodyLBS $ encode $ Public.SendVerificationCode action email
+  call $
+    post (brig . paths ["verification-code", "send"] . contentJson . body js)
+      !!! const 200 === statusCode
+
+getVerificationCode :: BrigReq -> UserId -> VerificationAction -> TestSpar Code.Value
+getVerificationCode brig uid action = do
+  resp <-
+    call $
+      get (brig . paths ["i", "users", toByteString' uid, "verification-code", toByteString' action])
+        <!! const 200 === statusCode
+  pure $ responseJsonUnsafe @Code.Value resp
 
 -- | Test that only up to @maxScimTokens@ can be created.
 --

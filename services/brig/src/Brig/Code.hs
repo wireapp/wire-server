@@ -42,6 +42,7 @@ module Brig.Code
     codeValue,
     codeTTL,
     codeAccount,
+    scopeFromAction,
 
     -- * Generation
     Gen (genKey),
@@ -75,6 +76,7 @@ import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (Digest, digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
 import Text.Printf (printf)
+import qualified Wire.API.User as User
 
 --------------------------------------------------------------------------------
 -- Code
@@ -105,6 +107,11 @@ codeForPhone c
   | ForPhone p <- codeFor c = Just p
   | otherwise = Nothing
 
+scopeFromAction :: User.VerificationAction -> Scope
+scopeFromAction = \case
+  User.GenerateScimToken -> GenerateScimToken
+  User.Login -> AccountLogin
+
 -- | The same 'Key' can exist with different 'Value's in different
 -- 'Scope's at the same time.
 data Scope
@@ -113,6 +120,7 @@ data Scope
   | PasswordReset
   | AccountLogin
   | AccountApproval
+  | GenerateScimToken
   deriving (Eq, Show)
 
 instance Cql Scope where
@@ -123,12 +131,14 @@ instance Cql Scope where
   toCql PasswordReset = CqlInt 3
   toCql AccountLogin = CqlInt 4
   toCql AccountApproval = CqlInt 5
+  toCql GenerateScimToken = CqlInt 6
 
   fromCql (CqlInt 1) = return AccountDeletion
   fromCql (CqlInt 2) = return IdentityVerification
   fromCql (CqlInt 3) = return PasswordReset
   fromCql (CqlInt 4) = return AccountLogin
   fromCql (CqlInt 5) = return AccountApproval
+  fromCql (CqlInt 6) = return GenerateScimToken
   fromCql _ = Left "fromCql: Scope: int expected"
 
 newtype Retries = Retries {numRetries :: Word8}

@@ -154,6 +154,11 @@ data LoginError
   | LoginCodeRequired
   | LoginCodeInvalid
 
+data VerificationCodeError
+  = VerificationCodeRequired
+  | VerificationCodeNoPendingCode
+  | VerificationCodeNoEmail
+
 data ChangeEmailError
   = InvalidNewEmail !Email !String
   | EmailExists !Email

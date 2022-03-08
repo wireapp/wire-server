@@ -30,6 +30,7 @@ module Wire.API.Routes.Internal.Brig
 where
 
 import Control.Lens ((.~))
+import qualified Data.Code as Code
 import Data.Id as Id
 import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
 import Imports hiding (head)
@@ -136,7 +137,16 @@ type AccountAPI =
 
 type API =
   "i"
-    :> (EJPD_API :<|> AccountAPI)
+    :> (EJPD_API :<|> AccountAPI :<|> GetVerificationCode)
+
+type GetVerificationCode =
+  Summary "Get verification code for a given email and action"
+    :> "i"
+    :> "users"
+    :> Capture "uid" UserId
+    :> "verification-code"
+    :> Capture "action" VerificationAction
+    :> Get '[Servant.JSON] (Maybe Code.Value)
 
 type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 

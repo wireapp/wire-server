@@ -66,6 +66,7 @@ import qualified Web.Scim.Class.Auth as Scim.Class.Auth
 import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.Routes.Public.Spar (APIScimToken)
+import Wire.API.User
 import Wire.API.User.Saml (Opts, maxScimTokens)
 import Wire.API.User.Scim
 
@@ -128,7 +129,7 @@ createScimToken ::
 createScimToken zusr CreateScimToken {..} = do
   let descr = createScimTokenDescr
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
-  BrigAccess.ensureReAuthorised zusr createScimTokenPassword
+  BrigAccess.ensureReAuthorised zusr createScimTokenPassword createScimTokenCode (Just GenerateScimToken)
   tokenNumber <- fmap length $ ScimTokenStore.lookupByTeam teamid
   maxTokens <- inputs maxScimTokens
   unless (tokenNumber < maxTokens) $

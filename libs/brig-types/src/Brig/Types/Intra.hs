@@ -34,10 +34,12 @@ import Brig.Types.Connection
 import Brig.Types.User
 import Data.Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Code as Code
 import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword (..))
 import qualified Data.Text as Text
 import Imports
+import Wire.API.User (VerificationAction (..))
 
 -------------------------------------------------------------------------------
 -- AccountStatus
@@ -169,16 +171,21 @@ instance ToJSON UserSet where
 
 -- | Certain operations might require reauth of the user. These are available
 -- only for users that have already set a password.
-newtype ReAuthUser = ReAuthUser
-  {reAuthPassword :: Maybe PlainTextPassword}
+data ReAuthUser = ReAuthUser
+  { reAuthPassword :: Maybe PlainTextPassword,
+    reAuthCode :: Maybe Code.Value,
+    reAuthCodeAction :: Maybe VerificationAction
+  }
   deriving (Eq, Show, Generic)
 
 instance FromJSON ReAuthUser where
   parseJSON = withObject "reauth-user" $ \o ->
-    ReAuthUser <$> o .:? "password"
+    ReAuthUser <$> o .:? "password" <*> o .:? "verification_code" <*> o .:? "action"
 
 instance ToJSON ReAuthUser where
   toJSON ru =
     object
-      [ "password" .= reAuthPassword ru
+      [ "password" .= reAuthPassword ru,
+        "verification_code" .= reAuthCode ru,
+        "action" .= reAuthCodeAction ru
       ]

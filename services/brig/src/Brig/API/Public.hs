@@ -1044,7 +1044,6 @@ sendVerificationCode req = do
   let action = Public.svcAction req
   mbAccount <- getAccount email
   featureEnabled <- getFeatureStatus mbAccount
-  scope <- scope' action
   case (mbAccount, featureEnabled) of
     (Just account, True) -> do
       gen <- Code.mk6DigitGen $ Code.ForEmail email
@@ -1052,7 +1051,7 @@ sendVerificationCode req = do
       code <-
         Code.generate
           gen
-          scope
+          (scope action)
           (Code.Retries 3)
           timeout
           (Just $ toUUID $ Public.userId $ accountUser account)
@@ -1065,15 +1064,16 @@ sendVerificationCode req = do
       mbUserId <- UserKey.lookupKey $ UserKey.userEmailKey email
       join <$> Data.lookupAccount `traverse` mbUserId
 
-    scope' :: Public.VerificationAction -> (Handler r) Code.Scope
-    scope' = \case
-      Public.GenerateScimToken -> throwStd verificationCodeNotImplementedError
-      Public.Login -> pure Code.AccountLogin
+    scope :: Public.VerificationAction -> Code.Scope
+    scope = \case
+      Public.GenerateScimToken -> Code.GenerateScimToken
+      Public.Login -> Code.AccountLogin
 
     sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
-    sendMail email value mbLocale = \case
-      Public.GenerateScimToken -> throwStd verificationCodeNotImplementedError
-      Public.Login -> lift $ sendLoginVerificationMail email value mbLocale
+    sendMail email value mbLocale =
+      lift . \case
+        Public.GenerateScimToken -> sendGenerateScimTokenVerificationMail email value mbLocale
+        Public.Login -> sendLoginVerificationMail email value mbLocale
 
     getFeatureStatus :: Maybe UserAccount -> (Handler r) Bool
     getFeatureStatus mbAccount = do

@@ -27,11 +27,13 @@ import Brig.API.Types
 import qualified Brig.API.User as User
 import Brig.App (AppIO)
 import Brig.Phone
-import Brig.Types.Intra (ReAuthUser, reAuthPassword)
+import Brig.Types.Intra (ReAuthUser, reAuthCode, reAuthCodeAction, reAuthPassword)
 import Brig.Types.User.Auth
 import qualified Brig.User.Auth as Auth
 import qualified Brig.User.Auth.Cookie as Auth
 import qualified Brig.ZAuth as ZAuth
+import Control.Error (catchE)
+import Control.Monad.Trans.Except (throwE)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Either.Combinators (leftToMaybe, rightToMaybe)
@@ -233,6 +235,14 @@ reAuthUserH (uid ::: req) = do
 reAuthUser :: UserId -> ReAuthUser -> (Handler r) ()
 reAuthUser uid body = do
   User.reauthenticate uid (reAuthPassword body) !>> reauthError
+  case reAuthCodeAction body of
+    Just action ->
+      Auth.verifyCode (reAuthCode body) action uid
+        `catchE` \case
+          VerificationCodeNoPendingCode -> throwE $ reauthError ReAuthNoPendingCode
+          VerificationCodeRequired -> throwE $ reauthError ReAuthVerificationCodeRequired
+          VerificationCodeNoEmail -> throwE $ reauthError ReAuthNoEmail
+    Nothing -> pure ()
 
 loginH :: JsonRequest Public.Login ::: Bool ::: JSON -> (Handler r) Response
 loginH (req ::: persist ::: _) = do

@@ -1105,7 +1105,7 @@ testReauthentication b = do
     const 403 === statusCode
     const (Just "suspended") === errorLabel
   where
-    payload = Http.body . RequestBodyLBS . encode . ReAuthUser
+    payload pw = Http.body $ RequestBodyLBS $ encode $ ReAuthUser pw Nothing Nothing
 
 -----------------------------------------------------------------------------
 -- Helpers

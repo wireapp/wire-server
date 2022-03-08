@@ -17,10 +17,11 @@
 
 module Test.Wire.API.Golden.Manual.CreateScimToken where
 
+import Data.Code
 import Data.Misc (PlainTextPassword (PlainTextPassword))
+import Data.Range (unsafeRange)
 import Data.Text.Ascii (AsciiChars (validate))
-import Imports
-import Wire.API.User.Activation (ActivationCode (ActivationCode, fromActivationCode))
+import Imports (Maybe (Just, Nothing), fromRight, undefined)
 import Wire.API.User.Scim (CreateScimToken (..))
 
 testObject_CreateScimToken_1 :: CreateScimToken
@@ -28,7 +29,7 @@ testObject_CreateScimToken_1 =
   CreateScimToken
     "description"
     (Just (PlainTextPassword "very-geheim"))
-    (Just ((ActivationCode {fromActivationCode = fromRight undefined (validate "123456")})))
+    (Just (Value {asciiValue = unsafeRange (fromRight undefined (validate "123456"))}))
 
 testObject_CreateScimToken_2 :: CreateScimToken
 testObject_CreateScimToken_2 =
@@ -42,7 +43,7 @@ testObject_CreateScimToken_3 =
   CreateScimToken
     "description3"
     Nothing
-    (Just ((ActivationCode {fromActivationCode = fromRight undefined (validate "654321")})))
+    (Just (Value {asciiValue = unsafeRange (fromRight undefined (validate "654321"))}))
 
 testObject_CreateScimToken_4 :: CreateScimToken
 testObject_CreateScimToken_4 =

@@ -191,6 +191,9 @@ authError AuthPendingInvitation = StdError accountPending
 reauthError :: ReAuthError -> Error
 reauthError ReAuthMissingPassword = StdError (errorDescriptionTypeToWai @MissingAuth)
 reauthError (ReAuthError e) = authError e
+reauthError ReAuthNoPendingCode = StdError verificationCodeAuthFailed
+reauthError ReAuthVerificationCodeRequired = StdError verificationCodeRequired
+reauthError ReAuthNoEmail = StdError verificationCodeAuthFailed
 
 zauthError :: ZAuth.Failure -> Error
 zauthError ZAuth.Expired = StdError authTokenExpired
@@ -445,5 +448,8 @@ customerExtensionBlockedDomain domain = Wai.mkError (mkStatus 451 "Unavailable F
         <> " that you are attempting to register a user with has been \
            \blocked for creating wire users.  Please contact your IT department."
 
-verificationCodeNotImplementedError :: Wai.Error
-verificationCodeNotImplementedError = Wai.mkError status400 "verification-code-not-implemented" "Verification code for this action is not implemented."
+verificationCodeRequired :: Wai.Error
+verificationCodeRequired = Wai.mkError status403 "code-authentication-required" "Verification code required."
+
+verificationCodeAuthFailed :: Wai.Error
+verificationCodeAuthFailed = Wai.mkError status403 "code-authentication-failed" "Code authentication failed."

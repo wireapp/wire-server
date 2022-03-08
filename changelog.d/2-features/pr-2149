@@ -1,0 +1,1 @@
+2nd factor authentication for "create SCIM token" via 6 digit code, sent by email. The feature is disabled per default and can be enabled server or team wide.

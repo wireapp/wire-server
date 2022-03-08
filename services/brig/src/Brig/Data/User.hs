@@ -107,6 +107,9 @@ data AuthError
 data ReAuthError
   = ReAuthError !AuthError
   | ReAuthMissingPassword
+  | ReAuthNoPendingCode
+  | ReAuthVerificationCodeRequired
+  | ReAuthNoEmail
 
 -- | Preconditions:
 --
