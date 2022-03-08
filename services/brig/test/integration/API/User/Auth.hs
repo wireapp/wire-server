@@ -454,7 +454,7 @@ testLoginVerify6DigitExpiredCodeFails brig galley db = do
   key <- Code.mkKey (Code.ForEmail email)
   Just vcode <- Util.lookupCode db key Code.AccountLogin
   -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
-  threadDelay $ (5 * 1000000) + 1000000
+  threadDelay $ (5 * 1000000) + 1000
   checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue vcode)
 
 -- The testLoginFailure test conforms to the following testing standards:
