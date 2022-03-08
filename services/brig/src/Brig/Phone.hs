@@ -81,8 +81,7 @@ sendCall ::
 sendCall call = unless (isTestPhone $ Nexmo.callTo call) $ do
   m <- view httpManager
   cred <- view nexmoCreds
-  metricsVal <- view metrics
-  withCallBudget metricsVal (Nexmo.callTo call) $ do
+  withCallBudget (Nexmo.callTo call) $ do
     r <-
       liftIO . try @_ @Nexmo.CallErrorResponse . recovering x3 nexmoHandlers $
         const $
@@ -122,10 +121,8 @@ sendSms ::
   SMSMessage ->
   m ()
 sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
-  -- sendSms (cred, tCred) metricsVal m loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
   m <- view httpManager
-  metricsVal <- view metrics
-  withSmsBudget metricsVal smsTo $ do
+  withSmsBudget smsTo $ do
     -- We try Nexmo first (cheaper and specialised to SMS)
     f <- (sendNexmoSms m $> Nothing) `catches` nexmoFailed
     for_ f $ \ex -> do
@@ -234,8 +231,15 @@ smsBudget =
       budgetValue = 5 -- # of SMS within timeout
     }
 
-withSmsBudget :: (MonadClient m, Log.MonadLogger m) => Metrics.Metrics -> Text -> m a -> m a
-withSmsBudget metricsVal phone go = do
+withSmsBudget ::
+  ( MonadClient m,
+    Log.MonadLogger m,
+    MonadReader Env m
+  ) =>
+  Text ->
+  m a ->
+  m a
+withSmsBudget phone go = do
   let k = BudgetKey ("sms#" <> phone)
   r <- withBudget k smsBudget go
   case r of
@@ -243,7 +247,7 @@ withSmsBudget metricsVal phone go = do
       Log.info $
         msg (val "SMS budget exhausted.")
           ~~ field "phone" phone
-      Metrics.counterIncr (Metrics.path "budget.sms.exhausted") metricsVal
+      Metrics.counterIncr (Metrics.path "budget.sms.exhausted") =<< view metrics
       throwM (PhoneBudgetExhausted t)
     BudgetedValue a b -> do
       Log.debug $
@@ -262,8 +266,15 @@ callBudget =
       budgetValue = 2 -- # of voice calls within timeout
     }
 
-withCallBudget :: (MonadClient m, Log.MonadLogger m) => Metrics.Metrics -> Text -> m a -> m a
-withCallBudget metricsVal phone go = do
+withCallBudget ::
+  ( MonadClient m,
+    Log.MonadLogger m,
+    MonadReader Env m
+  ) =>
+  Text ->
+  m a ->
+  m a
+withCallBudget phone go = do
   let k = BudgetKey ("call#" <> phone)
   r <- withBudget k callBudget go
   case r of
@@ -271,7 +282,7 @@ withCallBudget metricsVal phone go = do
       Log.info $
         msg (val "Voice call budget exhausted.")
           ~~ field "phone" phone
-      Metrics.counterIncr (Metrics.path "budget.call.exhausted") metricsVal
+      Metrics.counterIncr (Metrics.path "budget.call.exhausted") =<< view metrics
       throwM (PhoneBudgetExhausted t)
     BudgetedValue a b -> do
       Log.debug $
