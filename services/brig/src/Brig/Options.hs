@@ -582,7 +582,7 @@ setDefaultUserLocale :: Settings -> Locale
 setDefaultUserLocale = fromMaybe defaultUserLocale . setDefaultUserLocaleInternal
 
 defVerificationTimeout :: Code.Timeout
-defVerificationTimeout = Code.Timeout (60 * 10) -- 10 minutes
+defVerificationTimeout = Code.Timeout (60 * 15) -- 15 minutes
 
 setVerificationTimeout :: Settings -> Code.Timeout
 setVerificationTimeout = fromMaybe defVerificationTimeout . setVerificationCodeTimeoutInternal

@@ -176,9 +176,7 @@ type UserAPI =
       )
     :<|> Named
            "send-verification-code"
-           -- FUTUREWORK(leif): Update description and error response once all actions are implemented
            ( Summary "Send a verification code to a given email address. It's currently not implemented for all available actions. If a non-implemented action is give, this endpoint will return with a 400 error."
-               :> CanThrow VerificationCodeNotImplemented
                :> "verification-code"
                :> "send"
                :> ReqBody '[JSON] SendVerificationCode
@@ -408,6 +406,8 @@ type UserClientAPI =
         :> CanThrow TooManyClients
         :> CanThrow MissingAuth
         :> CanThrow MalformedPrekeys
+        :> CanThrow CodeAuthenticationFailed
+        :> CanThrow CodeAuthenticationRequired
         :> ZUser
         :> ZConn
         :> "clients"

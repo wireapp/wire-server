@@ -210,6 +210,8 @@ clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
 clientError (ClientFederationError e) = fedError e
 clientError ClientCapabilitiesCannotBeRemoved = StdError clientCapabilitiesCannotBeRemoved
 clientError ClientMissingLegalholdConsent = StdError (errorDescriptionTypeToWai @MissingLegalholdConsent)
+clientError ClientCodeAuthenticationFailed = StdError verificationCodeAuthFailed
+clientError ClientCodeAuthenticationRequired = StdError verificationCodeRequired
 
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai

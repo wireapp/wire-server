@@ -16,5 +16,6 @@
             "key": ""
         }
     ],
-    "type": "permanent"
+    "type": "permanent",
+    "verification_code": "123456"
 }
