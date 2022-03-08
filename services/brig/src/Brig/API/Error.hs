@@ -191,7 +191,7 @@ loginError (LoginBlocked wait) =
     ()
     [("Retry-After", toByteString' (retryAfterSeconds wait))]
 loginError LoginCodeRequired = StdError loginCodeAuthenticationRequired
-loginError LoginNoPendingCode = StdError loginCodeAuthenticationFailed
+loginError LoginCodeInvalid = StdError loginCodeAuthenticationFailed
 
 authError :: AuthError -> Error
 authError AuthInvalidUser = StdError (errorDescriptionTypeToWai @BadCredentials)

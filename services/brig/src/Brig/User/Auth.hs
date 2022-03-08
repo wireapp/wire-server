@@ -140,7 +140,7 @@ login (PasswordLogin li pw label code) typ = do
               Just email -> do
                 key <- Code.genKey <$> Code.mk6DigitGen (Code.ForEmail email)
                 codeValid <- isJust <$> Code.verify key Code.AccountLogin c
-                unless codeValid $ loginFailedWith LoginNoPendingCode u
+                unless codeValid $ loginFailedWith LoginCodeInvalid u
 
     getEmailAndTeamId :: UserId -> ExceptT LoginError (AppIO r) (Maybe Email, Maybe TeamId)
     getEmailAndTeamId u = lift $ do
