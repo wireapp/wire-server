@@ -599,7 +599,8 @@ createMLSTeamConv lusr tid users name access role timer convRole = do
           . zType "access"
           . json conv
       )
-  qualifyAs lusr <$> fromBS (getHeader' "Location" r)
+  convId <- fromBS (getHeader' "Location" r)
+  pure $ qualifyAs lusr convId
 
 updateTeamConv :: UserId -> ConvId -> ConversationRename -> TestM ResponseLBS
 updateTeamConv zusr convid upd = do
