@@ -19,7 +19,6 @@ module Galley.API.Action
   ( -- * Conversation action types
     ConversationActionTag (..),
     ConversationJoin (..),
-    ConversationLeave (..),
     ConversationMemberUpdate (..),
     HasConversationActionEffects,
 
@@ -193,7 +192,7 @@ performAction origUser lcnv cnv action =
     SConversationJoinTag -> do
       performConversationJoin origUser lcnv cnv action
     SConversationLeaveTag -> do
-      let presentVictims = filter (isConvMember lcnv cnv) (toList (clUsers action))
+      let presentVictims = filter (isConvMember lcnv cnv) (toList action)
       when (null presentVictims) noChanges
       E.deleteMembers (convId cnv) (toUserList lcnv presentVictims)
       pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?
@@ -340,7 +339,7 @@ performConversationJoin qusr lcnv conv (ConversationJoin invited role) = do
                 let lvictim = qualifyAs lcnv (lmId mem)
                 void . runError @NoChanges $
                   updateLocalConversationWithLocalUser @'ConversationLeaveTag lcnv lvictim Nothing $
-                    ConversationLeave (pure (qUntagged lvictim))
+                    pure (qUntagged lvictim)
           else throw MissingLegalholdConsent
 
     checkLHPolicyConflictsRemote ::
@@ -385,9 +384,8 @@ performConversationAccessData qusr lcnv conv action = do
 
     -- Remove users and notify everyone
     void . for_ (nonEmpty (bmQualifiedMembers lcnv toRemove)) $ \usersToRemove -> do
-      let rAction = ConversationLeave usersToRemove
-      void . runError @NoChanges $ performAction @'ConversationLeaveTag qusr lcnv conv rAction
-      notifyConversationAction (sing @'ConversationLeaveTag) qusr Nothing lcnv bmToNotify rAction
+      void . runError @NoChanges $ performAction @'ConversationLeaveTag qusr lcnv conv usersToRemove
+      notifyConversationAction (sing @'ConversationLeaveTag) qusr Nothing lcnv bmToNotify usersToRemove
   pure (mempty, action)
   where
     maybeRemoveBots :: Member BrigAccess r => BotsAndMembers -> Sem r BotsAndMembers

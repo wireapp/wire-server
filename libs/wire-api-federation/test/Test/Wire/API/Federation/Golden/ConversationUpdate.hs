@@ -72,5 +72,5 @@ testObject_ConversationUpdate2 =
       cuConvId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       cuAlreadyPresentUsers = [chad, dee],
-      cuAction = SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (pure qAlice))
+      cuAction = SomeConversationAction (sing @'ConversationLeaveTag) (pure qAlice)
     }

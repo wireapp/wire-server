@@ -179,8 +179,7 @@ onConversationUpdated requestingDomain cu = do
           [] -> pure (Nothing, []) -- If no users get added, its like no action was performed.
           (u : us) -> pure (Just (SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (u :| us) role)), addedLocalUsers)
       SConversationLeaveTag -> do
-        let ConversationLeave toLeave = action
-            localUsers = getLocalUsers (tDomain loc) toLeave
+        let localUsers = getLocalUsers (tDomain loc) action
         E.deleteMembersInRemoteConversation rconvId localUsers
         pure (Just sca, [])
       SConversationRemoveMembersTag -> do
@@ -268,13 +267,13 @@ leaveConversation requestingDomain lc = do
       . mapError handleActionError
       $ do
         (conv, _self) <- getConversationAndMemberWithError ConvNotFound (qUntagged leaver) lcnv
-        update <- updateLocalConversationWithRemoteUser (sing @'ConversationLeaveTag) lcnv leaver (ConversationLeave (pure (qUntagged leaver)))
+        update <- updateLocalConversationWithRemoteUser (sing @'ConversationLeaveTag) lcnv leaver (pure (qUntagged leaver))
         pure (update, conv)
 
   case res of
     Left err -> pure $ F.LeaveConversationResponse (Left err)
     Right (_update, conv) -> do
-      let action = ConversationLeave (pure (qUntagged leaver))
+      let action = pure (qUntagged leaver)
 
       let remotes = filter ((== tDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
@@ -411,7 +410,7 @@ onUserDeleted origDomain udcn = do
             -- The self conv cannot be on a remote backend.
             Public.SelfConv -> pure ()
             Public.RegularConv -> do
-              let action = ConversationLeave (pure untaggedDeletedUser)
+              let action = pure untaggedDeletedUser
                   botsAndMembers = convBotsAndMembers conv
               void $ notifyConversationAction (sing @'ConversationLeaveTag) untaggedDeletedUser Nothing lc botsAndMembers action
   pure EmptyResponse

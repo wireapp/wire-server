@@ -32,8 +32,9 @@ import Control.Lens ((?~))
 import Data.Aeson
 import qualified Data.Aeson.KeyMap as AKeyMap
 import Data.Id
+import qualified Data.List.NonEmpty as NonEmptyList
 import Data.Qualified (Qualified)
-import Data.Schema (NamedSwaggerDoc, ToSchema, ValueSchema, element, enum, objectWithDocModifier, schema, schemaIn, schemaOut, schemaParseJSON, schemaToJSON)
+import Data.Schema (NamedSwaggerDoc, ToSchema, ValueSchema, element, enum, field, nonEmptyArray, objectWithDocModifier, schema, schemaIn, schemaOut, schemaParseJSON, schemaToJSON)
 import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Data.Time.Clock
@@ -88,7 +89,7 @@ $(singDecideInstance ''ConversationActionTag)
 -- individual effects per conversation action. See 'HasConversationActionEffects'.
 type family ConversationAction (tag :: ConversationActionTag) :: * where
   ConversationAction 'ConversationJoinTag = ConversationJoin
-  ConversationAction 'ConversationLeaveTag = ConversationLeave
+  ConversationAction 'ConversationLeaveTag = NonEmptyList.NonEmpty (Qualified UserId)
   ConversationAction 'ConversationMemberUpdateTag = ConversationMemberUpdate
   ConversationAction 'ConversationDeleteTag = ()
   ConversationAction 'ConversationRenameTag = ConversationRename
@@ -118,7 +119,11 @@ instance ToJSON SomeConversationAction where
 
 conversationActionSchema :: forall tag. Sing tag -> ValueSchema NamedSwaggerDoc (ConversationAction tag)
 conversationActionSchema SConversationJoinTag = schema @ConversationJoin
-conversationActionSchema SConversationLeaveTag = schema @ConversationLeave
+conversationActionSchema SConversationLeaveTag =
+  objectWithDocModifier
+    "ConversationLeave"
+    (S.description ?~ "The action of some users leaving a conversation on their own")
+    $ field "users" (nonEmptyArray schema)
 conversationActionSchema SConversationRemoveMembersTag = schema @ConversationRemoveMembers
 conversationActionSchema SConversationMemberUpdateTag = schema @ConversationMemberUpdate
 conversationActionSchema SConversationDeleteTag =
@@ -174,8 +179,7 @@ conversationActionToEvent tag now quid qcnv action =
           let ConversationJoin newMembers role = action
            in EdMembersJoin $ SimpleMembers (map (`SimpleMember` role) (toList newMembers))
         SConversationLeaveTag ->
-          let ConversationLeave leavingMembers = action
-           in EdMembersLeave (QualifiedUserIdList (toList leavingMembers))
+          EdMembersLeave (QualifiedUserIdList (toList action))
         SConversationRemoveMembersTag ->
           let ConversationRemoveMembers targets = action
            in EdMembersLeave (QualifiedUserIdList (toList targets))

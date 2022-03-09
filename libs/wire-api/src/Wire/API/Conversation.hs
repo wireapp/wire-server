@@ -70,7 +70,6 @@ module Wire.API.Conversation
     ConversationReceiptModeUpdate (..),
     ConversationMessageTimerUpdate (..),
     ConversationJoin (..),
-    ConversationLeave (..),
     ConversationRemoveMembers (..),
     ConversationMemberUpdate (..),
 
@@ -885,20 +884,6 @@ instance ToSchema ConversationJoin where
       $ ConversationJoin
         <$> cjUsers .= field "users" (nonEmptyArray schema)
         <*> cjRole .= field "role" schema
-
-newtype ConversationLeave = ConversationLeave
-  {clUsers :: NonEmpty (Qualified UserId)}
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConversationLeave)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationLeave
-
-instance ToSchema ConversationLeave where
-  schema =
-    objectWithDocModifier
-      "ConversationLeave"
-      (description ?~ "The action of some users leaving a conversation on their own")
-      $ ConversationLeave
-        <$> clUsers .= field "users" (nonEmptyArray schema)
 
 data ConversationRemoveMembers = ConversationRemoveMembers
   { crmTargets :: NonEmpty (Qualified UserId)
