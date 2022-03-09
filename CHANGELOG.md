@@ -1,3 +1,41 @@
+# [2022-03-09]
+
+## Release notes
+
+
+* For wire.com operators: make sure that nginz is deployed (#2166)
+
+* Upgrade team-settings version to 4.6.2-v0.29.7-0-4f43ee4 (#2180)
+
+
+## API changes
+
+
+* Add qualified broadcast endpoint (#2166)
+
+
+## Bug fixes and other updates
+
+
+* Always create spar credentials during SCIM provisioning when applicable (#2174)
+
+
+## Internal changes
+
+
+* Add tests for additional information returned by `GET /api-version` (#2159)
+
+* Clean up `Base64ByteString` implementation (#2170)
+
+* The `Event` record type does not contain a `type` field anymore (#2160)
+
+* Add MLS message types and corresponding deserialisers (#2145)
+
+* Asset keys are now internally validated. (#2162)
+
+* Servantify `POST /register` and `POST /i/users` endpoints (#2121)
+
+
 # [2022-03-01]
 
 ## Release notes
