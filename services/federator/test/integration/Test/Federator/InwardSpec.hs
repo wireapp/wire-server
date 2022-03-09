@@ -79,8 +79,8 @@ spec env =
 
     -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
     --
-    -- (This is tested in unit tests; search for
-    -- 'validateDomainCertInvalid' and 'testDiscoveryFailure'.)
+    -- This test is covered by the unit tests 'validateDomainCertWrongDomain' because
+    -- the domain matching is checked on certificate validation.
     it "shouldRejectMissmatchingOriginDomainInward" $
       runTestFederator env $ pure ()
     -- @END
