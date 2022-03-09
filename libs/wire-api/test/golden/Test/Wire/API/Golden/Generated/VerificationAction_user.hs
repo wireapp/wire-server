@@ -26,3 +26,6 @@ testObject_VerificationAction_user_1 = CreateScimToken
 
 testObject_VerificationAction_user_2 :: VerificationAction
 testObject_VerificationAction_user_2 = Login
+
+testObject_VerificationAction_user_3 :: VerificationAction
+testObject_VerificationAction_user_3 = DeleteTeam

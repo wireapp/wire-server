@@ -1200,7 +1200,10 @@ instance S.ToSchema ListUsersQuery where
 -----------------------------------------------------------------------------
 -- SndFactorPasswordChallenge
 
-data VerificationAction = CreateScimToken | Login
+data VerificationAction
+  = CreateScimToken
+  | Login
+  | DeleteTeam
   deriving stock (Eq, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform VerificationAction)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema VerificationAction)
@@ -1210,12 +1213,14 @@ instance ToSchema VerificationAction where
     enum @Text "VerificationAction" $
       mconcat
         [ element "create_scim_token" CreateScimToken,
-          element "login" Login
+          element "login" Login,
+          element "delete_team" DeleteTeam
         ]
 
 instance ToByteString VerificationAction where
   builder CreateScimToken = "create_scim_token"
   builder Login = "login"
+  builder DeleteTeam = "delete_team"
 
 instance FromByteString VerificationAction where
   parser =
@@ -1223,6 +1228,7 @@ instance FromByteString VerificationAction where
       case T.decodeUtf8' b of
         Right "login" -> pure Login
         Right "create_scim_token" -> pure CreateScimToken
+        Right "delete_team" -> pure DeleteTeam
         Right t -> fail $ "Invalid VerificationAction: " <> T.unpack t
         Left e -> fail $ "Invalid VerificationAction: " <> show e
 
