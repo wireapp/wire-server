@@ -1,3 +1,11 @@
+# [2022-03-09]
+
+## Release notes
+
+
+* Upgrade team-settings version to 4.6.2-v0.29.7-0-4f43ee4 (#2180)
+
+
 # [2022-03-07]
 
 ## Release notes
