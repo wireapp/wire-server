@@ -42,6 +42,7 @@ packages:
   , services/spar/
   , tools/api-simulations/
   , tools/bonanza/
+  , tools/db/assets/
   , tools/db/auto-whitelist/
   , tools/db/migrate-sso-feature-flag/
   , tools/db/service-backfill/
@@ -176,6 +177,8 @@ package api-bot
 package api-client
     ghc-options: -Werror
 package api-simulations
+    ghc-options: -Werror
+package assets
     ghc-options: -Werror
 package auto-whitelist
     ghc-options: -Werror
