@@ -1097,7 +1097,6 @@ removeMemberFromLocalConv lcnv lusr con victim
       fmap hush
       . runError @NoChanges
       . updateLocalConversationWithLocalUser @'ConversationRemoveMembersTag lcnv lusr con
-      . ConversationRemoveMembers
       . pure
       $ victim
 

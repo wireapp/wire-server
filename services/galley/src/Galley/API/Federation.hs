@@ -183,8 +183,7 @@ onConversationUpdated requestingDomain cu = do
         E.deleteMembersInRemoteConversation rconvId localUsers
         pure (Just sca, [])
       SConversationRemoveMembersTag -> do
-        let ConversationRemoveMembers toRemove = action
-            localUsers = getLocalUsers (tDomain loc) toRemove
+        let localUsers = getLocalUsers (tDomain loc) action
         E.deleteMembersInRemoteConversation rconvId localUsers
         pure (Just sca, [])
       SConversationMemberUpdateTag ->

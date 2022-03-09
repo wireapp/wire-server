@@ -70,7 +70,6 @@ module Wire.API.Conversation
     ConversationReceiptModeUpdate (..),
     ConversationMessageTimerUpdate (..),
     ConversationJoin (..),
-    ConversationRemoveMembers (..),
     ConversationMemberUpdate (..),
 
     -- * re-exports
@@ -884,21 +883,6 @@ instance ToSchema ConversationJoin where
       $ ConversationJoin
         <$> cjUsers .= field "users" (nonEmptyArray schema)
         <*> cjRole .= field "role" schema
-
-data ConversationRemoveMembers = ConversationRemoveMembers
-  { crmTargets :: NonEmpty (Qualified UserId)
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConversationRemoveMembers)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationRemoveMembers
-
-instance ToSchema ConversationRemoveMembers where
-  schema =
-    objectWithDocModifier
-      "ConversationRemoveMembers"
-      (description ?~ "The action of some users being removed from a conversation")
-      $ ConversationRemoveMembers
-        <$> crmTargets .= field "targets" (nonEmptyArray schema)
 
 data ConversationMemberUpdate = ConversationMemberUpdate
   { cmuTarget :: Qualified UserId,

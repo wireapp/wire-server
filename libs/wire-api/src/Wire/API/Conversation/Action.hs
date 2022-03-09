@@ -96,7 +96,7 @@ type family ConversationAction (tag :: ConversationActionTag) :: * where
   ConversationAction 'ConversationMessageTimerUpdateTag = ConversationMessageTimerUpdate
   ConversationAction 'ConversationReceiptModeUpdateTag = ConversationReceiptModeUpdate
   ConversationAction 'ConversationAccessDataTag = ConversationAccessData
-  ConversationAction 'ConversationRemoveMembersTag = ConversationRemoveMembers
+  ConversationAction 'ConversationRemoveMembersTag = NonEmptyList.NonEmpty (Qualified UserId)
 
 data SomeConversationAction where
   SomeConversationAction :: Sing tag -> ConversationAction tag -> SomeConversationAction
@@ -124,7 +124,11 @@ conversationActionSchema SConversationLeaveTag =
     "ConversationLeave"
     (S.description ?~ "The action of some users leaving a conversation on their own")
     $ field "users" (nonEmptyArray schema)
-conversationActionSchema SConversationRemoveMembersTag = schema @ConversationRemoveMembers
+conversationActionSchema SConversationRemoveMembersTag =
+  objectWithDocModifier
+    "ConversationRemoveMembers"
+    (S.description ?~ "The action of some users being removed from a conversation")
+    $ field "targets" (nonEmptyArray schema)
 conversationActionSchema SConversationMemberUpdateTag = schema @ConversationMemberUpdate
 conversationActionSchema SConversationDeleteTag =
   objectWithDocModifier
@@ -181,8 +185,7 @@ conversationActionToEvent tag now quid qcnv action =
         SConversationLeaveTag ->
           EdMembersLeave (QualifiedUserIdList (toList action))
         SConversationRemoveMembersTag ->
-          let ConversationRemoveMembers targets = action
-           in EdMembersLeave (QualifiedUserIdList (toList targets))
+          EdMembersLeave (QualifiedUserIdList (toList action))
         SConversationMemberUpdateTag ->
           let ConversationMemberUpdate target (OtherMemberUpdate role) = action
               update = MemberUpdateData target Nothing Nothing Nothing Nothing Nothing Nothing role

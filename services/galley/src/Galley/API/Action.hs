@@ -197,7 +197,7 @@ performAction origUser lcnv cnv action =
       E.deleteMembers (convId cnv) (toUserList lcnv presentVictims)
       pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?
     SConversationRemoveMembersTag -> do
-      let presentVictims = filter (isConvMember lcnv cnv) (toList (crmTargets action))
+      let presentVictims = filter (isConvMember lcnv cnv) (toList action)
       when (null presentVictims) noChanges
       E.deleteMembers (convId cnv) (toUserList lcnv presentVictims)
       pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?

@@ -1559,7 +1559,7 @@ assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   cuOrigUserId cu @?= remover
   cuConvId cu @?= qUnqualified qconvId
   sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
-  cuAction cu @?= SomeConversationAction (sing @'ConversationRemoveMembersTag) (ConversationRemoveMembers (pure victim))
+  cuAction cu @?= SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure victim)
 
 assertLeaveUpdate :: (MonadIO m, HasCallStack) => FederatedRequest -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
 assertLeaveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
