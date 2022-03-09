@@ -294,4 +294,4 @@ attoReadM :: A.Parser a -> ReadM a
 attoReadM p = eitherReader (A.parseOnly p . Text.encodeUtf8 . Text.pack)
 
 domainOption :: Mod OptionFields Domain -> Parser Domain
-domainOption = option $ attoReadM (domainParser Nothing)
+domainOption = option $ attoReadM domainParser

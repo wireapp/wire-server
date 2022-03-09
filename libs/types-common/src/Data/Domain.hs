@@ -31,16 +31,14 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Builder as Builder
 import qualified Data.ByteString.Char8 as BS.Char8
 import Data.ByteString.Conversion
-import Data.Proxy
 import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text.E
-import GHC.TypeLits
 import Imports hiding (isAlphaNum)
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
-import Test.QuickCheck (Arbitrary (arbitrary), Gen)
+import Test.QuickCheck (Arbitrary (arbitrary))
 import qualified Test.QuickCheck as QC
 import Util.Attoparsec (takeUpToWhile)
 
@@ -78,17 +76,10 @@ domainText :: Domain -> Text
 domainText = _domainText
 
 mkDomain :: Text -> Either String Domain
-mkDomain = Atto.parseOnly (domainParser Nothing <* Atto.endOfInput) . Text.E.encodeUtf8
-
--- | In MLS, a 'GroupId' can be up to 256 bytes. In the chosen encoding, the
--- first 16 bytes correspond to the conversation UUID, where the rest
--- corresponds to the domain. This means that the domain can be at most 240
--- bytes.
-mkMLSDomain :: Text -> Either String Domain
-mkMLSDomain = Atto.parseOnly (domainParser (Just 240) <* Atto.endOfInput) . Text.E.encodeUtf8
+mkDomain = Atto.parseOnly (domainParser <* Atto.endOfInput) . Text.E.encodeUtf8
 
 instance FromByteString Domain where
-  parser = domainParser Nothing
+  parser = domainParser
 
 instance ToByteString Domain where
   builder = Builder.lazyByteString . cs @Text @LByteString . _domainText
@@ -99,15 +90,15 @@ instance FromHttpApiData Domain where
 instance ToHttpApiData Domain where
   toUrlPiece = toUrlPiece . _domainText
 
-domainParser :: Maybe Word -> Atto.Parser Domain
-domainParser domainLimit = do
+domainParser :: Atto.Parser Domain
+domainParser = do
   parts <- domainLabel `Atto.sepBy1` Atto.char '.'
   when (length parts < 2) $
     fail "Invalid domain name: cannot be dotless domain"
   when (isDigit (BS.Char8.head (last parts))) $
     fail "Invalid domain name: last label cannot start with digit"
   let bs = BS.intercalate "." parts
-  when (BS.length bs > maybe 253 fromIntegral domainLimit) $
+  when (BS.length bs > 253) $
     fail "Invalid domain name: too long"
   case Text.E.decodeUtf8' bs of
     Left err -> fail $ "Invalid UTF-8 in Domain: " <> show err
@@ -131,22 +122,13 @@ instance FromJSONKey Domain where
 
 instance Arbitrary Domain where
   arbitrary =
-    either (error . ("arbitrary @Domain: " <>)) id . mkDomain . getDomainText <$> arbitrary @(DomainText 255)
+    either (error . ("arbitrary @Domain: " <>)) id . mkDomain . getDomainText <$> arbitrary
 
--- | Generate a domain of at most 240 characters that can be used for MLS group
--- IDs.
-mlsDomain :: Gen Domain
-mlsDomain =
-  either (error . ("arbitrary @Domain: " <>)) id . mkMLSDomain . getDomainText <$> arbitrary @(DomainText 240)
-
--- | Only for QuickCheck. The type variable is used in the value generator to
--- limit the length of the domain text. This is useful in generating a domain
--- that is used in the current semantics of an MLS group ID where it corresponds
--- to a qualified conversation UUID, limiting the domain to 240 bytes.
-newtype DomainText (lenLimit :: Nat) = DomainText {getDomainText :: Text}
+-- | only for QuickCheck
+newtype DomainText = DomainText {getDomainText :: Text}
   deriving (Eq, Show)
 
-instance KnownNat lenLimit => Arbitrary (DomainText lenLimit) where
+instance Arbitrary DomainText where
   arbitrary = DomainText <$> domain
     where
       -- <domain> ::= <label> "." <tld> | <label> "." <domain>
@@ -155,7 +137,7 @@ instance KnownNat lenLimit => Arbitrary (DomainText lenLimit) where
           [ conc [label, pure ".", tldLabel],
             conc [label, pure ".", domain]
           ]
-          `QC.suchThat` ((<= (fromIntegral . natVal $ Proxy @lenLimit)) . Text.length)
+          `QC.suchThat` ((<= 255) . Text.length)
       -- <tld> ::= <letter> [ [ <ldh-str> ] <let-dig> ]
       tldLabel =
         conc [letter, opt (conc [opt ldhStr, letDig])]
