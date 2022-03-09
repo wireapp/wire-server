@@ -568,7 +568,7 @@ notifyDeletedConversation = do
               FedGalley.cuOrigUserId = qbob,
               FedGalley.cuConvId = qUnqualified qconv,
               FedGalley.cuAlreadyPresentUsers = [alice],
-              FedGalley.cuAction = SomeConversationAction (sing @'ConversationDeleteTag) ConversationDelete
+              FedGalley.cuAction = SomeConversationAction (sing @'ConversationDeleteTag) ()
             }
     runFedClient @"on-conversation-updated" fedGalleyClient bobDomain cu
 

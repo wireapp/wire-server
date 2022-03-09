@@ -73,7 +73,6 @@ module Wire.API.Conversation
     ConversationLeave (..),
     ConversationRemoveMembers (..),
     ConversationMemberUpdate (..),
-    ConversationDelete (..),
 
     -- * re-exports
     module Wire.API.Conversation.Member,
@@ -932,15 +931,3 @@ instance ToSchema ConversationMemberUpdate where
       $ ConversationMemberUpdate
         <$> cmuTarget .= field "target" schema
         <*> cmuUpdate .= field "update" schema
-
-data ConversationDelete = ConversationDelete
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform ConversationDelete)
-  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationDelete
-
-instance ToSchema ConversationDelete where
-  schema =
-    objectWithDocModifier
-      "ConversationDelete"
-      (description ?~ "The action of deleting a conversation")
-      (pure ConversationDelete)

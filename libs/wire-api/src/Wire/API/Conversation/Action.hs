@@ -28,12 +28,14 @@ module Wire.API.Conversation.Action
   )
 where
 
+import Control.Lens ((?~))
 import Data.Aeson
 import qualified Data.Aeson.KeyMap as AKeyMap
 import Data.Id
 import Data.Qualified (Qualified)
-import Data.Schema (NamedSwaggerDoc, ToSchema, ValueSchema, element, enum, schema, schemaIn, schemaOut, schemaParseJSON, schemaToJSON)
+import Data.Schema (NamedSwaggerDoc, ToSchema, ValueSchema, element, enum, objectWithDocModifier, schema, schemaIn, schemaOut, schemaParseJSON, schemaToJSON)
 import Data.Singletons.TH
+import qualified Data.Swagger as S
 import Data.Time.Clock
 import Imports
 import Test.QuickCheck (elements)
@@ -88,7 +90,7 @@ type family ConversationAction (tag :: ConversationActionTag) :: * where
   ConversationAction 'ConversationJoinTag = ConversationJoin
   ConversationAction 'ConversationLeaveTag = ConversationLeave
   ConversationAction 'ConversationMemberUpdateTag = ConversationMemberUpdate
-  ConversationAction 'ConversationDeleteTag = ConversationDelete
+  ConversationAction 'ConversationDeleteTag = ()
   ConversationAction 'ConversationRenameTag = ConversationRename
   ConversationAction 'ConversationMessageTimerUpdateTag = ConversationMessageTimerUpdate
   ConversationAction 'ConversationReceiptModeUpdateTag = ConversationReceiptModeUpdate
@@ -119,7 +121,11 @@ conversationActionSchema SConversationJoinTag = schema @ConversationJoin
 conversationActionSchema SConversationLeaveTag = schema @ConversationLeave
 conversationActionSchema SConversationRemoveMembersTag = schema @ConversationRemoveMembers
 conversationActionSchema SConversationMemberUpdateTag = schema @ConversationMemberUpdate
-conversationActionSchema SConversationDeleteTag = schema @ConversationDelete
+conversationActionSchema SConversationDeleteTag =
+  objectWithDocModifier
+    "ConversationDelete"
+    (S.description ?~ "The action of deleting a conversation")
+    (pure ())
 conversationActionSchema SConversationRenameTag = schema @ConversationRename
 conversationActionSchema SConversationMessageTimerUpdateTag = schema @ConversationMessageTimerUpdate
 conversationActionSchema SConversationReceiptModeUpdateTag = schema @ConversationReceiptModeUpdate

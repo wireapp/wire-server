@@ -513,7 +513,7 @@ deleteLocalConversation ::
   Sem r (UpdateResult Event)
 deleteLocalConversation lusr con lcnv =
   getUpdateResult $
-    updateLocalConversationWithLocalUser @'ConversationDeleteTag lcnv lusr (Just con) ConversationDelete
+    updateLocalConversationWithLocalUser @'ConversationDeleteTag lcnv lusr (Just con) ()
 
 getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
 getUpdateResult = fmap (either (const Unchanged) Updated) . runError

@@ -2245,7 +2245,7 @@ testDeleteTeamConversationWithRemoteMembers = do
 
   liftIO $ do
     let convUpdates = mapMaybe (eitherToMaybe . parseFedRequest) received
-    convUpdate <- case filter ((== (SomeConversationAction (sing @'ConversationDeleteTag) ConversationDelete)) . cuAction) convUpdates of
+    convUpdate <- case filter ((== (SomeConversationAction (sing @'ConversationDeleteTag) ())) . cuAction) convUpdates of
       [] -> assertFailure "No ConversationUpdate requests received"
       [convDelete] -> pure convDelete
       _ -> assertFailure "Multiple ConversationUpdate requests received"

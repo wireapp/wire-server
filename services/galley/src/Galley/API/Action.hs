@@ -18,7 +18,6 @@
 module Galley.API.Action
   ( -- * Conversation action types
     ConversationActionTag (..),
-    ConversationDelete (..),
     ConversationJoin (..),
     ConversationLeave (..),
     ConversationMemberUpdate (..),
