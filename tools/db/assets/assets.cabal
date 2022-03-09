@@ -13,7 +13,7 @@ library
     hs-source-dirs: src
     exposed-modules:
         Assets.Lib
-    ghc-options: -O2
+    ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N
     build-depends:
         aeson
         , base
@@ -90,4 +90,4 @@ executable assets
         , assets
     hs-source-dirs:   app
     default-language: Haskell2010
-    ghc-options: -O2
+    ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N

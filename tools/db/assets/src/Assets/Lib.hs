@@ -19,27 +19,21 @@
 
 module Assets.Lib where
 
-import Brig.Data.Instances
 import Cassandra as C
 import Cassandra.Settings as C
-import qualified Conduit
 import Control.Lens
-import Data.Aeson (ToJSON, Value (Bool), encode)
-import Data.Aeson.Types (FromJSON)
 import qualified Data.Attoparsec.ByteString.Char8 as Atto (Parser)
 import Data.ByteString.Conversion
 import Data.Conduit
 import qualified Data.Conduit.Combinators as Conduit
 import Data.Id (UserId)
-import Data.Semigroup ((<>))
 import qualified Data.Text.Encoding as T
 import Data.Text.Strict.Lens
 import Imports
 import Options.Applicative
 import System.IO (hPutStr)
 import qualified System.Logger as Log
-import Wire.API.Asset (AssetKey, nilAssetKey)
-import Wire.API.User
+import Wire.API.Asset (AssetKey)
 
 data Opts = Opts
   { cHost :: String,
@@ -121,7 +115,7 @@ process client =
     checkAssets :: UserRow -> Result
     checkAssets (_, Nothing) = Result 1 0 []
     checkAssets (_, Just []) = Result 1 0 []
-    checkAssets row@(uid, Just assets) = if any isInvalid assets then Result 0 0 [row] else Result 0 1 []
+    checkAssets row@(_, Just assets) = if any isInvalid assets then Result 0 0 [row] else Result 0 1 []
 
 type UserRow = (UserId, Maybe [AssetText])
 
@@ -132,14 +126,13 @@ data Result = Result
   }
   deriving stock (Eq, Generic)
 
-data AssetText = ImageAssetText
-  { txtAssetKey :: Text,
-    txtAssetSize :: Maybe AssetSize
+newtype AssetText = ImageAssetText
+  { txtAssetKey :: Text
   }
   deriving stock (Eq, Generic)
 
 instance Show AssetText where
-  show (ImageAssetText ak _) = show ak
+  show (ImageAssetText ak) = show ak
 
 instance Cql AssetText where
   ctype =
@@ -147,17 +140,15 @@ instance Cql AssetText where
       ( UdtColumn
           "asset"
           [ ("typ", IntColumn),
-            ("key", TextColumn),
-            ("size", MaybeColumn IntColumn)
+            ("key", TextColumn)
           ]
       )
 
   fromCql (CqlUdt fs) = do
     t <- required "typ"
     k <- required "key"
-    s <- optional "size"
     case (t :: Int32) of
-      0 -> return $! ImageAssetText k s
+      0 -> return $! ImageAssetText k
       _ -> Left $ "unexpected user asset type: " ++ show t
     where
       required :: Cql r => Text -> Either String r
@@ -166,15 +157,13 @@ instance Cql AssetText where
           (Left ("Asset: Missing required field '" ++ show f ++ "'"))
           fromCql
           (lookup f fs)
-      optional f = maybe (Right Nothing) fromCql (lookup f fs)
   fromCql _ = Left "UserAsset: UDT expected"
 
   -- Note: Order must match up with the 'ctype' definition.
-  toCql (ImageAssetText k s) =
+  toCql (ImageAssetText k) =
     CqlUdt
       [ ("typ", CqlInt 0),
-        ("key", toCql k),
-        ("size", toCql s)
+        ("key", toCql k)
       ]
 
 instance Show Result where
