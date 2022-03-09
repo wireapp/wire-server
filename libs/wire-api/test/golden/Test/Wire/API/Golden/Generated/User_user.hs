@@ -42,7 +42,6 @@ import qualified Data.LanguageCodes
 import Data.Qualified (Qualified (Qualified, qDomain, qUnqualified))
 import qualified Data.UUID as UUID (fromString)
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
-import Wire.API.Asset
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
 import Wire.API.User
   ( Asset (ImageAsset),
@@ -106,9 +105,9 @@ testObject_User_user_2 =
           },
       userPict = Pict {fromPict = []},
       userAssets =
-        [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))
+        [ (ImageAsset "" (Nothing)),
+          (ImageAsset "" (Just AssetComplete)),
+          (ImageAsset "" (Just AssetComplete))
         ],
       userAccentId = ColourId {fromColourId = -2},
       userDeleted = True,

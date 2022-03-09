@@ -19,12 +19,9 @@
 
 module Test.Wire.API.Golden.Generated.UpdateService_provider where
 
-import Data.Id (Id (Id))
 import Data.Range (unsafeRange)
-import qualified Data.UUID as UUID (fromString)
 import GHC.Exts (IsList (fromList))
-import Imports (Maybe (Just, Nothing), fromJust)
-import Wire.API.Asset
+import Imports (Maybe (Just, Nothing))
 import Wire.API.Provider
   ( ServiceTag
       ( AudioTag,
@@ -70,7 +67,7 @@ testObject_UpdateService_provider_1 =
           ( unsafeRange
               ("\a+/z\986763hI}/\DLEkB\1059760\1062810\25608\SYNYC}\135783\EM\SIa\r\43515\ETXh\ESC\17873\4008\SOHCUoR[\160369c\78378fbtV4\DC4\60971<\156071\ACKd}\DC3\164303\541\186277@\DC38|\174852\ENQg\SOH#\1058252KO|\174852\1008939\166018\FSm<o_\v\SUB\166096\96231\1096650))\EM\DC34\33209m\US\990990D\120805=qP\vh>\a\1053371\1036429\1056854\20649;~k\GSP\NAK\ACK\175008s\1051918A\150295\ESC\NULpY\1054181\26848\EM\1078098T\1011719\992748!W\EOT\SO\152351\v]\v\ETB\98006N\1097932\143101\9071\f8]J\14943\SI\EMY\29869p\NAKvk\99744\1017040\176615\998969\STX\151238q\1035677\RS\v\1030236\&6\f\SUB\DC4\\\SOHw\DC1w[\DC3\1103346r+\983054/s\10708\995966\CAN\DC3~/\SO\1039052\1022548%F\DC4h\1000751\78726z\EOT\1015388\ETXdt-b\157874,DzM\1008898G\1039612\16538\1074902\DC2\18234\16087\&0-pE42\t:<\66329}[\ETX~lac\42511/\a\151380Z,(\\\1077666\127957GM\190643#\191090\SOH+%\1084834\STX\175168|\1007726\\\28896\EM\51660\1094971\a[<P\a|vd\1113993\1019540!F>\57676\1023212\1053746\f2@cczh3?`\n$\STX\1094726\EM\fN\180929z/D\179845.<Y\1055530(8A\DEL\NUL,$s\1012010\1025418\"j}\\\1035795\aEc-z\1074412\EOT\60344\&6PEz\991906\180000\aH\DLE\180900) \SOHb\SOZ\1089916\48136\187779\1024738\172248v\8122\1098449>(]g9\3442o\STX%{w\1075429\&4m\STXF\ENQ\49942\16059\CANm\DC1\ENQ/\ESC\42264\1028339QM\991027\176346'43\36345~\t\1036026!\v\14557`qY\1088128zm\DC4fRZGvL\ETB(t\1007154\SYNswr\145599\58315%\1043578\NAK%\1082059G\1691l'\ACK\1029069\137530\170139\149719 \8297\NAK\f>@\40665\1029420\CANu\STX\143750Y\GSVj\DC2\t@O\184863\44709\&4\rf\b\1002476\r_F\DC3\NUL\47001\ETXX$#\t\1093906\ESC7\EOT\b\983099\143369\SO\ETB\EOTA\185268\159378\1015274/:N\DC3\1068202\&1D\96979\1042904 V\DLE\SUB\1087165#\20680\1005166\&8\ETB\a\DLE\RS\995866\USP\ETB\SOH7\r|L\145137R j\ESC\SOH2F>dV=\EMr?\1046227\119883\"&\DC1O\11375\SODuQL$\1032099d\US\157568` <1\\O\445\993915/H\f\r\143532Ah\1032005\ETX\162288uu.lf\1057288/1\1106120\1028078/\7411\138984`9\bq\SUB[Z`\118961eLNyTq\1048960k?{\nWg\72112\1100487\120674q\151928u-\DLE\1008080(\DLE\DC1f\127138\ETB,\rP\7088\&4V\40697\159724(7)..\70295$\n\SOH\78896\989166\92348\134295\FS\5319\47941/0\166710:\94593\SI{]$&\1074979m\1114097\&0\144077\&7)\183400b5f\SYNGyYxU):\1015140L\USQd\121515p\ESC?<\DEL7\DC4W\ESCN\45294;\a\987395\NULm\143966K\ETX\146218\51248\ETB\17306\"\987854*S{G\349r\1010831g\DC4>\NUL\SOH\97274i\NUL\NAKk\ENQK\20758r\1027971!rE\t^\78529@|h'0F'\1037224\157621\1023969\&9)\SYN^\ACKm^\STX\1078787M]\181147R\12517+\1015063^p\43086\&2AzeS\DEL`\141901\DC4\985596\182797e\ENQ\CAN\ETB\36060h=0&kp4\ETB\1023228c\999060\ENQ8$\STX\EOTk\t\CAN\173228y]M\bA\64661x(\STXV\fT\vOO=\1086015`D\1031911i*c\1010700g3\RS\998099\FS\fr\7033g\181534MX\15333\136960\43015x\1089585Rz\154544(P${\98672\DC1*~e\n\t0]z\DC3\EMY\173001\1112133g\152066!\182207@\ACKp\162647\1015149=\62520X\1013875r\65890\1025377\&3u\t\STX\SO\139037n\DC1`\42999;,\DC4\161373D.:\SOH")
           ),
-      updateServiceAssets = Just [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))],
+      updateServiceAssets = Just [(ImageAsset "\35113s\1105959" (Just AssetComplete))],
       updateServiceTags = Just (unsafeRange (fromList [WeatherTag]))
     }
 
@@ -92,10 +89,10 @@ testObject_UpdateService_provider_2 =
           ),
       updateServiceAssets =
         Just
-          [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))
+          [ (ImageAsset "" (Nothing)),
+            (ImageAsset "\182860" (Just AssetPreview)),
+            (ImageAsset "#" (Just AssetPreview)),
+            (ImageAsset "" (Just AssetComplete))
           ],
       updateServiceTags = Just (unsafeRange (fromList [AudioTag, EducationTag, WeatherTag]))
     }
@@ -112,9 +109,9 @@ testObject_UpdateService_provider_3 =
       updateServiceDescr = Nothing,
       updateServiceAssets =
         Just
-          [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))
+          [ (ImageAsset "t\100362" (Just AssetPreview)),
+            (ImageAsset "" (Just AssetComplete)),
+            (ImageAsset "\fu\US" (Just AssetPreview))
           ],
       updateServiceTags = Just (unsafeRange (fromList [GraphicsTag]))
     }
@@ -139,7 +136,7 @@ testObject_UpdateService_provider_4 =
           ( unsafeRange
               ("<\1090124#FE\1086106s*!\62593\DC4;\31772^WMr\1060834\&8RB\NAK\128903\1007550$\t,C\ETX0\11070\1023381\58817\27286j\\nF\175225W\1113162\&7\SO@\94549w\ENQ*g>=-m+\128253\997485JpQGB\1044309\&4\1060466\SOH!'w*M;c\ENQ\98836\1003286\&3)R\29851sZVy\DLEV\ETX\144137\US\EMJ08\DC2\\\ENQ\1081494\1001187a\1018101$\SUBt\181563\DC3f=\141465%:!\\6\172907\aES\1016438;|\67631\1046123*\32113@1p*Y;uGE\1069430e\1102664\f5\SOHWA\ENQ|\SOH\ESC\1009746\&4:*}$7]Z{/*\DC3`\STX&\155842P\t\1053171N\SYNRL&\SI\169000\USs\162298c2t\NUL\SOH)\26500\&2/rm\1051265wkD>}\1070334\NUL\DLE\128068\178727\&1%\1005755\ra\35525J\13316\19695,\1056622\nU\NAKY\1011081\1058839-#!\SYN3\190953\83058z\ESCl!`\DC3e\1102400\t}GW[P\ESC\1004676\189533[\1061401\ESCJF\21715\&9RA\1068756\"\t7[\1111740\n5\NAK~mEU<\nL|)&.Cu5T\121142 y>\9286$^\45932")
           ),
-      updateServiceAssets = Just [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing))],
+      updateServiceAssets = Just [(ImageAsset "h" (Just AssetComplete)), (ImageAsset "\180491)p" (Nothing))],
       updateServiceTags = Just (unsafeRange (fromList [BooksTag, BusinessTag, SocialTag]))
     }
 
@@ -155,12 +152,12 @@ testObject_UpdateService_provider_5 =
       updateServiceDescr = Just (unsafeRange ("\ETBI\\.z\96610\CANQaIC\1065269\32625\36609k\1091140J\SUB8/\110715")),
       updateServiceAssets =
         Just
-          [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))
+          [ (ImageAsset "7_" (Just AssetComplete)),
+            (ImageAsset "p" (Nothing)),
+            (ImageAsset "\19289u9" (Just AssetComplete)),
+            (ImageAsset "\172627\182076*" (Nothing)),
+            (ImageAsset "\1014021\DLE" (Just AssetComplete)),
+            (ImageAsset "\1004268\52075\985717" (Just AssetPreview))
           ],
       updateServiceTags = Just (unsafeRange (fromList [MediaTag, ShoppingTag, SportsTag]))
     }
@@ -179,7 +176,7 @@ testObject_UpdateService_provider_6 =
           ( unsafeRange
               ("f\SI4 \1063170|\995839;T\139513E\NAK(Qp!X<#\ETBA\NULuW\44248cis\f<?\39808\186109\985064>=~C\1732\1027485N\161808S\SOH\988099;\EOT2\fA&\187694@RHN\1011941\137440\NAK42!#qAM1I\tu\120271\b\t\19488Q\ACKDi\127780tX\990666\1103592EI\SI\ESC\bK\GS\NULo\1044109k\DLE\187241\1005849Z\CANI\10594l\1044875\137688jg]\SUB\1100178\1078023 +e'u1\ao\175647e\US1\t\9732\9316\&0-d-UJTP\1092036W~\184365\&7\1098050tly\1087376\46624Ozw\tH\nW\1062958d:E\NAK@\DLE\1086957f#=\97609\&1\61954g!]\1051221\1055847pz\78590OA\1056922,\\xDL\CAN\1073075\SYNeF*s_/\f25 \1088055\EM\1053116\986882Aj5\74938\DLE\12992eDbG\SUB`\66727uW@\6764\DC32q-pq\DC2%j\ESC\EMq\993522\153753v\ESC/\1050068|\DC1,\DELw\ETX-\25497K\1048380\US\n:\98876\1102356\RS\142008\1050738 4\93016MxyOMq9~c\1082301\1028090!\RSQ\30115ql ?>\ETB\149698>(\EOT\t>\20400A\1079649/c O\59065]\ETX>}\NAK\1071442\75027\ETX\1048970%g\ESCWc\153028B\171118\ESCc!Aq\1045328a\7285\180743\155835\96854\167241\175754\46512\DLEas;\13803\1026445Z[Fs\180513*m\SI\n\DC1\t\155458ML\nX\tTD+\SO\1107343]a3\1082869&i\1000299:X\CAN\1001282s|\az-\1098006\NUL\187905\CAN\CAN/\ACK@v\150658\1010455^o\191090$+k\EOT)>\FS")
           ),
-      updateServiceAssets = Just [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))],
+      updateServiceAssets = Just [(ImageAsset "" (Just AssetPreview))],
       updateServiceTags = Just (unsafeRange (fromList [MoviesTag, NewsTag, VideoTag]))
     }
 
@@ -236,12 +233,12 @@ testObject_UpdateService_provider_9 =
       updateServiceDescr = Nothing,
       updateServiceAssets =
         Just
-          [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing))
+          [ (ImageAsset "\74850\1096630" (Just AssetPreview)),
+            (ImageAsset "\SO" (Just AssetPreview)),
+            (ImageAsset "`" (Just AssetPreview)),
+            (ImageAsset "N\32418$" (Just AssetComplete)),
+            (ImageAsset "" (Just AssetComplete)),
+            (ImageAsset "" (Nothing))
           ],
       updateServiceTags = Just (unsafeRange (fromList [AudioTag, ShoppingTag]))
     }
@@ -288,9 +285,9 @@ testObject_UpdateService_provider_11 =
           ),
       updateServiceAssets =
         Just
-          [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))
+          [ (ImageAsset "\ETX\95687" (Just AssetComplete)),
+            (ImageAsset "\1111812" (Nothing)),
+            (ImageAsset "" (Just AssetPreview))
           ],
       updateServiceTags = Just (unsafeRange (fromList [QuizTag, TutorialTag]))
     }
@@ -309,7 +306,7 @@ testObject_UpdateService_provider_12 =
           ( unsafeRange
               ("\US\FSX;,\DC3\149563=VNF\NAK%;i\EOT\996832$k\ETBc7\SOH\143354|:d\SO\GS\RSN\10748/\"V\1021294o\DC14\1047613\54437\ESCj\SUB,\1095459<r\1027135\fL\1077296#\SUB{\1107619\ACK'\n\1012295 \DC4\1013830\64669\1101903 /\1094959Skn\FS\SO\FS\61757n4<\60861;{\t@\1062696n\ENQ-Jaq<:\CAN4?q\185499\162701\&5j73#`R\SI!\STX<p!HNe\DC3\28597\&4&\38762\&8n)/G\7910\DC4Z)\47530\992868\1019675_dM7\CANv\159913-\GS\bzD.O\162016\161169N:dDh7Q\1081381!\GS-\RSKq\SOLi\1036129[\1510\47338)Y\39200W\1062114\rAH9=p\1105268a?\t\ETX\1098572\&1N\STX$\DLEn\1083587iN0\74859\DC4R\DC3ZbO\17285\n\NUL\v\1014394u1PC\43095\US\RS\b}\EOT\24434\1113524''\rz\r\1035654(\1039979\1091031?[BW\62371|!^5\174959\1103959\186063l\63430b\n_2\SOc\176642\&0\"5\DC4l]\DC1>}i0m\CAN\31240x_ \1049571\175311Q\1022107JiC1p/[1\\A[o\51780\FS\CAN\NUL\STX+\127172\120462w\EM=\121430dH\1004989Il(#\GSvd+\69876d\anEh\1002617\nQD\\:@{\"\ETXZ\1014379i\1053082J`&;t}zQ\DC3.\1020713Co6\NUL^vvsh\51873\\a\1051720R<\SI{\NAK;%f\144785{\"\22777\&2\140005kp\ENQ\t\ETB\1112840o\97260|@.\RSX\1052971\a>\ETXek\DLE\FS>")
           ),
-      updateServiceAssets = Just [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))],
+      updateServiceAssets = Just [(ImageAsset "e\987785\&4" (Just AssetPreview))],
       updateServiceTags = Just (unsafeRange (fromList [IntegrationTag, ProductivityTag]))
     }
 
@@ -367,7 +364,7 @@ testObject_UpdateService_provider_15 =
           ( unsafeRange
               ("x\a\136203\SUB^\ESC<4\n\17873\SO>v\157431|\1020922(\185983{\US\30184A\SYN/\1034793\FS&\24692w594<f,\157583#\DLE\127120\SUB[b\95571\16229\SYNE\1077161\GSw\73971\1103971\EM\1062787+iMC\113742#\RSo\SUBZ\SIB{)\1103759\159790vX<\SUB\156054\1092784\1105257~\ACK:r\1000703\65058\1088202M\985685!C{\140112\ri\EOT`9\v\1050059ua\ACK`C\SOH|sya&\989821\&8jKR\NULIg\32866c4d\1069546\ESCu\1035617n\SYN[3\21566\NAK`\1054879W\SI\SYNV\1029718\EMli\n\994655\r(~z8BR\1074007\149826B}\NULW9\ETB\EOT\46399;\1101863\1045023\ETBu(3G&3\128930@\1103892'c\8510\STX\NUL\137301V\SI|\51594s%\36716\EM\1114066<V\ETX\136032L\147926\CAN\1025624LK$~a*F:E\1002566\USV\59157\1101707\SO\179826Rl\CAN\STXK\47644\54839tlb\RSF\998476,@\ETByR\CAN>5i\n4\DC1+nk\118834ZSV\1011086R\996947\GS\a\CAN\ESC;D_g7T\61134NN.\1080365,\1035561\SOdPu\SUBF\"e\1071157V\1072899o\1019597\SOH\ETX\RS\1090025J\brXcs<\41273eYl)'\DC3F{wjCio\10430\EOT\DEL\66434=F\EOT\1011500\FSAe\99614\29782j\987688\RS\93035_^7\FSzLW\DEL\v9Oy&\1019281\158269=j:\161191\EOTxXF\v!\SI\DEL{\182824\CAN(q#A\f#Y\GSm\1029668\SYN\33488\1091890Q\21517\DC4N\13674bj\21932H;\55134\26121fz\183843\135947.p\147443X\SI+\22973\29225\14419\b\n\35820\1092258\ACK8\1003849\99533dUVae|'3g\STX\SOH\177742xA\190959T\1088684M\167371\&7\60761:\NUL\100886\DC3\GSs\SIyw\1063851Q_u}\SOH>\1069485\134333?\US\SUB\1106685\6158]5Z\1034719%\57389\183657_\DC4\41432^\28540qa\329\1097112/-\ACK\EOT\45370\1089284~H$\FS\9526\b\SOEVy2obJ\138789FK(\995061H[^\1088420\25954n\160665/\FS\US#\1066635db\1006679\&5?\nM\SO\44147Xs\150820\1112961\f]XR,\GS8{A0.T\ESC4\SIL\SYN\EOT\1028786\GSkX\ESCa=6\"qA7\RS\ETBG\ETXD\DEL\1100961d;\185997\EM\NAK5\DEL\1076613Qj\f'D#\v\1087346gY\110778\CAN\8773\&4P2\ETX_\1048072P+V.F9\SOH\156486-oK&\EOTo*\SYN@\174461&w\1082933\n{\b/\39070<'>\148084GFoF\25642\SOH\t]vwT{+\987769\b(mO\35465\47334xR\1099279\SOHk\120988#\DLEJ\n\1111066/R|^\SYNXj\177224(Dc\RS\64631$jM\1058526\n|_\1023319s\181256\1081025U\1077048'\144694\f\NUL\GS\179974puJ\14349 1PH\986811\147997\DC3p0%!\1096149\&8Q3Hc\DLEb3\1063888\DEL^o~\1054122&u\a1,mgg\1046750\141023'J4\r[6\45643o\FS9\SYN\1020964<\RS\31175\fa\DC2\v\1046951b^2\DC3*\DC2Y\8803&p\ETB\27260#*\DEL\41812\SO~mcH#qFe\1015266\DEL\DC4Aq\DC4(\GS[\CAN%%h3U\1013273U\1099555\131387\1019990\&4\166361Tt\43506d7Z\1059964~\984571")
           ),
-      updateServiceAssets = Just [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing))],
+      updateServiceAssets = Just [(ImageAsset "\SONG" (Nothing))],
       updateServiceTags = Just (unsafeRange (fromList [FitnessTag, TutorialTag]))
     }
 
@@ -405,7 +402,7 @@ testObject_UpdateService_provider_17 =
               ("Y\37457\171247\NUL\1102605\19452;\40109l\1091643\1038961\164211\&3\1060552/\NUL[\STX\ETB\r\1050187\&9\SO9\SUB\NAK?yC&\1087572K\19408X\1008435Z\1043931A\FS\ETB\a\FS\1068870\&2(\FS\1081735Wh\1105128;\30117\SYN\177561\121419F'\ACK,\1008576t\b\148040\178770]Ea.Sr\STX\1021147/\1091479 O&\167108P\1051535\12083 P\fvL\1072069xTw\171454R\CAN")
           ),
       updateServiceDescr = Nothing,
-      updateServiceAssets = Just [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))],
+      updateServiceAssets = Just [(ImageAsset "\1032928j\92521" (Just AssetPreview))],
       updateServiceTags = Nothing
     }
 
@@ -423,7 +420,7 @@ testObject_UpdateService_provider_18 =
           ( unsafeRange
               ("\ETX62P\SOH\DC4\1109991=\NUL8}\1103539R\1014278Y\187048\CANz-\50831t\NAK\30991:\1108518\\q5!\CANsz\986662.]\1091331}\EOT\SOHk<\1076580jo\ACK*\1006270<\1068043\v\162015'\\Ky\\d\67224Ea\186085\42476\&7\145875@3.`[\83186%\1013254\1103673\2547^o'\NAK3\DEL\f\32802\&7\155976\US\178005\182126\11804\13566\ETX<2\37455\\\EM7u\1101747\996895\1030597`\aF\DC2\1002903\1065461G\SIUMj??\1082038\163609[q\53362\STX|\STX\f\39680?\60538\US\ETB8\STX\EM\1113089\1024191\DLEZ\n#[ \1010523\RSh(\1031090\&3\142124\&1\bC?2rx7\NULjE\nU\1056190\n)4\EOT*\18936r\NAK\EM\vA\DC42TSw,\SI0\1061258\176021\&6RX\1104923KEU\99028as\DC3/\SYN5`,d\"\60033\DC3\180441y\ACKe&|\SO\USE\991388\NUL\34162\3233\SO;\DLEh,|z0\GSZPK#WSN<qk\SUB\190620O!'c\72145wILr\nnQ\STXi\CAN\12693\994837\1113003k\156304@\996112\1101483\1008462\EOT\1077126s\NUL\1003566\1102059\EOT\1008743a\rNB\t\aR\STX{\1011900\NUL~qW!Q?\a\v-]Uo-\1054200\1094060mL\1038490\ETB\189230L\62266U\7540\184079b$\1013872@\1068202P\EOTXUzp\NAK\SOFn\EM,7mQ1YcVpHS v\STXp\v\SO}\SYN\1017645a\39045e\1019586=\123207\986686\1012662\&2\1027179u\139336\1064815R\1041456\137471&\SYN\f")
           ),
-      updateServiceAssets = Just [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing))],
+      updateServiceAssets = Just [(ImageAsset "\1045769w\NAK" (Just AssetComplete)), (ImageAsset "K" (Nothing))],
       updateServiceTags = Just (unsafeRange (fromList [BooksTag, GamesTag]))
     }
 
@@ -439,12 +436,12 @@ testObject_UpdateService_provider_19 =
       updateServiceDescr = Nothing,
       updateServiceAssets =
         Just
-          [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))
+          [ (ImageAsset "q" (Just AssetComplete)),
+            (ImageAsset "" (Just AssetComplete)),
+            (ImageAsset "]\17031" (Just AssetPreview)),
+            (ImageAsset "\ESC\31516F" (Just AssetPreview)),
+            (ImageAsset "" (Nothing)),
+            (ImageAsset ";K" (Just AssetComplete))
           ],
       updateServiceTags = Just (unsafeRange (fromList [MedicalTag]))
     }
@@ -461,9 +458,9 @@ testObject_UpdateService_provider_20 =
           ),
       updateServiceAssets =
         Just
-          [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-            (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))
+          [ (ImageAsset "\180424" (Nothing)),
+            (ImageAsset "\179725" (Just AssetComplete)),
+            (ImageAsset "\EM" (Just AssetComplete))
           ],
       updateServiceTags = Just (unsafeRange (fromList [EducationTag, GraphicsTag]))
     }

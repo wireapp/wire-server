@@ -19,13 +19,10 @@
 
 module Test.Wire.API.Golden.Generated.NewUserPublic_user where
 
-import Data.Id (Id (Id))
 import qualified Data.LanguageCodes (ISO639_1 (SO))
 import Data.Misc (PlainTextPassword (PlainTextPassword))
 import Data.Text.Ascii (AsciiChars (validate))
-import qualified Data.UUID as UUID (fromString)
-import Imports (Maybe (Just, Nothing), fromJust, fromRight, undefined)
-import Wire.API.Asset
+import Imports (Maybe (Just, Nothing), fromRight, undefined)
 import Wire.API.User
   ( Asset (ImageAsset),
     AssetSize (AssetComplete, AssetPreview),
@@ -71,9 +68,9 @@ testObject_NewUserPublic_user_1 =
           newUserIdentity = Just (PhoneIdentity (Phone {fromPhone = "+35453839"})),
           newUserPict = Nothing,
           newUserAssets =
-            [ ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete),
-              ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) Nothing,
-              ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)
+            [ ImageAsset "" (Just AssetComplete),
+              ImageAsset "(\1032842\ESCp\997564u]'\1069371" Nothing,
+              ImageAsset "\1056720f" (Just AssetPreview)
             ],
           newUserAccentId = Just (ColourId {fromColourId = 39125}),
           newUserEmailCode =

@@ -20,14 +20,12 @@
 module Test.Wire.API.Golden.Generated.NewService_provider where
 
 import Data.Coerce (coerce)
-import Data.Id (Id (Id))
 import Data.Misc (HttpsUrl (HttpsUrl))
 import Data.PEM (PEM (PEM, pemContent, pemHeader, pemName))
 import Data.Range (unsafeRange)
 import Data.Text.Ascii (AsciiChars (validate))
-import qualified Data.UUID as UUID (fromString)
 import GHC.Exts (IsList (fromList))
-import Imports (Maybe (Just, Nothing), fromJust, fromRight, undefined)
+import Imports (Maybe (Just, Nothing), fromRight, undefined)
 import URI.ByteString
   ( Authority
       ( Authority,
@@ -47,7 +45,6 @@ import URI.ByteString
         uriScheme
       ),
   )
-import Wire.API.Asset
 import Wire.API.Provider
   ( ServiceTag
       ( AudioTag,
@@ -259,7 +256,7 @@ testObject_NewService_provider_4 =
           },
       newServiceToken = Just (ServiceToken (fromRight undefined (validate ("")))),
       newServiceAssets =
-        [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))],
+        [(ImageAsset "" (Just AssetComplete)), (ImageAsset "" (Just AssetPreview)), (ImageAsset "" (Just AssetPreview))],
       newServiceTags = (unsafeRange (fromList [MoviesTag]))
     }
 
@@ -307,12 +304,12 @@ testObject_NewService_provider_5 =
           },
       newServiceToken = Just (ServiceToken (fromRight undefined (validate ("Hg==")))),
       newServiceAssets =
-        [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))
+        [ (ImageAsset "" (Just AssetPreview)),
+          (ImageAsset "" (Just AssetPreview)),
+          (ImageAsset "" (Nothing)),
+          (ImageAsset "" (Just AssetPreview)),
+          (ImageAsset "" (Just AssetPreview)),
+          (ImageAsset "" (Just AssetComplete))
         ],
       newServiceTags = (unsafeRange (fromList [BooksTag, PhotographyTag, RatingTag]))
     }
@@ -356,7 +353,7 @@ testObject_NewService_provider_6 =
                 }
           },
       newServiceToken = Nothing,
-      newServiceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing))],
+      newServiceAssets = [(ImageAsset "" (Nothing))],
       newServiceTags = (unsafeRange (fromList [SocialTag]))
     }
 
@@ -403,7 +400,7 @@ testObject_NewService_provider_7 =
                 }
           },
       newServiceToken = Nothing,
-      newServiceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))],
+      newServiceAssets = [(ImageAsset "\ACK" (Just AssetComplete))],
       newServiceTags = (unsafeRange (fromList [ShoppingTag, TutorialTag, VideoTag]))
     }
 
@@ -447,7 +444,7 @@ testObject_NewService_provider_8 =
                 }
           },
       newServiceToken = Just (ServiceToken (fromRight undefined (validate ("tw==")))),
-      newServiceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))],
+      newServiceAssets = [(ImageAsset "" (Just AssetPreview)), (ImageAsset "" (Just AssetComplete))],
       newServiceTags = (unsafeRange (fromList [EducationTag, GraphicsTag]))
     }
 
@@ -539,7 +536,7 @@ testObject_NewService_provider_10 =
           },
       newServiceToken = Just (ServiceToken (fromRight undefined (validate ("")))),
       newServiceAssets =
-        [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))],
+        [(ImageAsset "" (Just AssetComplete)), (ImageAsset "" (Nothing)), (ImageAsset "" (Just AssetComplete))],
       newServiceTags = (unsafeRange (fromList [MediaTag, MoviesTag]))
     }
 
@@ -587,7 +584,7 @@ testObject_NewService_provider_11 =
           },
       newServiceToken = Just (ServiceToken (fromRight undefined (validate ("")))),
       newServiceAssets =
-        [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))],
+        [(ImageAsset "" (Nothing)), (ImageAsset "" (Just AssetPreview)), (ImageAsset "" (Just AssetComplete))],
       newServiceTags = (unsafeRange (fromList [GamesTag, IntegrationTag]))
     }
 
@@ -630,7 +627,7 @@ testObject_NewService_provider_12 =
                 }
           },
       newServiceToken = Just (ServiceToken (fromRight undefined (validate ("aXY=")))),
-      newServiceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing))],
+      newServiceAssets = [(ImageAsset "" (Nothing))],
       newServiceTags = (unsafeRange (fromList [SportsTag, WeatherTag]))
     }
 
@@ -673,7 +670,7 @@ testObject_NewService_provider_13 =
                 }
           },
       newServiceToken = Just (ServiceToken (fromRight undefined (validate ("qH0=")))),
-      newServiceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))],
+      newServiceAssets = [(ImageAsset "g" (Just AssetPreview))],
       newServiceTags = (unsafeRange (fromList [FinanceTag]))
     }
 
@@ -720,7 +717,7 @@ testObject_NewService_provider_14 =
                 }
           },
       newServiceToken = Just (ServiceToken (fromRight undefined (validate ("ukk=")))),
-      newServiceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))],
+      newServiceAssets = [(ImageAsset "" (Just AssetPreview))],
       newServiceTags = (unsafeRange (fromList [PhotographyTag, SportsTag]))
     }
 
@@ -767,7 +764,7 @@ testObject_NewService_provider_15 =
                 }
           },
       newServiceToken = Just (ServiceToken (fromRight undefined (validate ("")))),
-      newServiceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))],
+      newServiceAssets = [(ImageAsset "" (Just AssetComplete)), (ImageAsset "" (Just AssetPreview))],
       newServiceTags = (unsafeRange (fromList [EntertainmentTag, ProductivityTag, VideoTag]))
     }
 
@@ -815,10 +812,10 @@ testObject_NewService_provider_16 =
           },
       newServiceToken = Just (ServiceToken (fromRight undefined (validate ("YA==")))),
       newServiceAssets =
-        [ (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview)),
-          (ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete))
+        [ (ImageAsset "" (Just AssetComplete)),
+          (ImageAsset "" (Nothing)),
+          (ImageAsset "" (Just AssetPreview)),
+          (ImageAsset "" (Just AssetComplete))
         ],
       newServiceTags = (unsafeRange (fromList [MedicalTag, PhotographyTag, SportsTag]))
     }
@@ -913,7 +910,7 @@ testObject_NewService_provider_18 =
                 }
           },
       newServiceToken = Nothing,
-      newServiceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing))],
+      newServiceAssets = [(ImageAsset "" (Nothing)), (ImageAsset "" (Nothing)), (ImageAsset "" (Nothing))],
       newServiceTags = (unsafeRange (fromList [FoodDrinkTag, PollTag, QuizTag]))
     }
 
@@ -960,7 +957,7 @@ testObject_NewService_provider_19 =
                 }
           },
       newServiceToken = Just (ServiceToken (fromRight undefined (validate ("")))),
-      newServiceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Nothing))],
+      newServiceAssets = [(ImageAsset "" (Nothing))],
       newServiceTags = (unsafeRange (fromList [VideoTag]))
     }
 
@@ -1007,6 +1004,6 @@ testObject_NewService_provider_20 =
                 }
           },
       newServiceToken = Just (ServiceToken (fromRight undefined (validate ("e4k=")))),
-      newServiceAssets = [(ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetPreview))],
+      newServiceAssets = [(ImageAsset "" (Just AssetPreview))],
       newServiceTags = (unsafeRange (fromList [VideoTag]))
     }

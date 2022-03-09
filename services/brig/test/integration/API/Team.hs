@@ -42,7 +42,6 @@ import Data.Id hiding (client)
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import qualified Data.Text.Ascii as Ascii
 import Data.Time (addUTCTime, getCurrentTime)
-import qualified Data.UUID as UUID (fromString)
 import qualified Data.UUID.V4 as UUID
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
@@ -57,7 +56,6 @@ import UnliftIO.Async (mapConcurrently_, pooledForConcurrentlyN_, replicateConcu
 import Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie, setCookieName)
-import Wire.API.Asset
 import Wire.API.User.Identity (mkSimpleSampleUref)
 
 newtype TeamSizeLimit = TeamSizeLimit Word32
@@ -151,7 +149,7 @@ testUpdateEvents brig cannon = do
   void $ getConnection brig alice bob <!! const 404 === statusCode
   -- Alice updates her profile
   let newColId = Just 5
-      newAssets = Just [ImageAsset (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring) (Just AssetComplete)]
+      newAssets = Just [ImageAsset "abc" (Just AssetComplete)]
       newName = Just $ Name "Alice in Wonderland"
       newPic = Nothing -- Legacy
       userUpdate = UserUpdate newName newPic newAssets newColId

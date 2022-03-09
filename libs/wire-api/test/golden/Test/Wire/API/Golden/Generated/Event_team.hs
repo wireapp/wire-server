@@ -26,20 +26,8 @@ import Data.Range (unsafeRange)
 import qualified Data.UUID as UUID (fromString)
 import GHC.Exts (IsList (fromList))
 import Imports (Maybe (Just, Nothing), fromJust, read, (&))
-import Wire.API.Asset
 import Wire.API.Event.Team
 import Wire.API.Team
-  ( Icon (..),
-    TeamBinding (Binding, NonBinding),
-    TeamUpdateData
-      ( TeamUpdateData,
-        _iconKeyUpdate,
-        _iconUpdate,
-        _nameUpdate
-      ),
-    newTeam,
-    teamIconKey,
-  )
 import Wire.API.Team.Permission
 
 testObject_Event_team_1 :: Event
@@ -52,7 +40,7 @@ testObject_Event_team_1 =
               ((Id (fromJust (UUID.fromString "00000003-0000-0004-0000-000000000001"))))
               ((Id (fromJust (UUID.fromString "00000003-0000-0001-0000-000300000002"))))
               ("\EOTX\996492h")
-              (Icon (AssetKeyV3 (Id (fromJust (UUID.fromString "55b9ad19-315c-4bda-8c0f-5d7b0e143008"))) AssetEternal))
+              ("#\93847\21278(\997485")
               (Binding)
               & teamIconKey .~ (Nothing)
           )
@@ -195,7 +183,7 @@ testObject_Event_team_13 =
               ((Id (fromJust (UUID.fromString "00000002-0000-0003-0000-000200000001"))))
               ((Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000400000000"))))
               ("\b\DELh0\1027380")
-              (Icon (AssetKeyV3 (Id (fromJust (UUID.fromString "55b9ad19-315c-4bda-8c0f-5d7b0e143008"))) AssetEternal))
+              ("\b\1077233")
               (NonBinding)
               & teamIconKey .~ (Just ",7\aS")
           )

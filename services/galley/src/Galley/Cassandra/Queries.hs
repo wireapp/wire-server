@@ -36,11 +36,10 @@ import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
 import Imports
 import Text.RawString.QQ
-import Wire.API.Team
 
 -- Teams --------------------------------------------------------------------
 
-selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Icon, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe TeamBinding)
+selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Text, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe TeamBinding)
 selectTeam = "select creator, name, icon, icon_key, deleted, status, writetime(status), binding from team where team = ?"
 
 selectTeamName :: PrepQuery R (Identity TeamId) (Identity Text)
@@ -136,7 +135,7 @@ selectUserTeamsIn = "select team from user_team where user = ? and team in ? ord
 selectUserTeamsFrom :: PrepQuery R (UserId, TeamId) (Identity TeamId)
 selectUserTeamsFrom = "select team from user_team where user = ? and team > ? order by team"
 
-insertTeam :: PrepQuery W (TeamId, UserId, Text, Icon, Maybe Text, TeamStatus, TeamBinding) ()
+insertTeam :: PrepQuery W (TeamId, UserId, Text, Text, Maybe Text, TeamStatus, TeamBinding) ()
 insertTeam = "insert into team (team, creator, name, icon, icon_key, deleted, status, binding) values (?, ?, ?, ?, ?, false, ?, ?)"
 
 insertTeamConv :: PrepQuery W (TeamId, ConvId) ()

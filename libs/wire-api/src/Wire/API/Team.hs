@@ -30,7 +30,6 @@ module Wire.API.Team
     teamIconKey,
     teamBinding,
     TeamBinding (..),
-    Icon (..),
 
     -- * TeamList
     TeamList (..),
@@ -96,7 +95,7 @@ data Team = Team
   { _teamId :: TeamId,
     _teamCreator :: UserId,
     _teamName :: Text,
-    _teamIcon :: Icon,
+    _teamIcon :: Text,
     _teamIconKey :: Maybe Text,
     _teamBinding :: TeamBinding
   }
@@ -104,7 +103,7 @@ data Team = Team
   deriving (Arbitrary) via (GenericUniform Team)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Team)
 
-newTeam :: TeamId -> UserId -> Text -> Icon -> TeamBinding -> Team
+newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
 newTeam tid uid nme ico = Team tid uid nme ico Nothing
 
 modelTeam :: Doc.Model
@@ -231,14 +230,14 @@ modelNewNonBindingTeam = Doc.defineModel "newNonBindingTeam" $ do
 
 data NewTeam a = NewTeam
   { _newTeamName :: Range 1 256 Text,
-    _newTeamIcon :: Icon,
+    _newTeamIcon :: Range 1 256 Text,
     _newTeamIconKey :: Maybe (Range 1 256 Text),
     _newTeamMembers :: Maybe a
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform (NewTeam a))
 
-newNewTeam :: Range 1 256 Text -> Icon -> NewTeam a
+newNewTeam :: Range 1 256 Text -> Range 1 256 Text -> NewTeam a
 newNewTeam nme ico = NewTeam nme ico Nothing Nothing
 
 newTeamObjectSchema :: ValueSchema SwaggerDoc a -> ObjectSchema SwaggerDoc (NewTeam a)
@@ -252,30 +251,30 @@ newTeamObjectSchema sch =
 --------------------------------------------------------------------------------
 -- TeamUpdateData
 
-data Icon = Icon AssetKey | DefaultIcon
+data IconUpdate = IconUpdate AssetKey | DefaultIcon
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform Icon)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema Icon
+  deriving (Arbitrary) via (GenericUniform IconUpdate)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema IconUpdate
 
-instance FromByteString Icon where
+instance FromByteString IconUpdate where
   parser =
     choice
-      [ Icon <$> (parser :: Atto.Parser AssetKey),
+      [ IconUpdate <$> (parser :: Atto.Parser AssetKey),
         DefaultIcon <$ Atto.string "default"
       ]
 
-instance ToByteString Icon where
-  builder (Icon key) = builder key
+instance ToByteString IconUpdate where
+  builder (IconUpdate key) = builder key
   builder DefaultIcon = "default"
 
-instance ToSchema Icon where
+instance ToSchema IconUpdate where
   schema =
     (T.decodeUtf8 . toByteString')
-      .= parsedText "Icon" (runParser parser . T.encodeUtf8)
+      .= parsedText "IconUpdate" (runParser parser . T.encodeUtf8)
 
 data TeamUpdateData = TeamUpdateData
   { _nameUpdate :: Maybe (Range 1 256 Text),
-    _iconUpdate :: Maybe Icon,
+    _iconUpdate :: Maybe IconUpdate,
     _iconKeyUpdate :: Maybe (Range 1 256 Text)
   }
   deriving stock (Eq, Show, Generic)

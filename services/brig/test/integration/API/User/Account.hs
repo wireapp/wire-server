@@ -82,7 +82,6 @@ import UnliftIO (mapConcurrently_)
 import Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
-import Wire.API.Asset hiding (Asset)
 import qualified Wire.API.Asset as Asset
 import Wire.API.Federation.API.Brig (UserDeletedConnectionsNotification (..))
 import qualified Wire.API.Federation.API.Brig as FedBrig
@@ -817,12 +816,7 @@ testUserUpdate brig cannon aws = do
   aliceNewName <- randomName
   connectUsers brig alice (singleton bob)
   let newColId = Just 5
-      newAssets =
-        Just
-          [ ImageAsset
-              (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring)
-              (Just AssetComplete)
-          ]
+      newAssets = Just [ImageAsset "abc" (Just AssetComplete)]
       mNewName = Just $ aliceNewName
       newPic = Nothing -- Legacy
       userUpdate = UserUpdate mNewName newPic newAssets newColId
@@ -1342,7 +1336,7 @@ testDeleteWithProfilePic brig cargohold = do
   let newAssets =
         Just
           [ ImageAsset
-              (qUnqualified $ ast ^. Asset.assetKey)
+              (T.decodeLatin1 $ toByteString' (qUnqualified (ast ^. Asset.assetKey)))
               (Just AssetComplete)
           ]
       userUpdate = UserUpdate Nothing Nothing newAssets Nothing
