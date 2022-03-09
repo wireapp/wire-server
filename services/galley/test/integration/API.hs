@@ -1247,6 +1247,8 @@ testPostCodeRejectedIfGuestLinksDisabled = do
   setStatus Public.TeamFeatureEnabled
   checkPostCode 200
 
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- Check if guests cannot join anymore if guest invite feature was disabled on team level
 testJoinTeamConvGuestLinksDisabled :: TestM ()
 testJoinTeamConvGuestLinksDisabled = do
   galley <- view tsGalley
@@ -1302,6 +1304,8 @@ testJoinTeamConvGuestLinksDisabled = do
   postJoinCodeConv bob' cCode !!! const 200 === statusCode
   checkFeatureStatus Public.TeamFeatureEnabled
 
+-- @END
+
 testJoinNonTeamConvGuestLinksDisabled :: TestM ()
 testJoinNonTeamConvGuestLinksDisabled = do
   galley <- view tsGalley
@@ -1326,6 +1330,10 @@ testJoinNonTeamConvGuestLinksDisabled = do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
     const 200 === statusCode
 
+-- @SF.Separation @TSFI.RESTfulAPI @S2
+-- This test case covers a negative check that if access code of a guest link is revoked no further
+-- people can join the group conversation. Additionally it checks that incorrect access codes do
+-- result in a 404 and do not allow access to a conversation.
 postJoinCodeConvOk :: TestM ()
 postJoinCodeConvOk = do
   c <- view tsCannon
@@ -1366,6 +1374,8 @@ postJoinCodeConvOk = do
     let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) accessRoles
     putAccessUpdate alice conv noCodeAccess !!! const 200 === statusCode
     postJoinCodeConv dave payload !!! const 404 === statusCode
+
+-- @END
 
 postConvertCodeConv :: TestM ()
 postConvertCodeConv = do
