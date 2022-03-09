@@ -21,13 +21,12 @@
 module Test.Schema.PatchOpSpec where
 
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.Types (Result (Error, Success), Value (String), fromJSON, toJSON)
 import qualified Data.Aeson.Types as Aeson
 import Data.Attoparsec.ByteString (parseOnly)
 import Data.Either (isLeft)
 import Data.Foldable (for_)
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HM
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import HaskellWorks.Hspec.Hedgehog (require)
@@ -82,24 +81,24 @@ type PatchTestTag = TestTag () () () ()
 
 spec :: Spec
 spec = do
-  describe "Patchable" $ do
+  describe "Patchable" $
     describe "HashMap Text Text" $ do
       it "supports `Add` operation" $ do
-        let theMap :: HashMap Text Text = HM.empty
+        let theMap = KeyMap.empty @Text
             operation = Operation Add (Just $ NormalPath (AttrPath Nothing (AttrName "key") Nothing)) $ Just "value"
-        applyOperation theMap operation `shouldBe` (Right $ HM.singleton "key" "value")
+        applyOperation theMap operation `shouldBe` Right (KeyMap.singleton "key" "value")
       it "supports `Replace` operation" $ do
-        let theMap :: HashMap Text Text = HM.singleton "key" "value1"
+        let theMap = KeyMap.singleton @Text "key" "value1"
             operation = Operation Replace (Just $ NormalPath (AttrPath Nothing (AttrName "key") Nothing)) $ Just "value2"
-        applyOperation theMap operation `shouldBe` (Right $ HM.singleton "key" "value2")
+        applyOperation theMap operation `shouldBe` Right (KeyMap.singleton "key" "value2")
       it "supports `Delete` operation" $ do
-        let theMap :: HashMap Text Text = HM.fromList [("key1", "value1"), ("key2", "value2")]
+        let theMap = KeyMap.fromList @Text [("key1", "value1"), ("key2", "value2")]
             operation = Operation Remove (Just $ NormalPath (AttrPath Nothing (AttrName "key1") Nothing)) Nothing
-        applyOperation theMap operation `shouldBe` (Right $ HM.singleton "key2" "value2")
+        applyOperation theMap operation `shouldBe` Right (KeyMap.singleton "key2" "value2")
       it "gracefully rejects invalid/unsupported operations" $ do
-        let theMap :: HashMap Text Text = HM.fromList [("key1", "value1"), ("key2", "value2")]
-            key1Path = (AttrPath Nothing (AttrName "key1") Nothing)
-            key2Path = (AttrPath Nothing (AttrName "key2") Nothing)
+        let theMap = KeyMap.fromList @Text [("key1", "value1"), ("key2", "value2")]
+            key1Path = AttrPath Nothing (AttrName "key1") Nothing
+            key2Path = AttrPath Nothing (AttrName "key2") Nothing
             invalidOperations =
               [ Operation Add (Just $ NormalPath key1Path) Nothing, -- Nothing to add
                 Operation Replace (Just $ NormalPath key1Path) Nothing, -- Nothing to replace
@@ -108,7 +107,7 @@ spec = do
               ]
         mapM_ (\o -> applyOperation theMap o `shouldSatisfy` isLeft) invalidOperations
   describe "urn:ietf:params:scim:api:messages:2.0:PatchOp" $ do
-    describe "The body of each request MUST contain the \"schemas\" attribute with the URI value of \"urn:ietf:params:scim:api:messages:2.0:PatchOp\"." $ do
+    describe "The body of each request MUST contain the \"schemas\" attribute with the URI value of \"urn:ietf:params:scim:api:messages:2.0:PatchOp\"." $
       it "rejects an empty schemas list" $ do
         fromJSON @(PatchOp PatchTestTag)
           [scim| {
@@ -120,7 +119,7 @@ spec = do
     it "roundtrips Path" $ require $ prop_roundtrip @PatchTestTag
     it "roundtrips PatchOp" $ require $ prop_roundtrip_PatchOp @PatchTestTag
     it "case-insensitive" $ require $ mk_prop_caseInsensitive (genSimplePatchOp @PatchTestTag)
-    it "rejects invalid operations" $ do
+    it "rejects invalid operations" $
       fromJSON @(PatchOp PatchTestTag)
         [scim| {
           "schemas": ["urn:ietf:params:scim:api:messages:2.0:PatchOp"],
@@ -128,9 +127,9 @@ spec = do
       }|]
         `shouldSatisfy` (not . isSuccess)
     -- TODO(arianvp/akshay): Implement if required
-    xit "rejects unknown paths" $ do
+    xit "rejects unknown paths" $
       Aeson.parse (pathFromJSON [User20]) (Aeson.String "unknown.field") `shouldSatisfy` (not . isSuccess)
-    it "rejects invalid paths" $ do
+    it "rejects invalid paths" $
       Aeson.parse (pathFromJSON [User20]) "unknown]field" `shouldSatisfy` (not . isSuccess)
     describe "Examples from https://tools.ietf.org/html/rfc7644#section-3.5.2 Figure 8" $ do
       let examples =
@@ -140,4 +139,4 @@ spec = do
               "members[value eq \"2819c223-7f76-453a-919d-413861904646\"]",
               "members[value eq \"2819c223-7f76-453a-919d-413861904646\"].displayname"
             ]
-      for_ examples $ \p -> it ("parses " ++ show p) $ (rPath <$> parseOnly (pPath (supportedSchemas @PatchTestTag)) p) `shouldBe` Right (decodeUtf8 p)
+      for_ examples $ \p -> it ("parses " ++ show p) $ rPath <$> parseOnly (pPath (supportedSchemas @PatchTestTag)) p `shouldBe` Right (decodeUtf8 p)

@@ -26,7 +26,7 @@ import Cannon.WS
 import Control.Concurrent.Async
 import Control.Concurrent.Timeout
 import Control.Monad.Catch
-import Data.Aeson hiding (Error, (.=))
+import Data.Aeson hiding (Error, Key, (.=))
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.Id (ClientId)

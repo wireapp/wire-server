@@ -24,9 +24,9 @@ import Brig.Types (DeletionCodeTimeout (..))
 import Brig.Types.Common (PhoneBudgetTimeout (..))
 import Control.Monad.Error.Class hiding (Error)
 import Data.Aeson
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
-import qualified Data.HashMap.Strict as HashMap
 import Data.Proxy
 import Data.String.Conversions (cs)
 import qualified Data.Text.Lazy as LT
@@ -100,7 +100,7 @@ throwErrorDescriptionType = throwErrorDescription (mkErrorDescription :: e)
 instance ToJSON Error where
   toJSON (StdError e) = toJSON e
   toJSON (RichError e x _) = case (toJSON e, toJSON x) of
-    (Object o1, Object o2) -> Object (HashMap.union o1 o2)
+    (Object o1, Object o2) -> Object (KeyMap.union o1 o2)
     (j, _) -> j
 
 -- Error Mapping ----------------------------------------------------------
@@ -112,7 +112,7 @@ connError NotConnected {} = StdError (errorDescriptionTypeToWai @NotConnected)
 connError InvalidUser {} = StdError (errorDescriptionTypeToWai @InvalidUser)
 connError ConnectNoIdentity {} = StdError (errorDescriptionToWai (noIdentity 0))
 connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const (errorDescriptionTypeToWai @BlacklistedPhone)) k
-connError (ConnectInvalidEmail _ _) = StdError invalidEmail
+connError (ConnectInvalidEmail _ _) = StdError (errorDescriptionTypeToWai @InvalidEmail)
 connError ConnectInvalidPhone {} = StdError (errorDescriptionTypeToWai @InvalidPhone)
 connError ConnectSameBindingTeamUsers = StdError sameBindingTeamUsers
 connError ConnectMissingLegalholdConsent = StdError (errorDescriptionTypeToWai @MissingLegalholdConsent)
@@ -120,8 +120,9 @@ connError (ConnectFederationError e) = fedError e
 
 actError :: ActivationError -> Error
 actError (UserKeyExists _) = StdError (errorDescriptionTypeToWai @UserKeyExists)
-actError (InvalidActivationCode e) = StdError (invalidActivationCode e)
-actError (InvalidActivationEmail _ _) = StdError invalidEmail
+actError InvalidActivationCodeWrongUser = StdError (errorDescriptionTypeToWai @InvalidActivationCodeWrongUser)
+actError InvalidActivationCodeWrongCode = StdError (errorDescriptionTypeToWai @InvalidActivationCodeWrongCode)
+actError (InvalidActivationEmail _ _) = StdError (errorDescriptionTypeToWai @InvalidEmail)
 actError (InvalidActivationPhone _) = StdError (errorDescriptionTypeToWai @InvalidPhone)
 
 pwResetError :: PasswordResetError -> Error
@@ -135,30 +136,17 @@ pwResetError (PasswordResetInProgress (Just t)) =
     [("Retry-After", toByteString' t)]
 pwResetError ResetPasswordMustDiffer = StdError resetPasswordMustDiffer
 
-newUserError :: CreateUserError -> Error
-newUserError InvalidInvitationCode = StdError invalidInvitationCode
-newUserError MissingIdentity = StdError missingIdentity
-newUserError (InvalidEmail _ _) = StdError invalidEmail
-newUserError (InvalidPhone _) = StdError (errorDescriptionTypeToWai @InvalidPhone)
-newUserError (DuplicateUserKey _) = StdError (errorDescriptionTypeToWai @UserKeyExists)
-newUserError (EmailActivationError e) = actError e
-newUserError (PhoneActivationError e) = actError e
-newUserError (BlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const (errorDescriptionTypeToWai @BlacklistedPhone)) k
-newUserError TooManyTeamMembers = StdError tooManyTeamMembers
-newUserError UserCreationRestricted = StdError userCreationRestricted
-newUserError (ExternalPreconditionFailed e) = StdError e
-
 sendLoginCodeError :: SendLoginCodeError -> Error
 sendLoginCodeError (SendLoginInvalidPhone _) = StdError (errorDescriptionTypeToWai @InvalidPhone)
 sendLoginCodeError SendLoginPasswordExists = StdError passwordExists
 
 sendActCodeError :: SendActivationCodeError -> Error
-sendActCodeError (InvalidRecipient k) = StdError $ foldKey (const invalidEmail) (const (errorDescriptionTypeToWai @InvalidPhone)) k
+sendActCodeError (InvalidRecipient k) = StdError $ foldKey (const (errorDescriptionTypeToWai @InvalidEmail)) (const (errorDescriptionTypeToWai @InvalidPhone)) k
 sendActCodeError (UserKeyInUse _) = StdError (errorDescriptionTypeToWai @UserKeyExists)
 sendActCodeError (ActivationBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const (errorDescriptionTypeToWai @BlacklistedPhone)) k
 
 changeEmailError :: ChangeEmailError -> Error
-changeEmailError (InvalidNewEmail _ _) = StdError invalidEmail
+changeEmailError (InvalidNewEmail _ _) = StdError (errorDescriptionTypeToWai @InvalidEmail)
 changeEmailError (EmailExists _) = StdError (errorDescriptionTypeToWai @UserKeyExists)
 changeEmailError (ChangeBlacklistedEmail _) = StdError blacklistedEmail
 changeEmailError EmailManagedByScim = StdError $ propertyManagedByScim "email"
@@ -269,20 +257,11 @@ clientCapabilitiesCannotBeRemoved = Wai.mkError status409 "client-capabilities-c
 noEmail :: Wai.Error
 noEmail = Wai.mkError status403 "no-email" "This operation requires the user to have a verified email address."
 
-invalidEmail :: Wai.Error
-invalidEmail = Wai.mkError status400 "invalid-email" "Invalid e-mail address."
-
 invalidPwResetKey :: Wai.Error
 invalidPwResetKey = Wai.mkError status400 "invalid-key" "Invalid email or mobile number for password reset."
 
 resetPasswordMustDiffer :: Wai.Error
 resetPasswordMustDiffer = Wai.mkError status409 "password-must-differ" "For password reset, new and old password must be different."
-
-invalidInvitationCode :: Wai.Error
-invalidInvitationCode = Wai.mkError status400 "invalid-invitation-code" "Invalid invitation code."
-
-missingIdentity :: Wai.Error
-missingIdentity = Wai.mkError status403 "missing-identity" "Using an invitation code requires registering the given email and/or phone."
 
 invalidPwResetCode :: Wai.Error
 invalidPwResetCode = Wai.mkError status400 "invalid-code" "Invalid password reset code."
@@ -421,13 +400,6 @@ sameBindingTeamUsers = Wai.mkError status403 "same-binding-team-users" "Operatio
 
 tooManyTeamInvitations :: Wai.Error
 tooManyTeamInvitations = Wai.mkError status403 "too-many-team-invitations" "Too many team invitations for this team."
-
-tooManyTeamMembers :: Wai.Error
-tooManyTeamMembers = Wai.mkError status403 "too-many-team-members" "Too many members in this team."
-
--- | docs/reference/user/registration.md {#RefRestrictRegistration}.
-userCreationRestricted :: Wai.Error
-userCreationRestricted = Wai.mkError status403 "user-creation-restricted" "This instance does not allow creation of personal users or teams."
 
 -- | In contrast to 'tooManyFailedLogins', this is about too many *successful* logins.
 loginsTooFrequent :: Wai.Error

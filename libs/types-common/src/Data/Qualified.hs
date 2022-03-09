@@ -42,6 +42,8 @@ module Data.Qualified
     bucketQualified,
     bucketRemote,
     deprecatedSchema,
+    qualifiedSchema,
+    qualifiedObjectSchema,
   )
 where
 
@@ -167,9 +169,17 @@ qualifiedSchema ::
   ValueSchema NamedSwaggerDoc (Qualified a)
 qualifiedSchema name fieldName sch =
   object ("Qualified_" <> name) $
-    Qualified
-      <$> qUnqualified .= field fieldName sch
-      <*> qDomain .= field "domain" schema
+    qualifiedObjectSchema fieldName sch
+
+qualifiedObjectSchema ::
+  HasSchemaRef d =>
+  Text ->
+  ValueSchema d a ->
+  ObjectSchema SwaggerDoc (Qualified a)
+qualifiedObjectSchema fieldName sch =
+  flip Qualified
+    <$> qDomain .= field "domain" schema
+    <*> qUnqualified .= field fieldName sch
 
 instance KnownIdTag t => ToSchema (Qualified (Id t)) where
   schema = qualifiedSchema (idTagName (idTagValue @t) <> "Id") "id" schema

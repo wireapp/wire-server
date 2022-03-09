@@ -78,10 +78,11 @@ import Control.Applicative
 import Control.Lens (over, view, (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Bifunctor (second)
 import Data.Coerce
 import Data.Domain (Domain)
-import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util
 import qualified Data.Map.Strict as Map
@@ -346,9 +347,9 @@ instance ToJSON UserClientsFull where
 
 instance FromJSON UserClientsFull where
   parseJSON =
-    A.withObject "UserClientsFull" (fmap UserClientsFull . foldrM fn Map.empty . HashMap.toList)
+    A.withObject "UserClientsFull" (fmap UserClientsFull . foldrM fn Map.empty . KeyMap.toList)
     where
-      fn (k, v) m = Map.insert <$> parseJSON (A.String k) <*> parseJSON v <*> pure m
+      fn (k, v) m = Map.insert <$> parseJSON (A.String $ Key.toText k) <*> parseJSON v <*> pure m
 
 instance Arbitrary UserClientsFull where
   arbitrary = UserClientsFull <$> mapOf' arbitrary (setOf' arbitrary)

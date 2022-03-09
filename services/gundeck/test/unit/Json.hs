@@ -19,7 +19,7 @@ module Json where
 
 import Control.Lens (set, view)
 import Data.Aeson
-import Data.HashMap.Strict (fromList)
+import Data.Aeson.KeyMap (fromList)
 import Data.Id
 import Data.List1
 import Gundeck.Types.BulkPush

@@ -1,20 +1,4 @@
 {-# LANGUAGE NumericUnderscores #-}
--- This file is part of the Wire Server implementation.
---
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
---
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -73,6 +57,7 @@ import Data.Range (Range (fromRange))
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import qualified Data.Text as T
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as T
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Clock (diffUTCTime)
@@ -84,21 +69,25 @@ import Federator.MockServer (FederatedRequest (..), MockException (..))
 import Galley.Types.Teams (noPermissions)
 import Gundeck.Types.Notification
 import Imports hiding (head)
+import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP.Types as Http
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Utilities.Error as Error
+import qualified Network.Wai.Utilities.Error as Wai
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently_)
-import Util as Util
+import Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
+import Wire.API.Asset hiding (Asset)
 import qualified Wire.API.Asset as Asset
 import Wire.API.Federation.API.Brig (UserDeletedConnectionsNotification (..))
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Federation.API.Common (EmptyResponse (EmptyResponse))
+import Wire.API.Team.Invitation (Invitation (inInvitation))
 import Wire.API.User (ListUsersQuery (..))
 import Wire.API.User.Identity (mkSampleUref, mkSimpleSampleUref)
 
@@ -121,6 +110,7 @@ tests _ at opts p b c ch g aws =
       test' aws p "post /register - 403 blacklist" $ testCreateUserBlacklist opts b aws,
       test' aws p "post /register - 400 external-SSO" $ testCreateUserExternalSSO b,
       test' aws p "post /register - 403 restricted user creation" $ testRestrictedUserCreation opts b,
+      test' aws p "post /register - 403 too many members for legalhold" $ testTooManyMembersForLegalhold opts b,
       test' aws p "post /activate - 200/204 + expiry" $ testActivateWithExpiry opts b at,
       test' aws p "get /users/:uid - 404" $ testNonExistingUserUnqualified b,
       test' aws p "get /users/<localdomain>/:uid - 404" $ testNonExistingUser b,
@@ -827,7 +817,12 @@ testUserUpdate brig cannon aws = do
   aliceNewName <- randomName
   connectUsers brig alice (singleton bob)
   let newColId = Just 5
-      newAssets = Just [ImageAsset "abc" (Just AssetComplete)]
+      newAssets =
+        Just
+          [ ImageAsset
+              (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring)
+              (Just AssetComplete)
+          ]
       mNewName = Just $ aliceNewName
       newPic = Nothing -- Legacy
       userUpdate = UserUpdate mNewName newPic newAssets newColId
@@ -1347,7 +1342,7 @@ testDeleteWithProfilePic brig cargohold = do
   let newAssets =
         Just
           [ ImageAsset
-              (T.decodeLatin1 $ toByteString' (qUnqualified (ast ^. Asset.assetKey)))
+              (qUnqualified $ ast ^. Asset.assetKey)
               (Just AssetComplete)
           ]
       userUpdate = UserUpdate Nothing Nothing newAssets Nothing
@@ -1585,6 +1580,47 @@ testRestrictedUserCreation opts brig = do
               "team_id" .= Just teamid
             ]
     postUserRegister' ssoUser brig !!! const 400 === statusCode
+
+-- | FUTUREWORK: @setRestrictUserCreation@ perhaps needs to be tested in one place only, since it's the
+-- first thing that we check on the /register endpoint. Other tests that make use of @setRestrictUserCreation@
+-- can probably be removed and simplified. It's probably a good candidate for Quickcheck.
+testTooManyMembersForLegalhold :: Opt.Opts -> Brig -> Http ()
+testTooManyMembersForLegalhold opts brig = do
+  (owner, tid) <- createUserWithTeam brig
+
+  -- Invite a user with mocked galley which tells us that the user cannot be
+  -- added. We cannot use real galley here as the real galley has legalhold set
+  -- to "whitelist-teams-and-implicit-consent". In this mode this error is not
+  -- thrown, so in order to emulate other modes, we just emulate what galley
+  -- would return in that case.
+  inviteeEmail <- randomEmail
+  let invite = stdInvitationRequest inviteeEmail
+  inv <-
+    responseJsonError =<< postInvitation brig tid owner invite
+      <!! statusCode === const 201
+  Just inviteeCode <- getInvitationCode brig tid (inInvitation inv)
+  let mockGalley (ReceivedRequest mth pth _body) =
+        if mth == "GET" && pth == ["i", "teams", Text.pack (show tid), "members", "check"]
+          then
+            pure . Wai.responseLBS HTTP.status403 mempty $
+              encode
+                ( Wai.mkError
+                    HTTP.status403
+                    "too-many-members-for-legalhold"
+                    "cannot add more members to team when legalhold service is enabled."
+                )
+          else pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
+
+  void . withMockedGalley opts mockGalley $ do
+    post
+      ( brig
+          . path "/register"
+          . contentJson
+          . body (accept inviteeEmail inviteeCode)
+      )
+      !!! do
+        const 403 === statusCode
+        const (Right "too-many-members-for-legalhold") === fmap Wai.label . responseJsonEither
 
 -- helpers
 

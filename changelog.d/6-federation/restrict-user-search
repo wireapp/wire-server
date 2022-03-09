@@ -1,3 +1,0 @@
-Make restrictions on federated user search configurable by domain: `NoSearch`, `ExactHandleSearch` and `FullSearch`.
-Details about the configuration are described in [config-options.md](docs/reference/config-options.md).
-There are sane defaults (*deny to find any users as long as there is no other configuration for the domain*), so no measures have to be taken by on-premise customers (unless the default is not the desired behavior).

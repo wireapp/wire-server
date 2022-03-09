@@ -30,6 +30,7 @@ import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.API.MLS.KeyPackages
 import qualified Brig.API.Properties as API
 import Brig.API.Types
 import qualified Brig.API.User as API
@@ -62,7 +63,6 @@ import Control.Error hiding (bool)
 import Control.Lens (view, (%~), (.~), (?~), (^.), _Just)
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
-import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
@@ -113,6 +113,7 @@ import Wire.API.Routes.Version
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
+import Wire.API.User (RegisterError (RegisterErrorWhitelistError))
 import qualified Wire.API.User as Public
 import qualified Wire.API.User.Activation as Public
 import qualified Wire.API.User.Auth as Public
@@ -162,7 +163,7 @@ swaggerDocsAPI =
         . (S.enum_ . _Just %~ nub)
 
 servantSitemap :: ServerT BrigAPI (Handler r)
-servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI
+servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> mlsAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -187,6 +188,9 @@ servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userCli
         :<|> Named @"change-password" changePassword
         :<|> Named @"change-locale" changeLocale
         :<|> Named @"change-handle" changeHandle
+
+    accountAPI :: ServerT AccountAPI (Handler r)
+    accountAPI = Named @"register" createUser
 
     clientAPI :: ServerT ClientAPI (Handler r)
     clientAPI =
@@ -227,6 +231,12 @@ servantSitemap = userAPI :<|> selfAPI :<|> clientAPI :<|> prekeyAPI :<|> userCli
         :<|> Named @"update-connection-unqualified" updateLocalConnection
         :<|> Named @"update-connection" updateConnection
         :<|> Named @"search-contacts" Search.search
+
+    mlsAPI :: ServerT MLSAPI (Handler r)
+    mlsAPI =
+      Named @"mls-key-packages-upload" uploadKeyPackages
+        :<|> Named @"mls-key-packages-claim" claimKeyPackages
+        :<|> Named @"mls-key-packages-count" countKeyPackages
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -359,34 +369,7 @@ sitemap = do
     Doc.response 200 "Object with properties as attributes." Doc.end
 
   -- TODO: put delete here, too?
-  -- /register, /activate, /password-reset ----------------------------------
-
-  -- docs/reference/user/registration.md {#RefRegistration}
-  --
-  -- This endpoint can lead to the following events being sent:
-  -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
-  -- - UserIdentityUpdated event to created user, if email code or phone code is provided
-  post "/register" (continue createUserH) $
-    accept "application" "json"
-      .&. jsonRequest @Public.NewUserPublic
-  document "POST" "register" $ do
-    Doc.summary "Register a new user."
-    Doc.notes
-      "If the environment where the registration takes \
-      \place is private and a registered email address or phone \
-      \number is not whitelisted, a 403 error is returned."
-    Doc.body (Doc.ref Public.modelNewUser) $
-      Doc.description "JSON body"
-    -- FUTUREWORK: I think this should be 'Doc.self' instead of 'user'
-    Doc.returns (Doc.ref Public.modelUser)
-    Doc.response 201 "User created and pending activation." Doc.end
-    Doc.errorResponse whitelistError
-    Doc.errorResponse invalidInvitationCode
-    Doc.errorResponse missingIdentity
-    Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
-    Doc.errorResponse activationCodeNotFound
-    Doc.errorResponse blacklistedEmail
-    Doc.errorResponse (errorDescriptionTypeToWai @BlacklistedPhone)
+  -- /activate, /password-reset ----------------------------------
 
   -- This endpoint can lead to the following events being sent:
   -- - UserActivated event to the user, if account gets activated
@@ -434,7 +417,7 @@ sitemap = do
     Doc.body (Doc.ref Public.modelSendActivationCode) $
       Doc.description "JSON body"
     Doc.response 200 "Activation code sent." Doc.end
-    Doc.errorResponse invalidEmail
+    Doc.errorResponse (errorDescriptionTypeToWai @InvalidEmail)
     Doc.errorResponse (errorDescriptionTypeToWai @InvalidPhone)
     Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
     Doc.errorResponse blacklistedEmail
@@ -669,24 +652,13 @@ getRichInfo self user = do
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (API.lookupPrekeyIds usr clt)
 
--- docs/reference/user/registration.md {#RefRegistration}
-createUserH :: JSON ::: JsonRequest Public.NewUserPublic -> (Handler r) Response
-createUserH (_ ::: req) = do
-  CreateUserResponse cok loc prof <- createUser =<< parseJsonBody req
-  lift . Auth.setResponseCookie cok
-    . setStatus status201
-    . addHeader "Location" (toByteString' loc)
-    $ json prof
-
-data CreateUserResponse
-  = CreateUserResponse (Public.Cookie (ZAuth.Token ZAuth.User)) UserId Public.SelfProfile
-
-createUser :: Public.NewUserPublic -> (Handler r) CreateUserResponse
-createUser (Public.NewUserPublic new) = do
-  API.checkRestrictedUserCreation new !>> newUserError
-  for_ (Public.newUserEmail new) $ checkWhitelist . Left
-  for_ (Public.newUserPhone new) $ checkWhitelist . Right
-  result <- API.createUser new !>> newUserError
+-- | docs/reference/user/registration.md {#RefRegistration}
+createUser :: Public.NewUserPublic -> (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
+createUser (Public.NewUserPublic new) = lift . runExceptT $ do
+  API.checkRestrictedUserCreation new
+  for_ (Public.newUserEmail new) $ checkWhitelistWithError RegisterErrorWhitelistError . Left
+  for_ (Public.newUserPhone new) $ checkWhitelistWithError RegisterErrorWhitelistError . Right
+  result <- API.createUser new
   let acc = createdAccount result
 
   let eac = createdEmailActivation result
@@ -720,10 +692,12 @@ createUser (Public.NewUserPublic new) = do
       sendActivationSms p c (Just userLocale)
     for_ (liftM3 (,,) userEmail (createdUserTeam result) newUserTeam) $ \(e, ct, ut) ->
       sendWelcomeEmail e ct ut (Just userLocale)
-  cok <- case acc of
-    UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User userId Public.SessionCookie newUserLabel
-    UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
-  pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
+  cok <-
+    Auth.toWebCookie =<< case acc of
+      UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User userId Public.SessionCookie newUserLabel
+      UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
+  -- pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
+  pure $ Public.RegisterSuccess cok (Public.SelfProfile usr)
   where
     sendActivationEmail :: Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppIO r) ()
     sendActivationEmail e u p l mTeamUser

@@ -46,7 +46,7 @@ import Control.Monad.State
 import Data.Aeson
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Encode.Pretty as Aeson
-import qualified Data.HashMap.Lazy as HashMap
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Id
 import Data.IntMultiSet (IntMultiSet)
 import qualified Data.IntMultiSet as MSet
@@ -382,7 +382,7 @@ shrinkPushes = shrinkList shrinkPush
 genPayload :: Gen Payload
 genPayload = do
   num :: Int <- arbitrary
-  pure $ List1 (HashMap.singleton "val" (Aeson.toJSON num) NE.:| [])
+  pure $ List1 (KeyMap.singleton "val" (Aeson.toJSON num) NE.:| [])
 
 genNotif :: Gen Notification
 genNotif = Notification <$> genId <*> arbitrary <*> genPayload

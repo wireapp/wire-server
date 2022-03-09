@@ -34,9 +34,10 @@ import Bonanza.Types
 import Control.Applicative (optional)
 import Control.Lens ((.~), (?~))
 import Data.Aeson
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Attoparsec.ByteString.Char8
 import Data.Bifunctor
-import Data.HashMap.Strict (fromList)
 import Data.Text.Lazy (toStrict)
 import Data.Text.Lazy.Builder (toLazyText)
 import qualified Data.Text.Lazy.Builder.Int as T
@@ -59,7 +60,7 @@ instance ToLogEvent a => ToLogEvent (SockLogRecord a) where
     )
       <> toLogEvent sockMessage
     where
-      tgs = Tags . fromList . map (second String) $ sockTags
+      tgs = Tags . KeyMap.fromList . map (bimap Key.fromText String) $ sockTags
 
 sockLogRecordWith :: Parser a -> Parser (SockLogRecord a)
 sockLogRecordWith p =

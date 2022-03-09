@@ -33,7 +33,7 @@ where
 import Brig.Types.Connection
 import Brig.Types.User
 import Data.Aeson
-import qualified Data.HashMap.Strict as M
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword (..))
 import qualified Data.Text as Text
@@ -112,7 +112,7 @@ instance ToJSON UserAccount where
   toJSON (UserAccount u s) =
     case toJSON u of
       Object o ->
-        Object $ M.insert "status" (toJSON s) o
+        Object $ KeyMap.insert "status" (toJSON s) o
       other ->
         error $ "toJSON UserAccount: not an object: " <> show (encode other)
 

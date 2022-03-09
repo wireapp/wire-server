@@ -21,9 +21,9 @@
 module Web.Scim.Schema.Common where
 
 import Data.Aeson
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.CaseInsensitive as CI
-import qualified Data.HashMap.Lazy as HML
-import qualified Data.HashMap.Strict as HM
 import Data.String.Conversions (cs)
 import Data.Text (pack, unpack)
 import qualified Network.URI as Network
@@ -36,7 +36,7 @@ data WithId id a = WithId
 
 instance (ToJSON id, ToJSON a) => ToJSON (WithId id a) where
   toJSON (WithId i v) = case toJSON v of
-    (Object o) -> Object (HML.insert "id" (toJSON i) o)
+    (Object o) -> Object (KeyMap.insert "id" (toJSON i) o)
     other -> other
 
 instance (FromJSON id, FromJSON a) => FromJSON (WithId id a) where
@@ -95,11 +95,14 @@ parseOptions =
 -- (FUTUREWORK: The "recursively" part is a bit of a waste and could be dropped, but we would
 -- have to spend more effort in making sure it is always called manually in nested parsers.)
 jsonLower :: Value -> Value
-jsonLower (Object o) = Object . HM.fromList . fmap lowerPair . HM.toList $ o
+jsonLower (Object o) = Object . KeyMap.fromList . fmap lowerPair . KeyMap.toList $ o
   where
-    lowerPair (key, val) = (CI.foldCase key, jsonLower val)
+    lowerPair (key, val) = (lowerKey key, jsonLower val)
 jsonLower (Array x) = Array (jsonLower <$> x)
 jsonLower same@(String _) = same -- (only object attributes, not all texts in the value side of objects!)
 jsonLower same@(Number _) = same
 jsonLower same@(Bool _) = same
 jsonLower same@Null = same
+
+lowerKey :: Key.Key -> Key.Key
+lowerKey = Key.fromText . CI.foldCase . Key.toText

@@ -17,9 +17,10 @@
 
 module Native where
 
+import Amazonka (Region (Ireland))
 import Control.Lens ((^.))
 import Data.Aeson
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Id (ClientId (..), ConnId (..), UserId, randomId)
 import qualified Data.List1 as List1
 import qualified Data.Text as T
@@ -30,7 +31,6 @@ import Gundeck.Push.Native.Types
 import Gundeck.Types.Notification
 import Gundeck.Types.Push
 import Imports
-import Network.AWS (Region (Ireland))
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
@@ -69,7 +69,7 @@ data SnsNotification = SnsNotification
 
 instance FromJSON SnsNotification where
   parseJSON = withObject "SnsNotification" $ \o ->
-    case HashMap.toList o of
+    case KeyMap.toList o of
       [("GCM", String n)] -> parseGcm n
       [("APNS", String n)] -> parseApns APNS n
       [("APNS_SANDBOX", String n)] -> parseApns APNSSandbox n
@@ -121,8 +121,8 @@ newtype Bundle = NoticeBundle NotificationId
 
 instance FromJSON Bundle where
   parseJSON = withObject "Bundle" $ \o ->
-    case HashMap.lookup "type" o of
-      Just (String "notice") -> case HashMap.lookup "data" o of
+    case KeyMap.lookup "type" o of
+      Just (String "notice") -> case KeyMap.lookup "data" o of
         Just (Object o') -> NoticeBundle <$> o' .: "id"
         _ -> mempty
       _ -> mempty
@@ -149,7 +149,7 @@ randNotif size = do
   generate $ do
     l <- choose size
     v <- T.pack <$> vectorOf l (elements ['a' .. 'z'])
-    let pload = List1.singleton (HashMap.fromList ["data" .= v])
+    let pload = List1.singleton (KeyMap.fromList ["data" .= v])
     Notification i <$> arbitrary <*> pure pload
 
 randMessage :: Notification -> IO NativePush

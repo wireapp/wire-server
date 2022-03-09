@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7d28adb77d06047d2fb59e1470865a151254230ed48075e7ea0d68d35366147c
+-- hash: 8325cabb6835adebe7d0c773eb6059ab230d35b8f8b0b22c5d618f3dc91f66fd
 
 name:           brig-types
 version:        1.35.0
@@ -88,7 +88,7 @@ library
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
   build-depends:
       QuickCheck >=2.9
-    , aeson >=0.11
+    , aeson >=2.0.1.0
     , attoparsec >=0.10
     , base ==4.*
     , bytestring-conversion >=0.2
@@ -97,7 +97,7 @@ library
     , deriving-swagger2 >=0.1.0
     , imports
     , servant-server >=0.18.2
-    , servant-swagger >=1.1.11
+    , servant-swagger >=1.1.10
     , string-conversions
     , swagger2 >=2.5
     , text >=0.11
@@ -162,7 +162,7 @@ test-suite brig-types-tests
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
   build-depends:
       QuickCheck >=2.9
-    , aeson >=0.11
+    , aeson >=2.0.1.0
     , attoparsec >=0.10
     , base ==4.*
     , brig-types

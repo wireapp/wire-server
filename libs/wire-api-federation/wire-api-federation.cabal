@@ -28,7 +28,6 @@ library
       Wire.API.Federation.Domain
       Wire.API.Federation.Endpoint
       Wire.API.Federation.Error
-      Wire.API.Federation.Event
   other-modules:
       Paths_wire_api_federation
   hs-source-dirs:
@@ -76,7 +75,7 @@ library
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
       QuickCheck >=2.13
-    , aeson >=1.4
+    , aeson >=2.0.1.0
     , async
     , base >=4.6 && <5.0
     , bytestring
@@ -173,7 +172,7 @@ test-suite spec
   build-depends:
       HUnit
     , QuickCheck >=2.13
-    , aeson >=1.4
+    , aeson >=2.0.1.0
     , aeson-pretty
     , async
     , base >=4.6 && <5.0

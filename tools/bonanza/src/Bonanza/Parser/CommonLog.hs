@@ -41,9 +41,11 @@ import Bonanza.Types
 import Control.Applicative (optional)
 import Control.Lens.Operators
 import Data.Aeson hiding ((<?>))
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Attoparsec.ByteString.Char8
+import Data.Bifunctor (first)
 import Data.ByteString.Char8 (unpack)
-import Data.HashMap.Strict (fromList)
 import Data.Text.Encoding
 import Data.Time (UTCTime (..))
 import Imports hiding (isSpace)
@@ -74,7 +76,7 @@ instance ToLogEvent CommonLogRecord where
     where
       mth = decodeUtf8 $ renderStdMethod m
       tgs =
-        Tags . fromList $
+        Tags . KeyMap.fromList . map (first Key.fromText) $
           catMaybes
             [ Just ("http_method", String mth),
               Just ("http_path", String p),

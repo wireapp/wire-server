@@ -57,9 +57,11 @@ import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Encoding as A
+import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.Types as A
 import Data.Attoparsec.ByteString ((<?>))
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
+import Data.Binary
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as L
@@ -143,7 +145,7 @@ newtype Id a = Id
   { toUUID :: UUID
   }
   deriving stock (Eq, Ord, Generic)
-  deriving newtype (Hashable, NFData, ToParamSchema)
+  deriving newtype (Hashable, NFData, ToParamSchema, Binary)
   deriving (ToJSON, FromJSON, S.ToSchema) via Schema (Id a)
 
 instance ToSchema (Id a) where
@@ -202,7 +204,7 @@ instance ToHttpApiData (Id a) where
   toUrlPiece = toUrlPiece . show
 
 instance A.ToJSONKey (Id a) where
-  toJSONKey = A.ToJSONKeyText idToText (A.text . idToText)
+  toJSONKey = A.ToJSONKeyText (Key.fromText . idToText) (A.text . idToText)
 
 instance A.FromJSONKey (Id a) where
   fromJSONKey = A.FromJSONKeyTextParser idFromText
@@ -281,7 +283,7 @@ newtype ClientId = ClientId
   { client :: Text
   }
   deriving (Eq, Ord, Show, ToByteString, Hashable, NFData, A.ToJSONKey, Generic)
-  deriving newtype (ToParamSchema, FromHttpApiData, ToHttpApiData)
+  deriving newtype (ToParamSchema, FromHttpApiData, ToHttpApiData, Binary)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientId
 
 instance ToSchema ClientId where

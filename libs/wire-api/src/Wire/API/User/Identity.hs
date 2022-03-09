@@ -26,6 +26,9 @@ module Wire.API.User.Identity
     emailIdentity,
     phoneIdentity,
     ssoIdentity,
+    userIdentityObjectSchema,
+    maybeUserIdentityObjectSchema,
+    maybeUserIdentityFromComponents,
 
     -- * Email
     Email (..),
@@ -50,7 +53,7 @@ module Wire.API.User.Identity
 where
 
 import Control.Applicative (optional)
-import Control.Lens (over, (.~), (?~), (^.))
+import Control.Lens (dimap, over, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
@@ -65,6 +68,7 @@ import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8', encodeUtf8)
 import Data.Time.Clock
+import Data.Tuple.Extra (fst3, snd3, thd3)
 import Imports
 import SAML2.WebSSO.Test.Arbitrary ()
 import qualified SAML2.WebSSO.Types as SAML
@@ -91,40 +95,37 @@ data UserIdentity
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserIdentity)
 
-instance S.ToSchema UserIdentity where
-  declareNamedSchema _ = do
-    emailSchema <- S.declareSchemaRef (Proxy @Email)
-    phoneSchema <- S.declareSchemaRef (Proxy @Phone)
-    ssoSchema <- S.declareSchemaRef (Proxy @UserSSOId)
-    return $
-      S.NamedSchema (Just "userIdentity") $
-        mempty
-          & S.type_ ?~ S.SwaggerObject
-          & S.properties
-            .~ [ ("email", emailSchema),
-                 ("phone", phoneSchema),
-                 ("sso_id", ssoSchema)
-               ]
+userIdentityObjectSchema :: ObjectSchema SwaggerDoc UserIdentity
+userIdentityObjectSchema =
+  Just .= withParser maybeUserIdentityObjectSchema (maybe (fail "Missing 'email' or 'phone' or 'sso_id'.") pure)
 
-instance ToJSON UserIdentity where
-  toJSON = \case
-    FullIdentity em ph -> go (Just em) (Just ph) Nothing
-    EmailIdentity em -> go (Just em) Nothing Nothing
-    PhoneIdentity ph -> go Nothing (Just ph) Nothing
-    SSOIdentity si em ph -> go em ph (Just si)
-    where
-      go :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> A.Value
-      go em ph si = A.object ["email" A..= em, "phone" A..= ph, "sso_id" A..= si]
+maybeUserIdentityObjectSchema :: ObjectSchema SwaggerDoc (Maybe UserIdentity)
+maybeUserIdentityObjectSchema =
+  dimap maybeUserIdentityToComponents maybeUserIdentityFromComponents userIdentityComponentsObjectSchema
 
-instance FromJSON UserIdentity where
-  parseJSON = A.withObject "UserIdentity" $ \o -> do
-    email <- o A..:? "email"
-    phone <- o A..:? "phone"
-    ssoid <- o A..:? "sso_id"
-    maybe
-      (fail "Missing 'email' or 'phone' or 'sso_id'.")
-      return
-      (newIdentity email phone ssoid)
+type UserIdentityComponents = (Maybe Email, Maybe Phone, Maybe UserSSOId)
+
+userIdentityComponentsObjectSchema :: ObjectSchema SwaggerDoc UserIdentityComponents
+userIdentityComponentsObjectSchema =
+  (,,)
+    <$> fst3 .= maybe_ (optField "email" schema)
+    <*> snd3 .= maybe_ (optField "phone" schema)
+    <*> thd3 .= maybe_ (optField "sso_id" genericToSchema)
+
+maybeUserIdentityFromComponents :: UserIdentityComponents -> Maybe UserIdentity
+maybeUserIdentityFromComponents = \case
+  (maybeEmail, maybePhone, Just ssoid) -> Just $ SSOIdentity ssoid maybeEmail maybePhone
+  (Just email, Just phone, Nothing) -> Just $ FullIdentity email phone
+  (Just email, Nothing, Nothing) -> Just $ EmailIdentity email
+  (Nothing, Just phone, Nothing) -> Just $ PhoneIdentity phone
+  (Nothing, Nothing, Nothing) -> Nothing
+
+maybeUserIdentityToComponents :: Maybe UserIdentity -> UserIdentityComponents
+maybeUserIdentityToComponents Nothing = (Nothing, Nothing, Nothing)
+maybeUserIdentityToComponents (Just (FullIdentity email phone)) = (Just email, Just phone, Nothing)
+maybeUserIdentityToComponents (Just (EmailIdentity email)) = (Just email, Nothing, Nothing)
+maybeUserIdentityToComponents (Just (PhoneIdentity phone)) = (Nothing, Just phone, Nothing)
+maybeUserIdentityToComponents (Just (SSOIdentity ssoid m_email m_phone)) = (m_email, m_phone, Just ssoid)
 
 newIdentity :: Maybe Email -> Maybe Phone -> Maybe UserSSOId -> Maybe UserIdentity
 newIdentity email phone (Just sso) = Just $! SSOIdentity sso email phone

@@ -880,6 +880,25 @@ type MessagingAPI =
                     (PostOtrResponses MessageSendingStatus)
                     (Either (MessageNotSent MessageSendingStatus) MessageSendingStatus)
            )
+    :<|> Named
+           "post-proteus-broadcast"
+           ( Summary "Post an encrypted message to all team members and all contacts (accepts only Protobuf)"
+               :> Description PostOtrDescription
+               :> ZLocalUser
+               :> ZConn
+               :> CanThrow TeamNotFound
+               :> CanThrow BroadcastLimitExceeded
+               :> CanThrow NonBindingTeam
+               :> "broadcast"
+               :> "proteus"
+               :> "messages"
+               :> ReqBody '[Proto] QualifiedNewOtrMessage
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    (PostOtrResponses MessageSendingStatus)
+                    (Either (MessageNotSent MessageSendingStatus) MessageSendingStatus)
+           )
 
 type BotAPI =
   Named
@@ -1048,7 +1067,7 @@ type PostOtrDescription =
   \- `report_only`: Takes a list of qualified UserIDs. If any clients of the listed users are missing, the message is not sent. The missing clients are reported in the response.\n\
   \- `ignore_only`: Takes a list of qualified UserIDs. If any clients of the non-listed users are missing, the message is not sent. The missing clients are reported in the response.\n\
   \\n\
-  \The sending of messages in a federated conversation could theorectically fail partially. \
+  \The sending of messages in a federated conversation could theoretically fail partially. \
   \To make this case unlikely, the backend first gets a list of clients from all the involved backends and then tries to send a message. \
   \So, if any backend is down, the message is not propagated to anyone. \
   \But the actual message fan out to multiple backends could still fail partially. This type of failure is reported as a 201, \

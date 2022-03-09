@@ -21,6 +21,7 @@
 module Wire.API.Event.Conversation
   ( -- * Event
     Event (..),
+    evtType,
     EventType (..),
     EventData (..),
     AddCodeResult (..),
@@ -85,7 +86,7 @@ import Control.Arrow ((&&&))
 import Control.Lens (makePrisms, (?~), _1)
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Id
 import Data.Json.Util (ToJSONObject (toJSONObject), UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis)
 import Data.Qualified
@@ -107,13 +108,15 @@ import Wire.API.User (QualifiedUserIdList (..))
 -- Event
 
 data Event = Event
-  { evtType :: EventType,
-    evtConv :: Qualified ConvId,
+  { evtConv :: Qualified ConvId,
     evtFrom :: Qualified UserId,
     evtTime :: UTCTime,
     evtData :: EventData
   }
   deriving stock (Eq, Show, Generic)
+
+evtType :: Event -> EventType
+evtType = eventDataType . evtData
 
 modelEvent :: Doc.Model
 modelEvent = Doc.defineModel "Event" $ do
@@ -146,7 +149,7 @@ modelEvent = Doc.defineModel "Event" $ do
 instance Arbitrary Event where
   arbitrary = do
     typ <- arbitrary
-    Event typ
+    Event
       <$> arbitrary
       <*> arbitrary
       <*> (milli <$> arbitrary)
@@ -301,6 +304,22 @@ genEventData = \case
   Typing -> EdTyping <$> arbitrary
   OtrMessageAdd -> EdOtrMessage <$> arbitrary
   ConvDelete -> pure EdConvDelete
+
+eventDataType :: EventData -> EventType
+eventDataType (EdMembersJoin _) = MemberJoin
+eventDataType (EdMembersLeave _) = MemberLeave
+eventDataType (EdMemberUpdate _) = MemberStateUpdate
+eventDataType (EdConvRename _) = ConvRename
+eventDataType (EdConvAccessUpdate _) = ConvAccessUpdate
+eventDataType (EdConvMessageTimerUpdate _) = ConvMessageTimerUpdate
+eventDataType (EdConvCodeUpdate _) = ConvCodeUpdate
+eventDataType EdConvCodeDelete = ConvCodeDelete
+eventDataType (EdConnect _) = ConvConnect
+eventDataType (EdConversation _) = ConvCreate
+eventDataType (EdConvReceiptModeUpdate _) = ConvReceiptModeUpdate
+eventDataType (EdTyping _) = Typing
+eventDataType (EdOtrMessage _) = OtrMessageAdd
+eventDataType EdConvDelete = ConvDelete
 
 --------------------------------------------------------------------------------
 -- Event data helpers
@@ -547,11 +566,11 @@ eventObjectSchema =
     <*> evtFrom .= field "qualified_from" schema
     <*> (toUTCTimeMillis . evtTime) .= field "time" (fromUTCTimeMillis <$> schema)
   where
-    mk (ty, d) cid uid tm = Event ty cid uid tm d
+    mk (_, d) cid uid tm = Event cid uid tm d
 
 instance ToJSONObject Event where
   toJSONObject =
-    HashMap.fromList
+    KeyMap.fromList
       . fromMaybe []
       . schemaOut eventObjectSchema
 

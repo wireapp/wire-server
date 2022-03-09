@@ -1,1 +1,0 @@
-New endpoint (`POST /verification-code/send`) for generating and sending a verification code for 2nd factor authentication actions.

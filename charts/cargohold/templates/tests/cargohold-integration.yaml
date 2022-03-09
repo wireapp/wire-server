@@ -23,11 +23,17 @@ spec:
     - name: "cargohold-config"
       mountPath: "/etc/wire/cargohold/conf"
     env:
-    # these dummy values are necessary for Amazonka's "Discover"
+    # these values are necessary for Amazonka's "Discover"
     - name: AWS_ACCESS_KEY_ID
-      value: "dummy"
+      valueFrom:
+        secretKeyRef:
+          name: cargohold
+          key: awsKeyId
     - name: AWS_SECRET_ACCESS_KEY
-      value: "dummy"
+      valueFrom:
+        secretKeyRef:
+          name: cargohold
+          key: awsSecretKey
     - name: AWS_REGION
-      value: "eu-west-1"
+      value: "{{ .Values.config.aws.region }}"
   restartPolicy: Never

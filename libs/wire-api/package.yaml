@@ -10,7 +10,7 @@ copyright: (c) 2020 Wire Swiss GmbH
 license: AGPL-3
 
 dependencies:
-- aeson >=0.6
+- aeson >=2.0.1.0
 - case-insensitive
 - containers >=0.5
 - filepath
@@ -29,6 +29,7 @@ library:
   - attoparsec >=0.10
   - base64-bytestring >=1.0
   - binary
+  - binary-parsers
   - bytestring >=0.9
   - bytestring-conversion >=0.2
   - cassandra-util
@@ -36,6 +37,7 @@ library:
   - cereal
   - comonad
   - conduit
+  - constraints
   - cookie
   - cryptonite
   - currency-codes >=2.0
@@ -112,6 +114,8 @@ tests:
     - cassava
     - currency-codes
     - directory
+    - either
+    - hex
     - iso3166-country-codes
     - iso639
     - lens
@@ -120,6 +124,7 @@ tests:
     - pretty
     - proto-lens
     - QuickCheck
+    - schema-profunctor
     - string-conversions
     - swagger2
     - tasty
