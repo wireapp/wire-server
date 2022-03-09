@@ -28,10 +28,11 @@ module Wire.API.Conversation.Action
   )
 where
 
-import Data.Aeson (FromJSON (..), ToJSON (..), Value, object, withObject, (.:), (.=))
+import Data.Aeson
+import qualified Data.Aeson.KeyMap as AKeyMap
 import Data.Id
 import Data.Qualified (Qualified)
-import Data.Schema (ToSchema, element, enum, schema, schemaParseJSON, schemaToJSON)
+import Data.Schema (NamedSwaggerDoc, ToSchema, ValueSchema, element, enum, schema, schemaIn, schemaOut, schemaParseJSON, schemaToJSON)
 import Data.Singletons.TH
 import Data.Time.Clock
 import Imports
@@ -110,16 +111,30 @@ instance Eq SomeConversationAction where
 instance ToJSON SomeConversationAction where
   toJSON (SomeConversationAction sb action) =
     let tag = fromSing sb
-        actionJSON :: Value =
-          $(sCases ''ConversationActionTag [|sb|] [|toJSON action|])
+        actionJSON :: Value = fromMaybe Null $ schemaOut (conversationActionSchema sb) action
      in object ["tag" .= tag, "action" .= actionJSON]
+
+conversationActionSchema :: forall tag. Sing tag -> ValueSchema NamedSwaggerDoc (ConversationAction tag)
+conversationActionSchema SConversationJoinTag = schema @ConversationJoin
+conversationActionSchema SConversationLeaveTag = schema @ConversationLeave
+conversationActionSchema SConversationRemoveMembersTag = schema @ConversationRemoveMembers
+conversationActionSchema SConversationMemberUpdateTag = schema @ConversationMemberUpdate
+conversationActionSchema SConversationDeleteTag = schema @ConversationDelete
+conversationActionSchema SConversationRenameTag = schema @ConversationRename
+conversationActionSchema SConversationMessageTimerUpdateTag = schema @ConversationMessageTimerUpdate
+conversationActionSchema SConversationReceiptModeUpdateTag = schema @ConversationReceiptModeUpdate
+conversationActionSchema SConversationAccessDataTag = schema @ConversationAccessData
 
 instance FromJSON SomeConversationAction where
   parseJSON = withObject "SomeConversationAction" $ \ob -> do
     tag :: ConversationActionTag <- ob .: "tag"
-    case toSing tag of
-      SomeSing sb -> do
-        $(sCases ''ConversationActionTag [|sb|] [|SomeConversationAction sb <$> (ob .: "action")|])
+    case AKeyMap.lookup "action" ob of
+      Nothing -> fail "'action' property missing"
+      Just actionValue ->
+        case toSing tag of
+          SomeSing sb -> do
+            action <- schemaIn (conversationActionSchema sb) actionValue
+            return $ SomeConversationAction sb action
 
 instance Arbitrary SomeConversationAction where
   arbitrary = do
