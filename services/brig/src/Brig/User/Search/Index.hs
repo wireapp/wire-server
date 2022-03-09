@@ -69,6 +69,7 @@ import Data.Id
 import qualified Data.Map as Map
 import Data.Metrics
 import Data.String.Conversions (cs)
+import qualified Data.Text as T
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lens hiding (text)
 import Data.Time (UTCTime, secondsToNominalDiffTime)
@@ -525,6 +526,14 @@ indexMapping =
                   mpFields = mempty
                 },
             "role"
+              .= MappingProperty
+                { mpType = MPKeyword,
+                  mpStore = False,
+                  mpIndex = True,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
+            (fromString . T.unpack $ searchVisibilityInboundFieldName)
               .= MappingProperty
                 { mpType = MPKeyword,
                   mpStore = False,

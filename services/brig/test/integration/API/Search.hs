@@ -675,53 +675,89 @@ oldMapping =
     decode
       [r|
 {
-  "user": {
-    "dynamic": false,
-    "properties": {
-      "account_status": {
-        "store": false,
-        "type": "keyword",
-        "index": true
-      },
-      "handle": {
-        "store": false,
-        "type": "text",
-        "index": true,
-        "fields": {
-          "prefix": {
-            "search_analyzer": "prefix_search",
-            "type": "text",
-            "analyzer": "prefix_index"
-          }
+  "dynamic": false,
+  "properties": {
+    "accent_id": {
+      "index": false,
+      "store": false,
+      "type": "byte"
+    },
+    "account_status": {
+      "index": true,
+      "store": false,
+      "type": "keyword"
+    },
+    "created_at": {
+      "index": false,
+      "store": false,
+      "type": "date"
+    },
+    "email": {
+      "fields": {
+        "keyword": {
+          "type": "keyword"
+        },
+        "prefix": {
+          "analyzer": "prefix_index",
+          "search_analyzer": "prefix_search",
+          "type": "text"
         }
       },
-      "accent_id": {
-        "store": false,
-        "type": "byte",
-        "index": false
-      },
-      "name": {
-        "store": false,
-        "type": "keyword",
-        "index": false
-      },
-      "team": {
-        "store": false,
-        "type": "keyword",
-        "index": true
-      },
-      "normalized": {
-        "store": false,
-        "type": "text",
-        "index": true,
-        "fields": {
-          "prefix": {
-            "search_analyzer": "prefix_search",
-            "type": "text",
-            "analyzer": "prefix_index"
-          }
+      "index": true,
+      "store": false,
+      "type": "text"
+    },
+    "handle": {
+      "fields": {
+        "keyword": {
+          "type": "keyword"
+        },
+        "prefix": {
+          "analyzer": "prefix_index",
+          "search_analyzer": "prefix_search",
+          "type": "text"
         }
-      }
+      },
+      "index": true,
+      "store": false,
+      "type": "text"
+    },
+    "managed_by": {
+      "index": true,
+      "store": false,
+      "type": "keyword"
+    },
+    "name": {
+      "index": false,
+      "store": false,
+      "type": "keyword"
+    },
+    "normalized": {
+      "fields": {
+        "prefix": {
+          "analyzer": "prefix_index",
+          "search_analyzer": "prefix_search",
+          "type": "text"
+        }
+      },
+      "index": true,
+      "store": false,
+      "type": "text"
+    },
+    "role": {
+      "index": true,
+      "store": false,
+      "type": "keyword"
+    },
+    "saml_idp": {
+      "index": false,
+      "store": false,
+      "type": "keyword"
+    },
+    "team": {
+      "index": true,
+      "store": false,
+      "type": "keyword"
     }
   }
 }

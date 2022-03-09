@@ -45,10 +45,7 @@ tests =
           (eitherDecode' (encode userDoc1))
           (Right userDoc1),
       testCase "backwards comptibility test: UserDoc" $
-        assertEqual
-          "failed"
-          userDoc1Value
-          (toJSON userDoc1),
+        assertBool "failed" (isRight (eitherDecode' userDoc1ByteString :: Either String UserDoc)),
       testCase "IndexUser to UserDoc" $
         assertEqual
           "failed"
@@ -73,12 +70,11 @@ userDoc1 =
       udSAMLIdP = Just "https://issuer.net/214234",
       udManagedBy = Just ManagedByScim,
       udCreatedAt = Just (toUTCTimeMillis (mkTime 1598737800000)),
-      udRole = Just RoleAdmin
+      udRole = Just RoleAdmin,
+      udSearchVisibilityInbound = Nothing
     }
 
-userDoc1Value :: Value
-userDoc1Value = fromJust (decode userDoc1ByteString)
-
+-- Dont touch this. This represents serialized legacy data.
 userDoc1ByteString :: LByteString
 userDoc1ByteString = "{\"email\":\"phoompy@example.com\",\"account_status\":\"active\",\"handle\":\"phoompy\",\"managed_by\":\"scim\",\"role\":\"admin\",\"accent_id\":32,\"name\":\"Carl Phoomp\",\"created_at\":\"2020-08-29T21:50:00.000Z\",\"team\":\"17c59b18-57d6-11ea-9220-8bbf5eee961a\",\"id\":\"0a96b396-57d6-11ea-a04b-7b93d1a5c19c\",\"normalized\":\"carl phoomp\",\"saml_idp\":\"https://issuer.net/214234\"}"
 
