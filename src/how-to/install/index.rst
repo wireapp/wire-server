@@ -21,6 +21,7 @@ Installing wire-server
    restund
    configure-federation
    tls
+   How to install and set up Legal Hold <legalhold.md>
    Managing authentication with ansible <ansible-authentication.rst>
    Using tinc <ansible-tinc.rst>
    Troubleshooting during installation <troubleshooting.rst>
