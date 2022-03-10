@@ -456,9 +456,13 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true
+      versioned: false
+      strip_version: true
     - path: /teams/([^/]*)/billing(.*)
       envs:
       - all
+      versioned: false
+      strip_version: true
     calling-test:
     - path: /calling-test
       envs:

@@ -55,7 +55,7 @@ where
 import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion
-import qualified Data.Code as Code
+import Data.Code as Code
 import Data.Handle (Handle)
 import Data.Id (UserId)
 import Data.Misc (PlainTextPassword (..))
@@ -66,7 +66,6 @@ import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
-import Wire.API.User.Activation
 import Wire.API.User.Identity (Email, Phone)
 
 --------------------------------------------------------------------------------
@@ -74,7 +73,7 @@ import Wire.API.User.Identity (Email, Phone)
 
 -- | Different kinds of logins.
 data Login
-  = PasswordLogin LoginId PlainTextPassword (Maybe CookieLabel) (Maybe ActivationCode)
+  = PasswordLogin LoginId PlainTextPassword (Maybe CookieLabel) (Maybe Code.Value)
   | SmsLogin Phone LoginCode (Maybe CookieLabel)
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Login)

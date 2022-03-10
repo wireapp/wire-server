@@ -38,8 +38,10 @@ import Brig.API.Util
 import qualified Brig.API.Util as API
 import Brig.App
 import qualified Brig.Calling.API as Calling
+import qualified Brig.Code as Code
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
+import qualified Brig.Data.UserKey as UserKey
 import qualified Brig.Docs.Swagger
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -63,7 +65,6 @@ import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LBS
-import qualified Data.Code as Code
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
@@ -173,7 +174,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"get-user-by-handle-qualified" Handle.getHandleInfo
         :<|> Named @"list-users-by-unqualified-ids-or-handles" listUsersByUnqualifiedIdsOrHandles
         :<|> Named @"list-users-by-ids-or-handles" listUsersByIdsOrHandles
-        :<|> Named @"send-verification-code" (const sendVerificationCode)
+        :<|> Named @"send-verification-code" sendVerificationCode
 
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
@@ -1038,12 +1039,47 @@ activate (Public.Activate tgt code dryrun)
     respond (Just ident) first = ActivationResp $ Public.ActivationResponse ident first
     respond Nothing _ = ActivationRespSuccessNoIdent
 
--- Verification
-
-sendVerificationCode :: (Handler r) ()
-sendVerificationCode =
-  case Public.TeamFeatureSndFPasswordChallengeNotImplemented of
+sendVerificationCode :: Public.SendVerificationCode -> (Handler r) ()
+sendVerificationCode req = do
+  let email = Public.svcEmail req
+  let action = Public.svcAction req
+  mbAccount <- getAccount email
+  featureEnabled <- getFeatureStatus mbAccount
+  scope <- scope' action
+  case (mbAccount, featureEnabled) of
+    (Just account, True) -> do
+      gen <- Code.mk6DigitGen $ Code.ForEmail email
+      timeout <- setVerificationTimeout <$> view settings
+      code <-
+        Code.generate
+          gen
+          scope
+          (Code.Retries 3)
+          timeout
+          (Just $ toUUID $ Public.userId $ accountUser account)
+      Code.insert code
+      sendMail email (Code.codeValue code) (Just $ Public.userLocale $ accountUser account) action
     _ -> pure ()
+  where
+    getAccount :: Public.Email -> (Handler r) (Maybe UserAccount)
+    getAccount email = lift $ do
+      mbUserId <- UserKey.lookupKey $ UserKey.userEmailKey email
+      join <$> Data.lookupAccount `traverse` mbUserId
+
+    scope' :: Public.VerificationAction -> (Handler r) Code.Scope
+    scope' = \case
+      Public.GenerateScimToken -> throwStd verificationCodeNotImplementedError
+      Public.Login -> pure Code.AccountLogin
+
+    sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
+    sendMail email value mbLocale = \case
+      Public.GenerateScimToken -> throwStd verificationCodeNotImplementedError
+      Public.Login -> lift $ sendLoginVerificationMail email value mbLocale
+
+    getFeatureStatus :: Maybe UserAccount -> (Handler r) Bool
+    getFeatureStatus mbAccount = do
+      mbStatusEnabled <- lift $ Intra.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
+      pure $ fromMaybe False mbStatusEnabled
 
 -- Deprecated
 
