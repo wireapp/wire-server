@@ -1362,6 +1362,7 @@ postJoinCodeConvOk = do
     postJoinCodeConv bob incorrectCode !!! const 404 === statusCode
     -- correct code works
     postJoinCodeConv bob payload !!! const 200 === statusCode
+    -- non-admin cannot create invite link
     postConvCode bob conv !!! const 403 === statusCode
     -- test no-op
     postJoinCodeConv bob payload !!! const 204 === statusCode
@@ -1375,6 +1376,7 @@ postJoinCodeConvOk = do
     let nonActivatedAccess = ConversationAccessData (Set.singleton CodeAccess) accessRolesWithGuests
     putAccessUpdate alice conv nonActivatedAccess !!! const 200 === statusCode
     postJoinCodeConv eve payload !!! const 200 === statusCode
+    -- guest cannot create invite link
     postConvCode eve conv !!! const 403 === statusCode
     -- after removing CodeAccess, no further people can join
     let noCodeAccess = ConversationAccessData (Set.singleton InviteAccess) accessRoles
