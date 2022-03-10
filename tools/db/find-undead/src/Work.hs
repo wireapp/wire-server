@@ -21,125 +21,44 @@
 
 module Work where
 
-import Brig.Types.Intra (AccountStatus (..))
 import Cassandra
-import Cassandra.Util (Writetime, writeTimeToUTC)
 import Conduit
-import Control.Lens (view, _1, _2)
-import Data.Aeson (FromJSON, (.:))
-import qualified Data.Aeson as Aeson
+import Data.Aeson (eitherDecode)
+import qualified Data.ByteString.Lazy as LBS
+import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
-import qualified Data.Set as Set
-import qualified Data.Text as Text
-import Data.UUID
-import qualified Database.Bloodhound as ES
+import Data.Id
+import qualified Data.Text.Encoding as Text
 import Imports
 import System.Logger (Logger)
 import qualified System.Logger as Log
+import Wire.API.User (UserSSOId)
 
-runCommand :: Logger -> ClientState -> ES.BHEnv -> String -> String -> IO ()
-runCommand l cas es indexStr mappingStr = do
-  let index = ES.IndexName $ Text.pack indexStr
-      mapping = ES.MappingName $ Text.pack mappingStr
+runCommand :: Logger -> ClientState -> IO ()
+runCommand l brig = do
   runConduit $
-    transPipe (ES.runBH es) $
-      getScrolled index mapping
-        .| C.iterM (logProgress l)
-        .| C.mapM
-          ( \uuids -> do
-              fromCas <- runClient cas $ usersInCassandra uuids
-              pure (uuids, fromCas)
-          )
-        .| C.mapM_ (logDifference l)
+    zipSources
+      (C.sourceList [(1 :: Int32) ..])
+      (transPipe (runClient brig) getSSOIds)
+      .| C.mapM_
+        ( \(i, usersAndSSOIds) -> do
+            Log.info l (Log.field "number of ssoIds processed" (show (i * pageSize)))
+            mapM_ (uncurry (validateSSOId l)) usersAndSSOIds
+        )
 
-----------------------------------------------------------------------------
--- Queries
+pageSize :: Int32
+pageSize = 2000
 
-logProgress :: MonadIO m => Logger -> [UUID] -> m ()
-logProgress l uuids = Log.info l $ Log.field "Progress" (show $ length uuids)
-
-logDifference :: Logger -> ([UUID], [(UUID, Maybe AccountStatus, Maybe (Writetime ()))]) -> ES.BH IO ()
-logDifference l (uuidsFromES, fromCas) = do
-  let noStatusUuidsFromCas = filter (isNothing . view _2) fromCas
-      deletedUuidsFromCas = filter ((== Just Deleted) . view _2) fromCas
-      extraUuids = Set.difference (Set.fromList uuidsFromES) (Set.fromList $ map (view _1) fromCas)
-  mapM_ (logUUID l "NoStatus") noStatusUuidsFromCas
-  mapM_ (logUUID l "Deleted") deletedUuidsFromCas
-  mapM_ (logUUID l "Extra" . (,Nothing,Nothing)) extraUuids
-
-logUUID :: MonadIO m => Logger -> ByteString -> (UUID, Maybe AccountStatus, Maybe (Writetime ())) -> m ()
-logUUID l f (uuid, _, time) =
-  Log.info l $
-    Log.msg f
-      . Log.field "uuid" (show uuid)
-      . Log.field "write time" (show $ writeTimeToUTC <$> time)
-
-getScrolled :: (ES.MonadBH m, MonadThrow m) => ES.IndexName -> ES.MappingName -> ConduitM () [UUID] m ()
-getScrolled index mapping = processRes =<< lift (ES.getInitialScroll index mapping esSearch)
+getSSOIds :: ConduitM () [(UserId, Maybe Text)] Client ()
+getSSOIds = paginateC cql (paramsP LocalQuorum () pageSize) x5
   where
-    processRes :: (ES.MonadBH m, MonadThrow m) => Either ES.EsError (ES.SearchResult User) -> ConduitM () [UUID] m ()
-    processRes = \case
-      Left e -> throwM $ EsError e
-      Right res ->
-        case map docId $ extractHits res of
-          [] -> pure ()
-          ids -> do
-            yield ids
-            processRes
-              =<< (\scrollId -> lift (ES.advanceScroll scrollId 120))
-              =<< extractScrollId res
+    cql :: PrepQuery R () (UserId, Maybe Text)
+    cql = "select id, sso_id from user"
 
-esFilter :: ES.Filter
-esFilter = ES.Filter $ ES.QueryExistsQuery (ES.FieldName "normalized")
-
-chunkSize :: Int
-chunkSize = 10000
-
-esSearch :: ES.Search
-esSearch = (ES.mkSearch Nothing (Just esFilter)) {ES.size = ES.Size chunkSize}
-
-extractHits :: ES.SearchResult User -> [User]
-extractHits = mapMaybe ES.hitSource . ES.hits . ES.searchHits
-
-extractScrollId :: MonadThrow m => ES.SearchResult a -> m ES.ScrollId
-extractScrollId res = maybe (throwM NoScrollId) pure (ES.scrollId res)
-
-usersInCassandra :: [UUID] -> Client [(UUID, Maybe AccountStatus, Maybe (Writetime ()))]
-usersInCassandra users = retry x1 $ query cql (params LocalQuorum (Identity users))
-  where
-    cql :: PrepQuery R (Identity [UUID]) (UUID, Maybe AccountStatus, Maybe (Writetime ()))
-    cql = "SELECT id, status, writetime(status) from user where id in ?"
-
-newtype User = User {docId :: UUID}
-
-instance FromJSON User where
-  parseJSON = Aeson.withObject "User" $ \o -> User <$> o .: "id"
-
-data WorkError
-  = NoScrollId
-  | EsError ES.EsError
-  deriving (Show, Eq)
-
-instance Exception WorkError
-
-type Name = Text
-
--- FUTUREWORK: you can avoid this by loading brig-the-service as a library:
--- @"services/brig/src/Brig/Data/Instances.hs:165:instance Cql AccountStatus where"@
-instance Cql AccountStatus where
-  ctype = Tagged IntColumn
-
-  toCql Active = CqlInt 0
-  toCql Suspended = CqlInt 1
-  toCql Deleted = CqlInt 2
-  toCql Ephemeral = CqlInt 3
-  toCql PendingInvitation = CqlInt 4
-
-  fromCql (CqlInt i) = case i of
-    0 -> return Active
-    1 -> return Suspended
-    2 -> return Deleted
-    3 -> return Ephemeral
-    4 -> return PendingInvitation
-    n -> Left $ "unexpected account status: " ++ show n
-  fromCql _ = Left "account status: int expected"
+validateSSOId :: Logger -> UserId -> Maybe Text -> IO ()
+validateSSOId _ _ Nothing = pure ()
+validateSSOId l uid (Just sso) = do
+  let decoded = eitherDecode @UserSSOId . LBS.fromStrict . Text.encodeUtf8 $ sso
+  case decoded of
+    Right _ -> pure ()
+    Left err -> Log.err l $ Log.field "user" (idToText uid) . Log.field "sso_id" sso . Log.msg err

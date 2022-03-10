@@ -25,8 +25,7 @@ import Imports
 import Options.Applicative
 
 data MigratorSettings = MigratorSettings
-  { setCasBrig :: CassandraSettings,
-    setESBrig :: ElasticSettings
+  { setCasBrig :: CassandraSettings
   }
   deriving (Show)
 
@@ -49,7 +48,6 @@ settingsParser :: Parser MigratorSettings
 settingsParser =
   MigratorSettings
     <$> cassandraSettingsParser "brig"
-    <*> esSettingsParser
 
 cassandraSettingsParser :: String -> Parser CassandraSettings
 cassandraSettingsParser ks =
