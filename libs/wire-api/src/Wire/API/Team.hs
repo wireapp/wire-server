@@ -52,6 +52,7 @@ module Wire.API.Team
     -- * TeamUpdateData
     TeamUpdateData (..),
     newTeamUpdateData,
+    newTeamDeleteDataWithCode,
     nameUpdate,
     iconUpdate,
     iconKeyUpdate,
@@ -337,6 +338,9 @@ instance Arbitrary TeamDeleteData where
 
 newTeamDeleteData :: Maybe PlainTextPassword -> TeamDeleteData
 newTeamDeleteData = flip TeamDeleteData Nothing
+
+newTeamDeleteDataWithCode :: Maybe PlainTextPassword -> Maybe Code.Value -> TeamDeleteData
+newTeamDeleteDataWithCode = TeamDeleteData
 
 -- FUTUREWORK: fix name of model? (upper case)
 modelTeamDelete :: Doc.Model

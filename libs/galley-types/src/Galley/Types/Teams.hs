@@ -117,6 +117,7 @@ module Galley.Types.Teams
     EventData (..),
     TeamUpdateData,
     newTeamUpdateData,
+    newTeamDeleteDataWithCode,
     nameUpdate,
     iconUpdate,
     iconKeyUpdate,
