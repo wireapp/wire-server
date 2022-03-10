@@ -1057,14 +1057,14 @@ sendVerificationCode req = do
           (Code.Retries 3)
           timeout
           (Just $ toUUID $ Public.userId $ accountUser account)
-      Code.insert code
+      mapExceptT wrapClient $ Code.insert code
       sendMail email (Code.codeValue code) (Just $ Public.userLocale $ accountUser account) action
     _ -> pure ()
   where
     getAccount :: Public.Email -> (Handler r) (Maybe UserAccount)
     getAccount email = lift $ do
-      mbUserId <- UserKey.lookupKey $ UserKey.userEmailKey email
-      join <$> Data.lookupAccount `traverse` mbUserId
+      mbUserId <- wrapClient . UserKey.lookupKey $ UserKey.userEmailKey email
+      join <$> wrapClient (Data.lookupAccount `traverse` mbUserId)
 
     scope' :: Public.VerificationAction -> (Handler r) Code.Scope
     scope' = \case

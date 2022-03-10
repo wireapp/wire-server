@@ -47,7 +47,6 @@ import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
 import Brig.Email
 import qualified Brig.IO.Intra as Intra
-import Brig.Options
 import qualified Brig.Options as Opt
 import Brig.Phone
 import Brig.Types.Common
@@ -121,14 +120,13 @@ login ::
   Login ->
   CookieType ->
   ExceptT LoginError (AppIO r) (Access ZAuth.User)
-login (PasswordLogin li pw label _) typ = do
+login (PasswordLogin li pw label code) typ = do
   uid <- mapExceptT wrapClient $ resolveLoginId li
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
-  mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
-  mapExceptT wrapClient $ checkRetryLimit mLimitFailedLogins uid
+  mapExceptT wrapClient $ checkRetryLimit uid
   mapExceptT wrapClient (Data.authenticate uid pw) `catchE` \case
-    AuthInvalidUser -> mapExceptT wrapClient $ loginFailed mLimitFailedLogins uid
-    AuthInvalidCredentials -> mapExceptT wrapClient $ loginFailed mLimitFailedLogins uid
+    AuthInvalidUser -> mapExceptT wrapClient $ loginFailed uid
+    AuthInvalidCredentials -> mapExceptT wrapClient $ loginFailed uid
     AuthSuspended -> throwE LoginSuspended
     AuthEphemeral -> throwE LoginEphemeral
     AuthPendingInvitation -> throwE LoginPendingActivation
@@ -143,46 +141,45 @@ login (PasswordLogin li pw label _) typ = do
         pure $ fromMaybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus == Public.TeamFeatureEnabled) mbFeatureEnabled
       when featureEnabled $ do
         case mbCode of
-          Nothing -> loginFailedWith LoginCodeRequired u
+          Nothing -> mapExceptT wrapClient $ loginFailedWith LoginCodeRequired u
           Just c ->
             case mbEmail of
               Nothing -> loginFailedNoEmail u
               Just email -> do
                 key <- Code.mkKey $ Code.ForEmail email
-                codeValid <- isJust <$> Code.verify key Code.AccountLogin c
-                unless codeValid $ loginFailedWith LoginCodeInvalid u
+                codeValid <- isJust <$> mapExceptT wrapClient (Code.verify key Code.AccountLogin c)
+                unless codeValid . mapExceptT wrapClient $ loginFailedWith LoginCodeInvalid u
 
     getEmailAndTeamId :: UserId -> ExceptT LoginError (AppIO r) (Maybe Email, Maybe TeamId)
     getEmailAndTeamId u = lift $ do
-      mbAccount <- Data.lookupAccount u
+      mbAccount <- wrapClient $ Data.lookupAccount u
       pure (userEmail <$> accountUser =<< mbAccount, userTeam <$> accountUser =<< mbAccount)
 
     loginFailedNoEmail :: UserId -> ExceptT LoginError (AppIO r) ()
-    loginFailedNoEmail = loginFailed
+    loginFailedNoEmail = mapExceptT wrapClient . loginFailed
 login (SmsLogin phone code label) typ = do
   uid <- mapExceptT wrapClient $ resolveLoginId (LoginByPhone phone)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
-  mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
-  mapExceptT wrapClient $ checkRetryLimit mLimitFailedLogins uid
+  mapExceptT wrapClient $ checkRetryLimit uid
   ok <- lift . wrapClient $ Data.verifyLoginCode uid code
   unless ok $
-    mapExceptT wrapClient $ loginFailed mLimitFailedLogins uid
+    mapExceptT wrapClient $ loginFailed uid
   newAccess @ZAuth.User @ZAuth.Access uid typ label
 
-loginFailedWith :: MonadClient m => LoginError -> UserId -> ExceptT LoginError m ()
+loginFailedWith :: (MonadClient m, MonadReader Env m) => LoginError -> UserId -> ExceptT LoginError m ()
 loginFailedWith e uid = decrRetryLimit uid >> throwE e
 
-loginFailed :: MonadClient m => UserId -> ExceptT LoginError m ()
+loginFailed :: (MonadClient m, MonadReader Env m) => UserId -> ExceptT LoginError m ()
 loginFailed = loginFailedWith LoginFailed
 
-decrRetryLimit :: MonadClient m => UserId -> ExceptT LoginError m ()
+decrRetryLimit :: (MonadClient m, MonadReader Env m) => UserId -> ExceptT LoginError m ()
 decrRetryLimit = withRetryLimit (\k b -> withBudget k b $ pure ())
 
-checkRetryLimit :: MonadClient m => UserId -> ExceptT LoginError m ()
+checkRetryLimit :: (MonadClient m, MonadReader Env m) => UserId -> ExceptT LoginError m ()
 checkRetryLimit = withRetryLimit checkBudget
 
 withRetryLimit ::
-  MonadClient m =>
+  (MonadClient m, MonadReader Env m) =>
   (BudgetKey -> Budget -> ExceptT LoginError m (Budgeted ())) ->
   UserId ->
   ExceptT LoginError m ()
