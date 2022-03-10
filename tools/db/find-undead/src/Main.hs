@@ -24,10 +24,7 @@ where
 
 import Cassandra as C
 import Cassandra.Settings as C
-import Data.Text as Text
-import qualified Database.Bloodhound as ES
 import Imports
-import qualified Network.HTTP.Client as HTTP
 import Options as O
 import Options.Applicative
 import qualified System.Logger as Log
@@ -38,9 +35,7 @@ main = do
   s <- execParser (info (helper <*> settingsParser) desc)
   lgr <- initLogger
   cas <- initCas (setCasBrig s) lgr
-  mgr <- HTTP.newManager HTTP.defaultManagerSettings
-  let es = initES (setESBrig s) mgr
-  runCommand lgr cas es (esIndex $ setESBrig s) (esMapping $ setESBrig s)
+  runCommand lgr cas
   where
     desc =
       header "find-undead"
@@ -59,4 +54,3 @@ main = do
         . C.setKeyspace (cKeyspace cas)
         . C.setProtocolVersion C.V4
         $ C.defSettings
-    initES es = ES.mkBHEnv (ES.Server . Text.pack $ "http://" <> esHost es <> ":" <> show (esPort es))
