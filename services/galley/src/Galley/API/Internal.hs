@@ -118,6 +118,7 @@ type IFeatureAPI =
     :<|> IFeatureStatusWithLock 'TeamFeatureSelfDeletingMessages
     :<|> IFeatureStatusWithLock 'TeamFeatureGuestLinks
     :<|> IFeatureStatusWithLock 'TeamFeatureSndFactorPasswordChallenge
+    :<|> IFeatureStatus 'TeamFeatureCrossTeamSearch
 
 type InternalAPI =
   "i"
@@ -213,6 +214,7 @@ featureAPI =
     :<|> featureStatusWithLock getSelfDeletingMessagesInternal setSelfDeletingMessagesInternal
     :<|> featureStatusWithLock getGuestLinkInternal setGuestLinkInternal
     :<|> featureStatusWithLock getSndFactorPasswordChallengeInternal setSndFactorPasswordChallengeInternal
+    :<|> featureStatus _ _
 
 featureStatusGet ::
   forall (l :: IncludeLockStatus) f r.

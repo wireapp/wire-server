@@ -142,6 +142,7 @@ data TeamFeatureName
   | TeamFeatureSelfDeletingMessages
   | TeamFeatureGuestLinks
   | TeamFeatureSndFactorPasswordChallenge
+  | TeamFeatureCrossTeamSearch -- TODO: Bikeshed the name
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded, Typeable)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
@@ -197,6 +198,10 @@ instance KnownTeamFeatureName 'TeamFeatureSndFactorPasswordChallenge where
   type KnownTeamFeatureNameSymbol 'TeamFeatureSndFactorPasswordChallenge = "sndFactorPasswordChallenge"
   knownTeamFeatureName = TeamFeatureSndFactorPasswordChallenge
 
+instance KnownTeamFeatureName 'TeamFeatureCrossTeamSearch where
+  type KnownTeamFeatureNameSymbol 'TeamFeatureCrossTeamSearch = "crossTeamSearch"
+  knownTeamFeatureName = TeamFeatureCrossTeamSearch
+
 instance FromByteString TeamFeatureName where
   parser =
     Parser.takeByteString >>= \b ->
@@ -234,6 +239,7 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureSelfDeletingMessages = "selfDeletingMessages"
   builder TeamFeatureGuestLinks = "conversationGuestLinks"
   builder TeamFeatureSndFactorPasswordChallenge = "sndFactorPasswordChallenge"
+  builder TeamFeatureCrossTeamSearch = "crossTeamSearch"
 
 instance ToSchema TeamFeatureName where
   schema =
@@ -330,6 +336,7 @@ type family TeamFeatureStatus (ps :: IncludeLockStatus) (a :: TeamFeatureName) :
   TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks = TeamFeatureStatusNoConfigAndLockStatus
   TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSndFactorPasswordChallenge = TeamFeatureStatusNoConfig
   TeamFeatureStatus 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge = TeamFeatureStatusNoConfigAndLockStatus
+  TeamFeatureStatus _ 'TeamFeatureCrossTeamSearch = TeamFeatureStatusNoConfig
 
 type family FeatureHasNoConfig (ps :: IncludeLockStatus) (a :: TeamFeatureName) :: Constraint where
   FeatureHasNoConfig 'WithLockStatus a = (TeamFeatureStatus 'WithLockStatus a ~ TeamFeatureStatusNoConfigAndLockStatus)
@@ -349,6 +356,7 @@ modelForTeamFeature TeamFeatureConferenceCalling = modelTeamFeatureStatusNoConfi
 modelForTeamFeature name@TeamFeatureSelfDeletingMessages = modelTeamFeatureStatusWithConfig name modelTeamFeatureSelfDeletingMessagesConfig
 modelForTeamFeature TeamFeatureGuestLinks = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureSndFactorPasswordChallenge = modelTeamFeatureStatusNoConfig
+modelForTeamFeature TeamFeatureCrossTeamSearch = modelTeamFeatureStatusNoConfig
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusNoConfig
@@ -526,7 +534,7 @@ defaultAppLockStatus =
 ----------------------------------------------------------------------
 -- TeamFeatureSelfDeletingMessagesConfig
 
-data TeamFeatureSelfDeletingMessagesConfig = TeamFeatureSelfDeletingMessagesConfig
+newtype TeamFeatureSelfDeletingMessagesConfig = TeamFeatureSelfDeletingMessagesConfig
   { sdmEnforcedTimeoutSeconds :: Int32
   }
   deriving stock (Eq, Show, Generic)
