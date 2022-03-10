@@ -10,9 +10,11 @@ cassandra:
   # filterNodesByDatacentre: datacenter1
 
 redis:
-  host: 127.0.0.1
-  port: 6379
-  connectionMode: "master" # master | cluster
+  # host: redis-cluster-leader-headless.joe-experiments-3
+  # port: 6379
+  host: localhost
+  port: 6377
+  connectionMode: "cluster" # master | cluster
 
 aws:
   queueName: integration-gundeck-events
