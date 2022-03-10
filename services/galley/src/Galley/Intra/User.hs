@@ -235,10 +235,10 @@ getAccountFeatureConfigClient uid =
 getAccountFeatureConfigClientM ::
   UserId -> Client.ClientM TeamFeatureStatusNoConfig
 ( ( _
-      :<|> getAccountFeatureConfigClientM
+      :<|> (getAccountFeatureConfigClientM :<|> _ :<|> _ :<|> _)
+      :<|> _
       :<|> _
     )
-    :<|> _
   ) = Client.client (Proxy @IAPI.API)
 
 runHereClientM :: HasCallStack => Client.ClientM a -> App (Either Client.ClientError a)

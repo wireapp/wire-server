@@ -84,19 +84,21 @@ import Wire.API.User.RichInfo
 -- Sitemap (servant)
 
 servantSitemap :: ServerT BrigIRoutes.API (Handler r)
-servantSitemap = ejpdAPI :<|> accountAPI
-
-ejpdAPI :: ServerT BrigIRoutes.EJPD_API (Handler r)
-ejpdAPI =
-  Brig.User.EJPD.ejpdRequest
-    :<|> getAccountFeatureConfig
-    :<|> putAccountFeatureConfig
-    :<|> deleteAccountFeatureConfig
+servantSitemap =
+  ejpdAPI
+    :<|> accountAPI
     :<|> getConnectionsStatusUnqualified
     :<|> getConnectionsStatus
 
+ejpdAPI :: ServerT BrigIRoutes.EJPD_API (Handler r)
+ejpdAPI = Brig.User.EJPD.ejpdRequest
+
 accountAPI :: ServerT BrigIRoutes.AccountAPI (Handler r)
-accountAPI = Named @"createUserNoVerify" createUserNoVerify
+accountAPI =
+  getAccountFeatureConfig
+    :<|> putAccountFeatureConfig
+    :<|> deleteAccountFeatureConfig
+    :<|> Named @"createUserNoVerify" createUserNoVerify
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountFeatureConfig :: UserId -> (Handler r) ApiFt.TeamFeatureStatusNoConfig
