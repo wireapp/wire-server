@@ -462,7 +462,7 @@ data Settings = Settings
     setActivationTimeout :: !Timeout,
     -- | Default verification code timeout, in seconds
     -- use `setVerificationTimeout` as the getter function which always provides a default value
-    setVerificationTimeoutInternal :: !(Maybe Code.Timeout),
+    setVerificationCodeTimeoutInternal :: !(Maybe Code.Timeout),
     -- | Team invitation timeout, in seconds
     setTeamInvitationTimeout :: !Timeout,
     -- | Check for expired users every so often, in seconds
@@ -585,7 +585,7 @@ defVerificationTimeout :: Code.Timeout
 defVerificationTimeout = Code.Timeout (60 * 10) -- 10 minutes
 
 setVerificationTimeout :: Settings -> Code.Timeout
-setVerificationTimeout = fromMaybe defVerificationTimeout . setVerificationTimeoutInternal
+setVerificationTimeout = fromMaybe defVerificationTimeout . setVerificationCodeTimeoutInternal
 
 setDefaultTemplateLocale :: Settings -> Locale
 setDefaultTemplateLocale = fromMaybe defaultTemplateLocale . setDefaultTemplateLocaleInternal
@@ -763,7 +763,7 @@ instance FromJSON Settings where
           { fieldLabelModifier = \case
               "setDefaultUserLocaleInternal" -> "setDefaultUserLocale"
               "setDefaultTemplateLocaleInternal" -> "setDefaultTemplateLocale"
-              "setVerificationTimeoutInternal" -> "setVerificationTimeout"
+              "setVerificationCodeTimeoutInternal" -> "setVerificationTimeout"
               other -> other
           }
 
