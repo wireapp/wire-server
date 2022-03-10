@@ -169,6 +169,7 @@ mkGen cfor = liftIO $ do
     initGen d (ForEmail e) = mkEmailLinkGen e d
     initGen d _ = mk6DigitGen' cfor d
 
+-- | Initialise a 'Code' 'Gen'erator for a given natural key.  This generates a 6-digit code, matter whether it is sent to a phone or to an email address.  See also: `mkGen`.
 mk6DigitGen :: MonadIO m => CodeFor -> m Gen
 mk6DigitGen cfor = liftIO $ do
   Just sha256 <- getDigestByName "SHA256"
