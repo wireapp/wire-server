@@ -138,7 +138,7 @@ login (PasswordLogin li pw label code) typ = do
             case mbEmail of
               Nothing -> loginFailedNoEmail u
               Just email -> do
-                key <- Code.genKey <$> Code.mk6DigitGen (Code.ForEmail email)
+                key <- Code.mkKey $ Code.ForEmail email
                 codeValid <- isJust <$> Code.verify key Code.AccountLogin c
                 unless codeValid $ loginFailedWith LoginCodeInvalid u
 
