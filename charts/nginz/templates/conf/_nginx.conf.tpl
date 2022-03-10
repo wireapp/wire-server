@@ -224,7 +224,13 @@ http {
           {{- if or (eq $env $.Values.nginx_conf.env) (eq $env "all") -}}
 
             {{- if and (not (eq $.Values.nginx_conf.env "prod")) ($location.doc) -}}
+
     rewrite ^/api-docs{{ $location.path }}  {{ $location.path }}/api-docs?base_url=https://{{ $.Values.nginx_conf.env }}-nginz-https.{{ $.Values.nginx_conf.external_env_domain }}/ break;
+            {{- end }}
+
+            {{- if $location.strip_version }}
+
+    rewrite ^/v[0-9]+({{ $location.path }}) $1;
             {{- end }}
 
     {{- $versioned := ternary $location.versioned true (hasKey $location "versioned") -}}
