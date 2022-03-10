@@ -279,7 +279,7 @@ removeSettings zusr tid (Public.RemoveLegalHoldSettingsRequest mPassword) = do
   --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
   --     . Log.field "action" (Log.val "LegalHold.removeSettings")
   void $ permissionCheck ChangeLegalHoldTeamSettings zusrMembership
-  ensureReAuthorised zusr mPassword
+  ensureReAuthorised zusr mPassword Nothing Nothing
   removeSettings' @p tid
   where
     assertNotWhitelisting :: Sem r ()
@@ -625,7 +625,7 @@ approveDevice zusr tid luid connId (Public.ApproveLegalHoldForUserRequest mPassw
       . Log.field "action" (Log.val "LegalHold.approveDevice")
   unless (zusr == tUnqualified luid) $ throw AccessDenied
   assertOnTeam (tUnqualified luid) tid
-  ensureReAuthorised zusr mPassword
+  ensureReAuthorised zusr mPassword Nothing Nothing
   userLHStatus <-
     maybe defUserLegalHoldStatus (view legalHoldStatus) <$> getTeamMember tid (tUnqualified luid)
   assertUserLHPending userLHStatus
@@ -733,7 +733,7 @@ disableForUser zusr tid luid (Public.DisableLegalHoldForUserRequest mPassword) =
   where
     disableLH :: UserLegalHoldStatus -> Sem r ()
     disableLH userLHStatus = do
-      ensureReAuthorised zusr mPassword
+      ensureReAuthorised zusr mPassword Nothing Nothing
       removeLegalHoldClientFromUser (tUnqualified luid)
       LHService.removeLegalHold tid (tUnqualified luid)
       -- TODO: send event at this point (see also: related TODO in this module in

@@ -57,6 +57,7 @@ import Brig.Types.User
 import Data.Id
 import Data.Misc
 import Data.Qualified
+import Galley.API.Error (AuthenticationError)
 import Galley.External.LegalHoldService.Types
 import Imports
 import Network.HTTP.Types.Status
@@ -85,7 +86,7 @@ data BrigAccess m a where
     Maybe Relation ->
     BrigAccess m [ConnectionStatusV2]
   PutConnectionInternal :: UpdateConnectionsInternal -> BrigAccess m Status
-  ReauthUser :: UserId -> ReAuthUser -> BrigAccess m Bool
+  ReauthUser :: UserId -> ReAuthUser -> BrigAccess m (Either AuthenticationError ())
   LookupActivatedUsers :: [UserId] -> BrigAccess m [User]
   GetUsers :: [UserId] -> BrigAccess m [UserAccount]
   DeleteUser :: UserId -> BrigAccess m ()

@@ -125,6 +125,7 @@ module Galley.Types.Teams
     newTeamMemberDeleteData,
     TeamDeleteData,
     tdAuthPassword,
+    tdVerificationCode,
     newTeamDeleteData,
     HardTruncationLimit,
     hardTruncationLimit,
