@@ -59,7 +59,8 @@ data UserTemplates = UserTemplates
     deletionEmail :: !DeletionEmailTemplate,
     newClientEmail :: !NewClientEmailTemplate,
     verificationLoginEmail :: !SecondFactorVerificationEmailTemplate,
-    verificationScimTokenEmail :: !SecondFactorVerificationEmailTemplate
+    verificationScimTokenEmail :: !SecondFactorVerificationEmailTemplate,
+    verificationTeamDeletionEmail :: !SecondFactorVerificationEmailTemplate
   }
 
 data ActivationSmsTemplate = ActivationSmsTemplate
@@ -239,6 +240,13 @@ loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
             <$> readTemplate fp "email/verification-scim-token-subject.txt"
             <*> readTemplate fp "email/verification-scim-token.txt"
             <*> readTemplate fp "email/verification-scim-token.html"
+            <*> pure emailSender
+            <*> readText fp "email/sender.txt"
+        )
+    <*> ( SecondFactorVerificationEmailTemplate
+            <$> readTemplate fp "email/verification-delete-team-subject.txt"
+            <*> readTemplate fp "email/verification-delete-team.txt"
+            <*> readTemplate fp "email/verification-delete-team.html"
             <*> pure emailSender
             <*> readText fp "email/sender.txt"
         )

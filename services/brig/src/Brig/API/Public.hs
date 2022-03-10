@@ -1070,7 +1070,7 @@ sendVerificationCode req = do
       lift . \case
         Public.CreateScimToken -> sendCreateScimTokenVerificationMail email value mbLocale
         Public.Login -> sendLoginVerificationMail email value mbLocale
-        Public.DeleteTeam -> error "todo(leif): implement sendDeleteTeamVerificationMail"
+        Public.DeleteTeam -> sendTeamDeletionVerificationMail email value mbLocale
 
     getFeatureStatus :: Maybe UserAccount -> (Handler r) Bool
     getFeatureStatus mbAccount = do
