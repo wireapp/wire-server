@@ -58,6 +58,8 @@ import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.Component
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging (LocalOrRemoteTable, MultiTablePagingState)
+import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.User as Public
 
 newtype ConnectionLimit = ConnectionLimit Int64
 
@@ -478,3 +480,13 @@ matchConvLeaveNotification conv remover removeds n = do
   where
     sorted (Conv.EdMembersLeave (Conv.QualifiedUserIdList m)) = Conv.EdMembersLeave (Conv.QualifiedUserIdList (sort m))
     sorted x = x
+
+generateVerificationCode :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> Public.SendVerificationCode -> m ()
+generateVerificationCode brig req = do
+  let js = RequestBodyLBS $ encode req
+  post (brig . paths ["verification-code", "send"] . contentJson . body js) !!! const 200 === statusCode
+
+setTeamSndFactorPasswordChallenge :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Galley -> TeamId -> Public.TeamFeatureStatusValue -> m ()
+setTeamSndFactorPasswordChallenge galley tid status = do
+  let js = RequestBodyLBS $ encode $ Public.TeamFeatureStatusNoConfig status
+  put (galley . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge] . contentJson . body js) !!! const 200 === statusCode

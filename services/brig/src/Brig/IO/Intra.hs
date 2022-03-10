@@ -57,6 +57,7 @@ module Brig.IO.Intra
     getTeamLegalHoldStatus,
     changeTeamStatus,
     getTeamSearchVisibility,
+    getVerificationCodeEnabled,
 
     -- * Legalhold
     guardLegalhold,
@@ -120,7 +121,7 @@ import System.Logger.Class as Log hiding (name, (.=))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Message (UserClients)
-import Wire.API.Team.Feature (IncludeLockStatus (..), TeamFeatureName (..), TeamFeatureStatus)
+import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 import qualified Wire.API.Team.Member as Member
 
@@ -986,6 +987,19 @@ getTeamSearchVisibility tid =
   where
     req =
       paths ["i", "teams", toByteString' tid, "search-visibility"]
+        . expect2xx
+
+getVerificationCodeEnabled :: TeamId -> (AppIO r) Bool
+getVerificationCodeEnabled tid = do
+  debug $ remote "galley" . msg (val "Get snd factor password challenge settings")
+  response <- galleyRequest GET req
+  status <- tfwoStatus <$> decodeBody "galley" response
+  case status of
+    TeamFeatureEnabled -> pure True
+    TeamFeatureDisabled -> pure False
+  where
+    req =
+      paths ["i", "teams", toByteString' tid, "features", toByteString' TeamFeatureSndFactorPasswordChallenge]
         . expect2xx
 
 -- | Calls 'Galley.API.updateTeamStatusH'.

@@ -47,6 +47,8 @@ module Brig.Code
     Gen (genKey),
     mkGen,
     generate,
+    mk6DigitGen,
+    mkKey,
 
     -- * Storage
     insert,
@@ -70,7 +72,7 @@ import qualified Data.Text.Encoding as Text
 import Data.UUID (UUID)
 import Imports hiding (lookup)
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
-import OpenSSL.EVP.Digest (digestBS, getDigestByName)
+import OpenSSL.EVP.Digest (Digest, digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
 import Text.Printf (printf)
 
@@ -150,23 +152,46 @@ data Gen = Gen
     genValue :: IO Value
   }
 
--- | Initialise a 'Code' 'Gen'erator for a given natural key.
+mkKey :: MonadIO m => CodeFor -> m Key
+mkKey cfor = liftIO $ do
+  Just sha256 <- getDigestByName "SHA256"
+  let uniqueK = case cfor of
+        ForEmail e -> emailKeyUniq (mkEmailKey e)
+        ForPhone p -> phoneKeyUniq (mkPhoneKey p)
+  pure $ mkKey' sha256 (Text.encodeUtf8 uniqueK)
+
+-- | Initialise a 'Code' 'Gen'erator for a given natural key.  This generates a link for emails and a 6-digit code for phone.  See also: `mk6DigitGen`.
 mkGen :: MonadIO m => CodeFor -> m Gen
 mkGen cfor = liftIO $ do
   Just sha256 <- getDigestByName "SHA256"
   return (initGen sha256 cfor)
   where
-    initGen d (ForEmail e) =
-      let key = mkKey d (Text.encodeUtf8 (emailKeyUniq (mkEmailKey e)))
-          val = Value . unsafeRange . Ascii.encodeBase64Url <$> randBytes 15
-       in Gen cfor key val
-    initGen d (ForPhone p) =
-      let key = mkKey d (Text.encodeUtf8 (phoneKeyUniq (mkPhoneKey p)))
-          val =
-            Value . unsafeRange . Ascii.unsafeFromText . Text.pack . printf "%06d"
-              <$> randIntegerZeroToNMinusOne (10 ^ (6 :: Int))
-       in Gen cfor key val
-    mkKey d = Key . unsafeRange . Ascii.encodeBase64Url . BS.take 15 . digestBS d
+    initGen d (ForEmail e) = mkEmailLinkGen e d
+    initGen d _ = mk6DigitGen' cfor d
+
+-- | Initialise a 'Code' 'Gen'erator for a given natural key.  This generates a 6-digit code, matter whether it is sent to a phone or to an email address.  See also: `mkGen`.
+mk6DigitGen :: MonadIO m => CodeFor -> m Gen
+mk6DigitGen cfor = liftIO $ do
+  Just sha256 <- getDigestByName "SHA256"
+  return $ mk6DigitGen' cfor sha256
+
+mk6DigitGen' :: CodeFor -> Digest -> Gen
+mk6DigitGen' cfor d =
+  let uniqueK = case cfor of
+        ForEmail e -> emailKeyUniq (mkEmailKey e)
+        ForPhone p -> phoneKeyUniq (mkPhoneKey p)
+      key = mkKey' d $ Text.encodeUtf8 uniqueK
+      val = Value . unsafeRange . Ascii.unsafeFromText . Text.pack . printf "%06d" <$> randIntegerZeroToNMinusOne (10 ^ (6 :: Int))
+   in Gen cfor key val
+
+mkEmailLinkGen :: Email -> Digest -> Gen
+mkEmailLinkGen e d =
+  let key = mkKey' d (Text.encodeUtf8 (emailKeyUniq (mkEmailKey e)))
+      val = Value . unsafeRange . Ascii.encodeBase64Url <$> randBytes 15
+   in Gen (ForEmail e) key val
+
+mkKey' :: Digest -> ByteString -> Key
+mkKey' d = Key . unsafeRange . Ascii.encodeBase64Url . BS.take 15 . digestBS d
 
 -- | Generate a new 'Code'.
 generate ::

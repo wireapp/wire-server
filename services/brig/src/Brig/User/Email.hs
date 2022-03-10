@@ -24,6 +24,7 @@ module Brig.User.Email
     sendPasswordResetMail,
     sendDeletionEmail,
     sendNewClientEmail,
+    sendLoginVerificationMail,
 
     -- * Re-exports
     validateEmail,
@@ -51,6 +52,12 @@ sendVerificationMail to pair loc = do
   branding <- view templateBranding
   let mail = VerificationEmail to pair
   Email.sendMail $ renderVerificationMail mail tpl branding
+
+sendLoginVerificationMail :: Email -> Code.Value -> Maybe Locale -> (AppIO r) ()
+sendLoginVerificationMail email code mbLocale = do
+  tpl <- verificationLoginEmail . snd <$> userTemplates mbLocale
+  branding <- view templateBranding
+  Email.sendMail $ renderSecondFactorVerificationEmail tpl email code branding
 
 sendActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Maybe UserIdentity -> (AppIO r) ()
 sendActivationMail to name pair loc ident = do
@@ -163,6 +170,33 @@ renderDeletionEmail DeletionEmailTemplate {..} DeletionEmail {..} branding =
     replace2 "key" = key
     replace2 "code" = code
     replace2 x = x
+
+renderSecondFactorVerificationEmail ::
+  SecondFactorVerificationEmailTemplate ->
+  Email ->
+  Code.Value ->
+  TemplateBranding ->
+  Mail
+renderSecondFactorVerificationEmail SecondFactorVerificationEmailTemplate {..} email codeValue branding =
+  (emptyMail from)
+    { mailTo = [to],
+      mailHeaders =
+        [ ("Subject", toStrict subj),
+          ("X-Zeta-Purpose", "SecondFactorVerification"),
+          ("X-Zeta-Code", code)
+        ],
+      mailParts = [[plainPart txt, htmlPart html]]
+    }
+  where
+    from = Address (Just sndFactorVerificationEmailSenderName) (fromEmail sndFactorVerificationEmailSender)
+    to = Address Nothing (fromEmail email)
+    txt = renderTextWithBranding sndFactorVerificationEmailBodyText replace branding
+    html = renderHtmlWithBranding sndFactorVerificationEmailBodyHtml replace branding
+    subj = renderTextWithBranding sndFactorVerificationEmailSubject replace branding
+    code = Ascii.toText (fromRange (Code.asciiValue codeValue))
+    replace "email" = fromEmail email
+    replace "code" = code
+    replace x = x
 
 -------------------------------------------------------------------------------
 -- Verification Email

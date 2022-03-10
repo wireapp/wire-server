@@ -39,6 +39,7 @@ import Brig.API.Types
 import Brig.API.User (suspendAccount)
 import Brig.App
 import Brig.Budget
+import qualified Brig.Code as Code
 import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.LoginCode as Data
 import qualified Brig.Data.User as Data
@@ -71,7 +72,7 @@ import Network.Wai.Utilities.Error ((!>>))
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
-import Wire.API.User (TeamFeatureSndFPasswordChallengeNotImplemented (..))
+import qualified Wire.API.Team.Feature as Public
 
 data Access u = Access
   { accessToken :: !AccessToken,
@@ -111,11 +112,7 @@ lookupLoginCode phone =
       Data.lookupLoginCode u
 
 login :: Login -> CookieType -> ExceptT LoginError (AppIO r) (Access ZAuth.User)
-login (PasswordLogin li pw label _) typ = do
-  case TeamFeatureSndFPasswordChallengeNotImplemented of
-    -- mark this place to implement handling verification codes later
-    -- (for now just ignore them unconditionally.)
-    _ -> pure ()
+login (PasswordLogin li pw label code) typ = do
   uid <- resolveLoginId li
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
   checkRetryLimit uid
@@ -125,7 +122,33 @@ login (PasswordLogin li pw label _) typ = do
     AuthSuspended -> throwE LoginSuspended
     AuthEphemeral -> throwE LoginEphemeral
     AuthPendingInvitation -> throwE LoginPendingActivation
+  verifyCode code uid
   newAccess @ZAuth.User @ZAuth.Access uid typ label
+  where
+    verifyCode :: Maybe Code.Value -> UserId -> ExceptT LoginError (AppIO r) ()
+    verifyCode mbCode u = do
+      (mbEmail, mbTeamId) <- getEmailAndTeamId u
+      featureEnabled <- lift $ do
+        mbFeatureEnabled <- Intra.getVerificationCodeEnabled `traverse` mbTeamId
+        pure $ fromMaybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus == Public.TeamFeatureEnabled) mbFeatureEnabled
+      when featureEnabled $ do
+        case mbCode of
+          Nothing -> loginFailedWith LoginCodeRequired u
+          Just c ->
+            case mbEmail of
+              Nothing -> loginFailedNoEmail u
+              Just email -> do
+                key <- Code.mkKey $ Code.ForEmail email
+                codeValid <- isJust <$> Code.verify key Code.AccountLogin c
+                unless codeValid $ loginFailedWith LoginCodeInvalid u
+
+    getEmailAndTeamId :: UserId -> ExceptT LoginError (AppIO r) (Maybe Email, Maybe TeamId)
+    getEmailAndTeamId u = lift $ do
+      mbAccount <- Data.lookupAccount u
+      pure (userEmail <$> accountUser =<< mbAccount, userTeam <$> accountUser =<< mbAccount)
+
+    loginFailedNoEmail :: UserId -> ExceptT LoginError (AppIO r) ()
+    loginFailedNoEmail = loginFailed
 login (SmsLogin phone code label) typ = do
   uid <- resolveLoginId (LoginByPhone phone)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
@@ -135,8 +158,11 @@ login (SmsLogin phone code label) typ = do
     loginFailed uid
   newAccess @ZAuth.User @ZAuth.Access uid typ label
 
+loginFailedWith :: LoginError -> UserId -> ExceptT LoginError (AppIO r) ()
+loginFailedWith e uid = decrRetryLimit uid >> throwE e
+
 loginFailed :: UserId -> ExceptT LoginError (AppIO r) ()
-loginFailed uid = decrRetryLimit uid >> throwE LoginFailed
+loginFailed = loginFailedWith LoginFailed
 
 decrRetryLimit :: UserId -> ExceptT LoginError (AppIO r) ()
 decrRetryLimit = withRetryLimit (\k b -> withBudget k b $ pure ())

@@ -151,6 +151,8 @@ data LoginError
   | LoginPendingActivation
   | LoginThrottled RetryAfter
   | LoginBlocked RetryAfter
+  | LoginCodeRequired
+  | LoginCodeInvalid
 
 data ChangeEmailError
   = InvalidNewEmail !Email !String
