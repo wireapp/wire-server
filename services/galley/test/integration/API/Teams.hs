@@ -1534,6 +1534,7 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
         )
 
 -- | @SF.Management @TSFI.RESTfulAPI @S2
+-- This test covers:
 -- Promotion, demotion of team roles.
 -- Demotion by superior roles is allowed.
 -- Demotion by inferior roles is NOT allowed.
@@ -1603,6 +1604,8 @@ testUpdateTeamMember = do
       let e = List1.head (WS.unpackPayload notif)
       e ^. eventTeam @?= tid
       e ^. eventData @?= EdMemberUpdate uid mPerm
+
+-- @END
 
 testUpdateTeamStatus :: TestM ()
 testUpdateTeamStatus = do
