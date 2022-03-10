@@ -160,7 +160,7 @@ mkKey cfor = liftIO $ do
         ForPhone p -> phoneKeyUniq (mkPhoneKey p)
   pure $ mkKey' sha256 (Text.encodeUtf8 uniqueK)
 
--- | Initialise a 'Code' 'Gen'erator for a given natural key.
+-- | Initialise a 'Code' 'Gen'erator for a given natural key.  This generates a link for emails and a 6-digit code for phone.  See also: `mk6DigitGen`.
 mkGen :: MonadIO m => CodeFor -> m Gen
 mkGen cfor = liftIO $ do
   Just sha256 <- getDigestByName "SHA256"
