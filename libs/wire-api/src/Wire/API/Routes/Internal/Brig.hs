@@ -114,29 +114,29 @@ type GetAllConnections =
     :> ReqBody '[Servant.JSON] ConnectionsStatusRequestV2
     :> Post '[Servant.JSON] [ConnectionStatusV2]
 
-type EJPD_API =
-  ( EJPDRequest
-      :<|> GetAccountFeatureConfig
-      :<|> PutAccountFeatureConfig
-      :<|> DeleteAccountFeatureConfig
-      :<|> GetAllConnectionsUnqualified
-      :<|> GetAllConnections
-  )
+type EJPD_API = EJPDRequest
 
 type AccountAPI =
-  -- This endpoint can lead to the following events being sent:
-  -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
-  -- - UserIdentityUpdated event to created user, if email or phone get activated
-  Named
-    "createUserNoVerify"
-    ( "users"
-        :> ReqBody '[Servant.JSON] NewUser
-        :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
-    )
+  GetAccountFeatureConfig
+    :<|> PutAccountFeatureConfig
+    :<|> DeleteAccountFeatureConfig
+    :<|> Named
+           "createUserNoVerify"
+           -- This endpoint can lead to the following events being sent:
+           -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
+           -- - UserIdentityUpdated event to created user, if email or phone get activated
+           ( "users"
+               :> ReqBody '[Servant.JSON] NewUser
+               :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
+           )
 
 type API =
   "i"
-    :> (EJPD_API :<|> AccountAPI)
+    :> ( EJPD_API
+           :<|> AccountAPI
+           :<|> GetAllConnectionsUnqualified
+           :<|> GetAllConnections
+       )
 
 type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
