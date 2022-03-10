@@ -128,6 +128,13 @@ tests s =
       test s "delete binding team internal single member" testDeleteBindingTeamSingleMember,
       test s "delete binding team (owner has passwd)" (testDeleteBindingTeam True),
       test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False),
+      testGroup
+        "delete team - verification code"
+        [ test s "success" testDeleteTeamVerificationCodeSuccess,
+          test s "wrong code" testDeleteTeamVerificationCodeWrongCode,
+          test s "missing code" testDeleteTeamVerificationCodeMissingCode,
+          test s "expired code" testDeleteTeamVerificationCodeExpiredCode
+        ],
       test s "delete team conversation" testDeleteTeamConv,
       test s "update team data" testUpdateTeam,
       test s "update team data icon validation" testUpdateTeamIconValidation,
@@ -1052,6 +1059,18 @@ testDeleteBindingTeamSingleMember = do
   -- received the event, should _really_ be deleted
   -- Let's clean the queue, just in case
   ensureQueueEmpty
+
+testDeleteTeamVerificationCodeSuccess :: TestM ()
+testDeleteTeamVerificationCodeSuccess = pure ()
+
+testDeleteTeamVerificationCodeWrongCode :: TestM ()
+testDeleteTeamVerificationCodeWrongCode = pure ()
+
+testDeleteTeamVerificationCodeMissingCode :: TestM ()
+testDeleteTeamVerificationCodeMissingCode = pure ()
+
+testDeleteTeamVerificationCodeExpiredCode :: TestM ()
+testDeleteTeamVerificationCodeExpiredCode = pure ()
 
 testDeleteBindingTeam :: Bool -> TestM ()
 testDeleteBindingTeam ownerHasPassword = do
