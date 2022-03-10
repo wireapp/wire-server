@@ -15,9 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V62_TeamFeatureSearchVisibilityInbound
+  ( migration,
+  )
+where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 61
+migration :: Migration
+migration = Migration 61 "Add feature config for team feature SearchVisibilityInbound" $ do
+  schema'
+    [r| ALTER TABLE team_features ADD (
+          search_visibility_inbound_status int
+        )
+     |]

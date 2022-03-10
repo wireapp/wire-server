@@ -43,6 +43,8 @@ module Galley.API.Teams.Features
     setSelfDeletingMessagesInternal,
     getSndFactorPasswordChallengeInternal,
     setSndFactorPasswordChallengeInternal,
+    getTeamSearchVisibilityInboundInternal,
+    setTeamSearchVisibilityAvailableInboundInternal,
     getGuestLinkInternal,
     setGuestLinkInternal,
     setLockStatus,
@@ -756,6 +758,28 @@ setSndFactorPasswordChallengeInternal tid status = do
   where
     getDftLockStatus :: Sem r Public.LockStatusValue
     getDftLockStatus = input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSndFactorPasswordChallengeStatus . unDefaults . to Public.tfwoapsLockStatus)
+
+getTeamSearchVisibilityInboundInternal ::
+  Members '[Input Opts, TeamFeatureStore] r =>
+  GetFeatureInternalParam ->
+  Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibilityInbound)
+getTeamSearchVisibilityInboundInternal =
+  either
+    (const $ getFeatureStatusWithDefaultConfig @'Public.TeamFeatureSearchVisibilityInbound flagTeamFeatureSearchVisibilityInbound Nothing)
+    (getFeatureStatusWithDefaultConfig @'Public.TeamFeatureSearchVisibilityInbound flagTeamFeatureSearchVisibilityInbound . Just)
+
+setTeamSearchVisibilityAvailableInboundInternal ::
+  Members '[GundeckAccess, TeamStore, TeamFeatureStore, P.TinyLog] r =>
+  TeamId ->
+  Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibilityInbound ->
+  Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibilityInbound)
+setTeamSearchVisibilityAvailableInboundInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibilityInbound $ \case
+  Public.TeamFeatureDisabled -> \_tid ->
+    -- TODO: update whole team in ES with Update By Query API
+    pure ()
+  Public.TeamFeatureEnabled -> \_tid ->
+    -- TODO: update whole team in ES with Update By Query API
+    pure ()
 
 -- TODO(fisx): move this function to a more suitable place / module.
 guardLockStatus ::

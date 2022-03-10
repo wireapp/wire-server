@@ -73,7 +73,8 @@ tests s =
       test s "ConversationGuestLinks - public API" testGuestLinksPublic,
       test s "ConversationGuestLinks - internal API" testGuestLinksInternal,
       test s "ConversationGuestLinks - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureGuestLinks Public.TeamFeatureEnabled Public.Unlocked,
-      test s "SndFactorPasswordChallenge - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge Public.TeamFeatureDisabled Public.Locked
+      test s "SndFactorPasswordChallenge - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge Public.TeamFeatureDisabled Public.Locked,
+      test s "SearchVisibilityInbound - internal API" testSearchVisibilityInbound
     ]
 
 testSSO :: TestM ()
@@ -713,6 +714,30 @@ testFeatureConfigConsistency = do
 
     allFeatures :: Set.Set Text
     allFeatures = Set.fromList $ cs . toByteString' @TeamFeatureName <$> [minBound ..]
+
+testSearchVisibilityInbound :: TestM ()
+testSearchVisibilityInbound = do
+  let defaultValue = TeamFeatureDisabled
+  let feature = Public.knownTeamFeatureName @'TeamFeatureSearchVisibilityInbound
+  owner <- Util.randomUser
+  tid <- Util.createNonBindingTeam "foo" owner []
+
+  let getFlagInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
+      getFlagInternal expected =
+        flip (assertFlagNoConfig @'TeamFeatureSearchVisibilityInbound) expected $ Util.getTeamFeatureFlagInternal feature tid
+
+      setFlagInternal :: Public.TeamFeatureStatusValue -> TestM ()
+      setFlagInternal statusValue =
+        void $ Util.putTeamFeatureFlagInternal @'TeamFeatureSearchVisibilityInbound expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+
+  let otherValue = case defaultValue of
+        Public.TeamFeatureDisabled -> Public.TeamFeatureEnabled
+        Public.TeamFeatureEnabled -> Public.TeamFeatureDisabled
+
+  -- Initial value should be the default value
+  getFlagInternal defaultValue
+  setFlagInternal otherValue
+  getFlagInternal otherValue
 
 assertFlagForbidden :: HasCallStack => TestM ResponseLBS -> TestM ()
 assertFlagForbidden res = do

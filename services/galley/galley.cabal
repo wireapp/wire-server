@@ -614,6 +614,7 @@ executable galley-schema
       V59_FileSharingLockStatus
       V60_TeamFeatureSndFactorPasswordChallenge
       V61_MLSConversation
+      V62_TeamFeatureSearchVisibilityInbound
       Paths_galley
   hs-source-dirs:
       schema/src

@@ -972,6 +972,8 @@ type FeatureAPI =
     :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureGuestLinks
     :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge
 
+-- :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSearchVisibilityInbound
+
 type FeatureStatusGet f =
   Named
     '("get", f)

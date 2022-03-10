@@ -53,6 +53,8 @@ instance HasStatusCol 'TeamFeatureGuestLinks where statusCol = "guest_links_stat
 
 instance HasStatusCol 'TeamFeatureSndFactorPasswordChallenge where statusCol = "snd_factor_password_challenge_status"
 
+instance HasStatusCol 'TeamFeatureSearchVisibilityInbound where statusCol = "search_visibility_inbound_status"
+
 ----------------------------------------------------------------------
 class HasLockStatusCol (a :: TeamFeatureName) where
   lockStatusCol :: String
@@ -89,3 +91,5 @@ instance MaybeHasLockStatusCol 'TeamFeatureDigitalSignatures where maybeLockStat
 instance MaybeHasLockStatusCol 'TeamFeatureAppLock where maybeLockStatusCol = Nothing
 
 instance MaybeHasLockStatusCol 'TeamFeatureConferenceCalling where maybeLockStatusCol = Nothing
+
+instance MaybeHasLockStatusCol 'TeamFeatureSearchVisibilityInbound where maybeLockStatusCol = Nothing
