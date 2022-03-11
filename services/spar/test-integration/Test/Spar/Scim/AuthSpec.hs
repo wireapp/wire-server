@@ -113,6 +113,7 @@ testCreateTokenWithVerificationCode = do
   let reqMissingCode = CreateScimToken "testCreateToken" (Just defPassword) Nothing
   createTokenFailsWith owner reqMissingCode 403 "code-authentication-required"
 
+  requestVerificationCode (env ^. teBrig) email Public.CreateScimToken
   let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
   let reqWrongCode = CreateScimToken "testCreateToken" (Just defPassword) (Just wrongCode)
   createTokenFailsWith owner reqWrongCode 403 "code-authentication-failed"
@@ -136,9 +137,8 @@ setSndFactorPasswordChallengeStatus galley tid status = do
 
 requestVerificationCode :: BrigReq -> Brig.Email -> Public.VerificationAction -> TestSpar ()
 requestVerificationCode brig email action = do
-  let js = RequestBodyLBS $ encode $ Public.SendVerificationCode action email
   call $
-    post (brig . paths ["verification-code", "send"] . contentJson . body js)
+    post (brig . paths ["verification-code", "send"] . contentJson . json (Public.SendVerificationCode action email))
       !!! const 200 === statusCode
 
 getVerificationCode :: BrigReq -> UserId -> Public.VerificationAction -> TestSpar Code.Value

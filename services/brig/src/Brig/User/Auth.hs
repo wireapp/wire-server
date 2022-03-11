@@ -338,9 +338,8 @@ ssoLogin :: SsoLogin -> CookieType -> ExceptT LoginError (AppIO r) (Access ZAuth
 ssoLogin (SsoLogin uid label) typ = do
   Data.reauthenticate uid Nothing `catchE` \case
     ReAuthMissingPassword -> pure ()
-    ReAuthNoPendingCode -> pure ()
-    ReAuthVerificationCodeRequired -> pure ()
-    ReAuthNoEmail -> pure ()
+    ReAuthCodeVerificationRequired -> pure ()
+    ReAuthCodeVerificationFailed -> pure ()
     ReAuthError e -> case e of
       AuthInvalidUser -> throwE LoginFailed
       AuthInvalidCredentials -> pure ()

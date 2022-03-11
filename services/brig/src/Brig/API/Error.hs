@@ -191,9 +191,8 @@ authError AuthPendingInvitation = StdError accountPending
 reauthError :: ReAuthError -> Error
 reauthError ReAuthMissingPassword = StdError (errorDescriptionTypeToWai @MissingAuth)
 reauthError (ReAuthError e) = authError e
-reauthError ReAuthNoPendingCode = StdError verificationCodeAuthFailed
-reauthError ReAuthVerificationCodeRequired = StdError verificationCodeRequired
-reauthError ReAuthNoEmail = StdError verificationCodeAuthFailed
+reauthError ReAuthCodeVerificationRequired = StdError verificationCodeRequired
+reauthError ReAuthCodeVerificationFailed = StdError verificationCodeAuthFailed
 
 zauthError :: ZAuth.Failure -> Error
 zauthError ZAuth.Expired = StdError authTokenExpired

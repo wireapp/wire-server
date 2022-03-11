@@ -1051,7 +1051,7 @@ sendVerificationCode req = do
       code <-
         Code.generate
           gen
-          (scope action)
+          (Code.scopeFromAction action)
           (Code.Retries 3)
           timeout
           (Just $ toUUID $ Public.userId $ accountUser account)
@@ -1063,11 +1063,6 @@ sendVerificationCode req = do
     getAccount email = lift $ do
       mbUserId <- UserKey.lookupKey $ UserKey.userEmailKey email
       join <$> Data.lookupAccount `traverse` mbUserId
-
-    scope :: Public.VerificationAction -> Code.Scope
-    scope = \case
-      Public.CreateScimToken -> Code.CreateScimToken
-      Public.Login -> Code.AccountLogin
 
     sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
     sendMail email value mbLocale =

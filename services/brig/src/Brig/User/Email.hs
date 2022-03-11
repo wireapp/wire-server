@@ -56,13 +56,13 @@ sendVerificationMail to pair loc = do
 
 sendLoginVerificationMail :: Email -> Code.Value -> Maybe Locale -> (AppIO r) ()
 sendLoginVerificationMail email code mbLocale = do
-  tpl <- verificationScimTokenEmail . snd <$> userTemplates mbLocale
+  tpl <- verificationLoginEmail . snd <$> userTemplates mbLocale
   branding <- view templateBranding
   Email.sendMail $ renderSecondFactorVerificationEmail tpl email code branding
 
 sendCreateScimTokenVerificationMail :: Email -> Code.Value -> Maybe Locale -> (AppIO r) ()
 sendCreateScimTokenVerificationMail email code mbLocale = do
-  tpl <- verificationLoginEmail . snd <$> userTemplates mbLocale
+  tpl <- verificationScimTokenEmail . snd <$> userTemplates mbLocale
   branding <- view templateBranding
   Email.sendMail $ renderSecondFactorVerificationEmail tpl email code branding
 
