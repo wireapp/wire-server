@@ -49,7 +49,7 @@ import Imports
 import Network.Mail.Mime
 
 -------------------------------------------------------------------------------
-sendMail :: (MonadIO f, MonadReader Env f) => Mail -> f ()
+sendMail :: (MonadIO m, MonadReader Env m) => Mail -> m ()
 sendMail m =
   view smtpEnv >>= \case
     Just smtp -> SMTP.sendMail smtp m
