@@ -1227,7 +1227,11 @@ instance FromByteString VerificationAction where
         Left e -> fail $ "Invalid VerificationAction: " <> show e
 
 instance S.ToParamSchema VerificationAction where
-  toParamSchema _ = S.toParamSchema (Proxy @Text)
+  toParamSchema _ =
+    mempty
+      { S._paramSchemaType = Just S.SwaggerString,
+        S._paramSchemaEnum = Just (A.String . toQueryParam <$> [(minBound :: VerificationAction) ..])
+      }
 
 instance FromHttpApiData VerificationAction where
   parseUrlPiece = maybeToEither "Invalid verification action" . fromByteString . cs
