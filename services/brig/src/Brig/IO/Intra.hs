@@ -57,6 +57,7 @@ module Brig.IO.Intra
     getTeamLegalHoldStatus,
     changeTeamStatus,
     getTeamSearchVisibility,
+    getVerificationCodeEnabled,
 
     -- * Legalhold
     guardLegalhold,
@@ -80,6 +81,7 @@ import Brig.RPC
 import Brig.Types
 import Brig.Types.User.Event
 import qualified Brig.User.Search.Index as Search
+import Cassandra (MonadClient)
 import Conduit (runConduit, (.|))
 import Control.Error (ExceptT)
 import Control.Lens (view, (.~), (?~), (^.))
@@ -120,7 +122,7 @@ import System.Logger.Class as Log hiding (name, (.=))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Message (UserClients)
-import Wire.API.Team.Feature (IncludeLockStatus (..), TeamFeatureName (..), TeamFeatureStatus)
+import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 import qualified Wire.API.Team.Member as Member
 
@@ -186,15 +188,15 @@ updateSearchIndex orig e = case e of
   -- no-ops
   UserCreated {} -> return ()
   UserIdentityUpdated UserIdentityUpdatedData {..} -> do
-    when (isJust eiuEmail) $ Search.reindex orig
+    when (isJust eiuEmail) $ wrapClient $ Search.reindex orig
   UserIdentityRemoved {} -> return ()
   UserLegalHoldDisabled {} -> return ()
   UserLegalHoldEnabled {} -> return ()
   LegalHoldClientRequested {} -> return ()
-  UserSuspended {} -> Search.reindex orig
-  UserResumed {} -> Search.reindex orig
-  UserActivated {} -> Search.reindex orig
-  UserDeleted {} -> Search.reindex orig
+  UserSuspended {} -> wrapClient $ Search.reindex orig
+  UserResumed {} -> wrapClient $ Search.reindex orig
+  UserActivated {} -> wrapClient $ Search.reindex orig
+  UserDeleted {} -> wrapClient $ Search.reindex orig
   UserUpdated UserUpdatedData {..} -> do
     let interesting =
           or
@@ -204,7 +206,7 @@ updateSearchIndex orig e = case e of
               isJust eupManagedBy,
               isJust eupSSOId || eupSSOIdRemoved
             ]
-    when interesting $ Search.reindex orig
+    when interesting $ wrapClient $ Search.reindex orig
 
 journalEvent :: UserId -> UserEvent -> (AppIO r) ()
 journalEvent orig e = case e of
@@ -254,14 +256,17 @@ dispatchNotifications orig conn e = case e of
 
 notifyUserDeletionLocals :: UserId -> Maybe ConnId -> List1 Event -> (AppIO r) ()
 notifyUserDeletionLocals deleted conn event = do
-  recipients <- list1 deleted <$> lookupContactList deleted
+  recipients <- list1 deleted <$> wrapClient (lookupContactList deleted)
   notify event deleted Push.RouteDirect conn (pure recipients)
 
 notifyUserDeletionRemotes :: UserId -> (AppIO r) ()
 notifyUserDeletionRemotes deleted = do
-  runConduit $
-    Data.lookupRemoteConnectedUsersC deleted (fromInteger (natVal (Proxy @UserDeletedNotificationMaxConnections)))
-      .| C.mapM_ fanoutNotifications
+  e <- ask
+  fmap
+    wrapClient
+    runConduit
+    $ Data.lookupRemoteConnectedUsersC deleted (fromInteger (natVal (Proxy @UserDeletedNotificationMaxConnections)))
+      .| C.mapM_ (runAppIOLifted e . fanoutNotifications)
   where
     fanoutNotifications :: [Remote UserId] -> (AppIO r) ()
     fanoutNotifications = mapM_ notifyBackend . bucketRemote
@@ -279,7 +284,7 @@ notifyUserDeletionRemotes deleted = do
           whenLeft eitherFErr $
             logFederationError (tDomain uids)
 
-    logFederationError :: Domain -> FederationError -> AppT r IO ()
+    logFederationError :: Log.MonadLogger m => Domain -> FederationError -> m ()
     logFederationError domain fErr =
       Log.err $
         Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)
@@ -398,9 +403,9 @@ notifyContacts events orig route conn = do
   env <- ask
   notify events orig route conn $
     runAppT env $
-      list1 orig <$> liftA2 (++) contacts teamContacts
+      list1 orig <$> liftA2 (++) (wrapClient contacts) teamContacts
   where
-    contacts :: (AppIO r) [UserId]
+    contacts :: MonadClient m => m [UserId]
     contacts = lookupContactList orig
     teamContacts :: (AppIO r) [UserId]
     teamContacts = screenMemberList =<< getTeamContacts orig
@@ -916,7 +921,7 @@ memberIsTeamOwner :: TeamId -> UserId -> (AppIO r) Bool
 memberIsTeamOwner tid uid = do
   r <-
     galleyRequest GET $
-      (paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid])
+      paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid]
   pure $ responseStatus r /= status403
 
 -- | Only works on 'BindingTeam's! The list of members returned is potentially truncated.
@@ -986,6 +991,19 @@ getTeamSearchVisibility tid =
   where
     req =
       paths ["i", "teams", toByteString' tid, "search-visibility"]
+        . expect2xx
+
+getVerificationCodeEnabled :: TeamId -> (AppIO r) Bool
+getVerificationCodeEnabled tid = do
+  debug $ remote "galley" . msg (val "Get snd factor password challenge settings")
+  response <- galleyRequest GET req
+  status <- tfwoStatus <$> decodeBody "galley" response
+  case status of
+    TeamFeatureEnabled -> pure True
+    TeamFeatureDisabled -> pure False
+  where
+    req =
+      paths ["i", "teams", toByteString' tid, "features", toByteString' TeamFeatureSndFactorPasswordChallenge]
         . expect2xx
 
 -- | Calls 'Galley.API.updateTeamStatusH'.

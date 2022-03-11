@@ -50,7 +50,7 @@ import qualified Amazonka.DynamoDB as AWS
 import qualified Amazonka.DynamoDB.Lens as AWS
 import Bilge.Retry (httpHandlers)
 import Brig.AWS
-import Brig.App (AppIO, awsEnv, currentTime, metrics, randomPrekeyLocalLock)
+import Brig.App (AppIO, Env, awsEnv, currentTime, metrics, randomPrekeyLocalLock, wrapClient)
 import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import qualified Brig.Data.User as User
@@ -95,13 +95,14 @@ data ClientDataError
   | MLSPublicKeyDuplicate
 
 addClient ::
+  (MonadClient m, MonadReader Brig.App.Env m) =>
   UserId ->
   ClientId ->
   NewClient ->
   Int ->
   Maybe Location ->
   Maybe (Imports.Set ClientCapability) ->
-  ExceptT ClientDataError (AppIO r) (Client, [Client], Word)
+  ExceptT ClientDataError m (Client, [Client], Word)
 addClient u newId c maxPermClients loc cps = do
   clients <- lookupClients u
   let typed = filter ((== newClientType c) . clientType) clients
@@ -127,7 +128,7 @@ addClient u newId c maxPermClients loc cps = do
     exists :: Client -> Bool
     exists = (==) newId . clientId
 
-    insert :: ExceptT ClientDataError (AppIO r) Client
+    insert :: (MonadClient m, MonadReader Brig.App.Env m) => ExceptT ClientDataError m Client
     insert = do
       -- Is it possible to do this somewhere else? Otherwise we could use `MonadClient` instead
       now <- toUTCTimeMillis <$> (liftIO =<< view currentTime)
@@ -202,7 +203,15 @@ lookupPrekeyIds u c =
 hasClient :: MonadClient m => UserId -> ClientId -> m Bool
 hasClient u d = isJust <$> retry x1 (query1 checkClient (params LocalQuorum (u, d)))
 
-rmClient :: UserId -> ClientId -> (AppIO r) ()
+rmClient ::
+  ( MonadClient m,
+    MonadReader Brig.App.Env m,
+    MonadUnliftIO m,
+    MonadCatch m
+  ) =>
+  UserId ->
+  ClientId ->
+  m ()
 rmClient u c = do
   retry x5 $ write removeClient (params LocalQuorum (u, c))
   retry x5 $ write removeClientKeys (params LocalQuorum (u, c))
@@ -230,20 +239,20 @@ updatePrekeys u c pks = do
         Success n -> return (CryptoBox.prekeyId n == keyId (prekeyId a))
         _ -> return False
 
-claimPrekey :: UserId -> ClientId -> (AppIO r) (Maybe ClientPrekey)
+claimPrekey :: UserId -> ClientId -> AppIO r (Maybe ClientPrekey)
 claimPrekey u c =
   view randomPrekeyLocalLock >>= \case
     -- Use random prekey selection strategy
     Just localLock -> withLocalLock localLock $ do
-      prekeys <- retry x1 $ query userPrekeys (params LocalQuorum (u, c))
+      prekeys <- wrapClient . retry x1 $ query userPrekeys (params LocalQuorum (u, c))
       prekey <- pickRandomPrekey prekeys
-      removeAndReturnPreKey prekey
+      wrapClient $ removeAndReturnPreKey prekey
     -- Use DynamoDB based optimistic locking strategy
-    Nothing -> withOptLock u c $ do
+    Nothing -> withOptLock u c . wrapClient $ do
       prekey <- retry x1 $ query1 userPrekey (params LocalQuorum (u, c))
       removeAndReturnPreKey prekey
   where
-    removeAndReturnPreKey :: Maybe (PrekeyId, Text) -> (AppIO r) (Maybe ClientPrekey)
+    removeAndReturnPreKey :: (MonadClient f, Log.MonadLogger f) => Maybe (PrekeyId, Text) -> f (Maybe ClientPrekey)
     removeAndReturnPreKey (Just (i, k)) = do
       if i /= lastPrekeyId
         then retry x1 $ write removePrekey (params LocalQuorum (u, c, i))
@@ -255,33 +264,40 @@ claimPrekey u c =
       return $ Just (ClientPrekey c (Prekey i k))
     removeAndReturnPreKey Nothing = return Nothing
 
-    pickRandomPrekey :: [(PrekeyId, Text)] -> (AppIO r) (Maybe (PrekeyId, Text))
-    pickRandomPrekey [] = return Nothing
+    pickRandomPrekey :: MonadIO f => [(PrekeyId, Text)] -> f (Maybe (PrekeyId, Text))
+    pickRandomPrekey [] = pure Nothing
     -- unless we only have one key left
-    pickRandomPrekey [pk] = return $ Just pk
+    pickRandomPrekey [pk] = pure $ Just pk
     -- pick among list of keys, except lastPrekeyId
     pickRandomPrekey pks = do
       let pks' = filter (\k -> fst k /= lastPrekeyId) pks
       ind <- liftIO $ randomRIO (0, length pks' - 1)
       return $ atMay pks' ind
 
-lookupMLSPublicKey :: UserId -> ClientId -> SignatureSchemeTag -> AppIO r (Maybe LByteString)
+lookupMLSPublicKey ::
+  MonadClient m =>
+  UserId ->
+  ClientId ->
+  SignatureSchemeTag ->
+  m (Maybe LByteString)
 lookupMLSPublicKey u c ss =
   (fromBlob . runIdentity) <$$> retry x1 (query1 selectMLSPublicKey (params LocalQuorum (u, c, ss)))
 
 addMLSPublicKeys ::
+  MonadClient m =>
   UserId ->
   ClientId ->
   [(SignatureSchemeTag, LByteString)] ->
-  ExceptT ClientDataError (AppIO r) ()
+  ExceptT ClientDataError m ()
 addMLSPublicKeys u c = traverse_ (uncurry (addMLSPublicKey u c))
 
 addMLSPublicKey ::
+  MonadClient m =>
   UserId ->
   ClientId ->
   SignatureSchemeTag ->
   LByteString ->
-  ExceptT ClientDataError (AppIO r) ()
+  ExceptT ClientDataError m ()
 addMLSPublicKey u c ss pk = do
   rows <- trans insertMLSPublicKeys (params LocalQuorum (u, c, ss, Blob pk))
   case rows of
@@ -401,7 +417,14 @@ ddbKey u c = AWS.S (UUID.toText (toUUID u) <> "." <> client c)
 key :: UserId -> ClientId -> HashMap Text AWS.AttributeValue
 key u c = HashMap.singleton ddbClient (ddbKey u c)
 
-deleteOptLock :: UserId -> ClientId -> (AppIO r) ()
+deleteOptLock ::
+  ( MonadReader Brig.App.Env m,
+    MonadUnliftIO m,
+    MonadCatch m
+  ) =>
+  UserId ->
+  ClientId ->
+  m ()
 deleteOptLock u c = do
   t <- view (awsEnv . prekeyTable)
   e <- view (awsEnv . amazonkaEnv)
@@ -480,6 +503,6 @@ withOptLock u c ma = go (10 :: Int)
               return Nothing
             handleErr _ = return Nothing
 
-withLocalLock :: MVar () -> (AppIO r) a -> (AppIO r) a
+withLocalLock :: (MonadMask m, MonadIO m) => MVar () -> m a -> m a
 withLocalLock l ma = do
   (takeMVar l *> ma) `finally` putMVar l ()

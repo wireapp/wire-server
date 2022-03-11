@@ -65,7 +65,7 @@ validateKeyPackageData identity kpd = do
       maybe
         (throwErrorDescription (mlsProtocolError "No key associated to the given identity and signature scheme"))
         pure
-        =<< lift (Data.lookupMLSPublicKey (ciUser identity) (ciClient identity) ss)
+        =<< lift (wrapClient (Data.lookupMLSPublicKey (ciUser identity) (ciClient identity) ss))
   when (key /= bcSignatureKey (kpCredential (kpTBS kp))) $
     throwErrorDescription $
       mlsProtocolError "Unrecognised signature key"
