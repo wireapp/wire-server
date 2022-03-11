@@ -1569,7 +1569,7 @@ assertLeaveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   cuOrigUserId cu @?= remover
   cuConvId cu @?= qUnqualified qconvId
   sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
-  cuAction cu @?= SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (pure victim))
+  cuAction cu @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure victim)
 
 -------------------------------------------------------------------------------
 -- Helpers

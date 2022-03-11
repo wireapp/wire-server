@@ -351,7 +351,7 @@ removeLocalUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [alice],
             FedGalley.cuAction =
-              SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (pure qAlice))
+              SomeConversationAction (sing @'ConversationLeaveTag) (pure qAlice)
           }
 
   connectWithRemoteUser alice qBob
@@ -415,7 +415,7 @@ removeRemoteUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [alice, charlie, dee],
             FedGalley.cuAction =
-              SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (pure user))
+              SomeConversationAction (sing @'ConversationLeaveTag) (pure user)
           }
 
   WS.bracketRN c [alice, charlie, dee, flo] $ \[wsA, wsC, wsD, wsF] -> do
@@ -1047,7 +1047,7 @@ onUserDeleted = do
       FedGalley.cuOrigUserId bobDomainRPCReq @?= qUntagged bob
       FedGalley.cuConvId bobDomainRPCReq @?= qUnqualified groupConvId
       sort (FedGalley.cuAlreadyPresentUsers bobDomainRPCReq) @?= sort [tUnqualified bob, qUnqualified bart]
-      FedGalley.cuAction bobDomainRPCReq @?= (SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (pure $ qUntagged bob)))
+      FedGalley.cuAction bobDomainRPCReq @?= (SomeConversationAction (sing @'ConversationLeaveTag) (pure $ qUntagged bob))
 
       -- Assertions about RPC to 'cDomain'
       cDomainRPC <- assertOne $ filter (\c -> frTargetDomain c == cDomain) rpcCalls
@@ -1055,4 +1055,4 @@ onUserDeleted = do
       FedGalley.cuOrigUserId cDomainRPCReq @?= qUntagged bob
       FedGalley.cuConvId cDomainRPCReq @?= qUnqualified groupConvId
       FedGalley.cuAlreadyPresentUsers cDomainRPCReq @?= [qUnqualified carl]
-      FedGalley.cuAction cDomainRPCReq @?= (SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (pure $ qUntagged bob)))
+      FedGalley.cuAction cDomainRPCReq @?= (SomeConversationAction (sing @'ConversationLeaveTag) (pure $ qUntagged bob))

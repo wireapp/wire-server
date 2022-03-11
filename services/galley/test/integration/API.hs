@@ -1519,7 +1519,7 @@ testAccessUpdateGuestRemoved = do
         [ frComponent freq == Galley,
           frRPC freq == "on-conversation-updated",
           fmap F.cuAction (eitherDecode (frBody freq))
-            == Right (SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (charlie :| [dee])))
+            == Right (SomeConversationAction (sing @'ConversationLeaveTag) (charlie :| [dee]))
         ]
 
   -- only alice and bob remain
@@ -3542,25 +3542,25 @@ removeUser = do
       bConvUpdates <- mapM (assertRight . eitherDecode . frBody) bConvUpdateRPCs
 
       bConvUpdatesA2 <- assertOne $ filter (\cu -> cuConvId cu == convA2) bConvUpdates
-      cuAction bConvUpdatesA2 @?= SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (pure alexDel))
+      cuAction bConvUpdatesA2 @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure alexDel)
       cuAlreadyPresentUsers bConvUpdatesA2 @?= [qUnqualified berta]
 
       bConvUpdatesA4 <- assertOne $ filter (\cu -> cuConvId cu == convA4) bConvUpdates
-      cuAction bConvUpdatesA4 @?= SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (pure alexDel))
+      cuAction bConvUpdatesA4 @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure alexDel)
       cuAlreadyPresentUsers bConvUpdatesA4 @?= [qUnqualified bart]
 
     liftIO $ do
       cConvUpdateRPC <- assertOne $ filter (matchFedRequest cDomain "on-conversation-updated") fedRequests
       Right convUpdate <- pure . eitherDecode . frBody $ cConvUpdateRPC
       cuConvId convUpdate @?= convA4
-      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (pure alexDel))
+      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure alexDel)
       cuAlreadyPresentUsers convUpdate @?= [qUnqualified carl]
 
     liftIO $ do
       dConvUpdateRPC <- assertOne $ filter (matchFedRequest dDomain "on-conversation-updated") fedRequests
       Right convUpdate <- pure . eitherDecode . frBody $ dConvUpdateRPC
       cuConvId convUpdate @?= convA2
-      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) (ConversationLeave (pure alexDel))
+      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure alexDel)
       cuAlreadyPresentUsers convUpdate @?= [qUnqualified dwight]
 
   -- Check memberships
