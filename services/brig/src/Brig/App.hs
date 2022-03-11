@@ -66,6 +66,13 @@ module Brig.App
     locationOf,
     viewFederationDomain,
     qualifyLocal,
+
+    -- * Crutches that should be removed once Brig has been completely
+
+    -- * transitioned to Polysemy
+    wrapClient,
+    wrapClientE,
+    runAppIOLifted,
   )
 where
 
@@ -87,7 +94,7 @@ import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
 import qualified Brig.ZAuth as ZAuth
-import Cassandra (Keyspace (Keyspace), MonadClient, runClient)
+import Cassandra (Keyspace (Keyspace), runClient)
 import qualified Cassandra as Cas
 import Cassandra.Schema (versionCheck)
 import qualified Cassandra.Settings as Cas
@@ -423,13 +430,13 @@ initCredentials secretFile = do
   dat <- loadSecret secretFile
   return $ either (\e -> error $ "Could not load secrets from " ++ show secretFile ++ ": " ++ e) id dat
 
-userTemplates :: Monad m => Maybe Locale -> AppT r m (Locale, UserTemplates)
+userTemplates :: MonadReader Env m => Maybe Locale -> m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates
 
-providerTemplates :: Monad m => Maybe Locale -> AppT r m (Locale, ProviderTemplates)
+providerTemplates :: MonadReader Env m => Maybe Locale -> m (Locale, ProviderTemplates)
 providerTemplates l = forLocale l <$> view provTemplates
 
-teamTemplates :: Monad m => Maybe Locale -> AppT r m (Locale, TeamTemplates)
+teamTemplates :: MonadReader Env m => Maybe Locale -> m (Locale, TeamTemplates)
 teamTemplates l = forLocale l <$> view tmTemplates
 
 closeEnv :: Env -> IO ()
@@ -462,16 +469,19 @@ newtype AppT r m a = AppT
 
 type AppIO r = AppT r IO
 
-instance MonadIO m => MonadLogger (AppT r m) where
+instance MonadIO m => MonadLogger (ReaderT Env m) where
   log l m = do
     g <- view applog
     r <- view requestId
     Log.log g l $ field "request" (unRequestId r) ~~ m
 
+instance MonadIO m => MonadLogger (AppT r m) where
+  log l = AppT . LC.log l
+
 instance MonadIO m => MonadLogger (ExceptT err (AppT r m)) where
   log l m = lift (LC.log l m)
 
-instance (Monad m, MonadIO m) => MonadHttp (AppT r m) where
+instance MonadIO m => MonadHttp (AppT r m) where
   handleRequestWithCont req handler = do
     manager <- view httpManager
     liftIO $ withResponse req manager handler
@@ -482,12 +492,23 @@ instance MonadIO m => MonadZAuth (AppT r m) where
 instance MonadIO m => MonadZAuth (ExceptT err (AppT r m)) where
   liftZAuth = lift . liftZAuth
 
-instance (MonadThrow m, MonadCatch m, MonadIO m) => MonadClient (AppT r m) where
-  liftClient m = view casClient >>= \c -> runClient c m
-  localState f = local (over casClient f)
+-- | The function serves as a crutch while Brig is being polysemised. Use it
+-- whenever the compiler complains that there is no instance of `MonadClient`
+-- for `AppIO r`. It can be removed once there is no `AppT` anymore.
+wrapClient :: ReaderT Env Cas.Client a -> AppT r IO a
+wrapClient m = do
+  c <- view casClient
+  env <- ask
+  runClient c $ runReaderT m env
+
+wrapClientE :: ExceptT e (ReaderT Env Cas.Client) a -> ExceptT e (AppT r IO) a
+wrapClientE = mapExceptT wrapClient
+
+instance MonadIO m => MonadIndexIO (ReaderT Env m) where
+  liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
 instance MonadIndexIO (AppIO r) where
-  liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
+  liftIndexIO m = AppT $ liftIndexIO m
 
 instance (MonadIndexIO (AppT r m), Monad m) => MonadIndexIO (ExceptT err (AppT r m)) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
@@ -503,6 +524,9 @@ instance MonadUnliftIO m => MonadUnliftIO (AppT r m) where
 
 runAppT :: Env -> AppT r m a -> m a
 runAppT e (AppT ma) = runReaderT ma e
+
+runAppIOLifted :: MonadIO m => Env -> AppIO r a -> m a
+runAppIOLifted e = liftIO . runAppT e
 
 runAppResourceT :: ResourceT (AppIO r) a -> (AppIO r) a
 runAppResourceT ma = do

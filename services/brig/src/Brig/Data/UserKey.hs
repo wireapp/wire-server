@@ -35,7 +35,7 @@ module Brig.Data.UserKey
   )
 where
 
-import Brig.App (AppIO, digestSHA256)
+import Brig.App (Env, digestSHA256)
 import Brig.Data.Instances ()
 import qualified Brig.Data.User as User
 import Brig.Email
@@ -120,11 +120,12 @@ keyTextOriginal (UserPhoneKey k) = fromPhone (phoneKeyOrig k)
 
 -- | Claim a 'UserKey' for a user.
 claimKey ::
+  (MonadClient m, MonadReader Env m) =>
   -- | The key to claim.
   UserKey ->
   -- | The user claiming the key.
   UserId ->
-  (AppIO r) Bool
+  m Bool
 claimKey k u = do
   free <- keyAvailable k (Just u)
   when free (insertKey u k)
@@ -134,11 +135,12 @@ claimKey k u = do
 -- A key is available if it is not already actived for another user or
 -- if the other user and the user looking to claim the key are the same.
 keyAvailable ::
+  MonadClient m =>
   -- | The key to check.
   UserKey ->
   -- | The user looking to claim the key, if any.
   Maybe UserId ->
-  (AppIO r) Bool
+  m Bool
 keyAvailable k u = do
   o <- lookupKey k
   case (o, u) of
@@ -146,32 +148,32 @@ keyAvailable k u = do
     (Just x, Just y) | x == y -> return True
     (Just x, _) -> not <$> User.isActivated x
 
-lookupKey :: UserKey -> (AppIO r) (Maybe UserId)
+lookupKey :: MonadClient m => UserKey -> m (Maybe UserId)
 lookupKey k =
   fmap runIdentity
     <$> retry x1 (query1 keySelect (params LocalQuorum (Identity $ keyText k)))
 
-insertKey :: UserId -> UserKey -> (AppIO r) ()
+insertKey :: (MonadClient m, MonadReader Env m) => UserId -> UserKey -> m ()
 insertKey u k = do
   hk <- hashKey k
   let kt = foldKey (\(_ :: Email) -> UKHashEmail) (\(_ :: Phone) -> UKHashPhone) k
   retry x5 $ write insertHashed (params LocalQuorum (hk, kt, u))
   retry x5 $ write keyInsert (params LocalQuorum (keyText k, u))
 
-deleteKey :: UserKey -> (AppIO r) ()
+deleteKey :: (MonadClient m, MonadReader Env m) => UserKey -> m ()
 deleteKey k = do
   hk <- hashKey k
   retry x5 $ write deleteHashed (params LocalQuorum (Identity hk))
   retry x5 $ write keyDelete (params LocalQuorum (Identity $ keyText k))
 
-hashKey :: UserKey -> (AppIO r) UserKeyHash
+hashKey :: MonadReader Env m => UserKey -> m UserKeyHash
 hashKey uk = do
   d <- view digestSHA256
   let d' = digestBS d $ T.encodeUtf8 (keyText uk)
   return . UserKeyHash $
     MH.MultihashDigest MH.SHA256 (B.length d') d'
 
-lookupPhoneHashes :: [ByteString] -> (AppIO r) [(ByteString, UserId)]
+lookupPhoneHashes :: MonadClient m => [ByteString] -> m [(ByteString, UserId)]
 lookupPhoneHashes hp =
   mapMaybe mk <$> retry x1 (query selectHashed (params One (Identity hashed)))
   where

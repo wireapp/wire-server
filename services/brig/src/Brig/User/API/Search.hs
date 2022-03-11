@@ -101,14 +101,14 @@ routesInternal = do
   -- make index updates visible (e.g. for integration testing)
   post
     "/i/index/refresh"
-    (continue (const $ lift refreshIndex *> pure empty))
+    (continue (const $ lift refreshIndex $> empty))
     true
 
   -- reindex from Cassandra (e.g. integration testing -- prefer the
   -- `brig-index` executable for actual operations!)
   post
     "/i/index/reindex"
-    (continue . const $ lift reindexAll *> pure empty)
+    (continue . const $ lift (wrapClient reindexAll) $> empty)
     true
 
   -- forcefully reindex from Cassandra, even if nothing has changed
@@ -116,7 +116,7 @@ routesInternal = do
   -- for actual operations!)
   post
     "/i/index/reindex-if-same-or-newer"
-    (continue . const $ lift reindexAllIfSameOrNewer *> pure empty)
+    (continue . const $ lift (wrapClient reindexAllIfSameOrNewer) $> empty)
     true
 
 -- Handlers
@@ -178,7 +178,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
 
     mkTeamSearchInfo :: (Handler r) TeamSearchInfo
     mkTeamSearchInfo = lift $ do
-      searcherTeamId <- DB.lookupUserTeam searcherId
+      searcherTeamId <- wrapClient $ DB.lookupUserTeam searcherId
       sameTeamSearchOnly <- fromMaybe False <$> view (settings . Opts.searchSameTeamOnly)
       case searcherTeamId of
         Nothing -> return Search.NoTeam

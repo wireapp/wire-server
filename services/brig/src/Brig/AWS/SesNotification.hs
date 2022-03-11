@@ -38,7 +38,7 @@ onEvent (MailComplaint es) = onComplaint es
 onPermanentBounce :: [Email] -> (AppIO r) ()
 onPermanentBounce = mapM_ $ \e -> do
   logEmailEvent "Permanent bounce" e
-  Blacklist.insert (userEmailKey e)
+  wrapClient $ Blacklist.insert (userEmailKey e)
 
 onTransientBounce :: [Email] -> (AppIO r) ()
 onTransientBounce = mapM_ (logEmailEvent "Transient bounce")
@@ -49,7 +49,7 @@ onUndeterminedBounce = mapM_ (logEmailEvent "Undetermined bounce")
 onComplaint :: [Email] -> (AppIO r) ()
 onComplaint = mapM_ $ \e -> do
   logEmailEvent "Complaint" e
-  Blacklist.insert (userEmailKey e)
+  wrapClient $ Blacklist.insert (userEmailKey e)
 
 logEmailEvent :: Text -> Email -> (AppIO r) ()
 logEmailEvent t e = Log.info $ field "email" (fromEmail e) ~~ msg t

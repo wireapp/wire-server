@@ -43,7 +43,7 @@ insertKeyPackages uid cid kps = retry x5 . batch $ do
     q :: PrepQuery W (UserId, ClientId, KeyPackageData, KeyPackageRef) ()
     q = "INSERT INTO mls_key_packages (user, client, data, ref) VALUES (?, ?, ?, ?)"
 
-claimKeyPackage :: UserId -> ClientId -> MaybeT (AppIO r) KeyPackageData
+claimKeyPackage :: (MonadReader Env m, MonadUnliftIO m, MonadClient m) => UserId -> ClientId -> MaybeT m KeyPackageData
 claimKeyPackage u c = MaybeT $ do
   -- FUTUREWORK: investigate better locking strategies
   lock <- view keyPackageLocalLock
