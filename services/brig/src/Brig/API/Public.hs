@@ -589,7 +589,7 @@ deleteClient usr con clt body =
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
 
 updateClient :: UserId -> ClientId -> Public.UpdateClient -> (Handler r) ()
-updateClient usr clt upd = API.updateClient usr clt upd !>> clientError
+updateClient usr clt upd = wrapClientE (API.updateClient usr clt upd) !>> clientError
 
 listClients :: UserId -> (Handler r) [Public.Client]
 listClients zusr =

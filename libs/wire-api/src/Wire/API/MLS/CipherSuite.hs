@@ -27,6 +27,7 @@ import qualified Crypto.PubKey.Ed25519 as Ed25519
 import Data.Word
 import Imports
 import Wire.API.Arbitrary
+import Wire.API.MLS.Credential
 import Wire.API.MLS.Serialisation
 
 newtype CipherSuite = CipherSuite {cipherSuiteNumber :: Word16}
@@ -51,3 +52,6 @@ csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 pub x sig = fromM
   pub' <- Ed25519.publicKey pub
   sig' <- Ed25519.signature sig
   pure $ Ed25519.verify pub' x sig'
+
+csSignatureScheme :: CipherSuiteTag -> SignatureSchemeTag
+csSignatureScheme MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = Ed25519

@@ -29,9 +29,10 @@ import qualified Brig.Options as Opt
 import Brig.Types
 import Brig.Types.User.Auth hiding (user)
 import Control.Lens (at, preview, (.~), (^.), (^?))
-import Data.Aeson
+import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Conversion
+import Data.Default
 import Data.Id hiding (client)
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
@@ -49,15 +50,9 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
+import Wire.API.MLS.Credential
 import Wire.API.User (LimitedQualifiedUserIdList (LimitedQualifiedUserIdList))
 import Wire.API.User.Client
-  ( ClientCapability (ClientSupportsLegalholdImplicitConsent),
-    ClientCapabilityList (ClientCapabilityList),
-    QualifiedUserClients (..),
-    UserClients (..),
-    mkQualifiedUserClientPrekeyMap,
-    mkUserClientPrekeyMap,
-  )
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
 
@@ -80,8 +75,9 @@ tests _cl _at opts p b c g =
       test p "post /users/list-prekeys" $ testMultiUserGetPrekeysQualified b opts,
       test p "post /users/list-clients - 200" $ testListClientsBulk opts b,
       test p "post /users/list-clients/v2 - 200" $ testListClientsBulkV2 opts b,
-      test p "post /clients - 201 (pwd)" $ testAddGetClient True b c,
-      test p "post /clients - 201 (no pwd)" $ testAddGetClient False b c,
+      test p "post /clients - 201 (pwd)" $ testAddGetClient def {addWithPassword = True} b c,
+      test p "post /clients - 201 (no pwd)" $ testAddGetClient def {addWithPassword = False} b c,
+      test p "post /clients - 201 (with mls keys)" $ testAddGetClient def {addWithMLSKeys = True} b c,
       test p "post /clients - 403" $ testClientReauthentication b,
       test p "get /clients - 200" $ testListClients b,
       test p "get /clients/:client/prekeys - 200" $ testListPrekeyIds b,
@@ -91,16 +87,32 @@ tests _cl _at opts p b c g =
       test p "delete /clients/:client - 400 (short pwd)" $ testRemoveClientShortPwd b,
       test p "delete /clients/:client - 403 (incorrect pwd)" $ testRemoveClientIncorrectPwd b,
       test p "put /clients/:client - 200" $ testUpdateClient opts b,
+      test p "put /clients/:client - 200 (mls keys)" $ testMLSPublicKeyUpdate b,
       test p "get /clients/:client - 404" $ testMissingClient b,
       test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g,
       test p "client/prekeys/race" $ testPreKeyRace b
     ]
 
-testAddGetClient :: Bool -> Brig -> Cannon -> Http ()
-testAddGetClient hasPwd brig cannon = do
-  uid <- userId <$> randomUser' hasPwd brig
+data AddGetClient = AddGetClient
+  { addWithPassword :: Bool,
+    addWithMLSKeys :: Bool
+  }
+
+instance Default AddGetClient where
+  def = AddGetClient True False
+
+testAddGetClient :: AddGetClient -> Brig -> Cannon -> Http ()
+testAddGetClient params brig cannon = do
+  uid <- userId <$> randomUser' (addWithPassword params) brig
+  let new =
+        (defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
+          { newClientMLSPublicKeys = keys
+          }
+      keys
+        | addWithMLSKeys params = Map.fromList [(Ed25519, "aGVsbG8gd29ybGQ=")]
+        | otherwise = mempty
   let rq =
-        addClientReq brig uid (defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
+        addClientReq brig uid new
           . header "X-Forwarded-For" "127.0.0.1" -- Fake IP to test IpAddr parsing.
   c <- WS.bracketR cannon uid $ \ws -> do
     c <-
@@ -116,6 +128,7 @@ testAddGetClient hasPwd brig cannon = do
       etype @?= Just "user.client-add"
       fmap fromJSON eclient @?= Just (Success c)
     return c
+  liftIO $ clientMLSPublicKeys c @?= keys
   getClient brig uid (clientId c) !!! do
     const 200 === statusCode
     const (Just c) === responseJsonMaybe
@@ -579,7 +592,11 @@ testUpdateClient opts brig = do
     const (Just PhoneClient) === (clientClass <=< responseJsonMaybe)
     const (Just "featurephone") === (clientModel <=< responseJsonMaybe)
   let newPrekey = somePrekeys !! 2
-  let update = UpdateClient [newPrekey] Nothing (Just "label") Nothing
+  let update =
+        defUpdateClient
+          { updateClientPrekeys = [newPrekey],
+            updateClientLabel = Just "label"
+          }
   put
     ( brig
         . paths ["clients", toByteString' (clientId c)]
@@ -604,6 +621,7 @@ testUpdateClient opts brig = do
     const (Just $ clientId c) === (fmap pubClientId . responseJsonMaybe)
     const (Just PhoneClient) === (pubClientClass <=< responseJsonMaybe)
     const Nothing === (preview (key "label") <=< responseJsonMaybe @Value)
+    const Nothing === (preview (key "mls_public_keys") <=< responseJsonMaybe @Value)
 
   -- via `/users/:domain/:uid/clients/:client`, only `id` and `class` are visible:
   let localdomain = opts ^. Opt.optionSettings & Opt.setFederationDomain
@@ -612,8 +630,9 @@ testUpdateClient opts brig = do
     const (Just $ clientId c) === (fmap pubClientId . responseJsonMaybe)
     const (Just PhoneClient) === (pubClientClass <=< responseJsonMaybe)
     const Nothing === (preview (key "label") <=< responseJsonMaybe @Value)
+    const Nothing === (preview (key "mls_public_keys") <=< responseJsonMaybe @Value)
 
-  let update' = UpdateClient [] Nothing Nothing Nothing
+  let update' = defUpdateClient
 
   -- empty update should be a no-op
   put
@@ -634,7 +653,7 @@ testUpdateClient opts brig = do
   -- update supported client capabilities work
   let checkUpdate :: HasCallStack => Maybe [ClientCapability] -> Bool -> [ClientCapability] -> Http ()
       checkUpdate capsIn respStatusOk capsOut = do
-        let update'' = UpdateClient [] Nothing Nothing (Set.fromList <$> capsIn)
+        let update'' = defUpdateClient {updateClientCapabilities = Set.fromList <$> capsIn}
         put
           ( brig
               . paths ["clients", toByteString' (clientId c)]
@@ -693,8 +712,12 @@ testUpdateClient opts brig = do
       ( brig
           . paths ["clients", toByteString' (clientId c)]
           . zUser uid
-          . contentJson
-          . (body . RequestBodyLBS . encode $ UpdateClient [prekey] (Just lastprekey) (Just label) Nothing)
+          . json
+            defUpdateClient
+              { updateClientPrekeys = [prekey],
+                updateClientLastKey = Just lastprekey,
+                updateClientLabel = Just label
+              }
       )
       !!! const 200 === statusCode
     checkClientLabel
@@ -702,13 +725,42 @@ testUpdateClient opts brig = do
       ( brig
           . paths ["clients", toByteString' (clientId c)]
           . zUser uid
-          . contentJson
-          . (body . RequestBodyLBS . encode $ UpdateClient [] Nothing Nothing caps)
+          . json defUpdateClient {updateClientCapabilities = caps}
       )
       !!! const 200 === statusCode
     checkClientLabel
     checkClientPrekeys prekey
     checkClientPrekeys (unpackLastPrekey lastprekey)
+
+testMLSPublicKeyUpdate :: Brig -> Http ()
+testMLSPublicKeyUpdate brig = do
+  uid <- userId <$> randomUser brig
+  let clt =
+        (defNewClient TemporaryClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
+          { newClientClass = Just PhoneClient,
+            newClientModel = Just "featurephone"
+          }
+  c <- responseJsonError =<< addClient brig uid clt
+  let keys = Map.fromList [(Ed25519, "aGVsbG8gd29ybGQ=")]
+  put
+    ( brig
+        . paths ["clients", toByteString' (clientId c)]
+        . zUser uid
+        . contentJson
+        . json (UpdateClient [] Nothing Nothing Nothing keys)
+    )
+    !!! const 200 === statusCode
+  c' <- responseJsonError =<< getClient brig uid (clientId c) <!! const 200 === statusCode
+  liftIO $ clientMLSPublicKeys c' @?= keys
+  -- adding the key again should fail
+  put
+    ( brig
+        . paths ["clients", toByteString' (clientId c)]
+        . zUser uid
+        . contentJson
+        . json (UpdateClient [] Nothing Nothing Nothing keys)
+    )
+    !!! const 400 === statusCode
 
 testMissingClient :: Brig -> Http ()
 testMissingClient brig = do

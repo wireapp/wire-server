@@ -31,13 +31,17 @@ module Brig.Data.Client
     lookupClientsBulk,
     lookupClientIds,
     lookupUsersClientIds,
-    Brig.Data.Client.updateClientLabel,
-    Brig.Data.Client.updateClientCapabilities,
+    updateClientLabel,
+    updateClientCapabilities,
 
     -- * Prekeys
     claimPrekey,
     updatePrekeys,
     lookupPrekeyIds,
+
+    -- * MLS public keys
+    addMLSPublicKeys,
+    lookupMLSPublicKey,
   )
 where
 
@@ -50,11 +54,11 @@ import Brig.App (AppIO, Env, awsEnv, currentTime, metrics, randomPrekeyLocalLock
 import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import qualified Brig.Data.User as User
-import Brig.Types
 import Brig.Types.Instances ()
 import Brig.Types.User.Auth (CookieLabel)
 import Brig.User.Auth.DB.Instances ()
 import Cassandra as C hiding (Client)
+import Cassandra.Settings as C hiding (Client)
 import Control.Error
 import qualified Control.Exception.Lens as EL
 import Control.Lens
@@ -78,7 +82,9 @@ import qualified System.CryptoBox as CryptoBox
 import System.Logger.Class (field, msg, val)
 import qualified System.Logger.Class as Log
 import UnliftIO (pooledMapConcurrentlyN)
-import Wire.API.User.Client (ClientCapability, ClientCapabilityList (ClientCapabilityList))
+import Wire.API.MLS.Credential
+import Wire.API.User.Client hiding (UpdateClient (..))
+import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (UserMap (..))
 
 data ClientDataError
@@ -86,6 +92,7 @@ data ClientDataError
   | ClientReAuthError !ReAuthError
   | ClientMissingAuth
   | MalformedPrekeys
+  | MLSPublicKeyDuplicate
 
 addClient ::
   (MonadClient m, MonadReader Brig.App.Env m) =>
@@ -132,11 +139,25 @@ addClient u newId c maxPermClients loc cps = do
           mdl = newClientModel c
           prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl, C.Set . Set.toList <$> cps)
       retry x5 $ write insertClient (params LocalQuorum prm)
-      return $! Client newId (newClientType c) now (newClientClass c) (newClientLabel c) (newClientCookie c) loc mdl (ClientCapabilityList $ fromMaybe mempty cps)
+      addMLSPublicKeys u newId (Map.assocs (newClientMLSPublicKeys c))
+      return
+        $! Client
+          { clientId = newId,
+            clientType = newClientType c,
+            clientTime = now,
+            clientClass = newClientClass c,
+            clientLabel = newClientLabel c,
+            clientCookie = newClientCookie c,
+            clientLocation = loc,
+            clientModel = mdl,
+            clientCapabilities = ClientCapabilityList (fromMaybe mempty cps),
+            clientMLSPublicKeys = mempty
+          }
 
 lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client)
-lookupClient u c =
-  fmap toClient
+lookupClient u c = do
+  keys <- retry x1 (query selectMLSPublicKeys (params LocalQuorum (u, c)))
+  fmap (toClient keys)
     <$> retry x1 (query1 selectClient (params LocalQuorum (u, c)))
 
 lookupClientsBulk :: (MonadClient m) => [UserId] -> m (Map UserId (Imports.Set Client))
@@ -145,10 +166,7 @@ lookupClientsBulk uids = liftClient $ do
   pure $ Map.fromList userClientTuples
   where
     getClientSetWithUser :: MonadClient m => UserId -> m (UserId, Imports.Set Client)
-    getClientSetWithUser u = (u,) . Set.fromList <$> executeQuery u
-
-    executeQuery :: MonadClient m => UserId -> m [Client]
-    executeQuery u = toClient <$$> retry x1 (query selectClients (params LocalQuorum (Identity u)))
+    getClientSetWithUser u = fmap ((u,) . Set.fromList) . lookupClients $ u
 
 lookupPubClientsBulk :: (MonadClient m) => [UserId] -> m (UserMap (Imports.Set PubClient))
 lookupPubClientsBulk uids = liftClient $ do
@@ -162,9 +180,9 @@ lookupPubClientsBulk uids = liftClient $ do
     executeQuery u = retry x1 (query selectPubClients (params LocalQuorum (Identity u)))
 
 lookupClients :: MonadClient m => UserId -> m [Client]
-lookupClients u =
-  map toClient
-    <$> retry x1 (query selectClients (params LocalQuorum (Identity u)))
+lookupClients u = do
+  keys <- retry x1 (query selectMLSPublicKeysByUser (params LocalQuorum (Identity u)))
+  toClient keys <$$> retry x1 (query selectClients (params LocalQuorum (Identity u)))
 
 lookupClientIds :: MonadClient m => UserId -> m [ClientId]
 lookupClientIds u =
@@ -256,6 +274,38 @@ claimPrekey u c =
       ind <- liftIO $ randomRIO (0, length pks' - 1)
       return $ atMay pks' ind
 
+lookupMLSPublicKey ::
+  MonadClient m =>
+  UserId ->
+  ClientId ->
+  SignatureSchemeTag ->
+  m (Maybe LByteString)
+lookupMLSPublicKey u c ss =
+  (fromBlob . runIdentity) <$$> retry x1 (query1 selectMLSPublicKey (params LocalQuorum (u, c, ss)))
+
+addMLSPublicKeys ::
+  MonadClient m =>
+  UserId ->
+  ClientId ->
+  [(SignatureSchemeTag, LByteString)] ->
+  ExceptT ClientDataError m ()
+addMLSPublicKeys u c = traverse_ (uncurry (addMLSPublicKey u c))
+
+addMLSPublicKey ::
+  MonadClient m =>
+  UserId ->
+  ClientId ->
+  SignatureSchemeTag ->
+  LByteString ->
+  ExceptT ClientDataError m ()
+addMLSPublicKey u c ss pk = do
+  rows <- trans insertMLSPublicKeys (params LocalQuorum (u, c, ss, Blob pk))
+  case rows of
+    [row]
+      | C.fromRow 0 row /= Right (Just True) ->
+        throwE MLSPublicKeyDuplicate
+    _ -> pure ()
+
 -------------------------------------------------------------------------------
 -- Queries
 
@@ -304,11 +354,38 @@ removePrekey = "DELETE FROM prekeys where user = ? and client = ? and key = ?"
 checkClient :: PrepQuery R (UserId, ClientId) (Identity ClientId)
 checkClient = "SELECT client from clients where user = ? and client = ?"
 
+selectMLSPublicKey :: PrepQuery R (UserId, ClientId, SignatureSchemeTag) (Identity Blob)
+selectMLSPublicKey = "SELECT key from mls_public_keys where user = ? and client = ? and sig_scheme = ?"
+
+selectMLSPublicKeys :: PrepQuery R (UserId, ClientId) (SignatureSchemeTag, Blob)
+selectMLSPublicKeys = "SELECT sig_scheme, key from mls_public_keys where user = ? and client = ?"
+
+selectMLSPublicKeysByUser :: PrepQuery R (Identity UserId) (SignatureSchemeTag, Blob)
+selectMLSPublicKeysByUser = "SELECT sig_scheme, key from mls_public_keys where user = ?"
+
+insertMLSPublicKeys :: PrepQuery W (UserId, ClientId, SignatureSchemeTag, Blob) Row
+insertMLSPublicKeys =
+  "INSERT INTO mls_public_keys (user, client, sig_scheme, key) \
+  \VALUES (?, ?, ?, ?) IF NOT EXISTS"
+
 -------------------------------------------------------------------------------
 -- Conversions
 
-toClient :: (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability)) -> Client
-toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
+toClient ::
+  [(SignatureSchemeTag, Blob)] ->
+  ( ClientId,
+    ClientType,
+    UTCTimeMillis,
+    Maybe Text,
+    Maybe ClientClass,
+    Maybe CookieLabel,
+    Maybe Latitude,
+    Maybe Longitude,
+    Maybe Text,
+    Maybe (C.Set ClientCapability)
+  ) ->
+  Client
+toClient keys (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
   Client
     { clientId = cid,
       clientType = cty,
@@ -318,7 +395,8 @@ toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
       clientCookie = cok,
       clientLocation = location <$> lat <*> lon,
       clientModel = mdl,
-      clientCapabilities = ClientCapabilityList $ maybe Set.empty (Set.fromList . C.fromSet) cps
+      clientCapabilities = ClientCapabilityList $ maybe Set.empty (Set.fromList . C.fromSet) cps,
+      clientMLSPublicKeys = fmap fromBlob (Map.fromList keys)
     }
 
 toPubClient :: (ClientId, Maybe ClientClass) -> PubClient

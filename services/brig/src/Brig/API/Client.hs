@@ -60,6 +60,7 @@ import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Event
 import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
+import Cassandra (MonadClient)
 import Control.Error
 import Control.Lens (view)
 import Data.ByteString.Conversion
@@ -134,11 +135,11 @@ addClient u con ip new = do
               then Just . maybe (Set.singleton lhcaps) (Set.insert lhcaps)
               else id
           lhcaps = ClientSupportsLegalholdImplicitConsent
-  (clt, old, count) <-
-    mapExceptT
-      wrapClient
+  (clt0, old, count) <-
+    wrapClientE
       (Data.addClient u clientId' new maxPermClients loc caps)
       !>> ClientDataError
+  let clt = clt0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
   let usr = accountUser acc
   lift $ do
     for_ old $ execDelete u con
@@ -153,17 +154,18 @@ addClient u con ip new = do
   where
     clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
 
-updateClient :: UserId -> ClientId -> UpdateClient -> ExceptT ClientError (AppIO r) ()
+updateClient :: MonadClient m => UserId -> ClientId -> UpdateClient -> ExceptT ClientError m ()
 updateClient u c r = do
-  client <- lift (wrapClient $ Data.lookupClient u c) >>= maybe (throwE ClientNotFound) pure
-  for_ (updateClientLabel r) $ lift . wrapClient . Data.updateClientLabel u c . Just
+  client <- lift (Data.lookupClient u c) >>= maybe (throwE ClientNotFound) pure
+  for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
   for_ (updateClientCapabilities r) $ \caps' -> do
     let ClientCapabilityList caps = clientCapabilities client
     if caps `Set.isSubsetOf` caps'
-      then lift . wrapClient . Data.updateClientCapabilities u c . Just $ caps'
+      then lift . Data.updateClientCapabilities u c . Just $ caps'
       else throwE ClientCapabilitiesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
-  wrapClientE (Data.updatePrekeys u c (lk ++ updateClientPrekeys r)) !>> ClientDataError
+  Data.updatePrekeys u c (lk ++ updateClientPrekeys r) !>> ClientDataError
+  Data.addMLSPublicKeys u c (Map.assocs (updateClientMLSPublicKeys r)) !>> ClientDataError
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.

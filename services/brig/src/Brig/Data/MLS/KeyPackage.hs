@@ -23,7 +23,6 @@ module Brig.Data.MLS.KeyPackage
 where
 
 import Brig.App
-import Brig.Data.MLS.KeyPackage.Instances ()
 import Cassandra
 import Control.Error
 import Control.Lens
