@@ -266,7 +266,7 @@ notifyUserDeletionRemotes deleted = do
     wrapClient
     runConduit
     $ Data.lookupRemoteConnectedUsersC deleted (fromInteger (natVal (Proxy @UserDeletedNotificationMaxConnections)))
-      .| C.mapM_ (liftIO . runAppT e . fanoutNotifications)
+      .| C.mapM_ (runAppIOLifted e . fanoutNotifications)
   where
     fanoutNotifications :: [Remote UserId] -> (AppIO r) ()
     fanoutNotifications = mapM_ notifyBackend . bucketRemote

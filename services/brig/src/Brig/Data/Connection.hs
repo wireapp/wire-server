@@ -48,7 +48,7 @@ module Brig.Data.Connection
   )
 where
 
-import Brig.App (AppIO, Env, qualifyLocal, runAppT, wrapClient)
+import Brig.App
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
 import Brig.Types
@@ -291,7 +291,7 @@ deleteConnections u = do
     wrapClient
     runConduit
     $ paginateC contactsSelect (paramsP LocalQuorum (Identity u) 100) x1
-      .| C.mapM_ (liftIO . runAppT e . pooledMapConcurrentlyN_ 16 delete)
+      .| C.mapM_ (runAppIOLifted e . pooledMapConcurrentlyN_ 16 delete)
   wrapClient $ do
     retry x1 . write connectionClear $ params LocalQuorum (Identity u)
     retry x1 . write remoteConnectionClear $ params LocalQuorum (Identity u)

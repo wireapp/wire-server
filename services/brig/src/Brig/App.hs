@@ -66,7 +66,12 @@ module Brig.App
     locationOf,
     viewFederationDomain,
     qualifyLocal,
+
+    -- * Crutches that should be removed once Brig has been completely
+
+    -- * transitioned to Polysemy
     wrapClient,
+    runAppIOLifted,
   )
 where
 
@@ -515,6 +520,9 @@ instance MonadUnliftIO m => MonadUnliftIO (AppT r m) where
 
 runAppT :: Env -> AppT r m a -> m a
 runAppT e (AppT ma) = runReaderT ma e
+
+runAppIOLifted :: MonadIO m => Env -> AppIO r a -> m a
+runAppIOLifted e = liftIO . runAppT e
 
 runAppResourceT :: ResourceT (AppIO r) a -> (AppIO r) a
 runAppResourceT ma = do

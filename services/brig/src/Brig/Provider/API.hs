@@ -29,7 +29,7 @@ import qualified Brig.API.Client as Client
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types (PasswordResetError (..))
-import Brig.App (AppIO, internalEvents, runAppT, settings, viewFederationDomain, wrapClient)
+import Brig.App
 import qualified Brig.Code as Code
 import qualified Brig.Data.Client as User
 import qualified Brig.Data.User as User
@@ -668,7 +668,7 @@ finishDeleteService pid sid = do
       wrapClient
       runConduit
       $ User.lookupServiceUsers pid sid
-        .| C.mapM_ (liftIO . runAppT e . pooledMapConcurrentlyN_ 16 kick)
+        .| C.mapM_ (runAppIOLifted e . pooledMapConcurrentlyN_ 16 kick)
     RPC.removeServiceConn pid sid
     wrapClient $ DB.deleteService pid sid name tags
   where
@@ -808,7 +808,7 @@ updateServiceWhitelist uid con tid upd = do
           runConduit
           $ User.lookupServiceUsersForTeam pid sid tid
             .| C.mapM_
-              ( liftIO . runAppT e
+              ( runAppIOLifted e
                   . pooledMapConcurrentlyN_
                     16
                     ( uncurry (deleteBot uid (Just con))
