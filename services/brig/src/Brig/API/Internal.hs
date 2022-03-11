@@ -35,6 +35,7 @@ import Brig.App
 import Brig.Data.Activation
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
+import qualified Brig.Data.MLS.KeyPackage as Data
 import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -72,6 +73,8 @@ import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Wire.API.ErrorDescription
+import Wire.API.MLS.Credential
+import Wire.API.MLS.KeyPackage
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
@@ -84,7 +87,7 @@ import Wire.API.User.RichInfo
 -- Sitemap (servant)
 
 servantSitemap :: ServerT BrigIRoutes.API (Handler r)
-servantSitemap = ejpdAPI :<|> accountAPI
+servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI
 
 ejpdAPI :: ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
@@ -94,6 +97,9 @@ ejpdAPI =
     :<|> deleteAccountFeatureConfig
     :<|> getConnectionsStatusUnqualified
     :<|> getConnectionsStatus
+
+mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
+mlsAPI = getClientByKeyPackageRef
 
 accountAPI :: ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI = Named @"createUserNoVerify" createUserNoVerify
@@ -114,6 +120,9 @@ deleteAccountFeatureConfig uid =
 
 swaggerDocsAPI :: Servant.Server BrigIRoutes.SwaggerDocsAPI
 swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
+
+getClientByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe ClientIdentity)
+getClientByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.derefKeyPackage
 
 ---------------------------------------------------------------------------
 -- Sitemap (wai-route)

@@ -19,6 +19,7 @@ module Brig.Data.MLS.KeyPackage
   ( insertKeyPackages,
     claimKeyPackage,
     countKeyPackages,
+    derefKeyPackage,
   )
 where
 
@@ -27,9 +28,12 @@ import Cassandra
 import Control.Error
 import Control.Lens
 import Control.Monad.Random (randomRIO)
+import Data.Domain
 import Data.Functor
 import Data.Id
+import Data.Qualified
 import Imports
+import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 
 insertKeyPackages :: MonadClient m => UserId -> ClientId -> [(KeyPackageRef, KeyPackageData)] -> m ()
@@ -42,16 +46,27 @@ insertKeyPackages uid cid kps = retry x5 . batch $ do
     q :: PrepQuery W (UserId, ClientId, KeyPackageData, KeyPackageRef) ()
     q = "INSERT INTO mls_key_packages (user, client, data, ref) VALUES (?, ?, ?, ?)"
 
-claimKeyPackage :: (MonadReader Env m, MonadUnliftIO m, MonadClient m) => UserId -> ClientId -> MaybeT m KeyPackageData
-claimKeyPackage u c = MaybeT $ do
+claimKeyPackage ::
+  ( MonadReader Env m,
+    MonadUnliftIO m,
+    MonadClient m
+  ) =>
+  Local UserId ->
+  ClientId ->
+  MaybeT m (KeyPackageRef, KeyPackageData)
+claimKeyPackage u c = do
   -- FUTUREWORK: investigate better locking strategies
-  lock <- view keyPackageLocalLock
-  withMVar lock . const $ do
-    kps <- retry x1 $ query lookupQuery (params LocalQuorum (u, c))
+  lock <- lift $ view keyPackageLocalLock
+  -- get a random key package and delete it
+  (ref, kpd) <- MaybeT . withMVar lock . const $ do
+    kps <- retry x1 $ query lookupQuery (params LocalQuorum (tUnqualified u, c))
     mk <- liftIO (pick kps)
     for mk $ \(ref, kpd) -> do
-      retry x5 $ write deleteQuery (params LocalQuorum (u, c, ref))
-      pure kpd
+      retry x5 $ write deleteQuery (params LocalQuorum (tUnqualified u, c, ref))
+      pure (ref, kpd)
+  -- add key package ref to mapping table
+  lift $ write insertQuery (params LocalQuorum (ref, tDomain u, tUnqualified u, c))
+  pure (ref, kpd)
   where
     lookupQuery :: PrepQuery R (UserId, ClientId) (KeyPackageRef, KeyPackageData)
     lookupQuery = "SELECT ref, data FROM mls_key_packages WHERE user = ? AND client = ?"
@@ -59,12 +74,23 @@ claimKeyPackage u c = MaybeT $ do
     deleteQuery :: PrepQuery W (UserId, ClientId, KeyPackageRef) ()
     deleteQuery = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND ref = ?"
 
+    insertQuery :: PrepQuery W (KeyPackageRef, Domain, UserId, ClientId) ()
+    insertQuery = "INSERT INTO mls_key_package_refs (ref, domain, user, client) VALUES (?, ?, ?, ?)"
+
 countKeyPackages :: MonadClient m => UserId -> ClientId -> m Int64
 countKeyPackages u c =
   retry x1 $ sum . fmap runIdentity <$> query1 q (params LocalQuorum (u, c))
   where
     q :: PrepQuery R (UserId, ClientId) (Identity Int64)
     q = "SELECT COUNT(*) FROM mls_key_packages WHERE user = ? AND client = ?"
+
+derefKeyPackage :: MonadClient m => KeyPackageRef -> MaybeT m ClientIdentity
+derefKeyPackage ref = do
+  (d, u, c) <- MaybeT . retry x1 $ query1 q (params LocalQuorum (Identity ref))
+  pure $ ClientIdentity d u c
+  where
+    q :: PrepQuery R (Identity KeyPackageRef) (Domain, UserId, ClientId)
+    q = "SELECT domain, user, client from mls_key_package_refs WHERE ref = ?"
 
 --------------------------------------------------------------------------------
 -- Utilities

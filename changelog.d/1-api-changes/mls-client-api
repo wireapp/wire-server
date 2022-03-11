@@ -8,6 +8,6 @@ The client JSON object now has an additional field `mls_public_keys`, containing
 ```
 At the moment, `ed25519` is the only supported signature scheme, corresponding to MLS ciphersuite 1.
 
-When creating a new client with `POST /clients`, the field `mls_public_keys` can be set, and the corresponding public keys are bound to the device identity on the backend, and will be used to veriy uploaded key packages with a matching signature scheme.
+When creating a new client with `POST /clients`, the field `mls_public_keys` can be set, and the corresponding public keys are bound to the device identity on the backend, and will be used to verify uploaded key packages with a matching signature scheme.
 
 When updating a client with `PUT /clients/:client`, the field `mls_public_keys` can also be set, with a similar effect. If a given signature scheme already has a public key set for that device, the request will fail.

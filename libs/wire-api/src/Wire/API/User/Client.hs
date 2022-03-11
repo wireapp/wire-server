@@ -450,7 +450,7 @@ data Client = Client
   deriving (Arbitrary) via (GenericUniform Client)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema Client
 
-type MLSPublicKeys = Map SignatureSchemeTag LByteString
+type MLSPublicKeys = Map SignatureSchemeTag ByteString
 
 instance ToSchema Client where
   schema =
@@ -473,7 +473,7 @@ mlsPublicKeysSchema =
     (fromMaybe mempty)
     ( optField
         "mls_public_keys"
-        (map_ base64SchemaL)
+        (map_ base64Schema)
     )
 
 modelClient :: Doc.Model

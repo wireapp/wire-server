@@ -17,6 +17,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import UnliftIO.Temporary
 import Util
+import Web.HttpApiData
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.User
@@ -93,6 +94,17 @@ testKeyPackageClaim brig = do
         <!! const 200 === statusCode
     liftIO $ count @?= 2
 
+  -- check that the package refs are correctly mapped
+  for_ (kpbEntries bundle) $ \e -> do
+    cid <-
+      responseJsonError
+        =<< get (brig . paths ["i", "mls", "key-packages", toHeader (kpbeRef e)])
+        <!! const 200 === statusCode
+    liftIO $ do
+      ciDomain cid @?= qDomain u
+      ciUser cid @?= qUnqualified u
+      ciClient cid @?= kpbeClient e
+
 --------------------------------------------------------------------------------
 
 data SetKey = SetKey | DontSetKey
@@ -132,7 +144,7 @@ uploadKeyPackages brig store sk u c n = do
   when (sk == SetKey) $
     do
       pk <-
-        liftIO . fmap LBS.fromStrict . spawn . shell . unwords $
+        liftIO . spawn . shell . unwords $
           cmd0 <> ["public-key", clientId]
       put
         ( brig

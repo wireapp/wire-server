@@ -239,6 +239,7 @@ getAccountFeatureConfigClientM ::
       :<|> _
     )
     :<|> _
+    :<|> _
   ) = Client.client (Proxy @IAPI.API)
 
 runHereClientM :: HasCallStack => Client.ClientM a -> App (Either Client.ClientError a)

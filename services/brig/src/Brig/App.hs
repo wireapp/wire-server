@@ -72,6 +72,7 @@ module Brig.App
     -- * transitioned to Polysemy
     wrapClient,
     wrapClientE,
+    wrapClientM,
     runAppIOLifted,
   )
 where
@@ -143,7 +144,7 @@ import Util.Options
 import Wire.API.User.Identity (Email)
 
 schemaVersion :: Int32
-schemaVersion = 68
+schemaVersion = 69
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -503,6 +504,9 @@ wrapClient m = do
 
 wrapClientE :: ExceptT e (ReaderT Env Cas.Client) a -> ExceptT e (AppT r IO) a
 wrapClientE = mapExceptT wrapClient
+
+wrapClientM :: MaybeT (ReaderT Env Cas.Client) b -> MaybeT (AppT r IO) b
+wrapClientM = mapMaybeT wrapClient
 
 instance MonadIO m => MonadIndexIO (ReaderT Env m) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
