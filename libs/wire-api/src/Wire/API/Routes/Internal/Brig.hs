@@ -141,7 +141,6 @@ type API =
 
 type GetVerificationCode =
   Summary "Get verification code for a given email and action"
-    :> "i"
     :> "users"
     :> Capture "uid" UserId
     :> "verification-code"
