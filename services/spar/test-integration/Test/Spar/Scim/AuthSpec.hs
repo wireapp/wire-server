@@ -51,7 +51,6 @@ import Spar.Scim
 import Text.RawString.QQ (r)
 import Util
 import qualified Wire.API.Team.Feature as Public
-import Wire.API.User (VerificationAction (GenerateScimToken))
 import qualified Wire.API.User as Public
 
 -- | Tests for authentication and operations with provisioning tokens ('ScimToken's).
@@ -118,8 +117,8 @@ testCreateTokenWithVerificationCode = do
   let reqWrongCode = CreateScimToken "testCreateToken" (Just defPassword) (Just wrongCode)
   createTokenFailsWith owner reqWrongCode 403 "code-authentication-failed"
 
-  requestVerificationCode (env ^. teBrig) email GenerateScimToken
-  code <- getVerificationCode (env ^. teBrig) owner GenerateScimToken
+  requestVerificationCode (env ^. teBrig) email Public.CreateScimToken
+  code <- getVerificationCode (env ^. teBrig) owner Public.CreateScimToken
   let reqWithCode = CreateScimToken "testCreateToken" (Just defPassword) (Just code)
   CreateScimTokenResponse token _ <- createToken owner reqWithCode
 
@@ -135,14 +134,14 @@ setSndFactorPasswordChallengeStatus galley tid status = do
     put (galley . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge] . contentJson . body js)
       !!! const 200 === statusCode
 
-requestVerificationCode :: BrigReq -> Brig.Email -> VerificationAction -> TestSpar ()
+requestVerificationCode :: BrigReq -> Brig.Email -> Public.VerificationAction -> TestSpar ()
 requestVerificationCode brig email action = do
   let js = RequestBodyLBS $ encode $ Public.SendVerificationCode action email
   call $
     post (brig . paths ["verification-code", "send"] . contentJson . body js)
       !!! const 200 === statusCode
 
-getVerificationCode :: BrigReq -> UserId -> VerificationAction -> TestSpar Code.Value
+getVerificationCode :: BrigReq -> UserId -> Public.VerificationAction -> TestSpar Code.Value
 getVerificationCode brig uid action = do
   resp <-
     call $

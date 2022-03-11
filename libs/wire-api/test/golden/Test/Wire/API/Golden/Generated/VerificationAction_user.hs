@@ -22,7 +22,7 @@ module Test.Wire.API.Golden.Generated.VerificationAction_user where
 import Wire.API.User (VerificationAction (..))
 
 testObject_VerificationAction_user_1 :: VerificationAction
-testObject_VerificationAction_user_1 = GenerateScimToken
+testObject_VerificationAction_user_1 = CreateScimToken
 
 testObject_VerificationAction_user_2 :: VerificationAction
 testObject_VerificationAction_user_2 = Login

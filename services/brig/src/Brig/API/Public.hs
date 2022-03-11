@@ -1066,13 +1066,13 @@ sendVerificationCode req = do
 
     scope :: Public.VerificationAction -> Code.Scope
     scope = \case
-      Public.GenerateScimToken -> Code.GenerateScimToken
+      Public.CreateScimToken -> Code.CreateScimToken
       Public.Login -> Code.AccountLogin
 
     sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
     sendMail email value mbLocale =
       lift . \case
-        Public.GenerateScimToken -> sendGenerateScimTokenVerificationMail email value mbLocale
+        Public.CreateScimToken -> sendCreateScimTokenVerificationMail email value mbLocale
         Public.Login -> sendLoginVerificationMail email value mbLocale
 
     getFeatureStatus :: Maybe UserAccount -> (Handler r) Bool
