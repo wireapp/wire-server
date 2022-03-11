@@ -181,6 +181,9 @@ data:
     {{- with .optSettings }}
     optSettings:
       setActivationTimeout: {{ .setActivationTimeout }}
+      {{- if .setVerificationTimeout }}
+      setVerificationTimeout: {{ .setVerificationTimeout }}
+      {{- end }}
       setTeamInvitationTimeout: {{ .setTeamInvitationTimeout }}
       {{- if .setExpiredUserCleanupTimeout }}
       setExpiredUserCleanupTimeout: {{ .setExpiredUserCleanupTimeout }}

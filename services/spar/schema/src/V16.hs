@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedLists #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,12 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Golden.Generated.SndFactorPasswordChallengeAction_user where
+module V16
+  ( migration,
+  )
+where
 
-import Wire.API.User (SndFactorPasswordChallengeAction (..))
+import Cassandra.Schema
+import Imports
+import Text.RawString.QQ
 
-testObject_SndFactorPasswordChallengeAction_user_1 :: SndFactorPasswordChallengeAction
-testObject_SndFactorPasswordChallengeAction_user_1 = GenerateScimToken
-
-testObject_SndFactorPasswordChallengeAction_user_2 :: SndFactorPasswordChallengeAction
-testObject_SndFactorPasswordChallengeAction_user_2 = Login
+migration :: Migration
+migration = Migration 16 "Remove scim_external_ids (out of use since 2021-03)" $ do
+  void $
+    schema'
+      [r|
+        DROP TABLE scim_external_ids;
+      |]

@@ -178,6 +178,8 @@ loginError (LoginBlocked wait) =
     tooManyFailedLogins
     ()
     [("Retry-After", toByteString' (retryAfterSeconds wait))]
+loginError LoginCodeRequired = StdError loginCodeAuthenticationRequired
+loginError LoginCodeInvalid = StdError loginCodeAuthenticationFailed
 
 authError :: AuthError -> Error
 authError AuthInvalidUser = StdError (errorDescriptionTypeToWai @BadCredentials)
@@ -282,6 +284,12 @@ loginCodePending = Wai.mkError status403 "pending-login" "A login code is still 
 
 loginCodeNotFound :: Wai.Error
 loginCodeNotFound = Wai.mkError status404 "no-pending-login" "No login code was found."
+
+loginCodeAuthenticationFailed :: Wai.Error
+loginCodeAuthenticationFailed = Wai.mkError status403 "code-authentication-failed" "The login code is not valid."
+
+loginCodeAuthenticationRequired :: Wai.Error
+loginCodeAuthenticationRequired = Wai.mkError status403 "code-authentication-required" "A login verification code is required."
 
 accountPending :: Wai.Error
 accountPending = Wai.mkError status403 "pending-activation" "Account pending activation."
@@ -437,3 +445,6 @@ customerExtensionBlockedDomain domain = Wai.mkError (mkStatus 451 "Unavailable F
       "[Customer extension] the email domain " <> cs (show domain)
         <> " that you are attempting to register a user with has been \
            \blocked for creating wire users.  Please contact your IT department."
+
+verificationCodeNotImplementedError :: Wai.Error
+verificationCodeNotImplementedError = Wai.mkError status400 "verification-code-not-implemented" "Verification code for this action is not implemented."

@@ -26,7 +26,6 @@ module Brig.Data.Properties
   )
 where
 
-import Brig.App (AppIO)
 import Brig.Data.Instances ()
 import Brig.Types.Properties
 import Cassandra
@@ -40,30 +39,35 @@ maxProperties = 16
 data PropertiesDataError
   = TooManyProperties
 
-insertProperty :: UserId -> PropertyKey -> PropertyValue -> ExceptT PropertiesDataError (AppIO r) ()
+insertProperty ::
+  MonadClient m =>
+  UserId ->
+  PropertyKey ->
+  PropertyValue ->
+  ExceptT PropertiesDataError m ()
 insertProperty u k v = do
   n <- lift . fmap (maybe 0 runIdentity) . retry x1 $ query1 propertyCount (params LocalQuorum (Identity u))
   unless (n < maxProperties) $
     throwE TooManyProperties
   lift . retry x5 $ write propertyInsert (params LocalQuorum (u, k, v))
 
-deleteProperty :: UserId -> PropertyKey -> (AppIO r) ()
+deleteProperty :: MonadClient m => UserId -> PropertyKey -> m ()
 deleteProperty u k = retry x5 $ write propertyDelete (params LocalQuorum (u, k))
 
-clearProperties :: UserId -> (AppIO r) ()
+clearProperties :: MonadClient m => UserId -> m ()
 clearProperties u = retry x5 $ write propertyReset (params LocalQuorum (Identity u))
 
-lookupProperty :: UserId -> PropertyKey -> (AppIO r) (Maybe PropertyValue)
+lookupProperty :: MonadClient m => UserId -> PropertyKey -> m (Maybe PropertyValue)
 lookupProperty u k =
   fmap runIdentity
     <$> retry x1 (query1 propertySelect (params LocalQuorum (u, k)))
 
-lookupPropertyKeys :: UserId -> (AppIO r) [PropertyKey]
+lookupPropertyKeys :: MonadClient m => UserId -> m [PropertyKey]
 lookupPropertyKeys u =
   map runIdentity
     <$> retry x1 (query propertyKeysSelect (params LocalQuorum (Identity u)))
 
-lookupPropertyKeysAndValues :: UserId -> (AppIO r) PropertyKeysAndValues
+lookupPropertyKeysAndValues :: MonadClient m => UserId -> m PropertyKeysAndValues
 lookupPropertyKeysAndValues u =
   PropertyKeysAndValues
     <$> retry x1 (query propertyKeysValuesSelect (params LocalQuorum (Identity u)))

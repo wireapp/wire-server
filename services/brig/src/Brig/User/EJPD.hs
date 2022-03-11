@@ -22,7 +22,7 @@ module Brig.User.EJPD (ejpdRequest) where
 
 import Brig.API.Handler
 import Brig.API.User (lookupHandle)
-import Brig.App (AppIO)
+import Brig.App (AppIO, wrapClient)
 import qualified Brig.Data.Connection as Conn
 import Brig.Data.User (lookupUser)
 import qualified Brig.IO.Intra as Intra
@@ -47,8 +47,8 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
     -- find uid given handle
     go1 :: Bool -> Handle -> (AppIO r) (Maybe EJPDResponseItem)
     go1 includeContacts' handle = do
-      mbUid <- lookupHandle handle
-      mbUsr <- maybe (pure Nothing) (lookupUser NoPendingInvitations) mbUid
+      mbUid <- wrapClient $ lookupHandle handle
+      mbUsr <- maybe (pure Nothing) (wrapClient . lookupUser NoPendingInvitations) mbUid
       maybe (pure Nothing) (fmap Just . go2 includeContacts') mbUsr
 
     -- construct response item given uid
@@ -63,12 +63,12 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
         if includeContacts'
           then do
             contacts :: [(UserId, RelationWithHistory)] <-
-              Conn.lookupContactListWithRelation uid
+              wrapClient $ Conn.lookupContactListWithRelation uid
 
             contactsFull :: [Maybe (Relation, EJPDResponseItem)] <-
               forM contacts $ \(uid', relationDropHistory -> rel) -> do
-                mbUsr <- lookupUser NoPendingInvitations uid'
-                maybe (pure Nothing) (\usr -> Just . (rel,) <$> go2 False usr) mbUsr
+                mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid'
+                maybe (pure Nothing) (fmap (Just . (rel,)) . go2 False) mbUsr
 
             pure . Just . Set.fromList . catMaybes $ contactsFull
           else do
@@ -82,7 +82,7 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
 
             contactsFull :: [Maybe EJPDResponseItem] <-
               forM members $ \uid' -> do
-                mbUsr <- lookupUser NoPendingInvitations uid'
+                mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid'
                 maybe (pure Nothing) (fmap Just . go2 False) mbUsr
 
             pure . Just . (,Team.toNewListType (memberList ^. Team.teamMemberListType)) . Set.fromList . catMaybes $ contactsFull
