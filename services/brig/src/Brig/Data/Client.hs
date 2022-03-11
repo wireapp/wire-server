@@ -59,7 +59,6 @@ import Brig.Types.User.Auth (CookieLabel)
 import Brig.User.Auth.DB.Instances ()
 import Cassandra as C hiding (Client)
 import Cassandra.Settings as C hiding (Client)
-import Control.Arrow
 import Control.Error
 import qualified Control.Exception.Lens as EL
 import Control.Lens
@@ -141,7 +140,7 @@ addClient u newId c maxPermClients loc cps = do
           mdl = newClientModel c
           prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl, C.Set . Set.toList <$> cps)
       retry x5 $ write insertClient (params LocalQuorum prm)
-      addMLSPublicKeys u newId (second LBS.fromStrict <$> Map.assocs (newClientMLSPublicKeys c))
+      addMLSPublicKeys u newId (Map.assocs (newClientMLSPublicKeys c))
       return
         $! Client
           { clientId = newId,
@@ -289,7 +288,7 @@ addMLSPublicKeys ::
   MonadClient m =>
   UserId ->
   ClientId ->
-  [(SignatureSchemeTag, LByteString)] ->
+  [(SignatureSchemeTag, ByteString)] ->
   ExceptT ClientDataError m ()
 addMLSPublicKeys u c = traverse_ (uncurry (addMLSPublicKey u c))
 
@@ -298,10 +297,10 @@ addMLSPublicKey ::
   UserId ->
   ClientId ->
   SignatureSchemeTag ->
-  LByteString ->
+  ByteString ->
   ExceptT ClientDataError m ()
 addMLSPublicKey u c ss pk = do
-  rows <- trans insertMLSPublicKeys (params LocalQuorum (u, c, ss, Blob pk))
+  rows <- trans insertMLSPublicKeys (params LocalQuorum (u, c, ss, Blob (LBS.fromStrict pk)))
   case rows of
     [row]
       | C.fromRow 0 row /= Right (Just True) ->

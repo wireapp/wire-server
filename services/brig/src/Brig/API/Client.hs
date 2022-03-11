@@ -61,11 +61,9 @@ import Brig.Types.User.Event
 import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Cassandra (MonadClient)
-import Control.Arrow
 import Control.Error
 import Control.Lens (view)
 import Data.ByteString.Conversion
-import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain)
 import Data.IP (IP)
 import Data.Id (ClientId, ConnId, UserId)
@@ -166,9 +164,8 @@ updateClient u c r = do
       then lift . Data.updateClientCapabilities u c . Just $ caps'
       else throwE ClientCapabilitiesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
-      lpk = second LBS.fromStrict <$> Map.assocs (updateClientMLSPublicKeys r)
   Data.updatePrekeys u c (lk ++ updateClientPrekeys r) !>> ClientDataError
-  Data.addMLSPublicKeys u c lpk !>> ClientDataError
+  Data.addMLSPublicKeys u c (Map.assocs (updateClientMLSPublicKeys r)) !>> ClientDataError
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
