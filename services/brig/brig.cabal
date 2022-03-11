@@ -66,6 +66,7 @@ library
       Brig.Data.User
       Brig.Data.UserKey
       Brig.Data.UserPendingActivation
+      Brig.Effects.FireAndForget
       Brig.Effects.SFT
       Brig.Email
       Brig.Federation.Client

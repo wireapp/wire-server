@@ -48,6 +48,7 @@ import Brig.User.Auth.Cookie.Limit
 import qualified Brig.User.Auth.DB.Cookie as DB
 import qualified Brig.ZAuth as ZAuth
 import Cassandra
+import Cassandra (MonadClient)
 import Control.Lens (to, view)
 import Data.ByteString.Conversion
 import Data.Id
@@ -58,6 +59,7 @@ import Data.Time.Clock
 import Imports
 import Network.Wai (Response)
 import Network.Wai.Utilities.Response (addHeader)
+import Polysemy
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import qualified Web.Cookie as WebCookie
@@ -194,12 +196,20 @@ listCookies u ll = filter byLabel <$> DB.listCookies u
   where
     byLabel c = maybe False (`elem` ll) (cookieLabel c)
 
-revokeAllCookies :: MonadClient m => UserId -> m ()
-revokeAllCookies u = revokeCookies u [] []
+revokeAllCookies :: forall m r. MonadClient m => Member (Embed m) r => UserId -> Sem r ()
+revokeAllCookies u = revokeCookies @m u [] []
 
-revokeCookies :: MonadClient m => UserId -> [CookieId] -> [CookieLabel] -> m ()
-revokeCookies u [] [] = DB.deleteAllCookies u
-revokeCookies u ids labels = do
+revokeCookies ::
+  forall m r.
+  ( MonadClient m,
+    Member (Embed m) r
+  ) =>
+  UserId ->
+  [CookieId] ->
+  [CookieLabel] ->
+  Sem r ()
+revokeCookies u [] [] = embed @m $ DB.deleteAllCookies u
+revokeCookies u ids labels = embed @m $ do
   cc <- filter matching <$> DB.listCookies u
   DB.deleteCookies u cc
   where
@@ -211,6 +221,9 @@ revokeCookies u ids labels = do
 -- Limited Cookies
 
 newCookieLimited ::
+  forall m r t.
+  MonadClient m =>
+  Member (Embed m) r =>
   ZAuth.UserTokenLike t =>
   UserId ->
   CookieType ->
@@ -227,7 +240,7 @@ newCookieLimited u typ label = do
     else case throttleCookies now thr cs of
       Just wait -> return (Left wait)
       Nothing -> do
-        wrapClient $ revokeCookies u evict []
+        liftAppT $ revokeCookies @m u evict []
         Right <$> newCookie u typ label
 
 --------------------------------------------------------------------------------

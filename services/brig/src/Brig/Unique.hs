@@ -52,6 +52,7 @@ withClaim ::
   -- | The minimum timeout (i.e. duration) of the claim.
   Timeout ->
   -- | The computation to run with a successful claim.
+  -- TODO(sandy): why is this an IO action?
   IO b ->
   -- | 'Just b' if the claim was successful and the 'IO'
   --   computation completed within the given timeout.

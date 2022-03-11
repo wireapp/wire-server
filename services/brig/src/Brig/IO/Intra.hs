@@ -372,10 +372,10 @@ notify ::
   -- | Origin device connection, if any.
   Maybe ConnId ->
   -- | Users to notify.
-  IO (List1 UserId) ->
+  AppIO r (List1 UserId) ->
   (AppIO r) ()
 notify events orig route conn recipients = forkAppIO (Just orig) $ do
-  rs <- liftIO recipients
+  rs <- recipients
   push events rs orig route conn
 
 notifySelf ::
@@ -400,7 +400,7 @@ notifyContacts ::
   Maybe ConnId ->
   (AppIO r) ()
 notifyContacts events orig route conn = do
-  env <- ask
+  -- TODO(sandy): We are no longer roundtripping to IO, but that should be fine
   notify events orig route conn $
     runAppT env $
       list1 orig <$> liftA2 (++) (wrapClient contacts) teamContacts

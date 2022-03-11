@@ -62,7 +62,7 @@ import Wire.API.Call.Config (SFTServer)
 import qualified Wire.API.Call.Config as Public
 import Wire.Network.DNS.SRV (srvTarget)
 
-routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
+routesPublic :: Routes Doc.ApiBuilder (Handler) ()
 routesPublic = do
   -- Deprecated endpoint, but still used by old clients.
   -- See https://github.com/zinfra/backend-issues/issues/1616 for context
@@ -94,12 +94,12 @@ routesPublic = do
     Doc.returns (Doc.ref Public.modelRtcConfiguration)
     Doc.response 200 "RTCConfiguration" Doc.end
 
-getCallsConfigV2H :: JSON ::: UserId ::: ConnId ::: Maybe (Range 1 10 Int) -> (Handler r) Response
+getCallsConfigV2H :: JSON ::: UserId ::: ConnId ::: Maybe (Range 1 10 Int) -> (Handler) Response
 getCallsConfigV2H (_ ::: uid ::: connid ::: limit) =
   json <$> getCallsConfigV2 uid connid limit
 
 -- | ('UserId', 'ConnId' are required as args here to make sure this is an authenticated end-point.)
-getCallsConfigV2 :: UserId -> ConnId -> Maybe (Range 1 10 Int) -> (Handler r) Public.RTCConfiguration
+getCallsConfigV2 :: UserId -> ConnId -> Maybe (Range 1 10 Int) -> (Handler) Public.RTCConfiguration
 getCallsConfigV2 _ _ limit = do
   env <- liftIO . readIORef =<< view turnEnvV2
   staticUrl <- view $ settings . Opt.sftStaticUrl
@@ -113,11 +113,11 @@ getCallsConfigV2 _ _ limit = do
     . interpretSFT manager
     $ newConfig env staticUrl sftEnv' limit sftListAllServers CallsConfigV2
 
-getCallsConfigH :: JSON ::: UserId ::: ConnId -> (Handler r) Response
+getCallsConfigH :: JSON ::: UserId ::: ConnId -> (Handler) Response
 getCallsConfigH (_ ::: uid ::: connid) =
   json <$> getCallsConfig uid connid
 
-getCallsConfig :: UserId -> ConnId -> (Handler r) Public.RTCConfiguration
+getCallsConfig :: UserId -> ConnId -> (Handler) Public.RTCConfiguration
 getCallsConfig _ _ = do
   env <- liftIO . readIORef =<< view turnEnv
   logger <- view applog

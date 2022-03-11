@@ -43,8 +43,9 @@ claimHandle uid oldHandle newHandle =
       _ -> do
         env <- ask
         let key = "@" <> fromHandle newHandle
+        -- TODO(sandy): this shoudldn't take an IO action
         withClaim uid key (30 # Minute) $
-          runAppT env $
+          canonicalToIO env $
             do
               -- Record ownership
               wrapClient $ retry x5 $ write handleInsert (params LocalQuorum (newHandle, uid))

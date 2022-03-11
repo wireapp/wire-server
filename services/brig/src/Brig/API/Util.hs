@@ -56,7 +56,7 @@ import Util.Logging (sha256String)
 import Wire.API.ErrorDescription
 import Wire.API.User.Search (FederatedUserSearchPolicy (NoSearch))
 
-lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
+lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler) [UserProfile]
 lookupProfilesMaybeFilterSameTeamOnly self us = do
   selfTeam <- lift $ wrapClient $ Data.lookupUserTeam self
   return $ case selfTeam of
@@ -76,7 +76,7 @@ lookupSelfProfile = fmap (fmap mk) . wrapClient . Data.lookupAccount
   where
     mk a = SelfProfile (accountUser a)
 
-validateHandle :: Text -> (Handler r) Handle
+validateHandle :: Text -> (Handler) Handle
 validateHandle = maybe (throwE (Error.StdError (errorDescriptionTypeToWai @InvalidHandle))) return . parseHandle
 
 logEmail :: Email -> (Msg -> Msg)
@@ -92,20 +92,22 @@ traverseConcurrentlyWithErrors ::
   (a -> ExceptT e (AppIO r) b) ->
   t a ->
   ExceptT e (AppIO r) (t b)
-traverseConcurrentlyWithErrors f =
-  ExceptT . try
-    . ( traverse (either throwIO pure)
-          <=< pooledMapConcurrentlyN 8 (runExceptT . f)
-      )
+traverseConcurrentlyWithErrors f = undefined
+
+-- TODO(sandy): what
+-- ExceptT . try
+--   . ( traverse (either throwIO pure)
+--         <=< pooledMapConcurrentlyN 8 (runExceptT . f)
+--     )
 
 exceptTToMaybe :: Monad m => ExceptT e m () -> m (Maybe e)
 exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT
 
-lookupDomainConfig :: Domain -> (Handler r) (Maybe FederationDomainConfig)
+lookupDomainConfig :: Domain -> (Handler) (Maybe FederationDomainConfig)
 lookupDomainConfig domain = do
   domainConfigs <- fromMaybe [] <$> view (settings . federationDomainConfigs)
   pure $ find ((== domain) . Opts.domain) domainConfigs
 
 -- | If domain is not configured fall back to `FullSearch`
-lookupSearchPolicy :: Domain -> (Handler r) FederatedUserSearchPolicy
+lookupSearchPolicy :: Domain -> (Handler) FederatedUserSearchPolicy
 lookupSearchPolicy domain = fromMaybe NoSearch <$> (Opts.cfgSearchPolicy <$$> lookupDomainConfig domain)

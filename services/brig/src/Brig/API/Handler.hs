@@ -34,7 +34,7 @@ where
 import Bilge (MonadHttp, RequestId (..))
 import Brig.API.Error
 import qualified Brig.AWS as AWS
-import Brig.App (AppIO, Env, applog, requestId, runAppT, settings)
+import Brig.App (AppIO, CanonicalEffs, Env, applog, canonicalToIO, requestId, settings)
 import Brig.Email (Email)
 import Brig.Options (setWhitelist)
 import Brig.Phone (Phone, PhoneException (..))
@@ -69,17 +69,17 @@ import Wire.API.ErrorDescription (InvalidEmail)
 -------------------------------------------------------------------------------
 -- HTTP Handler Monad
 
-type Handler r = ExceptT Error (AppIO r)
+type Handler = ExceptT Error (AppIO CanonicalEffs)
 
-runHandler :: Env -> Request -> (Handler r) ResponseReceived -> Continue IO -> IO ResponseReceived
+runHandler :: Env -> Request -> (Handler) ResponseReceived -> Continue IO -> IO ResponseReceived
 runHandler e r h k = do
   let e' = set requestId (maybe def RequestId (lookupRequestId r)) e
-  a <- runAppT e' (runExceptT h) `catches` brigErrorHandlers
+  a <- canonicalToIO e' (runExceptT h) `catches` brigErrorHandlers
   either (onError (view applog e') r k) return a
 
-toServantHandler :: Env -> (Handler r) a -> Servant.Handler a
+toServantHandler :: Env -> (Handler) a -> Servant.Handler a
 toServantHandler env action = do
-  a <- liftIO $ runAppT env (runExceptT action) `catches` brigErrorHandlers
+  a <- liftIO $ canonicalToIO env (runExceptT action) `catches` brigErrorHandlers
   case a of
     Left werr ->
       let reqId = unRequestId $ view requestId env
@@ -147,11 +147,11 @@ type JSON = Media "application" "json"
 -- TODO: move to libs/wai-utilities?  there is a parseJson' in "Network.Wai.Utilities.Request",
 -- but adjusting its signature to this here would require to move more code out of brig (at least
 -- badRequest and probably all the other errors).
-parseJsonBody :: FromJSON a => JsonRequest a -> (Handler r) a
+parseJsonBody :: FromJSON a => JsonRequest a -> (Handler) a
 parseJsonBody req = parseBody req !>> StdError . badRequest
 
 -- | If a whitelist is configured, consult it, otherwise a no-op. {#RefActivationWhitelist}
-checkWhitelist :: Either Email Phone -> (Handler r) ()
+checkWhitelist :: Either Email Phone -> Handler ()
 checkWhitelist = checkWhitelistWithError (StdError whitelistError)
 
 checkWhitelistWithError :: (Monad m, MonadReader Env m, MonadIO m, Catch.MonadMask m, MonadHttp m, MonadError e m) => e -> Either Email Phone -> m ()

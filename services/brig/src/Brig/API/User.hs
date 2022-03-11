@@ -108,6 +108,7 @@ import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
 import Brig.Data.UserPendingActivation
 import qualified Brig.Data.UserPendingActivation as Data
+import Brig.Effects.FireAndForget
 import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
@@ -128,6 +129,7 @@ import Brig.User.Handle.Blacklist
 import Brig.User.Phone
 import qualified Brig.User.Search.TeamSize as TeamSize
 import Cassandra
+import Cassandra (MonadClient)
 import Control.Arrow ((&&&))
 import Control.Error
 import Control.Lens (view, (^.))
@@ -138,7 +140,7 @@ import Data.Handle (Handle)
 import Data.Id as Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
-import Data.List1 (List1)
+import Data.List1 (List1, toNonEmpty)
 import qualified Data.Map.Strict as Map
 import qualified Data.Metrics as Metrics
 import Data.Misc (PlainTextPassword (..))
@@ -149,6 +151,7 @@ import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import Network.Wai.Utilities
+import Polysemy
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import UnliftIO.Async
@@ -295,7 +298,7 @@ createUser new = do
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
 
-    validateEmailAndPhone :: NewUser -> ExceptT RegisterError (AppT r IO) (Maybe Email, Maybe Phone)
+    validateEmailAndPhone :: NewUser -> ExceptT RegisterError (AppT r) (Maybe Email, Maybe Phone)
     validateEmailAndPhone newUser = do
       -- Validate e-mail
       email <- for (newUserEmail newUser) $ \e ->
@@ -349,7 +352,7 @@ createUser new = do
       Team.InvitationInfo ->
       UserKey ->
       UserIdentity ->
-      ExceptT RegisterError (AppT r IO) ()
+      ExceptT RegisterError (AppT r) ()
     acceptTeamInvitation account inv ii uk ident = do
       let uid = userId (accountUser account)
       ok <- lift . wrapClient $ Data.claimKey uk uid
@@ -388,7 +391,7 @@ createUser new = do
       pure $ CreateUserTeam tid nm
 
     -- Handle e-mail activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
-    handleEmailActivation :: Maybe Email -> UserId -> Maybe BindingNewTeamUser -> ExceptT RegisterError (AppT r IO) (Maybe Activation)
+    handleEmailActivation :: Maybe Email -> UserId -> Maybe BindingNewTeamUser -> ExceptT RegisterError (AppT r) (Maybe Activation)
     handleEmailActivation email uid newTeam = do
       fmap join . for (userEmailKey <$> email) $ \ek -> case newUserEmailCode new of
         Nothing -> do
@@ -407,7 +410,7 @@ createUser new = do
           return Nothing
 
     -- Handle phone activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
-    handlePhoneActivation :: Maybe Phone -> UserId -> ExceptT RegisterError (AppT r IO) (Maybe Activation)
+    handlePhoneActivation :: Maybe Phone -> UserId -> ExceptT RegisterError (AppT r) (Maybe Activation)
     handlePhoneActivation phone uid = do
       fmap join . for (userPhoneKey <$> phone) $ \pk -> case newUserPhoneCode new of
         Nothing -> do
@@ -536,7 +539,7 @@ data CheckHandleResp
   | CheckHandleFound
   | CheckHandleNotFound
 
-checkHandle :: Text -> API.Handler r CheckHandleResp
+checkHandle :: Text -> API.Handler CheckHandleResp
 checkHandle uhandle = do
   xhandle <- validateHandle uhandle
   owner <- lift . wrapClient $ lookupHandle xhandle
@@ -718,20 +721,23 @@ revokeIdentity key = do
 -------------------------------------------------------------------------------
 -- Change Account Status
 
-changeAccountStatus :: List1 UserId -> AccountStatus -> ExceptT AccountStatusError (AppIO r) ()
+changeAccountStatus :: forall m r. MonadClient m => Members '[Embed m, FireAndForget] r => List1 UserId -> AccountStatus -> ExceptT AccountStatusError (AppIO r) ()
 changeAccountStatus usrs status = do
   e <- ask
   ev <- case status of
     Active -> return UserResumed
-    Suspended -> liftIO $ mapConcurrently (runAppT e . wrapClient . revokeAllCookies) usrs >> return UserSuspended
+    Suspended -> do
+      lift $ liftAppT $ spawnMany $ fmap revokeAllCookies $ toList $ toNonEmpty $ usrs
+      return UserSuspended
+    -- liftIO $ mapConcurrently (runAppT e . revokeAllCookies) usrs >>
     Deleted -> throwE InvalidAccountStatus
     Ephemeral -> throwE InvalidAccountStatus
     PendingInvitation -> throwE InvalidAccountStatus
-  liftIO $ mapConcurrently_ (runAppT e . update ev) usrs
+  lift $ liftAppT $ spawnMany $ fmap (update ev) $ toList $ toNonEmpty $ usrs
   where
-    update :: (UserId -> UserEvent) -> UserId -> (AppIO r) ()
-    update ev u = do
-      wrapClient $ Data.updateStatus u status
+    update :: (UserId -> UserEvent) -> UserId -> Sem r ()
+    update ev u = embed @m $ do
+      Data.updateStatus u status
       Intra.onUserEvent u Nothing (ev u)
 
 suspendAccount :: HasCallStack => List1 UserId -> (AppIO r) ()
@@ -992,7 +998,7 @@ deleteUser uid pwd = do
       Ephemeral -> go a
       PendingInvitation -> go a
   where
-    ensureNotOwner :: UserAccount -> ExceptT DeleteUserError (AppT r IO) ()
+    ensureNotOwner :: UserAccount -> ExceptT DeleteUserError (AppT r) ()
     ensureNotOwner acc = do
       case userTeam $ accountUser acc of
         Nothing -> pure ()

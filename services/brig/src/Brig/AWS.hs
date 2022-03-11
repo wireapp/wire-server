@@ -254,11 +254,11 @@ execCatch e cmd =
       AWS.send e cmd
 
 exec ::
-  (AWSRequest a, MonadUnliftIO m, MonadCatch m, MonadThrow m, MonadIO m) =>
+  (AWSRequest a, MonadCatch m, MonadThrow m, MonadIO m) =>
   AWS.Env ->
   a ->
   m (AWSResponse a)
-exec e cmd = execCatch e cmd >>= either (throwM . GeneralError) return
+exec _e _cmd = undefined -- execCatch e cmd >>= either (throwM . GeneralError) return
 
 canRetry :: MonadIO m => Either AWS.Error a -> m Bool
 canRetry (Right _) = pure False
