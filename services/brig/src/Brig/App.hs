@@ -71,6 +71,7 @@ module Brig.App
 
     -- * transitioned to Polysemy
     wrapClient,
+    wrapClientE,
     runAppIOLifted,
   )
 where
@@ -499,6 +500,9 @@ wrapClient m = do
   c <- view casClient
   env <- ask
   runClient c $ runReaderT m env
+
+wrapClientE :: ExceptT e (ReaderT Env Cas.Client) a -> ExceptT e (AppT r IO) a
+wrapClientE = mapExceptT wrapClient
 
 instance MonadIO m => MonadIndexIO (ReaderT Env m) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m

@@ -38,7 +38,7 @@ import Imports
 
 setProperty :: UserId -> ConnId -> PropertyKey -> PropertyValue -> ExceptT PropertiesDataError (AppIO r) ()
 setProperty u c k v = do
-  mapExceptT wrapClient $ Data.insertProperty u k v
+  wrapClientE $ Data.insertProperty u k v
   lift $ Intra.onPropertyEvent u c (PropertySet u k v)
 
 deleteProperty :: UserId -> ConnId -> PropertyKey -> (AppIO r) ()

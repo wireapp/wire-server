@@ -56,7 +56,7 @@ claimKeyPackages lusr =
 
 claimLocalKeyPackages :: Local UserId -> Local UserId -> Handler r KeyPackageBundle
 claimLocalKeyPackages lusr target = do
-  clients <- map clientId <$> mapExceptT wrapClient (Data.lookupClients (tUnqualified target))
+  clients <- map clientId <$> wrapClientE (Data.lookupClients (tUnqualified target))
   withExceptT clientError $
     guardLegalhold (ProtectedUser (tUnqualified lusr)) (mkUserClients [(tUnqualified target, clients)])
   lift $

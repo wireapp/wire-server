@@ -1028,7 +1028,7 @@ activateH (k ::: c) = do
 activate :: Public.Activate -> (Handler r) ActivationRespWithStatus
 activate (Public.Activate tgt code dryrun)
   | dryrun = do
-    mapExceptT wrapClient (API.preverify tgt code) !>> actError
+    wrapClientE (API.preverify tgt code) !>> actError
     return ActivationRespDryRun
   | otherwise = do
     result <- API.activate tgt code Nothing !>> actError
@@ -1057,7 +1057,7 @@ sendVerificationCode req = do
           (Code.Retries 3)
           timeout
           (Just $ toUUID $ Public.userId $ accountUser account)
-      mapExceptT wrapClient $ Code.insert code
+      wrapClientE $ Code.insert code
       sendMail email (Code.codeValue code) (Just $ Public.userLocale $ accountUser account) action
     _ -> pure ()
   where

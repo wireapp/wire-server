@@ -25,7 +25,7 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
 import qualified Brig.API.User as User
-import Brig.App (AppIO, wrapClient)
+import Brig.App
 import Brig.Phone
 import Brig.Types.Intra (ReAuthUser, reAuthPassword)
 import Brig.Types.User.Auth
@@ -233,7 +233,7 @@ reAuthUserH (uid ::: req) = do
 
 reAuthUser :: UserId -> ReAuthUser -> (Handler r) ()
 reAuthUser uid body = do
-  mapExceptT wrapClient (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
+  wrapClientE (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
 
 loginH :: JsonRequest Public.Login ::: Bool ::: JSON -> (Handler r) Response
 loginH (req ::: persist ::: _) = do

@@ -163,7 +163,7 @@ updateClient u c r = do
       then lift . wrapClient . Data.updateClientCapabilities u c . Just $ caps'
       else throwE ClientCapabilitiesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
-  mapExceptT wrapClient (Data.updatePrekeys u c (lk ++ updateClientPrekeys r)) !>> ClientDataError
+  wrapClientE (Data.updatePrekeys u c (lk ++ updateClientPrekeys r)) !>> ClientDataError
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
@@ -178,7 +178,7 @@ rmClient u con clt pw =
         -- Temporary clients don't need to re-auth
         TemporaryClientType -> pure ()
         -- All other clients must authenticate
-        _ -> mapExceptT wrapClient (Data.reauthenticate u pw) !>> ClientDataError . ClientReAuthError
+        _ -> wrapClientE (Data.reauthenticate u pw) !>> ClientDataError . ClientReAuthError
       lift $ execDelete u (Just con) client
 
 claimPrekey :: LegalholdProtectee -> UserId -> Domain -> ClientId -> ExceptT ClientError (AppIO r) (Maybe ClientPrekey)

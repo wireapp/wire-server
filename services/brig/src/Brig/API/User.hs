@@ -185,7 +185,7 @@ identityErrorToBrigError = \case
 
 verifyUniquenessAndCheckBlacklist :: UserKey -> ExceptT IdentityError (AppIO r) ()
 verifyUniquenessAndCheckBlacklist uk = do
-  mapExceptT wrapClient $ checkKey Nothing uk
+  wrapClientE $ checkKey Nothing uk
   blacklisted <- lift $ wrapClient $ Blacklist.exists uk
   when blacklisted $
     throwE (foldKey (const IdentityErrorBlacklistedEmail) (const IdentityErrorBlacklistedPhone) uk)
@@ -761,12 +761,12 @@ activateWithCurrency ::
   Maybe Currency.Alpha ->
   ExceptT ActivationError (AppIO r) ActivationResult
 activateWithCurrency tgt code usr cur = do
-  key <- mapExceptT wrapClient $ mkActivationKey tgt
+  key <- wrapClientE $ mkActivationKey tgt
   Log.info $
     field "activation.key" (toByteString key)
       . field "activation.code" (toByteString code)
       . msg (val "Activating")
-  event <- mapExceptT wrapClient $ Data.activateKey key code usr
+  event <- wrapClientE $ Data.activateKey key code usr
   case event of
     Nothing -> return ActivationPass
     Just e -> do
@@ -846,7 +846,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
     when prefixExcluded $
       throwE (ActivationBlacklistedUserKey pk)
     c <- lift . wrapClient $ fmap snd <$> Data.lookupActivationCode pk
-    p <- mapExceptT wrapClient $ mkPair pk c Nothing
+    p <- wrapClientE $ mkPair pk c Nothing
     void . forPhoneKey pk $ \ph ->
       lift $
         if call
@@ -862,7 +862,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
           dat <- Data.newActivation k timeout u
           return (activationKey dat, activationCode dat)
     sendVerificationEmail ek uc = do
-      p <- mapExceptT wrapClient $ mkPair ek uc Nothing
+      p <- wrapClientE $ mkPair ek uc Nothing
       void . forEmailKey ek $ \em ->
         lift $
           sendVerificationMail em p loc
@@ -870,7 +870,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
       -- FUTUREWORK(fisx): we allow for 'PendingInvitations' here, but I'm not sure this
       -- top-level function isn't another piece of a deprecated onboarding flow?
       u <- maybe (notFound uid) return =<< lift (wrapClient $ Data.lookupUser WithPendingInvitations uid)
-      p <- mapExceptT wrapClient $ mkPair ek (Just uc) (Just uid)
+      p <- wrapClientE $ mkPair ek (Just uc) (Just uid)
       let ident = userIdentity u
           name = userDisplayName u
           loc' = loc <|> Just (userLocale u)
@@ -964,8 +964,8 @@ checkNewIsDifferent uid pw = do
 mkPasswordResetKey :: PasswordResetIdentity -> ExceptT PasswordResetError (AppIO r) PasswordResetKey
 mkPasswordResetKey ident = case ident of
   PasswordResetIdentityKey k -> return k
-  PasswordResetEmailIdentity e -> mapExceptT wrapClient (user (userEmailKey e)) >>= liftIO . Data.mkPasswordResetKey
-  PasswordResetPhoneIdentity p -> mapExceptT wrapClient (user (userPhoneKey p)) >>= liftIO . Data.mkPasswordResetKey
+  PasswordResetEmailIdentity e -> wrapClientE (user (userEmailKey e)) >>= liftIO . Data.mkPasswordResetKey
+  PasswordResetPhoneIdentity p -> wrapClientE (user (userPhoneKey p)) >>= liftIO . Data.mkPasswordResetKey
   where
     user uk = lift (Data.lookupKey uk) >>= maybe (throwE InvalidPasswordResetKey) return
 
@@ -1039,7 +1039,7 @@ deleteUser uid pwd = do
               (Code.Retries 3)
               (Code.Timeout 600)
               (Just (toUUID uid))
-          mapExceptT wrapClient $ Code.insert c
+          wrapClientE $ Code.insert c
           let k = Code.codeKey c
           let v = Code.codeValue c
           let l = userLocale (accountUser a)
@@ -1048,7 +1048,7 @@ deleteUser uid pwd = do
             (\e -> lift $ sendDeletionEmail n e k v l)
             (\p -> lift $ wrapClient $ sendDeletionSms p k v l)
             target
-            `onException` mapExceptT wrapClient (Code.delete k Code.AccountDeletion)
+            `onException` wrapClientE (Code.delete k Code.AccountDeletion)
           return $! Just $! Code.codeTTL c
 
 -- | Conclude validation and scheduling of user's deletion request that was initiated in

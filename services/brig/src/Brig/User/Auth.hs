@@ -121,12 +121,12 @@ login ::
   CookieType ->
   ExceptT LoginError (AppIO r) (Access ZAuth.User)
 login (PasswordLogin li pw label code) typ = do
-  uid <- mapExceptT wrapClient $ resolveLoginId li
+  uid <- wrapClientE $ resolveLoginId li
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
-  mapExceptT wrapClient $ checkRetryLimit uid
-  mapExceptT wrapClient (Data.authenticate uid pw) `catchE` \case
-    AuthInvalidUser -> mapExceptT wrapClient $ loginFailed uid
-    AuthInvalidCredentials -> mapExceptT wrapClient $ loginFailed uid
+  wrapClientE $ checkRetryLimit uid
+  wrapClientE (Data.authenticate uid pw) `catchE` \case
+    AuthInvalidUser -> wrapClientE $ loginFailed uid
+    AuthInvalidCredentials -> wrapClientE $ loginFailed uid
     AuthSuspended -> throwE LoginSuspended
     AuthEphemeral -> throwE LoginEphemeral
     AuthPendingInvitation -> throwE LoginPendingActivation
@@ -141,14 +141,14 @@ login (PasswordLogin li pw label code) typ = do
         pure $ fromMaybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus == Public.TeamFeatureEnabled) mbFeatureEnabled
       when featureEnabled $ do
         case mbCode of
-          Nothing -> mapExceptT wrapClient $ loginFailedWith LoginCodeRequired u
+          Nothing -> wrapClientE $ loginFailedWith LoginCodeRequired u
           Just c ->
             case mbEmail of
               Nothing -> loginFailedNoEmail u
               Just email -> do
                 key <- Code.mkKey $ Code.ForEmail email
-                codeValid <- isJust <$> mapExceptT wrapClient (Code.verify key Code.AccountLogin c)
-                unless codeValid . mapExceptT wrapClient $ loginFailedWith LoginCodeInvalid u
+                codeValid <- isJust <$> wrapClientE (Code.verify key Code.AccountLogin c)
+                unless codeValid . wrapClientE $ loginFailedWith LoginCodeInvalid u
 
     getEmailAndTeamId :: UserId -> ExceptT LoginError (AppIO r) (Maybe Email, Maybe TeamId)
     getEmailAndTeamId u = lift $ do
@@ -156,14 +156,14 @@ login (PasswordLogin li pw label code) typ = do
       pure (userEmail <$> accountUser =<< mbAccount, userTeam <$> accountUser =<< mbAccount)
 
     loginFailedNoEmail :: UserId -> ExceptT LoginError (AppIO r) ()
-    loginFailedNoEmail = mapExceptT wrapClient . loginFailed
+    loginFailedNoEmail = wrapClientE . loginFailed
 login (SmsLogin phone code label) typ = do
-  uid <- mapExceptT wrapClient $ resolveLoginId (LoginByPhone phone)
+  uid <- wrapClientE $ resolveLoginId (LoginByPhone phone)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
-  mapExceptT wrapClient $ checkRetryLimit uid
+  wrapClientE $ checkRetryLimit uid
   ok <- lift . wrapClient $ Data.verifyLoginCode uid code
   unless ok $
-    mapExceptT wrapClient $ loginFailed uid
+    wrapClientE $ loginFailed uid
   newAccess @ZAuth.User @ZAuth.Access uid typ label
 
 loginFailedWith :: (MonadClient m, MonadReader Env m) => LoginError -> UserId -> ExceptT LoginError m ()
@@ -222,7 +222,7 @@ revokeAccess ::
   ExceptT AuthError (AppIO r) ()
 revokeAccess u pw cc ll = do
   lift $ Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.revokeAccess")
-  mapExceptT wrapClient $ Data.authenticate u pw
+  wrapClientE $ Data.authenticate u pw
   lift . wrapClient $ revokeCookies u cc ll
 
 --------------------------------------------------------------------------------
@@ -349,7 +349,7 @@ validateToken ut at = do
 -- | Allow to login as any user without having the credentials.
 ssoLogin :: SsoLogin -> CookieType -> ExceptT LoginError (AppIO r) (Access ZAuth.User)
 ssoLogin (SsoLogin uid label) typ = do
-  mapExceptT wrapClient (Data.reauthenticate uid Nothing) `catchE` \case
+  wrapClientE (Data.reauthenticate uid Nothing) `catchE` \case
     ReAuthMissingPassword -> pure ()
     ReAuthError e -> case e of
       AuthInvalidUser -> throwE LoginFailed
@@ -362,7 +362,7 @@ ssoLogin (SsoLogin uid label) typ = do
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
 legalHoldLogin :: LegalHoldLogin -> CookieType -> ExceptT LegalHoldLoginError (AppIO r) (Access ZAuth.LegalHoldUser)
 legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
-  mapExceptT wrapClient (Data.reauthenticate uid plainTextPassword) !>> LegalHoldReAuthError
+  wrapClientE (Data.reauthenticate uid plainTextPassword) !>> LegalHoldReAuthError
   -- legalhold login is only possible if
   -- the user is a team user
   -- and the team has legalhold enabled
