@@ -442,7 +442,7 @@ getAccountStatusH (_ ::: usr) = do
 
 getConnectionsStatusUnqualified :: ConnectionsStatusRequest -> Maybe Relation -> (Handler r) [ConnectionStatus]
 getConnectionsStatusUnqualified ConnectionsStatusRequest {csrFrom, csrTo} flt = lift $ do
-  r <- maybe (wrapClient $ API.lookupConnectionStatus' csrFrom) (wrapClient . API.lookupConnectionStatus csrFrom) csrTo
+  r <- wrapClient $ maybe (API.lookupConnectionStatus' csrFrom) (API.lookupConnectionStatus csrFrom) csrTo
   return $ maybe r (filterByRelation r) flt
   where
     filterByRelation l rel = filter ((== rel) . csStatus) l
