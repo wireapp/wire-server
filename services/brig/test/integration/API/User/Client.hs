@@ -133,6 +133,7 @@ testAddGetClientMissingCode brig galley = do
   let addClient' codeValue = addClient brig uid (defNewClientWithVerificationCode codeValue PermanentClientType [head somePrekeys] (head someLastPrekeys))
 
   Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   addClient' Nothing !!! do
     const 403 === statusCode
     const (Just "code-authentication-required") === fmap Error.label . responseJsonMaybe
