@@ -122,7 +122,6 @@ routesPublic = do
     Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
     Doc.errorResponse accountSuspended
     Doc.errorResponse accountPending
-    Doc.errorResponse loginsTooFrequent
 
   post "/access/logout" (continue logoutH) $
     accept "application" "json" .&. tokenRequest
