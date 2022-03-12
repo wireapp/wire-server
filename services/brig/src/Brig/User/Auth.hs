@@ -357,7 +357,8 @@ ssoLogin (SsoLogin uid label) typ = do
   wrapClientE (Data.reauthenticate uid Nothing) `catchE` \case
     ReAuthMissingPassword -> pure ()
     ReAuthCodeVerificationRequired -> pure ()
-    ReAuthCodeVerificationFailed -> pure ()
+    ReAuthCodeVerificationNoPendingCode -> pure ()
+    ReAuthCodeVerificationNoEmail -> pure ()
     ReAuthError e -> case e of
       AuthInvalidUser -> throwE LoginFailed
       AuthInvalidCredentials -> pure ()

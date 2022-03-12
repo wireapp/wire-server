@@ -192,7 +192,8 @@ reauthError :: ReAuthError -> Error
 reauthError ReAuthMissingPassword = StdError (errorDescriptionTypeToWai @MissingAuth)
 reauthError (ReAuthError e) = authError e
 reauthError ReAuthCodeVerificationRequired = StdError verificationCodeRequired
-reauthError ReAuthCodeVerificationFailed = StdError verificationCodeAuthFailed
+reauthError ReAuthCodeVerificationNoPendingCode = StdError verificationCodeNoPendingCode
+reauthError ReAuthCodeVerificationNoEmail = StdError verificationCodeNoEmail
 
 zauthError :: ZAuth.Failure -> Error
 zauthError ZAuth.Expired = StdError authTokenExpired
@@ -451,5 +452,8 @@ customerExtensionBlockedDomain domain = Wai.mkError (mkStatus 451 "Unavailable F
 verificationCodeRequired :: Wai.Error
 verificationCodeRequired = Wai.mkError status403 "code-authentication-required" "Verification code required."
 
-verificationCodeAuthFailed :: Wai.Error
-verificationCodeAuthFailed = Wai.mkError status403 "code-authentication-failed" "Code authentication failed."
+verificationCodeNoPendingCode :: Wai.Error
+verificationCodeNoPendingCode = Wai.mkError status403 "code-authentication-failed" "Code authentication failed (no such code)."
+
+verificationCodeNoEmail :: Wai.Error
+verificationCodeNoEmail = Wai.mkError status403 "code-authentication-failed" "Code authentication failed (no such email)."

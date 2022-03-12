@@ -241,8 +241,8 @@ reAuthUser uid body = do
       Auth.verifyCode (reAuthCode body) action uid
         `catchE` \case
           VerificationCodeRequired -> throwE $ reauthError ReAuthCodeVerificationRequired
-          VerificationCodeNoPendingCode -> throwE $ reauthError ReAuthCodeVerificationFailed
-          VerificationCodeNoEmail -> throwE $ reauthError ReAuthCodeVerificationFailed
+          VerificationCodeNoPendingCode -> throwE $ reauthError ReAuthCodeVerificationNoPendingCode
+          VerificationCodeNoEmail -> throwE $ reauthError ReAuthCodeVerificationNoEmail
     Nothing -> pure ()
 
 loginH :: JsonRequest Public.Login ::: Bool ::: JSON -> (Handler r) Response
