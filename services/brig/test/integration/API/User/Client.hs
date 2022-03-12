@@ -119,7 +119,7 @@ testAddGetClientVerificationCode db brig galley = do
   Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   k <- Code.mkKey (Code.ForEmail email)
-  (fmap Code.codeValue -> codeValue) <- lookupCode db k Code.AccountLogin
+  codeValue <- Code.codeValue <$$> lookupCode db k Code.AccountLogin
   checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
   c <- addClient' codeValue
   getClient brig uid (clientId c) !!! do
