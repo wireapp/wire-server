@@ -109,7 +109,7 @@ codeForPhone c
 
 scopeFromAction :: User.VerificationAction -> Scope
 scopeFromAction = \case
-  User.GenerateScimToken -> GenerateScimToken
+  User.CreateScimToken -> CreateScimToken
   User.Login -> AccountLogin
 
 -- | The same 'Key' can exist with different 'Value's in different
@@ -120,7 +120,7 @@ data Scope
   | PasswordReset
   | AccountLogin
   | AccountApproval
-  | GenerateScimToken
+  | CreateScimToken
   deriving (Eq, Show)
 
 instance Cql Scope where
@@ -131,14 +131,14 @@ instance Cql Scope where
   toCql PasswordReset = CqlInt 3
   toCql AccountLogin = CqlInt 4
   toCql AccountApproval = CqlInt 5
-  toCql GenerateScimToken = CqlInt 6
+  toCql CreateScimToken = CqlInt 6
 
   fromCql (CqlInt 1) = return AccountDeletion
   fromCql (CqlInt 2) = return IdentityVerification
   fromCql (CqlInt 3) = return PasswordReset
   fromCql (CqlInt 4) = return AccountLogin
   fromCql (CqlInt 5) = return AccountApproval
-  fromCql (CqlInt 6) = return GenerateScimToken
+  fromCql (CqlInt 6) = return CreateScimToken
   fromCql _ = Left "fromCql: Scope: int expected"
 
 newtype Retries = Retries {numRetries :: Word8}

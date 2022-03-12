@@ -44,45 +44,101 @@ import qualified Brig.Types.Code as Code
 import Brig.Types.User
 import Brig.Types.User.Auth (LoginCode (..))
 import Brig.User.Template
+import Cassandra (MonadClient)
 import Control.Lens (view)
+import Control.Monad.Catch
 import Data.Range
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Lazy (toStrict)
 import Imports
 import qualified Ropes.Nexmo as Nexmo
+import qualified System.Logger.Class as Log
 
-sendActivationSms :: Phone -> ActivationPair -> Maybe Locale -> (AppIO r) ()
+sendActivationSms ::
+  ( MonadClient m,
+    MonadReader Env m,
+    MonadCatch m,
+    Log.MonadLogger m
+  ) =>
+  Phone ->
+  ActivationPair ->
+  Maybe Locale ->
+  m ()
 sendActivationSms to (_, c) loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates loc
   sendSms loc' $ renderActivationSms (ActivationSms to c) (activationSms tpl) branding
 
-sendPasswordResetSms :: Phone -> PasswordResetPair -> Maybe Locale -> (AppIO r) ()
+sendPasswordResetSms ::
+  ( MonadClient m,
+    MonadReader Env m,
+    MonadCatch m,
+    Log.MonadLogger m
+  ) =>
+  Phone ->
+  PasswordResetPair ->
+  Maybe Locale ->
+  m ()
 sendPasswordResetSms to (_, c) loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates loc
   sendSms loc' $ renderPasswordResetSms (PasswordResetSms to c) (passwordResetSms tpl) branding
 
-sendLoginSms :: Phone -> LoginCode -> Maybe Locale -> (AppIO r) ()
+sendLoginSms ::
+  ( MonadClient m,
+    MonadReader Env m,
+    MonadCatch m,
+    Log.MonadLogger m
+  ) =>
+  Phone ->
+  LoginCode ->
+  Maybe Locale ->
+  m ()
 sendLoginSms to code loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates loc
   sendSms loc' $ renderLoginSms (LoginSms to code) (loginSms tpl) branding
 
-sendDeletionSms :: Phone -> Code.Key -> Code.Value -> Locale -> (AppIO r) ()
+sendDeletionSms ::
+  ( MonadClient m,
+    MonadReader Env m,
+    MonadCatch m,
+    Log.MonadLogger m
+  ) =>
+  Phone ->
+  Code.Key ->
+  Code.Value ->
+  Locale ->
+  m ()
 sendDeletionSms to key code loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates (Just loc)
   sendSms loc' $ renderDeletionSms (DeletionSms to key code) (deletionSms tpl) branding
 
-sendActivationCall :: Phone -> ActivationPair -> Maybe Locale -> (AppIO r) ()
+sendActivationCall ::
+  ( MonadClient m,
+    MonadReader Env m,
+    Log.MonadLogger m
+  ) =>
+  Phone ->
+  ActivationPair ->
+  Maybe Locale ->
+  m ()
 sendActivationCall to (_, c) loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates loc
   sendCall $ renderActivationCall (ActivationCall to c) (activationCall tpl) loc' branding
 
-sendLoginCall :: Phone -> LoginCode -> Maybe Locale -> (AppIO r) ()
+sendLoginCall ::
+  ( MonadClient m,
+    MonadReader Env m,
+    Log.MonadLogger m
+  ) =>
+  Phone ->
+  LoginCode ->
+  Maybe Locale ->
+  m ()
 sendLoginCall to c loc = do
   branding <- view templateBranding
   (loc', tpl) <- userTemplates loc

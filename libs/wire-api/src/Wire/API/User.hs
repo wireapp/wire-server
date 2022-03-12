@@ -1200,7 +1200,7 @@ instance S.ToSchema ListUsersQuery where
 -----------------------------------------------------------------------------
 -- SndFactorPasswordChallenge
 
-data VerificationAction = GenerateScimToken | Login
+data VerificationAction = CreateScimToken | Login
   deriving stock (Eq, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform VerificationAction)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema VerificationAction)
@@ -1209,12 +1209,12 @@ instance ToSchema VerificationAction where
   schema =
     enum @Text "VerificationAction" $
       mconcat
-        [ element "generate_scim_token" GenerateScimToken,
+        [ element "create_scim_token" CreateScimToken,
           element "login" Login
         ]
 
 instance ToByteString VerificationAction where
-  builder GenerateScimToken = "generate_scim_token"
+  builder CreateScimToken = "create_scim_token"
   builder Login = "login"
 
 instance FromByteString VerificationAction where
@@ -1222,12 +1222,16 @@ instance FromByteString VerificationAction where
     Parser.takeByteString >>= \b ->
       case T.decodeUtf8' b of
         Right "login" -> pure Login
-        Right "generate_scim_token" -> pure GenerateScimToken
+        Right "create_scim_token" -> pure CreateScimToken
         Right t -> fail $ "Invalid VerificationAction: " <> T.unpack t
         Left e -> fail $ "Invalid VerificationAction: " <> show e
 
 instance S.ToParamSchema VerificationAction where
-  toParamSchema _ = S.toParamSchema (Proxy @Text)
+  toParamSchema _ =
+    mempty
+      { S._paramSchemaType = Just S.SwaggerString,
+        S._paramSchemaEnum = Just (A.String . toQueryParam <$> [(minBound :: VerificationAction) ..])
+      }
 
 instance FromHttpApiData VerificationAction where
   parseUrlPiece = maybeToEither "Invalid verification action" . fromByteString . cs

@@ -49,6 +49,7 @@ module Wire.API.User.Client
     NewClient (..),
     newClient,
     UpdateClient (..),
+    defUpdateClient,
     RmClient (..),
 
     -- * re-exports
@@ -104,6 +105,7 @@ import Deriving.Swagger
   )
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..), generateExample, mapOf', setOf')
+import Wire.API.MLS.Credential
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Client.Prekey as Prekey
 
@@ -442,11 +444,14 @@ data Client = Client
     clientCookie :: Maybe CookieLabel,
     clientLocation :: Maybe Location,
     clientModel :: Maybe Text,
-    clientCapabilities :: ClientCapabilityList
+    clientCapabilities :: ClientCapabilityList,
+    clientMLSPublicKeys :: MLSPublicKeys
   }
   deriving stock (Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform Client)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema Client
+
+type MLSPublicKeys = Map SignatureSchemeTag ByteString
 
 instance ToSchema Client where
   schema =
@@ -461,6 +466,16 @@ instance ToSchema Client where
         <*> clientLocation .= maybe_ (optField "location" schema)
         <*> clientModel .= maybe_ (optField "model" schema)
         <*> clientCapabilities .= (fromMaybe mempty <$> optField "capabilities" schema)
+        <*> clientMLSPublicKeys .= mlsPublicKeysSchema
+
+mlsPublicKeysSchema :: ObjectSchema SwaggerDoc MLSPublicKeys
+mlsPublicKeysSchema =
+  fmap
+    (fromMaybe mempty)
+    ( optField
+        "mls_public_keys"
+        (map_ base64Schema)
+    )
 
 modelClient :: Doc.Model
 modelClient = Doc.defineModel "Client" $ do
@@ -596,6 +611,7 @@ data NewClient = NewClient
     newClientPassword :: Maybe PlainTextPassword,
     newClientModel :: Maybe Text,
     newClientCapabilities :: Maybe (Set ClientCapability),
+    newClientMLSPublicKeys :: MLSPublicKeys,
     newClientVerificationCode :: Maybe Code.Value
   }
   deriving stock (Eq, Show, Generic)
@@ -698,6 +714,7 @@ instance ToSchema NewClient where
             )
         <*> newClientModel .= maybe_ (optField "model" schema)
         <*> newClientCapabilities .= maybe_ capabilitiesFieldSchema
+        <*> newClientMLSPublicKeys .= mlsPublicKeysSchema
         <*> newClientVerificationCode .= maybe_ (optField "verification_code" schema)
 
 newClient :: ClientType -> LastPrekey -> NewClient
@@ -712,6 +729,7 @@ newClient t k =
       newClientPassword = Nothing,
       newClientModel = Nothing,
       newClientCapabilities = Nothing,
+      newClientMLSPublicKeys = mempty,
       newClientVerificationCode = Nothing
     }
 
@@ -723,11 +741,22 @@ data UpdateClient = UpdateClient
     updateClientLastKey :: Maybe LastPrekey,
     updateClientLabel :: Maybe Text,
     -- | see haddocks for 'ClientCapability'
-    updateClientCapabilities :: Maybe (Set ClientCapability)
+    updateClientCapabilities :: Maybe (Set ClientCapability),
+    updateClientMLSPublicKeys :: MLSPublicKeys
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UpdateClient)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema UpdateClient
+
+defUpdateClient :: UpdateClient
+defUpdateClient =
+  UpdateClient
+    { updateClientPrekeys = [],
+      updateClientLastKey = Nothing,
+      updateClientLabel = Nothing,
+      updateClientCapabilities = Nothing,
+      updateClientMLSPublicKeys = mempty
+    }
 
 instance ToSchema UpdateClient where
   schema =
@@ -755,6 +784,7 @@ instance ToSchema UpdateClient where
                 schema
             )
         <*> updateClientCapabilities .= maybe_ capabilitiesFieldSchema
+        <*> updateClientMLSPublicKeys .= mlsPublicKeysSchema
 
 modelUpdateClient :: Doc.Model
 modelUpdateClient = Doc.defineModel "UpdateClient" $ do

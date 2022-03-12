@@ -21,26 +21,13 @@ module Test.Wire.API.Golden.Generated.Client_user where
 
 import Data.Id (ClientId (ClientId, client))
 import Data.Json.Util (readUTCTimeMillis)
-import Data.Misc (Latitude (Latitude), Longitude (Longitude), location)
+import qualified Data.Map as Map
+import Data.Misc
 import Data.Set as Set
-import Imports (Maybe (Just, Nothing), fromJust)
+import Imports
+import Wire.API.MLS.Credential
 import Wire.API.User.Auth (CookieLabel (CookieLabel, cookieLabelText))
 import Wire.API.User.Client
-  ( Client (..),
-    ClientCapability (ClientSupportsLegalholdImplicitConsent),
-    ClientCapabilityList (ClientCapabilityList),
-    ClientClass
-      ( DesktopClient,
-        LegalHoldClient,
-        PhoneClient,
-        TabletClient
-      ),
-    ClientType
-      ( LegalHoldClientType,
-        PermanentClientType,
-        TemporaryClientType
-      ),
-  )
 
 testObject_Client_user_1 :: Client
 testObject_Client_user_1 =
@@ -53,7 +40,8 @@ testObject_Client_user_1 =
       clientCookie = Nothing,
       clientLocation = Nothing,
       clientModel = Just "\995802;\1081067",
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_2 :: Client
@@ -67,7 +55,8 @@ testObject_Client_user_2 =
       clientCookie = Just (CookieLabel {cookieLabelText = "\1112890c\1065129"}),
       clientLocation = Just (location (Latitude (0.6919026326441752)) (Longitude (1.18215529547942))),
       clientModel = Nothing,
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_3 :: Client
@@ -81,7 +70,8 @@ testObject_Client_user_3 =
       clientCookie = Just (CookieLabel {cookieLabelText = ""}),
       clientLocation = Just (location (Latitude (-0.31865405026910076)) (Longitude (6.859482454480745e-2))),
       clientModel = Nothing,
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_4 :: Client
@@ -95,7 +85,8 @@ testObject_Client_user_4 =
       clientCookie = Just (CookieLabel {cookieLabelText = "j"}),
       clientLocation = Just (location (Latitude (0.43019316470477537)) (Longitude (-2.1994844230432533))),
       clientModel = Just "",
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_5 :: Client
@@ -109,7 +100,8 @@ testObject_Client_user_5 =
       clientCookie = Just (CookieLabel {cookieLabelText = ""}),
       clientLocation = Just (location (Latitude (-1.505966289957799)) (Longitude (-2.516893825541776))),
       clientModel = Just "\9015o",
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_6 :: Client
@@ -123,7 +115,8 @@ testObject_Client_user_6 =
       clientCookie = Just (CookieLabel {cookieLabelText = "l\STX"}),
       clientLocation = Just (location (Latitude (0.3764380360505919)) (Longitude (1.3619562593325738))),
       clientModel = Just "",
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_7 :: Client
@@ -137,7 +130,8 @@ testObject_Client_user_7 =
       clientCookie = Nothing,
       clientLocation = Nothing,
       clientModel = Just "",
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_8 :: Client
@@ -151,7 +145,8 @@ testObject_Client_user_8 =
       clientCookie = Just (CookieLabel {cookieLabelText = "\NAKp`"}),
       clientLocation = Just (location (Latitude (0.8626148594727595)) (Longitude (-1.971023301844283))),
       clientModel = Just "\1113929",
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_9 :: Client
@@ -165,7 +160,8 @@ testObject_Client_user_9 =
       clientCookie = Just (CookieLabel {cookieLabelText = "G"}),
       clientLocation = Just (location (Latitude (-0.3086524641730466)) (Longitude (1.72690152811777))),
       clientModel = Just "\13056m",
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_10 :: Client
@@ -179,7 +175,8 @@ testObject_Client_user_10 =
       clientCookie = Just (CookieLabel {cookieLabelText = "L"}),
       clientLocation = Just (location (Latitude (-2.6734377548386075)) (Longitude (-1.40544074714727))),
       clientModel = Just "\CAN",
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = Map.fromList [(Ed25519, "ZmFrZSBwdWJsaWMga2V5")]
     }
 
 testObject_Client_user_11 :: Client
@@ -193,7 +190,8 @@ testObject_Client_user_11 =
       clientCookie = Just (CookieLabel {cookieLabelText = "5"}),
       clientLocation = Just (location (Latitude (0.44311730892815937)) (Longitude (0.6936233843789369))),
       clientModel = Just "ML",
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_12 :: Client
@@ -207,7 +205,8 @@ testObject_Client_user_12 =
       clientCookie = Just (CookieLabel {cookieLabelText = "0"}),
       clientLocation = Just (location (Latitude (-2.502416826395783)) (Longitude (1.4712334862249388))),
       clientModel = Just "",
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_13 :: Client
@@ -221,7 +220,8 @@ testObject_Client_user_13 =
       clientCookie = Just (CookieLabel {cookieLabelText = "\f^\1012431"}),
       clientLocation = Just (location (Latitude (-2.3798205243177692)) (Longitude (-2.619240132398651))),
       clientModel = Just "\ETB\68772",
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_14 :: Client
@@ -235,7 +235,8 @@ testObject_Client_user_14 =
       clientCookie = Nothing,
       clientLocation = Just (location (Latitude (2.459582010332432)) (Longitude (-1.2286910026214775))),
       clientModel = Just "\1052175\r\917608",
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_15 :: Client
@@ -249,7 +250,8 @@ testObject_Client_user_15 =
       clientCookie = Just (CookieLabel {cookieLabelText = "\1100343N"}),
       clientLocation = Nothing,
       clientModel = Just "zAI",
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_16 :: Client
@@ -263,7 +265,8 @@ testObject_Client_user_16 =
       clientCookie = Just (CookieLabel {cookieLabelText = "U"}),
       clientLocation = Nothing,
       clientModel = Just "",
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_17 :: Client
@@ -277,7 +280,8 @@ testObject_Client_user_17 =
       clientCookie = Just (CookieLabel {cookieLabelText = ""}),
       clientLocation = Just (location (Latitude (-1.6915872714820337)) (Longitude (2.1128949838723656))),
       clientModel = Just "",
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_18 :: Client
@@ -291,7 +295,8 @@ testObject_Client_user_18 =
       clientCookie = Just (CookieLabel {cookieLabelText = "PG:"}),
       clientLocation = Just (location (Latitude (-1.2949675488134762)) (Longitude (0.43717421775412324))),
       clientModel = Just "\DEL\1071737",
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_19 :: Client
@@ -305,7 +310,8 @@ testObject_Client_user_19 =
       clientCookie = Nothing,
       clientLocation = Just (location (Latitude (-1.4630309786758076)) (Longitude (-0.5295690632216867))),
       clientModel = Just "",
-      clientCapabilities = ClientCapabilityList Set.empty
+      clientCapabilities = ClientCapabilityList Set.empty,
+      clientMLSPublicKeys = mempty
     }
 
 testObject_Client_user_20 :: Client
@@ -319,5 +325,6 @@ testObject_Client_user_20 =
       clientCookie = Just (CookieLabel {cookieLabelText = ""}),
       clientLocation = Just (location (Latitude (2.8672347564452996)) (Longitude (-0.9990390825956594))),
       clientModel = Nothing,
-      clientCapabilities = ClientCapabilityList (Set.fromList [ClientSupportsLegalholdImplicitConsent])
+      clientCapabilities = ClientCapabilityList (Set.fromList [ClientSupportsLegalholdImplicitConsent]),
+      clientMLSPublicKeys = mempty
     }

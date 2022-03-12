@@ -191,9 +191,9 @@ authError AuthPendingInvitation = StdError accountPending
 reauthError :: ReAuthError -> Error
 reauthError ReAuthMissingPassword = StdError (errorDescriptionTypeToWai @MissingAuth)
 reauthError (ReAuthError e) = authError e
-reauthError ReAuthNoPendingCode = StdError verificationCodeAuthFailed
-reauthError ReAuthVerificationCodeRequired = StdError verificationCodeRequired
-reauthError ReAuthNoEmail = StdError verificationCodeAuthFailed
+reauthError ReAuthCodeVerificationRequired = StdError verificationCodeRequired
+reauthError ReAuthCodeVerificationNoPendingCode = StdError verificationCodeNoPendingCode
+reauthError ReAuthCodeVerificationNoEmail = StdError verificationCodeNoEmail
 
 zauthError :: ZAuth.Failure -> Error
 zauthError ZAuth.Expired = StdError authTokenExpired
@@ -224,6 +224,7 @@ clientDataError TooManyClients = StdError (errorDescriptionTypeToWai @TooManyCli
 clientDataError (ClientReAuthError e) = reauthError e
 clientDataError ClientMissingAuth = StdError (errorDescriptionTypeToWai @MissingAuth)
 clientDataError MalformedPrekeys = StdError (errorDescriptionTypeToWai @MalformedPrekeys)
+clientDataError MLSPublicKeyDuplicate = StdError $ errorDescriptionTypeToWai @DuplicateMLSPublicKey
 
 deleteUserError :: DeleteUserError -> Error
 deleteUserError DeleteUserInvalid = StdError (errorDescriptionTypeToWai @InvalidUser)
@@ -452,6 +453,12 @@ customerExtensionBlockedDomain domain = Wai.mkError (mkStatus 451 "Unavailable F
 
 verificationCodeRequired :: Wai.Error
 verificationCodeRequired = Wai.mkError status403 "code-authentication-required" "Verification code required."
+
+verificationCodeNoPendingCode :: Wai.Error
+verificationCodeNoPendingCode = Wai.mkError status403 "code-authentication-failed" "Code authentication failed (no such code)."
+
+verificationCodeNoEmail :: Wai.Error
+verificationCodeNoEmail = Wai.mkError status403 "code-authentication-failed" "Code authentication failed (no such email)."
 
 verificationCodeAuthFailed :: Wai.Error
 verificationCodeAuthFailed = Wai.mkError status403 "code-authentication-failed" "Code authentication failed."

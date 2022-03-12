@@ -522,19 +522,19 @@ clearPropertiesH (u ::: c) = lift (API.clearProperties u c) >> return empty
 
 getPropertyH :: UserId ::: Public.PropertyKey ::: JSON -> (Handler r) Response
 getPropertyH (u ::: k ::: _) = do
-  val <- lift $ API.lookupProperty u k
+  val <- lift . wrapClient $ API.lookupProperty u k
   return $ case val of
     Nothing -> setStatus status404 empty
     Just v -> json (v :: Public.PropertyValue)
 
 listPropertyKeysH :: UserId ::: JSON -> (Handler r) Response
 listPropertyKeysH (u ::: _) = do
-  keys <- lift (API.lookupPropertyKeys u)
+  keys <- lift $ wrapClient (API.lookupPropertyKeys u)
   pure $ json (keys :: [Public.PropertyKey])
 
 listPropertyKeysAndValuesH :: UserId ::: JSON -> (Handler r) Response
 listPropertyKeysAndValuesH (u ::: _) = do
-  keysAndVals <- lift (API.lookupPropertyKeysAndValues u)
+  keysAndVals <- lift $ wrapClient (API.lookupPropertyKeysAndValues u)
   pure $ json (keysAndVals :: Public.PropertyKeysAndValues)
 
 getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> (Handler r) Public.ClientPrekey
@@ -589,7 +589,7 @@ deleteClient usr con clt body =
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
 
 updateClient :: UserId -> ClientId -> Public.UpdateClient -> (Handler r) ()
-updateClient usr clt upd = API.updateClient usr clt upd !>> clientError
+updateClient usr clt upd = wrapClientE (API.updateClient usr clt upd) !>> clientError
 
 listClients :: UserId -> (Handler r) [Public.Client]
 listClients zusr =
@@ -639,18 +639,18 @@ getRichInfo self user = do
   -- other user
   selfUser <-
     ifNothing (errorDescriptionTypeToWai @UserNotFound)
-      =<< lift (Data.lookupUser NoPendingInvitations self)
+      =<< lift (wrapClient $ Data.lookupUser NoPendingInvitations self)
   otherUser <-
     ifNothing (errorDescriptionTypeToWai @UserNotFound)
-      =<< lift (Data.lookupUser NoPendingInvitations user)
+      =<< lift (wrapClient $ Data.lookupUser NoPendingInvitations user)
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
   -- Query rich info
-  fromMaybe mempty <$> lift (API.lookupRichInfo user)
+  fromMaybe mempty <$> lift (wrapClient $ API.lookupRichInfo user)
 
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
-getClientPrekeys usr clt = lift (API.lookupPrekeyIds usr clt)
+getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser :: Public.NewUserPublic -> (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
@@ -689,7 +689,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
     for_ (liftM2 (,) userEmail epair) $ \(e, p) ->
       sendActivationEmail e userDisplayName p (Just userLocale) newUserTeam
     for_ (liftM2 (,) userPhone ppair) $ \(p, c) ->
-      sendActivationSms p c (Just userLocale)
+      wrapClient $ sendActivationSms p c (Just userLocale)
     for_ (liftM3 (,,) userEmail (createdUserTeam result) newUserTeam) $ \(e, ct, ut) ->
       sendWelcomeEmail e ct ut (Just userLocale)
   cok <-
@@ -766,7 +766,7 @@ listUsersByIdsOrHandles self q = do
   where
     getIds :: [Handle] -> (Handler r) [Qualified UserId]
     getIds localHandles = do
-      localUsers <- catMaybes <$> traverse (lift . API.lookupHandle) localHandles
+      localUsers <- catMaybes <$> traverse (lift . wrapClient . API.lookupHandle) localHandles
       domain <- viewFederationDomain
       pure $ map (`Qualified` domain) localUsers
     byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
@@ -786,9 +786,9 @@ updateUser uid conn uu = do
 changePhone :: UserId -> ConnId -> Public.PhoneUpdate -> (Handler r) (Maybe Public.ChangePhoneError)
 changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
   (adata, pn) <- API.changePhone u phone
-  loc <- lift $ API.lookupLocale u
+  loc <- lift $ wrapClient $ API.lookupLocale u
   let apair = (activationKey adata, activationCode adata)
-  lift $ sendActivationSms pn apair loc
+  lift . wrapClient $ sendActivationSms pn apair loc
 
 removePhone :: UserId -> ConnId -> (Handler r) (Maybe Public.RemoveIdentityError)
 removePhone self conn =
@@ -799,7 +799,7 @@ removeEmail self conn =
   lift . exceptTToMaybe $ API.removeEmail self conn
 
 checkPasswordExists :: UserId -> (Handler r) Bool
-checkPasswordExists = fmap isJust . lift . API.lookupPassword
+checkPasswordExists = fmap isJust . lift . wrapClient . API.lookupPassword
 
 changePassword :: UserId -> Public.PasswordChange -> (Handler r) (Maybe Public.ChangePasswordError)
 changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
@@ -820,7 +820,7 @@ checkHandlesH :: JSON ::: UserId ::: JsonRequest Public.CheckHandles -> (Handler
 checkHandlesH (_ ::: _ ::: req) = do
   Public.CheckHandles hs num <- parseJsonBody req
   let handles = mapMaybe parseHandle (fromRange hs)
-  free <- lift $ API.checkHandles handles (fromRange num)
+  free <- lift . wrapClient $ API.checkHandles handles (fromRange num)
   return $ json (free :: [Handle])
 
 -- | This endpoint returns UserHandleInfo instead of UserProfile for backwards
@@ -846,10 +846,10 @@ beginPasswordReset :: Public.NewPasswordReset -> (Handler r) ()
 beginPasswordReset (Public.NewPasswordReset target) = do
   checkWhitelist target
   (u, pair) <- API.beginPasswordReset target !>> pwResetError
-  loc <- lift $ API.lookupLocale u
+  loc <- lift $ wrapClient $ API.lookupLocale u
   lift $ case target of
     Left email -> sendPasswordResetMail email pair loc
-    Right phone -> sendPasswordResetSms phone pair loc
+    Right phone -> wrapClient $ sendPasswordResetSms phone pair loc
 
 completePasswordResetH :: JSON ::: JsonRequest Public.CompletePasswordReset -> (Handler r) Response
 completePasswordResetH (_ ::: req) = do
@@ -942,7 +942,7 @@ listConnections uid Public.GetMultiTablePageRequest {..} = do
 
     localsAndRemotes :: Local UserId -> Maybe C.PagingState -> Range 1 500 Int32 -> (Handler r) Public.ConnectionsPage
     localsAndRemotes self pagingState size = do
-      localPage <- pageToConnectionsPage Public.PagingLocals <$> Data.lookupLocalConnectionsPage self pagingState (rcast size)
+      localPage <- lift $ pageToConnectionsPage Public.PagingLocals <$> wrapClient (Data.lookupLocalConnectionsPage self pagingState (rcast size))
       let remainingSize = fromRange size - fromIntegral (length (Public.mtpResults localPage))
       if Public.mtpHasMore localPage || remainingSize <= 0
         then pure localPage {Public.mtpHasMore = True} -- We haven't checked the remotes yet, so has_more must always be True here.
@@ -952,7 +952,8 @@ listConnections uid Public.GetMultiTablePageRequest {..} = do
 
     remotesOnly :: Local UserId -> Maybe C.PagingState -> Int32 -> (Handler r) Public.ConnectionsPage
     remotesOnly self pagingState size =
-      pageToConnectionsPage Public.PagingRemotes <$> Data.lookupRemoteConnectionsPage self pagingState size
+      lift . wrapClient $
+        pageToConnectionsPage Public.PagingRemotes <$> Data.lookupRemoteConnectionsPage self pagingState size
 
 getLocalConnection :: UserId -> UserId -> (Handler r) (Maybe Public.UserConnection)
 getLocalConnection self other = do
@@ -962,7 +963,7 @@ getLocalConnection self other = do
 getConnection :: UserId -> Qualified UserId -> (Handler r) (Maybe Public.UserConnection)
 getConnection self other = do
   lself <- qualifyLocal self
-  lift $ Data.lookupConnection lself other
+  lift . wrapClient $ Data.lookupConnection lself other
 
 deleteUser ::
   UserId ->
@@ -979,9 +980,9 @@ verifyDeleteUserH (r ::: _) = do
 
 updateUserEmail :: UserId -> UserId -> Public.EmailUpdate -> (Handler r) ()
 updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
-  maybeZuserTeamId <- lift $ Data.lookupUserTeam zuserId
+  maybeZuserTeamId <- lift $ wrapClient $ Data.lookupUserTeam zuserId
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
-  maybeEmailOwnerTeamId <- lift $ Data.lookupUserTeam emailOwnerId
+  maybeEmailOwnerTeamId <- lift $ wrapClient $ Data.lookupUserTeam emailOwnerId
   checkSameTeam maybeZuserTeamId maybeEmailOwnerTeamId
   void $ API.changeSelfEmail emailOwnerId email API.AllowSCIMUpdates
   where
@@ -1027,7 +1028,7 @@ activateH (k ::: c) = do
 activate :: Public.Activate -> (Handler r) ActivationRespWithStatus
 activate (Public.Activate tgt code dryrun)
   | dryrun = do
-    API.preverify tgt code !>> actError
+    wrapClientE (API.preverify tgt code) !>> actError
     return ActivationRespDryRun
   | otherwise = do
     result <- API.activate tgt code Nothing !>> actError
@@ -1051,28 +1052,23 @@ sendVerificationCode req = do
       code <-
         Code.generate
           gen
-          (scope action)
+          (Code.scopeFromAction action)
           (Code.Retries 3)
           timeout
           (Just $ toUUID $ Public.userId $ accountUser account)
-      Code.insert code
+      wrapClientE $ Code.insert code
       sendMail email (Code.codeValue code) (Just $ Public.userLocale $ accountUser account) action
     _ -> pure ()
   where
     getAccount :: Public.Email -> (Handler r) (Maybe UserAccount)
     getAccount email = lift $ do
-      mbUserId <- UserKey.lookupKey $ UserKey.userEmailKey email
-      join <$> Data.lookupAccount `traverse` mbUserId
-
-    scope :: Public.VerificationAction -> Code.Scope
-    scope = \case
-      Public.GenerateScimToken -> Code.GenerateScimToken
-      Public.Login -> Code.AccountLogin
+      mbUserId <- wrapClient . UserKey.lookupKey $ UserKey.userEmailKey email
+      join <$> wrapClient (Data.lookupAccount `traverse` mbUserId)
 
     sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
     sendMail email value mbLocale =
       lift . \case
-        Public.GenerateScimToken -> sendGenerateScimTokenVerificationMail email value mbLocale
+        Public.CreateScimToken -> sendCreateScimTokenVerificationMail email value mbLocale
         Public.Login -> sendLoginVerificationMail email value mbLocale
 
     getFeatureStatus :: Maybe UserAccount -> (Handler r) Bool

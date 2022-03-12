@@ -201,7 +201,7 @@ data AccountStatusError
 -- Exceptions
 
 -- | A user name was unexpectedly not found for an existing user ID.
-data UserDisplayNameNotFound = UserDisplayNameNotFound !UserId
+newtype UserDisplayNameNotFound = UserDisplayNameNotFound UserId
   deriving (Typeable)
 
 instance Exception UserDisplayNameNotFound
@@ -209,7 +209,7 @@ instance Exception UserDisplayNameNotFound
 instance Show UserDisplayNameNotFound where
   show (UserDisplayNameNotFound uid) = "User name not found for user: " ++ show uid
 
-data UserProfileNotFound = UserProfileNotFound !UserId
+newtype UserProfileNotFound = UserProfileNotFound UserId
   deriving (Typeable)
 
 instance Exception UserProfileNotFound

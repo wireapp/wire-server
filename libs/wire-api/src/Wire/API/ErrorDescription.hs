@@ -415,3 +415,9 @@ type TooManyTeamMembers = ErrorDescription 403 "too-many-team-members" "Too many
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
 type UserCreationRestricted = ErrorDescription 403 "user-creation-restricted" "This instance does not allow creation of personal users or teams."
+
+type DuplicateMLSPublicKey =
+  ErrorDescription
+    400
+    "mls-duplicate-public-key"
+    "MLS public key for the given signature scheme already exists"
