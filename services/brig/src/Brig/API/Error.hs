@@ -221,6 +221,7 @@ clientDataError TooManyClients = StdError (errorDescriptionTypeToWai @TooManyCli
 clientDataError (ClientReAuthError e) = reauthError e
 clientDataError ClientMissingAuth = StdError (errorDescriptionTypeToWai @MissingAuth)
 clientDataError MalformedPrekeys = StdError (errorDescriptionTypeToWai @MalformedPrekeys)
+clientDataError MLSPublicKeyDuplicate = StdError $ errorDescriptionTypeToWai @DuplicateMLSPublicKey
 
 deleteUserError :: DeleteUserError -> Error
 deleteUserError DeleteUserInvalid = StdError (errorDescriptionTypeToWai @InvalidUser)

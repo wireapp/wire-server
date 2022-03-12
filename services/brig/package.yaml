@@ -217,6 +217,7 @@ executables:
     - cassandra-util
     - containers
     - cookie
+    - data-default
     - data-timeout
     - email-validate
     - exceptions

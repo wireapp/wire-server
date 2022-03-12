@@ -14,23 +14,20 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wno-orphans #-}
 
-module Brig.Data.MLS.KeyPackage.Instances () where
+module V16
+  ( migration,
+  )
+where
 
-import Cassandra
-import qualified Data.ByteString.Lazy as LBS
+import Cassandra.Schema
 import Imports
-import Wire.API.MLS.KeyPackage
+import Text.RawString.QQ
 
-instance Cql KeyPackageRef where
-  ctype = Tagged BlobColumn
-  toCql = CqlBlob . LBS.fromStrict . unKeyPackageRef
-  fromCql (CqlBlob b) = pure . KeyPackageRef . LBS.toStrict $ b
-  fromCql _ = Left "Expected CqlBlob"
-
-instance Cql KeyPackageData where
-  ctype = Tagged BlobColumn
-  toCql = CqlBlob . kpData
-  fromCql (CqlBlob b) = pure . KeyPackageData $ b
-  fromCql _ = Left "Expected CqlBlob"
+migration :: Migration
+migration = Migration 16 "Remove scim_external_ids (out of use since 2021-03)" $ do
+  void $
+    schema'
+      [r|
+        DROP TABLE scim_external_ids;
+      |]

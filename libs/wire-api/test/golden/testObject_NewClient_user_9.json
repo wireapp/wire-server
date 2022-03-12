@@ -5,6 +5,7 @@
         "id": 65535,
         "key": ""
     },
+    "mls_public_keys": {},
     "model": "m{",
     "prekeys": [
         {

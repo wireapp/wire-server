@@ -25,7 +25,7 @@ import Brig.API.Error (clientError)
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
 import Brig.API.Util (lookupSearchPolicy)
-import Brig.App (qualifyLocal)
+import Brig.App (qualifyLocal, wrapClient)
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import Brig.IO.Intra (notify)
@@ -74,12 +74,12 @@ federationSitemap =
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> (Handler r) NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do
-  active <- lift $ Data.isActivated ncrTo
+  active <- lift $ wrapClient $ Data.isActivated ncrTo
   if active
     then do
       self <- qualifyLocal ncrTo
       let other = toRemoteUnsafe originDomain ncrFrom
-      mconnection <- lift $ Data.lookupConnection self (qUntagged other)
+      mconnection <- lift . wrapClient $ Data.lookupConnection self (qUntagged other)
       maction <- lift $ performRemoteAction self other mconnection ncrAction
       pure $ NewConnectionResponseOk maction
     else pure NewConnectionResponseUserNotActivated
@@ -96,7 +96,7 @@ getUserByHandle domain handle = do
   if not performHandleLookup
     then pure Nothing
     else lift $ do
-      maybeOwnerId <- API.lookupHandle handle
+      maybeOwnerId <- wrapClient $ API.lookupHandle handle
       case maybeOwnerId of
         Nothing ->
           pure Nothing
@@ -150,7 +150,7 @@ searchUsers domain (SearchRequest searchTerm) = do
     exactHandleSearch n
       | n > 0 = do
         let maybeHandle = parseHandle searchTerm
-        maybeOwnerId <- maybe (pure Nothing) (lift . API.lookupHandle) maybeHandle
+        maybeOwnerId <- maybe (pure Nothing) (lift . wrapClient . API.lookupHandle) maybeHandle
         case maybeOwnerId of
           Nothing -> pure []
           Just foundUser -> lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]

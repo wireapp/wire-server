@@ -1,7 +1,7 @@
 cabal-version:  2.4
 name:           assets
 version:        1.0.0
-synopsis:       TODO(leif)
+synopsis:       Scan the brig user table, search for malformatted asset keys and print them
 category:       Network
 author:         Wire Swiss GmbH
 maintainer:     Wire Swiss GmbH <backend@wire.com>

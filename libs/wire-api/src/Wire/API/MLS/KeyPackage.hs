@@ -69,6 +69,7 @@ import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Data.Time.Clock.POSIX
 import Imports
+import Web.HttpApiData
 import Wire.API.Arbitrary
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
@@ -97,6 +98,7 @@ instance ToSchema KeyPackageData where
 data KeyPackageBundleEntry = KeyPackageBundleEntry
   { kpbeUser :: Qualified UserId,
     kpbeClient :: ClientId,
+    kpbeRef :: KeyPackageRef,
     kpbeKeyPackage :: KeyPackageData
   }
   deriving stock (Eq, Ord)
@@ -107,6 +109,7 @@ instance ToSchema KeyPackageBundleEntry where
       KeyPackageBundleEntry
         <$> kpbeUser .= qualifiedObjectSchema "user" schema
         <*> kpbeClient .= field "client" schema
+        <*> kpbeRef .= field "key_package_ref" schema
         <*> kpbeKeyPackage .= field "key_package" schema
 
 newtype KeyPackageBundle = KeyPackageBundle {kpbEntries :: Set KeyPackageBundleEntry}
@@ -126,6 +129,23 @@ instance ToSchema KeyPackageCount where
   schema =
     object "OwnKeyPackages" $
       KeyPackageCount <$> unKeyPackageCount .= field "count" schema
+
+newtype KeyPackageRef = KeyPackageRef {unKeyPackageRef :: ByteString}
+  deriving stock (Eq, Ord, Show)
+  deriving (FromHttpApiData, ToHttpApiData, S.ToParamSchema) via Base64ByteString
+
+instance ToSchema KeyPackageRef where
+  schema = named "KeyPackageRef" $ unKeyPackageRef .= fmap KeyPackageRef base64Schema
+
+instance ParseMLS KeyPackageRef where
+  parseMLS = KeyPackageRef <$> getByteString 16
+
+kpRef :: CipherSuiteTag -> KeyPackageData -> KeyPackageRef
+kpRef cs =
+  KeyPackageRef
+    . csHash cs "MLS 1.0 KeyPackage Reference"
+    . LBS.toStrict
+    . kpData
 
 --------------------------------------------------------------------------------
 
@@ -246,19 +266,6 @@ data KeyPackage = KeyPackage
     kpSignature :: ByteString
   }
   deriving stock (Eq, Show)
-
-newtype KeyPackageRef = KeyPackageRef {unKeyPackageRef :: ByteString}
-  deriving stock (Eq, Show)
-
-instance ParseMLS KeyPackageRef where
-  parseMLS = KeyPackageRef <$> getByteString 16
-
-kpRef :: CipherSuiteTag -> KeyPackageData -> KeyPackageRef
-kpRef cs =
-  KeyPackageRef
-    . csHash cs "MLS 1.0 KeyPackage Reference"
-    . LBS.toStrict
-    . kpData
 
 instance ParseMLS KeyPackage where
   parseMLS = fst <$> kpSigOffset
