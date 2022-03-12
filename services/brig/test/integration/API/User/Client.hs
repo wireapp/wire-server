@@ -130,6 +130,7 @@ testAddGetClientMissingCode :: Brig -> Galley -> Http ()
 testAddGetClientMissingCode brig galley = do
   (u, tid) <- Util.createUserWithTeam' brig
   let uid = userId u
+  let Just email = userEmail u
   let addClient' codeValue = addClient brig uid (defNewClientWithVerificationCode codeValue PermanentClientType [head somePrekeys] (head someLastPrekeys))
 
   Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
@@ -142,6 +143,7 @@ testAddGetClientWrongCode :: Brig -> Galley -> Http ()
 testAddGetClientWrongCode brig galley = do
   (u, tid) <- Util.createUserWithTeam' brig
   let uid = userId u
+  let Just email = userEmail u
   let addClient' codeValue = addClient brig uid (defNewClientWithVerificationCode codeValue PermanentClientType [head somePrekeys] (head someLastPrekeys))
 
   Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
@@ -162,10 +164,10 @@ testAddGetClientCodeExpired db brig galley = do
   Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   k <- Code.mkKey (Code.ForEmail email)
-  (fmap Code.codeValue -> codeValue) <- lookupCode db k Code.AccountLogin
+  codeValue <- Code.codeValue <$$> lookupCode db k Code.AccountLogin
   checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) codeValue
   -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
-  threadDelay $ (5 * 1000000) + 1000
+  threadDelay $ (5 * 1000000) + 600000
   addClient' codeValue !!! do
     const 403 === statusCode
     const (Just "code-authentication-failed") === fmap Error.label . responseJsonMaybe
