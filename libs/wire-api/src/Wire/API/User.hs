@@ -1209,12 +1209,12 @@ instance ToSchema VerificationAction where
   schema =
     enum @Text "VerificationAction" $
       mconcat
-        [ element "generate_scim_token" CreateScimToken,
+        [ element "create_scim_token" CreateScimToken,
           element "login" Login
         ]
 
 instance ToByteString VerificationAction where
-  builder CreateScimToken = "generate_scim_token"
+  builder CreateScimToken = "create_scim_token"
   builder Login = "login"
 
 instance FromByteString VerificationAction where
@@ -1222,7 +1222,7 @@ instance FromByteString VerificationAction where
     Parser.takeByteString >>= \b ->
       case T.decodeUtf8' b of
         Right "login" -> pure Login
-        Right "generate_scim_token" -> pure CreateScimToken
+        Right "create_scim_token" -> pure CreateScimToken
         Right t -> fail $ "Invalid VerificationAction: " <> T.unpack t
         Left e -> fail $ "Invalid VerificationAction: " <> show e
 
