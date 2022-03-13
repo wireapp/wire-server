@@ -25,6 +25,7 @@ module Brig.User.Email
     sendDeletionEmail,
     sendNewClientEmail,
     sendLoginVerificationMail,
+    sendCreateScimTokenVerificationMail,
 
     -- * Re-exports
     validateEmail,
@@ -70,6 +71,19 @@ sendLoginVerificationMail ::
   m ()
 sendLoginVerificationMail email code mbLocale = do
   tpl <- verificationLoginEmail . snd <$> userTemplates mbLocale
+  branding <- view templateBranding
+  Email.sendMail $ renderSecondFactorVerificationEmail tpl email code branding
+
+sendCreateScimTokenVerificationMail ::
+  ( MonadIO m,
+    MonadReader Env m
+  ) =>
+  Email ->
+  Code.Value ->
+  Maybe Locale ->
+  m ()
+sendCreateScimTokenVerificationMail email code mbLocale = do
+  tpl <- verificationScimTokenEmail . snd <$> userTemplates mbLocale
   branding <- view templateBranding
   Email.sendMail $ renderSecondFactorVerificationEmail tpl email code branding
 

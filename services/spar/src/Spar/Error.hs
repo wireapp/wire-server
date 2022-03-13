@@ -88,6 +88,8 @@ data SparCustomError
   | SparCannotCreateUsersOnReplacedIdP LT
   | SparCouldNotParseRfcResponse LT LT
   | SparReAuthRequired
+  | SparReAuthCodeAuthFailed
+  | SparReAuthCodeAuthRequired
   | SparCouldNotRetrieveCookie
   | SparCassandraError LT
   | SparCassandraTTLError TTLError
@@ -146,6 +148,8 @@ renderSparError (SAML.CustomError (SparCannotCreateUsersOnReplacedIdP replacingI
 -- RFC-specific errors
 renderSparError (SAML.CustomError (SparCouldNotParseRfcResponse service msg)) = Right $ Wai.mkError status502 "bad-upstream" ("Could not parse " <> service <> " response body: " <> msg)
 renderSparError (SAML.CustomError SparReAuthRequired) = Right $ Wai.mkError status403 "access-denied" "This operation requires reauthentication."
+renderSparError (SAML.CustomError SparReAuthCodeAuthFailed) = Right $ Wai.mkError status403 "code-authentication-failed" "Reauthentication failed with invalid verification code."
+renderSparError (SAML.CustomError SparReAuthCodeAuthRequired) = Right $ Wai.mkError status403 "code-authentication-required" "Reauthentication failed. Verification code required."
 renderSparError (SAML.CustomError SparCouldNotRetrieveCookie) = Right $ Wai.mkError status502 "bad-upstream" "Unable to get a cookie from an upstream server."
 renderSparError (SAML.CustomError (SparCassandraError msg)) = Right $ Wai.mkError status500 "server-error" msg -- TODO: should we be more specific here and make it 'db-error'?
 renderSparError (SAML.CustomError (SparCassandraTTLError ttlerr)) = Right $ Wai.mkError status400 "ttl-error" (cs $ show ttlerr)

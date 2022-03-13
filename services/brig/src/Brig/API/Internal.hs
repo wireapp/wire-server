@@ -30,8 +30,10 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
 import qualified Brig.API.User as API
+import qualified Brig.API.User as Api
 import Brig.API.Util (validateHandle)
 import Brig.App
+import qualified Brig.Code as Code
 import Brig.Data.Activation
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
@@ -87,7 +89,7 @@ import Wire.API.User.RichInfo
 -- Sitemap (servant)
 
 servantSitemap :: ServerT BrigIRoutes.API (Handler r)
-servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI
+servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode
 
 ejpdAPI :: ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
@@ -118,11 +120,22 @@ deleteAccountFeatureConfig :: UserId -> (Handler r) NoContent
 deleteAccountFeatureConfig uid =
   lift $ wrapClient $ Data.updateFeatureConferenceCalling uid Nothing $> NoContent
 
-swaggerDocsAPI :: Servant.Server BrigIRoutes.SwaggerDocsAPI
-swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
-
 getClientByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe ClientIdentity)
 getClientByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.derefKeyPackage
+
+getVerificationCode :: UserId -> VerificationAction -> (Handler r) (Maybe Code.Value)
+getVerificationCode uid action = do
+  user <- wrapClientE $ Api.lookupUser NoPendingInvitations uid
+  maybe (pure Nothing) (lookupCode action) (userEmail =<< user)
+  where
+    lookupCode :: VerificationAction -> Email -> (Handler r) (Maybe Code.Value)
+    lookupCode a e = do
+      key <- Code.mkKey (Code.ForEmail e)
+      code <- wrapClientE $ Code.lookup key (Code.scopeFromAction a)
+      pure $ Code.codeValue <$> code
+
+swaggerDocsAPI :: Servant.Server BrigIRoutes.SwaggerDocsAPI
+swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
 
 ---------------------------------------------------------------------------
 -- Sitemap (wai-route)

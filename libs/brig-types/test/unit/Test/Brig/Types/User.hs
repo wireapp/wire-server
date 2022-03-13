@@ -57,7 +57,7 @@ instance Arbitrary RichInfoUpdate where
   arbitrary = RichInfoUpdate <$> arbitrary
 
 instance Arbitrary ReAuthUser where
-  arbitrary = ReAuthUser <$> arbitrary
+  arbitrary = ReAuthUser <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary NewUserScimInvitation where
   arbitrary = NewUserScimInvitation <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
