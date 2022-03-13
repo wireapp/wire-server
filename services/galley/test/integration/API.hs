@@ -1365,8 +1365,12 @@ testJoinNonTeamConvGuestLinksDisabled = do
 
 -- @SF.Separation @TSFI.RESTfulAPI @S2
 -- This test case covers a negative check that if access code of a guest link is revoked no further
--- people can join the group conversation. Additionally it checks that incorrect access codes do
--- result in a 404 and do not allow access to a conversation.
+-- people can join the group conversation. Additionally it covers:
+-- Random users can use invite link
+-- Reusing previously used link yields same conv (idempotency)
+-- Guest can use invite link
+-- Guest cannot create invite link
+-- Non-admin cannot create invite link
 postJoinCodeConvOk :: TestM ()
 postJoinCodeConvOk = do
   c <- view tsCannon
