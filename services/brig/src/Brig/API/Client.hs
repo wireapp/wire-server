@@ -58,12 +58,14 @@ import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Event
+import qualified Brig.User.Auth as UserAuth
 import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
 import Cassandra (MonadClient)
 import Control.Error
 import Control.Lens (view)
 import Data.ByteString.Conversion
+import Data.Code as Code
 import Data.Domain (Domain)
 import Data.IP (IP)
 import Data.Id (ClientId, ConnId, UserId)
@@ -82,6 +84,7 @@ import Wire.API.Federation.API.Brig (GetUserClients (GetUserClients))
 import Wire.API.Federation.Error
 import qualified Wire.API.Message as Message
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
+import qualified Wire.API.User as Code
 import Wire.API.User.Client
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 
@@ -125,6 +128,7 @@ lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientError (AppIO r) Client
 addClient u con ip new = do
   acc <- lift (wrapClient $ Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
+  verifyCode (newClientVerificationCode new) (userId . accountUser $ acc)
   loc <- maybe (return Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
   let caps :: Maybe (Set ClientCapability)
@@ -153,6 +157,15 @@ addClient u con ip new = do
   return clt
   where
     clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
+
+    verifyCode :: Maybe Code.Value -> UserId -> ExceptT ClientError (AppIO r) ()
+    verifyCode mbCode userId =
+      -- this only happens inside the login flow (in particular, when logging in from a new device)
+      -- the code obtained for logging in is used a second time for adding the device
+      UserAuth.verifyCode mbCode Code.Login userId `catchE` \case
+        VerificationCodeRequired -> throwE ClientCodeAuthenticationRequired
+        VerificationCodeNoPendingCode -> throwE ClientCodeAuthenticationFailed
+        VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed
 
 updateClient :: MonadClient m => UserId -> ClientId -> UpdateClient -> ExceptT ClientError m ()
 updateClient u c r = do

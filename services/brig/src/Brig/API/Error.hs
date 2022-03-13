@@ -210,6 +210,8 @@ clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
 clientError (ClientFederationError e) = fedError e
 clientError ClientCapabilitiesCannotBeRemoved = StdError clientCapabilitiesCannotBeRemoved
 clientError ClientMissingLegalholdConsent = StdError (errorDescriptionTypeToWai @MissingLegalholdConsent)
+clientError ClientCodeAuthenticationFailed = StdError verificationCodeAuthFailed
+clientError ClientCodeAuthenticationRequired = StdError verificationCodeRequired
 
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai
@@ -457,3 +459,6 @@ verificationCodeNoPendingCode = Wai.mkError status403 "code-authentication-faile
 
 verificationCodeNoEmail :: Wai.Error
 verificationCodeNoEmail = Wai.mkError status403 "code-authentication-failed" "Code authentication failed (no such email)."
+
+verificationCodeAuthFailed :: Wai.Error
+verificationCodeAuthFailed = Wai.mkError status403 "code-authentication-failed" "Code authentication failed."

@@ -82,6 +82,7 @@ import qualified Data.Aeson as A
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Bifunctor (second)
+import qualified Data.Code as Code
 import Data.Coerce
 import Data.Domain (Domain)
 import Data.Id
@@ -610,7 +611,8 @@ data NewClient = NewClient
     newClientPassword :: Maybe PlainTextPassword,
     newClientModel :: Maybe Text,
     newClientCapabilities :: Maybe (Set ClientCapability),
-    newClientMLSPublicKeys :: MLSPublicKeys
+    newClientMLSPublicKeys :: MLSPublicKeys,
+    newClientVerificationCode :: Maybe Code.Value
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewClient)
@@ -713,6 +715,7 @@ instance ToSchema NewClient where
         <*> newClientModel .= maybe_ (optField "model" schema)
         <*> newClientCapabilities .= maybe_ capabilitiesFieldSchema
         <*> newClientMLSPublicKeys .= mlsPublicKeysSchema
+        <*> newClientVerificationCode .= maybe_ (optField "verification_code" schema)
 
 newClient :: ClientType -> LastPrekey -> NewClient
 newClient t k =
@@ -726,7 +729,8 @@ newClient t k =
       newClientPassword = Nothing,
       newClientModel = Nothing,
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 --------------------------------------------------------------------------------

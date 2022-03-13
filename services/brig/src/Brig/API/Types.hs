@@ -183,6 +183,8 @@ data ClientError
   | ClientFederationError FederationError
   | ClientCapabilitiesCannotBeRemoved
   | ClientMissingLegalholdConsent
+  | ClientCodeAuthenticationFailed
+  | ClientCodeAuthenticationRequired
 
 data DeleteUserError
   = DeleteUserInvalid

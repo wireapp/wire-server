@@ -19,10 +19,13 @@
 
 module Test.Wire.API.Golden.Generated.NewClient_user where
 
+import Data.Code
 import qualified Data.Map as Map
 import Data.Misc (PlainTextPassword (PlainTextPassword))
+import Data.Range (unsafeRange)
 import qualified Data.Set as Set
-import Imports
+import Data.Text.Ascii (AsciiChars (validate))
+import Imports (Maybe (Just, Nothing), fromRight, mempty, undefined)
 import Wire.API.MLS.Credential
 import Wire.API.User.Auth (CookieLabel (CookieLabel, cookieLabelText))
 import Wire.API.User.Client
@@ -44,7 +47,8 @@ testObject_NewClient_user_1 =
           ),
       newClientModel = Just "",
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_2 :: NewClient
@@ -63,7 +67,8 @@ testObject_NewClient_user_2 =
           ),
       newClientModel = Just "om",
       newClientCapabilities = Just (Set.fromList [ClientSupportsLegalholdImplicitConsent]),
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_3 :: NewClient
@@ -82,7 +87,8 @@ testObject_NewClient_user_3 =
           ),
       newClientModel = Just "\1016506\DC3\134041",
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_4 :: NewClient
@@ -104,7 +110,8 @@ testObject_NewClient_user_4 =
           ),
       newClientModel = Nothing,
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Just (Value {asciiValue = unsafeRange (fromRight undefined (validate "123456"))})
     }
 
 testObject_NewClient_user_5 :: NewClient
@@ -119,7 +126,8 @@ testObject_NewClient_user_5 =
       newClientPassword = Nothing,
       newClientModel = Just "Y5>",
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_6 :: NewClient
@@ -134,7 +142,8 @@ testObject_NewClient_user_6 =
       newClientPassword = Nothing,
       newClientModel = Nothing,
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_7 :: NewClient
@@ -153,7 +162,8 @@ testObject_NewClient_user_7 =
           ),
       newClientModel = Just "\150744",
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_8 :: NewClient
@@ -172,7 +182,8 @@ testObject_NewClient_user_8 =
           ),
       newClientModel = Just "",
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_9 :: NewClient
@@ -192,7 +203,8 @@ testObject_NewClient_user_9 =
       newClientPassword = Nothing,
       newClientModel = Just "m{",
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_10 :: NewClient
@@ -211,7 +223,8 @@ testObject_NewClient_user_10 =
           ),
       newClientModel = Just "9FO",
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_11 :: NewClient
@@ -234,7 +247,8 @@ testObject_NewClient_user_11 =
           ),
       newClientModel = Nothing,
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_12 :: NewClient
@@ -260,7 +274,8 @@ testObject_NewClient_user_12 =
           ),
       newClientModel = Nothing,
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_13 :: NewClient
@@ -287,7 +302,8 @@ testObject_NewClient_user_13 =
           ),
       newClientModel = Nothing,
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_14 :: NewClient
@@ -302,7 +318,8 @@ testObject_NewClient_user_14 =
       newClientPassword = Nothing,
       newClientModel = Just "\1108879",
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_15 :: NewClient
@@ -327,7 +344,8 @@ testObject_NewClient_user_15 =
           ),
       newClientModel = Nothing,
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_16 :: NewClient
@@ -342,7 +360,8 @@ testObject_NewClient_user_16 =
       newClientPassword = Nothing,
       newClientModel = Just "\ACK;\143320",
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_17 :: NewClient
@@ -362,7 +381,8 @@ testObject_NewClient_user_17 =
       newClientPassword = Nothing,
       newClientModel = Just "\ESC\15411c",
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_18 :: NewClient
@@ -381,7 +401,8 @@ testObject_NewClient_user_18 =
           ),
       newClientModel = Just "\1077465\1056032S",
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_19 :: NewClient
@@ -404,7 +425,8 @@ testObject_NewClient_user_19 =
           ),
       newClientModel = Just "\CAN\1030222g",
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = mempty
+      newClientMLSPublicKeys = mempty,
+      newClientVerificationCode = Nothing
     }
 
 testObject_NewClient_user_20 :: NewClient
@@ -419,5 +441,6 @@ testObject_NewClient_user_20 =
       newClientPassword = Nothing,
       newClientModel = Nothing,
       newClientCapabilities = Nothing,
-      newClientMLSPublicKeys = Map.fromList [(Ed25519, "GY+t1EQu0Zsm0r/zrm6zz9UpjPcAPyT5i8L1iaY3ypM=")]
+      newClientMLSPublicKeys = Map.fromList [(Ed25519, "GY+t1EQu0Zsm0r/zrm6zz9UpjPcAPyT5i8L1iaY3ypM=")],
+      newClientVerificationCode = Nothing
     }
