@@ -942,6 +942,7 @@ updateOtherMember lusr zcon qcnv qvictim update = do
   doUpdate qcnv lusr zcon qvictim update
 
 updateOtherMemberLocalConv ::
+  forall r.
   Members
     '[ ConversationStore,
        Error ActionError,
@@ -960,10 +961,10 @@ updateOtherMemberLocalConv ::
   Qualified UserId ->
   OtherMemberUpdate ->
   Sem r ()
-updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult $ do
+updateOtherMemberLocalConv lcnv lusr con qvictim update = void $ do
   when (qUntagged lusr == qvictim) $
     throw InvalidTargetUserOp
-  updateLocalConversation lcnv (qUntagged lusr) (Just con) $
+  getUpdateResult . updateLocalConversation lcnv (qUntagged lusr) (Just con) $
     ConversationMemberUpdate qvictim update
 
 updateOtherMemberRemoteConv ::
