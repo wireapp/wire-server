@@ -191,6 +191,7 @@ tests s =
           test s "rename qualified conversation failure" putQualifiedConvRenameFailure,
           test s "other member update role" putOtherMemberOk,
           test s "qualified other member update role" putQualifiedOtherMemberOk,
+          test s "guest update role" putGuestRole,
           test s "member update (otr mute)" putMemberOtrMuteOk,
           test s "member update (otr archive)" putMemberOtrArchiveOk,
           test s "member update (hidden)" putMemberHiddenOk,
@@ -3070,6 +3071,23 @@ putQualifiedOtherMemberOk = do
       evtType e @?= MemberStateUpdate
       evtFrom e @?= qbob
       evtData e @?= EdMemberUpdate expectedMemberUpdateData
+
+-- @SF.Management @TSFI.RESTfulAPI @S2
+-- Group admin cannot make a guest a group admin
+putGuestRole :: TestM ()
+putGuestRole = do
+  alice <- randomUser
+  eve <- ephemeralUser
+  let accessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole]
+  conv <- decodeConvId <$> postConv alice [] (Just "gossip") [CodeAccess] (Just accessRoles) Nothing
+  cCode <- decodeConvCodeEvent <$> postConvCode alice conv
+  postJoinCodeConv eve cCode !!! const 200 === statusCode
+  putOtherMember alice eve (OtherMemberUpdate (Just roleNameWireAdmin)) conv
+    !!! do
+      const 403 === statusCode
+      const (Just "guests-cannot-be-group-admins") === fmap label . responseJsonUnsafe
+
+-- @END
 
 putOtherMemberOk :: TestM ()
 putOtherMemberOk = do
