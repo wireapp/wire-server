@@ -65,6 +65,7 @@ module Galley.API.Update
   )
 where
 
+import Brig.Types.Intra (accountUser)
 import Control.Error.Util (hush)
 import Control.Lens
 import Control.Monad.State
@@ -86,6 +87,7 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
 import Galley.Effects
+import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ClientStore as E
 import qualified Galley.Effects.CodeStore as E
 import qualified Galley.Effects.ConversationStore as E
@@ -112,7 +114,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Conversation hiding (Member)
-import Wire.API.Conversation.Role (roleNameWireAdmin)
+import Wire.API.Conversation.Role (parseRoleName, roleNameWireAdmin)
 import Wire.API.ErrorDescription
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
@@ -121,6 +123,7 @@ import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
+import Wire.API.User (userExpire)
 import Wire.API.User.Client
 
 acceptConvH ::
@@ -903,7 +906,8 @@ updateOtherMemberUnqualified ::
        FederatorAccess,
        GundeckAccess,
        Input UTCTime,
-       MemberStore
+       MemberStore,
+       BrigAccess
      ]
     r =>
   Local UserId ->
@@ -928,7 +932,8 @@ updateOtherMember ::
        FederatorAccess,
        GundeckAccess,
        Input UTCTime,
-       MemberStore
+       MemberStore,
+       BrigAccess
      ]
     r =>
   Local UserId ->
@@ -952,7 +957,8 @@ updateOtherMemberLocalConv ::
        FederatorAccess,
        GundeckAccess,
        Input UTCTime,
-       MemberStore
+       MemberStore,
+       BrigAccess
      ]
     r =>
   Local ConvId ->
@@ -964,8 +970,31 @@ updateOtherMemberLocalConv ::
 updateOtherMemberLocalConv lcnv lusr con qvictim update = void $ do
   when (qUntagged lusr == qvictim) $
     throw InvalidTargetUserOp
+  isGuestPromotion >>= (`when` throw GuestsCannotBeGroupAdmins)
   getUpdateResult . updateLocalConversation lcnv (qUntagged lusr) (Just con) $
     ConversationMemberUpdate qvictim update
+  where
+    isGuestPromotion :: Sem r Bool
+    isGuestPromotion = do
+      let mIsGuest :: Sem r Bool
+          mIsGuest = do
+            usr <- E.getUser (qUnqualified qvictim)
+            pure $ isJust ((userExpire . accountUser) =<< usr)
+
+          isPromotion :: Bool
+          isPromotion = update == OtherMemberUpdate (parseRoleName "wire_admin")
+
+      -- BEGIN DEBUG
+      do
+        usr <- E.getUser (qUnqualified qvictim)
+        isGuest <- mIsGuest
+        () <- error $ show ((usr, isGuest), (update, isPromotion))
+        pure ()
+      -- END DEBUG
+
+      if isPromotion
+        then mIsGuest
+        else pure False
 
 updateOtherMemberRemoteConv ::
   Member (Error FederationError) r =>

@@ -63,6 +63,7 @@ data ActionError
   = InvalidAction
   | InvalidTargetAccess
   | InvalidTargetUserOp
+  | GuestsCannotBeGroupAdmins
   | ActionDenied Action
   | AccessDenied
   | InvalidOp ConvType
@@ -81,6 +82,7 @@ instance APIError ActionError where
   toWai (InvalidOp SelfConv) = invalidSelfOp
   toWai (InvalidOp One2OneConv) = invalidOne2OneOp
   toWai (InvalidOp ConnectConv) = invalidConnectOp
+  toWai GuestsCannotBeGroupAdmins = guestsCannotBeGroupAdmins
   toWai (OperationDenied p) = errorDescriptionToWai $ operationDeniedSpecialized p
   toWai NotConnected = errorDescriptionTypeToWai @NotConnected
   toWai InvalidTargetUserOp = invalidTargetUserOp
@@ -319,6 +321,9 @@ invalidTargetUserOp = invalidOp "invalid target user for the given operation"
 
 invalidOp :: LText -> Error
 invalidOp = mkError status403 "invalid-op"
+
+guestsCannotBeGroupAdmins :: Error
+guestsCannotBeGroupAdmins = mkError status403 "guests-cannot-be-group-admins" "Ephemeral users cannot have admin privileges."
 
 invalidPayload :: LText -> Error
 invalidPayload = mkError status400 "invalid-payload"
