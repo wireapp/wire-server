@@ -48,7 +48,6 @@ import Brig.User.Auth.Cookie.Limit
 import qualified Brig.User.Auth.DB.Cookie as DB
 import qualified Brig.ZAuth as ZAuth
 import Cassandra
-import Cassandra (MonadClient)
 import Control.Lens (to, view)
 import Data.ByteString.Conversion
 import Data.Id

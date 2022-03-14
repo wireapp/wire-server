@@ -25,7 +25,7 @@ import Servant (ServerT)
 import Wire.API.Routes.Named
 import Wire.API.Routes.Version
 
-versionAPI :: ServerT VersionAPI (Handler r)
+versionAPI :: ServerT VersionAPI Handler
 versionAPI = Named $ do
   fed <- view federator
   dom <- viewFederationDomain

@@ -490,7 +490,7 @@ instance MonadIO m => MonadLogger (ReaderT Env m) where
 instance Member (Embed IO) r => MonadLogger (AppT r) where
   log l = AppT . LC.log l
 
-instance MonadLogger (ExceptT err (AppT r)) where
+instance Member (Embed IO) r => MonadLogger (ExceptT err (AppT r)) where
   log l m = lift (LC.log l m)
 
 instance MonadHttp (AppT r) where
