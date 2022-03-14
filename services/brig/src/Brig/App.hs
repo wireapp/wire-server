@@ -136,7 +136,6 @@ import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
 import Polysemy
-import Polysemy.Final
 import qualified Ropes.Nexmo as Nexmo
 import qualified Ropes.Twilio as Twilio
 import Ssl.Util
@@ -274,8 +273,8 @@ newEnv o = do
   where
     emailConn _ (Opt.EmailAWS aws) = return (Just aws, Nothing)
     emailConn lgr (Opt.EmailSMTP s) = do
-      let host = (Opt.smtpEndpoint s) ^. epHost
-          port = Just $ fromInteger $ toInteger $ (Opt.smtpEndpoint s) ^. epPort
+      let host = Opt.smtpEndpoint s ^. epHost
+          port = Just $ fromInteger $ toInteger $ Opt.smtpEndpoint s ^. epPort
       smtpCredentials <- case Opt.smtpCredentials s of
         Just (Opt.EmailSMTPCredentials u p) -> do
           pass <- initCredentials p
@@ -321,8 +320,8 @@ startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
   where
     predicate (FS.Added f _ _) = Path.equalFilePath f p
     predicate (FS.Modified f _ _) = Path.equalFilePath f p
-    predicate (FS.Removed _ _ _) = False
-    predicate (FS.Unknown _ _ _) = False
+    predicate FS.Removed {} = False
+    predicate FS.Unknown {} = False
 
 replaceGeoDb :: Logger -> IORef GeoIp.GeoDB -> FS.Event -> IO ()
 replaceGeoDb g ref e = do
@@ -552,19 +551,19 @@ runAppIOLifted :: Member (Final IO) r => Env -> AppIO r a -> Sem r a
 runAppIOLifted = runAppT
 
 runAppResourceT :: ResourceT (AppIO r) a -> (AppIO r) a
-runAppResourceT ma = do
-  e <- ask
+runAppResourceT _ma = do
+  _e <- ask
   liftIO . runResourceT $ undefined -- transResourceT(runAppT e) ma
 
 forkAppIO :: Maybe UserId -> (AppIO r) a -> (AppIO r) ()
-forkAppIO u ma = do
-  a <- ask
+forkAppIO u _ma = do
+  _a <- ask
   g <- view applog
   r <- view requestId
   let logErr e = Log.err g $ request r ~~ user u ~~ msg (show e)
   void . liftIO . forkIO $
     either logErr (const $ return ())
-      =<< runExceptT (syncIO $ undefined) -- runAppT a ma)
+      =<< runExceptT (syncIO undefined) -- runAppT a ma)
   where
     request = field "request" . unRequestId
     user = maybe id (field "user" . toByteString)
@@ -580,7 +579,7 @@ locationOf ip =
     Nothing -> return Nothing
 
 readTurnList :: FilePath -> IO (Maybe (List1 TurnURI))
-readTurnList = Text.readFile >=> return . fn . mapMaybe fromByteString . fmap Text.encodeUtf8 . Text.lines
+readTurnList = Text.readFile >=> return . fn . mapMaybe (fromByteString . Text.encodeUtf8) . Text.lines
   where
     fn [] = Nothing
     fn (x : xs) = Just (list1 x xs)
