@@ -915,6 +915,9 @@ getUserById midp stiTeam uid = do
       -- function to move it under scim control.
       assertExternalIdNotUsedElsewhere stiTeam veid uid
       createValidScimUserSpar stiTeam uid storedUser veid
+      lift $ do
+        BrigAccess.setVeid uid veid
+        BrigAccess.setManagedBy uid ManagedByScim
       pure storedUser
     _ -> Applicative.empty
 
