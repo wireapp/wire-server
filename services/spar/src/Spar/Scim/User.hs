@@ -916,10 +916,23 @@ getUserById midp stiTeam uid = do
       assertExternalIdNotUsedElsewhere stiTeam veid uid
       createValidScimUserSpar stiTeam uid storedUser veid
       lift $ do
-        BrigAccess.setVeid uid veid
-        BrigAccess.setManagedBy uid ManagedByScim
+        when (veidChanged (accountUser brigUser) veid) $ do
+          BrigAccess.setVeid uid veid
+        when (managedByChanged (accountUser brigUser)) $ do
+          BrigAccess.setManagedBy uid ManagedByScim
       pure storedUser
     _ -> Applicative.empty
+  where
+    veidChanged :: BT.User -> ST.ValidExternalId -> Bool
+    veidChanged usr veid = case BT.userIdentity usr of
+      Nothing -> True
+      Just (BT.FullIdentity _ _) -> True
+      Just (BT.EmailIdentity _) -> True
+      Just (BT.PhoneIdentity _) -> True
+      Just (BT.SSOIdentity ssoid _ _) -> Brig.veidToUserSSOId veid /= ssoid
+
+    managedByChanged :: BT.User -> Bool
+    managedByChanged usr = userManagedBy usr /= ManagedByScim
 
 scimFindUserByHandle ::
   forall r.
