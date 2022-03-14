@@ -198,6 +198,7 @@ specImportToScimFromSAML =
 specImportToScimFromInvitation :: SpecWith TestEnv
 specImportToScimFromInvitation =
   describe "Create with TM invitation; then re-provision with SCIM" $ do
+    check False
     check True
   where
     createTeam :: HasCallStack => TestSpar (UserId, TeamId)
@@ -248,12 +249,13 @@ specImportToScimFromInvitation =
 
         pure ()
 
-    signInWithSaml :: HasCallStack => (SAML.IdPConfig User.WireIdP, SAML.SignPrivCreds) -> Email -> TestSpar ()
-    signInWithSaml (idp, privCreds) email = do
+    signInWithSaml :: HasCallStack => (SAML.IdPConfig User.WireIdP, SAML.SignPrivCreds) -> Email -> UserId -> TestSpar ()
+    signInWithSaml (idp, privCreds) email userid = do
       let uref = SAML.UserRef tenant subj
           subj = emailToSAMLNameID email
           tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
-      void $ createViaSaml idp privCreds uref
+      mbUid <- createViaSaml idp privCreds uref
+      liftIO $ mbUid `shouldBe` Just userid
 
     check :: Bool -> SpecWith TestEnv
     check changeHandle = it (show changeHandle) $ do
@@ -261,7 +263,8 @@ specImportToScimFromInvitation =
       (userid, email) <- invite ownerid teamid
       idp <- addSamlIdP ownerid
       reProvisionWithScim changeHandle (Just $ fst idp) teamid userid
-      signInWithSaml idp email
+      signInWithSaml idp email userid
+      checkCsvDownload ownerid teamid
 
 assertSparCassandraUref :: HasCallStack => (SAML.UserRef, Maybe UserId) -> TestSpar ()
 assertSparCassandraUref (uref, urefAnswer) = do
