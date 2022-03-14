@@ -625,6 +625,7 @@ executable brig-schema
       V67_MLSKeyPackages
       V68_AddMLSPublicKeys
       V69_MLSKeyPackageRefMapping
+      V70_AddMLSProposals
       V9
       Paths_brig
   hs-source-dirs:
