@@ -272,22 +272,22 @@ specImportToScimFromInvitation =
       SAML.IdPConfig User.WireIdP ->
       Scim.UserC.StoredUser SparTag ->
       TestSpar ()
-    checkCsvDownload ownerid teamid idp storedusr = do
+    checkCsvDownload ownerId teamId idp storedUsr = do
       g <- view teGalley
       resp <-
         call $
-          get (g . accept "text/csv" . paths ["teams", toByteString' teamid, "members/csv"] . zUser ownerid) <!! do
+          get (g . accept "text/csv" . paths ["teams", toByteString' teamId, "members/csv"] . zUser ownerId) <!! do
             const 200 === statusCode
             const (Just "chunked") === lookup "Transfer-Encoding" . responseHeaders
       let rbody = fromMaybe (error "no body") . responseBody $ resp
 
-      let scimusr = Scim.value (Scim.thing storedusr)
-          uid = Scim.id (Scim.thing storedusr)
-          handle = fromRight undefined . parseHandleEither $ Scim.User.userName scimusr
-          email = fromJust . parseEmail . fromJust . Scim.User.externalId $ scimusr
+      let scimUsr = Scim.value (Scim.thing storedUsr)
+          uid = Scim.id (Scim.thing storedUsr)
+          handle = fromRight undefined . parseHandleEither $ Scim.User.userName scimUsr
+          email = fromJust . parseEmail . fromJust . Scim.User.externalId $ scimUsr
           Right idpissuer = idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to mkHttpsUrl
-          Just samlNameID = Scim.User.externalId scimusr
-          Just scimExternalId = Scim.User.externalId scimusr
+          Just samlNameID = Scim.User.externalId scimUsr
+          Just scimExternalId = Scim.User.externalId scimUsr
 
       liftIO $ do
         let csvtyped = decodeCSV @CsvExport.TeamExportUser rbody
