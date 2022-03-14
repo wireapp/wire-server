@@ -488,7 +488,7 @@ instance MonadIO m => MonadLogger (ReaderT Env m) where
     r <- view requestId
     Log.log g l $ field "request" (unRequestId r) ~~ m
 
-instance MonadLogger (AppT r) where
+instance Member (Embed IO) r => MonadLogger (AppT r) where
   log l = AppT . LC.log l
 
 instance MonadLogger (ExceptT err (AppT r)) where
@@ -517,7 +517,7 @@ wrapClient m = do
 wrapClientE :: ExceptT e (ReaderT Env Cas.Client) a -> ExceptT e (AppT r) a
 wrapClientE = mapExceptT wrapClient
 
-wrapClientM :: MaybeT (ReaderT Env Cas.Client) b -> MaybeT (AppT r IO) b
+wrapClientM :: MaybeT (ReaderT Env Cas.Client) b -> MaybeT (AppT r) b
 wrapClientM = mapMaybeT wrapClient
 
 instance MonadIO m => MonadIndexIO (ReaderT Env m) where
@@ -547,6 +547,7 @@ type CanonicalEffs = '[Final IO]
 runAppT :: Member (Final IO) r => Env -> AppT r a -> Sem r a
 runAppT e (AppT ma) = runReaderT ma e
 
+-- TODO(md): Drop this one if it is really the same as runAppT
 runAppIOLifted :: Member (Final IO) r => Env -> AppIO r a -> Sem r a
 runAppIOLifted = runAppT
 
