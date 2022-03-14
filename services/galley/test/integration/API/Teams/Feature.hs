@@ -73,7 +73,7 @@ tests s =
       test s "ConversationGuestLinks - public API" testGuestLinksPublic,
       test s "ConversationGuestLinks - internal API" testGuestLinksInternal,
       test s "ConversationGuestLinks - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureGuestLinks Public.TeamFeatureEnabled Public.Unlocked,
-      test s "SndFactorPasswordChallenge - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge Public.TeamFeatureDisabled Public.Unlocked
+      test s "SndFactorPasswordChallenge - lock status" $ testSimpleFlagWithLockStatus' @'Public.TeamFeatureSndFactorPasswordChallenge False Public.TeamFeatureDisabled Public.Locked
     ]
 
 testSSO :: TestM ()
@@ -396,7 +396,23 @@ testSimpleFlagWithLockStatus ::
   Public.TeamFeatureStatusValue ->
   Public.LockStatusValue ->
   TestM ()
-testSimpleFlagWithLockStatus defaultStatus defaultLockStatus = do
+testSimpleFlagWithLockStatus = testSimpleFlagWithLockStatus' @a True
+
+testSimpleFlagWithLockStatus' ::
+  forall (a :: Public.TeamFeatureName).
+  ( HasCallStack,
+    Typeable a,
+    Public.FeatureHasNoConfig 'Public.WithLockStatus a,
+    Public.FeatureHasNoConfig 'Public.WithoutLockStatus a,
+    Public.KnownTeamFeatureName a,
+    FromJSON (Public.TeamFeatureStatus 'Public.WithLockStatus a),
+    ToJSON (Public.TeamFeatureStatus 'Public.WithLockStatus a)
+  ) =>
+  Bool ->
+  Public.TeamFeatureStatusValue ->
+  Public.LockStatusValue ->
+  TestM ()
+testSimpleFlagWithLockStatus' canChangeTeamFeature defaultStatus defaultLockStatus = do
   galley <- view tsGalley
   let feature = Public.knownTeamFeatureName @a
   owner <- Util.randomUser
@@ -433,7 +449,7 @@ testSimpleFlagWithLockStatus defaultStatus defaultLockStatus = do
       assertSetStatusForbidden :: Public.TeamFeatureStatusValue -> TestM ()
       assertSetStatusForbidden statusValue =
         Util.putTeamFeatureFlagWithGalley @a galley owner tid (Public.TeamFeatureStatusNoConfig statusValue)
-          !!! statusCode === const 409
+          !!! statusCode === const (if canChangeTeamFeature then 409 else 403)
 
       setLockStatus :: Public.LockStatusValue -> TestM ()
       setLockStatus lockStatus =
@@ -455,13 +471,14 @@ testSimpleFlagWithLockStatus defaultStatus defaultLockStatus = do
   -- setting should work
   cannon <- view tsCannon
   -- should receive an event
-  WS.bracketR cannon member $ \ws -> do
-    setFlagWithGalley otherStatus
-    void . liftIO $
-      WS.assertMatch (5 # Second) ws $
-        wsAssertFeatureConfigWithLockStatusUpdate feature otherStatus Public.Unlocked
+  when canChangeTeamFeature $ do
+    WS.bracketR cannon member $ \ws -> do
+      setFlagWithGalley otherStatus
+      void . liftIO $
+        WS.assertMatch (5 # Second) ws $
+          wsAssertFeatureConfigWithLockStatusUpdate feature otherStatus Public.Unlocked
 
-  getFlags otherStatus Public.Unlocked
+    getFlags otherStatus Public.Unlocked
 
   -- lock feature
   setLockStatus Public.Locked
@@ -471,10 +488,10 @@ testSimpleFlagWithLockStatus defaultStatus defaultLockStatus = do
   -- unlock feature
   setLockStatus Public.Unlocked
   -- feature status should be the previously set value
-  getFlags otherStatus Public.Unlocked
+  when canChangeTeamFeature $ getFlags otherStatus Public.Unlocked
 
   -- clean up
-  setFlagWithGalley defaultStatus
+  when canChangeTeamFeature $ setFlagWithGalley defaultStatus
   setLockStatus defaultLockStatus
   getFlags defaultStatus defaultLockStatus
 
@@ -681,7 +698,7 @@ testAllFeatures = do
               Public.Unlocked,
           toS TeamFeatureValidateSAMLEmails .= Public.TeamFeatureStatusNoConfig TeamFeatureEnabled,
           toS TeamFeatureGuestLinks .= Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Public.Unlocked,
-          toS TeamFeatureSndFactorPasswordChallenge .= Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Public.Unlocked
+          toS TeamFeatureSndFactorPasswordChallenge .= Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Public.Locked
         ]
     toS :: TeamFeatureName -> Aeson.Key
     toS = AesonKey.fromText . TE.decodeUtf8 . toByteString'

@@ -106,6 +106,7 @@ testCreateTokenWithVerificationCode :: TestSpar ()
 testCreateTokenWithVerificationCode = do
   env <- ask
   (owner, teamId, _) <- registerTestIdP
+  unlockFeature (env ^. teGalley) teamId
   setSndFactorPasswordChallengeStatus (env ^. teGalley) teamId Public.TeamFeatureEnabled
   user <- getUserBrig owner
   let email = fromMaybe undefined (Brig.userEmail =<< user)
@@ -127,6 +128,10 @@ testCreateTokenWithVerificationCode = do
   let fltr = filterBy "externalId" "67c196a0-cd0e-11ea-93c7-ef550ee48502"
   listUsers_ (Just token) (Just fltr) (env ^. teSpar)
     !!! const 200 === statusCode
+
+unlockFeature :: GalleyReq -> TeamId -> TestSpar ()
+unlockFeature galley tid =
+  call $ put (galley . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge, toByteString' Public.Unlocked]) !!! const 200 === statusCode
 
 setSndFactorPasswordChallengeStatus :: GalleyReq -> TeamId -> Public.TeamFeatureStatusValue -> TestSpar ()
 setSndFactorPasswordChallengeStatus galley tid status = do
