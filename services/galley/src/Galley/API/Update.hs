@@ -554,7 +554,7 @@ addCode ::
 addCode lusr zcon lcnv = do
   conv <- E.getConversation (tUnqualified lcnv) >>= note ConvNotFound
   Query.ensureGuestLinksEnabled (convTeam conv)
-  ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
+  ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
   ensureAccess conv CodeAccess
   ensureGuestsOrNonTeamMembersAllowed conv
   let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
@@ -616,7 +616,7 @@ rmCode ::
 rmCode lusr zcon lcnv = do
   conv <-
     E.getConversation (tUnqualified lcnv) >>= note ConvNotFound
-  ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
+  ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
   ensureAccess conv CodeAccess
   let (bots, users) = localBotsAndUsers $ Data.convLocalMembers conv
   key <- E.makeKey (tUnqualified lcnv)
@@ -643,7 +643,7 @@ getCode lusr cnv = do
     E.getConversation cnv >>= note ConvNotFound
   Query.ensureGuestLinksEnabled (convTeam conv)
   ensureAccess conv CodeAccess
-  ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
+  ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
   key <- E.makeKey cnv
   c <- E.getCode key ReusableCode >>= note CodeNotFound
   returnCode c
@@ -1544,6 +1544,8 @@ rmBot lusr zcon b = do
 -------------------------------------------------------------------------------
 -- Helpers
 
-ensureConvMember :: Member (Error ConversationError) r => [LocalMember] -> UserId -> Sem r ()
-ensureConvMember users usr =
-  unless (usr `isMember` users) $ throw ConvNotFound
+ensureConvAdmin :: Member (Error ConversationError) r => [LocalMember] -> UserId -> Sem r ()
+ensureConvAdmin users uid =
+  case find ((== uid) . lmId) users of
+    Nothing -> throw ConvNotFound
+    Just lm -> unless (lmConvRoleName lm == roleNameWireAdmin) $ throw ConvAccessDenied
