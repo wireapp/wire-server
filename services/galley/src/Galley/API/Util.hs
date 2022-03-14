@@ -155,7 +155,7 @@ ensureReAuthorised ::
   Maybe PlainTextPassword ->
   Sem r ()
 ensureReAuthorised u secret = do
-  reAuthed <- reauthUser u (ReAuthUser secret)
+  reAuthed <- reauthUser u (ReAuthUser secret Nothing Nothing)
   unless reAuthed $
     throw ReAuthFailed
 

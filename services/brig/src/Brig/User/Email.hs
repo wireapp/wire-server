@@ -24,6 +24,8 @@ module Brig.User.Email
     sendPasswordResetMail,
     sendDeletionEmail,
     sendNewClientEmail,
+    sendLoginVerificationMail,
+    sendCreateScimTokenVerificationMail,
 
     -- * Re-exports
     validateEmail,
@@ -45,14 +47,56 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Lazy (toStrict)
 import Imports
 
-sendVerificationMail :: Email -> ActivationPair -> Maybe Locale -> (AppIO r) ()
+sendVerificationMail ::
+  ( MonadIO m,
+    MonadReader Env m
+  ) =>
+  Email ->
+  ActivationPair ->
+  Maybe Locale ->
+  m ()
 sendVerificationMail to pair loc = do
   tpl <- verificationEmail . snd <$> userTemplates loc
   branding <- view templateBranding
   let mail = VerificationEmail to pair
   Email.sendMail $ renderVerificationMail mail tpl branding
 
-sendActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Maybe UserIdentity -> (AppIO r) ()
+sendLoginVerificationMail ::
+  ( MonadReader Env m,
+    MonadIO m
+  ) =>
+  Email ->
+  Code.Value ->
+  Maybe Locale ->
+  m ()
+sendLoginVerificationMail email code mbLocale = do
+  tpl <- verificationLoginEmail . snd <$> userTemplates mbLocale
+  branding <- view templateBranding
+  Email.sendMail $ renderSecondFactorVerificationEmail tpl email code branding
+
+sendCreateScimTokenVerificationMail ::
+  ( MonadIO m,
+    MonadReader Env m
+  ) =>
+  Email ->
+  Code.Value ->
+  Maybe Locale ->
+  m ()
+sendCreateScimTokenVerificationMail email code mbLocale = do
+  tpl <- verificationScimTokenEmail . snd <$> userTemplates mbLocale
+  branding <- view templateBranding
+  Email.sendMail $ renderSecondFactorVerificationEmail tpl email code branding
+
+sendActivationMail ::
+  ( MonadIO m,
+    MonadReader Env m
+  ) =>
+  Email ->
+  Name ->
+  ActivationPair ->
+  Maybe Locale ->
+  Maybe UserIdentity ->
+  m ()
 sendActivationMail to name pair loc ident = do
   tpl <- selectTemplate . snd <$> userTemplates loc
   branding <- view templateBranding
@@ -64,26 +108,59 @@ sendActivationMail to name pair loc ident = do
         then activationEmail
         else activationEmailUpdate
 
-sendPasswordResetMail :: Email -> PasswordResetPair -> Maybe Locale -> (AppIO r) ()
+sendPasswordResetMail ::
+  ( MonadIO m,
+    MonadReader Env m
+  ) =>
+  Email ->
+  PasswordResetPair ->
+  Maybe Locale ->
+  m ()
 sendPasswordResetMail to pair loc = do
   tpl <- passwordResetEmail . snd <$> userTemplates loc
   branding <- view templateBranding
   let mail = PasswordResetEmail to pair
   Email.sendMail $ renderPwResetMail mail tpl branding
 
-sendDeletionEmail :: Name -> Email -> Code.Key -> Code.Value -> Locale -> (AppIO r) ()
+sendDeletionEmail ::
+  ( MonadIO m,
+    MonadReader Env m
+  ) =>
+  Name ->
+  Email ->
+  Code.Key ->
+  Code.Value ->
+  Locale ->
+  m ()
 sendDeletionEmail name email key code locale = do
   tpl <- deletionEmail . snd <$> userTemplates (Just locale)
   branding <- view templateBranding
   Email.sendMail $ renderDeletionEmail tpl (DeletionEmail email name key code) branding
 
-sendNewClientEmail :: Name -> Email -> Client -> Locale -> (AppIO r) ()
+sendNewClientEmail ::
+  ( MonadIO m,
+    MonadReader Env m
+  ) =>
+  Name ->
+  Email ->
+  Client ->
+  Locale ->
+  m ()
 sendNewClientEmail name email client locale = do
   tpl <- newClientEmail . snd <$> userTemplates (Just locale)
   branding <- view templateBranding
   Email.sendMail $ renderNewClientEmail tpl (NewClientEmail locale email name client) branding
 
-sendTeamActivationMail :: Email -> Name -> ActivationPair -> Maybe Locale -> Text -> (AppIO r) ()
+sendTeamActivationMail ::
+  ( MonadIO m,
+    MonadReader Env m
+  ) =>
+  Email ->
+  Name ->
+  ActivationPair ->
+  Maybe Locale ->
+  Text ->
+  m ()
 sendTeamActivationMail to name pair loc team = do
   tpl <- teamActivationEmail . snd <$> userTemplates loc
   let mail = TeamActivationEmail to name team pair
@@ -163,6 +240,33 @@ renderDeletionEmail DeletionEmailTemplate {..} DeletionEmail {..} branding =
     replace2 "key" = key
     replace2 "code" = code
     replace2 x = x
+
+renderSecondFactorVerificationEmail ::
+  SecondFactorVerificationEmailTemplate ->
+  Email ->
+  Code.Value ->
+  TemplateBranding ->
+  Mail
+renderSecondFactorVerificationEmail SecondFactorVerificationEmailTemplate {..} email codeValue branding =
+  (emptyMail from)
+    { mailTo = [to],
+      mailHeaders =
+        [ ("Subject", toStrict subj),
+          ("X-Zeta-Purpose", "SecondFactorVerification"),
+          ("X-Zeta-Code", code)
+        ],
+      mailParts = [[plainPart txt, htmlPart html]]
+    }
+  where
+    from = Address (Just sndFactorVerificationEmailSenderName) (fromEmail sndFactorVerificationEmailSender)
+    to = Address Nothing (fromEmail email)
+    txt = renderTextWithBranding sndFactorVerificationEmailBodyText replace branding
+    html = renderHtmlWithBranding sndFactorVerificationEmailBodyHtml replace branding
+    subj = renderTextWithBranding sndFactorVerificationEmailSubject replace branding
+    code = Ascii.toText (fromRange (Code.asciiValue codeValue))
+    replace "email" = fromEmail email
+    replace "code" = code
+    replace x = x
 
 -------------------------------------------------------------------------------
 -- Verification Email

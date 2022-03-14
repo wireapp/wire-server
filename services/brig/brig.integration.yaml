@@ -134,6 +134,7 @@ turn:
 
 optSettings:
   setActivationTimeout: 5
+  setVerificationTimeout: 5
   setTeamInvitationTimeout: 5
   setExpiredUserCleanupTimeout: 1
   setTwilio: test/resources/twilio-credentials.yaml

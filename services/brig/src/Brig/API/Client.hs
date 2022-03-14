@@ -58,11 +58,14 @@ import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Event
+import qualified Brig.User.Auth as UserAuth
 import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
+import Cassandra (MonadClient)
 import Control.Error
 import Control.Lens (view)
 import Data.ByteString.Conversion
+import Data.Code as Code
 import Data.Domain (Domain)
 import Data.IP (IP)
 import Data.Id (ClientId, ConnId, UserId)
@@ -81,14 +84,15 @@ import Wire.API.Federation.API.Brig (GetUserClients (GetUserClients))
 import Wire.API.Federation.Error
 import qualified Wire.API.Message as Message
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
+import qualified Wire.API.User as Code
 import Wire.API.User.Client
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 
 lookupLocalClient :: UserId -> ClientId -> (AppIO r) (Maybe Client)
-lookupLocalClient = Data.lookupClient
+lookupLocalClient uid = wrapClient . Data.lookupClient uid
 
 lookupLocalClients :: UserId -> (AppIO r) [Client]
-lookupLocalClients = Data.lookupClients
+lookupLocalClients = wrapClient . Data.lookupClients
 
 lookupPubClient :: Qualified UserId -> ClientId -> ExceptT ClientError (AppIO r) (Maybe PubClient)
 lookupPubClient qid cid = do
@@ -117,15 +121,16 @@ lookupPubClientsBulk qualifiedUids = do
   pure $ QualifiedUserMap (Map.union localUserClientMap remoteUserClientMap)
 
 lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppIO r) (UserMap (Set PubClient))
-lookupLocalPubClientsBulk = Data.lookupPubClientsBulk
+lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
 addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientError (AppIO r) Client
 addClient u con ip new = do
-  acc <- lift (Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
+  acc <- lift (wrapClient $ Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
+  verifyCode (newClientVerificationCode new) (userId . accountUser $ acc)
   loc <- maybe (return Nothing) locationOf ip
-  maxPermClients <- fromMaybe Opt.defUserMaxPermClients <$> Opt.setUserMaxPermClients <$> view settings
+  maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
   let caps :: Maybe (Set ClientCapability)
       caps = updlhdev $ newClientCapabilities new
         where
@@ -134,7 +139,11 @@ addClient u con ip new = do
               then Just . maybe (Set.singleton lhcaps) (Set.insert lhcaps)
               else id
           lhcaps = ClientSupportsLegalholdImplicitConsent
-  (clt, old, count) <- Data.addClient u clientId' new maxPermClients loc caps !>> ClientDataError
+  (clt0, old, count) <-
+    wrapClientE
+      (Data.addClient u clientId' new maxPermClients loc caps)
+      !>> ClientDataError
+  let clt = clt0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
   let usr = accountUser acc
   lift $ do
     for_ old $ execDelete u con
@@ -149,7 +158,16 @@ addClient u con ip new = do
   where
     clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
 
-updateClient :: UserId -> ClientId -> UpdateClient -> ExceptT ClientError (AppIO r) ()
+    verifyCode :: Maybe Code.Value -> UserId -> ExceptT ClientError (AppIO r) ()
+    verifyCode mbCode userId =
+      -- this only happens inside the login flow (in particular, when logging in from a new device)
+      -- the code obtained for logging in is used a second time for adding the device
+      UserAuth.verifyCode mbCode Code.Login userId `catchE` \case
+        VerificationCodeRequired -> throwE ClientCodeAuthenticationRequired
+        VerificationCodeNoPendingCode -> throwE ClientCodeAuthenticationFailed
+        VerificationCodeNoEmail -> throwE ClientCodeAuthenticationFailed
+
+updateClient :: MonadClient m => UserId -> ClientId -> UpdateClient -> ExceptT ClientError m ()
 updateClient u c r = do
   client <- lift (Data.lookupClient u c) >>= maybe (throwE ClientNotFound) pure
   for_ (updateClientLabel r) $ lift . Data.updateClientLabel u c . Just
@@ -160,12 +178,13 @@ updateClient u c r = do
       else throwE ClientCapabilitiesCannotBeRemoved
   let lk = maybeToList (unpackLastPrekey <$> updateClientLastKey r)
   Data.updatePrekeys u c (lk ++ updateClientPrekeys r) !>> ClientDataError
+  Data.addMLSPublicKeys u c (Map.assocs (updateClientMLSPublicKeys r)) !>> ClientDataError
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
 rmClient :: UserId -> ConnId -> ClientId -> Maybe PlainTextPassword -> ExceptT ClientError (AppIO r) ()
 rmClient u con clt pw =
-  maybe (throwE ClientNotFound) fn =<< lift (Data.lookupClient u clt)
+  maybe (throwE ClientNotFound) fn =<< lift (wrapClient $ Data.lookupClient u clt)
   where
     fn client = do
       case clientType client of
@@ -174,7 +193,7 @@ rmClient u con clt pw =
         -- Temporary clients don't need to re-auth
         TemporaryClientType -> pure ()
         -- All other clients must authenticate
-        _ -> Data.reauthenticate u pw !>> ClientDataError . ClientReAuthError
+        _ -> wrapClientE (Data.reauthenticate u pw) !>> ClientDataError . ClientReAuthError
       lift $ execDelete u (Just con) client
 
 claimPrekey :: LegalholdProtectee -> UserId -> Domain -> ClientId -> ExceptT ClientError (AppIO r) (Maybe ClientPrekey)
@@ -204,7 +223,7 @@ claimPrekeyBundle protectee domain uid = do
 
 claimLocalPrekeyBundle :: LegalholdProtectee -> UserId -> ExceptT ClientError (AppIO r) PrekeyBundle
 claimLocalPrekeyBundle protectee u = do
-  clients <- map clientId <$> Data.lookupClients u
+  clients <- map clientId <$> lift (wrapClient (Data.lookupClients u))
   guardLegalhold protectee (mkUserClients [(u, clients)])
   PrekeyBundle u . catMaybes <$> lift (mapM (Data.claimPrekey u) clients)
 
@@ -271,9 +290,9 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 execDelete :: UserId -> Maybe ConnId -> Client -> (AppIO r) ()
 execDelete u con c = do
   Intra.rmClient u (clientId c)
-  for_ (clientCookie c) $ \l -> Auth.revokeCookies u [] [l]
+  for_ (clientCookie c) $ \l -> wrapClient $ Auth.revokeCookies u [] [l]
   Intra.onClientEvent u con (ClientRemoved u c)
-  Data.rmClient u (clientId c)
+  wrapClient $ Data.rmClient u (clientId c)
 
 -- | Defensive measure when no prekey is found for a
 -- requested client: Ensure that the client does indeed
@@ -287,7 +306,7 @@ noPrekeys u c = do
       ~~ field "client" (toByteString c)
       ~~ msg (val "No prekey found. Ensuring client does not exist.")
   Intra.rmClient u c
-  client <- Data.lookupClient u c
+  client <- wrapClient $ Data.lookupClient u c
   for_ client $ \_ ->
     Log.err $
       field "user" (toByteString u)
@@ -314,7 +333,7 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPreke
 
 removeLegalHoldClient :: UserId -> (AppIO r) ()
 removeLegalHoldClient uid = do
-  clients <- Data.lookupClients uid
+  clients <- wrapClient $ Data.lookupClients uid
   -- Should only be one; but just in case we'll treat it as a list
   let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
   -- maybe log if this isn't the case

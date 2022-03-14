@@ -61,7 +61,7 @@ getRemoteHandleInfo handle = do
 getLocalHandleInfo :: Local UserId -> Handle -> (Handler r) (Maybe Public.UserProfile)
 getLocalHandleInfo self handle = do
   Log.info $ Log.msg $ Log.val "getHandleInfo - local lookup"
-  maybeOwnerId <- lift $ API.lookupHandle handle
+  maybeOwnerId <- lift . wrapClient $ API.lookupHandle handle
   case maybeOwnerId of
     Nothing -> return Nothing
     Just ownerId -> do
@@ -76,7 +76,7 @@ filterHandleResults searchingUser us = do
   sameTeamSearchOnly <- fromMaybe False <$> view (settings . searchSameTeamOnly)
   if sameTeamSearchOnly
     then do
-      fromTeam <- lift $ Data.lookupUserTeam (tUnqualified searchingUser)
+      fromTeam <- lift . wrapClient $ Data.lookupUserTeam (tUnqualified searchingUser)
       return $ case fromTeam of
         Just team -> filter (\x -> Public.profileTeam x == Just team) us
         Nothing -> us

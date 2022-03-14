@@ -41,6 +41,7 @@ import Bilge.Retry (httpHandlers)
 import Brig.App
 import Brig.Budget
 import Brig.Types
+import Cassandra (MonadClient)
 import Control.Lens (view)
 import Control.Monad.Catch
 import Control.Retry
@@ -73,7 +74,10 @@ data PhoneException
 
 instance Exception PhoneException
 
-sendCall :: forall r. Nexmo.Call -> AppIO r ()
+sendCall ::
+  (MonadClient m, MonadReader Env m, Log.MonadLogger m) =>
+  Nexmo.Call ->
+  m ()
 sendCall call = unless (isTestPhone $ Nexmo.callTo call) $ do
   m <- view httpManager
   cred <- view nexmoCreds
@@ -99,9 +103,7 @@ sendCall call = unless (isTestPhone $ Nexmo.callTo call) $ do
                  Nexmo.CallInternal -> True
                  _ -> False
            ]
-    unreachable :: Nexmo.CallErrorResponse -> AppT r IO ()
     unreachable ex = warn (toException ex) >> throwM PhoneNumberUnreachable
-    barred :: Nexmo.CallErrorResponse -> AppT r IO ()
     barred ex = warn (toException ex) >> throwM PhoneNumberBarred
     warn ex =
       Log.warn $
@@ -109,12 +111,20 @@ sendCall call = unless (isTestPhone $ Nexmo.callTo call) $ do
           ~~ field "error" (show ex)
           ~~ field "phone" (Nexmo.callTo call)
 
-sendSms :: forall r. Locale -> SMSMessage -> (AppIO r) ()
+sendSms ::
+  ( MonadClient m,
+    MonadCatch m,
+    Log.MonadLogger m,
+    MonadReader Env m
+  ) =>
+  Locale ->
+  SMSMessage ->
+  m ()
 sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
   m <- view httpManager
   withSmsBudget smsTo $ do
     -- We try Nexmo first (cheaper and specialised to SMS)
-    f <- (sendNexmoSms m *> pure Nothing) `catches` nexmoFailed
+    f <- (sendNexmoSms m $> Nothing) `catches` nexmoFailed
     for_ f $ \ex -> do
       warn ex
       r <- try @_ @Twilio.ErrorResponse $ sendTwilioSms m
@@ -132,7 +142,7 @@ sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
           _ -> throwM ex'
         Right () -> return ()
   where
-    sendNexmoSms :: Manager -> (AppIO r) ()
+    sendNexmoSms :: (MonadIO f, MonadReader Env f) => Manager -> f ()
     sendNexmoSms mgr = do
       crd <- view nexmoCreds
       void . liftIO . recovering x3 nexmoHandlers $
@@ -149,7 +159,7 @@ sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
       ES -> Nexmo.UCS2
       ZH -> Nexmo.UCS2
       _ -> Nexmo.GSM7
-    sendTwilioSms :: Manager -> (AppIO r) ()
+    sendTwilioSms :: (MonadIO f, MonadReader Env f) => Manager -> f ()
     sendTwilioSms mgr = do
       crd <- view twilioCreds
       void . liftIO . recovering x3 twilioHandlers $
@@ -179,9 +189,7 @@ sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
                  20503 -> True -- Temporarily Unavailable
                  _ -> False
            ]
-    unreachable :: Twilio.ErrorResponse -> AppT r IO ()
     unreachable ex = warn (toException ex) >> throwM PhoneNumberUnreachable
-    barred :: Twilio.ErrorResponse -> AppT r IO ()
     barred ex = warn (toException ex) >> throwM PhoneNumberBarred
     warn ex =
       Log.warn $
@@ -194,7 +202,7 @@ sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
 
 -- | Validate a phone number. Returns the canonical
 -- E.164 format of the given phone number on success.
-validatePhone :: Phone -> (AppIO r) (Maybe Phone)
+validatePhone :: (MonadClient m, MonadReader Env m) => Phone -> m (Maybe Phone)
 validatePhone (Phone p)
   | isTestPhone p = return (Just (Phone p))
   | otherwise = do
@@ -223,7 +231,14 @@ smsBudget =
       budgetValue = 5 -- # of SMS within timeout
     }
 
-withSmsBudget :: Text -> (AppIO r) a -> (AppIO r) a
+withSmsBudget ::
+  ( MonadClient m,
+    Log.MonadLogger m,
+    MonadReader Env m
+  ) =>
+  Text ->
+  m a ->
+  m a
 withSmsBudget phone go = do
   let k = BudgetKey ("sms#" <> phone)
   r <- withBudget k smsBudget go
@@ -251,7 +266,14 @@ callBudget =
       budgetValue = 2 -- # of voice calls within timeout
     }
 
-withCallBudget :: Text -> (AppIO r) a -> (AppIO r) a
+withCallBudget ::
+  ( MonadClient m,
+    Log.MonadLogger m,
+    MonadReader Env m
+  ) =>
+  Text ->
+  m a ->
+  m a
 withCallBudget phone go = do
   let k = BudgetKey ("call#" <> phone)
   r <- withBudget k callBudget go

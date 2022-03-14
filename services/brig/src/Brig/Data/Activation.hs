@@ -31,7 +31,7 @@ module Brig.Data.Activation
   )
 where
 
-import Brig.App (AppIO)
+import Brig.App (Env)
 import Brig.Data.PasswordReset
 import Brig.Data.User
 import Brig.Data.UserKey
@@ -86,10 +86,11 @@ maxAttempts = 3
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey ::
+  (MonadClient m, MonadReader Env m) =>
   ActivationKey ->
   ActivationCode ->
   Maybe UserId ->
-  ExceptT ActivationError (AppIO r) (Maybe ActivationEvent)
+  ExceptT ActivationError m (Maybe ActivationEvent)
 activateKey k c u = verifyCode k c >>= pickUser >>= activate
   where
     pickUser (uk, u') = maybe (throwE invalidUser) (return . (uk,)) (u <|> u')
@@ -111,10 +112,10 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
                   (\(e :: Email) -> (Just e /= userEmail usr,) . fmap userEmailKey . userEmail)
                   (\(p :: Phone) -> (Just p /= userPhone usr,) . fmap userPhoneKey . userPhone)
                   key
-                  $ usr
+                  usr
            in handleExistingIdentity uid profileNeedsUpdate oldKey key
     handleExistingIdentity uid profileNeedsUpdate oldKey key
-      | oldKey == Just key && (not profileNeedsUpdate) = return Nothing
+      | oldKey == Just key && not profileNeedsUpdate = return Nothing
       -- activating existing key and exactly same profile
       -- (can happen when a user clicks on activation links more than once)
       | oldKey == Just key && profileNeedsUpdate = do
@@ -135,12 +136,13 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
 
 -- | Create a new pending activation for a given 'UserKey'.
 newActivation ::
+  (MonadIO m, MonadClient m) =>
   UserKey ->
   -- | The timeout for the activation code.
   Timeout ->
   -- | The user with whom to associate the activation code.
   Maybe UserId ->
-  (AppIO r) Activation
+  m Activation
 newActivation uk timeout u = do
   (typ, key, code) <-
     liftIO $
@@ -159,16 +161,17 @@ newActivation uk timeout u = do
         <$> randIntegerZeroToNMinusOne 1000000
 
 -- | Lookup an activation code and it's associated owner (if any) for a 'UserKey'.
-lookupActivationCode :: UserKey -> (AppIO r) (Maybe (Maybe UserId, ActivationCode))
+lookupActivationCode :: MonadClient m => UserKey -> m (Maybe (Maybe UserId, ActivationCode))
 lookupActivationCode k =
   liftIO (mkActivationKey k)
     >>= retry x1 . query1 codeSelect . params LocalQuorum . Identity
 
 -- | Verify an activation code.
 verifyCode ::
+  MonadClient m =>
   ActivationKey ->
   ActivationCode ->
-  ExceptT ActivationError (AppIO r) (UserKey, Maybe UserId)
+  ExceptT ActivationError m (UserKey, Maybe UserId)
 verifyCode key code = do
   s <- lift . retry x1 . query1 keySelect $ params LocalQuorum (Identity key)
   case s of
@@ -196,7 +199,7 @@ mkActivationKey k = do
   let bs = digestBS d' (T.encodeUtf8 $ keyText k)
   return . ActivationKey $ Ascii.encodeBase64Url bs
 
-deleteActivationPair :: ActivationKey -> (AppIO r) ()
+deleteActivationPair :: MonadClient m => ActivationKey -> m ()
 deleteActivationPair = write keyDelete . params LocalQuorum . Identity
 
 invalidUser :: ActivationError

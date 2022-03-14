@@ -77,6 +77,8 @@ import qualified V64_ClientCapabilities
 import qualified V65_FederatedConnections
 import qualified V66_PersonalFeatureConfCallInit
 import qualified V67_MLSKeyPackages
+import qualified V68_AddMLSPublicKeys
+import qualified V69_MLSKeyPackageRefMapping
 import qualified V9
 
 main :: IO ()
@@ -143,7 +145,9 @@ main = do
       V64_ClientCapabilities.migration,
       V65_FederatedConnections.migration,
       V66_PersonalFeatureConfCallInit.migration,
-      V67_MLSKeyPackages.migration
+      V67_MLSKeyPackages.migration,
+      V68_AddMLSPublicKeys.migration,
+      V69_MLSKeyPackageRefMapping.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Brig.App
 

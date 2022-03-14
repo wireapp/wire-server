@@ -1,5 +1,8 @@
 {
     "label": "8\u0015D𛈘",
+    "mls_public_keys": {
+        "ed25519": "Ym05MElISmxZV3hzZVNCaElIQjFZbXhwWXlCclpYaz0="
+    },
     "prekeys": [
         {
             "id": 4,

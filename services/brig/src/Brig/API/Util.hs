@@ -32,7 +32,7 @@ import Brig.API.Error
 import qualified Brig.API.Error as Error
 import Brig.API.Handler
 import Brig.API.Types
-import Brig.App (AppIO, settings)
+import Brig.App (AppIO, settings, wrapClient)
 import qualified Brig.Data.User as Data
 import Brig.Options (FederationDomainConfig, federationDomainConfigs)
 import qualified Brig.Options as Opts
@@ -58,7 +58,7 @@ import Wire.API.User.Search (FederatedUserSearchPolicy (NoSearch))
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
 lookupProfilesMaybeFilterSameTeamOnly self us = do
-  selfTeam <- lift $ Data.lookupUserTeam self
+  selfTeam <- lift $ wrapClient $ Data.lookupUserTeam self
   return $ case selfTeam of
     Just team -> filter (\x -> profileTeam x == Just team) us
     Nothing -> us
@@ -72,7 +72,7 @@ fetchUserIdentity uid =
 
 -- | Obtain a profile for a user as he can see himself.
 lookupSelfProfile :: UserId -> (AppIO r) (Maybe SelfProfile)
-lookupSelfProfile = fmap (fmap mk) . Data.lookupAccount
+lookupSelfProfile = fmap (fmap mk) . wrapClient . Data.lookupAccount
   where
     mk a = SelfProfile (accountUser a)
 
@@ -93,8 +93,10 @@ traverseConcurrentlyWithErrors ::
   t a ->
   ExceptT e (AppIO r) (t b)
 traverseConcurrentlyWithErrors f =
-  ExceptT . try . (traverse (either throwIO pure) =<<)
-    . pooledMapConcurrentlyN 8 (runExceptT . f)
+  ExceptT . try
+    . ( traverse (either throwIO pure)
+          <=< pooledMapConcurrentlyN 8 (runExceptT . f)
+      )
 
 exceptTToMaybe :: Monad m => ExceptT e m () -> m (Maybe e)
 exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT

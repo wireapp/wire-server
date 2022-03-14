@@ -27,7 +27,11 @@ spec:
     spec:
       containers:
       - name: account-pages
+        {{- if .Values.image.digest }}
+        image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+        {{- else }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        {{- end }}
         env:
           - name: BACKEND_REST
             value: https://{{ .Values.config.externalUrls.backendRest }}

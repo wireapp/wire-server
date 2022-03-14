@@ -19,6 +19,7 @@ module Wire.API.Routes.Internal.Brig
   ( API,
     EJPD_API,
     AccountAPI,
+    MLSAPI,
     EJPDRequest,
     GetAccountFeatureConfig,
     PutAccountFeatureConfig,
@@ -30,6 +31,7 @@ module Wire.API.Routes.Internal.Brig
 where
 
 import Control.Lens ((.~))
+import qualified Data.Code as Code
 import Data.Id as Id
 import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
 import Imports hiding (head)
@@ -39,6 +41,8 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import Wire.API.Connection
+import Wire.API.MLS.Credential
+import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
 import Wire.API.Routes.MultiVerb
@@ -134,9 +138,32 @@ type AccountAPI =
         :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
     )
 
+type MLSAPI = GetClientByKeyPackageRef
+
+type GetClientByKeyPackageRef =
+  Summary "Resolve an MLS key package ref to a qualified client ID"
+    :> "mls"
+    :> "key-packages"
+    :> Capture "ref" KeyPackageRef
+    :> MultiVerb
+         'GET
+         '[Servant.JSON]
+         '[ RespondEmpty 404 "Key package ref not found",
+            Respond 200 "Key package ref found" ClientIdentity
+          ]
+         (Maybe ClientIdentity)
+
+type GetVerificationCode =
+  Summary "Get verification code for a given email and action"
+    :> "users"
+    :> Capture "uid" UserId
+    :> "verification-code"
+    :> Capture "action" VerificationAction
+    :> Get '[Servant.JSON] (Maybe Code.Value)
+
 type API =
   "i"
-    :> (EJPD_API :<|> AccountAPI)
+    :> (EJPD_API :<|> AccountAPI :<|> MLSAPI :<|> GetVerificationCode)
 
 type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 

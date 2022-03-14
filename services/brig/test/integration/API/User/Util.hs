@@ -21,12 +21,14 @@ module API.User.Util where
 
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
+import qualified Brig.Code as Code
 import Brig.Data.PasswordReset
 import Brig.Options (Opts)
 import Brig.Types
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Auth hiding (user)
 import qualified Brig.ZAuth
+import qualified Cassandra as DB
 import qualified Codec.MIME.Type as MIME
 import Control.Lens (preview, (^?))
 import Control.Monad.Catch (MonadCatch)
@@ -58,6 +60,8 @@ import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.Component
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging (LocalOrRemoteTable, MultiTablePagingState)
+import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.User as Public
 
 newtype ConnectionLimit = ConnectionLimit Int64
 
@@ -478,3 +482,16 @@ matchConvLeaveNotification conv remover removeds n = do
   where
     sorted (Conv.EdMembersLeave (Conv.QualifiedUserIdList m)) = Conv.EdMembersLeave (Conv.QualifiedUserIdList (sort m))
     sorted x = x
+
+generateVerificationCode :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> Public.SendVerificationCode -> m ()
+generateVerificationCode brig req = do
+  let js = RequestBodyLBS $ encode req
+  post (brig . paths ["verification-code", "send"] . contentJson . body js) !!! const 200 === statusCode
+
+setTeamSndFactorPasswordChallenge :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Galley -> TeamId -> Public.TeamFeatureStatusValue -> m ()
+setTeamSndFactorPasswordChallenge galley tid status = do
+  let js = RequestBodyLBS $ encode $ Public.TeamFeatureStatusNoConfig status
+  put (galley . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge] . contentJson . body js) !!! const 200 === statusCode
+
+lookupCode :: MonadIO m => DB.ClientState -> Code.Key -> Code.Scope -> m (Maybe Code.Code)
+lookupCode db k = liftIO . DB.runClient db . Code.lookup k

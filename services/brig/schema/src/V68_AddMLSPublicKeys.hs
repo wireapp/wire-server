@@ -14,23 +14,26 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wno-orphans #-}
 
-module Brig.Data.MLS.KeyPackage.Instances () where
+module V68_AddMLSPublicKeys
+  ( migration,
+  )
+where
 
-import Cassandra
-import qualified Data.ByteString.Lazy as LBS
+import Cassandra.Schema
 import Imports
-import Wire.API.MLS.KeyPackage
+import Text.RawString.QQ
 
-instance Cql KeyPackageRef where
-  ctype = Tagged BlobColumn
-  toCql = CqlBlob . LBS.fromStrict . unKeyPackageRef
-  fromCql (CqlBlob b) = pure . KeyPackageRef . LBS.toStrict $ b
-  fromCql _ = Left "Expected CqlBlob"
-
-instance Cql KeyPackageData where
-  ctype = Tagged BlobColumn
-  toCql = CqlBlob . kpData
-  fromCql (CqlBlob b) = pure . KeyPackageData $ b
-  fromCql _ = Left "Expected CqlBlob"
+migration :: Migration
+migration = Migration 68 "Add MLS public keys" $ do
+  schema'
+    [r| 
+    CREATE TABLE mls_public_keys
+        ( user uuid
+        , client text
+        , sig_scheme text
+        , key blob
+        , PRIMARY KEY (user, client, sig_scheme)
+        ) WITH compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+          AND gc_grace_seconds = 864000;
+    |]

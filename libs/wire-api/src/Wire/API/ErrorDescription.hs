@@ -379,6 +379,8 @@ type PasswordAuthenticationFailed = ErrorDescription 403 "password-authenticatio
 
 type CodeAuthenticationFailed = ErrorDescription 403 "code-authentication-failed" "Code authentication failed."
 
+type CodeAuthenticationRequired = ErrorDescription 403 "code-authentication-required" "Code authentication is required."
+
 type MLSProtocolError = ErrorDescription 400 "mls-protocol-error" "MLS protocol error"
 
 mlsProtocolError :: Text -> MLSProtocolError
@@ -415,3 +417,9 @@ type TooManyTeamMembers = ErrorDescription 403 "too-many-team-members" "Too many
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
 type UserCreationRestricted = ErrorDescription 403 "user-creation-restricted" "This instance does not allow creation of personal users or teams."
+
+type DuplicateMLSPublicKey =
+  ErrorDescription
+    400
+    "mls-duplicate-public-key"
+    "MLS public key for the given signature scheme already exists"

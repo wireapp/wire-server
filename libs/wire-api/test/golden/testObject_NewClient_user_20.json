@@ -5,6 +5,9 @@
         "id": 65535,
         "key": "<"
     },
+    "mls_public_keys": {
+        "ed25519": "R1krdDFFUXUwWnNtMHIvenJtNnp6OVVwalBjQVB5VDVpOEwxaWFZM3lwTT0="
+    },
     "prekeys": [
         {
             "id": 0,
