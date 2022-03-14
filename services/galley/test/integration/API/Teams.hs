@@ -1065,20 +1065,35 @@ testDeleteBindingTeamSingleMember = do
 
 testDeleteTeamVerificationCodeSuccess :: TestM ()
 testDeleteTeamVerificationCodeSuccess = do
-  (owner, _) <- Util.createBindingTeam'
+  g <- view tsGalley
+  (owner, tid) <- Util.createBindingTeam'
   let Just email = U.userEmail owner
+  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
   generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
-  pure ()
+  code <- getVerificationCode (U.userId owner) Public.DeleteTeam
+  delete
+    ( g
+        . paths ["teams", toByteString' tid]
+        . zUser (U.userId owner)
+        . zConn "conn"
+        . json (newTeamDeleteDataWithCode (Just Util.defPassword) (Just code))
+    )
+    !!! do
+      const 202 === statusCode
+  tryAssertQueue 10 "team delete, should be there" tDelete
+  ensureQueueEmpty
 
 testDeleteTeamVerificationCodeMissingCode :: TestM ()
 testDeleteTeamVerificationCodeMissingCode = do
   g <- view tsGalley
-  (owner, tid) <- Util.createBindingTeam
+  (owner, tid) <- Util.createBindingTeam'
   setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  let Just email = U.userEmail owner
+  generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
   delete
     ( g
         . paths ["teams", toByteString' tid]
-        . zUser owner
+        . zUser (U.userId owner)
         . zConn "conn"
         . json (newTeamMemberDeleteData (Just Util.defPassword))
     )
@@ -1095,6 +1110,8 @@ testDeleteTeamVerificationCodeExpiredCode = do
   let Just email = U.userEmail owner
   generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
   code <- getVerificationCode (U.userId owner) Public.DeleteTeam
+  -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
+  threadDelay $ (5 * 1000 * 1000) + 600 * 1000
   delete
     ( g
         . paths ["teams", toByteString' tid]
@@ -1110,13 +1127,15 @@ testDeleteTeamVerificationCodeExpiredCode = do
 testDeleteTeamVerificationCodeWrongCode :: TestM ()
 testDeleteTeamVerificationCodeWrongCode = do
   g <- view tsGalley
-  (owner, tid) <- Util.createBindingTeam
+  (owner, tid) <- Util.createBindingTeam'
   setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  let Just email = U.userEmail owner
+  generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
   let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
   delete
     ( g
         . paths ["teams", toByteString' tid]
-        . zUser owner
+        . zUser (U.userId owner)
         . zConn "conn"
         . json (newTeamDeleteDataWithCode (Just Util.defPassword) (Just wrongCode))
     )
