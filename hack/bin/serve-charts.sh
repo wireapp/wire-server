@@ -14,4 +14,4 @@ for chart in $@; do
   helm package "$chart"
 done
 helm repo index .
-python -m http.server $HELM_SERVER_PORT
+python3 -m http.server $HELM_SERVER_PORT
