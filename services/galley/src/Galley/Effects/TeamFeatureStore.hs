@@ -20,6 +20,7 @@ module Galley.Effects.TeamFeatureStore
     getFeatureStatusNoConfig,
     getFeatureStatusNoConfigAndLockStatus,
     setFeatureStatusNoConfig,
+    getFeatureStatusNoConfigMulti,
     getApplockFeatureStatus,
     setApplockFeatureStatus,
     getSelfDeletingMessagesStatus,
@@ -47,6 +48,14 @@ data TeamFeatureStore m a where
     TeamId ->
     TeamFeatureStore m (Maybe (TeamFeatureStatus 'WithoutLockStatus a))
   -- the proxy argument makes sure that makeSem below generates type-inference-friendly code
+  GetFeatureStatusNoConfigMulti ::
+    forall (a :: TeamFeatureName) m.
+    ( FeatureHasNoConfig 'WithoutLockStatus a,
+      HasStatusCol a
+    ) =>
+    Proxy a ->
+    [TeamId] ->
+    TeamFeatureStore m [(TeamId, TeamFeatureStatusValue)]
   GetFeatureStatusNoConfigAndLockStatus' ::
     forall (a :: TeamFeatureName) m.
     (FeatureHasNoConfig 'WithoutLockStatus a, HasStatusCol a, HasLockStatusCol a) =>

@@ -62,6 +62,7 @@ library
       Wire.API.Routes.Internal.Brig.Connection
       Wire.API.Routes.Internal.Brig.EJPD
       Wire.API.Routes.Internal.Cargohold
+      Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
       Wire.API.Routes.Internal.LegalHold
       Wire.API.Routes.MultiTablePaging
       Wire.API.Routes.MultiTablePaging.State

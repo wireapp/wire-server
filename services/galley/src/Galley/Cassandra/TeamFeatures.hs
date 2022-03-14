@@ -66,6 +66,21 @@ getFeatureStatusNoConfig _ tid = do
     select :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatusValue))
     select = fromString $ "select " <> statusCol @a <> " from team_features where team_id = ?"
 
+getFeatureStatusNoConfigMulti ::
+  forall (a :: TeamFeatureName) m.
+  ( MonadClient m,
+    FeatureHasNoConfig 'WithoutLockStatus a,
+    HasStatusCol a
+  ) =>
+  Proxy a ->
+  [TeamId] ->
+  m [(TeamId, TeamFeatureStatusValue)]
+getFeatureStatusNoConfigMulti _ tids = do
+  retry x1 (query select (params LocalQuorum (Identity tids)))
+  where
+    select :: PrepQuery R (Identity [TeamId]) (TeamId, TeamFeatureStatusValue)
+    select = fromString $ "select team_id, " <> statusCol @a <> " from team_features where team_id in ?"
+
 setFeatureStatusNoConfig ::
   forall (a :: TeamFeatureName) m.
   ( MonadClient m,
@@ -209,6 +224,7 @@ interpretTeamFeatureStoreToCassandra ::
   Sem r a
 interpretTeamFeatureStoreToCassandra = interpret $ \case
   GetFeatureStatusNoConfig' tfn tid -> embedClient $ getFeatureStatusNoConfig tfn tid
+  GetFeatureStatusNoConfigMulti tfn tids -> embedClient $ getFeatureStatusNoConfigMulti tfn tids
   GetFeatureStatusNoConfigAndLockStatus' tfn tid -> embedClient $ getFeatureStatusNoConfigAndLockStatus tfn tid
   SetFeatureStatusNoConfig' tfn tid value -> embedClient $ setFeatureStatusNoConfig tfn tid value
   SetLockStatus' p tid value -> embedClient $ setLockStatus p tid value

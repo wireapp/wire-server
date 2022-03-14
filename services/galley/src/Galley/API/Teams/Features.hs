@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.Teams.Features
   ( getFeatureStatus,
@@ -44,7 +45,8 @@ module Galley.API.Teams.Features
     getSndFactorPasswordChallengeInternal,
     setSndFactorPasswordChallengeInternal,
     getTeamSearchVisibilityInboundInternal,
-    setTeamSearchVisibilityAvailableInboundInternal,
+    setTeamSearchVisibilityInboundInternal,
+    getTeamSearchVisibilityInboundInternalMulti,
     getGuestLinkInternal,
     setGuestLinkInternal,
     setLockStatus,
@@ -60,6 +62,7 @@ import qualified Data.Aeson.KeyMap as KeyMap
 import Data.ByteString.Conversion hiding (fromList)
 import Data.Either.Extra (eitherToMaybe)
 import Data.Id
+import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
 import Data.String.Conversions (cs)
 import Data.Time.Clock
@@ -92,6 +95,8 @@ import Wire.API.ErrorDescription
 import Wire.API.Event.FeatureConfig
 import qualified Wire.API.Event.FeatureConfig as Event
 import Wire.API.Federation.Error
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamFeatureNoConfigMultiRequest (..), TeamFeatureNoConfigMultiResponse (..))
+import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as TeamFeatureNoConfigMulti
 import Wire.API.Team.Feature (AllFeatureConfigs (..), FeatureHasNoConfig, KnownTeamFeatureName, TeamFeatureName)
 import qualified Wire.API.Team.Feature as Public
 
@@ -768,18 +773,61 @@ getTeamSearchVisibilityInboundInternal =
     (const $ getFeatureStatusWithDefaultConfig @'Public.TeamFeatureSearchVisibilityInbound flagTeamFeatureSearchVisibilityInbound Nothing)
     (getFeatureStatusWithDefaultConfig @'Public.TeamFeatureSearchVisibilityInbound flagTeamFeatureSearchVisibilityInbound . Just)
 
-setTeamSearchVisibilityAvailableInboundInternal ::
+setTeamSearchVisibilityInboundInternal ::
   Members '[GundeckAccess, TeamStore, TeamFeatureStore, P.TinyLog] r =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibilityInbound ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibilityInbound)
-setTeamSearchVisibilityAvailableInboundInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibilityInbound $ \case
+setTeamSearchVisibilityInboundInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibilityInbound $ \case
   Public.TeamFeatureDisabled -> \_tid ->
     -- TODO: update whole team in ES with Update By Query API
     pure ()
   Public.TeamFeatureEnabled -> \_tid ->
     -- TODO: update whole team in ES with Update By Query API
     pure ()
+
+getFeatureStatusMulti ::
+  forall f r.
+  ( KnownTeamFeatureName f,
+    Public.FeatureHasNoConfig 'Public.WithoutLockStatus f,
+    HasStatusCol f,
+    Members
+      '[ TeamStore,
+         TeamFeatureStore,
+         Input Opts
+       ]
+      r
+  ) =>
+  Lens' FeatureFlags (Defaults (Public.TeamFeatureStatus 'Public.WithoutLockStatus f)) ->
+  (TeamId -> TeamFeatureNoConfigMultiRequest -> (Sem r) TeamFeatureNoConfigMultiResponse)
+getFeatureStatusMulti lens' _tid (TeamFeatureNoConfigMulti.teams -> teams) = do
+  implicitStatus <- getDef
+  let explicitStatus = otherValue implicitStatus
+  pairs <- TeamFeatures.getFeatureStatusNoConfigMulti (Proxy @f) teams
+  let explicitStatusTeams = [tid | (tid, s) <- pairs, s == explicitStatus]
+  pure $ TeamFeatureNoConfigMultiResponse {..}
+  where
+    getDef :: Sem r Public.TeamFeatureStatusValue
+    getDef =
+      inputs (view (optSettings . setFeatureFlags . lens'))
+        <&> Public.tfwoStatus . view unDefaults
+
+    otherValue :: Public.TeamFeatureStatusValue -> Public.TeamFeatureStatusValue
+    otherValue Public.TeamFeatureEnabled = Public.TeamFeatureDisabled
+    otherValue Public.TeamFeatureDisabled = Public.TeamFeatureEnabled
+
+getTeamSearchVisibilityInboundInternalMulti ::
+  Members
+    '[ TeamStore,
+       TeamFeatureStore,
+       Input Opts
+     ]
+    r =>
+  TeamId ->
+  TeamFeatureNoConfigMultiRequest ->
+  (Sem r) TeamFeatureNoConfigMultiResponse
+getTeamSearchVisibilityInboundInternalMulti =
+  getFeatureStatusMulti @'Public.TeamFeatureSearchVisibilityInbound flagTeamFeatureSearchVisibilityInbound
 
 -- TODO(fisx): move this function to a more suitable place / module.
 guardLockStatus ::

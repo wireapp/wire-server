@@ -95,6 +95,7 @@ import Wire.API.ErrorDescription
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamFeatureNoConfigMultiRequest, TeamFeatureNoConfigMultiResponse)
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
 import Wire.API.Routes.Named
@@ -119,6 +120,7 @@ type IFeatureAPI =
     :<|> IFeatureStatusWithLock 'TeamFeatureGuestLinks
     :<|> IFeatureStatusWithLock 'TeamFeatureSndFactorPasswordChallenge
     :<|> IFeatureStatus 'TeamFeatureSearchVisibilityInbound
+    :<|> IFeatureNoConfigMultiGet 'TeamFeatureSearchVisibilityInbound
 
 type InternalAPI =
   "i"
@@ -189,6 +191,11 @@ type IFeatureStatusWithLock f =
     :<|> IFeatureStatusPut f
     :<|> IFeatureStatusLockStatusPut f
 
+type IFeatureNoConfigMultiGet f =
+  Named
+    '("igetmulti", f)
+    (FeatureNoConfigMultiGetBase f)
+
 internalAPI :: ServerT InternalAPI (Sem GalleyEffects)
 internalAPI =
   Named @"status" (pure ())
@@ -214,7 +221,8 @@ featureAPI =
     :<|> featureStatusWithLock getSelfDeletingMessagesInternal setSelfDeletingMessagesInternal
     :<|> featureStatusWithLock getGuestLinkInternal setGuestLinkInternal
     :<|> featureStatusWithLock getSndFactorPasswordChallengeInternal setSndFactorPasswordChallengeInternal
-    :<|> featureStatus getTeamSearchVisibilityInboundInternal setTeamSearchVisibilityAvailableInboundInternal
+    :<|> featureStatus getTeamSearchVisibilityInboundInternal setTeamSearchVisibilityInboundInternal
+    :<|> featureMultiGet getTeamSearchVisibilityInboundInternalMulti
 
 featureStatusGet ::
   forall (l :: IncludeLockStatus) f r.
@@ -310,6 +318,19 @@ featureStatusWithLock getter setter =
   featureStatusGet @'WithLockStatus getter
     :<|> featureStatusPut setter
     :<|> Named @'("lock", f) (setLockStatus @f)
+
+featureMultiGet ::
+  forall f r.
+  ( KnownTeamFeatureName f,
+    Members
+      '[ TeamStore,
+         TeamFeatureStore
+       ]
+      r
+  ) =>
+  (TeamId -> TeamFeatureNoConfigMultiRequest -> (Sem r) TeamFeatureNoConfigMultiResponse) ->
+  ServerT (IFeatureNoConfigMultiGet f) (Sem r)
+featureMultiGet = Named @'("igetmulti", f)
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()
 internalSitemap = do
