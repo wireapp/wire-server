@@ -646,3 +646,11 @@ whatSparReturnsFor :: HasCallStack => IdP -> Int -> Scim.User.User SparTag -> Ei
 whatSparReturnsFor idp richInfoSizeLimit =
   either (Left . show) (Right . synthesizeScimUser)
     . validateScimUser' "whatSparReturnsFor" (Just idp) richInfoSizeLimit
+
+-- this is not always correct, but hopefully for the tests that we're using it in it'll do.
+scimifyBrigUserHack :: User -> Email -> User
+scimifyBrigUserHack usr email =
+  usr
+    { userManagedBy = ManagedByScim,
+      userIdentity = Just (SSOIdentity (UserScimExternalId (fromEmail email)) (Just email) Nothing)
+    }

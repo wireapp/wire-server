@@ -1161,7 +1161,7 @@ testFindNonProvisionedUserNoIdP findBy = do
     liftIO $ users `shouldBe` [uid]
     Just brigUser' <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid
     liftIO $ userManagedBy brigUser' `shouldBe` ManagedByScim
-    liftIO $ brigUser' `shouldBe` brigUser {userManagedBy = ManagedByScim}
+    liftIO $ brigUser' `shouldBe` scimifyBrigUserHack brigUser email
 
 -- | Test that deleted users are not listed.
 testListNoDeletedUsers :: TestSpar ()
