@@ -158,6 +158,13 @@ type InternalAPI =
                       :> ReqBody '[Servant.JSON] UpsertOne2OneConversationRequest
                       :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
                   )
+           :<|> Named
+                  "feature-config-snd-factor-password-challenge"
+                  ( Summary "Get the server wide feature config for the 2nd factor password challenge feature."
+                      :> "feature-configs"
+                      :> KnownTeamFeatureNameSymbol 'TeamFeatureSndFactorPasswordChallenge
+                      :> Get '[Servant.JSON] TeamFeatureStatusNoConfig
+                  )
            :<|> IFeatureAPI
        )
 
@@ -194,6 +201,7 @@ internalAPI =
     :<|> Named @"delete-user" rmUser
     :<|> Named @"connect" Create.createConnectConversation
     :<|> Named @"upsert-one2one" iUpsertOne2OneConversation
+    :<|> Named @"feature-config-snd-factor-password-challenge" (TeamFeatureStatusNoConfig . tfwoapsStatus <$> getSndFactorPasswordChallengeInternal (Left Nothing))
     :<|> featureAPI
 
 featureAPI :: ServerT IFeatureAPI (Sem GalleyEffects)

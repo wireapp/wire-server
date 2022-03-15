@@ -58,6 +58,7 @@ module Brig.IO.Intra
     changeTeamStatus,
     getTeamSearchVisibility,
     getVerificationCodeEnabled,
+    getTeamFeatureStatusSndFactorPasswordChallenge,
 
     -- * Legalhold
     guardLegalhold,
@@ -122,7 +123,7 @@ import System.Logger.Class as Log hiding (name, (.=))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Message (UserClients)
-import Wire.API.Team.Feature
+import Wire.API.Team.Feature hiding (AllFeatureConfigs)
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 import qualified Wire.API.Team.Member as Member
 
@@ -1005,6 +1006,22 @@ getVerificationCodeEnabled tid = do
     req =
       paths ["i", "teams", toByteString' tid, "features", toByteString' TeamFeatureSndFactorPasswordChallenge]
         . expect2xx
+
+data AllFeatureConfigs = AllFeatureConfigs
+  { afcSndFactorPasswordChallenge :: TeamFeatureStatusNoConfig
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance FromJSON AllFeatureConfigs where
+  parseJSON = withObject "AllFeatureConfigs" $ \o ->
+    AllFeatureConfigs <$> o .: "sndFactorPasswordChallenge"
+
+getTeamFeatureStatusSndFactorPasswordChallenge :: Maybe UserId -> (AppIO r) TeamFeatureStatusNoConfig
+getTeamFeatureStatusSndFactorPasswordChallenge = \case
+  Just u ->
+    afcSndFactorPasswordChallenge . responseJsonUnsafe <$> galleyRequest GET (paths ["feature-configs"] . zUser u)
+  Nothing -> do
+    responseJsonUnsafe <$> galleyRequest GET (paths ["feature-configs", toByteString' (knownTeamFeatureName @'TeamFeatureSndFactorPasswordChallenge)])
 
 -- | Calls 'Galley.API.updateTeamStatusH'.
 changeTeamStatus :: TeamId -> Team.TeamStatus -> Maybe Currency.Alpha -> (AppIO r) ()

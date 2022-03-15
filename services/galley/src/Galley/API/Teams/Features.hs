@@ -48,6 +48,7 @@ module Galley.API.Teams.Features
     setLockStatus,
     DoAuth (..),
     GetFeatureInternalParam,
+    continueOnSndFactorPasswordChallengeDisabledOrAccessDenied,
   )
 where
 
@@ -729,6 +730,24 @@ getSndFactorPasswordChallengeInternal = \case
   where
     getCfgDefault :: Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureSndFactorPasswordChallenge)
     getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSndFactorPasswordChallengeStatus . unDefaults)
+
+continueOnSndFactorPasswordChallengeDisabledOrAccessDenied ::
+  forall r a.
+  ( Member (Input Opts) r,
+    Member TeamFeatureStore r,
+    Member (Error NotATeamMember) r,
+    Member (Error ActionError) r,
+    Member (Error TeamError) r,
+    Member TeamStore r
+  ) =>
+  UserId ->
+  Sem r a ->
+  Sem r a
+continueOnSndFactorPasswordChallengeDisabledOrAccessDenied uid action = do
+  featureConfig <- getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge getSndFactorPasswordChallengeInternal uid
+  case Public.tfwoapsStatus featureConfig of
+    Public.TeamFeatureDisabled -> action
+    Public.TeamFeatureEnabled -> throw AccessDenied
 
 setSndFactorPasswordChallengeInternal ::
   forall r.

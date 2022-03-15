@@ -24,32 +24,40 @@ where
 
 import Data.Aeson (encode)
 import Data.ByteString.Conversion (fromByteString, fromList)
-import Data.Id (UserId)
+import Data.Id
 import qualified Data.Predicate as P
+import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Data.Swagger.Build.Api hiding (Response, def, min)
 import qualified Data.Swagger.Build.Api as Swagger
 import Data.Text.Encoding (decodeLatin1)
 import qualified Galley.API.CustomBackend as CustomBackend
+import Galley.API.Error as Galley
 import qualified Galley.API.Error as Error
 import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
 import qualified Galley.API.Teams as Teams
 import qualified Galley.API.Teams.Features as Features
 import Galley.App
+import Galley.Effects
+import qualified Galley.Effects as E
+import Galley.Options
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate
+import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import qualified Network.Wai.Predicate as P
 import Network.Wai.Predicate.Request (HasQuery)
 import Network.Wai.Routing hiding (route)
-import Network.Wai.Utilities
+import Network.Wai.Utilities hiding (Error)
 import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.ZAuth hiding (ZAuthUser)
 import Polysemy
+import Polysemy.Error
+import Polysemy.Input
 import qualified Wire.API.CustomBackend as Public
+import Wire.API.ErrorDescription
 import qualified Wire.API.ErrorDescription as Error
 import qualified Wire.API.Event.Team as Public ()
 import qualified Wire.API.Message as Public
@@ -349,11 +357,28 @@ sitemap = do
 
   -- Bot API ------------------------------------------------------------
 
-  get "/bot/conversation" (continue Query.getBotConversationH) $
+  get "/bot/conversation" (continue getBotConversationH) $
     zauth ZAuthBot
       .&> zauthBotId
       .&. zauthConvId
       .&. accept "application" "json"
+
+getBotConversationH ::
+  forall r.
+  ( Member E.ConversationStore r,
+    Member (Error Error.ConversationError) r,
+    Member (Input (Local ())) r,
+    Member (Input Opts) r,
+    Member TeamFeatureStore r,
+    Member (Error NotATeamMember) r,
+    Member (Error ActionError) r,
+    Member (Error TeamError) r,
+    Member TeamStore r
+  ) =>
+  BotId ::: ConvId ::: JSON ->
+  Sem r Response
+getBotConversationH arg@(zbot ::: _ ::: _) =
+  Features.continueOnSndFactorPasswordChallengeDisabledOrAccessDenied (botUserId zbot) (Query.getBotConversationH arg)
 
 apiDocs :: Routes ApiBuilder (Sem r) ()
 apiDocs =
