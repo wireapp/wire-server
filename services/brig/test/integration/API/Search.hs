@@ -30,6 +30,7 @@ import API.Search.Util
 import API.Team.Util
 import API.User.Util
 import Bilge
+import Bilge.Assert
 import qualified Brig.Options as Opt
 import qualified Brig.Options as Opts
 import Brig.Types
@@ -38,6 +39,7 @@ import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Retry
 import Data.Aeson (FromJSON, Value, decode)
 import qualified Data.Aeson as Aeson
+import Data.ByteString.Conversion
 import Data.Domain (Domain (Domain))
 import Data.Handle (fromHandle)
 import Data.Id
@@ -87,27 +89,35 @@ tests opts mgr galley brig = do
         testWithBothIndices opts mgr "Non ascii names" $ testSearchNonAsciiNames brig,
         test mgr "migration to new index" $ testMigrationToNewIndex mgr opts brig,
         testGroup "team-search-visibility disabled OR SearchVisibilityStandard" $
-          [ testWithBothIndices opts mgr "team member cannot be found by non-team user with display name" $ testSearchTeamMemberAsNonMemberDisplayName brig,
-            testWithBothIndices opts mgr "team member can be found by non-team user with exact handle" $ testSearchTeamMemeberAsNonMemberExactHandle brig,
-            testWithBothIndices opts mgr "team A member cannot be found by team B member with display name" $ testSearchTeamMemberAsOtherMemberDisplayName brig,
-            testWithBothIndices opts mgr "team A member can be found by team B member with exact handle" $ testSearchTeamMemberAsOtherMemberExactHandle brig,
-            testWithBothIndices opts mgr "team A member can be found by other team A member" $ testSearchTeamMemberAsSameMember brig,
-            testWithBothIndices opts mgr "non team user can be found by a team member" $ testSeachNonMemberAsTeamMember brig,
-            testGroup "order" $
-              [ test mgr "team-mates are listed before team-outsiders (exact match)" $ testSearchOrderingAsTeamMemberExactMatch brig,
-                test mgr "team-mates are listed before team-outsiders (prefix match)" $ testSearchOrderingAsTeamMemberPrefixMatch brig,
-                test mgr "team-mates are listed before team-outsiders (worse name match)" $ testSearchOrderingAsTeamMemberWorseNameMatch brig,
-                test mgr "team-mates are listed after team-outsiders (worse handle match)" $ testSearchOrderingAsTeamMemberWorseHandleMatch brig
+          [ testGroup "when SearchVisibilityInbound == SearchableByOwnTeam" $
+              [ testWithBothIndices opts mgr "team member cannot be found by non-team user with display name" $ testSearchTeamMemberAsNonMemberDisplayName brig galley SearchableByOwnTeam,
+                testWithBothIndices opts mgr "team member can be found by non-team user with exact handle" $ testSearchTeamMemeberAsNonMemberExactHandle brig,
+                testWithBothIndices opts mgr "team A member cannot be found by team B member with display name" $ testSearchTeamMemberAsOtherMemberDisplayName brig,
+                testWithBothIndices opts mgr "team A member can be found by team B member with exact handle" $ testSearchTeamMemberAsOtherMemberExactHandle brig,
+                testWithBothIndices opts mgr "team A member can be found by other team A member" $ testSearchTeamMemberAsSameMember brig,
+                testWithBothIndices opts mgr "non team user can be found by a team member" $ testSeachNonMemberAsTeamMember brig,
+                testGroup "order" $
+                  [ test mgr "team-mates are listed before team-outsiders (exact match)" $ testSearchOrderingAsTeamMemberExactMatch brig,
+                    test mgr "team-mates are listed before team-outsiders (prefix match)" $ testSearchOrderingAsTeamMemberPrefixMatch brig,
+                    test mgr "team-mates are listed before team-outsiders (worse name match)" $ testSearchOrderingAsTeamMemberWorseNameMatch brig,
+                    test mgr "team-mates are listed after team-outsiders (worse handle match)" $ testSearchOrderingAsTeamMemberWorseHandleMatch brig
+                  ]
+              ],
+            testGroup "when SearchVisibilityInbound == SearchableByAllTeams" $
+              [ test mgr "team member cannot be found by non-team user with display name" $ testSearchTeamMemberAsNonMemberDisplayName brig galley SearchableByAllTeams
               ]
           ],
-        testGroup "searchSameTeamOnly" $
+        testGroup "searchSameTeamOnly AND SearchVisibilityInbound == SearchableByOwnTeam" $
           [ testWithBothIndicesAndOpts opts mgr "when searchSameTeamOnly flag is set, non team user cannot be found by a team member" $ testSearchSameTeamOnly brig
           ],
         testGroup "team-search-visibility SearchVisibilityNoNameOutsideTeam" $
-          [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMemberOutboundOnly brig testSetupOutboundOnly,
-            test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMemberOutboundOnly brig testSetupOutboundOnly,
-            test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMemberOutboundOnly brig testSetupOutboundOnly,
-            test mgr "non team user cannot be found by a team member A" $ testSeachNonMemberAsTeamMemberOutboundOnly brig testSetupOutboundOnly
+          [ testGroup "When SearchVisibilityInbound == SearchableByOwnTeam" $
+              [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMemberOutboundOnly brig testSetupOutboundOnly,
+                test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMemberOutboundOnly brig testSetupOutboundOnly,
+                test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMemberOutboundOnly brig testSetupOutboundOnly,
+                test mgr "non team user cannot be found by a team member A" $ testSeachNonMemberAsTeamMemberOutboundOnly brig testSetupOutboundOnly
+              ],
+            testGroup "When SearchVisibilityInbound == SearchableByAllTeams" $ []
           ],
         testGroup "federated" $
           [ test mgr "search passing own domain" $ testSearchWithDomain brig,
@@ -306,10 +316,22 @@ testOrderHandle brig = do
       expectedOrder
       resultUIds
 
-testSearchTeamMemberAsNonMemberDisplayName :: TestConstraints m => Brig -> m ()
-testSearchTeamMemberAsNonMemberDisplayName brig = do
+-- TODO: move this in some util module
+setSearchVisibilityInbound :: (HasCallStack, MonadIO m, MonadHttp m, MonadCatch m) => Galley -> TeamId -> SearchVisibilityInbound -> m ()
+setSearchVisibilityInbound galley tid inboundVisibility =
+  put
+    ( galley
+        . paths ["i", "teams", toByteString' tid, "features", "searchVisibilityInbound"]
+        . json inboundVisibility -- TODO: This doesn't work, make this a status
+    )
+    !!! do
+      const 200 === statusCode
+
+testSearchTeamMemberAsNonMemberDisplayName :: TestConstraints m => Brig -> Galley -> SearchVisibilityInbound -> m ()
+testSearchTeamMemberAsNonMemberDisplayName brig galley inboundVisibility = do
   nonTeamMember <- randomUser brig
-  (_, _, [teamMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (tid, _, [teamMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  setSearchVisibilityInbound galley tid inboundVisibility
   refreshIndex brig
   assertCan'tFind brig (userId nonTeamMember) (userQualifiedId teamMember) (fromName (userDisplayName teamMember))
 
