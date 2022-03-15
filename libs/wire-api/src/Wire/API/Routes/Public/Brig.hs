@@ -37,6 +37,7 @@ import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Connection
 import Wire.API.ErrorDescription
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Proposal
 import Wire.API.MLS.Servant
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
@@ -729,7 +730,16 @@ type MLSKeyPackageAPI =
                 )
        )
 
-type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)
+type MLSHandshakeAPI =
+  "handshakes"
+    :> Named
+         "submit"
+         ( Summary "Submit handshake messages"
+             :> ReqBody '[MLS] [Proposal]
+             :> MultiVerb 'POST [MLS] '[Respond 400 "Invalid proposal" (), RespondEmpty 200 "Handshake messages processed"] ()
+         )
+
+type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI :<|> MLSHandshakeAPI)
 
 type BrigAPI =
   UserAPI
