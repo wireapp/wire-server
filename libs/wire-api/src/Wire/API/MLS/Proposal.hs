@@ -26,6 +26,66 @@ import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 
+data PreSharedKeyTag = ExternalKeyTag | ResumptionKeyTag
+  deriving (Bounded, Enum, Eq, Show)
+
+instance ParseMLS PreSharedKeyTag where
+  parseMLS = parseMLSEnum @Word16 "PreSharedKeyID type"
+
+data Resumption = Resumption
+  { resUsage :: Word8,
+    resGroupId :: GroupId,
+    resEpoch :: Word64
+  }
+  deriving stock (Eq, Show)
+
+instance ParseMLS Resumption where
+  parseMLS =
+    Resumption
+      <$> parseMLS
+      <*> parseMLS
+      <*> parseMLS
+
+data PreSharedKeyID = ExternalKeyID ByteString | ResumptionKeyID Resumption
+  deriving stock (Eq, Show)
+
+instance ParseMLS PreSharedKeyID where
+  parseMLS = do
+    t <- parseMLS
+    case t of
+      ExternalKeyTag -> ExternalKeyID <$> parseMLSBytes @Word8
+      ResumptionKeyTag -> ResumptionKeyID <$> parseMLS
+
+data ReInit = ReInit
+  { riGroupId :: GroupId,
+    riProtocolVersion :: ProtocolVersion,
+    riCipherSuite :: CipherSuite,
+    riExtensions :: [Extension]
+  }
+  deriving stock (Eq, Show)
+
+instance ParseMLS ReInit where
+  parseMLS =
+    ReInit
+      <$> parseMLS
+        <*> parseMLS
+        <*> parseMLS
+        <*> parseMLSVector @Word32 parseMLS
+
+data MessageRange = MessageRange
+  { mrSender :: KeyPackageRef,
+    mrFirstGeneration :: Word32,
+    mrLastGenereation :: Word32
+  }
+  deriving stock (Eq, Show)
+
+instance ParseMLS MessageRange where
+  parseMLS =
+    MessageRange
+      <$> parseMLS
+      <*> parseMLS
+      <*> parseMLS
+
 data ProposalTag
   = AddProposalTag
   | UpdateProposalTag
@@ -64,66 +124,6 @@ instance ParseMLS Proposal where
       AppAckProposalTag -> AppAckProposal <$> parseMLSVector @Word32 parseMLS
       GroupContextExtensionsProposalTag ->
         GroupContextExtensionsProposal <$> parseMLSVector @Word32 parseMLS
-
-data PreSharedKeyTag = ExternalKeyTag | ResumptionKeyTag
-  deriving (Bounded, Enum, Eq, Show)
-
-instance ParseMLS PreSharedKeyTag where
-  parseMLS = parseMLSEnum @Word16 "PreSharedKeyID type"
-
-data PreSharedKeyID = ExternalKeyID ByteString | ResumptionKeyID Resumption
-  deriving stock (Eq, Show)
-
-instance ParseMLS PreSharedKeyID where
-  parseMLS = do
-    t <- parseMLS
-    case t of
-      ExternalKeyTag -> ExternalKeyID <$> parseMLSBytes @Word8
-      ResumptionKeyTag -> ResumptionKeyID <$> parseMLS
-
-data Resumption = Resumption
-  { resUsage :: Word8,
-    resGroupId :: GroupId,
-    resEpoch :: Word64
-  }
-  deriving stock (Eq, Show)
-
-instance ParseMLS Resumption where
-  parseMLS =
-    Resumption
-      <$> parseMLS
-      <*> parseMLS
-      <*> parseMLS
-
-data ReInit = ReInit
-  { riGroupId :: GroupId,
-    riProtocolVersion :: ProtocolVersion,
-    riCipherSuite :: CipherSuite,
-    riExtensions :: [Extension]
-  }
-  deriving stock (Eq, Show)
-
-instance ParseMLS ReInit where
-  parseMLS =
-    ReInit
-      <$> parseMLS
-        <*> parseMLS
-        <*> parseMLS
-        <*> parseMLSVector @Word32 parseMLS
-
-data MessageRange = MessageRange
-  { mrSender :: KeyPackageRef,
-    mrFirstGeneration :: Word32,
-    mrLastGenereation :: Word32
-  }
-  deriving stock (Eq, Show)
-
-instance ParseMLS MessageRange where
-  parseMLS =
-    MessageRange
-      <$> parseMLS
-      <*> parseMLS
-      <*> parseMLS
 
 data ProposalOrRefTag = InlineTag | RefTag
   deriving stock (Bounded, Enum, Eq, Show)
