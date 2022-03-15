@@ -17,7 +17,7 @@
 
 module API.Teams.Feature (tests) where
 
-import API.Util (HasGalley, withSettingsOverrides)
+import API.Util (HasGalley, getFeatureStatusMulti, withSettingsOverrides)
 import qualified API.Util as Util
 import qualified API.Util.TeamFeature as Util
 import Bilge
@@ -51,6 +51,7 @@ import TestHelpers (test)
 import TestSetup
 import Wire.API.Event.FeatureConfig (EventData (..))
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Internal
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 
@@ -74,7 +75,8 @@ tests s =
       test s "ConversationGuestLinks - internal API" testGuestLinksInternal,
       test s "ConversationGuestLinks - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureGuestLinks Public.TeamFeatureEnabled Public.Unlocked,
       test s "SndFactorPasswordChallenge - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge Public.TeamFeatureDisabled Public.Locked,
-      test s "SearchVisibilityInbound - internal API" testSearchVisibilityInbound
+      test s "SearchVisibilityInbound - internal API" testSearchVisibilityInbound,
+      test s "SearchVisibilityInbound - internal multi team API" testFeatureNoConfigMultiSearchVisbilityInbound
     ]
 
 testSSO :: TestM ()
@@ -738,6 +740,31 @@ testSearchVisibilityInbound = do
   getFlagInternal defaultValue
   setFlagInternal otherValue
   getFlagInternal otherValue
+
+testFeatureNoConfigMultiSearchVisbilityInbound :: TestM ()
+testFeatureNoConfigMultiSearchVisbilityInbound = do
+  owner1 <- Util.randomUser
+  team1 <- Util.createNonBindingTeam "team1" owner1 []
+
+  owner2 <- Util.randomUser
+  team2 <- Util.createNonBindingTeam "team2" owner2 []
+
+  let setFlagInternal :: TeamId -> Public.TeamFeatureStatusValue -> TestM ()
+      setFlagInternal tid statusValue =
+        void $ Util.putTeamFeatureFlagInternal @'TeamFeatureSearchVisibilityInbound expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+
+  setFlagInternal team2 Public.TeamFeatureEnabled
+
+  r <-
+    getFeatureStatusMulti TeamFeatureSearchVisibilityInbound (Internal.TeamFeatureNoConfigMultiRequest [team1, team2])
+      <!! statusCode === const 200
+
+  multiResponse :: Internal.TeamFeatureNoConfigMultiResponse <- responseJsonError r
+
+  liftIO $ do
+    Internal.implicitStatus multiResponse @?= Public.TeamFeatureDisabled
+    Internal.explicitStatus multiResponse @?= Public.TeamFeatureEnabled
+    Internal.explicitStatusTeams multiResponse @?= [team2]
 
 assertFlagForbidden :: HasCallStack => TestM ResponseLBS -> TestM ()
 assertFlagForbidden res = do

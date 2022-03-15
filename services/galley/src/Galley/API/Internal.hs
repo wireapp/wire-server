@@ -191,6 +191,14 @@ type IFeatureStatusWithLock f =
     :<|> IFeatureStatusPut f
     :<|> IFeatureStatusLockStatusPut f
 
+type FeatureNoConfigMultiGetBase featureName =
+  Summary
+    (AppendSymbol "Get team feature status in bulk for feature " (KnownTeamFeatureNameSymbol featureName))
+    :> "features-multi-teams"
+    :> KnownTeamFeatureNameSymbol featureName
+    :> ReqBody '[Servant.JSON] TeamFeatureNoConfigMultiRequest
+    :> Post '[Servant.JSON] TeamFeatureNoConfigMultiResponse
+
 type IFeatureNoConfigMultiGet f =
   Named
     '("igetmulti", f)
@@ -328,7 +336,7 @@ featureMultiGet ::
        ]
       r
   ) =>
-  (TeamId -> TeamFeatureNoConfigMultiRequest -> (Sem r) TeamFeatureNoConfigMultiResponse) ->
+  (TeamFeatureNoConfigMultiRequest -> (Sem r) TeamFeatureNoConfigMultiResponse) ->
   ServerT (IFeatureNoConfigMultiGet f) (Sem r)
 featureMultiGet = Named @'("igetmulti", f)
 

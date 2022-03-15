@@ -40,7 +40,6 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Servant
 import Wire.API.MLS.Welcome
 import Wire.API.Message
-import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamFeatureNoConfigMultiRequest, TeamFeatureNoConfigMultiResponse)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -1064,15 +1063,6 @@ type MLSMessagingAPI =
     )
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSMessagingAPI)
-
-type FeatureNoConfigMultiGetBase featureName =
-  Summary
-    (AppendSymbol "Get team feature status in bulk for feature " (KnownTeamFeatureNameSymbol featureName))
-    :> Capture "tid" TeamId
-    :> "features"
-    :> KnownTeamFeatureNameSymbol featureName
-    :> ReqBody '[Servant.JSON] TeamFeatureNoConfigMultiRequest
-    :> Post '[Servant.JSON] TeamFeatureNoConfigMultiResponse
 
 -- This is a work-around for the fact that we sometimes want to send larger lists of user ids
 -- in the filter query than fits the url length limit.  For details, see

@@ -799,8 +799,8 @@ getFeatureStatusMulti ::
       r
   ) =>
   Lens' FeatureFlags (Defaults (Public.TeamFeatureStatus 'Public.WithoutLockStatus f)) ->
-  (TeamId -> TeamFeatureNoConfigMultiRequest -> (Sem r) TeamFeatureNoConfigMultiResponse)
-getFeatureStatusMulti lens' _tid (TeamFeatureNoConfigMulti.teams -> teams) = do
+  (TeamFeatureNoConfigMultiRequest -> (Sem r) TeamFeatureNoConfigMultiResponse)
+getFeatureStatusMulti lens' (TeamFeatureNoConfigMulti.teams -> teams) = do
   implicitStatus <- getDef
   let explicitStatus = otherValue implicitStatus
   pairs <- TeamFeatures.getFeatureStatusNoConfigMulti (Proxy @f) teams
@@ -823,7 +823,6 @@ getTeamSearchVisibilityInboundInternalMulti ::
        Input Opts
      ]
     r =>
-  TeamId ->
   TeamFeatureNoConfigMultiRequest ->
   (Sem r) TeamFeatureNoConfigMultiResponse
 getTeamSearchVisibilityInboundInternalMulti =
