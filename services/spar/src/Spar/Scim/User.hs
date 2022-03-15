@@ -505,7 +505,7 @@ createValidScimUserSpar ::
 createValidScimUserSpar stiTeam uid storedUser veid = lift $ do
   ScimUserTimesStore.write storedUser
   ST.runValidExternalId
-    ((`SAMLUserStore.insert` uid))
+    (`SAMLUserStore.insert` uid)
     (\email -> ScimExternalIdStore.insert stiTeam email uid)
     veid
 
@@ -555,11 +555,11 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newValidScimUser =
           newScimStoredUser :: Scim.StoredUser ST.SparTag <-
             updScimStoredUser (synthesizeScimUser newValidScimUser) oldScimStoredUser
 
-          case ( oldValidScimUser ^. ST.vsuExternalId,
-                 newValidScimUser ^. ST.vsuExternalId
-               ) of
-            (old, new) | old /= new -> updateVsuUref stiTeam uid old new
-            _ -> pure ()
+          do
+            let old = oldValidScimUser ^. ST.vsuExternalId
+                new = newValidScimUser ^. ST.vsuExternalId
+            when (old /= new) $ do
+              updateVsuUref stiTeam uid old new
 
           when (newValidScimUser ^. ST.vsuName /= oldValidScimUser ^. ST.vsuName) $ do
             BrigAccess.setName uid (newValidScimUser ^. ST.vsuName)
