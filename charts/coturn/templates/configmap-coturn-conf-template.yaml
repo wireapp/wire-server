@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "coturn.fullname" . }}
+  labels:
+    {{- include "coturn.selectorLabels" . | nindent 4 }}
+
+data:
+  coturn.conf.template: |
+    ## disable (d)tls control plane; don't permit relaying tcp connections.
+    no-tls
+    no-dtls
+    no-tcp-relay
+
+    ## don't turn on coturn's cli.
+    no-cli
+
+    ## authentication setup
+    zrest
+    static-auth-secret=__COTURN_SECRET__
+
+    ## turn, stun.
+    listening-ip=__COTURN_HOST__
+    listening-port={{ .Values.coturnListenPort }}
+    max-allocate-lifetime=3600
+    relay-ip=__COTURN_HOST__
+    realm=dummy.io
+    no-stun-backward-compatibility
+    secure-stun
+    no-rfc5780
+
+    ## logs
+    log-file=stdout
+    verbose
+
+    ## access control settings.
+    # note that this does not include rfc1918 ipv4 or ipv6 ula address
+    # space. these ranges may be valid client ip addresses in some private
+    # network environments. however, the other ranges listed here are intended
+    # for special use and should not be used.
+    no-multicast-peers
+    denied-peer-ip=0.0.0.0-0.255.255.255
+    denied-peer-ip=100.64.0.0-100.127.255.255
+    denied-peer-ip=127.0.0.0-127.255.255.255
+    denied-peer-ip=169.254.0.0-169.254.255.255
+    denied-peer-ip=192.0.0.0-192.0.0.255
+    denied-peer-ip=192.0.2.0-192.0.2.255
+    denied-peer-ip=192.88.99.0-192.88.99.255
+    denied-peer-ip=198.18.0.0-198.19.255.255
+    denied-peer-ip=198.51.100.0-198.51.100.255
+    denied-peer-ip=203.0.113.0-203.0.113.255
+    denied-peer-ip=240.0.0.0-255.255.255.255
+    denied-peer-ip=::1
+    denied-peer-ip=64:ff9b::-64:ff9b::ffff:ffff
+    denied-peer-ip=::ffff:0.0.0.0-::ffff:255.255.255.255
+    denied-peer-ip=100::-100::ffff:ffff:ffff:ffff
+    denied-peer-ip=2001::-2001:1ff:ffff:ffff:ffff:ffff:ffff:ffff
+    denied-peer-ip=2002::-2002:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+    # fc00::/7 is reserved for ipv6 ula, but fc00::/8 is not assigned at present.
+    denied-peer-ip=fc00::-fcff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+    denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+
+    # FUTUREWORK: expose customisable access control settings.
