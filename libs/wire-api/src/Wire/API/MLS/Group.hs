@@ -17,11 +17,19 @@
 
 module Wire.API.MLS.Group where
 
+import Data.Schema
+import qualified Data.Swagger as S
 import Imports
 import Wire.API.MLS.Serialisation
 
 newtype GroupId = GroupId {unGroupId :: ByteString}
   deriving (Eq, Show)
+  deriving (S.ToSchema) via Schema GroupId
+
+-- TODO(md): This instance is defined in PR #2150 that is yet to be merged as of
+-- March 15, 2022.
+instance ToSchema GroupId where
+  schema = undefined
 
 instance IsString GroupId where
   fromString = GroupId . fromString

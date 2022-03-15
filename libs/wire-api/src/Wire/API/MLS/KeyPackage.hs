@@ -152,6 +152,10 @@ kpRef cs =
 newtype ProtocolVersion = ProtocolVersion {pvNumber :: Word8}
   deriving newtype (Eq, Ord, Show, Binary, Arbitrary)
   deriving (ParseMLS) via (BinaryMLS ProtocolVersion)
+  deriving (S.ToSchema) via Schema ProtocolVersion
+
+instance ToSchema ProtocolVersion where
+  schema = ProtocolVersion <$> pvNumber .= schema
 
 data ProtocolVersionTag = ProtocolMLS10 | ProtocolMLSDraft11
   deriving stock (Bounded, Enum, Eq, Show, Generic)
@@ -172,6 +176,13 @@ data Extension = Extension
 
 instance ParseMLS Extension where
   parseMLS = Extension <$> parseMLS <*> parseMLSBytes @Word32
+
+instance ToSchema Extension where
+  schema =
+    object "Extension" $
+      Extension
+        <$> extType .= field "type" schema
+        <*> extData .= field "data" base64Schema
 
 data ExtensionTag
   = CapabilitiesExtensionTag
@@ -251,6 +262,17 @@ data KeyPackageTBS = KeyPackageTBS
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform KeyPackageTBS
+  deriving (S.ToSchema) via Schema KeyPackageTBS
+
+instance ToSchema KeyPackageTBS where
+  schema =
+    object "KeyPackageTBS" $
+      KeyPackageTBS
+        <$> kpProtocolVersion .= field "protocol-version" schema
+        <*> kpCipherSuite .= field "cipher-suite" schema
+        <*> kpInitKey .= field "init-key" base64Schema
+        <*> kpCredential .= field "credential" schema
+        <*> kpExtensions .= field "extensions" (array schema)
 
 instance ParseMLS KeyPackageTBS where
   parseMLS =
@@ -266,6 +288,14 @@ data KeyPackage = KeyPackage
     kpSignature :: ByteString
   }
   deriving stock (Eq, Show)
+  deriving (S.ToSchema) via Schema KeyPackage
+
+instance ToSchema KeyPackage where
+  schema =
+    object "KeyPackage" $
+      KeyPackage
+        <$> kpTBS .= field "key-package-tbs" schema
+        <*> kpSignature .= field "signature" base64Schema
 
 instance ParseMLS KeyPackage where
   parseMLS = fst <$> kpSigOffset

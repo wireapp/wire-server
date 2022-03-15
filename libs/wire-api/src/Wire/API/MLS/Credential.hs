@@ -17,7 +17,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.MLS.Credential where
+module Wire.API.MLS.Credential
+  ( Credential (..),
+    credentialTag,
+    signatureScheme,
+    signatureSchemeName,
+    signatureSchemeFromName,
+    SignatureSchemeTag (..),
+    signatureSchemeTag,
+    ClientIdentity (..),
+    mkClientIdentity,
+  )
+where
 
 import Data.Aeson (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
 import qualified Data.Aeson as Aeson
@@ -28,6 +39,7 @@ import Data.Binary.Parser
 import Data.Binary.Parser.Char8
 import Data.Domain
 import Data.Id
+import Data.Json.Util
 import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
@@ -47,6 +59,15 @@ data Credential = BasicCredential
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform Credential
+  deriving (S.ToSchema) via Schema Credential
+
+instance ToSchema Credential where
+  schema =
+    object "Credential" $
+      BasicCredential
+        <$> bcIdentity .= field "identity" base64Schema
+        <*> bcSignatureScheme .= field "signature-scheme" schema
+        <*> bcSignatureKey .= field "signature-key" base64Schema
 
 data CredentialTag = BasicCredentialTag
   deriving stock (Enum, Bounded, Eq, Show)
@@ -64,7 +85,7 @@ instance ParseMLS Credential where
           <*> parseMLSBytes @Word16
 
 credentialTag :: Credential -> CredentialTag
-credentialTag (BasicCredential _ _ _) = BasicCredentialTag
+credentialTag BasicCredential {} = BasicCredentialTag
 
 -- | A TLS signature scheme.
 --
@@ -72,6 +93,10 @@ credentialTag (BasicCredential _ _ _) = BasicCredentialTag
 newtype SignatureScheme = SignatureScheme {unSignatureScheme :: Word16}
   deriving stock (Eq, Show)
   deriving newtype (ParseMLS, Arbitrary)
+  deriving (S.ToSchema) via Schema SignatureScheme
+
+instance ToSchema SignatureScheme where
+  schema = SignatureScheme <$> unSignatureScheme .= schema
 
 signatureScheme :: SignatureSchemeTag -> SignatureScheme
 signatureScheme = SignatureScheme . signatureSchemeNumber
