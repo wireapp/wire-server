@@ -138,7 +138,7 @@ import qualified Bilge
 import Bilge.Assert (Assertions, (!!!), (<!!), (===))
 import qualified Brig.Types.Activation as Brig
 import Brig.Types.Common (UserIdentity (..), UserSSOId (..))
-import Brig.Types.User (User (..), selfUser, userIdentity)
+import Brig.Types.User (Email, User (..), selfUser, userIdentity)
 import qualified Brig.Types.User as Brig
 import qualified Brig.Types.User.Auth as Brig
 import Cassandra as Cas
@@ -393,9 +393,9 @@ inviteAndRegisterUser ::
   BrigReq ->
   UserId ->
   TeamId ->
+  Email ->
   m User
-inviteAndRegisterUser brig u tid = do
-  inviteeEmail <- randomEmail
+inviteAndRegisterUser brig u tid inviteeEmail = do
   let invite = stdInvitationRequest inviteeEmail
   inv <- responseJsonError =<< postInvitation tid u invite
   Just inviteeCode <- getInvitationCode tid (TeamInvitation.inInvitation inv)

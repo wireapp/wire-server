@@ -74,6 +74,7 @@ import Util.Invitation (getInvitation, getInvitationCode, headInvitation404, reg
 import qualified Web.Scim.Class.User as Scim.UserC
 import qualified Web.Scim.Filter as Filter
 import qualified Web.Scim.Schema.Common as Scim
+import qualified Web.Scim.Schema.ListResponse as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
@@ -210,7 +211,8 @@ specImportToScimFromInvitation =
     invite :: HasCallStack => UserId -> TeamId -> TestSpar (UserId, Email)
     invite owner teamid = do
       env <- ask
-      memberInvited <- call (inviteAndRegisterUser (env ^. teBrig) owner teamid)
+      email <- randomEmail
+      memberInvited <- call (inviteAndRegisterUser (env ^. teBrig) owner teamid email)
       let memberIdInvited = userId memberInvited
           emailInvited = maybe (error "must have email") id (userEmail memberInvited)
       pure (memberIdInvited, emailInvited)
@@ -229,12 +231,13 @@ specImportToScimFromInvitation =
       Maybe (SAML.IdPConfig User.WireIdP) ->
       TeamId ->
       UserId ->
+      Email ->
       TestSpar (Scim.UserC.StoredUser SparTag)
-    reProvisionWithScim changeHandle mbidp teamid userid = do
+    reProvisionWithScim changeHandle mbidp teamid userid email = do
       tok :: ScimToken <- do
         registerScimToken teamid ((^. SAML.idpId) <$> mbidp)
 
-      storedUserGot <- getStoredUser tok userid
+      storedUserGot <- findUserByEmail tok email
       when changeHandle $ do
         (usr' :: Scim.User.User SparTag, uid :: UserId) <- do
           (usr_, _) <- randomScimUserWithEmail
@@ -310,9 +313,18 @@ specImportToScimFromInvitation =
       (ownerid, teamid) <- createTeam
       (userid, email) <- invite ownerid teamid
       (idp, privcreds) <- addSamlIdP ownerid
-      storedusr <- reProvisionWithScim changeHandle (Just idp) teamid userid
+      storedusr <- reProvisionWithScim changeHandle (Just idp) teamid userid email
       signInWithSaml (idp, privcreds) email userid
       checkCsvDownload ownerid teamid idp storedusr
+
+findUserByEmail :: ScimToken -> Email -> TestSpar (Scim.UserC.StoredUser SparTag)
+findUserByEmail tok email = do
+  let fltr = filterBy "externalid" (fromEmail email)
+  resp <- listUsers_ (Just tok) (Just fltr) =<< view teSpar
+  let users :: Scim.ListResponse (Scim.UserC.StoredUser SparTag) = responseJsonUnsafe resp
+  case Scim.resources users of
+    [fstUser] -> pure fstUser
+    _ -> error "expected exactly one user"
 
 assertSparCassandraUref :: HasCallStack => (SAML.UserRef, Maybe UserId) -> TestSpar ()
 assertSparCassandraUref (uref, urefAnswer) = do
@@ -1106,7 +1118,8 @@ testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSO = do
   env <- ask
   (tok, (owner, teamid, _idp)) <- registerIdPAndScimToken
 
-  memberInvited <- call (inviteAndRegisterUser (env ^. teBrig) owner teamid)
+  email <- randomEmail
+  memberInvited <- call (inviteAndRegisterUser (env ^. teBrig) owner teamid email)
   let emailInvited = maybe (error "must have email") fromEmail (userEmail memberInvited)
       memberIdInvited = userId memberInvited
 
@@ -1120,7 +1133,8 @@ testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSOViaUserId = do
   env <- ask
   (tok, (owner, teamid, _idp)) <- registerIdPAndScimToken
 
-  memberInvited <- call (inviteAndRegisterUser (env ^. teBrig) owner teamid)
+  email <- randomEmail
+  memberInvited <- call (inviteAndRegisterUser (env ^. teBrig) owner teamid email)
   let memberIdInvited = userId memberInvited
 
   _ <- getUser tok memberIdInvited
@@ -1141,11 +1155,11 @@ testFindNonProvisionedUserNoIdP findBy = do
   (owner, teamid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   tok <- registerScimToken teamid Nothing
 
-  uid <- userId <$> call (inviteAndRegisterUser (env ^. teBrig) owner teamid)
+  email <- randomEmail
+  uid <- userId <$> call (inviteAndRegisterUser (env ^. teBrig) owner teamid email)
   handle <- nextHandle
   runSpar $ BrigAccess.setHandle uid handle
   Just brigUser <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid
-  let Just email = userEmail brigUser
 
   do
     -- inspect brig user
@@ -1267,7 +1281,8 @@ testGetNonScimInviteUser = do
   env <- ask
   (tok, (owner, tid, _)) <- registerIdPAndScimToken
 
-  uidNoSso <- userId <$> call (inviteAndRegisterUser (env ^. teBrig) owner tid)
+  email <- randomEmail
+  uidNoSso <- userId <$> call (inviteAndRegisterUser (env ^. teBrig) owner tid email)
 
   shouldBeManagedBy uidNoSso ManagedByWire
   getUser_ (Just tok) uidNoSso (env ^. teSpar) !!! const 200 === statusCode
@@ -1284,11 +1299,12 @@ testGetNonScimInviteUserNoIdP = do
   (owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
   tok <- registerScimToken tid Nothing
 
-  uidNoSso <- userId <$> call (inviteAndRegisterUser (env ^. teBrig) owner tid)
+  email <- randomEmail
+  user <- call (inviteAndRegisterUser (env ^. teBrig) owner tid email)
 
-  shouldBeManagedBy uidNoSso ManagedByWire
-  getUser_ (Just tok) uidNoSso (env ^. teSpar) !!! const 200 === statusCode
-  shouldBeManagedBy uidNoSso ManagedByScim
+  shouldBeManagedBy (userId user) ManagedByWire
+  void $ findUserByEmail tok email
+  shouldBeManagedBy (userId user) ManagedByScim
 
 testGetUserWithNoHandle :: TestSpar ()
 testGetUserWithNoHandle = do
@@ -1893,7 +1909,8 @@ specDeleteUser = do
         (owner, tid) <- call $ createUserWithTeam brig galley
         tok <- registerScimToken tid Nothing
 
-        uid <- userId <$> call (inviteAndRegisterUser brig owner tid)
+        email <- randomEmail
+        uid <- userId <$> call (inviteAndRegisterUser brig owner tid email)
 
         aFewTimes (getUser_ (Just tok) uid spar) ((== 200) . statusCode)
           !!! const 200 === statusCode
