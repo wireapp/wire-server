@@ -141,6 +141,7 @@ instance
           . logTokenInfo tokeninfo
           . logFilter filter'
       )
+      logScimUserIds
       $ do
         mIdpConfig <- maybe (pure Nothing) (lift . IdPConfigStore.getConfig) stiIdP
         case filter' of
@@ -164,6 +165,7 @@ instance
           . logUser uid
           . logTokenInfo tokeninfo
       )
+      logScimUserId
       $ do
         mIdpConfig <- maybe (pure Nothing) (lift . IdPConfigStore.getConfig) stiIdP
         let notfound = Scim.notFound "User" (idToText uid)
@@ -344,8 +346,14 @@ mkValidExternalId (Just idp) (Just extid) = do
               Scim.InvalidValue
               (Just $ "Can't construct a subject ID from externalId: " <> Text.pack err)
 
-logScim :: forall r a. (Member (Logger (Msg -> Msg)) r) => (Msg -> Msg) -> Scim.ScimHandler (Sem r) a -> Scim.ScimHandler (Sem r) a
-logScim context action =
+logScim ::
+  forall r a.
+  (Member (Logger (Msg -> Msg)) r) =>
+  (Msg -> Msg) ->
+  (a -> (Msg -> Msg)) ->
+  Scim.ScimHandler (Sem r) a ->
+  Scim.ScimHandler (Sem r) a
+logScim context postcontext action =
   flip mapExceptT action $ \action' -> do
     eith <- action'
     case eith of
@@ -357,7 +365,7 @@ logScim context action =
         Logger.warn $ context . Log.msg errorMsg
         pure (Left e)
       Right x -> do
-        Logger.info $ context . Log.msg @Text "call without exception"
+        Logger.info $ context . postcontext x . Log.msg @Text "call without exception"
         pure (Right x)
 
 logEmail :: Email -> (Msg -> Msg)
@@ -371,6 +379,12 @@ logVSU (ST.ValidScimUser veid handl _name _richInfo _active) =
 
 logTokenInfo :: ScimTokenInfo -> (Msg -> Msg)
 logTokenInfo ScimTokenInfo {stiTeam} = logTeam stiTeam
+
+logScimUserId :: Scim.StoredUser ST.SparTag -> (Msg -> Msg)
+logScimUserId = logUser . Scim.id . Scim.thing
+
+logScimUserIds :: Scim.ListResponse (Scim.StoredUser ST.SparTag) -> (Msg -> Msg)
+logScimUserIds lresp = foldl' (.) id (logScimUserId <$> Scim.resources lresp)
 
 veidEmail :: ST.ValidExternalId -> Maybe Email
 veidEmail (ST.EmailAndUref email _) = Just email
@@ -420,6 +434,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
         . logVSU vsu
         . logTokenInfo tokeninfo
     )
+    logScimUserId
     $ do
       -- ensure uniqueness constraints of all affected identifiers.
       -- {if we crash now, retry POST will just work}
@@ -538,6 +553,7 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newValidScimUser =
         . logUser uid
         . logTokenInfo tokinfo
     )
+    logScimUserId
     $ do
       oldScimStoredUser :: Scim.StoredUser ST.SparTag <-
         Scim.getUser tokinfo uid
@@ -676,6 +692,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
         . logTokenInfo tokeninfo
         . logUser uid
     )
+    (const id)
     $ do
       mbBrigUser <- lift (Brig.getBrigUser Brig.WithPendingInvitations uid)
       case mbBrigUser of
@@ -811,6 +828,7 @@ synthesizeStoredUser usr veid =
         . maybe id logTeam (userTeam . accountUser $ usr)
         . maybe id logEmail (veidEmail veid)
     )
+    logScimUserId
     $ do
       let uid = userId (accountUser usr)
           accStatus = accountStatus usr
