@@ -2,9 +2,9 @@
 
 ${brand_label_url} [${brand_url}]
 
-VERIFY CREATE SCIM TOKEN
-${email} was used to create a SCIM token. Enter this code to verify your email
-and create a SCIM token.
+VERIFY SCIM TOKEN CREATION
+${email} was used to generate a SCIM token. Enter this code to verify your email
+and create the token.
 
 ${code}
 
