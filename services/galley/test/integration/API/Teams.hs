@@ -1081,7 +1081,7 @@ testDeleteTeamVerificationCodeSuccess = do
     !!! do
       const 202 === statusCode
   tryAssertQueue 10 "team delete, should be there" tDelete
-  ensureQueueEmpty
+  assertQueueEmpty
 
 testDeleteTeamVerificationCodeMissingCode :: TestM ()
 testDeleteTeamVerificationCodeMissingCode = do
@@ -1100,7 +1100,7 @@ testDeleteTeamVerificationCodeMissingCode = do
     !!! do
       const 403 === statusCode
       const "code-authentication-required" === (Error.label . responseJsonUnsafeWithMsg "error label")
-  ensureQueueEmpty
+  assertQueueEmpty
 
 testDeleteTeamVerificationCodeExpiredCode :: TestM ()
 testDeleteTeamVerificationCodeExpiredCode = do
@@ -1122,7 +1122,7 @@ testDeleteTeamVerificationCodeExpiredCode = do
     !!! do
       const 403 === statusCode
       const "code-authentication-failed" === (Error.label . responseJsonUnsafeWithMsg "error label")
-  ensureQueueEmpty
+  assertQueueEmpty
 
 testDeleteTeamVerificationCodeWrongCode :: TestM ()
 testDeleteTeamVerificationCodeWrongCode = do
@@ -1142,7 +1142,7 @@ testDeleteTeamVerificationCodeWrongCode = do
     !!! do
       const 403 === statusCode
       const "code-authentication-failed" === (Error.label . responseJsonUnsafeWithMsg "error label")
-  ensureQueueEmpty
+  assertQueueEmpty
 
 generateVerificationCode :: Public.SendVerificationCode -> TestM ()
 generateVerificationCode req = do
