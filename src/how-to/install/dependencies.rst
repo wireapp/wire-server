@@ -3,12 +3,6 @@
 Dependencies on operator's machine
 --------------------------------------------------------------------
 
-.. warning::
-
-    If you already installed Wire by using ``poetry``, please refer to the
-    `old version </versions/install-with-poetry/how-to/index.html>`__ of
-    the installation guide.
-
 In order to operate a wire-server installation, you'll need a bunch of software
 like Ansible, ``kubectl`` and Helm. We provide a way to get all the needed
 dependencies for setting up and interacting with a wire-server cluster.
