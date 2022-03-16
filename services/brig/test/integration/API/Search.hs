@@ -91,10 +91,10 @@ tests opts mgr galley brig = do
         testGroup "team-search-visibility disabled OR SearchVisibilityStandard" $
           [ testGroup "when SearchVisibilityInbound == SearchableByOwnTeam" $
               [ testWithBothIndices opts mgr "team member cannot be found by non-team user with display name" $ testSearchTeamMemberAsNonMemberDisplayName mgr brig galley TeamFeatureDisabled,
-                testWithBothIndices opts mgr "team member can be found by non-team user with exact handle" $ testSearchTeamMemeberAsNonMemberExactHandle brig,
-                testWithBothIndices opts mgr "team A member cannot be found by team B member with display name" $ testSearchTeamMemberAsOtherMemberDisplayName brig,
-                testWithBothIndices opts mgr "team A member can be found by team B member with exact handle" $ testSearchTeamMemberAsOtherMemberExactHandle brig,
-                testWithBothIndices opts mgr "team A member can be found by other team A member" $ testSearchTeamMemberAsSameMember brig,
+                testWithBothIndices opts mgr "team member can be found by non-team user with exact handle" $ testSearchTeamMemeberAsNonMemberExactHandle mgr brig galley TeamFeatureDisabled,
+                testWithBothIndices opts mgr "team A member cannot be found by team B member with display name" $ testSearchTeamMemberAsOtherMemberDisplayName mgr brig galley TeamFeatureDisabled,
+                testWithBothIndices opts mgr "team A member can be found by team B member with exact handle" $ testSearchTeamMemberAsOtherMemberExactHandle mgr brig galley TeamFeatureDisabled,
+                testWithBothIndices opts mgr "team A member can be found by other team A member" $ testSearchTeamMemberAsSameMember mgr brig galley TeamFeatureDisabled,
                 testWithBothIndices opts mgr "non team user can be found by a team member" $ testSeachNonMemberAsTeamMember brig,
                 testGroup "order" $
                   [ test mgr "team-mates are listed before team-outsiders (exact match)" $ testSearchOrderingAsTeamMemberExactMatch brig,
@@ -104,7 +104,11 @@ tests opts mgr galley brig = do
                   ]
               ],
             testGroup "when SearchVisibilityInbound == SearchableByAllTeams" $
-              [ test mgr "team member cannot be found by non-team user with display name" $ testSearchTeamMemberAsNonMemberDisplayName mgr brig galley TeamFeatureEnabled
+              [ test mgr "team member cannot be found by non-team user with display name" $ testSearchTeamMemberAsNonMemberDisplayName mgr brig galley TeamFeatureEnabled,
+                test mgr "team member can be found by non-team user with exact handle" $ testSearchTeamMemeberAsNonMemberExactHandle mgr brig galley TeamFeatureEnabled,
+                test mgr "team A member can be found by team B member with display name" $ testSearchTeamMemberAsOtherMemberDisplayName mgr brig galley TeamFeatureEnabled,
+                test mgr "team A member can be found by team B member with exact handle" $ testSearchTeamMemberAsOtherMemberExactHandle mgr brig galley TeamFeatureEnabled,
+                test mgr "team A member can be found by other team A member" $ testSearchTeamMemberAsSameMember mgr brig galley TeamFeatureDisabled
               ]
           ],
         testGroup "searchSameTeamOnly AND SearchVisibilityInbound == SearchableByOwnTeam" $
@@ -117,7 +121,9 @@ tests opts mgr galley brig = do
                 test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMemberOutboundOnly brig testSetupOutboundOnly,
                 test mgr "non team user cannot be found by a team member A" $ testSeachNonMemberAsTeamMemberOutboundOnly brig testSetupOutboundOnly
               ],
-            testGroup "When SearchVisibilityInbound == SearchableByAllTeams" $ []
+            -- TODO:  Figure out if these need to be duplicated
+            testGroup "When SearchVisibilityInbound == SearchableByAllTeams" $
+              []
           ],
         testGroup "federated" $
           [ test mgr "search passing own domain" $ testSearchWithDomain brig,
@@ -324,34 +330,41 @@ testSearchTeamMemberAsNonMemberDisplayName mgr brig galley inboundVisibility = d
   refreshIndex brig
   assertCan'tFind brig (userId nonTeamMember) (userQualifiedId teamMember) (fromName (userDisplayName teamMember))
 
-testSearchTeamMemeberAsNonMemberExactHandle :: TestConstraints m => Brig -> m ()
-testSearchTeamMemeberAsNonMemberExactHandle brig = do
+testSearchTeamMemeberAsNonMemberExactHandle :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
+testSearchTeamMemeberAsNonMemberExactHandle mgr brig galley inboundVisibility = do
   nonTeamMember <- randomUser brig
-  (_, _, [teamMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (tid, _, [teamMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tid inboundVisibility
   refreshIndex brig
   let teamMemberHandle = fromMaybe (error "teamBMember must have a handle") (userHandle teamMember)
   assertCanFind brig (userId nonTeamMember) (userQualifiedId teamMember) (fromHandle teamMemberHandle)
 
-testSearchTeamMemberAsOtherMemberDisplayName :: TestConstraints m => Brig -> m ()
-testSearchTeamMemberAsOtherMemberDisplayName brig = do
-  (_, _, [teamAMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
-  (_, _, [teamBMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+testSearchTeamMemberAsOtherMemberDisplayName :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
+testSearchTeamMemberAsOtherMemberDisplayName mgr brig galley inboundVisibility = do
+  (_, _, [teamASearcher]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (tidB, _, [teamBTarget]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tidB inboundVisibility
   refreshIndex brig
-  assertCan'tFind brig (userId teamAMember) (userQualifiedId teamBMember) (fromName (userDisplayName teamBMember))
+  let assertion = case inboundVisibility of
+        TeamFeatureEnabled -> assertCanFind
+        TeamFeatureDisabled -> assertCan'tFind
+  assertion brig (userId teamASearcher) (userQualifiedId teamBTarget) (fromName (userDisplayName teamBTarget))
 
-testSearchTeamMemberAsOtherMemberExactHandle :: TestConstraints m => Brig -> m ()
-testSearchTeamMemberAsOtherMemberExactHandle brig = do
-  (_, _, [teamAMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
-  (_, _, [teamBMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+testSearchTeamMemberAsOtherMemberExactHandle :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
+testSearchTeamMemberAsOtherMemberExactHandle mgr brig galley inboundVisibility = do
+  (_, _, [teamASearcher]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (tidB, _, [teamBTarget]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tidB inboundVisibility
   refreshIndex brig
-  let teamBMemberHandle = fromMaybe (error "teamBMember must have a handle") (userHandle teamBMember)
-  assertCanFind brig (userId teamAMember) (userQualifiedId teamBMember) (fromHandle teamBMemberHandle)
+  let teamBTargetHandle = fromMaybe (error "teamBTarget must have a handle") (userHandle teamBTarget)
+  assertCanFind brig (userId teamASearcher) (userQualifiedId teamBTarget) (fromHandle teamBTargetHandle)
 
-testSearchTeamMemberAsSameMember :: TestConstraints m => Brig -> m ()
-testSearchTeamMemberAsSameMember brig = do
-  (_, _, [teamAMember, teamAMember']) <- createPopulatedBindingTeam brig 2
+testSearchTeamMemberAsSameMember :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
+testSearchTeamMemberAsSameMember mgr brig galley inboundVisibility = do
+  (tid, _, [teamASearcher, teamATarget]) <- createPopulatedBindingTeam brig 2
+  circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tid inboundVisibility
   refreshIndex brig
-  assertCanFind brig (userId teamAMember) (userQualifiedId teamAMember') (fromName (userDisplayName teamAMember'))
+  assertCanFind brig (userId teamASearcher) (userQualifiedId teamATarget) (fromName (userDisplayName teamATarget))
 
 testSeachNonMemberAsTeamMember :: TestConstraints m => Brig -> m ()
 testSeachNonMemberAsTeamMember brig = do
