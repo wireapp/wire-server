@@ -10,6 +10,11 @@
             "name": "",
             "role": null,
             "saml_idp": "",
+            "scim_external_id": "sim-external@example.com",
+            "sso": {
+                "issuer": "example.com",
+                "nameid": "sim-external@example.com"
+            },
             "team": null
         }
     ],

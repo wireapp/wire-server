@@ -10,6 +10,8 @@
             "name": "",
             "role": "owner",
             "saml_idp": "",
+            "scim_external_id": null,
+            "sso": null,
             "team": "00000000-0000-0000-0000-000000000000"
         },
         {
@@ -22,6 +24,8 @@
             "name": "",
             "role": "owner",
             "saml_idp": "",
+            "scim_external_id": null,
+            "sso": null,
             "team": null
         },
         {
@@ -34,6 +38,8 @@
             "name": "",
             "role": null,
             "saml_idp": "",
+            "scim_external_id": null,
+            "sso": null,
             "team": "00000000-0000-0001-0000-000100000000"
         },
         {
@@ -46,6 +52,8 @@
             "name": "",
             "role": "owner",
             "saml_idp": "",
+            "scim_external_id": null,
+            "sso": null,
             "team": "00000000-0000-0000-0000-000000000000"
         },
         {
@@ -58,6 +66,11 @@
             "name": "",
             "role": null,
             "saml_idp": "",
+            "scim_external_id": null,
+            "sso": {
+                "issuer": "example.com",
+                "nameid": "sim-external@example.com"
+            },
             "team": null
         },
         {
@@ -70,6 +83,8 @@
             "name": "",
             "role": "member",
             "saml_idp": "",
+            "scim_external_id": null,
+            "sso": null,
             "team": "00000001-0000-0001-0000-000100000001"
         },
         {
@@ -82,6 +97,8 @@
             "name": "",
             "role": "admin",
             "saml_idp": null,
+            "scim_external_id": null,
+            "sso": null,
             "team": null
         },
         {
@@ -94,6 +111,11 @@
             "name": "",
             "role": null,
             "saml_idp": "",
+            "scim_external_id": "sim-external@example.com",
+            "sso": {
+                "issuer": "example.com",
+                "nameid": "sim-external@example.com"
+            },
             "team": "00000001-0000-0001-0000-000100000000"
         },
         {
@@ -106,6 +128,8 @@
             "name": "",
             "role": "partner",
             "saml_idp": null,
+            "scim_external_id": null,
+            "sso": null,
             "team": "00000000-0000-0001-0000-000100000001"
         },
         {
@@ -118,6 +142,8 @@
             "name": "",
             "role": "owner",
             "saml_idp": "",
+            "scim_external_id": "sim-external@example.com",
+            "sso": null,
             "team": "00000001-0000-0001-0000-000000000001"
         },
         {
@@ -130,6 +156,8 @@
             "name": "",
             "role": "member",
             "saml_idp": "",
+            "scim_external_id": null,
+            "sso": null,
             "team": "00000001-0000-0000-0000-000000000000"
         },
         {
@@ -142,6 +170,11 @@
             "name": "",
             "role": "partner",
             "saml_idp": "",
+            "scim_external_id": "sim-external@example.com",
+            "sso": {
+                "issuer": "example.com",
+                "nameid": "sim-external@example.com"
+            },
             "team": "00000001-0000-0001-0000-000100000000"
         },
         {
@@ -154,6 +187,8 @@
             "name": "",
             "role": "partner",
             "saml_idp": null,
+            "scim_external_id": "sim-external@example.com",
+            "sso": null,
             "team": null
         }
     ],

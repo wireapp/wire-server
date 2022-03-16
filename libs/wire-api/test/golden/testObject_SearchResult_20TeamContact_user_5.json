@@ -10,6 +10,8 @@
             "name": "",
             "role": "partner",
             "saml_idp": "",
+            "scim_external_id": "sim-external@example.com",
+            "sso": null,
             "team": null
         }
     ],

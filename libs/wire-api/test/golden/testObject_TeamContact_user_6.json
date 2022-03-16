@@ -8,5 +8,7 @@
     "name": "z",
     "role": null,
     "saml_idp": null,
+    "scim_external_id": null,
+    "sso": null,
     "team": null
 }
