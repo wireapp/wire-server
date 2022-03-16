@@ -187,12 +187,7 @@ instance
 
   deleteUser :: ScimTokenInfo -> UserId -> Scim.ScimHandler (Sem r) ()
   deleteUser tokeninfo uid =
-    logScim
-      ( logFunction "Spar.Scim.User.deleteUser"
-          . logUser uid
-          . logTokenInfo tokeninfo
-      )
-      $ deleteScimUser tokeninfo uid
+    deleteScimUser tokeninfo uid
 
 ----------------------------------------------------------------------------
 -- User creation and validation
