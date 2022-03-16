@@ -325,39 +325,47 @@ testOrderHandle brig = do
 testSearchTeamMemberAsNonMemberDisplayName :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
 testSearchTeamMemberAsNonMemberDisplayName mgr brig galley inboundVisibility = do
   nonTeamMember <- randomUser brig
-  (tid, _, [teamMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (tid, _, [teamMember, teamBTargetReindexedAfter]) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
   circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tid inboundVisibility
+  void $ setRandomHandle brig teamBTargetReindexedAfter
   refreshIndex brig
   assertCan'tFind brig (userId nonTeamMember) (userQualifiedId teamMember) (fromName (userDisplayName teamMember))
+  assertCan'tFind brig (userId nonTeamMember) (userQualifiedId teamBTargetReindexedAfter) (fromName (userDisplayName teamBTargetReindexedAfter))
 
 testSearchTeamMemeberAsNonMemberExactHandle :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
 testSearchTeamMemeberAsNonMemberExactHandle mgr brig galley inboundVisibility = do
   nonTeamMember <- randomUser brig
-  (tid, _, [teamMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (tid, _, [teamMember, teamBTargetReindexedAfter]) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
   circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tid inboundVisibility
+  void $ setRandomHandle brig teamBTargetReindexedAfter
   refreshIndex brig
   let teamMemberHandle = fromMaybe (error "teamBMember must have a handle") (userHandle teamMember)
   assertCanFind brig (userId nonTeamMember) (userQualifiedId teamMember) (fromHandle teamMemberHandle)
+  assertCan'tFind brig (userId nonTeamMember) (userQualifiedId teamBTargetReindexedAfter) (fromName (userDisplayName teamBTargetReindexedAfter))
 
 testSearchTeamMemberAsOtherMemberDisplayName :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
 testSearchTeamMemberAsOtherMemberDisplayName mgr brig galley inboundVisibility = do
   (_, _, [teamASearcher]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
-  (tidB, _, [teamBTarget]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (tidB, _, [teamBTarget, teamBTargetReindexedAfter]) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
   circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tidB inboundVisibility
+  void $ setRandomHandle brig teamBTargetReindexedAfter
   refreshIndex brig
   let assertion = case inboundVisibility of
         TeamFeatureEnabled -> assertCanFind
         TeamFeatureDisabled -> assertCan'tFind
   assertion brig (userId teamASearcher) (userQualifiedId teamBTarget) (fromName (userDisplayName teamBTarget))
+  assertion brig (userId teamASearcher) (userQualifiedId teamBTargetReindexedAfter) (fromName (userDisplayName teamBTargetReindexedAfter))
 
 testSearchTeamMemberAsOtherMemberExactHandle :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
 testSearchTeamMemberAsOtherMemberExactHandle mgr brig galley inboundVisibility = do
   (_, _, [teamASearcher]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
-  (tidB, _, [teamBTarget]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (tidB, _, [teamBTarget, teamBTargetReindexedAfter]) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
   circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tidB inboundVisibility
+  teamBTargetReindexedAfter' <- setRandomHandle brig teamBTargetReindexedAfter
   refreshIndex brig
   let teamBTargetHandle = fromMaybe (error "teamBTarget must have a handle") (userHandle teamBTarget)
   assertCanFind brig (userId teamASearcher) (userQualifiedId teamBTarget) (fromHandle teamBTargetHandle)
+  assertCanFind brig (userId teamASearcher) (userQualifiedId teamBTargetReindexedAfter) (fromHandle (fromJust (userHandle teamBTargetReindexedAfter')))
 
 testSearchTeamMemberAsSameMember :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
 testSearchTeamMemberAsSameMember mgr brig galley inboundVisibility = do

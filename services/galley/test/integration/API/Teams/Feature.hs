@@ -76,7 +76,7 @@ tests s =
       test s "ConversationGuestLinks - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureGuestLinks Public.TeamFeatureEnabled Public.Unlocked,
       test s "SndFactorPasswordChallenge - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge Public.TeamFeatureDisabled Public.Locked,
       test s "SearchVisibilityInbound - internal API" testSearchVisibilityInbound,
-      test s "SearchVisibilityInbound - internal multi team API" testFeatureNoConfigMultiSearchVisbilityInbound
+      test s "SearchVisibilityInbound - internal multi team API" testFeatureNoConfigMultiSearchVisibilityInbound
     ]
 
 testSSO :: TestM ()
@@ -741,8 +741,8 @@ testSearchVisibilityInbound = do
   setFlagInternal otherValue
   getFlagInternal otherValue
 
-testFeatureNoConfigMultiSearchVisbilityInbound :: TestM ()
-testFeatureNoConfigMultiSearchVisbilityInbound = do
+testFeatureNoConfigMultiSearchVisibilityInbound :: TestM ()
+testFeatureNoConfigMultiSearchVisibilityInbound = do
   owner1 <- Util.randomUser
   team1 <- Util.createNonBindingTeam "team1" owner1 []
 
