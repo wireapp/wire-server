@@ -68,7 +68,7 @@ import qualified URI.ByteString as URI
 import UnliftIO (Concurrently (..), async, bracket, cancel, runConcurrently)
 import Util
 import Wire.API.Federation.API.Brig (SearchResponse (SearchResponse))
-import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
+import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (TeamFeatureStatusNoConfig), TeamFeatureStatusValue (..))
 import Wire.API.User.Search (FederatedUserSearchPolicy (ExactHandleSearch, FullSearch))
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
@@ -90,7 +90,7 @@ tests opts mgr galley brig = do
         test mgr "migration to new index" $ testMigrationToNewIndex mgr opts brig,
         testGroup "team-search-visibility disabled OR SearchVisibilityStandard" $
           [ testGroup "when SearchVisibilityInbound == SearchableByOwnTeam" $
-              [ testWithBothIndices opts mgr "team member cannot be found by non-team user with display name" $ testSearchTeamMemberAsNonMemberDisplayName brig galley SearchableByOwnTeam,
+              [ testWithBothIndices opts mgr "team member cannot be found by non-team user with display name" $ testSearchTeamMemberAsNonMemberDisplayName mgr brig galley TeamFeatureDisabled,
                 testWithBothIndices opts mgr "team member can be found by non-team user with exact handle" $ testSearchTeamMemeberAsNonMemberExactHandle brig,
                 testWithBothIndices opts mgr "team A member cannot be found by team B member with display name" $ testSearchTeamMemberAsOtherMemberDisplayName brig,
                 testWithBothIndices opts mgr "team A member can be found by team B member with exact handle" $ testSearchTeamMemberAsOtherMemberExactHandle brig,
@@ -104,7 +104,7 @@ tests opts mgr galley brig = do
                   ]
               ],
             testGroup "when SearchVisibilityInbound == SearchableByAllTeams" $
-              [ test mgr "team member cannot be found by non-team user with display name" $ testSearchTeamMemberAsNonMemberDisplayName brig galley SearchableByAllTeams
+              [ test mgr "team member cannot be found by non-team user with display name" $ testSearchTeamMemberAsNonMemberDisplayName mgr brig galley TeamFeatureEnabled
               ]
           ],
         testGroup "searchSameTeamOnly AND SearchVisibilityInbound == SearchableByOwnTeam" $
@@ -316,22 +316,11 @@ testOrderHandle brig = do
       expectedOrder
       resultUIds
 
--- TODO: move this in some util module
-setSearchVisibilityInbound :: (HasCallStack, MonadIO m, MonadHttp m, MonadCatch m) => Galley -> TeamId -> SearchVisibilityInbound -> m ()
-setSearchVisibilityInbound galley tid inboundVisibility =
-  put
-    ( galley
-        . paths ["i", "teams", toByteString' tid, "features", "searchVisibilityInbound"]
-        . json inboundVisibility -- TODO: This doesn't work, make this a status
-    )
-    !!! do
-      const 200 === statusCode
-
-testSearchTeamMemberAsNonMemberDisplayName :: TestConstraints m => Brig -> Galley -> SearchVisibilityInbound -> m ()
-testSearchTeamMemberAsNonMemberDisplayName brig galley inboundVisibility = do
+testSearchTeamMemberAsNonMemberDisplayName :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
+testSearchTeamMemberAsNonMemberDisplayName mgr brig galley inboundVisibility = do
   nonTeamMember <- randomUser brig
   (tid, _, [teamMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
-  setSearchVisibilityInbound galley tid inboundVisibility
+  circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tid inboundVisibility
   refreshIndex brig
   assertCan'tFind brig (userId nonTeamMember) (userQualifiedId teamMember) (fromName (userDisplayName teamMember))
 
