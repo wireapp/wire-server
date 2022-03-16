@@ -12,6 +12,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
 
 # compile core-crypto cli tool
 RUN cd /tmp && \
+  apt-get install -y libssl-dev && \
   git clone -b cli https://github.com/wireapp/core-crypto && \
   cd core-crypto/cli && \
   cargo build --release
