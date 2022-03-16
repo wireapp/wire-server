@@ -125,7 +125,7 @@ import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Internal.Brig.Connection
-import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Internal
+import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team (Icon (..))
 import Wire.API.Team.Feature
@@ -1427,7 +1427,7 @@ registerRemoteConv convId originUser name othMembers = do
         rcReceiptMode = Nothing
       }
 
-getFeatureStatusMulti :: TeamFeatureName -> Internal.TeamFeatureNoConfigMultiRequest -> TestM ResponseLBS
+getFeatureStatusMulti :: TeamFeatureName -> Multi.TeamFeatureNoConfigMultiRequest -> TestM ResponseLBS
 getFeatureStatusMulti feat req = do
   g <- view tsGalley
   post

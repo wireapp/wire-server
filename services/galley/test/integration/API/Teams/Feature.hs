@@ -46,12 +46,12 @@ import Network.Wai.Utilities (label)
 import Test.Hspec (expectationFailure, shouldBe)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
-import Test.Tasty.HUnit (assertFailure, (@?=))
+import Test.Tasty.HUnit (assertBool, assertFailure, (@?=))
 import TestHelpers (test)
 import TestSetup
 import Wire.API.Event.FeatureConfig (EventData (..))
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
-import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Internal
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 
@@ -756,15 +756,21 @@ testFeatureNoConfigMultiSearchVisbilityInbound = do
   setFlagInternal team2 Public.TeamFeatureEnabled
 
   r <-
-    getFeatureStatusMulti TeamFeatureSearchVisibilityInbound (Internal.TeamFeatureNoConfigMultiRequest [team1, team2])
+    getFeatureStatusMulti TeamFeatureSearchVisibilityInbound (Multi.TeamFeatureNoConfigMultiRequest [team1, team2])
       <!! statusCode === const 200
 
-  multiResponse :: Internal.TeamFeatureNoConfigMultiResponse <- responseJsonError r
+  Multi.TeamFeatureNoConfigMultiResponse teamsStatuses <- responseJsonError r
 
   liftIO $ do
-    Internal.implicitStatus multiResponse @?= Public.TeamFeatureDisabled
-    Internal.explicitStatus multiResponse @?= Public.TeamFeatureEnabled
-    Internal.explicitStatusTeams multiResponse @?= [team2]
+    length teamsStatuses @?= 2
+
+    Multi.TeamStatus _ team1Status team1WriteTime <- Util.assertOne (filter ((== team1) . Multi.team) teamsStatuses)
+    team1Status @?= Public.TeamFeatureDisabled
+    assertBool "expected Nothing" (isNothing team1WriteTime)
+
+    Multi.TeamStatus _ team2Status team2WriteTime <- Util.assertOne (filter ((== team2) . Multi.team) teamsStatuses)
+    team2Status @?= Public.TeamFeatureEnabled
+    assertBool "expected Just" (isJust team2WriteTime)
 
 assertFlagForbidden :: HasCallStack => TestM ResponseLBS -> TestM ()
 assertFlagForbidden res = do

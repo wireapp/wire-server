@@ -64,8 +64,10 @@ import Data.Either.Extra (eitherToMaybe)
 import Data.Id
 import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
+import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Data.Time.Clock
+import Data.Tuple.Extra (uncurry3)
 import Galley.API.Error as Galley
 import Galley.API.LegalHold
 import Galley.API.Teams (ensureNotTooLargeToActivateLegalHold)
@@ -95,8 +97,7 @@ import Wire.API.ErrorDescription
 import Wire.API.Event.FeatureConfig
 import qualified Wire.API.Event.FeatureConfig as Event
 import Wire.API.Federation.Error
-import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti (TeamFeatureNoConfigMultiRequest (..), TeamFeatureNoConfigMultiResponse (..))
-import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as TeamFeatureNoConfigMulti
+import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature (AllFeatureConfigs (..), FeatureHasNoConfig, KnownTeamFeatureName, TeamFeatureName)
 import qualified Wire.API.Team.Feature as Public
 
@@ -799,22 +800,18 @@ getFeatureStatusMulti ::
       r
   ) =>
   Lens' FeatureFlags (Defaults (Public.TeamFeatureStatus 'Public.WithoutLockStatus f)) ->
-  (TeamFeatureNoConfigMultiRequest -> (Sem r) TeamFeatureNoConfigMultiResponse)
-getFeatureStatusMulti lens' (TeamFeatureNoConfigMulti.teams -> teams) = do
-  implicitStatus <- getDef
-  let explicitStatus = otherValue implicitStatus
-  pairs <- TeamFeatures.getFeatureStatusNoConfigMulti (Proxy @f) teams
-  let explicitStatusTeams = [tid | (tid, s) <- pairs, s == explicitStatus]
-  pure $ TeamFeatureNoConfigMultiResponse {..}
+  (Multi.TeamFeatureNoConfigMultiRequest -> (Sem r) Multi.TeamFeatureNoConfigMultiResponse)
+getFeatureStatusMulti lens' (Multi.TeamFeatureNoConfigMultiRequest teams) = do
+  tsExplicit <- uncurry3 Multi.TeamStatus <$$> TeamFeatures.getFeatureStatusNoConfigMulti (Proxy @f) teams
+  let teamsDefault = Set.toList (Set.fromList teams `Set.difference` Set.fromList (Multi.team <$> tsExplicit))
+  defaultStatus <- getDef
+  let tsImplicit = [Multi.TeamStatus tid defaultStatus Nothing | tid <- teamsDefault]
+  pure $ Multi.TeamFeatureNoConfigMultiResponse $ tsExplicit <> tsImplicit
   where
     getDef :: Sem r Public.TeamFeatureStatusValue
     getDef =
       inputs (view (optSettings . setFeatureFlags . lens'))
         <&> Public.tfwoStatus . view unDefaults
-
-    otherValue :: Public.TeamFeatureStatusValue -> Public.TeamFeatureStatusValue
-    otherValue Public.TeamFeatureEnabled = Public.TeamFeatureDisabled
-    otherValue Public.TeamFeatureDisabled = Public.TeamFeatureEnabled
 
 getTeamSearchVisibilityInboundInternalMulti ::
   Members
@@ -823,8 +820,8 @@ getTeamSearchVisibilityInboundInternalMulti ::
        Input Opts
      ]
     r =>
-  TeamFeatureNoConfigMultiRequest ->
-  (Sem r) TeamFeatureNoConfigMultiResponse
+  Multi.TeamFeatureNoConfigMultiRequest ->
+  (Sem r) Multi.TeamFeatureNoConfigMultiResponse
 getTeamSearchVisibilityInboundInternalMulti =
   getFeatureStatusMulti @'Public.TeamFeatureSearchVisibilityInbound flagTeamFeatureSearchVisibilityInbound
 

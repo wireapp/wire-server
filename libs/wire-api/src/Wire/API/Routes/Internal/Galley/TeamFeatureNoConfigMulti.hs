@@ -18,6 +18,7 @@
 module Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
   ( TeamFeatureNoConfigMultiRequest (..),
     TeamFeatureNoConfigMultiResponse (..),
+    TeamStatus (..),
   )
 where
 
@@ -39,14 +40,9 @@ instance ToSchema TeamFeatureNoConfigMultiRequest where
       TeamFeatureNoConfigMultiRequest
         <$> teams .= field "teams" (array schema)
 
--- | All teams listed in @explicitStatusTeams@ have status value
--- @explicitStatus@. The remaining teams from the request have status
--- @implicitStatus@. This makes for a compact representation where most of the
--- teams have the same value.
-data TeamFeatureNoConfigMultiResponse = TeamFeatureNoConfigMultiResponse
-  { implicitStatus :: Public.TeamFeatureStatusValue,
-    explicitStatus :: Public.TeamFeatureStatusValue,
-    explicitStatusTeams :: [TeamId]
+-- |
+newtype TeamFeatureNoConfigMultiResponse = TeamFeatureNoConfigMultiResponse
+  { teamsStatuses :: [TeamStatus]
   }
   deriving (Show, Eq)
   deriving (A.ToJSON, A.FromJSON) via (Schema TeamFeatureNoConfigMultiResponse)
@@ -55,6 +51,20 @@ instance ToSchema TeamFeatureNoConfigMultiResponse where
   schema =
     object "TeamFeatureNoConfigMultiResponse" $
       TeamFeatureNoConfigMultiResponse
-        <$> implicitStatus .= field "implicit_status" schema
-        <*> explicitStatus .= field "explicit_status" schema
-        <*> explicitStatusTeams .= field "explicit_status_teams" (array schema)
+        <$> teamsStatuses .= field "default_status" (array schema)
+
+data TeamStatus = TeamStatus
+  { team :: TeamId,
+    status :: Public.TeamFeatureStatusValue,
+    writeTime :: Maybe Int64
+  }
+  deriving (Show, Eq)
+  deriving (A.ToJSON, A.FromJSON) via (Schema TeamStatus)
+
+instance ToSchema TeamStatus where
+  schema =
+    object "TeamStatus" $
+      TeamStatus
+        <$> team .= field "team" schema
+        <*> status .= field "status" schema
+        <*> writeTime .= maybe_ (optField "writetime" schema)
