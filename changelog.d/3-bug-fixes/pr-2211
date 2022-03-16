@@ -1,1 +1,1 @@
-Ensure that only conversation admins can create invite links.
+Ensure that only conversation admins can create invite links.  (Until now we have relied on clients to enforce this.)
