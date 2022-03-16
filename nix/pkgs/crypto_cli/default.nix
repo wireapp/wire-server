@@ -19,7 +19,7 @@ rustPlatform.buildRustPackage rec {
     sha256 = "sha256-RtlSAg9eGfLUmeYxLDHXmQ77E36vGnKyPaijcTj5Y3E=";
   };
   doCheck = false;
-  cargoPatches = [ ./crypto_cli.patch ];
+  cargoPatches = [ ./crypto_cli.patch ./ciphersuite.patch ];
   cargoSha256 = "sha256-knBqluuw64NL5I3CQ8qnabu7jRy0+BL2RYR+ks3xhJI=";
 }
 
