@@ -197,7 +197,7 @@ type FeatureNoConfigMultiGetBase featureName =
     :> "features-multi-teams"
     :> KnownTeamFeatureNameSymbol featureName
     :> ReqBody '[Servant.JSON] TeamFeatureNoConfigMultiRequest
-    :> Post '[Servant.JSON] TeamFeatureNoConfigMultiResponse
+    :> Post '[Servant.JSON] (TeamFeatureNoConfigMultiResponse featureName)
 
 type IFeatureNoConfigMultiGet f =
   Named
@@ -336,7 +336,7 @@ featureMultiGet ::
        ]
       r
   ) =>
-  (TeamFeatureNoConfigMultiRequest -> (Sem r) TeamFeatureNoConfigMultiResponse) ->
+  (TeamFeatureNoConfigMultiRequest -> (Sem r) (TeamFeatureNoConfigMultiResponse f)) ->
   ServerT (IFeatureNoConfigMultiGet f) (Sem r)
 featureMultiGet = Named @'("igetmulti", f)
 

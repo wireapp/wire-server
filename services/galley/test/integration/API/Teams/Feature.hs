@@ -759,7 +759,7 @@ testFeatureNoConfigMultiSearchVisibilityInbound = do
     getFeatureStatusMulti TeamFeatureSearchVisibilityInbound (Multi.TeamFeatureNoConfigMultiRequest [team1, team2])
       <!! statusCode === const 200
 
-  Multi.TeamFeatureNoConfigMultiResponse teamsStatuses <- responseJsonError r
+  Multi.TeamFeatureNoConfigMultiResponse teamsStatuses :: Multi.TeamFeatureNoConfigMultiResponse 'TeamFeatureSearchVisibilityInbound <- responseJsonError r
 
   liftIO $ do
     length teamsStatuses @?= 2

@@ -22,6 +22,7 @@ module Brig.Types.Search
   ( TeamSearchInfo (..),
     SearchVisibilityInbound (..),
     defaultSearchVisibilityInbound,
+    searchVisbilityInboundFromFeatureStatus,
 
     -- * re-exports
     SearchResult (..),
@@ -38,6 +39,7 @@ import Data.Id (TeamId)
 import Data.Text.Encoding
 import Imports
 import Test.QuickCheck
+import Wire.API.Team.Feature (TeamFeatureStatusValue (TeamFeatureDisabled, TeamFeatureEnabled))
 import Wire.API.User.Search
 
 -- | Outbound search restrictions configured by team admin of the searcher. This
@@ -82,6 +84,10 @@ instance FromByteString SearchVisibilityInbound where
 
 defaultSearchVisibilityInbound :: SearchVisibilityInbound
 defaultSearchVisibilityInbound = SearchableByOwnTeam
+
+searchVisbilityInboundFromFeatureStatus :: TeamFeatureStatusValue -> SearchVisibilityInbound
+searchVisbilityInboundFromFeatureStatus TeamFeatureDisabled = SearchableByOwnTeam
+searchVisbilityInboundFromFeatureStatus TeamFeatureEnabled = SearchableByAllTeams
 
 instance ToJSON SearchVisibilityInbound where
   toJSON = String . decodeUtf8 . toStrict . toLazyByteString . builder

@@ -96,6 +96,8 @@ runCommand l = \case
         <*> pure indexName
         <*> pure Nothing
         <*> pure Nothing
+        <*> pure (error "TODO")
+        <*> pure (error "TODO")
     initES esURI =
       ES.mkBHEnv (toESServer esURI)
         <$> newManager defaultManagerSettings

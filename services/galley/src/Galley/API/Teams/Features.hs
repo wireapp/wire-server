@@ -800,7 +800,7 @@ getFeatureStatusMulti ::
       r
   ) =>
   Lens' FeatureFlags (Defaults (Public.TeamFeatureStatus 'Public.WithoutLockStatus f)) ->
-  (Multi.TeamFeatureNoConfigMultiRequest -> (Sem r) Multi.TeamFeatureNoConfigMultiResponse)
+  (Multi.TeamFeatureNoConfigMultiRequest -> (Sem r) (Multi.TeamFeatureNoConfigMultiResponse 'Public.TeamFeatureSearchVisibilityInbound))
 getFeatureStatusMulti lens' (Multi.TeamFeatureNoConfigMultiRequest teams) = do
   tsExplicit <- uncurry3 Multi.TeamStatus <$$> TeamFeatures.getFeatureStatusNoConfigMulti (Proxy @f) teams
   let teamsDefault = Set.toList (Set.fromList teams `Set.difference` Set.fromList (Multi.team <$> tsExplicit))
@@ -821,7 +821,7 @@ getTeamSearchVisibilityInboundInternalMulti ::
      ]
     r =>
   Multi.TeamFeatureNoConfigMultiRequest ->
-  (Sem r) Multi.TeamFeatureNoConfigMultiResponse
+  (Sem r) (Multi.TeamFeatureNoConfigMultiResponse 'Public.TeamFeatureSearchVisibilityInbound)
 getTeamSearchVisibilityInboundInternalMulti =
   getFeatureStatusMulti @'Public.TeamFeatureSearchVisibilityInbound flagTeamFeatureSearchVisibilityInbound
 

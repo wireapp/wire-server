@@ -26,6 +26,7 @@ import qualified Data.Aeson as A
 import Data.Id
 import Data.Schema
 import Imports
+import Wire.API.Team.Feature (TeamFeatureName)
 import qualified Wire.API.Team.Feature as Public
 
 newtype TeamFeatureNoConfigMultiRequest = TeamFeatureNoConfigMultiRequest
@@ -41,27 +42,27 @@ instance ToSchema TeamFeatureNoConfigMultiRequest where
         <$> teams .= field "teams" (array schema)
 
 -- |
-newtype TeamFeatureNoConfigMultiResponse = TeamFeatureNoConfigMultiResponse
-  { teamsStatuses :: [TeamStatus]
+newtype TeamFeatureNoConfigMultiResponse (a :: TeamFeatureName) = TeamFeatureNoConfigMultiResponse
+  { teamsStatuses :: [TeamStatus a]
   }
   deriving (Show, Eq)
-  deriving (A.ToJSON, A.FromJSON) via (Schema TeamFeatureNoConfigMultiResponse)
+  deriving (A.ToJSON, A.FromJSON) via (Schema (TeamFeatureNoConfigMultiResponse a))
 
-instance ToSchema TeamFeatureNoConfigMultiResponse where
+instance ToSchema (TeamFeatureNoConfigMultiResponse a) where
   schema =
     object "TeamFeatureNoConfigMultiResponse" $
       TeamFeatureNoConfigMultiResponse
         <$> teamsStatuses .= field "default_status" (array schema)
 
-data TeamStatus = TeamStatus
+data TeamStatus (a :: TeamFeatureName) = TeamStatus
   { team :: TeamId,
     status :: Public.TeamFeatureStatusValue,
     writeTime :: Maybe Int64
   }
   deriving (Show, Eq)
-  deriving (A.ToJSON, A.FromJSON) via (Schema TeamStatus)
+  deriving (A.ToJSON, A.FromJSON) via (Schema (TeamStatus a))
 
-instance ToSchema TeamStatus where
+instance ToSchema (TeamStatus a) where
   schema =
     object "TeamStatus" $
       TeamStatus
