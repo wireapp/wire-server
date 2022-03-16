@@ -442,7 +442,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
       buid <-
         lift $ do
           buid <-
-            ST.runValidExternalId
+            ST.runValidExternalIdEither
               ( \uref ->
                   do
                     -- FUTUREWORK: outsource this and some other fragments from
@@ -486,7 +486,11 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
       createValidScimUserSpar stiTeam buid storedUser veid
 
       -- If applicable, trigger email validation procedure on brig.
-      lift $ ST.runValidExternalId (validateEmailIfExists buid) (\_ -> pure ()) veid
+      lift $
+        ST.runValidExternalIdEither
+          (validateEmailIfExists buid)
+          (\_ -> pure () {- nothing to do; user is sent an invitation that validates the address implicitly -})
+          veid
 
       -- TODO: suspension via scim is brittle, and may leave active users behind: if we don't
       -- reach the following line due to a crash, the user will be active.
@@ -514,7 +518,11 @@ createValidScimUserSpar ::
   m ()
 createValidScimUserSpar stiTeam uid storedUser veid = lift $ do
   ScimUserTimesStore.write storedUser
-  ST.runValidExternalId
+  -- This uses the "both" variant to always write all applicable index tables, even if
+  -- `spar.scim_external` is never consulted as long as there is an IdP.  This is hoped to
+  -- mitigate logic errors in this code and corner cases.  (eg., if the IdP is later removed?)
+  ST.runValidExternalIdBoth
+    (>>)
     (`SAMLUserStore.insert` uid)
     (\email -> ScimExternalIdStore.insert stiTeam email uid)
     veid
@@ -604,13 +612,13 @@ updateVsuUref ::
   ST.ValidExternalId ->
   Sem r ()
 updateVsuUref team uid old new = do
-  let geturef = ST.runValidExternalId Just (const Nothing)
+  let geturef = ST.runValidExternalIdEither Just (const Nothing)
   case (geturef old, geturef new) of
     (mo, mn@(Just newuref)) | mo /= mn -> validateEmailIfExists uid newuref
     _ -> pure ()
 
-  old & ST.runValidExternalId (SAMLUserStore.delete uid) (ScimExternalIdStore.delete team)
-  new & ST.runValidExternalId (`SAMLUserStore.insert` uid) (\email -> ScimExternalIdStore.insert team email uid)
+  old & ST.runValidExternalIdBoth (>>) (SAMLUserStore.delete uid) (ScimExternalIdStore.delete team)
+  new & ST.runValidExternalIdBoth (>>) (`SAMLUserStore.insert` uid) (\email -> ScimExternalIdStore.insert team email uid)
 
   BrigAccess.setVeid uid new
 
@@ -709,7 +717,8 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
             Left _ -> pure ()
             Right veid ->
               lift $
-                ST.runValidExternalId
+                ST.runValidExternalIdBoth
+                  (>>)
                   (SAMLUserStore.delete uid)
                   (ScimExternalIdStore.delete stiTeam)
                   veid
@@ -771,7 +780,12 @@ assertExternalIdInAllowedValues :: Members '[BrigAccess, ScimExternalIdStore, SA
 assertExternalIdInAllowedValues allowedValues errmsg tid veid = do
   isGood <-
     lift $
-      ST.runValidExternalId
+      ST.runValidExternalIdBoth
+        ( \ma mb -> do
+            a <- ma
+            b <- mb
+            pure (a && b)
+        )
         ( \uref ->
             getUserIdByUref (Just tid) uref <&> \case
               (Spar.App.GetUserFound uid) -> Just uid `elem` allowedValues
@@ -994,7 +1008,7 @@ scimFindUserByEmail mIdpConfig stiTeam email = do
   -- throwing errors returned by 'mkValidExternalId' here, but *not* throw an error if the externalId is
   -- a UUID, or any other text that is valid according to SCIM.
   veid <- MaybeT (either (const Nothing) Just <$> runExceptT (mkValidExternalId mIdpConfig (pure email)))
-  uid <- MaybeT . lift $ ST.runValidExternalId withUref withEmailOnly veid
+  uid <- MaybeT . lift $ ST.runValidExternalIdEither withUref withEmailOnly veid
   brigUser <- MaybeT . lift . BrigAccess.getAccount Brig.WithPendingInvitations $ uid
   getUserById mIdpConfig stiTeam . userId . accountUser $ brigUser
   where

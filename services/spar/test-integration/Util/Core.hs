@@ -211,7 +211,7 @@ import qualified Wire.API.User as User
 import Wire.API.User.Identity (mkSampleUref)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
-import Wire.API.User.Scim (runValidExternalId)
+import Wire.API.User.Scim (runValidExternalIdEither)
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -1218,7 +1218,7 @@ ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => TeamId -> Br
 ssoToUidSpar tid ssoid = do
   veid <- either (error . ("could not parse brig sso_id: " <>)) pure $ Intra.veidFromUserSSOId ssoid
   runSpar $
-    runValidExternalId
+    runValidExternalIdEither
       SAMLUserStore.get
       (ScimExternalIdStore.lookup tid)
       veid

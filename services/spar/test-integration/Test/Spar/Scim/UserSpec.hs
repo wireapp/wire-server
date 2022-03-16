@@ -168,7 +168,7 @@ specImportToScimFromSAML =
 
       liftIO $ scimUserId storedUserGot `shouldBe` uid
       assertSparCassandraUref (uref, Just uid)
-      assertSparCassandraScim ((teamid, email), Nothing) -- we write to spar.user *or* spar.scim_external, not both.
+      assertSparCassandraScim ((teamid, email), Just uid)
       assertBrigCassandra uid uref (Scim.value . Scim.thing $ storedUserGot) (valemail, True) ManagedByScim
 
       (usr' :: Scim.User.User SparTag) <- do
@@ -190,7 +190,7 @@ specImportToScimFromSAML =
 
       liftIO $ scimUserId storedUserUpdated `shouldBe` uid
       assertSparCassandraUref (uref, Just uid)
-      assertSparCassandraScim ((teamid, email), Nothing)
+      assertSparCassandraScim ((teamid, email), Just uid)
       assertBrigCassandra uid uref (Scim.value . Scim.thing $ storedUserUpdated) (valemail, True) ManagedByScim
 
       -- login again
@@ -1108,7 +1108,7 @@ testFindSamlAutoProvisionedUserMigratedWithEmailInTeamWithSSO = do
   where
     veidToText :: MonadError String m => ValidExternalId -> m Text
     veidToText veid =
-      runValidExternalId
+      runValidExternalIdEither
         (\(SAML.UserRef _ subj) -> maybe (throwError "bad uref from brig") (pure . CI.original) $ SAML.shortShowNameID subj)
         (pure . fromEmail)
         veid
@@ -1187,6 +1187,8 @@ testListNoDeletedUsers = do
   let userid = scimUserId storedUser
   -- Delete the user
   _ <- deleteUser tok userid
+  -- Make sure it is deleted in brig before pulling via SCIM (which would recreate it!)
+  Nothing <- aFewTimes (runSpar (Intra.getBrigUser Intra.WithPendingInvitations userid)) isNothing
   -- Get all users
   users <- listUsers tok (Just (filterForStoredUser storedUser))
   -- Check that the user is absent
@@ -1591,7 +1593,7 @@ testUpdateExternalId withidp = do
 
       lookupByValidExternalId :: ValidExternalId -> TestSpar (Maybe UserId)
       lookupByValidExternalId =
-        runValidExternalId
+        runValidExternalIdEither
           (runSpar . SAMLUserStore.get)
           ( \email -> do
               let action = SU.scimFindUserByEmail midp tid $ fromEmail email
@@ -1799,7 +1801,7 @@ specDeleteUser = do
         usr <- runSpar $ Intra.getBrigUser Intra.WithPendingInvitations uid
         let err = error . ("brig user without UserRef: " <>) . show
         case (`Intra.veidFromBrigUser` Nothing) <$> usr of
-          bad@(Just (Right veid)) -> runValidExternalId pure (const $ err bad) veid
+          bad@(Just (Right veid)) -> runValidExternalIdEither pure (const $ err bad) veid
           bad -> err bad
       spar <- view teSpar
       deleteUser_ (Just tok) (Just uid) spar
