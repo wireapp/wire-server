@@ -643,7 +643,7 @@ getCode lusr cnv = do
     E.getConversation cnv >>= note ConvNotFound
   Query.ensureGuestLinksEnabled (convTeam conv)
   ensureAccess conv CodeAccess
-  ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
+  ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
   key <- E.makeKey cnv
   c <- E.getCode key ReusableCode >>= note CodeNotFound
   returnCode c
@@ -1549,3 +1549,7 @@ ensureConvAdmin users uid =
   case find ((== uid) . lmId) users of
     Nothing -> throw ConvNotFound
     Just lm -> unless (lmConvRoleName lm == roleNameWireAdmin) $ throw ConvAccessDenied
+
+ensureConvMember :: Member (Error ConversationError) r => [LocalMember] -> UserId -> Sem r ()
+ensureConvMember users usr =
+  unless (usr `isMember` users) $ throw ConvNotFound
