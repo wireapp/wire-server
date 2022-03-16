@@ -197,10 +197,10 @@ instance ToSchema Base64ByteString where
   schema = fromBase64ByteString .= fmap Base64ByteString base64SchemaN
 
 instance FromHttpApiData Base64ByteString where
-  parseUrlPiece = bimap Text.pack Base64ByteString . B64U.decode . Text.encodeUtf8
+  parseUrlPiece = bimap Text.pack Base64ByteString . B64U.decodeUnpadded . Text.encodeUtf8
 
 instance ToHttpApiData Base64ByteString where
-  toUrlPiece = Text.decodeUtf8With Text.lenientDecode . B64U.encode . fromBase64ByteString
+  toUrlPiece = Text.decodeUtf8With Text.lenientDecode . B64U.encodeUnpadded . fromBase64ByteString
 
 instance S.ToParamSchema Base64ByteString where
   toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
