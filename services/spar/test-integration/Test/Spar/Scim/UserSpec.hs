@@ -36,6 +36,7 @@ import qualified Control.Exception
 import Control.Lens
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.Random (randomRIO)
+import Control.Monad.Random.Class (getRandomR)
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Retry (exponentialBackoff, limitRetries, recovering)
@@ -237,26 +238,30 @@ specImportToScimFromInvitation =
       tok :: ScimToken <- do
         registerScimToken teamid ((^. SAML.idpId) <$> mbidp)
 
-      storedUserGot <- findUserByEmail tok email
-      when changeHandle $ do
-        (usr' :: Scim.User.User SparTag, uid :: UserId) <- do
-          (usr_, _) <- randomScimUserWithEmail
-          pure
-            ( (Scim.value . Scim.thing $ storedUserGot) {Scim.User.userName = Scim.User.userName usr_},
-              Scim.id . Scim.thing $ storedUserGot
-            )
-        void $ putStoredUser tok uid usr'
-      getStoredUser tok userid
+      userName {- handle -} :: Text <- do
+        if changeHandle
+          then do
+            suffix <- cs <$> replicateM 7 (getRandomR ('0', '9'))
+            pure ("scimuser_" <> suffix)
+          else do
+            Just brigUser <- runSpar (BrigAccess.getAccount NoPendingInvitations userid)
+            pure . fromHandle . fromJust . userHandle . accountUser $ brigUser
+      let externalId = fromEmail email
+          displayName = userName
 
-    getStoredUser :: ScimToken -> UserId -> TestSpar (Scim.UserC.StoredUser SparTag)
-    getStoredUser tok uid = do
-      resp <- aFewTimes (getUser_ (Just tok) uid =<< view teSpar) ((== 200) . statusCode) <!! const 200 === statusCode
-      pure $ responseJsonUnsafe resp
+      usr' :: Scim.User.User SparTag <- do
+        pure $
+          (Scim.User.empty userSchemas userName (ScimUserExtra mempty))
+            { Scim.User.displayName = Just displayName,
+              Scim.User.externalId = Just externalId
+            }
 
-    putStoredUser :: ScimToken -> UserId -> Scim.User.User SparTag -> TestSpar (Scim.UserC.StoredUser SparTag)
-    putStoredUser tok uid usr' = do
+      postStoredUser tok usr'
+
+    postStoredUser :: ScimToken -> Scim.User.User SparTag -> TestSpar (Scim.UserC.StoredUser SparTag)
+    postStoredUser tok usr' = do
       resp <-
-        aFewTimes (updateUser_ (Just tok) (Just uid) usr' =<< view teSpar) ((== 200) . statusCode)
+        aFewTimes (createUser_ (Just tok) usr' =<< view teSpar) ((== 200) . statusCode)
           <!! const 200 === statusCode
       pure $ responseJsonUnsafe resp
 
