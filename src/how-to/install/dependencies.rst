@@ -39,7 +39,7 @@ checkout is pointing to.
 ::
 
    WSD_COMMIT_ID=cdc1c84c1a10a4f5f1b77b51ee5655d0da7f9518 # set me
-   WSD_CONTAINER=quay.io/wire/wire-server-deploy:$COMMIT_ID
+   WSD_CONTAINER=quay.io/wire/wire-server-deploy:$WSD_COMMIT_ID
 
    sudo docker run -it --network=host \
         -v ${SSH_AUTH_SOCK:-nonexistent}:/ssh-agent \
