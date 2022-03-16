@@ -1208,6 +1208,7 @@ tests =
       testGroup "Golden: VerificationAction_user" $
         testObjects
           [ (Test.Wire.API.Golden.Generated.VerificationAction_user.testObject_VerificationAction_user_1, "testObject_VerificationAction_user_1"),
-            (Test.Wire.API.Golden.Generated.VerificationAction_user.testObject_VerificationAction_user_2, "testObject_VerificationAction_user_2")
+            (Test.Wire.API.Golden.Generated.VerificationAction_user.testObject_VerificationAction_user_2, "testObject_VerificationAction_user_2"),
+            (Test.Wire.API.Golden.Generated.VerificationAction_user.testObject_VerificationAction_user_3, "testObject_VerificationAction_user_3")
           ]
     ]

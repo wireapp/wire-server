@@ -52,6 +52,7 @@ module Wire.API.Team
     -- * TeamUpdateData
     TeamUpdateData (..),
     newTeamUpdateData,
+    newTeamDeleteDataWithCode,
     nameUpdate,
     iconUpdate,
     iconKeyUpdate,
@@ -60,6 +61,7 @@ module Wire.API.Team
     TeamDeleteData (..),
     newTeamDeleteData,
     tdAuthPassword,
+    tdVerificationCode,
 
     -- * Swagger
     modelTeam,
@@ -76,6 +78,7 @@ import Data.Aeson.Types (Parser)
 import qualified Data.Attoparsec.ByteString as Atto (Parser, string)
 import Data.Attoparsec.Combinator (choice)
 import Data.ByteString.Conversion
+import qualified Data.Code as Code
 import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
@@ -323,15 +326,21 @@ instance ToSchema TeamUpdateData where
 --------------------------------------------------------------------------------
 -- TeamDeleteData
 
-newtype TeamDeleteData = TeamDeleteData
-  { _tdAuthPassword :: Maybe PlainTextPassword
+data TeamDeleteData = TeamDeleteData
+  { _tdAuthPassword :: Maybe PlainTextPassword,
+    _tdVerificationCode :: Maybe Code.Value
   }
   deriving stock (Eq, Show)
-  deriving newtype (Arbitrary)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamDeleteData)
 
+instance Arbitrary TeamDeleteData where
+  arbitrary = TeamDeleteData <$> arbitrary <*> arbitrary
+
 newTeamDeleteData :: Maybe PlainTextPassword -> TeamDeleteData
-newTeamDeleteData = TeamDeleteData
+newTeamDeleteData = flip TeamDeleteData Nothing
+
+newTeamDeleteDataWithCode :: Maybe PlainTextPassword -> Maybe Code.Value -> TeamDeleteData
+newTeamDeleteDataWithCode = TeamDeleteData
 
 -- FUTUREWORK: fix name of model? (upper case)
 modelTeamDelete :: Doc.Model
@@ -339,11 +348,15 @@ modelTeamDelete = Doc.defineModel "teamDeleteData" $ do
   Doc.description "Data for a team deletion request in case of binding teams."
   Doc.property "password" Doc.string' $
     Doc.description "The account password to authorise the deletion."
+  Doc.property "verification_code" Doc.string' $
+    Doc.description "The verification code to authorise the deletion."
 
 instance ToSchema TeamDeleteData where
   schema =
     object "TeamDeleteData" $
-      TeamDeleteData <$> _tdAuthPassword .= optField "password" (maybeWithDefault Null schema)
+      TeamDeleteData
+        <$> _tdAuthPassword .= optField "password" (maybeWithDefault Null schema)
+        <*> _tdVerificationCode .= maybe_ (optField "verification_code" schema)
 
 makeLenses ''Team
 makeLenses ''TeamList

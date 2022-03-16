@@ -111,6 +111,7 @@ scopeFromAction :: User.VerificationAction -> Scope
 scopeFromAction = \case
   User.CreateScimToken -> CreateScimToken
   User.Login -> AccountLogin
+  User.DeleteTeam -> DeleteTeam
 
 -- | The same 'Key' can exist with different 'Value's in different
 -- 'Scope's at the same time.
@@ -121,6 +122,7 @@ data Scope
   | AccountLogin
   | AccountApproval
   | CreateScimToken
+  | DeleteTeam
   deriving (Eq, Show)
 
 instance Cql Scope where
@@ -132,6 +134,7 @@ instance Cql Scope where
   toCql AccountLogin = CqlInt 4
   toCql AccountApproval = CqlInt 5
   toCql CreateScimToken = CqlInt 6
+  toCql DeleteTeam = CqlInt 7
 
   fromCql (CqlInt 1) = return AccountDeletion
   fromCql (CqlInt 2) = return IdentityVerification
@@ -139,6 +142,7 @@ instance Cql Scope where
   fromCql (CqlInt 4) = return AccountLogin
   fromCql (CqlInt 5) = return AccountApproval
   fromCql (CqlInt 6) = return CreateScimToken
+  fromCql (CqlInt 7) = return DeleteTeam
   fromCql _ = Left "fromCql: Scope: int expected"
 
 newtype Retries = Retries {numRetries :: Word8}
