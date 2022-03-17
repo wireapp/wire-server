@@ -781,11 +781,7 @@ assertExternalIdInAllowedValues allowedValues errmsg tid veid = do
   isGood <-
     lift $
       ST.runValidExternalIdBoth
-        ( \ma mb -> do
-            a <- ma
-            b <- mb
-            pure (a && b)
-        )
+        (\ma mb -> (&&) <$> ma <*> mb)
         ( \uref ->
             getUserIdByUref (Just tid) uref <&> \case
               (Spar.App.GetUserFound uid) -> Just uid `elem` allowedValues
