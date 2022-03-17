@@ -73,7 +73,7 @@ tests s =
       test s "ConversationGuestLinks - public API" testGuestLinksPublic,
       test s "ConversationGuestLinks - internal API" testGuestLinksInternal,
       test s "ConversationGuestLinks - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureGuestLinks Public.TeamFeatureEnabled Public.Unlocked,
-      test s "SndFactorPasswordChallenge - lock status" $ testSimpleFlagWithLockStatus' @'Public.TeamFeatureSndFactorPasswordChallenge False Public.TeamFeatureDisabled Public.Locked
+      test s "SndFactorPasswordChallenge - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge Public.TeamFeatureDisabled Public.Locked
     ]
 
 testSSO :: TestM ()
@@ -396,23 +396,7 @@ testSimpleFlagWithLockStatus ::
   Public.TeamFeatureStatusValue ->
   Public.LockStatusValue ->
   TestM ()
-testSimpleFlagWithLockStatus = testSimpleFlagWithLockStatus' @a True
-
-testSimpleFlagWithLockStatus' ::
-  forall (a :: Public.TeamFeatureName).
-  ( HasCallStack,
-    Typeable a,
-    Public.FeatureHasNoConfig 'Public.WithLockStatus a,
-    Public.FeatureHasNoConfig 'Public.WithoutLockStatus a,
-    Public.KnownTeamFeatureName a,
-    FromJSON (Public.TeamFeatureStatus 'Public.WithLockStatus a),
-    ToJSON (Public.TeamFeatureStatus 'Public.WithLockStatus a)
-  ) =>
-  Bool ->
-  Public.TeamFeatureStatusValue ->
-  Public.LockStatusValue ->
-  TestM ()
-testSimpleFlagWithLockStatus' canChangeTeamFeature defaultStatus defaultLockStatus = do
+testSimpleFlagWithLockStatus defaultStatus defaultLockStatus = do
   galley <- view tsGalley
   let feature = Public.knownTeamFeatureName @a
   owner <- Util.randomUser
@@ -449,7 +433,7 @@ testSimpleFlagWithLockStatus' canChangeTeamFeature defaultStatus defaultLockStat
       assertSetStatusForbidden :: Public.TeamFeatureStatusValue -> TestM ()
       assertSetStatusForbidden statusValue =
         Util.putTeamFeatureFlagWithGalley @a galley owner tid (Public.TeamFeatureStatusNoConfig statusValue)
-          !!! statusCode === const (if canChangeTeamFeature then 409 else 403)
+          !!! statusCode === const 409
 
       setLockStatus :: Public.LockStatusValue -> TestM ()
       setLockStatus lockStatus =
@@ -471,14 +455,13 @@ testSimpleFlagWithLockStatus' canChangeTeamFeature defaultStatus defaultLockStat
   -- setting should work
   cannon <- view tsCannon
   -- should receive an event
-  when canChangeTeamFeature $ do
-    WS.bracketR cannon member $ \ws -> do
-      setFlagWithGalley otherStatus
-      void . liftIO $
-        WS.assertMatch (5 # Second) ws $
-          wsAssertFeatureConfigWithLockStatusUpdate feature otherStatus Public.Unlocked
+  WS.bracketR cannon member $ \ws -> do
+    setFlagWithGalley otherStatus
+    void . liftIO $
+      WS.assertMatch (5 # Second) ws $
+        wsAssertFeatureConfigWithLockStatusUpdate feature otherStatus Public.Unlocked
 
-    getFlags otherStatus Public.Unlocked
+  getFlags otherStatus Public.Unlocked
 
   -- lock feature
   setLockStatus Public.Locked
@@ -488,10 +471,10 @@ testSimpleFlagWithLockStatus' canChangeTeamFeature defaultStatus defaultLockStat
   -- unlock feature
   setLockStatus Public.Unlocked
   -- feature status should be the previously set value
-  when canChangeTeamFeature $ getFlags otherStatus Public.Unlocked
+  getFlags otherStatus Public.Unlocked
 
   -- clean up
-  when canChangeTeamFeature $ setFlagWithGalley defaultStatus
+  setFlagWithGalley defaultStatus
   setLockStatus defaultLockStatus
   getFlags defaultStatus defaultLockStatus
 
