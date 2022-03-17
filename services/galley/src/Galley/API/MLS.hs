@@ -49,9 +49,8 @@ postMLSWelcome ::
   RawMLS Welcome ->
   Sem r ()
 postMLSWelcome lusr wel = do
-  now <- input
   rcpts <- welcomeRecipients (rmValue wel)
-  traverse_ (sendWelcomes now lusr (rmRaw wel)) (bucketQualified rcpts)
+  traverse_ (sendWelcomes lusr (rmRaw wel)) (bucketQualified rcpts)
 
 welcomeRecipients ::
   Members
@@ -64,14 +63,18 @@ welcomeRecipients ::
 welcomeRecipients = traverse (fmap cidQualifiedClient . derefKeyPackage . gsNewMember) . welSecrets
 
 sendWelcomes ::
-  Members '[GundeckAccess] r =>
-  UTCTime ->
+  Members
+    '[ GundeckAccess,
+       Input UTCTime
+     ]
+    r =>
   Local x ->
   ByteString ->
   Qualified [(UserId, ClientId)] ->
   Sem r ()
-sendWelcomes now loc rawWelcome =
-  foldQualified loc (sendLocalWelcomes now rawWelcome) (sendRemoteWelcomes rawWelcome)
+sendWelcomes loc rawWelcome recipients = do
+  now <- input
+  foldQualified loc (sendLocalWelcomes now rawWelcome) (sendRemoteWelcomes rawWelcome) recipients
 
 sendLocalWelcomes ::
   Members '[GundeckAccess] r =>
