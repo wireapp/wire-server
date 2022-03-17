@@ -104,7 +104,7 @@ instance Show SomeExtension where
 decodeExtension :: Extension -> Either Text (Maybe SomeExtension)
 decodeExtension e = do
   case toMLSEnum' (extType e) of
-    Left MLSEnumUnkonwn -> pure Nothing
+    Left MLSEnumUnknown -> pure Nothing
     Left MLSEnumInvalid -> Left "Invalid extension type"
     Right t -> withSomeSing t $ \st ->
       Just <$> decodeMLSWith' (SomeExtension st <$> parseExtension st) (extData e)

@@ -89,19 +89,19 @@ parseMLSEnum ::
   Get a
 parseMLSEnum name = toMLSEnum name =<< get @w
 
-data MLSEnumError = MLSEnumUnkonwn | MLSEnumInvalid
+data MLSEnumError = MLSEnumUnknown | MLSEnumInvalid
 
 toMLSEnum' :: forall a w. (Bounded a, Enum a, Integral w) => w -> Either MLSEnumError a
 toMLSEnum' w = case fromIntegral w - 1 of
   n
     | n < 0 -> Left MLSEnumInvalid
-    | n < fromEnum @a minBound || n > fromEnum @a maxBound -> Left MLSEnumUnkonwn
+    | n < fromEnum @a minBound || n > fromEnum @a maxBound -> Left MLSEnumUnknown
     | otherwise -> pure (toEnum n)
 
 toMLSEnum :: forall a w f. (Bounded a, Enum a, MonadFail f, Integral w) => String -> w -> f a
 toMLSEnum name = either err pure . toMLSEnum'
   where
-    err MLSEnumUnkonwn = fail $ "Unknown " <> name
+    err MLSEnumUnknown = fail $ "Unknown " <> name
     err MLSEnumInvalid = fail $ "Invalid " <> name
 
 fromMLSEnum :: (Integral w, Enum a) => a -> w
