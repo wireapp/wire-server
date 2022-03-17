@@ -36,6 +36,8 @@ import System.FilePath
 import System.IO.Temp
 import System.Process
 import Test.Tasty
+import Test.Tasty.Cannon ((#))
+import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
@@ -57,16 +59,26 @@ tests s =
 testLocalWelcome :: TestM ()
 testLocalWelcome = do
   MessagingSetup {..} <- aliceInvitesBob def
+  let (bob, _) = users !! 0
 
   galley <- viewGalley
-  post
-    ( galley
-        . paths ["mls", "welcome"]
-        . zUser (qUnqualified creator)
-        . content "message/mls"
-        . bytes welcome
-    )
-    !!! const 201 === statusCode
+  cannon <- view tsCannon
+
+  WS.bracketR cannon (qUnqualified bob) $ \wsB -> do
+    -- send welcome message
+    post
+      ( galley
+          . paths ["mls", "welcome"]
+          . zUser (qUnqualified (fst creator))
+          . content "message/mls"
+          . bytes welcome
+      )
+      !!! const 201 === statusCode
+
+    -- check that the corresponding event is received
+    void . liftIO $
+      WS.assertMatch (5 # WS.Second) wsB $
+        wsAssertMLSWelcome bob welcome
 
 testWelcomeNoKey :: TestM ()
 testWelcomeNoKey = do
@@ -76,7 +88,7 @@ testWelcomeNoKey = do
   post
     ( galley
         . paths ["mls", "welcome"]
-        . zUser (qUnqualified creator)
+        . zUser (qUnqualified (fst creator))
         . content "message/mls"
         . bytes welcome
     )
@@ -90,7 +102,7 @@ testWelcomeUnknownClient = do
   post
     ( galley
         . paths ["mls", "welcome"]
-        . zUser (qUnqualified creator)
+        . zUser (qUnqualified (fst creator))
         . content "message/mls"
         . bytes welcome
     )
@@ -107,7 +119,8 @@ instance Default SetupOptions where
   def = SetupOptions {createClients = CreateWithKey}
 
 data MessagingSetup = MessagingSetup
-  { creator :: Qualified UserId,
+  { creator :: (Qualified UserId, ClientId),
+    users :: [(Qualified UserId, ClientId)],
     welcome :: ByteString,
     commit :: ByteString
   }
@@ -166,7 +179,7 @@ aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \_tmp0 -> do
         (Just (rmRaw bobKeyPackage))
   welcome <- liftIO $ BS.readFile (tmp </> "welcome")
 
-  pure $ MessagingSetup {creator = alice, ..}
+  pure $ MessagingSetup {creator = (alice, aliceClient), users = [(bob, bobClient)], ..}
 
 addClient :: Qualified UserId -> LastPrekey -> TestM ClientId
 addClient u lpk = do

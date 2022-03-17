@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,7 +16,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wwarn #-}
 
 module API.Util where
 
@@ -1585,6 +1585,20 @@ wsAssertOtr' evData conv usr from to txt n = do
   evtType e @?= OtrMessageAdd
   evtFrom e @?= usr
   evtData e @?= EdOtrMessage (OtrMessage from to txt (Just evData))
+
+wsAssertMLSWelcome ::
+  HasCallStack =>
+  Qualified UserId ->
+  ByteString ->
+  Notification ->
+  IO ()
+wsAssertMLSWelcome u welcome n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  evtConv e @?= fmap selfConv u
+  evtType e @?= MLSWelcome
+  evtFrom e @?= u
+  evtData e @?= EdMLSWelcome welcome
 
 -- | This assumes the default role name
 wsAssertMemberJoin :: HasCallStack => Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
