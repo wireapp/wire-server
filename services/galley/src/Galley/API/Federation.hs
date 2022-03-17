@@ -210,9 +210,8 @@ onConversationUpdated requestingDomain cu = do
   for_ mActualAction $ \(SomeConversationAction tag action) -> do
     let event = conversationActionToEvent tag (F.cuTime cu) (F.cuOrigUserId cu) qconvId action
         targets = nubOrd $ presentUsers <> extraTargets
-    loc' <- qualifyLocal ()
     -- FUTUREWORK: support bots?
-    pushConversationEvent Nothing event (qualifyAs loc' targets) []
+    pushConversationEvent Nothing event (qualifyAs loc targets) []
 
 addLocalUsersToRemoteConv ::
   Members '[BrigAccess, MemberStore, P.TinyLog] r =>
