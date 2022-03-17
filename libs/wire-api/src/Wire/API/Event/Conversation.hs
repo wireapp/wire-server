@@ -42,6 +42,7 @@ module Wire.API.Event.Conversation
     _EdTyping,
     _EdOtrMessage,
     _EdMLSMessage,
+    _EdMLSWelcome,
 
     -- * Event data helpers
     SimpleMember (..),
@@ -70,7 +71,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Id
-import Data.Json.Util (ToJSONObject (toJSONObject), UTCTimeMillis (fromUTCTimeMillis), toUTCTimeMillis)
+import Data.Json.Util
 import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
@@ -125,6 +126,7 @@ data EventType
   | ConvReceiptModeUpdate
   | OtrMessageAdd
   | MLSMessageAdd
+  | MLSWelcome
   | Typing
   deriving stock (Eq, Show, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform EventType)
@@ -147,7 +149,9 @@ instance ToSchema EventType where
           element "conversation.delete" ConvDelete,
           element "conversation.connect-request" ConvConnect,
           element "conversation.typing" Typing,
-          element "conversation.otr-message-add" OtrMessageAdd
+          element "conversation.otr-message-add" OtrMessageAdd,
+          element "conversation.mls-message-add" MLSMessageAdd,
+          element "conversation.mls-welcome" MLSWelcome
         ]
 
 data EventData
@@ -166,6 +170,7 @@ data EventData
   | EdTyping TypingData
   | EdOtrMessage OtrMessage
   | EdMLSMessage ByteString
+  | EdMLSWelcome ByteString
   deriving stock (Eq, Show, Generic)
 
 genEventData :: EventType -> QC.Gen EventData
@@ -184,6 +189,7 @@ genEventData = \case
   Typing -> EdTyping <$> arbitrary
   OtrMessageAdd -> EdOtrMessage <$> arbitrary
   MLSMessageAdd -> EdMLSMessage <$> arbitrary
+  MLSWelcome -> EdMLSWelcome <$> arbitrary
   ConvDelete -> pure EdConvDelete
 
 eventDataType :: EventData -> EventType
@@ -201,6 +207,7 @@ eventDataType (EdConvReceiptModeUpdate _) = ConvReceiptModeUpdate
 eventDataType (EdTyping _) = Typing
 eventDataType (EdOtrMessage _) = OtrMessageAdd
 eventDataType (EdMLSMessage _) = MLSMessageAdd
+eventDataType (EdMLSWelcome _) = MLSWelcome
 eventDataType EdConvDelete = ConvDelete
 
 --------------------------------------------------------------------------------
@@ -371,7 +378,8 @@ taggedEventDataSchema =
       ConvMessageTimerUpdate -> tag _EdConvMessageTimerUpdate (unnamed schema)
       ConvReceiptModeUpdate -> tag _EdConvReceiptModeUpdate (unnamed schema)
       OtrMessageAdd -> tag _EdOtrMessage (unnamed schema)
-      MLSMessageAdd -> tag _EdOtrMessage (unnamed schema)
+      MLSMessageAdd -> tag _EdMLSMessage base64Schema
+      MLSWelcome -> tag _EdMLSWelcome base64Schema
       Typing -> tag _EdTyping (unnamed schema)
       ConvCodeDelete -> tag _EdConvCodeDelete null_
       ConvDelete -> tag _EdConvDelete null_
@@ -392,10 +400,11 @@ eventObjectSchema =
     mk (_, d) cid uid tm = Event cid uid tm d
 
 instance ToJSONObject Event where
-  toJSONObject =
+  toJSONObject e =
     KeyMap.fromList
       . fromMaybe []
       . schemaOut eventObjectSchema
+      $ e
 
 instance FromJSON Event where
   parseJSON = schemaParseJSON
