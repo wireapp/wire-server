@@ -26,7 +26,7 @@ import Cassandra hiding (Set)
 import qualified Cassandra as Cql
 import qualified Crypto.Hash.BLAKE2.BLAKE2b as Blake2
 import Data.ByteString.Conversion
-import Data.ByteString.Short
+import Data.Domain
 import Data.Id
 import qualified Data.Map as Map
 import Data.Misc
@@ -60,7 +60,7 @@ createConversation loc (NewConversation ty usr acc arole name mtid mtimer recpt 
   conv <- Id <$> liftIO nextRandom
   groupId <- case protocol of
     ProtocolProteus -> pure Nothing
-    ProtocolMLS -> Just <$> liftIO randomGroupId
+    ProtocolMLS -> fmap Just . liftIO . toGroupId $ (conv, tDomain loc)
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
@@ -89,13 +89,15 @@ createConversation loc (NewConversation ty usr acc arole name mtid mtimer recpt 
         convGroupId = groupId
       }
   where
-    randomGroupId :: MonadIO m => m GroupId
-    randomGroupId = do
+    toGroupId :: MonadIO m => (ConvId, Domain) -> m GroupId
+    toGroupId (cId, d) = do
       g <- newStdGen
-      let (len, g2) = genWord8 g
-          bs = fromShort . fst $ genShortByteString 256 g2
+      let (len, _) = genWord8 g
       -- The length can be at most 256 bytes
-      pure . GroupId $ Blake2.hash (fromIntegral len) mempty bs
+      pure
+        . GroupId
+        . Blake2.hash (fromIntegral len) mempty
+        $ toByteString' cId <> toByteString' d
 
 createConnectConversation ::
   U.UUID U.V4 ->
