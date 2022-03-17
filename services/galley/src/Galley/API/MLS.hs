@@ -50,7 +50,7 @@ postMLSWelcome ::
   Sem r ()
 postMLSWelcome lusr wel = do
   now <- input
-  rcpts <- welcomeRecipients (extract wel)
+  rcpts <- welcomeRecipients (rmValue wel)
   traverse_ (sendWelcomes now lusr (rmRaw wel)) (bucketQualified rcpts)
 
 welcomeRecipients ::

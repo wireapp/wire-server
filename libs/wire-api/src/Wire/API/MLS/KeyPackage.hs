@@ -37,7 +37,6 @@ module Wire.API.MLS.KeyPackage
 where
 
 import Control.Applicative
-import Control.Comonad
 import Control.Lens hiding (set, (.=))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary
@@ -164,19 +163,19 @@ data KeyPackage = KeyPackage
   deriving stock (Eq, Show)
 
 kpProtocolVersion :: KeyPackage -> ProtocolVersion
-kpProtocolVersion = kpuProtocolVersion . extract . kpTBS
+kpProtocolVersion = kpuProtocolVersion . rmValue . kpTBS
 
 kpCipherSuite :: KeyPackage -> CipherSuite
-kpCipherSuite = kpuCipherSuite . extract . kpTBS
+kpCipherSuite = kpuCipherSuite . rmValue . kpTBS
 
 kpInitKey :: KeyPackage -> ByteString
-kpInitKey = kpuInitKey . extract . kpTBS
+kpInitKey = kpuInitKey . rmValue . kpTBS
 
 kpCredential :: KeyPackage -> Credential
-kpCredential = kpuCredential . extract . kpTBS
+kpCredential = kpuCredential . rmValue . kpTBS
 
 kpExtensions :: KeyPackage -> [Extension]
-kpExtensions = kpuExtensions . extract . kpTBS
+kpExtensions = kpuExtensions . rmValue . kpTBS
 
 rawKeyPackageSchema :: ValueSchema NamedSwaggerDoc (RawMLS KeyPackage)
 rawKeyPackageSchema =

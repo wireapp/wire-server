@@ -22,7 +22,6 @@ module API.MLS (tests) where
 import API.Util
 import Bilge
 import Bilge.Assert
-import Control.Comonad
 import Control.Lens (view)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
@@ -189,7 +188,7 @@ addClient u lpk = do
 
 addKeyPackage :: Qualified UserId -> ClientId -> RawMLS KeyPackage -> TestM ()
 addKeyPackage u c kp = do
-  let update = defUpdateClient {updateClientMLSPublicKeys = Map.singleton Ed25519 (bcSignatureKey (kpCredential (extract kp)))}
+  let update = defUpdateClient {updateClientMLSPublicKeys = Map.singleton Ed25519 (bcSignatureKey (kpCredential (rmValue kp)))}
   -- set public key
   brig <- view tsBrig
   put

@@ -149,7 +149,7 @@ data RawMLS a = RawMLS
   { rmRaw :: ByteString,
     rmValue :: a
   }
-  deriving stock (Eq, Show, Functor, Foldable, Traversable)
+  deriving stock (Eq, Show, Foldable)
 
 -- | A schema for a raw MLS object.
 --
@@ -164,7 +164,10 @@ rawMLSSchema name p =
     .= parsedText name (rawMLSFromText p)
 
 rawMLSFromText :: (ByteString -> Either Text a) -> Text -> Either String (RawMLS a)
-rawMLSFromText p = fromBase64Text >=> first Text.unpack . sequenceA . (RawMLS <*> p)
+rawMLSFromText p txt = do
+  mlsData <- fromBase64Text txt
+  value <- first Text.unpack (p mlsData)
+  pure $ RawMLS mlsData value
 
 instance S.ToSchema a => S.ToSchema (RawMLS a) where
   declareNamedSchema _ = S.declareNamedSchema (Proxy @a)
@@ -173,10 +176,6 @@ instance ParseMLS a => FromJSON (RawMLS a) where
   parseJSON =
     Aeson.withText "Base64 MLS object" $
       either fail pure . rawMLSFromText decodeMLS'
-
-instance Comonad RawMLS where
-  extract = rmValue
-  duplicate rm = RawMLS (rmRaw rm) rm
 
 -- | Parse an MLS object, but keep the raw bytes as well.
 parseRawMLS :: Get a -> Get (RawMLS a)
