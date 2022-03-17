@@ -688,7 +688,9 @@ getSearchVisibilityInbound ::
   Maybe TeamId ->
   IndexIO (SearchVisibilityInbound, Maybe (Writetime SearchVisibilityInbound))
 getSearchVisibilityInbound Nothing = pure (defaultSearchVisibilityInbound, Nothing)
-getSearchVisibilityInbound (Just tid) = toSearchVisibility <$> getTeamSearchVisibilityInbound tid
+getSearchVisibilityInbound (Just tid) = do
+  mtvi <- getTeamSearchVisibilityInbound tid
+  pure $ maybe (defaultSearchVisibilityInbound, Nothing) toSearchVisibility mtvi
 
 getSearchVisibilityInboundMulti :: [TeamId] -> IndexIO (TeamId -> (SearchVisibilityInbound, Maybe (Writetime SearchVisibilityInbound)))
 getSearchVisibilityInboundMulti tids = do
@@ -832,6 +834,15 @@ reindexRowToIndexUser
         Just $ (cs . toLazyByteString . serializeURIRef) uri
       idpUrl (UserScimExternalId _) = Nothing
 
+getTeamSearchVisibilityInbound ::
+  TeamId ->
+  IndexIO (Maybe (Multi.TeamStatus 'TeamFeatureSearchVisibilityInbound))
+getTeamSearchVisibilityInbound tid = do
+  Multi.TeamFeatureNoConfigMultiResponse teamsStatuses <- getTeamSearchVisibilityInboundMulti [tid]
+  case filter ((== tid) . Multi.team) teamsStatuses of
+    [teamStatus] -> pure (Just teamStatus)
+    _ -> pure Nothing
+
 getTeamSearchVisibilityInboundMulti ::
   [TeamId] ->
   IndexIO (Multi.TeamFeatureNoConfigMultiResponse 'TeamFeatureSearchVisibilityInbound)
@@ -860,20 +871,6 @@ instance Show ParseException where
 
 instance Exception ParseException
 
-getTeamSearchVisibilityInbound ::
-  TeamId ->
-  IndexIO (Multi.TeamStatus 'TeamFeatureSearchVisibilityInbound)
-getTeamSearchVisibilityInbound tid = do
-  Multi.TeamFeatureNoConfigMultiResponse teamsStatuses <- getTeamSearchVisibilityInboundMulti [tid]
-  case filter ((== tid) . Multi.team) teamsStatuses of
-    [teamStatus] -> pure teamStatus
-    _ -> throwM MyExceptionTODO
-
-data MyExceptionTODO = MyExceptionTODO
-  deriving (Show)
-
-instance Exception MyExceptionTODO
-
 serviceRequest' ::
   forall m.
   (MonadIO m, MonadMask m, MonadCatch m, MonadHttp m) =>
@@ -885,24 +882,14 @@ serviceRequest' ::
 serviceRequest' nm endpoint m r = do
   let service = mkEndpoint endpoint
   recovering x3 rpcHandlers $
-    const $
-      rpc' nm service (RPC.method m . r)
+    const $ do
+      let rq = (RPC.method m . r) service
+      res <- try $ RPC.httpLbs rq id
+      case res of
+        Left x -> throwM $ RPCException nm rq x
+        Right x -> return x
   where
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
 
     x3 :: RetryPolicy
     x3 = limitRetries 3 <> exponentialBackoff 100000
-
-rpc' ::
-  (MonadIO m, MonadCatch m, MonadHttp m) =>
-  -- | A label for the remote system in case of 'RPCException's.
-  LText ->
-  Request ->
-  (Request -> Request) ->
-  m (Response (Maybe LByteString))
-rpc' sys r f = do
-  let rq = f r
-  res <- try $ RPC.httpLbs rq id
-  case res of
-    Left x -> throwM $ RPCException sys rq x
-    Right x -> return x
