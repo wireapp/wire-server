@@ -150,6 +150,8 @@ defaultUserQuery setting (normalized -> term') =
         ES.QueryBoostingQuery
           ES.BoostingQuery
             { ES.positiveQuery = query,
+              -- TODO: test if chaning the negative query to match _any_ users not on your team fixes the flakyness in
+              -- testSearchOrderingAsTeamMemberPrefixMatch
               ES.negativeQuery = matchNonTeamMemberUsers,
               ES.negativeBoost = ES.Boost 0.1
             }
