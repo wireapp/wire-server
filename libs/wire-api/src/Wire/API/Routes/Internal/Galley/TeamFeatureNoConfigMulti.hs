@@ -19,12 +19,14 @@ module Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
   ( TeamFeatureNoConfigMultiRequest (..),
     TeamFeatureNoConfigMultiResponse (..),
     TeamStatus (..),
+    TeamStatusUpdate (..),
   )
 where
 
 import qualified Data.Aeson as A
 import Data.Id
 import Data.Schema
+import qualified Data.Swagger as S
 import Imports
 import Wire.API.Team.Feature (TeamFeatureName)
 import qualified Wire.API.Team.Feature as Public
@@ -69,3 +71,19 @@ instance ToSchema (TeamStatus a) where
         <$> team .= field "team" schema
         <*> status .= field "status" schema
         <*> writeTime .= maybe_ (optField "writetime" schema)
+
+data TeamStatusUpdate (a :: TeamFeatureName) = TeamStatusUpdate
+  { tsuTeam :: TeamId,
+    tsuStatus :: Public.TeamFeatureStatusValue,
+    tsuWriteTime :: Int64
+  }
+  deriving (Show, Eq)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema (TeamStatusUpdate a))
+
+instance ToSchema (TeamStatusUpdate a) where
+  schema =
+    object "TeamStatusUpdate" $
+      TeamStatusUpdate
+        <$> tsuTeam .= field "team" schema
+        <*> tsuStatus .= field "status" schema
+        <*> tsuWriteTime .= field "writetime" schema

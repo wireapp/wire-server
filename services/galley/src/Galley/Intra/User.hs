@@ -28,6 +28,7 @@ module Galley.Intra.User
     chunkify,
     getRichInfoMultiUser,
     getAccountFeatureConfigClient,
+    updateSearchVisibilityInbound,
   )
 where
 
@@ -63,6 +64,8 @@ import qualified Servant.Client as Client
 import Util.Options
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Internal.Brig.Connection
+import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
+import Wire.API.Routes.Named
 import Wire.API.Team.Feature
 import Wire.API.User.RichInfo (RichInfo)
 
@@ -235,14 +238,15 @@ getRichInfoMultiUser = chunkify $ \uids -> do
 getAccountFeatureConfigClient :: HasCallStack => UserId -> App TeamFeatureStatusNoConfig
 getAccountFeatureConfigClient uid =
   runHereClientM (getAccountFeatureConfigClientM uid)
-    >>= handleResp
-  where
-    handleResp ::
-      Either Client.ClientError TeamFeatureStatusNoConfig ->
-      App TeamFeatureStatusNoConfig
-    handleResp (Right cfg) = pure cfg
-    handleResp (Left errmsg) = throwM . internalErrorWithDescription . cs . show $ errmsg
+    >>= handleServantResp
 
+updateSearchVisibilityInbound :: Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound -> App ()
+updateSearchVisibilityInbound =
+  handleServantResp
+    <=< runHereClientM
+      . namedClient @IAPI.API @"updateSearchVisibilityInbound"
+
+-- TODO: Use 'namedClient'
 getAccountFeatureConfigClientM ::
   UserId -> Client.ClientM TeamFeatureStatusNoConfig
 ( ( _
@@ -260,3 +264,9 @@ runHereClientM action = do
   let env = Client.mkClientEnv mgr baseurl
       baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. epHost) (fromIntegral $ brigep ^. epPort) ""
   liftIO $ Client.runClientM action env
+
+handleServantResp ::
+  Either Client.ClientError a ->
+  App a
+handleServantResp (Right cfg) = pure cfg
+handleServantResp (Left errmsg) = throwM . internalErrorWithDescription . cs . show $ errmsg

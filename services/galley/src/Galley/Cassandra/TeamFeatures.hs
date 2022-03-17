@@ -74,9 +74,15 @@ getFeatureStatusNoConfigMulti ::
   ) =>
   Proxy a ->
   [TeamId] ->
-  m [(TeamId, Maybe TeamFeatureStatusValue, Maybe Int64)]
+  m [(TeamId, TeamFeatureStatusValue, Int64)]
 getFeatureStatusNoConfigMulti _ tids = do
-  retry x1 (query select (params LocalQuorum (Identity tids)))
+  mapMaybe
+    ( \(t, mStatus, mTime) -> do
+        status <- mStatus
+        time <- mTime
+        pure (t, status, time)
+    )
+    <$> retry x1 (query select (params LocalQuorum (Identity tids)))
   where
     select :: PrepQuery R (Identity [TeamId]) (TeamId, Maybe TeamFeatureStatusValue, Maybe Int64)
     select = fromString $ "select team_id, " <> statusCol @a <> ", writetime(" <> statusCol @a <> ") from team_features where team_id in ?"

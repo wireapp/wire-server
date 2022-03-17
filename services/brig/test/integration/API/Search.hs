@@ -347,14 +347,20 @@ testSearchTeamMemberAsOtherMemberDisplayName :: TestConstraints m => Manager -> 
 testSearchTeamMemberAsOtherMemberDisplayName mgr brig galley inboundVisibility = do
   (_, _, [teamASearcher]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
   (tidB, _, [teamBTarget, teamBTargetReindexedAfter]) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
+  refreshIndex brig
   circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tidB inboundVisibility
   void $ setRandomHandle brig teamBTargetReindexedAfter
+  print ("----------------------------" :: String, tidB, userId teamBTarget, userId teamBTargetReindexedAfter)
+  hFlush stdout
   refreshIndex brig
-  let assertion = case inboundVisibility of
-        TeamFeatureEnabled -> assertCanFind
-        TeamFeatureDisabled -> assertCan'tFind
   assertion brig (userId teamASearcher) (userQualifiedId teamBTarget) (fromName (userDisplayName teamBTarget))
   assertion brig (userId teamASearcher) (userQualifiedId teamBTargetReindexedAfter) (fromName (userDisplayName teamBTargetReindexedAfter))
+  where
+    assertion :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Qualified UserId -> Text -> m ()
+    assertion =
+      case inboundVisibility of
+        TeamFeatureEnabled -> assertCanFind
+        TeamFeatureDisabled -> assertCan'tFind
 
 testSearchTeamMemberAsOtherMemberExactHandle :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
 testSearchTeamMemberAsOtherMemberExactHandle mgr brig galley inboundVisibility = do

@@ -32,6 +32,7 @@ module Brig.User.Search.Index
 
     -- * Updates
     reindex,
+    updateSearchVisibilityInbound,
 
     -- * Administrative
     createIndex,
@@ -81,7 +82,7 @@ import Data.Metrics
 import Data.String.Conversions (cs)
 import qualified Data.Text as T
 import qualified Data.Text as Text
-import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text.Lazy as LT
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lens hiding (text)
@@ -263,6 +264,35 @@ updateIndex (IndexDeleteUser u) = liftIndexIO $ do
       Just v -> updateIndex . IndexUpdateUser IndexUpdateIfNewerVersion . mkIndexUser u =<< mkIndexVersion (v + 1)
     404 -> pure ()
     _ -> ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
+
+updateSearchVisibilityInbound :: (MonadIndexIO m) => Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound -> m ()
+updateSearchVisibilityInbound status = liftIndexIO $ do
+  withDefaultESUrl . updateAllDocs =<< asks idxName
+  withAdditionalESUrl $ traverse_ updateAllDocs =<< asks idxAdditionalName
+  where
+    updateAllDocs :: (MonadIndexIO m, MonadThrow m) => ES.IndexName -> ES.BH m ()
+    updateAllDocs idx = do
+      r <- ES.updateByQuery idx query (Just script)
+      unless (ES.isSuccess r || ES.isVersionConflict r) $ do
+        ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
+
+    query :: ES.Query
+    query = ES.TermQuery (ES.Term "team" $ idToText (Multi.tsuTeam status)) Nothing
+
+    script :: ES.Script
+    script = ES.Script (Just (ES.ScriptLanguage "painless")) (Just (ES.ScriptInline scriptText)) Nothing Nothing
+
+    scriptText =
+      "ctx._source."
+        <> searchVisibilityInboundFieldName
+        <> " = '"
+        <> decodeUtf8 (toByteString' (searchVisbilityInboundFromFeatureStatus (Multi.tsuStatus status)))
+        <> "';"
+
+-- TODO: Explain why we don't update version
+-- <> "ctx._version = "
+-- <> Text.pack (show (Multi.tsuWriteTime status))
+-- <> "L;"
 
 --------------------------------------------------------------------------------
 -- Administrative

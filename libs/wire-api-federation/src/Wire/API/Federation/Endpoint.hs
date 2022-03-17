@@ -17,7 +17,6 @@
 
 module Wire.API.Federation.Endpoint where
 
-import Imports
 import Servant.API
 import Wire.API.Federation.Domain
 import Wire.API.Routes.Named
@@ -33,15 +32,3 @@ type StreamingFedEndpoint name input output =
     ( name :> OriginDomainHeader :> ReqBody '[JSON] input
         :> StreamPost NoFraming OctetStream output
     )
-
-type family MappendMaybe (x :: Maybe k) (y :: Maybe k) :: Maybe k where
-  MappendMaybe 'Nothing y = y
-  MappendMaybe ('Just x) y = 'Just x
-
-type family LookupEndpoint api name :: Maybe * where
-  LookupEndpoint (Named name endpoint) name = 'Just endpoint
-  LookupEndpoint (api1 :<|> api2) name =
-    MappendMaybe
-      (LookupEndpoint api1 name)
-      (LookupEndpoint api2 name)
-  LookupEndpoint api name = 'Nothing

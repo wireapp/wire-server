@@ -107,7 +107,7 @@ extra-deps:
   commit: 0a5142cd3ba48116ff059c041348b817fb7bdb25
 
 - git: https://github.com/wireapp/bloodhound
-  commit: d444579f808115ddb0f20a1fe169fafad24f5165 # (2022-02-17) branch: wire-fork, aeson 2 support
+  commit: c68e6d877d87988331bf391ed16780383a58eefa # (2022-03-17) branch: wire-fork, aeson 2 support, updateByQuery
 
 # For bloodhound
 - aeson-2.0.3.0

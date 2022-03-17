@@ -51,6 +51,7 @@ import Brig.Types.User.Event (UserEvent (UserUpdated), UserUpdatedData (eupSSOId
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.EJPD
+import qualified Brig.User.Search.Index as Index
 import Control.Error hiding (bool)
 import Control.Lens (view)
 import Data.Aeson hiding (json)
@@ -89,7 +90,7 @@ import Wire.API.User.RichInfo
 -- Sitemap (servant)
 
 servantSitemap :: ServerT BrigIRoutes.API (Handler r)
-servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode
+servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI
 
 ejpdAPI :: ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
@@ -105,6 +106,9 @@ mlsAPI = getClientByKeyPackageRef
 
 accountAPI :: ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI = Named @"createUserNoVerify" createUserNoVerify
+
+teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
+teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountFeatureConfig :: UserId -> (Handler r) ApiFt.TeamFeatureStatusNoConfig

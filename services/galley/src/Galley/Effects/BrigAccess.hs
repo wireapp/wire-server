@@ -50,6 +50,7 @@ module Galley.Effects.BrigAccess
 
     -- * Features
     getAccountFeatureConfigClient,
+    updateSearchVisibilityInbound,
   )
 where
 
@@ -68,6 +69,7 @@ import Polysemy
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.Internal.Brig.Connection
+import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature
 import Wire.API.Team.Size
 import Wire.API.User.Client
@@ -118,6 +120,9 @@ data BrigAccess m a where
   RemoveLegalHoldClientFromUser :: UserId -> BrigAccess m ()
   GetAccountFeatureConfigClient :: UserId -> BrigAccess m TeamFeatureStatusNoConfig
   GetClientByKeyPackageRef :: KeyPackageRef -> BrigAccess m (Maybe ClientIdentity)
+  UpdateSearchVisibilityInbound ::
+    Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound ->
+    BrigAccess m ()
 
 makeSem ''BrigAccess
 

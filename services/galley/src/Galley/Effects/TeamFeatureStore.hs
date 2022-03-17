@@ -47,6 +47,8 @@ data TeamFeatureStore m a where
     Proxy a ->
     TeamId ->
     TeamFeatureStore m (Maybe (TeamFeatureStatus 'WithoutLockStatus a))
+  -- | Returns only teams which have a status stored.
+  --
   -- the proxy argument makes sure that makeSem below generates type-inference-friendly code
   GetFeatureStatusNoConfigMulti ::
     forall (a :: TeamFeatureName) m.
@@ -55,7 +57,7 @@ data TeamFeatureStore m a where
     ) =>
     Proxy a ->
     [TeamId] ->
-    TeamFeatureStore m [(TeamId, Maybe TeamFeatureStatusValue, Maybe Int64)]
+    TeamFeatureStore m [(TeamId, TeamFeatureStatusValue, Int64)]
   GetFeatureStatusNoConfigAndLockStatus' ::
     forall (a :: TeamFeatureName) m.
     (FeatureHasNoConfig 'WithoutLockStatus a, HasStatusCol a, HasLockStatusCol a) =>

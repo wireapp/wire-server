@@ -774,17 +774,20 @@ getTeamSearchVisibilityInboundInternal =
     (getFeatureStatusWithDefaultConfig @'Public.TeamFeatureSearchVisibilityInbound flagTeamFeatureSearchVisibilityInbound . Just)
 
 setTeamSearchVisibilityInboundInternal ::
-  Members '[GundeckAccess, TeamStore, TeamFeatureStore, P.TinyLog] r =>
+  Members '[GundeckAccess, TeamStore, TeamFeatureStore, BrigAccess, P.TinyLog] r =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibilityInbound ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibilityInbound)
-setTeamSearchVisibilityInboundInternal = setFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibilityInbound $ \case
-  Public.TeamFeatureDisabled -> \_tid ->
-    -- TODO: update whole team in ES with Update By Query API
-    pure ()
-  Public.TeamFeatureEnabled -> \_tid ->
-    -- TODO: update whole team in ES with Update By Query API
-    pure ()
+setTeamSearchVisibilityInboundInternal tid status = do
+  updatedStatus <- setFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibilityInbound (\_ _ -> pure ()) tid status
+  mPersistedStatus <- listToMaybe <$> TeamFeatures.getFeatureStatusNoConfigMulti (Proxy @'Public.TeamFeatureSearchVisibilityInbound) [tid]
+  case mPersistedStatus of
+    Just (pesistedTid, persistedStatus, persistedWriteTime) ->
+      updateSearchVisibilityInbound $
+        Multi.TeamStatusUpdate pesistedTid persistedStatus persistedWriteTime
+    -- TODO: throw nicer error
+    Nothing -> error "Failed to retrieve search-visibility-inbound status after persisting it"
+  pure updatedStatus
 
 getFeatureStatusMulti ::
   forall f r.
@@ -802,7 +805,7 @@ getFeatureStatusMulti ::
   (Multi.TeamFeatureNoConfigMultiRequest -> (Sem r) (Multi.TeamFeatureNoConfigMultiResponse 'Public.TeamFeatureSearchVisibilityInbound))
 getFeatureStatusMulti lens' (Multi.TeamFeatureNoConfigMultiRequest teams) = do
   triples <- TeamFeatures.getFeatureStatusNoConfigMulti (Proxy @f) teams
-  let tsExplicit = mapMaybe (\(tid, msv, mt) -> Multi.TeamStatus tid <$> msv <*> pure mt) triples
+  let tsExplicit = map (\(tid, sv, t) -> Multi.TeamStatus tid sv (Just t)) triples
   let teamsDefault = Set.toList (Set.fromList teams `Set.difference` Set.fromList (Multi.team <$> tsExplicit))
   defaultStatus <- getDef
   let tsImplicit = [Multi.TeamStatus tid defaultStatus Nothing | tid <- teamsDefault]

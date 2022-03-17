@@ -96,11 +96,11 @@ packages:
     git: https://github.com/wireapp/bloodhound
     pantry-tree:
       size: 4588
-      sha256: 336bd360dc9f16416eca78d884661f4a9405601d3e09b443b9157cb5fb675dca
-    commit: d444579f808115ddb0f20a1fe169fafad24f5165
+      sha256: 62c82df1cedc61da6e8203c247eb98ff950f9165c63462c1a32e773f4f69a506
+    commit: c68e6d877d87988331bf391ed16780383a58eefa
   original:
     git: https://github.com/wireapp/bloodhound
-    commit: d444579f808115ddb0f20a1fe169fafad24f5165
+    commit: c68e6d877d87988331bf391ed16780383a58eefa
 - completed:
     hackage: aeson-2.0.3.0@sha256:130bda8e10dc6dd159b79b306abb10025d7f8b5d9cbc2f7d6d7e6768a0272058,5845
     pantry-tree:

@@ -20,6 +20,7 @@ module Wire.API.Routes.Internal.Brig
     EJPD_API,
     AccountAPI,
     MLSAPI,
+    TeamsAPI,
     EJPDRequest,
     GetAccountFeatureConfig,
     PutAccountFeatureConfig,
@@ -45,8 +46,10 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
+import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
+import Wire.API.Team.Feature (TeamFeatureName (TeamFeatureSearchVisibilityInbound))
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User
 
@@ -163,7 +166,15 @@ type GetVerificationCode =
 
 type API =
   "i"
-    :> (EJPD_API :<|> AccountAPI :<|> MLSAPI :<|> GetVerificationCode)
+    :> (EJPD_API :<|> AccountAPI :<|> MLSAPI :<|> GetVerificationCode :<|> TeamsAPI)
+
+type TeamsAPI =
+  Named
+    "updateSearchVisibilityInbound"
+    ( "teams"
+        :> ReqBody '[Servant.JSON] (Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound)
+        :> Post '[Servant.JSON] ()
+    )
 
 type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
