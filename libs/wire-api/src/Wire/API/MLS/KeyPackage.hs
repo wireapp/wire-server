@@ -143,7 +143,11 @@ instance ParseMLS KeyPackageRef where
 kpRef :: CipherSuiteTag -> KeyPackageData -> KeyPackageRef
 kpRef cs =
   KeyPackageRef
-    . csHash cs "MLS 1.0 KeyPackage Reference"
+    -- Warning: the "context" string here is different from the one mandated by
+    -- the spec, but it is the one that happens to be used by openmls. Until
+    -- openmls is patched and we switch to a fixed version, we will have to use
+    -- the "wrong" string here as well.
+    . csHash cs "MLS 1.0 ref"
     . LBS.toStrict
     . kpData
 
