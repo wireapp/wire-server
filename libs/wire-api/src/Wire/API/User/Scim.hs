@@ -335,10 +335,18 @@ data ValidExternalId
   | EmailOnly Email
   deriving (Eq, Show, Generic)
 
--- | Take apart a 'ValidExternalId', using 'SAML.UserRef' if available, otehrwise 'Email'.
-runValidExternalId :: (SAML.UserRef -> a) -> (Email -> a) -> ValidExternalId -> a
-runValidExternalId doUref doEmail = \case
+-- | Take apart a 'ValidExternalId', using 'SAML.UserRef' if available, otherwise 'Email'.
+runValidExternalIdEither :: (SAML.UserRef -> a) -> (Email -> a) -> ValidExternalId -> a
+runValidExternalIdEither doUref doEmail = \case
   EmailAndUref _ uref -> doUref uref
+  UrefOnly uref -> doUref uref
+  EmailOnly em -> doEmail em
+
+-- | Take apart a 'ValidExternalId', use both 'SAML.UserRef', 'Email' if applicable, and
+-- merge the result with a given function.
+runValidExternalIdBoth :: (a -> a -> a) -> (SAML.UserRef -> a) -> (Email -> a) -> ValidExternalId -> a
+runValidExternalIdBoth merge doUref doEmail = \case
+  EmailAndUref eml uref -> doUref uref `merge` doEmail eml
   UrefOnly uref -> doUref uref
   EmailOnly em -> doEmail em
 

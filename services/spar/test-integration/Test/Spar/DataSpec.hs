@@ -292,7 +292,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
     mbUser1 <- case veidFromUserSSOId ssoid1 of
       Right veid ->
         runSpar $
-          runValidExternalId
+          runValidExternalIdEither
             SAMLUserStore.get
             undefined -- could be @Data.lookupScimExternalId@, but we don't hit that path.
             veid
@@ -302,7 +302,7 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
     mbUser2 <- case veidFromUserSSOId ssoid2 of
       Right veid ->
         runSpar $
-          runValidExternalId
+          runValidExternalIdEither
             SAMLUserStore.get
             undefined
             veid

@@ -567,7 +567,7 @@ instance IsUser ValidScimUser where
   maybeName = Just (Just . view vsuName)
   maybeTenant = Just (^? (vsuExternalId . veidUref . SAML.uidTenant))
   maybeSubject = Just (^? (vsuExternalId . veidUref . SAML.uidSubject))
-  maybeScimExternalId = Just (runValidExternalId Intra.urefToExternalId (Just . fromEmail) . view vsuExternalId)
+  maybeScimExternalId = Just (runValidExternalIdEither Intra.urefToExternalId (Just . fromEmail) . view vsuExternalId)
 
 instance IsUser (WrappedScimStoredUser SparTag) where
   maybeUserId = Just $ scimUserId . fromWrappedScimStoredUser
@@ -606,7 +606,7 @@ instance IsUser User where
     Intra.veidFromBrigUser usr Nothing
       & either
         (const Nothing)
-        (runValidExternalId Intra.urefToExternalId (Just . fromEmail))
+        (runValidExternalIdEither Intra.urefToExternalId (Just . fromEmail))
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.
 --
