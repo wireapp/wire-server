@@ -64,6 +64,7 @@ import Data.String.Conversions (ST, cs)
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy.Encoding as T
 import Data.Time (getCurrentTime)
+import Data.Tuple.Extra
 import qualified Data.UUID as UUID
 import Data.UUID.V4
 import Federator.MockServer (FederatedRequest (..))
@@ -147,13 +148,17 @@ symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
 createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
 createBindingTeam = do
-  ownerid <- randomTeamCreator
-  teams <- getTeams ownerid []
+  (first Brig.Types.userId) <$> createBindingTeam'
+
+createBindingTeam' :: HasCallStack => TestM (User, TeamId)
+createBindingTeam' = do
+  owner <- randomTeamCreator'
+  teams <- getTeams (Brig.Types.userId owner) []
   let [team] = view teamListTeams teams
   let tid = view teamId team
   SQS.assertQueue "create team" SQS.tActivate
   refreshIndex
-  pure (ownerid, tid)
+  pure (owner, tid)
 
 createBindingTeamWithMembers :: HasCallStack => Int -> TestM (TeamId, UserId, [UserId])
 createBindingTeamWithMembers numUsers = do
@@ -1905,8 +1910,14 @@ randomQualifiedId domain = Qualified <$> randomId <*> pure domain
 randomTeamCreator :: HasCallStack => TestM UserId
 randomTeamCreator = qUnqualified <$> randomUser' True True True
 
+randomTeamCreator' :: HasCallStack => TestM User
+randomTeamCreator' = randomUser'' True True True
+
 randomUser' :: HasCallStack => Bool -> Bool -> Bool -> TestM (Qualified UserId)
-randomUser' isCreator hasPassword hasEmail = userQualifiedId . selfUser <$> randomUserProfile' isCreator hasPassword hasEmail
+randomUser' isCreator hasPassword hasEmail = userQualifiedId <$> randomUser'' isCreator hasPassword hasEmail
+
+randomUser'' :: HasCallStack => Bool -> Bool -> Bool -> TestM User
+randomUser'' isCreator hasPassword hasEmail = selfUser <$> randomUserProfile' isCreator hasPassword hasEmail
 
 randomUserProfile' :: HasCallStack => Bool -> Bool -> Bool -> TestM SelfProfile
 randomUserProfile' isCreator hasPassword hasEmail = do

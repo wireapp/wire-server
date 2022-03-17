@@ -160,7 +160,7 @@ verifyCode mbCode action uid = do
   when featureEnabled $ do
     case (mbCode, mbEmail) of
       (Just code, Just email) -> do
-        key <- Code.genKey <$> Code.mk6DigitGen (Code.ForEmail email)
+        key <- Code.mkKey $ Code.ForEmail email
         codeValid <- wrapClientE $ isJust <$> Code.verify key (Code.scopeFromAction action) code
         unless codeValid $ throwE VerificationCodeNoPendingCode
       (Nothing, _) -> throwE VerificationCodeRequired

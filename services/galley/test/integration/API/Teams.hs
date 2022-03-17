@@ -36,6 +36,7 @@ import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
+import qualified Data.Code as Code
 import Data.Csv (FromNamedRecord (..), decodeByName)
 import qualified Data.Currency as Currency
 import Data.Default
@@ -49,6 +50,7 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
+import Data.Text.Ascii (AsciiChars (validate))
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import qualified Data.UUID.V1 as UUID
@@ -80,6 +82,7 @@ import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Member
 import qualified Wire.API.Team.Member as TM
+import qualified Wire.API.User as Public
 import qualified Wire.API.User as U
 
 tests :: IO TestSetup -> TestTree
@@ -129,6 +132,13 @@ tests s =
       test s "delete binding team internal single member" testDeleteBindingTeamSingleMember,
       test s "delete binding team (owner has passwd)" (testDeleteBindingTeam True),
       test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False),
+      testGroup
+        "delete team - verification code"
+        [ test s "success" testDeleteTeamVerificationCodeSuccess,
+          test s "wrong code" testDeleteTeamVerificationCodeWrongCode,
+          test s "missing code" testDeleteTeamVerificationCodeMissingCode,
+          test s "expired code" testDeleteTeamVerificationCodeExpiredCode
+        ],
       test s "delete team conversation" testDeleteTeamConv,
       test s "update team data" testUpdateTeam,
       test s "update team data icon validation" testUpdateTeamIconValidation,
@@ -1078,6 +1088,107 @@ testDeleteBindingTeamSingleMember = do
   -- received the event, should _really_ be deleted
   -- Let's clean the queue, just in case
   ensureQueueEmpty
+
+testDeleteTeamVerificationCodeSuccess :: TestM ()
+testDeleteTeamVerificationCodeSuccess = do
+  g <- view tsGalley
+  (owner, tid) <- Util.createBindingTeam'
+  let Just email = U.userEmail owner
+  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
+  code <- getVerificationCode (U.userId owner) Public.DeleteTeam
+  delete
+    ( g
+        . paths ["teams", toByteString' tid]
+        . zUser (U.userId owner)
+        . zConn "conn"
+        . json (newTeamDeleteDataWithCode (Just Util.defPassword) (Just code))
+    )
+    !!! do
+      const 202 === statusCode
+  tryAssertQueue 10 "team delete, should be there" tDelete
+  assertQueueEmpty
+
+testDeleteTeamVerificationCodeMissingCode :: TestM ()
+testDeleteTeamVerificationCodeMissingCode = do
+  g <- view tsGalley
+  (owner, tid) <- Util.createBindingTeam'
+  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  let Just email = U.userEmail owner
+  generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
+  delete
+    ( g
+        . paths ["teams", toByteString' tid]
+        . zUser (U.userId owner)
+        . zConn "conn"
+        . json (newTeamMemberDeleteData (Just Util.defPassword))
+    )
+    !!! do
+      const 403 === statusCode
+      const "code-authentication-required" === (Error.label . responseJsonUnsafeWithMsg "error label")
+  assertQueueEmpty
+
+testDeleteTeamVerificationCodeExpiredCode :: TestM ()
+testDeleteTeamVerificationCodeExpiredCode = do
+  g <- view tsGalley
+  (owner, tid) <- Util.createBindingTeam'
+  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  let Just email = U.userEmail owner
+  generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
+  code <- getVerificationCode (U.userId owner) Public.DeleteTeam
+  -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
+  threadDelay $ (5 * 1000 * 1000) + 600 * 1000
+  delete
+    ( g
+        . paths ["teams", toByteString' tid]
+        . zUser (U.userId owner)
+        . zConn "conn"
+        . json (newTeamDeleteDataWithCode (Just Util.defPassword) (Just code))
+    )
+    !!! do
+      const 403 === statusCode
+      const "code-authentication-failed" === (Error.label . responseJsonUnsafeWithMsg "error label")
+  assertQueueEmpty
+
+testDeleteTeamVerificationCodeWrongCode :: TestM ()
+testDeleteTeamVerificationCodeWrongCode = do
+  g <- view tsGalley
+  (owner, tid) <- Util.createBindingTeam'
+  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  let Just email = U.userEmail owner
+  generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
+  let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
+  delete
+    ( g
+        . paths ["teams", toByteString' tid]
+        . zUser (U.userId owner)
+        . zConn "conn"
+        . json (newTeamDeleteDataWithCode (Just Util.defPassword) (Just wrongCode))
+    )
+    !!! do
+      const 403 === statusCode
+      const "code-authentication-failed" === (Error.label . responseJsonUnsafeWithMsg "error label")
+  assertQueueEmpty
+
+generateVerificationCode :: Public.SendVerificationCode -> TestM ()
+generateVerificationCode req = do
+  brig <- view tsBrig
+  let js = RequestBodyLBS $ encode req
+  post (brig . paths ["verification-code", "send"] . contentJson . body js) !!! const 200 === statusCode
+
+setTeamSndFactorPasswordChallenge :: TeamId -> Public.TeamFeatureStatusValue -> TestM ()
+setTeamSndFactorPasswordChallenge tid status = do
+  g <- view tsGalley
+  let js = RequestBodyLBS $ encode $ Public.TeamFeatureStatusNoConfig status
+  put (g . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge] . contentJson . body js) !!! const 200 === statusCode
+
+getVerificationCode :: UserId -> Public.VerificationAction -> TestM Code.Value
+getVerificationCode uid action = do
+  brig <- view tsBrig
+  resp <-
+    get (brig . paths ["i", "users", toByteString' uid, "verification-code", toByteString' action])
+      <!! const 200 === statusCode
+  pure $ responseJsonUnsafe @Code.Value resp
 
 testDeleteBindingTeam :: Bool -> TestM ()
 testDeleteBindingTeam ownerHasPassword = do

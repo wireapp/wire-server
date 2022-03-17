@@ -1,0 +1,1 @@
+Fix data consistency issue in import of users from TM invitation to SCIM-managed

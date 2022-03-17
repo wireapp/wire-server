@@ -80,6 +80,7 @@ import qualified Web.Scim.Schema.User as Scim.User
 import qualified Wire.API.Team.Export as CsvExport
 import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.Invitation (Invitation (..))
+import Wire.API.Team.Role (Role (RoleMember))
 import Wire.API.User.Identity (emailToSAMLNameID)
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.IdentityProvider as User
@@ -198,6 +199,7 @@ specImportToScimFromSAML =
 specImportToScimFromInvitation :: SpecWith TestEnv
 specImportToScimFromInvitation =
   describe "Create with TM invitation; then re-provision with SCIM" $ do
+    check False
     check True
   where
     createTeam :: HasCallStack => TestSpar (UserId, TeamId)
@@ -221,17 +223,18 @@ specImportToScimFromInvitation =
       idp <- call $ callIdpCreate apiVersion (env ^. teSpar) (Just userid) idpmeta
       pure (idp, privkey)
 
-    reProvisionWithScim :: HasCallStack => Bool -> Maybe (SAML.IdPConfig User.WireIdP) -> TeamId -> UserId -> ReaderT TestEnv IO ()
+    reProvisionWithScim ::
+      HasCallStack =>
+      Bool ->
+      Maybe (SAML.IdPConfig User.WireIdP) ->
+      TeamId ->
+      UserId ->
+      TestSpar (Scim.UserC.StoredUser SparTag)
     reProvisionWithScim changeHandle mbidp teamid userid = do
       tok :: ScimToken <- do
         registerScimToken teamid ((^. SAML.idpId) <$> mbidp)
 
-      storedUserGot :: Scim.UserC.StoredUser SparTag <- do
-        resp <-
-          aFewTimes (getUser_ (Just tok) userid =<< view teSpar) ((== 200) . statusCode)
-            <!! const 200 === statusCode
-        pure $ responseJsonUnsafe resp
-
+      storedUserGot <- getStoredUser tok userid
       when changeHandle $ do
         (usr' :: Scim.User.User SparTag, uid :: UserId) <- do
           (usr_, _) <- randomScimUserWithEmail
@@ -239,29 +242,77 @@ specImportToScimFromInvitation =
             ( (Scim.value . Scim.thing $ storedUserGot) {Scim.User.userName = Scim.User.userName usr_},
               Scim.id . Scim.thing $ storedUserGot
             )
+        void $ putStoredUser tok uid usr'
+      getStoredUser tok userid
 
-        _storedUserUpdated :: Scim.UserC.StoredUser SparTag <- do
-          resp <-
-            aFewTimes (updateUser_ (Just tok) (Just uid) usr' =<< view teSpar) ((== 200) . statusCode)
-              <!! const 200 === statusCode
-          pure $ responseJsonUnsafe resp
+    getStoredUser :: ScimToken -> UserId -> TestSpar (Scim.UserC.StoredUser SparTag)
+    getStoredUser tok uid = do
+      resp <- aFewTimes (getUser_ (Just tok) uid =<< view teSpar) ((== 200) . statusCode) <!! const 200 === statusCode
+      pure $ responseJsonUnsafe resp
 
-        pure ()
+    putStoredUser :: ScimToken -> UserId -> Scim.User.User SparTag -> TestSpar (Scim.UserC.StoredUser SparTag)
+    putStoredUser tok uid usr' = do
+      resp <-
+        aFewTimes (updateUser_ (Just tok) (Just uid) usr' =<< view teSpar) ((== 200) . statusCode)
+          <!! const 200 === statusCode
+      pure $ responseJsonUnsafe resp
 
-    signInWithSaml :: HasCallStack => (SAML.IdPConfig User.WireIdP, SAML.SignPrivCreds) -> Email -> TestSpar ()
-    signInWithSaml (idp, privCreds) email = do
+    signInWithSaml :: HasCallStack => (SAML.IdPConfig User.WireIdP, SAML.SignPrivCreds) -> Email -> UserId -> TestSpar ()
+    signInWithSaml (idp, privCreds) email userid = do
       let uref = SAML.UserRef tenant subj
           subj = emailToSAMLNameID email
           tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
-      void $ createViaSaml idp privCreds uref
+      mbUid <- createViaSaml idp privCreds uref
+      liftIO $ mbUid `shouldBe` Just userid
+
+    checkCsvDownload ::
+      HasCallStack =>
+      UserId ->
+      TeamId ->
+      SAML.IdPConfig User.WireIdP ->
+      Scim.UserC.StoredUser SparTag ->
+      TestSpar ()
+    checkCsvDownload ownerId teamId idp storedUsr = do
+      g <- view teGalley
+      resp <-
+        call $
+          get (g . accept "text/csv" . paths ["teams", toByteString' teamId, "members/csv"] . zUser ownerId) <!! do
+            const 200 === statusCode
+            const (Just "chunked") === lookup "Transfer-Encoding" . responseHeaders
+      let rbody = fromMaybe (error "no body") . responseBody $ resp
+
+      let scimUsr = Scim.value (Scim.thing storedUsr)
+          uid = Scim.id (Scim.thing storedUsr)
+          handle = fromRight undefined . parseHandleEither $ Scim.User.userName scimUsr
+          email = fromJust . parseEmail . fromJust . Scim.User.externalId $ scimUsr
+          Right idpissuer = idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to mkHttpsUrl
+          Just samlNameID = Scim.User.externalId scimUsr
+          Just scimExternalId = Scim.User.externalId scimUsr
+
+      liftIO $ do
+        let csvtyped = decodeCSV @CsvExport.TeamExportUser rbody
+        length csvtyped `shouldBe` 2
+
+        let [member] = filter ((== ManagedByScim) . CsvExport.tExportManagedBy) csvtyped
+        CsvExport.tExportDisplayName member `shouldBe` Name "Bob"
+        CsvExport.tExportHandle member `shouldBe` Just handle
+        CsvExport.tExportEmail member `shouldBe` Just email
+        CsvExport.tExportRole member `shouldBe` Just RoleMember
+        CsvExport.tExportInvitedBy member `shouldBe` Nothing
+        CsvExport.tExportIdpIssuer member `shouldBe` Just idpissuer
+        CsvExport.tExportSAMLNamedId member `shouldBe` samlNameID
+        CsvExport.tExportSCIMExternalId member `shouldBe` scimExternalId
+        CsvExport.tExportSCIMRichInfo member `shouldBe` Nothing
+        CsvExport.tExportUserId member `shouldBe` uid
 
     check :: Bool -> SpecWith TestEnv
     check changeHandle = it (show changeHandle) $ do
       (ownerid, teamid) <- createTeam
       (userid, email) <- invite ownerid teamid
-      idp <- addSamlIdP ownerid
-      reProvisionWithScim changeHandle (Just $ fst idp) teamid userid
-      signInWithSaml idp email
+      (idp, privcreds) <- addSamlIdP ownerid
+      storedusr <- reProvisionWithScim changeHandle (Just idp) teamid userid
+      signInWithSaml (idp, privcreds) email userid
+      checkCsvDownload ownerid teamid idp storedusr
 
 assertSparCassandraUref :: HasCallStack => (SAML.UserRef, Maybe UserId) -> TestSpar ()
 assertSparCassandraUref (uref, urefAnswer) = do
@@ -464,11 +515,11 @@ testCsvData tid owner uid mbeid mbsaml hasissuer = do
             Just (UserScimExternalId _) -> ""
             Nothing -> ""
       ('n', CsvExport.tExportSAMLNamedId export) `shouldBe` ('n', haveSubject)
-  where
-    decodeCSV :: Csv.FromNamedRecord a => LByteString -> [a]
-    decodeCSV bstr =
-      either (error "could not decode csv") id $
-        Csv.decodeByName bstr <&> (V.toList . snd)
+
+decodeCSV :: Csv.FromNamedRecord a => LByteString -> [a]
+decodeCSV bstr =
+  either (error "could not decode csv") id $
+    Csv.decodeByName bstr <&> (V.toList . snd)
 
 testCreateUserWithPass :: TestSpar ()
 testCreateUserWithPass = do
@@ -1110,7 +1161,7 @@ testFindNonProvisionedUserNoIdP findBy = do
     liftIO $ users `shouldBe` [uid]
     Just brigUser' <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations uid
     liftIO $ userManagedBy brigUser' `shouldBe` ManagedByScim
-    liftIO $ brigUser' `shouldBe` brigUser {userManagedBy = ManagedByScim}
+    liftIO $ brigUser' `shouldBe` scimifyBrigUserHack brigUser email
 
 -- | Test that deleted users are not listed.
 testListNoDeletedUsers :: TestSpar ()

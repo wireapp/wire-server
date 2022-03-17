@@ -26,6 +26,7 @@ import Control.Arrow (Arrow (second), second)
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
 import Data.ByteString.Conversion
+import qualified Data.Code as Code
 import Data.Domain (Domain)
 import Data.Id as Id
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
@@ -59,7 +60,7 @@ import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate hiding (Error)
+import Network.Wai.Predicate hiding (Error, fromEither)
 import qualified Network.Wai.Utilities as Wai
 import Polysemy
 import Polysemy.Error
@@ -69,6 +70,7 @@ import Wire.API.ErrorDescription
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.User (VerificationAction)
 import qualified Wire.API.User as User
 
 type JSON = Media "application" "json"
@@ -153,11 +155,11 @@ ensureReAuthorised ::
     r =>
   UserId ->
   Maybe PlainTextPassword ->
+  Maybe Code.Value ->
+  Maybe VerificationAction ->
   Sem r ()
-ensureReAuthorised u secret = do
-  reAuthed <- reauthUser u (ReAuthUser secret Nothing Nothing)
-  unless reAuthed $
-    throw ReAuthFailed
+ensureReAuthorised u secret mbAction mbCode =
+  reauthUser u (ReAuthUser secret mbAction mbCode) >>= fromEither
 
 -- | Given a member in a conversation, check if the given action
 -- is permitted. If the user does not have the given permission, throw

@@ -36,8 +36,9 @@ import Bilge.RPC
 import Brig.Types.Connection (Relation (..), UpdateConnectionsInternal (..), UserIds (..))
 import qualified Brig.Types.Intra as Brig
 import Brig.Types.User (User)
+import Control.Error hiding (bool, isRight)
 import Control.Lens (view, (^.))
-import Control.Monad.Catch (throwM)
+import Control.Monad.Catch
 import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Conversion
@@ -45,6 +46,7 @@ import Data.Id
 import Data.Proxy
 import Data.Qualified
 import Data.String.Conversions
+import qualified Data.Text.Lazy as Lazy
 import Galley.API.Error
 import Galley.Env
 import Galley.Intra.Util
@@ -55,6 +57,7 @@ import qualified Network.HTTP.Client.Internal as Http
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
+import qualified Network.Wai.Utilities.Error as Wai
 import Servant.API ((:<|>) ((:<|>)))
 import qualified Servant.Client as Client
 import Util.Options
@@ -136,14 +139,22 @@ deleteBot cid bot = do
 reAuthUser ::
   UserId ->
   Brig.ReAuthUser ->
-  App Bool
+  App (Either AuthenticationError ())
 reAuthUser uid auth = do
   let req =
         method GET
           . paths ["/i/users", toByteString' uid, "reauthenticate"]
           . json auth
-  st <- statusCode . responseStatus <$> call Brig (check [status200, status403] . req)
-  return $ st == 200
+  resp <- call Brig (check [status200, status403] . req)
+  pure $ case (statusCode . responseStatus $ resp, errorLabel resp) of
+    (200, _) -> Right ()
+    (403, Just "code-authentication-required") -> Left VerificationCodeRequired
+    (403, Just "code-authentication-failed") -> Left VerificationCodeAuthFailed
+    (403, _) -> Left ReAuthFailed
+    (_, _) -> Left ReAuthFailed
+  where
+    errorLabel :: ResponseLBS -> Maybe Lazy.Text
+    errorLabel = fmap Wai.label . responseJsonMaybe
 
 check :: [Status] -> Request -> Request
 check allowed r =
