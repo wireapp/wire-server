@@ -171,7 +171,7 @@ roleUpdateRemoteMember = do
   resp <-
     postConvWithRemoteUsers
       bob
-      defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
+      defNewProteusConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
   WS.bracketR c bob $ \wsB -> do
@@ -240,7 +240,7 @@ roleUpdateWithRemotes = do
   resp <-
     postConvWithRemoteUsers
       bob
-      defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
+      defNewProteusConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
   WS.bracketR2 c bob charlie $ \(wsB, wsC) -> do
@@ -298,7 +298,7 @@ accessUpdateWithRemotes = do
   resp <-
     postConvWithRemoteUsers
       bob
-      defNewConv {newConvQualifiedUsers = [qalice, qcharlie]}
+      defNewProteusConv {newConvQualifiedUsers = [qalice, qcharlie]}
   let qconv = decodeQualifiedConvId resp
 
   let access = ConversationAccessData (Set.singleton CodeAccess) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole, ServiceAccessRole])

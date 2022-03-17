@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -47,6 +49,10 @@ rangeCheckedMaybe (Just a) = Just <$> rangeChecked a
 -- Between 0 and (setMaxConvSize - 1)
 newtype ConvSizeChecked f a = ConvSizeChecked {fromConvSize :: f a}
   deriving (Functor, Foldable, Traversable)
+
+deriving newtype instance Semigroup (f a) => Semigroup (ConvSizeChecked f a)
+
+deriving newtype instance Monoid (f a) => Monoid (ConvSizeChecked f a)
 
 checkedConvSize ::
   (Member (Error InvalidInput) r, Foldable f) =>

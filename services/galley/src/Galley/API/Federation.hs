@@ -81,7 +81,15 @@ federationSitemap =
     :<|> Named @"on-user-deleted-conversations" onUserDeleted
 
 onConversationCreated ::
-  Members '[BrigAccess, GundeckAccess, ExternalAccess, Input (Local ()), MemberStore, P.TinyLog] r =>
+  Members
+    '[ BrigAccess,
+       GundeckAccess,
+       ExternalAccess,
+       Input (Local ()),
+       MemberStore,
+       P.TinyLog
+     ]
+    r =>
   Domain ->
   F.NewRemoteConversation ConvId ->
   Sem r ()

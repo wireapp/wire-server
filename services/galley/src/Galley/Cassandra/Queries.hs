@@ -189,11 +189,11 @@ updateTeamStatus = "update team set status = ? where team = ?"
 
 -- Conversations ------------------------------------------------------------
 
-selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (C.Set Access), Maybe AccessRoleLegacy, Maybe (C.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode)
-selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode from conversation where conv = ?"
+selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (C.Set Access), Maybe AccessRoleLegacy, Maybe (C.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe Protocol, Maybe GroupId)
+selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id from conversation where conv = ?"
 
-selectConvs :: PrepQuery R (Identity [ConvId]) (ConvId, ConvType, UserId, Maybe (C.Set Access), Maybe AccessRoleLegacy, Maybe (C.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode)
-selectConvs = "select conv, type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode from conversation where conv in ?"
+selectConvs :: PrepQuery R (Identity [ConvId]) (ConvId, ConvType, UserId, Maybe (C.Set Access), Maybe AccessRoleLegacy, Maybe (C.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe Protocol, Maybe GroupId)
+selectConvs = "select conv, type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id from conversation where conv in ?"
 
 selectReceiptMode :: PrepQuery R (Identity ConvId) (Identity (Maybe ReceiptMode))
 selectReceiptMode = "select receipt_mode from conversation where conv = ?"
@@ -201,8 +201,8 @@ selectReceiptMode = "select receipt_mode from conversation where conv = ?"
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
 
-insertConv :: PrepQuery W (ConvId, ConvType, UserId, C.Set Access, C.Set AccessRoleV2, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode) ()
-insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode) values (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+insertConv :: PrepQuery W (ConvId, ConvType, UserId, C.Set Access, C.Set AccessRoleV2, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, Protocol, Maybe GroupId) ()
+insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 updateConvAccess :: PrepQuery W (C.Set Access, C.Set AccessRoleV2, ConvId) ()
 updateConvAccess = "update conversation set access = ?, access_roles_v2 = ? where conv = ?"
@@ -252,6 +252,14 @@ insertUserConv = "insert into user (user, conv) values (?, ?)"
 
 deleteUserConv :: PrepQuery W (UserId, ConvId) ()
 deleteUserConv = "delete from user where user = ? and conv = ?"
+
+-- MLS Conversations --------------------------------------------------------
+
+insertGroupId :: PrepQuery W (GroupId, ConvId, Domain) ()
+insertGroupId = "INSERT INTO group_id_conv_id (group_id, conv_id, domain) VALUES (?, ?, ?)"
+
+lookupGroupId :: PrepQuery R (Identity GroupId) (ConvId, Domain)
+lookupGroupId = "SELECT (conv_id, domain) from group_id_conv_id where group_id = ?"
 
 -- Members ------------------------------------------------------------------
 

@@ -178,6 +178,7 @@ library
     , base64-bytestring >=1.0
     , bilge >=0.21.1
     , binary
+    , blake2
     , brig-types >=0.73.1
     , bytestring >=0.9
     , bytestring-conversion >=0.2
@@ -213,6 +214,7 @@ library
     , polysemy-wire-zoo
     , proto-lens >=0.2
     , protobuf >=0.2
+    , random
     , raw-strings-qq >=1.0
     , resourcet >=1.1
     , retry >=0.5
@@ -600,6 +602,7 @@ executable galley-schema
       V58_ConversationAccessRoleV2
       V59_FileSharingLockStatus
       V60_TeamFeatureSndFactorPasswordChallenge
+      V61_MLSConversation
       Paths_galley
   hs-source-dirs:
       schema/src

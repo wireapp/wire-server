@@ -73,8 +73,6 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotIm
 -- Group conversations
 
 -- | The public-facing endpoint for creating group conversations.
---
--- See Note [managed conversations].
 createGroupConversation ::
   Members
     '[ ConversationStore,
@@ -98,27 +96,33 @@ createGroupConversation ::
   ConnId ->
   NewConv ->
   Sem r ConversationResponse
-createGroupConversation lusr conn body = do
-  let tinfo = newConvTeam body
-      allUsers = newConvMembers lusr body
-  name <- rangeCheckedMaybe (newConvName body)
+createGroupConversation lusr conn newConv = do
+  let tinfo = newConvTeam newConv
+      allUsers = newConvMembers lusr newConv
+  name <- rangeCheckedMaybe (newConvName newConv)
   o <- input
-  checkedUsers <- checkedConvSize o allUsers
-  checkCreateConvPermissions lusr body tinfo allUsers
+  checkedUsers <- case newConvProtocol newConv of
+    ProtocolProteus -> checkedConvSize o allUsers
+    ProtocolMLS -> do
+      unless (null allUsers) $ throw MLSNonEmptyMemberList
+      pure mempty
+  checkCreateConvPermissions lusr newConv tinfo allUsers
   ensureNoLegalholdConflicts (ulRemotes allUsers) (ulLocals allUsers)
   conv <-
     E.createConversation
+      lusr
       NewConversation
         { ncType = RegularConv,
           ncCreator = tUnqualified lusr,
-          ncAccess = access body,
-          ncAccessRoles = accessRoles body,
+          ncAccess = access newConv,
+          ncAccessRoles = accessRoles newConv,
           ncName = name,
-          ncTeam = fmap cnvTeamId (newConvTeam body),
-          ncMessageTimer = newConvMessageTimer body,
-          ncReceiptMode = newConvReceiptMode body,
+          ncTeam = fmap cnvTeamId (newConvTeam newConv),
+          ncMessageTimer = newConvMessageTimer newConv,
+          ncReceiptMode = newConvReceiptMode newConv,
           ncUsers = checkedUsers,
-          ncRole = newConvUsersRole body
+          ncRole = newConvUsersRole newConv,
+          ncProtocol = newConvProtocol newConv
         }
   now <- input
   -- NOTE: We only send (conversation) events to members of the conversation

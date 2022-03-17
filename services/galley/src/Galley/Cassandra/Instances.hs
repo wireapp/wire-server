@@ -26,6 +26,7 @@ where
 import Cassandra.CQL
 import Control.Error (note)
 import Data.ByteString.Conversion
+import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain, domainText, mkDomain)
 import qualified Data.Text.Encoding as T
 import Galley.Types
@@ -171,6 +172,26 @@ instance Cql Public.EnforceAppLock where
     1 -> pure (Public.EnforceAppLock True)
     _ -> Left "fromCql EnforceAppLock: int out of range"
   fromCql _ = Left "fromCql EnforceAppLock: int expected"
+
+instance Cql Protocol where
+  ctype = Tagged IntColumn
+
+  toCql ProtocolProteus = CqlInt 0
+  toCql ProtocolMLS = CqlInt 1
+
+  fromCql (CqlInt i) = case i of
+    0 -> return ProtocolProteus
+    1 -> return ProtocolMLS
+    n -> Left $ "unexpected protocol: " ++ show n
+  fromCql _ = Left "protocol: int expected"
+
+instance Cql GroupId where
+  ctype = Tagged BlobColumn
+
+  toCql = CqlBlob . LBS.fromStrict . unGroupId
+
+  fromCql (CqlBlob b) = Right . GroupId . LBS.toStrict $ b
+  fromCql _ = Left "group_id: blob expected"
 
 instance Cql Icon where
   ctype = Tagged TextColumn

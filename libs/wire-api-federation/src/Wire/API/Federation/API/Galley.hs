@@ -28,14 +28,7 @@ import Imports
 import Servant.API
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation
-  ( Access,
-    AccessRoleV2,
-    ConvType,
-    ConversationMetadata,
-    ReceiptMode,
-  )
 import Wire.API.Conversation.Action
-import Wire.API.Conversation.Member (OtherMember)
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint

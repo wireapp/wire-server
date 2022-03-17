@@ -123,7 +123,7 @@ getConversationsAllFound = do
     responseJsonError
       =<< postConvWithRemoteUsers
         bob
-        defNewConv {newConvQualifiedUsers = [aliceQ, carlQ]}
+        defNewProteusConv {newConvQualifiedUsers = [aliceQ, carlQ]}
 
   -- create a one-to-one conversation between bob and alice
   do
@@ -668,7 +668,7 @@ leaveConversationSuccess = do
       decodeConvId
         <$> postConvQualified
           alice
-          defNewConv
+          defNewProteusConv
             { newConvQualifiedUsers = [qBob, qChad, qDee, qEve]
             }
   let qconvId = Qualified convId localDomain
@@ -859,7 +859,7 @@ sendMessage = do
       fmap decodeConvId $
         postConvQualified
           aliceId
-          defNewConv
+          defNewProteusConv
             { newConvQualifiedUsers = [bob, chad]
             }
           <!! const 201 === statusCode
@@ -976,7 +976,7 @@ onUserDeleted = do
     decodeQualifiedConvId
       <$> ( postConvWithRemoteUsers
               (tUnqualified alice)
-              defNewConv {newConvQualifiedUsers = [qUntagged bob, alex, bart, carl]}
+              defNewProteusConv {newConvQualifiedUsers = [qUntagged bob, alex, bart, carl]}
               <!! const 201 === statusCode
           )
 
@@ -986,7 +986,7 @@ onUserDeleted = do
   -- conversation without bob
   noBobConvId <-
     fmap decodeQualifiedConvId $
-      postConvQualified (tUnqualified alice) defNewConv {newConvQualifiedUsers = [alex]}
+      postConvQualified (tUnqualified alice) defNewProteusConv {newConvQualifiedUsers = [alex]}
         <!! const 201 === statusCode
 
   WS.bracketR2 cannon (tUnqualified alice) (qUnqualified alex) $ \(wsAlice, wsAlex) -> do

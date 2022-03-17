@@ -15,29 +15,28 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.MLS.Group where
+module V61_MLSConversation
+  ( migration,
+  )
+where
 
-import qualified Data.Aeson as A
-import Data.Json.Util
-import Data.Schema
-import qualified Data.Swagger as S
+import Cassandra.Schema
 import Imports
-import Wire.API.Arbitrary
-import Wire.API.MLS.Serialisation
+import Text.RawString.QQ
 
-newtype GroupId = GroupId {unGroupId :: ByteString}
-  deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform GroupId)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema GroupId)
-
-instance IsString GroupId where
-  fromString = GroupId . fromString
-
-instance ParseMLS GroupId where
-  parseMLS = GroupId <$> parseMLSBytes @Word8
-
-instance ToSchema GroupId where
-  schema =
-    GroupId
-      <$> unGroupId
-      .= named "GroupId" (Base64ByteString .= fmap fromBase64ByteString (unnamed schema))
+migration :: Migration
+migration =
+  Migration 61 "Add MLS fields to conversation and create a group ID to conversation ID mapping table" $ do
+    schema'
+      [r| ALTER TABLE conversation ADD (
+            protocol int,
+            group_id blob
+          )
+        |]
+    schema'
+      [r| CREATE TABLE group_id_conv_id (
+            group_id blob PRIMARY KEY,
+            conv_id uuid,
+            domain text
+          )
+        |]

@@ -717,7 +717,9 @@ fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
             -- domain.
             cnvmTeam = Nothing,
             cnvmMessageTimer = rcMessageTimer,
-            cnvmReceiptMode = rcReceiptMode
+            cnvmReceiptMode = rcReceiptMode,
+            cnvmProtocol = ProtocolProteus,
+            cnvmGroupId = Nothing
           }
         (ConvMembers this others)
 

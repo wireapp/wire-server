@@ -80,6 +80,7 @@ import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (Event, EventType (..), self)
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra
+import Galley.Types.UserList
 import Gundeck.Types.Notification
   ( Notification (..),
     NotificationId,
@@ -505,23 +506,59 @@ createTeamConvLegacy u tid us name = do
     )
     >>= \r -> fromBS (getHeader' "Location" r)
 
-createTeamConv :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> TestM ConvId
+createTeamConv ::
+  HasCallStack =>
+  UserId ->
+  TeamId ->
+  [UserId] ->
+  Maybe Text ->
+  Maybe (Set Access) ->
+  Maybe Milliseconds ->
+  TestM ConvId
 createTeamConv u tid us name acc mtimer = createTeamConvAccess u tid us name acc Nothing mtimer (Just roleNameWireAdmin)
 
-createTeamConvWithRole :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> RoleName -> TestM ConvId
+createTeamConvWithRole ::
+  HasCallStack =>
+  UserId ->
+  TeamId ->
+  [UserId] ->
+  Maybe Text ->
+  Maybe (Set Access) ->
+  Maybe Milliseconds ->
+  RoleName ->
+  TestM ConvId
 createTeamConvWithRole u tid us name acc mtimer convRole = createTeamConvAccess u tid us name acc Nothing mtimer (Just convRole)
 
-createTeamConvAccess :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> Maybe RoleName -> TestM ConvId
+createTeamConvAccess ::
+  HasCallStack =>
+  UserId ->
+  TeamId ->
+  [UserId] ->
+  Maybe Text ->
+  Maybe (Set Access) ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  Maybe RoleName ->
+  TestM ConvId
 createTeamConvAccess u tid us name acc role mtimer convRole = do
   r <- createTeamConvAccessRaw u tid us name acc role mtimer convRole <!! const 201 === statusCode
   fromBS (getHeader' "Location" r)
 
-createTeamConvAccessRaw :: UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> Maybe RoleName -> TestM ResponseLBS
+createTeamConvAccessRaw ::
+  UserId ->
+  TeamId ->
+  [UserId] ->
+  Maybe Text ->
+  Maybe (Set Access) ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  Maybe RoleName ->
+  TestM ResponseLBS
 createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
   g <- view tsGalley
   let tinfo = ConvTeamInfo tid
   let conv =
-        NewConv us [] name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole)
+        NewConv us [] name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole) ProtocolProteus
   post
     ( g
         . path "/conversations"
@@ -530,6 +567,45 @@ createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
         . zType "access"
         . json conv
     )
+
+-- | Create a team MLS conversation
+createMLSTeamConv ::
+  (HasGalley m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Local UserId ->
+  TeamId ->
+  UserList UserId ->
+  Maybe Text ->
+  Maybe (Set Access) ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  Maybe RoleName ->
+  m (Local ConvId)
+createMLSTeamConv lusr tid users name access role timer convRole = do
+  g <- viewGalley
+  let conv =
+        NewConv
+          { newConvUsers = [],
+            newConvQualifiedUsers = ulAll lusr users,
+            newConvName = name,
+            newConvAccess = fromMaybe Set.empty access,
+            newConvAccessRoles = role,
+            newConvTeam = Just . ConvTeamInfo $ tid,
+            newConvMessageTimer = timer,
+            newConvUsersRole = fromMaybe roleNameWireAdmin convRole,
+            newConvReceiptMode = Nothing,
+            newConvProtocol = ProtocolMLS
+          }
+  r <-
+    post
+      ( g
+          . path "/conversations"
+          . zUser (tUnqualified lusr)
+          . zConn "conn"
+          . zType "access"
+          . json conv
+      )
+  convId <- fromBS (getHeader' "Location" r)
+  pure $ qualifyAs lusr convId
 
 updateTeamConv :: UserId -> ConvId -> ConversationRename -> TestM ResponseLBS
 updateTeamConv zusr convid upd = do
@@ -547,14 +623,46 @@ createOne2OneTeamConv :: UserId -> UserId -> Maybe Text -> TeamId -> TestM Respo
 createOne2OneTeamConv u1 u2 n tid = do
   g <- view tsGalley
   let conv =
-        NewConv [u2] [] n mempty Nothing (Just $ ConvTeamInfo tid) Nothing Nothing roleNameWireAdmin
+        NewConv [u2] [] n mempty Nothing (Just $ ConvTeamInfo tid) Nothing Nothing roleNameWireAdmin ProtocolProteus
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
-postConv :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> TestM ResponseLBS
+postConv ::
+  UserId ->
+  [UserId] ->
+  Maybe Text ->
+  [Access] ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  TestM ResponseLBS
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
 
-defNewConv :: NewConv
-defNewConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+-- | Create a group MLS conversation
+postMLSConv ::
+  Local UserId ->
+  UserList UserId ->
+  Maybe Text ->
+  [Access] ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  TestM ResponseLBS
+postMLSConv lusr us name access r timer =
+  postConvQualified
+    (tUnqualified lusr)
+    NewConv
+      { newConvUsers = [],
+        newConvQualifiedUsers = ulAll lusr us,
+        newConvName = name,
+        newConvAccess = Set.fromList access,
+        newConvAccessRoles = r,
+        newConvTeam = Nothing,
+        newConvMessageTimer = timer,
+        newConvUsersRole = roleNameWireAdmin,
+        newConvReceiptMode = Nothing,
+        newConvProtocol = ProtocolMLS
+      }
+
+defNewProteusConv :: NewConv
+defNewProteusConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteus
 
 postConvQualified ::
   (HasCallStack, HasGalley m, MonadIO m, MonadMask m, MonadHttp m) =>
@@ -589,7 +697,7 @@ postConvWithRemoteUsers u n =
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
   g <- view tsGalley
-  let conv = NewConv us [] name (Set.fromList a) r (Just (ConvTeamInfo tid)) mtimer Nothing roleNameWireAdmin
+  let conv = NewConv us [] name (Set.fromList a) r (Just (ConvTeamInfo tid)) mtimer Nothing roleNameWireAdmin ProtocolProteus
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 deleteTeamConv :: (HasGalley m, MonadIO m, MonadHttp m) => TeamId -> ConvId -> UserId -> m ResponseLBS
@@ -602,11 +710,19 @@ deleteTeamConv tid convId zusr = do
         . zConn "conn"
     )
 
-postConvWithRole :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
+postConvWithRole ::
+  UserId ->
+  [UserId] ->
+  Maybe Text ->
+  [Access] ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  RoleName ->
+  TestM ResponseLBS
 postConvWithRole u members name access arole timer role =
   postConvQualified
     u
-    defNewConv
+    defNewProteusConv
       { newConvUsers = members,
         newConvName = name,
         newConvAccess = Set.fromList access,
@@ -618,7 +734,7 @@ postConvWithRole u members name access arole timer role =
 postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
   g <- view tsGalley
-  let conv = NewConv us [] name (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin
+  let conv = NewConv us [] name (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin ProtocolProteus
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: UserId -> TestM ResponseLBS
@@ -629,7 +745,7 @@ postSelfConv u = do
 postO2OConv :: UserId -> UserId -> Maybe Text -> TestM ResponseLBS
 postO2OConv u1 u2 n = do
   g <- view tsGalley
-  let conv = NewConv [u2] [] n mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+  let conv = NewConv [u2] [] n mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteus
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS
@@ -2114,13 +2230,13 @@ someLastPrekeys =
     lastPrekey "pQABARn//wKhAFgg1rZEY6vbAnEz+Ern5kRny/uKiIrXTb/usQxGnceV2HADoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
   ]
 
-mkConv ::
+mkProteusConv ::
   ConvId ->
   UserId ->
   RoleName ->
   [OtherMember] ->
   RemoteConversation
-mkConv cnvId creator selfRole otherMembers =
+mkProteusConv cnvId creator selfRole otherMembers =
   RemoteConversation
     cnvId
     ( ConversationMetadata
@@ -2131,6 +2247,8 @@ mkConv cnvId creator selfRole otherMembers =
         (Just "federated gossip")
         Nothing
         Nothing
+        Nothing
+        ProtocolProteus
         Nothing
     )
     (RemoteConvMembers selfRole otherMembers)
@@ -2446,7 +2564,7 @@ checkTeamUpdateEvent tid upd w = WS.assertMatch_ checkTimeout w $ \notif -> do
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdTeamUpdate upd
 
-checkConvCreateEvent :: HasCallStack => ConvId -> WS.WebSocket -> TestM ()
+checkConvCreateEvent :: (MonadIO m, MonadCatch m) => HasCallStack => ConvId -> WS.WebSocket -> m ()
 checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)

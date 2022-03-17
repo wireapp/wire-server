@@ -56,6 +56,7 @@
         },
         "message_timer": 283898987885780,
         "name": "\u0007\u000e\r",
+        "protocol": "proteus",
         "qualified_id": {
             "domain": "golden.example.com",
             "id": "00000000-0000-0000-0000-000100000001"
