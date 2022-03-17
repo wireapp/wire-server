@@ -133,7 +133,7 @@ data ConversationMetadata = ConversationMetadata
     cnvmReceiptMode :: Maybe ReceiptMode,
     -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
     cnvmProtocol :: Protocol,
-    -- | An MLS group ID
+    -- | The corresponding MLS group ID. This should only be set for MLS conversations.
     cnvmGroupId :: Maybe GroupId
   }
   deriving stock (Eq, Show, Generic)
