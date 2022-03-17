@@ -39,6 +39,7 @@ import Imports
 import Network.HTTP.Client as HTTP
 import qualified System.Logger as Log
 import System.Logger.Class (Logger, MonadLogger (..))
+import Util.Options
 
 runCommand :: Logger -> Command -> IO ()
 runCommand l = \case
@@ -62,7 +63,8 @@ runCommand l = \case
   Migrate es cas -> do
     migrate l es cas
   ReindexFromAnotherIndex reindexSettings -> do
-    bhEnv <- initES (view reindexEsServer reindexSettings)
+    mgr <- newManager defaultManagerSettings
+    let bhEnv = initES (view reindexEsServer reindexSettings) mgr
     ES.runBH bhEnv $ do
       let src = view reindexSrcIndex reindexSettings
           dest = view reindexDestIndex reindexSettings
@@ -87,20 +89,21 @@ runCommand l = \case
   where
     initIndex es =
       initIndex' (es ^. esServer) (es ^. esIndex)
-    initIndex' esURI indexName =
+    initIndex' esURI indexName = do
+      mgr <- newManager defaultManagerSettings
       IndexEnv
         <$> Metrics.metrics
         <*> pure l
-        <*> initES esURI
+        <*> pure (initES esURI mgr)
         <*> pure Nothing
         <*> pure indexName
         <*> pure Nothing
         <*> pure Nothing
-        <*> pure (error "TODO")
-        <*> pure (error "TODO")
-    initES esURI =
-      ES.mkBHEnv (toESServer esURI)
-        <$> newManager defaultManagerSettings
+        -- TODO: Fix this
+        <*> pure (Endpoint "localhost" 8085)
+        <*> pure mgr
+    initES esURI mgr =
+      ES.mkBHEnv (toESServer esURI) mgr
     initDb cas =
       C.init $
         C.setLogger (C.mkLogger l)
