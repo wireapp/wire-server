@@ -67,7 +67,6 @@ import Data.Qualified
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Data.Time.Clock
-import Data.Tuple.Extra (uncurry3)
 import Galley.API.Error as Galley
 import Galley.API.LegalHold
 import Galley.API.Teams (ensureNotTooLargeToActivateLegalHold)
@@ -802,7 +801,8 @@ getFeatureStatusMulti ::
   Lens' FeatureFlags (Defaults (Public.TeamFeatureStatus 'Public.WithoutLockStatus f)) ->
   (Multi.TeamFeatureNoConfigMultiRequest -> (Sem r) (Multi.TeamFeatureNoConfigMultiResponse 'Public.TeamFeatureSearchVisibilityInbound))
 getFeatureStatusMulti lens' (Multi.TeamFeatureNoConfigMultiRequest teams) = do
-  tsExplicit <- uncurry3 Multi.TeamStatus <$$> TeamFeatures.getFeatureStatusNoConfigMulti (Proxy @f) teams
+  triples <- TeamFeatures.getFeatureStatusNoConfigMulti (Proxy @f) teams
+  let tsExplicit = mapMaybe (\(tid, msv, mt) -> Multi.TeamStatus tid <$> msv <*> pure mt) triples
   let teamsDefault = Set.toList (Set.fromList teams `Set.difference` Set.fromList (Multi.team <$> tsExplicit))
   defaultStatus <- getDef
   let tsImplicit = [Multi.TeamStatus tid defaultStatus Nothing | tid <- teamsDefault]

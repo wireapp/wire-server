@@ -55,7 +55,7 @@ data TeamFeatureStore m a where
     ) =>
     Proxy a ->
     [TeamId] ->
-    TeamFeatureStore m [(TeamId, TeamFeatureStatusValue, Maybe Int64)]
+    TeamFeatureStore m [(TeamId, Maybe TeamFeatureStatusValue, Maybe Int64)]
   GetFeatureStatusNoConfigAndLockStatus' ::
     forall (a :: TeamFeatureName) m.
     (FeatureHasNoConfig 'WithoutLockStatus a, HasStatusCol a, HasLockStatusCol a) =>
