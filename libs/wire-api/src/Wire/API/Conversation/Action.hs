@@ -29,12 +29,13 @@ module Wire.API.Conversation.Action
 where
 
 import Control.Lens ((?~))
-import Data.Aeson
-import qualified Data.Aeson.KeyMap as AKeyMap
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import qualified Data.Aeson as A
+import qualified Data.Aeson.KeyMap as A
 import Data.Id
 import qualified Data.List.NonEmpty as NonEmptyList
 import Data.Qualified (Qualified)
-import Data.Schema (NamedSwaggerDoc, ToSchema, ValueSchema, element, enum, field, nonEmptyArray, objectWithDocModifier, schema, schemaIn, schemaOut, schemaParseJSON, schemaToJSON)
+import Data.Schema hiding (tag)
 import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Data.Time.Clock
@@ -114,8 +115,8 @@ instance Eq SomeConversationAction where
 instance ToJSON SomeConversationAction where
   toJSON (SomeConversationAction sb action) =
     let tag = fromSing sb
-        actionJSON :: Value = fromMaybe Null $ schemaOut (conversationActionSchema sb) action
-     in object ["tag" .= tag, "action" .= actionJSON]
+        actionJSON = fromMaybe A.Null $ schemaOut (conversationActionSchema sb) action
+     in A.object ["tag" A..= tag, "action" A..= actionJSON]
 
 conversationActionSchema :: forall tag. Sing tag -> ValueSchema NamedSwaggerDoc (ConversationAction tag)
 conversationActionSchema SConversationJoinTag = schema @ConversationJoin
@@ -135,15 +136,15 @@ conversationActionSchema SConversationDeleteTag =
     "ConversationDelete"
     (S.description ?~ "The action of deleting a conversation")
     (pure ())
-conversationActionSchema SConversationRenameTag = schema @ConversationRename
-conversationActionSchema SConversationMessageTimerUpdateTag = schema @ConversationMessageTimerUpdate
-conversationActionSchema SConversationReceiptModeUpdateTag = schema @ConversationReceiptModeUpdate
-conversationActionSchema SConversationAccessDataTag = schema @ConversationAccessData
+conversationActionSchema SConversationRenameTag = schema
+conversationActionSchema SConversationMessageTimerUpdateTag = schema
+conversationActionSchema SConversationReceiptModeUpdateTag = schema
+conversationActionSchema SConversationAccessDataTag = schema
 
 instance FromJSON SomeConversationAction where
-  parseJSON = withObject "SomeConversationAction" $ \ob -> do
-    tag :: ConversationActionTag <- ob .: "tag"
-    case AKeyMap.lookup "action" ob of
+  parseJSON = A.withObject "SomeConversationAction" $ \ob -> do
+    tag <- ob A..: "tag"
+    case A.lookup "action" ob of
       Nothing -> fail "'action' property missing"
       Just actionValue ->
         case toSing tag of
