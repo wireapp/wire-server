@@ -1068,6 +1068,7 @@ testDeleteTeamVerificationCodeSuccess = do
   g <- view tsGalley
   (owner, tid) <- Util.createBindingTeam'
   let Just email = U.userEmail owner
+  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
   setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
   generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
   code <- getVerificationCode (U.userId owner) Public.DeleteTeam
@@ -1087,6 +1088,7 @@ testDeleteTeamVerificationCodeMissingCode :: TestM ()
 testDeleteTeamVerificationCodeMissingCode = do
   g <- view tsGalley
   (owner, tid) <- Util.createBindingTeam'
+  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
   setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
   let Just email = U.userEmail owner
   generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
@@ -1106,6 +1108,7 @@ testDeleteTeamVerificationCodeExpiredCode :: TestM ()
 testDeleteTeamVerificationCodeExpiredCode = do
   g <- view tsGalley
   (owner, tid) <- Util.createBindingTeam'
+  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
   setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
   let Just email = U.userEmail owner
   generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
@@ -1128,6 +1131,7 @@ testDeleteTeamVerificationCodeWrongCode :: TestM ()
 testDeleteTeamVerificationCodeWrongCode = do
   g <- view tsGalley
   (owner, tid) <- Util.createBindingTeam'
+  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
   setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
   let Just email = U.userEmail owner
   generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
@@ -1143,6 +1147,11 @@ testDeleteTeamVerificationCodeWrongCode = do
       const 403 === statusCode
       const "code-authentication-failed" === (Error.label . responseJsonUnsafeWithMsg "error label")
   assertQueueEmpty
+
+setFeatureLockStatus :: forall (a :: Public.TeamFeatureName). (Public.KnownTeamFeatureName a) => TeamId -> Public.LockStatusValue -> TestM ()
+setFeatureLockStatus tid status = do
+  g <- view tsGalley
+  put (g . paths ["i", "teams", toByteString' tid, "features", toByteString' $ Public.knownTeamFeatureName @a, toByteString' status]) !!! const 200 === statusCode
 
 generateVerificationCode :: Public.SendVerificationCode -> TestM ()
 generateVerificationCode req = do
