@@ -637,7 +637,7 @@ defaultTeamFeatureValidateSAMLEmailsStatus = TeamFeatureStatusNoConfig TeamFeatu
 -- TeamFeatureSndFactorPasswordChallenge
 
 defaultTeamFeatureSndFactorPasswordChallengeStatus :: TeamFeatureStatusNoConfigAndLockStatus
-defaultTeamFeatureSndFactorPasswordChallengeStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Unlocked
+defaultTeamFeatureSndFactorPasswordChallengeStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Locked
 
 ----------------------------------------------------------------------
 -- internal

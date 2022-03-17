@@ -44,7 +44,7 @@ config:
       # sndFactorPasswordChallenge:
       #   defaults:
       #     status: disabled
-      #     lockStatus: unlocked
+      #     lockStatus: locked
   aws:
     region: "eu-west-1"
   proxy: {}

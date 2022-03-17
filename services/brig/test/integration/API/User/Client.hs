@@ -116,6 +116,7 @@ testAddGetClientVerificationCode db brig galley = do
   let addClient' :: Maybe Code.Value -> Http Client
       addClient' codeValue = responseJsonError =<< addClient brig uid (defNewClientWithVerificationCode codeValue PermanentClientType [head somePrekeys] (head someLastPrekeys))
 
+  Util.setTeamFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge galley tid Public.Unlocked
   Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   k <- Code.mkKey (Code.ForEmail email)
@@ -133,6 +134,7 @@ testAddGetClientMissingCode brig galley = do
   let Just email = userEmail u
   let addClient' codeValue = addClient brig uid (defNewClientWithVerificationCode codeValue PermanentClientType [head somePrekeys] (head someLastPrekeys))
 
+  Util.setTeamFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge galley tid Public.Unlocked
   Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   addClient' Nothing !!! do
@@ -146,6 +148,7 @@ testAddGetClientWrongCode brig galley = do
   let Just email = userEmail u
   let addClient' codeValue = addClient brig uid (defNewClientWithVerificationCode codeValue PermanentClientType [head somePrekeys] (head someLastPrekeys))
 
+  Util.setTeamFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge galley tid Public.Unlocked
   Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
@@ -161,6 +164,7 @@ testAddGetClientCodeExpired db brig galley = do
   let checkLoginSucceeds b = login brig b PersistentCookie !!! const 200 === statusCode
   let addClient' codeValue = addClient brig uid (defNewClientWithVerificationCode codeValue PermanentClientType [head somePrekeys] (head someLastPrekeys))
 
+  Util.setTeamFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge galley tid Public.Unlocked
   Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   k <- Code.mkKey (Code.ForEmail email)

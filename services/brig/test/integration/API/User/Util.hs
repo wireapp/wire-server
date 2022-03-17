@@ -493,5 +493,20 @@ setTeamSndFactorPasswordChallenge galley tid status = do
   let js = RequestBodyLBS $ encode $ Public.TeamFeatureStatusNoConfig status
   put (galley . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge] . contentJson . body js) !!! const 200 === statusCode
 
+setTeamFeatureLockStatus ::
+  forall (a :: Public.TeamFeatureName) m.
+  ( MonadCatch m,
+    MonadIO m,
+    MonadHttp m,
+    HasCallStack,
+    Public.KnownTeamFeatureName a
+  ) =>
+  Galley ->
+  TeamId ->
+  Public.LockStatusValue ->
+  m ()
+setTeamFeatureLockStatus galley tid status =
+  put (galley . paths ["i", "teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a), toByteString' status]) !!! const 200 === statusCode
+
 lookupCode :: MonadIO m => DB.ClientState -> Code.Key -> Code.Scope -> m (Maybe Code.Code)
 lookupCode db k = liftIO . DB.runClient db . Code.lookup k
