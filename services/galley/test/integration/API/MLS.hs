@@ -1,0 +1,221 @@
+{-# LANGUAGE RecordWildCards #-}
+
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
+module API.MLS (tests) where
+
+import API.Util
+import Bilge
+import Bilge.Assert
+import Control.Comonad
+import Control.Lens (view)
+import qualified Data.ByteString as BS
+import Data.ByteString.Conversion
+import Data.Default
+import Data.Domain
+import Data.Id
+import qualified Data.Map as Map
+import Data.Qualified
+import qualified Data.Text as T
+import Imports
+import System.FilePath
+import System.IO.Temp
+import System.Process
+import Test.Tasty
+import Test.Tasty.HUnit
+import TestHelpers
+import TestSetup
+import Wire.API.MLS.Credential
+import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Serialisation
+import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
+
+tests :: IO TestSetup -> TestTree
+tests s =
+  testGroup
+    "MLS"
+    [ test s "local welcome" testLocalWelcome,
+      test s "local welcome (client with no public key)" testWelcomeNoKey,
+      test s "local welcome (client with no public key)" testWelcomeUnknownClient
+    ]
+
+testLocalWelcome :: TestM ()
+testLocalWelcome = do
+  MessagingSetup {..} <- aliceInvitesBob def
+
+  galley <- viewGalley
+  post
+    ( galley
+        . paths ["mls", "welcome"]
+        . zUser (qUnqualified creator)
+        . content "message/mls"
+        . bytes welcome
+    )
+    !!! const 201 === statusCode
+
+testWelcomeNoKey :: TestM ()
+testWelcomeNoKey = do
+  MessagingSetup {..} <- aliceInvitesBob def {createClients = CreateWithoutKey}
+
+  galley <- viewGalley
+  post
+    ( galley
+        . paths ["mls", "welcome"]
+        . zUser (qUnqualified creator)
+        . content "message/mls"
+        . bytes welcome
+    )
+    !!! const 400 === statusCode
+
+testWelcomeUnknownClient :: TestM ()
+testWelcomeUnknownClient = do
+  MessagingSetup {..} <- aliceInvitesBob def {createClients = DontCreate}
+
+  galley <- viewGalley
+  post
+    ( galley
+        . paths ["mls", "welcome"]
+        . zUser (qUnqualified creator)
+        . content "message/mls"
+        . bytes welcome
+    )
+    !!! const 400 === statusCode
+
+--------------------------------------------------------------------------------
+-- Messaging setup
+
+data CreateClients = CreateWithoutKey | CreateWithKey | DontCreate
+
+data SetupOptions = SetupOptions {createClients :: CreateClients}
+
+instance Default SetupOptions where
+  def = SetupOptions {createClients = CreateWithKey}
+
+data MessagingSetup = MessagingSetup
+  { creator :: Qualified UserId,
+    welcome :: ByteString,
+    commit :: ByteString
+  }
+
+-- | Setup: Alice creates a group and invites bob. Return welcome and commit message.
+aliceInvitesBob :: SetupOptions -> TestM MessagingSetup
+aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \_tmp0 -> do
+  let tmp = "/tmp/mls" -- TODO: remove this
+  alice <- randomQualifiedUser
+  let aliceLPK = someLastPrekeys !! 0
+  bob <- randomQualifiedUser
+  let bobLPK = someLastPrekeys !! 1
+
+  aliceClient <- randomClient (qUnqualified alice) aliceLPK
+  bobClient <- case createClients of
+    DontCreate -> randomClient (qUnqualified bob) bobLPK
+    _ -> addClient bob bobLPK
+
+  let store = tmp </> "store.db"
+      cli args = proc "crypto-cli" $ ["--store", store, "--enc-key", "test"] <> args
+      aliceClientId =
+        show (qUnqualified alice)
+          <> ":"
+          <> T.unpack (client aliceClient)
+          <> "@"
+          <> T.unpack (domainText (qDomain alice))
+      bobClientId =
+        show (qUnqualified bob)
+          <> ":"
+          <> T.unpack (client bobClient)
+          <> "@"
+          <> T.unpack (domainText (qDomain bob))
+
+  -- generate key package for bob
+  bobKeyPackage <-
+    liftIO $
+      decodeMLSError
+        =<< spawn (cli ["key-package", bobClientId]) Nothing
+
+  -- set bob's private key and upload key package if required
+  case createClients of
+    CreateWithKey -> addKeyPackage bob bobClient bobKeyPackage
+    _ -> pure ()
+
+  -- create a group
+  groupJSON <-
+    liftIO $
+      spawn (cli ["group", aliceClientId, "test_group"]) Nothing
+  liftIO $ BS.writeFile (tmp </> "group") groupJSON
+
+  -- add bob to it and get welcome message
+  commit <-
+    liftIO $
+      spawn
+        (cli ["member", "add", "--group", tmp </> "group", "--welcome-out", tmp </> "welcome", "-"])
+        (Just (rmRaw bobKeyPackage))
+  welcome <- liftIO $ BS.readFile (tmp </> "welcome")
+
+  pure $ MessagingSetup {creator = alice, ..}
+
+addClient :: Qualified UserId -> LastPrekey -> TestM ClientId
+addClient u lpk = do
+  let new = newClient PermanentClientType lpk
+
+  brig <- view tsBrig
+  c <-
+    responseJsonError
+      =<< post
+        ( brig
+            . paths ["clients"]
+            . zUser (qUnqualified u)
+            . zConn "conn"
+            . json new
+        )
+      <!! const 201 === statusCode
+
+  pure (clientId c)
+
+addKeyPackage :: Qualified UserId -> ClientId -> RawMLS KeyPackage -> TestM ()
+addKeyPackage u c kp = do
+  let update = defUpdateClient {updateClientMLSPublicKeys = Map.singleton Ed25519 (bcSignatureKey (kpCredential (extract kp)))}
+  -- set public key
+  brig <- view tsBrig
+  put
+    ( brig
+        . paths ["clients", toByteString' c]
+        . zUser (qUnqualified u)
+        . json update
+    )
+    !!! const 200 === statusCode
+
+  -- upload key package
+  post
+    ( brig
+        . paths ["mls", "key-packages", "self", toByteString' c]
+        . zUser (qUnqualified u)
+        . json (KeyPackageUpload [kp])
+    )
+    !!! const 201 === statusCode
+
+  -- claim key package (technically, some other user should claim them, but it doesn't really make a difference)
+  bundle <-
+    responseJsonError
+      =<< post
+        ( brig
+            . paths ["mls", "key-packages", "claim", toByteString' (qDomain u), toByteString' (qUnqualified u)]
+            . zUser (qUnqualified u)
+        )
+      <!! const 200 === statusCode
+  liftIO $ map (Just . kpbeRef) (toList (kpbEntries bundle)) @?= [kpRef' kp]

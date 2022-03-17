@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -16,6 +15,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wwarn #-}
 
 module API.Util where
 
@@ -27,6 +27,7 @@ import Brig.Types
 import Brig.Types.Intra (UserAccount (..), UserSet (..))
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
+import Control.Concurrent.Async
 import Control.Exception (throw)
 import Control.Lens hiding (from, to, (#), (.=))
 import Control.Monad.Catch (MonadCatch, MonadMask, finally)
@@ -61,6 +62,7 @@ import Data.Serialize (runPut)
 import qualified Data.Set as Set
 import Data.Singletons
 import Data.String.Conversions (ST, cs)
+import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy.Encoding as T
 import Data.Time (getCurrentTime)
@@ -99,6 +101,8 @@ import Network.Wai (Application, defaultRequest)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Test as Wai
 import Servant (Handler, HasServer, Server, ServerT, serve, (:<|>) (..))
+import System.Exit
+import System.Process
 import System.Random
 import qualified Test.QuickCheck as Q
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
@@ -117,6 +121,7 @@ import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Domain (originDomainHeaderName)
+import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Internal.Brig.Connection
@@ -2712,3 +2717,24 @@ matchFedRequest :: Domain -> Text -> FederatedRequest -> Bool
 matchFedRequest domain reqpath req =
   frTargetDomain req == domain
     && frRPC req == reqpath
+
+spawn :: CreateProcess -> Maybe ByteString -> IO ByteString
+spawn cp minput = do
+  (mout, ex) <- withCreateProcess
+    cp
+      { std_out = CreatePipe,
+        std_in = if isJust minput then CreatePipe else Inherit
+      }
+    $ \minh mouth _ ph ->
+      let writeInput = for_ ((,) <$> minput <*> minh) $ \(input, inh) ->
+            BS.hPutStr inh input >> hClose inh
+          readOutput = (,) <$> traverse BS.hGetContents mouth <*> waitForProcess ph
+       in fmap snd $ concurrently writeInput readOutput
+  case (mout, ex) of
+    (Just out, ExitSuccess) -> pure out
+    _ -> assertFailure "Failed spawning process"
+
+decodeMLSError :: ParseMLS a => ByteString -> IO a
+decodeMLSError s = case decodeMLS' s of
+  Left e -> assertFailure ("Could not parse MLS object: " <> Text.unpack e)
+  Right x -> pure x

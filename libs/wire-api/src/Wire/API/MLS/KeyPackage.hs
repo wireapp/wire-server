@@ -30,6 +30,7 @@ module Wire.API.MLS.KeyPackage
     kpCredential,
     kpExtensions,
     kpRef,
+    kpRef',
     KeyPackageTBS (..),
     KeyPackageRef (..),
   )
@@ -128,6 +129,12 @@ kpRef cs =
     -- the "wrong" string here as well.
     . csHash cs "MLS 1.0 ref"
     . kpData
+
+kpRef' :: RawMLS KeyPackage -> Maybe KeyPackageRef
+kpRef' kp =
+  kpRef
+    <$> cipherSuiteTag (kpCipherSuite (rmValue kp))
+    <*> pure (KeyPackageData (rmRaw kp))
 
 --------------------------------------------------------------------------------
 

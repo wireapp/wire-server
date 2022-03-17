@@ -171,5 +171,7 @@ getClientByKeyPackageRef ref = do
     call Brig $
       method GET
         . paths ["i", "mls", "key-packages", toHeader ref]
-        . expect2xx
-  parseResponse (mkError status502 "server-error") r
+        . expectStatus (flip elem [200, 404])
+  if statusCode (responseStatus r) == 200
+    then Just <$> parseResponse (mkError status502 "server-error") r
+    else pure Nothing
