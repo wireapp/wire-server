@@ -2,14 +2,12 @@
 
 ## Release notes
 
-
 * Deploy Brig before Spar. (#2149)
-
+* If you are in a federated network of backends (currently beta), you need to update all participating instances at the same time. (#2173)
 
 ## API changes
 
-
-* The client JSON object now has an additional field `mls_public_keys`, containing an object mapping signature schemes to public keys, e.g.
+* The `client` JSON object now has an additional field `mls_public_keys`, containing an object mapping signature schemes to public keys, e.g.
   ```
   {
     ...
@@ -37,16 +35,13 @@
 
    - key package refs are now mapped after being claimed (#2192)
 
-* 2nd factor authentication for login via 6 digit code, sent by email. The feature is disabled per default and can be enabled server or team wide. Please refer to [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge) (#2142)
-
-* 2nd factor authentication for "create SCIM token" via 6 digit code, sent by email. The feature is disabled per default and can be enabled server or team wide. For details see [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge) (#2149)
-
-* 2nd factor authentication for "add new client" via 6 digit code, sent by email. This only happens inside the login flow (in particular, when logging in from a new device).  The code obtained for logging in is used a second time for adding the device. Please refer to [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge) (#2186)
-
-* 2nd factor authentication for "delete team" via 6 digit code, sent by email. Please refer to [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge) (#2193)
-
-* The `SndFactorPasswordChallenge` team feature is locked per default. (#2205)
-
+* 2nd factor authentication via 6 digit code, sent by email:
+   - for login, sent by email. The feature is disabled per default and can be enabled server or team wide. (#2142)
+   - for "create SCIM token". The feature is disabled per default and can be enabled server or team wide. (#2149)
+   - for "add new client" via 6 digit code, sent by email. This only happens inside the login flow (in particular, when logging in from a new device).  The code obtained for logging in is used a second time for adding the device. (#2186)
+   - 2nd factor authentication for "delete team" via 6 digit code, sent by email. (#2193)
+   - The `SndFactorPasswordChallenge` team feature is locked by default. (#2205)
+   - Details: [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge)
 
 ## Bug fixes and other updates
 
@@ -76,20 +71,11 @@
   - Lots of functions were generalized to run in a monad constrained by
     MonadClient instead of running directly in Brig's `AppIO r` monad. (#2187)
 
-* Asset keys are now internally validated (#PR_NOT_FOUND)
-
 
 ## Federation changes
 
 
-* Refactor conversation actions to an existential type consisting of a singleton
-  tag (identifying the action) and a dedicated type for the action itself.
-  Previously, actions were represented by a big sum type. The new approach
-  enables us to describe the needed effects of an action much more precisely.
-  The existential type is initialized by the Servant endpoints in a way to
-  mimic the previous behavior. However, the messages between services changed.
-  Thus, all federated backends need to run the same (new) version. The
-  deployment order itself does not matter. (#2173)
+* Refactor conversation actions to an existential type consisting of a singleton tag (identifying the action) and a dedicated type for the action itself. Previously, actions were represented by a big sum type. The new approach enables us to describe the needed effects of an action much more precisely. The existential type is initialized by the Servant endpoints in a way to mimic the previous behavior. However, the messages between services changed. Thus, all federated backends need to run the same (new) version. The deployment order itself does not matter. (#2173)
 
 
 # [2022-03-09]
