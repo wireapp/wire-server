@@ -278,3 +278,19 @@ testObject_Event_user_14 =
           conversationCode = Value {asciiValue = unsafeRange (fromRight undefined (validate "lLz-9vR8ENum0kI-xWJs"))},
           conversationUri = Nothing
         }
+
+testObject_Event_user_15 :: Event
+testObject_Event_user_15 =
+  Event
+    (Qualified (Id (fromJust (UUID.fromString "7cd50991-3cdd-40ec-bb0f-63ae17b2309d"))) (Domain "faraway.example.com"))
+    (Qualified (Id (fromJust (UUID.fromString "04e68c50-027e-4e84-a33a-e2e28a7b8ea3"))) (Domain "faraway.example.com"))
+    (read "2021-11-10 05:39:44.297 UTC")
+    (EdMLSMessage "hello world")
+
+testObject_Event_user_16 :: Event
+testObject_Event_user_16 =
+  Event
+    (Qualified (Id (fromJust (UUID.fromString "6ec1c834-9ae6-4825-8809-61dde80be5ea"))) (Domain "faraway.example.com"))
+    (Qualified (Id (fromJust (UUID.fromString "e8f48b8f-fad3-4f60-98e3-a6df082c328d"))) (Domain "faraway.example.com"))
+    (read "2021-05-12 13:12:01.005 UTC")
+    (EdMLSWelcome "welcome message content")

@@ -645,7 +645,9 @@ tests =
             (Test.Wire.API.Golden.Generated.Event_user.testObject_Event_user_11, "testObject_Event_user_11.json"),
             (Test.Wire.API.Golden.Generated.Event_user.testObject_Event_user_12, "testObject_Event_user_12.json"),
             (Test.Wire.API.Golden.Generated.Event_user.testObject_Event_user_13, "testObject_Event_user_13.json"),
-            (Test.Wire.API.Golden.Generated.Event_user.testObject_Event_user_14, "testObject_Event_user_14.json")
+            (Test.Wire.API.Golden.Generated.Event_user.testObject_Event_user_14, "testObject_Event_user_14.json"),
+            (Test.Wire.API.Golden.Generated.Event_user.testObject_Event_user_15, "testObject_Event_user_15.json"),
+            (Test.Wire.API.Golden.Generated.Event_user.testObject_Event_user_16, "testObject_Event_user_16.json")
           ],
       testGroup "Golden: EventType_user" $
         testObjects

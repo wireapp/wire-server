@@ -1,0 +1,15 @@
+{
+    "conversation": "6ec1c834-9ae6-4825-8809-61dde80be5ea",
+    "data": "d2VsY29tZSBtZXNzYWdlIGNvbnRlbnQ=",
+    "from": "e8f48b8f-fad3-4f60-98e3-a6df082c328d",
+    "qualified_conversation": {
+        "domain": "faraway.example.com",
+        "id": "6ec1c834-9ae6-4825-8809-61dde80be5ea"
+    },
+    "qualified_from": {
+        "domain": "faraway.example.com",
+        "id": "e8f48b8f-fad3-4f60-98e3-a6df082c328d"
+    },
+    "time": "2021-05-12T13:12:01.005Z",
+    "type": "conversation.mls-welcome"
+}
