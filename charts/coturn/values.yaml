@@ -24,3 +24,4 @@ securityContext:
   runAsUser: 31338
 
 coturnListenPort: 3478
+coturnEnablePrometheus: false

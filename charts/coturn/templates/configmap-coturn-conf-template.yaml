@@ -16,18 +16,24 @@ data:
     no-cli
 
     ## authentication setup
+    # FUTUREWORK: enable support for multiple secrets?
     zrest
     static-auth-secret=__COTURN_SECRET__
 
     ## turn, stun.
-    listening-ip=__COTURN_HOST__
+    listening-ip=__COTURN_EXT_IP__
     listening-port={{ .Values.coturnListenPort }}
     max-allocate-lifetime=3600
-    relay-ip=__COTURN_HOST__
+    relay-ip=__COTURN_EXT_IP__
     realm=dummy.io
     no-stun-backward-compatibility
     secure-stun
     no-rfc5780
+
+    {{- if .Values.coturnEnablePrometheus }}
+    ## prometheus metrics
+    prometheus=__COTURN_POD_IP__
+    {{- end }}
 
     ## logs
     log-file=stdout
