@@ -1,1 +1,0 @@
-2nd factor authentication for "delete team" via 6 digit code, sent by email. Please refer to [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge)

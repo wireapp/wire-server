@@ -1,3 +1,97 @@
+# [2022-03-18]
+
+## Release notes
+
+
+* Deploy Brig before Spar. (#2149)
+
+
+## API changes
+
+
+* The client JSON object now has an additional field `mls_public_keys`, containing an object mapping signature schemes to public keys, e.g.
+  ```
+  {
+    ...
+    "mls_public_keys": { "ed25519": "GY+t1EQu0Zsm0r/zrm6zz9UpjPcAPyT5i8L1iaY3ypM=" }
+    ...
+  }
+  ```
+  At the moment, `ed25519` is the only supported signature scheme, corresponding to MLS ciphersuite 1.
+
+  When creating a new client with `POST /clients`, the field `mls_public_keys` can be set, and the corresponding public keys are bound to the device identity on the backend, and will be used to verify uploaded key packages with a matching signature scheme.
+
+  When updating a client with `PUT /clients/:client`, the field `mls_public_keys` can also be set, with a similar effect. If a given signature scheme already has a public key set for that device, the request will fail. (#2147)
+
+* Introduce an endpoint for creating an MLS conversation (#2150)
+
+* The `/billing` and `/teams/.*/billing` endpoints are now available on a versioned path (e.g. `/v1/billing`)
+
+   (#2167)
+
+
+## Features
+
+
+* MLS implementation progress:
+
+   - key package refs are now mapped after being claimed (#2192)
+
+* 2nd factor authentication for login via 6 digit code, sent by email. The feature is disabled per default and can be enabled server or team wide. Please refer to [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge) (#2142)
+
+* 2nd factor authentication for "create SCIM token" via 6 digit code, sent by email. The feature is disabled per default and can be enabled server or team wide. For details see [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge) (#2149)
+
+* 2nd factor authentication for "add new client" via 6 digit code, sent by email. This only happens inside the login flow (in particular, when logging in from a new device).  The code obtained for logging in is used a second time for adding the device. Please refer to [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge) (#2186)
+
+* 2nd factor authentication for "delete team" via 6 digit code, sent by email. Please refer to [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge) (#2193)
+
+* The `SndFactorPasswordChallenge` team feature is locked per default. (#2205)
+
+
+## Bug fixes and other updates
+
+
+* Fix data consistency issue in import of users from TM invitation to SCIM-managed (#2201)
+
+* Use the same context string as openmls for key package ref calculation (#2216)
+
+* Ensure that only conversation admins can create invite links.  (Until now we have relied on clients to enforce this.) (#2211)
+
+
+## Internal changes
+
+
+* account-pages Helm chart: Add a "digest" image option (#2194)
+
+* Add more test mappings (#2185)
+
+* Internal endpoint for re-authentication (`GET "/i/users/:uid/reauthenticate"`) in brig has changed in a backwards compatible way. Spar depends on this change for creating a SCIM token with 2nd password challenge. (#2149)
+
+* Asset keys are now internally validated. (#2162)
+
+* Spar debugging; better internal combinators (#2214)
+
+* Remove the MonadClient instance of the Brig monad
+
+  - Lots of functions were generalized to run in a monad constrained by
+    MonadClient instead of running directly in Brig's `AppIO r` monad. (#2187)
+
+* Asset keys are now internally validated (#PR_NOT_FOUND)
+
+
+## Federation changes
+
+
+* Refactor conversation actions to an existential type consisting of a singleton
+  tag (identifying the action) and a dedicated type for the action itself.
+  Previously, actions were represented by a big sum type. The new approach
+  enables us to describe the needed effects of an action much more precisely.
+  The existential type is initialized by the Servant endpoints in a way to
+  mimic the previous behavior. However, the messages between services changed.
+  Thus, all federated backends need to run the same (new) version. The
+  deployment order itself does not matter. (#2173)
+
+
 # [2022-03-09]
 
 ## Release notes
