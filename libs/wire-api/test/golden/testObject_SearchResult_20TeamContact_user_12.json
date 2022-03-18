@@ -4,16 +4,17 @@
             "accent_id": 0,
             "created_at": "1864-05-09T06:59:36.374Z",
             "email": "@",
+            "email_unvalidated": null,
             "handle": "",
             "id": "00000000-0000-0000-0000-000000000001",
             "managed_by": null,
             "name": "",
             "role": null,
             "saml_idp": "",
-            "scim_external_id": "sim-external@example.com",
+            "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
             "sso": {
-                "issuer": "example.com",
-                "nameid": "sim-external@example.com"
+                "issuer": "https://example.com/issuer/123",
+                "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
             },
             "team": null
         }

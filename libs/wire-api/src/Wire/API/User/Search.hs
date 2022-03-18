@@ -201,7 +201,8 @@ data TeamContact = TeamContact
     teamContactSAMLIdp :: Maybe Text,
     teamContactRole :: Maybe Role,
     teamContactScimExternalId :: Maybe Text,
-    teamContactSso :: Maybe Sso
+    teamContactSso :: Maybe Sso,
+    teamContactEmailUnvalidated :: Maybe Email
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamContact)
@@ -236,7 +237,9 @@ modelTeamContact = Doc.defineModel "TeamContact" $ do
     Doc.description "SCIM external ID"
     Doc.optional
   Doc.property "sso" (Doc.ref modelSso) $ do
-    Doc.description "Single Sign-On"
+    Doc.description "Single-Sign-On information"
+  Doc.property "email_unvalidated" Doc.string' $ do
+    Doc.description "Unvalidated email address"
     Doc.optional
 
 instance ToJSON TeamContact where
@@ -253,7 +256,8 @@ instance ToJSON TeamContact where
         "saml_idp" Aeson..= teamContactSAMLIdp c,
         "role" Aeson..= teamContactRole c,
         "scim_external_id" Aeson..= teamContactScimExternalId c,
-        "sso" Aeson..= teamContactSso c
+        "sso" Aeson..= teamContactSso c,
+        "email_unvalidated" Aeson..= teamContactEmailUnvalidated c
       ]
 
 instance FromJSON TeamContact where
@@ -272,6 +276,7 @@ instance FromJSON TeamContact where
         <*> o .:? "role"
         <*> o .:? "scim_external_id"
         <*> o .:? "sso"
+        <*> o .:? "email_unvalidated"
 
 data TeamUserSearchSortBy
   = SortByName

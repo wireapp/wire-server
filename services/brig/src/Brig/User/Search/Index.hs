@@ -604,7 +604,7 @@ indexMapping =
                     .= object
                       [ "issuer"
                           .= MappingProperty
-                            { mpType = MPKeyword,
+                            { mpType = MPText,
                               mpStore = False,
                               mpIndex = False,
                               mpAnalyzer = Nothing,
@@ -612,14 +612,22 @@ indexMapping =
                             },
                         "nameid"
                           .= MappingProperty
-                            { mpType = MPKeyword,
+                            { mpType = MPText,
                               mpStore = False,
                               mpIndex = False,
                               mpAnalyzer = Nothing,
                               mpFields = mempty
                             }
                       ]
-                ]
+                ],
+            "email_unvalidated"
+              .= MappingProperty
+                { mpType = MPText,
+                  mpStore = False,
+                  mpIndex = False,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                }
           ]
     ]
 
@@ -709,7 +717,9 @@ lookupForIndex u = do
       \managed_by, \
       \writetime(managed_by), \
       \sso_id, \
-      \writetime(sso_id) \
+      \writetime(sso_id), \
+      \email_unvalidated, \
+      \writetime(email_unvalidated) \
       \FROM user \
       \WHERE id = ?"
 
@@ -758,7 +768,9 @@ scanForIndex num = do
       \managed_by, \
       \writetime(managed_by), \
       \sso_id, \
-      \writetime(sso_id) \
+      \writetime(sso_id), \
+      \email_unvalidated, \
+      \writetime(email_unvalidated) \
       \FROM user"
 
 type Activated = Bool
@@ -789,12 +801,14 @@ type ReindexRow =
     Maybe ManagedBy,
     Maybe (Writetime ManagedBy),
     Maybe UserSSOId,
-    Maybe (Writetime UserSSOId)
+    Maybe (Writetime UserSSOId),
+    Maybe Email,
+    Maybe (Writetime Email)
   )
 
 -- the _2 lens does not work for a tuple this big
 teamInReindexRow :: ReindexRow -> Maybe TeamId
-teamInReindexRow (_f1, f2, _f3, _f4, _f5, _f6, _f7, _f8, _f9, _f10, _f11, _f12, _f13, _f14, _f15, _f16, _f17, _f18, _f19, _f20) = f2
+teamInReindexRow (_f1, f2, _f3, _f4, _f5, _f6, _f7, _f8, _f9, _f10, _f11, _f12, _f13, _f14, _f15, _f16, _f17, _f18, _f19, _f20, _f21, _f22) = f2
 
 reindexRowToIndexUser :: forall m. MonadThrow m => ReindexRow -> SearchVisibilityInbound -> Maybe (Writetime SearchVisibilityInbound) -> m IndexUser
 reindexRowToIndexUser
@@ -817,12 +831,14 @@ reindexRowToIndexUser
     managedBy,
     tManagedBy,
     ssoId,
-    tSsoId
+    tSsoId,
+    emailUnvalidated,
+    tEmailUnvalidated
     )
   searchVisInbound
   tSearchVisInbound =
     do
-      iu <- mkIndexUser u <$> version [Just tName, tStatus, tHandle, tEmail, Just tColour, Just tActivated, tService, tManagedBy, tSsoId, tSearchVisInbound]
+      iu <- mkIndexUser u <$> version [Just tName, tStatus, tHandle, tEmail, Just tColour, Just tActivated, tService, tManagedBy, tSsoId, tEmailUnvalidated, tSearchVisInbound]
       pure $
         if shouldIndex
           then
@@ -839,6 +855,7 @@ reindexRowToIndexUser
                 . set iuSearchVisibilityInbound (Just searchVisInbound)
                 . set iuScimExternalId (join $ User.scimExternalId <$> managedBy <*> ssoId)
                 . set iuSso (sso =<< ssoId)
+                . set iuEmailUnvalidated emailUnvalidated
           else
             iu
               -- We insert a tombstone-style user here, as it's easier than deleting the old one.

@@ -2,6 +2,7 @@
     "accent_id": -3,
     "created_at": "1864-05-10T11:20:36.673Z",
     "email": "N@",
+    "email_unvalidated": null,
     "handle": null,
     "id": "00000001-0000-0002-0000-000200000002",
     "managed_by": null,
@@ -10,8 +11,8 @@
     "saml_idp": null,
     "scim_external_id": null,
     "sso": {
-        "issuer": "example.com",
-        "nameid": "sim-external@example.com"
+        "issuer": "https://example.com/issuer/123",
+        "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
     },
     "team": "00000001-0000-0002-0000-000200000002"
 }

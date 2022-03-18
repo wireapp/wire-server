@@ -2,13 +2,14 @@
     "accent_id": 0,
     "created_at": null,
     "email": "\u0001㗅@_C",
+    "email_unvalidated": null,
     "handle": "S",
     "id": "00000002-0000-0002-0000-000100000001",
     "managed_by": "scim",
     "name": "\u001a󰈀P",
     "role": "member",
     "saml_idp": "󲥹\u0007",
-    "scim_external_id": "sim-external@example.com",
+    "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
     "sso": null,
     "team": "00000000-0000-0002-0000-000200000000"
 }

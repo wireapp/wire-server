@@ -586,8 +586,10 @@ changeSelfEmail u email allowScim = do
   changeEmail u email allowScim !>> Error.changeEmailError >>= \case
     ChangeEmailIdempotent ->
       pure ChangeEmailResponseIdempotent
-    ChangeEmailNeedsActivation (usr, adata, en) -> do
-      lift $ sendOutEmail usr adata en
+    ChangeEmailNeedsActivation (usr, adata, en) -> lift $ do
+      sendOutEmail usr adata en
+      wrapClient $ Data.updateEmailUnvalidated u email
+      Intra.onUserEvent u Nothing (UserUpdated ((emptyUserUpdatedData u) {eupEmailUnvalidated = Just email}))
       pure ChangeEmailResponseNeedsActivation
   where
     sendOutEmail usr adata en = do

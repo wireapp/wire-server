@@ -2,16 +2,17 @@
     "accent_id": -3,
     "created_at": "1864-05-10T20:50:28.410Z",
     "email": "X󵿆@D(0",
+    "email_unvalidated": null,
     "handle": null,
     "id": "00000000-0000-0001-0000-000200000001",
     "managed_by": "wire",
     "name": "/MB",
     "role": "owner",
     "saml_idp": "𡭄",
-    "scim_external_id": "sim-external@example.com",
+    "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
     "sso": {
-        "issuer": "example.com",
-        "nameid": "sim-external@example.com"
+        "issuer": "https://example.com/issuer/123",
+        "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
     },
     "team": "00000002-0000-0000-0000-000200000001"
 }
