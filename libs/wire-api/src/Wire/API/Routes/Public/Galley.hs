@@ -1044,6 +1044,7 @@ type MLSMessagingAPI =
     "mls-welcome-message"
     ( Summary "Post an MLS welcome message"
         :> "welcome"
+        :> ZConn
         :> ReqBody '[MLS] (RawMLS Welcome)
         :> MultiVerb1 'POST '[JSON] (RespondEmpty 201 "Welcome message sent")
     )

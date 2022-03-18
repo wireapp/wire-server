@@ -70,6 +70,7 @@ testLocalWelcome = do
       ( galley
           . paths ["mls", "welcome"]
           . zUser (qUnqualified (fst creator))
+          . zConn "conn"
           . content "message/mls"
           . bytes welcome
       )

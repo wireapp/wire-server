@@ -46,11 +46,12 @@ postMLSWelcome ::
      ]
     r =>
   Local UserId ->
+  ConnId ->
   RawMLS Welcome ->
   Sem r ()
-postMLSWelcome lusr wel = do
+postMLSWelcome lusr con wel = do
   rcpts <- welcomeRecipients (rmValue wel)
-  traverse_ (sendWelcomes lusr (rmRaw wel)) (bucketQualified rcpts)
+  traverse_ (sendWelcomes lusr con (rmRaw wel)) (bucketQualified rcpts)
 
 welcomeRecipients ::
   Members
@@ -69,31 +70,32 @@ sendWelcomes ::
      ]
     r =>
   Local x ->
+  ConnId ->
   ByteString ->
   Qualified [(UserId, ClientId)] ->
   Sem r ()
-sendWelcomes loc rawWelcome recipients = do
+sendWelcomes loc con rawWelcome recipients = do
   now <- input
-  foldQualified loc (sendLocalWelcomes now rawWelcome) (sendRemoteWelcomes rawWelcome) recipients
+  foldQualified loc (sendLocalWelcomes con now rawWelcome) (sendRemoteWelcomes rawWelcome) recipients
 
 sendLocalWelcomes ::
   Members '[GundeckAccess] r =>
+  ConnId ->
   UTCTime ->
   ByteString ->
   Local [(UserId, ClientId)] ->
   Sem r ()
-sendLocalWelcomes now rawWelcome lclients = do
+sendLocalWelcomes con now rawWelcome lclients = do
   runMessagePush lclients Nothing $
     foldMap (uncurry mkPush) (tUnqualified lclients)
   where
-    -- TODO: add ConnId header to endpoint
     mkPush :: UserId -> ClientId -> MessagePush 'Broadcast
     mkPush u c =
       -- FUTUREWORK: use the conversation ID stored in the key package mapping table
       let lcnv = qualifyAs lclients (selfConv u)
           lusr = qualifyAs lclients u
           e = Event (qUntagged lcnv) (qUntagged lusr) now $ EdMLSWelcome rawWelcome
-       in newMessagePush lclients () Nothing defMessageMetadata (u, c) e
+       in newMessagePush lclients () (Just con) defMessageMetadata (u, c) e
 
 sendRemoteWelcomes :: ByteString -> Remote [(UserId, ClientId)] -> Sem r ()
 sendRemoteWelcomes = undefined
