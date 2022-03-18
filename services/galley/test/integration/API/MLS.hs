@@ -127,8 +127,7 @@ data MessagingSetup = MessagingSetup
 
 -- | Setup: Alice creates a group and invites bob. Return welcome and commit message.
 aliceInvitesBob :: SetupOptions -> TestM MessagingSetup
-aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \_tmp0 -> do
-  let tmp = "/tmp/mls" -- TODO: remove this
+aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
   alice <- randomQualifiedUser
   let aliceLPK = someLastPrekeys !! 0
   bob <- randomQualifiedUser
