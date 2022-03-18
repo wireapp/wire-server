@@ -100,11 +100,21 @@ spec:
 
           ports:
             - name: coturn-tcp
-              containerPort: {{ .Values.coturnListenPort }}
+              containerPort: {{ .Values.coturnTurnListenPort }}
               protocol: TCP
-            # FUTUREWORK: add status http port
+            - name: status-http
+              containerPort: {{ .Values.coturnMetricsListenPort }}
+              protocol: TCP
 
-          # FUTUREWORK: livenessProbe and readinessProbe
+          livenessProbe:
+            httpGet:
+              path: /
+              port: status-http
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: status-http
 
           resources:
             {{- toYaml .Values.resources | nindent 12 }}

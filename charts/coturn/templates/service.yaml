@@ -11,7 +11,7 @@ spec:
   clusterIP: None
   ports:
     - name: coturn-tcp
-      port: {{ .Values.coturnListenPort }}
+      port: {{ .Values.coturnTurnListenPort }}
       targetPort: coturn-tcp
   selector:
     {{- include "coturn.selectorLabels" . | nindent 4 }}

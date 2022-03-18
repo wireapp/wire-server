@@ -22,7 +22,7 @@ data:
 
     ## turn, stun.
     listening-ip=__COTURN_EXT_IP__
-    listening-port={{ .Values.coturnListenPort }}
+    listening-port={{ .Values.coturnTurnListenPort }}
     max-allocate-lifetime=3600
     relay-ip=__COTURN_EXT_IP__
     realm=dummy.io
@@ -30,10 +30,9 @@ data:
     secure-stun
     no-rfc5780
 
-    {{- if .Values.coturnEnablePrometheus }}
     ## prometheus metrics
-    prometheus=__COTURN_POD_IP__
-    {{- end }}
+    # FUTUREWORK: check that this is ipv6-safe
+    prometheus=__COTURN_POD_IP__:{{ .Values.coturnMetricsListenPort }}
 
     ## logs
     log-file=stdout

@@ -23,5 +23,5 @@ securityContext:
   # https://kubesec.io/basics/containers-securitycontext-runasuser/
   runAsUser: 31338
 
-coturnListenPort: 3478
-coturnEnablePrometheus: false
+coturnTurnListenPort: 3478
+coturnMetricsListenPort: 9641
