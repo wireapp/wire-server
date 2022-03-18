@@ -71,6 +71,8 @@ module Wire.API.Conversation
     ConversationAccessData (..),
     ConversationReceiptModeUpdate (..),
     ConversationMessageTimerUpdate (..),
+    ConversationJoin (..),
+    ConversationMemberUpdate (..),
 
     -- * re-exports
     module Wire.API.Conversation.Member,
@@ -897,3 +899,37 @@ modelConversationMessageTimerUpdate = Doc.defineModel "ConversationMessageTimerU
   Doc.description "Contains conversation properties to update"
   Doc.property "message_timer" Doc.int64' $
     Doc.description "Conversation message timer (in milliseconds); can be null"
+
+data ConversationJoin = ConversationJoin
+  { cjUsers :: NonEmpty (Qualified UserId),
+    cjRole :: RoleName
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationJoin)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationJoin
+
+instance ToSchema ConversationJoin where
+  schema =
+    objectWithDocModifier
+      "ConversationJoin"
+      (description ?~ "The action of some users joining a conversation")
+      $ ConversationJoin
+        <$> cjUsers .= field "users" (nonEmptyArray schema)
+        <*> cjRole .= field "role" schema
+
+data ConversationMemberUpdate = ConversationMemberUpdate
+  { cmuTarget :: Qualified UserId,
+    cmuUpdate :: OtherMemberUpdate
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationMemberUpdate
+
+instance ToSchema ConversationMemberUpdate where
+  schema =
+    objectWithDocModifier
+      "ConversationMemberUpdate"
+      (description ?~ "The action of promoting/demoting a member of a conversation")
+      $ ConversationMemberUpdate
+        <$> cmuTarget .= field "target" schema
+        <*> cmuUpdate .= field "update" schema

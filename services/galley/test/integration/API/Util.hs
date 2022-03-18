@@ -41,7 +41,6 @@ import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Code as Code
 import qualified Data.Currency as Currency
-import Data.Data (Proxy (Proxy))
 import Data.Default
 import Data.Domain
 import qualified Data.Handle as Handle
@@ -60,6 +59,7 @@ import Data.Qualified
 import Data.Range
 import Data.Serialize (runPut)
 import qualified Data.Set as Set
+import Data.Singletons
 import Data.String.Conversions (ST, cs)
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy.Encoding as T
@@ -1681,7 +1681,17 @@ assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   cuOrigUserId cu @?= remover
   cuConvId cu @?= qUnqualified qconvId
   sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
-  cuAction cu @?= ConversationActionRemoveMembers (pure victim)
+  cuAction cu @?= SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure victim)
+
+assertLeaveUpdate :: (MonadIO m, HasCallStack) => FederatedRequest -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
+assertLeaveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
+  frRPC req @?= "on-conversation-updated"
+  frOriginDomain req @?= qDomain qconvId
+  let Just cu = decode (frBody req)
+  cuOrigUserId cu @?= remover
+  cuConvId cu @?= qUnqualified qconvId
+  sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
+  cuAction cu @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure victim)
 
 -------------------------------------------------------------------------------
 -- Helpers
@@ -2655,6 +2665,10 @@ parseFedRequest fr = eitherDecode (frBody fr)
 assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
 assertOne [a] = pure a
 assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <> show xs
+
+assertNone :: (HasCallStack, MonadIO m, Show a) => [a] -> m ()
+assertNone [] = pure ()
+assertNone xs = liftIO . assertFailure $ "Expected exactly no elements, found " <> show xs
 
 assertJust :: (HasCallStack, MonadIO m) => Maybe a -> m a
 assertJust (Just a) = pure a
