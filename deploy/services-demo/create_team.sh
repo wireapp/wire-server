@@ -12,7 +12,18 @@ TEAM_NAME="team name n/a"
 TEAM_CURRENCY="USD"
 
 USAGE="
-tbd.
+Request a code to create a team.  Call ./create_test_team_members.sh
+first, then use the code you will receive by email to call this script.
+
+USAGE: $0 -h <host> -o <owner_name> -e <owner_email> -p <owner_password> -v <email_code> -t <team_name> -c <team_currency>
+    -h <host>: Base URI of brig. default: ${BRIG_HOST}
+    -o <owner_name>: user display name of the owner of the team to be created.  default: ${OWNER_NAME}
+    -e <owner_email>: email address of the owner of the team to be created.  default: ${OWNER_EMAIL}
+    -p <owner_password>: owner password.  default: ${OWNER_PASSWORD}
+    -v <email_code>: validation code received by email.  default: ${EMAIL_CODE}
+    -t <team_name>: default: ${TEAM_NAME}
+    -c <team_currency>: default: ${TEAM_CURRENCY}
+
 "
 
 # Option parsing:

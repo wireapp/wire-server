@@ -7,7 +7,13 @@ BRIG_HOST="http://localhost:8080"
 OWNER_EMAIL="owner email n/a"
 
 USAGE="
-tbd.
+Request a code to create a team.  Call this script first, then use the
+code you will receive by email to call ./create_team.sh
+
+USAGE: $0 -h <host> -e <email>
+    -h <host>: Base URI of brig. default: ${BRIG_HOST}
+    -e <email>: email address of the owner of the team to be created.  default: ${OWNER_EMAIL}
+
 "
 
 # Option parsing:
