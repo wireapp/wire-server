@@ -7,6 +7,7 @@ BRIG_HOST="http://localhost:8080"
 OWNER_NAME="owner name n/a"
 OWNER_EMAIL="owner email n/a"
 OWNER_PASSWORD="owner pass n/a"
+EMAIL_CODE="email code n/a"
 TEAM_NAME="team name n/a"
 TEAM_CURRENCY="USD"
 
@@ -16,13 +17,15 @@ tbd.
 
 # Option parsing:
 # https://sookocheff.com/post/bash/parsing-bash-script-arguments-with-shopts/
-while getopts ":o:e:p:t:c:h:" opt; do
+while getopts ":o:e:p:v:t:c:h:" opt; do
   case ${opt} in
     o ) OWNER_NAME="$OPTARG"
       ;;
     e ) OWNER_EMAIL="$OPTARG"
       ;;
     p ) OWNER_PASSWORD="$OPTARG"
+      ;;
+    v ) EMAIL_CODE="$OPTARG"
       ;;
     t ) TEAM_NAME="$OPTARG"
       ;;
