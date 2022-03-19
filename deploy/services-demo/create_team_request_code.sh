@@ -4,11 +4,7 @@ set -o pipefail
 set -o errexit
 
 BRIG_HOST="http://localhost:8080"
-OWNER_NAME="owner name n/a"
 OWNER_EMAIL="owner email n/a"
-OWNER_PASSWORD="owner pass n/a"
-TEAM_NAME="team name n/a"
-TEAM_CURRENCY="USD"
 
 USAGE="
 tbd.
@@ -16,17 +12,9 @@ tbd.
 
 # Option parsing:
 # https://sookocheff.com/post/bash/parsing-bash-script-arguments-with-shopts/
-while getopts ":o:e:p:t:c:h:" opt; do
+while getopts ":e:h:" opt; do
   case ${opt} in
-    o ) OWNER_NAME="$OPTARG"
-      ;;
     e ) OWNER_EMAIL="$OPTARG"
-      ;;
-    p ) OWNER_PASSWORD="$OPTARG"
-      ;;
-    t ) TEAM_NAME="$OPTARG"
-      ;;
-    c ) TEAM_CURRENCY="$OPTARG"
       ;;
     h ) BRIG_HOST="$OPTARG"
       ;;
@@ -46,6 +34,6 @@ if [ "$#" -ne 0 ]; then
 fi
 
 curl -i -s --show-error \
-     -XPOST "$BRIG_HOST/register" \
+     -XPOST "$BRIG_HOST/activate/send" \
         -H'Content-type: application/json' \
-        -d'{"name":"'"$OWNER_NAME"'","email":"'"$OWNER_EMAIL"'","password":"'"$OWNER_PASSWORD"'","email_code":"'"$EMAIL_CODE"'","team":{"currency":"'"$TEAM_CURRENCY"'","icon":"default","name":"'"$TEAM_NAME"'"}}'
+        -d'{"email":"'"$OWNER_EMAIL"'"}'
