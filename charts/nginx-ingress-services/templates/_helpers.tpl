@@ -39,6 +39,16 @@ at the same time being used for distinct scenarios
 {{- end -}}
 
 {{/*
+Generate the secrate name in a conistent way, since it's referred to in multiple places, while
+at the same time being used for distinct scenarios
+*/}}
+{{- define "nginx-ingress-services.getAdditionalSolversSecret" -}}
+{{- $nameParts := list (include "nginx-ingress-services.fullname" .) -}}
+{{- $nameParts = append $nameParts "cert-manager-additional-solvers" -}}
+{{- join "-" $nameParts -}}
+{{- end -}}
+
+{{/*
 Returns the Letsencrypt API server URL based on whether testMode is enabled or disabled
 */}}
 {{- define "certificate-manager.apiServerURL" -}}

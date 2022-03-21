@@ -40,6 +40,9 @@ certManager:
   #  (1) required to be set in values.yaml
   #  (2) used by Letsencrypt to send expiration notices and alike
   certmasterEmail:
+  # can be used to use custom solvers, such as dns01
+  # you may use secrets.certManager.additionalSolvers to store secrets
+  additionalSolvers:
 
 service:
   nginz:
@@ -81,6 +84,12 @@ service:
 #         -----BEGIN PRIVATE KEY-----
 #         -----END PRIVATE KEY-----
 #     ^ CA to use to verify client certificates.
+#
+#     # if you you use certManager.
+#     certManager:
+#         additionalSolversSecret:
+#            secret1: value1
+#            ...
 #
 # For Services:
 # service:
