@@ -24,6 +24,7 @@ module Brig.User.Auth
     renewAccess,
     validateTokens,
     revokeAccess,
+    verifyCode,
 
     -- * Internal
     lookupLoginCode,
@@ -39,6 +40,7 @@ import Brig.API.Types
 import Brig.API.User (suspendAccount)
 import Brig.App
 import Brig.Budget
+import qualified Brig.Code as Code
 import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.LoginCode as Data
 import qualified Brig.Data.User as Data
@@ -56,6 +58,7 @@ import Brig.User.Auth.Cookie
 import Brig.User.Handle
 import Brig.User.Phone
 import qualified Brig.ZAuth as ZAuth
+import Cassandra
 import Control.Error hiding (bool)
 import Control.Lens (to, view)
 import Data.ByteString.Conversion (toByteString)
@@ -71,38 +74,43 @@ import Network.Wai.Utilities.Error ((!>>))
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
-import Wire.API.User (TeamFeatureSndFPasswordChallengeNotImplemented (..))
+import qualified Wire.API.Team.Feature as Public
+import Wire.API.User (VerificationAction (..))
 
 data Access u = Access
   { accessToken :: !AccessToken,
     accessCookie :: !(Maybe (Cookie (ZAuth.Token u)))
   }
 
-sendLoginCode :: Phone -> Bool -> Bool -> ExceptT SendLoginCodeError (AppIO r) PendingLoginCode
+sendLoginCode ::
+  Phone ->
+  Bool ->
+  Bool ->
+  ExceptT SendLoginCodeError (AppIO r) PendingLoginCode
 sendLoginCode phone call force = do
   pk <-
     maybe
       (throwE $ SendLoginInvalidPhone phone)
       (return . userPhoneKey)
-      =<< lift (validatePhone phone)
-  user <- lift $ Data.lookupKey pk
+      =<< lift (wrapClient $ validatePhone phone)
+  user <- lift . wrapClient $ Data.lookupKey pk
   case user of
     Nothing -> throwE $ SendLoginInvalidPhone phone
     Just u -> do
       Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.sendLoginCode")
-      pw <- lift $ Data.lookupPassword u
+      pw <- lift . wrapClient $ Data.lookupPassword u
       unless (isNothing pw || force) $
         throwE SendLoginPasswordExists
       lift $ do
-        l <- Data.lookupLocale u
-        c <- Data.createLoginCode u
+        l <- wrapClient $ Data.lookupLocale u
+        c <- wrapClient $ Data.createLoginCode u
         void . forPhoneKey pk $ \ph ->
           if call
-            then sendLoginCall ph (pendingLoginCode c) l
-            else sendLoginSms ph (pendingLoginCode c) l
+            then wrapClient $ sendLoginCall ph (pendingLoginCode c) l
+            else wrapClient $ sendLoginSms ph (pendingLoginCode c) l
         return c
 
-lookupLoginCode :: Phone -> (AppIO r) (Maybe PendingLoginCode)
+lookupLoginCode :: (MonadClient m, Log.MonadLogger m, MonadReader Env m) => Phone -> m (Maybe PendingLoginCode)
 lookupLoginCode phone =
   Data.lookupKey (userPhoneKey phone) >>= \case
     Nothing -> return Nothing
@@ -110,44 +118,76 @@ lookupLoginCode phone =
       Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.lookupLoginCode")
       Data.lookupLoginCode u
 
-login :: Login -> CookieType -> ExceptT LoginError (AppIO r) (Access ZAuth.User)
-login (PasswordLogin li pw label _) typ = do
-  case TeamFeatureSndFPasswordChallengeNotImplemented of
-    -- mark this place to implement handling verification codes later
-    -- (for now just ignore them unconditionally.)
-    _ -> pure ()
-  uid <- resolveLoginId li
+login ::
+  Login ->
+  CookieType ->
+  ExceptT LoginError (AppIO r) (Access ZAuth.User)
+login (PasswordLogin li pw label code) typ = do
+  uid <- wrapClientE $ resolveLoginId li
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
-  checkRetryLimit uid
-  Data.authenticate uid pw `catchE` \case
-    AuthInvalidUser -> loginFailed uid
-    AuthInvalidCredentials -> loginFailed uid
+  wrapClientE $ checkRetryLimit uid
+  wrapClientE (Data.authenticate uid pw) `catchE` \case
+    AuthInvalidUser -> wrapClientE $ loginFailed uid
+    AuthInvalidCredentials -> wrapClientE $ loginFailed uid
     AuthSuspended -> throwE LoginSuspended
     AuthEphemeral -> throwE LoginEphemeral
     AuthPendingInvitation -> throwE LoginPendingActivation
+  verifyLoginCode code uid
   newAccess @ZAuth.User @ZAuth.Access uid typ label
+  where
+    verifyLoginCode :: Maybe Code.Value -> UserId -> ExceptT LoginError (AppIO r) ()
+    verifyLoginCode mbCode uid = do
+      verifyCode mbCode Login uid
+        `catchE` \case
+          VerificationCodeNoPendingCode -> wrapClientE $ loginFailedWith LoginCodeInvalid uid
+          VerificationCodeRequired -> wrapClientE $ loginFailedWith LoginCodeRequired uid
+          VerificationCodeNoEmail -> wrapClientE $ loginFailed uid
 login (SmsLogin phone code label) typ = do
-  uid <- resolveLoginId (LoginByPhone phone)
+  uid <- wrapClientE $ resolveLoginId (LoginByPhone phone)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
-  checkRetryLimit uid
-  ok <- lift $ Data.verifyLoginCode uid code
+  wrapClientE $ checkRetryLimit uid
+  ok <- lift . wrapClient $ Data.verifyLoginCode uid code
   unless ok $
-    loginFailed uid
+    wrapClientE $ loginFailed uid
   newAccess @ZAuth.User @ZAuth.Access uid typ label
 
-loginFailed :: UserId -> ExceptT LoginError (AppIO r) ()
-loginFailed uid = decrRetryLimit uid >> throwE LoginFailed
+verifyCode :: Maybe Code.Value -> VerificationAction -> UserId -> ExceptT VerificationCodeError (AppIO r) ()
+verifyCode mbCode action uid = do
+  (mbEmail, mbTeamId) <- getEmailAndTeamId uid
+  featureEnabled <- lift $ do
+    mbFeatureEnabled <- Intra.getVerificationCodeEnabled `traverse` mbTeamId
+    pure $ fromMaybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus == Public.TeamFeatureEnabled) mbFeatureEnabled
+  when featureEnabled $ do
+    case (mbCode, mbEmail) of
+      (Just code, Just email) -> do
+        key <- Code.mkKey $ Code.ForEmail email
+        codeValid <- wrapClientE $ isJust <$> Code.verify key (Code.scopeFromAction action) code
+        unless codeValid $ throwE VerificationCodeNoPendingCode
+      (Nothing, _) -> throwE VerificationCodeRequired
+      (_, Nothing) -> throwE VerificationCodeNoEmail
+  where
+    getEmailAndTeamId :: UserId -> ExceptT e (AppIO r) (Maybe Email, Maybe TeamId)
+    getEmailAndTeamId u = do
+      mbAccount <- wrapClientE $ Data.lookupAccount u
+      pure (userEmail <$> accountUser =<< mbAccount, userTeam <$> accountUser =<< mbAccount)
 
-decrRetryLimit :: UserId -> ExceptT LoginError (AppIO r) ()
+loginFailedWith :: (MonadClient m, MonadReader Env m) => LoginError -> UserId -> ExceptT LoginError m ()
+loginFailedWith e uid = decrRetryLimit uid >> throwE e
+
+loginFailed :: (MonadClient m, MonadReader Env m) => UserId -> ExceptT LoginError m ()
+loginFailed = loginFailedWith LoginFailed
+
+decrRetryLimit :: (MonadClient m, MonadReader Env m) => UserId -> ExceptT LoginError m ()
 decrRetryLimit = withRetryLimit (\k b -> withBudget k b $ pure ())
 
-checkRetryLimit :: UserId -> ExceptT LoginError (AppIO r) ()
+checkRetryLimit :: (MonadClient m, MonadReader Env m) => UserId -> ExceptT LoginError m ()
 checkRetryLimit = withRetryLimit checkBudget
 
 withRetryLimit ::
-  (BudgetKey -> Budget -> ExceptT LoginError (AppIO r) (Budgeted ())) ->
+  (MonadClient m, MonadReader Env m) =>
+  (BudgetKey -> Budget -> ExceptT LoginError m (Budgeted ())) ->
   UserId ->
-  ExceptT LoginError (AppIO r) ()
+  ExceptT LoginError m ()
 withRetryLimit action uid = do
   mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
   forM_ mLimitFailedLogins $ \opts -> do
@@ -164,7 +204,7 @@ withRetryLimit action uid = do
 logout :: ZAuth.TokenPair u a => List1 (ZAuth.Token u) -> ZAuth.Token a -> ExceptT ZAuth.Failure (AppIO r) ()
 logout uts at = do
   (u, ck) <- validateTokens uts (Just at)
-  lift $ revokeCookies u [cookieId ck] []
+  lift . wrapClient $ revokeCookies u [cookieId ck] []
 
 renewAccess ::
   ZAuth.TokenPair u a =>
@@ -186,16 +226,16 @@ revokeAccess ::
   [CookieLabel] ->
   ExceptT AuthError (AppIO r) ()
 revokeAccess u pw cc ll = do
-  Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.revokeAccess")
-  Data.authenticate u pw
-  lift $ revokeCookies u cc ll
+  lift $ Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.revokeAccess")
+  wrapClientE $ Data.authenticate u pw
+  lift . wrapClient $ revokeCookies u cc ll
 
 --------------------------------------------------------------------------------
 -- Internal
 
 catchSuspendInactiveUser :: UserId -> e -> ExceptT e (AppIO r) ()
 catchSuspendInactiveUser uid errval = do
-  mustsuspend <- lift $ mustSuspendInactiveUser uid
+  mustsuspend <- lift . wrapClient $ mustSuspendInactiveUser uid
   when mustsuspend $ do
     Log.warn $
       msg (val "Suspending user due to inactivity")
@@ -204,7 +244,13 @@ catchSuspendInactiveUser uid errval = do
     lift $ suspendAccount (List1.singleton uid)
     throwE errval
 
-newAccess :: forall u a r. ZAuth.TokenPair u a => UserId -> CookieType -> Maybe CookieLabel -> ExceptT LoginError (AppIO r) (Access u)
+newAccess ::
+  forall u a r.
+  ZAuth.TokenPair u a =>
+  UserId ->
+  CookieType ->
+  Maybe CookieLabel ->
+  ExceptT LoginError (AppIO r) (Access u)
 newAccess uid ct cl = do
   catchSuspendInactiveUser uid LoginSuspended
   r <- lift $ newCookieLimited uid ct cl
@@ -214,7 +260,7 @@ newAccess uid ct cl = do
       t <- lift $ newAccessToken @u @a ck Nothing
       return $ Access t (Just ck)
 
-resolveLoginId :: LoginId -> ExceptT LoginError (AppIO r) UserId
+resolveLoginId :: (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m UserId
 resolveLoginId li = do
   usr <- validateLoginId li >>= lift . either lookupKey lookupHandle
   case usr of
@@ -226,7 +272,7 @@ resolveLoginId li = do
           else LoginFailed
     Just uid -> return uid
 
-validateLoginId :: LoginId -> ExceptT LoginError (AppIO r) (Either UserKey Handle)
+validateLoginId :: (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m (Either UserKey Handle)
 validateLoginId (LoginByEmail email) =
   either
     (const $ throwE LoginFailed)
@@ -240,7 +286,7 @@ validateLoginId (LoginByPhone phone) =
 validateLoginId (LoginByHandle h) =
   return (Right h)
 
-isPendingActivation :: LoginId -> (AppIO r) Bool
+isPendingActivation :: (MonadClient m, MonadReader Env m) => LoginId -> m Bool
 isPendingActivation ident = case ident of
   (LoginByHandle _) -> return False
   (LoginByEmail e) -> checkKey (userEmailKey e)
@@ -280,10 +326,13 @@ validateTokens uts at = do
   getFirstSuccessOrFirstFail tokens
   where
     -- FUTUREWORK: There is surely a better way to do this
-    getFirstSuccessOrFirstFail :: List1 (Either ZAuth.Failure (UserId, Cookie (ZAuth.Token u))) -> ExceptT ZAuth.Failure (AppIO r) (UserId, Cookie (ZAuth.Token u))
+    getFirstSuccessOrFirstFail ::
+      Monad m =>
+      List1 (Either ZAuth.Failure (UserId, Cookie (ZAuth.Token u))) ->
+      ExceptT ZAuth.Failure m (UserId, Cookie (ZAuth.Token u))
     getFirstSuccessOrFirstFail tks = case (lefts $ NE.toList $ List1.toNonEmpty tks, rights $ NE.toList $ List1.toNonEmpty tks) of
-      (_, (suc : _)) -> return suc
-      ((e : _), _) -> throwE e
+      (_, suc : _) -> return suc
+      (e : _, _) -> throwE e
       _ -> throwE ZAuth.Invalid -- Impossible
 
 validateToken ::
@@ -299,14 +348,17 @@ validateToken ut at = do
     ExceptT (ZAuth.validateToken token)
       `catchE` \e ->
         unless (e == ZAuth.Expired) (throwE e)
-  ck <- lift (lookupCookie ut) >>= maybe (throwE ZAuth.Invalid) return
+  ck <- lift (wrapClient $ lookupCookie ut) >>= maybe (throwE ZAuth.Invalid) return
   return (ZAuth.userTokenOf ut, ck)
 
 -- | Allow to login as any user without having the credentials.
 ssoLogin :: SsoLogin -> CookieType -> ExceptT LoginError (AppIO r) (Access ZAuth.User)
 ssoLogin (SsoLogin uid label) typ = do
-  Data.reauthenticate uid Nothing `catchE` \case
+  wrapClientE (Data.reauthenticate uid Nothing) `catchE` \case
     ReAuthMissingPassword -> pure ()
+    ReAuthCodeVerificationRequired -> pure ()
+    ReAuthCodeVerificationNoPendingCode -> pure ()
+    ReAuthCodeVerificationNoEmail -> pure ()
     ReAuthError e -> case e of
       AuthInvalidUser -> throwE LoginFailed
       AuthInvalidCredentials -> pure ()
@@ -318,7 +370,7 @@ ssoLogin (SsoLogin uid label) typ = do
 -- | Log in as a LegalHold service, getting LegalHoldUser/Access Tokens.
 legalHoldLogin :: LegalHoldLogin -> CookieType -> ExceptT LegalHoldLoginError (AppIO r) (Access ZAuth.LegalHoldUser)
 legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
-  Data.reauthenticate uid plainTextPassword !>> LegalHoldReAuthError
+  wrapClientE (Data.reauthenticate uid plainTextPassword) !>> LegalHoldReAuthError
   -- legalhold login is only possible if
   -- the user is a team user
   -- and the team has legalhold enabled

@@ -41,7 +41,6 @@ import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Code as Code
 import qualified Data.Currency as Currency
-import Data.Data (Proxy (Proxy))
 import Data.Default
 import Data.Domain
 import qualified Data.Handle as Handle
@@ -60,10 +59,12 @@ import Data.Qualified
 import Data.Range
 import Data.Serialize (runPut)
 import qualified Data.Set as Set
+import Data.Singletons
 import Data.String.Conversions (ST, cs)
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy.Encoding as T
 import Data.Time (getCurrentTime)
+import Data.Tuple.Extra
 import qualified Data.UUID as UUID
 import Data.UUID.V4
 import Federator.MockServer (FederatedRequest (..))
@@ -79,6 +80,7 @@ import Galley.Types.Conversations.Roles hiding (DeleteConversation)
 import Galley.Types.Teams hiding (Event, EventType (..), self)
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra
+import Galley.Types.UserList
 import Gundeck.Types.Notification
   ( Notification (..),
     NotificationId,
@@ -119,8 +121,9 @@ import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.Team (Icon (..))
 import Wire.API.Team.Member (mkNewTeamMember)
-import Wire.API.User.Client (ClientCapability (..), UserClientsFull (UserClientsFull))
+import Wire.API.User.Client
 import qualified Wire.API.User.Client as Client
 import Wire.API.User.Identity (mkSimpleSampleUref)
 
@@ -145,13 +148,17 @@ symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
 createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
 createBindingTeam = do
-  ownerid <- randomTeamCreator
-  teams <- getTeams ownerid []
+  (first Brig.Types.userId) <$> createBindingTeam'
+
+createBindingTeam' :: HasCallStack => TestM (User, TeamId)
+createBindingTeam' = do
+  owner <- randomTeamCreator'
+  teams <- getTeams (Brig.Types.userId owner) []
   let [team] = view teamListTeams teams
   let tid = view teamId team
   SQS.assertQueue "create team" SQS.tActivate
   refreshIndex
-  pure (ownerid, tid)
+  pure (owner, tid)
 
 createBindingTeamWithMembers :: HasCallStack => Int -> TestM (TeamId, UserId, [UserId])
 createBindingTeamWithMembers numUsers = do
@@ -225,7 +232,7 @@ createNonBindingTeam :: HasCallStack => Text -> UserId -> [TeamMember] -> TestM 
 createNonBindingTeam name owner mems = do
   g <- view tsGalley
   let mm = if null mems then Nothing else Just $ unsafeRange (take 127 mems)
-  let nt = NonBindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon") & newTeamMembers .~ mm
+  let nt = NonBindingNewTeam $ newNewTeam (unsafeRange name) DefaultIcon & newTeamMembers .~ mm
   resp <-
     post (g . path "/teams" . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
       const 201 === statusCode
@@ -252,7 +259,7 @@ createBindingTeamInternalNoActivate :: HasCallStack => Text -> UserId -> TestM T
 createBindingTeamInternalNoActivate name owner = do
   g <- view tsGalley
   tid <- randomId
-  let nt = BindingNewTeam $ newNewTeam (unsafeRange name) (unsafeRange "icon")
+  let nt = BindingNewTeam $ newNewTeam (unsafeRange name) DefaultIcon
   _ <-
     put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
       const 201 === statusCode
@@ -499,23 +506,59 @@ createTeamConvLegacy u tid us name = do
     )
     >>= \r -> fromBS (getHeader' "Location" r)
 
-createTeamConv :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> TestM ConvId
+createTeamConv ::
+  HasCallStack =>
+  UserId ->
+  TeamId ->
+  [UserId] ->
+  Maybe Text ->
+  Maybe (Set Access) ->
+  Maybe Milliseconds ->
+  TestM ConvId
 createTeamConv u tid us name acc mtimer = createTeamConvAccess u tid us name acc Nothing mtimer (Just roleNameWireAdmin)
 
-createTeamConvWithRole :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe Milliseconds -> RoleName -> TestM ConvId
+createTeamConvWithRole ::
+  HasCallStack =>
+  UserId ->
+  TeamId ->
+  [UserId] ->
+  Maybe Text ->
+  Maybe (Set Access) ->
+  Maybe Milliseconds ->
+  RoleName ->
+  TestM ConvId
 createTeamConvWithRole u tid us name acc mtimer convRole = createTeamConvAccess u tid us name acc Nothing mtimer (Just convRole)
 
-createTeamConvAccess :: HasCallStack => UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> Maybe RoleName -> TestM ConvId
+createTeamConvAccess ::
+  HasCallStack =>
+  UserId ->
+  TeamId ->
+  [UserId] ->
+  Maybe Text ->
+  Maybe (Set Access) ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  Maybe RoleName ->
+  TestM ConvId
 createTeamConvAccess u tid us name acc role mtimer convRole = do
   r <- createTeamConvAccessRaw u tid us name acc role mtimer convRole <!! const 201 === statusCode
   fromBS (getHeader' "Location" r)
 
-createTeamConvAccessRaw :: UserId -> TeamId -> [UserId] -> Maybe Text -> Maybe (Set Access) -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> Maybe RoleName -> TestM ResponseLBS
+createTeamConvAccessRaw ::
+  UserId ->
+  TeamId ->
+  [UserId] ->
+  Maybe Text ->
+  Maybe (Set Access) ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  Maybe RoleName ->
+  TestM ResponseLBS
 createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
   g <- view tsGalley
   let tinfo = ConvTeamInfo tid
   let conv =
-        NewConv us [] name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole)
+        NewConv us [] name (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole) ProtocolProteus
   post
     ( g
         . path "/conversations"
@@ -524,6 +567,45 @@ createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
         . zType "access"
         . json conv
     )
+
+-- | Create a team MLS conversation
+createMLSTeamConv ::
+  (HasGalley m, MonadIO m, MonadHttp m, HasCallStack) =>
+  Local UserId ->
+  TeamId ->
+  UserList UserId ->
+  Maybe Text ->
+  Maybe (Set Access) ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  Maybe RoleName ->
+  m (Local ConvId)
+createMLSTeamConv lusr tid users name access role timer convRole = do
+  g <- viewGalley
+  let conv =
+        NewConv
+          { newConvUsers = [],
+            newConvQualifiedUsers = ulAll lusr users,
+            newConvName = name,
+            newConvAccess = fromMaybe Set.empty access,
+            newConvAccessRoles = role,
+            newConvTeam = Just . ConvTeamInfo $ tid,
+            newConvMessageTimer = timer,
+            newConvUsersRole = fromMaybe roleNameWireAdmin convRole,
+            newConvReceiptMode = Nothing,
+            newConvProtocol = ProtocolMLS
+          }
+  r <-
+    post
+      ( g
+          . path "/conversations"
+          . zUser (tUnqualified lusr)
+          . zConn "conn"
+          . zType "access"
+          . json conv
+      )
+  convId <- fromBS (getHeader' "Location" r)
+  pure $ qualifyAs lusr convId
 
 updateTeamConv :: UserId -> ConvId -> ConversationRename -> TestM ResponseLBS
 updateTeamConv zusr convid upd = do
@@ -541,14 +623,46 @@ createOne2OneTeamConv :: UserId -> UserId -> Maybe Text -> TeamId -> TestM Respo
 createOne2OneTeamConv u1 u2 n tid = do
   g <- view tsGalley
   let conv =
-        NewConv [u2] [] n mempty Nothing (Just $ ConvTeamInfo tid) Nothing Nothing roleNameWireAdmin
+        NewConv [u2] [] n mempty Nothing (Just $ ConvTeamInfo tid) Nothing Nothing roleNameWireAdmin ProtocolProteus
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
-postConv :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> TestM ResponseLBS
+postConv ::
+  UserId ->
+  [UserId] ->
+  Maybe Text ->
+  [Access] ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  TestM ResponseLBS
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
 
-defNewConv :: NewConv
-defNewConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+-- | Create a group MLS conversation
+postMLSConv ::
+  Local UserId ->
+  UserList UserId ->
+  Maybe Text ->
+  [Access] ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  TestM ResponseLBS
+postMLSConv lusr us name access r timer =
+  postConvQualified
+    (tUnqualified lusr)
+    NewConv
+      { newConvUsers = [],
+        newConvQualifiedUsers = ulAll lusr us,
+        newConvName = name,
+        newConvAccess = Set.fromList access,
+        newConvAccessRoles = r,
+        newConvTeam = Nothing,
+        newConvMessageTimer = timer,
+        newConvUsersRole = roleNameWireAdmin,
+        newConvReceiptMode = Nothing,
+        newConvProtocol = ProtocolMLS
+      }
+
+defNewProteusConv :: NewConv
+defNewProteusConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteus
 
 postConvQualified ::
   (HasCallStack, HasGalley m, MonadIO m, MonadMask m, MonadHttp m) =>
@@ -583,7 +697,7 @@ postConvWithRemoteUsers u n =
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
   g <- view tsGalley
-  let conv = NewConv us [] name (Set.fromList a) r (Just (ConvTeamInfo tid)) mtimer Nothing roleNameWireAdmin
+  let conv = NewConv us [] name (Set.fromList a) r (Just (ConvTeamInfo tid)) mtimer Nothing roleNameWireAdmin ProtocolProteus
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 deleteTeamConv :: (HasGalley m, MonadIO m, MonadHttp m) => TeamId -> ConvId -> UserId -> m ResponseLBS
@@ -596,11 +710,19 @@ deleteTeamConv tid convId zusr = do
         . zConn "conn"
     )
 
-postConvWithRole :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> RoleName -> TestM ResponseLBS
+postConvWithRole ::
+  UserId ->
+  [UserId] ->
+  Maybe Text ->
+  [Access] ->
+  Maybe (Set AccessRoleV2) ->
+  Maybe Milliseconds ->
+  RoleName ->
+  TestM ResponseLBS
 postConvWithRole u members name access arole timer role =
   postConvQualified
     u
-    defNewConv
+    defNewProteusConv
       { newConvUsers = members,
         newConvName = name,
         newConvAccess = Set.fromList access,
@@ -612,7 +734,7 @@ postConvWithRole u members name access arole timer role =
 postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
   g <- view tsGalley
-  let conv = NewConv us [] name (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin
+  let conv = NewConv us [] name (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin ProtocolProteus
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: UserId -> TestM ResponseLBS
@@ -623,7 +745,7 @@ postSelfConv u = do
 postO2OConv :: UserId -> UserId -> Maybe Text -> TestM ResponseLBS
 postO2OConv u1 u2 n = do
   g <- view tsGalley
-  let conv = NewConv [u2] [] n mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+  let conv = NewConv [u2] [] n mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteus
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS
@@ -1559,7 +1681,17 @@ assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   cuOrigUserId cu @?= remover
   cuConvId cu @?= qUnqualified qconvId
   sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
-  cuAction cu @?= ConversationActionRemoveMembers (pure victim)
+  cuAction cu @?= SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure victim)
+
+assertLeaveUpdate :: (MonadIO m, HasCallStack) => FederatedRequest -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
+assertLeaveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
+  frRPC req @?= "on-conversation-updated"
+  frOriginDomain req @?= qDomain qconvId
+  let Just cu = decode (frBody req)
+  cuOrigUserId cu @?= remover
+  cuConvId cu @?= qUnqualified qconvId
+  sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
+  cuAction cu @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure victim)
 
 -------------------------------------------------------------------------------
 -- Helpers
@@ -1788,8 +1920,14 @@ randomQualifiedId domain = Qualified <$> randomId <*> pure domain
 randomTeamCreator :: HasCallStack => TestM UserId
 randomTeamCreator = qUnqualified <$> randomUser' True True True
 
+randomTeamCreator' :: HasCallStack => TestM User
+randomTeamCreator' = randomUser'' True True True
+
 randomUser' :: HasCallStack => Bool -> Bool -> Bool -> TestM (Qualified UserId)
-randomUser' isCreator hasPassword hasEmail = userQualifiedId . selfUser <$> randomUserProfile' isCreator hasPassword hasEmail
+randomUser' isCreator hasPassword hasEmail = userQualifiedId <$> randomUser'' isCreator hasPassword hasEmail
+
+randomUser'' :: HasCallStack => Bool -> Bool -> Bool -> TestM User
+randomUser'' isCreator hasPassword hasEmail = selfUser <$> randomUserProfile' isCreator hasPassword hasEmail
 
 randomUserProfile' :: HasCallStack => Bool -> Bool -> Bool -> TestM SelfProfile
 randomUserProfile' isCreator hasPassword hasEmail = do
@@ -1800,7 +1938,7 @@ randomUserProfile' isCreator hasPassword hasEmail = do
           ["name" .= fromEmail e]
             <> ["password" .= defPassword | hasPassword]
             <> ["email" .= fromEmail e | hasEmail]
-            <> ["team" .= Team.BindingNewTeam (Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")) | isCreator]
+            <> ["team" .= Team.BindingNewTeam (Team.newNewTeam (unsafeRange "teamName") DefaultIcon) | isCreator]
   responseJsonUnsafe <$> (post (b . path "/i/users" . json p) <!! const 201 === statusCode)
 
 ephemeralUser :: HasCallStack => TestM UserId
@@ -2102,13 +2240,13 @@ someLastPrekeys =
     lastPrekey "pQABARn//wKhAFgg1rZEY6vbAnEz+Ern5kRny/uKiIrXTb/usQxGnceV2HADoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
   ]
 
-mkConv ::
+mkProteusConv ::
   ConvId ->
   UserId ->
   RoleName ->
   [OtherMember] ->
   RemoteConversation
-mkConv cnvId creator selfRole otherMembers =
+mkProteusConv cnvId creator selfRole otherMembers =
   RemoteConversation
     cnvId
     ( ConversationMetadata
@@ -2119,6 +2257,8 @@ mkConv cnvId creator selfRole otherMembers =
         (Just "federated gossip")
         Nothing
         Nothing
+        Nothing
+        ProtocolProteus
         Nothing
     )
     (RemoteConvMembers selfRole otherMembers)
@@ -2234,7 +2374,7 @@ putCapabilities zusr cid caps = do
       ( brig
           . zUser zusr
           . paths ["clients", toByteString' cid]
-          . json (UpdateClient mempty Nothing Nothing (Just . Set.fromList $ caps))
+          . json defUpdateClient {updateClientCapabilities = Just (Set.fromList caps)}
           . expect2xx
       )
 
@@ -2434,7 +2574,7 @@ checkTeamUpdateEvent tid upd w = WS.assertMatch_ checkTimeout w $ \notif -> do
   e ^. eventTeam @?= tid
   e ^. eventData @?= EdTeamUpdate upd
 
-checkConvCreateEvent :: HasCallStack => ConvId -> WS.WebSocket -> TestM ()
+checkConvCreateEvent :: (MonadIO m, MonadCatch m) => HasCallStack => ConvId -> WS.WebSocket -> m ()
 checkConvCreateEvent cid w = WS.assertMatch_ checkTimeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
@@ -2525,6 +2665,10 @@ parseFedRequest fr = eitherDecode (frBody fr)
 assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
 assertOne [a] = pure a
 assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <> show xs
+
+assertNone :: (HasCallStack, MonadIO m, Show a) => [a] -> m ()
+assertNone [] = pure ()
+assertNone xs = liftIO . assertFailure $ "Expected exactly no elements, found " <> show xs
 
 assertJust :: (HasCallStack, MonadIO m) => Maybe a -> m a
 assertJust (Just a) = pure a

@@ -406,6 +406,8 @@ type UserClientAPI =
         :> CanThrow TooManyClients
         :> CanThrow MissingAuth
         :> CanThrow MalformedPrekeys
+        :> CanThrow CodeAuthenticationFailed
+        :> CanThrow CodeAuthenticationRequired
         :> ZUser
         :> ZConn
         :> "clients"

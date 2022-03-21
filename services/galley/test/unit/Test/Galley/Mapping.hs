@@ -129,6 +129,8 @@ genConversation =
     <*> pure (Just False)
     <*> pure Nothing
     <*> pure Nothing
+    <*> pure (Just ProtocolProteus)
+    <*> pure Nothing
 
 newtype RandomConversation = RandomConversation
   {unRandomConversation :: Data.Conversation}

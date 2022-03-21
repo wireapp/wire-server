@@ -29,6 +29,7 @@ module Brig.User.Template
     DeletionSmsTemplate (..),
     DeletionEmailTemplate (..),
     NewClientEmailTemplate (..),
+    SecondFactorVerificationEmailTemplate (..),
     loadUserTemplates,
 
     -- * Re-exports
@@ -56,7 +57,10 @@ data UserTemplates = UserTemplates
     loginCall :: !LoginCallTemplate,
     deletionSms :: !DeletionSmsTemplate,
     deletionEmail :: !DeletionEmailTemplate,
-    newClientEmail :: !NewClientEmailTemplate
+    newClientEmail :: !NewClientEmailTemplate,
+    verificationLoginEmail :: !SecondFactorVerificationEmailTemplate,
+    verificationScimTokenEmail :: !SecondFactorVerificationEmailTemplate,
+    verificationTeamDeletionEmail :: !SecondFactorVerificationEmailTemplate
   }
 
 data ActivationSmsTemplate = ActivationSmsTemplate
@@ -143,6 +147,14 @@ data NewClientEmailTemplate = NewClientEmailTemplate
     newClientEmailSenderName :: !Text
   }
 
+data SecondFactorVerificationEmailTemplate = SecondFactorVerificationEmailTemplate
+  { sndFactorVerificationEmailSubject :: !Template,
+    sndFactorVerificationEmailBodyText :: !Template,
+    sndFactorVerificationEmailBodyHtml :: !Template,
+    sndFactorVerificationEmailSender :: !Email,
+    sndFactorVerificationEmailSenderName :: !Text
+  }
+
 loadUserTemplates :: Opt.Opts -> IO (Localised UserTemplates)
 loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
   UserTemplates
@@ -214,6 +226,27 @@ loadUserTemplates o = readLocalesDir defLocale templateDir "user" $ \fp ->
             <$> readTemplate fp "email/new-client-subject.txt"
             <*> readTemplate fp "email/new-client.txt"
             <*> readTemplate fp "email/new-client.html"
+            <*> pure emailSender
+            <*> readText fp "email/sender.txt"
+        )
+    <*> ( SecondFactorVerificationEmailTemplate
+            <$> readTemplate fp "email/verification-login-subject.txt"
+            <*> readTemplate fp "email/verification-login.txt"
+            <*> readTemplate fp "email/verification-login.html"
+            <*> pure emailSender
+            <*> readText fp "email/sender.txt"
+        )
+    <*> ( SecondFactorVerificationEmailTemplate
+            <$> readTemplate fp "email/verification-scim-token-subject.txt"
+            <*> readTemplate fp "email/verification-scim-token.txt"
+            <*> readTemplate fp "email/verification-scim-token.html"
+            <*> pure emailSender
+            <*> readText fp "email/sender.txt"
+        )
+    <*> ( SecondFactorVerificationEmailTemplate
+            <$> readTemplate fp "email/verification-delete-team-subject.txt"
+            <*> readTemplate fp "email/verification-delete-team.txt"
+            <*> readTemplate fp "email/verification-delete-team.html"
             <*> pure emailSender
             <*> readText fp "email/sender.txt"
         )

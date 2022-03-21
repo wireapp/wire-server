@@ -44,6 +44,7 @@ import qualified Brig.AWS as AWS
 import Brig.AWS.Types
 import Brig.App (applog, sftEnv)
 import Brig.Calling as Calling
+import qualified Brig.Code as Code
 import qualified Brig.Options as Opt
 import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
@@ -644,12 +645,16 @@ addClientReq brig uid new =
     . body (RequestBodyLBS $ encode new)
 
 defNewClient :: ClientType -> [Prekey] -> LastPrekey -> NewClient
-defNewClient ty pks lpk =
+defNewClient = defNewClientWithVerificationCode Nothing
+
+defNewClientWithVerificationCode :: Maybe Code.Value -> ClientType -> [Prekey] -> LastPrekey -> NewClient
+defNewClientWithVerificationCode mbCode ty pks lpk =
   (newClient ty lpk)
     { newClientPassword = Just defPassword,
       newClientPrekeys = pks,
       newClientLabel = Just "Test Device",
-      newClientModel = Just "Test Model"
+      newClientModel = Just "Test Model",
+      newClientVerificationCode = mbCode
     }
 
 getPreKey :: Brig -> UserId -> UserId -> ClientId -> Http ResponseLBS
@@ -690,7 +695,18 @@ getConversationQualified galley usr cnv =
 
 createConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
 createConversation galley zusr usersToAdd = do
-  let conv = NewConv [] usersToAdd (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+  let conv =
+        NewConv
+          []
+          usersToAdd
+          (Just "gossip")
+          mempty
+          Nothing
+          Nothing
+          Nothing
+          Nothing
+          roleNameWireAdmin
+          ProtocolProteus
   post $
     galley
       . path "/conversations"

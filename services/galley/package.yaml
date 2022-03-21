@@ -35,6 +35,7 @@ library:
   - base64-bytestring >=1.0
   - bilge >=0.21.1
   - binary
+  - blake2
   - brig-types >=0.73.1
   - bytestring >=0.9
   - bytestring-conversion >=0.2
@@ -69,6 +70,7 @@ library:
   - protobuf >=0.2
   - proto-lens >=0.2
   - QuickCheck >=2.14
+  - random
   - resourcet >=1.1
   - retry >=0.5
   - safe-exceptions >=0.1
@@ -77,6 +79,7 @@ library:
   - servant-server
   - servant-swagger
   - servant-swagger-ui
+  - singletons
   - sop-core
   - split >=0.2
   - ssl-util >=0.1
@@ -197,6 +200,7 @@ executables:
     - random
     - retry
     - schema-profunctor
+    - singletons
     - servant
     - servant-server
     - servant-swagger

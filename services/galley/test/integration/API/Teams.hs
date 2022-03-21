@@ -36,6 +36,7 @@ import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
+import qualified Data.Code as Code
 import Data.Csv (FromNamedRecord (..), decodeByName)
 import qualified Data.Currency as Currency
 import Data.Default
@@ -49,6 +50,7 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
+import Data.Text.Ascii (AsciiChars (validate))
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import qualified Data.UUID.V1 as UUID
@@ -75,10 +77,12 @@ import Test.Tasty.HUnit
 import TestHelpers (test, viewFederationDomain)
 import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
+import Wire.API.Team (Icon (..))
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Member
 import qualified Wire.API.Team.Member as TM
+import qualified Wire.API.User as Public
 import qualified Wire.API.User as U
 
 tests :: IO TestSetup -> TestTree
@@ -120,6 +124,7 @@ tests s =
       test s "add team conversation (no role as argument)" testAddTeamConvLegacy,
       test s "add team conversation with role" testAddTeamConvWithRole,
       test s "add team conversation as partner (fail)" testAddTeamConvAsExternalPartner,
+      test s "add team MLS conversation" testCreateTeamMLSConv,
       -- Queue is emptied here to ensure that lingering events do not affect other tests
       test s "add team member to conversation without connection" (testAddTeamMemberToConv >> ensureQueueEmpty),
       test s "update conversation as member" (testUpdateTeamConv RoleMember roleNameWireAdmin),
@@ -127,6 +132,13 @@ tests s =
       test s "delete binding team internal single member" testDeleteBindingTeamSingleMember,
       test s "delete binding team (owner has passwd)" (testDeleteBindingTeam True),
       test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False),
+      testGroup
+        "delete team - verification code"
+        [ test s "success" testDeleteTeamVerificationCodeSuccess,
+          test s "wrong code" testDeleteTeamVerificationCodeWrongCode,
+          test s "missing code" testDeleteTeamVerificationCodeMissingCode,
+          test s "expired code" testDeleteTeamVerificationCodeExpiredCode
+        ],
       test s "delete team conversation" testDeleteTeamConv,
       test s "update team data" testUpdateTeam,
       test s "update team data icon validation" testUpdateTeamIconValidation,
@@ -204,7 +216,7 @@ testCreateMultipleBindingTeams = do
   _ <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
   -- Cannot create more teams if bound (used internal API)
-  let nt = NonBindingNewTeam $ newNewTeam (unsafeRange "owner") (unsafeRange "icon")
+  let nt = NonBindingNewTeam $ newNewTeam (unsafeRange "owner") DefaultIcon
   post (g . path "/teams" . zUser owner . zConn "conn" . json nt)
     !!! const 403 === statusCode
   -- If never used the internal API, can create multiple teams
@@ -865,6 +877,31 @@ testAddTeamConvWithRole = do
     -- ... but not to regular ones.
     Util.assertNotConvMember (mem1 ^. userId) cid2
 
+testCreateTeamMLSConv :: TestM ()
+testCreateTeamMLSConv = do
+  c <- view tsCannon
+  owner <- Util.randomUser
+  lOwner <- flip toLocalUnsafe owner <$> viewFederationDomain
+  extern <- Util.randomUser
+  tid <- Util.createNonBindingTeam "foo" owner []
+  WS.bracketR2 c owner extern $ \(wsOwner, wsExtern) -> do
+    lConvId <-
+      Util.createMLSTeamConv
+        lOwner
+        tid
+        mempty
+        (Just "Team MLS conversation")
+        Nothing
+        Nothing
+        Nothing
+        Nothing
+    Right conv <- fmap cnvMetadata . responseJsonError <$> getConv owner (tUnqualified lConvId)
+    liftIO $ do
+      assertEqual "protocol mismatch" ProtocolMLS (cnvmProtocol conv)
+      assertEqual "group ID mismatch" True (isJust . cnvmGroupId $ conv)
+    checkConvCreateEvent (tUnqualified lConvId) wsOwner
+    WS.assertNoEvent (2 # Second) [wsExtern]
+
 testAddTeamConvAsExternalPartner :: TestM ()
 testAddTeamConvAsExternalPartner = do
   (owner, tid) <- Util.createBindingTeam
@@ -1051,6 +1088,116 @@ testDeleteBindingTeamSingleMember = do
   -- received the event, should _really_ be deleted
   -- Let's clean the queue, just in case
   ensureQueueEmpty
+
+testDeleteTeamVerificationCodeSuccess :: TestM ()
+testDeleteTeamVerificationCodeSuccess = do
+  g <- view tsGalley
+  (owner, tid) <- Util.createBindingTeam'
+  let Just email = U.userEmail owner
+  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
+  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
+  code <- getVerificationCode (U.userId owner) Public.DeleteTeam
+  delete
+    ( g
+        . paths ["teams", toByteString' tid]
+        . zUser (U.userId owner)
+        . zConn "conn"
+        . json (newTeamDeleteDataWithCode (Just Util.defPassword) (Just code))
+    )
+    !!! do
+      const 202 === statusCode
+  tryAssertQueue 10 "team delete, should be there" tDelete
+  assertQueueEmpty
+
+testDeleteTeamVerificationCodeMissingCode :: TestM ()
+testDeleteTeamVerificationCodeMissingCode = do
+  g <- view tsGalley
+  (owner, tid) <- Util.createBindingTeam'
+  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
+  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  let Just email = U.userEmail owner
+  generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
+  delete
+    ( g
+        . paths ["teams", toByteString' tid]
+        . zUser (U.userId owner)
+        . zConn "conn"
+        . json (newTeamMemberDeleteData (Just Util.defPassword))
+    )
+    !!! do
+      const 403 === statusCode
+      const "code-authentication-required" === (Error.label . responseJsonUnsafeWithMsg "error label")
+  assertQueueEmpty
+
+testDeleteTeamVerificationCodeExpiredCode :: TestM ()
+testDeleteTeamVerificationCodeExpiredCode = do
+  g <- view tsGalley
+  (owner, tid) <- Util.createBindingTeam'
+  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
+  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  let Just email = U.userEmail owner
+  generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
+  code <- getVerificationCode (U.userId owner) Public.DeleteTeam
+  -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
+  threadDelay $ (5 * 1000 * 1000) + 600 * 1000
+  delete
+    ( g
+        . paths ["teams", toByteString' tid]
+        . zUser (U.userId owner)
+        . zConn "conn"
+        . json (newTeamDeleteDataWithCode (Just Util.defPassword) (Just code))
+    )
+    !!! do
+      const 403 === statusCode
+      const "code-authentication-failed" === (Error.label . responseJsonUnsafeWithMsg "error label")
+  assertQueueEmpty
+
+testDeleteTeamVerificationCodeWrongCode :: TestM ()
+testDeleteTeamVerificationCodeWrongCode = do
+  g <- view tsGalley
+  (owner, tid) <- Util.createBindingTeam'
+  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
+  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  let Just email = U.userEmail owner
+  generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
+  let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
+  delete
+    ( g
+        . paths ["teams", toByteString' tid]
+        . zUser (U.userId owner)
+        . zConn "conn"
+        . json (newTeamDeleteDataWithCode (Just Util.defPassword) (Just wrongCode))
+    )
+    !!! do
+      const 403 === statusCode
+      const "code-authentication-failed" === (Error.label . responseJsonUnsafeWithMsg "error label")
+  assertQueueEmpty
+
+setFeatureLockStatus :: forall (a :: Public.TeamFeatureName). (Public.KnownTeamFeatureName a) => TeamId -> Public.LockStatusValue -> TestM ()
+setFeatureLockStatus tid status = do
+  g <- view tsGalley
+  put (g . paths ["i", "teams", toByteString' tid, "features", toByteString' $ Public.knownTeamFeatureName @a, toByteString' status]) !!! const 200 === statusCode
+
+generateVerificationCode :: Public.SendVerificationCode -> TestM ()
+generateVerificationCode req = do
+  brig <- view tsBrig
+  let js = RequestBodyLBS $ encode req
+  post (brig . paths ["verification-code", "send"] . contentJson . body js) !!! const 200 === statusCode
+
+setTeamSndFactorPasswordChallenge :: TeamId -> Public.TeamFeatureStatusValue -> TestM ()
+setTeamSndFactorPasswordChallenge tid status = do
+  g <- view tsGalley
+  let js = RequestBodyLBS $ encode $ Public.TeamFeatureStatusNoConfig status
+  put (g . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge] . contentJson . body js) !!! const 200 === statusCode
+
+getVerificationCode :: UserId -> Public.VerificationAction -> TestM Code.Value
+getVerificationCode uid action = do
+  brig <- view tsBrig
+  resp <-
+    get (brig . paths ["i", "users", toByteString' uid, "verification-code", toByteString' action])
+      <!! const 200 === statusCode
+  pure $ responseJsonUnsafe @Code.Value resp
 
 testDeleteBindingTeam :: Bool -> TestM ()
 testDeleteBindingTeam ownerHasPassword = do
@@ -1532,6 +1679,11 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
             . json change
         )
 
+-- | @SF.Management @TSFI.RESTfulAPI @S2
+-- This test covers:
+-- Promotion, demotion of team roles.
+-- Demotion by superior roles is allowed.
+-- Demotion by inferior roles is NOT allowed.
 testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do
   g <- view tsGalley
@@ -1595,6 +1747,8 @@ testUpdateTeamMember = do
       let e = List1.head (WS.unpackPayload notif)
       e ^. eventTeam @?= tid
       e ^. eventData @?= EdMemberUpdate uid mPerm
+
+-- @END
 
 testUpdateTeamStatus :: TestM ()
 testUpdateTeamStatus = do

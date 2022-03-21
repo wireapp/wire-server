@@ -40,7 +40,7 @@ module Brig.Email
 where
 
 import qualified Brig.AWS as AWS
-import Brig.App (AppIO, awsEnv, smtpEnv)
+import Brig.App (Env, awsEnv, smtpEnv)
 import qualified Brig.SMTP as SMTP
 import Brig.Types
 import Control.Lens (view)
@@ -49,7 +49,7 @@ import Imports
 import Network.Mail.Mime
 
 -------------------------------------------------------------------------------
-sendMail :: Mail -> (AppIO r) ()
+sendMail :: (MonadIO m, MonadReader Env m) => Mail -> m ()
 sendMail m =
   view smtpEnv >>= \case
     Just smtp -> SMTP.sendMail smtp m

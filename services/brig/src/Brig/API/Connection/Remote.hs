@@ -159,11 +159,12 @@ transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
 
   -- create connection
   connection <-
-    Data.insertConnection
-      self
-      (qUntagged other)
-      (relationWithHistory rel)
-      qcnv
+    wrapClient $
+      Data.insertConnection
+        self
+        (qUntagged other)
+        (relationWithHistory rel)
+        qcnv
 
   -- send event
   pushEvent self mzcon connection
@@ -174,7 +175,7 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = lift $ do
   void $ updateOne2OneConv self Nothing other (ucConvId connection) rel actor
 
   -- update connection
-  connection' <- Data.updateConnection connection (relationWithHistory rel)
+  connection' <- wrapClient $ Data.updateConnection connection (relationWithHistory rel)
 
   -- send event
   pushEvent self mzcon connection'
@@ -256,7 +257,7 @@ createConnectionToRemoteUser ::
   Remote UserId ->
   (ConnectionM r) (ResponseForExistedCreated UserConnection)
 createConnectionToRemoteUser self zcon other = do
-  mconnection <- lift $ Data.lookupConnection self (qUntagged other)
+  mconnection <- lift . wrapClient $ Data.lookupConnection self (qUntagged other)
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
 
 updateConnectionToRemoteUser ::
@@ -266,7 +267,7 @@ updateConnectionToRemoteUser ::
   Maybe ConnId ->
   (ConnectionM r) (Maybe UserConnection)
 updateConnectionToRemoteUser self other rel1 zcon = do
-  mconnection <- lift $ Data.lookupConnection self (qUntagged other)
+  mconnection <- lift . wrapClient $ Data.lookupConnection self (qUntagged other)
   action <-
     actionForTransition rel1
       ?? InvalidTransition (tUnqualified self)

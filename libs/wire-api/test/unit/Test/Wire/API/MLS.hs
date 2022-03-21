@@ -43,7 +43,8 @@ tests =
     [ testCase "parse key package" testParseKeyPackage,
       testCase "parse commit message" testParseCommit,
       testCase "parse application message" testParseApplication,
-      testCase "parse welcome message" testParseWelcome
+      testCase "parse welcome message" testParseWelcome,
+      testCase "key package ref" testKeyPackageRef
     ]
 
 testParseKeyPackage :: IO ()
@@ -113,3 +114,9 @@ testParseWelcome = do
 
   welCipherSuite wel @?= CipherSuite 1
   map gsNewMember (welSecrets wel) @?= [KeyPackageRef (fromRight' (unhex "ab4692703ca6d50ffdeaae3096f885c2"))]
+
+testKeyPackageRef :: IO ()
+testKeyPackageRef = do
+  kpData <- LBS.readFile "test/resources/key_package1.mls"
+  ref <- KeyPackageRef <$> BS.readFile "test/resources/key_package_ref1"
+  kpRef MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 (KeyPackageData kpData) @?= ref

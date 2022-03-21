@@ -109,9 +109,13 @@ instance APIError InvalidInput where
 
 data AuthenticationError
   = ReAuthFailed
+  | VerificationCodeAuthFailed
+  | VerificationCodeRequired
 
 instance APIError AuthenticationError where
   toWai ReAuthFailed = reAuthFailed
+  toWai VerificationCodeAuthFailed = verificationCodeAuthFailed
+  toWai VerificationCodeRequired = verificationCodeRequired
 
 data ConversationError
   = ConvAccessDenied
@@ -120,6 +124,7 @@ data ConversationError
   | ConvMemberNotFound
   | NoBindingTeamMembers
   | GuestLinksDisabled
+  | MLSNonEmptyMemberList
 
 instance APIError ConversationError where
   toWai ConvAccessDenied = errorDescriptionTypeToWai @ConvAccessDenied
@@ -128,6 +133,7 @@ instance APIError ConversationError where
   toWai ConvMemberNotFound = errorDescriptionTypeToWai @ConvMemberNotFound
   toWai NoBindingTeamMembers = noBindingTeamMembers
   toWai GuestLinksDisabled = guestLinksDisabled
+  toWai MLSNonEmptyMemberList = errorDescriptionTypeToWai @MLSNonEmptyMemberList
 
 data TeamError
   = NoBindingTeam
@@ -337,6 +343,12 @@ accessDenied = mkError status403 "access-denied" "You do not have permission to 
 
 reAuthFailed :: Error
 reAuthFailed = mkError status403 "access-denied" "This operation requires reauthentication"
+
+verificationCodeRequired :: Error
+verificationCodeRequired = mkError status403 "code-authentication-required" "Verification code required."
+
+verificationCodeAuthFailed :: Error
+verificationCodeAuthFailed = mkError status403 "code-authentication-failed" "Code authentication failed."
 
 invalidUUID4 :: Error
 invalidUUID4 = mkError status400 "client-error" "Invalid UUID v4 format"

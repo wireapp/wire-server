@@ -53,6 +53,7 @@ import qualified Data.ProtoLens as Protolens
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
+import Data.Singletons
 import Data.String.Conversions
 import Data.Time.Clock
 import Data.Timeout (TimeoutUnit (..), (#))
@@ -68,12 +69,12 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
-import Wire.API.Conversation.Action (ConversationAction (..))
-import Wire.API.Conversation.Member (Member (..))
+import Wire.API.Conversation
+import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Common
-import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (..), RemoteConvMembers (..), RemoteConversation (..))
+import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as FedGalley
 import Wire.API.Federation.Component
 import Wire.API.Message (ClientMismatchStrategy (..), MessageSendingStatus (mssDeletedClients, mssFailedToSend, mssRedundantClients), mkQualifiedOtrPayload, mssMissingClients)
@@ -123,7 +124,7 @@ getConversationsAllFound = do
     responseJsonError
       =<< postConvWithRemoteUsers
         bob
-        defNewConv {newConvQualifiedUsers = [aliceQ, carlQ]}
+        defNewProteusConv {newConvQualifiedUsers = [aliceQ, carlQ]}
 
   -- create a one-to-one conversation between bob and alice
   do
@@ -253,7 +254,7 @@ addLocalUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [charlie],
             FedGalley.cuAction =
-              ConversationActionAddMembers (qalice :| [qdee]) roleNameWireMember
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qalice :| [qdee]) roleNameWireMember)
           }
   WS.bracketRN c [alice, charlie, dee] $ \[wsA, wsC, wsD] -> do
     runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
@@ -307,7 +308,7 @@ addUnconnectedUsersOnly = do
               FedGalley.cuConvId = conv,
               FedGalley.cuAlreadyPresentUsers = [alice],
               FedGalley.cuAction =
-                ConversationActionAddMembers (qCharlie :| []) roleNameWireMember
+                SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qCharlie :| []) roleNameWireMember)
             }
     -- Alice receives no notifications from this
     runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
@@ -341,7 +342,7 @@ removeLocalUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [],
             FedGalley.cuAction =
-              ConversationActionAddMembers (pure qAlice) roleNameWireMember
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
           }
       cuRemove =
         FedGalley.ConversationUpdate
@@ -350,7 +351,7 @@ removeLocalUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [alice],
             FedGalley.cuAction =
-              ConversationActionRemoveMembers (pure qAlice)
+              SomeConversationAction (sing @'ConversationLeaveTag) (pure qAlice)
           }
 
   connectWithRemoteUser alice qBob
@@ -414,7 +415,7 @@ removeRemoteUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [alice, charlie, dee],
             FedGalley.cuAction =
-              ConversationActionRemoveMembers (pure user)
+              SomeConversationAction (sing @'ConversationLeaveTag) (pure user)
           }
 
   WS.bracketRN c [alice, charlie, dee, flo] $ \[wsA, wsC, wsD, wsF] -> do
@@ -438,7 +439,7 @@ removeRemoteUser = do
         wsAssertMembersLeave qconv qBob [qFlo]
       WS.assertNoEvent (1 # Second) [wsC, wsF, wsD]
 
-notifyUpdate :: [Qualified UserId] -> ConversationAction -> EventType -> EventData -> TestM ()
+notifyUpdate :: [Qualified UserId] -> SomeConversationAction -> EventType -> EventData -> TestM ()
 notifyUpdate extras action etype edata = do
   c <- view tsCannon
   qalice <- randomQualifiedUser
@@ -483,14 +484,14 @@ notifyUpdate extras action etype edata = do
 notifyConvRename :: TestM ()
 notifyConvRename = do
   let d = ConversationRename "gossip++"
-  notifyUpdate [] (ConversationActionRename d) ConvRename (EdConvRename d)
+  notifyUpdate [] (SomeConversationAction (sing @'ConversationRenameTag) d) ConvRename (EdConvRename d)
 
 notifyMessageTimer :: TestM ()
 notifyMessageTimer = do
   let d = ConversationMessageTimerUpdate (Just 5000)
   notifyUpdate
     []
-    (ConversationActionMessageTimerUpdate d)
+    (SomeConversationAction (sing @'ConversationMessageTimerUpdateTag) d)
     ConvMessageTimerUpdate
     (EdConvMessageTimerUpdate d)
 
@@ -499,7 +500,7 @@ notifyReceiptMode = do
   let d = ConversationReceiptModeUpdate (ReceiptMode 42)
   notifyUpdate
     []
-    (ConversationActionReceiptModeUpdate d)
+    (SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) d)
     ConvReceiptModeUpdate
     (EdConvReceiptModeUpdate d)
 
@@ -508,7 +509,7 @@ notifyAccess = do
   let d = ConversationAccessData (Set.fromList [InviteAccess, LinkAccess]) (Set.fromList [TeamMemberAccessRole])
   notifyUpdate
     []
-    (ConversationActionAccessUpdate d)
+    (SomeConversationAction (sing @'ConversationAccessDataTag) d)
     ConvAccessUpdate
     (EdConvAccessUpdate d)
 
@@ -528,7 +529,7 @@ notifyMemberUpdate = do
           }
   notifyUpdate
     [qdee]
-    (ConversationActionMemberUpdate qdee (OtherMemberUpdate (Just roleNameWireAdmin)))
+    (SomeConversationAction (sing @'ConversationMemberUpdateTag) (ConversationMemberUpdate qdee (OtherMemberUpdate (Just roleNameWireAdmin))))
     MemberStateUpdate
     (EdMemberUpdate d)
 
@@ -567,7 +568,7 @@ notifyDeletedConversation = do
               FedGalley.cuOrigUserId = qbob,
               FedGalley.cuConvId = qUnqualified qconv,
               FedGalley.cuAlreadyPresentUsers = [alice],
-              FedGalley.cuAction = ConversationActionDelete
+              FedGalley.cuAction = SomeConversationAction (sing @'ConversationDeleteTag) ()
             }
     runFedClient @"on-conversation-updated" fedGalleyClient bobDomain cu
 
@@ -624,7 +625,7 @@ addRemoteUser = do
             FedGalley.cuConvId = qUnqualified qconv,
             FedGalley.cuAlreadyPresentUsers = map qUnqualified [qalice, qcharlie],
             FedGalley.cuAction =
-              ConversationActionAddMembers (qdee :| [qeve, qflo]) roleNameWireMember
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qdee :| [qeve, qflo]) roleNameWireMember)
           }
   WS.bracketRN c (map qUnqualified [qalice, qcharlie, qdee, qflo]) $ \[wsA, wsC, wsD, wsF] -> do
     runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
@@ -668,7 +669,7 @@ leaveConversationSuccess = do
       decodeConvId
         <$> postConvQualified
           alice
-          defNewConv
+          defNewProteusConv
             { newConvQualifiedUsers = [qBob, qChad, qDee, qEve]
             }
   let qconvId = Qualified convId localDomain
@@ -697,8 +698,8 @@ leaveConversationSuccess = do
 
   let [remote1GalleyFederatedRequest] = fedRequestsForDomain remoteDomain1 Galley federatedRequests
       [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 Galley federatedRequests
-  assertRemoveUpdate remote1GalleyFederatedRequest qconvId qChad [qUnqualified qChad, qUnqualified qDee] qChad
-  assertRemoveUpdate remote2GalleyFederatedRequest qconvId qChad [qUnqualified qEve] qChad
+  assertLeaveUpdate remote1GalleyFederatedRequest qconvId qChad [qUnqualified qChad, qUnqualified qDee] qChad
+  assertLeaveUpdate remote2GalleyFederatedRequest qconvId qChad [qUnqualified qEve] qChad
 
 leaveConversationNonExistent :: TestM ()
 leaveConversationNonExistent = do
@@ -773,7 +774,7 @@ onMessageSent = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [],
             FedGalley.cuAction =
-              ConversationActionAddMembers (pure qalice) roleNameWireMember
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
           }
   runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
 
@@ -859,7 +860,7 @@ sendMessage = do
       fmap decodeConvId $
         postConvQualified
           aliceId
-          defNewConv
+          defNewProteusConv
             { newConvQualifiedUsers = [bob, chad]
             }
           <!! const 201 === statusCode
@@ -976,7 +977,7 @@ onUserDeleted = do
     decodeQualifiedConvId
       <$> ( postConvWithRemoteUsers
               (tUnqualified alice)
-              defNewConv {newConvQualifiedUsers = [qUntagged bob, alex, bart, carl]}
+              defNewProteusConv {newConvQualifiedUsers = [qUntagged bob, alex, bart, carl]}
               <!! const 201 === statusCode
           )
 
@@ -986,7 +987,7 @@ onUserDeleted = do
   -- conversation without bob
   noBobConvId <-
     fmap decodeQualifiedConvId $
-      postConvQualified (tUnqualified alice) defNewConv {newConvQualifiedUsers = [alex]}
+      postConvQualified (tUnqualified alice) defNewProteusConv {newConvQualifiedUsers = [alex]}
         <!! const 201 === statusCode
 
   WS.bracketR2 cannon (tUnqualified alice) (qUnqualified alex) $ \(wsAlice, wsAlex) -> do
@@ -1046,7 +1047,7 @@ onUserDeleted = do
       FedGalley.cuOrigUserId bobDomainRPCReq @?= qUntagged bob
       FedGalley.cuConvId bobDomainRPCReq @?= qUnqualified groupConvId
       sort (FedGalley.cuAlreadyPresentUsers bobDomainRPCReq) @?= sort [tUnqualified bob, qUnqualified bart]
-      FedGalley.cuAction bobDomainRPCReq @?= ConversationActionRemoveMembers (pure $ qUntagged bob)
+      FedGalley.cuAction bobDomainRPCReq @?= (SomeConversationAction (sing @'ConversationLeaveTag) (pure $ qUntagged bob))
 
       -- Assertions about RPC to 'cDomain'
       cDomainRPC <- assertOne $ filter (\c -> frTargetDomain c == cDomain) rpcCalls
@@ -1054,4 +1055,4 @@ onUserDeleted = do
       FedGalley.cuOrigUserId cDomainRPCReq @?= qUntagged bob
       FedGalley.cuConvId cDomainRPCReq @?= qUnqualified groupConvId
       FedGalley.cuAlreadyPresentUsers cDomainRPCReq @?= [qUnqualified carl]
-      FedGalley.cuAction cDomainRPCReq @?= ConversationActionRemoveMembers (pure $ qUntagged bob)
+      FedGalley.cuAction cDomainRPCReq @?= (SomeConversationAction (sing @'ConversationLeaveTag) (pure $ qUntagged bob))

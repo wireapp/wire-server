@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE QuasiQuotes #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -17,12 +17,28 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Golden.Generated.SndFactorPasswordChallengeAction_user where
+module V69_MLSKeyPackageRefMapping
+  ( migration,
+  )
+where
 
-import Wire.API.User (SndFactorPasswordChallengeAction (..))
+import Cassandra.Schema
+import Imports
+import Text.RawString.QQ
 
-testObject_SndFactorPasswordChallengeAction_user_1 :: SndFactorPasswordChallengeAction
-testObject_SndFactorPasswordChallengeAction_user_1 = GenerateScimToken
-
-testObject_SndFactorPasswordChallengeAction_user_2 :: SndFactorPasswordChallengeAction
-testObject_SndFactorPasswordChallengeAction_user_2 = Login
+migration :: Migration
+migration =
+  Migration 69 "Add key package ref mapping" $
+    schema'
+      [r|
+        CREATE TABLE mls_key_package_refs
+            ( ref blob
+            , domain text
+            , user uuid
+            , client text
+            , conv_domain text
+            , conv uuid
+            , PRIMARY KEY (ref)
+        ) WITH compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+          AND gc_grace_seconds = 864000;
+     |]

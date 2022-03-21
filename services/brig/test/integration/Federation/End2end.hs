@@ -247,7 +247,18 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
   alice <- randomUser brig1
   bob <- randomUser brig2
 
-  let newConv = NewConv [] [] (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+  let newConv =
+        NewConv
+          []
+          []
+          (Just "gossip")
+          mempty
+          Nothing
+          Nothing
+          Nothing
+          Nothing
+          roleNameWireAdmin
+          ProtocolProteus
   convId <-
     fmap cnvQualifiedId . responseJsonError
       =<< post

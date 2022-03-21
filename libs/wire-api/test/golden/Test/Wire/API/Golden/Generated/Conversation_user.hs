@@ -25,7 +25,7 @@ import Data.Misc (Milliseconds (Ms, ms))
 import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID (fromString)
-import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
+import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (parseRoleName)
 import Wire.API.Provider.Service (ServiceRef (ServiceRef, _serviceRefId, _serviceRefProvider))
@@ -46,7 +46,9 @@ testObject_Conversation_user_1 =
             cnvmName = Just " 0",
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
             cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2})
+            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
+            cnvmProtocol = ProtocolProteus,
+            cnvmGroupId = Nothing
           },
       cnvMembers =
         ConvMembers
@@ -92,7 +94,9 @@ testObject_Conversation_user_2 =
             cnvmName = Just "",
             cnvmTeam = Nothing,
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
-            cnvmReceiptMode = Nothing
+            cnvmReceiptMode = Nothing,
+            cnvmProtocol = ProtocolProteus,
+            cnvmGroupId = Nothing
           },
       cnvMembers =
         ConvMembers

@@ -42,6 +42,8 @@ module Wire.API.Conversation
     ConversationPagingState,
     pattern ConversationPagingState,
     ConversationsResponse (..),
+    Protocol (..),
+    GroupId (..),
 
     -- * Conversation properties
     Access (..),
@@ -69,6 +71,8 @@ module Wire.API.Conversation
     ConversationAccessData (..),
     ConversationReceiptModeUpdate (..),
     ConversationMessageTimerUpdate (..),
+    ConversationJoin (..),
+    ConversationMemberUpdate (..),
 
     -- * re-exports
     module Wire.API.Conversation.Member,
@@ -111,6 +115,7 @@ import System.Random (randomRIO)
 import Wire.API.Arbitrary
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
+import Wire.API.MLS.Group
 import Wire.API.Routes.MultiTablePaging
 
 --------------------------------------------------------------------------------
@@ -127,7 +132,11 @@ data ConversationMetadata = ConversationMetadata
     -- federation.
     cnvmTeam :: Maybe TeamId,
     cnvmMessageTimer :: Maybe Milliseconds,
-    cnvmReceiptMode :: Maybe ReceiptMode
+    cnvmReceiptMode :: Maybe ReceiptMode,
+    -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
+    cnvmProtocol :: Protocol,
+    -- | The corresponding MLS group ID. This should only be set for MLS conversations.
+    cnvmGroupId :: Maybe GroupId
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
@@ -180,6 +189,29 @@ conversationMetadataObjectSchema =
         (description ?~ "Per-conversation message timer (can be null)")
         (maybeWithDefault A.Null schema)
     <*> cnvmReceiptMode .= optField "receipt_mode" (maybeWithDefault A.Null schema)
+    <*> cnvmProtocol .= fmap (fromMaybe ProtocolProteus) (optField "protocol" (schema @Protocol))
+    <*> cnvmGroupId
+      .= maybe_
+        ( optFieldWithDocModifier
+            "group_id"
+            (description ?~ "An MLS group identifier (at most 256 bytes long)")
+            schema
+        )
+
+data Protocol
+  = ProtocolProteus
+  | ProtocolMLS
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Protocol)
+  deriving (FromJSON, ToJSON) via Schema Protocol
+
+instance ToSchema Protocol where
+  schema =
+    enum @Text "Protocol" $
+      mconcat
+        [ element "proteus" ProtocolProteus,
+          element "mls" ProtocolMLS
+        ]
 
 instance ToSchema ConversationMetadata where
   schema = object "ConversationMetadata" conversationMetadataObjectSchema
@@ -621,7 +653,9 @@ data NewConv = NewConv
     newConvMessageTimer :: Maybe Milliseconds,
     newConvReceiptMode :: Maybe ReceiptMode,
     -- | Every member except for the creator will have this role
-    newConvUsersRole :: RoleName
+    newConvUsersRole :: RoleName,
+    -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
+    newConvProtocol :: Protocol
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConv)
@@ -670,6 +704,7 @@ instance ToSchema NewConv where
           .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
                  <|> pure roleNameWireAdmin
              )
+        <*> newConvProtocol .= fmap (fromMaybe ProtocolProteus) (optField "protocol" schema)
     where
       usersDesc =
         "List of user IDs (excluding the requestor) to be \
@@ -864,3 +899,37 @@ modelConversationMessageTimerUpdate = Doc.defineModel "ConversationMessageTimerU
   Doc.description "Contains conversation properties to update"
   Doc.property "message_timer" Doc.int64' $
     Doc.description "Conversation message timer (in milliseconds); can be null"
+
+data ConversationJoin = ConversationJoin
+  { cjUsers :: NonEmpty (Qualified UserId),
+    cjRole :: RoleName
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationJoin)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationJoin
+
+instance ToSchema ConversationJoin where
+  schema =
+    objectWithDocModifier
+      "ConversationJoin"
+      (description ?~ "The action of some users joining a conversation")
+      $ ConversationJoin
+        <$> cjUsers .= field "users" (nonEmptyArray schema)
+        <*> cjRole .= field "role" schema
+
+data ConversationMemberUpdate = ConversationMemberUpdate
+  { cmuTarget :: Qualified UserId,
+    cmuUpdate :: OtherMemberUpdate
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationMemberUpdate)
+  deriving (FromJSON, ToJSON, S.ToSchema) via Schema ConversationMemberUpdate
+
+instance ToSchema ConversationMemberUpdate where
+  schema =
+    objectWithDocModifier
+      "ConversationMemberUpdate"
+      (description ?~ "The action of promoting/demoting a member of a conversation")
+      $ ConversationMemberUpdate
+        <$> cmuTarget .= field "target" schema
+        <*> cmuUpdate .= field "update" schema

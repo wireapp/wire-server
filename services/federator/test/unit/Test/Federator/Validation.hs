@@ -163,6 +163,7 @@ validateDomainCertMissing =
     res @?= Left NoClientCertificate
 
 -- @SF.Federation @TSFI.Federate @TSFI.DNS @S2 @S3 @S7
+-- Reject request if the client certificate for federator is invalid
 validateDomainCertInvalid :: TestTree
 validateDomainCertInvalid =
   testCase "should fail if the client certificate is invalid" $ do

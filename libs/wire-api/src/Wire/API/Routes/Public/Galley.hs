@@ -816,6 +816,8 @@ type TeamAPI =
                :> CanThrow NotATeamMember
                :> CanThrow DeleteQueueFull
                :> CanThrow ReAuthFailed
+               :> CanThrow CodeAuthenticationFailed
+               :> CanThrow CodeAuthenticationRequired
                :> "teams"
                :> Capture "tid" TeamId
                :> ReqBody '[Servant.JSON] TeamDeleteData

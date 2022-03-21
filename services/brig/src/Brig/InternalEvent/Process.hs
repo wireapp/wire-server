@@ -42,7 +42,7 @@ onEvent n = handleTimeout $ case n of
     Log.info $
       msg (val "Processing user delete event")
         ~~ field "user" (toByteString uid)
-    API.lookupAccount uid >>= mapM_ API.deleteAccount
+    wrapClient (API.lookupAccount uid) >>= mapM_ API.deleteAccount
     -- As user deletions are expensive resource-wise in the context of
     -- bulk user deletions (e.g. during team deletions),
     -- wait 'delay' ms before processing the next event
@@ -60,7 +60,7 @@ onEvent n = handleTimeout $ case n of
         Just x -> pure x
         Nothing -> throwM (InternalEventTimeout n)
 
-data InternalEventException
+newtype InternalEventException
   = -- | 'onEvent' has timed out
     InternalEventTimeout InternalNotification
   deriving (Show)

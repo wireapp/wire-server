@@ -28,6 +28,7 @@ where
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.App
+import qualified Brig.Data.Client as Data
 import Brig.Options
 import Control.Applicative
 import Control.Lens (view)
@@ -51,9 +52,25 @@ validateKeyPackageData identity kpd = do
       (throwErrorDescription (mlsProtocolError "Unsupported ciphersuite"))
       pure
       $ cipherSuiteTag (kpCipherSuite (kpTBS kp))
+
+  -- validate signature scheme
+  let ss = csSignatureScheme cs
+  when (signatureScheme ss /= bcSignatureScheme (kpCredential (kpTBS kp))) $
+    throwErrorDescription $
+      mlsProtocolError "Signature scheme incompatible with ciphersuite"
+
+  -- authenticate signature key
+  key <-
+    fmap LBS.toStrict $
+      maybe
+        (throwErrorDescription (mlsProtocolError "No key associated to the given identity and signature scheme"))
+        pure
+        =<< lift (wrapClient (Data.lookupMLSPublicKey (ciUser identity) (ciClient identity) ss))
+  when (key /= bcSignatureKey (kpCredential (kpTBS kp))) $
+    throwErrorDescription $
+      mlsProtocolError "Unrecognised signature key"
+
   -- validate signature
-  -- FUTUREWORK: authenticate signature key
-  let key = bcSignatureKey (kpCredential (kpTBS kp))
   unless (csVerifySignature cs key (LBS.toStrict tbs) (kpSignature kp)) $
     throwErrorDescription (mlsProtocolError "Invalid signature")
   -- validate credential and extensions

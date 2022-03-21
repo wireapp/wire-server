@@ -26,11 +26,11 @@ where
 
 import Control.Exception.Safe (catchAny)
 import Control.Lens hiding ((.=))
-import Data.Data (Proxy (Proxy))
 import Data.Id as Id
 import Data.List1 (maybeList1)
 import Data.Qualified
 import Data.Range
+import Data.Singletons
 import Data.String.Conversions (cs)
 import Data.Time
 import GHC.TypeLits (AppendSymbol)
@@ -89,8 +89,8 @@ import qualified Servant.API as Servant
 import Servant.Server
 import System.Logger.Class hiding (Path, name)
 import qualified System.Logger.Class as Log
-import Wire.API.Conversation (ConvIdsPage, pattern GetPaginatedConversationIds)
-import Wire.API.Conversation.Action (ConversationAction (ConversationActionRemoveMembers))
+import Wire.API.Conversation
+import Wire.API.Conversation.Action
 import Wire.API.ErrorDescription
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
@@ -555,7 +555,7 @@ rmUser lusr conn = do
                 cuOrigUserId = qUser,
                 cuConvId = cid,
                 cuAlreadyPresentUsers = tUnqualified remotes,
-                cuAction = ConversationActionRemoveMembers (pure qUser)
+                cuAction = SomeConversationAction (sing @'ConversationLeaveTag) (pure qUser)
               }
       let rpc = fedClient @'Galley @"on-conversation-updated" convUpdate
       runFederatedEither remotes rpc

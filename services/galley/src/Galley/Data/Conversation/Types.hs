@@ -43,7 +43,9 @@ data Conversation = Conversation
     convDeleted :: Maybe Bool,
     -- | Global message timer
     convMessageTimer :: Maybe Milliseconds,
-    convReceiptMode :: Maybe ReceiptMode
+    convReceiptMode :: Maybe ReceiptMode,
+    convProtocol :: Maybe Protocol,
+    convGroupId :: Maybe GroupId
   }
   deriving (Show)
 
@@ -57,5 +59,6 @@ data NewConversation = NewConversation
     ncMessageTimer :: Maybe Milliseconds,
     ncReceiptMode :: Maybe ReceiptMode,
     ncUsers :: ConvSizeChecked UserList UserId,
-    ncRole :: RoleName
+    ncRole :: RoleName,
+    ncProtocol :: Protocol
   }

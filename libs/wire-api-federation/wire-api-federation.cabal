@@ -97,6 +97,7 @@ library
     , servant-client
     , servant-client-core
     , servant-server
+    , singletons
     , sop-core
     , streaming-commons
     , template-haskell
@@ -197,6 +198,7 @@ test-suite spec
     , servant-client
     , servant-client-core
     , servant-server
+    , singletons
     , sop-core
     , streaming-commons
     , template-haskell

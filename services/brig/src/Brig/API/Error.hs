@@ -178,6 +178,8 @@ loginError (LoginBlocked wait) =
     tooManyFailedLogins
     ()
     [("Retry-After", toByteString' (retryAfterSeconds wait))]
+loginError LoginCodeRequired = StdError loginCodeAuthenticationRequired
+loginError LoginCodeInvalid = StdError loginCodeAuthenticationFailed
 
 authError :: AuthError -> Error
 authError AuthInvalidUser = StdError (errorDescriptionTypeToWai @BadCredentials)
@@ -189,6 +191,9 @@ authError AuthPendingInvitation = StdError accountPending
 reauthError :: ReAuthError -> Error
 reauthError ReAuthMissingPassword = StdError (errorDescriptionTypeToWai @MissingAuth)
 reauthError (ReAuthError e) = authError e
+reauthError ReAuthCodeVerificationRequired = StdError verificationCodeRequired
+reauthError ReAuthCodeVerificationNoPendingCode = StdError verificationCodeNoPendingCode
+reauthError ReAuthCodeVerificationNoEmail = StdError verificationCodeNoEmail
 
 zauthError :: ZAuth.Failure -> Error
 zauthError ZAuth.Expired = StdError authTokenExpired
@@ -205,6 +210,8 @@ clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
 clientError (ClientFederationError e) = fedError e
 clientError ClientCapabilitiesCannotBeRemoved = StdError clientCapabilitiesCannotBeRemoved
 clientError ClientMissingLegalholdConsent = StdError (errorDescriptionTypeToWai @MissingLegalholdConsent)
+clientError ClientCodeAuthenticationFailed = StdError verificationCodeAuthFailed
+clientError ClientCodeAuthenticationRequired = StdError verificationCodeRequired
 
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai
@@ -217,6 +224,7 @@ clientDataError TooManyClients = StdError (errorDescriptionTypeToWai @TooManyCli
 clientDataError (ClientReAuthError e) = reauthError e
 clientDataError ClientMissingAuth = StdError (errorDescriptionTypeToWai @MissingAuth)
 clientDataError MalformedPrekeys = StdError (errorDescriptionTypeToWai @MalformedPrekeys)
+clientDataError MLSPublicKeyDuplicate = StdError $ errorDescriptionTypeToWai @DuplicateMLSPublicKey
 
 deleteUserError :: DeleteUserError -> Error
 deleteUserError DeleteUserInvalid = StdError (errorDescriptionTypeToWai @InvalidUser)
@@ -281,6 +289,12 @@ loginCodePending = Wai.mkError status403 "pending-login" "A login code is still 
 
 loginCodeNotFound :: Wai.Error
 loginCodeNotFound = Wai.mkError status404 "no-pending-login" "No login code was found."
+
+loginCodeAuthenticationFailed :: Wai.Error
+loginCodeAuthenticationFailed = Wai.mkError status403 "code-authentication-failed" "The login code is not valid."
+
+loginCodeAuthenticationRequired :: Wai.Error
+loginCodeAuthenticationRequired = Wai.mkError status403 "code-authentication-required" "A login verification code is required."
 
 accountPending :: Wai.Error
 accountPending = Wai.mkError status403 "pending-activation" "Account pending activation."
@@ -436,3 +450,15 @@ customerExtensionBlockedDomain domain = Wai.mkError (mkStatus 451 "Unavailable F
       "[Customer extension] the email domain " <> cs (show domain)
         <> " that you are attempting to register a user with has been \
            \blocked for creating wire users.  Please contact your IT department."
+
+verificationCodeRequired :: Wai.Error
+verificationCodeRequired = Wai.mkError status403 "code-authentication-required" "Verification code required."
+
+verificationCodeNoPendingCode :: Wai.Error
+verificationCodeNoPendingCode = Wai.mkError status403 "code-authentication-failed" "Code authentication failed (no such code)."
+
+verificationCodeNoEmail :: Wai.Error
+verificationCodeNoEmail = Wai.mkError status403 "code-authentication-failed" "Code authentication failed (no such email)."
+
+verificationCodeAuthFailed :: Wai.Error
+verificationCodeAuthFailed = Wai.mkError status403 "code-authentication-failed" "Code authentication failed."

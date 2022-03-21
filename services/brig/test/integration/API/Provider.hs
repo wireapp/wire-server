@@ -87,6 +87,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import Util
 import Web.Cookie (SetCookie (..), parseSetCookie)
+import Wire.API.Asset hiding (Asset)
 import Wire.API.Event.Conversation
 
 tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
@@ -1294,7 +1295,7 @@ createConvWithAccessRoles ars g u us =
       . contentJson
       . body (RequestBodyLBS (encode conv))
   where
-    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin
+    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin ProtocolProteus
 
 postMessage ::
   Galley ->
@@ -1561,7 +1562,11 @@ defServiceTags :: Range 1 3 (Set ServiceTag)
 defServiceTags = unsafeRange (Set.singleton SocialTag)
 
 defServiceAssets :: [Asset]
-defServiceAssets = [ImageAsset "key" (Just AssetComplete)]
+defServiceAssets =
+  [ ImageAsset
+      (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring)
+      (Just AssetComplete)
+  ]
 
 -- TODO: defServiceToken :: ServiceToken
 

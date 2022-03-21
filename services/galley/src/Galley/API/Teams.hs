@@ -390,7 +390,7 @@ deleteTeam zusr zcon tid body = do
     checkPermissions team = do
       void $ permissionCheck DeleteTeam =<< E.getTeamMember tid zusr
       when ((tdTeam team) ^. teamBinding == Binding) $ do
-        ensureReAuthorised zusr (body ^. tdAuthPassword)
+        ensureReAuthorised zusr (body ^. tdAuthPassword) (body ^. tdVerificationCode) (Just U.DeleteTeam)
 
 -- This can be called by stern
 internalDeleteBindingTeamWithOneMember ::
@@ -1027,7 +1027,7 @@ deleteTeamMember lusr zcon tid remove mBody = do
   if team ^. teamBinding == Binding && isJust targetMember
     then do
       body <- mBody & note (InvalidPayload "missing request body")
-      ensureReAuthorised (tUnqualified lusr) (body ^. tmdAuthPassword)
+      ensureReAuthorised (tUnqualified lusr) (body ^. tmdAuthPassword) Nothing Nothing
       (TeamSize sizeBeforeDelete) <- E.getSize tid
       -- TeamSize is 'Natural' and subtracting from  0 is an error
       -- TeamSize could be reported as 0 if team members are added and removed very quickly,

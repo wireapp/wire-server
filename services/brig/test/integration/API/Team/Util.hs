@@ -36,7 +36,7 @@ import Data.Misc (Milliseconds)
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text.Encoding as T
-import Galley.Types (ConvTeamInfo (..), NewConv (..))
+import Galley.Types
 import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
@@ -46,6 +46,7 @@ import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty.HUnit
 import Util
 import Web.Cookie (parseSetCookie, setCookieName)
+import Wire.API.Team (Icon (..))
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Member
@@ -211,7 +212,7 @@ createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Mayb
 createTeamConv g tid u us mtimer = do
   let tinfo = Just $ ConvTeamInfo tid
   let conv =
-        NewConv us [] Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
+        NewConv us [] Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin ProtocolProteus
   r <-
     post
       ( g
@@ -265,7 +266,7 @@ getTeams u galley =
       )
 
 newTeam :: Team.BindingNewTeam
-newTeam = Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")
+newTeam = Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") DefaultIcon
 
 putLegalHoldEnabled :: HasCallStack => TeamId -> TeamFeatureStatusValue -> Galley -> Http ()
 putLegalHoldEnabled tid enabled g = do

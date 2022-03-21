@@ -25,13 +25,16 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
 import qualified Brig.API.User as User
-import Brig.App (AppIO)
+import Brig.App
 import Brig.Phone
-import Brig.Types.Intra (ReAuthUser, reAuthPassword)
+import Brig.Types.Intra (ReAuthUser, reAuthCode, reAuthCodeAction, reAuthPassword)
 import Brig.Types.User.Auth
 import qualified Brig.User.Auth as Auth
 import qualified Brig.User.Auth.Cookie as Auth
 import qualified Brig.ZAuth as ZAuth
+import Control.Error (catchE)
+import Control.Monad.Except
+import Control.Monad.Trans.Except (throwE)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Either.Combinators (leftToMaybe, rightToMaybe)
@@ -119,7 +122,8 @@ routesPublic = do
     Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
     Doc.errorResponse accountSuspended
     Doc.errorResponse accountPending
-    Doc.errorResponse loginsTooFrequent
+    Doc.errorResponse loginCodeAuthenticationFailed
+    Doc.errorResponse loginCodeAuthenticationRequired
 
   post "/access/logout" (continue logoutH) $
     accept "application" "json" .&. tokenRequest
@@ -221,7 +225,7 @@ getLoginCodeH (_ ::: phone) = json <$> getLoginCode phone
 
 getLoginCode :: Phone -> (Handler r) Public.PendingLoginCode
 getLoginCode phone = do
-  code <- lift $ Auth.lookupLoginCode phone
+  code <- lift $ wrapClient $ Auth.lookupLoginCode phone
   maybe (throwStd loginCodeNotFound) return code
 
 reAuthUserH :: UserId ::: JsonRequest ReAuthUser -> (Handler r) Response
@@ -231,7 +235,15 @@ reAuthUserH (uid ::: req) = do
 
 reAuthUser :: UserId -> ReAuthUser -> (Handler r) ()
 reAuthUser uid body = do
-  User.reauthenticate uid (reAuthPassword body) !>> reauthError
+  wrapClientE (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
+  case reAuthCodeAction body of
+    Just action ->
+      Auth.verifyCode (reAuthCode body) action uid
+        `catchE` \case
+          VerificationCodeRequired -> throwE $ reauthError ReAuthCodeVerificationRequired
+          VerificationCodeNoPendingCode -> throwE $ reauthError ReAuthCodeVerificationNoPendingCode
+          VerificationCodeNoEmail -> throwE $ reauthError ReAuthCodeVerificationNoEmail
+    Nothing -> pure ()
 
 loginH :: JsonRequest Public.Login ::: Bool ::: JSON -> (Handler r) Response
 loginH (req ::: persist ::: _) = do
@@ -305,21 +317,21 @@ changeSelfEmailH (_ ::: req ::: ckies ::: toks) = do
           Just (Right _legalholdAccessToken) ->
             throwStd invalidAccessToken
           Just (Left userTokens) ->
-            fst <$> (Auth.validateTokens userCookies (Just userTokens) !>> zauthError)
+            fst <$> Auth.validateTokens userCookies (Just userTokens) !>> zauthError
 
 listCookiesH :: UserId ::: Maybe (List Public.CookieLabel) ::: JSON -> (Handler r) Response
 listCookiesH (u ::: ll ::: _) = json <$> lift (listCookies u ll)
 
 listCookies :: UserId -> Maybe (List Public.CookieLabel) -> (AppIO r) Public.CookieList
 listCookies u ll = do
-  Public.CookieList <$> Auth.listCookies u (maybe [] fromList ll)
+  Public.CookieList <$> wrapClient (Auth.listCookies u (maybe [] fromList ll))
 
 rmCookiesH :: UserId ::: JsonRequest Public.RemoveCookies -> (Handler r) Response
 rmCookiesH (uid ::: req) = do
   empty <$ (rmCookies uid =<< parseJsonBody req)
 
 rmCookies :: UserId -> Public.RemoveCookies -> (Handler r) ()
-rmCookies uid (Public.RemoveCookies pw lls ids) = do
+rmCookies uid (Public.RemoveCookies pw lls ids) =
   Auth.revokeAccess uid pw ids lls !>> authError
 
 renewH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> (Handler r) Response
@@ -424,7 +436,7 @@ cookies k r =
     [] -> Fail . addLabel "cookie" $ notAvailable k
     cc ->
       case mapMaybe fromByteString cc of
-        [] -> (Fail . addLabel "cookie" . typeError k $ "Failed to get zuid cookies")
+        [] -> Fail . addLabel "cookie" . typeError k $ "Failed to get zuid cookies"
         (x : xs) -> return $ List1.list1 x xs
 
 notAvailable :: ByteString -> P.Error

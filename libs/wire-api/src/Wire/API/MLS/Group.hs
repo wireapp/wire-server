@@ -17,14 +17,27 @@
 
 module Wire.API.MLS.Group where
 
+import qualified Data.Aeson as A
+import Data.Json.Util
+import Data.Schema
+import qualified Data.Swagger as S
 import Imports
+import Wire.API.Arbitrary
 import Wire.API.MLS.Serialisation
 
 newtype GroupId = GroupId {unGroupId :: ByteString}
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform GroupId)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema GroupId)
 
 instance IsString GroupId where
   fromString = GroupId . fromString
 
 instance ParseMLS GroupId where
   parseMLS = GroupId <$> parseMLSBytes @Word8
+
+instance ToSchema GroupId where
+  schema =
+    GroupId
+      <$> unGroupId
+      .= named "GroupId" (Base64ByteString .= fmap fromBase64ByteString (unnamed schema))

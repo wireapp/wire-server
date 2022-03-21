@@ -25,13 +25,16 @@ import Brig.Types.User
 import Control.Lens
 import Control.Monad.Random
 import Data.ByteString.Conversion
+import qualified Data.ByteString.Lazy as Lazy
 import Data.Handle (Handle (Handle))
 import Data.Id
 import Data.String.Conversions (cs)
+import qualified Data.Text.Lazy as Lazy
 import Data.Time
 import Data.UUID as UUID
 import Data.UUID.V4 as UUID
 import Imports
+import qualified Network.Wai.Utilities as Error
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types (IdPId, idpId)
 import qualified Spar.Intra.BrigApp as Intra
@@ -294,6 +297,24 @@ createToken zusr payload = do
       <!! const 200 === statusCode
   pure (responseJsonUnsafe r)
 
+createTokenFailsWith ::
+  HasCallStack =>
+  UserId ->
+  CreateScimToken ->
+  Int ->
+  Lazy.Text ->
+  TestSpar ()
+createTokenFailsWith zusr payload expectedStatus expectedLabel = do
+  env <- ask
+  void $
+    createToken_ zusr payload (env ^. teSpar) <!! do
+      const expectedStatus === statusCode
+      const (Just expectedLabel) === errorLabel
+
+-- | Get error label from the response (for use in assertions).
+errorLabel :: Response (Maybe Lazy.ByteString) -> Maybe Lazy.Text
+errorLabel = fmap Error.label . responseJsonMaybe
+
 -- | Delete a SCIM token.
 deleteToken ::
   HasCallStack =>
@@ -546,7 +567,7 @@ instance IsUser ValidScimUser where
   maybeName = Just (Just . view vsuName)
   maybeTenant = Just (^? (vsuExternalId . veidUref . SAML.uidTenant))
   maybeSubject = Just (^? (vsuExternalId . veidUref . SAML.uidSubject))
-  maybeScimExternalId = Just (runValidExternalId Intra.urefToExternalId (Just . fromEmail) . view vsuExternalId)
+  maybeScimExternalId = Just (runValidExternalIdEither Intra.urefToExternalId (Just . fromEmail) . view vsuExternalId)
 
 instance IsUser (WrappedScimStoredUser SparTag) where
   maybeUserId = Just $ scimUserId . fromWrappedScimStoredUser
@@ -585,7 +606,7 @@ instance IsUser User where
     Intra.veidFromBrigUser usr Nothing
       & either
         (const Nothing)
-        (runValidExternalId Intra.urefToExternalId (Just . fromEmail))
+        (runValidExternalIdEither Intra.urefToExternalId (Just . fromEmail))
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.
 --
@@ -625,3 +646,11 @@ whatSparReturnsFor :: HasCallStack => IdP -> Int -> Scim.User.User SparTag -> Ei
 whatSparReturnsFor idp richInfoSizeLimit =
   either (Left . show) (Right . synthesizeScimUser)
     . validateScimUser' "whatSparReturnsFor" (Just idp) richInfoSizeLimit
+
+-- this is not always correct, but hopefully for the tests that we're using it in it'll do.
+scimifyBrigUserHack :: User -> Email -> User
+scimifyBrigUserHack usr email =
+  usr
+    { userManagedBy = ManagedByScim,
+      userIdentity = Just (SSOIdentity (UserScimExternalId (fromEmail email)) (Just email) Nothing)
+    }

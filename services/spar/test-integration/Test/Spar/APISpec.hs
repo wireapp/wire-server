@@ -201,6 +201,7 @@ specFinalizeLogin :: SpecWith TestEnv
 specFinalizeLogin = do
   describe "POST /sso/finalize-login" $ do
     -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+    -- Send authentication error and no cookie if response from SSO IdP was rejected
     context "rejectsSAMLResponseSayingAccessNotGranted" $ do
       it "responds with a very peculiar 'forbidden' HTTP response" $ do
         (_, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
@@ -297,6 +298,7 @@ specFinalizeLogin = do
             loginSuccess =<< submitAuthnResponse tid3 authnresp
 
       -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+      -- Do not authenticate if SSO IdP response is for different team
       context "rejectsSAMLResponseInWrongTeam" $ do
         it "fails" $ do
           skipIdPAPIVersions
@@ -420,6 +422,7 @@ specFinalizeLogin = do
                   g "" = ""
 
       -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+      -- Do not authenticate if SSO IdP response is for unknown issuer
       it "rejectsSAMLResponseFromWrongIssuer" $ do
         let mkareq = negotiateAuthnRequest
             mkaresp privcreds idp spmeta authnreq =
@@ -441,6 +444,7 @@ specFinalizeLogin = do
       -- @END
 
       -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+      -- Do not authenticate if SSO IdP response is signed with wrong key
       it "rejectsSAMLResponseSignedWithWrongKey" $ do
         (_, _, _, (_, badprivcreds)) <- registerTestIdPWithMeta
         let mkareq = negotiateAuthnRequest
@@ -458,6 +462,7 @@ specFinalizeLogin = do
       -- @END
 
       -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+      -- Do not authenticate if SSO IdP response has no corresponding request anymore
       it "rejectsSAMLResponseIfRequestIsStale" $ do
         let mkareq idp = do
               req <- negotiateAuthnRequest idp
@@ -474,6 +479,7 @@ specFinalizeLogin = do
       -- @END
 
       -- @SF.Channel @TSFI.RESTfulAPI @S2 @S3
+      -- Do not authenticate if SSO IdP response is gone missing
       it "rejectsSAMLResponseIfResponseIsStale" $ do
         let mkareq = negotiateAuthnRequest
             mkaresp privcreds idp spmeta authnreq = mkAuthnResponse privcreds idp spmeta authnreq True
