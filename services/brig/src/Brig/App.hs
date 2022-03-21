@@ -58,7 +58,7 @@ module Brig.App
     keyPackageLocalLock,
 
     -- * App Monad
-    AppT,
+    AppT (..),
     AppIO,
     liftAppT,
     runAppT,
@@ -77,6 +77,7 @@ module Brig.App
     wrapClientE,
     wrapClientM,
     runAppIOLifted,
+    liftSem,
   )
 where
 
@@ -106,7 +107,7 @@ import Control.AutoUpdate
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding (index, (.=))
-import Control.Monad.Catch (MonadCatch, MonadMask)
+import Control.Monad.Catch (MonadCatch (..), MonadMask (..))
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Default (def)
@@ -457,21 +458,33 @@ newtype AppT r a = AppT
   { unAppT :: Member (Final IO) r => ReaderT Env (Sem r) a
   }
 
-instance Functor (AppT r)
+instance Functor (AppT r) where
+  fmap f (AppT a) = AppT $ fmap f a
 
-instance Applicative (AppT r)
+instance Applicative (AppT r) where
+  pure = undefined
+  liftA2 = undefined
 
-instance Monad (AppT r)
+instance Monad (AppT r) where
+  (>>=) = undefined
 
-instance MonadIO (AppT r)
+instance MonadIO (AppT r) where
+  liftIO a = AppT $ lift $ embedFinal a
 
-instance MonadThrow (AppT r)
+instance MonadThrow (AppT r) where
+  throwM = undefined
 
-instance MonadCatch (AppT r)
+instance MonadCatch (AppT r) where
+  catch = undefined
 
-instance MonadMask (AppT r)
+instance MonadMask (AppT r) where
+  mask _ = undefined
+  uninterruptibleMask _ = undefined
+  generalBracket = undefined
 
-instance MonadReader Env (AppT r)
+instance MonadReader Env (AppT r) where
+  ask = undefined
+  local = undefined
 
 -- deriving
 --   ( Semigroup,
@@ -488,7 +501,7 @@ instance MonadIO m => MonadLogger (ReaderT Env m) where
     Log.log g l $ field "request" (unRequestId r) ~~ m
 
 instance Member (Embed IO) r => MonadLogger (AppT r) where
-  log l = AppT . LC.log l
+  log l e = AppT $ LC.log l e
 
 instance Member (Embed IO) r => MonadLogger (ExceptT err (AppT r)) where
   log l m = lift (LC.log l m)
@@ -503,6 +516,9 @@ instance MonadZAuth (AppT r) where
 
 instance MonadZAuth (ExceptT err (AppT r)) where
   liftZAuth = lift . liftZAuth
+
+liftSem :: (Member (Final IO) r => Sem r a) -> AppT r a
+liftSem sem = AppT $ lift sem
 
 -- | The function serves as a crutch while Brig is being polysemised. Use it
 -- whenever the compiler complains that there is no instance of `MonadClient`
@@ -532,7 +548,7 @@ instance HasRequestId (AppT r) where
 canonicalToIO :: Env -> AppT CanonicalEffs a -> IO a
 canonicalToIO env app = runFinal $ runAppT env app
 
-liftAppT :: Sem r a -> AppT r a
+liftAppT :: (Member (Final IO) r => Sem r a) -> AppT r a
 liftAppT sem = AppT $ lift sem
 
 -- instance MonadUnliftIO (AppT r) where

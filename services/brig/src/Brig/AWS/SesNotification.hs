@@ -21,35 +21,39 @@ module Brig.AWS.SesNotification
 where
 
 import Brig.AWS.Types
-import Brig.App
 import qualified Brig.Data.Blacklist as Blacklist
 import Brig.Data.UserKey (userEmailKey)
 import Brig.Types (Email, fromEmail)
+import Cassandra
 import Imports
 import System.Logger.Class (field, msg, (~~))
 import qualified System.Logger.Class as Log
 
-onEvent :: SESNotification -> (AppIO r) ()
+onEvent :: (MonadClient m, Log.MonadLogger m) => SESNotification -> m ()
 onEvent (MailBounce BouncePermanent es) = onPermanentBounce es
 onEvent (MailBounce BounceTransient es) = onTransientBounce es
 onEvent (MailBounce BounceUndetermined es) = onUndeterminedBounce es
 onEvent (MailComplaint es) = onComplaint es
 
-onPermanentBounce :: [Email] -> (AppIO r) ()
+onPermanentBounce :: (MonadClient m, Log.MonadLogger m) => [Email] -> m ()
 onPermanentBounce = mapM_ $ \e -> do
   logEmailEvent "Permanent bounce" e
-  wrapClient $ Blacklist.insert (userEmailKey e)
+  Blacklist.insert (userEmailKey e)
 
-onTransientBounce :: [Email] -> (AppIO r) ()
+onTransientBounce :: Log.MonadLogger m => [Email] -> m ()
 onTransientBounce = mapM_ (logEmailEvent "Transient bounce")
 
-onUndeterminedBounce :: [Email] -> (AppIO r) ()
+onUndeterminedBounce :: Log.MonadLogger m => [Email] -> m ()
 onUndeterminedBounce = mapM_ (logEmailEvent "Undetermined bounce")
 
-onComplaint :: [Email] -> (AppIO r) ()
+onComplaint :: (MonadClient m, Log.MonadLogger m) => [Email] -> m ()
 onComplaint = mapM_ $ \e -> do
   logEmailEvent "Complaint" e
-  wrapClient $ Blacklist.insert (userEmailKey e)
+  Blacklist.insert (userEmailKey e)
 
-logEmailEvent :: Text -> Email -> (AppIO r) ()
+logEmailEvent ::
+  Log.MonadLogger m =>
+  Text ->
+  Email ->
+  m ()
 logEmailEvent t e = Log.info $ field "email" (fromEmail e) ~~ msg t

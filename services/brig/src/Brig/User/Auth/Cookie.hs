@@ -94,6 +94,8 @@ newCookie uid typ label = do
 -- | Renew the given cookie with a fresh token, if its age
 -- exceeds the configured minimum threshold.
 nextCookie ::
+  forall m r u.
+  MonadReader Env m =>
   ZAuth.UserTokenLike u =>
   Cookie (ZAuth.Token u) ->
   AppIO r (Maybe (Cookie (ZAuth.Token u)))
@@ -113,7 +115,7 @@ nextCookie c = do
       Nothing -> renewCookie c
       Just ck -> do
         let uid = ZAuth.userTokenOf (cookieValue c)
-        trackSuperseded uid (cookieId c)
+        liftSem $ trackSuperseded @m uid (cookieId c)
         cs <- wrapClient . DB.listCookies $ uid
         case List.find (\x -> cookieId x == ck && persist x) cs of
           Nothing -> renewCookie c
@@ -273,10 +275,19 @@ toWebCookie c = do
 --------------------------------------------------------------------------------
 -- Tracking
 
-trackSuperseded :: (MonadReader Env m, MonadIO m, Log.MonadLogger m) => UserId -> CookieId -> m ()
-trackSuperseded u c = do
-  m <- view metrics
-  Metrics.counterIncr (Metrics.path "user.auth.cookie.superseded") m
+trackSuperseded ::
+  forall m r.
+  ( MonadReader Env m,
+    MonadIO m,
+    Log.MonadLogger m,
+    Member (Embed m) r
+  ) =>
+  UserId ->
+  CookieId ->
+  Sem r ()
+trackSuperseded u c = embed @m $ do
+  met <- view metrics
+  Metrics.counterIncr (Metrics.path "user.auth.cookie.superseded") met
   Log.warn $
     msg (val "Superseded cookie used")
       ~~ field "user" (toByteString u)

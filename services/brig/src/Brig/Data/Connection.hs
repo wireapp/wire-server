@@ -56,7 +56,9 @@ import Brig.Types
 import Cassandra
 import Control.Monad.Morph hiding (embed)
 import Control.Monad.Trans.Maybe
-import Data.Conduit (ConduitT, runConduit, (.|))
+-- import Data.Conduit (ConduitT, runConduit, (.|))
+
+import Data.Conduit (ConduitT, (.|))
 import qualified Data.Conduit.List as C
 import Data.Domain (Domain)
 import Data.Id
@@ -65,8 +67,7 @@ import Data.Qualified
 import Data.Range
 import Data.Time (getCurrentTime)
 import Imports hiding (local)
-import Polysemy (Members, Sem)
-import Polysemy.Embed
+import Polysemy
 import Wire.API.Connection
 import Wire.API.Routes.Internal.Brig.Connection
 
@@ -287,18 +288,18 @@ countConnections u r = do
     count n _ = n
 
 deleteConnections :: forall m r. MonadClient m => Members '[Embed m, FireAndForget] r => UserId -> AppIO r ()
-deleteConnections u = do
-  e <- ask
-  fmap
-    wrapClient
-    runConduit
-    $ paginateC contactsSelect (paramsP LocalQuorum (Identity u) 100) x1
-      .| C.mapM_ (liftAppT . spawnMany . fmap delete) -- (runAppIOLifted e . pooledMapConcurrentlyN_ 16 delete)
-  wrapClient $ do
-    retry x1 . write connectionClear $ params LocalQuorum (Identity u)
-    retry x1 . write remoteConnectionClear $ params LocalQuorum (Identity u)
-  where
-    delete (other, _status) = embed @m $ write connectionDelete $ params LocalQuorum (other, u)
+deleteConnections _u = undefined --do
+-- e <- ask
+-- fmap
+--   wrapClient
+--   runConduit
+--   $ paginateC contactsSelect (paramsP LocalQuorum (Identity u) 100) x1
+--     .| C.mapM_ (liftAppT . spawnMany . fmap delete) -- (runAppIOLifted e . pooledMapConcurrentlyN_ 16 delete)
+-- wrapClient $ do
+--   retry x1 . write connectionClear $ params LocalQuorum (Identity u)
+--   retry x1 . write remoteConnectionClear $ params LocalQuorum (Identity u)
+-- where
+--   delete (other, _status) = embed @m $ write connectionDelete $ params LocalQuorum (other, u)
 
 deleteRemoteConnections :: forall m r. MonadClient m => Members '[Embed m, FireAndForget] r => Remote UserId -> Range 1 1000 [UserId] -> (AppIO r) ()
 deleteRemoteConnections (qUntagged -> Qualified remoteUser remoteDomain) (fromRange -> locals) =
@@ -346,11 +347,11 @@ connectionsSelect = "SELECT left, right, status, last_update, conv FROM connecti
 connectionsSelectFrom :: PrepQuery R (UserId, UserId) (UserId, UserId, RelationWithHistory, UTCTimeMillis, Maybe ConvId)
 connectionsSelectFrom = "SELECT left, right, status, last_update, conv FROM connection WHERE left = ? AND right > ? ORDER BY right ASC"
 
-connectionDelete :: PrepQuery W (UserId, UserId) ()
-connectionDelete = "DELETE FROM connection WHERE left = ? AND right = ?"
+-- connectionDelete :: PrepQuery W (UserId, UserId) ()
+-- connectionDelete = "DELETE FROM connection WHERE left = ? AND right = ?"
 
-connectionClear :: PrepQuery W (Identity UserId) ()
-connectionClear = "DELETE FROM connection WHERE left = ?"
+-- connectionClear :: PrepQuery W (Identity UserId) ()
+-- connectionClear = "DELETE FROM connection WHERE left = ?"
 
 -- Remote connections
 
