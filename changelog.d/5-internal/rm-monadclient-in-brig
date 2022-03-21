@@ -1,4 +1,0 @@
-Remove the MonadClient instance of the Brig monad
-
-- Lots of functions were generalized to run in a monad constrained by
-  MonadClient instead of running directly in Brig's `AppIO r` monad.

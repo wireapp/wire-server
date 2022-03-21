@@ -1,3 +1,0 @@
-The `/billing` and `/teams/.*/billing` endpoints are now available on a versioned path (e.g. `/v1/billing`)
-
-
