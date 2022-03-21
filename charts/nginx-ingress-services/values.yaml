@@ -85,12 +85,6 @@ service:
 #         -----END PRIVATE KEY-----
 #     ^ CA to use to verify client certificates.
 #
-#     # if you you use certManager.
-#     certManager:
-#         additionalSolversSecret:
-#            secret1: value1
-#            ...
-#
 # For Services:
 # service:
 #   s3:
