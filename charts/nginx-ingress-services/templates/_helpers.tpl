@@ -39,7 +39,7 @@ at the same time being used for distinct scenarios
 {{- end -}}
 
 {{/*
-Generate the secrete name in a conistent way, since it's referred to in multiple places, while
+Generate the secret name in a conistent way, since it's referred to in multiple places, while
 at the same time being used for distinct scenarios
 */}}
 {{- define "nginx-ingress-services.getCustomSolversSecretName" -}}
