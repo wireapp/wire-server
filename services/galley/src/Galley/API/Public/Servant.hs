@@ -96,7 +96,9 @@ servantSitemap = conversations <@> teamConversations <@> messaging <@> bot <@> t
         <@> mkNamedAPI @"get-team" getTeamH
         <@> mkNamedAPI @"delete-team" deleteTeam
 
-    mls = mkNamedAPI @"mls-welcome-message" postMLSWelcome
+    mls =
+      mkNamedAPI @"mls-welcome-message" postMLSWelcome
+        <@> mkNamedAPI @"mls-message" postMLSMessage
 
     features =
       mkNamedAPI @'("get", 'TeamFeatureSSO)

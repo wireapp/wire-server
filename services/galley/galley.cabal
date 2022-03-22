@@ -35,6 +35,8 @@ library
       Galley.API.Mapping
       Galley.API.Message
       Galley.API.MLS
+      Galley.API.MLS.Message
+      Galley.API.MLS.Welcome
       Galley.API.One2One
       Galley.API.Public
       Galley.API.Public.Servant

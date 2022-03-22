@@ -34,6 +34,7 @@ where
 
 import Data.Binary
 import Data.Singletons.TH
+import qualified Data.Swagger as S
 import Imports
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Group
@@ -78,6 +79,9 @@ instance ParseMLS (Message 'MLSCipherText) where
 
 data SomeMessage where
   SomeMessage :: Sing tag -> Message tag -> SomeMessage
+
+instance S.ToSchema SomeMessage where
+  declareNamedSchema _ = pure (mlsSwagger "MLSMessage")
 
 instance ParseMLS SomeMessage where
   parseMLS =

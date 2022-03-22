@@ -39,6 +39,7 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as BrigError
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Servant
 import Wire.API.MLS.Welcome
@@ -1187,6 +1188,14 @@ type MLSMessagingAPI =
         :> ReqBody '[MLS] (RawMLS Welcome)
         :> MultiVerb1 'POST '[JSON] (RespondEmpty 201 "Welcome message sent")
     )
+    :<|> Named
+           "mls-message"
+           ( Summary "Post an MLS message"
+               :> "message"
+               :> ZConn
+               :> ReqBody '[MLS] (RawMLS SomeMessage)
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 201 "Message sent")
+           )
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSMessagingAPI)
 
