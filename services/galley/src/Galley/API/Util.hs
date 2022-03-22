@@ -227,28 +227,6 @@ assertOnTeam uid tid =
     Nothing -> throwED @NotATeamMember
     Just _ -> return ()
 
--- | If the conversation is in a team, throw iff zusr is a team member and does not have named
--- permission.  If the conversation is not in a team, do nothing (no error).
-permissionCheckTeamConv ::
-  Members
-    '[ ConversationStore,
-       Error ActionError,
-       Error ConversationError,
-       Error NotATeamMember,
-       TeamStore
-     ]
-    r =>
-  UserId ->
-  ConvId ->
-  Perm ->
-  Sem r ()
-permissionCheckTeamConv zusr cnv perm =
-  getConversation cnv >>= \case
-    Just cnv' -> case Data.convTeam cnv' of
-      Just tid -> void $ permissionCheck perm =<< getTeamMember tid zusr
-      Nothing -> pure ()
-    Nothing -> throw ConvNotFound
-
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One ::
   Members
@@ -309,9 +287,6 @@ memberJoinEvent lorig qconv t lmems rmems =
   where
     localToSimple u = SimpleMember (qUntagged (qualifyAs lorig (lmId u))) (lmConvRoleName u)
     remoteToSimple u = SimpleMember (qUntagged (rmId u)) (rmConvRoleName u)
-
-isBot :: LocalMember -> Bool
-isBot = isJust . lmService
 
 isMember :: Foldable m => UserId -> m LocalMember -> Bool
 isMember u = isJust . find ((u ==) . lmId)
@@ -444,12 +419,6 @@ nonTeamMembers cm tm = filter (not . isMemberOfTeam . lmId) cm
     isMemberOfTeam = \case
       uid -> isTeamMember uid tm
 
-convMembsAndTeamMembs :: [LocalMember] -> [TeamMember] -> [Recipient]
-convMembsAndTeamMembs convMembs teamMembs =
-  fmap userRecipient . setnub $ map lmId convMembs <> map (view userId) teamMembs
-  where
-    setnub = Set.toList . Set.fromList
-
 membersToRecipients :: Maybe UserId -> [TeamMember] -> [Recipient]
 membersToRecipients Nothing = map (userRecipient . view userId)
 membersToRecipients (Just u) = map userRecipient . filter (/= u) . map (view userId)
@@ -474,28 +443,6 @@ ensureOtherMember loc quid conv =
   note ConvMemberNotFound $
     Left <$> find ((== quid) . qUntagged . qualifyAs loc . lmId) (Data.convLocalMembers conv)
       <|> Right <$> find ((== quid) . qUntagged . rmId) (Data.convRemoteMembers conv)
-
-getSelfMemberFromRemotes ::
-  (Foldable t, Member (Error ConversationError) r) =>
-  Remote UserId ->
-  t RemoteMember ->
-  Sem r RemoteMember
-getSelfMemberFromRemotes usr rmems =
-  getMember rmId ConvNotFound usr rmems
-
-getQualifiedMember ::
-  Member (Error e) r =>
-  Local x ->
-  e ->
-  Qualified UserId ->
-  Data.Conversation ->
-  Sem r (Either LocalMember RemoteMember)
-getQualifiedMember loc e qusr conv =
-  foldQualified
-    loc
-    (\lusr -> Left <$> getMember lmId e (tUnqualified lusr) (Data.convLocalMembers conv))
-    (\rusr -> Right <$> getMember rmId e rusr (Data.convRemoteMembers conv))
-    qusr
 
 getMember ::
   (Foldable t, Eq userId, Member (Error e) r) =>
