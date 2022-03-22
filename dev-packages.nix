@@ -180,6 +180,7 @@ in
   pkgs.jq
   pkgs.ormolu
   pkgs.telepresence
+  pkgs.haskellPackages.weeder
   pkgs.wget
   pkgs.yq
   pkgs.rsync

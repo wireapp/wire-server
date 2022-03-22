@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOP_LEVEL="$(cd "$DIR/../.." && pwd)"
 
 cd "$TOP_LEVEL"
@@ -14,3 +14,6 @@ for project in $local_projects; do
     echo "package $project
     $package_options"
 done
+
+echo "package *"
+echo "    ghc-options: -fwrite-ide-info"
