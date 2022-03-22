@@ -21,9 +21,6 @@ module Galley.Data.Conversation
     NewConversation,
 
     -- * Utilities
-    isSelfConv,
-    isO2OConv,
-    isTeamConv,
     isConvDeleted,
     selfConv,
     localOne2OneConvId,
@@ -44,15 +41,6 @@ import Galley.Cassandra.Instances ()
 import Galley.Data.Conversation.Types
 import Imports hiding (Set)
 import Wire.API.Conversation hiding (Conversation)
-
-isSelfConv :: Conversation -> Bool
-isSelfConv = (SelfConv ==) . convType
-
-isO2OConv :: Conversation -> Bool
-isO2OConv = (One2OneConv ==) . convType
-
-isTeamConv :: Conversation -> Bool
-isTeamConv = isJust . convTeam
 
 isConvDeleted :: Conversation -> Bool
 isConvDeleted = fromMaybe False . convDeleted
