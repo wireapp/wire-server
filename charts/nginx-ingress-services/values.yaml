@@ -41,6 +41,34 @@ certManager:
   #  (2) used by Letsencrypt to send expiration notices and alike
   certmasterEmail:
 
+  # List of acme.cert-manager.io/v1.ACMEChallengeSolver to be used instead of a
+  # http01 nginx based solver. You can use secrets.certManager.customSolvers to
+  # store a secret if customerSolvers requires one. The secret is named
+  # "<release-name>-nginx-ingress-services-cert-manager-additional-solvers".
+  #
+  # Example:
+  #
+  # To use an additional DNS01 challenge solver on AWS use this.
+  #
+  # customSolvers:
+  #
+  #  - http01:
+  #      ingress:
+  #        class: nginx
+  #  - dns01:
+  #      route53:
+  #        region: eu-west-1
+  #        hostedZoneID: ...
+  #        accessKeyID: ...
+  #        secretAccessKeySecretRef:
+  #          name: <release>-nginx-ingress-services-cert-manager-additional-solvers
+  #          key: awsSecretAccessKey
+  #
+  #    selector:
+  #      matchLabels:
+  #        "use-route53-dns-solver": "true"
+  customSolvers:
+
 service:
   nginz:
     externalHttpPort: 8080
