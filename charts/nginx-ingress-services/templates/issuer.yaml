@@ -16,10 +16,11 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-http01-account-key
     solvers:
+{{- if .Values.certManager.customSolvers }}
+{{ toYaml .Values.certManager.customSolvers | indent 6 }}
+{{- else }}
       - http01:
           ingress:
             class: nginx
-{{- if .Values.certManager.additionalSolvers }}
-{{ toYaml .Values.certManager.additionalSolvers | indent 6 }}
 {{- end }}
 {{- end -}}

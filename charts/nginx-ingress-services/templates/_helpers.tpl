@@ -39,12 +39,12 @@ at the same time being used for distinct scenarios
 {{- end -}}
 
 {{/*
-Generate the secrate name in a conistent way, since it's referred to in multiple places, while
+Generate the secrete name in a conistent way, since it's referred to in multiple places, while
 at the same time being used for distinct scenarios
 */}}
-{{- define "nginx-ingress-services.getAdditionalSolversSecret" -}}
+{{- define "nginx-ingress-services.getCustomSolversSecretName" -}}
 {{- $nameParts := list (include "nginx-ingress-services.fullname" .) -}}
-{{- $nameParts = append $nameParts "cert-manager-additional-solvers" -}}
+{{- $nameParts = append $nameParts "cert-manager-custom-solvers" -}}
 {{- join "-" $nameParts -}}
 {{- end -}}
 

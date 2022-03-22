@@ -40,9 +40,10 @@ certManager:
   #  (1) required to be set in values.yaml
   #  (2) used by Letsencrypt to send expiration notices and alike
   certmasterEmail:
-  # can be used to use custom solvers, such as dns01
-  # you may use secrets.certManager.additionalSolvers to store secrets
-  additionalSolvers:
+  # List of acme.cert-manager.io/v1.ACMEChallengeSolver to be used instead of a
+  # http01 nginx based solver. You can use secrets.certManager.customSolvers
+  # to store secrets required by the solvers.
+  customSolvers:
 
 service:
   nginz:
