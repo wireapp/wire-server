@@ -665,8 +665,7 @@ fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
             cnvmTeam = Nothing,
             cnvmMessageTimer = rcMessageTimer,
             cnvmReceiptMode = rcReceiptMode,
-            cnvmProtocol = ProtocolProteus,
-            cnvmGroupId = Nothing
+            cnvmProtocol = ProtocolProteus
           }
         (ConvMembers this others)
 

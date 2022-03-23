@@ -32,6 +32,7 @@ import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck
 import Wire.API.Conversation
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
   ( RemoteConvMembers (..),
@@ -135,7 +136,6 @@ genConversationMetadata =
     <*> pure Nothing
     <*> pure Nothing
     <*> pure ProtocolProteus
-    <*> pure Nothing
 
 newtype RandomConversation = RandomConversation
   {unRandomConversation :: Data.Conversation}

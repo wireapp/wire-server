@@ -25,6 +25,7 @@ import Galley.Types.UserList
 import Galley.Validation
 import Imports
 import Wire.API.Conversation hiding (Conversation)
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 
 -- | Internal conversation type, corresponding directly to database schema.
@@ -50,5 +51,5 @@ data NewConversation = NewConversation
     ncReceiptMode :: Maybe ReceiptMode,
     ncUsers :: ConvSizeChecked UserList UserId,
     ncRole :: RoleName,
-    ncProtocol :: Protocol
+    ncProtocol :: ProtocolTag
   }

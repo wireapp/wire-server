@@ -28,6 +28,7 @@ import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Imports
 import Wire.API.Conversation
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 
 domain :: Domain
@@ -61,8 +62,7 @@ conv1 =
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
             cnvmMessageTimer = Nothing,
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
-            cnvmProtocol = ProtocolProteus,
-            cnvmGroupId = Nothing
+            cnvmProtocol = ProtocolProteus
           },
       cnvMembers =
         ConvMembers
@@ -109,8 +109,7 @@ conv2 =
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000000"))),
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
             cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 2}),
-            cnvmProtocol = ProtocolMLS,
-            cnvmGroupId = Just . GroupId $ "test_group"
+            cnvmProtocol = ProtocolMLS (ConversationMLSData (GroupId ("test_group")))
           },
       cnvMembers =
         ConvMembers

@@ -62,6 +62,7 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import Wire.API.Conversation hiding (Conversation, Member)
+import Wire.API.Conversation.Protocol
 import Wire.API.ErrorDescription
 import Wire.API.Event.Conversation hiding (Conversation)
 import Wire.API.Federation.Error
@@ -102,8 +103,8 @@ createGroupConversation lusr conn newConv = do
   name <- rangeCheckedMaybe (newConvName newConv)
   o <- input
   checkedUsers <- case newConvProtocol newConv of
-    ProtocolProteus -> checkedConvSize o allUsers
-    ProtocolMLS -> do
+    ProtocolProteusTag -> checkedConvSize o allUsers
+    ProtocolMLSTag -> do
       unless (null allUsers) $ throw MLSNonEmptyMemberList
       pure mempty
   checkCreateConvPermissions lusr newConv tinfo allUsers

@@ -44,6 +44,7 @@ import Network.Wire.Client.HTTP
 import Network.Wire.Client.Monad (ClientException (ParseError))
 import Network.Wire.Client.Session
 import Wire.API.Conversation as M hiding (memberUpdate)
+import Wire.API.Conversation.Protocol as M
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Event.Conversation as M (MemberUpdateData)
 import Wire.API.Message as M
@@ -140,6 +141,6 @@ createConv users name = sessionRequest req rsc readBody
       method POST
         . path "conversations"
         . acceptJson
-        . json (NewConv users [] name mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteus)
+        . json (NewConv users [] name mempty Nothing Nothing Nothing Nothing roleNameWireAdmin M.ProtocolProteusTag)
         $ empty
     rsc = status201 :| []

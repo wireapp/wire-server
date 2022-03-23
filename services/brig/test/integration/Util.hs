@@ -125,6 +125,7 @@ import qualified UnliftIO.Async as Async
 import Util.AWS
 import Util.Options
 import Wire.API.Conversation
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Federation.API
 import Wire.API.Federation.Domain
@@ -706,7 +707,7 @@ createConversation galley zusr usersToAdd = do
           Nothing
           Nothing
           roleNameWireAdmin
-          ProtocolProteus
+          ProtocolProteusTag
   post $
     galley
       . path "/conversations"

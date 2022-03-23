@@ -53,20 +53,23 @@ import qualified System.Logger as Log
 import System.Random
 import qualified UnliftIO
 import Wire.API.Conversation hiding (Conversation, Member)
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 
 createConversation :: Local x -> NewConversation -> Client Conversation
-createConversation loc (NewConversation ty usr acc arole name mtid mtimer recpt users role protocol) = do
+createConversation loc (NewConversation ty usr acc arole name mtid mtimer recpt users role ptag) = do
   conv <- Id <$> liftIO nextRandom
-  groupId <- case protocol of
-    ProtocolProteus -> pure Nothing
-    ProtocolMLS -> fmap Just . liftIO . toGroupId $ (conv, tDomain loc)
+  (protocol, groupId) <- case ptag of
+    ProtocolProteusTag -> pure (ProtocolProteus, Nothing)
+    ProtocolMLSTag -> do
+      groupId <- liftIO $ toGroupId (conv, tDomain loc)
+      pure (ProtocolMLS (ConversationMLSData {cnvmlsGroupId = groupId}), Just groupId)
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
     addPrepQuery
       Cql.insertConv
-      (conv, ty, usr, Cql.Set (toList acc), Cql.Set (toList arole), fmap fromRange name, mtid, mtimer, recpt, protocol, groupId)
+      (conv, ty, usr, Cql.Set (toList acc), Cql.Set (toList arole), fmap fromRange name, mtid, mtimer, recpt, ptag, groupId)
     for_ mtid $ \tid -> addPrepQuery Cql.insertTeamConv (tid, conv)
     for_ groupId $ \gid -> addPrepQuery Cql.insertGroupId (gid, conv, tDomain loc)
   let newUsers = fmap (,role) (fromConvSize users)
@@ -87,8 +90,7 @@ createConversation loc (NewConversation ty usr acc arole name mtid mtimer recpt 
               cnvmTeam = mtid,
               cnvmMessageTimer = mtimer,
               cnvmReceiptMode = recpt,
-              cnvmProtocol = protocol,
-              cnvmGroupId = groupId
+              cnvmProtocol = protocol
             }
       }
   where
@@ -111,7 +113,7 @@ createConnectConversation a b name = do
   let conv = localOne2OneConvId a b
       a' = Id . U.unpack $ a
   retry x5 $
-    write Cql.insertConv (params LocalQuorum (conv, ConnectConv, a', privateOnly, Cql.Set [], fromRange <$> name, Nothing, Nothing, Nothing, ProtocolProteus, Nothing))
+    write Cql.insertConv (params LocalQuorum (conv, ConnectConv, a', privateOnly, Cql.Set [], fromRange <$> name, Nothing, Nothing, Nothing, ProtocolProteusTag, Nothing))
   -- We add only one member, second one gets added later,
   -- when the other user accepts the connection request.
   (lmems, rmems) <- addMembers conv (UserList [a'] [])
@@ -131,8 +133,7 @@ createConnectConversation a b name = do
               cnvmTeam = Nothing,
               cnvmMessageTimer = Nothing,
               cnvmReceiptMode = Nothing,
-              cnvmProtocol = ProtocolProteus,
-              cnvmGroupId = Nothing
+              cnvmProtocol = ProtocolProteus
             }
       }
 
@@ -143,7 +144,7 @@ createConnectConversationWithRemote ::
   Client Conversation
 createConnectConversationWithRemote cid creator m = do
   retry x5 $
-    write Cql.insertConv (params LocalQuorum (cid, ConnectConv, creator, privateOnly, Cql.Set [], Nothing, Nothing, Nothing, Nothing, ProtocolProteus, Nothing))
+    write Cql.insertConv (params LocalQuorum (cid, ConnectConv, creator, privateOnly, Cql.Set [], Nothing, Nothing, Nothing, Nothing, ProtocolProteusTag, Nothing))
   -- We add only one member, second one gets added later,
   -- when the other user accepts the connection request.
   (lmems, rmems) <- addMembers cid m
@@ -163,8 +164,7 @@ createConnectConversationWithRemote cid creator m = do
               cnvmTeam = Nothing,
               cnvmMessageTimer = Nothing,
               cnvmReceiptMode = Nothing,
-              cnvmProtocol = ProtocolProteus,
-              cnvmGroupId = Nothing
+              cnvmProtocol = ProtocolProteus
             }
       }
 
@@ -195,11 +195,11 @@ createOne2OneConversation ::
   Client Conversation
 createOne2OneConversation conv self other name mtid = do
   retry x5 $ case mtid of
-    Nothing -> write Cql.insertConv (params LocalQuorum (conv, One2OneConv, tUnqualified self, privateOnly, Cql.Set [], fromRange <$> name, Nothing, Nothing, Nothing, ProtocolProteus, Nothing))
+    Nothing -> write Cql.insertConv (params LocalQuorum (conv, One2OneConv, tUnqualified self, privateOnly, Cql.Set [], fromRange <$> name, Nothing, Nothing, Nothing, ProtocolProteusTag, Nothing))
     Just tid -> batch $ do
       setType BatchLogged
       setConsistency LocalQuorum
-      addPrepQuery Cql.insertConv (conv, One2OneConv, tUnqualified self, privateOnly, Cql.Set [], fromRange <$> name, Just tid, Nothing, Nothing, ProtocolProteus, Nothing)
+      addPrepQuery Cql.insertConv (conv, One2OneConv, tUnqualified self, privateOnly, Cql.Set [], fromRange <$> name, Just tid, Nothing, Nothing, ProtocolProteusTag, Nothing)
       addPrepQuery Cql.insertTeamConv (tid, conv)
   (lmems, rmems) <- addMembers conv (toUserList self [qUntagged self, other])
   pure
@@ -218,8 +218,7 @@ createOne2OneConversation conv self other name mtid = do
               cnvmTeam = Nothing,
               cnvmMessageTimer = Nothing,
               cnvmReceiptMode = Nothing,
-              cnvmProtocol = ProtocolProteus,
-              cnvmGroupId = Nothing
+              cnvmProtocol = ProtocolProteus
             }
       }
 
@@ -229,7 +228,7 @@ createSelfConversation lusr name = do
       conv = selfConv usr
       lconv = qualifyAs lusr conv
   retry x5 $
-    write Cql.insertConv (params LocalQuorum (conv, SelfConv, usr, privateOnly, Cql.Set [], fromRange <$> name, Nothing, Nothing, Nothing, ProtocolProteus, Nothing))
+    write Cql.insertConv (params LocalQuorum (conv, SelfConv, usr, privateOnly, Cql.Set [], fromRange <$> name, Nothing, Nothing, Nothing, ProtocolProteusTag, Nothing))
   (lmems, rmems) <- addMembers (tUnqualified lconv) (UserList [tUnqualified lusr] [])
   pure
     Conversation
@@ -247,8 +246,7 @@ createSelfConversation lusr name = do
               cnvmTeam = Nothing,
               cnvmMessageTimer = Nothing,
               cnvmReceiptMode = Nothing,
-              cnvmProtocol = ProtocolProteus,
-              cnvmGroupId = Nothing
+              cnvmProtocol = ProtocolProteus
             }
       }
 
@@ -266,13 +264,14 @@ deleteConversation cid = do
 
 conversationMeta :: ConvId -> Client (Maybe ConversationMetadata)
 conversationMeta conv =
-  fmap toConvMeta
+  (toConvMeta =<<)
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
-    toConvMeta (t, c, a, r, r', n, i, _, mt, rm, p, gid) =
+    toConvMeta (t, c, a, r, r', n, i, _, mt, rm, p, gid) = do
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
-       in ConversationMetadata t c (defAccess t a) accessRoles n i mt rm (fromMaybe ProtocolProteus p) gid
+      proto <- toProtocol p gid
+      pure $ ConversationMetadata t c (defAccess t a) accessRoles n i mt rm proto
 
 isConvAlive :: ConvId -> Client Bool
 isConvAlive cid = do
@@ -383,37 +382,47 @@ remoteConversationStatusOnDomain uid rconvs =
         toMemberStatus (omus, omur, oar, oarr, hid, hidr)
       )
 
+toProtocol :: Maybe ProtocolTag -> Maybe GroupId -> Maybe Protocol
+toProtocol Nothing _ = Just ProtocolProteus
+toProtocol (Just ProtocolProteusTag) _ = Just ProtocolProteus
+toProtocol (Just ProtocolMLSTag) mgid = do
+  gid <- mgid
+  pure $
+    ProtocolMLS
+      ConversationMLSData
+        { cnvmlsGroupId = gid
+        }
+
 toConv ::
   ConvId ->
   [LocalMember] ->
   [RemoteMember] ->
-  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe Protocol, Maybe GroupId) ->
+  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId) ->
   Maybe Conversation
-toConv cid mms remoteMems conv =
-  f mms <$> conv
-  where
-    f ms (cty, uid, acc, role, roleV2, nme, ti, del, timer, rm, prot, gid) =
-      let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
-          accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
-       in Conversation
-            { convId = cid,
-              convDeleted = del,
-              convLocalMembers = ms,
-              convRemoteMembers = remoteMems,
-              convMetadata =
-                ConversationMetadata
-                  { cnvmType = cty,
-                    cnvmCreator = uid,
-                    cnvmAccess = defAccess cty acc,
-                    cnvmAccessRoles = accessRoles,
-                    cnvmName = nme,
-                    cnvmTeam = ti,
-                    cnvmMessageTimer = timer,
-                    cnvmReceiptMode = rm,
-                    cnvmProtocol = fromMaybe ProtocolProteus prot,
-                    cnvmGroupId = gid
-                  }
+toConv cid ms remoteMems mconv = do
+  (cty, uid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid) <- mconv
+  let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
+      accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
+  proto <- toProtocol ptag mgid
+  pure
+    Conversation
+      { convId = cid,
+        convDeleted = del,
+        convLocalMembers = ms,
+        convRemoteMembers = remoteMems,
+        convMetadata =
+          ConversationMetadata
+            { cnvmType = cty,
+              cnvmCreator = uid,
+              cnvmAccess = defAccess cty acc,
+              cnvmAccessRoles = accessRoles,
+              cnvmName = nme,
+              cnvmTeam = ti,
+              cnvmMessageTimer = timer,
+              cnvmReceiptMode = rm,
+              cnvmProtocol = proto
             }
+      }
 
 mapGroupId :: GroupId -> Qualified ConvId -> Client ()
 mapGroupId gId conv =
