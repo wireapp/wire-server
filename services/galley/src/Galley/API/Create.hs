@@ -428,7 +428,7 @@ createConnectConversation lusr conn j = do
             p
               & pushRoute .~ RouteDirect
               & pushConn .~ conn
-        return $ conv {Data.convName = n'}
+        pure $ Data.convSetName n' conv
       | otherwise = return conv
 
 -------------------------------------------------------------------------------

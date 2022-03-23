@@ -118,18 +118,23 @@ genConversation :: Gen Data.Conversation
 genConversation =
   Data.Conversation
     <$> arbitrary
-    <*> pure RegularConv
-    <*> arbitrary
+    <*> listOf genLocalMember
+    <*> listOf genRemoteMember
+    <*> pure (Just False)
+    <*> genConversationMetadata
+
+genConversationMetadata :: Gen ConversationMetadata
+genConversationMetadata =
+  ConversationMetadata
+    <$> pure RegularConv
     <*> arbitrary
     <*> pure []
     <*> pure (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
-    <*> listOf genLocalMember
-    <*> listOf genRemoteMember
-    <*> pure Nothing
-    <*> pure (Just False)
+    <*> arbitrary
     <*> pure Nothing
     <*> pure Nothing
-    <*> pure (Just ProtocolProteus)
+    <*> pure Nothing
+    <*> pure ProtocolProteus
     <*> pure Nothing
 
 newtype RandomConversation = RandomConversation

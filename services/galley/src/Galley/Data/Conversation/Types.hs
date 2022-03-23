@@ -32,20 +32,10 @@ import Wire.API.Conversation.Role
 -- 'ToJSON' instances).
 data Conversation = Conversation
   { convId :: ConvId,
-    convType :: ConvType,
-    convCreator :: UserId,
-    convName :: Maybe Text,
-    convAccess :: [Access],
-    convAccessRoles :: Set AccessRoleV2,
     convLocalMembers :: [LocalMember],
     convRemoteMembers :: [RemoteMember],
-    convTeam :: Maybe TeamId,
     convDeleted :: Maybe Bool,
-    -- | Global message timer
-    convMessageTimer :: Maybe Milliseconds,
-    convReceiptMode :: Maybe ReceiptMode,
-    convProtocol :: Maybe Protocol,
-    convGroupId :: Maybe GroupId
+    convMetadata :: ConversationMetadata
   }
   deriving (Show)
 

@@ -558,7 +558,7 @@ addCode ::
   Sem r AddCodeResult
 addCode lusr zcon lcnv = do
   conv <- E.getConversation (tUnqualified lcnv) >>= note ConvNotFound
-  Query.ensureGuestLinksEnabled (convTeam conv)
+  Query.ensureGuestLinksEnabled (Data.convTeam conv)
   Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
   ensureAccess conv CodeAccess
   ensureGuestsOrNonTeamMembersAllowed conv
@@ -583,7 +583,11 @@ addCode lusr zcon lcnv = do
       mkConversationCode (codeKey code) (codeValue code) <$> E.getConversationCodeURI
     ensureGuestsOrNonTeamMembersAllowed :: Data.Conversation -> Sem r ()
     ensureGuestsOrNonTeamMembersAllowed conv =
-      unless (GuestAccessRole `Set.member` convAccessRoles conv || NonTeamMemberAccessRole `Set.member` convAccessRoles conv) $ throw ConvAccessDenied
+      unless
+        ( GuestAccessRole `Set.member` Data.convAccessRoles conv
+            || NonTeamMemberAccessRole `Set.member` Data.convAccessRoles conv
+        )
+        $ throw ConvAccessDenied
 
 rmCodeUnqualified ::
   Members
@@ -646,7 +650,7 @@ getCode ::
 getCode lusr cnv = do
   conv <-
     E.getConversation cnv >>= note ConvNotFound
-  Query.ensureGuestLinksEnabled (convTeam conv)
+  Query.ensureGuestLinksEnabled (Data.convTeam conv)
   ensureAccess conv CodeAccess
   ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
   key <- E.makeKey cnv
@@ -672,7 +676,7 @@ checkReusableCode ::
 checkReusableCode convCode = do
   code <- verifyReusableCode convCode
   conv <- E.getConversation (codeConversation code) >>= note ConvNotFound
-  Query.ensureGuestLinksEnabledWithError (Right CodeNotFound) (convTeam conv)
+  Query.ensureGuestLinksEnabledWithError (Right CodeNotFound) (Data.convTeam conv)
 
 joinConversationByReusableCode ::
   Members
@@ -700,7 +704,7 @@ joinConversationByReusableCode ::
 joinConversationByReusableCode lusr zcon convCode = do
   c <- verifyReusableCode convCode
   conv <- E.getConversation (codeConversation c) >>= note ConvNotFound
-  Query.ensureGuestLinksEnabled (convTeam conv)
+  Query.ensureGuestLinksEnabled (Data.convTeam conv)
   joinConversation lusr zcon conv CodeAccess
 
 joinConversationById ::

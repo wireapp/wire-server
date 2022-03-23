@@ -74,19 +74,22 @@ createConversation loc (NewConversation ty usr acc arole name mtid mtimer recpt 
   pure $
     Conversation
       { convId = conv,
-        convType = ty,
-        convCreator = usr,
-        convName = fmap fromRange name,
-        convAccess = acc,
-        convAccessRoles = arole,
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
-        convTeam = mtid,
         convDeleted = Nothing,
-        convMessageTimer = mtimer,
-        convReceiptMode = recpt,
-        convProtocol = Just protocol,
-        convGroupId = groupId
+        convMetadata =
+          ConversationMetadata
+            { cnvmType = ty,
+              cnvmCreator = usr,
+              cnvmName = fmap fromRange name,
+              cnvmAccess = acc,
+              cnvmAccessRoles = arole,
+              cnvmTeam = mtid,
+              cnvmMessageTimer = mtimer,
+              cnvmReceiptMode = recpt,
+              cnvmProtocol = protocol,
+              cnvmGroupId = groupId
+            }
       }
   where
     toGroupId :: MonadIO m => (ConvId, Domain) -> m GroupId
@@ -115,19 +118,22 @@ createConnectConversation a b name = do
   pure
     Conversation
       { convId = conv,
-        convType = ConnectConv,
-        convCreator = a',
-        convName = fmap fromRange name,
-        convAccess = [PrivateAccess],
-        convAccessRoles = Set.empty,
+        convDeleted = Nothing,
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
-        convTeam = Nothing,
-        convDeleted = Nothing,
-        convMessageTimer = Nothing,
-        convReceiptMode = Nothing,
-        convProtocol = Just ProtocolProteus,
-        convGroupId = Nothing
+        convMetadata =
+          ConversationMetadata
+            { cnvmType = ConnectConv,
+              cnvmCreator = a',
+              cnvmName = fmap fromRange name,
+              cnvmAccess = [PrivateAccess],
+              cnvmAccessRoles = Set.empty,
+              cnvmTeam = Nothing,
+              cnvmMessageTimer = Nothing,
+              cnvmReceiptMode = Nothing,
+              cnvmProtocol = ProtocolProteus,
+              cnvmGroupId = Nothing
+            }
       }
 
 createConnectConversationWithRemote ::
@@ -144,19 +150,22 @@ createConnectConversationWithRemote cid creator m = do
   pure
     Conversation
       { convId = cid,
-        convType = ConnectConv,
-        convCreator = creator,
-        convName = Nothing,
-        convAccess = [PrivateAccess],
-        convAccessRoles = Set.empty,
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
-        convTeam = Nothing,
         convDeleted = Nothing,
-        convMessageTimer = Nothing,
-        convReceiptMode = Nothing,
-        convProtocol = Just ProtocolProteus,
-        convGroupId = Nothing
+        convMetadata =
+          ConversationMetadata
+            { cnvmType = ConnectConv,
+              cnvmCreator = creator,
+              cnvmName = Nothing,
+              cnvmAccess = [PrivateAccess],
+              cnvmAccessRoles = Set.empty,
+              cnvmTeam = Nothing,
+              cnvmMessageTimer = Nothing,
+              cnvmReceiptMode = Nothing,
+              cnvmProtocol = ProtocolProteus,
+              cnvmGroupId = Nothing
+            }
       }
 
 createLegacyOne2OneConversation ::
@@ -196,19 +205,22 @@ createOne2OneConversation conv self other name mtid = do
   pure
     Conversation
       { convId = conv,
-        convType = ConnectConv,
-        convCreator = tUnqualified self,
-        convName = fmap fromRange name,
-        convAccess = [PrivateAccess],
-        convAccessRoles = Set.empty,
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
-        convTeam = Nothing,
         convDeleted = Nothing,
-        convMessageTimer = Nothing,
-        convReceiptMode = Nothing,
-        convProtocol = Just ProtocolProteus,
-        convGroupId = Nothing
+        convMetadata =
+          ConversationMetadata
+            { cnvmType = ConnectConv,
+              cnvmCreator = tUnqualified self,
+              cnvmName = fmap fromRange name,
+              cnvmAccess = [PrivateAccess],
+              cnvmAccessRoles = Set.empty,
+              cnvmTeam = Nothing,
+              cnvmMessageTimer = Nothing,
+              cnvmReceiptMode = Nothing,
+              cnvmProtocol = ProtocolProteus,
+              cnvmGroupId = Nothing
+            }
       }
 
 createSelfConversation :: Local UserId -> Maybe (Range 1 256 Text) -> Client Conversation
@@ -222,19 +234,22 @@ createSelfConversation lusr name = do
   pure
     Conversation
       { convId = conv,
-        convType = SelfConv,
-        convCreator = usr,
-        convName = fmap fromRange name,
-        convAccess = [PrivateAccess],
-        convAccessRoles = Set.empty,
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
-        convTeam = Nothing,
         convDeleted = Nothing,
-        convMessageTimer = Nothing,
-        convReceiptMode = Nothing,
-        convProtocol = Just ProtocolProteus,
-        convGroupId = Nothing
+        convMetadata =
+          ConversationMetadata
+            { cnvmType = SelfConv,
+              cnvmCreator = usr,
+              cnvmName = fmap fromRange name,
+              cnvmAccess = [PrivateAccess],
+              cnvmAccessRoles = Set.empty,
+              cnvmTeam = Nothing,
+              cnvmMessageTimer = Nothing,
+              cnvmReceiptMode = Nothing,
+              cnvmProtocol = ProtocolProteus,
+              cnvmGroupId = Nothing
+            }
       }
 
 deleteConversation :: ConvId -> Client ()
@@ -381,20 +396,24 @@ toConv cid mms remoteMems conv =
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
           accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
        in Conversation
-            cid
-            cty
-            uid
-            nme
-            (defAccess cty acc)
-            accessRoles
-            ms
-            remoteMems
-            ti
-            del
-            timer
-            rm
-            prot
-            gid
+            { convId = cid,
+              convDeleted = del,
+              convLocalMembers = ms,
+              convRemoteMembers = remoteMems,
+              convMetadata =
+                ConversationMetadata
+                  { cnvmType = cty,
+                    cnvmCreator = uid,
+                    cnvmAccess = defAccess cty acc,
+                    cnvmAccessRoles = accessRoles,
+                    cnvmName = nme,
+                    cnvmTeam = ti,
+                    cnvmMessageTimer = timer,
+                    cnvmReceiptMode = rm,
+                    cnvmProtocol = fromMaybe ProtocolProteus prot,
+                    cnvmGroupId = gid
+                  }
+            }
 
 mapGroupId :: GroupId -> Qualified ConvId -> Client ()
 mapGroupId gId conv =

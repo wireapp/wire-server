@@ -70,8 +70,8 @@ import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
 import Galley.Cassandra.Paging
+import qualified Galley.Data.Conversation as Data
 import Galley.Data.Types (Code (codeConversation))
-import qualified Galley.Data.Types as Data
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
