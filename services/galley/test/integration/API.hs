@@ -1587,7 +1587,7 @@ testAccessUpdateGuestRemoved = do
 
 testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved :: TestM ()
 testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved = do
-  -- given alice, bob, cahrlie and dee are in a team
+  -- given alice, bob, charlie and dee are in a team
   (alice, tid, [bob, charlie, dee]) <- createBindingTeamWithNMembers 3
 
   -- and given alice and bob are in a team conversation and alice created a guest link
