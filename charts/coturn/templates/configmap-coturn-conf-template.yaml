@@ -31,8 +31,8 @@ data:
     no-rfc5780
 
     ## prometheus metrics
-    # FUTUREWORK: check that this is ipv6-safe
-    prometheus=__COTURN_POD_IP__:{{ .Values.coturnMetricsListenPort }}
+    prometheus-ip=__COTURN_POD_IP__
+    prometheus-port={{ .Values.coturnMetricsListenPort }}
 
     ## logs
     log-file=stdout
