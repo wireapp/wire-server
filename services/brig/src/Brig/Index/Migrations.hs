@@ -35,10 +35,11 @@ import Imports
 import qualified Network.HTTP.Client as HTTP
 import System.Logger.Class (Logger)
 import qualified System.Logger.Class as Log
+import qualified Util.Options as Options
 
-migrate :: Logger -> Opts.ElasticSettings -> Opts.CassandraSettings -> IO ()
-migrate l es cas = do
-  env <- mkEnv l es cas
+migrate :: Logger -> Opts.ElasticSettings -> Opts.CassandraSettings -> Options.Endpoint -> IO ()
+migrate l es cas galleyEndpoint = do
+  env <- mkEnv l es cas galleyEndpoint
   finally (go env) (cleanup env)
   where
     go env =
@@ -65,19 +66,17 @@ indexMapping =
           ["migration_version" .= object ["index" .= True, "type" .= ("integer" :: Text)]]
     ]
 
-mkEnv :: Logger -> Opts.ElasticSettings -> Opts.CassandraSettings -> IO Env
-mkEnv l es cas =
-  Env
-    <$> initES
-      <*> initCassandra
-      <*> initLogger
-      <*> Metrics.metrics
-      <*> (pure $ view Opts.esIndex es)
+mkEnv :: Logger -> Opts.ElasticSettings -> Opts.CassandraSettings -> Options.Endpoint -> IO Env
+mkEnv l es cas galleyEndpoint = do
+  mgr <- HTTP.newManager HTTP.defaultManagerSettings
+  Env (ES.mkBHEnv (Opts.toESServer (es ^. Opts.esServer)) mgr)
+    <$> initCassandra
+    <*> initLogger
+    <*> Metrics.metrics
+    <*> (pure $ view Opts.esIndex es)
+    <*> pure mgr
+    <*> pure galleyEndpoint
   where
-    initES =
-      ES.mkBHEnv
-        (Opts.toESServer (es ^. Opts.esServer))
-        <$> HTTP.newManager HTTP.defaultManagerSettings
     initCassandra =
       C.init $
         C.setLogger (C.mkLogger l)

@@ -31,6 +31,8 @@ BRIG_CASSANDRA_HOST=<YOUR_C*_HOST>
 BRIG_CASSANDRA_PORT=<YOUR_C*_PORT>
 BRIG_CASSANDRA_KEYSPACE=<YOUR_C*_KEYSPACE>
 WIRE_VERSION=<VERSION_YOU_ARE_DEPLOYING>
+GALLEY_HOST=<HOSTNAME OF RUNNING GALLEY INSTANCE>
+GALLEY_PORT=<PORT NUMBER OF RUNNING GALLEY INSTANCE>
 
 docker run "quay.io/wire/brig-index:$WIRE_VERSION" migrate-data \
   --elasticsearch-server "http://$ES_HOST:$ES_PORT" \
@@ -38,6 +40,8 @@ docker run "quay.io/wire/brig-index:$WIRE_VERSION" migrate-data \
   --cassandra-host "$BRIG_CASSANDRA_HOST" \
   --cassandra-port "$BRIG_CASSANDRA_PORT" \
   --cassandra-keyspace "$BRIG_CASSANDRA_KEYSPACE"
+  --galley-host "$GALLEY_HOST"
+  --galley-port "$GALLEY_PORT"
 ```
 
 (Or, as above, you can also do the same thing without docker.)
@@ -55,6 +59,8 @@ BRIG_CASSANDRA_HOST=<YOUR_C*_HOST>
 BRIG_CASSANDRA_PORT=<YOUR_C*_PORT>
 BRIG_CASSANDRA_KEYSPACE=<YOUR_C*_KEYSPACE>
 WIRE_VERSION=<VERSION_YOU_ARE_DEPLOYING>
+GALLEY_HOST=<HOSTNAME OF RUNNING GALLEY INSTANCE>
+GALLEY_PORT=<PORT NUMBER OF RUNNING GALLEY INSTANCE>
 
 docker run "quay.io/wire/brig-index:$WIRE_VERSION" reindex \
   --elasticsearch-server "http://$ES_HOST:$ES_PORT" \
@@ -62,6 +68,8 @@ docker run "quay.io/wire/brig-index:$WIRE_VERSION" reindex \
   --cassandra-host "$BRIG_CASSANDRA_HOST" \
   --cassandra-port "$BRIG_CASSANDRA_PORT" \
   --cassandra-keyspace "$BRIG_CASSANDRA_KEYSPACE"
+  --galley-host "$GALLEY_HOST"
+  --galley-port "$GALLEY_PORT"
 ```
 
 Subcommand `reindex-if-same-or-newer` can be used instead of `reindex`, if you want to recreate the documents in elasticsearch regardless of their version.
@@ -135,6 +143,8 @@ ES_NEW_HOST=<YOUR_HOST>
 ES_NEW_PORT=<YOUR_PORT> # usually 9200
 ES_NEW_INDEX=<NEW_INDEX_NAME>
 WIRE_VERSION=<VERSION_YOU_ARE_DEPLOYING>
+GALLEY_HOST=<HOSTNAME OF RUNNING GALLEY INSTANCE>
+GALLEY_PORT=<PORT NUMBER OF RUNNING GALLEY INSTANCE>
 
 # Use curl http://$ES_OLD_HOST:$ES_OLD_PORT/$ES_OLD_INDEX/_settings
 # to know previous values of SHARDS, REPLICAS and REFRESH_INTERVAL
@@ -168,6 +178,8 @@ BRIG_CASSANDRA_KEYSPACE=<YOUR_C*_KEYSPACE>
        --cassandra-host "$BRIG_CASSANDRA_HOST" \
        --cassandra-port "$BRIG_CASSANDRA_PORT" \
        --cassandra-keyspace "$BRIG_CASSANDRA_KEYSPACE"
+       --galley-host "$GALLEY_HOST"
+       --galley-port "$GALLEY_PORT"
    ```
 1. Remove `elasticsearch.additionalWriteIndex` and
    `elasticsearch.additionalWriteIndexUrl` from brig config. Set

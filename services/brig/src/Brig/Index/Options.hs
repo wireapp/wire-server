@@ -55,15 +55,16 @@ import Imports
 import Options.Applicative
 import URI.ByteString
 import URI.ByteString.QQ
+import Util.Options (Endpoint (..))
 
 data Command
-  = Create ElasticSettings
-  | Reset ElasticSettings
-  | Reindex ElasticSettings CassandraSettings
-  | ReindexSameOrNewer ElasticSettings CassandraSettings
+  = Create ElasticSettings Endpoint
+  | Reset ElasticSettings Endpoint
+  | Reindex ElasticSettings CassandraSettings Endpoint
+  | ReindexSameOrNewer ElasticSettings CassandraSettings Endpoint
   | -- | 'ElasticSettings' has shards and other settings that are not needed here.
-    UpdateMapping (URIRef Absolute) ES.IndexName
-  | Migrate ElasticSettings CassandraSettings
+    UpdateMapping (URIRef Absolute) ES.IndexName Endpoint
+  | Migrate ElasticSettings CassandraSettings Endpoint
   | ReindexFromAnotherIndex ReindexFromAnotherIndexSettings
   deriving (Show)
 
@@ -265,43 +266,64 @@ reindexToAnotherIndexSettingsParser =
             )
         )
 
+galleyEndpointParser :: Parser Endpoint
+galleyEndpointParser =
+  Endpoint
+    <$> ( strOption
+            ( long "galley-host"
+                <> help "Hostname or IP address of galley"
+                <> metavar "HOSTNAME"
+                <> value "localhost"
+                <> showDefault
+            )
+        )
+    <*> ( option
+            auto
+            ( long "galley-port"
+                <> help "Port number of galley"
+                <> metavar "PORT"
+                <> value 8085
+                <> showDefault
+            )
+        )
+
 commandParser :: Parser Command
 commandParser =
   hsubparser
     ( command
         "create"
         ( info
-            (Create <$> elasticSettingsParser)
+            (Create <$> elasticSettingsParser <*> galleyEndpointParser)
             (progDesc ("Create the ES user index, if it doesn't already exist. "))
         )
         <> command
           "update-mapping"
           ( info
-              (UpdateMapping <$> elasticServerParser <*> indexNameParser)
+              (UpdateMapping <$> elasticServerParser <*> indexNameParser <*> galleyEndpointParser)
               (progDesc "Update mapping of the user index.")
           )
         <> command
           "reset"
           ( info
-              (Reset <$> restrictedElasticSettingsParser)
+              (Reset <$> restrictedElasticSettingsParser <*> galleyEndpointParser)
               (progDesc ("Delete and re-create the ES user index. Only works on a test index (directory_test)."))
           )
         <> command
           "reindex"
           ( info
-              (Reindex <$> elasticSettingsParser <*> cassandraSettingsParser)
+              (Reindex <$> elasticSettingsParser <*> cassandraSettingsParser <*> galleyEndpointParser)
               (progDesc "Reindex all users from Cassandra if there is a new version.")
           )
         <> command
           "reindex-if-same-or-newer"
           ( info
-              (ReindexSameOrNewer <$> elasticSettingsParser <*> cassandraSettingsParser)
+              (ReindexSameOrNewer <$> elasticSettingsParser <*> cassandraSettingsParser <*> galleyEndpointParser)
               (progDesc "Reindex all users from Cassandra, even if the version has not changed.")
           )
         <> command
           "migrate-data"
           ( info
-              (Migrate <$> elasticSettingsParser <*> cassandraSettingsParser)
+              (Migrate <$> elasticSettingsParser <*> cassandraSettingsParser <*> galleyEndpointParser)
               (progDesc "Migrate data in elastic search")
           )
         <> command
