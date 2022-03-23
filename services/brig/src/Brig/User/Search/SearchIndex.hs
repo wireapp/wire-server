@@ -51,6 +51,10 @@ data SearchSetting
       (Maybe TeamId)
       TeamSearchInfo
 
+searchSettingTeam :: SearchSetting -> Maybe TeamId
+searchSettingTeam FederatedSearch = Nothing
+searchSettingTeam (LocalSearch _ mbTeam _) = mbTeam
+
 searchIndex ::
   (MonadIndexIO m, MonadReader Env m) =>
   -- | The user performing the search.
@@ -116,25 +120,13 @@ defaultUserQuery setting (normalized -> term') =
             { ES.multiMatchQueryType = Just ES.MultiMatchMostFields,
               ES.multiMatchQueryOperator = ES.And
             }
-      -- This is required, so we can support prefix match until migration is done
-      legacyPrefixMatch =
-        ES.QueryMultiMatchQuery $
-          ( ES.mkMultiMatchQuery
-              [ ES.FieldName "handle",
-                ES.FieldName "normalized"
-              ]
-              (ES.QueryString term')
-          )
-            { ES.multiMatchQueryType = Just ES.MultiMatchPhrasePrefix,
-              ES.multiMatchQueryOperator = ES.And
-            }
       query =
         ES.QueryBoolQuery
           boolQuery
             { ES.boolQueryMustMatch =
                 [ ES.QueryBoolQuery
                     boolQuery
-                      { ES.boolQueryShouldMatch = [matchPhraseOrPrefix, legacyPrefixMatch],
+                      { ES.boolQueryShouldMatch = [matchPhraseOrPrefix],
                         -- This removes exact handle matches, as they are fetched from cassandra
                         ES.boolQueryMustNotMatch = [termQ "handle" term']
                       }
@@ -146,16 +138,14 @@ defaultUserQuery setting (normalized -> term') =
       -- It is applied regardless of a teamId being present as users without a
       -- team anyways don't see any users with team and hence it won't affect
       -- results if a non team user does the search.
-      queryWithBoost =
+      queryWithBoost setting' =
         ES.QueryBoostingQuery
           ES.BoostingQuery
             { ES.positiveQuery = query,
-              -- TODO: test if chaning the negative query to match _any_ users not on your team fixes the flakyness in
-              -- testSearchOrderingAsTeamMemberPrefixMatch
-              ES.negativeQuery = matchNonTeamMemberUsers,
+              ES.negativeQuery = maybe matchNonTeamMemberUsers matchUsersNotInTeam (searchSettingTeam setting'),
               ES.negativeBoost = ES.Boost 0.1
             }
-   in mkUserQuery setting queryWithBoost
+   in mkUserQuery setting (queryWithBoost setting)
 
 mkUserQuery :: SearchSetting -> ES.Query -> IndexQuery Contact
 mkUserQuery setting q =
@@ -245,4 +235,11 @@ matchNonTeamMemberUsers =
   ES.QueryBoolQuery
     boolQuery
       { ES.boolQueryMustNotMatch = [ES.QueryExistsQuery $ ES.FieldName "team"]
+      }
+
+matchUsersNotInTeam :: TeamId -> ES.Query
+matchUsersNotInTeam tid =
+  ES.QueryBoolQuery
+    boolQuery
+      { ES.boolQueryMustNotMatch = [ES.TermQuery (ES.Term "team" $ idToText tid) Nothing]
       }
