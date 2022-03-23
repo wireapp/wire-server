@@ -23,7 +23,7 @@ FROM ubuntu:20.04
 COPY --from=cryptobox-builder /tmp/cryptobox-c/target/release/libcryptobox.so /usr/lib
 
 # FUTUREWORK: only copy crypto-cli executable if we are building an integration test image
-COPY --from=cryptobox-builder /tmp/core-crypto/target/release/crypto-cli /usr/bin
+COPY --from=cryptobox-builder /tmp/core-crypto/cli/target/release/crypto-cli /usr/bin
 
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update && \
