@@ -225,6 +225,7 @@ tests s =
           test s "convert invite to code-access conversation" postConvertCodeConv,
           test s "convert code to team-access conversation" postConvertTeamConv,
           test s "local and remote guests are removed when access changes" testAccessUpdateGuestRemoved,
+          test s "team member can't join via guest link if access role removed" testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved,
           test s "cannot join private conversation" postJoinConvFail,
           test s "revoke guest links for team conversation" testJoinTeamConvGuestLinksDisabled,
           test s "revoke guest links for non-team conversation" testJoinNonTeamConvGuestLinksDisabled,
@@ -1287,7 +1288,7 @@ testJoinTeamConvGuestLinksDisabled :: TestM ()
 testJoinTeamConvGuestLinksDisabled = do
   galley <- view tsGalley
   let convName = "testConversation"
-  (owner, teamId, []) <- Util.createBindingTeamWithNMembers 0
+  (owner, teamId, [alice]) <- Util.createBindingTeamWithNMembers 1
   eve <- ephemeralUser
   bob <- randomUser
   Right accessRoles <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole, GuestAccessRole] []
@@ -1323,6 +1324,8 @@ testJoinTeamConvGuestLinksDisabled = do
   postJoinCodeConv eve' cCode !!! const 409 === statusCode
   -- non-team-members can't join either
   postJoinCodeConv bob' cCode !!! const 409 === statusCode
+  -- team members can't join either
+  postJoinCodeConv alice cCode !!! const 409 === statusCode
   -- check feature status is still disabled
   checkFeatureStatus Public.TeamFeatureDisabled
 
@@ -1581,6 +1584,26 @@ testAccessUpdateGuestRemoved = do
   liftIO $ map omQualifiedId (cmOthers (cnvMembers conv2)) @?= [bob]
 
 -- @END
+
+testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved :: TestM ()
+testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved = do
+  -- given alice, bob, cahrlie and dee are in a team
+  (alice, tid, [bob, charlie, dee]) <- createBindingTeamWithNMembers 3
+
+  -- and given alice and bob are in a team conversation and alice created a guest link
+  let accessRoles = Set.fromList [TeamMemberAccessRole, GuestAccessRole, ServiceAccessRole]
+  convId <- decodeConvId <$> postTeamConv tid alice [bob] (Just "chit chat") [CodeAccess] (Just accessRoles) Nothing
+  cCode <- decodeConvCodeEvent <$> postConvCode alice convId
+
+  -- then charlie can join via the guest link
+  postJoinCodeConv charlie cCode !!! const 200 === statusCode
+
+  -- when the guests are disabled for the conversation
+  let accessData = ConversationAccessData (Set.singleton InviteAccess) (Set.fromList [TeamMemberAccessRole, ServiceAccessRole])
+  putAccessUpdate alice convId accessData !!! const 200 === statusCode
+
+  -- then dee cannot join via guest link
+  postJoinCodeConv dee cCode !!! const 404 === statusCode
 
 postJoinConvFail :: TestM ()
 postJoinConvFail = do
