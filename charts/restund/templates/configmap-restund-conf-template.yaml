@@ -49,3 +49,14 @@ data:
     # zrest
     zrest_listen ${POD_IP}
     zrest_secret ${ZREST_SECRET}
+
+{{- if .Values.federate.enabled }}
+    # federate
+    federate_listen         ${RESTUND_HOST}
+    federate_port           {{ .Values.federate.port }}
+    federate_type           dtls
+{{- if .Values.federate.dtls.enabled }}
+    federate_certfile       /home/restund/federate-cert+key.pem
+    federate_cafile         /home/restund/federate-ca-certs.pem
+{{- end }}
+{{- end }}
