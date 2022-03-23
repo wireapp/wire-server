@@ -17,8 +17,6 @@ RUN cd /tmp && \
   cd core-crypto/cli && \
   cargo build --release
 
-RUN find /tmp/ | grep crypto-cli
-
 # Minimal dependencies for ubuntu-compiled, dynamically linked wire-server Haskell services
 FROM ubuntu:20.04
 
