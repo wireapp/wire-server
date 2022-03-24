@@ -50,7 +50,7 @@ migrate l es cas galleyEndpoint = do
 
 -- | Increase this number any time you want to force reindexing.
 expectedMigrationVersion :: MigrationVersion
-expectedMigrationVersion = MigrationVersion 3
+expectedMigrationVersion = MigrationVersion 4
 
 indexName :: ES.IndexName
 indexName = ES.IndexName "wire_brig_migrations"
