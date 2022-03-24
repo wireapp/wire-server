@@ -86,7 +86,7 @@ import Cassandra (MonadClient)
 import Conduit (runConduit, (.|))
 import Control.Error (ExceptT)
 import Control.Lens (view, (.~), (?~), (^.))
-import Control.Monad.Catch (MonadThrow (throwM))
+import Control.Monad.Catch (MonadMask, MonadThrow (throwM))
 import Control.Monad.Trans.Except (runExceptT, throwE)
 import Control.Retry
 import Data.Aeson hiding (json)
@@ -784,7 +784,17 @@ newClient u c = do
   void $ galleyRequest POST (p . zUser u . expect2xx)
 
 -- | Calls 'Galley.API.rmClientH', as well as gundeck.
-rmClient :: UserId -> ClientId -> (AppIO r) ()
+rmClient ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  ClientId ->
+  m ()
 rmClient u c = do
   let cid = toByteString' c
   debug $
@@ -1028,7 +1038,16 @@ changeTeamStatus tid s cur = do
         . expect2xx
         . lbytes (encode $ Team.TeamStatusUpdate s cur)
 
-guardLegalhold :: LegalholdProtectee -> UserClients -> ExceptT ClientError (AppIO r) ()
+guardLegalhold ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  LegalholdProtectee ->
+  UserClients ->
+  ExceptT ClientError m ()
 guardLegalhold protectee userClients = do
   res <- lift $ galleyRequest PUT req
   case Bilge.statusCode res of

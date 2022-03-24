@@ -73,12 +73,15 @@ module Brig.App
     wrapClient,
     wrapClientE,
     wrapClientM,
+    wrapHttpClient,
+    wrapHttpClientE,
     runAppIOLifted,
     wrapHttp,
+    HttpClientIO (..),
   )
 where
 
-import Bilge (Manager, MonadHttp, RequestId (..), newManager, withResponse)
+import Bilge (RequestId (..))
 import qualified Bilge as RPC
 import Bilge.IO
 import Bilge.RPC (HasRequestId (..))
@@ -128,7 +131,7 @@ import Data.Time.Clock
 import Data.Yaml (FromJSON)
 import qualified Database.Bloodhound as ES
 import Imports
-import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
+import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
@@ -511,12 +514,47 @@ wrapClientM :: MaybeT (ReaderT Env Cas.Client) b -> MaybeT (AppT r IO) b
 wrapClientM = mapMaybeT wrapClient
 
 wrapHttp ::
-  ReaderT Env Http a ->
+  HttpClientIO a ->
   AppT r IO a
-wrapHttp m = do
+wrapHttp (HttpClientIO m) = do
+  c <- view casClient
   env <- ask
   manager <- view httpManager
-  liftIO . runHttpT manager $ runReaderT m env
+  liftIO . runClient c . runHttpT manager $ runReaderT m env
+
+newtype HttpClientIO a = HttpClientIO
+  { runHttpClientIO :: ReaderT Env (HttpT Cas.Client) a
+  }
+  deriving newtype
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadReader Env,
+      MonadLogger,
+      MonadHttp,
+      MonadIO,
+      MonadThrow,
+      MonadCatch,
+      MonadMask,
+      MonadUnliftIO
+    )
+
+instance HasRequestId HttpClientIO where
+  getRequestId = view requestId
+
+instance Cas.MonadClient HttpClientIO where
+  liftClient cl = do
+    env <- ask
+    liftIO $ runClient (view casClient env) cl
+  localState f = local (casClient %~ f)
+
+wrapHttpClient ::
+  HttpClientIO a ->
+  AppT r IO a
+wrapHttpClient = wrapHttp
+
+wrapHttpClientE :: ExceptT e HttpClientIO a -> ExceptT e (AppT r IO) a
+wrapHttpClientE = mapExceptT wrapHttpClient
 
 instance MonadIO m => MonadIndexIO (ReaderT Env m) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m

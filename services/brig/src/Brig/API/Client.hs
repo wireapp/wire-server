@@ -44,6 +44,8 @@ module Brig.API.Client
   )
 where
 
+import Bilge.IO
+import Bilge.RPC
 import Brig.API.Types
 import Brig.API.Util
 import Brig.App
@@ -64,6 +66,7 @@ import Brig.User.Email
 import Cassandra (MonadClient)
 import Control.Error
 import Control.Lens (view)
+import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Code as Code
 import Data.Domain (Domain)
@@ -196,14 +199,38 @@ rmClient u con clt pw =
         _ -> wrapClientE (Data.reauthenticate u pw) !>> ClientDataError . ClientReAuthError
       lift $ execDelete u (Just con) client
 
-claimPrekey :: LegalholdProtectee -> UserId -> Domain -> ClientId -> ExceptT ClientError (AppIO r) (Maybe ClientPrekey)
+claimPrekey ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    Log.MonadLogger m,
+    MonadClient m
+  ) =>
+  LegalholdProtectee ->
+  UserId ->
+  Domain ->
+  ClientId ->
+  ExceptT ClientError m (Maybe ClientPrekey)
 claimPrekey protectee u d c = do
   isLocalDomain <- (d ==) <$> viewFederationDomain
   if isLocalDomain
     then claimLocalPrekey protectee u c
     else claimRemotePrekey (Qualified u d) c
 
-claimLocalPrekey :: LegalholdProtectee -> UserId -> ClientId -> ExceptT ClientError (AppIO r) (Maybe ClientPrekey)
+claimLocalPrekey ::
+  ( MonadClient m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    Log.MonadLogger m
+  ) =>
+  LegalholdProtectee ->
+  UserId ->
+  ClientId ->
+  ExceptT ClientError m (Maybe ClientPrekey)
 claimLocalPrekey protectee user client = do
   guardLegalhold protectee (mkUserClients [(user, [client])])
   lift $ do
@@ -211,7 +238,18 @@ claimLocalPrekey protectee user client = do
     when (isNothing prekey) (noPrekeys user client)
     pure prekey
 
-claimRemotePrekey :: Qualified UserId -> ClientId -> ExceptT ClientError (AppIO r) (Maybe ClientPrekey)
+claimRemotePrekey ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    Log.MonadLogger m,
+    MonadClient m
+  ) =>
+  Qualified UserId ->
+  ClientId ->
+  ExceptT ClientError m (Maybe ClientPrekey)
 claimRemotePrekey quser client = fmapLT ClientFederationError $ Federation.claimPrekey quser client
 
 claimPrekeyBundle :: LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError (AppIO r) PrekeyBundle
@@ -225,7 +263,7 @@ claimLocalPrekeyBundle :: LegalholdProtectee -> UserId -> ExceptT ClientError (A
 claimLocalPrekeyBundle protectee u = do
   clients <- map clientId <$> lift (wrapClient (Data.lookupClients u))
   guardLegalhold protectee (mkUserClients [(u, clients)])
-  PrekeyBundle u . catMaybes <$> lift (mapM (Data.claimPrekey u) clients)
+  PrekeyBundle u . catMaybes <$> lift (mapM (wrapHttp . Data.claimPrekey u) clients)
 
 claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError (AppIO r) PrekeyBundle
 claimRemotePrekeyBundle quser = do
@@ -274,13 +312,13 @@ claimLocalMultiPrekeyBundles protectee userClients = do
     . Message.userClients
     $ userClients
   where
-    getChunk :: Map UserId (Set ClientId) -> (AppIO r) (Map UserId (Map ClientId (Maybe Prekey)))
+    getChunk :: Map UserId (Set ClientId) -> AppIO r (Map UserId (Map ClientId (Maybe Prekey)))
     getChunk =
-      runConcurrently . Map.traverseWithKey (\u -> Concurrently . getUserKeys u)
-    getUserKeys :: UserId -> Set ClientId -> (AppIO r) (Map ClientId (Maybe Prekey))
+      wrapHttpClient . runConcurrently . Map.traverseWithKey (\u -> Concurrently . getUserKeys u)
+    -- getUserKeys :: UserId -> Set ClientId -> m (Map ClientId (Maybe Prekey))
     getUserKeys u =
       sequenceA . Map.fromSet (getClientKeys u)
-    getClientKeys :: UserId -> ClientId -> (AppIO r) (Maybe Prekey)
+    -- getClientKeys :: UserId -> ClientId -> m (Maybe Prekey)
     getClientKeys u c = do
       key <- fmap prekeyData <$> Data.claimPrekey u c
       when (isNothing key) $ noPrekeys u c
@@ -301,14 +339,18 @@ execDelete u con c = do
 -- not exist, since there must be no client without prekeys,
 -- thus repairing any inconsistencies related to distributed
 -- (and possibly duplicated) client data.
-noPrekeys :: UserId -> ClientId -> (AppIO r) ()
+noPrekeys ::
+  (MonadReader Env m, MonadIO m, MonadMask m, MonadHttp m, HasRequestId m, Log.MonadLogger m, MonadClient m) =>
+  UserId ->
+  ClientId ->
+  m ()
 noPrekeys u c = do
   Log.info $
     field "user" (toByteString u)
       ~~ field "client" (toByteString c)
       ~~ msg (val "No prekey found. Ensuring client does not exist.")
   Intra.rmClient u c
-  client <- wrapClient $ Data.lookupClient u c
+  client <- Data.lookupClient u c
   for_ client $ \_ ->
     Log.err $
       field "user" (toByteString u)

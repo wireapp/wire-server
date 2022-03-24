@@ -25,7 +25,7 @@ import Brig.API.Error (clientError)
 import Brig.API.Handler (Handler)
 import qualified Brig.API.User as API
 import Brig.API.Util (lookupSearchPolicy)
-import Brig.App (qualifyLocal, wrapClient)
+import Brig.App
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import Brig.IO.Intra (notify)
@@ -109,7 +109,7 @@ getUsersByIds _ uids =
 
 claimPrekey :: Domain -> (UserId, ClientId) -> (Handler r) (Maybe ClientPrekey)
 claimPrekey _ (user, client) = do
-  API.claimLocalPrekey LegalholdPlusFederationNotImplemented user client !>> clientError
+  wrapHttpClientE (API.claimLocalPrekey LegalholdPlusFederationNotImplemented user client) !>> clientError
 
 claimPrekeyBundle :: Domain -> UserId -> (Handler r) PrekeyBundle
 claimPrekeyBundle _ user =
