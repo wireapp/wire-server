@@ -20,7 +20,6 @@ module Galley.Data.Conversation.Types where
 import Data.Id
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList
-import Galley.Validation
 import Imports
 import Wire.API.Conversation hiding (Conversation)
 import Wire.API.Conversation.Protocol
@@ -41,7 +40,6 @@ data Conversation = Conversation
 
 data NewConversation = NewConversation
   { ncMetadata :: ConversationMetadata,
-    ncUsers :: ConvSizeChecked UserList UserId,
-    ncRole :: RoleName,
+    ncUsers :: UserList (UserId, RoleName),
     ncProtocol :: ProtocolTag
   }

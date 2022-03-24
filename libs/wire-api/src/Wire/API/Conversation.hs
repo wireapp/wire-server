@@ -23,6 +23,7 @@
 module Wire.API.Conversation
   ( -- * Conversation
     ConversationMetadata (..),
+    defConversationMetadata,
     Conversation (..),
     cnvType,
     cnvCreator,
@@ -137,6 +138,19 @@ data ConversationMetadata = ConversationMetadata
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
   deriving (FromJSON, ToJSON) via Schema ConversationMetadata
+
+defConversationMetadata :: UserId -> ConversationMetadata
+defConversationMetadata creator =
+  ConversationMetadata
+    { cnvmType = RegularConv,
+      cnvmCreator = creator,
+      cnvmAccess = [PrivateAccess],
+      cnvmAccessRoles = mempty,
+      cnvmName = Nothing,
+      cnvmTeam = Nothing,
+      cnvmMessageTimer = Nothing,
+      cnvmReceiptMode = Nothing
+    }
 
 accessRolesSchema :: ObjectSchema SwaggerDoc (Set AccessRoleV2)
 accessRolesSchema = toOutput .= accessRolesSchemaTuple `withParser` validate

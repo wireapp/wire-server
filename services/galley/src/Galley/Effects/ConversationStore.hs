@@ -20,12 +20,8 @@ module Galley.Effects.ConversationStore
     ConversationStore (..),
 
     -- * Create conversation
+    createConversationId,
     createConversation,
-    createConnectConversation,
-    createConnectConversationWithRemote,
-    createLegacyOne2OneConversation,
-    createOne2OneConversation,
-    createSelfConversation,
 
     -- * Read conversation
     getConversation,
@@ -54,44 +50,15 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
-import Data.UUID.Tagged
 import Galley.Data.Conversation
 import Galley.Types.Conversations.Members
-import Galley.Types.UserList
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
 
 data ConversationStore m a where
-  CreateConversation :: Local x -> NewConversation -> ConversationStore m Conversation
-  CreateConnectConversation ::
-    UUID V4 ->
-    UUID V4 ->
-    Maybe (Range 1 256 Text) ->
-    ConversationStore m Conversation
-  CreateConnectConversationWithRemote ::
-    ConvId ->
-    UserId ->
-    UserList UserId ->
-    ConversationStore m Conversation
-  CreateLegacyOne2OneConversation ::
-    Local x ->
-    UUID V4 ->
-    UUID V4 ->
-    Maybe (Range 1 256 Text) ->
-    Maybe TeamId ->
-    ConversationStore m Conversation
-  CreateOne2OneConversation ::
-    ConvId ->
-    Local UserId ->
-    Qualified UserId ->
-    Maybe (Range 1 256 Text) ->
-    Maybe TeamId ->
-    ConversationStore m Conversation
-  CreateSelfConversation ::
-    Local UserId ->
-    Maybe (Range 1 256 Text) ->
-    ConversationStore m Conversation
+  CreateConversationId :: ConversationStore m ConvId
+  CreateConversation :: Local ConvId -> NewConversation -> ConversationStore m Conversation
   DeleteConversation :: ConvId -> ConversationStore m ()
   GetConversation :: ConvId -> ConversationStore m (Maybe Conversation)
   GetConversations :: [ConvId] -> ConversationStore m [Conversation]
