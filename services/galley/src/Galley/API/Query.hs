@@ -49,6 +49,8 @@ module Galley.API.Query
     getConversationByReusableCode,
     ensureGuestLinksEnabled,
     ensureGuestLinksEnabledWithError,
+    getConversationGuestLinksStatus,
+    ensureConvAdmin,
   )
 where
 
@@ -543,7 +545,6 @@ getConversationByReusableCode lusr key value = do
           cnvCoverName = Data.convName conv
         }
 
--- FUTUREWORK(leif): refactor and make it consistent for all team features
 ensureGuestLinksEnabledWithError ::
   forall r.
   ( Member (Error ConversationError) r,
@@ -554,19 +555,10 @@ ensureGuestLinksEnabledWithError ::
   Either ConversationError CodeError ->
   Maybe TeamId ->
   Sem r ()
-ensureGuestLinksEnabledWithError ex mbTid = do
-  defaultStatus <- getDefaultFeatureStatus
-  maybeFeatureStatus <- join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` mbTid
-  case maybe defaultStatus tfwoStatus maybeFeatureStatus of
+ensureGuestLinksEnabledWithError ex mbTid =
+  getConversationGuestLinksStatusValue mbTid >>= \case
     TeamFeatureEnabled -> pure ()
-    TeamFeatureDisabled -> case ex of
-      Left e -> throw e
-      Right e -> throw e
-  where
-    getDefaultFeatureStatus :: Sem r TeamFeatureStatusValue
-    getDefaultFeatureStatus = do
-      status <- input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
-      pure $ tfwoapsStatus status
+    TeamFeatureDisabled -> either throw throw ex
 
 ensureGuestLinksEnabled ::
   forall r.
@@ -578,3 +570,38 @@ ensureGuestLinksEnabled ::
   Maybe TeamId ->
   Sem r ()
 ensureGuestLinksEnabled = ensureGuestLinksEnabledWithError (Left GuestLinksDisabled)
+
+getConversationGuestLinksStatus ::
+  forall r.
+  ( Member TeamFeatureStore r,
+    Member (Input Opts) r,
+    Member ConversationStore r,
+    Member (Error ConversationError) r
+  ) =>
+  UserId ->
+  ConvId ->
+  Sem r TeamFeatureStatusNoConfig
+getConversationGuestLinksStatus uid convId = do
+  conv <- E.getConversation convId >>= note ConvNotFound
+  ensureConvAdmin (Data.convLocalMembers conv) uid
+  TeamFeatureStatusNoConfig <$> getConversationGuestLinksStatusValue (Data.convTeam conv)
+
+getConversationGuestLinksStatusValue ::
+  forall r.
+  ( Member TeamFeatureStore r,
+    Member (Input Opts) r
+  ) =>
+  Maybe TeamId ->
+  Sem r TeamFeatureStatusValue
+getConversationGuestLinksStatusValue mbTid = do
+  defaultStatus <- tfwoapsStatus <$> (input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults))
+  maybe defaultStatus tfwoStatus . join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` mbTid
+
+-------------------------------------------------------------------------------
+-- Helpers
+
+ensureConvAdmin :: Member (Error ConversationError) r => [LocalMember] -> UserId -> Sem r ()
+ensureConvAdmin users uid =
+  case find ((== uid) . lmId) users of
+    Nothing -> throw ConvNotFound
+    Just lm -> unless (lmConvRoleName lm == roleNameWireAdmin) $ throw ConvAccessDenied

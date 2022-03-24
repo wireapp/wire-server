@@ -53,6 +53,7 @@ servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> bot :<
         :<|> Named @"join-conversation-by-code-unqualified" joinConversationByReusableCode
         :<|> Named @"code-check" checkReusableCode
         :<|> Named @"create-conversation-code-unqualified" addCodeUnqualified
+        :<|> Named @"get-conversation-guest-links-status" getConversationGuestLinksStatus
         :<|> Named @"remove-code-unqualified" rmCodeUnqualified
         :<|> Named @"get-code" getCode
         :<|> Named @"member-typing-unqualified" isTypingUnqualified
