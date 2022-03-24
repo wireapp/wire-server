@@ -74,11 +74,13 @@ module Brig.App
     wrapClientE,
     wrapClientM,
     runAppIOLifted,
+    wrapHttp,
   )
 where
 
 import Bilge (Manager, MonadHttp, RequestId (..), newManager, withResponse)
 import qualified Bilge as RPC
+import Bilge.IO
 import Bilge.RPC (HasRequestId (..))
 import qualified Brig.AWS as AWS
 import qualified Brig.Calling as Calling
@@ -507,6 +509,14 @@ wrapClientE = mapExceptT wrapClient
 
 wrapClientM :: MaybeT (ReaderT Env Cas.Client) b -> MaybeT (AppT r IO) b
 wrapClientM = mapMaybeT wrapClient
+
+wrapHttp ::
+  ReaderT Env Http a ->
+  AppT r IO a
+wrapHttp m = do
+  env <- ask
+  manager <- view httpManager
+  liftIO . runHttpT manager $ runReaderT m env
 
 instance MonadIO m => MonadIndexIO (ReaderT Env m) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
