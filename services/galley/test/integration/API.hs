@@ -235,7 +235,8 @@ tests s =
           test s "remove user with local and remote convs" removeUser,
           test s "iUpsertOne2OneConversation" testAllOne2OneConversationRequests,
           test s "post message - reject if missing client" postMessageRejectIfMissingClients,
-          test s "post message - client that is not in group doesn't receive message" postMessageClientNotInGroupDoesNotReceiveMsg
+          test s "post message - client that is not in group doesn't receive message" postMessageClientNotInGroupDoesNotReceiveMsg,
+          test s "get guest links status from foreign team conversation" getGuestLinksStatusFromForeignTeamConv
         ]
 
 -------------------------------------------------------------------------------
@@ -1604,6 +1605,74 @@ testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved = do
 
   -- then dee cannot join via guest link
   postJoinCodeConv dee cCode !!! const 404 === statusCode
+
+getGuestLinksStatusFromForeignTeamConv :: TestM ()
+getGuestLinksStatusFromForeignTeamConv = do
+  galley <- view tsGalley
+  let setTeamStatus u tid tfStatus =
+        TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley u tid (Public.TeamFeatureStatusNoConfig tfStatus) !!! do
+          const 200 === statusCode
+  let checkGuestLinksStatus u c s =
+        getGuestLinkStatus galley u c !!! do
+          const 200 === statusCode
+          const s === (Public.tfwoStatus . responseJsonUnsafe)
+  let checkGetGuestLinksStatus s u c =
+        getGuestLinkStatus galley u c !!! do
+          const s === statusCode
+
+  -- given alice is in team A with guest links allowed
+  (alice, teamA, [alex]) <- createBindingTeamWithNMembers 1
+  setTeamStatus alice teamA Public.TeamFeatureEnabled
+
+  -- and given bob is in team B with guest links disallowed
+  (bob, teamB, [bert]) <- createBindingTeamWithNMembers 1
+  setTeamStatus bob teamB Public.TeamFeatureDisabled
+
+  -- and given alice and bob are connected
+  connectUsers alice (singleton bob)
+
+  -- and given bob creates a conversation, invites alice, and makes her group admin
+  let accessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole]
+  conv <- decodeConvId <$> postTeamConv teamB bob [] (Just "teams b's conversation") [InviteAccess] (Just accessRoles) Nothing
+  postMembersWithRole bob (singleton alice) conv roleNameWireAdmin !!! const 200 === statusCode
+
+  -- when alice gets the guest link status for the conversation
+  -- then the status should be disabled
+  checkGuestLinksStatus alice conv Public.TeamFeatureDisabled
+
+  -- when bob gets the guest link status for the conversation
+  -- then the status should be disabled
+  checkGuestLinksStatus bob conv Public.TeamFeatureDisabled
+
+  -- when bob enables guest links for his team and gets the guest link status for the conversation
+  setTeamStatus bob teamB Public.TeamFeatureEnabled
+
+  -- then the status should be enabled
+  checkGuestLinksStatus bob conv Public.TeamFeatureEnabled
+
+  -- when alice gets the guest link status for the conversation
+  -- then the status should be enabled
+  checkGuestLinksStatus alice conv Public.TeamFeatureEnabled
+
+  -- when alice disables guest links for her team and gets the guest link status for the conversation
+  setTeamStatus alice teamA Public.TeamFeatureDisabled
+
+  -- then the guest link status for the conversation should still be enabled (note that in the UI she can't create guest links because her own team settings do not allow this)
+  checkGuestLinksStatus alice conv Public.TeamFeatureEnabled
+
+  -- when bob gets the guest link status for the conversation
+  -- then the status should be enabled
+  checkGuestLinksStatus bob conv Public.TeamFeatureEnabled
+
+  -- when a user that is not in the conversation tries to get the guest link status
+  -- then the result should be not found
+  checkGetGuestLinksStatus 404 alex conv
+  checkGetGuestLinksStatus 404 bert conv
+
+  -- when a conversation member that is not an admin tries to get the guest link status
+  -- then the result should be forbidden
+  postMembersWithRole bob (singleton bert) conv roleNameWireMember !!! const 200 === statusCode
+  checkGetGuestLinksStatus 403 bert conv
 
 postJoinConvFail :: TestM ()
 postJoinConvFail = do
