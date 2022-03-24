@@ -282,17 +282,13 @@ updateSearchVisibilityInbound status = liftIndexIO $ do
     script :: ES.Script
     script = ES.Script (Just (ES.ScriptLanguage "painless")) (Just (ES.ScriptInline scriptText)) Nothing Nothing
 
+    -- Unfortunately ES disallows updating ctx._version with a "Update By Query"
     scriptText =
       "ctx._source."
         <> searchVisibilityInboundFieldName
         <> " = '"
         <> decodeUtf8 (toByteString' (searchVisbilityInboundFromFeatureStatus (Multi.tsuStatus status)))
         <> "';"
-
--- TODO: Explain why we don't update version
--- <> "ctx._version = "
--- <> Text.pack (show (Multi.tsuWriteTime status))
--- <> "L;"
 
 --------------------------------------------------------------------------------
 -- Administrative
@@ -856,7 +852,29 @@ getTeamSearchVisibilityInboundMulti tids = do
         . expect2xx
         . lbytes (encode $ Multi.TeamFeatureNoConfigMultiRequest tids)
 
--- | Failed to parse a response from another service.
+    serviceRequest' ::
+      forall m.
+      (MonadIO m, MonadMask m, MonadCatch m, MonadHttp m) =>
+      LT.Text ->
+      Endpoint ->
+      StdMethod ->
+      (Request -> Request) ->
+      m (Response (Maybe BL.ByteString))
+    serviceRequest' nm endpoint m r = do
+      let service = mkEndpoint endpoint
+      recovering x3 rpcHandlers $
+        const $ do
+          let rq = (RPC.method m . r) service
+          res <- try $ RPC.httpLbs rq id
+          case res of
+            Left x -> throwM $ RPCException nm rq x
+            Right x -> return x
+      where
+        mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
+
+        x3 :: RetryPolicy
+        x3 = limitRetries 3 <> exponentialBackoff 100000
+
 data ParseException = ParseException
   { _parseExceptionRemote :: !Text,
     _parseExceptionMsg :: String
@@ -870,26 +888,3 @@ instance Show ParseException where
       ++ m
 
 instance Exception ParseException
-
-serviceRequest' ::
-  forall m.
-  (MonadIO m, MonadMask m, MonadCatch m, MonadHttp m) =>
-  LT.Text ->
-  Endpoint ->
-  StdMethod ->
-  (Request -> Request) ->
-  m (Response (Maybe BL.ByteString))
-serviceRequest' nm endpoint m r = do
-  let service = mkEndpoint endpoint
-  recovering x3 rpcHandlers $
-    const $ do
-      let rq = (RPC.method m . r) service
-      res <- try $ RPC.httpLbs rq id
-      case res of
-        Left x -> throwM $ RPCException nm rq x
-        Right x -> return x
-  where
-    mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
-
-    x3 :: RetryPolicy
-    x3 = limitRetries 3 <> exponentialBackoff 100000
