@@ -133,16 +133,14 @@ defaultUserQuery setting (normalized -> term') =
                 ],
               ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
             }
-      -- This reduces relevance on non-team users by 90%, there was no science
-      -- put behind the negative boost value.
-      -- It is applied regardless of a teamId being present as users without a
-      -- team anyways don't see any users with team and hence it won't affect
-      -- results if a non team user does the search.
+      -- This reduces relevance on users not in team of search by 90% (no
+      -- science behind that number). If the searcher is not part of a team the
+      -- relevance is not reduced for any users.
       queryWithBoost setting' =
         ES.QueryBoostingQuery
           ES.BoostingQuery
             { ES.positiveQuery = query,
-              ES.negativeQuery = maybe matchNonTeamMemberUsers matchUsersNotInTeam (searchSettingTeam setting'),
+              ES.negativeQuery = maybe ES.QueryMatchNoneQuery matchUsersNotInTeam (searchSettingTeam setting'),
               ES.negativeBoost = ES.Boost 0.1
             }
    in mkUserQuery setting (queryWithBoost setting)
