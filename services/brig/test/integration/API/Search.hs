@@ -120,10 +120,7 @@ tests opts mgr galley brig = do
                 test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMemberOutboundOnly brig testSetupOutboundOnly,
                 test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMemberOutboundOnly brig testSetupOutboundOnly,
                 test mgr "non team user cannot be found by a team member A" $ testSeachNonMemberAsTeamMemberOutboundOnly brig testSetupOutboundOnly
-              ],
-            -- TODO:  Figure out if these need to be duplicated
-            testGroup "When SearchVisibilityInbound == SearchableByAllTeams" $
-              []
+              ]
           ],
         testGroup "federated" $
           [ test mgr "search passing own domain" $ testSearchWithDomain brig,
@@ -350,7 +347,6 @@ testSearchTeamMemberAsOtherMemberDisplayName mgr brig galley inboundVisibility =
   refreshIndex brig
   circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tidB inboundVisibility
   void $ setRandomHandle brig teamBTargetReindexedAfter
-  print ("----------------------------" :: String, tidB, userId teamBTarget, userId teamBTargetReindexedAfter)
   hFlush stdout
   refreshIndex brig
   assertion brig (userId teamASearcher) (userQualifiedId teamBTarget) (fromName (userDisplayName teamBTarget))
