@@ -17,6 +17,11 @@ then the SFT fans it out to the other clients. Because connections are not end-t
 With SFT it is thus possible to have conference calls with many participants
 without compromising end-to-end security.
 
+.. note::
+   We will describe conferencing first in a single domain in this section. 
+   Conferencing in an environment with Federation is described in the
+   :ref:`federated conferencing<federated-sft>` section.
+
 
 Architecture
 ------------
@@ -44,8 +49,8 @@ Establishing a call
 3. The SFT server tests which of the connection candidates actually work. Meaning, it
    goes through all the candidates until one leads to a successful media connection
    between itself and *client A*
-4. *Client A* sends an OTR [2]_ message ``CONFSTART`` (to all members of chat), which contains
-   the IP address of the SFT server that is being used for the call.
+4. *Client A* sends an end-to-end encrypted message [2]_ ``CONFSTART`` to all members of chat, which contains
+   the URL of the SFT server that is being used for the call.
 5. Any other client that wants to join the call, does 1. + 2. with the exception of **only**
    contacting one SFT server i.e. the one that *client A* chose and told all other
    potential participants about via ``CONFSTART`` message
@@ -56,7 +61,7 @@ connection (i.e. no more HTTPS at that point). There are just 2 HTTPS request/re
 sequences per participant.
 
 .. [1] STUN & TURN are both part of a :ref:`Restund server <understand-restund>`
-.. [2] Off The Record - an encrypted message sent in a conversation hidden from user's view but
+.. [2] This encrypted message is sent in the same conversation, hidden from user's view but
        interpreted by user's clients. It is sent via backend servers and forwarded to other
        conversation participants, not to or via SFT.
 
@@ -72,7 +77,7 @@ via UDP (see :ref:`Firewall rules <install-sft-firewall-rules>`).
 If that is not possible, then at least SFT servers and Restund servers should be able to reach each
 other via UDP - and clients may connect via UDP and/or TCP to Restund servers
 (see :ref:`Protocols and open ports <understand-restund-protocal-and-ports>`), which in
-turn will connect to SFT server.
+turn will connect to the SFT server.
 In the unlikely scenario where no UDP is allowed whatsoever or SFT servers may not be able to reach
 the Restund servers that clients are using to make themselves reachable, an SFT server itself can
 also choose to proxy itself by a Restund server, which could be different from the Restund servers
@@ -86,3 +91,73 @@ Due to this `hostNetwork` limitation only one SFT instance can run per node so i
 As a rule of thumb you will need 1vCPU of compute per 50 participants. SFT will utilise multiple cores. You can use this rule of thumb to decide how many kubernetes nodes you need to provision.
 
 For more information about capacity planning and networking please refer to the `technical documentation <https://github.com/wireapp/wire-server/blob/eab0ce1ff335889bc5a187c51872dfd0e78cc22b/charts/sftd/README.md>`__
+
+.. _federated-sft:
+
+Federated Conference Calling 
+============================
+
+Conferencing in a federated environment assumes that each domain participating in a 
+conference will use an SFT in its own domain. The SFT in the caller's domain is called
+the `anchor SFT`. 
+
+Multi-SFT Architecture
+----------------------
+
+With support for federation, each domain participating in a conference is responsible to
+make available an SFT for users in that domain.  The SFT in the domain of the caller is
+called the `anchor SFT`. SFTs in other domains (in the same conference) connect to the
+anchor SFT.  Non-anchor SFTs drop their connection to the anchor SFT when no local
+participants are present. The anchor SFT does not destroy the conference until there are
+no participants (federated SFTs or local clients).
+
+The following diagram shows SFTs in two different domains. In this example, Alice
+initiates a call in a federated conversation which contains herself, Adam also in domain
+A, and Bob and Beth in domain B. Alice's client first creates a conference and is
+assigned a conference URL on SFT A2. Because the SFT is configured for federation, it
+assumes the role of anchor and also returns an IP address and port (the `anchor SFT tuple`)
+which can be used by any federated SFTs which need to connect. (Alice sets up her media 
+connection with SFT A2 as normal).
+
+Alice's client forwards the conference URL and the anchor SFT tuple to the other
+participants in the conversation, end-to-end encrypted.  Bob's client examines the
+conference URL. Realizing this URL is not an SFT in its own domain, Bob's client opens
+a connection to its SFTs as if creating a new connection, but passes an additional
+parameter containing the anchor SFT URL and tuple. SFT B1 establishes a DTLS connection
+to the anchor SFT using the anchor SFT tuple and provides the SFT URL. (Bob's client
+also sets up media with SFT B1 normally.)  At this point all paths are established
+and the conference call can happen normally.
+
+.. figure:: img/multi-sft-noturn.png
+
+    Basic Multi-SFT conference initiated by Alice in domain A, with Bob in domain B
+
+Because some customers do not wish to expose their SFTs directly to hosts on the public
+Internet, the SFTs can allocate a port on a TURN server. In this way, only the IP
+addresses and ports of the TURN server are exposed to the Internet. This can be a separate
+set of TURN servers from those used for ordinary client calling. The diagram below shows
+this scenario.  In this configuration, SFT A2 requests an allocation from the federation
+TURN server in domain A before responding to Alice. The anchor SFT tuple is the address
+allocated on the federation TURN server in domain A.
+
+.. figure:: img/multi-sft-turn.png
+
+    Multi-SFT conference with TURN servers between federated SFTs
+
+Finally, for extremely restrictive firewall environments, the TURN servers used for
+federated SFT traffic can be further secured with a TURN to TURN mutually
+authenticated DTLS connection. The SFTs allocate a channel inside this DTLS connection
+per conference.  The channel number is included along with the anchor SFT tuple
+returned to Alice, which Alice shares with the conversation, which Bob sends to SFT B1,
+and which SFT B1 uses when forming its DTLS connection to SFT A2. This DTLS connection 
+runs on a dedicated port number which is not used for regular TURN traffic. Under this
+configuration, only that single IP address and port is exposed for each federated TURN
+server with all SFT traffic multiplexed over the connection. The diagram below shows
+this scenario.  Note that this TURN DTLS multiplexing is only used for SFT to SFT
+communication and does not affect the connectivity requirements for normal one-on-one
+calls.
+
+.. figure:: img/multi-sft-turn-dtls.png
+
+    Multi-SFT conference with federated TURN servers with DTLS multiplexing
+
