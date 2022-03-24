@@ -896,9 +896,9 @@ testCreateTeamMLSConv = do
         Nothing
         Nothing
         Nothing
-    Right conv <- fmap cnvMetadata . responseJsonError <$> getConv owner (tUnqualified lConvId)
+    Right conv <- responseJsonError <$> getConv owner (tUnqualified lConvId)
     liftIO $ do
-      assertEqual "protocol mismatch" ProtocolMLSTag (protocolTag (cnvmProtocol conv))
+      assertEqual "protocol mismatch" ProtocolMLSTag (protocolTag (cnvProtocol conv))
     checkConvCreateEvent (tUnqualified lConvId) wsOwner
     WS.assertNoEvent (2 # Second) [wsExtern]
 

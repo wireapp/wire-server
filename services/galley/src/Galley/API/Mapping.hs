@@ -78,6 +78,7 @@ conversationViewMaybe luid conv = do
       (qUntagged . qualifyAs luid . convId $ conv)
       (Data.convMetadata conv)
       (ConvMembers self others)
+      (Data.convProtocol conv)
 
 -- | View for a local user of a remote conversation.
 remoteConversationView ::
@@ -97,7 +98,11 @@ remoteConversationView uid status (qUntagged -> Qualified rconv rDomain) =
               lmStatus = status,
               lmConvRoleName = rcmSelfRole mems
             }
-   in Conversation (Qualified (rcnvId rconv) rDomain) (rcnvMetadata rconv) (ConvMembers self others)
+   in Conversation
+        (Qualified (rcnvId rconv) rDomain)
+        (rcnvMetadata rconv)
+        (ConvMembers self others)
+        (rcnvProtocol rconv)
 
 -- | Convert a local conversation to a structure to be returned to a remote
 -- backend.
@@ -123,7 +128,8 @@ conversationToRemote localDomain ruid conv = do
           RemoteConvMembers
             { rcmSelfRole = selfRole,
               rcmOthers = others
-            }
+            },
+        rcnvProtocol = Data.convProtocol conv
       }
 
 -- | Convert a local conversation member (as stored in the DB) to a publicly

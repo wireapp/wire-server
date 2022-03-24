@@ -29,6 +29,7 @@ import Servant.API
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
@@ -75,14 +76,15 @@ data RemoteConvMembers = RemoteConvMembers
 
 -- | A conversation hosted on a remote backend. This contains the same
 -- information as a 'Conversation', with the exception that conversation status
--- fields (muted/archived/hidden) are omitted, since they are not known by the
+-- fields (muted\/archived\/hidden) are omitted, since they are not known by the
 -- remote backend.
 data RemoteConversation = RemoteConversation
   { -- | Id of the conversation, implicitly qualified with the domain of the
     -- backend that created this value.
     rcnvId :: ConvId,
     rcnvMetadata :: ConversationMetadata,
-    rcnvMembers :: RemoteConvMembers
+    rcnvMembers :: RemoteConvMembers,
+    rcnvProtocol :: Protocol
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform RemoteConversation)

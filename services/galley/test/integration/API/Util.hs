@@ -2276,9 +2276,9 @@ mkProteusConv cnvId creator selfRole otherMembers =
         Nothing
         Nothing
         Nothing
-        ProtocolProteus
     )
     (RemoteConvMembers selfRole otherMembers)
+    ProtocolProteus
 
 -- | ES is only refreshed occasionally; we don't want to wait for that in tests.
 refreshIndex :: TestM ()

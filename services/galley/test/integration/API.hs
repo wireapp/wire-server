@@ -2307,7 +2307,6 @@ accessConvMeta = do
           Nothing
           Nothing
           Nothing
-          ProtocolProteus
   get (g . paths ["i/conversations", toByteString' conv, "meta"] . zUser alice) !!! do
     const 200 === statusCode
     const (Just meta) === (decode <=< responseBody)
@@ -2450,6 +2449,7 @@ testGetQualifiedRemoteConv = do
           remoteConvId
           (rcnvMetadata mockConversation)
           (ConvMembers aliceAsSelfMember (rcmOthers (rcnvMembers mockConversation)))
+          ProtocolProteus
 
   (respAll, _) <-
     withTempMockFederator

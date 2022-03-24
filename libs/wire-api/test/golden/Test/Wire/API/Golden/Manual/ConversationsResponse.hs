@@ -61,8 +61,7 @@ conv1 =
             cnvmName = Just " 0",
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000001-0000-0001-0000-000100000002"))),
             cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2}),
-            cnvmProtocol = ProtocolProteus
+            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = -2})
           },
       cnvMembers =
         ConvMembers
@@ -79,7 +78,8 @@ conv1 =
                   memConvRoleName = fromJust (parseRoleName "rhhdzf0j0njilixx0g0vzrp06b_5us")
                 },
             cmOthers = []
-          }
+          },
+      cnvProtocol = ProtocolProteus
     }
 
 conv2 :: Conversation
@@ -108,8 +108,7 @@ conv2 =
             cnvmName = Just "",
             cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0001-0000-000200000000"))),
             cnvmMessageTimer = Just (Ms {ms = 1319272593797015}),
-            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 2}),
-            cnvmProtocol = ProtocolMLS (ConversationMLSData (GroupId ("test_group")))
+            cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 2})
           },
       cnvMembers =
         ConvMembers
@@ -127,5 +126,6 @@ conv2 =
                     fromJust (parseRoleName "9b2d3thyqh4ptkwtq2n2v9qsni_ln1ca66et_z8dlhfs9oamp328knl3rj9kcj")
                 },
             cmOthers = []
-          }
+          },
+      cnvProtocol = ProtocolMLS (ConversationMLSData (GroupId ("test_group")))
     }

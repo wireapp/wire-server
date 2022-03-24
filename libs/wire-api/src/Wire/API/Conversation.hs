@@ -132,9 +132,7 @@ data ConversationMetadata = ConversationMetadata
     -- federation.
     cnvmTeam :: Maybe TeamId,
     cnvmMessageTimer :: Maybe Milliseconds,
-    cnvmReceiptMode :: Maybe ReceiptMode,
-    -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
-    cnvmProtocol :: Protocol
+    cnvmReceiptMode :: Maybe ReceiptMode
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
@@ -187,7 +185,6 @@ conversationMetadataObjectSchema =
         (description ?~ "Per-conversation message timer (can be null)")
         (maybeWithDefault A.Null schema)
     <*> cnvmReceiptMode .= optField "receipt_mode" (maybeWithDefault A.Null schema)
-    <*> cnvmProtocol .= protocolSchema
 
 instance ToSchema ConversationMetadata where
   schema = object "ConversationMetadata" conversationMetadataObjectSchema
@@ -201,7 +198,9 @@ data Conversation = Conversation
   { -- | A qualified conversation ID
     cnvQualifiedId :: Qualified ConvId,
     cnvMetadata :: ConversationMetadata,
-    cnvMembers :: ConvMembers
+    cnvMembers :: ConvMembers,
+    -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
+    cnvProtocol :: Protocol
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Conversation)
@@ -242,6 +241,7 @@ instance ToSchema Conversation where
           .= optional (field "id" (deprecatedSchema "qualified_id" schema))
         <*> cnvMetadata .= conversationMetadataObjectSchema
         <*> cnvMembers .= field "members" schema
+        <*> cnvProtocol .= protocolSchema
 
 modelConversation :: Doc.Model
 modelConversation = Doc.defineModel "Conversation" $ do

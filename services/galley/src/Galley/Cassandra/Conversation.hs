@@ -80,6 +80,7 @@ createConversation loc (NewConversation ty usr acc arole name mtid mtimer recpt 
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
         convDeleted = Nothing,
+        convProtocol = protocol,
         convMetadata =
           ConversationMetadata
             { cnvmType = ty,
@@ -89,8 +90,7 @@ createConversation loc (NewConversation ty usr acc arole name mtid mtimer recpt 
               cnvmAccessRoles = arole,
               cnvmTeam = mtid,
               cnvmMessageTimer = mtimer,
-              cnvmReceiptMode = recpt,
-              cnvmProtocol = protocol
+              cnvmReceiptMode = recpt
             }
       }
   where
@@ -123,6 +123,7 @@ createConnectConversation a b name = do
         convDeleted = Nothing,
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
+        convProtocol = ProtocolProteus,
         convMetadata =
           ConversationMetadata
             { cnvmType = ConnectConv,
@@ -132,8 +133,7 @@ createConnectConversation a b name = do
               cnvmAccessRoles = Set.empty,
               cnvmTeam = Nothing,
               cnvmMessageTimer = Nothing,
-              cnvmReceiptMode = Nothing,
-              cnvmProtocol = ProtocolProteus
+              cnvmReceiptMode = Nothing
             }
       }
 
@@ -154,6 +154,7 @@ createConnectConversationWithRemote cid creator m = do
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
         convDeleted = Nothing,
+        convProtocol = ProtocolProteus,
         convMetadata =
           ConversationMetadata
             { cnvmType = ConnectConv,
@@ -163,8 +164,7 @@ createConnectConversationWithRemote cid creator m = do
               cnvmAccessRoles = Set.empty,
               cnvmTeam = Nothing,
               cnvmMessageTimer = Nothing,
-              cnvmReceiptMode = Nothing,
-              cnvmProtocol = ProtocolProteus
+              cnvmReceiptMode = Nothing
             }
       }
 
@@ -208,6 +208,7 @@ createOne2OneConversation conv self other name mtid = do
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
         convDeleted = Nothing,
+        convProtocol = ProtocolProteus,
         convMetadata =
           ConversationMetadata
             { cnvmType = ConnectConv,
@@ -217,8 +218,7 @@ createOne2OneConversation conv self other name mtid = do
               cnvmAccessRoles = Set.empty,
               cnvmTeam = Nothing,
               cnvmMessageTimer = Nothing,
-              cnvmReceiptMode = Nothing,
-              cnvmProtocol = ProtocolProteus
+              cnvmReceiptMode = Nothing
             }
       }
 
@@ -236,6 +236,7 @@ createSelfConversation lusr name = do
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
         convDeleted = Nothing,
+        convProtocol = ProtocolProteus,
         convMetadata =
           ConversationMetadata
             { cnvmType = SelfConv,
@@ -245,8 +246,7 @@ createSelfConversation lusr name = do
               cnvmAccessRoles = Set.empty,
               cnvmTeam = Nothing,
               cnvmMessageTimer = Nothing,
-              cnvmReceiptMode = Nothing,
-              cnvmProtocol = ProtocolProteus
+              cnvmReceiptMode = Nothing
             }
       }
 
@@ -267,11 +267,10 @@ conversationMeta conv =
   (toConvMeta =<<)
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
-    toConvMeta (t, c, a, r, r', n, i, _, mt, rm, p, gid) = do
+    toConvMeta (t, c, a, r, r', n, i, _, mt, rm, _, _) = do
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
-      proto <- toProtocol p gid
-      pure $ ConversationMetadata t c (defAccess t a) accessRoles n i mt rm proto
+      pure $ ConversationMetadata t c (defAccess t a) accessRoles n i mt rm
 
 isConvAlive :: ConvId -> Client Bool
 isConvAlive cid = do
@@ -410,6 +409,7 @@ toConv cid ms remoteMems mconv = do
         convDeleted = del,
         convLocalMembers = ms,
         convRemoteMembers = remoteMems,
+        convProtocol = proto,
         convMetadata =
           ConversationMetadata
             { cnvmType = cty,
@@ -419,8 +419,7 @@ toConv cid ms remoteMems mconv = do
               cnvmName = nme,
               cnvmTeam = ti,
               cnvmMessageTimer = timer,
-              cnvmReceiptMode = rm,
-              cnvmProtocol = proto
+              cnvmReceiptMode = rm
             }
       }
 

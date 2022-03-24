@@ -664,10 +664,10 @@ fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
             -- domain.
             cnvmTeam = Nothing,
             cnvmMessageTimer = rcMessageTimer,
-            cnvmReceiptMode = rcReceiptMode,
-            cnvmProtocol = ProtocolProteus
+            cnvmReceiptMode = rcReceiptMode
           }
         (ConvMembers this others)
+        ProtocolProteus
 
 -- | Notify remote users of being added to a new conversation
 registerRemoteConversationMemberships ::

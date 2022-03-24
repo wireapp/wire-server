@@ -123,6 +123,7 @@ genConversation =
     <*> listOf genRemoteMember
     <*> pure (Just False)
     <*> genConversationMetadata
+    <*> pure ProtocolProteus
 
 genConversationMetadata :: Gen ConversationMetadata
 genConversationMetadata =
@@ -135,7 +136,6 @@ genConversationMetadata =
     <*> pure Nothing
     <*> pure Nothing
     <*> pure Nothing
-    <*> pure ProtocolProteus
 
 newtype RandomConversation = RandomConversation
   {unRandomConversation :: Data.Conversation}

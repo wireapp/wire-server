@@ -27,6 +27,7 @@ where
 
 import Control.Arrow
 import Control.Lens (makePrisms, (?~))
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Schema
 import Imports
 import Wire.API.Arbitrary
@@ -73,7 +74,13 @@ protocolSchema =
     .= bind
       (fst .= protocolTagSchema)
       (snd .= dispatch protocolDataSchema)
-  where
+
+instance ToSchema Protocol where
+  schema = object "Protocol" protocolSchema
+
+deriving via (Schema Protocol) instance FromJSON Protocol
+
+deriving via (Schema Protocol) instance ToJSON Protocol
 
 protocolDataSchema :: ProtocolTag -> ObjectSchema SwaggerDoc Protocol
 protocolDataSchema ProtocolProteusTag = tag _ProtocolProteus (pure ())

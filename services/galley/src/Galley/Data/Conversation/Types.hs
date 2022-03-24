@@ -36,7 +36,8 @@ data Conversation = Conversation
     convLocalMembers :: [LocalMember],
     convRemoteMembers :: [RemoteMember],
     convDeleted :: Maybe Bool,
-    convMetadata :: ConversationMetadata
+    convMetadata :: ConversationMetadata,
+    convProtocol :: Protocol
   }
   deriving (Show)
 
