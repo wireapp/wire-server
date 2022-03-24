@@ -123,7 +123,7 @@ type GetAllConnections =
 
 type EJPD_API =
   ( EJPDRequest
-      :<|> GetAccountFeatureConfig
+      :<|> Named "get-account-feature-config" GetAccountFeatureConfig
       :<|> PutAccountFeatureConfig
       :<|> DeleteAccountFeatureConfig
       :<|> GetAllConnectionsUnqualified

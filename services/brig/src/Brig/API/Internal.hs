@@ -95,7 +95,7 @@ servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<
 ejpdAPI :: ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
   Brig.User.EJPD.ejpdRequest
-    :<|> getAccountFeatureConfig
+    :<|> Named @"get-account-feature-config" getAccountFeatureConfig
     :<|> putAccountFeatureConfig
     :<|> deleteAccountFeatureConfig
     :<|> getConnectionsStatusUnqualified

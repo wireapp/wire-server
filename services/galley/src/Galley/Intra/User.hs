@@ -44,7 +44,6 @@ import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Proxy
 import Data.Qualified
 import Data.String.Conversions
 import qualified Data.Text.Lazy as Lazy
@@ -59,7 +58,6 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import qualified Network.Wai.Utilities.Error as Wai
-import Servant.API ((:<|>) ((:<|>)))
 import qualified Servant.Client as Client
 import Util.Options
 import qualified Wire.API.Routes.Internal.Brig as IAPI
@@ -237,7 +235,7 @@ getRichInfoMultiUser = chunkify $ \uids -> do
 
 getAccountFeatureConfigClient :: HasCallStack => UserId -> App TeamFeatureStatusNoConfig
 getAccountFeatureConfigClient uid =
-  runHereClientM (getAccountFeatureConfigClientM uid)
+  runHereClientM (namedClient @IAPI.API @"get-account-feature-config" uid)
     >>= handleServantResp
 
 updateSearchVisibilityInbound :: Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound -> App ()
@@ -245,17 +243,6 @@ updateSearchVisibilityInbound =
   handleServantResp
     <=< runHereClientM
       . namedClient @IAPI.API @"updateSearchVisibilityInbound"
-
--- TODO: Use 'namedClient'
-getAccountFeatureConfigClientM ::
-  UserId -> Client.ClientM TeamFeatureStatusNoConfig
-( ( _
-      :<|> getAccountFeatureConfigClientM
-      :<|> _
-    )
-    :<|> _
-    :<|> _
-  ) = Client.client (Proxy @IAPI.API)
 
 runHereClientM :: HasCallStack => Client.ClientM a -> App (Either Client.ClientError a)
 runHereClientM action = do
