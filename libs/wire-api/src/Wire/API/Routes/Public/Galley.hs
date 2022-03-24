@@ -377,7 +377,7 @@ type ConversationAPI =
            )
     :<|> Named
            "get-conversation-guest-links-status"
-           ( Summary "Get the status of the guest links feature"
+           ( Summary "Get the status of the guest links feature for a conversation that potentially has been created by someone from another team."
                :> CanThrow ConvNotFound
                :> ZUser
                :> "conversations"
