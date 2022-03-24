@@ -375,6 +375,17 @@ type ConversationAPI =
                :> "code"
                :> CreateConversationCodeVerb
            )
+    :<|> Named
+           "get-conversation-guest-links-status"
+           ( Summary "Get the status of the guest links feature"
+               :> CanThrow ConvNotFound
+               :> ZUser
+               :> "conversations"
+               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "features"
+               :> KnownTeamFeatureNameSymbol 'TeamFeatureGuestLinks
+               :> Get '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureGuestLinks)
+           )
     -- This endpoint can lead to the following events being sent:
     -- - ConvCodeDelete event to members
     :<|> Named
