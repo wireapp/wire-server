@@ -159,6 +159,8 @@ searchUsers domain (SearchRequest searchTerm) = do
 getUserClients :: Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
 getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
 
+-- TODO: 'notify' could be in IO and then the whole function can instead of
+-- running in Handler r
 onUserDeleted :: Domain -> UserDeletedConnectionsNotification -> (Handler r) EmptyResponse
 onUserDeleted origDomain udcn = lift $ do
   let deletedUser = toRemoteUnsafe origDomain (udcnUser udcn)

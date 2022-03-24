@@ -261,6 +261,8 @@ claimMultiPrekeyBundles protectee quc = do
       qUntagged . qualifyAs luc
         <$> claimLocalMultiPrekeyBundles protectee (tUnqualified luc)
 
+-- TODO: getUserKeys doesn't actually need MonadUnliftIO, it can be MonadClient
+-- + MonadReader or so
 claimLocalMultiPrekeyBundles :: LegalholdProtectee -> UserClients -> ExceptT ClientError (AppIO r) UserClientPrekeyMap
 claimLocalMultiPrekeyBundles protectee userClients = do
   guardLegalhold protectee userClients

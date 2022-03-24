@@ -132,6 +132,8 @@ enqueue b q m =
 -- configured properly, after failing on the same message several times the
 -- message will go into the Dead Letter Queue where it can be analyzed
 -- manually.
+--
+-- TODO: This probably deserves a Polysemy action
 listen ::
   (FromJSON a, MonadLogger m, MonadMask m, MonadUnliftIO m) =>
   Broker ->

@@ -214,6 +214,7 @@ lookupConnectionStatus' from =
   map toConnectionStatus
     <$> retry x1 (query connectionStatusSelect' (params LocalQuorum (Identity from)))
 
+-- TODO: This is essentially MonadClient m, no need for AppIO
 lookupLocalConnectionStatuses :: [UserId] -> Local [UserId] -> AppIO r [ConnectionStatusV2]
 lookupLocalConnectionStatuses froms tos = do
   concat <$> pooledMapConcurrentlyN 16 lookupStatuses froms
@@ -223,6 +224,7 @@ lookupLocalConnectionStatuses froms tos = do
       map (uncurry $ toConnectionStatusV2 from (tDomain tos))
         <$> wrapClient (retry x1 (query relationsSelect (params LocalQuorum (from, tUnqualified tos))))
 
+-- TODO: This is essentially MonadClient m, no need for AppIO
 lookupRemoteConnectionStatuses :: [UserId] -> Remote [UserId] -> AppIO r [ConnectionStatusV2]
 lookupRemoteConnectionStatuses froms tos = do
   concat <$> pooledMapConcurrentlyN 16 lookupStatuses froms
@@ -232,6 +234,7 @@ lookupRemoteConnectionStatuses froms tos = do
       map (uncurry $ toConnectionStatusV2 from (tDomain tos))
         <$> wrapClient (retry x1 (query remoteRelationsSelect (params LocalQuorum (from, tDomain tos, tUnqualified tos))))
 
+-- TODO: This is essentially MonadClient m, no need for AppIO
 lookupAllStatuses :: Local [UserId] -> AppIO r [ConnectionStatusV2]
 lookupAllStatuses lfroms = do
   let froms = tUnqualified lfroms
@@ -284,6 +287,7 @@ countConnections u r = do
     count n (Identity s) | relationDropHistory s `elem` r = n + 1
     count n _ = n
 
+-- TODO: This is essentially MonadClient m, no need for AppIO
 deleteConnections :: UserId -> AppIO r ()
 deleteConnections u = do
   e <- ask
@@ -298,6 +302,7 @@ deleteConnections u = do
   where
     delete (other, _status) = wrapClient $ write connectionDelete $ params LocalQuorum (other, u)
 
+-- TODO: This is essentially MonadClient m, no need for AppIO
 deleteRemoteConnections :: Remote UserId -> Range 1 1000 [UserId] -> AppIO r ()
 deleteRemoteConnections (qUntagged -> Qualified remoteUser remoteDomain) (fromRange -> locals) =
   pooledForConcurrentlyN_ 16 locals $ \u ->

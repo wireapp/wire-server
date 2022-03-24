@@ -240,6 +240,7 @@ updatePrekeys u c pks = do
         Success n -> return (CryptoBox.prekeyId n == keyId (prekeyId a))
         _ -> return False
 
+-- TODO: This could probably run in MonadClient m instead of AppIO
 claimPrekey :: UserId -> ClientId -> AppIO r (Maybe ClientPrekey)
 claimPrekey u c =
   view randomPrekeyLocalLock >>= \case
