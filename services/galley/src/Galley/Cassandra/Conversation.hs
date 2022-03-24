@@ -57,41 +57,49 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 
 createConversation :: Local x -> NewConversation -> Client Conversation
-createConversation loc (NewConversation ty usr acc arole name mtid mtimer recpt users role ptag) = do
+createConversation loc nc = do
   conv <- Id <$> liftIO nextRandom
-  (protocol, groupId) <- case ptag of
+  let meta = ncMetadata nc
+  (proto, mgid) <- case ncProtocol nc of
     ProtocolProteusTag -> pure (ProtocolProteus, Nothing)
     ProtocolMLSTag -> do
-      groupId <- liftIO $ toGroupId (conv, tDomain loc)
-      pure (ProtocolMLS (ConversationMLSData {cnvmlsGroupId = groupId}), Just groupId)
+      gid <- liftIO $ toGroupId (conv, tDomain loc)
+      pure
+        ( ProtocolMLS
+            ConversationMLSData
+              { cnvmlsGroupId = gid
+              },
+          Just gid
+        )
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
     addPrepQuery
       Cql.insertConv
-      (conv, ty, usr, Cql.Set (toList acc), Cql.Set (toList arole), fmap fromRange name, mtid, mtimer, recpt, ptag, groupId)
-    for_ mtid $ \tid -> addPrepQuery Cql.insertTeamConv (tid, conv)
-    for_ groupId $ \gid -> addPrepQuery Cql.insertGroupId (gid, conv, tDomain loc)
-  let newUsers = fmap (,role) (fromConvSize users)
-  (lmems, rmems) <- addMembers conv (ulAddLocal (usr, roleNameWireAdmin) newUsers)
-  pure $
+      ( conv,
+        cnvmType meta,
+        cnvmCreator meta,
+        Cql.Set (cnvmAccess meta),
+        Cql.Set (toList (cnvmAccessRoles meta)),
+        cnvmName meta,
+        cnvmTeam meta,
+        cnvmMessageTimer meta,
+        cnvmReceiptMode meta,
+        ncProtocol nc,
+        mgid
+      )
+    for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, conv)
+    for_ mgid $ \gid -> addPrepQuery Cql.insertGroupId (gid, conv, tDomain loc)
+  let newUsers = fmap (,ncRole nc) (fromConvSize (ncUsers nc))
+  (lmems, rmems) <- addMembers conv (ulAddLocal (cnvmCreator meta, roleNameWireAdmin) newUsers)
+  pure
     Conversation
       { convId = conv,
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
         convDeleted = Nothing,
-        convProtocol = protocol,
-        convMetadata =
-          ConversationMetadata
-            { cnvmType = ty,
-              cnvmCreator = usr,
-              cnvmName = fmap fromRange name,
-              cnvmAccess = acc,
-              cnvmAccessRoles = arole,
-              cnvmTeam = mtid,
-              cnvmMessageTimer = mtimer,
-              cnvmReceiptMode = recpt
-            }
+        convMetadata = meta,
+        convProtocol = proto
       }
   where
     toGroupId :: MonadIO m => (ConvId, Domain) -> m GroupId

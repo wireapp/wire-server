@@ -35,6 +35,7 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty hiding (cons, toList)
 import Data.List1
+import Data.Range
 import Data.Text (pack)
 import Imports
 import Network.HTTP.Types.Method
@@ -141,6 +142,6 @@ createConv users name = sessionRequest req rsc readBody
       method POST
         . path "conversations"
         . acceptJson
-        . json (NewConv users [] name mempty Nothing Nothing Nothing Nothing roleNameWireAdmin M.ProtocolProteusTag)
+        . json (NewConv users [] (name >>= checked) mempty Nothing Nothing Nothing Nothing roleNameWireAdmin M.ProtocolProteusTag)
         $ empty
     rsc = status201 :| []

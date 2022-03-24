@@ -252,7 +252,7 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
         NewConv
           []
           []
-          (Just "gossip")
+          (checked "gossip")
           mempty
           Nothing
           Nothing

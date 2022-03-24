@@ -700,7 +700,7 @@ createConversation galley zusr usersToAdd = do
         NewConv
           []
           usersToAdd
-          (Just "gossip")
+          (checked "gossip")
           mempty
           Nothing
           Nothing

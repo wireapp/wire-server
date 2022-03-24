@@ -622,7 +622,7 @@ data NewConv = NewConv
     -- | A list of qualified users, which can include some local qualified users
     -- too.
     newConvQualifiedUsers :: [Qualified UserId],
-    newConvName :: Maybe Text,
+    newConvName :: Maybe (Range 1 256 Text),
     newConvAccess :: Set Access,
     newConvAccessRoles :: Maybe (Set AccessRoleV2),
     newConvTeam :: Maybe ConvTeamInfo,

@@ -18,8 +18,6 @@
 module Galley.Data.Conversation.Types where
 
 import Data.Id
-import Data.Misc
-import Data.Range
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Galley.Validation
@@ -42,14 +40,7 @@ data Conversation = Conversation
   deriving (Show)
 
 data NewConversation = NewConversation
-  { ncType :: ConvType,
-    ncCreator :: UserId,
-    ncAccess :: [Access],
-    ncAccessRoles :: Set AccessRoleV2,
-    ncName :: Maybe (Range 1 256 Text),
-    ncTeam :: Maybe TeamId,
-    ncMessageTimer :: Maybe Milliseconds,
-    ncReceiptMode :: Maybe ReceiptMode,
+  { ncMetadata :: ConversationMetadata,
     ncUsers :: ConvSizeChecked UserList UserId,
     ncRole :: RoleName,
     ncProtocol :: ProtocolTag

@@ -336,14 +336,14 @@ postConvWithRemoteUsersOk = do
   mapM_ (connectWithRemoteUser alice) [qChad, qCharlie, qDee]
 
   -- Ensure name is within range, max size is 256
-  postConvQualified alice defNewProteusConv {newConvName = Just (T.replicate 257 "a"), newConvQualifiedUsers = [qAlex, qAmy, qChad, qCharlie, qDee]}
+  postConvQualified alice defNewProteusConv {newConvName = checked (T.replicate 257 "a"), newConvQualifiedUsers = [qAlex, qAmy, qChad, qCharlie, qDee]}
     !!! const 400 === statusCode
 
   let nameMaxSize = T.replicate 256 "a"
   WS.bracketR3 c alice alex amy $ \(wsAlice, wsAlex, wsAmy) -> do
     (rsp, federatedRequests) <-
       withTempMockFederator (const ()) $
-        postConvQualified alice defNewProteusConv {newConvName = Just nameMaxSize, newConvQualifiedUsers = [qAlex, qAmy, qChad, qCharlie, qDee]}
+        postConvQualified alice defNewProteusConv {newConvName = checked nameMaxSize, newConvQualifiedUsers = [qAlex, qAmy, qChad, qCharlie, qDee]}
           <!! const 201 === statusCode
     cid <- assertConvQualified rsp RegularConv alice qAlice [qAlex, qAmy, qChad, qCharlie, qDee] (Just nameMaxSize) Nothing
     cvs <- mapM (convView cid) [alice, alex, amy]
@@ -2075,7 +2075,7 @@ postConvQualifiedFederationNotEnabled = do
 -- FUTUREWORK: figure out how to use functions in the TestM monad inside withSettingsOverrides and remove this duplication
 postConvHelper :: (MonadIO m, MonadHttp m) => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
 postConvHelper g zusr newUsers = do
-  let conv = NewConv [] newUsers (Just "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+  let conv = NewConv [] newUsers (checked "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
   post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv
 
 postSelfConvOk :: TestM ()
@@ -2283,7 +2283,7 @@ getConvQualifiedOk = do
         alice
         defNewProteusConv
           { newConvQualifiedUsers = [bob, chuck],
-            newConvName = Just "gossip"
+            newConvName = checked "gossip"
           }
   getConv alice conv !!! const 200 === statusCode
   getConv (qUnqualified bob) conv !!! const 200 === statusCode
@@ -2799,7 +2799,7 @@ deleteMembersConvLocalQualifiedOk = do
         alice
         defNewProteusConv
           { newConvQualifiedUsers = [qBob, qEve],
-            newConvName = Just "federated gossip"
+            newConvName = checked "federated gossip"
           }
   let qconv = Qualified conv localDomain
   deleteMemberQualified bob qBob qconv !!! const 200 === statusCode
