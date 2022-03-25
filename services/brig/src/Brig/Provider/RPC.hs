@@ -210,15 +210,20 @@ addBotMember zusr zcon conv bot clt pid sid = do
         . lbytes (encode (Galley.addBot (Galley.newServiceRef sid pid) conv bot clt))
         . expect2xx
 
--- TODO: This does not have to run in AppIO as it is essentially IO
-
 -- | Tell galley to remove a service bot from a conversation.
 removeBotMember ::
+  ( MonadHttp m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
   UserId ->
   Maybe ConnId ->
   ConvId ->
   BotId ->
-  (AppIO r) (Maybe Event)
+  m (Maybe Event)
 removeBotMember zusr zcon conv bot = do
   Log.debug $
     remote "galley"
