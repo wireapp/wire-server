@@ -299,11 +299,16 @@ deleteConnections u = do
   where
     delete (other, _status) = write connectionDelete $ params LocalQuorum (other, u)
 
--- TODO: This is essentially MonadClient m, no need for AppIO
-deleteRemoteConnections :: Remote UserId -> Range 1 1000 [UserId] -> AppIO r ()
+deleteRemoteConnections ::
+  ( MonadClient m,
+    MonadUnliftIO m
+  ) =>
+  Remote UserId ->
+  Range 1 1000 [UserId] ->
+  m ()
 deleteRemoteConnections (qUntagged -> Qualified remoteUser remoteDomain) (fromRange -> locals) =
   pooledForConcurrentlyN_ 16 locals $ \u ->
-    wrapClient $ write remoteConnectionDelete $ params LocalQuorum (u, remoteDomain, remoteUser)
+    write remoteConnectionDelete $ params LocalQuorum (u, remoteDomain, remoteUser)
 
 -- Queries
 

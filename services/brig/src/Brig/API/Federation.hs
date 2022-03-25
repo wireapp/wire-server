@@ -172,5 +172,5 @@ onUserDeleted origDomain udcn = lift $ do
       <$> Data.lookupRemoteConnectionStatuses (fromRange connections) (fmap pure deletedUser)
   pooledForConcurrentlyN_ 16 (nonEmpty acceptedLocals) $ \(List1 -> recipients) ->
     notify event (tUnqualified deletedUser) Push.RouteDirect Nothing (pure recipients)
-  Data.deleteRemoteConnections deletedUser connections
+  wrapClient $ Data.deleteRemoteConnections deletedUser connections
   pure EmptyResponse
