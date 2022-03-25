@@ -1,0 +1,9 @@
+Refactor conversation record and conversation creation functions. This removes a lot of duplication and makes the types of protocol-specific data in a conversation tighter.
+
+ - Move conversation name size check to `NewConv`
+ - Make the `NewConversation` record (used as input to the data
+   function creating a conversation) contain a `ConversationMetadata`.
+ - Implement all "special" conversation creation in terms of a general `createConversation`
+ - Move protocol field from metadata to Conversation
+ - Restructure MLS fields in Conversation record
+ - Factor out metadata fields from Data.Conversation
