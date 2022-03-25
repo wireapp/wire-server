@@ -1,0 +1,19 @@
+[${brand_logo}]
+
+${brand_label_url} [${brand_url}]
+
+BESTÄTIGEN SIE IHRE ANMELDUNG
+${email} wurde verwendet, um sich bei Ihrem ${brand}-Benutzerkonto anzumelden.
+Geben Sie diesen Code ein, um Ihre E-Mail-Adresse zu bestätigen und sich
+anzumelden.
+
+${code}
+
+Wenn Sie Fragen haben, dann kontaktieren Sie uns [${support}] bitte.
+
+
+--------------------------------------------------------------------------------
+
+Datenschutzrichtlinien und Nutzungsbedingungen [${legal}] · Missbrauch melden
+[${misuse}]
+${copyright}. ALLE RECHTE VORBEHALTEN.
