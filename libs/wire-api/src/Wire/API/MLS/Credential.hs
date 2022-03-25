@@ -123,6 +123,9 @@ data ClientIdentity = ClientIdentity
   deriving stock (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientIdentity
 
+cidQualifiedClient :: ClientIdentity -> Qualified (UserId, ClientId)
+cidQualifiedClient cid = Qualified (ciUser cid, ciClient cid) (ciDomain cid)
+
 instance ToSchema ClientIdentity where
   schema =
     object "ClientIdentity" $
@@ -146,5 +149,3 @@ instance ParseMLS ClientIdentity where
 
 mkClientIdentity :: Qualified UserId -> ClientId -> ClientIdentity
 mkClientIdentity (Qualified uid domain) cid = ClientIdentity domain uid cid
-
-instance Binary ClientIdentity

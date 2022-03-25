@@ -393,6 +393,9 @@ nginx_conf:
       disable_zauth: true
       envs:
       - all
+    - path: /mls/welcome
+      envs:
+      - all
     gundeck:
     - path: /push
       envs:

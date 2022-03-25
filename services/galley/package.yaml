@@ -42,6 +42,7 @@ library:
   - cassandra-util >=0.16.2
   - cassava >= 0.5.2
   - cereal >=0.4
+  - comonad
   - containers >=0.5
   - cryptonite
   - currency-codes >=2.0
@@ -74,6 +75,7 @@ library:
   - resourcet >=1.1
   - retry >=0.5
   - safe-exceptions >=0.1
+  - semigroups
   - servant
   - servant-client-core
   - servant-server
@@ -168,6 +170,7 @@ executables:
     - cassandra-util
     - cassava
     - cereal
+    - comonad
     - containers
     - cookie
     - currency-codes
@@ -177,6 +180,7 @@ executables:
     - errors
     - exceptions
     - federator
+    - filepath
     - galley
     - galley-types
     - gundeck-types
@@ -193,6 +197,7 @@ executables:
     - mtl
     - optparse-applicative
     - pem
+    - process
     - protobuf
     - proto-lens
     - QuickCheck
@@ -212,6 +217,7 @@ executables:
     - tasty >=0.8
     - tasty-cannon >=0.3.2
     - tasty-hunit >=0.9
+    - temporary
     - text
     - time
     - tinylog

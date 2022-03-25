@@ -45,6 +45,9 @@ module Galley.Effects.BrigAccess
     addLegalHoldClientToUser,
     removeLegalHoldClientFromUser,
 
+    -- * MLS
+    getClientByKeyPackageRef,
+
     -- * Features
     getAccountFeatureConfigClient,
   )
@@ -62,6 +65,8 @@ import Galley.External.LegalHoldService.Types
 import Imports
 import Network.HTTP.Types.Status
 import Polysemy
+import Wire.API.MLS.Credential
+import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Feature
 import Wire.API.Team.Size
@@ -112,6 +117,7 @@ data BrigAccess m a where
     BrigAccess m ClientId
   RemoveLegalHoldClientFromUser :: UserId -> BrigAccess m ()
   GetAccountFeatureConfigClient :: UserId -> BrigAccess m TeamFeatureStatusNoConfig
+  GetClientByKeyPackageRef :: KeyPackageRef -> BrigAccess m (Maybe ClientIdentity)
 
 makeSem ''BrigAccess
 

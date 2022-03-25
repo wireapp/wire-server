@@ -423,3 +423,9 @@ type DuplicateMLSPublicKey =
     400
     "mls-duplicate-public-key"
     "MLS public key for the given signature scheme already exists"
+
+type UnknownWelcomeRecipient =
+  ErrorDescription
+    400
+    "mls-unknown-welcome-recipient"
+    "One of the key packages of a welcome message could not be mapped to a known client"

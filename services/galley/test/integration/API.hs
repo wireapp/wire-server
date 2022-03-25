@@ -26,6 +26,7 @@ where
 import qualified API.CustomBackend as CustomBackend
 import qualified API.Federation as Federation
 import API.Federation.Util
+import qualified API.MLS
 import qualified API.MessageTimer as MessageTimer
 import qualified API.Roles as Roles
 import API.SQS
@@ -112,7 +113,8 @@ tests s =
       Roles.tests s,
       CustomBackend.tests s,
       TeamFeature.tests s,
-      Federation.tests s
+      Federation.tests s,
+      API.MLS.tests s
     ]
   where
     mainTests =

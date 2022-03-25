@@ -27,7 +27,7 @@ import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Extension
 import Wire.API.MLS.Serialisation
 
 -- | A lifetime with a length of at least 1 day.
