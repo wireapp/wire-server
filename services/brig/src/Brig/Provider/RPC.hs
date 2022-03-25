@@ -29,6 +29,7 @@ module Brig.Provider.RPC
 where
 
 import Bilge
+import Bilge.RPC
 import Bilge.Retry (httpHandlers)
 import Brig.App
 import Brig.Provider.DB (ServiceConn (..))
@@ -155,7 +156,17 @@ setServiceConn scon = do
         & set Galley.serviceEnabled (sconEnabled scon)
 
 -- | Remove service connection information from galley.
-removeServiceConn :: ProviderId -> ServiceId -> (AppIO r) ()
+removeServiceConn ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  ProviderId ->
+  ServiceId ->
+  m ()
 removeServiceConn pid sid = do
   Log.debug $
     remote "galley"
