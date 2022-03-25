@@ -287,20 +287,17 @@ countConnections u r = do
     count n (Identity s) | relationDropHistory s `elem` r = n + 1
     count n _ = n
 
--- TODO: This is essentially MonadClient m, no need for AppIO
-deleteConnections :: UserId -> AppIO r ()
+deleteConnections :: (MonadClient m, MonadUnliftIO m) => UserId -> m ()
 deleteConnections u = do
-  e <- ask
-  fmap
-    wrapClient
-    runConduit
-    $ paginateC contactsSelect (paramsP LocalQuorum (Identity u) 100) x1
-      .| C.mapM_ (runAppIOLifted e . pooledMapConcurrentlyN_ 16 delete)
-  wrapClient $ do
+  runConduit $
+    paginateC contactsSelect (paramsP LocalQuorum (Identity u) 100) x1
+      .| C.mapM_
+        (pooledMapConcurrentlyN_ 16 delete)
+  do
     retry x1 . write connectionClear $ params LocalQuorum (Identity u)
     retry x1 . write remoteConnectionClear $ params LocalQuorum (Identity u)
   where
-    delete (other, _status) = wrapClient $ write connectionDelete $ params LocalQuorum (other, u)
+    delete (other, _status) = write connectionDelete $ params LocalQuorum (other, u)
 
 -- TODO: This is essentially MonadClient m, no need for AppIO
 deleteRemoteConnections :: Remote UserId -> Range 1 1000 [UserId] -> AppIO r ()

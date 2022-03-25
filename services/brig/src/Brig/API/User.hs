@@ -1085,7 +1085,7 @@ deleteAccount account@(accountUser -> user) = do
   Intra.onUserEvent uid Nothing (UserDeleted (qUntagged luid))
   -- Note: Connections can only be deleted afterwards, since
   --       they need to be notified.
-  Data.deleteConnections uid
+  wrapClient $ Data.deleteConnections uid
   wrapClient $ revokeAllCookies uid
   where
     mkTombstone = do
