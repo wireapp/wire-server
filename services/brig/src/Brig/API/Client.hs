@@ -299,9 +299,10 @@ claimMultiPrekeyBundles protectee quc = do
       qUntagged . qualifyAs luc
         <$> claimLocalMultiPrekeyBundles protectee (tUnqualified luc)
 
--- TODO: getUserKeys doesn't actually need MonadUnliftIO, it can be MonadClient
--- + MonadReader or so
-claimLocalMultiPrekeyBundles :: LegalholdProtectee -> UserClients -> ExceptT ClientError (AppIO r) UserClientPrekeyMap
+claimLocalMultiPrekeyBundles ::
+  LegalholdProtectee ->
+  UserClients ->
+  ExceptT ClientError (AppIO r) UserClientPrekeyMap
 claimLocalMultiPrekeyBundles protectee userClients = do
   guardLegalhold protectee userClients
   lift
@@ -315,10 +316,30 @@ claimLocalMultiPrekeyBundles protectee userClients = do
     getChunk :: Map UserId (Set ClientId) -> AppIO r (Map UserId (Map ClientId (Maybe Prekey)))
     getChunk =
       wrapHttpClient . runConcurrently . Map.traverseWithKey (\u -> Concurrently . getUserKeys u)
-    -- getUserKeys :: UserId -> Set ClientId -> m (Map ClientId (Maybe Prekey))
+    getUserKeys ::
+      ( MonadClient m,
+        Log.MonadLogger m,
+        MonadMask m,
+        MonadReader Env m,
+        MonadHttp m,
+        HasRequestId m
+      ) =>
+      UserId ->
+      Set ClientId ->
+      m (Map ClientId (Maybe Prekey))
     getUserKeys u =
       sequenceA . Map.fromSet (getClientKeys u)
-    -- getClientKeys :: UserId -> ClientId -> m (Maybe Prekey)
+    getClientKeys ::
+      ( MonadClient m,
+        Log.MonadLogger m,
+        MonadMask m,
+        MonadReader Env m,
+        MonadHttp m,
+        HasRequestId m
+      ) =>
+      UserId ->
+      ClientId ->
+      m (Maybe Prekey)
     getClientKeys u c = do
       key <- fmap prekeyData <$> Data.claimPrekey u c
       when (isNothing key) $ noPrekeys u c
@@ -340,7 +361,14 @@ execDelete u con c = do
 -- thus repairing any inconsistencies related to distributed
 -- (and possibly duplicated) client data.
 noPrekeys ::
-  (MonadReader Env m, MonadIO m, MonadMask m, MonadHttp m, HasRequestId m, Log.MonadLogger m, MonadClient m) =>
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    Log.MonadLogger m,
+    MonadClient m
+  ) =>
   UserId ->
   ClientId ->
   m ()
