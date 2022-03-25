@@ -169,7 +169,7 @@ onUserDeleted origDomain udcn = lift $ do
   acceptedLocals <-
     map csv2From
       . filter (\x -> csv2Status x == Accepted)
-      <$> Data.lookupRemoteConnectionStatuses (fromRange connections) (fmap pure deletedUser)
+      <$> wrapClient (Data.lookupRemoteConnectionStatuses (fromRange connections) (fmap pure deletedUser))
   pooledForConcurrentlyN_ 16 (nonEmpty acceptedLocals) $ \(List1 -> recipients) ->
     notify event (tUnqualified deletedUser) Push.RouteDirect Nothing (pure recipients)
   wrapClient $ Data.deleteRemoteConnections deletedUser connections

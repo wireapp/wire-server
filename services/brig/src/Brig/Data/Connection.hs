@@ -214,34 +214,48 @@ lookupConnectionStatus' from =
   map toConnectionStatus
     <$> retry x1 (query connectionStatusSelect' (params LocalQuorum (Identity from)))
 
--- TODO: This is essentially MonadClient m, no need for AppIO
-lookupLocalConnectionStatuses :: [UserId] -> Local [UserId] -> AppIO r [ConnectionStatusV2]
+lookupLocalConnectionStatuses ::
+  ( MonadClient m,
+    MonadUnliftIO m
+  ) =>
+  [UserId] ->
+  Local [UserId] ->
+  m [ConnectionStatusV2]
 lookupLocalConnectionStatuses froms tos = do
   concat <$> pooledMapConcurrentlyN 16 lookupStatuses froms
   where
-    lookupStatuses :: UserId -> (AppIO r) [ConnectionStatusV2]
+    lookupStatuses :: MonadClient m => UserId -> m [ConnectionStatusV2]
     lookupStatuses from =
       map (uncurry $ toConnectionStatusV2 from (tDomain tos))
-        <$> wrapClient (retry x1 (query relationsSelect (params LocalQuorum (from, tUnqualified tos))))
+        <$> retry x1 (query relationsSelect (params LocalQuorum (from, tUnqualified tos)))
 
--- TODO: This is essentially MonadClient m, no need for AppIO
-lookupRemoteConnectionStatuses :: [UserId] -> Remote [UserId] -> AppIO r [ConnectionStatusV2]
+lookupRemoteConnectionStatuses ::
+  ( MonadClient m,
+    MonadUnliftIO m
+  ) =>
+  [UserId] ->
+  Remote [UserId] ->
+  m [ConnectionStatusV2]
 lookupRemoteConnectionStatuses froms tos = do
   concat <$> pooledMapConcurrentlyN 16 lookupStatuses froms
   where
-    lookupStatuses :: UserId -> AppIO r [ConnectionStatusV2]
+    lookupStatuses :: MonadClient m => UserId -> m [ConnectionStatusV2]
     lookupStatuses from =
       map (uncurry $ toConnectionStatusV2 from (tDomain tos))
-        <$> wrapClient (retry x1 (query remoteRelationsSelect (params LocalQuorum (from, tDomain tos, tUnqualified tos))))
+        <$> retry x1 (query remoteRelationsSelect (params LocalQuorum (from, tDomain tos, tUnqualified tos)))
 
--- TODO: This is essentially MonadClient m, no need for AppIO
-lookupAllStatuses :: Local [UserId] -> AppIO r [ConnectionStatusV2]
+lookupAllStatuses ::
+  ( MonadClient m,
+    MonadUnliftIO m
+  ) =>
+  Local [UserId] ->
+  m [ConnectionStatusV2]
 lookupAllStatuses lfroms = do
   let froms = tUnqualified lfroms
   concat <$> pooledMapConcurrentlyN 16 lookupAndCombine froms
   where
-    lookupAndCombine :: UserId -> AppIO r [ConnectionStatusV2]
-    lookupAndCombine u = wrapClient $ (<>) <$> lookupLocalStatuses u <*> lookupRemoteStatuses u
+    lookupAndCombine :: MonadClient m => UserId -> m [ConnectionStatusV2]
+    lookupAndCombine u = (<>) <$> lookupLocalStatuses u <*> lookupRemoteStatuses u
 
     lookupLocalStatuses :: MonadClient m => UserId -> m [ConnectionStatusV2]
     lookupLocalStatuses from =

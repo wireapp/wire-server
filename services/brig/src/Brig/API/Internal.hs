@@ -478,9 +478,14 @@ getConnectionsStatus :: ConnectionsStatusRequestV2 -> (Handler r) [ConnectionSta
 getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
   loc <- qualifyLocal ()
   conns <- lift $ case mtos of
-    Nothing -> Data.lookupAllStatuses =<< qualifyLocal froms
+    Nothing -> wrapClient . Data.lookupAllStatuses =<< qualifyLocal froms
     Just tos -> do
-      let getStatusesForOneDomain = foldQualified loc (Data.lookupLocalConnectionStatuses froms) (Data.lookupRemoteConnectionStatuses froms)
+      let getStatusesForOneDomain =
+            wrapClient
+              <$> foldQualified
+                loc
+                (Data.lookupLocalConnectionStatuses froms)
+                (Data.lookupRemoteConnectionStatuses froms)
       concat <$> mapM getStatusesForOneDomain (bucketQualified tos)
   pure $ maybe conns (filterByRelation conns) mrel
   where
