@@ -268,9 +268,6 @@ postProteusConvOk = do
   bob <- randomUser
   jane <- randomUser
   connectUsers alice (list1 bob [jane])
-  -- Ensure name is within range, max size is 256
-  postConv alice [bob, jane] (Just (T.replicate 257 "a")) [] Nothing Nothing
-    !!! const 400 === statusCode
   let nameMaxSize = T.replicate 256 "a"
   WS.bracketR3 c alice bob jane $ \(wsA, wsB, wsJ) -> do
     rsp <-
@@ -334,10 +331,6 @@ postConvWithRemoteUsersOk = do
   qCharlie <- randomQualifiedId cDomain
   qDee <- randomQualifiedId dDomain
   mapM_ (connectWithRemoteUser alice) [qChad, qCharlie, qDee]
-
-  -- Ensure name is within range, max size is 256
-  postConvQualified alice defNewProteusConv {newConvName = checked (T.replicate 257 "a"), newConvQualifiedUsers = [qAlex, qAmy, qChad, qCharlie, qDee]}
-    !!! const 400 === statusCode
 
   let nameMaxSize = T.replicate 256 "a"
   WS.bracketR3 c alice alex amy $ \(wsAlice, wsAlex, wsAmy) -> do
