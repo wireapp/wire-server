@@ -35,7 +35,6 @@ import Data.List1 (list1)
 import qualified Data.List1 as List1
 import Data.Schema (ToSchema)
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as TE
 import Data.Timeout (TimeoutUnit (Second), (#))
 import Galley.Options (optSettings, setFeatureFlags)
@@ -43,7 +42,7 @@ import Galley.Types.Teams
 import Gundeck.Types (Notification)
 import Imports
 import Network.Wai.Utilities (label)
-import Test.Hspec (expectationFailure, shouldBe)
+import Test.Hspec (expectationFailure)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit (assertBool, assertFailure, (@?=))
@@ -698,7 +697,6 @@ testFeatureConfigConsistency = do
   Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
   allFeaturesRes <- Util.getAllFeatureConfigs member >>= parseObjectKeys
-  liftIO $ allFeaturesRes `shouldBe` allFeatures
 
   allTeamFeaturesRes <- Util.getAllTeamFeatures member tid >>= parseObjectKeys
 
@@ -713,9 +711,6 @@ testFeatureConfigConsistency = do
           case val of
             (Aeson.Object hm) -> pure (Set.fromList . map AesonKey.toText . KeyMap.keys $ hm)
             x -> liftIO $ assertFailure ("JSON was not an object, but " <> show x)
-
-    allFeatures :: Set.Set Text
-    allFeatures = Set.fromList $ cs . toByteString' @TeamFeatureName <$> [minBound ..]
 
 testSearchVisibilityInbound :: TestM ()
 testSearchVisibilityInbound = do
