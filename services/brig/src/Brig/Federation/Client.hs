@@ -50,8 +50,6 @@ import Wire.API.User.Client (UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey (ClientPrekey)
 import Wire.API.UserMap (UserMap)
 
-type FederationT m = ExceptT FederationError m
-
 type FederationAppIO r = ExceptT FederationError (AppIO r)
 
 getUserHandleInfo :: Remote Handle -> (FederationAppIO r) (Maybe UserProfile)
@@ -68,7 +66,7 @@ claimPrekey ::
   (Monad m, MonadReader Env m, MonadIO m, Log.MonadLogger m) =>
   Qualified UserId ->
   ClientId ->
-  FederationT m (Maybe ClientPrekey)
+  ExceptT FederationError m (Maybe ClientPrekey)
 claimPrekey (Qualified user domain) client = do
   lift $ Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey"
   executeFederated @"claim-prekey" domain (user, client)
@@ -120,7 +118,7 @@ runBrigFederatorClient ::
   (MonadReader Env m, MonadIO m) =>
   Domain ->
   FederatorClient 'Brig a ->
-  FederationT m a
+  ExceptT FederationError m a
 runBrigFederatorClient targetDomain action = do
   ownDomain <- viewFederationDomain
   endpoint <- view federator >>= maybe (throwE FederationNotConfigured) pure
@@ -141,7 +139,7 @@ executeFederated ::
     HasClient (FederatorClient 'Brig) api
   ) =>
   Domain ->
-  Client (FederationT m) api
+  Client (ExceptT FederationError m) api
 executeFederated domain =
   hoistClient (Proxy @api) (runBrigFederatorClient @m domain) $
     clientIn (Proxy @api) (Proxy @(FederatorClient 'Brig))
