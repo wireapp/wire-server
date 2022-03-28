@@ -59,7 +59,7 @@ import Bilge.Retry (rpcHandlers)
 import Brig.Data.Instances ()
 import Brig.Index.Types (CreateIndexSettings (..))
 import Brig.Types.Intra
-import Brig.Types.Search (SearchVisibilityInbound, defaultSearchVisibilityInbound, searchVisbilityInboundFromFeatureStatus)
+import Brig.Types.Search (SearchVisibilityInbound, defaultSearchVisibilityInbound, searchVisibilityInboundFromFeatureStatus)
 import Brig.Types.User
 import Brig.User.Search.Index.Types as Types
 import qualified Cassandra as C
@@ -287,7 +287,7 @@ updateSearchVisibilityInbound status = liftIndexIO $ do
       "ctx._source."
         <> searchVisibilityInboundFieldName
         <> " = '"
-        <> decodeUtf8 (toByteString' (searchVisbilityInboundFromFeatureStatus (Multi.tsuStatus status)))
+        <> decodeUtf8 (toByteString' (searchVisibilityInboundFromFeatureStatus (Multi.tsuStatus status)))
         <> "';"
 
 --------------------------------------------------------------------------------
@@ -697,7 +697,7 @@ getSearchVisibilityInboundMulti tids = do
 
 toSearchVisibility :: Multi.TeamStatus 'TeamFeatureSearchVisibilityInbound -> (SearchVisibilityInbound, Maybe (Writetime SearchVisibilityInbound))
 toSearchVisibility (Multi.TeamStatus _tid status t) =
-  (searchVisbilityInboundFromFeatureStatus status, t)
+  (searchVisibilityInboundFromFeatureStatus status, t)
 
 scanForIndex :: Int32 -> C.Client (C.Page ReindexRow)
 scanForIndex num = do

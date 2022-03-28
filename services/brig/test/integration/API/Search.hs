@@ -91,7 +91,7 @@ tests opts mgr galley brig = do
         testGroup "team-search-visibility disabled OR SearchVisibilityStandard" $
           [ testGroup "when SearchVisibilityInbound == SearchableByOwnTeam" $
               [ testWithBothIndices opts mgr "team member cannot be found by non-team user with display name" $ testSearchTeamMemberAsNonMemberDisplayName mgr brig galley TeamFeatureDisabled,
-                testWithBothIndices opts mgr "team member can be found by non-team user with exact handle" $ testSearchTeamMemeberAsNonMemberExactHandle mgr brig galley TeamFeatureDisabled,
+                testWithBothIndices opts mgr "team member can be found by non-team user with exact handle" $ testSearchTeamMemberAsNonMemberExactHandle mgr brig galley TeamFeatureDisabled,
                 testWithBothIndices opts mgr "team A member cannot be found by team B member with display name" $ testSearchTeamMemberAsOtherMemberDisplayName mgr brig galley TeamFeatureDisabled,
                 testWithBothIndices opts mgr "team A member can be found by team B member with exact handle" $ testSearchTeamMemberAsOtherMemberExactHandle mgr brig galley TeamFeatureDisabled,
                 testWithBothIndices opts mgr "team A member can be found by other team A member" $ testSearchTeamMemberAsSameMember mgr brig galley TeamFeatureDisabled,
@@ -105,7 +105,7 @@ tests opts mgr galley brig = do
               ],
             testGroup "when SearchVisibilityInbound == SearchableByAllTeams" $
               [ test mgr "team member cannot be found by non-team user with display name" $ testSearchTeamMemberAsNonMemberDisplayName mgr brig galley TeamFeatureEnabled,
-                test mgr "team member can be found by non-team user with exact handle" $ testSearchTeamMemeberAsNonMemberExactHandle mgr brig galley TeamFeatureEnabled,
+                test mgr "team member can be found by non-team user with exact handle" $ testSearchTeamMemberAsNonMemberExactHandle mgr brig galley TeamFeatureEnabled,
                 test mgr "team A member can be found by team B member with display name" $ testSearchTeamMemberAsOtherMemberDisplayName mgr brig galley TeamFeatureEnabled,
                 test mgr "team A member can be found by team B member with exact handle" $ testSearchTeamMemberAsOtherMemberExactHandle mgr brig galley TeamFeatureEnabled,
                 test mgr "team A member can be found by other team A member" $ testSearchTeamMemberAsSameMember mgr brig galley TeamFeatureDisabled
@@ -329,8 +329,8 @@ testSearchTeamMemberAsNonMemberDisplayName mgr brig galley inboundVisibility = d
   assertCan'tFind brig (userId nonTeamMember) (userQualifiedId teamMember) (fromName (userDisplayName teamMember))
   assertCan'tFind brig (userId nonTeamMember) (userQualifiedId teamBTargetReindexedAfter) (fromName (userDisplayName teamBTargetReindexedAfter))
 
-testSearchTeamMemeberAsNonMemberExactHandle :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
-testSearchTeamMemeberAsNonMemberExactHandle mgr brig galley inboundVisibility = do
+testSearchTeamMemberAsNonMemberExactHandle :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
+testSearchTeamMemberAsNonMemberExactHandle mgr brig galley inboundVisibility = do
   nonTeamMember <- randomUser brig
   (tid, _, [teamMember, teamBTargetReindexedAfter]) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
   circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tid inboundVisibility

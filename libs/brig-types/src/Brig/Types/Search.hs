@@ -22,7 +22,7 @@ module Brig.Types.Search
   ( TeamSearchInfo (..),
     SearchVisibilityInbound (..),
     defaultSearchVisibilityInbound,
-    searchVisbilityInboundFromFeatureStatus,
+    searchVisibilityInboundFromFeatureStatus,
 
     -- * re-exports
     SearchResult (..),
@@ -85,9 +85,9 @@ instance FromByteString SearchVisibilityInbound where
 defaultSearchVisibilityInbound :: SearchVisibilityInbound
 defaultSearchVisibilityInbound = SearchableByOwnTeam
 
-searchVisbilityInboundFromFeatureStatus :: TeamFeatureStatusValue -> SearchVisibilityInbound
-searchVisbilityInboundFromFeatureStatus TeamFeatureDisabled = SearchableByOwnTeam
-searchVisbilityInboundFromFeatureStatus TeamFeatureEnabled = SearchableByAllTeams
+searchVisibilityInboundFromFeatureStatus :: TeamFeatureStatusValue -> SearchVisibilityInbound
+searchVisibilityInboundFromFeatureStatus TeamFeatureDisabled = SearchableByOwnTeam
+searchVisibilityInboundFromFeatureStatus TeamFeatureEnabled = SearchableByAllTeams
 
 instance ToJSON SearchVisibilityInbound where
   toJSON = String . decodeUtf8 . toStrict . toLazyByteString . builder

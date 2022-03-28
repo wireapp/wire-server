@@ -43,7 +43,6 @@ instance ToSchema TeamFeatureNoConfigMultiRequest where
       TeamFeatureNoConfigMultiRequest
         <$> teams .= field "teams" (array schema)
 
--- |
 newtype TeamFeatureNoConfigMultiResponse (a :: TeamFeatureName) = TeamFeatureNoConfigMultiResponse
   { teamsStatuses :: [TeamStatus a]
   }
