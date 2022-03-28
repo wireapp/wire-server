@@ -29,7 +29,6 @@ import Control.Exception (finally)
 import Control.Lens (view, (.~), (^.))
 import qualified Data.Aeson as Aeson
 import Data.Default
-import Data.Domain
 import Data.Id
 import qualified Data.Metrics.Middleware as M
 import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
@@ -55,6 +54,7 @@ import Network.Wai.Utilities.Server
 import Servant hiding (route)
 import qualified System.Logger as Log
 import Util.Options
+import Wire.API.Routes.API
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
 
@@ -107,29 +107,15 @@ mkApp o = do
                 :. customFormatters
                 :. Servant.EmptyContext
             )
-            ( hoistServer' @GalleyAPI.ServantAPI (toServantHandler e) API.servantSitemap
-                :<|> hoistServer' @InternalAPI (toServantHandler e) internalAPI
-                :<|> hoistServer' @FederationAPI (toServantHandler e) federationSitemap
+            ( hoistAPIHandler (toServantHandler e) API.servantSitemap
+                :<|> hoistAPIHandler (toServantHandler e) internalAPI
+                :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
                 :<|> Servant.Tagged (app e)
             )
             r
 
     lookupReqId :: Request -> RequestId
     lookupReqId = maybe def RequestId . lookup requestIdName . requestHeaders
-
--- Servant needs a context type argument here that contains *at least* the
--- context types required by all the HasServer instances. In reality, this should
--- not be necessary, because the contexts are only used by the @route@ functions,
--- but unfortunately the 'hoistServerWithContext' function is also part of the
--- 'HasServer' typeclass, even though it cannot possibly make use of its @context@
--- type argument.
-hoistServer' ::
-  forall api m n.
-  HasServer api '[Domain] =>
-  (forall x. m x -> n x) ->
-  ServerT api m ->
-  ServerT api n
-hoistServer' = hoistServerWithContext (Proxy @api) (Proxy @'[Domain])
 
 customFormatters :: Servant.ErrorFormatters
 customFormatters =

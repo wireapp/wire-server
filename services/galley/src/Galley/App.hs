@@ -41,6 +41,7 @@ module Galley.App
     ask,
     DeleteItem (..),
     toServantHandler,
+    interpretWaiErrorToException,
   )
 where
 
@@ -109,9 +110,22 @@ import System.Logger.Class
 import qualified System.Logger.Extended as Logger
 import qualified UnliftIO.Exception as UnliftIO
 import Util.Options
+import Wire.API.Error
+import Wire.API.Federation.Error
 
 -- Effects needed by the interpretation of other effects
-type GalleyEffects0 = '[Input ClientState, Input Env, Embed IO, Final IO]
+type GalleyEffects0 =
+  '[ Input ClientState,
+     Input Env,
+     Error InvalidInput,
+     Error InternalError,
+     -- federation errors can be thrown by almost every endpoint, so we avoid
+     -- having to declare it every single time, and simply handle it here
+     Error FederationError,
+     Error LegalHoldError,
+     Embed IO,
+     Final IO
+   ]
 
 type GalleyEffects = Append GalleyEffects1 GalleyEffects0
 
@@ -212,19 +226,29 @@ toServantHandler env galley = do
     mkPhrase = Text.unpack . Text.decodeUtf8 . statusMessage . Wai.code
 
 interpretErrorToException ::
-  (Exception e, Member (Embed IO) r) =>
+  (Exception exc, Member (Embed IO) r) =>
+  (err -> exc) ->
+  Sem (Error err ': r) a ->
+  Sem r a
+interpretErrorToException f = (either (embed @IO . UnliftIO.throwIO . f) pure =<<) . runError
+
+interpretWaiErrorToException ::
+  (APIError e, Member (Embed IO) r) =>
   Sem (Error e ': r) a ->
   Sem r a
-interpretErrorToException = (either (embed @IO . UnliftIO.throwIO) pure =<<) . runError
+interpretWaiErrorToException = interpretErrorToException toWai
 
 evalGalley :: Env -> Sem GalleyEffects a -> IO a
-evalGalley e action = do
+evalGalley e =
   runFinal @IO
     . embedToFinal @IO
+    . interpretWaiErrorToException
+    . interpretWaiErrorToException
+    . interpretWaiErrorToException
+    . interpretWaiErrorToException
     . runInputConst e
     . runInputConst (e ^. cstate)
-    . interpretErrorToException
-    . mapAllErrors
+    . interpretWaiErrorToException -- DynError
     . interpretTinyLog e
     . interpretQueue (e ^. deleteQueue)
     . runInputSem (embed getCurrentTime) -- FUTUREWORK: could we take the time only once instead?
@@ -255,6 +279,5 @@ evalGalley e action = do
     . interpretGundeckAccess
     . interpretSparAccess
     . interpretBrigAccess
-    $ action
   where
     lh = view (options . optSettings . setFeatureFlags . Teams.flagLegalHold) e

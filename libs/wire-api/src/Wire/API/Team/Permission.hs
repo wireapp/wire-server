@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -18,6 +18,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 module Wire.API.Team.Permission
   ( -- * Permissions
@@ -31,6 +32,7 @@ module Wire.API.Team.Permission
 
     -- * Permissions
     Perm (..),
+    SPerm (..),
     permsToInt,
     intToPerms,
     permToInt,
@@ -48,6 +50,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Bits (testBit, (.|.))
 import Data.Schema
 import qualified Data.Set as Set
+import Data.Singletons.TH
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
@@ -200,3 +203,6 @@ instance Cql.Cql Permissions where
     d <- Err.note "missing 'copy' permissions" ("copy" `lookup` p) >>= Cql.fromCql
     Err.note "invalid permissions" (newPermissions (f s) (f d))
   fromCql _ = Left "permissions: udt expected"
+
+$(genSingletons [''Perm])
+$(promoteShowInstances [''Perm])

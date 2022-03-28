@@ -25,6 +25,7 @@ import GHC.Exts (IsList (fromList))
 import Imports
 import Wire.API.Federation.API.Galley (MessageSendResponse (..))
 import Wire.API.Message
+import Wire.API.Routes.Public.Galley
 import Wire.API.User.Client (QualifiedUserClients (..))
 
 missing :: QualifiedUserClients

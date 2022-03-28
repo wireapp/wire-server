@@ -14,84 +14,48 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wwarn #-}
 
-module Galley.API.Error where
+-- | Most of the errors thrown by galley are defined as static errors in
+-- 'Wire.API.Error.Galley' and declared as part of the API. Errors defined here
+-- are dynamic, and mostly internal.
+module Galley.API.Error
+  ( -- * Internal errors
+    InvalidInput (..),
+    InternalError (..),
+    LegalHoldError (..),
+    internalErrorWithDescription,
+    legalHoldServiceUnavailable,
 
-import Data.Domain (Domain, domainText)
+    -- * Errors thrown by wai-routing handlers
+    bulkGetMemberLimitExceeded,
+    invalidTeamNotificationId,
+  )
+where
+
 import Data.Id
-import Data.Proxy
 import Data.String.Conversions (cs)
 import Data.Text.Lazy as LT (pack)
-import qualified Data.Text.Lazy as LT
-import GHC.TypeLits
 import Galley.Types.Teams (hardTruncationLimit)
 import Imports
 import Network.HTTP.Types.Status
-import Network.Wai.Utilities.Error
-import Polysemy
-import qualified Polysemy.Error as P
-import Polysemy.Internal (Append)
-import Servant.API.Status (KnownStatus (..))
-import Wire.API.Conversation (ConvType (..))
-import Wire.API.Conversation.Role (Action)
-import Wire.API.ErrorDescription
-import Wire.API.Federation.Error
-
-----------------------------------------------------------------------------
--- Fine-grained API error types
-
-class APIError e where
-  toWai :: e -> Error
+import qualified Network.Wai.Utilities.Error as Wai
+import Wire.API.Error
+import qualified Wire.API.Error.Brig as BrigError
 
 data InternalError
   = BadConvState ConvId
   | BadMemberState
   | NoPrekeyForUser
   | CannotCreateManagedConv
-  | DeleteQueueFull
   | InternalErrorWithDescription LText
 
 instance APIError InternalError where
   toWai (BadConvState convId) = badConvState convId
-  toWai BadMemberState = mkError status500 "bad-state" "Bad internal member state."
+  toWai BadMemberState = Wai.mkError status500 "bad-state" "Bad internal member state."
   toWai NoPrekeyForUser = internalError
   toWai CannotCreateManagedConv = internalError
-  toWai DeleteQueueFull = deleteQueueFull
   toWai (InternalErrorWithDescription t) = internalErrorWithDescription t
-
-data ActionError
-  = InvalidAction
-  | InvalidTargetAccess
-  | InvalidTargetUserOp
-  | ActionDenied Action
-  | AccessDenied
-  | InvalidOp ConvType
-  | OperationDenied String
-  | NotConnected
-  | BroadcastLimitExceeded
-  | InvalidTeamStatusUpdate
-  | InvalidPermissions
-
-instance APIError ActionError where
-  toWai InvalidAction = invalidActions
-  toWai InvalidTargetAccess = errorDescriptionTypeToWai @InvalidTargetAccess
-  toWai (ActionDenied action) = errorDescriptionToWai (actionDenied action)
-  toWai AccessDenied = accessDenied
-  toWai (InvalidOp RegularConv) = invalidOp "invalid operation"
-  toWai (InvalidOp SelfConv) = invalidSelfOp
-  toWai (InvalidOp One2OneConv) = invalidOne2OneOp
-  toWai (InvalidOp ConnectConv) = invalidConnectOp
-  toWai (OperationDenied p) = errorDescriptionToWai $ operationDeniedSpecialized p
-  toWai NotConnected = errorDescriptionTypeToWai @NotConnected
-  toWai InvalidTargetUserOp = invalidTargetUserOp
-  toWai BroadcastLimitExceeded = errorDescriptionTypeToWai @BroadcastLimitExceeded
-  toWai InvalidTeamStatusUpdate = invalidTeamStatusUpdate
-  toWai InvalidPermissions = invalidPermissions
-
-data CustomBackendError = CustomBackendNotFound Domain
-
-instance APIError CustomBackendError where
-  toWai (CustomBackendNotFound d) = customBackendNotFound d
 
 data InvalidInput
   = CustomRolesNotSupported
@@ -99,6 +63,7 @@ data InvalidInput
   | InvalidUUID4
   | BulkGetMemberLimitExceeded
   | InvalidPayload LText
+  | InvalidTeamNotificationId
 
 instance APIError InvalidInput where
   toWai CustomRolesNotSupported = badRequest "Custom roles not supported"
@@ -106,81 +71,7 @@ instance APIError InvalidInput where
   toWai InvalidUUID4 = invalidUUID4
   toWai BulkGetMemberLimitExceeded = bulkGetMemberLimitExceeded
   toWai (InvalidPayload t) = invalidPayload t
-
-data AuthenticationError
-  = ReAuthFailed
-  | VerificationCodeAuthFailed
-  | VerificationCodeRequired
-
-instance APIError AuthenticationError where
-  toWai ReAuthFailed = reAuthFailed
-  toWai VerificationCodeAuthFailed = verificationCodeAuthFailed
-  toWai VerificationCodeRequired = verificationCodeRequired
-
-data ConversationError
-  = ConvAccessDenied
-  | ConvNotFound
-  | TooManyMembers
-  | ConvMemberNotFound
-  | NoBindingTeamMembers
-  | GuestLinksDisabled
-  | MLSNonEmptyMemberList
-
-instance APIError ConversationError where
-  toWai ConvAccessDenied = errorDescriptionTypeToWai @ConvAccessDenied
-  toWai ConvNotFound = errorDescriptionTypeToWai @ConvNotFound
-  toWai TooManyMembers = errorDescriptionTypeToWai @TooManyMembers
-  toWai ConvMemberNotFound = errorDescriptionTypeToWai @ConvMemberNotFound
-  toWai NoBindingTeamMembers = noBindingTeamMembers
-  toWai GuestLinksDisabled = guestLinksDisabled
-  toWai MLSNonEmptyMemberList = errorDescriptionTypeToWai @MLSNonEmptyMemberList
-
-data TeamError
-  = NoBindingTeam
-  | NoAddToBinding
-  | NotABindingTeamMember
-  | NotAOneMemberTeam
-  | TeamNotFound
-  | TeamMemberNotFound
-  | TeamSearchVisibilityNotEnabled
-  | UserBindingExists
-  | TooManyTeamMembers
-  | CannotEnableLegalHoldServiceLargeTeam
-
-instance APIError TeamError where
-  toWai NoBindingTeam = noBindingTeam
-  toWai NoAddToBinding = noAddToBinding
-  toWai NotABindingTeamMember = errorDescriptionTypeToWai @NonBindingTeam
-  toWai NotAOneMemberTeam = notAOneMemberTeam
-  toWai TeamNotFound = errorDescriptionTypeToWai @TeamNotFound
-  toWai TeamMemberNotFound = teamMemberNotFound
-  toWai TeamSearchVisibilityNotEnabled = teamSearchVisibilityNotEnabled
-  toWai UserBindingExists = userBindingExists
-  toWai TooManyTeamMembers = tooManyTeamMembers
-  toWai CannotEnableLegalHoldServiceLargeTeam = cannotEnableLegalHoldServiceLargeTeam
-
-data TeamFeatureError
-  = AppLockinactivityTimeoutTooLow
-  | LegalHoldFeatureFlagNotEnabled
-  | LegalHoldWhitelistedOnly
-  | DisableSsoNotImplemented
-  | FeatureLocked
-
-instance APIError TeamFeatureError where
-  toWai AppLockinactivityTimeoutTooLow = inactivityTimeoutTooLow
-  toWai LegalHoldFeatureFlagNotEnabled = legalHoldFeatureFlagNotEnabled
-  toWai LegalHoldWhitelistedOnly = legalHoldWhitelistedOnly
-  toWai DisableSsoNotImplemented = disableSsoNotImplemented
-  toWai FeatureLocked = setTeamFeatureConfigFeatureLocked
-
-data TeamNotificationError
-  = InvalidTeamNotificationId
-
-instance APIError TeamNotificationError where
   toWai InvalidTeamNotificationId = invalidTeamNotificationId
-
-instance APIError FederationError where
-  toWai = federationErrorToWai
 
 data LegalHoldError
   = MissingLegalholdConsent
@@ -198,7 +89,7 @@ data LegalHoldError
   | UserLegalHoldNotPending
 
 instance APIError LegalHoldError where
-  toWai MissingLegalholdConsent = errorDescriptionTypeToWai @MissingLegalholdConsent
+  toWai MissingLegalholdConsent = errorToWai @'BrigError.MissingLegalholdConsent
   toWai NoUserLegalHoldConsent = userLegalHoldNoConsent
   toWai LegalHoldNotEnabled = legalHoldNotEnabled
   toWai LegalHoldDisableUnimplemented = legalHoldDisableUnimplemented
@@ -212,280 +103,78 @@ instance APIError LegalHoldError where
   toWai NoLegalHoldDeviceAllocated = noLegalHoldDeviceAllocated
   toWai UserLegalHoldNotPending = userLegalHoldNotPending
 
-data CodeError = CodeNotFound
-
-instance APIError CodeError where
-  toWai CodeNotFound = errorDescriptionTypeToWai @CodeNotFound
-
-data ClientError = UnknownClient
-
-instance APIError ClientError where
-  toWai UnknownClient = errorDescriptionTypeToWai @UnknownClient
-
-throwED ::
-  forall e code label desc r a.
-  ( e ~ ErrorDescription code label desc,
-    KnownSymbol desc,
-    Member (P.Error e) r
-  ) =>
-  Sem r a
-throwED = P.throw @e mkErrorDescription
-
-noteED ::
-  forall e code label desc r a.
-  ( e ~ ErrorDescription code label desc,
-    KnownSymbol desc,
-    Member (P.Error e) r
-  ) =>
-  Maybe a ->
-  Sem r a
-noteED = P.note (mkErrorDescription :: e)
-
-type AllErrorEffects =
-  '[ P.Error ActionError,
-     P.Error AuthenticationError,
-     P.Error ClientError,
-     P.Error CodeError,
-     P.Error ConversationError,
-     P.Error CustomBackendError,
-     P.Error FederationError,
-     P.Error InternalError,
-     P.Error InvalidInput,
-     P.Error LegalHoldError,
-     P.Error TeamError,
-     P.Error TeamFeatureError,
-     P.Error TeamNotificationError,
-     P.Error NotATeamMember,
-     P.Error UnknownWelcomeRecipient
-   ]
-
-mapAllErrors :: Member (P.Error Error) r => Sem (Append AllErrorEffects r) a -> Sem r a
-mapAllErrors =
-  P.mapError errorDescriptionToWai
-    . P.mapError errorDescriptionToWai
-    . P.mapError toWai
-    . P.mapError toWai
-    . P.mapError toWai
-    . P.mapError toWai
-    . P.mapError toWai
-    . P.mapError toWai
-    . P.mapError toWai
-    . P.mapError toWai
-    . P.mapError toWai
-    . P.mapError toWai
-    . P.mapError toWai
-    . P.mapError toWai
-    . P.mapError toWai
-
-----------------------------------------------------------------------------
--- Error description integration
-
-errorDescriptionToWai ::
-  forall (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
-  (KnownStatus code, KnownSymbol lbl) =>
-  ErrorDescription code lbl desc ->
-  Error
-errorDescriptionToWai (ErrorDescription msg) =
-  mkError (statusVal (Proxy @code)) (LT.pack (symbolVal (Proxy @lbl))) (LT.fromStrict msg)
-
-errorDescriptionTypeToWai ::
-  forall e (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
-  ( KnownStatus code,
-    KnownSymbol lbl,
-    KnownSymbol desc,
-    e ~ ErrorDescription code lbl desc
-  ) =>
-  Error
-errorDescriptionTypeToWai = errorDescriptionToWai (mkErrorDescription :: e)
-
 ----------------------------------------------------------------------------
 -- Other errors
 
-internalError :: Error
+internalError :: Wai.Error
 internalError = internalErrorWithDescription "internal error"
 
-internalErrorWithDescription :: LText -> Error
-internalErrorWithDescription = mkError status500 "internal-error"
+internalErrorWithDescription :: LText -> Wai.Error
+internalErrorWithDescription = Wai.mkError status500 "internal-error"
 
-invalidSelfOp :: Error
-invalidSelfOp = invalidOp "invalid operation for self conversation"
+invalidPayload :: LText -> Wai.Error
+invalidPayload = Wai.mkError status400 "invalid-payload"
 
-invalidOne2OneOp :: Error
-invalidOne2OneOp = invalidOp "invalid operation for 1:1 conversations"
+badRequest :: LText -> Wai.Error
+badRequest = Wai.mkError status400 "bad-request"
 
-invalidConnectOp :: Error
-invalidConnectOp = invalidOp "invalid operation for connect conversation"
+invalidUUID4 :: Wai.Error
+invalidUUID4 = Wai.mkError status400 "client-error" "Invalid UUID v4 format"
 
-invalidAccessOp :: Error
-invalidAccessOp = invalidOp "invalid operation for conversation without 'code' access"
+invalidRange :: LText -> Wai.Error
+invalidRange = Wai.mkError status400 "client-error"
 
-invalidManagedConvOp :: Error
-invalidManagedConvOp = invalidOp "invalid operation for managed conversation"
-
-invalidTargetUserOp :: Error
-invalidTargetUserOp = invalidOp "invalid target user for the given operation"
-
-invalidOp :: LText -> Error
-invalidOp = mkError status403 "invalid-op"
-
-invalidPayload :: LText -> Error
-invalidPayload = mkError status400 "invalid-payload"
-
-badRequest :: LText -> Error
-badRequest = mkError status400 "bad-request"
-
-unknownRemoteUser :: Error
-unknownRemoteUser = mkError status400 "unknown-remote-user" "Remote user(s) not found"
-
-tooManyMembers :: Error
-tooManyMembers = mkError status403 "too-many-members" "Maximum number of members per conversation reached"
-
-accessDenied :: Error
-accessDenied = mkError status403 "access-denied" "You do not have permission to access this resource"
-
-reAuthFailed :: Error
-reAuthFailed = mkError status403 "access-denied" "This operation requires reauthentication"
-
-verificationCodeRequired :: Error
-verificationCodeRequired = mkError status403 "code-authentication-required" "Verification code required."
-
-verificationCodeAuthFailed :: Error
-verificationCodeAuthFailed = mkError status403 "code-authentication-failed" "Code authentication failed."
-
-invalidUUID4 :: Error
-invalidUUID4 = mkError status400 "client-error" "Invalid UUID v4 format"
-
-invalidRange :: LText -> Error
-invalidRange = mkError status400 "client-error"
-
-noBindingTeam :: Error
-noBindingTeam = mkError status403 "no-binding-team" "Operation allowed only on binding teams."
-
-notAOneMemberTeam :: Error
-notAOneMemberTeam = mkError status403 "not-one-member-team" "Can only delete teams with a single member."
-
-badConvState :: ConvId -> Error
+badConvState :: ConvId -> Wai.Error
 badConvState cid =
-  mkError status500 "bad-state" $
+  Wai.mkError status500 "bad-state" $
     "Connect conversation with more than 2 members: "
       <> LT.pack (show cid)
 
-bulkGetMemberLimitExceeded :: Error
+bulkGetMemberLimitExceeded :: Wai.Error
 bulkGetMemberLimitExceeded =
-  mkError
+  Wai.mkError
     status400
     "too-many-uids"
     ("Can only process " <> cs (show @Int hardTruncationLimit) <> " user ids per request.")
 
-invalidPermissions :: Error
-invalidPermissions = mkError status403 "invalid-permissions" "The specified permissions are invalid."
+tooManyTeamMembersOnTeamWithLegalhold :: Wai.Error
+tooManyTeamMembersOnTeamWithLegalhold = Wai.mkError status403 "too-many-members-for-legalhold" "cannot add more members to team when legalhold service is enabled."
 
-invalidActions :: Error
-invalidActions = mkError status403 "invalid-actions" "The specified actions are invalid."
+legalHoldServiceInvalidKey :: Wai.Error
+legalHoldServiceInvalidKey = Wai.mkError status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
 
-tooManyTeamMembers :: Error
-tooManyTeamMembers = mkError status403 "too-many-team-members" "Maximum number of members per team reached"
+legalHoldServiceUnavailable :: Wai.Error
+legalHoldServiceUnavailable = Wai.mkError status412 "legalhold-unavailable" "legal hold service does not respond or tls handshake could not be completed (did you pin the wrong public key?)"
 
-tooManyTeamMembersOnTeamWithLegalhold :: Error
-tooManyTeamMembersOnTeamWithLegalhold = mkError status403 "too-many-members-for-legalhold" "cannot add more members to team when legalhold service is enabled."
+legalHoldServiceNotRegistered :: Wai.Error
+legalHoldServiceNotRegistered = Wai.mkError status400 "legalhold-not-registered" "legal hold service has not been registered for this team"
 
-teamMemberNotFound :: Error
-teamMemberNotFound = mkError status404 "no-team-member" "team member not found"
+legalHoldServiceBadResponse :: Wai.Error
+legalHoldServiceBadResponse = Wai.mkError status400 "legalhold-status-bad" "legal hold service: invalid response"
 
-guestLinksDisabled :: Error
-guestLinksDisabled = mkError status409 "guest-links-disabled" "The guest link feature is disabled and all guest links have been revoked."
+legalHoldNotEnabled :: Wai.Error
+legalHoldNotEnabled = Wai.mkError status403 "legalhold-not-enabled" "legal hold is not enabled for this team"
 
-userBindingExists :: Error
-userBindingExists = mkError status403 "binding-exists" "User already bound to a different team."
+legalHoldDisableUnimplemented :: Wai.Error
+legalHoldDisableUnimplemented = Wai.mkError status403 "legalhold-disable-unimplemented" "legal hold cannot be disabled for whitelisted teams"
 
-noAddToBinding :: Error
-noAddToBinding = mkError status403 "binding-team" "Cannot add users to binding teams, invite only."
+userLegalHoldAlreadyEnabled :: Wai.Error
+userLegalHoldAlreadyEnabled = Wai.mkError status409 "legalhold-already-enabled" "legal hold is already enabled for this user"
 
-deleteQueueFull :: Error
-deleteQueueFull = mkError status503 "queue-full" "The delete queue is full. No further delete requests can be processed at the moment."
+userLegalHoldNoConsent :: Wai.Error
+userLegalHoldNoConsent = Wai.mkError status409 "legalhold-no-consent" "user has not given consent to using legal hold"
 
-noBindingTeamMembers :: Error
-noBindingTeamMembers = mkError status403 "non-binding-team-members" "Both users must be members of the same binding team."
+userLegalHoldIllegalOperation :: Wai.Error
+userLegalHoldIllegalOperation = Wai.mkError status500 "legalhold-illegal-op" "internal server error: inconsistent change of user's legalhold state"
 
-invalidTeamStatusUpdate :: Error
-invalidTeamStatusUpdate = mkError status403 "invalid-team-status-update" "Cannot use this endpoint to update the team to the given status."
+userLegalHoldNotPending :: Wai.Error
+userLegalHoldNotPending = Wai.mkError status412 "legalhold-not-pending" "legal hold cannot be approved without being in a pending state"
 
-cannotEnableLegalHoldServiceLargeTeam :: Error
-cannotEnableLegalHoldServiceLargeTeam = mkError status403 "too-large-team-for-legalhold" "cannot enable legalhold on large teams.  (reason: for removing LH from team, we need to iterate over all members, which is only supported for teams with less than 2k members.)"
+noLegalHoldDeviceAllocated :: Wai.Error
+noLegalHoldDeviceAllocated = Wai.mkError status404 "legalhold-no-device-allocated" "no legal hold device is registered for this user. POST /teams/:tid/legalhold/:uid/ to start the flow."
 
-legalHoldServiceInvalidKey :: Error
-legalHoldServiceInvalidKey = mkError status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
+legalHoldCouldNotBlockConnections :: Wai.Error
+legalHoldCouldNotBlockConnections = Wai.mkError status500 "legalhold-internal" "legal hold service: could not block connections when resolving policy conflicts."
 
-legalHoldServiceUnavailable :: Error
-legalHoldServiceUnavailable = mkError status412 "legalhold-unavailable" "legal hold service does not respond or tls handshake could not be completed (did you pin the wrong public key?)"
-
-legalHoldServiceNotRegistered :: Error
-legalHoldServiceNotRegistered = mkError status400 "legalhold-not-registered" "legal hold service has not been registered for this team"
-
-legalHoldServiceBadResponse :: Error
-legalHoldServiceBadResponse = mkError status400 "legalhold-status-bad" "legal hold service: invalid response"
-
-legalHoldWhitelistedOnly :: Error
-legalHoldWhitelistedOnly = mkError status403 "legalhold-whitelisted-only" "legal hold is enabled for teams via server config and cannot be changed here"
-
-legalHoldFeatureFlagNotEnabled :: Error
-legalHoldFeatureFlagNotEnabled = mkError status403 "legalhold-not-enabled" "legal hold is not enabled for this wire instance"
-
-legalHoldNotEnabled :: Error
-legalHoldNotEnabled = mkError status403 "legalhold-not-enabled" "legal hold is not enabled for this team"
-
-legalHoldDisableUnimplemented :: Error
-legalHoldDisableUnimplemented = mkError status403 "legalhold-disable-unimplemented" "legal hold cannot be disabled for whitelisted teams"
-
-userLegalHoldAlreadyEnabled :: Error
-userLegalHoldAlreadyEnabled = mkError status409 "legalhold-already-enabled" "legal hold is already enabled for this user"
-
-userLegalHoldNoConsent :: Error
-userLegalHoldNoConsent = mkError status409 "legalhold-no-consent" "user has not given consent to using legal hold"
-
-userLegalHoldIllegalOperation :: Error
-userLegalHoldIllegalOperation = mkError status500 "legalhold-illegal-op" "internal server error: inconsistent change of user's legalhold state"
-
-userLegalHoldNotPending :: Error
-userLegalHoldNotPending = mkError status412 "legalhold-not-pending" "legal hold cannot be approved without being in a pending state"
-
-noLegalHoldDeviceAllocated :: Error
-noLegalHoldDeviceAllocated = mkError status404 "legalhold-no-device-allocated" "no legal hold device is registered for this user. POST /teams/:tid/legalhold/:uid/ to start the flow."
-
-legalHoldCouldNotBlockConnections :: Error
-legalHoldCouldNotBlockConnections = mkError status500 "legalhold-internal" "legal hold service: could not block connections when resolving policy conflicts."
-
-setTeamFeatureConfigFeatureLocked :: Error
-setTeamFeatureConfigFeatureLocked = mkError status409 "feature-locked" "feature config cannot be updated (eg., because it is configured to be locked, or because you need to upgrade your plan)"
-
-disableSsoNotImplemented :: Error
-disableSsoNotImplemented =
-  mkError
-    status403
-    "not-implemented"
-    "The SSO feature flag is disabled by default.  It can only be enabled once for any team, never disabled.\n\
-    \\n\
-    \Rationale: there are two services in the backend that need to keep their status in sync: galley (teams),\n\
-    \and spar (SSO).  Galley keeps track of team features.  If galley creates an idp, the feature flag is\n\
-    \checked.  For authentication, spar avoids this expensive check and assumes that the idp can only have\n\
-    \been created if the SSO is enabled.  This assumption does not hold any more if the switch is turned off\n\
-    \again, so we do not support this.\n\
-    \\n\
-    \It is definitely feasible to change this.  If you have a use case, please contact customer support, or\n\
-    \open an issue on https://github.com/wireapp/wire-server."
-
-teamSearchVisibilityNotEnabled :: Error
-teamSearchVisibilityNotEnabled = mkError status403 "team-search-visibility-not-enabled" "custom search is not available for this team"
-
-customBackendNotFound :: Domain -> Error
-customBackendNotFound domain =
-  mkError
-    status404
-    "custom-backend-not-found"
-    ("custom backend not found for domain: " <> cs (domainText domain))
-
-invalidTeamNotificationId :: Error
-invalidTeamNotificationId = mkError status400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."
-
-inactivityTimeoutTooLow :: Error
-inactivityTimeoutTooLow = mkError status400 "inactivity-timeout-too-low" "applock inactivity timeout must be at least 30 seconds"
+invalidTeamNotificationId :: Wai.Error
+invalidTeamNotificationId = Wai.mkError status400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."

@@ -60,6 +60,7 @@ import Network.Wai.Utilities.Error
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Servant.Client as Client
 import Util.Options
+import Wire.API.Error.Galley
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi

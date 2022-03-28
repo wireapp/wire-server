@@ -61,11 +61,11 @@ import Brig.Types.User
 import Data.Id
 import Data.Misc
 import Data.Qualified
-import Galley.API.Error (AuthenticationError)
 import Galley.External.LegalHoldService.Types
 import Imports
 import Network.HTTP.Types.Status
 import Polysemy
+import Wire.API.Error.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.Internal.Brig.Connection

@@ -59,13 +59,16 @@ import qualified System.Logger.Class as Log
 import Wire.API.Conversation
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Role
 import qualified Wire.API.Conversation.Role as Public
+import Wire.API.Error
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
+import Wire.API.Error.Galley
 import Wire.API.ServantProto
 import Wire.API.User.Client (userClientMap)
 
@@ -268,12 +271,13 @@ leaveConversation requestingDomain lc = do
 
   res <-
     runError
-      . mapError handleNoChanges
-      . mapError handleConvError
-      . mapError handleActionError
+      . mapToRuntimeError @'ConvNotFound F.RemoveFromConversationErrorNotFound
+      . mapToRuntimeError @('ActionDenied 'LeaveConversation) F.RemoveFromConversationErrorRemovalNotAllowed
+      . mapToRuntimeError @'InvalidOperation F.RemoveFromConversationErrorRemovalNotAllowed
+      . mapError @NoChanges (const F.RemoveFromConversationErrorUnchanged)
       $ do
-        (conv, _self) <- getConversationAndMemberWithError ConvNotFound (qUntagged leaver) lcnv
-        update <- updateLocalConversationWithRemoteUser (sing @'ConversationLeaveTag) lcnv leaver (pure (qUntagged leaver))
+        (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound (qUntagged leaver) lcnv
+        update <- updateLocalConversationWithRemoteUser SConversationLeaveTag lcnv leaver (pure (qUntagged leaver))
         pure (update, conv)
 
   case res of
@@ -283,18 +287,19 @@ leaveConversation requestingDomain lc = do
 
       let remotes = filter ((== tDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
-      _event <- notifyConversationAction (sing @'ConversationLeaveTag) (qUntagged leaver) Nothing lcnv botsAndMembers action
+      _event <- notifyConversationAction SConversationLeaveTag (qUntagged leaver) Nothing lcnv botsAndMembers action
 
       pure $ F.LeaveConversationResponse (Right ())
   where
-    handleConvError :: ConversationError -> F.RemoveFromConversationError
-    handleConvError _ = F.RemoveFromConversationErrorNotFound
 
-    handleActionError :: ActionError -> F.RemoveFromConversationError
-    handleActionError _ = F.RemoveFromConversationErrorRemovalNotAllowed
+-- handleConvError :: ConversationError -> F.RemoveFromConversationError
+-- handleConvError _ = F.RemoveFromConversationErrorNotFound
 
-    handleNoChanges :: NoChanges -> F.RemoveFromConversationError
-    handleNoChanges _ = F.RemoveFromConversationErrorUnchanged
+-- handleActionError :: ActionError -> F.RemoveFromConversationError
+-- handleActionError _ = F.RemoveFromConversationErrorRemovalNotAllowed
+
+-- handleNoChanges :: NoChanges -> F.RemoveFromConversationError
+-- handleNoChanges _ = F.RemoveFromConversationErrorUnchanged
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients

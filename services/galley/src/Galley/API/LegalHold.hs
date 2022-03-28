@@ -77,9 +77,9 @@ import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation (ConvType (..))
-import Wire.API.Conversation.Role (roleNameWireAdmin)
-import Wire.API.ErrorDescription
-import Wire.API.Federation.Error
+import Wire.API.Conversation.Role
+import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
@@ -113,9 +113,9 @@ isLegalHoldEnabledForTeam tid = do
 
 createSettingsH ::
   Members
-    '[ Error ActionError,
+    '[ ErrorS OperationDenied,
        Error LegalHoldError,
-       Error NotATeamMember,
+       ErrorS 'NotATeamMember,
        LegalHoldStore,
        TeamFeatureStore,
        TeamStore,
@@ -131,9 +131,9 @@ createSettingsH (zusr ::: tid ::: req ::: _) = do
 
 createSettings ::
   Members
-    '[ Error ActionError,
-       Error LegalHoldError,
-       Error NotATeamMember,
+    '[ Error LegalHoldError,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
        LegalHoldStore,
        TeamFeatureStore,
        TeamStore,
@@ -162,8 +162,8 @@ createSettings zusr tid newService = do
 
 getSettingsH ::
   Members
-    '[ Error ActionError,
-       Error NotATeamMember,
+    '[ ErrorS OperationDenied,
+       ErrorS 'NotATeamMember,
        LegalHoldStore,
        TeamFeatureStore,
        TeamStore
@@ -176,8 +176,8 @@ getSettingsH (zusr ::: tid ::: _) = do
 
 getSettings ::
   Members
-    '[ Error ActionError,
-       Error NotATeamMember,
+    '[ ErrorS OperationDenied,
+       ErrorS 'NotATeamMember,
        LegalHoldStore,
        TeamFeatureStore,
        TeamStore
@@ -202,14 +202,13 @@ removeSettingsH ::
        BrigAccess,
        CodeStore,
        ConversationStore,
-       Error ActionError,
-       Error InvalidInput,
+       Error InternalError,
        Error AuthenticationError,
-       Error ConversationError,
-       Error FederationError,
        Error LegalHoldError,
-       Error NotATeamMember,
-       Error TeamError,
+       ErrorS OperationDenied,
+       ErrorS 'NotATeamMember,
+       ErrorS ('ActionDenied 'RemoveConversationMember),
+       ErrorS 'InvalidOperation,
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
@@ -242,14 +241,13 @@ removeSettings ::
          BrigAccess,
          CodeStore,
          ConversationStore,
-         Error ActionError,
-         Error InvalidInput,
+         Error InternalError,
          Error AuthenticationError,
-         Error ConversationError,
-         Error FederationError,
          Error LegalHoldError,
-         Error NotATeamMember,
-         Error TeamError,
+         ErrorS 'NotATeamMember,
+         ErrorS OperationDenied,
+         ErrorS ('ActionDenied 'RemoveConversationMember),
+         ErrorS 'InvalidOperation,
          ExternalAccess,
          FederatorAccess,
          FireAndForget,
@@ -300,14 +298,11 @@ removeSettings' ::
          BrigAccess,
          CodeStore,
          ConversationStore,
-         Error ActionError,
-         Error InvalidInput,
+         Error InternalError,
          Error AuthenticationError,
-         Error ConversationError,
-         Error FederationError,
          Error LegalHoldError,
-         Error NotATeamMember,
-         Error TeamError,
+         ErrorS 'NotATeamMember,
+         ErrorS ('ActionDenied 'RemoveConversationMember),
          ExternalAccess,
          FederatorAccess,
          FireAndForget,
@@ -348,7 +343,7 @@ removeSettings' tid =
 -- | Learn whether a user has LH enabled and fetch pre-keys.
 -- Note that this is accessible to ANY authenticated user, even ones outside the team
 getUserStatusH ::
-  Members '[Error InternalError, Error TeamError, LegalHoldStore, TeamStore, P.TinyLog] r =>
+  Members '[Error InternalError, ErrorS 'TeamMemberNotFound, LegalHoldStore, TeamStore, P.TinyLog] r =>
   UserId ::: TeamId ::: UserId ::: JSON ->
   Sem r Response
 getUserStatusH (_zusr ::: tid ::: uid ::: _) = do
@@ -356,12 +351,19 @@ getUserStatusH (_zusr ::: tid ::: uid ::: _) = do
 
 getUserStatus ::
   forall r.
-  Members '[Error InternalError, Error TeamError, LegalHoldStore, TeamStore, P.TinyLog] r =>
+  Members
+    '[ Error InternalError,
+       ErrorS 'TeamMemberNotFound,
+       LegalHoldStore,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
   TeamId ->
   UserId ->
   Sem r Public.UserLegalHoldStatusResponse
 getUserStatus tid uid = do
-  teamMember <- note TeamMemberNotFound =<< getTeamMember tid uid
+  teamMember <- noteS @'TeamMemberNotFound =<< getTeamMember tid uid
   let status = view legalHoldStatus teamMember
   (mlk, lcid) <- case status of
     UserLegalHoldNoConsent -> pure (Nothing, Nothing)
@@ -391,11 +393,11 @@ grantConsentH ::
   Members
     '[ BrigAccess,
        ConversationStore,
-       Error ActionError,
-       Error InvalidInput,
-       Error ConversationError,
+       Error InternalError,
        Error LegalHoldError,
-       Error TeamError,
+       ErrorS 'TeamMemberNotFound,
+       ErrorS ('ActionDenied 'RemoveConversationMember),
+       ErrorS 'InvalidOperation,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -424,11 +426,11 @@ grantConsent ::
   Members
     '[ BrigAccess,
        ConversationStore,
-       Error ActionError,
-       Error InvalidInput,
-       Error ConversationError,
+       Error InternalError,
        Error LegalHoldError,
-       Error TeamError,
+       ErrorS ('ActionDenied 'RemoveConversationMember),
+       ErrorS 'InvalidOperation,
+       ErrorS 'TeamMemberNotFound,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -445,7 +447,7 @@ grantConsent ::
   Sem r GrantConsentResult
 grantConsent lusr tid = do
   userLHStatus <-
-    note TeamMemberNotFound
+    noteS @'TeamMemberNotFound
       =<< fmap (view legalHoldStatus) <$> getTeamMember tid (tUnqualified lusr)
   case userLHStatus of
     lhs@UserLegalHoldNoConsent ->
@@ -459,12 +461,12 @@ requestDeviceH ::
   Members
     '[ BrigAccess,
        ConversationStore,
-       Error ActionError,
-       Error InvalidInput,
-       Error ConversationError,
+       Error InternalError,
        Error LegalHoldError,
-       Error TeamError,
-       Error NotATeamMember,
+       ErrorS ('ActionDenied 'RemoveConversationMember),
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       ErrorS 'TeamMemberNotFound,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -495,12 +497,12 @@ requestDevice ::
   Members
     '[ BrigAccess,
        ConversationStore,
-       Error ActionError,
-       Error InvalidInput,
-       Error ConversationError,
+       Error InternalError,
        Error LegalHoldError,
-       Error TeamError,
-       Error NotATeamMember,
+       ErrorS ('ActionDenied 'RemoveConversationMember),
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       ErrorS 'TeamMemberNotFound,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -524,7 +526,7 @@ requestDevice zusr tid luid = do
       . Log.field "action" (Log.val "LegalHold.requestDevice")
   zusrMembership <- getTeamMember tid zusr
   void $ permissionCheck ChangeLegalHoldUserSettings zusrMembership
-  member <- note TeamMemberNotFound =<< getTeamMember tid (tUnqualified luid)
+  member <- noteS @'TeamMemberNotFound =<< getTeamMember tid (tUnqualified luid)
   case member ^. legalHoldStatus of
     UserLegalHoldEnabled -> throw UserLegalHoldAlreadyEnabled
     lhs@UserLegalHoldPending -> RequestDeviceAlreadyPending <$ provisionLHDevice lhs
@@ -562,12 +564,12 @@ approveDeviceH ::
   Members
     '[ BrigAccess,
        ConversationStore,
-       Error ActionError,
-       Error InvalidInput,
+       Error InternalError,
        Error AuthenticationError,
-       Error ConversationError,
        Error LegalHoldError,
-       Error NotATeamMember,
+       ErrorS 'AccessDenied,
+       ErrorS ('ActionDenied 'RemoveConversationMember),
+       ErrorS 'NotATeamMember,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -594,12 +596,12 @@ approveDevice ::
   Members
     '[ BrigAccess,
        ConversationStore,
-       Error ActionError,
-       Error InvalidInput,
+       Error InternalError,
        Error AuthenticationError,
-       Error ConversationError,
        Error LegalHoldError,
-       Error NotATeamMember,
+       ErrorS 'AccessDenied,
+       ErrorS ('ActionDenied 'RemoveConversationMember),
+       ErrorS 'NotATeamMember,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -623,7 +625,7 @@ approveDevice zusr tid luid connId (Public.ApproveLegalHoldForUserRequest mPassw
   P.debug $
     Log.field "targets" (toByteString (tUnqualified luid))
       . Log.field "action" (Log.val "LegalHold.approveDevice")
-  unless (zusr == tUnqualified luid) $ throw AccessDenied
+  unless (zusr == tUnqualified luid) $ throwS @'AccessDenied
   assertOnTeam (tUnqualified luid) tid
   ensureReAuthorised zusr mPassword Nothing Nothing
   userLHStatus <-
@@ -659,12 +661,12 @@ disableForUserH ::
   Members
     '[ BrigAccess,
        ConversationStore,
-       Error ActionError,
-       Error InvalidInput,
+       Error InternalError,
        Error AuthenticationError,
-       Error ConversationError,
        Error LegalHoldError,
-       Error NotATeamMember,
+       ErrorS 'NotATeamMember,
+       ErrorS ('ActionDenied 'RemoveConversationMember),
+       ErrorS OperationDenied,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -696,12 +698,12 @@ disableForUser ::
   Members
     '[ BrigAccess,
        ConversationStore,
-       Error ActionError,
-       Error InvalidInput,
+       Error InternalError,
        Error AuthenticationError,
-       Error ConversationError,
        Error LegalHoldError,
-       Error NotATeamMember,
+       ErrorS ('ActionDenied 'RemoveConversationMember),
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -748,10 +750,9 @@ changeLegalholdStatus ::
   Members
     '[ BrigAccess,
        ConversationStore,
-       Error ActionError,
-       Error InvalidInput,
-       Error ConversationError,
+       Error InternalError,
        Error LegalHoldError,
+       ErrorS ('ActionDenied 'RemoveConversationMember),
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -883,9 +884,8 @@ getTeamLegalholdWhitelistedH tid = do
 handleGroupConvPolicyConflicts ::
   Members
     '[ ConversationStore,
-       Error ActionError,
-       Error InvalidInput,
-       Error ConversationError,
+       Error InternalError,
+       ErrorS ('ActionDenied 'RemoveConversationMember),
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -919,14 +919,21 @@ handleGroupConvPolicyConflicts luid hypotheticalLHStatus = do
               uidsLHStatus
 
         let lcnv = qualifyAs luid (Data.convId conv)
-        if any
-          ((== ConsentGiven) . consentGiven . snd)
-          (filter ((== roleNameWireAdmin) . lmConvRoleName . fst) membersAndLHStatus)
-          then do
-            for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
-              let lusr = qualifyAs luid (lmId memberNoConsent)
-              removeMemberFromLocalConv lcnv lusr Nothing (qUntagged lusr)
-          else do
-            for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
-              let lusr = qualifyAs luid (lmId legalholder)
-              removeMemberFromLocalConv lcnv lusr Nothing (qUntagged lusr)
+        -- we know that this is a group conversation, so invalid operation
+        -- and conversation not found errors cannot actually be thrown
+        mapToRuntimeError @'InvalidOperation
+          (InternalErrorWithDescription "expected group conversation while handing policy conflicts")
+          . mapToRuntimeError @'ConvNotFound
+            (InternalErrorWithDescription "conversation disappeared while iterating on a list of conversations")
+          . mapErrorS @('ActionDenied 'LeaveConversation) @('ActionDenied 'RemoveConversationMember)
+          $ if any
+            ((== ConsentGiven) . consentGiven . snd)
+            (filter ((== roleNameWireAdmin) . lmConvRoleName . fst) membersAndLHStatus)
+            then do
+              for_ (filter ((== ConsentNotGiven) . consentGiven . snd) membersAndLHStatus) $ \(memberNoConsent, _) -> do
+                let lusr = qualifyAs luid (lmId memberNoConsent)
+                removeMemberFromLocalConv lcnv lusr Nothing (qUntagged lusr)
+            else do
+              for_ (filter (userLHEnabled . snd) membersAndLHStatus) $ \(legalholder, _) -> do
+                let lusr = qualifyAs luid (lmId legalholder)
+                removeMemberFromLocalConv lcnv lusr Nothing (qUntagged lusr)

@@ -33,8 +33,8 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName)
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
-import Wire.API.Message (MessageNotSent, MessageSendingStatus, PostOtrResponse, Priority)
-import Wire.API.User.Client (UserClientMap)
+import Wire.API.Message
+import Wire.API.Routes.Public.Galley
 import Wire.API.Util.Aeson (CustomEncoded (..))
 
 -- FUTUREWORK: data types, json instances, more endpoints. See

@@ -21,27 +21,26 @@ import Control.Comonad
 import Data.Id
 import Data.Qualified
 import Data.Time
-import Galley.API.Error
 import Galley.API.Push
 import Galley.Data.Conversation
 import Galley.Effects.BrigAccess
 import Galley.Effects.GundeckAccess
 import Imports
 import Polysemy
-import Polysemy.Error
 import Polysemy.Input
-import Wire.API.ErrorDescription
+import Wire.API.Error
 import Wire.API.Event.Conversation
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
+import Wire.API.Error.Galley
 
 postMLSWelcome ::
   Members
     '[ BrigAccess,
        GundeckAccess,
-       Error UnknownWelcomeRecipient,
+       ErrorS 'UnknownWelcomeRecipient,
        Input UTCTime
      ]
     r =>
@@ -56,7 +55,7 @@ postMLSWelcome lusr con wel = do
 welcomeRecipients ::
   Members
     '[ BrigAccess,
-       Error UnknownWelcomeRecipient
+       ErrorS 'UnknownWelcomeRecipient
      ]
     r =>
   Welcome ->
@@ -103,11 +102,11 @@ sendRemoteWelcomes = undefined
 derefKeyPackage ::
   Members
     '[ BrigAccess,
-       Error UnknownWelcomeRecipient
+       ErrorS 'UnknownWelcomeRecipient
      ]
     r =>
   KeyPackageRef ->
   Sem r ClientIdentity
 derefKeyPackage ref =
-  maybe (throwED @UnknownWelcomeRecipient) pure
+  maybe (throwS @'UnknownWelcomeRecipient) pure
     =<< getClientByKeyPackageRef ref
