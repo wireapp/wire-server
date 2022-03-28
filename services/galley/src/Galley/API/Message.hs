@@ -71,6 +71,7 @@ import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Log
 import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
@@ -78,7 +79,6 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley
-import Wire.API.Error.Galley
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User.Client

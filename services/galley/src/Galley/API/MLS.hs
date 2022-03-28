@@ -29,12 +29,12 @@ import Imports
 import Polysemy
 import Polysemy.Input
 import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
-import Wire.API.Error.Galley
 
 postMLSWelcome ::
   Members

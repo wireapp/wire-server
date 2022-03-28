@@ -62,13 +62,13 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
-import Wire.API.Error.Galley
 import Wire.API.ServantProto
 import Wire.API.User.Client (userClientMap)
 
