@@ -1,0 +1,1 @@
+Fix bug: cabal-install-artefacts.sh depends on being run from PWD
