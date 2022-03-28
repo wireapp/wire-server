@@ -25,6 +25,8 @@ module Wire.API.Conversation.Action
     SomeConversationAction (..),
     conversationActionToEvent,
     conversationActionPermission,
+    ConversationActionPermission,
+    sConversationActionPermission,
   )
 where
 
@@ -159,16 +161,20 @@ instance Arbitrary SomeConversationAction where
       SomeSing sb -> do
         $(sCases ''ConversationActionTag [|sb|] [|SomeConversationAction sb <$> arbitrary|])
 
-conversationActionPermission :: ConversationActionTag -> Action
-conversationActionPermission ConversationJoinTag = AddConversationMember
-conversationActionPermission ConversationLeaveTag = LeaveConversation
-conversationActionPermission ConversationRemoveMembersTag = RemoveConversationMember
-conversationActionPermission ConversationMemberUpdateTag = ModifyOtherConversationMember
-conversationActionPermission ConversationDeleteTag = DeleteConversation
-conversationActionPermission ConversationRenameTag = ModifyConversationName
-conversationActionPermission ConversationMessageTimerUpdateTag = ModifyConversationMessageTimer
-conversationActionPermission ConversationReceiptModeUpdateTag = ModifyConversationReceiptMode
-conversationActionPermission ConversationAccessDataTag = ModifyConversationAccess
+$( singletons
+     [d|
+       conversationActionPermission :: ConversationActionTag -> Action
+       conversationActionPermission ConversationJoinTag = AddConversationMember
+       conversationActionPermission ConversationLeaveTag = LeaveConversation
+       conversationActionPermission ConversationRemoveMembersTag = RemoveConversationMember
+       conversationActionPermission ConversationMemberUpdateTag = ModifyOtherConversationMember
+       conversationActionPermission ConversationDeleteTag = DeleteConversation
+       conversationActionPermission ConversationRenameTag = ModifyConversationName
+       conversationActionPermission ConversationMessageTimerUpdateTag = ModifyConversationMessageTimer
+       conversationActionPermission ConversationReceiptModeUpdateTag = ModifyConversationReceiptMode
+       conversationActionPermission ConversationAccessDataTag = ModifyConversationAccess
+       |]
+ )
 
 conversationActionToEvent ::
   forall tag.
