@@ -54,6 +54,7 @@ import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.Teams (ListType (..), Perm (..), TeamBinding (Binding), notTeamMember)
+import Galley.Types.ToUserRole
 import Galley.Types.UserList
 import Galley.Validation
 import Imports hiding ((\\))
@@ -62,6 +63,7 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import Wire.API.Conversation hiding (Conversation, Member)
+import Wire.API.Conversation.Protocol
 import Wire.API.ErrorDescription
 import Wire.API.Event.Conversation hiding (Conversation)
 import Wire.API.Federation.Error
@@ -97,33 +99,12 @@ createGroupConversation ::
   NewConv ->
   Sem r ConversationResponse
 createGroupConversation lusr conn newConv = do
+  (nc, fromConvSize -> allUsers) <- newRegularConversation lusr newConv
   let tinfo = newConvTeam newConv
-      allUsers = newConvMembers lusr newConv
-  name <- rangeCheckedMaybe (newConvName newConv)
-  o <- input
-  checkedUsers <- case newConvProtocol newConv of
-    ProtocolProteus -> checkedConvSize o allUsers
-    ProtocolMLS -> do
-      unless (null allUsers) $ throw MLSNonEmptyMemberList
-      pure mempty
   checkCreateConvPermissions lusr newConv tinfo allUsers
-  ensureNoLegalholdConflicts (ulRemotes allUsers) (ulLocals allUsers)
-  conv <-
-    E.createConversation
-      lusr
-      NewConversation
-        { ncType = RegularConv,
-          ncCreator = tUnqualified lusr,
-          ncAccess = access newConv,
-          ncAccessRoles = accessRoles newConv,
-          ncName = name,
-          ncTeam = fmap cnvTeamId (newConvTeam newConv),
-          ncMessageTimer = newConvMessageTimer newConv,
-          ncReceiptMode = newConvReceiptMode newConv,
-          ncUsers = checkedUsers,
-          ncRole = newConvUsersRole newConv,
-          ncProtocol = newConvProtocol newConv
-        }
+  ensureNoLegalholdConflicts allUsers
+  lcnv <- traverse (const E.createConversationId) lusr
+  conv <- E.createConversation lcnv nc
   now <- input
   -- NOTE: We only send (conversation) events to members of the conversation
   notifyCreatedConversation (Just now) lusr (Just conn) conv
@@ -131,10 +112,9 @@ createGroupConversation lusr conn newConv = do
 
 ensureNoLegalholdConflicts ::
   Members '[Error LegalHoldError, Input Opts, LegalHoldStore, TeamStore] r =>
-  [Remote UserId] ->
-  [UserId] ->
+  UserList UserId ->
   Sem r ()
-ensureNoLegalholdConflicts remotes locals = do
+ensureNoLegalholdConflicts (UserList locals remotes) = do
   let FutureWork _remotes = FutureWork @'LegalholdPlusFederationNotImplemented remotes
   whenM (anyLegalholdActivated locals) $
     unlessM (allLegalholdConsentGiven locals) $
@@ -189,12 +169,19 @@ createSelfConversation ::
   Local UserId ->
   Sem r ConversationResponse
 createSelfConversation lusr = do
-  c <- E.getConversation (Id . toUUID . tUnqualified $ lusr)
-  maybe create (conversationExisted lusr) c
+  let lcnv = fmap Data.selfConv lusr
+  c <- E.getConversation (tUnqualified lcnv)
+  maybe (create lcnv) (conversationExisted lusr) c
   where
-    create :: Sem r ConversationResponse
-    create = do
-      c <- E.createSelfConversation lusr Nothing
+    create :: Local ConvId -> Sem r ConversationResponse
+    create lcnv = do
+      let nc =
+            NewConversation
+              { ncMetadata = (defConversationMetadata (tUnqualified lusr)) {cnvmType = SelfConv},
+                ncUsers = ulFromLocals [toUserRole (tUnqualified lusr)],
+                ncProtocol = ProtocolProteusTag
+              }
+      c <- E.createConversation lcnv nc
       conversationCreated lusr c
 
 createOne2OneConversation ::
@@ -233,11 +220,10 @@ createOne2OneConversation lusr zcon j = do
         (const (pure Nothing))
         other
     Nothing -> ensureConnected lusr allUsers $> Nothing
-  n <- rangeCheckedMaybe (newConvName j)
   foldQualified
     lusr
-    (createLegacyOne2OneConversationUnchecked lusr zcon n mtid)
-    (createOne2OneConversationUnchecked lusr zcon n mtid . qUntagged)
+    (createLegacyOne2OneConversationUnchecked lusr zcon (newConvName j) mtid)
+    (createOne2OneConversationUnchecked lusr zcon (newConvName j) mtid . qUntagged)
     other
   where
     verifyMembership :: TeamId -> UserId -> Sem r ()
@@ -279,12 +265,23 @@ createLegacyOne2OneConversationUnchecked ::
   Sem r ConversationResponse
 createLegacyOne2OneConversationUnchecked self zcon name mtid other = do
   lcnv <- localOne2OneConvId self other
+  let meta =
+        (defConversationMetadata (tUnqualified self))
+          { cnvmType = One2OneConv,
+            cnvmTeam = mtid,
+            cnvmName = fmap fromRange name
+          }
+  let nc =
+        NewConversation
+          { ncUsers = ulFromLocals (map (toUserRole . tUnqualified) [self, other]),
+            ncProtocol = ProtocolProteusTag,
+            ncMetadata = meta
+          }
   mc <- E.getConversation (tUnqualified lcnv)
   case mc of
     Just c -> conversationExisted self c
     Nothing -> do
-      (x, y) <- toUUIDs (tUnqualified self) (tUnqualified other)
-      c <- E.createLegacyOne2OneConversation self x y name mtid
+      c <- E.createConversation lcnv nc
       notifyCreatedConversation Nothing self (Just zcon) c
       conversationCreated self c
 
@@ -335,7 +332,19 @@ createOne2OneConversationLocally lcnv self zcon name mtid other = do
   case mc of
     Just c -> conversationExisted self c
     Nothing -> do
-      c <- E.createOne2OneConversation (tUnqualified lcnv) self other name mtid
+      let meta =
+            (defConversationMetadata (tUnqualified self))
+              { cnvmType = One2OneConv,
+                cnvmTeam = mtid,
+                cnvmName = fmap fromRange name
+              }
+      let nc =
+            NewConversation
+              { ncMetadata = meta,
+                ncUsers = fmap toUserRole (toUserList lcnv [qUntagged self, other]),
+                ncProtocol = ProtocolProteusTag
+              }
+      c <- E.createConversation lcnv nc
       notifyCreatedConversation Nothing self (Just zcon) c
       conversationCreated self c
 
@@ -372,16 +381,28 @@ createConnectConversation ::
   Sem r ConversationResponse
 createConnectConversation lusr conn j = do
   lrecipient <- ensureLocal lusr (cRecipient j)
-  (x, y) <- toUUIDs (tUnqualified lusr) (tUnqualified lrecipient)
   n <- rangeCheckedMaybe (cName j)
-  conv <- E.getConversation (Data.localOne2OneConvId x y)
-  maybe (create x y n) (update n) conv
+  let meta =
+        (defConversationMetadata (tUnqualified lusr))
+          { cnvmType = ConnectConv,
+            cnvmName = fmap fromRange n
+          }
+  lcnv <- localOne2OneConvId lusr lrecipient
+  let nc =
+        NewConversation
+          { -- We add only one member, second one gets added later,
+            -- when the other user accepts the connection request.
+            ncUsers = ulFromLocals (map (toUserRole . tUnqualified) [lusr]),
+            ncProtocol = ProtocolProteusTag,
+            ncMetadata = meta
+          }
+  E.getConversation (tUnqualified lcnv)
+    >>= maybe (create lcnv nc) (update n)
   where
-    create x y n = do
-      c <- E.createConnectConversation x y n
+    create lcnv nc = do
+      c <- E.createConversation lcnv nc
       now <- input
-      let lcid = qualifyAs lusr (Data.convId c)
-          e = Event (qUntagged lcid) (qUntagged lusr) now (EdConnect j)
+      let e = Event (qUntagged lcnv) (qUntagged lusr) now (EdConnect j)
       notifyCreatedConversation Nothing lusr conn c
       for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers c)) $ \p ->
         E.push1 $
@@ -428,8 +449,43 @@ createConnectConversation lusr conn j = do
             p
               & pushRoute .~ RouteDirect
               & pushConn .~ conn
-        return $ conv {Data.convName = n'}
+        pure $ Data.convSetName n' conv
       | otherwise = return conv
+
+--------------------------------------------------------------------------------
+-- Conversation creation records
+
+-- | Return a 'NewConversation' record suitable for creating a group conversation.
+newRegularConversation ::
+  Members '[Error ConversationError, Error InvalidInput, Input Opts] r =>
+  Local UserId ->
+  NewConv ->
+  Sem r (NewConversation, ConvSizeChecked UserList UserId)
+newRegularConversation lusr newConv = do
+  o <- input
+  let uncheckedUsers = newConvMembers lusr newConv
+  users <- case newConvProtocol newConv of
+    ProtocolProteusTag -> checkedConvSize o uncheckedUsers
+    ProtocolMLSTag -> do
+      unless (null uncheckedUsers) $ throw MLSNonEmptyMemberList
+      pure mempty
+  let nc =
+        NewConversation
+          { ncMetadata =
+              ConversationMetadata
+                { cnvmType = RegularConv,
+                  cnvmCreator = tUnqualified lusr,
+                  cnvmAccess = access newConv,
+                  cnvmAccessRoles = accessRoles newConv,
+                  cnvmName = fmap fromRange (newConvName newConv),
+                  cnvmMessageTimer = newConvMessageTimer newConv,
+                  cnvmReceiptMode = newConvReceiptMode newConv,
+                  cnvmTeam = fmap cnvTeamId (newConvTeam newConv)
+                },
+            ncUsers = ulAddLocal (toUserRole (tUnqualified lusr)) (fmap (,newConvUsersRole newConv) (fromConvSize users)),
+            ncProtocol = newConvProtocol newConv
+          }
+  pure (nc, users)
 
 -------------------------------------------------------------------------------
 -- Helpers

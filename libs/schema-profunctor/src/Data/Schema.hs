@@ -340,7 +340,7 @@ fieldOverF l name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
 
     s = mkDocF @doc @f (mkField name (schemaDoc sch))
 
--- | Like 'fieldOver', but specialised to the identity functor.
+-- | Like 'fieldOverF', but specialised to the identity functor.
 fieldOver ::
   forall doc' doc v v' a b.
   (HasField doc' doc) =>

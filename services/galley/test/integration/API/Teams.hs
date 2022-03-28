@@ -77,6 +77,7 @@ import Test.Tasty.HUnit
 import TestHelpers (test, viewFederationDomain)
 import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
+import Wire.API.Conversation.Protocol
 import Wire.API.Team (Icon (..))
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
@@ -895,10 +896,9 @@ testCreateTeamMLSConv = do
         Nothing
         Nothing
         Nothing
-    Right conv <- fmap cnvMetadata . responseJsonError <$> getConv owner (tUnqualified lConvId)
+    Right conv <- responseJsonError <$> getConv owner (tUnqualified lConvId)
     liftIO $ do
-      assertEqual "protocol mismatch" ProtocolMLS (cnvmProtocol conv)
-      assertEqual "group ID mismatch" True (isJust . cnvmGroupId $ conv)
+      assertEqual "protocol mismatch" ProtocolMLSTag (protocolTag (cnvProtocol conv))
     checkConvCreateEvent (tUnqualified lConvId) wsOwner
     WS.assertNoEvent (2 # Second) [wsExtern]
 

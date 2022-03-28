@@ -20,6 +20,8 @@ module Galley.Types.UserList
     toUserList,
     ulAddLocal,
     ulAll,
+    ulFromLocals,
+    ulFromRemotes,
   )
 where
 
@@ -48,3 +50,9 @@ ulAddLocal x ul = ul {ulLocals = x : ulLocals ul}
 
 ulAll :: Local x -> UserList a -> [Qualified a]
 ulAll loc ul = map (qUntagged . qualifyAs loc) (ulLocals ul) <> map qUntagged (ulRemotes ul)
+
+ulFromLocals :: [a] -> UserList a
+ulFromLocals = flip UserList []
+
+ulFromRemotes :: [Remote a] -> UserList a
+ulFromRemotes = UserList []

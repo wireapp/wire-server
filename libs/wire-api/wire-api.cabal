@@ -26,6 +26,7 @@ library
       Wire.API.Conversation.Bot
       Wire.API.Conversation.Code
       Wire.API.Conversation.Member
+      Wire.API.Conversation.Protocol
       Wire.API.Conversation.Role
       Wire.API.Conversation.Typing
       Wire.API.Cookie

@@ -24,8 +24,17 @@ module Galley.Data.Conversation
     isConvDeleted,
     selfConv,
     localOne2OneConvId,
-    convMetadata,
+    convAccess,
     convAccessData,
+    convAccessRoles,
+    convCreator,
+    convMessageTimer,
+    convName,
+    convReceiptMode,
+    convSetName,
+    convType,
+    convSetType,
+    convTeam,
     defRole,
     maybeRole,
     defRegularConvAccess,
@@ -34,6 +43,7 @@ module Galley.Data.Conversation
 where
 
 import Data.Id
+import Data.Misc
 import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.UUID.Tagged as U
@@ -55,28 +65,44 @@ selfConv uid = Id (toUUID uid)
 localOne2OneConvId :: U.UUID U.V4 -> U.UUID U.V4 -> ConvId
 localOne2OneConvId a b = Id . U.unpack $ U.addv4 a b
 
-convMetadata :: Conversation -> ConversationMetadata
-convMetadata c =
-  ConversationMetadata
-    (convType c)
-    (convCreator c)
-    (convAccess c)
-    (convAccessRoles c)
-    (convName c)
-    (convTeam c)
-    (convMessageTimer c)
-    (convReceiptMode c)
-    (fromMaybe ProtocolProteus . convProtocol $ c)
-    (convGroupId c)
+convType :: Conversation -> ConvType
+convType = cnvmType . convMetadata
+
+convSetType :: ConvType -> Conversation -> Conversation
+convSetType t c = c {convMetadata = (convMetadata c) {cnvmType = t}}
+
+convTeam :: Conversation -> Maybe TeamId
+convTeam = cnvmTeam . convMetadata
+
+convAccess :: Conversation -> [Access]
+convAccess = cnvmAccess . convMetadata
+
+convAccessRoles :: Conversation -> Set AccessRoleV2
+convAccessRoles = cnvmAccessRoles . convMetadata
 
 convAccessData :: Conversation -> ConversationAccessData
-convAccessData conv =
+convAccessData c =
   ConversationAccessData
-    (Set.fromList (convAccess conv))
-    (convAccessRoles conv)
+    (Set.fromList (convAccess c))
+    (convAccessRoles c)
+
+convCreator :: Conversation -> UserId
+convCreator = cnvmCreator . convMetadata
+
+convName :: Conversation -> Maybe Text
+convName = cnvmName . convMetadata
+
+convSetName :: Maybe Text -> Conversation -> Conversation
+convSetName n c = c {convMetadata = (convMetadata c) {cnvmName = n}}
 
 defRegularConvAccess :: [Access]
 defRegularConvAccess = [InviteAccess]
 
 parseAccessRoles :: Maybe AccessRoleLegacy -> Maybe (Set AccessRoleV2) -> Maybe (Set AccessRoleV2)
 parseAccessRoles mbLegacy mbV2 = mbV2 <|> fromAccessRoleLegacy <$> mbLegacy
+
+convMessageTimer :: Conversation -> Maybe Milliseconds
+convMessageTimer = cnvmMessageTimer . convMetadata
+
+convReceiptMode :: Conversation -> Maybe ReceiptMode
+convReceiptMode = cnvmReceiptMode . convMetadata

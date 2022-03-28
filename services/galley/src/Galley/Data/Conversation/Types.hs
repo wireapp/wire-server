@@ -18,13 +18,11 @@
 module Galley.Data.Conversation.Types where
 
 import Data.Id
-import Data.Misc
-import Data.Range
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList
-import Galley.Validation
 import Imports
 import Wire.API.Conversation hiding (Conversation)
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 
 -- | Internal conversation type, corresponding directly to database schema.
@@ -32,33 +30,16 @@ import Wire.API.Conversation.Role
 -- 'ToJSON' instances).
 data Conversation = Conversation
   { convId :: ConvId,
-    convType :: ConvType,
-    convCreator :: UserId,
-    convName :: Maybe Text,
-    convAccess :: [Access],
-    convAccessRoles :: Set AccessRoleV2,
     convLocalMembers :: [LocalMember],
     convRemoteMembers :: [RemoteMember],
-    convTeam :: Maybe TeamId,
     convDeleted :: Maybe Bool,
-    -- | Global message timer
-    convMessageTimer :: Maybe Milliseconds,
-    convReceiptMode :: Maybe ReceiptMode,
-    convProtocol :: Maybe Protocol,
-    convGroupId :: Maybe GroupId
+    convMetadata :: ConversationMetadata,
+    convProtocol :: Protocol
   }
   deriving (Show)
 
 data NewConversation = NewConversation
-  { ncType :: ConvType,
-    ncCreator :: UserId,
-    ncAccess :: [Access],
-    ncAccessRoles :: Set AccessRoleV2,
-    ncName :: Maybe (Range 1 256 Text),
-    ncTeam :: Maybe TeamId,
-    ncMessageTimer :: Maybe Milliseconds,
-    ncReceiptMode :: Maybe ReceiptMode,
-    ncUsers :: ConvSizeChecked UserList UserId,
-    ncRole :: RoleName,
-    ncProtocol :: Protocol
+  { ncMetadata :: ConversationMetadata,
+    ncUsers :: UserList (UserId, RoleName),
+    ncProtocol :: ProtocolTag
   }

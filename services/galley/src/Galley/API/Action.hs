@@ -51,6 +51,7 @@ import Data.Time.Clock
 import Galley.API.Error
 import Galley.API.Util
 import Galley.Data.Conversation
+import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services
 import Galley.Data.Types
 import Galley.Effects
@@ -217,11 +218,11 @@ performAction origUser lcnv cnv action =
       E.setConversationName (tUnqualified lcnv) cn
       pure (mempty, action)
     SConversationMessageTimerUpdateTag -> do
-      when (convMessageTimer cnv == cupMessageTimer action) noChanges
+      when (Data.convMessageTimer cnv == cupMessageTimer action) noChanges
       E.setConversationMessageTimer (tUnqualified lcnv) (cupMessageTimer action)
       pure (mempty, action)
     SConversationReceiptModeUpdateTag -> do
-      when (convReceiptMode cnv == Just (cruReceiptMode action)) noChanges
+      when (Data.convReceiptMode cnv == Just (cruReceiptMode action)) noChanges
       E.setConversationReceiptMode (tUnqualified lcnv) (cruReceiptMode action)
       pure (mempty, action)
     SConversationAccessDataTag -> do

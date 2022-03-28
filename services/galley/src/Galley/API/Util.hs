@@ -272,7 +272,7 @@ acceptOne2One lusr conv conn = do
     mems = Data.convLocalMembers conv
     promote = do
       acceptConnectConversation cid
-      return $ conv {Data.convType = One2OneConv}
+      pure $ Data.convSetType One2OneConv conv
 
 memberJoinEvent ::
   Local UserId ->
@@ -584,18 +584,18 @@ toNewRemoteConversation ::
   Data.Conversation ->
   -- | The resulting information to be sent to a remote Galley
   NewRemoteConversation ConvId
-toNewRemoteConversation now localDomain Data.Conversation {..} =
+toNewRemoteConversation now localDomain Data.Conversation {convMetadata = ConversationMetadata {..}, ..} =
   NewRemoteConversation
     { rcTime = now,
-      rcOrigUserId = convCreator,
+      rcOrigUserId = cnvmCreator,
       rcCnvId = convId,
-      rcCnvType = convType,
-      rcCnvAccess = convAccess,
-      rcCnvAccessRoles = convAccessRoles,
-      rcCnvName = convName,
-      rcNonCreatorMembers = toMembers (filter (\lm -> lmId lm /= convCreator) convLocalMembers) convRemoteMembers,
-      rcMessageTimer = convMessageTimer,
-      rcReceiptMode = convReceiptMode
+      rcCnvType = cnvmType,
+      rcCnvAccess = cnvmAccess,
+      rcCnvAccessRoles = cnvmAccessRoles,
+      rcCnvName = cnvmName,
+      rcNonCreatorMembers = toMembers (filter (\lm -> lmId lm /= cnvmCreator) convLocalMembers) convRemoteMembers,
+      rcMessageTimer = cnvmMessageTimer,
+      rcReceiptMode = cnvmReceiptMode
     }
   where
     toMembers ::
@@ -664,11 +664,10 @@ fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
             -- domain.
             cnvmTeam = Nothing,
             cnvmMessageTimer = rcMessageTimer,
-            cnvmReceiptMode = rcReceiptMode,
-            cnvmProtocol = ProtocolProteus,
-            cnvmGroupId = Nothing
+            cnvmReceiptMode = rcReceiptMode
           }
         (ConvMembers this others)
+        ProtocolProteus
 
 -- | Notify remote users of being added to a new conversation
 registerRemoteConversationMemberships ::

@@ -26,13 +26,31 @@ where
 import Data.Id
 import Data.Qualified
 import Galley.Data.Conversation
+import Galley.Data.Conversation.Types
 import Galley.Effects.ConversationStore
 import Galley.Effects.MemberStore
 import Galley.Types.Conversations.Intra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
 import Galley.Types.Conversations.One2One (one2OneConvId)
-import Galley.Types.UserList (UserList (..))
+import Galley.Types.ToUserRole
+import Galley.Types.UserList
 import Imports
 import Polysemy
+import Wire.API.Conversation
+import Wire.API.Conversation.Protocol
+
+newConnectConversationWithRemote ::
+  Local UserId ->
+  UserList UserId ->
+  NewConversation
+newConnectConversationWithRemote creator users =
+  NewConversation
+    { ncMetadata =
+        (defConversationMetadata (tUnqualified creator))
+          { cnvmType = One2OneConv
+          },
+      ncUsers = fmap toUserRole users,
+      ncProtocol = ProtocolProteusTag
+    }
 
 iUpsertOne2OneConversation ::
   forall r.
@@ -49,15 +67,14 @@ iUpsertOne2OneConversation UpsertOne2OneConversationRequest {..} = do
           Nothing -> do
             let members =
                   case (uooActor, uooActorDesiredMembership) of
-                    (LocalActor, Included) -> UserList [tUnqualified uooLocalUser] []
-                    (LocalActor, Excluded) -> UserList [] []
-                    (RemoteActor, Included) -> UserList [] [uooRemoteUser]
-                    (RemoteActor, Excluded) -> UserList [] []
+                    (LocalActor, Included) -> ulFromLocals [tUnqualified uooLocalUser]
+                    (LocalActor, Excluded) -> mempty
+                    (RemoteActor, Included) -> ulFromRemotes [uooRemoteUser]
+                    (RemoteActor, Excluded) -> mempty
             unless (null members) . void $
-              createConnectConversationWithRemote
-                (tUnqualified lconvId)
-                (tUnqualified uooLocalUser)
-                members
+              createConversation
+                lconvId
+                (newConnectConversationWithRemote uooLocalUser members)
           Just conv -> do
             case (uooActor, uooActorDesiredMembership) of
               (LocalActor, Included) -> do
