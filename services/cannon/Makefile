@@ -26,7 +26,6 @@ init:
 .PHONY: clean
 clean:
 	stack clean $(NAME)
-	-rm -f .metadata
 
 .PHONY: install
 install: init
@@ -39,20 +38,6 @@ fast: init
 .PHONY:
 compile:
 	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
-
-.PHONY: dist
-dist: guard-VERSION install $(DEB) .metadata
-
-$(DEB):
-	makedeb --name=$(NAME) \
-	 --version=$(VERSION) \
-	 --debian-dir=deb \
-	 --build=$(BUILD) \
-	 --architecture=amd64 \
-	 --output-dir=dist
-
-.metadata:
-	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
 
 .PHONY: docker
 docker:
