@@ -98,7 +98,8 @@ import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import qualified Wire.API.Error.Brig as E
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Named
@@ -268,8 +269,8 @@ sitemap = do
     Doc.parameter Doc.Path "handle" Doc.bytes' $
       Doc.description "Handle to check"
     Doc.response 200 "Handle is taken" Doc.end
-    Doc.errorResponse (errorDescriptionTypeToWai @InvalidHandle)
-    Doc.errorResponse (errorDescriptionTypeToWai @HandleNotFound)
+    Doc.errorResponse (errorToWai @'E.InvalidHandle)
+    Doc.errorResponse (errorToWai @'E.HandleNotFound)
 
   -- some APIs moved to servant
   -- end User Handle API
@@ -297,7 +298,7 @@ sitemap = do
     Doc.body (Doc.ref Public.modelVerifyDelete) $
       Doc.description "JSON body"
     Doc.response 200 "Deletion is initiated." Doc.end
-    Doc.errorResponse (errorDescriptionTypeToWai @InvalidCode)
+    Doc.errorResponse (errorToWai @'E.InvalidCode)
 
   -- Properties API -----------------------------------------------------
 
@@ -417,11 +418,11 @@ sitemap = do
     Doc.body (Doc.ref Public.modelSendActivationCode) $
       Doc.description "JSON body"
     Doc.response 200 "Activation code sent." Doc.end
-    Doc.errorResponse (errorDescriptionTypeToWai @InvalidEmail)
-    Doc.errorResponse (errorDescriptionTypeToWai @InvalidPhone)
-    Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
+    Doc.errorResponse (errorToWai @'E.InvalidEmail)
+    Doc.errorResponse (errorToWai @'E.InvalidPhone)
+    Doc.errorResponse (errorToWai @'E.UserKeyExists)
     Doc.errorResponse blacklistedEmail
-    Doc.errorResponse (errorDescriptionTypeToWai @BlacklistedPhone)
+    Doc.errorResponse (errorToWai @'E.BlacklistedPhone)
     Doc.errorResponse (customerExtensionBlockedDomain (either undefined id $ mkDomain "example.com"))
 
   post "/password-reset" (continue beginPasswordResetH) $
@@ -560,7 +561,7 @@ getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> (Handler
 getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients userClients) > maxSize) $
-    throwErrorDescriptionType @TooManyClients
+    throwStd (errorToWai @'E.TooManyClients)
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
 getMultiUserPrekeyBundleH :: UserId -> Public.QualifiedUserClients -> (Handler r) Public.QualifiedUserClientPrekeyMap
@@ -571,7 +572,7 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
           (\_ v -> Sum . Map.size $ v)
           (Public.qualifiedUserClients qualUserClients)
   when (size > maxSize) $
-    throwErrorDescriptionType @TooManyClients
+    throwStd (errorToWai @'E.TooManyClients)
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> (Handler r) NewClientResponse
@@ -627,7 +628,7 @@ getUserClientQualified quid cid = do
 getClientCapabilities :: UserId -> ClientId -> (Handler r) Public.ClientCapabilityList
 getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
-  maybe (throwErrorDescriptionType @ClientNotFound) (pure . Public.clientCapabilities) mclient
+  maybe (throwStd (errorToWai @'E.ClientNotFound)) (pure . Public.clientCapabilities) mclient
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> (Handler r) Response
 getRichInfoH (self ::: user ::: _) =
@@ -638,10 +639,10 @@ getRichInfo self user = do
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
   selfUser <-
-    ifNothing (errorDescriptionTypeToWai @UserNotFound)
+    ifNothing (errorToWai @'E.UserNotFound)
       =<< lift (wrapClient $ Data.lookupUser NoPendingInvitations self)
   otherUser <-
-    ifNothing (errorDescriptionTypeToWai @UserNotFound)
+    ifNothing (errorToWai @'E.UserNotFound)
       =<< lift (wrapClient $ Data.lookupUser NoPendingInvitations user)
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
     (Just t1, Just t2) | t1 == t2 -> pure ()
@@ -721,7 +722,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
 getSelf :: UserId -> (Handler r) Public.SelfProfile
 getSelf self =
   lift (API.lookupSelfProfile self)
-    >>= ifNothing (errorDescriptionTypeToWai @UserNotFound)
+    >>= ifNothing (errorToWai @'E.UserNotFound)
 
 getUserUnqualifiedH :: UserId -> UserId -> (Handler r) (Maybe Public.UserProfile)
 getUserUnqualifiedH self uid = do
@@ -812,7 +813,7 @@ changeLocale u conn l = lift $ API.changeLocale u conn l
 checkHandleH :: UserId ::: Text -> (Handler r) Response
 checkHandleH (_uid ::: hndl) =
   API.checkHandle hndl >>= \case
-    API.CheckHandleInvalid -> throwE (StdError (errorDescriptionTypeToWai @InvalidHandle))
+    API.CheckHandleInvalid -> throwE (StdError (errorToWai @'E.InvalidHandle))
     API.CheckHandleFound -> pure $ setStatus status200 empty
     API.CheckHandleNotFound -> pure $ setStatus status404 empty
 

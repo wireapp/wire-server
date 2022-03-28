@@ -75,7 +75,8 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import qualified Wire.API.Error.Brig as E
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
@@ -365,7 +366,7 @@ deleteUserNoVerify :: UserId -> (Handler r) ()
 deleteUserNoVerify uid = do
   void $
     lift (wrapClient $ API.lookupAccount uid)
-      >>= ifNothing (errorDescriptionTypeToWai @UserNotFound)
+      >>= ifNothing (errorToWai @'E.UserNotFound)
   lift $ API.deleteUserNoVerify uid
 
 changeSelfEmailMaybeSendH :: UserId ::: Bool ::: JsonRequest EmailUpdate -> (Handler r) Response
@@ -596,7 +597,7 @@ updateUserNameH (uid ::: _ ::: body) = empty <$ (updateUserName uid =<< parseJso
 
 updateUserName :: UserId -> NameUpdate -> (Handler r) ()
 updateUserName uid (NameUpdate nameUpd) = do
-  name <- either (const $ throwStd (errorDescriptionTypeToWai @InvalidUser)) pure $ mkName nameUpd
+  name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd
   let uu =
         UserUpdate
           { uupName = Just name,
@@ -606,12 +607,12 @@ updateUserName uid (NameUpdate nameUpd) = do
           }
   lift (wrapClient $ Data.lookupUser WithPendingInvitations uid) >>= \case
     Just _ -> API.updateUser uid Nothing uu API.AllowSCIMUpdates !>> updateProfileError
-    Nothing -> throwStd (errorDescriptionTypeToWai @InvalidUser)
+    Nothing -> throwStd (errorToWai @'E.InvalidUser)
 
 checkHandleInternalH :: Text -> (Handler r) Response
 checkHandleInternalH =
   API.checkHandle >=> \case
-    API.CheckHandleInvalid -> throwE (StdError (errorDescriptionTypeToWai @InvalidHandle))
+    API.CheckHandleInvalid -> throwE (StdError (errorToWai @'E.InvalidHandle))
     API.CheckHandleFound -> pure $ setStatus status200 empty
     API.CheckHandleNotFound -> pure $ setStatus status404 empty
 

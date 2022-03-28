@@ -36,7 +36,8 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Imports
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import Wire.API.Error.Brig
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Extension
@@ -48,33 +49,31 @@ validateKeyPackage identity (RawMLS (KeyPackageData -> kpd) kp) = do
   -- get ciphersuite
   cs <-
     maybe
-      (throwErrorDescription (mlsProtocolError "Unsupported ciphersuite"))
+      (mlsProtocolError "Unsupported ciphersuite")
       pure
       $ cipherSuiteTag (kpCipherSuite kp)
 
   -- validate signature scheme
   let ss = csSignatureScheme cs
   when (signatureScheme ss /= bcSignatureScheme (kpCredential kp)) $
-    throwErrorDescription $
-      mlsProtocolError "Signature scheme incompatible with ciphersuite"
+    mlsProtocolError "Signature scheme incompatible with ciphersuite"
 
   -- authenticate signature key
   key <-
     fmap LBS.toStrict $
       maybe
-        (throwErrorDescription (mlsProtocolError "No key associated to the given identity and signature scheme"))
+        (mlsProtocolError "No key associated to the given identity and signature scheme")
         pure
         =<< lift (wrapClient (Data.lookupMLSPublicKey (ciUser identity) (ciClient identity) ss))
   when (key /= bcSignatureKey (kpCredential kp)) $
-    throwErrorDescription $
-      mlsProtocolError "Unrecognised signature key"
+    mlsProtocolError "Unrecognised signature key"
 
   -- validate signature
   unless (csVerifySignature cs key (rmRaw (kpTBS kp)) (kpSignature kp)) $
-    throwErrorDescription (mlsProtocolError "Invalid signature")
+    mlsProtocolError "Invalid signature"
   -- validate protocol version
   maybe
-    (throwErrorDescription (mlsProtocolError "Unsupported protocol version"))
+    (mlsProtocolError "Unsupported protocol version")
     pure
     (pvTag (kpProtocolVersion kp) >>= guard . (== ProtocolMLS10))
   -- validate credential
@@ -86,10 +85,10 @@ validateKeyPackage identity (RawMLS (KeyPackageData -> kpd) kp) = do
 validateCredential :: ClientIdentity -> Credential -> Handler r ()
 validateCredential identity cred = do
   identity' <-
-    either (throwErrorDescription . mlsProtocolError) pure $
+    either mlsProtocolError pure $
       decodeMLS' (bcIdentity cred)
   when (identity /= identity') $
-    throwErrorDescriptionType @MLSIdentityMismatch
+    throwStd (errorToWai @'MLSIdentityMismatch)
 
 data RequiredExtensions f = RequiredExtensions
   { reLifetime :: f Lifetime,
@@ -121,14 +120,14 @@ findExtension ext = (Ap (decodeExtension ext) >>=) . foldMap $ \case
 
 validateExtensions :: [Extension] -> Handler r ()
 validateExtensions exts = do
-  re <- either (throwErrorDescription . mlsProtocolError) pure $ findExtensions exts
+  re <- either mlsProtocolError pure $ findExtensions exts
   validateLifetime . runIdentity . reLifetime $ re
 
 validateLifetime :: Lifetime -> Handler r ()
 validateLifetime lt = do
   now <- liftIO getPOSIXTime
   mMaxLifetime <- setKeyPackageMaximumLifetime <$> view settings
-  either (throwErrorDescription . mlsProtocolError) pure $
+  either mlsProtocolError pure $
     validateLifetime' now mMaxLifetime lt
 
 validateLifetime' :: POSIXTime -> Maybe NominalDiffTime -> Lifetime -> Either Text ()
@@ -140,3 +139,10 @@ validateLifetime' now mMaxLifetime lt = do
   for_ mMaxLifetime $ \maxLifetime ->
     when (tsPOSIX (ltNotAfter lt) > now + maxLifetime) $
       Left "Key package expiration time is too far in the future"
+
+mlsProtocolError :: Text -> Handler r a
+mlsProtocolError msg =
+  throwStd . toWai $
+    (dynError @(MapError 'MLSProtocolError))
+      { eMessage = msg
+      }
