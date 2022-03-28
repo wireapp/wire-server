@@ -371,7 +371,7 @@ Configuring SFT load balancing can be done in two (mutually exclusive) settings:
 ```
 # [brig.yaml]
 sft:
-  sftBaseDomain: sft.wire.example.yourcloud.comk
+  sftBaseDomain: sft.wire.example.com
   sftSRVServiceName: sft
   sftDiscoveryIntervalSeconds: 10
   sftListLength: 20
@@ -384,10 +384,10 @@ or
 ```
 # [brig.yaml]
 settings:
-  setSftStaticUrl: https://sftd.wire.yourcloud.com
+  setSftStaticUrl: https://sft.wire.example.com
 ```
 
-This setting assumes that the sft load balancer has been deployed witht hte `sftd` helm chart.
+This setting assumes that the sft load balancer has been deployed with the `sftd` helm chart.
 
 Additionally if `setSftListAllServers` is set to `enabled` (disabled by default) then the `/calls/config/v2` endpoint will include a list of all servers that are load balanced by `setSftStaticUrl` at field `sft_servers_all`. This is required to enable calls between federated instances of Wire.
 
