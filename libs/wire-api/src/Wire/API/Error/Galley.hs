@@ -70,7 +70,7 @@ data GalleyError
   | MLSProtocolErrorTag
   | MLSClientMismatch
   | MLSStaleMessage
-  | MLSParseError Text
+  | MLSParseError
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -189,15 +189,12 @@ type instance MapError 'TeamSearchVisibilityNotEnabled = 'StaticError 403 "team-
 
 type instance MapError 'CannotEnableLegalHoldServiceLargeTeam = 'StaticError 403 "too-large-team-for-legalhold" "Cannot enable legalhold on large teams (reason: for removing LH from team, we need to iterate over all members, which is only supported for teams with less than 2k members)"
 
-type instance MapError ('MLSParseError m) = 'StaticError 400 "mls-parse-error" (MLSParseErrorMessage m) --"Failure in parsing MLS content"
+type instance MapError 'MLSParseError = 'StaticError 400 "mls-parse-error" "Failure in parsing MLS content"
 
 -- We need this to document possible (operation denied) errors in the servant routes.
 type family MissingPermissionMessage (a :: Maybe Perm) :: Symbol where
   MissingPermissionMessage ('Just p) = "Insufficient permissions (missing " `AppendSymbol` Show_ p `AppendSymbol` ")"
   MissingPermissionMessage 'Nothing = "Insufficient permissions"
-
-type family MLSParseErrorMessage (t :: Text) :: Symbol where
-  MLSParseErrorMessage t = "Failure in parsing MLS content: " `AppendSymbol` Show_ t
 
 --------------------------------------------------------------------------------
 -- Authentication errors

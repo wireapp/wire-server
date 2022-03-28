@@ -1196,6 +1196,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSProtocolErrorTag
                :> CanThrow 'MLSStaleMessage
+               :> CanThrow 'MLSParseError
                :> CanThrow MLSProposalFailure
                :> CanThrow 'MLSProposalNotFound
                :> CanThrow 'MLSUnsupportedMessage

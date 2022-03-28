@@ -15,14 +15,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS.Message where
+module Galley.API.MLS.Message (postMLSMessage) where
 
 import Control.Lens (preview, to)
+import Data.Either.Combinators
 import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
+import Data.Tagged
 import Data.Time
 import Galley.API.Action
 import Galley.API.Error
@@ -63,6 +65,7 @@ postMLSMessage ::
     Members
       '[ Error FederationError,
          ErrorS 'ConvNotFound,
+         ErrorS 'MLSParseError,
          ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSProposalNotFound
@@ -79,7 +82,13 @@ postMLSMessage lusr con smsg = case rmValue smsg of
       processCommit lusr con (rmRaw smsg) (msgEpoch msg) (msgGroupId msg) c
     ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
     ProposalMessage _ -> pure mempty -- FUTUREWORK: handle proposals
-  SomeMessage SMLSCipherText _ -> pure mempty -- FUTUREWORK: handle encrypted messages
+  SomeMessage SMLSCipherText _ ->
+    -- FUTUREWORK: handle all types of encrypted messages
+    contentType (rmValue smsg) >>= \case
+      ApplicationMessageTag ->
+        postAppMessage lusr con (rmValue smsg) $> mempty -- TODO(md): return a list of events
+      ProposalMessageTag -> pure mempty
+      CommitMessageTag -> pure mempty
 
 type HasProposalEffects r =
   ( Member BrigAccess r,
@@ -236,6 +245,65 @@ convClientMap loc =
     ]
   where
     localMember lm = Map.singleton (qUntagged (qualifyAs loc (lmId lm))) (lmMLSClients lm)
+
+-- | Propagate an application message. Do not export this function due to its
+-- imprecise interface (the 'SomeMessage' argument can also contain a commit or
+-- a proposal).
+postAppMessage ::
+  Members
+    '[ BrigAccess,
+       ErrorS 'MLSParseError,
+       ErrorS 'MLSKeyPackageRefNotFound
+     ]
+    r =>
+  Local UserId ->
+  ConnId ->
+  SomeMessage ->
+  Sem r ()
+postAppMessage _lusr _conn (SomeMessage SMLSCipherText msg) = do
+  when (isNothing . appMsgPayload $ msg) $ error "Expected an application message payload"
+  where
+    appMsgPayload m =
+      case toMLSEnum' @ContentType (msgContentType . msgPayload $ m) of
+        Right ApplicationMessageTag -> Just . msgCipherText . msgPayload $ m
+        _ -> Nothing
+postAppMessage _lusr _conn (SomeMessage SMLSPlainText msg) = do
+  when (isNothing . appMsgPayload $ msg) $ error "Expected an application message payload"
+  -- perform authentication
+  case msgSender msg of
+    MemberSender kpr -> do
+      -- TODO: make sure that the msgMembership field is non-empty in this
+      -- case. Furthermore, I should probably do more thorough check along the
+      -- lines of
+      -- https://github.com/mlswg/mls-protocol/blob/838f0e15951b49af438bad501f3bd787798c2f4d/draft-ietf-mls-protocol.md#content-authentication
+      _cid <- derefKeyPackage kpr -- :: ClientIdentity
+      pure ()
+    PreconfiguredSender _bs -> pure () -- not sure what to do with this
+    -- bytestring, but in the spec it is opaque external_key_id<0..255>
+    NewMemberSender -> pure () -- also not sure what to do with this one
+
+  -- TODO: get the conversation ID by looking it up from the group_id_conv_id
+  -- table
+  pure ()
+  where
+    appMsgPayload m = case msgTBS (msgPayload m) of
+      ApplicationMessage amPayload -> Just amPayload
+      _ -> Nothing
+
+-- | Get the content type of a message. It throws an 'MLSParseError' if there
+-- was an error in parsing the content type.
+contentType :: Member (ErrorS 'MLSParseError) r => SomeMessage -> Sem r ContentType
+contentType (SomeMessage SMLSPlainText m) =
+  pure . mpTag . msgTBS . msgPayload $ m
+contentType (SomeMessage SMLSCipherText m) =
+  fromEither
+    . mapLeft (const (Tagged @'MLSParseError ())) -- TODO(md): see if we can be
+    -- more precise with error
+    -- types
+    . toMLSEnum' @ContentType
+    . msgContentType
+    . msgPayload
+    $ m
 
 --------------------------------------------------------------------------------
 -- Error handling of proposal execution
