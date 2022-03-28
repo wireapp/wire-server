@@ -39,50 +39,10 @@ fast: init
 .PHONY: clean
 clean:
 	stack clean $(NAME)
-	-rm -f .metadata
 
 .PHONY: compile
 compile:
 	stack build . --fast --test --bench --no-run-benchmarks --no-copy-bins
-
-.PHONY: dist
-dist: guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) $(DEB_INDEX) .metadata
-
-.metadata:
-	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \
-	 > .metadata
-
-$(DEB): install
-	makedeb --name=$(NAME) \
-		--version=$(VERSION) \
-		--debian-dir=deb \
-		--build=$(BUILD) \
-		--architecture=amd64 \
-		--output-dir=dist
-
-$(DEB_IT): install
-	makedeb --name=$(NAME)-integration \
-		--version=$(VERSION) \
-		--debian-dir=deb-it \
-		--build=$(BUILD) \
-		--architecture=amd64 \
-		--output-dir=dist
-
-$(DEB_SCHEMA): install
-	makedeb --name=$(NAME)-schema \
-		--version=$(VERSION) \
-		--debian-dir=schema/deb \
-		--build=$(BUILD) \
-		--architecture=amd64 \
-		--output-dir=dist
-
-$(DEB_INDEX): install
-	makedeb --name=$(NAME)-index \
-		--version=$(VERSION) \
-		--debian-dir=index/deb \
-		--build=$(BUILD) \
-		--architecture=amd64 \
-		--output-dir=dist
 
 .PHONY: i
 i:

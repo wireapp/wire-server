@@ -23,7 +23,6 @@ init:
 .PHONY: clean
 clean:
 	stack clean api-simulations
-	-rm -f .metadata
 
 .PHONY: fast
 fast: init
@@ -37,19 +36,5 @@ compile:
 install: init
 	stack install . --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 
-.PHONY: dist
-dist: guard-VERSION install $(DEB) .metadata
-
-$(DEB):
-	makedeb --name=$(NAME) \
-	 --version=$(VERSION) \
-	 --debian-dir=deb \
-	 --build=$(BUILD_NUMBER) \
-	 --architecture=amd64 \
-	 --output-dir=dist
-
 mailboxes.json:
 	khan artifact download --bucket z-config --key simulator/mailboxes.json --file ./mailboxes.json
-
-.metadata:
-	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata

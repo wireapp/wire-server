@@ -36,42 +36,10 @@ fast: init
 .PHONY: clean
 clean:
 	stack clean $(NAME)
-	rm -f .metadata
 
 .PHONY: compile
 compile:
 	stack build --fast --test --bench --no-run-benchmarks --no-copy-bins spar
-
-.PHONY: dist
-dist: guard-VERSION install $(DEB) $(DEB_SCHEMA) $(DEB_MIGRATE_DATA) .metadata
-
-.metadata:
-	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \
-	 > .metadata
-
-$(DEB): install
-	makedeb --name=$(NAME) \
-		--version=$(VERSION) \
-		--debian-dir=deb \
-		--build=$(BUILD) \
-		--architecture=amd64 \
-		--output-dir=dist
-
-$(DEB_SCHEMA): install
-	makedeb --name=$(NAME)-schema \
-		--version=$(VERSION) \
-		--debian-dir=schema/deb \
-		--build=$(BUILD) \
-		--architecture=amd64 \
-		--output-dir=dist
-
-$(DEB_MIGRATE_DATA): install
-	makedeb --name=$(NAME)-migrate-data \
-		--version=$(VERSION) \
-		--debian-dir=migrate-data/deb \
-		--build=$(BUILD) \
-		--architecture=amd64 \
-		--output-dir=dist
 
 .PHONY: i
 i:
