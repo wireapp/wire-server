@@ -10,7 +10,7 @@ cassandra:
   keyspace: brig
 galley:
   host: galley
-  port: 8085
+  port: 8080
 image:
   repository: quay.io/wire/brig-index
   tag: do-not-use
