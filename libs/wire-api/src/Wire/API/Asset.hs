@@ -85,12 +85,11 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
 import Data.Time.Clock
 import qualified Data.UUID as UUID
-import GHC.TypeLits
 import Imports
 import Servant
 import URI.ByteString
 import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
-import Wire.API.ErrorDescription
+import Wire.API.Error
 import Wire.API.Routes.MultiVerb
 
 --------------------------------------------------------------------------------
@@ -408,14 +407,13 @@ data LocalOrRemoteAsset
   | RemoteAsset (SourceIO ByteString)
 
 instance
-  ( ResponseType r0 ~ ErrorDescription code label desc,
-    ResponseType r1 ~ AssetLocation Absolute,
+  ( ResponseType r1 ~ AssetLocation Absolute,
     ResponseType r2 ~ SourceIO ByteString,
-    KnownSymbol desc
+    KnownError (MapError e)
   ) =>
-  AsUnion '[r0, r1, r2] (Maybe LocalOrRemoteAsset)
+  AsUnion '[ErrorResponse e, r1, r2] (Maybe LocalOrRemoteAsset)
   where
-  toUnion Nothing = Z (I mkErrorDescription)
+  toUnion Nothing = Z (I (dynError @(MapError e)))
   toUnion (Just (LocalAsset loc)) = S (Z (I loc))
   toUnion (Just (RemoteAsset asset)) = S (S (Z (I asset)))
 

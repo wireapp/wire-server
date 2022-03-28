@@ -17,47 +17,23 @@
 
 module CargoHold.API.Error where
 
-import Data.Proxy
-import qualified Data.Text.Lazy as LT
-import GHC.TypeLits
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
-import Servant.API.Status
-import Wire.API.ErrorDescription
-
-errorDescriptionToWai ::
-  forall (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
-  (KnownStatus code, KnownSymbol lbl) =>
-  ErrorDescription code lbl desc ->
-  Error
-errorDescriptionToWai (ErrorDescription msg) =
-  mkError
-    (statusVal (Proxy @code))
-    (LT.pack (symbolVal (Proxy @lbl)))
-    (LT.fromStrict msg)
-
-errorDescriptionTypeToWai ::
-  forall e (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
-  ( KnownStatus code,
-    KnownSymbol lbl,
-    KnownSymbol desc,
-    e ~ ErrorDescription code lbl desc
-  ) =>
-  Error
-errorDescriptionTypeToWai = errorDescriptionToWai (mkErrorDescription :: e)
+import Wire.API.Error
+import Wire.API.Error.Cargohold
 
 assetTooLarge :: Error
-assetTooLarge = errorDescriptionTypeToWai @AssetTooLarge
+assetTooLarge = errorToWai @'AssetTooLarge
 
 unauthorised :: Error
-unauthorised = errorDescriptionTypeToWai @Unauthorised
+unauthorised = errorToWai @'Unauthorised
 
 invalidLength :: Error
-invalidLength = errorDescriptionTypeToWai @InvalidLength
+invalidLength = errorToWai @'InvalidLength
 
 assetNotFound :: Error
-assetNotFound = errorDescriptionTypeToWai @AssetNotFound
+assetNotFound = errorToWai @'AssetNotFound
 
 invalidMD5 :: Error
 invalidMD5 = mkError status400 "client-error" "Invalid MD5."
