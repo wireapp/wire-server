@@ -84,9 +84,11 @@ import Galley.Intra.Push (PushEvent (FeatureConfigEvent), newPush)
 import Galley.Options
 import Galley.Types.Teams hiding (newTeam)
 import Imports
+import Network.HTTP.Types (status500)
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import Network.Wai.Utilities hiding (Error)
+import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -774,7 +776,7 @@ getTeamSearchVisibilityInboundInternal =
     (getFeatureStatusWithDefaultConfig @'Public.TeamFeatureSearchVisibilityInbound flagTeamFeatureSearchVisibilityInbound . Just)
 
 setTeamSearchVisibilityInboundInternal ::
-  Members '[GundeckAccess, TeamStore, TeamFeatureStore, BrigAccess, P.TinyLog] r =>
+  Members '[GundeckAccess, TeamStore, TeamFeatureStore, BrigAccess, P.TinyLog, Error Wai.Error] r =>
   TeamId ->
   Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibilityInbound ->
   Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibilityInbound)
@@ -782,11 +784,10 @@ setTeamSearchVisibilityInboundInternal tid status = do
   updatedStatus <- setFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibilityInbound (\_ _ -> pure ()) tid status
   mPersistedStatus <- listToMaybe <$> TeamFeatures.getFeatureStatusNoConfigMulti (Proxy @'Public.TeamFeatureSearchVisibilityInbound) [tid]
   case mPersistedStatus of
-    Just (pesistedTid, persistedStatus, persistedWriteTime) ->
+    Just (persistedTid, persistedStatus, persistedWriteTime) ->
       updateSearchVisibilityInbound $
-        Multi.TeamStatusUpdate pesistedTid persistedStatus persistedWriteTime
-    -- TODO: throw nicer error
-    Nothing -> error "Failed to retrieve search-visibility-inbound status after persisting it"
+        Multi.TeamStatusUpdate persistedTid persistedStatus persistedWriteTime
+    Nothing -> throw $ Wai.mkError status500 "server-error" "Failed to retrieve search-visibility-inbound status after persisting it"
   pure updatedStatus
 
 getFeatureStatusMulti ::
