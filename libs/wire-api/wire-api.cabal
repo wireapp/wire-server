@@ -37,7 +37,6 @@ library
       Wire.API.Error.Cargohold
       Wire.API.Error.Empty
       Wire.API.Error.Galley
-      Wire.API.ErrorDescription
       Wire.API.Event.Conversation
       Wire.API.Event.FeatureConfig
       Wire.API.Event.Team
