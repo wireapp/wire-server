@@ -123,7 +123,7 @@ source-repository-package
 source-repository-package
     type: git
     location: https://github.com/wireapp/hsaml2
-    tag: ef7b1de45ab0ea3a0a333b335579a02d8f88340c
+    tag: d43818aac56678f0be02d0101d224fe0f6cdf131
 
 source-repository-package
     type: git
