@@ -647,7 +647,7 @@ testRemoveClientIncorrectPwd brig = do
   liftIO $ do
     (err ^. at "code") @?= Just (Number 403)
     (err ^. at "label") @?= Just (String "invalid-credentials")
-    (err ^. at "message") @?= Just (String "Authentication failed.")
+    (err ^. at "message") @?= Just (String "Authentication failed")
   where
     client ty lk =
       (defNewClient ty [somePrekeys !! 0] lk)
