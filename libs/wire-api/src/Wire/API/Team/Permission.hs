@@ -20,6 +20,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
+-- The above pragma is to ignore unused `genSingletons` definitions of promoted
+-- constructors
+
 module Wire.API.Team.Permission
   ( -- * Permissions
     Permissions (..),
