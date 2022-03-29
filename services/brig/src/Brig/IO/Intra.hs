@@ -58,6 +58,7 @@ module Brig.IO.Intra
     changeTeamStatus,
     getTeamSearchVisibility,
     getVerificationCodeEnabled,
+    getTeamFeatureStatusSndFactorPasswordChallenge,
 
     -- * Legalhold
     guardLegalhold,
@@ -1005,6 +1006,15 @@ getVerificationCodeEnabled tid = do
     req =
       paths ["i", "teams", toByteString' tid, "features", toByteString' TeamFeatureSndFactorPasswordChallenge]
         . expect2xx
+
+getTeamFeatureStatusSndFactorPasswordChallenge :: Maybe UserId -> (AppIO r) TeamFeatureStatusNoConfig
+getTeamFeatureStatusSndFactorPasswordChallenge mbUserId =
+  responseJsonUnsafe
+    <$> galleyRequest
+      GET
+      ( paths ["i", "feature-configs", toByteString' (knownTeamFeatureName @'TeamFeatureSndFactorPasswordChallenge)]
+          . maybe id (queryItem "user_id" . toByteString') mbUserId
+      )
 
 -- | Calls 'Galley.API.updateTeamStatusH'.
 changeTeamStatus :: TeamId -> Team.TeamStatus -> Maybe Currency.Alpha -> (AppIO r) ()

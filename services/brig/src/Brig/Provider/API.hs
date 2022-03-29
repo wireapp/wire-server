@@ -103,6 +103,7 @@ import qualified Wire.API.Provider as Public
 import qualified Wire.API.Provider.Bot as Public (BotUserView)
 import qualified Wire.API.Provider.Service as Public
 import qualified Wire.API.Provider.Service.Tag as Public
+import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee (UnprotectedBot))
 import qualified Wire.API.User as Public (UserProfile, publicProfile)
 import qualified Wire.API.User.Client as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
@@ -319,6 +320,7 @@ routesInternal = do
 
 newAccountH :: JsonRequest Public.NewProvider -> (Handler r) Response
 newAccountH req = do
+  guardSecondFactorDisabled Nothing
   setStatus status201 . json <$> (newAccount =<< parseJsonBody req)
 
 newAccount :: Public.NewProvider -> (Handler r) Public.NewProviderResponse
@@ -355,6 +357,7 @@ newAccount new = do
 
 activateAccountKeyH :: Code.Key ::: Code.Value -> (Handler r) Response
 activateAccountKeyH (key ::: val) = do
+  guardSecondFactorDisabled Nothing
   maybe (setStatus status204 empty) json <$> activateAccountKey key val
 
 activateAccountKey :: Code.Key -> Code.Value -> (Handler r) (Maybe Public.ProviderActivationResponse)
@@ -381,6 +384,7 @@ activateAccountKey key val = do
 
 getActivationCodeH :: Public.Email -> (Handler r) Response
 getActivationCodeH e = do
+  guardSecondFactorDisabled Nothing
   json <$> getActivationCode e
 
 getActivationCode :: Public.Email -> (Handler r) FoundActivationCode
@@ -401,6 +405,7 @@ instance ToJSON FoundActivationCode where
 
 approveAccountKeyH :: Code.Key ::: Code.Value -> (Handler r) Response
 approveAccountKeyH (key ::: val) = do
+  guardSecondFactorDisabled Nothing
   empty <$ approveAccountKey key val
 
 approveAccountKey :: Code.Key -> Code.Value -> (Handler r) ()
@@ -415,6 +420,7 @@ approveAccountKey key val = do
 
 loginH :: JsonRequest Public.ProviderLogin -> (Handler r) Response
 loginH req = do
+  guardSecondFactorDisabled Nothing
   tok <- login =<< parseJsonBody req
   setProviderCookie tok empty
 
@@ -428,6 +434,7 @@ login l = do
 
 beginPasswordResetH :: JsonRequest Public.PasswordReset -> (Handler r) Response
 beginPasswordResetH req = do
+  guardSecondFactorDisabled Nothing
   setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
 
 beginPasswordReset :: Public.PasswordReset -> (Handler r) ()
@@ -449,6 +456,7 @@ beginPasswordReset (Public.PasswordReset target) = do
 
 completePasswordResetH :: JsonRequest Public.CompletePasswordReset -> (Handler r) Response
 completePasswordResetH req = do
+  guardSecondFactorDisabled Nothing
   empty <$ (completePasswordReset =<< parseJsonBody req)
 
 completePasswordReset :: Public.CompletePasswordReset -> (Handler r) ()
@@ -469,6 +477,7 @@ completePasswordReset (Public.CompletePasswordReset key val newpwd) = do
 
 getAccountH :: ProviderId -> (Handler r) Response
 getAccountH pid = do
+  guardSecondFactorDisabled Nothing
   getAccount pid <&> \case
     Just p -> json p
     Nothing -> setStatus status404 empty
@@ -478,6 +487,7 @@ getAccount = wrapClientE . DB.lookupAccount
 
 updateAccountProfileH :: ProviderId ::: JsonRequest Public.UpdateProvider -> (Handler r) Response
 updateAccountProfileH (pid ::: req) = do
+  guardSecondFactorDisabled Nothing
   empty <$ (updateAccountProfile pid =<< parseJsonBody req)
 
 updateAccountProfile :: ProviderId -> Public.UpdateProvider -> (Handler r) ()
@@ -492,6 +502,7 @@ updateAccountProfile pid upd = do
 
 updateAccountEmailH :: ProviderId ::: JsonRequest Public.EmailUpdate -> (Handler r) Response
 updateAccountEmailH (pid ::: req) = do
+  guardSecondFactorDisabled Nothing
   setStatus status202 empty <$ (updateAccountEmail pid =<< parseJsonBody req)
 
 updateAccountEmail :: ProviderId -> Public.EmailUpdate -> (Handler r) ()
@@ -514,6 +525,7 @@ updateAccountEmail pid (Public.EmailUpdate new) = do
 
 updateAccountPasswordH :: ProviderId ::: JsonRequest Public.PasswordChange -> (Handler r) Response
 updateAccountPasswordH (pid ::: req) = do
+  guardSecondFactorDisabled Nothing
   empty <$ (updateAccountPassword pid =<< parseJsonBody req)
 
 updateAccountPassword :: ProviderId -> Public.PasswordChange -> (Handler r) ()
@@ -527,6 +539,7 @@ updateAccountPassword pid upd = do
 
 addServiceH :: ProviderId ::: JsonRequest Public.NewService -> (Handler r) Response
 addServiceH (pid ::: req) = do
+  guardSecondFactorDisabled Nothing
   setStatus status201 . json <$> (addService pid =<< parseJsonBody req)
 
 addService :: ProviderId -> Public.NewService -> (Handler r) Public.NewServiceResponse
@@ -546,13 +559,16 @@ addService pid new = do
   return $ Public.NewServiceResponse sid rstoken
 
 listServicesH :: ProviderId -> (Handler r) Response
-listServicesH pid = json <$> listServices pid
+listServicesH pid = do
+  guardSecondFactorDisabled Nothing
+  json <$> listServices pid
 
 listServices :: ProviderId -> (Handler r) [Public.Service]
 listServices = wrapClientE . DB.listServices
 
 getServiceH :: ProviderId ::: ServiceId -> (Handler r) Response
 getServiceH (pid ::: sid) = do
+  guardSecondFactorDisabled Nothing
   json <$> getService pid sid
 
 getService :: ProviderId -> ServiceId -> (Handler r) Public.Service
@@ -561,6 +577,7 @@ getService pid sid =
 
 updateServiceH :: ProviderId ::: ServiceId ::: JsonRequest Public.UpdateService -> (Handler r) Response
 updateServiceH (pid ::: sid ::: req) = do
+  guardSecondFactorDisabled Nothing
   empty <$ (updateService pid sid =<< parseJsonBody req)
 
 updateService :: ProviderId -> ServiceId -> Public.UpdateService -> (Handler r) ()
@@ -593,6 +610,7 @@ updateService pid sid upd = do
 
 updateServiceConnH :: ProviderId ::: ServiceId ::: JsonRequest Public.UpdateServiceConn -> (Handler r) Response
 updateServiceConnH (pid ::: sid ::: req) = do
+  guardSecondFactorDisabled Nothing
   empty <$ (updateServiceConn pid sid =<< parseJsonBody req)
 
 updateServiceConn :: ProviderId -> ServiceId -> Public.UpdateServiceConn -> (Handler r) ()
@@ -638,6 +656,7 @@ updateServiceConn pid sid upd = do
 -- delete the service. See 'finishDeleteService'.
 deleteServiceH :: ProviderId ::: ServiceId ::: JsonRequest Public.DeleteService -> (Handler r) Response
 deleteServiceH (pid ::: sid ::: req) = do
+  guardSecondFactorDisabled Nothing
   setStatus status202 empty <$ (deleteService pid sid =<< parseJsonBody req)
 
 -- | The endpoint that is called to delete a service.
@@ -676,6 +695,7 @@ finishDeleteService pid sid = do
 
 deleteAccountH :: ProviderId ::: JsonRequest Public.DeleteProvider -> (Handler r) Response
 deleteAccountH (pid ::: req) = do
+  guardSecondFactorDisabled Nothing
   empty <$ (deleteAccount pid =<< parseJsonBody req)
 
 deleteAccount :: ProviderId -> Public.DeleteProvider -> (Handler r) ()
@@ -700,6 +720,7 @@ deleteAccount pid del = do
 
 getProviderProfileH :: ProviderId -> (Handler r) Response
 getProviderProfileH pid = do
+  guardSecondFactorDisabled Nothing
   json <$> getProviderProfile pid
 
 getProviderProfile :: ProviderId -> (Handler r) Public.ProviderProfile
@@ -708,6 +729,7 @@ getProviderProfile pid =
 
 listServiceProfilesH :: ProviderId -> (Handler r) Response
 listServiceProfilesH pid = do
+  guardSecondFactorDisabled Nothing
   json <$> listServiceProfiles pid
 
 listServiceProfiles :: ProviderId -> (Handler r) [Public.ServiceProfile]
@@ -715,6 +737,7 @@ listServiceProfiles = wrapClientE . DB.listServiceProfiles
 
 getServiceProfileH :: ProviderId ::: ServiceId -> (Handler r) Response
 getServiceProfileH (pid ::: sid) = do
+  guardSecondFactorDisabled Nothing
   json <$> getServiceProfile pid sid
 
 getServiceProfile :: ProviderId -> ServiceId -> (Handler r) Public.ServiceProfile
@@ -723,6 +746,7 @@ getServiceProfile pid sid =
 
 searchServiceProfilesH :: Maybe (Public.QueryAnyTags 1 3) ::: Maybe Text ::: Range 10 100 Int32 -> (Handler r) Response
 searchServiceProfilesH (qt ::: start ::: size) = do
+  guardSecondFactorDisabled Nothing
   json <$> searchServiceProfiles qt start size
 
 -- TODO: in order to actually make it possible for clients to implement
@@ -742,6 +766,7 @@ searchTeamServiceProfilesH ::
   UserId ::: TeamId ::: Maybe (Range 1 128 Text) ::: Bool ::: Range 10 100 Int32 ->
   (Handler r) Response
 searchTeamServiceProfilesH (uid ::: tid ::: prefix ::: filterDisabled ::: size) = do
+  guardSecondFactorDisabled (Just uid)
   json <$> searchTeamServiceProfiles uid tid prefix filterDisabled size
 
 -- NB: unlike 'searchServiceProfiles', we don't filter by service provider here
@@ -763,7 +788,9 @@ searchTeamServiceProfiles uid tid prefix filterDisabled size = do
   wrapClientE $ DB.paginateServiceWhitelist tid prefix filterDisabled (fromRange size)
 
 getServiceTagListH :: () -> (Handler r) Response
-getServiceTagListH () = json <$> getServiceTagList ()
+getServiceTagListH () = do
+  guardSecondFactorDisabled Nothing
+  json <$> getServiceTagList ()
 
 getServiceTagList :: () -> Monad m => m Public.ServiceTagList
 getServiceTagList () = return (Public.ServiceTagList allTags)
@@ -772,6 +799,7 @@ getServiceTagList () = return (Public.ServiceTagList allTags)
 
 updateServiceWhitelistH :: UserId ::: ConnId ::: TeamId ::: JsonRequest Public.UpdateServiceWhitelist -> (Handler r) Response
 updateServiceWhitelistH (uid ::: con ::: tid ::: req) = do
+  guardSecondFactorDisabled (Just uid)
   resp <- updateServiceWhitelist uid con tid =<< parseJsonBody req
   let status = case resp of
         UpdateServiceWhitelistRespChanged -> status200
@@ -819,6 +847,7 @@ updateServiceWhitelist uid con tid upd = do
 
 addBotH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.AddBot -> (Handler r) Response
 addBotH (zuid ::: zcon ::: cid ::: req) = do
+  guardSecondFactorDisabled (Just zuid)
   setStatus status201 . json <$> (addBot zuid zcon cid =<< parseJsonBody req)
 
 addBot :: UserId -> ConnId -> ConvId -> Public.AddBot -> (Handler r) Public.AddBotResponse
@@ -897,6 +926,7 @@ addBot zuid zcon cid add = do
 
 removeBotH :: UserId ::: ConnId ::: ConvId ::: BotId -> (Handler r) Response
 removeBotH (zusr ::: zcon ::: cid ::: bid) = do
+  guardSecondFactorDisabled (Just zusr)
   maybe (setStatus status204 empty) json <$> removeBot zusr zcon cid bid
 
 removeBot :: UserId -> ConnId -> ConvId -> BotId -> (Handler r) (Maybe Public.RemoveBotResponse)
@@ -918,7 +948,9 @@ removeBot zusr zcon cid bid = do
 -- Bot API
 
 botGetSelfH :: BotId -> (Handler r) Response
-botGetSelfH bot = json <$> botGetSelf bot
+botGetSelfH bot = do
+  guardSecondFactorDisabled (Just (botUserId bot))
+  json <$> botGetSelf bot
 
 botGetSelf :: BotId -> (Handler r) Public.UserProfile
 botGetSelf bot = do
@@ -927,6 +959,7 @@ botGetSelf bot = do
 
 botGetClientH :: BotId -> (Handler r) Response
 botGetClientH bot = do
+  guardSecondFactorDisabled (Just (botUserId bot))
   maybe (throwErrorDescriptionType @ClientNotFound) (pure . json) =<< lift (botGetClient bot)
 
 botGetClient :: BotId -> (AppIO r) (Maybe Public.Client)
@@ -935,6 +968,7 @@ botGetClient bot =
 
 botListPrekeysH :: BotId -> (Handler r) Response
 botListPrekeysH bot = do
+  guardSecondFactorDisabled (Just (botUserId bot))
   json <$> botListPrekeys bot
 
 botListPrekeys :: BotId -> (Handler r) [Public.PrekeyId]
@@ -946,6 +980,7 @@ botListPrekeys bot = do
 
 botUpdatePrekeysH :: BotId ::: JsonRequest Public.UpdateBotPrekeys -> (Handler r) Response
 botUpdatePrekeysH (bot ::: req) = do
+  guardSecondFactorDisabled (Just (botUserId bot))
   empty <$ (botUpdatePrekeys bot =<< parseJsonBody req)
 
 botUpdatePrekeys :: BotId -> Public.UpdateBotPrekeys -> (Handler r) ()
@@ -959,6 +994,7 @@ botUpdatePrekeys bot upd = do
 
 botClaimUsersPrekeysH :: JsonRequest Public.UserClients -> (Handler r) Response
 botClaimUsersPrekeysH req = do
+  guardSecondFactorDisabled Nothing
   json <$> (botClaimUsersPrekeys =<< parseJsonBody req)
 
 botClaimUsersPrekeys :: Public.UserClients -> (Handler r) Public.UserClientPrekeyMap
@@ -970,6 +1006,7 @@ botClaimUsersPrekeys body = do
 
 botListUserProfilesH :: List UserId -> (Handler r) Response
 botListUserProfilesH uids = do
+  guardSecondFactorDisabled Nothing -- should we check all user ids?
   json <$> botListUserProfiles uids
 
 botListUserProfiles :: List UserId -> (Handler r) [Public.BotUserView]
@@ -979,6 +1016,7 @@ botListUserProfiles uids = do
 
 botGetUserClientsH :: UserId -> (Handler r) Response
 botGetUserClientsH uid = do
+  guardSecondFactorDisabled (Just uid)
   json <$> lift (botGetUserClients uid)
 
 botGetUserClients :: UserId -> (AppIO r) [Public.PubClient]
@@ -989,10 +1027,12 @@ botGetUserClients uid =
 
 botDeleteSelfH :: BotId ::: ConvId -> (Handler r) Response
 botDeleteSelfH (bid ::: cid) = do
+  guardSecondFactorDisabled (Just (botUserId bid))
   empty <$ botDeleteSelf bid cid
 
 botDeleteSelf :: BotId -> ConvId -> (Handler r) ()
 botDeleteSelf bid cid = do
+  guardSecondFactorDisabled (Just (botUserId bid))
   bot <- lift . wrapClient $ User.lookupUser NoPendingInvitations (botUserId bid)
   _ <- maybeInvalidBot (userService =<< bot)
   _ <- lift $ deleteBot (botUserId bid) Nothing bid cid
@@ -1000,6 +1040,13 @@ botDeleteSelf bid cid = do
 
 --------------------------------------------------------------------------------
 -- Utilities
+
+-- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.
+-- (This is a workaround until we have 2FA for those end-points as well.)
+guardSecondFactorDisabled :: Maybe UserId -> Handler r ()
+guardSecondFactorDisabled mbUserId = do
+  enabled <- lift $ (==) Feature.TeamFeatureEnabled . Feature.tfwoStatus <$> RPC.getTeamFeatureStatusSndFactorPasswordChallenge mbUserId
+  when enabled $ throwStd accessDenied
 
 minRsaKeySize :: Int
 minRsaKeySize = 256 -- Bytes (= 2048 bits)
@@ -1137,6 +1184,9 @@ serviceNotWhitelisted = Wai.mkError status403 "service-not-whitelisted" "The des
 serviceError :: RPC.ServiceError -> Wai.Error
 serviceError RPC.ServiceUnavailable = badGateway
 serviceError RPC.ServiceBotConflict = tooManyBots
+
+accessDenied :: Wai.Error
+accessDenied = Wai.mkError status403 "access-denied" "Access denied."
 
 randServiceToken :: MonadIO m => m Public.ServiceToken
 randServiceToken = ServiceToken . Ascii.encodeBase64Url <$> liftIO (randBytes 18)

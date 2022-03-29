@@ -161,6 +161,24 @@ type InternalAPI =
                       :> ReqBody '[Servant.JSON] UpsertOne2OneConversationRequest
                       :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
                   )
+           :<|> Named
+                  "feature-config-snd-factor-password-challenge"
+                  -- FUTUREWORK: Introduce `/i/feature-configs` and drop this one again.  The internal end-poins has the
+                  -- same handler as the public one, plus optional user id in the query.  Maybe require `DoAuth` to disable
+                  -- access control only on the internal end-point, not on the public one.  (This may also be a good oppportunity
+                  -- to make `AllFeatureConfigs` more type-safe.)
+                  ( Summary "Get feature config for the 2nd factor password challenge feature (for user/team; if n/a fall back to site config)."
+                      :> "feature-configs"
+                      :> KnownTeamFeatureNameSymbol 'TeamFeatureSndFactorPasswordChallenge
+                      :> QueryParam'
+                           [ Optional,
+                             Strict,
+                             Description "Optional user id"
+                           ]
+                           "user_id"
+                           UserId
+                      :> Get '[Servant.JSON] TeamFeatureStatusNoConfig
+                  )
            :<|> IFeatureAPI
        )
 
@@ -210,6 +228,11 @@ internalAPI =
     :<|> Named @"delete-user" rmUser
     :<|> Named @"connect" Create.createConnectConversation
     :<|> Named @"upsert-one2one" iUpsertOne2OneConversation
+    :<|> Named @"feature-config-snd-factor-password-challenge"
+      ( \case
+          Just uid -> TeamFeatureStatusNoConfig . tfwoapsStatus <$> getFeatureConfigNoAuth @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge getSndFactorPasswordChallengeInternal uid
+          Nothing -> TeamFeatureStatusNoConfig . tfwoapsStatus <$> getSndFactorPasswordChallengeInternal (Left Nothing)
+      )
     :<|> featureAPI
 
 featureAPI :: ServerT IFeatureAPI (Sem GalleyEffects)

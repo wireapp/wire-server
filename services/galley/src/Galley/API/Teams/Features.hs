@@ -21,6 +21,7 @@ module Galley.API.Teams.Features
     getFeatureStatusNoConfig,
     setFeatureStatus,
     getFeatureConfig,
+    getFeatureConfigNoAuth,
     getAllFeatureConfigs,
     getAllFeaturesH,
     getSSOStatusInternal,
@@ -52,6 +53,7 @@ module Galley.API.Teams.Features
     setLockStatus,
     DoAuth (..),
     GetFeatureInternalParam,
+    guardSecondFactorDisabled,
   )
 where
 
@@ -203,6 +205,30 @@ getFeatureConfig getter zusr = do
       void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
       assertTeamExists tid
       getter (Right tid)
+
+getFeatureConfigNoAuth ::
+  forall (ps :: Public.IncludeLockStatus) (a :: Public.TeamFeatureName) r.
+  ( Public.KnownTeamFeatureName a,
+    Members
+      '[ Error ActionError,
+         Error TeamError,
+         Error NotATeamMember,
+         TeamStore
+       ]
+      r
+  ) =>
+  (GetFeatureInternalParam -> Sem r (Public.TeamFeatureStatus ps a)) ->
+  UserId ->
+  Sem r (Public.TeamFeatureStatus ps a)
+getFeatureConfigNoAuth getter zusr = do
+  mbTeam <- getOneUserTeam zusr
+  case mbTeam of
+    Nothing -> getter (Left (Just zusr))
+    Just tid -> do
+      teamExists <- isJust <$> getTeam tid
+      if teamExists
+        then getter (Right tid)
+        else getter (Left (Just zusr))
 
 getAllFeatureConfigs ::
   Members
@@ -738,6 +764,27 @@ getSndFactorPasswordChallengeInternal = \case
   where
     getCfgDefault :: Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureSndFactorPasswordChallenge)
     getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSndFactorPasswordChallengeStatus . unDefaults)
+
+-- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
+--
+-- This function exists to resolve a cyclic dependency.
+guardSecondFactorDisabled ::
+  forall r a.
+  ( Member (Input Opts) r,
+    Member TeamFeatureStore r,
+    Member (Error NotATeamMember) r,
+    Member (Error ActionError) r,
+    Member (Error TeamError) r,
+    Member TeamStore r
+  ) =>
+  UserId ->
+  Sem r a ->
+  Sem r a
+guardSecondFactorDisabled uid action = do
+  featureConfig <- getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge getSndFactorPasswordChallengeInternal uid
+  case Public.tfwoapsStatus featureConfig of
+    Public.TeamFeatureDisabled -> action
+    Public.TeamFeatureEnabled -> throw AccessDenied
 
 setSndFactorPasswordChallengeInternal ::
   forall r.
