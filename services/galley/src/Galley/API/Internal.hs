@@ -160,7 +160,11 @@ type InternalAPI =
                   )
            :<|> Named
                   "feature-config-snd-factor-password-challenge"
-                  ( Summary "Get the server wide feature config for the 2nd factor password challenge feature."
+                  -- FUTUREWORK: Introduce `/i/feature-configs` and drop this one again.  The internal end-poins has the
+                  -- same handler as the public one, plus optional user id in the query.  Maybe require `DoAuth` to disable
+                  -- access control only on the internal end-point, not on the public one.  (This may also be a good oppportunity
+                  -- to make `AllFeatureConfigs` more type-safe.)
+                  ( Summary "Get feature config for the 2nd factor password challenge feature (for user/team; if n/a fall back to site config)."
                       :> "feature-configs"
                       :> KnownTeamFeatureNameSymbol 'TeamFeatureSndFactorPasswordChallenge
                       :> QueryParam'
