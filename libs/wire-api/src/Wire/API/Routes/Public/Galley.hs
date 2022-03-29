@@ -1182,7 +1182,7 @@ type MLSMessagingAPI =
   Named
     "mls-welcome-message"
     ( Summary "Post an MLS welcome message"
-        :> CanThrow 'UnknownWelcomeRecipient
+        :> CanThrow 'KeyPackageRefNotFound
         :> "welcome"
         :> ZConn
         :> ReqBody '[MLS] (RawMLS Welcome)
@@ -1191,10 +1191,17 @@ type MLSMessagingAPI =
     :<|> Named
            "mls-message"
            ( Summary "Post an MLS message"
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'KeyPackageRefNotFound
+               :> CanThrow 'MLSProtocolErrorTag
+               :> CanThrow ProposalFailure
+               :> CanThrow 'ProposalNotFound
+               :> CanThrow 'UnsupportedMLSMessage
+               :> CanThrow 'UnsupportedProposal
                :> "message"
                :> ZConn
                :> ReqBody '[MLS] (RawMLS SomeMessage)
-               :> MultiVerb1 'POST '[JSON] (RespondEmpty 201 "Message sent")
+               :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" [Event])
            )
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSMessagingAPI)

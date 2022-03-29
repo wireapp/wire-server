@@ -171,6 +171,11 @@ getConversation conv = do
       <*> UnliftIO.wait cdata
   conversationGC mbConv
 
+getConversationByGroupId :: GroupId -> Client (Maybe (Qualified ConvId))
+getConversationByGroupId gid = do
+  fmap (uncurry Qualified)
+    <$> retry x1 (query1 Cql.selectConvByGroupId (params LocalQuorum (Identity gid)))
+
 {- "Garbage collect" the conversation, i.e. the conversation may be
    marked as deleted, in which case we delete it and return Nothing -}
 conversationGC ::
@@ -294,6 +299,7 @@ interpretConversationStoreToCassandra = interpret $ \case
   CreateConversationId -> Id <$> embed nextRandom
   CreateConversation loc nc -> embedClient $ createConversation loc nc
   GetConversation cid -> embedClient $ getConversation cid
+  GetConversationByGroupId gid -> embedClient $ getConversationByGroupId gid
   GetConversations cids -> localConversations cids
   GetConversationMetadata cid -> embedClient $ conversationMeta cid
   IsConversationAlive cid -> embedClient $ isConvAlive cid

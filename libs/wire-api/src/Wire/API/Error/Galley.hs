@@ -18,18 +18,26 @@
 module Wire.API.Error.Galley
   ( GalleyError (..),
     OperationDenied,
+    MLSProtocolError,
+    mlsProtocolError,
     AuthenticationError (..),
     TeamFeatureError (..),
+    ProposalFailure (..),
   )
 where
 
+import Control.Lens ((%~))
 import Data.Singletons.Prelude (Show_)
+import qualified Data.Swagger as S
+import Data.Tagged
 import GHC.TypeLits
 import Imports
+import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Wire.API.Conversation.Role
 import Wire.API.Error
+import qualified Wire.API.Error.Brig as BrigError
 import Wire.API.Routes.API
 import Wire.API.Team.Permission
 
@@ -52,8 +60,16 @@ data GalleyError
   | InvalidTarget
   | ConvNotFound
   | ConvAccessDenied
-  | MLSNonEmptyMemberList
-  | NoBindingTeamMembers
+  | -- MLS Errors
+    MLSNonEmptyMemberList
+  | DuplicateMLSPublicKey
+  | KeyPackageRefNotFound
+  | UnsupportedMLSMessage
+  | ProposalNotFound
+  | UnsupportedProposal
+  | MLSProtocolErrorTag
+  | --
+    NoBindingTeamMembers
   | NoBindingTeam
   | NotAOneMemberTeam
   | TooManyMembers
@@ -63,7 +79,6 @@ data GalleyError
   | InvalidPermissions
   | InvalidTeamStatusUpdate
   | AccessDenied
-  | UnknownWelcomeRecipient
   | CustomBackendNotFound
   | DeleteQueueFull
   | TeamSearchVisibilityNotEnabled
@@ -72,10 +87,24 @@ data GalleyError
 instance KnownError (MapError e) => IsSwaggerError (e :: GalleyError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
 
--- | Convenience synonym for an operation denied error with an unspecified permission
+instance KnownError (MapError e) => APIError (Tagged (e :: GalleyError) ()) where
+  toWai _ = toWai $ dynError @(MapError e)
+
+-- | Convenience synonym for an operation denied error with an unspecified permission.
 type OperationDenied = 'MissingPermission 'Nothing
 
-type instance ErrorEffect (e :: GalleyError) = ErrorS e
+-- | An MLS protocol error with associated text.
+type MLSProtocolError = Tagged 'MLSProtocolErrorTag Text
+
+-- | Create an MLS protocol error value.
+mlsProtocolError :: Text -> MLSProtocolError
+mlsProtocolError = Tagged
+
+type family GalleyErrorEffect (e :: GalleyError) :: Effect where
+  GalleyErrorEffect 'MLSProtocolErrorTag = Error MLSProtocolError
+  GalleyErrorEffect e = ErrorS e
+
+type instance ErrorEffect (e :: GalleyError) = GalleyErrorEffect e
 
 type instance MapError 'InvalidAction = 'StaticError 400 "invalid-actions" "The specified actions are invalid"
 
@@ -113,6 +142,18 @@ type instance MapError 'ConvAccessDenied = 'StaticError 403 "access-denied" "Con
 
 type instance MapError 'MLSNonEmptyMemberList = 'StaticError 400 "non-empty-member-list" "Attempting to add group members outside MLS"
 
+type instance MapError 'DuplicateMLSPublicKey = 'StaticError 400 "mls-duplicate-public-key" "MLS public key for the given signature scheme already exists"
+
+type instance MapError 'KeyPackageRefNotFound = 'StaticError 404 "mls-key-package-ref-not-found" "A referenced key packages could not be mapped to a known client"
+
+type instance MapError 'UnsupportedMLSMessage = 'StaticError 422 "mls-unsupported-message" "Attempted to send a message with an unsupported combination of content type instance MapError ' and wire format"
+
+type instance MapError 'ProposalNotFound = 'StaticError 404 "mls-proposal-not-found" "A proposal referenced in a commit message could not be found"
+
+type instance MapError 'UnsupportedProposal = 'StaticError 422 "mls-unsupported-proposal" "Unsupported proposal type instance MapError '"
+
+type instance MapError 'MLSProtocolErrorTag = MapError 'BrigError.MLSProtocolError
+
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 
 type instance MapError 'NoBindingTeam = 'StaticError 403 "no-binding-team" "Operation allowed only on binding teams"
@@ -132,8 +173,6 @@ type instance MapError 'InvalidPermissions = 'StaticError 403 "invalid-permissio
 type instance MapError 'InvalidTeamStatusUpdate = 'StaticError 403 "invalid-team-status-update" "Cannot use this endpoint to update the team to the given status."
 
 type instance MapError 'AccessDenied = 'StaticError 403 "access-denied" "You do not have permission to access this resource"
-
-type instance MapError 'UnknownWelcomeRecipient = 'StaticError 400 "mls-unknown-welcome-recipient" "One of the key packages of a welcome message could not be mapped to a known client"
 
 type instance MapError 'CustomBackendNotFound = 'StaticError 404 "custom-backend-not-found" "Custom backend not found"
 
@@ -225,3 +264,21 @@ instance Member (Error DynError) r => ServerEffect (Error TeamFeatureError) r wh
     LegalHoldWhitelistedOnly -> dynError @(MapError 'LegalHoldWhitelistedOnly)
     DisableSsoNotImplemented -> dynError @(MapError 'DisableSsoNotImplemented)
     FeatureLocked -> dynError @(MapError 'FeatureLocked)
+
+--------------------------------------------------------------------------------
+-- Proposal failure
+
+data ProposalFailure = ProposalFailure
+  { pfInner :: Wai.Error
+  }
+
+type instance ErrorEffect ProposalFailure = Error ProposalFailure
+
+-- Proposal failures are only reported generically in Swagger
+instance IsSwaggerError ProposalFailure where
+  addToSwagger = S.allOperations . S.description %~ Just . (<> desc) . fold
+    where
+      desc = "\n\n!!PROPOSAL FAILURE!!" -- TODO
+
+instance Member (Error Wai.Error) r => ServerEffect (Error ProposalFailure) r where
+  interpretServerEffect = mapError pfInner

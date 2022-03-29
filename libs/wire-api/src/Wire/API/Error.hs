@@ -255,6 +255,9 @@ errorToWai = toWai (dynError @(MapError e))
 class APIError e where
   toWai :: e -> Wai.Error
 
+instance APIError Wai.Error where
+  toWai = id
+
 instance APIError DynError where
   toWai (DynError c l m) = Wai.mkError (toEnum (fromIntegral c)) (LT.fromStrict l) (LT.fromStrict m)
 

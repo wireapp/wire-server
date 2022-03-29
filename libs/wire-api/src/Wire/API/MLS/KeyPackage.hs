@@ -119,6 +119,7 @@ instance ToSchema KeyPackageRef where
 instance ParseMLS KeyPackageRef where
   parseMLS = KeyPackageRef <$> getByteString 16
 
+-- | Compute key package ref given a ciphersuite and the raw key package data.
 kpRef :: CipherSuiteTag -> KeyPackageData -> KeyPackageRef
 kpRef cs =
   KeyPackageRef
@@ -129,6 +130,8 @@ kpRef cs =
     . csHash cs "MLS 1.0 ref"
     . kpData
 
+-- | Compute ref of a key package. Return 'Nothing' if the key package cipher
+-- suite is invalid or unsupported.
 kpRef' :: RawMLS KeyPackage -> Maybe KeyPackageRef
 kpRef' kp =
   kpRef

@@ -25,6 +25,7 @@ module Galley.Effects.ConversationStore
 
     -- * Read conversation
     getConversation,
+    getConversationByGroupId,
     getConversations,
     getConversationMetadata,
     isConversationAlive,
@@ -61,6 +62,7 @@ data ConversationStore m a where
   CreateConversation :: Local ConvId -> NewConversation -> ConversationStore m Conversation
   DeleteConversation :: ConvId -> ConversationStore m ()
   GetConversation :: ConvId -> ConversationStore m (Maybe Conversation)
+  GetConversationByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvId))
   GetConversations :: [ConvId] -> ConversationStore m [Conversation]
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
   IsConversationAlive :: ConvId -> ConversationStore m Bool

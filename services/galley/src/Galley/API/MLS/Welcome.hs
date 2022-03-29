@@ -21,6 +21,7 @@ import Control.Comonad
 import Data.Id
 import Data.Qualified
 import Data.Time
+import Galley.API.MLS.KeyPackage
 import Galley.API.Push
 import Galley.Data.Conversation
 import Galley.Effects.BrigAccess
@@ -32,7 +33,6 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 
@@ -40,7 +40,7 @@ postMLSWelcome ::
   Members
     '[ BrigAccess,
        GundeckAccess,
-       ErrorS 'UnknownWelcomeRecipient,
+       ErrorS 'KeyPackageRefNotFound,
        Input UTCTime
      ]
     r =>
@@ -55,7 +55,7 @@ postMLSWelcome lusr con wel = do
 welcomeRecipients ::
   Members
     '[ BrigAccess,
-       ErrorS 'UnknownWelcomeRecipient
+       ErrorS 'KeyPackageRefNotFound
      ]
     r =>
   Welcome ->
@@ -98,15 +98,3 @@ sendLocalWelcomes con now rawWelcome lclients = do
 
 sendRemoteWelcomes :: ByteString -> Remote [(UserId, ClientId)] -> Sem r ()
 sendRemoteWelcomes = undefined
-
-derefKeyPackage ::
-  Members
-    '[ BrigAccess,
-       ErrorS 'UnknownWelcomeRecipient
-     ]
-    r =>
-  KeyPackageRef ->
-  Sem r ClientIdentity
-derefKeyPackage ref =
-  maybe (throwS @'UnknownWelcomeRecipient) pure
-    =<< getClientByKeyPackageRef ref

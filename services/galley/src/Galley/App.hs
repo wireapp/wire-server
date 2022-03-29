@@ -248,6 +248,7 @@ evalGalley e =
     . interpretWaiErrorToException
     . runInputConst e
     . runInputConst (e ^. cstate)
+    . interpretWaiErrorToException -- Wai.Error
     . interpretWaiErrorToException -- DynError
     . interpretTinyLog e
     . interpretQueue (e ^. deleteQueue)
