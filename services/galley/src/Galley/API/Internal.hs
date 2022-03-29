@@ -163,6 +163,13 @@ type InternalAPI =
                   ( Summary "Get the server wide feature config for the 2nd factor password challenge feature."
                       :> "feature-configs"
                       :> KnownTeamFeatureNameSymbol 'TeamFeatureSndFactorPasswordChallenge
+                      :> QueryParam'
+                           [ Optional,
+                             Strict,
+                             Description "Optional user id"
+                           ]
+                           "user_id"
+                           UserId
                       :> Get '[Servant.JSON] TeamFeatureStatusNoConfig
                   )
            :<|> IFeatureAPI
@@ -201,7 +208,7 @@ internalAPI =
     :<|> Named @"delete-user" rmUser
     :<|> Named @"connect" Create.createConnectConversation
     :<|> Named @"upsert-one2one" iUpsertOne2OneConversation
-    :<|> Named @"feature-config-snd-factor-password-challenge" (TeamFeatureStatusNoConfig . tfwoapsStatus <$> getSndFactorPasswordChallengeInternal (Left Nothing))
+    :<|> Named @"feature-config-snd-factor-password-challenge" (\mbUserId -> TeamFeatureStatusNoConfig . tfwoapsStatus <$> getSndFactorPasswordChallengeInternal (Left mbUserId))
     :<|> featureAPI
 
 featureAPI :: ServerT IFeatureAPI (Sem GalleyEffects)

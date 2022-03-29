@@ -58,7 +58,7 @@ module Brig.IO.Intra
     changeTeamStatus,
     getTeamSearchVisibility,
     getVerificationCodeEnabled,
-    getTeamFeatureStatusSndFactorPasswordChallengeForSite,
+    getTeamFeatureStatusSndFactorPasswordChallenge,
 
     -- * Legalhold
     guardLegalhold,
@@ -1007,9 +1007,14 @@ getVerificationCodeEnabled tid = do
       paths ["i", "teams", toByteString' tid, "features", toByteString' TeamFeatureSndFactorPasswordChallenge]
         . expect2xx
 
-getTeamFeatureStatusSndFactorPasswordChallengeForSite :: (AppIO r) TeamFeatureStatusNoConfig
-getTeamFeatureStatusSndFactorPasswordChallengeForSite =
-  responseJsonUnsafe <$> galleyRequest GET (paths ["i", "feature-configs", toByteString' (knownTeamFeatureName @'TeamFeatureSndFactorPasswordChallenge)])
+getTeamFeatureStatusSndFactorPasswordChallenge :: Maybe UserId -> (AppIO r) TeamFeatureStatusNoConfig
+getTeamFeatureStatusSndFactorPasswordChallenge = \case
+  Just u -> do
+    resp <- galleyRequest GET (paths ["i", "feature-configs", toByteString' (knownTeamFeatureName @'TeamFeatureSndFactorPasswordChallenge)] . queryItem "user_id" (toByteString' u))
+    pure $ responseJsonUnsafe resp
+  Nothing -> do
+    resp <- galleyRequest GET (paths ["i", "feature-configs", toByteString' (knownTeamFeatureName @'TeamFeatureSndFactorPasswordChallenge)])
+    pure $ responseJsonUnsafe resp
 
 -- | Calls 'Galley.API.updateTeamStatusH'.
 changeTeamStatus :: TeamId -> Team.TeamStatus -> Maybe Currency.Alpha -> (AppIO r) ()
