@@ -954,7 +954,6 @@ botGetSelfH bot = do
 
 botGetSelf :: BotId -> (Handler r) Public.UserProfile
 botGetSelf bot = do
-  checkAllowed (Just (botUserId bot))
   p <- lift $ wrapClient $ User.lookupUser NoPendingInvitations (botUserId bot)
   maybe (throwErrorDescriptionType @UserNotFound) (return . (`Public.publicProfile` UserLegalHoldNoConsent)) p
 
@@ -1043,16 +1042,9 @@ botDeleteSelf bid cid = do
 -- Utilities
 
 checkAllowed :: Maybe UserId -> (Handler r) ()
-checkAllowed = \case
-  Just userId ->
-    whenM (isPasswordChallengeEnabled (Just userId)) $ throwStd accessDenied
-  Nothing ->
-    whenM (isPasswordChallengeEnabled Nothing) $ throwStd accessDenied
-
-isPasswordChallengeEnabled :: Maybe UserId -> (Handler r) Bool
-isPasswordChallengeEnabled mbUserId = do
-  status <- lift $ RPC.getTeamFeatureStatusSndFactorPasswordChallenge mbUserId
-  pure $ Feature.tfwoStatus status == Feature.TeamFeatureEnabled
+checkAllowed mbUserId = do
+  enabled <- lift $ (==) Feature.TeamFeatureEnabled . Feature.tfwoStatus <$> RPC.getTeamFeatureStatusSndFactorPasswordChallenge mbUserId
+  when enabled $ throwStd accessDenied
 
 minRsaKeySize :: Int
 minRsaKeySize = 256 -- Bytes (= 2048 bits)
