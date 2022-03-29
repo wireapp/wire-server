@@ -127,5 +127,5 @@ conv2 =
                 },
             cmOthers = []
           },
-      cnvProtocol = ProtocolMLS (ConversationMLSData (GroupId ("test_group")))
+      cnvProtocol = ProtocolMLS (ConversationMLSData (GroupId ("test_group")) 42)
     }

@@ -56,16 +56,18 @@ import Wire.API.Conversation.Protocol
 createConversation :: Local ConvId -> NewConversation -> Client Conversation
 createConversation lcnv nc = do
   let meta = ncMetadata nc
-  (proto, mgid) <- case ncProtocol nc of
-    ProtocolProteusTag -> pure (ProtocolProteus, Nothing)
+  (proto, mgid, mep) <- case ncProtocol nc of
+    ProtocolProteusTag -> pure (ProtocolProteus, Nothing, Nothing)
     ProtocolMLSTag -> do
       gid <- liftIO $ toGroupId (tUnqualified lcnv, tDomain lcnv)
       pure
         ( ProtocolMLS
             ConversationMLSData
-              { cnvmlsGroupId = gid
+              { cnvmlsGroupId = gid,
+                cnvmlsEpoch = Epoch 0
               },
-          Just gid
+          Just gid,
+          Just (Epoch 0)
         )
   retry x5 . batch $ do
     setType BatchLogged
@@ -82,7 +84,8 @@ createConversation lcnv nc = do
         cnvmMessageTimer meta,
         cnvmReceiptMode meta,
         ncProtocol nc,
-        mgid
+        mgid,
+        mep
       )
     for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, tUnqualified lcnv)
     for_ mgid $ \gid -> addPrepQuery Cql.insertGroupId (gid, tUnqualified lcnv, tDomain lcnv)
@@ -124,7 +127,7 @@ conversationMeta conv =
   (toConvMeta =<<)
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
-    toConvMeta (t, c, a, r, r', n, i, _, mt, rm, _, _) = do
+    toConvMeta (t, c, a, r, r', n, i, _, mt, rm, _, _, _) = do
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
       pure $ ConversationMetadata t c (defAccess t a) accessRoles n i mt rm
@@ -200,8 +203,8 @@ localConversations ids = do
       let m =
             Map.fromList $
               map
-                ( \(cId, cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm, p, gid) ->
-                    (cId, (cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm, p, gid))
+                ( \(cId, cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm, p, gid, mep) ->
+                    (cId, (cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm, p, gid, mep))
                 )
                 cs
       return $ map (`Map.lookup` m) ids
@@ -238,28 +241,23 @@ remoteConversationStatusOnDomain uid rconvs =
         toMemberStatus (omus, omur, oar, oarr, hid, hidr)
       )
 
-toProtocol :: Maybe ProtocolTag -> Maybe GroupId -> Maybe Protocol
-toProtocol Nothing _ = Just ProtocolProteus
-toProtocol (Just ProtocolProteusTag) _ = Just ProtocolProteus
-toProtocol (Just ProtocolMLSTag) mgid = do
-  gid <- mgid
-  pure $
-    ProtocolMLS
-      ConversationMLSData
-        { cnvmlsGroupId = gid
-        }
+toProtocol :: Maybe ProtocolTag -> Maybe GroupId -> Maybe Epoch -> Maybe Protocol
+toProtocol Nothing _ _ = Just ProtocolProteus
+toProtocol (Just ProtocolProteusTag) _ _ = Just ProtocolProteus
+toProtocol (Just ProtocolMLSTag) mgid mepoch =
+  ProtocolMLS <$> (ConversationMLSData <$> mgid <*> mepoch)
 
 toConv ::
   ConvId ->
   [LocalMember] ->
   [RemoteMember] ->
-  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId) ->
+  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch) ->
   Maybe Conversation
 toConv cid ms remoteMems mconv = do
-  (cty, uid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid) <- mconv
+  (cty, uid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep) <- mconv
   let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
       accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
-  proto <- toProtocol ptag mgid
+  proto <- toProtocol ptag mgid mep
   pure
     Conversation
       { convId = cid,

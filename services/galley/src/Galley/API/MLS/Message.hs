@@ -29,4 +29,5 @@ postMLSMessage ::
   ConnId ->
   RawMLS SomeMessage ->
   Sem r ()
-postMLSMessage _ _ _ = pure ()
+postMLSMessage _lusr _con smsg = case rmValue smsg of
+  SomeMessage _tag _msg -> undefined

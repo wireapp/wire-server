@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -19,6 +21,7 @@ module Wire.API.Conversation.Protocol
   ( ProtocolTag (..),
     protocolTag,
     protocolTagSchema,
+    Epoch (..),
     Protocol (..),
     protocolSchema,
     ConversationMLSData (..),
@@ -37,9 +40,15 @@ data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag
   deriving stock (Eq, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via GenericUniform ProtocolTag
 
+newtype Epoch = Epoch {epochNumber :: Word64}
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary, ToSchema)
+
 data ConversationMLSData = ConversationMLSData
   { -- | The MLS group ID associated to the conversation.
-    cnvmlsGroupId :: GroupId
+    cnvmlsGroupId :: GroupId,
+    -- | The current epoch number of the corresponding MLS group.
+    cnvmlsEpoch :: Epoch
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform ConversationMLSData
@@ -93,4 +102,9 @@ mlsDataSchema =
     .= fieldWithDocModifier
       "group_id"
       (description ?~ "An MLS group identifier (at most 256 bytes long)")
+      schema
+    <*> cnvmlsEpoch
+    .= fieldWithDocModifier
+      "epoch"
+      (description ?~ "The epoch number of the corresponding MLS group")
       schema
