@@ -25,7 +25,7 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 61 "Add feature config for team feature SearchVisibilityInbound" $ do
+migration = Migration 62 "Add feature config for team feature SearchVisibilityInbound" $ do
   schema'
     [r| ALTER TABLE team_features ADD (
           search_visibility_inbound_status int
