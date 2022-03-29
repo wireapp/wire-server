@@ -27,7 +27,6 @@ library:
   - memory
   - QuickCheck
   - schema-profunctor
-  - singletons
   - string-conversions
   - tagged
   - text >=0.11
