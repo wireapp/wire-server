@@ -44,7 +44,8 @@ data GalleyError
   | UserBindingExists
   | NoAddToBinding
   | TooManyTeamMembers
-  | MissingPermission (Maybe Perm)
+  | -- FUTUREWORK: possibly make MissingPermission take a list of Perm
+    MissingPermission (Maybe Perm)
   | ActionDenied Action
   | NotConnected
   | InvalidOperation

@@ -72,6 +72,8 @@ instance APIError InvalidInput where
   toWai (InvalidPayload t) = invalidPayload t
   toWai InvalidTeamNotificationId = invalidTeamNotificationId
 
+-- FUTUREWORK: make LegalHoldError more static and documented
+
 data LegalHoldError
   = MissingLegalholdConsent
   | NoUserLegalHoldConsent
