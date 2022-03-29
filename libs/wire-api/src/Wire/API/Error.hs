@@ -14,9 +14,35 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-module Wire.API.Error where
+module Wire.API.Error
+  ( -- * Static and dynamic error types
+    DynError (..),
+    dynError,
+    StaticError (..),
+    KnownError,
+    MapError,
+    errorToWai,
+    APIError (..),
 
-import Control.Error.Util (hush)
+    -- * Static errors and Servant
+    CanThrow,
+    CanThrowMany,
+    DeclaredErrorEffects,
+    addStaticErrorToSwagger,
+    IsSwaggerError (..),
+    ErrorResponse,
+
+    -- * Static errors and Polysemy
+    ErrorEffect,
+    ErrorS,
+    throwS,
+    noteS,
+    mapErrorS,
+    mapToRuntimeError,
+    mapToDynamicError,
+  )
+where
+
 import Control.Lens (at, (%~), (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
@@ -226,9 +252,6 @@ mapToDynamicError = mapToRuntimeError (dynError @(MapError e))
 errorToWai :: forall e. KnownError (MapError e) => Wai.Error
 errorToWai = toWai (dynError @(MapError e))
 
-runErrorS :: forall e a r. Sem (ErrorS e ': r) a -> Sem r (Maybe a)
-runErrorS = fmap hush . runError
-
 class APIError e where
   toWai :: e -> Wai.Error
 
@@ -237,9 +260,6 @@ instance APIError DynError where
 
 instance KnownError e => APIError (SStaticError e) where
   toWai = toWai . dynError'
-
-staticToWai :: forall e. KnownError (MapError e) => Wai.Error
-staticToWai = toWai (seSing @(MapError e))
 
 --------------------------------------------------------------------------------
 -- MultiVerb support
