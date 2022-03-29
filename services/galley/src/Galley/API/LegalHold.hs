@@ -922,7 +922,7 @@ handleGroupConvPolicyConflicts luid hypotheticalLHStatus = do
         -- we know that this is a group conversation, so invalid operation
         -- and conversation not found errors cannot actually be thrown
         mapToRuntimeError @'InvalidOperation
-          (InternalErrorWithDescription "expected group conversation while handing policy conflicts")
+          (InternalErrorWithDescription "expected group conversation while handling policy conflicts")
           . mapToRuntimeError @'ConvNotFound
             (InternalErrorWithDescription "conversation disappeared while iterating on a list of conversations")
           . mapErrorS @('ActionDenied 'LeaveConversation) @('ActionDenied 'RemoveConversationMember)
