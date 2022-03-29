@@ -15,20 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.Endpoint where
+module V62_TeamFeatureSearchVisibilityInbound
+  ( migration,
+  )
+where
 
-import Servant.API
-import Wire.API.Federation.Domain
-import Wire.API.Routes.Named
+import Cassandra.Schema
+import Imports
+import Text.RawString.QQ
 
-type FedEndpoint name input output =
-  Named
-    name
-    (name :> OriginDomainHeader :> ReqBody '[JSON] input :> Post '[JSON] output)
-
-type StreamingFedEndpoint name input output =
-  Named
-    name
-    ( name :> OriginDomainHeader :> ReqBody '[JSON] input
-        :> StreamPost NoFraming OctetStream output
-    )
+migration :: Migration
+migration = Migration 62 "Add feature config for team feature SearchVisibilityInbound" $ do
+  schema'
+    [r| ALTER TABLE team_features ADD (
+          search_visibility_inbound_status int
+        )
+     |]

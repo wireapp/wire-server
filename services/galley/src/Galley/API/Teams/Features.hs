@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.Teams.Features
   ( getFeatureStatus,
@@ -43,6 +44,9 @@ module Galley.API.Teams.Features
     setSelfDeletingMessagesInternal,
     getSndFactorPasswordChallengeInternal,
     setSndFactorPasswordChallengeInternal,
+    getTeamSearchVisibilityInboundInternal,
+    setTeamSearchVisibilityInboundInternal,
+    getTeamSearchVisibilityInboundInternalMulti,
     getGuestLinkInternal,
     setGuestLinkInternal,
     setLockStatus,
@@ -58,7 +62,9 @@ import qualified Data.Aeson.KeyMap as KeyMap
 import Data.ByteString.Conversion hiding (fromList)
 import Data.Either.Extra (eitherToMaybe)
 import Data.Id
+import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
+import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Data.Time.Clock
 import Galley.API.Error as Galley
@@ -78,9 +84,11 @@ import Galley.Intra.Push (PushEvent (FeatureConfigEvent), newPush)
 import Galley.Options
 import Galley.Types.Teams hiding (newTeam)
 import Imports
+import Network.HTTP.Types (status500)
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import Network.Wai.Utilities hiding (Error)
+import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -90,6 +98,7 @@ import Wire.API.ErrorDescription
 import Wire.API.Event.FeatureConfig
 import qualified Wire.API.Event.FeatureConfig as Event
 import Wire.API.Federation.Error
+import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature (AllFeatureConfigs (..), FeatureHasNoConfig, KnownTeamFeatureName, TeamFeatureName)
 import qualified Wire.API.Team.Feature as Public
 
@@ -756,6 +765,69 @@ setSndFactorPasswordChallengeInternal tid status = do
   where
     getDftLockStatus :: Sem r Public.LockStatusValue
     getDftLockStatus = input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSndFactorPasswordChallengeStatus . unDefaults . to Public.tfwoapsLockStatus)
+
+getTeamSearchVisibilityInboundInternal ::
+  Members '[Input Opts, TeamFeatureStore] r =>
+  GetFeatureInternalParam ->
+  Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibilityInbound)
+getTeamSearchVisibilityInboundInternal =
+  either
+    (const $ getFeatureStatusWithDefaultConfig @'Public.TeamFeatureSearchVisibilityInbound flagTeamFeatureSearchVisibilityInbound Nothing)
+    (getFeatureStatusWithDefaultConfig @'Public.TeamFeatureSearchVisibilityInbound flagTeamFeatureSearchVisibilityInbound . Just)
+
+setTeamSearchVisibilityInboundInternal ::
+  Members '[GundeckAccess, TeamStore, TeamFeatureStore, BrigAccess, P.TinyLog, Error Wai.Error] r =>
+  TeamId ->
+  Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibilityInbound ->
+  Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibilityInbound)
+setTeamSearchVisibilityInboundInternal tid status = do
+  updatedStatus <- setFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibilityInbound (\_ _ -> pure ()) tid status
+  mPersistedStatus <- listToMaybe <$> TeamFeatures.getFeatureStatusNoConfigMulti (Proxy @'Public.TeamFeatureSearchVisibilityInbound) [tid]
+  case mPersistedStatus of
+    Just (persistedTid, persistedStatus, persistedWriteTime) ->
+      updateSearchVisibilityInbound $
+        Multi.TeamStatusUpdate persistedTid persistedStatus persistedWriteTime
+    Nothing -> throw $ Wai.mkError status500 "server-error" "Failed to retrieve search-visibility-inbound status after persisting it"
+  pure updatedStatus
+
+getFeatureStatusMulti ::
+  forall f r.
+  ( KnownTeamFeatureName f,
+    Public.FeatureHasNoConfig 'Public.WithoutLockStatus f,
+    HasStatusCol f,
+    Members
+      '[ TeamStore,
+         TeamFeatureStore,
+         Input Opts
+       ]
+      r
+  ) =>
+  Lens' FeatureFlags (Defaults (Public.TeamFeatureStatus 'Public.WithoutLockStatus f)) ->
+  (Multi.TeamFeatureNoConfigMultiRequest -> (Sem r) (Multi.TeamFeatureNoConfigMultiResponse 'Public.TeamFeatureSearchVisibilityInbound))
+getFeatureStatusMulti lens' (Multi.TeamFeatureNoConfigMultiRequest teams) = do
+  triples <- TeamFeatures.getFeatureStatusNoConfigMulti (Proxy @f) teams
+  let tsExplicit = map (\(tid, sv, t) -> Multi.TeamStatus tid sv (Just t)) triples
+  let teamsDefault = Set.toList (Set.fromList teams `Set.difference` Set.fromList (Multi.team <$> tsExplicit))
+  defaultStatus <- getDef
+  let tsImplicit = [Multi.TeamStatus tid defaultStatus Nothing | tid <- teamsDefault]
+  pure $ Multi.TeamFeatureNoConfigMultiResponse $ tsExplicit <> tsImplicit
+  where
+    getDef :: Sem r Public.TeamFeatureStatusValue
+    getDef =
+      inputs (view (optSettings . setFeatureFlags . lens'))
+        <&> Public.tfwoStatus . view unDefaults
+
+getTeamSearchVisibilityInboundInternalMulti ::
+  Members
+    '[ TeamStore,
+       TeamFeatureStore,
+       Input Opts
+     ]
+    r =>
+  Multi.TeamFeatureNoConfigMultiRequest ->
+  (Sem r) (Multi.TeamFeatureNoConfigMultiResponse 'Public.TeamFeatureSearchVisibilityInbound)
+getTeamSearchVisibilityInboundInternalMulti =
+  getFeatureStatusMulti @'Public.TeamFeatureSearchVisibilityInbound flagTeamFeatureSearchVisibilityInbound
 
 -- TODO(fisx): move this function to a more suitable place / module.
 guardLockStatus ::

@@ -299,3 +299,13 @@ instance Cql KeyPackageData where
   toCql = CqlBlob . LBS.fromStrict . kpData
   fromCql (CqlBlob b) = pure . KeyPackageData . LBS.toStrict $ b
   fromCql _ = Left "Expected CqlBlob"
+
+instance Cql SearchVisibilityInbound where
+  ctype = Tagged IntColumn
+
+  toCql SearchableByOwnTeam = CqlInt 0
+  toCql SearchableByAllTeams = CqlInt 1
+
+  fromCql (CqlInt 0) = pure SearchableByOwnTeam
+  fromCql (CqlInt 1) = pure SearchableByAllTeams
+  fromCql n = Left $ "Unexpected SearchVisibilityInbound: " ++ show n

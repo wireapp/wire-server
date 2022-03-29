@@ -124,8 +124,10 @@ import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Internal.Brig.Connection
+import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team (Icon (..))
+import Wire.API.Team.Feature
 import Wire.API.Team.Member (mkNewTeamMember)
 import Wire.API.User.Client
 import qualified Wire.API.User.Client as Client
@@ -1423,6 +1425,14 @@ registerRemoteConv convId originUser name othMembers = do
         rcMessageTimer = Nothing,
         rcReceiptMode = Nothing
       }
+
+getFeatureStatusMulti :: TeamFeatureName -> Multi.TeamFeatureNoConfigMultiRequest -> TestM ResponseLBS
+getFeatureStatusMulti feat req = do
+  g <- view tsGalley
+  post
+    ( g . paths ["i", "features-multi-teams", toByteString' feat]
+        . json req
+    )
 
 -------------------------------------------------------------------------------
 -- Common Assertions

@@ -35,6 +35,7 @@ module Galley.Types.Teams
     flagConversationGuestLinks,
     flagsTeamFeatureValidateSAMLEmailsStatus,
     flagTeamFeatureSndFactorPasswordChallengeStatus,
+    flagTeamFeatureSearchVisibilityInbound,
     Defaults (..),
     unDefaults,
     FeatureSSO (..),
@@ -222,7 +223,8 @@ data FeatureFlags = FeatureFlags
     _flagSelfDeletingMessages :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages)),
     _flagConversationGuestLinks :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks)),
     _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails)),
-    _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge))
+    _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge)),
+    _flagTeamFeatureSearchVisibilityInbound :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSearchVisibilityInbound))
   }
   deriving (Eq, Show, Generic)
 
@@ -272,6 +274,7 @@ instance FromJSON FeatureFlags where
       <*> (fromMaybe (Defaults defaultGuestLinksStatus) <$> (obj .:? "conversationGuestLinks"))
       <*> (fromMaybe (Defaults defaultTeamFeatureValidateSAMLEmailsStatus) <$> (obj .:? "validateSAMLEmails"))
       <*> (fromMaybe (Defaults defaultTeamFeatureSndFactorPasswordChallengeStatus) <$> (obj .:? "sndFactorPasswordChallenge"))
+      <*> (fromMaybe (Defaults defaultTeamFeatureSearchVisibilityInbound) <$> (obj .:? "searchVisibilityInbound"))
 
 instance ToJSON FeatureFlags where
   toJSON
@@ -287,6 +290,7 @@ instance ToJSON FeatureFlags where
         guestLinks
         validateSAMLEmails
         sndFactorPasswordChallenge
+        searchVisibilityInbound
       ) =
       object
         [ "sso" .= sso,
@@ -299,7 +303,8 @@ instance ToJSON FeatureFlags where
           "selfDeletingMessages" .= selfDeletingMessages,
           "conversationGuestLinks" .= guestLinks,
           "validateSAMLEmails" .= validateSAMLEmails,
-          "sndFactorPasswordChallenge" .= sndFactorPasswordChallenge
+          "sndFactorPasswordChallenge" .= sndFactorPasswordChallenge,
+          "searchVisibilityInbound" .= searchVisibilityInbound
         ]
 
 instance FromJSON FeatureSSO where
@@ -395,6 +400,7 @@ roleHiddenPermissions role = HiddenPermissions p p
             ChangeTeamFeature TeamFeatureSelfDeletingMessages,
             ChangeTeamFeature TeamFeatureGuestLinks,
             ChangeTeamFeature TeamFeatureSndFactorPasswordChallenge,
+            ChangeTeamFeature TeamFeatureSearchVisibilityInbound,
             ChangeTeamMemberProfiles,
             ReadIdp,
             CreateUpdateDeleteIdp,

@@ -19,6 +19,7 @@ module Index.Create where
 
 import qualified Brig.Index.Eval as IndexEval
 import qualified Brig.Index.Options as IndexOpts
+import Brig.Options (Opts (galley))
 import qualified Brig.Options as BrigOpts
 import Control.Lens ((.~), (^.))
 import qualified Data.Text as Text
@@ -62,7 +63,7 @@ testCreateIndexWhenNotPresent brigOpts = do
               & IndexOpts.esIndexShardCount .~ shards
               & IndexOpts.esIndexRefreshInterval .~ refreshInterval
       devNullLogger <- Log.create (Log.Path "/dev/null")
-      IndexEval.runCommand devNullLogger (IndexOpts.Create esSettings)
+      IndexEval.runCommand devNullLogger (IndexOpts.Create esSettings (galley brigOpts))
       ES.withBH HTTP.defaultManagerSettings (ES.Server esURL) $ do
         indexExists <- ES.indexExists indexName
         lift $
@@ -99,7 +100,7 @@ testCreateIndexWhenPresent brigOpts = do
               & IndexOpts.esIndexShardCount .~ shards
               & IndexOpts.esIndexRefreshInterval .~ refreshInterval
       devNullLogger <- Log.create (Log.Path "/dev/null")
-      IndexEval.runCommand devNullLogger (IndexOpts.Create esSettings)
+      IndexEval.runCommand devNullLogger (IndexOpts.Create esSettings (galley brigOpts))
       ES.withBH HTTP.defaultManagerSettings (ES.Server esURL) $ do
         indexExists <- ES.indexExists indexName
         lift $

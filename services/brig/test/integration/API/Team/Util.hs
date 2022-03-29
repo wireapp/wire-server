@@ -435,7 +435,7 @@ stdInvitationRequest' :: Maybe Locale -> Maybe Team.Role -> Email -> InvitationR
 stdInvitationRequest' loc role email =
   InvitationRequest loc role Nothing email Nothing
 
-setTeamTeamSearchVisibilityAvailable :: HasCallStack => Galley -> TeamId -> TeamFeatureStatusValue -> Http ()
+setTeamTeamSearchVisibilityAvailable :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => Galley -> TeamId -> TeamFeatureStatusValue -> m ()
 setTeamTeamSearchVisibilityAvailable galley tid status =
   put
     ( galley
@@ -456,6 +456,17 @@ setTeamSearchVisibility galley tid typ =
     )
     !!! do
       const 204 === statusCode
+
+setTeamSearchVisibilityInboundAvailable :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => Galley -> TeamId -> TeamFeatureStatusValue -> m ()
+setTeamSearchVisibilityInboundAvailable galley tid status =
+  put
+    ( galley
+        . paths ["i", "teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @'Public.TeamFeatureSearchVisibilityInbound)]
+        . contentJson
+        . body (RequestBodyLBS . encode $ Public.TeamFeatureStatusNoConfig status)
+    )
+    !!! do
+      const 200 === statusCode
 
 setUserEmail :: Brig -> UserId -> UserId -> Email -> Http ResponseLBS
 setUserEmail brig from uid email = do

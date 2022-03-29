@@ -984,6 +984,15 @@ recoverN n m =
     (constantDelay 1000000 <> limitRetries n)
     (const m)
 
+-- | This is required as any HTTP call made using bilge when running under
+-- 'withSettingsOverrides' goes to the server started by
+-- 'withSettingsOverrides'. Sometimes, a call needs to be made to another
+-- service which is not being mocked, this helper can be used to do that.
+--
+-- This is just an alias to 'runHttpT' to make the intent clear.
+circumventSettingsOverride :: MonadIO m => Manager -> HttpT m a -> m a
+circumventSettingsOverride = runHttpT
+
 -- | This allows you to run requests against a brig instantiated using the given options.
 --   Note that ONLY 'brig' calls should occur within the provided action, calls to other
 --   services will fail.

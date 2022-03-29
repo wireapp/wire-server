@@ -152,7 +152,8 @@ searchRemotely domain searchTerm = do
 searchLocally :: UserId -> Text -> Maybe (Range 1 500 Int32) -> (Handler r) (Public.SearchResult Public.Contact)
 searchLocally searcherId searchTerm maybeMaxResults = do
   let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
-  teamSearchInfo <- mkTeamSearchInfo
+  searcherTeamId <- lift $ wrapClient $ DB.lookupUserTeam searcherId
+  teamSearchInfo <- mkTeamSearchInfo searcherTeamId
 
   maybeExactHandleMatch <- exactHandleSearch teamSearchInfo
 
@@ -161,7 +162,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
 
   esResult <-
     if esMaxResults > 0
-      then Q.searchIndex (Just searcherId) (Just teamSearchInfo) searchTerm esMaxResults
+      then Q.searchIndex (Q.LocalSearch searcherId searcherTeamId teamSearchInfo) searchTerm esMaxResults
       else pure $ SearchResult 0 0 0 [] FullSearch
 
   -- Prepend results matching exact handle and results from ES.
@@ -173,12 +174,11 @@ searchLocally searcherId searchTerm maybeMaxResults = do
       }
   where
     handleTeamVisibility :: TeamId -> TeamSearchVisibility -> Search.TeamSearchInfo
-    handleTeamVisibility t Team.SearchVisibilityStandard = Search.TeamAndNonMembers t
+    handleTeamVisibility _ Team.SearchVisibilityStandard = Search.AllUsers
     handleTeamVisibility t Team.SearchVisibilityNoNameOutsideTeam = Search.TeamOnly t
 
-    mkTeamSearchInfo :: (Handler r) TeamSearchInfo
-    mkTeamSearchInfo = lift $ do
-      searcherTeamId <- wrapClient $ DB.lookupUserTeam searcherId
+    mkTeamSearchInfo :: Maybe TeamId -> (Handler r) TeamSearchInfo
+    mkTeamSearchInfo searcherTeamId = lift $ do
       sameTeamSearchOnly <- fromMaybe False <$> view (settings . Opts.searchSameTeamOnly)
       case searcherTeamId of
         Nothing -> return Search.NoTeam

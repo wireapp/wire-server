@@ -28,6 +28,7 @@ module Galley.Intra.User
     chunkify,
     getRichInfoMultiUser,
     getAccountFeatureConfigClient,
+    updateSearchVisibilityInbound,
   )
 where
 
@@ -43,7 +44,6 @@ import Data.ByteString.Char8 (pack)
 import qualified Data.ByteString.Char8 as BSC
 import Data.ByteString.Conversion
 import Data.Id
-import Data.Proxy
 import Data.Qualified
 import Data.String.Conversions
 import qualified Data.Text.Lazy as Lazy
@@ -58,11 +58,12 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error
 import qualified Network.Wai.Utilities.Error as Wai
-import Servant.API ((:<|>) ((:<|>)))
 import qualified Servant.Client as Client
 import Util.Options
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Internal.Brig.Connection
+import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
+import Wire.API.Routes.Named
 import Wire.API.Team.Feature
 import Wire.API.User.RichInfo (RichInfo)
 
@@ -234,24 +235,14 @@ getRichInfoMultiUser = chunkify $ \uids -> do
 
 getAccountFeatureConfigClient :: HasCallStack => UserId -> App TeamFeatureStatusNoConfig
 getAccountFeatureConfigClient uid =
-  runHereClientM (getAccountFeatureConfigClientM uid)
-    >>= handleResp
-  where
-    handleResp ::
-      Either Client.ClientError TeamFeatureStatusNoConfig ->
-      App TeamFeatureStatusNoConfig
-    handleResp (Right cfg) = pure cfg
-    handleResp (Left errmsg) = throwM . internalErrorWithDescription . cs . show $ errmsg
+  runHereClientM (namedClient @IAPI.API @"get-account-feature-config" uid)
+    >>= handleServantResp
 
-getAccountFeatureConfigClientM ::
-  UserId -> Client.ClientM TeamFeatureStatusNoConfig
-( ( _
-      :<|> getAccountFeatureConfigClientM
-      :<|> _
-    )
-    :<|> _
-    :<|> _
-  ) = Client.client (Proxy @IAPI.API)
+updateSearchVisibilityInbound :: Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound -> App ()
+updateSearchVisibilityInbound =
+  handleServantResp
+    <=< runHereClientM
+      . namedClient @IAPI.API @"updateSearchVisibilityInbound"
 
 runHereClientM :: HasCallStack => Client.ClientM a -> App (Either Client.ClientError a)
 runHereClientM action = do
@@ -260,3 +251,9 @@ runHereClientM action = do
   let env = Client.mkClientEnv mgr baseurl
       baseurl = Client.BaseUrl Client.Http (cs $ brigep ^. epHost) (fromIntegral $ brigep ^. epPort) ""
   liftIO $ Client.runClientM action env
+
+handleServantResp ::
+  Either Client.ClientError a ->
+  App a
+handleServantResp (Right cfg) = pure cfg
+handleServantResp (Left errmsg) = throwM . internalErrorWithDescription . cs . show $ errmsg

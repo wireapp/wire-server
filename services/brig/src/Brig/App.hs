@@ -262,7 +262,7 @@ newEnv o = do
         _zauthEnv = zau,
         _digestMD5 = md5,
         _digestSHA256 = sha256,
-        _indexEnv = mkIndexEnv o lgr mgr mtr,
+        _indexEnv = mkIndexEnv o lgr mgr mtr (Opt.galley o),
         _randomPrekeyLocalLock = prekeyLocalLock,
         _keyPackageLocalLock = kpLock
       }
@@ -280,14 +280,14 @@ newEnv o = do
       return (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
 
-mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> IndexEnv
-mkIndexEnv o lgr mgr mtr =
+mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
+mkIndexEnv o lgr mgr mtr galleyEndpoint =
   let bhe = ES.mkBHEnv (ES.Server (Opt.url (Opt.elasticsearch o))) mgr
       lgr' = Log.clone (Just "index.brig") lgr
       mainIndex = ES.IndexName $ Opt.index (Opt.elasticsearch o)
       additionalIndex = ES.IndexName <$> Opt.additionalWriteIndex (Opt.elasticsearch o)
       additionalBhe = flip ES.mkBHEnv mgr . ES.Server <$> Opt.additionalWriteIndexUrl (Opt.elasticsearch o)
-   in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex additionalBhe
+   in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex additionalBhe galleyEndpoint mgr
 
 geoSetup :: Logger -> FS.WatchManager -> Maybe FilePath -> IO (Maybe (IORef GeoIp.GeoDB))
 geoSetup _ _ Nothing = return Nothing

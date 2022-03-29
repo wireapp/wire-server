@@ -108,7 +108,7 @@ source-repository-package
 source-repository-package
     type: git
     location: https://github.com/wireapp/bloodhound
-    tag: d444579f808115ddb0f20a1fe169fafad24f5165
+    tag: c68e6d877d87988331bf391ed16780383a58eefa
 
 source-repository-package
     type: git

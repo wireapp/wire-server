@@ -143,7 +143,7 @@ searchUsers domain (SearchRequest searchTerm) = do
 
     fullSearch :: Int -> (Handler r) [Contact]
     fullSearch n
-      | n > 0 = searchResults <$> Q.searchIndex Nothing Nothing searchTerm n
+      | n > 0 = searchResults <$> Q.searchIndex Q.FederatedSearch searchTerm n
       | otherwise = pure []
 
     exactHandleSearch :: Int -> (Handler r) [Contact]
