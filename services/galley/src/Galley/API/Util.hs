@@ -161,7 +161,7 @@ ensureReAuthorised ::
   Maybe VerificationAction ->
   Sem r ()
 ensureReAuthorised u secret mbAction mbCode =
-  reauthUser u (ReAuthUser secret mbAction mbCode) >>= either throw pure
+  reauthUser u (ReAuthUser secret mbAction mbCode) >>= fromEither
 
 -- | Given a member in a conversation, check if the given action
 -- is permitted. If the user does not have the given permission, or if it has a
