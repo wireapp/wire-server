@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wwarn #-}
 
 -- | Most of the errors thrown by galley are defined as static errors in
 -- 'Wire.API.Error.Galley' and declared as part of the API. Errors defined here
