@@ -49,7 +49,7 @@ module Galley.API.Teams.Features
     setLockStatus,
     DoAuth (..),
     GetFeatureInternalParam,
-    continueOnSndFactorPasswordChallengeDisabledOrAccessDenied,
+    guardSecondFactorDisabled,
   )
 where
 
@@ -756,7 +756,10 @@ getSndFactorPasswordChallengeInternal = \case
     getCfgDefault :: Sem r (Public.TeamFeatureStatus 'Public.WithLockStatus 'Public.TeamFeatureSndFactorPasswordChallenge)
     getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSndFactorPasswordChallengeStatus . unDefaults)
 
-continueOnSndFactorPasswordChallengeDisabledOrAccessDenied ::
+-- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
+--
+-- This function exists to resolve a cyclic dependency.
+guardSecondFactorDisabled ::
   forall r a.
   ( Member (Input Opts) r,
     Member TeamFeatureStore r,
@@ -768,7 +771,7 @@ continueOnSndFactorPasswordChallengeDisabledOrAccessDenied ::
   UserId ->
   Sem r a ->
   Sem r a
-continueOnSndFactorPasswordChallengeDisabledOrAccessDenied uid action = do
+guardSecondFactorDisabled uid action = do
   featureConfig <- getFeatureConfig @'Public.WithLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge getSndFactorPasswordChallengeInternal uid
   case Public.tfwoapsStatus featureConfig of
     Public.TeamFeatureDisabled -> action

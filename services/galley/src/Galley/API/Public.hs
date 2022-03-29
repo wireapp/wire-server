@@ -378,7 +378,7 @@ getBotConversationH ::
   BotId ::: ConvId ::: JSON ->
   Sem r Response
 getBotConversationH arg@(zbot ::: _ ::: _) =
-  Features.continueOnSndFactorPasswordChallengeDisabledOrAccessDenied (botUserId zbot) (Query.getBotConversationH arg)
+  Features.guardSecondFactorDisabled (botUserId zbot) (Query.getBotConversationH arg)
 
 apiDocs :: Routes ApiBuilder (Sem r) ()
 apiDocs =
