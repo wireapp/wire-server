@@ -1008,13 +1008,13 @@ getVerificationCodeEnabled tid = do
         . expect2xx
 
 getTeamFeatureStatusSndFactorPasswordChallenge :: Maybe UserId -> (AppIO r) TeamFeatureStatusNoConfig
-getTeamFeatureStatusSndFactorPasswordChallenge = \case
-  Just u -> do
-    resp <- galleyRequest GET (paths ["i", "feature-configs", toByteString' (knownTeamFeatureName @'TeamFeatureSndFactorPasswordChallenge)] . queryItem "user_id" (toByteString' u))
-    pure $ responseJsonUnsafe resp
-  Nothing -> do
-    resp <- galleyRequest GET (paths ["i", "feature-configs", toByteString' (knownTeamFeatureName @'TeamFeatureSndFactorPasswordChallenge)])
-    pure $ responseJsonUnsafe resp
+getTeamFeatureStatusSndFactorPasswordChallenge mbUserId =
+  responseJsonUnsafe
+    <$> galleyRequest
+      GET
+      ( paths ["i", "feature-configs", toByteString' (knownTeamFeatureName @'TeamFeatureSndFactorPasswordChallenge)]
+          . maybe id (queryItem "user_id" . toByteString') mbUserId
+      )
 
 -- | Calls 'Galley.API.updateTeamStatusH'.
 changeTeamStatus :: TeamId -> Team.TeamStatus -> Maybe Currency.Alpha -> (AppIO r) ()
