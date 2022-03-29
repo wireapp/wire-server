@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   # TODO: set to image for wireapp coturn fork.
-  repository: docker.io/coturn/coturn
+  repository: quay.io/wire/coturn
   pullPolicy: IfNotPresent
   # overwrite the tag here, otherwise `appVersion` of the chart will be used
   tag: ""
