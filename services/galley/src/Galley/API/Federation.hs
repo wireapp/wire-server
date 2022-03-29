@@ -292,15 +292,6 @@ leaveConversation requestingDomain lc = do
       pure $ F.LeaveConversationResponse (Right ())
   where
 
--- handleConvError :: ConversationError -> F.RemoveFromConversationError
--- handleConvError _ = F.RemoveFromConversationErrorNotFound
-
--- handleActionError :: ActionError -> F.RemoveFromConversationError
--- handleActionError _ = F.RemoveFromConversationErrorRemovalNotAllowed
-
--- handleNoChanges :: NoChanges -> F.RemoveFromConversationError
--- handleNoChanges _ = F.RemoveFromConversationErrorUnchanged
-
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
 onMessageSent ::
