@@ -208,7 +208,11 @@ internalAPI =
     :<|> Named @"delete-user" rmUser
     :<|> Named @"connect" Create.createConnectConversation
     :<|> Named @"upsert-one2one" iUpsertOne2OneConversation
-    :<|> Named @"feature-config-snd-factor-password-challenge" (\mbUserId -> TeamFeatureStatusNoConfig . tfwoapsStatus <$> getSndFactorPasswordChallengeInternal (Left mbUserId))
+    :<|> Named @"feature-config-snd-factor-password-challenge"
+      ( \case
+          Just uid -> TeamFeatureStatusNoConfig . tfwoapsStatus <$> getFeatureConfigNoAuth @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge getSndFactorPasswordChallengeInternal uid
+          Nothing -> TeamFeatureStatusNoConfig . tfwoapsStatus <$> getSndFactorPasswordChallengeInternal (Left Nothing)
+      )
     :<|> featureAPI
 
 featureAPI :: ServerT IFeatureAPI (Sem GalleyEffects)

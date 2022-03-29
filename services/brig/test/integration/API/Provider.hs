@@ -89,6 +89,7 @@ import Util
 import Web.Cookie (SetCookie (..), parseSetCookie)
 import Wire.API.Asset hiding (Asset)
 import Wire.API.Event.Conversation
+import qualified Wire.API.Team.Feature as Public
 
 tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
 tests dom conf p db b c g = do
@@ -145,6 +146,10 @@ tests dom conf p db b c g = do
             test p "message" $ testMessageBotTeam conf db b g c,
             test p "delete conv" $ testDeleteConvBotTeam conf db b g c,
             test p "delete team" $ testDeleteTeamBotTeam conf db b g c
+          ],
+        testGroup
+          "block bot api if 2nd factor password challenge enabled"
+          [ test p "add" $ testAddBotBlocked conf db b g
           ]
       ]
 
@@ -542,7 +547,17 @@ testAddBotForbidden config db brig galley = withTestService config db brig defSe
   _rs <- createConvWithAccessRoles (Just accessRoles) galley uid1 [uid2] <!! const 201 === statusCode
   let Just cnv = responseJsonMaybe _rs
   let cid = qUnqualified . cnvQualifiedId $ cnv
-  addBot brig uid1 pid sid cid !!! const 403 === statusCode
+  addBot brig uid1 pid sid cid !!! do
+    const 403 === statusCode
+    const (Just "invalid-conversation") === fmap Error.label . responseJsonMaybe
+
+testAddBotBlocked :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testAddBotBlocked config db brig galley = withTestService config db brig defServiceApp $ \sref _buf -> do
+  (userId -> u1, _, _, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
+  enabled2ndFaForTeamInternal galley tid
+  addBot brig u1 pid sid cid !!! do
+    const 403 === statusCode
+    const (Just "access-denied") === fmap Error.label . responseJsonMaybe
 
 prepareUsers :: ServiceRef -> Brig -> Http (ProviderId, ServiceId, User, User, Text)
 prepareUsers sref brig = do
@@ -1363,6 +1378,22 @@ updateConversationAccess galley uid cid access role =
       . body (RequestBodyLBS (encode upd))
   where
     upd = ConversationAccessData (Set.fromList access) role
+
+enabled2ndFaForTeamInternal :: Galley -> TeamId -> Http ()
+enabled2ndFaForTeamInternal galley tid = do
+  put
+    ( galley
+        . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge, toByteString' Public.Unlocked]
+        . contentJson
+    )
+    !!! const 200 === statusCode
+  put
+    ( galley
+        . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge]
+        . contentJson
+        . Bilge.json (Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled)
+    )
+    !!! const 200 === statusCode
 
 --------------------------------------------------------------------------------
 -- DB Operations

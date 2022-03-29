@@ -20,6 +20,7 @@ module Galley.API.Teams.Features
     getFeatureStatusNoConfig,
     setFeatureStatus,
     getFeatureConfig,
+    getFeatureConfigNoAuth,
     getAllFeatureConfigs,
     getAllFeaturesH,
     getSSOStatusInternal,
@@ -195,6 +196,30 @@ getFeatureConfig getter zusr = do
       void $ permissionCheck (ViewTeamFeature (Public.knownTeamFeatureName @a)) zusrMembership
       assertTeamExists tid
       getter (Right tid)
+
+getFeatureConfigNoAuth ::
+  forall (ps :: Public.IncludeLockStatus) (a :: Public.TeamFeatureName) r.
+  ( Public.KnownTeamFeatureName a,
+    Members
+      '[ Error ActionError,
+         Error TeamError,
+         Error NotATeamMember,
+         TeamStore
+       ]
+      r
+  ) =>
+  (GetFeatureInternalParam -> Sem r (Public.TeamFeatureStatus ps a)) ->
+  UserId ->
+  Sem r (Public.TeamFeatureStatus ps a)
+getFeatureConfigNoAuth getter zusr = do
+  mbTeam <- getOneUserTeam zusr
+  case mbTeam of
+    Nothing -> getter (Left (Just zusr))
+    Just tid -> do
+      teamExists <- isJust <$> getTeam tid
+      if teamExists
+        then getter (Right tid)
+        else getter (Left (Just zusr))
 
 getAllFeatureConfigs ::
   Members
