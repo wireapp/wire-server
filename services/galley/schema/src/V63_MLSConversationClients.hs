@@ -15,9 +15,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V63_MLSConversationClients where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 63
+migration :: Migration
+migration =
+  Migration 63 "Add a column for a list of MLS clients in a conversation" $
+    schema'
+      [r| ALTER TABLE member ADD (
+          mls_clients set<text>
+        )
+     |]
