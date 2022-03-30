@@ -144,7 +144,6 @@ import qualified Test.Wire.API.Golden.Generated.PrekeyId_user
 import qualified Test.Wire.API.Golden.Generated.Prekey_user
 import qualified Test.Wire.API.Golden.Generated.Priority_user
 import qualified Test.Wire.API.Golden.Generated.PropertyKey_user
-import qualified Test.Wire.API.Golden.Generated.PropertyValue_user
 import qualified Test.Wire.API.Golden.Generated.ProviderActivationResponse_provider
 import qualified Test.Wire.API.Golden.Generated.ProviderLogin_provider
 import qualified Test.Wire.API.Golden.Generated.ProviderProfile_provider
@@ -765,12 +764,6 @@ tests =
             (Test.Wire.API.Golden.Generated.PropertyKey_user.testObject_PropertyKey_user_18, "testObject_PropertyKey_user_18.json"),
             (Test.Wire.API.Golden.Generated.PropertyKey_user.testObject_PropertyKey_user_19, "testObject_PropertyKey_user_19.json"),
             (Test.Wire.API.Golden.Generated.PropertyKey_user.testObject_PropertyKey_user_20, "testObject_PropertyKey_user_20.json")
-          ],
-      testGroup "Golden: PropertyValue_user" $
-        testObjects
-          [ ( Test.Wire.API.Golden.Generated.PropertyValue_user.testObject_PropertyValue_user_1,
-              "testObject_PropertyValue_user_1.json"
-            )
           ],
       testGroup "Golden: Push_2eToken_2eTransport_user" $
         testObjects

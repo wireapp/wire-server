@@ -63,6 +63,7 @@ import Control.Error hiding (bool)
 import Control.Lens (view, (%~), (.~), (?~), (^.), _Just)
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
+import Data.Bifunctor
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
@@ -84,7 +85,7 @@ import qualified Data.ZAuth.Token as ZAuth
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
 import Network.HTTP.Types.Status
-import Network.Wai (Response, lazyRequestBody)
+import Network.Wai
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
@@ -164,7 +165,7 @@ swaggerDocsAPI =
         . (S.enum_ . _Just %~ nub)
 
 servantSitemap :: ServerT BrigAPI (Handler r)
-servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> mlsAPI
+servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> propertiesAPI :<|> mlsAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -232,6 +233,9 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"update-connection-unqualified" updateLocalConnection
         :<|> Named @"update-connection" updateConnection
         :<|> Named @"search-contacts" Search.search
+
+    propertiesAPI :: ServerT PropertiesAPI (Handler r)
+    propertiesAPI = Named @"set-property" setProperty
 
     mlsAPI :: ServerT MLSAPI (Handler r)
     mlsAPI =
@@ -301,21 +305,6 @@ sitemap = do
     Doc.errorResponse (errorToWai @'E.InvalidCode)
 
   -- Properties API -----------------------------------------------------
-
-  -- This endpoint can lead to the following events being sent:
-  -- - PropertySet event to self
-  put "/properties/:key" (continue setPropertyH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "key"
-      .&. jsonRequest @Public.PropertyValue
-  document "PUT" "setProperty" $ do
-    Doc.summary "Set a user property."
-    Doc.parameter Doc.Path "key" Doc.string' $
-      Doc.description "Property key"
-    Doc.body (Doc.ref Public.modelPropertyValue) $
-      Doc.description "JSON body"
-    Doc.response 200 "Property set." Doc.end
 
   -- This endpoint can lead to the following events being sent:
   -- - PropertyDeleted event to self
@@ -486,34 +475,34 @@ apiDocs =
 ---------------------------------------------------------------------------
 -- Handlers
 
-setPropertyH :: UserId ::: ConnId ::: Public.PropertyKey ::: JsonRequest Public.PropertyValue -> (Handler r) Response
-setPropertyH (u ::: c ::: k ::: req) = do
-  propkey <- safeParsePropertyKey k
-  propval <- safeParsePropertyValue (lazyRequestBody (fromJsonRequest req))
-  empty <$ setProperty u c propkey propval
+setProperty :: UserId -> ConnId -> Public.PropertyKey -> Public.RawPropertyValue -> Handler r ()
+setProperty u c key raw = do
+  checkPropertyKey key
+  val <- safeParsePropertyValue raw
+  API.setProperty u c key val !>> propDataError
 
-setProperty :: UserId -> ConnId -> Public.PropertyKey -> Public.PropertyValue -> (Handler r) ()
-setProperty u c propkey propval =
-  API.setProperty u c propkey propval !>> propDataError
-
-safeParsePropertyKey :: Public.PropertyKey -> (Handler r) Public.PropertyKey
-safeParsePropertyKey k = do
+checkPropertyKey :: Public.PropertyKey -> Handler r ()
+checkPropertyKey k = do
   maxKeyLen <- fromMaybe defMaxKeyLen <$> view (settings . propertyMaxKeyLen)
   let keyText = Ascii.toText (Public.propertyKeyName k)
   when (Text.compareLength keyText (fromIntegral maxKeyLen) == GT) $
     throwStd propertyKeyTooLarge
-  pure k
 
 -- | Parse a 'PropertyValue' from a bytestring.  This is different from 'FromJSON' in that
 -- checks the byte size of the input, and fails *without consuming all of it* if that size
 -- exceeds the settings.
-safeParsePropertyValue :: IO Lazy.ByteString -> (Handler r) Public.PropertyValue
-safeParsePropertyValue lreqbody = do
+safeParsePropertyValue :: Public.RawPropertyValue -> Handler r Public.PropertyValue
+safeParsePropertyValue raw = do
   maxValueLen <- fromMaybe defMaxValueLen <$> view (settings . propertyMaxValueLen)
-  lbs <- Lazy.take (maxValueLen + 1) <$> liftIO lreqbody
+  let lbs = Lazy.take (maxValueLen + 1) (Public.rawPropertyBytes raw)
   unless (Lazy.length lbs <= maxValueLen) $
     throwStd propertyValueTooLarge
-  hoistEither $ fmapL (StdError . badRequest . pack) (eitherDecode lbs)
+  hoistEither $ first (StdError . badRequest . pack) (propertyValueFromRaw raw)
+
+propertyValueFromRaw :: Public.RawPropertyValue -> Either String Public.PropertyValue
+propertyValueFromRaw raw =
+  Public.PropertyValue raw
+    <$> eitherDecode (Public.rawPropertyBytes raw)
 
 deletePropertyH :: UserId ::: ConnId ::: Public.PropertyKey -> (Handler r) Response
 deletePropertyH (u ::: c ::: k) = lift (API.deleteProperty u c k) >> return empty
@@ -526,7 +515,7 @@ getPropertyH (u ::: k ::: _) = do
   val <- lift . wrapClient $ API.lookupProperty u k
   return $ case val of
     Nothing -> setStatus status404 empty
-    Just v -> json (v :: Public.PropertyValue)
+    Just v -> responseLBS status200 [jsonContent] (Public.rawPropertyBytes v)
 
 listPropertyKeysH :: UserId ::: JSON -> (Handler r) Response
 listPropertyKeysH (u ::: _) = do
@@ -535,8 +524,15 @@ listPropertyKeysH (u ::: _) = do
 
 listPropertyKeysAndValuesH :: UserId ::: JSON -> (Handler r) Response
 listPropertyKeysAndValuesH (u ::: _) = do
-  keysAndVals <- lift $ wrapClient (API.lookupPropertyKeysAndValues u)
-  pure $ json (keysAndVals :: Public.PropertyKeysAndValues)
+  keysAndVals <- fmap Map.fromList . lift $ wrapClient (API.lookupPropertyKeysAndValues u)
+  propertyMap <-
+    hoistEither $
+      traverse
+        ( first (const (StdError internalServerError))
+            . propertyValueFromRaw
+        )
+        keysAndVals
+  pure $ json (Public.PropertyKeysAndValues propertyMap)
 
 getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> (Handler r) Public.ClientPrekey
 getPrekeyUnqualifiedH zusr user client = do
@@ -1039,10 +1035,10 @@ activate (Public.Activate tgt code dryrun)
   | otherwise = do
     result <- API.activate tgt code Nothing !>> actError
     return $ case result of
-      ActivationSuccess ident first -> respond ident first
+      ActivationSuccess ident x -> respond ident x
       ActivationPass -> ActivationRespPass
   where
-    respond (Just ident) first = ActivationResp $ Public.ActivationResponse ident first
+    respond (Just ident) x = ActivationResp $ Public.ActivationResponse ident x
     respond Nothing _ = ActivationRespSuccessNoIdent
 
 sendVerificationCode :: Public.SendVerificationCode -> (Handler r) ()

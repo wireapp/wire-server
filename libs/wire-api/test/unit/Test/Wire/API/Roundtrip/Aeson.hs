@@ -142,7 +142,6 @@ tests =
       testRoundTrip @Message.NewOtrMessage,
       testRoundTrip @Message.ClientMismatch,
       testRoundTrip @Properties.PropertyKey,
-      testRoundTrip @Properties.PropertyValue,
       testRoundTrip @Provider.Provider,
       testRoundTrip @Provider.ProviderProfile,
       testRoundTrip @Provider.NewProvider,

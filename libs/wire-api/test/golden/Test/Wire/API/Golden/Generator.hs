@@ -192,7 +192,6 @@ generateTestModule = do
   generateBindingModule @Notification.QueuedNotification "user" ref
   generateBindingModule @Notification.QueuedNotificationList "user" ref
   generateBindingModule @Properties.PropertyKey "user" ref
-  generateBindingModule @Properties.PropertyValue "user" ref
   generateBindingModule' @Push.Token.Transport "Push.Token.Transport" "user" ref
   generateBindingModule @Push.Token.Token "user" ref
   generateBindingModule @Push.Token.AppName "user" ref

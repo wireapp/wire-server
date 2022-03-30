@@ -91,12 +91,23 @@ import Data.Text.Encoding (decodeLatin1, decodeUtf8')
 import Imports
 import Test.QuickCheck (Arbitrary (arbitrary), listOf, suchThatMap)
 import Test.QuickCheck.Instances ()
+import Web.HttpApiData
 
 -- | 'AsciiText' is text that is known to contain only the subset
 -- of ASCII characters indicated by its character set @c@.
 newtype AsciiText c = AsciiText {toText :: Text}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (Semigroup, Monoid, NFData, ToByteString, FromJSONKey, ToJSONKey, Hashable)
+  deriving newtype
+    ( Semigroup,
+      Monoid,
+      NFData,
+      ToByteString,
+      FromJSONKey,
+      ToJSONKey,
+      Hashable,
+      ToHttpApiData,
+      FromHttpApiData
+    )
 
 newtype AsciiChar c = AsciiChar {toChar :: Char}
   deriving stock (Eq, Ord, Show)

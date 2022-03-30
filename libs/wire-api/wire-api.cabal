@@ -382,7 +382,6 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.PrekeyId_user
       Test.Wire.API.Golden.Generated.Priority_user
       Test.Wire.API.Golden.Generated.PropertyKey_user
-      Test.Wire.API.Golden.Generated.PropertyValue_user
       Test.Wire.API.Golden.Generated.Provider_provider
       Test.Wire.API.Golden.Generated.ProviderActivationResponse_provider
       Test.Wire.API.Golden.Generated.ProviderLogin_provider

@@ -40,6 +40,7 @@ import Wire.API.Error.Brig
 import Wire.API.Error.Empty
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
+import Wire.API.Properties
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -699,6 +700,23 @@ type ConnectionAPI =
                :> Get '[Servant.JSON] (SearchResult Contact)
            )
 
+type PropertiesAPI =
+  LiftNamed
+    ( ZUser
+        :> "properties"
+        :> ( Named
+               "set-property"
+               -- This endpoint can lead to the following events being sent:
+               -- - PropertySet event to self
+               ( Summary "Set a user property"
+                   :> ZConn
+                   :> Capture "key" PropertyKey
+                   :> ReqBody '[JSON] RawPropertyValue
+                   :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Property set")
+               )
+           )
+    )
+
 type MLSKeyPackageAPI =
   "key-packages"
     :> ( Named
@@ -741,6 +759,7 @@ type BrigAPI =
     :<|> PrekeyAPI
     :<|> UserClientAPI
     :<|> ConnectionAPI
+    :<|> PropertiesAPI
     :<|> MLSAPI
 
 brigSwagger :: Swagger

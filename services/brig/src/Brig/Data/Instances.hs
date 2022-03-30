@@ -45,6 +45,7 @@ import Wire.API.Asset (AssetKey, assetKeyToText, nilAssetKey)
 import Wire.API.Connection (RelationWithHistory (..))
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.Properties
 import Wire.API.User.RichInfo
 
 deriving instance Cql Name
@@ -232,12 +233,10 @@ instance Cql ClientClass where
   fromCql (CqlInt 3) = return LegalHoldClient
   fromCql _ = Left "ClientClass: Int [0, 3] expected"
 
-instance Cql PropertyValue where
+instance Cql RawPropertyValue where
   ctype = Tagged BlobColumn
-  toCql = toCql . Blob . JSON.encode . propertyValueJson
-  fromCql (CqlBlob v) = case JSON.eitherDecode v of
-    Left e -> Left ("Failed to read property value: " <> e)
-    Right x -> pure (PropertyValue x)
+  toCql = toCql . Blob . rawPropertyBytes
+  fromCql (CqlBlob v) = pure (RawPropertyValue v)
   fromCql _ = Left "PropertyValue: Blob expected"
 
 instance Cql Country where

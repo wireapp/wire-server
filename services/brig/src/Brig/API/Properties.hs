@@ -30,15 +30,15 @@ import Brig.App
 import Brig.Data.Properties (PropertiesDataError)
 import qualified Brig.Data.Properties as Data
 import qualified Brig.IO.Intra as Intra
-import Brig.Types
 import Brig.Types.User.Event
 import Control.Error
 import Data.Id
 import Imports
+import Wire.API.Properties
 
 setProperty :: UserId -> ConnId -> PropertyKey -> PropertyValue -> ExceptT PropertiesDataError (AppT r) ()
 setProperty u c k v = do
-  wrapClientE $ Data.insertProperty u k v
+  wrapClientE $ Data.insertProperty u k (propertyRaw v)
   lift $ Intra.onPropertyEvent u c (PropertySet u k v)
 
 deleteProperty :: UserId -> ConnId -> PropertyKey -> (AppT r) ()

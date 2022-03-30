@@ -20,6 +20,7 @@
 module Wire.API.Properties
   ( PropertyKeysAndValues (..),
     PropertyKey (..),
+    RawPropertyValue (..),
     PropertyValue (..),
 
     -- * Swagger
@@ -28,36 +29,69 @@ module Wire.API.Properties
   )
 where
 
-import Data.Aeson
-import qualified Data.Aeson.Key as Key
+import Control.Lens ((?~))
+import Data.Aeson (FromJSON (..), ToJSON (..), Value)
+import qualified Data.Aeson as A
 import Data.ByteString.Conversion
 import Data.Hashable (Hashable)
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Imports
+import Servant
 import Wire.API.Arbitrary (Arbitrary)
 
-newtype PropertyKeysAndValues = PropertyKeysAndValues [(PropertyKey, PropertyValue)]
-  deriving stock (Eq, Show, Generic)
-  deriving newtype (Hashable)
+newtype PropertyKeysAndValues = PropertyKeysAndValues (Map PropertyKey PropertyValue)
+  deriving newtype (ToJSON)
 
 modelPropertyDictionary :: Doc.Model
 modelPropertyDictionary =
   Doc.defineModel "PropertyDictionary" $
     Doc.description "A JSON object with properties as attribute/value pairs."
 
-instance ToJSON PropertyKeysAndValues where
-  toJSON (PropertyKeysAndValues kvs) = object [Key.fromText (toText k) .= v | (PropertyKey k, v) <- kvs]
-
 newtype PropertyKey = PropertyKey
   {propertyKeyName :: AsciiPrintable}
   deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype (FromByteString, ToByteString, FromJSON, ToJSON, FromJSONKey, ToJSONKey, Hashable, Arbitrary)
+  deriving newtype
+    ( FromByteString,
+      ToByteString,
+      FromJSON,
+      ToJSON,
+      A.FromJSONKey,
+      A.ToJSONKey,
+      FromHttpApiData,
+      Hashable,
+      Arbitrary
+    )
 
-newtype PropertyValue = PropertyValue
-  {propertyValueJson :: Value}
-  deriving stock (Eq, Show, Generic)
-  deriving newtype (FromJSON, ToJSON, Hashable, Arbitrary)
+instance S.ToParamSchema PropertyKey where
+  toParamSchema _ =
+    mempty
+      & S.type_ ?~ S.SwaggerString
+      & S.format ?~ "printable"
+
+-- | A raw, unparsed property value.
+newtype RawPropertyValue = RawPropertyValue {rawPropertyBytes :: LByteString}
+
+instance {-# OVERLAPPING #-} (MimeUnrender JSON RawPropertyValue) where
+  mimeUnrender _ = pure . RawPropertyValue
+
+-- | A property value together with its original serialisation.
+data PropertyValue = PropertyValue
+  { propertyRaw :: RawPropertyValue,
+    propertyValue :: Value
+  }
+
+instance ToJSON PropertyValue where
+  toJSON = propertyValue
+
+instance Show PropertyValue where
+  show = show . propertyValue
+
+instance S.ToSchema RawPropertyValue where
+  declareNamedSchema _ =
+    pure . S.NamedSchema (Just "PropertyValue") $
+      mempty & S.description ?~ "An arbitrary JSON value for a property"
 
 modelPropertyValue :: Doc.Model
 modelPropertyValue =
