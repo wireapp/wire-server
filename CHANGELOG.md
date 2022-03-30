@@ -1,3 +1,8 @@
+# [2022-03-30]
+
+## Release notes
+
+* Upgrade webapp version to 2022-03-30-production.0-v0.29.2-0-d144552 (#2246)
 # [2022-03-18]
 
 ## Release notes
