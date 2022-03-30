@@ -1,0 +1,1 @@
+Ihr ${brand}-Bestätigungscode lautet ${code}

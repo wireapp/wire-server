@@ -1,0 +1,1 @@
+The bot API will be blocked if the 2nd factor authentication team feature is enabled. Please refer to [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge).

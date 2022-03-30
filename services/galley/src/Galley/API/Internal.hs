@@ -32,6 +32,7 @@ import Data.Qualified
 import Data.Range
 import Data.Singletons
 import Data.String.Conversions (cs)
+import Data.Tagged
 import Data.Time
 import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
@@ -174,6 +175,25 @@ type InternalAPIBase =
                :> ReqBody '[Servant.JSON] UpsertOne2OneConversationRequest
                :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
            )
+    :<|> Named
+           "feature-config-snd-factor-password-challenge"
+           -- FUTUREWORK: Introduce `/i/feature-configs` and drop this one again.  The internal end-poins has the
+           -- same handler as the public one, plus optional user id in the query.  Maybe require `DoAuth` to disable
+           -- access control only on the internal end-point, not on the public one.  (This may also be a good oppportunity
+           -- to make `AllFeatureConfigs` more type-safe.)
+           ( Summary "Get feature config for the 2nd factor password challenge feature (for user/team; if n/a fall back to site config)."
+               :> "feature-configs"
+               :> CanThrow 'NotATeamMember
+               :> KnownTeamFeatureNameSymbol 'TeamFeatureSndFactorPasswordChallenge
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "Optional user id"
+                    ]
+                    "user_id"
+                    UserId
+               :> Get '[Servant.JSON] TeamFeatureStatusNoConfig
+           )
     :<|> IFeatureAPI
 
 type IFeatureStatusGet l f = Named '("iget", f) (FeatureStatusBaseGet l f)
@@ -225,6 +245,11 @@ internalAPI =
       <@> mkNamedAPI @"delete-user" rmUser
       <@> mkNamedAPI @"connect" Create.createConnectConversation
       <@> mkNamedAPI @"upsert-one2one" iUpsertOne2OneConversation
+      <@> mkNamedAPI @"feature-config-snd-factor-password-challenge"
+        ( \case
+            Just uid -> TeamFeatureStatusNoConfig . tfwoapsStatus <$> getFeatureConfigNoAuth @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge (unTagged getSndFactorPasswordChallengeInternal) uid
+            Nothing -> TeamFeatureStatusNoConfig . tfwoapsStatus <$> (unTagged getSndFactorPasswordChallengeInternal) (Left Nothing)
+        )
       <@> featureAPI
 
 featureAPI :: API IFeatureAPI GalleyEffects

@@ -25,8 +25,9 @@ where
 
 import Data.Aeson (encode)
 import Data.ByteString.Conversion (fromByteString, fromList)
-import Data.Id (UserId)
+import Data.Id
 import qualified Data.Predicate as P
+import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Data.Swagger.Build.Api hiding (Response, def, min)
@@ -39,10 +40,13 @@ import qualified Galley.API.Query as Query
 import qualified Galley.API.Teams as Teams
 import qualified Galley.API.Teams.Features as Features
 import Galley.App
+import Galley.Effects
+import qualified Galley.Effects as E
+import Galley.Options
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Predicate hiding (Error)
+import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import qualified Network.Wai.Predicate as P
 import Network.Wai.Predicate.Request (HasQuery)
 import Network.Wai.Routing hiding (route)
@@ -51,6 +55,7 @@ import Network.Wai.Utilities.Swagger
 import Network.Wai.Utilities.ZAuth hiding (ZAuthUser)
 import Polysemy
 import Polysemy.Error
+import Polysemy.Input
 import Polysemy.Internal
 import Wire.API.Conversation.Role
 import qualified Wire.API.CustomBackend as Public
@@ -397,11 +402,29 @@ sitemap = do
 
   -- Bot API ------------------------------------------------------------
 
-  get "/bot/conversation" (continueE Query.getBotConversationH) $
+  get "/bot/conversation" (continueE getBotConversationH) $
     zauth ZAuthBot
       .&> zauthBotId
       .&. zauthConvId
       .&. accept "application" "json"
+
+getBotConversationH ::
+  forall r.
+  ( Member E.ConversationStore r,
+    Member (Input (Local ())) r,
+    Member (Input Opts) r,
+    Member TeamFeatureStore r,
+    Member (ErrorS 'AccessDenied) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS 'TeamNotFound) r,
+    Member TeamStore r
+  ) =>
+  BotId ::: ConvId ::: JSON ->
+  Sem r Response
+getBotConversationH arg@(zbot ::: _ ::: _) =
+  Features.guardSecondFactorDisabled (botUserId zbot) (Query.getBotConversationH arg)
 
 apiDocs :: Routes ApiBuilder (Sem r) ()
 apiDocs =
