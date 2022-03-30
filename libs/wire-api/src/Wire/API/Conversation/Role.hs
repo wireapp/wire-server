@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
@@ -38,7 +39,18 @@ module Wire.API.Conversation.Role
 
     -- * Action
     Action (..),
+    SAction (..),
     Actions (..),
+    ActionName,
+    AddConversationMemberSym0,
+    RemoveConversationMemberSym0,
+    ModifyConversationNameSym0,
+    ModifyConversationMessageTimerSym0,
+    ModifyConversationReceiptModeSym0,
+    ModifyConversationAccessSym0,
+    ModifyOtherConversationMemberSym0,
+    LeaveConversationSym0,
+    DeleteConversationSym0,
 
     -- * helpers
     isValidRoleName,
@@ -61,13 +73,14 @@ import qualified Data.Aeson.TH as A
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Data.Hashable
-import Data.Proxy (Proxy (..))
 import Data.Range (fromRange, genRangeText)
 import Data.Schema
 import qualified Data.Set as Set
+import Data.Singletons.TH
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Deriving.Swagger as S
+import GHC.TypeLits
 import Imports
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
@@ -267,6 +280,17 @@ data Action
   deriving (Arbitrary) via (GenericUniform Action)
   deriving (S.ToSchema) via (S.CustomSwagger '[S.ConstructorTagModifier S.CamelToSnake] Action)
 
+type family ActionName (a :: Action) :: Symbol where
+  ActionName 'AddConversationMember = "add_conversation_member"
+  ActionName 'RemoveConversationMember = "remove_conversation_member"
+  ActionName 'ModifyConversationName = "modify_conversation_name"
+  ActionName 'ModifyConversationMessageTimer = "modify_conversation_message_timer"
+  ActionName 'ModifyConversationReceiptMode = "modify_conversation_receipt_mode"
+  ActionName 'ModifyConversationAccess = "modify_conversation_access"
+  ActionName 'ModifyOtherConversationMember = "modify_other_conversation_member"
+  ActionName 'LeaveConversation = "leave_conversation"
+  ActionName 'DeleteConversation = "delete_conversation"
+
 typeConversationRoleAction :: Doc.DataType
 typeConversationRoleAction =
   Doc.string $
@@ -283,3 +307,5 @@ typeConversationRoleAction =
       ]
 
 A.deriveJSON A.defaultOptions {A.constructorTagModifier = A.camelTo2 '_'} ''Action
+
+$(genSingletons [''Action])

@@ -64,7 +64,8 @@ import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Protocol
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Event.Conversation hiding (Conversation)
 import Wire.API.Federation.Error
 import Wire.API.Routes.Public.Galley (ConversationResponse)
@@ -79,12 +80,14 @@ createGroupConversation ::
   Members
     '[ ConversationStore,
        BrigAccess,
-       Error ActionError,
-       Error ConversationError,
+       ErrorS 'ConvAccessDenied,
        Error InternalError,
        Error InvalidInput,
        Error LegalHoldError,
-       Error NotATeamMember,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       ErrorS 'NotConnected,
+       ErrorS 'MLSNonEmptyMemberList,
        FederatorAccess,
        GundeckAccess,
        Input Opts,
@@ -123,9 +126,10 @@ ensureNoLegalholdConflicts (UserList locals remotes) = do
 checkCreateConvPermissions ::
   Members
     '[ BrigAccess,
-       Error ActionError,
-       Error ConversationError,
-       Error NotATeamMember,
+       ErrorS 'ConvAccessDenied,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       ErrorS 'NotConnected,
        TeamStore
      ]
     r =>
@@ -189,13 +193,18 @@ createOne2OneConversation ::
   Members
     '[ BrigAccess,
        ConversationStore,
-       Error ActionError,
-       Error ConversationError,
+       ErrorS 'ConvAccessDenied,
        Error FederationError,
        Error InternalError,
        Error InvalidInput,
-       Error NotATeamMember,
-       Error TeamError,
+       ErrorS 'ConvAccessDenied,
+       ErrorS 'NotATeamMember,
+       ErrorS 'NonBindingTeam,
+       ErrorS 'NoBindingTeamMembers,
+       ErrorS OperationDenied,
+       ErrorS 'TeamNotFound,
+       ErrorS 'InvalidOperation,
+       ErrorS 'NotConnected,
        FederatorAccess,
        GundeckAccess,
        Input UTCTime,
@@ -211,7 +220,7 @@ createOne2OneConversation lusr zcon j = do
   let allUsers = newConvMembers lusr j
   other <- ensureOne (ulAll lusr allUsers)
   when (qUntagged lusr == other) $
-    throw . InvalidOp $ One2OneConv
+    throwS @'InvalidOperation
   mtid <- case newConvTeam j of
     Just ti -> do
       foldQualified
@@ -230,7 +239,7 @@ createOne2OneConversation lusr zcon j = do
     verifyMembership tid u = do
       membership <- E.getTeamMember tid u
       when (isNothing membership) $
-        throw NoBindingTeamMembers
+        throwS @'NoBindingTeamMembers
     checkBindingTeamPermissions ::
       Local UserId ->
       TeamId ->
@@ -243,8 +252,8 @@ createOne2OneConversation lusr zcon j = do
           verifyMembership tid (tUnqualified lusr)
           verifyMembership tid (tUnqualified lother)
           pure (Just tid)
-        Just _ -> throw NotABindingTeamMember
-        Nothing -> throw TeamNotFound
+        Just _ -> throwS @'NonBindingTeam
+        Nothing -> throwS @'TeamNotFound
 
 createLegacyOne2OneConversationUnchecked ::
   Members
@@ -363,11 +372,12 @@ createOne2OneConversationRemotely _ _ _ _ _ _ =
 createConnectConversation ::
   Members
     '[ ConversationStore,
-       Error ActionError,
-       Error ConversationError,
+       ErrorS 'ConvNotFound,
        Error FederationError,
        Error InternalError,
        Error InvalidInput,
+       ErrorS 'InvalidOperation,
+       ErrorS 'NotConnected,
        FederatorAccess,
        GundeckAccess,
        Input UTCTime,
@@ -457,7 +467,7 @@ createConnectConversation lusr conn j = do
 
 -- | Return a 'NewConversation' record suitable for creating a group conversation.
 newRegularConversation ::
-  Members '[Error ConversationError, Error InvalidInput, Input Opts] r =>
+  Members '[ErrorS 'MLSNonEmptyMemberList, Error InvalidInput, Input Opts] r =>
   Local UserId ->
   NewConv ->
   Sem r (NewConversation, ConvSizeChecked UserList UserId)
@@ -467,7 +477,7 @@ newRegularConversation lusr newConv = do
   users <- case newConvProtocol newConv of
     ProtocolProteusTag -> checkedConvSize o uncheckedUsers
     ProtocolMLSTag -> do
-      unless (null uncheckedUsers) $ throw MLSNonEmptyMemberList
+      unless (null uncheckedUsers) $ throwS @'MLSNonEmptyMemberList
       pure mempty
   let nc =
         NewConversation

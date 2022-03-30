@@ -29,7 +29,6 @@ import Control.Exception (bracket)
 import Control.Lens (set, (^.))
 import Control.Monad.Codensity
 import Data.Default
-import Data.Domain
 import Data.Id
 import Data.Metrics.Servant
 import Data.Proxy
@@ -44,6 +43,7 @@ import qualified Servant
 import Servant.API
 import Servant.Server hiding (Handler, runHandler)
 import Util.Options
+import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Cargohold
 import Wire.API.Routes.Public.Cargohold
 import Wire.API.Routes.Version.Wai
@@ -74,25 +74,17 @@ mkApp o = Codensity $ \k ->
         . GZip.gzip GZip.def
         . catchErrors (e ^. appLogger) [Right $ e ^. metrics]
         . versionMiddleware
+    servantApp :: Env -> Application
     servantApp e0 r =
       let e = set requestId (maybe def RequestId (lookupRequestId r)) e0
        in Servant.serveWithContext
             (Proxy @CombinedAPI)
             ((o ^. optSettings . setFederationDomain) :. Servant.EmptyContext)
-            ( hoistServer' @FederationAPI (toServantHandler e) federationSitemap
-                :<|> hoistServer' @ServantAPI (toServantHandler e) servantSitemap
-                :<|> hoistServer' @InternalAPI (toServantHandler e) internalSitemap
+            ( hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
+                :<|> hoistServerWithDomain @ServantAPI (toServantHandler e) servantSitemap
+                :<|> hoistServerWithDomain @InternalAPI (toServantHandler e) internalSitemap
             )
             r
 
 toServantHandler :: Env -> Handler a -> Servant.Handler a
 toServantHandler env = liftIO . runHandler env
-
--- | See 'Galley.Run' for an explanation of this function.
-hoistServer' ::
-  forall api m n.
-  HasServer api '[Domain] =>
-  (forall x. m x -> n x) ->
-  ServerT api m ->
-  ServerT api n
-hoistServer' = hoistServerWithContext (Proxy @api) (Proxy @'[Domain])

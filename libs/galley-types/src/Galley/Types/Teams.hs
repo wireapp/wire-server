@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -93,6 +94,7 @@ module Galley.Types.Teams
     self,
     copy,
     Perm (..),
+    SPerm (..),
     permToInt,
     permsToInt,
     intToPerm,
@@ -142,6 +144,7 @@ import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Imports
 import Test.QuickCheck (Arbitrary)
+import Wire.API.Error.Galley
 import Wire.API.Event.Team
 import Wire.API.Team
 import Wire.API.Team.Conversation
@@ -430,6 +433,8 @@ roleHiddenPermissions role = HiddenPermissions p p
 
 -- | See Note [hidden team roles]
 class IsPerm perm where
+  type PermError (e :: perm) :: GalleyError
+
   roleHasPerm :: Role -> perm -> Bool
   roleGrantsPerm :: Role -> perm -> Bool
   hasPermission :: TeamMember -> perm -> Bool
@@ -438,12 +443,16 @@ class IsPerm perm where
   mayGrantPermission tm perm = maybe False (`roleGrantsPerm` perm) . permissionsRole $ tm ^. permissions
 
 instance IsPerm Perm where
+  type PermError p = 'MissingPermission ('Just p)
+
   roleHasPerm r p = p `Set.member` (rolePermissions r ^. self)
   roleGrantsPerm r p = p `Set.member` (rolePermissions r ^. copy)
   hasPermission tm p = p `Set.member` (tm ^. permissions . self)
   mayGrantPermission tm p = p `Set.member` (tm ^. permissions . copy)
 
 instance IsPerm HiddenPerm where
+  type PermError p = OperationDenied
+
   roleHasPerm r p = p `Set.member` (roleHiddenPermissions r ^. hself)
   roleGrantsPerm r p = p `Set.member` (roleHiddenPermissions r ^. hcopy)
 

@@ -97,7 +97,8 @@ import qualified Ssl.Util as SSL
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import qualified Web.Cookie as Cookie
 import qualified Wire.API.Conversation.Bot as Public
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import Wire.API.Error.Brig
 import qualified Wire.API.Event.Conversation as Public (Event)
 import qualified Wire.API.Provider as Public
 import qualified Wire.API.Provider.Bot as Public (BotUserView)
@@ -327,7 +328,7 @@ newAccount :: Public.NewProvider -> (Handler r) Public.NewProviderResponse
 newAccount new = do
   email <- case validateEmail (Public.newProviderEmail new) of
     Right em -> return em
-    Left _ -> throwStd (errorDescriptionTypeToWai @InvalidEmail)
+    Left _ -> throwStd (errorToWai @'InvalidEmail)
   let name = Public.newProviderName new
   let pass = Public.newProviderPassword new
   let descr = fromRange (Public.newProviderDescr new)
@@ -365,7 +366,7 @@ activateAccountKey key val = do
   c <- wrapClientE (Code.verify key Code.IdentityVerification val) >>= maybeInvalidCode
   (pid, email) <- case (Code.codeAccount c, Code.codeForEmail c) of
     (Just p, Just e) -> return (Id p, e)
-    _ -> throwErrorDescriptionType @InvalidCode
+    _ -> throwStd (errorToWai @'InvalidCode)
   (name, memail, _url, _descr) <- wrapClientE (DB.lookupAccountData pid) >>= maybeInvalidCode
   case memail of
     Just email' | email == email' -> return Nothing
@@ -391,7 +392,7 @@ getActivationCode :: Public.Email -> (Handler r) FoundActivationCode
 getActivationCode e = do
   email <- case validateEmail e of
     Right em -> return em
-    Left _ -> throwStd (errorDescriptionTypeToWai @InvalidEmail)
+    Left _ -> throwStd (errorToWai @'InvalidEmail)
   gen <- Code.mkGen (Code.ForEmail email)
   code <- wrapClientE $ Code.lookup (Code.genKey gen) Code.IdentityVerification
   maybe (throwStd activationKeyNotFound) (return . FoundActivationCode) code
@@ -416,7 +417,7 @@ approveAccountKey key val = do
       (name, _, _, _) <- wrapClientE (DB.lookupAccountData (Id pid)) >>= maybeInvalidCode
       activate (Id pid) Nothing email
       lift $ sendApprovalConfirmMail name email
-    _ -> throwErrorDescriptionType @InvalidCode
+    _ -> throwStd (errorToWai @'InvalidCode)
 
 loginH :: JsonRequest Public.ProviderLogin -> (Handler r) Response
 loginH req = do
@@ -429,7 +430,7 @@ login l = do
   pid <- wrapClientE (DB.lookupKey (mkEmailKey (providerLoginEmail l))) >>= maybeBadCredentials
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (providerLoginPassword l) pass) $
-    throwErrorDescriptionType @BadCredentials
+    throwStd (errorToWai @'BadCredentials)
   ZAuth.newProviderToken pid
 
 beginPasswordResetH :: JsonRequest Public.PasswordReset -> (Handler r) Response
@@ -509,7 +510,7 @@ updateAccountEmail :: ProviderId -> Public.EmailUpdate -> (Handler r) ()
 updateAccountEmail pid (Public.EmailUpdate new) = do
   email <- case validateEmail new of
     Right em -> return em
-    Left _ -> throwStd (errorDescriptionTypeToWai @InvalidEmail)
+    Left _ -> throwStd (errorToWai @'InvalidEmail)
   let emailKey = mkEmailKey email
   wrapClientE (DB.lookupKey emailKey) >>= mapM_ (const $ throwStd emailExists)
   gen <- Code.mkGen (Code.ForEmail email)
@@ -532,7 +533,7 @@ updateAccountPassword :: ProviderId -> Public.PasswordChange -> (Handler r) ()
 updateAccountPassword pid upd = do
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (cpOldPassword upd) pass) $
-    throwErrorDescriptionType @BadCredentials
+    throwStd (errorToWai @'BadCredentials)
   when (verifyPassword (cpNewPassword upd) pass) $
     throwStd newPasswordMustDiffer
   wrapClientE $ DB.updateAccountPassword pid (cpNewPassword upd)
@@ -617,7 +618,7 @@ updateServiceConn :: ProviderId -> ServiceId -> Public.UpdateServiceConn -> (Han
 updateServiceConn pid sid upd = do
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (updateServiceConnPassword upd) pass) $
-    throwErrorDescriptionType @BadCredentials
+    throwStd (errorToWai @'BadCredentials)
   scon <- wrapClientE (DB.lookupServiceConn pid sid) >>= maybeServiceNotFound
   svc <- wrapClientE (DB.lookupServiceProfile pid sid) >>= maybeServiceNotFound
   let newBaseUrl = updateServiceConnUrl upd
@@ -668,7 +669,7 @@ deleteService :: ProviderId -> ServiceId -> Public.DeleteService -> (Handler r) 
 deleteService pid sid del = do
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (deleteServicePassword del) pass) $
-    throwErrorDescriptionType @BadCredentials
+    throwStd (errorToWai @'BadCredentials)
   _ <- wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
   -- Disable the service
   wrapClientE $ DB.updateServiceConn pid sid Nothing Nothing Nothing (Just False)
@@ -703,7 +704,7 @@ deleteAccount pid del = do
   prov <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (deleteProviderPassword del) pass) $
-    throwErrorDescriptionType @BadCredentials
+    throwStd (errorToWai @'BadCredentials)
   svcs <- wrapClientE $ DB.listServices pid
   forM_ svcs $ \svc -> do
     let sid = serviceId svc
@@ -955,12 +956,12 @@ botGetSelfH bot = do
 botGetSelf :: BotId -> (Handler r) Public.UserProfile
 botGetSelf bot = do
   p <- lift $ wrapClient $ User.lookupUser NoPendingInvitations (botUserId bot)
-  maybe (throwErrorDescriptionType @UserNotFound) (return . (`Public.publicProfile` UserLegalHoldNoConsent)) p
+  maybe (throwStd (errorToWai @'UserNotFound)) (return . (`Public.publicProfile` UserLegalHoldNoConsent)) p
 
 botGetClientH :: BotId -> (Handler r) Response
 botGetClientH bot = do
   guardSecondFactorDisabled (Just (botUserId bot))
-  maybe (throwErrorDescriptionType @ClientNotFound) (pure . json) =<< lift (botGetClient bot)
+  maybe (throwStd (errorToWai @'ClientNotFound)) (pure . json) =<< lift (botGetClient bot)
 
 botGetClient :: BotId -> (AppIO r) (Maybe Public.Client)
 botGetClient bot =
@@ -987,7 +988,7 @@ botUpdatePrekeys :: BotId -> Public.UpdateBotPrekeys -> (Handler r) ()
 botUpdatePrekeys bot upd = do
   clt <- lift $ listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
   case clt of
-    Nothing -> throwErrorDescriptionType @ClientNotFound
+    Nothing -> throwStd (errorToWai @'ClientNotFound)
     Just c -> do
       let pks = updateBotPrekeyList upd
       wrapClientE (User.updatePrekeys (botUserId bot) (clientId c) pks) !>> clientDataError
@@ -1001,7 +1002,7 @@ botClaimUsersPrekeys :: Public.UserClients -> (Handler r) Public.UserClientPreke
 botClaimUsersPrekeys body = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients body) > maxSize) $
-    throwErrorDescriptionType @TooManyClients
+    throwStd (errorToWai @'TooManyClients)
   Client.claimLocalMultiPrekeyBundles UnprotectedBot body !>> clientError
 
 botListUserProfilesH :: List UserId -> (Handler r) Response
@@ -1128,7 +1129,7 @@ maybeInvalidProvider :: Maybe a -> (Handler r) a
 maybeInvalidProvider = maybe (throwStd invalidProvider) return
 
 maybeInvalidCode :: Maybe a -> (Handler r) a
-maybeInvalidCode = maybe (throwErrorDescriptionType @InvalidCode) return
+maybeInvalidCode = maybe (throwStd (errorToWai @'InvalidCode)) return
 
 maybeServiceNotFound :: Maybe a -> (Handler r) a
 maybeServiceNotFound = maybe (throwStd (notFound "Service not found")) return
@@ -1140,7 +1141,7 @@ maybeConvNotFound :: Maybe a -> (Handler r) a
 maybeConvNotFound = maybe (throwStd (notFound "Conversation not found")) return
 
 maybeBadCredentials :: Maybe a -> (Handler r) a
-maybeBadCredentials = maybe (throwErrorDescriptionType @BadCredentials) return
+maybeBadCredentials = maybe (throwStd (errorToWai @'BadCredentials)) return
 
 maybeInvalidServiceKey :: Maybe a -> (Handler r) a
 maybeInvalidServiceKey = maybe (throwStd invalidServiceKey) return
@@ -1149,7 +1150,7 @@ maybeInvalidBot :: Maybe a -> (Handler r) a
 maybeInvalidBot = maybe (throwStd invalidBot) return
 
 maybeInvalidUser :: Maybe a -> (Handler r) a
-maybeInvalidUser = maybe (throwStd (errorDescriptionTypeToWai @InvalidUser)) return
+maybeInvalidUser = maybe (throwStd (errorToWai @'InvalidUser)) return
 
 rangeChecked :: Within a n m => a -> (Handler r) (Range n m a)
 rangeChecked = either (throwStd . invalidRange . fromString) return . checkedEither

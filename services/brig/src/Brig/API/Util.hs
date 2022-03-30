@@ -29,7 +29,6 @@ module Brig.API.Util
 where
 
 import Brig.API.Error
-import qualified Brig.API.Error as Error
 import Brig.API.Handler
 import Brig.API.Types
 import Brig.App (AppIO, settings, wrapClient)
@@ -53,7 +52,8 @@ import qualified System.Logger as Log
 import UnliftIO.Async
 import UnliftIO.Exception (throwIO, try)
 import Util.Logging (sha256String)
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import Wire.API.Error.Brig
 import Wire.API.User.Search (FederatedUserSearchPolicy (NoSearch))
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
@@ -77,7 +77,7 @@ lookupSelfProfile = fmap (fmap mk) . wrapClient . Data.lookupAccount
     mk a = SelfProfile (accountUser a)
 
 validateHandle :: Text -> (Handler r) Handle
-validateHandle = maybe (throwE (Error.StdError (errorDescriptionTypeToWai @InvalidHandle))) return . parseHandle
+validateHandle = maybe (throwStd (errorToWai @'InvalidHandle)) return . parseHandle
 
 logEmail :: Email -> (Msg -> Msg)
 logEmail email =

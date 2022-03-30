@@ -65,6 +65,7 @@ library:
   - mime >=0.4
   - mtl
   - pem >=0.2
+  - polysemy
   - protobuf >=0.2
   - proto-lens
   - QuickCheck >=2.14

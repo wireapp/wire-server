@@ -88,7 +88,6 @@ module Brig.API.User
   )
 where
 
-import Brig.API.Error (errorDescriptionTypeToWai)
 import qualified Brig.API.Error as Error
 import qualified Brig.API.Handler as API (Handler, UserNotAllowedToJoinTeam (..))
 import Brig.API.Types
@@ -152,7 +151,8 @@ import Network.Wai.Utilities
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import UnliftIO.Async
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Member (legalHoldStatus)
@@ -179,9 +179,9 @@ identityErrorToRegisterError = \case
 
 identityErrorToBrigError :: IdentityError -> Error.Error
 identityErrorToBrigError = \case
-  IdentityErrorBlacklistedEmail -> Error.StdError $ errorDescriptionTypeToWai @BlacklistedEmail
-  IdentityErrorBlacklistedPhone -> Error.StdError $ errorDescriptionTypeToWai @BlacklistedPhone
-  IdentityErrorUserKeyExists -> Error.StdError $ errorDescriptionTypeToWai @UserKeyExists
+  IdentityErrorBlacklistedEmail -> Error.StdError $ errorToWai @'E.BlacklistedEmail
+  IdentityErrorBlacklistedPhone -> Error.StdError $ errorToWai @'E.BlacklistedPhone
+  IdentityErrorUserKeyExists -> Error.StdError $ errorToWai @'E.UserKeyExists
 
 verifyUniquenessAndCheckBlacklist :: UserKey -> ExceptT IdentityError (AppIO r) ()
 verifyUniquenessAndCheckBlacklist uk = do
@@ -433,7 +433,7 @@ initAccountFeatureConfig uid = do
 -- users are invited to the team via scim.
 createUserInviteViaScim :: UserId -> NewUserScimInvitation -> ExceptT Error.Error (AppIO r) UserAccount
 createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = do
-  email <- either (const . throwE . Error.StdError $ errorDescriptionTypeToWai @InvalidEmail) pure (validateEmail rawEmail)
+  email <- either (const . throwE . Error.StdError $ errorToWai @'E.InvalidEmail) pure (validateEmail rawEmail)
   let emKey = userEmailKey email
   verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError
   account <- lift . wrapClient $ newAccountInviteViaScim uid tid loc name email

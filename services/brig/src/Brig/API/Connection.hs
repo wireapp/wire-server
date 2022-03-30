@@ -33,7 +33,6 @@ where
 
 import Brig.API.Connection.Remote
 import Brig.API.Connection.Util
-import Brig.API.Error (errorDescriptionTypeToWai)
 import Brig.API.Types
 import Brig.API.User (getLegalHoldStatus)
 import Brig.App
@@ -56,7 +55,8 @@ import Imports
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import Wire.API.Connection (RelationWithHistory (..))
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import qualified Wire.API.Error.Brig as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
 ensureIsActivated :: Local UserId -> MaybeT (AppIO r) ()
@@ -183,7 +183,7 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   let catchProfileNotFound =
         -- Does not fit into 'ExceptT', so throw in '(AppIO r)'.  Anyway at the time of writing
         -- this, users are guaranteed to exist when called from 'createConnectionToLocalUser'.
-        maybe (throwM (errorDescriptionTypeToWai @UserNotFound)) return
+        maybe (throwM (errorToWai @'E.UserNotFound)) return
 
   status1 <- lift (getLegalHoldStatus uid1) >>= catchProfileNotFound
   status2 <- lift (getLegalHoldStatus uid2) >>= catchProfileNotFound

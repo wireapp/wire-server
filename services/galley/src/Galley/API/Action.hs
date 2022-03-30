@@ -46,7 +46,7 @@ import Data.Misc
 import Data.Qualified
 import qualified Data.Set as S
 import qualified Data.Set as Set
-import Data.Singletons (Sing, SingI, demote, sing)
+import Data.Singletons
 import Data.Time.Clock
 import Galley.API.Error
 import Galley.API.Util
@@ -74,7 +74,8 @@ import Polysemy.Input
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Event.Conversation hiding (Conversation)
 import Wire.API.Federation.API (Component (Galley), fedClient)
 import Wire.API.Federation.API.Galley
@@ -88,12 +89,16 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
   HasConversationActionEffects 'ConversationJoinTag r =
     Members
       '[ BrigAccess,
-         Error ActionError,
-         Error ConversationError,
          Error FederationError,
-         Error InvalidInput,
          Error LegalHoldError,
-         Error NotATeamMember,
+         ErrorS 'NotATeamMember,
+         ErrorS 'NotConnected,
+         ErrorS ('ActionDenied 'LeaveConversation),
+         ErrorS ('ActionDenied 'AddConversationMember),
+         ErrorS 'InvalidOperation,
+         ErrorS 'ConvAccessDenied,
+         ErrorS 'ConvNotFound,
+         ErrorS 'TooManyMembers,
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
@@ -111,20 +116,21 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
   HasConversationActionEffects 'ConversationRemoveMembersTag r =
     (Members '[MemberStore, Error NoChanges] r)
   HasConversationActionEffects 'ConversationMemberUpdateTag r =
-    (Members '[MemberStore, Error ConversationError] r)
+    (Members '[MemberStore, ErrorS 'ConvMemberNotFound] r)
   HasConversationActionEffects 'ConversationDeleteTag r =
-    Members '[Error FederationError, Error NotATeamMember, CodeStore, TeamStore, ConversationStore] r
+    Members '[Error FederationError, ErrorS 'NotATeamMember, CodeStore, TeamStore, ConversationStore] r
   HasConversationActionEffects 'ConversationRenameTag r =
-    Members '[Error ActionError, Error InvalidInput, ConversationStore] r
+    Members '[Error InvalidInput, ConversationStore] r
   HasConversationActionEffects 'ConversationAccessDataTag r =
     Members
       '[ BotAccess,
          BrigAccess,
          CodeStore,
-         Error ActionError,
          Error InvalidInput,
          Error InvalidInput,
          Error NoChanges,
+         ErrorS 'InvalidTargetAccess,
+         ErrorS ('ActionDenied 'RemoveConversationMember),
          ExternalAccess,
          FederatorAccess,
          FireAndForget,
@@ -145,51 +151,53 @@ noChanges = throw NoChanges
 
 ensureAllowed ::
   forall tag mem r x.
-  (IsConvMember mem, SingI tag, HasConversationActionEffects tag r) =>
+  (IsConvMember mem, HasConversationActionEffects tag r) =>
+  Sing tag ->
   Local x ->
   ConversationAction tag ->
   Conversation ->
   mem ->
   Sem r ()
-ensureAllowed loc action conv origUser = do
-  case (sing @tag) of
-    SConversationJoinTag -> ensureConvRoleNotElevated origUser (cjRole action)
+ensureAllowed tag loc action conv origUser = do
+  case tag of
+    SConversationJoinTag ->
+      mapErrorS @'InvalidAction @('ActionDenied 'AddConversationMember) $
+        ensureConvRoleNotElevated origUser (cjRole action)
     SConversationDeleteTag ->
       for_ (convTeam conv) $ \tid -> do
         lusr <- ensureLocal loc (convMemberId loc origUser)
-        void $ E.getTeamMember tid (tUnqualified lusr) >>= noteED @NotATeamMember
+        void $ E.getTeamMember tid (tUnqualified lusr) >>= noteS @'NotATeamMember
     SConversationAccessDataTag -> do
       -- 'PrivateAccessRole' is for self-conversations, 1:1 conversations and
       -- so on; users not supposed to be able to make other conversations
       -- have 'PrivateAccessRole'
       when (PrivateAccess `elem` cupAccess action || Set.null (cupAccessRoles action)) $
-        throw InvalidTargetAccess
+        throwS @'InvalidTargetAccess
       -- Team conversations incur another round of checks
       case convTeam conv of
         Just _ -> do
           -- Access mode change might result in members being removed from the
           -- conversation, so the user must have the necessary permission flag
-          ensureActionAllowed RemoveConversationMember origUser
+          ensureActionAllowed SRemoveConversationMember origUser
         Nothing ->
           -- not a team conv, so one of the other access roles has to allow this.
           when (Set.null $ cupAccessRoles action Set.\\ Set.fromList [TeamMemberAccessRole]) $
-            throw InvalidTargetAccess
+            throwS @'InvalidTargetAccess
     _ -> pure ()
 
 -- | Returns additional members that resulted from the action (e.g. ConversationJoin)
 -- and also returns the (possible modified) action that was performed
 performAction ::
   forall tag r.
-  ( HasConversationActionEffects tag r,
-    SingI tag
-  ) =>
+  (HasConversationActionEffects tag r) =>
+  Sing tag ->
   Qualified UserId ->
   Local ConvId ->
   Conversation ->
   ConversationAction tag ->
   Sem r (BotsAndMembers, ConversationAction tag)
-performAction origUser lcnv cnv action =
-  case (sing @tag) of
+performAction tag origUser lcnv cnv action =
+  case tag of
     SConversationJoinTag -> do
       performConversationJoin origUser lcnv cnv action
     SConversationLeaveTag -> do
@@ -252,9 +260,9 @@ performConversationJoin qusr lcnv conv (ConversationJoin invited role) = do
     checkLocals ::
       Members
         '[ BrigAccess,
-           Error ActionError,
-           Error ConversationError,
-           Error NotATeamMember,
+           ErrorS 'NotATeamMember,
+           ErrorS 'NotConnected,
+           ErrorS 'ConvAccessDenied,
            TeamStore
          ]
         r =>
@@ -276,8 +284,8 @@ performConversationJoin qusr lcnv conv (ConversationJoin invited role) = do
     checkRemotes ::
       Members
         '[ BrigAccess,
-           Error ActionError,
            Error FederationError,
+           ErrorS 'NotConnected,
            FederatorAccess
          ]
         r =>
@@ -295,10 +303,10 @@ performConversationJoin qusr lcnv conv (ConversationJoin invited role) = do
     checkLHPolicyConflictsLocal ::
       Members
         '[ ConversationStore,
-           Error ActionError,
-           Error ConversationError,
            Error LegalHoldError,
-           Error InvalidInput,
+           ErrorS ('ActionDenied 'LeaveConversation),
+           ErrorS 'InvalidOperation,
+           ErrorS 'ConvNotFound,
            ExternalAccess,
            FederatorAccess,
            GundeckAccess,
@@ -385,7 +393,7 @@ performConversationAccessData qusr lcnv conv action = do
 
     -- Remove users and notify everyone
     void . for_ (nonEmpty (bmQualifiedMembers lcnv toRemove)) $ \usersToRemove -> do
-      void . runError @NoChanges $ performAction @'ConversationLeaveTag qusr lcnv conv usersToRemove
+      void . runError @NoChanges $ performAction SConversationLeaveTag qusr lcnv conv usersToRemove
       notifyConversationAction (sing @'ConversationLeaveTag) qusr Nothing lcnv bmToNotify usersToRemove
   pure (mempty, action)
   where
@@ -428,10 +436,10 @@ updateLocalConversationWithLocalUser ::
   forall tag r.
   ( Members
       '[ ConversationStore,
-         Error ActionError,
-         Error ConversationError,
-         Error InvalidInput,
          Error NoChanges,
+         ErrorS ('ActionDenied (ConversationActionPermission tag)),
+         ErrorS 'InvalidOperation,
+         ErrorS 'ConvNotFound,
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
@@ -447,14 +455,16 @@ updateLocalConversationWithLocalUser ::
   ConversationAction tag ->
   Sem r Event
 updateLocalConversationWithLocalUser lcnv lusr con action = do
+  let tag = sing @tag
+
   -- retrieve conversation
-  (conv, self) <- getConversationAndMemberWithError ConvNotFound lusr lcnv
+  (conv, self) <- getConversationAndMemberWithError @'ConvNotFound lusr lcnv
 
   -- perform checks
-  ensureConversationActionAllowed @tag lcnv action conv self
+  ensureConversationActionAllowed (sing @tag) lcnv action conv self
 
   -- perform action
-  (extraTargets, action') <- performAction @tag (qUntagged lusr) lcnv conv action
+  (extraTargets, action') <- performAction tag (qUntagged lusr) lcnv conv action
 
   notifyConversationAction
     (sing @tag)
@@ -468,33 +478,32 @@ updateLocalConversationWithRemoteUser ::
   forall tag r.
   ( Members
       '[ ConversationStore,
-         Error ActionError,
-         Error ConversationError,
-         Error InvalidInput,
          Error NoChanges,
+         ErrorS ('ActionDenied (ConversationActionPermission tag)),
+         ErrorS 'InvalidOperation,
+         ErrorS 'ConvNotFound,
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
          Input UTCTime
        ]
       r,
-    HasConversationActionEffects tag r,
-    SingI tag
+    HasConversationActionEffects tag r
   ) =>
   Sing tag ->
   Local ConvId ->
   Remote UserId ->
   ConversationAction tag ->
   Sem r ConversationUpdate
-updateLocalConversationWithRemoteUser _tag lcnv rusr action = do
+updateLocalConversationWithRemoteUser tag lcnv rusr action = do
   -- retrieve conversation
-  (conv, self) <- getConversationAndMemberWithError ConvNotFound (qUntagged rusr) lcnv
+  (conv, self) <- getConversationAndMemberWithError @'ConvNotFound (qUntagged rusr) lcnv
 
   -- perform checks
-  ensureConversationActionAllowed @tag lcnv action conv self
+  ensureConversationActionAllowed tag lcnv action conv self
 
   -- perform action
-  (extraTargets, action') <- performAction @tag (qUntagged rusr) lcnv conv action
+  (extraTargets, action') <- performAction tag (qUntagged rusr) lcnv conv action
 
   -- filter out user from rusr's domain, because rusr's backend will update
   -- local state and notify its users itself using the ConversationUpdate
@@ -506,7 +515,7 @@ updateLocalConversationWithRemoteUser _tag lcnv rusr action = do
 
   void $
     notifyConversationAction
-      (sing @tag)
+      tag
       (qUntagged rusr)
       Nothing
       lcnv
@@ -521,7 +530,7 @@ updateLocalConversationWithRemoteUser _tag lcnv rusr action = do
         cuOrigUserId = qUntagged rusr,
         cuConvId = tUnqualified lcnv,
         cuAlreadyPresentUsers = tUnqualified <$> S.toList remotesUserDomain,
-        cuAction = SomeConversationAction @tag sing action'
+        cuAction = SomeConversationAction tag action'
       }
 
 -- --------------------------------------------------------------------------------
@@ -531,24 +540,28 @@ ensureConversationActionAllowed ::
   forall tag mem x r.
   ( IsConvMember mem,
     HasConversationActionEffects tag r,
-    Members '[Error ActionError, Error InvalidInput] r,
-    SingI tag
+    Members
+      '[ ErrorS ('ActionDenied (ConversationActionPermission tag)),
+         ErrorS 'InvalidOperation
+       ]
+      r
   ) =>
+  Sing tag ->
   Local x ->
   ConversationAction (tag :: ConversationActionTag) ->
   Conversation ->
   mem ->
   Sem r ()
-ensureConversationActionAllowed loc action conv self = do
+ensureConversationActionAllowed tag loc action conv self = do
   -- general action check
-  ensureActionAllowed (conversationActionPermission (demote @tag)) self
+  ensureActionAllowed (sConversationActionPermission tag) self
 
   -- check if it is a group conversation (except for rename actions)
-  when (demote @tag /= ConversationRenameTag) $
+  when (fromSing tag /= ConversationRenameTag) $
     ensureGroupConversation conv
 
   -- extra action-specific checks
-  ensureAllowed @tag loc action conv self
+  ensureAllowed tag loc action conv self
 
 -- | Add users to a conversation without performing any checks. Return extra
 -- notification targets and the action performed.
@@ -566,7 +579,6 @@ addMembersToLocalConversation lcnv users role = do
 
 notifyConversationAction ::
   forall tag r.
-  (SingI tag) =>
   Members '[FederatorAccess, ExternalAccess, GundeckAccess, Input UTCTime] r =>
   Sing tag ->
   Qualified UserId ->
@@ -577,7 +589,7 @@ notifyConversationAction ::
   Sem r Event
 notifyConversationAction tag quid con lcnv targets action = do
   now <- input
-  let e = conversationActionToEvent (sing @tag) now quid (qUntagged lcnv) action
+  let e = conversationActionToEvent tag now quid (qUntagged lcnv) action
 
   E.runFederatedConcurrently_ (toList (bmRemotes targets)) $ \ruids ->
     fedClient @'Galley @"on-conversation-updated" $

@@ -48,7 +48,6 @@ import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (randomRIO)
 import qualified Data.Aeson as Aeson
 import Data.Default (Default (def))
-import Data.Domain
 import Data.Id (RequestId (..))
 import qualified Data.Metrics.Servant as Metrics
 import Data.Proxy (Proxy (Proxy))
@@ -70,6 +69,7 @@ import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
+import Wire.API.Routes.API
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
@@ -130,21 +130,12 @@ mkApp o = do
             (Proxy @ServantCombinedAPI)
             (customFormatters :. localDomain :. Servant.EmptyContext)
             ( swaggerDocsAPI
-                :<|> hoistServer' @BrigAPI (toServantHandler e) servantSitemap
-                :<|> hoistServer' @IAPI.API (toServantHandler e) IAPI.servantSitemap
-                :<|> hoistServer' @FederationAPI (toServantHandler e) federationSitemap
-                :<|> hoistServer' @VersionAPI (toServantHandler e) versionAPI
+                :<|> hoistServerWithDomain @BrigAPI (toServantHandler e) servantSitemap
+                :<|> hoistServerWithDomain @IAPI.API (toServantHandler e) IAPI.servantSitemap
+                :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
+                :<|> hoistServerWithDomain @VersionAPI (toServantHandler e) versionAPI
                 :<|> Servant.Tagged (app e)
             )
-
--- | See 'Galley.Run' for an explanation of this function.
-hoistServer' ::
-  forall api m n.
-  Servant.HasServer api '[Domain] =>
-  (forall x. m x -> n x) ->
-  Servant.ServerT api m ->
-  Servant.ServerT api n
-hoistServer' = Servant.hoistServerWithContext (Proxy @api) (Proxy @'[Domain])
 
 type ServantCombinedAPI =
   ( SwaggerDocsAPI

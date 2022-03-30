@@ -35,9 +35,7 @@ module Galley.API.Message
 where
 
 import Control.Lens
-import Control.Monad.Except (throwError)
 import Control.Monad.Extra (eitherM)
-import Control.Monad.Trans.Except (runExceptT)
 import Data.Aeson (encode)
 import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
@@ -52,7 +50,6 @@ import qualified Data.Set as Set
 import Data.Set.Lens
 import Data.Singletons
 import Data.Time.Clock (UTCTime)
-import Galley.API.Error
 import Galley.API.LegalHold.Conflicts
 import Galley.API.Push
 import Galley.API.Util
@@ -73,12 +70,15 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Log
+import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
+import Wire.API.Routes.Public.Galley
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User.Client
@@ -246,8 +246,9 @@ postBroadcast ::
   Members
     '[ BrigAccess,
        ClientStore,
-       Error ActionError,
-       Error TeamError,
+       ErrorS 'TeamNotFound,
+       ErrorS 'NonBindingTeam,
+       ErrorS 'BroadcastLimitExceeded,
        GundeckAccess,
        Input Opts,
        Input UTCTime,
@@ -275,7 +276,7 @@ postBroadcast lusr con msg = runError $ do
   limit <- fromIntegral . fromRange <$> fanoutLimit
   -- If we are going to fan this out to more than limit, we want to fail early
   unless (Map.size rcps <= limit) $
-    throw BroadcastLimitExceeded
+    throwS @'BroadcastLimitExceeded
   -- In large teams, we may still use the broadcast endpoint but only if `report_missing`
   -- is used and length `report_missing` < limit since we cannot fetch larger teams than
   -- that.
@@ -335,16 +336,16 @@ postBroadcast lusr con msg = runError $ do
       let localUserIdsInRcps = Map.keys rcps
       let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
       unless (length localUserIdsToLookup <= limit) $
-        throw BroadcastLimitExceeded
+        throwS @'BroadcastLimitExceeded
       selectTeamMembers tid localUserIdsToLookup
     maybeFetchAllMembersInTeam ::
-      Members '[Error ActionError, TeamStore] r =>
+      Members '[ErrorS 'BroadcastLimitExceeded, TeamStore] r =>
       TeamId ->
       Sem r [TeamMember]
     maybeFetchAllMembersInTeam tid = do
       mems <- getTeamMembersForFanout tid
       when (mems ^. teamMemberListType == ListTruncated) $
-        throw BroadcastLimitExceeded
+        throwS @'BroadcastLimitExceeded
       pure (mems ^. teamMembers)
 
 postQualifiedOtrMessage ::
@@ -369,91 +370,91 @@ postQualifiedOtrMessage ::
   Local ConvId ->
   QualifiedNewOtrMessage ->
   Sem r (PostOtrResponse MessageSendingStatus)
-postQualifiedOtrMessage senderType sender mconn lcnv msg = runExceptT $ do
-  alive <- lift $ isConversationAlive (tUnqualified lcnv)
-  let localDomain = tDomain lcnv
-  now <- lift $ input
-  let nowMillis = toUTCTimeMillis now
-  let senderDomain = qDomain sender
-      senderUser = qUnqualified sender
-  let senderClient = qualifiedNewOtrSender msg
-  unless alive $ do
-    lift $ deleteConversation (tUnqualified lcnv)
-    throwError MessageNotSentConversationNotFound
+postQualifiedOtrMessage senderType sender mconn lcnv msg =
+  runError @(MessageNotSent MessageSendingStatus)
+    . mapToRuntimeError @'ConvNotFound @(MessageNotSent MessageSendingStatus) MessageNotSentConversationNotFound
+    $ do
+      alive <- isConversationAlive (tUnqualified lcnv)
+      let localDomain = tDomain lcnv
+      now <- input
+      let nowMillis = toUTCTimeMillis now
+      let senderDomain = qDomain sender
+          senderUser = qUnqualified sender
+      let senderClient = qualifiedNewOtrSender msg
+      unless alive $ do
+        deleteConversation (tUnqualified lcnv)
+        throwS @'ConvNotFound
 
-  -- conversation members
-  localMembers <- lift $ getLocalMembers (tUnqualified lcnv)
-  remoteMembers <- lift $ getRemoteMembers (tUnqualified lcnv)
+      -- conversation members
+      localMembers <- getLocalMembers (tUnqualified lcnv)
+      remoteMembers <- getRemoteMembers (tUnqualified lcnv)
 
-  let localMemberIds = lmId <$> localMembers
-      localMemberMap :: Map UserId LocalMember
-      localMemberMap = Map.fromList (map (\mem -> (lmId mem, mem)) localMembers)
-      members :: Set (Qualified UserId)
-      members =
-        Set.map (`Qualified` localDomain) (Map.keysSet localMemberMap)
-          <> Set.fromList (map (qUntagged . rmId) remoteMembers)
-  isInternal <- lift $ view (optSettings . setIntraListing) <$> input
+      let localMemberIds = lmId <$> localMembers
+          localMemberMap :: Map UserId LocalMember
+          localMemberMap = Map.fromList (map (\mem -> (lmId mem, mem)) localMembers)
+          members :: Set (Qualified UserId)
+          members =
+            Set.map (`Qualified` localDomain) (Map.keysSet localMemberMap)
+              <> Set.fromList (map (qUntagged . rmId) remoteMembers)
+      isInternal <- view (optSettings . setIntraListing) <$> input
 
-  -- check if the sender is part of the conversation
-  unless (Set.member sender members) $
-    throwError MessageNotSentConversationNotFound
+      -- check if the sender is part of the conversation
+      unless (Set.member sender members) $
+        throwS @'ConvNotFound
 
-  -- get local clients
-  localClients <-
-    lift $
-      if isInternal
-        then Clients.fromUserClients <$> lookupClients localMemberIds
-        else getClients localMemberIds
-  let qualifiedLocalClients =
-        Map.mapKeys (localDomain,)
-          . makeUserMap (Set.fromList (map lmId localMembers))
-          . Clients.toMap
-          $ localClients
+      -- get local clients
+      localClients <-
+        if isInternal
+          then Clients.fromUserClients <$> lookupClients localMemberIds
+          else getClients localMemberIds
+      let qualifiedLocalClients =
+            Map.mapKeys (localDomain,)
+              . makeUserMap (Set.fromList (map lmId localMembers))
+              . Clients.toMap
+              $ localClients
 
-  -- get remote clients
-  qualifiedRemoteClients <- lift $ getRemoteClients remoteMembers
-  let qualifiedClients = qualifiedLocalClients <> qualifiedRemoteClients
+      -- get remote clients
+      qualifiedRemoteClients <- getRemoteClients remoteMembers
+      let qualifiedClients = qualifiedLocalClients <> qualifiedRemoteClients
 
-  -- check if the sender client exists (as one of the clients in the conversation)
-  unless
-    ( Set.member
-        senderClient
-        (Map.findWithDefault mempty (senderDomain, senderUser) qualifiedClients)
-    )
-    $ throwError MessageNotSentUnknownClient
+      -- check if the sender client exists (as one of the clients in the conversation)
+      unless
+        ( Set.member
+            senderClient
+            (Map.findWithDefault mempty (senderDomain, senderUser) qualifiedClients)
+        )
+        $ throw (MessageNotSentUnknownClient :: MessageNotSent MessageSendingStatus)
 
-  let (sendMessage, validMessages, mismatch) =
-        checkMessageClients
-          (senderDomain, senderUser, senderClient)
-          qualifiedClients
-          (flattenMap $ qualifiedNewOtrRecipients msg)
-          (qualifiedNewOtrClientMismatchStrategy msg)
-      otrResult = mkMessageSendingStatus nowMillis mismatch mempty
-  unless sendMessage $ do
-    let lhProtectee = qualifiedUserToProtectee localDomain senderType sender
-        missingClients = qmMissing mismatch
-        legalholdErr = pure MessageNotSentLegalhold
-        clientMissingErr = pure $ MessageNotSentClientMissing otrResult
-    e <-
-      lift
-        . runLocalInput lcnv
-        . eitherM (const legalholdErr) (const clientMissingErr)
-        . runError @LegalholdConflicts
-        $ guardQualifiedLegalholdPolicyConflicts lhProtectee missingClients
-    throwError e
+      let (sendMessage, validMessages, mismatch) =
+            checkMessageClients
+              (senderDomain, senderUser, senderClient)
+              qualifiedClients
+              (flattenMap $ qualifiedNewOtrRecipients msg)
+              (qualifiedNewOtrClientMismatchStrategy msg)
+          otrResult = mkMessageSendingStatus nowMillis mismatch mempty
+      unless sendMessage $ do
+        let lhProtectee = qualifiedUserToProtectee localDomain senderType sender
+            missingClients = qmMissing mismatch
+            legalholdErr = pure MessageNotSentLegalhold
+            clientMissingErr = pure $ MessageNotSentClientMissing otrResult
+        e <-
+          runLocalInput lcnv
+            . eitherM (const legalholdErr) (const clientMissingErr)
+            . runError @LegalholdConflicts
+            $ guardQualifiedLegalholdPolicyConflicts lhProtectee missingClients
+        throw e
 
-  failedToSend <-
-    lift $
-      sendMessages @'NormalMessage
-        now
-        sender
-        senderClient
-        mconn
-        lcnv
-        localMemberMap
-        (qualifiedNewOtrMetadata msg)
-        validMessages
-  pure otrResult {mssFailedToSend = failedToSend}
+      failedToSend <-
+        sendMessages @'NormalMessage
+          now
+          sender
+          senderClient
+          mconn
+          lcnv
+          localMemberMap
+          (qualifiedNewOtrMetadata msg)
+          validMessages
+      pure otrResult {mssFailedToSend = failedToSend}
 
 makeUserMap :: Set UserId -> Map UserId (Set ClientId) -> Map UserId (Set ClientId)
 makeUserMap keys = (<> Map.fromSet (const mempty) keys)

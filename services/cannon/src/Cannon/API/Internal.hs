@@ -40,7 +40,8 @@ import Servant
 import Servant.Conduit ()
 import System.Logger.Class (msg, val)
 import qualified System.Logger.Class as LC
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import Wire.API.Error.Cannon
 import Wire.API.RawJson
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
@@ -65,7 +66,7 @@ type InternalAPI =
                       :> MultiVerb
                            'POST
                            '[JSON]
-                           '[ ClientGone,
+                           '[ ErrorResponse 'ClientGone,
                               RespondEmpty 200 "Successfully pushed."
                             ]
                            (Maybe ())
@@ -84,7 +85,7 @@ type InternalAPI =
                       :> MultiVerb
                            'HEAD
                            '[JSON]
-                           '[ PresenceNotRegistered,
+                           '[ ErrorResponse 'PresenceNotRegistered,
                               RespondEmpty 200 "Presence checked successfully."
                             ]
                            (Maybe ())

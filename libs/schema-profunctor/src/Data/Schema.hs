@@ -103,6 +103,7 @@ import qualified Data.Swagger.Internal as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Imports hiding (Product)
+import Numeric.Natural
 
 type Declare = S.Declare (S.Definitions S.Schema)
 
@@ -501,6 +502,9 @@ instance With Text where
 instance With Integer where
   with _ = (A.parseJSON >=>)
 
+instance With Natural where
+  with _ = (A.parseJSON >=>)
+
 instance With Bool where
   with = A.withBool
 
@@ -768,6 +772,9 @@ instance HasEnum Text NamedSwaggerDoc where
   mkEnum = mkSwaggerEnum S.SwaggerString
 
 instance HasEnum Integer NamedSwaggerDoc where
+  mkEnum = mkSwaggerEnum S.SwaggerInteger
+
+instance HasEnum Natural NamedSwaggerDoc where
   mkEnum = mkSwaggerEnum S.SwaggerInteger
 
 instance HasEnum Bool NamedSwaggerDoc where

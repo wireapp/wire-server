@@ -64,7 +64,8 @@ import qualified Network.Wai.Utilities.Swagger as Doc
 import System.Logger (Msg)
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import qualified Wire.API.Error.Brig as E
 import qualified Wire.API.Team.Invitation as Public
 import qualified Wire.API.Team.Role as Public
 import qualified Wire.API.Team.Size as Public
@@ -89,10 +90,10 @@ routesPublic = do
     Doc.returns (Doc.ref Public.modelTeamInvitation)
     Doc.response 201 "Invitation was created and sent." Doc.end
     Doc.errorResponse noEmail
-    Doc.errorResponse (errorDescriptionToWai (noIdentity 6))
-    Doc.errorResponse (errorDescriptionTypeToWai @InvalidEmail)
-    Doc.errorResponse blacklistedEmail
-    Doc.errorResponse tooManyTeamInvitations
+    Doc.errorResponse (errorToWai @'E.NoIdentity)
+    Doc.errorResponse (errorToWai @'E.InvalidEmail)
+    Doc.errorResponse (errorToWai @'E.BlacklistedEmail)
+    Doc.errorResponse (errorToWai @'E.TooManyTeamInvitations)
 
   get "/teams/:tid/invitations" (continue listInvitationsH) $
     accept "application" "json"
@@ -149,7 +150,7 @@ routesPublic = do
       Doc.description "Invitation code"
     Doc.returns (Doc.ref Public.modelTeamInvitation)
     Doc.response 200 "Invitation successful." Doc.end
-    Doc.errorResponse (errorDescriptionTypeToWai @InvalidInvitationCode)
+    Doc.errorResponse (errorToWai @'E.InvalidInvitationCode)
 
   -- FUTUREWORK: Add another endpoint to allow resending of invitation codes
   head "/teams/invitations/by-email" (continue headInvitationByEmailH) $
@@ -228,7 +229,7 @@ getInvitationCodeH (_ ::: t ::: r) = do
 getInvitationCode :: TeamId -> InvitationId -> (Handler r) FoundInvitationCode
 getInvitationCode t r = do
   code <- lift . wrapClient $ DB.lookupInvitationCode t r
-  maybe (throwStd $ errorDescriptionTypeToWai @InvalidInvitationCode) (return . FoundInvitationCode) code
+  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (return . FoundInvitationCode) code
 
 newtype FoundInvitationCode = FoundInvitationCode InvitationCode
   deriving (Eq, Show, Generic)
@@ -257,7 +258,7 @@ createInvitationPublic uid tid body = do
   let inviteeRole = fromMaybe Team.defaultRole . irRole $ body
   inviter <- do
     let inviteePerms = Team.rolePermissions inviteeRole
-    idt <- maybe (throwStd (errorDescriptionToWai (noIdentity 7))) return =<< lift (fetchUserIdentity uid)
+    idt <- maybe (throwStd (errorToWai @'E.NoIdentity)) return =<< lift (fetchUserIdentity uid)
     from <- maybe (throwStd noEmail) return (emailIdentity idt)
     ensurePermissionToAddUser uid tid inviteePerms
     pure $ CreateInvitationInviter uid from
@@ -321,7 +322,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   --             sendActivationCode. Refactor this to a single place
 
   -- Validate e-mail
-  inviteeEmail <- either (const $ throwStd (errorDescriptionTypeToWai @InvalidEmail)) return (Email.validateEmail (irInviteeEmail body))
+  inviteeEmail <- either (const $ throwStd (errorToWai @'E.InvalidEmail)) return (Email.validateEmail (irInviteeEmail body))
   let uke = userEmailKey inviteeEmail
   blacklistedEm <- lift $ wrapClient $ Blacklist.exists uke
   when blacklistedEm $
@@ -332,11 +333,11 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
 
   -- Validate phone
   inviteePhone <- for (irInviteePhone body) $ \p -> do
-    validatedPhone <- maybe (throwStd (errorDescriptionTypeToWai @InvalidPhone)) return =<< lift (wrapClient $ Phone.validatePhone p)
+    validatedPhone <- maybe (throwStd (errorToWai @'E.InvalidPhone)) return =<< lift (wrapClient $ Phone.validatePhone p)
     let ukp = userPhoneKey validatedPhone
     blacklistedPh <- lift $ wrapClient $ Blacklist.exists ukp
     when blacklistedPh $
-      throwStd (errorDescriptionTypeToWai @BlacklistedPhone)
+      throwStd (errorToWai @'E.BlacklistedPhone)
     phoneTaken <- lift $ isJust <$> wrapClient (Data.lookupKey ukp)
     when phoneTaken $
       throwStd phoneExists
@@ -344,7 +345,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   maxSize <- setMaxTeamSize <$> view settings
   pending <- lift $ wrapClient $ DB.countInvitations tid
   when (fromIntegral pending >= maxSize) $
-    throwStd tooManyTeamInvitations
+    throwStd (errorToWai @'E.TooManyTeamInvitations)
 
   let locale = irLocale body
   let inviteeName = irInviteeName body
@@ -405,7 +406,7 @@ getInvitationByCodeH (_ ::: c) = do
 getInvitationByCode :: Public.InvitationCode -> (Handler r) Public.Invitation
 getInvitationByCode c = do
   inv <- lift . wrapClient $ DB.lookupInvitationByCode c
-  maybe (throwStd $ errorDescriptionTypeToWai @InvalidInvitationCode) return inv
+  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) return inv
 
 headInvitationByEmailH :: JSON ::: Email -> (Handler r) Response
 headInvitationByEmailH (_ ::: e) = do
