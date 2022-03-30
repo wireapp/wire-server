@@ -57,6 +57,7 @@ newtype PropertyKey = PropertyKey
       ToByteString,
       FromJSON,
       ToJSON,
+      S.ToSchema,
       A.FromJSONKey,
       A.ToJSONKey,
       FromHttpApiData,

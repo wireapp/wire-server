@@ -240,6 +240,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"delete-property" deleteProperty
         :<|> Named @"clear-properties" clearProperties
         :<|> Named @"get-property" getProperty
+        :<|> Named @"list-property-keys" listPropertyKeys
 
     mlsAPI :: ServerT MLSAPI (Handler r)
     mlsAPI =
@@ -309,14 +310,6 @@ sitemap = do
     Doc.errorResponse (errorToWai @'E.InvalidCode)
 
   -- Properties API -----------------------------------------------------
-
-  get "/properties" (continue listPropertyKeysH) $
-    zauthUserId
-      .&. accept "application" "json"
-  document "GET" "listPropertyKeys" $ do
-    Doc.summary "List all property keys."
-    Doc.returns (Doc.array Doc.string')
-    Doc.response 200 "List of property keys." Doc.end
 
   get "/properties-values" (continue listPropertyKeysAndValuesH) $
     zauthUserId
@@ -485,10 +478,8 @@ clearProperties u c = lift (API.clearProperties u c)
 getProperty :: UserId -> Public.PropertyKey -> Handler r (Maybe Public.RawPropertyValue)
 getProperty u k = lift . wrapClient $ API.lookupProperty u k
 
-listPropertyKeysH :: UserId ::: JSON -> (Handler r) Response
-listPropertyKeysH (u ::: _) = do
-  keys <- lift $ wrapClient (API.lookupPropertyKeys u)
-  pure $ json (keys :: [Public.PropertyKey])
+listPropertyKeys :: UserId -> Handler r [Public.PropertyKey]
+listPropertyKeys u = lift $ wrapClient (API.lookupPropertyKeys u)
 
 listPropertyKeysAndValuesH :: UserId ::: JSON -> (Handler r) Response
 listPropertyKeysAndValuesH (u ::: _) = do

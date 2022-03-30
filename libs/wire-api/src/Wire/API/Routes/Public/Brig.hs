@@ -745,6 +745,11 @@ type PropertiesAPI =
                                 ]
                                (Maybe RawPropertyValue)
                       )
+               :<|> Named
+                      "list-property-keys"
+                      ( Summary "List all property keys"
+                          :> MultiVerb1 'GET '[JSON] (Respond 200 "List of property keys" [PropertyKey])
+                      )
            )
     )
 
