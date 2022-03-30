@@ -344,7 +344,8 @@ onMessageSent domain rmUnqualified = do
           { lmId = m,
             lmService = Nothing,
             lmStatus = defMemberStatus,
-            lmConvRoleName = Public.roleNameWireMember
+            lmConvRoleName = Public.roleNameWireMember,
+            lmMLSClients = Set.empty
           }
 
 sendMessage ::

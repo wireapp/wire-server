@@ -265,14 +265,14 @@ lookupGroupId = "SELECT (conv_id, domain) from group_id_conv_id where group_id =
 
 type MemberStatus = Int32
 
-selectMember :: PrepQuery R (ConvId, UserId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
-selectMember = "select user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv = ? and user = ?"
+selectMember :: PrepQuery R (ConvId, UserId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName, Maybe (C.Set ClientId))
+selectMember = "select user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role, mls_clients from member where conv = ? and user = ?"
 
-selectMembers :: PrepQuery R (Identity [ConvId]) (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
-selectMembers = "select conv, user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv in ?"
+selectMembers :: PrepQuery R (Identity [ConvId]) (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName, Maybe (C.Set ClientId))
+selectMembers = "select conv, user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role, mls_clients from member where conv in ?"
 
-insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, RoleName) ()
-insertMember = "insert into member (conv, user, service, provider, status, conversation_role) values (?, ?, ?, ?, 0, ?)"
+insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, RoleName, Maybe (C.Set ClientId)) ()
+insertMember = "insert into member (conv, user, service, provider, status, conversation_role, mls_clients) values (?, ?, ?, ?, 0, ?, ?)"
 
 removeMember :: PrepQuery W (ConvId, UserId) ()
 removeMember = "delete from member where conv = ? and user = ?"

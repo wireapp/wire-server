@@ -32,6 +32,7 @@ where
 import Data.Domain
 import Data.Id as Id
 import Data.Qualified
+import qualified Data.Set as Set
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
@@ -57,7 +58,8 @@ data LocalMember = LocalMember
   { lmId :: UserId,
     lmStatus :: MemberStatus,
     lmService :: Maybe ServiceRef,
-    lmConvRoleName :: RoleName
+    lmConvRoleName :: RoleName,
+    lmMLSClients :: Set ClientId
   }
   deriving stock (Show)
 
@@ -70,7 +72,8 @@ newMemberWithRole (u, r) =
     { lmId = u,
       lmService = Nothing,
       lmStatus = defMemberStatus,
-      lmConvRoleName = r
+      lmConvRoleName = r,
+      lmMLSClients = Set.empty
     }
 
 localMemberToOther :: Domain -> LocalMember -> OtherMember

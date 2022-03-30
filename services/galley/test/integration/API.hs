@@ -2428,7 +2428,8 @@ testGetQualifiedRemoteConv = do
       bobQ = Qualified bobId remoteDomain
       remoteConvId = Qualified convId remoteDomain
       bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
-      aliceAsLocal = LocalMember aliceId defMemberStatus Nothing roleNameWireAdmin
+      aliceAsLocal =
+        LocalMember aliceId defMemberStatus Nothing roleNameWireAdmin Set.empty
       aliceAsOtherMember = localMemberToOther (qDomain aliceQ) aliceAsLocal
       aliceAsSelfMember = localMemberToSelf loc aliceAsLocal
 
@@ -3396,7 +3397,13 @@ putRemoteConvMemberOk update = do
         x -> assertFailure $ "Unexpected event data: " ++ show x
 
   -- Fetch remote conversation
-  let bobAsLocal = LocalMember (qUnqualified qbob) defMemberStatus Nothing roleNameWireAdmin
+  let bobAsLocal =
+        LocalMember
+          (qUnqualified qbob)
+          defMemberStatus
+          Nothing
+          roleNameWireAdmin
+          Set.empty
   let mockConversation =
         mkProteusConv
           (qUnqualified qconv)
