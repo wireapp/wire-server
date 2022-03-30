@@ -91,7 +91,7 @@ import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
-import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import Network.Wai.Utilities.ZAuth (zauthUserId)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
 import Servant.Swagger.Internal.Orphans ()
@@ -238,6 +238,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
     propertiesAPI =
       Named @"set-property" setProperty
         :<|> Named @"delete-property" deleteProperty
+        :<|> Named @"clear-properties" clearProperties
 
     mlsAPI :: ServerT MLSAPI (Handler r)
     mlsAPI =
@@ -307,15 +308,6 @@ sitemap = do
     Doc.errorResponse (errorToWai @'E.InvalidCode)
 
   -- Properties API -----------------------------------------------------
-
-  -- This endpoint can lead to the following events being sent:
-  -- - PropertiesCleared event to self
-  delete "/properties" (continue clearPropertiesH) $
-    zauthUserId
-      .&. zauthConnId
-  document "DELETE" "clearProperties" $ do
-    Doc.summary "Clear all properties."
-    Doc.response 200 "Properties cleared." Doc.end
 
   get "/properties/:key" (continue getPropertyH) $
     zauthUserId
@@ -497,8 +489,8 @@ propertyValueFromRaw raw =
 deleteProperty :: UserId -> ConnId -> Public.PropertyKey -> Handler r ()
 deleteProperty u c k = lift (API.deleteProperty u c k)
 
-clearPropertiesH :: UserId ::: ConnId -> (Handler r) Response
-clearPropertiesH (u ::: c) = lift (API.clearProperties u c) >> return empty
+clearProperties :: UserId -> ConnId -> Handler r ()
+clearProperties u c = lift (API.clearProperties u c)
 
 getPropertyH :: UserId ::: Public.PropertyKey ::: JSON -> (Handler r) Response
 getPropertyH (u ::: k ::: _) = do

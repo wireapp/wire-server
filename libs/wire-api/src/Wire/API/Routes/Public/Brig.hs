@@ -724,6 +724,15 @@ type PropertiesAPI =
                      :> Capture "key" PropertyKey
                      :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "Property deleted")
                  )
+               :<|>
+               -- This endpoint can lead to the following events being sent:
+               -- - PropertiesCleared event to self
+               Named
+                 "clear-properties"
+                 ( Summary "Clear all properties"
+                     :> ZConn
+                     :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "Properties cleared")
+                 )
            )
     )
 
