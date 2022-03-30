@@ -32,7 +32,6 @@ import Data.Qualified
 import Data.Range
 import Data.Singletons
 import Data.String.Conversions (cs)
-import Data.Tagged
 import Data.Time
 import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
@@ -245,11 +244,7 @@ internalAPI =
       <@> mkNamedAPI @"delete-user" rmUser
       <@> mkNamedAPI @"connect" Create.createConnectConversation
       <@> mkNamedAPI @"upsert-one2one" iUpsertOne2OneConversation
-      <@> mkNamedAPI @"feature-config-snd-factor-password-challenge"
-        ( \case
-            Just uid -> TeamFeatureStatusNoConfig . tfwoapsStatus <$> getFeatureConfigNoAuth @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge (unTagged getSndFactorPasswordChallengeInternal) uid
-            Nothing -> TeamFeatureStatusNoConfig . tfwoapsStatus <$> (unTagged getSndFactorPasswordChallengeInternal) (Left Nothing)
-        )
+      <@> mkNamedAPI @"feature-config-snd-factor-password-challenge" getSndFactorPasswordChallengeNoAuth
       <@> featureAPI
 
 featureAPI :: API IFeatureAPI GalleyEffects
