@@ -41,12 +41,12 @@ setProperty u c k v = do
   wrapClientE $ Data.insertProperty u k (propertyRaw v)
   lift $ Intra.onPropertyEvent u c (PropertySet u k v)
 
-deleteProperty :: UserId -> ConnId -> PropertyKey -> (AppT r) ()
+deleteProperty :: UserId -> ConnId -> PropertyKey -> AppT r ()
 deleteProperty u c k = do
   wrapClient $ Data.deleteProperty u k
   Intra.onPropertyEvent u c (PropertyDeleted u k)
 
-clearProperties :: UserId -> ConnId -> (AppT r) ()
+clearProperties :: UserId -> ConnId -> AppT r ()
 clearProperties u c = do
   wrapClient $ Data.clearProperties u
   Intra.onPropertyEvent u c (PropertiesCleared u)

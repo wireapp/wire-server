@@ -73,8 +73,11 @@ instance S.ToParamSchema PropertyKey where
 -- | A raw, unparsed property value.
 newtype RawPropertyValue = RawPropertyValue {rawPropertyBytes :: LByteString}
 
-instance {-# OVERLAPPING #-} (MimeUnrender JSON RawPropertyValue) where
+instance {-# OVERLAPPING #-} MimeUnrender JSON RawPropertyValue where
   mimeUnrender _ = pure . RawPropertyValue
+
+instance {-# OVERLAPPING #-} MimeRender JSON RawPropertyValue where
+  mimeRender _ = rawPropertyBytes
 
 -- | A property value together with its original serialisation.
 data PropertyValue = PropertyValue

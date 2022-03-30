@@ -239,6 +239,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
       Named @"set-property" setProperty
         :<|> Named @"delete-property" deleteProperty
         :<|> Named @"clear-properties" clearProperties
+        :<|> Named @"get-property" getProperty
 
     mlsAPI :: ServerT MLSAPI (Handler r)
     mlsAPI =
@@ -308,17 +309,6 @@ sitemap = do
     Doc.errorResponse (errorToWai @'E.InvalidCode)
 
   -- Properties API -----------------------------------------------------
-
-  get "/properties/:key" (continue getPropertyH) $
-    zauthUserId
-      .&. capture "key"
-      .&. accept "application" "json"
-  document "GET" "getProperty" $ do
-    Doc.summary "Get a property value."
-    Doc.parameter Doc.Path "key" Doc.string' $
-      Doc.description "Property key"
-    Doc.returns (Doc.ref Public.modelPropertyValue)
-    Doc.response 200 "The property value." Doc.end
 
   -- This endpoint is used to test /i/metrics, when this is servantified, please
   -- make sure some other endpoint is used to test that routes defined in this
@@ -492,12 +482,8 @@ deleteProperty u c k = lift (API.deleteProperty u c k)
 clearProperties :: UserId -> ConnId -> Handler r ()
 clearProperties u c = lift (API.clearProperties u c)
 
-getPropertyH :: UserId ::: Public.PropertyKey ::: JSON -> (Handler r) Response
-getPropertyH (u ::: k ::: _) = do
-  val <- lift . wrapClient $ API.lookupProperty u k
-  return $ case val of
-    Nothing -> setStatus status404 empty
-    Just v -> responseLBS status200 [jsonContent] (Public.rawPropertyBytes v)
+getProperty :: UserId -> Public.PropertyKey -> Handler r (Maybe Public.RawPropertyValue)
+getProperty u k = lift . wrapClient $ API.lookupProperty u k
 
 listPropertyKeysH :: UserId ::: JSON -> (Handler r) Response
 listPropertyKeysH (u ::: _) = do

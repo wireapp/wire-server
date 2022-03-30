@@ -733,6 +733,18 @@ type PropertiesAPI =
                      :> ZConn
                      :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "Properties cleared")
                  )
+               :<|> Named
+                      "get-property"
+                      ( Summary "Get a property value"
+                          :> Capture "key" PropertyKey
+                          :> MultiVerb
+                               'GET
+                               '[JSON]
+                               '[ EmptyErrorForLegacyReasons 404 "Property not found",
+                                  Respond 200 "The property value" RawPropertyValue
+                                ]
+                               (Maybe RawPropertyValue)
+                      )
            )
     )
 
