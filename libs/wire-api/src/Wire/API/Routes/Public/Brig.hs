@@ -714,6 +714,16 @@ type PropertiesAPI =
                    :> ReqBody '[JSON] RawPropertyValue
                    :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Property set")
                )
+               :<|>
+               -- This endpoint can lead to the following events being sent:
+               -- - PropertyDeleted event to self
+               Named
+                 "delete-property"
+                 ( Summary "Delete a property"
+                     :> ZConn
+                     :> Capture "key" PropertyKey
+                     :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "Property deleted")
+                 )
            )
     )
 

@@ -235,7 +235,9 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"search-contacts" Search.search
 
     propertiesAPI :: ServerT PropertiesAPI (Handler r)
-    propertiesAPI = Named @"set-property" setProperty
+    propertiesAPI =
+      Named @"set-property" setProperty
+        :<|> Named @"delete-property" deleteProperty
 
     mlsAPI :: ServerT MLSAPI (Handler r)
     mlsAPI =
@@ -305,18 +307,6 @@ sitemap = do
     Doc.errorResponse (errorToWai @'E.InvalidCode)
 
   -- Properties API -----------------------------------------------------
-
-  -- This endpoint can lead to the following events being sent:
-  -- - PropertyDeleted event to self
-  delete "/properties/:key" (continue deletePropertyH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "key"
-  document "DELETE" "deleteProperty" $ do
-    Doc.summary "Delete a property."
-    Doc.parameter Doc.Path "key" Doc.string' $
-      Doc.description "Property key"
-    Doc.response 200 "Property deleted." Doc.end
 
   -- This endpoint can lead to the following events being sent:
   -- - PropertiesCleared event to self
@@ -504,8 +494,8 @@ propertyValueFromRaw raw =
   Public.PropertyValue raw
     <$> eitherDecode (Public.rawPropertyBytes raw)
 
-deletePropertyH :: UserId ::: ConnId ::: Public.PropertyKey -> (Handler r) Response
-deletePropertyH (u ::: c ::: k) = lift (API.deleteProperty u c k) >> return empty
+deleteProperty :: UserId -> ConnId -> Public.PropertyKey -> Handler r ()
+deleteProperty u c k = lift (API.deleteProperty u c k)
 
 clearPropertiesH :: UserId ::: ConnId -> (Handler r) Response
 clearPropertiesH (u ::: c) = lift (API.clearProperties u c) >> return empty
