@@ -6,7 +6,7 @@
 Welcome to Wire's (self-hosting) documentation!
 ===============================================
 
-The targeted audience of this documentation is (currently, as of July 2019):
+The targeted audience of this documentation is:
 
 * people wanting to understand how the server components of Wire work
 * people wishing to self-host Wire on their own datacentres or cloud
