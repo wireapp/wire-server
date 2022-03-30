@@ -44,6 +44,12 @@ import Wire.API.Arbitrary (Arbitrary)
 newtype PropertyKeysAndValues = PropertyKeysAndValues (Map PropertyKey PropertyValue)
   deriving newtype (ToJSON)
 
+instance S.ToSchema PropertyKeysAndValues where
+  declareNamedSchema _ =
+    pure $
+      S.NamedSchema (Just "PropertyKeysAndValues") $
+        mempty & S.type_ ?~ S.SwaggerObject
+
 modelPropertyDictionary :: Doc.Model
 modelPropertyDictionary =
   Doc.defineModel "PropertyDictionary" $
@@ -80,6 +86,11 @@ instance {-# OVERLAPPING #-} MimeUnrender JSON RawPropertyValue where
 instance {-# OVERLAPPING #-} MimeRender JSON RawPropertyValue where
   mimeRender _ = rawPropertyBytes
 
+instance S.ToSchema RawPropertyValue where
+  declareNamedSchema _ =
+    pure . S.NamedSchema (Just "PropertyValue") $
+      mempty & S.description ?~ "An arbitrary JSON value for a property"
+
 -- | A property value together with its original serialisation.
 data PropertyValue = PropertyValue
   { propertyRaw :: RawPropertyValue,
@@ -91,11 +102,6 @@ instance ToJSON PropertyValue where
 
 instance Show PropertyValue where
   show = show . propertyValue
-
-instance S.ToSchema RawPropertyValue where
-  declareNamedSchema _ =
-    pure . S.NamedSchema (Just "PropertyValue") $
-      mempty & S.description ?~ "An arbitrary JSON value for a property"
 
 modelPropertyValue :: Doc.Model
 modelPropertyValue =

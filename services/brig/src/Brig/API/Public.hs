@@ -236,11 +236,13 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
 
     propertiesAPI :: ServerT PropertiesAPI (Handler r)
     propertiesAPI =
-      Named @"set-property" setProperty
-        :<|> Named @"delete-property" deleteProperty
-        :<|> Named @"clear-properties" clearProperties
-        :<|> Named @"get-property" getProperty
-        :<|> Named @"list-property-keys" listPropertyKeys
+      ( Named @"set-property" setProperty
+          :<|> Named @"delete-property" deleteProperty
+          :<|> Named @"clear-properties" clearProperties
+          :<|> Named @"get-property" getProperty
+          :<|> Named @"list-property-keys" listPropertyKeys
+      )
+        :<|> Named @"list-properties" listPropertyKeysAndValues
 
     mlsAPI :: ServerT MLSAPI (Handler r)
     mlsAPI =
@@ -308,16 +310,6 @@ sitemap = do
       Doc.description "JSON body"
     Doc.response 200 "Deletion is initiated." Doc.end
     Doc.errorResponse (errorToWai @'E.InvalidCode)
-
-  -- Properties API -----------------------------------------------------
-
-  get "/properties-values" (continue listPropertyKeysAndValuesH) $
-    zauthUserId
-      .&. accept "application" "json"
-  document "GET" "listPropertyKeysAndValues" $ do
-    Doc.summary "List all properties with key and value."
-    Doc.returns (Doc.ref Public.modelPropertyDictionary)
-    Doc.response 200 "Object with properties as attributes." Doc.end
 
   -- TODO: put delete here, too?
   -- /activate, /password-reset ----------------------------------
@@ -481,17 +473,15 @@ getProperty u k = lift . wrapClient $ API.lookupProperty u k
 listPropertyKeys :: UserId -> Handler r [Public.PropertyKey]
 listPropertyKeys u = lift $ wrapClient (API.lookupPropertyKeys u)
 
-listPropertyKeysAndValuesH :: UserId ::: JSON -> (Handler r) Response
-listPropertyKeysAndValuesH (u ::: _) = do
+listPropertyKeysAndValues :: UserId -> Handler r Public.PropertyKeysAndValues
+listPropertyKeysAndValues u = do
   keysAndVals <- fmap Map.fromList . lift $ wrapClient (API.lookupPropertyKeysAndValues u)
-  propertyMap <-
-    hoistEither $
-      traverse
-        ( first (const (StdError internalServerError))
-            . propertyValueFromRaw
-        )
-        keysAndVals
-  pure $ json (Public.PropertyKeysAndValues propertyMap)
+  fmap Public.PropertyKeysAndValues . hoistEither $
+    traverse
+      ( first (const (StdError internalServerError))
+          . propertyValueFromRaw
+      )
+      keysAndVals
 
 getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> (Handler r) Public.ClientPrekey
 getPrekeyUnqualifiedH zusr user client = do
