@@ -1151,7 +1151,14 @@ lookupPasswordResetCode emailOrPhone = do
       c <- wrapClient $ Data.lookupPasswordResetCode u
       return $ (k,) <$> c
 
-deleteUserNoVerify :: UserId -> (AppIO r) ()
+deleteUserNoVerify ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadLogger m,
+    MonadThrow m
+  ) =>
+  UserId ->
+  m ()
 deleteUserNoVerify uid = do
   queue <- view internalEvents
   Queue.enqueue queue (Internal.DeleteUser uid)
@@ -1165,7 +1172,14 @@ deleteUsersNoVerify uids = do
 
 -- | Garbage collect users if they're ephemeral and they have expired.
 -- Always returns the user (deletion itself is delayed)
-userGC :: User -> (AppIO r) User
+userGC ::
+  ( MonadIO m,
+    MonadReader Env m,
+    MonadLogger m,
+    MonadThrow m
+  ) =>
+  User ->
+  m User
 userGC u = case userExpire u of
   Nothing -> return u
   (Just (fromUTCTimeMillis -> e)) -> do
@@ -1175,7 +1189,17 @@ userGC u = case userExpire u of
       deleteUserNoVerify (userId u)
     return u
 
-lookupProfile :: Local UserId -> Qualified UserId -> ExceptT FederationError (AppIO r) (Maybe UserProfile)
+lookupProfile ::
+  ( MonadClient m,
+    MonadReader Env m,
+    MonadLogger m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  Local UserId ->
+  Qualified UserId ->
+  ExceptT FederationError m (Maybe UserProfile)
 lookupProfile self other =
   listToMaybe
     <$> lookupProfilesFromDomain
@@ -1188,11 +1212,19 @@ lookupProfile self other =
 -- Otherwise only the 'PublicProfile' is accessible for user 'self'.
 -- If 'self' is an unknown 'UserId', return '[]'.
 lookupProfiles ::
+  ( MonadUnliftIO m,
+    MonadClient m,
+    MonadReader Env m,
+    MonadLogger m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
   -- | User 'self' on whose behalf the profiles are requested.
   Local UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [Qualified UserId] ->
-  ExceptT FederationError (AppIO r) [UserProfile]
+  ExceptT FederationError m [UserProfile]
 lookupProfiles self others =
   concat
     <$> traverseConcurrentlyWithErrors
@@ -1200,14 +1232,29 @@ lookupProfiles self others =
       (bucketQualified others)
 
 lookupProfilesFromDomain ::
-  Local UserId -> Qualified [UserId] -> ExceptT FederationError (AppIO r) [UserProfile]
+  ( MonadClient m,
+    MonadReader Env m,
+    MonadLogger m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  Local UserId ->
+  Qualified [UserId] ->
+  ExceptT FederationError m [UserProfile]
 lookupProfilesFromDomain self =
   foldQualified
     self
     (lift . lookupLocalProfiles (Just (tUnqualified self)) . tUnqualified)
     lookupRemoteProfiles
 
-lookupRemoteProfiles :: Remote [UserId] -> ExceptT FederationError (AppIO r) [UserProfile]
+lookupRemoteProfiles ::
+  ( MonadIO m,
+    MonadReader Env m,
+    MonadLogger m
+  ) =>
+  Remote [UserId] ->
+  ExceptT FederationError m [UserProfile]
 lookupRemoteProfiles (qUntagged -> Qualified uids domain) =
   Federation.getUsersByIds domain uids
 
@@ -1215,16 +1262,24 @@ lookupRemoteProfiles (qUntagged -> Qualified uids domain) =
 -- ids, but it is also very complex. Maybe this can be made easy by extracting a
 -- pure function and writing tests for that.
 lookupLocalProfiles ::
+  forall m.
+  ( MonadClient m,
+    MonadReader Env m,
+    MonadLogger m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
   -- | This is present only when an authenticated user is requesting access.
   Maybe UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [UserId] ->
-  (AppIO r) [UserProfile]
+  m [UserProfile]
 lookupLocalProfiles requestingUser others = do
-  users <- wrapClient (Data.lookupUsers NoPendingInvitations others) >>= mapM userGC
+  users <- (Data.lookupUsers NoPendingInvitations others) >>= mapM userGC
   css <- case requestingUser of
-    Just localReqUser -> toMap <$> wrapClient (Data.lookupConnectionStatus (map userId users) [localReqUser])
-    Nothing -> mempty
+    Just localReqUser -> toMap <$> Data.lookupConnectionStatus (map userId users) [localReqUser]
+    Nothing -> pure $ toMap [] -- mempty
   emailVisibility' <- view (settings . emailVisibility)
   emailVisibility'' <- case emailVisibility' of
     EmailVisibleIfOnTeam -> pure EmailVisibleIfOnTeam'
@@ -1238,12 +1293,12 @@ lookupLocalProfiles requestingUser others = do
     toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
 
-    getSelfInfo :: UserId -> (AppIO r) (Maybe (TeamId, Team.TeamMember))
+    getSelfInfo :: UserId -> m (Maybe (TeamId, Team.TeamMember))
     getSelfInfo selfId = do
       -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
       -- to return 'Nothing'.  we could throw errors here if that happens, rather than just
       -- returning an empty profile list from 'lookupProfiles'.
-      mUser <- wrapClient $ Data.lookupUser NoPendingInvitations selfId
+      mUser <- Data.lookupUser NoPendingInvitations selfId
       case userTeam =<< mUser of
         Nothing -> pure Nothing
         Just tid -> (tid,) <$$> Intra.getTeamMember selfId tid
@@ -1258,10 +1313,28 @@ lookupLocalProfiles requestingUser others = do
               else publicProfile u userLegalHold
        in baseProfile {profileEmail = profileEmail'}
 
-getLegalHoldStatus :: UserId -> (AppIO r) (Maybe UserLegalHoldStatus)
-getLegalHoldStatus uid = traverse (getLegalHoldStatus' . accountUser) =<< wrapClient (lookupAccount uid)
+getLegalHoldStatus ::
+  ( MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadClient m
+  ) =>
+  UserId ->
+  m (Maybe UserLegalHoldStatus)
+getLegalHoldStatus uid = traverse (getLegalHoldStatus' . accountUser) =<< lookupAccount uid
 
-getLegalHoldStatus' :: User -> (AppIO r) UserLegalHoldStatus
+getLegalHoldStatus' ::
+  ( MonadLogger f,
+    MonadReader Env f,
+    MonadIO f,
+    MonadMask f,
+    MonadHttp f,
+    HasRequestId f
+  ) =>
+  User ->
+  f UserLegalHoldStatus
 getLegalHoldStatus' user =
   case userTeam user of
     Nothing -> pure defUserLegalHoldStatus

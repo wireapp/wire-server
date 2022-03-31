@@ -63,7 +63,16 @@ import System.Logger.Class as Log hiding (settings)
 -- | Enqueue a message.
 --
 -- Throws an error in case of failure.
-enqueue :: ToJSON a => Queue -> a -> (AppIO r) ()
+enqueue ::
+  ( MonadReader Env m,
+    ToJSON a,
+    MonadIO m,
+    MonadLogger m,
+    MonadThrow m
+  ) =>
+  Queue ->
+  a ->
+  m ()
 enqueue (StompQueue queue) message =
   view stompEnv >>= \case
     Just env -> Stomp.enqueue (Stomp.broker env) queue message
