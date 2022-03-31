@@ -18,13 +18,16 @@
 module Galley.API.MLS.Message where
 
 import Data.Id
-import Data.List.NonEmpty (nonEmpty)
+import Data.List.NonEmpty (NonEmpty, nonEmpty)
+import qualified Data.Map as Map
 import Data.Qualified
+import qualified Data.Set as Set
 import Data.Time
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.KeyPackage
 import Galley.API.Util
+import Galley.Data.Conversation.Types
 import Galley.Effects.BrigAccess
 import Galley.Effects.ConversationStore
 import Galley.Effects.ExternalAccess
@@ -34,6 +37,7 @@ import Galley.Effects.LegalHoldStore
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
 import Galley.Options
+import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -81,6 +85,7 @@ type HasProposalEffects r =
     Member (Error ProposalFailure) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'KeyPackageRefNotFound) r,
+    Member (ErrorS 'MLSClientMismatch) r,
     Member (ErrorS 'UnsupportedProposal) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
@@ -92,9 +97,22 @@ type HasProposalEffects r =
     Member TeamStore r
   )
 
+type ClientMap = Map (Qualified UserId) (Set ClientId)
+
 data ProposalAction = ProposalAction
-  { paAdd :: [Qualified (UserId, ClientId)]
+  { paAdd :: ClientMap
   }
+
+instance Semigroup ProposalAction where
+  ProposalAction add1 <> ProposalAction add2 =
+    ProposalAction $
+      Map.unionWith mappend add1 add2
+
+instance Monoid ProposalAction where
+  mempty = ProposalAction mempty
+
+paClient :: Qualified (UserId, ClientId) -> ProposalAction
+paClient quc = mempty {paAdd = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
 
 processCommit ::
   ( HasProposalEffects r,
@@ -111,8 +129,9 @@ processCommit ::
 processCommit lusr con _raw gid commit = do
   qcnv <- getConversationByGroupId gid >>= noteS @'ConvNotFound
   lcnv <- ensureLocal lusr qcnv
+  conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
   action <- foldMap applyProposalRef (cProposals commit)
-  executeProposalAction lusr con lcnv action
+  executeProposalAction lusr con conv action
 
 applyProposalRef ::
   ( HasProposalEffects r,
@@ -123,25 +142,22 @@ applyProposalRef ::
 applyProposalRef (Ref _) = throwS @'ProposalNotFound
 applyProposalRef (Inline p) = applyProposal p
 
-instance Semigroup ProposalAction where
-  ProposalAction add1 <> ProposalAction add2 = ProposalAction (add1 <> add2)
-
-instance Monoid ProposalAction where
-  mempty = ProposalAction mempty
-
 applyProposal :: HasProposalEffects r => Proposal -> Sem r ProposalAction
 applyProposal (AddProposal kp) = do
   ref <-
     kpRef' kp
       & note (mlsProtocolError "Could not compute ref of a key package in an Add proposal")
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
-  pure mempty {paAdd = [qclient]}
+  pure (paClient qclient)
 applyProposal _ = throwS @'UnsupportedProposal
 
 executeProposalAction ::
+  forall r.
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
+    Member (Error FederationError) r,
+    Member (ErrorS 'MLSClientMismatch) r,
     Member (Error ProposalFailure) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
@@ -154,20 +170,55 @@ executeProposalAction ::
   ) =>
   Local UserId ->
   ConnId ->
-  Local ConvId ->
+  Conversation ->
   ProposalAction ->
   Sem r [Event]
-executeProposalAction lusr con lcnv action =
-  handleNoChanges
-    . handleProposalFailures @ProposalErrors
-    $ do
-      flip foldMap (nonEmpty (paAdd action)) $ \qclients ->
-        -- FUTUREWORK: update key package ref mapping to reflect conversation membership
-        fmap pure . updateLocalConversationWithLocalUser @'ConversationJoinTag lcnv lusr (Just con) $
-          ConversationJoin (fmap (fmap fst) qclients) roleNameWireMember
+executeProposalAction lusr con conv action = do
+  let cm = convClientMap lusr conv
+      newUserClients = Map.assocs (paAdd action)
+  -- check that all clients of each user is added to the conversation, and
+  -- update the database accordingly
+  traverse_ (uncurry (addUserClients cm)) newUserClients
+  -- add users to the conversation and send events
+  foldMap addMembers . nonEmpty . map fst $ newUserClients
+  where
+    addUserClients :: ClientMap -> Qualified UserId -> Set ClientId -> Sem r ()
+    addUserClients cm qtarget newClients = do
+      -- compute final set of clients in the conversation
+      let cs = newClients <> Map.findWithDefault mempty qtarget cm
+      -- get list of mls clients from brig
+      allClients <- getMLSClients qtarget
+      -- if not all clients have been added to the conversation, return an error
+      when (cs /= allClients) $ do
+        -- FUTUREWORK: turn this error into a proper response
+        throwS @'MLSClientMismatch
+      -- add clients to the database
+      ltarget <- ensureLocal lusr qtarget -- FUTUREWORK: support remote users
+      addMLSClients (convId conv) (tUnqualified ltarget) newClients
+
+    addMembers :: NonEmpty (Qualified UserId) -> Sem r [Event]
+    addMembers users =
+      -- FUTUREWORK: update key package ref mapping to reflect conversation membership
+      handleNoChanges
+        . handleProposalFailures @ProposalErrors
+        . fmap pure
+        . updateLocalConversationWithLocalUser @'ConversationJoinTag (qualifyAs lusr (convId conv)) lusr (Just con)
+        $ ConversationJoin users roleNameWireMember
 
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError
+
+convClientMap :: Local x -> Conversation -> ClientMap
+convClientMap loc =
+  mconcat
+    [ foldMap localMember . convLocalMembers,
+      mempty -- FUTUREWORK: add mls clients of remote members
+    ]
+  where
+    localMember lm = Map.singleton (qUntagged (qualifyAs loc (lmId lm))) (lmMLSClients lm)
+
+getMLSClients :: Qualified UserId -> Sem r (Set ClientId)
+getMLSClients _ = pure mempty -- TODO
 
 --------------------------------------------------------------------------------
 -- Error handling of proposal execution

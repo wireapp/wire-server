@@ -360,6 +360,11 @@ rmMemberClient c =
   let t = LT.fromStrict (client c)
    in QueryString $ "update clients set clients = clients - {'" <> t <> "'} where user = ?"
 
+-- MLS Clients --------------------------------------------------------------
+
+addMLSClients :: PrepQuery W (ConvId, UserId, C.Set ClientId) ()
+addMLSClients = "update member set mls_clients = mls_clients + ? where conv = ? and user = ?"
+
 -- Services -----------------------------------------------------------------
 
 rmSrv :: PrepQuery W (ProviderId, ServiceId) ()

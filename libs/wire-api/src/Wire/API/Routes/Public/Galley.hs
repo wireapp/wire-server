@@ -1193,6 +1193,7 @@ type MLSMessagingAPI =
            ( Summary "Post an MLS message"
                :> CanThrow 'ConvNotFound
                :> CanThrow 'KeyPackageRefNotFound
+               :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSProtocolErrorTag
                :> CanThrow ProposalFailure
                :> CanThrow 'ProposalNotFound

@@ -66,7 +66,7 @@ import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Event.Conversation hiding (Conversation)
+import Wire.API.Event.Conversation
 import Wire.API.Federation.Error
 import Wire.API.Routes.Public.Galley (ConversationResponse)
 import Wire.API.Routes.Public.Util
