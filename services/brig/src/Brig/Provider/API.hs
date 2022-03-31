@@ -689,22 +689,20 @@ finishDeleteService ::
     MonadHttp m,
     HasRequestId m,
     MonadLogger m,
-    MonadClient m
+    MonadClient m,
+    MonadUnliftIO m
   ) =>
   ProviderId ->
   ServiceId ->
   m ()
 finishDeleteService pid sid = do
-  e <- ask
   mbSvc <- DB.lookupService pid sid
   for_ mbSvc $ \svc -> do
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
-    runAppIOLifted e $
-      wrapHttpClient $
-        runConduit $
-          User.lookupServiceUsers pid sid
-            .| C.mapM_ (pooledMapConcurrentlyN_ 16 kick)
+    runConduit $
+      User.lookupServiceUsers pid sid
+        .| C.mapM_ (pooledMapConcurrentlyN_ 16 kick)
     RPC.removeServiceConn pid sid
     DB.deleteService pid sid name tags
   where
