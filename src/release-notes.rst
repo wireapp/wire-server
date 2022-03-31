@@ -29,6 +29,184 @@ specific operations.
 
 The following helm chart versions have been published since then:
 
+Chart Release 4.8.0 (2022-03-30)
+================================
+
+Release notes
+-------------
+
+* Upgrade webapp version to 2022-03-30-production.0-v0.29.2-0-d144552 (#2246)
+
+
+Chart Release 4.7.0 (2022-03-18)
+================================
+
+Release notes
+-------------
+
+* Deploy Brig before Spar. (#2149)
+* If you are in a federated network of backends (currently beta), you need to update all participating instances at the same time. (#2173)
+
+API changes
+-----------
+
+* The `client` JSON object now has an additional field `mls_public_keys`, containing an object mapping signature schemes to public keys, e.g.
+
+  ```
+  {
+  ...
+  "mls_public_keys": { "ed25519": "GY+t1EQu0Zsm0r/zrm6zz9UpjPcAPyT5i8L1iaY3ypM=" }
+  ...
+  }
+  ```
+
+  At the moment, `ed25519` is the only supported signature scheme, corresponding to MLS ciphersuite 1.
+
+  When creating a new client with `POST /clients`, the field `mls_public_keys` can be set, and the corresponding public keys are bound to the device identity on the backend, and will be used to verify uploaded key packages with a matching signature scheme.
+
+  When updating a client with `PUT /clients/:client`, the field `mls_public_keys` can also be set, with a similar effect. If a given signature scheme already has a public key set for that device, the request will fail. (#2147)
+
+* Introduce an endpoint for creating an MLS conversation (#2150)
+
+* The `/billing` and `/teams/.*/billing` endpoints are now available on a versioned path (e.g. `/v1/billing`)
+
+   (#2167)
+
+
+Features
+--------
+
+* MLS implementation progress:
+
+   - key package refs are now mapped after being claimed (#2192)
+
+* 2nd factor authentication via 6 digit code, sent by email:
+
+   - for login, sent by email. The feature is disabled per default and can be enabled server or team wide. (#2142)
+   - for "create SCIM token". The feature is disabled per default and can be enabled server or team wide. (#2149)
+   - for "add new client" via 6 digit code, sent by email. This only happens inside the login flow (in particular, when logging in from a new device).  The code obtained for logging in is used a second time for adding the device. (#2186)
+   - 2nd factor authentication for "delete team" via 6 digit code, sent by email. (#2193)
+   - The `SndFactorPasswordChallenge` team feature is locked by default. (#2205)
+   - Details: [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge)
+
+Bug fixes and other updates
+---------------------------
+
+* Fix data consistency issue in import of users from TM invitation to SCIM-managed (#2201)
+
+* Use the same context string as openmls for key package ref calculation (#2216)
+
+* Ensure that only conversation admins can create invite links.  (Until now we have relied on clients to enforce this.) (#2211)
+
+
+Internal changes
+----------------
+
+* account-pages Helm chart: Add a "digest" image option (#2194)
+
+* Add more test mappings (#2185)
+
+* Internal endpoint for re-authentication (`GET "/i/users/:uid/reauthenticate"`) in brig has changed in a backwards compatible way. Spar depends on this change for creating a SCIM token with 2nd password challenge. (#2149)
+
+* Asset keys are now internally validated. (#2162)
+
+* Spar debugging; better internal combinators (#2214)
+
+* Remove the MonadClient instance of the Brig monad
+
+  - Lots of functions were generalized to run in a monad constrained by
+    MonadClient instead of running directly in Brig's `AppIO r` monad. (#2187)
+
+
+Federation changes
+------------------
+
+* Refactor conversation actions to an existential type consisting of a singleton tag (identifying the action) and a dedicated type for the action itself. Previously, actions were represented by a big sum type. The new approach enables us to describe the needed effects of an action much more precisely. The existential type is initialized by the Servant endpoints in a way to mimic the previous behavior. However, the messages between services changed. Thus, all federated backends need to run the same (new) version. The deployment order itself does not matter. (#2173)
+
+
+Chart Release 4.6.3 (2022-03-09)
+================================
+
+Release notes
+-------------
+
+* Upgrade team-settings version to 4.6.2-v0.29.7-0-4f43ee4 (#2180)
+
+
+Chart Release 4.5.1 (2022-03-07)
+================================
+
+Release notes
+-------------
+
+* For wire.com operators: make sure that nginz is deployed (#2166)
+
+
+API changes
+-----------
+
+* Add qualified broadcast endpoint (#2166)
+
+
+Bug fixes and other updates
+---------------------------
+
+* Always create spar credentials during SCIM provisioning when applicable (#2174)
+
+
+Internal changes
+----------------
+
+* Add tests for additional information returned by `GET /api-version` (#2159)
+
+* Clean up `Base64ByteString` implementation (#2170)
+
+* The `Event` record type does not contain a `type` field anymore (#2160)
+
+* Add MLS message types and corresponding deserialisers (#2145)
+
+* Servantify `POST /register` and `POST /i/users` endpoints (#2121)
+
+
+Chart Release 4.4.0 (2022-03-01)
+================================
+
+Release notes
+-------------
+
+* Upgrade webapp version to 2022-02-22-production.0-v0.29.2-0-abb34f5 (#2148)
+
+
+API changes
+-----------
+
+* The `api-version` endpoint now returns additional information about the backend:
+
+    - whether federation is supported (field `federation`);
+    - the federation domain (field `domain`).
+
+  Note that the federation domain is always set, even if federation is disabled. (#2146)
+
+* Add MLS key package API (#2102)
+
+
+Internal changes
+----------------
+
+* Bump aeson to v2.0.3.0 and update amazonka fork from upstream repository.  (#2153, #2157, #2163)
+
+* Add schema-profunctor instances for `QueuedNotification` and `QueuedNotificationList` (#2161)
+
+* Dockerfile.builder: Add cabal update (#2168)
+
+Federation changes
+------------------
+
+* Make restrictions on federated user search configurable by domain: `NoSearch`, `ExactHandleSearch` and `FullSearch`.
+  Details about the configuration are described in [config-options.md](docs/reference/config-options.md).
+  There are sane defaults (*deny to find any users as long as there is no other configuration for the domain*), so no measures have to be taken by on-premise customers (unless the default is not the desired behavior). (#2087)
+
+
 Chart Release 4.2.0
 ===================
 
