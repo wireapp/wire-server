@@ -1011,6 +1011,7 @@ deleteUser uid pwd = do
       Just emailOrPhone -> sendCode a emailOrPhone
       Nothing -> case pwd of
         Just _ -> throwE DeleteUserMissingPassword
+        -- TODO
         Nothing -> lift $ deleteAccount a >> return Nothing
     byPassword a pw = do
       Log.info $
@@ -1022,6 +1023,7 @@ deleteUser uid pwd = do
         Just p -> do
           unless (verifyPassword pw p) $
             throwE DeleteUserInvalidPassword
+          -- TODO
           lift $ deleteAccount a >> return Nothing
     sendCode a target = do
       gen <- Code.mkGen (either Code.ForEmail Code.ForPhone target)
@@ -1060,6 +1062,7 @@ verifyDeleteUser d = do
   c <- lift . wrapClient $ Code.verify key Code.AccountDeletion code
   a <- maybe (throwE DeleteUserInvalidCode) return (Code.codeAccount =<< c)
   account <- lift . wrapClient $ Data.lookupAccount (Id a)
+  -- TODO
   for_ account $ lift . deleteAccount
   lift . wrapClient $ Code.delete key Code.AccountDeletion
 
