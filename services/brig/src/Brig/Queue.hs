@@ -93,7 +93,17 @@ enqueue (SqsQueue queue) message =
 --
 -- See documentation of underlying functions (e.g. 'Stomp.listen') for
 -- extra details.
-listen :: (Show a, FromJSON a) => Queue -> (a -> (AppIO r) ()) -> (AppIO r) ()
+listen ::
+  ( Show a,
+    FromJSON a,
+    MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadUnliftIO m
+  ) =>
+  Queue ->
+  (a -> m ()) ->
+  m ()
 listen (StompQueue queue) callback =
   view stompEnv >>= \case
     Just env -> Stomp.listen (Stomp.broker env) queue callback
@@ -105,4 +115,4 @@ listen (StompQueue queue) callback =
 listen (SqsQueue queue) callback = do
   env <- ask
   throttleMillis <- fromMaybe defSqsThrottleMillis <$> view (settings . sqsThrottleMillis)
-  AWS.execute (env ^. awsEnv) $ AWS.listen throttleMillis queue (runAppT env . callback)
+  withRunInIO $ \lower -> AWS.execute (env ^. awsEnv) $ AWS.listen throttleMillis queue $ lower . callback

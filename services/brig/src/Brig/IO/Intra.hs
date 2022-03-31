@@ -163,12 +163,13 @@ onConnectionEvent ::
   (AppIO r) ()
 onConnectionEvent orig conn evt = do
   let from = ucFrom (ucConn evt)
-  notify
-    (singleton $ ConnectionEvent evt)
-    orig
-    Push.RouteAny
-    conn
-    (return $ list1 from [])
+  wrapHttp $
+    notify
+      (singleton $ ConnectionEvent evt)
+      orig
+      Push.RouteAny
+      conn
+      (return $ list1 from [])
 
 onPropertyEvent ::
   -- | Originator of the event.
@@ -178,12 +179,13 @@ onPropertyEvent ::
   PropertyEvent ->
   (AppIO r) ()
 onPropertyEvent orig conn e =
-  notify
-    (singleton $ PropertyEvent e)
-    orig
-    Push.RouteDirect
-    (Just conn)
-    (return $ list1 orig [])
+  wrapHttp $
+    notify
+      (singleton $ PropertyEvent e)
+      orig
+      Push.RouteDirect
+      (Just conn)
+      (return $ list1 orig [])
 
 onClientEvent ::
   -- | Originator of the event.

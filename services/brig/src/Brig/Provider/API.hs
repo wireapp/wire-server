@@ -700,13 +700,15 @@ finishDeleteService pid sid = do
   for_ mbSvc $ \svc -> do
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
-    runConduit $
-      User.lookupServiceUsers pid sid
-        .| C.mapM_ (runAppIOLifted e . pooledMapConcurrentlyN_ 16 kick)
+    runAppIOLifted e $
+      wrapHttpClient $
+        runConduit $
+          User.lookupServiceUsers pid sid
+            .| C.mapM_ (pooledMapConcurrentlyN_ 16 kick)
     RPC.removeServiceConn pid sid
     DB.deleteService pid sid name tags
   where
-    kick (bid, cid, _) = wrapHttpClient $ deleteBot (botUserId bid) Nothing bid cid
+    kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
 
 deleteAccountH ::
   ( MonadReader Env m,
@@ -847,7 +849,6 @@ data UpdateServiceWhitelistResp
 
 updateServiceWhitelist :: UserId -> ConnId -> TeamId -> Public.UpdateServiceWhitelist -> (Handler r) UpdateServiceWhitelistResp
 updateServiceWhitelist uid con tid upd = do
-  e <- ask
   let pid = updateServiceWhitelistProvider upd
       sid = updateServiceWhitelistService upd
       newWhitelisted = updateServiceWhitelistStatus upd
@@ -867,15 +868,14 @@ updateServiceWhitelist uid con tid upd = do
       -- conversations
       lift $
         fmap
-          wrapClient
+          wrapHttpClient
           runConduit
           $ User.lookupServiceUsersForTeam pid sid tid
             .| C.mapM_
-              ( runAppIOLifted e
-                  . pooledMapConcurrentlyN_
-                    16
-                    ( wrapHttpClient . uncurry (deleteBot uid (Just con))
-                    )
+              ( pooledMapConcurrentlyN_
+                  16
+                  ( uncurry (deleteBot uid (Just con))
+                  )
               )
       wrapClientE $ DB.deleteServiceWhitelist (Just tid) pid sid
       return UpdateServiceWhitelistRespChanged
