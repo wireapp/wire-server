@@ -207,7 +207,6 @@ hasClient u d = isJust <$> retry x1 (query1 checkClient (params LocalQuorum (u, 
 rmClient ::
   ( MonadClient m,
     MonadReader Brig.App.Env m,
-    MonadUnliftIO m,
     MonadCatch m
   ) =>
   UserId ->
@@ -436,8 +435,8 @@ key u c = HashMap.singleton ddbClient (ddbKey u c)
 
 deleteOptLock ::
   ( MonadReader Brig.App.Env m,
-    MonadUnliftIO m,
-    MonadCatch m
+    MonadCatch m,
+    MonadIO m
   ) =>
   UserId ->
   ClientId ->

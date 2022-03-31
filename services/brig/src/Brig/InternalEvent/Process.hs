@@ -54,7 +54,7 @@ onEvent n = handleTimeout $ case n of
       msg (val "Processing service delete event")
         ~~ field "provider" (toByteString pid)
         ~~ field "service" (toByteString sid)
-    API.finishDeleteService pid sid
+    wrapHttpClient $ API.finishDeleteService pid sid
   where
     handleTimeout act =
       timeout 60000000 act >>= \case

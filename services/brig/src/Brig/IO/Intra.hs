@@ -1019,7 +1019,16 @@ getTeamLegalHoldStatus tid = do
         . expect2xx
 
 -- | Calls 'Galley.API.getSearchVisibilityInternalH'.
-getTeamSearchVisibility :: TeamId -> (AppIO r) Team.TeamSearchVisibility
+getTeamSearchVisibility ::
+  ( MonadLogger m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  TeamId ->
+  m Team.TeamSearchVisibility
 getTeamSearchVisibility tid =
   coerce @Team.TeamSearchVisibilityView @Team.TeamSearchVisibility <$> do
     debug $ remote "galley" . msg (val "Get search visibility settings")
@@ -1042,7 +1051,15 @@ getVerificationCodeEnabled tid = do
       paths ["i", "teams", toByteString' tid, "features", toByteString' TeamFeatureSndFactorPasswordChallenge]
         . expect2xx
 
-getTeamFeatureStatusSndFactorPasswordChallenge :: Maybe UserId -> (AppIO r) TeamFeatureStatusNoConfig
+getTeamFeatureStatusSndFactorPasswordChallenge ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  Maybe UserId ->
+  m TeamFeatureStatusNoConfig
 getTeamFeatureStatusSndFactorPasswordChallenge mbUserId =
   responseJsonUnsafe
     <$> galleyRequest
