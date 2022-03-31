@@ -281,15 +281,20 @@ claimMultiPrekeyBundles protectee quc = do
           )
   localPrekeys <- traverse claimLocal locals
   remotePrekeys <-
-    traverseConcurrentlyWithErrors
-      claimRemote
-      remotes
-      !>> ClientFederationError
+    mapExceptT wrapHttpClient $
+      traverseConcurrentlyWithErrors
+        claimRemote
+        remotes
+        !>> ClientFederationError
   pure . qualifiedUserClientPrekeyMapFromList $ localPrekeys <> remotePrekeys
   where
     claimRemote ::
+      ( Log.MonadLogger m,
+        MonadIO m,
+        MonadReader Env m
+      ) =>
       Remote UserClients ->
-      ExceptT FederationError (AppIO r) (Qualified UserClientPrekeyMap)
+      ExceptT FederationError m (Qualified UserClientPrekeyMap)
     claimRemote ruc =
       qUntagged . qualifyAs ruc
         <$> Federation.claimMultiPrekeyBundle (tDomain ruc) (tUnqualified ruc)

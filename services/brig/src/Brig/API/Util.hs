@@ -88,10 +88,10 @@ logInvitationCode code = Log.field "invitation_code" (toText $ fromInvitationCod
 
 -- | Traverse concurrently and fail on first error.
 traverseConcurrentlyWithErrors ::
-  (Traversable t, Exception e) =>
-  (a -> ExceptT e (AppIO r) b) ->
+  (Traversable t, Exception e, MonadUnliftIO m) =>
+  (a -> ExceptT e m b) ->
   t a ->
-  ExceptT e (AppIO r) (t b)
+  ExceptT e m (t b)
 traverseConcurrentlyWithErrors f =
   ExceptT . try
     . ( traverse (either throwIO pure)
