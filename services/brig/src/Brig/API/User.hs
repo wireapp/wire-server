@@ -88,6 +88,8 @@ module Brig.API.User
   )
 where
 
+import Bilge.IO (MonadHttp)
+import Bilge.RPC (HasRequestId)
 import qualified Brig.API.Error as Error
 import qualified Brig.API.Handler as API (Handler, UserNotAllowedToJoinTeam (..))
 import Brig.API.Types
@@ -125,6 +127,7 @@ import Brig.User.Email
 import Brig.User.Handle
 import Brig.User.Handle.Blacklist
 import Brig.User.Phone
+import Brig.User.Search.Index (MonadIndexIO)
 import qualified Brig.User.Search.TeamSize as TeamSize
 import Cassandra
 import Control.Arrow ((&&&))
@@ -148,6 +151,7 @@ import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import Network.Wai.Utilities
+import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import UnliftIO.Async
@@ -1013,7 +1017,7 @@ deleteUser uid pwd = do
       Nothing -> case pwd of
         Just _ -> throwE DeleteUserMissingPassword
         -- TODO
-        Nothing -> lift $ deleteAccount a >> return Nothing
+        Nothing -> lift $ wrapHttpClient $ deleteAccount a >> return Nothing
     byPassword a pw = do
       Log.info $
         field "user" (toByteString uid)
@@ -1025,7 +1029,7 @@ deleteUser uid pwd = do
           unless (verifyPassword pw p) $
             throwE DeleteUserInvalidPassword
           -- TODO
-          lift $ deleteAccount a >> return Nothing
+          lift $ wrapHttpClient $ deleteAccount a >> return Nothing
     sendCode a target = do
       gen <- Code.mkGen (either Code.ForEmail Code.ForPhone target)
       pending <- lift . wrapClient $ Code.lookup (Code.genKey gen) Code.AccountDeletion
@@ -1064,33 +1068,47 @@ verifyDeleteUser d = do
   a <- maybe (throwE DeleteUserInvalidCode) return (Code.codeAccount =<< c)
   account <- lift . wrapClient $ Data.lookupAccount (Id a)
   -- TODO
-  for_ account $ lift . deleteAccount
+  for_ account $ lift . wrapHttpClient . deleteAccount
   lift . wrapClient $ Code.delete key Code.AccountDeletion
 
 -- | Internal deletion without validation.  Called via @delete /i/user/:uid@, or indirectly
 -- via deleting self.
 -- Team owners can be deleted if the team is not orphaned, i.e. there is at least one
 -- other owner left.
-deleteAccount :: UserAccount -> (AppIO r) ()
+deleteAccount ::
+  ( MonadLogger m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadIndexIO m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m,
+    MonadClient m
+  ) =>
+  UserAccount ->
+  m ()
 deleteAccount account@(accountUser -> user) = do
   let uid = userId user
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
   -- Free unique keys
-  for_ (userEmail user) $ wrapClient . deleteKey . userEmailKey
-  for_ (userPhone user) $ wrapClient . deleteKey . userPhoneKey
-  for_ (userHandle user) $ wrapClient . freeHandle (userId user)
+  for_ (userEmail user) $ deleteKey . userEmailKey
+  for_ (userPhone user) $ deleteKey . userPhoneKey
+  for_ (userHandle user) $ freeHandle (userId user)
   -- Wipe data
-  wrapClient $ Data.clearProperties uid
+  Data.clearProperties uid
   tombstone <- mkTombstone
-  wrapClient $ Data.insertAccount tombstone Nothing Nothing False
-  wrapHttp $ Intra.rmUser uid (userAssets user)
-  wrapClient (Data.lookupClients uid) >>= mapM_ (wrapClient . Data.rmClient uid . clientId)
+  Data.insertAccount tombstone Nothing Nothing False
+  Intra.rmUser uid (userAssets user)
+  Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
   luid <- qualifyLocal uid
-  wrapHttpClient $ Intra.onUserEvent uid Nothing (UserDeleted (qUntagged luid))
+  Intra.onUserEvent uid Nothing (UserDeleted (qUntagged luid))
   -- Note: Connections can only be deleted afterwards, since
   --       they need to be notified.
-  wrapClient $ Data.deleteConnections uid
-  wrapClient $ revokeAllCookies uid
+  Data.deleteConnections uid
+  revokeAllCookies uid
   where
     mkTombstone = do
       defLoc <- setDefaultUserLocale <$> view settings

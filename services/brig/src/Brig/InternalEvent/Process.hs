@@ -20,11 +20,15 @@ module Brig.InternalEvent.Process
   )
 where
 
+import Bilge.IO (MonadHttp)
+import Bilge.RPC (HasRequestId)
 import qualified Brig.API.User as API
 import Brig.App
 import Brig.InternalEvent.Types
 import Brig.Options (defDeleteThrottleMillis, setDeleteThrottleMillis)
 import qualified Brig.Provider.API as API
+import Brig.User.Search.Index (MonadIndexIO)
+import Cassandra (MonadClient)
 import Control.Lens (view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
@@ -36,14 +40,28 @@ import UnliftIO (timeout)
 -- | Handle an internal event.
 --
 -- Has a one-minute timeout that should be enough for anything that it does.
-onEvent :: InternalNotification -> (AppIO r) ()
+onEvent ::
+  ( Log.MonadLogger m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadIndexIO m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m,
+    MonadClient m
+  ) =>
+  InternalNotification ->
+  m ()
 onEvent n = handleTimeout $ case n of
   DeleteUser uid -> do
     Log.info $
       msg (val "Processing user delete event")
         ~~ field "user" (toByteString uid)
     -- TODO
-    wrapClient (API.lookupAccount uid) >>= mapM_ API.deleteAccount
+    API.lookupAccount uid >>= mapM_ API.deleteAccount
     -- As user deletions are expensive resource-wise in the context of
     -- bulk user deletions (e.g. during team deletions),
     -- wait 'delay' ms before processing the next event
@@ -54,7 +72,7 @@ onEvent n = handleTimeout $ case n of
       msg (val "Processing service delete event")
         ~~ field "provider" (toByteString pid)
         ~~ field "service" (toByteString sid)
-    wrapHttpClient $ API.finishDeleteService pid sid
+    API.finishDeleteService pid sid
   where
     handleTimeout act =
       timeout 60000000 act >>= \case

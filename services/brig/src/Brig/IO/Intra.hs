@@ -132,19 +132,13 @@ import qualified Wire.API.Team.Member as Member
 -- Event Handlers
 
 onUserEvent ::
-  ( MonadClient m,
-    MonadLogger m,
-    MonadCatch m,
-    MonadLogger m,
+  ( MonadLogger m,
     MonadCatch m,
     MonadThrow m,
     MonadIndexIO m,
     MonadReader Env m,
     MonadIO m,
-    Log.MonadLogger m,
-    MonadReader Env m,
     MonadMask m,
-    MonadCatch m,
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
