@@ -124,7 +124,7 @@ Federation changes
 * Refactor conversation actions to an existential type consisting of a singleton tag (identifying the action) and a dedicated type for the action itself. Previously, actions were represented by a big sum type. The new approach enables us to describe the needed effects of an action much more precisely. The existential type is initialized by the Servant endpoints in a way to mimic the previous behavior. However, the messages between services changed. Thus, all federated backends need to run the same (new) version. The deployment order itself does not matter. (#2173)
 
 
-Chart Release 4.6.3 (2022-03-09)
+Chart Release 4.6.0 (2022-03-09)
 ================================
 
 Release notes
@@ -133,7 +133,7 @@ Release notes
 * Upgrade team-settings version to 4.6.2-v0.29.7-0-4f43ee4 (#2180)
 
 
-Chart Release 4.5.1 (2022-03-07)
+Chart Release 4.5.0 (2022-03-07)
 ================================
 
 Release notes
