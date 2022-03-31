@@ -423,8 +423,8 @@ getBotConversationH ::
   ) =>
   BotId ::: ConvId ::: JSON ->
   Sem r Response
-getBotConversationH arg@(zbot ::: _ ::: _) =
-  Features.guardSecondFactorDisabled (botUserId zbot) (Query.getBotConversationH arg)
+getBotConversationH arg@(bid ::: cid ::: _) =
+  Features.guardSecondFactorDisabled (botUserId bid) cid (Query.getBotConversationH arg)
 
 apiDocs :: Routes ApiBuilder (Sem r) ()
 apiDocs =

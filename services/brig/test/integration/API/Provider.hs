@@ -149,7 +149,8 @@ tests dom conf p db b c g = do
           ],
         testGroup
           "block bot api if 2nd factor password challenge enabled"
-          [ test p "add" $ testAddBotBlocked conf db b g
+          [ test p "add" $ testAddBotBlocked conf db b g,
+            test p "GET /bot/conversation (galley endpoint)" $ testGetBotConvBlocked conf db b g c
           ]
       ]
 
@@ -556,6 +557,17 @@ testAddBotBlocked config db brig galley = withTestService config db brig defServ
   (userId -> u1, _, _, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
   enabled2ndFaForTeamInternal galley tid
   addBot brig u1 pid sid cid !!! do
+    const 403 === statusCode
+    const (Just "access-denied") === fmap Error.label . responseJsonMaybe
+
+testGetBotConvBlocked :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testGetBotConvBlocked config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
+  (user1, userId -> u2, _, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
+  let Qualified u1 localDomain = userQualifiedId user1
+  bid <- addBotConv localDomain brig cannon u1 u2 cid pid sid buf
+  getBotConv galley bid cid !!! const 200 === statusCode
+  enabled2ndFaForTeamInternal galley tid
+  getBotConv galley bid cid !!! do
     const 403 === statusCode
     const (Just "access-denied") === fmap Error.label . responseJsonMaybe
 

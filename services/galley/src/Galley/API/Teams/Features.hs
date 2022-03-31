@@ -21,7 +21,6 @@ module Galley.API.Teams.Features
     getFeatureStatusNoConfig,
     setFeatureStatus,
     getFeatureConfig,
-    getFeatureConfigNoAuth,
     getAllFeatureConfigs,
     getAllFeaturesH,
     getSSOStatusInternal,
@@ -44,6 +43,7 @@ module Galley.API.Teams.Features
     getSelfDeletingMessagesInternal,
     setSelfDeletingMessagesInternal,
     getSndFactorPasswordChallengeInternal,
+    getSndFactorPasswordChallengeNoAuth,
     setSndFactorPasswordChallengeInternal,
     getTeamSearchVisibilityInboundInternal,
     setTeamSearchVisibilityInboundInternal,
@@ -80,6 +80,7 @@ import Galley.Cassandra.Paging
 import Galley.Data.TeamFeatures
 import Galley.Effects
 import Galley.Effects.BrigAccess
+import Galley.Effects.ConversationStore as ConversationStore
 import Galley.Effects.GundeckAccess
 import Galley.Effects.Paging
 import qualified Galley.Effects.SearchVisibilityStore as SearchVisibilityData
@@ -87,6 +88,7 @@ import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
 import Galley.Effects.TeamStore
 import Galley.Intra.Push (PushEvent (FeatureConfigEvent), newPush)
 import Galley.Options
+import Galley.Types
 import Galley.Types.Teams hiding (newTeam)
 import Imports
 import Network.Wai
@@ -215,28 +217,6 @@ getFeatureConfig (Tagged getter) zusr = do
       void $ permissionCheck (ViewTeamFeature (knownTeamFeatureName @a)) zusrMembership
       assertTeamExists tid
       getter (Right tid)
-
-getFeatureConfigNoAuth ::
-  forall (ps :: IncludeLockStatus) (a :: TeamFeatureName) r.
-  ( KnownTeamFeatureName a,
-    Members
-      '[ ErrorS 'NotATeamMember,
-         TeamStore
-       ]
-      r
-  ) =>
-  (GetFeatureInternalParam -> Sem r (TeamFeatureStatus ps a)) ->
-  UserId ->
-  Sem r (TeamFeatureStatus ps a)
-getFeatureConfigNoAuth getter zusr = do
-  mbTeam <- getOneUserTeam zusr
-  case mbTeam of
-    Nothing -> getter (Left (Just zusr))
-    Just tid -> do
-      teamExists <- isJust <$> getTeam tid
-      if teamExists
-        then getter (Right tid)
-        else getter (Left (Just zusr))
 
 getAllFeatureConfigs ::
   Members
@@ -739,6 +719,32 @@ getSndFactorPasswordChallengeInternal = Tagged $ \case
     getCfgDefault :: Sem r (TeamFeatureStatus 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge)
     getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSndFactorPasswordChallengeStatus . unDefaults)
 
+getSndFactorPasswordChallengeNoAuth ::
+  forall r.
+  ( Member (Input Opts) r,
+    Member TeamFeatureStore r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member TeamStore r
+  ) =>
+  Maybe UserId ->
+  Sem r TeamFeatureStatusNoConfig
+getSndFactorPasswordChallengeNoAuth mbUserId = do
+  byUserOrTeamParam <- getParam mbUserId
+  TeamFeatureStatusNoConfig . tfwoapsStatus <$> unTagged getSndFactorPasswordChallengeInternal byUserOrTeamParam
+  where
+    getParam :: Maybe UserId -> Sem r GetFeatureInternalParam
+    getParam = \case
+      Just uid -> do
+        mbTeam <- getOneUserTeam uid
+        case mbTeam of
+          Nothing -> pure (Left (Just uid))
+          Just tid -> do
+            teamExists <- isJust <$> getTeam tid
+            if teamExists
+              then pure (Right tid)
+              else pure (Left (Just uid))
+      Nothing -> pure (Left Nothing)
+
 -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 --
 -- This function exists to resolve a cyclic dependency.
@@ -750,14 +756,23 @@ guardSecondFactorDisabled ::
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TeamNotFound) r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member ConversationStore r
   ) =>
   UserId ->
+  ConvId ->
   Sem r a ->
   Sem r a
-guardSecondFactorDisabled uid action = do
-  featureConfig <- getFeatureConfig @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge getSndFactorPasswordChallengeInternal uid
-  case tfwoapsStatus featureConfig of
+guardSecondFactorDisabled uid cid action = do
+  mbCnvData <- ConversationStore.getConversationMetadata cid
+  teamFeature <- case mbCnvData >>= cnvmTeam of
+    Nothing -> getSndFactorPasswordChallengeNoAuth (Just uid)
+    Just tid -> do
+      teamExists <- isJust <$> getTeam tid
+      if teamExists
+        then TeamFeatureStatusNoConfig . tfwoapsStatus <$> unTagged getSndFactorPasswordChallengeInternal (Right tid)
+        else getSndFactorPasswordChallengeNoAuth (Just uid)
+  case tfwoStatus teamFeature of
     TeamFeatureDisabled -> action
     TeamFeatureEnabled -> throwS @'AccessDenied
 
