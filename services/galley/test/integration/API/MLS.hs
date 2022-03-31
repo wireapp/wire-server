@@ -28,6 +28,7 @@ import Data.ByteString.Conversion
 import Data.Default
 import Data.Domain
 import Data.Id
+import Data.Json.Util hiding ((#))
 import qualified Data.Map as Map
 import Data.Qualified
 import Data.String.Conversions
@@ -183,6 +184,7 @@ aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
     liftIO $
       decodeMLSError
         =<< spawn (cli ["key-package", bobClientId]) Nothing
+  liftIO $ BS.writeFile (tmp </> "bob") (rmRaw bobKeyPackage)
 
   -- set bob's private key and upload key package if required
   case createClients of
@@ -191,28 +193,29 @@ aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
 
   -- create a group
 
-  _groupId <-
-    if createConv
-      then do
-        conv <-
-          responseJsonError =<< postConvQualified (qUnqualified alice) defNewMLSConv
-            <!! const 201 === statusCode
-        liftIO $ case cnvProtocol conv of
-          ProtocolMLS mlsData -> pure (cnvmlsGroupId mlsData)
-          p -> assertFailure $ "Expected MLS conversation, got protocol: " <> show (protocolTag p)
-      else pure "test_group"
+  groupId <-
+    toBase64Text . unGroupId
+      <$> if createConv
+        then do
+          conv <-
+            responseJsonError =<< postConvQualified (qUnqualified alice) defNewMLSConv
+              <!! const 201 === statusCode
+          liftIO $ case cnvProtocol conv of
+            ProtocolMLS mlsData -> pure (cnvmlsGroupId mlsData)
+            p -> assertFailure $ "Expected MLS conversation, got protocol: " <> show (protocolTag p)
+        else pure "test_group"
 
   groupJSON <-
     liftIO $
-      spawn (cli ["group", aliceClientId, "dGVzdF9ncm91cA=="]) Nothing
+      spawn (cli ["group", aliceClientId, T.unpack groupId]) Nothing
   liftIO $ BS.writeFile (tmp </> "group") groupJSON
 
   -- add bob to it and get welcome message
   commit <-
     liftIO $
       spawn
-        (cli ["member", "add", "--group", tmp </> "group", "--welcome-out", tmp </> "welcome", "-"])
-        (Just (rmRaw bobKeyPackage))
+        (cli ["member", "add", "--group", tmp </> "group", "--welcome-out", tmp </> "welcome", tmp </> "bob"])
+        Nothing
   welcome <- liftIO $ BS.readFile (tmp </> "welcome")
 
   pure $ MessagingSetup {creator = (alice, aliceClient), users = [(bob, bobClient)], ..}
