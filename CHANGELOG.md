@@ -1,9 +1,9 @@
-# [2022-03-30]
+# [2022-03-30] (Chart Release 4.8.0)
 
 ## Release notes
 
 * Upgrade webapp version to 2022-03-30-production.0-v0.29.2-0-d144552 (#2246)
-# [2022-03-18]
+# [2022-03-18] (Chart Release 4.7.0)
 
 ## Release notes
 
@@ -83,7 +83,7 @@
 * Refactor conversation actions to an existential type consisting of a singleton tag (identifying the action) and a dedicated type for the action itself. Previously, actions were represented by a big sum type. The new approach enables us to describe the needed effects of an action much more precisely. The existential type is initialized by the Servant endpoints in a way to mimic the previous behavior. However, the messages between services changed. Thus, all federated backends need to run the same (new) version. The deployment order itself does not matter. (#2173)
 
 
-# [2022-03-09]
+# [2022-03-09] (Chart Release 4.6.0)
 
 ## Release notes
 
@@ -91,7 +91,7 @@
 * Upgrade team-settings version to 4.6.2-v0.29.7-0-4f43ee4 (#2180)
 
 
-# [2022-03-07]
+# [2022-03-07] (Chart Release 4.5.0)
 
 ## Release notes
 
@@ -125,7 +125,7 @@
 * Servantify `POST /register` and `POST /i/users` endpoints (#2121)
 
 
-# [2022-03-01]
+# [2022-03-01] (Chart Release 4.4.0)
 
 ## Release notes
 
@@ -164,7 +164,7 @@
   There are sane defaults (*deny to find any users as long as there is no other configuration for the domain*), so no measures have to be taken by on-premise customers (unless the default is not the desired behavior). (#2087)
 
 
-# [2022-02-21]
+# [2022-02-21] (Chart Release 4.2.0)
 
 ## Release notes
 
@@ -217,7 +217,7 @@
 
 
 
-# [2022-02-02]
+# [2022-02-02] (Chart Release 4.0.0)
 
 ## Release notes
 
@@ -252,7 +252,7 @@
 * Separate some Spar.Sem utility functions into their own module (#2069)
 
 
-# [2022-01-28]
+# [2022-01-28] (Chart Release 2.125.0)
 
 ## Release notes
 
@@ -263,7 +263,7 @@
 * Additional integration testing for conversation access control. (#2057)
 
 
-# [2022-01-27]
+# [2022-01-27] (Chart Release 2.124.0)
 
 ## Release notes
 
@@ -310,7 +310,7 @@
 * Tag several federation tests cases for the M2 release (#2045)
 
 
-# [2022-01-18]
+# [2022-01-18] (Chart Release 2.122.0)
 
 ## Release notes
 
@@ -385,7 +385,7 @@
 * Improve Brig's configuration for SFTs and fix a call to SFT servers (#2014)
 * Enable downloading assets from a remote (federated) cargohold instance via the v4 API. The content of remote assets is returned as stream with content type `application/octet-stream`. Please refer to the Swagger API documentation for more details. (#2004)
 
-# [2021-12-10]
+# [2021-12-10] (Chart Release 2.121.0)
 
 ## Release notes
 
@@ -478,7 +478,7 @@
 * Errors when leaving a conversation are now correctly handled instead of resulting in a generic federation error. (#1928)
 
 
-# [2021-11-15]
+# [2021-11-15] (Chart Release 2.118.0)
 
 ## Release notes
 
@@ -523,7 +523,7 @@
 * Add a one-to-one conversation test in getting conversations in the federation API (#1899)
 * Notify remote participants when a user leaves a conversation because they were deleted (#1891)
 
-# [2021-10-29]
+# [2021-10-29] (Chart Release 2.117.0)
 
 ## Release notes
 
@@ -585,7 +585,7 @@
 * Make the conversation creator field in the `on-conversation-created` RPC unqualified. (#1858)
 * Update One2One conversation when connection status changes (#1850)
 
-# [2021-10-01]
+# [2021-10-01] (Chart Release 2.116.0)
 
 ## Release notes
 
@@ -678,7 +678,7 @@
 * Added support for updating self member status of remote conversations (#1753)
 
 
-# [2021-09-14]
+# [2021-09-14] (Chart Release 2.115.0)
 
 ## API changes
 
@@ -718,7 +718,7 @@
 * Ensure clients only receive messages meant for them in remote convs (#1739)
 
 
-# [2021-09-08]
+# [2021-09-08] (Chart Release 2.114.0)
 
 ## Release Notes
 
@@ -761,7 +761,7 @@
 * The update conversation membership federation endpoint takes OriginDomainHeader (#1719)
 * Added new endpoint to allow fetching conversation metadata by qualified ids (#1703)
 
-# [2021-08-27]
+# [2021-08-27] (Chart Release 2.113.0)
 
 ## Release Notes
 
@@ -799,7 +799,7 @@
 * Add an endpoint for removing a qualified user from a local conversation (#1697)
 
 
-# [2021-08-16]
+# [2021-08-16] (Chart Release 2.112.0)
 
 ## Release Notes
 
@@ -833,7 +833,7 @@ This is a routine release requiring only the routine upgrade steps.
 * Added a mechanism to derive `AsUnion` instances automatically (#1693)
 * Integration test coverage (#1696, #1704)
 
-# [2021-08-02]
+# [2021-08-02] (Chart Release 2.111.0)
 
 ## Release Notes
 
@@ -884,7 +884,7 @@ Upgrade nginz (#1658)
 * Renamed `DomainHeader` type to `OriginDomainHeader` (#1689)
 * Added golden tests for protobuf serialisation / deserialisation (#1644).
 
-# [2021-07-09]
+# [2021-07-09] (Chart Release 2.110.0)
 
 ## Release Notes
 
@@ -938,7 +938,7 @@ This release requires a manual change in your galley configuration: `settings.co
 * Allow to change IdP Issuer name to previous name (#1615).
 
 
-# [2021-06-23]
+# [2021-06-23] (Chart Release 2.109.0)
 
 ## API Changes
 
@@ -990,7 +990,7 @@ This release requires a manual change in your galley configuration: `settings.co
 * Galley/int: Expect remote call when creating conv with remotes (#1611)
 
 
-# [2021-06-08]
+# [2021-06-08] (Chart Release 2.108.0)
 
 ## Release Notes
 
@@ -1043,7 +1043,7 @@ Deploy brig before galley (#1526, #1549)
 * Update Rich Info docs (#1544)
 
 
-# [2021-05-26]
+# [2021-05-26] (Chart Release 2.107.0)
 
 ## Release Notes
 
@@ -1113,7 +1113,7 @@ changes.)
  - RFC: Schemas for documented bidirectional JSON encoding (#1474)
 
 
-# [2021-05-04]
+# [2021-05-04] (Chart Release 2.105.0)
 
 ## Features
  - [brig] New option to use a random prekey selection strategy to remove DynamoDB dependency (#1416, #1476)
@@ -1150,7 +1150,7 @@ changes.)
  - [docs] Document testing strategy and patterns (#1472)
 
 
-# [2021-03-23]
+# [2021-03-23] (Chart Release 2.104.0)
 
 ## Features
 
@@ -1190,7 +1190,7 @@ This is due to an internal data migration job (`spar-migrate-data`) that needs t
 
 * Migrate spar external id table (#1400, #1413, #1415, #1417)
 
-# [2021-03-02]
+# [2021-03-02] (Chart Release 2.102.0)
 
 ## Bug fixes and other updates
 
@@ -1201,7 +1201,7 @@ This is due to an internal data migration job (`spar-migrate-data`) that needs t
 * Federation: Add qualified endpoints for prekey management (#1372)
 
 
-# [2021-02-25]
+# [2021-02-25] (Chart Release 2.101.0)
 
 ## Bug fixes and other updates
 
@@ -1215,7 +1215,7 @@ This is due to an internal data migration job (`spar-migrate-data`) that needs t
 * Add migrate-external-ids tool (#1384)
 
 
-# [2021-02-16]
+# [2021-02-16] (Chart Release 2.99.12)
 
 ## Release Notes
 
@@ -1257,7 +1257,7 @@ This release might require manual migration steps, see [ElasticSearch migration 
 * Add docs for deriving-swagger2 (#1373)
 
 
-# [2021-01-15]
+# [2021-01-15] (Chart Release 3.30.6)
 
 ## Release Notes
 
@@ -1279,7 +1279,7 @@ This release contains bugfixes and internal changes.
 * Upgrade nixpkgs and niv (#1326)
 
 
-# [2021-01-12]
+# [2021-01-12] (Chart Release 2.97.0)
 
 ## Release Notes
 
@@ -1297,7 +1297,7 @@ This release contains bugfixes and internal changes.
 * create_test_team_scim.sh script: fix arg parsing and invite (#1321)
 
 
-# [2021-01-06]
+# [2021-01-06] (Chart Release 2.95.18)
 
 ## Release Notes
 
@@ -1326,7 +1326,7 @@ This release contains bugfixes and internal changes.
 * Cleanup stack.yaml. (#1312) (#1316)
 
 
-# [2020-12-21]
+# [2020-12-21] (Chart Release 2.95.0)
 
 ## Release Notes
 
@@ -2429,3 +2429,4 @@ Config value `setEmailVisibility` must be set in brig's config file (if you're n
     ciphers. See af8299d4.
 
 [TLS ciphersuite]: https://hackage.haskell.org/package/tls-1.4.1/docs/src/Network-TLS-Extra-Cipher.html#ciphersuite_default
+
