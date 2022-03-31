@@ -685,7 +685,16 @@ toApsData _ = Nothing
 -- Conversation Management
 
 -- | Calls 'Galley.API.createSelfConversationH'.
-createSelfConv :: UserId -> (AppIO r) ()
+createSelfConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  m ()
 createSelfConv u = do
   debug $
     remote "galley"
@@ -699,11 +708,18 @@ createSelfConv u = do
 
 -- | Calls 'Galley.API.Create.createConnectConversation'.
 createLocalConnectConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
   Local UserId ->
   Local UserId ->
   Maybe Text ->
   Maybe ConnId ->
-  (AppIO r) ConvId
+  m ConvId
 createLocalConnectConv from to cname conn = do
   debug $
     logConnection (tUnqualified from) (qUntagged to)
@@ -739,7 +755,18 @@ createConnectConv from to cname conn = do
       foldQualified loc pure (\_ -> throwM federationNotImplemented) x
 
 -- | Calls 'Galley.API.acceptConvH'.
-acceptLocalConnectConv :: Local UserId -> Maybe ConnId -> ConvId -> (AppIO r) Conversation
+acceptLocalConnectConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  ConvId ->
+  m Conversation
 acceptLocalConnectConv from conn cnv = do
   debug $
     remote "galley"
@@ -753,7 +780,7 @@ acceptLocalConnectConv from conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
-acceptConnectConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> (AppIO r) Conversation
+acceptConnectConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO r Conversation
 acceptConnectConv from conn =
   foldQualified
     from
@@ -761,7 +788,18 @@ acceptConnectConv from conn =
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.blockConvH'.
-blockLocalConv :: Local UserId -> Maybe ConnId -> ConvId -> (AppIO r) ()
+blockLocalConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  ConvId ->
+  m ()
 blockLocalConv lusr conn cnv = do
   debug $
     remote "galley"
@@ -775,7 +813,18 @@ blockLocalConv lusr conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
-blockConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> (AppIO r) ()
+blockConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  Qualified ConvId ->
+  m ()
 blockConv lusr conn =
   foldQualified
     lusr
@@ -783,7 +832,18 @@ blockConv lusr conn =
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.unblockConvH'.
-unblockLocalConv :: Local UserId -> Maybe ConnId -> ConvId -> (AppIO r) Conversation
+unblockLocalConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  ConvId ->
+  m Conversation
 unblockLocalConv lusr conn cnv = do
   debug $
     remote "galley"
@@ -797,7 +857,18 @@ unblockLocalConv lusr conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
-unblockConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> (AppIO r) Conversation
+unblockConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  Qualified ConvId ->
+  m Conversation
 unblockConv luid conn =
   foldQualified
     luid
@@ -805,7 +876,17 @@ unblockConv luid conn =
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.getConversationH'.
-getConv :: UserId -> ConvId -> (AppIO r) (Maybe Conversation)
+getConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  ConvId ->
+  m (Maybe Conversation)
 getConv usr cnv = do
   debug $
     remote "galley"
@@ -821,7 +902,16 @@ getConv usr cnv = do
         . zUser usr
         . expect [status200, status404]
 
-upsertOne2OneConversation :: UpsertOne2OneConversationRequest -> (AppIO r) UpsertOne2OneConversationResponse
+upsertOne2OneConversation ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UpsertOne2OneConversationRequest ->
+  m UpsertOne2OneConversationResponse
 upsertOne2OneConversation urequest = do
   response <- galleyRequest POST req
   case Bilge.statusCode response of
@@ -834,7 +924,18 @@ upsertOne2OneConversation urequest = do
         . lbytes (encode urequest)
 
 -- | Calls 'Galley.API.getTeamConversationH'.
-getTeamConv :: UserId -> TeamId -> ConvId -> (AppIO r) (Maybe Team.TeamConversation)
+getTeamConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  TeamId ->
+  ConvId ->
+  m (Maybe Team.TeamConversation)
 getTeamConv usr tid cnv = do
   debug $
     remote "galley"
@@ -890,7 +991,17 @@ rmUser usr asts = do
 -- Client management
 
 -- | Calls 'Galley.API.addClientH'.
-newClient :: UserId -> ClientId -> (AppIO r) ()
+newClient ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  ClientId ->
+  m ()
 newClient u c = do
   debug $
     remote "galley"
@@ -941,7 +1052,16 @@ rmClient u c = do
   where
     expected = [status200, status204, status404]
 
-lookupPushToken :: UserId -> (AppIO r) [Push.PushToken]
+lookupPushToken ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  m [Push.PushToken]
 lookupPushToken uid = do
   g <- view gundeck
   rsp <-
@@ -959,7 +1079,16 @@ lookupPushToken uid = do
 -- Team Management
 
 -- | Calls 'Galley.API.canUserJoinTeamH'.
-checkUserCanJoinTeam :: TeamId -> (AppIO r) (Maybe Wai.Error)
+checkUserCanJoinTeam ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  TeamId ->
+  m (Maybe Wai.Error)
 checkUserCanJoinTeam tid = do
   debug $
     remote "galley"
@@ -976,7 +1105,18 @@ checkUserCanJoinTeam tid = do
         . header "Content-Type" "application/json"
 
 -- | Calls 'Galley.API.uncheckedAddTeamMemberH'.
-addTeamMember :: UserId -> TeamId -> (Maybe (UserId, UTCTimeMillis), Team.Role) -> (AppIO r) Bool
+addTeamMember ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  TeamId ->
+  (Maybe (UserId, UTCTimeMillis), Team.Role) ->
+  m Bool
 addTeamMember u tid (minvmeta, role) = do
   debug $
     remote "galley"
@@ -996,7 +1136,18 @@ addTeamMember u tid (minvmeta, role) = do
         . lbytes (encode bdy)
 
 -- | Calls 'Galley.API.createBindingTeamH'.
-createTeam :: UserId -> Team.BindingNewTeam -> TeamId -> (AppIO r) CreateUserTeam
+createTeam ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  Team.BindingNewTeam ->
+  TeamId ->
+  m CreateUserTeam
 createTeam u t@(Team.BindingNewTeam bt) teamid = do
   debug $
     remote "galley"
@@ -1016,7 +1167,17 @@ createTeam u t@(Team.BindingNewTeam bt) teamid = do
         . lbytes (encode t)
 
 -- | Calls 'Galley.API.uncheckedGetTeamMemberH'.
-getTeamMember :: UserId -> TeamId -> (AppIO r) (Maybe Team.TeamMember)
+getTeamMember ::
+  ( MonadLogger m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  UserId ->
+  TeamId ->
+  m (Maybe Team.TeamMember)
 getTeamMember u tid = do
   debug $
     remote "galley"
@@ -1036,7 +1197,16 @@ getTeamMember u tid = do
 -- | TODO: is now truncated.  this is (only) used for team suspension / unsuspension, which
 -- means that only the first 2000 members of a team (according to some arbitrary order) will
 -- be suspended, and the rest will remain active.
-getTeamMembers :: TeamId -> (AppIO r) Team.TeamMemberList
+getTeamMembers ::
+  ( MonadLogger m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  TeamId ->
+  m Team.TeamMemberList
 getTeamMembers tid = do
   debug $ remote "galley" . msg (val "Get team members")
   galleyRequest GET req >>= decodeBody "galley"
@@ -1045,7 +1215,16 @@ getTeamMembers tid = do
       paths ["i", "teams", toByteString' tid, "members"]
         . expect2xx
 
-memberIsTeamOwner :: TeamId -> UserId -> (AppIO r) Bool
+memberIsTeamOwner ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  TeamId ->
+  UserId ->
+  m Bool
 memberIsTeamOwner tid uid = do
   r <-
     galleyRequest GET $
@@ -1077,7 +1256,16 @@ getTeamContacts u = do
         . expect [status200, status404]
 
 -- | Calls 'Galley.API.getBindingTeamIdH'.
-getTeamId :: UserId -> (AppIO r) (Maybe TeamId)
+getTeamId ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  m (Maybe TeamId)
 getTeamId u = do
   debug $ remote "galley" . msg (val "Get team from user")
   rs <- galleyRequest GET req
@@ -1090,7 +1278,16 @@ getTeamId u = do
         . expect [status200, status404]
 
 -- | Calls 'Galley.API.getTeamInternalH'.
-getTeam :: TeamId -> (AppIO r) Team.TeamData
+getTeam ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  TeamId ->
+  m Team.TeamData
 getTeam tid = do
   debug $ remote "galley" . msg (val "Get team info")
   galleyRequest GET req >>= decodeBody "galley"
@@ -1100,7 +1297,16 @@ getTeam tid = do
         . expect2xx
 
 -- | Calls 'Galley.API.getTeamInternalH'.
-getTeamName :: TeamId -> (AppIO r) Team.TeamName
+getTeamName ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  TeamId ->
+  m Team.TeamName
 getTeamName tid = do
   debug $ remote "galley" . msg (val "Get team info")
   galleyRequest GET req >>= decodeBody "galley"
@@ -1110,7 +1316,16 @@ getTeamName tid = do
         . expect2xx
 
 -- | Calls 'Galley.API.getTeamFeatureStatusH'.
-getTeamLegalHoldStatus :: TeamId -> (AppIO r) (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold)
+getTeamLegalHoldStatus ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  TeamId ->
+  m (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold)
 getTeamLegalHoldStatus tid = do
   debug $ remote "galley" . msg (val "Get legalhold settings")
   galleyRequest GET req >>= decodeBody "galley"
@@ -1139,7 +1354,16 @@ getTeamSearchVisibility tid =
       paths ["i", "teams", toByteString' tid, "search-visibility"]
         . expect2xx
 
-getVerificationCodeEnabled :: TeamId -> (AppIO r) Bool
+getVerificationCodeEnabled ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  TeamId ->
+  m Bool
 getVerificationCodeEnabled tid = do
   debug $ remote "galley" . msg (val "Get snd factor password challenge settings")
   response <- galleyRequest GET req
@@ -1170,7 +1394,18 @@ getTeamFeatureStatusSndFactorPasswordChallenge mbUserId =
       )
 
 -- | Calls 'Galley.API.updateTeamStatusH'.
-changeTeamStatus :: TeamId -> Team.TeamStatus -> Maybe Currency.Alpha -> (AppIO r) ()
+changeTeamStatus ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  TeamId ->
+  Team.TeamStatus ->
+  Maybe Currency.Alpha ->
+  m ()
 changeTeamStatus tid s cur = do
   debug $ remote "galley" . msg (val "Change Team status")
   void $ galleyRequest PUT req
