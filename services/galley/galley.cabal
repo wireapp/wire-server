@@ -618,6 +618,7 @@ executable galley-schema
       V61_MLSConversation
       V62_TeamFeatureSearchVisibilityInbound
       V63_MLSConversationClients
+      V64_Epoch
       Paths_galley
   hs-source-dirs:
       schema/src

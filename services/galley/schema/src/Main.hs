@@ -66,6 +66,7 @@ import qualified V60_TeamFeatureSndFactorPasswordChallenge
 import qualified V61_MLSConversation
 import qualified V62_TeamFeatureSearchVisibilityInbound
 import qualified V63_MLSConversationClients
+import qualified V64_Epoch
 
 main :: IO ()
 main = do
@@ -117,7 +118,8 @@ main = do
       V60_TeamFeatureSndFactorPasswordChallenge.migration,
       V61_MLSConversation.migration,
       V62_TeamFeatureSearchVisibilityInbound.migration,
-      V63_MLSConversationClients.migration
+      V63_MLSConversationClients.migration,
+      V64_Epoch.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Cassandra
       -- (see also docs/developer/cassandra-interaction.md)
