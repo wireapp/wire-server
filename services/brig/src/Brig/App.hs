@@ -585,15 +585,19 @@ runAppResourceT ma = do
   e <- ask
   liftIO . runResourceT $ transResourceT (runAppT e) ma
 
-forkAppIO :: Maybe UserId -> (AppIO r) a -> (AppIO r) ()
+forkAppIO ::
+  (MonadIO m, MonadUnliftIO m, MonadReader Env m) =>
+  Maybe UserId ->
+  m a ->
+  m ()
 forkAppIO u ma = do
-  a <- ask
   g <- view applog
   r <- view requestId
   let logErr e = Log.err g $ request r ~~ user u ~~ msg (show e)
-  void . liftIO . forkIO $
-    either logErr (const $ return ())
-      =<< runExceptT (syncIO $ runAppT a ma)
+  withRunInIO $ \lower ->
+    void . liftIO . forkIO $
+      either logErr (const $ return ())
+        =<< runExceptT (syncIO $ lower $ ma)
   where
     request = field "request" . unRequestId
     user = maybe id (field "user" . toByteString)

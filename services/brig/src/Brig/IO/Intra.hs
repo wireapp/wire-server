@@ -86,7 +86,7 @@ import Cassandra (MonadClient)
 import Conduit (runConduit, (.|))
 import Control.Error (ExceptT)
 import Control.Lens (view, (.~), (?~), (^.))
-import Control.Monad.Catch (MonadMask, MonadThrow (throwM))
+import Control.Monad.Catch
 import Control.Monad.Trans.Except (runExceptT, throwE)
 import Control.Retry
 import Data.Aeson hiding (json)
@@ -295,6 +295,14 @@ notifyUserDeletionRemotes deleted = do
 
 -- | Push events to other users.
 push ::
+  ( MonadIO m,
+    Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadCatch m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
   -- | The events to push.
   List1 Event ->
   -- | The users to push to.
@@ -305,7 +313,7 @@ push ::
   Push.Route ->
   -- | The originating device connection.
   Maybe ConnId ->
-  (AppIO r) ()
+  m ()
 push (toList -> events) usrs orig route conn =
   case mapMaybe toPushData events of
     [] -> pure ()
@@ -319,6 +327,14 @@ push (toList -> events) usrs orig route conn =
 -- | Push encoded events to other users. Useful if you want to push
 -- something that's not defined in Brig.
 rawPush ::
+  ( MonadIO m,
+    Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadCatch m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
   -- | The events to push.
   List1 (Builder, (Object, Maybe ApsData)) ->
   -- | The users to push to.
@@ -329,7 +345,7 @@ rawPush ::
   Push.Route ->
   -- | The originating device connection.
   Maybe ConnId ->
-  (AppIO r) ()
+  m ()
 -- TODO: if we decide to have service whitelist events in Brig instead of
 -- Galley, let's merge 'push' and 'rawPush' back. See Note [whitelist events].
 rawPush (toList -> events) usrs orig route conn = do
@@ -365,6 +381,15 @@ rawPush (toList -> events) usrs orig route conn = do
 
 -- | (Asynchronously) notifies other users of events.
 notify ::
+  ( MonadIO m,
+    Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadCatch m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m
+  ) =>
   List1 Event ->
   -- | Origin user, TODO: Delete
   UserId ->
@@ -374,7 +399,7 @@ notify ::
   Maybe ConnId ->
   -- | Users to notify.
   IO (List1 UserId) ->
-  (AppIO r) ()
+  m ()
 notify events orig route conn recipients = forkAppIO (Just orig) $ do
   rs <- liftIO recipients
   push events rs orig route conn
