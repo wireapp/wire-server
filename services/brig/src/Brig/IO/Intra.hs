@@ -81,6 +81,7 @@ import qualified Brig.IO.Journal as Journal
 import Brig.RPC
 import Brig.Types
 import Brig.Types.User.Event
+import Brig.User.Search.Index (MonadIndexIO)
 import qualified Brig.User.Search.Index as Search
 import Cassandra (MonadClient)
 import Conduit (runConduit, (.|))
@@ -130,7 +131,29 @@ import qualified Wire.API.Team.Member as Member
 -----------------------------------------------------------------------------
 -- Event Handlers
 
-onUserEvent :: UserId -> Maybe ConnId -> UserEvent -> (AppIO r) ()
+onUserEvent ::
+  ( MonadClient m,
+    MonadLogger m,
+    MonadCatch m,
+    MonadLogger m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadIndexIO m,
+    MonadReader Env m,
+    MonadIO m,
+    Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadCatch m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m,
+    MonadClient m
+  ) =>
+  UserId ->
+  Maybe ConnId ->
+  UserEvent ->
+  m ()
 onUserEvent orig conn e =
   updateSearchIndex orig e
     *> dispatchNotifications orig conn e
@@ -184,20 +207,31 @@ onClientEvent orig conn e = do
   -- in the stream.
   push events rcps orig Push.RouteAny conn
 
-updateSearchIndex :: UserId -> UserEvent -> (AppIO r) ()
+updateSearchIndex ::
+  ( MonadClient m,
+    MonadLogger m,
+    MonadCatch m,
+    MonadLogger m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadIndexIO m
+  ) =>
+  UserId ->
+  UserEvent ->
+  m ()
 updateSearchIndex orig e = case e of
   -- no-ops
   UserCreated {} -> return ()
   UserIdentityUpdated UserIdentityUpdatedData {..} -> do
-    when (isJust eiuEmail) $ wrapClient $ Search.reindex orig
+    when (isJust eiuEmail) $ Search.reindex orig
   UserIdentityRemoved {} -> return ()
   UserLegalHoldDisabled {} -> return ()
   UserLegalHoldEnabled {} -> return ()
   LegalHoldClientRequested {} -> return ()
-  UserSuspended {} -> wrapClient $ Search.reindex orig
-  UserResumed {} -> wrapClient $ Search.reindex orig
-  UserActivated {} -> wrapClient $ Search.reindex orig
-  UserDeleted {} -> wrapClient $ Search.reindex orig
+  UserSuspended {} -> Search.reindex orig
+  UserResumed {} -> Search.reindex orig
+  UserActivated {} -> Search.reindex orig
+  UserDeleted {} -> Search.reindex orig
   UserUpdated UserUpdatedData {..} -> do
     let interesting =
           or
@@ -207,9 +241,9 @@ updateSearchIndex orig e = case e of
               isJust eupManagedBy,
               isJust eupSSOId || eupSSOIdRemoved
             ]
-    when interesting $ wrapClient $ Search.reindex orig
+    when interesting $ Search.reindex orig
 
-journalEvent :: UserId -> UserEvent -> (AppIO r) ()
+journalEvent :: (MonadReader Env m, MonadIO m) => UserId -> UserEvent -> m ()
 journalEvent orig e = case e of
   UserActivated acc ->
     Journal.userActivate acc
@@ -232,7 +266,21 @@ journalEvent orig e = case e of
 -- | Notify the origin user's contact list (first-level contacts),
 -- as well as his other clients about a change to his user account
 -- or profile.
-dispatchNotifications :: UserId -> Maybe ConnId -> UserEvent -> (AppIO r) ()
+dispatchNotifications ::
+  ( MonadIO m,
+    Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadCatch m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m,
+    MonadClient m
+  ) =>
+  UserId ->
+  Maybe ConnId ->
+  UserEvent ->
+  m ()
 dispatchNotifications orig conn e = case e of
   UserCreated {} -> return ()
   UserSuspended {} -> return ()
@@ -255,24 +303,43 @@ dispatchNotifications orig conn e = case e of
   where
     event = singleton $ UserEvent e
 
-notifyUserDeletionLocals :: UserId -> Maybe ConnId -> List1 Event -> (AppIO r) ()
+notifyUserDeletionLocals ::
+  ( MonadIO m,
+    Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadCatch m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m,
+    MonadClient m
+  ) =>
+  UserId ->
+  Maybe ConnId ->
+  List1 Event ->
+  m ()
 notifyUserDeletionLocals deleted conn event = do
-  recipients <- list1 deleted <$> wrapClient (lookupContactList deleted)
+  recipients <- list1 deleted <$> lookupContactList deleted
   notify event deleted Push.RouteDirect conn (pure recipients)
 
-notifyUserDeletionRemotes :: UserId -> (AppIO r) ()
+notifyUserDeletionRemotes ::
+  forall m.
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadClient m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  m ()
 notifyUserDeletionRemotes deleted = do
-  e <- ask
-  fmap
-    wrapClient
-    runConduit
-    $ Data.lookupRemoteConnectedUsersC deleted (fromInteger (natVal (Proxy @UserDeletedNotificationMaxConnections)))
-      .| C.mapM_ (runAppIOLifted e . fanoutNotifications)
+  runConduit $
+    Data.lookupRemoteConnectedUsersC deleted (fromInteger (natVal (Proxy @UserDeletedNotificationMaxConnections)))
+      .| C.mapM_ (fanoutNotifications)
   where
-    fanoutNotifications :: [Remote UserId] -> (AppIO r) ()
+    fanoutNotifications :: [Remote UserId] -> m ()
     fanoutNotifications = mapM_ notifyBackend . bucketRemote
 
-    notifyBackend :: Remote [UserId] -> (AppIO r) ()
+    notifyBackend :: Remote [UserId] -> m ()
     notifyBackend uids = do
       case tUnqualified (checked <$> uids) of
         Nothing ->
@@ -398,13 +465,22 @@ notify ::
   -- | Origin device connection, if any.
   Maybe ConnId ->
   -- | Users to notify.
-  IO (List1 UserId) ->
+  m (List1 UserId) ->
   m ()
 notify events orig route conn recipients = forkAppIO (Just orig) $ do
-  rs <- liftIO recipients
+  rs <- recipients
   push events rs orig route conn
 
 notifySelf ::
+  ( MonadIO m,
+    Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadCatch m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m
+  ) =>
   List1 Event ->
   -- | Origin user.
   UserId ->
@@ -412,11 +488,21 @@ notifySelf ::
   Push.Route ->
   -- | Origin device connection, if any.
   Maybe ConnId ->
-  (AppIO r) ()
+  m ()
 notifySelf events orig route conn =
   notify events orig route conn (pure (singleton orig))
 
 notifyContacts ::
+  forall m.
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m,
+    MonadClient m,
+    MonadUnliftIO m
+  ) =>
   List1 Event ->
   -- | Origin user.
   UserId ->
@@ -424,19 +510,19 @@ notifyContacts ::
   Push.Route ->
   -- | Origin device connection, if any.
   Maybe ConnId ->
-  (AppIO r) ()
+  m ()
 notifyContacts events orig route conn = do
-  env <- ask
   notify events orig route conn $
-    runAppT env $
-      list1 orig <$> liftA2 (++) (wrapClient contacts) teamContacts
+    list1 orig <$> liftA2 (++) contacts teamContacts
   where
     contacts :: MonadClient m => m [UserId]
     contacts = lookupContactList orig
-    teamContacts :: (AppIO r) [UserId]
+
+    teamContacts :: m [UserId]
     teamContacts = screenMemberList =<< getTeamContacts orig
     -- If we have a truncated team, we just ignore it all together to avoid very large fanouts
-    screenMemberList :: Maybe Team.TeamMemberList -> (AppIO r) [UserId]
+    --
+    screenMemberList :: Maybe Team.TeamMemberList -> m [UserId]
     screenMemberList (Just mems)
       | mems ^. Team.teamMemberListType == Team.ListComplete =
         return $ fmap (view Team.userId) (mems ^. Team.teamMembers)
@@ -772,7 +858,17 @@ getTeamConv usr tid cnv = do
 -- User management
 
 -- | Calls 'Galley.API.rmUserH', as well as gundeck and cargohold.
-rmUser :: UserId -> [Asset] -> (AppIO r) ()
+rmUser ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  [Asset] ->
+  m ()
 rmUser usr asts = do
   debug $
     remote "gundeck"
@@ -963,7 +1059,16 @@ memberIsTeamOwner tid uid = do
 -- | Only works on 'BindingTeam's! The list of members returned is potentially truncated.
 --
 -- Calls 'Galley.API.getBindingTeamMembersH'.
-getTeamContacts :: UserId -> (AppIO r) (Maybe Team.TeamMemberList)
+getTeamContacts ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  m (Maybe Team.TeamMemberList)
 getTeamContacts u = do
   debug $ remote "galley" . msg (val "Get team contacts")
   rs <- galleyRequest GET req

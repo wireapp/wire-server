@@ -105,9 +105,15 @@ sendConnectionAction self (qUntagged -> other) action = do
   executeFederated @"send-connection-action" (qDomain other) req
 
 notifyUserDeleted ::
+  ( MonadReader Env m,
+    MonadIO m,
+    HasFedEndpoint 'Brig api "on-user-deleted-connections",
+    HasClient ClientM api,
+    HasClient (FederatorClient 'Brig) api
+  ) =>
   Local UserId ->
   Remote (Range 1 1000 [UserId]) ->
-  (FederationAppIO r) ()
+  ExceptT FederationError m ()
 notifyUserDeleted self remotes = do
   let remoteConnections = tUnqualified remotes
   void $
@@ -133,8 +139,9 @@ runBrigFederatorClient targetDomain action = do
 
 executeFederated ::
   forall (name :: Symbol) api m.
-  (MonadReader Env m, MonadIO m) =>
-  ( HasFedEndpoint 'Brig api name,
+  ( MonadReader Env m,
+    MonadIO m,
+    HasFedEndpoint 'Brig api name,
     HasClient ClientM api,
     HasClient (FederatorClient 'Brig) api
   ) =>

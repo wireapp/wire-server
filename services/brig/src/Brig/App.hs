@@ -536,7 +536,8 @@ newtype HttpClientIO a = HttpClientIO
       MonadThrow,
       MonadCatch,
       MonadMask,
-      MonadUnliftIO
+      MonadUnliftIO,
+      MonadIndexIO
     )
 
 instance HasRequestId HttpClientIO where

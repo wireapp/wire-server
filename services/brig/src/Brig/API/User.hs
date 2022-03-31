@@ -250,7 +250,7 @@ createUser new = do
 
     wrapClient $ Data.insertAccount account Nothing pw False
     Intra.createSelfConv uid
-    Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
+    wrapHttpClient $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
 
     pure account
 
@@ -483,7 +483,7 @@ updateUser uid mconn uu allowScim = do
       $ throwE DisplayNameManagedByScim
   lift $ do
     wrapClient $ Data.updateUser uid uu
-    Intra.onUserEvent uid mconn (profileUpdated uid uu)
+    wrapHttpClient $ Intra.onUserEvent uid mconn (profileUpdated uid uu)
 
 -------------------------------------------------------------------------------
 -- Update Locale
@@ -491,7 +491,7 @@ updateUser uid mconn uu allowScim = do
 changeLocale :: UserId -> ConnId -> LocaleUpdate -> (AppIO r) ()
 changeLocale uid conn (LocaleUpdate loc) = do
   wrapClient $ Data.updateLocale uid loc
-  Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)
+  wrapHttpClient $ Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)
 
 -------------------------------------------------------------------------------
 -- Update ManagedBy
@@ -499,7 +499,7 @@ changeLocale uid conn (LocaleUpdate loc) = do
 changeManagedBy :: UserId -> ConnId -> ManagedByUpdate -> (AppIO r) ()
 changeManagedBy uid conn (ManagedByUpdate mb) = do
   wrapClient $ Data.updateManagedBy uid mb
-  Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
+  wrapHttpClient $ Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
 
 --------------------------------------------------------------------------------
 -- Change Handle
@@ -526,7 +526,7 @@ changeHandle uid mconn hdl allowScim = do
       claimed <- lift . wrapClient $ claimHandle (userId u) (userHandle u) hdl
       unless claimed $
         throwE ChangeHandleExists
-      lift $ Intra.onUserEvent uid mconn (handleUpdated uid hdl)
+      lift $ wrapHttpClient $ Intra.onUserEvent uid mconn (handleUpdated uid hdl)
 
 --------------------------------------------------------------------------------
 -- Check Handle
@@ -659,7 +659,7 @@ removeEmail uid conn = do
     Just (FullIdentity e _) -> lift $ do
       wrapClient . deleteKey $ userEmailKey e
       wrapClient $ Data.deleteEmail uid
-      Intra.onUserEvent uid (Just conn) (emailRemoved uid e)
+      wrapHttpClient $ Intra.onUserEvent uid (Just conn) (emailRemoved uid e)
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
 
@@ -677,7 +677,7 @@ removePhone uid conn = do
       lift $ do
         wrapClient . deleteKey $ userPhoneKey p
         wrapClient $ Data.deletePhone uid
-        Intra.onUserEvent uid (Just conn) (phoneRemoved uid p)
+        wrapHttpClient $ Intra.onUserEvent uid (Just conn) (phoneRemoved uid p)
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
 
@@ -709,11 +709,12 @@ revokeIdentity key = do
           (\(_ :: Email) -> Data.deleteEmail u)
           (\(_ :: Phone) -> Data.deletePhone u)
           uk
-      Intra.onUserEvent u Nothing $
-        foldKey
-          (emailRemoved u)
-          (phoneRemoved u)
-          uk
+      wrapHttpClient $
+        Intra.onUserEvent u Nothing $
+          foldKey
+            (emailRemoved u)
+            (phoneRemoved u)
+            uk
 
 -------------------------------------------------------------------------------
 -- Change Account Status
@@ -732,7 +733,7 @@ changeAccountStatus usrs status = do
     update :: (UserId -> UserEvent) -> UserId -> (AppIO r) ()
     update ev u = do
       wrapClient $ Data.updateStatus u status
-      Intra.onUserEvent u Nothing (ev u)
+      wrapHttpClient $ Intra.onUserEvent u Nothing (ev u)
 
 suspendAccount :: HasCallStack => List1 UserId -> (AppIO r) ()
 suspendAccount usrs =
@@ -796,13 +797,13 @@ onActivated (AccountActivated account) = do
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.onActivated")
   Log.info $ field "user" (toByteString uid) . msg (val "User activated")
-  Intra.onUserEvent uid Nothing $ UserActivated (accountUser account)
+  wrapHttpClient $ Intra.onUserEvent uid Nothing $ UserActivated (accountUser account)
   return (uid, userIdentity (accountUser account), True)
 onActivated (EmailActivated uid email) = do
-  Intra.onUserEvent uid Nothing (emailUpdated uid email)
+  wrapHttpClient $ Intra.onUserEvent uid Nothing (emailUpdated uid email)
   return (uid, Just (EmailIdentity email), False)
 onActivated (PhoneActivated uid phone) = do
-  Intra.onUserEvent uid Nothing (phoneUpdated uid phone)
+  wrapHttpClient $ Intra.onUserEvent uid Nothing (phoneUpdated uid phone)
   return (uid, Just (PhoneIdentity phone), False)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
@@ -1082,10 +1083,10 @@ deleteAccount account@(accountUser -> user) = do
   wrapClient $ Data.clearProperties uid
   tombstone <- mkTombstone
   wrapClient $ Data.insertAccount tombstone Nothing Nothing False
-  Intra.rmUser uid (userAssets user)
+  wrapHttp $ Intra.rmUser uid (userAssets user)
   wrapClient (Data.lookupClients uid) >>= mapM_ (wrapClient . Data.rmClient uid . clientId)
   luid <- qualifyLocal uid
-  Intra.onUserEvent uid Nothing (UserDeleted (qUntagged luid))
+  wrapHttpClient $ Intra.onUserEvent uid Nothing (UserDeleted (qUntagged luid))
   -- Note: Connections can only be deleted afterwards, since
   --       they need to be notified.
   wrapClient $ Data.deleteConnections uid

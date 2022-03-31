@@ -544,7 +544,7 @@ updateSSOIdH (uid ::: _ ::: req) = do
   success <- lift $ wrapClient $ Data.updateSSOId uid (Just ssoid)
   if success
     then do
-      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
+      lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
       return empty
     else return . setStatus status404 $ plain "User does not exist or has no team."
 
@@ -553,7 +553,7 @@ deleteSSOIdH (uid ::: _) = do
   success <- lift $ wrapClient $ Data.updateSSOId uid Nothing
   if success
     then do
-      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
+      lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
       return empty
     else return . setStatus status404 $ plain "User does not exist or has no team."
 
