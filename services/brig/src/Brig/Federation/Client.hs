@@ -50,20 +50,31 @@ import Wire.API.User.Client (UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey (ClientPrekey)
 import Wire.API.UserMap (UserMap)
 
-type FederationAppIO r = ExceptT FederationError (AppIO r)
-
-getUserHandleInfo :: Remote Handle -> (FederationAppIO r) (Maybe UserProfile)
+getUserHandleInfo ::
+  ( MonadReader Env m,
+    MonadIO m,
+    Log.MonadLogger m
+  ) =>
+  Remote Handle ->
+  ExceptT FederationError m (Maybe UserProfile)
 getUserHandleInfo (qUntagged -> Qualified handle domain) = do
-  Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
+  lift $ Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
   executeFederated @"get-user-by-handle" domain handle
 
-getUsersByIds :: Domain -> [UserId] -> (FederationAppIO r) [UserProfile]
+getUsersByIds ::
+  ( MonadReader Env m,
+    MonadIO m,
+    Log.MonadLogger m
+  ) =>
+  Domain ->
+  [UserId] ->
+  ExceptT FederationError m [UserProfile]
 getUsersByIds domain uids = do
-  Log.info $ Log.msg ("Brig-federation: get users by ids on remote backends" :: ByteString)
+  lift $ Log.info $ Log.msg ("Brig-federation: get users by ids on remote backends" :: ByteString)
   executeFederated @"get-users-by-ids" domain uids
 
 claimPrekey ::
-  (Monad m, MonadReader Env m, MonadIO m, Log.MonadLogger m) =>
+  (MonadReader Env m, MonadIO m, Log.MonadLogger m) =>
   Qualified UserId ->
   ClientId ->
   ExceptT FederationError m (Maybe ClientPrekey)
@@ -71,37 +82,62 @@ claimPrekey (Qualified user domain) client = do
   lift $ Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey"
   executeFederated @"claim-prekey" domain (user, client)
 
-claimPrekeyBundle :: Qualified UserId -> (FederationAppIO r) PrekeyBundle
+claimPrekeyBundle ::
+  ( MonadReader Env m,
+    MonadIO m,
+    Log.MonadLogger m
+  ) =>
+  Qualified UserId ->
+  ExceptT FederationError m PrekeyBundle
 claimPrekeyBundle (Qualified user domain) = do
-  Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey bundle"
+  lift $ Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey bundle"
   executeFederated @"claim-prekey-bundle" domain user
 
 claimMultiPrekeyBundle ::
+  ( Log.MonadLogger m,
+    MonadReader Env m,
+    MonadIO m
+  ) =>
   Domain ->
   UserClients ->
-  (FederationAppIO r) UserClientPrekeyMap
+  ExceptT FederationError m UserClientPrekeyMap
 claimMultiPrekeyBundle domain uc = do
-  Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
+  lift . Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
   executeFederated @"claim-multi-prekey-bundle" domain uc
 
-searchUsers :: Domain -> SearchRequest -> (FederationAppIO r) SearchResponse
+searchUsers ::
+  ( MonadReader Env m,
+    MonadIO m,
+    Log.MonadLogger m
+  ) =>
+  Domain ->
+  SearchRequest ->
+  ExceptT FederationError m SearchResponse
 searchUsers domain searchTerm = do
-  Log.info $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
+  lift $ Log.info $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
   executeFederated @"search-users" domain searchTerm
 
-getUserClients :: Domain -> GetUserClients -> (FederationAppIO r) (UserMap (Set PubClient))
+getUserClients ::
+  ( MonadReader Env m,
+    MonadIO m,
+    Log.MonadLogger m
+  ) =>
+  Domain ->
+  GetUserClients ->
+  ExceptT FederationError m (UserMap (Set PubClient))
 getUserClients domain guc = do
-  Log.info $ Log.msg @Text "Brig-federation: get users' clients from remote backend"
+  lift $ Log.info $ Log.msg @Text "Brig-federation: get users' clients from remote backend"
   executeFederated @"get-user-clients" domain guc
 
 sendConnectionAction ::
+  (MonadReader Env m, MonadIO m, Log.MonadLogger m) =>
   Local UserId ->
   Remote UserId ->
   RemoteConnectionAction ->
-  (FederationAppIO r) NewConnectionResponse
+  ExceptT FederationError m NewConnectionResponse
 sendConnectionAction self (qUntagged -> other) action = do
   let req = NewConnectionRequest (tUnqualified self) (qUnqualified other) action
-  Log.info $ Log.msg @Text "Brig-federation: sending connection action to remote backend"
+  lift $ Log.info $ Log.msg @Text "Brig-federation: sending connection action to remote backend"
   executeFederated @"send-connection-action" (qDomain other) req
 
 notifyUserDeleted ::
