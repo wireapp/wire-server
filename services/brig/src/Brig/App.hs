@@ -454,7 +454,7 @@ closeEnv e = do
 -------------------------------------------------------------------------------
 -- App Monad
 newtype AppT r m a = AppT
-  { unAppT :: ReaderT Env m a
+  { _unAppT :: ReaderT Env m a
   }
   deriving newtype
     ( Functor,
@@ -567,12 +567,6 @@ instance (MonadIndexIO (AppT r m), Monad m) => MonadIndexIO (ExceptT err (AppT r
 
 instance Monad m => HasRequestId (AppT r m) where
   getRequestId = view requestId
-
-instance MonadUnliftIO m => MonadUnliftIO (AppT r m) where
-  withRunInIO inner =
-    AppT . ReaderT $ \r ->
-      withRunInIO $ \run ->
-        inner (run . flip runReaderT r . unAppT)
 
 runAppT :: Env -> AppT r m a -> m a
 runAppT e (AppT ma) = runReaderT ma e
