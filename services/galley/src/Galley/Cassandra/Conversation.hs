@@ -24,9 +24,7 @@ where
 
 import Cassandra hiding (Set)
 import qualified Cassandra as Cql
-import qualified Crypto.Hash.BLAKE2.BLAKE2b as Blake2
 import Data.ByteString.Conversion
-import Data.Domain
 import Data.Id
 import qualified Data.Map as Map
 import Data.Misc
@@ -48,27 +46,26 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import qualified System.Logger as Log
-import System.Random
 import qualified UnliftIO
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Protocol
+import Wire.API.MLS.Group
 
 createConversation :: Local ConvId -> NewConversation -> Client Conversation
 createConversation lcnv nc = do
   let meta = ncMetadata nc
-  (proto, mgid, mep) <- case ncProtocol nc of
-    ProtocolProteusTag -> pure (ProtocolProteus, Nothing, Nothing)
-    ProtocolMLSTag -> do
-      gid <- liftIO $ toGroupId (tUnqualified lcnv, tDomain lcnv)
-      pure
-        ( ProtocolMLS
-            ConversationMLSData
-              { cnvmlsGroupId = gid,
-                cnvmlsEpoch = Epoch 0
-              },
-          Just gid,
-          Just (Epoch 0)
-        )
+      (proto, mgid, mep) = case ncProtocol nc of
+        ProtocolProteusTag -> (ProtocolProteus, Nothing, Nothing)
+        ProtocolMLSTag ->
+          let gid = convToGroupId lcnv
+           in ( ProtocolMLS
+                  ConversationMLSData
+                    { cnvmlsGroupId = gid,
+                      cnvmlsEpoch = Epoch 0
+                    },
+                Just gid,
+                Just (Epoch 0)
+              )
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
@@ -99,16 +96,6 @@ createConversation lcnv nc = do
         convMetadata = meta,
         convProtocol = proto
       }
-  where
-    toGroupId :: MonadIO m => (ConvId, Domain) -> m GroupId
-    toGroupId (cId, d) = do
-      g <- newStdGen
-      let (len, _) = genWord8 g
-      -- The length can be at most 256 bytes
-      pure
-        . GroupId
-        . Blake2.hash (fromIntegral len) mempty
-        $ toByteString' cId <> toByteString' d
 
 deleteConversation :: ConvId -> Client ()
 deleteConversation cid = do
