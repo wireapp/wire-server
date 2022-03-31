@@ -310,10 +310,6 @@ sitemap = do
 
   -- Properties API -----------------------------------------------------
 
-  -- This endpoint is used to test /i/metrics, when this is servantified, please
-  -- make sure some other endpoint is used to test that routes defined in this
-  -- function are recorded and reported correctly in /i/metrics.
-  -- see test/integration/API/Metrics.hs
   get "/properties" (continue listPropertyKeysH) $
     zauthUserId
       .&. accept "application" "json"
@@ -416,6 +412,10 @@ sitemap = do
     Doc.summary "Complete a password reset."
     Doc.notes "DEPRECATED: Use 'POST /password-reset/complete'."
 
+  -- This endpoint is used to test /i/metrics, when this is servantified, please
+  -- make sure some other endpoint is used to test that routes defined in this
+  -- function are recorded and reported correctly in /i/metrics.
+  -- see test/integration/API/Metrics.hs
   post "/onboarding/v3" (continue deprecatedOnboardingH) $
     accept "application" "json"
       .&. zauthUserId
