@@ -31,6 +31,9 @@ import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
+import Data.List.NonEmpty (NonEmpty, nonEmpty)
+import qualified Data.List.NonEmpty as NonEmpty
+import Data.List1
 import qualified Data.Map as Map
 import Data.Qualified
 import Data.String.Conversions
@@ -63,23 +66,24 @@ tests s =
       test s "local welcome (client with no public key)" testWelcomeNoKey,
       test s "local welcome (client with no public key)" testWelcomeUnknownClient,
       test s "add user to a conversation" testAddUser,
-      test s "add user (not connected)" testAddUserNotConnected
+      test s "add user (not connected)" testAddUserNotConnected,
+      test s "add user (partial client list)" testAddUserPartial
     ]
 
 testLocalWelcome :: TestM ()
 testLocalWelcome = do
   MessagingSetup {..} <- aliceInvitesBob 1 def
-  let (bob, _) = users !! 0
+  let bob = users !! 0
 
   galley <- viewGalley
   cannon <- view tsCannon
 
-  WS.bracketR cannon (qUnqualified bob) $ \wsB -> do
+  WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
     -- send welcome message
     post
       ( galley
           . paths ["mls", "welcome"]
-          . zUser (qUnqualified (fst creator))
+          . zUser (qUnqualified (pUserId creator))
           . zConn "conn"
           . content "message/mls"
           . bytes welcome
@@ -89,7 +93,7 @@ testLocalWelcome = do
     -- check that the corresponding event is received
     void . liftIO $
       WS.assertMatch (5 # WS.Second) wsB $
-        wsAssertMLSWelcome bob welcome
+        wsAssertMLSWelcome (pUserId bob) welcome
 
 testWelcomeNoKey :: TestM ()
 testWelcomeNoKey = do
@@ -99,7 +103,7 @@ testWelcomeNoKey = do
   post
     ( galley
         . paths ["mls", "welcome"]
-        . zUser (qUnqualified (fst creator))
+        . zUser (qUnqualified (pUserId creator))
         . content "message/mls"
         . bytes welcome
     )
@@ -113,7 +117,7 @@ testWelcomeUnknownClient = do
   post
     ( galley
         . paths ["mls", "welcome"]
-        . zUser (qUnqualified (fst creator))
+        . zUser (qUnqualified (pUserId creator))
         . content "message/mls"
         . bytes welcome
     )
@@ -121,17 +125,17 @@ testWelcomeUnknownClient = do
 
 testSuccessfulCommit :: MessagingSetup -> TestM ()
 testSuccessfulCommit MessagingSetup {..} = do
-  let (bob, _) = users !! 0
+  let bob = users !! 0
   cannon <- view tsCannon
 
-  WS.bracketR cannon (qUnqualified bob) $ \wsB -> do
+  WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
     -- send commit message
     galley <- viewGalley
     events <-
       responseJsonError
         =<< post
           ( galley . paths ["mls", "message"]
-              . zUser (qUnqualified (fst creator))
+              . zUser (qUnqualified (pUserId creator))
               . zConn "conn"
               . content "message/mls"
               . bytes commit
@@ -141,13 +145,13 @@ testSuccessfulCommit MessagingSetup {..} = do
     void . liftIO $ do
       -- check that alice receives join event
       case events of
-        [e] -> assertJoinEvent conversation (fst creator) [bob] roleNameWireMember e
+        [e] -> assertJoinEvent conversation (pUserId creator) [pUserId bob] roleNameWireMember e
         [] -> assertFailure "expected join event to be returned to alice"
         es -> assertFailure $ "expected one event, found: " <> show es
 
       -- check that bob receives join event
       WS.assertMatch (5 # WS.Second) wsB $
-        wsAssertMemberJoinWithRole conversation (fst creator) [bob] roleNameWireMember
+        wsAssertMemberJoinWithRole conversation (pUserId creator) [pUserId bob] roleNameWireMember
 
   -- FUTUREWORK: check that messages sent to the conversation are propagated to bob
   pure ()
@@ -160,23 +164,23 @@ testAddUser = do
 testAddUserNotConnected :: TestM ()
 testAddUserNotConnected = do
   setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = True, makeConnections = False}
-  let (bob, _) = users !! 0
+  let bob = users !! 0
 
   galley <- viewGalley
   cannon <- view tsCannon
 
   -- try to add unconnected user
-  WS.bracketR cannon (qUnqualified bob) $ \wsB -> do
+  WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
     err <-
       responseJsonError
         =<< post
           ( galley . paths ["mls", "message"]
-              . zUser (qUnqualified (fst creator))
+              . zUser (qUnqualified (pUserId creator))
               . zConn "conn"
               . content "message/mls"
               . bytes commit
           )
-        <!! do const 403 === statusCode
+        <!! const 403 === statusCode
 
     liftIO $ Wai.label err @?= "not-connected"
 
@@ -184,8 +188,34 @@ testAddUserNotConnected = do
     void . liftIO $ WS.assertNoEvent (1 # WS.Second) [wsB]
 
   -- now connect and retry
-  connectUsers (qUnqualified (fst creator)) (pure (qUnqualified bob))
+  connectUsers (qUnqualified (pUserId creator)) (pure (qUnqualified (pUserId bob)))
   testSuccessfulCommit setup
+
+testAddUserPartial :: TestM ()
+testAddUserPartial = do
+  (creator, commit) <- withSystemTempDirectory "mls" $ \tmp -> do
+    -- Bob has 3 clients, Charlie has 2
+    (alice, [bob, charlie]) <- setupParticipants tmp def [3, 2]
+    void $ setupGroup tmp True alice "group"
+    (commit, _) <-
+      liftIO . setupCommit tmp "group" $
+        -- only 2 out of the 3 clients of Bob's are added to the conversation
+        NonEmpty.take 2 (pClients bob) <> toList (pClients charlie)
+    pure (alice, commit)
+
+  galley <- viewGalley
+
+  err <-
+    responseJsonError
+      =<< post
+        ( galley . paths ["mls", "message"]
+            . zUser (qUnqualified (pUserId creator))
+            . zConn "conn"
+            . content "message/mls"
+            . bytes commit
+        )
+      <!! const 409 === statusCode
+  liftIO $ Wai.label err @?= "mls-client-mismatch"
 
 --------------------------------------------------------------------------------
 -- Messaging setup
@@ -202,17 +232,25 @@ instance Default SetupOptions where
   def = SetupOptions {createClients = CreateWithKey, createConv = False, makeConnections = True}
 
 data MessagingSetup = MessagingSetup
-  { creator :: (Qualified UserId, ClientId),
-    users :: [(Qualified UserId, ClientId)],
+  { creator :: Participant,
+    users :: [Participant],
     conversation :: Qualified ConvId,
     welcome :: ByteString,
     commit :: ByteString
+  }
+
+data Participant = Participant
+  { pUserId :: Qualified UserId,
+    pClients :: NonEmpty (String, ClientId)
   }
 
 cli :: FilePath -> [String] -> CreateProcess
 cli tmp args =
   proc "crypto-cli" $
     ["--store", tmp </> "store.db", "--enc-key", "test"] <> args
+
+pClientQid :: Participant -> String
+pClientQid = fst . NonEmpty.head . pClients
 
 setupUserClient ::
   HasCallStack =>
@@ -249,14 +287,42 @@ setupUserClient tmp doCreateClients usr = do
 
     pure (qcid, c)
 
-setupGroup :: HasCallStack => FilePath -> Bool -> (Qualified UserId, String) -> String -> TestM (Qualified ConvId)
-setupGroup tmp createConv (creator, creatorId) name = do
+setupParticipant ::
+  HasCallStack =>
+  FilePath ->
+  CreateClients ->
+  Int ->
+  Qualified UserId ->
+  State.StateT [LastPrekey] TestM Participant
+setupParticipant tmp doCreateClients numClients usr =
+  Participant usr . NonEmpty.fromList
+    <$> replicateM numClients (setupUserClient tmp doCreateClients usr)
+
+setupParticipants :: HasCallStack => FilePath -> SetupOptions -> [Int] -> TestM (Participant, [Participant])
+setupParticipants tmp SetupOptions {..} ns = withLastPrekeys $ do
+  creator <- lift randomQualifiedUser >>= setupParticipant tmp DontCreate 1
+  others <- for ns $ \n ->
+    lift randomQualifiedUser >>= setupParticipant tmp createClients n
+  lift . when makeConnections $
+    traverse_
+      ( connectUsers (qUnqualified (pUserId creator))
+          . List1
+          . fmap (qUnqualified . pUserId)
+      )
+      (nonEmpty others)
+  pure (creator, others)
+
+withLastPrekeys :: Monad m => State.StateT [LastPrekey] m a -> m a
+withLastPrekeys m = State.evalStateT m someLastPrekeys
+
+setupGroup :: HasCallStack => FilePath -> Bool -> Participant -> String -> TestM (Qualified ConvId)
+setupGroup tmp createConv creator name = do
   (groupId, conversation) <-
     first (toBase64Text . unGroupId)
       <$> if createConv
         then do
           conv <-
-            responseJsonError =<< postConvQualified (qUnqualified creator) defNewMLSConv
+            responseJsonError =<< postConvQualified (qUnqualified (pUserId creator)) defNewMLSConv
               <!! const 201 === statusCode
           liftIO $ case cnvProtocol conv of
             ProtocolMLS mlsData -> pure (cnvmlsGroupId mlsData, cnvQualifiedId conv)
@@ -265,10 +331,33 @@ setupGroup tmp createConv (creator, creatorId) name = do
 
   groupJSON <-
     liftIO $
-      spawn (cli tmp ["group", creatorId, T.unpack groupId]) Nothing
+      spawn (cli tmp ["group", pClientQid creator, T.unpack groupId]) Nothing
   liftIO $ BS.writeFile (tmp </> name) groupJSON
 
   pure conversation
+
+setupCommit ::
+  (HasCallStack, Foldable f) =>
+  String ->
+  String ->
+  f (String, ClientId) ->
+  IO (ByteString, ByteString)
+setupCommit tmp groupName clients =
+  (,)
+    <$> spawn
+      ( cli
+          tmp
+          $ [ "member",
+              "add",
+              "--group",
+              tmp </> groupName,
+              "--welcome-out",
+              tmp </> "welcome"
+            ]
+            <> map ((tmp </>) . fst) (toList clients)
+      )
+      Nothing
+      <*> BS.readFile (tmp </> "welcome")
 
 takeLastPrekey :: MonadFail m => State.StateT [LastPrekey] m LastPrekey
 takeLastPrekey = do
@@ -278,41 +367,19 @@ takeLastPrekey = do
 
 -- | Setup: Alice creates a group and invites bob. Return welcome and commit message.
 aliceInvitesBob :: HasCallStack => Int -> SetupOptions -> TestM MessagingSetup
-aliceInvitesBob numBobClients SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
-  alice <- randomQualifiedUser
-  bob <- randomQualifiedUser
-  when makeConnections $
-    connectUsers (qUnqualified alice) (pure (qUnqualified bob))
-
-  ((aliceClientId, aliceClient), bobClients) <- flip State.evalStateT someLastPrekeys $ do
-    (,) <$> setupUserClient tmp DontCreate alice
-      <*> replicateM numBobClients (setupUserClient tmp createClients bob)
+aliceInvitesBob numBobClients opts@SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
+  (alice, [bob]) <- setupParticipants tmp opts [numBobClients]
 
   -- create a group
-  conversation <- setupGroup tmp createConv (alice, aliceClientId) "group"
+  conversation <- setupGroup tmp createConv alice "group"
 
   -- add bob to it and get welcome message
-  commit <-
-    liftIO $
-      spawn
-        ( cli
-            tmp
-            $ [ "member",
-                "add",
-                "--group",
-                tmp </> "group",
-                "--welcome-out",
-                tmp </> "welcome"
-              ]
-              <> map ((tmp </>) . fst) bobClients
-        )
-        Nothing
-  welcome <- liftIO $ BS.readFile (tmp </> "welcome")
+  (commit, welcome) <- liftIO $ setupCommit tmp "group" (pClients bob)
 
   pure $
     MessagingSetup
-      { creator = (alice, aliceClient),
-        users = map ((bob,) . snd) bobClients,
+      { creator = alice,
+        users = [bob],
         ..
       }
 
@@ -325,8 +392,7 @@ addClient u lpk = do
     responseJsonError
       =<< post
         ( brig
-            . paths ["clients"]
-            . zUser (qUnqualified u)
+            . paths ["i", "clients", toByteString' (qUnqualified u)]
             . zConn "conn"
             . json new
         )
