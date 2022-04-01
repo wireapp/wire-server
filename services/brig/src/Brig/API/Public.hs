@@ -580,7 +580,8 @@ addClient usr con ip new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
     throwE (clientError ClientLegalHoldCannotBeAdded)
-  clientResponse <$> API.addClient usr (Just con) (ipAddr <$> ip) new !>> clientError
+  clientResponse <$> API.addClient usr (Just con) (ipAddr <$> ip) new
+    !>> clientError
   where
     clientResponse :: Public.Client -> NewClientResponse
     clientResponse client = Servant.addHeader (Public.clientId client) client

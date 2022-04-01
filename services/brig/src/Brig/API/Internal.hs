@@ -314,7 +314,7 @@ addClientInternalH (usr ::: req ::: connId ::: _) = do
 
 addClientInternal :: UserId -> NewClient -> Maybe ConnId -> (Handler r) Client
 addClientInternal usr new connId = do
-  API.addClient usr connId Nothing new !>> clientError
+  API.addClientWithReAuthPolicy (\_ _ -> False) usr connId Nothing new !>> clientError
 
 legalHoldClientRequestedH :: UserId ::: JsonRequest LegalHoldClientRequest ::: JSON -> (Handler r) Response
 legalHoldClientRequestedH (targetUser ::: req ::: _) = do
