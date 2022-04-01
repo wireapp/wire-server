@@ -29,6 +29,7 @@ module Brig.Provider.RPC
 where
 
 import Bilge
+import Bilge.RPC
 import Bilge.Retry (httpHandlers)
 import Brig.App
 import Brig.Provider.DB (ServiceConn (..))
@@ -155,7 +156,17 @@ setServiceConn scon = do
         & set Galley.serviceEnabled (sconEnabled scon)
 
 -- | Remove service connection information from galley.
-removeServiceConn :: ProviderId -> ServiceId -> (AppIO r) ()
+removeServiceConn ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  ProviderId ->
+  ServiceId ->
+  m ()
 removeServiceConn pid sid = do
   Log.debug $
     remote "galley"
@@ -201,11 +212,18 @@ addBotMember zusr zcon conv bot clt pid sid = do
 
 -- | Tell galley to remove a service bot from a conversation.
 removeBotMember ::
+  ( MonadHttp m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
   UserId ->
   Maybe ConnId ->
   ConvId ->
   BotId ->
-  (AppIO r) (Maybe Event)
+  m (Maybe Event)
 removeBotMember zusr zcon conv bot = do
   Log.debug $
     remote "galley"

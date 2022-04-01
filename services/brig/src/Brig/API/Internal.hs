@@ -478,9 +478,14 @@ getConnectionsStatus :: ConnectionsStatusRequestV2 -> (Handler r) [ConnectionSta
 getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
   loc <- qualifyLocal ()
   conns <- lift $ case mtos of
-    Nothing -> Data.lookupAllStatuses =<< qualifyLocal froms
+    Nothing -> wrapClient . Data.lookupAllStatuses =<< qualifyLocal froms
     Just tos -> do
-      let getStatusesForOneDomain = foldQualified loc (Data.lookupLocalConnectionStatuses froms) (Data.lookupRemoteConnectionStatuses froms)
+      let getStatusesForOneDomain =
+            wrapClient
+              <$> foldQualified
+                loc
+                (Data.lookupLocalConnectionStatuses froms)
+                (Data.lookupRemoteConnectionStatuses froms)
       concat <$> mapM getStatusesForOneDomain (bucketQualified tos)
   pure $ maybe conns (filterByRelation conns) mrel
   where
@@ -539,7 +544,7 @@ updateSSOIdH (uid ::: _ ::: req) = do
   success <- lift $ wrapClient $ Data.updateSSOId uid (Just ssoid)
   if success
     then do
-      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
+      lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
       return empty
     else return . setStatus status404 $ plain "User does not exist or has no team."
 
@@ -548,7 +553,7 @@ deleteSSOIdH (uid ::: _) = do
   success <- lift $ wrapClient $ Data.updateSSOId uid Nothing
   if success
     then do
-      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
+      lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
       return empty
     else return . setStatus status404 $ plain "User does not exist or has no team."
 

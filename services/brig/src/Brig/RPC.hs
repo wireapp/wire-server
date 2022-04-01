@@ -60,29 +60,33 @@ expect ss rq = rq {checkResponse = check}
           HttpExceptionRequest rq' (StatusCodeException rs' mempty)
 
 cargoholdRequest ::
+  (MonadReader Env m, MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
   StdMethod ->
   (Request -> Request) ->
-  (AppIO r) (Response (Maybe BL.ByteString))
+  m (Response (Maybe BL.ByteString))
 cargoholdRequest = serviceRequest "cargohold" cargohold
 
 galleyRequest ::
+  (MonadReader Env m, MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
   StdMethod ->
   (Request -> Request) ->
-  (AppIO r) (Response (Maybe BL.ByteString))
+  m (Response (Maybe BL.ByteString))
 galleyRequest = serviceRequest "galley" galley
 
 gundeckRequest ::
+  (MonadReader Env m, MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
   StdMethod ->
   (Request -> Request) ->
-  (AppIO r) (Response (Maybe BL.ByteString))
+  m (Response (Maybe BL.ByteString))
 gundeckRequest = serviceRequest "gundeck" gundeck
 
 serviceRequest ::
+  (MonadReader Env m, MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
   LT.Text ->
   Control.Lens.Getting Request Env Request ->
   StdMethod ->
   (Request -> Request) ->
-  (AppIO r) (Response (Maybe BL.ByteString))
+  m (Response (Maybe BL.ByteString))
 serviceRequest nm svc m r = do
   service <- view svc
   recovering x3 rpcHandlers $

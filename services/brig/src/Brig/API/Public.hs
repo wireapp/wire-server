@@ -545,7 +545,7 @@ getPrekeyUnqualifiedH zusr user client = do
 
 getPrekeyH :: UserId -> Qualified UserId -> ClientId -> (Handler r) Public.ClientPrekey
 getPrekeyH zusr (Qualified user domain) client = do
-  mPrekey <- API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
+  mPrekey <- wrapHttpClientE $ API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
   ifNothing (notFound "prekey not found") mPrekey
 
 getPrekeyBundleUnqualifiedH :: UserId -> UserId -> (Handler r) Public.PrekeyBundle
@@ -732,7 +732,7 @@ getUserUnqualifiedH self uid = do
 getUser :: UserId -> Qualified UserId -> (Handler r) (Maybe Public.UserProfile)
 getUser self qualifiedUserId = do
   lself <- qualifyLocal self
-  API.lookupProfile lself qualifiedUserId !>> fedError
+  wrapHttpClientE $ API.lookupProfile lself qualifiedUserId !>> fedError
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles :: UserId -> Maybe (CommaSeparatedList UserId) -> Maybe (Range 1 4 (CommaSeparatedList Handle)) -> (Handler r) [Public.UserProfile]
@@ -771,7 +771,7 @@ listUsersByIdsOrHandles self q = do
       domain <- viewFederationDomain
       pure $ map (`Qualified` domain) localUsers
     byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
-    byIds lself uids = API.lookupProfiles lself uids !>> fedError
+    byIds lself uids = wrapHttpClientE (API.lookupProfiles lself uids) !>> fedError
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)

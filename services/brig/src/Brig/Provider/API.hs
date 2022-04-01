@@ -25,6 +25,8 @@ module Brig.Provider.API
   )
 where
 
+import Bilge.IO (MonadHttp)
+import Bilge.RPC (HasRequestId)
 import qualified Brig.API.Client as Client
 import Brig.API.Error
 import Brig.API.Handler
@@ -51,9 +53,11 @@ import Brig.Types.Provider (AddBot (..), DeleteProvider (..), DeleteService (..)
 import qualified Brig.Types.Provider.External as Ext
 import Brig.Types.User (HavePendingInvitations (..), ManagedBy (..), Name (..), Pict (..), User (..), defaultAccentId)
 import qualified Brig.ZAuth as ZAuth
+import Cassandra (MonadClient)
 import Control.Error (throwE)
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens (view, (^.))
+import Control.Monad.Catch (MonadMask)
 import Control.Monad.Except
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
@@ -94,6 +98,7 @@ import qualified OpenSSL.PEM as SSL
 import qualified OpenSSL.RSA as SSL
 import OpenSSL.Random (randBytes)
 import qualified Ssl.Util as SSL
+import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import qualified Web.Cookie as Cookie
 import qualified Wire.API.Conversation.Bot as Public
@@ -142,7 +147,7 @@ routesPublic = do
 
   -- Provider API ------------------------------------------------------------
 
-  delete "/provider" (continue deleteAccountH) $
+  delete "/provider" (continue $ wrapHttpClientE <$> deleteAccountH) $
     zauth ZAuthProvider
       .&> zauthProviderId
       .&. jsonRequest @Public.DeleteProvider
@@ -677,44 +682,73 @@ deleteService pid sid del = do
   queue <- view internalEvents
   lift $ Queue.enqueue queue (Internal.DeleteService pid sid)
 
-finishDeleteService :: ProviderId -> ServiceId -> (AppIO r) ()
+finishDeleteService ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m,
+    MonadClient m,
+    MonadUnliftIO m
+  ) =>
+  ProviderId ->
+  ServiceId ->
+  m ()
 finishDeleteService pid sid = do
-  e <- ask
-  mbSvc <- wrapClient $ DB.lookupService pid sid
+  mbSvc <- DB.lookupService pid sid
   for_ mbSvc $ \svc -> do
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
-    fmap
-      wrapClient
-      runConduit
-      $ User.lookupServiceUsers pid sid
-        .| C.mapM_ (runAppIOLifted e . pooledMapConcurrentlyN_ 16 kick)
+    runConduit $
+      User.lookupServiceUsers pid sid
+        .| C.mapM_ (pooledMapConcurrentlyN_ 16 kick)
     RPC.removeServiceConn pid sid
-    wrapClient $ DB.deleteService pid sid name tags
+    DB.deleteService pid sid name tags
   where
     kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
 
-deleteAccountH :: ProviderId ::: JsonRequest Public.DeleteProvider -> (Handler r) Response
+deleteAccountH ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    MonadClient m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  ProviderId ::: JsonRequest Public.DeleteProvider ->
+  ExceptT Error m Response
 deleteAccountH (pid ::: req) = do
   guardSecondFactorDisabled Nothing
   empty <$ (deleteAccount pid =<< parseJsonBody req)
 
-deleteAccount :: ProviderId -> Public.DeleteProvider -> (Handler r) ()
+deleteAccount ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    MonadClient m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  ProviderId ->
+  Public.DeleteProvider ->
+  ExceptT Error m ()
 deleteAccount pid del = do
-  prov <- wrapClientE (DB.lookupAccount pid) >>= maybeInvalidProvider
-  pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
+  prov <- (DB.lookupAccount pid) >>= maybeInvalidProvider
+  pass <- (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (deleteProviderPassword del) pass) $
     throwStd (errorToWai @'BadCredentials)
-  svcs <- wrapClientE $ DB.listServices pid
+  svcs <- DB.listServices pid
   forM_ svcs $ \svc -> do
     let sid = serviceId svc
     let tags = unsafeRange (serviceTags svc)
         name = serviceName svc
     lift $ RPC.removeServiceConn pid sid
-    wrapClientE $ DB.deleteService pid sid name tags
-  wrapClientE $ do
-    DB.deleteKey (mkEmailKey (providerEmail prov))
-    DB.deleteAccount pid
+    DB.deleteService pid sid name tags
+  DB.deleteKey (mkEmailKey (providerEmail prov))
+  DB.deleteAccount pid
 
 --------------------------------------------------------------------------------
 -- User API
@@ -813,7 +847,6 @@ data UpdateServiceWhitelistResp
 
 updateServiceWhitelist :: UserId -> ConnId -> TeamId -> Public.UpdateServiceWhitelist -> (Handler r) UpdateServiceWhitelistResp
 updateServiceWhitelist uid con tid upd = do
-  e <- ask
   let pid = updateServiceWhitelistProvider upd
       sid = updateServiceWhitelistService upd
       newWhitelisted = updateServiceWhitelistStatus upd
@@ -833,15 +866,14 @@ updateServiceWhitelist uid con tid upd = do
       -- conversations
       lift $
         fmap
-          wrapClient
+          wrapHttpClient
           runConduit
           $ User.lookupServiceUsersForTeam pid sid tid
             .| C.mapM_
-              ( runAppIOLifted e
-                  . pooledMapConcurrentlyN_
-                    16
-                    ( uncurry (deleteBot uid (Just con))
-                    )
+              ( pooledMapConcurrentlyN_
+                  16
+                  ( uncurry (deleteBot uid (Just con))
+                  )
               )
       wrapClientE $ DB.deleteServiceWhitelist (Just tid) pid sid
       return UpdateServiceWhitelistRespChanged
@@ -943,7 +975,7 @@ removeBot zusr zcon cid bid = do
   case bot >>= omService of
     Nothing -> return Nothing
     Just _ -> do
-      lift $ Public.RemoveBotResponse <$$> deleteBot zusr (Just zcon) bid cid
+      lift $ Public.RemoveBotResponse <$$> (wrapHttpClient $ deleteBot zusr (Just zcon) bid cid)
 
 --------------------------------------------------------------------------------
 -- Bot API
@@ -1036,7 +1068,7 @@ botDeleteSelf bid cid = do
   guardSecondFactorDisabled (Just (botUserId bid))
   bot <- lift . wrapClient $ User.lookupUser NoPendingInvitations (botUserId bid)
   _ <- maybeInvalidBot (userService =<< bot)
-  _ <- lift $ deleteBot (botUserId bid) Nothing bid cid
+  _ <- lift $ wrapHttpClient $ deleteBot (botUserId bid) Nothing bid cid
   return ()
 
 --------------------------------------------------------------------------------
@@ -1044,7 +1076,16 @@ botDeleteSelf bid cid = do
 
 -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.
 -- (This is a workaround until we have 2FA for those end-points as well.)
-guardSecondFactorDisabled :: Maybe UserId -> Handler r ()
+guardSecondFactorDisabled ::
+  ( MonadLogger m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  Maybe UserId ->
+  ExceptT Error m ()
 guardSecondFactorDisabled mbUserId = do
   enabled <- lift $ (==) Feature.TeamFeatureEnabled . Feature.tfwoStatus <$> RPC.getTeamFeatureStatusSndFactorPasswordChallenge mbUserId
   when enabled $ throwStd accessDenied
@@ -1060,21 +1101,34 @@ activate pid old new = do
     throwStd emailExists
   wrapClientE $ DB.insertKey pid (mkEmailKey <$> old) emailKey
 
-deleteBot :: UserId -> Maybe ConnId -> BotId -> ConvId -> (AppIO r) (Maybe Public.Event)
+deleteBot ::
+  ( MonadHttp m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    HasRequestId m,
+    MonadLogger m,
+    MonadClient m
+  ) =>
+  UserId ->
+  Maybe ConnId ->
+  BotId ->
+  ConvId ->
+  m (Maybe Public.Event)
 deleteBot zusr zcon bid cid = do
   -- Remove the bot from the conversation
   ev <- RPC.removeBotMember zusr zcon cid bid
   -- Delete the bot user and client
   let buid = botUserId bid
-  mbUser <- wrapClient $ User.lookupUser NoPendingInvitations buid
-  wrapClient (User.lookupClients buid) >>= mapM_ (wrapClient . User.rmClient buid . clientId)
+  mbUser <- User.lookupUser NoPendingInvitations buid
+  User.lookupClients buid >>= mapM_ (User.rmClient buid . clientId)
   for_ (userService =<< mbUser) $ \sref -> do
     let pid = sref ^. serviceRefProvider
         sid = sref ^. serviceRefId
-    wrapClient $ User.deleteServiceUser pid sid bid
+    User.deleteServiceUser pid sid bid
   -- TODO: Consider if we can actually delete the bot user entirely,
   -- i.e. not just marking the account as deleted.
-  wrapClient $ User.updateStatus buid Deleted
+  User.updateStatus buid Deleted
   return ev
 
 validateServiceKey :: MonadIO m => Public.ServiceKeyPEM -> m (Maybe (Public.ServiceKey, Fingerprint Rsa))
@@ -1125,34 +1179,34 @@ setProviderCookie t r = do
           Cookie.setCookieHttpOnly = True
         }
 
-maybeInvalidProvider :: Maybe a -> (Handler r) a
+maybeInvalidProvider :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeInvalidProvider = maybe (throwStd invalidProvider) return
 
-maybeInvalidCode :: Maybe a -> (Handler r) a
+maybeInvalidCode :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeInvalidCode = maybe (throwStd (errorToWai @'InvalidCode)) return
 
-maybeServiceNotFound :: Maybe a -> (Handler r) a
+maybeServiceNotFound :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeServiceNotFound = maybe (throwStd (notFound "Service not found")) return
 
-maybeProviderNotFound :: Maybe a -> (Handler r) a
+maybeProviderNotFound :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeProviderNotFound = maybe (throwStd (notFound "Provider not found")) return
 
-maybeConvNotFound :: Maybe a -> (Handler r) a
+maybeConvNotFound :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeConvNotFound = maybe (throwStd (notFound "Conversation not found")) return
 
-maybeBadCredentials :: Maybe a -> (Handler r) a
+maybeBadCredentials :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeBadCredentials = maybe (throwStd (errorToWai @'BadCredentials)) return
 
-maybeInvalidServiceKey :: Maybe a -> (Handler r) a
+maybeInvalidServiceKey :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeInvalidServiceKey = maybe (throwStd invalidServiceKey) return
 
-maybeInvalidBot :: Maybe a -> (Handler r) a
+maybeInvalidBot :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeInvalidBot = maybe (throwStd invalidBot) return
 
-maybeInvalidUser :: Maybe a -> (Handler r) a
+maybeInvalidUser :: Monad m => Maybe a -> (ExceptT Error m) a
 maybeInvalidUser = maybe (throwStd (errorToWai @'InvalidUser)) return
 
-rangeChecked :: Within a n m => a -> (Handler r) (Range n m a)
+rangeChecked :: (Within a n m, Monad monad) => a -> (ExceptT Error monad) (Range n m a)
 rangeChecked = either (throwStd . invalidRange . fromString) return . checkedEither
 
 invalidServiceKey :: Wai.Error

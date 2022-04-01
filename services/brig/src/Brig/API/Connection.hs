@@ -185,8 +185,8 @@ checkLegalholdPolicyConflict uid1 uid2 = do
         -- this, users are guaranteed to exist when called from 'createConnectionToLocalUser'.
         maybe (throwM (errorToWai @'E.UserNotFound)) return
 
-  status1 <- lift (getLegalHoldStatus uid1) >>= catchProfileNotFound
-  status2 <- lift (getLegalHoldStatus uid2) >>= catchProfileNotFound
+  status1 <- lift (wrapHttpClient $ getLegalHoldStatus uid1) >>= catchProfileNotFound
+  status2 <- lift (wrapHttpClient $ getLegalHoldStatus uid2) >>= catchProfileNotFound
 
   let oneway s1 s2 = case (s1, s2) of
         (LH.UserLegalHoldNoConsent, LH.UserLegalHoldNoConsent) -> pure ()
