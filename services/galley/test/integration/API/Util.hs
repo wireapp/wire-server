@@ -1595,6 +1595,10 @@ wsAssertMemberJoinWithRole :: HasCallStack => Qualified ConvId -> Qualified User
 wsAssertMemberJoinWithRole conv usr new role n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
+  assertJoinEvent conv usr new role e
+
+assertJoinEvent :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> RoleName -> Event -> IO ()
+assertJoinEvent conv usr new role e = do
   evtConv e @?= conv
   evtType e @?= Conv.MemberJoin
   evtFrom e @?= usr

@@ -123,21 +123,28 @@ testSuccessfulCommit MessagingSetup {..} = do
   let (bob, _) = users !! 0
   cannon <- view tsCannon
 
-  -- TODO: assert on returned event for alice
   WS.bracketR cannon (qUnqualified bob) $ \wsB -> do
     -- send commit message
     galley <- viewGalley
-    post
-      ( galley . paths ["mls", "message"]
-          . zUser (qUnqualified (fst creator))
-          . zConn "conn"
-          . content "message/mls"
-          . bytes commit
-      )
-      !!! const 201 === statusCode
+    events <-
+      responseJsonError
+        =<< post
+          ( galley . paths ["mls", "message"]
+              . zUser (qUnqualified (fst creator))
+              . zConn "conn"
+              . content "message/mls"
+              . bytes commit
+          )
+        <!! const 201 === statusCode
 
-    -- check that bob receives join event
-    void . liftIO $
+    void . liftIO $ do
+      -- check that alice receives join event
+      case events of
+        [e] -> assertJoinEvent conversation (fst creator) [bob] roleNameWireMember e
+        [] -> assertFailure "expected join event to be returned to alice"
+        es -> assertFailure $ "expected one event, found: " <> show es
+
+      -- check that bob receives join event
       WS.assertMatch (5 # WS.Second) wsB $
         wsAssertMemberJoinWithRole conversation (fst creator) [bob] roleNameWireMember
 
