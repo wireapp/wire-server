@@ -207,6 +207,39 @@ data MessagingSetup = MessagingSetup
     commit :: ByteString
   }
 
+cli :: FilePath -> [String] -> CreateProcess
+cli tmp args =
+  proc "crypto-cli" $
+    ["--store", tmp </> "store.db", "--enc-key", "test"] <> args
+
+setupUserClient :: FilePath -> CreateClients -> Qualified UserId -> LastPrekey -> TestM (String, ClientId)
+setupUserClient tmp doCreateClients usr lpk = do
+  -- create client if requested
+  c <- case doCreateClients of
+    DontCreate -> randomClient (qUnqualified usr) lpk
+    _ -> addClient usr lpk
+
+  let qcid =
+        show (qUnqualified usr)
+          <> ":"
+          <> T.unpack (client c)
+          <> "@"
+          <> T.unpack (domainText (qDomain usr))
+
+  -- generate key package
+  kp <-
+    liftIO $
+      decodeMLSError
+        =<< spawn (cli tmp ["key-package", qcid]) Nothing
+  liftIO $ BS.writeFile (tmp </> qcid) (rmRaw kp)
+
+  -- set bob's private key and upload key package if required
+  case doCreateClients of
+    CreateWithKey -> addKeyPackage usr c kp
+    _ -> pure ()
+
+  pure (qcid, c)
+
 -- | Setup: Alice creates a group and invites bob. Return welcome and commit message.
 aliceInvitesBob :: SetupOptions -> TestM MessagingSetup
 aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
@@ -218,40 +251,8 @@ aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
   when makeConnections $
     connectUsers (qUnqualified alice) (pure (qUnqualified bob))
 
-  aliceClient <- randomClient (qUnqualified alice) aliceLPK
-  bobClient <- case createClients of
-    DontCreate -> randomClient (qUnqualified bob) bobLPK
-    _ -> addClient bob bobLPK
-
-  let store = tmp </> "store.db"
-      cli args = proc "crypto-cli" $ ["--store", store, "--enc-key", "test"] <> args
-      aliceClientId =
-        show (qUnqualified alice)
-          <> ":"
-          <> T.unpack (client aliceClient)
-          <> "@"
-          <> T.unpack (domainText (qDomain alice))
-      bobClientId =
-        show (qUnqualified bob)
-          <> ":"
-          <> T.unpack (client bobClient)
-          <> "@"
-          <> T.unpack (domainText (qDomain bob))
-
-  -- generate key package for alice
-  void . liftIO $ spawn (cli ["key-package", aliceClientId]) Nothing
-
-  -- generate key package for bob
-  bobKeyPackage <-
-    liftIO $
-      decodeMLSError
-        =<< spawn (cli ["key-package", bobClientId]) Nothing
-  liftIO $ BS.writeFile (tmp </> "bob") (rmRaw bobKeyPackage)
-
-  -- set bob's private key and upload key package if required
-  case createClients of
-    CreateWithKey -> addKeyPackage bob bobClient bobKeyPackage
-    _ -> pure ()
+  (aliceClientId, aliceClient) <- setupUserClient tmp DontCreate alice aliceLPK
+  (bobClientId, bobClient) <- setupUserClient tmp createClients bob bobLPK
 
   -- create a group
 
@@ -269,14 +270,14 @@ aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
 
   groupJSON <-
     liftIO $
-      spawn (cli ["group", aliceClientId, T.unpack groupId]) Nothing
+      spawn (cli tmp ["group", aliceClientId, T.unpack groupId]) Nothing
   liftIO $ BS.writeFile (tmp </> "group") groupJSON
 
   -- add bob to it and get welcome message
   commit <-
     liftIO $
       spawn
-        (cli ["member", "add", "--group", tmp </> "group", "--welcome-out", tmp </> "welcome", tmp </> "bob"])
+        (cli tmp ["member", "add", "--group", tmp </> "group", "--welcome-out", tmp </> "welcome", tmp </> bobClientId])
         Nothing
   welcome <- liftIO $ BS.readFile (tmp </> "welcome")
 
