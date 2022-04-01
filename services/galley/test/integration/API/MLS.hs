@@ -30,6 +30,7 @@ import Data.Domain
 import Data.Id
 import qualified Data.Map as Map
 import Data.Qualified
+import Data.String.Conversions
 import qualified Data.Text as T
 import Imports
 import System.FilePath
@@ -41,6 +42,8 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
+import Wire.API.Conversation
+import Wire.API.Conversation.Protocol
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
@@ -53,7 +56,8 @@ tests s =
     "MLS"
     [ test s "local welcome" testLocalWelcome,
       test s "local welcome (client with no public key)" testWelcomeNoKey,
-      test s "local welcome (client with no public key)" testWelcomeUnknownClient
+      test s "local welcome (client with no public key)" testWelcomeUnknownClient,
+      test s "add user to a conversation" testAddUser
     ]
 
 testLocalWelcome :: TestM ()
@@ -109,15 +113,32 @@ testWelcomeUnknownClient = do
     )
     !!! const 400 === statusCode
 
+testAddUser :: TestM ()
+testAddUser = do
+  MessagingSetup {..} <- aliceInvitesBob def {createConv = True}
+
+  galley <- viewGalley
+  post
+    ( galley . paths ["mls", "message"]
+        . zUser (qUnqualified (fst creator))
+        . zConn "conn"
+        . content "message/mls"
+        . bytes commit
+    )
+    !!! const 201 === statusCode
+
 --------------------------------------------------------------------------------
 -- Messaging setup
 
 data CreateClients = CreateWithoutKey | CreateWithKey | DontCreate
 
-data SetupOptions = SetupOptions {createClients :: CreateClients}
+data SetupOptions = SetupOptions
+  { createClients :: CreateClients,
+    createConv :: Bool
+  }
 
 instance Default SetupOptions where
-  def = SetupOptions {createClients = CreateWithKey}
+  def = SetupOptions {createClients = CreateWithKey, createConv = False}
 
 data MessagingSetup = MessagingSetup
   { creator :: (Qualified UserId, ClientId),
@@ -169,6 +190,18 @@ aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
     _ -> pure ()
 
   -- create a group
+
+  _groupId <-
+    if createConv
+      then do
+        conv <-
+          responseJsonError =<< postConvQualified (qUnqualified alice) defNewMLSConv
+            <!! const 201 === statusCode
+        liftIO $ case cnvProtocol conv of
+          ProtocolMLS mlsData -> pure (cnvmlsGroupId mlsData)
+          p -> assertFailure $ "Expected MLS conversation, got protocol: " <> show (protocolTag p)
+      else pure "test_group"
+
   groupJSON <-
     liftIO $
       spawn (cli ["group", aliceClientId, "dGVzdF9ncm91cA=="]) Nothing

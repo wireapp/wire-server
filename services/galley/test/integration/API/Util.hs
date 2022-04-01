@@ -642,33 +642,11 @@ postConv ::
   TestM ResponseLBS
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
 
--- | Create a group MLS conversation
-postMLSConv ::
-  Local UserId ->
-  UserList UserId ->
-  Maybe Text ->
-  [Access] ->
-  Maybe (Set AccessRoleV2) ->
-  Maybe Milliseconds ->
-  TestM ResponseLBS
-postMLSConv lusr us name access r timer =
-  postConvQualified
-    (tUnqualified lusr)
-    NewConv
-      { newConvUsers = [],
-        newConvQualifiedUsers = ulAll lusr us,
-        newConvName = name >>= checked,
-        newConvAccess = Set.fromList access,
-        newConvAccessRoles = r,
-        newConvTeam = Nothing,
-        newConvMessageTimer = timer,
-        newConvUsersRole = roleNameWireAdmin,
-        newConvReceiptMode = Nothing,
-        newConvProtocol = ProtocolMLSTag
-      }
-
 defNewProteusConv :: NewConv
 defNewProteusConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+
+defNewMLSConv :: NewConv
+defNewMLSConv = defNewProteusConv {newConvProtocol = ProtocolMLSTag}
 
 postConvQualified ::
   (HasCallStack, HasGalley m, MonadIO m, MonadMask m, MonadHttp m) =>

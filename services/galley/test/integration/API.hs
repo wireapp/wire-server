@@ -73,7 +73,6 @@ import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Teams as Teams
-import Galley.Types.UserList
 import Gundeck.Types.Notification
 import Imports
 import qualified Network.HTTP.Types as HTTP
@@ -292,12 +291,12 @@ postMLSConvFail :: TestM ()
 postMLSConvFail = do
   qalice <- randomQualifiedUser
   let alice = qUnqualified qalice
-  lAlice <- flip toLocalUnsafe alice <$> viewFederationDomain
   bob <- randomUser
   connectUsers alice (list1 bob [])
-  postMLSConv lAlice (UserList [bob] []) Nothing [] Nothing Nothing !!! do
-    const 400 === statusCode
-    const (Just "non-empty-member-list") === fmap label . responseJsonError
+  postConvQualified alice defNewMLSConv {newConvQualifiedUsers = [Qualified bob (qDomain qalice)]}
+    !!! do
+      const 400 === statusCode
+      const (Just "non-empty-member-list") === fmap label . responseJsonError
 
 postMLSConvOk :: TestM ()
 postMLSConvOk = do
@@ -305,12 +304,10 @@ postMLSConvOk = do
   qalice <- randomQualifiedUser
   bob <- randomUser
   let alice = qUnqualified qalice
-  lAlice <- flip toLocalUnsafe alice <$> viewFederationDomain
   let nameMaxSize = T.replicate 256 "a"
   connectUsers alice (list1 bob [])
   WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
-    rsp <-
-      postMLSConv lAlice mempty (Just nameMaxSize) [] Nothing Nothing
+    rsp <- postConvQualified alice defNewMLSConv {newConvName = checked nameMaxSize}
     pure rsp !!! do
       const 201 === statusCode
       const Nothing === fmap label . responseJsonError
