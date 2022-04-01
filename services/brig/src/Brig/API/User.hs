@@ -1273,10 +1273,10 @@ lookupLocalProfiles ::
   [UserId] ->
   m [UserProfile]
 lookupLocalProfiles requestingUser others = do
-  users <- (Data.lookupUsers NoPendingInvitations others) >>= mapM userGC
+  users <- Data.lookupUsers NoPendingInvitations others >>= mapM userGC
   css <- case requestingUser of
     Just localReqUser -> toMap <$> Data.lookupConnectionStatus (map userId users) [localReqUser]
-    Nothing -> pure $ toMap [] -- mempty
+    Nothing -> pure mempty
   emailVisibility' <- view (settings . emailVisibility)
   emailVisibility'' <- case emailVisibility' of
     EmailVisibleIfOnTeam -> pure EmailVisibleIfOnTeam'
@@ -1323,15 +1323,15 @@ getLegalHoldStatus ::
 getLegalHoldStatus uid = traverse (getLegalHoldStatus' . accountUser) =<< lookupAccount uid
 
 getLegalHoldStatus' ::
-  ( MonadLogger f,
-    MonadReader Env f,
-    MonadIO f,
-    MonadMask f,
-    MonadHttp f,
-    HasRequestId f
+  ( MonadLogger m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
   ) =>
   User ->
-  f UserLegalHoldStatus
+  m UserLegalHoldStatus
 getLegalHoldStatus' user =
   case userTeam user of
     Nothing -> pure defUserLegalHoldStatus
