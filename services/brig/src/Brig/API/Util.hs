@@ -31,7 +31,7 @@ where
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
-import Brig.App (AppIO, settings, wrapClient)
+import Brig.App
 import qualified Brig.Data.User as Data
 import Brig.Options (FederationDomainConfig, federationDomainConfigs)
 import qualified Brig.Options as Opts
@@ -101,11 +101,11 @@ traverseConcurrentlyWithErrors f =
 exceptTToMaybe :: Monad m => ExceptT e m () -> m (Maybe e)
 exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT
 
-lookupDomainConfig :: Domain -> (Handler r) (Maybe FederationDomainConfig)
+lookupDomainConfig :: MonadReader Env m => Domain -> m (Maybe FederationDomainConfig)
 lookupDomainConfig domain = do
   domainConfigs <- fromMaybe [] <$> view (settings . federationDomainConfigs)
   pure $ find ((== domain) . Opts.domain) domainConfigs
 
 -- | If domain is not configured fall back to `FullSearch`
-lookupSearchPolicy :: Domain -> (Handler r) FederatedUserSearchPolicy
+lookupSearchPolicy :: MonadReader Env m => Domain -> m FederatedUserSearchPolicy
 lookupSearchPolicy domain = fromMaybe NoSearch <$> (Opts.cfgSearchPolicy <$$> lookupDomainConfig domain)
