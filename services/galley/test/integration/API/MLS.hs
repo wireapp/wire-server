@@ -154,6 +154,9 @@ aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
           <> "@"
           <> T.unpack (domainText (qDomain bob))
 
+  -- generate key package for alice
+  void . liftIO $ spawn (cli ["key-package", aliceClientId]) Nothing
+
   -- generate key package for bob
   bobKeyPackage <-
     liftIO $
@@ -168,7 +171,7 @@ aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
   -- create a group
   groupJSON <-
     liftIO $
-      spawn (cli ["group", aliceClientId, "test_group"]) Nothing
+      spawn (cli ["group", aliceClientId, "dGVzdF9ncm91cA=="]) Nothing
   liftIO $ BS.writeFile (tmp </> "group") groupJSON
 
   -- add bob to it and get welcome message
