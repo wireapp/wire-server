@@ -23,6 +23,7 @@ import API.Util
 import Bilge
 import Bilge.Assert
 import Control.Lens (view)
+import Data.Bifunctor
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Default
@@ -34,6 +35,7 @@ import Data.Qualified
 import Data.String.Conversions
 import qualified Data.Text as T
 import Imports
+import qualified Network.Wai.Utilities.Error as Wai
 import System.FilePath
 import System.IO.Temp
 import System.Process
@@ -45,6 +47,7 @@ import TestHelpers
 import TestSetup
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
@@ -58,7 +61,8 @@ tests s =
     [ test s "local welcome" testLocalWelcome,
       test s "local welcome (client with no public key)" testWelcomeNoKey,
       test s "local welcome (client with no public key)" testWelcomeUnknownClient,
-      test s "add user to a conversation" testAddUser
+      test s "add user to a conversation" testAddUser,
+      test s "add user (not connected)" testAddUserNotConnected
     ]
 
 testLocalWelcome :: TestM ()
@@ -114,19 +118,65 @@ testWelcomeUnknownClient = do
     )
     !!! const 400 === statusCode
 
+testSuccessfulCommit :: MessagingSetup -> TestM ()
+testSuccessfulCommit MessagingSetup {..} = do
+  let (bob, _) = users !! 0
+  cannon <- view tsCannon
+
+  -- TODO: assert on returned event for alice
+  WS.bracketR cannon (qUnqualified bob) $ \wsB -> do
+    -- send commit message
+    galley <- viewGalley
+    post
+      ( galley . paths ["mls", "message"]
+          . zUser (qUnqualified (fst creator))
+          . zConn "conn"
+          . content "message/mls"
+          . bytes commit
+      )
+      !!! const 201 === statusCode
+
+    -- check that bob receives join event
+    void . liftIO $
+      WS.assertMatch (5 # WS.Second) wsB $
+        wsAssertMemberJoinWithRole conversation (fst creator) [bob] roleNameWireMember
+
+  -- FUTUREWORK: check that messages sent to the conversation are not propagated to bob
+  pure ()
+
 testAddUser :: TestM ()
 testAddUser = do
-  MessagingSetup {..} <- aliceInvitesBob def {createConv = True}
+  setup <- aliceInvitesBob def {createConv = True}
+  testSuccessfulCommit setup
+
+testAddUserNotConnected :: TestM ()
+testAddUserNotConnected = do
+  setup@MessagingSetup {..} <- aliceInvitesBob def {createConv = True, makeConnections = False}
+  let (bob, _) = users !! 0
 
   galley <- viewGalley
-  post
-    ( galley . paths ["mls", "message"]
-        . zUser (qUnqualified (fst creator))
-        . zConn "conn"
-        . content "message/mls"
-        . bytes commit
-    )
-    !!! const 201 === statusCode
+  cannon <- view tsCannon
+
+  -- try to add unconnected user
+  WS.bracketR cannon (qUnqualified bob) $ \wsB -> do
+    err <-
+      responseJsonError
+        =<< post
+          ( galley . paths ["mls", "message"]
+              . zUser (qUnqualified (fst creator))
+              . zConn "conn"
+              . content "message/mls"
+              . bytes commit
+          )
+        <!! do const 403 === statusCode
+    liftIO $ Wai.label err @?= "not-connected"
+
+    -- check that bob does not receive any events
+    void . liftIO $ WS.assertNoEvent (1 # WS.Second) [wsB]
+
+  -- now connect and retry
+  connectUsers (qUnqualified (fst creator)) (pure (qUnqualified bob))
+  testSuccessfulCommit setup
 
 --------------------------------------------------------------------------------
 -- Messaging setup
@@ -145,6 +195,7 @@ instance Default SetupOptions where
 data MessagingSetup = MessagingSetup
   { creator :: (Qualified UserId, ClientId),
     users :: [(Qualified UserId, ClientId)],
+    conversation :: Qualified ConvId,
     welcome :: ByteString,
     commit :: ByteString
   }
@@ -197,17 +248,17 @@ aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
 
   -- create a group
 
-  groupId <-
-    toBase64Text . unGroupId
+  (groupId, conversation) <-
+    first (toBase64Text . unGroupId)
       <$> if createConv
         then do
           conv <-
             responseJsonError =<< postConvQualified (qUnqualified alice) defNewMLSConv
               <!! const 201 === statusCode
           liftIO $ case cnvProtocol conv of
-            ProtocolMLS mlsData -> pure (cnvmlsGroupId mlsData)
+            ProtocolMLS mlsData -> pure (cnvmlsGroupId mlsData, cnvQualifiedId conv)
             p -> assertFailure $ "Expected MLS conversation, got protocol: " <> show (protocolTag p)
-        else pure "test_group"
+        else pure ("test_group", error "No conversation created")
 
   groupJSON <-
     liftIO $
