@@ -23,6 +23,7 @@ import API.Util
 import Bilge
 import Bilge.Assert
 import Control.Lens (view)
+import qualified Control.Monad.State as State
 import Data.Bifunctor
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
@@ -67,7 +68,7 @@ tests s =
 
 testLocalWelcome :: TestM ()
 testLocalWelcome = do
-  MessagingSetup {..} <- aliceInvitesBob def
+  MessagingSetup {..} <- aliceInvitesBob 1 def
   let (bob, _) = users !! 0
 
   galley <- viewGalley
@@ -92,7 +93,7 @@ testLocalWelcome = do
 
 testWelcomeNoKey :: TestM ()
 testWelcomeNoKey = do
-  MessagingSetup {..} <- aliceInvitesBob def {createClients = CreateWithoutKey}
+  MessagingSetup {..} <- aliceInvitesBob 1 def {createClients = CreateWithoutKey}
 
   galley <- viewGalley
   post
@@ -106,7 +107,7 @@ testWelcomeNoKey = do
 
 testWelcomeUnknownClient :: TestM ()
 testWelcomeUnknownClient = do
-  MessagingSetup {..} <- aliceInvitesBob def {createClients = DontCreate}
+  MessagingSetup {..} <- aliceInvitesBob 1 def {createClients = DontCreate}
 
   galley <- viewGalley
   post
@@ -148,17 +149,17 @@ testSuccessfulCommit MessagingSetup {..} = do
       WS.assertMatch (5 # WS.Second) wsB $
         wsAssertMemberJoinWithRole conversation (fst creator) [bob] roleNameWireMember
 
-  -- FUTUREWORK: check that messages sent to the conversation are not propagated to bob
+  -- FUTUREWORK: check that messages sent to the conversation are propagated to bob
   pure ()
 
 testAddUser :: TestM ()
 testAddUser = do
-  setup <- aliceInvitesBob def {createConv = True}
+  setup <- aliceInvitesBob 1 def {createConv = True}
   testSuccessfulCommit setup
 
 testAddUserNotConnected :: TestM ()
 testAddUserNotConnected = do
-  setup@MessagingSetup {..} <- aliceInvitesBob def {createConv = True, makeConnections = False}
+  setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = True, makeConnections = False}
   let (bob, _) = users !! 0
 
   galley <- viewGalley
@@ -176,6 +177,7 @@ testAddUserNotConnected = do
               . bytes commit
           )
         <!! do const 403 === statusCode
+
     liftIO $ Wai.label err @?= "not-connected"
 
     -- check that bob does not receive any events
@@ -212,35 +214,42 @@ cli tmp args =
   proc "crypto-cli" $
     ["--store", tmp </> "store.db", "--enc-key", "test"] <> args
 
-setupUserClient :: FilePath -> CreateClients -> Qualified UserId -> LastPrekey -> TestM (String, ClientId)
-setupUserClient tmp doCreateClients usr lpk = do
-  -- create client if requested
-  c <- case doCreateClients of
-    DontCreate -> randomClient (qUnqualified usr) lpk
-    _ -> addClient usr lpk
+setupUserClient ::
+  HasCallStack =>
+  FilePath ->
+  CreateClients ->
+  Qualified UserId ->
+  State.StateT [LastPrekey] TestM (String, ClientId)
+setupUserClient tmp doCreateClients usr = do
+  lpk <- takeLastPrekey
+  lift $ do
+    -- create client if requested
+    c <- case doCreateClients of
+      DontCreate -> randomClient (qUnqualified usr) lpk
+      _ -> addClient usr lpk
 
-  let qcid =
-        show (qUnqualified usr)
-          <> ":"
-          <> T.unpack (client c)
-          <> "@"
-          <> T.unpack (domainText (qDomain usr))
+    let qcid =
+          show (qUnqualified usr)
+            <> ":"
+            <> T.unpack (client c)
+            <> "@"
+            <> T.unpack (domainText (qDomain usr))
 
-  -- generate key package
-  kp <-
-    liftIO $
-      decodeMLSError
-        =<< spawn (cli tmp ["key-package", qcid]) Nothing
-  liftIO $ BS.writeFile (tmp </> qcid) (rmRaw kp)
+    -- generate key package
+    kp <-
+      liftIO $
+        decodeMLSError
+          =<< spawn (cli tmp ["key-package", qcid]) Nothing
+    liftIO $ BS.writeFile (tmp </> qcid) (rmRaw kp)
 
-  -- set bob's private key and upload key package if required
-  case doCreateClients of
-    CreateWithKey -> addKeyPackage usr c kp
-    _ -> pure ()
+    -- set bob's private key and upload key package if required
+    case doCreateClients of
+      CreateWithKey -> addKeyPackage usr c kp
+      _ -> pure ()
 
-  pure (qcid, c)
+    pure (qcid, c)
 
-setupGroup :: FilePath -> Bool -> (Qualified UserId, String) -> String -> TestM (Qualified ConvId)
+setupGroup :: HasCallStack => FilePath -> Bool -> (Qualified UserId, String) -> String -> TestM (Qualified ConvId)
 setupGroup tmp createConv (creator, creatorId) name = do
   (groupId, conversation) <-
     first (toBase64Text . unGroupId)
@@ -261,19 +270,23 @@ setupGroup tmp createConv (creator, creatorId) name = do
 
   pure conversation
 
--- | Setup: Alice creates a group and invites bob. Return welcome and commit message.
-aliceInvitesBob :: SetupOptions -> TestM MessagingSetup
-aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
-  alice <- randomQualifiedUser
-  let aliceLPK = someLastPrekeys !! 0
-  bob <- randomQualifiedUser
-  let bobLPK = someLastPrekeys !! 1
+takeLastPrekey :: MonadFail m => State.StateT [LastPrekey] m LastPrekey
+takeLastPrekey = do
+  (lpk : lpks) <- State.get
+  State.put lpks
+  pure lpk
 
+-- | Setup: Alice creates a group and invites bob. Return welcome and commit message.
+aliceInvitesBob :: HasCallStack => Int -> SetupOptions -> TestM MessagingSetup
+aliceInvitesBob numBobClients SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
+  alice <- randomQualifiedUser
+  bob <- randomQualifiedUser
   when makeConnections $
     connectUsers (qUnqualified alice) (pure (qUnqualified bob))
 
-  (aliceClientId, aliceClient) <- setupUserClient tmp DontCreate alice aliceLPK
-  (bobClientId, bobClient) <- setupUserClient tmp createClients bob bobLPK
+  ((aliceClientId, aliceClient), bobClients) <- flip State.evalStateT someLastPrekeys $ do
+    (,) <$> setupUserClient tmp DontCreate alice
+      <*> replicateM numBobClients (setupUserClient tmp createClients bob)
 
   -- create a group
   conversation <- setupGroup tmp createConv (alice, aliceClientId) "group"
@@ -282,13 +295,28 @@ aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
   commit <-
     liftIO $
       spawn
-        (cli tmp ["member", "add", "--group", tmp </> "group", "--welcome-out", tmp </> "welcome", tmp </> bobClientId])
+        ( cli
+            tmp
+            $ [ "member",
+                "add",
+                "--group",
+                tmp </> "group",
+                "--welcome-out",
+                tmp </> "welcome"
+              ]
+              <> map ((tmp </>) . fst) bobClients
+        )
         Nothing
   welcome <- liftIO $ BS.readFile (tmp </> "welcome")
 
-  pure $ MessagingSetup {creator = (alice, aliceClient), users = [(bob, bobClient)], ..}
+  pure $
+    MessagingSetup
+      { creator = (alice, aliceClient),
+        users = map ((bob,) . snd) bobClients,
+        ..
+      }
 
-addClient :: Qualified UserId -> LastPrekey -> TestM ClientId
+addClient :: HasCallStack => Qualified UserId -> LastPrekey -> TestM ClientId
 addClient u lpk = do
   let new = newClient PermanentClientType lpk
 
@@ -306,7 +334,7 @@ addClient u lpk = do
 
   pure (clientId c)
 
-addKeyPackage :: Qualified UserId -> ClientId -> RawMLS KeyPackage -> TestM ()
+addKeyPackage :: HasCallStack => Qualified UserId -> ClientId -> RawMLS KeyPackage -> TestM ()
 addKeyPackage u c kp = do
   let update = defUpdateClient {updateClientMLSPublicKeys = Map.singleton Ed25519 (bcSignatureKey (kpCredential (rmValue kp)))}
   -- set public key

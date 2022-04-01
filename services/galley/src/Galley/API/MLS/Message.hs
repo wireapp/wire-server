@@ -180,7 +180,6 @@ executeProposalAction lusr con conv action = do
   -- update the database accordingly
   traverse_ (uncurry (addUserClients cm)) newUserClients
   -- add users to the conversation and send events
-  -- TODO: only add new members
   result <- foldMap addMembers . nonEmpty . map fst $ newUserClients
   pure result
   where

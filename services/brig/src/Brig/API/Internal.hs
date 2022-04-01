@@ -132,6 +132,7 @@ getClientByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.derefKeyPack
 getMLSClients :: Qualified UserId -> Handler r (Set ClientId)
 getMLSClients qusr = do
   usr <- lift $ tUnqualified <$> ensureLocal qusr
+  -- TODO: only return MLS-enabled clients
   lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult usr
   where
     getResult _ [] = throwStd (errorToWai @'UserNotFound)
