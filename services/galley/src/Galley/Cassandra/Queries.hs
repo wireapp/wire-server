@@ -362,7 +362,7 @@ rmMemberClient c =
 
 -- MLS Clients --------------------------------------------------------------
 
-addMLSClients :: PrepQuery W (ConvId, UserId, C.Set ClientId) ()
+addMLSClients :: PrepQuery W (C.Set ClientId, ConvId, UserId) ()
 addMLSClients = "update member set mls_clients = mls_clients + ? where conv = ? and user = ?"
 
 -- Services -----------------------------------------------------------------

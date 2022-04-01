@@ -176,12 +176,13 @@ executeProposalAction ::
 executeProposalAction lusr con conv action = do
   let cm = convClientMap lusr conv
       newUserClients = Map.assocs (paAdd action)
-  -- check that all clients of each user is added to the conversation, and
+  -- check that all clients of each user are added to the conversation, and
   -- update the database accordingly
   traverse_ (uncurry (addUserClients cm)) newUserClients
   -- add users to the conversation and send events
   -- TODO: only add new members
-  foldMap addMembers . nonEmpty . map fst $ newUserClients
+  result <- foldMap addMembers . nonEmpty . map fst $ newUserClients
+  pure result
   where
     addUserClients :: ClientMap -> Qualified UserId -> Set ClientId -> Sem r ()
     addUserClients cm qtarget newClients = do
@@ -194,6 +195,7 @@ executeProposalAction lusr con conv action = do
         -- FUTUREWORK: turn this error into a proper response
         throwS @'MLSClientMismatch
       -- add clients to the database
+      -- TODO: delay this until after adding them as members to the conversation
       ltarget <- ensureLocal lusr qtarget -- FUTUREWORK: support remote users
       addMLSClients (convId conv) (tUnqualified ltarget) newClients
 
@@ -217,9 +219,6 @@ convClientMap loc =
     ]
   where
     localMember lm = Map.singleton (qUntagged (qualifyAs loc (lmId lm))) (lmMLSClients lm)
-
-getMLSClients :: Qualified UserId -> Sem r (Set ClientId)
-getMLSClients _ = pure mempty -- TODO
 
 --------------------------------------------------------------------------------
 -- Error handling of proposal execution

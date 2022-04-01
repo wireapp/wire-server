@@ -135,11 +135,12 @@ data CreateClients = CreateWithoutKey | CreateWithKey | DontCreate
 
 data SetupOptions = SetupOptions
   { createClients :: CreateClients,
-    createConv :: Bool
+    createConv :: Bool,
+    makeConnections :: Bool
   }
 
 instance Default SetupOptions where
-  def = SetupOptions {createClients = CreateWithKey, createConv = False}
+  def = SetupOptions {createClients = CreateWithKey, createConv = False, makeConnections = True}
 
 data MessagingSetup = MessagingSetup
   { creator :: (Qualified UserId, ClientId),
@@ -155,6 +156,9 @@ aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
   let aliceLPK = someLastPrekeys !! 0
   bob <- randomQualifiedUser
   let bobLPK = someLastPrekeys !! 1
+
+  when makeConnections $
+    connectUsers (qUnqualified alice) (pure (qUnqualified bob))
 
   aliceClient <- randomClient (qUnqualified alice) aliceLPK
   bobClient <- case createClients of

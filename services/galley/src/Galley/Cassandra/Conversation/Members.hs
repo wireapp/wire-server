@@ -345,7 +345,7 @@ removeLocalMembersFromRemoteConv (qUntagged -> Qualified conv convDomain) victim
 addMLSClients :: ConvId -> UserId -> Set.Set ClientId -> Client ()
 addMLSClients cid uid cs =
   retry x5 $
-    write Cql.addMLSClients (params LocalQuorum (cid, uid, Cassandra.Set (toList cs)))
+    write Cql.addMLSClients (params LocalQuorum (Cassandra.Set (toList cs), cid, uid))
 
 interpretMemberStoreToCassandra ::
   Members '[Embed IO, Input ClientState] r =>
