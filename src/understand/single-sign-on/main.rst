@@ -34,8 +34,8 @@ This page explains how to set up :term:`SCIM` and then use it.
     See below in the :term:`SCIM` section for a more detailled explanation.
 
 
-Futher reading
-~~~~~~~~~~~~~~
+Further reading
+~~~~~~~~~~~~~~~
 
 If you can't find the answers to your questions here, we have a few
 more documents.  Some of them are very technical, some may not be up
