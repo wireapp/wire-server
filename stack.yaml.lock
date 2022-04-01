@@ -395,15 +395,15 @@ packages:
     commit: 7546a1a25635ef65183e3d44c1052285e8401608
 - completed:
     name: hsaml2
-    version: 0.1.1
+    version: 0.1.2
     git: https://github.com/wireapp/hsaml2
     pantry-tree:
-      size: 3973
-      sha256: a8f67572fb5a29f55b5c20e8257950f3350d0c808f2ae24703f4aa25c1b4c76a
-    commit: ef7b1de45ab0ea3a0a333b335579a02d8f88340c
+      size: 4096
+      sha256: 901124eba0a145322767c6fa7b8c90314cc812fb9174aae8325802ec90695007
+    commit: d43818aac56678f0be02d0101d224fe0f6cdf131
   original:
     git: https://github.com/wireapp/hsaml2
-    commit: ef7b1de45ab0ea3a0a333b335579a02d8f88340c
+    commit: d43818aac56678f0be02d0101d224fe0f6cdf131
 - completed:
     subdir: http-client
     name: http-client
