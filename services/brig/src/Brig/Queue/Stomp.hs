@@ -133,7 +133,7 @@ enqueue b q m =
 -- message will go into the Dead Letter Queue where it can be analyzed
 -- manually.
 --
--- TODO: This probably deserves a Polysemy action
+-- FUTUREWORK: This probably deserves a Polysemy action
 listen ::
   (FromJSON a, MonadLogger m, MonadMask m, MonadUnliftIO m) =>
   Broker ->

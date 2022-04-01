@@ -60,7 +60,6 @@ onEvent n = handleTimeout $ case n of
     Log.info $
       msg (val "Processing user delete event")
         ~~ field "user" (toByteString uid)
-    -- TODO
     API.lookupAccount uid >>= mapM_ API.deleteAccount
     -- As user deletions are expensive resource-wise in the context of
     -- bulk user deletions (e.g. during team deletions),
