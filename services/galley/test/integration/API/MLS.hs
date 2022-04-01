@@ -240,6 +240,27 @@ setupUserClient tmp doCreateClients usr lpk = do
 
   pure (qcid, c)
 
+setupGroup :: FilePath -> Bool -> (Qualified UserId, String) -> String -> TestM (Qualified ConvId)
+setupGroup tmp createConv (creator, creatorId) name = do
+  (groupId, conversation) <-
+    first (toBase64Text . unGroupId)
+      <$> if createConv
+        then do
+          conv <-
+            responseJsonError =<< postConvQualified (qUnqualified creator) defNewMLSConv
+              <!! const 201 === statusCode
+          liftIO $ case cnvProtocol conv of
+            ProtocolMLS mlsData -> pure (cnvmlsGroupId mlsData, cnvQualifiedId conv)
+            p -> assertFailure $ "Expected MLS conversation, got protocol: " <> show (protocolTag p)
+        else pure ("test_group", error "No conversation created")
+
+  groupJSON <-
+    liftIO $
+      spawn (cli tmp ["group", creatorId, T.unpack groupId]) Nothing
+  liftIO $ BS.writeFile (tmp </> name) groupJSON
+
+  pure conversation
+
 -- | Setup: Alice creates a group and invites bob. Return welcome and commit message.
 aliceInvitesBob :: SetupOptions -> TestM MessagingSetup
 aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
@@ -255,23 +276,7 @@ aliceInvitesBob SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
   (bobClientId, bobClient) <- setupUserClient tmp createClients bob bobLPK
 
   -- create a group
-
-  (groupId, conversation) <-
-    first (toBase64Text . unGroupId)
-      <$> if createConv
-        then do
-          conv <-
-            responseJsonError =<< postConvQualified (qUnqualified alice) defNewMLSConv
-              <!! const 201 === statusCode
-          liftIO $ case cnvProtocol conv of
-            ProtocolMLS mlsData -> pure (cnvmlsGroupId mlsData, cnvQualifiedId conv)
-            p -> assertFailure $ "Expected MLS conversation, got protocol: " <> show (protocolTag p)
-        else pure ("test_group", error "No conversation created")
-
-  groupJSON <-
-    liftIO $
-      spawn (cli tmp ["group", aliceClientId, T.unpack groupId]) Nothing
-  liftIO $ BS.writeFile (tmp </> "group") groupJSON
+  conversation <- setupGroup tmp createConv (alice, aliceClientId) "group"
 
   -- add bob to it and get welcome message
   commit <-
