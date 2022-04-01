@@ -22,7 +22,7 @@ module Brig.User.EJPD (ejpdRequest) where
 
 import Brig.API.Handler
 import Brig.API.User (lookupHandle)
-import Brig.App (AppIO, wrapClient)
+import Brig.App (AppIO, wrapClient, wrapHttp)
 import qualified Brig.Data.Connection as Conn
 import Brig.Data.User (lookupUser)
 import qualified Brig.IO.Intra as Intra
@@ -57,7 +57,7 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
       let uid = userId target
 
       ptoks <-
-        PushTok.tokenText . view PushTok.token <$$> Intra.lookupPushToken uid
+        PushTok.tokenText . view PushTok.token <$$> wrapHttp (Intra.lookupPushToken uid)
 
       mbContacts <-
         if includeContacts'
@@ -77,7 +77,7 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
       mbTeamContacts <-
         case (includeContacts', userTeam target) of
           (True, Just tid) -> do
-            memberList <- Intra.getTeamMembers tid
+            memberList <- wrapHttp $ Intra.getTeamMembers tid
             let members = (view Team.userId <$> (memberList ^. Team.teamMembers)) \\ [uid]
 
             contactsFull :: [Maybe EJPDResponseItem] <-

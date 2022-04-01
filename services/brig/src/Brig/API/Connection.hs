@@ -66,8 +66,8 @@ ensureIsActivated lusr = do
 
 ensureNotSameTeam :: Local UserId -> Local UserId -> (ConnectionM r) ()
 ensureNotSameTeam self target = do
-  selfTeam <- lift $ Intra.getTeamId (tUnqualified self)
-  targetTeam <- lift $ Intra.getTeamId (tUnqualified target)
+  selfTeam <- lift $ wrapHttp $ Intra.getTeamId (tUnqualified self)
+  targetTeam <- lift $ wrapHttp $ Intra.getTeamId (tUnqualified target)
   when (isJust selfTeam && selfTeam == targetTeam) $
     throwE ConnectSameBindingTeamUsers
 
@@ -307,7 +307,7 @@ updateConnectionToLocalUser self other newStatus conn = do
       Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Blocking connection")
-      traverse_ (Intra.blockConv self conn) (ucConvId s2o)
+      traverse_ (wrapHttp . Intra.blockConv self conn) (ucConvId s2o)
       wrapClient $ Just <$> Data.updateConnection s2o BlockedWithHistory
 
     unblock :: UserConnection -> UserConnection -> Relation -> ExceptT ConnectionError (AppIO r) (Maybe UserConnection)
@@ -318,7 +318,7 @@ updateConnectionToLocalUser self other newStatus conn = do
       Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Unblocking connection")
-      cnv <- lift $ traverse (Intra.unblockConv self conn) (ucConvId s2o)
+      cnv <- lift $ traverse (wrapHttp . Intra.unblockConv self conn) (ucConvId s2o)
       when (ucStatus o2s == Sent && new == Accepted) . lift $ do
         o2s' <-
           wrapClient $
@@ -339,7 +339,7 @@ updateConnectionToLocalUser self other newStatus conn = do
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Cancelling connection")
       lfrom <- qualifyLocal (ucFrom s2o)
-      lift $ traverse_ (Intra.blockConv lfrom conn) (ucConvId s2o)
+      lift $ traverse_ (wrapHttp . Intra.blockConv lfrom conn) (ucConvId s2o)
       o2s' <- lift . wrapClient $ Data.updateConnection o2s CancelledWithHistory
       let e2o = ConnectionUpdated o2s' (Just $ ucStatus o2s) Nothing
       lift $ Intra.onConnectionEvent (tUnqualified self) conn e2o
@@ -406,7 +406,7 @@ updateConnectionInternal = \case
         o2s <- localConnection other self
         for_ [s2o, o2s] $ \(uconn :: UserConnection) -> lift $ do
           lfrom <- qualifyLocal (ucFrom uconn)
-          traverse_ (Intra.blockConv lfrom Nothing) (ucConvId uconn)
+          traverse_ (wrapHttp . Intra.blockConv lfrom Nothing) (ucConvId uconn)
           uconn' <- wrapClient $ Data.updateConnection uconn (mkRelationWithHistory (ucStatus uconn) MissingLegalholdConsent)
           let ev = ConnectionUpdated uconn' (Just $ ucStatus uconn) Nothing
           Intra.onConnectionEvent (tUnqualified self) Nothing ev
@@ -443,7 +443,7 @@ updateConnectionInternal = \case
         unblockDirected :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppIO r) ()
         unblockDirected uconn uconnRev = do
           lfrom <- qualifyLocal (ucFrom uconnRev)
-          void . lift . for (ucConvId uconn) $ Intra.unblockConv lfrom Nothing
+          void . lift . for (ucConvId uconn) $ wrapHttp . Intra.unblockConv lfrom Nothing
           uconnRevRel :: RelationWithHistory <- relationWithHistory lfrom (ucTo uconnRev)
           uconnRev' <- lift . wrapClient $ Data.updateConnection uconnRev (undoRelationHistory uconnRevRel)
           connName <- lift . wrapClient $ Data.lookupName (tUnqualified lfrom)

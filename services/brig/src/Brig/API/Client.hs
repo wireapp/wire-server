@@ -150,7 +150,7 @@ addClient u con ip new = do
   let usr = accountUser acc
   lift $ do
     for_ old $ execDelete u con
-    Intra.newClient u (clientId clt)
+    wrapHttp $ Intra.newClient u (clientId clt)
     Intra.onClientEvent u con (ClientAdded u clt)
     when (clientType clt == LegalHoldClientType) $ wrapHttpClient $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
     when (count > 1) $
@@ -262,7 +262,7 @@ claimPrekeyBundle protectee domain uid = do
 claimLocalPrekeyBundle :: LegalholdProtectee -> UserId -> ExceptT ClientError (AppIO r) PrekeyBundle
 claimLocalPrekeyBundle protectee u = do
   clients <- map clientId <$> lift (wrapClient (Data.lookupClients u))
-  guardLegalhold protectee (mkUserClients [(u, clients)])
+  mapExceptT wrapHttp $ guardLegalhold protectee (mkUserClients [(u, clients)])
   PrekeyBundle u . catMaybes <$> lift (mapM (wrapHttp . Data.claimPrekey u) clients)
 
 claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError (AppIO r) PrekeyBundle
@@ -309,7 +309,7 @@ claimLocalMultiPrekeyBundles ::
   UserClients ->
   ExceptT ClientError (AppIO r) UserClientPrekeyMap
 claimLocalMultiPrekeyBundles protectee userClients = do
-  guardLegalhold protectee userClients
+  mapExceptT wrapHttp $ guardLegalhold protectee userClients
   lift
     . fmap mkUserClientPrekeyMap
     . foldMap (getChunk . Map.fromList)
@@ -355,7 +355,7 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 -- | Perform an orderly deletion of an existing client.
 execDelete :: UserId -> Maybe ConnId -> Client -> (AppIO r) ()
 execDelete u con c = do
-  Intra.rmClient u (clientId c)
+  wrapHttp $ Intra.rmClient u (clientId c)
   for_ (clientCookie c) $ \l -> wrapClient $ Auth.revokeCookies u [] [l]
   Intra.onClientEvent u con (ClientRemoved u c)
   wrapClient $ Data.rmClient u (clientId c)

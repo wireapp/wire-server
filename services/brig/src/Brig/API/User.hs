@@ -253,7 +253,7 @@ createUser new = do
     Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
 
     wrapClient $ Data.insertAccount account Nothing pw False
-    Intra.createSelfConv uid
+    wrapHttp $ Intra.createSelfConv uid
     wrapHttpClient $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
 
     pure account
@@ -264,7 +264,7 @@ createUser new = do
     activatedTeam <- lift $ do
       case (tid, newTeam) of
         (Just tid', Just nt) -> do
-          created <- Intra.createTeam uid (bnuTeam nt) tid'
+          created <- wrapHttp $ Intra.createTeam uid (bnuTeam nt) tid'
           let activating = isJust (newUserEmailCode new)
           pure $
             if activating
@@ -276,7 +276,7 @@ createUser new = do
       Just (inv, invInfo) -> do
         let em = Team.inInviteeEmail inv
         acceptTeamInvitation account inv invInfo (userEmailKey em) (EmailIdentity em)
-        Team.TeamName nm <- lift $ Intra.getTeamName (Team.inTeam inv)
+        Team.TeamName nm <- lift $ wrapHttp $ Intra.getTeamName (Team.inTeam inv)
         pure (Just $ CreateUserTeam (Team.inTeam inv) nm)
       Nothing -> pure Nothing
 
@@ -342,7 +342,7 @@ createUser new = do
         throwE RegisterErrorTooManyTeamMembers
       -- FUTUREWORK: The above can easily be done/tested in the intra call.
       --             Remove after the next release.
-      canAdd <- lift $ Intra.checkUserCanJoinTeam tid
+      canAdd <- lift $ wrapHttp $ Intra.checkUserCanJoinTeam tid
       case canAdd of
         Just e -> throwM $ API.UserNotAllowedToJoinTeam e
         Nothing -> pure ()
@@ -361,7 +361,7 @@ createUser new = do
         throwE RegisterErrorUserKeyExists
       let minvmeta :: (Maybe (UserId, UTCTimeMillis), Team.Role)
           minvmeta = ((,inCreatedAt inv) <$> inCreatedBy inv, Team.inRole inv)
-      added <- lift $ Intra.addTeamMember uid (Team.iiTeam ii) minvmeta
+      added <- lift $ wrapHttp $ Intra.addTeamMember uid (Team.iiTeam ii) minvmeta
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
@@ -378,7 +378,7 @@ createUser new = do
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppIO r) CreateUserTeam
     addUserToTeamSSO account tid ident = do
       let uid = userId (accountUser account)
-      added <- lift $ Intra.addTeamMember uid tid (Nothing, Team.defaultRole)
+      added <- lift $ wrapHttp $ Intra.addTeamMember uid tid (Nothing, Team.defaultRole)
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
@@ -388,7 +388,7 @@ createUser new = do
           field "user" (toByteString uid)
             . field "team" (toByteString tid)
             . msg (val "Added via SSO")
-      Team.TeamName nm <- lift $ Intra.getTeamName tid
+      Team.TeamName nm <- lift $ wrapHttp $ Intra.getTeamName tid
       pure $ CreateUserTeam tid nm
 
     -- Handle e-mail activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
@@ -782,8 +782,8 @@ activateWithCurrency tgt code usr cur = do
       return $ ActivationSuccess ident first
   where
     activateTeam uid = do
-      tid <- Intra.getTeamId uid
-      for_ tid $ \t -> Intra.changeTeamStatus t Team.Active cur
+      tid <- wrapHttp $ Intra.getTeamId uid
+      for_ tid $ \t -> wrapHttp $ Intra.changeTeamStatus t Team.Active cur
 
 preverify ::
   ( MonadClient m,
@@ -881,7 +881,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
           loc' = loc <|> Just (userLocale u)
       void . forEmailKey ek $ \em -> lift $ do
         -- Get user's team, if any.
-        mbTeam <- mapM (fmap Team.tdTeam . Intra.getTeam) (userTeam u)
+        mbTeam <- mapM (fmap Team.tdTeam . wrapHttp . Intra.getTeam) (userTeam u)
         -- Depending on whether the user is a team creator, send either
         -- a team activation email or a regular email. Note that we
         -- don't have to check if the team is binding because if the
@@ -1002,7 +1002,7 @@ deleteUser uid pwd = do
       case userTeam $ accountUser acc of
         Nothing -> pure ()
         Just tid -> do
-          isOwner <- lift $ Intra.memberIsTeamOwner tid uid
+          isOwner <- lift $ wrapHttp $ Intra.memberIsTeamOwner tid uid
           when isOwner $ throwE DeleteUserOwnerDeletingSelf
     go a = maybe (byIdentity a) (byPassword a) pwd
     getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)

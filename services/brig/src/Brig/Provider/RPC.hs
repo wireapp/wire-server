@@ -72,12 +72,13 @@ createBot scon new = do
   (man, verifyFingerprints) <- view extGetManager
   extHandleAll onExc $ do
     rs <- lift $
-      recovering x3 httpHandlers $
-        const $
-          liftIO $
-            withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $
-              \req ->
-                Http.httpLbs req man
+      wrapHttp $
+        recovering x3 httpHandlers $
+          const $
+            liftIO $
+              withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $
+                \req ->
+                  Http.httpLbs req man
     case Bilge.statusCode rs of
       201 -> decodeBytes "External" (responseBody rs)
       409 -> throwE ServiceBotConflict
@@ -138,7 +139,7 @@ setServiceConn scon = do
       . field "provider" (toByteString pid)
       . field "service" (toByteString sid)
       . msg (val "Setting service connection")
-  void $ galleyRequest POST req
+  void $ wrapHttp $ galleyRequest POST req
   where
     pid = sconProvider scon
     sid = sconService scon
@@ -200,7 +201,7 @@ addBotMember zusr zcon conv bot clt pid sid = do
       . field "user" (toByteString zusr)
       . field "bot" (toByteString bot)
       . msg (val "Adding bot member")
-  decodeBody "galley" =<< galleyRequest POST req
+  decodeBody "galley" =<< wrapHttp (galleyRequest POST req)
   where
     req =
       path "/i/bots"

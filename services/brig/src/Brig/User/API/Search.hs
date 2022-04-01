@@ -188,7 +188,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
             then return (Search.TeamOnly t)
             else do
               -- For team users, we need to check the visibility flag
-              handleTeamVisibility t <$> Intra.getTeamSearchVisibility t
+              handleTeamVisibility t <$> wrapHttp (Intra.getTeamSearchVisibility t)
 
     exactHandleSearch :: TeamSearchInfo -> (Handler r) (Maybe Contact)
     exactHandleSearch teamSearchInfo = do

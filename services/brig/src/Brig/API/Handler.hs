@@ -34,7 +34,7 @@ where
 import Bilge (MonadHttp, RequestId (..))
 import Brig.API.Error
 import qualified Brig.AWS as AWS
-import Brig.App (AppIO, Env, applog, requestId, runAppT, settings)
+import Brig.App (AppIO, Env, applog, requestId, runAppT, settings, wrapHttpClientE)
 import Brig.Email (Email)
 import Brig.Options (setWhitelist)
 import Brig.Phone (Phone, PhoneException (..))
@@ -153,7 +153,7 @@ parseJsonBody req = parseBody req !>> StdError . badRequest
 
 -- | If a whitelist is configured, consult it, otherwise a no-op. {#RefActivationWhitelist}
 checkWhitelist :: Either Email Phone -> (Handler r) ()
-checkWhitelist = checkWhitelistWithError (StdError whitelistError)
+checkWhitelist = wrapHttpClientE . checkWhitelistWithError (StdError whitelistError)
 
 checkWhitelistWithError :: (Monad m, MonadReader Env m, MonadIO m, Catch.MonadMask m, MonadHttp m, MonadError e m) => e -> Either Email Phone -> m ()
 checkWhitelistWithError e key = do
