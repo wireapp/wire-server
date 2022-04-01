@@ -300,7 +300,15 @@ addMLSPublicKey ::
   ByteString ->
   ExceptT ClientDataError m ()
 addMLSPublicKey u c ss pk = do
-  rows <- trans insertMLSPublicKeys (params LocalQuorum (u, c, ss, Blob (LBS.fromStrict pk)))
+  rows <-
+    trans
+      insertMLSPublicKeys
+      ( params
+          LocalQuorum
+          (u, c, ss, Blob (LBS.fromStrict pk))
+      )
+        { serialConsistency = Just LocalSerialConsistency
+        }
   case rows of
     [row]
       | C.fromRow 0 row /= Right (Just True) ->
