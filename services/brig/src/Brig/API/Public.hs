@@ -657,8 +657,8 @@ getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 createUser :: Public.NewUserPublic -> (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
 createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
-  for_ (Public.newUserEmail new) $ checkWhitelistWithError RegisterErrorWhitelistError . Left
-  for_ (Public.newUserPhone new) $ checkWhitelistWithError RegisterErrorWhitelistError . Right
+  for_ (Public.newUserEmail new) $ mapExceptT wrapHttp . checkWhitelistWithError RegisterErrorWhitelistError . Left
+  for_ (Public.newUserPhone new) $ mapExceptT wrapHttp . checkWhitelistWithError RegisterErrorWhitelistError . Right
   result <- API.createUser new
   let acc = createdAccount result
 
@@ -997,7 +997,7 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
       where
         check = runMaybeT $ do
           teamId <- hoistMaybe maybeTeamId
-          teamMember <- MaybeT $ lift $ Intra.getTeamMember zuserId teamId
+          teamMember <- MaybeT $ lift $ wrapHttp $ Intra.getTeamMember zuserId teamId
           pure $ teamMember `hasPermission` ChangeTeamMemberProfiles
 
 -- activation
@@ -1075,7 +1075,7 @@ sendVerificationCode req = do
 
     getFeatureStatus :: Maybe UserAccount -> (Handler r) Bool
     getFeatureStatus mbAccount = do
-      mbStatusEnabled <- lift $ Intra.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
+      mbStatusEnabled <- lift $ wrapHttp $ Intra.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
       pure $ fromMaybe False mbStatusEnabled
 
 -- Deprecated

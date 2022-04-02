@@ -155,7 +155,7 @@ verifyCode :: Maybe Code.Value -> VerificationAction -> UserId -> ExceptT Verifi
 verifyCode mbCode action uid = do
   (mbEmail, mbTeamId) <- getEmailAndTeamId uid
   featureEnabled <- lift $ do
-    mbFeatureEnabled <- Intra.getVerificationCodeEnabled `traverse` mbTeamId
+    mbFeatureEnabled <- (wrapHttp . Intra.getVerificationCodeEnabled) `traverse` mbTeamId
     pure $ fromMaybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus == Public.TeamFeatureEnabled) mbFeatureEnabled
   when featureEnabled $ do
     case (mbCode, mbEmail) of
@@ -374,7 +374,7 @@ legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
   -- legalhold login is only possible if
   -- the user is a team user
   -- and the team has legalhold enabled
-  mteam <- lift $ Intra.getTeamId uid
+  mteam <- lift $ wrapHttp $ Intra.getTeamId uid
   case mteam of
     Nothing -> throwE LegalHoldLoginNoBindingTeam
     Just tid -> assertLegalHoldEnabled tid
@@ -384,7 +384,7 @@ legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
 
 assertLegalHoldEnabled :: TeamId -> ExceptT LegalHoldLoginError (AppIO r) ()
 assertLegalHoldEnabled tid = do
-  stat <- lift $ Intra.getTeamLegalHoldStatus tid
+  stat <- lift $ wrapHttp $ Intra.getTeamLegalHoldStatus tid
   case tfwoStatus stat of
     TeamFeatureDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
     TeamFeatureEnabled -> pure ()

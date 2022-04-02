@@ -107,7 +107,7 @@ import Control.AutoUpdate
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding (index, (.=))
-import Control.Monad.Catch (MonadCatch, MonadMask)
+import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Default (def)
@@ -463,7 +463,6 @@ newtype AppT r m a = AppT
       MonadIO,
       MonadThrow,
       MonadCatch,
-      MonadMask,
       MonadReader Env
     )
   deriving

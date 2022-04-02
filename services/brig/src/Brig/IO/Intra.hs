@@ -201,7 +201,7 @@ onClientEvent orig conn e = do
   -- Synchronous push for better delivery guarantees of these
   -- events and to make sure new clients have a first notification
   -- in the stream.
-  push events rcps orig Push.RouteAny conn
+  wrapHttp $ push events rcps orig Push.RouteAny conn
 
 updateSearchIndex ::
   ( MonadClient m,
@@ -747,7 +747,7 @@ createConnectConv from to cname conn = do
   lfrom <- ensureLocal from
   lto <- ensureLocal to
   qUntagged . qualifyAs lfrom
-    <$> createLocalConnectConv lfrom lto cname conn
+    <$> wrapHttp (createLocalConnectConv lfrom lto cname conn)
   where
     ensureLocal :: Qualified a -> (AppIO r) (Local a)
     ensureLocal x = do
@@ -784,7 +784,7 @@ acceptConnectConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO r
 acceptConnectConv from conn =
   foldQualified
     from
-    (acceptLocalConnectConv from conn . tUnqualified)
+    (wrapHttp . acceptLocalConnectConv from conn . tUnqualified)
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.blockConvH'.

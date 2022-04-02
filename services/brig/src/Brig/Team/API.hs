@@ -26,7 +26,7 @@ import Brig.API.Handler
 import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
 import qualified Brig.API.User as API
 import Brig.API.Util (logEmail, logInvitationCode)
-import Brig.App (currentTime, emailSender, settings, wrapClient)
+import Brig.App (currentTime, emailSender, settings, wrapClient, wrapHttp)
 import qualified Brig.Data.Blacklist as Blacklist
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
@@ -436,7 +436,7 @@ suspendTeam :: TeamId -> (Handler r) ()
 suspendTeam tid = do
   changeTeamAccountStatuses tid Suspended
   lift $ wrapClient $ DB.deleteInvitations tid
-  lift $ Intra.changeTeamStatus tid Team.Suspended Nothing
+  lift $ wrapHttp $ Intra.changeTeamStatus tid Team.Suspended Nothing
 
 unsuspendTeamH :: JSON ::: TeamId -> (Handler r) Response
 unsuspendTeamH (_ ::: tid) = do
@@ -445,17 +445,17 @@ unsuspendTeamH (_ ::: tid) = do
 unsuspendTeam :: TeamId -> (Handler r) ()
 unsuspendTeam tid = do
   changeTeamAccountStatuses tid Active
-  lift $ Intra.changeTeamStatus tid Team.Active Nothing
+  lift $ wrapHttp $ Intra.changeTeamStatus tid Team.Active Nothing
 
 -------------------------------------------------------------------------------
 -- Internal
 
 changeTeamAccountStatuses :: TeamId -> AccountStatus -> (Handler r) ()
 changeTeamAccountStatuses tid s = do
-  team <- Team.tdTeam <$> lift (Intra.getTeam tid)
+  team <- Team.tdTeam <$> lift (wrapHttp $ Intra.getTeam tid)
   unless (team ^. Team.teamBinding == Team.Binding) $
     throwStd noBindingTeam
-  uids <- toList1 =<< lift (fmap (view Team.userId) . view Team.teamMembers <$> Intra.getTeamMembers tid)
+  uids <- toList1 =<< lift (fmap (view Team.userId) . view Team.teamMembers <$> wrapHttp (Intra.getTeamMembers tid))
   API.changeAccountStatus uids s !>> accountStatusError
   where
     toList1 (x : xs) = return $ List1.list1 x xs
