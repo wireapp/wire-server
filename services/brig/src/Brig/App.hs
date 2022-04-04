@@ -1,5 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
+-- FUTUREWORK: Get rid of this option once Polysemy is fully introduced to Brig
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -77,6 +79,7 @@ module Brig.App
     wrapHttpClientE,
     wrapHttp,
     HttpClientIO (..),
+    liftSem,
   )
 where
 
@@ -136,11 +139,14 @@ import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
+import Polysemy
+import Polysemy.Final
 import qualified Ropes.Nexmo as Nexmo
 import qualified Ropes.Twilio as Twilio
 import Ssl.Util
 import qualified System.FSNotify as FS
 import qualified System.FilePath as Path
+import qualified System.Logger
 import System.Logger.Class hiding (Settings, settings)
 import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
@@ -454,24 +460,53 @@ closeEnv e = do
 -------------------------------------------------------------------------------
 -- App Monad
 newtype AppT r m a = AppT
-  { _unAppT :: ReaderT Env m a
+  { unAppT :: Member (Final IO) r => ReaderT Env (Sem r) a
   }
-  deriving newtype
-    ( Functor,
-      Applicative,
-      Monad,
-      MonadIO,
-      MonadThrow,
-      MonadCatch,
-      MonadReader Env
-    )
   deriving
     ( Semigroup,
       Monoid
     )
     via (Ap (AppT r m) a)
 
+instance Functor (AppT r m) where
+  fmap fab (AppT x0) = AppT $ fmap fab x0
+
+instance Applicative (AppT r m) where
+  pure a = AppT $ pure a
+  (AppT x0) <*> (AppT x1) = AppT $ x0 <*> x1
+
+instance Monad (AppT r m) where
+  (AppT x0) >>= f = AppT $ x0 >>= unAppT . f
+
+instance MonadIO (AppT r m) where
+  liftIO io = AppT $ lift $ embedFinal io
+
+instance MonadThrow (AppT r m) where
+  throwM = liftIO . throwM
+
+instance Member (Final IO) r => MonadThrow (Sem r) where
+  throwM = embedFinal . throwM @IO
+
+instance Member (Final IO) r => MonadCatch (Sem r) where
+  catch m handler = withStrategicToFinal @IO $ do
+    m' <- runS m
+    st <- getInitialStateS
+    handler' <- bindS handler
+    pure $ m' `catch` \e -> handler' $ e <$ st
+
+instance MonadCatch (AppT r m) where
+  catch (AppT m) handler = AppT $
+    ReaderT $ \env ->
+      catch (runReaderT m env) (flip runReaderT env . unAppT . handler)
+
+instance MonadReader Env (AppT r m) where
+  ask = AppT ask
+  local f (AppT m) = AppT $ local f m
+
 type AppIO r = AppT r IO
+
+liftSem :: Sem r a -> AppT r m a
+liftSem sem = AppT $ lift sem
 
 instance MonadIO m => MonadLogger (ReaderT Env m) where
   log l m = do
@@ -479,8 +514,10 @@ instance MonadIO m => MonadLogger (ReaderT Env m) where
     r <- view requestId
     Log.log g l $ field "request" (unRequestId r) ~~ m
 
-instance MonadIO m => MonadLogger (AppT r m) where
-  log l = AppT . LC.log l
+instance MonadLogger (AppT r m) where
+  log l f = do
+    logger <- view applog
+    AppT $ lift $ embedFinal @IO $ System.Logger.log logger l f
 
 instance MonadIO m => MonadLogger (ExceptT err (AppT r m)) where
   log l m = lift (LC.log l m)
@@ -559,7 +596,8 @@ instance MonadIO m => MonadIndexIO (ReaderT Env m) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
 instance MonadIndexIO (AppIO r) where
-  liftIndexIO m = AppT $ liftIndexIO m
+  liftIndexIO m = do
+    AppT $ mapReaderT (embedToFinal @IO) $ liftIndexIO m
 
 instance (MonadIndexIO (AppT r m), Monad m) => MonadIndexIO (ExceptT err (AppT r m)) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
@@ -567,10 +605,10 @@ instance (MonadIndexIO (AppT r m), Monad m) => MonadIndexIO (ExceptT err (AppT r
 instance Monad m => HasRequestId (AppT r m) where
   getRequestId = view requestId
 
-runAppT :: Env -> AppT r m a -> m a
-runAppT e (AppT ma) = runReaderT ma e
+runAppT :: Env -> AppT '[Final IO] m a -> IO a
+runAppT e (AppT ma) = runFinal $ runReaderT ma e
 
-runAppResourceT :: ResourceT (AppIO r) a -> (AppIO r) a
+runAppResourceT :: ResourceT (AppIO '[Final IO]) a -> (AppIO '[Final IO]) a
 runAppResourceT ma = do
   e <- ask
   liftIO . runResourceT $ transResourceT (runAppT e) ma
