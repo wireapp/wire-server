@@ -61,10 +61,9 @@ module Brig.App
 
     -- * App Monad
     AppT,
-    AppIO,
     runAppT,
     runAppResourceT,
-    forkAppIO,
+    forkAppT,
     locationOf,
     viewFederationDomain,
     qualifyLocal,
@@ -503,8 +502,6 @@ instance MonadReader Env (AppT r) where
   ask = AppT ask
   local f (AppT m) = AppT $ local f m
 
-type AppIO r = AppT r
-
 liftSem :: Sem r a -> AppT r a
 liftSem sem = AppT $ lift sem
 
@@ -519,7 +516,7 @@ instance MonadLogger (AppT r) where
     logger <- view applog
     AppT $ lift $ embedFinal @IO $ System.Logger.log logger l f
 
-instance MonadIO m => MonadLogger (ExceptT err (AppT r)) where
+instance MonadLogger (ExceptT err (AppT r)) where
   log l m = lift (LC.log l m)
 
 instance MonadIO m => MonadHttp (AppT r) where
@@ -527,7 +524,7 @@ instance MonadIO m => MonadHttp (AppT r) where
     manager <- view httpManager
     liftIO $ withResponse req manager handler
 
-instance MonadIO m => MonadZAuth (AppT r) where
+instance MonadZAuth (AppT r) where
   liftZAuth za = view zauthEnv >>= \e -> runZAuth e za
 
 instance MonadZAuth (ExceptT err (AppT r)) where
@@ -535,7 +532,7 @@ instance MonadZAuth (ExceptT err (AppT r)) where
 
 -- | The function serves as a crutch while Brig is being polysemised. Use it
 -- whenever the compiler complains that there is no instance of `MonadClient`
--- for `AppIO r`. It can be removed once there is no `AppT` anymore.
+-- for `AppT r`. It can be removed once there is no `AppT` anymore.
 wrapClient :: ReaderT Env Cas.Client a -> AppT r a
 wrapClient m = do
   c <- view casClient
@@ -598,7 +595,7 @@ wrapHttpClientE = mapExceptT wrapHttpClient
 instance MonadIO m => MonadIndexIO (ReaderT Env m) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
-instance MonadIndexIO (AppIO r) where
+instance MonadIndexIO (AppT r) where
   liftIndexIO m = do
     AppT $ mapReaderT (embedToFinal @IO) $ liftIndexIO m
 
@@ -611,17 +608,17 @@ instance Monad m => HasRequestId (AppT r) where
 runAppT :: Env -> AppT '[Final IO] a -> IO a
 runAppT e (AppT ma) = runFinal $ runReaderT ma e
 
-runAppResourceT :: ResourceT (AppIO '[Final IO]) a -> (AppIO '[Final IO]) a
+runAppResourceT :: ResourceT (AppT '[Final IO]) a -> (AppT '[Final IO]) a
 runAppResourceT ma = do
   e <- ask
   liftIO . runResourceT $ transResourceT (runAppT e) ma
 
-forkAppIO ::
+forkAppT ::
   (MonadIO m, MonadUnliftIO m, MonadReader Env m) =>
   Maybe UserId ->
   m a ->
   m ()
-forkAppIO u ma = do
+forkAppT u ma = do
   g <- view applog
   r <- view requestId
   let logErr e = Log.err g $ request r ~~ user u ~~ msg (show e)

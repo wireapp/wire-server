@@ -91,18 +91,18 @@ import qualified Wire.API.User as Code
 import Wire.API.User.Client
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 
-lookupLocalClient :: UserId -> ClientId -> (AppIO r) (Maybe Client)
+lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)
 lookupLocalClient uid = wrapClient . Data.lookupClient uid
 
-lookupLocalClients :: UserId -> (AppIO r) [Client]
+lookupLocalClients :: UserId -> (AppT r) [Client]
 lookupLocalClients = wrapClient . Data.lookupClients
 
-lookupPubClient :: Qualified UserId -> ClientId -> ExceptT ClientError (AppIO r) (Maybe PubClient)
+lookupPubClient :: Qualified UserId -> ClientId -> ExceptT ClientError (AppT r) (Maybe PubClient)
 lookupPubClient qid cid = do
   clients <- lookupPubClients qid
   pure $ find ((== cid) . pubClientId) clients
 
-lookupPubClients :: Qualified UserId -> ExceptT ClientError (AppIO r) [PubClient]
+lookupPubClients :: Qualified UserId -> ExceptT ClientError (AppT r) [PubClient]
 lookupPubClients qid@(Qualified uid domain) = do
   getForUser <$> lookupPubClientsBulk [qid]
   where
@@ -111,7 +111,7 @@ lookupPubClients qid@(Qualified uid domain) = do
       um <- userMap <$> Map.lookup domain (qualifiedUserMap qmap)
       Set.toList <$> Map.lookup uid um
 
-lookupPubClientsBulk :: [Qualified UserId] -> ExceptT ClientError (AppIO r) (QualifiedUserMap (Set PubClient))
+lookupPubClientsBulk :: [Qualified UserId] -> ExceptT ClientError (AppT r) (QualifiedUserMap (Set PubClient))
 lookupPubClientsBulk qualifiedUids = do
   loc <- qualifyLocal ()
   let (localUsers, remoteUsers) = partitionQualified loc qualifiedUids
@@ -123,12 +123,12 @@ lookupPubClientsBulk qualifiedUids = do
   localUserClientMap <- Map.singleton (tDomain loc) <$> lookupLocalPubClientsBulk localUsers
   pure $ QualifiedUserMap (Map.union localUserClientMap remoteUserClientMap)
 
-lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppIO r) (UserMap (Set PubClient))
+lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppT r) (UserMap (Set PubClient))
 lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
-addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientError (AppIO r) Client
+addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientError (AppT r) Client
 addClient u con ip new = do
   acc <- lift (wrapClient $ Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
   wrapHttpClientE $ verifyCode (newClientVerificationCode new) (userId . accountUser $ acc)
@@ -196,7 +196,7 @@ updateClient u c r = do
 
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
-rmClient :: UserId -> ConnId -> ClientId -> Maybe PlainTextPassword -> ExceptT ClientError (AppIO r) ()
+rmClient :: UserId -> ConnId -> ClientId -> Maybe PlainTextPassword -> ExceptT ClientError (AppT r) ()
 rmClient u con clt pw =
   maybe (throwE ClientNotFound) fn =<< lift (wrapClient $ Data.lookupClient u clt)
   where
@@ -263,24 +263,24 @@ claimRemotePrekey ::
   ExceptT ClientError m (Maybe ClientPrekey)
 claimRemotePrekey quser client = fmapLT ClientFederationError $ Federation.claimPrekey quser client
 
-claimPrekeyBundle :: LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError (AppIO r) PrekeyBundle
+claimPrekeyBundle :: LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimPrekeyBundle protectee domain uid = do
   isLocalDomain <- (domain ==) <$> viewFederationDomain
   if isLocalDomain
     then claimLocalPrekeyBundle protectee uid
     else claimRemotePrekeyBundle (Qualified uid domain)
 
-claimLocalPrekeyBundle :: LegalholdProtectee -> UserId -> ExceptT ClientError (AppIO r) PrekeyBundle
+claimLocalPrekeyBundle :: LegalholdProtectee -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimLocalPrekeyBundle protectee u = do
   clients <- map clientId <$> lift (wrapClient (Data.lookupClients u))
   mapExceptT wrapHttp $ guardLegalhold protectee (mkUserClients [(u, clients)])
   PrekeyBundle u . catMaybes <$> lift (mapM (wrapHttp . Data.claimPrekey u) clients)
 
-claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError (AppIO r) PrekeyBundle
+claimRemotePrekeyBundle :: Qualified UserId -> ExceptT ClientError (AppT r) PrekeyBundle
 claimRemotePrekeyBundle quser = do
   Federation.claimPrekeyBundle quser !>> ClientFederationError
 
-claimMultiPrekeyBundles :: LegalholdProtectee -> QualifiedUserClients -> ExceptT ClientError (AppIO r) QualifiedUserClientPrekeyMap
+claimMultiPrekeyBundles :: LegalholdProtectee -> QualifiedUserClients -> ExceptT ClientError (AppT r) QualifiedUserClientPrekeyMap
 claimMultiPrekeyBundles protectee quc = do
   loc <- qualifyLocal ()
   let (locals, remotes) =
@@ -310,7 +310,7 @@ claimMultiPrekeyBundles protectee quc = do
       qUntagged . qualifyAs ruc
         <$> Federation.claimMultiPrekeyBundle (tDomain ruc) (tUnqualified ruc)
 
-    claimLocal :: Local UserClients -> ExceptT ClientError (AppIO r) (Qualified UserClientPrekeyMap)
+    claimLocal :: Local UserClients -> ExceptT ClientError (AppT r) (Qualified UserClientPrekeyMap)
     claimLocal luc =
       qUntagged . qualifyAs luc
         <$> claimLocalMultiPrekeyBundles protectee (tUnqualified luc)
@@ -318,7 +318,7 @@ claimMultiPrekeyBundles protectee quc = do
 claimLocalMultiPrekeyBundles ::
   LegalholdProtectee ->
   UserClients ->
-  ExceptT ClientError (AppIO r) UserClientPrekeyMap
+  ExceptT ClientError (AppT r) UserClientPrekeyMap
 claimLocalMultiPrekeyBundles protectee userClients = do
   mapExceptT wrapHttp $ guardLegalhold protectee userClients
   lift
@@ -329,7 +329,7 @@ claimLocalMultiPrekeyBundles protectee userClients = do
     . Message.userClients
     $ userClients
   where
-    getChunk :: Map UserId (Set ClientId) -> AppIO r (Map UserId (Map ClientId (Maybe Prekey)))
+    getChunk :: Map UserId (Set ClientId) -> AppT r (Map UserId (Map ClientId (Maybe Prekey)))
     getChunk =
       wrapHttpClient . runConcurrently . Map.traverseWithKey (\u -> Concurrently . getUserKeys u)
     getUserKeys ::
@@ -364,7 +364,7 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 -- Utilities
 
 -- | Perform an orderly deletion of an existing client.
-execDelete :: UserId -> Maybe ConnId -> Client -> (AppIO r) ()
+execDelete :: UserId -> Maybe ConnId -> Client -> (AppT r) ()
 execDelete u con c = do
   wrapHttp $ Intra.rmClient u (clientId c)
   for_ (clientCookie c) $ \l -> wrapClient $ Auth.revokeCookies u [] [l]
@@ -408,7 +408,7 @@ pubClient c =
       pubClientClass = clientClass c
     }
 
-legalHoldClientRequested :: UserId -> LegalHoldClientRequest -> (AppIO r) ()
+legalHoldClientRequested :: UserId -> LegalHoldClientRequest -> (AppT r) ()
 legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPrekey') =
   wrapHttpClient $ Intra.onUserEvent targetUser Nothing lhClientEvent
   where
@@ -419,7 +419,7 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPreke
     lhClientEvent :: UserEvent
     lhClientEvent = LegalHoldClientRequested eventData
 
-removeLegalHoldClient :: UserId -> (AppIO r) ()
+removeLegalHoldClient :: UserId -> (AppT r) ()
 removeLegalHoldClient uid = do
   clients <- wrapClient $ Data.lookupClients uid
   -- Should only be one; but just in case we'll treat it as a list

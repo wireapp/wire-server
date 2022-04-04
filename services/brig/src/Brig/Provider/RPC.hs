@@ -66,7 +66,7 @@ data ServiceError
 --
 -- If the external service is unavailable, returns a specific error
 -- or the response body cannot be parsed, a 'ServiceError' is returned.
-createBot :: ServiceConn -> NewBotRequest -> ExceptT ServiceError (AppIO r) NewBotResponse
+createBot :: ServiceConn -> NewBotRequest -> ExceptT ServiceError (AppT r) NewBotResponse
 createBot scon new = do
   let fprs = toList (sconFingerprints scon)
   (man, verifyFingerprints) <- view extGetManager
@@ -132,7 +132,7 @@ extLogError scon e =
 -- Internal RPC
 
 -- | Set service connection information in galley.
-setServiceConn :: ServiceConn -> (AppIO r) ()
+setServiceConn :: ServiceConn -> (AppT r) ()
 setServiceConn scon = do
   Log.debug $
     remote "galley"
@@ -191,7 +191,7 @@ addBotMember ::
   ClientId ->
   ProviderId ->
   ServiceId ->
-  (AppIO r) Event
+  (AppT r) Event
 addBotMember zusr zcon conv bot clt pid sid = do
   Log.debug $
     remote "galley"

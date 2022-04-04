@@ -34,7 +34,7 @@ where
 import Bilge (MonadHttp, RequestId (..))
 import Brig.API.Error
 import qualified Brig.AWS as AWS
-import Brig.App (AppIO, Env, applog, requestId, runAppT, settings, wrapHttpClientE)
+import Brig.App (AppT, Env, applog, requestId, runAppT, settings, wrapHttpClientE)
 import Brig.Email (Email)
 import Brig.Options (setWhitelist)
 import Brig.Phone (Phone, PhoneException (..))
@@ -71,7 +71,7 @@ import Wire.API.Error.Brig
 -------------------------------------------------------------------------------
 -- HTTP Handler Monad
 
-type Handler r = ExceptT Error (AppIO r)
+type Handler r = ExceptT Error (AppT r)
 
 runHandler :: Env -> Request -> (Handler '[Final IO]) ResponseReceived -> Continue IO -> IO ResponseReceived
 runHandler e r h k = do

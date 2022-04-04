@@ -323,7 +323,7 @@ changeSelfEmailH (_ ::: req ::: ckies ::: toks) = do
 listCookiesH :: UserId ::: Maybe (List Public.CookieLabel) ::: JSON -> (Handler r) Response
 listCookiesH (u ::: ll ::: _) = json <$> lift (listCookies u ll)
 
-listCookies :: UserId -> Maybe (List Public.CookieLabel) -> (AppIO r) Public.CookieList
+listCookies :: UserId -> Maybe (List Public.CookieLabel) -> (AppT r) Public.CookieList
 listCookies u ll = do
   Public.CookieList <$> wrapClient (Auth.listCookies u (maybe [] fromList ll))
 
@@ -421,7 +421,7 @@ tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| l
           )
       Just t -> return t
 
-tokenResponse :: ZAuth.UserTokenLike u => Auth.Access u -> (AppIO r) Response
+tokenResponse :: ZAuth.UserTokenLike u => Auth.Access u -> (AppT r) Response
 tokenResponse (Auth.Access t Nothing) = pure $ json t
 tokenResponse (Auth.Access t (Just c)) = Auth.setResponseCookie c (json t)
 

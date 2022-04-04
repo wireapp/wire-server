@@ -108,7 +108,7 @@ updateOne2OneConv ::
   Maybe (Qualified ConvId) ->
   Relation ->
   Actor ->
-  (AppIO r) (Qualified ConvId)
+  (AppT r) (Qualified ConvId)
 updateOne2OneConv lUsr _mbConn remoteUser mbConvId rel actor = do
   let request =
         UpsertOne2OneConversationRequest
@@ -182,7 +182,7 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = lift $ do
   pure (Existed connection', True)
 
 -- | Send an event to the local user when the state of a connection changes.
-pushEvent :: Local UserId -> Maybe ConnId -> UserConnection -> (AppIO r) ()
+pushEvent :: Local UserId -> Maybe ConnId -> UserConnection -> (AppT r) ()
 pushEvent self mzcon connection = do
   let event = ConnectionUpdated connection Nothing Nothing
   Intra.onConnectionEvent (tUnqualified self) mzcon event
@@ -239,7 +239,7 @@ performRemoteAction ::
   Remote UserId ->
   Maybe UserConnection ->
   RemoteConnectionAction ->
-  (AppIO r) (Maybe RemoteConnectionAction)
+  (AppT r) (Maybe RemoteConnectionAction)
 performRemoteAction self other mconnection action = do
   let rel0 = maybe Cancelled ucStatus mconnection
   let rel1 = transition (RCA action) rel0

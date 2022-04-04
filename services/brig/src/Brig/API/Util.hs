@@ -63,7 +63,7 @@ lookupProfilesMaybeFilterSameTeamOnly self us = do
     Just team -> filter (\x -> profileTeam x == Just team) us
     Nothing -> us
 
-fetchUserIdentity :: UserId -> (AppIO r) (Maybe UserIdentity)
+fetchUserIdentity :: UserId -> (AppT r) (Maybe UserIdentity)
 fetchUserIdentity uid =
   lookupSelfProfile uid
     >>= maybe
@@ -71,7 +71,7 @@ fetchUserIdentity uid =
       (return . userIdentity . selfUser)
 
 -- | Obtain a profile for a user as he can see himself.
-lookupSelfProfile :: UserId -> (AppIO r) (Maybe SelfProfile)
+lookupSelfProfile :: UserId -> (AppT r) (Maybe SelfProfile)
 lookupSelfProfile = fmap (fmap mk) . wrapClient . Data.lookupAccount
   where
     mk a = SelfProfile (accountUser a)

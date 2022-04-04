@@ -36,17 +36,17 @@ import Control.Error
 import Data.Id
 import Imports
 
-setProperty :: UserId -> ConnId -> PropertyKey -> PropertyValue -> ExceptT PropertiesDataError (AppIO r) ()
+setProperty :: UserId -> ConnId -> PropertyKey -> PropertyValue -> ExceptT PropertiesDataError (AppT r) ()
 setProperty u c k v = do
   wrapClientE $ Data.insertProperty u k v
   lift $ Intra.onPropertyEvent u c (PropertySet u k v)
 
-deleteProperty :: UserId -> ConnId -> PropertyKey -> (AppIO r) ()
+deleteProperty :: UserId -> ConnId -> PropertyKey -> (AppT r) ()
 deleteProperty u c k = do
   wrapClient $ Data.deleteProperty u k
   Intra.onPropertyEvent u c (PropertyDeleted u k)
 
-clearProperties :: UserId -> ConnId -> (AppIO r) ()
+clearProperties :: UserId -> ConnId -> (AppT r) ()
 clearProperties u c = do
   wrapClient $ Data.clearProperties u
   Intra.onPropertyEvent u c (PropertiesCleared u)
