@@ -143,7 +143,7 @@ createConnectionToLocalUser self conn target = do
     accept s2o o2s = do
       when (ucStatus s2o `notElem` [Sent, Accepted]) $
         checkLimit self
-      Log.info $
+      lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Accepting connection")
       cnv <- lift $ for (ucConvId s2o) $ Intra.acceptConnectConv self (Just conn)
@@ -165,7 +165,7 @@ createConnectionToLocalUser self conn target = do
     resend s2o o2s = do
       when (ucStatus s2o `notElem` [Sent, Accepted]) $
         checkLimit self
-      Log.info $
+      lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Resending connection request")
       s2o' <- insert (Just s2o) (Just o2s)
@@ -282,7 +282,7 @@ updateConnectionToLocalUser self other newStatus conn = do
     accept :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppIO r) (Maybe UserConnection)
     accept s2o o2s = do
       checkLimit self
-      Log.info $
+      lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Accepting connection")
       cnv <- lift $ traverse (Intra.acceptConnectConv self conn) (ucConvId s2o)
@@ -315,7 +315,7 @@ updateConnectionToLocalUser self other newStatus conn = do
       -- FUTUREWORK: new is always in [Sent, Accepted]. Refactor to total function.
       when (new `elem` [Sent, Accepted]) $
         checkLimit self
-      Log.info $
+      lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Unblocking connection")
       cnv <- lift $ traverse (wrapHttp . Intra.unblockConv self conn) (ucConvId s2o)
@@ -335,7 +335,7 @@ updateConnectionToLocalUser self other newStatus conn = do
 
     cancel :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppIO r) (Maybe UserConnection)
     cancel s2o o2s = do
-      Log.info $
+      lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Cancelling connection")
       lfrom <- qualifyLocal (ucFrom s2o)
@@ -398,7 +398,7 @@ updateConnectionInternal = \case
     blockForMissingLegalholdConsent :: Local UserId -> [UserId] -> ExceptT ConnectionError (AppIO r) ()
     blockForMissingLegalholdConsent self others = do
       for_ others $ \(qualifyAs self -> other) -> do
-        Log.info $
+        lift . Log.info $
           logConnection (tUnqualified self) (qUntagged other)
             . msg (val "Blocking connection (legalhold device present, but missing consent)")
 
@@ -420,7 +420,7 @@ updateConnectionInternal = \case
             -- Here we are using the fact that s2o is a local connection
             other <- qualifyLocal (qUnqualified (ucTo s2o))
             o2s <- localConnection other self
-            Log.info $
+            lift . Log.info $
               logConnection (ucFrom s2o) (ucTo s2o)
                 . msg (val "Unblocking connection (legalhold device removed or consent given)")
             unblockDirected s2o o2s
@@ -429,7 +429,7 @@ updateConnectionInternal = \case
         iterateConnections :: Local UserId -> Range 1 500 Int32 -> ([UserConnection] -> ExceptT ConnectionError (AppIO r) ()) -> ExceptT ConnectionError (AppIO r) ()
         iterateConnections user pageSize handleConns = go Nothing
           where
-            go :: Maybe UserId -> ExceptT ConnectionError (AppT r IO) ()
+            go :: Maybe UserId -> ExceptT ConnectionError (AppT r) ()
             go mbStart = do
               page <- lift . wrapClient $ Data.lookupLocalConnections user mbStart pageSize
               handleConns (resultList page)

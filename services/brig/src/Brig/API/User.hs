@@ -299,7 +299,7 @@ createUser new = do
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
 
-    validateEmailAndPhone :: NewUser -> ExceptT RegisterError (AppT r IO) (Maybe Email, Maybe Phone)
+    validateEmailAndPhone :: NewUser -> ExceptT RegisterError (AppT r) (Maybe Email, Maybe Phone)
     validateEmailAndPhone newUser = do
       -- Validate e-mail
       email <- for (newUserEmail newUser) $ \e ->
@@ -353,7 +353,7 @@ createUser new = do
       Team.InvitationInfo ->
       UserKey ->
       UserIdentity ->
-      ExceptT RegisterError (AppT r IO) ()
+      ExceptT RegisterError (AppT r) ()
     acceptTeamInvitation account inv ii uk ident = do
       let uid = userId (accountUser account)
       ok <- lift . wrapClient $ Data.claimKey uk uid
@@ -392,13 +392,13 @@ createUser new = do
       pure $ CreateUserTeam tid nm
 
     -- Handle e-mail activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
-    handleEmailActivation :: Maybe Email -> UserId -> Maybe BindingNewTeamUser -> ExceptT RegisterError (AppT r IO) (Maybe Activation)
+    handleEmailActivation :: Maybe Email -> UserId -> Maybe BindingNewTeamUser -> ExceptT RegisterError (AppT r) (Maybe Activation)
     handleEmailActivation email uid newTeam = do
       fmap join . for (userEmailKey <$> email) $ \ek -> case newUserEmailCode new of
         Nothing -> do
           timeout <- setActivationTimeout <$> view settings
           edata <- lift . wrapClient $ Data.newActivation ek timeout (Just uid)
-          Log.info $
+          lift . Log.info $
             field "user" (toByteString uid)
               . field "activation.key" (toByteString $ activationKey edata)
               . msg (val "Created email activation key/code pair")
@@ -411,13 +411,13 @@ createUser new = do
           return Nothing
 
     -- Handle phone activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
-    handlePhoneActivation :: Maybe Phone -> UserId -> ExceptT RegisterError (AppT r IO) (Maybe Activation)
+    handlePhoneActivation :: Maybe Phone -> UserId -> ExceptT RegisterError (AppT r) (Maybe Activation)
     handlePhoneActivation phone uid = do
       fmap join . for (userPhoneKey <$> phone) $ \pk -> case newUserPhoneCode new of
         Nothing -> do
           timeout <- setActivationTimeout <$> view settings
           pdata <- lift . wrapClient $ Data.newActivation pk timeout (Just uid)
-          Log.info $
+          lift . Log.info $
             field "user" (toByteString uid)
               . field "activation.key" (toByteString $ activationKey pdata)
               . msg (val "Created phone activation key/code pair")
@@ -441,7 +441,7 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = do
   let emKey = userEmailKey email
   verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError
   account <- lift . wrapClient $ newAccountInviteViaScim uid tid loc name email
-  Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
+  lift . Log.debug $ field "user" (toByteString . userId . accountUser $ account) . field "action" (Log.val "User.createUserInviteViaScim")
 
   -- add the expiry table entry first!  (if brig creates an account, and then crashes before
   -- creating the expiry table entry, gc will miss user data.)
@@ -723,23 +723,50 @@ revokeIdentity key = do
 -------------------------------------------------------------------------------
 -- Change Account Status
 
-changeAccountStatus :: List1 UserId -> AccountStatus -> ExceptT AccountStatusError (AppIO r) ()
+changeAccountStatus ::
+  forall m.
+  ( MonadClient m,
+    MonadLogger m,
+    MonadIndexIO m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m
+  ) =>
+  List1 UserId ->
+  AccountStatus ->
+  ExceptT AccountStatusError m ()
 changeAccountStatus usrs status = do
-  e <- ask
   ev <- case status of
     Active -> return UserResumed
-    Suspended -> liftIO $ mapConcurrently (runAppT e . wrapClient . revokeAllCookies) usrs >> return UserSuspended
+    Suspended -> lift $ mapConcurrently revokeAllCookies usrs >> return UserSuspended
     Deleted -> throwE InvalidAccountStatus
     Ephemeral -> throwE InvalidAccountStatus
     PendingInvitation -> throwE InvalidAccountStatus
-  liftIO $ mapConcurrently_ (runAppT e . update ev) usrs
+  lift $ mapConcurrently_ (update ev) usrs
   where
-    update :: (UserId -> UserEvent) -> UserId -> (AppIO r) ()
+    update ::
+      (UserId -> UserEvent) ->
+      UserId ->
+      m ()
     update ev u = do
-      wrapClient $ Data.updateStatus u status
-      wrapHttpClient $ Intra.onUserEvent u Nothing (ev u)
+      Data.updateStatus u status
+      Intra.onUserEvent u Nothing (ev u)
 
-suspendAccount :: HasCallStack => List1 UserId -> (AppIO r) ()
+suspendAccount ::
+  ( MonadClient m,
+    MonadLogger m,
+    MonadIndexIO m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m
+  ) =>
+  HasCallStack =>
+  List1 UserId ->
+  m ()
 suspendAccount usrs =
   runExceptT (changeAccountStatus usrs Suspended) >>= \case
     Right _ -> pure ()
@@ -767,7 +794,7 @@ activateWithCurrency ::
   ExceptT ActivationError (AppIO r) ActivationResult
 activateWithCurrency tgt code usr cur = do
   key <- wrapClientE $ mkActivationKey tgt
-  Log.info $
+  lift . Log.info $
     field "activation.key" (toByteString key)
       . field "activation.code" (toByteString code)
       . msg (val "Activating")
@@ -934,7 +961,7 @@ beginPasswordReset :: Either Email Phone -> ExceptT PasswordResetError (AppIO r)
 beginPasswordReset target = do
   let key = either userEmailKey userPhoneKey target
   user <- lift (wrapClient $ Data.lookupKey key) >>= maybe (throwE InvalidPasswordResetKey) return
-  Log.debug $ field "user" (toByteString user) . field "action" (Log.val "User.beginPasswordReset")
+  lift . Log.debug $ field "user" (toByteString user) . field "action" (Log.val "User.beginPasswordReset")
   status <- lift . wrapClient $ Data.lookupStatus user
   unless (status == Just Active) $
     throwE InvalidPasswordResetKey
@@ -950,7 +977,7 @@ completePasswordReset ident code pw = do
   case muid of
     Nothing -> throwE InvalidPasswordResetCode
     Just uid -> do
-      Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.completePasswordReset")
+      lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.completePasswordReset")
       checkNewIsDifferent uid pw
       lift . wrapClient $ do
         Data.updatePassword uid pw
@@ -997,7 +1024,7 @@ deleteUser uid pwd = do
       Ephemeral -> go a
       PendingInvitation -> go a
   where
-    ensureNotOwner :: UserAccount -> ExceptT DeleteUserError (AppT r IO) ()
+    ensureNotOwner :: UserAccount -> ExceptT DeleteUserError (AppT r) ()
     ensureNotOwner acc = do
       case userTeam $ accountUser acc of
         Nothing -> pure ()
@@ -1018,7 +1045,7 @@ deleteUser uid pwd = do
         Just _ -> throwE DeleteUserMissingPassword
         Nothing -> lift $ wrapHttpClient $ deleteAccount a >> return Nothing
     byPassword a pw = do
-      Log.info $
+      lift . Log.info $
         field "user" (toByteString uid)
           . msg (val "Attempting account deletion with a password")
       actual <- lift . wrapClient $ Data.lookupPassword uid
@@ -1034,7 +1061,7 @@ deleteUser uid pwd = do
       case pending of
         Just c -> throwE $! DeleteUserPendingCode (Code.codeTTL c)
         Nothing -> do
-          Log.info $
+          lift . Log.info $
             field "user" (toByteString uid)
               . msg (val "Sending verification code for account deletion")
           c <-

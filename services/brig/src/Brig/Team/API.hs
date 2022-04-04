@@ -26,7 +26,7 @@ import Brig.API.Handler
 import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
 import qualified Brig.API.User as API
 import Brig.API.Util (logEmail, logInvitationCode)
-import Brig.App (currentTime, emailSender, settings, wrapClient, wrapHttp)
+import Brig.App
 import qualified Brig.Data.Blacklist as Blacklist
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
@@ -456,7 +456,7 @@ changeTeamAccountStatuses tid s = do
   unless (team ^. Team.teamBinding == Team.Binding) $
     throwStd noBindingTeam
   uids <- toList1 =<< lift (fmap (view Team.userId) . view Team.teamMembers <$> wrapHttp (Intra.getTeamMembers tid))
-  API.changeAccountStatus uids s !>> accountStatusError
+  wrapHttpClientE (API.changeAccountStatus uids s) !>> accountStatusError
   where
     toList1 (x : xs) = return $ List1.list1 x xs
     toList1 [] = throwStd (notFound "Team not found or no members")

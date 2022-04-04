@@ -82,7 +82,7 @@ createBot scon new = do
     case Bilge.statusCode rs of
       201 -> decodeBytes "External" (responseBody rs)
       409 -> throwE ServiceBotConflict
-      _ -> extLogError scon rs >> throwE ServiceUnavailable
+      _ -> lift (extLogError scon rs) >> throwE ServiceUnavailable
   where
     -- we can't use 'responseJsonEither' instead, because we have a @Response ByteString@
     -- here, not a @Response (Maybe ByteString)@.
@@ -93,7 +93,7 @@ createBot scon new = do
       extReq scon ["bots"]
         . method POST
         . Bilge.json new
-    onExc ex = extLogError scon ex >> throwE ServiceUnavailable
+    onExc ex = lift (extLogError scon ex) >> throwE ServiceUnavailable
 
 extReq :: ServiceConn -> [ByteString] -> Request -> Request
 extReq scon ps =

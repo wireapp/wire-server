@@ -279,8 +279,8 @@ newEnv o = do
   where
     emailConn _ (Opt.EmailAWS aws) = return (Just aws, Nothing)
     emailConn lgr (Opt.EmailSMTP s) = do
-      let host = (Opt.smtpEndpoint s) ^. epHost
-          port = Just $ fromInteger $ toInteger $ (Opt.smtpEndpoint s) ^. epPort
+      let host = Opt.smtpEndpoint s ^. epHost
+          port = Just $ fromInteger $ toInteger $ Opt.smtpEndpoint s ^. epPort
       smtpCredentials <- case Opt.smtpCredentials s of
         Just (Opt.EmailSMTPCredentials u p) -> do
           pass <- initCredentials p
@@ -326,8 +326,8 @@ startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
   where
     predicate (FS.Added f _ _) = Path.equalFilePath f p
     predicate (FS.Modified f _ _) = Path.equalFilePath f p
-    predicate (FS.Removed _ _ _) = False
-    predicate (FS.Unknown _ _ _) = False
+    predicate FS.Removed {} = False
+    predicate FS.Unknown {} = False
 
 replaceGeoDb :: Logger -> IORef GeoIp.GeoDB -> FS.Event -> IO ()
 replaceGeoDb g ref e = do
@@ -459,29 +459,29 @@ closeEnv e = do
 
 -------------------------------------------------------------------------------
 -- App Monad
-newtype AppT r m a = AppT
+newtype AppT r a = AppT
   { unAppT :: Member (Final IO) r => ReaderT Env (Sem r) a
   }
   deriving
     ( Semigroup,
       Monoid
     )
-    via (Ap (AppT r m) a)
+    via (Ap (AppT r) a)
 
-instance Functor (AppT r m) where
+instance Functor (AppT r) where
   fmap fab (AppT x0) = AppT $ fmap fab x0
 
-instance Applicative (AppT r m) where
+instance Applicative (AppT r) where
   pure a = AppT $ pure a
   (AppT x0) <*> (AppT x1) = AppT $ x0 <*> x1
 
-instance Monad (AppT r m) where
+instance Monad (AppT r) where
   (AppT x0) >>= f = AppT $ x0 >>= unAppT . f
 
-instance MonadIO (AppT r m) where
+instance MonadIO (AppT r) where
   liftIO io = AppT $ lift $ embedFinal io
 
-instance MonadThrow (AppT r m) where
+instance MonadThrow (AppT r) where
   throwM = liftIO . throwM
 
 instance Member (Final IO) r => MonadThrow (Sem r) where
@@ -494,18 +494,18 @@ instance Member (Final IO) r => MonadCatch (Sem r) where
     handler' <- bindS handler
     pure $ m' `catch` \e -> handler' $ e <$ st
 
-instance MonadCatch (AppT r m) where
+instance MonadCatch (AppT r) where
   catch (AppT m) handler = AppT $
     ReaderT $ \env ->
       catch (runReaderT m env) (flip runReaderT env . unAppT . handler)
 
-instance MonadReader Env (AppT r m) where
+instance MonadReader Env (AppT r) where
   ask = AppT ask
   local f (AppT m) = AppT $ local f m
 
-type AppIO r = AppT r IO
+type AppIO r = AppT r
 
-liftSem :: Sem r a -> AppT r m a
+liftSem :: Sem r a -> AppT r a
 liftSem sem = AppT $ lift sem
 
 instance MonadIO m => MonadLogger (ReaderT Env m) where
@@ -514,43 +514,43 @@ instance MonadIO m => MonadLogger (ReaderT Env m) where
     r <- view requestId
     Log.log g l $ field "request" (unRequestId r) ~~ m
 
-instance MonadLogger (AppT r m) where
+instance MonadLogger (AppT r) where
   log l f = do
     logger <- view applog
     AppT $ lift $ embedFinal @IO $ System.Logger.log logger l f
 
-instance MonadIO m => MonadLogger (ExceptT err (AppT r m)) where
+instance MonadIO m => MonadLogger (ExceptT err (AppT r)) where
   log l m = lift (LC.log l m)
 
-instance MonadIO m => MonadHttp (AppT r m) where
+instance MonadIO m => MonadHttp (AppT r) where
   handleRequestWithCont req handler = do
     manager <- view httpManager
     liftIO $ withResponse req manager handler
 
-instance MonadIO m => MonadZAuth (AppT r m) where
+instance MonadIO m => MonadZAuth (AppT r) where
   liftZAuth za = view zauthEnv >>= \e -> runZAuth e za
 
-instance MonadIO m => MonadZAuth (ExceptT err (AppT r m)) where
-  liftZAuth = lift . liftZAuth
+instance MonadZAuth (ExceptT err (AppT r)) where
+  liftZAuth za = lift (view zauthEnv) >>= flip runZAuth za
 
 -- | The function serves as a crutch while Brig is being polysemised. Use it
 -- whenever the compiler complains that there is no instance of `MonadClient`
 -- for `AppIO r`. It can be removed once there is no `AppT` anymore.
-wrapClient :: ReaderT Env Cas.Client a -> AppT r IO a
+wrapClient :: ReaderT Env Cas.Client a -> AppT r a
 wrapClient m = do
   c <- view casClient
   env <- ask
   runClient c $ runReaderT m env
 
-wrapClientE :: ExceptT e (ReaderT Env Cas.Client) a -> ExceptT e (AppT r IO) a
+wrapClientE :: ExceptT e (ReaderT Env Cas.Client) a -> ExceptT e (AppT r) a
 wrapClientE = mapExceptT wrapClient
 
-wrapClientM :: MaybeT (ReaderT Env Cas.Client) b -> MaybeT (AppT r IO) b
+wrapClientM :: MaybeT (ReaderT Env Cas.Client) b -> MaybeT (AppT r) b
 wrapClientM = mapMaybeT wrapClient
 
 wrapHttp ::
   HttpClientIO a ->
-  AppT r IO a
+  AppT r a
 wrapHttp (HttpClientIO m) = do
   c <- view casClient
   env <- ask
@@ -575,6 +575,9 @@ newtype HttpClientIO a = HttpClientIO
       MonadIndexIO
     )
 
+instance MonadZAuth HttpClientIO where
+  liftZAuth za = view zauthEnv >>= flip runZAuth za
+
 instance HasRequestId HttpClientIO where
   getRequestId = view requestId
 
@@ -586,10 +589,10 @@ instance Cas.MonadClient HttpClientIO where
 
 wrapHttpClient ::
   HttpClientIO a ->
-  AppT r IO a
+  AppT r a
 wrapHttpClient = wrapHttp
 
-wrapHttpClientE :: ExceptT e HttpClientIO a -> ExceptT e (AppT r IO) a
+wrapHttpClientE :: ExceptT e HttpClientIO a -> ExceptT e (AppT r) a
 wrapHttpClientE = mapExceptT wrapHttpClient
 
 instance MonadIO m => MonadIndexIO (ReaderT Env m) where
@@ -599,13 +602,13 @@ instance MonadIndexIO (AppIO r) where
   liftIndexIO m = do
     AppT $ mapReaderT (embedToFinal @IO) $ liftIndexIO m
 
-instance (MonadIndexIO (AppT r m), Monad m) => MonadIndexIO (ExceptT err (AppT r m)) where
+instance MonadIndexIO (AppT r) => MonadIndexIO (ExceptT err (AppT r)) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
-instance Monad m => HasRequestId (AppT r m) where
+instance Monad m => HasRequestId (AppT r) where
   getRequestId = view requestId
 
-runAppT :: Env -> AppT '[Final IO] m a -> IO a
+runAppT :: Env -> AppT '[Final IO] a -> IO a
 runAppT e (AppT ma) = runFinal $ runReaderT ma e
 
 runAppResourceT :: ResourceT (AppIO '[Final IO]) a -> (AppIO '[Final IO]) a
@@ -625,7 +628,7 @@ forkAppIO u ma = do
   withRunInIO $ \lower ->
     void . liftIO . forkIO $
       either logErr (const $ return ())
-        =<< runExceptT (syncIO $ lower $ ma)
+        =<< runExceptT (syncIO $ lower ma)
   where
     request = field "request" . unRequestId
     user = maybe id (field "user" . toByteString)
@@ -641,7 +644,7 @@ locationOf ip =
     Nothing -> return Nothing
 
 readTurnList :: FilePath -> IO (Maybe (List1 TurnURI))
-readTurnList = Text.readFile >=> return . fn . mapMaybe fromByteString . fmap Text.encodeUtf8 . Text.lines
+readTurnList = Text.readFile >=> return . fn . mapMaybe (fromByteString . Text.encodeUtf8) . Text.lines
   where
     fn [] = Nothing
     fn (x : xs) = Just (list1 x xs)

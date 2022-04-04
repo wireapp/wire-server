@@ -681,7 +681,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
                 . maybe id logEmail (Public.userEmail usr)
                 . maybe id logInvitationCode invitationCode
             )
-  Log.info $ context . Log.msg @Text "Sucessfully created user"
+  lift . Log.info $ context . Log.msg @Text "Sucessfully created user"
 
   let Public.User {userLocale, userDisplayName, userId} = usr
   let userEmail = Public.userEmail usr
@@ -695,8 +695,12 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       sendWelcomeEmail e ct ut (Just userLocale)
   cok <-
     Auth.toWebCookie =<< case acc of
-      UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User userId Public.SessionCookie newUserLabel
-      UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
+      UserAccount _ Ephemeral ->
+        lift . wrapHttpClient $
+          Auth.newCookie @ZAuth.User userId Public.SessionCookie newUserLabel
+      UserAccount _ _ ->
+        lift . wrapHttpClient $
+          Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
   -- pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
   pure $ Public.RegisterSuccess cok (Public.SelfProfile usr)
   where

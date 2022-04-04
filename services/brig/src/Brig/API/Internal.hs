@@ -457,7 +457,7 @@ instance ToJSON GetPasswordResetCodeResp where
 changeAccountStatusH :: UserId ::: JsonRequest AccountStatusUpdate -> (Handler r) Response
 changeAccountStatusH (usr ::: req) = do
   status <- suStatus <$> parseJsonBody req
-  API.changeAccountStatus (List1.singleton usr) status !>> accountStatusError
+  wrapHttpClientE (API.changeAccountStatus (List1.singleton usr) status) !>> accountStatusError
   return empty
 
 getAccountStatusH :: JSON ::: UserId -> (Handler r) Response

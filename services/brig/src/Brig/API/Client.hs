@@ -131,7 +131,7 @@ lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientError (AppIO r) Client
 addClient u con ip new = do
   acc <- lift (wrapClient $ Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
-  verifyCode (newClientVerificationCode new) (userId . accountUser $ acc)
+  wrapHttpClientE $ verifyCode (newClientVerificationCode new) (userId . accountUser $ acc)
   loc <- maybe (return Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
   let caps :: Maybe (Set ClientCapability)
@@ -161,7 +161,18 @@ addClient u con ip new = do
   where
     clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
 
-    verifyCode :: Maybe Code.Value -> UserId -> ExceptT ClientError (AppIO r) ()
+    verifyCode ::
+      ( MonadReader Env m,
+        MonadMask m,
+        MonadHttp m,
+        MonadIO m,
+        HasRequestId m,
+        Log.MonadLogger m,
+        MonadClient m
+      ) =>
+      Maybe Code.Value ->
+      UserId ->
+      ExceptT ClientError m ()
     verifyCode mbCode userId =
       -- this only happens inside the login flow (in particular, when logging in from a new device)
       -- the code obtained for logging in is used a second time for adding the device
