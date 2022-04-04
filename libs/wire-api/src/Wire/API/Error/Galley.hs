@@ -145,13 +145,13 @@ type instance MapError 'MLSNonEmptyMemberList = 'StaticError 400 "non-empty-memb
 
 type instance MapError 'DuplicateMLSPublicKey = 'StaticError 400 "mls-duplicate-public-key" "MLS public key for the given signature scheme already exists"
 
-type instance MapError 'KeyPackageRefNotFound = 'StaticError 404 "mls-key-package-ref-not-found" "A referenced key packages could not be mapped to a known client"
+type instance MapError 'KeyPackageRefNotFound = 'StaticError 404 "mls-key-package-ref-not-found" "A referenced key package could not be mapped to a known client"
 
-type instance MapError 'UnsupportedMLSMessage = 'StaticError 422 "mls-unsupported-message" "Attempted to send a message with an unsupported combination of content type instance MapError ' and wire format"
+type instance MapError 'UnsupportedMLSMessage = 'StaticError 422 "mls-unsupported-message" "Attempted to send a message with an unsupported combination of content type and wire format"
 
 type instance MapError 'ProposalNotFound = 'StaticError 404 "mls-proposal-not-found" "A proposal referenced in a commit message could not be found"
 
-type instance MapError 'UnsupportedProposal = 'StaticError 422 "mls-unsupported-proposal" "Unsupported proposal type instance MapError '"
+type instance MapError 'UnsupportedProposal = 'StaticError 422 "mls-unsupported-proposal" "Unsupported proposal type"
 
 type instance MapError 'MLSProtocolErrorTag = MapError 'BrigError.MLSProtocolError
 
@@ -281,7 +281,15 @@ type instance ErrorEffect ProposalFailure = Error ProposalFailure
 instance IsSwaggerError ProposalFailure where
   addToSwagger = S.allOperations . S.description %~ Just . (<> desc) . fold
     where
-      desc = "\n\n!!PROPOSAL FAILURE!!" -- TODO
+      desc =
+        "\n\n**Note**: this endpoint can execute proposals, and therefore \
+        \return all possible errors associated with adding or removing members to \
+        \a conversation, in addition to the ones listed below. See the documentation of [POST \
+        \/conversations/{cnv}/members/v2](#/default/post_conversations__cnv__members_v2) \
+        \and [POST \
+        \/conversations/{cnv_domain}/{cnv}/members/{usr_domain}/{usr}](#/default/delete_conversations__cnv_domain___cnv__members__usr_domain___usr_) \
+        \for more details on the possible error responses of each type of \
+        \proposal."
 
 instance Member (Error Wai.Error) r => ServerEffect (Error ProposalFailure) r where
   interpretServerEffect = mapError pfInner
