@@ -127,6 +127,7 @@ import Polysemy.Input
 import Polysemy.Output
 import qualified Polysemy.TinyLog as P
 import qualified SAML2.WebSSO as SAML
+import Servant (Header, Headers, NoContent (NoContent), addHeader)
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
@@ -157,11 +158,10 @@ getTeamH zusr tid =
 
 getTeamInternalH ::
   Members '[ErrorS 'TeamNotFound, TeamStore] r =>
-  TeamId ::: JSON ->
-  Sem r Response
-getTeamInternalH (tid ::: _) =
-  fmap json $
-    E.getTeam tid >>= noteS @'TeamNotFound
+  TeamId ->
+  Sem r TeamData
+getTeamInternalH tid =
+  E.getTeam tid >>= noteS @'TeamNotFound
 
 getTeamNameInternalH ::
   Members '[ErrorS 'TeamNotFound, TeamStore] r =>
@@ -251,12 +251,13 @@ createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
 
 createBindingTeamH ::
   Members '[GundeckAccess, Input UTCTime, TeamStore, WaiRoutes] r =>
-  UserId ::: TeamId ::: JsonRequest BindingNewTeam ::: JSON ->
-  Sem r Response
-createBindingTeamH (zusr ::: tid ::: req ::: _) = do
-  newTeam <- fromJsonBody req
+  TeamId ->
+  UserId ->
+  BindingNewTeam ->
+  Sem r (Headers '[Servant.Header "Location" TeamId] NoContent)
+createBindingTeamH tid zusr newTeam = do
   newTeamId <- createBindingTeam zusr tid newTeam
-  pure (empty & setStatus status201 . location newTeamId)
+  pure $ Servant.addHeader newTeamId NoContent
 
 createBindingTeam ::
   Members '[GundeckAccess, Input UTCTime, TeamStore] r =>
@@ -699,10 +700,8 @@ internalDeleteBindingTeamWithOneMemberH ::
      ]
     r =>
   TeamId ->
-  Sem r Response
-internalDeleteBindingTeamWithOneMemberH tid = do
-  internalDeleteBindingTeamWithOneMember tid
-  pure (empty & setStatus status202)
+  Sem r NoContent
+internalDeleteBindingTeamWithOneMemberH = (NoContent <$) . internalDeleteBindingTeamWithOneMember
 
 uncheckedGetTeamMemberH ::
   Members '[ErrorS 'TeamMemberNotFound, TeamStore] r =>
