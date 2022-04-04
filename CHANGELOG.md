@@ -7,7 +7,7 @@
 
 * Deploy galley before brig (#2248)
 
-* Wire cloud operators: Update brig's ES index mapping before deploying. After deploying run a reindex. (#2241)
+* Wire cloud operators: [Update brig's ES index mapping before deploying. After deploying run a reindex](https://github.com/wireapp/wire-server/blob/master/docs/reference/elastic-search.md). (#2241)
 
 * Upgrade webapp version to 2022-03-30-production.0-v0.29.2-0-d144552 (#2246)
 
