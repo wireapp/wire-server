@@ -1,1 +1,0 @@
-Fix bug: cabal-install-artefacts.sh fails if not run from root of wire-server

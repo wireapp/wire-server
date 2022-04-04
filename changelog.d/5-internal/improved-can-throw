@@ -1,1 +1,0 @@
-The `CanThrow` combinator can now be used to set the corresponding error effects in polysemy handlers.
