@@ -7,11 +7,15 @@
 
 * Deploy galley before brig (#2248)
 
-* New endpoint to get the status of the guest links feature for a conversation that potentially has been created by someone from another team. (#2231)
-
 * Wire cloud operators: Update brig's ES index mapping before deploying. After deploying run a reindex. (#2241)
 
 * Upgrade webapp version to 2022-03-30-production.0-v0.29.2-0-d144552 (#2246)
+
+
+## API changes
+
+
+* New endpoint to get the status of the guest links feature for a conversation that potentially has been created by someone from another team. (#2231)
 
 
 ## Features
@@ -21,15 +25,13 @@
 
 * restund chart: add dtls support (#2227)
 
-* Revert temporary sftd bump (#2230)
-
 * MLS implementation progress:
 
    - welcome messages are now being propagated (#2175)
 
 * The bot API will be blocked if the 2nd factor authentication team feature is enabled. Please refer to [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge). (#2207)
 
-* Translations for 2nd factor authentication email templates. (#2235)
+* Translations for 2nd factor authentication email templates (#2235)
 
 * Script for creating a team with owner via the public API (#2218)
 
@@ -39,6 +41,8 @@
 
 * Conversation rename endpoints now return 204 instead of 404 when the conversation name is unchanged (#2239)
 
+* Revert temporary sftd bump (#2230)
+
 
 ## Internal changes
 
@@ -47,15 +51,15 @@
 
 * Remove the MonadUnliftIO instance for the app monad in Brig (#2233)
 
-* Bump hsaml2 version. (#2221)
+* Bump hsaml2 version (#2221)
 
-* Fix bug: cabal-install-artefacts.sh fails if not run from root of wire-server (#2236)
+* Fix: cabal-install-artefacts.sh fails if not run from root of wire-server (#2236)
 
 * Fix: pushing to cachix not working (#2257)
 
 * Cannon has been fully migrated to Servant (#2243)
 
-* Refactor conversation record and conversation creation functions. This removes a lot of duplication and makes the types of protocol-specific data in a conversation tighter.
+* Refactor conversation record and conversation creation functions. This removes a lot of duplication and makes the types of protocol-specific data in a conversation tighter. (#2234)
 
    - Move conversation name size check to `NewConv`
    - Make the `NewConversation` record (used as input to the data
@@ -63,23 +67,21 @@
    - Implement all "special" conversation creation in terms of a general `createConversation`
    - Move protocol field from metadata to Conversation
    - Restructure MLS fields in Conversation record
-   - Factor out metadata fields from Data.Conversation (#2234)
+   - Factor out metadata fields from Data.Conversation
 
 * Fix Docs: real-world domain used in examples (#2238)
 
 * The `CanThrow` combinator can now be used to set the corresponding error effects in polysemy handlers. (#2239)
 
+* Most error effects in Galley are now defined at the granularity of single error values. For example, a handler throwing `ConvNotFound` will now directly declare `ConvNotFound` (as a promoted constructor) among its error effects, instead of the generic `ConversationError` that was used before. Correspondingly, all such fine-grained Galley errors have been moved to wire-api as constructors of a single enumerated type `GalleyError`, and similarly for Brig, Cannon and Cargohold. (#2239)
+
 * Add a column for MLS clients to the Galley member table (#2245)
 
 * Pin direnv version in nix-hls.sh script (#2232)
 
-* Most error effects in Galley are now defined at the granularity of single error values. For example, a handler throwing `ConvNotFound` will now directly declare `ConvNotFound` (as a promoted constructor) among its error effects, instead of the generic `ConversationError` that was used before. Correspondingly, all such fine-grained Galley errors have been moved to wire-api as constructors of a single enumerated type `GalleyError`, and similarly for Brig, Cannon and Cargohold. (#2239)
+* nginx-ingress-services chart: allow for custom challenge solvers (#2222, #2229)
 
-* nginx-ingress-services chart: allow for custom challenge solvers (#2222)
-
-* Fix for #2222 (#2229)
-
-* Remove unused debian Makefile targets (#PR_NOT_FOUND)
+* Remove unused debian Makefile targets (#2237)
 
 * Use local serial consistency for Cassandra lightweight transactions (#2251)
 
@@ -114,9 +116,7 @@
 
 * Introduce an endpoint for creating an MLS conversation (#2150)
 
-* The `/billing` and `/teams/.*/billing` endpoints are now available on a versioned path (e.g. `/v1/billing`)
-
-   (#2167)
+* The `/billing` and `/teams/.*/billing` endpoints are now available on a versioned path (e.g. `/v1/billing`) (#2167)
 
 
 ## Features
