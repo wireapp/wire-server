@@ -62,7 +62,10 @@ welcomeRecipients ::
   Sem r [Qualified (UserId, ClientId)]
 welcomeRecipients =
   traverse
-    (fmap cidQualifiedClient . derefKeyPackage . gsNewMember)
+    ( fmap cidQualifiedClient
+        . derefKeyPackage
+        . gsNewMember
+    )
     . welSecrets
 
 sendWelcomes ::

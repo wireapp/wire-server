@@ -14,9 +14,12 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.MLS.Message (postMLSMessage) where
 
+import Control.Arrow
+import Control.Comonad
 import Control.Lens (preview, to)
 import Data.Either.Combinators
 import Data.Id
@@ -29,32 +32,29 @@ import Data.Time
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.KeyPackage
+import Galley.API.Push
 import Galley.API.Util
-import Galley.Data.Conversation.Types
+import Galley.Data.Conversation.Types hiding (Conversation)
+import qualified Galley.Data.Conversation.Types as Data
+import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.ConversationStore
-import Galley.Effects.ExternalAccess
-import Galley.Effects.FederatorAccess
-import Galley.Effects.GundeckAccess
-import Galley.Effects.LegalHoldStore
 import Galley.Effects.MemberStore
-import Galley.Effects.TeamStore
 import Galley.Options
-import Galley.Types.Conversations.Members
+import Galley.Types
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
+import Polysemy.TinyLog
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Event.Conversation
 import Wire.API.Federation.Error
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
@@ -68,7 +68,8 @@ postMLSMessage ::
          ErrorS 'MLSParseError,
          ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSProposalNotFound
+         ErrorS 'MLSProposalNotFound,
+         TinyLog
        ]
       r
   ) =>
@@ -86,7 +87,7 @@ postMLSMessage lusr con smsg = case rmValue smsg of
     -- FUTUREWORK: handle all types of encrypted messages
     contentType (rmValue smsg) >>= \case
       ApplicationMessageTag ->
-        postAppMessage lusr con (rmValue smsg) $> mempty -- TODO(md): return a list of events
+        sendAppMessage lusr con (rmValue smsg) $> mempty -- TODO(md): return a list of events
       ProposalMessageTag -> pure mempty
       CommitMessageTag -> pure mempty
 
@@ -197,7 +198,7 @@ executeProposalAction ::
   ) =>
   Local UserId ->
   ConnId ->
-  Conversation ->
+  Data.Conversation ->
   ProposalAction ->
   Sem r [Event]
 executeProposalAction lusr con conv action = do
@@ -237,7 +238,7 @@ executeProposalAction lusr con conv action = do
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError
 
-convClientMap :: Local x -> Conversation -> ClientMap
+convClientMap :: Local x -> Data.Conversation -> ClientMap
 convClientMap loc =
   mconcat
     [ foldMap localMember . convLocalMembers,
@@ -249,46 +250,89 @@ convClientMap loc =
 -- | Propagate an application message. Do not export this function due to its
 -- imprecise interface (the 'SomeMessage' argument can also contain a commit or
 -- a proposal).
-postAppMessage ::
+sendAppMessage ::
   Members
-    '[ BrigAccess,
-       ErrorS 'MLSParseError,
-       ErrorS 'MLSKeyPackageRefNotFound
-     ]
+    ( Append
+        '[ BrigAccess,
+           ConversationStore,
+           Error FederationError,
+           ErrorS 'ConvNotFound,
+           ErrorS 'MLSParseError,
+           ErrorS 'MLSKeyPackageRefNotFound,
+           GundeckAccess,
+           Input UTCTime,
+           MemberStore
+         ]
+        (MessagePushEffects 'NormalMessage)
+    )
     r =>
   Local UserId ->
   ConnId ->
   SomeMessage ->
   Sem r ()
-postAppMessage _lusr _conn (SomeMessage SMLSCipherText msg) = do
+sendAppMessage lusr conn (SomeMessage SMLSCipherText msg) = do
   when (isNothing . appMsgPayload $ msg) $ error "Expected an application message payload"
+
+  convId <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+  lconvId <- ensureLocal lusr convId
+  lmems <- getLocalMembers (qUnqualified convId)
+  let lRecipients = clients lusr <$> lmems
+      rRecipients = [] -- FUTUREWORK: support remote recipients
+      recipients = fmap qUntagged lRecipients <> rRecipients
+      lmMap = Map.fromList $ fmap (lmId &&& id) lmems
+
+  traverse_
+    ( foldQualified
+        lusr
+        (sendLocalCipherApplication lconvId conn msg lmMap)
+        (sendRemoteCipherApplication msg)
+    )
+    (bucketQualified recipients)
   where
     appMsgPayload m =
-      case toMLSEnum' @ContentType (msgContentType . msgPayload $ m) of
+      case toMLSEnum' @ContentType . msgContentType . msgPayload $ m of
         Right ApplicationMessageTag -> Just . msgCipherText . msgPayload $ m
         _ -> Nothing
-postAppMessage _lusr _conn (SomeMessage SMLSPlainText msg) = do
-  when (isNothing . appMsgPayload $ msg) $ error "Expected an application message payload"
-  -- perform authentication
-  case msgSender msg of
-    MemberSender kpr -> do
-      -- TODO: make sure that the msgMembership field is non-empty in this
-      -- case. Furthermore, I should probably do more thorough check along the
-      -- lines of
-      -- https://github.com/mlswg/mls-protocol/blob/838f0e15951b49af438bad501f3bd787798c2f4d/draft-ietf-mls-protocol.md#content-authentication
-      _cid <- derefKeyPackage kpr -- :: ClientIdentity
-      pure ()
-    PreconfiguredSender _bs -> pure () -- not sure what to do with this
-    -- bytestring, but in the spec it is opaque external_key_id<0..255>
-    NewMemberSender -> pure () -- also not sure what to do with this one
+    clients :: Local x -> LocalMember -> Local (UserId, Set ClientId)
+    clients loc LocalMember {..} = qualifyAs loc (lmId, lmMLSClients)
+sendAppMessage _lusr _conn (SomeMessage SMLSPlainText _msg) =
+  -- Paolo said we don't need to support plain text messages
+  error "Plain text application messages not supported"
 
-  -- TODO: get the conversation ID by looking it up from the group_id_conv_id
-  -- table
-  pure ()
+-- | Send an encrypted application message to local recipients
+sendLocalCipherApplication ::
+  Members
+    ( Append
+        '[Input UTCTime]
+        (MessagePushEffects 'NormalMessage)
+    )
+    r =>
+  Local ConvId ->
+  ConnId ->
+  Message 'MLSCipherText ->
+  LocalMemberMap 'NormalMessage ->
+  Local [(UserId, Set ClientId)] ->
+  Sem r ()
+sendLocalCipherApplication lconv conn msg lmMap lclients = do
+  now <- input @UTCTime
+  runMessagePush lconv (Just . qUntagged $ lconv) $
+    foldMap (uncurry . mkPush $ now) (cToList =<< tUnqualified lclients)
   where
-    appMsgPayload m = case msgTBS (msgPayload m) of
-      ApplicationMessage amPayload -> Just amPayload
-      _ -> Nothing
+    mkPush :: UTCTime -> UserId -> ClientId -> MessagePush 'NormalMessage
+    mkPush now u c =
+      let lusr = qualifyAs lconv u
+          p = msgCipherText . msgPayload $ msg
+          e = Event (qUntagged lconv) (qUntagged lusr) now $ EdMLSMessage p
+       in newMessagePush lconv lmMap (Just conn) defMessageMetadata (u, c) e
+    cToList :: (UserId, Set ClientId) -> [(UserId, ClientId)]
+    cToList (u, s) = (u,) <$> Set.toList s
+
+-- | Send an encrypted application message to remote recipients
+sendRemoteCipherApplication ::
+  Message 'MLSCipherText ->
+  Remote [(UserId, Set ClientId)] ->
+  Sem r ()
+sendRemoteCipherApplication = undefined
 
 -- | Get the content type of a message. It throws an 'MLSParseError' if there
 -- was an error in parsing the content type.
