@@ -118,7 +118,7 @@ updateOne2OneConv lUsr _mbConn remoteUser mbConvId rel actor = do
             uooActorDesiredMembership = desiredMembership actor rel,
             uooConvId = mbConvId
           }
-  uuorConvId <$> Intra.upsertOne2OneConversation request
+  uuorConvId <$> wrapHttp (Intra.upsertOne2OneConversation request)
   where
     desiredMembership :: Actor -> Relation -> DesiredMembership
     desiredMembership a r =

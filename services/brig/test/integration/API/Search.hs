@@ -30,6 +30,7 @@ import API.Search.Util
 import API.Team.Util
 import API.User.Util
 import Bilge
+import Bilge.Assert
 import qualified Brig.Options as Opt
 import qualified Brig.Options as Opts
 import Brig.Types
@@ -38,6 +39,7 @@ import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Retry
 import Data.Aeson (FromJSON, Value, decode)
 import qualified Data.Aeson as Aeson
+import Data.ByteString.Conversion
 import Data.Domain (Domain (Domain))
 import Data.Handle (fromHandle)
 import Data.Id
@@ -66,7 +68,7 @@ import qualified URI.ByteString as URI
 import UnliftIO (Concurrently (..), async, bracket, cancel, runConcurrently)
 import Util
 import Wire.API.Federation.API.Brig (SearchResponse (SearchResponse))
-import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
+import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (TeamFeatureStatusNoConfig), TeamFeatureStatusValue (..))
 import Wire.API.User.Search (FederatedUserSearchPolicy (ExactHandleSearch, FullSearch))
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
@@ -87,27 +89,38 @@ tests opts mgr galley brig = do
         testWithBothIndices opts mgr "Non ascii names" $ testSearchNonAsciiNames brig,
         test mgr "migration to new index" $ testMigrationToNewIndex mgr opts brig,
         testGroup "team-search-visibility disabled OR SearchVisibilityStandard" $
-          [ testWithBothIndices opts mgr "team member cannot be found by non-team user with display name" $ testSearchTeamMemberAsNonMemberDisplayName brig,
-            testWithBothIndices opts mgr "team member can be found by non-team user with exact handle" $ testSearchTeamMemeberAsNonMemberExactHandle brig,
-            testWithBothIndices opts mgr "team A member cannot be found by team B member with display name" $ testSearchTeamMemberAsOtherMemberDisplayName brig,
-            testWithBothIndices opts mgr "team A member can be found by team B member with exact handle" $ testSearchTeamMemberAsOtherMemberExactHandle brig,
-            testWithBothIndices opts mgr "team A member can be found by other team A member" $ testSearchTeamMemberAsSameMember brig,
-            testWithBothIndices opts mgr "non team user can be found by a team member" $ testSeachNonMemberAsTeamMember brig,
-            testGroup "order" $
-              [ test mgr "team-mates are listed before team-outsiders (exact match)" $ testSearchOrderingAsTeamMemberExactMatch brig,
-                test mgr "team-mates are listed before team-outsiders (prefix match)" $ testSearchOrderingAsTeamMemberPrefixMatch brig,
-                test mgr "team-mates are listed before team-outsiders (worse name match)" $ testSearchOrderingAsTeamMemberWorseNameMatch brig,
-                test mgr "team-mates are listed after team-outsiders (worse handle match)" $ testSearchOrderingAsTeamMemberWorseHandleMatch brig
+          [ testGroup "when SearchVisibilityInbound == SearchableByOwnTeam" $
+              [ testWithBothIndices opts mgr "team member cannot be found by non-team user with display name" $ testSearchTeamMemberAsNonMemberDisplayName mgr brig galley TeamFeatureDisabled,
+                testWithBothIndices opts mgr "team member can be found by non-team user with exact handle" $ testSearchTeamMemberAsNonMemberExactHandle mgr brig galley TeamFeatureDisabled,
+                testWithBothIndices opts mgr "team A member cannot be found by team B member with display name" $ testSearchTeamMemberAsOtherMemberDisplayName mgr brig galley TeamFeatureDisabled,
+                testWithBothIndices opts mgr "team A member can be found by team B member with exact handle" $ testSearchTeamMemberAsOtherMemberExactHandle mgr brig galley TeamFeatureDisabled,
+                testWithBothIndices opts mgr "team A member can be found by other team A member" $ testSearchTeamMemberAsSameMember mgr brig galley TeamFeatureDisabled,
+                testWithBothIndices opts mgr "non team user can be found by a team member" $ testSeachNonMemberAsTeamMember brig,
+                testGroup "order" $
+                  [ test mgr "team-mates are listed before team-outsiders (exact match)" $ testSearchOrderingAsTeamMemberExactMatch brig,
+                    test mgr "team-mates are listed before team-outsiders (prefix match)" $ testSearchOrderingAsTeamMemberPrefixMatch brig,
+                    test mgr "team-mates are listed before team-outsiders (worse name match)" $ testSearchOrderingAsTeamMemberWorseNameMatch brig,
+                    test mgr "team-mates are listed after team-outsiders (worse handle match)" $ testSearchOrderingAsTeamMemberWorseHandleMatch brig
+                  ]
+              ],
+            testGroup "when SearchVisibilityInbound == SearchableByAllTeams" $
+              [ test mgr "team member cannot be found by non-team user with display name" $ testSearchTeamMemberAsNonMemberDisplayName mgr brig galley TeamFeatureEnabled,
+                test mgr "team member can be found by non-team user with exact handle" $ testSearchTeamMemberAsNonMemberExactHandle mgr brig galley TeamFeatureEnabled,
+                test mgr "team A member can be found by team B member with display name" $ testSearchTeamMemberAsOtherMemberDisplayName mgr brig galley TeamFeatureEnabled,
+                test mgr "team A member can be found by team B member with exact handle" $ testSearchTeamMemberAsOtherMemberExactHandle mgr brig galley TeamFeatureEnabled,
+                test mgr "team A member can be found by other team A member" $ testSearchTeamMemberAsSameMember mgr brig galley TeamFeatureDisabled
               ]
           ],
-        testGroup "searchSameTeamOnly" $
+        testGroup "searchSameTeamOnly AND SearchVisibilityInbound == SearchableByOwnTeam" $
           [ testWithBothIndicesAndOpts opts mgr "when searchSameTeamOnly flag is set, non team user cannot be found by a team member" $ testSearchSameTeamOnly brig
           ],
         testGroup "team-search-visibility SearchVisibilityNoNameOutsideTeam" $
-          [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMemberOutboundOnly brig testSetupOutboundOnly,
-            test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMemberOutboundOnly brig testSetupOutboundOnly,
-            test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMemberOutboundOnly brig testSetupOutboundOnly,
-            test mgr "non team user cannot be found by a team member A" $ testSeachNonMemberAsTeamMemberOutboundOnly brig testSetupOutboundOnly
+          [ testGroup "When SearchVisibilityInbound == SearchableByOwnTeam" $
+              [ test mgr "team member cannot be found by non-team user" $ testSearchTeamMemberAsNonMemberOutboundOnly brig testSetupOutboundOnly,
+                test mgr "team A member cannot be found by team B member" $ testSearchTeamMemberAsOtherMemberOutboundOnly brig testSetupOutboundOnly,
+                test mgr "team A member *can* be found by other team A member" $ testSearchTeamMemberAsSameMemberOutboundOnly brig testSetupOutboundOnly,
+                test mgr "non team user cannot be found by a team member A" $ testSeachNonMemberAsTeamMemberOutboundOnly brig testSetupOutboundOnly
+              ]
           ],
         testGroup "federated" $
           [ test mgr "search passing own domain" $ testSearchWithDomain brig,
@@ -306,41 +319,62 @@ testOrderHandle brig = do
       expectedOrder
       resultUIds
 
-testSearchTeamMemberAsNonMemberDisplayName :: TestConstraints m => Brig -> m ()
-testSearchTeamMemberAsNonMemberDisplayName brig = do
+testSearchTeamMemberAsNonMemberDisplayName :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
+testSearchTeamMemberAsNonMemberDisplayName mgr brig galley inboundVisibility = do
   nonTeamMember <- randomUser brig
-  (_, _, [teamMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (tid, _, [teamMember, teamBTargetReindexedAfter]) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
+  circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tid inboundVisibility
+  void $ setRandomHandle brig teamBTargetReindexedAfter
   refreshIndex brig
   assertCan'tFind brig (userId nonTeamMember) (userQualifiedId teamMember) (fromName (userDisplayName teamMember))
+  assertCan'tFind brig (userId nonTeamMember) (userQualifiedId teamBTargetReindexedAfter) (fromName (userDisplayName teamBTargetReindexedAfter))
 
-testSearchTeamMemeberAsNonMemberExactHandle :: TestConstraints m => Brig -> m ()
-testSearchTeamMemeberAsNonMemberExactHandle brig = do
+testSearchTeamMemberAsNonMemberExactHandle :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
+testSearchTeamMemberAsNonMemberExactHandle mgr brig galley inboundVisibility = do
   nonTeamMember <- randomUser brig
-  (_, _, [teamMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (tid, _, [teamMember, teamBTargetReindexedAfter]) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
+  circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tid inboundVisibility
+  void $ setRandomHandle brig teamBTargetReindexedAfter
   refreshIndex brig
   let teamMemberHandle = fromMaybe (error "teamBMember must have a handle") (userHandle teamMember)
   assertCanFind brig (userId nonTeamMember) (userQualifiedId teamMember) (fromHandle teamMemberHandle)
+  assertCan'tFind brig (userId nonTeamMember) (userQualifiedId teamBTargetReindexedAfter) (fromName (userDisplayName teamBTargetReindexedAfter))
 
-testSearchTeamMemberAsOtherMemberDisplayName :: TestConstraints m => Brig -> m ()
-testSearchTeamMemberAsOtherMemberDisplayName brig = do
-  (_, _, [teamAMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
-  (_, _, [teamBMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+testSearchTeamMemberAsOtherMemberDisplayName :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
+testSearchTeamMemberAsOtherMemberDisplayName mgr brig galley inboundVisibility = do
+  (_, _, [teamASearcher]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (tidB, _, [teamBTarget, teamBTargetReindexedAfter]) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
   refreshIndex brig
-  assertCan'tFind brig (userId teamAMember) (userQualifiedId teamBMember) (fromName (userDisplayName teamBMember))
+  circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tidB inboundVisibility
+  void $ setRandomHandle brig teamBTargetReindexedAfter
+  hFlush stdout
+  refreshIndex brig
+  assertion brig (userId teamASearcher) (userQualifiedId teamBTarget) (fromName (userDisplayName teamBTarget))
+  assertion brig (userId teamASearcher) (userQualifiedId teamBTargetReindexedAfter) (fromName (userDisplayName teamBTargetReindexedAfter))
+  where
+    assertion :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Qualified UserId -> Text -> m ()
+    assertion =
+      case inboundVisibility of
+        TeamFeatureEnabled -> assertCanFind
+        TeamFeatureDisabled -> assertCan'tFind
 
-testSearchTeamMemberAsOtherMemberExactHandle :: TestConstraints m => Brig -> m ()
-testSearchTeamMemberAsOtherMemberExactHandle brig = do
-  (_, _, [teamAMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
-  (_, _, [teamBMember]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+testSearchTeamMemberAsOtherMemberExactHandle :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
+testSearchTeamMemberAsOtherMemberExactHandle mgr brig galley inboundVisibility = do
+  (_, _, [teamASearcher]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  (tidB, _, [teamBTarget, teamBTargetReindexedAfter]) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
+  circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tidB inboundVisibility
+  teamBTargetReindexedAfter' <- setRandomHandle brig teamBTargetReindexedAfter
   refreshIndex brig
-  let teamBMemberHandle = fromMaybe (error "teamBMember must have a handle") (userHandle teamBMember)
-  assertCanFind brig (userId teamAMember) (userQualifiedId teamBMember) (fromHandle teamBMemberHandle)
+  let teamBTargetHandle = fromMaybe (error "teamBTarget must have a handle") (userHandle teamBTarget)
+  assertCanFind brig (userId teamASearcher) (userQualifiedId teamBTarget) (fromHandle teamBTargetHandle)
+  assertCanFind brig (userId teamASearcher) (userQualifiedId teamBTargetReindexedAfter) (fromHandle (fromJust (userHandle teamBTargetReindexedAfter')))
 
-testSearchTeamMemberAsSameMember :: TestConstraints m => Brig -> m ()
-testSearchTeamMemberAsSameMember brig = do
-  (_, _, [teamAMember, teamAMember']) <- createPopulatedBindingTeam brig 2
+testSearchTeamMemberAsSameMember :: TestConstraints m => Manager -> Brig -> Galley -> TeamFeatureStatusValue -> m ()
+testSearchTeamMemberAsSameMember mgr brig galley inboundVisibility = do
+  (tid, _, [teamASearcher, teamATarget]) <- createPopulatedBindingTeam brig 2
+  circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tid inboundVisibility
   refreshIndex brig
-  assertCanFind brig (userId teamAMember) (userQualifiedId teamAMember') (fromName (userDisplayName teamAMember'))
+  assertCanFind brig (userId teamASearcher) (userQualifiedId teamATarget) (fromName (userDisplayName teamATarget))
 
 testSeachNonMemberAsTeamMember :: TestConstraints m => Brig -> m ()
 testSeachNonMemberAsTeamMember brig = do
@@ -675,53 +709,89 @@ oldMapping =
     decode
       [r|
 {
-  "user": {
-    "dynamic": false,
-    "properties": {
-      "account_status": {
-        "store": false,
-        "type": "keyword",
-        "index": true
-      },
-      "handle": {
-        "store": false,
-        "type": "text",
-        "index": true,
-        "fields": {
-          "prefix": {
-            "search_analyzer": "prefix_search",
-            "type": "text",
-            "analyzer": "prefix_index"
-          }
+  "dynamic": false,
+  "properties": {
+    "accent_id": {
+      "index": false,
+      "store": false,
+      "type": "byte"
+    },
+    "account_status": {
+      "index": true,
+      "store": false,
+      "type": "keyword"
+    },
+    "created_at": {
+      "index": false,
+      "store": false,
+      "type": "date"
+    },
+    "email": {
+      "fields": {
+        "keyword": {
+          "type": "keyword"
+        },
+        "prefix": {
+          "analyzer": "prefix_index",
+          "search_analyzer": "prefix_search",
+          "type": "text"
         }
       },
-      "accent_id": {
-        "store": false,
-        "type": "byte",
-        "index": false
-      },
-      "name": {
-        "store": false,
-        "type": "keyword",
-        "index": false
-      },
-      "team": {
-        "store": false,
-        "type": "keyword",
-        "index": true
-      },
-      "normalized": {
-        "store": false,
-        "type": "text",
-        "index": true,
-        "fields": {
-          "prefix": {
-            "search_analyzer": "prefix_search",
-            "type": "text",
-            "analyzer": "prefix_index"
-          }
+      "index": true,
+      "store": false,
+      "type": "text"
+    },
+    "handle": {
+      "fields": {
+        "keyword": {
+          "type": "keyword"
+        },
+        "prefix": {
+          "analyzer": "prefix_index",
+          "search_analyzer": "prefix_search",
+          "type": "text"
         }
-      }
+      },
+      "index": true,
+      "store": false,
+      "type": "text"
+    },
+    "managed_by": {
+      "index": true,
+      "store": false,
+      "type": "keyword"
+    },
+    "name": {
+      "index": false,
+      "store": false,
+      "type": "keyword"
+    },
+    "normalized": {
+      "fields": {
+        "prefix": {
+          "analyzer": "prefix_index",
+          "search_analyzer": "prefix_search",
+          "type": "text"
+        }
+      },
+      "index": true,
+      "store": false,
+      "type": "text"
+    },
+    "role": {
+      "index": true,
+      "store": false,
+      "type": "keyword"
+    },
+    "saml_idp": {
+      "index": false,
+      "store": false,
+      "type": "keyword"
+    },
+    "team": {
+      "index": true,
+      "store": false,
+      "type": "keyword"
     }
   }
 }

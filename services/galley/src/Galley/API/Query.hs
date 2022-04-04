@@ -48,7 +48,8 @@ module Galley.API.Query
     getConversationMetaH,
     getConversationByReusableCode,
     ensureGuestLinksEnabled,
-    ensureGuestLinksEnabledWithError,
+    getConversationGuestLinksStatus,
+    ensureConvAdmin,
   )
 where
 
@@ -68,8 +69,8 @@ import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
 import Galley.Cassandra.Paging
+import qualified Galley.Data.Conversation as Data
 import Galley.Data.Types (Code (codeConversation))
-import qualified Galley.Data.Types as Data
 import Galley.Effects
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
@@ -94,7 +95,8 @@ import qualified System.Logger.Class as Logger
 import Wire.API.Conversation (ConversationCoverView (..))
 import qualified Wire.API.Conversation as Public
 import qualified Wire.API.Conversation.Role as Public
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
@@ -103,7 +105,7 @@ import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public
 
 getBotConversationH ::
-  Members '[ConversationStore, Error ConversationError, Input (Local ())] r =>
+  Members '[ConversationStore, ErrorS 'ConvNotFound, Input (Local ())] r =>
   BotId ::: ConvId ::: JSON ->
   Sem r Response
 getBotConversationH (zbot ::: zcnv ::: _) = do
@@ -111,12 +113,12 @@ getBotConversationH (zbot ::: zcnv ::: _) = do
   json <$> getBotConversation zbot lcnv
 
 getBotConversation ::
-  Members '[ConversationStore, Error ConversationError] r =>
+  Members '[ConversationStore, ErrorS 'ConvNotFound] r =>
   BotId ->
   Local ConvId ->
   Sem r Public.BotConvView
 getBotConversation zbot lcnv = do
-  (c, _) <- getConversationAndMemberWithError ConvNotFound (botUserId zbot) lcnv
+  (c, _) <- getConversationAndMemberWithError @'ConvNotFound (botUserId zbot) lcnv
   let domain = tDomain lcnv
       cmems = mapMaybe (mkMember domain) (toList (Data.convLocalMembers c))
   pure $ Public.botConvView (tUnqualified lcnv) (Data.convName c) cmems
@@ -129,7 +131,14 @@ getBotConversation zbot lcnv = do
         Just (OtherMember (Qualified (lmId m) domain) (lmService m) (lmConvRoleName m))
 
 getUnqualifiedConversation ::
-  Members '[ConversationStore, Error ConversationError, Error InternalError, P.TinyLog] r =>
+  Members
+    '[ ConversationStore,
+       ErrorS 'ConvNotFound,
+       ErrorS 'ConvAccessDenied,
+       Error InternalError,
+       P.TinyLog
+     ]
+    r =>
   Local UserId ->
   ConvId ->
   Sem r Public.Conversation
@@ -141,7 +150,8 @@ getConversation ::
   forall r.
   Members
     '[ ConversationStore,
-       Error ConversationError,
+       ErrorS 'ConvNotFound,
+       ErrorS 'ConvAccessDenied,
        Error FederationError,
        Error InternalError,
        FederatorAccess,
@@ -162,7 +172,7 @@ getConversation lusr cnv = do
     getRemoteConversation remoteConvId = do
       conversations <- getRemoteConversations lusr [remoteConvId]
       case conversations of
-        [] -> throw ConvNotFound
+        [] -> throwS @'ConvNotFound
         [conv] -> pure conv
         -- _convs -> throw (federationUnexpectedBody "expected one conversation, got multiple")
         _convs -> throw $ FederationUnexpectedBody "expected one conversation, got multiple"
@@ -170,8 +180,8 @@ getConversation lusr cnv = do
 getRemoteConversations ::
   Members
     '[ ConversationStore,
-       Error ConversationError,
        Error FederationError,
+       ErrorS 'ConvNotFound,
        FederatorAccess,
        P.TinyLog
      ]
@@ -190,8 +200,8 @@ data FailedGetConversationReason
   | FailedGetConversationRemotely FederationError
 
 throwFgcrError ::
-  Members '[Error ConversationError, Error FederationError] r => FailedGetConversationReason -> Sem r a
-throwFgcrError FailedGetConversationLocally = throw ConvNotFound
+  Members '[ErrorS 'ConvNotFound, Error FederationError] r => FailedGetConversationReason -> Sem r a
+throwFgcrError FailedGetConversationLocally = throwS @'ConvNotFound
 throwFgcrError (FailedGetConversationRemotely e) = throw e
 
 data FailedGetConversation
@@ -200,7 +210,7 @@ data FailedGetConversation
       FailedGetConversationReason
 
 throwFgcError ::
-  Members '[Error ConversationError, Error FederationError] r => FailedGetConversation -> Sem r a
+  Members '[ErrorS 'ConvNotFound, Error FederationError] r => FailedGetConversation -> Sem r a
 throwFgcError (FailedGetConversation _ r) = throwFgcrError r
 
 failedGetConversationRemotely ::
@@ -264,7 +274,7 @@ getRemoteConversationsWithFailures lusr convs = do
     handleFailure (Right c) = pure . Right . traverse gcresConvs $ c
 
 getConversationRoles ::
-  Members '[ConversationStore, Error ConversationError] r =>
+  Members '[ConversationStore, ErrorS 'ConvNotFound, ErrorS 'ConvAccessDenied] r =>
   Local UserId ->
   ConvId ->
   Sem r Public.ConversationRolesList
@@ -518,9 +528,11 @@ getConversationByReusableCode ::
   ( Member BrigAccess r,
     Member CodeStore r,
     Member ConversationStore r,
-    Member (Error CodeError) r,
-    Member (Error ConversationError) r,
-    Member (Error NotATeamMember) r,
+    Member (ErrorS 'CodeNotFound) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (ErrorS 'GuestLinksDisabled) r,
+    Member (ErrorS 'NotATeamMember) r,
     Member TeamStore r,
     Member TeamFeatureStore r,
     Member (Input Opts) r
@@ -531,7 +543,7 @@ getConversationByReusableCode ::
   Sem r ConversationCoverView
 getConversationByReusableCode lusr key value = do
   c <- verifyReusableCode (ConversationCode key value Nothing)
-  conv <- E.getConversation (codeConversation c) >>= note ConvNotFound
+  conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
   ensureConversationAccess (tUnqualified lusr) conv CodeAccess
   ensureGuestLinksEnabled (Data.convTeam conv)
   pure $ coverView conv
@@ -543,38 +555,51 @@ getConversationByReusableCode lusr key value = do
           cnvCoverName = Data.convName conv
         }
 
--- FUTUREWORK(leif): refactor and make it consistent for all team features
-ensureGuestLinksEnabledWithError ::
-  forall r.
-  ( Member (Error ConversationError) r,
-    Member (Error CodeError) r,
-    Member TeamFeatureStore r,
-    Member (Input Opts) r
-  ) =>
-  Either ConversationError CodeError ->
-  Maybe TeamId ->
-  Sem r ()
-ensureGuestLinksEnabledWithError ex mbTid = do
-  defaultStatus <- getDefaultFeatureStatus
-  maybeFeatureStatus <- join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` mbTid
-  case maybe defaultStatus tfwoStatus maybeFeatureStatus of
-    TeamFeatureEnabled -> pure ()
-    TeamFeatureDisabled -> case ex of
-      Left e -> throw e
-      Right e -> throw e
-  where
-    getDefaultFeatureStatus :: Sem r TeamFeatureStatusValue
-    getDefaultFeatureStatus = do
-      status <- input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
-      pure $ tfwoapsStatus status
-
 ensureGuestLinksEnabled ::
   forall r.
-  ( Member (Error ConversationError) r,
-    Member (Error CodeError) r,
+  ( Member (ErrorS 'GuestLinksDisabled) r,
     Member TeamFeatureStore r,
     Member (Input Opts) r
   ) =>
   Maybe TeamId ->
   Sem r ()
-ensureGuestLinksEnabled = ensureGuestLinksEnabledWithError (Left GuestLinksDisabled)
+ensureGuestLinksEnabled mbTid =
+  getConversationGuestLinksStatusValue mbTid >>= \case
+    TeamFeatureEnabled -> pure ()
+    TeamFeatureDisabled -> throwS @'GuestLinksDisabled
+
+getConversationGuestLinksStatus ::
+  forall r.
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'ConvAccessDenied) r,
+    Member (Input Opts) r,
+    Member TeamFeatureStore r
+  ) =>
+  UserId ->
+  ConvId ->
+  Sem r TeamFeatureStatusNoConfig
+getConversationGuestLinksStatus uid convId = do
+  conv <- E.getConversation convId >>= noteS @'ConvNotFound
+  ensureConvAdmin (Data.convLocalMembers conv) uid
+  TeamFeatureStatusNoConfig <$> getConversationGuestLinksStatusValue (Data.convTeam conv)
+
+getConversationGuestLinksStatusValue ::
+  forall r.
+  ( Member TeamFeatureStore r,
+    Member (Input Opts) r
+  ) =>
+  Maybe TeamId ->
+  Sem r TeamFeatureStatusValue
+getConversationGuestLinksStatusValue mbTid = do
+  defaultStatus <- tfwoapsStatus <$> (input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults))
+  maybe defaultStatus tfwoStatus . join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` mbTid
+
+-------------------------------------------------------------------------------
+-- Helpers
+
+ensureConvAdmin :: Members '[ErrorS 'ConvAccessDenied, ErrorS 'ConvNotFound] r => [LocalMember] -> UserId -> Sem r ()
+ensureConvAdmin users uid =
+  case find ((== uid) . lmId) users of
+    Nothing -> throwS @'ConvNotFound
+    Just lm -> unless (lmConvRoleName lm == roleNameWireAdmin) $ throwS @'ConvAccessDenied

@@ -30,14 +30,25 @@ module Wire.API.MLS.Serialisation
     decodeMLS',
     decodeMLSWith,
     decodeMLSWith',
+    RawMLS (..),
+    rawMLSSchema,
+    parseRawMLS,
   )
 where
 
 import Control.Applicative
+import Control.Comonad
+import Data.Aeson (FromJSON (..))
+import qualified Data.Aeson as Aeson
+import Data.Bifunctor
 import Data.Binary
 import Data.Binary.Get
 import qualified Data.ByteString.Lazy as LBS
-import qualified Data.Text as T
+import Data.Json.Util
+import Data.Proxy
+import Data.Schema
+import qualified Data.Swagger as S
+import qualified Data.Text as Text
 import Imports
 
 -- | Parse a value encoded using the "TLS presentation" format.
@@ -78,19 +89,19 @@ parseMLSEnum ::
   Get a
 parseMLSEnum name = toMLSEnum name =<< get @w
 
-data MLSEnumError = MLSEnumUnkonwn | MLSEnumInvalid
+data MLSEnumError = MLSEnumUnknown | MLSEnumInvalid
 
 toMLSEnum' :: forall a w. (Bounded a, Enum a, Integral w) => w -> Either MLSEnumError a
 toMLSEnum' w = case fromIntegral w - 1 of
   n
     | n < 0 -> Left MLSEnumInvalid
-    | n < fromEnum @a minBound || n > fromEnum @a maxBound -> Left MLSEnumUnkonwn
+    | n < fromEnum @a minBound || n > fromEnum @a maxBound -> Left MLSEnumUnknown
     | otherwise -> pure (toEnum n)
 
 toMLSEnum :: forall a w f. (Bounded a, Enum a, MonadFail f, Integral w) => String -> w -> f a
 toMLSEnum name = either err pure . toMLSEnum'
   where
-    err MLSEnumUnkonwn = fail $ "Unknown " <> name
+    err MLSEnumUnknown = fail $ "Unknown " <> name
     err MLSEnumInvalid = fail $ "Invalid " <> name
 
 fromMLSEnum :: (Integral w, Enum a) => a -> w
@@ -121,10 +132,62 @@ decodeMLS' = decodeMLS . LBS.fromStrict
 -- Return an error message in case of failure.
 decodeMLSWith :: Get a -> LByteString -> Either Text a
 decodeMLSWith p b = case runGetOrFail p b of
-  Left (_, _, msg) -> Left (T.pack msg)
+  Left (_, _, msg) -> Left (Text.pack msg)
   Right (remainder, pos, x)
     | LBS.null remainder -> Right x
-    | otherwise -> Left $ "Trailing data at position " <> T.pack (show pos)
+    | otherwise -> Left $ "Trailing data at position " <> Text.pack (show pos)
 
 decodeMLSWith' :: Get a -> ByteString -> Either Text a
 decodeMLSWith' p = decodeMLSWith p . LBS.fromStrict
+
+-- | An MLS value together with its serialisation.
+--
+-- This can be used whenever we need to parse an object, but at the same time
+-- retain the original serialised bytes (e.g. for signature verification, or to
+-- forward them verbatim).
+data RawMLS a = RawMLS
+  { rmRaw :: ByteString,
+    rmValue :: a
+  }
+  deriving stock (Eq, Show, Foldable)
+
+-- | A schema for a raw MLS object.
+--
+-- This can be used for embedding MLS objects into JSON. It expresses the
+-- object as a base64-encoded string containing the raw bytes of its native MLS
+-- serialisation.
+--
+-- Note that a 'ValueSchema' for the underlying type @a@ is /not/ required.
+rawMLSSchema :: Text -> (ByteString -> Either Text a) -> ValueSchema NamedSwaggerDoc (RawMLS a)
+rawMLSSchema name p =
+  (toBase64Text . rmRaw)
+    .= parsedText name (rawMLSFromText p)
+
+rawMLSFromText :: (ByteString -> Either Text a) -> Text -> Either String (RawMLS a)
+rawMLSFromText p txt = do
+  mlsData <- fromBase64Text txt
+  value <- first Text.unpack (p mlsData)
+  pure $ RawMLS mlsData value
+
+instance S.ToSchema a => S.ToSchema (RawMLS a) where
+  declareNamedSchema _ = S.declareNamedSchema (Proxy @a)
+
+instance ParseMLS a => FromJSON (RawMLS a) where
+  parseJSON =
+    Aeson.withText "Base64 MLS object" $
+      either fail pure . rawMLSFromText decodeMLS'
+
+-- | Parse an MLS object, but keep the raw bytes as well.
+parseRawMLS :: Get a -> Get (RawMLS a)
+parseRawMLS p = do
+  -- mark the starting position
+  begin <- bytesRead
+  -- read value, but don't consume input, and mark final position
+  (x, end) <- lookAhead $ (,) <$> p <*> bytesRead
+  -- now just get the input data
+  raw <- getByteString (fromIntegral (end - begin))
+  -- construct RawMLS value
+  pure $ RawMLS raw x
+
+instance ParseMLS a => ParseMLS (RawMLS a) where
+  parseMLS = parseRawMLS parseMLS

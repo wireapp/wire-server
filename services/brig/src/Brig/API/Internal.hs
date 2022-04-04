@@ -51,6 +51,7 @@ import Brig.Types.User.Event (UserEvent (UserUpdated), UserUpdatedData (eupSSOId
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.EJPD
+import qualified Brig.User.Search.Index as Index
 import Control.Error hiding (bool)
 import Control.Lens (view)
 import Data.Aeson hiding (json)
@@ -74,7 +75,8 @@ import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import qualified Wire.API.Error.Brig as E
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
@@ -89,12 +91,12 @@ import Wire.API.User.RichInfo
 -- Sitemap (servant)
 
 servantSitemap :: ServerT BrigIRoutes.API (Handler r)
-servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode
+servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI
 
 ejpdAPI :: ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
   Brig.User.EJPD.ejpdRequest
-    :<|> getAccountFeatureConfig
+    :<|> Named @"get-account-feature-config" getAccountFeatureConfig
     :<|> putAccountFeatureConfig
     :<|> deleteAccountFeatureConfig
     :<|> getConnectionsStatusUnqualified
@@ -105,6 +107,9 @@ mlsAPI = getClientByKeyPackageRef
 
 accountAPI :: ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI = Named @"createUserNoVerify" createUserNoVerify
+
+teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
+teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountFeatureConfig :: UserId -> (Handler r) ApiFt.TeamFeatureStatusNoConfig
@@ -361,7 +366,7 @@ deleteUserNoVerify :: UserId -> (Handler r) ()
 deleteUserNoVerify uid = do
   void $
     lift (wrapClient $ API.lookupAccount uid)
-      >>= ifNothing (errorDescriptionTypeToWai @UserNotFound)
+      >>= ifNothing (errorToWai @'E.UserNotFound)
   lift $ API.deleteUserNoVerify uid
 
 changeSelfEmailMaybeSendH :: UserId ::: Bool ::: JsonRequest EmailUpdate -> (Handler r) Response
@@ -473,9 +478,14 @@ getConnectionsStatus :: ConnectionsStatusRequestV2 -> (Handler r) [ConnectionSta
 getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
   loc <- qualifyLocal ()
   conns <- lift $ case mtos of
-    Nothing -> Data.lookupAllStatuses =<< qualifyLocal froms
+    Nothing -> wrapClient . Data.lookupAllStatuses =<< qualifyLocal froms
     Just tos -> do
-      let getStatusesForOneDomain = foldQualified loc (Data.lookupLocalConnectionStatuses froms) (Data.lookupRemoteConnectionStatuses froms)
+      let getStatusesForOneDomain =
+            wrapClient
+              <$> foldQualified
+                loc
+                (Data.lookupLocalConnectionStatuses froms)
+                (Data.lookupRemoteConnectionStatuses froms)
       concat <$> mapM getStatusesForOneDomain (bucketQualified tos)
   pure $ maybe conns (filterByRelation conns) mrel
   where
@@ -534,7 +544,7 @@ updateSSOIdH (uid ::: _ ::: req) = do
   success <- lift $ wrapClient $ Data.updateSSOId uid (Just ssoid)
   if success
     then do
-      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
+      lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
       return empty
     else return . setStatus status404 $ plain "User does not exist or has no team."
 
@@ -543,7 +553,7 @@ deleteSSOIdH (uid ::: _) = do
   success <- lift $ wrapClient $ Data.updateSSOId uid Nothing
   if success
     then do
-      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
+      lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
       return empty
     else return . setStatus status404 $ plain "User does not exist or has no team."
 
@@ -592,7 +602,7 @@ updateUserNameH (uid ::: _ ::: body) = empty <$ (updateUserName uid =<< parseJso
 
 updateUserName :: UserId -> NameUpdate -> (Handler r) ()
 updateUserName uid (NameUpdate nameUpd) = do
-  name <- either (const $ throwStd (errorDescriptionTypeToWai @InvalidUser)) pure $ mkName nameUpd
+  name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd
   let uu =
         UserUpdate
           { uupName = Just name,
@@ -602,12 +612,12 @@ updateUserName uid (NameUpdate nameUpd) = do
           }
   lift (wrapClient $ Data.lookupUser WithPendingInvitations uid) >>= \case
     Just _ -> API.updateUser uid Nothing uu API.AllowSCIMUpdates !>> updateProfileError
-    Nothing -> throwStd (errorDescriptionTypeToWai @InvalidUser)
+    Nothing -> throwStd (errorToWai @'E.InvalidUser)
 
 checkHandleInternalH :: Text -> (Handler r) Response
 checkHandleInternalH =
   API.checkHandle >=> \case
-    API.CheckHandleInvalid -> throwE (StdError (errorDescriptionTypeToWai @InvalidHandle))
+    API.CheckHandleInvalid -> throwE (StdError (errorToWai @'E.InvalidHandle))
     API.CheckHandleFound -> pure $ setStatus status200 empty
     API.CheckHandleNotFound -> pure $ setStatus status404 empty
 

@@ -73,12 +73,16 @@ module Brig.App
     wrapClient,
     wrapClientE,
     wrapClientM,
-    runAppIOLifted,
+    wrapHttpClient,
+    wrapHttpClientE,
+    wrapHttp,
+    HttpClientIO (..),
   )
 where
 
-import Bilge (Manager, MonadHttp, RequestId (..), newManager, withResponse)
+import Bilge (RequestId (..))
 import qualified Bilge as RPC
+import Bilge.IO
 import Bilge.RPC (HasRequestId (..))
 import qualified Brig.AWS as AWS
 import qualified Brig.Calling as Calling
@@ -103,7 +107,7 @@ import Control.AutoUpdate
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding (index, (.=))
-import Control.Monad.Catch (MonadCatch, MonadMask)
+import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Default (def)
@@ -126,7 +130,7 @@ import Data.Time.Clock
 import Data.Yaml (FromJSON)
 import qualified Database.Bloodhound as ES
 import Imports
-import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
+import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
@@ -262,7 +266,7 @@ newEnv o = do
         _zauthEnv = zau,
         _digestMD5 = md5,
         _digestSHA256 = sha256,
-        _indexEnv = mkIndexEnv o lgr mgr mtr,
+        _indexEnv = mkIndexEnv o lgr mgr mtr (Opt.galley o),
         _randomPrekeyLocalLock = prekeyLocalLock,
         _keyPackageLocalLock = kpLock
       }
@@ -280,14 +284,14 @@ newEnv o = do
       return (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
 
-mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> IndexEnv
-mkIndexEnv o lgr mgr mtr =
+mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
+mkIndexEnv o lgr mgr mtr galleyEndpoint =
   let bhe = ES.mkBHEnv (ES.Server (Opt.url (Opt.elasticsearch o))) mgr
       lgr' = Log.clone (Just "index.brig") lgr
       mainIndex = ES.IndexName $ Opt.index (Opt.elasticsearch o)
       additionalIndex = ES.IndexName <$> Opt.additionalWriteIndex (Opt.elasticsearch o)
       additionalBhe = flip ES.mkBHEnv mgr . ES.Server <$> Opt.additionalWriteIndexUrl (Opt.elasticsearch o)
-   in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex additionalBhe
+   in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex additionalBhe galleyEndpoint mgr
 
 geoSetup :: Logger -> FS.WatchManager -> Maybe FilePath -> IO (Maybe (IORef GeoIp.GeoDB))
 geoSetup _ _ Nothing = return Nothing
@@ -450,7 +454,7 @@ closeEnv e = do
 -------------------------------------------------------------------------------
 -- App Monad
 newtype AppT r m a = AppT
-  { unAppT :: ReaderT Env m a
+  { _unAppT :: ReaderT Env m a
   }
   deriving newtype
     ( Functor,
@@ -459,7 +463,6 @@ newtype AppT r m a = AppT
       MonadIO,
       MonadThrow,
       MonadCatch,
-      MonadMask,
       MonadReader Env
     )
   deriving
@@ -508,6 +511,50 @@ wrapClientE = mapExceptT wrapClient
 wrapClientM :: MaybeT (ReaderT Env Cas.Client) b -> MaybeT (AppT r IO) b
 wrapClientM = mapMaybeT wrapClient
 
+wrapHttp ::
+  HttpClientIO a ->
+  AppT r IO a
+wrapHttp (HttpClientIO m) = do
+  c <- view casClient
+  env <- ask
+  manager <- view httpManager
+  liftIO . runClient c . runHttpT manager $ runReaderT m env
+
+newtype HttpClientIO a = HttpClientIO
+  { runHttpClientIO :: ReaderT Env (HttpT Cas.Client) a
+  }
+  deriving newtype
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadReader Env,
+      MonadLogger,
+      MonadHttp,
+      MonadIO,
+      MonadThrow,
+      MonadCatch,
+      MonadMask,
+      MonadUnliftIO,
+      MonadIndexIO
+    )
+
+instance HasRequestId HttpClientIO where
+  getRequestId = view requestId
+
+instance Cas.MonadClient HttpClientIO where
+  liftClient cl = do
+    env <- ask
+    liftIO $ runClient (view casClient env) cl
+  localState f = local (casClient %~ f)
+
+wrapHttpClient ::
+  HttpClientIO a ->
+  AppT r IO a
+wrapHttpClient = wrapHttp
+
+wrapHttpClientE :: ExceptT e HttpClientIO a -> ExceptT e (AppT r IO) a
+wrapHttpClientE = mapExceptT wrapHttpClient
+
 instance MonadIO m => MonadIndexIO (ReaderT Env m) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
@@ -520,32 +567,27 @@ instance (MonadIndexIO (AppT r m), Monad m) => MonadIndexIO (ExceptT err (AppT r
 instance Monad m => HasRequestId (AppT r m) where
   getRequestId = view requestId
 
-instance MonadUnliftIO m => MonadUnliftIO (AppT r m) where
-  withRunInIO inner =
-    AppT . ReaderT $ \r ->
-      withRunInIO $ \run ->
-        inner (run . flip runReaderT r . unAppT)
-
 runAppT :: Env -> AppT r m a -> m a
 runAppT e (AppT ma) = runReaderT ma e
-
-runAppIOLifted :: MonadIO m => Env -> AppIO r a -> m a
-runAppIOLifted e = liftIO . runAppT e
 
 runAppResourceT :: ResourceT (AppIO r) a -> (AppIO r) a
 runAppResourceT ma = do
   e <- ask
   liftIO . runResourceT $ transResourceT (runAppT e) ma
 
-forkAppIO :: Maybe UserId -> (AppIO r) a -> (AppIO r) ()
+forkAppIO ::
+  (MonadIO m, MonadUnliftIO m, MonadReader Env m) =>
+  Maybe UserId ->
+  m a ->
+  m ()
 forkAppIO u ma = do
-  a <- ask
   g <- view applog
   r <- view requestId
   let logErr e = Log.err g $ request r ~~ user u ~~ msg (show e)
-  void . liftIO . forkIO $
-    either logErr (const $ return ())
-      =<< runExceptT (syncIO $ runAppT a ma)
+  withRunInIO $ \lower ->
+    void . liftIO . forkIO $
+      either logErr (const $ return ())
+        =<< runExceptT (syncIO $ lower $ ma)
   where
     request = field "request" . unRequestId
     user = maybe id (field "user" . toByteString)

@@ -25,7 +25,7 @@ module Galley.API.Internal
 where
 
 import Control.Exception.Safe (catchAny)
-import Control.Lens hiding ((.=))
+import Control.Lens hiding (Getter, Setter, (.=))
 import Data.Id as Id
 import Data.List1 (maybeList1)
 import Data.Qualified
@@ -41,6 +41,8 @@ import Galley.API.Error
 import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.One2One
+import Galley.API.Public
+import Galley.API.Public.Servant
 import qualified Galley.API.Query as Query
 import Galley.API.Teams (uncheckedDeleteTeamMember)
 import qualified Galley.API.Teams as Teams
@@ -50,7 +52,6 @@ import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.Paging
 import qualified Galley.Data.Conversation as Data
-import Galley.Data.TeamFeatures
 import Galley.Effects
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
@@ -86,86 +87,119 @@ import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import Servant.API hiding (JSON)
 import qualified Servant.API as Servant
-import Servant.Server
 import System.Logger.Class hiding (Path, name)
 import qualified System.Logger.Class as Log
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
-import Wire.API.ErrorDescription
+import Wire.API.Conversation.Role
+import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.Routes.API
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti hiding (TeamStatusUpdate)
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
 import Wire.API.Routes.Named
-import Wire.API.Routes.Public (ZLocalUser, ZOptConn)
+import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley
 import Wire.API.Team.Feature
 
 type IFeatureAPI =
-  IFeatureStatus 'TeamFeatureSSO
-    :<|> IFeatureStatus 'TeamFeatureLegalHold
-    :<|> IFeatureStatus 'TeamFeatureSearchVisibility
+  IFeatureStatus '[] 'TeamFeatureSSO
+    :<|> IFeatureStatus
+           '( ('ActionDenied 'RemoveConversationMember),
+              '( AuthenticationError,
+                 '( 'CannotEnableLegalHoldServiceLargeTeam, '())
+               )
+            )
+           'TeamFeatureLegalHold
+    :<|> IFeatureStatus '() 'TeamFeatureSearchVisibility
     :<|> IFeatureStatusDeprecated 'TeamFeatureSearchVisibility
-    :<|> IFeatureStatus 'TeamFeatureValidateSAMLEmails
+    :<|> IFeatureStatus '() 'TeamFeatureValidateSAMLEmails
     :<|> IFeatureStatusDeprecated 'TeamFeatureValidateSAMLEmails
-    :<|> IFeatureStatus 'TeamFeatureDigitalSignatures
+    :<|> IFeatureStatus '() 'TeamFeatureDigitalSignatures
     :<|> IFeatureStatusDeprecated 'TeamFeatureDigitalSignatures
-    :<|> IFeatureStatus 'TeamFeatureAppLock
-    :<|> IFeatureStatusWithLock 'TeamFeatureFileSharing
+    :<|> IFeatureStatus '() 'TeamFeatureAppLock
+    :<|> IFeatureStatusWithLock '() 'TeamFeatureFileSharing
     :<|> IFeatureStatusGet 'WithLockStatus 'TeamFeatureClassifiedDomains
-    :<|> IFeatureStatus 'TeamFeatureConferenceCalling
-    :<|> IFeatureStatusWithLock 'TeamFeatureSelfDeletingMessages
-    :<|> IFeatureStatusWithLock 'TeamFeatureGuestLinks
-    :<|> IFeatureStatusWithLock 'TeamFeatureSndFactorPasswordChallenge
+    :<|> IFeatureStatus '() 'TeamFeatureConferenceCalling
+    :<|> IFeatureStatusWithLock '() 'TeamFeatureSelfDeletingMessages
+    :<|> IFeatureStatusWithLock '() 'TeamFeatureGuestLinks
+    :<|> IFeatureStatusWithLock '() 'TeamFeatureSndFactorPasswordChallenge
+    :<|> IFeatureStatus '() 'TeamFeatureSearchVisibilityInbound
+    :<|> IFeatureNoConfigMultiGet 'TeamFeatureSearchVisibilityInbound
 
-type InternalAPI =
-  "i"
-    :> ( Named
-           "status"
-           ( "status" :> MultiVerb 'GET '[Servant.JSON] '[RespondEmpty 200 "OK"] ()
+type InternalAPI = "i" :> InternalAPIBase
+
+type InternalAPIBase =
+  Named
+    "status"
+    ( "status" :> MultiVerb 'GET '[Servant.JSON] '[RespondEmpty 200 "OK"] ()
+    )
+    -- This endpoint can lead to the following events being sent:
+    -- - MemberLeave event to members for all conversations the user was in
+    :<|> Named
+           "delete-user"
+           ( Summary
+               "Remove a user from their teams and conversations and erase their clients"
+               :> ZLocalUser
+               :> ZOptConn
+               :> "user"
+               :> MultiVerb 'DELETE '[Servant.JSON] '[RespondEmpty 200 "Remove a user from Galley"] ()
            )
-           -- This endpoint can lead to the following events being sent:
-           -- - MemberLeave event to members for all conversations the user was in
-           :<|> Named
-                  "delete-user"
-                  ( Summary
-                      "Remove a user from their teams and conversations and erase their clients"
-                      :> ZLocalUser
-                      :> ZOptConn
-                      :> "user"
-                      :> MultiVerb 'DELETE '[Servant.JSON] '[RespondEmpty 200 "Remove a user from Galley"] ()
-                  )
-           -- This endpoint can lead to the following events being sent:
-           -- - ConvCreate event to self, if conversation did not exist before
-           -- - ConvConnect event to self, if other didn't join the connect conversation before
-           :<|> Named
-                  "connect"
-                  ( Summary "Create a connect conversation (deprecated)"
-                      :> ZLocalUser
-                      :> ZOptConn
-                      :> "conversations"
-                      :> "connect"
-                      :> ReqBody '[Servant.JSON] Connect
-                      :> ConversationVerb
-                  )
-           :<|> Named
-                  "upsert-one2one"
-                  ( Summary "Create or Update a connect or one2one conversation."
-                      :> "conversations"
-                      :> "one2one"
-                      :> "upsert"
-                      :> ReqBody '[Servant.JSON] UpsertOne2OneConversationRequest
-                      :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
-                  )
-           :<|> IFeatureAPI
-       )
+    -- This endpoint can lead to the following events being sent:
+    -- - ConvCreate event to self, if conversation did not exist before
+    -- - ConvConnect event to self, if other didn't join the connect conversation before
+    :<|> Named
+           "connect"
+           ( Summary "Create a connect conversation (deprecated)"
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'NotConnected
+               :> ZLocalUser
+               :> ZOptConn
+               :> "conversations"
+               :> "connect"
+               :> ReqBody '[Servant.JSON] Connect
+               :> ConversationVerb
+           )
+    :<|> Named
+           "upsert-one2one"
+           ( Summary "Create or Update a connect or one2one conversation."
+               :> "conversations"
+               :> "one2one"
+               :> "upsert"
+               :> ReqBody '[Servant.JSON] UpsertOne2OneConversationRequest
+               :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
+           )
+    :<|> Named
+           "feature-config-snd-factor-password-challenge"
+           -- FUTUREWORK: Introduce `/i/feature-configs` and drop this one again.  The internal end-poins has the
+           -- same handler as the public one, plus optional user id in the query.  Maybe require `DoAuth` to disable
+           -- access control only on the internal end-point, not on the public one.  (This may also be a good oppportunity
+           -- to make `AllFeatureConfigs` more type-safe.)
+           ( Summary "Get feature config for the 2nd factor password challenge feature (for user/team; if n/a fall back to site config)."
+               :> "feature-configs"
+               :> CanThrow 'NotATeamMember
+               :> KnownTeamFeatureNameSymbol 'TeamFeatureSndFactorPasswordChallenge
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "Optional user id"
+                    ]
+                    "user_id"
+                    UserId
+               :> Get '[Servant.JSON] TeamFeatureStatusNoConfig
+           )
+    :<|> IFeatureAPI
 
 type IFeatureStatusGet l f = Named '("iget", f) (FeatureStatusBaseGet l f)
 
-type IFeatureStatusPut f = Named '("iput", f) (FeatureStatusBasePut f)
+type IFeatureStatusPut errs f = Named '("iput", f) (FeatureStatusBasePut errs f)
 
-type IFeatureStatus f = IFeatureStatusGet 'WithoutLockStatus f :<|> IFeatureStatusPut f
+type IFeatureStatus errs f = IFeatureStatusGet 'WithoutLockStatus f :<|> IFeatureStatusPut errs f
 
 type IFeatureStatusDeprecated f =
   Named '("iget-deprecated", f) (FeatureStatusBaseDeprecatedGet 'WithoutLockStatus f)
@@ -175,6 +209,8 @@ type IFeatureStatusLockStatusPut featureName =
   Named
     '("lock", featureName)
     ( Summary (AppendSymbol "(Un-)lock " (KnownTeamFeatureNameSymbol featureName))
+        :> CanThrow 'NotATeamMember
+        :> CanThrow 'TeamNotFound
         :> "teams"
         :> Capture "tid" TeamId
         :> "features"
@@ -183,136 +219,75 @@ type IFeatureStatusLockStatusPut featureName =
         :> Put '[Servant.JSON] LockStatus
     )
 
-type IFeatureStatusWithLock f =
+type IFeatureStatusWithLock errs f =
   IFeatureStatusGet 'WithLockStatus f
-    :<|> IFeatureStatusPut f
+    :<|> IFeatureStatusPut errs f
     :<|> IFeatureStatusLockStatusPut f
 
-internalAPI :: ServerT InternalAPI (Sem GalleyEffects)
+type FeatureNoConfigMultiGetBase featureName =
+  Summary
+    (AppendSymbol "Get team feature status in bulk for feature " (KnownTeamFeatureNameSymbol featureName))
+    :> "features-multi-teams"
+    :> KnownTeamFeatureNameSymbol featureName
+    :> ReqBody '[Servant.JSON] TeamFeatureNoConfigMultiRequest
+    :> Post '[Servant.JSON] (TeamFeatureNoConfigMultiResponse featureName)
+
+type IFeatureNoConfigMultiGet f =
+  Named
+    '("igetmulti", f)
+    (FeatureNoConfigMultiGetBase f)
+
+internalAPI :: API InternalAPI GalleyEffects
 internalAPI =
-  Named @"status" (pure ())
-    :<|> Named @"delete-user" rmUser
-    :<|> Named @"connect" Create.createConnectConversation
-    :<|> Named @"upsert-one2one" iUpsertOne2OneConversation
-    :<|> featureAPI
+  hoistAPI @InternalAPIBase id $
+    mkNamedAPI @"status" (pure ())
+      <@> mkNamedAPI @"delete-user" rmUser
+      <@> mkNamedAPI @"connect" Create.createConnectConversation
+      <@> mkNamedAPI @"upsert-one2one" iUpsertOne2OneConversation
+      <@> mkNamedAPI @"feature-config-snd-factor-password-challenge" getSndFactorPasswordChallengeNoAuth
+      <@> featureAPI
 
-featureAPI :: ServerT IFeatureAPI (Sem GalleyEffects)
+featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
-  featureStatus getSSOStatusInternal setSSOStatusInternal
-    :<|> featureStatus getLegalholdStatusInternal (setLegalholdStatusInternal @InternalPaging)
-    :<|> featureStatus getTeamSearchVisibilityAvailableInternal setTeamSearchVisibilityAvailableInternal
-    :<|> featureStatusDeprecated getTeamSearchVisibilityAvailableInternal setTeamSearchVisibilityAvailableInternal
-    :<|> featureStatus getValidateSAMLEmailsInternal setValidateSAMLEmailsInternal
-    :<|> featureStatusDeprecated getValidateSAMLEmailsInternal setValidateSAMLEmailsInternal
-    :<|> featureStatus getDigitalSignaturesInternal setDigitalSignaturesInternal
-    :<|> featureStatusDeprecated getDigitalSignaturesInternal setDigitalSignaturesInternal
-    :<|> featureStatus getAppLockInternal setAppLockInternal
-    :<|> featureStatusWithLock getFileSharingInternal setFileSharingInternal
-    :<|> featureStatusGet @'WithLockStatus getClassifiedDomainsInternal
-    :<|> featureStatus @'TeamFeatureConferenceCalling getConferenceCallingInternal setConferenceCallingInternal
-    :<|> featureStatusWithLock getSelfDeletingMessagesInternal setSelfDeletingMessagesInternal
-    :<|> featureStatusWithLock getGuestLinkInternal setGuestLinkInternal
-    :<|> featureStatusWithLock getSndFactorPasswordChallengeInternal setSndFactorPasswordChallengeInternal
+  fs getSSOStatusInternal setSSOStatusInternal
+    <@> fs getLegalholdStatusInternal (setLegalholdStatusInternal @InternalPaging)
+    <@> fs getTeamSearchVisibilityAvailableInternal setTeamSearchVisibilityAvailableInternal
+    <@> fs getTeamSearchVisibilityAvailableInternal setTeamSearchVisibilityAvailableInternal
+    <@> fs getValidateSAMLEmailsInternal setValidateSAMLEmailsInternal
+    <@> fs getValidateSAMLEmailsInternal setValidateSAMLEmailsInternal
+    <@> fs getDigitalSignaturesInternal setDigitalSignaturesInternal
+    <@> fs getDigitalSignaturesInternal setDigitalSignaturesInternal
+    <@> fs getAppLockInternal setAppLockInternal
+    <@> ( fsGet getFileSharingInternal
+            <@> fsSet setFileSharingInternal
+            <@> mkNamedAPI (setLockStatus @'TeamFeatureFileSharing)
+        )
+    <@> fsGet getClassifiedDomainsInternal
+    <@> fs getConferenceCallingInternal setConferenceCallingInternal
+    <@> ( fsGet getSelfDeletingMessagesInternal
+            <@> fsSet setSelfDeletingMessagesInternal
+            <@> mkNamedAPI (setLockStatus @'TeamFeatureSelfDeletingMessages)
+        )
+    <@> ( fsGet getGuestLinkInternal
+            <@> fsSet setGuestLinkInternal
+            <@> mkNamedAPI (setLockStatus @'TeamFeatureGuestLinks)
+        )
+    <@> ( fsGet getSndFactorPasswordChallengeInternal
+            <@> fsSet setSndFactorPasswordChallengeInternal
+            <@> mkNamedAPI (setLockStatus @'TeamFeatureSndFactorPasswordChallenge)
+        )
+    <@> fs getTeamSearchVisibilityInboundInternal setTeamSearchVisibilityInboundInternal
+    <@> mkNamedAPI getTeamSearchVisibilityInboundInternalMulti
+  where
+    fs g s = fsGet g <@> fsSet s
 
-featureStatusGet ::
-  forall (l :: IncludeLockStatus) f r.
-  ( KnownTeamFeatureName f,
-    Members
-      '[ Error ActionError,
-         Error NotATeamMember,
-         Error TeamError,
-         TeamStore
-       ]
-      r
-  ) =>
-  (GetFeatureInternalParam -> Sem r (TeamFeatureStatus l f)) ->
-  ServerT (IFeatureStatusGet l f) (Sem r)
-featureStatusGet getter =
-  Named @'("iget", f) (getFeatureStatus @l @f getter DontDoAuth)
+    fsGet g = mkNamedAPI (getFeatureStatus g DontDoAuth)
 
-featureStatusPut ::
-  forall f r.
-  ( KnownTeamFeatureName f,
-    MaybeHasLockStatusCol f,
-    Members
-      '[ Error ActionError,
-         Error NotATeamMember,
-         Error TeamError,
-         TeamFeatureStore,
-         TeamStore
-       ]
-      r
-  ) =>
-  (TeamId -> TeamFeatureStatus 'WithoutLockStatus f -> Sem r (TeamFeatureStatus 'WithoutLockStatus f)) ->
-  ServerT (IFeatureStatusPut f) (Sem r)
-featureStatusPut setter =
-  Named @'("iput", f) (setFeatureStatus @f setter DontDoAuth)
-
-featureStatus ::
-  forall f r.
-  ( KnownTeamFeatureName f,
-    MaybeHasLockStatusCol f,
-    Members
-      '[ Error ActionError,
-         Error NotATeamMember,
-         Error TeamError,
-         TeamFeatureStore,
-         TeamStore
-       ]
-      r
-  ) =>
-  (GetFeatureInternalParam -> Sem r (TeamFeatureStatus 'WithoutLockStatus f)) ->
-  (TeamId -> TeamFeatureStatus 'WithoutLockStatus f -> Sem r (TeamFeatureStatus 'WithoutLockStatus f)) ->
-  ServerT (IFeatureStatus f) (Sem r)
-featureStatus getter setter =
-  featureStatusGet @'WithoutLockStatus @f getter :<|> featureStatusPut @f setter
-
-featureStatusDeprecated ::
-  forall f r.
-  ( KnownTeamFeatureName f,
-    MaybeHasLockStatusCol f,
-    Members
-      '[ Error ActionError,
-         Error NotATeamMember,
-         Error TeamError,
-         TeamFeatureStore,
-         TeamStore
-       ]
-      r
-  ) =>
-  (GetFeatureInternalParam -> Sem r (TeamFeatureStatus 'WithoutLockStatus f)) ->
-  (TeamId -> TeamFeatureStatus 'WithoutLockStatus f -> Sem r (TeamFeatureStatus 'WithoutLockStatus f)) ->
-  ServerT (IFeatureStatusDeprecated f) (Sem r)
-featureStatusDeprecated getter setter =
-  Named @'("iget-deprecated", f) (getFeatureStatus @'WithoutLockStatus @f getter DontDoAuth)
-    :<|> Named @'("iput-deprecated", f) (setFeatureStatus @f setter DontDoAuth)
-
-featureStatusWithLock ::
-  forall f r.
-  ( KnownTeamFeatureName f,
-    HasLockStatusCol f,
-    MaybeHasLockStatusCol f,
-    Members
-      '[ Error ActionError,
-         Error NotATeamMember,
-         Error TeamError,
-         TeamFeatureStore,
-         TeamStore
-       ]
-      r
-  ) =>
-  (GetFeatureInternalParam -> Sem r (TeamFeatureStatus 'WithLockStatus f)) ->
-  (TeamId -> TeamFeatureStatus 'WithoutLockStatus f -> Sem r (TeamFeatureStatus 'WithoutLockStatus f)) ->
-  ServerT (IFeatureStatusWithLock f) (Sem r)
-featureStatusWithLock getter setter =
-  featureStatusGet @'WithLockStatus getter
-    :<|> featureStatusPut setter
-    :<|> Named @'("lock", f) (setLockStatus @f)
+    fsSet s = mkNamedAPI (setFeatureStatus s DontDoAuth)
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()
 internalSitemap = do
   -- Conversation API (internal) ----------------------------------------
-
   put "/i/conversations/:cnv/channel" (continue $ const (return empty)) $
     zauthUserId
       .&. (capture "cnv" :: HasCaptures r => Predicate r Predicate.Error ConvId)
@@ -326,12 +301,12 @@ internalSitemap = do
   -- - MemberJoin event to you, if the conversation existed and had < 2 members before
   -- - MemberJoin event to other, if the conversation existed and only the other was member
   --   before
-  put "/i/conversations/:cnv/accept/v2" (continue Update.acceptConvH) $
+  put "/i/conversations/:cnv/accept/v2" (continueE Update.acceptConvH) $
     zauthUserId
       .&. opt zauthConnId
       .&. capture "cnv"
 
-  put "/i/conversations/:cnv/block" (continue Update.blockConvH) $
+  put "/i/conversations/:cnv/block" (continueE Update.blockConvH) $
     zauthUserId
       .&. capture "cnv"
 
@@ -339,7 +314,7 @@ internalSitemap = do
   -- - MemberJoin event to you, if the conversation existed and had < 2 members before
   -- - MemberJoin event to other, if the conversation existed and only the other was member
   --   before
-  put "/i/conversations/:cnv/unblock" (continue Update.unblockConvH) $
+  put "/i/conversations/:cnv/unblock" (continueE Update.unblockConvH) $
     zauthUserId
       .&. opt zauthConnId
       .&. capture "cnv"
@@ -349,29 +324,29 @@ internalSitemap = do
 
   -- Team API (internal) ------------------------------------------------
 
-  get "/i/teams/:tid" (continue Teams.getTeamInternalH) $
+  get "/i/teams/:tid" (continueE Teams.getTeamInternalH) $
     capture "tid"
       .&. accept "application" "json"
 
-  get "/i/teams/:tid/name" (continue Teams.getTeamNameInternalH) $
+  get "/i/teams/:tid/name" (continueE Teams.getTeamNameInternalH) $
     capture "tid"
       .&. accept "application" "json"
 
-  put "/i/teams/:tid" (continue Teams.createBindingTeamH) $
+  put "/i/teams/:tid" (continueE Teams.createBindingTeamH) $
     zauthUserId
       .&. capture "tid"
       .&. jsonRequest @BindingNewTeam
       .&. accept "application" "json"
 
-  delete "/i/teams/:tid" (continue Teams.internalDeleteBindingTeamWithOneMemberH) $
+  delete "/i/teams/:tid" (continueE Teams.internalDeleteBindingTeamWithOneMemberH) $
     capture "tid"
 
-  put "/i/teams/:tid/status" (continue Teams.updateTeamStatusH) $
+  put "/i/teams/:tid/status" (continueE Teams.updateTeamStatusH) $
     capture "tid"
       .&. jsonRequest @TeamStatusUpdate
       .&. accept "application" "json"
 
-  post "/i/teams/:tid/members" (continue Teams.uncheckedAddTeamMemberH) $
+  post "/i/teams/:tid/members" (continueE Teams.uncheckedAddTeamMemberH) $
     capture "tid"
       .&. jsonRequest @NewTeamMember
       .&. accept "application" "json"
@@ -381,12 +356,12 @@ internalSitemap = do
       .&. def (unsafeRange hardTruncationLimit) (query "maxResults")
       .&. accept "application" "json"
 
-  get "/i/teams/:tid/members/:uid" (continue Teams.uncheckedGetTeamMemberH) $
+  get "/i/teams/:tid/members/:uid" (continueE Teams.uncheckedGetTeamMemberH) $
     capture "tid"
       .&. capture "uid"
       .&. accept "application" "json"
 
-  get "/i/teams/:tid/is-team-owner/:uid" (continue Teams.userIsTeamOwnerH) $
+  get "/i/teams/:tid/is-team-owner/:uid" (continueE Teams.userIsTeamOwnerH) $
     capture "tid"
       .&. capture "uid"
       .&. accept "application" "json"
@@ -396,13 +371,13 @@ internalSitemap = do
 
   -- Misc API (internal) ------------------------------------------------
 
-  get "/i/users/:uid/team/members" (continue Teams.getBindingTeamMembersH) $
+  get "/i/users/:uid/team/members" (continueE Teams.getBindingTeamMembersH) $
     capture "uid"
 
-  get "/i/users/:uid/team" (continue Teams.getBindingTeamIdH) $
+  get "/i/users/:uid/team" (continueE Teams.getBindingTeamIdH) $
     capture "uid"
 
-  get "/i/test/clients" (continue Clients.getClientsH) $
+  get "/i/test/clients" (continueE Clients.getClientsH) $
     zauthUserId
   -- eg. https://github.com/wireapp/wire-server/blob/3bdca5fc8154e324773802a0deb46d884bd09143/services/brig/test/integration/API/User/Client.hs#L319
 
@@ -422,14 +397,14 @@ internalSitemap = do
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberJoin event to members
-  post "/i/bots" (continue Update.addBotH) $
+  post "/i/bots" (continueE Update.addBotH) $
     zauthUserId
       .&. zauthConnId
       .&. jsonRequest @AddBot
 
   -- This endpoint can lead to the following events being sent:
   -- - MemberLeave event to members
-  delete "/i/bots" (continue Update.rmBotH) $
+  delete "/i/bots" (continueE Update.rmBotH) $
     zauthUserId
       .&. opt zauthConnId
       .&. jsonRequest @RemoveBot
@@ -446,7 +421,7 @@ internalSitemap = do
     capture "tid"
       .&. accept "application" "json"
 
-  put "/i/teams/:tid/search-visibility" (continue Teams.setSearchVisibilityInternalH) $
+  put "/i/teams/:tid/search-visibility" (continueE Teams.setSearchVisibilityInternalH) $
     capture "tid"
       .&. jsonRequest @TeamSearchVisibilityView
       .&. accept "application" "json"

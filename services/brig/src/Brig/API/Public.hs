@@ -98,7 +98,8 @@ import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logHandle, logTeam, logUser)
 import qualified Wire.API.Connection as Public
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import qualified Wire.API.Error.Brig as E
 import qualified Wire.API.Properties as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Routes.Named
@@ -268,8 +269,8 @@ sitemap = do
     Doc.parameter Doc.Path "handle" Doc.bytes' $
       Doc.description "Handle to check"
     Doc.response 200 "Handle is taken" Doc.end
-    Doc.errorResponse (errorDescriptionTypeToWai @InvalidHandle)
-    Doc.errorResponse (errorDescriptionTypeToWai @HandleNotFound)
+    Doc.errorResponse (errorToWai @'E.InvalidHandle)
+    Doc.errorResponse (errorToWai @'E.HandleNotFound)
 
   -- some APIs moved to servant
   -- end User Handle API
@@ -297,7 +298,7 @@ sitemap = do
     Doc.body (Doc.ref Public.modelVerifyDelete) $
       Doc.description "JSON body"
     Doc.response 200 "Deletion is initiated." Doc.end
-    Doc.errorResponse (errorDescriptionTypeToWai @InvalidCode)
+    Doc.errorResponse (errorToWai @'E.InvalidCode)
 
   -- Properties API -----------------------------------------------------
 
@@ -417,11 +418,11 @@ sitemap = do
     Doc.body (Doc.ref Public.modelSendActivationCode) $
       Doc.description "JSON body"
     Doc.response 200 "Activation code sent." Doc.end
-    Doc.errorResponse (errorDescriptionTypeToWai @InvalidEmail)
-    Doc.errorResponse (errorDescriptionTypeToWai @InvalidPhone)
-    Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
+    Doc.errorResponse (errorToWai @'E.InvalidEmail)
+    Doc.errorResponse (errorToWai @'E.InvalidPhone)
+    Doc.errorResponse (errorToWai @'E.UserKeyExists)
     Doc.errorResponse blacklistedEmail
-    Doc.errorResponse (errorDescriptionTypeToWai @BlacklistedPhone)
+    Doc.errorResponse (errorToWai @'E.BlacklistedPhone)
     Doc.errorResponse (customerExtensionBlockedDomain (either undefined id $ mkDomain "example.com"))
 
   post "/password-reset" (continue beginPasswordResetH) $
@@ -544,7 +545,7 @@ getPrekeyUnqualifiedH zusr user client = do
 
 getPrekeyH :: UserId -> Qualified UserId -> ClientId -> (Handler r) Public.ClientPrekey
 getPrekeyH zusr (Qualified user domain) client = do
-  mPrekey <- API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
+  mPrekey <- wrapHttpClientE $ API.claimPrekey (ProtectedUser zusr) user domain client !>> clientError
   ifNothing (notFound "prekey not found") mPrekey
 
 getPrekeyBundleUnqualifiedH :: UserId -> UserId -> (Handler r) Public.PrekeyBundle
@@ -560,7 +561,7 @@ getMultiUserPrekeyBundleUnqualifiedH :: UserId -> Public.UserClients -> (Handler
 getMultiUserPrekeyBundleUnqualifiedH zusr userClients = do
   maxSize <- fromIntegral . setMaxConvSize <$> view settings
   when (Map.size (Public.userClients userClients) > maxSize) $
-    throwErrorDescriptionType @TooManyClients
+    throwStd (errorToWai @'E.TooManyClients)
   API.claimLocalMultiPrekeyBundles (ProtectedUser zusr) userClients !>> clientError
 
 getMultiUserPrekeyBundleH :: UserId -> Public.QualifiedUserClients -> (Handler r) Public.QualifiedUserClientPrekeyMap
@@ -571,7 +572,7 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
           (\_ v -> Sum . Map.size $ v)
           (Public.qualifiedUserClients qualUserClients)
   when (size > maxSize) $
-    throwErrorDescriptionType @TooManyClients
+    throwStd (errorToWai @'E.TooManyClients)
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> (Handler r) NewClientResponse
@@ -627,7 +628,7 @@ getUserClientQualified quid cid = do
 getClientCapabilities :: UserId -> ClientId -> (Handler r) Public.ClientCapabilityList
 getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
-  maybe (throwErrorDescriptionType @ClientNotFound) (pure . Public.clientCapabilities) mclient
+  maybe (throwStd (errorToWai @'E.ClientNotFound)) (pure . Public.clientCapabilities) mclient
 
 getRichInfoH :: UserId ::: UserId ::: JSON -> (Handler r) Response
 getRichInfoH (self ::: user ::: _) =
@@ -638,10 +639,10 @@ getRichInfo self user = do
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
   selfUser <-
-    ifNothing (errorDescriptionTypeToWai @UserNotFound)
+    ifNothing (errorToWai @'E.UserNotFound)
       =<< lift (wrapClient $ Data.lookupUser NoPendingInvitations self)
   otherUser <-
-    ifNothing (errorDescriptionTypeToWai @UserNotFound)
+    ifNothing (errorToWai @'E.UserNotFound)
       =<< lift (wrapClient $ Data.lookupUser NoPendingInvitations user)
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
     (Just t1, Just t2) | t1 == t2 -> pure ()
@@ -656,8 +657,8 @@ getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 createUser :: Public.NewUserPublic -> (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
 createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
-  for_ (Public.newUserEmail new) $ checkWhitelistWithError RegisterErrorWhitelistError . Left
-  for_ (Public.newUserPhone new) $ checkWhitelistWithError RegisterErrorWhitelistError . Right
+  for_ (Public.newUserEmail new) $ mapExceptT wrapHttp . checkWhitelistWithError RegisterErrorWhitelistError . Left
+  for_ (Public.newUserPhone new) $ mapExceptT wrapHttp . checkWhitelistWithError RegisterErrorWhitelistError . Right
   result <- API.createUser new
   let acc = createdAccount result
 
@@ -721,7 +722,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
 getSelf :: UserId -> (Handler r) Public.SelfProfile
 getSelf self =
   lift (API.lookupSelfProfile self)
-    >>= ifNothing (errorDescriptionTypeToWai @UserNotFound)
+    >>= ifNothing (errorToWai @'E.UserNotFound)
 
 getUserUnqualifiedH :: UserId -> UserId -> (Handler r) (Maybe Public.UserProfile)
 getUserUnqualifiedH self uid = do
@@ -731,7 +732,7 @@ getUserUnqualifiedH self uid = do
 getUser :: UserId -> Qualified UserId -> (Handler r) (Maybe Public.UserProfile)
 getUser self qualifiedUserId = do
   lself <- qualifyLocal self
-  API.lookupProfile lself qualifiedUserId !>> fedError
+  wrapHttpClientE $ API.lookupProfile lself qualifiedUserId !>> fedError
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles :: UserId -> Maybe (CommaSeparatedList UserId) -> Maybe (Range 1 4 (CommaSeparatedList Handle)) -> (Handler r) [Public.UserProfile]
@@ -770,7 +771,7 @@ listUsersByIdsOrHandles self q = do
       domain <- viewFederationDomain
       pure $ map (`Qualified` domain) localUsers
     byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
-    byIds lself uids = API.lookupProfiles lself uids !>> fedError
+    byIds lself uids = wrapHttpClientE (API.lookupProfiles lself uids) !>> fedError
 
 newtype GetActivationCodeResp
   = GetActivationCodeResp (Public.ActivationKey, Public.ActivationCode)
@@ -812,7 +813,7 @@ changeLocale u conn l = lift $ API.changeLocale u conn l
 checkHandleH :: UserId ::: Text -> (Handler r) Response
 checkHandleH (_uid ::: hndl) =
   API.checkHandle hndl >>= \case
-    API.CheckHandleInvalid -> throwE (StdError (errorDescriptionTypeToWai @InvalidHandle))
+    API.CheckHandleInvalid -> throwE (StdError (errorToWai @'E.InvalidHandle))
     API.CheckHandleFound -> pure $ setStatus status200 empty
     API.CheckHandleNotFound -> pure $ setStatus status404 empty
 
@@ -996,7 +997,7 @@ updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
       where
         check = runMaybeT $ do
           teamId <- hoistMaybe maybeTeamId
-          teamMember <- MaybeT $ lift $ Intra.getTeamMember zuserId teamId
+          teamMember <- MaybeT $ lift $ wrapHttp $ Intra.getTeamMember zuserId teamId
           pure $ teamMember `hasPermission` ChangeTeamMemberProfiles
 
 -- activation
@@ -1074,7 +1075,7 @@ sendVerificationCode req = do
 
     getFeatureStatus :: Maybe UserAccount -> (Handler r) Bool
     getFeatureStatus mbAccount = do
-      mbStatusEnabled <- lift $ Intra.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
+      mbStatusEnabled <- lift $ wrapHttp $ Intra.getVerificationCodeEnabled `traverse` (Public.userTeam <$> accountUser =<< mbAccount)
       pure $ fromMaybe False mbStatusEnabled
 
 -- Deprecated

@@ -27,6 +27,7 @@ import qualified Data.Set as Set
 import qualified Data.UUID as UUID (fromString)
 import Imports
 import Wire.API.Conversation
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (parseRoleName)
 
 domain :: Domain
@@ -47,10 +48,9 @@ testObject_ConversationList_20Conversation_user_1 =
                     cnvmName = Just "",
                     cnvmTeam = Just (Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000001"))),
                     cnvmMessageTimer = Just (Ms {ms = 4760386328981119}),
-                    cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 0}),
-                    cnvmProtocol = ProtocolProteus,
-                    cnvmGroupId = Nothing
+                    cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
                   },
+              cnvProtocol = ProtocolProteus,
               cnvMembers =
                 ConvMembers
                   { cmSelf =

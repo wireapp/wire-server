@@ -22,6 +22,7 @@
 module Test.Galley.Types where
 
 import Control.Lens
+import qualified Data.List as List
 import Data.Set hiding (drop)
 import qualified Data.Set as Set
 import Galley.Types.Teams
@@ -32,6 +33,7 @@ import qualified Test.QuickCheck as QC
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+import Wire.API.Team.Feature (TeamFeatureName (TeamFeatureSearchVisibilityInbound))
 
 tests :: TestTree
 tests =
@@ -53,7 +55,8 @@ tests =
         -- If you want to handle view permissions for future features differntly, adopt the test
         -- accordingly.  Just maintain the property that adding a new feature name will break
         -- this test, and force future develpers to consider what permissions they want to set.
-        assertBool "all covered" (all (roleHasPerm RoleExternalPartner) (ViewTeamFeature <$> [minBound ..])),
+        let viewableFeatures = List.filter (/= TeamFeatureSearchVisibilityInbound) [minBound ..]
+         in assertBool "all covered" (all (roleHasPerm RoleExternalPartner) (ViewTeamFeature <$> viewableFeatures)),
       testRoundTrip @FeatureFlags,
       testRoundTrip @GuardLegalholdPolicyConflicts,
       testGroup
@@ -92,6 +95,7 @@ instance Arbitrary FeatureFlags where
       <$> QC.elements [minBound ..]
       <*> QC.elements [minBound ..]
       <*> QC.elements [minBound ..]
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

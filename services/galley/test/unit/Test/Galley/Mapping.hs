@@ -32,6 +32,7 @@ import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck
 import Wire.API.Conversation
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
   ( RemoteConvMembers (..),
@@ -110,6 +111,7 @@ genLocalMember =
     <*> pure defMemberStatus
     <*> pure Nothing
     <*> arbitrary
+    <*> arbitrary
 
 genRemoteMember :: Gen RemoteMember
 genRemoteMember = RemoteMember <$> arbitrary <*> pure roleNameWireMember
@@ -118,18 +120,22 @@ genConversation :: Gen Data.Conversation
 genConversation =
   Data.Conversation
     <$> arbitrary
-    <*> pure RegularConv
-    <*> arbitrary
+    <*> listOf genLocalMember
+    <*> listOf genRemoteMember
+    <*> pure (Just False)
+    <*> genConversationMetadata
+    <*> pure ProtocolProteus
+
+genConversationMetadata :: Gen ConversationMetadata
+genConversationMetadata =
+  ConversationMetadata
+    <$> pure RegularConv
     <*> arbitrary
     <*> pure []
     <*> pure (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
-    <*> listOf genLocalMember
-    <*> listOf genRemoteMember
-    <*> pure Nothing
-    <*> pure (Just False)
+    <*> arbitrary
     <*> pure Nothing
     <*> pure Nothing
-    <*> pure (Just ProtocolProteus)
     <*> pure Nothing
 
 newtype RandomConversation = RandomConversation

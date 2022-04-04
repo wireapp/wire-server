@@ -21,6 +21,7 @@
 
 module Brig.User.Search.SearchIndex
   ( searchIndex,
+    SearchSetting (..),
   )
 where
 
@@ -28,7 +29,7 @@ import Brig.App (Env, viewFederationDomain)
 import Brig.Data.Instances ()
 import Brig.Types.Search
 import Brig.User.Search.Index
-import Control.Lens hiding ((#), (.=))
+import Control.Lens hiding (setting, (#), (.=))
 import Control.Monad.Catch (MonadThrow, throwM)
 import Control.Monad.Except
 import Data.Domain (Domain)
@@ -40,17 +41,30 @@ import Imports hiding (log, searchable)
 import Wire.API.User (ColourId (..), Name (fromName))
 import Wire.API.User.Search (FederatedUserSearchPolicy (FullSearch))
 
+-- | User that is performing the search
+-- Team of user that is performing the search
+-- Outgoing search restrictions
+data SearchSetting
+  = FederatedSearch
+  | LocalSearch
+      UserId
+      (Maybe TeamId)
+      TeamSearchInfo
+
+searchSettingTeam :: SearchSetting -> Maybe TeamId
+searchSettingTeam FederatedSearch = Nothing
+searchSettingTeam (LocalSearch _ mbTeam _) = mbTeam
+
 searchIndex ::
   (MonadIndexIO m, MonadReader Env m) =>
   -- | The user performing the search.
-  (Maybe UserId) ->
-  Maybe TeamSearchInfo ->
+  SearchSetting ->
   -- | The search query
   Text ->
   -- | The maximum number of results.
   Int ->
   m (SearchResult Contact)
-searchIndex u teamSearchInfo q = queryIndex (defaultUserQuery u teamSearchInfo q)
+searchIndex setting q = queryIndex (defaultUserQuery setting q)
 
 queryIndex ::
   (MonadIndexIO m, MonadReader Env m) =>
@@ -92,8 +106,8 @@ userDocToContact localDomain UserDoc {..} = do
 -- it allows to experiment with different queries (perhaps in an A/B context).
 --
 -- FUTUREWORK: Drop legacyPrefixMatch
-defaultUserQuery :: Maybe UserId -> Maybe TeamSearchInfo -> Text -> IndexQuery Contact
-defaultUserQuery u teamSearchInfo (normalized -> term') =
+defaultUserQuery :: SearchSetting -> Text -> IndexQuery Contact
+defaultUserQuery setting (normalized -> term') =
   let matchPhraseOrPrefix =
         ES.QueryMultiMatchQuery $
           ( ES.mkMultiMatchQuery
@@ -106,71 +120,57 @@ defaultUserQuery u teamSearchInfo (normalized -> term') =
             { ES.multiMatchQueryType = Just ES.MultiMatchMostFields,
               ES.multiMatchQueryOperator = ES.And
             }
-      -- This is required, so we can support prefix match until migration is done
-      legacyPrefixMatch =
-        ES.QueryMultiMatchQuery $
-          ( ES.mkMultiMatchQuery
-              [ ES.FieldName "handle",
-                ES.FieldName "normalized"
-              ]
-              (ES.QueryString term')
-          )
-            { ES.multiMatchQueryType = Just ES.MultiMatchPhrasePrefix,
-              ES.multiMatchQueryOperator = ES.And
-            }
       query =
         ES.QueryBoolQuery
           boolQuery
             { ES.boolQueryMustMatch =
                 [ ES.QueryBoolQuery
                     boolQuery
-                      { ES.boolQueryShouldMatch = [matchPhraseOrPrefix, legacyPrefixMatch],
+                      { ES.boolQueryShouldMatch = [matchPhraseOrPrefix],
                         -- This removes exact handle matches, as they are fetched from cassandra
                         ES.boolQueryMustNotMatch = [termQ "handle" term']
                       }
                 ],
               ES.boolQueryShouldMatch = [ES.QueryExistsQuery (ES.FieldName "handle")]
             }
-      -- This reduces relevance on non-team users by 90%, there was no science
-      -- put behind the negative boost value.
-      -- It is applied regardless of a teamId being present as users without a
-      -- team anyways don't see any users with team and hence it won't affect
-      -- results if a non team user does the search.
-      queryWithBoost =
+      -- This reduces relevance on users not in team of search by 90% (no
+      -- science behind that number). If the searcher is not part of a team the
+      -- relevance is not reduced for any users.
+      queryWithBoost setting' =
         ES.QueryBoostingQuery
           ES.BoostingQuery
             { ES.positiveQuery = query,
-              ES.negativeQuery = matchNonTeamMemberUsers,
+              ES.negativeQuery = maybe ES.QueryMatchNoneQuery matchUsersNotInTeam (searchSettingTeam setting'),
               ES.negativeBoost = ES.Boost 0.1
             }
-   in mkUserQuery u teamSearchInfo queryWithBoost
+   in mkUserQuery setting (queryWithBoost setting)
 
-mkUserQuery :: Maybe UserId -> Maybe TeamSearchInfo -> ES.Query -> IndexQuery Contact
-mkUserQuery (fmap (review _TextId) -> self) teamSearchInfo q =
+mkUserQuery :: SearchSetting -> ES.Query -> IndexQuery Contact
+mkUserQuery setting q =
   IndexQuery
     q
     ( ES.Filter . ES.QueryBoolQuery $
         boolQuery
-          { ES.boolQueryMustNotMatch = [termQ "_id" uid | uid <- maybeToList self],
+          { ES.boolQueryMustNotMatch = maybeToList $ matchSelf setting,
             ES.boolQueryMustMatch =
-              maybe [] (pure . optionallySearchWithinTeam) teamSearchInfo
-                ++ [ ES.QueryBoolQuery
-                       boolQuery
-                         { ES.boolQueryShouldMatch =
-                             [ termQ "account_status" "active",
-                               -- Also match entries where the account_status field is not present.
-                               -- These must have been inserted before we added the account_status
-                               -- and at that time we only inserted active users in the first place.
-                               -- This should be unnecessary after re-indexing, but let's be lenient
-                               -- here for a while.
-                               ES.QueryBoolQuery
-                                 boolQuery
-                                   { ES.boolQueryMustNotMatch =
-                                       [ES.QueryExistsQuery (ES.FieldName "account_status")]
-                                   }
-                             ]
-                         }
-                   ]
+              [ restrictSearchSpace setting,
+                ES.QueryBoolQuery
+                  boolQuery
+                    { ES.boolQueryShouldMatch =
+                        [ termQ "account_status" "active",
+                          -- Also match entries where the account_status field is not present.
+                          -- These must have been inserted before we added the account_status
+                          -- and at that time we only inserted active users in the first place.
+                          -- This should be unnecessary after re-indexing, but let's be lenient
+                          -- here for a while.
+                          ES.QueryBoolQuery
+                            boolQuery
+                              { ES.boolQueryMustNotMatch =
+                                  [ES.QueryExistsQuery (ES.FieldName "account_status")]
+                              }
+                        ]
+                    }
+              ]
           }
     )
     []
@@ -184,30 +184,60 @@ termQ f v =
       }
     Nothing
 
--- | This query will make sure that: if teamId is absent, only users without a teamId are
--- returned.  if teamId is present, only users with the *same* teamId or users without a
--- teamId are returned.
-optionallySearchWithinTeam :: TeamSearchInfo -> ES.Query
-optionallySearchWithinTeam =
-  \case
-    NoTeam ->
-      matchNonTeamMemberUsers
-    TeamOnly teamId ->
-      matchTeamMembersOf teamId
-    TeamAndNonMembers teamId ->
+matchSelf :: SearchSetting -> Maybe ES.Query
+matchSelf FederatedSearch = Nothing
+matchSelf (LocalSearch searcher _tid _searchInfo) = Just (termQ "_id" (review _TextId searcher))
+
+-- | See 'TeamSearchInfo'
+restrictSearchSpace :: SearchSetting -> ES.Query
+restrictSearchSpace FederatedSearch =
+  ES.QueryBoolQuery
+    boolQuery
+      { ES.boolQueryShouldMatch =
+          [ matchNonTeamMemberUsers,
+            matchTeamMembersSearchableByAllTeams
+          ]
+      }
+restrictSearchSpace (LocalSearch _uid mteam searchInfo) =
+  case (mteam, searchInfo) of
+    (Nothing, _) -> matchNonTeamMemberUsers
+    (Just _, NoTeam) -> matchNonTeamMemberUsers
+    (Just searcherTeam, TeamOnly team) ->
+      if searcherTeam == team
+        then matchTeamMembersOf team
+        else ES.QueryMatchNoneQuery
+    (Just searcherTeam, AllUsers) ->
       ES.QueryBoolQuery
         boolQuery
           { ES.boolQueryShouldMatch =
-              [ matchTeamMembersOf teamId,
-                matchNonTeamMemberUsers
+              [ matchNonTeamMemberUsers,
+                matchTeamMembersSearchableByAllTeams,
+                matchTeamMembersOf searcherTeam
               ]
           }
   where
     matchTeamMembersOf team = ES.TermQuery (ES.Term "team" $ idToText team) Nothing
+
+matchTeamMembersSearchableByAllTeams :: ES.Query
+matchTeamMembersSearchableByAllTeams =
+  ES.QueryBoolQuery
+    boolQuery
+      { ES.boolQueryMustMatch =
+          [ ES.QueryExistsQuery $ ES.FieldName "team",
+            ES.TermQuery (ES.Term searchVisibilityInboundFieldName "searchable-by-all-teams") Nothing
+          ]
+      }
 
 matchNonTeamMemberUsers :: ES.Query
 matchNonTeamMemberUsers =
   ES.QueryBoolQuery
     boolQuery
       { ES.boolQueryMustNotMatch = [ES.QueryExistsQuery $ ES.FieldName "team"]
+      }
+
+matchUsersNotInTeam :: TeamId -> ES.Query
+matchUsersNotInTeam tid =
+  ES.QueryBoolQuery
+    boolQuery
+      { ES.boolQueryMustNotMatch = [ES.TermQuery (ES.Term "team" $ idToText tid) Nothing]
       }

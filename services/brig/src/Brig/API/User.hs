@@ -88,7 +88,8 @@ module Brig.API.User
   )
 where
 
-import Brig.API.Error (errorDescriptionTypeToWai)
+import Bilge.IO (MonadHttp)
+import Bilge.RPC (HasRequestId)
 import qualified Brig.API.Error as Error
 import qualified Brig.API.Handler as API (Handler, UserNotAllowedToJoinTeam (..))
 import Brig.API.Types
@@ -126,6 +127,7 @@ import Brig.User.Email
 import Brig.User.Handle
 import Brig.User.Handle.Blacklist
 import Brig.User.Phone
+import Brig.User.Search.Index (MonadIndexIO)
 import qualified Brig.User.Search.TeamSize as TeamSize
 import Cassandra
 import Control.Arrow ((&&&))
@@ -149,10 +151,12 @@ import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import Network.Wai.Utilities
+import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import UnliftIO.Async
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Team.Member (legalHoldStatus)
@@ -179,9 +183,9 @@ identityErrorToRegisterError = \case
 
 identityErrorToBrigError :: IdentityError -> Error.Error
 identityErrorToBrigError = \case
-  IdentityErrorBlacklistedEmail -> Error.StdError $ errorDescriptionTypeToWai @BlacklistedEmail
-  IdentityErrorBlacklistedPhone -> Error.StdError $ errorDescriptionTypeToWai @BlacklistedPhone
-  IdentityErrorUserKeyExists -> Error.StdError $ errorDescriptionTypeToWai @UserKeyExists
+  IdentityErrorBlacklistedEmail -> Error.StdError $ errorToWai @'E.BlacklistedEmail
+  IdentityErrorBlacklistedPhone -> Error.StdError $ errorToWai @'E.BlacklistedPhone
+  IdentityErrorUserKeyExists -> Error.StdError $ errorToWai @'E.UserKeyExists
 
 verifyUniquenessAndCheckBlacklist :: UserKey -> ExceptT IdentityError (AppIO r) ()
 verifyUniquenessAndCheckBlacklist uk = do
@@ -249,8 +253,8 @@ createUser new = do
     Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
 
     wrapClient $ Data.insertAccount account Nothing pw False
-    Intra.createSelfConv uid
-    Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
+    wrapHttp $ Intra.createSelfConv uid
+    wrapHttpClient $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
 
     pure account
 
@@ -260,7 +264,7 @@ createUser new = do
     activatedTeam <- lift $ do
       case (tid, newTeam) of
         (Just tid', Just nt) -> do
-          created <- Intra.createTeam uid (bnuTeam nt) tid'
+          created <- wrapHttp $ Intra.createTeam uid (bnuTeam nt) tid'
           let activating = isJust (newUserEmailCode new)
           pure $
             if activating
@@ -272,7 +276,7 @@ createUser new = do
       Just (inv, invInfo) -> do
         let em = Team.inInviteeEmail inv
         acceptTeamInvitation account inv invInfo (userEmailKey em) (EmailIdentity em)
-        Team.TeamName nm <- lift $ Intra.getTeamName (Team.inTeam inv)
+        Team.TeamName nm <- lift $ wrapHttp $ Intra.getTeamName (Team.inTeam inv)
         pure (Just $ CreateUserTeam (Team.inTeam inv) nm)
       Nothing -> pure Nothing
 
@@ -338,7 +342,7 @@ createUser new = do
         throwE RegisterErrorTooManyTeamMembers
       -- FUTUREWORK: The above can easily be done/tested in the intra call.
       --             Remove after the next release.
-      canAdd <- lift $ Intra.checkUserCanJoinTeam tid
+      canAdd <- lift $ wrapHttp $ Intra.checkUserCanJoinTeam tid
       case canAdd of
         Just e -> throwM $ API.UserNotAllowedToJoinTeam e
         Nothing -> pure ()
@@ -357,7 +361,7 @@ createUser new = do
         throwE RegisterErrorUserKeyExists
       let minvmeta :: (Maybe (UserId, UTCTimeMillis), Team.Role)
           minvmeta = ((,inCreatedAt inv) <$> inCreatedBy inv, Team.inRole inv)
-      added <- lift $ Intra.addTeamMember uid (Team.iiTeam ii) minvmeta
+      added <- lift $ wrapHttp $ Intra.addTeamMember uid (Team.iiTeam ii) minvmeta
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
@@ -374,7 +378,7 @@ createUser new = do
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppIO r) CreateUserTeam
     addUserToTeamSSO account tid ident = do
       let uid = userId (accountUser account)
-      added <- lift $ Intra.addTeamMember uid tid (Nothing, Team.defaultRole)
+      added <- lift $ wrapHttp $ Intra.addTeamMember uid tid (Nothing, Team.defaultRole)
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
@@ -384,7 +388,7 @@ createUser new = do
           field "user" (toByteString uid)
             . field "team" (toByteString tid)
             . msg (val "Added via SSO")
-      Team.TeamName nm <- lift $ Intra.getTeamName tid
+      Team.TeamName nm <- lift $ wrapHttp $ Intra.getTeamName tid
       pure $ CreateUserTeam tid nm
 
     -- Handle e-mail activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
@@ -433,7 +437,7 @@ initAccountFeatureConfig uid = do
 -- users are invited to the team via scim.
 createUserInviteViaScim :: UserId -> NewUserScimInvitation -> ExceptT Error.Error (AppIO r) UserAccount
 createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = do
-  email <- either (const . throwE . Error.StdError $ errorDescriptionTypeToWai @InvalidEmail) pure (validateEmail rawEmail)
+  email <- either (const . throwE . Error.StdError $ errorToWai @'E.InvalidEmail) pure (validateEmail rawEmail)
   let emKey = userEmailKey email
   verifyUniquenessAndCheckBlacklist emKey !>> identityErrorToBrigError
   account <- lift . wrapClient $ newAccountInviteViaScim uid tid loc name email
@@ -483,7 +487,7 @@ updateUser uid mconn uu allowScim = do
       $ throwE DisplayNameManagedByScim
   lift $ do
     wrapClient $ Data.updateUser uid uu
-    Intra.onUserEvent uid mconn (profileUpdated uid uu)
+    wrapHttpClient $ Intra.onUserEvent uid mconn (profileUpdated uid uu)
 
 -------------------------------------------------------------------------------
 -- Update Locale
@@ -491,7 +495,7 @@ updateUser uid mconn uu allowScim = do
 changeLocale :: UserId -> ConnId -> LocaleUpdate -> (AppIO r) ()
 changeLocale uid conn (LocaleUpdate loc) = do
   wrapClient $ Data.updateLocale uid loc
-  Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)
+  wrapHttpClient $ Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)
 
 -------------------------------------------------------------------------------
 -- Update ManagedBy
@@ -499,7 +503,7 @@ changeLocale uid conn (LocaleUpdate loc) = do
 changeManagedBy :: UserId -> ConnId -> ManagedByUpdate -> (AppIO r) ()
 changeManagedBy uid conn (ManagedByUpdate mb) = do
   wrapClient $ Data.updateManagedBy uid mb
-  Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
+  wrapHttpClient $ Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
 
 --------------------------------------------------------------------------------
 -- Change Handle
@@ -526,7 +530,7 @@ changeHandle uid mconn hdl allowScim = do
       claimed <- lift . wrapClient $ claimHandle (userId u) (userHandle u) hdl
       unless claimed $
         throwE ChangeHandleExists
-      lift $ Intra.onUserEvent uid mconn (handleUpdated uid hdl)
+      lift $ wrapHttpClient $ Intra.onUserEvent uid mconn (handleUpdated uid hdl)
 
 --------------------------------------------------------------------------------
 -- Check Handle
@@ -659,7 +663,7 @@ removeEmail uid conn = do
     Just (FullIdentity e _) -> lift $ do
       wrapClient . deleteKey $ userEmailKey e
       wrapClient $ Data.deleteEmail uid
-      Intra.onUserEvent uid (Just conn) (emailRemoved uid e)
+      wrapHttpClient $ Intra.onUserEvent uid (Just conn) (emailRemoved uid e)
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
 
@@ -677,7 +681,7 @@ removePhone uid conn = do
       lift $ do
         wrapClient . deleteKey $ userPhoneKey p
         wrapClient $ Data.deletePhone uid
-        Intra.onUserEvent uid (Just conn) (phoneRemoved uid p)
+        wrapHttpClient $ Intra.onUserEvent uid (Just conn) (phoneRemoved uid p)
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
 
@@ -709,11 +713,12 @@ revokeIdentity key = do
           (\(_ :: Email) -> Data.deleteEmail u)
           (\(_ :: Phone) -> Data.deletePhone u)
           uk
-      Intra.onUserEvent u Nothing $
-        foldKey
-          (emailRemoved u)
-          (phoneRemoved u)
-          uk
+      wrapHttpClient $
+        Intra.onUserEvent u Nothing $
+          foldKey
+            (emailRemoved u)
+            (phoneRemoved u)
+            uk
 
 -------------------------------------------------------------------------------
 -- Change Account Status
@@ -732,7 +737,7 @@ changeAccountStatus usrs status = do
     update :: (UserId -> UserEvent) -> UserId -> (AppIO r) ()
     update ev u = do
       wrapClient $ Data.updateStatus u status
-      Intra.onUserEvent u Nothing (ev u)
+      wrapHttpClient $ Intra.onUserEvent u Nothing (ev u)
 
 suspendAccount :: HasCallStack => List1 UserId -> (AppIO r) ()
 suspendAccount usrs =
@@ -777,8 +782,8 @@ activateWithCurrency tgt code usr cur = do
       return $ ActivationSuccess ident first
   where
     activateTeam uid = do
-      tid <- Intra.getTeamId uid
-      for_ tid $ \t -> Intra.changeTeamStatus t Team.Active cur
+      tid <- wrapHttp $ Intra.getTeamId uid
+      for_ tid $ \t -> wrapHttp $ Intra.changeTeamStatus t Team.Active cur
 
 preverify ::
   ( MonadClient m,
@@ -796,13 +801,13 @@ onActivated (AccountActivated account) = do
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.onActivated")
   Log.info $ field "user" (toByteString uid) . msg (val "User activated")
-  Intra.onUserEvent uid Nothing $ UserActivated (accountUser account)
+  wrapHttpClient $ Intra.onUserEvent uid Nothing $ UserActivated (accountUser account)
   return (uid, userIdentity (accountUser account), True)
 onActivated (EmailActivated uid email) = do
-  Intra.onUserEvent uid Nothing (emailUpdated uid email)
+  wrapHttpClient $ Intra.onUserEvent uid Nothing (emailUpdated uid email)
   return (uid, Just (EmailIdentity email), False)
 onActivated (PhoneActivated uid phone) = do
-  Intra.onUserEvent uid Nothing (phoneUpdated uid phone)
+  wrapHttpClient $ Intra.onUserEvent uid Nothing (phoneUpdated uid phone)
   return (uid, Just (PhoneIdentity phone), False)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
@@ -876,7 +881,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
           loc' = loc <|> Just (userLocale u)
       void . forEmailKey ek $ \em -> lift $ do
         -- Get user's team, if any.
-        mbTeam <- mapM (fmap Team.tdTeam . Intra.getTeam) (userTeam u)
+        mbTeam <- mapM (fmap Team.tdTeam . wrapHttp . Intra.getTeam) (userTeam u)
         -- Depending on whether the user is a team creator, send either
         -- a team activation email or a regular email. Note that we
         -- don't have to check if the team is binding because if the
@@ -997,7 +1002,7 @@ deleteUser uid pwd = do
       case userTeam $ accountUser acc of
         Nothing -> pure ()
         Just tid -> do
-          isOwner <- lift $ Intra.memberIsTeamOwner tid uid
+          isOwner <- lift $ wrapHttp $ Intra.memberIsTeamOwner tid uid
           when isOwner $ throwE DeleteUserOwnerDeletingSelf
     go a = maybe (byIdentity a) (byPassword a) pwd
     getEmailOrPhone :: UserIdentity -> Maybe (Either Email Phone)
@@ -1011,7 +1016,7 @@ deleteUser uid pwd = do
       Just emailOrPhone -> sendCode a emailOrPhone
       Nothing -> case pwd of
         Just _ -> throwE DeleteUserMissingPassword
-        Nothing -> lift $ deleteAccount a >> return Nothing
+        Nothing -> lift $ wrapHttpClient $ deleteAccount a >> return Nothing
     byPassword a pw = do
       Log.info $
         field "user" (toByteString uid)
@@ -1022,7 +1027,7 @@ deleteUser uid pwd = do
         Just p -> do
           unless (verifyPassword pw p) $
             throwE DeleteUserInvalidPassword
-          lift $ deleteAccount a >> return Nothing
+          lift $ wrapHttpClient $ deleteAccount a >> return Nothing
     sendCode a target = do
       gen <- Code.mkGen (either Code.ForEmail Code.ForPhone target)
       pending <- lift . wrapClient $ Code.lookup (Code.genKey gen) Code.AccountDeletion
@@ -1060,33 +1065,47 @@ verifyDeleteUser d = do
   c <- lift . wrapClient $ Code.verify key Code.AccountDeletion code
   a <- maybe (throwE DeleteUserInvalidCode) return (Code.codeAccount =<< c)
   account <- lift . wrapClient $ Data.lookupAccount (Id a)
-  for_ account $ lift . deleteAccount
+  for_ account $ lift . wrapHttpClient . deleteAccount
   lift . wrapClient $ Code.delete key Code.AccountDeletion
 
 -- | Internal deletion without validation.  Called via @delete /i/user/:uid@, or indirectly
 -- via deleting self.
 -- Team owners can be deleted if the team is not orphaned, i.e. there is at least one
 -- other owner left.
-deleteAccount :: UserAccount -> (AppIO r) ()
+deleteAccount ::
+  ( MonadLogger m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadIndexIO m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m,
+    MonadClient m
+  ) =>
+  UserAccount ->
+  m ()
 deleteAccount account@(accountUser -> user) = do
   let uid = userId user
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
   -- Free unique keys
-  for_ (userEmail user) $ wrapClient . deleteKey . userEmailKey
-  for_ (userPhone user) $ wrapClient . deleteKey . userPhoneKey
-  for_ (userHandle user) $ wrapClient . freeHandle (userId user)
+  for_ (userEmail user) $ deleteKey . userEmailKey
+  for_ (userPhone user) $ deleteKey . userPhoneKey
+  for_ (userHandle user) $ freeHandle (userId user)
   -- Wipe data
-  wrapClient $ Data.clearProperties uid
+  Data.clearProperties uid
   tombstone <- mkTombstone
-  wrapClient $ Data.insertAccount tombstone Nothing Nothing False
+  Data.insertAccount tombstone Nothing Nothing False
   Intra.rmUser uid (userAssets user)
-  wrapClient (Data.lookupClients uid) >>= mapM_ (wrapClient . Data.rmClient uid . clientId)
+  Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
   luid <- qualifyLocal uid
   Intra.onUserEvent uid Nothing (UserDeleted (qUntagged luid))
   -- Note: Connections can only be deleted afterwards, since
   --       they need to be notified.
   Data.deleteConnections uid
-  wrapClient $ revokeAllCookies uid
+  revokeAllCookies uid
   where
     mkTombstone = do
       defLoc <- setDefaultUserLocale <$> view settings
@@ -1129,7 +1148,14 @@ lookupPasswordResetCode emailOrPhone = do
       c <- wrapClient $ Data.lookupPasswordResetCode u
       return $ (k,) <$> c
 
-deleteUserNoVerify :: UserId -> (AppIO r) ()
+deleteUserNoVerify ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadLogger m,
+    MonadThrow m
+  ) =>
+  UserId ->
+  m ()
 deleteUserNoVerify uid = do
   queue <- view internalEvents
   Queue.enqueue queue (Internal.DeleteUser uid)
@@ -1143,7 +1169,14 @@ deleteUsersNoVerify uids = do
 
 -- | Garbage collect users if they're ephemeral and they have expired.
 -- Always returns the user (deletion itself is delayed)
-userGC :: User -> (AppIO r) User
+userGC ::
+  ( MonadIO m,
+    MonadReader Env m,
+    MonadLogger m,
+    MonadThrow m
+  ) =>
+  User ->
+  m User
 userGC u = case userExpire u of
   Nothing -> return u
   (Just (fromUTCTimeMillis -> e)) -> do
@@ -1153,7 +1186,17 @@ userGC u = case userExpire u of
       deleteUserNoVerify (userId u)
     return u
 
-lookupProfile :: Local UserId -> Qualified UserId -> ExceptT FederationError (AppIO r) (Maybe UserProfile)
+lookupProfile ::
+  ( MonadClient m,
+    MonadReader Env m,
+    MonadLogger m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  Local UserId ->
+  Qualified UserId ->
+  ExceptT FederationError m (Maybe UserProfile)
 lookupProfile self other =
   listToMaybe
     <$> lookupProfilesFromDomain
@@ -1166,11 +1209,19 @@ lookupProfile self other =
 -- Otherwise only the 'PublicProfile' is accessible for user 'self'.
 -- If 'self' is an unknown 'UserId', return '[]'.
 lookupProfiles ::
+  ( MonadUnliftIO m,
+    MonadClient m,
+    MonadReader Env m,
+    MonadLogger m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
   -- | User 'self' on whose behalf the profiles are requested.
   Local UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [Qualified UserId] ->
-  ExceptT FederationError (AppIO r) [UserProfile]
+  ExceptT FederationError m [UserProfile]
 lookupProfiles self others =
   concat
     <$> traverseConcurrentlyWithErrors
@@ -1178,14 +1229,29 @@ lookupProfiles self others =
       (bucketQualified others)
 
 lookupProfilesFromDomain ::
-  Local UserId -> Qualified [UserId] -> ExceptT FederationError (AppIO r) [UserProfile]
+  ( MonadClient m,
+    MonadReader Env m,
+    MonadLogger m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  Local UserId ->
+  Qualified [UserId] ->
+  ExceptT FederationError m [UserProfile]
 lookupProfilesFromDomain self =
   foldQualified
     self
     (lift . lookupLocalProfiles (Just (tUnqualified self)) . tUnqualified)
     lookupRemoteProfiles
 
-lookupRemoteProfiles :: Remote [UserId] -> ExceptT FederationError (AppIO r) [UserProfile]
+lookupRemoteProfiles ::
+  ( MonadIO m,
+    MonadReader Env m,
+    MonadLogger m
+  ) =>
+  Remote [UserId] ->
+  ExceptT FederationError m [UserProfile]
 lookupRemoteProfiles (qUntagged -> Qualified uids domain) =
   Federation.getUsersByIds domain uids
 
@@ -1193,16 +1259,24 @@ lookupRemoteProfiles (qUntagged -> Qualified uids domain) =
 -- ids, but it is also very complex. Maybe this can be made easy by extracting a
 -- pure function and writing tests for that.
 lookupLocalProfiles ::
+  forall m.
+  ( MonadClient m,
+    MonadReader Env m,
+    MonadLogger m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
   -- | This is present only when an authenticated user is requesting access.
   Maybe UserId ->
   -- | The users ('others') for which to obtain the profiles.
   [UserId] ->
-  (AppIO r) [UserProfile]
+  m [UserProfile]
 lookupLocalProfiles requestingUser others = do
-  users <- wrapClient (Data.lookupUsers NoPendingInvitations others) >>= mapM userGC
+  users <- Data.lookupUsers NoPendingInvitations others >>= mapM userGC
   css <- case requestingUser of
-    Just localReqUser -> toMap <$> wrapClient (Data.lookupConnectionStatus (map userId users) [localReqUser])
-    Nothing -> mempty
+    Just localReqUser -> toMap <$> Data.lookupConnectionStatus (map userId users) [localReqUser]
+    Nothing -> pure mempty
   emailVisibility' <- view (settings . emailVisibility)
   emailVisibility'' <- case emailVisibility' of
     EmailVisibleIfOnTeam -> pure EmailVisibleIfOnTeam'
@@ -1216,12 +1290,12 @@ lookupLocalProfiles requestingUser others = do
     toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
 
-    getSelfInfo :: UserId -> (AppIO r) (Maybe (TeamId, Team.TeamMember))
+    getSelfInfo :: UserId -> m (Maybe (TeamId, Team.TeamMember))
     getSelfInfo selfId = do
       -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
       -- to return 'Nothing'.  we could throw errors here if that happens, rather than just
       -- returning an empty profile list from 'lookupProfiles'.
-      mUser <- wrapClient $ Data.lookupUser NoPendingInvitations selfId
+      mUser <- Data.lookupUser NoPendingInvitations selfId
       case userTeam =<< mUser of
         Nothing -> pure Nothing
         Just tid -> (tid,) <$$> Intra.getTeamMember selfId tid
@@ -1236,10 +1310,28 @@ lookupLocalProfiles requestingUser others = do
               else publicProfile u userLegalHold
        in baseProfile {profileEmail = profileEmail'}
 
-getLegalHoldStatus :: UserId -> (AppIO r) (Maybe UserLegalHoldStatus)
-getLegalHoldStatus uid = traverse (getLegalHoldStatus' . accountUser) =<< wrapClient (lookupAccount uid)
+getLegalHoldStatus ::
+  ( MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadClient m
+  ) =>
+  UserId ->
+  m (Maybe UserLegalHoldStatus)
+getLegalHoldStatus uid = traverse (getLegalHoldStatus' . accountUser) =<< lookupAccount uid
 
-getLegalHoldStatus' :: User -> (AppIO r) UserLegalHoldStatus
+getLegalHoldStatus' ::
+  ( MonadLogger m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  User ->
+  m UserLegalHoldStatus
 getLegalHoldStatus' user =
   case userTeam user of
     Nothing -> pure defUserLegalHoldStatus

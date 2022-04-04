@@ -143,7 +143,9 @@ import Servant (FromHttpApiData (..), ToHttpApiData (..), type (.++))
 import qualified Test.QuickCheck as QC
 import qualified Web.Cookie as Web
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import Wire.API.Error.Brig
+import qualified Wire.API.Error.Brig as E
 import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Team (BindingNewTeam, bindingNewTeamObjectSchema)
@@ -516,18 +518,18 @@ data RegisterError
 instance GSOP.Generic RegisterError
 
 type RegisterErrorResponses =
-  '[ WhitelistError,
-     InvalidInvitationCode,
-     MissingIdentity,
-     UserKeyExists,
-     InvalidActivationCodeWrongUser,
-     InvalidActivationCodeWrongCode,
-     InvalidEmail,
-     InvalidPhone,
-     BlacklistedPhone,
-     BlacklistedEmail,
-     TooManyTeamMembers,
-     UserCreationRestricted
+  '[ ErrorResponse 'WhitelistError,
+     ErrorResponse 'InvalidInvitationCode,
+     ErrorResponse 'MissingIdentity,
+     ErrorResponse 'UserKeyExists,
+     ErrorResponse 'InvalidActivationCodeWrongUser,
+     ErrorResponse 'InvalidActivationCodeWrongCode,
+     ErrorResponse 'InvalidEmail,
+     ErrorResponse 'InvalidPhone,
+     ErrorResponse 'BlacklistedPhone,
+     ErrorResponse 'BlacklistedEmail,
+     ErrorResponse 'TooManyTeamMembers,
+     ErrorResponse 'UserCreationRestricted
    ]
 
 type RegisterResponses =
@@ -904,7 +906,7 @@ data UpdateProfileError
 
 instance GSOP.Generic UpdateProfileError
 
-type PutSelfErrorResponses = '[NameManagedByScim, UserNotFound]
+type PutSelfErrorResponses = '[ErrorResponse 'E.NameManagedByScim, ErrorResponse 'E.UserNotFound]
 
 type PutSelfResponses = PutSelfErrorResponses .++ '[RespondEmpty 200 "User updated"]
 
@@ -943,7 +945,11 @@ data ChangePasswordError
 
 instance GSOP.Generic ChangePasswordError
 
-type ChangePasswordErrorResponses = [BadCredentials, NoIdentity, ChangePasswordMustDiffer]
+type ChangePasswordErrorResponses =
+  [ ErrorResponse 'E.BadCredentials,
+    ErrorResponse 'E.NoIdentity,
+    ErrorResponse 'E.ChangePasswordMustDiffer
+  ]
 
 type ChangePasswordResponses =
   ChangePasswordErrorResponses .++ '[RespondEmpty 200 "Password Changed"]
@@ -1007,7 +1013,11 @@ data ChangePhoneError
 
 instance GSOP.Generic ChangePhoneError
 
-type ChangePhoneErrorResponses = [UserKeyExists, InvalidPhone, BlacklistedPhone]
+type ChangePhoneErrorResponses =
+  [ ErrorResponse 'UserKeyExists,
+    ErrorResponse 'InvalidPhone,
+    ErrorResponse 'BlacklistedPhone
+  ]
 
 type ChangePhoneResponses =
   ChangePhoneErrorResponses .++ '[RespondEmpty 202 "Phone updated"]
@@ -1025,7 +1035,11 @@ data RemoveIdentityError
 
 instance GSOP.Generic RemoveIdentityError
 
-type RemoveIdentityErrorResponses = [LastIdentity, NoPassword, NoIdentity]
+type RemoveIdentityErrorResponses =
+  [ ErrorResponse 'E.LastIdentity,
+    ErrorResponse 'E.NoPassword,
+    ErrorResponse 'E.NoIdentity
+  ]
 
 type RemoveIdentityResponses =
   RemoveIdentityErrorResponses .++ '[RespondEmpty 200 "Identity Removed"]
@@ -1054,7 +1068,12 @@ data ChangeHandleError
 
 instance GSOP.Generic ChangeHandleError
 
-type ChangeHandleErrorResponses = [NoIdentity, HandleExists, InvalidHandle, HandleManagedByScim]
+type ChangeHandleErrorResponses =
+  [ ErrorResponse 'E.NoIdentity,
+    ErrorResponse 'E.HandleExists,
+    ErrorResponse 'E.InvalidHandle,
+    ErrorResponse 'E.HandleManagedByScim
+  ]
 
 type ChangeHandleResponses =
   ChangeHandleErrorResponses .++ '[RespondEmpty 200 "Handle Changed"]

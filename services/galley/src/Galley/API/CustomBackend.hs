@@ -24,7 +24,6 @@ module Galley.API.CustomBackend
 where
 
 import Data.Domain (Domain)
-import Galley.API.Error
 import Galley.API.Util
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.WaiRoutes
@@ -35,15 +34,16 @@ import Network.Wai
 import Network.Wai.Predicate hiding (Error, setStatus)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
-import Polysemy.Error
 import qualified Wire.API.CustomBackend as Public
+import Wire.API.Error
+import Wire.API.Error.Galley
 
 -- PUBLIC ---------------------------------------------------------------------
 
 getCustomBackendByDomainH ::
   Members
     '[ CustomBackendStore,
-       Error CustomBackendError
+       ErrorS 'CustomBackendNotFound
      ]
     r =>
   Domain ::: JSON ->
@@ -52,12 +52,12 @@ getCustomBackendByDomainH (domain ::: _) =
   json <$> getCustomBackendByDomain domain
 
 getCustomBackendByDomain ::
-  Members '[CustomBackendStore, Error CustomBackendError] r =>
+  Members '[CustomBackendStore, ErrorS 'CustomBackendNotFound] r =>
   Domain ->
   Sem r Public.CustomBackend
 getCustomBackendByDomain domain =
   getCustomBackend domain >>= \case
-    Nothing -> throw (CustomBackendNotFound domain)
+    Nothing -> throwS @'CustomBackendNotFound
     Just customBackend -> pure customBackend
 
 -- INTERNAL -------------------------------------------------------------------

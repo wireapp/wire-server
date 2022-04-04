@@ -47,37 +47,6 @@ compile:
 .PHONY: clean
 clean:
 	stack clean $(NAME)
-	-rm -f .metadata
-
-.PHONY: dist
-dist: guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) .metadata
-
-$(DEB):
-	makedeb --name=$(NAME) \
-	 --version=$(VERSION) \
-	 --debian-dir=deb \
-	 --build=$(BUILD) \
-	 --architecture=amd64 \
-	 --output-dir=dist
-
-$(DEB_IT):
-	makedeb --name=$(NAME)-integration \
-	 --version=$(VERSION) \
-	 --debian-dir=deb-it \
-	 --build=$(BUILD) \
-	 --architecture=amd64 \
-	 --output-dir=dist
-
-$(DEB_SCHEMA):
-	makedeb --name=$(NAME)-schema \
-		--version=$(VERSION) \
-		--debian-dir=schema/deb \
-		--build=$(BUILD) \
-		--architecture=amd64 \
-		--output-dir=dist
-
-.metadata:
-	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
 
 .PHONY: test
 test: install

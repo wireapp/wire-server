@@ -50,7 +50,7 @@ import qualified Amazonka.DynamoDB as AWS
 import qualified Amazonka.DynamoDB.Lens as AWS
 import Bilge.Retry (httpHandlers)
 import Brig.AWS
-import Brig.App (AppIO, Env, awsEnv, currentTime, metrics, randomPrekeyLocalLock, wrapClient)
+import Brig.App
 import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import qualified Brig.Data.User as User
@@ -207,7 +207,6 @@ hasClient u d = isJust <$> retry x1 (query1 checkClient (params LocalQuorum (u, 
 rmClient ::
   ( MonadClient m,
     MonadReader Brig.App.Env m,
-    MonadUnliftIO m,
     MonadCatch m
   ) =>
   UserId ->
@@ -240,16 +239,24 @@ updatePrekeys u c pks = do
         Success n -> return (CryptoBox.prekeyId n == keyId (prekeyId a))
         _ -> return False
 
-claimPrekey :: UserId -> ClientId -> AppIO r (Maybe ClientPrekey)
+claimPrekey ::
+  ( Log.MonadLogger m,
+    MonadMask m,
+    MonadClient m,
+    MonadReader Brig.App.Env m
+  ) =>
+  UserId ->
+  ClientId ->
+  m (Maybe ClientPrekey)
 claimPrekey u c =
   view randomPrekeyLocalLock >>= \case
     -- Use random prekey selection strategy
     Just localLock -> withLocalLock localLock $ do
-      prekeys <- wrapClient . retry x1 $ query userPrekeys (params LocalQuorum (u, c))
+      prekeys <- retry x1 $ query userPrekeys (params LocalQuorum (u, c))
       prekey <- pickRandomPrekey prekeys
-      wrapClient $ removeAndReturnPreKey prekey
+      removeAndReturnPreKey prekey
     -- Use DynamoDB based optimistic locking strategy
-    Nothing -> withOptLock u c . wrapClient $ do
+    Nothing -> withOptLock u c $ do
       prekey <- retry x1 $ query1 userPrekey (params LocalQuorum (u, c))
       removeAndReturnPreKey prekey
   where
@@ -300,7 +307,15 @@ addMLSPublicKey ::
   ByteString ->
   ExceptT ClientDataError m ()
 addMLSPublicKey u c ss pk = do
-  rows <- trans insertMLSPublicKeys (params LocalQuorum (u, c, ss, Blob (LBS.fromStrict pk)))
+  rows <-
+    trans
+      insertMLSPublicKeys
+      ( params
+          LocalQuorum
+          (u, c, ss, Blob (LBS.fromStrict pk))
+      )
+        { serialConsistency = Just LocalSerialConsistency
+        }
   case rows of
     [row]
       | C.fromRow 0 row /= Right (Just True) ->
@@ -420,8 +435,8 @@ key u c = HashMap.singleton ddbClient (ddbKey u c)
 
 deleteOptLock ::
   ( MonadReader Brig.App.Env m,
-    MonadUnliftIO m,
-    MonadCatch m
+    MonadCatch m,
+    MonadIO m
   ) =>
   UserId ->
   ClientId ->
@@ -431,7 +446,16 @@ deleteOptLock u c = do
   e <- view (awsEnv . amazonkaEnv)
   void $ exec e (AWS.newDeleteItem t & AWS.deleteItem_key .~ key u c)
 
-withOptLock :: forall effs a. UserId -> ClientId -> (AppIO effs) a -> (AppIO effs) a
+withOptLock ::
+  forall a m.
+  ( MonadIO m,
+    MonadReader Brig.App.Env m,
+    Log.MonadLogger m
+  ) =>
+  UserId ->
+  ClientId ->
+  m a ->
+  m a
 withOptLock u c ma = go (10 :: Int)
   where
     go !n = do
@@ -469,17 +493,17 @@ withOptLock u c ma = go (10 :: Int)
         key u c
     toAttributeValue :: Word32 -> AWS.AttributeValue
     toAttributeValue w = AWS.N $ AWS.toText (fromIntegral w :: Int)
-    reportAttemptFailure :: (AppIO effs) ()
+    reportAttemptFailure :: m ()
     reportAttemptFailure =
       Metrics.counterIncr (Metrics.path "client.opt_lock.optimistic_lock_grab_attempt_failed") =<< view metrics
-    reportFailureAndLogError :: (AppIO effs) ()
+    reportFailureAndLogError :: m ()
     reportFailureAndLogError = do
       Log.err $
         Log.field "user" (toByteString' u)
           . Log.field "client" (toByteString' c)
           . msg (val "PreKeys: Optimistic lock failed")
       Metrics.counterIncr (Metrics.path "client.opt_lock.optimistic_lock_failed") =<< view metrics
-    execDyn :: forall r x. (AWS.AWSRequest r) => (AWS.AWSResponse r -> Maybe x) -> (Text -> r) -> (AppIO effs) (Maybe x)
+    execDyn :: forall r x. (AWS.AWSRequest r) => (AWS.AWSResponse r -> Maybe x) -> (Text -> r) -> m (Maybe x)
     execDyn cnv mkCmd = do
       cmd <- mkCmd <$> view (awsEnv . prekeyTable)
       e <- view (awsEnv . amazonkaEnv)

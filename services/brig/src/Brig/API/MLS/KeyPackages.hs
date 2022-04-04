@@ -44,7 +44,7 @@ import Wire.API.User.Client
 uploadKeyPackages :: Local UserId -> ClientId -> KeyPackageUpload -> Handler r ()
 uploadKeyPackages lusr cid (kpuKeyPackages -> kps) = do
   let identity = mkClientIdentity (qUntagged lusr) cid
-  kps' <- traverse (validateKeyPackageData identity) kps
+  kps' <- traverse (validateKeyPackage identity) kps
   lift . wrapClient $ Data.insertKeyPackages (tUnqualified lusr) cid kps'
 
 claimKeyPackages :: Local UserId -> Qualified UserId -> Handler r KeyPackageBundle
@@ -58,7 +58,7 @@ claimLocalKeyPackages :: Local UserId -> Local UserId -> Handler r KeyPackageBun
 claimLocalKeyPackages lusr target = do
   clients <- map clientId <$> wrapClientE (Data.lookupClients (tUnqualified target))
   withExceptT clientError $
-    guardLegalhold (ProtectedUser (tUnqualified lusr)) (mkUserClients [(tUnqualified target, clients)])
+    wrapHttpClientE $ guardLegalhold (ProtectedUser (tUnqualified lusr)) (mkUserClients [(tUnqualified target, clients)])
   lift $
     KeyPackageBundle . Set.fromList . catMaybes <$> traverse mkEntry clients
   where

@@ -26,11 +26,17 @@ library
       Wire.API.Conversation.Bot
       Wire.API.Conversation.Code
       Wire.API.Conversation.Member
+      Wire.API.Conversation.Protocol
       Wire.API.Conversation.Role
       Wire.API.Conversation.Typing
       Wire.API.Cookie
       Wire.API.CustomBackend
-      Wire.API.ErrorDescription
+      Wire.API.Error
+      Wire.API.Error.Brig
+      Wire.API.Error.Cannon
+      Wire.API.Error.Cargohold
+      Wire.API.Error.Empty
+      Wire.API.Error.Galley
       Wire.API.Event.Conversation
       Wire.API.Event.FeatureConfig
       Wire.API.Event.Team
@@ -39,6 +45,7 @@ library
       Wire.API.MLS.CipherSuite
       Wire.API.MLS.Commit
       Wire.API.MLS.Credential
+      Wire.API.MLS.Extension
       Wire.API.MLS.Group
       Wire.API.MLS.KeyPackage
       Wire.API.MLS.Message
@@ -56,11 +63,13 @@ library
       Wire.API.Push.Token
       Wire.API.Push.V2.Token
       Wire.API.RawJson
+      Wire.API.Routes.API
       Wire.API.Routes.AssetBody
       Wire.API.Routes.Internal.Brig
       Wire.API.Routes.Internal.Brig.Connection
       Wire.API.Routes.Internal.Brig.EJPD
       Wire.API.Routes.Internal.Cargohold
+      Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
       Wire.API.Routes.Internal.LegalHold
       Wire.API.Routes.MultiTablePaging
       Wire.API.Routes.MultiTablePaging.State
@@ -205,6 +214,7 @@ library
     , mime >=0.4
     , mtl
     , pem >=0.2
+    , polysemy
     , proto-lens
     , protobuf >=0.2
     , quickcheck-instances >=0.3.16

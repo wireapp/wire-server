@@ -19,9 +19,6 @@
 
 module Galley.Data.Types
   ( Conversation (..),
-    isSelfConv,
-    isO2OConv,
-    isTeamConv,
     isConvDeleted,
     selfConv,
     Code (..),

@@ -48,7 +48,6 @@ library:
   - wai >=3.0
   - wai-extra >=3.0
   - wai-predicates >=0.8
-  - wai-routing >=0.12
   - wai-utilities >=0.11
   - wai-websockets >=3.0
   - warp >=3.0

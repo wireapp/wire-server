@@ -76,6 +76,10 @@ interpretBrigAccess = interpret $ \case
     embedApp $ removeLegalHoldClientFromUser uid
   GetAccountFeatureConfigClient uid ->
     embedApp $ getAccountFeatureConfigClient uid
+  GetClientByKeyPackageRef ref ->
+    embedApp $ getClientByKeyPackageRef ref
+  UpdateSearchVisibilityInbound status ->
+    embedApp $ updateSearchVisibilityInbound status
 
 interpretSparAccess ::
   Members '[Embed IO, Input Env] r =>

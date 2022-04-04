@@ -214,31 +214,48 @@ lookupConnectionStatus' from =
   map toConnectionStatus
     <$> retry x1 (query connectionStatusSelect' (params LocalQuorum (Identity from)))
 
-lookupLocalConnectionStatuses :: [UserId] -> Local [UserId] -> AppIO r [ConnectionStatusV2]
+lookupLocalConnectionStatuses ::
+  ( MonadClient m,
+    MonadUnliftIO m
+  ) =>
+  [UserId] ->
+  Local [UserId] ->
+  m [ConnectionStatusV2]
 lookupLocalConnectionStatuses froms tos = do
   concat <$> pooledMapConcurrentlyN 16 lookupStatuses froms
   where
-    lookupStatuses :: UserId -> (AppIO r) [ConnectionStatusV2]
+    lookupStatuses :: MonadClient m => UserId -> m [ConnectionStatusV2]
     lookupStatuses from =
       map (uncurry $ toConnectionStatusV2 from (tDomain tos))
-        <$> wrapClient (retry x1 (query relationsSelect (params LocalQuorum (from, tUnqualified tos))))
+        <$> retry x1 (query relationsSelect (params LocalQuorum (from, tUnqualified tos)))
 
-lookupRemoteConnectionStatuses :: [UserId] -> Remote [UserId] -> AppIO r [ConnectionStatusV2]
+lookupRemoteConnectionStatuses ::
+  ( MonadClient m,
+    MonadUnliftIO m
+  ) =>
+  [UserId] ->
+  Remote [UserId] ->
+  m [ConnectionStatusV2]
 lookupRemoteConnectionStatuses froms tos = do
   concat <$> pooledMapConcurrentlyN 16 lookupStatuses froms
   where
-    lookupStatuses :: UserId -> AppIO r [ConnectionStatusV2]
+    lookupStatuses :: MonadClient m => UserId -> m [ConnectionStatusV2]
     lookupStatuses from =
       map (uncurry $ toConnectionStatusV2 from (tDomain tos))
-        <$> wrapClient (retry x1 (query remoteRelationsSelect (params LocalQuorum (from, tDomain tos, tUnqualified tos))))
+        <$> retry x1 (query remoteRelationsSelect (params LocalQuorum (from, tDomain tos, tUnqualified tos)))
 
-lookupAllStatuses :: Local [UserId] -> AppIO r [ConnectionStatusV2]
+lookupAllStatuses ::
+  ( MonadClient m,
+    MonadUnliftIO m
+  ) =>
+  Local [UserId] ->
+  m [ConnectionStatusV2]
 lookupAllStatuses lfroms = do
   let froms = tUnqualified lfroms
   concat <$> pooledMapConcurrentlyN 16 lookupAndCombine froms
   where
-    lookupAndCombine :: UserId -> AppIO r [ConnectionStatusV2]
-    lookupAndCombine u = wrapClient $ (<>) <$> lookupLocalStatuses u <*> lookupRemoteStatuses u
+    lookupAndCombine :: MonadClient m => UserId -> m [ConnectionStatusV2]
+    lookupAndCombine u = (<>) <$> lookupLocalStatuses u <*> lookupRemoteStatuses u
 
     lookupLocalStatuses :: MonadClient m => UserId -> m [ConnectionStatusV2]
     lookupLocalStatuses from =
@@ -284,24 +301,28 @@ countConnections u r = do
     count n (Identity s) | relationDropHistory s `elem` r = n + 1
     count n _ = n
 
-deleteConnections :: UserId -> AppIO r ()
+deleteConnections :: (MonadClient m, MonadUnliftIO m) => UserId -> m ()
 deleteConnections u = do
-  e <- ask
-  fmap
-    wrapClient
-    runConduit
-    $ paginateC contactsSelect (paramsP LocalQuorum (Identity u) 100) x1
-      .| C.mapM_ (runAppIOLifted e . pooledMapConcurrentlyN_ 16 delete)
-  wrapClient $ do
+  runConduit $
+    paginateC contactsSelect (paramsP LocalQuorum (Identity u) 100) x1
+      .| C.mapM_
+        (pooledMapConcurrentlyN_ 16 delete)
+  do
     retry x1 . write connectionClear $ params LocalQuorum (Identity u)
     retry x1 . write remoteConnectionClear $ params LocalQuorum (Identity u)
   where
-    delete (other, _status) = wrapClient $ write connectionDelete $ params LocalQuorum (other, u)
+    delete (other, _status) = write connectionDelete $ params LocalQuorum (other, u)
 
-deleteRemoteConnections :: Remote UserId -> Range 1 1000 [UserId] -> AppIO r ()
+deleteRemoteConnections ::
+  ( MonadClient m,
+    MonadUnliftIO m
+  ) =>
+  Remote UserId ->
+  Range 1 1000 [UserId] ->
+  m ()
 deleteRemoteConnections (qUntagged -> Qualified remoteUser remoteDomain) (fromRange -> locals) =
   pooledForConcurrentlyN_ 16 locals $ \u ->
-    wrapClient $ write remoteConnectionDelete $ params LocalQuorum (u, remoteDomain, remoteUser)
+    write remoteConnectionDelete $ params LocalQuorum (u, remoteDomain, remoteUser)
 
 -- Queries
 

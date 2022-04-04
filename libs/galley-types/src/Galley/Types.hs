@@ -71,6 +71,7 @@ module Galley.Types
     MutedStatus (..),
     ReceiptMode (..),
     Protocol (..),
+    ProtocolTag (..),
     GroupId (..),
     TypingStatus (..),
     UserClientMap (..),
@@ -88,6 +89,7 @@ import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..))
 import Imports
 import Wire.API.Conversation hiding (Member (..))
 import Wire.API.Conversation.Code
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Typing
 import Wire.API.CustomBackend
 import Wire.API.Event.Conversation

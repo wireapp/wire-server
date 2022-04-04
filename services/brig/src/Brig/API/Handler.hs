@@ -34,7 +34,7 @@ where
 import Bilge (MonadHttp, RequestId (..))
 import Brig.API.Error
 import qualified Brig.AWS as AWS
-import Brig.App (AppIO, Env, applog, requestId, runAppT, settings)
+import Brig.App (AppIO, Env, applog, requestId, runAppT, settings, wrapHttpClientE)
 import Brig.Email (Email)
 import Brig.Options (setWhitelist)
 import Brig.Phone (Phone, PhoneException (..))
@@ -64,7 +64,8 @@ import Network.Wai.Utilities.Response (addHeader, json, setStatus)
 import qualified Network.Wai.Utilities.Server as Server
 import qualified Servant
 import System.Logger.Class (Logger)
-import Wire.API.ErrorDescription (InvalidEmail)
+import Wire.API.Error
+import Wire.API.Error.Brig
 
 -------------------------------------------------------------------------------
 -- HTTP Handler Monad
@@ -114,7 +115,7 @@ brigErrorHandlers =
       pure (Left (zauthError ex)),
     Catch.Handler $ \(ex :: AWS.Error) ->
       case ex of
-        AWS.SESInvalidDomain -> pure (Left (StdError (errorDescriptionTypeToWai @InvalidEmail)))
+        AWS.SESInvalidDomain -> pure (Left (StdError (errorToWai @'InvalidEmail)))
         _ -> throwM ex,
     Catch.Handler $ \(UserNotAllowedToJoinTeam e) ->
       pure (Left $ StdError e)
@@ -147,12 +148,12 @@ type JSON = Media "application" "json"
 -- TODO: move to libs/wai-utilities?  there is a parseJson' in "Network.Wai.Utilities.Request",
 -- but adjusting its signature to this here would require to move more code out of brig (at least
 -- badRequest and probably all the other errors).
-parseJsonBody :: FromJSON a => JsonRequest a -> (Handler r) a
+parseJsonBody :: (FromJSON a, MonadIO m) => JsonRequest a -> ExceptT Error m a
 parseJsonBody req = parseBody req !>> StdError . badRequest
 
 -- | If a whitelist is configured, consult it, otherwise a no-op. {#RefActivationWhitelist}
 checkWhitelist :: Either Email Phone -> (Handler r) ()
-checkWhitelist = checkWhitelistWithError (StdError whitelistError)
+checkWhitelist = wrapHttpClientE . checkWhitelistWithError (StdError whitelistError)
 
 checkWhitelistWithError :: (Monad m, MonadReader Env m, MonadIO m, Catch.MonadMask m, MonadHttp m, MonadError e m) => e -> Either Email Phone -> m ()
 checkWhitelistWithError e key = do

@@ -44,6 +44,7 @@ module Wire.API.Team.Feature
     defaultTeamFeatureFileSharing,
     defaultTeamFeatureValidateSAMLEmailsStatus,
     defaultTeamFeatureSndFactorPasswordChallengeStatus,
+    defaultTeamFeatureSearchVisibilityInbound,
 
     -- * Swagger
     typeTeamFeatureName,
@@ -92,16 +93,18 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 -- * libs/wire-api/test/unit/Test/Wire/API/Roundtrip/Aeson.hs
 --   * add call to 'testRoundTrip'
 -- * libs/wire-api/src/Wire/API/Routes/Public/Galley.hs
---   * add a GET (and possible PUT) route with name prefix teamFeature<FEATURE_NAME>
---   * add a GET route with name prefix featureConfig<FEATURE_NAME>
+--   * add a FeatureStatusGet (and maybe FeatureStatusPut) route to the FeatureAPI
+--   * maybe add a FeatureConfigGet route to FeatureAPI
 -- * services/galley/src/Galley/API/Internal.hs
---   * add a field to the 'InternalApi routes' record)
+--   * add IFeatureStatus to IFeatureAPI
 -- * libs/galley-types/src/Galley/Types/Teams.hs
 --   * FeatureFlags for server config file
+--   * Update the Arbitrary instance of FeatureFlags
+--       in libs/galley-types/test/unit/Test/Galley/Types.hs
 --   * roleHiddenPermissions ChangeTeamFeature and ViewTeamFeature
 -- * services/galley/src/Galley/API/Teams/Features.hs
---   * extend getAllFeatureConfigs
---   * extend getAllFeatures
+--   * maybe extend getAllFeatureConfigs (if feature status is user-visibile)
+--   * maybe extend getAllFeatures (if feature status is user-visibile)
 -- * services/galley/schema/src/
 --   * add a migration like the one in "V43_TeamFeatureDigitalSignatures.hs"
 -- * services/galley/test/integration/API/Teams/Feature.hs
@@ -142,6 +145,7 @@ data TeamFeatureName
   | TeamFeatureSelfDeletingMessages
   | TeamFeatureGuestLinks
   | TeamFeatureSndFactorPasswordChallenge
+  | TeamFeatureSearchVisibilityInbound
   deriving stock (Eq, Show, Ord, Generic, Enum, Bounded, Typeable)
   deriving (Arbitrary) via (GenericUniform TeamFeatureName)
 
@@ -197,6 +201,10 @@ instance KnownTeamFeatureName 'TeamFeatureSndFactorPasswordChallenge where
   type KnownTeamFeatureNameSymbol 'TeamFeatureSndFactorPasswordChallenge = "sndFactorPasswordChallenge"
   knownTeamFeatureName = TeamFeatureSndFactorPasswordChallenge
 
+instance KnownTeamFeatureName 'TeamFeatureSearchVisibilityInbound where
+  type KnownTeamFeatureNameSymbol 'TeamFeatureSearchVisibilityInbound = "searchVisibilityInbound"
+  knownTeamFeatureName = TeamFeatureSearchVisibilityInbound
+
 instance FromByteString TeamFeatureName where
   parser =
     Parser.takeByteString >>= \b ->
@@ -217,6 +225,7 @@ instance FromByteString TeamFeatureName where
         Right "selfDeletingMessages" -> pure TeamFeatureSelfDeletingMessages
         Right "conversationGuestLinks" -> pure TeamFeatureGuestLinks
         Right "sndFactorPasswordChallenge" -> pure TeamFeatureSndFactorPasswordChallenge
+        Right "searchVisibilityInbound" -> pure TeamFeatureSearchVisibilityInbound
         Right t -> fail $ "Invalid TeamFeatureName: " <> T.unpack t
 
 -- TODO: how do we make this consistent with 'KnownTeamFeatureNameSymbol'?  add a test for
@@ -234,6 +243,7 @@ instance ToByteString TeamFeatureName where
   builder TeamFeatureSelfDeletingMessages = "selfDeletingMessages"
   builder TeamFeatureGuestLinks = "conversationGuestLinks"
   builder TeamFeatureSndFactorPasswordChallenge = "sndFactorPasswordChallenge"
+  builder TeamFeatureSearchVisibilityInbound = "searchVisibilityInbound"
 
 instance ToSchema TeamFeatureName where
   schema =
@@ -330,6 +340,7 @@ type family TeamFeatureStatus (ps :: IncludeLockStatus) (a :: TeamFeatureName) :
   TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks = TeamFeatureStatusNoConfigAndLockStatus
   TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSndFactorPasswordChallenge = TeamFeatureStatusNoConfig
   TeamFeatureStatus 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge = TeamFeatureStatusNoConfigAndLockStatus
+  TeamFeatureStatus _ 'TeamFeatureSearchVisibilityInbound = TeamFeatureStatusNoConfig
 
 type family FeatureHasNoConfig (ps :: IncludeLockStatus) (a :: TeamFeatureName) :: Constraint where
   FeatureHasNoConfig 'WithLockStatus a = (TeamFeatureStatus 'WithLockStatus a ~ TeamFeatureStatusNoConfigAndLockStatus)
@@ -349,6 +360,7 @@ modelForTeamFeature TeamFeatureConferenceCalling = modelTeamFeatureStatusNoConfi
 modelForTeamFeature name@TeamFeatureSelfDeletingMessages = modelTeamFeatureStatusWithConfig name modelTeamFeatureSelfDeletingMessagesConfig
 modelForTeamFeature TeamFeatureGuestLinks = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureSndFactorPasswordChallenge = modelTeamFeatureStatusNoConfig
+modelForTeamFeature TeamFeatureSearchVisibilityInbound = modelTeamFeatureStatusNoConfig
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusNoConfig
@@ -526,7 +538,7 @@ defaultAppLockStatus =
 ----------------------------------------------------------------------
 -- TeamFeatureSelfDeletingMessagesConfig
 
-data TeamFeatureSelfDeletingMessagesConfig = TeamFeatureSelfDeletingMessagesConfig
+newtype TeamFeatureSelfDeletingMessagesConfig = TeamFeatureSelfDeletingMessagesConfig
   { sdmEnforcedTimeoutSeconds :: Int32
   }
   deriving stock (Eq, Show, Generic)
@@ -638,6 +650,12 @@ defaultTeamFeatureValidateSAMLEmailsStatus = TeamFeatureStatusNoConfig TeamFeatu
 
 defaultTeamFeatureSndFactorPasswordChallengeStatus :: TeamFeatureStatusNoConfigAndLockStatus
 defaultTeamFeatureSndFactorPasswordChallengeStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Locked
+
+----------------------------------------------------------------------
+-- TeamFeatureSearchVisibilityInbound
+
+defaultTeamFeatureSearchVisibilityInbound :: TeamFeatureStatusNoConfig
+defaultTeamFeatureSearchVisibilityInbound = TeamFeatureStatusNoConfig TeamFeatureDisabled
 
 ----------------------------------------------------------------------
 -- internal

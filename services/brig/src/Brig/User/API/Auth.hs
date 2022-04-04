@@ -57,7 +57,8 @@ import Network.Wai.Utilities.Response (empty, json)
 import qualified Network.Wai.Utilities.Response as WaiResp
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import qualified Wire.API.Error.Brig as E
 import qualified Wire.API.User as Public
 import Wire.API.User.Auth as Public
 import Wire.Swagger as Doc (pendingLoginError)
@@ -86,7 +87,7 @@ routesPublic = do
     Doc.parameter Doc.Query "access_token" Doc.bytes' $ do
       Doc.description "The access-token as query parameter."
       Doc.optional
-    Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
+    Doc.errorResponse (errorToWai @'E.BadCredentials)
 
   post "/login/send" (continue sendLoginCodeH) $
     jsonRequest @Public.SendLoginCode
@@ -101,7 +102,7 @@ routesPublic = do
       Doc.description "JSON body"
     Doc.returns (Doc.ref Public.modelLoginCodeResponse)
     Doc.response 200 "Login code sent." Doc.end
-    Doc.errorResponse (errorDescriptionTypeToWai @InvalidPhone)
+    Doc.errorResponse (errorToWai @'E.InvalidPhone)
     Doc.errorResponse passwordExists
     Doc.errorResponse' loginCodePending Doc.pendingLoginError
 
@@ -119,7 +120,7 @@ routesPublic = do
     Doc.parameter Doc.Query "persist" (Doc.bool $ Doc.def False) $ do
       Doc.description "Request a persistent cookie instead of a session cookie."
       Doc.optional
-    Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
+    Doc.errorResponse (errorToWai @'E.BadCredentials)
     Doc.errorResponse accountSuspended
     Doc.errorResponse accountPending
     Doc.errorResponse loginCodeAuthenticationFailed
@@ -141,7 +142,7 @@ routesPublic = do
     Doc.parameter Doc.Query "access_token" Doc.bytes' $ do
       Doc.description "The access-token as query parameter."
       Doc.optional
-    Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
+    Doc.errorResponse (errorToWai @'E.BadCredentials)
 
   put "/access/self/email" (continue changeSelfEmailH) $
     accept "application" "json"
@@ -161,13 +162,13 @@ routesPublic = do
       Doc.description "JSON body"
     Doc.response 202 "Update accepted and pending activation of the new email." Doc.end
     Doc.response 204 "No update, current and new email address are the same." Doc.end
-    Doc.errorResponse (errorDescriptionTypeToWai @InvalidEmail)
-    Doc.errorResponse (errorDescriptionTypeToWai @UserKeyExists)
+    Doc.errorResponse (errorToWai @'E.InvalidEmail)
+    Doc.errorResponse (errorToWai @'E.UserKeyExists)
     Doc.errorResponse blacklistedEmail
-    Doc.errorResponse (errorDescriptionTypeToWai @BlacklistedPhone)
+    Doc.errorResponse (errorToWai @'E.BlacklistedPhone)
     Doc.errorResponse missingAccessToken
     Doc.errorResponse invalidAccessToken
-    Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
+    Doc.errorResponse (errorToWai @'E.BadCredentials)
 
   get "/cookies" (continue listCookiesH) $
     header "Z-User"
@@ -186,7 +187,7 @@ routesPublic = do
   document "POST" "rmCookies" $ do
     Doc.summary "Revoke stored cookies."
     Doc.body (Doc.ref Public.modelRemoveCookies) Doc.end
-    Doc.errorResponse (errorDescriptionTypeToWai @BadCredentials)
+    Doc.errorResponse (errorToWai @'E.BadCredentials)
 
 routesInternal :: Routes a (Handler r) ()
 routesInternal = do

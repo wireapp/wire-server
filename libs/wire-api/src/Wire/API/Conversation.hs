@@ -23,6 +23,7 @@
 module Wire.API.Conversation
   ( -- * Conversation
     ConversationMetadata (..),
+    defConversationMetadata,
     Conversation (..),
     cnvType,
     cnvCreator,
@@ -42,7 +43,6 @@ module Wire.API.Conversation
     ConversationPagingState,
     pattern ConversationPagingState,
     ConversationsResponse (..),
-    Protocol (..),
     GroupId (..),
 
     -- * Conversation properties
@@ -114,6 +114,7 @@ import Imports
 import System.Random (randomRIO)
 import Wire.API.Arbitrary
 import Wire.API.Conversation.Member
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 import Wire.API.MLS.Group
 import Wire.API.Routes.MultiTablePaging
@@ -132,15 +133,24 @@ data ConversationMetadata = ConversationMetadata
     -- federation.
     cnvmTeam :: Maybe TeamId,
     cnvmMessageTimer :: Maybe Milliseconds,
-    cnvmReceiptMode :: Maybe ReceiptMode,
-    -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
-    cnvmProtocol :: Protocol,
-    -- | The corresponding MLS group ID. This should only be set for MLS conversations.
-    cnvmGroupId :: Maybe GroupId
+    cnvmReceiptMode :: Maybe ReceiptMode
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform ConversationMetadata)
   deriving (FromJSON, ToJSON) via Schema ConversationMetadata
+
+defConversationMetadata :: UserId -> ConversationMetadata
+defConversationMetadata creator =
+  ConversationMetadata
+    { cnvmType = RegularConv,
+      cnvmCreator = creator,
+      cnvmAccess = [PrivateAccess],
+      cnvmAccessRoles = mempty,
+      cnvmName = Nothing,
+      cnvmTeam = Nothing,
+      cnvmMessageTimer = Nothing,
+      cnvmReceiptMode = Nothing
+    }
 
 accessRolesSchema :: ObjectSchema SwaggerDoc (Set AccessRoleV2)
 accessRolesSchema = toOutput .= accessRolesSchemaTuple `withParser` validate
@@ -189,29 +199,6 @@ conversationMetadataObjectSchema =
         (description ?~ "Per-conversation message timer (can be null)")
         (maybeWithDefault A.Null schema)
     <*> cnvmReceiptMode .= optField "receipt_mode" (maybeWithDefault A.Null schema)
-    <*> cnvmProtocol .= fmap (fromMaybe ProtocolProteus) (optField "protocol" (schema @Protocol))
-    <*> cnvmGroupId
-      .= maybe_
-        ( optFieldWithDocModifier
-            "group_id"
-            (description ?~ "An MLS group identifier (at most 256 bytes long)")
-            schema
-        )
-
-data Protocol
-  = ProtocolProteus
-  | ProtocolMLS
-  deriving (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform Protocol)
-  deriving (FromJSON, ToJSON) via Schema Protocol
-
-instance ToSchema Protocol where
-  schema =
-    enum @Text "Protocol" $
-      mconcat
-        [ element "proteus" ProtocolProteus,
-          element "mls" ProtocolMLS
-        ]
 
 instance ToSchema ConversationMetadata where
   schema = object "ConversationMetadata" conversationMetadataObjectSchema
@@ -225,7 +212,9 @@ data Conversation = Conversation
   { -- | A qualified conversation ID
     cnvQualifiedId :: Qualified ConvId,
     cnvMetadata :: ConversationMetadata,
-    cnvMembers :: ConvMembers
+    cnvMembers :: ConvMembers,
+    -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
+    cnvProtocol :: Protocol
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Conversation)
@@ -266,6 +255,7 @@ instance ToSchema Conversation where
           .= optional (field "id" (deprecatedSchema "qualified_id" schema))
         <*> cnvMetadata .= conversationMetadataObjectSchema
         <*> cnvMembers .= field "members" schema
+        <*> cnvProtocol .= protocolSchema
 
 modelConversation :: Doc.Model
 modelConversation = Doc.defineModel "Conversation" $ do
@@ -646,7 +636,7 @@ data NewConv = NewConv
     -- | A list of qualified users, which can include some local qualified users
     -- too.
     newConvQualifiedUsers :: [Qualified UserId],
-    newConvName :: Maybe Text,
+    newConvName :: Maybe (Range 1 256 Text),
     newConvAccess :: Set Access,
     newConvAccessRoles :: Maybe (Set AccessRoleV2),
     newConvTeam :: Maybe ConvTeamInfo,
@@ -655,7 +645,7 @@ data NewConv = NewConv
     -- | Every member except for the creator will have this role
     newConvUsersRole :: RoleName,
     -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
-    newConvProtocol :: Protocol
+    newConvProtocol :: ProtocolTag
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConv)
@@ -704,7 +694,7 @@ instance ToSchema NewConv where
           .= ( fieldWithDocModifier "conversation_role" (description ?~ usersRoleDesc) schema
                  <|> pure roleNameWireAdmin
              )
-        <*> newConvProtocol .= fmap (fromMaybe ProtocolProteus) (optField "protocol" schema)
+        <*> newConvProtocol .= protocolTagSchema
     where
       usersDesc =
         "List of user IDs (excluding the requestor) to be \

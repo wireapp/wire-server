@@ -6,6 +6,7 @@ on:
 jobs:
   build-dev-env:
    name: Build dev env
+   environment: cachix # for secrets
    strategy:
      matrix:
        os:
