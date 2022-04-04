@@ -181,6 +181,10 @@ executeProposalAction lusr con conv action = do
   traverse_ (uncurry (addUserClients cm)) newUserClients
   -- add users to the conversation and send events
   result <- foldMap addMembers . nonEmpty . map fst $ newUserClients
+  -- add clients to the database
+  for_ newUserClients $ \(qtarget, newClients) -> do
+    ltarget <- ensureLocal lusr qtarget -- FUTUREWORK: support remote users
+    addMLSClients (convId conv) (tUnqualified ltarget) newClients
   pure result
   where
     addUserClients :: ClientMap -> Qualified UserId -> Set ClientId -> Sem r ()
@@ -193,10 +197,6 @@ executeProposalAction lusr con conv action = do
       when (cs /= allClients) $ do
         -- FUTUREWORK: turn this error into a proper response
         throwS @'MLSClientMismatch
-      -- add clients to the database
-      -- TODO: delay this until after adding them as members to the conversation
-      ltarget <- ensureLocal lusr qtarget -- FUTUREWORK: support remote users
-      addMLSClients (convId conv) (tUnqualified ltarget) newClients
 
     addMembers :: NonEmpty (Qualified UserId) -> Sem r [Event]
     addMembers users =

@@ -67,7 +67,8 @@ tests s =
       test s "local welcome (client with no public key)" testWelcomeUnknownClient,
       test s "add user to a conversation" testAddUser,
       test s "add user (not connected)" testAddUserNotConnected,
-      test s "add user (partial client list)" testAddUserPartial
+      test s "add user (partial client list)" testAddUserPartial,
+      test s "add new client of an already-present user to a conversation" testAddNewClient
     ]
 
 testLocalWelcome :: TestM ()
@@ -123,12 +124,13 @@ testWelcomeUnknownClient = do
     )
     !!! const 400 === statusCode
 
-testSuccessfulCommit :: MessagingSetup -> TestM ()
-testSuccessfulCommit MessagingSetup {..} = do
-  let bob = users !! 0
+-- | Send a commit message, and assert that all participants see an event with
+-- the given list of new members.
+testSuccessfulCommitWithNewUsers :: HasCallStack => MessagingSetup -> [Qualified UserId] -> TestM ()
+testSuccessfulCommitWithNewUsers MessagingSetup {..} newUsers = do
   cannon <- view tsCannon
 
-  WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
+  WS.bracketRN cannon (map (qUnqualified . pUserId) users) $ \wss -> do
     -- send commit message
     galley <- viewGalley
     events <-
@@ -142,19 +144,38 @@ testSuccessfulCommit MessagingSetup {..} = do
           )
         <!! const 201 === statusCode
 
-    void . liftIO $ do
-      -- check that alice receives join event
-      case events of
-        [e] -> assertJoinEvent conversation (pUserId creator) [pUserId bob] roleNameWireMember e
-        [] -> assertFailure "expected join event to be returned to alice"
-        es -> assertFailure $ "expected one event, found: " <> show es
+    liftIO $
+      if null newUsers
+        then do
+          -- check that alice receives no events
+          assertBool ("expected no events, received " <> show events) (null events)
 
-      -- check that bob receives join event
-      WS.assertMatch (5 # WS.Second) wsB $
-        wsAssertMemberJoinWithRole conversation (pUserId creator) [pUserId bob] roleNameWireMember
+          -- check that no users receive join events
+          WS.assertNoEvent (1 # WS.Second) wss
+        else do
+          -- check that alice receives a join event
+          case (events, newUsers) of
+            ([], []) -> pure () -- no users added, no event received
+            (es, []) -> assertFailure $ "expected no events, received " <> show es
+            ([e], _) -> assertJoinEvent conversation (pUserId creator) newUsers roleNameWireMember e
+            ([], _) -> assertFailure "expected join event to be returned to alice"
+            (es, _) -> assertFailure $ "expected one event, found: " <> show es
+
+          -- check that all users receive a join event
+          for_ wss $ \ws -> do
+            WS.assertMatch (5 # WS.Second) ws $
+              wsAssertMemberJoinWithRole conversation (pUserId creator) newUsers roleNameWireMember
+
+  -- -- check that the new clients are now part of the conversation
+  -- conv <-
+  --   responseJsonError =<< getConvQualified (qUnqualified (pUserId creator)) conversation
+  --     <!! const 200 === statusCode
 
   -- FUTUREWORK: check that messages sent to the conversation are propagated to bob
   pure ()
+
+testSuccessfulCommit :: HasCallStack => MessagingSetup -> TestM ()
+testSuccessfulCommit setup = testSuccessfulCommitWithNewUsers setup (map pUserId (users setup))
 
 testAddUser :: TestM ()
 testAddUser = do
@@ -195,7 +216,7 @@ testAddUserPartial :: TestM ()
 testAddUserPartial = do
   (creator, commit) <- withSystemTempDirectory "mls" $ \tmp -> do
     -- Bob has 3 clients, Charlie has 2
-    (alice, [bob, charlie]) <- setupParticipants tmp def [3, 2]
+    (alice, [bob, charlie]) <- withLastPrekeys $ setupParticipants tmp def [3, 2]
     void $ setupGroup tmp True alice "group"
     (commit, _) <-
       liftIO . setupCommit tmp "group" $
@@ -216,6 +237,26 @@ testAddUserPartial = do
         )
       <!! const 409 === statusCode
   liftIO $ Wai.label err @?= "mls-client-mismatch"
+
+testAddNewClient :: TestM ()
+testAddNewClient = do
+  withSystemTempDirectory "mls" $ \tmp -> withLastPrekeys $ do
+    -- bob starts with a single client
+    (creator, users@[bob]) <- setupParticipants tmp def [1]
+    conversation <- lift $ setupGroup tmp True creator "group"
+
+    -- creator sends first commit message
+    do
+      (commit, welcome) <- liftIO $ setupCommit tmp "group" (pClients bob)
+      lift $ testSuccessfulCommit MessagingSetup {..}
+
+    do
+      -- then bob adds a new client
+      bobC <- setupUserClient tmp CreateWithKey (pUserId bob)
+      -- which gets added to the group
+      (commit, welcome) <- liftIO $ setupCommit tmp "group" [bobC]
+      -- and the corresponding commit is sent
+      lift $ testSuccessfulCommitWithNewUsers MessagingSetup {..} []
 
 --------------------------------------------------------------------------------
 -- Messaging setup
@@ -243,6 +284,7 @@ data Participant = Participant
   { pUserId :: Qualified UserId,
     pClients :: NonEmpty (String, ClientId)
   }
+  deriving (Show)
 
 cli :: FilePath -> [String] -> CreateProcess
 cli tmp args =
@@ -298,8 +340,13 @@ setupParticipant tmp doCreateClients numClients usr =
   Participant usr . NonEmpty.fromList
     <$> replicateM numClients (setupUserClient tmp doCreateClients usr)
 
-setupParticipants :: HasCallStack => FilePath -> SetupOptions -> [Int] -> TestM (Participant, [Participant])
-setupParticipants tmp SetupOptions {..} ns = withLastPrekeys $ do
+setupParticipants ::
+  HasCallStack =>
+  FilePath ->
+  SetupOptions ->
+  [Int] ->
+  State.StateT [LastPrekey] TestM (Participant, [Participant])
+setupParticipants tmp SetupOptions {..} ns = do
   creator <- lift randomQualifiedUser >>= setupParticipant tmp DontCreate 1
   others <- for ns $ \n ->
     lift randomQualifiedUser >>= setupParticipant tmp createClients n
@@ -368,7 +415,7 @@ takeLastPrekey = do
 -- | Setup: Alice creates a group and invites bob. Return welcome and commit message.
 aliceInvitesBob :: HasCallStack => Int -> SetupOptions -> TestM MessagingSetup
 aliceInvitesBob numBobClients opts@SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
-  (alice, [bob]) <- setupParticipants tmp opts [numBobClients]
+  (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp opts [numBobClients]
 
   -- create a group
   conversation <- setupGroup tmp createConv alice "group"
