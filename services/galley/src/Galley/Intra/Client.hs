@@ -53,6 +53,7 @@ import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import Servant
 import qualified System.Logger.Class as Logger
+import Wire.API.Error.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.User.Client (UserClients, UserClientsFull, filterClients, filterClientsFull)
@@ -122,9 +123,9 @@ addLegalHoldClientToUser ::
   ConnId ->
   [Prekey] ->
   LastPrekey ->
-  App ClientId
+  App (Either AuthenticationError ClientId)
 addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
-  clientId <$> brigAddClient uid connId lhClient
+  fmap clientId <$> brigAddClient uid connId lhClient
   where
     lhClient =
       NewClient
@@ -152,7 +153,7 @@ removeLegalHoldClientFromUser targetUid = do
       . expect2xx
 
 -- | Calls 'Brig.API.addClientInternalH'.
-brigAddClient :: UserId -> ConnId -> NewClient -> App Client
+brigAddClient :: UserId -> ConnId -> NewClient -> App (Either AuthenticationError Client)
 brigAddClient uid connId client = do
   r <-
     call Brig $
@@ -161,8 +162,10 @@ brigAddClient uid connId client = do
         . paths ["i", "clients", toByteString' uid]
         . contentJson
         . json client
-        . expect2xx
-  parseResponse (mkError status502 "server-error") r
+        . expectStatus (flip elem [201, 403])
+  if statusCode (responseStatus r) == 201
+    then Right <$> parseResponse (mkError status502 "server-error") r
+    else pure (Left ReAuthFailed)
 
 -- | Calls 'Brig.API.Internal.getClientByKeyPackageRef'.
 getClientByKeyPackageRef :: KeyPackageRef -> App (Maybe ClientIdentity)
