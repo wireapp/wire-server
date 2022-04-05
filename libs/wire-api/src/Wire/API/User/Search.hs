@@ -167,6 +167,7 @@ instance ToSchema Contact where
 --------------------------------------------------------------------------------
 -- TeamContact
 
+-- | Related to `UserSSOId`, but more straight-forward because it does not take SCIM externalId into account.
 data Sso = Sso
   { ssoIssuer :: Text,
     ssoNameId :: Text
@@ -205,6 +206,14 @@ data TeamContact = TeamContact
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamContact)
 
+modelSso :: Doc.Model
+modelSso = Doc.defineModel "Sso" $ do
+  Doc.description "Single Sign-On"
+  Doc.property "issuer" Doc.string' $
+    Doc.description "Issuer"
+  Doc.property "nameid" Doc.string' $
+    Doc.description "Name ID"
+
 modelTeamContact :: Doc.Model
 modelTeamContact = Doc.defineModel "TeamContact" $ do
   Doc.description "Contact discovered through search"
@@ -225,6 +234,9 @@ modelTeamContact = Doc.defineModel "TeamContact" $ do
     Doc.optional
   Doc.property "scim_external_id" Doc.string' $ do
     Doc.description "SCIM external ID"
+    Doc.optional
+  Doc.property "sso" (Doc.ref modelSso) $ do
+    Doc.description "Single Sign-On"
     Doc.optional
 
 instance ToJSON TeamContact where
