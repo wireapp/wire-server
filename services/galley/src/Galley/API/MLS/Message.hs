@@ -145,7 +145,12 @@ processCommit lusr con _raw epoch gid commit = do
 
   -- process and execute proposals
   action <- foldMap applyProposalRef (cProposals commit)
-  executeProposalAction lusr con conv action
+  events <- executeProposalAction lusr con conv action
+
+  -- increment epoch number
+  setConversationEpoch (tUnqualified lcnv) (succ epoch)
+
+  pure events
 
 applyProposalRef ::
   ( HasProposalEffects r,

@@ -39,6 +39,7 @@ module Galley.Effects.ConversationStore
     setConversationAccess,
     setConversationReceiptMode,
     setConversationMessageTimer,
+    setConversationEpoch,
     acceptConnectConversation,
     setGroupId,
 
@@ -56,6 +57,7 @@ import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
+import Wire.API.MLS.Message
 
 data ConversationStore m a where
   CreateConversationId :: ConversationStore m ConvId
@@ -76,6 +78,7 @@ data ConversationStore m a where
   SetConversationAccess :: ConvId -> ConversationAccessData -> ConversationStore m ()
   SetConversationReceiptMode :: ConvId -> ReceiptMode -> ConversationStore m ()
   SetConversationMessageTimer :: ConvId -> Maybe Milliseconds -> ConversationStore m ()
+  SetConversationEpoch :: ConvId -> Epoch -> ConversationStore m ()
   GetConversationIdByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvId))
   SetGroupId :: GroupId -> Qualified ConvId -> ConversationStore m ()
 

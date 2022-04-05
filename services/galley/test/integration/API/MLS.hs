@@ -24,7 +24,6 @@ import Bilge
 import Bilge.Assert
 import Control.Lens (preview, to, view)
 import qualified Control.Monad.State as State
-import Data.Bifunctor
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Default
@@ -73,7 +72,9 @@ tests s =
         [ test s "add user to a conversation" testAddUser,
           test s "add user (not connected)" testAddUserNotConnected,
           test s "add user (partial client list)" testAddUserPartial,
-          test s "add new client of an already-present user to a conversation" testAddNewClient
+          test s "add new client of an already-present user to a conversation" testAddNewClient,
+          test s "send a commit to a proteus conversation" testAddUsersToProteus,
+          test s "send a stale commit" testStaleCommit
         ]
     ]
 
@@ -175,6 +176,27 @@ testSuccessfulCommitWithNewUsers MessagingSetup {..} newUsers = do
   -- FUTUREWORK: check that messages sent to the conversation are propagated to bob
   pure ()
 
+testFailedCommit :: HasCallStack => MessagingSetup -> Int -> TestM Wai.Error
+testFailedCommit MessagingSetup {..} status = do
+  cannon <- view tsCannon
+
+  WS.bracketRN cannon (map (qUnqualified . pUserId) users) $ \wss -> do
+    galley <- viewGalley
+    err <-
+      responseJsonError
+        =<< post
+          ( galley . paths ["mls", "message"]
+              . zUser (qUnqualified (pUserId creator))
+              . zConn "conn"
+              . content "message/mls"
+              . bytes commit
+          )
+        <!! const status === statusCode
+
+    -- check that users did not receive any event
+    void . liftIO $ WS.assertNoEvent (1 # WS.Second) wss
+    pure err
+
 testSuccessfulCommit :: HasCallStack => MessagingSetup -> TestM ()
 testSuccessfulCommit setup = testSuccessfulCommitWithNewUsers setup (map pUserId (users setup))
 
@@ -188,26 +210,9 @@ testAddUserNotConnected = do
   setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = CreateConv, makeConnections = False}
   let bob = users !! 0
 
-  galley <- viewGalley
-  cannon <- view tsCannon
-
   -- try to add unconnected user
-  WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
-    err <-
-      responseJsonError
-        =<< post
-          ( galley . paths ["mls", "message"]
-              . zUser (qUnqualified (pUserId creator))
-              . zConn "conn"
-              . content "message/mls"
-              . bytes commit
-          )
-        <!! const 403 === statusCode
-
-    liftIO $ Wai.label err @?= "not-connected"
-
-    -- check that bob does not receive any events
-    void . liftIO $ WS.assertNoEvent (1 # WS.Second) [wsB]
+  err <- testFailedCommit setup 403
+  liftIO $ Wai.label err @?= "not-connected"
 
   -- now connect and retry
   connectUsers (qUnqualified (pUserId creator)) (pure (qUnqualified (pUserId bob)))
@@ -220,7 +225,7 @@ testAddUserPartial = do
     (alice, [bob, charlie]) <- withLastPrekeys $ setupParticipants tmp def [3, 2]
     void $ setupGroup tmp CreateConv alice "group"
     (commit, _) <-
-      liftIO . setupCommit tmp "group" $
+      liftIO . setupCommit tmp "group" "group" $
         -- only 2 out of the 3 clients of Bob's are added to the conversation
         NonEmpty.take 2 (pClients bob) <> toList (pClients charlie)
     pure (alice, commit)
@@ -248,16 +253,45 @@ testAddNewClient = do
 
     -- creator sends first commit message
     do
-      (commit, welcome) <- liftIO $ setupCommit tmp "group" (pClients bob)
+      (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" (pClients bob)
       lift $ testSuccessfulCommit MessagingSetup {..}
 
     do
       -- then bob adds a new client
       bobC <- setupUserClient tmp CreateWithKey (pUserId bob)
       -- which gets added to the group
-      (commit, welcome) <- liftIO $ setupCommit tmp "group" [bobC]
+      (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" [bobC]
       -- and the corresponding commit is sent
       lift $ testSuccessfulCommitWithNewUsers MessagingSetup {..} []
+
+testAddUsersToProteus :: TestM ()
+testAddUsersToProteus = do
+  setup <- aliceInvitesBob 1 def {createConv = CreateProteusConv}
+  err <- testFailedCommit setup 404
+  liftIO $ Wai.label err @?= "no-conversation"
+
+testStaleCommit :: TestM ()
+testStaleCommit = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, users) <- withLastPrekeys $ setupParticipants tmp def [2, 3]
+  conversation <- setupGroup tmp CreateConv creator "group.0"
+  let (users1, users2) = splitAt 1 users
+
+  -- add the first batch of users to the conversation, but do not overwrite group
+  do
+    (commit, welcome) <-
+      liftIO $
+        setupCommit tmp "group.0" "group.1" $
+          users1 >>= toList . pClients
+    testSuccessfulCommit MessagingSetup {users = users1, ..}
+
+  -- now add the rest of the users to the original group state
+  do
+    (commit, welcome) <-
+      liftIO $
+        setupCommit tmp "group.0" "group.2" $
+          users2 >>= toList . pClients
+    err <- testFailedCommit MessagingSetup {..} 409
+    liftIO $ Wai.label err @?= "mls-stale-message"
 
 --------------------------------------------------------------------------------
 -- Messaging setup
@@ -280,7 +314,12 @@ data SetupOptions = SetupOptions
   }
 
 instance Default SetupOptions where
-  def = SetupOptions {createClients = CreateWithKey, createConv = DontCreateConv, makeConnections = True}
+  def =
+    SetupOptions
+      { createClients = CreateWithKey,
+        createConv = DontCreateConv,
+        makeConnections = True
+      }
 
 data MessagingSetup = MessagingSetup
   { creator :: Participant,
@@ -374,22 +413,20 @@ withLastPrekeys m = State.evalStateT m someLastPrekeys
 
 setupGroup :: HasCallStack => FilePath -> CreateConv -> Participant -> String -> TestM (Qualified ConvId)
 setupGroup tmp createConv creator name = do
-  (mgroupId, conversation) <-
-    first (fmap (toBase64Text . unGroupId))
-      <$> case createNewConv createConv of
-        Nothing -> pure (Just "test_group", error "No conversation created")
-        Just nc -> do
-          conv <-
-            responseJsonError =<< postConvQualified (qUnqualified (pUserId creator)) nc
-              <!! const 201 === statusCode
+  (mGroupId, conversation) <- case createNewConv createConv of
+    Nothing -> pure (Nothing, error "No conversation created")
+    Just nc -> do
+      conv <-
+        responseJsonError =<< postConvQualified (qUnqualified (pUserId creator)) nc
+          <!! const 201 === statusCode
 
-          pure (preview (to cnvProtocol . _ProtocolMLS . to cnvmlsGroupId) conv :: Maybe GroupId, cnvQualifiedId conv)
+      pure (preview (to cnvProtocol . _ProtocolMLS . to cnvmlsGroupId) conv, cnvQualifiedId conv)
 
-  for_ mgroupId $ \groupId -> do
-    groupJSON <-
-      liftIO $
-        spawn (cli tmp ["group", pClientQid creator, T.unpack groupId]) Nothing
-    liftIO $ BS.writeFile (tmp </> name) groupJSON
+  let groupId = toBase64Text (maybe "test_group" unGroupId mGroupId)
+  groupJSON <-
+    liftIO $
+      spawn (cli tmp ["group", pClientQid creator, T.unpack groupId]) Nothing
+  liftIO $ BS.writeFile (tmp </> name) groupJSON
 
   pure conversation
 
@@ -397,9 +434,10 @@ setupCommit ::
   (HasCallStack, Foldable f) =>
   String ->
   String ->
+  String ->
   f (String, ClientId) ->
   IO (ByteString, ByteString)
-setupCommit tmp groupName clients =
+setupCommit tmp groupName newGroupName clients =
   (,)
     <$> spawn
       ( cli
@@ -409,7 +447,9 @@ setupCommit tmp groupName clients =
               "--group",
               tmp </> groupName,
               "--welcome-out",
-              tmp </> "welcome"
+              tmp </> "welcome",
+              "--group-out",
+              tmp </> newGroupName
             ]
             <> map ((tmp </>) . fst) (toList clients)
       )
@@ -431,7 +471,7 @@ aliceInvitesBob numBobClients opts@SetupOptions {..} = withSystemTempDirectory "
   conversation <- setupGroup tmp createConv alice "group"
 
   -- add bob to it and get welcome message
-  (commit, welcome) <- liftIO $ setupCommit tmp "group" (pClients bob)
+  (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" (pClients bob)
 
   pure $
     MessagingSetup

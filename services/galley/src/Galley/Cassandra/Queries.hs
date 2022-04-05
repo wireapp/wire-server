@@ -223,6 +223,9 @@ updateConvName = "update conversation set name = ? where conv = ?"
 updateConvType :: PrepQuery W (ConvType, ConvId) ()
 updateConvType = "update conversation set type = ? where conv = ?"
 
+updateConvEpoch :: PrepQuery W (Epoch, ConvId) ()
+updateConvEpoch = "update conversation set epoch = ? where conv = ?"
+
 deleteConv :: PrepQuery W (Identity ConvId) ()
 deleteConv = "delete from conversation using timestamp 32503680000000000 where conv = ?"
 

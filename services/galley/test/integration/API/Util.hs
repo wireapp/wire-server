@@ -2722,7 +2722,7 @@ matchFedRequest domain reqpath req =
   frTargetDomain req == domain
     && frRPC req == reqpath
 
-spawn :: CreateProcess -> Maybe ByteString -> IO ByteString
+spawn :: HasCallStack => CreateProcess -> Maybe ByteString -> IO ByteString
 spawn cp minput = do
   (mout, ex) <- withCreateProcess
     cp

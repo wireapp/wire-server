@@ -47,7 +47,7 @@ import Wire.API.MLS.Serialisation
 
 newtype Epoch = Epoch {epochNumber :: Word64}
   deriving stock (Eq, Show)
-  deriving newtype (Arbitrary, ToSchema)
+  deriving newtype (Arbitrary, Enum, ToSchema)
 
 instance ParseMLS Epoch where
   parseMLS = Epoch <$> parseMLS

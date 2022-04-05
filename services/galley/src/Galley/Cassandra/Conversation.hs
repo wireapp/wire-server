@@ -147,6 +147,9 @@ updateConvReceiptMode cid receiptMode = retry x5 $ write Cql.updateConvReceiptMo
 updateConvMessageTimer :: ConvId -> Maybe Milliseconds -> Client ()
 updateConvMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer (params LocalQuorum (mtimer, cid))
 
+updateConvEpoch :: ConvId -> Epoch -> Client ()
+updateConvEpoch cid epoch = retry x5 $ write Cql.updateConvEpoch (params LocalQuorum (epoch, cid))
+
 getConversation :: ConvId -> Client (Maybe Conversation)
 getConversation conv = do
   cdata <- UnliftIO.async $ retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
@@ -297,6 +300,7 @@ interpretConversationStoreToCassandra = interpret $ \case
   SetConversationAccess cid value -> embedClient $ updateConvAccess cid value
   SetConversationReceiptMode cid value -> embedClient $ updateConvReceiptMode cid value
   SetConversationMessageTimer cid value -> embedClient $ updateConvMessageTimer cid value
+  SetConversationEpoch cid epoch -> embedClient $ updateConvEpoch cid epoch
   DeleteConversation cid -> embedClient $ deleteConversation cid
   GetConversationIdByGroupId gId -> embedClient $ lookupGroupId gId
   SetGroupId gId cid -> embedClient $ mapGroupId gId cid
