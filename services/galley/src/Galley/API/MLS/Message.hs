@@ -17,6 +17,7 @@
 
 module Galley.API.MLS.Message where
 
+import Control.Lens (preview, to)
 import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import qualified Data.Map as Map
@@ -43,6 +44,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -62,6 +64,7 @@ postMLSMessage ::
       '[ Error FederationError,
          ErrorS 'ConvNotFound,
          ErrorS 'UnsupportedMLSMessage,
+         ErrorS 'MLSStaleMessage,
          ErrorS 'ProposalNotFound
        ]
       r
@@ -73,7 +76,7 @@ postMLSMessage ::
 postMLSMessage lusr con smsg = case rmValue smsg of
   SomeMessage SMLSPlainText msg -> case msgTBS (msgPayload msg) of
     CommitMessage c ->
-      processCommit lusr con (rmRaw smsg) (msgGroupId msg) c
+      processCommit lusr con (rmRaw smsg) (msgEpoch msg) (msgGroupId msg) c
     ApplicationMessage _ -> throwS @'UnsupportedMLSMessage
     _ -> pure mempty -- FUTUREWORK: handle other message types
   _ -> pure mempty -- FUTUREWORK: handle encrypted messages
@@ -116,20 +119,31 @@ paClient quc = mempty {paAdd = Map.singleton (fmap fst quc) (Set.singleton (snd 
 
 processCommit ::
   ( HasProposalEffects r,
-    Member (ErrorS 'ProposalNotFound) r,
     Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (ErrorS 'ProposalNotFound) r,
     Member (Error FederationError) r
   ) =>
   Local UserId ->
   ConnId ->
   ByteString ->
+  Epoch ->
   GroupId ->
   Commit ->
   Sem r [Event]
-processCommit lusr con _raw gid commit = do
+processCommit lusr con _raw epoch gid commit = do
+  -- fetch conversation
   qcnv <- getConversationByGroupId gid >>= noteS @'ConvNotFound
-  lcnv <- ensureLocal lusr qcnv
+  lcnv <- ensureLocal lusr qcnv -- FUTUREWORK: allow remote conversations
   conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+
+  -- check epoch number
+  curEpoch <-
+    preview (to convProtocol . _ProtocolMLS . to cnvmlsEpoch) conv
+      & noteS @'ConvNotFound
+  when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
+
+  -- process and execute proposals
   action <- foldMap applyProposalRef (cProposals commit)
   executeProposalAction lusr con conv action
 

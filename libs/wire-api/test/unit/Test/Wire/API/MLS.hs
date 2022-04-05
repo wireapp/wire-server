@@ -84,7 +84,7 @@ testParseCommit = do
       pure msg
 
   msgGroupId msg @?= "test_group"
-  msgEpoch msg @?= 0
+  msgEpoch msg @?= Epoch 0
 
   case msgSender msg of
     MemberSender kp -> kp @?= KeyPackageRef (fromRight' (unhex "24e4b0a802a2b81f00a9af7df5e91da8"))
@@ -109,7 +109,7 @@ testParseApplication = do
       assertFailure "Expected encrypted message, found plain text"
 
   msgGroupId msg @?= "test_group"
-  msgEpoch msg @?= 0
+  msgEpoch msg @?= Epoch 0
   msgContentType (msgPayload msg) @?= fromMLSEnum ApplicationMessageTag
 
 testParseWelcome :: IO ()

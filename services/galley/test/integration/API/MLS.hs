@@ -166,11 +166,6 @@ testSuccessfulCommitWithNewUsers MessagingSetup {..} newUsers = do
             WS.assertMatch (5 # WS.Second) ws $
               wsAssertMemberJoinWithRole conversation (pUserId creator) newUsers roleNameWireMember
 
-  -- -- check that the new clients are now part of the conversation
-  -- conv <-
-  --   responseJsonError =<< getConvQualified (qUnqualified (pUserId creator)) conversation
-  --     <!! const 200 === statusCode
-
   -- FUTUREWORK: check that messages sent to the conversation are propagated to bob
   pure ()
 

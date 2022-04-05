@@ -1195,6 +1195,7 @@ type MLSMessagingAPI =
                :> CanThrow 'KeyPackageRefNotFound
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSProtocolErrorTag
+               :> CanThrow 'MLSStaleMessage
                :> CanThrow ProposalFailure
                :> CanThrow 'ProposalNotFound
                :> CanThrow 'UnsupportedMLSMessage

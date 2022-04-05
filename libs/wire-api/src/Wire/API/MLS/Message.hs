@@ -19,7 +19,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.MLS.Message
-  ( Message (..),
+  ( Epoch (..),
+    Message (..),
     WireFormatTag (..),
     SWireFormatTag (..),
     SomeMessage (..),
@@ -33,14 +34,23 @@ module Wire.API.MLS.Message
 where
 
 import Data.Binary
+import Data.Schema
 import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Imports
+import Wire.API.Arbitrary
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
+
+newtype Epoch = Epoch {epochNumber :: Word64}
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary, ToSchema)
+
+instance ParseMLS Epoch where
+  parseMLS = Epoch <$> parseMLS
 
 data WireFormatTag = MLSPlainText | MLSCipherText
   deriving (Bounded, Enum, Eq, Show)
@@ -52,7 +62,7 @@ instance ParseMLS WireFormatTag where
 
 data Message (tag :: WireFormatTag) = Message
   { msgGroupId :: GroupId,
-    msgEpoch :: Word64,
+    msgEpoch :: Epoch,
     msgAuthData :: ByteString,
     msgSender :: Sender tag,
     msgPayload :: MessagePayload tag

@@ -69,6 +69,7 @@ data GalleyError
   | UnsupportedProposal
   | MLSProtocolErrorTag
   | MLSClientMismatch
+  | MLSStaleMessage
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -156,6 +157,8 @@ type instance MapError 'UnsupportedProposal = 'StaticError 422 "mls-unsupported-
 type instance MapError 'MLSProtocolErrorTag = MapError 'BrigError.MLSProtocolError
 
 type instance MapError 'MLSClientMismatch = 'StaticError 409 "mls-client-mismatch" "A proposal of type Add or Remove does not apply to the full list of clients for a user"
+
+type instance MapError 'MLSStaleMessage = 'StaticError 409 "mls-stale-message" "The conversation epoch in a message is too old"
 
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 

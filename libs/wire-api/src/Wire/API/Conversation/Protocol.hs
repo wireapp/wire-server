@@ -23,6 +23,8 @@ module Wire.API.Conversation.Protocol
     protocolTagSchema,
     Epoch (..),
     Protocol (..),
+    _ProtocolMLS,
+    _ProtocolProteus,
     protocolSchema,
     ConversationMLSData (..),
   )
@@ -35,14 +37,11 @@ import Data.Schema
 import Imports
 import Wire.API.Arbitrary
 import Wire.API.MLS.Group
+import Wire.API.MLS.Message
 
 data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag
   deriving stock (Eq, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via GenericUniform ProtocolTag
-
-newtype Epoch = Epoch {epochNumber :: Word64}
-  deriving stock (Eq, Show)
-  deriving newtype (Arbitrary, ToSchema)
 
 data ConversationMLSData = ConversationMLSData
   { -- | The MLS group ID associated to the conversation.
