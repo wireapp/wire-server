@@ -72,5 +72,9 @@ data:
         sndFactorPasswordChallenge:
           {{- toYaml .settings.featureFlags.sndFactorPasswordChallenge | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.searchVisibilityInbound }}
+        searchVisibilityInbound:
+          {{- toYaml .settings.featureFlags.searchVisibilityInbound | nindent 10 }}
+        {{- end }}
       {{- end }}
   {{- end }}
