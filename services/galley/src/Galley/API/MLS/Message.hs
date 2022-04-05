@@ -63,9 +63,9 @@ postMLSMessage ::
     Members
       '[ Error FederationError,
          ErrorS 'ConvNotFound,
-         ErrorS 'UnsupportedMLSMessage,
+         ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MLSStaleMessage,
-         ErrorS 'ProposalNotFound
+         ErrorS 'MLSProposalNotFound
        ]
       r
   ) =>
@@ -77,7 +77,7 @@ postMLSMessage lusr con smsg = case rmValue smsg of
   SomeMessage SMLSPlainText msg -> case msgTBS (msgPayload msg) of
     CommitMessage c ->
       processCommit lusr con (rmRaw smsg) (msgEpoch msg) (msgGroupId msg) c
-    ApplicationMessage _ -> throwS @'UnsupportedMLSMessage
+    ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
     _ -> pure mempty -- FUTUREWORK: handle other message types
   _ -> pure mempty -- FUTUREWORK: handle encrypted messages
 
@@ -85,11 +85,11 @@ type HasProposalEffects r =
   ( Member BrigAccess r,
     Member ConversationStore r,
     Member (Error MLSProtocolError) r,
-    Member (Error ProposalFailure) r,
+    Member (Error MLSProposalFailure) r,
     Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'KeyPackageRefNotFound) r,
+    Member (ErrorS 'MLSKeyPackageRefNotFound) r,
     Member (ErrorS 'MLSClientMismatch) r,
-    Member (ErrorS 'UnsupportedProposal) r,
+    Member (ErrorS 'MLSUnsupportedProposal) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -121,7 +121,7 @@ processCommit ::
   ( HasProposalEffects r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'ProposalNotFound) r,
+    Member (ErrorS 'MLSProposalNotFound) r,
     Member (Error FederationError) r
   ) =>
   Local UserId ->
@@ -154,11 +154,11 @@ processCommit lusr con _raw epoch gid commit = do
 
 applyProposalRef ::
   ( HasProposalEffects r,
-    Member (ErrorS 'ProposalNotFound) r
+    Member (ErrorS 'MLSProposalNotFound) r
   ) =>
   ProposalOrRef ->
   Sem r ProposalAction
-applyProposalRef (Ref _) = throwS @'ProposalNotFound
+applyProposalRef (Ref _) = throwS @'MLSProposalNotFound
 applyProposalRef (Inline p) = applyProposal p
 
 applyProposal :: HasProposalEffects r => Proposal -> Sem r ProposalAction
@@ -168,7 +168,7 @@ applyProposal (AddProposal kp) = do
       & note (mlsProtocolError "Could not compute ref of a key package in an Add proposal")
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
   pure (paClient qclient)
-applyProposal _ = throwS @'UnsupportedProposal
+applyProposal _ = throwS @'MLSUnsupportedProposal
 
 executeProposalAction ::
   forall r.
@@ -177,7 +177,7 @@ executeProposalAction ::
     Member (ErrorS 'ConvNotFound) r,
     Member (Error FederationError) r,
     Member (ErrorS 'MLSClientMismatch) r,
-    Member (Error ProposalFailure) r,
+    Member (Error MLSProposalFailure) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -221,7 +221,7 @@ executeProposalAction lusr con conv action = do
     addMembers users =
       -- FUTUREWORK: update key package ref mapping to reflect conversation membership
       handleNoChanges
-        . handleProposalFailures @ProposalErrors
+        . handleMLSProposalFailures @ProposalErrors
         . fmap pure
         . updateLocalConversationWithLocalUser @'ConversationJoinTag (qualifyAs lusr (convId conv)) lusr (Just con)
         $ ConversationJoin users roleNameWireMember
@@ -242,7 +242,7 @@ convClientMap loc =
 -- Error handling of proposal execution
 
 -- The following errors are caught by 'executeProposalAction' and wrapped in a
--- 'ProposalFailure'. This way errors caused by the execution of proposals are
+-- 'MLSProposalFailure'. This way errors caused by the execution of proposals are
 -- separated from those caused by the commit processing itself.
 type ProposalErrors =
   '[ Error FederationError,
@@ -257,25 +257,25 @@ type ProposalErrors =
      ErrorS 'TooManyMembers
    ]
 
-class HandleProposalFailures effs r where
-  handleProposalFailures :: Sem (Append effs r) a -> Sem r a
+class HandleMLSProposalFailures effs r where
+  handleMLSProposalFailures :: Sem (Append effs r) a -> Sem r a
 
-class HandleProposalFailure eff r where
-  handleProposalFailure :: Sem (eff ': r) a -> Sem r a
+class HandleMLSProposalFailure eff r where
+  handleMLSProposalFailure :: Sem (eff ': r) a -> Sem r a
 
-instance HandleProposalFailures '[] r where
-  handleProposalFailures = id
+instance HandleMLSProposalFailures '[] r where
+  handleMLSProposalFailures = id
 
 instance
-  ( HandleProposalFailures effs r,
-    HandleProposalFailure eff (Append effs r)
+  ( HandleMLSProposalFailures effs r,
+    HandleMLSProposalFailure eff (Append effs r)
   ) =>
-  HandleProposalFailures (eff ': effs) r
+  HandleMLSProposalFailures (eff ': effs) r
   where
-  handleProposalFailures = handleProposalFailures @effs . handleProposalFailure @eff
+  handleMLSProposalFailures = handleMLSProposalFailures @effs . handleMLSProposalFailure @eff
 
 instance
-  (APIError e, Member (Error ProposalFailure) r) =>
-  HandleProposalFailure (Error e) r
+  (APIError e, Member (Error MLSProposalFailure) r) =>
+  HandleMLSProposalFailure (Error e) r
   where
-  handleProposalFailure = mapError (ProposalFailure . toWai)
+  handleMLSProposalFailure = mapError (MLSProposalFailure . toWai)

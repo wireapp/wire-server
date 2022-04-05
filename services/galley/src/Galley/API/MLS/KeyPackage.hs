@@ -28,11 +28,11 @@ import Wire.API.MLS.KeyPackage
 derefKeyPackage ::
   Members
     '[ BrigAccess,
-       ErrorS 'KeyPackageRefNotFound
+       ErrorS 'MLSKeyPackageRefNotFound
      ]
     r =>
   KeyPackageRef ->
   Sem r ClientIdentity
 derefKeyPackage ref =
-  maybe (throwS @'KeyPackageRefNotFound) pure
+  maybe (throwS @'MLSKeyPackageRefNotFound) pure
     =<< getClientByKeyPackageRef ref

@@ -40,7 +40,7 @@ postMLSWelcome ::
   Members
     '[ BrigAccess,
        GundeckAccess,
-       ErrorS 'KeyPackageRefNotFound,
+       ErrorS 'MLSKeyPackageRefNotFound,
        Input UTCTime
      ]
     r =>
@@ -55,7 +55,7 @@ postMLSWelcome lusr con wel = do
 welcomeRecipients ::
   Members
     '[ BrigAccess,
-       ErrorS 'KeyPackageRefNotFound
+       ErrorS 'MLSKeyPackageRefNotFound
      ]
     r =>
   Welcome ->

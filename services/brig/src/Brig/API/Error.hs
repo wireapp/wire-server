@@ -183,7 +183,7 @@ clientDataError TooManyClients = StdError (errorToWai @'E.TooManyClients)
 clientDataError (ClientReAuthError e) = reauthError e
 clientDataError ClientMissingAuth = StdError (errorToWai @'E.MissingAuth)
 clientDataError MalformedPrekeys = StdError (errorToWai @'E.MalformedPrekeys)
-clientDataError MLSPublicKeyDuplicate = StdError (errorToWai @'E.DuplicateMLSPublicKey)
+clientDataError MLSPublicKeyDuplicate = StdError (errorToWai @'E.MLSDuplicatePublicKey)
 
 deleteUserError :: DeleteUserError -> Error
 deleteUserError DeleteUserInvalid = StdError (errorToWai @'E.InvalidUser)

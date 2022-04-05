@@ -22,7 +22,7 @@ module Wire.API.Error.Galley
     mlsProtocolError,
     AuthenticationError (..),
     TeamFeatureError (..),
-    ProposalFailure (..),
+    MLSProposalFailure (..),
   )
 where
 
@@ -62,11 +62,11 @@ data GalleyError
   | ConvAccessDenied
   | -- MLS Errors
     MLSNonEmptyMemberList
-  | DuplicateMLSPublicKey
-  | KeyPackageRefNotFound
-  | UnsupportedMLSMessage
-  | ProposalNotFound
-  | UnsupportedProposal
+  | MLSDuplicatePublicKey
+  | MLSKeyPackageRefNotFound
+  | MLSUnsupportedMessage
+  | MLSProposalNotFound
+  | MLSUnsupportedProposal
   | MLSProtocolErrorTag
   | MLSClientMismatch
   | MLSStaleMessage
@@ -144,15 +144,15 @@ type instance MapError 'ConvAccessDenied = 'StaticError 403 "access-denied" "Con
 
 type instance MapError 'MLSNonEmptyMemberList = 'StaticError 400 "non-empty-member-list" "Attempting to add group members outside MLS"
 
-type instance MapError 'DuplicateMLSPublicKey = 'StaticError 400 "mls-duplicate-public-key" "MLS public key for the given signature scheme already exists"
+type instance MapError 'MLSDuplicatePublicKey = 'StaticError 400 "mls-duplicate-public-key" "MLS public key for the given signature scheme already exists"
 
-type instance MapError 'KeyPackageRefNotFound = 'StaticError 404 "mls-key-package-ref-not-found" "A referenced key package could not be mapped to a known client"
+type instance MapError 'MLSKeyPackageRefNotFound = 'StaticError 404 "mls-key-package-ref-not-found" "A referenced key package could not be mapped to a known client"
 
-type instance MapError 'UnsupportedMLSMessage = 'StaticError 422 "mls-unsupported-message" "Attempted to send a message with an unsupported combination of content type and wire format"
+type instance MapError 'MLSUnsupportedMessage = 'StaticError 422 "mls-unsupported-message" "Attempted to send a message with an unsupported combination of content type and wire format"
 
-type instance MapError 'ProposalNotFound = 'StaticError 404 "mls-proposal-not-found" "A proposal referenced in a commit message could not be found"
+type instance MapError 'MLSProposalNotFound = 'StaticError 404 "mls-proposal-not-found" "A proposal referenced in a commit message could not be found"
 
-type instance MapError 'UnsupportedProposal = 'StaticError 422 "mls-unsupported-proposal" "Unsupported proposal type"
+type instance MapError 'MLSUnsupportedProposal = 'StaticError 422 "mls-unsupported-proposal" "Unsupported proposal type"
 
 type instance MapError 'MLSProtocolErrorTag = MapError 'BrigError.MLSProtocolError
 
@@ -274,14 +274,14 @@ instance Member (Error DynError) r => ServerEffect (Error TeamFeatureError) r wh
 --------------------------------------------------------------------------------
 -- Proposal failure
 
-data ProposalFailure = ProposalFailure
+data MLSProposalFailure = MLSProposalFailure
   { pfInner :: Wai.Error
   }
 
-type instance ErrorEffect ProposalFailure = Error ProposalFailure
+type instance ErrorEffect MLSProposalFailure = Error MLSProposalFailure
 
 -- Proposal failures are only reported generically in Swagger
-instance IsSwaggerError ProposalFailure where
+instance IsSwaggerError MLSProposalFailure where
   addToSwagger = S.allOperations . S.description %~ Just . (<> desc) . fold
     where
       desc =
@@ -294,5 +294,5 @@ instance IsSwaggerError ProposalFailure where
         \for more details on the possible error responses of each type of \
         \proposal."
 
-instance Member (Error Wai.Error) r => ServerEffect (Error ProposalFailure) r where
+instance Member (Error Wai.Error) r => ServerEffect (Error MLSProposalFailure) r where
   interpretServerEffect = mapError pfInner
