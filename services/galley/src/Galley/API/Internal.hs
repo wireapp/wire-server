@@ -210,6 +210,9 @@ type ITeamsAPIBase =
            ( CanThrow 'NoBindingTeam :> CanThrow 'NotAOneMemberTeam :> CanThrow 'DeleteQueueFull
                :> DeleteAccepted '[Servant.JSON] NoContent
            )
+    :<|> "name" :> IGetTeamNameAPI
+
+type IGetTeamNameAPI = Named "get-team-name" (Get '[Servant.JSON] TeamName)
 
 type ITeamEffects = ErrorS 'TeamNotFound : GalleyEffects
 
@@ -274,6 +277,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
       mkNamedAPI @"get-team" (Teams.getTeamInternalH tid)
         <@> mkNamedAPI @"create-binding-team" (Teams.createBindingTeamH tid)
         <@> mkNamedAPI @"delete-binding-team-with-one-member" (Teams.internalDeleteBindingTeamWithOneMemberH tid)
+        <@> hoistAPI @IGetTeamNameAPI id (mkNamedAPI @"get-team-name" $ Teams.getTeamNameInternalH tid)
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -351,10 +355,6 @@ internalSitemap = do
     capture "cnv"
 
   -- Team API (internal) ------------------------------------------------
-
-  get "/i/teams/:tid/name" (continueE Teams.getTeamNameInternalH) $
-    capture "tid"
-      .&. accept "application" "json"
 
   put "/i/teams/:tid/status" (continueE Teams.updateTeamStatusH) $
     capture "tid"

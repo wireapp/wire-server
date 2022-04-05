@@ -165,11 +165,10 @@ getTeamInternalH tid =
 
 getTeamNameInternalH ::
   Members '[ErrorS 'TeamNotFound, TeamStore] r =>
-  TeamId ::: JSON ->
-  Sem r Response
-getTeamNameInternalH (tid ::: _) =
-  fmap json $
-    getTeamNameInternal tid >>= noteS @'TeamNotFound
+  TeamId ->
+  Sem r TeamName
+getTeamNameInternalH tid =
+  getTeamNameInternal tid >>= noteS @'TeamNotFound
 
 getTeamNameInternal :: Member TeamStore r => TeamId -> Sem r (Maybe TeamName)
 getTeamNameInternal = fmap (fmap TeamName) . E.getTeamName
