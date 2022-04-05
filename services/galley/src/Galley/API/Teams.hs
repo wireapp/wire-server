@@ -283,12 +283,11 @@ updateTeamStatusH ::
        WaiRoutes
      ]
     r =>
-  TeamId ::: JsonRequest TeamStatusUpdate ::: JSON ->
-  Sem r Response
-updateTeamStatusH (tid ::: req ::: _) = do
-  teamStatusUpdate <- fromJsonBody req
-  updateTeamStatus tid teamStatusUpdate
-  return empty
+  TeamId ->
+  TeamStatusUpdate ->
+  Sem r NoContent
+updateTeamStatusH tid teamStatusUpdate =
+  NoContent <$ updateTeamStatus tid teamStatusUpdate
 
 updateTeamStatus ::
   Members
