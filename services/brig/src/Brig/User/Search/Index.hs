@@ -396,7 +396,7 @@ reindexAll = reindexAllWith IndexUpdateIfNewerVersion
 reindexAllWith :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => IndexDocUpdateType -> m ()
 reindexAllWith updateType = do
   idx <- liftIndexIO $ asks idxName
-  C.liftClient (scanForIndex 100) >>= loop idx
+  C.liftClient (scanForIndex 1000) >>= loop idx
   where
     loop idx page = do
       info $
