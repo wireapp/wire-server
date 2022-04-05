@@ -143,7 +143,7 @@ testSuccessfulCommitWithNewUsers MessagingSetup {..} newUsers = do
     events <-
       responseJsonError
         =<< post
-          ( galley . paths ["mls", "message"]
+          ( galley . paths ["mls", "messages"]
               . zUser (qUnqualified (pUserId creator))
               . zConn "conn"
               . content "message/mls"
@@ -185,7 +185,7 @@ testFailedCommit MessagingSetup {..} status = do
     err <-
       responseJsonError
         =<< post
-          ( galley . paths ["mls", "message"]
+          ( galley . paths ["mls", "messages"]
               . zUser (qUnqualified (pUserId creator))
               . zConn "conn"
               . content "message/mls"
@@ -235,7 +235,7 @@ testAddUserPartial = do
   err <-
     responseJsonError
       =<< post
-        ( galley . paths ["mls", "message"]
+        ( galley . paths ["mls", "messages"]
             . zUser (qUnqualified (pUserId creator))
             . zConn "conn"
             . content "message/mls"
