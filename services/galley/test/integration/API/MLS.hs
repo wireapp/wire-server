@@ -491,6 +491,7 @@ addClient u lpk = do
         ( brig
             . paths ["i", "clients", toByteString' (qUnqualified u)]
             . zConn "conn"
+            . queryItem "skip_reauth" "true"
             . json new
         )
       <!! const 201 === statusCode
