@@ -22,7 +22,7 @@ module API.MLS (tests) where
 import API.Util
 import Bilge
 import Bilge.Assert
-import Control.Lens (view)
+import Control.Lens (preview, to, view)
 import qualified Control.Monad.State as State
 import Data.Bifunctor
 import qualified Data.ByteString as BS
@@ -62,13 +62,19 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "MLS"
-    [ test s "local welcome" testLocalWelcome,
-      test s "local welcome (client with no public key)" testWelcomeNoKey,
-      test s "local welcome (client with no public key)" testWelcomeUnknownClient,
-      test s "add user to a conversation" testAddUser,
-      test s "add user (not connected)" testAddUserNotConnected,
-      test s "add user (partial client list)" testAddUserPartial,
-      test s "add new client of an already-present user to a conversation" testAddNewClient
+    [ testGroup
+        "Welcome"
+        [ test s "local welcome" testLocalWelcome,
+          test s "local welcome (client with no public key)" testWelcomeNoKey,
+          test s "local welcome (client with no public key)" testWelcomeUnknownClient
+        ],
+      testGroup
+        "Commit"
+        [ test s "add user to a conversation" testAddUser,
+          test s "add user (not connected)" testAddUserNotConnected,
+          test s "add user (partial client list)" testAddUserPartial,
+          test s "add new client of an already-present user to a conversation" testAddNewClient
+        ]
     ]
 
 testLocalWelcome :: TestM ()
@@ -112,7 +118,7 @@ testWelcomeNoKey = do
 
 testWelcomeUnknownClient :: TestM ()
 testWelcomeUnknownClient = do
-  MessagingSetup {..} <- aliceInvitesBob 1 def {createClients = DontCreate}
+  MessagingSetup {..} <- aliceInvitesBob 1 def {createClients = DontCreateClients}
 
   galley <- viewGalley
   post
@@ -174,12 +180,12 @@ testSuccessfulCommit setup = testSuccessfulCommitWithNewUsers setup (map pUserId
 
 testAddUser :: TestM ()
 testAddUser = do
-  setup <- aliceInvitesBob 1 def {createConv = True}
+  setup <- aliceInvitesBob 1 def {createConv = CreateConv}
   testSuccessfulCommit setup
 
 testAddUserNotConnected :: TestM ()
 testAddUserNotConnected = do
-  setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = True, makeConnections = False}
+  setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = CreateConv, makeConnections = False}
   let bob = users !! 0
 
   galley <- viewGalley
@@ -212,7 +218,7 @@ testAddUserPartial = do
   (creator, commit) <- withSystemTempDirectory "mls" $ \tmp -> do
     -- Bob has 3 clients, Charlie has 2
     (alice, [bob, charlie]) <- withLastPrekeys $ setupParticipants tmp def [3, 2]
-    void $ setupGroup tmp True alice "group"
+    void $ setupGroup tmp CreateConv alice "group"
     (commit, _) <-
       liftIO . setupCommit tmp "group" $
         -- only 2 out of the 3 clients of Bob's are added to the conversation
@@ -238,7 +244,7 @@ testAddNewClient = do
   withSystemTempDirectory "mls" $ \tmp -> withLastPrekeys $ do
     -- bob starts with a single client
     (creator, users@[bob]) <- setupParticipants tmp def [1]
-    conversation <- lift $ setupGroup tmp True creator "group"
+    conversation <- lift $ setupGroup tmp CreateConv creator "group"
 
     -- creator sends first commit message
     do
@@ -256,16 +262,25 @@ testAddNewClient = do
 --------------------------------------------------------------------------------
 -- Messaging setup
 
-data CreateClients = CreateWithoutKey | CreateWithKey | DontCreate
+data CreateClients = CreateWithoutKey | CreateWithKey | DontCreateClients
+  deriving (Eq)
+
+data CreateConv = CreateConv | CreateProteusConv | DontCreateConv
+  deriving (Eq)
+
+createNewConv :: CreateConv -> Maybe NewConv
+createNewConv CreateConv = Just defNewMLSConv
+createNewConv CreateProteusConv = Just defNewProteusConv
+createNewConv DontCreateConv = Nothing
 
 data SetupOptions = SetupOptions
   { createClients :: CreateClients,
-    createConv :: Bool,
+    createConv :: CreateConv,
     makeConnections :: Bool
   }
 
 instance Default SetupOptions where
-  def = SetupOptions {createClients = CreateWithKey, createConv = False, makeConnections = True}
+  def = SetupOptions {createClients = CreateWithKey, createConv = DontCreateConv, makeConnections = True}
 
 data MessagingSetup = MessagingSetup
   { creator :: Participant,
@@ -300,7 +315,7 @@ setupUserClient tmp doCreateClients usr = do
   lift $ do
     -- create client if requested
     c <- case doCreateClients of
-      DontCreate -> randomClient (qUnqualified usr) lpk
+      DontCreateClients -> randomClient (qUnqualified usr) lpk
       _ -> addClient usr lpk
 
     let qcid =
@@ -342,7 +357,7 @@ setupParticipants ::
   [Int] ->
   State.StateT [LastPrekey] TestM (Participant, [Participant])
 setupParticipants tmp SetupOptions {..} ns = do
-  creator <- lift randomQualifiedUser >>= setupParticipant tmp DontCreate 1
+  creator <- lift randomQualifiedUser >>= setupParticipant tmp DontCreateClients 1
   others <- for ns $ \n ->
     lift randomQualifiedUser >>= setupParticipant tmp createClients n
   lift . when makeConnections $
@@ -357,24 +372,24 @@ setupParticipants tmp SetupOptions {..} ns = do
 withLastPrekeys :: Monad m => State.StateT [LastPrekey] m a -> m a
 withLastPrekeys m = State.evalStateT m someLastPrekeys
 
-setupGroup :: HasCallStack => FilePath -> Bool -> Participant -> String -> TestM (Qualified ConvId)
+setupGroup :: HasCallStack => FilePath -> CreateConv -> Participant -> String -> TestM (Qualified ConvId)
 setupGroup tmp createConv creator name = do
-  (groupId, conversation) <-
-    first (toBase64Text . unGroupId)
-      <$> if createConv
-        then do
+  (mgroupId, conversation) <-
+    first (fmap (toBase64Text . unGroupId))
+      <$> case createNewConv createConv of
+        Nothing -> pure (Just "test_group", error "No conversation created")
+        Just nc -> do
           conv <-
-            responseJsonError =<< postConvQualified (qUnqualified (pUserId creator)) defNewMLSConv
+            responseJsonError =<< postConvQualified (qUnqualified (pUserId creator)) nc
               <!! const 201 === statusCode
-          liftIO $ case cnvProtocol conv of
-            ProtocolMLS mlsData -> pure (cnvmlsGroupId mlsData, cnvQualifiedId conv)
-            p -> assertFailure $ "Expected MLS conversation, got protocol: " <> show (protocolTag p)
-        else pure ("test_group", error "No conversation created")
 
-  groupJSON <-
-    liftIO $
-      spawn (cli tmp ["group", pClientQid creator, T.unpack groupId]) Nothing
-  liftIO $ BS.writeFile (tmp </> name) groupJSON
+          pure (preview (to cnvProtocol . _ProtocolMLS . to cnvmlsGroupId) conv :: Maybe GroupId, cnvQualifiedId conv)
+
+  for_ mgroupId $ \groupId -> do
+    groupJSON <-
+      liftIO $
+        spawn (cli tmp ["group", pClientQid creator, T.unpack groupId]) Nothing
+    liftIO $ BS.writeFile (tmp </> name) groupJSON
 
   pure conversation
 
