@@ -8,5 +8,7 @@
     "name": "􄫇Z",
     "role": "member",
     "saml_idp": "",
+    "scim_external_id": null,
+    "sso": null,
     "team": "00000002-0000-0000-0000-000100000002"
 }

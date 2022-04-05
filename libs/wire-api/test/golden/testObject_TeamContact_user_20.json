@@ -8,5 +8,7 @@
     "name": "",
     "role": "owner",
     "saml_idp": "",
+    "scim_external_id": "sim-external@example.com",
+    "sso": null,
     "team": "00000001-0000-0002-0000-000100000001"
 }

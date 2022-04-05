@@ -96,10 +96,12 @@ import Network.HTTP.Types (StdMethod (POST), hContentType, statusCode)
 import qualified SAML2.WebSSO.Types as SAML
 import qualified System.Logger as Log
 import System.Logger.Class (Logger, MonadLogger (..), field, info, msg, val, (+++), (~~))
-import URI.ByteString (serializeURIRef)
+import URI.ByteString (URI, serializeURIRef)
 import Util.Options (Endpoint, epHost, epPort)
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature (TeamFeatureName (..))
+import qualified Wire.API.User as User
+import Wire.API.User.Search (Sso (..))
 
 --------------------------------------------------------------------------------
 -- IndexIO Monad
@@ -586,7 +588,38 @@ indexMapping =
                   mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields = mempty
-                }
+                },
+            "scim_external_id"
+              .= MappingProperty
+                { mpType = MPKeyword,
+                  mpStore = False,
+                  mpIndex = False,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
+            "sso"
+              .= object
+                [ "type" .= Aeson.String "nested",
+                  "properties"
+                    .= object
+                      [ "issuer"
+                          .= MappingProperty
+                            { mpType = MPKeyword,
+                              mpStore = False,
+                              mpIndex = False,
+                              mpAnalyzer = Nothing,
+                              mpFields = mempty
+                            },
+                        "nameid"
+                          .= MappingProperty
+                            { mpType = MPKeyword,
+                              mpStore = False,
+                              mpIndex = False,
+                              mpAnalyzer = Nothing,
+                              mpFields = mempty
+                            }
+                      ]
+                ]
           ]
     ]
 
@@ -804,6 +837,8 @@ reindexRowToIndexUser
                 . set iuManagedBy managedBy
                 . set iuCreatedAt (Just (writeTimeToUTC tActivated))
                 . set iuSearchVisibilityInbound (Just searchVisInbound)
+                . set iuScimExternalId (join $ User.scimExternalId <$> managedBy <*> ssoId)
+                . set iuSso (sso =<< ssoId)
           else
             iu
               -- We insert a tombstone-style user here, as it's easier than deleting the old one.
@@ -827,8 +862,16 @@ reindexRowToIndexUser
 
       idpUrl :: UserSSOId -> Maybe Text
       idpUrl (UserSSOId (SAML.UserRef (SAML.Issuer uri) _subject)) =
-        Just $ (cs . toLazyByteString . serializeURIRef) uri
+        Just $ fromUri uri
       idpUrl (UserScimExternalId _) = Nothing
+
+      fromUri :: URI -> Text
+      fromUri = cs . toLazyByteString . serializeURIRef
+
+      sso :: UserSSOId -> Maybe Sso
+      sso userSsoId = do
+        (issuer, nameid) <- User.ssoIssuerAndNameId userSsoId
+        pure $ Sso {ssoIssuer = issuer, ssoNameId = nameid}
 
 getTeamSearchVisibilityInbound ::
   TeamId ->

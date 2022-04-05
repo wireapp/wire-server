@@ -8,5 +8,10 @@
     "name": "[􇎬C",
     "role": "owner",
     "saml_idp": "\u0012",
+    "scim_external_id": null,
+    "sso": {
+        "issuer": "example.com",
+        "nameid": "sim-external@example.com"
+    },
     "team": "00000001-0000-0002-0000-000000000000"
 }

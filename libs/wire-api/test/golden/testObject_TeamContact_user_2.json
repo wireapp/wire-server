@@ -8,5 +8,7 @@
     "name": "𧋕裤",
     "role": "partner",
     "saml_idp": "N\u0014",
+    "scim_external_id": null,
+    "sso": null,
     "team": "00000002-0000-0000-0000-000200000001"
 }
