@@ -461,6 +461,16 @@ propertyValueFromRaw raw =
   Public.PropertyValue raw
     <$> eitherDecode (Public.rawPropertyBytes raw)
 
+parseStoredPropertyValue :: Public.RawPropertyValue -> Handler r Public.PropertyValue
+parseStoredPropertyValue raw = case propertyValueFromRaw raw of
+  Right value -> pure value
+  Left e -> do
+    Log.err $
+      Log.msg (Log.val "Failed to parse a stored property value")
+        . Log.field "raw_value" (Public.rawPropertyBytes raw)
+        . Log.field "parse_error" e
+    throwStd internalServerError
+
 deleteProperty :: UserId -> ConnId -> Public.PropertyKey -> Handler r ()
 deleteProperty u c k = lift (API.deleteProperty u c k)
 
@@ -476,12 +486,7 @@ listPropertyKeys u = lift $ wrapClient (API.lookupPropertyKeys u)
 listPropertyKeysAndValues :: UserId -> Handler r Public.PropertyKeysAndValues
 listPropertyKeysAndValues u = do
   keysAndVals <- fmap Map.fromList . lift $ wrapClient (API.lookupPropertyKeysAndValues u)
-  fmap Public.PropertyKeysAndValues . hoistEither $
-    traverse
-      ( first (const (StdError internalServerError))
-          . propertyValueFromRaw
-      )
-      keysAndVals
+  fmap Public.PropertyKeysAndValues $ traverse parseStoredPropertyValue keysAndVals
 
 getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> (Handler r) Public.ClientPrekey
 getPrekeyUnqualifiedH zusr user client = do
