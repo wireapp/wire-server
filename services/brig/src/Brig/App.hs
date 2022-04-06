@@ -145,7 +145,6 @@ import qualified Ropes.Twilio as Twilio
 import Ssl.Util
 import qualified System.FSNotify as FS
 import qualified System.FilePath as Path
-import qualified System.Logger
 import System.Logger.Class hiding (Settings, settings)
 import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
@@ -512,9 +511,13 @@ instance MonadIO m => MonadLogger (ReaderT Env m) where
     Log.log g l $ field "request" (unRequestId r) ~~ m
 
 instance MonadLogger (AppT r) where
-  log l f = do
-    logger <- view applog
-    AppT $ lift $ embedFinal @IO $ System.Logger.log logger l f
+  log l m = do
+    g <- view applog
+    r <- view requestId
+    AppT $
+      lift $
+        embedFinal @IO $
+          Log.log g l $ field "request" (unRequestId r) ~~ m
 
 instance MonadLogger (ExceptT err (AppT r)) where
   log l m = lift (LC.log l m)
