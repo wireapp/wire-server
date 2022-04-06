@@ -1551,11 +1551,12 @@ userIsTeamOwnerH ::
        TeamStore
      ]
     r =>
-  TeamId ::: UserId ::: JSON ->
-  Sem r Response
-userIsTeamOwnerH (tid ::: uid ::: _) = do
+  TeamId ->
+  UserId ->
+  Sem r NoContent
+userIsTeamOwnerH tid uid = do
   userIsTeamOwner tid uid >>= \case
-    True -> pure empty
+    True -> pure NoContent
     False -> throwS @'AccessDenied
 
 userIsTeamOwner ::

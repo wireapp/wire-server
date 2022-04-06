@@ -235,6 +235,14 @@ type ITeamsAPIBase =
                     )
              :<|> Named "can-user-join-team" ("check" :> Get '[Servant.JSON] NoContent)
          )
+    :<|> Named
+           "user-is-team-owner"
+           ( "is-team-owner" :> Capture "uid" UserId
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'TeamMemberNotFound
+               :> CanThrow 'NotATeamMember
+               :> Get '[Servant.JSON] NoContent
+           )
     :<|> "search-visibility"
       :> ( Named "get-search-visibility-internal" (Get '[Servant.JSON] TeamSearchVisibilityView)
              :<|> Named
@@ -316,6 +324,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
               <@> mkNamedAPI @"unchecked-get-team-member" (Teams.uncheckedGetTeamMember tid)
               <@> mkNamedAPI @"can-user-join-team" (Teams.canUserJoinTeamH tid)
           )
+        <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwnerH tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
               <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternalH tid)
@@ -395,13 +404,6 @@ internalSitemap = do
 
   get "/i/conversations/:cnv/meta" (continue Query.getConversationMetaH) $
     capture "cnv"
-
-  -- Team API (internal) ------------------------------------------------
-
-  get "/i/teams/:tid/is-team-owner/:uid" (continueE Teams.userIsTeamOwnerH) $
-    capture "tid"
-      .&. capture "uid"
-      .&. accept "application" "json"
 
   -- Misc API (internal) ------------------------------------------------
 
