@@ -23,42 +23,49 @@ module Work where
 
 import Cassandra
 import Conduit
-import Data.Aeson (eitherDecode)
-import qualified Data.ByteString.Lazy as LBS
 import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Id
-import qualified Data.Text.Encoding as Text
 import Imports
 import System.Logger (Logger)
 import qualified System.Logger as Log
-import Wire.API.User (UserSSOId)
 
 runCommand :: Logger -> ClientState -> IO ()
 runCommand l brig = do
   runConduit $
     zipSources
       (C.sourceList [(1 :: Int32) ..])
-      (transPipe (runClient brig) getSSOIds)
+      (transPipe (runClient brig) getUser)
       .| C.mapM_
-        ( \(i, usersAndSSOIds) -> do
-            Log.info l (Log.field "number of ssoIds processed" (show (i * pageSize)))
-            mapM_ (uncurry (validateSSOId l)) usersAndSSOIds
+        ( \(i, users) -> do
+            Log.info l (Log.field "number of users processed" (show (i * pageSize)))
+            mapM_ (validate l) users
         )
 
 pageSize :: Int32
 pageSize = 2000
 
-getSSOIds :: ConduitM () [(UserId, Maybe Text)] Client ()
-getSSOIds = paginateC cql (paramsP LocalQuorum () pageSize) x5
-  where
-    cql :: PrepQuery R () (UserId, Maybe Text)
-    cql = "select id, sso_id from user"
+type UserRow = (UserId, Maybe Text, Maybe Bool, Maybe Int32)
 
-validateSSOId :: Logger -> UserId -> Maybe Text -> IO ()
-validateSSOId _ _ Nothing = pure ()
-validateSSOId l uid (Just sso) = do
-  let decoded = eitherDecode @UserSSOId . LBS.fromStrict . Text.encodeUtf8 $ sso
-  case decoded of
-    Right _ -> pure ()
-    Left err -> Log.err l $ Log.field "user" (idToText uid) . Log.field "sso_id" sso . Log.msg err
+getUser :: ConduitM () [UserRow] Client ()
+getUser = paginateC cql (paramsP LocalQuorum () pageSize) x5
+  where
+    cql :: PrepQuery R () UserRow
+    cql = "select id, name, activated, accent_id from user"
+
+newtype ShowUserRow = ShowUserRow UserRow
+
+instance Show ShowUserRow where
+  show (ShowUserRow (uid, name, activated, accent)) =
+    "id: " <> show uid
+      <> ", name: "
+      <> show (fromMaybe "null" name)
+      <> ", activated: "
+      <> show (maybe "null" show activated)
+      <> ", color: "
+      <> show (maybe "null" show accent)
+
+validate :: Logger -> UserRow -> IO ()
+validate l r@(_, name, activated, colorId) = do
+  when (any isNothing [name $> (), activated $> (), colorId $> ()]) $
+    Log.err l $ Log.field "user" (show (ShowUserRow r))
