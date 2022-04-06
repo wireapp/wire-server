@@ -22,6 +22,9 @@ module Brig.Data.Client
     ClientDataError (..),
     AuthError (..),
     ReAuthError (..),
+    ReAuthPolicy,
+    reAuthForNewClients,
+    addClientWithReAuthPolicy,
     addClient,
     rmClient,
     hasClient,
@@ -95,6 +98,20 @@ data ClientDataError
   | MalformedPrekeys
   | MLSPublicKeyDuplicate
 
+-- | Re-authentication policy.
+--
+-- For a potential new client, a policy is a function that takes as arguments
+-- the number of existing clients of the same type, and whether the client
+-- already exists, and returns whether the user should be forced to
+-- re-authenticate.
+type ReAuthPolicy = Int -> Bool -> Bool
+
+-- | Default re-authentication policy.
+--
+-- Re-authenticate if there is at least one other client.
+reAuthForNewClients :: ReAuthPolicy
+reAuthForNewClients count upsert = count > 0 && not upsert
+
 addClient ::
   (MonadClient m, MonadReader Brig.App.Env m) =>
   UserId ->
@@ -104,12 +121,24 @@ addClient ::
   Maybe Location ->
   Maybe (Imports.Set ClientCapability) ->
   ExceptT ClientDataError m (Client, [Client], Word)
-addClient u newId c maxPermClients loc cps = do
+addClient = addClientWithReAuthPolicy reAuthForNewClients
+
+addClientWithReAuthPolicy ::
+  (MonadClient m, MonadReader Brig.App.Env m) =>
+  ReAuthPolicy ->
+  UserId ->
+  ClientId ->
+  NewClient ->
+  Int ->
+  Maybe Location ->
+  Maybe (Imports.Set ClientCapability) ->
+  ExceptT ClientDataError m (Client, [Client], Word)
+addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients loc cps = do
   clients <- lookupClients u
   let typed = filter ((== newClientType c) . clientType) clients
   let count = length typed
   let upsert = any exists typed
-  unless (count == 0 || upsert) $
+  when (reAuthPolicy count upsert) $
     fmapLT ClientReAuthError $
       User.reauthenticate u (newClientPassword c)
   let capacity = fmap (+ (- count)) limit

@@ -280,6 +280,7 @@ sitemap = do
   -- - UserLegalHoldEnabled event to contacts of the user, if client type is legalhold
   post "/i/clients/:uid" (continue addClientInternalH) $
     capture "uid"
+      .&. opt (param "skip_reauth")
       .&. jsonRequest @NewClient
       .&. opt zauthConnId
       .&. accept "application" "json"
@@ -307,14 +308,17 @@ sitemap = do
 -- Handlers
 
 -- | Add a client without authentication checks
-addClientInternalH :: UserId ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON -> (Handler r) Response
-addClientInternalH (usr ::: req ::: connId ::: _) = do
+addClientInternalH :: UserId ::: Maybe Bool ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON -> (Handler r) Response
+addClientInternalH (usr ::: mSkipReAuth ::: req ::: connId ::: _) = do
   new <- parseJsonBody req
-  setStatus status201 . json <$> addClientInternal usr new connId
+  setStatus status201 . json <$> addClientInternal usr mSkipReAuth new connId
 
-addClientInternal :: UserId -> NewClient -> Maybe ConnId -> (Handler r) Client
-addClientInternal usr new connId = do
-  API.addClient usr connId Nothing new !>> clientError
+addClientInternal :: UserId -> Maybe Bool -> NewClient -> Maybe ConnId -> (Handler r) Client
+addClientInternal usr mSkipReAuth new connId = do
+  let policy
+        | mSkipReAuth == Just True = \_ _ -> False
+        | otherwise = Data.reAuthForNewClients
+  API.addClientWithReAuthPolicy policy usr connId Nothing new !>> clientError
 
 legalHoldClientRequestedH :: UserId ::: JsonRequest LegalHoldClientRequest ::: JSON -> (Handler r) Response
 legalHoldClientRequestedH (targetUser ::: req ::: _) = do

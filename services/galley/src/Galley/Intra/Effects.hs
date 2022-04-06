@@ -70,7 +70,7 @@ interpretBrigAccess = interpret $ \case
   NotifyClientsAboutLegalHoldRequest self other pk ->
     embedApp $ notifyClientsAboutLegalHoldRequest self other pk
   GetLegalHoldAuthToken uid mpwd -> getLegalHoldAuthToken uid mpwd
-  AddLegalHoldClientToUser uid conn pks lpk ->
+  AddLegalHoldClientToUserEither uid conn pks lpk ->
     embedApp $ addLegalHoldClientToUser uid conn pks lpk
   RemoveLegalHoldClientFromUser uid ->
     embedApp $ removeLegalHoldClientFromUser uid

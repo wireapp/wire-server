@@ -19,6 +19,7 @@
 module Brig.API.Client
   ( -- * Clients
     addClient,
+    addClientWithReAuthPolicy,
     updateClient,
     rmClient,
     pubClient,
@@ -126,10 +127,24 @@ lookupPubClientsBulk qualifiedUids = do
 lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppT r) (UserMap (Set PubClient))
 lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 
+addClient ::
+  UserId ->
+  Maybe ConnId ->
+  Maybe IP ->
+  NewClient ->
+  ExceptT ClientError (AppT r) Client
+addClient = addClientWithReAuthPolicy Data.reAuthForNewClients
+
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
-addClient :: UserId -> Maybe ConnId -> Maybe IP -> NewClient -> ExceptT ClientError (AppT r) Client
-addClient u con ip new = do
+addClientWithReAuthPolicy ::
+  Data.ReAuthPolicy ->
+  UserId ->
+  Maybe ConnId ->
+  Maybe IP ->
+  NewClient ->
+  ExceptT ClientError (AppT r) Client
+addClientWithReAuthPolicy policy u con ip new = do
   acc <- lift (wrapClient $ Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
   wrapHttpClientE $ verifyCode (newClientVerificationCode new) (userId . accountUser $ acc)
   loc <- maybe (return Nothing) locationOf ip
@@ -144,7 +159,7 @@ addClient u con ip new = do
           lhcaps = ClientSupportsLegalholdImplicitConsent
   (clt0, old, count) <-
     wrapClientE
-      (Data.addClient u clientId' new maxPermClients loc caps)
+      (Data.addClientWithReAuthPolicy policy u clientId' new maxPermClients loc caps)
       !>> ClientDataError
   let clt = clt0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
   let usr = accountUser acc
