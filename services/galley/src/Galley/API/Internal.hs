@@ -235,6 +235,15 @@ type ITeamsAPIBase =
                     )
              :<|> Named "can-user-join-team" ("check" :> Get '[Servant.JSON] NoContent)
          )
+    :<|> "search-visibility"
+      :> ( Named "get-search-visibility-internal" (Get '[Servant.JSON] TeamSearchVisibilityView)
+             :<|> Named
+                    "set-search-visibility-internal"
+                    ( CanThrow 'TeamSearchVisibilityNotEnabled
+                        :> ReqBody '[Servant.JSON] TeamSearchVisibilityView
+                        :> PutNoContent
+                    )
+         )
 
 type IFeatureStatusGet l f = Named '("iget", f) (FeatureStatusBaseGet l f)
 
@@ -306,6 +315,10 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
               <@> mkNamedAPI @"unchecked-get-team-members" (Teams.uncheckedGetTeamMembersH tid)
               <@> mkNamedAPI @"unchecked-get-team-member" (Teams.uncheckedGetTeamMember tid)
               <@> mkNamedAPI @"can-user-join-team" (Teams.canUserJoinTeamH tid)
+          )
+        <@> hoistAPISegment
+          ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
+              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternalH tid)
           )
 
 featureAPI :: API IFeatureAPI GalleyEffects
@@ -436,15 +449,6 @@ internalSitemap = do
 
   delete "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalDeleteCustomBackendByDomainH) $
     capture "domain"
-      .&. accept "application" "json"
-
-  get "/i/teams/:tid/search-visibility" (continue Teams.getSearchVisibilityInternalH) $
-    capture "tid"
-      .&. accept "application" "json"
-
-  put "/i/teams/:tid/search-visibility" (continueE Teams.setSearchVisibilityInternalH) $
-    capture "tid"
-      .&. jsonRequest @TeamSearchVisibilityView
       .&. accept "application" "json"
 
   put "/i/guard-legalhold-policy-conflicts" (continue guardLegalholdPolicyConflictsH) $

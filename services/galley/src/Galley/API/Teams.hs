@@ -42,7 +42,7 @@ module Galley.API.Teams
     deleteTeamConversation,
     getSearchVisibilityH,
     setSearchVisibilityH,
-    getSearchVisibilityInternalH,
+    getSearchVisibilityInternal,
     setSearchVisibilityInternalH,
     uncheckedAddTeamMemberH,
     uncheckedGetTeamMember,
@@ -1503,13 +1503,6 @@ getTeamSearchVisibilityAvailableInternal tid = do
     <$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility tid
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
-getSearchVisibilityInternalH ::
-  Member SearchVisibilityStore r =>
-  TeamId ::: JSON ->
-  Sem r Response
-getSearchVisibilityInternalH (tid ::: _) =
-  json <$> getSearchVisibilityInternal tid
-
 getSearchVisibilityInternal ::
   Member SearchVisibilityStore r =>
   TeamId ->
@@ -1527,11 +1520,11 @@ setSearchVisibilityInternalH ::
        WaiRoutes
      ]
     r =>
-  TeamId ::: JsonRequest TeamSearchVisibilityView ::: JSON ->
-  Sem r Response
-setSearchVisibilityInternalH (tid ::: req ::: _) = do
-  setSearchVisibilityInternal tid =<< (fromJsonBody req)
-  pure noContent
+  TeamId ->
+  TeamSearchVisibilityView ->
+  Sem r NoContent
+setSearchVisibilityInternalH tid searchVisibility =
+  NoContent <$ setSearchVisibilityInternal tid searchVisibility
 
 setSearchVisibilityInternal ::
   Members
