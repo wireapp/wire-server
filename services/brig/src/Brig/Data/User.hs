@@ -633,7 +633,7 @@ userPasswordUpdate :: PrepQuery W (Password, UserId) ()
 userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"
 
 userStatusUpdate :: PrepQuery W (AccountStatus, UserId) ()
-userStatusUpdate = "UPDATE user SET status = ? WHERE id = ?"
+userStatusUpdate = "UPDATE user SET status = ? WHERE id = ? IF EXISTS"
 
 userDeactivatedUpdate :: PrepQuery W (Identity UserId) ()
 userDeactivatedUpdate = "UPDATE user SET activated = false WHERE id = ?"
