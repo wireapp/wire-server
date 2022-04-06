@@ -86,7 +86,6 @@ type HasProposalEffects r =
     Member ConversationStore r,
     Member (Error MLSProtocolError) r,
     Member (Error MLSProposalFailure) r,
-    Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSKeyPackageRefNotFound) r,
     Member (ErrorS 'MLSClientMismatch) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
