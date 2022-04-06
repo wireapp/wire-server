@@ -63,7 +63,7 @@ module Brig.App
     AppT,
     runAppT,
     runAppResourceT,
-    forkAppT,
+    fork,
     locationOf,
     viewFederationDomain,
     qualifyLocal,
@@ -613,12 +613,12 @@ runAppResourceT ma = do
   e <- ask
   liftIO . runResourceT $ transResourceT (runAppT e) ma
 
-forkAppT ::
+fork ::
   (MonadIO m, MonadUnliftIO m, MonadReader Env m) =>
   Maybe UserId ->
   m a ->
   m ()
-forkAppT u ma = do
+fork u ma = do
   g <- view applog
   r <- view requestId
   let logErr e = Log.err g $ request r ~~ user u ~~ msg (show e)

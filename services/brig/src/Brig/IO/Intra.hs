@@ -463,7 +463,7 @@ notify ::
   -- | Users to notify.
   m (List1 UserId) ->
   m ()
-notify events orig route conn recipients = forkAppT (Just orig) $ do
+notify events orig route conn recipients = fork (Just orig) $ do
   rs <- recipients
   push events rs orig route conn
 
