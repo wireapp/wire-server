@@ -45,7 +45,7 @@ module Galley.API.Teams
     getSearchVisibilityInternalH,
     setSearchVisibilityInternalH,
     uncheckedAddTeamMemberH,
-    uncheckedGetTeamMemberH,
+    uncheckedGetTeamMember,
     uncheckedGetTeamMembersH,
     uncheckedDeleteTeamMember,
     userIsTeamOwnerH,
@@ -701,13 +701,6 @@ internalDeleteBindingTeamWithOneMemberH ::
   Sem r NoContent
 internalDeleteBindingTeamWithOneMemberH = (NoContent <$) . internalDeleteBindingTeamWithOneMember
 
-uncheckedGetTeamMemberH ::
-  Members '[ErrorS 'TeamMemberNotFound, TeamStore] r =>
-  TeamId ::: UserId ::: JSON ->
-  Sem r Response
-uncheckedGetTeamMemberH (tid ::: uid ::: _) = do
-  json <$> uncheckedGetTeamMember tid uid
-
 uncheckedGetTeamMember ::
   Members '[ErrorS 'TeamMemberNotFound, TeamStore] r =>
   TeamId ->
@@ -718,10 +711,11 @@ uncheckedGetTeamMember tid uid =
 
 uncheckedGetTeamMembersH ::
   Member TeamStore r =>
-  TeamId ::: Range 1 HardTruncationLimit Int32 ::: JSON ->
-  Sem r Response
-uncheckedGetTeamMembersH (tid ::: maxResults ::: _) = do
-  json <$> uncheckedGetTeamMembers tid maxResults
+  TeamId ->
+  Maybe (Range 1 HardTruncationLimit Int32) ->
+  Sem r TeamMemberList
+uncheckedGetTeamMembersH tid mMaxResults =
+  uncheckedGetTeamMembers tid (fromMaybe (unsafeRange hardTruncationLimit) mMaxResults)
 
 uncheckedGetTeamMembers ::
   Member TeamStore r =>
@@ -829,12 +823,11 @@ uncheckedAddTeamMemberH ::
        WaiRoutes
      ]
     r =>
-  TeamId ::: JsonRequest NewTeamMember ::: JSON ->
-  Sem r Response
-uncheckedAddTeamMemberH (tid ::: req ::: _) = do
-  nmem <- fromJsonBody req
-  uncheckedAddTeamMember tid nmem
-  return empty
+  TeamId ->
+  NewTeamMember ->
+  Sem r NoContent
+uncheckedAddTeamMemberH tid nmem =
+  NoContent <$ uncheckedAddTeamMember tid nmem
 
 uncheckedAddTeamMember ::
   Members
@@ -1461,8 +1454,8 @@ getBindingTeamMembers zusr = do
 canUserJoinTeamH ::
   Members '[BrigAccess, Error LegalHoldError, LegalHoldStore, TeamStore, TeamFeatureStore] r =>
   TeamId ->
-  Sem r Response
-canUserJoinTeamH tid = canUserJoinTeam tid >> pure empty
+  Sem r NoContent
+canUserJoinTeamH = (NoContent <$) . canUserJoinTeam
 
 -- This could be extended for more checks, for now we test only legalhold
 --
