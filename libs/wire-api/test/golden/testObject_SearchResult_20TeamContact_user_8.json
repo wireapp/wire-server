@@ -10,6 +10,8 @@
             "name": "",
             "role": "owner",
             "saml_idp": "",
+            "scim_external_id": "sim-external@example.com",
+            "sso": null,
             "team": "00000001-0000-0000-0000-000100000001"
         },
         {
@@ -22,6 +24,8 @@
             "name": "",
             "role": "owner",
             "saml_idp": null,
+            "scim_external_id": "sim-external@example.com",
+            "sso": null,
             "team": null
         },
         {
@@ -34,6 +38,8 @@
             "name": "",
             "role": null,
             "saml_idp": "",
+            "scim_external_id": "sim-external@example.com",
+            "sso": null,
             "team": "00000001-0000-0000-0000-000100000001"
         },
         {
@@ -46,6 +52,8 @@
             "name": "",
             "role": null,
             "saml_idp": "",
+            "scim_external_id": "sim-external@example.com",
+            "sso": null,
             "team": "00000000-0000-0001-0000-000000000001"
         }
     ],

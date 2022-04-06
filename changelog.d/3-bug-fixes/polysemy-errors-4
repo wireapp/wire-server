@@ -1,1 +1,0 @@
-Conversation rename endpoints now return 204 instead of 404 when the conversation name is unchanged

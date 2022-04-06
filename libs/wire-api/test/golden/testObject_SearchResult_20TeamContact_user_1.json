@@ -10,6 +10,8 @@
             "name": "",
             "role": "admin",
             "saml_idp": "",
+            "scim_external_id": "sim-external@example.com",
+            "sso": null,
             "team": "00000000-0000-0000-0000-000000000001"
         },
         {
@@ -22,6 +24,11 @@
             "name": "",
             "role": "partner",
             "saml_idp": null,
+            "scim_external_id": "sim-external@example.com",
+            "sso": {
+                "issuer": "example.com",
+                "nameid": "sim-external@example.com"
+            },
             "team": "00000000-0000-0000-0000-000000000001"
         }
     ],

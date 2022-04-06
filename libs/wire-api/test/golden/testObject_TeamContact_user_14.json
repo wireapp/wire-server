@@ -8,5 +8,7 @@
     "name": "`+",
     "role": "partner",
     "saml_idp": null,
+    "scim_external_id": "sim-external@example.com",
+    "sso": null,
     "team": null
 }

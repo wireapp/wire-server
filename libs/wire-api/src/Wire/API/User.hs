@@ -32,6 +32,8 @@ module Wire.API.User
     userPhone,
     userSSOId,
     userSCIMExternalId,
+    scimExternalId,
+    ssoIssuerAndNameId,
     connectedProfile,
     publicProfile,
 
@@ -110,6 +112,7 @@ import Control.Lens (over, (.~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson.Types as A
 import qualified Data.Attoparsec.ByteString as Parser
+import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
 import qualified Data.Code as Code
@@ -141,6 +144,7 @@ import Imports
 import qualified SAML2.WebSSO as SAML
 import Servant (FromHttpApiData (..), ToHttpApiData (..), type (.++))
 import qualified Test.QuickCheck as QC
+import URI.ByteString (serializeURIRef)
 import qualified Web.Cookie as Web
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Error
@@ -376,16 +380,21 @@ userSSOId :: User -> Maybe UserSSOId
 userSSOId = ssoIdentity <=< userIdentity
 
 userSCIMExternalId :: User -> Maybe Text
-userSCIMExternalId usr = userSSOId >=> ssoIdExtId $ usr
+userSCIMExternalId usr = scimExternalId (userManagedBy usr) =<< userSSOId usr
+
+-- FUTUREWORK: this is only ignoring case in the email format, and emails should be
+-- handled case-insensitively.  https://wearezeta.atlassian.net/browse/SQSERVICES-909
+scimExternalId :: ManagedBy -> UserSSOId -> Maybe Text
+scimExternalId _ (UserScimExternalId extId) = Just extId
+scimExternalId ManagedByScim (UserSSOId (SAML.UserRef _ nameIdXML)) = Just . CI.original . SAML.unsafeShowNameID $ nameIdXML
+scimExternalId ManagedByWire (UserSSOId _) = Nothing
+
+ssoIssuerAndNameId :: UserSSOId -> Maybe (Text, Text)
+ssoIssuerAndNameId (UserSSOId (SAML.UserRef (SAML.Issuer uri) nameIdXML)) = Just (fromUri uri, fromNameId nameIdXML)
   where
-    ssoIdExtId :: UserSSOId -> Maybe Text
-    ssoIdExtId (UserSSOId (SAML.UserRef _ nameIdXML)) = case userManagedBy usr of
-      ManagedByWire -> Nothing
-      ManagedByScim ->
-        -- FUTUREWORK: this is only ignoring case in the email format, and emails should be
-        -- handled case-insensitively.  https://wearezeta.atlassian.net/browse/SQSERVICES-909
-        Just . CI.original . SAML.unsafeShowNameID $ nameIdXML
-    ssoIdExtId (UserScimExternalId extId) = pure extId
+    fromUri = cs . toLazyByteString . serializeURIRef
+    fromNameId = CI.original . SAML.unsafeShowNameID
+ssoIssuerAndNameId (UserScimExternalId _) = Nothing
 
 connectedProfile :: User -> UserLegalHoldStatus -> UserProfile
 connectedProfile u legalHoldStatus =
