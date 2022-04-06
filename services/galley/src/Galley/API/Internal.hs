@@ -165,6 +165,7 @@ type InternalAPIBase =
                :> ReqBody '[Servant.JSON] Connect
                :> ConversationVerb
            )
+    :<|> ITeamsAPI
     :<|> Named
            "upsert-one2one"
            ( Summary "Create or Update a connect or one2one conversation."
@@ -194,6 +195,34 @@ type InternalAPIBase =
                :> Get '[Servant.JSON] TeamFeatureStatusNoConfig
            )
     :<|> IFeatureAPI
+
+type ITeamsAPI = "teams" :> Capture "tid" TeamId :> CanThrow 'TeamNotFound :> ITeamsAPIBase
+
+type ITeamsAPIBase =
+  Named "get-team" (Get '[Servant.JSON] TeamData)
+    :<|> Named
+           "create-binding-team"
+           ( ZUser :> ReqBody '[Servant.JSON] BindingNewTeam
+               :> PutCreated '[Servant.JSON] (Headers '[Header "Location" TeamId] NoContent)
+           )
+    :<|> Named
+           "delete-binding-team-with-one-member"
+           ( CanThrow 'NoBindingTeam :> CanThrow 'NotAOneMemberTeam :> CanThrow 'DeleteQueueFull
+               :> DeleteAccepted '[Servant.JSON] NoContent
+           )
+    :<|> "name" :> IGetTeamNameAPI
+    :<|> "status" :> IUpdateTeamStatusAPI
+
+type IGetTeamNameAPI = Named "get-team-name" (Get '[Servant.JSON] TeamName)
+
+type IUpdateTeamStatusAPI =
+  Named
+    "update-team-status"
+    ( CanThrow 'InvalidTeamStatusUpdate :> ReqBody '[Servant.JSON] TeamStatusUpdate
+        :> Put '[Servant.JSON] NoContent
+    )
+
+type ITeamEffects = ErrorS 'TeamNotFound : GalleyEffects
 
 type IFeatureStatusGet l f = Named '("iget", f) (FeatureStatusBaseGet l f)
 
@@ -243,9 +272,21 @@ internalAPI =
     mkNamedAPI @"status" (pure ())
       <@> mkNamedAPI @"delete-user" rmUser
       <@> mkNamedAPI @"connect" Create.createConnectConversation
+      <@> iTeamsAPI
       <@> mkNamedAPI @"upsert-one2one" iUpsertOne2OneConversation
       <@> mkNamedAPI @"feature-config-snd-factor-password-challenge" getSndFactorPasswordChallengeNoAuth
       <@> featureAPI
+
+iTeamsAPI :: API ITeamsAPI GalleyEffects
+iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
+  where
+    base :: TeamId -> API ITeamsAPIBase ITeamEffects
+    base tid =
+      mkNamedAPI @"get-team" (Teams.getTeamInternalH tid)
+        <@> mkNamedAPI @"create-binding-team" (Teams.createBindingTeamH tid)
+        <@> mkNamedAPI @"delete-binding-team-with-one-member" (Teams.internalDeleteBindingTeamWithOneMemberH tid)
+        <@> hoistAPI @IGetTeamNameAPI id (mkNamedAPI @"get-team-name" $ Teams.getTeamNameInternalH tid)
+        <@> hoistAPI @IUpdateTeamStatusAPI id (mkNamedAPI @"update-team-status" $ Teams.updateTeamStatusH tid)
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -323,28 +364,6 @@ internalSitemap = do
     capture "cnv"
 
   -- Team API (internal) ------------------------------------------------
-
-  get "/i/teams/:tid" (continueE Teams.getTeamInternalH) $
-    capture "tid"
-      .&. accept "application" "json"
-
-  get "/i/teams/:tid/name" (continueE Teams.getTeamNameInternalH) $
-    capture "tid"
-      .&. accept "application" "json"
-
-  put "/i/teams/:tid" (continueE Teams.createBindingTeamH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. jsonRequest @BindingNewTeam
-      .&. accept "application" "json"
-
-  delete "/i/teams/:tid" (continueE Teams.internalDeleteBindingTeamWithOneMemberH) $
-    capture "tid"
-
-  put "/i/teams/:tid/status" (continueE Teams.updateTeamStatusH) $
-    capture "tid"
-      .&. jsonRequest @TeamStatusUpdate
-      .&. accept "application" "json"
 
   post "/i/teams/:tid/members" (continueE Teams.uncheckedAddTeamMemberH) $
     capture "tid"
