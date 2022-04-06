@@ -199,7 +199,7 @@ type InternalAPIBase =
 type ITeamsAPI = "teams" :> Capture "tid" TeamId :> ITeamsAPIBase
 
 type ITeamsAPIBase =
-  Named "get-team" (CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamData)
+  Named "get-team-internal" (CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamData)
     :<|> Named
            "create-binding-team"
            ( ZUser :> ReqBody '[Servant.JSON] BindingNewTeam
@@ -305,7 +305,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
     hoistAPISegment = hoistAPI id
     base :: TeamId -> API ITeamsAPIBase GalleyEffects
     base tid =
-      mkNamedAPI @"get-team" (Teams.getTeamInternalH tid)
+      mkNamedAPI @"get-team-internal" (Teams.getTeamInternalH tid)
         <@> mkNamedAPI @"create-binding-team" (Teams.createBindingTeamH tid)
         <@> mkNamedAPI @"delete-binding-team-with-one-member" (Teams.internalDeleteBindingTeamWithOneMemberH tid)
         <@> mkNamedAPI @"get-team-name" (Teams.getTeamNameInternalH tid)
