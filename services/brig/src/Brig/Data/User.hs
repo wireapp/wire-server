@@ -341,7 +341,11 @@ deleteServiceUser pid sid bid = do
       \WHERE provider = ? AND service = ? AND team = ? AND user = ?"
 
 updateStatus :: MonadClient m => UserId -> AccountStatus -> m ()
-updateStatus u s = retry x5 $ write userStatusUpdate (params LocalQuorum (s, u))
+updateStatus u s =
+  whenM (userExists u) $ retry x5 $ write userStatusUpdate (params LocalQuorum (s, u))
+  where
+    userExists :: MonadClient m => UserId -> m Bool
+    userExists uid = isJust <$> retry x1 (query1 idSelect (params LocalQuorum (Identity uid)))
 
 -- | Whether the account has been activated by verifying
 -- an email address or phone number.
@@ -558,6 +562,9 @@ usersSelect =
   \handle, team, managed_by \
   \FROM user where id IN ?"
 
+idSelect :: PrepQuery R (Identity UserId) (Identity UserId)
+idSelect = "SELECT id FROM user WHERE id = ?"
+
 nameSelect :: PrepQuery R (Identity UserId) (Identity Name)
 nameSelect = "SELECT name FROM user WHERE id = ?"
 
@@ -633,7 +640,7 @@ userPasswordUpdate :: PrepQuery W (Password, UserId) ()
 userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"
 
 userStatusUpdate :: PrepQuery W (AccountStatus, UserId) ()
-userStatusUpdate = "UPDATE user SET status = ? WHERE id = ? IF EXISTS"
+userStatusUpdate = "UPDATE user SET status = ? WHERE id = ?"
 
 userDeactivatedUpdate :: PrepQuery W (Identity UserId) ()
 userDeactivatedUpdate = "UPDATE user SET activated = false WHERE id = ?"
