@@ -762,14 +762,6 @@ type PropertiesAPI =
 
 -- Properties API -----------------------------------------------------
 
--- get "/properties-values" (continue listPropertyKeysAndValuesH) $
---   zauthUserId
---     .&. accept "application" "json"
--- document "GET" "listPropertyKeysAndValues" $ do
---   Doc.summary "List all properties with key and value."
---   Doc.returns (Doc.ref Public.modelPropertyDictionary)
---   Doc.response 200 "Object with properties as attributes." Doc.end
-
 type MLSKeyPackageAPI =
   "key-packages"
     :> ( Named
