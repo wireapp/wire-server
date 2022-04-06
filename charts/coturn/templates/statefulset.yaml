@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "coturn.fullname" . }}
+  labels:
+    {{- include "coturn.labels" . | nindent 4 }}
+
+spec:
+  replicas: {{ .Values.replicaCount }}
+
+  # Allow starting and stopping coturn in parallel when scaling. This does not
+  # affect upgrades.
+  podManagementPolicy: Parallel
+
+  serviceName: {{ include "coturn.fullname" . }}
+  selector:
+    matchLabels:
+      {{- include "coturn.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+    {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+
+      labels:
+        {{- include "coturn.selectorLabels" . | nindent 8 }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      hostNetwork: true
+      serviceAccountName: {{ include "coturn.fullname" . }}
+      volumes:
+        - name: external-ip
+          emptyDir: {}
+        - name: coturn-config
+          emptyDir: {}
+        - name: coturn-config-template
+          configMap:
+            name: {{ include "coturn.fullname" . }}
+        - name: secrets
+          secret:
+            secretName: coturn
+      initContainers:
+        - name: get-external-ip
+          image: bitnami/kubectl:1.19.7
+          volumeMounts:
+            - name: external-ip
+              mountPath: /external-ip
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+  
+              # In the cloud, this setting is available to indicate the true IP address
+              addr=$(kubectl get node $HOSTNAME -ojsonpath='{.status.addresses[?(@.type=="ExternalIP")].address}')
+              # On on-prem we allow people to set  "wire.com/external-ip" to override this
+              if [ -z "$addr" ]; then
+                addr=$(kubectl get node $HOSTNAME -ojsonpath='{.metadata.annotations.wire\.com/external-ip}')
+              fi
+              echo -n "$addr" | tee /dev/stderr > /external-ip/ip
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository}}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          volumeMounts:
+            - name: external-ip
+              mountPath: /external-ip
+            - name: coturn-config
+              mountPath: /coturn-config
+            - name: coturn-config-template
+              mountPath: /coturn-template/coturn.conf.template
+              subPath: coturn.conf.template
+            - name: secrets
+              mountPath: /secrets/
+              readOnly: true
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              EXTERNAL_IP=$(cat /external-ip/ip)
+              ZREST_SECRET="$(cat /secrets/zrest_secret.txt)"
+              sed -Ee "s;__COTURN_EXT_IP__;$EXTERNAL_IP;g" -e "s;__COTURN_POD_IP__;$POD_IP;g" -e "s;__COTURN_SECRET__;$ZREST_SECRET;" /coturn-template/coturn.conf.template > /coturn-config/turnserver.conf
+              exec /usr/bin/turnserver -c /coturn-config/turnserver.conf
+
+          ports:
+            - name: coturn-tcp
+              containerPort: {{ .Values.coturnTurnListenPort }}
+              protocol: TCP
+            - name: status-http
+              containerPort: {{ .Values.coturnMetricsListenPort }}
+              protocol: TCP
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: status-http
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: status-http
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
