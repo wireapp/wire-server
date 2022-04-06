@@ -210,8 +210,13 @@ type ITeamsAPIBase =
            ( CanThrow 'NoBindingTeam :> CanThrow 'NotAOneMemberTeam :> CanThrow 'DeleteQueueFull
                :> DeleteAccepted '[Servant.JSON] NoContent
            )
-    :<|> "name" :> IGetTeamNameAPI
-    :<|> "status" :> IUpdateTeamStatusAPI
+    :<|> Named "get-team-name" ("name" :> CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamName)
+    :<|> Named
+           "update-team-status"
+           ( "status" :> CanThrow 'TeamNotFound :> CanThrow 'InvalidTeamStatusUpdate
+               :> ReqBody '[Servant.JSON] TeamStatusUpdate
+               :> Put '[Servant.JSON] NoContent
+           )
     :<|> "members"
       :> ( Named
              "unchecked-add-team-member"
@@ -225,19 +230,11 @@ type ITeamsAPIBase =
                     )
              :<|> Named
                     "unchecked-get-team-member"
-                    (CanThrow 'TeamMemberNotFound :> Capture "uid" UserId :> Get '[Servant.JSON] TeamMember)
+                    ( Capture "uid" UserId :> CanThrow 'TeamMemberNotFound
+                        :> Get '[Servant.JSON] TeamMember
+                    )
              :<|> Named "can-user-join-team" ("check" :> Get '[Servant.JSON] NoContent)
          )
-
-type IGetTeamNameAPI = Named "get-team-name" (CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamName)
-
-type IUpdateTeamStatusAPI =
-  Named
-    "update-team-status"
-    ( CanThrow 'TeamNotFound :> CanThrow 'InvalidTeamStatusUpdate
-        :> ReqBody '[Servant.JSON] TeamStatusUpdate
-        :> Put '[Servant.JSON] NoContent
-    )
 
 type IFeatureStatusGet l f = Named '("iget", f) (FeatureStatusBaseGet l f)
 
@@ -302,8 +299,8 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
       mkNamedAPI @"get-team" (Teams.getTeamInternalH tid)
         <@> mkNamedAPI @"create-binding-team" (Teams.createBindingTeamH tid)
         <@> mkNamedAPI @"delete-binding-team-with-one-member" (Teams.internalDeleteBindingTeamWithOneMemberH tid)
-        <@> hoistAPI @IGetTeamNameAPI id (mkNamedAPI @"get-team-name" $ Teams.getTeamNameInternalH tid)
-        <@> hoistAPI @IUpdateTeamStatusAPI id (mkNamedAPI @"update-team-status" $ Teams.updateTeamStatusH tid)
+        <@> mkNamedAPI @"get-team-name" (Teams.getTeamNameInternalH tid)
+        <@> mkNamedAPI @"update-team-status" (Teams.updateTeamStatusH tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"unchecked-add-team-member" (Teams.uncheckedAddTeamMemberH tid)
               <@> mkNamedAPI @"unchecked-get-team-members" (Teams.uncheckedGetTeamMembersH tid)
