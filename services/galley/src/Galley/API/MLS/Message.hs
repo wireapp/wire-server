@@ -78,8 +78,8 @@ postMLSMessage lusr con smsg = case rmValue smsg of
     CommitMessage c ->
       processCommit lusr con (rmRaw smsg) (msgEpoch msg) (msgGroupId msg) c
     ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
-    _ -> pure mempty -- FUTUREWORK: handle other message types
-  _ -> pure mempty -- FUTUREWORK: handle encrypted messages
+    ProposalMessage _ -> pure mempty -- FUTUREWORK: handle proposals
+  SomeMessage SMLSCipherText _ -> pure mempty -- FUTUREWORK: handle encrypted messages
 
 type HasProposalEffects r =
   ( Member BrigAccess r,
