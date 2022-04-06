@@ -25,13 +25,12 @@ module Galley.Effects.ConversationStore
 
     -- * Read conversation
     getConversation,
-    getConversationByGroupId,
+    getConversationIdByGroupId,
     getConversations,
     getConversationMetadata,
     isConversationAlive,
     getRemoteConversationStatus,
     selectConversations,
-    getConversationIdByGroupId,
 
     -- * Update conversation
     setConversationType,
@@ -64,7 +63,7 @@ data ConversationStore m a where
   CreateConversation :: Local ConvId -> NewConversation -> ConversationStore m Conversation
   DeleteConversation :: ConvId -> ConversationStore m ()
   GetConversation :: ConvId -> ConversationStore m (Maybe Conversation)
-  GetConversationByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvId))
+  GetConversationIdByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvId))
   GetConversations :: [ConvId] -> ConversationStore m [Conversation]
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
   IsConversationAlive :: ConvId -> ConversationStore m Bool
@@ -79,7 +78,6 @@ data ConversationStore m a where
   SetConversationReceiptMode :: ConvId -> ReceiptMode -> ConversationStore m ()
   SetConversationMessageTimer :: ConvId -> Maybe Milliseconds -> ConversationStore m ()
   SetConversationEpoch :: ConvId -> Epoch -> ConversationStore m ()
-  GetConversationIdByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvId))
   SetGroupId :: GroupId -> Qualified ConvId -> ConversationStore m ()
 
 makeSem ''ConversationStore

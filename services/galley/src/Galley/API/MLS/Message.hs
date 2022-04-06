@@ -133,7 +133,7 @@ processCommit ::
   Sem r [Event]
 processCommit lusr con _raw epoch gid commit = do
   -- fetch conversation
-  qcnv <- getConversationByGroupId gid >>= noteS @'ConvNotFound
+  qcnv <- getConversationIdByGroupId gid >>= noteS @'ConvNotFound
   lcnv <- ensureLocal lusr qcnv -- FUTUREWORK: allow remote conversations
   conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
 
