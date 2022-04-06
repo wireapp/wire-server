@@ -218,7 +218,7 @@ sendLoginCodeH req = do
 sendLoginCode :: Public.SendLoginCode -> (Handler r) Public.LoginCodeTimeout
 sendLoginCode (Public.SendLoginCode phone call force) = do
   checkWhitelist (Right phone)
-  c <- Auth.sendLoginCode phone call force !>> sendLoginCodeError
+  c <- wrapClientE (Auth.sendLoginCode phone call force) !>> sendLoginCodeError
   return $ Public.LoginCodeTimeout (pendingLoginTimeout c)
 
 getLoginCodeH :: JSON ::: Phone -> (Handler r) Response
@@ -239,7 +239,7 @@ reAuthUser uid body = do
   wrapClientE (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
   case reAuthCodeAction body of
     Just action ->
-      Auth.verifyCode (reAuthCode body) action uid
+      wrapHttpClientE (Auth.verifyCode (reAuthCode body) action uid)
         `catchE` \case
           VerificationCodeRequired -> throwE $ reauthError ReAuthCodeVerificationRequired
           VerificationCodeNoPendingCode -> throwE $ reauthError ReAuthCodeVerificationNoPendingCode
@@ -253,7 +253,7 @@ loginH (req ::: persist ::: _) = do
 login :: Public.Login -> Bool -> (Handler r) (Auth.Access ZAuth.User)
 login l persist = do
   let typ = if persist then PersistentCookie else SessionCookie
-  Auth.login l typ !>> loginError
+  wrapHttpClientE (Auth.login l typ) !>> loginError
 
 ssoLoginH :: JsonRequest SsoLogin ::: Bool ::: JSON -> (Handler r) Response
 ssoLoginH (req ::: persist ::: _) = do
@@ -262,7 +262,7 @@ ssoLoginH (req ::: persist ::: _) = do
 ssoLogin :: SsoLogin -> Bool -> (Handler r) (Auth.Access ZAuth.User)
 ssoLogin l persist = do
   let typ = if persist then PersistentCookie else SessionCookie
-  Auth.ssoLogin l typ !>> loginError
+  wrapHttpClientE (Auth.ssoLogin l typ) !>> loginError
 
 legalHoldLoginH :: JsonRequest LegalHoldLogin ::: JSON -> (Handler r) Response
 legalHoldLoginH (req ::: _) = do
@@ -271,7 +271,7 @@ legalHoldLoginH (req ::: _) = do
 legalHoldLogin :: LegalHoldLogin -> (Handler r) (Auth.Access ZAuth.LegalHoldUser)
 legalHoldLogin l = do
   let typ = PersistentCookie -- Session cookie isn't a supported use case here
-  Auth.legalHoldLogin l typ !>> legalHoldLoginError
+  wrapHttpClientE (Auth.legalHoldLogin l typ) !>> legalHoldLoginError
 
 logoutH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> (Handler r) Response
 logoutH (_ ::: ut ::: at) = empty <$ logout ut at
@@ -286,8 +286,8 @@ logout Nothing (Just _) = throwStd authMissingCookie
 logout (Just _) Nothing = throwStd authMissingToken
 logout (Just (Left _)) (Just (Right _)) = throwStd authTokenMismatch
 logout (Just (Right _)) (Just (Left _)) = throwStd authTokenMismatch
-logout (Just (Left ut)) (Just (Left at)) = Auth.logout ut at !>> zauthError
-logout (Just (Right ut)) (Just (Right at)) = Auth.logout ut at !>> zauthError
+logout (Just (Left ut)) (Just (Left at)) = wrapHttpClientE (Auth.logout ut at) !>> zauthError
+logout (Just (Right ut)) (Just (Right at)) = wrapHttpClientE (Auth.logout ut at) !>> zauthError
 
 changeSelfEmailH ::
   JSON
@@ -318,12 +318,12 @@ changeSelfEmailH (_ ::: req ::: ckies ::: toks) = do
           Just (Right _legalholdAccessToken) ->
             throwStd invalidAccessToken
           Just (Left userTokens) ->
-            fst <$> Auth.validateTokens userCookies (Just userTokens) !>> zauthError
+            fst <$> wrapHttpClientE (Auth.validateTokens userCookies (Just userTokens)) !>> zauthError
 
 listCookiesH :: UserId ::: Maybe (List Public.CookieLabel) ::: JSON -> (Handler r) Response
 listCookiesH (u ::: ll ::: _) = json <$> lift (listCookies u ll)
 
-listCookies :: UserId -> Maybe (List Public.CookieLabel) -> (AppIO r) Public.CookieList
+listCookies :: UserId -> Maybe (List Public.CookieLabel) -> (AppT r) Public.CookieList
 listCookies u ll = do
   Public.CookieList <$> wrapClient (Auth.listCookies u (maybe [] fromList ll))
 
@@ -333,7 +333,7 @@ rmCookiesH (uid ::: req) = do
 
 rmCookies :: UserId -> Public.RemoveCookies -> (Handler r) ()
 rmCookies uid (Public.RemoveCookies pw lls ids) =
-  Auth.revokeAccess uid pw ids lls !>> authError
+  wrapClientE (Auth.revokeAccess uid pw ids lls) !>> authError
 
 renewH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> (Handler r) Response
 renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew ut at
@@ -352,10 +352,10 @@ renew = \case
     const $ throwStd authMissingCookie
   (Just (Left userTokens)) ->
     -- normal UserToken, so we want a normal AccessToken
-    fmap Left . renewAccess userTokens <=< matchingOrNone leftToMaybe
+    fmap Left . wrapHttpClientE . renewAccess userTokens <=< matchingOrNone leftToMaybe
   (Just (Right legalholdUserTokens)) ->
     -- LegalholdUserToken, so we want a LegalholdAccessToken
-    fmap Right . renewAccess legalholdUserTokens <=< matchingOrNone rightToMaybe
+    fmap Right . wrapHttpClientE . renewAccess legalholdUserTokens <=< matchingOrNone rightToMaybe
   where
     renewAccess uts mat =
       Auth.renewAccess uts mat !>> zauthError
@@ -421,7 +421,7 @@ tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| l
           )
       Just t -> return t
 
-tokenResponse :: ZAuth.UserTokenLike u => Auth.Access u -> (AppIO r) Response
+tokenResponse :: ZAuth.UserTokenLike u => Auth.Access u -> (AppT r) Response
 tokenResponse (Auth.Access t Nothing) = pure $ json t
 tokenResponse (Auth.Access t (Just c)) = Auth.setResponseCookie c (json t)
 

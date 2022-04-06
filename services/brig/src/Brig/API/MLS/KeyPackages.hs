@@ -62,7 +62,7 @@ claimLocalKeyPackages lusr target = do
   lift $
     KeyPackageBundle . Set.fromList . catMaybes <$> traverse mkEntry clients
   where
-    mkEntry :: ClientId -> AppIO r (Maybe KeyPackageBundleEntry)
+    mkEntry :: ClientId -> AppT r (Maybe KeyPackageBundleEntry)
     mkEntry c =
       runMaybeT $
         uncurry (KeyPackageBundleEntry (qUntagged target) c)

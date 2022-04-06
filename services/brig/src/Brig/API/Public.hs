@@ -681,7 +681,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
                 . maybe id logEmail (Public.userEmail usr)
                 . maybe id logInvitationCode invitationCode
             )
-  Log.info $ context . Log.msg @Text "Sucessfully created user"
+  lift . Log.info $ context . Log.msg @Text "Sucessfully created user"
 
   let Public.User {userLocale, userDisplayName, userId} = usr
   let userEmail = Public.userEmail usr
@@ -695,12 +695,16 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       sendWelcomeEmail e ct ut (Just userLocale)
   cok <-
     Auth.toWebCookie =<< case acc of
-      UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User userId Public.SessionCookie newUserLabel
-      UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
+      UserAccount _ Ephemeral ->
+        lift . wrapHttpClient $
+          Auth.newCookie @ZAuth.User userId Public.SessionCookie newUserLabel
+      UserAccount _ _ ->
+        lift . wrapHttpClient $
+          Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
   -- pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
   pure $ Public.RegisterSuccess cok (Public.SelfProfile usr)
   where
-    sendActivationEmail :: Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppIO r) ()
+    sendActivationEmail :: Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
     sendActivationEmail e u p l mTeamUser
       | Just teamUser <- mTeamUser,
         Public.NewTeamCreator creator <- teamUser,
@@ -709,7 +713,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       | otherwise =
         sendActivationMail e u p l Nothing
 
-    sendWelcomeEmail :: Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppIO r) ()
+    sendWelcomeEmail :: Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
     sendWelcomeEmail e (CreateUserTeam t n) newUser l = case newUser of
       Public.NewTeamCreator _ ->

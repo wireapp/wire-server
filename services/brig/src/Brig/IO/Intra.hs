@@ -160,7 +160,7 @@ onConnectionEvent ::
   Maybe ConnId ->
   -- | The event.
   ConnectionEvent ->
-  (AppIO r) ()
+  (AppT r) ()
 onConnectionEvent orig conn evt = do
   let from = ucFrom (ucConn evt)
   wrapHttp $
@@ -177,7 +177,7 @@ onPropertyEvent ::
   -- | Client connection ID.
   ConnId ->
   PropertyEvent ->
-  (AppIO r) ()
+  (AppT r) ()
 onPropertyEvent orig conn e =
   wrapHttp $
     notify
@@ -194,7 +194,7 @@ onClientEvent ::
   Maybe ConnId ->
   -- | The event.
   ClientEvent ->
-  (AppIO r) ()
+  (AppT r) ()
 onClientEvent orig conn e = do
   let events = singleton (ClientEvent e)
   let rcps = list1 orig []
@@ -463,7 +463,7 @@ notify ::
   -- | Users to notify.
   m (List1 UserId) ->
   m ()
-notify events orig route conn recipients = forkAppIO (Just orig) $ do
+notify events orig route conn recipients = fork (Just orig) $ do
   rs <- recipients
   push events rs orig route conn
 
@@ -742,14 +742,14 @@ createConnectConv ::
   Qualified UserId ->
   Maybe Text ->
   Maybe ConnId ->
-  (AppIO r) (Qualified ConvId)
+  (AppT r) (Qualified ConvId)
 createConnectConv from to cname conn = do
   lfrom <- ensureLocal from
   lto <- ensureLocal to
   qUntagged . qualifyAs lfrom
     <$> wrapHttp (createLocalConnectConv lfrom lto cname conn)
   where
-    ensureLocal :: Qualified a -> (AppIO r) (Local a)
+    ensureLocal :: Qualified a -> (AppT r) (Local a)
     ensureLocal x = do
       loc <- qualifyLocal ()
       foldQualified loc pure (\_ -> throwM federationNotImplemented) x
@@ -780,7 +780,7 @@ acceptLocalConnectConv from conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
-acceptConnectConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO r Conversation
+acceptConnectConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppT r Conversation
 acceptConnectConv from conn =
   foldQualified
     from

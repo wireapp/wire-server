@@ -66,7 +66,7 @@ data ServiceError
 --
 -- If the external service is unavailable, returns a specific error
 -- or the response body cannot be parsed, a 'ServiceError' is returned.
-createBot :: ServiceConn -> NewBotRequest -> ExceptT ServiceError (AppIO r) NewBotResponse
+createBot :: ServiceConn -> NewBotRequest -> ExceptT ServiceError (AppT r) NewBotResponse
 createBot scon new = do
   let fprs = toList (sconFingerprints scon)
   (man, verifyFingerprints) <- view extGetManager
@@ -82,7 +82,7 @@ createBot scon new = do
     case Bilge.statusCode rs of
       201 -> decodeBytes "External" (responseBody rs)
       409 -> throwE ServiceBotConflict
-      _ -> extLogError scon rs >> throwE ServiceUnavailable
+      _ -> lift (extLogError scon rs) >> throwE ServiceUnavailable
   where
     -- we can't use 'responseJsonEither' instead, because we have a @Response ByteString@
     -- here, not a @Response (Maybe ByteString)@.
@@ -93,7 +93,7 @@ createBot scon new = do
       extReq scon ["bots"]
         . method POST
         . Bilge.json new
-    onExc ex = extLogError scon ex >> throwE ServiceUnavailable
+    onExc ex = lift (extLogError scon ex) >> throwE ServiceUnavailable
 
 extReq :: ServiceConn -> [ByteString] -> Request -> Request
 extReq scon ps =
@@ -132,7 +132,7 @@ extLogError scon e =
 -- Internal RPC
 
 -- | Set service connection information in galley.
-setServiceConn :: ServiceConn -> (AppIO r) ()
+setServiceConn :: ServiceConn -> (AppT r) ()
 setServiceConn scon = do
   Log.debug $
     remote "galley"
@@ -191,7 +191,7 @@ addBotMember ::
   ClientId ->
   ProviderId ->
   ServiceId ->
-  (AppIO r) Event
+  (AppT r) Event
 addBotMember zusr zcon conv bot clt pid sid = do
   Log.debug $
     remote "galley"

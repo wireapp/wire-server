@@ -27,7 +27,7 @@ import qualified Data.Set as Set
 import Galley.Types.Teams
 import Imports
 
-ensurePermissions :: UserId -> TeamId -> [Perm] -> ExceptT Error (AppIO r) ()
+ensurePermissions :: UserId -> TeamId -> [Perm] -> ExceptT Error (AppT r) ()
 ensurePermissions u t perms = do
   m <- lift $ wrapHttp $ Intra.getTeamMember u t
   unless (check m) $
@@ -40,7 +40,7 @@ ensurePermissions u t perms = do
 -- | Privilege escalation detection (make sure no `RoleMember` user creates a `RoleOwner`).
 --
 -- There is some code duplication with 'Galley.API.Teams.ensureNotElevated'.
-ensurePermissionToAddUser :: UserId -> TeamId -> Permissions -> ExceptT Error (AppIO r) ()
+ensurePermissionToAddUser :: UserId -> TeamId -> Permissions -> ExceptT Error (AppT r) ()
 ensurePermissionToAddUser u t inviteePerms = do
   minviter <- lift $ wrapHttp $ Intra.getTeamMember u t
   unless (check minviter) $

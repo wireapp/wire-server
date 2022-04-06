@@ -53,14 +53,14 @@ getHandleInfo self handle = do
 
 getRemoteHandleInfo :: Remote Handle -> (Handler r) (Maybe Public.UserProfile)
 getRemoteHandleInfo handle = do
-  Log.info $
+  lift . Log.info $
     Log.msg (Log.val "getHandleInfo - remote lookup")
       . Log.field "domain" (show (tDomain handle))
   Federation.getUserHandleInfo handle !>> fedError
 
 getLocalHandleInfo :: Local UserId -> Handle -> (Handler r) (Maybe Public.UserProfile)
 getLocalHandleInfo self handle = do
-  Log.info $ Log.msg $ Log.val "getHandleInfo - local lookup"
+  lift . Log.info $ Log.msg $ Log.val "getHandleInfo - local lookup"
   maybeOwnerId <- lift . wrapClient $ API.lookupHandle handle
   case maybeOwnerId of
     Nothing -> return Nothing
