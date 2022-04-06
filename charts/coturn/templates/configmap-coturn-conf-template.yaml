@@ -39,10 +39,16 @@ data:
     verbose
 
     ## access control settings.
-    # note that this does not include rfc1918 ipv4 or ipv6 ula address
-    # space. these ranges may be valid client ip addresses in some private
-    # network environments. however, the other ranges listed here are intended
-    # for special use and should not be used.
+    # the address ranges listed here are reserved for special use according
+    # to the iana registries for special-purposes ipv4 and ipv6 addresses. note
+    # however that these ranges do *not* include rfc1918 ipv4 space, or ula
+    # ipv6 space, as these may be valid peer addresses in some private network
+    # environments.
+    #
+    # ref:
+    # - https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml
+    # - https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml
+    # - https://www.rtcsec.com/article/cve-2020-26262-bypass-of-coturns-access-control-protection/#further-concerns-what-else
     no-multicast-peers
     denied-peer-ip=0.0.0.0-0.255.255.255
     denied-peer-ip=100.64.0.0-100.127.255.255
