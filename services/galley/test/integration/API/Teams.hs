@@ -1110,6 +1110,9 @@ testDeleteTeamVerificationCodeSuccess = do
   tryAssertQueue 10 "team delete, should be there" tDelete
   assertQueueEmpty
 
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- Test that team cannot be deleted with missing second factor email verification code when this feature is enabled
 testDeleteTeamVerificationCodeMissingCode :: TestM ()
 testDeleteTeamVerificationCodeMissingCode = do
   g <- view tsGalley
@@ -1130,6 +1133,11 @@ testDeleteTeamVerificationCodeMissingCode = do
       const "code-authentication-required" === (Error.label . responseJsonUnsafeWithMsg "error label")
   assertQueueEmpty
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- Test that team cannot be deleted with expired second factor email verification code when this feature is enabled
 testDeleteTeamVerificationCodeExpiredCode :: TestM ()
 testDeleteTeamVerificationCodeExpiredCode = do
   g <- view tsGalley
@@ -1153,6 +1161,11 @@ testDeleteTeamVerificationCodeExpiredCode = do
       const "code-authentication-failed" === (Error.label . responseJsonUnsafeWithMsg "error label")
   assertQueueEmpty
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- Test that team cannot be deleted with wrong second factor email verification code when this feature is enabled
 testDeleteTeamVerificationCodeWrongCode :: TestM ()
 testDeleteTeamVerificationCodeWrongCode = do
   g <- view tsGalley
@@ -1173,6 +1186,8 @@ testDeleteTeamVerificationCodeWrongCode = do
       const 403 === statusCode
       const "code-authentication-failed" === (Error.label . responseJsonUnsafeWithMsg "error label")
   assertQueueEmpty
+
+-- @END
 
 setFeatureLockStatus :: forall (a :: Public.TeamFeatureName). (Public.KnownTeamFeatureName a) => TeamId -> Public.LockStatusValue -> TestM ()
 setFeatureLockStatus tid status = do

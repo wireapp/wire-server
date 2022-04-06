@@ -414,6 +414,9 @@ testLoginVerify6DigitResendCodeSuccess brig galley db = do
   checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue fstCode)
   checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue mostRecentCode)
 
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- Test that login fails with wrong second factor email verification code
 testLoginVerify6DigitWrongCodeFails :: Brig -> Galley -> Http ()
 testLoginVerify6DigitWrongCodeFails brig galley = do
   (u, tid) <- createUserWithTeam' brig
@@ -429,6 +432,11 @@ testLoginVerify6DigitWrongCodeFails brig galley = do
   let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
   checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just wrongCode)
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- Test that login fails with too short second factor email verification code
 testLoginVerify6DigitMissingCodeFails :: Brig -> Galley -> Http ()
 testLoginVerify6DigitMissingCodeFails brig galley = do
   (u, tid) <- createUserWithTeam' brig
@@ -443,6 +451,11 @@ testLoginVerify6DigitMissingCodeFails brig galley = do
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) Nothing
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- Test that login fails with expired second factor email verification code
 testLoginVerify6DigitExpiredCodeFails :: Brig -> Galley -> DB.ClientState -> Http ()
 testLoginVerify6DigitExpiredCodeFails brig galley db = do
   (u, tid) <- createUserWithTeam' brig
@@ -460,6 +473,8 @@ testLoginVerify6DigitExpiredCodeFails brig galley db = do
   -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
   threadDelay $ (5 * 1000000) + 600000
   checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue vcode)
+
+-- @END
 
 -- The testLoginFailure test conforms to the following testing standards:
 -- @SF.Provisioning @TSFI.RESTfulAPI @S2
