@@ -604,7 +604,7 @@ indexMapping =
                     .= object
                       [ "issuer"
                           .= MappingProperty
-                            { mpType = MPText,
+                            { mpType = MPKeyword,
                               mpStore = False,
                               mpIndex = False,
                               mpAnalyzer = Nothing,
@@ -612,7 +612,7 @@ indexMapping =
                             },
                         "nameid"
                           .= MappingProperty
-                            { mpType = MPText,
+                            { mpType = MPKeyword,
                               mpStore = False,
                               mpIndex = False,
                               mpAnalyzer = Nothing,
