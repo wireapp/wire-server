@@ -92,6 +92,8 @@ library
       Brig.Queue.Types
       Brig.RPC
       Brig.Run
+      Brig.Sem.ActivationQueryStore
+      Brig.Sem.ActivationQueryStore.Cassandra
       Brig.SMTP
       Brig.Team.API
       Brig.Team.DB
@@ -240,6 +242,7 @@ library
     , optparse-applicative >=0.11
     , pem >=0.2
     , polysemy
+    , polysemy-plugin
     , polysemy-wire-zoo
     , proto-lens >=0.1
     , random-shuffle >=0.0.3

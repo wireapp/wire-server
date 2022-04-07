@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -36,6 +38,7 @@ import Brig.Data.PasswordReset
 import Brig.Data.User
 import Brig.Data.UserKey
 import Brig.Options
+import Brig.Sem.ActivationQueryStore
 import Brig.Types
 import Brig.Types.Intra
 import Cassandra
@@ -48,6 +51,7 @@ import qualified Data.Text.Lazy as LT
 import Imports
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
+import Polysemy
 import Text.Printf (printf)
 import Wire.API.User
 
@@ -85,24 +89,32 @@ maxAttempts :: Int32
 maxAttempts = 3
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
+
+-- TODO(md): Drop the Member (Embed m) r constraint once we have effects for
+-- lookupAccount and claim
 activateKey ::
-  (MonadClient m, MonadReader Env m) =>
+  forall m r.
+  ( MonadClient m,
+    MonadReader Env m,
+    Member ActivationQueryStore r,
+    Member (Embed m) r
+  ) =>
   ActivationKey ->
   ActivationCode ->
   Maybe UserId ->
-  ExceptT ActivationError m (Maybe ActivationEvent)
+  ExceptT ActivationError (Sem r) (Maybe ActivationEvent)
 activateKey k c u = verifyCode k c >>= pickUser >>= activate
   where
     pickUser (uk, u') = maybe (throwE invalidUser) (return . (uk,)) (u <|> u')
     activate (key, uid) = do
-      a <- lift (lookupAccount uid) >>= maybe (throwE invalidUser) return
+      a <- lift (embed @m $ lookupAccount uid) >>= maybe (throwE invalidUser) return
       unless (accountStatus a == Active) $ -- this is never 'PendingActivation' in the flow this function is used in.
         throwE invalidCode
       case userIdentity (accountUser a) of
         Nothing -> do
-          claim key uid
+          mapExceptT (embed @m) $ claim key uid
           let ident = foldKey EmailIdentity PhoneIdentity key
-          lift $ activateUser uid ident
+          lift . embed @m $ activateUser uid ident
           let a' = a {accountUser = (accountUser a) {userIdentity = Just ident}}
           return . Just $ AccountActivated a'
         Just _ -> do
@@ -113,7 +125,7 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
                   (\(p :: Phone) -> (Just p /= userPhone usr,) . fmap userPhoneKey . userPhone)
                   key
                   usr
-           in handleExistingIdentity uid profileNeedsUpdate oldKey key
+           in mapExceptT (embed @m) $ handleExistingIdentity uid profileNeedsUpdate oldKey key
     handleExistingIdentity uid profileNeedsUpdate oldKey key
       | oldKey == Just key && not profileNeedsUpdate = return Nothing
       -- activating existing key and exactly same profile
@@ -134,18 +146,25 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
         throwE . UserKeyExists . LT.fromStrict $
           foldKey fromEmail fromPhone key
 
+-- TODO(md): Member (Embed m) r is here only because of mkActivationKey
+
 -- | Create a new pending activation for a given 'UserKey'.
 newActivation ::
-  (MonadIO m, MonadClient m) =>
+  forall m r.
+  ( MonadIO m,
+    MonadClient m,
+    Member ActivationQueryStore r,
+    Member (Embed m) r
+  ) =>
   UserKey ->
   -- | The timeout for the activation code.
   Timeout ->
   -- | The user with whom to associate the activation code.
   Maybe UserId ->
-  m Activation
+  Sem r Activation
 newActivation uk timeout u = do
   (typ, key, code) <-
-    liftIO $
+    embed @m . liftIO $
       foldKey
         (\e -> ("email",fromEmail e,) <$> genCode)
         (\p -> ("phone",fromPhone p,) <$> genCode)
@@ -153,32 +172,41 @@ newActivation uk timeout u = do
   insert typ key code
   where
     insert t k c = do
-      key <- liftIO $ mkActivationKey uk
-      retry x5 . write keyInsert $ params LocalQuorum (key, t, k, c, u, maxAttempts, round timeout)
+      key <- embed @m $ liftIO $ mkActivationKey uk
+      keyInsert key t k c u maxAttempts (round timeout)
       return $ Activation key c
     genCode =
       ActivationCode . Ascii.unsafeFromText . pack . printf "%06d"
         <$> randIntegerZeroToNMinusOne 1000000
 
+-- TODO(md): Member (Embed m) r is here only because of mkActivationKey
+
 -- | Lookup an activation code and it's associated owner (if any) for a 'UserKey'.
-lookupActivationCode :: MonadClient m => UserKey -> m (Maybe (Maybe UserId, ActivationCode))
+lookupActivationCode ::
+  forall m r.
+  ( MonadClient m,
+    Member ActivationQueryStore r,
+    Member (Embed m) r
+  ) =>
+  UserKey ->
+  Sem r (Maybe (Maybe UserId, ActivationCode))
 lookupActivationCode k =
-  liftIO (mkActivationKey k)
-    >>= retry x1 . query1 codeSelect . params LocalQuorum . Identity
+  embed @m (liftIO (mkActivationKey k))
+    >>= codeSelect
 
 -- | Verify an activation code.
 verifyCode ::
-  MonadClient m =>
+  (Member ActivationQueryStore r) =>
   ActivationKey ->
   ActivationCode ->
-  ExceptT ActivationError m (UserKey, Maybe UserId)
+  ExceptT ActivationError (Sem r) (UserKey, Maybe UserId)
 verifyCode key code = do
-  s <- lift . retry x1 . query1 keySelect $ params LocalQuorum (Identity key)
+  s <- lift . keySelect $ key
   case s of
     Just (ttl, Ascii t, k, c, u, r) ->
       if
           | c == code -> mkScope t k u
-          | r >= 1 -> countdown (key, t, k, c, u, r -1, ttl) >> throwE invalidCode
+          | r >= 1 -> lift (keyInsert key t k c u (r - 1) ttl) >> throwE invalidCode
           | otherwise -> revoke >> throwE invalidCode
     Nothing -> throwE invalidCode
   where
@@ -189,8 +217,7 @@ verifyCode key code = do
       Just p -> return (userPhoneKey p, u)
       Nothing -> throwE invalidCode
     mkScope _ _ _ = throwE invalidCode
-    countdown = lift . retry x5 . write keyInsert . params LocalQuorum
-    revoke = lift $ deleteActivationPair key
+    revoke = lift $ keyDelete key
 
 mkActivationKey :: UserKey -> IO ActivationKey
 mkActivationKey k = do
@@ -199,26 +226,8 @@ mkActivationKey k = do
   let bs = digestBS d' (T.encodeUtf8 $ keyText k)
   return . ActivationKey $ Ascii.encodeBase64Url bs
 
-deleteActivationPair :: MonadClient m => ActivationKey -> m ()
-deleteActivationPair = write keyDelete . params LocalQuorum . Identity
-
 invalidUser :: ActivationError
 invalidUser = InvalidActivationCodeWrongUser -- "User does not exist."
 
 invalidCode :: ActivationError
 invalidCode = InvalidActivationCodeWrongCode -- "Invalid activation code"
-
-keyInsert :: PrepQuery W (ActivationKey, Text, Text, ActivationCode, Maybe UserId, Int32, Int32) ()
-keyInsert =
-  "INSERT INTO activation_keys \
-  \(key, key_type, key_text, code, user, retries) VALUES \
-  \(?  , ?       , ?       , ?   , ?   , ?      ) USING TTL ?"
-
-keySelect :: PrepQuery R (Identity ActivationKey) (Int32, Ascii, Text, ActivationCode, Maybe UserId, Int32)
-keySelect = "SELECT ttl(code) as ttl, key_type, key_text, code, user, retries FROM activation_keys WHERE key = ?"
-
-codeSelect :: PrepQuery R (Identity ActivationKey) (Maybe UserId, ActivationCode)
-codeSelect = "SELECT user, code FROM activation_keys WHERE key = ?"
-
-keyDelete :: PrepQuery W (Identity ActivationKey) ()
-keyDelete = "DELETE FROM activation_keys WHERE key = ?"

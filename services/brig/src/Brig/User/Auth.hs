@@ -75,6 +75,7 @@ import Data.Misc (PlainTextPassword (..))
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
+import Polysemy
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
@@ -370,14 +371,21 @@ validateLoginId (LoginByPhone phone) =
 validateLoginId (LoginByHandle h) =
   return (Right h)
 
-isPendingActivation :: (MonadClient m, MonadReader Env m) => LoginId -> m Bool
+isPendingActivation ::
+  forall m.
+  ( MonadClient m,
+    MonadReader Env m
+  ) =>
+  LoginId ->
+  m Bool
 isPendingActivation ident = case ident of
   (LoginByHandle _) -> return False
   (LoginByEmail e) -> checkKey (userEmailKey e)
   (LoginByPhone p) -> checkKey (userPhoneKey p)
   where
+    checkKey :: UserKey -> m Bool
     checkKey k = do
-      usr <- (>>= fst) <$> Data.lookupActivationCode k
+      usr <- (>>= fst) <$> runM @m (Data.lookupActivationCode @m k)
       case usr of
         Nothing -> return False
         Just u -> maybe False (checkAccount k) <$> Data.lookupAccount u

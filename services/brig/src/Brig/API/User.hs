@@ -151,6 +151,7 @@ import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import Network.Wai.Utilities
+import Polysemy
 import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
 import System.Logger.Message
@@ -798,7 +799,7 @@ activateWithCurrency tgt code usr cur = do
     field "activation.key" (toByteString key)
       . field "activation.code" (toByteString code)
       . msg (val "Activating")
-  event <- wrapClientE $ Data.activateKey key code usr
+  event <- mapExceptT runM $ Data.activateKey key code usr
   case event of
     Nothing -> return ActivationPass
     Just e -> do
