@@ -63,6 +63,7 @@ import Control.Error hiding (bool)
 import Control.Lens (view, (%~), (.~), (?~), (^.), _Just)
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
+import Data.Bifunctor
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
@@ -84,13 +85,13 @@ import qualified Data.ZAuth.Token as ZAuth
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
 import Network.HTTP.Types.Status
-import Network.Wai (Response, lazyRequestBody)
+import Network.Wai
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
-import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import Network.Wai.Utilities.ZAuth (zauthUserId)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
 import Servant.Swagger.Internal.Orphans ()
@@ -164,7 +165,7 @@ swaggerDocsAPI =
         . (S.enum_ . _Just %~ nub)
 
 servantSitemap :: ServerT BrigAPI (Handler r)
-servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> mlsAPI
+servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> propertiesAPI :<|> mlsAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -233,6 +234,16 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"update-connection" updateConnection
         :<|> Named @"search-contacts" Search.search
 
+    propertiesAPI :: ServerT PropertiesAPI (Handler r)
+    propertiesAPI =
+      ( Named @"set-property" setProperty
+          :<|> Named @"delete-property" deleteProperty
+          :<|> Named @"clear-properties" clearProperties
+          :<|> Named @"get-property" getProperty
+          :<|> Named @"list-property-keys" listPropertyKeys
+      )
+        :<|> Named @"list-properties" listPropertyKeysAndValues
+
     mlsAPI :: ServerT MLSAPI (Handler r)
     mlsAPI =
       Named @"mls-key-packages-upload" uploadKeyPackages
@@ -299,75 +310,6 @@ sitemap = do
       Doc.description "JSON body"
     Doc.response 200 "Deletion is initiated." Doc.end
     Doc.errorResponse (errorToWai @'E.InvalidCode)
-
-  -- Properties API -----------------------------------------------------
-
-  -- This endpoint can lead to the following events being sent:
-  -- - PropertySet event to self
-  put "/properties/:key" (continue setPropertyH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "key"
-      .&. jsonRequest @Public.PropertyValue
-  document "PUT" "setProperty" $ do
-    Doc.summary "Set a user property."
-    Doc.parameter Doc.Path "key" Doc.string' $
-      Doc.description "Property key"
-    Doc.body (Doc.ref Public.modelPropertyValue) $
-      Doc.description "JSON body"
-    Doc.response 200 "Property set." Doc.end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - PropertyDeleted event to self
-  delete "/properties/:key" (continue deletePropertyH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "key"
-  document "DELETE" "deleteProperty" $ do
-    Doc.summary "Delete a property."
-    Doc.parameter Doc.Path "key" Doc.string' $
-      Doc.description "Property key"
-    Doc.response 200 "Property deleted." Doc.end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - PropertiesCleared event to self
-  delete "/properties" (continue clearPropertiesH) $
-    zauthUserId
-      .&. zauthConnId
-  document "DELETE" "clearProperties" $ do
-    Doc.summary "Clear all properties."
-    Doc.response 200 "Properties cleared." Doc.end
-
-  get "/properties/:key" (continue getPropertyH) $
-    zauthUserId
-      .&. capture "key"
-      .&. accept "application" "json"
-  document "GET" "getProperty" $ do
-    Doc.summary "Get a property value."
-    Doc.parameter Doc.Path "key" Doc.string' $
-      Doc.description "Property key"
-    Doc.returns (Doc.ref Public.modelPropertyValue)
-    Doc.response 200 "The property value." Doc.end
-
-  -- This endpoint is used to test /i/metrics, when this is servantified, please
-  -- make sure some other endpoint is used to test that routes defined in this
-  -- function are recorded and reported correctly in /i/metrics.
-  -- see test/integration/API/Metrics.hs
-  get "/properties" (continue listPropertyKeysH) $
-    zauthUserId
-      .&. accept "application" "json"
-  document "GET" "listPropertyKeys" $ do
-    Doc.summary "List all property keys."
-    Doc.returns (Doc.array Doc.string')
-    Doc.response 200 "List of property keys." Doc.end
-
-  get "/properties-values" (continue listPropertyKeysAndValuesH) $
-    zauthUserId
-      .&. accept "application" "json"
-  document "GET" "listPropertyKeysAndValues" $ do
-    Doc.summary "List all properties with key and value."
-    Doc.returns (Doc.ref Public.modelPropertyDictionary)
-    Doc.response 200 "Object with properties as attributes." Doc.end
 
   -- TODO: put delete here, too?
   -- /activate, /password-reset ----------------------------------
@@ -455,6 +397,10 @@ sitemap = do
     Doc.summary "Complete a password reset."
     Doc.notes "DEPRECATED: Use 'POST /password-reset/complete'."
 
+  -- This endpoint is used to test /i/metrics, when this is servantified, please
+  -- make sure some other endpoint is used to test that routes defined in this
+  -- function are recorded and reported correctly in /i/metrics.
+  -- see test/integration/API/Metrics.hs
   post "/onboarding/v3" (continue deprecatedOnboardingH) $
     accept "application" "json"
       .&. zauthUserId
@@ -486,57 +432,61 @@ apiDocs =
 ---------------------------------------------------------------------------
 -- Handlers
 
-setPropertyH :: UserId ::: ConnId ::: Public.PropertyKey ::: JsonRequest Public.PropertyValue -> (Handler r) Response
-setPropertyH (u ::: c ::: k ::: req) = do
-  propkey <- safeParsePropertyKey k
-  propval <- safeParsePropertyValue (lazyRequestBody (fromJsonRequest req))
-  empty <$ setProperty u c propkey propval
+setProperty :: UserId -> ConnId -> Public.PropertyKey -> Public.RawPropertyValue -> Handler r ()
+setProperty u c key raw = do
+  checkPropertyKey key
+  val <- safeParsePropertyValue raw
+  API.setProperty u c key val !>> propDataError
 
-setProperty :: UserId -> ConnId -> Public.PropertyKey -> Public.PropertyValue -> (Handler r) ()
-setProperty u c propkey propval =
-  API.setProperty u c propkey propval !>> propDataError
-
-safeParsePropertyKey :: Public.PropertyKey -> (Handler r) Public.PropertyKey
-safeParsePropertyKey k = do
+checkPropertyKey :: Public.PropertyKey -> Handler r ()
+checkPropertyKey k = do
   maxKeyLen <- fromMaybe defMaxKeyLen <$> view (settings . propertyMaxKeyLen)
   let keyText = Ascii.toText (Public.propertyKeyName k)
   when (Text.compareLength keyText (fromIntegral maxKeyLen) == GT) $
     throwStd propertyKeyTooLarge
-  pure k
 
 -- | Parse a 'PropertyValue' from a bytestring.  This is different from 'FromJSON' in that
 -- checks the byte size of the input, and fails *without consuming all of it* if that size
 -- exceeds the settings.
-safeParsePropertyValue :: IO Lazy.ByteString -> (Handler r) Public.PropertyValue
-safeParsePropertyValue lreqbody = do
+safeParsePropertyValue :: Public.RawPropertyValue -> Handler r Public.PropertyValue
+safeParsePropertyValue raw = do
   maxValueLen <- fromMaybe defMaxValueLen <$> view (settings . propertyMaxValueLen)
-  lbs <- Lazy.take (maxValueLen + 1) <$> liftIO lreqbody
+  let lbs = Lazy.take (maxValueLen + 1) (Public.rawPropertyBytes raw)
   unless (Lazy.length lbs <= maxValueLen) $
     throwStd propertyValueTooLarge
-  hoistEither $ fmapL (StdError . badRequest . pack) (eitherDecode lbs)
+  hoistEither $ first (StdError . badRequest . pack) (propertyValueFromRaw raw)
 
-deletePropertyH :: UserId ::: ConnId ::: Public.PropertyKey -> (Handler r) Response
-deletePropertyH (u ::: c ::: k) = lift (API.deleteProperty u c k) >> return empty
+propertyValueFromRaw :: Public.RawPropertyValue -> Either String Public.PropertyValue
+propertyValueFromRaw raw =
+  Public.PropertyValue raw
+    <$> eitherDecode (Public.rawPropertyBytes raw)
 
-clearPropertiesH :: UserId ::: ConnId -> (Handler r) Response
-clearPropertiesH (u ::: c) = lift (API.clearProperties u c) >> return empty
+parseStoredPropertyValue :: Public.RawPropertyValue -> Handler r Public.PropertyValue
+parseStoredPropertyValue raw = case propertyValueFromRaw raw of
+  Right value -> pure value
+  Left e -> do
+    Log.err $
+      Log.msg (Log.val "Failed to parse a stored property value")
+        . Log.field "raw_value" (Public.rawPropertyBytes raw)
+        . Log.field "parse_error" e
+    throwStd internalServerError
 
-getPropertyH :: UserId ::: Public.PropertyKey ::: JSON -> (Handler r) Response
-getPropertyH (u ::: k ::: _) = do
-  val <- lift . wrapClient $ API.lookupProperty u k
-  return $ case val of
-    Nothing -> setStatus status404 empty
-    Just v -> json (v :: Public.PropertyValue)
+deleteProperty :: UserId -> ConnId -> Public.PropertyKey -> Handler r ()
+deleteProperty u c k = lift (API.deleteProperty u c k)
 
-listPropertyKeysH :: UserId ::: JSON -> (Handler r) Response
-listPropertyKeysH (u ::: _) = do
-  keys <- lift $ wrapClient (API.lookupPropertyKeys u)
-  pure $ json (keys :: [Public.PropertyKey])
+clearProperties :: UserId -> ConnId -> Handler r ()
+clearProperties u c = lift (API.clearProperties u c)
 
-listPropertyKeysAndValuesH :: UserId ::: JSON -> (Handler r) Response
-listPropertyKeysAndValuesH (u ::: _) = do
-  keysAndVals <- lift $ wrapClient (API.lookupPropertyKeysAndValues u)
-  pure $ json (keysAndVals :: Public.PropertyKeysAndValues)
+getProperty :: UserId -> Public.PropertyKey -> Handler r (Maybe Public.RawPropertyValue)
+getProperty u k = lift . wrapClient $ API.lookupProperty u k
+
+listPropertyKeys :: UserId -> Handler r [Public.PropertyKey]
+listPropertyKeys u = lift $ wrapClient (API.lookupPropertyKeys u)
+
+listPropertyKeysAndValues :: UserId -> Handler r Public.PropertyKeysAndValues
+listPropertyKeysAndValues u = do
+  keysAndVals <- fmap Map.fromList . lift $ wrapClient (API.lookupPropertyKeysAndValues u)
+  fmap Public.PropertyKeysAndValues $ traverse parseStoredPropertyValue keysAndVals
 
 getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> (Handler r) Public.ClientPrekey
 getPrekeyUnqualifiedH zusr user client = do
@@ -1039,10 +989,10 @@ activate (Public.Activate tgt code dryrun)
   | otherwise = do
     result <- API.activate tgt code Nothing !>> actError
     return $ case result of
-      ActivationSuccess ident first -> respond ident first
+      ActivationSuccess ident x -> respond ident x
       ActivationPass -> ActivationRespPass
   where
-    respond (Just ident) first = ActivationResp $ Public.ActivationResponse ident first
+    respond (Just ident) x = ActivationResp $ Public.ActivationResponse ident x
     respond Nothing _ = ActivationRespSuccessNoIdent
 
 sendVerificationCode :: Public.SendVerificationCode -> (Handler r) ()

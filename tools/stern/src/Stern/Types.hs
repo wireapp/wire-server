@@ -25,7 +25,6 @@
 
 module Stern.Types where
 
-import Brig.Types
 import Data.Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Aeson.TH
@@ -35,6 +34,7 @@ import Data.Range
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Imports
+import Wire.API.Properties
 import Wire.API.Team.Member (teamMemberJson)
 
 newtype TeamMemberInfo = TeamMemberInfo {tm :: TeamMember}
@@ -95,9 +95,9 @@ instance ToJSON TeamAdminInfo where
       ]
 
 newtype UserProperties = UserProperties
-  { unUserProperties :: Map PropertyKey PropertyValue
+  { unUserProperties :: Map PropertyKey Value
   }
-  deriving (Eq, Show, ToJSON)
+  deriving (ToJSON)
 
 -- | NOTE: The following datatypes are defined by services used only internally at Wire
 -- related to billing services and others and are not relevant for generic wire-server

@@ -40,6 +40,7 @@ import Wire.API.Error.Brig
 import Wire.API.Error.Empty
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
+import Wire.API.Properties
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -699,6 +700,68 @@ type ConnectionAPI =
                :> Get '[Servant.JSON] (SearchResult Contact)
            )
 
+type PropertiesAPI =
+  LiftNamed
+    ( ZUser
+        :> "properties"
+        :> ( Named
+               "set-property"
+               -- This endpoint can lead to the following events being sent:
+               -- - PropertySet event to self
+               ( Summary "Set a user property"
+                   :> ZConn
+                   :> Capture "key" PropertyKey
+                   :> ReqBody '[JSON] RawPropertyValue
+                   :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Property set")
+               )
+               :<|>
+               -- This endpoint can lead to the following events being sent:
+               -- - PropertyDeleted event to self
+               Named
+                 "delete-property"
+                 ( Summary "Delete a property"
+                     :> ZConn
+                     :> Capture "key" PropertyKey
+                     :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "Property deleted")
+                 )
+               :<|>
+               -- This endpoint can lead to the following events being sent:
+               -- - PropertiesCleared event to self
+               Named
+                 "clear-properties"
+                 ( Summary "Clear all properties"
+                     :> ZConn
+                     :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "Properties cleared")
+                 )
+               :<|> Named
+                      "get-property"
+                      ( Summary "Get a property value"
+                          :> Capture "key" PropertyKey
+                          :> MultiVerb
+                               'GET
+                               '[JSON]
+                               '[ EmptyErrorForLegacyReasons 404 "Property not found",
+                                  Respond 200 "The property value" RawPropertyValue
+                                ]
+                               (Maybe RawPropertyValue)
+                      )
+               :<|> Named
+                      "list-property-keys"
+                      ( Summary "List all property keys"
+                          :> MultiVerb1 'GET '[JSON] (Respond 200 "List of property keys" [PropertyKey])
+                      )
+           )
+    )
+    :<|> Named
+           "list-properties"
+           ( Summary "List all properties with key and value"
+               :> ZUser
+               :> "properties-values"
+               :> Get '[JSON] PropertyKeysAndValues
+           )
+
+-- Properties API -----------------------------------------------------
+
 type MLSKeyPackageAPI =
   "key-packages"
     :> ( Named
@@ -741,6 +804,7 @@ type BrigAPI =
     :<|> PrekeyAPI
     :<|> UserClientAPI
     :<|> ConnectionAPI
+    :<|> PropertiesAPI
     :<|> MLSAPI
 
 brigSwagger :: Swagger

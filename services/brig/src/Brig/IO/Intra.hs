@@ -124,6 +124,7 @@ import System.Logger.Class as Log hiding (name, (.=))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Message (UserClients)
+import Wire.API.Properties
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 import qualified Wire.API.Team.Member as Member
@@ -627,7 +628,7 @@ toPushFormat (PropertyEvent (PropertySet _ k v)) =
     KeyMap.fromList
       [ "type" .= ("user.properties-set" :: Text),
         "key" .= k,
-        "value" .= v
+        "value" .= propertyValue v
       ]
 toPushFormat (PropertyEvent (PropertyDeleted _ k)) =
   Just $
