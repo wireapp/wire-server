@@ -196,6 +196,7 @@ data DeleteUserError
 
 data AccountStatusError
   = InvalidAccountStatus
+  | AccountNotFound
 
 -------------------------------------------------------------------------------
 -- Exceptions

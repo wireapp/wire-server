@@ -39,7 +39,7 @@ where
 import Bilge.IO
 import Bilge.RPC
 import Brig.API.Types
-import Brig.API.User (suspendAccount)
+import Brig.API.User (changeSingleAccountStatus)
 import Brig.App
 import Brig.Budget
 import qualified Brig.Code as Code
@@ -315,8 +315,14 @@ catchSuspendInactiveUser uid errval = do
       msg (val "Suspending user due to inactivity")
         ~~ field "user" (toByteString uid)
         ~~ field "action" ("user.suspend" :: String)
-    lift $ suspendAccount (List1.singleton uid)
+    lift $ runExceptT (changeSingleAccountStatus uid Suspended) >>= explicitlyIgnoreErrors
     throwE errval
+  where
+    explicitlyIgnoreErrors :: Monad m => Either AccountStatusError () -> m ()
+    explicitlyIgnoreErrors = \case
+      Left InvalidAccountStatus -> pure ()
+      Left AccountNotFound -> pure ()
+      Right () -> pure ()
 
 newAccess ::
   forall u a m.

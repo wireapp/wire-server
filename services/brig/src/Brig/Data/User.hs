@@ -47,6 +47,7 @@ module Brig.Data.User
     lookupServiceUsers,
     lookupServiceUsersForTeam,
     lookupFeatureConferenceCalling,
+    userExists,
 
     -- * Updates
     updateUser,
@@ -342,10 +343,10 @@ deleteServiceUser pid sid bid = do
 
 updateStatus :: MonadClient m => UserId -> AccountStatus -> m ()
 updateStatus u s =
-  whenM (userExists u) $ retry x5 $ write userStatusUpdate (params LocalQuorum (s, u))
-  where
-    userExists :: MonadClient m => UserId -> m Bool
-    userExists uid = isJust <$> retry x1 (query1 idSelect (params LocalQuorum (Identity uid)))
+  retry x5 $ write userStatusUpdate (params LocalQuorum (s, u))
+
+userExists :: MonadClient m => UserId -> m Bool
+userExists uid = isJust <$> retry x1 (query1 idSelect (params LocalQuorum (Identity uid)))
 
 -- | Whether the account has been activated by verifying
 -- an email address or phone number.
