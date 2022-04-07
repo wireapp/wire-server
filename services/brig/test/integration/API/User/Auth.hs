@@ -436,7 +436,7 @@ testLoginVerify6DigitWrongCodeFails brig galley = do
 
 -- @SF.Channel @TSFI.RESTfulAPI @S2
 --
--- Test that login fails with too short second factor email verification code
+-- Test that login without verification code fails if SndFactorPasswordChallenge feature is enabled in team
 testLoginVerify6DigitMissingCodeFails :: Brig -> Galley -> Http ()
 testLoginVerify6DigitMissingCodeFails brig galley = do
   (u, tid) <- createUserWithTeam' brig
