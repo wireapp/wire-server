@@ -102,6 +102,10 @@ testCreateToken = do
   listUsers_ (Just token) (Just fltr) (env ^. teSpar)
     !!! const 200 === statusCode
 
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- Test positive case but also that a SCIM token cannot be created with wrong
+-- or missing second factor email verification code when this feature is enabled
 testCreateTokenWithVerificationCode :: TestSpar ()
 testCreateTokenWithVerificationCode = do
   env <- ask
@@ -128,6 +132,8 @@ testCreateTokenWithVerificationCode = do
   let fltr = filterBy "externalId" "67c196a0-cd0e-11ea-93c7-ef550ee48502"
   listUsers_ (Just token) (Just fltr) (env ^. teSpar)
     !!! const 200 === statusCode
+
+-- @END
 
 unlockFeature :: GalleyReq -> TeamId -> TestSpar ()
 unlockFeature galley tid =
