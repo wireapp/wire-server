@@ -127,7 +127,7 @@ import Brig.User.Email
 import Brig.User.Handle
 import Brig.User.Handle.Blacklist
 import Brig.User.Phone
-import Brig.User.Search.Index (MonadIndexIO)
+import Brig.User.Search.Index (MonadIndexIO, reindex)
 import qualified Brig.User.Search.TeamSize as TeamSize
 import Cassandra
 import Control.Arrow ((&&&))
@@ -589,7 +589,7 @@ changeSelfEmail u email allowScim = do
     ChangeEmailNeedsActivation (usr, adata, en) -> lift $ do
       sendOutEmail usr adata en
       wrapClient $ Data.updateEmailUnvalidated u email
-      Intra.onUserEvent u Nothing (UserUpdated ((emptyUserUpdatedData u) {eupEmailUnvalidated = Just email}))
+      wrapClient $ reindex u
       pure ChangeEmailResponseNeedsActivation
   where
     sendOutEmail usr adata en = do
@@ -834,6 +834,7 @@ onActivated (AccountActivated account) = do
   return (uid, userIdentity (accountUser account), True)
 onActivated (EmailActivated uid email) = do
   wrapHttpClient $ Intra.onUserEvent uid Nothing (emailUpdated uid email)
+  wrapHttpClient $ Data.deleteEmailUnvalidated uid
   return (uid, Just (EmailIdentity email), False)
 onActivated (PhoneActivated uid phone) = do
   wrapHttpClient $ Intra.onUserEvent uid Nothing (phoneUpdated uid phone)

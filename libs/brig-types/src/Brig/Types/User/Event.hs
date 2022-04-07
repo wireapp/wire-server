@@ -79,8 +79,7 @@ data UserUpdatedData = UserUpdatedData
     eupLocale :: !(Maybe Locale),
     eupManagedBy :: !(Maybe ManagedBy),
     eupSSOId :: !(Maybe UserSSOId),
-    eupSSOIdRemoved :: Bool,
-    eupEmailUnvalidated :: !(Maybe Email)
+    eupSSOIdRemoved :: Bool
   }
   deriving stock (Show)
 
@@ -158,8 +157,7 @@ emptyUserUpdatedData u =
       eupLocale = Nothing,
       eupManagedBy = Nothing,
       eupSSOId = Nothing,
-      eupSSOIdRemoved = False,
-      eupEmailUnvalidated = Nothing
+      eupSSOIdRemoved = False
     }
 
 connEventUserId :: ConnectionEvent -> UserId
