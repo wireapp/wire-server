@@ -43,7 +43,7 @@ instance ParseMLS ProposalTag where
   parseMLS = parseMLSEnum @Word16 "proposal type"
 
 data Proposal
-  = AddProposal KeyPackage
+  = AddProposal (RawMLS KeyPackage)
   | UpdateProposal KeyPackage
   | RemoveProposal KeyPackageRef
   | PreSharedKeyProposal PreSharedKeyID

@@ -15,9 +15,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V64_Epoch
+  ( migration,
+  )
+where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 64
+migration :: Migration
+migration =
+  Migration 64 "Add epoch number to conversations" $ do
+    schema'
+      [r| ALTER TABLE conversation ADD (
+            epoch bigint
+          )
+        |]

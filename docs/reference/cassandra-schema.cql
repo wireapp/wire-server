@@ -42,6 +42,7 @@ CREATE TABLE galley_test.conversation (
     access_roles_v2 set<int>,
     creator uuid,
     deleted boolean,
+    epoch bigint,
     group_id blob,
     message_timer bigint,
     name text,

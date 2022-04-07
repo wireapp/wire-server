@@ -372,7 +372,8 @@ postQualifiedOtrMessage ::
   Sem r (PostOtrResponse MessageSendingStatus)
 postQualifiedOtrMessage senderType sender mconn lcnv msg =
   runError @(MessageNotSent MessageSendingStatus)
-    . mapToRuntimeError @'ConvNotFound @(MessageNotSent MessageSendingStatus) MessageNotSentConversationNotFound
+    . mapToRuntimeError @'ConvNotFound @(MessageNotSent MessageSendingStatus)
+      MessageNotSentConversationNotFound
     $ do
       alive <- isConversationAlive (tUnqualified lcnv)
       let localDomain = tDomain lcnv

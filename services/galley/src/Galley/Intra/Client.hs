@@ -23,6 +23,7 @@ module Galley.Intra.Client
     removeLegalHoldClientFromUser,
     getLegalHoldAuthToken,
     getClientByKeyPackageRef,
+    getMLSClients,
   )
 where
 
@@ -35,6 +36,7 @@ import Brig.Types.User.Auth (LegalHoldLogin (..))
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Misc
+import Data.Qualified
 import qualified Data.Set as Set
 import Data.Text.Encoding
 import Galley.API.Error
@@ -178,3 +180,14 @@ getClientByKeyPackageRef ref = do
   if statusCode (responseStatus r) == 200
     then Just <$> parseResponse (mkError status502 "server-error") r
     else pure Nothing
+
+-- | Calls 'Brig.API.Internal.getMLSClients'.
+getMLSClients :: Qualified UserId -> App (Set ClientId)
+getMLSClients qusr =
+  call
+    Brig
+    ( method GET
+        . paths ["i", "mls", "clients", toByteString' (qDomain qusr), toByteString' (qUnqualified qusr)]
+        . expect2xx
+    )
+    >>= parseResponse (mkError status502 "server-error")

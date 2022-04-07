@@ -39,6 +39,7 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as BrigError
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Servant
 import Wire.API.MLS.Welcome
@@ -1181,12 +1182,29 @@ type MLSMessagingAPI =
   Named
     "mls-welcome-message"
     ( Summary "Post an MLS welcome message"
-        :> CanThrow 'UnknownWelcomeRecipient
+        :> CanThrow 'MLSKeyPackageRefNotFound
         :> "welcome"
         :> ZConn
         :> ReqBody '[MLS] (RawMLS Welcome)
         :> MultiVerb1 'POST '[JSON] (RespondEmpty 201 "Welcome message sent")
     )
+    :<|> Named
+           "mls-message"
+           ( Summary "Post an MLS message"
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MLSClientMismatch
+               :> CanThrow 'MLSProtocolErrorTag
+               :> CanThrow 'MLSStaleMessage
+               :> CanThrow MLSProposalFailure
+               :> CanThrow 'MLSProposalNotFound
+               :> CanThrow 'MLSUnsupportedMessage
+               :> CanThrow 'MLSUnsupportedProposal
+               :> "messages"
+               :> ZConn
+               :> ReqBody '[MLS] (RawMLS SomeMessage)
+               :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" [Event])
+           )
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSMessagingAPI)
 

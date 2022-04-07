@@ -31,7 +31,7 @@ import Brig.API.Handler
 import Brig.API.Types
 import qualified Brig.API.User as API
 import qualified Brig.API.User as Api
-import Brig.API.Util (validateHandle)
+import Brig.API.Util
 import Brig.App
 import qualified Brig.Code as Code
 import Brig.Data.Activation
@@ -76,6 +76,7 @@ import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import Wire.API.Error
+import Wire.API.Error.Brig
 import qualified Wire.API.Error.Brig as E
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -103,7 +104,7 @@ ejpdAPI =
     :<|> getConnectionsStatus
 
 mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
-mlsAPI = getClientByKeyPackageRef
+mlsAPI = getClientByKeyPackageRef :<|> getMLSClients
 
 accountAPI :: ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI = Named @"createUserNoVerify" createUserNoVerify
@@ -127,6 +128,17 @@ deleteAccountFeatureConfig uid =
 
 getClientByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe ClientIdentity)
 getClientByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.derefKeyPackage
+
+getMLSClients :: Qualified UserId -> Handler r (Set ClientId)
+getMLSClients qusr = do
+  usr <- lift $ tUnqualified <$> ensureLocal qusr
+  -- TODO: only return MLS-enabled clients
+  lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult usr
+  where
+    getResult _ [] = throwStd (errorToWai @'UserNotFound)
+    getResult usr ((u, cs) : rs)
+      | u == usr = pure cs
+      | otherwise = getResult usr rs
 
 getVerificationCode :: UserId -> VerificationAction -> (Handler r) (Maybe Code.Value)
 getVerificationCode uid action = do

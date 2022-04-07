@@ -17,7 +17,6 @@
 
 module Wire.API.MLS.Welcome where
 
-import Control.Lens
 import qualified Data.Swagger as S
 import Imports
 import Wire.API.MLS.CipherSuite
@@ -33,12 +32,7 @@ data Welcome = Welcome
   }
 
 instance S.ToSchema Welcome where
-  declareNamedSchema _ =
-    pure . S.NamedSchema (Just "Welcome") $
-      mempty
-        & S.description
-          ?~ "This object can only be parsed in TLS format. \
-             \Please refer to the MLS specification for details."
+  declareNamedSchema _ = pure (mlsSwagger "Welcome")
 
 instance ParseMLS Welcome where
   parseMLS =

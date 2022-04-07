@@ -58,7 +58,6 @@ module Wire.API.Event.Conversation
     ConversationAccessData (..),
     ConversationMessageTimerUpdate (..),
     ConversationCode (..),
-    Conversation (..),
     TypingData (..),
     QualifiedUserIdList (..),
   )

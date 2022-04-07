@@ -15,9 +15,24 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module Galley.API.MLS.KeyPackage where
 
+import Galley.Effects.BrigAccess
 import Imports
+import Polysemy
+import Wire.API.Error
+import Wire.API.Error.Galley
+import Wire.API.MLS.Credential
+import Wire.API.MLS.KeyPackage
 
-schemaVersion :: Int32
-schemaVersion = 64
+derefKeyPackage ::
+  Members
+    '[ BrigAccess,
+       ErrorS 'MLSKeyPackageRefNotFound
+     ]
+    r =>
+  KeyPackageRef ->
+  Sem r ClientIdentity
+derefKeyPackage ref =
+  maybe (throwS @'MLSKeyPackageRefNotFound) pure
+    =<< getClientByKeyPackageRef ref

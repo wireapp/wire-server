@@ -35,6 +35,9 @@ library
       Galley.API.Mapping
       Galley.API.Message
       Galley.API.MLS
+      Galley.API.MLS.KeyPackage
+      Galley.API.MLS.Message
+      Galley.API.MLS.Welcome
       Galley.API.One2One
       Galley.API.Public
       Galley.API.Public.Servant
@@ -616,6 +619,7 @@ executable galley-schema
       V61_MLSConversation
       V62_TeamFeatureSearchVisibilityInbound
       V63_MLSConversationClients
+      V64_Epoch
       Paths_galley
   hs-source-dirs:
       schema/src

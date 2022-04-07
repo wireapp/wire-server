@@ -73,6 +73,7 @@ import Bilge.RPC
 import Bilge.Retry
 import Brig.API.Error (internalServerError)
 import Brig.API.Types
+import Brig.API.Util
 import Brig.App
 import Brig.Data.Connection (lookupContactList)
 import qualified Brig.Data.Connection as Data
@@ -749,11 +750,6 @@ createConnectConv from to cname conn = do
   lto <- ensureLocal to
   qUntagged . qualifyAs lfrom
     <$> wrapHttp (createLocalConnectConv lfrom lto cname conn)
-  where
-    ensureLocal :: Qualified a -> (AppT r) (Local a)
-    ensureLocal x = do
-      loc <- qualifyLocal ()
-      foldQualified loc pure (\_ -> throwM federationNotImplemented) x
 
 -- | Calls 'Galley.API.acceptConvH'.
 acceptLocalConnectConv ::

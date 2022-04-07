@@ -15,11 +15,10 @@ rustPlatform.buildRustPackage rec {
   src = fetchFromGitHub {
     owner = "wireapp";
     repo = "core-crypto";
-    rev = "6d28cf49945b77932335d85264f61016b0ba49f2";
-    sha256 = "sha256-8li6yaVhGf4O63NAVzYfNIzNODEwdtN/9gilG8EkdqE=";
+    rev = "d1d2798a9c40ed1a8c622055d977fb0651bd9658";
+    sha256 = "sha256-QtDWoKCX6Us1w/KFb7nAcc1YfmiIoQsJI7ftvPNqYkU=";
   };
   doCheck = false;
   cargoPatches = [ ./crypto_cli.patch ];
   cargoSha256 = "sha256-ql6j3e6J0pI6gXiaGhjDkL09i1hg/PFEj6hhBIqzKbo=";
 }
-

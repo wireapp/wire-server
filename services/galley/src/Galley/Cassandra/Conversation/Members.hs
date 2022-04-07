@@ -39,11 +39,11 @@ import Galley.Cassandra.Instances ()
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Services
 import Galley.Cassandra.Store
-import Galley.Effects.MemberStore
+import Galley.Effects.MemberStore (MemberStore (..))
 import Galley.Types.Conversations.Members
 import Galley.Types.ToUserRole
 import Galley.Types.UserList
-import Imports
+import Imports hiding (Set)
 import Polysemy
 import Polysemy.Input
 import qualified UnliftIO
@@ -342,6 +342,11 @@ removeLocalMembersFromRemoteConv (qUntagged -> Qualified conv convDomain) victim
     setConsistency LocalQuorum
     for_ victims $ \u -> addPrepQuery Cql.deleteUserRemoteConv (u, convDomain, conv)
 
+addMLSClients :: ConvId -> UserId -> Set.Set ClientId -> Client ()
+addMLSClients cid uid cs =
+  retry x5 $
+    write Cql.addMLSClients (params LocalQuorum (Cassandra.Set (toList cs), cid, uid))
+
 interpretMemberStoreToCassandra ::
   Members '[Embed IO, Input ClientState] r =>
   Sem (MemberStore ': r) a ->
@@ -362,3 +367,4 @@ interpretMemberStoreToCassandra = interpret $ \case
   DeleteMembersInRemoteConversation rcnv uids ->
     embedClient $
       removeLocalMembersFromRemoteConv rcnv uids
+  AddMLSClients cid uid cs -> embedClient $ addMLSClients cid uid cs
