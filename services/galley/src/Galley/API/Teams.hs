@@ -51,7 +51,6 @@ module Galley.API.Teams
     userIsTeamOwnerH,
     canUserJoinTeamH,
     internalDeleteBindingTeamWithOneMemberH,
-    internalDeleteBindingTeamWithOneMember,
     ensureNotTooLargeForLegalHold,
     ensureNotTooLargeToActivateLegalHold,
   )
@@ -393,9 +392,10 @@ deleteTeam zusr zcon tid body = do
         ensureReAuthorised zusr (body ^. tdAuthPassword) (body ^. tdVerificationCode) (Just U.DeleteTeam)
 
 -- This can be called by stern
-internalDeleteBindingTeamWithOneMember ::
+internalDeleteBindingTeam ::
   Members
     '[ ErrorS 'NoBindingTeam,
+       ErrorS 'TeamNotFound,
        ErrorS 'NotAOneMemberTeam,
        ErrorS 'DeleteQueueFull,
        Queue DeleteItem,
@@ -403,15 +403,20 @@ internalDeleteBindingTeamWithOneMember ::
      ]
     r =>
   TeamId ->
+  Bool ->
   Sem r ()
-internalDeleteBindingTeamWithOneMember tid = do
-  team <- E.getTeam tid
-  unless ((view teamBinding . tdTeam <$> team) == Just Binding) $
-    throwS @'NoBindingTeam
-  mems <- E.getTeamMembersWithLimit tid (unsafeRange 2)
-  case mems ^. teamMembers of
-    (mem : []) -> queueTeamDeletion tid (mem ^. userId) Nothing
-    _ -> throwS @'NotAOneMemberTeam
+internalDeleteBindingTeam tid force = do
+  mbTeamData <- E.getTeam tid
+  case tdTeam <$> mbTeamData of
+    Nothing -> throwS @'TeamNotFound
+    Just team | team ^. teamBinding /= Binding -> throwS @'NoBindingTeam
+    Just team -> do
+      mems <- E.getTeamMembersWithLimit tid (unsafeRange 2)
+      case mems ^. teamMembers of
+        [mem] -> queueTeamDeletion tid (mem ^. userId) Nothing
+        -- if the team has none or more than one member we use the team creator's userId for deletion events
+        _ | force -> queueTeamDeletion tid (team ^. teamCreator) Nothing
+        _ -> throwS @'NotAOneMemberTeam
 
 -- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
 uncheckedDeleteTeam ::
@@ -693,6 +698,7 @@ internalDeleteBindingTeamWithOneMemberH ::
     '[ ErrorS 'NoBindingTeam,
        ErrorS 'NotAOneMemberTeam,
        ErrorS 'DeleteQueueFull,
+       ErrorS 'TeamNotFound,
        Queue DeleteItem,
        TeamStore
      ]
@@ -700,8 +706,7 @@ internalDeleteBindingTeamWithOneMemberH ::
   TeamId ->
   Bool ->
   Sem r NoContent
-internalDeleteBindingTeamWithOneMemberH _tid True = undefined
-internalDeleteBindingTeamWithOneMemberH tid False = internalDeleteBindingTeamWithOneMember tid $> NoContent
+internalDeleteBindingTeamWithOneMemberH tid force = internalDeleteBindingTeam tid force $> NoContent
 
 uncheckedGetTeamMemberH ::
   Members '[ErrorS 'TeamMemberNotFound, TeamStore] r =>
