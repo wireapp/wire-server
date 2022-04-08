@@ -207,7 +207,10 @@ type ITeamsAPIBase =
            )
     :<|> Named
            "delete-binding-team-with-one-member"
-           ( CanThrow 'NoBindingTeam :> CanThrow 'NotAOneMemberTeam :> CanThrow 'DeleteQueueFull
+           ( CanThrow 'NoBindingTeam
+               :> CanThrow 'NotAOneMemberTeam
+               :> CanThrow 'DeleteQueueFull
+               :> QueryFlag "force"
                :> DeleteAccepted '[Servant.JSON] NoContent
            )
     :<|> "name" :> IGetTeamNameAPI

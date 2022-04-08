@@ -698,8 +698,10 @@ internalDeleteBindingTeamWithOneMemberH ::
      ]
     r =>
   TeamId ->
+  Bool ->
   Sem r NoContent
-internalDeleteBindingTeamWithOneMemberH = (NoContent <$) . internalDeleteBindingTeamWithOneMember
+internalDeleteBindingTeamWithOneMemberH _tid True = undefined
+internalDeleteBindingTeamWithOneMemberH tid False = internalDeleteBindingTeamWithOneMember tid $> NoContent
 
 uncheckedGetTeamMemberH ::
   Members '[ErrorS 'TeamMemberNotFound, TeamStore] r =>
