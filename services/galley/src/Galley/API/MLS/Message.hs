@@ -234,7 +234,11 @@ executeProposalAction lusr con conv action = do
       handleNoChanges
         . handleMLSProposalFailures @ProposalErrors
         . fmap pure
-        . updateLocalConversationWithLocalUser @'ConversationJoinTag (qualifyAs lusr (convId conv)) lusr (Just con)
+        . updateLocalConversationWithLocalUserUnchecked
+          @'ConversationJoinTag
+          conv
+          lusr
+          (Just con)
         $ ConversationJoin users roleNameWireMember
 
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a

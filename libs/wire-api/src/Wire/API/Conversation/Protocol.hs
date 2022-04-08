@@ -21,6 +21,7 @@ module Wire.API.Conversation.Protocol
   ( ProtocolTag (..),
     protocolTag,
     protocolTagSchema,
+    protocolValidAction,
     Epoch (..),
     Protocol (..),
     _ProtocolMLS,
@@ -36,6 +37,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Schema
 import Imports
 import Wire.API.Arbitrary
+import Wire.API.Conversation.Action.Tag
 import Wire.API.MLS.Group
 import Wire.API.MLS.Message
 
@@ -64,6 +66,18 @@ $(makePrisms ''Protocol)
 protocolTag :: Protocol -> ProtocolTag
 protocolTag ProtocolProteus = ProtocolProteusTag
 protocolTag (ProtocolMLS _) = ProtocolMLSTag
+
+-- | Certain actions need to be performed at the level of the underlying
+-- protocol (MLS, mostly) before being applied to conversations. This function
+-- returns whether a given action tag is directly applicable to a conversation
+-- with the given protocol.
+protocolValidAction :: Protocol -> ConversationActionTag -> Bool
+protocolValidAction ProtocolProteus _ = True
+protocolValidAction (ProtocolMLS _) ConversationJoinTag = False
+protocolValidAction (ProtocolMLS _) ConversationLeaveTag = False
+protocolValidAction (ProtocolMLS _) ConversationRemoveMembersTag = False
+protocolValidAction (ProtocolMLS _) ConversationDeleteTag = False
+protocolValidAction (ProtocolMLS _) _ = True
 
 instance ToSchema ProtocolTag where
   schema =
