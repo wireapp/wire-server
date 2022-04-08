@@ -92,6 +92,8 @@ library
       Brig.Queue.Types
       Brig.RPC
       Brig.Run
+      Brig.Sem.BrigTime
+      Brig.Sem.BrigTime.IO
       Brig.SMTP
       Brig.Team.API
       Brig.Team.DB
