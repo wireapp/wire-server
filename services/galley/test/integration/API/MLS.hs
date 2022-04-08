@@ -75,7 +75,10 @@ tests s =
           test s "add new client of an already-present user to a conversation" testAddNewClient,
           test s "send a commit to a proteus conversation" testAddUsersToProteus,
           test s "send a stale commit" testStaleCommit
-        ]
+        ],
+      testGroup
+        "Application Message"
+        [test s "send application message" testAppMessage]
     ]
 
 testLocalWelcome :: TestM ()
@@ -290,6 +293,44 @@ testStaleCommit = withSystemTempDirectory "mls" $ \tmp -> do
           users2 >>= toList . pClients
     err <- testFailedCommit MessagingSetup {..} 409
     liftIO $ Wai.label err @?= "mls-stale-message"
+
+testAppMessage :: TestM ()
+testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, users) <- withLastPrekeys $ setupParticipants tmp def [1, 2, 3]
+  conversation <- setupGroup tmp CreateConv creator "group"
+
+  (commit, welcome) <-
+    liftIO $
+      setupCommit tmp "group" "group" $
+        users >>= toList . pClients
+  -- FUTUREWORK: manually send the commit
+  testSuccessfulCommit MessagingSetup {..}
+  message <-
+    liftIO $
+      spawn (cli tmp ["message", "--group", tmp </> "group", "some text"]) Nothing
+
+  galley <- viewGalley
+  cannon <- view tsCannon
+
+  WS.bracketRN cannon (qUnqualified . pUserId <$> users) $ \wss -> do
+    es <-
+      responseJsonError
+        =<< post
+          ( galley . paths ["mls", "messages"]
+              . zUser (qUnqualified (pUserId creator))
+              . zConn "conn"
+              . content "message/mls"
+              . bytes message
+          )
+        <!! const 201 === statusCode
+
+    liftIO $ case es of
+      [e] -> assertMLSMessageEvent conversation (pUserId creator) message e
+      _ -> assertFailure $ "Expected only one event, but got " <> show (length es)
+    -- check that the corresponding event is received
+    liftIO $
+      WS.assertMatchN_ (5 # WS.Second) wss $
+        wsAssertMLSMessage conversation (pUserId creator) message
 
 --------------------------------------------------------------------------------
 -- Messaging setup
