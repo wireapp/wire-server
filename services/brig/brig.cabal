@@ -94,6 +94,8 @@ library
       Brig.Run
       Brig.Sem.BrigTime
       Brig.Sem.BrigTime.IO
+      Brig.Sem.CodeStore
+      Brig.Sem.CodeStore.Cassandra
       Brig.SMTP
       Brig.Team.API
       Brig.Team.DB
