@@ -87,7 +87,7 @@ postMLSMessage lusr con smsg = case rmValue smsg of
     -- FUTUREWORK: handle all types of encrypted messages
     contentType (rmValue smsg) >>= \case
       ApplicationMessageTag ->
-        sendAppMessage lusr con (rmValue smsg) $> mempty -- TODO(md): return a list of events
+        pure <$> sendAppMessage lusr con smsg
       ProposalMessageTag -> pure mempty
       CommitMessageTag -> pure mempty
 
@@ -268,26 +268,18 @@ sendAppMessage ::
     r =>
   Local UserId ->
   ConnId ->
-  SomeMessage ->
-  Sem r ()
-sendAppMessage lusr conn (SomeMessage SMLSCipherText msg) = do
+  RawMLS SomeMessage ->
+  Sem r Event
+sendAppMessage lusr conn rMsg@(rmValue -> SomeMessage SMLSCipherText msg) = do
   when (isNothing . appMsgPayload $ msg) $ error "Expected an application message payload"
 
   convId <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
   lconvId <- ensureLocal lusr convId
   lmems <- getLocalMembers (qUnqualified convId)
   let lRecipients = clients lusr <$> lmems
-      rRecipients = [] -- FUTUREWORK: support remote recipients
-      recipients = fmap qUntagged lRecipients <> rRecipients
+      -- FUTUREWORK: support remote recipients
       lmMap = Map.fromList $ fmap (lmId &&& id) lmems
-
-  traverse_
-    ( foldQualified
-        lusr
-        (sendLocalCipherApplication lconvId conn msg lmMap)
-        (sendRemoteCipherApplication msg)
-    )
-    (bucketQualified recipients)
+  sendLocalCipherApplication lusr lconvId conn rMsg lmMap (tUnqualified <$> lRecipients)
   where
     appMsgPayload m =
       case toMLSEnum' @ContentType . msgContentType . msgPayload $ m of
@@ -295,8 +287,7 @@ sendAppMessage lusr conn (SomeMessage SMLSCipherText msg) = do
         _ -> Nothing
     clients :: Local x -> LocalMember -> Local (UserId, Set ClientId)
     clients loc LocalMember {..} = qualifyAs loc (lmId, lmMLSClients)
-sendAppMessage _lusr _conn (SomeMessage SMLSPlainText _msg) =
-  -- Paolo said we don't need to support plain text messages
+sendAppMessage _lusr _conn _msg =
   error "Plain text application messages not supported"
 
 -- | Send an encrypted application message to local recipients
@@ -307,32 +298,32 @@ sendLocalCipherApplication ::
         (MessagePushEffects 'NormalMessage)
     )
     r =>
+  Local UserId ->
   Local ConvId ->
   ConnId ->
-  Message 'MLSCipherText ->
+  RawMLS SomeMessage ->
   LocalMemberMap 'NormalMessage ->
-  Local [(UserId, Set ClientId)] ->
-  Sem r ()
-sendLocalCipherApplication lconv conn msg lmMap lclients = do
+  [(UserId, Set ClientId)] ->
+  Sem r Event
+sendLocalCipherApplication lusr lconv conn msg lmMap lclients = do
   now <- input @UTCTime
+  let p = rmRaw msg
+      e = Event (qUntagged lconv) (qUntagged lusr) now $ EdMLSMessage p
   runMessagePush lconv (Just . qUntagged $ lconv) $
-    foldMap (uncurry . mkPush $ now) (cToList =<< tUnqualified lclients)
+    foldMap (uncurry $ mkPush e) (cToList =<< lclients)
+  pure e
   where
-    mkPush :: UTCTime -> UserId -> ClientId -> MessagePush 'NormalMessage
-    mkPush now u c =
-      let lusr = qualifyAs lconv u
-          p = msgCipherText . msgPayload $ msg
-          e = Event (qUntagged lconv) (qUntagged lusr) now $ EdMLSMessage p
-       in newMessagePush lconv lmMap (Just conn) defMessageMetadata (u, c) e
+    mkPush :: Event -> UserId -> ClientId -> MessagePush 'NormalMessage
+    mkPush ev u c = newMessagePush lconv lmMap (Just conn) defMessageMetadata (u, c) ev
     cToList :: (UserId, Set ClientId) -> [(UserId, ClientId)]
     cToList (u, s) = (u,) <$> Set.toList s
 
 -- | Send an encrypted application message to remote recipients
-sendRemoteCipherApplication ::
-  Message 'MLSCipherText ->
+_sendRemoteCipherApplication ::
+  RawMLS SomeMessage ->
   Remote [(UserId, Set ClientId)] ->
   Sem r ()
-sendRemoteCipherApplication = undefined
+_sendRemoteCipherApplication _ _ = pure ()
 
 -- | Get the content type of a message. It throws an 'MLSParseError' if there
 -- was an error in parsing the content type.
