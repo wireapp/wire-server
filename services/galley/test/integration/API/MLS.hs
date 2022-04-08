@@ -155,7 +155,7 @@ testSuccessfulCommitWithNewUsers MessagingSetup {..} newUsers = do
       if null newUsers
         then do
           -- check that alice receives no events
-          assertBool ("expected no events, received " <> show events) (null events)
+          events @?= []
 
           -- check that no users receive join events
           WS.assertNoEvent (1 # WS.Second) wss
