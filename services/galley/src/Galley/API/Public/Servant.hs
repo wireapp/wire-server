@@ -31,7 +31,14 @@ import Wire.API.Routes.Public.Galley
 import Wire.API.Team.Feature
 
 servantSitemap :: API ServantAPI GalleyEffects
-servantSitemap = conversations <@> teamConversations <@> messaging <@> bot <@> team <@> features <@> mls
+servantSitemap =
+  conversations
+    <@> teamConversations
+    <@> messaging
+    <@> bot
+    <@> team
+    <@> features
+    <@> mls
   where
     conversations =
       mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
@@ -95,10 +102,6 @@ servantSitemap = conversations <@> teamConversations <@> messaging <@> bot <@> t
         <@> mkNamedAPI @"get-teams" getManyTeams
         <@> mkNamedAPI @"get-team" getTeamH
         <@> mkNamedAPI @"delete-team" deleteTeam
-
-    mls =
-      mkNamedAPI @"mls-welcome-message" postMLSWelcome
-        <@> mkNamedAPI @"mls-message" postMLSMessage
 
     features =
       mkNamedAPI @'("get", 'TeamFeatureSSO)
@@ -265,3 +268,8 @@ servantSitemap = conversations <@> teamConversations <@> messaging <@> bot <@> t
           ( getFeatureConfig @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge
               getSndFactorPasswordChallengeInternal
           )
+
+    mls :: API MLSAPI GalleyEffects
+    mls =
+      mkNamedAPI @"mls-welcome-message" postMLSWelcome
+        <@> mkNamedAPI @"mls-message" postMLSMessage

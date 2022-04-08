@@ -396,6 +396,9 @@ nginx_conf:
     - path: /mls/welcome
       envs:
       - all
+    - path: /mls/messages
+      envs:
+      - all
     gundeck:
     - path: /push
       envs:
