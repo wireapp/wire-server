@@ -73,7 +73,8 @@ userDoc1 =
       udRole = Just RoleAdmin,
       udSearchVisibilityInbound = Nothing,
       udScimExternalId = Nothing,
-      udSso = Nothing
+      udSso = Nothing,
+      udEmailUnvalidated = Nothing
     }
 
 -- Dont touch this. This represents serialized legacy data.

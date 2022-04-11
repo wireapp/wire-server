@@ -27,6 +27,7 @@ module API.Search
 where
 
 import API.Search.Util
+import API.Search.Util (executeTeamUserSearch, refreshIndex)
 import API.Team.Util
 import API.User.Util
 import Bilge
@@ -70,6 +71,7 @@ import Util
 import Wire.API.Federation.API.Brig (SearchResponse (SearchResponse))
 import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (TeamFeatureStatusNoConfig), TeamFeatureStatusValue (..))
 import Wire.API.User.Search (FederatedUserSearchPolicy (ExactHandleSearch, FullSearch))
+import qualified Wire.API.User.Search as Search
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree
 tests opts mgr galley brig = do
@@ -128,7 +130,8 @@ tests opts mgr galley brig = do
             -- FUTUREWORK(federation): we need tests for:
             -- failure/error cases on search (augment the federatorMock?)
             -- wire-api-federation Servant-Api vs protobuf-client interactions
-          ]
+          ],
+        test mgr "user with unvalidated email" $ testSearchWithUnvalidatedEmail brig
       ]
   where
     -- Since the tests are about querying only, we only need 1 creation
@@ -144,6 +147,46 @@ tests opts mgr galley brig = do
       return ((tidA, ownerA, memberA), (tidB, ownerB, memberB), regularUser)
 
 type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
+
+testSearchWithUnvalidatedEmail :: TestConstraints m => Brig -> m ()
+testSearchWithUnvalidatedEmail brig = do
+  (tid, owner, user : _) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
+  let uid = userId user
+      Just oldEmail = userEmail user
+      ownerId = userId owner
+  let searchForUserAndCheckThat = searchAndCheckResult brig tid ownerId uid
+  email <- randomEmail
+  refreshIndex brig
+  searchForUserAndCheckThat
+    ( \tc -> do
+        Search.teamContactEmail tc @?= Just oldEmail
+        assertBool "unvalidated email should be null" (isNothing . Search.teamContactEmailUnvalidated $ tc)
+    )
+  initiateEmailUpdateLogin brig email (emailLogin oldEmail defPassword Nothing) uid !!! const 202 === statusCode
+  refreshIndex brig
+  searchForUserAndCheckThat
+    ( \tc -> do
+        Search.teamContactEmail tc @?= Just oldEmail
+        Search.teamContactEmailUnvalidated tc @?= Just email
+    )
+  activateEmail brig email
+  refreshIndex brig
+  searchForUserAndCheckThat
+    ( \tc -> do
+        Search.teamContactEmail tc @?= Just email
+        assertBool "unvalidated email should be null" (isNothing . Search.teamContactEmailUnvalidated $ tc)
+    )
+  where
+    searchAndCheckResult :: TestConstraints m => Brig -> TeamId -> UserId -> UserId -> (Search.TeamContact -> Assertion) -> m ()
+    searchAndCheckResult b tid ownerId userToSearchFor assertion =
+      executeTeamUserSearch b tid ownerId Nothing Nothing Nothing Nothing >>= checkResult userToSearchFor assertion . searchResults
+
+    checkResult :: TestConstraints m => UserId -> (Search.TeamContact -> Assertion) -> [Search.TeamContact] -> m ()
+    checkResult userToSearchFor assertion results = liftIO $ do
+      let mbTeamContact = find ((==) userToSearchFor . Search.teamContactUserId) results
+      case mbTeamContact of
+        Nothing -> fail "no team contact found"
+        Just teamContact -> assertion teamContact
 
 testSearchByName :: TestConstraints m => Brig -> m ()
 testSearchByName brig = do
@@ -702,7 +745,7 @@ analysisSettings =
           ]
    in ES.Analysis analyzerDef mempty filterDef mempty
 
---- | This was copied from at Brig.User.Search.Index.indexMapping at commit 3242aa26
+--- | This was copied from at Brig.User.Search.Index.indexMapping at commit 75e6f6e
 oldMapping :: Value
 oldMapping =
   fromJust $
@@ -787,6 +830,31 @@ oldMapping =
       "index": false,
       "store": false,
       "type": "keyword"
+    },
+    "scim_external_id": {
+      "index": false,
+      "store": false,
+      "type": "keyword"
+    },
+    "search_visibility_inbound": {
+      "index": true,
+      "store": false,
+      "type": "keyword"
+    },
+    "sso": {
+      "properties": {
+        "issuer": {
+          "index": false,
+          "store": false,
+          "type": "keyword"
+        },
+        "nameid": {
+          "index": false,
+          "store": false,
+          "type": "keyword"
+        }
+      },
+      "type": "nested"
     },
     "team": {
       "index": true,

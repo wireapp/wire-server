@@ -52,6 +52,7 @@ module Brig.Data.User
     -- * Updates
     updateUser,
     updateEmail,
+    updateEmailUnvalidated,
     updatePhone,
     updateSSOId,
     updateManagedBy,
@@ -66,6 +67,7 @@ module Brig.Data.User
 
     -- * Deletions
     deleteEmail,
+    deleteEmailUnvalidated,
     deletePhone,
     deleteServiceUser,
   )
@@ -280,6 +282,9 @@ updateUser u UserUpdate {..} = retry x5 . batch $ do
 updateEmail :: MonadClient m => UserId -> Email -> m ()
 updateEmail u e = retry x5 $ write userEmailUpdate (params LocalQuorum (e, u))
 
+updateEmailUnvalidated :: MonadClient m => UserId -> Email -> m ()
+updateEmailUnvalidated u e = retry x5 $ write userEmailUnvalidatedUpdate (params LocalQuorum (e, u))
+
 updatePhone :: MonadClient m => UserId -> Phone -> m ()
 updatePhone u p = retry x5 $ write userPhoneUpdate (params LocalQuorum (p, u))
 
@@ -317,6 +322,9 @@ updateFeatureConferenceCalling uid mbStatus = do
 
 deleteEmail :: MonadClient m => UserId -> m ()
 deleteEmail u = retry x5 $ write userEmailDelete (params LocalQuorum (Identity u))
+
+deleteEmailUnvalidated :: MonadClient m => UserId -> m ()
+deleteEmailUnvalidated u = retry x5 $ write userEmailUnvalidatedDelete (params LocalQuorum (Identity u))
 
 deletePhone :: MonadClient m => UserId -> m ()
 deletePhone u = retry x5 $ write userPhoneDelete (params LocalQuorum (Identity u))
@@ -624,6 +632,12 @@ userAccentIdUpdate = "UPDATE user SET accent_id = ? WHERE id = ?"
 
 userEmailUpdate :: PrepQuery W (Email, UserId) ()
 userEmailUpdate = "UPDATE user SET email = ? WHERE id = ?"
+
+userEmailUnvalidatedUpdate :: PrepQuery W (Email, UserId) ()
+userEmailUnvalidatedUpdate = "UPDATE user SET email_unvalidated = ? WHERE id = ?"
+
+userEmailUnvalidatedDelete :: PrepQuery W (Identity UserId) ()
+userEmailUnvalidatedDelete = "UPDATE user SET email_unvalidated = null WHERE id = ?"
 
 userPhoneUpdate :: PrepQuery W (Phone, UserId) ()
 userPhoneUpdate = "UPDATE user SET phone = ? WHERE id = ?"
