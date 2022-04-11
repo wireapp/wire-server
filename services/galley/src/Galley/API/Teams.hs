@@ -414,8 +414,8 @@ internalDeleteBindingTeam tid force = do
       mems <- E.getTeamMembersWithLimit tid (unsafeRange 2)
       case mems ^. teamMembers of
         [mem] -> queueTeamDeletion tid (mem ^. userId) Nothing
-        -- if the team has none or more than one member we use the team creator's userId for deletion events
-        _ | force -> queueTeamDeletion tid (team ^. teamCreator) Nothing
+        -- if the team has more than one member or none (and deletion is forced) we use the team creator's userId for deletion events
+        xs | null xs || force -> queueTeamDeletion tid (team ^. teamCreator) Nothing
         _ -> throwS @'NotAOneMemberTeam
 
 -- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
