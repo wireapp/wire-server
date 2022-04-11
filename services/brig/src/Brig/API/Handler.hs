@@ -93,7 +93,7 @@ toServantHandler env action = do
 
     handleWaiErrors logger reqId =
       \case
-        -- throw in IO so that the `catchError` middleware can turn this error
+        -- throw in IO so that the `catchErrors` middleware can turn this error
         -- into a response and log accordingly
         StdError werr -> liftIO $ throwIO werr
         RichError werr body headers -> do
