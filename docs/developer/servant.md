@@ -32,3 +32,27 @@ Note that error types can also be turned into `MultiVerb` responses using the `E
 ## `QualifiedCapture`
 
 This is a capture combinator for a path that looks like `/:domain/:value`, where `value` is of some arbitrary type `a`. The value is returned as a value of type `Qualified a`, which can then be used in federation-aware endpoints.
+
+# Error handling
+
+Several layers of error handling are involved when serving a request. A handler in service code (e.g. Brig or Galley) can:
+
+  1. return a value on the `Right`;
+  2. return a value on the `Left`;
+  3. throw an `IO` exception.
+
+The `Handler → Servant.Handler` function, together with Servant's internal response creation logic, will, respectively:
+
+  1. produce a normal response;
+  2. produce an error response, possibly logging the error;
+  3. (ignore any `IO` exceptions, and let them bubble up).
+
+Finally, the error-catching middleware `catchErrors` in `Network.Wai.Utilities.Server` will:
+
+  1. let normal responses through;
+  2. depending on the status code:
+     - if < 500, let the error through;
+     - if >= 500, wrap the error response in a JSON error object (if it is not already
+       one), and log it at error level.
+  3. catch the exception, turn it into a JSON error object, and log it. The
+     error level depends on the status code (error for 5xx, debug otherwise).
