@@ -59,7 +59,6 @@ import Data.ByteString.Conversion
 import qualified Data.ByteString.Conversion as List
 import Data.Handle (Handle)
 import Data.Id as Id
-import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Qualified
 import qualified Data.Set as Set
@@ -473,7 +472,7 @@ instance ToJSON GetPasswordResetCodeResp where
 changeAccountStatusH :: UserId ::: JsonRequest AccountStatusUpdate -> (Handler r) Response
 changeAccountStatusH (usr ::: req) = do
   status <- suStatus <$> parseJsonBody req
-  wrapHttpClientE (API.changeAccountStatus (List1.singleton usr) status) !>> accountStatusError
+  wrapHttpClientE (API.changeSingleAccountStatus usr status) !>> accountStatusError
   return empty
 
 getAccountStatusH :: JSON ::: UserId -> (Handler r) Response
