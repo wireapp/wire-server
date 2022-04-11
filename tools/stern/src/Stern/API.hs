@@ -265,14 +265,21 @@ routes = do
 
   delete "/teams/:tid" (continue deleteTeam) $
     capture "tid"
-      .&. query "email"
+      .&. def False (query "force")
+      .&. opt (query "email")
   document "DELETE" "deleteTeam" $ do
-    summary "Delete a team (irrevocable!) You can only delete teams with 1 user!"
-    Doc.notes "The email address of the user must be provided to prevent copy/paste mistakes"
+    summary "Delete a team (irrevocable!). You can only delete teams with 1 user unless you use the 'force' query flag"
+    Doc.notes
+      "The email address of the user must be provided to prevent copy/paste mistakes.\n\
+      \The force query flag can be used to delete teams with more than one user. CAUTION: FORCE DELETE WILL PERMANENTLY DELETE ALL TEAM MEMBERS! CHECK TEAM MEMBER LIST (SEE ABOVE OR BELOW) IF YOU ARE UNCERTAIN THAT'S WHAT YOU WANT."
     Doc.parameter Doc.Path "tid" Doc.bytes' $
       description "Team ID"
+    Doc.parameter Doc.Query "force" Doc.bool' $ do
+      Doc.description "THIS WILL PERMANENTLY DELETE ALL TEAM MEMBERS! CHECK TEAM MEMBER LIST (SEE ABOVE OR BELOW) IF YOU ARE UNCERTAIN THAT'S WHAT YOU WANT."
+      optional
     Doc.parameter Doc.Query "email" Doc.string' $ do
       Doc.description "Matching verified remaining user address"
+      Doc.optional
     Doc.response 202 "Team scheduled for deletion" Doc.end
     Doc.response 404 "No such user with that email" (Doc.model Doc.errorModel)
     Doc.response 404 "No such binding team" (Doc.model Doc.errorModel)
@@ -565,14 +572,16 @@ deleteUser (uid ::: emailOrPhone) = do
 setTeamStatusH :: Team.TeamStatus -> TeamId -> Handler Response
 setTeamStatusH status tid = empty <$ Intra.setStatusBindingTeam tid status
 
-deleteTeam :: TeamId ::: Email -> Handler Response
-deleteTeam (givenTid ::: email) = do
-  acc <- (listToMaybe <$> Intra.getUserProfilesByIdentity (Left email)) >>= handleNoUser
+deleteTeam :: TeamId ::: Bool ::: Maybe Email -> Handler Response
+deleteTeam (_ ::: False ::: Nothing) =
+  throwE $ mkError status400 "Bad Request" "either email or 'force=true' parameter is required"
+deleteTeam (givenTid ::: False ::: Just email) = do
+  acc <- Intra.getUserProfilesByIdentity (Left email) >>= handleNoUser . listToMaybe
   userTid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleNoTeam
   when (givenTid /= userTid) $
     throwE bindingTeamMismatch
   tInfo <- Intra.getTeamInfo givenTid
-  unless ((length (tiMembers tInfo)) == 1) $
+  unless (length (tiMembers tInfo) == 1) $
     throwE wrongMemberCount
   void $ Intra.deleteBindingTeam givenTid
   return $ setStatus status202 empty
@@ -581,6 +590,10 @@ deleteTeam (givenTid ::: email) = do
     handleNoTeam = ifNothing (mkError status404 "no-binding-team" "No such binding team")
     wrongMemberCount = mkError status403 "wrong-member-count" "Only teams with 1 user can be deleted"
     bindingTeamMismatch = mkError status404 "binding-team-mismatch" "Binding team mismatch"
+deleteTeam (tid ::: True ::: _) = do
+  void $ Intra.getTeamData tid -- throws 404 if team does not exist
+  void $ Intra.deleteBindingTeamForce tid
+  return $ setStatus status202 empty
 
 isUserKeyBlacklisted :: Either Email Phone -> Handler Response
 isUserKeyBlacklisted emailOrPhone = do

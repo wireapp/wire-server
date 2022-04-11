@@ -1116,7 +1116,7 @@ testDeleteBindingTeamMoreThanOneMember = do
       const 403 === statusCode
       const "not-one-member-team" === (Error.label . responseJsonUnsafeWithMsg "error label when deleting a team")
     -- now try again with the 'force' query flag, which should work
-    delete (g . paths ["/i/teams", toByteString' tid] . queryItem' "force" Nothing) !!! do
+    delete (g . paths ["/i/teams", toByteString' tid] . queryItem "force" "true") !!! do
       const 202 === statusCode
     checkUserDeleteEvent alice wsAlice
     zipWithM_ checkUserDeleteEvent members wsMembers
