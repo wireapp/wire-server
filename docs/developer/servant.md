@@ -55,4 +55,4 @@ Finally, the error-catching middleware `catchErrors` in `Network.Wai.Utilities.S
      - if >= 500, wrap the error response in a JSON error object (if it is not already
        one), and log it at error level.
   3. catch the exception, turn it into a JSON error object, and log it. The
-     error level depends on the status code (error for 5xx, debug otherwise).
+     log level depends on the status code (error for 5xx, debug otherwise).
