@@ -50,19 +50,14 @@ import Cassandra hiding (Set)
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
 import Control.Error
-import qualified Control.Exception
 import Control.Lens hiding ((.=))
-import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Default (def)
 import qualified Data.List.NonEmpty as NE
 import Data.Metrics.Middleware
-import Data.Proxy (Proxy (..))
 import Data.Qualified
 import Data.Range
 import Data.Text (unpack)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
 import Data.Time.Clock
 import Galley.API.Error
 import qualified Galley.Aws as Aws
@@ -92,11 +87,6 @@ import qualified Galley.Types.Teams as Teams
 import Imports hiding (forkIO)
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
-import Network.HTTP.Media.RenderHeader (RenderHeader (..))
-import Network.HTTP.Types (hContentType)
-import Network.HTTP.Types.Status (statusCode, statusMessage)
-import qualified Network.Wai.Utilities as Wai
-import qualified Network.Wai.Utilities.Server as Server
 import OpenSSL.Session as Ssl
 import qualified OpenSSL.X509.SystemStore as Ssl
 import Polysemy
@@ -209,21 +199,7 @@ interpretTinyLog e = interpret $ \case
   P.Polylog l m -> Logger.log (e ^. applog) l (reqIdMsg (e ^. reqId) . m)
 
 toServantHandler :: Env -> Sem GalleyEffects a -> Servant.Handler a
-toServantHandler env galley = do
-  eith <- liftIO $ Control.Exception.try (evalGalley env galley)
-  case eith of
-    Left werr ->
-      handleWaiErrors (view applog env) (unRequestId (view reqId env)) werr
-    Right result -> pure result
-  where
-    handleWaiErrors :: Logger -> ByteString -> Wai.Error -> Servant.Handler a
-    handleWaiErrors logger reqId' werr = do
-      Server.logError' logger (Just reqId') werr
-      Servant.throwError $
-        Servant.ServerError (mkCode werr) (mkPhrase werr) (Aeson.encode werr) [(hContentType, renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
-
-    mkCode = statusCode . Wai.code
-    mkPhrase = Text.unpack . Text.decodeUtf8 . statusMessage . Wai.code
+toServantHandler e = liftIO . evalGalley e
 
 interpretErrorToException ::
   (Exception exc, Member (Embed IO) r) =>
