@@ -745,7 +745,7 @@ analysisSettings =
           ]
    in ES.Analysis analyzerDef mempty filterDef mempty
 
---- | This was copied from at Brig.User.Search.Index.indexMapping at commit 3242aa26
+--- | This was copied from at Brig.User.Search.Index.indexMapping at commit 75e6f6e
 oldMapping :: Value
 oldMapping =
   fromJust $
@@ -830,6 +830,31 @@ oldMapping =
       "index": false,
       "store": false,
       "type": "keyword"
+    },
+    "scim_external_id": {
+      "index": false,
+      "store": false,
+      "type": "keyword"
+    },
+    "search_visibility_inbound": {
+      "index": true,
+      "store": false,
+      "type": "keyword"
+    },
+    "sso": {
+      "properties": {
+        "issuer": {
+          "index": false,
+          "store": false,
+          "type": "keyword"
+        },
+        "nameid": {
+          "index": false,
+          "store": false,
+          "type": "keyword"
+        }
+      },
+      "type": "nested"
     },
     "team": {
       "index": true,
