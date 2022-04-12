@@ -91,4 +91,3 @@ help:
 # into `buildername`) of the $(SPHINXBUILD) CLI (see https://www.gnu.org/software/make/manual/html_node/Last-Resort.html).
 %:
 	$(SPHINXBUILD) -M $@ "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
-	$(if $(and $(@),html), sphinx-multiversion "$(SOURCEDIR)" "$(BUILDDIR)/$(@)" $(SPHINXOPTS))
