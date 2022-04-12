@@ -94,7 +94,6 @@ makeLenses ''MaxConcurrentNativePushes
 
 data RedisConnectionMode
   = Master
-  | Sentinel
   | Cluster
   deriving (Show, Generic)
 

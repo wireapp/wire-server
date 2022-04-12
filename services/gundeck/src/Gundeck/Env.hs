@@ -22,9 +22,7 @@ import Cassandra (ClientState, Keyspace (..))
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
 import Control.AutoUpdate
-import Control.Exception (ErrorCall (ErrorCall))
 import Control.Lens (makeLenses, (^.))
-import Control.Monad.Catch (throwM)
 import Data.Default (def)
 import qualified Data.List.NonEmpty as NE
 import Data.Metrics.Middleware (Metrics)
@@ -33,7 +31,6 @@ import Data.Text (unpack)
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import qualified Database.Redis as Redis
-import qualified Database.Redis.Sentinel as Sentinel
 import qualified Gundeck.Aws as Aws
 import Gundeck.Options as Opt
 import Gundeck.ThreadBudget
@@ -124,10 +121,6 @@ createEnv m o = do
   r <- case o ^. optRedis . rConnectionMode of
     Master -> Redis.checkedConnect redisConnInfo
     Cluster -> checkedConnectCluster l redisConnInfo
-    Sentinel -> do
-      -- TODO this returns another type requiring us to also use the Sentinel.runRedis instead of Redis.runRedis inside Monad.hs
-      -- checkedConnectSentinel redisConnInfo
-      throwM (ErrorCall "Sentinel mode is not implemented yet")
   Log.info l $ Log.msg (Log.val "Established connection to redis")
   p <-
     C.init $
@@ -174,17 +167,4 @@ checkedConnectCluster l connInfo = do
       Left r -> error ("could not ping redis cluster: " <> show r)
       Right _ -> pure ()
   Log.info l $ Log.msg (Log.val "ping went through")
-  return conn
-
-checkedConnectSentinel :: Redis.ConnectInfo -> IO Sentinel.SentinelConnection
-checkedConnectSentinel connInfo = do
-  let sConnectInfo =
-        Sentinel.SentinelConnectInfo
-          { Sentinel.connectSentinels = (Redis.connectHost connInfo, Redis.connectPort connInfo) NE.:| [],
-            Sentinel.connectMasterName = "mymasters", -- default name; FUTUREWORK allow configuring this
-            Sentinel.connectBaseInfo = connInfo
-          }
-  conn <- Sentinel.connect sConnectInfo
-  -- TODO: perhaps we should look at the return type here if it's a Left
-  void $ Sentinel.runRedis conn Redis.ping
   return conn
