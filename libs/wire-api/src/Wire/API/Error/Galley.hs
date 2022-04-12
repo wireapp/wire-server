@@ -70,7 +70,6 @@ data GalleyError
   | MLSProtocolErrorTag
   | MLSClientMismatch
   | MLSStaleMessage
-  | MLSParseError
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -188,8 +187,6 @@ type instance MapError 'DeleteQueueFull = 'StaticError 503 "queue-full" "The del
 type instance MapError 'TeamSearchVisibilityNotEnabled = 'StaticError 403 "team-search-visibility-not-enabled" "Custom search is not available for this team"
 
 type instance MapError 'CannotEnableLegalHoldServiceLargeTeam = 'StaticError 403 "too-large-team-for-legalhold" "Cannot enable legalhold on large teams (reason: for removing LH from team, we need to iterate over all members, which is only supported for teams with less than 2k members)"
-
-type instance MapError 'MLSParseError = 'StaticError 400 "mls-parse-error" "Failure in parsing MLS content"
 
 -- We need this to document possible (operation denied) errors in the servant routes.
 type family MissingPermissionMessage (a :: Maybe Perm) :: Symbol where

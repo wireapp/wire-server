@@ -63,7 +63,6 @@ postMLSMessage ::
     Members
       '[ Error FederationError,
          ErrorS 'ConvNotFound,
-         ErrorS 'MLSParseError,
          ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSProposalNotFound,
