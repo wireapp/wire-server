@@ -24,7 +24,7 @@ import qualified Bilge.TestSession as BilgeTest
 import Control.Lens (view, (.~))
 import Data.Aeson (ToJSON)
 import Data.ByteString.Conversion (toByteString')
-import Data.Id (TeamId, UserId)
+import Data.Id (ConvId, TeamId, UserId)
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
 import Imports
@@ -217,3 +217,15 @@ setLockStatusInternal reqmod tid lockStatus = do
     galley
       . paths ["i", "teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a), toByteString' lockStatus]
       . reqmod
+
+getGuestLinkStatus ::
+  HasCallStack =>
+  (Request -> Request) ->
+  UserId ->
+  ConvId ->
+  TestM ResponseLBS
+getGuestLinkStatus galley u cid =
+  get $
+    galley
+      . paths ["conversations", toByteString' cid, "features", toByteString' (Public.knownTeamFeatureName @'Public.TeamFeatureGuestLinks)]
+      . zUser u

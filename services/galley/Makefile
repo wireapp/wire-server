@@ -46,41 +46,6 @@ fast: init
 compile:
 	stack build . --pedantic --test --bench --no-run-benchmarks --no-copy-bins
 
-.PHONY: dist
-dist: guard-VERSION install $(DEB) $(DEB_IT) $(DEB_SCHEMA) $(DEB_MIGRATE_DATA) .metadata
-
-$(DEB):
-	makedeb --name=$(NAME) \
-	 --version=$(VERSION) \
-	 --debian-dir=deb \
-	 --build=$(BUILD) \
-	 --architecture=amd64 \
-	 --output-dir=dist
-
-$(DEB_IT):
-	makedeb --name=$(NAME)-integration \
-	 --version=$(VERSION) \
-	 --debian-dir=deb-it \
-	 --build=$(BUILD) \
-	 --architecture=amd64 \
-	 --output-dir=dist
-
-$(DEB_SCHEMA):
-	makedeb --name=$(NAME)-schema \
-	 --version=$(VERSION) \
-	 --debian-dir=deb-schema \
-	 --build=$(BUILD) \
-	 --architecture=amd64 \
-	 --output-dir=dist
-
-$(DEB_MIGRATE_DATA):
-	makedeb --name=$(NAME)-migrate-data \
-	 --version=$(VERSION) \
-	 --debian-dir=deb-migrate-data \
-	 --build=$(BUILD) \
-	 --architecture=amd64 \
-	 --output-dir=dist
-
 .PHONY: i
 i:
 	../integration.sh $(EXE_IT) -s $(NAME).integration.yaml -i ../integration.yaml $(WIRE_INTEGRATION_TEST_OPTIONS)
@@ -104,9 +69,6 @@ integration-list: fast i-list
 
 integration-%: fast
 	make "i-$*"
-
-.metadata:
-	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" > .metadata
 
 .PHONY: db
 db: db-reset

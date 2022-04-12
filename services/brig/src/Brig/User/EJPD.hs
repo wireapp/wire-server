@@ -22,7 +22,7 @@ module Brig.User.EJPD (ejpdRequest) where
 
 import Brig.API.Handler
 import Brig.API.User (lookupHandle)
-import Brig.App (AppIO)
+import Brig.App (AppT, wrapClient, wrapHttp)
 import qualified Brig.Data.Connection as Conn
 import Brig.Data.User (lookupUser)
 import qualified Brig.IO.Intra as Intra
@@ -45,30 +45,30 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
   ExceptT $ Right . EJPDResponseBody . catMaybes <$> forM handles (go1 (fromMaybe False includeContacts))
   where
     -- find uid given handle
-    go1 :: Bool -> Handle -> (AppIO r) (Maybe EJPDResponseItem)
+    go1 :: Bool -> Handle -> (AppT r) (Maybe EJPDResponseItem)
     go1 includeContacts' handle = do
-      mbUid <- lookupHandle handle
-      mbUsr <- maybe (pure Nothing) (lookupUser NoPendingInvitations) mbUid
+      mbUid <- wrapClient $ lookupHandle handle
+      mbUsr <- maybe (pure Nothing) (wrapClient . lookupUser NoPendingInvitations) mbUid
       maybe (pure Nothing) (fmap Just . go2 includeContacts') mbUsr
 
     -- construct response item given uid
-    go2 :: Bool -> User -> (AppIO r) EJPDResponseItem
+    go2 :: Bool -> User -> (AppT r) EJPDResponseItem
     go2 includeContacts' target = do
       let uid = userId target
 
       ptoks <-
-        PushTok.tokenText . view PushTok.token <$$> Intra.lookupPushToken uid
+        PushTok.tokenText . view PushTok.token <$$> wrapHttp (Intra.lookupPushToken uid)
 
       mbContacts <-
         if includeContacts'
           then do
             contacts :: [(UserId, RelationWithHistory)] <-
-              Conn.lookupContactListWithRelation uid
+              wrapClient $ Conn.lookupContactListWithRelation uid
 
             contactsFull :: [Maybe (Relation, EJPDResponseItem)] <-
               forM contacts $ \(uid', relationDropHistory -> rel) -> do
-                mbUsr <- lookupUser NoPendingInvitations uid'
-                maybe (pure Nothing) (\usr -> Just . (rel,) <$> go2 False usr) mbUsr
+                mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid'
+                maybe (pure Nothing) (fmap (Just . (rel,)) . go2 False) mbUsr
 
             pure . Just . Set.fromList . catMaybes $ contactsFull
           else do
@@ -77,12 +77,12 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
       mbTeamContacts <-
         case (includeContacts', userTeam target) of
           (True, Just tid) -> do
-            memberList <- Intra.getTeamMembers tid
+            memberList <- wrapHttp $ Intra.getTeamMembers tid
             let members = (view Team.userId <$> (memberList ^. Team.teamMembers)) \\ [uid]
 
             contactsFull :: [Maybe EJPDResponseItem] <-
               forM members $ \uid' -> do
-                mbUsr <- lookupUser NoPendingInvitations uid'
+                mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid'
                 maybe (pure Nothing) (fmap Just . go2 False) mbUsr
 
             pure . Just . (,Team.toNewListType (memberList ^. Team.teamMemberListType)) . Set.fromList . catMaybes $ contactsFull

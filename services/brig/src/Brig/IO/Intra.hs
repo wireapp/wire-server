@@ -57,6 +57,8 @@ module Brig.IO.Intra
     getTeamLegalHoldStatus,
     changeTeamStatus,
     getTeamSearchVisibility,
+    getVerificationCodeEnabled,
+    getTeamFeatureStatusSndFactorPasswordChallenge,
 
     -- * Legalhold
     guardLegalhold,
@@ -71,6 +73,7 @@ import Bilge.RPC
 import Bilge.Retry
 import Brig.API.Error (internalServerError)
 import Brig.API.Types
+import Brig.API.Util
 import Brig.App
 import Brig.Data.Connection (lookupContactList)
 import qualified Brig.Data.Connection as Data
@@ -79,11 +82,13 @@ import qualified Brig.IO.Journal as Journal
 import Brig.RPC
 import Brig.Types
 import Brig.Types.User.Event
+import Brig.User.Search.Index (MonadIndexIO)
 import qualified Brig.User.Search.Index as Search
+import Cassandra (MonadClient)
 import Conduit (runConduit, (.|))
 import Control.Error (ExceptT)
 import Control.Lens (view, (.~), (?~), (^.))
-import Control.Monad.Catch (MonadThrow (throwM))
+import Control.Monad.Catch
 import Control.Monad.Trans.Except (runExceptT, throwE)
 import Control.Retry
 import Data.Aeson hiding (json)
@@ -120,14 +125,31 @@ import System.Logger.Class as Log hiding (name, (.=))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Message (UserClients)
-import Wire.API.Team.Feature (IncludeLockStatus (..), TeamFeatureName (..), TeamFeatureStatus)
+import Wire.API.Properties
+import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 import qualified Wire.API.Team.Member as Member
 
 -----------------------------------------------------------------------------
 -- Event Handlers
 
-onUserEvent :: UserId -> Maybe ConnId -> UserEvent -> (AppIO r) ()
+onUserEvent ::
+  ( MonadLogger m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadIndexIO m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m,
+    MonadClient m
+  ) =>
+  UserId ->
+  Maybe ConnId ->
+  UserEvent ->
+  m ()
 onUserEvent orig conn e =
   updateSearchIndex orig e
     *> dispatchNotifications orig conn e
@@ -140,15 +162,16 @@ onConnectionEvent ::
   Maybe ConnId ->
   -- | The event.
   ConnectionEvent ->
-  (AppIO r) ()
+  (AppT r) ()
 onConnectionEvent orig conn evt = do
   let from = ucFrom (ucConn evt)
-  notify
-    (singleton $ ConnectionEvent evt)
-    orig
-    Push.RouteAny
-    conn
-    (return $ list1 from [])
+  wrapHttp $
+    notify
+      (singleton $ ConnectionEvent evt)
+      orig
+      Push.RouteAny
+      conn
+      (return $ list1 from [])
 
 onPropertyEvent ::
   -- | Originator of the event.
@@ -156,14 +179,15 @@ onPropertyEvent ::
   -- | Client connection ID.
   ConnId ->
   PropertyEvent ->
-  (AppIO r) ()
+  (AppT r) ()
 onPropertyEvent orig conn e =
-  notify
-    (singleton $ PropertyEvent e)
-    orig
-    Push.RouteDirect
-    (Just conn)
-    (return $ list1 orig [])
+  wrapHttp $
+    notify
+      (singleton $ PropertyEvent e)
+      orig
+      Push.RouteDirect
+      (Just conn)
+      (return $ list1 orig [])
 
 onClientEvent ::
   -- | Originator of the event.
@@ -172,16 +196,27 @@ onClientEvent ::
   Maybe ConnId ->
   -- | The event.
   ClientEvent ->
-  (AppIO r) ()
+  (AppT r) ()
 onClientEvent orig conn e = do
   let events = singleton (ClientEvent e)
   let rcps = list1 orig []
   -- Synchronous push for better delivery guarantees of these
   -- events and to make sure new clients have a first notification
   -- in the stream.
-  push events rcps orig Push.RouteAny conn
+  wrapHttp $ push events rcps orig Push.RouteAny conn
 
-updateSearchIndex :: UserId -> UserEvent -> (AppIO r) ()
+updateSearchIndex ::
+  ( MonadClient m,
+    MonadLogger m,
+    MonadCatch m,
+    MonadLogger m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadIndexIO m
+  ) =>
+  UserId ->
+  UserEvent ->
+  m ()
 updateSearchIndex orig e = case e of
   -- no-ops
   UserCreated {} -> return ()
@@ -206,7 +241,7 @@ updateSearchIndex orig e = case e of
             ]
     when interesting $ Search.reindex orig
 
-journalEvent :: UserId -> UserEvent -> (AppIO r) ()
+journalEvent :: (MonadReader Env m, MonadIO m) => UserId -> UserEvent -> m ()
 journalEvent orig e = case e of
   UserActivated acc ->
     Journal.userActivate acc
@@ -229,7 +264,21 @@ journalEvent orig e = case e of
 -- | Notify the origin user's contact list (first-level contacts),
 -- as well as his other clients about a change to his user account
 -- or profile.
-dispatchNotifications :: UserId -> Maybe ConnId -> UserEvent -> (AppIO r) ()
+dispatchNotifications ::
+  ( MonadIO m,
+    Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadCatch m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m,
+    MonadClient m
+  ) =>
+  UserId ->
+  Maybe ConnId ->
+  UserEvent ->
+  m ()
 dispatchNotifications orig conn e = case e of
   UserCreated {} -> return ()
   UserSuspended {} -> return ()
@@ -252,21 +301,43 @@ dispatchNotifications orig conn e = case e of
   where
     event = singleton $ UserEvent e
 
-notifyUserDeletionLocals :: UserId -> Maybe ConnId -> List1 Event -> (AppIO r) ()
+notifyUserDeletionLocals ::
+  ( MonadIO m,
+    Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadCatch m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m,
+    MonadClient m
+  ) =>
+  UserId ->
+  Maybe ConnId ->
+  List1 Event ->
+  m ()
 notifyUserDeletionLocals deleted conn event = do
   recipients <- list1 deleted <$> lookupContactList deleted
   notify event deleted Push.RouteDirect conn (pure recipients)
 
-notifyUserDeletionRemotes :: UserId -> (AppIO r) ()
+notifyUserDeletionRemotes ::
+  forall m.
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadClient m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  m ()
 notifyUserDeletionRemotes deleted = do
   runConduit $
     Data.lookupRemoteConnectedUsersC deleted (fromInteger (natVal (Proxy @UserDeletedNotificationMaxConnections)))
-      .| C.mapM_ fanoutNotifications
+      .| C.mapM_ (fanoutNotifications)
   where
-    fanoutNotifications :: [Remote UserId] -> (AppIO r) ()
+    fanoutNotifications :: [Remote UserId] -> m ()
     fanoutNotifications = mapM_ notifyBackend . bucketRemote
 
-    notifyBackend :: Remote [UserId] -> (AppIO r) ()
+    notifyBackend :: Remote [UserId] -> m ()
     notifyBackend uids = do
       case tUnqualified (checked <$> uids) of
         Nothing ->
@@ -279,7 +350,7 @@ notifyUserDeletionRemotes deleted = do
           whenLeft eitherFErr $
             logFederationError (tDomain uids)
 
-    logFederationError :: Domain -> FederationError -> AppT r IO ()
+    logFederationError :: Log.MonadLogger m => Domain -> FederationError -> m ()
     logFederationError domain fErr =
       Log.err $
         Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)
@@ -289,6 +360,14 @@ notifyUserDeletionRemotes deleted = do
 
 -- | Push events to other users.
 push ::
+  ( MonadIO m,
+    Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadCatch m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
   -- | The events to push.
   List1 Event ->
   -- | The users to push to.
@@ -299,7 +378,7 @@ push ::
   Push.Route ->
   -- | The originating device connection.
   Maybe ConnId ->
-  (AppIO r) ()
+  m ()
 push (toList -> events) usrs orig route conn =
   case mapMaybe toPushData events of
     [] -> pure ()
@@ -313,6 +392,14 @@ push (toList -> events) usrs orig route conn =
 -- | Push encoded events to other users. Useful if you want to push
 -- something that's not defined in Brig.
 rawPush ::
+  ( MonadIO m,
+    Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadCatch m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
   -- | The events to push.
   List1 (Builder, (Object, Maybe ApsData)) ->
   -- | The users to push to.
@@ -323,7 +410,7 @@ rawPush ::
   Push.Route ->
   -- | The originating device connection.
   Maybe ConnId ->
-  (AppIO r) ()
+  m ()
 -- TODO: if we decide to have service whitelist events in Brig instead of
 -- Galley, let's merge 'push' and 'rawPush' back. See Note [whitelist events].
 rawPush (toList -> events) usrs orig route conn = do
@@ -359,6 +446,15 @@ rawPush (toList -> events) usrs orig route conn = do
 
 -- | (Asynchronously) notifies other users of events.
 notify ::
+  ( MonadIO m,
+    Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadCatch m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m
+  ) =>
   List1 Event ->
   -- | Origin user, TODO: Delete
   UserId ->
@@ -367,13 +463,22 @@ notify ::
   -- | Origin device connection, if any.
   Maybe ConnId ->
   -- | Users to notify.
-  IO (List1 UserId) ->
-  (AppIO r) ()
-notify events orig route conn recipients = forkAppIO (Just orig) $ do
-  rs <- liftIO recipients
+  m (List1 UserId) ->
+  m ()
+notify events orig route conn recipients = fork (Just orig) $ do
+  rs <- recipients
   push events rs orig route conn
 
 notifySelf ::
+  ( MonadIO m,
+    Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadCatch m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m
+  ) =>
   List1 Event ->
   -- | Origin user.
   UserId ->
@@ -381,11 +486,21 @@ notifySelf ::
   Push.Route ->
   -- | Origin device connection, if any.
   Maybe ConnId ->
-  (AppIO r) ()
+  m ()
 notifySelf events orig route conn =
   notify events orig route conn (pure (singleton orig))
 
 notifyContacts ::
+  forall m.
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m,
+    MonadClient m,
+    MonadUnliftIO m
+  ) =>
   List1 Event ->
   -- | Origin user.
   UserId ->
@@ -393,19 +508,19 @@ notifyContacts ::
   Push.Route ->
   -- | Origin device connection, if any.
   Maybe ConnId ->
-  (AppIO r) ()
+  m ()
 notifyContacts events orig route conn = do
-  env <- ask
   notify events orig route conn $
-    runAppT env $
-      list1 orig <$> liftA2 (++) contacts teamContacts
+    list1 orig <$> liftA2 (++) contacts teamContacts
   where
-    contacts :: (AppIO r) [UserId]
+    contacts :: MonadClient m => m [UserId]
     contacts = lookupContactList orig
-    teamContacts :: (AppIO r) [UserId]
+
+    teamContacts :: m [UserId]
     teamContacts = screenMemberList =<< getTeamContacts orig
     -- If we have a truncated team, we just ignore it all together to avoid very large fanouts
-    screenMemberList :: Maybe Team.TeamMemberList -> (AppIO r) [UserId]
+    --
+    screenMemberList :: Maybe Team.TeamMemberList -> m [UserId]
     screenMemberList (Just mems)
       | mems ^. Team.teamMemberListType == Team.ListComplete =
         return $ fmap (view Team.userId) (mems ^. Team.teamMembers)
@@ -514,7 +629,7 @@ toPushFormat (PropertyEvent (PropertySet _ k v)) =
     KeyMap.fromList
       [ "type" .= ("user.properties-set" :: Text),
         "key" .= k,
-        "value" .= v
+        "value" .= propertyValue v
       ]
 toPushFormat (PropertyEvent (PropertyDeleted _ k)) =
   Just $
@@ -572,7 +687,16 @@ toApsData _ = Nothing
 -- Conversation Management
 
 -- | Calls 'Galley.API.createSelfConversationH'.
-createSelfConv :: UserId -> (AppIO r) ()
+createSelfConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  m ()
 createSelfConv u = do
   debug $
     remote "galley"
@@ -586,11 +710,18 @@ createSelfConv u = do
 
 -- | Calls 'Galley.API.Create.createConnectConversation'.
 createLocalConnectConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
   Local UserId ->
   Local UserId ->
   Maybe Text ->
   Maybe ConnId ->
-  (AppIO r) ConvId
+  m ConvId
 createLocalConnectConv from to cname conn = do
   debug $
     logConnection (tUnqualified from) (qUntagged to)
@@ -613,20 +744,26 @@ createConnectConv ::
   Qualified UserId ->
   Maybe Text ->
   Maybe ConnId ->
-  (AppIO r) (Qualified ConvId)
+  (AppT r) (Qualified ConvId)
 createConnectConv from to cname conn = do
   lfrom <- ensureLocal from
   lto <- ensureLocal to
   qUntagged . qualifyAs lfrom
-    <$> createLocalConnectConv lfrom lto cname conn
-  where
-    ensureLocal :: Qualified a -> (AppIO r) (Local a)
-    ensureLocal x = do
-      loc <- qualifyLocal ()
-      foldQualified loc pure (\_ -> throwM federationNotImplemented) x
+    <$> wrapHttp (createLocalConnectConv lfrom lto cname conn)
 
 -- | Calls 'Galley.API.acceptConvH'.
-acceptLocalConnectConv :: Local UserId -> Maybe ConnId -> ConvId -> (AppIO r) Conversation
+acceptLocalConnectConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  ConvId ->
+  m Conversation
 acceptLocalConnectConv from conn cnv = do
   debug $
     remote "galley"
@@ -640,15 +777,26 @@ acceptLocalConnectConv from conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
-acceptConnectConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> (AppIO r) Conversation
+acceptConnectConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppT r Conversation
 acceptConnectConv from conn =
   foldQualified
     from
-    (acceptLocalConnectConv from conn . tUnqualified)
+    (wrapHttp . acceptLocalConnectConv from conn . tUnqualified)
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.blockConvH'.
-blockLocalConv :: Local UserId -> Maybe ConnId -> ConvId -> (AppIO r) ()
+blockLocalConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  ConvId ->
+  m ()
 blockLocalConv lusr conn cnv = do
   debug $
     remote "galley"
@@ -662,7 +810,18 @@ blockLocalConv lusr conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
-blockConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> (AppIO r) ()
+blockConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  Qualified ConvId ->
+  m ()
 blockConv lusr conn =
   foldQualified
     lusr
@@ -670,7 +829,18 @@ blockConv lusr conn =
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.unblockConvH'.
-unblockLocalConv :: Local UserId -> Maybe ConnId -> ConvId -> (AppIO r) Conversation
+unblockLocalConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  ConvId ->
+  m Conversation
 unblockLocalConv lusr conn cnv = do
   debug $
     remote "galley"
@@ -684,7 +854,18 @@ unblockLocalConv lusr conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
-unblockConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> (AppIO r) Conversation
+unblockConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  Local UserId ->
+  Maybe ConnId ->
+  Qualified ConvId ->
+  m Conversation
 unblockConv luid conn =
   foldQualified
     luid
@@ -692,7 +873,17 @@ unblockConv luid conn =
     (const (throwM federationNotImplemented))
 
 -- | Calls 'Galley.API.getConversationH'.
-getConv :: UserId -> ConvId -> (AppIO r) (Maybe Conversation)
+getConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  ConvId ->
+  m (Maybe Conversation)
 getConv usr cnv = do
   debug $
     remote "galley"
@@ -708,7 +899,16 @@ getConv usr cnv = do
         . zUser usr
         . expect [status200, status404]
 
-upsertOne2OneConversation :: UpsertOne2OneConversationRequest -> (AppIO r) UpsertOne2OneConversationResponse
+upsertOne2OneConversation ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UpsertOne2OneConversationRequest ->
+  m UpsertOne2OneConversationResponse
 upsertOne2OneConversation urequest = do
   response <- galleyRequest POST req
   case Bilge.statusCode response of
@@ -721,7 +921,18 @@ upsertOne2OneConversation urequest = do
         . lbytes (encode urequest)
 
 -- | Calls 'Galley.API.getTeamConversationH'.
-getTeamConv :: UserId -> TeamId -> ConvId -> (AppIO r) (Maybe Team.TeamConversation)
+getTeamConv ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  TeamId ->
+  ConvId ->
+  m (Maybe Team.TeamConversation)
 getTeamConv usr tid cnv = do
   debug $
     remote "galley"
@@ -741,7 +952,17 @@ getTeamConv usr tid cnv = do
 -- User management
 
 -- | Calls 'Galley.API.rmUserH', as well as gundeck and cargohold.
-rmUser :: UserId -> [Asset] -> (AppIO r) ()
+rmUser ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  [Asset] ->
+  m ()
 rmUser usr asts = do
   debug $
     remote "gundeck"
@@ -767,7 +988,17 @@ rmUser usr asts = do
 -- Client management
 
 -- | Calls 'Galley.API.addClientH'.
-newClient :: UserId -> ClientId -> (AppIO r) ()
+newClient ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  ClientId ->
+  m ()
 newClient u c = do
   debug $
     remote "galley"
@@ -778,7 +1009,17 @@ newClient u c = do
   void $ galleyRequest POST (p . zUser u . expect2xx)
 
 -- | Calls 'Galley.API.rmClientH', as well as gundeck.
-rmClient :: UserId -> ClientId -> (AppIO r) ()
+rmClient ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  ClientId ->
+  m ()
 rmClient u c = do
   let cid = toByteString' c
   debug $
@@ -808,7 +1049,16 @@ rmClient u c = do
   where
     expected = [status200, status204, status404]
 
-lookupPushToken :: UserId -> (AppIO r) [Push.PushToken]
+lookupPushToken ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  m [Push.PushToken]
 lookupPushToken uid = do
   g <- view gundeck
   rsp <-
@@ -826,7 +1076,16 @@ lookupPushToken uid = do
 -- Team Management
 
 -- | Calls 'Galley.API.canUserJoinTeamH'.
-checkUserCanJoinTeam :: TeamId -> (AppIO r) (Maybe Wai.Error)
+checkUserCanJoinTeam ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  TeamId ->
+  m (Maybe Wai.Error)
 checkUserCanJoinTeam tid = do
   debug $
     remote "galley"
@@ -843,7 +1102,18 @@ checkUserCanJoinTeam tid = do
         . header "Content-Type" "application/json"
 
 -- | Calls 'Galley.API.uncheckedAddTeamMemberH'.
-addTeamMember :: UserId -> TeamId -> (Maybe (UserId, UTCTimeMillis), Team.Role) -> (AppIO r) Bool
+addTeamMember ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  TeamId ->
+  (Maybe (UserId, UTCTimeMillis), Team.Role) ->
+  m Bool
 addTeamMember u tid (minvmeta, role) = do
   debug $
     remote "galley"
@@ -863,7 +1133,18 @@ addTeamMember u tid (minvmeta, role) = do
         . lbytes (encode bdy)
 
 -- | Calls 'Galley.API.createBindingTeamH'.
-createTeam :: UserId -> Team.BindingNewTeam -> TeamId -> (AppIO r) CreateUserTeam
+createTeam ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  Team.BindingNewTeam ->
+  TeamId ->
+  m CreateUserTeam
 createTeam u t@(Team.BindingNewTeam bt) teamid = do
   debug $
     remote "galley"
@@ -883,7 +1164,17 @@ createTeam u t@(Team.BindingNewTeam bt) teamid = do
         . lbytes (encode t)
 
 -- | Calls 'Galley.API.uncheckedGetTeamMemberH'.
-getTeamMember :: UserId -> TeamId -> (AppIO r) (Maybe Team.TeamMember)
+getTeamMember ::
+  ( MonadLogger m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  UserId ->
+  TeamId ->
+  m (Maybe Team.TeamMember)
 getTeamMember u tid = do
   debug $
     remote "galley"
@@ -903,7 +1194,16 @@ getTeamMember u tid = do
 -- | TODO: is now truncated.  this is (only) used for team suspension / unsuspension, which
 -- means that only the first 2000 members of a team (according to some arbitrary order) will
 -- be suspended, and the rest will remain active.
-getTeamMembers :: TeamId -> (AppIO r) Team.TeamMemberList
+getTeamMembers ::
+  ( MonadLogger m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  TeamId ->
+  m Team.TeamMemberList
 getTeamMembers tid = do
   debug $ remote "galley" . msg (val "Get team members")
   galleyRequest GET req >>= decodeBody "galley"
@@ -912,17 +1212,35 @@ getTeamMembers tid = do
       paths ["i", "teams", toByteString' tid, "members"]
         . expect2xx
 
-memberIsTeamOwner :: TeamId -> UserId -> (AppIO r) Bool
+memberIsTeamOwner ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  TeamId ->
+  UserId ->
+  m Bool
 memberIsTeamOwner tid uid = do
   r <-
     galleyRequest GET $
-      (paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid])
+      paths ["i", "teams", toByteString' tid, "is-team-owner", toByteString' uid]
   pure $ responseStatus r /= status403
 
 -- | Only works on 'BindingTeam's! The list of members returned is potentially truncated.
 --
 -- Calls 'Galley.API.getBindingTeamMembersH'.
-getTeamContacts :: UserId -> (AppIO r) (Maybe Team.TeamMemberList)
+getTeamContacts ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  m (Maybe Team.TeamMemberList)
 getTeamContacts u = do
   debug $ remote "galley" . msg (val "Get team contacts")
   rs <- galleyRequest GET req
@@ -935,7 +1253,16 @@ getTeamContacts u = do
         . expect [status200, status404]
 
 -- | Calls 'Galley.API.getBindingTeamIdH'.
-getTeamId :: UserId -> (AppIO r) (Maybe TeamId)
+getTeamId ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  UserId ->
+  m (Maybe TeamId)
 getTeamId u = do
   debug $ remote "galley" . msg (val "Get team from user")
   rs <- galleyRequest GET req
@@ -948,7 +1275,16 @@ getTeamId u = do
         . expect [status200, status404]
 
 -- | Calls 'Galley.API.getTeamInternalH'.
-getTeam :: TeamId -> (AppIO r) Team.TeamData
+getTeam ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  TeamId ->
+  m Team.TeamData
 getTeam tid = do
   debug $ remote "galley" . msg (val "Get team info")
   galleyRequest GET req >>= decodeBody "galley"
@@ -958,7 +1294,16 @@ getTeam tid = do
         . expect2xx
 
 -- | Calls 'Galley.API.getTeamInternalH'.
-getTeamName :: TeamId -> (AppIO r) Team.TeamName
+getTeamName ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  TeamId ->
+  m Team.TeamName
 getTeamName tid = do
   debug $ remote "galley" . msg (val "Get team info")
   galleyRequest GET req >>= decodeBody "galley"
@@ -968,7 +1313,16 @@ getTeamName tid = do
         . expect2xx
 
 -- | Calls 'Galley.API.getTeamFeatureStatusH'.
-getTeamLegalHoldStatus :: TeamId -> (AppIO r) (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold)
+getTeamLegalHoldStatus ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  TeamId ->
+  m (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold)
 getTeamLegalHoldStatus tid = do
   debug $ remote "galley" . msg (val "Get legalhold settings")
   galleyRequest GET req >>= decodeBody "galley"
@@ -978,7 +1332,16 @@ getTeamLegalHoldStatus tid = do
         . expect2xx
 
 -- | Calls 'Galley.API.getSearchVisibilityInternalH'.
-getTeamSearchVisibility :: TeamId -> (AppIO r) Team.TeamSearchVisibility
+getTeamSearchVisibility ::
+  ( MonadLogger m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  TeamId ->
+  m Team.TeamSearchVisibility
 getTeamSearchVisibility tid =
   coerce @Team.TeamSearchVisibilityView @Team.TeamSearchVisibility <$> do
     debug $ remote "galley" . msg (val "Get search visibility settings")
@@ -988,8 +1351,58 @@ getTeamSearchVisibility tid =
       paths ["i", "teams", toByteString' tid, "search-visibility"]
         . expect2xx
 
+getVerificationCodeEnabled ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  TeamId ->
+  m Bool
+getVerificationCodeEnabled tid = do
+  debug $ remote "galley" . msg (val "Get snd factor password challenge settings")
+  response <- galleyRequest GET req
+  status <- tfwoStatus <$> decodeBody "galley" response
+  case status of
+    TeamFeatureEnabled -> pure True
+    TeamFeatureDisabled -> pure False
+  where
+    req =
+      paths ["i", "teams", toByteString' tid, "features", toByteString' TeamFeatureSndFactorPasswordChallenge]
+        . expect2xx
+
+getTeamFeatureStatusSndFactorPasswordChallenge ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  Maybe UserId ->
+  m TeamFeatureStatusNoConfig
+getTeamFeatureStatusSndFactorPasswordChallenge mbUserId =
+  responseJsonUnsafe
+    <$> galleyRequest
+      GET
+      ( paths ["i", "feature-configs", toByteString' (knownTeamFeatureName @'TeamFeatureSndFactorPasswordChallenge)]
+          . maybe id (queryItem "user_id" . toByteString') mbUserId
+      )
+
 -- | Calls 'Galley.API.updateTeamStatusH'.
-changeTeamStatus :: TeamId -> Team.TeamStatus -> Maybe Currency.Alpha -> (AppIO r) ()
+changeTeamStatus ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  TeamId ->
+  Team.TeamStatus ->
+  Maybe Currency.Alpha ->
+  m ()
 changeTeamStatus tid s cur = do
   debug $ remote "galley" . msg (val "Change Team status")
   void $ galleyRequest PUT req
@@ -1000,7 +1413,16 @@ changeTeamStatus tid s cur = do
         . expect2xx
         . lbytes (encode $ Team.TeamStatusUpdate s cur)
 
-guardLegalhold :: LegalholdProtectee -> UserClients -> ExceptT ClientError (AppIO r) ()
+guardLegalhold ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  LegalholdProtectee ->
+  UserClients ->
+  ExceptT ClientError m ()
 guardLegalhold protectee userClients = do
   res <- lift $ galleyRequest PUT req
   case Bilge.statusCode res of

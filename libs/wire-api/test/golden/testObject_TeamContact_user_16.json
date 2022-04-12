@@ -2,11 +2,17 @@
     "accent_id": -1,
     "created_at": "1864-05-08T15:43:05.866Z",
     "email": "@j",
+    "email_unvalidated": "foobar@example.com",
     "handle": null,
     "id": "00000001-0000-0000-0000-000000000002",
     "managed_by": "wire",
     "name": "\u00066J",
     "role": null,
     "saml_idp": "k",
+    "scim_external_id": null,
+    "sso": {
+        "issuer": "https://example.com/issuer/123",
+        "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
+    },
     "team": "00000001-0000-0002-0000-000200000001"
 }

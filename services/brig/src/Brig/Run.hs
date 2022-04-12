@@ -40,7 +40,7 @@ import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
 import Brig.Types.Intra (AccountStatus (PendingInvitation))
 import Brig.Version
-import Cassandra (Page (Page), liftClient)
+import Cassandra (Page (Page))
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
 import Control.Lens (view, (.~), (^.))
@@ -48,7 +48,6 @@ import Control.Monad.Catch (MonadCatch, finally)
 import Control.Monad.Random (randomRIO)
 import qualified Data.Aeson as Aeson
 import Data.Default (Default (def))
-import Data.Domain
 import Data.Id (RequestId (..))
 import qualified Data.Metrics.Servant as Metrics
 import Data.Proxy (Proxy (Proxy))
@@ -70,6 +69,7 @@ import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
 import System.Logger.Class (MonadLogger, err)
 import Util.Options
+import Wire.API.Routes.API
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
@@ -85,7 +85,8 @@ run o = do
   internalEventListener <-
     Async.async $
       runAppT e $
-        Queue.listen (e ^. internalEvents) Internal.onEvent
+        wrapHttpClient $
+          Queue.listen (e ^. internalEvents) $ Internal.onEvent
   let throttleMillis = fromMaybe defSqsThrottleMillis $ setSqsThrottleMillis (optSettings o)
   emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
     Async.async $
@@ -130,21 +131,12 @@ mkApp o = do
             (Proxy @ServantCombinedAPI)
             (customFormatters :. localDomain :. Servant.EmptyContext)
             ( swaggerDocsAPI
-                :<|> hoistServer' @BrigAPI (toServantHandler e) servantSitemap
-                :<|> hoistServer' @IAPI.API (toServantHandler e) IAPI.servantSitemap
-                :<|> hoistServer' @FederationAPI (toServantHandler e) federationSitemap
-                :<|> hoistServer' @VersionAPI (toServantHandler e) versionAPI
+                :<|> hoistServerWithDomain @BrigAPI (toServantHandler e) servantSitemap
+                :<|> hoistServerWithDomain @IAPI.API (toServantHandler e) IAPI.servantSitemap
+                :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
+                :<|> hoistServerWithDomain @VersionAPI (toServantHandler e) versionAPI
                 :<|> Servant.Tagged (app e)
             )
-
--- | See 'Galley.Run' for an explanation of this function.
-hoistServer' ::
-  forall api m n.
-  Servant.HasServer api '[Domain] =>
-  (forall x. m x -> n x) ->
-  Servant.ServerT api m ->
-  Servant.ServerT api n
-hoistServer' = Servant.hoistServerWithContext (Proxy @api) (Proxy @'[Domain])
 
 type ServantCombinedAPI =
   ( SwaggerDocsAPI
@@ -181,20 +173,19 @@ bodyParserErrorFormatter _ _ errMsg =
       Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
     }
 
-pendingActivationCleanup :: forall r. (AppIO r) ()
+pendingActivationCleanup :: forall r. AppT r ()
 pendingActivationCleanup = do
   safeForever "pendingActivationCleanup" $ do
     now <- liftIO =<< view currentTime
     forExpirationsPaged $ \exps -> do
       uids <-
-        ( for exps $ \(UserPendingActivation uid expiresAt) -> do
-            isPendingInvitation <- (Just PendingInvitation ==) <$> API.lookupStatus uid
-            pure $
-              ( expiresAt < now,
-                isPendingInvitation,
-                uid
-              )
-          )
+        for exps $ \(UserPendingActivation uid expiresAt) -> do
+          isPendingInvitation <- (Just PendingInvitation ==) <$> wrapClient (API.lookupStatus uid)
+          pure
+            ( expiresAt < now,
+              isPendingInvitation,
+              uid
+            )
 
       API.deleteUsersNoVerify $
         catMaybes
@@ -202,7 +193,7 @@ pendingActivationCleanup = do
               if isExpired && isPendingInvitation then Just uid else Nothing
           )
 
-      usersPendingActivationRemoveMultiple $
+      wrapClient . usersPendingActivationRemoveMultiple $
         catMaybes
           ( uids <&> \(isExpired, _isPendingInvitation, uid) ->
               if isExpired then Just uid else Nothing
@@ -218,17 +209,17 @@ pendingActivationCleanup = do
           -- pause to keep worst-case noise in logs manageable
           threadDelay 60_000_000
 
-    forExpirationsPaged :: ([UserPendingActivation] -> (AppIO r) ()) -> (AppIO r) ()
+    forExpirationsPaged :: ([UserPendingActivation] -> (AppT r) ()) -> (AppT r) ()
     forExpirationsPaged f = do
-      go =<< usersPendingActivationList
+      go =<< wrapClient usersPendingActivationList
       where
-        go :: (Page UserPendingActivation) -> (AppIO r) ()
+        go :: Page UserPendingActivation -> (AppT r) ()
         go (Page hasMore result nextPage) = do
           f result
           when hasMore $
-            go =<< liftClient nextPage
+            go =<< wrapClient (lift nextPage)
 
-    threadDelayRandom :: (AppIO r) ()
+    threadDelayRandom :: (AppT r) ()
     threadDelayRandom = do
       cleanupTimeout <- fromMaybe (hours 24) . setExpiredUserCleanupTimeout <$> view settings
       let d = realToFrac cleanupTimeout

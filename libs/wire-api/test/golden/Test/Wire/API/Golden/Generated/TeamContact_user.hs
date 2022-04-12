@@ -25,7 +25,7 @@ import qualified Data.UUID as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust)
 import Wire.API.Team.Role (Role (RoleAdmin, RoleExternalPartner, RoleMember, RoleOwner))
 import Wire.API.User (Email (Email, emailDomain, emailLocal), ManagedBy (ManagedByScim, ManagedByWire))
-import Wire.API.User.Search (TeamContact (..))
+import Wire.API.User.Search (Sso (..), TeamContact (..))
 
 testObject_TeamContact_user_1 :: TeamContact
 testObject_TeamContact_user_1 =
@@ -39,7 +39,10 @@ testObject_TeamContact_user_1 =
       teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-11T12:52:22.086Z")),
       teamContactManagedBy = Nothing,
       teamContactSAMLIdp = Just "r",
-      teamContactRole = Just RoleAdmin
+      teamContactRole = Just RoleAdmin,
+      teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
+      teamContactSso = Nothing,
+      teamContactEmailUnvalidated = Nothing
     }
 
 testObject_TeamContact_user_2 :: TeamContact
@@ -54,7 +57,10 @@ testObject_TeamContact_user_2 =
       teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-08T03:35:20.125Z")),
       teamContactManagedBy = Nothing,
       teamContactSAMLIdp = Just "N\DC4",
-      teamContactRole = Just RoleExternalPartner
+      teamContactRole = Just RoleExternalPartner,
+      teamContactScimExternalId = Nothing,
+      teamContactSso = Nothing,
+      teamContactEmailUnvalidated = Nothing
     }
 
 testObject_TeamContact_user_3 :: TeamContact
@@ -69,7 +75,10 @@ testObject_TeamContact_user_3 =
       teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T04:40:28.583Z")),
       teamContactManagedBy = Just ManagedByScim,
       teamContactSAMLIdp = Just "\"c`",
-      teamContactRole = Just RoleMember
+      teamContactRole = Just RoleMember,
+      teamContactScimExternalId = Nothing,
+      teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
+      teamContactEmailUnvalidated = Nothing
     }
 
 testObject_TeamContact_user_4 :: TeamContact
@@ -84,7 +93,10 @@ testObject_TeamContact_user_4 =
       teamContactCreatedAt = Nothing,
       teamContactManagedBy = Nothing,
       teamContactSAMLIdp = Nothing,
-      teamContactRole = Nothing
+      teamContactRole = Nothing,
+      teamContactScimExternalId = Nothing,
+      teamContactSso = Nothing,
+      teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
     }
 
 testObject_TeamContact_user_5 :: TeamContact
@@ -99,7 +111,10 @@ testObject_TeamContact_user_5 =
       teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-09T19:22:27.168Z")),
       teamContactManagedBy = Nothing,
       teamContactSAMLIdp = Just "\12641",
-      teamContactRole = Just RoleExternalPartner
+      teamContactRole = Just RoleExternalPartner,
+      teamContactScimExternalId = Nothing,
+      teamContactSso = Nothing,
+      teamContactEmailUnvalidated = Nothing
     }
 
 testObject_TeamContact_user_6 :: TeamContact
@@ -114,7 +129,10 @@ testObject_TeamContact_user_6 =
       teamContactCreatedAt = Nothing,
       teamContactManagedBy = Just ManagedByWire,
       teamContactSAMLIdp = Nothing,
-      teamContactRole = Nothing
+      teamContactRole = Nothing,
+      teamContactScimExternalId = Nothing,
+      teamContactSso = Nothing,
+      teamContactEmailUnvalidated = Nothing
     }
 
 testObject_TeamContact_user_7 :: TeamContact
@@ -129,7 +147,10 @@ testObject_TeamContact_user_7 =
       teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-06T11:54:20.119Z")),
       teamContactManagedBy = Just ManagedByWire,
       teamContactSAMLIdp = Nothing,
-      teamContactRole = Just RoleAdmin
+      teamContactRole = Just RoleAdmin,
+      teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
+      teamContactSso = Nothing,
+      teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
     }
 
 testObject_TeamContact_user_8 :: TeamContact
@@ -144,7 +165,10 @@ testObject_TeamContact_user_8 =
       teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-06T04:27:11.179Z")),
       teamContactManagedBy = Just ManagedByScim,
       teamContactSAMLIdp = Just "",
-      teamContactRole = Just RoleMember
+      teamContactRole = Just RoleMember,
+      teamContactScimExternalId = Nothing,
+      teamContactSso = Nothing,
+      teamContactEmailUnvalidated = Nothing
     }
 
 testObject_TeamContact_user_9 :: TeamContact
@@ -159,7 +183,10 @@ testObject_TeamContact_user_9 =
       teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-11T18:31:16.554Z")),
       teamContactManagedBy = Just ManagedByWire,
       teamContactSAMLIdp = Just "\164542\US",
-      teamContactRole = Just RoleAdmin
+      teamContactRole = Just RoleAdmin,
+      teamContactScimExternalId = Nothing,
+      teamContactSso = Nothing,
+      teamContactEmailUnvalidated = Nothing
     }
 
 testObject_TeamContact_user_10 :: TeamContact
@@ -174,7 +201,10 @@ testObject_TeamContact_user_10 =
       teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-06T05:51:36.680Z")),
       teamContactManagedBy = Just ManagedByScim,
       teamContactSAMLIdp = Just "P-\EM",
-      teamContactRole = Just RoleMember
+      teamContactRole = Just RoleMember,
+      teamContactScimExternalId = Nothing,
+      teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
+      teamContactEmailUnvalidated = Nothing
     }
 
 testObject_TeamContact_user_11 :: TeamContact
@@ -189,7 +219,10 @@ testObject_TeamContact_user_11 =
       teamContactCreatedAt = Nothing,
       teamContactManagedBy = Just ManagedByScim,
       teamContactSAMLIdp = Nothing,
-      teamContactRole = Just RoleExternalPartner
+      teamContactRole = Just RoleExternalPartner,
+      teamContactScimExternalId = Nothing,
+      teamContactSso = Nothing,
+      teamContactEmailUnvalidated = Nothing
     }
 
 testObject_TeamContact_user_12 :: TeamContact
@@ -204,7 +237,10 @@ testObject_TeamContact_user_12 =
       teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-06T13:09:44.601Z")),
       teamContactManagedBy = Nothing,
       teamContactSAMLIdp = Just "\SUB:",
-      teamContactRole = Nothing
+      teamContactRole = Nothing,
+      teamContactScimExternalId = Nothing,
+      teamContactSso = Nothing,
+      teamContactEmailUnvalidated = Nothing
     }
 
 testObject_TeamContact_user_13 :: TeamContact
@@ -219,7 +255,10 @@ testObject_TeamContact_user_13 =
       teamContactCreatedAt = Nothing,
       teamContactManagedBy = Just ManagedByScim,
       teamContactSAMLIdp = Just "\993657\a",
-      teamContactRole = Just RoleMember
+      teamContactRole = Just RoleMember,
+      teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
+      teamContactSso = Nothing,
+      teamContactEmailUnvalidated = Nothing
     }
 
 testObject_TeamContact_user_14 :: TeamContact
@@ -234,7 +273,10 @@ testObject_TeamContact_user_14 =
       teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-08T20:31:37.388Z")),
       teamContactManagedBy = Just ManagedByScim,
       teamContactSAMLIdp = Nothing,
-      teamContactRole = Just RoleExternalPartner
+      teamContactRole = Just RoleExternalPartner,
+      teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
+      teamContactSso = Nothing,
+      teamContactEmailUnvalidated = Nothing
     }
 
 testObject_TeamContact_user_15 :: TeamContact
@@ -249,7 +291,10 @@ testObject_TeamContact_user_15 =
       teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-11T14:15:19.890Z")),
       teamContactManagedBy = Nothing,
       teamContactSAMLIdp = Just "",
-      teamContactRole = Just RoleExternalPartner
+      teamContactRole = Just RoleExternalPartner,
+      teamContactScimExternalId = Nothing,
+      teamContactSso = Nothing,
+      teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
     }
 
 testObject_TeamContact_user_16 :: TeamContact
@@ -264,7 +309,10 @@ testObject_TeamContact_user_16 =
       teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-08T15:43:05.866Z")),
       teamContactManagedBy = Just ManagedByWire,
       teamContactSAMLIdp = Just "k",
-      teamContactRole = Nothing
+      teamContactRole = Nothing,
+      teamContactScimExternalId = Nothing,
+      teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
+      teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
     }
 
 testObject_TeamContact_user_17 :: TeamContact
@@ -279,7 +327,10 @@ testObject_TeamContact_user_17 =
       teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-10T20:50:28.410Z")),
       teamContactManagedBy = Just ManagedByWire,
       teamContactSAMLIdp = Just "\138052",
-      teamContactRole = Just RoleOwner
+      teamContactRole = Just RoleOwner,
+      teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
+      teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
+      teamContactEmailUnvalidated = Nothing
     }
 
 testObject_TeamContact_user_18 :: TeamContact
@@ -294,7 +345,10 @@ testObject_TeamContact_user_18 =
       teamContactCreatedAt = Nothing,
       teamContactManagedBy = Just ManagedByWire,
       teamContactSAMLIdp = Just "\DC2",
-      teamContactRole = Just RoleOwner
+      teamContactRole = Just RoleOwner,
+      teamContactScimExternalId = Nothing,
+      teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
+      teamContactEmailUnvalidated = Nothing
     }
 
 testObject_TeamContact_user_19 :: TeamContact
@@ -309,7 +363,10 @@ testObject_TeamContact_user_19 =
       teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-10T11:20:36.673Z")),
       teamContactManagedBy = Nothing,
       teamContactSAMLIdp = Nothing,
-      teamContactRole = Just RoleExternalPartner
+      teamContactRole = Just RoleExternalPartner,
+      teamContactScimExternalId = Nothing,
+      teamContactSso = Just (Sso "https://example.com/issuer/123" "0307979d-c742-4421-954a-9ceb1f22e58f"),
+      teamContactEmailUnvalidated = Nothing
     }
 
 testObject_TeamContact_user_20 :: TeamContact
@@ -324,5 +381,8 @@ testObject_TeamContact_user_20 =
       teamContactCreatedAt = Just (fromJust (readUTCTimeMillis "1864-05-06T18:23:32.240Z")),
       teamContactManagedBy = Just ManagedByScim,
       teamContactSAMLIdp = Just "",
-      teamContactRole = Just RoleOwner
+      teamContactRole = Just RoleOwner,
+      teamContactScimExternalId = Just "0307979d-c742-4421-954a-9ceb1f22e58f",
+      teamContactSso = Nothing,
+      teamContactEmailUnvalidated = Just (Email {emailLocal = "foobar", emailDomain = "example.com"})
     }

@@ -32,6 +32,7 @@ import Data.List1
 import qualified Data.List1 as List1
 import Data.Misc
 import Data.Qualified
+import Data.Singletons
 import Federator.MockServer (FederatedRequest (..))
 import Galley.Types
 import Galley.Types.Conversations.Roles
@@ -46,6 +47,7 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Conversation.Action
+import Wire.API.Event.Conversation
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Component
 import qualified Wire.API.Team.Member as Member
@@ -156,7 +158,7 @@ messageTimerChangeWithRemotes = do
   resp <-
     postConvWithRemoteUsers
       bob
-      defNewConv {newConvQualifiedUsers = [qalice]}
+      defNewProteusConv {newConvQualifiedUsers = [qalice]}
   let qconv = decodeQualifiedConvId resp
 
   WS.bracketR c bob $ \wsB -> do
@@ -173,8 +175,7 @@ messageTimerChangeWithRemotes = do
       Right cu <- pure . eitherDecode . frBody $ req
       F.cuConvId cu @?= qUnqualified qconv
       F.cuAction cu
-        @?= ConversationActionMessageTimerUpdate
-          (ConversationMessageTimerUpdate timer1sec)
+        @?= SomeConversationAction (sing @'ConversationMessageTimerUpdateTag) (ConversationMessageTimerUpdate timer1sec)
 
     void . liftIO . WS.assertMatch (5 # Second) wsB $ \n -> do
       let e = List1.head (WS.unpackPayload n)

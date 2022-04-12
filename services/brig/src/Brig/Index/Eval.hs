@@ -42,27 +42,28 @@ import System.Logger.Class (Logger, MonadLogger (..))
 
 runCommand :: Logger -> Command -> IO ()
 runCommand l = \case
-  Create es -> do
-    e <- initIndex es
+  Create es galley -> do
+    e <- initIndex es galley
     runIndexIO e $ createIndexIfNotPresent (mkCreateIndexSettings es)
-  Reset es -> do
-    e <- initIndex es
+  Reset es galley -> do
+    e <- initIndex es galley
     runIndexIO e $ resetIndex (mkCreateIndexSettings es)
-  Reindex es cas -> do
-    e <- initIndex es
+  Reindex es cas galley -> do
+    e <- initIndex es galley
     c <- initDb cas
     runReindexIO e c reindexAll
-  ReindexSameOrNewer es cas -> do
-    e <- initIndex es
+  ReindexSameOrNewer es cas galley -> do
+    e <- initIndex es galley
     c <- initDb cas
     runReindexIO e c reindexAllIfSameOrNewer
-  UpdateMapping esURI indexName -> do
-    e <- initIndex' esURI indexName
+  UpdateMapping esURI indexName galley -> do
+    e <- initIndex' esURI indexName galley
     runIndexIO e updateMapping
-  Migrate es cas -> do
-    migrate l es cas
+  Migrate es cas galley -> do
+    migrate l es cas galley
   ReindexFromAnotherIndex reindexSettings -> do
-    bhEnv <- initES (view reindexEsServer reindexSettings)
+    mgr <- newManager defaultManagerSettings
+    let bhEnv = initES (view reindexEsServer reindexSettings) mgr
     ES.runBH bhEnv $ do
       let src = view reindexSrcIndex reindexSettings
           dest = view reindexDestIndex reindexSettings
@@ -85,20 +86,22 @@ runCommand l = \case
           waitForTaskToComplete @ES.ReindexResponse timeoutSeconds taskNodeId
           Log.info l $ Log.msg ("Finished reindexing" :: ByteString)
   where
-    initIndex es =
-      initIndex' (es ^. esServer) (es ^. esIndex)
-    initIndex' esURI indexName =
+    initIndex es gly =
+      initIndex' (es ^. esServer) (es ^. esIndex) gly
+    initIndex' esURI indexName galleyEndpoint = do
+      mgr <- newManager defaultManagerSettings
       IndexEnv
         <$> Metrics.metrics
         <*> pure l
-        <*> initES esURI
+        <*> pure (initES esURI mgr)
         <*> pure Nothing
         <*> pure indexName
         <*> pure Nothing
         <*> pure Nothing
-    initES esURI =
-      ES.mkBHEnv (toESServer esURI)
-        <$> newManager defaultManagerSettings
+        <*> pure galleyEndpoint
+        <*> pure mgr
+    initES esURI mgr =
+      ES.mkBHEnv (toESServer esURI) mgr
     initDb cas =
       C.init $
         C.setLogger (C.mkLogger l)

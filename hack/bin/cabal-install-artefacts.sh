@@ -14,6 +14,8 @@ else
   pattern="$1"
 fi
 
+cd "$TOP_LEVEL"
+
 cabal-plan list-bins "$pattern:exe:*" |
   awk '{print $2}' |
   xargs -i sh -c 'test -f {} && echo {} || true' |

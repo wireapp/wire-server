@@ -34,16 +34,19 @@ import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
-import Wire.API.Connection
-import Wire.API.ErrorDescription
+import Wire.API.Connection hiding (MissingLegalholdConsent)
+import Wire.API.Error
+import Wire.API.Error.Brig
+import Wire.API.Error.Empty
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Servant
+import Wire.API.Properties
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
-import Wire.API.User
+import Wire.API.User hiding (NoIdentity)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
@@ -56,7 +59,7 @@ type GetUserVerb =
   MultiVerb
     'GET
     '[JSON]
-    '[ UserNotFound,
+    '[ ErrorResponse 'UserNotFound,
        Respond 200 "User found" UserProfile
      ]
     (Maybe UserProfile)
@@ -131,7 +134,7 @@ type UserAPI =
                :> MultiVerb
                     'GET
                     '[JSON]
-                    '[ HandleNotFound,
+                    '[ ErrorResponse 'HandleNotFound,
                        Respond 200 "User found" UserHandleInfo
                      ]
                     (Maybe UserHandleInfo)
@@ -146,7 +149,7 @@ type UserAPI =
                :> MultiVerb
                     'GET
                     '[JSON]
-                    '[ HandleNotFound,
+                    '[ ErrorResponse 'HandleNotFound,
                        Respond 200 "User found" UserProfile
                      ]
                     (Maybe UserProfile)
@@ -205,12 +208,12 @@ type SelfAPI =
                \password, it must be provided. if password is correct, or if neither \
                \a verified identity nor a password exists, account deletion \
                \is scheduled immediately."
-          :> CanThrow InvalidUser
-          :> CanThrow InvalidCode
-          :> CanThrow BadCredentials
-          :> CanThrow MissingAuth
-          :> CanThrow DeleteCodePending
-          :> CanThrow OwnerDeletingSelf
+          :> CanThrow 'InvalidUser
+          :> CanThrow 'InvalidCode
+          :> CanThrow 'BadCredentials
+          :> CanThrow 'MissingAuth
+          :> CanThrow 'DeleteCodePending
+          :> CanThrow 'OwnerDeletingSelf
           :> ZUser
           :> "self"
           :> ReqBody '[JSON] DeleteUser
@@ -312,6 +315,24 @@ type SelfAPI =
                :> MultiVerb 'PUT '[JSON] ChangeHandleResponses (Maybe ChangeHandleError)
            )
 
+type AccountAPI =
+  -- docs/reference/user/registration.md {#RefRegistration}
+  --
+  -- This endpoint can lead to the following events being sent:
+  -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
+  -- - UserIdentityUpdated event to created user, if email code or phone code is provided
+  Named
+    "register"
+    ( Summary "Register a new user."
+        :> Description
+             "If the environment where the registration takes \
+             \place is private and a registered email address or phone \
+             \number is not whitelisted, a 403 error is returned."
+        :> "register"
+        :> ReqBody '[JSON] NewUserPublic
+        :> MultiVerb 'POST '[JSON] RegisterResponses (Either RegisterError RegisterSuccess)
+    )
+
 type PrekeyAPI =
   Named
     "get-users-prekeys-client-unqualified"
@@ -385,9 +406,11 @@ type UserClientAPI =
   Named
     "add-client"
     ( Summary "Register a new client"
-        :> CanThrow TooManyClients
-        :> CanThrow MissingAuth
-        :> CanThrow MalformedPrekeys
+        :> CanThrow 'TooManyClients
+        :> CanThrow 'MissingAuth
+        :> CanThrow 'MalformedPrekeys
+        :> CanThrow 'CodeAuthenticationFailed
+        :> CanThrow 'CodeAuthenticationRequired
         :> ZUser
         :> ZConn
         :> "clients"
@@ -398,7 +421,7 @@ type UserClientAPI =
     :<|> Named
            "update-client"
            ( Summary "Update a registered client"
-               :> CanThrow MalformedPrekeys
+               :> CanThrow 'MalformedPrekeys
                :> ZUser
                :> "clients"
                :> CaptureClientId "client"
@@ -525,10 +548,10 @@ type ConnectionAPI =
   Named
     "create-connection-unqualified"
     ( Summary "Create a connection to another user (deprecated)"
-        :> CanThrow MissingLegalholdConsent
-        :> CanThrow InvalidUser
-        :> CanThrow ConnectionLimitReached
-        :> CanThrow NoIdentity
+        :> CanThrow 'MissingLegalholdConsent
+        :> CanThrow 'InvalidUser
+        :> CanThrow 'ConnectionLimitReached
+        :> CanThrow 'NoIdentity
         -- Config value 'setUserMaxConnections' value in production/by default
         -- is currently 1000 and has not changed in the last few years.
         -- While it would be more correct to use the config value here, that
@@ -547,10 +570,10 @@ type ConnectionAPI =
     :<|> Named
            "create-connection"
            ( Summary "Create a connection to another user"
-               :> CanThrow MissingLegalholdConsent
-               :> CanThrow InvalidUser
-               :> CanThrow ConnectionLimitReached
-               :> CanThrow NoIdentity
+               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'InvalidUser
+               :> CanThrow 'ConnectionLimitReached
+               :> CanThrow 'NoIdentity
                -- Config value 'setUserMaxConnections' value in production/by default
                -- is currently 1000 and has not changed in the last few years.
                -- While it would be more correct to use the config value here, that
@@ -621,12 +644,12 @@ type ConnectionAPI =
     Named
       "update-connection-unqualified"
       ( Summary "Update a connection to another user (deprecated)"
-          :> CanThrow MissingLegalholdConsent
-          :> CanThrow InvalidUser
-          :> CanThrow ConnectionLimitReached
-          :> CanThrow NotConnected
-          :> CanThrow InvalidTransition
-          :> CanThrow NoIdentity
+          :> CanThrow 'MissingLegalholdConsent
+          :> CanThrow 'InvalidUser
+          :> CanThrow 'ConnectionLimitReached
+          :> CanThrow 'NotConnected
+          :> CanThrow 'InvalidTransition
+          :> CanThrow 'NoIdentity
           :> ZUser
           :> ZConn
           :> "connections"
@@ -648,12 +671,12 @@ type ConnectionAPI =
     Named
       "update-connection"
       ( Summary "Update a connection to another user (deprecatd)"
-          :> CanThrow MissingLegalholdConsent
-          :> CanThrow InvalidUser
-          :> CanThrow ConnectionLimitReached
-          :> CanThrow NotConnected
-          :> CanThrow InvalidTransition
-          :> CanThrow NoIdentity
+          :> CanThrow 'MissingLegalholdConsent
+          :> CanThrow 'InvalidUser
+          :> CanThrow 'ConnectionLimitReached
+          :> CanThrow 'NotConnected
+          :> CanThrow 'InvalidTransition
+          :> CanThrow 'NoIdentity
           :> ZUser
           :> ZConn
           :> "connections"
@@ -677,6 +700,68 @@ type ConnectionAPI =
                :> Get '[Servant.JSON] (SearchResult Contact)
            )
 
+type PropertiesAPI =
+  LiftNamed
+    ( ZUser
+        :> "properties"
+        :> ( Named
+               "set-property"
+               -- This endpoint can lead to the following events being sent:
+               -- - PropertySet event to self
+               ( Summary "Set a user property"
+                   :> ZConn
+                   :> Capture "key" PropertyKey
+                   :> ReqBody '[JSON] RawPropertyValue
+                   :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Property set")
+               )
+               :<|>
+               -- This endpoint can lead to the following events being sent:
+               -- - PropertyDeleted event to self
+               Named
+                 "delete-property"
+                 ( Summary "Delete a property"
+                     :> ZConn
+                     :> Capture "key" PropertyKey
+                     :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "Property deleted")
+                 )
+               :<|>
+               -- This endpoint can lead to the following events being sent:
+               -- - PropertiesCleared event to self
+               Named
+                 "clear-properties"
+                 ( Summary "Clear all properties"
+                     :> ZConn
+                     :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 200 "Properties cleared")
+                 )
+               :<|> Named
+                      "get-property"
+                      ( Summary "Get a property value"
+                          :> Capture "key" PropertyKey
+                          :> MultiVerb
+                               'GET
+                               '[JSON]
+                               '[ EmptyErrorForLegacyReasons 404 "Property not found",
+                                  Respond 200 "The property value" RawPropertyValue
+                                ]
+                               (Maybe RawPropertyValue)
+                      )
+               :<|> Named
+                      "list-property-keys"
+                      ( Summary "List all property keys"
+                          :> MultiVerb1 'GET '[JSON] (Respond 200 "List of property keys" [PropertyKey])
+                      )
+           )
+    )
+    :<|> Named
+           "list-properties"
+           ( Summary "List all properties with key and value"
+               :> ZUser
+               :> "properties-values"
+               :> Get '[JSON] PropertyKeysAndValues
+           )
+
+-- Properties API -----------------------------------------------------
+
 type MLSKeyPackageAPI =
   "key-packages"
     :> ( Named
@@ -684,8 +769,8 @@ type MLSKeyPackageAPI =
            ( "self"
                :> Summary "Upload a fresh batch of key packages"
                :> Description "The request body should be a json object containing a list of base64-encoded key packages."
-               :> CanThrow MLSProtocolError
-               :> CanThrow MLSIdentityMismatch
+               :> CanThrow 'MLSProtocolError
+               :> CanThrow 'MLSIdentityMismatch
                :> CaptureClientId "client"
                :> ReqBody '[JSON] KeyPackageUpload
                :> MultiVerb 'POST '[JSON, MLS] '[RespondEmpty 201 "Key packages uploaded"] ()
@@ -714,10 +799,12 @@ type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)
 type BrigAPI =
   UserAPI
     :<|> SelfAPI
+    :<|> AccountAPI
     :<|> ClientAPI
     :<|> PrekeyAPI
     :<|> UserClientAPI
     :<|> ConnectionAPI
+    :<|> PropertiesAPI
     :<|> MLSAPI
 
 brigSwagger :: Swagger

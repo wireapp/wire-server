@@ -2,11 +2,14 @@
     "accent_id": -3,
     "created_at": "1864-05-06T18:23:32.240Z",
     "email": "</o@C31",
+    "email_unvalidated": "foobar@example.com",
     "handle": "0􈿛󹘉",
     "id": "00000001-0000-0001-0000-000100000000",
     "managed_by": "scim",
     "name": "",
     "role": "owner",
     "saml_idp": "",
+    "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
+    "sso": null,
     "team": "00000001-0000-0002-0000-000100000001"
 }

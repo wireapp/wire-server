@@ -87,6 +87,9 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import Util
 import Web.Cookie (SetCookie (..), parseSetCookie)
+import Wire.API.Asset hiding (Asset)
+import Wire.API.Event.Conversation
+import qualified Wire.API.Team.Feature as Public
 
 tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
 tests dom conf p db b c g = do
@@ -143,6 +146,11 @@ tests dom conf p db b c g = do
             test p "message" $ testMessageBotTeam conf db b g c,
             test p "delete conv" $ testDeleteConvBotTeam conf db b g c,
             test p "delete team" $ testDeleteTeamBotTeam conf db b g c
+          ],
+        testGroup
+          "block bot api if 2nd factor password challenge enabled"
+          [ test p "add" $ testAddBotBlocked conf db b g,
+            test p "GET /bot/conversation (galley endpoint)" $ testGetBotConvBlocked conf db b g c
           ]
       ]
 
@@ -540,7 +548,28 @@ testAddBotForbidden config db brig galley = withTestService config db brig defSe
   _rs <- createConvWithAccessRoles (Just accessRoles) galley uid1 [uid2] <!! const 201 === statusCode
   let Just cnv = responseJsonMaybe _rs
   let cid = qUnqualified . cnvQualifiedId $ cnv
-  addBot brig uid1 pid sid cid !!! const 403 === statusCode
+  addBot brig uid1 pid sid cid !!! do
+    const 403 === statusCode
+    const (Just "invalid-conversation") === fmap Error.label . responseJsonMaybe
+
+testAddBotBlocked :: Config -> DB.ClientState -> Brig -> Galley -> Http ()
+testAddBotBlocked config db brig galley = withTestService config db brig defServiceApp $ \sref _buf -> do
+  (userId -> u1, _, _, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
+  enabled2ndFaForTeamInternal galley tid
+  addBot brig u1 pid sid cid !!! do
+    const 403 === statusCode
+    const (Just "access-denied") === fmap Error.label . responseJsonMaybe
+
+testGetBotConvBlocked :: Config -> DB.ClientState -> Brig -> Galley -> Cannon -> Http ()
+testGetBotConvBlocked config db brig galley cannon = withTestService config db brig defServiceApp $ \sref buf -> do
+  (user1, userId -> u2, _, tid, cid, pid, sid) <- prepareBotUsersTeam brig galley sref
+  let Qualified u1 localDomain = userQualifiedId user1
+  bid <- addBotConv localDomain brig cannon u1 u2 cid pid sid buf
+  getBotConv galley bid cid !!! const 200 === statusCode
+  enabled2ndFaForTeamInternal galley tid
+  getBotConv galley bid cid !!! do
+    const 403 === statusCode
+    const (Just "access-denied") === fmap Error.label . responseJsonMaybe
 
 prepareUsers :: ServiceRef -> Brig -> Http (ProviderId, ServiceId, User, User, Text)
 prepareUsers sref brig = do
@@ -1293,7 +1322,7 @@ createConvWithAccessRoles ars g u us =
       . contentJson
       . body (RequestBodyLBS (encode conv))
   where
-    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin
+    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
 
 postMessage ::
   Galley ->
@@ -1361,6 +1390,22 @@ updateConversationAccess galley uid cid access role =
       . body (RequestBodyLBS (encode upd))
   where
     upd = ConversationAccessData (Set.fromList access) role
+
+enabled2ndFaForTeamInternal :: Galley -> TeamId -> Http ()
+enabled2ndFaForTeamInternal galley tid = do
+  put
+    ( galley
+        . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge, toByteString' Public.Unlocked]
+        . contentJson
+    )
+    !!! const 200 === statusCode
+  put
+    ( galley
+        . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge]
+        . contentJson
+        . Bilge.json (Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled)
+    )
+    !!! const 200 === statusCode
 
 --------------------------------------------------------------------------------
 -- DB Operations
@@ -1560,7 +1605,11 @@ defServiceTags :: Range 1 3 (Set ServiceTag)
 defServiceTags = unsafeRange (Set.singleton SocialTag)
 
 defServiceAssets :: [Asset]
-defServiceAssets = [ImageAsset "key" (Just AssetComplete)]
+defServiceAssets =
+  [ ImageAsset
+      (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring)
+      (Just AssetComplete)
+  ]
 
 -- TODO: defServiceToken :: ServiceToken
 

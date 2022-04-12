@@ -30,14 +30,22 @@ import Cassandra.CQL
 import Control.Error (note)
 import Data.Aeson (eitherDecode, encode)
 import qualified Data.Aeson as JSON
+import Data.ByteString.Conversion
+import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain, domainText, mkDomain)
 import Data.Handle (Handle (..))
 import Data.Id ()
 import Data.Range ()
 import Data.String.Conversions (LBS, ST, cs)
+import qualified Data.Text as T
 import Data.Text.Ascii ()
+import Data.Text.Encoding (encodeUtf8)
 import Imports
+import Wire.API.Asset (AssetKey, assetKeyToText, nilAssetKey)
 import Wire.API.Connection (RelationWithHistory (..))
+import Wire.API.MLS.Credential
+import Wire.API.MLS.KeyPackage
+import Wire.API.Properties
 import Wire.API.User.RichInfo
 
 deriving instance Cql Name
@@ -126,6 +134,14 @@ instance Cql Pict where
 
   toCql = toCql . map (Blob . JSON.encode) . fromPict
 
+instance Cql AssetKey where
+  ctype = Tagged TextColumn
+  toCql = CqlText . assetKeyToText
+
+  -- if the asset key is invalid we will return the nil asset key (`3-1-00000000-0000-0000-0000-000000000000`)
+  fromCql (CqlText txt) = pure $ fromRight nilAssetKey $ runParser parser $ encodeUtf8 txt
+  fromCql _ = Left "AssetKey: Expected CqlText"
+
 instance Cql AssetSize where
   ctype = Tagged IntColumn
 
@@ -171,7 +187,7 @@ instance Cql Asset where
   toCql (ImageAsset k s) =
     CqlUdt
       [ ("typ", CqlInt 0),
-        ("key", CqlText k),
+        ("key", toCql k),
         ("size", toCql s)
       ]
 
@@ -217,12 +233,10 @@ instance Cql ClientClass where
   fromCql (CqlInt 3) = return LegalHoldClient
   fromCql _ = Left "ClientClass: Int [0, 3] expected"
 
-instance Cql PropertyValue where
+instance Cql RawPropertyValue where
   ctype = Tagged BlobColumn
-  toCql = toCql . Blob . JSON.encode . propertyValueJson
-  fromCql (CqlBlob v) = case JSON.eitherDecode v of
-    Left e -> Left ("Failed to read property value: " <> e)
-    Right x -> pure (PropertyValue x)
+  toCql = toCql . Blob . rawPropertyBytes
+  fromCql (CqlBlob v) = pure (RawPropertyValue v)
   fromCql _ = Left "PropertyValue: Blob expected"
 
 instance Cql Country where
@@ -264,3 +278,33 @@ instance Cql Domain where
   toCql = CqlText . domainText
   fromCql (CqlText txt) = mkDomain txt
   fromCql _ = Left "Domain: Text expected"
+
+instance Cql SignatureSchemeTag where
+  ctype = Tagged TextColumn
+  toCql = CqlText . signatureSchemeName
+  fromCql (CqlText name) =
+    note ("Unexpected signature scheme: " <> T.unpack name) $
+      signatureSchemeFromName name
+  fromCql _ = Left "SignatureScheme: Text expected"
+
+instance Cql KeyPackageRef where
+  ctype = Tagged BlobColumn
+  toCql = CqlBlob . LBS.fromStrict . unKeyPackageRef
+  fromCql (CqlBlob b) = pure . KeyPackageRef . LBS.toStrict $ b
+  fromCql _ = Left "Expected CqlBlob"
+
+instance Cql KeyPackageData where
+  ctype = Tagged BlobColumn
+  toCql = CqlBlob . LBS.fromStrict . kpData
+  fromCql (CqlBlob b) = pure . KeyPackageData . LBS.toStrict $ b
+  fromCql _ = Left "Expected CqlBlob"
+
+instance Cql SearchVisibilityInbound where
+  ctype = Tagged IntColumn
+
+  toCql SearchableByOwnTeam = CqlInt 0
+  toCql SearchableByAllTeams = CqlInt 1
+
+  fromCql (CqlInt 0) = pure SearchableByOwnTeam
+  fromCql (CqlInt 1) = pure SearchableByAllTeams
+  fromCql n = Left $ "Unexpected SearchVisibilityInbound: " ++ show n

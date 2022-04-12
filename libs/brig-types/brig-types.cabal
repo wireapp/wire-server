@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8325cabb6835adebe7d0c773eb6059ab230d35b8f8b0b22c5d618f3dc91f66fd
+-- hash: a7cacdf99171212e57ec80402a14ea2967be26c201f71bf7d114ff504e76ef76
 
 name:           brig-types
 version:        1.35.0
@@ -29,7 +29,6 @@ library
       Brig.Types.Connection
       Brig.Types.Instances
       Brig.Types.Intra
-      Brig.Types.Properties
       Brig.Types.Provider
       Brig.Types.Provider.External
       Brig.Types.Provider.Tag
@@ -91,6 +90,7 @@ library
     , aeson >=2.0.1.0
     , attoparsec >=0.10
     , base ==4.*
+    , bytestring
     , bytestring-conversion >=0.2
     , cassandra-util
     , containers >=0.5
@@ -166,6 +166,7 @@ test-suite brig-types-tests
     , attoparsec >=0.10
     , base ==4.*
     , brig-types
+    , bytestring
     , bytestring-conversion >=0.3.1
     , containers >=0.5
     , imports

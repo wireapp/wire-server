@@ -44,8 +44,8 @@ import Wire.API.User.Client
 uploadKeyPackages :: Local UserId -> ClientId -> KeyPackageUpload -> Handler r ()
 uploadKeyPackages lusr cid (kpuKeyPackages -> kps) = do
   let identity = mkClientIdentity (qUntagged lusr) cid
-  kps' <- traverse (validateKeyPackageData identity) kps
-  lift $ Data.insertKeyPackages (tUnqualified lusr) cid kps'
+  kps' <- traverse (validateKeyPackage identity) kps
+  lift . wrapClient $ Data.insertKeyPackages (tUnqualified lusr) cid kps'
 
 claimKeyPackages :: Local UserId -> Qualified UserId -> Handler r KeyPackageBundle
 claimKeyPackages lusr =
@@ -56,20 +56,20 @@ claimKeyPackages lusr =
 
 claimLocalKeyPackages :: Local UserId -> Local UserId -> Handler r KeyPackageBundle
 claimLocalKeyPackages lusr target = do
-  clients <- map clientId <$> Data.lookupClients (tUnqualified target)
+  clients <- map clientId <$> wrapClientE (Data.lookupClients (tUnqualified target))
   withExceptT clientError $
-    guardLegalhold (ProtectedUser (tUnqualified lusr)) (mkUserClients [(tUnqualified target, clients)])
+    wrapHttpClientE $ guardLegalhold (ProtectedUser (tUnqualified lusr)) (mkUserClients [(tUnqualified target, clients)])
   lift $
     KeyPackageBundle . Set.fromList . catMaybes <$> traverse mkEntry clients
   where
-    mkEntry :: ClientId -> AppIO r (Maybe KeyPackageBundleEntry)
+    mkEntry :: ClientId -> AppT r (Maybe KeyPackageBundleEntry)
     mkEntry c =
       runMaybeT $
-        KeyPackageBundleEntry (qUntagged target) c
-          <$> Data.claimKeyPackage (tUnqualified target) c
+        uncurry (KeyPackageBundleEntry (qUntagged target) c)
+          <$> wrapClientM (Data.claimKeyPackage target c)
 
 countKeyPackages :: Local UserId -> ClientId -> Handler r KeyPackageCount
 countKeyPackages lusr c =
   lift $
     KeyPackageCount . fromIntegral
-      <$> Data.countKeyPackages (tUnqualified lusr) c
+      <$> wrapClient (Data.countKeyPackages (tUnqualified lusr) c)

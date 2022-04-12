@@ -28,7 +28,8 @@ import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import URI.ByteString
 import Wire.API.Asset
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import Wire.API.Error.Cargohold
 import Wire.API.Routes.AssetBody
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public
@@ -81,13 +82,13 @@ type GetAsset =
   MultiVerb
     'GET
     '[JSON]
-    '[AssetNotFound, AssetRedirect]
+    '[ErrorResponse 'AssetNotFound, AssetRedirect]
     (Maybe (AssetLocation Absolute))
 
 type ServantAPI =
   ( Summary "Renew an asset token"
-      :> CanThrow AssetNotFound
-      :> CanThrow Unauthorised
+      :> CanThrow 'AssetNotFound
+      :> CanThrow 'Unauthorised
       :> ZLocalUser
       :> "assets"
       :> "v3"
@@ -116,8 +117,8 @@ type ServantAPI =
 
 type BaseAPIv3 (tag :: PrincipalTag) =
   ( Summary "Upload an asset"
-      :> CanThrow AssetTooLarge
-      :> CanThrow InvalidLength
+      :> CanThrow 'AssetTooLarge
+      :> CanThrow 'InvalidLength
       :> tag
       :> AssetBody
       :> MultiVerb
@@ -138,8 +139,8 @@ type BaseAPIv3 (tag :: PrincipalTag) =
              :> GetAsset
          )
     :<|> ( Summary "Delete an asset"
-             :> CanThrow AssetNotFound
-             :> CanThrow Unauthorised
+             :> CanThrow 'AssetNotFound
+             :> CanThrow 'Unauthorised
              :> tag
              :> Capture "key" AssetKey
              :> MultiVerb
@@ -163,7 +164,7 @@ type QualifiedAPI =
       :> MultiVerb
            'GET
            '()
-           '[ AssetNotFound,
+           '[ ErrorResponse 'AssetNotFound,
               AssetRedirect,
               AssetStreaming
             ]
@@ -171,8 +172,8 @@ type QualifiedAPI =
   )
     :<|> ( Summary "Delete an asset"
              :> Description "**Note**: only local assets can be deleted."
-             :> CanThrow AssetNotFound
-             :> CanThrow Unauthorised
+             :> CanThrow 'AssetNotFound
+             :> CanThrow 'Unauthorised
              :> ZLocalUser
              :> "assets"
              :> "v4"

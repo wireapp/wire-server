@@ -65,6 +65,7 @@ library:
   - mime >=0.4
   - mtl
   - pem >=0.2
+  - polysemy
   - protobuf >=0.2
   - proto-lens
   - QuickCheck >=2.14
@@ -83,6 +84,7 @@ library:
   - string-conversions
   - swagger >=0.1
   - swagger2
+  - tagged
   - text >=0.11
   - time >=1.4
   - unordered-containers >=0.2
@@ -114,6 +116,7 @@ tests:
     - cassava
     - currency-codes
     - directory
+    - either
     - hex
     - iso3166-country-codes
     - iso639
@@ -123,6 +126,7 @@ tests:
     - pretty
     - proto-lens
     - QuickCheck
+    - schema-profunctor
     - string-conversions
     - swagger2
     - tasty

@@ -26,6 +26,7 @@ import Data.Id
 import Data.Qualified
 import Imports
 import System.Logger.Class
+import Wire.API.Properties
 
 data Event
   = UserEvent !UserEvent

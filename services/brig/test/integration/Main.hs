@@ -141,7 +141,7 @@ runTests iConf brigOpts otherArgs = do
   includeFederationTests <- (== Just "1") <$> Blank.getEnv "INTEGRATION_FEDERATION_TESTS"
   internalApi <- API.Internal.tests brigOpts mg db b (brig iConf) gd g
 
-  let versionApi = API.Version.tests mg b
+  let versionApi = API.Version.tests mg brigOpts b
 
   let mlsApi = MLS.tests mg b brigOpts
 

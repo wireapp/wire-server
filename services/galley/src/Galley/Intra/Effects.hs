@@ -70,12 +70,17 @@ interpretBrigAccess = interpret $ \case
   NotifyClientsAboutLegalHoldRequest self other pk ->
     embedApp $ notifyClientsAboutLegalHoldRequest self other pk
   GetLegalHoldAuthToken uid mpwd -> getLegalHoldAuthToken uid mpwd
-  AddLegalHoldClientToUser uid conn pks lpk ->
+  AddLegalHoldClientToUserEither uid conn pks lpk ->
     embedApp $ addLegalHoldClientToUser uid conn pks lpk
   RemoveLegalHoldClientFromUser uid ->
     embedApp $ removeLegalHoldClientFromUser uid
   GetAccountFeatureConfigClient uid ->
     embedApp $ getAccountFeatureConfigClient uid
+  GetClientByKeyPackageRef ref ->
+    embedApp $ getClientByKeyPackageRef ref
+  GetMLSClients qusr -> embedApp $ getMLSClients qusr
+  UpdateSearchVisibilityInbound status ->
+    embedApp $ updateSearchVisibilityInbound status
 
 interpretSparAccess ::
   Members '[Embed IO, Input Env] r =>

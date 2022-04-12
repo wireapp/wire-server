@@ -28,6 +28,7 @@ import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Imports
 import Wire.API.Conversation
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 
 domain :: Domain
@@ -77,7 +78,8 @@ conv1 =
                   memConvRoleName = fromJust (parseRoleName "rhhdzf0j0njilixx0g0vzrp06b_5us")
                 },
             cmOthers = []
-          }
+          },
+      cnvProtocol = ProtocolProteus
     }
 
 conv2 :: Conversation
@@ -124,5 +126,6 @@ conv2 =
                     fromJust (parseRoleName "9b2d3thyqh4ptkwtq2n2v9qsni_ln1ca66et_z8dlhfs9oamp328knl3rj9kcj")
                 },
             cmOthers = []
-          }
+          },
+      cnvProtocol = ProtocolMLS (ConversationMLSData (GroupId ("test_group")) (Epoch 42))
     }

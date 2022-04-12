@@ -29,6 +29,7 @@ import qualified Wire.API.Asset as Asset
 import qualified Wire.API.Call.Config as Call.Config
 import qualified Wire.API.Connection as Connection
 import qualified Wire.API.Conversation as Conversation
+import qualified Wire.API.Conversation.Action as Conversation.Action
 import qualified Wire.API.Conversation.Bot as Conversation.Bot
 import qualified Wire.API.Conversation.Code as Conversation.Code
 import qualified Wire.API.Conversation.Member as Conversation.Member
@@ -141,7 +142,6 @@ tests =
       testRoundTrip @Message.NewOtrMessage,
       testRoundTrip @Message.ClientMismatch,
       testRoundTrip @Properties.PropertyKey,
-      testRoundTrip @Properties.PropertyValue,
       testRoundTrip @Provider.Provider,
       testRoundTrip @Provider.ProviderProfile,
       testRoundTrip @Provider.NewProvider,
@@ -200,6 +200,7 @@ tests =
       testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureSelfDeletingMessages),
       testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithLockStatus 'Team.Feature.TeamFeatureSelfDeletingMessages),
       testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureSelfDeletingMessages),
+      testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureSearchVisibilityInbound),
       testRoundTrip @Team.Feature.TeamFeatureStatusValue,
       testRoundTrip @Team.Feature.LockStatusValue,
       testRoundTrip @Team.Feature.LockStatus,
@@ -251,7 +252,7 @@ tests =
       testRoundTrip @User.DeleteUser,
       testRoundTrip @User.VerifyDeleteUser,
       testRoundTrip @User.DeletionCodeTimeout,
-      testRoundTrip @User.SndFactorPasswordChallengeAction,
+      testRoundTrip @User.VerificationAction,
       testRoundTrip @User.SendVerificationCode,
       testRoundTrip @User.Activation.ActivationKey,
       -- FUTUREWORK: this should probably be tested individually,
@@ -297,7 +298,6 @@ tests =
       testRoundTrip @User.Identity.Email,
       testRoundTrip @User.Identity.Phone,
       testRoundTrip @User.Identity.UserSSOId,
-      testRoundTrip @User.Identity.UserIdentity,
       testRoundTrip @User.Password.NewPasswordReset,
       testRoundTrip @User.Password.PasswordResetKey,
       -- FUTUREWORK: this should probably be tested individually,
@@ -318,7 +318,8 @@ tests =
       testRoundTrip @User.RichInfo.RichInfo,
       testRoundTrip @(User.Search.SearchResult User.Search.TeamContact),
       testRoundTrip @User.Search.TeamContact,
-      testRoundTrip @(Wrapped.Wrapped "some_int" Int)
+      testRoundTrip @(Wrapped.Wrapped "some_int" Int),
+      testRoundTrip @Conversation.Action.SomeConversationAction
     ]
 
 testRoundTrip ::

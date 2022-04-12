@@ -17,7 +17,7 @@
 
 module Brig.API.MLS.KeyPackages.Validation
   ( -- * Main key package validation function
-    validateKeyPackageData,
+    validateKeyPackage,
 
     -- * Exported for unit tests
     findExtensions,
@@ -28,6 +28,7 @@ where
 import Brig.API.Error
 import Brig.API.Handler
 import Brig.App
+import qualified Brig.Data.Client as Data
 import Brig.Options
 import Control.Applicative
 import Control.Lens (view)
@@ -35,53 +36,59 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import Imports
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import Wire.API.Error.Brig
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Extension
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 
-validateKeyPackageData :: ClientIdentity -> KeyPackageData -> Handler r (KeyPackageRef, KeyPackageData)
-validateKeyPackageData identity kpd = do
-  -- parse key package data
-  (kp, tbs) <- parseKeyPackage kpd
+validateKeyPackage :: ClientIdentity -> RawMLS KeyPackage -> Handler r (KeyPackageRef, KeyPackageData)
+validateKeyPackage identity (RawMLS (KeyPackageData -> kpd) kp) = do
   -- get ciphersuite
   cs <-
     maybe
-      (throwErrorDescription (mlsProtocolError "Unsupported ciphersuite"))
+      (mlsProtocolError "Unsupported ciphersuite")
       pure
-      $ cipherSuiteTag (kpCipherSuite (kpTBS kp))
+      $ cipherSuiteTag (kpCipherSuite kp)
+
+  -- validate signature scheme
+  let ss = csSignatureScheme cs
+  when (signatureScheme ss /= bcSignatureScheme (kpCredential kp)) $
+    mlsProtocolError "Signature scheme incompatible with ciphersuite"
+
+  -- authenticate signature key
+  key <-
+    fmap LBS.toStrict $
+      maybe
+        (mlsProtocolError "No key associated to the given identity and signature scheme")
+        pure
+        =<< lift (wrapClient (Data.lookupMLSPublicKey (ciUser identity) (ciClient identity) ss))
+  when (key /= bcSignatureKey (kpCredential kp)) $
+    mlsProtocolError "Unrecognised signature key"
+
   -- validate signature
-  -- FUTUREWORK: authenticate signature key
-  let key = bcSignatureKey (kpCredential (kpTBS kp))
-  unless (csVerifySignature cs key (LBS.toStrict tbs) (kpSignature kp)) $
-    throwErrorDescription (mlsProtocolError "Invalid signature")
-  -- validate credential and extensions
-  validateKeyPackage identity kp
-  pure (kpRef cs kpd, kpd)
-
--- | Parse a key package, and return parsed structure and signed data.
-parseKeyPackage :: KeyPackageData -> Handler r (KeyPackage, LByteString)
-parseKeyPackage (kpData -> kpd) = do
-  (kp, off) <- either (throwErrorDescription . mlsProtocolError) pure (decodeMLSWith kpSigOffset kpd)
-  pure (kp, LBS.take off kpd)
-
-validateKeyPackage :: ClientIdentity -> KeyPackage -> Handler r ()
-validateKeyPackage identity (kpTBS -> kp) = do
+  unless (csVerifySignature cs key (rmRaw (kpTBS kp)) (kpSignature kp)) $
+    mlsProtocolError "Invalid signature"
+  -- validate protocol version
   maybe
-    (throwErrorDescription (mlsProtocolError "Unsupported protocol version"))
+    (mlsProtocolError "Unsupported protocol version")
     pure
     (pvTag (kpProtocolVersion kp) >>= guard . (== ProtocolMLS10))
+  -- validate credential
   validateCredential identity (kpCredential kp)
+  -- validate extensions
   validateExtensions (kpExtensions kp)
+  pure (kpRef cs kpd, kpd)
 
 validateCredential :: ClientIdentity -> Credential -> Handler r ()
 validateCredential identity cred = do
   identity' <-
-    either (throwErrorDescription . mlsProtocolError) pure $
+    either mlsProtocolError pure $
       decodeMLS' (bcIdentity cred)
   when (identity /= identity') $
-    throwErrorDescriptionType @MLSIdentityMismatch
+    throwStd (errorToWai @'MLSIdentityMismatch)
 
 data RequiredExtensions f = RequiredExtensions
   { reLifetime :: f Lifetime,
@@ -107,21 +114,20 @@ findExtensions :: [Extension] -> Either Text (RequiredExtensions Identity)
 findExtensions = (checkRequiredExtensions =<<) . getAp . foldMap findExtension
 
 findExtension :: Extension -> Ap (Either Text) (RequiredExtensions Maybe)
-findExtension ext = flip foldMap (decodeExtension ext) $ \case
+findExtension ext = (Ap (decodeExtension ext) >>=) . foldMap $ \case
   (SomeExtension SLifetimeExtensionTag lt) -> pure $ RequiredExtensions (Just lt) Nothing
   (SomeExtension SCapabilitiesExtensionTag _) -> pure $ RequiredExtensions Nothing (Just ())
-  _ -> Ap (Left "Invalid extension")
 
 validateExtensions :: [Extension] -> Handler r ()
 validateExtensions exts = do
-  re <- either (throwErrorDescription . mlsProtocolError) pure $ findExtensions exts
+  re <- either mlsProtocolError pure $ findExtensions exts
   validateLifetime . runIdentity . reLifetime $ re
 
 validateLifetime :: Lifetime -> Handler r ()
 validateLifetime lt = do
   now <- liftIO getPOSIXTime
   mMaxLifetime <- setKeyPackageMaximumLifetime <$> view settings
-  either (throwErrorDescription . mlsProtocolError) pure $
+  either mlsProtocolError pure $
     validateLifetime' now mMaxLifetime lt
 
 validateLifetime' :: POSIXTime -> Maybe NominalDiffTime -> Lifetime -> Either Text ()
@@ -133,3 +139,10 @@ validateLifetime' now mMaxLifetime lt = do
   for_ mMaxLifetime $ \maxLifetime ->
     when (tsPOSIX (ltNotAfter lt) > now + maxLifetime) $
       Left "Key package expiration time is too far in the future"
+
+mlsProtocolError :: Text -> Handler r a
+mlsProtocolError msg =
+  throwStd . toWai $
+    (dynError @(MapError 'MLSProtocolError))
+      { eMessage = msg
+      }

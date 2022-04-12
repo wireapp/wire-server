@@ -32,6 +32,7 @@ module Brig.User.Auth.Cookie
 
     -- * HTTP
     setResponseCookie,
+    toWebCookie,
 
     -- * Re-exports
     Cookie (..),
@@ -46,7 +47,9 @@ import Brig.Types.User.Auth hiding (user)
 import Brig.User.Auth.Cookie.Limit
 import qualified Brig.User.Auth.DB.Cookie as DB
 import qualified Brig.ZAuth as ZAuth
+import Cassandra
 import Control.Lens (to, view)
+import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id
 import qualified Data.List as List
@@ -64,11 +67,17 @@ import qualified Web.Cookie as WebCookie
 -- Basic Cookie Management
 
 newCookie ::
-  ZAuth.UserTokenLike u =>
+  ( ZAuth.UserTokenLike u,
+    MonadReader Env m,
+    MonadIO m,
+    ZAuth.MonadZAuth m,
+    MonadThrow m,
+    MonadClient m
+  ) =>
   UserId ->
   CookieType ->
   Maybe CookieLabel ->
-  (AppIO r) (Cookie (ZAuth.Token u))
+  m (Cookie (ZAuth.Token u))
 newCookie uid typ label = do
   now <- liftIO =<< view currentTime
   tok <-
@@ -90,7 +99,17 @@ newCookie uid typ label = do
 
 -- | Renew the given cookie with a fresh token, if its age
 -- exceeds the configured minimum threshold.
-nextCookie :: ZAuth.UserTokenLike u => Cookie (ZAuth.Token u) -> (AppIO r) (Maybe (Cookie (ZAuth.Token u)))
+nextCookie ::
+  ( ZAuth.UserTokenLike u,
+    MonadReader Env m,
+    MonadIO m,
+    MonadIO m,
+    Log.MonadLogger m,
+    ZAuth.MonadZAuth m,
+    MonadClient m
+  ) =>
+  Cookie (ZAuth.Token u) ->
+  m (Maybe (Cookie (ZAuth.Token u)))
 nextCookie c = do
   s <- view settings
   now <- liftIO =<< view currentTime
@@ -116,7 +135,14 @@ nextCookie c = do
             return c' {cookieValue = t}
 
 -- | Renew the given cookie with a fresh token.
-renewCookie :: ZAuth.UserTokenLike u => Cookie (ZAuth.Token u) -> (AppIO r) (Cookie (ZAuth.Token u))
+renewCookie ::
+  ( ZAuth.UserTokenLike u,
+    MonadReader Env m,
+    ZAuth.MonadZAuth m,
+    MonadClient m
+  ) =>
+  Cookie (ZAuth.Token u) ->
+  m (Cookie (ZAuth.Token u))
 renewCookie old = do
   let t = cookieValue old
   let uid = ZAuth.userTokenOf t
@@ -134,7 +160,7 @@ renewCookie old = do
 -- 'suspendCookiesOlderThanSecs'.  Call this always before 'newCookie', 'nextCookie',
 -- 'newCookieLimited' if there is a chance that the user should be suspended (we don't do it
 -- implicitly because of cyclical dependencies).
-mustSuspendInactiveUser :: UserId -> (AppIO r) Bool
+mustSuspendInactiveUser :: (MonadReader Env m, MonadIO m, MonadClient m) => UserId -> m Bool
 mustSuspendInactiveUser uid =
   view (settings . to setSuspendInactiveUsers) >>= \case
     Nothing -> pure False
@@ -151,7 +177,12 @@ mustSuspendInactiveUser uid =
             | otherwise = True
       pure mustSuspend
 
-newAccessToken :: forall u a r. ZAuth.TokenPair u a => Cookie (ZAuth.Token u) -> Maybe (ZAuth.Token a) -> (AppIO r) AccessToken
+newAccessToken ::
+  forall u a m.
+  (ZAuth.TokenPair u a, MonadReader Env m, ZAuth.MonadZAuth m) =>
+  Cookie (ZAuth.Token u) ->
+  Maybe (ZAuth.Token a) ->
+  m AccessToken
 newAccessToken c mt = do
   t' <- case mt of
     Nothing -> ZAuth.newAccessToken (cookieValue c)
@@ -166,7 +197,7 @@ newAccessToken c mt = do
 
 -- | Lookup the stored cookie associated with a user token,
 -- if one exists.
-lookupCookie :: ZAuth.UserTokenLike u => ZAuth.Token u -> (AppIO r) (Maybe (Cookie (ZAuth.Token u)))
+lookupCookie :: (ZAuth.UserTokenLike u, MonadClient m) => ZAuth.Token u -> m (Maybe (Cookie (ZAuth.Token u)))
 lookupCookie t = do
   let user = ZAuth.userTokenOf t
   let rand = ZAuth.userTokenRand t
@@ -175,16 +206,16 @@ lookupCookie t = do
   where
     setToken c = c {cookieValue = t}
 
-listCookies :: UserId -> [CookieLabel] -> (AppIO r) [Cookie ()]
+listCookies :: MonadClient m => UserId -> [CookieLabel] -> m [Cookie ()]
 listCookies u [] = DB.listCookies u
 listCookies u ll = filter byLabel <$> DB.listCookies u
   where
     byLabel c = maybe False (`elem` ll) (cookieLabel c)
 
-revokeAllCookies :: UserId -> (AppIO r) ()
+revokeAllCookies :: MonadClient m => UserId -> m ()
 revokeAllCookies u = revokeCookies u [] []
 
-revokeCookies :: UserId -> [CookieId] -> [CookieLabel] -> (AppIO r) ()
+revokeCookies :: MonadClient m => UserId -> [CookieId] -> [CookieLabel] -> m ()
 revokeCookies u [] [] = DB.deleteAllCookies u
 revokeCookies u ids labels = do
   cc <- filter matching <$> DB.listCookies u
@@ -198,11 +229,16 @@ revokeCookies u ids labels = do
 -- Limited Cookies
 
 newCookieLimited ::
-  ZAuth.UserTokenLike t =>
+  ( ZAuth.UserTokenLike t,
+    MonadReader Env m,
+    MonadIO m,
+    MonadClient m,
+    ZAuth.MonadZAuth m
+  ) =>
   UserId ->
   CookieType ->
   Maybe CookieLabel ->
-  (AppIO r) (Either RetryAfter (Cookie (ZAuth.Token t)))
+  m (Either RetryAfter (Cookie (ZAuth.Token t)))
 newCookieLimited u typ label = do
   cs <- filter ((typ ==) . cookieType) <$> DB.listCookies u
   now <- liftIO =<< view currentTime
@@ -226,27 +262,29 @@ setResponseCookie ::
   Response ->
   m Response
 setResponseCookie c r = do
-  s <- view settings
-  let hdr = toByteString' (WebCookie.renderSetCookie (cookie s))
+  hdr <- toByteString' . WebCookie.renderSetCookie <$> toWebCookie c
   return (addHeader "Set-Cookie" hdr r)
-  where
-    cookie s =
-      WebCookie.def
-        { WebCookie.setCookieName = "zuid",
-          WebCookie.setCookieValue = toByteString' (cookieValue c),
-          WebCookie.setCookiePath = Just "/access",
-          WebCookie.setCookieExpires =
-            if cookieType c == PersistentCookie
-              then Just (cookieExpires c)
-              else Nothing,
-          WebCookie.setCookieSecure = not (setCookieInsecure s),
-          WebCookie.setCookieHttpOnly = True
-        }
+
+toWebCookie :: (Monad m, MonadReader Env m, ZAuth.UserTokenLike u) => Cookie (ZAuth.Token u) -> m WebCookie.SetCookie
+toWebCookie c = do
+  s <- view settings
+  pure $
+    WebCookie.def
+      { WebCookie.setCookieName = "zuid",
+        WebCookie.setCookieValue = toByteString' (cookieValue c),
+        WebCookie.setCookiePath = Just "/access",
+        WebCookie.setCookieExpires =
+          if cookieType c == PersistentCookie
+            then Just (cookieExpires c)
+            else Nothing,
+        WebCookie.setCookieSecure = not (setCookieInsecure s),
+        WebCookie.setCookieHttpOnly = True
+      }
 
 --------------------------------------------------------------------------------
 -- Tracking
 
-trackSuperseded :: UserId -> CookieId -> (AppIO r) ()
+trackSuperseded :: (MonadReader Env m, MonadIO m, Log.MonadLogger m) => UserId -> CookieId -> m ()
 trackSuperseded u c = do
   m <- view metrics
   Metrics.counterIncr (Metrics.path "user.auth.cookie.superseded") m

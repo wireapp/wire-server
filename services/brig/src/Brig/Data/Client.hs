@@ -22,6 +22,9 @@ module Brig.Data.Client
     ClientDataError (..),
     AuthError (..),
     ReAuthError (..),
+    ReAuthPolicy,
+    reAuthForNewClients,
+    addClientWithReAuthPolicy,
     addClient,
     rmClient,
     hasClient,
@@ -31,13 +34,17 @@ module Brig.Data.Client
     lookupClientsBulk,
     lookupClientIds,
     lookupUsersClientIds,
-    Brig.Data.Client.updateClientLabel,
-    Brig.Data.Client.updateClientCapabilities,
+    updateClientLabel,
+    updateClientCapabilities,
 
     -- * Prekeys
     claimPrekey,
     updatePrekeys,
     lookupPrekeyIds,
+
+    -- * MLS public keys
+    addMLSPublicKeys,
+    lookupMLSPublicKey,
   )
 where
 
@@ -46,15 +53,15 @@ import qualified Amazonka.DynamoDB as AWS
 import qualified Amazonka.DynamoDB.Lens as AWS
 import Bilge.Retry (httpHandlers)
 import Brig.AWS
-import Brig.App (AppIO, awsEnv, currentTime, metrics, randomPrekeyLocalLock)
+import Brig.App
 import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import qualified Brig.Data.User as User
-import Brig.Types
 import Brig.Types.Instances ()
 import Brig.Types.User.Auth (CookieLabel)
 import Brig.User.Auth.DB.Instances ()
 import Cassandra as C hiding (Client)
+import Cassandra.Settings as C hiding (Client)
 import Control.Error
 import qualified Control.Exception.Lens as EL
 import Control.Lens
@@ -63,6 +70,7 @@ import Control.Monad.Random (randomRIO)
 import Control.Retry
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion (toByteString, toByteString')
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.HashMap.Strict as HashMap
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
@@ -78,7 +86,9 @@ import qualified System.CryptoBox as CryptoBox
 import System.Logger.Class (field, msg, val)
 import qualified System.Logger.Class as Log
 import UnliftIO (pooledMapConcurrentlyN)
-import Wire.API.User.Client (ClientCapability, ClientCapabilityList (ClientCapabilityList))
+import Wire.API.MLS.Credential
+import Wire.API.User.Client hiding (UpdateClient (..))
+import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (UserMap (..))
 
 data ClientDataError
@@ -86,21 +96,49 @@ data ClientDataError
   | ClientReAuthError !ReAuthError
   | ClientMissingAuth
   | MalformedPrekeys
+  | MLSPublicKeyDuplicate
+
+-- | Re-authentication policy.
+--
+-- For a potential new client, a policy is a function that takes as arguments
+-- the number of existing clients of the same type, and whether the client
+-- already exists, and returns whether the user should be forced to
+-- re-authenticate.
+type ReAuthPolicy = Int -> Bool -> Bool
+
+-- | Default re-authentication policy.
+--
+-- Re-authenticate if there is at least one other client.
+reAuthForNewClients :: ReAuthPolicy
+reAuthForNewClients count upsert = count > 0 && not upsert
 
 addClient ::
+  (MonadClient m, MonadReader Brig.App.Env m) =>
   UserId ->
   ClientId ->
   NewClient ->
   Int ->
   Maybe Location ->
   Maybe (Imports.Set ClientCapability) ->
-  ExceptT ClientDataError (AppIO r) (Client, [Client], Word)
-addClient u newId c maxPermClients loc cps = do
+  ExceptT ClientDataError m (Client, [Client], Word)
+addClient = addClientWithReAuthPolicy reAuthForNewClients
+
+addClientWithReAuthPolicy ::
+  (MonadClient m, MonadReader Brig.App.Env m) =>
+  ReAuthPolicy ->
+  UserId ->
+  ClientId ->
+  NewClient ->
+  Int ->
+  Maybe Location ->
+  Maybe (Imports.Set ClientCapability) ->
+  ExceptT ClientDataError m (Client, [Client], Word)
+addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients loc cps = do
   clients <- lookupClients u
   let typed = filter ((== newClientType c) . clientType) clients
   let count = length typed
   let upsert = any exists typed
-  unless (count == 0 || upsert) $
+  when (reAuthPolicy count upsert) $
     fmapLT ClientReAuthError $
       User.reauthenticate u (newClientPassword c)
   let capacity = fmap (+ (- count)) limit
@@ -120,7 +158,7 @@ addClient u newId c maxPermClients loc cps = do
     exists :: Client -> Bool
     exists = (==) newId . clientId
 
-    insert :: ExceptT ClientDataError (AppIO r) Client
+    insert :: (MonadClient m, MonadReader Brig.App.Env m) => ExceptT ClientDataError m Client
     insert = do
       -- Is it possible to do this somewhere else? Otherwise we could use `MonadClient` instead
       now <- toUTCTimeMillis <$> (liftIO =<< view currentTime)
@@ -131,11 +169,25 @@ addClient u newId c maxPermClients loc cps = do
           mdl = newClientModel c
           prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl, C.Set . Set.toList <$> cps)
       retry x5 $ write insertClient (params LocalQuorum prm)
-      return $! Client newId (newClientType c) now (newClientClass c) (newClientLabel c) (newClientCookie c) loc mdl (ClientCapabilityList $ fromMaybe mempty cps)
+      addMLSPublicKeys u newId (Map.assocs (newClientMLSPublicKeys c))
+      return
+        $! Client
+          { clientId = newId,
+            clientType = newClientType c,
+            clientTime = now,
+            clientClass = newClientClass c,
+            clientLabel = newClientLabel c,
+            clientCookie = newClientCookie c,
+            clientLocation = loc,
+            clientModel = mdl,
+            clientCapabilities = ClientCapabilityList (fromMaybe mempty cps),
+            clientMLSPublicKeys = mempty
+          }
 
 lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client)
-lookupClient u c =
-  fmap toClient
+lookupClient u c = do
+  keys <- retry x1 (query selectMLSPublicKeys (params LocalQuorum (u, c)))
+  fmap (toClient keys)
     <$> retry x1 (query1 selectClient (params LocalQuorum (u, c)))
 
 lookupClientsBulk :: (MonadClient m) => [UserId] -> m (Map UserId (Imports.Set Client))
@@ -144,10 +196,7 @@ lookupClientsBulk uids = liftClient $ do
   pure $ Map.fromList userClientTuples
   where
     getClientSetWithUser :: MonadClient m => UserId -> m (UserId, Imports.Set Client)
-    getClientSetWithUser u = (u,) . Set.fromList <$> executeQuery u
-
-    executeQuery :: MonadClient m => UserId -> m [Client]
-    executeQuery u = toClient <$$> retry x1 (query selectClients (params LocalQuorum (Identity u)))
+    getClientSetWithUser u = fmap ((u,) . Set.fromList) . lookupClients $ u
 
 lookupPubClientsBulk :: (MonadClient m) => [UserId] -> m (UserMap (Imports.Set PubClient))
 lookupPubClientsBulk uids = liftClient $ do
@@ -161,9 +210,9 @@ lookupPubClientsBulk uids = liftClient $ do
     executeQuery u = retry x1 (query selectPubClients (params LocalQuorum (Identity u)))
 
 lookupClients :: MonadClient m => UserId -> m [Client]
-lookupClients u =
-  map toClient
-    <$> retry x1 (query selectClients (params LocalQuorum (Identity u)))
+lookupClients u = do
+  keys <- retry x1 (query selectMLSPublicKeysByUser (params LocalQuorum (Identity u)))
+  toClient keys <$$> retry x1 (query selectClients (params LocalQuorum (Identity u)))
 
 lookupClientIds :: MonadClient m => UserId -> m [ClientId]
 lookupClientIds u =
@@ -184,7 +233,14 @@ lookupPrekeyIds u c =
 hasClient :: MonadClient m => UserId -> ClientId -> m Bool
 hasClient u d = isJust <$> retry x1 (query1 checkClient (params LocalQuorum (u, d)))
 
-rmClient :: UserId -> ClientId -> (AppIO r) ()
+rmClient ::
+  ( MonadClient m,
+    MonadReader Brig.App.Env m,
+    MonadCatch m
+  ) =>
+  UserId ->
+  ClientId ->
+  m ()
 rmClient u c = do
   retry x5 $ write removeClient (params LocalQuorum (u, c))
   retry x5 $ write removeClientKeys (params LocalQuorum (u, c))
@@ -212,7 +268,15 @@ updatePrekeys u c pks = do
         Success n -> return (CryptoBox.prekeyId n == keyId (prekeyId a))
         _ -> return False
 
-claimPrekey :: UserId -> ClientId -> (AppIO r) (Maybe ClientPrekey)
+claimPrekey ::
+  ( Log.MonadLogger m,
+    MonadMask m,
+    MonadClient m,
+    MonadReader Brig.App.Env m
+  ) =>
+  UserId ->
+  ClientId ->
+  m (Maybe ClientPrekey)
 claimPrekey u c =
   view randomPrekeyLocalLock >>= \case
     -- Use random prekey selection strategy
@@ -225,7 +289,7 @@ claimPrekey u c =
       prekey <- retry x1 $ query1 userPrekey (params LocalQuorum (u, c))
       removeAndReturnPreKey prekey
   where
-    removeAndReturnPreKey :: Maybe (PrekeyId, Text) -> (AppIO r) (Maybe ClientPrekey)
+    removeAndReturnPreKey :: (MonadClient f, Log.MonadLogger f) => Maybe (PrekeyId, Text) -> f (Maybe ClientPrekey)
     removeAndReturnPreKey (Just (i, k)) = do
       if i /= lastPrekeyId
         then retry x1 $ write removePrekey (params LocalQuorum (u, c, i))
@@ -237,15 +301,55 @@ claimPrekey u c =
       return $ Just (ClientPrekey c (Prekey i k))
     removeAndReturnPreKey Nothing = return Nothing
 
-    pickRandomPrekey :: [(PrekeyId, Text)] -> (AppIO r) (Maybe (PrekeyId, Text))
-    pickRandomPrekey [] = return Nothing
+    pickRandomPrekey :: MonadIO f => [(PrekeyId, Text)] -> f (Maybe (PrekeyId, Text))
+    pickRandomPrekey [] = pure Nothing
     -- unless we only have one key left
-    pickRandomPrekey [pk] = return $ Just pk
+    pickRandomPrekey [pk] = pure $ Just pk
     -- pick among list of keys, except lastPrekeyId
     pickRandomPrekey pks = do
       let pks' = filter (\k -> fst k /= lastPrekeyId) pks
       ind <- liftIO $ randomRIO (0, length pks' - 1)
       return $ atMay pks' ind
+
+lookupMLSPublicKey ::
+  MonadClient m =>
+  UserId ->
+  ClientId ->
+  SignatureSchemeTag ->
+  m (Maybe LByteString)
+lookupMLSPublicKey u c ss =
+  (fromBlob . runIdentity) <$$> retry x1 (query1 selectMLSPublicKey (params LocalQuorum (u, c, ss)))
+
+addMLSPublicKeys ::
+  MonadClient m =>
+  UserId ->
+  ClientId ->
+  [(SignatureSchemeTag, ByteString)] ->
+  ExceptT ClientDataError m ()
+addMLSPublicKeys u c = traverse_ (uncurry (addMLSPublicKey u c))
+
+addMLSPublicKey ::
+  MonadClient m =>
+  UserId ->
+  ClientId ->
+  SignatureSchemeTag ->
+  ByteString ->
+  ExceptT ClientDataError m ()
+addMLSPublicKey u c ss pk = do
+  rows <-
+    trans
+      insertMLSPublicKeys
+      ( params
+          LocalQuorum
+          (u, c, ss, Blob (LBS.fromStrict pk))
+      )
+        { serialConsistency = Just LocalSerialConsistency
+        }
+  case rows of
+    [row]
+      | C.fromRow 0 row /= Right (Just True) ->
+        throwE MLSPublicKeyDuplicate
+    _ -> pure ()
 
 -------------------------------------------------------------------------------
 -- Queries
@@ -295,11 +399,38 @@ removePrekey = "DELETE FROM prekeys where user = ? and client = ? and key = ?"
 checkClient :: PrepQuery R (UserId, ClientId) (Identity ClientId)
 checkClient = "SELECT client from clients where user = ? and client = ?"
 
+selectMLSPublicKey :: PrepQuery R (UserId, ClientId, SignatureSchemeTag) (Identity Blob)
+selectMLSPublicKey = "SELECT key from mls_public_keys where user = ? and client = ? and sig_scheme = ?"
+
+selectMLSPublicKeys :: PrepQuery R (UserId, ClientId) (SignatureSchemeTag, Blob)
+selectMLSPublicKeys = "SELECT sig_scheme, key from mls_public_keys where user = ? and client = ?"
+
+selectMLSPublicKeysByUser :: PrepQuery R (Identity UserId) (SignatureSchemeTag, Blob)
+selectMLSPublicKeysByUser = "SELECT sig_scheme, key from mls_public_keys where user = ?"
+
+insertMLSPublicKeys :: PrepQuery W (UserId, ClientId, SignatureSchemeTag, Blob) Row
+insertMLSPublicKeys =
+  "INSERT INTO mls_public_keys (user, client, sig_scheme, key) \
+  \VALUES (?, ?, ?, ?) IF NOT EXISTS"
+
 -------------------------------------------------------------------------------
 -- Conversions
 
-toClient :: (ClientId, ClientType, UTCTimeMillis, Maybe Text, Maybe ClientClass, Maybe CookieLabel, Maybe Latitude, Maybe Longitude, Maybe Text, Maybe (C.Set ClientCapability)) -> Client
-toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
+toClient ::
+  [(SignatureSchemeTag, Blob)] ->
+  ( ClientId,
+    ClientType,
+    UTCTimeMillis,
+    Maybe Text,
+    Maybe ClientClass,
+    Maybe CookieLabel,
+    Maybe Latitude,
+    Maybe Longitude,
+    Maybe Text,
+    Maybe (C.Set ClientCapability)
+  ) ->
+  Client
+toClient keys (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
   Client
     { clientId = cid,
       clientType = cty,
@@ -309,7 +440,8 @@ toClient (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
       clientCookie = cok,
       clientLocation = location <$> lat <*> lon,
       clientModel = mdl,
-      clientCapabilities = ClientCapabilityList $ maybe Set.empty (Set.fromList . C.fromSet) cps
+      clientCapabilities = ClientCapabilityList $ maybe Set.empty (Set.fromList . C.fromSet) cps,
+      clientMLSPublicKeys = fmap (LBS.toStrict . fromBlob) (Map.fromList keys)
     }
 
 toPubClient :: (ClientId, Maybe ClientClass) -> PubClient
@@ -330,13 +462,29 @@ ddbKey u c = AWS.S (UUID.toText (toUUID u) <> "." <> client c)
 key :: UserId -> ClientId -> HashMap Text AWS.AttributeValue
 key u c = HashMap.singleton ddbClient (ddbKey u c)
 
-deleteOptLock :: UserId -> ClientId -> (AppIO r) ()
+deleteOptLock ::
+  ( MonadReader Brig.App.Env m,
+    MonadCatch m,
+    MonadIO m
+  ) =>
+  UserId ->
+  ClientId ->
+  m ()
 deleteOptLock u c = do
   t <- view (awsEnv . prekeyTable)
   e <- view (awsEnv . amazonkaEnv)
   void $ exec e (AWS.newDeleteItem t & AWS.deleteItem_key .~ key u c)
 
-withOptLock :: forall effs a. UserId -> ClientId -> (AppIO effs) a -> (AppIO effs) a
+withOptLock ::
+  forall a m.
+  ( MonadIO m,
+    MonadReader Brig.App.Env m,
+    Log.MonadLogger m
+  ) =>
+  UserId ->
+  ClientId ->
+  m a ->
+  m a
 withOptLock u c ma = go (10 :: Int)
   where
     go !n = do
@@ -374,17 +522,17 @@ withOptLock u c ma = go (10 :: Int)
         key u c
     toAttributeValue :: Word32 -> AWS.AttributeValue
     toAttributeValue w = AWS.N $ AWS.toText (fromIntegral w :: Int)
-    reportAttemptFailure :: (AppIO effs) ()
+    reportAttemptFailure :: m ()
     reportAttemptFailure =
       Metrics.counterIncr (Metrics.path "client.opt_lock.optimistic_lock_grab_attempt_failed") =<< view metrics
-    reportFailureAndLogError :: (AppIO effs) ()
+    reportFailureAndLogError :: m ()
     reportFailureAndLogError = do
       Log.err $
         Log.field "user" (toByteString' u)
           . Log.field "client" (toByteString' c)
           . msg (val "PreKeys: Optimistic lock failed")
       Metrics.counterIncr (Metrics.path "client.opt_lock.optimistic_lock_failed") =<< view metrics
-    execDyn :: forall r x. (AWS.AWSRequest r) => (AWS.AWSResponse r -> Maybe x) -> (Text -> r) -> (AppIO effs) (Maybe x)
+    execDyn :: forall r x. (AWS.AWSRequest r) => (AWS.AWSResponse r -> Maybe x) -> (Text -> r) -> m (Maybe x)
     execDyn cnv mkCmd = do
       cmd <- mkCmd <$> view (awsEnv . prekeyTable)
       e <- view (awsEnv . amazonkaEnv)
@@ -409,6 +557,6 @@ withOptLock u c ma = go (10 :: Int)
               return Nothing
             handleErr _ = return Nothing
 
-withLocalLock :: MVar () -> (AppIO r) a -> (AppIO r) a
+withLocalLock :: (MonadMask m, MonadIO m) => MVar () -> m a -> m a
 withLocalLock l ma = do
   (takeMVar l *> ma) `finally` putMVar l ()

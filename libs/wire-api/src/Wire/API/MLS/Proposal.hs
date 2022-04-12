@@ -18,20 +18,131 @@
 module Wire.API.MLS.Proposal where
 
 import Data.Binary
+import Data.Binary.Get
 import Imports
 import Wire.API.Arbitrary
+import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Extension
+import Wire.API.MLS.Group
+import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 
-data ProposalType
-  = AddProposal
-  | UpdateProposal
-  | RemoveProposal
-  | PreSharedKeyProposal
-  | ReInitProposal
-  | ExternalInitProposal
-  | AppAckProposal
-  | GroupContextExtensionsProposal
-  | ExternalProposal
+data ProposalTag
+  = AddProposalTag
+  | UpdateProposalTag
+  | RemoveProposalTag
+  | PreSharedKeyProposalTag
+  | ReInitProposalTag
+  | ExternalInitProposalTag
+  | AppAckProposalTag
+  | GroupContextExtensionsProposalTag
   deriving stock (Bounded, Enum, Eq, Generic, Show)
-  deriving (ParseMLS) via (EnumMLS Word16 ProposalType)
-  deriving (Arbitrary) via GenericUniform ProposalType
+  deriving (Arbitrary) via GenericUniform ProposalTag
+
+instance ParseMLS ProposalTag where
+  parseMLS = parseMLSEnum @Word16 "proposal type"
+
+data Proposal
+  = AddProposal (RawMLS KeyPackage)
+  | UpdateProposal KeyPackage
+  | RemoveProposal KeyPackageRef
+  | PreSharedKeyProposal PreSharedKeyID
+  | ReInitProposal ReInit
+  | ExternalInitProposal ByteString
+  | AppAckProposal [MessageRange]
+  | GroupContextExtensionsProposal [Extension]
+  deriving stock (Eq, Show)
+
+instance ParseMLS Proposal where
+  parseMLS =
+    parseMLS >>= \case
+      AddProposalTag -> AddProposal <$> parseMLS
+      UpdateProposalTag -> UpdateProposal <$> parseMLS
+      RemoveProposalTag -> RemoveProposal <$> parseMLS
+      PreSharedKeyProposalTag -> PreSharedKeyProposal <$> parseMLS
+      ReInitProposalTag -> ReInitProposal <$> parseMLS
+      ExternalInitProposalTag -> ExternalInitProposal <$> parseMLSBytes @Word16
+      AppAckProposalTag -> AppAckProposal <$> parseMLSVector @Word32 parseMLS
+      GroupContextExtensionsProposalTag ->
+        GroupContextExtensionsProposal <$> parseMLSVector @Word32 parseMLS
+
+data PreSharedKeyTag = ExternalKeyTag | ResumptionKeyTag
+  deriving (Bounded, Enum, Eq, Show)
+
+instance ParseMLS PreSharedKeyTag where
+  parseMLS = parseMLSEnum @Word16 "PreSharedKeyID type"
+
+data PreSharedKeyID = ExternalKeyID ByteString | ResumptionKeyID Resumption
+  deriving stock (Eq, Show)
+
+instance ParseMLS PreSharedKeyID where
+  parseMLS = do
+    t <- parseMLS
+    case t of
+      ExternalKeyTag -> ExternalKeyID <$> parseMLSBytes @Word8
+      ResumptionKeyTag -> ResumptionKeyID <$> parseMLS
+
+data Resumption = Resumption
+  { resUsage :: Word8,
+    resGroupId :: GroupId,
+    resEpoch :: Word64
+  }
+  deriving stock (Eq, Show)
+
+instance ParseMLS Resumption where
+  parseMLS =
+    Resumption
+      <$> parseMLS
+      <*> parseMLS
+      <*> parseMLS
+
+data ReInit = ReInit
+  { riGroupId :: GroupId,
+    riProtocolVersion :: ProtocolVersion,
+    riCipherSuite :: CipherSuite,
+    riExtensions :: [Extension]
+  }
+  deriving stock (Eq, Show)
+
+instance ParseMLS ReInit where
+  parseMLS =
+    ReInit
+      <$> parseMLS
+        <*> parseMLS
+        <*> parseMLS
+        <*> parseMLSVector @Word32 parseMLS
+
+data MessageRange = MessageRange
+  { mrSender :: KeyPackageRef,
+    mrFirstGeneration :: Word32,
+    mrLastGenereation :: Word32
+  }
+  deriving stock (Eq, Show)
+
+instance ParseMLS MessageRange where
+  parseMLS =
+    MessageRange
+      <$> parseMLS
+      <*> parseMLS
+      <*> parseMLS
+
+data ProposalOrRefTag = InlineTag | RefTag
+  deriving stock (Bounded, Enum, Eq, Show)
+
+instance ParseMLS ProposalOrRefTag where
+  parseMLS = parseMLSEnum @Word8 "ProposalOrRef type"
+
+data ProposalOrRef = Inline Proposal | Ref ProposalRef
+  deriving stock (Eq, Show)
+
+instance ParseMLS ProposalOrRef where
+  parseMLS =
+    parseMLS >>= \case
+      InlineTag -> Inline <$> parseMLS
+      RefTag -> Ref <$> parseMLS
+
+newtype ProposalRef = ProposalRef {unProposalRef :: ByteString}
+  deriving stock (Eq, Show)
+
+instance ParseMLS ProposalRef where
+  parseMLS = ProposalRef <$> getByteString 16

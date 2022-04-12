@@ -26,7 +26,6 @@ import qualified Wire.API.Conversation.Member as Conversation.Member
 import qualified Wire.API.Conversation.Role as Conversation.Role
 import qualified Wire.API.Conversation.Typing as Conversation.Typing
 import qualified Wire.API.CustomBackend as CustomBackend
-import qualified Wire.API.Event.Conversation as Event.Conversation
 import qualified Wire.API.Event.Team as Event.Team
 import qualified Wire.API.Message as Message
 import qualified Wire.API.Notification as Notification
@@ -78,22 +77,6 @@ models =
     Conversation.Role.modelConversationRolesList,
     Conversation.Typing.modelTyping,
     CustomBackend.modelCustomBackend,
-    Event.Conversation.modelEvent,
-    Event.Conversation.modelMemberEvent,
-    Event.Conversation.modelConnectEvent,
-    Event.Conversation.modelConversationReceiptModeUpdateEvent,
-    Event.Conversation.modelConversationNameUpdateEvent,
-    Event.Conversation.modelConversationAccessUpdateEvent,
-    Event.Conversation.modelConversationMessageTimerUpdateEvent,
-    Event.Conversation.modelConversationCodeUpdateEvent,
-    Event.Conversation.modelConversationCodeDeleteEvent,
-    Event.Conversation.modelMemberUpdateEvent,
-    Event.Conversation.modelTypingEvent,
-    Event.Conversation.modelOtrMessageEvent,
-    Event.Conversation.modelMembers,
-    Event.Conversation.modelConnect,
-    Event.Conversation.modelMemberUpdateData,
-    Event.Conversation.modelOtrMessage,
     Event.Team.modelEvent,
     Event.Team.modelMemberEvent,
     Event.Team.modelMemberData,
@@ -113,7 +96,6 @@ models =
     Push.Token.modelPushTokenList,
     Team.modelTeam,
     Team.modelTeamList,
-    Team.modelNewBindingTeam,
     Team.modelNewNonBindingTeam,
     Team.modelUpdateData,
     Team.modelTeamDelete,
@@ -126,6 +108,12 @@ models =
     Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureDigitalSignatures,
     Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureAppLock,
     Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureClassifiedDomains,
+    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureFileSharing,
+    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureConferenceCalling,
+    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureSelfDeletingMessages,
+    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureGuestLinks,
+    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureSndFactorPasswordChallenge,
+    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureSearchVisibilityInbound,
     Team.Feature.modelTeamFeatureAppLockConfig,
     Team.Feature.modelTeamFeatureClassifiedDomainsConfig,
     Team.Feature.modelTeamFeatureSelfDeletingMessagesConfig,
@@ -141,7 +129,6 @@ models =
     Team.SearchVisibility.modelTeamSearchVisibility,
     User.modelUserIdList,
     User.modelUser,
-    User.modelNewUser,
     User.modelEmailUpdate,
     User.modelDelete,
     User.modelVerifyDelete,

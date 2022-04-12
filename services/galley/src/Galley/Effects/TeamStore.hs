@@ -76,15 +76,16 @@ where
 
 import Data.Id
 import Data.Range
-import Galley.API.Error
 import Galley.Effects.ListItems
 import Galley.Effects.Paging
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Imports
 import Polysemy
-import Polysemy.Error
 import qualified Proto.TeamEvents as E
+import Wire.API.Error
+import Wire.API.Error.Galley
+import Wire.API.Team (Icon)
 
 data TeamStore m a where
   CreateTeamMember :: TeamId -> TeamMember -> TeamStore m ()
@@ -93,7 +94,7 @@ data TeamStore m a where
     Maybe TeamId ->
     UserId ->
     Range 1 256 Text ->
-    Range 1 256 Text ->
+    Icon ->
     Maybe (Range 1 256 Text) ->
     TeamBinding ->
     TeamStore m Team
@@ -134,15 +135,16 @@ listTeams = listItems
 
 lookupBindingTeam ::
   Members
-    '[ Error TeamError,
+    '[ ErrorS 'TeamNotFound,
+       ErrorS 'NonBindingTeam,
        TeamStore
      ]
     r =>
   UserId ->
   Sem r TeamId
 lookupBindingTeam zusr = do
-  tid <- getOneUserTeam zusr >>= note TeamNotFound
-  binding <- getTeamBinding tid >>= note TeamNotFound
+  tid <- getOneUserTeam zusr >>= noteS @'TeamNotFound
+  binding <- getTeamBinding tid >>= noteS @'TeamNotFound
   case binding of
     Binding -> return tid
-    NonBinding -> throw NotABindingTeamMember
+    NonBinding -> throwS @'NonBindingTeam

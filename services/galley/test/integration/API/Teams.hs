@@ -36,8 +36,10 @@ import Control.Retry
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict)
+import qualified Data.Code as Code
 import Data.Csv (FromNamedRecord (..), decodeByName)
 import qualified Data.Currency as Currency
+import Data.Default
 import Data.Id
 import Data.Json.Util hiding ((#))
 import qualified Data.LegalHold as LH
@@ -48,6 +50,7 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text as T
+import Data.Text.Ascii (AsciiChars (validate))
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import qualified Data.UUID.V1 as UUID
@@ -74,10 +77,13 @@ import Test.Tasty.HUnit
 import TestHelpers (test, viewFederationDomain)
 import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
+import Wire.API.Conversation.Protocol
+import Wire.API.Team (Icon (..))
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Member
 import qualified Wire.API.Team.Member as TM
+import qualified Wire.API.User as Public
 import qualified Wire.API.User as U
 
 tests :: IO TestSetup -> TestTree
@@ -119,6 +125,7 @@ tests s =
       test s "add team conversation (no role as argument)" testAddTeamConvLegacy,
       test s "add team conversation with role" testAddTeamConvWithRole,
       test s "add team conversation as partner (fail)" testAddTeamConvAsExternalPartner,
+      test s "add team MLS conversation" testCreateTeamMLSConv,
       -- Queue is emptied here to ensure that lingering events do not affect other tests
       test s "add team member to conversation without connection" (testAddTeamMemberToConv >> ensureQueueEmpty),
       test s "update conversation as member" (testUpdateTeamConv RoleMember roleNameWireAdmin),
@@ -126,6 +133,13 @@ tests s =
       test s "delete binding team internal single member" testDeleteBindingTeamSingleMember,
       test s "delete binding team (owner has passwd)" (testDeleteBindingTeam True),
       test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False),
+      testGroup
+        "delete team - verification code"
+        [ test s "success" testDeleteTeamVerificationCodeSuccess,
+          test s "wrong code" testDeleteTeamVerificationCodeWrongCode,
+          test s "missing code" testDeleteTeamVerificationCodeMissingCode,
+          test s "expired code" testDeleteTeamVerificationCodeExpiredCode
+        ],
       test s "delete team conversation" testDeleteTeamConv,
       test s "update team data" testUpdateTeam,
       test s "update team data icon validation" testUpdateTeamIconValidation,
@@ -135,13 +149,23 @@ tests s =
       test s "team tests around truncation limits - no events, too large team" (testTeamAddRemoveMemberAboveThresholdNoEvents >> ensureQueueEmpty),
       test s "send billing events to owners even in large teams" testBillingInLargeTeam,
       test s "send billing events to some owners in large teams (indexedBillingTeamMembers disabled)" testBillingInLargeTeamWithoutIndexedBillingTeamMembers,
-      test s "post crypto broadcast message json" postCryptoBroadcastMessageJson,
-      test s "post crypto broadcast message json - filtered only, too large team" postCryptoBroadcastMessageJsonFilteredTooLargeTeam,
-      test s "post crypto broadcast message json (report missing in body)" postCryptoBroadcastMessageJsonReportMissingBody,
-      test s "post crypto broadcast message protobuf" postCryptoBroadcastMessageProto,
-      test s "post crypto broadcast message redundant/missing" postCryptoBroadcastMessageJson2,
-      test s "post crypto broadcast message no-team" postCryptoBroadcastMessageNoTeam,
-      test s "post crypto broadcast message 100 (or max conns)" postCryptoBroadcastMessage100OrMaxConns
+      testGroup "broadcast" $
+        [ (BroadcastLegacyBody, BroadcastJSON),
+          (BroadcastLegacyQueryParams, BroadcastJSON),
+          (BroadcastLegacyBody, BroadcastProto),
+          (BroadcastQualified, BroadcastProto)
+        ]
+          <&> \(api, ty) ->
+            let bcast = def {bAPI = api, bType = ty}
+             in testGroup
+                  (broadcastAPIName api <> " - " <> broadcastTypeName ty)
+                  [ test s "message" (postCryptoBroadcastMessage bcast),
+                    test s "filtered only, too large team" (postCryptoBroadcastMessageFilteredTooLargeTeam bcast),
+                    test s "report missing in body" (postCryptoBroadcastMessageReportMissingBody bcast),
+                    test s "redundant/missing" (postCryptoBroadcastMessage2 bcast),
+                    test s "no-team" (postCryptoBroadcastMessageNoTeam bcast),
+                    test s "100 (or max conns)" (postCryptoBroadcastMessage100OrMaxConns bcast)
+                  ]
     ]
 
 timeout :: WS.Timeout
@@ -160,9 +184,8 @@ testCreateTeam = do
       eventChecks <- WS.awaitMatch timeout wsOwner $ \notif -> do
         ntfTransient notif @?= False
         let e = List1.head (WS.unpackPayload notif)
-        e ^. eventType @?= TeamCreate
         e ^. eventTeam @?= tid
-        e ^. eventData @?= Just (EdTeamCreate team)
+        e ^. eventData @?= EdTeamCreate team
       void $ WS.assertSuccess eventChecks
 
 testGetTeams :: TestM ()
@@ -194,7 +217,7 @@ testCreateMultipleBindingTeams = do
   _ <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
   -- Cannot create more teams if bound (used internal API)
-  let nt = NonBindingNewTeam $ newNewTeam (unsafeRange "owner") (unsafeRange "icon")
+  let nt = NonBindingNewTeam $ newNewTeam (unsafeRange "owner") DefaultIcon
   post (g . path "/teams" . zUser owner . zConn "conn" . json nt)
     !!! const 403 === statusCode
   -- If never used the internal API, can create multiple teams
@@ -237,9 +260,8 @@ testCreateTeamWithMembers = do
     checkCreateEvent team w = WS.assertMatch_ timeout w $ \notif -> do
       ntfTransient notif @?= False
       let e = List1.head (WS.unpackPayload notif)
-      e ^. eventType @?= TeamCreate
       e ^. eventTeam @?= (team ^. teamId)
-      e ^. eventData @?= Just (EdTeamCreate team)
+      e ^. eventData @?= EdTeamCreate team
 
 testListTeamMembersDefaultLimit :: TestM ()
 testListTeamMembersDefaultLimit = do
@@ -856,6 +878,30 @@ testAddTeamConvWithRole = do
     -- ... but not to regular ones.
     Util.assertNotConvMember (mem1 ^. userId) cid2
 
+testCreateTeamMLSConv :: TestM ()
+testCreateTeamMLSConv = do
+  c <- view tsCannon
+  owner <- Util.randomUser
+  lOwner <- flip toLocalUnsafe owner <$> viewFederationDomain
+  extern <- Util.randomUser
+  tid <- Util.createNonBindingTeam "foo" owner []
+  WS.bracketR2 c owner extern $ \(wsOwner, wsExtern) -> do
+    lConvId <-
+      Util.createMLSTeamConv
+        lOwner
+        tid
+        mempty
+        (Just "Team MLS conversation")
+        Nothing
+        Nothing
+        Nothing
+        Nothing
+    Right conv <- responseJsonError <$> getConv owner (tUnqualified lConvId)
+    liftIO $ do
+      assertEqual "protocol mismatch" ProtocolMLSTag (protocolTag (cnvProtocol conv))
+    checkConvCreateEvent (tUnqualified lConvId) wsOwner
+    WS.assertNoEvent (2 # Second) [wsExtern]
+
 testAddTeamConvAsExternalPartner :: TestM ()
 testAddTeamConvAsExternalPartner = do
   (owner, tid) <- Util.createBindingTeam
@@ -1042,6 +1088,131 @@ testDeleteBindingTeamSingleMember = do
   -- received the event, should _really_ be deleted
   -- Let's clean the queue, just in case
   ensureQueueEmpty
+
+testDeleteTeamVerificationCodeSuccess :: TestM ()
+testDeleteTeamVerificationCodeSuccess = do
+  g <- view tsGalley
+  (owner, tid) <- Util.createBindingTeam'
+  let Just email = U.userEmail owner
+  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
+  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
+  code <- getVerificationCode (U.userId owner) Public.DeleteTeam
+  delete
+    ( g
+        . paths ["teams", toByteString' tid]
+        . zUser (U.userId owner)
+        . zConn "conn"
+        . json (newTeamDeleteDataWithCode (Just Util.defPassword) (Just code))
+    )
+    !!! do
+      const 202 === statusCode
+  tryAssertQueue 10 "team delete, should be there" tDelete
+  assertQueueEmpty
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- Test that team cannot be deleted with missing second factor email verification code when this feature is enabled
+testDeleteTeamVerificationCodeMissingCode :: TestM ()
+testDeleteTeamVerificationCodeMissingCode = do
+  g <- view tsGalley
+  (owner, tid) <- Util.createBindingTeam'
+  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
+  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  let Just email = U.userEmail owner
+  generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
+  delete
+    ( g
+        . paths ["teams", toByteString' tid]
+        . zUser (U.userId owner)
+        . zConn "conn"
+        . json (newTeamMemberDeleteData (Just Util.defPassword))
+    )
+    !!! do
+      const 403 === statusCode
+      const "code-authentication-required" === (Error.label . responseJsonUnsafeWithMsg "error label")
+  assertQueueEmpty
+
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- Test that team cannot be deleted with expired second factor email verification code when this feature is enabled
+testDeleteTeamVerificationCodeExpiredCode :: TestM ()
+testDeleteTeamVerificationCodeExpiredCode = do
+  g <- view tsGalley
+  (owner, tid) <- Util.createBindingTeam'
+  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
+  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  let Just email = U.userEmail owner
+  generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
+  code <- getVerificationCode (U.userId owner) Public.DeleteTeam
+  -- wait > 5 sec for the code to expire (assumption: setVerificationTimeout in brig.integration.yaml is set to <= 5 sec)
+  threadDelay $ (5 * 1000 * 1000) + 600 * 1000
+  delete
+    ( g
+        . paths ["teams", toByteString' tid]
+        . zUser (U.userId owner)
+        . zConn "conn"
+        . json (newTeamDeleteDataWithCode (Just Util.defPassword) (Just code))
+    )
+    !!! do
+      const 403 === statusCode
+      const "code-authentication-failed" === (Error.label . responseJsonUnsafeWithMsg "error label")
+  assertQueueEmpty
+
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- Test that team cannot be deleted with wrong second factor email verification code when this feature is enabled
+testDeleteTeamVerificationCodeWrongCode :: TestM ()
+testDeleteTeamVerificationCodeWrongCode = do
+  g <- view tsGalley
+  (owner, tid) <- Util.createBindingTeam'
+  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
+  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  let Just email = U.userEmail owner
+  generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
+  let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
+  delete
+    ( g
+        . paths ["teams", toByteString' tid]
+        . zUser (U.userId owner)
+        . zConn "conn"
+        . json (newTeamDeleteDataWithCode (Just Util.defPassword) (Just wrongCode))
+    )
+    !!! do
+      const 403 === statusCode
+      const "code-authentication-failed" === (Error.label . responseJsonUnsafeWithMsg "error label")
+  assertQueueEmpty
+
+-- @END
+
+setFeatureLockStatus :: forall (a :: Public.TeamFeatureName). (Public.KnownTeamFeatureName a) => TeamId -> Public.LockStatusValue -> TestM ()
+setFeatureLockStatus tid status = do
+  g <- view tsGalley
+  put (g . paths ["i", "teams", toByteString' tid, "features", toByteString' $ Public.knownTeamFeatureName @a, toByteString' status]) !!! const 200 === statusCode
+
+generateVerificationCode :: Public.SendVerificationCode -> TestM ()
+generateVerificationCode req = do
+  brig <- view tsBrig
+  let js = RequestBodyLBS $ encode req
+  post (brig . paths ["verification-code", "send"] . contentJson . body js) !!! const 200 === statusCode
+
+setTeamSndFactorPasswordChallenge :: TeamId -> Public.TeamFeatureStatusValue -> TestM ()
+setTeamSndFactorPasswordChallenge tid status = do
+  g <- view tsGalley
+  let js = RequestBodyLBS $ encode $ Public.TeamFeatureStatusNoConfig status
+  put (g . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge] . contentJson . body js) !!! const 200 === statusCode
+
+getVerificationCode :: UserId -> Public.VerificationAction -> TestM Code.Value
+getVerificationCode uid action = do
+  brig <- view tsBrig
+  resp <-
+    get (brig . paths ["i", "users", toByteString' uid, "verification-code", toByteString' action])
+      <!! const 200 === statusCode
+  pure $ responseJsonUnsafe @Code.Value resp
 
 testDeleteBindingTeam :: Bool -> TestM ()
 testDeleteBindingTeam ownerHasPassword = do
@@ -1523,6 +1694,11 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
             . json change
         )
 
+-- | @SF.Management @TSFI.RESTfulAPI @S2
+-- This test covers:
+-- Promotion, demotion of team roles.
+-- Demotion by superior roles is allowed.
+-- Demotion by inferior roles is NOT allowed.
 testUpdateTeamMember :: TestM ()
 testUpdateTeamMember = do
   g <- view tsGalley
@@ -1584,9 +1760,10 @@ testUpdateTeamMember = do
     checkTeamMemberUpdateEvent tid uid w mPerm = WS.assertMatch_ timeout w $ \notif -> do
       ntfTransient notif @?= False
       let e = List1.head (WS.unpackPayload notif)
-      e ^. eventType @?= MemberUpdate
       e ^. eventTeam @?= tid
-      e ^. eventData @?= Just (EdMemberUpdate uid mPerm)
+      e ^. eventData @?= EdMemberUpdate uid mPerm
+
+-- @END
 
 testUpdateTeamStatus :: TestM ()
 testUpdateTeamStatus = do
@@ -1613,8 +1790,8 @@ testUpdateTeamStatus = do
         const 403 === statusCode
         const "invalid-team-status-update" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
-postCryptoBroadcastMessageJson :: TestM ()
-postCryptoBroadcastMessageJson = do
+postCryptoBroadcastMessage :: Broadcast -> TestM ()
+postCryptoBroadcastMessage bcast = do
   localDomain <- viewFederationDomain
   let q :: Id a -> Qualified (Id a)
       q = (`Qualified` localDomain)
@@ -1645,9 +1822,9 @@ postCryptoBroadcastMessageJson = do
     -- Alice's clients 1 and 2 listen to their own messages only
     WS.bracketR (c . queryItem "client" (toByteString' ac2)) alice $ \wsA2 ->
       WS.bracketR (c . queryItem "client" (toByteString' ac)) alice $ \wsA1 -> do
-        Util.postOtrBroadcastMessage id alice ac msg !!! do
+        Util.postBroadcast (q alice) ac bcast {bMessage = msg} !!! do
           const 201 === statusCode
-          assertMismatch [] [] []
+          assertBroadcastMismatch localDomain (bAPI bcast) [] [] []
         -- Bob should get the broadcast (team member of alice)
         void . liftIO $
           WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc (toBase64Text "ciphertext1"))
@@ -1663,13 +1840,12 @@ postCryptoBroadcastMessageJson = do
         void . liftIO $
           WS.assertMatch t wsA2 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac2 (toBase64Text "ciphertext0"))
 
-postCryptoBroadcastMessageJsonFilteredTooLargeTeam :: TestM ()
-postCryptoBroadcastMessageJsonFilteredTooLargeTeam = do
+postCryptoBroadcastMessageFilteredTooLargeTeam :: Broadcast -> TestM ()
+postCryptoBroadcastMessageFilteredTooLargeTeam bcast = do
   localDomain <- viewFederationDomain
   let q :: Id a -> Qualified (Id a)
       q = (`Qualified` localDomain)
   opts <- view tsGConf
-  g <- view tsCannon
   c <- view tsCannon
   -- Team1: alice, bob and 3 unnamed
   (alice, tid) <- Util.createBindingTeam
@@ -1708,14 +1884,14 @@ postCryptoBroadcastMessageJsonFilteredTooLargeTeam = do
                 & optSettings . setMaxConvSize .~ 4
         withSettingsOverrides newOpts $ do
           -- Untargeted, Alice's team is too large
-          Util.postOtrBroadcastMessage' g Nothing id alice ac msg !!! do
+          Util.postBroadcast (q alice) ac bcast {bMessage = msg} !!! do
             const 400 === statusCode
             const "too-many-users-to-broadcast" === Error.label . responseJsonUnsafeWithMsg "error label"
           -- We target the message to the 4 users, that should be fine
           let inbody = Just [alice, bob, charlie, dan]
-          Util.postOtrBroadcastMessage' g inbody id alice ac msg !!! do
+          Util.postBroadcast (q alice) ac bcast {bReport = inbody, bMessage = msg} !!! do
             const 201 === statusCode
-            assertMismatch [] [] []
+            assertBroadcastMismatch localDomain (bAPI bcast) [] [] []
         -- Bob should get the broadcast (team member of alice)
         void . liftIO $
           WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc (toBase64Text "ciphertext1"))
@@ -1731,23 +1907,26 @@ postCryptoBroadcastMessageJsonFilteredTooLargeTeam = do
         void . liftIO $
           WS.assertMatch t wsA2 (wsAssertOtr (q (selfConv alice)) (q alice) ac ac2 (toBase64Text "ciphertext0"))
 
-postCryptoBroadcastMessageJsonReportMissingBody :: TestM ()
-postCryptoBroadcastMessageJsonReportMissingBody = do
-  g <- view tsGalley
+postCryptoBroadcastMessageReportMissingBody :: Broadcast -> TestM ()
+postCryptoBroadcastMessageReportMissingBody bcast = do
+  localDomain <- viewFederationDomain
   (alice, tid) <- Util.createBindingTeam
+  let qalice = Qualified alice localDomain
   bob <- view userId <$> Util.addUserToTeam alice tid
   _bc <- Util.randomClient bob (someLastPrekeys !! 1) -- this is important!
   assertQueue "add bob" $ tUpdate 2 [alice]
   refreshIndex
   ac <- Util.randomClient alice (someLastPrekeys !! 0)
-  let inbody = Just [bob] -- body triggers report
-      inquery = (queryItem "report_missing" (toByteString' alice)) -- query doesn't
+  let -- add extraneous query parameter (unless using query parameter API)
+      inquery = case bAPI bcast of
+        BroadcastLegacyQueryParams -> id
+        _ -> queryItem "report_missing" (toByteString' alice)
       msg = [(alice, ac, "ciphertext0")]
-  Util.postOtrBroadcastMessage' g inbody inquery alice ac msg
+  Util.postBroadcast qalice ac bcast {bReport = Just [bob], bMessage = msg, bReq = inquery}
     !!! const 412 === statusCode
 
-postCryptoBroadcastMessageJson2 :: TestM ()
-postCryptoBroadcastMessageJson2 = do
+postCryptoBroadcastMessage2 :: Broadcast -> TestM ()
+postCryptoBroadcastMessage2 bcast = do
   localDomain <- viewFederationDomain
   let q :: Id a -> Qualified (Id a)
       q = (`Qualified` localDomain)
@@ -1766,15 +1945,15 @@ postCryptoBroadcastMessageJson2 = do
   let t = 3 # Second -- WS receive timeout
   -- Missing charlie
   let m1 = [(bob, bc, toBase64Text "ciphertext1")]
-  Util.postOtrBroadcastMessage id alice ac m1 !!! do
+  Util.postBroadcast (q alice) ac bcast {bMessage = m1} !!! do
     const 412 === statusCode
-    assertMismatchWithMessage (Just "1: Only Charlie and his device") [(charlie, Set.singleton cc)] [] []
+    assertBroadcastMismatch localDomain (bAPI bcast) [(charlie, Set.singleton cc)] [] []
   -- Complete
   WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
     let m2 = [(bob, bc, toBase64Text "ciphertext2"), (charlie, cc, toBase64Text "ciphertext2")]
-    Util.postOtrBroadcastMessage id alice ac m2 !!! do
+    Util.postBroadcast (q alice) ac bcast {bMessage = m2} !!! do
       const 201 === statusCode
-      assertMismatchWithMessage (Just "No devices expected") [] [] []
+      assertBroadcastMismatch localDomain (bAPI bcast) [] [] []
     void . liftIO $
       WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc (toBase64Text "ciphertext2"))
     void . liftIO $
@@ -1786,9 +1965,9 @@ postCryptoBroadcastMessageJson2 = do
             (bob, bc, toBase64Text "ciphertext3"),
             (charlie, cc, toBase64Text "ciphertext3")
           ]
-    Util.postOtrBroadcastMessage id alice ac m3 !!! do
+    Util.postBroadcast (q alice) ac bcast {bMessage = m3} !!! do
       const 201 === statusCode
-      assertMismatchWithMessage (Just "2: Only Alice and her device") [] [(alice, Set.singleton ac)] []
+      assertBroadcastMismatch localDomain (bAPI bcast) [] [(alice, Set.singleton ac)] []
     void . liftIO $
       WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc (toBase64Text "ciphertext3"))
     void . liftIO $
@@ -1799,66 +1978,26 @@ postCryptoBroadcastMessageJson2 = do
   WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
     deleteClient charlie cc (Just defPassword) !!! const 200 === statusCode
     let m4 = [(bob, bc, toBase64Text "ciphertext4"), (charlie, cc, toBase64Text "ciphertext4")]
-    Util.postOtrBroadcastMessage id alice ac m4 !!! do
+    Util.postBroadcast (q alice) ac bcast {bMessage = m4} !!! do
       const 201 === statusCode
-      assertMismatchWithMessage (Just "3: Only Charlie and his device") [] [] [(charlie, Set.singleton cc)]
+      assertBroadcastMismatch localDomain (bAPI bcast) [] [] [(charlie, Set.singleton cc)]
     void . liftIO $
       WS.assertMatch t wsB (wsAssertOtr (q (selfConv bob)) (q alice) ac bc (toBase64Text "ciphertext4"))
     -- charlie should not get it
     assertNoMsg wsE (wsAssertOtr (q (selfConv charlie)) (q alice) ac cc (toBase64Text "ciphertext4"))
 
-postCryptoBroadcastMessageProto :: TestM ()
-postCryptoBroadcastMessageProto = do
+postCryptoBroadcastMessageNoTeam :: Broadcast -> TestM ()
+postCryptoBroadcastMessageNoTeam bcast = do
   localDomain <- viewFederationDomain
-  let q :: Id a -> Qualified (Id a)
-      q = (`Qualified` localDomain)
-  -- similar to postCryptoBroadcastMessageJson, postCryptoBroadcastMessageJsonReportMissingBody except uses protobuf
-
-  c <- view tsCannon
-  -- Team1: Alice, Bob. Team2: Charlie. Regular user: Dan. Connect Alice,Charlie,Dan
-  (alice, tid) <- Util.createBindingTeam
-  bob <- view userId <$> Util.addUserToTeam alice tid
-  assertQueue "add bob" $ tUpdate 2 [alice]
-  refreshIndex
-  (charlie, _) <- Util.createBindingTeam
-  refreshIndex
-  ac <- Util.randomClient alice (someLastPrekeys !! 0)
-  bc <- Util.randomClient bob (someLastPrekeys !! 1)
-  cc <- Util.randomClient charlie (someLastPrekeys !! 2)
-  (dan, dc) <- randomUserWithClient (someLastPrekeys !! 3)
-  connectUsers alice (list1 charlie [dan])
-  -- Complete: Alice broadcasts a message to Bob,Charlie,Dan
-  let t = 1 # Second -- WS receive timeout
-  let ciphertext = toBase64Text "hello bob"
-  WS.bracketRN c [alice, bob, charlie, dan] $ \ws@[_, wsB, wsC, wsD] -> do
-    let msg = otrRecipients [(bob, [(bc, ciphertext)]), (charlie, [(cc, ciphertext)]), (dan, [(dc, ciphertext)])]
-    Util.postProtoOtrBroadcast alice ac msg !!! do
-      const 201 === statusCode
-      assertMismatch [] [] []
-    -- Bob should get the broadcast (team member of alice)
-    void . liftIO $ WS.assertMatch t wsB (wsAssertOtr' (toBase64Text "data") (q (selfConv bob)) (q alice) ac bc ciphertext)
-    -- Charlie should get the broadcast (contact of alice and user of teams feature)
-    void . liftIO $ WS.assertMatch t wsC (wsAssertOtr' (toBase64Text "data") (q (selfConv charlie)) (q alice) ac cc ciphertext)
-    -- Dan should get the broadcast (contact of alice and not user of teams feature)
-    void . liftIO $ WS.assertMatch t wsD (wsAssertOtr' (toBase64Text "data") (q (selfConv dan)) (q alice) ac dc ciphertext)
-    -- Alice should not get her own broadcast
-    WS.assertNoEvent timeout ws
-  let inbody = Just [bob] -- body triggers report
-      inquery = (queryItem "report_missing" (toByteString' alice)) -- query doesn't
-      msg = otrRecipients [(alice, [(ac, ciphertext)])]
-  Util.postProtoOtrBroadcast' inbody inquery alice ac msg
-    !!! const 412 === statusCode
-
-postCryptoBroadcastMessageNoTeam :: TestM ()
-postCryptoBroadcastMessageNoTeam = do
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
+  let qalice = Qualified alice localDomain
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   connectUsers alice (list1 bob [])
   let msg = [(bob, bc, toBase64Text "ciphertext1")]
-  Util.postOtrBroadcastMessage id alice ac msg !!! const 404 === statusCode
+  Util.postBroadcast qalice ac bcast {bMessage = msg} !!! const 404 === statusCode
 
-postCryptoBroadcastMessage100OrMaxConns :: TestM ()
-postCryptoBroadcastMessage100OrMaxConns = do
+postCryptoBroadcastMessage100OrMaxConns :: Broadcast -> TestM ()
+postCryptoBroadcastMessage100OrMaxConns bcast = do
   localDomain <- viewFederationDomain
   c <- view tsCannon
   (alice, ac) <- randomUserWithClient (someLastPrekeys !! 0)
@@ -1871,9 +2010,9 @@ postCryptoBroadcastMessage100OrMaxConns = do
   WS.bracketRN c (bob : (fst <$> others)) $ \ws -> do
     let f (u, clt) = (u, clt, toBase64Text "ciphertext")
     let msg = (bob, bc, toBase64Text "ciphertext") : (f <$> others)
-    Util.postOtrBroadcastMessage id alice ac msg !!! do
+    Util.postBroadcast qalice ac bcast {bMessage = msg} !!! do
       const 201 === statusCode
-      assertMismatch [] [] []
+      assertBroadcastMismatch localDomain (bAPI bcast) [] [] []
     let qbobself = Qualified (selfConv bob) localDomain
     void . liftIO $
       WS.assertMatch t (Imports.head ws) (wsAssertOtr qbobself qalice ac bc (toBase64Text "ciphertext"))
@@ -1925,6 +2064,5 @@ checkJoinEvent :: (MonadIO m, MonadCatch m) => TeamId -> UserId -> WS.WebSocket 
 checkJoinEvent tid usr w = WS.assertMatch_ timeout w $ \notif -> do
   ntfTransient notif @?= False
   let e = List1.head (WS.unpackPayload notif)
-  e ^. eventType @?= MemberJoin
   e ^. eventTeam @?= tid
-  e ^. eventData @?= Just (EdMemberJoin usr)
+  e ^. eventData @?= EdMemberJoin usr

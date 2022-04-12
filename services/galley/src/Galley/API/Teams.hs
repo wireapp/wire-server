@@ -127,9 +127,11 @@ import Polysemy.Input
 import Polysemy.Output
 import qualified Polysemy.TinyLog as P
 import qualified SAML2.WebSSO as SAML
+import Servant (Header, Headers, NoContent (NoContent), addHeader)
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Conversation.Role as Public
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Federation.Error
 import qualified Wire.API.Notification as Public
 import qualified Wire.API.Team as Public
@@ -147,28 +149,26 @@ import Wire.API.User.RichInfo (RichInfo)
 
 getTeamH ::
   forall r.
-  (Member (Error TeamError) r, Member (Queue DeleteItem) r, Member TeamStore r) =>
+  (Member (ErrorS 'TeamNotFound) r, Member (Queue DeleteItem) r, Member TeamStore r) =>
   UserId ->
   TeamId ->
   Sem r Public.Team
 getTeamH zusr tid =
-  maybe (throw TeamNotFound) pure =<< lookupTeam zusr tid
+  maybe (throwS @'TeamNotFound) pure =<< lookupTeam zusr tid
 
 getTeamInternalH ::
-  Members '[Error TeamError, TeamStore] r =>
-  TeamId ::: JSON ->
-  Sem r Response
-getTeamInternalH (tid ::: _) =
-  fmap json $
-    E.getTeam tid >>= note TeamNotFound
+  Members '[ErrorS 'TeamNotFound, TeamStore] r =>
+  TeamId ->
+  Sem r TeamData
+getTeamInternalH tid =
+  E.getTeam tid >>= noteS @'TeamNotFound
 
 getTeamNameInternalH ::
-  Members '[Error TeamError, TeamStore] r =>
-  TeamId ::: JSON ->
-  Sem r Response
-getTeamNameInternalH (tid ::: _) =
-  fmap json $
-    getTeamNameInternal tid >>= note TeamNotFound
+  Members '[ErrorS 'TeamNotFound, TeamStore] r =>
+  TeamId ->
+  Sem r TeamName
+getTeamNameInternalH tid =
+  getTeamNameInternal tid >>= noteS @'TeamNotFound
 
 getTeamNameInternal :: Member TeamStore r => TeamId -> Sem r (Maybe TeamName)
 getTeamNameInternal = fmap (fmap TeamName) . E.getTeamName
@@ -213,8 +213,8 @@ lookupTeam zusr tid = do
 createNonBindingTeamH ::
   forall r.
   ( Member BrigAccess r,
-    Member (Error ActionError) r,
-    Member (Error TeamError) r,
+    Member (ErrorS 'UserBindingExists) r,
+    Member (ErrorS 'NotConnected) r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member P.TinyLog r,
@@ -250,12 +250,13 @@ createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
 
 createBindingTeamH ::
   Members '[GundeckAccess, Input UTCTime, TeamStore, WaiRoutes] r =>
-  UserId ::: TeamId ::: JsonRequest BindingNewTeam ::: JSON ->
-  Sem r Response
-createBindingTeamH (zusr ::: tid ::: req ::: _) = do
-  newTeam <- fromJsonBody req
+  TeamId ->
+  UserId ->
+  BindingNewTeam ->
+  Sem r (Headers '[Servant.Header "Location" TeamId] NoContent)
+createBindingTeamH tid zusr newTeam = do
   newTeamId <- createBindingTeam zusr tid newTeam
-  pure (empty & setStatus status201 . location newTeamId)
+  pure $ Servant.addHeader newTeamId NoContent
 
 createBindingTeam ::
   Members '[GundeckAccess, Input UTCTime, TeamStore] r =>
@@ -273,8 +274,8 @@ createBindingTeam zusr tid (BindingNewTeam body) = do
 updateTeamStatusH ::
   Members
     '[ BrigAccess,
-       Error ActionError,
-       Error TeamError,
+       ErrorS 'TeamNotFound,
+       ErrorS 'InvalidTeamStatusUpdate,
        Input Opts,
        Input UTCTime,
        P.TinyLog,
@@ -282,18 +283,17 @@ updateTeamStatusH ::
        WaiRoutes
      ]
     r =>
-  TeamId ::: JsonRequest TeamStatusUpdate ::: JSON ->
-  Sem r Response
-updateTeamStatusH (tid ::: req ::: _) = do
-  teamStatusUpdate <- fromJsonBody req
-  updateTeamStatus tid teamStatusUpdate
-  return empty
+  TeamId ->
+  TeamStatusUpdate ->
+  Sem r NoContent
+updateTeamStatusH tid teamStatusUpdate =
+  NoContent <$ updateTeamStatus tid teamStatusUpdate
 
 updateTeamStatus ::
   Members
     '[ BrigAccess,
-       Error ActionError,
-       Error TeamError,
+       ErrorS 'InvalidTeamStatusUpdate,
+       ErrorS 'TeamNotFound,
        Input Opts,
        Input UTCTime,
        P.TinyLog,
@@ -304,7 +304,7 @@ updateTeamStatus ::
   TeamStatusUpdate ->
   Sem r ()
 updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
-  oldStatus <- fmap tdStatus $ E.getTeam tid >>= note TeamNotFound
+  oldStatus <- fmap tdStatus $ E.getTeam tid >>= noteS @'TeamNotFound
   valid <- validateTransition (oldStatus, newStatus)
   when valid $ do
     journal newStatus cur
@@ -322,20 +322,20 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
               then 1
               else possiblyStaleSize
       Journal.teamActivate tid size c teamCreationTime
-    journal _ _ = throw InvalidTeamStatusUpdate
-    validateTransition :: Member (Error ActionError) r => (TeamStatus, TeamStatus) -> Sem r Bool
+    journal _ _ = throwS @'InvalidTeamStatusUpdate
+    validateTransition :: Member (ErrorS 'InvalidTeamStatusUpdate) r => (TeamStatus, TeamStatus) -> Sem r Bool
     validateTransition = \case
       (PendingActive, Active) -> return True
       (Active, Active) -> return False
       (Active, Suspended) -> return True
       (Suspended, Active) -> return True
       (Suspended, Suspended) -> return False
-      (_, _) -> throw InvalidTeamStatusUpdate
+      (_, _) -> throwS @'InvalidTeamStatusUpdate
 
 updateTeamH ::
   Members
-    '[ Error ActionError,
-       Error NotATeamMember,
+    '[ ErrorS 'NotATeamMember,
+       ErrorS ('MissingPermission ('Just 'SetTeamData)),
        GundeckAccess,
        Input UTCTime,
        TeamStore
@@ -352,23 +352,23 @@ updateTeamH zusr zcon tid updateData = do
   -- Log.debug $
   --   Log.field "targets" (toByteString . show $ toByteString <$> zothers)
   --     . Log.field "action" (Log.val "Teams.updateTeam")
-  void $ permissionCheck SetTeamData zusrMembership
+  void $ permissionCheckS SSetTeamData zusrMembership
   E.setTeamData tid updateData
   now <- input
   memList <- getTeamMembersForFanout tid
-  let e = newEvent TeamUpdate tid now & eventData .~ Just (EdTeamUpdate updateData)
+  let e = newEvent tid now (EdTeamUpdate updateData)
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
   E.push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
 
 deleteTeam ::
   forall r.
   ( Member BrigAccess r,
-    Member (Error ActionError) r,
     Member (Error AuthenticationError) r,
-    Member (Error InternalError) r,
     Member (Error InvalidInput) r,
-    Member (Error TeamError) r,
-    Member (Error NotATeamMember) r,
+    Member (ErrorS 'DeleteQueueFull) r,
+    Member (ErrorS 'NotATeamMember) r,
+    Member (ErrorS OperationDenied) r,
+    Member (ErrorS 'TeamNotFound) r,
     Member (Queue DeleteItem) r,
     Member TeamStore r
   ) =>
@@ -378,9 +378,9 @@ deleteTeam ::
   Public.TeamDeleteData ->
   Sem r ()
 deleteTeam zusr zcon tid body = do
-  team <- E.getTeam tid >>= note TeamNotFound
+  team <- E.getTeam tid >>= noteS @'TeamNotFound
   case tdStatus team of
-    Deleted -> throw TeamNotFound
+    Deleted -> throwS @'TeamNotFound
     PendingDelete ->
       queueTeamDeletion tid zusr (Just zcon)
     _ -> do
@@ -390,13 +390,14 @@ deleteTeam zusr zcon tid body = do
     checkPermissions team = do
       void $ permissionCheck DeleteTeam =<< E.getTeamMember tid zusr
       when ((tdTeam team) ^. teamBinding == Binding) $ do
-        ensureReAuthorised zusr (body ^. tdAuthPassword)
+        ensureReAuthorised zusr (body ^. tdAuthPassword) (body ^. tdVerificationCode) (Just U.DeleteTeam)
 
 -- This can be called by stern
 internalDeleteBindingTeamWithOneMember ::
   Members
-    '[ Error InternalError,
-       Error TeamError,
+    '[ ErrorS 'NoBindingTeam,
+       ErrorS 'NotAOneMemberTeam,
+       ErrorS 'DeleteQueueFull,
        Queue DeleteItem,
        TeamStore
      ]
@@ -406,11 +407,11 @@ internalDeleteBindingTeamWithOneMember ::
 internalDeleteBindingTeamWithOneMember tid = do
   team <- E.getTeam tid
   unless ((view teamBinding . tdTeam <$> team) == Just Binding) $
-    throw NoBindingTeam
+    throwS @'NoBindingTeam
   mems <- E.getTeamMembersWithLimit tid (unsafeRange 2)
   case mems ^. teamMembers of
     (mem : []) -> queueTeamDeletion tid (mem ^. userId) Nothing
-    _ -> throw NotAOneMemberTeam
+    _ -> throwS @'NotAOneMemberTeam
 
 -- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
 uncheckedDeleteTeam ::
@@ -444,7 +445,7 @@ uncheckedDeleteTeam lusr zcon tid = do
     -- done asynchronously
     membs <- E.getTeamMembers tid
     (ue, be) <- foldrM (createConvDeleteEvents now membs) ([], []) convs
-    let e = newEvent TeamDelete tid now
+    let e = newEvent tid now EdTeamDelete
     pushDeleteEvents membs e ue
     E.deliverAsync be
     -- TODO: we don't delete bots here, but we should do that, since
@@ -483,7 +484,7 @@ uncheckedDeleteTeam lusr zcon tid = do
       -- all team users are deleted immediately after these events are sent
       -- and will thus never be able to see these events in practice.
       let mm = nonTeamMembers convMembs teamMembs
-      let e = Conv.Event Conv.ConvDelete qconvId (qUntagged lusr) now Conv.EdConvDelete
+      let e = Conv.Event qconvId (qUntagged lusr) now Conv.EdConvDelete
       -- This event always contains all the required recipients
       let p = newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (map recipient mm)
       let ee' = bots `zip` repeat e
@@ -491,18 +492,18 @@ uncheckedDeleteTeam lusr zcon tid = do
       pure (pp', ee' ++ ee)
 
 getTeamConversationRoles ::
-  Members '[Error NotATeamMember, TeamStore] r =>
+  Members '[ErrorS 'NotATeamMember, TeamStore] r =>
   UserId ->
   TeamId ->
   Sem r Public.ConversationRolesList
 getTeamConversationRoles zusr tid = do
-  void $ E.getTeamMember tid zusr >>= noteED @NotATeamMember
+  void $ E.getTeamMember tid zusr >>= noteS @'NotATeamMember
   -- NOTE: If/when custom roles are added, these roles should
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
 
 getTeamMembersH ::
-  Members '[Error NotATeamMember, TeamStore] r =>
+  Members '[ErrorS 'NotATeamMember, TeamStore] r =>
   UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JSON ->
   Sem r Response
 getTeamMembersH (zusr ::: tid ::: maxResults ::: _) = do
@@ -510,13 +511,13 @@ getTeamMembersH (zusr ::: tid ::: maxResults ::: _) = do
   pure . json $ teamMemberListJson withPerms memberList
 
 getTeamMembers ::
-  Members '[Error NotATeamMember, TeamStore] r =>
+  Members '[ErrorS 'NotATeamMember, TeamStore] r =>
   UserId ->
   TeamId ->
   Range 1 Public.HardTruncationLimit Int32 ->
   Sem r (Public.TeamMemberList, Public.TeamMember -> Bool)
 getTeamMembers zusr tid maxResults = do
-  m <- E.getTeamMember tid zusr >>= noteED @NotATeamMember
+  m <- E.getTeamMember tid zusr >>= noteS @'NotATeamMember
   mems <- E.getTeamMembersWithLimit tid maxResults
   let withPerms = (m `canSeePermsOf`)
   pure (mems, withPerms)
@@ -530,13 +531,13 @@ outputToStreamingBody action = withWeavingToFinal @IO $ \state weave _inspect ->
     void . weave . (<$ state) $ runOutputSem writeChunk action
 
 getTeamMembersCSVH ::
-  (Members '[BrigAccess, Error ActionError, TeamMemberStore InternalPaging, TeamStore, Final IO] r) =>
+  (Members '[BrigAccess, ErrorS 'AccessDenied, TeamMemberStore InternalPaging, TeamStore, Final IO] r) =>
   UserId ::: TeamId ::: JSON ->
   Sem r Response
 getTeamMembersCSVH (zusr ::: tid ::: _) = do
   E.getTeamMember tid zusr >>= \case
-    Nothing -> throw AccessDenied
-    Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throw AccessDenied
+    Nothing -> throwS @'AccessDenied
+    Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throwS @'AccessDenied
 
   -- In case an exception is thrown inside the StreamingBody of responseStream
   -- the response will not contain a correct error message, but rather be an
@@ -636,7 +637,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
 bulkGetTeamMembersH ::
   Members
     '[ Error InvalidInput,
-       Error NotATeamMember,
+       ErrorS 'NotATeamMember,
        TeamStore,
        WaiRoutes
      ]
@@ -650,7 +651,7 @@ bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do
 
 -- | like 'getTeamMembers', but with an explicit list of users we are to return.
 bulkGetTeamMembers ::
-  Members '[Error InvalidInput, Error NotATeamMember, TeamStore] r =>
+  Members '[Error InvalidInput, ErrorS 'NotATeamMember, TeamStore] r =>
   UserId ->
   TeamId ->
   Range 1 HardTruncationLimit Int32 ->
@@ -659,14 +660,14 @@ bulkGetTeamMembers ::
 bulkGetTeamMembers zusr tid maxResults uids = do
   unless (length uids <= fromIntegral (fromRange maxResults)) $
     throw BulkGetMemberLimitExceeded
-  m <- E.getTeamMember tid zusr >>= noteED @NotATeamMember
+  m <- E.getTeamMember tid zusr >>= noteS @'NotATeamMember
   mems <- E.selectTeamMembers tid uids
   let withPerms = (m `canSeePermsOf`)
       hasMore = ListComplete
   pure (newTeamMemberList mems hasMore, withPerms)
 
 getTeamMemberH ::
-  Members '[Error TeamError, Error NotATeamMember, TeamStore] r =>
+  Members '[ErrorS 'TeamMemberNotFound, ErrorS 'NotATeamMember, TeamStore] r =>
   UserId ::: TeamId ::: UserId ::: JSON ->
   Sem r Response
 getTeamMemberH (zusr ::: tid ::: uid ::: _) = do
@@ -674,7 +675,7 @@ getTeamMemberH (zusr ::: tid ::: uid ::: _) = do
   pure . json $ teamMemberJson withPerms member
 
 getTeamMember ::
-  Members '[Error TeamError, Error NotATeamMember, TeamStore] r =>
+  Members '[ErrorS 'TeamMemberNotFound, ErrorS 'NotATeamMember, TeamStore] r =>
   UserId ->
   TeamId ->
   UserId ->
@@ -682,39 +683,38 @@ getTeamMember ::
 getTeamMember zusr tid uid = do
   m <-
     E.getTeamMember tid zusr
-      >>= noteED @NotATeamMember
+      >>= noteS @'NotATeamMember
   let withPerms = (m `canSeePermsOf`)
-  member <- E.getTeamMember tid uid >>= note TeamMemberNotFound
+  member <- E.getTeamMember tid uid >>= noteS @'TeamMemberNotFound
   pure (member, withPerms)
 
 internalDeleteBindingTeamWithOneMemberH ::
   Members
-    '[ Error InternalError,
-       Error TeamError,
+    '[ ErrorS 'NoBindingTeam,
+       ErrorS 'NotAOneMemberTeam,
+       ErrorS 'DeleteQueueFull,
        Queue DeleteItem,
        TeamStore
      ]
     r =>
   TeamId ->
-  Sem r Response
-internalDeleteBindingTeamWithOneMemberH tid = do
-  internalDeleteBindingTeamWithOneMember tid
-  pure (empty & setStatus status202)
+  Sem r NoContent
+internalDeleteBindingTeamWithOneMemberH = (NoContent <$) . internalDeleteBindingTeamWithOneMember
 
 uncheckedGetTeamMemberH ::
-  Members '[Error TeamError, TeamStore] r =>
+  Members '[ErrorS 'TeamMemberNotFound, TeamStore] r =>
   TeamId ::: UserId ::: JSON ->
   Sem r Response
 uncheckedGetTeamMemberH (tid ::: uid ::: _) = do
   json <$> uncheckedGetTeamMember tid uid
 
 uncheckedGetTeamMember ::
-  Members '[Error TeamError, TeamStore] r =>
+  Members '[ErrorS 'TeamMemberNotFound, TeamStore] r =>
   TeamId ->
   UserId ->
   Sem r TeamMember
 uncheckedGetTeamMember tid uid =
-  E.getTeamMember tid uid >>= note TeamMemberNotFound
+  E.getTeamMember tid uid >>= noteS @'TeamMemberNotFound
 
 uncheckedGetTeamMembersH ::
   Member TeamStore r =>
@@ -730,41 +730,19 @@ uncheckedGetTeamMembers ::
   Sem r TeamMemberList
 uncheckedGetTeamMembers tid maxResults = E.getTeamMembersWithLimit tid maxResults
 
-addTeamMemberH ::
-  Members
-    '[ BrigAccess,
-       GundeckAccess,
-       Error ActionError,
-       Error LegalHoldError,
-       Error TeamError,
-       Error NotATeamMember,
-       Input (Local ()),
-       Input Opts,
-       Input UTCTime,
-       LegalHoldStore,
-       MemberStore,
-       P.TinyLog,
-       TeamFeatureStore,
-       TeamNotificationStore,
-       TeamStore,
-       WaiRoutes
-     ]
-    r =>
-  UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON ->
-  Sem r Response
-addTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
-  nmem <- fromJsonBody req
-  addTeamMember zusr zcon tid nmem
-  pure empty
-
 addTeamMember ::
   Members
     '[ BrigAccess,
        GundeckAccess,
-       Error ActionError,
        Error LegalHoldError,
-       Error TeamError,
-       Error NotATeamMember,
+       ErrorS 'InvalidPermissions,
+       ErrorS 'NoAddToBinding,
+       ErrorS 'NotATeamMember,
+       ErrorS 'NotConnected,
+       ErrorS OperationDenied,
+       ErrorS 'TeamNotFound,
+       ErrorS 'TooManyTeamMembers,
+       ErrorS 'UserBindingExists,
        Input (Local ()),
        Input Opts,
        Input UTCTime,
@@ -800,12 +778,44 @@ addTeamMember zusr zcon tid nmem = do
   memList <- getTeamMembersForFanout tid
   void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
 
+addTeamMemberH ::
+  Members
+    '[ BrigAccess,
+       GundeckAccess,
+       Error LegalHoldError,
+       ErrorS 'InvalidPermissions,
+       ErrorS 'NoAddToBinding,
+       ErrorS 'NotATeamMember,
+       ErrorS 'NotConnected,
+       ErrorS OperationDenied,
+       ErrorS 'TeamNotFound,
+       ErrorS 'TooManyTeamMembers,
+       ErrorS 'UserBindingExists,
+       Input (Local ()),
+       Input Opts,
+       Input UTCTime,
+       LegalHoldStore,
+       MemberStore,
+       P.TinyLog,
+       TeamFeatureStore,
+       TeamNotificationStore,
+       TeamStore,
+       WaiRoutes
+     ]
+    r =>
+  UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON ->
+  Sem r Response
+addTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
+  nmem <- fromJsonBody req
+  addTeamMember zusr zcon tid nmem
+  pure empty
+
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMemberH ::
   Members
     '[ BrigAccess,
        Error LegalHoldError,
-       Error TeamError,
+       ErrorS 'TooManyTeamMembers,
        GundeckAccess,
        Input (Local ()),
        Input Opts,
@@ -831,7 +841,7 @@ uncheckedAddTeamMember ::
     '[ BrigAccess,
        GundeckAccess,
        Error LegalHoldError,
-       Error TeamError,
+       ErrorS 'TooManyTeamMembers,
        Input (Local ()),
        Input Opts,
        Input UTCTime,
@@ -857,9 +867,12 @@ uncheckedAddTeamMember tid nmem = do
 updateTeamMemberH ::
   Members
     '[ BrigAccess,
-       Error ActionError,
-       Error TeamError,
-       Error NotATeamMember,
+       ErrorS 'AccessDenied,
+       ErrorS 'InvalidPermissions,
+       ErrorS 'TeamNotFound,
+       ErrorS 'NotATeamMember,
+       ErrorS 'TeamMemberNotFound,
+       ErrorS OperationDenied,
        Input Opts,
        Input UTCTime,
        GundeckAccess,
@@ -880,9 +893,12 @@ updateTeamMember ::
   forall r.
   Members
     '[ BrigAccess,
-       Error ActionError,
-       Error TeamError,
-       Error NotATeamMember,
+       ErrorS 'AccessDenied,
+       ErrorS 'InvalidPermissions,
+       ErrorS 'TeamNotFound,
+       ErrorS 'TeamMemberNotFound,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
        GundeckAccess,
        Input Opts,
        Input UTCTime,
@@ -903,7 +919,7 @@ updateTeamMember zusr zcon tid targetMember = do
       . Log.field "action" (Log.val "Teams.updateTeamMember")
 
   -- get the team and verify permissions
-  team <- fmap tdTeam $ E.getTeam tid >>= note TeamNotFound
+  team <- fmap tdTeam $ E.getTeam tid >>= noteS @'TeamNotFound
   user <-
     E.getTeamMember tid zusr
       >>= permissionCheck SetMemberPermissions
@@ -911,12 +927,12 @@ updateTeamMember zusr zcon tid targetMember = do
   -- user may not elevate permissions
   targetPermissions `ensureNotElevated` user
   previousMember <-
-    E.getTeamMember tid targetId >>= note TeamMemberNotFound
+    E.getTeamMember tid targetId >>= noteS @'TeamMemberNotFound
   when
     ( downgradesOwner previousMember targetPermissions
         && not (canDowngradeOwner user previousMember)
     )
-    $ throw AccessDenied
+    $ throwS @'AccessDenied
 
   -- update target in Cassandra
   E.setTeamMemberPermissions (previousMember ^. permissions) tid targetId targetPermissions
@@ -948,7 +964,7 @@ updateTeamMember zusr zcon tid targetMember = do
           privilegedUpdate = mkUpdate $ Just targetPermissions
           privilegedRecipients = membersToRecipients Nothing privileged
       now <- input
-      let ePriv = newEvent MemberUpdate tid now & eventData ?~ privilegedUpdate
+      let ePriv = newEvent tid now privilegedUpdate
       -- push to all members (user is privileged)
       let pushPriv = newPushLocal (updatedMembers ^. teamMemberListType) zusr (TeamEvent ePriv) $ privilegedRecipients
       for_ pushPriv $ \p -> E.push1 $ p & pushConn .~ Just zcon
@@ -957,11 +973,13 @@ deleteTeamMemberH ::
   Members
     '[ BrigAccess,
        ConversationStore,
-       Error ActionError,
        Error AuthenticationError,
        Error InvalidInput,
-       Error NotATeamMember,
-       Error TeamError,
+       ErrorS 'AccessDenied,
+       ErrorS 'NotATeamMember,
+       ErrorS 'TeamMemberNotFound,
+       ErrorS 'TeamNotFound,
+       ErrorS OperationDenied,
        ExternalAccess,
        GundeckAccess,
        Input (Local ()),
@@ -991,11 +1009,13 @@ deleteTeamMember ::
   Members
     '[ BrigAccess,
        ConversationStore,
-       Error ActionError,
        Error AuthenticationError,
        Error InvalidInput,
-       Error TeamError,
-       Error NotATeamMember,
+       ErrorS 'AccessDenied,
+       ErrorS 'TeamMemberNotFound,
+       ErrorS 'TeamNotFound,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
        ExternalAccess,
        Input Opts,
        Input UTCTime,
@@ -1019,15 +1039,15 @@ deleteTeamMember lusr zcon tid remove mBody = do
   targetMember <- E.getTeamMember tid remove
   void $ permissionCheck RemoveTeamMember zusrMember
   do
-    dm <- note TeamMemberNotFound zusrMember
-    tm <- note TeamMemberNotFound targetMember
-    unless (canDeleteMember dm tm) $ throw AccessDenied
-  team <- fmap tdTeam $ E.getTeam tid >>= note TeamNotFound
+    dm <- noteS @'NotATeamMember zusrMember
+    tm <- noteS @'TeamMemberNotFound targetMember
+    unless (canDeleteMember dm tm) $ throwS @'AccessDenied
+  team <- fmap tdTeam $ E.getTeam tid >>= noteS @'TeamNotFound
   mems <- getTeamMembersForFanout tid
   if team ^. teamBinding == Binding && isJust targetMember
     then do
       body <- mBody & note (InvalidPayload "missing request body")
-      ensureReAuthorised (tUnqualified lusr) (body ^. tmdAuthPassword)
+      ensureReAuthorised (tUnqualified lusr) (body ^. tmdAuthPassword) Nothing Nothing
       (TeamSize sizeBeforeDelete) <- E.getSize tid
       -- TeamSize is 'Natural' and subtracting from  0 is an error
       -- TeamSize could be reported as 0 if team members are added and removed very quickly,
@@ -1071,7 +1091,7 @@ uncheckedDeleteTeamMember lusr zcon tid remove mems = do
     -- notify all team members.
     pushMemberLeaveEvent :: UTCTime -> Sem r ()
     pushMemberLeaveEvent now = do
-      let e = newEvent MemberLeave tid now & eventData ?~ EdMemberLeave remove
+      let e = newEvent tid now (EdMemberLeave remove)
       let r =
             list1
               (userRecipient (tUnqualified lusr))
@@ -1099,29 +1119,34 @@ uncheckedDeleteTeamMember lusr zcon tid remove mems = do
       let qconvId = qUntagged $ qualifyAs lusr (Data.convId dc)
       let (bots, users) = localBotsAndUsers (Data.convLocalMembers dc)
       let x = filter (\m -> not (Conv.lmId m `Set.member` exceptTo)) users
-      let y = Conv.Event Conv.MemberLeave qconvId (qUntagged lusr) now edata
+      let y = Conv.Event qconvId (qUntagged lusr) now edata
       for_ (newPushLocal (mems ^. teamMemberListType) (tUnqualified lusr) (ConvEvent y) (recipient <$> x)) $ \p ->
         E.push1 $ p & pushConn .~ zcon
       E.deliverAsync (bots `zip` repeat y)
 
 getTeamConversations ::
-  Members '[Error ActionError, Error NotATeamMember, TeamStore] r =>
+  Members
+    '[ ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       TeamStore
+     ]
+    r =>
   UserId ->
   TeamId ->
   Sem r Public.TeamConversationList
 getTeamConversations zusr tid = do
   tm <-
     E.getTeamMember tid zusr
-      >>= noteED @NotATeamMember
+      >>= noteS @'NotATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
-    throw . OperationDenied . show $ GetTeamConversations
+    throwS @OperationDenied
   Public.newTeamConversationList <$> E.getTeamConversations tid
 
 getTeamConversation ::
   Members
-    '[ Error ActionError,
-       Error ConversationError,
-       Error NotATeamMember,
+    '[ ErrorS 'ConvNotFound,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
        TeamStore
      ]
     r =>
@@ -1132,21 +1157,22 @@ getTeamConversation ::
 getTeamConversation zusr tid cid = do
   tm <-
     E.getTeamMember tid zusr
-      >>= noteED @NotATeamMember
+      >>= noteS @'NotATeamMember
   unless (tm `hasPermission` GetTeamConversations) $
-    throw . OperationDenied . show $ GetTeamConversations
+    throwS @OperationDenied
   E.getTeamConversation tid cid
-    >>= note ConvNotFound
+    >>= noteS @'ConvNotFound
 
 deleteTeamConversation ::
   Members
     '[ CodeStore,
        ConversationStore,
-       Error ActionError,
-       Error ConversationError,
        Error FederationError,
        Error InvalidInput,
-       Error NotATeamMember,
+       ErrorS 'ConvNotFound,
+       ErrorS 'InvalidOperation,
+       ErrorS 'NotATeamMember,
+       ErrorS ('ActionDenied 'DeleteConversation),
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -1165,8 +1191,8 @@ deleteTeamConversation lusr zcon _tid cid = do
 
 getSearchVisibilityH ::
   Members
-    '[ Error ActionError,
-       Error NotATeamMember,
+    '[ ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
        SearchVisibilityStore,
        TeamStore
      ]
@@ -1180,9 +1206,9 @@ getSearchVisibilityH (uid ::: tid ::: _) = do
 
 setSearchVisibilityH ::
   Members
-    '[ Error ActionError,
-       Error TeamError,
-       Error NotATeamMember,
+    '[ ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       ErrorS 'TeamSearchVisibilityNotEnabled,
        Input Opts,
        SearchVisibilityStore,
        TeamStore,
@@ -1231,40 +1257,43 @@ withTeamIds usr range size k = case range of
     k False ids
 {-# INLINE withTeamIds #-}
 
-ensureUnboundUsers :: Members '[Error TeamError, TeamStore] r => [UserId] -> Sem r ()
+ensureUnboundUsers :: Members '[ErrorS 'UserBindingExists, TeamStore] r => [UserId] -> Sem r ()
 ensureUnboundUsers uids = do
   -- We check only 1 team because, by definition, users in binding teams
   -- can only be part of one team.
   teams <- Map.elems <$> E.getUsersTeams uids
   binds <- E.getTeamsBindings teams
   when (any (== Binding) binds) $
-    throw UserBindingExists
+    throwS @'UserBindingExists
 
-ensureNonBindingTeam :: Members '[Error TeamError, TeamStore] r => TeamId -> Sem r ()
+ensureNonBindingTeam ::
+  Members '[ErrorS 'TeamNotFound, ErrorS 'NoAddToBinding, TeamStore] r =>
+  TeamId ->
+  Sem r ()
 ensureNonBindingTeam tid = do
-  team <- note TeamNotFound =<< E.getTeam tid
+  team <- noteS @'TeamNotFound =<< E.getTeam tid
   when ((tdTeam team) ^. teamBinding == Binding) $
-    throw NoAddToBinding
+    throwS @'NoAddToBinding
 
 -- ensure that the permissions are not "greater" than the user's copy permissions
 -- this is used to ensure users cannot "elevate" permissions
-ensureNotElevated :: Member (Error ActionError) r => Permissions -> TeamMember -> Sem r ()
+ensureNotElevated :: Member (ErrorS 'InvalidPermissions) r => Permissions -> TeamMember -> Sem r ()
 ensureNotElevated targetPermissions member =
   unless
     ( (targetPermissions ^. self)
         `Set.isSubsetOf` (member ^. permissions . copy)
     )
-    $ throw InvalidPermissions
+    $ throwS @'InvalidPermissions
 
 ensureNotTooLarge ::
-  Members '[BrigAccess, Error TeamError, Input Opts] r =>
+  Members '[BrigAccess, ErrorS 'TooManyTeamMembers, Input Opts] r =>
   TeamId ->
   Sem r TeamSize
 ensureNotTooLarge tid = do
   o <- input
   (TeamSize size) <- E.getSize tid
   unless (size < fromIntegral (o ^. optSettings . setMaxTeamSize)) $
-    throw TooManyTeamMembers
+    throwS @'TooManyTeamMembers
   return $ TeamSize size
 
 -- | Ensure that a team doesn't exceed the member count limit for the LegalHold
@@ -1293,13 +1322,13 @@ ensureNotTooLargeForLegalHold tid teamSize =
       throw TooManyTeamMembersOnTeamWithLegalhold
 
 ensureNotTooLargeToActivateLegalHold ::
-  Members '[BrigAccess, Error TeamError, TeamStore] r =>
+  Members '[BrigAccess, ErrorS 'CannotEnableLegalHoldServiceLargeTeam, TeamStore] r =>
   TeamId ->
   Sem r ()
 ensureNotTooLargeToActivateLegalHold tid = do
   (TeamSize teamSize) <- E.getSize tid
   unlessM (teamSizeBelowLimit (fromIntegral teamSize)) $
-    throw CannotEnableLegalHoldServiceLargeTeam
+    throwS @'CannotEnableLegalHoldServiceLargeTeam
 
 teamSizeBelowLimit :: Member TeamStore r => Int -> Sem r Bool
 teamSizeBelowLimit teamSize = do
@@ -1315,7 +1344,7 @@ teamSizeBelowLimit teamSize = do
 addTeamMemberInternal ::
   Members
     '[ BrigAccess,
-       Error TeamError,
+       ErrorS 'TooManyTeamMembers,
        GundeckAccess,
        Input (Local ()),
        Input Opts,
@@ -1339,7 +1368,7 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) memList = 
   sizeBeforeAdd <- ensureNotTooLarge tid
   E.createTeamMember tid new
   now <- input
-  let e = newEvent MemberJoin tid now & eventData ?~ EdMemberJoin (new ^. userId)
+  let e = newEvent tid now (EdMemberJoin (new ^. userId))
   E.push1 $
     newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   APITeamQueue.pushTeamEvent tid e
@@ -1360,8 +1389,8 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) memList = 
 getTeamNotificationsH ::
   Members
     '[ BrigAccess,
-       Error TeamError,
-       Error TeamNotificationError,
+       ErrorS 'TeamNotFound,
+       Error InvalidInput,
        TeamNotificationStore
      ]
     r =>
@@ -1375,10 +1404,10 @@ getTeamNotificationsH (zusr ::: sinceRaw ::: size ::: _) = do
   json @Public.QueuedNotificationList
     <$> APITeamQueue.getTeamNotifications zusr since size
   where
-    parseSince :: Member (Error TeamNotificationError) r => Sem r (Maybe Public.NotificationId)
+    parseSince :: Member (Error InvalidInput) r => Sem r (Maybe Public.NotificationId)
     parseSince = maybe (pure Nothing) (fmap Just . parseUUID) sinceRaw
 
-    parseUUID :: Member (Error TeamNotificationError) r => ByteString -> Sem r Public.NotificationId
+    parseUUID :: Member (Error InvalidInput) r => ByteString -> Sem r Public.NotificationId
     parseUUID raw =
       maybe
         (throw InvalidTeamNotificationId)
@@ -1400,19 +1429,26 @@ finishCreateTeam team owner others zcon = do
   for_ (owner : others) $
     E.createTeamMember (team ^. teamId)
   now <- input
-  let e = newEvent TeamCreate (team ^. teamId) now & eventData ?~ EdTeamCreate team
+  let e = newEvent (team ^. teamId) now (EdTeamCreate team)
   let r = membersToRecipients Nothing others
   E.push1 $ newPushLocal1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
 
-getBindingTeamIdH :: Members '[Error TeamError, TeamStore] r => UserId -> Sem r Response
+getBindingTeamIdH ::
+  Members '[ErrorS 'TeamNotFound, ErrorS 'NonBindingTeam, TeamStore] r =>
+  UserId ->
+  Sem r Response
 getBindingTeamIdH = fmap json . E.lookupBindingTeam
 
-getBindingTeamMembersH :: Members '[Error TeamError, TeamStore] r => UserId -> Sem r Response
+getBindingTeamMembersH ::
+  Members '[ErrorS 'TeamNotFound, ErrorS 'NonBindingTeam, TeamStore] r =>
+  UserId ->
+  Sem r Response
 getBindingTeamMembersH = fmap json . getBindingTeamMembers
 
 getBindingTeamMembers ::
   Members
-    '[ Error TeamError,
+    '[ ErrorS 'TeamNotFound,
+       ErrorS 'NonBindingTeam,
        TeamStore
      ]
     r =>
@@ -1429,6 +1465,18 @@ canUserJoinTeamH ::
 canUserJoinTeamH tid = canUserJoinTeam tid >> pure empty
 
 -- This could be extended for more checks, for now we test only legalhold
+--
+-- Brig's `POST /register` endpoint throws the errors returned by this endpoint
+-- verbatim.
+--
+-- FUTUREWORK: When this enpoint gets Servantified, it should have a more
+-- precise list of errors, LegalHoldError is too wide, currently this can
+-- actaully only error with TooManyTeamMembersOnTeamWithLegalhold. Once we have
+-- a more precise list of errors and the endpoint is servantified, we can use
+-- those to enrich 'Wire.API.User.RegisterError' and ensure that these errors
+-- also show up in swagger. Currently, the error returned by this endpoint is
+-- thrown in IO, we could then refactor that to be thrown in `ExceptT
+-- RegisterError`.
 canUserJoinTeam ::
   Members
     '[ BrigAccess,
@@ -1479,7 +1527,7 @@ getSearchVisibilityInternal =
 
 setSearchVisibilityInternalH ::
   Members
-    '[ Error TeamError,
+    '[ ErrorS 'TeamSearchVisibilityNotEnabled,
        Input Opts,
        SearchVisibilityStore,
        TeamFeatureStore,
@@ -1494,7 +1542,7 @@ setSearchVisibilityInternalH (tid ::: req ::: _) = do
 
 setSearchVisibilityInternal ::
   Members
-    '[ Error TeamError,
+    '[ ErrorS 'TeamSearchVisibilityNotEnabled,
        Input Opts,
        SearchVisibilityStore,
        TeamFeatureStore
@@ -1506,20 +1554,26 @@ setSearchVisibilityInternal ::
 setSearchVisibilityInternal tid (TeamSearchVisibilityView searchVisibility) = do
   status <- getTeamSearchVisibilityAvailableInternal tid
   unless (Public.tfwoStatus status == Public.TeamFeatureEnabled) $
-    throw TeamSearchVisibilityNotEnabled
+    throwS @'TeamSearchVisibilityNotEnabled
   SearchVisibilityData.setSearchVisibility tid searchVisibility
 
 userIsTeamOwnerH ::
-  Members '[Error ActionError, Error TeamError, Error NotATeamMember, TeamStore] r =>
+  Members
+    '[ ErrorS 'AccessDenied,
+       ErrorS 'TeamMemberNotFound,
+       ErrorS 'NotATeamMember,
+       TeamStore
+     ]
+    r =>
   TeamId ::: UserId ::: JSON ->
   Sem r Response
 userIsTeamOwnerH (tid ::: uid ::: _) = do
   userIsTeamOwner tid uid >>= \case
     True -> pure empty
-    False -> throw AccessDenied
+    False -> throwS @'AccessDenied
 
 userIsTeamOwner ::
-  Members '[Error TeamError, Error NotATeamMember, TeamStore] r =>
+  Members '[ErrorS 'TeamMemberNotFound, ErrorS 'NotATeamMember, TeamStore] r =>
   TeamId ->
   UserId ->
   Sem r Bool
@@ -1529,11 +1583,11 @@ userIsTeamOwner tid uid = do
 
 -- Queues a team for async deletion
 queueTeamDeletion ::
-  Members '[Error InternalError, Queue DeleteItem] r =>
+  Members '[ErrorS 'DeleteQueueFull, Queue DeleteItem] r =>
   TeamId ->
   UserId ->
   Maybe ConnId ->
   Sem r ()
 queueTeamDeletion tid zusr zcon = do
   ok <- E.tryPush (TeamItem tid zusr zcon)
-  unless ok $ throw DeleteQueueFull
+  unless ok $ throwS @'DeleteQueueFull

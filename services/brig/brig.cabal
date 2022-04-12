@@ -60,7 +60,6 @@ library
       Brig.Data.Instances
       Brig.Data.LoginCode
       Brig.Data.MLS.KeyPackage
-      Brig.Data.MLS.KeyPackage.Instances
       Brig.Data.PasswordReset
       Brig.Data.Properties
       Brig.Data.Types
@@ -500,6 +499,7 @@ executable brig-integration
     , cassandra-util
     , containers
     , cookie
+    , data-default
     , data-timeout
     , email-validate
     , exceptions
@@ -623,6 +623,9 @@ executable brig-schema
       V65_FederatedConnections
       V66_PersonalFeatureConfCallInit
       V67_MLSKeyPackages
+      V68_AddMLSPublicKeys
+      V69_MLSKeyPackageRefMapping
+      V70_UserEmailUnvalidated
       V9
       Paths_brig
   hs-source-dirs:

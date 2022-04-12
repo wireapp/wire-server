@@ -28,14 +28,21 @@ import Data.Range
 import Data.SOP
 import qualified Data.Swagger as Swagger
 import GHC.TypeLits (AppendSymbol)
+import qualified Generics.SOP as GSOP
 import Imports hiding (head)
 import Servant
 import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import qualified Wire.API.Error.Brig as BrigError
+import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.MLS.Message
+import Wire.API.MLS.Serialisation
+import Wire.API.MLS.Servant
+import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
@@ -95,6 +102,18 @@ type ConvUpdateResponses = UpdateResponses "Conversation unchanged" "Conversatio
 
 type ConvJoinResponses = UpdateResponses "Conversation unchanged" "Conversation joined" Event
 
+data MessageNotSent a
+  = MessageNotSentConversationNotFound
+  | MessageNotSentUnknownClient
+  | MessageNotSentLegalhold
+  | MessageNotSentClientMissing a
+  deriving stock (Eq, Show, Generic, Functor)
+  deriving
+    (AsUnion (MessageNotSentResponses a))
+    via (GenericAsUnion (MessageNotSentResponses a) (MessageNotSent a))
+
+instance GSOP.Generic (MessageNotSent a)
+
 type RemoveFromConversationVerb =
   MultiVerb
     'DELETE
@@ -104,6 +123,35 @@ type RemoveFromConversationVerb =
      ]
     (Maybe Event)
 
+type MessageNotSentResponses a =
+  '[ ErrorResponse 'ConvNotFound,
+     ErrorResponse 'BrigError.UnknownClient,
+     ErrorResponse 'BrigError.MissingLegalholdConsent,
+     Respond 412 "Missing clients" a
+   ]
+
+type PostOtrResponses a =
+  MessageNotSentResponses a
+    .++ '[Respond 201 "Message sent" a]
+
+type PostOtrResponse a = Either (MessageNotSent a) a
+
+instance
+  ( rs ~ (MessageNotSentResponses a .++ '[r]),
+    a ~ ResponseType r
+  ) =>
+  AsUnion rs (PostOtrResponse a)
+  where
+  toUnion =
+    eitherToUnion
+      (toUnion @(MessageNotSentResponses a))
+      (Z . I)
+
+  fromUnion =
+    eitherFromUnion
+      (fromUnion @(MessageNotSentResponses a))
+      (unI . unZ)
+
 type ServantAPI =
   ConversationAPI
     :<|> TeamConversationAPI
@@ -111,11 +159,14 @@ type ServantAPI =
     :<|> BotAPI
     :<|> TeamAPI
     :<|> FeatureAPI
+    :<|> MLSAPI
 
 type ConversationAPI =
   Named
     "get-unqualified-conversation"
     ( Summary "Get a conversation by ID"
+        :> CanThrow 'ConvNotFound
+        :> CanThrow 'ConvAccessDenied
         :> ZLocalUser
         :> "conversations"
         :> Capture "cnv" ConvId
@@ -124,6 +175,8 @@ type ConversationAPI =
     :<|> Named
            "get-conversation"
            ( Summary "Get a conversation by ID"
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvAccessDenied
                :> ZLocalUser
                :> "conversations"
                :> QualifiedCapture "cnv" ConvId
@@ -132,6 +185,8 @@ type ConversationAPI =
     :<|> Named
            "get-conversation-roles"
            ( Summary "Get existing roles available for the given conversation"
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvAccessDenied
                :> ZLocalUser
                :> "conversations"
                :> Capture "cnv" ConvId
@@ -228,11 +283,11 @@ type ConversationAPI =
     :<|> Named
            "get-conversation-by-reusable-code"
            ( Summary "Get limited conversation information by key/code pair"
-               :> CanThrow NotATeamMember
-               :> CanThrow CodeNotFound
-               :> CanThrow ConvNotFound
-               :> CanThrow ConvAccessDenied
-               :> CanThrow GuestLinksDisabled
+               :> CanThrow 'CodeNotFound
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'GuestLinksDisabled
+               :> CanThrow 'NotATeamMember
                :> ZLocalUser
                :> "conversations"
                :> "join"
@@ -243,9 +298,11 @@ type ConversationAPI =
     :<|> Named
            "create-group-conversation"
            ( Summary "Create a new conversation"
-               :> CanThrow NotConnected
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'MLSNonEmptyMemberList
+               :> CanThrow 'NotConnected
+               :> CanThrow 'NotATeamMember
                :> CanThrow OperationDenied
-               :> CanThrow NotATeamMember
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZConn
@@ -267,6 +324,14 @@ type ConversationAPI =
     :<|> Named
            "create-one-to-one-conversation"
            ( Summary "Create a 1:1 conversation"
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'NoBindingTeamMembers
+               :> CanThrow 'NonBindingTeam
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'NotConnected
+               :> CanThrow OperationDenied
+               :> CanThrow 'TeamNotFound
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -279,10 +344,14 @@ type ConversationAPI =
     :<|> Named
            "add-members-to-conversation-unqualified"
            ( Summary "Add members to an existing conversation (deprecated)"
-               :> CanThrow ConvNotFound
-               :> CanThrow NotConnected
-               :> CanThrow ConvAccessDenied
-               :> CanThrow (InvalidOp "Invalid operation")
+               :> CanThrow ('ActionDenied 'AddConversationMember)
+               :> CanThrow ('ActionDenied 'LeaveConversation)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'TooManyMembers
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'NotConnected
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -294,15 +363,14 @@ type ConversationAPI =
     :<|> Named
            "add-members-to-conversation"
            ( Summary "Add qualified members to an existing conversation."
-               :> CanThrow ConvNotFound
-               :> CanThrow ActionDenied
-               :> CanThrow (InvalidOp "Invalid operation")
-               :> CanThrow InvalidAction
-               :> CanThrow TooManyMembers
-               :> CanThrow ConvAccessDenied
-               :> CanThrow NotATeamMember
-               :> CanThrow NotConnected
-               :> CanThrow MissingLegalholdConsent
+               :> CanThrow ('ActionDenied 'AddConversationMember)
+               :> CanThrow ('ActionDenied 'LeaveConversation)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'TooManyMembers
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'NotConnected
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -317,7 +385,11 @@ type ConversationAPI =
     :<|> Named
            "join-conversation-by-id-unqualified"
            ( Summary "Join a conversation by its ID (if link access enabled)"
-               :> CanThrow ConvNotFound
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'TooManyMembers
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -333,10 +405,13 @@ type ConversationAPI =
                "Join a conversation using a reusable code.\
                \If the guest links team feature is disabled, this will fail with 409 GuestLinksDisabled.\
                \Note that this is currently inconsistent (for backwards compatibility reasons) with `POST /conversations/code-check` which responds with 404 CodeNotFound if guest links are disabled."
-               :> CanThrow CodeNotFound
-               :> CanThrow ConvNotFound
-               :> CanThrow TooManyMembers
-               :> CanThrow GuestLinksDisabled
+               :> CanThrow 'CodeNotFound
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'GuestLinksDisabled
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'TooManyMembers
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -350,8 +425,8 @@ type ConversationAPI =
                "Check validity of a conversation code.\
                \If the guest links team feature is disabled, this will fail with 404 CodeNotFound.\
                \Note that this is currently inconsistent (for backwards compatibility reasons) with `POST /conversations/join` which responds with 409 GuestLinksDisabled if guest links are disabled."
-               :> CanThrow CodeNotFound
-               :> CanThrow ConvNotFound
+               :> CanThrow 'CodeNotFound
+               :> CanThrow 'ConvNotFound
                :> "conversations"
                :> "code-check"
                :> ReqBody '[Servant.JSON] ConversationCode
@@ -366,8 +441,9 @@ type ConversationAPI =
     :<|> Named
            "create-conversation-code-unqualified"
            ( Summary "Create or recreate a conversation code"
-               :> CanThrow ConvNotFound
-               :> CanThrow InvalidAccessOp
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'GuestLinksDisabled
                :> ZUser
                :> ZConn
                :> "conversations"
@@ -375,13 +451,25 @@ type ConversationAPI =
                :> "code"
                :> CreateConversationCodeVerb
            )
+    :<|> Named
+           "get-conversation-guest-links-status"
+           ( Summary "Get the status of the guest links feature for a conversation that potentially has been created by someone from another team."
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> ZUser
+               :> "conversations"
+               :> Capture' '[Description "Conversation ID"] "cnv" ConvId
+               :> "features"
+               :> KnownTeamFeatureNameSymbol 'TeamFeatureGuestLinks
+               :> Get '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureGuestLinks)
+           )
     -- This endpoint can lead to the following events being sent:
     -- - ConvCodeDelete event to members
     :<|> Named
            "remove-code-unqualified"
            ( Summary "Delete conversation code"
-               :> CanThrow ConvNotFound
-               :> CanThrow InvalidAccessOp
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -396,8 +484,10 @@ type ConversationAPI =
     :<|> Named
            "get-code"
            ( Summary "Get existing conversation code"
-               :> CanThrow ConvNotFound
-               :> CanThrow InvalidAccessOp
+               :> CanThrow 'CodeNotFound
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'GuestLinksDisabled
                :> ZLocalUser
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
@@ -413,7 +503,7 @@ type ConversationAPI =
     :<|> Named
            "member-typing-unqualified"
            ( Summary "Sending typing notifications"
-               :> CanThrow ConvNotFound
+               :> CanThrow 'ConvNotFound
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -429,8 +519,9 @@ type ConversationAPI =
            ( Summary "Remove a member from a conversation (deprecated)"
                :> ZLocalUser
                :> ZConn
-               :> CanThrow ConvNotFound
-               :> CanThrow (InvalidOp "Invalid operation")
+               :> CanThrow ('ActionDenied 'RemoveConversationMember)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
                :> "members"
@@ -444,8 +535,9 @@ type ConversationAPI =
            ( Summary "Remove a member from a conversation"
                :> ZLocalUser
                :> ZConn
-               :> CanThrow ConvNotFound
-               :> CanThrow (InvalidOp "Invalid operation")
+               :> CanThrow ('ActionDenied 'RemoveConversationMember)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
                :> "conversations"
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
                :> "members"
@@ -460,9 +552,11 @@ type ConversationAPI =
                :> Description "Use `PUT /conversations/:cnv_domain/:cnv/members/:usr_domain/:usr` instead"
                :> ZLocalUser
                :> ZConn
-               :> CanThrow ConvNotFound
-               :> CanThrow ConvMemberNotFound
-               :> CanThrow (InvalidOp "Invalid operation")
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvMemberNotFound
+               :> CanThrow ('ActionDenied 'ModifyOtherConversationMember)
+               :> CanThrow 'InvalidTarget
+               :> CanThrow 'InvalidOperation
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
                :> "members"
@@ -480,9 +574,11 @@ type ConversationAPI =
                :> Description "**Note**: at least one field has to be provided."
                :> ZLocalUser
                :> ZConn
-               :> CanThrow ConvNotFound
-               :> CanThrow ConvMemberNotFound
-               :> CanThrow (InvalidOp "Invalid operation")
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvMemberNotFound
+               :> CanThrow ('ActionDenied 'ModifyOtherConversationMember)
+               :> CanThrow 'InvalidTarget
+               :> CanThrow 'InvalidOperation
                :> "conversations"
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
                :> "members"
@@ -500,6 +596,9 @@ type ConversationAPI =
            "update-conversation-name-deprecated"
            ( Summary "Update conversation name (deprecated)"
                :> Description "Use `/conversations/:domain/:conv/name` instead."
+               :> CanThrow ('ActionDenied 'ModifyConversationName)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -508,15 +607,16 @@ type ConversationAPI =
                :> MultiVerb
                     'PUT
                     '[JSON]
-                    [ ConvNotFound,
-                      Respond 200 "Conversation updated" Event
-                    ]
-                    (Maybe Event)
+                    (UpdateResponses "Name unchanged" "Name updated" Event)
+                    (UpdateResult Event)
            )
     :<|> Named
            "update-conversation-name-unqualified"
            ( Summary "Update conversation name (deprecated)"
                :> Description "Use `/conversations/:domain/:conv/name` instead."
+               :> CanThrow ('ActionDenied 'ModifyConversationName)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -526,14 +626,15 @@ type ConversationAPI =
                :> MultiVerb
                     'PUT
                     '[JSON]
-                    [ ConvNotFound,
-                      Respond 200 "Conversation updated" Event
-                    ]
-                    (Maybe Event)
+                    (UpdateResponses "Name unchanged" "Name updated" Event)
+                    (UpdateResult Event)
            )
     :<|> Named
            "update-conversation-name"
            ( Summary "Update conversation name"
+               :> CanThrow ('ActionDenied 'ModifyConversationName)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -543,10 +644,8 @@ type ConversationAPI =
                :> MultiVerb
                     'PUT
                     '[JSON]
-                    [ ConvNotFound,
-                      Respond 200 "Conversation updated" Event
-                    ]
-                    (Maybe Event)
+                    (UpdateResponses "Name updated" "Name unchanged" Event)
+                    (UpdateResult Event)
            )
     -- This endpoint can lead to the following events being sent:
     -- - ConvMessageTimerUpdate event to members
@@ -556,9 +655,10 @@ type ConversationAPI =
                :> Description "Use `/conversations/:domain/:cnv/message-timer` instead."
                :> ZLocalUser
                :> ZConn
-               :> CanThrow ConvAccessDenied
-               :> CanThrow ConvNotFound
-               :> CanThrow (InvalidOp "Invalid operation")
+               :> CanThrow ('ActionDenied 'ModifyConversationMessageTimer)
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
                :> "message-timer"
@@ -574,9 +674,10 @@ type ConversationAPI =
            ( Summary "Update the message timer for a conversation"
                :> ZLocalUser
                :> ZConn
-               :> CanThrow ConvAccessDenied
-               :> CanThrow ConvNotFound
-               :> CanThrow (InvalidOp "Invalid operation")
+               :> CanThrow ('ActionDenied 'ModifyConversationMessageTimer)
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
                :> "conversations"
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
                :> "message-timer"
@@ -595,8 +696,10 @@ type ConversationAPI =
                :> Description "Use `PUT /conversations/:domain/:cnv/receipt-mode` instead."
                :> ZLocalUser
                :> ZConn
-               :> CanThrow ConvAccessDenied
-               :> CanThrow ConvNotFound
+               :> CanThrow ('ActionDenied 'ModifyConversationReceiptMode)
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
                :> "receipt-mode"
@@ -612,8 +715,10 @@ type ConversationAPI =
            ( Summary "Update receipt mode for a conversation"
                :> ZLocalUser
                :> ZConn
-               :> CanThrow ConvAccessDenied
-               :> CanThrow ConvNotFound
+               :> CanThrow ('ActionDenied 'ModifyConversationReceiptMode)
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
                :> "conversations"
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
                :> "receipt-mode"
@@ -633,9 +738,12 @@ type ConversationAPI =
                :> Description "Use PUT `/conversations/:domain/:cnv/access` instead."
                :> ZLocalUser
                :> ZConn
-               :> CanThrow ConvAccessDenied
-               :> CanThrow ConvNotFound
-               :> CanThrow (InvalidOp "Invalid operation")
+               :> CanThrow ('ActionDenied 'ModifyConversationAccess)
+               :> CanThrow ('ActionDenied 'RemoveConversationMember)
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'InvalidTargetAccess
                :> "conversations"
                :> Capture' '[Description "Conversation ID"] "cnv" ConvId
                :> "access"
@@ -651,9 +759,12 @@ type ConversationAPI =
            ( Summary "Update access modes for a conversation"
                :> ZLocalUser
                :> ZConn
-               :> CanThrow ConvAccessDenied
-               :> CanThrow ConvNotFound
-               :> CanThrow (InvalidOp "Invalid operation")
+               :> CanThrow ('ActionDenied 'ModifyConversationAccess)
+               :> CanThrow ('ActionDenied 'RemoveConversationMember)
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'InvalidTargetAccess
                :> "conversations"
                :> QualifiedCapture' '[Description "Conversation ID"] "cnv" ConvId
                :> "access"
@@ -677,7 +788,7 @@ type ConversationAPI =
            "update-conversation-self-unqualified"
            ( Summary "Update self membership properties (deprecated)"
                :> Description "Use `/conversations/:domain/:conv/self` instead."
-               :> CanThrow ConvNotFound
+               :> CanThrow 'ConvNotFound
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -694,7 +805,7 @@ type ConversationAPI =
            "update-conversation-self"
            ( Summary "Update self membership properties"
                :> Description "**Note**: at least one field has to be provided."
-               :> CanThrow ConvNotFound
+               :> CanThrow 'ConvNotFound
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -712,7 +823,7 @@ type TeamConversationAPI =
   Named
     "get-team-conversation-roles"
     ( Summary "Get existing roles available for the given team"
-        :> CanThrow NotATeamMember
+        :> CanThrow 'NotATeamMember
         :> ZUser
         :> "teams"
         :> Capture "tid" TeamId
@@ -724,6 +835,7 @@ type TeamConversationAPI =
            "get-team-conversations"
            ( Summary "Get team conversations"
                :> CanThrow OperationDenied
+               :> CanThrow 'NotATeamMember
                :> ZUser
                :> "teams"
                :> Capture "tid" TeamId
@@ -733,7 +845,9 @@ type TeamConversationAPI =
     :<|> Named
            "get-team-conversation"
            ( Summary "Get one team conversation"
+               :> CanThrow 'ConvNotFound
                :> CanThrow OperationDenied
+               :> CanThrow 'NotATeamMember
                :> ZUser
                :> "teams"
                :> Capture "tid" TeamId
@@ -744,8 +858,10 @@ type TeamConversationAPI =
     :<|> Named
            "delete-team-conversation"
            ( Summary "Remove a team conversation"
-               :> CanThrow NotATeamMember
-               :> CanThrow ActionDenied
+               :> CanThrow ('ActionDenied 'DeleteConversation)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'NotATeamMember
                :> ZLocalUser
                :> ZConn
                :> "teams"
@@ -761,7 +877,8 @@ type TeamAPI =
     ( Summary "Create a new non binding team"
         :> ZUser
         :> ZConn
-        :> CanThrow NotConnected
+        :> CanThrow 'NotConnected
+        :> CanThrow 'UserBindingExists
         :> "teams"
         :> ReqBody '[Servant.JSON] NonBindingNewTeam
         :> MultiVerb
@@ -779,8 +896,8 @@ type TeamAPI =
            ( Summary "Update team properties"
                :> ZUser
                :> ZConn
-               :> CanThrow NotATeamMember
-               :> CanThrow (OperationDeniedError 'SetTeamData)
+               :> CanThrow 'NotATeamMember
+               :> CanThrow ('MissingPermission ('Just 'SetTeamData))
                :> "teams"
                :> Capture "tid" TeamId
                :> ReqBody '[JSON] TeamUpdateData
@@ -801,7 +918,7 @@ type TeamAPI =
            "get-team"
            ( Summary "Get a team by ID"
                :> ZUser
-               :> CanThrow TeamNotFound
+               :> CanThrow 'TeamNotFound
                :> "teams"
                :> Capture "tid" TeamId
                :> Get '[JSON] Team
@@ -811,11 +928,12 @@ type TeamAPI =
            ( Summary "Delete a team"
                :> ZUser
                :> ZConn
-               :> CanThrow TeamNotFound
-               :> CanThrow (OperationDeniedError 'DeleteTeam)
-               :> CanThrow NotATeamMember
-               :> CanThrow DeleteQueueFull
-               :> CanThrow ReAuthFailed
+               :> CanThrow 'TeamNotFound
+               :> CanThrow ('MissingPermission ('Just 'DeleteTeam))
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> CanThrow 'DeleteQueueFull
+               :> CanThrow AuthenticationError
                :> "teams"
                :> Capture "tid" TeamId
                :> ReqBody '[Servant.JSON] TeamDeleteData
@@ -848,9 +966,9 @@ type MessagingAPI =
                :> Description PostOtrDescriptionUnqualified
                :> ZLocalUser
                :> ZConn
-               :> CanThrow TeamNotFound
-               :> CanThrow BroadcastLimitExceeded
-               :> CanThrow NonBindingTeam
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'BroadcastLimitExceeded
+               :> CanThrow 'NonBindingTeam
                :> "broadcast"
                :> "otr"
                :> "messages"
@@ -880,12 +998,32 @@ type MessagingAPI =
                     (PostOtrResponses MessageSendingStatus)
                     (Either (MessageNotSent MessageSendingStatus) MessageSendingStatus)
            )
+    :<|> Named
+           "post-proteus-broadcast"
+           ( Summary "Post an encrypted message to all team members and all contacts (accepts only Protobuf)"
+               :> Description PostOtrDescription
+               :> ZLocalUser
+               :> ZConn
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'BroadcastLimitExceeded
+               :> CanThrow 'NonBindingTeam
+               :> "broadcast"
+               :> "proteus"
+               :> "messages"
+               :> ReqBody '[Proto] QualifiedNewOtrMessage
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    (PostOtrResponses MessageSendingStatus)
+                    (Either (MessageNotSent MessageSendingStatus) MessageSendingStatus)
+           )
 
 type BotAPI =
   Named
     "post-bot-message-unqualified"
     ( ZBot
         :> ZConversation
+        :> CanThrow 'ConvNotFound
         :> "bot"
         :> "messages"
         :> QueryParam "ignore_missing" IgnoreMissing
@@ -901,9 +1039,15 @@ type BotAPI =
 type FeatureAPI =
   FeatureStatusGet 'TeamFeatureSSO
     :<|> FeatureStatusGet 'TeamFeatureLegalHold
-    :<|> FeatureStatusPut 'TeamFeatureLegalHold
+    :<|> FeatureStatusPut
+           '( 'ActionDenied 'RemoveConversationMember,
+              '( AuthenticationError,
+                 '( 'CannotEnableLegalHoldServiceLargeTeam, '())
+               )
+            )
+           'TeamFeatureLegalHold
     :<|> FeatureStatusGet 'TeamFeatureSearchVisibility
-    :<|> FeatureStatusPut 'TeamFeatureSearchVisibility
+    :<|> FeatureStatusPut '() 'TeamFeatureSearchVisibility
     :<|> FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureSearchVisibility
     :<|> FeatureStatusDeprecatedPut 'TeamFeatureSearchVisibility
     :<|> FeatureStatusGet 'TeamFeatureValidateSAMLEmails
@@ -911,17 +1055,17 @@ type FeatureAPI =
     :<|> FeatureStatusGet 'TeamFeatureDigitalSignatures
     :<|> FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureDigitalSignatures
     :<|> FeatureStatusGet 'TeamFeatureAppLock
-    :<|> FeatureStatusPut 'TeamFeatureAppLock
+    :<|> FeatureStatusPut '() 'TeamFeatureAppLock
     :<|> FeatureStatusGet 'TeamFeatureFileSharing
-    :<|> FeatureStatusPut 'TeamFeatureFileSharing
+    :<|> FeatureStatusPut '() 'TeamFeatureFileSharing
     :<|> FeatureStatusGet 'TeamFeatureClassifiedDomains
     :<|> FeatureStatusGet 'TeamFeatureConferenceCalling
     :<|> FeatureStatusGet 'TeamFeatureSelfDeletingMessages
-    :<|> FeatureStatusPut 'TeamFeatureSelfDeletingMessages
+    :<|> FeatureStatusPut '() 'TeamFeatureSelfDeletingMessages
     :<|> FeatureStatusGet 'TeamFeatureGuestLinks
-    :<|> FeatureStatusPut 'TeamFeatureGuestLinks
+    :<|> FeatureStatusPut '() 'TeamFeatureGuestLinks
     :<|> FeatureStatusGet 'TeamFeatureSndFactorPasswordChallenge
-    :<|> FeatureStatusPut 'TeamFeatureSndFactorPasswordChallenge
+    :<|> FeatureStatusPut '() 'TeamFeatureSndFactorPasswordChallenge
     :<|> AllFeatureConfigsGet
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureLegalHold
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSSO
@@ -941,10 +1085,10 @@ type FeatureStatusGet f =
     '("get", f)
     (ZUser :> FeatureStatusBaseGet 'WithLockStatus f)
 
-type FeatureStatusPut f =
+type FeatureStatusPut errs f =
   Named
     '("put", f)
-    (ZUser :> FeatureStatusBasePut f)
+    (ZUser :> FeatureStatusBasePut errs f)
 
 type FeatureStatusDeprecatedGet l f =
   Named
@@ -958,14 +1102,22 @@ type FeatureStatusDeprecatedPut f =
 
 type FeatureStatusBaseGet lockStatus featureName =
   Summary (AppendSymbol "Get config for " (KnownTeamFeatureNameSymbol featureName))
+    :> CanThrow OperationDenied
+    :> CanThrow 'NotATeamMember
+    :> CanThrow 'TeamNotFound
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"
     :> KnownTeamFeatureNameSymbol featureName
     :> Get '[Servant.JSON] (TeamFeatureStatus lockStatus featureName)
 
-type FeatureStatusBasePut featureName =
+type FeatureStatusBasePut errs featureName =
   Summary (AppendSymbol "Put config for " (KnownTeamFeatureNameSymbol featureName))
+    :> CanThrow OperationDenied
+    :> CanThrow 'NotATeamMember
+    :> CanThrow 'TeamNotFound
+    :> CanThrow TeamFeatureError
+    :> CanThrowMany errs
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"
@@ -977,6 +1129,9 @@ type FeatureStatusBasePut featureName =
 type FeatureStatusBaseDeprecatedGet lockStatus featureName =
   ( Summary
       (AppendSymbol "[deprecated] Get config for " (KnownTeamFeatureNameSymbol featureName))
+      :> CanThrow 'NotATeamMember
+      :> CanThrow OperationDenied
+      :> CanThrow 'TeamNotFound
       :> "teams"
       :> Capture "tid" TeamId
       :> "features"
@@ -988,6 +1143,9 @@ type FeatureStatusBaseDeprecatedGet lockStatus featureName =
 type FeatureStatusBaseDeprecatedPut featureName =
   Summary
     (AppendSymbol "[deprecated] Get config for " (KnownTeamFeatureNameSymbol featureName))
+    :> CanThrow 'NotATeamMember
+    :> CanThrow OperationDenied
+    :> CanThrow 'TeamNotFound
     :> "teams"
     :> Capture "tid" TeamId
     :> "features"
@@ -1000,6 +1158,9 @@ type FeatureConfigGet ps featureName =
     '("get-config", featureName)
     ( Summary (AppendSymbol "Get feature config for feature " (KnownTeamFeatureNameSymbol featureName))
         :> ZUser
+        :> CanThrow 'NotATeamMember
+        :> CanThrow OperationDenied
+        :> CanThrow 'TeamNotFound
         :> "feature-configs"
         :> KnownTeamFeatureNameSymbol featureName
         :> Get '[Servant.JSON] (TeamFeatureStatus ps featureName)
@@ -1010,9 +1171,42 @@ type AllFeatureConfigsGet =
     "get-all-feature-configs"
     ( Summary "Get configurations of all features"
         :> ZUser
+        :> CanThrow 'NotATeamMember
+        :> CanThrow OperationDenied
+        :> CanThrow 'TeamNotFound
         :> "feature-configs"
         :> Get '[Servant.JSON] AllFeatureConfigs
     )
+
+type MLSMessagingAPI =
+  Named
+    "mls-welcome-message"
+    ( Summary "Post an MLS welcome message"
+        :> CanThrow 'MLSKeyPackageRefNotFound
+        :> "welcome"
+        :> ZConn
+        :> ReqBody '[MLS] (RawMLS Welcome)
+        :> MultiVerb1 'POST '[JSON] (RespondEmpty 201 "Welcome message sent")
+    )
+    :<|> Named
+           "mls-message"
+           ( Summary "Post an MLS message"
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MLSClientMismatch
+               :> CanThrow 'MLSProtocolErrorTag
+               :> CanThrow 'MLSStaleMessage
+               :> CanThrow MLSProposalFailure
+               :> CanThrow 'MLSProposalNotFound
+               :> CanThrow 'MLSUnsupportedMessage
+               :> CanThrow 'MLSUnsupportedProposal
+               :> "messages"
+               :> ZConn
+               :> ReqBody '[MLS] (RawMLS SomeMessage)
+               :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" [Event])
+           )
+
+type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSMessagingAPI)
 
 -- This is a work-around for the fact that we sometimes want to send larger lists of user ids
 -- in the filter query than fits the url length limit.  For details, see
@@ -1048,7 +1242,7 @@ type PostOtrDescription =
   \- `report_only`: Takes a list of qualified UserIDs. If any clients of the listed users are missing, the message is not sent. The missing clients are reported in the response.\n\
   \- `ignore_only`: Takes a list of qualified UserIDs. If any clients of the non-listed users are missing, the message is not sent. The missing clients are reported in the response.\n\
   \\n\
-  \The sending of messages in a federated conversation could theorectically fail partially. \
+  \The sending of messages in a federated conversation could theoretically fail partially. \
   \To make this case unlikely, the backend first gets a list of clients from all the involved backends and then tries to send a message. \
   \So, if any backend is down, the message is not propagated to anyone. \
   \But the actual message fan out to multiple backends could still fail partially. This type of failure is reported as a 201, \

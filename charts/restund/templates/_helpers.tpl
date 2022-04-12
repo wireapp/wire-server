@@ -43,3 +43,9 @@ If release name contains chart name it will be used as a full name.
 app.kubernetes.io/name: {{ include "restund.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{- define "restund.federateCAName" -}}
+{{- $nameParts := list (include "restund.fullname" .) -}}
+{{- $nameParts = append $nameParts "federate-ca-name" -}}
+{{- join "-" $nameParts -}}
+{{- end }}

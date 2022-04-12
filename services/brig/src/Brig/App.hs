@@ -1,5 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
+-- FUTUREWORK: Get rid of this option once Polysemy is fully introduced to Brig
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -59,18 +61,30 @@ module Brig.App
 
     -- * App Monad
     AppT,
-    AppIO,
     runAppT,
     runAppResourceT,
-    forkAppIO,
+    fork,
     locationOf,
     viewFederationDomain,
     qualifyLocal,
+
+    -- * Crutches that should be removed once Brig has been completely
+
+    -- * transitioned to Polysemy
+    wrapClient,
+    wrapClientE,
+    wrapClientM,
+    wrapHttpClient,
+    wrapHttpClientE,
+    wrapHttp,
+    HttpClientIO (..),
+    liftSem,
   )
 where
 
-import Bilge (Manager, MonadHttp, RequestId (..), newManager, withResponse)
+import Bilge (RequestId (..))
 import qualified Bilge as RPC
+import Bilge.IO
 import Bilge.RPC (HasRequestId (..))
 import qualified Brig.AWS as AWS
 import qualified Brig.Calling as Calling
@@ -87,7 +101,7 @@ import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
 import qualified Brig.ZAuth as ZAuth
-import Cassandra (Keyspace (Keyspace), MonadClient, runClient)
+import Cassandra (Keyspace (Keyspace), runClient)
 import qualified Cassandra as Cas
 import Cassandra.Schema (versionCheck)
 import qualified Cassandra.Settings as Cas
@@ -95,7 +109,7 @@ import Control.AutoUpdate
 import Control.Error
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens hiding (index, (.=))
-import Control.Monad.Catch (MonadCatch, MonadMask)
+import Control.Monad.Catch
 import Control.Monad.Trans.Resource
 import Data.ByteString.Conversion
 import Data.Default (def)
@@ -118,12 +132,14 @@ import Data.Time.Clock
 import Data.Yaml (FromJSON)
 import qualified Database.Bloodhound as ES
 import Imports
-import Network.HTTP.Client (ManagerSettings (..), responseTimeoutMicro)
+import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
+import Polysemy
+import Polysemy.Final
 import qualified Ropes.Nexmo as Nexmo
 import qualified Ropes.Twilio as Twilio
 import Ssl.Util
@@ -136,7 +152,7 @@ import Util.Options
 import Wire.API.User.Identity (Email)
 
 schemaVersion :: Int32
-schemaVersion = 67
+schemaVersion = 70
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -254,15 +270,15 @@ newEnv o = do
         _zauthEnv = zau,
         _digestMD5 = md5,
         _digestSHA256 = sha256,
-        _indexEnv = mkIndexEnv o lgr mgr mtr,
+        _indexEnv = mkIndexEnv o lgr mgr mtr (Opt.galley o),
         _randomPrekeyLocalLock = prekeyLocalLock,
         _keyPackageLocalLock = kpLock
       }
   where
     emailConn _ (Opt.EmailAWS aws) = return (Just aws, Nothing)
     emailConn lgr (Opt.EmailSMTP s) = do
-      let host = (Opt.smtpEndpoint s) ^. epHost
-          port = Just $ fromInteger $ toInteger $ (Opt.smtpEndpoint s) ^. epPort
+      let host = Opt.smtpEndpoint s ^. epHost
+          port = Just $ fromInteger $ toInteger $ Opt.smtpEndpoint s ^. epPort
       smtpCredentials <- case Opt.smtpCredentials s of
         Just (Opt.EmailSMTPCredentials u p) -> do
           pass <- initCredentials p
@@ -272,14 +288,14 @@ newEnv o = do
       return (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
 
-mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> IndexEnv
-mkIndexEnv o lgr mgr mtr =
+mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
+mkIndexEnv o lgr mgr mtr galleyEndpoint =
   let bhe = ES.mkBHEnv (ES.Server (Opt.url (Opt.elasticsearch o))) mgr
       lgr' = Log.clone (Just "index.brig") lgr
       mainIndex = ES.IndexName $ Opt.index (Opt.elasticsearch o)
       additionalIndex = ES.IndexName <$> Opt.additionalWriteIndex (Opt.elasticsearch o)
       additionalBhe = flip ES.mkBHEnv mgr . ES.Server <$> Opt.additionalWriteIndexUrl (Opt.elasticsearch o)
-   in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex additionalBhe
+   in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex additionalBhe galleyEndpoint mgr
 
 geoSetup :: Logger -> FS.WatchManager -> Maybe FilePath -> IO (Maybe (IORef GeoIp.GeoDB))
 geoSetup _ _ Nothing = return Nothing
@@ -308,8 +324,8 @@ startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
   where
     predicate (FS.Added f _ _) = Path.equalFilePath f p
     predicate (FS.Modified f _ _) = Path.equalFilePath f p
-    predicate (FS.Removed _ _ _) = False
-    predicate (FS.Unknown _ _ _) = False
+    predicate FS.Removed {} = False
+    predicate FS.Unknown {} = False
 
 replaceGeoDb :: Logger -> IORef GeoIp.GeoDB -> FS.Event -> IO ()
 replaceGeoDb g ref e = do
@@ -423,13 +439,13 @@ initCredentials secretFile = do
   dat <- loadSecret secretFile
   return $ either (\e -> error $ "Could not load secrets from " ++ show secretFile ++ ": " ++ e) id dat
 
-userTemplates :: Monad m => Maybe Locale -> AppT r m (Locale, UserTemplates)
+userTemplates :: MonadReader Env m => Maybe Locale -> m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates
 
-providerTemplates :: Monad m => Maybe Locale -> AppT r m (Locale, ProviderTemplates)
+providerTemplates :: MonadReader Env m => Maybe Locale -> m (Locale, ProviderTemplates)
 providerTemplates l = forLocale l <$> view provTemplates
 
-teamTemplates :: Monad m => Maybe Locale -> AppT r m (Locale, TeamTemplates)
+teamTemplates :: MonadReader Env m => Maybe Locale -> m (Locale, TeamTemplates)
 teamTemplates l = forLocale l <$> view tmTemplates
 
 closeEnv :: Env -> IO ()
@@ -441,83 +457,178 @@ closeEnv e = do
 
 -------------------------------------------------------------------------------
 -- App Monad
-newtype AppT r m a = AppT
-  { unAppT :: ReaderT Env m a
+newtype AppT r a = AppT
+  { unAppT :: Member (Final IO) r => ReaderT Env (Sem r) a
   }
-  deriving newtype
-    ( Functor,
-      Applicative,
-      Monad,
-      MonadIO,
-      MonadThrow,
-      MonadCatch,
-      MonadMask,
-      MonadReader Env
-    )
   deriving
     ( Semigroup,
       Monoid
     )
-    via (Ap (AppT r m) a)
+    via (Ap (AppT r) a)
 
-type AppIO r = AppT r IO
+instance Functor (AppT r) where
+  fmap fab (AppT x0) = AppT $ fmap fab x0
 
-instance MonadIO m => MonadLogger (AppT r m) where
+instance Applicative (AppT r) where
+  pure a = AppT $ pure a
+  (AppT x0) <*> (AppT x1) = AppT $ x0 <*> x1
+
+instance Monad (AppT r) where
+  (AppT x0) >>= f = AppT $ x0 >>= unAppT . f
+
+instance MonadIO (AppT r) where
+  liftIO io = AppT $ lift $ embedFinal io
+
+instance MonadThrow (AppT r) where
+  throwM = liftIO . throwM
+
+instance Member (Final IO) r => MonadThrow (Sem r) where
+  throwM = embedFinal . throwM @IO
+
+instance Member (Final IO) r => MonadCatch (Sem r) where
+  catch m handler = withStrategicToFinal @IO $ do
+    m' <- runS m
+    st <- getInitialStateS
+    handler' <- bindS handler
+    pure $ m' `catch` \e -> handler' $ e <$ st
+
+instance MonadCatch (AppT r) where
+  catch (AppT m) handler = AppT $
+    ReaderT $ \env ->
+      catch (runReaderT m env) (flip runReaderT env . unAppT . handler)
+
+instance MonadReader Env (AppT r) where
+  ask = AppT ask
+  local f (AppT m) = AppT $ local f m
+
+liftSem :: Sem r a -> AppT r a
+liftSem sem = AppT $ lift sem
+
+instance MonadIO m => MonadLogger (ReaderT Env m) where
   log l m = do
     g <- view applog
     r <- view requestId
     Log.log g l $ field "request" (unRequestId r) ~~ m
 
-instance MonadIO m => MonadLogger (ExceptT err (AppT r m)) where
+instance MonadLogger (AppT r) where
+  log l m = do
+    g <- view applog
+    r <- view requestId
+    AppT $
+      lift $
+        embedFinal @IO $
+          Log.log g l $ field "request" (unRequestId r) ~~ m
+
+instance MonadLogger (ExceptT err (AppT r)) where
   log l m = lift (LC.log l m)
 
-instance (Monad m, MonadIO m) => MonadHttp (AppT r m) where
+instance MonadIO m => MonadHttp (AppT r) where
   handleRequestWithCont req handler = do
     manager <- view httpManager
     liftIO $ withResponse req manager handler
 
-instance MonadIO m => MonadZAuth (AppT r m) where
+instance MonadZAuth (AppT r) where
   liftZAuth za = view zauthEnv >>= \e -> runZAuth e za
 
-instance MonadIO m => MonadZAuth (ExceptT err (AppT r m)) where
-  liftZAuth = lift . liftZAuth
+instance MonadZAuth (ExceptT err (AppT r)) where
+  liftZAuth za = lift (view zauthEnv) >>= flip runZAuth za
 
-instance (MonadThrow m, MonadCatch m, MonadIO m) => MonadClient (AppT r m) where
-  liftClient m = view casClient >>= \c -> runClient c m
-  localState f = local (over casClient f)
+-- | The function serves as a crutch while Brig is being polysemised. Use it
+-- whenever the compiler complains that there is no instance of `MonadClient`
+-- for `AppT r`. It can be removed once there is no `AppT` anymore.
+wrapClient :: ReaderT Env Cas.Client a -> AppT r a
+wrapClient m = do
+  c <- view casClient
+  env <- ask
+  runClient c $ runReaderT m env
 
-instance MonadIndexIO (AppIO r) where
-  liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
+wrapClientE :: ExceptT e (ReaderT Env Cas.Client) a -> ExceptT e (AppT r) a
+wrapClientE = mapExceptT wrapClient
 
-instance (MonadIndexIO (AppT r m), Monad m) => MonadIndexIO (ExceptT err (AppT r m)) where
-  liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
+wrapClientM :: MaybeT (ReaderT Env Cas.Client) b -> MaybeT (AppT r) b
+wrapClientM = mapMaybeT wrapClient
 
-instance Monad m => HasRequestId (AppT r m) where
+wrapHttp ::
+  HttpClientIO a ->
+  AppT r a
+wrapHttp (HttpClientIO m) = do
+  c <- view casClient
+  env <- ask
+  manager <- view httpManager
+  liftIO . runClient c . runHttpT manager $ runReaderT m env
+
+newtype HttpClientIO a = HttpClientIO
+  { runHttpClientIO :: ReaderT Env (HttpT Cas.Client) a
+  }
+  deriving newtype
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadReader Env,
+      MonadLogger,
+      MonadHttp,
+      MonadIO,
+      MonadThrow,
+      MonadCatch,
+      MonadMask,
+      MonadUnliftIO,
+      MonadIndexIO
+    )
+
+instance MonadZAuth HttpClientIO where
+  liftZAuth za = view zauthEnv >>= flip runZAuth za
+
+instance HasRequestId HttpClientIO where
   getRequestId = view requestId
 
-instance MonadUnliftIO m => MonadUnliftIO (AppT r m) where
-  withRunInIO inner =
-    AppT . ReaderT $ \r ->
-      withRunInIO $ \run ->
-        inner (run . flip runReaderT r . unAppT)
+instance Cas.MonadClient HttpClientIO where
+  liftClient cl = do
+    env <- ask
+    liftIO $ runClient (view casClient env) cl
+  localState f = local (casClient %~ f)
 
-runAppT :: Env -> AppT r m a -> m a
-runAppT e (AppT ma) = runReaderT ma e
+wrapHttpClient ::
+  HttpClientIO a ->
+  AppT r a
+wrapHttpClient = wrapHttp
 
-runAppResourceT :: ResourceT (AppIO r) a -> (AppIO r) a
+wrapHttpClientE :: ExceptT e HttpClientIO a -> ExceptT e (AppT r) a
+wrapHttpClientE = mapExceptT wrapHttpClient
+
+instance MonadIO m => MonadIndexIO (ReaderT Env m) where
+  liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
+
+instance MonadIndexIO (AppT r) where
+  liftIndexIO m = do
+    AppT $ mapReaderT (embedToFinal @IO) $ liftIndexIO m
+
+instance MonadIndexIO (AppT r) => MonadIndexIO (ExceptT err (AppT r)) where
+  liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
+
+instance Monad m => HasRequestId (AppT r) where
+  getRequestId = view requestId
+
+runAppT :: Env -> AppT '[Final IO] a -> IO a
+runAppT e (AppT ma) = runFinal $ runReaderT ma e
+
+runAppResourceT :: ResourceT (AppT '[Final IO]) a -> (AppT '[Final IO]) a
 runAppResourceT ma = do
   e <- ask
   liftIO . runResourceT $ transResourceT (runAppT e) ma
 
-forkAppIO :: Maybe UserId -> (AppIO r) a -> (AppIO r) ()
-forkAppIO u ma = do
-  a <- ask
+fork ::
+  (MonadIO m, MonadUnliftIO m, MonadReader Env m) =>
+  Maybe UserId ->
+  m a ->
+  m ()
+fork u ma = do
   g <- view applog
   r <- view requestId
   let logErr e = Log.err g $ request r ~~ user u ~~ msg (show e)
-  void . liftIO . forkIO $
-    either logErr (const $ return ())
-      =<< runExceptT (syncIO $ runAppT a ma)
+  withRunInIO $ \lower ->
+    void . liftIO . forkIO $
+      either logErr (const $ return ())
+        =<< runExceptT (syncIO $ lower ma)
   where
     request = field "request" . unRequestId
     user = maybe id (field "user" . toByteString)
@@ -533,7 +644,7 @@ locationOf ip =
     Nothing -> return Nothing
 
 readTurnList :: FilePath -> IO (Maybe (List1 TurnURI))
-readTurnList = Text.readFile >=> return . fn . mapMaybe fromByteString . fmap Text.encodeUtf8 . Text.lines
+readTurnList = Text.readFile >=> return . fn . mapMaybe (fromByteString . Text.encodeUtf8) . Text.lines
   where
     fn [] = Nothing
     fn (x : xs) = Just (list1 x xs)

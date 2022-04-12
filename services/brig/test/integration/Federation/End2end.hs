@@ -51,6 +51,7 @@ import Util
 import Util.Options (Endpoint)
 import Wire.API.Asset
 import Wire.API.Conversation
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Event.Conversation
 import Wire.API.Message
@@ -247,7 +248,18 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
   alice <- randomUser brig1
   bob <- randomUser brig2
 
-  let newConv = NewConv [] [] (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+  let newConv =
+        NewConv
+          []
+          []
+          (checked "gossip")
+          mempty
+          Nothing
+          Nothing
+          Nothing
+          Nothing
+          roleNameWireAdmin
+          ProtocolProteusTag
   convId <-
     fmap cnvQualifiedId . responseJsonError
       =<< post

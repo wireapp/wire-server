@@ -22,6 +22,8 @@ import Data.Proxy
 import GHC.TypeLits
 import Imports
 import Servant
+import Servant.Client
+import Servant.Client.Core (clientIn)
 import Servant.Swagger
 
 newtype Named named x = Named {unnamed :: x}
@@ -39,6 +41,11 @@ instance HasServer api ctx => HasServer (Named name api) ctx where
 
 instance RoutesToPaths api => RoutesToPaths (Named name api) where
   getRoutes = getRoutes @api
+
+instance HasClient m api => HasClient m (Named n api) where
+  type Client m (Named n api) = Client m api
+  clientWithRoute pm _ req = clientWithRoute pm (Proxy @api) req
+  hoistClientMonad pm _ f = hoistClientMonad pm (Proxy @api) f
 
 type family FindName n (api :: *) :: (n, *) where
   FindName n (Named name api) = '(name, api)
@@ -66,3 +73,35 @@ type family LiftFlatNamed n api where
 type LiftNamedOfKind n api = LiftFlatNamed n (Flatten api)
 
 type LiftNamed api = LiftNamedOfKind Symbol api
+
+------------------------------------
+-- Lookup
+
+type family MappendMaybe (x :: Maybe k) (y :: Maybe k) :: Maybe k where
+  MappendMaybe 'Nothing y = y
+  MappendMaybe ('Just x) y = 'Just x
+
+type family FMap (f :: a -> b) (m :: Maybe a) :: Maybe b where
+  FMap _ 'Nothing = 'Nothing
+  FMap f ('Just a) = 'Just (f a)
+
+type family LookupEndpoint api name :: Maybe * where
+  LookupEndpoint (Named name endpoint) name = 'Just endpoint
+  LookupEndpoint (api1 :<|> api2) name =
+    MappendMaybe
+      (LookupEndpoint api1 name)
+      (LookupEndpoint api2 name)
+  LookupEndpoint (prefix :> api) name = FMap ((:>) prefix) (LookupEndpoint api name)
+  LookupEndpoint api name = 'Nothing
+
+-------------------------------------
+-- Named Client
+
+type HasEndpoint api endpoint name = ('Just endpoint ~ LookupEndpoint api name)
+
+-- | Return a client for a named endpoint.
+namedClient ::
+  forall api (name :: Symbol) m endpoint.
+  (HasEndpoint api endpoint name, HasClient m endpoint) =>
+  Client m endpoint
+namedClient = clientIn (Proxy @endpoint) (Proxy @m)

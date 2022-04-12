@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneKindSignatures #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -19,86 +18,66 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.MLS.KeyPackage
-  ( -- * API types
-    KeyPackageUpload (..),
+  ( KeyPackageUpload (..),
     KeyPackageBundle (..),
     KeyPackageBundleEntry (..),
     KeyPackageCount (..),
     KeyPackageData (..),
     KeyPackage (..),
+    kpProtocolVersion,
+    kpCipherSuite,
+    kpInitKey,
+    kpCredential,
+    kpExtensions,
+    kpRef,
+    kpRef',
     KeyPackageTBS (..),
     KeyPackageRef (..),
-
-    -- * Key package types
-    Timestamp (..),
-    ProtocolVersion (..),
-    ProtocolVersionTag (..),
-    pvTag,
-    Extension (..),
-
-    -- * Extensions
-    decodeExtension,
-    parseExtension,
-    ExtensionTag (..),
-    ReservedExtensionTagSym0,
-    CapabilitiesExtensionTagSym0,
-    LifetimeExtensionTagSym0,
-    SExtensionTag (..),
-    SomeExtension (..),
-    Capabilities (..),
-    Lifetime (..),
-
-    -- * Utilities
-    tsPOSIX,
-    kpRef,
-    kpSigOffset,
   )
 where
 
 import Control.Applicative
-import Control.Error.Util
 import Control.Lens hiding (set, (.=))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary
 import Data.Binary.Get
-import qualified Data.ByteString.Lazy as LBS
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
 import Data.Schema
-import Data.Singletons
-import Data.Singletons.TH
 import qualified Data.Swagger as S
-import Data.Time.Clock.POSIX
 import Imports
+import Web.HttpApiData
 import Wire.API.Arbitrary
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Extension
 import Wire.API.MLS.Serialisation
 
 data KeyPackageUpload = KeyPackageUpload
-  {kpuKeyPackages :: [KeyPackageData]}
+  {kpuKeyPackages :: [RawMLS KeyPackage]}
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema KeyPackageUpload
 
 instance ToSchema KeyPackageUpload where
   schema =
     object "KeyPackageUpload" $
       KeyPackageUpload
-        <$> kpuKeyPackages .= field "key_packages" (array schema)
+        <$> kpuKeyPackages .= field "key_packages" (array rawKeyPackageSchema)
 
-newtype KeyPackageData = KeyPackageData {kpData :: LByteString}
+newtype KeyPackageData = KeyPackageData {kpData :: ByteString}
   deriving stock (Eq, Ord, Show)
 
 instance ToSchema KeyPackageData where
   schema =
-    (S.schema . S.example ?~ "a2V5IHBhY2thZ2UgZGF0YQo=")
+    (S.schema %~ addKeyPackageSwagger)
       ( KeyPackageData <$> kpData
-          .= named "KeyPackage" (Base64ByteString .= fmap fromBase64ByteString base64Schema)
+          .= named "KeyPackage" base64Schema
       )
 
 data KeyPackageBundleEntry = KeyPackageBundleEntry
   { kpbeUser :: Qualified UserId,
     kpbeClient :: ClientId,
+    kpbeRef :: KeyPackageRef,
     kpbeKeyPackage :: KeyPackageData
   }
   deriving stock (Eq, Ord)
@@ -109,6 +88,7 @@ instance ToSchema KeyPackageBundleEntry where
       KeyPackageBundleEntry
         <$> kpbeUser .= qualifiedObjectSchema "user" schema
         <*> kpbeClient .= field "client" schema
+        <*> kpbeRef .= field "key_package_ref" schema
         <*> kpbeKeyPackage .= field "key_package" schema
 
 newtype KeyPackageBundle = KeyPackageBundle {kpbEntries :: Set KeyPackageBundleEntry}
@@ -129,112 +109,45 @@ instance ToSchema KeyPackageCount where
     object "OwnKeyPackages" $
       KeyPackageCount <$> unKeyPackageCount .= field "count" schema
 
+newtype KeyPackageRef = KeyPackageRef {unKeyPackageRef :: ByteString}
+  deriving stock (Eq, Ord, Show)
+  deriving (FromHttpApiData, ToHttpApiData, S.ToParamSchema) via Base64ByteString
+
+instance ToSchema KeyPackageRef where
+  schema = named "KeyPackageRef" $ unKeyPackageRef .= fmap KeyPackageRef base64Schema
+
+instance ParseMLS KeyPackageRef where
+  parseMLS = KeyPackageRef <$> getByteString 16
+
+-- | Compute key package ref given a ciphersuite and the raw key package data.
+kpRef :: CipherSuiteTag -> KeyPackageData -> KeyPackageRef
+kpRef cs =
+  KeyPackageRef
+    -- Warning: the "context" string here is different from the one mandated by
+    -- the spec, but it is the one that happens to be used by openmls. Until
+    -- openmls is patched and we switch to a fixed version, we will have to use
+    -- the "wrong" string here as well.
+    . csHash cs "MLS 1.0 ref"
+    . kpData
+
+-- | Compute ref of a key package. Return 'Nothing' if the key package cipher
+-- suite is invalid or unsupported.
+kpRef' :: RawMLS KeyPackage -> Maybe KeyPackageRef
+kpRef' kp =
+  kpRef
+    <$> cipherSuiteTag (kpCipherSuite (rmValue kp))
+    <*> pure (KeyPackageData (rmRaw kp))
+
 --------------------------------------------------------------------------------
 
-newtype ProtocolVersion = ProtocolVersion {pvNumber :: Word8}
-  deriving newtype (Eq, Ord, Show, Binary, Arbitrary)
-  deriving (ParseMLS) via (BinaryMLS ProtocolVersion)
-
-data ProtocolVersionTag = ProtocolMLS10 | ProtocolMLSDraft11
-  deriving stock (Bounded, Enum, Eq, Show, Generic)
-  deriving (Arbitrary) via GenericUniform ProtocolVersionTag
-
-pvTag :: ProtocolVersion -> Maybe ProtocolVersionTag
-pvTag (ProtocolVersion v) = case v of
-  1 -> pure ProtocolMLS10
-  200 -> pure ProtocolMLSDraft11
-  _ -> Nothing
-
-data Extension = Extension
-  { extType :: Word16,
-    extData :: ByteString
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via GenericUniform Extension
-
-instance ParseMLS Extension where
-  parseMLS = Extension <$> parseMLS <*> parseMLSBytes @Word32
-
-data ExtensionTag
-  = ReservedExtensionTag
-  | CapabilitiesExtensionTag
-  | LifetimeExtensionTag
-  deriving (Bounded, Enum)
-
-$(genSingletons [''ExtensionTag])
-
-type family ExtensionType (t :: ExtensionTag) :: * where
-  ExtensionType 'ReservedExtensionTag = ()
-  ExtensionType 'CapabilitiesExtensionTag = Capabilities
-  ExtensionType 'LifetimeExtensionTag = Lifetime
-
-parseExtension :: Sing t -> Get (ExtensionType t)
-parseExtension SReservedExtensionTag = pure ()
-parseExtension SCapabilitiesExtensionTag = parseMLS
-parseExtension SLifetimeExtensionTag = parseMLS
-
-data SomeExtension where
-  SomeExtension :: Sing t -> ExtensionType t -> SomeExtension
-
-instance Eq SomeExtension where
-  SomeExtension SCapabilitiesExtensionTag caps1 == SomeExtension SCapabilitiesExtensionTag caps2 = caps1 == caps2
-  SomeExtension SLifetimeExtensionTag lt1 == SomeExtension SLifetimeExtensionTag lt2 = lt1 == lt2
-  _ == _ = False
-
-instance Show SomeExtension where
-  show (SomeExtension SReservedExtensionTag _) = show ()
-  show (SomeExtension SCapabilitiesExtensionTag caps) = show caps
-  show (SomeExtension SLifetimeExtensionTag lt) = show lt
-
-decodeExtension :: Extension -> Maybe SomeExtension
-decodeExtension e = do
-  t <- safeToEnum (fromIntegral (extType e))
-  hush $
-    withSomeSing t $ \st ->
-      decodeMLSWith' (SomeExtension st <$> parseExtension st) (extData e)
-
-data Capabilities = Capabilities
-  { capVersions :: [ProtocolVersion],
-    capCiphersuites :: [CipherSuite],
-    capExtensions :: [Word16],
-    capProposals :: [Word16]
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform Capabilities)
-
-instance ParseMLS Capabilities where
-  parseMLS =
-    Capabilities
-      <$> parseMLSVector @Word8 parseMLS
-      <*> parseMLSVector @Word8 parseMLS
-      <*> parseMLSVector @Word8 parseMLS
-      <*> parseMLSVector @Word8 parseMLS
-
--- | Seconds since the UNIX epoch.
-newtype Timestamp = Timestamp {timestampSeconds :: Word64}
-  deriving newtype (Eq, Show, Arbitrary, ParseMLS)
-
-tsPOSIX :: Timestamp -> POSIXTime
-tsPOSIX = fromIntegral . timestampSeconds
-
-data Lifetime = Lifetime
-  { ltNotBefore :: Timestamp,
-    ltNotAfter :: Timestamp
-  }
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via GenericUniform Lifetime
-
-instance ParseMLS Lifetime where
-  parseMLS = Lifetime <$> parseMLS <*> parseMLS
-
 data KeyPackageTBS = KeyPackageTBS
-  { kpProtocolVersion :: ProtocolVersion,
-    kpCipherSuite :: CipherSuite,
-    kpInitKey :: ByteString,
-    kpCredential :: Credential,
-    kpExtensions :: [Extension]
+  { kpuProtocolVersion :: ProtocolVersion,
+    kpuCipherSuite :: CipherSuite,
+    kpuInitKey :: ByteString,
+    kpuCredential :: Credential,
+    kpuExtensions :: [Extension]
   }
-  deriving stock (Show, Generic)
+  deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform KeyPackageTBS
 
 instance ParseMLS KeyPackageTBS where
@@ -247,29 +160,36 @@ instance ParseMLS KeyPackageTBS where
       <*> parseMLSVector @Word32 parseMLS
 
 data KeyPackage = KeyPackage
-  { kpTBS :: KeyPackageTBS,
+  { kpTBS :: RawMLS KeyPackageTBS,
     kpSignature :: ByteString
   }
-  deriving (Show)
+  deriving stock (Eq, Show)
 
-newtype KeyPackageRef = KeyPackageRef {unKeyPackageRef :: ByteString}
-  deriving stock (Show)
+kpProtocolVersion :: KeyPackage -> ProtocolVersion
+kpProtocolVersion = kpuProtocolVersion . rmValue . kpTBS
 
-kpRef :: CipherSuiteTag -> KeyPackageData -> KeyPackageRef
-kpRef cs =
-  KeyPackageRef
-    . csHash cs "MLS 1.0 KeyPackage Reference"
-    . LBS.toStrict
-    . kpData
+kpCipherSuite :: KeyPackage -> CipherSuite
+kpCipherSuite = kpuCipherSuite . rmValue . kpTBS
+
+kpInitKey :: KeyPackage -> ByteString
+kpInitKey = kpuInitKey . rmValue . kpTBS
+
+kpCredential :: KeyPackage -> Credential
+kpCredential = kpuCredential . rmValue . kpTBS
+
+kpExtensions :: KeyPackage -> [Extension]
+kpExtensions = kpuExtensions . rmValue . kpTBS
+
+rawKeyPackageSchema :: ValueSchema NamedSwaggerDoc (RawMLS KeyPackage)
+rawKeyPackageSchema =
+  rawMLSSchema "KeyPackage" decodeMLS'
+    & S.schema %~ addKeyPackageSwagger
+
+addKeyPackageSwagger :: S.Schema -> S.Schema
+addKeyPackageSwagger = S.example ?~ "a2V5IHBhY2thZ2UgZGF0YQo="
 
 instance ParseMLS KeyPackage where
-  parseMLS = fst <$> kpSigOffset
-
--- | Parse a key package, and also return the offset of the signature. This can
--- be used to reconstruct the signed data.
-kpSigOffset :: Get (KeyPackage, Int64)
-kpSigOffset = do
-  kp <- parseMLS
-  off <- bytesRead
-  sig <- parseMLSBytes @Word16
-  pure (KeyPackage kp sig, off)
+  parseMLS =
+    KeyPackage
+      <$> parseRawMLS parseMLS
+      <*> parseMLSBytes @Word16

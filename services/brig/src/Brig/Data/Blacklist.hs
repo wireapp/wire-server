@@ -42,8 +42,8 @@ insert uk = retry x5 $ write keyInsert (params LocalQuorum (Identity $ keyText u
 
 exists :: MonadClient m => UserKey -> m Bool
 exists uk =
-  return . isJust =<< fmap runIdentity
-    <$> retry x1 (query1 keySelect (params LocalQuorum (Identity $ keyText uk)))
+  (return . isJust) . fmap runIdentity
+    =<< retry x1 (query1 keySelect (params LocalQuorum (Identity $ keyText uk)))
 
 delete :: MonadClient m => UserKey -> m ()
 delete uk = retry x5 $ write keyDelete (params LocalQuorum (Identity $ keyText uk))

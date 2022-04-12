@@ -33,7 +33,6 @@ where
 
 import Brig.API.Connection.Remote
 import Brig.API.Connection.Util
-import Brig.API.Error (errorDescriptionTypeToWai)
 import Brig.API.Types
 import Brig.API.User (getLegalHoldStatus)
 import Brig.App
@@ -56,18 +55,19 @@ import Imports
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import Wire.API.Connection (RelationWithHistory (..))
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import qualified Wire.API.Error.Brig as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
-ensureIsActivated :: Local UserId -> MaybeT (AppIO r) ()
+ensureIsActivated :: Local UserId -> MaybeT (AppT r) ()
 ensureIsActivated lusr = do
-  active <- lift $ Data.isActivated (tUnqualified lusr)
+  active <- lift . wrapClient $ Data.isActivated (tUnqualified lusr)
   guard active
 
 ensureNotSameTeam :: Local UserId -> Local UserId -> (ConnectionM r) ()
 ensureNotSameTeam self target = do
-  selfTeam <- lift $ Intra.getTeamId (tUnqualified self)
-  targetTeam <- lift $ Intra.getTeamId (tUnqualified target)
+  selfTeam <- lift $ wrapHttp $ Intra.getTeamId (tUnqualified self)
+  targetTeam <- lift $ wrapHttp $ Intra.getTeamId (tUnqualified target)
   when (isJust selfTeam && selfTeam == targetTeam) $
     throwE ConnectSameBindingTeamUsers
 
@@ -100,8 +100,8 @@ createConnectionToLocalUser self conn target = do
     ensureIsActivated target
   checkLegalholdPolicyConflict (tUnqualified self) (tUnqualified target)
   ensureNotSameTeam self target
-  s2o <- lift $ Data.lookupConnection self (qUntagged target)
-  o2s <- lift $ Data.lookupConnection target (qUntagged self)
+  s2o <- lift . wrapClient $ Data.lookupConnection self (qUntagged target)
+  o2s <- lift . wrapClient $ Data.lookupConnection target (qUntagged self)
 
   case update <$> s2o <*> o2s of
     Just rs -> rs
@@ -109,22 +109,22 @@ createConnectionToLocalUser self conn target = do
       checkLimit self
       Created <$> insert Nothing Nothing
   where
-    insert :: Maybe UserConnection -> Maybe UserConnection -> ExceptT ConnectionError (AppIO r) UserConnection
+    insert :: Maybe UserConnection -> Maybe UserConnection -> ExceptT ConnectionError (AppT r) UserConnection
     insert s2o o2s = lift $ do
       Log.info $
         logConnection (tUnqualified self) (qUntagged target)
           . msg (val "Creating connection")
       qcnv <- Intra.createConnectConv (qUntagged self) (qUntagged target) Nothing (Just conn)
-      s2o' <- Data.insertConnection self (qUntagged target) SentWithHistory qcnv
-      o2s' <- Data.insertConnection target (qUntagged self) PendingWithHistory qcnv
+      s2o' <- wrapClient $ Data.insertConnection self (qUntagged target) SentWithHistory qcnv
+      o2s' <- wrapClient $ Data.insertConnection target (qUntagged self) PendingWithHistory qcnv
       e2o <-
         ConnectionUpdated o2s' (ucStatus <$> o2s)
-          <$> Data.lookupName (tUnqualified self)
+          <$> wrapClient (Data.lookupName (tUnqualified self))
       let e2s = ConnectionUpdated s2o' (ucStatus <$> s2o) Nothing
       mapM_ (Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
       return s2o'
 
-    update :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppIO r) (ResponseForExistedCreated UserConnection)
+    update :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
     update s2o o2s = case (ucStatus s2o, ucStatus o2s) of
       (MissingLegalholdConsent, _) -> throwE $ InvalidTransition (tUnqualified self)
       (_, MissingLegalholdConsent) -> throwE $ InvalidTransition (tUnqualified self)
@@ -139,54 +139,54 @@ createConnectionToLocalUser self conn target = do
       (_, Pending) -> resend s2o o2s
       (_, Cancelled) -> resend s2o o2s
 
-    accept :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppIO r) (ResponseForExistedCreated UserConnection)
+    accept :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
     accept s2o o2s = do
       when (ucStatus s2o `notElem` [Sent, Accepted]) $
         checkLimit self
-      Log.info $
+      lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Accepting connection")
       cnv <- lift $ for (ucConvId s2o) $ Intra.acceptConnectConv self (Just conn)
-      s2o' <- lift $ Data.updateConnection s2o AcceptedWithHistory
+      s2o' <- lift . wrapClient $ Data.updateConnection s2o AcceptedWithHistory
       o2s' <-
-        lift $
+        lift . wrapClient $
           if (cnvType <$> cnv) == Just ConnectConv
             then Data.updateConnection o2s BlockedWithHistory
             else Data.updateConnection o2s AcceptedWithHistory
       e2o <-
-        lift $
+        lift . wrapClient $
           ConnectionUpdated o2s' (Just $ ucStatus o2s)
             <$> Data.lookupName (tUnqualified self)
       let e2s = ConnectionUpdated s2o' (Just $ ucStatus s2o) Nothing
       lift $ mapM_ (Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
       return $ Existed s2o'
 
-    resend :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppIO r) (ResponseForExistedCreated UserConnection)
+    resend :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
     resend s2o o2s = do
       when (ucStatus s2o `notElem` [Sent, Accepted]) $
         checkLimit self
-      Log.info $
+      lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Resending connection request")
       s2o' <- insert (Just s2o) (Just o2s)
       return $ Existed s2o'
 
-    change :: UserConnection -> RelationWithHistory -> ExceptT ConnectionError (AppIO r) (ResponseForExistedCreated UserConnection)
-    change c s = Existed <$> lift (Data.updateConnection c s)
+    change :: UserConnection -> RelationWithHistory -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
+    change c s = Existed <$> lift (wrapClient $ Data.updateConnection c s)
 
 -- | Throw error if one user has a LH device and the other status `no_consent` or vice versa.
 --
 -- FUTUREWORK: we may want to move this to the LH application logic, so we can recycle it for
 -- group conv creation and possibly other situations.
-checkLegalholdPolicyConflict :: UserId -> UserId -> ExceptT ConnectionError (AppIO r) ()
+checkLegalholdPolicyConflict :: UserId -> UserId -> ExceptT ConnectionError (AppT r) ()
 checkLegalholdPolicyConflict uid1 uid2 = do
   let catchProfileNotFound =
-        -- Does not fit into 'ExceptT', so throw in '(AppIO r)'.  Anyway at the time of writing
+        -- Does not fit into 'ExceptT', so throw in '(AppT r)'.  Anyway at the time of writing
         -- this, users are guaranteed to exist when called from 'createConnectionToLocalUser'.
-        maybe (throwM (errorDescriptionTypeToWai @UserNotFound)) return
+        maybe (throwM (errorToWai @'E.UserNotFound)) return
 
-  status1 <- lift (getLegalHoldStatus uid1) >>= catchProfileNotFound
-  status2 <- lift (getLegalHoldStatus uid2) >>= catchProfileNotFound
+  status1 <- lift (wrapHttpClient $ getLegalHoldStatus uid1) >>= catchProfileNotFound
+  status2 <- lift (wrapHttpClient $ getLegalHoldStatus uid2) >>= catchProfileNotFound
 
   let oneway s1 s2 = case (s1, s2) of
         (LH.UserLegalHoldNoConsent, LH.UserLegalHoldNoConsent) -> pure ()
@@ -279,10 +279,10 @@ updateConnectionToLocalUser self other newStatus conn = do
      in Intra.onConnectionEvent (tUnqualified self) conn e2s
   return s2oUserConn
   where
-    accept :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppIO r) (Maybe UserConnection)
+    accept :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
     accept s2o o2s = do
       checkLimit self
-      Log.info $
+      lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Accepting connection")
       cnv <- lift $ traverse (Intra.acceptConnectConv self conn) (ucConvId s2o)
@@ -292,67 +292,70 @@ updateConnectionToLocalUser self other newStatus conn = do
       --       crashes.
       when (ucStatus o2s `elem` [Sent, Pending]) . lift $ do
         o2s' <-
-          if (cnvType <$> cnv) /= Just ConnectConv
-            then Data.updateConnection o2s AcceptedWithHistory
-            else Data.updateConnection o2s BlockedWithHistory
+          wrapClient $
+            if (cnvType <$> cnv) /= Just ConnectConv
+              then Data.updateConnection o2s AcceptedWithHistory
+              else Data.updateConnection o2s BlockedWithHistory
         e2o <-
           ConnectionUpdated o2s' (Just $ ucStatus o2s)
-            <$> Data.lookupName (tUnqualified self)
+            <$> wrapClient (Data.lookupName (tUnqualified self))
         Intra.onConnectionEvent (tUnqualified self) conn e2o
-      lift $ Just <$> Data.updateConnection s2o AcceptedWithHistory
+      lift . wrapClient $ Just <$> Data.updateConnection s2o AcceptedWithHistory
 
-    block :: UserConnection -> ExceptT ConnectionError (AppIO r) (Maybe UserConnection)
+    block :: UserConnection -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
     block s2o = lift $ do
       Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Blocking connection")
-      traverse_ (Intra.blockConv self conn) (ucConvId s2o)
-      Just <$> Data.updateConnection s2o BlockedWithHistory
+      traverse_ (wrapHttp . Intra.blockConv self conn) (ucConvId s2o)
+      wrapClient $ Just <$> Data.updateConnection s2o BlockedWithHistory
 
-    unblock :: UserConnection -> UserConnection -> Relation -> ExceptT ConnectionError (AppIO r) (Maybe UserConnection)
+    unblock :: UserConnection -> UserConnection -> Relation -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
     unblock s2o o2s new = do
       -- FUTUREWORK: new is always in [Sent, Accepted]. Refactor to total function.
       when (new `elem` [Sent, Accepted]) $
         checkLimit self
-      Log.info $
+      lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Unblocking connection")
-      cnv <- lift $ traverse (Intra.unblockConv self conn) (ucConvId s2o)
+      cnv <- lift $ traverse (wrapHttp . Intra.unblockConv self conn) (ucConvId s2o)
       when (ucStatus o2s == Sent && new == Accepted) . lift $ do
         o2s' <-
-          if (cnvType <$> cnv) /= Just ConnectConv
-            then Data.updateConnection o2s AcceptedWithHistory
-            else Data.updateConnection o2s BlockedWithHistory
+          wrapClient $
+            if (cnvType <$> cnv) /= Just ConnectConv
+              then Data.updateConnection o2s AcceptedWithHistory
+              else Data.updateConnection o2s BlockedWithHistory
         e2o :: ConnectionEvent <-
-          ConnectionUpdated o2s' (Just $ ucStatus o2s)
-            <$> Data.lookupName (tUnqualified self)
+          wrapClient $
+            ConnectionUpdated o2s' (Just $ ucStatus o2s)
+              <$> Data.lookupName (tUnqualified self)
         -- TODO: is this correct? shouldnt o2s be sent to other?
         Intra.onConnectionEvent (tUnqualified self) conn e2o
-      lift $ Just <$> Data.updateConnection s2o (mkRelationWithHistory (error "impossible") new)
+      lift . wrapClient $ Just <$> Data.updateConnection s2o (mkRelationWithHistory (error "impossible") new)
 
-    cancel :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppIO r) (Maybe UserConnection)
+    cancel :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
     cancel s2o o2s = do
-      Log.info $
+      lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Cancelling connection")
       lfrom <- qualifyLocal (ucFrom s2o)
-      lift $ traverse_ (Intra.blockConv lfrom conn) (ucConvId s2o)
-      o2s' <- lift $ Data.updateConnection o2s CancelledWithHistory
+      lift $ traverse_ (wrapHttp . Intra.blockConv lfrom conn) (ucConvId s2o)
+      o2s' <- lift . wrapClient $ Data.updateConnection o2s CancelledWithHistory
       let e2o = ConnectionUpdated o2s' (Just $ ucStatus o2s) Nothing
       lift $ Intra.onConnectionEvent (tUnqualified self) conn e2o
       change s2o Cancelled
 
-    change :: UserConnection -> Relation -> ExceptT ConnectionError (AppIO r) (Maybe UserConnection)
+    change :: UserConnection -> Relation -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
     change c s = do
       -- FUTUREWORK: refactor to total function. Gets only called with either Ignored, Accepted, Cancelled
-      lift $ Just <$> Data.updateConnection c (mkRelationWithHistory (error "impossible") s)
+      lift . wrapClient $ Just <$> Data.updateConnection c (mkRelationWithHistory (error "impossible") s)
 
 localConnection ::
   Local UserId ->
   Local UserId ->
-  ExceptT ConnectionError (AppIO r) UserConnection
+  ExceptT ConnectionError (AppT r) UserConnection
 localConnection la lb = do
-  lift (Data.lookupConnection la (qUntagged lb))
+  lift (wrapClient $ Data.lookupConnection la (qUntagged lb))
     >>= tryJust (NotConnected (tUnqualified la) (qUntagged lb))
 
 mkRelationWithHistory :: HasCallStack => Relation -> Relation -> RelationWithHistory
@@ -376,7 +379,7 @@ mkRelationWithHistory oldRel = \case
 updateConnectionInternal ::
   forall r.
   UpdateConnectionsInternal ->
-  ExceptT ConnectionError (AppIO r) ()
+  ExceptT ConnectionError (AppT r) ()
 updateConnectionInternal = \case
   BlockForMissingLHConsent uid others -> do
     self <- qualifyLocal uid
@@ -392,10 +395,10 @@ updateConnectionInternal = \case
         other
   where
     -- inspired by @block@ in 'updateConnection'.
-    blockForMissingLegalholdConsent :: Local UserId -> [UserId] -> ExceptT ConnectionError (AppIO r) ()
+    blockForMissingLegalholdConsent :: Local UserId -> [UserId] -> ExceptT ConnectionError (AppT r) ()
     blockForMissingLegalholdConsent self others = do
       for_ others $ \(qualifyAs self -> other) -> do
-        Log.info $
+        lift . Log.info $
           logConnection (tUnqualified self) (qUntagged other)
             . msg (val "Blocking connection (legalhold device present, but missing consent)")
 
@@ -403,12 +406,12 @@ updateConnectionInternal = \case
         o2s <- localConnection other self
         for_ [s2o, o2s] $ \(uconn :: UserConnection) -> lift $ do
           lfrom <- qualifyLocal (ucFrom uconn)
-          traverse_ (Intra.blockConv lfrom Nothing) (ucConvId uconn)
-          uconn' <- Data.updateConnection uconn (mkRelationWithHistory (ucStatus uconn) MissingLegalholdConsent)
+          traverse_ (wrapHttp . Intra.blockConv lfrom Nothing) (ucConvId uconn)
+          uconn' <- wrapClient $ Data.updateConnection uconn (mkRelationWithHistory (ucStatus uconn) MissingLegalholdConsent)
           let ev = ConnectionUpdated uconn' (Just $ ucStatus uconn) Nothing
           Intra.onConnectionEvent (tUnqualified self) Nothing ev
 
-    removeLHBlocksInvolving :: Local UserId -> ExceptT ConnectionError (AppIO r) ()
+    removeLHBlocksInvolving :: Local UserId -> ExceptT ConnectionError (AppT r) ()
     removeLHBlocksInvolving self =
       iterateConnections self (toRange (Proxy @500)) $ \conns -> do
         for_ conns $ \s2o ->
@@ -417,18 +420,18 @@ updateConnectionInternal = \case
             -- Here we are using the fact that s2o is a local connection
             other <- qualifyLocal (qUnqualified (ucTo s2o))
             o2s <- localConnection other self
-            Log.info $
+            lift . Log.info $
               logConnection (ucFrom s2o) (ucTo s2o)
                 . msg (val "Unblocking connection (legalhold device removed or consent given)")
             unblockDirected s2o o2s
             unblockDirected o2s s2o
       where
-        iterateConnections :: Local UserId -> Range 1 500 Int32 -> ([UserConnection] -> ExceptT ConnectionError (AppIO r) ()) -> ExceptT ConnectionError (AppIO r) ()
+        iterateConnections :: Local UserId -> Range 1 500 Int32 -> ([UserConnection] -> ExceptT ConnectionError (AppT r) ()) -> ExceptT ConnectionError (AppT r) ()
         iterateConnections user pageSize handleConns = go Nothing
           where
-            go :: Maybe UserId -> ExceptT ConnectionError (AppT r IO) ()
+            go :: Maybe UserId -> ExceptT ConnectionError (AppT r) ()
             go mbStart = do
-              page <- lift $ Data.lookupLocalConnections user mbStart pageSize
+              page <- lift . wrapClient $ Data.lookupLocalConnections user mbStart pageSize
               handleConns (resultList page)
               case resultList page of
                 (conn : rest) ->
@@ -437,13 +440,13 @@ updateConnectionInternal = \case
                     else pure ()
                 [] -> pure ()
 
-        unblockDirected :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppIO r) ()
+        unblockDirected :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) ()
         unblockDirected uconn uconnRev = do
           lfrom <- qualifyLocal (ucFrom uconnRev)
-          void . lift . for (ucConvId uconn) $ Intra.unblockConv lfrom Nothing
+          void . lift . for (ucConvId uconn) $ wrapHttp . Intra.unblockConv lfrom Nothing
           uconnRevRel :: RelationWithHistory <- relationWithHistory lfrom (ucTo uconnRev)
-          uconnRev' <- lift $ Data.updateConnection uconnRev (undoRelationHistory uconnRevRel)
-          connName <- lift $ Data.lookupName (tUnqualified lfrom)
+          uconnRev' <- lift . wrapClient $ Data.updateConnection uconnRev (undoRelationHistory uconnRevRel)
+          connName <- lift . wrapClient $ Data.lookupName (tUnqualified lfrom)
           let connEvent =
                 ConnectionUpdated
                   { ucConn = uconnRev',
@@ -452,9 +455,12 @@ updateConnectionInternal = \case
                   }
           lift $ Intra.onConnectionEvent (ucFrom uconn) Nothing connEvent
 
-    relationWithHistory :: Local UserId -> Qualified UserId -> ExceptT ConnectionError (AppIO r) RelationWithHistory
+    relationWithHistory ::
+      Local UserId ->
+      Qualified UserId ->
+      ExceptT ConnectionError (AppT r) RelationWithHistory
     relationWithHistory self target =
-      lift (Data.lookupRelationWithHistory self target)
+      lift (wrapClient $ Data.lookupRelationWithHistory self target)
         >>= tryJust (NotConnected (tUnqualified self) target)
 
     undoRelationHistory :: RelationWithHistory -> RelationWithHistory
@@ -474,19 +480,20 @@ updateConnectionInternal = \case
       SentWithHistory -> SentWithHistory
       CancelledWithHistory -> CancelledWithHistory
 
-createLocalConnectionUnchecked :: Local UserId -> Local UserId -> (AppIO r) ()
+createLocalConnectionUnchecked :: Local UserId -> Local UserId -> (AppT r) ()
 createLocalConnectionUnchecked self other = do
   qcnv <- liftIO $ qUntagged . qualifyAs self <$> (Id <$> UUID.nextRandom)
-  void $ Data.insertConnection self (qUntagged other) AcceptedWithHistory qcnv
-  void $ Data.insertConnection other (qUntagged self) AcceptedWithHistory qcnv
+  wrapClient $ do
+    void $ Data.insertConnection self (qUntagged other) AcceptedWithHistory qcnv
+    void $ Data.insertConnection other (qUntagged self) AcceptedWithHistory qcnv
 
-createRemoteConnectionUnchecked :: Local UserId -> Remote UserId -> (AppIO r) ()
+createRemoteConnectionUnchecked :: Local UserId -> Remote UserId -> (AppT r) ()
 createRemoteConnectionUnchecked self other = do
   qcnv <- liftIO $ qUntagged . qualifyAs self <$> (Id <$> UUID.nextRandom)
-  void $ Data.insertConnection self (qUntagged other) AcceptedWithHistory qcnv
+  void . wrapClient $ Data.insertConnection self (qUntagged other) AcceptedWithHistory qcnv
 
-lookupConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> (AppIO r) UserConnectionList
+lookupConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> (AppT r) UserConnectionList
 lookupConnections from start size = do
   lusr <- qualifyLocal from
-  rs <- Data.lookupLocalConnections lusr start size
+  rs <- wrapClient $ Data.lookupLocalConnections lusr start size
   return $! UserConnectionList (Data.resultList rs) (Data.resultHasMore rs)

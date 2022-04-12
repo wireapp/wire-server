@@ -20,6 +20,9 @@
 
 module Brig.Types.Search
   ( TeamSearchInfo (..),
+    SearchVisibilityInbound (..),
+    defaultSearchVisibilityInbound,
+    searchVisibilityInboundFromFeatureStatus,
 
     -- * re-exports
     SearchResult (..),
@@ -27,14 +30,70 @@ module Brig.Types.Search
   )
 where
 
+import Data.Aeson
+import Data.Attoparsec.ByteString
+import Data.ByteString.Builder
+import Data.ByteString.Conversion
+import Data.ByteString.Lazy
 import Data.Id (TeamId)
+import Data.Text.Encoding
+import Imports
+import Test.QuickCheck
+import Wire.API.Team.Feature (TeamFeatureStatusValue (TeamFeatureDisabled, TeamFeatureEnabled))
 import Wire.API.User.Search
 
+-- | Outbound search restrictions configured by team admin of the searcher. This
+-- value restricts the set of user that are searched.
+--
+-- See 'optionallySearchWithinTeam' for the effect on full-text search.
+--
+-- See 'mkTeamSearchInfo' for the business logic that defines the TeamSearchInfo
+-- value.
+--
+-- Search results might be affected by the inbound search restriction settings of
+-- the searched user. ('SearchVisibilityInbound')
 data TeamSearchInfo
-  = -- | When searching user is not part of a team.
+  = -- | Only users that are not part of any team are searched
     NoTeam
-  | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is True
-    --   OR the searching user belongs to a team with SearchVisibilityNoNameOutsideTeam
+  | -- | Only users from the same team as the searcher are searched
     TeamOnly TeamId
-  | -- | When searching user is part of a team and 'Brig.Options.setSearchSameTeamOnly' is False
-    TeamAndNonMembers TeamId
+  | -- | No search restrictions, all users are searched
+    AllUsers
+
+-- | Inbound search restrictions configured by team to-be-searched. Affects only
+-- full-text search (i.e. search on the display name and the handle), not exact
+-- handle search.
+data SearchVisibilityInbound
+  = -- | The user can only be found by users from the same team
+    SearchableByOwnTeam
+  | -- | The user can by found by any user of any team
+    SearchableByAllTeams
+  deriving (Eq, Show)
+
+instance Arbitrary SearchVisibilityInbound where
+  arbitrary = elements [SearchableByOwnTeam, SearchableByAllTeams]
+
+instance ToByteString SearchVisibilityInbound where
+  builder SearchableByOwnTeam = "searchable-by-own-team"
+  builder SearchableByAllTeams = "searchable-by-all-teams"
+
+instance FromByteString SearchVisibilityInbound where
+  parser =
+    SearchableByOwnTeam <$ string "searchable-by-own-team"
+      <|> SearchableByAllTeams <$ string "searchable-by-all-teams"
+
+defaultSearchVisibilityInbound :: SearchVisibilityInbound
+defaultSearchVisibilityInbound = SearchableByOwnTeam
+
+searchVisibilityInboundFromFeatureStatus :: TeamFeatureStatusValue -> SearchVisibilityInbound
+searchVisibilityInboundFromFeatureStatus TeamFeatureDisabled = SearchableByOwnTeam
+searchVisibilityInboundFromFeatureStatus TeamFeatureEnabled = SearchableByAllTeams
+
+instance ToJSON SearchVisibilityInbound where
+  toJSON = String . decodeUtf8 . toStrict . toLazyByteString . builder
+
+instance FromJSON SearchVisibilityInbound where
+  parseJSON = withText "SearchVisibilityInbound" $ \str ->
+    case runParser (parser @SearchVisibilityInbound) (encodeUtf8 str) of
+      Left err -> fail err
+      Right result -> pure result

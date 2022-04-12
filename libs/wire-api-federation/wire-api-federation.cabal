@@ -28,7 +28,6 @@ library
       Wire.API.Federation.Domain
       Wire.API.Federation.Endpoint
       Wire.API.Federation.Error
-      Wire.API.Federation.Event
   other-modules:
       Paths_wire_api_federation
   hs-source-dirs:
@@ -98,6 +97,7 @@ library
     , servant-client
     , servant-client-core
     , servant-server
+    , singletons
     , sop-core
     , streaming-commons
     , template-haskell
@@ -198,6 +198,7 @@ test-suite spec
     , servant-client
     , servant-client-core
     , servant-server
+    , singletons
     , sop-core
     , streaming-commons
     , template-haskell

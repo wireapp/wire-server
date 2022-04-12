@@ -45,7 +45,6 @@ import Data.Id
 import Data.Json.Util (toJSONObject)
 import qualified Data.List1 as List1
 import Data.Range (Range)
-import Galley.API.Error
 import qualified Galley.Data.TeamNotifications as DataTeamQueue
 import Galley.Effects
 import Galley.Effects.BrigAccess as Intra
@@ -54,16 +53,17 @@ import Galley.Types.Teams hiding (newTeam)
 import Gundeck.Types.Notification
 import Imports
 import Polysemy
-import Polysemy.Error
+import Wire.API.Error
+import Wire.API.Error.Galley
 
 getTeamNotifications ::
-  Members '[BrigAccess, Error TeamError, TeamNotificationStore] r =>
+  Members '[BrigAccess, ErrorS 'TeamNotFound, TeamNotificationStore] r =>
   UserId ->
   Maybe NotificationId ->
   Range 1 10000 Int32 ->
   Sem r QueuedNotificationList
 getTeamNotifications zusr since size = do
-  tid <- (note TeamNotFound =<<) $ (userTeam . accountUser =<<) <$> Intra.getUser zusr
+  tid <- (noteS @'TeamNotFound =<<) $ (userTeam . accountUser =<<) <$> Intra.getUser zusr
   page <- E.getTeamNotifications tid since size
   pure $
     queuedNotificationList

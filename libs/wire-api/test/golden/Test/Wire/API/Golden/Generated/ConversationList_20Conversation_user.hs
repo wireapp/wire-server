@@ -25,8 +25,9 @@ import Data.Misc (Milliseconds (Ms, ms))
 import Data.Qualified (Qualified (..))
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID (fromString)
-import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
+import Imports
 import Wire.API.Conversation
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (parseRoleName)
 
 domain :: Domain
@@ -49,6 +50,7 @@ testObject_ConversationList_20Conversation_user_1 =
                     cnvmMessageTimer = Just (Ms {ms = 4760386328981119}),
                     cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
                   },
+              cnvProtocol = ProtocolProteus,
               cnvMembers =
                 ConvMembers
                   { cmSelf =

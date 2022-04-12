@@ -44,6 +44,7 @@ import qualified Brig.AWS as AWS
 import Brig.AWS.Types
 import Brig.App (applog, sftEnv)
 import Brig.Calling as Calling
+import qualified Brig.Code as Code
 import qualified Brig.Options as Opt
 import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
@@ -124,6 +125,7 @@ import qualified UnliftIO.Async as Async
 import Util.AWS
 import Util.Options
 import Wire.API.Conversation
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Federation.API
 import Wire.API.Federation.Domain
@@ -644,12 +646,16 @@ addClientReq brig uid new =
     . body (RequestBodyLBS $ encode new)
 
 defNewClient :: ClientType -> [Prekey] -> LastPrekey -> NewClient
-defNewClient ty pks lpk =
+defNewClient = defNewClientWithVerificationCode Nothing
+
+defNewClientWithVerificationCode :: Maybe Code.Value -> ClientType -> [Prekey] -> LastPrekey -> NewClient
+defNewClientWithVerificationCode mbCode ty pks lpk =
   (newClient ty lpk)
     { newClientPassword = Just defPassword,
       newClientPrekeys = pks,
       newClientLabel = Just "Test Device",
-      newClientModel = Just "Test Model"
+      newClientModel = Just "Test Model",
+      newClientVerificationCode = mbCode
     }
 
 getPreKey :: Brig -> UserId -> UserId -> ClientId -> Http ResponseLBS
@@ -690,7 +696,18 @@ getConversationQualified galley usr cnv =
 
 createConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
 createConversation galley zusr usersToAdd = do
-  let conv = NewConv [] usersToAdd (Just "gossip") mempty Nothing Nothing Nothing Nothing roleNameWireAdmin
+  let conv =
+        NewConv
+          []
+          usersToAdd
+          (checked "gossip")
+          mempty
+          Nothing
+          Nothing
+          Nothing
+          Nothing
+          roleNameWireAdmin
+          ProtocolProteusTag
   post $
     galley
       . path "/conversations"
@@ -966,6 +983,15 @@ recoverN n m =
   recoverAll
     (constantDelay 1000000 <> limitRetries n)
     (const m)
+
+-- | This is required as any HTTP call made using bilge when running under
+-- 'withSettingsOverrides' goes to the server started by
+-- 'withSettingsOverrides'. Sometimes, a call needs to be made to another
+-- service which is not being mocked, this helper can be used to do that.
+--
+-- This is just an alias to 'runHttpT' to make the intent clear.
+circumventSettingsOverride :: MonadIO m => Manager -> HttpT m a -> m a
+circumventSettingsOverride = runHttpT
 
 -- | This allows you to run requests against a brig instantiated using the given options.
 --   Note that ONLY 'brig' calls should occur within the provided action, calls to other

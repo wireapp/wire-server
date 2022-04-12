@@ -17,7 +17,7 @@
 
 module API.Teams.Feature (tests) where
 
-import API.Util (HasGalley, withSettingsOverrides)
+import API.Util (HasGalley, getFeatureStatusMulti, withSettingsOverrides)
 import qualified API.Util as Util
 import qualified API.Util.TeamFeature as Util
 import Bilge
@@ -35,7 +35,6 @@ import Data.List1 (list1)
 import qualified Data.List1 as List1
 import Data.Schema (ToSchema)
 import qualified Data.Set as Set
-import Data.String.Conversions (cs)
 import qualified Data.Text.Encoding as TE
 import Data.Timeout (TimeoutUnit (Second), (#))
 import Galley.Options (optSettings, setFeatureFlags)
@@ -43,14 +42,15 @@ import Galley.Types.Teams
 import Gundeck.Types (Notification)
 import Imports
 import Network.Wai.Utilities (label)
-import Test.Hspec (expectationFailure, shouldBe)
+import Test.Hspec (expectationFailure)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
-import Test.Tasty.HUnit (assertFailure, (@?=))
+import Test.Tasty.HUnit (assertBool, assertFailure, (@?=))
 import TestHelpers (test)
 import TestSetup
 import Wire.API.Event.FeatureConfig (EventData (..))
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 
@@ -73,7 +73,9 @@ tests s =
       test s "ConversationGuestLinks - public API" testGuestLinksPublic,
       test s "ConversationGuestLinks - internal API" testGuestLinksInternal,
       test s "ConversationGuestLinks - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureGuestLinks Public.TeamFeatureEnabled Public.Unlocked,
-      test s "SndFactorPasswordChallenge - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge Public.TeamFeatureDisabled Public.Unlocked
+      test s "SndFactorPasswordChallenge - lock status" $ testSimpleFlagWithLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge Public.TeamFeatureDisabled Public.Locked,
+      test s "SearchVisibilityInbound - internal API" testSearchVisibilityInbound,
+      test s "SearchVisibilityInbound - internal multi team API" testFeatureNoConfigMultiSearchVisibilityInbound
     ]
 
 testSSO :: TestM ()
@@ -681,7 +683,7 @@ testAllFeatures = do
               Public.Unlocked,
           toS TeamFeatureValidateSAMLEmails .= Public.TeamFeatureStatusNoConfig TeamFeatureEnabled,
           toS TeamFeatureGuestLinks .= Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Public.Unlocked,
-          toS TeamFeatureSndFactorPasswordChallenge .= Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Public.Unlocked
+          toS TeamFeatureSndFactorPasswordChallenge .= Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Public.Locked
         ]
     toS :: TeamFeatureName -> Aeson.Key
     toS = AesonKey.fromText . TE.decodeUtf8 . toByteString'
@@ -695,7 +697,6 @@ testFeatureConfigConsistency = do
   Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
   allFeaturesRes <- Util.getAllFeatureConfigs member >>= parseObjectKeys
-  liftIO $ allFeaturesRes `shouldBe` allFeatures
 
   allTeamFeaturesRes <- Util.getAllTeamFeatures member tid >>= parseObjectKeys
 
@@ -711,8 +712,60 @@ testFeatureConfigConsistency = do
             (Aeson.Object hm) -> pure (Set.fromList . map AesonKey.toText . KeyMap.keys $ hm)
             x -> liftIO $ assertFailure ("JSON was not an object, but " <> show x)
 
-    allFeatures :: Set.Set Text
-    allFeatures = Set.fromList $ cs . toByteString' @TeamFeatureName <$> [minBound ..]
+testSearchVisibilityInbound :: TestM ()
+testSearchVisibilityInbound = do
+  let defaultValue = TeamFeatureDisabled
+  let feature = Public.knownTeamFeatureName @'TeamFeatureSearchVisibilityInbound
+  owner <- Util.randomUser
+  tid <- Util.createNonBindingTeam "foo" owner []
+
+  let getFlagInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
+      getFlagInternal expected =
+        flip (assertFlagNoConfig @'TeamFeatureSearchVisibilityInbound) expected $ Util.getTeamFeatureFlagInternal feature tid
+
+      setFlagInternal :: Public.TeamFeatureStatusValue -> TestM ()
+      setFlagInternal statusValue =
+        void $ Util.putTeamFeatureFlagInternal @'TeamFeatureSearchVisibilityInbound expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+
+  let otherValue = case defaultValue of
+        Public.TeamFeatureDisabled -> Public.TeamFeatureEnabled
+        Public.TeamFeatureEnabled -> Public.TeamFeatureDisabled
+
+  -- Initial value should be the default value
+  getFlagInternal defaultValue
+  setFlagInternal otherValue
+  getFlagInternal otherValue
+
+testFeatureNoConfigMultiSearchVisibilityInbound :: TestM ()
+testFeatureNoConfigMultiSearchVisibilityInbound = do
+  owner1 <- Util.randomUser
+  team1 <- Util.createNonBindingTeam "team1" owner1 []
+
+  owner2 <- Util.randomUser
+  team2 <- Util.createNonBindingTeam "team2" owner2 []
+
+  let setFlagInternal :: TeamId -> Public.TeamFeatureStatusValue -> TestM ()
+      setFlagInternal tid statusValue =
+        void $ Util.putTeamFeatureFlagInternal @'TeamFeatureSearchVisibilityInbound expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+
+  setFlagInternal team2 Public.TeamFeatureEnabled
+
+  r <-
+    getFeatureStatusMulti TeamFeatureSearchVisibilityInbound (Multi.TeamFeatureNoConfigMultiRequest [team1, team2])
+      <!! statusCode === const 200
+
+  Multi.TeamFeatureNoConfigMultiResponse teamsStatuses :: Multi.TeamFeatureNoConfigMultiResponse 'TeamFeatureSearchVisibilityInbound <- responseJsonError r
+
+  liftIO $ do
+    length teamsStatuses @?= 2
+
+    Multi.TeamStatus _ team1Status team1WriteTime <- Util.assertOne (filter ((== team1) . Multi.team) teamsStatuses)
+    team1Status @?= Public.TeamFeatureDisabled
+    assertBool "expected Nothing" (isNothing team1WriteTime)
+
+    Multi.TeamStatus _ team2Status team2WriteTime <- Util.assertOne (filter ((== team2) . Multi.team) teamsStatuses)
+    team2Status @?= Public.TeamFeatureEnabled
+    assertBool "expected Just" (isJust team2WriteTime)
 
 assertFlagForbidden :: HasCallStack => TestM ResponseLBS -> TestM ()
 assertFlagForbidden res = do

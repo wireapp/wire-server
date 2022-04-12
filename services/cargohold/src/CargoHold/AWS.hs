@@ -22,7 +22,7 @@ module CargoHold.AWS
   ( -- * Monad
     Env,
     mkEnv,
-    useDownloadEndpoint,
+    amazonkaEnvWithDownloadEndpoint,
     Amazon,
     amazonkaEnv,
     execute,
@@ -70,9 +70,9 @@ data Env = Env
 makeLenses ''Env
 
 -- | Override the endpoint in the '_amazonkaEnv' with '_amazonkaDownloadEndpoint'.
-useDownloadEndpoint :: Env -> Env
-useDownloadEndpoint e =
-  e & amazonkaEnv %~ AWS.override (setAWSEndpoint (e ^. amazonkaDownloadEndpoint))
+amazonkaEnvWithDownloadEndpoint :: Env -> AWS.Env
+amazonkaEnvWithDownloadEndpoint e =
+  AWS.override (setAWSEndpoint (e ^. amazonkaDownloadEndpoint)) (e ^. amazonkaEnv)
 
 setAWSEndpoint :: AWSEndpoint -> AWS.Service -> AWS.Service
 setAWSEndpoint e = AWS.setEndpoint (_awsSecure e) (_awsHost e) (_awsPort e)

@@ -42,21 +42,21 @@ import Imports
 -------------------------------------------------------------------------------
 -- Invitation Email
 
-sendInvitationMail :: Email -> TeamId -> Email -> InvitationCode -> Maybe Locale -> (AppIO r) ()
+sendInvitationMail :: Email -> TeamId -> Email -> InvitationCode -> Maybe Locale -> (AppT r) ()
 sendInvitationMail to tid from code loc = do
   tpl <- invitationEmail . snd <$> teamTemplates loc
   branding <- view templateBranding
   let mail = InvitationEmail to tid code from
   Email.sendMail $ renderInvitationEmail mail tpl branding
 
-sendCreatorWelcomeMail :: Email -> TeamId -> Text -> Maybe Locale -> (AppIO r) ()
+sendCreatorWelcomeMail :: Email -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
 sendCreatorWelcomeMail to tid teamName loc = do
   tpl <- creatorWelcomeEmail . snd <$> teamTemplates loc
   branding <- view templateBranding
   let mail = CreatorWelcomeEmail to tid teamName
   Email.sendMail $ renderCreatorWelcomeMail mail tpl branding
 
-sendMemberWelcomeMail :: Email -> TeamId -> Text -> Maybe Locale -> (AppIO r) ()
+sendMemberWelcomeMail :: Email -> TeamId -> Text -> Maybe Locale -> (AppT r) ()
 sendMemberWelcomeMail to tid teamName loc = do
   tpl <- memberWelcomeEmail . snd <$> teamTemplates loc
   branding <- view templateBranding

@@ -29,27 +29,27 @@ import Imports
 import System.Logger.Class (field, msg, (~~))
 import qualified System.Logger.Class as Log
 
-onEvent :: SESNotification -> (AppIO r) ()
+onEvent :: SESNotification -> (AppT r) ()
 onEvent (MailBounce BouncePermanent es) = onPermanentBounce es
 onEvent (MailBounce BounceTransient es) = onTransientBounce es
 onEvent (MailBounce BounceUndetermined es) = onUndeterminedBounce es
 onEvent (MailComplaint es) = onComplaint es
 
-onPermanentBounce :: [Email] -> (AppIO r) ()
+onPermanentBounce :: [Email] -> (AppT r) ()
 onPermanentBounce = mapM_ $ \e -> do
   logEmailEvent "Permanent bounce" e
-  Blacklist.insert (userEmailKey e)
+  wrapClient $ Blacklist.insert (userEmailKey e)
 
-onTransientBounce :: [Email] -> (AppIO r) ()
+onTransientBounce :: [Email] -> (AppT r) ()
 onTransientBounce = mapM_ (logEmailEvent "Transient bounce")
 
-onUndeterminedBounce :: [Email] -> (AppIO r) ()
+onUndeterminedBounce :: [Email] -> (AppT r) ()
 onUndeterminedBounce = mapM_ (logEmailEvent "Undetermined bounce")
 
-onComplaint :: [Email] -> (AppIO r) ()
+onComplaint :: [Email] -> (AppT r) ()
 onComplaint = mapM_ $ \e -> do
   logEmailEvent "Complaint" e
-  Blacklist.insert (userEmailKey e)
+  wrapClient $ Blacklist.insert (userEmailKey e)
 
-logEmailEvent :: Text -> Email -> (AppIO r) ()
+logEmailEvent :: Text -> Email -> (AppT r) ()
 logEmailEvent t e = Log.info $ field "email" (fromEmail e) ~~ msg t

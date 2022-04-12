@@ -25,9 +25,9 @@ This is an alternative to `UVerb`, designed to prevent any HTTP-specific informa
 
 ## `CanThrow`
 
-This can be used to add an error response to the Swagger documentation. It currently does nothing to the Servant API itself, but this might change in the future, as polysemy is introduced in more services and integrated with Servant. The argument of `CanThrow` can be an `ErrorDescription` type, which is a type-level representation of a possible error.
+This can be used to add an error response to the Swagger documentation. In services that use polysemy for error handling (currently only Galley), it also adds a corresponding error effect to the type of the handler. The argument of `CanThrow` can be of a custom kind, usually a service-specific error kind (such as `GalleyError`, `BrigError`, etc...), but kind `*` can also be used.
 
-Note thtat `ErrorDescription` types can also be used directly as `MultiVerb` responses. This is useful for handlers that can return errors as part of their return type, instead of simply throwing them as IO exceptions. If an error is part of `MultiVerb`, there is no need to also report it with `CanThrow`.
+Note that error types can also be turned into `MultiVerb` responses using the `ErrorResponse` combinator. This is useful for handlers that can return errors as part of their return type, instead of simply throwing them as IO exceptions or using polysemy. If an error is part of `MultiVerb`, there is no need to also report it with `CanThrow`.
 
 ## `QualifiedCapture`
 

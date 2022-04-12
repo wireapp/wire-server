@@ -36,7 +36,7 @@ import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
-import Wire.API.Federation.Endpoint
+import Wire.API.Routes.Named
 
 -- Note: this type family being injective means that in most cases there is no need
 -- to add component annotations when invoking the federator client

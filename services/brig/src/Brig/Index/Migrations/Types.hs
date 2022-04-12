@@ -27,9 +27,11 @@ import Data.Aeson (FromJSON (..), ToJSON (..), object, withObject, (.:), (.=))
 import Data.Metrics (Metrics)
 import qualified Database.Bloodhound as ES
 import Imports
+import Network.HTTP.Client (Manager)
 import Numeric.Natural (Natural)
 import qualified System.Logger as Logger
 import System.Logger.Class (MonadLogger (..))
+import Util.Options (Endpoint)
 
 newtype MigrationVersion = MigrationVersion {migrationVersion :: Natural}
   deriving (Show, Eq, Ord)
@@ -65,7 +67,7 @@ instance MonadIO m => MonadLogger (MigrationActionT m) where
 instance MonadIO m => Search.MonadIndexIO (MigrationActionT m) where
   liftIndexIO m = do
     Env {..} <- ask
-    let indexEnv = Search.IndexEnv metrics logger bhEnv Nothing searchIndex Nothing Nothing
+    let indexEnv = Search.IndexEnv metrics logger bhEnv Nothing searchIndex Nothing Nothing galleyEndpoint httpManager
     Search.runIndexIO indexEnv m
 
 instance MonadIO m => ES.MonadBH (MigrationActionT m) where
@@ -76,7 +78,9 @@ data Env = Env
     cassandraClientState :: C.ClientState,
     logger :: Logger.Logger,
     metrics :: Metrics,
-    searchIndex :: ES.IndexName
+    searchIndex :: ES.IndexName,
+    httpManager :: Manager,
+    galleyEndpoint :: Endpoint
   }
 
 runMigrationAction :: Env -> MigrationActionT m a -> m a

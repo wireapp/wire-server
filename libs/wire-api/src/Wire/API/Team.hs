@@ -30,6 +30,7 @@ module Wire.API.Team
     teamIconKey,
     teamBinding,
     TeamBinding (..),
+    Icon (..),
 
     -- * TeamList
     TeamList (..),
@@ -39,6 +40,7 @@ module Wire.API.Team
 
     -- * NewTeam
     BindingNewTeam (..),
+    bindingNewTeamObjectSchema,
     NonBindingNewTeam (..),
     NewTeam (..),
     newNewTeam,
@@ -50,6 +52,7 @@ module Wire.API.Team
     -- * TeamUpdateData
     TeamUpdateData (..),
     newTeamUpdateData,
+    newTeamDeleteDataWithCode,
     nameUpdate,
     iconUpdate,
     iconKeyUpdate,
@@ -58,11 +61,11 @@ module Wire.API.Team
     TeamDeleteData (..),
     newTeamDeleteData,
     tdAuthPassword,
+    tdVerificationCode,
 
     -- * Swagger
     modelTeam,
     modelTeamList,
-    modelNewBindingTeam,
     modelNewNonBindingTeam,
     modelUpdateData,
     modelTeamDelete,
@@ -75,6 +78,7 @@ import Data.Aeson.Types (Parser)
 import qualified Data.Attoparsec.ByteString as Atto (Parser, string)
 import Data.Attoparsec.Combinator (choice)
 import Data.ByteString.Conversion
+import qualified Data.Code as Code
 import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword (..))
 import Data.Range
@@ -95,7 +99,7 @@ data Team = Team
   { _teamId :: TeamId,
     _teamCreator :: UserId,
     _teamName :: Text,
-    _teamIcon :: Text,
+    _teamIcon :: Icon,
     _teamIconKey :: Maybe Text,
     _teamBinding :: TeamBinding
   }
@@ -103,7 +107,7 @@ data Team = Team
   deriving (Arbitrary) via (GenericUniform Team)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Team)
 
-newTeam :: TeamId -> UserId -> Text -> Text -> TeamBinding -> Team
+newTeam :: TeamId -> UserId -> Text -> Icon -> TeamBinding -> Team
 newTeam tid uid nme ico = Team tid uid nme ico Nothing
 
 modelTeam :: Doc.Model
@@ -181,24 +185,14 @@ newtype BindingNewTeam = BindingNewTeam (NewTeam ())
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema BindingNewTeam)
 
-modelNewBindingTeam :: Doc.Model
-modelNewBindingTeam = Doc.defineModel "NewBindingTeam" $ do
-  Doc.description "Required data when creating new teams"
-  Doc.property "name" Doc.string' $
-    Doc.description "team name"
-  Doc.property "icon" Doc.string' $
-    Doc.description "team icon (asset ID)"
-  Doc.property "icon_key" Doc.string' $ do
-    Doc.description "team icon asset key"
-    Doc.optional
-
 instance ToSchema BindingNewTeam where
-  schema = BindingNewTeam <$> unwrap .= newTeamSchema "BindingNewTeam" sch
-    where
-      unwrap (BindingNewTeam nt) = nt
+  schema = object "BindingNewTeam" bindingNewTeamObjectSchema
 
-      sch :: ValueSchema SwaggerDoc ()
-      sch = null_
+bindingNewTeamObjectSchema :: ObjectSchema SwaggerDoc BindingNewTeam
+bindingNewTeamObjectSchema =
+  BindingNewTeam <$> unwrap .= newTeamObjectSchema null_
+  where
+    unwrap (BindingNewTeam nt) = nt
 
 -- FUTUREWORK: since new team members do not get serialized, we zero them here.
 -- it may be worth looking into how this can be solved in the types.
@@ -214,7 +208,10 @@ newtype NonBindingNewTeam = NonBindingNewTeam (NewTeam (Range 1 127 [TeamMember]
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema NonBindingNewTeam)
 
 instance ToSchema NonBindingNewTeam where
-  schema = NonBindingNewTeam <$> unwrap .= newTeamSchema "NonBindingNewTeam" sch
+  schema =
+    object "NonBindingNewTeam" $
+      NonBindingNewTeam
+        <$> unwrap .= newTeamObjectSchema sch
     where
       unwrap (NonBindingNewTeam nt) = nt
 
@@ -237,52 +234,51 @@ modelNewNonBindingTeam = Doc.defineModel "newNonBindingTeam" $ do
 
 data NewTeam a = NewTeam
   { _newTeamName :: Range 1 256 Text,
-    _newTeamIcon :: Range 1 256 Text,
+    _newTeamIcon :: Icon,
     _newTeamIconKey :: Maybe (Range 1 256 Text),
     _newTeamMembers :: Maybe a
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform (NewTeam a))
 
-newNewTeam :: Range 1 256 Text -> Range 1 256 Text -> NewTeam a
+newNewTeam :: Range 1 256 Text -> Icon -> NewTeam a
 newNewTeam nme ico = NewTeam nme ico Nothing Nothing
 
-newTeamSchema :: HasSchemaRef d => Text -> ValueSchema d a -> ValueSchema NamedSwaggerDoc (NewTeam a)
-newTeamSchema name sch =
-  object name $
-    NewTeam
-      <$> _newTeamName .= field "name" schema
-      <*> _newTeamIcon .= field "icon" schema
-      <*> _newTeamIconKey .= maybe_ (optField "icon_key" schema)
-      <*> _newTeamMembers .= maybe_ (optField "members" sch)
+newTeamObjectSchema :: ValueSchema SwaggerDoc a -> ObjectSchema SwaggerDoc (NewTeam a)
+newTeamObjectSchema sch =
+  NewTeam
+    <$> _newTeamName .= field "name" schema
+    <*> _newTeamIcon .= field "icon" schema
+    <*> _newTeamIconKey .= maybe_ (optField "icon_key" schema)
+    <*> _newTeamMembers .= maybe_ (optField "members" sch)
 
 --------------------------------------------------------------------------------
 -- TeamUpdateData
 
-data IconUpdate = IconUpdate AssetKey | DefaultIcon
+data Icon = Icon AssetKey | DefaultIcon
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform IconUpdate)
-  deriving (ToJSON, FromJSON, S.ToSchema) via Schema IconUpdate
+  deriving (Arbitrary) via (GenericUniform Icon)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema Icon
 
-instance FromByteString IconUpdate where
+instance FromByteString Icon where
   parser =
     choice
-      [ IconUpdate <$> (parser :: Atto.Parser AssetKey),
+      [ Icon <$> (parser :: Atto.Parser AssetKey),
         DefaultIcon <$ Atto.string "default"
       ]
 
-instance ToByteString IconUpdate where
-  builder (IconUpdate key) = builder key
+instance ToByteString Icon where
+  builder (Icon key) = builder key
   builder DefaultIcon = "default"
 
-instance ToSchema IconUpdate where
+instance ToSchema Icon where
   schema =
     (T.decodeUtf8 . toByteString')
-      .= parsedText "IconUpdate" (runParser parser . T.encodeUtf8)
+      .= parsedText "Icon" (runParser parser . T.encodeUtf8)
 
 data TeamUpdateData = TeamUpdateData
   { _nameUpdate :: Maybe (Range 1 256 Text),
-    _iconUpdate :: Maybe IconUpdate,
+    _iconUpdate :: Maybe Icon,
     _iconKeyUpdate :: Maybe (Range 1 256 Text)
   }
   deriving stock (Eq, Show, Generic)
@@ -330,15 +326,21 @@ instance ToSchema TeamUpdateData where
 --------------------------------------------------------------------------------
 -- TeamDeleteData
 
-newtype TeamDeleteData = TeamDeleteData
-  { _tdAuthPassword :: Maybe PlainTextPassword
+data TeamDeleteData = TeamDeleteData
+  { _tdAuthPassword :: Maybe PlainTextPassword,
+    _tdVerificationCode :: Maybe Code.Value
   }
   deriving stock (Eq, Show)
-  deriving newtype (Arbitrary)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamDeleteData)
 
+instance Arbitrary TeamDeleteData where
+  arbitrary = TeamDeleteData <$> arbitrary <*> arbitrary
+
 newTeamDeleteData :: Maybe PlainTextPassword -> TeamDeleteData
-newTeamDeleteData = TeamDeleteData
+newTeamDeleteData = flip TeamDeleteData Nothing
+
+newTeamDeleteDataWithCode :: Maybe PlainTextPassword -> Maybe Code.Value -> TeamDeleteData
+newTeamDeleteDataWithCode = TeamDeleteData
 
 -- FUTUREWORK: fix name of model? (upper case)
 modelTeamDelete :: Doc.Model
@@ -346,11 +348,15 @@ modelTeamDelete = Doc.defineModel "teamDeleteData" $ do
   Doc.description "Data for a team deletion request in case of binding teams."
   Doc.property "password" Doc.string' $
     Doc.description "The account password to authorise the deletion."
+  Doc.property "verification_code" Doc.string' $
+    Doc.description "The verification code to authorise the deletion."
 
 instance ToSchema TeamDeleteData where
   schema =
     object "TeamDeleteData" $
-      TeamDeleteData <$> _tdAuthPassword .= optField "password" (maybeWithDefault Null schema)
+      TeamDeleteData
+        <$> _tdAuthPassword .= optField "password" (maybeWithDefault Null schema)
+        <*> _tdVerificationCode .= maybe_ (optField "verification_code" schema)
 
 makeLenses ''Team
 makeLenses ''TeamList

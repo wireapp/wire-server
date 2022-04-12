@@ -1,4 +1,256 @@
-# [2022-02-21]
+# [2022-04-04] (Chart Release 4.9.0)
+
+## Release notes
+
+
+* Note for wire.com operators: deploy nginz (#2175)
+
+* Deploy galley before brig (#2248)
+
+* Wire cloud operators: [Update brig's ES index mapping before deploying. After deploying run a reindex](https://github.com/wireapp/wire-server/blob/master/docs/reference/elastic-search.md). (#2241)
+
+* Upgrade webapp version to 2022-03-30-production.0-v0.29.2-0-d144552 (#2246)
+
+
+## API changes
+
+
+* New endpoint to get the status of the guest links feature for a conversation that potentially has been created by someone from another team. (#2231)
+
+
+## Features
+
+
+* Cross-team user search (#2208)
+
+* restund chart: add dtls support (#2227)
+
+* MLS implementation progress:
+
+   - welcome messages are now being propagated (#2175)
+
+* The bot API will be blocked if the 2nd factor authentication team feature is enabled. Please refer to [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge). (#2207)
+
+* Translations for 2nd factor authentication email templates (#2235)
+
+* Script for creating a team with owner via the public API (#2218)
+
+
+## Bug fixes and other updates
+
+
+* Conversation rename endpoints now return 204 instead of 404 when the conversation name is unchanged (#2239)
+
+* Revert temporary sftd bump (#2230)
+
+
+## Internal changes
+
+
+* Remove the MonadMask instance for AppT in Brig (#2259)
+
+* Remove the MonadUnliftIO instance for the app monad in Brig (#2233)
+
+* Bump hsaml2 version (#2221)
+
+* Fix: cabal-install-artefacts.sh fails if not run from root of wire-server (#2236)
+
+* Fix: pushing to cachix not working (#2257)
+
+* Cannon has been fully migrated to Servant (#2243)
+
+* Refactor conversation record and conversation creation functions. This removes a lot of duplication and makes the types of protocol-specific data in a conversation tighter. (#2234)
+
+   - Move conversation name size check to `NewConv`
+   - Make the `NewConversation` record (used as input to the data
+     function creating a conversation) contain a `ConversationMetadata`.
+   - Implement all "special" conversation creation in terms of a general `createConversation`
+   - Move protocol field from metadata to Conversation
+   - Restructure MLS fields in Conversation record
+   - Factor out metadata fields from Data.Conversation
+
+* Fix Docs: real-world domain used in examples (#2238)
+
+* The `CanThrow` combinator can now be used to set the corresponding error effects in polysemy handlers. (#2239)
+
+* Most error effects in Galley are now defined at the granularity of single error values. For example, a handler throwing `ConvNotFound` will now directly declare `ConvNotFound` (as a promoted constructor) among its error effects, instead of the generic `ConversationError` that was used before. Correspondingly, all such fine-grained Galley errors have been moved to wire-api as constructors of a single enumerated type `GalleyError`, and similarly for Brig, Cannon and Cargohold. (#2239)
+
+* Add a column for MLS clients to the Galley member table (#2245)
+
+* Pin direnv version in nix-hls.sh script (#2232)
+
+* nginx-ingress-services chart: allow for custom challenge solvers (#2222, #2229)
+
+* Remove unused debian Makefile targets (#2237)
+
+* Use local serial consistency for Cassandra lightweight transactions (#2251)
+
+
+# [2022-03-30] (Chart Release 4.8.0)
+
+## Release notes
+
+* Upgrade webapp version to 2022-03-30-production.0-v0.29.2-0-d144552 (#2246)
+# [2022-03-18] (Chart Release 4.7.0)
+
+## Release notes
+
+* Deploy Brig before Spar. (#2149)
+* If you are in a federated network of backends (currently beta), you need to update all participating instances at the same time. (#2173)
+
+## API changes
+
+* The `client` JSON object now has an additional field `mls_public_keys`, containing an object mapping signature schemes to public keys, e.g.
+  ```
+  {
+    ...
+    "mls_public_keys": { "ed25519": "GY+t1EQu0Zsm0r/zrm6zz9UpjPcAPyT5i8L1iaY3ypM=" }
+    ...
+  }
+  ```
+  At the moment, `ed25519` is the only supported signature scheme, corresponding to MLS ciphersuite 1.
+
+  When creating a new client with `POST /clients`, the field `mls_public_keys` can be set, and the corresponding public keys are bound to the device identity on the backend, and will be used to verify uploaded key packages with a matching signature scheme.
+
+  When updating a client with `PUT /clients/:client`, the field `mls_public_keys` can also be set, with a similar effect. If a given signature scheme already has a public key set for that device, the request will fail. (#2147)
+
+* Introduce an endpoint for creating an MLS conversation (#2150)
+
+* The `/billing` and `/teams/.*/billing` endpoints are now available on a versioned path (e.g. `/v1/billing`) (#2167)
+
+
+## Features
+
+
+* MLS implementation progress:
+
+   - key package refs are now mapped after being claimed (#2192)
+
+* 2nd factor authentication via 6 digit code, sent by email:
+   - for login, sent by email. The feature is disabled per default and can be enabled server or team wide. (#2142)
+   - for "create SCIM token". The feature is disabled per default and can be enabled server or team wide. (#2149)
+   - for "add new client" via 6 digit code, sent by email. This only happens inside the login flow (in particular, when logging in from a new device).  The code obtained for logging in is used a second time for adding the device. (#2186)
+   - 2nd factor authentication for "delete team" via 6 digit code, sent by email. (#2193)
+   - The `SndFactorPasswordChallenge` team feature is locked by default. (#2205)
+   - Details: [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge)
+
+## Bug fixes and other updates
+
+
+* Fix data consistency issue in import of users from TM invitation to SCIM-managed (#2201)
+
+* Use the same context string as openmls for key package ref calculation (#2216)
+
+* Ensure that only conversation admins can create invite links.  (Until now we have relied on clients to enforce this.) (#2211)
+
+
+## Internal changes
+
+
+* account-pages Helm chart: Add a "digest" image option (#2194)
+
+* Add more test mappings (#2185)
+
+* Internal endpoint for re-authentication (`GET "/i/users/:uid/reauthenticate"`) in brig has changed in a backwards compatible way. Spar depends on this change for creating a SCIM token with 2nd password challenge. (#2149)
+
+* Asset keys are now internally validated. (#2162)
+
+* Spar debugging; better internal combinators (#2214)
+
+* Remove the MonadClient instance of the Brig monad
+
+  - Lots of functions were generalized to run in a monad constrained by
+    MonadClient instead of running directly in Brig's `AppIO r` monad. (#2187)
+
+
+## Federation changes
+
+
+* Refactor conversation actions to an existential type consisting of a singleton tag (identifying the action) and a dedicated type for the action itself. Previously, actions were represented by a big sum type. The new approach enables us to describe the needed effects of an action much more precisely. The existential type is initialized by the Servant endpoints in a way to mimic the previous behavior. However, the messages between services changed. Thus, all federated backends need to run the same (new) version. The deployment order itself does not matter. (#2173)
+
+
+# [2022-03-09] (Chart Release 4.6.0)
+
+## Release notes
+
+
+* Upgrade team-settings version to 4.6.2-v0.29.7-0-4f43ee4 (#2180)
+
+
+# [2022-03-07] (Chart Release 4.5.0)
+
+## Release notes
+
+
+* For wire.com operators: make sure that nginz is deployed (#2166)
+
+
+## API changes
+
+
+* Add qualified broadcast endpoint (#2166)
+
+
+## Bug fixes and other updates
+
+
+* Always create spar credentials during SCIM provisioning when applicable (#2174)
+
+
+## Internal changes
+
+
+* Add tests for additional information returned by `GET /api-version` (#2159)
+
+* Clean up `Base64ByteString` implementation (#2170)
+
+* The `Event` record type does not contain a `type` field anymore (#2160)
+
+* Add MLS message types and corresponding deserialisers (#2145)
+
+* Servantify `POST /register` and `POST /i/users` endpoints (#2121)
+
+
+# [2022-03-01] (Chart Release 4.4.0)
+
+## Release notes
+
+
+* Upgrade webapp version to 2022-02-22-production.0-v0.29.2-0-abb34f5 (#2148)
+
+
+## API changes
+
+
+* The `api-version` endpoint now returns additional information about the backend:
+
+    - whether federation is supported (field `federation`);
+    - the federation domain (field `domain`).
+
+  Note that the federation domain is always set, even if federation is disabled. (#2146)
+
+* Add MLS key package API (#2102)
+
+
+## Internal changes
+
+
+* Bump aeson to v2.0.3.0 and update amazonka fork from upstream repository.  (#2153, #2157, #2163)
+
+* Add schema-profunctor instances for `QueuedNotification` and `QueuedNotificationList` (#2161)
+
+* Dockerfile.builder: Add cabal update (#2168)
+
+
+## Federation changes
+
+
+* Make restrictions on federated user search configurable by domain: `NoSearch`, `ExactHandleSearch` and `FullSearch`.
+  Details about the configuration are described in [config-options.md](docs/reference/config-options.md).
+  There are sane defaults (*deny to find any users as long as there is no other configuration for the domain*), so no measures have to be taken by on-premise customers (unless the default is not the desired behavior). (#2087)
+
+
+# [2022-02-21] (Chart Release 4.2.0)
 
 ## Release notes
 
@@ -51,7 +303,7 @@
 
 
 
-# [2022-02-02]
+# [2022-02-02] (Chart Release 4.0.0)
 
 ## Release notes
 
@@ -86,7 +338,7 @@
 * Separate some Spar.Sem utility functions into their own module (#2069)
 
 
-# [2022-01-28]
+# [2022-01-28] (Chart Release 2.125.0)
 
 ## Release notes
 
@@ -97,7 +349,7 @@
 * Additional integration testing for conversation access control. (#2057)
 
 
-# [2022-01-27]
+# [2022-01-27] (Chart Release 2.124.0)
 
 ## Release notes
 
@@ -144,7 +396,7 @@
 * Tag several federation tests cases for the M2 release (#2045)
 
 
-# [2022-01-18]
+# [2022-01-18] (Chart Release 2.122.0)
 
 ## Release notes
 
@@ -219,7 +471,7 @@
 * Improve Brig's configuration for SFTs and fix a call to SFT servers (#2014)
 * Enable downloading assets from a remote (federated) cargohold instance via the v4 API. The content of remote assets is returned as stream with content type `application/octet-stream`. Please refer to the Swagger API documentation for more details. (#2004)
 
-# [2021-12-10]
+# [2021-12-10] (Chart Release 2.121.0)
 
 ## Release notes
 
@@ -312,7 +564,7 @@
 * Errors when leaving a conversation are now correctly handled instead of resulting in a generic federation error. (#1928)
 
 
-# [2021-11-15]
+# [2021-11-15] (Chart Release 2.118.0)
 
 ## Release notes
 
@@ -357,7 +609,7 @@
 * Add a one-to-one conversation test in getting conversations in the federation API (#1899)
 * Notify remote participants when a user leaves a conversation because they were deleted (#1891)
 
-# [2021-10-29]
+# [2021-10-29] (Chart Release 2.117.0)
 
 ## Release notes
 
@@ -419,7 +671,7 @@
 * Make the conversation creator field in the `on-conversation-created` RPC unqualified. (#1858)
 * Update One2One conversation when connection status changes (#1850)
 
-# [2021-10-01]
+# [2021-10-01] (Chart Release 2.116.0)
 
 ## Release notes
 
@@ -512,7 +764,7 @@
 * Added support for updating self member status of remote conversations (#1753)
 
 
-# [2021-09-14]
+# [2021-09-14] (Chart Release 2.115.0)
 
 ## API changes
 
@@ -552,7 +804,7 @@
 * Ensure clients only receive messages meant for them in remote convs (#1739)
 
 
-# [2021-09-08]
+# [2021-09-08] (Chart Release 2.114.0)
 
 ## Release Notes
 
@@ -595,7 +847,7 @@
 * The update conversation membership federation endpoint takes OriginDomainHeader (#1719)
 * Added new endpoint to allow fetching conversation metadata by qualified ids (#1703)
 
-# [2021-08-27]
+# [2021-08-27] (Chart Release 2.113.0)
 
 ## Release Notes
 
@@ -633,7 +885,7 @@
 * Add an endpoint for removing a qualified user from a local conversation (#1697)
 
 
-# [2021-08-16]
+# [2021-08-16] (Chart Release 2.112.0)
 
 ## Release Notes
 
@@ -667,7 +919,7 @@ This is a routine release requiring only the routine upgrade steps.
 * Added a mechanism to derive `AsUnion` instances automatically (#1693)
 * Integration test coverage (#1696, #1704)
 
-# [2021-08-02]
+# [2021-08-02] (Chart Release 2.111.0)
 
 ## Release Notes
 
@@ -718,7 +970,7 @@ Upgrade nginz (#1658)
 * Renamed `DomainHeader` type to `OriginDomainHeader` (#1689)
 * Added golden tests for protobuf serialisation / deserialisation (#1644).
 
-# [2021-07-09]
+# [2021-07-09] (Chart Release 2.110.0)
 
 ## Release Notes
 
@@ -772,7 +1024,7 @@ This release requires a manual change in your galley configuration: `settings.co
 * Allow to change IdP Issuer name to previous name (#1615).
 
 
-# [2021-06-23]
+# [2021-06-23] (Chart Release 2.109.0)
 
 ## API Changes
 
@@ -824,7 +1076,7 @@ This release requires a manual change in your galley configuration: `settings.co
 * Galley/int: Expect remote call when creating conv with remotes (#1611)
 
 
-# [2021-06-08]
+# [2021-06-08] (Chart Release 2.108.0)
 
 ## Release Notes
 
@@ -877,7 +1129,7 @@ Deploy brig before galley (#1526, #1549)
 * Update Rich Info docs (#1544)
 
 
-# [2021-05-26]
+# [2021-05-26] (Chart Release 2.107.0)
 
 ## Release Notes
 
@@ -947,7 +1199,7 @@ changes.)
  - RFC: Schemas for documented bidirectional JSON encoding (#1474)
 
 
-# [2021-05-04]
+# [2021-05-04] (Chart Release 2.105.0)
 
 ## Features
  - [brig] New option to use a random prekey selection strategy to remove DynamoDB dependency (#1416, #1476)
@@ -984,7 +1236,7 @@ changes.)
  - [docs] Document testing strategy and patterns (#1472)
 
 
-# [2021-03-23]
+# [2021-03-23] (Chart Release 2.104.0)
 
 ## Features
 
@@ -1024,7 +1276,7 @@ This is due to an internal data migration job (`spar-migrate-data`) that needs t
 
 * Migrate spar external id table (#1400, #1413, #1415, #1417)
 
-# [2021-03-02]
+# [2021-03-02] (Chart Release 2.102.0)
 
 ## Bug fixes and other updates
 
@@ -1035,7 +1287,7 @@ This is due to an internal data migration job (`spar-migrate-data`) that needs t
 * Federation: Add qualified endpoints for prekey management (#1372)
 
 
-# [2021-02-25]
+# [2021-02-25] (Chart Release 2.101.0)
 
 ## Bug fixes and other updates
 
@@ -1049,7 +1301,7 @@ This is due to an internal data migration job (`spar-migrate-data`) that needs t
 * Add migrate-external-ids tool (#1384)
 
 
-# [2021-02-16]
+# [2021-02-16] (Chart Release 2.99.12)
 
 ## Release Notes
 
@@ -1091,7 +1343,7 @@ This release might require manual migration steps, see [ElasticSearch migration 
 * Add docs for deriving-swagger2 (#1373)
 
 
-# [2021-01-15]
+# [2021-01-15] (Chart Release 3.30.6)
 
 ## Release Notes
 
@@ -1113,7 +1365,7 @@ This release contains bugfixes and internal changes.
 * Upgrade nixpkgs and niv (#1326)
 
 
-# [2021-01-12]
+# [2021-01-12] (Chart Release 2.97.0)
 
 ## Release Notes
 
@@ -1131,7 +1383,7 @@ This release contains bugfixes and internal changes.
 * create_test_team_scim.sh script: fix arg parsing and invite (#1321)
 
 
-# [2021-01-06]
+# [2021-01-06] (Chart Release 2.95.18)
 
 ## Release Notes
 
@@ -1160,7 +1412,7 @@ This release contains bugfixes and internal changes.
 * Cleanup stack.yaml. (#1312) (#1316)
 
 
-# [2020-12-21]
+# [2020-12-21] (Chart Release 2.95.0)
 
 ## Release Notes
 
@@ -2263,3 +2515,4 @@ Config value `setEmailVisibility` must be set in brig's config file (if you're n
     ciphers. See af8299d4.
 
 [TLS ciphersuite]: https://hackage.haskell.org/package/tls-1.4.1/docs/src/Network-TLS-Extra-Cipher.html#ciphersuite_default
+

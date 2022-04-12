@@ -103,6 +103,7 @@ import qualified Data.Swagger.Internal as S
 import qualified Data.Text as T
 import qualified Data.Vector as V
 import Imports hiding (Product)
+import Numeric.Natural
 
 type Declare = S.Declare (S.Definitions S.Schema)
 
@@ -340,7 +341,7 @@ fieldOverF l name sch = SchemaP (SchemaDoc s) (SchemaIn r) (SchemaOut w)
 
     s = mkDocF @doc @f (mkField name (schemaDoc sch))
 
--- | Like 'fieldOver', but specialised to the identity functor.
+-- | Like 'fieldOverF', but specialised to the identity functor.
 fieldOver ::
   forall doc' doc v v' a b.
   (HasField doc' doc) =>
@@ -499,6 +500,9 @@ instance With Text where
   with = A.withText
 
 instance With Integer where
+  with _ = (A.parseJSON >=>)
+
+instance With Natural where
   with _ = (A.parseJSON >=>)
 
 instance With Bool where
@@ -768,6 +772,9 @@ instance HasEnum Text NamedSwaggerDoc where
   mkEnum = mkSwaggerEnum S.SwaggerString
 
 instance HasEnum Integer NamedSwaggerDoc where
+  mkEnum = mkSwaggerEnum S.SwaggerInteger
+
+instance HasEnum Natural NamedSwaggerDoc where
   mkEnum = mkSwaggerEnum S.SwaggerInteger
 
 instance HasEnum Bool NamedSwaggerDoc where

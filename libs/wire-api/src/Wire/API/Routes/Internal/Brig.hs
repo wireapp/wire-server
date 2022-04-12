@@ -17,6 +17,10 @@
 
 module Wire.API.Routes.Internal.Brig
   ( API,
+    EJPD_API,
+    AccountAPI,
+    MLSAPI,
+    TeamsAPI,
     EJPDRequest,
     GetAccountFeatureConfig,
     PutAccountFeatureConfig,
@@ -28,6 +32,7 @@ module Wire.API.Routes.Internal.Brig
 where
 
 import Control.Lens ((.~))
+import qualified Data.Code as Code
 import Data.Id as Id
 import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
 import Imports hiding (head)
@@ -37,9 +42,19 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import Wire.API.Connection
+import Wire.API.Error
+import Wire.API.Error.Brig
+import Wire.API.MLS.Credential
+import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Internal.Brig.EJPD
+import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
+import Wire.API.Routes.MultiVerb
+import Wire.API.Routes.Named
+import Wire.API.Routes.QualifiedCapture
+import Wire.API.Team.Feature (TeamFeatureName (TeamFeatureSearchVisibilityInbound))
 import qualified Wire.API.Team.Feature as ApiFt
+import Wire.API.User
 
 type EJPDRequest =
   Summary
@@ -109,15 +124,71 @@ type GetAllConnections =
     :> ReqBody '[Servant.JSON] ConnectionsStatusRequestV2
     :> Post '[Servant.JSON] [ConnectionStatusV2]
 
+type EJPD_API =
+  ( EJPDRequest
+      :<|> Named "get-account-feature-config" GetAccountFeatureConfig
+      :<|> PutAccountFeatureConfig
+      :<|> DeleteAccountFeatureConfig
+      :<|> GetAllConnectionsUnqualified
+      :<|> GetAllConnections
+  )
+
+type AccountAPI =
+  -- This endpoint can lead to the following events being sent:
+  -- - UserActivated event to created user, if it is a team invitation or user has an SSO ID
+  -- - UserIdentityUpdated event to created user, if email or phone get activated
+  Named
+    "createUserNoVerify"
+    ( "users"
+        :> ReqBody '[Servant.JSON] NewUser
+        :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
+    )
+
+type MLSAPI = GetClientByKeyPackageRef :<|> GetMLSClients
+
+type GetClientByKeyPackageRef =
+  Summary "Resolve an MLS key package ref to a qualified client ID"
+    :> "mls"
+    :> "key-packages"
+    :> Capture "ref" KeyPackageRef
+    :> MultiVerb
+         'GET
+         '[Servant.JSON]
+         '[ RespondEmpty 404 "Key package ref not found",
+            Respond 200 "Key package ref found" ClientIdentity
+          ]
+         (Maybe ClientIdentity)
+
+type GetMLSClients =
+  Summary "Return all MLS-enabled clients of a user"
+    :> "mls"
+    :> "clients"
+    :> CanThrow 'UserNotFound
+    :> QualifiedCapture "user" UserId
+    :> MultiVerb1
+         'GET
+         '[Servant.JSON]
+         (Respond 200 "MLS clients" (Set ClientId))
+
+type GetVerificationCode =
+  Summary "Get verification code for a given email and action"
+    :> "users"
+    :> Capture "uid" UserId
+    :> "verification-code"
+    :> Capture "action" VerificationAction
+    :> Get '[Servant.JSON] (Maybe Code.Value)
+
 type API =
   "i"
-    :> ( EJPDRequest
-           :<|> GetAccountFeatureConfig
-           :<|> PutAccountFeatureConfig
-           :<|> DeleteAccountFeatureConfig
-           :<|> GetAllConnectionsUnqualified
-           :<|> GetAllConnections
-       )
+    :> (EJPD_API :<|> AccountAPI :<|> MLSAPI :<|> GetVerificationCode :<|> TeamsAPI)
+
+type TeamsAPI =
+  Named
+    "updateSearchVisibilityInbound"
+    ( "teams"
+        :> ReqBody '[Servant.JSON] (Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound)
+        :> Post '[Servant.JSON] ()
+    )
 
 type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 

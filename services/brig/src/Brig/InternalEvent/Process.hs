@@ -20,11 +20,15 @@ module Brig.InternalEvent.Process
   )
 where
 
+import Bilge.IO (MonadHttp)
+import Bilge.RPC (HasRequestId)
 import qualified Brig.API.User as API
 import Brig.App
 import Brig.InternalEvent.Types
 import Brig.Options (defDeleteThrottleMillis, setDeleteThrottleMillis)
 import qualified Brig.Provider.API as API
+import Brig.User.Search.Index (MonadIndexIO)
+import Cassandra (MonadClient)
 import Control.Lens (view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
@@ -36,7 +40,21 @@ import UnliftIO (timeout)
 -- | Handle an internal event.
 --
 -- Has a one-minute timeout that should be enough for anything that it does.
-onEvent :: InternalNotification -> (AppIO r) ()
+onEvent ::
+  ( Log.MonadLogger m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadIndexIO m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m,
+    MonadClient m
+  ) =>
+  InternalNotification ->
+  m ()
 onEvent n = handleTimeout $ case n of
   DeleteUser uid -> do
     Log.info $
@@ -60,7 +78,7 @@ onEvent n = handleTimeout $ case n of
         Just x -> pure x
         Nothing -> throwM (InternalEventTimeout n)
 
-data InternalEventException
+newtype InternalEventException
   = -- | 'onEvent' has timed out
     InternalEventTimeout InternalNotification
   deriving (Show)

@@ -63,13 +63,13 @@ import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import Wire.API.User
-import Wire.API.User.Scim (ValidExternalId (..), runValidExternalId)
+import Wire.API.User.Scim (ValidExternalId (..), runValidExternalIdEither)
 
 ----------------------------------------------------------------------
 
 -- | FUTUREWORK: this is redundantly defined in "Spar.Intra.Brig"
 veidToUserSSOId :: ValidExternalId -> UserSSOId
-veidToUserSSOId = runValidExternalId UserSSOId (UserScimExternalId . fromEmail)
+veidToUserSSOId = runValidExternalIdEither UserSSOId (UserScimExternalId . fromEmail)
 
 veidFromUserSSOId :: MonadError String m => UserSSOId -> m ValidExternalId
 veidFromUserSSOId = \case
@@ -112,12 +112,12 @@ veidFromBrigUser usr mIssuer = case (userSSOId usr, userEmail usr, mIssuer) of
 mkUserName :: Maybe Text -> ValidExternalId -> Either String Name
 mkUserName (Just n) = const $ mkName n
 mkUserName Nothing =
-  runValidExternalId
+  runValidExternalIdEither
     (\uref -> mkName (CI.original . SAML.unsafeShowNameID $ uref ^. SAML.uidSubject))
     (\email -> mkName (fromEmail email))
 
 renderValidExternalId :: ValidExternalId -> Maybe Text
-renderValidExternalId = runValidExternalId urefToExternalId (Just . fromEmail)
+renderValidExternalId = runValidExternalIdEither urefToExternalId (Just . fromEmail)
 
 ----------------------------------------------------------------------
 

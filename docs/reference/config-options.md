@@ -71,19 +71,16 @@ IMPORTANT: If you switch this back to `disabled-permanently` from
 that have created them while it was allowed.  This may change in the
 future.
 
-### Team Search Visibility
+### Team Feature teamSearchVisibility
 
-Is a team allowed to change its team search visibility settings? If enabled
-for the team, it can be configured so that non-team users do not show up in search.
+The feature flag `teamSearchVisibility` affects the outbound search of user
+searches. If it is set to `no-name-outside-team` for a team then all users of
+that team will no longer be able to find users that are not part of their team
+when searching. This also includes finding other users by by providing their
+exact handle. By default it is set to `standard`, which doesn't put any
+additional restrictions to outbound searches.
 
-This sets the default setting for all teams, and can be overridden for
-individual teams by customer support / backoffice. [Allowed
-values](https://github.com/wireapp/wire-server/blob/151afec7b1f5a7630a094cf000875fbf9035866d/libs/galley-types/src/Galley/Types/Teams.hs#L229-L235):
-`disabled-by-default`, `enabled-by-default`.
-
-Disabled by default in the wire cloud.
-
-[Backoffice hook](https://github.com/wireapp/wire-server/blob/151afec7b1f5a7630a094cf000875fbf9035866d/tools/stern/src/Stern/API.hs#L615-L618) looks like this:
+The setting can be changed via endpoint:
 
 ```
 GET /teams/{tid}/search-visibility
@@ -96,6 +93,48 @@ pull-down-menu "body":
   "standard"
   "no-name-outside-team"
 ```
+
+The default setting that applies to all teams on the instance can be defined at configuration
+
+```yaml
+settings:
+  featureFlags:
+    teamSearchVisibility: disabled-by-default # or enabled-by-default
+```
+
+where disabled is equivalent to `standard` and enabled is equivalent to `no-name-outside-team`. Individual teams may ovewrite the default setting.
+
+On wire cloud the default setting is `standard`.
+
+### TeamFeature searchVisibilityInbound
+
+The team feature flag `searchVisibilityInbound` affects if the team's users are
+searchable by users from _other_ teams. The default setting is
+`searchable-by-own-team` which hides users from search results by users from
+other teams. If it is set to `searchable-by-all-teams` then users of this team
+may be included in the results of search queries by other users.
+
+Note: The configuration of this flag does _not_ affect search results when the
+search query matches the handle exactly. If the handle is provdided then any user on the instance can find users.
+
+This team feature flag can only by toggled by site-administrators with direct access to the galley instance:
+
+```
+PUT /i/teams/{tid}/features/search-visibility-inbound
+with JSON body {"status": "enabled"} or body {"status": disabled}
+```
+
+where `enabled` is equivalent to `searchable-by-all-teams` and disabled is equivalent to `searchable-by-own-team`.
+
+The default setting that applies to all teams on the instance can be defined at configuration.
+
+```yaml
+searchVisibilityInbound:
+  defaults:
+    status: enabled # OR disabled
+```
+
+Individual teams can overwrite the default setting.
 
 ### Email Visibility
 
@@ -371,7 +410,7 @@ Configuring SFT load balancing can be done in two (mutually exclusive) settings:
 ```
 # [brig.yaml]
 sft:
-  sftBaseDomain: sft.wire.example.yourcloud.comk
+  sftBaseDomain: sft.wire.example.com
   sftSRVServiceName: sft
   sftDiscoveryIntervalSeconds: 10
   sftListLength: 20
@@ -384,10 +423,10 @@ or
 ```
 # [brig.yaml]
 settings:
-  setSftStaticUrl: https://sftd.wire.yourcloud.com
+  setSftStaticUrl: https://sft.wire.example.com
 ```
 
-This setting assumes that the sft load balancer has been deployed witht hte `sftd` helm chart.
+This setting assumes that the sft load balancer has been deployed with the `sftd` helm chart.
 
 Additionally if `setSftListAllServers` is set to `enabled` (disabled by default) then the `/calls/config/v2` endpoint will include a list of all servers that are load balanced by `setSftStaticUrl` at field `sft_servers_all`. This is required to enable calls between federated instances of Wire.
 
@@ -396,7 +435,7 @@ Additionally if `setSftListAllServers` is set to `enabled` (disabled by default)
 
 #### setDefaultLocale (deprecated / ignored)
 
-The brig server config option `setDefaultLocale` has been replaced by `setDefaultUserLocale` and `setDefaultTemplateLocale`. Both settings are optional and `setDefaultTemplateLocale` defaults to `EN` and `setDefaultLocale` defaults to `setDefaultTemplateLocale`. If `setDefaultLocale` was not set or set to `EN` before this change, nothing needs to be done. If `setDefaultLocale` was set to any other language other than `EN` the name of the setting should be changed to `setDefaultTemplateLocale`. 
+The brig server config option `setDefaultLocale` has been replaced by `setDefaultUserLocale` and `setDefaultTemplateLocale`. Both settings are optional and `setDefaultTemplateLocale` defaults to `EN` and `setDefaultLocale` defaults to `setDefaultTemplateLocale`. If `setDefaultLocale` was not set or set to `EN` before this change, nothing needs to be done. If `setDefaultLocale` was set to any other language other than `EN` the name of the setting should be changed to `setDefaultTemplateLocale`.
 
 #### `setDefaultTemplateLocale`
 
@@ -410,7 +449,7 @@ optSettings:
 
 #### `setDefaultUserLocale`
 
-This option is the default user locale to be used if it is not set in the user profile. This can be the case if the users are provisioned by SCIM e.g. This option determines which language to use for email communication. If not set the default is the value that is configured for `setDefaultTemplateLocale`.
+This option determines which language to use for email communication. It is the default value if none is given in the user profile, or if no user profile exists (eg., if user is being provisioned via SCIM or manual team invitation via the team management app). If not set, `setDefaultTemplateLocale` is used instead.
 
 ```
 # [brig.yaml]
@@ -433,7 +472,7 @@ optSettings:
 any key package whose expiry date is set further than 15 days after upload time will be rejected.
 
 
-### Federated domain specific configuration settings 
+### Federated domain specific configuration settings
 #### Restrict user search
 
 The lookup and search of users on a wire instance can be configured. This can be done per federated domain.

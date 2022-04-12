@@ -22,6 +22,8 @@ module Galley.Intra.Client
     addLegalHoldClientToUser,
     removeLegalHoldClientFromUser,
     getLegalHoldAuthToken,
+    getClientByKeyPackageRef,
+    getMLSClients,
   )
 where
 
@@ -34,6 +36,7 @@ import Brig.Types.User.Auth (LegalHoldLogin (..))
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Misc
+import Data.Qualified
 import qualified Data.Set as Set
 import Data.Text.Encoding
 import Galley.API.Error
@@ -50,7 +53,11 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
+import Servant
 import qualified System.Logger.Class as Logger
+import Wire.API.Error.Galley
+import Wire.API.MLS.Credential
+import Wire.API.MLS.KeyPackage
 import Wire.API.User.Client (UserClients, UserClientsFull, filterClients, filterClientsFull)
 
 -- | Calls 'Brig.API.internalListClientsH'.
@@ -118,9 +125,9 @@ addLegalHoldClientToUser ::
   ConnId ->
   [Prekey] ->
   LastPrekey ->
-  App ClientId
+  App (Either AuthenticationError ClientId)
 addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
-  clientId <$> brigAddClient uid connId lhClient
+  fmap clientId <$> brigAddClient uid connId lhClient
   where
     lhClient =
       NewClient
@@ -132,6 +139,8 @@ addLegalHoldClientToUser uid connId prekeys lastPrekey' = do
         Nothing
         Nothing
         Nothing
+        Nothing
+        mempty
         Nothing
 
 -- | Calls 'Brig.API.removeLegalHoldClientH'.
@@ -146,7 +155,7 @@ removeLegalHoldClientFromUser targetUid = do
       . expect2xx
 
 -- | Calls 'Brig.API.addClientInternalH'.
-brigAddClient :: UserId -> ConnId -> NewClient -> App Client
+brigAddClient :: UserId -> ConnId -> NewClient -> App (Either AuthenticationError Client)
 brigAddClient uid connId client = do
   r <-
     call Brig $
@@ -155,5 +164,30 @@ brigAddClient uid connId client = do
         . paths ["i", "clients", toByteString' uid]
         . contentJson
         . json client
+        . expectStatus (flip elem [201, 403])
+  if statusCode (responseStatus r) == 201
+    then Right <$> parseResponse (mkError status502 "server-error") r
+    else pure (Left ReAuthFailed)
+
+-- | Calls 'Brig.API.Internal.getClientByKeyPackageRef'.
+getClientByKeyPackageRef :: KeyPackageRef -> App (Maybe ClientIdentity)
+getClientByKeyPackageRef ref = do
+  r <-
+    call Brig $
+      method GET
+        . paths ["i", "mls", "key-packages", toHeader ref]
+        . expectStatus (flip elem [200, 404])
+  if statusCode (responseStatus r) == 200
+    then Just <$> parseResponse (mkError status502 "server-error") r
+    else pure Nothing
+
+-- | Calls 'Brig.API.Internal.getMLSClients'.
+getMLSClients :: Qualified UserId -> App (Set ClientId)
+getMLSClients qusr =
+  call
+    Brig
+    ( method GET
+        . paths ["i", "mls", "clients", toByteString' (qDomain qusr), toByteString' (qUnqualified qusr)]
         . expect2xx
-  parseResponse (mkError status502 "server-error") r
+    )
+    >>= parseResponse (mkError status502 "server-error")

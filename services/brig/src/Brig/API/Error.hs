@@ -27,40 +27,16 @@ import Data.Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.ByteString.Conversion
 import Data.Domain (Domain)
-import Data.Proxy
 import Data.String.Conversions (cs)
-import qualified Data.Text.Lazy as LT
 import qualified Data.ZAuth.Validation as ZAuth
-import GHC.TypeLits
 import Imports
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
-import Servant.API.Status
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.Error
 import Wire.API.User (ChangeHandleError (..), UpdateProfileError (..))
-
-errorDescriptionToWai ::
-  forall (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
-  (KnownStatus code, KnownSymbol lbl) =>
-  ErrorDescription code lbl desc ->
-  Wai.Error
-errorDescriptionToWai (ErrorDescription msg) =
-  Wai.mkError
-    (statusVal (Proxy @code))
-    (LT.pack (symbolVal (Proxy @lbl)))
-    (LT.fromStrict msg)
-
-errorDescriptionTypeToWai ::
-  forall e (code :: Nat) (lbl :: Symbol) (desc :: Symbol).
-  ( KnownStatus code,
-    KnownSymbol lbl,
-    KnownSymbol desc,
-    e ~ ErrorDescription code lbl desc
-  ) =>
-  Wai.Error
-errorDescriptionTypeToWai = errorDescriptionToWai (mkErrorDescription :: e)
 
 data Error where
   StdError :: !Wai.Error -> Error
@@ -80,23 +56,6 @@ throwStd = throwError . StdError
 throwRich :: (MonadError Error m, ToJSON x) => Wai.Error -> x -> [Header] -> m a
 throwRich e x h = throwError (RichError e x h)
 
-throwErrorDescription ::
-  (KnownStatus code, KnownSymbol lbl, MonadError Error m) =>
-  ErrorDescription code lbl desc ->
-  m a
-throwErrorDescription = throwStd . errorDescriptionToWai
-
-throwErrorDescriptionType ::
-  forall e (code :: Nat) (lbl :: Symbol) (desc :: Symbol) m a.
-  ( KnownStatus code,
-    KnownSymbol lbl,
-    KnownSymbol desc,
-    MonadError Error m,
-    e ~ ErrorDescription code lbl desc
-  ) =>
-  m a
-throwErrorDescriptionType = throwErrorDescription (mkErrorDescription :: e)
-
 instance ToJSON Error where
   toJSON (StdError e) = toJSON e
   toJSON (RichError e x _) = case (toJSON e, toJSON x) of
@@ -106,23 +65,24 @@ instance ToJSON Error where
 -- Error Mapping ----------------------------------------------------------
 
 connError :: ConnectionError -> Error
-connError TooManyConnections {} = StdError (errorDescriptionTypeToWai @ConnectionLimitReached)
-connError InvalidTransition {} = StdError (errorDescriptionTypeToWai @InvalidTransition)
-connError NotConnected {} = StdError (errorDescriptionTypeToWai @NotConnected)
-connError InvalidUser {} = StdError (errorDescriptionTypeToWai @InvalidUser)
-connError ConnectNoIdentity {} = StdError (errorDescriptionToWai (noIdentity 0))
-connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const (errorDescriptionTypeToWai @BlacklistedPhone)) k
-connError (ConnectInvalidEmail _ _) = StdError invalidEmail
-connError ConnectInvalidPhone {} = StdError (errorDescriptionTypeToWai @InvalidPhone)
+connError TooManyConnections {} = StdError (errorToWai @'E.ConnectionLimitReached)
+connError InvalidTransition {} = StdError (errorToWai @'E.InvalidTransition)
+connError NotConnected {} = StdError (errorToWai @'E.NotConnected)
+connError InvalidUser {} = StdError (errorToWai @'E.InvalidUser)
+connError ConnectNoIdentity {} = StdError (errorToWai @'E.NoIdentity)
+connError (ConnectBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const (errorToWai @'E.BlacklistedPhone)) k
+connError (ConnectInvalidEmail _ _) = StdError (errorToWai @'E.InvalidEmail)
+connError ConnectInvalidPhone {} = StdError (errorToWai @'E.InvalidPhone)
 connError ConnectSameBindingTeamUsers = StdError sameBindingTeamUsers
-connError ConnectMissingLegalholdConsent = StdError (errorDescriptionTypeToWai @MissingLegalholdConsent)
+connError ConnectMissingLegalholdConsent = StdError (errorToWai @'E.MissingLegalholdConsent)
 connError (ConnectFederationError e) = fedError e
 
 actError :: ActivationError -> Error
-actError (UserKeyExists _) = StdError (errorDescriptionTypeToWai @UserKeyExists)
-actError (InvalidActivationCode e) = StdError (invalidActivationCode e)
-actError (InvalidActivationEmail _ _) = StdError invalidEmail
-actError (InvalidActivationPhone _) = StdError (errorDescriptionTypeToWai @InvalidPhone)
+actError (UserKeyExists _) = StdError (errorToWai @'E.UserKeyExists)
+actError InvalidActivationCodeWrongUser = StdError (errorToWai @'E.InvalidActivationCodeWrongUser)
+actError InvalidActivationCodeWrongCode = StdError (errorToWai @'E.InvalidActivationCodeWrongCode)
+actError (InvalidActivationEmail _ _) = StdError (errorToWai @'E.InvalidEmail)
+actError (InvalidActivationPhone _) = StdError (errorToWai @'E.InvalidPhone)
 
 pwResetError :: PasswordResetError -> Error
 pwResetError InvalidPasswordResetKey = StdError invalidPwResetKey
@@ -135,39 +95,26 @@ pwResetError (PasswordResetInProgress (Just t)) =
     [("Retry-After", toByteString' t)]
 pwResetError ResetPasswordMustDiffer = StdError resetPasswordMustDiffer
 
-newUserError :: CreateUserError -> Error
-newUserError InvalidInvitationCode = StdError invalidInvitationCode
-newUserError MissingIdentity = StdError missingIdentity
-newUserError (InvalidEmail _ _) = StdError invalidEmail
-newUserError (InvalidPhone _) = StdError (errorDescriptionTypeToWai @InvalidPhone)
-newUserError (DuplicateUserKey _) = StdError (errorDescriptionTypeToWai @UserKeyExists)
-newUserError (EmailActivationError e) = actError e
-newUserError (PhoneActivationError e) = actError e
-newUserError (BlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const (errorDescriptionTypeToWai @BlacklistedPhone)) k
-newUserError TooManyTeamMembers = StdError tooManyTeamMembers
-newUserError UserCreationRestricted = StdError userCreationRestricted
-newUserError (ExternalPreconditionFailed e) = StdError e
-
 sendLoginCodeError :: SendLoginCodeError -> Error
-sendLoginCodeError (SendLoginInvalidPhone _) = StdError (errorDescriptionTypeToWai @InvalidPhone)
+sendLoginCodeError (SendLoginInvalidPhone _) = StdError (errorToWai @'E.InvalidPhone)
 sendLoginCodeError SendLoginPasswordExists = StdError passwordExists
 
 sendActCodeError :: SendActivationCodeError -> Error
-sendActCodeError (InvalidRecipient k) = StdError $ foldKey (const invalidEmail) (const (errorDescriptionTypeToWai @InvalidPhone)) k
-sendActCodeError (UserKeyInUse _) = StdError (errorDescriptionTypeToWai @UserKeyExists)
-sendActCodeError (ActivationBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const (errorDescriptionTypeToWai @BlacklistedPhone)) k
+sendActCodeError (InvalidRecipient k) = StdError $ foldKey (const (errorToWai @'E.InvalidEmail)) (const (errorToWai @'E.InvalidPhone)) k
+sendActCodeError (UserKeyInUse _) = StdError (errorToWai @'E.UserKeyExists)
+sendActCodeError (ActivationBlacklistedUserKey k) = StdError $ foldKey (const blacklistedEmail) (const (errorToWai @'E.BlacklistedPhone)) k
 
 changeEmailError :: ChangeEmailError -> Error
-changeEmailError (InvalidNewEmail _ _) = StdError invalidEmail
-changeEmailError (EmailExists _) = StdError (errorDescriptionTypeToWai @UserKeyExists)
+changeEmailError (InvalidNewEmail _ _) = StdError (errorToWai @'E.InvalidEmail)
+changeEmailError (EmailExists _) = StdError (errorToWai @'E.UserKeyExists)
 changeEmailError (ChangeBlacklistedEmail _) = StdError blacklistedEmail
 changeEmailError EmailManagedByScim = StdError $ propertyManagedByScim "email"
 
 changeHandleError :: ChangeHandleError -> Error
-changeHandleError ChangeHandleNoIdentity = StdError (errorDescriptionToWai (noIdentity 2))
-changeHandleError ChangeHandleExists = StdError (errorDescriptionToWai (mkErrorDescription :: HandleExists))
-changeHandleError ChangeHandleInvalid = StdError (errorDescriptionToWai (mkErrorDescription :: InvalidHandle))
-changeHandleError ChangeHandleManagedByScim = StdError (errorDescriptionToWai (mkErrorDescription :: HandleManagedByScim))
+changeHandleError ChangeHandleNoIdentity = StdError (errorToWai @'E.NoIdentity)
+changeHandleError ChangeHandleExists = StdError (errorToWai @'E.HandleExists)
+changeHandleError ChangeHandleInvalid = StdError (errorToWai @'E.InvalidHandle)
+changeHandleError ChangeHandleManagedByScim = StdError (errorToWai @'E.HandleManagedByScim)
 
 legalHoldLoginError :: LegalHoldLoginError -> Error
 legalHoldLoginError LegalHoldLoginNoBindingTeam = StdError noBindingTeam
@@ -176,7 +123,7 @@ legalHoldLoginError (LegalHoldLoginError e) = loginError e
 legalHoldLoginError (LegalHoldReAuthError e) = reauthError e
 
 loginError :: LoginError -> Error
-loginError LoginFailed = StdError (errorDescriptionTypeToWai @BadCredentials)
+loginError LoginFailed = StdError (errorToWai @'E.BadCredentials)
 loginError LoginSuspended = StdError accountSuspended
 loginError LoginEphemeral = StdError accountEphemeral
 loginError LoginPendingActivation = StdError accountPending
@@ -190,17 +137,22 @@ loginError (LoginBlocked wait) =
     tooManyFailedLogins
     ()
     [("Retry-After", toByteString' (retryAfterSeconds wait))]
+loginError LoginCodeRequired = StdError loginCodeAuthenticationRequired
+loginError LoginCodeInvalid = StdError loginCodeAuthenticationFailed
 
 authError :: AuthError -> Error
-authError AuthInvalidUser = StdError (errorDescriptionTypeToWai @BadCredentials)
-authError AuthInvalidCredentials = StdError (errorDescriptionTypeToWai @BadCredentials)
+authError AuthInvalidUser = StdError (errorToWai @'E.BadCredentials)
+authError AuthInvalidCredentials = StdError (errorToWai @'E.BadCredentials)
 authError AuthSuspended = StdError accountSuspended
 authError AuthEphemeral = StdError accountEphemeral
 authError AuthPendingInvitation = StdError accountPending
 
 reauthError :: ReAuthError -> Error
-reauthError ReAuthMissingPassword = StdError (errorDescriptionTypeToWai @MissingAuth)
+reauthError ReAuthMissingPassword = StdError (errorToWai @'E.MissingAuth)
 reauthError (ReAuthError e) = authError e
+reauthError ReAuthCodeVerificationRequired = StdError verificationCodeRequired
+reauthError ReAuthCodeVerificationNoPendingCode = StdError verificationCodeNoPendingCode
+reauthError ReAuthCodeVerificationNoEmail = StdError verificationCodeNoEmail
 
 zauthError :: ZAuth.Failure -> Error
 zauthError ZAuth.Expired = StdError authTokenExpired
@@ -209,14 +161,16 @@ zauthError ZAuth.Invalid = StdError authTokenInvalid
 zauthError ZAuth.Unsupported = StdError authTokenUnsupported
 
 clientError :: ClientError -> Error
-clientError ClientNotFound = StdError (errorDescriptionTypeToWai @ClientNotFound)
+clientError ClientNotFound = StdError (errorToWai @'E.ClientNotFound)
 clientError (ClientDataError e) = clientDataError e
-clientError (ClientUserNotFound _) = StdError (errorDescriptionTypeToWai @InvalidUser)
+clientError (ClientUserNotFound _) = StdError (errorToWai @'E.InvalidUser)
 clientError ClientLegalHoldCannotBeRemoved = StdError can'tDeleteLegalHoldClient
 clientError ClientLegalHoldCannotBeAdded = StdError can'tAddLegalHoldClient
 clientError (ClientFederationError e) = fedError e
 clientError ClientCapabilitiesCannotBeRemoved = StdError clientCapabilitiesCannotBeRemoved
-clientError ClientMissingLegalholdConsent = StdError (errorDescriptionTypeToWai @MissingLegalholdConsent)
+clientError ClientMissingLegalholdConsent = StdError (errorToWai @'E.MissingLegalholdConsent)
+clientError ClientCodeAuthenticationFailed = StdError verificationCodeAuthFailed
+clientError ClientCodeAuthenticationRequired = StdError verificationCodeRequired
 
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai
@@ -225,30 +179,32 @@ propDataError :: PropertiesDataError -> Error
 propDataError TooManyProperties = StdError tooManyProperties
 
 clientDataError :: ClientDataError -> Error
-clientDataError TooManyClients = StdError (errorDescriptionTypeToWai @TooManyClients)
+clientDataError TooManyClients = StdError (errorToWai @'E.TooManyClients)
 clientDataError (ClientReAuthError e) = reauthError e
-clientDataError ClientMissingAuth = StdError (errorDescriptionTypeToWai @MissingAuth)
-clientDataError MalformedPrekeys = StdError (errorDescriptionTypeToWai @MalformedPrekeys)
+clientDataError ClientMissingAuth = StdError (errorToWai @'E.MissingAuth)
+clientDataError MalformedPrekeys = StdError (errorToWai @'E.MalformedPrekeys)
+clientDataError MLSPublicKeyDuplicate = StdError (errorToWai @'E.MLSDuplicatePublicKey)
 
 deleteUserError :: DeleteUserError -> Error
-deleteUserError DeleteUserInvalid = StdError (errorDescriptionTypeToWai @InvalidUser)
-deleteUserError DeleteUserInvalidCode = StdError (errorDescriptionTypeToWai @InvalidCode)
-deleteUserError DeleteUserInvalidPassword = StdError (errorDescriptionTypeToWai @BadCredentials)
-deleteUserError DeleteUserMissingPassword = StdError (errorDescriptionTypeToWai @MissingAuth)
+deleteUserError DeleteUserInvalid = StdError (errorToWai @'E.InvalidUser)
+deleteUserError DeleteUserInvalidCode = StdError (errorToWai @'E.InvalidCode)
+deleteUserError DeleteUserInvalidPassword = StdError (errorToWai @'E.BadCredentials)
+deleteUserError DeleteUserMissingPassword = StdError (errorToWai @'E.MissingAuth)
 deleteUserError (DeleteUserPendingCode t) = RichError deletionCodePending (DeletionCodeTimeout t) []
-deleteUserError DeleteUserOwnerDeletingSelf = StdError (errorDescriptionTypeToWai @OwnerDeletingSelf)
+deleteUserError DeleteUserOwnerDeletingSelf = StdError (errorToWai @'E.OwnerDeletingSelf)
 
 accountStatusError :: AccountStatusError -> Error
 accountStatusError InvalidAccountStatus = StdError invalidAccountStatus
+accountStatusError AccountNotFound = StdError (notFound "Account not found")
 
 phoneError :: PhoneException -> Error
-phoneError PhoneNumberUnreachable = StdError (errorDescriptionTypeToWai @InvalidPhone)
-phoneError PhoneNumberBarred = StdError (errorDescriptionTypeToWai @BlacklistedPhone)
+phoneError PhoneNumberUnreachable = StdError (errorToWai @'E.InvalidPhone)
+phoneError PhoneNumberBarred = StdError (errorToWai @'E.BlacklistedPhone)
 phoneError (PhoneBudgetExhausted t) = RichError phoneBudgetExhausted (PhoneBudgetTimeout t) []
 
 updateProfileError :: UpdateProfileError -> Error
 updateProfileError DisplayNameManagedByScim = StdError (propertyManagedByScim "name")
-updateProfileError ProfileNotFound = StdError (errorDescriptionTypeToWai @UserNotFound)
+updateProfileError ProfileNotFound = StdError (errorToWai @'E.UserNotFound)
 
 -- WAI Errors -----------------------------------------------------------------
 
@@ -267,20 +223,11 @@ clientCapabilitiesCannotBeRemoved = Wai.mkError status409 "client-capabilities-c
 noEmail :: Wai.Error
 noEmail = Wai.mkError status403 "no-email" "This operation requires the user to have a verified email address."
 
-invalidEmail :: Wai.Error
-invalidEmail = Wai.mkError status400 "invalid-email" "Invalid e-mail address."
-
 invalidPwResetKey :: Wai.Error
 invalidPwResetKey = Wai.mkError status400 "invalid-key" "Invalid email or mobile number for password reset."
 
 resetPasswordMustDiffer :: Wai.Error
 resetPasswordMustDiffer = Wai.mkError status409 "password-must-differ" "For password reset, new and old password must be different."
-
-invalidInvitationCode :: Wai.Error
-invalidInvitationCode = Wai.mkError status400 "invalid-invitation-code" "Invalid invitation code."
-
-missingIdentity :: Wai.Error
-missingIdentity = Wai.mkError status403 "missing-identity" "Using an invitation code requires registering the given email and/or phone."
 
 invalidPwResetCode :: Wai.Error
 invalidPwResetCode = Wai.mkError status400 "invalid-code" "Invalid password reset code."
@@ -302,6 +249,12 @@ loginCodePending = Wai.mkError status403 "pending-login" "A login code is still 
 
 loginCodeNotFound :: Wai.Error
 loginCodeNotFound = Wai.mkError status404 "no-pending-login" "No login code was found."
+
+loginCodeAuthenticationFailed :: Wai.Error
+loginCodeAuthenticationFailed = Wai.mkError status403 "code-authentication-failed" "The login code is not valid."
+
+loginCodeAuthenticationRequired :: Wai.Error
+loginCodeAuthenticationRequired = Wai.mkError status403 "code-authentication-required" "A login verification code is required."
 
 accountPending :: Wai.Error
 accountPending = Wai.mkError status403 "pending-activation" "Account pending activation."
@@ -411,16 +364,6 @@ propertyManagedByScim prop = Wai.mkError status403 "managed-by-scim" $ "Updating
 sameBindingTeamUsers :: Wai.Error
 sameBindingTeamUsers = Wai.mkError status403 "same-binding-team-users" "Operation not allowed to binding team users."
 
-tooManyTeamInvitations :: Wai.Error
-tooManyTeamInvitations = Wai.mkError status403 "too-many-team-invitations" "Too many team invitations for this team."
-
-tooManyTeamMembers :: Wai.Error
-tooManyTeamMembers = Wai.mkError status403 "too-many-team-members" "Too many members in this team."
-
--- | docs/reference/user/registration.md {#RefRestrictRegistration}.
-userCreationRestricted :: Wai.Error
-userCreationRestricted = Wai.mkError status403 "user-creation-restricted" "This instance does not allow creation of personal users or teams."
-
 -- | In contrast to 'tooManyFailedLogins', this is about too many *successful* logins.
 loginsTooFrequent :: Wai.Error
 loginsTooFrequent = Wai.mkError status429 "client-error" "Logins too frequent"
@@ -464,3 +407,15 @@ customerExtensionBlockedDomain domain = Wai.mkError (mkStatus 451 "Unavailable F
       "[Customer extension] the email domain " <> cs (show domain)
         <> " that you are attempting to register a user with has been \
            \blocked for creating wire users.  Please contact your IT department."
+
+verificationCodeRequired :: Wai.Error
+verificationCodeRequired = Wai.mkError status403 "code-authentication-required" "Verification code required."
+
+verificationCodeNoPendingCode :: Wai.Error
+verificationCodeNoPendingCode = Wai.mkError status403 "code-authentication-failed" "Code authentication failed (no such code)."
+
+verificationCodeNoEmail :: Wai.Error
+verificationCodeNoEmail = Wai.mkError status403 "code-authentication-failed" "Code authentication failed (no such email)."
+
+verificationCodeAuthFailed :: Wai.Error
+verificationCodeAuthFailed = Wai.mkError status403 "code-authentication-failed" "Code authentication failed."

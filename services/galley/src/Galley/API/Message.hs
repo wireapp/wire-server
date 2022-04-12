@@ -35,54 +35,50 @@ module Galley.API.Message
 where
 
 import Control.Lens
-import Control.Monad.Except (throwError)
 import Control.Monad.Extra (eitherM)
-import Control.Monad.Trans.Except (runExceptT)
 import Data.Aeson (encode)
 import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain)
 import Data.Id
 import Data.Json.Util
-import Data.List1 (singleton)
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import Data.Set.Lens
+import Data.Singletons
 import Data.Time.Clock (UTCTime)
-import Galley.API.Error
 import Galley.API.LegalHold.Conflicts
+import Galley.API.Push
 import Galley.API.Util
 import Galley.Data.Conversation
-import Galley.Data.Services as Data
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
-import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
-import Galley.Effects.GundeckAccess hiding (Push)
 import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
-import Galley.Intra.Push
 import Galley.Options
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Conversations.Members
-import Gundeck.Types.Push.V2 (RecipientClients (..))
 import Imports hiding (forkIO)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Log
+import Wire.API.Error
+import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
+import Wire.API.Routes.Public.Galley
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.User.Client
@@ -234,7 +230,7 @@ postRemoteOtrMessage ::
   Members '[FederatorAccess] r =>
   Qualified UserId ->
   Remote ConvId ->
-  LByteString ->
+  ByteString ->
   Sem r (PostOtrResponse MessageSendingStatus)
 postRemoteOtrMessage sender conv rawMsg = do
   let msr =
@@ -250,8 +246,9 @@ postBroadcast ::
   Members
     '[ BrigAccess,
        ClientStore,
-       Error ActionError,
-       Error TeamError,
+       ErrorS 'TeamNotFound,
+       ErrorS 'NonBindingTeam,
+       ErrorS 'BroadcastLimitExceeded,
        GundeckAccess,
        Input Opts,
        Input UTCTime,
@@ -279,7 +276,7 @@ postBroadcast lusr con msg = runError $ do
   limit <- fromIntegral . fromRange <$> fanoutLimit
   -- If we are going to fan this out to more than limit, we want to fail early
   unless (Map.size rcps <= limit) $
-    throw BroadcastLimitExceeded
+    throwS @'BroadcastLimitExceeded
   -- In large teams, we may still use the broadcast endpoint but only if `report_missing`
   -- is used and length `report_missing` < limit since we cannot fetch larger teams than
   -- that.
@@ -339,16 +336,16 @@ postBroadcast lusr con msg = runError $ do
       let localUserIdsInRcps = Map.keys rcps
       let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)
       unless (length localUserIdsToLookup <= limit) $
-        throw BroadcastLimitExceeded
+        throwS @'BroadcastLimitExceeded
       selectTeamMembers tid localUserIdsToLookup
     maybeFetchAllMembersInTeam ::
-      Members '[Error ActionError, TeamStore] r =>
+      Members '[ErrorS 'BroadcastLimitExceeded, TeamStore] r =>
       TeamId ->
       Sem r [TeamMember]
     maybeFetchAllMembersInTeam tid = do
       mems <- getTeamMembersForFanout tid
       when (mems ^. teamMemberListType == ListTruncated) $
-        throw BroadcastLimitExceeded
+        throwS @'BroadcastLimitExceeded
       pure (mems ^. teamMembers)
 
 postQualifiedOtrMessage ::
@@ -373,91 +370,92 @@ postQualifiedOtrMessage ::
   Local ConvId ->
   QualifiedNewOtrMessage ->
   Sem r (PostOtrResponse MessageSendingStatus)
-postQualifiedOtrMessage senderType sender mconn lcnv msg = runExceptT $ do
-  alive <- lift $ isConversationAlive (tUnqualified lcnv)
-  let localDomain = tDomain lcnv
-  now <- lift $ input
-  let nowMillis = toUTCTimeMillis now
-  let senderDomain = qDomain sender
-      senderUser = qUnqualified sender
-  let senderClient = qualifiedNewOtrSender msg
-  unless alive $ do
-    lift $ deleteConversation (tUnqualified lcnv)
-    throwError MessageNotSentConversationNotFound
+postQualifiedOtrMessage senderType sender mconn lcnv msg =
+  runError @(MessageNotSent MessageSendingStatus)
+    . mapToRuntimeError @'ConvNotFound @(MessageNotSent MessageSendingStatus)
+      MessageNotSentConversationNotFound
+    $ do
+      alive <- isConversationAlive (tUnqualified lcnv)
+      let localDomain = tDomain lcnv
+      now <- input
+      let nowMillis = toUTCTimeMillis now
+      let senderDomain = qDomain sender
+          senderUser = qUnqualified sender
+      let senderClient = qualifiedNewOtrSender msg
+      unless alive $ do
+        deleteConversation (tUnqualified lcnv)
+        throwS @'ConvNotFound
 
-  -- conversation members
-  localMembers <- lift $ getLocalMembers (tUnqualified lcnv)
-  remoteMembers <- lift $ getRemoteMembers (tUnqualified lcnv)
+      -- conversation members
+      localMembers <- getLocalMembers (tUnqualified lcnv)
+      remoteMembers <- getRemoteMembers (tUnqualified lcnv)
 
-  let localMemberIds = lmId <$> localMembers
-      localMemberMap :: Map UserId LocalMember
-      localMemberMap = Map.fromList (map (\mem -> (lmId mem, mem)) localMembers)
-      members :: Set (Qualified UserId)
-      members =
-        Set.map (`Qualified` localDomain) (Map.keysSet localMemberMap)
-          <> Set.fromList (map (qUntagged . rmId) remoteMembers)
-  isInternal <- lift $ view (optSettings . setIntraListing) <$> input
+      let localMemberIds = lmId <$> localMembers
+          localMemberMap :: Map UserId LocalMember
+          localMemberMap = Map.fromList (map (\mem -> (lmId mem, mem)) localMembers)
+          members :: Set (Qualified UserId)
+          members =
+            Set.map (`Qualified` localDomain) (Map.keysSet localMemberMap)
+              <> Set.fromList (map (qUntagged . rmId) remoteMembers)
+      isInternal <- view (optSettings . setIntraListing) <$> input
 
-  -- check if the sender is part of the conversation
-  unless (Set.member sender members) $
-    throwError MessageNotSentConversationNotFound
+      -- check if the sender is part of the conversation
+      unless (Set.member sender members) $
+        throwS @'ConvNotFound
 
-  -- get local clients
-  localClients <-
-    lift $
-      if isInternal
-        then Clients.fromUserClients <$> lookupClients localMemberIds
-        else getClients localMemberIds
-  let qualifiedLocalClients =
-        Map.mapKeys (localDomain,)
-          . makeUserMap (Set.fromList (map lmId localMembers))
-          . Clients.toMap
-          $ localClients
+      -- get local clients
+      localClients <-
+        if isInternal
+          then Clients.fromUserClients <$> lookupClients localMemberIds
+          else getClients localMemberIds
+      let qualifiedLocalClients =
+            Map.mapKeys (localDomain,)
+              . makeUserMap (Set.fromList (map lmId localMembers))
+              . Clients.toMap
+              $ localClients
 
-  -- get remote clients
-  qualifiedRemoteClients <- lift $ getRemoteClients remoteMembers
-  let qualifiedClients = qualifiedLocalClients <> qualifiedRemoteClients
+      -- get remote clients
+      qualifiedRemoteClients <- getRemoteClients remoteMembers
+      let qualifiedClients = qualifiedLocalClients <> qualifiedRemoteClients
 
-  -- check if the sender client exists (as one of the clients in the conversation)
-  unless
-    ( Set.member
-        senderClient
-        (Map.findWithDefault mempty (senderDomain, senderUser) qualifiedClients)
-    )
-    $ throwError MessageNotSentUnknownClient
+      -- check if the sender client exists (as one of the clients in the conversation)
+      unless
+        ( Set.member
+            senderClient
+            (Map.findWithDefault mempty (senderDomain, senderUser) qualifiedClients)
+        )
+        $ throw (MessageNotSentUnknownClient :: MessageNotSent MessageSendingStatus)
 
-  let (sendMessage, validMessages, mismatch) =
-        checkMessageClients
-          (senderDomain, senderUser, senderClient)
-          qualifiedClients
-          (flattenMap $ qualifiedNewOtrRecipients msg)
-          (qualifiedNewOtrClientMismatchStrategy msg)
-      otrResult = mkMessageSendingStatus nowMillis mismatch mempty
-  unless sendMessage $ do
-    let lhProtectee = qualifiedUserToProtectee localDomain senderType sender
-        missingClients = qmMissing mismatch
-        legalholdErr = pure MessageNotSentLegalhold
-        clientMissingErr = pure $ MessageNotSentClientMissing otrResult
-    e <-
-      lift
-        . runLocalInput lcnv
-        . eitherM (const legalholdErr) (const clientMissingErr)
-        . runError @LegalholdConflicts
-        $ guardQualifiedLegalholdPolicyConflicts lhProtectee missingClients
-    throwError e
+      let (sendMessage, validMessages, mismatch) =
+            checkMessageClients
+              (senderDomain, senderUser, senderClient)
+              qualifiedClients
+              (flattenMap $ qualifiedNewOtrRecipients msg)
+              (qualifiedNewOtrClientMismatchStrategy msg)
+          otrResult = mkMessageSendingStatus nowMillis mismatch mempty
+      unless sendMessage $ do
+        let lhProtectee = qualifiedUserToProtectee localDomain senderType sender
+            missingClients = qmMissing mismatch
+            legalholdErr = pure MessageNotSentLegalhold
+            clientMissingErr = pure $ MessageNotSentClientMissing otrResult
+        e <-
+          runLocalInput lcnv
+            . eitherM (const legalholdErr) (const clientMissingErr)
+            . runError @LegalholdConflicts
+            $ guardQualifiedLegalholdPolicyConflicts lhProtectee missingClients
+        throw e
 
-  failedToSend <-
-    lift $
-      sendMessages @'NormalMessage
-        now
-        sender
-        senderClient
-        mconn
-        lcnv
-        localMemberMap
-        (qualifiedNewOtrMetadata msg)
-        validMessages
-  pure otrResult {mssFailedToSend = failedToSend}
+      failedToSend <-
+        sendMessages @'NormalMessage
+          now
+          sender
+          senderClient
+          mconn
+          lcnv
+          localMemberMap
+          (qualifiedNewOtrMetadata msg)
+          validMessages
+      pure otrResult {mssFailedToSend = failedToSend}
 
 makeUserMap :: Set UserId -> Map UserId (Set ClientId) -> Map UserId (Set ClientId)
 makeUserMap keys = (<> Map.fromSet (const mempty) keys)
@@ -512,7 +510,7 @@ byDomain =
 
 sendLocalMessages ::
   forall t r x.
-  ( RunMessagePush t,
+  ( SingI t,
     Members (MessagePushEffects t) r,
     Monoid (MessagePush t)
   ) =>
@@ -587,47 +585,6 @@ flattenMap :: QualifiedOtrRecipients -> Map (Domain, UserId, ClientId) ByteStrin
 flattenMap (QualifiedOtrRecipients (QualifiedUserClientMap m)) =
   toMapOf (reindexed (\(d, (u, c)) -> (d, u, c)) (itraversed <.> itraversed <.> itraversed)) m
 
-data MessageType = NormalMessage | Broadcast
-
-data family MessagePush (t :: MessageType)
-
-data instance MessagePush 'NormalMessage = NormalMessagePush
-  { userPushes :: [Push],
-    botPushes :: [(BotMember, Event)]
-  }
-
-data instance MessagePush 'Broadcast = BroadcastPush
-  {broadcastPushes :: [Push]}
-
-instance Semigroup (MessagePush 'NormalMessage) where
-  NormalMessagePush us1 bs1 <> NormalMessagePush us2 bs2 =
-    NormalMessagePush (us1 <> us2) (bs1 <> bs2)
-
-instance Monoid (MessagePush 'NormalMessage) where
-  mempty = NormalMessagePush mempty mempty
-
-instance Semigroup (MessagePush 'Broadcast) where
-  BroadcastPush us1 <> BroadcastPush us2 = BroadcastPush (us1 <> us2)
-
-instance Monoid (MessagePush 'Broadcast) where
-  mempty = BroadcastPush mempty
-
-class HasUserPush (t :: MessageType) where
-  newUserPush :: Push -> MessagePush t
-
-instance HasUserPush 'NormalMessage where
-  newUserPush p = NormalMessagePush {userPushes = pure p, botPushes = mempty}
-
-instance HasUserPush 'Broadcast where
-  newUserPush p = BroadcastPush (pure p)
-
-newBotPush :: BotMember -> Event -> MessagePush 'NormalMessage
-newBotPush b e = NormalMessagePush {userPushes = mempty, botPushes = pure (b, e)}
-
-type family LocalMemberMap (t :: MessageType) = (m :: *) | m -> t where
-  LocalMemberMap 'NormalMessage = Map UserId LocalMember
-  LocalMemberMap 'Broadcast = ()
-
 newMessageEvent ::
   Maybe (Qualified ConvId) ->
   Qualified UserId ->
@@ -639,86 +596,13 @@ newMessageEvent ::
   Event
 newMessageEvent mconvId sender senderClient dat time (receiver, receiverClient) cipherText =
   let convId = fromMaybe (qUntagged (fmap selfConv receiver)) mconvId
-   in Event OtrMessageAdd convId sender time . EdOtrMessage $
+   in Event convId sender time . EdOtrMessage $
         OtrMessage
           { otrSender = senderClient,
             otrRecipient = receiverClient,
             otrCiphertext = cipherText,
             otrData = dat
           }
-
-class RunMessagePush (t :: MessageType) where
-  type MessagePushEffects t :: [Effect]
-  newMessagePush ::
-    Local x ->
-    LocalMemberMap t ->
-    Maybe ConnId ->
-    MessageMetadata ->
-    (UserId, ClientId) ->
-    Event ->
-    MessagePush t
-  runMessagePush ::
-    Members (MessagePushEffects t) r =>
-    Local x ->
-    Maybe (Qualified ConvId) ->
-    MessagePush t ->
-    Sem r ()
-
-instance RunMessagePush 'NormalMessage where
-  type MessagePushEffects 'NormalMessage = '[ExternalAccess, GundeckAccess, P.TinyLog]
-  newMessagePush loc members mconn mm (k, client) e = fold $ do
-    member <- Map.lookup k members
-    newBotMessagePush member <|> newUserMessagePush loc mconn mm (lmId member) client e
-    where
-      newBotMessagePush :: LocalMember -> Maybe (MessagePush 'NormalMessage)
-      newBotMessagePush member = newBotPush <$> newBotMember member <*> pure e
-  runMessagePush loc mqcnv mp = do
-    push (userPushes mp)
-    pushToBots (botPushes mp)
-    where
-      pushToBots ::
-        Members '[ExternalAccess, P.TinyLog] r =>
-        [(BotMember, Event)] ->
-        Sem r ()
-      pushToBots pushes = for_ mqcnv $ \qcnv ->
-        if tDomain loc /= qDomain qcnv
-          then unless (null pushes) $ do
-            P.warn $ Log.msg ("Ignoring messages for local bots in a remote conversation" :: ByteString) . Log.field "conversation" (show qcnv)
-          else deliverAndDeleteAsync (qUnqualified qcnv) pushes
-
-instance RunMessagePush 'Broadcast where
-  type MessagePushEffects 'Broadcast = '[GundeckAccess]
-  newMessagePush loc () mconn mm (user, client) e =
-    fold $
-      newUserMessagePush loc mconn mm user client e
-
-  runMessagePush _ _ mp = push (broadcastPushes mp)
-
-newUserMessagePush ::
-  HasUserPush t =>
-  Local x ->
-  Maybe ConnId ->
-  MessageMetadata ->
-  UserId ->
-  ClientId ->
-  Event ->
-  Maybe (MessagePush t)
-newUserMessagePush loc mconn mm user cli e =
-  fmap newUserPush $
-    newConversationEventPush e (qualifyAs loc [user])
-      <&> set pushConn mconn
-        . set pushNativePriority (mmNativePriority mm)
-        . set pushRoute (bool RouteDirect RouteAny (mmNativePush mm))
-        . set pushTransient (mmTransient mm)
-        . set (pushRecipients . traverse . recipientClients) (RecipientClientsSome (singleton cli))
-
-data MessageMetadata = MessageMetadata
-  { mmNativePush :: Bool,
-    mmTransient :: Bool,
-    mmNativePriority :: Maybe Priority,
-    mmData :: Maybe Text
-  }
-  deriving (Eq, Ord, Show)
 
 qualifiedNewOtrMetadata :: QualifiedNewOtrMessage -> MessageMetadata
 qualifiedNewOtrMetadata msg =

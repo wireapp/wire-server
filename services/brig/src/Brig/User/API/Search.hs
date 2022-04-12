@@ -101,14 +101,14 @@ routesInternal = do
   -- make index updates visible (e.g. for integration testing)
   post
     "/i/index/refresh"
-    (continue (const $ lift refreshIndex *> pure empty))
+    (continue (const $ lift refreshIndex $> empty))
     true
 
   -- reindex from Cassandra (e.g. integration testing -- prefer the
   -- `brig-index` executable for actual operations!)
   post
     "/i/index/reindex"
-    (continue . const $ lift reindexAll *> pure empty)
+    (continue . const $ lift (wrapClient reindexAll) $> empty)
     true
 
   -- forcefully reindex from Cassandra, even if nothing has changed
@@ -116,7 +116,7 @@ routesInternal = do
   -- for actual operations!)
   post
     "/i/index/reindex-if-same-or-newer"
-    (continue . const $ lift reindexAllIfSameOrNewer *> pure empty)
+    (continue . const $ lift (wrapClient reindexAllIfSameOrNewer) $> empty)
     true
 
 -- Handlers
@@ -133,7 +133,7 @@ search searcherId searchTerm maybeDomain maybeMaxResults = do
 
 searchRemotely :: Domain -> Text -> (Handler r) (Public.SearchResult Public.Contact)
 searchRemotely domain searchTerm = do
-  Log.info $
+  lift . Log.info $
     msg (val "searchRemotely")
       ~~ field "domain" (show domain)
       ~~ field "searchTerm" searchTerm
@@ -152,7 +152,8 @@ searchRemotely domain searchTerm = do
 searchLocally :: UserId -> Text -> Maybe (Range 1 500 Int32) -> (Handler r) (Public.SearchResult Public.Contact)
 searchLocally searcherId searchTerm maybeMaxResults = do
   let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
-  teamSearchInfo <- mkTeamSearchInfo
+  searcherTeamId <- lift $ wrapClient $ DB.lookupUserTeam searcherId
+  teamSearchInfo <- mkTeamSearchInfo searcherTeamId
 
   maybeExactHandleMatch <- exactHandleSearch teamSearchInfo
 
@@ -161,7 +162,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
 
   esResult <-
     if esMaxResults > 0
-      then Q.searchIndex (Just searcherId) (Just teamSearchInfo) searchTerm esMaxResults
+      then Q.searchIndex (Q.LocalSearch searcherId searcherTeamId teamSearchInfo) searchTerm esMaxResults
       else pure $ SearchResult 0 0 0 [] FullSearch
 
   -- Prepend results matching exact handle and results from ES.
@@ -173,12 +174,11 @@ searchLocally searcherId searchTerm maybeMaxResults = do
       }
   where
     handleTeamVisibility :: TeamId -> TeamSearchVisibility -> Search.TeamSearchInfo
-    handleTeamVisibility t Team.SearchVisibilityStandard = Search.TeamAndNonMembers t
+    handleTeamVisibility _ Team.SearchVisibilityStandard = Search.AllUsers
     handleTeamVisibility t Team.SearchVisibilityNoNameOutsideTeam = Search.TeamOnly t
 
-    mkTeamSearchInfo :: (Handler r) TeamSearchInfo
-    mkTeamSearchInfo = lift $ do
-      searcherTeamId <- DB.lookupUserTeam searcherId
+    mkTeamSearchInfo :: Maybe TeamId -> (Handler r) TeamSearchInfo
+    mkTeamSearchInfo searcherTeamId = lift $ do
       sameTeamSearchOnly <- fromMaybe False <$> view (settings . Opts.searchSameTeamOnly)
       case searcherTeamId of
         Nothing -> return Search.NoTeam
@@ -188,7 +188,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
             then return (Search.TeamOnly t)
             else do
               -- For team users, we need to check the visibility flag
-              handleTeamVisibility t <$> Intra.getTeamSearchVisibility t
+              handleTeamVisibility t <$> wrapHttp (Intra.getTeamSearchVisibility t)
 
     exactHandleSearch :: TeamSearchInfo -> (Handler r) (Maybe Contact)
     exactHandleSearch teamSearchInfo = do

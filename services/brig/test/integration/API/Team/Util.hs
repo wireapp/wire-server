@@ -36,7 +36,7 @@ import Data.Misc (Milliseconds)
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text.Encoding as T
-import Galley.Types (ConvTeamInfo (..), NewConv (..))
+import Galley.Types
 import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
@@ -46,6 +46,7 @@ import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty.HUnit
 import Util
 import Web.Cookie (parseSetCookie, setCookieName)
+import Wire.API.Team (Icon (..))
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Member
@@ -211,7 +212,7 @@ createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Mayb
 createTeamConv g tid u us mtimer = do
   let tinfo = Just $ ConvTeamInfo tid
   let conv =
-        NewConv us [] Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin
+        NewConv us [] Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin ProtocolProteusTag
   r <-
     post
       ( g
@@ -265,7 +266,7 @@ getTeams u galley =
       )
 
 newTeam :: Team.BindingNewTeam
-newTeam = Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") (unsafeRange "defaultIcon")
+newTeam = Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") DefaultIcon
 
 putLegalHoldEnabled :: HasCallStack => TeamId -> TeamFeatureStatusValue -> Galley -> Http ()
 putLegalHoldEnabled tid enabled g = do
@@ -434,7 +435,7 @@ stdInvitationRequest' :: Maybe Locale -> Maybe Team.Role -> Email -> InvitationR
 stdInvitationRequest' loc role email =
   InvitationRequest loc role Nothing email Nothing
 
-setTeamTeamSearchVisibilityAvailable :: HasCallStack => Galley -> TeamId -> TeamFeatureStatusValue -> Http ()
+setTeamTeamSearchVisibilityAvailable :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => Galley -> TeamId -> TeamFeatureStatusValue -> m ()
 setTeamTeamSearchVisibilityAvailable galley tid status =
   put
     ( galley
@@ -455,6 +456,17 @@ setTeamSearchVisibility galley tid typ =
     )
     !!! do
       const 204 === statusCode
+
+setTeamSearchVisibilityInboundAvailable :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => Galley -> TeamId -> TeamFeatureStatusValue -> m ()
+setTeamSearchVisibilityInboundAvailable galley tid status =
+  put
+    ( galley
+        . paths ["i", "teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @'Public.TeamFeatureSearchVisibilityInbound)]
+        . contentJson
+        . body (RequestBodyLBS . encode $ Public.TeamFeatureStatusNoConfig status)
+    )
+    !!! do
+      const 200 === statusCode
 
 setUserEmail :: Brig -> UserId -> UserId -> Email -> Http ResponseLBS
 setUserEmail brig from uid email = do

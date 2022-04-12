@@ -32,6 +32,7 @@ module Brig.User.Search.Index
 
     -- * Updates
     reindex,
+    updateSearchVisibilityInbound,
 
     -- * Administrative
     createIndex,
@@ -49,26 +50,40 @@ module Brig.User.Search.Index
   )
 where
 
+import Bilge (MonadHttp, expect2xx, header, lbytes)
+import qualified Bilge as RPC
+import Bilge.RPC (RPCException (RPCException))
+import Bilge.Request (paths)
+import Bilge.Response (responseJsonThrow)
+import Bilge.Retry (rpcHandlers)
 import Brig.Data.Instances ()
 import Brig.Index.Types (CreateIndexSettings (..))
 import Brig.Types.Intra
+import Brig.Types.Search (SearchVisibilityInbound, defaultSearchVisibilityInbound, searchVisibilityInboundFromFeatureStatus)
 import Brig.Types.User
 import Brig.User.Search.Index.Types as Types
 import qualified Cassandra as C
 import Control.Lens hiding ((#), (.=))
-import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, throwM)
+import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow, throwM, try)
 import Control.Monad.Except
+import Control.Retry (RetryPolicy, exponentialBackoff, limitRetries, recovering)
 import Data.Aeson as Aeson
 import Data.Aeson.Encoding
 import Data.Aeson.Lens
 import Data.ByteString.Builder (Builder, toLazyByteString)
+import Data.ByteString.Conversion (toByteString')
 import qualified Data.ByteString.Conversion as Bytes
+import qualified Data.ByteString.Lazy as BL
 import Data.Fixed (Fixed (MkFixed))
 import Data.Handle (Handle)
 import Data.Id
 import qualified Data.Map as Map
 import Data.Metrics
 import Data.String.Conversions (cs)
+import qualified Data.Text as T
+import qualified Data.Text as Text
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import qualified Data.Text.Lazy as LT
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lens hiding (text)
 import Data.Time (UTCTime, secondsToNominalDiffTime)
@@ -77,20 +92,16 @@ import qualified Data.UUID as UUID
 import qualified Database.Bloodhound as ES
 import Imports hiding (log, searchable)
 import Network.HTTP.Client hiding (path)
-import Network.HTTP.Types (hContentType, statusCode)
+import Network.HTTP.Types (StdMethod (POST), hContentType, statusCode)
 import qualified SAML2.WebSSO.Types as SAML
 import qualified System.Logger as Log
-import System.Logger.Class
-  ( Logger,
-    MonadLogger (..),
-    field,
-    info,
-    msg,
-    val,
-    (+++),
-    (~~),
-  )
-import URI.ByteString (serializeURIRef)
+import System.Logger.Class (Logger, MonadLogger (..), field, info, msg, val, (+++), (~~))
+import URI.ByteString (URI, serializeURIRef)
+import Util.Options (Endpoint, epHost, epPort)
+import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
+import Wire.API.Team.Feature (TeamFeatureName (..))
+import qualified Wire.API.User as User
+import Wire.API.User.Search (Sso (..))
 
 --------------------------------------------------------------------------------
 -- IndexIO Monad
@@ -102,7 +113,9 @@ data IndexEnv = IndexEnv
     idxRequest :: Maybe RequestId,
     idxName :: ES.IndexName,
     idxAdditionalName :: Maybe ES.IndexName,
-    idxAdditionalElastic :: Maybe ES.BHEnv
+    idxAdditionalElastic :: Maybe ES.BHEnv,
+    idxGalley :: Endpoint,
+    idxHttpManager :: Manager
   }
 
 newtype IndexIO a = IndexIO (ReaderT IndexEnv IO a)
@@ -138,6 +151,11 @@ instance MonadLogger (ExceptT e IndexIO) where
 instance ES.MonadBH IndexIO where
   getBHEnv = asks idxElastic
 
+instance MonadHttp IndexIO where
+  handleRequestWithCont req handler = do
+    manager <- asks idxHttpManager
+    liftIO $ withResponse req manager handler
+
 withDefaultESUrl :: (MonadIndexIO m) => ES.BH m a -> m a
 withDefaultESUrl action = do
   bhEnv <- liftIndexIO $ asks idxElastic
@@ -153,7 +171,7 @@ withAdditionalESUrl action = do
 --------------------------------------------------------------------------------
 -- Updates
 
-reindex :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => UserId -> m ()
+reindex :: (MonadLogger m, MonadCatch m, MonadThrow m, MonadIndexIO m, C.MonadClient m) => UserId -> m ()
 reindex u = do
   ixu <- lookupIndexUser u
   updateIndex (maybe (IndexDeleteUser u) (IndexUpdateUser IndexUpdateIfNewerVersion) ixu)
@@ -248,6 +266,31 @@ updateIndex (IndexDeleteUser u) = liftIndexIO $ do
       Just v -> updateIndex . IndexUpdateUser IndexUpdateIfNewerVersion . mkIndexUser u =<< mkIndexVersion (v + 1)
     404 -> pure ()
     _ -> ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
+
+updateSearchVisibilityInbound :: (MonadIndexIO m) => Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound -> m ()
+updateSearchVisibilityInbound status = liftIndexIO $ do
+  withDefaultESUrl . updateAllDocs =<< asks idxName
+  withAdditionalESUrl $ traverse_ updateAllDocs =<< asks idxAdditionalName
+  where
+    updateAllDocs :: (MonadIndexIO m, MonadThrow m) => ES.IndexName -> ES.BH m ()
+    updateAllDocs idx = do
+      r <- ES.updateByQuery idx query (Just script)
+      unless (ES.isSuccess r || ES.isVersionConflict r) $ do
+        ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
+
+    query :: ES.Query
+    query = ES.TermQuery (ES.Term "team" $ idToText (Multi.tsuTeam status)) Nothing
+
+    script :: ES.Script
+    script = ES.Script (Just (ES.ScriptLanguage "painless")) (Just (ES.ScriptInline scriptText)) Nothing Nothing
+
+    -- Unfortunately ES disallows updating ctx._version with a "Update By Query"
+    scriptText =
+      "ctx._source."
+        <> searchVisibilityInboundFieldName
+        <> " = '"
+        <> decodeUtf8 (toByteString' (searchVisibilityInboundFromFeatureStatus (Multi.tsuStatus status)))
+        <> "';"
 
 --------------------------------------------------------------------------------
 -- Administrative
@@ -355,14 +398,20 @@ reindexAll = reindexAllWith IndexUpdateIfNewerVersion
 reindexAllWith :: (MonadLogger m, MonadIndexIO m, C.MonadClient m) => IndexDocUpdateType -> m ()
 reindexAllWith updateType = do
   idx <- liftIndexIO $ asks idxName
-  C.liftClient (scanForIndex 100) >>= loop idx
+  C.liftClient (scanForIndex 1000) >>= loop idx
   where
     loop idx page = do
       info $
         field "size" (length (C.result page))
           . msg (val "Reindex: processing C* page")
-      unless (null (C.result page)) $
-        updateIndex (IndexUpdateUsers updateType (C.result page))
+      unless (null (C.result page)) $ do
+        let teamsInPage = mapMaybe teamInReindexRow (C.result page)
+        lookupFn <- liftIndexIO $ getSearchVisibilityInboundMulti teamsInPage
+        let reindexRow row =
+              let (sv, t) = maybe (defaultSearchVisibilityInbound, Nothing) lookupFn (teamInReindexRow row)
+               in reindexRowToIndexUser row sv t
+        indexUsers <- mapM reindexRow (C.result page)
+        updateIndex (IndexUpdateUsers updateType indexUsers)
       when (C.hasMore page) $
         C.liftClient (C.nextPage page) >>= loop idx
 
@@ -531,6 +580,53 @@ indexMapping =
                   mpIndex = True,
                   mpAnalyzer = Nothing,
                   mpFields = mempty
+                },
+            (fromString . T.unpack $ searchVisibilityInboundFieldName)
+              .= MappingProperty
+                { mpType = MPKeyword,
+                  mpStore = False,
+                  mpIndex = True,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
+            "scim_external_id"
+              .= MappingProperty
+                { mpType = MPKeyword,
+                  mpStore = False,
+                  mpIndex = False,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
+                },
+            "sso"
+              .= object
+                [ "type" .= Aeson.String "nested",
+                  "properties"
+                    .= object
+                      [ "issuer"
+                          .= MappingProperty
+                            { mpType = MPKeyword,
+                              mpStore = False,
+                              mpIndex = False,
+                              mpAnalyzer = Nothing,
+                              mpFields = mempty
+                            },
+                        "nameid"
+                          .= MappingProperty
+                            { mpType = MPKeyword,
+                              mpStore = False,
+                              mpIndex = False,
+                              mpAnalyzer = Nothing,
+                              mpFields = mempty
+                            }
+                      ]
+                ],
+            "email_unvalidated"
+              .= MappingProperty
+                { mpType = MPText,
+                  mpStore = False,
+                  mpIndex = False,
+                  mpAnalyzer = Nothing,
+                  mpFields = mempty
                 }
           ]
     ]
@@ -586,16 +682,18 @@ mappingName :: ES.MappingName
 mappingName = ES.MappingName "user"
 
 lookupIndexUser ::
-  (MonadLogger m, MonadIndexIO m, C.MonadClient m) =>
+  (MonadCatch m, MonadThrow m, MonadLogger m, MonadIndexIO m, C.MonadClient m) =>
   UserId ->
   m (Maybe IndexUser)
-lookupIndexUser u =
-  C.liftClient (lookupForIndex u)
+lookupIndexUser = lookupForIndex
 
-lookupForIndex :: (MonadThrow m, C.MonadClient m) => UserId -> m (Maybe IndexUser)
+lookupForIndex :: (MonadThrow m, C.MonadClient m, MonadIndexIO m) => UserId -> m (Maybe IndexUser)
 lookupForIndex u = do
-  result <- C.retry C.x1 (C.query1 cql (C.params C.LocalQuorum (Identity u)))
-  sequence $ reindexRowToIndexUser <$> result
+  mrow <- C.retry C.x1 (C.query1 cql (C.params C.LocalQuorum (Identity u)))
+  for mrow $ \row -> do
+    let mteam = teamInReindexRow row
+    (searchVis, searchVisWriteTime) <- liftIndexIO $ getSearchVisibilityInbound mteam
+    reindexRowToIndexUser row searchVis searchVisWriteTime
   where
     cql :: C.PrepQuery C.R (Identity UserId) ReindexRow
     cql =
@@ -619,19 +717,34 @@ lookupForIndex u = do
       \managed_by, \
       \writetime(managed_by), \
       \sso_id, \
-      \writetime(sso_id) \
+      \writetime(sso_id), \
+      \email_unvalidated, \
+      \writetime(email_unvalidated) \
       \FROM user \
       \WHERE id = ?"
 
--- | FUTUREWORK: make a PR to cql-io with a 'Traversable' instance.
-traversePage :: forall a. C.Page (C.Client a) -> C.Client (C.Page a)
-traversePage (C.Page hasmore result nextpage) =
-  C.Page hasmore <$> sequence result <*> (traversePage <$> nextpage)
+getSearchVisibilityInbound ::
+  Maybe TeamId ->
+  IndexIO (SearchVisibilityInbound, Maybe (Writetime SearchVisibilityInbound))
+getSearchVisibilityInbound Nothing = pure (defaultSearchVisibilityInbound, Nothing)
+getSearchVisibilityInbound (Just tid) = do
+  mtvi <- getTeamSearchVisibilityInbound tid
+  pure $ maybe (defaultSearchVisibilityInbound, Nothing) toSearchVisibility mtvi
 
-scanForIndex :: Int32 -> C.Client (C.Page IndexUser)
+getSearchVisibilityInboundMulti :: [TeamId] -> IndexIO (TeamId -> (SearchVisibilityInbound, Maybe (Writetime SearchVisibilityInbound)))
+getSearchVisibilityInboundMulti tids = do
+  Multi.TeamFeatureNoConfigMultiResponse teamsStatuses <- getTeamSearchVisibilityInboundMulti tids
+  let lookupMap = Map.fromList (teamsStatuses <&> \x -> (Multi.team x, x))
+  pure $ \tid ->
+    maybe (defaultSearchVisibilityInbound, Nothing) toSearchVisibility (tid `Map.lookup` lookupMap)
+
+toSearchVisibility :: Multi.TeamStatus 'TeamFeatureSearchVisibilityInbound -> (SearchVisibilityInbound, Maybe (Writetime SearchVisibilityInbound))
+toSearchVisibility (Multi.TeamStatus _tid status t) =
+  (searchVisibilityInboundFromFeatureStatus status, t)
+
+scanForIndex :: Int32 -> C.Client (C.Page ReindexRow)
 scanForIndex num = do
-  result :: C.Page ReindexRow <- C.paginate cql (C.paramsP C.One () (num + 1))
-  traversePage $ reindexRowToIndexUser <$> result
+  C.paginate cql (C.paramsP C.One () (num + 1))
   where
     cql :: C.PrepQuery C.R () ReindexRow
     cql =
@@ -655,7 +768,9 @@ scanForIndex num = do
       \managed_by, \
       \writetime(managed_by), \
       \sso_id, \
-      \writetime(sso_id) \
+      \writetime(sso_id), \
+      \email_unvalidated, \
+      \writetime(email_unvalidated) \
       \FROM user"
 
 type Activated = Bool
@@ -686,10 +801,16 @@ type ReindexRow =
     Maybe ManagedBy,
     Maybe (Writetime ManagedBy),
     Maybe UserSSOId,
-    Maybe (Writetime UserSSOId)
+    Maybe (Writetime UserSSOId),
+    Maybe Email,
+    Maybe (Writetime Email)
   )
 
-reindexRowToIndexUser :: forall m. MonadThrow m => ReindexRow -> m IndexUser
+-- the _2 lens does not work for a tuple this big
+teamInReindexRow :: ReindexRow -> Maybe TeamId
+teamInReindexRow (_f1, f2, _f3, _f4, _f5, _f6, _f7, _f8, _f9, _f10, _f11, _f12, _f13, _f14, _f15, _f16, _f17, _f18, _f19, _f20, _f21, _f22) = f2
+
+reindexRowToIndexUser :: forall m. MonadThrow m => ReindexRow -> SearchVisibilityInbound -> Maybe (Writetime SearchVisibilityInbound) -> m IndexUser
 reindexRowToIndexUser
   ( u,
     mteam,
@@ -710,10 +831,14 @@ reindexRowToIndexUser
     managedBy,
     tManagedBy,
     ssoId,
-    tSsoId
-    ) =
+    tSsoId,
+    emailUnvalidated,
+    tEmailUnvalidated
+    )
+  searchVisInbound
+  tSearchVisInbound =
     do
-      iu <- mkIndexUser u <$> version [Just tName, tStatus, tHandle, tEmail, Just tColour, Just tActivated, tService, tManagedBy, tSsoId]
+      iu <- mkIndexUser u <$> version [Just tName, tStatus, tHandle, tEmail, Just tColour, Just tActivated, tService, tManagedBy, tSsoId, tEmailUnvalidated, tSearchVisInbound]
       pure $
         if shouldIndex
           then
@@ -727,6 +852,10 @@ reindexRowToIndexUser
                 . set iuSAMLIdP (idpUrl =<< ssoId)
                 . set iuManagedBy managedBy
                 . set iuCreatedAt (Just (writeTimeToUTC tActivated))
+                . set iuSearchVisibilityInbound (Just searchVisInbound)
+                . set iuScimExternalId (join $ User.scimExternalId <$> managedBy <*> ssoId)
+                . set iuSso (sso =<< ssoId)
+                . set iuEmailUnvalidated emailUnvalidated
           else
             iu
               -- We insert a tombstone-style user here, as it's easier than deleting the old one.
@@ -750,5 +879,72 @@ reindexRowToIndexUser
 
       idpUrl :: UserSSOId -> Maybe Text
       idpUrl (UserSSOId (SAML.UserRef (SAML.Issuer uri) _subject)) =
-        Just $ (cs . toLazyByteString . serializeURIRef) uri
+        Just $ fromUri uri
       idpUrl (UserScimExternalId _) = Nothing
+
+      fromUri :: URI -> Text
+      fromUri = cs . toLazyByteString . serializeURIRef
+
+      sso :: UserSSOId -> Maybe Sso
+      sso userSsoId = do
+        (issuer, nameid) <- User.ssoIssuerAndNameId userSsoId
+        pure $ Sso {ssoIssuer = issuer, ssoNameId = nameid}
+
+getTeamSearchVisibilityInbound ::
+  TeamId ->
+  IndexIO (Maybe (Multi.TeamStatus 'TeamFeatureSearchVisibilityInbound))
+getTeamSearchVisibilityInbound tid = do
+  Multi.TeamFeatureNoConfigMultiResponse teamsStatuses <- getTeamSearchVisibilityInboundMulti [tid]
+  case filter ((== tid) . Multi.team) teamsStatuses of
+    [teamStatus] -> pure (Just teamStatus)
+    _ -> pure Nothing
+
+getTeamSearchVisibilityInboundMulti ::
+  [TeamId] ->
+  IndexIO (Multi.TeamFeatureNoConfigMultiResponse 'TeamFeatureSearchVisibilityInbound)
+getTeamSearchVisibilityInboundMulti tids = do
+  galley <- asks idxGalley
+  serviceRequest' "galley" galley POST req >>= responseJsonThrow (ParseException "galley")
+  where
+    req =
+      paths ["i", "features-multi-teams", toByteString' TeamFeatureSearchVisibilityInbound]
+        . header "Content-Type" "application/json"
+        . expect2xx
+        . lbytes (encode $ Multi.TeamFeatureNoConfigMultiRequest tids)
+
+    serviceRequest' ::
+      forall m.
+      (MonadIO m, MonadMask m, MonadCatch m, MonadHttp m) =>
+      LT.Text ->
+      Endpoint ->
+      StdMethod ->
+      (Request -> Request) ->
+      m (Response (Maybe BL.ByteString))
+    serviceRequest' nm endpoint m r = do
+      let service = mkEndpoint endpoint
+      recovering x3 rpcHandlers $
+        const $ do
+          let rq = (RPC.method m . r) service
+          res <- try $ RPC.httpLbs rq id
+          case res of
+            Left x -> throwM $ RPCException nm rq x
+            Right x -> return x
+      where
+        mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
+
+        x3 :: RetryPolicy
+        x3 = limitRetries 3 <> exponentialBackoff 100000
+
+data ParseException = ParseException
+  { _parseExceptionRemote :: !Text,
+    _parseExceptionMsg :: String
+  }
+
+instance Show ParseException where
+  show (ParseException r m) =
+    "Failed to parse response from remote "
+      ++ Text.unpack r
+      ++ " with message: "
+      ++ m
+
+instance Exception ParseException

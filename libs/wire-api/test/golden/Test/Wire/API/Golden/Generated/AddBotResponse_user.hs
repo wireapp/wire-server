@@ -24,25 +24,12 @@ import Data.Id (BotId (BotId), ClientId (ClientId, client), Id (Id))
 import Data.Qualified
 import qualified Data.UUID as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust, read, (.))
+import Wire.API.Asset
 import Wire.API.Conversation
-  ( ConversationRename (ConversationRename, cupName),
-  )
-import Wire.API.Conversation.Bot (AddBotResponse (..))
-import Wire.API.Conversation.Typing (TypingData (TypingData, tdStatus), TypingStatus (StartedTyping))
+import Wire.API.Conversation.Bot
+import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
-  ( Event (Event),
-    EventData (..),
-    EventType
-      ( ConvRename,
-        Typing
-      ),
-  )
 import Wire.API.User
-  ( Asset (ImageAsset),
-    AssetSize (AssetPreview),
-    ColourId (ColourId, fromColourId),
-    Name (Name, fromName),
-  )
 
 testObject_AddBotResponse_user_1 :: AddBotResponse
 testObject_AddBotResponse_user_1 =
@@ -55,10 +42,16 @@ testObject_AddBotResponse_user_1 =
               "\77844\129468A\1061088\30365\142096\40918\USc\DC3~0g\ENQr\v\29872\f\154305\1077132u\175940.\1018427v\v-/\bi\bJ\ETXE3\ESC8\53613\1073036\&0@\14466\51733;\27113\SYN\153289\b&\ae]\1042471H\1024555k7\EMJ\1083646[;\140668;J^`0,B\STX\95353N.@Z\v\ENQ\r\19858|'w-\b\157432V\STX \GSW|N\1072850\&3=\22550K245\DC1\142803\168718\7168\147365\ETX"
           },
       rsAddBotColour = ColourId {fromColourId = -3},
-      rsAddBotAssets = [ImageAsset "7" Nothing, ImageAsset "" (Just AssetPreview)],
+      rsAddBotAssets =
+        [ ImageAsset
+            (AssetKeyV3 (Id (fromJust (UUID.fromString "5cd81cc4-c643-4e9c-849c-c596a88c27fd"))) AssetExpiring)
+            Nothing,
+          ImageAsset
+            (AssetKeyV3 (Id (fromJust (UUID.fromString "034efa97-f628-450e-b212-009801b1470b"))) AssetExpiring)
+            (Just AssetPreview)
+        ],
       rsAddBotEvent =
         Event
-          ConvRename
           (Qualified (Id (fromJust (UUID.fromString "00000001-0000-0000-0000-000200000003"))) (Domain "faraway.example.com"))
           (Qualified (Id (fromJust (UUID.fromString "00000004-0000-0004-0000-000400000004"))) (Domain "faraway.example.com"))
           (read "1864-05-12 19:20:22.286 UTC")
@@ -79,7 +72,6 @@ testObject_AddBotResponse_user_2 =
       rsAddBotAssets = [],
       rsAddBotEvent =
         Event
-          Typing
           (Qualified (Id (fromJust (UUID.fromString "00000000-0000-0002-0000-000300000001"))) (Domain "faraway.example.com"))
           (Qualified (Id (fromJust (UUID.fromString "00000004-0000-0000-0000-000300000001"))) (Domain "faraway.example.com"))
           (read "1864-05-08 19:02:58.6 UTC")

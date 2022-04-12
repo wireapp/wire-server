@@ -87,6 +87,7 @@ import qualified Network.HTTP2.Frame as HTTP2
 import Network.TLS
 import qualified Network.Wai.Utilities.Error as Wai
 import Servant.Client
+import Wire.API.Error
 
 -- | Transport-layer errors in federator client.
 data FederatorClientHTTP2Error
@@ -142,6 +143,9 @@ data FederationError
   deriving (Show, Typeable)
 
 instance Exception FederationError
+
+instance APIError FederationError where
+  toWai = federationErrorToWai
 
 federationErrorToWai :: FederationError -> Wai.Error
 federationErrorToWai FederationNotImplemented = federationNotImplemented

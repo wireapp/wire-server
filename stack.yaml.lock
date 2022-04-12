@@ -96,11 +96,11 @@ packages:
     git: https://github.com/wireapp/bloodhound
     pantry-tree:
       size: 4588
-      sha256: 336bd360dc9f16416eca78d884661f4a9405601d3e09b443b9157cb5fb675dca
-    commit: d444579f808115ddb0f20a1fe169fafad24f5165
+      sha256: 62c82df1cedc61da6e8203c247eb98ff950f9165c63462c1a32e773f4f69a506
+    commit: c68e6d877d87988331bf391ed16780383a58eefa
   original:
     git: https://github.com/wireapp/bloodhound
-    commit: d444579f808115ddb0f20a1fe169fafad24f5165
+    commit: c68e6d877d87988331bf391ed16780383a58eefa
 - completed:
     hackage: aeson-2.0.3.0@sha256:130bda8e10dc6dd159b79b306abb10025d7f8b5d9cbc2f7d6d7e6768a0272058,5845
     pantry-tree:
@@ -395,15 +395,15 @@ packages:
     commit: 7546a1a25635ef65183e3d44c1052285e8401608
 - completed:
     name: hsaml2
-    version: 0.1.1
+    version: 0.1.2
     git: https://github.com/wireapp/hsaml2
     pantry-tree:
-      size: 3973
-      sha256: a8f67572fb5a29f55b5c20e8257950f3350d0c808f2ae24703f4aa25c1b4c76a
-    commit: ef7b1de45ab0ea3a0a333b335579a02d8f88340c
+      size: 4096
+      sha256: 901124eba0a145322767c6fa7b8c90314cc812fb9174aae8325802ec90695007
+    commit: d43818aac56678f0be02d0101d224fe0f6cdf131
   original:
     git: https://github.com/wireapp/hsaml2
-    commit: ef7b1de45ab0ea3a0a333b335579a02d8f88340c
+    commit: d43818aac56678f0be02d0101d224fe0f6cdf131
 - completed:
     subdir: http-client
     name: http-client

@@ -29,6 +29,7 @@ module Brig.Provider.RPC
 where
 
 import Bilge
+import Bilge.RPC
 import Bilge.Retry (httpHandlers)
 import Brig.App
 import Brig.Provider.DB (ServiceConn (..))
@@ -65,22 +66,23 @@ data ServiceError
 --
 -- If the external service is unavailable, returns a specific error
 -- or the response body cannot be parsed, a 'ServiceError' is returned.
-createBot :: ServiceConn -> NewBotRequest -> ExceptT ServiceError (AppIO r) NewBotResponse
+createBot :: ServiceConn -> NewBotRequest -> ExceptT ServiceError (AppT r) NewBotResponse
 createBot scon new = do
   let fprs = toList (sconFingerprints scon)
   (man, verifyFingerprints) <- view extGetManager
   extHandleAll onExc $ do
     rs <- lift $
-      recovering x3 httpHandlers $
-        const $
-          liftIO $
-            withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $
-              \req ->
-                Http.httpLbs req man
+      wrapHttp $
+        recovering x3 httpHandlers $
+          const $
+            liftIO $
+              withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $
+                \req ->
+                  Http.httpLbs req man
     case Bilge.statusCode rs of
       201 -> decodeBytes "External" (responseBody rs)
       409 -> throwE ServiceBotConflict
-      _ -> extLogError scon rs >> throwE ServiceUnavailable
+      _ -> lift (extLogError scon rs) >> throwE ServiceUnavailable
   where
     -- we can't use 'responseJsonEither' instead, because we have a @Response ByteString@
     -- here, not a @Response (Maybe ByteString)@.
@@ -91,7 +93,7 @@ createBot scon new = do
       extReq scon ["bots"]
         . method POST
         . Bilge.json new
-    onExc ex = extLogError scon ex >> throwE ServiceUnavailable
+    onExc ex = lift (extLogError scon ex) >> throwE ServiceUnavailable
 
 extReq :: ServiceConn -> [ByteString] -> Request -> Request
 extReq scon ps =
@@ -130,14 +132,14 @@ extLogError scon e =
 -- Internal RPC
 
 -- | Set service connection information in galley.
-setServiceConn :: ServiceConn -> (AppIO r) ()
+setServiceConn :: ServiceConn -> (AppT r) ()
 setServiceConn scon = do
   Log.debug $
     remote "galley"
       . field "provider" (toByteString pid)
       . field "service" (toByteString sid)
       . msg (val "Setting service connection")
-  void $ galleyRequest POST req
+  void $ wrapHttp $ galleyRequest POST req
   where
     pid = sconProvider scon
     sid = sconService scon
@@ -155,7 +157,17 @@ setServiceConn scon = do
         & set Galley.serviceEnabled (sconEnabled scon)
 
 -- | Remove service connection information from galley.
-removeServiceConn :: ProviderId -> ServiceId -> (AppIO r) ()
+removeServiceConn ::
+  ( MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
+  ProviderId ->
+  ServiceId ->
+  m ()
 removeServiceConn pid sid = do
   Log.debug $
     remote "galley"
@@ -179,7 +191,7 @@ addBotMember ::
   ClientId ->
   ProviderId ->
   ServiceId ->
-  (AppIO r) Event
+  (AppT r) Event
 addBotMember zusr zcon conv bot clt pid sid = do
   Log.debug $
     remote "galley"
@@ -189,7 +201,7 @@ addBotMember zusr zcon conv bot clt pid sid = do
       . field "user" (toByteString zusr)
       . field "bot" (toByteString bot)
       . msg (val "Adding bot member")
-  decodeBody "galley" =<< galleyRequest POST req
+  decodeBody "galley" =<< wrapHttp (galleyRequest POST req)
   where
     req =
       path "/i/bots"
@@ -201,11 +213,18 @@ addBotMember zusr zcon conv bot clt pid sid = do
 
 -- | Tell galley to remove a service bot from a conversation.
 removeBotMember ::
+  ( MonadHttp m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    HasRequestId m,
+    MonadLogger m
+  ) =>
   UserId ->
   Maybe ConnId ->
   ConvId ->
   BotId ->
-  (AppIO r) (Maybe Event)
+  m (Maybe Event)
 removeBotMember zusr zcon conv bot = do
   Log.debug $
     remote "galley"

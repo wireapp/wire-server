@@ -29,6 +29,7 @@ module Test.Brig.Types.User where
 
 import Brig.Types.Connection (UpdateConnectionsInternal (..))
 import Brig.Types.Intra (NewUserScimInvitation (..), ReAuthUser (..))
+import Brig.Types.Search (SearchVisibilityInbound (..))
 import Brig.Types.User (ManagedByUpdate (..), RichInfoUpdate (..))
 import Imports
 import Test.Brig.Roundtrip (testRoundTrip, testRoundTripWithSwagger)
@@ -47,7 +48,8 @@ roundtripTests =
     testRoundTrip @NewUserScimInvitation,
     testRoundTripWithSwagger @EJPDRequestBody,
     testRoundTripWithSwagger @EJPDResponseBody,
-    testRoundTrip @UpdateConnectionsInternal
+    testRoundTrip @UpdateConnectionsInternal,
+    testRoundTrip @SearchVisibilityInbound
   ]
 
 instance Arbitrary ManagedByUpdate where
@@ -57,7 +59,7 @@ instance Arbitrary RichInfoUpdate where
   arbitrary = RichInfoUpdate <$> arbitrary
 
 instance Arbitrary ReAuthUser where
-  arbitrary = ReAuthUser <$> arbitrary
+  arbitrary = ReAuthUser <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance Arbitrary NewUserScimInvitation where
   arbitrary = NewUserScimInvitation <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary

@@ -26,7 +26,7 @@ import Brig.API.Handler
 import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
 import qualified Brig.API.User as API
 import Brig.API.Util (logEmail, logInvitationCode)
-import Brig.App (currentTime, emailSender, settings)
+import Brig.App
 import qualified Brig.Data.Blacklist as Blacklist
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
@@ -64,7 +64,8 @@ import qualified Network.Wai.Utilities.Swagger as Doc
 import System.Logger (Msg)
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import qualified Wire.API.Error.Brig as E
 import qualified Wire.API.Team.Invitation as Public
 import qualified Wire.API.Team.Role as Public
 import qualified Wire.API.Team.Size as Public
@@ -89,10 +90,10 @@ routesPublic = do
     Doc.returns (Doc.ref Public.modelTeamInvitation)
     Doc.response 201 "Invitation was created and sent." Doc.end
     Doc.errorResponse noEmail
-    Doc.errorResponse (errorDescriptionToWai (noIdentity 6))
-    Doc.errorResponse invalidEmail
-    Doc.errorResponse blacklistedEmail
-    Doc.errorResponse tooManyTeamInvitations
+    Doc.errorResponse (errorToWai @'E.NoIdentity)
+    Doc.errorResponse (errorToWai @'E.InvalidEmail)
+    Doc.errorResponse (errorToWai @'E.BlacklistedEmail)
+    Doc.errorResponse (errorToWai @'E.TooManyTeamInvitations)
 
   get "/teams/:tid/invitations" (continue listInvitationsH) $
     accept "application" "json"
@@ -149,7 +150,7 @@ routesPublic = do
       Doc.description "Invitation code"
     Doc.returns (Doc.ref Public.modelTeamInvitation)
     Doc.response 200 "Invitation successful." Doc.end
-    Doc.errorResponse invalidInvitationCode
+    Doc.errorResponse (errorToWai @'E.InvalidInvitationCode)
 
   -- FUTUREWORK: Add another endpoint to allow resending of invitation codes
   head "/teams/invitations/by-email" (continue headInvitationByEmailH) $
@@ -227,10 +228,10 @@ getInvitationCodeH (_ ::: t ::: r) = do
 
 getInvitationCode :: TeamId -> InvitationId -> (Handler r) FoundInvitationCode
 getInvitationCode t r = do
-  code <- lift $ DB.lookupInvitationCode t r
-  maybe (throwStd invalidInvitationCode) (return . FoundInvitationCode) code
+  code <- lift . wrapClient $ DB.lookupInvitationCode t r
+  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (return . FoundInvitationCode) code
 
-data FoundInvitationCode = FoundInvitationCode InvitationCode
+newtype FoundInvitationCode = FoundInvitationCode InvitationCode
   deriving (Eq, Show, Generic)
 
 instance ToJSON FoundInvitationCode where
@@ -257,7 +258,7 @@ createInvitationPublic uid tid body = do
   let inviteeRole = fromMaybe Team.defaultRole . irRole $ body
   inviter <- do
     let inviteePerms = Team.rolePermissions inviteeRole
-    idt <- maybe (throwStd (errorDescriptionToWai (noIdentity 7))) return =<< lift (fetchUserIdentity uid)
+    idt <- maybe (throwStd (errorToWai @'E.NoIdentity)) return =<< lift (fetchUserIdentity uid)
     from <- maybe (throwStd noEmail) return (emailIdentity idt)
     ensurePermissionToAddUser uid tid inviteePerms
     pure $ CreateInvitationInviter uid from
@@ -321,30 +322,30 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   --             sendActivationCode. Refactor this to a single place
 
   -- Validate e-mail
-  inviteeEmail <- either (const $ throwStd invalidEmail) return (Email.validateEmail (irInviteeEmail body))
+  inviteeEmail <- either (const $ throwStd (errorToWai @'E.InvalidEmail)) return (Email.validateEmail (irInviteeEmail body))
   let uke = userEmailKey inviteeEmail
-  blacklistedEm <- lift $ Blacklist.exists uke
+  blacklistedEm <- lift $ wrapClient $ Blacklist.exists uke
   when blacklistedEm $
     throwStd blacklistedEmail
-  emailTaken <- lift $ isJust <$> Data.lookupKey uke
+  emailTaken <- lift $ isJust <$> wrapClient (Data.lookupKey uke)
   when emailTaken $
     throwStd emailExists
 
   -- Validate phone
   inviteePhone <- for (irInviteePhone body) $ \p -> do
-    validatedPhone <- maybe (throwStd (errorDescriptionTypeToWai @InvalidPhone)) return =<< lift (Phone.validatePhone p)
+    validatedPhone <- maybe (throwStd (errorToWai @'E.InvalidPhone)) return =<< lift (wrapClient $ Phone.validatePhone p)
     let ukp = userPhoneKey validatedPhone
-    blacklistedPh <- lift $ Blacklist.exists ukp
+    blacklistedPh <- lift $ wrapClient $ Blacklist.exists ukp
     when blacklistedPh $
-      throwStd (errorDescriptionTypeToWai @BlacklistedPhone)
-    phoneTaken <- lift $ isJust <$> Data.lookupKey ukp
+      throwStd (errorToWai @'E.BlacklistedPhone)
+    phoneTaken <- lift $ isJust <$> wrapClient (Data.lookupKey ukp)
     when phoneTaken $
       throwStd phoneExists
     return validatedPhone
   maxSize <- setMaxTeamSize <$> view settings
-  pending <- lift $ DB.countInvitations tid
+  pending <- lift $ wrapClient $ DB.countInvitations tid
   when (fromIntegral pending >= maxSize) $
-    throwStd tooManyTeamInvitations
+    throwStd (errorToWai @'E.TooManyTeamInvitations)
 
   let locale = irLocale body
   let inviteeName = irInviteeName body
@@ -354,16 +355,17 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
     now <- liftIO =<< view currentTime
     timeout <- setTeamInvitationTimeout <$> view settings
     (newInv, code) <-
-      DB.insertInvitation
-        iid
-        tid
-        inviteeRole
-        now
-        mbInviterUid
-        inviteeEmail
-        inviteeName
-        inviteePhone
-        timeout
+      wrapClient $
+        DB.insertInvitation
+          iid
+          tid
+          inviteeRole
+          now
+          mbInviterUid
+          inviteeEmail
+          inviteeName
+          inviteePhone
+          timeout
     (newInv, code) <$ sendInvitationMail inviteeEmail tid fromEmail code locale
 
 deleteInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
@@ -373,7 +375,7 @@ deleteInvitationH (_ ::: uid ::: tid ::: iid) = do
 deleteInvitation :: UserId -> TeamId -> InvitationId -> (Handler r) ()
 deleteInvitation uid tid iid = do
   ensurePermissions uid tid [Team.AddTeamMember]
-  DB.deleteInvitation tid iid
+  lift $ wrapClient $ DB.deleteInvitation tid iid
 
 listInvitationsH :: JSON ::: UserId ::: TeamId ::: Maybe InvitationId ::: Range 1 500 Int32 -> (Handler r) Response
 listInvitationsH (_ ::: uid ::: tid ::: start ::: size) = do
@@ -382,7 +384,7 @@ listInvitationsH (_ ::: uid ::: tid ::: start ::: size) = do
 listInvitations :: UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> (Handler r) Public.InvitationList
 listInvitations uid tid start size = do
   ensurePermissions uid tid [Team.AddTeamMember]
-  rs <- lift $ DB.lookupInvitations tid start size
+  rs <- lift $ wrapClient $ DB.lookupInvitations tid start size
   return $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
 getInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
@@ -395,7 +397,7 @@ getInvitationH (_ ::: uid ::: tid ::: iid) = do
 getInvitation :: UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
 getInvitation uid tid iid = do
   ensurePermissions uid tid [Team.AddTeamMember]
-  lift $ DB.lookupInvitation tid iid
+  lift $ wrapClient $ DB.lookupInvitation tid iid
 
 getInvitationByCodeH :: JSON ::: Public.InvitationCode -> (Handler r) Response
 getInvitationByCodeH (_ ::: c) = do
@@ -403,12 +405,12 @@ getInvitationByCodeH (_ ::: c) = do
 
 getInvitationByCode :: Public.InvitationCode -> (Handler r) Public.Invitation
 getInvitationByCode c = do
-  inv <- lift $ DB.lookupInvitationByCode c
-  maybe (throwStd invalidInvitationCode) return inv
+  inv <- lift . wrapClient $ DB.lookupInvitationByCode c
+  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) return inv
 
 headInvitationByEmailH :: JSON ::: Email -> (Handler r) Response
 headInvitationByEmailH (_ ::: e) = do
-  inv <- lift $ DB.lookupInvitationInfoByEmail e
+  inv <- lift $ wrapClient $ DB.lookupInvitationInfoByEmail e
   return $ case inv of
     DB.InvitationByEmail _ -> setStatus status200 empty
     DB.InvitationByEmailNotFound -> setStatus status404 empty
@@ -423,7 +425,7 @@ getInvitationByEmailH (_ ::: email) =
 
 getInvitationByEmail :: Email -> (Handler r) Public.Invitation
 getInvitationByEmail email = do
-  inv <- lift $ DB.lookupInvitationByEmail email
+  inv <- lift $ wrapClient $ DB.lookupInvitationByEmail email
   maybe (throwStd (notFound "Invitation not found")) return inv
 
 suspendTeamH :: JSON ::: TeamId -> (Handler r) Response
@@ -433,8 +435,8 @@ suspendTeamH (_ ::: tid) = do
 suspendTeam :: TeamId -> (Handler r) ()
 suspendTeam tid = do
   changeTeamAccountStatuses tid Suspended
-  lift $ DB.deleteInvitations tid
-  lift $ Intra.changeTeamStatus tid Team.Suspended Nothing
+  lift $ wrapClient $ DB.deleteInvitations tid
+  lift $ wrapHttp $ Intra.changeTeamStatus tid Team.Suspended Nothing
 
 unsuspendTeamH :: JSON ::: TeamId -> (Handler r) Response
 unsuspendTeamH (_ ::: tid) = do
@@ -443,18 +445,18 @@ unsuspendTeamH (_ ::: tid) = do
 unsuspendTeam :: TeamId -> (Handler r) ()
 unsuspendTeam tid = do
   changeTeamAccountStatuses tid Active
-  lift $ Intra.changeTeamStatus tid Team.Active Nothing
+  lift $ wrapHttp $ Intra.changeTeamStatus tid Team.Active Nothing
 
 -------------------------------------------------------------------------------
 -- Internal
 
 changeTeamAccountStatuses :: TeamId -> AccountStatus -> (Handler r) ()
 changeTeamAccountStatuses tid s = do
-  team <- Team.tdTeam <$> (lift $ Intra.getTeam tid)
+  team <- Team.tdTeam <$> lift (wrapHttp $ Intra.getTeam tid)
   unless (team ^. Team.teamBinding == Team.Binding) $
     throwStd noBindingTeam
-  uids <- toList1 =<< lift (fmap (view Team.userId) . view Team.teamMembers <$> Intra.getTeamMembers tid)
-  API.changeAccountStatus uids s !>> accountStatusError
+  uids <- toList1 =<< lift (fmap (view Team.userId) . view Team.teamMembers <$> wrapHttp (Intra.getTeamMembers tid))
+  wrapHttpClientE (API.changeAccountStatus uids s) !>> accountStatusError
   where
     toList1 (x : xs) = return $ List1.list1 x xs
     toList1 [] = throwStd (notFound "Team not found or no members")

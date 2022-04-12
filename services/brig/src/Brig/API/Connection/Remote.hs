@@ -108,7 +108,7 @@ updateOne2OneConv ::
   Maybe (Qualified ConvId) ->
   Relation ->
   Actor ->
-  (AppIO r) (Qualified ConvId)
+  (AppT r) (Qualified ConvId)
 updateOne2OneConv lUsr _mbConn remoteUser mbConvId rel actor = do
   let request =
         UpsertOne2OneConversationRequest
@@ -118,7 +118,7 @@ updateOne2OneConv lUsr _mbConn remoteUser mbConvId rel actor = do
             uooActorDesiredMembership = desiredMembership actor rel,
             uooConvId = mbConvId
           }
-  uuorConvId <$> Intra.upsertOne2OneConversation request
+  uuorConvId <$> wrapHttp (Intra.upsertOne2OneConversation request)
   where
     desiredMembership :: Actor -> Relation -> DesiredMembership
     desiredMembership a r =
@@ -159,11 +159,12 @@ transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
 
   -- create connection
   connection <-
-    Data.insertConnection
-      self
-      (qUntagged other)
-      (relationWithHistory rel)
-      qcnv
+    wrapClient $
+      Data.insertConnection
+        self
+        (qUntagged other)
+        (relationWithHistory rel)
+        qcnv
 
   -- send event
   pushEvent self mzcon connection
@@ -174,14 +175,14 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = lift $ do
   void $ updateOne2OneConv self Nothing other (ucConvId connection) rel actor
 
   -- update connection
-  connection' <- Data.updateConnection connection (relationWithHistory rel)
+  connection' <- wrapClient $ Data.updateConnection connection (relationWithHistory rel)
 
   -- send event
   pushEvent self mzcon connection'
   pure (Existed connection', True)
 
 -- | Send an event to the local user when the state of a connection changes.
-pushEvent :: Local UserId -> Maybe ConnId -> UserConnection -> (AppIO r) ()
+pushEvent :: Local UserId -> Maybe ConnId -> UserConnection -> (AppT r) ()
 pushEvent self mzcon connection = do
   let event = ConnectionUpdated connection Nothing Nothing
   Intra.onConnectionEvent (tUnqualified self) mzcon event
@@ -238,7 +239,7 @@ performRemoteAction ::
   Remote UserId ->
   Maybe UserConnection ->
   RemoteConnectionAction ->
-  (AppIO r) (Maybe RemoteConnectionAction)
+  (AppT r) (Maybe RemoteConnectionAction)
 performRemoteAction self other mconnection action = do
   let rel0 = maybe Cancelled ucStatus mconnection
   let rel1 = transition (RCA action) rel0
@@ -256,7 +257,7 @@ createConnectionToRemoteUser ::
   Remote UserId ->
   (ConnectionM r) (ResponseForExistedCreated UserConnection)
 createConnectionToRemoteUser self zcon other = do
-  mconnection <- lift $ Data.lookupConnection self (qUntagged other)
+  mconnection <- lift . wrapClient $ Data.lookupConnection self (qUntagged other)
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
 
 updateConnectionToRemoteUser ::
@@ -266,7 +267,7 @@ updateConnectionToRemoteUser ::
   Maybe ConnId ->
   (ConnectionM r) (Maybe UserConnection)
 updateConnectionToRemoteUser self other rel1 zcon = do
-  mconnection <- lift $ Data.lookupConnection self (qUntagged other)
+  mconnection <- lift . wrapClient $ Data.lookupConnection self (qUntagged other)
   action <-
     actionForTransition rel1
       ?? InvalidTransition (tUnqualified self)

@@ -66,8 +66,9 @@ import qualified Web.Scim.Class.Auth as Scim.Class.Auth
 import qualified Web.Scim.Handler as Scim
 import qualified Web.Scim.Schema.Error as Scim
 import Wire.API.Routes.Public.Spar (APIScimToken)
+import Wire.API.User as User
 import Wire.API.User.Saml (Opts, maxScimTokens)
-import Wire.API.User.Scim
+import Wire.API.User.Scim as Api
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
 instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Sem r) where
@@ -125,10 +126,10 @@ createScimToken ::
   -- | Request body
   CreateScimToken ->
   Sem r CreateScimTokenResponse
-createScimToken zusr CreateScimToken {..} = do
+createScimToken zusr Api.CreateScimToken {..} = do
   let descr = createScimTokenDescr
   teamid <- Intra.Brig.authorizeScimTokenManagement zusr
-  BrigAccess.ensureReAuthorised zusr createScimTokenPassword
+  BrigAccess.ensureReAuthorised zusr createScimTokenPassword createScimTokenCode (Just User.CreateScimToken)
   tokenNumber <- fmap length $ ScimTokenStore.lookupByTeam teamid
   maxTokens <- inputs maxScimTokens
   unless (tokenNumber < maxTokens) $

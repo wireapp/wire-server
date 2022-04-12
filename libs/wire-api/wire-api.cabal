@@ -26,22 +26,33 @@ library
       Wire.API.Conversation.Bot
       Wire.API.Conversation.Code
       Wire.API.Conversation.Member
+      Wire.API.Conversation.Protocol
       Wire.API.Conversation.Role
       Wire.API.Conversation.Typing
       Wire.API.Cookie
       Wire.API.CustomBackend
-      Wire.API.ErrorDescription
+      Wire.API.Error
+      Wire.API.Error.Brig
+      Wire.API.Error.Cannon
+      Wire.API.Error.Cargohold
+      Wire.API.Error.Empty
+      Wire.API.Error.Galley
       Wire.API.Event.Conversation
       Wire.API.Event.FeatureConfig
       Wire.API.Event.Team
       Wire.API.Message
       Wire.API.Message.Proto
       Wire.API.MLS.CipherSuite
+      Wire.API.MLS.Commit
       Wire.API.MLS.Credential
+      Wire.API.MLS.Extension
+      Wire.API.MLS.Group
       Wire.API.MLS.KeyPackage
+      Wire.API.MLS.Message
       Wire.API.MLS.Proposal
       Wire.API.MLS.Serialisation
       Wire.API.MLS.Servant
+      Wire.API.MLS.Welcome
       Wire.API.Notification
       Wire.API.Properties
       Wire.API.Provider
@@ -52,11 +63,13 @@ library
       Wire.API.Push.Token
       Wire.API.Push.V2.Token
       Wire.API.RawJson
+      Wire.API.Routes.API
       Wire.API.Routes.AssetBody
       Wire.API.Routes.Internal.Brig
       Wire.API.Routes.Internal.Brig.Connection
       Wire.API.Routes.Internal.Brig.EJPD
       Wire.API.Routes.Internal.Cargohold
+      Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
       Wire.API.Routes.Internal.LegalHold
       Wire.API.Routes.MultiTablePaging
       Wire.API.Routes.MultiTablePaging.State
@@ -201,6 +214,7 @@ library
     , mime >=0.4
     , mtl
     , pem >=0.2
+    , polysemy
     , proto-lens
     , protobuf >=0.2
     , quickcheck-instances >=0.3.16
@@ -221,6 +235,7 @@ library
     , string-conversions
     , swagger >=0.1
     , swagger2
+    , tagged
     , text >=0.11
     , time >=1.4
     , types-common >=0.16
@@ -368,7 +383,6 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.PrekeyId_user
       Test.Wire.API.Golden.Generated.Priority_user
       Test.Wire.API.Golden.Generated.PropertyKey_user
-      Test.Wire.API.Golden.Generated.PropertyValue_user
       Test.Wire.API.Golden.Generated.Provider_provider
       Test.Wire.API.Golden.Generated.ProviderActivationResponse_provider
       Test.Wire.API.Golden.Generated.ProviderLogin_provider
@@ -414,7 +428,6 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.SFTServer_user
       Test.Wire.API.Golden.Generated.SimpleMember_user
       Test.Wire.API.Golden.Generated.SimpleMembers_user
-      Test.Wire.API.Golden.Generated.SndFactorPasswordChallengeAction_user
       Test.Wire.API.Golden.Generated.Team_team
       Test.Wire.API.Golden.Generated.TeamBinding_team
       Test.Wire.API.Golden.Generated.TeamContact_user
@@ -452,11 +465,11 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.UserConnection_user
       Test.Wire.API.Golden.Generated.UserConnectionList_user
       Test.Wire.API.Golden.Generated.UserHandleInfo_user
-      Test.Wire.API.Golden.Generated.UserIdentity_user
       Test.Wire.API.Golden.Generated.UserLegalHoldStatusResponse_team
       Test.Wire.API.Golden.Generated.UserProfile_user
       Test.Wire.API.Golden.Generated.UserSSOId_user
       Test.Wire.API.Golden.Generated.UserUpdate_user
+      Test.Wire.API.Golden.Generated.VerificationAction_user
       Test.Wire.API.Golden.Generated.VerifyDeleteUser_user
       Test.Wire.API.Golden.Generated.ViewLegalHoldService_team
       Test.Wire.API.Golden.Generated.ViewLegalHoldServiceInfo_team
@@ -473,6 +486,7 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Manual.CreateScimToken
       Test.Wire.API.Golden.Manual.FeatureConfigEvent
       Test.Wire.API.Golden.Manual.GetPaginatedConversationIds
+      Test.Wire.API.Golden.Manual.GroupId
       Test.Wire.API.Golden.Manual.ListConversations
       Test.Wire.API.Golden.Manual.QualifiedUserClientPrekeyMap
       Test.Wire.API.Golden.Manual.SearchResultContact
@@ -643,6 +657,7 @@ test-suite wire-api-tests
     , containers >=0.5
     , currency-codes
     , directory
+    , either
     , filepath
     , hex
     , hscim
@@ -656,6 +671,7 @@ test-suite wire-api-tests
     , pretty
     , proto-lens
     , saml2-web-sso
+    , schema-profunctor
     , servant
     , servant-swagger-ui
     , string-conversions

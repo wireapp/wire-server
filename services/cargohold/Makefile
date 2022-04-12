@@ -40,26 +40,6 @@ compile:
 .PHONY: clean
 clean: init
 	stack clean $(NAME)
-	-rm -f .metadata
-
-.PHONY: dist
-dist: guard-VERSION install $(DEB) $(DEB_IT) .metadata
-
-$(DEB):
-	makedeb --name=$(NAME) \
-		--version=$(VERSION) \
-		--debian-dir=deb \
-		--build=$(BUILD) \
-		--architecture=amd64 \
-		--output-dir=dist
-
-$(DEB_IT):
-	makedeb --name=$(NAME)-integration \
-		--version=$(VERSION) \
-		--debian-dir=deb-it \
-		--build=$(BUILD) \
-		--architecture=amd64 \
-		--output-dir=dist
 
 .PHONY: i
 i:
@@ -94,10 +74,6 @@ integration-list: fast i-list
 
 integration-%: fast
 	make "i-$*"
-
-.metadata:
-	echo -e "NAME=$(NAME)\nVERSION=$(VERSION)\nBUILD_NUMBER=$(BUILD)" \
-	 > .metadata
 
 .PHONY: docker
 docker:

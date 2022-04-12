@@ -45,8 +45,13 @@ module Galley.Effects.BrigAccess
     addLegalHoldClientToUser,
     removeLegalHoldClientFromUser,
 
+    -- * MLS
+    getClientByKeyPackageRef,
+    getMLSClients,
+
     -- * Features
     getAccountFeatureConfigClient,
+    updateSearchVisibilityInbound,
   )
 where
 
@@ -61,7 +66,12 @@ import Galley.External.LegalHoldService.Types
 import Imports
 import Network.HTTP.Types.Status
 import Polysemy
+import Polysemy.Error
+import Wire.API.Error.Galley
+import Wire.API.MLS.Credential
+import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.Internal.Brig.Connection
+import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature
 import Wire.API.Team.Size
 import Wire.API.User.Client
@@ -85,7 +95,7 @@ data BrigAccess m a where
     Maybe Relation ->
     BrigAccess m [ConnectionStatusV2]
   PutConnectionInternal :: UpdateConnectionsInternal -> BrigAccess m Status
-  ReauthUser :: UserId -> ReAuthUser -> BrigAccess m Bool
+  ReauthUser :: UserId -> ReAuthUser -> BrigAccess m (Either AuthenticationError ())
   LookupActivatedUsers :: [UserId] -> BrigAccess m [User]
   GetUsers :: [UserId] -> BrigAccess m [UserAccount]
   DeleteUser :: UserId -> BrigAccess m ()
@@ -103,16 +113,32 @@ data BrigAccess m a where
     UserId ->
     Maybe PlainTextPassword ->
     BrigAccess m OpaqueAuthToken
-  AddLegalHoldClientToUser ::
+  AddLegalHoldClientToUserEither ::
     UserId ->
     ConnId ->
     [Prekey] ->
     LastPrekey ->
-    BrigAccess m ClientId
+    BrigAccess m (Either AuthenticationError ClientId)
   RemoveLegalHoldClientFromUser :: UserId -> BrigAccess m ()
   GetAccountFeatureConfigClient :: UserId -> BrigAccess m TeamFeatureStatusNoConfig
+  GetClientByKeyPackageRef :: KeyPackageRef -> BrigAccess m (Maybe ClientIdentity)
+  GetMLSClients :: Qualified UserId -> BrigAccess m (Set ClientId)
+  UpdateSearchVisibilityInbound ::
+    Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound ->
+    BrigAccess m ()
 
 makeSem ''BrigAccess
 
 getUser :: Member BrigAccess r => UserId -> Sem r (Maybe UserAccount)
 getUser = fmap listToMaybe . getUsers . pure
+
+addLegalHoldClientToUser ::
+  (Member BrigAccess r, Member (Error AuthenticationError) r) =>
+  UserId ->
+  ConnId ->
+  [Prekey] ->
+  LastPrekey ->
+  Sem r ClientId
+addLegalHoldClientToUser uid con pks lpk =
+  addLegalHoldClientToUserEither uid con pks lpk
+    >>= either throw pure

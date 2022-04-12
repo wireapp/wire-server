@@ -25,14 +25,14 @@ module Brig.API.Util
     traverseConcurrentlyWithErrors,
     exceptTToMaybe,
     lookupSearchPolicy,
+    ensureLocal,
   )
 where
 
 import Brig.API.Error
-import qualified Brig.API.Error as Error
 import Brig.API.Handler
 import Brig.API.Types
-import Brig.App (AppIO, settings)
+import Brig.App
 import qualified Brig.Data.User as Data
 import Brig.Options (FederationDomainConfig, federationDomainConfigs)
 import qualified Brig.Options as Opts
@@ -45,6 +45,7 @@ import Data.Domain (Domain)
 import Data.Handle (Handle, parseHandle)
 import Data.Id
 import Data.Maybe
+import Data.Qualified
 import Data.String.Conversions (cs)
 import Data.Text.Ascii (AsciiText (toText))
 import Imports
@@ -53,17 +54,19 @@ import qualified System.Logger as Log
 import UnliftIO.Async
 import UnliftIO.Exception (throwIO, try)
 import Util.Logging (sha256String)
-import Wire.API.ErrorDescription
+import Wire.API.Error
+import Wire.API.Error.Brig
+import Wire.API.Federation.Error
 import Wire.API.User.Search (FederatedUserSearchPolicy (NoSearch))
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
 lookupProfilesMaybeFilterSameTeamOnly self us = do
-  selfTeam <- lift $ Data.lookupUserTeam self
+  selfTeam <- lift $ wrapClient $ Data.lookupUserTeam self
   return $ case selfTeam of
     Just team -> filter (\x -> profileTeam x == Just team) us
     Nothing -> us
 
-fetchUserIdentity :: UserId -> (AppIO r) (Maybe UserIdentity)
+fetchUserIdentity :: UserId -> (AppT r) (Maybe UserIdentity)
 fetchUserIdentity uid =
   lookupSelfProfile uid
     >>= maybe
@@ -71,13 +74,13 @@ fetchUserIdentity uid =
       (return . userIdentity . selfUser)
 
 -- | Obtain a profile for a user as he can see himself.
-lookupSelfProfile :: UserId -> (AppIO r) (Maybe SelfProfile)
-lookupSelfProfile = fmap (fmap mk) . Data.lookupAccount
+lookupSelfProfile :: UserId -> (AppT r) (Maybe SelfProfile)
+lookupSelfProfile = fmap (fmap mk) . wrapClient . Data.lookupAccount
   where
     mk a = SelfProfile (accountUser a)
 
 validateHandle :: Text -> (Handler r) Handle
-validateHandle = maybe (throwE (Error.StdError (errorDescriptionTypeToWai @InvalidHandle))) return . parseHandle
+validateHandle = maybe (throwStd (errorToWai @'InvalidHandle)) return . parseHandle
 
 logEmail :: Email -> (Msg -> Msg)
 logEmail email =
@@ -88,22 +91,30 @@ logInvitationCode code = Log.field "invitation_code" (toText $ fromInvitationCod
 
 -- | Traverse concurrently and fail on first error.
 traverseConcurrentlyWithErrors ::
-  (Traversable t, Exception e) =>
-  (a -> ExceptT e (AppIO r) b) ->
+  (Traversable t, Exception e, MonadUnliftIO m) =>
+  (a -> ExceptT e m b) ->
   t a ->
-  ExceptT e (AppIO r) (t b)
+  ExceptT e m (t b)
 traverseConcurrentlyWithErrors f =
-  ExceptT . try . (traverse (either throwIO pure) =<<)
-    . pooledMapConcurrentlyN 8 (runExceptT . f)
+  ExceptT . try
+    . ( traverse (either throwIO pure)
+          <=< pooledMapConcurrentlyN 8 (runExceptT . f)
+      )
 
 exceptTToMaybe :: Monad m => ExceptT e m () -> m (Maybe e)
 exceptTToMaybe = (pure . either Just (const Nothing)) <=< runExceptT
 
-lookupDomainConfig :: Domain -> (Handler r) (Maybe FederationDomainConfig)
+lookupDomainConfig :: MonadReader Env m => Domain -> m (Maybe FederationDomainConfig)
 lookupDomainConfig domain = do
   domainConfigs <- fromMaybe [] <$> view (settings . federationDomainConfigs)
   pure $ find ((== domain) . Opts.domain) domainConfigs
 
 -- | If domain is not configured fall back to `FullSearch`
-lookupSearchPolicy :: Domain -> (Handler r) FederatedUserSearchPolicy
+lookupSearchPolicy :: MonadReader Env m => Domain -> m FederatedUserSearchPolicy
 lookupSearchPolicy domain = fromMaybe NoSearch <$> (Opts.cfgSearchPolicy <$$> lookupDomainConfig domain)
+
+-- | Convert a qualified value into a local one. Throw if the value is not actually local.
+ensureLocal :: Qualified a -> AppT r (Local a)
+ensureLocal x = do
+  loc <- qualifyLocal ()
+  foldQualified loc pure (\_ -> throwM federationNotImplemented) x

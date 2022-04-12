@@ -15,9 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.Public.Servant (servantSitemap) where
+module Galley.API.Public.Servant (mkNamedAPI, servantSitemap) where
 
 import Galley.API.Create
+import Galley.API.MLS
 import Galley.API.Query
 import Galley.API.Teams
 import Galley.API.Teams.Features
@@ -25,237 +26,250 @@ import Galley.API.Update
 import Galley.App
 import Galley.Cassandra.Paging
 import Imports
-import Polysemy
-import Servant.API
-import Servant.Server
-import Wire.API.Routes.Named
+import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley
 import Wire.API.Team.Feature
 
-servantSitemap :: ServerT ServantAPI (Sem GalleyEffects)
-servantSitemap = conversations :<|> teamConversations :<|> messaging :<|> bot :<|> team :<|> features
+servantSitemap :: API ServantAPI GalleyEffects
+servantSitemap =
+  conversations
+    <@> teamConversations
+    <@> messaging
+    <@> bot
+    <@> team
+    <@> features
+    <@> mls
   where
     conversations =
-      Named @"get-unqualified-conversation" getUnqualifiedConversation
-        :<|> Named @"get-conversation" getConversation
-        :<|> Named @"get-conversation-roles" getConversationRoles
-        :<|> Named @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
-        :<|> Named @"list-conversation-ids" conversationIdsPageFrom
-        :<|> Named @"get-conversations" getConversations
-        :<|> Named @"list-conversations" listConversations
-        :<|> Named @"get-conversation-by-reusable-code" getConversationByReusableCode
-        :<|> Named @"create-group-conversation" createGroupConversation
-        :<|> Named @"create-self-conversation" createSelfConversation
-        :<|> Named @"create-one-to-one-conversation" createOne2OneConversation
-        :<|> Named @"add-members-to-conversation-unqualified" addMembersUnqualified
-        :<|> Named @"add-members-to-conversation" addMembers
-        :<|> Named @"join-conversation-by-id-unqualified" joinConversationById
-        :<|> Named @"join-conversation-by-code-unqualified" joinConversationByReusableCode
-        :<|> Named @"code-check" checkReusableCode
-        :<|> Named @"create-conversation-code-unqualified" addCodeUnqualified
-        :<|> Named @"remove-code-unqualified" rmCodeUnqualified
-        :<|> Named @"get-code" getCode
-        :<|> Named @"member-typing-unqualified" isTypingUnqualified
-        :<|> Named @"remove-member-unqualified" removeMemberUnqualified
-        :<|> Named @"remove-member" removeMemberQualified
-        :<|> Named @"update-other-member-unqualified" updateOtherMemberUnqualified
-        :<|> Named @"update-other-member" updateOtherMember
-        :<|> Named @"update-conversation-name-deprecated" updateUnqualifiedConversationName
-        :<|> Named @"update-conversation-name-unqualified" updateUnqualifiedConversationName
-        :<|> Named @"update-conversation-name" updateConversationName
-        :<|> Named @"update-conversation-message-timer-unqualified" updateConversationMessageTimerUnqualified
-        :<|> Named @"update-conversation-message-timer" updateConversationMessageTimer
-        :<|> Named @"update-conversation-receipt-mode-unqualified" updateConversationReceiptModeUnqualified
-        :<|> Named @"update-conversation-receipt-mode" updateConversationReceiptMode
-        :<|> Named @"update-conversation-access-unqualified" updateConversationAccessUnqualified
-        :<|> Named @"update-conversation-access" updateConversationAccess
-        :<|> Named @"get-conversation-self-unqualified" getLocalSelf
-        :<|> Named @"update-conversation-self-unqualified" updateUnqualifiedSelfMember
-        :<|> Named @"update-conversation-self" updateSelfMember
+      mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
+        <@> mkNamedAPI @"get-conversation" getConversation
+        <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
+        <@> mkNamedAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
+        <@> mkNamedAPI @"list-conversation-ids" conversationIdsPageFrom
+        <@> mkNamedAPI @"get-conversations" getConversations
+        <@> mkNamedAPI @"list-conversations" listConversations
+        <@> mkNamedAPI @"get-conversation-by-reusable-code" getConversationByReusableCode
+        <@> mkNamedAPI @"create-group-conversation" createGroupConversation
+        <@> mkNamedAPI @"create-self-conversation" createSelfConversation
+        <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
+        <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified
+        <@> mkNamedAPI @"add-members-to-conversation" addMembers
+        <@> mkNamedAPI @"join-conversation-by-id-unqualified" joinConversationById
+        <@> mkNamedAPI @"join-conversation-by-code-unqualified" joinConversationByReusableCode
+        <@> mkNamedAPI @"code-check" checkReusableCode
+        <@> mkNamedAPI @"create-conversation-code-unqualified" addCodeUnqualified
+        <@> mkNamedAPI @"get-conversation-guest-links-status" getConversationGuestLinksStatus
+        <@> mkNamedAPI @"remove-code-unqualified" rmCodeUnqualified
+        <@> mkNamedAPI @"get-code" getCode
+        <@> mkNamedAPI @"member-typing-unqualified" isTypingUnqualified
+        <@> mkNamedAPI @"remove-member-unqualified" removeMemberUnqualified
+        <@> mkNamedAPI @"remove-member" removeMemberQualified
+        <@> mkNamedAPI @"update-other-member-unqualified" updateOtherMemberUnqualified
+        <@> mkNamedAPI @"update-other-member" updateOtherMember
+        <@> mkNamedAPI @"update-conversation-name-deprecated" updateUnqualifiedConversationName
+        <@> mkNamedAPI @"update-conversation-name-unqualified" updateUnqualifiedConversationName
+        <@> mkNamedAPI @"update-conversation-name" updateConversationName
+        <@> mkNamedAPI @"update-conversation-message-timer-unqualified" updateConversationMessageTimerUnqualified
+        <@> mkNamedAPI @"update-conversation-message-timer" updateConversationMessageTimer
+        <@> mkNamedAPI @"update-conversation-receipt-mode-unqualified" updateConversationReceiptModeUnqualified
+        <@> mkNamedAPI @"update-conversation-receipt-mode" updateConversationReceiptMode
+        <@> mkNamedAPI @"update-conversation-access-unqualified" updateConversationAccessUnqualified
+        <@> mkNamedAPI @"update-conversation-access" updateConversationAccess
+        <@> mkNamedAPI @"get-conversation-self-unqualified" getLocalSelf
+        <@> mkNamedAPI @"update-conversation-self-unqualified" updateUnqualifiedSelfMember
+        <@> mkNamedAPI @"update-conversation-self" updateSelfMember
 
+    teamConversations :: API TeamConversationAPI GalleyEffects
     teamConversations =
-      Named @"get-team-conversation-roles" getTeamConversationRoles
-        :<|> Named @"get-team-conversations" getTeamConversations
-        :<|> Named @"get-team-conversation" getTeamConversation
-        :<|> Named @"delete-team-conversation" deleteTeamConversation
+      mkNamedAPI @"get-team-conversation-roles" getTeamConversationRoles
+        <@> mkNamedAPI @"get-team-conversations" getTeamConversations
+        <@> mkNamedAPI @"get-team-conversation" getTeamConversation
+        <@> mkNamedAPI @"delete-team-conversation" deleteTeamConversation
 
+    messaging :: API MessagingAPI GalleyEffects
     messaging =
-      Named @"post-otr-message-unqualified" postOtrMessageUnqualified
-        :<|> Named @"post-otr-broadcast-unqualified" postOtrBroadcastUnqualified
-        :<|> Named @"post-proteus-message" postProteusMessage
+      mkNamedAPI @"post-otr-message-unqualified" postOtrMessageUnqualified
+        <@> mkNamedAPI @"post-otr-broadcast-unqualified" postOtrBroadcastUnqualified
+        <@> mkNamedAPI @"post-proteus-message" postProteusMessage
+        <@> mkNamedAPI @"post-proteus-broadcast" postProteusBroadcast
 
-    bot =
-      Named @"post-bot-message-unqualified" postBotMessageUnqualified
+    bot :: API BotAPI GalleyEffects
+    bot = mkNamedAPI @"post-bot-message-unqualified" postBotMessageUnqualified
 
     team =
-      Named @"create-non-binding-team" createNonBindingTeamH
-        :<|> Named @"update-team" updateTeamH
-        :<|> Named @"get-teams" getManyTeams
-        :<|> Named @"get-team" getTeamH
-        :<|> Named @"delete-team" deleteTeam
+      mkNamedAPI @"create-non-binding-team" createNonBindingTeamH
+        <@> mkNamedAPI @"update-team" updateTeamH
+        <@> mkNamedAPI @"get-teams" getManyTeams
+        <@> mkNamedAPI @"get-team" getTeamH
+        <@> mkNamedAPI @"delete-team" deleteTeam
 
     features =
-      Named @'("get", 'TeamFeatureSSO)
+      mkNamedAPI @'("get", 'TeamFeatureSSO)
         ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureSSO
             getSSOStatusInternal
             . DoAuth
         )
-        :<|> Named @'("get", 'TeamFeatureLegalHold)
+        <@> mkNamedAPI @'("get", 'TeamFeatureLegalHold)
           ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureLegalHold
               getLegalholdStatusInternal
               . DoAuth
           )
-        :<|> Named @'("put", 'TeamFeatureLegalHold)
+        <@> mkNamedAPI @'("put", 'TeamFeatureLegalHold)
           ( setFeatureStatus @'TeamFeatureLegalHold
               (setLegalholdStatusInternal @InternalPaging)
               . DoAuth
           )
-        :<|> Named @'("get", 'TeamFeatureSearchVisibility)
+        <@> mkNamedAPI @'("get", 'TeamFeatureSearchVisibility)
           ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureSearchVisibility
               getTeamSearchVisibilityAvailableInternal
               . DoAuth
           )
-        :<|> Named @'("put", 'TeamFeatureSearchVisibility)
+        <@> mkNamedAPI @'("put", 'TeamFeatureSearchVisibility)
           ( setFeatureStatus @'TeamFeatureSearchVisibility
               setTeamSearchVisibilityAvailableInternal
               . DoAuth
           )
-        :<|> Named @'("get-deprecated", 'TeamFeatureSearchVisibility)
+        <@> mkNamedAPI @'("get-deprecated", 'TeamFeatureSearchVisibility)
           ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureSearchVisibility
               getTeamSearchVisibilityAvailableInternal
               . DoAuth
           )
-        :<|> Named @'("put-deprecated", 'TeamFeatureSearchVisibility)
+        <@> mkNamedAPI @'("put-deprecated", 'TeamFeatureSearchVisibility)
           ( setFeatureStatus @'TeamFeatureSearchVisibility
               setTeamSearchVisibilityAvailableInternal
               . DoAuth
           )
-        :<|> Named @'("get", 'TeamFeatureValidateSAMLEmails)
+        <@> mkNamedAPI @'("get", 'TeamFeatureValidateSAMLEmails)
           ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails
               getValidateSAMLEmailsInternal
               . DoAuth
           )
-        :<|> Named @'("get-deprecated", 'TeamFeatureValidateSAMLEmails)
+        <@> mkNamedAPI @'("get-deprecated", 'TeamFeatureValidateSAMLEmails)
           ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails
               getValidateSAMLEmailsInternal
               . DoAuth
           )
-        :<|> Named @'("get", 'TeamFeatureDigitalSignatures)
+        <@> mkNamedAPI @'("get", 'TeamFeatureDigitalSignatures)
           ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureDigitalSignatures
               getDigitalSignaturesInternal
               . DoAuth
           )
-        :<|> Named @'("get-deprecated", 'TeamFeatureDigitalSignatures)
+        <@> mkNamedAPI @'("get-deprecated", 'TeamFeatureDigitalSignatures)
           ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureDigitalSignatures
               getDigitalSignaturesInternal
               . DoAuth
           )
-        :<|> Named @'("get", 'TeamFeatureAppLock)
+        <@> mkNamedAPI @'("get", 'TeamFeatureAppLock)
           ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureAppLock
               getAppLockInternal
               . DoAuth
           )
-        :<|> Named @'("put", 'TeamFeatureAppLock)
+        <@> mkNamedAPI @'("put", 'TeamFeatureAppLock)
           ( setFeatureStatus @'TeamFeatureAppLock
               setAppLockInternal
               . DoAuth
           )
-        :<|> Named @'("get", 'TeamFeatureFileSharing)
+        <@> mkNamedAPI @'("get", 'TeamFeatureFileSharing)
           ( getFeatureStatus @'WithLockStatus @'TeamFeatureFileSharing
               getFileSharingInternal
               . DoAuth
           )
-        :<|> Named @'("put", 'TeamFeatureFileSharing)
+        <@> mkNamedAPI @'("put", 'TeamFeatureFileSharing)
           ( setFeatureStatus @'TeamFeatureFileSharing
               setFileSharingInternal
               . DoAuth
           )
-        :<|> Named @'("get", 'TeamFeatureClassifiedDomains)
+        <@> mkNamedAPI @'("get", 'TeamFeatureClassifiedDomains)
           ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureClassifiedDomains
               getClassifiedDomainsInternal
               . DoAuth
           )
-        :<|> Named @'("get", 'TeamFeatureConferenceCalling)
+        <@> mkNamedAPI @'("get", 'TeamFeatureConferenceCalling)
           ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureConferenceCalling
               getConferenceCallingInternal
               . DoAuth
           )
-        :<|> Named @'("get", 'TeamFeatureSelfDeletingMessages)
+        <@> mkNamedAPI @'("get", 'TeamFeatureSelfDeletingMessages)
           ( getFeatureStatus @'WithLockStatus @'TeamFeatureSelfDeletingMessages
               getSelfDeletingMessagesInternal
               . DoAuth
           )
-        :<|> Named @'("put", 'TeamFeatureSelfDeletingMessages)
+        <@> mkNamedAPI @'("put", 'TeamFeatureSelfDeletingMessages)
           ( setFeatureStatus @'TeamFeatureSelfDeletingMessages
               setSelfDeletingMessagesInternal
               . DoAuth
           )
-        :<|> Named @'("get", 'TeamFeatureGuestLinks)
+        <@> mkNamedAPI @'("get", 'TeamFeatureGuestLinks)
           ( getFeatureStatus @'WithLockStatus @'TeamFeatureGuestLinks
               getGuestLinkInternal
               . DoAuth
           )
-        :<|> Named @'("put", 'TeamFeatureGuestLinks)
+        <@> mkNamedAPI @'("put", 'TeamFeatureGuestLinks)
           ( setFeatureStatus @'TeamFeatureGuestLinks
               setGuestLinkInternal
               . DoAuth
           )
-        :<|> Named @'("get", 'TeamFeatureSndFactorPasswordChallenge)
+        <@> mkNamedAPI @'("get", 'TeamFeatureSndFactorPasswordChallenge)
           ( getFeatureStatus @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge
               getSndFactorPasswordChallengeInternal
               . DoAuth
           )
-        :<|> Named @'("put", 'TeamFeatureSndFactorPasswordChallenge)
+        <@> mkNamedAPI @'("put", 'TeamFeatureSndFactorPasswordChallenge)
           ( setFeatureStatus @'TeamFeatureSndFactorPasswordChallenge
               setSndFactorPasswordChallengeInternal
               . DoAuth
           )
-        :<|> Named @"get-all-feature-configs" getAllFeatureConfigs
-        :<|> Named @'("get-config", 'TeamFeatureLegalHold)
+        <@> mkNamedAPI @"get-all-feature-configs" getAllFeatureConfigs
+        <@> mkNamedAPI @'("get-config", 'TeamFeatureLegalHold)
           ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureLegalHold
               getLegalholdStatusInternal
           )
-        :<|> Named @'("get-config", 'TeamFeatureSSO)
+        <@> mkNamedAPI @'("get-config", 'TeamFeatureSSO)
           ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureSSO
               getSSOStatusInternal
           )
-        :<|> Named @'("get-config", 'TeamFeatureSearchVisibility)
+        <@> mkNamedAPI @'("get-config", 'TeamFeatureSearchVisibility)
           ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureSearchVisibility
               getTeamSearchVisibilityAvailableInternal
           )
-        :<|> Named @'("get-config", 'TeamFeatureValidateSAMLEmails)
+        <@> mkNamedAPI @'("get-config", 'TeamFeatureValidateSAMLEmails)
           ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails
               getValidateSAMLEmailsInternal
           )
-        :<|> Named @'("get-config", 'TeamFeatureDigitalSignatures)
+        <@> mkNamedAPI @'("get-config", 'TeamFeatureDigitalSignatures)
           ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureDigitalSignatures
               getDigitalSignaturesInternal
           )
-        :<|> Named @'("get-config", 'TeamFeatureAppLock)
+        <@> mkNamedAPI @'("get-config", 'TeamFeatureAppLock)
           ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureAppLock
               getAppLockInternal
           )
-        :<|> Named @'("get-config", 'TeamFeatureFileSharing)
+        <@> mkNamedAPI @'("get-config", 'TeamFeatureFileSharing)
           ( getFeatureConfig @'WithLockStatus @'TeamFeatureFileSharing
               getFileSharingInternal
           )
-        :<|> Named @'("get-config", 'TeamFeatureClassifiedDomains)
+        <@> mkNamedAPI @'("get-config", 'TeamFeatureClassifiedDomains)
           ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureClassifiedDomains
               getClassifiedDomainsInternal
           )
-        :<|> Named @'("get-config", 'TeamFeatureConferenceCalling)
+        <@> mkNamedAPI @'("get-config", 'TeamFeatureConferenceCalling)
           ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureConferenceCalling
               getConferenceCallingInternal
           )
-        :<|> Named @'("get-config", 'TeamFeatureSelfDeletingMessages)
+        <@> mkNamedAPI @'("get-config", 'TeamFeatureSelfDeletingMessages)
           ( getFeatureConfig @'WithLockStatus @'TeamFeatureSelfDeletingMessages
               getSelfDeletingMessagesInternal
           )
-        :<|> Named @'("get-config", 'TeamFeatureGuestLinks)
+        <@> mkNamedAPI @'("get-config", 'TeamFeatureGuestLinks)
           ( getFeatureConfig @'WithLockStatus @'TeamFeatureGuestLinks
               getGuestLinkInternal
           )
-        :<|> Named @'("get-config", 'TeamFeatureSndFactorPasswordChallenge)
+        <@> mkNamedAPI @'("get-config", 'TeamFeatureSndFactorPasswordChallenge)
           ( getFeatureConfig @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge
               getSndFactorPasswordChallengeInternal
           )
+
+    mls :: API MLSAPI GalleyEffects
+    mls =
+      mkNamedAPI @"mls-welcome-message" postMLSWelcome
+        <@> mkNamedAPI @"mls-message" postMLSMessage

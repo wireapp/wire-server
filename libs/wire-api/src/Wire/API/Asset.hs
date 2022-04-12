@@ -31,6 +31,7 @@ module Wire.API.Asset
     -- * AssetKey
     AssetKey (..),
     assetKeyToText,
+    nilAssetKey,
 
     -- * AssetToken
     AssetToken (..),
@@ -84,12 +85,11 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Text.Encoding.Error as T
 import Data.Time.Clock
 import qualified Data.UUID as UUID
-import GHC.TypeLits
 import Imports
 import Servant
 import URI.ByteString
 import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
-import Wire.API.ErrorDescription
+import Wire.API.Error
 import Wire.API.Routes.MultiVerb
 
 --------------------------------------------------------------------------------
@@ -176,7 +176,7 @@ assetKeyToText = T.decodeUtf8 . toByteString'
 
 instance ToSchema AssetKey where
   schema =
-    (T.decodeUtf8 . toByteString')
+    assetKeyToText
       .= parsedText "AssetKey" (runParser parser . T.encodeUtf8)
         & doc' . S.schema . S.example ?~ toJSON ("3-1-47de4580-ae51-4650-acbb-d10c028cb0ac" :: Text)
 
@@ -185,6 +185,9 @@ instance S.ToParamSchema AssetKey where
 
 instance FromHttpApiData AssetKey where
   parseUrlPiece = first T.pack . runParser parser . T.encodeUtf8
+
+nilAssetKey :: AssetKey
+nilAssetKey = AssetKeyV3 (Id UUID.nil) AssetVolatile
 
 --------------------------------------------------------------------------------
 -- AssetToken
@@ -404,14 +407,13 @@ data LocalOrRemoteAsset
   | RemoteAsset (SourceIO ByteString)
 
 instance
-  ( ResponseType r0 ~ ErrorDescription code label desc,
-    ResponseType r1 ~ AssetLocation Absolute,
+  ( ResponseType r1 ~ AssetLocation Absolute,
     ResponseType r2 ~ SourceIO ByteString,
-    KnownSymbol desc
+    KnownError (MapError e)
   ) =>
-  AsUnion '[r0, r1, r2] (Maybe LocalOrRemoteAsset)
+  AsUnion '[ErrorResponse e, r1, r2] (Maybe LocalOrRemoteAsset)
   where
-  toUnion Nothing = Z (I mkErrorDescription)
+  toUnion Nothing = Z (I (dynError @(MapError e)))
   toUnion (Just (LocalAsset loc)) = S (Z (I loc))
   toUnion (Just (RemoteAsset asset)) = S (S (Z (I asset)))
 

@@ -47,7 +47,6 @@ getByDomainNotFound = do
   galley <- view tsGalley
   get (galley . path "/custom-backend/by-domain/domain.no1") !!! do
     const 404 === statusCode
-    const ("domain.no1" :: ByteString) =~= (cs . fold . responseBody)
 
 getByDomainInvalidDomain :: TestM ()
 getByDomainInvalidDomain = do
@@ -87,7 +86,6 @@ getByDomainDeleted = do
     !!! const 200 === statusCode
   get (galley . path "/custom-backend/by-domain/domain.no3") !!! do
     const 404 === statusCode
-    const ("domain.no3" :: ByteString) =~= (cs . fold . responseBody)
 
 getByDomainIsCaseInsensitive :: TestM ()
 getByDomainIsCaseInsensitive = do
