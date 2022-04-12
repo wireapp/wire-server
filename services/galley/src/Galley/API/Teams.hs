@@ -414,7 +414,7 @@ internalDeleteBindingTeam tid force = do
       mems <- E.getTeamMembersWithLimit tid (unsafeRange 2)
       case mems ^. teamMembers of
         [mem] -> queueTeamDeletion tid (mem ^. userId) Nothing
-        -- if the team has more than one member or none (and deletion is forced) we use the team creator's userId for deletion events
+        -- if the team has more than one member (and deletion is forced) or no members we use the team creator's userId for deletion events
         xs | null xs || force -> queueTeamDeletion tid (team ^. teamCreator) Nothing
         _ -> throwS @'NotAOneMemberTeam
 
