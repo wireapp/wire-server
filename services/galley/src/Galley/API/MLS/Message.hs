@@ -273,6 +273,7 @@ sendAppMessage ::
 sendAppMessage lusr conn rMsg@(rmValue -> SomeMessage SMLSCipherText msg) = do
   when (isNothing . appMsgPayload $ msg) $ error "Expected an application message payload"
 
+  -- FUTUREWORK: check the epoch
   convId <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
   lconvId <- ensureLocal lusr convId
   lmems <- getLocalMembers (qUnqualified convId)
