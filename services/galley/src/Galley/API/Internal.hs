@@ -100,7 +100,7 @@ import Wire.API.Federation.Error
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti hiding (TeamStatusUpdate)
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
-import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
+import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley
@@ -203,25 +203,32 @@ type ITeamsAPIBase =
     :<|> Named
            "create-binding-team"
            ( ZUser :> ReqBody '[Servant.JSON] BindingNewTeam
-               :> PutCreated '[Servant.JSON] (Headers '[Header "Location" TeamId] NoContent)
+               :> MultiVerb1
+                    'PUT
+                    '[Servant.JSON]
+                    ( WithHeaders
+                        '[Header "Location" TeamId]
+                        TeamId
+                        (RespondEmpty 201 "OK")
+                    )
            )
     :<|> Named
            "delete-binding-team-with-one-member"
            ( CanThrow 'NoBindingTeam :> CanThrow 'NotAOneMemberTeam :> CanThrow 'DeleteQueueFull
-               :> DeleteAccepted '[Servant.JSON] NoContent
+               :> MultiVerb1 'DELETE '[Servant.JSON] (RespondEmpty 202 "OK")
            )
     :<|> Named "get-team-name" ("name" :> CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamName)
     :<|> Named
            "update-team-status"
            ( "status" :> CanThrow 'TeamNotFound :> CanThrow 'InvalidTeamStatusUpdate
                :> ReqBody '[Servant.JSON] TeamStatusUpdate
-               :> Put '[Servant.JSON] NoContent
+               :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "OK")
            )
     :<|> "members"
       :> ( Named
              "unchecked-add-team-member"
              ( CanThrow 'TooManyTeamMembers :> ReqBody '[Servant.JSON] NewTeamMember
-                 :> Post '[Servant.JSON] NoContent
+                 :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "OK")
              )
              :<|> Named
                     "unchecked-get-team-members"
@@ -233,7 +240,11 @@ type ITeamsAPIBase =
                     ( Capture "uid" UserId :> CanThrow 'TeamMemberNotFound
                         :> Get '[Servant.JSON] TeamMember
                     )
-             :<|> Named "can-user-join-team" ("check" :> Get '[Servant.JSON] NoContent)
+             :<|> Named
+                    "can-user-join-team"
+                    ( "check"
+                        :> MultiVerb1 'GET '[Servant.JSON] (RespondEmpty 200 "User can join")
+                    )
          )
     :<|> Named
            "user-is-team-owner"
@@ -241,7 +252,7 @@ type ITeamsAPIBase =
                :> CanThrow 'AccessDenied
                :> CanThrow 'TeamMemberNotFound
                :> CanThrow 'NotATeamMember
-               :> Get '[Servant.JSON] NoContent
+               :> MultiVerb1 'GET '[Servant.JSON] (RespondEmpty 200 "User is team owner")
            )
     :<|> "search-visibility"
       :> ( Named "get-search-visibility-internal" (Get '[Servant.JSON] TeamSearchVisibilityView)
@@ -249,7 +260,7 @@ type ITeamsAPIBase =
                     "set-search-visibility-internal"
                     ( CanThrow 'TeamSearchVisibilityNotEnabled
                         :> ReqBody '[Servant.JSON] TeamSearchVisibilityView
-                        :> PutNoContent
+                        :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 204 "OK")
                     )
          )
 
@@ -314,20 +325,20 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
     base :: TeamId -> API ITeamsAPIBase GalleyEffects
     base tid =
       mkNamedAPI @"get-team-internal" (Teams.getTeamInternalH tid)
-        <@> mkNamedAPI @"create-binding-team" (Teams.createBindingTeamH tid)
-        <@> mkNamedAPI @"delete-binding-team-with-one-member" (Teams.internalDeleteBindingTeamWithOneMemberH tid)
+        <@> mkNamedAPI @"create-binding-team" (Teams.createBindingTeam tid)
+        <@> mkNamedAPI @"delete-binding-team-with-one-member" (Teams.internalDeleteBindingTeamWithOneMember tid)
         <@> mkNamedAPI @"get-team-name" (Teams.getTeamNameInternalH tid)
-        <@> mkNamedAPI @"update-team-status" (Teams.updateTeamStatusH tid)
+        <@> mkNamedAPI @"update-team-status" (Teams.updateTeamStatus tid)
         <@> hoistAPISegment
-          ( mkNamedAPI @"unchecked-add-team-member" (Teams.uncheckedAddTeamMemberH tid)
+          ( mkNamedAPI @"unchecked-add-team-member" (Teams.uncheckedAddTeamMember tid)
               <@> mkNamedAPI @"unchecked-get-team-members" (Teams.uncheckedGetTeamMembersH tid)
               <@> mkNamedAPI @"unchecked-get-team-member" (Teams.uncheckedGetTeamMember tid)
-              <@> mkNamedAPI @"can-user-join-team" (Teams.canUserJoinTeamH tid)
+              <@> mkNamedAPI @"can-user-join-team" (Teams.canUserJoinTeam tid)
           )
-        <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwnerH tid)
+        <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwner tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
-              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternalH tid)
+              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal tid)
           )
 
 featureAPI :: API IFeatureAPI GalleyEffects
