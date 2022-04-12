@@ -155,18 +155,16 @@ testSuccessfulCommitWithNewUsers MessagingSetup {..} newUsers = do
       if null newUsers
         then do
           -- check that alice receives no events
-          assertBool ("expected no events, received " <> show events) (null events)
+          events @?= []
 
           -- check that no users receive join events
           WS.assertNoEvent (1 # WS.Second) wss
         else do
           -- check that alice receives a join event
-          case (events, newUsers) of
-            ([], []) -> pure () -- no users added, no event received
-            (es, []) -> assertFailure $ "expected no events, received " <> show es
-            ([e], _) -> assertJoinEvent conversation (pUserId creator) newUsers roleNameWireMember e
-            ([], _) -> assertFailure "expected join event to be returned to alice"
-            (es, _) -> assertFailure $ "expected one event, found: " <> show es
+          case events of
+            [e] -> assertJoinEvent conversation (pUserId creator) newUsers roleNameWireMember e
+            [] -> assertFailure "expected join event to be returned to alice"
+            es -> assertFailure $ "expected one event, found: " <> show es
 
           -- check that all users receive a join event
           for_ wss $ \ws -> do
