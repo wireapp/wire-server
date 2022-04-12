@@ -553,7 +553,7 @@ testTooManyClients opts brig = do
     addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 11] (someLastPrekeys !! 11)) !!! do
       const 403 === statusCode
       const (Just "too-many-clients") === fmap Error.label . responseJsonMaybe
-      const (Just "application/json;charset=utf-8") === getHeader "Content-Type"
+      const (Just "application/json") === getHeader "Content-Type"
 
 -- @END
 
