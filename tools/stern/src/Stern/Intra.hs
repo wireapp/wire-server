@@ -326,7 +326,7 @@ deleteBindingTeam tid = do
           . expect2xx
       )
 
--- | Caution! This will permanently delete all team members!
+-- | Caution! This may permanently delete all team members!
 deleteBindingTeamForce :: TeamId -> Handler ()
 deleteBindingTeamForce tid = do
   info $ msg "Deleting team with force flag"
