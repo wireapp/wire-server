@@ -26,7 +26,7 @@ import qualified Brig.User.Search.Index as Search
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
 import Control.Lens (view, (^.))
-import Control.Monad.Catch (MonadThrow, finally, throwM)
+import Control.Monad.Catch (MonadThrow, catchAll, finally, throwM)
 import Data.Aeson (Value, object, (.=))
 import qualified Data.Metrics as Metrics
 import qualified Data.Text as Text
@@ -35,18 +35,26 @@ import Imports
 import qualified Network.HTTP.Client as HTTP
 import System.Logger.Class (Logger)
 import qualified System.Logger.Class as Log
+import System.Logger.Extended (runWithLogger)
 import qualified Util.Options as Options
 
 migrate :: Logger -> Opts.ElasticSettings -> Opts.CassandraSettings -> Options.Endpoint -> IO ()
 migrate l es cas galleyEndpoint = do
   env <- mkEnv l es cas galleyEndpoint
-  finally (go env) (cleanup env)
+  finally (go env `catchAll` logAndThrowAgain) (cleanup env)
   where
+    go :: Env -> IO ()
     go env =
       runMigrationAction env $ do
         failIfIndexAbsent (es ^. Opts.esIndex)
         createMigrationsIndexIfNotPresent
         runMigration expectedMigrationVersion
+
+    logAndThrowAgain :: forall a. SomeException -> IO a
+    logAndThrowAgain e = do
+      runWithLogger l $
+        Log.err $ Log.msg (Log.val "Migration failed with exception") . Log.field "exception" (show e)
+      throwM e
 
 -- | Increase this number any time you want to force reindexing.
 expectedMigrationVersion :: MigrationVersion
