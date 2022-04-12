@@ -88,7 +88,7 @@ tests opts mgr galley brig = do
         testWithBothIndices opts mgr "by-first/middle/last name" $ testSearchByLastOrMiddleName brig,
         testWithBothIndices opts mgr "Non ascii names" $ testSearchNonAsciiNames brig,
         test mgr "migration to new index" $ testMigrationToNewIndex mgr opts brig,
-        testGroup "team A: SearchVisibilityStandard (= unrestriced outbound search)" $
+        testGroup "team A: SearchVisibilityStandard (= unrestricted outbound search)" $
           [ testGroup "team A: SearchableByOwnTeam (= restricted inbound search)" $
               [ testWithBothIndices opts mgr "  I. non-team user cannot find team A member by display name" $ testSearchTeamMemberAsNonMemberDisplayName mgr brig galley TeamFeatureDisabled,
                 testWithBothIndices opts mgr " II. non-team user can find team A member by exact handle" $ testSearchTeamMemberAsNonMemberExactHandle mgr brig galley TeamFeatureDisabled,
@@ -103,7 +103,7 @@ tests opts mgr galley brig = do
                     test mgr "team-mates are listed after team-outsiders (worse handle match)" $ testSearchOrderingAsTeamMemberWorseHandleMatch brig
                   ]
               ],
-            testGroup "team A: SearchableByAllTeams (= unrestriced inbound search)" $
+            testGroup "team A: SearchableByAllTeams (= unrestricted inbound search)" $
               [ test mgr "   I.  non-team user cannot find team A member via display name" $ testSearchTeamMemberAsNonMemberDisplayName mgr brig galley TeamFeatureEnabled,
                 test mgr "  II.  non-team user can find team A member by exact handle" $ testSearchTeamMemberAsNonMemberExactHandle mgr brig galley TeamFeatureEnabled,
                 test mgr "III*.  team B member can find team A member by display name" $ testSearchTeamMemberAsOtherMemberDisplayName mgr brig galley TeamFeatureEnabled,
@@ -115,7 +115,7 @@ tests opts mgr galley brig = do
           [ testWithBothIndicesAndOpts opts mgr "any team user cannot find any non-team user by display name or exact handle" $ testSearchSameTeamOnly brig
           ],
         testGroup "team A: SearchVisibilityNoNameOutsideTeam (restricted outbound search)" $
-          [ testGroup "team A: SearchableByOwnTeam (= restriced inbound search)" $
+          [ testGroup "team A: SearchableByOwnTeam (= restricted inbound search)" $
               [ test mgr "I. non-team user cannot find team A member by display name" $ testSearchTeamMemberAsNonMemberOutboundOnly brig testSetupOutboundOnly,
                 test mgr "team A member cannot find team B member by display name or exact handle" $ testSearchTeamMemberAsOtherMemberOutboundOnly brig testSetupOutboundOnly,
                 test mgr "V. team A member can find other team A member by display name or exact handle" $ testSearchTeamMemberAsSameMemberOutboundOnly brig testSetupOutboundOnly,
@@ -324,7 +324,7 @@ testSearchTeamMemberAsNonMemberDisplayName mgr brig galley inboundVisibility = d
   nonTeamMember <- randomUser brig
   (tid, _, [teamMember, teamBTargetReindexedAfter]) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
   circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tid inboundVisibility
-  -- we set a random handle her to force a reindexing of that user
+  -- we set a random handle here to force a reindexing of that user
   void $ setRandomHandle brig teamBTargetReindexedAfter
   refreshIndex brig
   assertCan'tFind brig (userId nonTeamMember) (userQualifiedId teamMember) (fromName (userDisplayName teamMember))
@@ -335,7 +335,7 @@ testSearchTeamMemberAsNonMemberExactHandle mgr brig galley inboundVisibility = d
   nonTeamMember <- randomUser brig
   (tid, _, [teamMember, teamMemberReindexedAfter]) <- createPopulatedBindingTeamWithNamesAndHandles brig 2
   circumventSettingsOverride mgr $ setTeamSearchVisibilityInboundAvailable galley tid inboundVisibility
-  -- we set a random handle her to force a reindexing of that user
+  -- we set a random handle here to force a reindexing of that user
   teamMemberReindexedAfterHandle <- do
     teamMemberReindexedAfter' <- setRandomHandle brig teamMemberReindexedAfter
     pure $ fromMaybe (error "teamATargetReindexedAfter must have a handle") (userHandle teamMemberReindexedAfter')
