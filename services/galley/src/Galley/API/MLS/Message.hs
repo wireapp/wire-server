@@ -21,13 +21,11 @@ module Galley.API.MLS.Message (postMLSMessage) where
 import Control.Arrow
 import Control.Comonad
 import Control.Lens (preview, to)
-import Data.Either.Combinators
 import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
-import Data.Tagged
 import Data.Time
 import Galley.API.Action
 import Galley.API.Error
@@ -91,7 +89,11 @@ postMLSMessage lusr con smsg = case rmValue smsg of
           processCommit lusr con conv (msgEpoch msg) c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
         ProposalMessage _ -> pure mempty -- FUTUREWORK: handle proposals
-      SMLSCipherText -> pure mempty -- FUTUREWORK: reject encrypted handshakes
+      SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
+        Right CommitMessageTag -> throwS @'MLSUnsupportedMessage
+        Right ProposalMessageTag -> throwS @'MLSUnsupportedMessage
+        Right ApplicationMessageTag -> pure mempty
+        Left _ -> throwS @'MLSUnsupportedMessage
 
     -- forward message
     propagateMessage lusr conv con (rmRaw smsg)
@@ -278,21 +280,6 @@ propagateMessage lusr conv con raw = do
     cToList (u, s) = (u,) <$> Set.toList s
     clients :: Local x -> LocalMember -> Local (UserId, Set ClientId)
     clients loc LocalMember {..} = qualifyAs loc (lmId, lmMLSClients)
-
--- | Get the content type of a message. It throws an 'MLSParseError' if there
--- was an error in parsing the content type.
-_contentType :: Member (ErrorS 'MLSParseError) r => SomeMessage -> Sem r ContentType
-_contentType (SomeMessage SMLSPlainText m) =
-  pure . mpTag . msgTBS . msgPayload $ m
-_contentType (SomeMessage SMLSCipherText m) =
-  fromEither
-    . mapLeft (const (Tagged @'MLSParseError ())) -- TODO(md): see if we can be
-    -- more precise with error
-    -- types
-    . toMLSEnum' @ContentType
-    . msgContentType
-    . msgPayload
-    $ m
 
 --------------------------------------------------------------------------------
 -- Error handling of proposal execution
