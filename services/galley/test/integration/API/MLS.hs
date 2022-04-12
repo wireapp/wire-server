@@ -51,9 +51,11 @@ import TestSetup
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.Event.Conversation
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
+import Wire.API.Message
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 
@@ -73,12 +75,18 @@ tests s =
           test s "add user (not connected)" testAddUserNotConnected,
           test s "add user (partial client list)" testAddUserPartial,
           test s "add new client of an already-present user to a conversation" testAddNewClient,
-          test s "send a commit to a proteus conversation" testAddUsersToProteus,
           test s "send a stale commit" testStaleCommit
         ],
       testGroup
         "Application Message"
-        [test s "send application message" testAppMessage]
+        [test s "send application message" testAppMessage],
+      testGroup
+        "Protocol mismatch"
+        [ test s "send a commit to a proteus conversation" testAddUsersToProteus,
+          test s "add users bypassing MLS" testAddUsersDirectly,
+          test s "remove users bypassing MLS" testRemoveUsersDirectly,
+          test s "send proteus message to an MLS conversation" testProteusMessage
+        ]
     ]
 
 testLocalWelcome :: TestM ()
@@ -137,22 +145,12 @@ testWelcomeUnknownClient = do
 -- | Send a commit message, and assert that all participants see an event with
 -- the given list of new members.
 testSuccessfulCommitWithNewUsers :: HasCallStack => MessagingSetup -> [Qualified UserId] -> TestM ()
-testSuccessfulCommitWithNewUsers MessagingSetup {..} newUsers = do
+testSuccessfulCommitWithNewUsers setup@MessagingSetup {..} newUsers = do
   cannon <- view tsCannon
 
   WS.bracketRN cannon (map (qUnqualified . pUserId) users) $ \wss -> do
     -- send commit message
-    galley <- viewGalley
-    events <-
-      responseJsonError
-        =<< post
-          ( galley . paths ["mls", "messages"]
-              . zUser (qUnqualified (pUserId creator))
-              . zConn "conn"
-              . content "message/mls"
-              . bytes commit
-          )
-        <!! const 201 === statusCode
+    events <- postCommit setup
 
     let alreadyPresent =
           map snd
@@ -281,6 +279,49 @@ testAddUsersToProteus = do
   setup <- aliceInvitesBob 1 def {createConv = CreateProteusConv}
   err <- testFailedCommit setup 404
   liftIO $ Wai.label err @?= "no-conversation"
+
+testAddUsersDirectly :: TestM ()
+testAddUsersDirectly = do
+  setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = CreateConv}
+  void $ postCommit setup
+  charlie <- randomUser
+  e <-
+    responseJsonError
+      =<< postMembers
+        (qUnqualified (pUserId creator))
+        (pure charlie)
+        (qUnqualified conversation)
+      <!! const 403 === statusCode
+  liftIO $ Wai.label e @?= "invalid-op"
+
+testRemoveUsersDirectly :: TestM ()
+testRemoveUsersDirectly = do
+  setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = CreateConv}
+  void $ postCommit setup
+  e <-
+    responseJsonError
+      =<< deleteMemberQualified
+        (qUnqualified (pUserId creator))
+        (pUserId (users !! 0))
+        conversation
+      <!! const 403 === statusCode
+  liftIO $ Wai.label e @?= "invalid-op"
+
+testProteusMessage :: TestM ()
+testProteusMessage = do
+  setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = CreateConv}
+  void $ postCommit setup
+  e <-
+    responseJsonError
+      =<< postProteusMessageQualified
+        (qUnqualified (pUserId creator))
+        (snd (NonEmpty.head (pClients creator)))
+        conversation
+        []
+        "data"
+        MismatchReportAll
+      <!! const 404 === statusCode
+  liftIO $ Wai.label e @?= "no-conversation"
 
 testStaleCommit :: TestM ()
 testStaleCommit = withSystemTempDirectory "mls" $ \tmp -> do
@@ -577,3 +618,16 @@ addKeyPackage u c kp = do
         )
       <!! const 200 === statusCode
   liftIO $ map (Just . kpbeRef) (toList (kpbEntries bundle)) @?= [kpRef' kp]
+
+postCommit :: MessagingSetup -> TestM [Event]
+postCommit MessagingSetup {..} = do
+  galley <- viewGalley
+  responseJsonError
+    =<< post
+      ( galley . paths ["mls", "messages"]
+          . zUser (qUnqualified (pUserId creator))
+          . zConn "conn"
+          . content "message/mls"
+          . bytes commit
+      )
+    <!! const 201 === statusCode
