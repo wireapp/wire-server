@@ -73,7 +73,7 @@ mkEnv l es cas galleyEndpoint = do
     <$> initCassandra
     <*> initLogger
     <*> Metrics.metrics
-    <*> (pure $ view Opts.esIndex es)
+    <*> pure (view Opts.esIndex es)
     <*> pure mgr
     <*> pure galleyEndpoint
   where
@@ -87,10 +87,12 @@ mkEnv l es cas galleyEndpoint = do
           $ C.defSettings
     initLogger = pure l
 
-createMigrationsIndexIfNotPresent :: (MonadThrow m, MonadIO m, ES.MonadBH m) => m ()
+createMigrationsIndexIfNotPresent :: (MonadThrow m, MonadIO m, ES.MonadBH m, Log.MonadLogger m) => m ()
 createMigrationsIndexIfNotPresent =
   do
-    unlessM (ES.indexExists indexName) $
+    unlessM (ES.indexExists indexName) $ do
+      Log.info $
+        Log.msg (Log.val "Creating migrations index, used for tracking which migrations have run")
       ES.createIndexWith [] 1 indexName
         >>= throwIfNotCreated CreateMigrationIndexFailed
     ES.putMapping indexName indexMappingName indexMapping
@@ -113,20 +115,29 @@ runMigration ver = do
   vmax <- latestMigrationVersion
   if ver > vmax
     then do
-      info "Migration necessary."
+      Log.info $
+        Log.msg (Log.val "Migration necessary.")
+          . Log.field "expectedVersion" vmax
+          . Log.field "foundVersion" ver
       Search.reindexAllIfSameOrNewer
       persistVersion ver
     else do
-      info "No migration necessary."
+      Log.info $
+        Log.msg (Log.val "No migration necessary.")
+          . Log.field "expectedVersion" vmax
+          . Log.field "foundVersion" ver
 
 persistVersion :: (Monad m, MonadThrow m, MonadIO m) => MigrationVersion -> MigrationActionT m ()
 persistVersion v =
   let docId = ES.DocId . Text.pack . show $ migrationVersion v
    in do
         persistResponse <- ES.indexDocument indexName indexMappingName ES.defaultIndexDocumentSettings v docId
-        case ES.isCreated persistResponse of
-          False -> throwM $ PersistVersionFailed v $ show persistResponse
-          True -> pure ()
+        if ES.isCreated persistResponse
+          then do
+            Log.info $
+              Log.msg (Log.val "Migration success recorded")
+                . Log.field "migrationVersion" v
+          else throwM $ PersistVersionFailed v $ show persistResponse
 
 latestMigrationVersion :: (Monad m, MonadThrow m, MonadIO m) => MigrationActionT m MigrationVersion
 latestMigrationVersion = do
@@ -151,6 +162,3 @@ data MigrationException
   deriving (Show)
 
 instance Exception MigrationException
-
-info :: Log.MonadLogger m => String -> m ()
-info = Log.info . Log.msg
