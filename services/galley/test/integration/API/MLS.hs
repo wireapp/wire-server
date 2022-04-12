@@ -154,6 +154,11 @@ testSuccessfulCommitWithNewUsers MessagingSetup {..} newUsers = do
           )
         <!! const 201 === statusCode
 
+    let alreadyPresent =
+          map snd
+            . filter (\(p, _) -> not (pUserId p `elem` newUsers))
+            $ zip users wss
+
     liftIO $
       if null newUsers
         then do
@@ -161,7 +166,8 @@ testSuccessfulCommitWithNewUsers MessagingSetup {..} newUsers = do
           events @?= []
 
           -- check that no users receive join events
-          WS.assertNoEvent (1 # WS.Second) wss
+          when (null alreadyPresent) $
+            WS.assertNoEvent (1 # WS.Second) wss
         else do
           -- check that alice receives a join event
           case events of
@@ -169,10 +175,15 @@ testSuccessfulCommitWithNewUsers MessagingSetup {..} newUsers = do
             [] -> assertFailure "expected join event to be returned to alice"
             es -> assertFailure $ "expected one event, found: " <> show es
 
-          -- check that all users receive a join event
+          -- check that all users receive a join event,
           for_ wss $ \ws -> do
-            WS.assertMatch (5 # WS.Second) ws $
+            WS.assertMatch_ (5 # WS.Second) ws $
               wsAssertMemberJoinWithRole conversation (pUserId creator) newUsers roleNameWireMember
+
+    -- and that the already-present users in the conversation receive a commit
+    for_ alreadyPresent $ \ws -> do
+      WS.assertMatch_ (5 # WS.Second) ws $
+        wsAssertMLSMessage conversation (pUserId creator) commit
 
   -- FUTUREWORK: check that messages sent to the conversation are propagated to bob
   pure ()
@@ -313,21 +324,18 @@ testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
   cannon <- view tsCannon
 
   WS.bracketRN cannon (qUnqualified . pUserId <$> users) $ \wss -> do
-    es <-
-      responseJsonError
-        =<< post
-          ( galley . paths ["mls", "messages"]
-              . zUser (qUnqualified (pUserId creator))
-              . zConn "conn"
-              . content "message/mls"
-              . bytes message
-          )
-        <!! const 201 === statusCode
+    post
+      ( galley . paths ["mls", "messages"]
+          . zUser (qUnqualified (pUserId creator))
+          . zConn "conn"
+          . content "message/mls"
+          . bytes message
+      )
+      !!! const 201
+      === statusCode
 
-    liftIO $ case es of
-      [e] -> assertMLSMessageEvent conversation (pUserId creator) message e
-      _ -> assertFailure $ "Expected only one event, but got " <> show (length es)
     -- check that the corresponding event is received
+
     liftIO $
       WS.assertMatchN_ (5 # WS.Second) wss $
         wsAssertMLSMessage conversation (pUserId creator) message

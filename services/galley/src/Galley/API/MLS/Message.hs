@@ -78,18 +78,25 @@ postMLSMessage ::
   RawMLS SomeMessage ->
   Sem r [Event]
 postMLSMessage lusr con smsg = case rmValue smsg of
-  SomeMessage SMLSPlainText msg -> case msgTBS (msgPayload msg) of
-    CommitMessage c ->
-      processCommit lusr con (rmRaw smsg) (msgEpoch msg) (msgGroupId msg) c
-    ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
-    ProposalMessage _ -> pure mempty -- FUTUREWORK: handle proposals
-  SomeMessage SMLSCipherText _ ->
-    -- FUTUREWORK: handle all types of encrypted messages
-    contentType (rmValue smsg) >>= \case
-      ApplicationMessageTag ->
-        pure <$> sendAppMessage lusr con smsg
-      ProposalMessageTag -> pure mempty
-      CommitMessageTag -> pure mempty
+  SomeMessage tag msg -> do
+    -- fetch conversation
+    qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+    lcnv <- ensureLocal lusr qcnv -- FUTUREWORK: allow remote conversations
+    conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+
+    -- validate message
+    events <- case tag of
+      SMLSPlainText -> case msgTBS (msgPayload msg) of
+        CommitMessage c ->
+          processCommit lusr con conv (msgEpoch msg) c
+        ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
+        ProposalMessage _ -> pure mempty -- FUTUREWORK: handle proposals
+      SMLSCipherText -> pure mempty -- FUTUREWORK: reject encrypted handshakes
+
+    -- forward message
+    propagateMessage lusr conv con (rmRaw smsg)
+
+    pure events
 
 type HasProposalEffects r =
   ( Member BrigAccess r,
@@ -135,17 +142,11 @@ processCommit ::
   ) =>
   Local UserId ->
   ConnId ->
-  ByteString ->
+  Data.Conversation ->
   Epoch ->
-  GroupId ->
   Commit ->
   Sem r [Event]
-processCommit lusr con _raw epoch gid commit = do
-  -- fetch conversation
-  qcnv <- getConversationIdByGroupId gid >>= noteS @'ConvNotFound
-  lcnv <- ensureLocal lusr qcnv -- FUTUREWORK: allow remote conversations
-  conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-
+processCommit lusr con conv epoch commit = do
   -- check epoch number
   curEpoch <-
     preview (to convProtocol . _ProtocolMLS . to cnvmlsEpoch) conv
@@ -157,7 +158,7 @@ processCommit lusr con _raw epoch gid commit = do
   events <- executeProposalAction lusr con conv action
 
   -- increment epoch number
-  setConversationEpoch (tUnqualified lcnv) (succ epoch)
+  setConversationEpoch (Data.convId conv) (succ epoch)
 
   pure events
 
@@ -247,91 +248,43 @@ convClientMap loc =
   where
     localMember lm = Map.singleton (qUntagged (qualifyAs loc (lmId lm))) (lmMLSClients lm)
 
--- | Propagate an application message. Do not export this function due to its
--- imprecise interface (the 'SomeMessage' argument can also contain a commit or
--- a proposal).
-sendAppMessage ::
-  Members
-    ( Append
-        '[ BrigAccess,
-           ConversationStore,
-           Error FederationError,
-           ErrorS 'ConvNotFound,
-           ErrorS 'MLSParseError,
-           ErrorS 'MLSKeyPackageRefNotFound,
-           GundeckAccess,
-           Input UTCTime,
-           MemberStore
-         ]
-        (MessagePushEffects 'NormalMessage)
-    )
-    r =>
+-- | Propagate a message.
+propagateMessage ::
+  Member ExternalAccess r =>
+  Member GundeckAccess r =>
+  Member (Input UTCTime) r =>
+  Member TinyLog r =>
   Local UserId ->
+  Data.Conversation ->
   ConnId ->
-  RawMLS SomeMessage ->
-  Sem r Event
-sendAppMessage lusr conn rMsg@(rmValue -> SomeMessage SMLSCipherText msg) = do
-  when (isNothing . appMsgPayload $ msg) $ error "Expected an application message payload"
-
+  ByteString ->
+  Sem r ()
+propagateMessage lusr conv con raw = do
   -- FUTUREWORK: check the epoch
-  convId <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-  lconvId <- ensureLocal lusr convId
-  lmems <- getLocalMembers (qUnqualified convId)
-  let lRecipients = clients lusr <$> lmems
+  let lmems = Data.convLocalMembers conv
       -- FUTUREWORK: support remote recipients
       lmMap = Map.fromList $ fmap (lmId &&& id) lmems
-  sendLocalCipherApplication lusr lconvId conn rMsg lmMap (tUnqualified <$> lRecipients)
-  where
-    appMsgPayload m =
-      case toMLSEnum' @ContentType . msgContentType . msgPayload $ m of
-        Right ApplicationMessageTag -> Just . msgCipherText . msgPayload $ m
-        _ -> Nothing
-    clients :: Local x -> LocalMember -> Local (UserId, Set ClientId)
-    clients loc LocalMember {..} = qualifyAs loc (lmId, lmMLSClients)
-sendAppMessage _lusr _conn _msg =
-  error "Plain text application messages not supported"
-
--- | Send an encrypted application message to local recipients
-sendLocalCipherApplication ::
-  Members
-    ( Append
-        '[Input UTCTime]
-        (MessagePushEffects 'NormalMessage)
-    )
-    r =>
-  Local UserId ->
-  Local ConvId ->
-  ConnId ->
-  RawMLS SomeMessage ->
-  LocalMemberMap 'NormalMessage ->
-  [(UserId, Set ClientId)] ->
-  Sem r Event
-sendLocalCipherApplication lusr lconv conn msg lmMap lclients = do
   now <- input @UTCTime
-  let p = rmRaw msg
-      e = Event (qUntagged lconv) (qUntagged lusr) now $ EdMLSMessage p
-  runMessagePush lconv (Just . qUntagged $ lconv) $
-    foldMap (uncurry $ mkPush e) (cToList =<< lclients)
-  pure e
+  let lcnv = qualifyAs lusr (Data.convId conv)
+      qcnv = qUntagged lcnv
+      e = Event qcnv (qUntagged lusr) now $ EdMLSMessage raw
+      lclients = tUnqualified . clients lusr <$> lmems
+      mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
+      mkPush u c = newMessagePush lcnv lmMap (Just con) defMessageMetadata (u, c) e
+  runMessagePush lusr (Just qcnv) $
+    foldMap (uncurry mkPush) (cToList =<< lclients)
   where
-    mkPush :: Event -> UserId -> ClientId -> MessagePush 'NormalMessage
-    mkPush ev u c = newMessagePush lconv lmMap (Just conn) defMessageMetadata (u, c) ev
     cToList :: (UserId, Set ClientId) -> [(UserId, ClientId)]
     cToList (u, s) = (u,) <$> Set.toList s
-
--- | Send an encrypted application message to remote recipients
-_sendRemoteCipherApplication ::
-  RawMLS SomeMessage ->
-  Remote [(UserId, Set ClientId)] ->
-  Sem r ()
-_sendRemoteCipherApplication _ _ = pure ()
+    clients :: Local x -> LocalMember -> Local (UserId, Set ClientId)
+    clients loc LocalMember {..} = qualifyAs loc (lmId, lmMLSClients)
 
 -- | Get the content type of a message. It throws an 'MLSParseError' if there
 -- was an error in parsing the content type.
-contentType :: Member (ErrorS 'MLSParseError) r => SomeMessage -> Sem r ContentType
-contentType (SomeMessage SMLSPlainText m) =
+_contentType :: Member (ErrorS 'MLSParseError) r => SomeMessage -> Sem r ContentType
+_contentType (SomeMessage SMLSPlainText m) =
   pure . mpTag . msgTBS . msgPayload $ m
-contentType (SomeMessage SMLSCipherText m) =
+_contentType (SomeMessage SMLSCipherText m) =
   fromEither
     . mapLeft (const (Tagged @'MLSParseError ())) -- TODO(md): see if we can be
     -- more precise with error
