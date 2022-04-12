@@ -32,7 +32,7 @@ data Conversation = Conversation
   { convId :: ConvId,
     convLocalMembers :: [LocalMember],
     convRemoteMembers :: [RemoteMember],
-    convDeleted :: Maybe Bool,
+    convDeleted :: Bool,
     convMetadata :: ConversationMetadata,
     convProtocol :: Protocol
   }
