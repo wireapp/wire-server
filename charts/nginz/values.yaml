@@ -386,6 +386,12 @@ nginx_conf:
       disable_zauth: true
       basic_auth: true
       versioned: false
+    - path: /i/teams/([^/]*)/search-visibility$
+      envs:
+        - staging
+      disable_zauth: true
+      basic_auth: true
+      versioned: false
     - path: /feature-configs(.*)
       envs:
       - all
