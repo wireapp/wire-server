@@ -69,6 +69,7 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Log
+import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -371,8 +372,8 @@ postQualifiedOtrMessage ::
   Sem r (PostOtrResponse MessageSendingStatus)
 postQualifiedOtrMessage senderType sender mconn lcnv msg =
   runError @(MessageNotSent MessageSendingStatus)
-    . mapToRuntimeError @'ConvNotFound @(MessageNotSent MessageSendingStatus)
-      MessageNotSentConversationNotFound
+    . mapToRuntimeError @'ConvNotFound @(MessageNotSent MessageSendingStatus) MessageNotSentConversationNotFound
+    . mapToRuntimeError @'InvalidOperation @(MessageNotSent MessageSendingStatus) MessageNotSentConversationNotFound
     $ do
       let localDomain = tDomain lcnv
       now <- input
@@ -382,6 +383,8 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
       let senderClient = qualifiedNewOtrSender msg
 
       conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+      unless (protocolTag (convProtocol conv) == ProtocolProteusTag) $
+        throwS @'InvalidOperation
 
       let localMemberIds = lmId <$> convLocalMembers conv
           localMemberMap :: Map UserId LocalMember
