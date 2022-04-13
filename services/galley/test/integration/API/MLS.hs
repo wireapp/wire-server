@@ -203,9 +203,6 @@ testSuccessfulCommitWithNewUsers setup@MessagingSetup {..} newUsers = do
       WS.assertMatch_ (5 # WS.Second) ws $
         wsAssertMLSMessage conversation (pUserId creator) commit
 
-  -- FUTUREWORK: check that messages sent to the conversation are propagated to bob
-  pure ()
-
 testFailedCommit :: HasCallStack => MessagingSetup -> Int -> TestM Wai.Error
 testFailedCommit MessagingSetup {..} status = do
   cannon <- view tsCannon
@@ -385,8 +382,9 @@ testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
     liftIO $
       setupCommit tmp "group" "group" $
         users >>= toList . pClients
-  -- FUTUREWORK: manually send the commit
-  testSuccessfulCommit MessagingSetup {..}
+
+  void $ postCommit MessagingSetup {..}
+
   message <-
     liftIO $
       spawn (cli tmp ["message", "--group", tmp </> "group", "some text"]) Nothing
