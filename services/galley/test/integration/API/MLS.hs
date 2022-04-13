@@ -212,8 +212,18 @@ testSuccessfulCommit setup = testSuccessfulCommitWithNewUsers setup (map pUserId
 
 testAddUser :: TestM ()
 testAddUser = do
-  setup <- aliceInvitesBob 1 def {createConv = CreateConv}
+  setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = CreateConv}
   testSuccessfulCommit setup
+
+  -- check that bob can now see the conversation
+  let bob = users !! 0
+  convs <-
+    responseJsonError =<< getConvs (qUnqualified (pUserId bob)) Nothing Nothing
+      <!! const 200 === statusCode
+  liftIO $
+    assertBool
+      "Users added to an MLS group should find it when listing conversations"
+      (conversation `elem` map cnvQualifiedId (convList convs))
 
 testAddUserNotConnected :: TestM ()
 testAddUserNotConnected = do
