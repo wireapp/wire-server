@@ -16,10 +16,10 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Teams
-  ( createBindingTeamH,
+  ( createBindingTeam,
     createNonBindingTeamH,
     updateTeamH,
-    updateTeamStatusH,
+    updateTeamStatus,
     getTeamH,
     getTeamInternalH,
     getTeamNameInternalH,
@@ -42,15 +42,14 @@ module Galley.API.Teams
     deleteTeamConversation,
     getSearchVisibilityH,
     setSearchVisibilityH,
-    getSearchVisibilityInternalH,
-    setSearchVisibilityInternalH,
-    uncheckedAddTeamMemberH,
-    uncheckedGetTeamMemberH,
+    getSearchVisibilityInternal,
+    setSearchVisibilityInternal,
+    uncheckedAddTeamMember,
+    uncheckedGetTeamMember,
     uncheckedGetTeamMembersH,
     uncheckedDeleteTeamMember,
-    userIsTeamOwnerH,
-    canUserJoinTeamH,
-    internalDeleteBindingTeamWithOneMemberH,
+    userIsTeamOwner,
+    canUserJoinTeam,
     internalDeleteBindingTeamWithOneMember,
     ensureNotTooLargeForLegalHold,
     ensureNotTooLargeToActivateLegalHold,
@@ -127,7 +126,6 @@ import Polysemy.Input
 import Polysemy.Output
 import qualified Polysemy.TinyLog as P
 import qualified SAML2.WebSSO as SAML
-import Servant (Header, Headers, NoContent (NoContent), addHeader)
 import qualified System.Logger.Class as Log
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
@@ -248,46 +246,18 @@ createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
   finishCreateTeam team owner others (Just zcon)
   pure (team ^. teamId)
 
-createBindingTeamH ::
-  Members '[GundeckAccess, Input UTCTime, TeamStore, WaiRoutes] r =>
-  TeamId ->
-  UserId ->
-  BindingNewTeam ->
-  Sem r (Headers '[Servant.Header "Location" TeamId] NoContent)
-createBindingTeamH tid zusr newTeam = do
-  newTeamId <- createBindingTeam zusr tid newTeam
-  pure $ Servant.addHeader newTeamId NoContent
-
 createBindingTeam ::
   Members '[GundeckAccess, Input UTCTime, TeamStore] r =>
-  UserId ->
   TeamId ->
+  UserId ->
   BindingNewTeam ->
   Sem r TeamId
-createBindingTeam zusr tid (BindingNewTeam body) = do
+createBindingTeam tid zusr (BindingNewTeam body) = do
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <-
     E.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
   finishCreateTeam team owner [] Nothing
   pure tid
-
-updateTeamStatusH ::
-  Members
-    '[ BrigAccess,
-       ErrorS 'TeamNotFound,
-       ErrorS 'InvalidTeamStatusUpdate,
-       Input Opts,
-       Input UTCTime,
-       P.TinyLog,
-       TeamStore,
-       WaiRoutes
-     ]
-    r =>
-  TeamId ->
-  TeamStatusUpdate ->
-  Sem r NoContent
-updateTeamStatusH tid teamStatusUpdate =
-  NoContent <$ updateTeamStatus tid teamStatusUpdate
 
 updateTeamStatus ::
   Members
@@ -688,26 +658,6 @@ getTeamMember zusr tid uid = do
   member <- E.getTeamMember tid uid >>= noteS @'TeamMemberNotFound
   pure (member, withPerms)
 
-internalDeleteBindingTeamWithOneMemberH ::
-  Members
-    '[ ErrorS 'NoBindingTeam,
-       ErrorS 'NotAOneMemberTeam,
-       ErrorS 'DeleteQueueFull,
-       Queue DeleteItem,
-       TeamStore
-     ]
-    r =>
-  TeamId ->
-  Sem r NoContent
-internalDeleteBindingTeamWithOneMemberH = (NoContent <$) . internalDeleteBindingTeamWithOneMember
-
-uncheckedGetTeamMemberH ::
-  Members '[ErrorS 'TeamMemberNotFound, TeamStore] r =>
-  TeamId ::: UserId ::: JSON ->
-  Sem r Response
-uncheckedGetTeamMemberH (tid ::: uid ::: _) = do
-  json <$> uncheckedGetTeamMember tid uid
-
 uncheckedGetTeamMember ::
   Members '[ErrorS 'TeamMemberNotFound, TeamStore] r =>
   TeamId ->
@@ -718,10 +668,11 @@ uncheckedGetTeamMember tid uid =
 
 uncheckedGetTeamMembersH ::
   Member TeamStore r =>
-  TeamId ::: Range 1 HardTruncationLimit Int32 ::: JSON ->
-  Sem r Response
-uncheckedGetTeamMembersH (tid ::: maxResults ::: _) = do
-  json <$> uncheckedGetTeamMembers tid maxResults
+  TeamId ->
+  Maybe (Range 1 HardTruncationLimit Int32) ->
+  Sem r TeamMemberList
+uncheckedGetTeamMembersH tid mMaxResults =
+  uncheckedGetTeamMembers tid (fromMaybe (unsafeRange hardTruncationLimit) mMaxResults)
 
 uncheckedGetTeamMembers ::
   Member TeamStore r =>
@@ -811,31 +762,6 @@ addTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
   pure empty
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
-uncheckedAddTeamMemberH ::
-  Members
-    '[ BrigAccess,
-       Error LegalHoldError,
-       ErrorS 'TooManyTeamMembers,
-       GundeckAccess,
-       Input (Local ()),
-       Input Opts,
-       Input UTCTime,
-       LegalHoldStore,
-       MemberStore,
-       P.TinyLog,
-       TeamFeatureStore,
-       TeamNotificationStore,
-       TeamStore,
-       WaiRoutes
-     ]
-    r =>
-  TeamId ::: JsonRequest NewTeamMember ::: JSON ->
-  Sem r Response
-uncheckedAddTeamMemberH (tid ::: req ::: _) = do
-  nmem <- fromJsonBody req
-  uncheckedAddTeamMember tid nmem
-  return empty
-
 uncheckedAddTeamMember ::
   Members
     '[ BrigAccess,
@@ -1458,12 +1384,6 @@ getBindingTeamMembers zusr = do
   tid <- E.lookupBindingTeam zusr
   getTeamMembersForFanout tid
 
-canUserJoinTeamH ::
-  Members '[BrigAccess, Error LegalHoldError, LegalHoldStore, TeamStore, TeamFeatureStore] r =>
-  TeamId ->
-  Sem r Response
-canUserJoinTeamH tid = canUserJoinTeam tid >> pure empty
-
 -- This could be extended for more checks, for now we test only legalhold
 --
 -- Brig's `POST /register` endpoint throws the errors returned by this endpoint
@@ -1510,13 +1430,6 @@ getTeamSearchVisibilityAvailableInternal tid = do
     <$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility tid
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
-getSearchVisibilityInternalH ::
-  Member SearchVisibilityStore r =>
-  TeamId ::: JSON ->
-  Sem r Response
-getSearchVisibilityInternalH (tid ::: _) =
-  json <$> getSearchVisibilityInternal tid
-
 getSearchVisibilityInternal ::
   Member SearchVisibilityStore r =>
   TeamId ->
@@ -1524,21 +1437,6 @@ getSearchVisibilityInternal ::
 getSearchVisibilityInternal =
   fmap TeamSearchVisibilityView
     . SearchVisibilityData.getSearchVisibility
-
-setSearchVisibilityInternalH ::
-  Members
-    '[ ErrorS 'TeamSearchVisibilityNotEnabled,
-       Input Opts,
-       SearchVisibilityStore,
-       TeamFeatureStore,
-       WaiRoutes
-     ]
-    r =>
-  TeamId ::: JsonRequest TeamSearchVisibilityView ::: JSON ->
-  Sem r Response
-setSearchVisibilityInternalH (tid ::: req ::: _) = do
-  setSearchVisibilityInternal tid =<< (fromJsonBody req)
-  pure noContent
 
 setSearchVisibilityInternal ::
   Members
@@ -1557,29 +1455,21 @@ setSearchVisibilityInternal tid (TeamSearchVisibilityView searchVisibility) = do
     throwS @'TeamSearchVisibilityNotEnabled
   SearchVisibilityData.setSearchVisibility tid searchVisibility
 
-userIsTeamOwnerH ::
+userIsTeamOwner ::
   Members
-    '[ ErrorS 'AccessDenied,
-       ErrorS 'TeamMemberNotFound,
+    '[ ErrorS 'TeamMemberNotFound,
+       ErrorS 'AccessDenied,
        ErrorS 'NotATeamMember,
        TeamStore
      ]
     r =>
-  TeamId ::: UserId ::: JSON ->
-  Sem r Response
-userIsTeamOwnerH (tid ::: uid ::: _) = do
-  userIsTeamOwner tid uid >>= \case
-    True -> pure empty
-    False -> throwS @'AccessDenied
-
-userIsTeamOwner ::
-  Members '[ErrorS 'TeamMemberNotFound, ErrorS 'NotATeamMember, TeamStore] r =>
   TeamId ->
   UserId ->
-  Sem r Bool
+  Sem r ()
 userIsTeamOwner tid uid = do
   let asking = uid
-  isTeamOwner . fst <$> getTeamMember asking tid uid
+  (mem, _) <- getTeamMember asking tid uid
+  unless (isTeamOwner mem) $ throwS @'AccessDenied
 
 -- Queues a team for async deletion
 queueTeamDeletion ::
