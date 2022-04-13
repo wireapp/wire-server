@@ -35,6 +35,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1
 import qualified Data.Map as Map
 import Data.Qualified
+import Data.Range
 import Data.String.Conversions
 import qualified Data.Text as T
 import Imports
@@ -70,6 +71,11 @@ tests s =
           test s "local welcome (client with no public key)" testWelcomeUnknownClient
         ],
       testGroup
+        "Creation"
+        [ test s "fail to create MLS conversation" postMLSConvFail,
+          test s "create MLS conversation" postMLSConvOk
+        ],
+      testGroup
         "Commit"
         [ test s "add user to a conversation" testAddUser,
           test s "add user (not connected)" testAddUserNotConnected,
@@ -88,6 +94,34 @@ tests s =
           test s "send proteus message to an MLS conversation" testProteusMessage
         ]
     ]
+
+postMLSConvFail :: TestM ()
+postMLSConvFail = do
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
+  bob <- randomUser
+  connectUsers alice (list1 bob [])
+  postConvQualified alice defNewMLSConv {newConvQualifiedUsers = [Qualified bob (qDomain qalice)]}
+    !!! do
+      const 400 === statusCode
+      const (Just "non-empty-member-list") === fmap Wai.label . responseJsonError
+
+postMLSConvOk :: TestM ()
+postMLSConvOk = do
+  c <- view tsCannon
+  qalice <- randomQualifiedUser
+  bob <- randomUser
+  let alice = qUnqualified qalice
+  let nameMaxSize = T.replicate 256 "a"
+  connectUsers alice (list1 bob [])
+  WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
+    rsp <- postConvQualified alice defNewMLSConv {newConvName = checked nameMaxSize}
+    pure rsp !!! do
+      const 201 === statusCode
+      const Nothing === fmap Wai.label . responseJsonError
+    cid <- assertConv rsp RegularConv alice qalice [] (Just nameMaxSize) Nothing
+    WS.assertNoEvent (2 # WS.Second) [wsB]
+    checkConvCreateEvent cid wsA
 
 testLocalWelcome :: TestM ()
 testLocalWelcome = do
