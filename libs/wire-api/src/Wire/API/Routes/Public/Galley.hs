@@ -22,6 +22,7 @@ module Wire.API.Routes.Public.Galley where
 
 import qualified Data.Code as Code
 import Data.CommaSeparatedList
+import Data.Domain (Domain)
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Qualified (Qualified (..))
 import Data.Range
@@ -35,6 +36,7 @@ import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
+import Wire.API.CustomBackend (CustomBackend)
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as BrigError
 import Wire.API.Error.Galley
@@ -161,6 +163,7 @@ type ServantAPI =
     :<|> TeamAPI
     :<|> FeatureAPI
     :<|> MLSAPI
+    :<|> CustomBackendAPI
 
 type ConversationAPI =
   Named
@@ -1253,6 +1256,17 @@ type MLSMessagingAPI =
            )
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSMessagingAPI)
+
+type CustomBackendAPI =
+  Named
+    "get-custom-backend-by-domain"
+    ( Summary "Shows information about custom backends related to a given email domain"
+        :> CanThrow 'CustomBackendNotFound
+        :> "custom-backend"
+        :> "by-domain"
+        :> Capture "domain" Domain
+        :> Get '[JSON] CustomBackend
+    )
 
 -- This is a work-around for the fact that we sometimes want to send larger lists of user ids
 -- in the filter query than fits the url length limit.  For details, see

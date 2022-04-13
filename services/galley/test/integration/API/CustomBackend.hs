@@ -25,7 +25,6 @@ import Bilge.Assert
 import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.Aeson.QQ (aesonQQ)
-import Data.String.Conversions (cs)
 import Imports
 import Test.Tasty
 import TestHelpers
@@ -35,8 +34,8 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Custom Backends"
-    [ test s "GET by-domain (404)" getByDomainNotFound,
-      test s "GET by-domain (400)" getByDomainInvalidDomain,
+    [ test s "GET by-domain - domain does not exist (404)" getByDomainNotFound,
+      test s "GET by-domain - domain invalid (404)" getByDomainInvalidDomain,
       test s "PUT, GET by-domain (200)" getByDomainFound,
       test s "PUT, DELETE, GET by-domain (404)" getByDomainDeleted,
       test s "domain is case-insensitive" getByDomainIsCaseInsensitive
@@ -52,9 +51,11 @@ getByDomainInvalidDomain :: TestM ()
 getByDomainInvalidDomain = do
   galley <- view tsGalley
   -- contains invalid character '+'
+  -- this used to respond with '400 bad request'
+  -- but after servantification it returns '404 not found'
+  -- because the domain parameter is invalid and therefore the endpoint is invalid, too
   get (galley . path "/custom-backend/by-domain/invalid%2Bdomain") !!! do
-    const 400 === statusCode
-    const ("client-error" :: ByteString) =~= (cs . fold . responseBody)
+    const 404 === statusCode
 
 getByDomainFound :: TestM ()
 getByDomainFound = do

@@ -18,6 +18,7 @@
 module Galley.API.Public.Servant (mkNamedAPI, servantSitemap) where
 
 import Galley.API.Create
+import Galley.API.CustomBackend
 import Galley.API.MLS
 import Galley.API.Query
 import Galley.API.Teams
@@ -39,6 +40,7 @@ servantSitemap =
     <@> team
     <@> features
     <@> mls
+    <@> customBackend
   where
     conversations =
       mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
@@ -276,3 +278,6 @@ servantSitemap =
     mls =
       mkNamedAPI @"mls-welcome-message" postMLSWelcome
         <@> mkNamedAPI @"mls-message" postMLSMessage
+
+    customBackend :: API CustomBackendAPI GalleyEffects
+    customBackend = mkNamedAPI @"get-custom-backend-by-domain" getCustomBackendByDomain

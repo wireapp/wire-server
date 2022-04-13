@@ -33,7 +33,6 @@ import qualified Data.Set as Set
 import Data.Swagger.Build.Api hiding (Response, def, min)
 import qualified Data.Swagger.Build.Api as Swagger
 import Data.Text.Encoding (decodeLatin1)
-import qualified Galley.API.CustomBackend as CustomBackend
 import qualified Galley.API.Error as Error
 import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
@@ -58,7 +57,6 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
 import Wire.API.Conversation.Role
-import qualified Wire.API.CustomBackend as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
 import qualified Wire.API.Event.Team as Public ()
@@ -351,19 +349,6 @@ sitemap = do
       .&. zauthConnId
       .&. jsonRequest @Public.ApproveLegalHoldForUserRequest
       .&. accept "application" "json"
-
-  -- Custom Backend API -------------------------------------------------
-
-  -- todo(leif): servantify
-  get "/custom-backend/by-domain/:domain" (continueE CustomBackend.getCustomBackendByDomainH) $
-    capture "domain"
-      .&. accept "application" "json"
-  document "GET" "getCustomBackendByDomain" $ do
-    summary "Shows information about custom backends related to a given email domain"
-    parameter Path "domain" string' $
-      description "URL-encoded email domain"
-    returns (ref Public.modelCustomBackend)
-    response 200 "Custom backend" end
 
   -- Bot API ------------------------------------------------------------
 

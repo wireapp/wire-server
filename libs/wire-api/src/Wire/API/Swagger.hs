@@ -25,7 +25,6 @@ import qualified Wire.API.Conversation.Code as Conversation.Code
 import qualified Wire.API.Conversation.Member as Conversation.Member
 import qualified Wire.API.Conversation.Role as Conversation.Role
 import qualified Wire.API.Conversation.Typing as Conversation.Typing
-import qualified Wire.API.CustomBackend as CustomBackend
 import qualified Wire.API.Event.Team as Event.Team
 import qualified Wire.API.Message as Message
 import qualified Wire.API.Notification as Notification
@@ -75,7 +74,6 @@ models =
     Conversation.Role.modelConversationRole,
     Conversation.Role.modelConversationRolesList,
     Conversation.Typing.modelTyping,
-    CustomBackend.modelCustomBackend,
     Event.Team.modelEvent,
     Event.Team.modelMemberEvent,
     Event.Team.modelMemberData,
