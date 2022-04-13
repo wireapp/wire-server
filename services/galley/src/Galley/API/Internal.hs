@@ -213,7 +213,7 @@ type ITeamsAPIBase =
                     )
            )
     :<|> Named
-           "delete-binding-team-with-one-member"
+           "delete-binding-team"
            ( CanThrow 'NoBindingTeam
                :> CanThrow 'NotAOneMemberTeam
                :> CanThrow 'DeleteQueueFull
@@ -330,7 +330,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
     base tid =
       mkNamedAPI @"get-team-internal" (Teams.getTeamInternalH tid)
         <@> mkNamedAPI @"create-binding-team" (Teams.createBindingTeam tid)
-        <@> mkNamedAPI @"delete-binding-team-with-one-member" (Teams.internalDeleteBindingTeam tid)
+        <@> mkNamedAPI @"delete-binding-team" (Teams.internalDeleteBindingTeam tid)
         <@> mkNamedAPI @"get-team-name" (Teams.getTeamNameInternalH tid)
         <@> mkNamedAPI @"update-team-status" (Teams.updateTeamStatus tid)
         <@> hoistAPISegment
