@@ -350,7 +350,7 @@ changeEmail u upd = do
       "brig"
       b
       ( method PUT
-          . path "/self/email"
+          . path "i/self/email"
           . header "Z-User" (toByteString' u)
           . header "Z-Connection" (toByteString' "")
           . lbytes (encode upd)

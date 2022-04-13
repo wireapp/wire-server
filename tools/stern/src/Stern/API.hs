@@ -103,6 +103,7 @@ routes = do
       Doc.description "User ID"
     Doc.response 200 "User successfully suspended" Doc.end
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
+    Doc.response 404 "Account not found" (Doc.model Doc.errorModel)
 
   post "/users/:uid/unsuspend" (continue unsuspendUser) $
     capture "uid"
@@ -112,6 +113,7 @@ routes = do
       Doc.description "User ID"
     Doc.response 200 "User successfully unsuspended" Doc.end
     Doc.response 400 "Bad request" (Doc.model Doc.errorModel)
+    Doc.response 404 "Account not found" (Doc.model Doc.errorModel)
 
   get "/users" (continue usersByEmail) $
     param "email"

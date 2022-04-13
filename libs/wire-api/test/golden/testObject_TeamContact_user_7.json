@@ -2,13 +2,14 @@
     "accent_id": null,
     "created_at": "1864-05-06T11:54:20.119Z",
     "email": "\u0003𮋵@",
+    "email_unvalidated": "foobar@example.com",
     "handle": null,
     "id": "00000002-0000-0002-0000-000000000000",
     "managed_by": "wire",
     "name": "7",
     "role": "admin",
     "saml_idp": null,
-    "scim_external_id": "sim-external@example.com",
+    "scim_external_id": "0307979d-c742-4421-954a-9ceb1f22e58f",
     "sso": null,
     "team": null
 }

@@ -1156,6 +1156,7 @@ CREATE TABLE brig_test.user (
     assets list<frozen<asset>>,
     country ascii,
     email text,
+    email_unvalidated text,
     expires timestamp,
     feature_conference_calling int,
     handle text,

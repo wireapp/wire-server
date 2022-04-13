@@ -14,9 +14,12 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE RecordWildCards #-}
 
-module Galley.API.MLS.Message where
+module Galley.API.MLS.Message (postMLSMessage) where
 
+import Control.Arrow
+import Control.Comonad
 import Control.Lens (preview, to)
 import Data.Id
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
@@ -27,32 +30,29 @@ import Data.Time
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.KeyPackage
+import Galley.API.Push
 import Galley.API.Util
-import Galley.Data.Conversation.Types
+import Galley.Data.Conversation.Types hiding (Conversation)
+import qualified Galley.Data.Conversation.Types as Data
+import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.ConversationStore
-import Galley.Effects.ExternalAccess
-import Galley.Effects.FederatorAccess
-import Galley.Effects.GundeckAccess
-import Galley.Effects.LegalHoldStore
 import Galley.Effects.MemberStore
-import Galley.Effects.TeamStore
 import Galley.Options
-import Galley.Types.Conversations.Members
+import Galley.Types
 import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
+import Polysemy.TinyLog
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Event.Conversation
 import Wire.API.Federation.Error
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
@@ -65,7 +65,8 @@ postMLSMessage ::
          ErrorS 'ConvNotFound,
          ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSProposalNotFound
+         ErrorS 'MLSProposalNotFound,
+         TinyLog
        ]
       r
   ) =>
@@ -74,12 +75,29 @@ postMLSMessage ::
   RawMLS SomeMessage ->
   Sem r [Event]
 postMLSMessage lusr con smsg = case rmValue smsg of
-  SomeMessage SMLSPlainText msg -> case msgTBS (msgPayload msg) of
-    CommitMessage c ->
-      processCommit lusr con (rmRaw smsg) (msgEpoch msg) (msgGroupId msg) c
-    ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
-    ProposalMessage _ -> pure mempty -- FUTUREWORK: handle proposals
-  SomeMessage SMLSCipherText _ -> pure mempty -- FUTUREWORK: handle encrypted messages
+  SomeMessage tag msg -> do
+    -- fetch conversation
+    qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+    lcnv <- ensureLocal lusr qcnv -- FUTUREWORK: allow remote conversations
+    conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+
+    -- validate message
+    events <- case tag of
+      SMLSPlainText -> case msgTBS (msgPayload msg) of
+        CommitMessage c ->
+          processCommit lusr con conv (msgEpoch msg) c
+        ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
+        ProposalMessage _ -> pure mempty -- FUTUREWORK: handle proposals
+      SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
+        Right CommitMessageTag -> throwS @'MLSUnsupportedMessage
+        Right ProposalMessageTag -> throwS @'MLSUnsupportedMessage
+        Right ApplicationMessageTag -> pure mempty
+        Left _ -> throwS @'MLSUnsupportedMessage
+
+    -- forward message
+    propagateMessage lusr conv con (rmRaw smsg)
+
+    pure events
 
 type HasProposalEffects r =
   ( Member BrigAccess r,
@@ -125,17 +143,11 @@ processCommit ::
   ) =>
   Local UserId ->
   ConnId ->
-  ByteString ->
+  Data.Conversation ->
   Epoch ->
-  GroupId ->
   Commit ->
   Sem r [Event]
-processCommit lusr con _raw epoch gid commit = do
-  -- fetch conversation
-  qcnv <- getConversationIdByGroupId gid >>= noteS @'ConvNotFound
-  lcnv <- ensureLocal lusr qcnv -- FUTUREWORK: allow remote conversations
-  conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-
+processCommit lusr con conv epoch commit = do
   -- check epoch number
   curEpoch <-
     preview (to convProtocol . _ProtocolMLS . to cnvmlsEpoch) conv
@@ -147,7 +159,7 @@ processCommit lusr con _raw epoch gid commit = do
   events <- executeProposalAction lusr con conv action
 
   -- increment epoch number
-  setConversationEpoch (tUnqualified lcnv) (succ epoch)
+  setConversationEpoch (Data.convId conv) (succ epoch)
 
   pure events
 
@@ -188,7 +200,7 @@ executeProposalAction ::
   ) =>
   Local UserId ->
   ConnId ->
-  Conversation ->
+  Data.Conversation ->
   ProposalAction ->
   Sem r [Event]
 executeProposalAction lusr con conv action = do
@@ -228,7 +240,7 @@ executeProposalAction lusr con conv action = do
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError
 
-convClientMap :: Local x -> Conversation -> ClientMap
+convClientMap :: Local x -> Data.Conversation -> ClientMap
 convClientMap loc =
   mconcat
     [ foldMap localMember . convLocalMembers,
@@ -236,6 +248,37 @@ convClientMap loc =
     ]
   where
     localMember lm = Map.singleton (qUntagged (qualifyAs loc (lmId lm))) (lmMLSClients lm)
+
+-- | Propagate a message.
+propagateMessage ::
+  Member ExternalAccess r =>
+  Member GundeckAccess r =>
+  Member (Input UTCTime) r =>
+  Member TinyLog r =>
+  Local UserId ->
+  Data.Conversation ->
+  ConnId ->
+  ByteString ->
+  Sem r ()
+propagateMessage lusr conv con raw = do
+  -- FUTUREWORK: check the epoch
+  let lmems = Data.convLocalMembers conv
+      -- FUTUREWORK: support remote recipients
+      lmMap = Map.fromList $ fmap (lmId &&& id) lmems
+  now <- input @UTCTime
+  let lcnv = qualifyAs lusr (Data.convId conv)
+      qcnv = qUntagged lcnv
+      e = Event qcnv (qUntagged lusr) now $ EdMLSMessage raw
+      lclients = tUnqualified . clients lusr <$> lmems
+      mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
+      mkPush u c = newMessagePush lcnv lmMap (Just con) defMessageMetadata (u, c) e
+  runMessagePush lusr (Just qcnv) $
+    foldMap (uncurry mkPush) (cToList =<< lclients)
+  where
+    cToList :: (UserId, Set ClientId) -> [(UserId, ClientId)]
+    cToList (u, s) = (u,) <$> Set.toList s
+    clients :: Local x -> LocalMember -> Local (UserId, Set ClientId)
+    clients loc LocalMember {..} = qualifyAs loc (lmId, lmMLSClients)
 
 --------------------------------------------------------------------------------
 -- Error handling of proposal execution

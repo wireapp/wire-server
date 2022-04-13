@@ -63,7 +63,8 @@ data IndexUser = IndexUser
     _iuRole :: Maybe Role,
     _iuSearchVisibilityInbound :: Maybe SearchVisibilityInbound,
     _iuScimExternalId :: Maybe Text,
-    _iuSso :: Maybe Sso
+    _iuSso :: Maybe Sso,
+    _iuEmailUnvalidated :: Maybe Email
   }
 
 data IndexQuery r = IndexQuery Query Filter [DefaultSort]
@@ -99,7 +100,8 @@ data UserDoc = UserDoc
     udRole :: Maybe Role,
     udSearchVisibilityInbound :: Maybe SearchVisibilityInbound,
     udScimExternalId :: Maybe Text,
-    udSso :: Maybe Sso
+    udSso :: Maybe Sso,
+    udEmailUnvalidated :: Maybe Email
   }
   deriving (Eq, Show)
 
@@ -122,7 +124,8 @@ instance ToJSON UserDoc where
         "role" .= udRole ud,
         (fromString . T.unpack $ searchVisibilityInboundFieldName) .= udSearchVisibilityInbound ud,
         "scim_external_id" .= udScimExternalId ud,
-        "sso" .= udSso ud
+        "sso" .= udSso ud,
+        "email_unvalidated" .= udEmailUnvalidated ud
       ]
 
 instance FromJSON UserDoc where
@@ -142,6 +145,7 @@ instance FromJSON UserDoc where
       <*> o .:? (fromString . T.unpack $ searchVisibilityInboundFieldName)
       <*> o .:? "scim_external_id"
       <*> o .:? "sso"
+      <*> o .:? "email_unvalidated"
 
 searchVisibilityInboundFieldName :: Text
 searchVisibilityInboundFieldName = "search_visibility_inbound"
@@ -171,7 +175,8 @@ mkIndexUser u v =
       _iuRole = Nothing,
       _iuSearchVisibilityInbound = Nothing,
       _iuScimExternalId = Nothing,
-      _iuSso = Nothing
+      _iuSso = Nothing,
+      _iuEmailUnvalidated = Nothing
     }
 
 indexToDoc :: IndexUser -> UserDoc
@@ -191,7 +196,8 @@ indexToDoc iu =
       udRole = _iuRole iu,
       udSearchVisibilityInbound = _iuSearchVisibilityInbound iu,
       udScimExternalId = _iuScimExternalId iu,
-      udSso = _iuSso iu
+      udSso = _iuSso iu,
+      udEmailUnvalidated = _iuEmailUnvalidated iu
     }
 
 -- | FUTUREWORK: Transliteration should be left to ElasticSearch (ICU plugin), but this will
@@ -218,5 +224,6 @@ docToIndex ud =
       _iuRole = udRole ud,
       _iuSearchVisibilityInbound = udSearchVisibilityInbound ud,
       _iuScimExternalId = udScimExternalId ud,
-      _iuSso = udSso ud
+      _iuSso = udSso ud,
+      _iuEmailUnvalidated = udEmailUnvalidated ud
     }

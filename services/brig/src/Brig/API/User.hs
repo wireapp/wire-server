@@ -32,7 +32,7 @@ module Brig.API.User
     lookupHandle,
     changeManagedBy,
     changeAccountStatus,
-    suspendAccount,
+    changeSingleAccountStatus,
     Data.lookupAccounts,
     Data.lookupAccount,
     Data.lookupStatus,
@@ -127,7 +127,7 @@ import Brig.User.Email
 import Brig.User.Handle
 import Brig.User.Handle.Blacklist
 import Brig.User.Phone
-import Brig.User.Search.Index (MonadIndexIO)
+import Brig.User.Search.Index (MonadIndexIO, reindex)
 import qualified Brig.User.Search.TeamSize as TeamSize
 import Cassandra
 import Control.Arrow ((&&&))
@@ -140,7 +140,7 @@ import Data.Handle (Handle)
 import Data.Id as Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
-import Data.List1 (List1)
+import Data.List1 as List1 (List1, singleton)
 import qualified Data.Map.Strict as Map
 import qualified Data.Metrics as Metrics
 import Data.Misc (PlainTextPassword (..))
@@ -586,8 +586,10 @@ changeSelfEmail u email allowScim = do
   changeEmail u email allowScim !>> Error.changeEmailError >>= \case
     ChangeEmailIdempotent ->
       pure ChangeEmailResponseIdempotent
-    ChangeEmailNeedsActivation (usr, adata, en) -> do
-      lift $ sendOutEmail usr adata en
+    ChangeEmailNeedsActivation (usr, adata, en) -> lift $ do
+      sendOutEmail usr adata en
+      wrapClient $ Data.updateEmailUnvalidated u email
+      wrapClient $ reindex u
       pure ChangeEmailResponseNeedsActivation
   where
     sendOutEmail usr adata en = do
@@ -738,12 +740,7 @@ changeAccountStatus ::
   AccountStatus ->
   ExceptT AccountStatusError m ()
 changeAccountStatus usrs status = do
-  ev <- case status of
-    Active -> return UserResumed
-    Suspended -> lift $ mapConcurrently revokeAllCookies usrs >> return UserSuspended
-    Deleted -> throwE InvalidAccountStatus
-    Ephemeral -> throwE InvalidAccountStatus
-    PendingInvitation -> throwE InvalidAccountStatus
+  ev <- mkUserEvent usrs status
   lift $ mapConcurrently_ (update ev) usrs
   where
     update ::
@@ -754,7 +751,8 @@ changeAccountStatus usrs status = do
       Data.updateStatus u status
       Intra.onUserEvent u Nothing (ev u)
 
-suspendAccount ::
+changeSingleAccountStatus ::
+  forall m.
   ( MonadClient m,
     MonadLogger m,
     MonadIndexIO m,
@@ -764,13 +762,24 @@ suspendAccount ::
     HasRequestId m,
     MonadUnliftIO m
   ) =>
-  HasCallStack =>
-  List1 UserId ->
-  m ()
-suspendAccount usrs =
-  runExceptT (changeAccountStatus usrs Suspended) >>= \case
-    Right _ -> pure ()
-    Left InvalidAccountStatus -> error "impossible."
+  UserId ->
+  AccountStatus ->
+  ExceptT AccountStatusError m ()
+changeSingleAccountStatus uid status = do
+  unlessM (Data.userExists uid) $ throwE AccountNotFound
+  ev <- mkUserEvent (List1.singleton uid) status
+  lift $ do
+    Data.updateStatus uid status
+    Intra.onUserEvent uid Nothing (ev uid)
+
+mkUserEvent :: (MonadUnliftIO m, Traversable t, MonadClient m) => t UserId -> AccountStatus -> ExceptT AccountStatusError m (UserId -> UserEvent)
+mkUserEvent usrs status =
+  case status of
+    Active -> return UserResumed
+    Suspended -> lift $ mapConcurrently revokeAllCookies usrs >> return UserSuspended
+    Deleted -> throwE InvalidAccountStatus
+    Ephemeral -> throwE InvalidAccountStatus
+    PendingInvitation -> throwE InvalidAccountStatus
 
 -------------------------------------------------------------------------------
 -- Activation
@@ -832,6 +841,7 @@ onActivated (AccountActivated account) = do
   return (uid, userIdentity (accountUser account), True)
 onActivated (EmailActivated uid email) = do
   wrapHttpClient $ Intra.onUserEvent uid Nothing (emailUpdated uid email)
+  wrapHttpClient $ Data.deleteEmailUnvalidated uid
   return (uid, Just (EmailIdentity email), False)
 onActivated (PhoneActivated uid phone) = do
   wrapHttpClient $ Intra.onUserEvent uid Nothing (phoneUpdated uid phone)

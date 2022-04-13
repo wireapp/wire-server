@@ -195,6 +195,7 @@ deleteUserError DeleteUserOwnerDeletingSelf = StdError (errorToWai @'E.OwnerDele
 
 accountStatusError :: AccountStatusError -> Error
 accountStatusError InvalidAccountStatus = StdError invalidAccountStatus
+accountStatusError AccountNotFound = StdError (notFound "Account not found")
 
 phoneError :: PhoneException -> Error
 phoneError PhoneNumberUnreachable = StdError (errorToWai @'E.InvalidPhone)

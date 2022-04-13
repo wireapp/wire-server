@@ -1587,6 +1587,31 @@ wsAssertMLSWelcome u welcome n = do
   evtFrom e @?= u
   evtData e @?= EdMLSWelcome welcome
 
+wsAssertMLSMessage ::
+  HasCallStack =>
+  Qualified ConvId ->
+  Qualified UserId ->
+  ByteString ->
+  Notification ->
+  IO ()
+wsAssertMLSMessage conv u message n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  assertMLSMessageEvent conv u message e
+
+assertMLSMessageEvent ::
+  HasCallStack =>
+  Qualified ConvId ->
+  Qualified UserId ->
+  ByteString ->
+  Event ->
+  IO ()
+assertMLSMessageEvent conv u message e = do
+  evtConv e @?= conv
+  evtType e @?= MLSMessageAdd
+  evtFrom e @?= u
+  evtData e @?= EdMLSMessage message
+
 -- | This assumes the default role name
 wsAssertMemberJoin :: HasCallStack => Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
 wsAssertMemberJoin conv usr new = wsAssertMemberJoinWithRole conv usr new roleNameWireAdmin

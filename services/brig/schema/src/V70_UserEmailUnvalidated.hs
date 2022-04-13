@@ -1,3 +1,5 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,22 +17,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS.KeyPackage where
+module V70_UserEmailUnvalidated
+  ( migration,
+  )
+where
 
-import Galley.Effects.BrigAccess
+import Cassandra.Schema
 import Imports
-import Polysemy
-import Wire.API.Error
-import Wire.API.Error.Galley
-import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
+import Text.RawString.QQ
 
-derefKeyPackage ::
-  Members
-    '[ BrigAccess,
-       ErrorS 'MLSKeyPackageRefNotFound
-     ]
-    r =>
-  KeyPackageRef ->
-  Sem r ClientIdentity
-derefKeyPackage = noteS @'MLSKeyPackageRefNotFound <=< getClientByKeyPackageRef
+migration :: Migration
+migration =
+  Migration 70 "Add email_unvalidated to user table" $
+    schema'
+      [r| ALTER TABLE user ADD (
+          email_unvalidated text
+        )
+     |]
