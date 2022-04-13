@@ -33,6 +33,4 @@ derefKeyPackage ::
     r =>
   KeyPackageRef ->
   Sem r ClientIdentity
-derefKeyPackage ref =
-  maybe (throwS @'MLSKeyPackageRefNotFound) pure
-    =<< getClientByKeyPackageRef ref
+derefKeyPackage = noteS @'MLSKeyPackageRefNotFound <=< getClientByKeyPackageRef
