@@ -46,6 +46,8 @@ import qualified Brig.Docs.Swagger
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
+import Brig.Sem.BrigTime (BrigTime)
+import Brig.Sem.CodeStore (CodeStore)
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
@@ -92,6 +94,7 @@ import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthUserId)
+import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
 import Servant.Swagger.Internal.Orphans ()
@@ -257,7 +260,9 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
 -- - UserDeleted event to contacts of the user
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
-sitemap :: Routes Doc.ApiBuilder (Handler r) ()
+sitemap ::
+  Members '[CodeStore, BrigTime] r =>
+  Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   -- User Handle API ----------------------------------------------------
 
@@ -418,12 +423,15 @@ sitemap = do
   Team.routesPublic
   Calling.routesPublic
 
-apiDocs :: Routes Doc.ApiBuilder (Handler r) ()
+apiDocs ::
+  forall r.
+  Members '[CodeStore, BrigTime] r =>
+  Routes Doc.ApiBuilder (Handler r) ()
 apiDocs =
   get
     "/users/api-docs"
     ( \(_ ::: url) k ->
-        let doc = mkSwaggerApi (decodeLatin1 url) Public.Swagger.models sitemap
+        let doc = mkSwaggerApi (decodeLatin1 url) Public.Swagger.models (sitemap @r)
          in k $ json doc
     )
     $ accept "application" "json"
@@ -794,11 +802,17 @@ changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
   handle <- maybe (throwError Public.ChangeHandleInvalid) pure $ parseHandle h
   API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
 
-beginPasswordResetH :: JSON ::: JsonRequest Public.NewPasswordReset -> (Handler r) Response
+beginPasswordResetH ::
+  Members '[CodeStore, BrigTime] r =>
+  JSON ::: JsonRequest Public.NewPasswordReset ->
+  (Handler r) Response
 beginPasswordResetH (_ ::: req) =
   setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
 
-beginPasswordReset :: Public.NewPasswordReset -> (Handler r) ()
+beginPasswordReset ::
+  Members '[CodeStore, BrigTime] r =>
+  Public.NewPasswordReset ->
+  (Handler r) ()
 beginPasswordReset (Public.NewPasswordReset target) = do
   checkWhitelist target
   (u, pair) <- API.beginPasswordReset target !>> pwResetError
@@ -807,7 +821,10 @@ beginPasswordReset (Public.NewPasswordReset target) = do
     Left email -> sendPasswordResetMail email pair loc
     Right phone -> wrapClient $ sendPasswordResetSms phone pair loc
 
-completePasswordResetH :: JSON ::: JsonRequest Public.CompletePasswordReset -> (Handler r) Response
+completePasswordResetH ::
+  Members '[CodeStore, BrigTime] r =>
+  JSON ::: JsonRequest Public.CompletePasswordReset ->
+  (Handler r) Response
 completePasswordResetH (_ ::: req) = do
   Public.CompletePasswordReset {..} <- parseJsonBody req
   API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
@@ -1047,7 +1064,10 @@ instance ToJSON DeprecatedMatchingResult where
         "auto-connects" .= ([] :: [()])
       ]
 
-deprecatedCompletePasswordResetH :: JSON ::: Public.PasswordResetKey ::: JsonRequest Public.PasswordReset -> (Handler r) Response
+deprecatedCompletePasswordResetH ::
+  Members '[CodeStore, BrigTime] r =>
+  JSON ::: Public.PasswordResetKey ::: JsonRequest Public.PasswordReset ->
+  (Handler r) Response
 deprecatedCompletePasswordResetH (_ ::: k ::: req) = do
   pwr <- parseJsonBody req
   API.completePasswordReset

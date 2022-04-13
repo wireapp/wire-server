@@ -42,6 +42,8 @@ import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
+import Brig.Sem.BrigTime (BrigTime)
+import Brig.Sem.CodeStore (CodeStore)
 import qualified Brig.Team.API as Team
 import Brig.Team.DB (lookupInvitationByEmail)
 import Brig.Types
@@ -70,6 +72,7 @@ import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
@@ -156,7 +159,9 @@ swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
 ---------------------------------------------------------------------------
 -- Sitemap (wai-route)
 
-sitemap :: Routes a (Handler r) ()
+sitemap ::
+  Members '[CodeStore, BrigTime] r =>
+  Routes a (Handler r) ()
 sitemap = do
   get "/i/status" (continue $ const $ return empty) true
   head "/i/status" (continue $ const $ return empty) true
@@ -456,12 +461,18 @@ newtype GetActivationCodeResp = GetActivationCodeResp (ActivationKey, Activation
 instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-getPasswordResetCodeH :: JSON ::: Either Email Phone -> (Handler r) Response
+getPasswordResetCodeH ::
+  Members '[CodeStore, BrigTime] r =>
+  JSON ::: Either Email Phone ->
+  (Handler r) Response
 getPasswordResetCodeH (_ ::: emailOrPhone) = do
   maybe (throwStd invalidPwResetKey) (pure . json) =<< lift (getPasswordResetCode emailOrPhone)
 
-getPasswordResetCode :: Either Email Phone -> (AppT r) (Maybe GetPasswordResetCodeResp)
-getPasswordResetCode emailOrPhone = do
+getPasswordResetCode ::
+  Members '[CodeStore, BrigTime] r =>
+  Either Email Phone ->
+  (AppT r) (Maybe GetPasswordResetCodeResp)
+getPasswordResetCode emailOrPhone =
   GetPasswordResetCodeResp <$$> API.lookupPasswordResetCode emailOrPhone
 
 newtype GetPasswordResetCodeResp = GetPasswordResetCodeResp (PasswordResetKey, PasswordResetCode)

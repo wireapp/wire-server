@@ -523,6 +523,7 @@ executable brig-integration
     , network
     , optparse-applicative
     , pem
+    , polysemy
     , process
     , proto-lens
     , random >=1.0

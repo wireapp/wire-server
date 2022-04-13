@@ -28,21 +28,31 @@ import Bilge.Assert
 import qualified Brig.Options as Opt
 import Brig.Types
 import Brig.Types.User.Auth hiding (user)
+import qualified Cassandra as DB
 import Data.Misc (PlainTextPassword (..))
 import Imports
 import Test.Tasty hiding (Timeout)
 import Util
 
-tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
-tests _cl _at _conf p b _c _g =
+tests ::
+  DB.ClientState ->
+  ConnectionLimit ->
+  Opt.Timeout ->
+  Opt.Opts ->
+  Manager ->
+  Brig ->
+  Cannon ->
+  Galley ->
+  TestTree
+tests cs _cl _at _conf p b _c _g =
   testGroup
     "password-reset"
-    [ test p "post /password-reset[/complete] - 201[/200]" $ testPasswordReset b,
-      test p "post /password-reset after put /access/self/email - 400" $ testPasswordResetAfterEmailUpdate b
+    [ test p "post /password-reset[/complete] - 201[/200]" $ testPasswordReset b cs,
+      test p "post /password-reset after put /access/self/email - 400" $ testPasswordResetAfterEmailUpdate b cs
     ]
 
-testPasswordReset :: Brig -> Http ()
-testPasswordReset brig = do
+testPasswordReset :: Brig -> DB.ClientState -> Http ()
+testPasswordReset brig cs = do
   u <- randomUser brig
   let Just email = userEmail u
   let uid = userId u
@@ -50,7 +60,7 @@ testPasswordReset brig = do
   let newpw = PlainTextPassword "newsecret"
   do
     initiatePasswordReset brig email !!! const 201 === statusCode
-    passwordResetData <- preparePasswordReset brig email uid newpw
+    passwordResetData <- preparePasswordReset brig cs email uid newpw
     completePasswordReset brig passwordResetData !!! const 200 === statusCode
   -- try login
   login brig (defEmailLogin email) PersistentCookie
@@ -60,18 +70,18 @@ testPasswordReset brig = do
   -- reset password again to the same new password, get 400 "must be different"
   do
     initiatePasswordReset brig email !!! const 201 === statusCode
-    passwordResetData <- preparePasswordReset brig email uid newpw
+    passwordResetData <- preparePasswordReset brig cs email uid newpw
     completePasswordReset brig passwordResetData !!! const 409 === statusCode
 
-testPasswordResetAfterEmailUpdate :: Brig -> Http ()
-testPasswordResetAfterEmailUpdate brig = do
+testPasswordResetAfterEmailUpdate :: Brig -> DB.ClientState -> Http ()
+testPasswordResetAfterEmailUpdate brig cs = do
   u <- randomUser brig
   let uid = userId u
   let Just email = userEmail u
   eml <- randomEmail
   initiateEmailUpdateLogin brig eml (emailLogin email defPassword Nothing) uid !!! const 202 === statusCode
   initiatePasswordReset brig email !!! const 201 === statusCode
-  passwordResetData <- preparePasswordReset brig email uid (PlainTextPassword "newsecret")
+  passwordResetData <- preparePasswordReset brig cs email uid (PlainTextPassword "newsecret")
   -- activate new email
   activateEmail brig eml
   checkEmail brig uid eml

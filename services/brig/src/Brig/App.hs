@@ -23,6 +23,7 @@
 
 module Brig.App
   ( schemaVersion,
+    BrigCanonicalEffects,
 
     -- * App Environment
     Env,
@@ -95,6 +96,10 @@ import Brig.Provider.Template
 import qualified Brig.Queue.Stomp as Stomp
 import Brig.Queue.Types (Queue (..))
 import qualified Brig.SMTP as SMTP
+import Brig.Sem.BrigTime (BrigTime)
+import Brig.Sem.BrigTime.IO
+import Brig.Sem.CodeStore (CodeStore)
+import Brig.Sem.CodeStore.Cassandra
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
 import Brig.Types (Locale (..), TurnURI)
@@ -576,6 +581,15 @@ newtype HttpClientIO a = HttpClientIO
       MonadIndexIO
     )
 
+type BrigCanonicalEffects =
+  '[ BrigTime,
+     CodeStore,
+     Embed Cas.Client, -- FUTUREWORK: remove this effect once MonadClient
+     -- constraints are removed from application code
+     Embed IO,
+     Final IO
+   ]
+
 instance MonadZAuth HttpClientIO where
   liftZAuth za = view zauthEnv >>= flip runZAuth za
 
@@ -609,10 +623,18 @@ instance MonadIndexIO (AppT r) => MonadIndexIO (ExceptT err (AppT r)) where
 instance Monad m => HasRequestId (AppT r) where
   getRequestId = view requestId
 
-runAppT :: Env -> AppT '[Final IO] a -> IO a
-runAppT e (AppT ma) = runFinal $ runReaderT ma e
+runAppT :: Env -> AppT BrigCanonicalEffects a -> IO a
+runAppT e (AppT ma) =
+  runFinal
+    . embedToFinal
+    . interpretClientToIO (_casClient e)
+    . codeStoreToCassandra @Cas.Client
+    . brigTimeToIO @IO (_currentTime e)
+    $ runReaderT ma e
 
-runAppResourceT :: ResourceT (AppT '[Final IO]) a -> (AppT '[Final IO]) a
+runAppResourceT ::
+  ResourceT (AppT BrigCanonicalEffects) a ->
+  (AppT BrigCanonicalEffects) a
 runAppResourceT ma = do
   e <- ask
   liftIO . runResourceT $ transResourceT (runAppT e) ma

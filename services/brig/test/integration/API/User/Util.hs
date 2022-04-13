@@ -24,6 +24,7 @@ import Bilge.Assert
 import qualified Brig.Code as Code
 import Brig.Data.PasswordReset
 import Brig.Options (Opts)
+import Brig.Sem.CodeStore.Cassandra
 import Brig.Types
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Auth hiding (user)
@@ -51,6 +52,7 @@ import Federation.Util (withTempMockFederator)
 import Federator.MockServer (FederatedRequest (..))
 import Gundeck.Types (Notification (..))
 import Imports
+import Polysemy
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import Util
@@ -188,15 +190,23 @@ initiateEmailUpdateNoSend brig email uid =
   let emailUpdate = RequestBodyLBS . encode $ EmailUpdate email
    in put (brig . path "/i/self/email" . contentJson . zUser uid . body emailUpdate)
 
-preparePasswordReset :: Brig -> Email -> UserId -> PlainTextPassword -> (MonadIO m, MonadHttp m) => m CompletePasswordReset
-preparePasswordReset brig email uid newpw = do
+preparePasswordReset ::
+  Brig ->
+  DB.ClientState ->
+  Email ->
+  UserId ->
+  PlainTextPassword ->
+  (MonadIO m, MonadHttp m) => m CompletePasswordReset
+preparePasswordReset brig cs email uid newpw = do
   let qry = queryItem "email" (toByteString' email)
   r <- get $ brig . path "/i/users/password-reset-code" . qry
   let lbs = fromMaybe "" $ responseBody r
   let Just pwcode = PasswordResetCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
-  ident <- PasswordResetIdentityKey <$> mkPasswordResetKey uid
+  ident <- PasswordResetIdentityKey <$> sem (mkPasswordResetKey uid)
   let complete = CompletePasswordReset ident pwcode newpw
   return complete
+  where
+    sem = liftIO . runFinal @IO . interpretClientToIO cs . codeStoreToCassandra @DB.Client
 
 completePasswordReset :: Brig -> CompletePasswordReset -> (MonadIO m, MonadHttp m) => m ResponseLBS
 completePasswordReset brig passwordResetData =
