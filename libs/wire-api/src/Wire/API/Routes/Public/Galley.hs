@@ -54,6 +54,7 @@ import Wire.API.Team
 import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 import Wire.API.Team.Permission (Perm (..))
+import Wire.API.Team.SearchVisibility (TeamSearchVisibilityView)
 
 instance AsHeaders '[ConvId] Conversation Conversation where
   toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
@@ -1050,6 +1051,8 @@ type FeatureAPI =
     :<|> FeatureStatusPut '() 'TeamFeatureSearchVisibility
     :<|> FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureSearchVisibility
     :<|> FeatureStatusDeprecatedPut 'TeamFeatureSearchVisibility
+    :<|> SearchVisibilityGet
+    :<|> SearchVisibilitySet
     :<|> FeatureStatusGet 'TeamFeatureValidateSAMLEmails
     :<|> FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails
     :<|> FeatureStatusGet 'TeamFeatureDigitalSignatures
@@ -1176,6 +1179,34 @@ type AllFeatureConfigsGet =
         :> CanThrow 'TeamNotFound
         :> "feature-configs"
         :> Get '[Servant.JSON] AllFeatureConfigs
+    )
+
+type SearchVisibilityGet =
+  Named
+    "get-search-visibility"
+    ( Summary "Shows the value for search visibility"
+        :> CanThrow 'NotATeamMember
+        :> CanThrow OperationDenied
+        :> ZUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "search-visibility"
+        :> Get '[Servant.JSON] TeamSearchVisibilityView
+    )
+
+type SearchVisibilitySet =
+  Named
+    "set-search-visibility"
+    ( Summary "Sets the search visibility for the whole team"
+        :> CanThrow 'NotATeamMember
+        :> CanThrow OperationDenied
+        :> CanThrow 'TeamSearchVisibilityNotEnabled
+        :> ZUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "search-visibility"
+        :> ReqBody '[JSON] TeamSearchVisibilityView
+        :> MultiVerb 'PUT '[JSON] '[RespondEmpty 204 "Search visibility set"] ()
     )
 
 type MLSMessagingAPI =

@@ -69,7 +69,6 @@ import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team.LegalHold as Public
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.Permission as Public
-import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
 
@@ -353,31 +352,7 @@ sitemap = do
       .&. jsonRequest @Public.ApproveLegalHoldForUserRequest
       .&. accept "application" "json"
 
-  get "/teams/:tid/search-visibility" (continueE Teams.getSearchVisibilityH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getSearchVisibility" $ do
-    summary "Shows the value for search visibility"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    returns (ref Public.modelTeamSearchVisibility)
-    response 200 "Search visibility" end
-
-  put "/teams/:tid/search-visibility" (continueE Teams.setSearchVisibilityH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. jsonRequest @Public.TeamSearchVisibilityView
-      .&. accept "application" "json"
-  document "POST" "setSearchVisibility" $ do
-    summary "Sets the search visibility for the whole team"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    body (ref Public.modelTeamSearchVisibility) $
-      description "Search visibility to be set"
-    response 204 "Search visibility set" end
-    errorSResponse @'TeamSearchVisibilityNotEnabled
-
+  -- todo(leif): serventify
   get "/teams/:tid/features" (continueE Features.getAllFeaturesH) $
     zauthUserId
       .&. capture "tid"
@@ -390,6 +365,7 @@ sitemap = do
 
   -- Custom Backend API -------------------------------------------------
 
+  -- todo(leif): serventify
   get "/custom-backend/by-domain/:domain" (continueE CustomBackend.getCustomBackendByDomainH) $
     capture "domain"
       .&. accept "application" "json"

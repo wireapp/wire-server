@@ -38,7 +38,6 @@ import qualified Wire.API.Team.Feature as Team.Feature
 import qualified Wire.API.Team.Invitation as Team.Invitation
 import qualified Wire.API.Team.Member as Team.Member
 import qualified Wire.API.Team.Permission as Team.Permission
-import qualified Wire.API.Team.SearchVisibility as Team.SearchVisibility
 import qualified Wire.API.User as User
 import qualified Wire.API.User.Activation as User.Activation
 import qualified Wire.API.User.Auth as User.Auth
@@ -126,7 +125,6 @@ models =
     Team.Member.modelNewTeamMember,
     Team.Member.modelTeamMemberDelete,
     Team.Permission.modelPermissions,
-    Team.SearchVisibility.modelTeamSearchVisibility,
     User.modelUserIdList,
     User.modelUser,
     User.modelEmailUpdate,

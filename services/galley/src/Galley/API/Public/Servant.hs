@@ -139,6 +139,8 @@ servantSitemap =
               setTeamSearchVisibilityAvailableInternal
               . DoAuth
           )
+        <@> mkNamedAPI @"get-search-visibility" getSearchVisibility
+        <@> mkNamedAPI @"set-search-visibility" setSearchVisibility
         <@> mkNamedAPI @'("get", 'TeamFeatureValidateSAMLEmails)
           ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails
               getValidateSAMLEmailsInternal
