@@ -1,5 +1,5 @@
 MLS implementation progress:
 
- - commit messages containing add proposals are now processed
- - initial validation and forwarding of all types of messages via POST /mls/messages
- - MLS/Proteus mismatches (e.g. sending a proteus message to an MLS conversation) are now handled
+ - commit messages containing add proposals are now processed (#2247)
+ - initial validation and forwarding of all types of messages via POST /mls/messages (#2253)
+ - MLS/Proteus mismatches (e.g. sending a proteus message to an MLS conversation) are now handled (#2278)
