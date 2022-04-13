@@ -1070,6 +1070,7 @@ type FeatureAPI =
     :<|> FeatureStatusGet 'TeamFeatureSndFactorPasswordChallenge
     :<|> FeatureStatusPut '() 'TeamFeatureSndFactorPasswordChallenge
     :<|> AllFeatureConfigsGet
+    :<|> AllFeaturesGet
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureLegalHold
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSSO
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSearchVisibility
@@ -1178,6 +1179,20 @@ type AllFeatureConfigsGet =
         :> CanThrow OperationDenied
         :> CanThrow 'TeamNotFound
         :> "feature-configs"
+        :> Get '[Servant.JSON] AllFeatureConfigs
+    )
+
+type AllFeaturesGet =
+  Named
+    "get-all-features"
+    ( Summary "Shows the configuration status of every team feature"
+        :> CanThrow 'NotATeamMember
+        :> CanThrow OperationDenied
+        :> CanThrow 'TeamNotFound
+        :> ZUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "features"
         :> Get '[Servant.JSON] AllFeatureConfigs
     )
 

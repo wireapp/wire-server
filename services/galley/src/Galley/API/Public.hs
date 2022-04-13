@@ -352,20 +352,9 @@ sitemap = do
       .&. jsonRequest @Public.ApproveLegalHoldForUserRequest
       .&. accept "application" "json"
 
-  -- todo(leif): serventify
-  get "/teams/:tid/features" (continueE Features.getAllFeaturesH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getAllFeatures" $ do
-    summary "Shows the configuration status of every team feature"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    response 200 "All feature statuses" end
-
   -- Custom Backend API -------------------------------------------------
 
-  -- todo(leif): serventify
+  -- todo(leif): servantify
   get "/custom-backend/by-domain/:domain" (continueE CustomBackend.getCustomBackendByDomainH) $
     capture "domain"
       .&. accept "application" "json"

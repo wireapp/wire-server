@@ -22,7 +22,7 @@ module Galley.API.Teams.Features
     setFeatureStatus,
     getFeatureConfig,
     getAllFeatureConfigs,
-    getAllFeaturesH,
+    getAllFeatures,
     getSSOStatusInternal,
     setSSOStatusInternal,
     getLegalholdStatusInternal,
@@ -91,9 +91,6 @@ import Galley.Options
 import Galley.Types
 import Galley.Types.Teams hiding (newTeam)
 import Imports
-import Network.Wai
-import Network.Wai.Predicate hiding (Error, or, result, setStatus)
-import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -265,23 +262,6 @@ getAllFeatureConfigs zusr = do
         getStatus @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge getSndFactorPasswordChallengeInternal
       ]
 
-getAllFeaturesH ::
-  Members
-    '[ BrigAccess,
-       ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       ErrorS 'TeamNotFound,
-       Input Opts,
-       LegalHoldStore,
-       TeamFeatureStore,
-       TeamStore
-     ]
-    r =>
-  UserId ::: TeamId ::: JSON ->
-  Sem r Response
-getAllFeaturesH (uid ::: tid ::: _) =
-  json <$> getAllFeatures uid tid
-
 getAllFeatures ::
   forall r.
   Members
@@ -297,9 +277,9 @@ getAllFeatures ::
     r =>
   UserId ->
   TeamId ->
-  Sem r Aeson.Value
+  Sem r Aeson.Object
 getAllFeatures uid tid = do
-  Aeson.object
+  KeyMap.fromList
     <$> sequence
       [ getStatus @'WithoutLockStatus @'TeamFeatureSSO getSSOStatusInternal,
         getStatus @'WithoutLockStatus @'TeamFeatureLegalHold getLegalholdStatusInternal,
