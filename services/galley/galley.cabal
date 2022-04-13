@@ -344,6 +344,7 @@ executable galley-integration
       API.Federation.Util
       API.MessageTimer
       API.MLS
+      API.MLS.Util
       API.Roles
       API.SQS
       API.Teams
