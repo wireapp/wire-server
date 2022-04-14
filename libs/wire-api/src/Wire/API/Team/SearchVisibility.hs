@@ -20,12 +20,19 @@
 module Wire.API.Team.SearchVisibility
   ( TeamSearchVisibility (..),
     TeamSearchVisibilityView (..),
+
+    -- * Swagger
+    modelTeamSearchVisibility,
+    typeSearchVisibility,
   )
 where
 
 import Control.Lens ((?~))
+import qualified Data.Aeson as A
 import Data.Schema
+import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
+import qualified Data.Swagger.Build.Api as Doc
 import Deriving.Aeson
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -61,6 +68,11 @@ data TeamSearchVisibility
   deriving (Arbitrary) via (GenericUniform TeamSearchVisibility)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamSearchVisibility)
 
+typeSearchVisibility :: Doc.DataType
+typeSearchVisibility =
+  Doc.string . Doc.enum $
+    cs . A.encode <$> [(minBound :: TeamSearchVisibility) ..]
+
 instance ToSchema TeamSearchVisibility where
   schema =
     enum @Text
@@ -77,6 +89,12 @@ newtype TeamSearchVisibilityView = TeamSearchVisibilityView TeamSearchVisibility
   deriving stock (Eq, Show, Ord, Bounded, Generic)
   deriving newtype (Arbitrary)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamSearchVisibilityView)
+
+modelTeamSearchVisibility :: Doc.Model
+modelTeamSearchVisibility = Doc.defineModel "TeamSearchVisibility" $ do
+  Doc.description "Search visibility value for the team"
+  Doc.property "search_visibility" typeSearchVisibility $ do
+    Doc.description "value of visibility"
 
 instance ToSchema TeamSearchVisibilityView where
   schema =
