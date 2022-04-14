@@ -1,5 +1,5 @@
 # Requires docker >= 17.05 (requires support for multi-stage builds)
-FROM alpine:3.11 as libzauth-builder
+FROM alpine:3.15 as libzauth-builder
 
 # Compile libzauth
 COPY libs/libzauth /src/libzauth
@@ -8,7 +8,7 @@ RUN cd /src/libzauth/libzauth-c \
     && make install
 
 # Nginz container
-FROM alpine:3.11
+FROM alpine:3.15
 
 # Install libzauth
 COPY --from=libzauth-builder /usr/local/include/zauth.h /usr/local/include/zauth.h
@@ -46,7 +46,7 @@ ENV CONFIG --prefix=/etc/nginx \
 # This uses dockerfile logic from before 1.16
 ####################################################################################
 
-ENV NGINX_VERSION 1.16.1
+ENV NGINX_VERSION 1.20.2
 
 RUN apk update
 
