@@ -1264,7 +1264,7 @@ type CustomBackendAPI =
         :> CanThrow 'CustomBackendNotFound
         :> "custom-backend"
         :> "by-domain"
-        :> Capture "domain" Domain
+        :> Capture' '[Description "URL-encoded email domain"] "domain" Domain
         :> Get '[JSON] CustomBackend
     )
 
