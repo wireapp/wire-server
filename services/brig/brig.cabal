@@ -60,7 +60,6 @@ library
       Brig.Data.Instances
       Brig.Data.LoginCode
       Brig.Data.MLS.KeyPackage
-      Brig.Data.PasswordReset
       Brig.Data.Properties
       Brig.Data.Types
       Brig.Data.User

@@ -32,7 +32,6 @@ module Brig.Data.Activation
 where
 
 import Brig.App (Env)
-import Brig.Data.PasswordReset
 import Brig.Data.User
 import Brig.Data.UserKey
 import Brig.Options
@@ -127,7 +126,7 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
         return . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
       -- if the key is the same, we only want to update our profile
       | otherwise = do
-        lift (runM (codeStoreToCassandra @m @'[Embed m] (mkPasswordResetKey uid >>= E.codeDelete)))
+        lift (runM (codeStoreToCassandra @m @'[Embed m] (E.mkPasswordResetKey uid >>= E.codeDelete)))
         claim key uid
         lift $ foldKey (updateEmailAndDeleteEmailUnvalidated uid) (updatePhone uid) key
         for_ oldKey $ lift . deleteKey

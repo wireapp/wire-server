@@ -100,6 +100,8 @@ import Brig.Sem.BrigTime (BrigTime)
 import Brig.Sem.BrigTime.IO
 import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.CodeStore.Cassandra
+import Brig.Sem.PasswordResetStore (PasswordResetStore)
+import Brig.Sem.PasswordResetStore.CodeStore
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
 import Brig.Types (Locale (..), TurnURI)
@@ -582,7 +584,8 @@ newtype HttpClientIO a = HttpClientIO
     )
 
 type BrigCanonicalEffects =
-  '[ BrigTime,
+  '[ PasswordResetStore,
+     BrigTime,
      CodeStore,
      Embed Cas.Client, -- FUTUREWORK: remove this effect once MonadClient
      -- constraints are removed from application code
@@ -630,6 +633,7 @@ runAppT e (AppT ma) =
     . interpretClientToIO (_casClient e)
     . codeStoreToCassandra @Cas.Client
     . brigTimeToIO @IO (_currentTime e)
+    . passwordResetStoreToCodeStore
     $ runReaderT ma e
 
 runAppResourceT ::

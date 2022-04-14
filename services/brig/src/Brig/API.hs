@@ -23,14 +23,14 @@ where
 import Brig.API.Handler (Handler)
 import qualified Brig.API.Internal as Internal
 import qualified Brig.API.Public as Public
-import Brig.Sem.BrigTime (BrigTime)
 import Brig.Sem.CodeStore
+import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Data.Swagger.Build.Api as Doc
 import Network.Wai.Routing (Routes)
 import Polysemy
 
 sitemap ::
-  Members '[CodeStore, BrigTime] r =>
+  Members '[CodeStore, PasswordResetStore] r =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   Public.sitemap

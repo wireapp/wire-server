@@ -46,8 +46,8 @@ import qualified Brig.Docs.Swagger
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
-import Brig.Sem.BrigTime (BrigTime)
 import Brig.Sem.CodeStore (CodeStore)
+import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
@@ -261,7 +261,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
 sitemap ::
-  Members '[CodeStore, BrigTime] r =>
+  Members '[CodeStore, PasswordResetStore] r =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   -- User Handle API ----------------------------------------------------
@@ -425,7 +425,7 @@ sitemap = do
 
 apiDocs ::
   forall r.
-  Members '[CodeStore, BrigTime] r =>
+  Members '[CodeStore, PasswordResetStore] r =>
   Routes Doc.ApiBuilder (Handler r) ()
 apiDocs =
   get
@@ -803,14 +803,14 @@ changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
   API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
 
 beginPasswordResetH ::
-  Members '[CodeStore, BrigTime] r =>
+  Members '[PasswordResetStore] r =>
   JSON ::: JsonRequest Public.NewPasswordReset ->
   (Handler r) Response
 beginPasswordResetH (_ ::: req) =
   setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
 
 beginPasswordReset ::
-  Members '[CodeStore, BrigTime] r =>
+  Members '[PasswordResetStore] r =>
   Public.NewPasswordReset ->
   (Handler r) ()
 beginPasswordReset (Public.NewPasswordReset target) = do
@@ -822,7 +822,7 @@ beginPasswordReset (Public.NewPasswordReset target) = do
     Right phone -> wrapClient $ sendPasswordResetSms phone pair loc
 
 completePasswordResetH ::
-  Members '[CodeStore, BrigTime] r =>
+  Members '[CodeStore, PasswordResetStore] r =>
   JSON ::: JsonRequest Public.CompletePasswordReset ->
   (Handler r) Response
 completePasswordResetH (_ ::: req) = do
@@ -1065,7 +1065,7 @@ instance ToJSON DeprecatedMatchingResult where
       ]
 
 deprecatedCompletePasswordResetH ::
-  Members '[CodeStore, BrigTime] r =>
+  Members '[CodeStore, PasswordResetStore] r =>
   JSON ::: Public.PasswordResetKey ::: JsonRequest Public.PasswordReset ->
   (Handler r) Response
 deprecatedCompletePasswordResetH (_ ::: k ::: req) = do

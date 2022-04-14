@@ -22,8 +22,8 @@ module API.User.Util where
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import qualified Brig.Code as Code
-import Brig.Data.PasswordReset
 import Brig.Options (Opts)
+import Brig.Sem.CodeStore
 import Brig.Sem.CodeStore.Cassandra
 import Brig.Types
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))

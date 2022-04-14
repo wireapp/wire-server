@@ -101,7 +101,6 @@ import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.Blacklist as Blacklist
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
-import qualified Brig.Data.PasswordReset as Data
 import qualified Brig.Data.Properties as Data
 import Brig.Data.User
 import qualified Brig.Data.User as Data
@@ -115,9 +114,10 @@ import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
 import Brig.Password
 import qualified Brig.Queue as Queue
-import Brig.Sem.BrigTime (BrigTime)
 import Brig.Sem.CodeStore (CodeStore)
 import qualified Brig.Sem.CodeStore as E
+import Brig.Sem.PasswordResetStore (PasswordResetStore)
+import qualified Brig.Sem.PasswordResetStore as E
 import qualified Brig.Team.DB as Team
 import Brig.Types
 import Brig.Types.Code (Timeout (..))
@@ -972,7 +972,7 @@ changePassword uid cp = do
       lift $ wrapClient (Data.updatePassword uid newpw) >> wrapClient (revokeAllCookies uid)
 
 beginPasswordReset ::
-  Members '[CodeStore, BrigTime] r =>
+  Members '[PasswordResetStore] r =>
   Either Email Phone ->
   ExceptT PasswordResetError (AppT r) (UserId, PasswordResetPair)
 beginPasswordReset target = do
@@ -982,20 +982,20 @@ beginPasswordReset target = do
   status <- lift . wrapClient $ Data.lookupStatus user
   unless (status == Just Active) $
     throwE InvalidPasswordResetKey
-  code <- lift . liftSem $ Data.lookupPasswordResetCode user
+  code <- lift . liftSem $ E.lookupPasswordResetCode user
   when (isJust code) $
     throwE (PasswordResetInProgress Nothing)
-  (user,) <$> lift (liftSem $ Data.createPasswordResetCode user target)
+  (user,) <$> lift (liftSem $ E.createPasswordResetCode user target)
 
 completePasswordReset ::
-  Members '[CodeStore, BrigTime] r =>
+  Members '[CodeStore, PasswordResetStore] r =>
   PasswordResetIdentity ->
   PasswordResetCode ->
   PlainTextPassword ->
   ExceptT PasswordResetError (AppT r) ()
 completePasswordReset ident code pw = do
   key <- mkPasswordResetKey ident
-  muid :: Maybe UserId <- lift . liftSem $ Data.verifyPasswordResetCode (key, code)
+  muid :: Maybe UserId <- lift . liftSem $ E.verifyPasswordResetCode (key, code)
   case muid of
     Nothing -> throwE InvalidPasswordResetCode
     Just uid -> do
@@ -1194,7 +1194,7 @@ lookupActivationCode emailOrPhone = do
   return $ (k,) <$> c
 
 lookupPasswordResetCode ::
-  Members '[CodeStore, BrigTime] r =>
+  Members '[CodeStore, PasswordResetStore] r =>
   Either Email Phone ->
   (AppT r) (Maybe PasswordResetPair)
 lookupPasswordResetCode emailOrPhone = do
@@ -1204,7 +1204,7 @@ lookupPasswordResetCode emailOrPhone = do
     Nothing -> return Nothing
     Just u -> do
       k <- E.mkPasswordResetKey u
-      c <- Data.lookupPasswordResetCode u
+      c <- E.lookupPasswordResetCode u
       return $ (k,) <$> c
 
 deleteUserNoVerify ::
