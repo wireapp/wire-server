@@ -203,6 +203,7 @@ routes = do
   put "/users/:uid/email" (continue changeEmail) $
     contentType "application" "json"
       .&. capture "uid"
+      .&. def False (query "validate")
       .&. jsonRequest @EmailUpdate
   document "PUT" "changeEmail" $ do
     Doc.summary "Change a user's email address."
@@ -211,6 +212,9 @@ routes = do
       \before the change takes effect."
     Doc.parameter Doc.Path "uid" Doc.bytes' $
       Doc.description "User ID"
+    Doc.parameter Doc.Query "validate" Doc.bool' $ do
+      Doc.description "If set to true, a validation email will be sent to the new email address"
+      Doc.optional
     Doc.body (Doc.ref Doc.emailUpdate) $
       Doc.description "JSON body"
     Doc.response 200 "Change of email address initiated." Doc.end
@@ -544,10 +548,10 @@ searchOnBehalf (uid ::: q ::: s) =
 revokeIdentity :: Either Email Phone -> Handler Response
 revokeIdentity emailOrPhone = Intra.revokeIdentity emailOrPhone >> return empty
 
-changeEmail :: JSON ::: UserId ::: JsonRequest EmailUpdate -> Handler Response
-changeEmail (_ ::: uid ::: req) = do
+changeEmail :: JSON ::: UserId ::: Bool ::: JsonRequest EmailUpdate -> Handler Response
+changeEmail (_ ::: uid ::: validate ::: req) = do
   upd <- parseBody req !>> mkError status400 "client-error"
-  Intra.changeEmail uid upd
+  Intra.changeEmail uid upd validate
   return empty
 
 changePhone :: JSON ::: UserId ::: JsonRequest PhoneUpdate -> Handler Response
