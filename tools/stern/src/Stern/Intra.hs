@@ -337,7 +337,7 @@ deleteBindingTeamForce tid = do
       g
       ( method DELETE
           . paths ["/i/teams", toByteString' tid]
-          . queryItem' "force" Nothing
+          . queryItem "force" "true"
           . expect2xx
       )
 
