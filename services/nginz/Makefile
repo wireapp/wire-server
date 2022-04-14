@@ -1,7 +1,7 @@
 LANG           := en_US.UTF-8
 SHELL          := /usr/bin/env bash
 NAME           := nginz
-NGINX_VERSION   = 1.16.1
+NGINX_VERSION   = 1.20.2
 NGINZ_VERSION  ?=
 SWAGGER_VERSION:= 2.2.10
 ARCH         := $(shell if [ -f "`which dpkg-architecture`" ]; then dpkg-architecture -qDEB_HOST_ARCH; else [ -f "`which dpkg`" ] && dpkg --print-architecture; fi )
