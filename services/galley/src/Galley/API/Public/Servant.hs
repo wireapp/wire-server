@@ -17,7 +17,6 @@
 
 module Galley.API.Public.Servant (mkNamedAPI, servantSitemap) where
 
-import Data.Qualified (tUnqualified)
 import Galley.API.Create
 import Galley.API.CustomBackend
 import Galley.API.MLS
@@ -142,8 +141,8 @@ servantSitemap =
               setTeamSearchVisibilityAvailableInternal
               . DoAuth
           )
-        <@> mkNamedAPI @"get-search-visibility" (getSearchVisibility . tUnqualified)
-        <@> mkNamedAPI @"set-search-visibility" (setSearchVisibility . tUnqualified)
+        <@> mkNamedAPI @"get-search-visibility" getSearchVisibility
+        <@> mkNamedAPI @"set-search-visibility" setSearchVisibility
         <@> mkNamedAPI @'("get", 'TeamFeatureValidateSAMLEmails)
           ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails
               getValidateSAMLEmailsInternal
@@ -225,7 +224,7 @@ servantSitemap =
               . DoAuth
           )
         <@> mkNamedAPI @"get-all-feature-configs" getAllFeatureConfigs
-        <@> mkNamedAPI @"get-all-features" (\luid tid -> AllFeatureConfigs <$> getAllFeatures (tUnqualified luid) tid)
+        <@> mkNamedAPI @"get-all-features" (\luid tid -> AllFeatureConfigs <$> getAllFeatures luid tid)
         <@> mkNamedAPI @'("get-config", 'TeamFeatureLegalHold)
           ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureLegalHold
               getLegalholdStatusInternal

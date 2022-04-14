@@ -275,10 +275,10 @@ getAllFeatures ::
        TeamStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   TeamId ->
   Sem r Aeson.Object
-getAllFeatures uid tid = do
+getAllFeatures luid tid = do
   KeyMap.fromList
     <$> sequence
       [ getStatus @'WithoutLockStatus @'TeamFeatureSSO getSSOStatusInternal,
@@ -303,7 +303,7 @@ getAllFeatures uid tid = do
       FeatureGetter ps a r ->
       Sem r (Aeson.Key, Aeson.Value)
     getStatus getter = do
-      status <- getFeatureStatus @ps @a getter (DoAuth uid) tid
+      status <- getFeatureStatus @ps @a getter (DoAuth (tUnqualified luid)) tid
       let feature = knownTeamFeatureName @a
       pure $ AesonKey.fromText (cs (toByteString' feature)) Aeson..= status
 

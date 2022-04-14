@@ -1123,11 +1123,11 @@ getSearchVisibility ::
        TeamStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   TeamId ->
   Sem r TeamSearchVisibilityView
-getSearchVisibility uid tid = do
-  zusrMembership <- E.getTeamMember tid uid
+getSearchVisibility luid tid = do
+  zusrMembership <- E.getTeamMember tid (tUnqualified luid)
   void $ permissionCheck ViewTeamSearchVisibility zusrMembership
   getSearchVisibilityInternal tid
 
@@ -1143,12 +1143,12 @@ setSearchVisibility ::
        WaiRoutes
      ]
     r =>
-  UserId ->
+  Local UserId ->
   TeamId ->
   Public.TeamSearchVisibilityView ->
   Sem r ()
-setSearchVisibility uid tid req = do
-  zusrMembership <- E.getTeamMember tid uid
+setSearchVisibility luid tid req = do
+  zusrMembership <- E.getTeamMember tid (tUnqualified luid)
   void $ permissionCheck ChangeTeamSearchVisibility zusrMembership
   setSearchVisibilityInternal tid req
 
