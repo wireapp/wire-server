@@ -182,12 +182,19 @@ getClientByKeyPackageRef ref = do
     else pure Nothing
 
 -- | Calls 'Brig.API.Internal.getMLSClients'.
-getMLSClients :: Qualified UserId -> App (Set ClientId)
-getMLSClients qusr =
+getMLSClients :: Qualified UserId -> SignatureSchemeTag -> App (Set ClientId)
+getMLSClients qusr ss =
   call
     Brig
     ( method GET
-        . paths ["i", "mls", "clients", toByteString' (qDomain qusr), toByteString' (qUnqualified qusr)]
+        . paths
+          [ "i",
+            "mls",
+            "clients",
+            toByteString' (qDomain qusr),
+            toByteString' (qUnqualified qusr)
+          ]
+        . queryItem "sig_scheme" (toByteString' (signatureSchemeName ss))
         . expect2xx
     )
     >>= parseResponse (mkError status502 "server-error")

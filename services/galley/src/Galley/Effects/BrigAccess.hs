@@ -122,7 +122,7 @@ data BrigAccess m a where
   RemoveLegalHoldClientFromUser :: UserId -> BrigAccess m ()
   GetAccountFeatureConfigClient :: UserId -> BrigAccess m TeamFeatureStatusNoConfig
   GetClientByKeyPackageRef :: KeyPackageRef -> BrigAccess m (Maybe ClientIdentity)
-  GetMLSClients :: Qualified UserId -> BrigAccess m (Set ClientId)
+  GetMLSClients :: Qualified UserId -> SignatureSchemeTag -> BrigAccess m (Set ClientId)
   UpdateSearchVisibilityInbound ::
     Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound ->
     BrigAccess m ()
