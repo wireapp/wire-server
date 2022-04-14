@@ -1,6 +1,1 @@
-The following endpoints are now migrated to Servant:
-
-- `GET /teams/:tid/search-visibility`
-- `PUT /teams/:tid/search-visibility`
-- `GET /teams/:tid/features`
-- `GET /custom-backend/by-domain/:domain`
+Team Feature Flags API and Custom Backends API has been migrated to Servant
