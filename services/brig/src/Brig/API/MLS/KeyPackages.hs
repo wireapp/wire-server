@@ -34,7 +34,6 @@ import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Qualified
 import qualified Data.Set as Set
-import Debug.Trace
 import Imports
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
@@ -60,7 +59,6 @@ claimLocalKeyPackages :: Local UserId -> Maybe ClientId -> Local UserId -> Handl
 claimLocalKeyPackages lusr skipOwn target = do
   -- skip own client when the target is the requesting user itself
   let own = guard (lusr == target) *> skipOwn
-  traceM $ "own: " <> show own
   clients <- map clientId <$> wrapClientE (Data.lookupClients (tUnqualified target))
   withExceptT clientError $
     wrapHttpClientE $ guardLegalhold (ProtectedUser (tUnqualified lusr)) (mkUserClients [(tUnqualified target, clients)])
