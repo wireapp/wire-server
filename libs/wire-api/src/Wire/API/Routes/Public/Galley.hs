@@ -1192,11 +1192,11 @@ type AllFeaturesGet =
         :> CanThrow 'NotATeamMember
         :> CanThrow OperationDenied
         :> CanThrow 'TeamNotFound
-        :> ZUser
+        :> ZLocalUser
         :> "teams"
         :> Capture "tid" TeamId
         :> "features"
-        :> Get '[Servant.JSON] AllFeatureConfigs
+        :> Get '[JSON] AllFeatureConfigs
     )
 
 type SearchVisibilityGet =
@@ -1205,11 +1205,11 @@ type SearchVisibilityGet =
     ( Summary "Shows the value for search visibility"
         :> CanThrow 'NotATeamMember
         :> CanThrow OperationDenied
-        :> ZUser
+        :> ZLocalUser
         :> "teams"
         :> Capture "tid" TeamId
         :> "search-visibility"
-        :> Get '[Servant.JSON] TeamSearchVisibilityView
+        :> Get '[JSON] TeamSearchVisibilityView
     )
 
 type SearchVisibilitySet =
@@ -1219,7 +1219,7 @@ type SearchVisibilitySet =
         :> CanThrow 'NotATeamMember
         :> CanThrow OperationDenied
         :> CanThrow 'TeamSearchVisibilityNotEnabled
-        :> ZUser
+        :> ZLocalUser
         :> "teams"
         :> Capture "tid" TeamId
         :> "search-visibility"
