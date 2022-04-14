@@ -783,7 +783,7 @@ type MLSKeyPackageAPI =
                         :> QueryParam'
                              [ Optional,
                                Strict,
-                               Description "Do not claim a key packages for the given own client"
+                               Description "Do not claim a key package for the given own client"
                              ]
                              "skip_own"
                              ClientId
