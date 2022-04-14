@@ -38,7 +38,7 @@ import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
 import Galley.API.Error
-import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
+import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.One2One
 import Galley.API.Public
@@ -57,10 +57,10 @@ import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
+import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore
 import Galley.Effects.Paging
 import Galley.Effects.TeamStore
-import Galley.Effects.WaiRoutes
 import qualified Galley.Intra.Push as Intra
 import Galley.Monad
 import Galley.Options
@@ -74,8 +74,6 @@ import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
 import Galley.Types.UserList
 import Imports hiding (head)
-import Network.HTTP.Types (status200)
-import Network.Wai
 import Network.Wai.Predicate hiding (Error, err)
 import qualified Network.Wai.Predicate as Predicate
 import Network.Wai.Routing hiding (App, route, toList)
@@ -165,6 +163,13 @@ type InternalAPIBase =
                :> ReqBody '[Servant.JSON] Connect
                :> ConversationVerb
            )
+    :<|> Named
+           "guard-legalhold-policy-conflicts"
+           ( "guard-legalhold-policy-conflicts"
+               :> ReqBody '[Servant.JSON] GuardLegalholdPolicyConflicts
+               :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "Guard Legalhold Policy")
+           )
+    :<|> ILegalholdWhitelistedTeamsAPI
     :<|> ITeamsAPI
     :<|> Named
            "upsert-one2one"
@@ -195,6 +200,27 @@ type InternalAPIBase =
                :> Get '[Servant.JSON] TeamFeatureStatusNoConfig
            )
     :<|> IFeatureAPI
+
+type ILegalholdWhitelistedTeamsAPI =
+  "legalhold" :> "whitelisted-teams" :> Capture "tid" TeamId :> ILegalholdWhitelistedTeamsAPIBase
+
+type ILegalholdWhitelistedTeamsAPIBase =
+  Named
+    "set-team-legalhold-whitelisted"
+    (MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "Team Legalhold Whitelisted"))
+    :<|> Named
+           "unset-team-legalhold-whitelisted"
+           (MultiVerb1 'DELETE '[Servant.JSON] (RespondEmpty 204 "Team Legalhold un-Whitelisted"))
+    :<|> Named
+           "get-team-legalhold-whitelisted"
+           ( MultiVerb
+               'GET
+               '[Servant.JSON]
+               '[ RespondEmpty 404 "Team not Legalhold Whitelisted",
+                  RespondEmpty 200 "Team Legalhold Whitelisted"
+                ]
+               Bool
+           )
 
 type ITeamsAPI = "teams" :> Capture "tid" TeamId :> ITeamsAPIBase
 
@@ -316,16 +342,31 @@ internalAPI =
     mkNamedAPI @"status" (pure ())
       <@> mkNamedAPI @"delete-user" rmUser
       <@> mkNamedAPI @"connect" Create.createConnectConversation
+      <@> mkNamedAPI @"guard-legalhold-policy-conflicts" guardLegalholdPolicyConflictsH
+      <@> legalholdWhitelistedTeamsAPI
       <@> iTeamsAPI
       <@> mkNamedAPI @"upsert-one2one" iUpsertOne2OneConversation
       <@> mkNamedAPI @"feature-config-snd-factor-password-challenge" getSndFactorPasswordChallengeNoAuth
       <@> featureAPI
 
+legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
+legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
+  where
+    base :: TeamId -> API ILegalholdWhitelistedTeamsAPIBase GalleyEffects
+    base tid =
+      mkNamedAPI @"set-team-legalhold-whitelisted" (LegalHoldStore.setTeamLegalholdWhitelisted tid)
+        <@> mkNamedAPI @"unset-team-legalhold-whitelisted" (unsetTeamLegalholdWhitelistedH tid)
+        <@> mkNamedAPI @"get-team-legalhold-whitelisted" (LegalHoldStore.isTeamLegalholdWhitelisted tid)
+
 iTeamsAPI :: API ITeamsAPI GalleyEffects
 iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
   where
-    hoistAPISegment :: (ServerT (seg :> inner) (Sem r) ~ ServerT inner (Sem r)) => API inner r -> API (seg :> inner) r
+    hoistAPISegment ::
+      (ServerT (seg :> inner) (Sem r) ~ ServerT inner (Sem r)) =>
+      API inner r ->
+      API (seg :> inner) r
     hoistAPISegment = hoistAPI id
+
     base :: TeamId -> API ITeamsAPIBase GalleyEffects
     base tid =
       mkNamedAPI @"get-team-internal" (Teams.getTeamInternalH tid)
@@ -467,19 +508,6 @@ internalSitemap = do
   delete "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalDeleteCustomBackendByDomainH) $
     capture "domain"
       .&. accept "application" "json"
-
-  put "/i/guard-legalhold-policy-conflicts" (continue guardLegalholdPolicyConflictsH) $
-    jsonRequest @GuardLegalholdPolicyConflicts
-      .&. accept "application" "json"
-
-  put "/i/legalhold/whitelisted-teams/:tid" (continue setTeamLegalholdWhitelistedH) $
-    capture "tid"
-
-  delete "/i/legalhold/whitelisted-teams/:tid" (continue unsetTeamLegalholdWhitelistedH) $
-    capture "tid"
-
-  get "/i/legalhold/whitelisted-teams/:tid" (continue getTeamLegalholdWhitelistedH) $
-    capture "tid"
 
 rmUser ::
   forall p1 p2 r.
@@ -640,10 +668,8 @@ guardLegalholdPolicyConflictsH ::
        WaiRoutes
      ]
     r =>
-  (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) ->
-  Sem r Response
-guardLegalholdPolicyConflictsH (req ::: _) = do
-  glh <- fromJsonBody req
+  GuardLegalholdPolicyConflicts ->
+  Sem r ()
+guardLegalholdPolicyConflictsH glh = do
   mapError @LegalholdConflicts (const MissingLegalholdConsent) $
     guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
-  pure $ Network.Wai.Utilities.setStatus status200 empty

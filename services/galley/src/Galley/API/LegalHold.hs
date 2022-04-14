@@ -26,9 +26,7 @@ module Galley.API.LegalHold
     approveDeviceH,
     disableForUserH,
     isLegalHoldEnabledForTeam,
-    setTeamLegalholdWhitelistedH,
     unsetTeamLegalholdWhitelistedH,
-    getTeamLegalholdWhitelistedH,
   )
 where
 
@@ -66,8 +64,7 @@ import qualified Galley.External.LegalHoldService as LHService
 import Galley.Types (LocalMember, lmConvRoleName, lmId)
 import Galley.Types.Teams as Team
 import Imports
-import Network.HTTP.Types (status200, status404)
-import Network.HTTP.Types.Status (status201, status204)
+import Network.HTTP.Types.Status (status200, status201, status204)
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, or, result, setStatus, _3)
 import Network.Wai.Utilities as Wai hiding (Error)
@@ -840,32 +837,14 @@ blockNonConsentingConnections uid = do
       status <- putConnectionInternal (BlockForMissingLHConsent userLegalhold othersToBlock)
       pure $ ["blocking users failed: " <> show (status, othersToBlock) | status /= status200]
 
-setTeamLegalholdWhitelisted :: Member LegalHoldStore r => TeamId -> Sem r ()
-setTeamLegalholdWhitelisted tid = LegalHoldData.setTeamLegalholdWhitelisted tid
-
-setTeamLegalholdWhitelistedH :: Member LegalHoldStore r => TeamId -> Sem r Response
-setTeamLegalholdWhitelistedH tid = do
-  empty <$ setTeamLegalholdWhitelisted tid
-
-unsetTeamLegalholdWhitelisted :: Member LegalHoldStore r => TeamId -> Sem r ()
-unsetTeamLegalholdWhitelisted tid = LegalHoldData.unsetTeamLegalholdWhitelisted tid
-
-unsetTeamLegalholdWhitelistedH :: Member LegalHoldStore r => TeamId -> Sem r Response
+unsetTeamLegalholdWhitelistedH :: Member LegalHoldStore r => TeamId -> Sem r ()
 unsetTeamLegalholdWhitelistedH tid = do
   () <-
     error
       "FUTUREWORK: if we remove entries from the list, that means removing an unknown \
       \number of LH devices as well, and possibly other things.  think this through \
       \before you enable the end-point."
-  setStatus status204 empty <$ unsetTeamLegalholdWhitelisted tid
-
-getTeamLegalholdWhitelistedH :: Member LegalHoldStore r => TeamId -> Sem r Response
-getTeamLegalholdWhitelistedH tid = do
-  lhEnabled <- LegalHoldData.isTeamLegalholdWhitelisted tid
-  pure $
-    if lhEnabled
-      then setStatus status200 empty
-      else setStatus status404 empty
+  LegalHoldData.unsetTeamLegalholdWhitelisted tid
 
 -- | Make sure that enough people are removed from all conversations that contain user `uid`
 -- that no policy conflict arises.
