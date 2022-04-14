@@ -50,9 +50,9 @@ module Galley.API.Teams
     uncheckedDeleteTeamMember,
     userIsTeamOwner,
     canUserJoinTeam,
-    internalDeleteBindingTeamWithOneMember,
     ensureNotTooLargeForLegalHold,
     ensureNotTooLargeToActivateLegalHold,
+    internalDeleteBindingTeam,
   )
 where
 
@@ -363,9 +363,10 @@ deleteTeam zusr zcon tid body = do
         ensureReAuthorised zusr (body ^. tdAuthPassword) (body ^. tdVerificationCode) (Just U.DeleteTeam)
 
 -- This can be called by stern
-internalDeleteBindingTeamWithOneMember ::
+internalDeleteBindingTeam ::
   Members
     '[ ErrorS 'NoBindingTeam,
+       ErrorS 'TeamNotFound,
        ErrorS 'NotAOneMemberTeam,
        ErrorS 'DeleteQueueFull,
        Queue DeleteItem,
@@ -373,15 +374,20 @@ internalDeleteBindingTeamWithOneMember ::
      ]
     r =>
   TeamId ->
+  Bool ->
   Sem r ()
-internalDeleteBindingTeamWithOneMember tid = do
-  team <- E.getTeam tid
-  unless ((view teamBinding . tdTeam <$> team) == Just Binding) $
-    throwS @'NoBindingTeam
-  mems <- E.getTeamMembersWithLimit tid (unsafeRange 2)
-  case mems ^. teamMembers of
-    (mem : []) -> queueTeamDeletion tid (mem ^. userId) Nothing
-    _ -> throwS @'NotAOneMemberTeam
+internalDeleteBindingTeam tid force = do
+  mbTeamData <- E.getTeam tid
+  case tdTeam <$> mbTeamData of
+    Nothing -> throwS @'TeamNotFound
+    Just team | team ^. teamBinding /= Binding -> throwS @'NoBindingTeam
+    Just team -> do
+      mems <- E.getTeamMembersWithLimit tid (unsafeRange 2)
+      case mems ^. teamMembers of
+        [mem] -> queueTeamDeletion tid (mem ^. userId) Nothing
+        -- if the team has more than one member (and deletion is forced) or no members we use the team creator's userId for deletion events
+        xs | null xs || force -> queueTeamDeletion tid (team ^. teamCreator) Nothing
+        _ -> throwS @'NotAOneMemberTeam
 
 -- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
 uncheckedDeleteTeam ::

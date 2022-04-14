@@ -38,6 +38,7 @@ module Stern.Intra
     deleteAccount,
     setStatusBindingTeam,
     deleteBindingTeam,
+    deleteBindingTeamForce,
     getTeamInfo,
     getUserBindingTeam,
     isBlacklisted,
@@ -46,6 +47,7 @@ module Stern.Intra
     getTeamFeatureFlagNoConfig,
     setTeamFeatureFlagNoConfig,
     setTeamFeatureFlag,
+    getTeamData,
     getSearchVisibility,
     setSearchVisibility,
     getTeamBillingInfo,
@@ -321,6 +323,21 @@ deleteBindingTeam tid = do
       g
       ( method DELETE
           . paths ["/i/teams", toByteString' tid]
+          . expect2xx
+      )
+
+-- | Caution! This may permanently delete all team members!
+deleteBindingTeamForce :: TeamId -> Handler ()
+deleteBindingTeamForce tid = do
+  info $ msg "Deleting team with force flag"
+  g <- view galley
+  void . catchRpcErrors $
+    rpc'
+      "galley"
+      g
+      ( method DELETE
+          . paths ["/i/teams", toByteString' tid]
+          . queryItem "force" "true"
           . expect2xx
       )
 
