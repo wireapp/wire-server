@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5e5b9d44e914092fd283c32d8a12768443221b3f7f7e0f41cc1388f17f4ce373
+-- hash: 5ecbff5b5248085ccaf245621fb9388ff13a1cdace8dff356ea98ccd1cb72a03
 
 name:           gundeck-types
 version:        1.45.0
@@ -63,7 +63,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

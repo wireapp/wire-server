@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c8ad3a3ca71a54e03d9bb6572dad0629da8c5940cfe20febf7cf1971d549f042
+-- hash: 2fd7ca4c3831fd4ea777bb2e936d638a9c10ecc613230bd5ad75212872abc110
 
 name:           repair-handles
 version:        1.0.0
@@ -58,7 +58,6 @@ executable repair-handles
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

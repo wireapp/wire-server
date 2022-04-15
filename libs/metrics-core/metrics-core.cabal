@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ed00633977e31daad2e0efcc5e21e8e4a800a2737e5848e9b0770091f9a94b3d
+-- hash: 94e1bf0c93057c9abbeafa85bd4d465c71e20c3bda5a8962cfaad8431861ddd5
 
 name:           metrics-core
 version:        0.3.2
@@ -57,7 +57,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

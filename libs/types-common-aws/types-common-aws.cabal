@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b83bb5e2ebe7499bdd426bff59d23e2c08935fc24e6f182114fd5ef296f19928
+-- hash: e21810d1081ee50f1d775ea6112131f62a9fb270d33d2c8a44024afa384a34ff
 
 name:           types-common-aws
 version:        0.16.0
@@ -67,7 +67,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: aaa0bf2f2e8b434044d86eef4704bf30525c4c86315058ba1290f1d34d561c9e
+-- hash: 23fae7c145e7caafdaf90ad2186c54ceffc973065e99ac6032b0241e9cb8c243
 
 name:           cassandra-util
 version:        0.16.5
@@ -61,7 +61,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

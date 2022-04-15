@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 57b03ca9ff6cfe827c27bb6a0f6fb21156c8465d090f29d8a7a3d443bb308137
+-- hash: 02dbb0433605f5282d44accf8028da425b93c7e326c70ac8d2a092abab8db504
 
 name:           bilge
 version:        0.22.0
@@ -67,7 +67,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

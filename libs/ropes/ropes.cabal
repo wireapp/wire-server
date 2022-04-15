@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8ecd96e484d77945f2e5e3bf9e52fbe5847ee47bdfa13e7ecb07c186db73e04c
+-- hash: 4dc14749b24ff2e418dca953beb2c1fa2903c5c3b99832c11ec99ddc401476c6
 
 name:           ropes
 version:        0.4.20
@@ -57,7 +57,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

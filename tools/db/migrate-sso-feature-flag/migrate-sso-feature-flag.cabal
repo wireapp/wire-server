@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6a64c18d59c109cea4e58b9161d589c395fa1b34ba2705060aebc4926ee1f618
+-- hash: b2b29448c5c69da6fab48930b3ddbb84107bd66b81e718bc334f6a8d60c03b51
 
 name:           migrate-sso-feature-flag
 version:        1.0.0
@@ -56,7 +56,6 @@ executable migrate-sso-feature-flag
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

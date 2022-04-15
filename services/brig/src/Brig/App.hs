@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE TemplateHaskell #-}
 -- FUTUREWORK: Get rid of this option once Polysemy is fully introduced to Brig
 {-# OPTIONS_GHC -Wno-orphans #-}
 

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 208b12ff1a7bb406c0e9b006b8badb293d9f3fb39750fa4df03a5267cf5d7bfd
+-- hash: 4010a19af0b65ce213a7afb528aa57a5ae3dba5fd870c09d28781afae11d2c4b
 
 name:           api-bot
 version:        0.4.2
@@ -68,7 +68,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

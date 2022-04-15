@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c5b993207775ad794fae01115aca3500cbdb2ce9458af0185734c9ee5e025814
+-- hash: 7e6aaa6730e46316c0dc70278f66a66b36707f4eee741ee3c89b736543e36d07
 
 name:           api-client
 version:        0.4.2
@@ -67,7 +67,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0dc85028d7242fe9422dc7b97417fd157c235bd8b6aa74a3c61f093e04e0f57a
+-- hash: 85ab17a3a3feb5b0d7f421806119efcd5694b145482efa1259c4500bc3268092
 
 name:           proxy
 version:        0.9.0
@@ -67,7 +67,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -142,7 +141,6 @@ executable proxy
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

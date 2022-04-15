@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: aecd5a2bbe1504d3601577aed1719da584856f3d5f53327650f3c80331619269
+-- hash: 21225065d665150349c1451aa1276c9dae47b282d5532b251e4ad3a1b3e08061
 
 name:           auto-whitelist
 version:        1.0.0
@@ -56,7 +56,6 @@ executable auto-whitelist
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
