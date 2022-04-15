@@ -96,10 +96,9 @@ import Brig.Provider.Template
 import qualified Brig.Queue.Stomp as Stomp
 import Brig.Queue.Types (Queue (..))
 import qualified Brig.SMTP as SMTP
-import Brig.Sem.BrigTime (BrigTime)
-import Brig.Sem.BrigTime.IO
 import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.CodeStore.Cassandra
+import Brig.Sem.Now.MonadIO
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetStore.CodeStore
 import Brig.Team.Template
@@ -158,6 +157,7 @@ import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 import Util.Options
 import Wire.API.User.Identity (Email)
+import Wire.Sem.Now (Now)
 
 schemaVersion :: Int32
 schemaVersion = 70
@@ -585,7 +585,7 @@ newtype HttpClientIO a = HttpClientIO
 
 type BrigCanonicalEffects =
   '[ PasswordResetStore,
-     BrigTime,
+     Now,
      CodeStore,
      Embed Cas.Client, -- FUTUREWORK: remove this effect once MonadClient
      -- constraints are removed from application code
@@ -632,7 +632,7 @@ runAppT e (AppT ma) =
     . embedToFinal
     . interpretClientToIO (_casClient e)
     . codeStoreToCassandra @Cas.Client
-    . brigTimeToIO @IO (_currentTime e)
+    . brigTimeToMonadIO @IO (_currentTime e)
     . passwordResetStoreToCodeStore
     $ runReaderT ma e
 

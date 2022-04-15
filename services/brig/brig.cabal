@@ -91,10 +91,9 @@ library
       Brig.Queue.Types
       Brig.RPC
       Brig.Run
-      Brig.Sem.BrigTime
-      Brig.Sem.BrigTime.IO
       Brig.Sem.CodeStore
       Brig.Sem.CodeStore.Cassandra
+      Brig.Sem.Now.MonadIO
       Brig.Sem.PasswordResetStore
       Brig.Sem.PasswordResetStore.CodeStore
       Brig.SMTP

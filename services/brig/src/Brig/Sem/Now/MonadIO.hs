@@ -15,19 +15,27 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Sem.BrigTime.IO (brigTimeToIO) where
+module Brig.Sem.Now.MonadIO (brigTimeToMonadIO) where
 
-import Brig.Sem.BrigTime
 import Data.Time
 import Imports
 import Polysemy
+import Wire.Sem.FromUTC
+import Wire.Sem.Now
 
--- | An interpreter of the 'BrigTime' effect to IO.
-brigTimeToIO ::
+-- | An interpreter of the 'Now' effect to MonadIO.
+brigTimeToMonadIO ::
   forall m r a.
   (MonadIO m, Member (Embed m) r) =>
   IO UTCTime ->
-  Sem (BrigTime ': r) a ->
+  Sem (Now ': r) a ->
   Sem r a
-brigTimeToIO ioTime =
-  interpret $ \Get -> embed @m $ liftIO ioTime
+brigTimeToMonadIO ioTime = interpret now
+  where
+    -- If this helper was inlined, GHC wouldn't be able to figure out
+    -- types.
+    now ::
+      forall x (rInitial :: EffectRow).
+      Now (Sem rInitial) x ->
+      Sem r x
+    now Get = embed @m $ fromUTCTime @x <$> liftIO ioTime
