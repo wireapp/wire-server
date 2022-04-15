@@ -20,11 +20,23 @@ module Spar.Sem.Now.IO
   )
 where
 
+import Data.Time
 import Imports
 import Polysemy
-import SAML2.WebSSO (getNowIO)
+import Spar.Sem.FromUTC
 import Spar.Sem.Now
 
-nowToIO :: Member (Embed IO) r => Sem (Now ': r) a -> Sem r a
-nowToIO = interpret $ \case
-  Get -> embed @IO getNowIO
+nowToIO ::
+  Member (Embed IO) r =>
+  Sem (Now ': r) a ->
+  Sem r a
+nowToIO = interpret now
+  where
+    -- If this helper was inlined, GHC wouldn't be able to figure out
+    -- types.
+    now ::
+      forall x (r :: [Effect]) (rInitial :: EffectRow).
+      Member (Embed IO) r =>
+      Now (Sem rInitial) x ->
+      Sem r x
+    now Get = embed @IO $ fromUTCTime @x <$> getCurrentTime

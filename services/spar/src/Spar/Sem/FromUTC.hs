@@ -1,7 +1,3 @@
-{-# LANGUAGE QuantifiedConstraints #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
-{-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -19,26 +15,23 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Spar.Sem.NowSpec where
+-- | Time type conversion
+module Spar.Sem.FromUTC where
 
-import Arbitrary ()
-import Data.Time
-import Data.Time.Calendar.Julian
+import Data.Time (UTCTime)
 import Imports
-import Polysemy
-import Polysemy.Input
-import SAML2.WebSSO.Types
-import Spar.Sem.Now.IO
-import Spar.Sem.Now.Input
-import Spar.Sem.Now.Spec
-import Test.Hspec
-import Test.Hspec.QuickCheck
+import qualified SAML2.WebSSO.Types as SAML
 
-someTime :: UTCTime
-someTime = UTCTime (fromJulianYearAndDay 1990 209) (secondsToDiffTime 0)
+-- | The class is helpful in interpreters for the 'Now' effect. It makes it
+-- possible to use the interpreters for any time type so long as it implements
+-- this single-method class.
+class FromUTC a where
+  fromUTCTime :: UTCTime -> a
 
-spec :: Spec
-spec = do
-  modifyMaxSuccess (const 1000) $ do
-    propsForInterpreter "nowToIO" $ fmap Identity . runM . nowToIO . runInputConst ()
-    propsForInterpreter "nowToInput" $ pure . Identity . run . runInputConst someTime . nowToInput @Time . runInputConst ()
+-- An orphan instance
+instance FromUTC UTCTime where
+  fromUTCTime = id
+
+-- An orphan instance
+instance FromUTC SAML.Time where
+  fromUTCTime = SAML.Time

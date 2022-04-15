@@ -20,6 +20,7 @@
 
 module Spar.Sem.Now.Spec (propsForInterpreter) where
 
+import Data.Time (UTCTime)
 import Imports
 import Polysemy
 import Polysemy.Check
@@ -64,6 +65,6 @@ prop_nowNow =
   prepropLaw @'[Input ()] $ do
     pure $
       simpleLaw
-        (liftA2 (<=) E.get E.get)
+        (liftA2 (<=) (E.get @_ @UTCTime) E.get)
         ( pure True
         )

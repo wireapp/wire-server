@@ -49,6 +49,7 @@ library
       Spar.Sem.DefaultSsoCode.Cassandra
       Spar.Sem.DefaultSsoCode.Mem
       Spar.Sem.DefaultSsoCode.Spec
+      Spar.Sem.FromUTC
       Spar.Sem.GalleyAccess
       Spar.Sem.GalleyAccess.Http
       Spar.Sem.IdPConfigStore

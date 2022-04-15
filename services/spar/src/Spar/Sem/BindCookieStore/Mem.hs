@@ -44,5 +44,5 @@ bindCookieStoreToMem = (runState mempty .) $
       modify $ M.insert ckyval (addTime ndt now, uid)
     Lookup bc -> do
       gets (M.lookup bc) >>= \case
-        Just (time, uid) -> boolTTL Nothing (Just uid) time
+        Just (time, uid) -> boolTTL @SAML.Time Nothing (Just uid) time
         Nothing -> pure Nothing
