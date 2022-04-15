@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b5ae0ca8cfcc22e0751375eaf5b925d7557c88056d881b85cf7d82e3a8c322be
+-- hash: 14e7d21fd4304ef1b51679e0624e9c632777ddb5e43509ed96d4dff1a2ab1f27
 
 name:           gundeck
 version:        1.45.0
@@ -90,7 +90,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -191,7 +190,6 @@ executable gundeck
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -256,7 +254,6 @@ executable gundeck-integration
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -350,7 +347,6 @@ executable gundeck-schema
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -418,7 +414,6 @@ test-suite gundeck-tests
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -504,7 +499,6 @@ benchmark gundeck-bench
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

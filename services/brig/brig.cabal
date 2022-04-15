@@ -162,7 +162,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -330,7 +329,6 @@ executable brig
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -384,7 +382,6 @@ executable brig-index
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -470,7 +467,6 @@ executable brig-integration
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -662,7 +658,6 @@ executable brig-schema
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -727,7 +722,6 @@ test-suite brig-tests
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

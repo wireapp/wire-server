@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2168cecbb403740519009eb790938bbfec816c047f81bc1ec44d6157ff798516
+-- hash: a58bc40fc81a030528f9e4fbae86ecbbf74587d181f2c057c8576a04ad0e1f5c
 
 name:           move-team
 version:        1.0.0
@@ -60,7 +60,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -134,7 +133,6 @@ executable move-team
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -209,7 +207,6 @@ executable move-team-generate
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

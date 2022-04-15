@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f032f8354316816e361796a0e1b2d5da703e8d447d4b12f9e6cab7be5e252e6f
+-- hash: 090b7ff6c002f582879792716227598a444bd914d78ddba5861072bf5e6796da
 
 name:           wai-utilities
 version:        0.16.1
@@ -63,7 +63,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2d2de3cb5a7dcf524d840d49e590bea00dd40610a5488224cf4b25b15991f64b
+-- hash: 33f3a557e5296946dc5929fd741dfa0bb68e83484e1760cd425204e7defec8af
 
 name:           tasty-cannon
 version:        0.4.0
@@ -56,7 +56,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

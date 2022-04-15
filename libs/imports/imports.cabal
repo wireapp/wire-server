@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 09458f8cad6c5214c9692291bb633f780944463c5690e2af99d7e516dc93e0f2
+-- hash: f1840a866c870bac6a0aa233336162df7b3552185882820814eec869d0df3986
 
 name:           imports
 version:        0.1.0
@@ -61,7 +61,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

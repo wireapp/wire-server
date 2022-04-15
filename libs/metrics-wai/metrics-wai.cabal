@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: aa7fa2126e1b9420894641828a3548c191a7daa9c997585531827b092557e393
+-- hash: 727df0d926b5aa3f82005a16adac9fe9099398b9a6e997936897d6252201f249
 
 name:           metrics-wai
 version:        0.5.7
@@ -61,7 +61,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -128,7 +127,6 @@ test-suite unit
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

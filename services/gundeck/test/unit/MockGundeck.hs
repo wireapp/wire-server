@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 

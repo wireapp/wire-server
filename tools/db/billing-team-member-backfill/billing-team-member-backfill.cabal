@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ada20e0991745d0c8999668355177fca0aef12891245e599d89f28228f0961d4
+-- hash: 69b89f4d76894f5121e8fbff700727500dc0f48747dda5b75f74d7ce16ad4f84
 
 name:           billing-team-member-backfill
 version:        1.0.0
@@ -56,7 +56,6 @@ executable billing-team-member-backfill
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
