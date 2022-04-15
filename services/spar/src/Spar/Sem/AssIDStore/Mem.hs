@@ -28,8 +28,8 @@ import Polysemy
 import Polysemy.State
 import qualified SAML2.WebSSO.Types as SAML
 import Spar.Sem.AssIDStore
-import Spar.Sem.Now
 import Wire.API.User.Saml (AssId)
+import Wire.Sem.Now
 
 assIdStoreToMem ::
   Member Now r =>

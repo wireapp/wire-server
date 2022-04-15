@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.Now.IO
+module Wire.Sem.Now.IO
   ( nowToIO,
   )
 where
@@ -23,8 +23,8 @@ where
 import Data.Time
 import Imports
 import Polysemy
-import Spar.Sem.FromUTC
-import Spar.Sem.Now
+import Wire.Sem.FromUTC
+import Wire.Sem.Now
 
 nowToIO ::
   Member (Embed IO) r =>

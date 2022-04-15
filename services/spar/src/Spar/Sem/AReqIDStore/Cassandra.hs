@@ -32,9 +32,9 @@ import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
 import Spar.Sem.AReqIDStore
-import Spar.Sem.Now (Now)
-import qualified Spar.Sem.Now as Now
 import Wire.API.User.Saml
+import Wire.Sem.Now (Now)
+import qualified Wire.Sem.Now as Now
 
 aReqIDStoreToCassandra ::
   forall m r a.

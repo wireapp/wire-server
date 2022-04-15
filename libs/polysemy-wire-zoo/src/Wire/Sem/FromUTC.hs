@@ -15,22 +15,23 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.Now.Input
-  ( nowToInput,
-  )
-where
+-- | Time type conversion
+module Wire.Sem.FromUTC where
 
 import Data.Time (UTCTime)
 import Imports
-import Polysemy
-import Polysemy.Input
-import Spar.Sem.FromUTC
-import Spar.Sem.Now
+import qualified SAML2.WebSSO.Types as SAML
 
-nowToInput ::
-  FromUTC t =>
-  Member (Input UTCTime) r =>
-  Sem (Now ': r) a ->
-  Sem r a
-nowToInput = interpret $ \case
-  Get -> fromUTCTime <$> input
+-- | The class is helpful in interpreters for the 'Now' effect. It makes it
+-- possible to use the interpreters for any time type so long as it implements
+-- this single-method class.
+class FromUTC a where
+  fromUTCTime :: UTCTime -> a
+
+-- An orphan instance
+instance FromUTC UTCTime where
+  fromUTCTime = id
+
+-- An orphan instance
+instance FromUTC SAML.Time where
+  fromUTCTime = SAML.Time

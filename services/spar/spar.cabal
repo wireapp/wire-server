@@ -49,7 +49,6 @@ library
       Spar.Sem.DefaultSsoCode.Cassandra
       Spar.Sem.DefaultSsoCode.Mem
       Spar.Sem.DefaultSsoCode.Spec
-      Spar.Sem.FromUTC
       Spar.Sem.GalleyAccess
       Spar.Sem.GalleyAccess.Http
       Spar.Sem.IdPConfigStore
@@ -62,10 +61,6 @@ library
       Spar.Sem.IdPRawMetadataStore.Spec
       Spar.Sem.Logger
       Spar.Sem.Logger.TinyLog
-      Spar.Sem.Now
-      Spar.Sem.Now.Input
-      Spar.Sem.Now.IO
-      Spar.Sem.Now.Spec
       Spar.Sem.Random
       Spar.Sem.Random.IO
       Spar.Sem.Reporter
@@ -176,6 +171,7 @@ library
     , polysemy
     , polysemy-check >=0.9
     , polysemy-plugin
+    , polysemy-wire-zoo
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -290,6 +286,7 @@ executable spar
     , polysemy
     , polysemy-check >=0.9
     , polysemy-plugin
+    , polysemy-wire-zoo
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -425,6 +422,7 @@ executable spar-integration
     , polysemy
     , polysemy-check >=0.9
     , polysemy-plugin
+    , polysemy-wire-zoo
     , random
     , raw-strings-qq
     , retry
@@ -553,6 +551,7 @@ executable spar-migrate-data
     , polysemy
     , polysemy-check >=0.9
     , polysemy-plugin
+    , polysemy-wire-zoo
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -684,6 +683,7 @@ executable spar-schema
     , polysemy
     , polysemy-check >=0.9
     , polysemy-plugin
+    , polysemy-wire-zoo
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -815,6 +815,7 @@ test-suite spec
     , polysemy
     , polysemy-check >=0.9
     , polysemy-plugin
+    , polysemy-wire-zoo
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18

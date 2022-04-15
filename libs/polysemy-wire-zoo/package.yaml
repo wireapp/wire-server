@@ -4,15 +4,21 @@ name: polysemy-wire-zoo
 version: '0.1.0'
 synopsis: Polysemy interface for various libraries
 description: Polysemy interface for various libraries
-category: Logging
+category: Effects
 author: Wire Swiss GmbH
 maintainer: Wire Swiss GmbH <backend@wire.com>
 copyright: (c) 2020 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
 - base >=4.6 && <5.0
+- hspec
 - imports
 - polysemy
+- polysemy-check
+- polysemy-plugin
+- QuickCheck
+- saml2-web-sso
+- time
 - tinylog
 library:
   source-dirs: src

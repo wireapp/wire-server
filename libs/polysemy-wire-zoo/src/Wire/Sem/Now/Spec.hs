@@ -18,17 +18,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.Now.Spec (propsForInterpreter) where
+module Wire.Sem.Now.Spec (propsForInterpreter) where
 
 import Data.Time (UTCTime)
 import Imports
 import Polysemy
 import Polysemy.Check
 import Polysemy.Input
-import qualified Spar.Sem.Now as E
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
+import qualified Wire.Sem.Now as E
 
 propsForInterpreter ::
   PropConstraints r f =>

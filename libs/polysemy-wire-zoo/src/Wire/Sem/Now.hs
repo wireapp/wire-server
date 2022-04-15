@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.Now
+module Wire.Sem.Now
   ( Now (..),
     get,
     boolTTL,
@@ -27,7 +27,7 @@ where
 import Imports
 import Polysemy
 import Polysemy.Check (deriveGenericK)
-import Spar.Sem.FromUTC
+import Wire.Sem.FromUTC
 
 data Now m a where
   Get :: FromUTC a => Now m a

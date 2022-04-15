@@ -4,13 +4,13 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2c188321de9d8fa1e3a3ebbb8568be60f828a72db398a28e8c590e49d5ae9f05
+-- hash: e2e3b663f85abbb558703a6e6bf5449020cb7d0335ae01e4a5ebb124765ed337
 
 name:           polysemy-wire-zoo
 version:        0.1.0
 synopsis:       Polysemy interface for various libraries
 description:    Polysemy interface for various libraries
-category:       Logging
+category:       Effects
 author:         Wire Swiss GmbH
 maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2020 Wire Swiss GmbH
@@ -20,6 +20,11 @@ build-type:     Simple
 library
   exposed-modules:
       Polysemy.TinyLog
+      Wire.Sem.FromUTC
+      Wire.Sem.Now
+      Wire.Sem.Now.Input
+      Wire.Sem.Now.IO
+      Wire.Sem.Now.Spec
   other-modules:
       Paths_polysemy_wire_zoo
   hs-source-dirs:
@@ -65,8 +70,14 @@ library
       ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      base >=4.6 && <5.0
+      QuickCheck
+    , base >=4.6 && <5.0
+    , hspec
     , imports
     , polysemy
+    , polysemy-check
+    , polysemy-plugin
+    , saml2-web-sso
+    , time
     , tinylog
   default-language: Haskell2010

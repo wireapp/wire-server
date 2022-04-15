@@ -30,10 +30,10 @@ import SAML2.WebSSO
 import qualified SAML2.WebSSO.Cookie as SAML
 import qualified SAML2.WebSSO.Types as SAML
 import Spar.Sem.BindCookieStore
-import Spar.Sem.Now
-import qualified Spar.Sem.Now as Now
 import qualified Web.Cookie as Cky
 import Wire.API.Cookie
+import Wire.Sem.Now
+import qualified Wire.Sem.Now as Now
 
 bindCookieStoreToMem :: Member Now r => Sem (BindCookieStore ': r) a -> Sem r (Map BindCookie (SAML.Time, UserId), a)
 bindCookieStoreToMem = (runState mempty .) $
