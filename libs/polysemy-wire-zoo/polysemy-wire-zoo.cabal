@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e2e3b663f85abbb558703a6e6bf5449020cb7d0335ae01e4a5ebb124765ed337
+-- hash: 8b0bb72b0db0f9c5d4a92843d3f89cabfc425d2a854a6ef1d7d75a6e6cf96f39
 
 name:           polysemy-wire-zoo
 version:        0.1.0
@@ -23,7 +23,7 @@ library
       Wire.Sem.FromUTC
       Wire.Sem.Now
       Wire.Sem.Now.Input
-      Wire.Sem.Now.IO
+      Wire.Sem.Now.MonadIO
       Wire.Sem.Now.Spec
   other-modules:
       Paths_polysemy_wire_zoo

@@ -30,8 +30,8 @@ import Polysemy.Input
 import SAML2.WebSSO.Types
 import Test.Hspec
 import Test.Hspec.QuickCheck
-import Wire.Sem.Now.IO
 import Wire.Sem.Now.Input
+import Wire.Sem.Now.MonadIO
 import Wire.Sem.Now.Spec
 
 someTime :: UTCTime
@@ -40,5 +40,5 @@ someTime = UTCTime (fromJulianYearAndDay 1990 209) (secondsToDiffTime 0)
 spec :: Spec
 spec = do
   modifyMaxSuccess (const 1000) $ do
-    propsForInterpreter "nowToIO" $ fmap Identity . runM . nowToIO . runInputConst ()
+    propsForInterpreter "nowToMonadIO" $ fmap Identity . runM . nowToMonadIO . runInputConst ()
     propsForInterpreter "nowToInput" $ pure . Identity . run . runInputConst someTime . nowToInput @Time . runInputConst ()

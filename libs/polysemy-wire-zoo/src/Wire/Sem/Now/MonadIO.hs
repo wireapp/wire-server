@@ -15,8 +15,8 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.Sem.Now.IO
-  ( nowToIO,
+module Wire.Sem.Now.MonadIO
+  ( nowToMonadIO,
   )
 where
 
@@ -26,17 +26,17 @@ import Polysemy
 import Wire.Sem.FromUTC
 import Wire.Sem.Now
 
-nowToIO ::
-  Member (Embed IO) r =>
+nowToMonadIO ::
+  forall m r a.
+  (MonadIO m, Member (Embed m) r) =>
   Sem (Now ': r) a ->
   Sem r a
-nowToIO = interpret now
+nowToMonadIO = interpret now
   where
     -- If this helper was inlined, GHC wouldn't be able to figure out
     -- types.
     now ::
-      forall x (r :: [Effect]) (rInitial :: EffectRow).
-      Member (Embed IO) r =>
+      forall x (rInitial :: EffectRow).
       Now (Sem rInitial) x ->
       Sem r x
-    now Get = embed @IO $ fromUTCTime @x <$> getCurrentTime
+    now Get = embed @m $ fromUTCTime @x <$> liftIO getCurrentTime
