@@ -191,22 +191,23 @@ initiateEmailUpdateNoSend brig email uid =
    in put (brig . path "/i/self/email" . contentJson . zUser uid . body emailUpdate)
 
 preparePasswordReset ::
+  (MonadIO m, MonadHttp m) =>
   Brig ->
   DB.ClientState ->
   Email ->
   UserId ->
   PlainTextPassword ->
-  (MonadIO m, MonadHttp m) => m CompletePasswordReset
+  m CompletePasswordReset
 preparePasswordReset brig cs email uid newpw = do
   let qry = queryItem "email" (toByteString' email)
   r <- get $ brig . path "/i/users/password-reset-code" . qry
   let lbs = fromMaybe "" $ responseBody r
   let Just pwcode = PasswordResetCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
-  ident <- PasswordResetIdentityKey <$> sem (mkPasswordResetKey uid)
+  ident <- PasswordResetIdentityKey <$> runSem (mkPasswordResetKey uid)
   let complete = CompletePasswordReset ident pwcode newpw
   return complete
   where
-    sem = liftIO . runFinal @IO . interpretClientToIO cs . codeStoreToCassandra @DB.Client
+    runSem = liftIO . runFinal @IO . interpretClientToIO cs . codeStoreToCassandra @DB.Client
 
 completePasswordReset :: Brig -> CompletePasswordReset -> (MonadIO m, MonadHttp m) => m ResponseLBS
 completePasswordReset brig passwordResetData =
