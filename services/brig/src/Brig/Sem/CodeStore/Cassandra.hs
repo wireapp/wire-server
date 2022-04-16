@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE RecordWildCards #-}
 
 module Brig.Sem.CodeStore.Cassandra
   ( codeStoreToCassandra,
@@ -50,22 +51,29 @@ codeStoreToCassandra =
         GenerateEmailCode -> genEmailCode
         GeneratePhoneCode -> genPhoneCode
         CodeSelect prk ->
-          retry x1
+          (fmap . fmap) toRecord
+            . retry x1
             . query1 codeSelectQuery
             . params LocalQuorum
             . Identity
             $ prk
-        CodeInsert prk prc uid n ut i ->
+        CodeInsert prk (PRQueryData prc uid n ut) ttl ->
           retry x5
             . write codeInsertQuery
             . params LocalQuorum
-            $ (prk, prc, uid, n, ut, i)
+            $ (prk, prc, uid, runIdentity n, runIdentity ut, ttl)
         CodeDelete prk ->
           retry x5
             . write codeDeleteQuery
             . params LocalQuorum
             . Identity
             $ prk
+  where
+    toRecord ::
+      (PasswordResetCode, UserId, Maybe Int32, Maybe UTCTime) ->
+      PRQueryData Maybe
+    toRecord (prqdCode, prqdUser, prqdRetries, prqdTimeout) =
+      PRQueryData {..}
 
 genEmailCode :: MonadIO m => m PasswordResetCode
 genEmailCode = PasswordResetCode . encodeBase64Url <$> liftIO (randBytes 24)

@@ -24,19 +24,25 @@ import Data.Time.Clock
 import Imports
 import Polysemy
 
+-- | Parameters used in password reset queries. The f type constructor is used
+-- either as 'Identity' or 'Maybe'.
+data PRQueryData f = PRQueryData
+  { prqdCode :: PasswordResetCode,
+    prqdUser :: UserId,
+    prqdRetries :: f Int32,
+    prqdTimeout :: f UTCTime
+  }
+
 data CodeStore m a where
   MkPasswordResetKey :: UserId -> CodeStore m PasswordResetKey
   GenerateEmailCode :: CodeStore m PasswordResetCode
   GeneratePhoneCode :: CodeStore m PasswordResetCode
   CodeSelect ::
     PasswordResetKey ->
-    CodeStore m (Maybe (PasswordResetCode, UserId, Maybe Int32, Maybe UTCTime))
+    CodeStore m (Maybe (PRQueryData Maybe))
   CodeInsert ::
     PasswordResetKey ->
-    PasswordResetCode ->
-    UserId ->
-    Int32 ->
-    UTCTime ->
+    PRQueryData Identity ->
     Int32 ->
     CodeStore m ()
   CodeDelete :: PasswordResetKey -> CodeStore m ()
