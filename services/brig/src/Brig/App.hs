@@ -587,8 +587,7 @@ type BrigCanonicalEffects =
   '[ PasswordResetStore,
      Now,
      CodeStore,
-     Embed Cas.Client, -- FUTUREWORK: remove this effect once MonadClient
-     -- constraints are removed from application code
+     Embed Cas.Client,
      Embed IO,
      Final IO
    ]
