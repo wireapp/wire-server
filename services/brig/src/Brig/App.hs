@@ -98,7 +98,6 @@ import Brig.Queue.Types (Queue (..))
 import qualified Brig.SMTP as SMTP
 import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.CodeStore.Cassandra
-import Brig.Sem.Now.MonadIO
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetStore.CodeStore
 import Brig.Team.Template
@@ -158,6 +157,7 @@ import qualified System.Logger.Extended as Log
 import Util.Options
 import Wire.API.User.Identity (Email)
 import Wire.Sem.Now (Now)
+import Wire.Sem.Now.MonadIO
 
 schemaVersion :: Int32
 schemaVersion = 70
@@ -632,7 +632,7 @@ runAppT e (AppT ma) =
     . embedToFinal
     . interpretClientToIO (_casClient e)
     . codeStoreToCassandra @Cas.Client
-    . brigTimeToMonadIO @IO (_currentTime e)
+    . nowToMonadIOAction @IO (_currentTime e)
     . passwordResetStoreToCodeStore
     $ runReaderT ma e
 
