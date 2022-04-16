@@ -14,9 +14,11 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 module Wire.Sem.Now.MonadIO
-  ( nowToMonadIO,
+  ( nowToMonadIOAction,
+    nowToMonadIO,
   )
 where
 
@@ -26,17 +28,26 @@ import Polysemy
 import Wire.Sem.FromUTC
 import Wire.Sem.Now
 
+-- | An interpreter of the 'Now' effect to MonadIO via a custom IO action that
+-- provides the current time.
+nowToMonadIOAction ::
+  forall m r a.
+  (MonadIO m, Member (Embed m) r) =>
+  IO UTCTime ->
+  Sem (Now ': r) a ->
+  Sem r a
+nowToMonadIOAction ioTime = interpret now
+  where
+    now ::
+      forall x (rInitial :: EffectRow).
+      Now (Sem rInitial) x ->
+      Sem r x
+    now Get = embed @m $ fromUTCTime @x <$> liftIO ioTime
+
+-- | A specialisation of 'nowToMonadIOAction' to the 'getCurrentTime' IO action.
 nowToMonadIO ::
   forall m r a.
   (MonadIO m, Member (Embed m) r) =>
   Sem (Now ': r) a ->
   Sem r a
-nowToMonadIO = interpret now
-  where
-    -- If this helper was inlined, GHC wouldn't be able to figure out
-    -- types.
-    now ::
-      forall x (rInitial :: EffectRow).
-      Now (Sem rInitial) x ->
-      Sem r x
-    now Get = embed @m $ fromUTCTime @x <$> liftIO getCurrentTime
+nowToMonadIO = nowToMonadIOAction getCurrentTime
