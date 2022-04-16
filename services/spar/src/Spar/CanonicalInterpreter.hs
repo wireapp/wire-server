@@ -74,7 +74,7 @@ import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
 import Wire.API.User.Saml
 import Wire.Sem.Now (Now)
-import Wire.Sem.Now.MonadIO (nowToMonadIO)
+import Wire.Sem.Now.IO (nowToIO)
 
 type CanonicalEffs =
   '[ SAML2,
@@ -111,7 +111,7 @@ runSparToIO :: Env -> Sem CanonicalEffs a -> IO (Either SparError a)
 runSparToIO ctx action =
   runFinal
     . embedToFinal @IO
-    . nowToMonadIO
+    . nowToIO
     . randomToIO
     . runInputConst (sparCtxLogger ctx)
     . runInputConst (sparCtxOpts ctx)
