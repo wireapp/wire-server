@@ -157,7 +157,7 @@ import qualified System.Logger.Extended as Log
 import Util.Options
 import Wire.API.User.Identity (Email)
 import Wire.Sem.Now (Now)
-import Wire.Sem.Now.MonadIO
+import Wire.Sem.Now.IO
 
 schemaVersion :: Int32
 schemaVersion = 70
@@ -632,7 +632,7 @@ runAppT e (AppT ma) =
     . embedToFinal
     . interpretClientToIO (_casClient e)
     . codeStoreToCassandra @Cas.Client
-    . nowToMonadIOAction @IO (_currentTime e)
+    . nowToIOAction (_currentTime e)
     . passwordResetStoreToCodeStore
     $ runReaderT ma e
 
