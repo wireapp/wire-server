@@ -465,6 +465,16 @@ closeEnv e = do
 
 -------------------------------------------------------------------------------
 -- App Monad
+
+type BrigCanonicalEffects =
+  '[ PasswordResetStore,
+     Now,
+     CodeStore,
+     Embed Cas.Client,
+     Embed IO,
+     Final IO
+   ]
+
 newtype AppT r a = AppT
   { unAppT :: Member (Final IO) r => ReaderT Env (Sem r) a
   }
@@ -582,15 +592,6 @@ newtype HttpClientIO a = HttpClientIO
       MonadUnliftIO,
       MonadIndexIO
     )
-
-type BrigCanonicalEffects =
-  '[ PasswordResetStore,
-     Now,
-     CodeStore,
-     Embed Cas.Client,
-     Embed IO,
-     Final IO
-   ]
 
 instance MonadZAuth HttpClientIO where
   liftZAuth za = view zauthEnv >>= flip runZAuth za
