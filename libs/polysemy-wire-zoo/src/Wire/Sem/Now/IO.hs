@@ -16,9 +16,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
-module Wire.Sem.Now.MonadIO
-  ( nowToMonadIOAction,
-    nowToMonadIO,
+module Wire.Sem.Now.IO
+  ( nowToIOAction,
+    nowToIO,
   )
 where
 
@@ -28,26 +28,26 @@ import Polysemy
 import Wire.Sem.FromUTC
 import Wire.Sem.Now
 
--- | An interpreter of the 'Now' effect to MonadIO via a custom IO action that
+-- | An interpreter of the 'Now' effect to IO via a custom IO action that
 -- provides the current time.
-nowToMonadIOAction ::
-  forall m r a.
-  (MonadIO m, Member (Embed m) r) =>
+nowToIOAction ::
+  forall r a.
+  (Member (Embed IO) r) =>
   IO UTCTime ->
   Sem (Now ': r) a ->
   Sem r a
-nowToMonadIOAction ioTime = interpret now
+nowToIOAction ioTime = interpret now
   where
     now ::
       forall x (rInitial :: EffectRow).
       Now (Sem rInitial) x ->
       Sem r x
-    now Get = embed @m $ fromUTCTime @x <$> liftIO ioTime
+    now Get = embed @IO $ fromUTCTime @x <$> ioTime
 
--- | A specialisation of 'nowToMonadIOAction' to the 'getCurrentTime' IO action.
-nowToMonadIO ::
-  forall m r a.
-  (MonadIO m, Member (Embed m) r) =>
+-- | A specialisation of 'nowToIOAction' to the 'getCurrentTime' IO action.
+nowToIO ::
+  forall r a.
+  (Member (Embed IO) r) =>
   Sem (Now ': r) a ->
   Sem r a
-nowToMonadIO = nowToMonadIOAction getCurrentTime
+nowToIO = nowToIOAction getCurrentTime
