@@ -122,7 +122,7 @@ genConversation =
     <$> arbitrary
     <*> listOf genLocalMember
     <*> listOf genRemoteMember
-    <*> pure (Just False)
+    <*> pure False
     <*> genConversationMetadata
     <*> pure ProtocolProteus
 

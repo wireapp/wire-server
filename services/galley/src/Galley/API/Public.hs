@@ -33,7 +33,6 @@ import qualified Data.Set as Set
 import Data.Swagger.Build.Api hiding (Response, def, min)
 import qualified Data.Swagger.Build.Api as Swagger
 import Data.Text.Encoding (decodeLatin1)
-import qualified Galley.API.CustomBackend as CustomBackend
 import qualified Galley.API.Error as Error
 import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
@@ -58,7 +57,6 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
 import Wire.API.Conversation.Role
-import qualified Wire.API.CustomBackend as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
 import qualified Wire.API.Event.Team as Public ()
@@ -69,7 +67,6 @@ import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team.LegalHold as Public
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.Permission as Public
-import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
 import Wire.Swagger (int32Between)
 
@@ -352,53 +349,6 @@ sitemap = do
       .&. zauthConnId
       .&. jsonRequest @Public.ApproveLegalHoldForUserRequest
       .&. accept "application" "json"
-
-  get "/teams/:tid/search-visibility" (continueE Teams.getSearchVisibilityH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getSearchVisibility" $ do
-    summary "Shows the value for search visibility"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    returns (ref Public.modelTeamSearchVisibility)
-    response 200 "Search visibility" end
-
-  put "/teams/:tid/search-visibility" (continueE Teams.setSearchVisibilityH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. jsonRequest @Public.TeamSearchVisibilityView
-      .&. accept "application" "json"
-  document "POST" "setSearchVisibility" $ do
-    summary "Sets the search visibility for the whole team"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    body (ref Public.modelTeamSearchVisibility) $
-      description "Search visibility to be set"
-    response 204 "Search visibility set" end
-    errorSResponse @'TeamSearchVisibilityNotEnabled
-
-  get "/teams/:tid/features" (continueE Features.getAllFeaturesH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-  document "GET" "getAllFeatures" $ do
-    summary "Shows the configuration status of every team feature"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    response 200 "All feature statuses" end
-
-  -- Custom Backend API -------------------------------------------------
-
-  get "/custom-backend/by-domain/:domain" (continueE CustomBackend.getCustomBackendByDomainH) $
-    capture "domain"
-      .&. accept "application" "json"
-  document "GET" "getCustomBackendByDomain" $ do
-    summary "Shows information about custom backends related to a given email domain"
-    parameter Path "domain" string' $
-      description "URL-encoded email domain"
-    returns (ref Public.modelCustomBackend)
-    response 200 "Custom backend" end
 
   -- Bot API ------------------------------------------------------------
 
