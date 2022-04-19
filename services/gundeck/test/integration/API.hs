@@ -49,6 +49,7 @@ import qualified Data.Set as Set
 import qualified Data.Text.Encoding as T
 import qualified Data.UUID as UUID
 import Data.UUID.V4
+import Gundeck.Options
 import qualified Gundeck.Push.Data as Push
 import Gundeck.Types
 import Imports
@@ -85,7 +86,8 @@ tests s =
           test s "Push many to Cannon via bulkpush (via gundeck; e2e notif)" $ bulkPush True 50 8,
           test s "Send a push, ensure origin does not receive it" sendSingleUserNoPiggyback,
           test s "Targeted push by connection" targetConnectionPush,
-          test s "Targeted push by client" targetClientPush
+          test s "Targeted push by client" targetClientPush,
+          test s "Store notifications even when redis is down" storeNotificationsEvenWhenRedisIsDown
         ],
       testGroup
         "Notifications"

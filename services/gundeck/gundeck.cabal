@@ -217,6 +217,7 @@ executable gundeck-integration
       API
       Metrics
       TestSetup
+      Util
       Paths_gundeck
   hs-source-dirs:
       test/integration
@@ -278,6 +279,7 @@ executable gundeck-integration
     , http-client
     , http-client-tls
     , imports
+    , kan-extensions
     , lens
     , lens-aeson
     , metrics-wai
@@ -289,6 +291,7 @@ executable gundeck-integration
     , random
     , retry
     , safe
+    , streaming-commons
     , tagged
     , tasty >=1.0
     , tasty-hunit >=0.9
@@ -299,6 +302,9 @@ executable gundeck-integration
     , unix
     , unordered-containers
     , uuid
+    , wai
+    , warp
+    , warp-tls
     , websockets >=0.8
     , yaml
   default-language: Haskell2010
