@@ -282,7 +282,7 @@ teamMembersCollectedWithPagination lh tid = do
   where
     collectTeamMembersPaginated acc mems = do
       tMembers <- mapM (newTeamMember' lh tid) (result mems)
-      if (null $ result mems)
+      if hasMore mems
         then collectTeamMembersPaginated (tMembers ++ acc) =<< nextPage mems
         else return (tMembers ++ acc)
 

@@ -19,6 +19,8 @@
 
 module Wire.API.MLS.Credential where
 
+import Control.Error.Util
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
@@ -34,6 +36,7 @@ import qualified Data.Swagger as S
 import qualified Data.Text as T
 import Data.UUID
 import Imports
+import Web.HttpApiData
 import Wire.API.Arbitrary
 import Wire.API.MLS.Serialisation
 
@@ -108,6 +111,12 @@ instance FromJSON SignatureSchemeTag where
 
 instance FromJSONKey SignatureSchemeTag where
   fromJSONKey = Aeson.FromJSONKeyTextParser parseSignatureScheme
+
+instance S.ToParamSchema SignatureSchemeTag where
+  toParamSchema _ = mempty & S.type_ ?~ S.SwaggerString
+
+instance FromHttpApiData SignatureSchemeTag where
+  parseQueryParam = note "Unknown signature scheme" . signatureSchemeFromName
 
 instance ToJSON SignatureSchemeTag where
   toJSON = Aeson.String . signatureSchemeName

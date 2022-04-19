@@ -119,9 +119,11 @@ tests opts mgr galley brig = do
         testGroup "team A: SearchVisibilityNoNameOutsideTeam (restricted outbound search)" $
           [ testGroup "team A: SearchableByOwnTeam (= restricted inbound search)" $
               [ test mgr "I. non-team user cannot find team A member by display name" $ testSearchTeamMemberAsNonMemberOutboundOnly brig testSetupOutboundOnly,
-                test mgr "team A member cannot find team B member by display name or exact handle" $ testSearchTeamMemberAsOtherMemberOutboundOnly brig testSetupOutboundOnly,
+                test mgr "team A member cannot find team B member by display name" $ testSearchTeamMemberAsOtherMemberOutboundOnly brig testSetupOutboundOnly,
+                test mgr "team A member can find team B member by by exact handle" $ testSearchOutboundOnlyCanFindOtherByHandle brig testSetupOutboundOnly,
                 test mgr "V. team A member can find other team A member by display name or exact handle" $ testSearchTeamMemberAsSameMemberOutboundOnly brig testSetupOutboundOnly,
-                test mgr "team A member cannot find non-team user by display name or exact handle" $ testSearchNonMemberAsTeamMemberOutboundOnly brig testSetupOutboundOnly
+                test mgr "team A member cannot find non-team user by display name" $ testSearchNonMemberOutboundOnlyByDisplay brig testSetupOutboundOnly,
+                test mgr "team A member can find non-team user by exact handle" $ testSearchNonMemberOutboundOnlyByHandle brig testSetupOutboundOnly
               ]
           ],
         testGroup "federated" $
@@ -504,9 +506,12 @@ testSearchTeamMemberAsNonMemberOutboundOnly brig ((_, _, teamAMember), (_, _, _)
 
 testSearchTeamMemberAsOtherMemberOutboundOnly :: Brig -> ((TeamId, User, User), (TeamId, User, User), User) -> Http ()
 testSearchTeamMemberAsOtherMemberOutboundOnly brig ((_, _, teamAMember), (_, _, teamBMember), _) = do
-  let teamBMemberHandle = fromMaybe (error "teamBMember must have a handle") (userHandle teamBMember)
   assertCan'tFind brig (userId teamAMember) (userQualifiedId teamBMember) (fromName (userDisplayName teamBMember))
-  assertCan'tFind brig (userId teamAMember) (userQualifiedId teamBMember) (fromHandle teamBMemberHandle)
+
+testSearchOutboundOnlyCanFindOtherByHandle :: Brig -> ((TeamId, User, User), (TeamId, User, User), User) -> Http ()
+testSearchOutboundOnlyCanFindOtherByHandle brig ((_, _, teamAMember), (_, _, teamBMember), _) = do
+  let teamBMemberHandle = fromMaybe (error "teamBMember must have a handle") (userHandle teamBMember)
+  assertCanFind brig (userId teamAMember) (userQualifiedId teamBMember) (fromHandle teamBMemberHandle)
 
 testSearchTeamMemberAsSameMemberOutboundOnly :: Brig -> ((TeamId, User, User), (TeamId, User, User), User) -> Http ()
 testSearchTeamMemberAsSameMemberOutboundOnly brig ((_, teamAOwner, teamAMember), (_, _, _), _) = do
@@ -517,11 +522,14 @@ testSearchTeamMemberAsSameMemberOutboundOnly brig ((_, teamAOwner, teamAMember),
   assertCanFind brig (userId teamAMember) (userQualifiedId teamAOwner) (fromName (userDisplayName teamAOwner))
   assertCanFind brig (userId teamAMember) (userQualifiedId teamAOwner) (fromHandle teamAOwnerHandle)
 
-testSearchNonMemberAsTeamMemberOutboundOnly :: Brig -> ((TeamId, User, User), (TeamId, User, User), User) -> Http ()
-testSearchNonMemberAsTeamMemberOutboundOnly brig ((_, _, teamAMember), (_, _, _), nonTeamMember) = do
-  let teamMemberAHandle = fromMaybe (error "nonTeamMember must have a handle") (userHandle nonTeamMember)
+testSearchNonMemberOutboundOnlyByDisplay :: Brig -> ((TeamId, User, User), (TeamId, User, User), User) -> Http ()
+testSearchNonMemberOutboundOnlyByDisplay brig ((_, _, teamAMember), (_, _, _), nonTeamMember) = do
   assertCan'tFind brig (userId teamAMember) (userQualifiedId nonTeamMember) (fromName (userDisplayName nonTeamMember))
-  assertCan'tFind brig (userId teamAMember) (userQualifiedId nonTeamMember) (fromHandle teamMemberAHandle)
+
+testSearchNonMemberOutboundOnlyByHandle :: Brig -> ((TeamId, User, User), (TeamId, User, User), User) -> Http ()
+testSearchNonMemberOutboundOnlyByHandle brig ((_, _, teamAMember), (_, _, _), nonTeamMember) = do
+  let teamMemberAHandle = fromMaybe (error "nonTeamMember must have a handle") (userHandle nonTeamMember)
+  assertCanFind brig (userId teamAMember) (userQualifiedId nonTeamMember) (fromHandle teamMemberAHandle)
 
 testSearchWithDomain :: TestConstraints m => Brig -> m ()
 testSearchWithDomain brig = do

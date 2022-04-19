@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4b1ed885b5ee0e7a49013f134724d41277e8cc3ff45a6023404e24793c6303c5
+-- hash: 2c188321de9d8fa1e3a3ebbb8568be60f828a72db398a28e8c590e49d5ae9f05
 
 name:           polysemy-wire-zoo
 version:        0.1.0
@@ -56,7 +56,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

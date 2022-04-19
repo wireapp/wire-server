@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4c3c3c61ce43c6d11f5eed921640d7a287b190e400bc86db238b2aafac7d5c40
+-- hash: ffc381288ee6d06f96874ae5e486cc962dfb84f417859c96f4b3f60531aeb634
 
 name:           bonanza
 version:        3.6.0
@@ -76,7 +76,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -154,7 +153,6 @@ executable bonanza
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -209,7 +207,6 @@ executable kibana-raw
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -268,7 +265,6 @@ executable kibanana
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -336,7 +332,6 @@ test-suite bonanza-tests
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

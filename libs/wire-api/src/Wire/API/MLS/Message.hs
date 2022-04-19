@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -25,6 +26,7 @@ module Wire.API.MLS.Message
     SWireFormatTag (..),
     SomeMessage (..),
     ContentType (..),
+    mpTag,
     MessagePayload (..),
     MessagePayloadTBS (..),
     Sender (..),
@@ -159,6 +161,12 @@ data ContentType
 
 instance ParseMLS ContentType where
   parseMLS = parseMLSEnum @Word8 "content type"
+
+-- | Identify the content type of a message payload to be signed.
+mpTag :: MessagePayloadTBS -> ContentType
+mpTag (ApplicationMessage _) = ApplicationMessageTag
+mpTag (ProposalMessage _) = ProposalMessageTag
+mpTag (CommitMessage _) = CommitMessageTag
 
 instance ParseMLS MessagePayloadTBS where
   parseMLS =

@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -122,7 +124,7 @@ data BrigAccess m a where
   RemoveLegalHoldClientFromUser :: UserId -> BrigAccess m ()
   GetAccountFeatureConfigClient :: UserId -> BrigAccess m TeamFeatureStatusNoConfig
   GetClientByKeyPackageRef :: KeyPackageRef -> BrigAccess m (Maybe ClientIdentity)
-  GetMLSClients :: Qualified UserId -> BrigAccess m (Set ClientId)
+  GetMLSClients :: Qualified UserId -> SignatureSchemeTag -> BrigAccess m (Set ClientId)
   UpdateSearchVisibilityInbound ::
     Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound ->
     BrigAccess m ()

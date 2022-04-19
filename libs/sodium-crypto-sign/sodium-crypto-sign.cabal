@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7f0ee2a8b0a69d4f589716632e47f0b9bd431ca5cbfd7a8bf5dfe273c6489de0
+-- hash: 188b33e448d43772b1e4a01c070e1148acb30cf546bc088c21c3838d16a645cb
 
 name:           sodium-crypto-sign
 version:        0.1.2
@@ -57,7 +57,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

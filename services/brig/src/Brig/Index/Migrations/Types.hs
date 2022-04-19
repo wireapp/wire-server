@@ -30,7 +30,7 @@ import Imports
 import Network.HTTP.Client (Manager)
 import Numeric.Natural (Natural)
 import qualified System.Logger as Logger
-import System.Logger.Class (MonadLogger (..))
+import System.Logger.Class (MonadLogger (..), ToBytes (..))
 import Util.Options (Endpoint)
 
 newtype MigrationVersion = MigrationVersion {migrationVersion :: Natural}
@@ -41,6 +41,9 @@ instance ToJSON MigrationVersion where
 
 instance FromJSON MigrationVersion where
   parseJSON = withObject "MigrationVersion" $ \o -> MigrationVersion <$> o .: "migration_version"
+
+instance ToBytes MigrationVersion where
+  bytes = bytes . toInteger . migrationVersion
 
 newtype MigrationActionT m a = MigrationActionT {unMigrationAction :: ReaderT Env m a}
   deriving

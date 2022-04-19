@@ -162,7 +162,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -196,6 +195,7 @@ library
     , cryptonite
     , currency-codes >=2.0
     , data-default >=0.5
+    , either
     , enclosed-exceptions >=1.0
     , errors >=2.0
     , exceptions >=0.4
@@ -302,7 +302,6 @@ executable galley
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -388,7 +387,6 @@ executable galley-integration
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -532,7 +530,6 @@ executable galley-migrate-data
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -655,7 +652,6 @@ executable galley-schema
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -732,7 +728,6 @@ test-suite galley-tests
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

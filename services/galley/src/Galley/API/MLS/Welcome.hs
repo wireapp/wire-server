@@ -60,7 +60,13 @@ welcomeRecipients ::
     r =>
   Welcome ->
   Sem r [Qualified (UserId, ClientId)]
-welcomeRecipients = traverse (fmap cidQualifiedClient . derefKeyPackage . gsNewMember) . welSecrets
+welcomeRecipients =
+  traverse
+    ( fmap cidQualifiedClient
+        . derefKeyPackage
+        . gsNewMember
+    )
+    . welSecrets
 
 sendWelcomes ::
   Members

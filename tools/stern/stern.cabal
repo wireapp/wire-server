@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 546e7936cf8835f249ceaf80c981335ff160a2848a48cc55a707845fc3c5d2c5
+-- hash: 5287c14ec315c7bd7ae56515e9b34de87068021daadd44a2b122056bb62c9bc3
 
 name:           stern
 version:        1.7.2
@@ -67,7 +67,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -152,7 +151,6 @@ executable stern
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

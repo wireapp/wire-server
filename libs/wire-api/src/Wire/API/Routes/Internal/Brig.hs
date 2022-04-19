@@ -165,6 +165,7 @@ type GetMLSClients =
     :> "clients"
     :> CanThrow 'UserNotFound
     :> QualifiedCapture "user" UserId
+    :> QueryParam' '[Required, Strict] "sig_scheme" SignatureSchemeTag
     :> MultiVerb1
          'GET
          '[Servant.JSON]

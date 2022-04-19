@@ -1,0 +1,2 @@
+Allow additional origins at random ports in nginz Helm chart. This is useful for
+testing with an HTTP proxy. It should not be used in production.

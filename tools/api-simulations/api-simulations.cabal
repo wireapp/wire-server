@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: cc1ee9817c17b416b041da1872f67634723249762332426dc63b0b1ab43309e8
+-- hash: 6fadbcf542408132b2419f8f1b77897b9b1810d44ade8606c2572d6adf445ccd
 
 name:           api-simulations
 version:        0.4.2
@@ -57,7 +57,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -120,7 +119,6 @@ executable api-loadtest
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -191,7 +189,6 @@ executable api-smoketest
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

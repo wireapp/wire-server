@@ -194,8 +194,6 @@ catchErrors l m app req k =
     errorResponse :: SomeException -> IO ResponseReceived
     errorResponse ex = do
       er <- runHandlers ex errorHandlers
-      when (statusCode (Error.code er) >= 500) $
-        logIO l Log.Error (Just req) (show ex)
       onError l m req k er
 {-# INLINEABLE catchErrors #-}
 
@@ -354,7 +352,11 @@ logError :: (MonadIO m, HasRequest r) => Logger -> Maybe r -> Wai.Error -> m ()
 logError g mr = logError' g (lookupRequestId =<< mr)
 
 logError' :: (MonadIO m) => Logger -> Maybe ByteString -> Wai.Error -> m ()
-logError' g mr e = liftIO $ Log.debug g (logErrorMsg mr e)
+logError' g mr e = liftIO $ doLog g (logErrorMsg mr e)
+  where
+    doLog
+      | statusCode (Error.code e) >= 500 = Log.err
+      | otherwise = Log.debug
 
 logErrorMsg :: Maybe ByteString -> Wai.Error -> Msg -> Msg
 logErrorMsg mr (Wai.Error c l m md) =

@@ -1,3 +1,5 @@
 MLS implementation progress:
 
  - commit messages containing add proposals are now processed
+ - do initial validation and forwarding of all types of messages via POST /mls/messages
+ - fixed bug where users could not be added to MLS conversations if they had non-MLS clients

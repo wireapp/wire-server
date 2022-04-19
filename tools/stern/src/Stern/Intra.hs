@@ -38,6 +38,7 @@ module Stern.Intra
     deleteAccount,
     setStatusBindingTeam,
     deleteBindingTeam,
+    deleteBindingTeamForce,
     getTeamInfo,
     getUserBindingTeam,
     isBlacklisted,
@@ -46,6 +47,7 @@ module Stern.Intra
     getTeamFeatureFlagNoConfig,
     setTeamFeatureFlagNoConfig,
     setTeamFeatureFlag,
+    getTeamData,
     getSearchVisibility,
     setSearchVisibility,
     getTeamBillingInfo,
@@ -324,6 +326,21 @@ deleteBindingTeam tid = do
           . expect2xx
       )
 
+-- | Caution! This may permanently delete all team members!
+deleteBindingTeamForce :: TeamId -> Handler ()
+deleteBindingTeamForce tid = do
+  info $ msg "Deleting team with force flag"
+  g <- view galley
+  void . catchRpcErrors $
+    rpc'
+      "galley"
+      g
+      ( method DELETE
+          . paths ["/i/teams", toByteString' tid]
+          . queryItem "force" "true"
+          . expect2xx
+      )
+
 changeEmail :: UserId -> EmailUpdate -> Handler ()
 changeEmail u upd = do
   info $ msg "Updating email address"
@@ -333,7 +350,7 @@ changeEmail u upd = do
       "brig"
       b
       ( method PUT
-          . path "/self/email"
+          . path "i/self/email"
           . header "Z-User" (toByteString' u)
           . header "Z-Connection" (toByteString' "")
           . lbytes (encode upd)

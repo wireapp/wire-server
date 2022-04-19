@@ -72,10 +72,14 @@ tests s =
         [ test s "add user to a conversation" testAddUser,
           test s "add user (not connected)" testAddUserNotConnected,
           test s "add user (partial client list)" testAddUserPartial,
+          test s "add user with some non-MLS clients" testAddUserWithProteusClients,
           test s "add new client of an already-present user to a conversation" testAddNewClient,
           test s "send a commit to a proteus conversation" testAddUsersToProteus,
           test s "send a stale commit" testStaleCommit
-        ]
+        ],
+      testGroup
+        "Application Message"
+        [test s "send application message" testAppMessage]
     ]
 
 testLocalWelcome :: TestM ()
@@ -151,6 +155,11 @@ testSuccessfulCommitWithNewUsers MessagingSetup {..} newUsers = do
           )
         <!! const 201 === statusCode
 
+    let alreadyPresent =
+          map snd
+            . filter (\(p, _) -> not (pUserId p `elem` newUsers))
+            $ zip users wss
+
     liftIO $
       if null newUsers
         then do
@@ -158,7 +167,8 @@ testSuccessfulCommitWithNewUsers MessagingSetup {..} newUsers = do
           events @?= []
 
           -- check that no users receive join events
-          WS.assertNoEvent (1 # WS.Second) wss
+          when (null alreadyPresent) $
+            WS.assertNoEvent (1 # WS.Second) wss
         else do
           -- check that alice receives a join event
           case events of
@@ -166,10 +176,15 @@ testSuccessfulCommitWithNewUsers MessagingSetup {..} newUsers = do
             [] -> assertFailure "expected join event to be returned to alice"
             es -> assertFailure $ "expected one event, found: " <> show es
 
-          -- check that all users receive a join event
+          -- check that all users receive a join event,
           for_ wss $ \ws -> do
-            WS.assertMatch (5 # WS.Second) ws $
+            WS.assertMatch_ (5 # WS.Second) ws $
               wsAssertMemberJoinWithRole conversation (pUserId creator) newUsers roleNameWireMember
+
+    -- and that the already-present users in the conversation receive a commit
+    for_ alreadyPresent $ \ws -> do
+      WS.assertMatch_ (5 # WS.Second) ws $
+        wsAssertMLSMessage conversation (pUserId creator) commit
 
   -- FUTUREWORK: check that messages sent to the conversation are propagated to bob
   pure ()
@@ -214,6 +229,26 @@ testAddUserNotConnected = do
 
   -- now connect and retry
   connectUsers (qUnqualified (pUserId creator)) (pure (qUnqualified (pUserId bob)))
+  testSuccessfulCommit setup
+
+testAddUserWithProteusClients :: TestM ()
+testAddUserWithProteusClients = do
+  setup <- withSystemTempDirectory "mls" $ \tmp -> do
+    (alice, users@[bob]) <- withLastPrekeys $ do
+      -- bob has 2 MLS clients
+      participants@(_, [bob]) <- setupParticipants tmp def [2]
+
+      -- and a non-MLS client
+      void $ takeLastPrekey >>= lift . addClient (pUserId bob)
+
+      pure participants
+
+    -- alice creates a conversation and adds Bob's MLS clients
+    conversation <- setupGroup tmp CreateConv alice "group"
+    (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" (pClients bob)
+
+    pure MessagingSetup {creator = alice, ..}
+
   testSuccessfulCommit setup
 
 testAddUserPartial :: TestM ()
@@ -290,6 +325,41 @@ testStaleCommit = withSystemTempDirectory "mls" $ \tmp -> do
           users2 >>= toList . pClients
     err <- testFailedCommit MessagingSetup {..} 409
     liftIO $ Wai.label err @?= "mls-stale-message"
+
+testAppMessage :: TestM ()
+testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, users) <- withLastPrekeys $ setupParticipants tmp def [1, 2, 3]
+  conversation <- setupGroup tmp CreateConv creator "group"
+
+  (commit, welcome) <-
+    liftIO $
+      setupCommit tmp "group" "group" $
+        users >>= toList . pClients
+  -- FUTUREWORK: manually send the commit
+  testSuccessfulCommit MessagingSetup {..}
+  message <-
+    liftIO $
+      spawn (cli tmp ["message", "--group", tmp </> "group", "some text"]) Nothing
+
+  galley <- viewGalley
+  cannon <- view tsCannon
+
+  WS.bracketRN cannon (qUnqualified . pUserId <$> users) $ \wss -> do
+    post
+      ( galley . paths ["mls", "messages"]
+          . zUser (qUnqualified (pUserId creator))
+          . zConn "conn"
+          . content "message/mls"
+          . bytes message
+      )
+      !!! const 201
+      === statusCode
+
+    -- check that the corresponding event is received
+
+    liftIO $
+      WS.assertMatchN_ (5 # WS.Second) wss $
+        wsAssertMLSMessage conversation (pUserId creator) message
 
 --------------------------------------------------------------------------------
 -- Messaging setup

@@ -57,6 +57,11 @@ nginx_conf:
     - webapp
     - teams
     - account
+  # -- The origins from which we allow CORS requests at random ports. This is
+  # useful for testing with HTTP proxies and should not be used in production.
+  # The list entries are combined with 'external_env_domain' to form a full url
+  # regex that matches for all ports.
+  randomport_allowlisted_origins: [] # default is empty by intention
   upstreams:
     cargohold:
     - path: /conversations/([^/]*)/assets
@@ -383,6 +388,12 @@ nginx_conf:
     - path: /i/teams/([^/]*)/features/([^/]*)
       envs:
       - staging
+      disable_zauth: true
+      basic_auth: true
+      versioned: false
+    - path: /i/teams/([^/]*)/search-visibility$
+      envs:
+        - staging
       disable_zauth: true
       basic_auth: true
       versioned: false

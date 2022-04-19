@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d91dea84564b802aae13b5514b1babf2f1a50b0d33a58bc7dade37d6c60c2182
+-- hash: 310c78c8c607c96c8c81469672bbd44ec95e9c65c63a8506f67fd66cbd124f21
 
 name:           ssl-util
 version:        0.1.0
@@ -57,7 +57,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

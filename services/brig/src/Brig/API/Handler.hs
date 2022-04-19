@@ -40,6 +40,7 @@ import Brig.Options (setWhitelist)
 import Brig.Phone (Phone, PhoneException (..))
 import qualified Brig.Whitelist as Whitelist
 import Control.Error
+import Control.Exception (throwIO)
 import Control.Lens (set, view)
 import Control.Monad.Catch (catches, throwM)
 import qualified Control.Monad.Catch as Catch
@@ -47,13 +48,11 @@ import Control.Monad.Except (MonadError, throwError)
 import Data.Aeson (FromJSON)
 import qualified Data.Aeson as Aeson
 import Data.Default (def)
-import Data.Proxy (Proxy (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.ZAuth.Validation as ZV
 import Imports
-import Network.HTTP.Media.RenderHeader (RenderHeader (..))
-import Network.HTTP.Types (Status (statusCode, statusMessage), hContentType)
+import Network.HTTP.Types (Status (statusCode, statusMessage))
 import Network.Wai (Request, ResponseReceived)
 import Network.Wai.Predicate (Media)
 import Network.Wai.Routing (Continue)
@@ -94,12 +93,13 @@ toServantHandler env action = do
 
     handleWaiErrors logger reqId =
       \case
-        StdError werr -> do
-          Server.logError' logger (Just reqId) werr
-          Servant.throwError $
-            Servant.ServerError (mkCode werr) (mkPhrase (WaiError.code werr)) (Aeson.encode werr) [(hContentType, renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
+        -- throw in IO so that the `catchErrors` middleware can turn this error
+        -- into a response and log accordingly
+        StdError werr -> liftIO $ throwIO werr
         RichError werr body headers -> do
-          Server.logError' logger (Just reqId) werr
+          when (statusCode (WaiError.code werr) < 500) $
+            -- 5xx are logged by the middleware, so we only log errors < 500 to avoid duplicated entries
+            Server.logError' logger (Just reqId) werr
           Servant.throwError $
             Servant.ServerError (mkCode werr) (mkPhrase (WaiError.code werr)) (Aeson.encode body) headers
 
