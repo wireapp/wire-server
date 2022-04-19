@@ -149,7 +149,7 @@ API versions.
 Afterwards, we will have two entries:
 
 ```haskell
-Named "get-foo@v1" (Until V1 :> "foo" :> Get '[JSON] (Foo V1))
+Named "get-foo@v1" (Until V2 :> "foo" :> Get '[JSON] (Foo V1))
 :<|>
 Named "get-foo" (From V2 :> "foo" :> Get '[JSON] (Foo V2))
 ```
