@@ -91,7 +91,10 @@ executables:
     - HsOpenSSL
     - lens
     - lens-aeson
+    - metrics-wai
     - mtl
+    - network
+    - network-run
     - network-uri
     - optparse-applicative
     - random
@@ -104,6 +107,7 @@ executables:
     - time
     - tinylog
     - types-common
+    - unix
     - unordered-containers
     - uuid
     - websockets >=0.8

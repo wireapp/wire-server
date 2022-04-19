@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: 14e7d21fd4304ef1b51679e0624e9c632777ddb5e43509ed96d4dff1a2ab1f27
 
 name:           gundeck
 version:        1.45.0
@@ -282,7 +280,10 @@ executable gundeck-integration
     , imports
     , lens
     , lens-aeson
+    , metrics-wai
     , mtl
+    , network
+    , network-run
     , network-uri
     , optparse-applicative
     , random
@@ -295,6 +296,7 @@ executable gundeck-integration
     , time
     , tinylog
     , types-common
+    , unix
     , unordered-containers
     , uuid
     , websockets >=0.8
