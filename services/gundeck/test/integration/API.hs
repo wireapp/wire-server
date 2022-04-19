@@ -432,7 +432,7 @@ storeNotificationsEvenWhenRedisIsDown = do
         push = buildPush ally [(ally, RecipientClientsAll)] pload
     gu <- view tsGundeck
     liftIO $ Async.cancel redisProxyServer
-    post (runGundeckR gu . path "i/push/v2" . json [push]) !!! const 500 === statusCode
+    post (runGundeckR gu . path "i/push/v2" . json [push]) !!! const 200 === statusCode
 
   ns <- listNotifications ally Nothing
   liftIO $ assertEqual ("Expected 1 notification, got: " <> show ns) 1 (length ns)

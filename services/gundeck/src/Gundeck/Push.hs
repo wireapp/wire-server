@@ -191,7 +191,6 @@ pushAny' p = do
 pushAll :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => [Push] -> m ()
 pushAll pushes = do
   newNotifications <- mapM mkNewNotification pushes
-  wsTargets <- mapM mkWSTargets newNotifications
   -- persist push request
   let cassandraTargets :: [CassandraTargets]
       cassandraTargets = map mkCassandraTargets newNotifications
@@ -201,6 +200,7 @@ pushAll pushes = do
         =<< mpaNotificationTTL
   mpaForkIO $ do
     -- websockets
+    wsTargets <- mapM mkWSTargets newNotifications
     resp <- compilePushResps wsTargets <$> mpaBulkPush (compilePushReq <$> wsTargets)
     -- native push
     perPushConcurrency <- mntgtPerPushConcurrency
