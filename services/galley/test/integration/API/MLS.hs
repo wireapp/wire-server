@@ -72,6 +72,7 @@ tests s =
         [ test s "add user to a conversation" testAddUser,
           test s "add user (not connected)" testAddUserNotConnected,
           test s "add user (partial client list)" testAddUserPartial,
+          test s "add user with some non-MLS clients" testAddUserWithProteusClients,
           test s "add new client of an already-present user to a conversation" testAddNewClient,
           test s "send a commit to a proteus conversation" testAddUsersToProteus,
           test s "send a stale commit" testStaleCommit
@@ -228,6 +229,26 @@ testAddUserNotConnected = do
 
   -- now connect and retry
   connectUsers (qUnqualified (pUserId creator)) (pure (qUnqualified (pUserId bob)))
+  testSuccessfulCommit setup
+
+testAddUserWithProteusClients :: TestM ()
+testAddUserWithProteusClients = do
+  setup <- withSystemTempDirectory "mls" $ \tmp -> do
+    (alice, users@[bob]) <- withLastPrekeys $ do
+      -- bob has 2 MLS clients
+      participants@(_, [bob]) <- setupParticipants tmp def [2]
+
+      -- and a non-MLS client
+      void $ takeLastPrekey >>= lift . addClient (pUserId bob)
+
+      pure participants
+
+    -- alice creates a conversation and adds Bob's MLS clients
+    conversation <- setupGroup tmp CreateConv alice "group"
+    (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" (pClients bob)
+
+    pure MessagingSetup {creator = alice, ..}
+
   testSuccessfulCommit setup
 
 testAddUserPartial :: TestM ()
