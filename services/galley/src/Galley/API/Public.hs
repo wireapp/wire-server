@@ -286,17 +286,20 @@ sitemap = do
   -- using wai-utilities, but with Servant.
   -- See 'apiDocsTeamsLegalhold'.
 
+  -- todo(leif): servantify this
   post "/teams/:tid/legalhold/settings" (continueE LegalHold.createSettingsH) $
     zauthUserId
       .&. capture "tid"
       .&. jsonRequest @Public.NewLegalHoldService
       .&. accept "application" "json"
 
+  -- todo(leif): servantify this
   get "/teams/:tid/legalhold/settings" (continueE LegalHold.getSettingsH) $
     zauthUserId
       .&. capture "tid"
       .&. accept "application" "json"
 
+  -- todo(leif): servantify this
   -- This endpoint can lead to the following events being sent:
   -- - ClientRemoved event to members with a legalhold client (via brig)
   -- - UserLegalHoldDisabled event to contacts of members with a legalhold client (via brig)
@@ -306,12 +309,14 @@ sitemap = do
       .&. jsonRequest @Public.RemoveLegalHoldSettingsRequest
       .&. accept "application" "json"
 
+  -- todo(leif): servantify this
   get "/teams/:tid/legalhold/:uid" (continueE LegalHold.getUserStatusH) $
     zauthUserId
       .&. capture "tid"
       .&. capture "uid"
       .&. accept "application" "json"
 
+  -- todo(leif): servantify this
   -- This endpoint can lead to the following events being sent:
   -- - tbd. (currently, there are not events, but maybe there should be.)  (fisx, 2021-05-10)
   post "/teams/:tid/legalhold/consent" (continueE LegalHold.grantConsentH) $
@@ -319,6 +324,7 @@ sitemap = do
       .&. capture "tid"
       .&. accept "application" "json"
 
+  -- todo(leif): servantify this
   -- This endpoint can lead to the following events being sent:
   -- - LegalHoldClientRequested event to contacts of the user the device is requested for,
   --   if they didn't already have a legalhold client (via brig)
@@ -328,6 +334,7 @@ sitemap = do
       .&. capture "uid"
       .&. accept "application" "json"
 
+  -- todo(leif): servantify this
   -- This endpoint can lead to the following events being sent:
   -- - ClientRemoved event to the user owning the client (via brig)
   -- - UserLegalHoldDisabled event to contacts of the user owning the client (via brig)
@@ -338,6 +345,7 @@ sitemap = do
       .&. jsonRequest @Public.DisableLegalHoldForUserRequest
       .&. accept "application" "json"
 
+  -- todo(leif): servantify this
   -- This endpoint can lead to the following events being sent:
   -- - ClientAdded event to the user owning the client (via brig)
   -- - UserLegalHoldEnabled event to contacts of the user owning the client (via brig)
