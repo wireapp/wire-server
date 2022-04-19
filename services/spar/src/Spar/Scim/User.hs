@@ -659,7 +659,7 @@ updScimStoredUser ::
   Scim.StoredUser ST.SparTag ->
   Sem r (Scim.StoredUser ST.SparTag)
 updScimStoredUser usr storedusr = do
-  SAML.Time (toUTCTimeMillis -> now) <- Now.get
+  now <- toUTCTimeMillis <$> Now.get
   pure $ updScimStoredUser' now usr storedusr
 
 updScimStoredUser' ::
@@ -856,7 +856,7 @@ synthesizeStoredUser usr veid =
               BrigAccess.setRichInfo uid newRichInfo
 
       (richInfo, accessTimes, baseuri) <- lift readState
-      SAML.Time (toUTCTimeMillis -> now) <- lift Now.get
+      now <- toUTCTimeMillis <$> lift Now.get
       let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
 
       handle <- lift $ Brig.giveDefaultHandle (accountUser usr)

@@ -149,7 +149,7 @@ createScimToken zusr Api.CreateScimToken {..} = do
               ScimTokenInfo
                 { stiId = tokenid,
                   stiTeam = teamid,
-                  stiCreatedAt = SAML.fromTime now,
+                  stiCreatedAt = now,
                   stiIdP = midpid,
                   stiDescr = descr
                 }

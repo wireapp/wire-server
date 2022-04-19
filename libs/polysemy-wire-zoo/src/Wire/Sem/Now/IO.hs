@@ -25,7 +25,6 @@ where
 import Data.Time
 import Imports
 import Polysemy
-import Wire.Sem.FromUTC
 import Wire.Sem.Now
 
 -- | An interpreter of the 'Now' effect to IO via a custom IO action that
@@ -36,13 +35,7 @@ nowToIOAction ::
   IO UTCTime ->
   Sem (Now ': r) a ->
   Sem r a
-nowToIOAction ioTime = interpret now
-  where
-    now ::
-      forall x (rInitial :: EffectRow).
-      Now (Sem rInitial) x ->
-      Sem r x
-    now Get = embed @IO $ fromUTCTime @x <$> ioTime
+nowToIOAction ioTime = interpret $ \case Get -> embed @IO ioTime
 
 -- | A specialisation of 'nowToIOAction' to the 'getCurrentTime' IO action.
 nowToIO ::

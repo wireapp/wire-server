@@ -24,13 +24,14 @@ module Wire.Sem.Now
   )
 where
 
+import Data.Time.Clock
 import Imports
 import Polysemy
 import Polysemy.Check (deriveGenericK)
 import Wire.Sem.FromUTC
 
 data Now m a where
-  Get :: FromUTC a => Now m a
+  Get :: Now m UTCTime
 
 makeSem ''Now
 deriveGenericK ''Now
@@ -48,5 +49,5 @@ boolTTL ::
   t -> -- The time to check
   Sem r a
 boolTTL f t time = do
-  now <- get
+  now <- fromUTCTime <$> get
   pure $ bool f t $ now <= time
