@@ -52,7 +52,7 @@ import qualified Network.HPACK.Token as HTTP2
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Socket as NS
-import Network.TLS as TLS
+import qualified Network.TLS as TLS
 import qualified Network.Wai.Utilities.Error as Wai
 import Servant.Client
 import Servant.Client.Core
@@ -62,6 +62,7 @@ import Util.Options (Endpoint (..))
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version
 
 data FederatorClientEnv = FederatorClientEnv
   { ceOriginDomain :: Domain,
@@ -69,13 +70,23 @@ data FederatorClientEnv = FederatorClientEnv
     ceFederator :: Endpoint
   }
 
+data FederatorClientVersionedEnv = FederatorClientVersionedEnv
+  { cveEnv :: FederatorClientEnv,
+    cveVersion :: Maybe Version
+  }
+
 newtype FederatorClient (c :: Component) a = FederatorClient
-  {unFederatorClient :: ReaderT FederatorClientEnv (ExceptT FederatorClientError (Codensity IO)) a}
+  { unFederatorClient ::
+      ReaderT
+        FederatorClientVersionedEnv
+        (ExceptT FederatorClientError (Codensity IO))
+        a
+  }
   deriving newtype
     ( Functor,
       Applicative,
       Monad,
-      MonadReader FederatorClientEnv,
+      MonadReader FederatorClientVersionedEnv,
       MonadError FederatorClientError,
       MonadIO
     )
@@ -186,7 +197,7 @@ withHTTP2StreamingRequest ::
   (StreamingResponse -> IO a) ->
   FederatorClient c a
 withHTTP2StreamingRequest successfulStatus req handleResponse = do
-  env <- ask
+  env <- asks cveEnv
   let baseUrlPath =
         HTTP.encodePathSegments
           [ "rpc",
@@ -273,14 +284,31 @@ runFederatorClient env =
     . runFederatorClientToCodensity env
 
 runFederatorClientToCodensity ::
+  forall c a.
   KnownComponent c =>
   FederatorClientEnv ->
   FederatorClient c a ->
   Codensity IO (Either FederatorClientError a)
-runFederatorClientToCodensity env =
-  runExceptT
-    . flip runReaderT env
+runFederatorClientToCodensity env action = runExceptT $ do
+  v <-
+    runVersionedFederatorClientToCodensity @c
+      (FederatorClientVersionedEnv env Nothing)
+      versionNegotiation
+  runVersionedFederatorClientToCodensity @c
+    (FederatorClientVersionedEnv env (Just v))
+    action
+
+runVersionedFederatorClientToCodensity ::
+  KnownComponent c =>
+  FederatorClientVersionedEnv ->
+  FederatorClient c a ->
+  ExceptT FederatorClientError (Codensity IO) a
+runVersionedFederatorClientToCodensity env =
+  flip runReaderT env
     . unFederatorClient
+
+versionNegotiation :: FederatorClient c Version
+versionNegotiation = undefined
 
 freeTLSConfig :: HTTP2.Config -> IO ()
 freeTLSConfig cfg = free (HTTP2.confWriteBuffer cfg)

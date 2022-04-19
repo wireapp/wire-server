@@ -30,6 +30,7 @@ dependencies:
 - metrics-wai
 - mtl
 - network
+- schema-profunctor
 - servant >=0.16
 - servant-client
 - servant-client-core

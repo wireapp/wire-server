@@ -28,6 +28,7 @@ library
       Wire.API.Federation.Domain
       Wire.API.Federation.Endpoint
       Wire.API.Federation.Error
+      Wire.API.Federation.Version
   other-modules:
       Paths_wire_api_federation
   hs-source-dirs:
@@ -92,6 +93,7 @@ library
     , metrics-wai
     , mtl
     , network
+    , schema-profunctor
     , servant >=0.16
     , servant-client
     , servant-client-core
@@ -192,6 +194,7 @@ test-suite spec
     , mtl
     , network
     , retry
+    , schema-profunctor
     , servant >=0.16
     , servant-client
     , servant-client-core

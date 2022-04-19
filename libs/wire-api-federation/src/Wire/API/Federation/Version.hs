@@ -15,29 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.Federation.Endpoint where
+module Wire.API.Federation.Version where
 
-import Servant.API
-import Wire.API.Federation.Domain
-import Wire.API.Routes.Named
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Schema
+import Imports
 
-type family ApplyMods (mods :: [*]) api where
-  ApplyMods '[] api = api
-  ApplyMods (x ': xs) api = x :> ApplyMods xs api
+data Version = V0 | V1
+  deriving stock (Eq, Ord, Bounded, Enum, Show)
+  deriving (FromJSON, ToJSON) via (Schema Version)
 
-type FedEndpointWithMods (mods :: [*]) name input output =
-  Named
-    name
-    ( ApplyMods
-        mods
-        (name :> OriginDomainHeader :> ReqBody '[JSON] input :> Post '[JSON] output)
-    )
-
-type FedEndpoint name input output = FedEndpointWithMods '[] name input output
-
-type StreamingFedEndpoint name input output =
-  Named
-    name
-    ( name :> OriginDomainHeader :> ReqBody '[JSON] input
-        :> StreamPost NoFraming OctetStream output
-    )
+instance ToSchema Version where
+  schema =
+    enum @Integer "Version" . mconcat $
+      [ element 0 V0,
+        element 1 V1
+      ]
