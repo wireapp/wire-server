@@ -27,7 +27,6 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import SAML2.WebSSO (fromTime)
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
@@ -44,7 +43,7 @@ assIDStoreToCassandra ::
 assIDStoreToCassandra =
   interpret $ \case
     Store itla t -> do
-      denv <- Data.mkEnv <$> input <*> (fromTime <$> Now.get)
+      denv <- Data.mkEnv <$> input <*> Now.get
       a <- embed @m $ runExceptT $ runReaderT (storeAssID itla t) denv
       case a of
         Left err -> throw err

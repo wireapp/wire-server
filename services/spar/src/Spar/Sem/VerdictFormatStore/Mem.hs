@@ -41,7 +41,7 @@ verdictFormatStoreToMem =
   (runState mempty .) $
     reinterpret $ \case
       Store ndt areqid vf -> do
-        now <- Now.get
+        now <- SAML.Time <$> Now.get
         modify $ M.insert areqid (addTime ndt now, vf)
       Get areqid -> do
         gets (M.lookup areqid) >>= \case

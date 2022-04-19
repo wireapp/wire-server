@@ -41,7 +41,7 @@ bindCookieStoreToMem = (runState mempty .) $
     Insert sbc uid ndt -> do
       let ckyval = BindCookie . cs . Cky.setCookieValue . SAML.fromSimpleSetCookie . getSimpleSetCookie $ sbc
       now <- Now.get
-      modify $ M.insert ckyval (addTime ndt now, uid)
+      modify $ M.insert ckyval (addTime ndt (Time now), uid)
     Lookup bc -> do
       gets (M.lookup bc) >>= \case
         Just (time, uid) -> boolTTL @SAML.Time Nothing (Just uid) time
