@@ -22,6 +22,7 @@ module Wire.API.Routes.Public.Galley where
 
 import qualified Data.Code as Code
 import Data.CommaSeparatedList
+import Data.Domain (Domain)
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Qualified (Qualified (..))
 import Data.Range
@@ -35,6 +36,7 @@ import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
+import Wire.API.CustomBackend (CustomBackend)
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as BrigError
 import Wire.API.Error.Galley
@@ -54,6 +56,7 @@ import Wire.API.Team
 import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 import Wire.API.Team.Permission (Perm (..))
+import Wire.API.Team.SearchVisibility (TeamSearchVisibilityView)
 
 instance AsHeaders '[ConvId] Conversation Conversation where
   toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
@@ -160,6 +163,7 @@ type ServantAPI =
     :<|> TeamAPI
     :<|> FeatureAPI
     :<|> MLSAPI
+    :<|> CustomBackendAPI
 
 type ConversationAPI =
   Named
@@ -1050,6 +1054,8 @@ type FeatureAPI =
     :<|> FeatureStatusPut '() 'TeamFeatureSearchVisibility
     :<|> FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureSearchVisibility
     :<|> FeatureStatusDeprecatedPut 'TeamFeatureSearchVisibility
+    :<|> SearchVisibilityGet
+    :<|> SearchVisibilitySet
     :<|> FeatureStatusGet 'TeamFeatureValidateSAMLEmails
     :<|> FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails
     :<|> FeatureStatusGet 'TeamFeatureDigitalSignatures
@@ -1067,6 +1073,7 @@ type FeatureAPI =
     :<|> FeatureStatusGet 'TeamFeatureSndFactorPasswordChallenge
     :<|> FeatureStatusPut '() 'TeamFeatureSndFactorPasswordChallenge
     :<|> AllFeatureConfigsGet
+    :<|> AllFeaturesGet
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureLegalHold
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSSO
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSearchVisibility
@@ -1178,6 +1185,48 @@ type AllFeatureConfigsGet =
         :> Get '[Servant.JSON] AllFeatureConfigs
     )
 
+type AllFeaturesGet =
+  Named
+    "get-all-features"
+    ( Summary "Shows the configuration status of every team feature"
+        :> CanThrow 'NotATeamMember
+        :> CanThrow OperationDenied
+        :> CanThrow 'TeamNotFound
+        :> ZLocalUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "features"
+        :> Get '[JSON] AllFeatureConfigs
+    )
+
+type SearchVisibilityGet =
+  Named
+    "get-search-visibility"
+    ( Summary "Shows the value for search visibility"
+        :> CanThrow 'NotATeamMember
+        :> CanThrow OperationDenied
+        :> ZLocalUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "search-visibility"
+        :> Get '[JSON] TeamSearchVisibilityView
+    )
+
+type SearchVisibilitySet =
+  Named
+    "set-search-visibility"
+    ( Summary "Sets the search visibility for the whole team"
+        :> CanThrow 'NotATeamMember
+        :> CanThrow OperationDenied
+        :> CanThrow 'TeamSearchVisibilityNotEnabled
+        :> ZLocalUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "search-visibility"
+        :> ReqBody '[JSON] TeamSearchVisibilityView
+        :> MultiVerb 'PUT '[JSON] '[RespondEmpty 204 "Search visibility set"] ()
+    )
+
 type MLSMessagingAPI =
   Named
     "mls-welcome-message"
@@ -1207,6 +1256,17 @@ type MLSMessagingAPI =
            )
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSMessagingAPI)
+
+type CustomBackendAPI =
+  Named
+    "get-custom-backend-by-domain"
+    ( Summary "Shows information about custom backends related to a given email domain"
+        :> CanThrow 'CustomBackendNotFound
+        :> "custom-backend"
+        :> "by-domain"
+        :> Capture' '[Description "URL-encoded email domain"] "domain" Domain
+        :> Get '[JSON] CustomBackend
+    )
 
 -- This is a work-around for the fact that we sometimes want to send larger lists of user ids
 -- in the filter query than fits the url length limit.  For details, see
