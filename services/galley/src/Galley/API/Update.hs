@@ -1278,12 +1278,8 @@ updateLocalConversationName ::
   Local ConvId ->
   ConversationRename ->
   Sem r (UpdateResult Event)
-updateLocalConversationName lusr zcon lcnv rename = getUpdateResult $
-  do
-    alive <- E.isConversationAlive (tUnqualified lcnv)
-    unless alive $ do
-      E.deleteConversation (tUnqualified lcnv)
-      throwS @'ConvNotFound
+updateLocalConversationName lusr zcon lcnv rename =
+  getUpdateResult $
     updateLocalConversationWithLocalUser @'ConversationRenameTag lcnv lusr (Just zcon) rename
 
 isTypingUnqualified ::

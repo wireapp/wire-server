@@ -24,6 +24,7 @@ where
 
 import Cassandra hiding (Set)
 import qualified Cassandra as Cql
+import Control.Monad.Trans.Maybe
 import Data.ByteString.Conversion
 import Data.Id
 import qualified Data.Map as Map
@@ -92,7 +93,7 @@ createConversation lcnv nc = do
       { convId = tUnqualified lcnv,
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
-        convDeleted = Nothing,
+        convDeleted = False,
         convMetadata = meta,
         convProtocol = proto
       }
@@ -159,18 +160,21 @@ getConversation conv = do
       <$> members conv
       <*> UnliftIO.wait remoteMems
       <*> UnliftIO.wait cdata
-  conversationGC mbConv
+  runMaybeT $ conversationGC =<< maybe mzero pure mbConv
 
-{- "Garbage collect" the conversation, i.e. the conversation may be
-   marked as deleted, in which case we delete it and return Nothing -}
+-- | "Garbage collect" a 'Conversation', i.e. if the conversation is
+-- marked as deleted, actually remove it from the database and return
+-- 'Nothing'.
 conversationGC ::
-  Maybe Conversation ->
-  Client (Maybe Conversation)
-conversationGC conv = case join (convDeleted <$> conv) of
-  (Just True) -> do
-    sequence_ $ deleteConversation . convId <$> conv
-    return Nothing
-  _ -> return conv
+  Conversation ->
+  MaybeT Client Conversation
+conversationGC conv =
+  asum
+    [ -- return conversation if not deleted
+      guard (not (convDeleted conv)) $> conv,
+      -- actually delete it and fail
+      lift (deleteConversation (convId conv)) *> mzero
+    ]
 
 localConversations ::
   (Members '[Embed IO, Input ClientState, TinyLog] r) =>
@@ -251,7 +255,7 @@ toConv cid ms remoteMems mconv = do
   pure
     Conversation
       { convId = cid,
-        convDeleted = del,
+        convDeleted = fromMaybe False del,
         convLocalMembers = ms,
         convRemoteMembers = remoteMems,
         convProtocol = proto,
