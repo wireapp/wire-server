@@ -87,13 +87,7 @@ testKeyPackageClaim brig = do
 
   -- check that we have one fewer key package now
   for_ [c1, c2] $ \c -> do
-    count :: KeyPackageCount <-
-      responseJsonError
-        =<< get
-          ( brig . paths ["mls", "key-packages", "self", toByteString' c, "count"]
-              . zUser (qUnqualified u)
-          )
-        <!! const 200 === statusCode
+    count <- getKeyPackageCount brig u c
     liftIO $ count @?= 2
 
   -- check that the package refs are correctly mapped
@@ -132,13 +126,7 @@ testKeyPackageSelfClaim brig = do
     liftIO $ Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle) @?= Set.fromList [(u, c2)]
 
     -- check that we still have all keypackages for client c1
-    count :: KeyPackageCount <-
-      responseJsonError
-        =<< get
-          ( brig . paths ["mls", "key-packages", "self", toByteString' c1, "count"]
-              . zUser (qUnqualified u)
-          )
-        <!! const 200 === statusCode
+    count <- getKeyPackageCount brig u c1
     liftIO $ count @?= 3
 
   -- if another user sets skip_own, nothing is skipped
@@ -154,6 +142,11 @@ testKeyPackageSelfClaim brig = do
           )
           <!! const 200 === statusCode
     liftIO $ Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle) @?= Set.fromList [(u, c1), (u, c2)]
+
+  -- check package counts again
+  for_ [(c1, 2), (c2, 1)] $ \(c, n) -> do
+    count <- getKeyPackageCount brig u c
+    liftIO $ count @?= n
 
 --------------------------------------------------------------------------------
 
