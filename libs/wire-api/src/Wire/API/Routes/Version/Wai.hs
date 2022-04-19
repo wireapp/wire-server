@@ -17,6 +17,8 @@
 
 module Wire.API.Routes.Version.Wai where
 
+import Data.ByteString.Conversion
+import qualified Data.CaseInsensitive as CI
 import qualified Data.Text.Lazy as LText
 import Imports
 import qualified Network.HTTP.Types as HTTP
@@ -26,12 +28,15 @@ import Network.Wai.Utilities.Error
 import Network.Wai.Utilities.Response
 import Wire.API.Routes.Version
 
+versionHeader :: CI.CI ByteString
+versionHeader = "X-Wire-API-Version"
+
 -- | Strip off version prefix. Return 404 if the version is not supported.
 versionMiddleware :: Middleware
-versionMiddleware app req k = case parseVersion req of
+versionMiddleware app req k = case parseVersion (removeVersionHeader req) of
   Nothing -> app req k
   Just (req', n) -> case mkVersion n of
-    Just _ -> app req' k
+    Just v -> app (addVersionHeader v req') k
     Nothing ->
       k $
         errorRs' $
@@ -45,3 +50,15 @@ parseVersion req = do
     (x : xs) -> pure (x, xs)
   n <- readVersionNumber version
   pure (rewriteRequestPure (\(_, q) _ -> (pinfo, q)) req, n)
+
+removeVersionHeader :: Request -> Request
+removeVersionHeader req =
+  req
+    { requestHeaders = filter ((/= versionHeader) . fst) (requestHeaders req)
+    }
+
+addVersionHeader :: Version -> Request -> Request
+addVersionHeader v req =
+  req
+    { requestHeaders = (versionHeader, toByteString' (fromEnum v)) : requestHeaders req
+    }
