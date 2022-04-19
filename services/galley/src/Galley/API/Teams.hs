@@ -40,8 +40,8 @@ module Galley.API.Teams
     getTeamConversations,
     getTeamConversation,
     deleteTeamConversation,
-    getSearchVisibilityH,
-    setSearchVisibilityH,
+    getSearchVisibility,
+    setSearchVisibility,
     getSearchVisibilityInternal,
     setSearchVisibilityInternal,
     uncheckedAddTeamMember,
@@ -1121,7 +1121,7 @@ deleteTeamConversation lusr zcon _tid cid = do
   let lconv = qualifyAs lusr cid
   void $ API.deleteLocalConversation lusr zcon lconv
 
-getSearchVisibilityH ::
+getSearchVisibility ::
   Members
     '[ ErrorS 'NotATeamMember,
        ErrorS OperationDenied,
@@ -1129,14 +1129,15 @@ getSearchVisibilityH ::
        TeamStore
      ]
     r =>
-  UserId ::: TeamId ::: JSON ->
-  Sem r Response
-getSearchVisibilityH (uid ::: tid ::: _) = do
-  zusrMembership <- E.getTeamMember tid uid
+  Local UserId ->
+  TeamId ->
+  Sem r TeamSearchVisibilityView
+getSearchVisibility luid tid = do
+  zusrMembership <- E.getTeamMember tid (tUnqualified luid)
   void $ permissionCheck ViewTeamSearchVisibility zusrMembership
-  json <$> getSearchVisibilityInternal tid
+  getSearchVisibilityInternal tid
 
-setSearchVisibilityH ::
+setSearchVisibility ::
   Members
     '[ ErrorS 'NotATeamMember,
        ErrorS OperationDenied,
@@ -1148,13 +1149,14 @@ setSearchVisibilityH ::
        WaiRoutes
      ]
     r =>
-  UserId ::: TeamId ::: JsonRequest Public.TeamSearchVisibilityView ::: JSON ->
-  Sem r Response
-setSearchVisibilityH (uid ::: tid ::: req ::: _) = do
-  zusrMembership <- E.getTeamMember tid uid
+  Local UserId ->
+  TeamId ->
+  Public.TeamSearchVisibilityView ->
+  Sem r ()
+setSearchVisibility luid tid req = do
+  zusrMembership <- E.getTeamMember tid (tUnqualified luid)
   void $ permissionCheck ChangeTeamSearchVisibility zusrMembership
-  setSearchVisibilityInternal tid =<< (fromJsonBody req)
-  pure noContent
+  setSearchVisibilityInternal tid req
 
 -- Internal -----------------------------------------------------------------
 
