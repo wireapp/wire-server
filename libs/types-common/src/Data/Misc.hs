@@ -72,7 +72,7 @@ import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.IP (IP (IPv4, IPv6), toIPv4, toIPv6b)
-import Data.Proxy (Proxy (Proxy))
+--import Data.Proxy (Proxy (Proxy))
 import Data.Range
 import Data.Schema
 import qualified Data.Swagger as S
@@ -297,19 +297,40 @@ newtype Fingerprint a = Fingerprint
   deriving stock (Eq, Show, Generic)
   deriving newtype (FromByteString, ToByteString, NFData)
 
-instance S.ToSchema (Fingerprint Rsa) where
-  declareNamedSchema _ = tweak $ S.declareNamedSchema (Proxy @Text)
+deriving via
+  (Schema (Fingerprint a))
+  instance
+    (ToSchema (Fingerprint a)) =>
+    ToJSON (Fingerprint a)
+
+deriving via
+  (Schema (Fingerprint a))
+  instance
+    (ToSchema (Fingerprint a)) =>
+    FromJSON (Fingerprint a)
+
+deriving via
+  (Schema (Fingerprint a))
+  instance
+    (ToSchema (Fingerprint a)) =>
+    S.ToSchema (Fingerprint a)
+
+instance ToSchema (Fingerprint Rsa) where
+  schema =
+    (decodeUtf8 . B64.encode . fingerprintBytes)
+      .= parsedText "Fingerprint" (runParser p . encodeUtf8)
     where
-      tweak = fmap $ S.schema . S.example ?~ fpr
-      fpr = "ioy3GeIjgQRsobf2EKGO3O8mq/FofFxHRqy0T4ERIZ8="
+      p :: Chars.Parser (Fingerprint Rsa)
+      p = do
+        bs <- parser
+        either fail pure (Fingerprint <$> B64.decode bs)
 
-instance FromJSON (Fingerprint Rsa) where
-  parseJSON =
-    A.withText "Fingerprint" $
-      either fail (pure . Fingerprint) . B64.decode . encodeUtf8
-
-instance ToJSON (Fingerprint Rsa) where
-  toJSON = A.String . decodeUtf8 . B64.encode . fingerprintBytes
+-- todo(leif): add this to the docs
+-- instance S.ToSchema (Fingerprint Rsa) where
+--   declareNamedSchema _ = tweak $ S.declareNamedSchema (Proxy @Text)
+--     where
+--       tweak = fmap $ S.schema . S.example ?~ fpr
+--       fpr = "ioy3GeIjgQRsobf2EKGO3O8mq/FofFxHRqy0T4ERIZ8="
 
 instance Cql (Fingerprint a) where
   ctype = Tagged BlobColumn

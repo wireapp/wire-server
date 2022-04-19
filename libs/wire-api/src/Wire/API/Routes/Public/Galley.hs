@@ -55,6 +55,7 @@ import Wire.API.ServantProto (Proto, RawProto)
 import Wire.API.Team
 import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
+import Wire.API.Team.LegalHold
 import Wire.API.Team.Permission (Perm (..))
 import Wire.API.Team.SearchVisibility (TeamSearchVisibilityView)
 
@@ -164,6 +165,7 @@ type ServantAPI =
     :<|> FeatureAPI
     :<|> MLSAPI
     :<|> CustomBackendAPI
+    :<|> LegalHoldAPI
 
 type ConversationAPI =
   Named
@@ -1267,6 +1269,124 @@ type CustomBackendAPI =
         :> Capture' '[Description "URL-encoded email domain"] "domain" Domain
         :> Get '[JSON] CustomBackend
     )
+
+type LegalHoldAPI =
+  Named
+    "create-legal-hold-settings"
+    ( Summary "Create legal hold service settings"
+        :> ZLocalUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> ReqBody '[JSON] NewLegalHoldService
+        :> MultiVerb1 'POST '[JSON] (Respond 201 "Legal hold service settings created" ViewLegalHoldService)
+    )
+    :<|> Named
+           "get-legal-hold-settings"
+           ( Summary "Get legal hold service settings"
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> Get '[JSON] ViewLegalHoldService
+           )
+    :<|> Named
+           "delete-legal-hold-settings"
+           ( Summary "Delete legal hold service settings"
+               :> Description
+                    "This endpoint can lead to the following events being sent:\n\
+                    \- ClientRemoved event to members with a legalhold client (via brig)\n\
+                    \- UserLegalHoldDisabled event to contacts of members with a legalhold client (via brig)"
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> ReqBody '[JSON] RemoveLegalHoldSettingsRequest
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "Legal hold service settings deleted")
+           )
+    :<|> Named
+           "get-legal-hold"
+           ( Summary "Get legal hold status"
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "legalhold"
+               :> Capture "uid" UserId
+               :> Get '[JSON] UserLegalHoldStatusResponse
+           )
+    :<|> Named
+           "consent-to-legal-hold"
+           ( Summary "Consent to legal hold"
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "legalhold"
+               :> "consent"
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 204 "Legal hold consent sent")
+           )
+    :<|> Named
+           "request legal hold device"
+           ( Summary "Request legal hold device"
+               :> Description
+                    "This endpoint can lead to the following events being sent:\n\
+                    \- LegalHoldClientRequested event to contacts of the user the device is requested for, if they didn't already have a legalhold client (via brig)"
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "legalhold"
+               :> Capture "uid" UserId
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    [ RespondEmpty 201 "Request device successful",
+                      RespondEmpty 204 "Request device already pending"
+                    ]
+                    RequestDeviceResult
+           )
+    :<|> Named
+           "disable-legal-hold-for-user"
+           ( Summary "Disable legal hold for user"
+               :> Description
+                    "This endpoint can lead to the following events being sent:\n\
+                    \- ClientRemoved event to the user owning the client (via brig)\n\
+                    \- UserLegalHoldDisabled event to contacts of the user owning the client (via brig)"
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "legalhold"
+               :> Capture "uid" UserId
+               :> ReqBody '[JSON] DisableLegalHoldForUserRequest
+               :> MultiVerb
+                    'DELETE
+                    '[JSON]
+                    [ RespondEmpty 200 "Disable legal hold successful",
+                      RespondEmpty 204 "Legal hold was not enabled"
+                    ]
+                    DisableLegalHoldForUserResponse
+           )
+    :<|> Named
+           "approve-legal-hold-device"
+           ( Summary "Approve legal hold device"
+               :> Description
+                    "  -- This endpoint can lead to the following events being sent:\n\
+                    \- ClientAdded event to the user owning the client (via brig)\n\
+                    \- UserLegalHoldEnabled event to contacts of the user owning the client (via brig)\n\
+                    \- ClientRemoved event to the user, if removing old client due to max number (via brig)"
+               :> ZLocalUser
+               :> ZConn
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "legalhold"
+               :> Capture "uid" UserId
+               :> "approve"
+               :> ReqBody '[JSON] ApproveLegalHoldForUserRequest
+               :> MultiVerb1 'POST '[JSON] (RespondEmpty 200 "Legal hold approved")
+           )
+
+data RequestDeviceResult
+  = RequestDeviceSuccess
+  | RequestDeviceAlreadyPending
+
+data DisableLegalHoldForUserResponse
+  = DisableLegalHoldSuccess
+  | DisableLegalHoldWasNotEnabled
 
 -- This is a work-around for the fact that we sometimes want to send larger lists of user ids
 -- in the filter query than fits the url length limit.  For details, see
