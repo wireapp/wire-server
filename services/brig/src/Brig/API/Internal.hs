@@ -52,6 +52,7 @@ import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.EJPD
 import qualified Brig.User.Search.Index as Index
+import Cassandra (MonadClient)
 import Control.Error hiding (bool)
 import Control.Lens (view)
 import Data.Aeson hiding (json)
@@ -67,13 +68,14 @@ import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (result, setStatus)
-import Network.Wai.Routing
+import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
+import UnliftIO.Async
 import Wire.API.Error
 import Wire.API.Error.Brig
 import qualified Wire.API.Error.Brig as E
@@ -128,16 +130,20 @@ deleteAccountFeatureConfig uid =
 getClientByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe ClientIdentity)
 getClientByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.derefKeyPackage
 
-getMLSClients :: Qualified UserId -> Handler r (Set ClientId)
-getMLSClients qusr = do
+getMLSClients :: Qualified UserId -> SignatureSchemeTag -> Handler r (Set ClientId)
+getMLSClients qusr ss = do
   usr <- lift $ tUnqualified <$> ensureLocal qusr
-  -- TODO: only return MLS-enabled clients
-  lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult usr
+  results <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult usr
+  keys <- lift . wrapClient $ pooledMapConcurrentlyN 16 getKey (toList results)
+  pure . Set.fromList . map fst . filter (isJust . snd) $ keys
   where
     getResult _ [] = throwStd (errorToWai @'UserNotFound)
     getResult usr ((u, cs) : rs)
       | u == usr = pure cs
       | otherwise = getResult usr rs
+
+    getKey :: MonadClient m => ClientId -> m (ClientId, Maybe LByteString)
+    getKey cid = (cid,) <$> Data.lookupMLSPublicKey (qUnqualified qusr) cid ss
 
 getVerificationCode :: UserId -> VerificationAction -> (Handler r) (Maybe Code.Value)
 getVerificationCode uid action = do

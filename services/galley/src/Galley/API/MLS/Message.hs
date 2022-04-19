@@ -51,6 +51,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.Error
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -204,11 +205,15 @@ executeProposalAction ::
   ProposalAction ->
   Sem r [Event]
 executeProposalAction lusr con conv action = do
-  let cm = convClientMap lusr conv
+  -- For the moment, assume a fixed ciphersuite.
+  -- FUTUREWORK: store ciphersuite with the conversation
+  let cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+      ss = csSignatureScheme cs
+      cm = convClientMap lusr conv
       newUserClients = Map.assocs (paAdd action)
   -- check that all clients of each user are added to the conversation, and
   -- update the database accordingly
-  traverse_ (uncurry (addUserClients cm)) newUserClients
+  traverse_ (uncurry (addUserClients ss cm)) newUserClients
   -- add users to the conversation and send events
   result <- foldMap addMembers . nonEmpty . map fst $ newUserClients
   -- add clients to the database
@@ -217,12 +222,12 @@ executeProposalAction lusr con conv action = do
     addMLSClients (convId conv) (tUnqualified ltarget) newClients
   pure result
   where
-    addUserClients :: ClientMap -> Qualified UserId -> Set ClientId -> Sem r ()
-    addUserClients cm qtarget newClients = do
+    addUserClients :: SignatureSchemeTag -> ClientMap -> Qualified UserId -> Set ClientId -> Sem r ()
+    addUserClients ss cm qtarget newClients = do
       -- compute final set of clients in the conversation
       let cs = newClients <> Map.findWithDefault mempty qtarget cm
       -- get list of mls clients from brig
-      allClients <- getMLSClients qtarget
+      allClients <- getMLSClients qtarget ss
       -- if not all clients have been added to the conversation, return an error
       when (cs /= allClients) $ do
         -- FUTUREWORK: turn this error into a proper response
