@@ -36,6 +36,7 @@ import qualified API.Version
 import Bilge hiding (header)
 import Brig.API (sitemap)
 import qualified Brig.AWS as AWS
+import Brig.App (BrigCanonicalEffects)
 import qualified Brig.Options as Opts
 import Cassandra.Util (defInitCassandra)
 import Control.Lens
@@ -152,7 +153,7 @@ runTests iConf brigOpts otherArgs = do
             assertEqual
               "inconcistent sitemap"
               mempty
-              (pathsConsistencyCheck . treeToPaths . compile $ Brig.API.sitemap),
+              (pathsConsistencyCheck . treeToPaths . compile $ Brig.API.sitemap @BrigCanonicalEffects),
           userApi,
           providerApi,
           searchApis,

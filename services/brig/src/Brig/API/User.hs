@@ -101,7 +101,6 @@ import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.Blacklist as Blacklist
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
-import qualified Brig.Data.PasswordReset as Data
 import qualified Brig.Data.Properties as Data
 import Brig.Data.User
 import qualified Brig.Data.User as Data
@@ -115,6 +114,10 @@ import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
 import Brig.Password
 import qualified Brig.Queue as Queue
+import Brig.Sem.CodeStore (CodeStore)
+import qualified Brig.Sem.CodeStore as E
+import Brig.Sem.PasswordResetStore (PasswordResetStore)
+import qualified Brig.Sem.PasswordResetStore as E
 import qualified Brig.Team.DB as Team
 import Brig.Types
 import Brig.Types.Code (Timeout (..))
@@ -151,6 +154,7 @@ import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import Network.Wai.Utilities
+import Polysemy
 import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
 import System.Logger.Message
@@ -967,7 +971,10 @@ changePassword uid cp = do
         throwE ChangePasswordMustDiffer
       lift $ wrapClient (Data.updatePassword uid newpw) >> wrapClient (revokeAllCookies uid)
 
-beginPasswordReset :: Either Email Phone -> ExceptT PasswordResetError (AppT r) (UserId, PasswordResetPair)
+beginPasswordReset ::
+  Members '[PasswordResetStore] r =>
+  Either Email Phone ->
+  ExceptT PasswordResetError (AppT r) (UserId, PasswordResetPair)
 beginPasswordReset target = do
   let key = either userEmailKey userPhoneKey target
   user <- lift (wrapClient $ Data.lookupKey key) >>= maybe (throwE InvalidPasswordResetKey) return
@@ -975,24 +982,29 @@ beginPasswordReset target = do
   status <- lift . wrapClient $ Data.lookupStatus user
   unless (status == Just Active) $
     throwE InvalidPasswordResetKey
-  code <- lift . wrapClient $ Data.lookupPasswordResetCode user
+  code <- lift . liftSem $ E.lookupPasswordResetCode user
   when (isJust code) $
     throwE (PasswordResetInProgress Nothing)
-  (user,) <$> lift (wrapClient $ Data.createPasswordResetCode user target)
+  (user,) <$> lift (liftSem $ E.createPasswordResetCode user target)
 
-completePasswordReset :: PasswordResetIdentity -> PasswordResetCode -> PlainTextPassword -> ExceptT PasswordResetError (AppT r) ()
+completePasswordReset ::
+  Members '[CodeStore, PasswordResetStore] r =>
+  PasswordResetIdentity ->
+  PasswordResetCode ->
+  PlainTextPassword ->
+  ExceptT PasswordResetError (AppT r) ()
 completePasswordReset ident code pw = do
   key <- mkPasswordResetKey ident
-  muid :: Maybe UserId <- lift . wrapClient $ Data.verifyPasswordResetCode (key, code)
+  muid :: Maybe UserId <- lift . liftSem $ E.verifyPasswordResetCode (key, code)
   case muid of
     Nothing -> throwE InvalidPasswordResetCode
     Just uid -> do
       lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.completePasswordReset")
       checkNewIsDifferent uid pw
-      lift . wrapClient $ do
-        Data.updatePassword uid pw
-        Data.deletePasswordResetCode key
-        revokeAllCookies uid
+      lift $ do
+        wrapClient $ Data.updatePassword uid pw
+        liftSem $ E.codeDelete key
+        wrapClient $ revokeAllCookies uid
 
 -- | Pull the current password of a user and compare it against the one about to be installed.
 -- If the two are the same, throw an error.  If no current password can be found, do nothing.
@@ -1003,11 +1015,18 @@ checkNewIsDifferent uid pw = do
     Just currpw | verifyPassword pw currpw -> throwE ResetPasswordMustDiffer
     _ -> pure ()
 
-mkPasswordResetKey :: PasswordResetIdentity -> ExceptT PasswordResetError (AppT r) PasswordResetKey
+mkPasswordResetKey ::
+  Members '[CodeStore] r =>
+  PasswordResetIdentity ->
+  ExceptT PasswordResetError (AppT r) PasswordResetKey
 mkPasswordResetKey ident = case ident of
   PasswordResetIdentityKey k -> return k
-  PasswordResetEmailIdentity e -> wrapClientE (user (userEmailKey e)) >>= liftIO . Data.mkPasswordResetKey
-  PasswordResetPhoneIdentity p -> wrapClientE (user (userPhoneKey p)) >>= liftIO . Data.mkPasswordResetKey
+  PasswordResetEmailIdentity e ->
+    wrapClientE (user (userEmailKey e))
+      >>= lift . liftSem . E.mkPasswordResetKey
+  PasswordResetPhoneIdentity p ->
+    wrapClientE (user (userPhoneKey p))
+      >>= lift . liftSem . E.mkPasswordResetKey
   where
     user uk = lift (Data.lookupKey uk) >>= maybe (throwE InvalidPasswordResetKey) return
 
@@ -1174,15 +1193,18 @@ lookupActivationCode emailOrPhone = do
   c <- fmap snd <$> Data.lookupActivationCode uk
   return $ (k,) <$> c
 
-lookupPasswordResetCode :: Either Email Phone -> (AppT r) (Maybe PasswordResetPair)
+lookupPasswordResetCode ::
+  Members '[CodeStore, PasswordResetStore] r =>
+  Either Email Phone ->
+  (AppT r) (Maybe PasswordResetPair)
 lookupPasswordResetCode emailOrPhone = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
   usr <- wrapClient $ Data.lookupKey uk
-  case usr of
+  liftSem $ case usr of
     Nothing -> return Nothing
     Just u -> do
-      k <- liftIO $ Data.mkPasswordResetKey u
-      c <- wrapClient $ Data.lookupPasswordResetCode u
+      k <- E.mkPasswordResetKey u
+      c <- E.lookupPasswordResetCode u
       return $ (k,) <$> c
 
 deleteUserNoVerify ::

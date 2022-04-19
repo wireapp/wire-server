@@ -34,7 +34,7 @@ where
 import Bilge (MonadHttp, RequestId (..))
 import Brig.API.Error
 import qualified Brig.AWS as AWS
-import Brig.App (AppT, Env, applog, requestId, runAppT, settings, wrapHttpClientE)
+import Brig.App
 import Brig.Email (Email)
 import Brig.Options (setWhitelist)
 import Brig.Phone (Phone, PhoneException (..))
@@ -61,7 +61,6 @@ import qualified Network.Wai.Utilities.Error as WaiError
 import Network.Wai.Utilities.Request (JsonRequest, lookupRequestId, parseBody)
 import Network.Wai.Utilities.Response (addHeader, json, setStatus)
 import qualified Network.Wai.Utilities.Server as Server
-import Polysemy.Final
 import qualified Servant
 import System.Logger.Class (Logger)
 import Wire.API.Error
@@ -72,13 +71,18 @@ import Wire.API.Error.Brig
 
 type Handler r = ExceptT Error (AppT r)
 
-runHandler :: Env -> Request -> (Handler '[Final IO]) ResponseReceived -> Continue IO -> IO ResponseReceived
+runHandler ::
+  Env ->
+  Request ->
+  (Handler BrigCanonicalEffects) ResponseReceived ->
+  Continue IO ->
+  IO ResponseReceived
 runHandler e r h k = do
   let e' = set requestId (maybe def RequestId (lookupRequestId r)) e
   a <- runAppT e' (runExceptT h) `catches` brigErrorHandlers
   either (onError (view applog e') r k) return a
 
-toServantHandler :: Env -> (Handler '[Final IO]) a -> Servant.Handler a
+toServantHandler :: Env -> (Handler BrigCanonicalEffects) a -> Servant.Handler a
 toServantHandler env action = do
   a <- liftIO $ runAppT env (runExceptT action) `catches` brigErrorHandlers
   case a of

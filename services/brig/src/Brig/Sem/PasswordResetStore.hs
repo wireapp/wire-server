@@ -14,25 +14,25 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE TemplateHaskell #-}
 
-module Brig.API
-  ( sitemap,
-  )
-where
+module Brig.Sem.PasswordResetStore where
 
-import Brig.API.Handler (Handler)
-import qualified Brig.API.Internal as Internal
-import qualified Brig.API.Public as Public
-import Brig.Sem.CodeStore
-import Brig.Sem.PasswordResetStore (PasswordResetStore)
-import qualified Data.Swagger.Build.Api as Doc
-import Network.Wai.Routing (Routes)
+import Brig.Types
+import Data.Id
+import Imports
 import Polysemy
 
-sitemap ::
-  Members '[CodeStore, PasswordResetStore] r =>
-  Routes Doc.ApiBuilder (Handler r) ()
-sitemap = do
-  Public.sitemap
-  Public.apiDocs
-  Internal.sitemap
+data PasswordResetStore m a where
+  CreatePasswordResetCode ::
+    UserId ->
+    Either Email Phone ->
+    PasswordResetStore m PasswordResetPair
+  LookupPasswordResetCode ::
+    UserId ->
+    PasswordResetStore m (Maybe PasswordResetCode)
+  VerifyPasswordResetCode ::
+    PasswordResetPair ->
+    PasswordResetStore m (Maybe UserId)
+
+makeSem ''PasswordResetStore
