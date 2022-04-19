@@ -119,7 +119,7 @@ version.
 We add the new endpoint to the routing table, and set its version range to only
 include the development version. The supported version is unaffected.
 
-#### Removing the endpoint
+#### Removing an endpoint
 
 We keep the endpoint in the routing table, but reduce its version range to
 exclude the development version. The implementation is unaffected.
@@ -128,7 +128,7 @@ exclude the development version. The implementation is unaffected.
 
 This is the most complicated scenario, but hopefully the rarest. It can only be
 done indirectly, as a combination of the two scenarios above: we add a new
-endpoint with the same path, set its version range to only the development
+endpoint on the same path, set its version range to only the development
 version, and then reduce the version range of the existing endpoint.
 
 The new and old endpoint can share code in most cases, but this needs to be
@@ -201,3 +201,21 @@ which version to use. The recommended flow is as follows:
  - if no backend-supported version is supported by the client, return a
    versioning error (either ask the user or the backend administrator to
    upgrade, depending on which versions are higher).
+
+### Examples of endpoint evolution
+
+Just like for the server above, we present some examples of changes in
+endpoints, and to go about implementing the corresponding client changes. In
+the following, we again assume that the changed endpoint was initially equal
+in both version 1 and 2, with 2 being a development version.
+
+#### Adding an optional field or parameter
+
+Client only need to implement version 2, since the change is backwards- and
+forwards-compatible. Of course, clients might need to be written in such a way
+as to handle the scenario in which the server ignores the extra field or
+parameter.
+
+#### Adding a new endpoint
+
+Clients can use the new endpoint, but need to handle the case where the endpoint is not available, either by catching a 404 error, or by pre-emptively.
