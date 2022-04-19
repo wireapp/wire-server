@@ -100,6 +100,7 @@ list u = do
 list' :: (RedisCtx m f, Functor f) => UserId -> m (f [Presence])
 list' u = mapMaybe (readPresence u) <$$> hgetall (toKey u)
 
+-- FUTUREWORK: Make this not fail if it fails only for a few users.
 listAll :: (MonadRedis m, MonadThrow m) => [UserId] -> m [[Presence]]
 listAll [] = return []
 listAll uu = mapM list uu
