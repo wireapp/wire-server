@@ -17,20 +17,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.Now
+module Wire.Sem.Now
   ( Now (..),
     get,
     boolTTL,
   )
 where
 
+import Data.Time.Clock
 import Imports
 import Polysemy
 import Polysemy.Check (deriveGenericK)
-import qualified SAML2.WebSSO as SAML
+import Wire.Sem.FromUTC
 
 data Now m a where
-  Get :: Now m SAML.Time
+  Get :: Now m UTCTime
 
 makeSem ''Now
 deriveGenericK ''Now
@@ -39,13 +40,14 @@ deriving instance Show (Now m a)
 
 -- | Check a time against 'Now', checking if it's still alive (hasn't occurred yet.)
 boolTTL ::
-  Member Now r =>
+  forall t r a.
+  (Member Now r, Ord t, FromUTC t) =>
   -- | The value to return if the TTL is expired
   a ->
   -- | The value to return if the TTL is alive
   a ->
-  SAML.Time -> -- The time to check
+  t -> -- The time to check
   Sem r a
 boolTTL f t time = do
-  now <- get
+  now <- fromUTCTime <$> get
   pure $ bool f t $ now <= time

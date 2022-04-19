@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -16,30 +14,33 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
-module Spar.Sem.AssIDStore.Mem
-  ( assIdStoreToMem,
+module Wire.Sem.Now.IO
+  ( nowToIOAction,
+    nowToIO,
   )
 where
 
-import qualified Data.Map as M
+import Data.Time
 import Imports
 import Polysemy
-import Polysemy.State
-import qualified SAML2.WebSSO.Types as SAML
-import Spar.Sem.AssIDStore
-import Wire.API.User.Saml (AssId)
 import Wire.Sem.Now
 
-assIdStoreToMem ::
-  Member Now r =>
-  Sem (AssIDStore ': r) a ->
-  Sem r (Map AssId SAML.Time, a)
-assIdStoreToMem = (runState mempty .) $
-  reinterpret $ \case
-    Store assid ti -> modify $ M.insert assid ti
-    UnStore assid -> modify $ M.delete assid
-    IsAlive assid ->
-      gets (M.lookup assid) >>= \case
-        Just time -> boolTTL False True time
-        Nothing -> pure False
+-- | An interpreter of the 'Now' effect to IO via a custom IO action that
+-- provides the current time.
+nowToIOAction ::
+  forall r a.
+  (Member (Embed IO) r) =>
+  IO UTCTime ->
+  Sem (Now ': r) a ->
+  Sem r a
+nowToIOAction ioTime = interpret $ \case Get -> embed @IO ioTime
+
+-- | A specialisation of 'nowToIOAction' to the 'getCurrentTime' IO action.
+nowToIO ::
+  forall r a.
+  (Member (Embed IO) r) =>
+  Sem (Now ': r) a ->
+  Sem r a
+nowToIO = nowToIOAction getCurrentTime

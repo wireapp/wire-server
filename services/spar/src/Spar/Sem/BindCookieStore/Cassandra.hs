@@ -32,15 +32,14 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import SAML2.WebSSO (fromTime)
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import Spar.Sem.BindCookieStore
-import Spar.Sem.Now (Now)
-import qualified Spar.Sem.Now as Now
 import qualified Web.Cookie as Cky
 import Wire.API.Cookie
 import Wire.API.User.Saml
+import Wire.Sem.Now (Now)
+import qualified Wire.Sem.Now as Now
 
 bindCookieStoreToCassandra ::
   forall m r a.
@@ -49,7 +48,7 @@ bindCookieStoreToCassandra ::
   Sem r a
 bindCookieStoreToCassandra = interpret $ \case
   Insert sbc uid ndt -> do
-    denv <- Data.mkEnv <$> input <*> (fromTime <$> Now.get)
+    denv <- Data.mkEnv <$> input <*> Now.get
     a <- embed @m $ runExceptT $ runReaderT (insertBindCookie sbc uid ndt) denv
     case a of
       Left err -> throw err

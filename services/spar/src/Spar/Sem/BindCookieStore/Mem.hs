@@ -30,10 +30,10 @@ import SAML2.WebSSO
 import qualified SAML2.WebSSO.Cookie as SAML
 import qualified SAML2.WebSSO.Types as SAML
 import Spar.Sem.BindCookieStore
-import Spar.Sem.Now
-import qualified Spar.Sem.Now as Now
 import qualified Web.Cookie as Cky
 import Wire.API.Cookie
+import Wire.Sem.Now
+import qualified Wire.Sem.Now as Now
 
 bindCookieStoreToMem :: Member Now r => Sem (BindCookieStore ': r) a -> Sem r (Map BindCookie (SAML.Time, UserId), a)
 bindCookieStoreToMem = (runState mempty .) $
@@ -41,8 +41,8 @@ bindCookieStoreToMem = (runState mempty .) $
     Insert sbc uid ndt -> do
       let ckyval = BindCookie . cs . Cky.setCookieValue . SAML.fromSimpleSetCookie . getSimpleSetCookie $ sbc
       now <- Now.get
-      modify $ M.insert ckyval (addTime ndt now, uid)
+      modify $ M.insert ckyval (addTime ndt (Time now), uid)
     Lookup bc -> do
       gets (M.lookup bc) >>= \case
-        Just (time, uid) -> boolTTL Nothing (Just uid) time
+        Just (time, uid) -> boolTTL @SAML.Time Nothing (Just uid) time
         Nothing -> pure Nothing

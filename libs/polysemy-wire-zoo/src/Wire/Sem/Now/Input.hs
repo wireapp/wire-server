@@ -15,20 +15,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.Now.Input
+module Wire.Sem.Now.Input
   ( nowToInput,
   )
 where
 
+import Data.Time (UTCTime)
 import Imports
 import Polysemy
 import Polysemy.Input
-import qualified SAML2.WebSSO as SAML
-import Spar.Sem.Now
+import Wire.Sem.FromUTC
+import Wire.Sem.Now
 
 nowToInput ::
-  Member (Input SAML.Time) r =>
+  FromUTC t =>
+  Member (Input UTCTime) r =>
   Sem (Now ': r) a ->
   Sem r a
 nowToInput = interpret $ \case
-  Get -> input
+  Get -> fromUTCTime <$> input

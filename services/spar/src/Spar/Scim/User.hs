@@ -77,8 +77,6 @@ import Spar.Sem.IdPConfigStore (IdPConfigStore)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
-import Spar.Sem.Now (Now)
-import qualified Spar.Sem.Now as Now
 import Spar.Sem.Random (Random)
 import qualified Spar.Sem.Random as Random
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -108,6 +106,8 @@ import qualified Wire.API.User.RichInfo as RI
 import Wire.API.User.Saml (Opts, derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
 import Wire.API.User.Scim (ScimTokenInfo (..))
 import qualified Wire.API.User.Scim as ST
+import Wire.Sem.Now (Now)
+import qualified Wire.Sem.Now as Now
 
 ----------------------------------------------------------------------------
 -- UserDB instance
@@ -659,7 +659,7 @@ updScimStoredUser ::
   Scim.StoredUser ST.SparTag ->
   Sem r (Scim.StoredUser ST.SparTag)
 updScimStoredUser usr storedusr = do
-  SAML.Time (toUTCTimeMillis -> now) <- Now.get
+  now <- toUTCTimeMillis <$> Now.get
   pure $ updScimStoredUser' now usr storedusr
 
 updScimStoredUser' ::
@@ -856,7 +856,7 @@ synthesizeStoredUser usr veid =
               BrigAccess.setRichInfo uid newRichInfo
 
       (richInfo, accessTimes, baseuri) <- lift readState
-      SAML.Time (toUTCTimeMillis -> now) <- lift Now.get
+      now <- toUTCTimeMillis <$> lift Now.get
       let (createdAt, lastUpdatedAt) = fromMaybe (now, now) accessTimes
 
       handle <- lift $ Brig.giveDefaultHandle (accountUser usr)

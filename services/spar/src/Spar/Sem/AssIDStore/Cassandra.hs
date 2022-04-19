@@ -27,14 +27,13 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import SAML2.WebSSO (fromTime)
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
 import Spar.Sem.AssIDStore
-import Spar.Sem.Now (Now)
-import qualified Spar.Sem.Now as Now
 import Wire.API.User.Saml
+import Wire.Sem.Now (Now)
+import qualified Wire.Sem.Now as Now
 
 assIDStoreToCassandra ::
   forall m r a.
@@ -44,7 +43,7 @@ assIDStoreToCassandra ::
 assIDStoreToCassandra =
   interpret $ \case
     Store itla t -> do
-      denv <- Data.mkEnv <$> input <*> (fromTime <$> Now.get)
+      denv <- Data.mkEnv <$> input <*> Now.get
       a <- embed @m $ runExceptT $ runReaderT (storeAssID itla t) denv
       case a of
         Left err -> throw err

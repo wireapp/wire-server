@@ -52,8 +52,6 @@ import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
 import Spar.Sem.IdPRawMetadataStore.Cassandra (idpRawMetadataStoreToCassandra)
 import Spar.Sem.Logger (Logger)
 import Spar.Sem.Logger.TinyLog (loggerToTinyLog, stringLoggerToTinyLog)
-import Spar.Sem.Now (Now)
-import Spar.Sem.Now.IO (nowToIO)
 import Spar.Sem.Random (Random)
 import Spar.Sem.Random.IO (randomToIO)
 import Spar.Sem.Reporter (Reporter)
@@ -75,6 +73,8 @@ import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
 import Wire.API.User.Saml
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now.IO (nowToIO)
 
 type CanonicalEffs =
   '[ SAML2,
