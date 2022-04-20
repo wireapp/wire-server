@@ -85,20 +85,6 @@ createEnv m o = do
             Redis.connectMaxConnections = 100
           }
 
-  -- TODO: local tests with this function and a redis in cluster mode sometimes leads to
-  -- a timeout after a long time (2 min) for unknown reasons, even though redis pods are
-  -- up. To Reproduce, open a telepresence to a k8s with a clustered redis; set the
-  -- following; then run gudeck process once now; kill it; then run it again after
-  -- having deleted some or all redis pods. Even once they are back up and healthy, the
-  -- error can be observed in some cases:
-  --
-  --  redis:
-  -- -  host: 127.0.0.1
-  -- +  host: redis-cluster-leader-headless
-  --    port: 6379
-  -- -  connectionMode: "master" # master | sentinel | cluster
-  -- +  connectionMode: cluster
-  --
   -- TODO: should we wrap the checkedConnectCluster in a shorter 'timeout' so as not to
   -- potentially have to wait 2 minutes when there's a connection problem?
   --
