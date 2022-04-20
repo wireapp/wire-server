@@ -286,7 +286,6 @@ executable gundeck-integration
     , metrics-wai
     , mtl
     , network
-    , network-run
     , network-uri
     , optparse-applicative
     , random
