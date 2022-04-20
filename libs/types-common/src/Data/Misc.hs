@@ -318,19 +318,12 @@ deriving via
 instance ToSchema (Fingerprint Rsa) where
   schema =
     (decodeUtf8 . B64.encode . fingerprintBytes)
-      .= parsedText "Fingerprint" (runParser p . encodeUtf8)
+      .= parsedText "Fingerprint" (runParser p . encodeUtf8) & doc' . S.schema . S.example ?~ toJSON ("ioy3GeIjgQRsobf2EKGO3O8mq/FofFxHRqy0T4ERIZ8=" :: Text)
     where
       p :: Chars.Parser (Fingerprint Rsa)
       p = do
         bs <- parser
         either fail pure (Fingerprint <$> B64.decode bs)
-
--- todo(leif): add this to the docs
--- instance S.ToSchema (Fingerprint Rsa) where
---   declareNamedSchema _ = tweak $ S.declareNamedSchema (Proxy @Text)
---     where
---       tweak = fmap $ S.schema . S.example ?~ fpr
---       fpr = "ioy3GeIjgQRsobf2EKGO3O8mq/FofFxHRqy0T4ERIZ8="
 
 instance Cql (Fingerprint a) where
   ctype = Tagged BlobColumn

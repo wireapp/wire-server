@@ -74,17 +74,6 @@ instance ToSchema NewLegalHoldService where
         <*> newLegalHoldServiceKey .= field "public_key" schema
         <*> newLegalHoldServiceToken .= field "auth_token" schema
 
--- declareNamedSchema = genericDeclareNamedSchema opts
---   where
---     opts =
---       defaultSchemaOptions
---         { fieldLabelModifier = \case
---             "newLegalHoldServiceKey" -> "public_key"
---             "newLegalHoldServiceUrl" -> "base_url"
---             "newLegalHoldServiceToken" -> "auth_token"
---             _ -> ""
---         }
-
 --------------------------------------------------------------------------------
 -- ViewLegalHoldService
 
@@ -162,31 +151,6 @@ instance ToSchema ViewLegalHoldService where
 --       ViewLegalHoldService
 --         (ViewLegalHoldServiceInfo arbitraryExample arbitraryExample arbitraryExample (ServiceToken "sometoken") arbitraryExample)
 
--- instance ToJSON ViewLegalHoldService where
---   toJSON s = case s of
---     ViewLegalHoldService settings ->
---       object $
---         "status" .= String "configured"
---           # "settings" .= settings
---           # []
---     ViewLegalHoldServiceNotConfigured ->
---       object $
---         "status" .= String "not_configured"
---           # []
---     ViewLegalHoldServiceDisabled ->
---       object $
---         "status" .= String "disabled"
---           # []
-
--- instance FromJSON ViewLegalHoldService where
---   parseJSON = withObject "LegalHoldService" $ \o -> do
---     status :: Text <- o .: "status"
---     case status of
---       "configured" -> ViewLegalHoldService <$> (o .: "settings")
---       "not_configured" -> pure ViewLegalHoldServiceNotConfigured
---       "disabled" -> pure ViewLegalHoldServiceDisabled
---       _ -> fail "status (one of configured, not_configured, disabled)"
-
 data ViewLegalHoldServiceInfo = ViewLegalHoldServiceInfo
   { viewLegalHoldServiceTeam :: TeamId,
     viewLegalHoldServiceUrl :: HttpsUrl,
@@ -246,25 +210,6 @@ instance ToSchema ViewLegalHoldServiceInfo where
 --     example_ =
 --       ViewLegalHoldService
 --         (ViewLegalHoldServiceInfo arbitraryExample arbitraryExample arbitraryExample (ServiceToken "sometoken") arbitraryExample)
-
--- instance ToJSON ViewLegalHoldServiceInfo where
---   toJSON info =
---     object $
---       "team_id" .= viewLegalHoldServiceTeam info
---         # "base_url" .= viewLegalHoldServiceUrl info
---         # "fingerprint" .= viewLegalHoldServiceFingerprint info
---         # "auth_token" .= viewLegalHoldServiceAuthToken info
---         # "public_key" .= viewLegalHoldServiceKey info
---         # []
-
--- instance FromJSON ViewLegalHoldServiceInfo where
---   parseJSON = withObject "LegalHoldServiceInfo" $ \o ->
---     ViewLegalHoldServiceInfo
---       <$> o .: "team_id"
---       <*> o .: "base_url"
---       <*> o .: "fingerprint"
---       <*> o .: "auth_token"
---       <*> o .: "public_key"
 
 --------------------------------------------------------------------------------
 -- UserLegalHoldStatusResponse
