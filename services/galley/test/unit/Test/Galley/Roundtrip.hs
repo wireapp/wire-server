@@ -27,7 +27,7 @@ import Imports
 import Servant.Swagger (validateEveryToJSON)
 import Test.Tasty (TestTree)
 import Test.Tasty.Hspec (testSpec)
-import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
+import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 
 tests :: IO TestTree
-tests = testSpec "Roundtrip" $ validateEveryToJSON (Proxy @LegalHoldAPI.ServantAPI)
+tests = testSpec "Roundtrip" $ validateEveryToJSON (Proxy @GalleyAPI.ServantAPI)

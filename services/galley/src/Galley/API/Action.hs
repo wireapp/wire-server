@@ -90,7 +90,6 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     Members
       '[ BrigAccess,
          Error FederationError,
-         Error LegalHoldError,
          ErrorS 'NotATeamMember,
          ErrorS 'NotConnected,
          ErrorS ('ActionDenied 'LeaveConversation),
@@ -99,6 +98,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvNotFound,
          ErrorS 'TooManyMembers,
+         ErrorS 'MissingLegalholdConsent,
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
@@ -303,10 +303,10 @@ performConversationJoin qusr lcnv conv (ConversationJoin invited role) = do
     checkLHPolicyConflictsLocal ::
       Members
         '[ ConversationStore,
-           Error LegalHoldError,
            ErrorS ('ActionDenied 'LeaveConversation),
            ErrorS 'InvalidOperation,
            ErrorS 'ConvNotFound,
+           ErrorS 'MissingLegalholdConsent,
            ExternalAccess,
            FederatorAccess,
            GundeckAccess,
@@ -326,11 +326,11 @@ performConversationJoin qusr lcnv conv (ConversationJoin invited role) = do
 
       whenM (anyLegalholdActivated (lmId <$> convUsers)) $
         unless allNewUsersGaveConsent $
-          throw MissingLegalholdConsent
+          throwS @'MissingLegalholdConsent
 
       whenM (anyLegalholdActivated newUsers) $ do
         unless allNewUsersGaveConsent $
-          throw MissingLegalholdConsent
+          throwS @'MissingLegalholdConsent
 
         convUsersLHStatus <- do
           uidsStatus <- getLHStatusForUsers (lmId <$> convUsers)
@@ -349,7 +349,7 @@ performConversationJoin qusr lcnv conv (ConversationJoin invited role) = do
                 void . runError @NoChanges $
                   updateLocalConversationWithLocalUser @'ConversationLeaveTag lcnv lvictim Nothing $
                     pure (qUntagged lvictim)
-          else throw MissingLegalholdConsent
+          else throwS @'MissingLegalholdConsent
 
     checkLHPolicyConflictsRemote ::
       FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] ->
