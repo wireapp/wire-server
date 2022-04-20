@@ -27,7 +27,6 @@ import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
-import Wire.API.Federation.Version
 import Wire.API.Message (UserClients)
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
@@ -35,7 +34,6 @@ import Wire.API.User.Client.Prekey (ClientPrekey, PrekeyBundle)
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
 import Wire.API.Util.Aeson (CustomEncoded (..))
-import Wire.API.VersionInfo
 
 newtype SearchRequest = SearchRequest {term :: Text}
   deriving (Show, Eq, Generic, Typeable)
@@ -56,10 +54,8 @@ instance ToJSON SearchResponse
 instance FromJSON SearchResponse
 
 -- | For conventions see /docs/developer/federation-api-conventions.md
---
--- Maybe this module should be called Brig
 type BrigApi =
-  FedEndpointWithMods '[Until 'V1] "get-user-by-handle" Handle (Maybe UserProfile)
+  FedEndpoint "get-user-by-handle" Handle (Maybe UserProfile)
     :<|> FedEndpoint "get-users-by-ids" [UserId] [UserProfile]
     :<|> FedEndpoint "claim-prekey" (UserId, ClientId) (Maybe ClientPrekey)
     :<|> FedEndpoint "claim-prekey-bundle" UserId PrekeyBundle

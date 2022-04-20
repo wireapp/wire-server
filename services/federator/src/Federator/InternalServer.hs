@@ -115,6 +115,18 @@ callOutward ::
   Members '[Remote, Embed IO, Error ValidationError, Error ServerError, Input RunSettings] r =>
   Wai.Request ->
   Sem r Wai.Response
+callOutward req | Wai.requestMethod req == HTTP.methodGet = do
+  -- No query parameters are allowed
+  unless (BS.null . Wai.rawQueryString $ req) $
+    throw InvalidRoute
+  -- check that the path has the expected form
+  domain <- case Wai.pathInfo req of
+    ["api-version", domain] -> pure domain
+    _ -> throw InvalidRoute
+  parsedDomain <- parseDomainText domain
+  ensureCanFederateWith parsedDomain
+  vs <- getAPIVersions parsedDomain
+  pure $ Wai.responseLBS HTTP.status200 defaultHeaders vs
 callOutward req = do
   rd <- parseRequestData req
   domain <- parseDomainText (rdTargetDomain rd)

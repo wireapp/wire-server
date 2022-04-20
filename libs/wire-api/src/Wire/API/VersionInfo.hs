@@ -27,6 +27,7 @@ module Wire.API.VersionInfo
     -- * Servant combinators
     From,
     Until,
+    VersionedMonad (..),
   )
 where
 
@@ -41,9 +42,11 @@ import qualified Data.Text.Read as Text
 import Imports
 import qualified Network.Wai as Wai
 import Servant
+import Servant.Client.Core
 import Servant.Server.Internal.Delayed
 import Servant.Server.Internal.DelayedIO
 import Servant.Swagger
+import Wire.API.Routes.ClientAlgebra
 
 vinfoObjectSchema :: ValueSchema NamedSwaggerDoc v -> ObjectSchema SwaggerDoc [v]
 vinfoObjectSchema sch = field "supported" (array sch)
@@ -71,15 +74,15 @@ data Until v
 data From v
 
 instance
-  ( SingI v,
-    Ord (Demote (KindOf v)),
-    Enum (Demote (KindOf v)),
-    SingKind (KindOf v),
+  ( SingI n,
+    Ord (Demote v),
+    Enum (Demote v),
+    SingKind v,
     HasServer api ctx
   ) =>
-  HasServer (Until v :> api) ctx
+  HasServer (Until (n :: v) :> api) ctx
   where
-  type ServerT (Until v :> api) m = ServerT api m
+  type ServerT (Until n :> api) m = ServerT api m
 
   route _ ctx action =
     route (Proxy @api) ctx $
@@ -93,11 +96,31 @@ instance
                   0
                   (either (const 0) id . parseHeader)
                   (lookup versionHeader (Wai.requestHeaders req))
-        when (v >= demote @v) $
+        when (v >= demote @n) $
           delayedFail err404
 
   hoistServerWithContext _ ctx f =
     hoistServerWithContext (Proxy @api) ctx f
+
+class VersionedMonad v m where
+  guardVersion :: (v -> Bool) -> m ()
+
+instance
+  ( VersionedMonad (Demote v) m,
+    SingI n,
+    Ord (Demote v),
+    SingKind v,
+    HasClient m api,
+    HasClientAlgebra m api
+  ) =>
+  HasClient m (Until (n :: v) :> api)
+  where
+  type Client m (Until n :> api) = Client m api
+  clientWithRoute pm _ req = bindClient @m @api
+    (guardVersion (\v -> v < demote @n))
+    $ \_ ->
+      clientWithRoute pm (Proxy @api) req
+  hoistClientMonad pm _ f = hoistClientMonad pm (Proxy @api) f
 
 instance HasSwagger api => HasSwagger (Until v :> api) where
   toSwagger _ = mempty
@@ -106,15 +129,15 @@ instance RoutesToPaths api => RoutesToPaths (Until v :> api) where
   getRoutes = getRoutes @api
 
 instance
-  ( SingI v,
-    Ord (Demote (KindOf v)),
-    Enum (Demote (KindOf v)),
-    SingKind (KindOf v),
+  ( SingI n,
+    Ord (Demote v),
+    Enum (Demote v),
+    SingKind v,
     HasServer api ctx
   ) =>
-  HasServer (From v :> api) ctx
+  HasServer (From (n :: v) :> api) ctx
   where
-  type ServerT (From v :> api) m = ServerT api m
+  type ServerT (From n :> api) m = ServerT api m
 
   route _ ctx action =
     route (Proxy @api) ctx $
@@ -128,11 +151,28 @@ instance
                   0
                   (either (const 0) id . parseHeader)
                   (lookup versionHeader (Wai.requestHeaders req))
-        when (v < demote @v) $
+        when (v < demote @n) $
           delayedFail err404
 
   hoistServerWithContext _ ctx f =
     hoistServerWithContext (Proxy @api) ctx f
+
+instance
+  ( VersionedMonad (Demote v) m,
+    SingI n,
+    Ord (Demote v),
+    SingKind v,
+    HasClient m api,
+    HasClientAlgebra m api
+  ) =>
+  HasClient m (From (n :: v) :> api)
+  where
+  type Client m (From n :> api) = Client m api
+  clientWithRoute pm _ req = bindClient @m @api
+    (guardVersion (\v -> v >= demote @n))
+    $ \_ ->
+      clientWithRoute pm (Proxy @api) req
+  hoistClientMonad pm _ f = hoistClientMonad pm (Proxy @api) f
 
 instance HasSwagger api => HasSwagger (From v :> api) where
   toSwagger _ = toSwagger (Proxy @api)

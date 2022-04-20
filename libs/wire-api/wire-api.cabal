@@ -68,6 +68,7 @@ library
       Wire.API.RawJson
       Wire.API.Routes.API
       Wire.API.Routes.AssetBody
+      Wire.API.Routes.ClientAlgebra
       Wire.API.Routes.Internal.Brig
       Wire.API.Routes.Internal.Brig.Connection
       Wire.API.Routes.Internal.Brig.EJPD

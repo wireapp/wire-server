@@ -1,3 +1,6 @@
+{-# LANGUAGE StandaloneKindSignatures #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -14,12 +17,16 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Wire.API.Federation.Version where
 
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Schema
+import qualified Data.Set as Set
+import Data.Singletons.TH
+import qualified Data.Swagger as S
 import Imports
+import Wire.API.VersionInfo
 
 data Version = V0 | V1
   deriving stock (Eq, Ord, Bounded, Enum, Show)
@@ -31,3 +38,25 @@ instance ToSchema Version where
       [ element 0 V0,
         element 1 V1
       ]
+
+supportedVersions :: Set Version
+supportedVersions = Set.fromList [minBound .. maxBound]
+
+data VersionInfo = VersionInfo
+  { vinfoSupported :: [Version]
+  }
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema VersionInfo)
+
+instance ToSchema VersionInfo where
+  schema =
+    objectWithDocModifier "VersionInfo" (S.schema . S.example ?~ toJSON example) $
+      VersionInfo
+        <$> vinfoSupported .= vinfoObjectSchema schema
+    where
+      example :: VersionInfo
+      example =
+        VersionInfo
+          { vinfoSupported = toList supportedVersions
+          }
+
+$(genSingletons [''Version])

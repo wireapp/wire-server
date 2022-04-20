@@ -89,6 +89,7 @@ library
     , http2
     , imports
     , kan-extensions
+    , lens
     , lifted-base
     , metrics-wai
     , mtl
@@ -101,11 +102,13 @@ library
     , singletons
     , sop-core
     , streaming-commons
+    , swagger2
     , template-haskell
     , text >=0.11
     , time >=1.8
     , time-manager
     , tls
+    , transformers
     , types-common
     , wai-utilities
     , wire-api
@@ -189,6 +192,7 @@ test-suite spec
     , http2
     , imports
     , kan-extensions
+    , lens
     , lifted-base
     , metrics-wai
     , mtl
@@ -202,11 +206,13 @@ test-suite spec
     , singletons
     , sop-core
     , streaming-commons
+    , swagger2
     , template-haskell
     , text >=0.11
     , time >=1.8
     , time-manager
     , tls
+    , transformers
     , types-common
     , uuid
     , wai-utilities

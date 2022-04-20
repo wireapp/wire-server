@@ -23,6 +23,7 @@ module Federator.Remote
     RemoteError (..),
     interpretRemote,
     discoverAndCall,
+    getAPIVersions,
     blessedCiphers,
   )
 where
@@ -38,21 +39,24 @@ import Data.Domain
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
+import qualified Data.Text.Lazy as LText
 import qualified Data.X509 as X509
 import qualified Data.X509.Validation as X509
 import Federator.Discovery
-import Federator.Env (TLSSettings, caStore, creds)
+import Federator.Env
 import Federator.Error
 import Federator.Validation
 import Imports
+import Network.HTTP.Client
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP2.Client as HTTP2
-import Network.TLS as TLS
+import qualified Network.TLS as TLS
 import qualified Network.TLS.Extra.Cipher as TLS
+import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Servant.Client.Core
+import Servant.Client.Core hiding (defaultRequest, responseBody)
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
@@ -68,12 +72,17 @@ data RemoteError
     -- response. The error response could be due to an error in the remote
     -- federator itself, or in the services it proxied to.
     RemoteErrorResponse SrvTarget HTTP.Status LByteString
+  | -- | This means that there was an error trying to get version information
+    -- from the remote.
+    RemoteErrorNoVersion SrvTarget
   deriving (Show)
 
 instance AsWai RemoteError where
   toWai (RemoteError _ e) = federationRemoteHTTP2Error e
   toWai (RemoteErrorResponse _ status _) =
     federationRemoteResponseError status
+  toWai e@(RemoteErrorNoVersion _) =
+    Wai.mkError HTTP.status500 "no-version-info" (LText.fromStrict (waiErrorDescription e))
 
   waiErrorDescription (RemoteError tgt e) =
     "Error while connecting to " <> displayTarget tgt <> ": "
@@ -83,6 +92,8 @@ instance AsWai RemoteError where
       <> Text.pack (show (HTTP.statusCode status))
       <> ": "
       <> Text.decodeUtf8With Text.lenientDecode (LBS.toStrict body)
+  waiErrorDescription (RemoteErrorNoVersion tgt) =
+    "Could not fetch version information for " <> displayTarget tgt
 
 displayTarget :: SrvTarget -> Text
 displayTarget (SrvTarget hostname port) =
@@ -98,6 +109,7 @@ data Remote m a where
     [HTTP.Header] ->
     Builder ->
     Remote m StreamingResponse
+  GetAPIVersions :: Domain -> Remote m LByteString
 
 makeSem ''Remote
 
@@ -107,7 +119,8 @@ interpretRemote ::
        DiscoverFederator,
        Error DiscoveryFailure,
        Error RemoteError,
-       Input TLSSettings
+       Input TLSSettings,
+       Input Manager
      ]
     r =>
   Sem (Remote ': r) a ->
@@ -136,10 +149,25 @@ interpretRemote = interpret $ \case
           (responseStatusCode resp)
           (toLazyByteString bdy)
     pure resp
+  GetAPIVersions domain -> do
+    target@(SrvTarget hostname port) <- discoverFederatorWithError domain
+    manager <- input
+    let req =
+          defaultRequest
+            { method = HTTP.methodGet,
+              host = hostname,
+              port = fromIntegral port,
+              path = "/api-version",
+              queryString = "?api=federation"
+            }
+    resp <- embed @(Codensity IO) . lift $ httpLbs req manager
+    when (responseStatus resp /= HTTP.status200) $
+      throw (RemoteErrorNoVersion target)
+    pure $ responseBody resp
 
 mkTLSConfig :: TLSSettings -> ByteString -> Word16 -> TLS.ClientParams
 mkTLSConfig settings hostname port =
-  ( defaultParamsClient
+  ( TLS.defaultParamsClient
       (Text.unpack (Text.decodeUtf8With Text.lenientDecode hostname))
       (toByteString' port)
   )
@@ -169,7 +197,7 @@ mkTLSConfig settings hostname port =
 --
 -- The current list is compliant to TR-02102-2
 -- https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.html
-blessedCiphers :: [Cipher]
+blessedCiphers :: [TLS.Cipher]
 blessedCiphers =
   [ TLS.cipher_TLS13_AES128CCM8_SHA256,
     TLS.cipher_TLS13_AES128CCM_SHA256,

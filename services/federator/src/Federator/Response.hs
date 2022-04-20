@@ -36,6 +36,7 @@ import Federator.Remote
 import Federator.Service
 import Federator.Validation
 import Imports
+import Network.HTTP.Client (Manager)
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
@@ -112,6 +113,7 @@ type AllEffects =
      ServiceStreaming,
      Input RunSettings,
      Input TLSSettings, -- needed by Remote
+     Input Manager, -- needed by Remote
      Input Env, -- needed by Service
      Error ValidationError,
      Error RemoteError,
@@ -136,6 +138,7 @@ runFederator env =
           DiscoveryFailure
         ]
     . runInputConst env
+    . runInputConst (view httpManager env)
     . runInputSem (embed @IO (readIORef (view tls env)))
     . runInputConst (view runSettings env)
     . interpretServiceHTTP

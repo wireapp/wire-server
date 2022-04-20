@@ -88,6 +88,7 @@ federatedRequestSuccess =
                   responseHttpVersion = HTTP.http20,
                   responseBody = source ["\"bar\""]
                 }
+          GetAPIVersions _ -> error "TODO"
     res <-
       runM
         . interpretCall
@@ -127,6 +128,7 @@ federatedRequestFailureAllowList =
                   responseHttpVersion = HTTP.http20,
                   responseBody = source ["\"bar\""]
                 }
+          GetAPIVersions _ -> error "TODO"
 
     eith <-
       runM

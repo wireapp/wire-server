@@ -26,6 +26,7 @@ dependencies:
 - http2
 - imports
 - kan-extensions
+- lens
 - lifted-base
 - metrics-wai
 - mtl
@@ -38,11 +39,13 @@ dependencies:
 - singletons
 - sop-core
 - streaming-commons
+- swagger2
 - template-haskell
 - text >=0.11
 - time-manager
 - tls
 - time >=1.8
+- transformers
 - types-common
 - wai-utilities
 - wire-api

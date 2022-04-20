@@ -130,6 +130,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.Domain
 import Wire.API.Internal.Notification
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.VersionInfo
 
 type Brig = Request -> Request
 
@@ -1179,6 +1180,9 @@ instance Servant.RunClient WaiTestFedClient where
       unWaiTestFedClient $ throwClientError (FailureResponse (bimap (const ()) (\x -> (Servant.BaseUrl Servant.Http "" 80 "", cs (toLazyByteString x))) servantRequest) servantResponse)
     pure servantResponse
   throwClientError = liftIO . throw
+
+instance VersionedMonad v WaiTestFedClient where
+  guardVersion _ = pure ()
 
 fromServantRequest :: Domain -> Servant.Request -> WaiTest.SRequest
 fromServantRequest domain r =

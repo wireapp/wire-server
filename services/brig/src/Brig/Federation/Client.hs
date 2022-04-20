@@ -178,11 +178,10 @@ executeFederated ::
   ( MonadReader Env m,
     MonadIO m,
     HasFedEndpoint 'Brig api name,
-    HasClient ClientM api,
     HasClient (FederatorClient 'Brig) api
   ) =>
   Domain ->
   Client (ExceptT FederationError m) api
 executeFederated domain =
-  hoistClient (Proxy @api) (runBrigFederatorClient @m domain) $
+  hoistClientMonad (Proxy @(FederatorClient 'Brig)) (Proxy @api) (runBrigFederatorClient @m domain) $
     clientIn (Proxy @api) (Proxy @(FederatorClient 'Brig))
