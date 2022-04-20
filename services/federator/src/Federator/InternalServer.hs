@@ -73,18 +73,35 @@ import Wire.Network.DNS.Effect (DNSLookup)
 import qualified Wire.Network.DNS.Effect as Lookup
 import Wire.Network.DNS.SRV (SrvTarget (..))
 
-data RequestData = RequestData
-  { rdTargetDomain :: Text,
-    rdComponent :: Component,
-    rdRPC :: Text,
-    rdHeaders :: [HTTP.Header],
-    rdBody :: LByteString
+data RequestData
+  = RequestDataRPC RPC
+  | FetchVersion Text
+
+data RPC = RPC
+  { rpcTargetDomain :: Text,
+    rpcComponent :: Component,
+    rpcRPC :: Text,
+    rpcHeaders :: [HTTP.Header],
+    rpcBody :: LByteString
   }
+
+rdTargetDomain :: RequestData -> Text
+rdTargetDomain (RequestDataRPC rpc) = rpcTargetDomain rpc
+rdTargetDomain (FetchVersion domain) = domain
 
 parseRequestData ::
   Members '[Error ServerError, Embed IO] r =>
   Wai.Request ->
   Sem r RequestData
+parseRequestData req | Wai.requestMethod req == HTTP.methodGet = do
+  -- No query parameters are allowed
+  unless (BS.null . Wai.rawQueryString $ req) $
+    throw InvalidRoute
+  -- check that the path has the expected form
+  domain <- case Wai.pathInfo req of
+    ["api-version", domain] -> pure domain
+    _ -> throw InvalidRoute
+  pure $ FetchVersion domain
 parseRequestData req = do
   -- only POST is supported
   when (Wai.requestMethod req /= HTTP.methodPost) $
@@ -102,43 +119,36 @@ parseRequestData req = do
   -- get component and body
   component <- note (UnknownComponent componentSeg) $ parseComponent componentSeg
   body <- embed $ Wai.lazyRequestBody req
-  pure $
-    RequestData
-      { rdTargetDomain = domain,
-        rdComponent = component,
-        rdRPC = rpcPath,
-        rdHeaders = Wai.requestHeaders req,
-        rdBody = body
+  pure . RequestDataRPC $
+    RPC
+      { rpcTargetDomain = domain,
+        rpcComponent = component,
+        rpcRPC = rpcPath,
+        rpcHeaders = Wai.requestHeaders req,
+        rpcBody = body
       }
 
 callOutward ::
   Members '[Remote, Embed IO, Error ValidationError, Error ServerError, Input RunSettings] r =>
   Wai.Request ->
   Sem r Wai.Response
-callOutward req | Wai.requestMethod req == HTTP.methodGet = do
-  -- No query parameters are allowed
-  unless (BS.null . Wai.rawQueryString $ req) $
-    throw InvalidRoute
-  -- check that the path has the expected form
-  domain <- case Wai.pathInfo req of
-    ["api-version", domain] -> pure domain
-    _ -> throw InvalidRoute
-  parsedDomain <- parseDomainText domain
-  ensureCanFederateWith parsedDomain
-  vs <- getAPIVersions parsedDomain
-  pure $ Wai.responseLBS HTTP.status200 defaultHeaders vs
 callOutward req = do
   rd <- parseRequestData req
   domain <- parseDomainText (rdTargetDomain rd)
   ensureCanFederateWith domain
-  resp <-
-    discoverAndCall
-      domain
-      (rdComponent rd)
-      (rdRPC rd)
-      (rdHeaders rd)
-      (fromLazyByteString (rdBody rd))
-  pure $ streamingResponseToWai resp
+  case rd of
+    RequestDataRPC rpc -> do
+      resp <-
+        discoverAndCall
+          domain
+          (rpcComponent rpc)
+          (rpcRPC rpc)
+          (rpcHeaders rpc)
+          (fromLazyByteString (rpcBody rpc))
+      pure $ streamingResponseToWai resp
+    FetchVersion _ -> do
+      vs <- getAPIVersions domain
+      pure $ Wai.responseLBS HTTP.status200 defaultHeaders vs
 
 serveOutward :: Env -> Int -> IO ()
 serveOutward = serve callOutward

@@ -27,6 +27,7 @@ where
 import qualified Control.Exception as Exception
 import Control.Exception.Base (throw)
 import Control.Monad.Catch hiding (fromException)
+import qualified Data.Aeson as Aeson
 import Data.Domain (Domain)
 import qualified Data.Text.Lazy as LText
 import Federator.Error
@@ -45,6 +46,7 @@ import Polysemy
 import Polysemy.Error hiding (throw)
 import Wire.API.Federation.API (Component)
 import Wire.API.Federation.Domain
+import Wire.API.Federation.Version
 import Wire.Sem.Logger.TinyLog
 
 -- | This can be thrown by actions passed to mock federator to simulate
@@ -96,26 +98,33 @@ withTempMockFederator headers resp action = do
                   MockException
                 ]
             $ do
-              RequestData {..} <- parseRequestData request
-              domainText <- note NoOriginDomain $ lookup originDomainHeaderName rdHeaders
-              originDomain <- parseDomain domainText
-              targetDomain <- parseDomainText rdTargetDomain
-              let fedRequest =
-                    ( FederatedRequest
-                        { frOriginDomain = originDomain,
-                          frTargetDomain = targetDomain,
-                          frComponent = rdComponent,
-                          frRPC = rdRPC,
-                          frBody = rdBody
-                        }
-                    )
-              embed @IO $ modifyIORef remoteCalls (<> [fedRequest])
-              (ct, body) <-
-                fromException @MockException
-                  . handle (throw . handleException)
-                  $ resp fedRequest
-              let headers' = ("Content-Type", HTTP.renderHeader ct) : headers
-              pure $ Wai.responseLBS HTTP.status200 headers' body
+              parseRequestData request >>= \case
+                FetchVersion _ -> do
+                  pure $
+                    Wai.responseLBS
+                      HTTP.status200
+                      [("Content-Type", "application/json")]
+                      (Aeson.encode (VersionInfo (toList supportedVersions)))
+                RequestDataRPC RPC {..} -> do
+                  domainText <- note NoOriginDomain $ lookup originDomainHeaderName rpcHeaders
+                  originDomain <- parseDomain domainText
+                  targetDomain <- parseDomainText rpcTargetDomain
+                  let fedRequest =
+                        ( FederatedRequest
+                            { frOriginDomain = originDomain,
+                              frTargetDomain = targetDomain,
+                              frComponent = rpcComponent,
+                              frRPC = rpcRPC,
+                              frBody = rpcBody
+                            }
+                        )
+                  embed @IO $ modifyIORef remoteCalls (<> [fedRequest])
+                  (ct, body) <-
+                    fromException @MockException
+                      . handle (throw . handleException)
+                      $ resp fedRequest
+                  let headers' = ("Content-Type", HTTP.renderHeader ct) : headers
+                  pure $ Wai.responseLBS HTTP.status200 headers' body
         respond response
   result <-
     bracket

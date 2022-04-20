@@ -20,9 +20,11 @@
 
 module Wire.API.Federation.Client
   ( FederatorClientEnv (..),
+    FederatorClientVersionedEnv (..),
     FederatorClient,
     runFederatorClient,
     runFederatorClientToCodensity,
+    runVersionedFederatorClientToCodensity,
     performHTTP2Request,
     withHTTP2Request,
     streamingResponseStrictBody,
