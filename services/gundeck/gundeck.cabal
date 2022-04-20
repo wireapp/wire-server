@@ -303,6 +303,7 @@ executable gundeck-integration
     , unordered-containers
     , uuid
     , wai
+    , wai-utilities
     , warp
     , warp-tls
     , websockets >=0.8
