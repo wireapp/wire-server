@@ -20,7 +20,7 @@ config:
     host: redis-ephemeral-master
     port: 6379
     connectionMode: "master" # master | cluster
-  bulkPush: false
+  bulkPush: true
   aws:
     region: "eu-west-1"
   proxy: {}

@@ -32,10 +32,11 @@ module Brig.Data.Activation
 where
 
 import Brig.App (Env)
-import Brig.Data.PasswordReset
 import Brig.Data.User
 import Brig.Data.UserKey
 import Brig.Options
+import qualified Brig.Sem.CodeStore as E
+import Brig.Sem.CodeStore.Cassandra
 import Brig.Types
 import Brig.Types.Intra
 import Cassandra
@@ -48,6 +49,7 @@ import qualified Data.Text.Lazy as LT
 import Imports
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
+import Polysemy
 import Text.Printf (printf)
 import Wire.API.User
 
@@ -86,6 +88,7 @@ maxAttempts = 3
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey ::
+  forall m.
   (MonadClient m, MonadReader Env m) =>
   ActivationKey ->
   ActivationCode ->
@@ -123,7 +126,7 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
         return . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
       -- if the key is the same, we only want to update our profile
       | otherwise = do
-        mkPasswordResetKey uid >>= lift . deletePasswordResetCode
+        lift (runM (codeStoreToCassandra @m @'[Embed m] (E.mkPasswordResetKey uid >>= E.codeDelete)))
         claim key uid
         lift $ foldKey (updateEmailAndDeleteEmailUnvalidated uid) (updatePhone uid) key
         for_ oldKey $ lift . deleteKey

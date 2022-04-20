@@ -67,7 +67,7 @@ tests conf fbc fgc p b c ch g n aws db = do
         API.User.Auth.tests conf p z db b g n,
         API.User.Connection.tests cl at conf p b c g fbc fgc db,
         API.User.Handles.tests cl at conf p b c g,
-        API.User.PasswordReset.tests cl at conf p b c g,
+        API.User.PasswordReset.tests db cl at conf p b c g,
         API.User.Property.tests cl at conf p b c g,
         API.User.RichInfo.tests cl at conf p b c g
       ]

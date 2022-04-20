@@ -53,7 +53,7 @@ import Imports hiding (Set)
 import Wire.API.Conversation hiding (Conversation)
 
 isConvDeleted :: Conversation -> Bool
-isConvDeleted = fromMaybe False . convDeleted
+isConvDeleted = convDeleted
 
 selfConv :: UserId -> ConvId
 selfConv uid = Id (toUUID uid)

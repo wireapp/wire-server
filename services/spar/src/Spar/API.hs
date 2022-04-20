@@ -81,7 +81,6 @@ import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
 import qualified Spar.Sem.IdPRawMetadataStore as IdPRawMetadataStore
 import Spar.Sem.Logger (Logger)
 import qualified Spar.Sem.Logger as Logger
-import Spar.Sem.Now (Now)
 import Spar.Sem.Random (Random)
 import qualified Spar.Sem.Random as Random
 import Spar.Sem.Reporter (Reporter)
@@ -103,6 +102,7 @@ import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Wire.Sem.Now (Now)
 
 app :: Env -> Application
 app ctx =

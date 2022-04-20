@@ -110,12 +110,12 @@ mkApp o = do
   e <- newEnv o
   return (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)
   where
-    rtree :: Tree (App (Handler r))
+    rtree :: Tree (App (Handler BrigCanonicalEffects))
     rtree = compile sitemap
 
     middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
     middleware e =
-      Metrics.servantPlusWAIPrometheusMiddleware sitemap (Proxy @ServantCombinedAPI)
+      Metrics.servantPlusWAIPrometheusMiddleware (sitemap @BrigCanonicalEffects) (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. metrics]

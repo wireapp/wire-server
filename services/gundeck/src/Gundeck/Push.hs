@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE RecordWildCards #-}
 
 module Gundeck.Push
   ( push,
@@ -34,7 +35,7 @@ where
 import Control.Arrow ((&&&))
 import Control.Error
 import Control.Exception (ErrorCall (ErrorCall))
-import Control.Lens (view, (%~), (.~), (^.), _2)
+import Control.Lens (view, (.~), (^.))
 import Control.Monad.Catch
 import Data.Aeson as Aeson (Object)
 import Data.Id
@@ -189,27 +190,18 @@ pushAny' p = do
 -- the request to C*.  Trigger native pushes for all delivery failures notifications.
 pushAll :: (MonadPushAll m, MonadNativeTargets m, MonadMapAsync m) => [Push] -> m ()
 pushAll pushes = do
-  targets :: [(Push, (Notification, List1 (Recipient, [Presence])))] <-
-    zip pushes <$> (mkNotificationAndTargets `mapM` pushes)
+  newNotifications <- mapM mkNewNotification pushes
   -- persist push request
-  let cassandraTargets :: [(Push, (Notification, List1 NotificationTarget))]
-      cassandraTargets = (_2 . _2 %~ (mkTarget . fst <$>)) <$> targets
-        where
-          mkTarget :: Recipient -> NotificationTarget
-          mkTarget r =
-            target (r ^. recipientId)
-              & targetClients .~ case r ^. recipientClients of
-                RecipientClientsAll -> []
-                -- clients are stored in cassandra as a list with a notification.  empty list
-                -- is interpreted as "all clients" by 'Gundeck.Notification.Data.toNotif'.
-                RecipientClientsSome cs -> toList cs
-  forM_ cassandraTargets $ \(psh, (notif, notifTrgt)) ->
-    unless (psh ^. pushTransient) $
-      mpaStreamAdd (ntfId notif) notifTrgt (psh ^. pushPayload)
+  let cassandraTargets :: [CassandraTargets]
+      cassandraTargets = map mkCassandraTargets newNotifications
+  forM_ cassandraTargets $ \CassandraTargets {..} ->
+    unless (ntfTransient ctNotification) $
+      mpaStreamAdd (ntfId ctNotification) ctNotificationTargets (ntfPayload ctNotification)
         =<< mpaNotificationTTL
   mpaForkIO $ do
     -- websockets
-    resp <- compilePushResps targets <$> mpaBulkPush (compilePushReq <$> targets)
+    wsTargets <- mapM mkWSTargets newNotifications
+    resp <- compilePushResps wsTargets <$> mpaBulkPush (compilePushReq <$> wsTargets)
     -- native push
     perPushConcurrency <- mntgtPerPushConcurrency
     forM_ resp $ \((notif :: Notification, psh :: Push), alreadySent :: [Presence]) -> do
@@ -224,47 +216,85 @@ pushAll pushes = do
         mpaRunWithBudget cost () $
           mpaPushNative notif (psh ^. pushNativePriority) =<< nativeTargets psh rcps' alreadySent
 
--- REFACTOR: @[Presence]@ here should be @newtype WebSockedDelivered = WebSockedDelivered [Presence]@
-compilePushReq :: (Push, (Notification, List1 (Recipient, [Presence]))) -> (Notification, [Presence])
-compilePushReq (psh, notifsAndTargets) =
-  notifsAndTargets & _2 %~ (mconcat . fmap compileTargets . toList)
-  where
-    compileTargets :: (Recipient, [Presence]) -> [Presence]
-    compileTargets (rcp, pre) = filter (shouldActuallyPush psh rcp) pre
+-- | A new notification to be stored in C* and pushed over websockets
+data NewNotification = NewNotification
+  { nnPush :: Push,
+    nnNotification :: Notification,
+    nnRecipients :: List1 Recipient
+  }
 
-compilePushResps ::
-  [(Push, (Notification, any))] ->
-  [(NotificationId, [Presence])] ->
-  [((Notification, Push), [Presence])]
-compilePushResps notifIdMap (Map.fromList -> deliveries) =
-  notifIdMap
-    <&> (\(psh, (notif, _)) -> ((notif, psh), fromMaybe [] (Map.lookup (ntfId notif) deliveries)))
-
--- | Look up 'Push' recipients in Redis, construct a notifcation, and return all the data needed for
--- performing the push action.
---
--- 'Recipient' can be turned into 'NotificationTarget' needed for storing in C*; the 'Presence's can
--- be turned into 'PushTarget' needed by Cannon and in 'nativeTargets' for filtering the devices
--- that need no native push.
-mkNotificationAndTargets ::
-  forall m.
-  MonadPushAll m =>
-  Push ->
-  m (Notification, List1 (Recipient, [Presence]))
-mkNotificationAndTargets psh = (,) <$> mkNotif <*> doCollect
+mkNewNotification :: forall m. MonadPushAll m => Push -> m NewNotification
+mkNewNotification psh = NewNotification psh <$> mkNotif <*> rcps
   where
     mkNotif :: m Notification
     mkNotif = do
       notifId <- mpaMkNotificationId
       pure $ Notification notifId (psh ^. pushTransient) (psh ^. pushPayload)
-    doCollect :: m (List1 (Recipient, [Presence]))
-    doCollect = zip1 rcps =<< mpaListAllPresences (view recipientId <$> rcps)
+
+    rcps :: m (List1 Recipient)
+    rcps = assertList1 . toList . fromRange $ (psh ^. pushRecipients :: Range 1 1024 (Set Recipient))
+
+    -- Shouldn't fail as we just extracted this from `Range 1 1024`
+    assertList1 :: [a] -> m (List1 a)
+    assertList1 (x : xs) = pure $ list1 x xs
+    assertList1 _ = throwM $ ErrorCall "mkNotification: internal error." -- can @listAll@ return @[]@?
+
+-- | Information to be stored in cassandra for every 'Notification'.
+data CassandraTargets = CassandraTargets
+  { ctNotification :: Notification,
+    ctNotificationTargets :: List1 NotificationTarget
+  }
+
+mkCassandraTargets :: NewNotification -> CassandraTargets
+mkCassandraTargets NewNotification {..} =
+  CassandraTargets nnNotification (mkTarget <$> nnRecipients)
+  where
+    mkTarget :: Recipient -> NotificationTarget
+    mkTarget r =
+      target (r ^. recipientId)
+        & targetClients .~ case r ^. recipientClients of
+          RecipientClientsAll -> []
+          -- clients are stored in cassandra as a list with a notification.  empty list
+          -- is interpreted as "all clients" by 'Gundeck.Notification.Data.toNotif'.
+          RecipientClientsSome cs -> toList cs
+
+-- | Information needed to push notifications over websockets and/or native
+-- pushes.
+data WSTargets = WSTargets
+  { wstPush :: Push,
+    wstNotification :: Notification,
+    wstPresences :: List1 (Recipient, [Presence])
+  }
+
+mkWSTargets :: MonadPushAll m => NewNotification -> m WSTargets
+mkWSTargets NewNotification {..} = do
+  withPresences <- addPresences nnRecipients
+  pure $ WSTargets nnPush nnNotification withPresences
+  where
+    addPresences :: forall m. MonadPushAll m => List1 Recipient -> m (List1 (Recipient, [Presence]))
+    addPresences (toList -> rcps) = do
+      presences <- mpaListAllPresences $ fmap (view recipientId) rcps
+      zip1 rcps presences
       where
-        rcps :: [Recipient]
-        rcps = toList . fromRange $ (psh ^. pushRecipients :: Range 1 1024 (Set.Set Recipient))
         zip1 :: [a] -> [b] -> m (List1 (a, b))
         zip1 (x : xs) (y : ys) = pure $ list1 (x, y) (zip xs ys)
         zip1 _ _ = throwM $ ErrorCall "mkNotificationAndTargets: internal error." -- can @listAll@ return @[]@?
+
+-- REFACTOR: @[Presence]@ here should be @newtype WebSockedDelivered = WebSockedDelivered [Presence]@
+compilePushReq :: WSTargets -> (Notification, [Presence])
+compilePushReq WSTargets {..} =
+  (wstNotification, mconcat . fmap compileTargets . toList $ wstPresences)
+  where
+    compileTargets :: (Recipient, [Presence]) -> [Presence]
+    compileTargets (rcp, pre) = filter (shouldActuallyPush wstPush rcp) pre
+
+compilePushResps ::
+  [WSTargets] ->
+  [(NotificationId, [Presence])] ->
+  [((Notification, Push), [Presence])]
+compilePushResps notifIdMap (Map.fromList -> deliveries) =
+  notifIdMap
+    <&> (\WSTargets {..} -> ((wstNotification, wstPush), fromMaybe [] (Map.lookup (ntfId wstNotification) deliveries)))
 
 -- | Is 'PushTarget' the origin of the 'Push', or is missing in a non-empty whitelist?  (Whitelists
 -- reside both in 'Push' itself and in each 'Recipient').

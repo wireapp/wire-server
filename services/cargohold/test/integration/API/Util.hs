@@ -23,7 +23,6 @@ import CargoHold.Run
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
 import Control.Lens
-import Control.Monad.Catch
 import Control.Monad.Codensity
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
@@ -38,7 +37,7 @@ import Imports hiding (head)
 import qualified Network.HTTP.Media as HTTP
 import Network.HTTP.Types.Header
 import Network.HTTP.Types.Method
-import qualified Network.Wai as Wai
+import Network.Wai.Utilities.MockServer
 import TestSetup
 import Util.Options
 import Wire.API.Asset
@@ -173,13 +172,6 @@ viewFederationDomain = view (tsOpts . optSettings . setFederationDomain)
 
 --------------------------------------------------------------------------------
 -- Mocking utilities
-
-withMockServer :: Wai.Application -> Codensity IO Word16
-withMockServer app = Codensity $ \k ->
-  bracket
-    (liftIO $ startMockServer Nothing app)
-    (liftIO . fst)
-    (k . fromIntegral . snd)
 
 withSettingsOverrides :: (Opts -> Opts) -> TestM a -> TestM a
 withSettingsOverrides f action = do

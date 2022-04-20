@@ -218,6 +218,7 @@ executable gundeck-integration
       API
       Metrics
       TestSetup
+      Util
       Paths_gundeck
   hs-source-dirs:
       test/integration
@@ -279,14 +280,19 @@ executable gundeck-integration
     , http-client
     , http-client-tls
     , imports
+    , kan-extensions
     , lens
     , lens-aeson
+    , metrics-wai
     , mtl
+    , network
+    , network-run
     , network-uri
     , optparse-applicative
     , random
     , retry
     , safe
+    , streaming-commons
     , tagged
     , tasty >=1.0
     , tasty-hunit >=0.9
@@ -294,8 +300,13 @@ executable gundeck-integration
     , time
     , tinylog
     , types-common
+    , unix
     , unordered-containers
     , uuid
+    , wai
+    , wai-utilities
+    , warp
+    , warp-tls
     , websockets >=0.8
     , yaml
   default-language: Haskell2010

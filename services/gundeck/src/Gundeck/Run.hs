@@ -53,7 +53,7 @@ run o = do
   let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (optSettings . setSqsThrottleMillis)
   lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))
   wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState m tbs 10
-  runSettingsWithShutdown s (middleware e $ app e) 5 `finally` do
+  runSettingsWithShutdown s (middleware e $ mkApp e) 5 `finally` do
     Log.info l $ Log.msg (Log.val "Shutting down ...")
     shutdown (e ^. cstate)
     Async.cancel lst
@@ -68,6 +68,8 @@ run o = do
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. monitor]
         . versionMiddleware
-    app :: Env -> Wai.Application
-    app e r k = runGundeck e r (route routes r k)
+
+mkApp :: Env -> Wai.Application
+mkApp e r k = runGundeck e r (route routes r k)
+  where
     routes = compile sitemap

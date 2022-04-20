@@ -23,6 +23,7 @@
 
 module Brig.App
   ( schemaVersion,
+    BrigCanonicalEffects,
 
     -- * App Environment
     Env,
@@ -95,6 +96,10 @@ import Brig.Provider.Template
 import qualified Brig.Queue.Stomp as Stomp
 import Brig.Queue.Types (Queue (..))
 import qualified Brig.SMTP as SMTP
+import Brig.Sem.CodeStore (CodeStore)
+import Brig.Sem.CodeStore.Cassandra
+import Brig.Sem.PasswordResetStore (PasswordResetStore)
+import Brig.Sem.PasswordResetStore.CodeStore
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
 import Brig.Types (Locale (..), TurnURI)
@@ -151,6 +156,8 @@ import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 import Util.Options
 import Wire.API.User.Identity (Email)
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now.IO
 
 schemaVersion :: Int32
 schemaVersion = 70
@@ -458,6 +465,16 @@ closeEnv e = do
 
 -------------------------------------------------------------------------------
 -- App Monad
+
+type BrigCanonicalEffects =
+  '[ PasswordResetStore,
+     Now,
+     CodeStore,
+     Embed Cas.Client,
+     Embed IO,
+     Final IO
+   ]
+
 newtype AppT r a = AppT
   { unAppT :: Member (Final IO) r => ReaderT Env (Sem r) a
   }
@@ -609,10 +626,19 @@ instance MonadIndexIO (AppT r) => MonadIndexIO (ExceptT err (AppT r)) where
 instance Monad m => HasRequestId (AppT r) where
   getRequestId = view requestId
 
-runAppT :: Env -> AppT '[Final IO] a -> IO a
-runAppT e (AppT ma) = runFinal $ runReaderT ma e
+runAppT :: Env -> AppT BrigCanonicalEffects a -> IO a
+runAppT e (AppT ma) =
+  runFinal
+    . embedToFinal
+    . interpretClientToIO (_casClient e)
+    . codeStoreToCassandra @Cas.Client
+    . nowToIOAction (_currentTime e)
+    . passwordResetStoreToCodeStore
+    $ runReaderT ma e
 
-runAppResourceT :: ResourceT (AppT '[Final IO]) a -> (AppT '[Final IO]) a
+runAppResourceT ::
+  ResourceT (AppT BrigCanonicalEffects) a ->
+  (AppT BrigCanonicalEffects) a
 runAppResourceT ma = do
   e <- ask
   liftIO . runResourceT $ transResourceT (runAppT e) ma
