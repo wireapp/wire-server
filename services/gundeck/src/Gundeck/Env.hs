@@ -137,7 +137,7 @@ reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
--- | Similarly to 'checkedConnect' but for redis cluster:
+-- | Similar to 'checkedConnect' but for redis cluster:
 -- Constructs a 'Connection' pool to a Redis server designated by the
 -- given 'ConnectInfo', then tests if the server is actually there.
 -- Throws an exception if the connection to the Redis server can't be

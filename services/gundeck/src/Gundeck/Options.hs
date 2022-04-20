@@ -98,7 +98,6 @@ data RedisConnectionMode
   | Cluster
   deriving (Show, Generic)
 
--- deriveFromJSON toOptionFieldName ''RedisConnectionMode
 deriveJSON defaultOptions {constructorTagModifier = map toLower} ''RedisConnectionMode
 
 data RedisEndpoint = RedisEndpoint
