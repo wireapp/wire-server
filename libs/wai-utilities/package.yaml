@@ -19,6 +19,7 @@ dependencies:
 - exceptions >=0.6
 - http-types >=0.8
 - imports
+- kan-extensions
 - metrics-core >=0.1
 - metrics-wai >=0.5.7
 - pipes >=4.1
@@ -34,5 +35,6 @@ dependencies:
 - wai-predicates >=0.8
 - wai-routing >=0.12
 - warp >=3.0
+- warp-tls
 library:
   source-dirs: src

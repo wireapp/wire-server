@@ -1,20 +1,3 @@
-{-# LANGUAGE NumericUnderscores #-}
--- This file is part of the Wire Server implementation.
---
--- Copyright (C) 2021 Wire Swiss GmbH <opensource@wire.com>
---
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -35,20 +18,16 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Federator.MockServer
-  ( MockTimeout (..),
-    MockException (..),
-    startMockServer,
+  ( MockException (..),
     withTempMockFederator,
     FederatedRequest (..),
   )
 where
 
-import qualified Control.Concurrent.Async as Async
 import qualified Control.Exception as Exception
 import Control.Exception.Base (throw)
 import Control.Monad.Catch hiding (fromException)
 import Data.Domain (Domain)
-import Data.Streaming.Network (bindRandomPortTCP)
 import qualified Data.Text.Lazy as LText
 import Federator.Error
 import Federator.Error.ServerError
@@ -60,21 +39,13 @@ import qualified Network.HTTP.Media as HTTP
 import Network.HTTP.Types as HTTP
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
-import qualified Network.Wai.Handler.WarpTLS as Warp
 import Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.MockServer
 import Polysemy
 import Polysemy.Error hiding (throw)
 import Polysemy.TinyLog
-import System.Timeout (timeout)
 import Wire.API.Federation.API (Component)
 import Wire.API.Federation.Domain
-
--- | Thrown in IO by mock federator if the server could not be started after 10
--- seconds.
-newtype MockTimeout = MockTimeout Warp.Port
-  deriving (Eq, Show, Typeable)
-
-instance Exception MockTimeout
 
 -- | This can be thrown by actions passed to mock federator to simulate
 -- failures either in federator itself, or in the services it calls.
@@ -86,45 +57,6 @@ instance AsWai MockException where
   waiErrorDescription (MockErrorResponse _ message) = LText.toStrict message
 
 instance Exception MockException
-
--- | Start a mock warp server on a random port, serving the given Wai application.
---
--- If the 'Warp.TLSSettings` argument is provided, start an HTTPS server,
--- otherwise start a plain HTTP server.
---
--- Returns an action to kill the spawned server, and the port on which the
--- server is running.
---
--- This function should normally be used within 'bracket', e.g.:
--- @
---     bracket (startMockServer Nothing app) fst $ \(close, port) ->
---       makeRequest "localhost" port
--- @
-startMockServer :: Maybe Warp.TLSSettings -> Wai.Application -> IO (IO (), Warp.Port)
-startMockServer mtlsSettings app = do
-  (port, sock) <- bindRandomPortTCP "*6"
-  serverStarted <- newEmptyMVar
-  let wsettings =
-        Warp.defaultSettings
-          & Warp.setPort port
-          & Warp.setGracefulCloseTimeout2 0 -- Defaults to 2 seconds, causes server stop to take very long
-          & Warp.setBeforeMainLoop (putMVar serverStarted ())
-
-  serverThread <- Async.async $ case mtlsSettings of
-    Just tlsSettings -> Warp.runTLSSocket tlsSettings wsettings sock app
-    Nothing -> Warp.runSettingsSocket wsettings sock app
-  serverStartedSignal <- timeout 10_000_000 (readMVar serverStarted)
-  let close = do
-        me <- Async.poll serverThread
-        case me of
-          Nothing -> Async.cancel serverThread
-          Just (Left e) -> throw e
-          Just (Right a) -> pure a
-  case serverStartedSignal of
-    Nothing -> do
-      Async.cancel serverThread
-      throw (MockTimeout port)
-    Just _ -> pure (close, port)
 
 data FederatedRequest = FederatedRequest
   { frOriginDomain :: Domain,

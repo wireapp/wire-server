@@ -89,14 +89,19 @@ executables:
     - http-client
     - http-client-tls
     - HsOpenSSL
+    - kan-extensions
     - lens
     - lens-aeson
+    - metrics-wai
     - mtl
+    - network
+    - network-run
     - network-uri
     - optparse-applicative
     - random
     - retry
     - safe
+    - streaming-commons
     - tagged
     - tasty >=1.0
     - tasty-hunit >=0.9
@@ -104,8 +109,13 @@ executables:
     - time
     - tinylog
     - types-common
+    - unix
     - unordered-containers
     - uuid
+    - wai
+    - wai-utilities
+    - warp
+    - warp-tls
     - websockets >=0.8
     - yaml
   gundeck-schema:

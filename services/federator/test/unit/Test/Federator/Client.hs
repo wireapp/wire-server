@@ -35,6 +35,7 @@ import Network.HTTP.Types as HTTP
 import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Utilities.Error as Wai
+import Network.Wai.Utilities.MockServer
 import Servant.API
 import Servant.Client hiding ((//))
 import Servant.Client.Core

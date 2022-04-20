@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 090b7ff6c002f582879792716227598a444bd914d78ddba5861072bf5e6796da
+-- hash: 3aa2434fe6abab51a3be2ffd8f4f18d39c76a71453c3ffbabe1bbc609cec096a
 
 name:           wai-utilities
 version:        0.16.1
@@ -22,6 +22,7 @@ library
   exposed-modules:
       Network.Wai.Utilities
       Network.Wai.Utilities.Error
+      Network.Wai.Utilities.MockServer
       Network.Wai.Utilities.Request
       Network.Wai.Utilities.Response
       Network.Wai.Utilities.Server
@@ -81,6 +82,7 @@ library
     , exceptions >=0.6
     , http-types >=0.8
     , imports
+    , kan-extensions
     , metrics-core >=0.1
     , metrics-wai >=0.5.7
     , pipes >=4.1
@@ -96,4 +98,5 @@ library
     , wai-predicates >=0.8
     , wai-routing >=0.12
     , warp >=3.0
+    , warp-tls
   default-language: Haskell2010
