@@ -64,7 +64,6 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
 import Util (runRedisProxy, withSettingsOverrides)
-import Util.Options
 import qualified Prelude
 
 appName :: AppName
@@ -132,6 +131,15 @@ tests s =
 -----------------------------------------------------------------------------
 -- Push
 
+-- For one-of manual sanity tests if gundeck loses its connection to redis while this test is running.
+-- TODO remove commented code.
+-- addUser :: TestM ()
+-- addUser = forever $ do
+--   putStrLn "Running Test"
+--   void registerUser `catch` (\(_ :: SomeException) -> liftIO $ putStrLn "Failure")
+--   putStrLn "Ran Test"
+--   threadDelay 10000
+--
 addUser :: TestM (UserId, ConnId)
 addUser = registerUser
 
@@ -426,8 +434,9 @@ storeNotificationsEvenWhenRedisIsDown :: TestM ()
 storeNotificationsEvenWhenRedisIsDown = do
   ally <- randomId
   origRedisEndpoint <- view $ tsOpts . optRedis
-  redisProxyServer <- liftIO . async $ runRedisProxy (origRedisEndpoint ^. epHost) (origRedisEndpoint ^. epPort) 10112
-  withSettingsOverrides (optRedis .~ Endpoint "localhost" 10112) $ do
+  let proxyPort = 10112
+  redisProxyServer <- liftIO . async $ runRedisProxy (origRedisEndpoint ^. rHost) (origRedisEndpoint ^. rPort) proxyPort
+  withSettingsOverrides (optRedis .~ RedisEndpoint "localhost" proxyPort (origRedisEndpoint ^. rConnectionMode)) $ do
     let pload = textPayload "hello"
         push = buildPush ally [(ally, RecipientClientsAll)] pload
     gu <- view tsGundeck

@@ -1,7 +1,9 @@
 module Util where
 
 import qualified Bilge
+import Control.Concurrent (forkFinally)
 import Control.Concurrent.Async (race_)
+import qualified Control.Exception as E
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Codensity
@@ -12,8 +14,7 @@ import Gundeck.Env (createEnv)
 import Gundeck.Options
 import Gundeck.Run (mkApp)
 import Imports
-import Network.Run.TCP (runTCPServer)
-import Network.Socket hiding (listen)
+import Network.Socket
 import Network.Socket.ByteString (recv, sendAll)
 import Network.Wai.Utilities.MockServer (withMockServer)
 import TestSetup
@@ -34,13 +35,9 @@ withSettingsOverrides f action = do
 runRedisProxy :: Text -> Word16 -> Word16 -> IO ()
 runRedisProxy redisHost redisPort proxyPort = do
   (servAddr : _) <- getAddrInfo Nothing (Just $ Text.unpack redisHost) (Just $ show redisPort)
-  runTCPServer (Just "localhost") (show proxyPort) $ \listener ->
-    forever $
-      accept listener >>= \(client, _) ->
-        void $
-          forkIO $ do
-            server <- getServerSocket servAddr
-            client <~~> server
+  runTCPServer Nothing (show proxyPort) $ \client -> do
+    server <- getServerSocket servAddr
+    client <~~> server
   where
     getServerSocket servAddr = do
       server <- socket (addrFamily servAddr) Stream defaultProtocol
@@ -49,3 +46,45 @@ runRedisProxy redisHost redisPort proxyPort = do
     mapData f t = do
       content <- recv f 4096
       unless (S.null content) $ sendAll t content >> mapData f t
+
+-- Forked from network-run, added logic to cleanup clients when server is closed
+
+-- | Running a TCP server with an accepted socket and its peer name.
+runTCPServer :: Maybe HostName -> ServiceName -> (Socket -> IO a) -> IO b
+runTCPServer mhost port server = withSocketsDo $ do
+  addr <- resolve Stream mhost port True
+  clientThreads <- newTVarIO []
+  E.bracket (open addr) (cleanupClients clientThreads) (loop clientThreads)
+  where
+    open addr = E.bracketOnError (openServerSocket addr) close $ \sock -> do
+      listen sock 1024
+      return sock
+    loop clientThreads sock = forever $ do
+      E.bracketOnError (accept sock) (close . fst) $
+        \(conn, _peer) -> do
+          thread <- forkFinally (server conn) (const $ gracefulClose conn 5000)
+          atomically $ modifyTVar clientThreads (thread :)
+    cleanupClients :: TVar [ThreadId] -> Socket -> IO ()
+    cleanupClients clientThreads sock = do
+      close sock
+      mapM_ killThread =<< readTVarIO clientThreads
+
+resolve :: SocketType -> Maybe HostName -> ServiceName -> Bool -> IO AddrInfo
+resolve socketType mhost port passive =
+  head <$> getAddrInfo (Just hints) mhost (Just port)
+  where
+    hints =
+      defaultHints
+        { addrSocketType = socketType,
+          addrFlags = if passive then [AI_PASSIVE] else []
+        }
+
+openServerSocket :: AddrInfo -> IO Socket
+openServerSocket addr = E.bracketOnError (openSocket addr) close $ \sock -> do
+  setSocketOption sock ReuseAddr 1
+  withFdSocket sock $ setCloseOnExecIfNeeded
+  bind sock $ addrAddress addr
+  return sock
+
+openSocket :: AddrInfo -> IO Socket
+openSocket addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)

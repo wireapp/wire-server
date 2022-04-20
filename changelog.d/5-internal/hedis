@@ -1,0 +1,1 @@
+Switch the Haskell driver used in Gundeck to connect to Redis from 'redis-io' to '[hedis](https://hackage.haskell.org/package/hedis)', which now supports cluster mode.

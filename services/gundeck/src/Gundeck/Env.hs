@@ -30,14 +30,16 @@ import qualified Data.List.NonEmpty as NE
 import Data.Metrics.Middleware (Metrics)
 import Data.Misc (Milliseconds (..))
 import Data.Text (unpack)
+import Data.Time.Clock
 import Data.Time.Clock.POSIX
-import qualified Database.Redis.IO as Redis
+import qualified Database.Redis as Redis
 import qualified Gundeck.Aws as Aws
 import Gundeck.Options as Opt
 import Gundeck.ThreadBudget
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
+import qualified System.Logger as Log
 import qualified System.Logger.Extended as Logger
 import Util.Options
 
@@ -48,7 +50,7 @@ data Env = Env
     _applog :: !Logger.Logger,
     _manager :: !Manager,
     _cstate :: !ClientState,
-    _rstate :: !Redis.Pool,
+    _rstate :: !Redis.Connection,
     _awsEnv :: !Aws.Env,
     _time :: !(IO Milliseconds),
     _threadBudgetState :: !(Maybe ThreadBudgetState)
@@ -74,15 +76,23 @@ createEnv m o = do
           managerIdleConnectionCount = 3 * (o ^. optSettings . setHttpPoolSize),
           managerResponseTimeout = responseTimeoutMicro 5000000
         }
-  r <-
-    Redis.mkPool (Logger.clone (Just "redis.gundeck") l) $
-      Redis.setHost (unpack $ o ^. optRedis . epHost)
-        . Redis.setPort (o ^. optRedis . epPort)
-        . Redis.setMaxConnections 100
-        . Redis.setPoolStripes 4
-        . Redis.setConnectTimeout 3
-        . Redis.setSendRecvTimeout 5
-        $ Redis.defSettings
+
+  let redisConnInfo =
+        Redis.defaultConnectInfo
+          { Redis.connectHost = unpack $ o ^. optRedis . rHost,
+            Redis.connectPort = Redis.PortNumber (fromIntegral $ o ^. optRedis . rPort),
+            Redis.connectTimeout = Just (secondsToNominalDiffTime 5),
+            Redis.connectMaxConnections = 100
+          }
+
+  Log.info l $
+    Log.msg (Log.val "starting connection to redis...")
+      . Log.field "connectionMode" (show $ o ^. optRedis . rConnectionMode)
+      . Log.field "connInfo" (show redisConnInfo)
+  r <- case o ^. optRedis . rConnectionMode of
+    Master -> Redis.checkedConnect redisConnInfo
+    Cluster -> checkedConnectCluster l redisConnInfo
+  Log.info l $ Log.msg (Log.val "Established connection to redis")
   p <-
     C.init $
       C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.gundeck") l))
@@ -109,3 +119,23 @@ createEnv m o = do
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId
 {-# INLINE reqIdMsg #-}
+
+-- | Similar to 'checkedConnect' but for redis cluster:
+-- Constructs a 'Connection' pool to a Redis server designated by the
+-- given 'ConnectInfo', then tests if the server is actually there.
+-- Throws an exception if the connection to the Redis server can't be
+-- established.
+--
+-- Throws 'gundeck: ClusterConnectError (Error "ERR This instance has cluster support disabled")' when the redis server doesn't support cluster mode.
+checkedConnectCluster :: Logger.Logger -> Redis.ConnectInfo -> IO Redis.Connection
+checkedConnectCluster l connInfo = do
+  Log.info l $ Log.msg (Log.val "starting connection to redis in cluster mode ...")
+  conn <- Redis.connectCluster connInfo
+  Log.info l $ Log.msg (Log.val "lazy connection established, running ping...")
+  void . Redis.runRedis conn $ do
+    ping <- Redis.ping
+    case ping of
+      Left r -> error ("could not ping redis cluster: " <> show r)
+      Right _ -> pure ()
+  Log.info l $ Log.msg (Log.val "ping went through")
+  return conn

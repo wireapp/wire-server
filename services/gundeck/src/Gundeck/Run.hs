@@ -24,6 +24,7 @@ import Control.Lens hiding (enum)
 import Data.Metrics.Middleware (metrics)
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Data.Text (unpack)
+import qualified Database.Redis as Redis
 import Gundeck.API (sitemap)
 import qualified Gundeck.Aws as Aws
 import Gundeck.Env
@@ -57,6 +58,7 @@ run o = do
     shutdown (e ^. cstate)
     Async.cancel lst
     forM_ wtbs Async.cancel
+    Redis.disconnect (e ^. rstate)
     Log.close (e ^. applog)
   where
     middleware :: Env -> Wai.Middleware
