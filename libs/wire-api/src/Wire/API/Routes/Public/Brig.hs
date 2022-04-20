@@ -780,6 +780,13 @@ type MLSKeyPackageAPI =
                     ( "claim"
                         :> Summary "Claim one key package for each client of the given user"
                         :> QualifiedCaptureUserId "user"
+                        :> QueryParam'
+                             [ Optional,
+                               Strict,
+                               Description "Do not claim a key package for the given own client"
+                             ]
+                             "skip_own"
+                             ClientId
                         :> MultiVerb1 'POST '[JSON] (Respond 200 "Claimed key packages" KeyPackageBundle)
                     )
                 )
