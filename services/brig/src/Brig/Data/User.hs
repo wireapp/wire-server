@@ -122,7 +122,7 @@ data ReAuthError
 -- Condition (2.) is essential for maintaining handle uniqueness.  It is guaranteed by the
 -- fact that we're setting getting @mbHandle@ from table @"user"@, and when/if it was added
 -- there, it was claimed properly.
-newAccount :: (MonadClient m, MonadReader Env m) => NewUser -> Maybe InvitationId -> Maybe TeamId -> Maybe Handle -> m (UserAccount, Maybe Password)
+newAccount :: (MonadReader Env m, MonadIO m) => NewUser -> Maybe InvitationId -> Maybe TeamId -> Maybe Handle -> m (UserAccount, Maybe Password)
 newAccount u inv tid mbHandle = do
   defLoc <- setDefaultUserLocale <$> view settings
   domain <- viewFederationDomain
