@@ -179,6 +179,9 @@ optSettings:
   #   Remember to keep it the same in Galley.
   setFederationDomain: example.com
   setFeatureFlags:  # see #RefConfigOptions in `/docs/reference`
+  setFederationDomainConfigs:
+    - domain: example.com
+      search_policy: full_search
 
 logLevel: Warn
 # ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests
