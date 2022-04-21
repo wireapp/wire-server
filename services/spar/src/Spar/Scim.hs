@@ -84,7 +84,6 @@ import Spar.Sem.BrigAccess (BrigAccess)
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
 import Spar.Sem.Logger (Logger)
-import Spar.Sem.Random (Random)
 import Spar.Sem.Reporter (Reporter)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
@@ -102,6 +101,7 @@ import Wire.API.Routes.Public.Spar
 import Wire.API.User.Saml (Opts)
 import Wire.API.User.Scim
 import Wire.Sem.Now (Now)
+import Wire.Sem.Random (Random)
 
 -- | SCIM config for our server.
 --

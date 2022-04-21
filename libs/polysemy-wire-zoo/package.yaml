@@ -11,6 +11,7 @@ copyright: (c) 2020 Wire Swiss GmbH
 license: AGPL-3
 dependencies:
 - base >=4.6 && <5.0
+- HsOpenSSL
 - hspec
 - imports
 - polysemy
@@ -20,5 +21,7 @@ dependencies:
 - saml2-web-sso
 - time
 - tinylog
+- types-common
+- uuid
 library:
   source-dirs: src
