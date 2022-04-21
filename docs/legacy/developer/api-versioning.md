@@ -41,11 +41,8 @@ not suitable for production. Backends deployed to production environments
 should disable development versions (and not advertise them in `/api-version`).
 
 The `/api-version` endpoint returns information about the public-facing
-(client) API by default. However, the API can be selected using the `api` query
-parameter, which can take the following values:
-
- - `api=client` for the client API (default);
- - `api=federation` for the server-to-server API.
+(client) API. The corresponding information for the federation API is available
+at `/federation/api-version`.
 
 ## Making requests to a particular version
 

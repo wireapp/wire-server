@@ -19,6 +19,7 @@
 
 module Test.Federator.InternalServer (tests) where
 
+import qualified Data.Aeson as Aeson
 import Data.ByteString.Builder
 import Data.ByteString.Conversion
 import Data.Default
@@ -43,17 +44,16 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
+import Wire.API.Federation.Version
 import Wire.Sem.Logger.TinyLog
 
 tests :: TestTree
 tests =
   testGroup
-    "Federate"
-    [ testGroup
-        "with remote"
-        [ federatedRequestSuccess,
-          federatedRequestFailureAllowList
-        ]
+    "Federate with remote"
+    [ federatedRequestSuccess,
+      federatedRequestFailureAllowList,
+      federatedAPIVersion
     ]
 
 settingsWithAllowList :: [Domain] -> RunSettings
@@ -88,7 +88,7 @@ federatedRequestSuccess =
                   responseHttpVersion = HTTP.http20,
                   responseBody = source ["\"bar\""]
                 }
-          GetAPIVersions _ -> error "TODO"
+          GetAPIVersions _ -> embed @IO $ assertFailure "Unexpected use of getAPIVersion"
     res <-
       runM
         . interpretCall
@@ -118,7 +118,7 @@ federatedRequestFailureAllowList =
             trExtraHeaders = headers
           }
 
-    let checkRequest :: Sem (Remote ': r) a -> Sem r a
+    let checkRequest :: Member (Embed IO) r => Sem (Remote ': r) a -> Sem r a
         checkRequest = interpret $ \case
           DiscoverAndCall {} ->
             pure
@@ -128,7 +128,7 @@ federatedRequestFailureAllowList =
                   responseHttpVersion = HTTP.http20,
                   responseBody = source ["\"bar\""]
                 }
-          GetAPIVersions _ -> error "TODO"
+          GetAPIVersions _ -> embed @IO $ assertFailure "Unexpected use of getAPIVersion"
 
     eith <-
       runM
@@ -142,3 +142,36 @@ federatedRequestFailureAllowList =
     eith @?= Left (FederationDenied targetDomain)
 
 -- @END
+
+federatedAPIVersion :: TestTree
+federatedAPIVersion = testCase "should make an API version query" $ do
+  let settings = noClientCertSettings
+      targetDomain = Domain "target.example.com"
+      headers = [(originDomainHeaderName, "origin.example.com")]
+      vinfo = Aeson.encode (VersionInfo (toList supportedVersions))
+  request <-
+    testRequest
+      def
+        { trPath = "/api-version/" <> toByteString' targetDomain,
+          trMethod = HTTP.methodGet,
+          trExtraHeaders = headers
+        }
+
+  let interpretCall :: Member (Embed IO) r => Sem (Remote ': r) a -> Sem r a
+      interpretCall = interpret $ \case
+        DiscoverAndCall {} -> embed @IO $ assertFailure "Unexpected RPC call"
+        GetAPIVersions domain -> do
+          embed @IO $ domain @?= targetDomain
+          pure vinfo
+
+  res <-
+    runM
+      . interpretCall
+      . assertNoError @ValidationError
+      . assertNoError @ServerError
+      . discardTinyLogs
+      . runInputConst settings
+      $ callOutward request
+  Wai.responseStatus res @?= HTTP.status200
+  body <- Wai.lazyResponseBody res
+  body @?= vinfo

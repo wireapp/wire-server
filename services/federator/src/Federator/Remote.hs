@@ -157,8 +157,7 @@ interpretRemote = interpret $ \case
             { method = HTTP.methodGet,
               host = hostname,
               port = fromIntegral port,
-              path = "/api-version",
-              queryString = "?api=federation"
+              path = "/federation/api-version"
             }
     resp <- embed @(Codensity IO) . lift $ httpLbs req manager
     when (responseStatus resp /= HTTP.status200) $

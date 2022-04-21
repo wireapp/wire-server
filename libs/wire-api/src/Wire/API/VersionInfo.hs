@@ -110,7 +110,6 @@ instance
     SingI n,
     Ord (Demote v),
     SingKind v,
-    HasClient m api,
     HasClientAlgebra m api
   ) =>
   HasClient m (Until (n :: v) :> api)
@@ -162,7 +161,6 @@ instance
     SingI n,
     Ord (Demote v),
     SingKind v,
-    HasClient m api,
     HasClientAlgebra m api
   ) =>
   HasClient m (From (n :: v) :> api)

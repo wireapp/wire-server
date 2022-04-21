@@ -33,6 +33,7 @@ import Data.Either.Validation (Validation (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.X509.CertificateStore
+import Debug.Trace
 import Federator.App (runAppT)
 import Federator.Discovery (DiscoverFederator, DiscoveryFailure (DiscoveryFailureDNSError, DiscoveryFailureSrvNotAvailable), runFederatorDiscovery)
 import Federator.Env (Env, TLSSettings, applog, caStore, dnsResolver, runSettings, tls)
