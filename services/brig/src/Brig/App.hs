@@ -120,7 +120,6 @@ import Data.Default (def)
 import Data.Domain
 import qualified Data.GeoIP2 as GeoIp
 import Data.IP
-import Data.Id (UserId)
 import qualified Data.List.NonEmpty as NE
 import Data.List1 (List1, list1)
 import Data.Metrics (Metrics)
