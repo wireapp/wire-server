@@ -104,8 +104,8 @@ bulkGetMemberLimitExceeded =
     "too-many-uids"
     ("Can only process " <> cs (show @Int hardTruncationLimit) <> " user ids per request.")
 
-invalidTeamNotificationId :: Wai.Error
-invalidTeamNotificationId = Wai.mkError status400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."
-
 legalHoldServiceUnavailable :: Wai.Error
 legalHoldServiceUnavailable = Wai.mkError status412 "legalhold-unavailable" "legal hold service does not respond or tls handshake could not be completed (did you pin the wrong public key?)"
+
+invalidTeamNotificationId :: Wai.Error
+invalidTeamNotificationId = Wai.mkError status400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."

@@ -72,7 +72,6 @@ import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (toStrict)
 import Data.IP (IP (IPv4, IPv6), toIPv4, toIPv6b)
---import Data.Proxy (Proxy (Proxy))
 import Data.Range
 import Data.Schema
 import qualified Data.Swagger as S
