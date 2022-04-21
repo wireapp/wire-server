@@ -11,30 +11,32 @@ This applies equally to:
 An *API version* is a natural number, represented as `vN`, where `N` is the
 version. For example, version `5` is denoted `v5`.
 
-A backend advertises a set of *supported* API versions and a set of
-*development* API versions via the `GET /api-version` endpoint, which returns a
-JSON object of the form:
+A backend advertises a set of *supported* API versions, divided into a set of
+*stable* API versions and a set of *development* API versions. These sets can
+be discovered via the `GET /api-version` endpoint, which returns a JSON object
+of the form:
 
 ```json
-{ "supported": [0, 1, 2, 3],
+{ "supported": [0, 1, 2, 3, 4],
   "development": [4],
   ...
 }
 ```
 
 where the `...` stands for other fields, which are irrelevant to the purposes
-of API versioning.
+of API versioning. Development versions (usually one), are listed explicitly.
+Stable versions are all supported versions that are not development.
 
-Supported versions map to well-defined and fixed API *contracts*, which will
-not change over time. That is to say, if two different instances of the backend
+Stable versions map to well-defined and fixed API *contracts*, which will not
+change over time. That is to say, if two different instances of the backend
 both list version `3` in `supported`, a client can assume that they will accept
 the same exact requests when version `3` is used.
 
-On the other hand, `development` versions give no such guarantees. When making
+On the other hand, development versions give no such guarantees. When making
 requests using a development version on some backend, the client needs to be
 aware of the corresponding API contract used by that specific backend.
 
-Of course, `development` versions are useful while building a new API, but are
+Of course, development versions are useful while building a new API, but are
 not suitable for production. Backends deployed to production environments
 should disable development versions (and not advertise them in `/api-version`).
 
@@ -42,7 +44,7 @@ The `/api-version` endpoint returns information about the public-facing
 (client) API by default. However, the API can be selected using the `api` query
 parameter, which can take the following values:
 
- - `api=client` for the client API (default) 
+ - `api=client` for the client API (default);
  - `api=federation` for the server-to-server API.
 
 ## Making requests to a particular version
@@ -69,15 +71,15 @@ unversioned endpoints are:
 ## Server implementation
 
 On the server side, we normally have a single development version and multiple
-deprecated supported versions. When we make a change to the development
-version, no further actions are needed.
+stable versions. When we make a change to the development version, no further
+actions are needed.
 
 However, the development version is disabled in production, so whenever we need
 those changes to actually be deployed, we have to perform a version bump. That
 means a few things:
 
  - freezing the current contract of the development version (see below);
- - turning the development version into a supported version;
+ - turning the development version into a stable version;
  - creating a new development version, which is an exact copy of the previous
    development version at the time of the bump.
 
@@ -218,4 +220,14 @@ parameter.
 
 #### Adding a new endpoint
 
-Clients can use the new endpoint, but need to handle the case where the endpoint is not available, either by catching a 404 error, or by pre-emptively.
+Clients can use the new endpoint, but need to handle the case where the
+endpoint is not available, either by catching a 404 error, or by pre-emptively
+using the old endpoint when the negotiated version is known not to contain it.
+
+#### Removing an endpoint
+
+Clients would just stop using the removed endpoint. Of course, this usually means refactoring whatever code was using it so that some other combination of endpoints is used instead.
+
+#### Incompatible changes to an endpoint
+
+Again, this is a combination of the previous two scenarios. After negotiation, clients need to determine which version of the endpoint can be used, and act accordingly.
