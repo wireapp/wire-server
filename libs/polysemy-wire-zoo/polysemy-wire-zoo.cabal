@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e2e3b663f85abbb558703a6e6bf5449020cb7d0335ae01e4a5ebb124765ed337
+-- hash: be6e191f98f61663091d940ccdb428f4f844cf94b6defd13f19a3c65d9e4e894
 
 name:           polysemy-wire-zoo
 version:        0.1.0
@@ -25,6 +25,8 @@ library
       Wire.Sem.Now.Input
       Wire.Sem.Now.IO
       Wire.Sem.Now.Spec
+      Wire.Sem.Random
+      Wire.Sem.Random.IO
   other-modules:
       Paths_polysemy_wire_zoo
   hs-source-dirs:
@@ -70,7 +72,8 @@ library
       ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
   build-depends:
-      QuickCheck
+      HsOpenSSL
+    , QuickCheck
     , base >=4.6 && <5.0
     , hspec
     , imports
@@ -80,4 +83,6 @@ library
     , saml2-web-sso
     , time
     , tinylog
+    , types-common
+    , uuid
   default-language: Haskell2010

@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,22 +15,23 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.Random
-  ( Random (..),
-    bytes,
-    uuid,
-    scimTokenId,
+module Wire.Sem.Random.IO
+  ( randomToIO,
   )
 where
 
-import Data.Id (ScimTokenId)
-import Data.UUID (UUID)
+import Data.Id (randomId)
+import qualified Data.UUID.V4 as UUID
 import Imports
+import OpenSSL.Random (randBytes)
 import Polysemy
+import Wire.Sem.Random (Random (..))
 
-data Random m a where
-  Bytes :: Int -> Random m ByteString
-  Uuid :: Random m UUID
-  ScimTokenId :: Random m ScimTokenId
-
-makeSem ''Random
+randomToIO ::
+  Member (Embed IO) r =>
+  Sem (Random ': r) a ->
+  Sem r a
+randomToIO = interpret $ \case
+  Bytes i -> embed $ randBytes i
+  Uuid -> embed $ UUID.nextRandom
+  ScimTokenId -> embed $ randomId @IO
