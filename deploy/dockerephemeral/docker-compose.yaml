@@ -95,7 +95,7 @@ services:
     image: 'redis:6.0-alpine'
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
-      - '6373:6373'
+      - '127.0.0.1:6373:6373'
     volumes:
       - redis-node-1-data:/var/lib/redis
       - ./docker/redis-node-1.conf:/usr/local/etc/redis/redis.conf
@@ -106,7 +106,7 @@ services:
     image: 'redis:6.0-alpine'
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
-      - '6374:6374'
+      - '127.0.0.1:6374:6374'
     volumes:
       - redis-node-2-data:/var/lib/redis
       - ./docker/redis-node-2.conf:/usr/local/etc/redis/redis.conf
@@ -117,7 +117,7 @@ services:
     image: 'redis:6.0-alpine'
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
-      - '6375:6375'
+      - '127.0.0.1:6375:6375'
     volumes:
       - redis-node-3-data:/var/lib/redis
       - ./docker/redis-node-3.conf:/usr/local/etc/redis/redis.conf
@@ -128,7 +128,7 @@ services:
     image: 'redis:6.0-alpine'
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
-      - '6376:6376'
+      - '127.0.0.1:6376:6376'
     volumes:
       - redis-node-4-data:/var/lib/redis
       - ./docker/redis-node-4.conf:/usr/local/etc/redis/redis.conf
@@ -139,7 +139,7 @@ services:
     image: 'redis:6.0-alpine'
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
-      - '6377:6377'
+      - '127.0.0.1:6377:6377'
     volumes:
       - redis-node-5-data:/var/lib/redis
       - ./docker/redis-node-5.conf:/usr/local/etc/redis/redis.conf
@@ -150,7 +150,7 @@ services:
     image: 'redis:6.0-alpine'
     command: redis-server /usr/local/etc/redis/redis.conf
     ports:
-      - '6378:6378'
+      - '127.0.0.1:6378:6378'
     volumes:
       - redis-node-6-data:/var/lib/redis
       - ./docker/redis-node-6.conf:/usr/local/etc/redis/redis.conf
