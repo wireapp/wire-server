@@ -274,6 +274,7 @@ instance ToSchema HttpsUrl where
   schema =
     (decodeUtf8 . toByteString')
       .= parsedText "HttpsUrl" (runParser parser . encodeUtf8)
+        & doc' . S.schema . S.example ?~ toJSON ("https://example.com" :: Text)
 
 instance Cql HttpsUrl where
   ctype = Tagged BlobColumn

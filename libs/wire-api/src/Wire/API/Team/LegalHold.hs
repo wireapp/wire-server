@@ -17,7 +17,6 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | Swagger schemas for these types are in 'Galley.API.Swagger'.
 module Wire.API.Team.LegalHold
   ( NewLegalHoldService (..),
     ViewLegalHoldService (..),
@@ -30,22 +29,12 @@ module Wire.API.Team.LegalHold
   )
 where
 
--- import Control.Lens (ix, (%~), (.~))
--- import Data.HashMap.Strict.InsOrd
 import qualified Data.Aeson.Types as A
 import Data.Id
--- import Data.Json.Util
 import Data.LegalHold
 import Data.Misc
--- import Data.Proxy
 import Data.Schema
 import qualified Data.Swagger as S hiding (info)
--- import Data.UUID
-
--- import qualified Test.QuickCheck as QC
--- import qualified Test.QuickCheck.Gen as QC
--- import qualified Test.QuickCheck.Random as QC
-
 import Deriving.Aeson
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
@@ -86,70 +75,44 @@ data ViewLegalHoldService
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ViewLegalHoldService)
 
 -- | this type is only introduce locally here to generate the schema for 'ViewLegalHoldService'.
-data MockViewLegalHoldServiceStatus = Configured | NotConfigured | Disabled
+data LHServiceStatus = Configured | NotConfigured | Disabled
   deriving (Eq, Show, Generic)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema MockViewLegalHoldServiceStatus)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema LHServiceStatus)
 
-instance ToSchema MockViewLegalHoldServiceStatus where
+instance ToSchema LHServiceStatus where
   schema =
-    enum @Text "MockViewLegalHoldServiceStatus" $
+    enum @Text "LHServiceStatus" $
       mconcat
         [ element "configured" Configured,
           element "not_configured" NotConfigured,
           element "disabled" Disabled
         ]
 
-data LegalHoldRecord = LegalHoldRecord
-  { status :: Text,
-    settings :: Maybe ViewLegalHoldServiceInfo
-  }
-
 instance ToSchema ViewLegalHoldService where
   schema =
     object "ViewLegalHoldService" $
       toOutput .= recordSchema `withParser` validateViewLegalHoldService
     where
-      toOutput :: ViewLegalHoldService -> LegalHoldRecord
+      toOutput :: ViewLegalHoldService -> (LHServiceStatus, Maybe ViewLegalHoldServiceInfo)
       toOutput = \case
-        ViewLegalHoldService info -> LegalHoldRecord "configured" (Just info)
-        ViewLegalHoldServiceNotConfigured -> LegalHoldRecord "not_configured" Nothing
-        ViewLegalHoldServiceDisabled -> LegalHoldRecord "disabled" Nothing
+        ViewLegalHoldService info -> (Configured, Just info)
+        ViewLegalHoldServiceNotConfigured -> (NotConfigured, Nothing)
+        ViewLegalHoldServiceDisabled -> (Disabled, Nothing)
 
-      recordSchema :: ObjectSchema SwaggerDoc LegalHoldRecord
+      recordSchema :: ObjectSchema SwaggerDoc (LHServiceStatus, Maybe ViewLegalHoldServiceInfo)
       recordSchema =
-        LegalHoldRecord
-          <$> status .= field "status" schema
-          <*> settings .= maybe_ (optField "settings" schema)
+        (,)
+          <$> fst .= field "status" schema
+          <*> snd .= maybe_ (optField "settings" schema)
 
-      validateViewLegalHoldService :: LegalHoldRecord -> A.Parser ViewLegalHoldService
-      validateViewLegalHoldService (LegalHoldRecord "configured" (Just info)) =
+      validateViewLegalHoldService :: (LHServiceStatus, Maybe ViewLegalHoldServiceInfo) -> A.Parser ViewLegalHoldService
+      validateViewLegalHoldService (Configured, Just info) =
         pure $ ViewLegalHoldService info
-      validateViewLegalHoldService (LegalHoldRecord "disabled" _) =
+      validateViewLegalHoldService (Disabled, _) =
         pure ViewLegalHoldServiceDisabled
-      validateViewLegalHoldService (LegalHoldRecord "not_configured" _) =
+      validateViewLegalHoldService (NotConfigured, _) =
         pure ViewLegalHoldServiceNotConfigured
       validateViewLegalHoldService _ = fail "status (one of configured, not_configured, disabled)"
-
--- declareNamedSchema _ =
---   pure $
---     NamedSchema (Just "ViewLegalHoldService") $
---       mempty
---         & properties .~ properties_
---         & example .~ Just (toJSON example_)
---         & required .~ ["status"]
---         & minProperties .~ Just 1
---         & maxProperties .~ Just 2
---         & type_ .~ Just SwaggerObject
---   where
---     properties_ :: InsOrdHashMap Text (Referenced Schema)
---     properties_ =
---       fromList
---         [ ("status", Inline (toSchema (Proxy @MockViewLegalHoldServiceStatus))),
---           ("settings", Inline (toSchema (Proxy @ViewLegalHoldServiceInfo)))
---         ]
---     example_ =
---       ViewLegalHoldService
---         (ViewLegalHoldServiceInfo arbitraryExample arbitraryExample arbitraryExample (ServiceToken "sometoken") arbitraryExample)
 
 data ViewLegalHoldServiceInfo = ViewLegalHoldServiceInfo
   { viewLegalHoldServiceTeam :: TeamId,
@@ -163,23 +126,6 @@ data ViewLegalHoldServiceInfo = ViewLegalHoldServiceInfo
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ViewLegalHoldServiceInfo)
 
 instance ToSchema ViewLegalHoldServiceInfo where
-  {- please don't put empty lines here: https://github.com/tweag/ormolu/issues/603
-  -- FUTUREWORK: The generic instance uses a reference to the UUID type in TeamId.  This
-  -- leads to perfectly valid swagger output, but 'validateEveryToJSON' chokes on it
-  -- (unknown schema "UUID").  In order to be able to run those tests, we construct the
-  -- 'ToSchema' instance manually.
-  -- See also: https://github.com/haskell-servant/servant-swagger/pull/104
-  declareNamedSchema = genericDeclareNamedSchema opts
-    where
-      opts = defaultSchemaOptions
-        { fieldLabelModifier = \case
-            "viewLegalHoldServiceFingerprint" -> "fingerprint"
-            "viewLegalHoldServiceUrl"         -> "base_url"
-            "viewLegalHoldServiceTeam"        -> "team_id"
-            "viewLegalHoldServiceAuthToken"   -> "auth_token"
-            "viewLegalHoldServiceKey"         -> "public_key"
-        }
-  -}
   schema =
     object "ViewLegalHoldServiceInfo" $
       ViewLegalHoldServiceInfo
@@ -188,28 +134,6 @@ instance ToSchema ViewLegalHoldServiceInfo where
         <*> viewLegalHoldServiceFingerprint .= field "fingerprint" schema
         <*> viewLegalHoldServiceAuthToken .= field "auth_token" schema
         <*> viewLegalHoldServiceKey .= field "public_key" schema
-
--- declareNamedSchema _ =
---   pure $
---     NamedSchema (Just "ViewLegalHoldServiceInfo") $
---       mempty
---         & properties .~ properties_
---         & example .~ Just (toJSON example_)
---         & required .~ ["team_id", "base_url", "fingerprint", "auth_token", "public_key"]
---         & type_ .~ Just SwaggerObject
---   where
---     properties_ :: InsOrdHashMap Text (Referenced Schema)
---     properties_ =
---       fromList
---         [ ("team_id", Inline (toSchema (Proxy @UUID))),
---           ("base_url", Inline (toSchema (Proxy @HttpsUrl))),
---           ("fingerprint", Inline (toSchema (Proxy @(Fingerprint Rsa)))),
---           ("auth_token", Inline (toSchema (Proxy @ServiceToken))),
---           ("public_key", Inline (toSchema (Proxy @ServiceKeyPEM)))
---         ]
---     example_ =
---       ViewLegalHoldService
---         (ViewLegalHoldServiceInfo arbitraryExample arbitraryExample arbitraryExample (ServiceToken "sometoken") arbitraryExample)
 
 --------------------------------------------------------------------------------
 -- UserLegalHoldStatusResponse
@@ -232,24 +156,6 @@ instance ToSchema UserLegalHoldStatusResponse where
         <$> ulhsrStatus .= field "status" schema
         <*> ulhsrLastPrekey .= maybe_ (optField "last_prekey" schema)
         <*> (fmap IdObject . ulhsrClientId) .= maybe_ (optField "client" (fromIdObject <$> schema))
-
--- declareNamedSchema _ = do
---   clientSchema <- declareSchemaRef (Proxy @(IdObject ClientId))
---   let properties_ :: InsOrdHashMap Text (Referenced Schema)
---       properties_ =
---         fromList
---           [ ("status", Inline (toSchema (Proxy @UserLegalHoldStatus))),
---             ("last_prekey", Inline (toSchema (Proxy @LastPrekey))),
---             ("client", clientSchema)
---           ]
---   pure $
---     NamedSchema (Just "UserLegalHoldStatusResponse") $
---       mempty
---         & properties .~ properties_
---         & required .~ ["status"]
---         & minProperties .~ Just 1
---         & maxProperties .~ Just 3
---         & type_ .~ Just SwaggerObject
 
 --------------------------------------------------------------------------------
 -- RemoveLegalHoldSettingsRequest
@@ -298,17 +204,6 @@ instance ToSchema ApproveLegalHoldForUserRequest where
     object "ApproveLegalHoldForUserRequest" $
       ApproveLegalHoldForUserRequest
         <$> alhfuPassword .= maybe_ (optField "password" schema)
-
-----------------------------------------------------------------------
--- helpers
-
--- arbitraryExample :: QC.Arbitrary a => a
--- arbitraryExample = QC.unGen QC.arbitrary (QC.mkQCGen 0) 30
-
--- camelToUnderscore :: String -> String
--- camelToUnderscore = concatMap go . (ix 0 %~ toLower)
---   where
---     go x = if isUpper x then "_" <> [toLower x] else [x]
 
 -----------------------------------------------------------------------
 
