@@ -1,0 +1,3 @@
+Modify the nginz access control configuration to prevent clients connecting
+to listeners with PROXY protocol enabled (such as the websocket listener) from
+accessing a private metrics endpoint.
