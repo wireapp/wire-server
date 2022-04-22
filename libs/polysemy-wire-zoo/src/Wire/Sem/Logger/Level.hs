@@ -17,6 +17,7 @@
 
 module Wire.Sem.Logger.Level where
 
+import Imports
 import qualified SAML2.WebSSO as SAML
 import qualified System.Logger as Log
 
@@ -28,6 +29,7 @@ data Level
   | Info
   | Debug
   | Trace
+  deriving (Eq, Show)
 
 toLevel :: Level -> Log.Level
 toLevel = \case
