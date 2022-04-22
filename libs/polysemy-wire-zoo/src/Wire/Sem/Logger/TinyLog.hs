@@ -17,11 +17,15 @@
 
 module Wire.Sem.Logger.TinyLog
   ( loggerToTinyLog,
+    loggerToTinyLogReqId,
     stringLoggerToTinyLog,
+    discardLogs,
+    discardTinyLogs,
     module Wire.Sem.Logger.Level,
   )
 where
 
+import Data.Id
 import Imports
 import Polysemy
 import qualified System.Logger as Log
@@ -37,5 +41,23 @@ loggerToTinyLog tinylog = interpret $ \case
   Log lvl msg ->
     embed @IO $ Log.log tinylog (toLevel lvl) msg
 
+loggerToTinyLogReqId ::
+  Member (Embed IO) r =>
+  Log.Logger ->
+  RequestId ->
+  Sem (Logger (Log.Msg -> Log.Msg) ': r) a ->
+  Sem r a
+loggerToTinyLogReqId tinylog r = interpret $ \case
+  Log lvl msg ->
+    embed @IO
+      . Log.log tinylog (toLevel lvl)
+      $ Log.field "request" (unRequestId r) Log.~~ msg
+
 stringLoggerToTinyLog :: Member (Logger (Log.Msg -> Log.Msg)) r => Sem (Logger String ': r) a -> Sem r a
 stringLoggerToTinyLog = mapLogger @String Log.msg
+
+discardLogs :: Sem (Logger msg ': r) a -> Sem r a
+discardLogs = interpret $ \(Log _ _) -> pure ()
+
+discardTinyLogs :: Sem (Logger (Log.Msg -> Log.Msg) ': r) a -> Sem r a
+discardTinyLogs = discardLogs
