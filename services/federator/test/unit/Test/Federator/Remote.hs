@@ -26,7 +26,6 @@ import Federator.Options
 import Federator.Remote
 import Federator.Run (mkTLSSettingsOrThrow)
 import Imports
-import Network.HTTP.Client
 import Network.HTTP.Types (status200)
 import Network.Wai
 import qualified Network.Wai.Handler.Warp as Warp
@@ -84,7 +83,6 @@ mkTestCall tlsSettings port =
     . runError @RemoteError
     . void
     . runInputConst tlsSettings
-    . runInputConst (error "Unexpected use of manager" :: Manager)
     . discoverLocalhost port
     . assertNoError @DiscoveryFailure
     . runEmbedded @(Codensity IO) @IO lowerCodensity

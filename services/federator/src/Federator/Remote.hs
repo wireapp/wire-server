@@ -31,7 +31,9 @@ where
 import qualified Control.Exception as E
 import Control.Lens ((^.))
 import Control.Monad.Codensity
+import Control.Monad.Except
 import Data.Binary.Builder
+import Data.ByteString.Builder
 import Data.ByteString.Conversion (toByteString')
 import qualified Data.ByteString.Lazy as LBS
 import Data.Default (def)
@@ -47,7 +49,6 @@ import Federator.Env
 import Federator.Error
 import Federator.Validation
 import Imports
-import Network.HTTP.Client
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.TLS as TLS
@@ -57,6 +58,8 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Servant.Client.Core hiding (defaultRequest, responseBody)
+import qualified Servant.Client.Core as Servant
+import Servant.Types.SourceT
 import Wire.API.Federation.Client
 import Wire.API.Federation.Component
 import Wire.API.Federation.Error
@@ -119,50 +122,64 @@ interpretRemote ::
        DiscoverFederator,
        Error DiscoveryFailure,
        Error RemoteError,
-       Input TLSSettings,
-       Input Manager
+       Input TLSSettings
      ]
     r =>
   Sem (Remote ': r) a ->
   Sem r a
 interpretRemote = interpret $ \case
-  DiscoverAndCall domain component rpc headers body -> do
-    target@(SrvTarget hostname port) <- discoverFederatorWithError domain
-    settings <- input
-    let path =
-          LBS.toStrict . toLazyByteString $
-            HTTP.encodePathSegments ["federation", componentName component, rpc]
-        req' = HTTP2.requestBuilder HTTP.methodPost path headers body
-        tlsConfig = mkTLSConfig settings hostname port
-
-    resp <- mapError (RemoteError target) . (fromEither @FederatorClientHTTP2Error =<<) . embed $
-      Codensity $ \k ->
-        E.catch
-          (withHTTP2Request (Just tlsConfig) req' hostname (fromIntegral port) (k . Right))
-          (k . Left)
-
-    unless (HTTP.statusIsSuccessful (responseStatusCode resp)) $ do
-      bdy <- embed @(Codensity IO) . liftIO $ streamingResponseStrictBody resp
-      throw $
-        RemoteErrorResponse
-          target
-          (responseStatusCode resp)
-          (toLazyByteString bdy)
-    pure resp
+  DiscoverAndCall domain component rpc headers body ->
+    performRPC domain component rpc headers body
   GetAPIVersions domain -> do
-    target@(SrvTarget hostname port) <- discoverFederatorWithError domain
-    manager <- input
-    let req =
-          defaultRequest
-            { method = HTTP.methodGet,
-              host = hostname,
-              port = fromIntegral port,
-              path = "/federation/api-version"
-            }
-    resp <- embed @(Codensity IO) . lift $ httpLbs req manager
-    when (responseStatus resp /= HTTP.status200) $
-      throw (RemoteErrorNoVersion target)
-    pure $ responseBody resp
+    resp <- performRPC domain Brig "api-version" [] mempty
+    embed @(Codensity IO)
+      . liftIO
+      . fmap
+        ( toLazyByteString
+            . foldMap byteString
+            . either (const mempty) id
+        )
+      . runExceptT
+      . runSourceT
+      . Servant.responseBody
+      $ resp
+
+performRPC ::
+  ( Member (Embed (Codensity IO)) r,
+    Member DiscoverFederator r,
+    Member (Error DiscoveryFailure) r,
+    Member (Error RemoteError) r,
+    Member (Input TLSSettings) r
+  ) =>
+  Domain ->
+  Component ->
+  Text ->
+  [HTTP.Header] ->
+  Builder ->
+  Sem r StreamingResponse
+performRPC domain component rpc headers body = do
+  target@(SrvTarget hostname port) <- discoverFederatorWithError domain
+  settings <- input
+  let path =
+        LBS.toStrict . toLazyByteString $
+          HTTP.encodePathSegments ["federation", componentName component, rpc]
+      req' = HTTP2.requestBuilder HTTP.methodPost path headers body
+      tlsConfig = mkTLSConfig settings hostname port
+
+  resp <- mapError (RemoteError target) . (fromEither @FederatorClientHTTP2Error =<<) . embed $
+    Codensity $ \k ->
+      E.catch
+        (withHTTP2Request (Just tlsConfig) req' hostname (fromIntegral port) (k . Right))
+        (k . Left)
+
+  unless (HTTP.statusIsSuccessful (responseStatusCode resp)) $ do
+    bdy <- embed @(Codensity IO) . liftIO $ streamingResponseStrictBody resp
+    throw $
+      RemoteErrorResponse
+        target
+        (responseStatusCode resp)
+        (toLazyByteString bdy)
+  pure resp
 
 mkTLSConfig :: TLSSettings -> ByteString -> Word16 -> TLS.ClientParams
 mkTLSConfig settings hostname port =
