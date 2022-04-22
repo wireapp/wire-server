@@ -64,8 +64,6 @@ module Brig.App
     -- * App Monad
     AppT,
     runAppT,
-    runAppResourceT,
-    fork,
     locationOf,
     viewFederationDomain,
     qualifyLocal,
@@ -122,7 +120,6 @@ import Data.Default (def)
 import Data.Domain
 import qualified Data.GeoIP2 as GeoIp
 import Data.IP
-import Data.Id (UserId)
 import qualified Data.List.NonEmpty as NE
 import Data.List1 (List1, list1)
 import Data.Metrics (Metrics)
@@ -635,30 +632,6 @@ runAppT e (AppT ma) =
     . nowToIOAction (_currentTime e)
     . passwordResetStoreToCodeStore
     $ runReaderT ma e
-
-runAppResourceT ::
-  ResourceT (AppT BrigCanonicalEffects) a ->
-  (AppT BrigCanonicalEffects) a
-runAppResourceT ma = do
-  e <- ask
-  liftIO . runResourceT $ transResourceT (runAppT e) ma
-
-fork ::
-  (MonadIO m, MonadUnliftIO m, MonadReader Env m) =>
-  Maybe UserId ->
-  m a ->
-  m ()
-fork u ma = do
-  g <- view applog
-  r <- view requestId
-  let logErr e = Log.err g $ request r ~~ user u ~~ msg (show e)
-  withRunInIO $ \lower ->
-    void . liftIO . forkIO $
-      either logErr (const $ return ())
-        =<< runExceptT (syncIO $ lower ma)
-  where
-    request = field "request" . unRequestId
-    user = maybe id (field "user" . toByteString)
 
 locationOf :: (MonadIO m, MonadReader Env m) => IP -> m (Maybe Location)
 locationOf ip =
