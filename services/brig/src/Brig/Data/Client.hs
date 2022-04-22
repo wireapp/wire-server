@@ -141,7 +141,7 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients loc cps = do
   when (reAuthPolicy count upsert) $
     fmapLT ClientReAuthError $
       User.reauthenticate u (newClientPassword c)
-  let capacity = fmap (+ (- count)) limit
+  let capacity = fmap (+ (-count)) limit
   unless (maybe True (> 0) capacity || upsert) $
     throwE TooManyClients
   new <- insert

@@ -89,7 +89,7 @@ instance AsUnion DeleteSelfResponses (Maybe Timeout) where
   toUnion Nothing = Z (I ())
   fromUnion (Z (I ())) = Nothing
   fromUnion (S (Z (I (DeletionCodeTimeout t)))) = Just t
-  fromUnion (S (S x)) = case x of
+  fromUnion (S (S x)) = case x of {}
 
 type ConnectionUpdateResponses = UpdateResponses "Connection unchanged" "Connection updated" UserConnection
 

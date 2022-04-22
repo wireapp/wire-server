@@ -2069,7 +2069,7 @@ postCryptoBroadcastMessage100OrMaxConns bcast = do
       case (statusCode r1, statusCode r2, remaining, acc) of
         (201, 200, 0, []) -> error "Need to connect with at least 1 user"
         (201, 200, 0, (x : xs)) -> return (x, xs)
-        (201, 200, _, _) -> createAndConnectUserWhileLimitNotReached alice (remaining -1) ((uid, cid) : acc) pk
+        (201, 200, _, _) -> createAndConnectUserWhileLimitNotReached alice (remaining - 1) ((uid, cid) : acc) pk
         (403, 403, _, []) -> error "Need to connect with at least 1 user"
         (403, 403, _, x : xs) -> return (x, xs)
         (xxx, yyy, _, _) -> error ("Unexpected while connecting users: " ++ show xxx ++ " and " ++ show yyy)

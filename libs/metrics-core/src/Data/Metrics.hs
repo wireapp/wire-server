@@ -214,7 +214,7 @@ gaugeDecr = gaugeAdd (-1)
 
 -- | Subtract the given amount from the gauge at 'Path'
 gaugeSub :: MonadIO m => Double -> Path -> Metrics -> m ()
-gaugeSub x = gaugeAdd (- x)
+gaugeSub x = gaugeAdd (-x)
 
 -- | Get the current value of the Gauge
 gaugeValue :: MonadIO m => Gauge -> m Double

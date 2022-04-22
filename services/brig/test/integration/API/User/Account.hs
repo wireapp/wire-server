@@ -527,7 +527,7 @@ testCreateUserBlacklist _ brig aws =
       r <- Bilge.head (brig . path "i/users/blacklist" . queryItem "email" (toByteString' e))
       when (statusCode r == 404 && n > 0) $ do
         liftIO $ threadDelay 1000000
-        awaitBlacklist (n -1) e
+        awaitBlacklist (n - 1) e
 
 testCreateUserExternalSSO :: Brig -> Http ()
 testCreateUserExternalSSO brig = do
@@ -570,7 +570,7 @@ testActivateWithExpiry _ brig timeout = do
       liftIO $ threadDelay 1000000
       r <- activate brig kc
       when (statusCode r == 204 && n > 0) $
-        awaitExpiry (n -1) kc
+        awaitExpiry (n - 1) kc
 
 testNonExistingUserUnqualified :: Brig -> Http ()
 testNonExistingUserUnqualified brig = do
@@ -788,7 +788,7 @@ testCreateUserAnonExpiry b = do
       r <- getProfile zusr uid
       when (statusCode r == 200 && deleted r == Nothing && n > 0) $ do
         liftIO $ threadDelay 1000000
-        awaitExpiry (n -1) zusr uid
+        awaitExpiry (n - 1) zusr uid
     ensureExpiry :: UTCTime -> Maybe UTCTime -> String -> Http ()
     ensureExpiry now expiry s = case expiry of
       Nothing -> liftIO $ assertFailure ("user must have an expiry" <> s)

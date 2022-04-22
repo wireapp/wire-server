@@ -56,7 +56,7 @@ mainBotNet n = do
   info $ msg $ "Starting Smoke Test with " <> show n <> " bots"
   -- Create some participants: Ally, Bill, Carl, and a bunch of goons
   [ally, bill, carl] <- mapM newBot ["Ally", "Bill", "Carl"]
-  goons <- for [1 .. n -3] $ \i ->
+  goons <- for [1 .. n - 3] $ \i ->
     newBot (fromString ("Goon" <> show i))
   -- Set up a connection from Ally to someone
   let allyConnectTo :: Bot -> BotSession ConvId

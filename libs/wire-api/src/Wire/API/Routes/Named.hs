@@ -85,7 +85,7 @@ type family FMap (f :: a -> b) (m :: Maybe a) :: Maybe b where
   FMap _ 'Nothing = 'Nothing
   FMap f ('Just a) = 'Just (f a)
 
-type family LookupEndpoint api name :: Maybe * where
+type family LookupEndpoint api name :: Maybe (*) where
   LookupEndpoint (Named name endpoint) name = 'Just endpoint
   LookupEndpoint (api1 :<|> api2) name =
     MappendMaybe

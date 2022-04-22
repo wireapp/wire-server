@@ -80,7 +80,7 @@ dequeueOrderProp k = ioProperty $ do
   q <- DelayQueue.new (Clock (readIORef c)) (Delay 1) (Limit 2)
   e1 <- DelayQueue.enqueue q k (1 :: Int)
   tick c
-  e2 <- DelayQueue.enqueue q (k -1) (2 :: Int)
+  e2 <- DelayQueue.enqueue q (k - 1) (2 :: Int)
   tick c
   d1 <- DelayQueue.dequeue q
   d2 <- DelayQueue.dequeue q

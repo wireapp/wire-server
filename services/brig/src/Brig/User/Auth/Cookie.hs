@@ -167,7 +167,7 @@ mustSuspendInactiveUser uid =
     Just (SuspendInactiveUsers (Timeout suspendAge)) -> do
       now <- liftIO =<< view currentTime
       let suspendHere :: UTCTime
-          suspendHere = addUTCTime (- suspendAge) now
+          suspendHere = addUTCTime (-suspendAge) now
           youngEnough :: Cookie () -> Bool
           youngEnough = (>= suspendHere) . cookieCreated
       ckies <- listCookies uid []
