@@ -89,6 +89,8 @@ library
       Brig.Sem.CodeStore.Cassandra
       Brig.Sem.PasswordResetStore
       Brig.Sem.PasswordResetStore.CodeStore
+      Brig.Sem.PasswordResetSupply
+      Brig.Sem.PasswordResetSupply.IO
       Brig.SMTP
       Brig.Team.API
       Brig.Team.DB

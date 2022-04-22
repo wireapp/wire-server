@@ -37,6 +37,8 @@ import Brig.Data.UserKey
 import Brig.Options
 import qualified Brig.Sem.CodeStore as E
 import Brig.Sem.CodeStore.Cassandra
+import qualified Brig.Sem.PasswordResetSupply as E
+import Brig.Sem.PasswordResetSupply.IO
 import Brig.Types
 import Brig.Types.Intra
 import Cassandra
@@ -126,7 +128,7 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
         pure . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
       -- if the key is the same, we only want to update our profile
       | otherwise = do
-        lift (runM (codeStoreToCassandra @m @'[Embed m] (E.mkPasswordResetKey uid >>= E.codeDelete)))
+        lift (deleteCode uid)
         claim key uid
         lift $ foldKey (updateEmailAndDeleteEmailUnvalidated uid) (updatePhone uid) key
         for_ oldKey $ lift . deleteKey
@@ -135,6 +137,17 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
         updateEmailAndDeleteEmailUnvalidated :: MonadClient m => UserId -> Email -> m ()
         updateEmailAndDeleteEmailUnvalidated u' email =
           updateEmail u' email <* deleteEmailUnvalidated u'
+        deleteCode :: UserId -> m ()
+        deleteCode uId =
+          runM
+            -- FUTUREWORK: use the DeletePasswordResetCode action instead of CodeDelete
+            ( codeStoreToCassandra @m
+                ( embed @m
+                    ( liftIO @m (runM (passwordResetSupplyToIO @'[Embed IO] (E.mkPasswordResetKey uId)))
+                    )
+                    >>= E.codeDelete
+                )
+            )
     claim key uid = do
       ok <- lift $ claimKey key uid
       unless ok $

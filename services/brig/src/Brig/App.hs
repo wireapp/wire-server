@@ -98,6 +98,8 @@ import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.CodeStore.Cassandra
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetStore.CodeStore
+import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
+import Brig.Sem.PasswordResetSupply.IO
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
 import Brig.Types (Locale (..))
@@ -440,6 +442,7 @@ closeEnv e = do
 type BrigCanonicalEffects =
   '[ PasswordResetStore,
      Now,
+     PasswordResetSupply,
      CodeStore,
      Embed Cas.Client,
      Embed IO,
@@ -603,6 +606,7 @@ runAppT e (AppT ma) =
     . embedToFinal
     . interpretClientToIO (_casClient e)
     . codeStoreToCassandra @Cas.Client
+    . passwordResetSupplyToIO
     . nowToIOAction (_currentTime e)
     . passwordResetStoreToCodeStore
     $ runReaderT ma e

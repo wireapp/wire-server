@@ -16,26 +16,15 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE TemplateHaskell #-}
 
-module Brig.Sem.PasswordResetStore where
+module Brig.Sem.PasswordResetSupply where
 
 import Brig.Types
 import Data.Id
-import Imports
 import Polysemy
 
-data PasswordResetStore m a where
-  CreatePasswordResetCode ::
-    UserId ->
-    Either Email Phone ->
-    PasswordResetStore m PasswordResetPair
-  LookupPasswordResetCode ::
-    UserId ->
-    PasswordResetStore m (Maybe PasswordResetCode)
-  VerifyPasswordResetCode ::
-    PasswordResetPair ->
-    PasswordResetStore m (Maybe UserId)
-  DeletePasswordResetCode ::
-    PasswordResetKey ->
-    PasswordResetStore m ()
+data PasswordResetSupply m a where
+  MkPasswordResetKey :: UserId -> PasswordResetSupply m PasswordResetKey
+  GenerateEmailCode :: PasswordResetSupply m PasswordResetCode
+  GeneratePhoneCode :: PasswordResetSupply m PasswordResetCode
 
-makeSem ''PasswordResetStore
+makeSem ''PasswordResetSupply

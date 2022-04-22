@@ -22,6 +22,7 @@ where
 
 import Brig.Sem.CodeStore
 import Brig.Sem.PasswordResetStore
+import Brig.Sem.PasswordResetSupply
 import Brig.Types
 import Data.Id
 import Data.Time
@@ -32,13 +33,14 @@ import qualified Wire.Sem.Now as Now
 
 passwordResetStoreToCodeStore ::
   forall r a.
-  Members '[CodeStore, Now] r =>
+  Members '[CodeStore, Now, PasswordResetSupply] r =>
   Sem (PasswordResetStore ': r) a ->
   Sem r a
 passwordResetStoreToCodeStore = interpret $ \case
   CreatePasswordResetCode uid eEmailPhone -> create uid eEmailPhone
   LookupPasswordResetCode uid -> lookup uid
   VerifyPasswordResetCode prp -> verify prp
+  DeletePasswordResetCode key -> delete key
 
 maxAttempts :: Int32
 maxAttempts = 3
@@ -47,7 +49,7 @@ ttl :: NominalDiffTime
 ttl = 3600 -- 60 minutes
 
 create ::
-  Members '[CodeStore, Now] r =>
+  Members '[CodeStore, Now, PasswordResetSupply] r =>
   UserId ->
   Either Email Phone ->
   Sem r PasswordResetPair
@@ -62,7 +64,7 @@ create u target = do
   pure (key, code)
 
 lookup ::
-  Members '[CodeStore, Now] r =>
+  Members '[CodeStore, Now, PasswordResetSupply] r =>
   UserId ->
   Sem r (Maybe PasswordResetCode)
 lookup u = do
@@ -87,3 +89,6 @@ verify (k, c) = do
       pure Nothing
     Just PRQueryData {} -> codeDelete k $> Nothing
     Nothing -> pure Nothing
+
+delete :: Member CodeStore r => PasswordResetKey -> Sem r ()
+delete = codeDelete
