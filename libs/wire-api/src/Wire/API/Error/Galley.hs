@@ -85,6 +85,21 @@ data GalleyError
   | DeleteQueueFull
   | TeamSearchVisibilityNotEnabled
   | CannotEnableLegalHoldServiceLargeTeam
+  | -- Legal hold Error
+    -- FUTUREWORK: make LegalHoldError more static and documented
+    MissingLegalholdConsent
+  | NoUserLegalHoldConsent
+  | LegalHoldNotEnabled
+  | LegalHoldDisableUnimplemented
+  | LegalHoldServiceInvalidKey
+  | LegalHoldServiceBadResponse
+  | UserLegalHoldAlreadyEnabled
+  | LegalHoldServiceNotRegistered
+  | LegalHoldCouldNotBlockConnections
+  | UserLegalHoldIllegalOperation
+  | TooManyTeamMembersOnTeamWithLegalhold
+  | NoLegalHoldDeviceAllocated
+  | UserLegalHoldNotPending
 
 instance KnownError (MapError e) => IsSwaggerError (e :: GalleyError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
@@ -192,6 +207,35 @@ type instance MapError 'CannotEnableLegalHoldServiceLargeTeam = 'StaticError 403
 type family MissingPermissionMessage (a :: Maybe Perm) :: Symbol where
   MissingPermissionMessage ('Just p) = "Insufficient permissions (missing " `AppendSymbol` Show_ p `AppendSymbol` ")"
   MissingPermissionMessage 'Nothing = "Insufficient permissions"
+
+--------------------------------------------------------------------------------
+-- Legal hold Errors
+
+type instance MapError 'TooManyTeamMembersOnTeamWithLegalhold = 'StaticError 403 "too-many-members-for-legalhold" "cannot add more members to team when legalhold service is enabled."
+
+type instance MapError 'LegalHoldServiceInvalidKey = 'StaticError 400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
+
+type instance MapError 'MissingLegalholdConsent = 'StaticError 403 "missing-legalhold-consent" "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has not granted consent"
+
+type instance MapError 'LegalHoldServiceNotRegistered = 'StaticError 400 "legalhold-not-registered" "legal hold service has not been registered for this team"
+
+type instance MapError 'LegalHoldServiceBadResponse = 'StaticError 400 "legalhold-status-bad" "legal hold service: invalid response"
+
+type instance MapError 'LegalHoldNotEnabled = 'StaticError 403 "legalhold-not-enabled" "legal hold is not enabled for this team"
+
+type instance MapError 'LegalHoldDisableUnimplemented = 'StaticError 403 "legalhold-disable-unimplemented" "legal hold cannot be disabled for whitelisted teams"
+
+type instance MapError 'UserLegalHoldAlreadyEnabled = 'StaticError 409 "legalhold-already-enabled" "legal hold is already enabled for this user"
+
+type instance MapError 'NoUserLegalHoldConsent = 'StaticError 409 "legalhold-no-consent" "user has not given consent to using legal hold"
+
+type instance MapError 'UserLegalHoldIllegalOperation = 'StaticError 500 "legalhold-illegal-op" "internal server error: inconsistent change of user's legalhold state"
+
+type instance MapError 'UserLegalHoldNotPending = 'StaticError 412 "legalhold-not-pending" "legal hold cannot be approved without being in a pending state"
+
+type instance MapError 'NoLegalHoldDeviceAllocated = 'StaticError 404 "legalhold-no-device-allocated" "no legal hold device is registered for this user. POST /teams/:tid/legalhold/:uid/ to start the flow."
+
+type instance MapError 'LegalHoldCouldNotBlockConnections = 'StaticError 500 "legalhold-internal" "legal hold service: could not block connections when resolving policy conflicts."
 
 --------------------------------------------------------------------------------
 -- Authentication errors

@@ -693,7 +693,6 @@ test-suite galley-tests
       Test.Galley.API.One2One
       Test.Galley.Intra.User
       Test.Galley.Mapping
-      Test.Galley.Roundtrip
       Paths_galley
   hs-source-dirs:
       test/unit

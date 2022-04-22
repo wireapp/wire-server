@@ -34,7 +34,6 @@ import Data.Swagger.Build.Api hiding (Response, def, min)
 import qualified Data.Swagger.Build.Api as Swagger
 import Data.Text.Encoding (decodeLatin1)
 import qualified Galley.API.Error as Error
-import qualified Galley.API.LegalHold as LegalHold
 import qualified Galley.API.Query as Query
 import qualified Galley.API.Teams as Teams
 import qualified Galley.API.Teams.Features as Features
@@ -64,7 +63,6 @@ import qualified Wire.API.Message as Public
 import qualified Wire.API.Notification as Public
 import Wire.API.Routes.API
 import qualified Wire.API.Swagger as Public.Swagger (models)
-import qualified Wire.API.Team.LegalHold as Public
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.Permission as Public
 import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
@@ -97,6 +95,7 @@ type ErrorEffects =
      ErrorS 'NoBindingTeam,
      ErrorS 'NotAOneMemberTeam,
      ErrorS 'TeamSearchVisibilityNotEnabled,
+     ErrorS 'TooManyTeamMembersOnTeamWithLegalhold,
      Error AuthenticationError
    ]
 
@@ -242,6 +241,7 @@ sitemap = do
     errorSResponse @'NotConnected
     errorSResponse @'InvalidPermissions
     errorSResponse @'TooManyTeamMembers
+    errorSResponse @'TooManyTeamMembersOnTeamWithLegalhold
 
   delete "/teams/:tid/members/:uid" (continueE Teams.deleteTeamMemberH) $
     zauthUserId
@@ -279,76 +279,6 @@ sitemap = do
     errorSResponse @'NotATeamMember
     errorSResponse @'TeamMemberNotFound
     errorSResponse @('MissingPermission ('Just 'Public.SetMemberPermissions))
-
-  -- Team Legalhold API -------------------------------------------------
-  --
-  -- The Swagger docs of this part of the documentation are not generated
-  -- using wai-utilities, but with Servant.
-  -- See 'apiDocsTeamsLegalhold'.
-
-  post "/teams/:tid/legalhold/settings" (continueE LegalHold.createSettingsH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. jsonRequest @Public.NewLegalHoldService
-      .&. accept "application" "json"
-
-  get "/teams/:tid/legalhold/settings" (continueE LegalHold.getSettingsH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ClientRemoved event to members with a legalhold client (via brig)
-  -- - UserLegalHoldDisabled event to contacts of members with a legalhold client (via brig)
-  delete "/teams/:tid/legalhold/settings" (continueE LegalHold.removeSettingsH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. jsonRequest @Public.RemoveLegalHoldSettingsRequest
-      .&. accept "application" "json"
-
-  get "/teams/:tid/legalhold/:uid" (continueE LegalHold.getUserStatusH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. capture "uid"
-      .&. accept "application" "json"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - tbd. (currently, there are not events, but maybe there should be.)  (fisx, 2021-05-10)
-  post "/teams/:tid/legalhold/consent" (continueE LegalHold.grantConsentH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. accept "application" "json"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - LegalHoldClientRequested event to contacts of the user the device is requested for,
-  --   if they didn't already have a legalhold client (via brig)
-  post "/teams/:tid/legalhold/:uid" (continueE LegalHold.requestDeviceH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. capture "uid"
-      .&. accept "application" "json"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ClientRemoved event to the user owning the client (via brig)
-  -- - UserLegalHoldDisabled event to contacts of the user owning the client (via brig)
-  delete "/teams/:tid/legalhold/:uid" (continueE LegalHold.disableForUserH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. capture "uid"
-      .&. jsonRequest @Public.DisableLegalHoldForUserRequest
-      .&. accept "application" "json"
-
-  -- This endpoint can lead to the following events being sent:
-  -- - ClientAdded event to the user owning the client (via brig)
-  -- - UserLegalHoldEnabled event to contacts of the user owning the client (via brig)
-  -- - ClientRemoved event to the user, if removing old client due to max number (via brig)
-  put "/teams/:tid/legalhold/:uid/approve" (continueE LegalHold.approveDeviceH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. capture "uid"
-      .&. zauthConnId
-      .&. jsonRequest @Public.ApproveLegalHoldForUserRequest
-      .&. accept "application" "json"
 
   -- Bot API ------------------------------------------------------------
 

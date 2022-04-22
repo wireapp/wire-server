@@ -83,11 +83,11 @@ createGroupConversation ::
        ErrorS 'ConvAccessDenied,
        Error InternalError,
        Error InvalidInput,
-       Error LegalHoldError,
        ErrorS 'NotATeamMember,
        ErrorS OperationDenied,
        ErrorS 'NotConnected,
        ErrorS 'MLSNonEmptyMemberList,
+       ErrorS 'MissingLegalholdConsent,
        FederatorAccess,
        GundeckAccess,
        Input Opts,
@@ -114,14 +114,14 @@ createGroupConversation lusr conn newConv = do
   conversationCreated lusr conv
 
 ensureNoLegalholdConflicts ::
-  Members '[Error LegalHoldError, Input Opts, LegalHoldStore, TeamStore] r =>
+  Members '[ErrorS 'MissingLegalholdConsent, Input Opts, LegalHoldStore, TeamStore] r =>
   UserList UserId ->
   Sem r ()
 ensureNoLegalholdConflicts (UserList locals remotes) = do
   let FutureWork _remotes = FutureWork @'LegalholdPlusFederationNotImplemented remotes
   whenM (anyLegalholdActivated locals) $
     unlessM (allLegalholdConsentGiven locals) $
-      throw MissingLegalholdConsent
+      throwS @'MissingLegalholdConsent
 
 checkCreateConvPermissions ::
   Members
@@ -205,6 +205,7 @@ createOne2OneConversation ::
        ErrorS 'TeamNotFound,
        ErrorS 'InvalidOperation,
        ErrorS 'NotConnected,
+       ErrorS 'MissingLegalholdConsent,
        FederatorAccess,
        GundeckAccess,
        Input UTCTime,
@@ -299,6 +300,7 @@ createOne2OneConversationUnchecked ::
     '[ ConversationStore,
        Error FederationError,
        Error InternalError,
+       ErrorS 'MissingLegalholdConsent,
        FederatorAccess,
        GundeckAccess,
        Input UTCTime,
@@ -323,6 +325,7 @@ createOne2OneConversationLocally ::
   Members
     '[ ConversationStore,
        Error InternalError,
+       ErrorS 'MissingLegalholdConsent,
        FederatorAccess,
        GundeckAccess,
        Input UTCTime,

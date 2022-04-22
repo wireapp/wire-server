@@ -22,7 +22,6 @@ module Galley.API.Error
   ( -- * Internal errors
     InvalidInput (..),
     InternalError (..),
-    LegalHoldError (..),
     internalErrorWithDescription,
     legalHoldServiceUnavailable,
 
@@ -40,7 +39,6 @@ import Imports
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import Wire.API.Error
-import qualified Wire.API.Error.Brig as BrigError
 
 data InternalError
   = BadConvState ConvId
@@ -71,38 +69,6 @@ instance APIError InvalidInput where
   toWai BulkGetMemberLimitExceeded = bulkGetMemberLimitExceeded
   toWai (InvalidPayload t) = invalidPayload t
   toWai InvalidTeamNotificationId = invalidTeamNotificationId
-
--- FUTUREWORK: make LegalHoldError more static and documented
-
-data LegalHoldError
-  = MissingLegalholdConsent
-  | NoUserLegalHoldConsent
-  | LegalHoldNotEnabled
-  | LegalHoldDisableUnimplemented
-  | LegalHoldServiceInvalidKey
-  | LegalHoldServiceBadResponse
-  | UserLegalHoldAlreadyEnabled
-  | LegalHoldServiceNotRegistered
-  | LegalHoldCouldNotBlockConnections
-  | UserLegalHoldIllegalOperation
-  | TooManyTeamMembersOnTeamWithLegalhold
-  | NoLegalHoldDeviceAllocated
-  | UserLegalHoldNotPending
-
-instance APIError LegalHoldError where
-  toWai MissingLegalholdConsent = errorToWai @'BrigError.MissingLegalholdConsent
-  toWai NoUserLegalHoldConsent = userLegalHoldNoConsent
-  toWai LegalHoldNotEnabled = legalHoldNotEnabled
-  toWai LegalHoldDisableUnimplemented = legalHoldDisableUnimplemented
-  toWai LegalHoldServiceInvalidKey = legalHoldServiceInvalidKey
-  toWai LegalHoldServiceBadResponse = legalHoldServiceBadResponse
-  toWai UserLegalHoldAlreadyEnabled = userLegalHoldAlreadyEnabled
-  toWai LegalHoldServiceNotRegistered = legalHoldServiceNotRegistered
-  toWai LegalHoldCouldNotBlockConnections = legalHoldCouldNotBlockConnections
-  toWai UserLegalHoldIllegalOperation = userLegalHoldIllegalOperation
-  toWai TooManyTeamMembersOnTeamWithLegalhold = tooManyTeamMembersOnTeamWithLegalhold
-  toWai NoLegalHoldDeviceAllocated = noLegalHoldDeviceAllocated
-  toWai UserLegalHoldNotPending = userLegalHoldNotPending
 
 ----------------------------------------------------------------------------
 -- Other errors
@@ -138,44 +104,8 @@ bulkGetMemberLimitExceeded =
     "too-many-uids"
     ("Can only process " <> cs (show @Int hardTruncationLimit) <> " user ids per request.")
 
-tooManyTeamMembersOnTeamWithLegalhold :: Wai.Error
-tooManyTeamMembersOnTeamWithLegalhold = Wai.mkError status403 "too-many-members-for-legalhold" "cannot add more members to team when legalhold service is enabled."
-
-legalHoldServiceInvalidKey :: Wai.Error
-legalHoldServiceInvalidKey = Wai.mkError status400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
-
 legalHoldServiceUnavailable :: Wai.Error
 legalHoldServiceUnavailable = Wai.mkError status412 "legalhold-unavailable" "legal hold service does not respond or tls handshake could not be completed (did you pin the wrong public key?)"
-
-legalHoldServiceNotRegistered :: Wai.Error
-legalHoldServiceNotRegistered = Wai.mkError status400 "legalhold-not-registered" "legal hold service has not been registered for this team"
-
-legalHoldServiceBadResponse :: Wai.Error
-legalHoldServiceBadResponse = Wai.mkError status400 "legalhold-status-bad" "legal hold service: invalid response"
-
-legalHoldNotEnabled :: Wai.Error
-legalHoldNotEnabled = Wai.mkError status403 "legalhold-not-enabled" "legal hold is not enabled for this team"
-
-legalHoldDisableUnimplemented :: Wai.Error
-legalHoldDisableUnimplemented = Wai.mkError status403 "legalhold-disable-unimplemented" "legal hold cannot be disabled for whitelisted teams"
-
-userLegalHoldAlreadyEnabled :: Wai.Error
-userLegalHoldAlreadyEnabled = Wai.mkError status409 "legalhold-already-enabled" "legal hold is already enabled for this user"
-
-userLegalHoldNoConsent :: Wai.Error
-userLegalHoldNoConsent = Wai.mkError status409 "legalhold-no-consent" "user has not given consent to using legal hold"
-
-userLegalHoldIllegalOperation :: Wai.Error
-userLegalHoldIllegalOperation = Wai.mkError status500 "legalhold-illegal-op" "internal server error: inconsistent change of user's legalhold state"
-
-userLegalHoldNotPending :: Wai.Error
-userLegalHoldNotPending = Wai.mkError status412 "legalhold-not-pending" "legal hold cannot be approved without being in a pending state"
-
-noLegalHoldDeviceAllocated :: Wai.Error
-noLegalHoldDeviceAllocated = Wai.mkError status404 "legalhold-no-device-allocated" "no legal hold device is registered for this user. POST /teams/:tid/legalhold/:uid/ to start the flow."
-
-legalHoldCouldNotBlockConnections :: Wai.Error
-legalHoldCouldNotBlockConnections = Wai.mkError status500 "legalhold-internal" "legal hold service: could not block connections when resolving policy conflicts."
 
 invalidTeamNotificationId :: Wai.Error
 invalidTeamNotificationId = Wai.mkError status400 "invalid-notification-id" "Could not parse notification id (must be UUIDv1)."

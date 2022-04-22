@@ -691,7 +691,6 @@ addTeamMember ::
   Members
     '[ BrigAccess,
        GundeckAccess,
-       Error LegalHoldError,
        ErrorS 'InvalidPermissions,
        ErrorS 'NoAddToBinding,
        ErrorS 'NotATeamMember,
@@ -700,6 +699,7 @@ addTeamMember ::
        ErrorS 'TeamNotFound,
        ErrorS 'TooManyTeamMembers,
        ErrorS 'UserBindingExists,
+       ErrorS 'TooManyTeamMembersOnTeamWithLegalhold,
        Input (Local ()),
        Input Opts,
        Input UTCTime,
@@ -739,7 +739,6 @@ addTeamMemberH ::
   Members
     '[ BrigAccess,
        GundeckAccess,
-       Error LegalHoldError,
        ErrorS 'InvalidPermissions,
        ErrorS 'NoAddToBinding,
        ErrorS 'NotATeamMember,
@@ -748,6 +747,7 @@ addTeamMemberH ::
        ErrorS 'TeamNotFound,
        ErrorS 'TooManyTeamMembers,
        ErrorS 'UserBindingExists,
+       ErrorS 'TooManyTeamMembersOnTeamWithLegalhold,
        Input (Local ()),
        Input Opts,
        Input UTCTime,
@@ -772,9 +772,9 @@ uncheckedAddTeamMember ::
   Members
     '[ BrigAccess,
        GundeckAccess,
-       Error LegalHoldError,
        ErrorS 'TooManyTeamMembers,
        Input (Local ()),
+       ErrorS 'TooManyTeamMembersOnTeamWithLegalhold,
        Input Opts,
        Input UTCTime,
        MemberStore,
@@ -1241,10 +1241,10 @@ ensureNotTooLarge tid = do
 --  FUTUREWORK: Find a way around the fanout limit.
 ensureNotTooLargeForLegalHold ::
   Members
-    '[ Error LegalHoldError,
-       LegalHoldStore,
+    '[ LegalHoldStore,
        TeamStore,
-       TeamFeatureStore
+       TeamFeatureStore,
+       ErrorS 'TooManyTeamMembersOnTeamWithLegalhold
      ]
     r =>
   TeamId ->
@@ -1253,7 +1253,7 @@ ensureNotTooLargeForLegalHold ::
 ensureNotTooLargeForLegalHold tid teamSize =
   whenM (isLegalHoldEnabledForTeam tid) $
     unlessM (teamSizeBelowLimit teamSize) $
-      throw TooManyTeamMembersOnTeamWithLegalhold
+      throwS @'TooManyTeamMembersOnTeamWithLegalhold
 
 ensureNotTooLargeToActivateLegalHold ::
   Members '[BrigAccess, ErrorS 'CannotEnableLegalHoldServiceLargeTeam, TeamStore] r =>
@@ -1408,10 +1408,10 @@ getBindingTeamMembers zusr = do
 canUserJoinTeam ::
   Members
     '[ BrigAccess,
-       Error LegalHoldError,
        LegalHoldStore,
        TeamStore,
-       TeamFeatureStore
+       TeamFeatureStore,
+       ErrorS 'TooManyTeamMembersOnTeamWithLegalhold
      ]
     r =>
   TeamId ->
