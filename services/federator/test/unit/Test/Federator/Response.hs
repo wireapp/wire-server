@@ -30,11 +30,11 @@ import qualified Network.Wai.Utilities.Error as Wai
 import qualified Network.Wai.Utilities.Server as Wai
 import Polysemy
 import Polysemy.Error
-import qualified Polysemy.TinyLog as TinyLog
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Federation.Error
 import Wire.Network.DNS.SRV
+import qualified Wire.Sem.Logger.TinyLog as Log
 
 tests :: TestTree
 tests =
@@ -49,7 +49,11 @@ tests =
 testValidationError :: TestTree
 testValidationError =
   testCase "validation errors should be converted to wai error responses" $ do
-    resp <- runM . TinyLog.discardLogs . runWaiError @ValidationError $ throw NoClientCertificate
+    resp <-
+      runM
+        . Log.discardTinyLogs
+        . runWaiError @ValidationError
+        $ throw NoClientCertificate
     body <- Wai.lazyResponseBody resp
     let merr = Aeson.decode body
     Wai.responseStatus resp @?= HTTP.status403
@@ -58,7 +62,12 @@ testValidationError =
 testServerError :: TestTree
 testServerError =
   testCase "server errors should be converted to wai error responses" $ do
-    resp <- runM . TinyLog.discardLogs . runWaiError @ServerError $ throw InvalidRoute
+    resp <-
+      runM
+        . Log.discardTinyLogs
+        . runWaiError @ValidationError
+        . runWaiError @ServerError
+        $ throw InvalidRoute
     body <- Wai.lazyResponseBody resp
     let merr = Aeson.decode body
     Wai.responseStatus resp @?= HTTP.status403
@@ -68,8 +77,10 @@ testDiscoveryFailure :: TestTree
 testDiscoveryFailure =
   testCase "discovery failures should be converted to wai error responses" $ do
     resp <-
-      runM . TinyLog.discardLogs . runWaiError @DiscoveryFailure $
-        throw (DiscoveryFailureDNSError "mock error")
+      runM
+        . Log.discardTinyLogs
+        . runWaiError @DiscoveryFailure
+        $ throw (DiscoveryFailureDNSError "mock error")
     body <- Wai.lazyResponseBody resp
     let merr = Aeson.decode body
     Wai.responseStatus resp @?= HTTP.status400
@@ -79,8 +90,10 @@ testRemoteError :: TestTree
 testRemoteError =
   testCase "remote errors should be converted to wai error responses" $ do
     resp <-
-      runM . TinyLog.discardLogs . runWaiError @RemoteError $
-        throw
+      runM
+        . Log.discardTinyLogs
+        . runWaiError @RemoteError
+        $ throw
           ( RemoteError
               (SrvTarget "example.com" 7777)
               FederatorClientNoStatusCode

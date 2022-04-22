@@ -48,6 +48,8 @@ import qualified UnliftIO.Async as Async
 import Wire.API.Call.Config
 import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV
+import Wire.Sem.Logger.Level
+import Wire.Sem.Logger.TinyLog
 
 data FakeDNSEnv = FakeDNSEnv
   { fakeLookupSrv :: Domain -> SrvResponse,
@@ -64,17 +66,17 @@ runFakeDNSLookup FakeDNSEnv {..} = interpret $
     modifyIORef' fakeLookupSrvCalls (++ [domain])
     pure $ fakeLookupSrv domain
 
-newtype LogRecorder = LogRecorder {recordedLogs :: IORef [(Log.Level, LByteString)]}
+newtype LogRecorder = LogRecorder {recordedLogs :: IORef [(Level, LByteString)]}
 
 newLogRecorder :: IO LogRecorder
 newLogRecorder = LogRecorder <$> newIORef []
 
 recordLogs :: Member (Embed IO) r => LogRecorder -> Sem (TinyLog ': r) a -> Sem r a
-recordLogs LogRecorder {..} = interpret $ \(Polylog lvl msg) ->
+recordLogs LogRecorder {..} = interpret $ \(Log lvl msg) ->
   modifyIORef' recordedLogs (++ [(lvl, Log.render (Log.renderDefault ", ") msg)])
 
 ignoreLogs :: Sem (TinyLog ': r) a -> Sem r a
-ignoreLogs = interpret $ \(Polylog _ _) -> pure ()
+ignoreLogs = discardTinyLogs
 
 {-# ANN tests ("HLint: ignore" :: String) #-}
 tests :: TestTree
@@ -213,7 +215,7 @@ testSFTDiscoverWhenNotAvailable = do
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
             discoverSFTServers "_sft._tcp.foo.example.com"
         )
-  assertEqual "should warn about it in the logs" [(Log.Warn, "No SFT servers available\n")]
+  assertEqual "should warn about it in the logs" [(Warn, "No SFT servers available\n")]
     =<< readIORef (recordedLogs logRecorder)
 
 testSFTDiscoverWhenDNSFails :: IO ()
@@ -225,7 +227,7 @@ testSFTDiscoverWhenDNSFails = do
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
             discoverSFTServers "_sft._tcp.foo.example.com"
         )
-  assertEqual "should warn about it in the logs" [(Log.Error, "DNS Lookup failed for SFT Discovery, Error=IllegalDomain\n")]
+  assertEqual "should warn about it in the logs" [(Error, "DNS Lookup failed for SFT Discovery, Error=IllegalDomain\n")]
     =<< readIORef (recordedLogs logRecorder)
 
 testSFTManyServers :: IO ()
@@ -283,7 +285,7 @@ testSFTStaticDeprecatedEndpoint = do
   env <- fst <$> sftStaticEnv
   cfg <-
     runM @IO
-      . discardLogs
+      . ignoreLogs
       . interpretSFTInMemory mempty
       $ newConfig env Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
   assertEqual
@@ -307,7 +309,7 @@ testSFTStaticV2NoStaticUrl = do
       <*> pure (unsafeRange 1)
   cfg <-
     runM @IO
-      . discardLogs
+      . ignoreLogs
       . interpretSFTInMemory mempty
       $ newConfig env Nothing (Just sftEnv) (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
   assertEqual
@@ -321,7 +323,7 @@ testSFTStaticV2StaticUrlError = do
   (env, staticUrl) <- sftStaticEnv
   cfg <-
     runM @IO
-      . discardLogs
+      . ignoreLogs
       . interpretSFTInMemory mempty -- an empty lookup map, meaning there was
       -- an error
       $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
@@ -339,7 +341,7 @@ testSFTStaticV2StaticUrlList = do
   servers <- generate $ replicateM 10 arbitrary
   cfg <-
     runM @IO
-      . discardLogs
+      . ignoreLogs
       . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse . Right $ servers))
       $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 3) ListAllSFTServers CallsConfigV2
   assertEqual
@@ -355,7 +357,7 @@ testSFTStaticV2ListAllServersDisabled = do
   servers <- generate $ replicateM 10 arbitrary
   cfg <-
     runM @IO
-      . discardLogs
+      . ignoreLogs
       . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse . Right $ servers))
       $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 3) HideAllSFTServers CallsConfigV2
   assertEqual

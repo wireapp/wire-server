@@ -63,6 +63,7 @@ import System.Random.MWC (GenIO, createSystemRandom)
 import System.Random.Shuffle
 import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV
+import Wire.Sem.Logger.TinyLog
 
 -- | NOTE SFTServers:
 -- Retrieving SFTServers should give a 1) randomized and 2) limited list of servers.
@@ -162,7 +163,7 @@ mkSFTEnv opts =
 
 startSFTServiceDiscovery :: Log.Logger -> SFTEnv -> IO ()
 startSFTServiceDiscovery logger =
-  runM . runTinyLog logger . runDNSLookupDefault . sftDiscoveryLoop
+  runM . loggerToTinyLog logger . runDNSLookupDefault . sftDiscoveryLoop
 
 -- | >>> diffTimeToMicroseconds 1
 -- 1000000
