@@ -203,6 +203,18 @@ http {
         allow 127.0.0.1;
         deny all;
 
+        # Requests with an X-Forwarded-For header will have the real client
+        # source IP address set correctly, due to the real_ip_header directive
+        # in the top-level configuration. However, this will not set the client
+        # IP correctly for clients which are connected via a load balancer which
+        # uses the PROXY protocol.
+        #
+        # Hence, for safety, we deny access to the vts metrics endpoints to
+        # clients which are connected via PROXY protocol.
+        if ($proxy_protocol_addr != "") {
+            return 403;
+        }
+
         vhost_traffic_status_display;
         vhost_traffic_status_display_format html;
     }
