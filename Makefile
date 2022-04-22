@@ -118,6 +118,11 @@ formatf:
 formatc:
 	./tools/ormolu.sh -c
 
+# lint all shell scripts with shellcheck
+.PHONY: shellckeck
+shellcheck:
+	shellcheck **/*.sh
+
 # For any Haskell or Rust file, update or add a license header if necessary.
 # Headers should be added according to Ormolu's formatting rules, but please check just in case.
 .PHONY: add-license
