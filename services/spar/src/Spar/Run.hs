@@ -51,7 +51,7 @@ import Spar.App
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
 import Spar.Orphans ()
-import Spar.Sem.Logger.TinyLog (toLevel)
+import Spar.Sem.Logger.TinyLog
 import System.Logger.Class (Logger)
 import qualified System.Logger.Extended as Log
 import Util.Options (casEndpoint, casFilterNodesByDatacentre, casKeyspace, epHost, epPort)
@@ -103,7 +103,7 @@ runServer sparCtxOpts = do
 
 mkApp :: Opts -> IO (Application, Env)
 mkApp sparCtxOpts = do
-  let logLevel = toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel
+  let logLevel = samlToLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel
   sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts) (logFormat sparCtxOpts)
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   sparCtxHttpManager <- newManager defaultManagerSettings

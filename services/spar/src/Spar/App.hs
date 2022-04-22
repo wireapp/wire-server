@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
@@ -392,7 +391,7 @@ verdictHandler cky mbteam aresp verdict = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
-  Logger.log SAML.Debug $ "entering verdictHandler: " <> show (fromBindCookie <$> cky, aresp, verdict)
+  Logger.log Logger.Debug $ "entering verdictHandler: " <> show (fromBindCookie <$> cky, aresp, verdict)
   reqid <- either (throwSparSem . SparNoRequestRefInResponse . cs) pure $ SAML.rspInResponseTo aresp
   format :: Maybe VerdictFormat <- VerdictFormatStore.get reqid
   resp <- case format of
@@ -403,7 +402,7 @@ verdictHandler cky mbteam aresp verdict = do
     Nothing ->
       -- (this shouldn't happen too often, see 'storeVerdictFormat')
       throwSparSem SparNoSuchRequest
-  Logger.log SAML.Debug $ "leaving verdictHandler: " <> show resp
+  Logger.log Logger.Debug $ "leaving verdictHandler: " <> show resp
   pure resp
 
 data VerdictHandlerResult
@@ -432,9 +431,9 @@ verdictHandlerResult ::
   SAML.AccessVerdict ->
   Sem r VerdictHandlerResult
 verdictHandlerResult bindCky mbteam verdict = do
-  Logger.log SAML.Debug $ "entering verdictHandlerResult: " <> show (fromBindCookie <$> bindCky)
+  Logger.log Logger.Debug $ "entering verdictHandlerResult: " <> show (fromBindCookie <$> bindCky)
   result <- catchVerdictErrors $ verdictHandlerResultCore bindCky mbteam verdict
-  Logger.log SAML.Debug $ "leaving verdictHandlerResult" <> show result
+  Logger.log Logger.Debug $ "leaving verdictHandlerResult" <> show result
   pure result
 
 catchVerdictErrors ::
@@ -549,7 +548,7 @@ verdictHandlerResultCore bindCky mbteam = \case
         (Just _, GetUserFound _, GetUserFound _) ->
           -- to see why, consider the condition on the call to 'findUserWithOldIssuer' above.
           error "impossible."
-    Logger.log SAML.Debug ("granting sso login for " <> show uid)
+    Logger.log Logger.Debug ("granting sso login for " <> show uid)
     cky <- BrigAccess.ssoLogin uid
     pure $ VerifyHandlerGranted cky uid
 

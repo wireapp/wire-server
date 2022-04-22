@@ -69,7 +69,7 @@ instance Member (Input Opts) r => HasConfig (SPImpl r) where
   getConfig = SPImpl $ inputs saml
 
 instance Members '[Input Opts, Logger String] r => HasLogger (SPImpl r) where
-  logger lvl = SPImpl . Logger.log lvl
+  logger lvl = SPImpl . Logger.log (Logger.fromSAMLLevel lvl)
 
 instance Member (Embed IO) r => MonadIO (SPImpl r) where
   liftIO = SPImpl . embed @IO
