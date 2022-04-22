@@ -183,7 +183,6 @@ import Spar.CanonicalInterpreter
 import qualified Spar.Intra.BrigApp as Intra
 import qualified Spar.Options
 import Spar.Run
-import Spar.Sem.Logger.TinyLog
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import qualified System.Logger.Extended as Log
@@ -212,6 +211,7 @@ import Wire.API.User.Identity (mkSampleUref)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (runValidExternalIdEither)
+import Wire.Sem.Logger.TinyLog
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
