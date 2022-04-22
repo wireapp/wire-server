@@ -115,6 +115,7 @@ errorSResponse = errorResponse (toWai (dynError @(MapError e)))
 sitemap :: Routes ApiBuilder (Sem GalleyEffects) ()
 sitemap = do
   -- Team Member API -----------------------------------------------------
+  -- todo(leif): servantify this
   get "/teams/:tid/members" (continueE Teams.getTeamMembersH) $
     zauthUserId
       .&. capture "tid"
