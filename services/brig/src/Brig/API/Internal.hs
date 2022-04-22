@@ -42,8 +42,8 @@ import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
-import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
+import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
 import qualified Brig.Team.API as Team
 import Brig.Team.DB (lookupInvitationByEmail)
 import Brig.Types
@@ -166,7 +166,7 @@ swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
 -- Sitemap (wai-route)
 
 sitemap ::
-  Members '[CodeStore, PasswordResetStore] r =>
+  Members '[PasswordResetStore, PasswordResetSupply] r =>
   Routes a (Handler r) ()
 sitemap = do
   get "/i/status" (continue $ const $ return empty) true
@@ -468,14 +468,14 @@ instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
 getPasswordResetCodeH ::
-  Members '[CodeStore, PasswordResetStore] r =>
+  Members '[PasswordResetStore, PasswordResetSupply] r =>
   JSON ::: Either Email Phone ->
   (Handler r) Response
 getPasswordResetCodeH (_ ::: emailOrPhone) = do
   maybe (throwStd invalidPwResetKey) (pure . json) =<< lift (getPasswordResetCode emailOrPhone)
 
 getPasswordResetCode ::
-  Members '[CodeStore, PasswordResetStore] r =>
+  Members '[PasswordResetStore, PasswordResetSupply] r =>
   Either Email Phone ->
   (AppT r) (Maybe GetPasswordResetCodeResp)
 getPasswordResetCode emailOrPhone =

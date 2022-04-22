@@ -26,17 +26,10 @@ import Brig.Data.Instances ()
 import Brig.Sem.CodeStore
 import Brig.Types
 import Cassandra
-import Data.ByteString.Conversion (toByteString')
 import Data.Id
-import Data.Text (pack)
-import Data.Text.Ascii
 import Data.Time.Clock
 import Imports
-import OpenSSL.BN (randIntegerZeroToNMinusOne)
-import OpenSSL.EVP.Digest (digestBS, getDigestByName)
-import OpenSSL.Random (randBytes)
 import Polysemy
-import Text.Printf
 
 codeStoreToCassandra ::
   forall m r a.
@@ -47,9 +40,6 @@ codeStoreToCassandra =
   interpret $
     embed @m
       . \case
-        MkPasswordResetKey uid -> mkPwdResetKey uid
-        GenerateEmailCode -> genEmailCode
-        GeneratePhoneCode -> genPhoneCode
         CodeSelect prk ->
           (fmap . fmap) toRecord
             . retry x1
@@ -74,19 +64,6 @@ codeStoreToCassandra =
       PRQueryData Maybe
     toRecord (prqdCode, prqdUser, prqdRetries, prqdTimeout) =
       PRQueryData {..}
-
-genEmailCode :: MonadIO m => m PasswordResetCode
-genEmailCode = PasswordResetCode . encodeBase64Url <$> liftIO (randBytes 24)
-
-genPhoneCode :: MonadIO m => m PasswordResetCode
-genPhoneCode =
-  PasswordResetCode . unsafeFromText . pack . printf "%06d"
-    <$> liftIO (randIntegerZeroToNMinusOne 1000000)
-
-mkPwdResetKey :: MonadIO m => UserId -> m PasswordResetKey
-mkPwdResetKey u = do
-  d <- liftIO $ getDigestByName "SHA256" >>= maybe (error "SHA256 not found") return
-  return . PasswordResetKey . encodeBase64Url . digestBS d $ toByteString' u
 
 interpretClientToIO ::
   Member (Final IO) r =>

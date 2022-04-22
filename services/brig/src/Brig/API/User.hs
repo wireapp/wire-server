@@ -114,10 +114,10 @@ import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
 import Brig.Password
 import qualified Brig.Queue as Queue
-import Brig.Sem.CodeStore (CodeStore)
-import qualified Brig.Sem.CodeStore as E
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Brig.Sem.PasswordResetStore as E
+import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
+import qualified Brig.Sem.PasswordResetSupply as E
 import qualified Brig.Team.DB as Team
 import Brig.Types
 import Brig.Types.Code (Timeout (..))
@@ -988,7 +988,7 @@ beginPasswordReset target = do
   (user,) <$> lift (liftSem $ E.createPasswordResetCode user target)
 
 completePasswordReset ::
-  Members '[CodeStore, PasswordResetStore] r =>
+  Members '[PasswordResetStore, PasswordResetSupply] r =>
   PasswordResetIdentity ->
   PasswordResetCode ->
   PlainTextPassword ->
@@ -1003,7 +1003,7 @@ completePasswordReset ident code pw = do
       checkNewIsDifferent uid pw
       lift $ do
         wrapClient $ Data.updatePassword uid pw
-        liftSem $ E.codeDelete key
+        liftSem $ E.deletePasswordResetCode key
         wrapClient $ revokeAllCookies uid
 
 -- | Pull the current password of a user and compare it against the one about to be installed.
@@ -1016,7 +1016,7 @@ checkNewIsDifferent uid pw = do
     _ -> pure ()
 
 mkPasswordResetKey ::
-  Members '[CodeStore] r =>
+  Members '[PasswordResetSupply] r =>
   PasswordResetIdentity ->
   ExceptT PasswordResetError (AppT r) PasswordResetKey
 mkPasswordResetKey ident = case ident of
@@ -1194,7 +1194,7 @@ lookupActivationCode emailOrPhone = do
   return $ (k,) <$> c
 
 lookupPasswordResetCode ::
-  Members '[CodeStore, PasswordResetStore] r =>
+  Members '[PasswordResetStore, PasswordResetSupply] r =>
   Either Email Phone ->
   (AppT r) (Maybe PasswordResetPair)
 lookupPasswordResetCode emailOrPhone = do

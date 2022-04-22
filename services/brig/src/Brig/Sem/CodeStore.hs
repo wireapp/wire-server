@@ -34,9 +34,6 @@ data PRQueryData f = PRQueryData
   }
 
 data CodeStore m a where
-  MkPasswordResetKey :: UserId -> CodeStore m PasswordResetKey
-  GenerateEmailCode :: CodeStore m PasswordResetCode
-  GeneratePhoneCode :: CodeStore m PasswordResetCode
   CodeSelect ::
     PasswordResetKey ->
     CodeStore m (Maybe (PRQueryData Maybe))

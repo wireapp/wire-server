@@ -23,8 +23,8 @@ import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import qualified Brig.Code as Code
 import Brig.Options (Opts)
-import Brig.Sem.CodeStore
-import Brig.Sem.CodeStore.Cassandra
+import Brig.Sem.PasswordResetSupply
+import Brig.Sem.PasswordResetSupply.IO
 import Brig.Types
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Auth hiding (user)
@@ -193,12 +193,11 @@ initiateEmailUpdateNoSend brig email uid =
 preparePasswordReset ::
   (MonadIO m, MonadHttp m) =>
   Brig ->
-  DB.ClientState ->
   Email ->
   UserId ->
   PlainTextPassword ->
   m CompletePasswordReset
-preparePasswordReset brig cs email uid newpw = do
+preparePasswordReset brig email uid newpw = do
   let qry = queryItem "email" (toByteString' email)
   r <- get $ brig . path "/i/users/password-reset-code" . qry
   let lbs = fromMaybe "" $ responseBody r
@@ -207,7 +206,7 @@ preparePasswordReset brig cs email uid newpw = do
   let complete = CompletePasswordReset ident pwcode newpw
   return complete
   where
-    runSem = liftIO . runFinal @IO . interpretClientToIO cs . codeStoreToCassandra @DB.Client
+    runSem = liftIO . runM . passwordResetSupplyToIO @'[Embed IO]
 
 completePasswordReset :: Brig -> CompletePasswordReset -> (MonadIO m, MonadHttp m) => m ResponseLBS
 completePasswordReset brig passwordResetData =
