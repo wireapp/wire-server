@@ -111,7 +111,6 @@ import Wire.API.Routes.Public.Brig
 import qualified Wire.API.Routes.Public.Cannon as CannonAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
-import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Routes.Public.Spar as SparAPI
 import qualified Wire.API.Routes.Public.Util as Public
 import Wire.API.Routes.Version
@@ -140,7 +139,6 @@ swaggerDocsAPI =
     ( brigSwagger
         <> versionSwagger
         <> GalleyAPI.swaggerDoc
-        <> LegalHoldAPI.swaggerDoc
         <> SparAPI.swaggerDoc
         <> CargoholdAPI.swaggerDoc
         <> CannonAPI.swaggerDoc

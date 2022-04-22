@@ -37,7 +37,6 @@ import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
-import Galley.API.Error
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.One2One
@@ -107,9 +106,19 @@ import Wire.API.Team.Feature
 type IFeatureAPI =
   IFeatureStatus '[] 'TeamFeatureSSO
     :<|> IFeatureStatus
-           '( ('ActionDenied 'RemoveConversationMember),
+           '( 'ActionDenied 'RemoveConversationMember,
               '( AuthenticationError,
-                 '( 'CannotEnableLegalHoldServiceLargeTeam, '())
+                 '( 'CannotEnableLegalHoldServiceLargeTeam,
+                    '( 'LegalHoldNotEnabled,
+                       '( 'LegalHoldDisableUnimplemented,
+                          '( 'LegalHoldServiceNotRegistered,
+                             '( 'UserLegalHoldIllegalOperation,
+                                '( 'LegalHoldCouldNotBlockConnections, '())
+                              )
+                           )
+                        )
+                     )
+                  )
                )
             )
            'TeamFeatureLegalHold
@@ -166,6 +175,7 @@ type InternalAPIBase =
     :<|> Named
            "guard-legalhold-policy-conflicts"
            ( "guard-legalhold-policy-conflicts"
+               :> CanThrow 'MissingLegalholdConsent
                :> ReqBody '[Servant.JSON] GuardLegalholdPolicyConflicts
                :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "Guard Legalhold Policy")
            )
@@ -202,7 +212,10 @@ type InternalAPIBase =
     :<|> IFeatureAPI
 
 type ILegalholdWhitelistedTeamsAPI =
-  "legalhold" :> "whitelisted-teams" :> Capture "tid" TeamId :> ILegalholdWhitelistedTeamsAPIBase
+  "legalhold"
+    :> "whitelisted-teams"
+    :> Capture "tid" TeamId
+    :> ILegalholdWhitelistedTeamsAPIBase
 
 type ILegalholdWhitelistedTeamsAPIBase =
   Named
@@ -257,7 +270,9 @@ type ITeamsAPIBase =
     :<|> "members"
       :> ( Named
              "unchecked-add-team-member"
-             ( CanThrow 'TooManyTeamMembers :> ReqBody '[Servant.JSON] NewTeamMember
+             ( CanThrow 'TooManyTeamMembers
+                 :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
+                 :> ReqBody '[Servant.JSON] NewTeamMember
                  :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "OK")
              )
              :<|> Named
@@ -273,6 +288,7 @@ type ITeamsAPIBase =
              :<|> Named
                     "can-user-join-team"
                     ( "check"
+                        :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
                         :> MultiVerb1 'GET '[Servant.JSON] (RespondEmpty 200 "User can join")
                     )
          )
@@ -661,15 +677,15 @@ safeForever funName action =
 guardLegalholdPolicyConflictsH ::
   Members
     '[ BrigAccess,
-       Error LegalHoldError,
        Input Opts,
        TeamStore,
        P.TinyLog,
-       WaiRoutes
+       WaiRoutes,
+       ErrorS 'MissingLegalholdConsent
      ]
     r =>
   GuardLegalholdPolicyConflicts ->
   Sem r ()
 guardLegalholdPolicyConflictsH glh = do
-  mapError @LegalholdConflicts (const MissingLegalholdConsent) $
+  mapError @LegalholdConflicts (const $ Tagged @'MissingLegalholdConsent ()) $
     guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)

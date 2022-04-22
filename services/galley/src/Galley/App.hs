@@ -113,7 +113,6 @@ type GalleyEffects0 =
      -- federation errors can be thrown by almost every endpoint, so we avoid
      -- having to declare it every single time, and simply handle it here
      Error FederationError,
-     Error LegalHoldError,
      Embed IO,
      Final IO
    ]
@@ -219,7 +218,6 @@ evalGalley :: Env -> Sem GalleyEffects a -> IO a
 evalGalley e =
   runFinal @IO
     . embedToFinal @IO
-    . interpretWaiErrorToException
     . interpretWaiErrorToException
     . interpretWaiErrorToException
     . interpretWaiErrorToException

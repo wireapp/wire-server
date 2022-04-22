@@ -36,23 +36,28 @@ import Data.ByteString.Conversion.To
 import qualified Data.ByteString.Lazy.Char8 as LC8
 import Data.Id
 import Data.Misc
-import Galley.API.Error
 import Galley.Effects.LegalHoldStore as LegalHoldData
 import Galley.External.LegalHoldService.Types
 import Imports
 import qualified Network.HTTP.Client as Http
 import Network.HTTP.Types
 import Polysemy
-import Polysemy.Error
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Log
+import Wire.API.Error (ErrorS, throwS)
+import Wire.API.Error.Galley
 
 ----------------------------------------------------------------------
 -- api
 
 -- | Get /status from legal hold service; throw 'Wai.Error' if things go wrong.
 checkLegalHoldServiceStatus ::
-  Members '[Error LegalHoldError, LegalHoldStore, P.TinyLog] r =>
+  Members
+    '[ ErrorS 'LegalHoldServiceBadResponse,
+       LegalHoldStore,
+       P.TinyLog
+     ]
+    r =>
   Fingerprint Rsa ->
   HttpsUrl ->
   Sem r ()
@@ -62,7 +67,7 @@ checkLegalHoldServiceStatus fpr url = do
       | Bilge.statusCode resp < 400 -> pure ()
       | otherwise -> do
         P.info . Log.msg $ showResponse resp
-        throw LegalHoldServiceBadResponse
+        throwS @'LegalHoldServiceBadResponse
   where
     reqBuilder :: Http.Request -> Http.Request
     reqBuilder =
@@ -72,7 +77,13 @@ checkLegalHoldServiceStatus fpr url = do
 
 -- | @POST /initiate@.
 requestNewDevice ::
-  Members '[Error LegalHoldError, LegalHoldStore, P.TinyLog] r =>
+  Members
+    '[ ErrorS 'LegalHoldServiceBadResponse,
+       ErrorS 'LegalHoldServiceNotRegistered,
+       LegalHoldStore,
+       P.TinyLog
+     ]
+    r =>
   TeamId ->
   UserId ->
   Sem r NewLegalHoldClient
@@ -81,7 +92,7 @@ requestNewDevice tid uid = do
   case eitherDecode (responseBody resp) of
     Left e -> do
       P.info . Log.msg $ "Error decoding NewLegalHoldClient: " <> e
-      throw LegalHoldServiceBadResponse
+      throwS @'LegalHoldServiceBadResponse
     Right client -> pure client
   where
     reqParams =
@@ -94,7 +105,7 @@ requestNewDevice tid uid = do
 -- | @POST /confirm@
 -- Confirm that a device has been linked to a user and provide an authorization token
 confirmLegalHold ::
-  Members '[Error LegalHoldError, LegalHoldStore] r =>
+  Members '[ErrorS 'LegalHoldServiceNotRegistered, LegalHoldStore] r =>
   ClientId ->
   TeamId ->
   UserId ->
@@ -114,7 +125,7 @@ confirmLegalHold clientId tid uid legalHoldAuthToken = do
 -- | @POST /remove@
 -- Inform the LegalHold Service that a user's legalhold has been disabled.
 removeLegalHold ::
-  Members '[Error LegalHoldError, LegalHoldStore] r =>
+  Members '[ErrorS 'LegalHoldServiceNotRegistered, LegalHoldStore] r =>
   TeamId ->
   UserId ->
   Sem r ()
@@ -135,14 +146,14 @@ removeLegalHold tid uid = do
 -- the TSL fingerprint via 'makeVerifiedRequest' and passes the token so the service can
 -- authenticate the request.
 makeLegalHoldServiceRequest ::
-  Members '[Error LegalHoldError, LegalHoldStore] r =>
+  Members '[ErrorS 'LegalHoldServiceNotRegistered, LegalHoldStore] r =>
   TeamId ->
   (Http.Request -> Http.Request) ->
   Sem r (Http.Response LC8.ByteString)
 makeLegalHoldServiceRequest tid reqBuilder = do
   maybeLHSettings <- LegalHoldData.getSettings tid
   lhSettings <- case maybeLHSettings of
-    Nothing -> throw LegalHoldServiceNotRegistered
+    Nothing -> throwS @'LegalHoldServiceNotRegistered
     Just lhSettings -> pure lhSettings
   let LegalHoldService
         { legalHoldServiceUrl = baseUrl,

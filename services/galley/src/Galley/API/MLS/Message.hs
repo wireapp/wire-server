@@ -67,6 +67,7 @@ postMLSMessage ::
          ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSProposalNotFound,
+         ErrorS 'MissingLegalholdConsent,
          TinyLog
        ]
       r
@@ -140,7 +141,8 @@ processCommit ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSProposalNotFound) r,
-    Member (Error FederationError) r
+    Member (Error FederationError) r,
+    Member (ErrorS 'MissingLegalholdConsent) r
   ) =>
   Local UserId ->
   ConnId ->
@@ -190,6 +192,7 @@ executeProposalAction ::
     Member (Error FederationError) r,
     Member (ErrorS 'MLSClientMismatch) r,
     Member (Error MLSProposalFailure) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -298,7 +301,6 @@ propagateMessage lusr conv con raw = do
 type ProposalErrors =
   '[ Error FederationError,
      Error InvalidInput,
-     Error LegalHoldError,
      ErrorS ('ActionDenied 'AddConversationMember),
      ErrorS ('ActionDenied 'LeaveConversation),
      ErrorS 'ConvAccessDenied,
