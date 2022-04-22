@@ -79,8 +79,6 @@ import Spar.Sem.IdPConfigStore (GetIdPResult (..), IdPConfigStore, Replaced (..)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
 import qualified Spar.Sem.IdPRawMetadataStore as IdPRawMetadataStore
-import Spar.Sem.Logger (Logger)
-import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Reporter (Reporter)
 import Spar.Sem.SAML2 (SAML2)
 import qualified Spar.Sem.SAML2 as SAML2
@@ -100,6 +98,8 @@ import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Wire.Sem.Logger (Logger)
+import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random

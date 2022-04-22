@@ -87,8 +87,6 @@ import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import Spar.Sem.IdPConfigStore (GetIdPResult (..), IdPConfigStore)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
-import Spar.Sem.Logger (Logger)
-import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Reporter (Reporter)
 import qualified Spar.Sem.Reporter as Reporter
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -107,6 +105,8 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
+import Wire.Sem.Logger (Logger)
+import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
 

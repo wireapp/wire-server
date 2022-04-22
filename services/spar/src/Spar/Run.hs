@@ -51,12 +51,12 @@ import Spar.App
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
 import Spar.Orphans ()
-import Spar.Sem.Logger.TinyLog
 import System.Logger.Class (Logger)
 import qualified System.Logger.Extended as Log
 import Util.Options (casEndpoint, casFilterNodesByDatacentre, casKeyspace, epHost, epPort)
 import Wire.API.Routes.Version.Wai
 import Wire.API.User.Saml as Types
+import Wire.Sem.Logger.TinyLog
 
 ----------------------------------------------------------------------
 -- cassandra

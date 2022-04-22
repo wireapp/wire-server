@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.Logger.Level where
+module Wire.Sem.Logger.Level where
 
 import qualified SAML2.WebSSO as SAML
 import qualified System.Logger as Log
@@ -38,15 +38,6 @@ toLevel = \case
   Debug -> Log.Debug
   Trace -> Log.Trace
 
-samlToLevel :: SAML.Level -> Log.Level
-samlToLevel = \case
-  SAML.Fatal -> Log.Fatal
-  SAML.Error -> Log.Error
-  SAML.Warn -> Log.Warn
-  SAML.Info -> Log.Info
-  SAML.Debug -> Log.Debug
-  SAML.Trace -> Log.Trace
-
 fromLevel :: Log.Level -> Level
 fromLevel = \case
   Log.Fatal -> Fatal
@@ -56,8 +47,17 @@ fromLevel = \case
   Log.Debug -> Debug
   Log.Trace -> Trace
 
-fromSAMLLevel :: SAML.Level -> Level
-fromSAMLLevel = \case
+samlToLevel :: SAML.Level -> Log.Level
+samlToLevel = \case
+  SAML.Fatal -> Log.Fatal
+  SAML.Error -> Log.Error
+  SAML.Warn -> Log.Warn
+  SAML.Info -> Log.Info
+  SAML.Debug -> Log.Debug
+  SAML.Trace -> Log.Trace
+
+samlFromLevel :: SAML.Level -> Level
+samlFromLevel = \case
   SAML.Fatal -> Fatal
   SAML.Error -> Error
   SAML.Warn -> Warn

@@ -15,18 +15,18 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.Logger.TinyLog
+module Wire.Sem.Logger.TinyLog
   ( loggerToTinyLog,
     stringLoggerToTinyLog,
-    module Spar.Sem.Logger.Level,
+    module Wire.Sem.Logger.Level,
   )
 where
 
 import Imports
 import Polysemy
-import Spar.Sem.Logger
-import Spar.Sem.Logger.Level
 import qualified System.Logger as Log
+import Wire.Sem.Logger
+import Wire.Sem.Logger.Level
 
 loggerToTinyLog ::
   Member (Embed IO) r =>
