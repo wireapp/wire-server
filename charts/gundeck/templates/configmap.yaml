@@ -26,6 +26,11 @@ data:
       port: {{ .redis.port }}
       connectionMode: {{ .redis.connectionMode }}
 
+    {{- if .redisAdditionalWrite }}
+    redisAdditionalWrite:
+      {{- toYaml .redisAdditionalWrite | nindent 6 }}
+    {{- end }}
+
     # Gundeck uses discovery for AWS access key / secrets
     # For more details, check amazonka's documentation at:
     # https://hackage.haskell.org/package/amazonka-1.4.5/docs/Network-AWS.html#t:Credentials
