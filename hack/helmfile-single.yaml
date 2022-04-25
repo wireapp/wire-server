@@ -19,6 +19,9 @@ repositories:
   - name: stable
     url: 'https://charts.helm.sh/stable'
 
+  - name: bitnami
+    url: 'https://charts.bitnami.com/bitnami'
+
 releases:
   - name: '{{ .Values.namespace }}-fake-aws'
     namespace: '{{ .Values.namespace }}'
@@ -29,6 +32,10 @@ releases:
   - name: '{{ .Values.namespace }}-databases-ephemeral'
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/databases-ephemeral'
+
+  - name: '{{ .Values.namespace }}-redis-cluster'
+    namespace: '{{ .Values.namespace }}'
+    chart: '../.local/charts/redis-cluster'
 
   - name: '{{ .Values.namespace }}-nginx-ingress-controller'
     namespace: '{{ .Values.namespace }}'
