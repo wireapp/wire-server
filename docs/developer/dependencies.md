@@ -20,7 +20,6 @@ You can then run all the builds, and the native dependencies will be automatical
    * MacOS users with a recent Mac might need to follow [these
    instructions](https://nixos.org/nix/manual/#sect-macos-installation)
    * Debian users can use their distro's `nix` package, and should remember
-   
    to add their user to the `nix-users` group in /etc/group, and re-start
    their login session.
 2. Install [Direnv](https://direnv.net/).
