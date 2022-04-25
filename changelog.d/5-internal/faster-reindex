@@ -1,1 +1,0 @@
-Improve speed of reindexing by increasing the batch size of processing users.
