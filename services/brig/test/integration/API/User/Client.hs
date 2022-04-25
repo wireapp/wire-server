@@ -45,7 +45,6 @@ import Data.Range (unsafeRange)
 import qualified Data.Set as Set
 import Data.Text.Ascii (AsciiChars (validate))
 import qualified Data.Vector as Vec
-import Gundeck.Types.Notification
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
 import Test.QuickCheck (arbitrary, generate)
@@ -55,6 +54,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
+import Wire.API.Internal.Notification
 import Wire.API.MLS.Credential
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User (LimitedQualifiedUserIdList (LimitedQualifiedUserIdList))

@@ -82,7 +82,6 @@ import qualified Galley.Env as Galley
 import Galley.Options (optSettings, setFeatureFlags)
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Teams
-import Gundeck.Types.Notification (ntfPayload)
 import Imports
 import Network.HTTP.Types.Status (status200, status400, status404)
 import Network.Wai
@@ -99,6 +98,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
+import Wire.API.Internal.Notification (ntfPayload)
 import qualified Wire.API.Message as Msg
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User (UserProfile (..))

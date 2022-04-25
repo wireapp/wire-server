@@ -83,17 +83,6 @@ import Galley.Types.Teams hiding (Event, EventType (..), self)
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra
 import Galley.Types.UserList
-import Gundeck.Types.Notification
-  ( Notification (..),
-    NotificationId,
-    QueuedNotification,
-    QueuedNotificationList,
-    queuedHasMore,
-    queuedNotificationId,
-    queuedNotificationPayload,
-    queuedNotifications,
-    queuedTime,
-  )
 import Imports
 import Network.HTTP.Media.MediaType
 import qualified Network.HTTP.Types as HTTP
@@ -120,6 +109,17 @@ import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Domain (originDomainHeaderName)
+import Wire.API.Internal.Notification
+  ( Notification (..),
+    NotificationId,
+    QueuedNotification,
+    QueuedNotificationList,
+    queuedHasMore,
+    queuedNotificationId,
+    queuedNotificationPayload,
+    queuedNotifications,
+    queuedTime,
+  )
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto

@@ -1,6 +1,3 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
@@ -20,17 +17,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
--- | This module defines the types used by the Cannon API.  It is contained in package gundeck-types
--- for the pragmatic reason that it allows us to re-use types from the gundeck API.  (This move can
--- be justified by picturing Cannon as a local service that makes only sense in the context of a
--- Gundeck.)
-module Gundeck.Types.BulkPush where
+module Wire.API.Internal.BulkPush where
 
 import Data.Aeson
 import Data.Aeson.TH (deriveJSON)
 import Data.Id
-import Gundeck.Types.Notification
 import Imports
+import Wire.API.Internal.Notification
 
 data PushTarget = PushTarget
   { ptUserId :: !UserId,

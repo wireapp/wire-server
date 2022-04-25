@@ -19,11 +19,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Cannon.API.Internal
-  ( InternalAPI,
-    internalServer,
-  )
-where
+module Cannon.API.Internal (internalServer) where
 
 import Cannon.App
 import qualified Cannon.Dict as D
@@ -32,67 +28,19 @@ import Cannon.WS
 import Control.Monad.Catch
 import Data.Aeson (encode)
 import Data.Id hiding (client)
-import Gundeck.Types
-import Gundeck.Types.BulkPush
 import Imports
 import Network.WebSockets
 import Servant
 import Servant.Conduit ()
 import System.Logger.Class (msg, val)
 import qualified System.Logger.Class as LC
-import Wire.API.Error
-import Wire.API.Error.Cannon
+import Wire.API.Internal.BulkPush
+import Wire.API.Internal.Notification
 import Wire.API.RawJson
-import Wire.API.Routes.MultiVerb
+import qualified Wire.API.Routes.Internal.Cannon as Internal
 import Wire.API.Routes.Named
 
-type InternalAPI =
-  "i"
-    :> ( Named
-           "get-status"
-           ( "status"
-               :> MultiVerb
-                    'GET
-                    '[PlainText]
-                    '[RespondEmpty 200 "Service is alive."]
-                    ()
-           )
-           :<|> Named
-                  "push-notification"
-                  ( "push"
-                      :> Capture "user" UserId
-                      :> Capture "conn" ConnId
-                      :> ReqBody '[JSON] RawJson
-                      :> MultiVerb
-                           'POST
-                           '[JSON]
-                           '[ ErrorResponse 'ClientGone,
-                              RespondEmpty 200 "Successfully pushed."
-                            ]
-                           (Maybe ())
-                  )
-           :<|> Named
-                  "bulk-push-notifications"
-                  ( "bulkpush"
-                      :> ReqBody '[JSON] BulkPushRequest
-                      :> Post '[JSON] BulkPushResponse
-                  )
-           :<|> Named
-                  "check-presence"
-                  ( "presences"
-                      :> Capture "uid" UserId
-                      :> Capture "conn" ConnId
-                      :> MultiVerb
-                           'HEAD
-                           '[JSON]
-                           '[ ErrorResponse 'PresenceNotRegistered,
-                              RespondEmpty 200 "Presence checked successfully."
-                            ]
-                           (Maybe ())
-                  )
-       )
-
-internalServer :: ServerT InternalAPI Cannon
+internalServer :: ServerT Internal.API Cannon
 internalServer =
   Named @"get-status" (pure ())
     :<|> Named @"push-notification" pushHandler

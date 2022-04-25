@@ -64,6 +64,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
 import Util (runRedisProxy, withSettingsOverrides)
+import Wire.API.Internal.Notification
 import qualified Prelude
 
 appName :: AppName

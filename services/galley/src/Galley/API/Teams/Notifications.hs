@@ -50,11 +50,11 @@ import Galley.Effects
 import Galley.Effects.BrigAccess as Intra
 import qualified Galley.Effects.TeamNotificationStore as E
 import Galley.Types.Teams hiding (newTeam)
-import Gundeck.Types.Notification
 import Imports
 import Polysemy
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Internal.Notification
 
 getTeamNotifications ::
   Members '[BrigAccess, ErrorS 'TeamNotFound, TeamNotificationStore] r =>

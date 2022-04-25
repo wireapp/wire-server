@@ -46,6 +46,7 @@ import Imports
 import System.Logger.Class (MonadLogger, field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO (handleAny, mapConcurrently, pooledMapConcurrentlyN_)
+import Wire.API.Internal.Notification
 
 push :: NativePush -> [Address] -> Gundeck ()
 push _ [] = pure ()

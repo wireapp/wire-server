@@ -68,6 +68,7 @@ import Network.HTTP.Types
 import Network.Wai.Utilities
 import System.Logger.Class (msg, val, (+++), (.=), (~~))
 import qualified System.Logger.Class as Log
+import Wire.API.Internal.Notification
 import qualified Wire.API.Push.Token as Public
 
 push :: [Push] -> Gundeck ()

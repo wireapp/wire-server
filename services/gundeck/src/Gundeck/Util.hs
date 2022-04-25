@@ -21,12 +21,12 @@ import Control.Monad.Catch
 import Control.Retry
 import Data.Id
 import Data.UUID.V1
-import Gundeck.Types.Notification
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai.Predicate.MediaType (Media)
 import Network.Wai.Utilities
 import UnliftIO (async, waitCatch)
+import Wire.API.Internal.Notification
 
 type JSON = Media "application" "json"
 

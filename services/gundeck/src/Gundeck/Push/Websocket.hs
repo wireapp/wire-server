@@ -42,8 +42,6 @@ import qualified Data.Set as Set
 import Data.Time.Clock.POSIX
 import Gundeck.Monad
 import qualified Gundeck.Presence.Data as Presence
-import Gundeck.Types.BulkPush
-import Gundeck.Types.Notification
 import Gundeck.Types.Presence
 import Gundeck.Util
 import Imports
@@ -54,6 +52,8 @@ import qualified Network.URI as URI
 import System.Logger.Class (val, (+++), (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO (handleAny, mapConcurrently)
+import Wire.API.Internal.BulkPush
+import Wire.API.Internal.Notification
 
 class (Monad m, MonadThrow m, Log.MonadLogger m) => MonadBulkPush m where
   mbpBulkSend :: URI -> BulkPushRequest -> m (URI, Either SomeException BulkPushResponse)

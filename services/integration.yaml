@@ -87,3 +87,8 @@ backendTwo:
   cargohold:
     host: 127.0.0.1
     port: 9084
+
+redisTwo:
+  host: 127.0.0.1
+  port: 6379
+  connectionMode: master

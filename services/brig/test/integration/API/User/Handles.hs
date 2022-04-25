@@ -38,7 +38,6 @@ import qualified Data.List1 as List1
 import Data.Qualified (Qualified (..))
 import qualified Data.UUID as UUID
 import qualified Galley.Types.Teams.SearchVisibility as Team
-import Gundeck.Types.Notification hiding (target)
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Network.Wai.Utilities.Error as Wai
@@ -48,6 +47,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
+import Wire.API.Internal.Notification hiding (target)
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
