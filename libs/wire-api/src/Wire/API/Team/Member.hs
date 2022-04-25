@@ -29,12 +29,14 @@ module Wire.API.Team.Member
     legalHoldStatus,
     ntmNewTeamMember,
 
-    -- * TODO: remove after servantification
+    -- * TODO(leif): remove after servantification
     teamMemberJson,
     teamMemberListJson,
+    teamMemberList,
 
     -- * TeamMemberList
     TeamMemberList,
+    TeamMemberListOptPerms,
     newTeamMemberList,
     teamMembers,
     teamMemberListType,
@@ -185,6 +187,8 @@ setPerm False = const Nothing
 -- TeamMemberList
 
 type TeamMemberList = TeamMemberList' 'Required
+
+type TeamMemberListOptPerms = TeamMemberList' 'Optional
 
 data TeamMemberList' (tag :: PermissionTag) = TeamMemberList
   { _teamMembers :: [TeamMember' tag],
@@ -399,6 +403,8 @@ setOptionalPerms withPerms m = m & permissions %~ setPerm (withPerms m)
 
 -- | Show a list of team members using 'teamMemberJson'.
 teamMemberListJson :: (TeamMember -> Bool) -> TeamMemberList -> Value
-teamMemberListJson withPerms l =
-  toJSON $
-    l {_teamMembers = map (setOptionalPerms withPerms) (_teamMembers l)}
+teamMemberListJson withPerms = toJSON . teamMemberList withPerms
+
+teamMemberList :: (TeamMember -> Bool) -> TeamMemberList -> TeamMemberList' 'Optional
+teamMemberList withPerms l =
+  l {_teamMembers = map (setOptionalPerms withPerms) (_teamMembers l)}

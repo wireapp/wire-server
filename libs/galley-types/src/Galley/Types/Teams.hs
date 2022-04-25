@@ -76,6 +76,7 @@ module Galley.Types.Teams
     nInvitation,
     legalHoldStatus,
     TeamMemberList,
+    TeamMemberListOptPerms,
     ListType (..),
     newTeamMemberList,
     teamMembers,

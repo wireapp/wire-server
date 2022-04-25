@@ -31,7 +31,7 @@ module Galley.API.Teams
     addTeamMemberH,
     getTeamNotificationsH,
     getTeamConversationRoles,
-    getTeamMembersH,
+    getTeamMembers,
     getTeamMembersCSVH,
     bulkGetTeamMembersH,
     getTeamMemberH,
@@ -136,7 +136,7 @@ import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
-import Wire.API.Team.Member (ntmNewTeamMember, teamMemberJson, teamMemberListJson)
+import Wire.API.Team.Member (ntmNewTeamMember, teamMemberJson, teamMemberList, teamMemberListJson)
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.SearchVisibility as Public
 import Wire.API.User (User, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
@@ -478,25 +478,17 @@ getTeamConversationRoles zusr tid = do
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
 
-getTeamMembersH ::
-  Members '[ErrorS 'NotATeamMember, TeamStore] r =>
-  UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JSON ->
-  Sem r Response
-getTeamMembersH (zusr ::: tid ::: maxResults ::: _) = do
-  (memberList, withPerms) <- getTeamMembers zusr tid maxResults
-  pure . json $ teamMemberListJson withPerms memberList
-
 getTeamMembers ::
   Members '[ErrorS 'NotATeamMember, TeamStore] r =>
-  UserId ->
+  Local UserId ->
   TeamId ->
-  Range 1 Public.HardTruncationLimit Int32 ->
-  Sem r (Public.TeamMemberList, Public.TeamMember -> Bool)
-getTeamMembers zusr tid maxResults = do
-  m <- E.getTeamMember tid zusr >>= noteS @'NotATeamMember
-  mems <- E.getTeamMembersWithLimit tid maxResults
+  Maybe (Range 1 Public.HardTruncationLimit Int32) ->
+  Sem r TeamMemberListOptPerms
+getTeamMembers lzusr tid mbMaxResults = do
+  m <- E.getTeamMember tid (tUnqualified lzusr) >>= noteS @'NotATeamMember
+  memberList <- E.getTeamMembersWithLimit tid ((fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults))
   let withPerms = (m `canSeePermsOf`)
-  pure (mems, withPerms)
+  pure $ teamMemberList withPerms memberList
 
 outputToStreamingBody :: Member (Final IO) r => Sem (Output LByteString ': r) () -> Sem r StreamingBody
 outputToStreamingBody action = withWeavingToFinal @IO $ \state weave _inspect ->

@@ -56,6 +56,7 @@ import Wire.API.Team
 import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
+import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (..))
 import Wire.API.Team.SearchVisibility (TeamSearchVisibilityView)
 
@@ -166,6 +167,7 @@ type ServantAPI =
     :<|> MLSAPI
     :<|> CustomBackendAPI
     :<|> LegalHoldAPI
+    :<|> TeamMemberAPI
 
 type ConversationAPI =
   Named
@@ -1488,6 +1490,25 @@ data GrantConsentResult
   deriving (AsUnion GrantConsentResultResponseTypes) via GenericAsUnion GrantConsentResultResponseTypes GrantConsentResult
 
 instance GSOP.Generic GrantConsentResult
+
+type TeamMemberAPI =
+  Named
+    "get-team-members"
+    ( Summary "Get team members"
+        :> CanThrow 'NotATeamMember
+        :> ZLocalUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "members"
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Maximum results to be returned"
+             ]
+             "maxResults"
+             (Range 1 HardTruncationLimit Int32)
+        :> Get '[JSON] TeamMemberListOptPerms
+    )
 
 -- This is a work-around for the fact that we sometimes want to send larger lists of user ids
 -- in the filter query than fits the url length limit.  For details, see

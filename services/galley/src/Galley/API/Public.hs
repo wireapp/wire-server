@@ -116,21 +116,6 @@ sitemap :: Routes ApiBuilder (Sem GalleyEffects) ()
 sitemap = do
   -- Team Member API -----------------------------------------------------
   -- todo(leif): servantify this
-  get "/teams/:tid/members" (continueE Teams.getTeamMembersH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. def (unsafeRange Public.hardTruncationLimit) (query "maxResults")
-      .&. accept "application" "json"
-  document "GET" "getTeamMembers" $ do
-    summary "Get team members"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    parameter Query "maxResults" (int32Between 1 Public.hardTruncationLimit) $ do
-      optional
-      description "Maximum Results to be returned"
-    returns (ref Public.modelTeamMemberList)
-    response 200 "Team members" end
-    errorSResponse @'NotATeamMember
 
   get "/teams/:tid/members/csv" (continueE Teams.getTeamMembersCSVH) $
     -- we could discriminate based on accept header only, but having two paths makes building
