@@ -68,8 +68,6 @@ ENV PATH=/root/.ghcup/bin:/root/.cabal/bin:${PATH} \
     LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 
-ARG STACK_VERSION=2.7.3
 ARG CABAL_VERSION=3.6.2.0
-RUN ghcup install stack ${STACK_VERSION} && \
-    ghcup install cabal ${CABAL_VERSION} && \
+RUN ghcup install cabal ${CABAL_VERSION} && \
     cabal install cabal-plan
