@@ -32,7 +32,8 @@ module Wire.API.Team.Member
     -- * TODO(leif): remove after servantification
     teamMemberJson,
     teamMemberListJson,
-    teamMemberList,
+    setOptionalPerms,
+    setOptionalPermsMany,
 
     -- * TeamMemberList
     TeamMemberList,
@@ -48,9 +49,11 @@ module Wire.API.Team.Member
 
     -- * NewTeamMember
     NewTeamMember,
+    TeamMemberOptPerms,
     mkNewTeamMember,
     nUserId,
     nPermissions,
+    optionalPermissions,
     nInvitation,
 
     -- * TeamMemberDeleteData
@@ -91,6 +94,8 @@ type family PermissionType (tag :: PermissionTag) = (t :: *) | t -> tag where
 -- TeamMember
 
 type TeamMember = TeamMember' 'Required
+
+type TeamMemberOptPerms = TeamMember' 'Optional
 
 data TeamMember' (tag :: PermissionTag) = TeamMember
   { _newTeamMember :: NewTeamMember' tag,
@@ -387,6 +392,9 @@ makeLenses ''TeamMemberDeleteData
 userId :: Lens' TeamMember UserId
 userId = newTeamMember . nUserId
 
+optionalPermissions :: TeamMemberOptPerms -> Maybe Permissions
+optionalPermissions = _nPermissions . _newTeamMember
+
 permissions :: Lens (TeamMember' tag1) (TeamMember' tag2) (PermissionType tag1) (PermissionType tag2)
 permissions = newTeamMember . nPermissions
 
@@ -403,8 +411,8 @@ setOptionalPerms withPerms m = m & permissions %~ setPerm (withPerms m)
 
 -- | Show a list of team members using 'teamMemberJson'.
 teamMemberListJson :: (TeamMember -> Bool) -> TeamMemberList -> Value
-teamMemberListJson withPerms = toJSON . teamMemberList withPerms
+teamMemberListJson withPerms = toJSON . setOptionalPermsMany withPerms
 
-teamMemberList :: (TeamMember -> Bool) -> TeamMemberList -> TeamMemberList' 'Optional
-teamMemberList withPerms l =
+setOptionalPermsMany :: (TeamMember -> Bool) -> TeamMemberList -> TeamMemberList' 'Optional
+setOptionalPermsMany withPerms l =
   l {_teamMembers = map (setOptionalPerms withPerms) (_teamMembers l)}

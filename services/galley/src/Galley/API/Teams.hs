@@ -34,7 +34,7 @@ module Galley.API.Teams
     getTeamMembers,
     getTeamMembersCSVH,
     bulkGetTeamMembersH,
-    getTeamMemberH,
+    getTeamMember,
     deleteTeamMemberH,
     updateTeamMemberH,
     getTeamConversations,
@@ -136,7 +136,7 @@ import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
-import Wire.API.Team.Member (ntmNewTeamMember, teamMemberJson, teamMemberList, teamMemberListJson)
+import Wire.API.Team.Member (TeamMemberOptPerms, ntmNewTeamMember, setOptionalPerms, setOptionalPermsMany, teamMemberListJson)
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.SearchVisibility as Public
 import Wire.API.User (User, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
@@ -488,7 +488,7 @@ getTeamMembers lzusr tid mbMaxResults = do
   m <- E.getTeamMember tid (tUnqualified lzusr) >>= noteS @'NotATeamMember
   memberList <- E.getTeamMembersWithLimit tid ((fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults))
   let withPerms = (m `canSeePermsOf`)
-  pure $ teamMemberList withPerms memberList
+  pure $ setOptionalPermsMany withPerms memberList
 
 outputToStreamingBody :: Member (Final IO) r => Sem (Output LByteString ': r) () -> Sem r StreamingBody
 outputToStreamingBody action = withWeavingToFinal @IO $ \state weave _inspect ->
@@ -634,27 +634,19 @@ bulkGetTeamMembers zusr tid maxResults uids = do
       hasMore = ListComplete
   pure (newTeamMemberList mems hasMore, withPerms)
 
-getTeamMemberH ::
-  Members '[ErrorS 'TeamMemberNotFound, ErrorS 'NotATeamMember, TeamStore] r =>
-  UserId ::: TeamId ::: UserId ::: JSON ->
-  Sem r Response
-getTeamMemberH (zusr ::: tid ::: uid ::: _) = do
-  (member, withPerms) <- getTeamMember zusr tid uid
-  pure . json $ teamMemberJson withPerms member
-
 getTeamMember ::
   Members '[ErrorS 'TeamMemberNotFound, ErrorS 'NotATeamMember, TeamStore] r =>
-  UserId ->
+  Local UserId ->
   TeamId ->
   UserId ->
-  Sem r (Public.TeamMember, Public.TeamMember -> Bool)
-getTeamMember zusr tid uid = do
+  Sem r TeamMemberOptPerms
+getTeamMember lzusr tid uid = do
   m <-
-    E.getTeamMember tid zusr
+    E.getTeamMember tid (tUnqualified lzusr)
       >>= noteS @'NotATeamMember
   let withPerms = (m `canSeePermsOf`)
   member <- E.getTeamMember tid uid >>= noteS @'TeamMemberNotFound
-  pure (member, withPerms)
+  pure $ setOptionalPerms withPerms member
 
 uncheckedGetTeamMember ::
   Members '[ErrorS 'TeamMemberNotFound, TeamStore] r =>
@@ -1460,6 +1452,7 @@ userIsTeamOwner ::
     '[ ErrorS 'TeamMemberNotFound,
        ErrorS 'AccessDenied,
        ErrorS 'NotATeamMember,
+       Input (Local ()),
        TeamStore
      ]
     r =>
@@ -1467,8 +1460,8 @@ userIsTeamOwner ::
   UserId ->
   Sem r ()
 userIsTeamOwner tid uid = do
-  let asking = uid
-  (mem, _) <- getTeamMember asking tid uid
+  asking <- qualifyLocal uid
+  mem <- getTeamMember asking tid uid
   unless (isTeamOwner mem) $ throwS @'AccessDenied
 
 -- Queues a team for async deletion

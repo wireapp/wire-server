@@ -1509,6 +1509,18 @@ type TeamMemberAPI =
              (Range 1 HardTruncationLimit Int32)
         :> Get '[JSON] TeamMemberListOptPerms
     )
+    :<|> Named
+           "get-team-member"
+           ( Summary "Get single team member"
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'TeamMemberNotFound
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "members"
+               :> Capture "uid" UserId
+               :> Get '[JSON] TeamMemberOptPerms
+           )
 
 -- This is a work-around for the fact that we sometimes want to send larger lists of user ids
 -- in the filter query than fits the url length limit.  For details, see

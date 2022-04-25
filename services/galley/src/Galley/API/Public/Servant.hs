@@ -297,4 +297,6 @@ servantSitemap =
         <@> mkNamedAPI @"approve-legal-hold-device" approveDevice
 
     teamMember :: API TeamMemberAPI GalleyEffects
-    teamMember = mkNamedAPI @"get-team-members" getTeamMembers
+    teamMember =
+      mkNamedAPI @"get-team-members" getTeamMembers
+        <@> mkNamedAPI @"get-team-member" getTeamMember

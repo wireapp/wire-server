@@ -154,22 +154,6 @@ sitemap = do
     errorSResponse @'NotATeamMember
     errorResponse Error.bulkGetMemberLimitExceeded
 
-  get "/teams/:tid/members/:uid" (continueE Teams.getTeamMemberH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. capture "uid"
-      .&. accept "application" "json"
-  document "GET" "getTeamMember" $ do
-    summary "Get single team member"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    parameter Path "uid" bytes' $
-      description "User ID"
-    returns (ref Public.modelTeamMember)
-    response 200 "Team member" end
-    errorSResponse @'NotATeamMember
-    errorSResponse @'TeamMemberNotFound
-
   get "/teams/notifications" (continueE Teams.getTeamNotificationsH) $
     zauthUserId
       .&. opt (query "since")
