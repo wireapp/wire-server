@@ -35,3 +35,9 @@ data:
     brig:
       host: brig
       port: 8080
+
+    # a "redis migration" test in gundeck makes use of a second (distinct) redis
+    redis2:
+      host: redis-ephemeral-master
+      port: 6379
+      connectionMode: master
