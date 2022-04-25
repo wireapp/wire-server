@@ -63,11 +63,11 @@ run o = do
   where
     middleware :: Env -> Wai.Middleware
     middleware e =
-      waiPrometheusMiddleware sitemap
+      versionMiddleware
+        . waiPrometheusMiddleware sitemap
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. monitor]
-        . versionMiddleware
 
 mkApp :: Env -> Wai.Application
 mkApp e r k = runGundeck e r (route routes r k)
