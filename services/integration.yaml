@@ -88,7 +88,7 @@ backendTwo:
     host: 127.0.0.1
     port: 9084
 
-redisTwo:
+redis2:
   host: 127.0.0.1
   port: 6379
   connectionMode: master

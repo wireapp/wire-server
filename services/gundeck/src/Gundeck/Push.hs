@@ -98,7 +98,7 @@ class MonadThrow m => MonadPushAll m where
 instance MonadPushAll Gundeck where
   mpaNotificationTTL = view (options . optSettings . setNotificationTTL)
   mpaMkNotificationId = mkNotificationId
-  mpaListAllPresences = Presence.listAll
+  mpaListAllPresences = runWithDefaultRedis . Presence.listAll
   mpaBulkPush = Web.bulkPush
   mpaStreamAdd = Stream.add
   mpaPushNative = pushNative

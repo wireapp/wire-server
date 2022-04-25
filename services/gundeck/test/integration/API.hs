@@ -28,7 +28,7 @@ import qualified Cassandra as Cql
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async (Async, async, concurrently_, forConcurrently_, wait)
 import qualified Control.Concurrent.Async as Async
-import Control.Lens (view, (%~), (.~), (^.), (^?), _2)
+import Control.Lens (view, (%~), (.~), (?~), (^.), (^?), _2)
 import Control.Retry (constantDelay, limitRetries, recoverAll, retrying)
 import Data.Aeson hiding (json)
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -52,6 +52,7 @@ import Data.UUID.V4
 import Gundeck.Options
 import qualified Gundeck.Push.Data as Push
 import Gundeck.Types
+import qualified Gundeck.Types.Common
 import Imports
 import qualified Network.HTTP.Client as Http
 import Network.URI (parseURI)
@@ -116,6 +117,10 @@ tests s =
         "Websocket pingpong"
         [ test s "pings produce pongs" testPingPong,
           test s "non-pings are ignored" testNoPingNoPong
+        ],
+      testGroup
+        "Redis migration"
+        [ test s "redis migration should work" testRedisMigration
         ],
       -- TODO: The following tests require (at the moment), the usage real AWS
       --       services so they are kept in a separate group to simplify testing
@@ -895,6 +900,30 @@ testLongPushToken = do
   -- GCM token over 8192 bytes should fail (actual token sizes are twice the tSize)
   tkn4 <- randomToken clt gcmToken {tSize = 5000}
   registerPushTokenRequest uid tkn4 !!! const 413 === statusCode
+
+-- * Redis Migration
+
+testRedisMigration :: TestM ()
+testRedisMigration = do
+  uid <- randomUser
+  con <- randomConnId
+  cannonURI <- Gundeck.Types.Common.parse "http://cannon.example"
+  let presence = Presence uid con cannonURI Nothing 1 ""
+  redis2 <- view tsRedis2
+
+  withSettingsOverrides (optRedisAdditionalWrite ?~ redis2) $ do
+    g <- view tsGundeck
+    setPresence g presence
+      !!! const 201 === statusCode
+    retrievedPresence <-
+      map resource . decodePresence <$> (getPresence g (toByteString' uid) <!! const 200 === statusCode)
+    liftIO $ assertEqual "With both redises: presences should match the set presences" [cannonURI] retrievedPresence
+
+  withSettingsOverrides (optRedis .~ redis2) $ do
+    g <- view tsGundeck
+    retrievedPresence <-
+      map resource . decodePresence <$> (getPresence g (toByteString' uid) <!! const 200 === statusCode)
+    liftIO $ assertEqual "With only second redis: presences should match the set presences" [cannonURI] retrievedPresence
 
 -- * Helpers
 

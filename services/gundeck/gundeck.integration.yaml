@@ -11,13 +11,13 @@ cassandra:
 
 redis:
   host: 127.0.0.1
-  port: 6379
-  connectionMode: master # master | cluster
-
-redisAdditionalWrite:
-  host: 127.0.0.1
   port: 6377
-  connectionMode: cluster
+  connectionMode: cluster # master | cluster
+
+# redisAdditionalWrite:
+#   host: 127.0.0.1
+#   port: 6379
+#   connectionMode: master
 
 aws:
   queueName: integration-gundeck-events
