@@ -33,15 +33,6 @@ data Logger msg m a where
 -- TODO(sandy): Inline this definition --- no TH
 makeSem ''Logger
 
-mapLogger ::
-  forall msg msg' r a.
-  Member (Logger msg') r =>
-  (msg -> msg') ->
-  Sem (Logger msg ': r) a ->
-  Sem r a
-mapLogger f = interpret $ \case
-  Log lvl msg -> log lvl $ f msg
-
 trace :: Member (Logger msg) r => msg -> Sem r ()
 trace = log Trace
 
@@ -59,3 +50,18 @@ err = log Error
 
 fatal :: Member (Logger msg) r => msg -> Sem r ()
 fatal = log Fatal
+
+--------------------------------------------------------------------------------
+-- General interpreters
+
+mapLogger ::
+  forall msg msg' r a.
+  Member (Logger msg') r =>
+  (msg -> msg') ->
+  Sem (Logger msg ': r) a ->
+  Sem r a
+mapLogger f = interpret $ \case
+  Log lvl msg -> log lvl $ f msg
+
+discardLogs :: Sem (Logger msg ': r) a -> Sem r a
+discardLogs = interpret $ \(Log _ _) -> pure ()

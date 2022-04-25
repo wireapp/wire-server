@@ -19,7 +19,6 @@ module Wire.Sem.Logger.TinyLog
   ( loggerToTinyLog,
     loggerToTinyLogReqId,
     stringLoggerToTinyLog,
-    discardLogs,
     discardTinyLogs,
     module Wire.Sem.Logger.Level,
   )
@@ -56,9 +55,6 @@ loggerToTinyLogReqId r tinylog =
 
 stringLoggerToTinyLog :: Member (Logger (Log.Msg -> Log.Msg)) r => Sem (Logger String ': r) a -> Sem r a
 stringLoggerToTinyLog = mapLogger @String Log.msg
-
-discardLogs :: Sem (Logger msg ': r) a -> Sem r a
-discardLogs = interpret $ \(Log _ _) -> pure ()
 
 discardTinyLogs :: Sem (Logger (Log.Msg -> Log.Msg) ': r) a -> Sem r a
 discardTinyLogs = discardLogs
