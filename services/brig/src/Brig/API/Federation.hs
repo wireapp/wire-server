@@ -55,6 +55,7 @@ import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledForConcurrentlyN_)
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
+import Wire.API.Federation.Version
 import Wire.API.Message (UserClients)
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
@@ -69,7 +70,8 @@ type FederationAPI = "federation" :> BrigApi
 
 federationSitemap :: ServerT FederationAPI (Handler r)
 federationSitemap =
-  Named @"get-user-by-handle" (\d h -> wrapHttpClientE $ getUserByHandle d h)
+  Named @"api-version" (\_ _ -> pure versionInfo)
+    :<|> Named @"get-user-by-handle" (\d h -> wrapHttpClientE $ getUserByHandle d h)
     :<|> Named @"get-users-by-ids" (\d us -> wrapHttpClientE $ getUsersByIds d us)
     :<|> Named @"claim-prekey" claimPrekey
     :<|> Named @"claim-prekey-bundle" claimPrekeyBundle
@@ -79,7 +81,7 @@ federationSitemap =
     :<|> Named @"send-connection-action" sendConnectionAction
     :<|> Named @"on-user-deleted-connections" onUserDeleted
 
-sendConnectionAction :: Domain -> NewConnectionRequest -> (Handler r) NewConnectionResponse
+sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do
   active <- lift $ wrapClient $ Data.isActivated ncrTo
   if active

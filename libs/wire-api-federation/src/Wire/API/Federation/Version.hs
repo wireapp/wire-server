@@ -59,4 +59,7 @@ instance ToSchema VersionInfo where
           { vinfoSupported = toList supportedVersions
           }
 
+versionInfo :: VersionInfo
+versionInfo = VersionInfo (toList supportedVersions)
+
 $(genSingletons [''Version])

@@ -104,7 +104,7 @@ withTempMockFederator headers resp action = do
                     Wai.responseLBS
                       HTTP.status200
                       [("Content-Type", "application/json")]
-                      (Aeson.encode (VersionInfo (toList supportedVersions)))
+                      (Aeson.encode versionInfo)
                 RequestDataRPC RPC {..} -> do
                   domainText <- note NoOriginDomain $ lookup originDomainHeaderName rpcHeaders
                   originDomain <- parseDomain domainText

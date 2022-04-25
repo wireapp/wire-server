@@ -27,6 +27,7 @@ import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
+import Wire.API.Federation.Version
 import Wire.API.Message (UserClients)
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
@@ -55,7 +56,8 @@ instance FromJSON SearchResponse
 
 -- | For conventions see /docs/developer/federation-api-conventions.md
 type BrigApi =
-  FedEndpoint "get-user-by-handle" Handle (Maybe UserProfile)
+  FedEndpoint "api-version" () VersionInfo
+    :<|> FedEndpoint "get-user-by-handle" Handle (Maybe UserProfile)
     :<|> FedEndpoint "get-users-by-ids" [UserId] [UserProfile]
     :<|> FedEndpoint "claim-prekey" (UserId, ClientId) (Maybe ClientPrekey)
     :<|> FedEndpoint "claim-prekey-bundle" UserId PrekeyBundle
