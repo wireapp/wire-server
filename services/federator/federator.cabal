@@ -464,7 +464,6 @@ test-suite federator-tests
     , hinotify
     , http-client
     , http-client-openssl
-    , http-client-tls
     , http-media
     , http-types
     , http2

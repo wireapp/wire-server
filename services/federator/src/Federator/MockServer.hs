@@ -98,33 +98,29 @@ withTempMockFederator headers resp action = do
                   MockException
                 ]
             $ do
-              parseRequestData request >>= \case
-                FetchVersion _ -> do
-                  pure $
-                    Wai.responseLBS
-                      HTTP.status200
-                      [("Content-Type", "application/json")]
-                      (Aeson.encode versionInfo)
-                RequestDataRPC RPC {..} -> do
-                  domainText <- note NoOriginDomain $ lookup originDomainHeaderName rpcHeaders
-                  originDomain <- parseDomain domainText
-                  targetDomain <- parseDomainText rpcTargetDomain
-                  let fedRequest =
-                        ( FederatedRequest
-                            { frOriginDomain = originDomain,
-                              frTargetDomain = targetDomain,
-                              frComponent = rpcComponent,
-                              frRPC = rpcRPC,
-                              frBody = rpcBody
-                            }
-                        )
-                  embed @IO $ modifyIORef remoteCalls (<> [fedRequest])
-                  (ct, body) <-
+              RequestData {..} <- parseRequestData request
+              domainText <- note NoOriginDomain $ lookup originDomainHeaderName rdHeaders
+              originDomain <- parseDomain domainText
+              targetDomain <- parseDomainText rdTargetDomain
+              let fedRequest =
+                    ( FederatedRequest
+                        { frOriginDomain = originDomain,
+                          frTargetDomain = targetDomain,
+                          frComponent = rdComponent,
+                          frRPC = rdRPC,
+                          frBody = rdBody
+                        }
+                    )
+              (ct, body) <-
+                if rdRPC == "api-version"
+                  then pure ("application/json", Aeson.encode versionInfo)
+                  else do
+                    embed @IO $ modifyIORef remoteCalls (<> [fedRequest])
                     fromException @MockException
                       . handle (throw . handleException)
                       $ resp fedRequest
-                  let headers' = ("Content-Type", HTTP.renderHeader ct) : headers
-                  pure $ Wai.responseLBS HTTP.status200 headers' body
+              let headers' = ("Content-Type", HTTP.renderHeader ct) : headers
+              pure $ Wai.responseLBS HTTP.status200 headers' body
         respond response
   result <-
     bracket

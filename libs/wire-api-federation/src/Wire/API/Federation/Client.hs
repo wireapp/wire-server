@@ -53,6 +53,7 @@ import Foreign.Marshal.Alloc
 import Imports
 import qualified Network.HPACK as HTTP2
 import qualified Network.HPACK.Token as HTTP2
+import qualified Network.HTTP.Media as HTTP
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Socket as NS
@@ -205,41 +206,31 @@ streamingResponseStrictBody resp =
     . responseBody
     $ resp
 
-data FederatorRequest = RPC Request | FetchVersions
-
-withHTTP2FederatorRequest ::
+withHTTP2StreamingRequest ::
   forall c a.
   KnownComponent c =>
   (HTTP.Status -> Bool) ->
-  FederatorRequest ->
+  Request ->
   (StreamingResponse -> IO a) ->
   FederatorClient c a
-withHTTP2FederatorRequest successfulStatus fedReq handleResponse = do
+withHTTP2StreamingRequest successfulStatus req handleResponse = do
   env <- asks cveEnv
-  let path = case fedReq of
-        RPC req ->
-          let baseUrlPath =
-                HTTP.encodePathSegments
-                  [ "rpc",
-                    domainText (ceTargetDomain env),
-                    componentName (componentVal @c)
-                  ]
-           in baseUrlPath <> requestPath req
-        FetchVersions ->
-          HTTP.encodePathSegments
-            ["api-version", domainText (ceTargetDomain env)]
+  let baseUrlPath =
+        HTTP.encodePathSegments
+          [ "rpc",
+            domainText (ceTargetDomain env),
+            componentName (componentVal @c)
+          ]
+  let path = baseUrlPath <> requestPath req
 
-  (req, body) <- case fedReq of
-    RPC req -> do
-      body <- case requestBody req of
-        Just (RequestBodyLBS lbs, _) -> pure lbs
-        Just (RequestBodyBS bs, _) -> pure (LBS.fromStrict bs)
-        Just (RequestBodySource _, _) ->
-          throwError FederatorClientStreamingNotSupported
-        Nothing -> pure mempty
-      pure (req {requestBody = Nothing}, body)
-    FetchVersions ->
-      pure (defaultRequest {requestPath = "/api-version"}, mempty)
+  body <- do
+    body <- case requestBody req of
+      Just (RequestBodyLBS lbs, _) -> pure lbs
+      Just (RequestBodyBS bs, _) -> pure (LBS.fromStrict bs)
+      Just (RequestBodySource _, _) ->
+        throwError FederatorClientStreamingNotSupported
+      Nothing -> pure mempty
+    pure body
   let req' =
         HTTP2.requestBuilder
           (requestMethod req)
@@ -267,16 +258,6 @@ withHTTP2FederatorRequest successfulStatus fedReq handleResponse = do
               (toLazyByteString (requestPath req))
               (toLazyByteString bdy)
           )
-
-withHTTP2StreamingRequest ::
-  forall c a.
-  KnownComponent c =>
-  (HTTP.Status -> Bool) ->
-  Request ->
-  (StreamingResponse -> IO a) ->
-  FederatorClient c a
-withHTTP2StreamingRequest successfulStatus req =
-  withHTTP2FederatorRequest successfulStatus (RPC req)
 
 mkFailureResponse :: HTTP.Status -> Domain -> LByteString -> LByteString -> Wai.Error
 mkFailureResponse status domain path body
@@ -349,18 +330,26 @@ runVersionedFederatorClientToCodensity env =
     . unFederatorClient
 
 versionNegotiation :: forall c. KnownComponent c => FederatorClient c Version
-versionNegotiation = withHTTP2FederatorRequest @c HTTP.statusIsSuccessful FetchVersions $ \resp -> do
-  body <- toLazyByteString <$> streamingResponseStrictBody resp
-  remoteVersions <- case Aeson.decode body of
-    Nothing -> E.throw (FederatorClientVersionNegotiationError InvalidVersionInfo)
-    Just info -> pure (Set.fromList (vinfoSupported info))
-  case Set.lookupMax (Set.intersection remoteVersions supportedVersions) of
-    Just v -> pure v
-    Nothing ->
-      E.throw . FederatorClientVersionNegotiationError $
-        if Set.lookupMax supportedVersions > Set.lookupMax remoteVersions
-          then RemoteTooOld
-          else RemoteTooNew
+versionNegotiation =
+  let req =
+        defaultRequest
+          { requestPath = "/api-version",
+            requestBody = Just (RequestBodyLBS (Aeson.encode ()), "application" HTTP.// "json"),
+            requestHeaders = [],
+            requestMethod = HTTP.methodPost
+          }
+   in withHTTP2StreamingRequest @c HTTP.statusIsSuccessful req $ \resp -> do
+        body <- toLazyByteString <$> streamingResponseStrictBody resp
+        remoteVersions <- case Aeson.decode body of
+          Nothing -> E.throw (FederatorClientVersionNegotiationError InvalidVersionInfo)
+          Just info -> pure (Set.fromList (vinfoSupported info))
+        case Set.lookupMax (Set.intersection remoteVersions supportedVersions) of
+          Just v -> pure v
+          Nothing ->
+            E.throw . FederatorClientVersionNegotiationError $
+              if Set.lookupMax supportedVersions > Set.lookupMax remoteVersions
+                then RemoteTooOld
+                else RemoteTooNew
 
 freeTLSConfig :: HTTP2.Config -> IO ()
 freeTLSConfig cfg = free (HTTP2.confWriteBuffer cfg)

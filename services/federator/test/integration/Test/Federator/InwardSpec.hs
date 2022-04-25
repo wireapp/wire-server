@@ -38,7 +38,6 @@ import Test.QuickCheck (arbitrary, generate)
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Federation.API.Cargohold
 import Wire.API.Federation.Domain
-import Wire.API.Federation.Version
 import Wire.API.User
 
 -- FUTUREWORK(federation): move these tests to brig-integration (benefit: avoid duplicating all of the brig helper code)
@@ -77,13 +76,6 @@ spec env =
           responseJsonError =<< inwardCall "/federation/brig/get-user-by-handle" (encode hdl)
             <!! const 200 === statusCode
         liftIO $ bdy `shouldBe` expectedProfile
-
-    it "should be able to fetch API versions" $
-      runTestFederator env $ do
-        bdy <-
-          responseJsonError =<< inwardCall "/federation/brig/api-version" (encode ())
-            <!! const 200 === statusCode
-        liftIO $ vinfoSupported bdy `shouldBe` toList supportedVersions
 
     -- @SF.Federation @TSFI.RESTfulAPI @S2 @S3 @S7
     --

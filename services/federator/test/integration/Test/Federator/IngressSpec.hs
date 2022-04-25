@@ -103,9 +103,9 @@ spec env = do
             (Aeson.fromEncoding (Aeson.toEncoding hdl))
       liftIO $ case r of
         Right _ -> expectationFailure "Expected client certificate error, got response"
+        Left (RemoteError _ _) ->
+          expectationFailure "Expected client certificate error, got remote error"
         Left (RemoteErrorResponse _ status _) -> status `shouldBe` HTTP.status400
-        Left e ->
-          expectationFailure $ "Expected client certificate error, got: " <> show e
 
 -- FUTUREWORK: ORMOLU_DISABLE
 -- @END
@@ -139,13 +139,10 @@ inwardBrigCallViaIngressWithSettings ::
 inwardBrigCallViaIngressWithSettings tlsSettings requestPath payload =
   do
     Endpoint ingressHost ingressPort <- cfgNginxIngress . view teTstOpts <$> input
-    mgr <- view teMgr <$> input
     originDomain <- cfgOriginDomain . view teTstOpts <$> input
     let target = SrvTarget (cs ingressHost) ingressPort
         headers = [(originDomainHeaderName, Text.encodeUtf8 originDomain)]
-
-    runInputConst mgr
-      . runInputConst tlsSettings
+    runInputConst tlsSettings
       . assertNoError @DiscoveryFailure
       . discoverConst target
       . runEmbedded @(Codensity IO) @IO lowerCodensity

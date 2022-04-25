@@ -49,8 +49,7 @@ tests =
     "Federator.Remote"
     [ testValidatesCertificateSuccess,
       testValidatesCertificateWrongHostname,
-      testConnectionError,
-      testFetchAPIVersion
+      testConnectionError
     ]
 
 settings :: RunSettings
@@ -159,22 +158,6 @@ testConnectionError = testCase "connection failures are reported correctly" $ do
     Left (RemoteError _ (FederatorClientConnectionError _)) -> pure ()
     Left x -> assertFailure $ "Expected connection error, got: " <> show x
     Right _ -> assertFailure "Expected connection with the server to fail"
-
-testFetchAPIVersion :: TestTree
-testFetchAPIVersion = testCase "fetches API versions correctly" $ do
-  withMockServer certForLocalhost $ \port -> do
-    tlsSettings <- mkTLSSettingsOrThrow settings
-
-    assertNoRemoteError
-      . runM
-      . runError @RemoteError
-      . void
-      . runInputConst tlsSettings
-      . discoverLocalhost port
-      . assertNoError @DiscoveryFailure
-      . runEmbedded @(Codensity IO) @IO lowerCodensity
-      . interpretRemote
-      $ getAPIVersions (Domain "localhost")
 
 certForLocalhost :: Warp.TLSSettings
 certForLocalhost = Warp.tlsSettings "test/resources/unit/localhost.pem" "test/resources/unit/localhost-key.pem"

@@ -85,6 +85,7 @@ library
     , either
     , errors
     , exceptions
+    , http-media
     , http-types
     , http2
     , imports
@@ -188,6 +189,7 @@ test-suite spec
     , errors
     , exceptions
     , hspec
+    , http-media
     , http-types
     , http2
     , imports

@@ -33,7 +33,6 @@ import Data.Either.Validation (Validation (..))
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.X509.CertificateStore
-import Debug.Trace
 import Federator.App (runAppT)
 import Federator.Discovery (DiscoverFederator, DiscoveryFailure (DiscoveryFailureDNSError, DiscoveryFailureSrvNotAvailable), runFederatorDiscovery)
 import Federator.Env (Env, TLSSettings, applog, caStore, dnsResolver, runSettings, tls)
@@ -74,35 +73,18 @@ import Wire.Network.DNS.Effect (DNSLookup)
 import qualified Wire.Network.DNS.Effect as Lookup
 import Wire.Network.DNS.SRV (SrvTarget (..))
 
-data RequestData
-  = RequestDataRPC RPC
-  | FetchVersion Text
-
-data RPC = RPC
-  { rpcTargetDomain :: Text,
-    rpcComponent :: Component,
-    rpcRPC :: Text,
-    rpcHeaders :: [HTTP.Header],
-    rpcBody :: LByteString
+data RequestData = RequestData
+  { rdTargetDomain :: Text,
+    rdComponent :: Component,
+    rdRPC :: Text,
+    rdHeaders :: [HTTP.Header],
+    rdBody :: LByteString
   }
-
-rdTargetDomain :: RequestData -> Text
-rdTargetDomain (RequestDataRPC rpc) = rpcTargetDomain rpc
-rdTargetDomain (FetchVersion domain) = domain
 
 parseRequestData ::
   Members '[Error ServerError, Embed IO] r =>
   Wai.Request ->
   Sem r RequestData
-parseRequestData req | Wai.requestMethod req == HTTP.methodGet = do
-  -- No query parameters are allowed
-  unless (BS.null . Wai.rawQueryString $ req) $
-    throw InvalidRoute
-  -- check that the path has the expected form
-  domain <- case Wai.pathInfo req of
-    ["api-version", domain] -> pure domain
-    _ -> throw InvalidRoute
-  pure $ FetchVersion domain
 parseRequestData req = do
   -- only POST is supported
   when (Wai.requestMethod req /= HTTP.methodPost) $
@@ -120,13 +102,13 @@ parseRequestData req = do
   -- get component and body
   component <- note (UnknownComponent componentSeg) $ parseComponent componentSeg
   body <- embed $ Wai.lazyRequestBody req
-  pure . RequestDataRPC $
-    RPC
-      { rpcTargetDomain = domain,
-        rpcComponent = component,
-        rpcRPC = rpcPath,
-        rpcHeaders = Wai.requestHeaders req,
-        rpcBody = body
+  pure $
+    RequestData
+      { rdTargetDomain = domain,
+        rdComponent = component,
+        rdRPC = rpcPath,
+        rdHeaders = Wai.requestHeaders req,
+        rdBody = body
       }
 
 callOutward ::
@@ -137,19 +119,14 @@ callOutward req = do
   rd <- parseRequestData req
   domain <- parseDomainText (rdTargetDomain rd)
   ensureCanFederateWith domain
-  case rd of
-    RequestDataRPC rpc -> do
-      resp <-
-        discoverAndCall
-          domain
-          (rpcComponent rpc)
-          (rpcRPC rpc)
-          (rpcHeaders rpc)
-          (fromLazyByteString (rpcBody rpc))
-      pure $ streamingResponseToWai resp
-    FetchVersion _ -> do
-      vs <- getAPIVersions domain
-      pure $ Wai.responseLBS HTTP.status200 defaultHeaders vs
+  resp <-
+    discoverAndCall
+      domain
+      (rdComponent rd)
+      (rdRPC rd)
+      (rdHeaders rd)
+      (fromLazyByteString (rdBody rd))
+  pure $ streamingResponseToWai resp
 
 serveOutward :: Env -> Int -> IO ()
 serveOutward = serve callOutward

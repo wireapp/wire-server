@@ -22,6 +22,7 @@ dependencies:
 - either
 - errors
 - exceptions
+- http-media
 - http-types
 - http2
 - imports

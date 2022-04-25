@@ -113,7 +113,6 @@ tests:
     - bytestring
     - directory
     - federator
-    - http-client-tls
     - interpolate
     - QuickCheck
     - servant-client
