@@ -128,7 +128,7 @@ runFederator :: Env -> Sem AllEffects Wai.Response -> Codensity IO Wai.Response
 runFederator env =
   runM
     . runEmbedded @IO @(Codensity IO) liftIO
-    . loggerToTinyLogReqId (view applog env) (view requestId env)
+    . loggerToTinyLogReqId (view requestId env) (view applog env)
     . runWaiErrors
       @'[ ValidationError,
           RemoteError,

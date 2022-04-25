@@ -41,17 +41,18 @@ loggerToTinyLog tinylog = interpret $ \case
   Log lvl msg ->
     embed @IO $ Log.log tinylog (toLevel lvl) msg
 
+-- | Log the request ID along with the message
 loggerToTinyLogReqId ::
   Member (Embed IO) r =>
-  Log.Logger ->
   RequestId ->
+  Log.Logger ->
   Sem (Logger (Log.Msg -> Log.Msg) ': r) a ->
   Sem r a
-loggerToTinyLogReqId tinylog r = interpret $ \case
-  Log lvl msg ->
-    embed @IO
-      . Log.log tinylog (toLevel lvl)
-      $ Log.field "request" (unRequestId r) Log.~~ msg
+loggerToTinyLogReqId r tinylog =
+  loggerToTinyLog tinylog
+    . mapLogger
+      (Log.field "request" (unRequestId r) Log.~~)
+    . raise @(Logger (Log.Msg -> Log.Msg))
 
 stringLoggerToTinyLog :: Member (Logger (Log.Msg -> Log.Msg)) r => Sem (Logger String ': r) a -> Sem r a
 stringLoggerToTinyLog = mapLogger @String Log.msg
