@@ -5,11 +5,9 @@
 
 * Note for wire.com operators: deploy nginz (#2270)
 
-* Wire cloud operators: [Update brig's ES index mapping before deploying. After deploying, run a re-index](https://github.com/wireapp/wire-server/blob/master/docs/reference/elastic-search.md) (#2213)
+* Wire cloud operators: [Update brig's ES index mapping before deploying. After deploying, run a re-index](https://github.com/wireapp/wire-server/blob/master/docs/reference/elastic-search.md) (#2213, #2220)
 
-* Wire cloud operators: [Update brig's ES index mapping before deploying. After deploying, run a re-index](https://github.com/wireapp/wire-server/blob/master/docs/reference/elastic-search.md) (#2220)
-
-* Upgrade team-settings version to 4.7.0-v0.29.7-0-74b81b8 (#2180)
+* Upgrade team-settings version to [4.7.0-v0.29.7-0-74b81b8](https://github.com/wireapp/wire-team-settings/releases/tag/v4.7.0) (#2180)
 
 
 ## Features
@@ -24,9 +22,7 @@
    - MLS/Proteus mismatches (e.g. sending a proteus message to an MLS conversation) are now handled (#2278)
    - the `POST /mls/key-packages/claim` endpoint gained a `skip_own` query parameter, which can be used to avoid claiming a key package for the requesting client itself (#2287)
 
-* The user profiles that are returned by a team admin search now contain the additional fields SAML NameID, IdP Issuer, and SCIM externalId (#2213)
-
-* The user profiles that are returned by a team admin search now contain the additional field unvalidated email address (#2220)
+* The user profiles that are returned by a team admin search now contain the additional fields SAML NameID, IdP Issuer, and SCIM externalId (#2213), and  unvalidated email address (#2220)
 
 * *  Avoid dropping messages when redis is down. (#2295)
 
@@ -38,11 +34,10 @@
 
 * Fix bug: User search endpoint hides exact handle results in SearchVisibilityNoNameOutsideTeam setting (#2280)
 
-* Suspending a non-existing user via stern (customer support) now returns 404 and does not create an empty entry in the DB (#2267)
-
-* Support for deleting teams with more than one member in backoffice/stern app (#2275)
-
-* Fix update of user email in backoffice/stern (#2281)
+* backoffice app (aka stern):
+    - Suspending a non-existing user now returns 404 and does not create an empty entry in the DB (#2267)
+    - Support for deleting teams with more than one member (#2275)
+    - Fix update of user email (#2281)
 
 
 ## Documentation
@@ -54,11 +49,7 @@
 ## Internal changes
 
 
-* Migrate 4 team legalhold related endpoint to Servant for better Swagger (#2284)
-
-* Migrate 7 more galley/teams endpoints to Servant (#2277)
-
-* Migrate 5 internal endpoints (/i/teams/:tid...) to Servant for better Swagger. (#PR_NOT_FOUND)
+* Migrate API routes from wai-route to servant for better Swagger (#2284, #2277, #2266, #2286, #2294, #2244
 
 * Update nginx to latest stable: v1.20.2 (#2289)
 
@@ -73,7 +64,11 @@
 
 * Print more logs while migrating data in Elasticsearch (#2279)
 
-* Replace the base monad in Brig with the Polysemy Sem monad (#2264)
+* Replace the base monad in Brig with the Polysemy Sem monad (#2264, #2288)
+
+* Move the Random effect from Spar to the polysemy-wire-zoo library (#2303)
+
+* Move the Now effect from Spar to a library (#2292)
 
 * Improve readability of user search test cases (#2276)
 
@@ -91,21 +86,9 @@
 
 * Various Galley MLS test improvements and cleanups (#2278)
 
-* Introduce first effects to Brig: now, a code store and password resetting (#2288)
-
-* Team Feature Flags API and Custom Backends API has been migrated to Servant (#2286)
-
-* Legal hold API has been migrated to Servant (#2294)
-
 * Flag for sending a validation email when updating a user's email address via backoffice/stern (#2301)
 
-* Move the Random effect from Spar to the polysemy-wire-zoo library (#2303)
-
 * Remove stack from all builder docker images (#2312)
-
-* The API for user properties has been migrated to Servant (#2244)
-
-* Move the Now effect from Spar to a library (#2292)
 
 * Make internal search-visibility endpoint available to staging environments (#2282)
 
@@ -2629,4 +2612,3 @@ Config value `setEmailVisibility` must be set in brig's config file (if you're n
     ciphers. See af8299d4.
 
 [TLS ciphersuite]: https://hackage.haskell.org/package/tls-1.4.1/docs/src/Network-TLS-Extra-Cipher.html#ciphersuite_default
-
