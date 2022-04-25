@@ -33,9 +33,9 @@ releases:
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/databases-ephemeral'
 
-  - name: '{{ .Values.namespace }}-redis-cluster'
+  - name: '{{ .Values.namespace }}-redis2'
     namespace: '{{ .Values.namespace }}'
-    chart: '../.local/charts/redis-cluster'
+    chart: '../.local/charts/redis-ephemeral'
 
   - name: '{{ .Values.namespace }}-nginx-ingress-controller'
     namespace: '{{ .Values.namespace }}'
