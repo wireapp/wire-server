@@ -65,7 +65,6 @@ testServerError =
     resp <-
       runM
         . Log.discardTinyLogs
-        . runWaiError @ValidationError
         . runWaiError @ServerError
         $ throw InvalidRoute
     body <- Wai.lazyResponseBody resp
