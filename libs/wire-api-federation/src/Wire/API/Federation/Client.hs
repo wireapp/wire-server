@@ -206,6 +206,7 @@ streamingResponseStrictBody resp =
     . responseBody
     $ resp
 
+-- Perform a streaming request to the local federator.
 withHTTP2StreamingRequest ::
   forall c a.
   KnownComponent c =>
