@@ -82,7 +82,7 @@ Finally, run the actual Docker container for the LegalHold service:
 
 Now that the legalhold service is running, you need to configure the DNS for your domain so that `legal.<yourdomain>` redirects to this service.
 
-Make sure you implement/enable HTTPS, and remember your TLS public key as it will be necessary in the Team Settings configuration.
+Make sure you implement/enable HTTPS, and remember your TLS public key (in PEM format) as it will be necessary in the Team Settings configuration.
 
 ## Configuring Team Settings to use Legal Hold
 
@@ -135,7 +135,7 @@ Here, fill in the different fields:
 
 * `Service URL` is the domain you set up in the first step: `https://legal.<your-domain>`
 * `Authentication token` is the token you created in first step, we used `secr3t` as an example, but you might have generated a random token with `openssl rand -hex 20`
-* `Public Key` is the TLS public key for the certificate you generated when implementing HTTPS in the first step.
+* `Public Key` is the TLS public key (in PEM format) for the certificate you generated when implementing HTTPS in the first step.
 
 Finally, click on `Save`.
 

@@ -19,6 +19,7 @@ module Galley.API.Public.Servant (mkNamedAPI, servantSitemap) where
 
 import Galley.API.Create
 import Galley.API.CustomBackend
+import Galley.API.LegalHold
 import Galley.API.MLS
 import Galley.API.Query
 import Galley.API.Teams
@@ -41,6 +42,7 @@ servantSitemap =
     <@> features
     <@> mls
     <@> customBackend
+    <@> legalHold
   where
     conversations =
       mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
@@ -281,3 +283,14 @@ servantSitemap =
 
     customBackend :: API CustomBackendAPI GalleyEffects
     customBackend = mkNamedAPI @"get-custom-backend-by-domain" getCustomBackendByDomain
+
+    legalHold :: API LegalHoldAPI GalleyEffects
+    legalHold =
+      mkNamedAPI @"create-legal-hold-settings" createSettings
+        <@> mkNamedAPI @"get-legal-hold-settings" getSettings
+        <@> mkNamedAPI @"delete-legal-hold-settings" removeSettingsInternalPaging
+        <@> mkNamedAPI @"get-legal-hold" getUserStatus
+        <@> mkNamedAPI @"consent-to-legal-hold" grantConsent
+        <@> mkNamedAPI @"request-legal-hold-device" requestDevice
+        <@> mkNamedAPI @"disable-legal-hold-for-user" disableForUser
+        <@> mkNamedAPI @"approve-legal-hold-device" approveDevice

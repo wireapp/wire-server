@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -17,17 +17,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Galley.Roundtrip
-  ( tests,
+module Wire.Sem.Random
+  ( Random (..),
+    bytes,
+    uuid,
+    scimTokenId,
   )
 where
 
-import Data.Proxy (Proxy (Proxy))
+import Data.Id (ScimTokenId)
+import Data.UUID (UUID)
 import Imports
-import Servant.Swagger (validateEveryToJSON)
-import Test.Tasty (TestTree)
-import Test.Tasty.Hspec (testSpec)
-import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
+import Polysemy
 
-tests :: IO TestTree
-tests = testSpec "Roundtrip" $ validateEveryToJSON (Proxy @LegalHoldAPI.ServantAPI)
+data Random m a where
+  Bytes :: Int -> Random m ByteString
+  Uuid :: Random m UUID
+  ScimTokenId :: Random m ScimTokenId
+
+makeSem ''Random

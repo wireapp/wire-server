@@ -61,8 +61,6 @@ library
       Spar.Sem.IdPRawMetadataStore.Spec
       Spar.Sem.Logger
       Spar.Sem.Logger.TinyLog
-      Spar.Sem.Random
-      Spar.Sem.Random.IO
       Spar.Sem.Reporter
       Spar.Sem.Reporter.Wai
       Spar.Sem.SAML2

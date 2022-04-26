@@ -87,6 +87,7 @@ import qualified Brig.User.Search.Index as Search
 import Cassandra (MonadClient)
 import Conduit (runConduit, (.|))
 import Control.Error (ExceptT)
+import Control.Error.Util
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Trans.Except (runExceptT, throwE)
@@ -122,6 +123,7 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding (name, (.=))
+import qualified System.Logger.Extended as ExLog
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Message (UserClients)
@@ -468,6 +470,23 @@ notify ::
 notify events orig route conn recipients = fork (Just orig) $ do
   rs <- recipients
   push events rs orig route conn
+
+fork ::
+  (MonadIO m, MonadUnliftIO m, MonadReader Env m) =>
+  Maybe UserId ->
+  m a ->
+  m ()
+fork u ma = do
+  g <- view applog
+  r <- view requestId
+  let logErr e = ExLog.err g $ request r ~~ user u ~~ msg (show e)
+  withRunInIO $ \lower ->
+    void . liftIO . forkIO $
+      either logErr (const $ return ())
+        =<< runExceptT (syncIO $ lower ma)
+  where
+    request = field "request" . unRequestId
+    user = maybe id (field "user" . toByteString)
 
 notifySelf ::
   ( MonadIO m,

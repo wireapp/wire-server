@@ -341,8 +341,8 @@ deleteBindingTeamForce tid = do
           . expect2xx
       )
 
-changeEmail :: UserId -> EmailUpdate -> Handler ()
-changeEmail u upd = do
+changeEmail :: UserId -> EmailUpdate -> Bool -> Handler ()
+changeEmail u upd validate = do
   info $ msg "Updating email address"
   b <- view brig
   void . catchRpcErrors $
@@ -351,6 +351,7 @@ changeEmail u upd = do
       b
       ( method PUT
           . path "i/self/email"
+          . (if validate then queryItem "validate" "true" else id)
           . header "Z-User" (toByteString' u)
           . header "Z-Connection" (toByteString' "")
           . lbytes (encode upd)

@@ -251,7 +251,7 @@ instance FromJSON Service where
 -- a 'Service' via inclusion in the HTTP 'Authorization' header.
 newtype ServiceToken = ServiceToken AsciiBase64Url
   deriving stock (Eq, Show, Generic)
-  deriving newtype (ToByteString, FromByteString, ToJSON, FromJSON, Arbitrary)
+  deriving newtype (ToByteString, FromByteString, ToJSON, FromJSON, Arbitrary, ToSchema)
 
 instance S.ToSchema ServiceToken where
   declareNamedSchema _ = tweak $ S.declareNamedSchema (Proxy @Text)
