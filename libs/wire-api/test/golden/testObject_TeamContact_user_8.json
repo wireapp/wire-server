@@ -2,11 +2,14 @@
     "accent_id": -1,
     "created_at": "1864-05-06T04:27:11.179Z",
     "email": "@\u0017",
+    "email_unvalidated": null,
     "handle": "\u0008dL",
     "id": "00000001-0000-0000-0000-000000000000",
     "managed_by": "scim",
     "name": "􄫇Z",
     "role": "member",
     "saml_idp": "",
+    "scim_external_id": null,
+    "sso": null,
     "team": "00000002-0000-0000-0000-000100000002"
 }

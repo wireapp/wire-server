@@ -31,7 +31,6 @@ import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opts
 import Brig.Team.Util (ensurePermissions)
 import Brig.Types.Search as Search
-import Brig.User.API.Handle (contactFromProfile)
 import qualified Brig.User.API.Handle as HandleAPI
 import Brig.User.Search.Index
 import qualified Brig.User.Search.SearchIndex as Q
@@ -133,7 +132,7 @@ search searcherId searchTerm maybeDomain maybeMaxResults = do
 
 searchRemotely :: Domain -> Text -> (Handler r) (Public.SearchResult Public.Contact)
 searchRemotely domain searchTerm = do
-  Log.info $
+  lift . Log.info $
     msg (val "searchRemotely")
       ~~ field "domain" (show domain)
       ~~ field "searchTerm" searchTerm
@@ -155,7 +154,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
   searcherTeamId <- lift $ wrapClient $ DB.lookupUserTeam searcherId
   teamSearchInfo <- mkTeamSearchInfo searcherTeamId
 
-  maybeExactHandleMatch <- exactHandleSearch teamSearchInfo
+  maybeExactHandleMatch <- exactHandleSearch
 
   let exactHandleMatchCount = length maybeExactHandleMatch
       esMaxResults = maxResults - exactHandleMatchCount
@@ -190,22 +189,14 @@ searchLocally searcherId searchTerm maybeMaxResults = do
               -- For team users, we need to check the visibility flag
               handleTeamVisibility t <$> wrapHttp (Intra.getTeamSearchVisibility t)
 
-    exactHandleSearch :: TeamSearchInfo -> (Handler r) (Maybe Contact)
-    exactHandleSearch teamSearchInfo = do
+    exactHandleSearch :: (Handler r) (Maybe Contact)
+    exactHandleSearch = do
       lsearcherId <- qualifyLocal searcherId
-      let searchedHandleMaybe = parseHandle searchTerm
-      exactHandleResult <-
-        case searchedHandleMaybe of
-          Nothing -> pure Nothing
-          Just searchedHandle ->
-            contactFromProfile
-              <$$> HandleAPI.getLocalHandleInfo lsearcherId searchedHandle
-      pure $ case teamSearchInfo of
-        Search.TeamOnly t ->
-          if Just t == (contactTeam =<< exactHandleResult)
-            then exactHandleResult
-            else Nothing
-        _ -> exactHandleResult
+      case parseHandle searchTerm of
+        Nothing -> pure Nothing
+        Just handle -> do
+          HandleAPI.contactFromProfile
+            <$$> HandleAPI.getLocalHandleInfo lsearcherId handle
 
 teamUserSearchH ::
   ( JSON

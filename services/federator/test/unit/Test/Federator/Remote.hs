@@ -22,7 +22,6 @@ import Control.Monad.Codensity
 import Data.Domain
 import Federator.Discovery
 import Federator.Env (TLSSettings)
-import Federator.MockServer (startMockServer)
 import Federator.Options
 import Federator.Remote
 import Federator.Run (mkTLSSettingsOrThrow)
@@ -31,6 +30,7 @@ import Network.HTTP.Types (status200)
 import Network.Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.WarpTLS as Warp
+import Network.Wai.Utilities.MockServer (startMockServer)
 import Polysemy
 import Polysemy.Embed
 import Polysemy.Error

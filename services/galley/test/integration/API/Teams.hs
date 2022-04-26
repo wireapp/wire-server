@@ -29,6 +29,7 @@ import qualified API.Util.TeamFeature as Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import qualified Brig.Types as Brig
+import qualified Brig.Types.Intra as Brig
 import Control.Arrow ((>>>))
 import Control.Lens hiding ((#), (.=))
 import Control.Monad.Catch
@@ -131,6 +132,8 @@ tests s =
       test s "update conversation as member" (testUpdateTeamConv RoleMember roleNameWireAdmin),
       test s "update conversation as partner" (testUpdateTeamConv RoleExternalPartner roleNameWireMember),
       test s "delete binding team internal single member" testDeleteBindingTeamSingleMember,
+      test s "delete binding team internal no members" testDeleteBindingTeamNoMembers,
+      test s "delete binding team more than one member" testDeleteBindingTeamMoreThanOneMember,
       test s "delete binding team (owner has passwd)" (testDeleteBindingTeam True),
       test s "delete binding team (owner has no passwd)" (testDeleteBindingTeam False),
       testGroup
@@ -1089,6 +1092,46 @@ testDeleteBindingTeamSingleMember = do
   -- Let's clean the queue, just in case
   ensureQueueEmpty
 
+testDeleteBindingTeamNoMembers :: TestM ()
+testDeleteBindingTeamNoMembers = do
+  g <- view tsGalley
+  (owner, tid) <- Util.createBindingTeam
+  deleteUser owner !!! const 200 === statusCode
+  ensureQueueEmpty
+  refreshIndex
+  delete (g . paths ["/i/teams", toByteString' tid]) !!! const 202 === statusCode
+  tryAssertQueue 10 "team delete, should be there" tDelete
+  ensureQueueEmpty
+
+testDeleteBindingTeamMoreThanOneMember :: TestM ()
+testDeleteBindingTeamMoreThanOneMember = do
+  g <- view tsGalley
+  b <- view tsBrig
+  c <- view tsCannon
+  (alice, tid, members) <- Util.createBindingTeamWithNMembers 10
+  ensureQueueEmpty
+  void . WS.bracketRN c (alice : members) $ \(wsAlice : wsMembers) -> do
+    -- deleting a team with more than one member should be forbidden
+    delete (g . paths ["/i/teams", toByteString' tid]) !!! do
+      const 403 === statusCode
+      const "not-one-member-team" === (Error.label . responseJsonUnsafeWithMsg "error label when deleting a team")
+    -- now try again with the 'force' query flag, which should work
+    delete (g . paths ["/i/teams", toByteString' tid] . queryItem "force" "true") !!! do
+      const 202 === statusCode
+    checkUserDeleteEvent alice wsAlice
+    zipWithM_ checkUserDeleteEvent members wsMembers
+    tryAssertQueue 10 "team delete, should be there" tDelete
+
+  let ensureDeleted :: UserId -> TestM ()
+      ensureDeleted uid = do
+        resp <- get (b . paths ["/i/users", toByteString' uid, "status"]) <!! const 200 === statusCode
+        let mbStatus = fmap Brig.fromAccountStatusResp . responseJsonUnsafe $ resp
+        liftIO $ mbStatus @?= Just Brig.Deleted
+
+  ensureDeleted alice
+  for_ members ensureDeleted
+  ensureQueueEmpty
+
 testDeleteTeamVerificationCodeSuccess :: TestM ()
 testDeleteTeamVerificationCodeSuccess = do
   g <- view tsGalley
@@ -1110,6 +1153,9 @@ testDeleteTeamVerificationCodeSuccess = do
   tryAssertQueue 10 "team delete, should be there" tDelete
   assertQueueEmpty
 
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- Test that team cannot be deleted with missing second factor email verification code when this feature is enabled
 testDeleteTeamVerificationCodeMissingCode :: TestM ()
 testDeleteTeamVerificationCodeMissingCode = do
   g <- view tsGalley
@@ -1130,6 +1176,11 @@ testDeleteTeamVerificationCodeMissingCode = do
       const "code-authentication-required" === (Error.label . responseJsonUnsafeWithMsg "error label")
   assertQueueEmpty
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- Test that team cannot be deleted with expired second factor email verification code when this feature is enabled
 testDeleteTeamVerificationCodeExpiredCode :: TestM ()
 testDeleteTeamVerificationCodeExpiredCode = do
   g <- view tsGalley
@@ -1153,6 +1204,11 @@ testDeleteTeamVerificationCodeExpiredCode = do
       const "code-authentication-failed" === (Error.label . responseJsonUnsafeWithMsg "error label")
   assertQueueEmpty
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- Test that team cannot be deleted with wrong second factor email verification code when this feature is enabled
 testDeleteTeamVerificationCodeWrongCode :: TestM ()
 testDeleteTeamVerificationCodeWrongCode = do
   g <- view tsGalley
@@ -1173,6 +1229,8 @@ testDeleteTeamVerificationCodeWrongCode = do
       const 403 === statusCode
       const "code-authentication-failed" === (Error.label . responseJsonUnsafeWithMsg "error label")
   assertQueueEmpty
+
+-- @END
 
 setFeatureLockStatus :: forall (a :: Public.TeamFeatureName). (Public.KnownTeamFeatureName a) => TeamId -> Public.LockStatusValue -> TestM ()
 setFeatureLockStatus tid status = do

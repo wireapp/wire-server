@@ -42,8 +42,7 @@ instance IsOption IntegrationConfigFile where
             <> help (untag (optionHelp :: Tagged IntegrationConfigFile String))
         )
 
-handleParseError :: (Show a) => Either a b -> IO (Maybe b)
+handleParseError :: (Show a) => Either a b -> IO b
 handleParseError (Left err) = do
-  putStrLn $ "Parse failed: " ++ show err ++ "\nFalling back to environment variables"
-  pure Nothing
-handleParseError (Right val) = pure $ Just val
+  error $ "Parse failed: " ++ show err ++ "\nFalling back to environment variables"
+handleParseError (Right val) = pure val

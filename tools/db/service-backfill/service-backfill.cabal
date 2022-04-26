@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d72d11c1f8954ebb055cecdaed92fb6e31c1b534a8083b486f14bbcf5849e0ba
+-- hash: eea1868ca30f5a543a41c3059a0f4dd1dc220703b7e0ffe78baa4e70381e9934
 
 name:           service-backfill
 version:        1.0.0
@@ -56,7 +56,6 @@ executable service-backfill
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

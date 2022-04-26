@@ -27,6 +27,7 @@ import Bilge.Assert
 import qualified Cassandra as Cql
 import Control.Arrow ((&&&))
 import Control.Concurrent.Async (Async, async, concurrently_, forConcurrently_, wait)
+import qualified Control.Concurrent.Async as Async
 import Control.Lens (view, (%~), (.~), (^.), (^?), _2)
 import Control.Retry (constantDelay, limitRetries, recoverAll, retrying)
 import Data.Aeson hiding (json)
@@ -48,6 +49,7 @@ import qualified Data.Set as Set
 import qualified Data.Text.Encoding as T
 import qualified Data.UUID as UUID
 import Data.UUID.V4
+import Gundeck.Options
 import qualified Gundeck.Push.Data as Push
 import Gundeck.Types
 import Imports
@@ -61,6 +63,7 @@ import System.Timeout (timeout)
 import Test.Tasty
 import Test.Tasty.HUnit
 import TestSetup
+import Util (runRedisProxy, withSettingsOverrides)
 import qualified Prelude
 
 appName :: AppName
@@ -82,7 +85,8 @@ tests s =
           test s "Push many to Cannon via bulkpush (via gundeck; e2e notif)" $ bulkPush True 50 8,
           test s "Send a push, ensure origin does not receive it" sendSingleUserNoPiggyback,
           test s "Targeted push by connection" targetConnectionPush,
-          test s "Targeted push by client" targetClientPush
+          test s "Targeted push by client" targetClientPush,
+          test s "Store notifications even when redis is down" storeNotificationsEvenWhenRedisIsDown
         ],
       testGroup
         "Notifications"
@@ -127,6 +131,15 @@ tests s =
 -----------------------------------------------------------------------------
 -- Push
 
+-- For one-of manual sanity tests if gundeck loses its connection to redis while this test is running.
+-- TODO remove commented code.
+-- addUser :: TestM ()
+-- addUser = forever $ do
+--   putStrLn "Running Test"
+--   void registerUser `catch` (\(_ :: SomeException) -> liftIO $ putStrLn "Failure")
+--   putStrLn "Ran Test"
+--   threadDelay 10000
+--
 addUser :: TestM (UserId, ConnId)
 addUser = registerUser
 
@@ -416,6 +429,22 @@ targetClientPush = do
       recipient u RouteAny
         & recipientClients .~ RecipientClientsSome (List1.singleton c)
     push u c = newPush (Just u) (unsafeRange (Set.singleton (rcpt u c))) (pload c)
+
+storeNotificationsEvenWhenRedisIsDown :: TestM ()
+storeNotificationsEvenWhenRedisIsDown = do
+  ally <- randomId
+  origRedisEndpoint <- view $ tsOpts . optRedis
+  let proxyPort = 10112
+  redisProxyServer <- liftIO . async $ runRedisProxy (origRedisEndpoint ^. rHost) (origRedisEndpoint ^. rPort) proxyPort
+  withSettingsOverrides (optRedis .~ RedisEndpoint "localhost" proxyPort (origRedisEndpoint ^. rConnectionMode)) $ do
+    let pload = textPayload "hello"
+        push = buildPush ally [(ally, RecipientClientsAll)] pload
+    gu <- view tsGundeck
+    liftIO $ Async.cancel redisProxyServer
+    post (runGundeckR gu . path "i/push/v2" . json [push]) !!! const 200 === statusCode
+
+  ns <- listNotifications ally Nothing
+  liftIO $ assertEqual ("Expected 1 notification, got: " <> show ns) 1 (length ns)
 
 -----------------------------------------------------------------------------
 -- Notifications

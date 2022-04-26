@@ -498,6 +498,15 @@ getConversationAndCheckMembership uid lcnv = do
       lcnv
   pure conv
 
+getConversationWithError ::
+  ( Member ConversationStore r,
+    Member (ErrorS 'ConvNotFound) r
+  ) =>
+  Local ConvId ->
+  Sem r Data.Conversation
+getConversationWithError lcnv =
+  getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+
 getConversationAndMemberWithError ::
   forall e uid mem r.
   (Members '[ConversationStore, ErrorS 'ConvNotFound, ErrorS e] r, IsConvMemberId uid mem) =>
@@ -505,10 +514,7 @@ getConversationAndMemberWithError ::
   Local ConvId ->
   Sem r (Data.Conversation, mem)
 getConversationAndMemberWithError usr lcnv = do
-  c <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-  when (DataTypes.isConvDeleted c) $ do
-    deleteConversation (tUnqualified lcnv)
-    throwS @'ConvNotFound
+  c <- getConversationWithError lcnv
   member <- noteS @e $ getConvMember lcnv c usr
   pure (c, member)
 

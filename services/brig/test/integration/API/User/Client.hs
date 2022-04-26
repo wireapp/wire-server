@@ -127,6 +127,9 @@ testAddGetClientVerificationCode db brig galley = do
     const 200 === statusCode
     const (Just c) === responseJsonMaybe
 
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- Test that device cannot be added with missing second factor email verification code when this feature is enabled
 testAddGetClientMissingCode :: Brig -> Galley -> Http ()
 testAddGetClientMissingCode brig galley = do
   (u, tid) <- Util.createUserWithTeam' brig
@@ -141,6 +144,11 @@ testAddGetClientMissingCode brig galley = do
     const 403 === statusCode
     const (Just "code-authentication-required") === fmap Error.label . responseJsonMaybe
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- Test that device cannot be added with wrong second factor email verification code when this feature is enabled
 testAddGetClientWrongCode :: Brig -> Galley -> Http ()
 testAddGetClientWrongCode brig galley = do
   (u, tid) <- Util.createUserWithTeam' brig
@@ -156,6 +164,11 @@ testAddGetClientWrongCode brig galley = do
     const 403 === statusCode
     const (Just "code-authentication-failed") === fmap Error.label . responseJsonMaybe
 
+-- @END
+
+-- @SF.Channel @TSFI.RESTfulAPI @S2
+--
+-- Test that device cannot be added with expired second factor email verification code when this feature is enabled
 testAddGetClientCodeExpired :: DB.ClientState -> Brig -> Galley -> Http ()
 testAddGetClientCodeExpired db brig galley = do
   (u, tid) <- Util.createUserWithTeam' brig
@@ -175,6 +188,8 @@ testAddGetClientCodeExpired db brig galley = do
   addClient' codeValue !!! do
     const 403 === statusCode
     const (Just "code-authentication-failed") === fmap Error.label . responseJsonMaybe
+
+-- @END
 
 data AddGetClient = AddGetClient
   { addWithPassword :: Bool,
@@ -538,7 +553,7 @@ testTooManyClients opts brig = do
     addClient brig uid (defNewClient PermanentClientType [somePrekeys !! 11] (someLastPrekeys !! 11)) !!! do
       const 403 === statusCode
       const (Just "too-many-clients") === fmap Error.label . responseJsonMaybe
-      const (Just "application/json;charset=utf-8") === getHeader "Content-Type"
+      const (Just "application/json") === getHeader "Content-Type"
 
 -- @END
 

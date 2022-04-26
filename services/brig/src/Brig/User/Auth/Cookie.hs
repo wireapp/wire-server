@@ -49,6 +49,7 @@ import qualified Brig.User.Auth.DB.Cookie as DB
 import qualified Brig.ZAuth as ZAuth
 import Cassandra
 import Control.Lens (to, view)
+import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id
 import qualified Data.List as List
@@ -66,11 +67,17 @@ import qualified Web.Cookie as WebCookie
 -- Basic Cookie Management
 
 newCookie ::
-  ZAuth.UserTokenLike u =>
+  ( ZAuth.UserTokenLike u,
+    MonadReader Env m,
+    MonadIO m,
+    ZAuth.MonadZAuth m,
+    MonadThrow m,
+    MonadClient m
+  ) =>
   UserId ->
   CookieType ->
   Maybe CookieLabel ->
-  AppIO r (Cookie (ZAuth.Token u))
+  m (Cookie (ZAuth.Token u))
 newCookie uid typ label = do
   now <- liftIO =<< view currentTime
   tok <-
@@ -87,15 +94,22 @@ newCookie uid typ label = do
             cookieSucc = Nothing,
             cookieValue = tok
           }
-  wrapClient $ DB.insertCookie uid c Nothing
+  DB.insertCookie uid c Nothing
   return c
 
 -- | Renew the given cookie with a fresh token, if its age
 -- exceeds the configured minimum threshold.
 nextCookie ::
-  ZAuth.UserTokenLike u =>
+  ( ZAuth.UserTokenLike u,
+    MonadReader Env m,
+    MonadIO m,
+    MonadIO m,
+    Log.MonadLogger m,
+    ZAuth.MonadZAuth m,
+    MonadClient m
+  ) =>
   Cookie (ZAuth.Token u) ->
-  AppIO r (Maybe (Cookie (ZAuth.Token u)))
+  m (Maybe (Cookie (ZAuth.Token u)))
 nextCookie c = do
   s <- view settings
   now <- liftIO =<< view currentTime
@@ -113,7 +127,7 @@ nextCookie c = do
       Just ck -> do
         let uid = ZAuth.userTokenOf (cookieValue c)
         trackSuperseded uid (cookieId c)
-        cs <- wrapClient . DB.listCookies $ uid
+        cs <- DB.listCookies uid
         case List.find (\x -> cookieId x == ck && persist x) cs of
           Nothing -> renewCookie c
           Just c' -> do
@@ -122,9 +136,13 @@ nextCookie c = do
 
 -- | Renew the given cookie with a fresh token.
 renewCookie ::
-  ZAuth.UserTokenLike u =>
+  ( ZAuth.UserTokenLike u,
+    MonadReader Env m,
+    ZAuth.MonadZAuth m,
+    MonadClient m
+  ) =>
   Cookie (ZAuth.Token u) ->
-  AppIO r (Cookie (ZAuth.Token u))
+  m (Cookie (ZAuth.Token u))
 renewCookie old = do
   let t = cookieValue old
   let uid = ZAuth.userTokenOf t
@@ -135,7 +153,7 @@ renewCookie old = do
   -- an ever growing chain of superseded cookies.
   let old' = old {cookieSucc = Just (cookieId new)}
   ttl <- setUserCookieRenewAge <$> view settings
-  wrapClient $ DB.insertCookie uid old' (Just (DB.TTL (fromIntegral ttl)))
+  DB.insertCookie uid old' (Just (DB.TTL (fromIntegral ttl)))
   return new
 
 -- | Whether a user has not renewed any of her cookies for longer than
@@ -211,13 +229,18 @@ revokeCookies u ids labels = do
 -- Limited Cookies
 
 newCookieLimited ::
-  ZAuth.UserTokenLike t =>
+  ( ZAuth.UserTokenLike t,
+    MonadReader Env m,
+    MonadIO m,
+    MonadClient m,
+    ZAuth.MonadZAuth m
+  ) =>
   UserId ->
   CookieType ->
   Maybe CookieLabel ->
-  AppIO r (Either RetryAfter (Cookie (ZAuth.Token t)))
+  m (Either RetryAfter (Cookie (ZAuth.Token t)))
 newCookieLimited u typ label = do
-  cs <- filter ((typ ==) . cookieType) <$> wrapClient (DB.listCookies u)
+  cs <- filter ((typ ==) . cookieType) <$> DB.listCookies u
   now <- liftIO =<< view currentTime
   lim <- CookieLimit . setUserCookieLimit <$> view settings
   thr <- setUserCookieThrottle <$> view settings
@@ -227,7 +250,7 @@ newCookieLimited u typ label = do
     else case throttleCookies now thr cs of
       Just wait -> return (Left wait)
       Nothing -> do
-        wrapClient $ revokeCookies u evict []
+        revokeCookies u evict []
         Right <$> newCookie u typ label
 
 --------------------------------------------------------------------------------

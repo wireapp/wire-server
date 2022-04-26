@@ -59,7 +59,6 @@ import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
-import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
 import Galley.Options
 import qualified Galley.Types.Clients as Clients
@@ -70,6 +69,7 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Log
+import Wire.API.Conversation.Protocol
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -373,29 +373,26 @@ postQualifiedOtrMessage ::
 postQualifiedOtrMessage senderType sender mconn lcnv msg =
   runError @(MessageNotSent MessageSendingStatus)
     . mapToRuntimeError @'ConvNotFound @(MessageNotSent MessageSendingStatus) MessageNotSentConversationNotFound
+    . mapToRuntimeError @'InvalidOperation @(MessageNotSent MessageSendingStatus) MessageNotSentConversationNotFound
     $ do
-      alive <- isConversationAlive (tUnqualified lcnv)
       let localDomain = tDomain lcnv
       now <- input
       let nowMillis = toUTCTimeMillis now
       let senderDomain = qDomain sender
           senderUser = qUnqualified sender
       let senderClient = qualifiedNewOtrSender msg
-      unless alive $ do
-        deleteConversation (tUnqualified lcnv)
-        throwS @'ConvNotFound
 
-      -- conversation members
-      localMembers <- getLocalMembers (tUnqualified lcnv)
-      remoteMembers <- getRemoteMembers (tUnqualified lcnv)
+      conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+      unless (protocolTag (convProtocol conv) == ProtocolProteusTag) $
+        throwS @'InvalidOperation
 
-      let localMemberIds = lmId <$> localMembers
+      let localMemberIds = lmId <$> convLocalMembers conv
           localMemberMap :: Map UserId LocalMember
-          localMemberMap = Map.fromList (map (\mem -> (lmId mem, mem)) localMembers)
+          localMemberMap = Map.fromList (map (\mem -> (lmId mem, mem)) (convLocalMembers conv))
           members :: Set (Qualified UserId)
           members =
             Set.map (`Qualified` localDomain) (Map.keysSet localMemberMap)
-              <> Set.fromList (map (qUntagged . rmId) remoteMembers)
+              <> Set.fromList (map (qUntagged . rmId) (convRemoteMembers conv))
       isInternal <- view (optSettings . setIntraListing) <$> input
 
       -- check if the sender is part of the conversation
@@ -409,12 +406,12 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
           else getClients localMemberIds
       let qualifiedLocalClients =
             Map.mapKeys (localDomain,)
-              . makeUserMap (Set.fromList (map lmId localMembers))
+              . makeUserMap (Set.fromList (map lmId (convLocalMembers conv)))
               . Clients.toMap
               $ localClients
 
       -- get remote clients
-      qualifiedRemoteClients <- getRemoteClients remoteMembers
+      qualifiedRemoteClients <- getRemoteClients (convRemoteMembers conv)
       let qualifiedClients = qualifiedLocalClients <> qualifiedRemoteClients
 
       -- check if the sender client exists (as one of the clients in the conversation)

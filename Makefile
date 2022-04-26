@@ -8,13 +8,13 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed on internal kubernetes testing environments
-CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws nginx-ingress-controller nginx-ingress-services wire-server-metrics fluent-bit kibana sftd restund
+CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws nginx-ingress-controller nginx-ingress-services wire-server-metrics fluent-bit kibana sftd restund coturn
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
-CHARTS_RELEASE        := wire-server redis-ephemeral databases-ephemeral fake-aws fake-aws-s3 fake-aws-sqs aws-ingress  fluent-bit kibana backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external elasticsearch-ephemeral minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd restund
+CHARTS_RELEASE        := wire-server redis-ephemeral databases-ephemeral fake-aws fake-aws-s3 fake-aws-sqs aws-ingress  fluent-bit kibana backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external elasticsearch-ephemeral minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd restund coturn
 BUILDAH_PUSH          ?= 0
 KIND_CLUSTER_NAME     := wire-server
 BUILDAH_KIND_LOAD     ?= 1
@@ -255,9 +255,6 @@ git-add-cassandra-schema-impl:
 	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1'))
 	( echo '-- automatically generated with `make git-add-cassandra-schema`' ; docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) > ./docs/reference/cassandra-schema.cql
 	git add ./docs/reference/cassandra-schema.cql
-
-.PHONY: git-add-cassandra-schema-cabal
-git-add-cassandra-schema-cabal: db-reset-cabal git-add-cassandra-schema-impl
 
 .PHONY: cqlsh
 cqlsh:
@@ -527,3 +524,21 @@ kind-restart-%: .local/kind-kubeconfig
 helm-template-%: clean-charts charts-integration
 	./hack/bin/helm-template.sh $(*)
 
+# make bonanza-deb version=$VERSION
+.PHONY: bonanza-deb
+bonanza-deb:
+	makedeb --name=bonanza \
+            --version=$(version) \
+            --debian-dir=tools/bonanza/deb \
+            --build=0 \
+            --architecture=amd64 \
+            --output-dir=dist
+
+# make makedeb-deb version=$VERSION
+.PHONY: makedeb-deb
+makedeb-deb:
+	$(eval $@_DIR := $(shell mktemp -d -t makedeb.XXXXXXXXXX))
+	cp -R -L tools/makedeb/deb $($@_DIR)
+	sed -i "s/<<VERSION_NUMBER>>/$(version)/g" $($@_DIR)/deb/DEBIAN/control
+	cat $($@_DIR)/deb/DEBIAN/control
+	dpkg-deb -b $($@_DIR)/deb ./dist/makedeb_$(version)+0_amd64.deb

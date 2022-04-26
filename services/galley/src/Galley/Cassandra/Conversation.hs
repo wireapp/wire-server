@@ -24,9 +24,8 @@ where
 
 import Cassandra hiding (Set)
 import qualified Cassandra as Cql
-import qualified Crypto.Hash.BLAKE2.BLAKE2b as Blake2
+import Control.Monad.Trans.Maybe
 import Data.ByteString.Conversion
-import Data.Domain
 import Data.Id
 import qualified Data.Map as Map
 import Data.Misc
@@ -48,25 +47,26 @@ import Polysemy
 import Polysemy.Input
 import Polysemy.TinyLog
 import qualified System.Logger as Log
-import System.Random
 import qualified UnliftIO
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Protocol
+import Wire.API.MLS.Group
 
 createConversation :: Local ConvId -> NewConversation -> Client Conversation
 createConversation lcnv nc = do
   let meta = ncMetadata nc
-  (proto, mgid) <- case ncProtocol nc of
-    ProtocolProteusTag -> pure (ProtocolProteus, Nothing)
-    ProtocolMLSTag -> do
-      gid <- liftIO $ toGroupId (tUnqualified lcnv, tDomain lcnv)
-      pure
-        ( ProtocolMLS
-            ConversationMLSData
-              { cnvmlsGroupId = gid
-              },
-          Just gid
-        )
+      (proto, mgid, mep) = case ncProtocol nc of
+        ProtocolProteusTag -> (ProtocolProteus, Nothing, Nothing)
+        ProtocolMLSTag ->
+          let gid = convToGroupId lcnv
+           in ( ProtocolMLS
+                  ConversationMLSData
+                    { cnvmlsGroupId = gid,
+                      cnvmlsEpoch = Epoch 0
+                    },
+                Just gid,
+                Just (Epoch 0)
+              )
   retry x5 . batch $ do
     setType BatchLogged
     setConsistency LocalQuorum
@@ -82,7 +82,8 @@ createConversation lcnv nc = do
         cnvmMessageTimer meta,
         cnvmReceiptMode meta,
         ncProtocol nc,
-        mgid
+        mgid,
+        mep
       )
     for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, tUnqualified lcnv)
     for_ mgid $ \gid -> addPrepQuery Cql.insertGroupId (gid, tUnqualified lcnv, tDomain lcnv)
@@ -92,20 +93,10 @@ createConversation lcnv nc = do
       { convId = tUnqualified lcnv,
         convLocalMembers = lmems,
         convRemoteMembers = rmems,
-        convDeleted = Nothing,
+        convDeleted = False,
         convMetadata = meta,
         convProtocol = proto
       }
-  where
-    toGroupId :: MonadIO m => (ConvId, Domain) -> m GroupId
-    toGroupId (cId, d) = do
-      g <- newStdGen
-      let (len, _) = genWord8 g
-      -- The length can be at most 256 bytes
-      pure
-        . GroupId
-        . Blake2.hash (fromIntegral len) mempty
-        $ toByteString' cId <> toByteString' d
 
 deleteConversation :: ConvId -> Client ()
 deleteConversation cid = do
@@ -124,7 +115,7 @@ conversationMeta conv =
   (toConvMeta =<<)
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
-    toConvMeta (t, c, a, r, r', n, i, _, mt, rm, _, _) = do
+    toConvMeta (t, c, a, r, r', n, i, _, mt, rm, _, _, _) = do
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
       pure $ ConversationMetadata t c (defAccess t a) accessRoles n i mt rm
@@ -157,6 +148,9 @@ updateConvReceiptMode cid receiptMode = retry x5 $ write Cql.updateConvReceiptMo
 updateConvMessageTimer :: ConvId -> Maybe Milliseconds -> Client ()
 updateConvMessageTimer cid mtimer = retry x5 $ write Cql.updateConvMessageTimer (params LocalQuorum (mtimer, cid))
 
+updateConvEpoch :: ConvId -> Epoch -> Client ()
+updateConvEpoch cid epoch = retry x5 $ write Cql.updateConvEpoch (params LocalQuorum (epoch, cid))
+
 getConversation :: ConvId -> Client (Maybe Conversation)
 getConversation conv = do
   cdata <- UnliftIO.async $ retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
@@ -166,18 +160,21 @@ getConversation conv = do
       <$> members conv
       <*> UnliftIO.wait remoteMems
       <*> UnliftIO.wait cdata
-  conversationGC mbConv
+  runMaybeT $ conversationGC =<< maybe mzero pure mbConv
 
-{- "Garbage collect" the conversation, i.e. the conversation may be
-   marked as deleted, in which case we delete it and return Nothing -}
+-- | "Garbage collect" a 'Conversation', i.e. if the conversation is
+-- marked as deleted, actually remove it from the database and return
+-- 'Nothing'.
 conversationGC ::
-  Maybe Conversation ->
-  Client (Maybe Conversation)
-conversationGC conv = case join (convDeleted <$> conv) of
-  (Just True) -> do
-    sequence_ $ deleteConversation . convId <$> conv
-    return Nothing
-  _ -> return conv
+  Conversation ->
+  MaybeT Client Conversation
+conversationGC conv =
+  asum
+    [ -- return conversation if not deleted
+      guard (not (convDeleted conv)) $> conv,
+      -- actually delete it and fail
+      lift (deleteConversation (convId conv)) *> mzero
+    ]
 
 localConversations ::
   (Members '[Embed IO, Input ClientState, TinyLog] r) =>
@@ -200,8 +197,8 @@ localConversations ids = do
       let m =
             Map.fromList $
               map
-                ( \(cId, cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm, p, gid) ->
-                    (cId, (cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm, p, gid))
+                ( \(cId, cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm, p, gid, mep) ->
+                    (cId, (cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm, p, gid, mep))
                 )
                 cs
       return $ map (`Map.lookup` m) ids
@@ -238,32 +235,27 @@ remoteConversationStatusOnDomain uid rconvs =
         toMemberStatus (omus, omur, oar, oarr, hid, hidr)
       )
 
-toProtocol :: Maybe ProtocolTag -> Maybe GroupId -> Maybe Protocol
-toProtocol Nothing _ = Just ProtocolProteus
-toProtocol (Just ProtocolProteusTag) _ = Just ProtocolProteus
-toProtocol (Just ProtocolMLSTag) mgid = do
-  gid <- mgid
-  pure $
-    ProtocolMLS
-      ConversationMLSData
-        { cnvmlsGroupId = gid
-        }
+toProtocol :: Maybe ProtocolTag -> Maybe GroupId -> Maybe Epoch -> Maybe Protocol
+toProtocol Nothing _ _ = Just ProtocolProteus
+toProtocol (Just ProtocolProteusTag) _ _ = Just ProtocolProteus
+toProtocol (Just ProtocolMLSTag) mgid mepoch =
+  ProtocolMLS <$> (ConversationMLSData <$> mgid <*> mepoch)
 
 toConv ::
   ConvId ->
   [LocalMember] ->
   [RemoteMember] ->
-  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId) ->
+  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch) ->
   Maybe Conversation
 toConv cid ms remoteMems mconv = do
-  (cty, uid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid) <- mconv
+  (cty, uid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep) <- mconv
   let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
       accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
-  proto <- toProtocol ptag mgid
+  proto <- toProtocol ptag mgid mep
   pure
     Conversation
       { convId = cid,
-        convDeleted = del,
+        convDeleted = fromMaybe False del,
         convLocalMembers = ms,
         convRemoteMembers = remoteMems,
         convProtocol = proto,
@@ -296,6 +288,7 @@ interpretConversationStoreToCassandra = interpret $ \case
   CreateConversationId -> Id <$> embed nextRandom
   CreateConversation loc nc -> embedClient $ createConversation loc nc
   GetConversation cid -> embedClient $ getConversation cid
+  GetConversationIdByGroupId gId -> embedClient $ lookupGroupId gId
   GetConversations cids -> localConversations cids
   GetConversationMetadata cid -> embedClient $ conversationMeta cid
   IsConversationAlive cid -> embedClient $ isConvAlive cid
@@ -306,6 +299,6 @@ interpretConversationStoreToCassandra = interpret $ \case
   SetConversationAccess cid value -> embedClient $ updateConvAccess cid value
   SetConversationReceiptMode cid value -> embedClient $ updateConvReceiptMode cid value
   SetConversationMessageTimer cid value -> embedClient $ updateConvMessageTimer cid value
+  SetConversationEpoch cid epoch -> embedClient $ updateConvEpoch cid epoch
   DeleteConversation cid -> embedClient $ deleteConversation cid
-  GetConversationIdByGroupId gId -> embedClient $ lookupGroupId gId
   SetGroupId gId cid -> embedClient $ mapGroupId gId cid

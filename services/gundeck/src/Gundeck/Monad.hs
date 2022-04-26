@@ -47,7 +47,7 @@ import Control.Monad.Catch hiding (tryJust)
 import Data.Aeson (FromJSON)
 import Data.Default (def)
 import Data.Misc (Milliseconds (..))
-import qualified Database.Redis.IO as Redis
+import qualified Database.Redis as Redis
 import Gundeck.Env
 import Imports
 import Network.HTTP.Types
@@ -74,8 +74,14 @@ newtype Gundeck a = Gundeck
       MonadUnliftIO
     )
 
-instance Redis.MonadClient Gundeck where
-  liftClient m = view rstate >>= \p -> Redis.runRedis p m
+instance Redis.MonadRedis Gundeck where
+  liftRedis m = do
+    p <- view rstate
+    liftIO $ Redis.runRedis p m
+
+instance Redis.RedisCtx Gundeck (Either Redis.Reply) where
+  returnDecode :: Redis.RedisResult a => Redis.Reply -> Gundeck (Either Redis.Reply a)
+  returnDecode = Redis.liftRedis . Redis.returnDecode
 
 instance MonadLogger Gundeck where
   log l m = do

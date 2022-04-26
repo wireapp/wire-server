@@ -47,24 +47,28 @@ uploadKeyPackages lusr cid (kpuKeyPackages -> kps) = do
   kps' <- traverse (validateKeyPackage identity) kps
   lift . wrapClient $ Data.insertKeyPackages (tUnqualified lusr) cid kps'
 
-claimKeyPackages :: Local UserId -> Qualified UserId -> Handler r KeyPackageBundle
-claimKeyPackages lusr =
+claimKeyPackages :: Local UserId -> Qualified UserId -> Maybe ClientId -> Handler r KeyPackageBundle
+claimKeyPackages lusr target skipOwn =
   foldQualified
     lusr
-    (claimLocalKeyPackages lusr)
+    (claimLocalKeyPackages lusr skipOwn)
     (\_ -> throwStd federationNotImplemented)
+    target
 
-claimLocalKeyPackages :: Local UserId -> Local UserId -> Handler r KeyPackageBundle
-claimLocalKeyPackages lusr target = do
+claimLocalKeyPackages :: Local UserId -> Maybe ClientId -> Local UserId -> Handler r KeyPackageBundle
+claimLocalKeyPackages lusr skipOwn target = do
+  -- skip own client when the target is the requesting user itself
+  let own = guard (lusr == target) *> skipOwn
   clients <- map clientId <$> wrapClientE (Data.lookupClients (tUnqualified target))
   withExceptT clientError $
     wrapHttpClientE $ guardLegalhold (ProtectedUser (tUnqualified lusr)) (mkUserClients [(tUnqualified target, clients)])
   lift $
-    KeyPackageBundle . Set.fromList . catMaybes <$> traverse mkEntry clients
+    KeyPackageBundle . Set.fromList . catMaybes <$> traverse (mkEntry own) clients
   where
-    mkEntry :: ClientId -> AppIO r (Maybe KeyPackageBundleEntry)
-    mkEntry c =
-      runMaybeT $
+    mkEntry :: Maybe ClientId -> ClientId -> AppT r (Maybe KeyPackageBundleEntry)
+    mkEntry own c =
+      runMaybeT $ do
+        guard $ Just c /= own
         uncurry (KeyPackageBundleEntry (qUntagged target) c)
           <$> wrapClientM (Data.claimKeyPackage target c)
 

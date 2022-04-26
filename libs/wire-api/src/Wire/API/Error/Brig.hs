@@ -53,7 +53,7 @@ data BrigError
   | TooManyTeamMembers
   | MLSIdentityMismatch
   | MLSProtocolError
-  | DuplicateMLSPublicKey
+  | MLSDuplicatePublicKey
   | InvalidPhone
   | UserKeyExists
   | NameManagedByScim
@@ -114,7 +114,7 @@ type instance MapError 'InvalidHandle = 'StaticError 400 "invalid-handle" "The g
 
 type instance MapError 'HandleNotFound = 'StaticError 404 "not-found" "Handle not found"
 
-type instance MapError 'DuplicateMLSPublicKey = 'StaticError 400 "mls-duplicate-public-key" "MLS public key for the given signature scheme already exists"
+type instance MapError 'MLSDuplicatePublicKey = 'StaticError 400 "mls-duplicate-public-key" "MLS public key for the given signature scheme already exists"
 
 type instance MapError 'BlacklistedPhone = 'StaticError 403 "blacklisted-phone" "The given phone number has been blacklisted due to suspected abuse or a complaint"
 

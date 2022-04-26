@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -34,6 +36,7 @@ module Galley.Effects.MemberStore
     -- * Update members
     setSelfMember,
     setOtherMember,
+    addMLSClients,
 
     -- * Delete members
     deleteMembers,
@@ -64,6 +67,7 @@ data MemberStore m a where
   SetOtherMember :: Local ConvId -> Qualified UserId -> OtherMemberUpdate -> MemberStore m ()
   DeleteMembers :: ConvId -> UserList UserId -> MemberStore m ()
   DeleteMembersInRemoteConversation :: Remote ConvId -> [UserId] -> MemberStore m ()
+  AddMLSClients :: ConvId -> UserId -> Set ClientId -> MemberStore m ()
 
 makeSem ''MemberStore
 

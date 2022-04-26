@@ -35,6 +35,9 @@ library
       Galley.API.Mapping
       Galley.API.Message
       Galley.API.MLS
+      Galley.API.MLS.KeyPackage
+      Galley.API.MLS.Message
+      Galley.API.MLS.Welcome
       Galley.API.One2One
       Galley.API.Public
       Galley.API.Public.Servant
@@ -159,7 +162,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -193,6 +195,7 @@ library
     , cryptonite
     , currency-codes >=2.0
     , data-default >=0.5
+    , either
     , enclosed-exceptions >=1.0
     , errors >=2.0
     , exceptions >=0.4
@@ -299,7 +302,6 @@ executable galley
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -340,6 +342,7 @@ executable galley-integration
       API.Federation.Util
       API.MessageTimer
       API.MLS
+      API.MLS.Util
       API.Roles
       API.SQS
       API.Teams
@@ -385,7 +388,6 @@ executable galley-integration
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -529,7 +531,6 @@ executable galley-migrate-data
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -616,6 +617,7 @@ executable galley-schema
       V61_MLSConversation
       V62_TeamFeatureSearchVisibilityInbound
       V63_MLSConversationClients
+      V64_Epoch
       Paths_galley
   hs-source-dirs:
       schema/src
@@ -651,7 +653,6 @@ executable galley-schema
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -692,7 +693,6 @@ test-suite galley-tests
       Test.Galley.API.One2One
       Test.Galley.Intra.User
       Test.Galley.Mapping
-      Test.Galley.Roundtrip
       Paths_galley
   hs-source-dirs:
       test/unit
@@ -728,7 +728,6 @@ test-suite galley-tests
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

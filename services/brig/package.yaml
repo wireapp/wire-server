@@ -244,6 +244,7 @@ executables:
     - network
     - optparse-applicative
     - pem
+    - polysemy
     - process
     - proto-lens
     - QuickCheck

@@ -73,7 +73,6 @@ import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Teams as Teams
-import Galley.Types.UserList
 import Gundeck.Types.Notification
 import Imports
 import qualified Network.HTTP.Types as HTTP
@@ -123,8 +122,6 @@ tests s =
         [ test s "status" status,
           test s "metrics" metrics,
           test s "create Proteus conversation" postProteusConvOk,
-          test s "fail to create MLS conversation" postMLSConvFail,
-          test s "create MLS conversation" postMLSConvOk,
           test s "create conversation with remote users" postConvWithRemoteUsersOk,
           test s "get empty conversations" getConvsOk,
           test s "get conversations by ids" getConvsOk2,
@@ -287,36 +284,6 @@ postProteusConvOk = do
       case evtData e of
         EdConversation c' -> assertConvEquals cnv c'
         _ -> assertFailure "Unexpected event data"
-
-postMLSConvFail :: TestM ()
-postMLSConvFail = do
-  qalice <- randomQualifiedUser
-  let alice = qUnqualified qalice
-  lAlice <- flip toLocalUnsafe alice <$> viewFederationDomain
-  bob <- randomUser
-  connectUsers alice (list1 bob [])
-  postMLSConv lAlice (UserList [bob] []) Nothing [] Nothing Nothing !!! do
-    const 400 === statusCode
-    const (Just "non-empty-member-list") === fmap label . responseJsonError
-
-postMLSConvOk :: TestM ()
-postMLSConvOk = do
-  c <- view tsCannon
-  qalice <- randomQualifiedUser
-  bob <- randomUser
-  let alice = qUnqualified qalice
-  lAlice <- flip toLocalUnsafe alice <$> viewFederationDomain
-  let nameMaxSize = T.replicate 256 "a"
-  connectUsers alice (list1 bob [])
-  WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
-    rsp <-
-      postMLSConv lAlice mempty (Just nameMaxSize) [] Nothing Nothing
-    pure rsp !!! do
-      const 201 === statusCode
-      const Nothing === fmap label . responseJsonError
-    cid <- assertConv rsp RegularConv alice qalice [] (Just nameMaxSize) Nothing
-    WS.assertNoEvent (2 # Second) [wsB]
-    checkConvCreateEvent cid wsA
 
 postConvWithRemoteUsersOk :: TestM ()
 postConvWithRemoteUsersOk = do

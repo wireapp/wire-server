@@ -31,6 +31,7 @@ library:
   - cryptonite >=0.26
   - data-default >=0.5
   - hashable >=1.2
+  - http-api-data
   - iproute >=1.5
   - lens >=4.10
   - lens-datetime >=0.3

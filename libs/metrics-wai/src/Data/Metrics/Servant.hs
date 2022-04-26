@@ -128,6 +128,9 @@ instance
 instance RoutesToPaths rest => RoutesToPaths (MultipartForm tag a :> rest) where
   getRoutes = getRoutes @rest
 
+instance RoutesToPaths api => RoutesToPaths (QueryFlag a :> api) where
+  getRoutes = getRoutes @api
+
 instance
   RoutesToPaths rest =>
   RoutesToPaths (Description desc :> rest)

@@ -22,7 +22,7 @@ module Brig.User.EJPD (ejpdRequest) where
 
 import Brig.API.Handler
 import Brig.API.User (lookupHandle)
-import Brig.App (AppIO, wrapClient, wrapHttp)
+import Brig.App (AppT, wrapClient, wrapHttp)
 import qualified Brig.Data.Connection as Conn
 import Brig.Data.User (lookupUser)
 import qualified Brig.IO.Intra as Intra
@@ -45,14 +45,14 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
   ExceptT $ Right . EJPDResponseBody . catMaybes <$> forM handles (go1 (fromMaybe False includeContacts))
   where
     -- find uid given handle
-    go1 :: Bool -> Handle -> (AppIO r) (Maybe EJPDResponseItem)
+    go1 :: Bool -> Handle -> (AppT r) (Maybe EJPDResponseItem)
     go1 includeContacts' handle = do
       mbUid <- wrapClient $ lookupHandle handle
       mbUsr <- maybe (pure Nothing) (wrapClient . lookupUser NoPendingInvitations) mbUid
       maybe (pure Nothing) (fmap Just . go2 includeContacts') mbUsr
 
     -- construct response item given uid
-    go2 :: Bool -> User -> (AppIO r) EJPDResponseItem
+    go2 :: Bool -> User -> (AppT r) EJPDResponseItem
     go2 includeContacts' target = do
       let uid = userId target
 

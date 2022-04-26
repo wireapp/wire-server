@@ -37,8 +37,7 @@ import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
-import Galley.API.Error
-import Galley.API.LegalHold (getTeamLegalholdWhitelistedH, setTeamLegalholdWhitelistedH, unsetTeamLegalholdWhitelistedH)
+import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
 import Galley.API.One2One
 import Galley.API.Public
@@ -57,10 +56,10 @@ import Galley.Effects.ClientStore
 import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
+import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore
 import Galley.Effects.Paging
 import Galley.Effects.TeamStore
-import Galley.Effects.WaiRoutes
 import qualified Galley.Intra.Push as Intra
 import Galley.Monad
 import Galley.Options
@@ -74,8 +73,6 @@ import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
 import Galley.Types.UserList
 import Imports hiding (head)
-import Network.HTTP.Types (status200)
-import Network.Wai
 import Network.Wai.Predicate hiding (Error, err)
 import qualified Network.Wai.Predicate as Predicate
 import Network.Wai.Routing hiding (App, route, toList)
@@ -85,8 +82,8 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
-import Servant.API hiding (JSON)
-import qualified Servant.API as Servant
+import Servant hiding (JSON)
+import qualified Servant
 import System.Logger.Class hiding (Path, name)
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation hiding (Member)
@@ -100,7 +97,7 @@ import Wire.API.Federation.Error
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti hiding (TeamStatusUpdate)
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
-import Wire.API.Routes.MultiVerb (MultiVerb, RespondEmpty)
+import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley
@@ -109,9 +106,19 @@ import Wire.API.Team.Feature
 type IFeatureAPI =
   IFeatureStatus '[] 'TeamFeatureSSO
     :<|> IFeatureStatus
-           '( ('ActionDenied 'RemoveConversationMember),
+           '( 'ActionDenied 'RemoveConversationMember,
               '( AuthenticationError,
-                 '( 'CannotEnableLegalHoldServiceLargeTeam, '())
+                 '( 'CannotEnableLegalHoldServiceLargeTeam,
+                    '( 'LegalHoldNotEnabled,
+                       '( 'LegalHoldDisableUnimplemented,
+                          '( 'LegalHoldServiceNotRegistered,
+                             '( 'UserLegalHoldIllegalOperation,
+                                '( 'LegalHoldCouldNotBlockConnections, '())
+                              )
+                           )
+                        )
+                     )
+                  )
                )
             )
            'TeamFeatureLegalHold
@@ -166,6 +173,15 @@ type InternalAPIBase =
                :> ConversationVerb
            )
     :<|> Named
+           "guard-legalhold-policy-conflicts"
+           ( "guard-legalhold-policy-conflicts"
+               :> CanThrow 'MissingLegalholdConsent
+               :> ReqBody '[Servant.JSON] GuardLegalholdPolicyConflicts
+               :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "Guard Legalhold Policy")
+           )
+    :<|> ILegalholdWhitelistedTeamsAPI
+    :<|> ITeamsAPI
+    :<|> Named
            "upsert-one2one"
            ( Summary "Create or Update a connect or one2one conversation."
                :> "conversations"
@@ -194,6 +210,105 @@ type InternalAPIBase =
                :> Get '[Servant.JSON] TeamFeatureStatusNoConfig
            )
     :<|> IFeatureAPI
+
+type ILegalholdWhitelistedTeamsAPI =
+  "legalhold"
+    :> "whitelisted-teams"
+    :> Capture "tid" TeamId
+    :> ILegalholdWhitelistedTeamsAPIBase
+
+type ILegalholdWhitelistedTeamsAPIBase =
+  Named
+    "set-team-legalhold-whitelisted"
+    (MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "Team Legalhold Whitelisted"))
+    :<|> Named
+           "unset-team-legalhold-whitelisted"
+           (MultiVerb1 'DELETE '[Servant.JSON] (RespondEmpty 204 "Team Legalhold un-Whitelisted"))
+    :<|> Named
+           "get-team-legalhold-whitelisted"
+           ( MultiVerb
+               'GET
+               '[Servant.JSON]
+               '[ RespondEmpty 404 "Team not Legalhold Whitelisted",
+                  RespondEmpty 200 "Team Legalhold Whitelisted"
+                ]
+               Bool
+           )
+
+type ITeamsAPI = "teams" :> Capture "tid" TeamId :> ITeamsAPIBase
+
+type ITeamsAPIBase =
+  Named "get-team-internal" (CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamData)
+    :<|> Named
+           "create-binding-team"
+           ( ZUser :> ReqBody '[Servant.JSON] BindingNewTeam
+               :> MultiVerb1
+                    'PUT
+                    '[Servant.JSON]
+                    ( WithHeaders
+                        '[Header "Location" TeamId]
+                        TeamId
+                        (RespondEmpty 201 "OK")
+                    )
+           )
+    :<|> Named
+           "delete-binding-team"
+           ( CanThrow 'NoBindingTeam
+               :> CanThrow 'NotAOneMemberTeam
+               :> CanThrow 'DeleteQueueFull
+               :> CanThrow 'TeamNotFound
+               :> QueryFlag "force"
+               :> MultiVerb1 'DELETE '[Servant.JSON] (RespondEmpty 202 "OK")
+           )
+    :<|> Named "get-team-name" ("name" :> CanThrow 'TeamNotFound :> Get '[Servant.JSON] TeamName)
+    :<|> Named
+           "update-team-status"
+           ( "status" :> CanThrow 'TeamNotFound :> CanThrow 'InvalidTeamStatusUpdate
+               :> ReqBody '[Servant.JSON] TeamStatusUpdate
+               :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 200 "OK")
+           )
+    :<|> "members"
+      :> ( Named
+             "unchecked-add-team-member"
+             ( CanThrow 'TooManyTeamMembers
+                 :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
+                 :> ReqBody '[Servant.JSON] NewTeamMember
+                 :> MultiVerb1 'POST '[Servant.JSON] (RespondEmpty 200 "OK")
+             )
+             :<|> Named
+                    "unchecked-get-team-members"
+                    ( QueryParam' '[Strict] "maxResults" (Range 1 HardTruncationLimit Int32)
+                        :> Get '[Servant.JSON] TeamMemberList
+                    )
+             :<|> Named
+                    "unchecked-get-team-member"
+                    ( Capture "uid" UserId :> CanThrow 'TeamMemberNotFound
+                        :> Get '[Servant.JSON] TeamMember
+                    )
+             :<|> Named
+                    "can-user-join-team"
+                    ( "check"
+                        :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
+                        :> MultiVerb1 'GET '[Servant.JSON] (RespondEmpty 200 "User can join")
+                    )
+         )
+    :<|> Named
+           "user-is-team-owner"
+           ( "is-team-owner" :> Capture "uid" UserId
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'TeamMemberNotFound
+               :> CanThrow 'NotATeamMember
+               :> MultiVerb1 'GET '[Servant.JSON] (RespondEmpty 200 "User is team owner")
+           )
+    :<|> "search-visibility"
+      :> ( Named "get-search-visibility-internal" (Get '[Servant.JSON] TeamSearchVisibilityView)
+             :<|> Named
+                    "set-search-visibility-internal"
+                    ( CanThrow 'TeamSearchVisibilityNotEnabled
+                        :> ReqBody '[Servant.JSON] TeamSearchVisibilityView
+                        :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 204 "OK")
+                    )
+         )
 
 type IFeatureStatusGet l f = Named '("iget", f) (FeatureStatusBaseGet l f)
 
@@ -243,9 +358,49 @@ internalAPI =
     mkNamedAPI @"status" (pure ())
       <@> mkNamedAPI @"delete-user" rmUser
       <@> mkNamedAPI @"connect" Create.createConnectConversation
+      <@> mkNamedAPI @"guard-legalhold-policy-conflicts" guardLegalholdPolicyConflictsH
+      <@> legalholdWhitelistedTeamsAPI
+      <@> iTeamsAPI
       <@> mkNamedAPI @"upsert-one2one" iUpsertOne2OneConversation
       <@> mkNamedAPI @"feature-config-snd-factor-password-challenge" getSndFactorPasswordChallengeNoAuth
       <@> featureAPI
+
+legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
+legalholdWhitelistedTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
+  where
+    base :: TeamId -> API ILegalholdWhitelistedTeamsAPIBase GalleyEffects
+    base tid =
+      mkNamedAPI @"set-team-legalhold-whitelisted" (LegalHoldStore.setTeamLegalholdWhitelisted tid)
+        <@> mkNamedAPI @"unset-team-legalhold-whitelisted" (unsetTeamLegalholdWhitelistedH tid)
+        <@> mkNamedAPI @"get-team-legalhold-whitelisted" (LegalHoldStore.isTeamLegalholdWhitelisted tid)
+
+iTeamsAPI :: API ITeamsAPI GalleyEffects
+iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
+  where
+    hoistAPISegment ::
+      (ServerT (seg :> inner) (Sem r) ~ ServerT inner (Sem r)) =>
+      API inner r ->
+      API (seg :> inner) r
+    hoistAPISegment = hoistAPI id
+
+    base :: TeamId -> API ITeamsAPIBase GalleyEffects
+    base tid =
+      mkNamedAPI @"get-team-internal" (Teams.getTeamInternalH tid)
+        <@> mkNamedAPI @"create-binding-team" (Teams.createBindingTeam tid)
+        <@> mkNamedAPI @"delete-binding-team" (Teams.internalDeleteBindingTeam tid)
+        <@> mkNamedAPI @"get-team-name" (Teams.getTeamNameInternalH tid)
+        <@> mkNamedAPI @"update-team-status" (Teams.updateTeamStatus tid)
+        <@> hoistAPISegment
+          ( mkNamedAPI @"unchecked-add-team-member" (Teams.uncheckedAddTeamMember tid)
+              <@> mkNamedAPI @"unchecked-get-team-members" (Teams.uncheckedGetTeamMembersH tid)
+              <@> mkNamedAPI @"unchecked-get-team-member" (Teams.uncheckedGetTeamMember tid)
+              <@> mkNamedAPI @"can-user-join-team" (Teams.canUserJoinTeam tid)
+          )
+        <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwner tid)
+        <@> hoistAPISegment
+          ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
+              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal tid)
+          )
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
@@ -322,53 +477,6 @@ internalSitemap = do
   get "/i/conversations/:cnv/meta" (continue Query.getConversationMetaH) $
     capture "cnv"
 
-  -- Team API (internal) ------------------------------------------------
-
-  get "/i/teams/:tid" (continueE Teams.getTeamInternalH) $
-    capture "tid"
-      .&. accept "application" "json"
-
-  get "/i/teams/:tid/name" (continueE Teams.getTeamNameInternalH) $
-    capture "tid"
-      .&. accept "application" "json"
-
-  put "/i/teams/:tid" (continueE Teams.createBindingTeamH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. jsonRequest @BindingNewTeam
-      .&. accept "application" "json"
-
-  delete "/i/teams/:tid" (continueE Teams.internalDeleteBindingTeamWithOneMemberH) $
-    capture "tid"
-
-  put "/i/teams/:tid/status" (continueE Teams.updateTeamStatusH) $
-    capture "tid"
-      .&. jsonRequest @TeamStatusUpdate
-      .&. accept "application" "json"
-
-  post "/i/teams/:tid/members" (continueE Teams.uncheckedAddTeamMemberH) $
-    capture "tid"
-      .&. jsonRequest @NewTeamMember
-      .&. accept "application" "json"
-
-  get "/i/teams/:tid/members" (continue Teams.uncheckedGetTeamMembersH) $
-    capture "tid"
-      .&. def (unsafeRange hardTruncationLimit) (query "maxResults")
-      .&. accept "application" "json"
-
-  get "/i/teams/:tid/members/:uid" (continueE Teams.uncheckedGetTeamMemberH) $
-    capture "tid"
-      .&. capture "uid"
-      .&. accept "application" "json"
-
-  get "/i/teams/:tid/is-team-owner/:uid" (continueE Teams.userIsTeamOwnerH) $
-    capture "tid"
-      .&. capture "uid"
-      .&. accept "application" "json"
-
-  get "/i/teams/:tid/members/check" (continue Teams.canUserJoinTeamH) $
-    capture "tid"
-
   -- Misc API (internal) ------------------------------------------------
 
   get "/i/users/:uid/team/members" (continueE Teams.getBindingTeamMembersH) $
@@ -416,28 +524,6 @@ internalSitemap = do
   delete "/i/custom-backend/by-domain/:domain" (continue CustomBackend.internalDeleteCustomBackendByDomainH) $
     capture "domain"
       .&. accept "application" "json"
-
-  get "/i/teams/:tid/search-visibility" (continue Teams.getSearchVisibilityInternalH) $
-    capture "tid"
-      .&. accept "application" "json"
-
-  put "/i/teams/:tid/search-visibility" (continueE Teams.setSearchVisibilityInternalH) $
-    capture "tid"
-      .&. jsonRequest @TeamSearchVisibilityView
-      .&. accept "application" "json"
-
-  put "/i/guard-legalhold-policy-conflicts" (continue guardLegalholdPolicyConflictsH) $
-    jsonRequest @GuardLegalholdPolicyConflicts
-      .&. accept "application" "json"
-
-  put "/i/legalhold/whitelisted-teams/:tid" (continue setTeamLegalholdWhitelistedH) $
-    capture "tid"
-
-  delete "/i/legalhold/whitelisted-teams/:tid" (continue unsetTeamLegalholdWhitelistedH) $
-    capture "tid"
-
-  get "/i/legalhold/whitelisted-teams/:tid" (continue getTeamLegalholdWhitelistedH) $
-    capture "tid"
 
 rmUser ::
   forall p1 p2 r.
@@ -591,17 +677,15 @@ safeForever funName action =
 guardLegalholdPolicyConflictsH ::
   Members
     '[ BrigAccess,
-       Error LegalHoldError,
        Input Opts,
        TeamStore,
        P.TinyLog,
-       WaiRoutes
+       WaiRoutes,
+       ErrorS 'MissingLegalholdConsent
      ]
     r =>
-  (JsonRequest GuardLegalholdPolicyConflicts ::: JSON) ->
-  Sem r Response
-guardLegalholdPolicyConflictsH (req ::: _) = do
-  glh <- fromJsonBody req
-  mapError @LegalholdConflicts (const MissingLegalholdConsent) $
+  GuardLegalholdPolicyConflicts ->
+  Sem r ()
+guardLegalholdPolicyConflictsH glh = do
+  mapError @LegalholdConflicts (const $ Tagged @'MissingLegalholdConsent ()) $
     guardLegalholdPolicyConflicts (glhProtectee glh) (glhUserClients glh)
-  pure $ Network.Wai.Utilities.setStatus status200 empty

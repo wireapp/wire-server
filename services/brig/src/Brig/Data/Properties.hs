@@ -27,11 +27,11 @@ module Brig.Data.Properties
 where
 
 import Brig.Data.Instances ()
-import Brig.Types.Properties
 import Cassandra
 import Control.Error
 import Data.Id
 import Imports
+import Wire.API.Properties
 
 maxProperties :: Int64
 maxProperties = 16
@@ -43,7 +43,7 @@ insertProperty ::
   MonadClient m =>
   UserId ->
   PropertyKey ->
-  PropertyValue ->
+  RawPropertyValue ->
   ExceptT PropertiesDataError m ()
 insertProperty u k v = do
   n <- lift . fmap (maybe 0 runIdentity) . retry x1 $ query1 propertyCount (params LocalQuorum (Identity u))
@@ -57,7 +57,7 @@ deleteProperty u k = retry x5 $ write propertyDelete (params LocalQuorum (u, k))
 clearProperties :: MonadClient m => UserId -> m ()
 clearProperties u = retry x5 $ write propertyReset (params LocalQuorum (Identity u))
 
-lookupProperty :: MonadClient m => UserId -> PropertyKey -> m (Maybe PropertyValue)
+lookupProperty :: MonadClient m => UserId -> PropertyKey -> m (Maybe RawPropertyValue)
 lookupProperty u k =
   fmap runIdentity
     <$> retry x1 (query1 propertySelect (params LocalQuorum (u, k)))
@@ -67,15 +67,14 @@ lookupPropertyKeys u =
   map runIdentity
     <$> retry x1 (query propertyKeysSelect (params LocalQuorum (Identity u)))
 
-lookupPropertyKeysAndValues :: MonadClient m => UserId -> m PropertyKeysAndValues
+lookupPropertyKeysAndValues :: MonadClient m => UserId -> m [(PropertyKey, RawPropertyValue)]
 lookupPropertyKeysAndValues u =
-  PropertyKeysAndValues
-    <$> retry x1 (query propertyKeysValuesSelect (params LocalQuorum (Identity u)))
+  retry x1 (query propertyKeysValuesSelect (params LocalQuorum (Identity u)))
 
 -------------------------------------------------------------------------------
 -- Queries
 
-propertyInsert :: PrepQuery W (UserId, PropertyKey, PropertyValue) ()
+propertyInsert :: PrepQuery W (UserId, PropertyKey, RawPropertyValue) ()
 propertyInsert = "INSERT INTO properties (user, key, value) VALUES (?, ?, ?)"
 
 propertyDelete :: PrepQuery W (UserId, PropertyKey) ()
@@ -84,13 +83,13 @@ propertyDelete = "DELETE FROM properties where user = ? and key = ?"
 propertyReset :: PrepQuery W (Identity UserId) ()
 propertyReset = "DELETE FROM properties where user = ?"
 
-propertySelect :: PrepQuery R (UserId, PropertyKey) (Identity PropertyValue)
+propertySelect :: PrepQuery R (UserId, PropertyKey) (Identity RawPropertyValue)
 propertySelect = "SELECT value FROM properties where user = ? and key = ?"
 
 propertyKeysSelect :: PrepQuery R (Identity UserId) (Identity PropertyKey)
 propertyKeysSelect = "SELECT key FROM properties where user = ?"
 
-propertyKeysValuesSelect :: PrepQuery R (Identity UserId) (PropertyKey, PropertyValue)
+propertyKeysValuesSelect :: PrepQuery R (Identity UserId) (PropertyKey, RawPropertyValue)
 propertyKeysValuesSelect = "SELECT key, value FROM properties where user = ?"
 
 propertyCount :: PrepQuery R (Identity UserId) (Identity Int64)

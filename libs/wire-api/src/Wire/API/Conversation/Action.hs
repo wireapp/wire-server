@@ -15,6 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE StandaloneKindSignatures #-}
+{-# LANGUAGE TemplateHaskell #-}
 -- Ignore unused `genSingletons` Template Haskell results
 {-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
@@ -42,51 +43,11 @@ import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Data.Time.Clock
 import Imports
-import Test.QuickCheck (elements)
 import Wire.API.Arbitrary (Arbitrary (..))
 import Wire.API.Conversation
+import Wire.API.Conversation.Action.Tag
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
-
-data ConversationActionTag
-  = ConversationJoinTag
-  | ConversationLeaveTag
-  | ConversationRemoveMembersTag
-  | ConversationMemberUpdateTag
-  | ConversationDeleteTag
-  | ConversationRenameTag
-  | ConversationMessageTimerUpdateTag
-  | ConversationReceiptModeUpdateTag
-  | ConversationAccessDataTag
-  deriving (Show, Eq, Generic, Bounded, Enum)
-
-instance Arbitrary ConversationActionTag where
-  arbitrary = elements [minBound .. maxBound]
-
-instance ToSchema ConversationActionTag where
-  schema =
-    enum @Text "ConversationActionTag" $
-      mconcat
-        [ element "ConversationJoinTag" ConversationJoinTag,
-          element "ConversationLeaveTag" ConversationLeaveTag,
-          element "ConversationRemoveMembersTag" ConversationRemoveMembersTag,
-          element "ConversationMemberUpdateTag" ConversationMemberUpdateTag,
-          element "ConversationDeleteTag" ConversationDeleteTag,
-          element "ConversationRenameTag" ConversationRenameTag,
-          element "ConversationMessageTimerUpdateTag" ConversationMessageTimerUpdateTag,
-          element "ConversationReceiptModeUpdateTag" ConversationReceiptModeUpdateTag,
-          element "ConversationAccessDataTag" ConversationAccessDataTag
-        ]
-
-instance ToJSON ConversationActionTag where
-  toJSON = schemaToJSON
-
-instance FromJSON ConversationActionTag where
-  parseJSON = schemaParseJSON
-
-$(genSingletons [''ConversationActionTag])
-
-$(singDecideInstance ''ConversationActionTag)
 
 -- | We use this type family instead of a sum type to be able to define
 -- individual effects per conversation action. See 'HasConversationActionEffects'.

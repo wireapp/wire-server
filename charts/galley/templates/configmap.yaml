@@ -19,6 +19,9 @@ data:
         host: {{ .cassandra.host }}
         port: 9042
       keyspace: galley
+      {{- if hasKey .cassandra "filterNodesByDatacentre" }}
+      filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
+      {{- end }}
 
     brig:
       host: brig
@@ -71,6 +74,10 @@ data:
         {{- if .settings.featureFlags.sndFactorPasswordChallenge }}
         sndFactorPasswordChallenge:
           {{- toYaml .settings.featureFlags.sndFactorPasswordChallenge | nindent 10 }}
+        {{- end }}
+        {{- if .settings.featureFlags.searchVisibilityInbound }}
+        searchVisibilityInbound:
+          {{- toYaml .settings.featureFlags.searchVisibilityInbound | nindent 10 }}
         {{- end }}
       {{- end }}
   {{- end }}

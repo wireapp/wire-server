@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 314df46c4097fb6a56f853e430a9148ccc7ee76375387bec6d03b68c1827f51f
+-- hash: f47dc031ff87a0941f316c2a34d49f1bc02319b7f3928c827e02b3bece3b819c
 
 name:           deriving-swagger2
 version:        0.1.0
@@ -56,7 +56,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

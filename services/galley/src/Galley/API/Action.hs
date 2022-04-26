@@ -24,6 +24,7 @@ module Galley.API.Action
 
     -- * Performing actions
     updateLocalConversationWithLocalUser,
+    updateLocalConversationWithLocalUserUnchecked,
     updateLocalConversationWithRemoteUser,
     NoChanges (..),
 
@@ -73,10 +74,11 @@ import Polysemy.Error
 import Polysemy.Input
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Event.Conversation hiding (Conversation)
+import Wire.API.Event.Conversation
 import Wire.API.Federation.API (Component (Galley), fedClient)
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
@@ -90,7 +92,6 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     Members
       '[ BrigAccess,
          Error FederationError,
-         Error LegalHoldError,
          ErrorS 'NotATeamMember,
          ErrorS 'NotConnected,
          ErrorS ('ActionDenied 'LeaveConversation),
@@ -99,6 +100,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvNotFound,
          ErrorS 'TooManyMembers,
+         ErrorS 'MissingLegalholdConsent,
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
@@ -303,10 +305,10 @@ performConversationJoin qusr lcnv conv (ConversationJoin invited role) = do
     checkLHPolicyConflictsLocal ::
       Members
         '[ ConversationStore,
-           Error LegalHoldError,
            ErrorS ('ActionDenied 'LeaveConversation),
            ErrorS 'InvalidOperation,
            ErrorS 'ConvNotFound,
+           ErrorS 'MissingLegalholdConsent,
            ExternalAccess,
            FederatorAccess,
            GundeckAccess,
@@ -326,11 +328,11 @@ performConversationJoin qusr lcnv conv (ConversationJoin invited role) = do
 
       whenM (anyLegalholdActivated (lmId <$> convUsers)) $
         unless allNewUsersGaveConsent $
-          throw MissingLegalholdConsent
+          throwS @'MissingLegalholdConsent
 
       whenM (anyLegalholdActivated newUsers) $ do
         unless allNewUsersGaveConsent $
-          throw MissingLegalholdConsent
+          throwS @'MissingLegalholdConsent
 
         convUsersLHStatus <- do
           uidsStatus <- getLHStatusForUsers (lmId <$> convUsers)
@@ -349,7 +351,7 @@ performConversationJoin qusr lcnv conv (ConversationJoin invited role) = do
                 void . runError @NoChanges $
                   updateLocalConversationWithLocalUser @'ConversationLeaveTag lcnv lvictim Nothing $
                     pure (qUntagged lvictim)
-          else throw MissingLegalholdConsent
+          else throwS @'MissingLegalholdConsent
 
     checkLHPolicyConflictsRemote ::
       FutureWork 'LegalholdPlusFederationNotImplemented [Remote UserId] ->
@@ -458,7 +460,45 @@ updateLocalConversationWithLocalUser lcnv lusr con action = do
   let tag = sing @tag
 
   -- retrieve conversation
-  (conv, self) <- getConversationAndMemberWithError @'ConvNotFound lusr lcnv
+  conv <- getConversationWithError lcnv
+
+  -- check that the action does not bypass the underlying protocol
+  unless (protocolValidAction (convProtocol conv) (fromSing tag)) $
+    throwS @'InvalidOperation
+
+  -- perform all authorisation checks and, if successful, the update itself
+  updateLocalConversationWithLocalUserUnchecked @tag conv lusr con action
+
+-- | Similar to 'updateLocalConversationWithLocalUser', but takes a
+-- 'Conversation' value directly, instead of a 'ConvId', and skips protocol
+-- checks. All the other checks are still performed.
+--
+-- This is intended to be used by protocol-aware code, once all the
+-- protocol-specific checks and updates have been performed, to finally apply
+-- the changes to the conversation as seen by the backend.
+updateLocalConversationWithLocalUserUnchecked ::
+  forall tag r.
+  ( SingI tag,
+    Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'InvalidOperation) r,
+    Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    HasConversationActionEffects tag r
+  ) =>
+  Conversation ->
+  Local UserId ->
+  Maybe ConnId ->
+  ConversationAction tag ->
+  Sem r Event
+updateLocalConversationWithLocalUserUnchecked conv lusr con action = do
+  let tag = sing @tag
+      lcnv = qualifyAs lusr (convId conv)
+
+  -- retrieve member
+  self <- noteS @'ConvNotFound $ getConvMember lusr conv lusr
 
   -- perform checks
   ensureConversationActionAllowed (sing @tag) lcnv action conv self

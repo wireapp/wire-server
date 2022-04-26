@@ -106,3 +106,6 @@ instance (ServerEffects r r1, ServerEffect eff (Append r r1)) => ServerEffects (
 
 instance (KnownError (MapError e), Member (Error DynError) r) => ServerEffect (ErrorS e) r where
   interpretServerEffect = mapToDynamicError
+
+instance (KnownError (MapError e), Member (Error DynError) r) => ServerEffect (Error (Tagged e Text)) r where
+  interpretServerEffect = mapError $ \msg -> (dynError @(MapError e)) {eMessage = unTagged msg}

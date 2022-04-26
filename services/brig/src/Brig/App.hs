@@ -1,5 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE TemplateHaskell #-}
+-- FUTUREWORK: Get rid of this option once Polysemy is fully introduced to Brig
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -20,6 +23,7 @@
 
 module Brig.App
   ( schemaVersion,
+    BrigCanonicalEffects,
 
     -- * App Environment
     Env,
@@ -59,10 +63,7 @@ module Brig.App
 
     -- * App Monad
     AppT,
-    AppIO,
     runAppT,
-    runAppResourceT,
-    forkAppIO,
     locationOf,
     viewFederationDomain,
     qualifyLocal,
@@ -77,6 +78,7 @@ module Brig.App
     wrapHttpClientE,
     wrapHttp,
     HttpClientIO (..),
+    liftSem,
   )
 where
 
@@ -92,6 +94,10 @@ import Brig.Provider.Template
 import qualified Brig.Queue.Stomp as Stomp
 import Brig.Queue.Types (Queue (..))
 import qualified Brig.SMTP as SMTP
+import Brig.Sem.CodeStore (CodeStore)
+import Brig.Sem.CodeStore.Cassandra
+import Brig.Sem.PasswordResetStore (PasswordResetStore)
+import Brig.Sem.PasswordResetStore.CodeStore
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
 import Brig.Types (Locale (..), TurnURI)
@@ -114,7 +120,6 @@ import Data.Default (def)
 import Data.Domain
 import qualified Data.GeoIP2 as GeoIp
 import Data.IP
-import Data.Id (UserId)
 import qualified Data.List.NonEmpty as NE
 import Data.List1 (List1, list1)
 import Data.Metrics (Metrics)
@@ -136,6 +141,8 @@ import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
+import Polysemy
+import Polysemy.Final
 import qualified Ropes.Nexmo as Nexmo
 import qualified Ropes.Twilio as Twilio
 import Ssl.Util
@@ -146,9 +153,11 @@ import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 import Util.Options
 import Wire.API.User.Identity (Email)
+import Wire.Sem.Now (Now)
+import Wire.Sem.Now.IO
 
 schemaVersion :: Int32
-schemaVersion = 69
+schemaVersion = 70
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -273,8 +282,8 @@ newEnv o = do
   where
     emailConn _ (Opt.EmailAWS aws) = return (Just aws, Nothing)
     emailConn lgr (Opt.EmailSMTP s) = do
-      let host = (Opt.smtpEndpoint s) ^. epHost
-          port = Just $ fromInteger $ toInteger $ (Opt.smtpEndpoint s) ^. epPort
+      let host = Opt.smtpEndpoint s ^. epHost
+          port = Just $ fromInteger $ toInteger $ Opt.smtpEndpoint s ^. epPort
       smtpCredentials <- case Opt.smtpCredentials s of
         Just (Opt.EmailSMTPCredentials u p) -> do
           pass <- initCredentials p
@@ -320,8 +329,8 @@ startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
   where
     predicate (FS.Added f _ _) = Path.equalFilePath f p
     predicate (FS.Modified f _ _) = Path.equalFilePath f p
-    predicate (FS.Removed _ _ _) = False
-    predicate (FS.Unknown _ _ _) = False
+    predicate FS.Removed {} = False
+    predicate FS.Unknown {} = False
 
 replaceGeoDb :: Logger -> IORef GeoIp.GeoDB -> FS.Event -> IO ()
 replaceGeoDb g ref e = do
@@ -453,25 +462,62 @@ closeEnv e = do
 
 -------------------------------------------------------------------------------
 -- App Monad
-newtype AppT r m a = AppT
-  { _unAppT :: ReaderT Env m a
+
+type BrigCanonicalEffects =
+  '[ PasswordResetStore,
+     Now,
+     CodeStore,
+     Embed Cas.Client,
+     Embed IO,
+     Final IO
+   ]
+
+newtype AppT r a = AppT
+  { unAppT :: Member (Final IO) r => ReaderT Env (Sem r) a
   }
-  deriving newtype
-    ( Functor,
-      Applicative,
-      Monad,
-      MonadIO,
-      MonadThrow,
-      MonadCatch,
-      MonadReader Env
-    )
   deriving
     ( Semigroup,
       Monoid
     )
-    via (Ap (AppT r m) a)
+    via (Ap (AppT r) a)
 
-type AppIO r = AppT r IO
+instance Functor (AppT r) where
+  fmap fab (AppT x0) = AppT $ fmap fab x0
+
+instance Applicative (AppT r) where
+  pure a = AppT $ pure a
+  (AppT x0) <*> (AppT x1) = AppT $ x0 <*> x1
+
+instance Monad (AppT r) where
+  (AppT x0) >>= f = AppT $ x0 >>= unAppT . f
+
+instance MonadIO (AppT r) where
+  liftIO io = AppT $ lift $ embedFinal io
+
+instance MonadThrow (AppT r) where
+  throwM = liftIO . throwM
+
+instance Member (Final IO) r => MonadThrow (Sem r) where
+  throwM = embedFinal . throwM @IO
+
+instance Member (Final IO) r => MonadCatch (Sem r) where
+  catch m handler = withStrategicToFinal @IO $ do
+    m' <- runS m
+    st <- getInitialStateS
+    handler' <- bindS handler
+    pure $ m' `catch` \e -> handler' $ e <$ st
+
+instance MonadCatch (AppT r) where
+  catch (AppT m) handler = AppT $
+    ReaderT $ \env ->
+      catch (runReaderT m env) (flip runReaderT env . unAppT . handler)
+
+instance MonadReader Env (AppT r) where
+  ask = AppT ask
+  local f (AppT m) = AppT $ local f m
+
+liftSem :: Sem r a -> AppT r a
+liftSem sem = AppT $ lift sem
 
 instance MonadIO m => MonadLogger (ReaderT Env m) where
   log l m = do
@@ -479,41 +525,47 @@ instance MonadIO m => MonadLogger (ReaderT Env m) where
     r <- view requestId
     Log.log g l $ field "request" (unRequestId r) ~~ m
 
-instance MonadIO m => MonadLogger (AppT r m) where
-  log l = AppT . LC.log l
+instance MonadLogger (AppT r) where
+  log l m = do
+    g <- view applog
+    r <- view requestId
+    AppT $
+      lift $
+        embedFinal @IO $
+          Log.log g l $ field "request" (unRequestId r) ~~ m
 
-instance MonadIO m => MonadLogger (ExceptT err (AppT r m)) where
+instance MonadLogger (ExceptT err (AppT r)) where
   log l m = lift (LC.log l m)
 
-instance MonadIO m => MonadHttp (AppT r m) where
+instance MonadIO m => MonadHttp (AppT r) where
   handleRequestWithCont req handler = do
     manager <- view httpManager
     liftIO $ withResponse req manager handler
 
-instance MonadIO m => MonadZAuth (AppT r m) where
+instance MonadZAuth (AppT r) where
   liftZAuth za = view zauthEnv >>= \e -> runZAuth e za
 
-instance MonadIO m => MonadZAuth (ExceptT err (AppT r m)) where
-  liftZAuth = lift . liftZAuth
+instance MonadZAuth (ExceptT err (AppT r)) where
+  liftZAuth za = lift (view zauthEnv) >>= flip runZAuth za
 
 -- | The function serves as a crutch while Brig is being polysemised. Use it
 -- whenever the compiler complains that there is no instance of `MonadClient`
--- for `AppIO r`. It can be removed once there is no `AppT` anymore.
-wrapClient :: ReaderT Env Cas.Client a -> AppT r IO a
+-- for `AppT r`. It can be removed once there is no `AppT` anymore.
+wrapClient :: ReaderT Env Cas.Client a -> AppT r a
 wrapClient m = do
   c <- view casClient
   env <- ask
   runClient c $ runReaderT m env
 
-wrapClientE :: ExceptT e (ReaderT Env Cas.Client) a -> ExceptT e (AppT r IO) a
+wrapClientE :: ExceptT e (ReaderT Env Cas.Client) a -> ExceptT e (AppT r) a
 wrapClientE = mapExceptT wrapClient
 
-wrapClientM :: MaybeT (ReaderT Env Cas.Client) b -> MaybeT (AppT r IO) b
+wrapClientM :: MaybeT (ReaderT Env Cas.Client) b -> MaybeT (AppT r) b
 wrapClientM = mapMaybeT wrapClient
 
 wrapHttp ::
   HttpClientIO a ->
-  AppT r IO a
+  AppT r a
 wrapHttp (HttpClientIO m) = do
   c <- view casClient
   env <- ask
@@ -538,6 +590,9 @@ newtype HttpClientIO a = HttpClientIO
       MonadIndexIO
     )
 
+instance MonadZAuth HttpClientIO where
+  liftZAuth za = view zauthEnv >>= flip runZAuth za
+
 instance HasRequestId HttpClientIO where
   getRequestId = view requestId
 
@@ -549,48 +604,34 @@ instance Cas.MonadClient HttpClientIO where
 
 wrapHttpClient ::
   HttpClientIO a ->
-  AppT r IO a
+  AppT r a
 wrapHttpClient = wrapHttp
 
-wrapHttpClientE :: ExceptT e HttpClientIO a -> ExceptT e (AppT r IO) a
+wrapHttpClientE :: ExceptT e HttpClientIO a -> ExceptT e (AppT r) a
 wrapHttpClientE = mapExceptT wrapHttpClient
 
 instance MonadIO m => MonadIndexIO (ReaderT Env m) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
-instance MonadIndexIO (AppIO r) where
-  liftIndexIO m = AppT $ liftIndexIO m
+instance MonadIndexIO (AppT r) where
+  liftIndexIO m = do
+    AppT $ mapReaderT (embedToFinal @IO) $ liftIndexIO m
 
-instance (MonadIndexIO (AppT r m), Monad m) => MonadIndexIO (ExceptT err (AppT r m)) where
+instance MonadIndexIO (AppT r) => MonadIndexIO (ExceptT err (AppT r)) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
-instance Monad m => HasRequestId (AppT r m) where
+instance Monad m => HasRequestId (AppT r) where
   getRequestId = view requestId
 
-runAppT :: Env -> AppT r m a -> m a
-runAppT e (AppT ma) = runReaderT ma e
-
-runAppResourceT :: ResourceT (AppIO r) a -> (AppIO r) a
-runAppResourceT ma = do
-  e <- ask
-  liftIO . runResourceT $ transResourceT (runAppT e) ma
-
-forkAppIO ::
-  (MonadIO m, MonadUnliftIO m, MonadReader Env m) =>
-  Maybe UserId ->
-  m a ->
-  m ()
-forkAppIO u ma = do
-  g <- view applog
-  r <- view requestId
-  let logErr e = Log.err g $ request r ~~ user u ~~ msg (show e)
-  withRunInIO $ \lower ->
-    void . liftIO . forkIO $
-      either logErr (const $ return ())
-        =<< runExceptT (syncIO $ lower $ ma)
-  where
-    request = field "request" . unRequestId
-    user = maybe id (field "user" . toByteString)
+runAppT :: Env -> AppT BrigCanonicalEffects a -> IO a
+runAppT e (AppT ma) =
+  runFinal
+    . embedToFinal
+    . interpretClientToIO (_casClient e)
+    . codeStoreToCassandra @Cas.Client
+    . nowToIOAction (_currentTime e)
+    . passwordResetStoreToCodeStore
+    $ runReaderT ma e
 
 locationOf :: (MonadIO m, MonadReader Env m) => IP -> m (Maybe Location)
 locationOf ip =
@@ -603,7 +644,7 @@ locationOf ip =
     Nothing -> return Nothing
 
 readTurnList :: FilePath -> IO (Maybe (List1 TurnURI))
-readTurnList = Text.readFile >=> return . fn . mapMaybe fromByteString . fmap Text.encodeUtf8 . Text.lines
+readTurnList = Text.readFile >=> return . fn . mapMaybe (fromByteString . Text.encodeUtf8) . Text.lines
   where
     fn [] = Nothing
     fn (x : xs) = Just (list1 x xs)

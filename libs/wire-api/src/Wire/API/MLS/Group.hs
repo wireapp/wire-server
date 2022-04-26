@@ -17,8 +17,13 @@
 
 module Wire.API.MLS.Group where
 
+import qualified Crypto.Hash as Crypto
 import qualified Data.Aeson as A
+import Data.ByteArray (convert)
+import Data.ByteString.Conversion
+import Data.Id
 import Data.Json.Util
+import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
 import Imports
@@ -41,3 +46,10 @@ instance ToSchema GroupId where
     GroupId
       <$> unGroupId
       .= named "GroupId" (Base64ByteString .= fmap fromBase64ByteString (unnamed schema))
+
+-- | Return the group ID associated to a conversation ID. Note that is not
+-- assumed to be stable over time or even consistent among different backends.
+convToGroupId :: Local ConvId -> GroupId
+convToGroupId (qUntagged -> qcnv) =
+  GroupId . convert . Crypto.hash @ByteString @Crypto.SHA256 $
+    toByteString' (qUnqualified qcnv) <> toByteString' (qDomain qcnv)

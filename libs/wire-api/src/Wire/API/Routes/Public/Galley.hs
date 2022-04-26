@@ -22,6 +22,7 @@ module Wire.API.Routes.Public.Galley where
 
 import qualified Data.Code as Code
 import Data.CommaSeparatedList
+import Data.Domain (Domain)
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Qualified (Qualified (..))
 import Data.Range
@@ -35,10 +36,12 @@ import Servant.Swagger.Internal
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
+import Wire.API.CustomBackend (CustomBackend)
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as BrigError
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Servant
 import Wire.API.MLS.Welcome
@@ -52,7 +55,9 @@ import Wire.API.ServantProto (Proto, RawProto)
 import Wire.API.Team
 import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
+import Wire.API.Team.LegalHold
 import Wire.API.Team.Permission (Perm (..))
+import Wire.API.Team.SearchVisibility (TeamSearchVisibilityView)
 
 instance AsHeaders '[ConvId] Conversation Conversation where
   toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
@@ -159,6 +164,8 @@ type ServantAPI =
     :<|> TeamAPI
     :<|> FeatureAPI
     :<|> MLSAPI
+    :<|> CustomBackendAPI
+    :<|> LegalHoldAPI
 
 type ConversationAPI =
   Named
@@ -302,6 +309,7 @@ type ConversationAPI =
                :> CanThrow 'NotConnected
                :> CanThrow 'NotATeamMember
                :> CanThrow OperationDenied
+               :> CanThrow 'MissingLegalholdConsent
                :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
                :> ZLocalUser
                :> ZConn
@@ -331,6 +339,7 @@ type ConversationAPI =
                :> CanThrow 'NotConnected
                :> CanThrow OperationDenied
                :> CanThrow 'TeamNotFound
+               :> CanThrow 'MissingLegalholdConsent
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -351,6 +360,7 @@ type ConversationAPI =
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
+               :> CanThrow 'MissingLegalholdConsent
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -370,6 +380,7 @@ type ConversationAPI =
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
+               :> CanThrow 'MissingLegalholdConsent
                :> ZLocalUser
                :> ZConn
                :> "conversations"
@@ -1041,7 +1052,17 @@ type FeatureAPI =
     :<|> FeatureStatusPut
            '( 'ActionDenied 'RemoveConversationMember,
               '( AuthenticationError,
-                 '( 'CannotEnableLegalHoldServiceLargeTeam, '())
+                 '( 'CannotEnableLegalHoldServiceLargeTeam,
+                    '( 'LegalHoldNotEnabled,
+                       '( 'LegalHoldDisableUnimplemented,
+                          '( 'LegalHoldServiceNotRegistered,
+                             '( 'UserLegalHoldIllegalOperation,
+                                '( 'LegalHoldCouldNotBlockConnections, '())
+                              )
+                           )
+                        )
+                     )
+                  )
                )
             )
            'TeamFeatureLegalHold
@@ -1049,6 +1070,8 @@ type FeatureAPI =
     :<|> FeatureStatusPut '() 'TeamFeatureSearchVisibility
     :<|> FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureSearchVisibility
     :<|> FeatureStatusDeprecatedPut 'TeamFeatureSearchVisibility
+    :<|> SearchVisibilityGet
+    :<|> SearchVisibilitySet
     :<|> FeatureStatusGet 'TeamFeatureValidateSAMLEmails
     :<|> FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails
     :<|> FeatureStatusGet 'TeamFeatureDigitalSignatures
@@ -1066,6 +1089,7 @@ type FeatureAPI =
     :<|> FeatureStatusGet 'TeamFeatureSndFactorPasswordChallenge
     :<|> FeatureStatusPut '() 'TeamFeatureSndFactorPasswordChallenge
     :<|> AllFeatureConfigsGet
+    :<|> AllFeaturesGet
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureLegalHold
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSSO
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSearchVisibility
@@ -1177,18 +1201,293 @@ type AllFeatureConfigsGet =
         :> Get '[Servant.JSON] AllFeatureConfigs
     )
 
+type AllFeaturesGet =
+  Named
+    "get-all-features"
+    ( Summary "Shows the configuration status of every team feature"
+        :> CanThrow 'NotATeamMember
+        :> CanThrow OperationDenied
+        :> CanThrow 'TeamNotFound
+        :> ZLocalUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "features"
+        :> Get '[JSON] AllFeatureConfigs
+    )
+
+type SearchVisibilityGet =
+  Named
+    "get-search-visibility"
+    ( Summary "Shows the value for search visibility"
+        :> CanThrow 'NotATeamMember
+        :> CanThrow OperationDenied
+        :> ZLocalUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "search-visibility"
+        :> Get '[JSON] TeamSearchVisibilityView
+    )
+
+type SearchVisibilitySet =
+  Named
+    "set-search-visibility"
+    ( Summary "Sets the search visibility for the whole team"
+        :> CanThrow 'NotATeamMember
+        :> CanThrow OperationDenied
+        :> CanThrow 'TeamSearchVisibilityNotEnabled
+        :> ZLocalUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "search-visibility"
+        :> ReqBody '[JSON] TeamSearchVisibilityView
+        :> MultiVerb 'PUT '[JSON] '[RespondEmpty 204 "Search visibility set"] ()
+    )
+
 type MLSMessagingAPI =
   Named
     "mls-welcome-message"
     ( Summary "Post an MLS welcome message"
-        :> CanThrow 'UnknownWelcomeRecipient
+        :> CanThrow 'MLSKeyPackageRefNotFound
         :> "welcome"
         :> ZConn
         :> ReqBody '[MLS] (RawMLS Welcome)
         :> MultiVerb1 'POST '[JSON] (RespondEmpty 201 "Welcome message sent")
     )
+    :<|> Named
+           "mls-message"
+           ( Summary "Post an MLS message"
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MLSClientMismatch
+               :> CanThrow 'MLSProtocolErrorTag
+               :> CanThrow 'MLSStaleMessage
+               :> CanThrow MLSProposalFailure
+               :> CanThrow 'MLSProposalNotFound
+               :> CanThrow 'MLSUnsupportedMessage
+               :> CanThrow 'MLSUnsupportedProposal
+               :> CanThrow 'LegalHoldNotEnabled
+               :> CanThrow 'MissingLegalholdConsent
+               :> "messages"
+               :> ZConn
+               :> ReqBody '[MLS] (RawMLS SomeMessage)
+               :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" [Event])
+           )
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSMessagingAPI)
+
+type CustomBackendAPI =
+  Named
+    "get-custom-backend-by-domain"
+    ( Summary "Shows information about custom backends related to a given email domain"
+        :> CanThrow 'CustomBackendNotFound
+        :> "custom-backend"
+        :> "by-domain"
+        :> Capture' '[Description "URL-encoded email domain"] "domain" Domain
+        :> Get '[JSON] CustomBackend
+    )
+
+type LegalHoldAPI =
+  Named
+    "create-legal-hold-settings"
+    ( Summary "Create legal hold service settings"
+        :> CanThrow 'NotATeamMember
+        :> CanThrow OperationDenied
+        :> CanThrow 'LegalHoldNotEnabled
+        :> CanThrow 'LegalHoldServiceInvalidKey
+        :> CanThrow 'LegalHoldServiceBadResponse
+        :> ZLocalUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "legalhold"
+        :> "settings"
+        :> ReqBody '[JSON] NewLegalHoldService
+        :> MultiVerb1 'POST '[JSON] (Respond 201 "Legal hold service settings created" ViewLegalHoldService)
+    )
+    :<|> Named
+           "get-legal-hold-settings"
+           ( Summary "Get legal hold service settings"
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "legalhold"
+               :> "settings"
+               :> Get '[JSON] ViewLegalHoldService
+           )
+    :<|> Named
+           "delete-legal-hold-settings"
+           ( Summary "Delete legal hold service settings"
+               :> CanThrow AuthenticationError
+               :> CanThrow OperationDenied
+               :> CanThrow 'NotATeamMember
+               :> CanThrow ('ActionDenied 'RemoveConversationMember)
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'LegalHoldNotEnabled
+               :> CanThrow 'LegalHoldDisableUnimplemented
+               :> CanThrow 'LegalHoldServiceNotRegistered
+               :> CanThrow 'UserLegalHoldIllegalOperation
+               :> CanThrow 'LegalHoldCouldNotBlockConnections
+               :> Description
+                    "This endpoint can lead to the following events being sent:\n\
+                    \- ClientRemoved event to members with a legalhold client (via brig)\n\
+                    \- UserLegalHoldDisabled event to contacts of members with a legalhold client (via brig)"
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "legalhold"
+               :> "settings"
+               :> ReqBody '[JSON] RemoveLegalHoldSettingsRequest
+               :> MultiVerb1 'DELETE '[JSON] (RespondEmpty 204 "Legal hold service settings deleted")
+           )
+    :<|> Named
+           "get-legal-hold"
+           ( Summary "Get legal hold status"
+               :> CanThrow 'TeamMemberNotFound
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "legalhold"
+               :> Capture "uid" UserId
+               :> Get '[JSON] UserLegalHoldStatusResponse
+           )
+    :<|> Named
+           "consent-to-legal-hold"
+           ( Summary "Consent to legal hold"
+               :> CanThrow ('ActionDenied 'RemoveConversationMember)
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'TeamMemberNotFound
+               :> CanThrow 'UserLegalHoldIllegalOperation
+               :> CanThrow 'LegalHoldCouldNotBlockConnections
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "legalhold"
+               :> "consent"
+               :> MultiVerb 'POST '[JSON] GrantConsentResultResponseTypes GrantConsentResult
+           )
+    :<|> Named
+           "request-legal-hold-device"
+           ( Summary "Request legal hold device"
+               :> CanThrow ('ActionDenied 'RemoveConversationMember)
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> CanThrow 'TeamMemberNotFound
+               :> CanThrow 'LegalHoldNotEnabled
+               :> CanThrow 'UserLegalHoldAlreadyEnabled
+               :> CanThrow 'NoUserLegalHoldConsent
+               :> CanThrow 'LegalHoldServiceBadResponse
+               :> CanThrow 'LegalHoldServiceNotRegistered
+               :> CanThrow 'LegalHoldCouldNotBlockConnections
+               :> CanThrow 'UserLegalHoldIllegalOperation
+               :> Description
+                    "This endpoint can lead to the following events being sent:\n\
+                    \- LegalHoldClientRequested event to contacts of the user the device is requested for, if they didn't already have a legalhold client (via brig)"
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "legalhold"
+               :> Capture "uid" UserId
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    RequestDeviceResultResponseType
+                    RequestDeviceResult
+           )
+    :<|> Named
+           "disable-legal-hold-for-user"
+           ( Summary "Disable legal hold for user"
+               :> CanThrow AuthenticationError
+               :> CanThrow ('ActionDenied 'RemoveConversationMember)
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> CanThrow 'LegalHoldServiceNotRegistered
+               :> CanThrow 'UserLegalHoldIllegalOperation
+               :> CanThrow 'LegalHoldCouldNotBlockConnections
+               :> Description
+                    "This endpoint can lead to the following events being sent:\n\
+                    \- ClientRemoved event to the user owning the client (via brig)\n\
+                    \- UserLegalHoldDisabled event to contacts of the user owning the client (via brig)"
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "legalhold"
+               :> Capture "uid" UserId
+               :> ReqBody '[JSON] DisableLegalHoldForUserRequest
+               :> MultiVerb
+                    'DELETE
+                    '[JSON]
+                    DisableLegalHoldForUserResponseType
+                    DisableLegalHoldForUserResponse
+           )
+    :<|> Named
+           "approve-legal-hold-device"
+           ( Summary "Approve legal hold device"
+               :> CanThrow AuthenticationError
+               :> CanThrow 'AccessDenied
+               :> CanThrow ('ActionDenied 'RemoveConversationMember)
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'LegalHoldNotEnabled
+               :> CanThrow 'UserLegalHoldNotPending
+               :> CanThrow 'NoLegalHoldDeviceAllocated
+               :> CanThrow 'LegalHoldServiceNotRegistered
+               :> CanThrow 'UserLegalHoldAlreadyEnabled
+               :> CanThrow 'UserLegalHoldIllegalOperation
+               :> CanThrow 'LegalHoldCouldNotBlockConnections
+               :> Description
+                    "This endpoint can lead to the following events being sent:\n\
+                    \- ClientAdded event to the user owning the client (via brig)\n\
+                    \- UserLegalHoldEnabled event to contacts of the user owning the client (via brig)\n\
+                    \- ClientRemoved event to the user, if removing old client due to max number (via brig)"
+               :> ZLocalUser
+               :> ZConn
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "legalhold"
+               :> Capture "uid" UserId
+               :> "approve"
+               :> ReqBody '[JSON] ApproveLegalHoldForUserRequest
+               :> MultiVerb1 'PUT '[JSON] (RespondEmpty 200 "Legal hold approved")
+           )
+
+type RequestDeviceResultResponseType =
+  '[ RespondEmpty 201 "Request device successful",
+     RespondEmpty 204 "Request device already pending"
+   ]
+
+data RequestDeviceResult
+  = RequestDeviceSuccess
+  | RequestDeviceAlreadyPending
+  deriving (Generic)
+  deriving (AsUnion RequestDeviceResultResponseType) via GenericAsUnion RequestDeviceResultResponseType RequestDeviceResult
+
+instance GSOP.Generic RequestDeviceResult
+
+type DisableLegalHoldForUserResponseType =
+  '[ RespondEmpty 200 "Disable legal hold successful",
+     RespondEmpty 204 "Legal hold was not enabled"
+   ]
+
+data DisableLegalHoldForUserResponse
+  = DisableLegalHoldSuccess
+  | DisableLegalHoldWasNotEnabled
+  deriving (Generic)
+  deriving (AsUnion DisableLegalHoldForUserResponseType) via GenericAsUnion DisableLegalHoldForUserResponseType DisableLegalHoldForUserResponse
+
+instance GSOP.Generic DisableLegalHoldForUserResponse
+
+type GrantConsentResultResponseTypes =
+  '[ RespondEmpty 201 "Grant consent successful",
+     RespondEmpty 204 "Consent already granted"
+   ]
+
+data GrantConsentResult
+  = GrantConsentSuccess
+  | GrantConsentAlreadyGranted
+  deriving (Generic)
+  deriving (AsUnion GrantConsentResultResponseTypes) via GenericAsUnion GrantConsentResultResponseTypes GrantConsentResult
+
+instance GSOP.Generic GrantConsentResult
 
 -- This is a work-around for the fact that we sometimes want to send larger lists of user ids
 -- in the filter query than fits the url length limit.  For details, see

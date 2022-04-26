@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fprint-potential-instances #-}
 
 -- This file is part of the Wire Server implementation.
@@ -27,6 +28,7 @@ module TestSetup
     tsBrig,
     tsCass,
     tsLogger,
+    tsOpts,
     TestM (..),
     TestSetup (..),
     BrigR (..),
@@ -39,6 +41,7 @@ import Bilge (HttpT (..), Manager, MonadHttp, Request, runHttpT)
 import qualified Cassandra as Cql
 import Control.Lens (makeLenses, (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
+import qualified Gundeck.Options as Gundeck
 import Imports
 import qualified System.Logger as Log
 import Test.Tasty (TestName, TestTree)
@@ -74,7 +77,8 @@ data TestSetup = TestSetup
     _tsCannon2 :: CannonR,
     _tsBrig :: BrigR,
     _tsCass :: Cql.ClientState,
-    _tsLogger :: Log.Logger
+    _tsLogger :: Log.Logger,
+    _tsOpts :: Gundeck.Opts
   }
 
 makeLenses ''TestSetup

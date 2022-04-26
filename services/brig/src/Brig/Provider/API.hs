@@ -995,7 +995,7 @@ botGetClientH bot = do
   mapExceptT wrapHttp $ guardSecondFactorDisabled (Just (botUserId bot))
   maybe (throwStd (errorToWai @'ClientNotFound)) (pure . json) =<< lift (botGetClient bot)
 
-botGetClient :: BotId -> (AppIO r) (Maybe Public.Client)
+botGetClient :: BotId -> (AppT r) (Maybe Public.Client)
 botGetClient bot =
   listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
 
@@ -1052,7 +1052,7 @@ botGetUserClientsH uid = do
   mapExceptT wrapHttp $ guardSecondFactorDisabled (Just uid)
   json <$> lift (botGetUserClients uid)
 
-botGetUserClients :: UserId -> (AppIO r) [Public.PubClient]
+botGetUserClients :: UserId -> (AppT r) [Public.PubClient]
 botGetUserClients uid =
   pubClient <$$> wrapClient (User.lookupClients uid)
   where
@@ -1128,7 +1128,7 @@ deleteBot zusr zcon bid cid = do
     User.deleteServiceUser pid sid bid
   -- TODO: Consider if we can actually delete the bot user entirely,
   -- i.e. not just marking the account as deleted.
-  User.updateStatus buid Deleted
+  void $ runExceptT $ User.updateStatus buid Deleted
   return ev
 
 validateServiceKey :: MonadIO m => Public.ServiceKeyPEM -> m (Maybe (Public.ServiceKey, Fingerprint Rsa))

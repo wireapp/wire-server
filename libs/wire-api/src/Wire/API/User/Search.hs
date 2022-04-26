@@ -1,5 +1,6 @@
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -23,6 +24,7 @@ module Wire.API.User.Search
     Contact (..),
     TeamContact (..),
     RoleFilter (..),
+    Sso (..),
     TeamUserSearchSortOrder (..),
     TeamUserSearchSortBy (..),
     FederatedUserSearchPolicy (..),
@@ -166,6 +168,27 @@ instance ToSchema Contact where
 --------------------------------------------------------------------------------
 -- TeamContact
 
+-- | Related to `UserSSOId`, but more straight-forward because it does not take SCIM externalId into account.
+data Sso = Sso
+  { ssoIssuer :: Text,
+    ssoNameId :: Text
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Sso)
+
+instance ToJSON Sso where
+  toJSON c =
+    Aeson.object
+      [ "issuer" Aeson..= ssoIssuer c,
+        "nameid" Aeson..= ssoNameId c
+      ]
+
+instance FromJSON Sso where
+  parseJSON = withObject "Sso" $ \o ->
+    Sso
+      <$> o .: "issuer"
+      <*> o .: "nameid"
+
 -- | Returned by 'browseTeam' under @/teams/:tid/search@.
 data TeamContact = TeamContact
   { teamContactUserId :: UserId,
@@ -177,10 +200,21 @@ data TeamContact = TeamContact
     teamContactCreatedAt :: Maybe UTCTimeMillis,
     teamContactManagedBy :: Maybe ManagedBy,
     teamContactSAMLIdp :: Maybe Text,
-    teamContactRole :: Maybe Role
+    teamContactRole :: Maybe Role,
+    teamContactScimExternalId :: Maybe Text,
+    teamContactSso :: Maybe Sso,
+    teamContactEmailUnvalidated :: Maybe Email
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamContact)
+
+modelSso :: Doc.Model
+modelSso = Doc.defineModel "Sso" $ do
+  Doc.description "Single Sign-On"
+  Doc.property "issuer" Doc.string' $
+    Doc.description "Issuer"
+  Doc.property "nameid" Doc.string' $
+    Doc.description "Name ID"
 
 modelTeamContact :: Doc.Model
 modelTeamContact = Doc.defineModel "TeamContact" $ do
@@ -200,6 +234,14 @@ modelTeamContact = Doc.defineModel "TeamContact" $ do
   Doc.property "email" Doc.string' $ do
     Doc.description "Email address"
     Doc.optional
+  Doc.property "scim_external_id" Doc.string' $ do
+    Doc.description "SCIM external ID"
+    Doc.optional
+  Doc.property "sso" (Doc.ref modelSso) $ do
+    Doc.description "Single-Sign-On information"
+  Doc.property "email_unvalidated" Doc.string' $ do
+    Doc.description "Unvalidated email address"
+    Doc.optional
 
 instance ToJSON TeamContact where
   toJSON c =
@@ -213,7 +255,10 @@ instance ToJSON TeamContact where
         "created_at" Aeson..= teamContactCreatedAt c,
         "managed_by" Aeson..= teamContactManagedBy c,
         "saml_idp" Aeson..= teamContactSAMLIdp c,
-        "role" Aeson..= teamContactRole c
+        "role" Aeson..= teamContactRole c,
+        "scim_external_id" Aeson..= teamContactScimExternalId c,
+        "sso" Aeson..= teamContactSso c,
+        "email_unvalidated" Aeson..= teamContactEmailUnvalidated c
       ]
 
 instance FromJSON TeamContact where
@@ -230,6 +275,9 @@ instance FromJSON TeamContact where
         <*> o .:? "managed_by"
         <*> o .:? "saml_idp"
         <*> o .:? "role"
+        <*> o .:? "scim_external_id"
+        <*> o .:? "sso"
+        <*> o .:? "email_unvalidated"
 
 data TeamUserSearchSortBy
   = SortByName

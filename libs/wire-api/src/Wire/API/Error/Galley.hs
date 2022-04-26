@@ -18,18 +18,26 @@
 module Wire.API.Error.Galley
   ( GalleyError (..),
     OperationDenied,
+    MLSProtocolError,
+    mlsProtocolError,
     AuthenticationError (..),
     TeamFeatureError (..),
+    MLSProposalFailure (..),
   )
 where
 
+import Control.Lens ((%~))
 import Data.Singletons.Prelude (Show_)
+import qualified Data.Swagger as S
+import Data.Tagged
 import GHC.TypeLits
 import Imports
+import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Wire.API.Conversation.Role
 import Wire.API.Error
+import qualified Wire.API.Error.Brig as BrigError
 import Wire.API.Routes.API
 import Wire.API.Team.Permission
 
@@ -52,8 +60,18 @@ data GalleyError
   | InvalidTarget
   | ConvNotFound
   | ConvAccessDenied
-  | MLSNonEmptyMemberList
-  | NoBindingTeamMembers
+  | -- MLS Errors
+    MLSNonEmptyMemberList
+  | MLSDuplicatePublicKey
+  | MLSKeyPackageRefNotFound
+  | MLSUnsupportedMessage
+  | MLSProposalNotFound
+  | MLSUnsupportedProposal
+  | MLSProtocolErrorTag
+  | MLSClientMismatch
+  | MLSStaleMessage
+  | --
+    NoBindingTeamMembers
   | NoBindingTeam
   | NotAOneMemberTeam
   | TooManyMembers
@@ -63,19 +81,47 @@ data GalleyError
   | InvalidPermissions
   | InvalidTeamStatusUpdate
   | AccessDenied
-  | UnknownWelcomeRecipient
   | CustomBackendNotFound
   | DeleteQueueFull
   | TeamSearchVisibilityNotEnabled
   | CannotEnableLegalHoldServiceLargeTeam
+  | -- Legal hold Error
+    -- FUTUREWORK: make LegalHoldError more static and documented
+    MissingLegalholdConsent
+  | NoUserLegalHoldConsent
+  | LegalHoldNotEnabled
+  | LegalHoldDisableUnimplemented
+  | LegalHoldServiceInvalidKey
+  | LegalHoldServiceBadResponse
+  | UserLegalHoldAlreadyEnabled
+  | LegalHoldServiceNotRegistered
+  | LegalHoldCouldNotBlockConnections
+  | UserLegalHoldIllegalOperation
+  | TooManyTeamMembersOnTeamWithLegalhold
+  | NoLegalHoldDeviceAllocated
+  | UserLegalHoldNotPending
 
 instance KnownError (MapError e) => IsSwaggerError (e :: GalleyError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
 
--- | Convenience synonym for an operation denied error with an unspecified permission
+instance KnownError (MapError e) => APIError (Tagged (e :: GalleyError) ()) where
+  toWai _ = toWai $ dynError @(MapError e)
+
+-- | Convenience synonym for an operation denied error with an unspecified permission.
 type OperationDenied = 'MissingPermission 'Nothing
 
-type instance ErrorEffect (e :: GalleyError) = ErrorS e
+-- | An MLS protocol error with associated text.
+type MLSProtocolError = Tagged 'MLSProtocolErrorTag Text
+
+-- | Create an MLS protocol error value.
+mlsProtocolError :: Text -> MLSProtocolError
+mlsProtocolError = Tagged
+
+type family GalleyErrorEffect (e :: GalleyError) :: Effect where
+  GalleyErrorEffect 'MLSProtocolErrorTag = Error MLSProtocolError
+  GalleyErrorEffect e = ErrorS e
+
+type instance ErrorEffect (e :: GalleyError) = GalleyErrorEffect e
 
 type instance MapError 'InvalidAction = 'StaticError 400 "invalid-actions" "The specified actions are invalid"
 
@@ -113,6 +159,22 @@ type instance MapError 'ConvAccessDenied = 'StaticError 403 "access-denied" "Con
 
 type instance MapError 'MLSNonEmptyMemberList = 'StaticError 400 "non-empty-member-list" "Attempting to add group members outside MLS"
 
+type instance MapError 'MLSDuplicatePublicKey = 'StaticError 400 "mls-duplicate-public-key" "MLS public key for the given signature scheme already exists"
+
+type instance MapError 'MLSKeyPackageRefNotFound = 'StaticError 404 "mls-key-package-ref-not-found" "A referenced key package could not be mapped to a known client"
+
+type instance MapError 'MLSUnsupportedMessage = 'StaticError 422 "mls-unsupported-message" "Attempted to send a message with an unsupported combination of content type and wire format"
+
+type instance MapError 'MLSProposalNotFound = 'StaticError 404 "mls-proposal-not-found" "A proposal referenced in a commit message could not be found"
+
+type instance MapError 'MLSUnsupportedProposal = 'StaticError 422 "mls-unsupported-proposal" "Unsupported proposal type"
+
+type instance MapError 'MLSProtocolErrorTag = MapError 'BrigError.MLSProtocolError
+
+type instance MapError 'MLSClientMismatch = 'StaticError 409 "mls-client-mismatch" "A proposal of type Add or Remove does not apply to the full list of clients for a user"
+
+type instance MapError 'MLSStaleMessage = 'StaticError 409 "mls-stale-message" "The conversation epoch in a message is too old"
+
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 
 type instance MapError 'NoBindingTeam = 'StaticError 403 "no-binding-team" "Operation allowed only on binding teams"
@@ -133,8 +195,6 @@ type instance MapError 'InvalidTeamStatusUpdate = 'StaticError 403 "invalid-team
 
 type instance MapError 'AccessDenied = 'StaticError 403 "access-denied" "You do not have permission to access this resource"
 
-type instance MapError 'UnknownWelcomeRecipient = 'StaticError 400 "mls-unknown-welcome-recipient" "One of the key packages of a welcome message could not be mapped to a known client"
-
 type instance MapError 'CustomBackendNotFound = 'StaticError 404 "custom-backend-not-found" "Custom backend not found"
 
 type instance MapError 'DeleteQueueFull = 'StaticError 503 "queue-full" "The delete queue is full; no further delete requests can be processed at the moment"
@@ -147,6 +207,35 @@ type instance MapError 'CannotEnableLegalHoldServiceLargeTeam = 'StaticError 403
 type family MissingPermissionMessage (a :: Maybe Perm) :: Symbol where
   MissingPermissionMessage ('Just p) = "Insufficient permissions (missing " `AppendSymbol` Show_ p `AppendSymbol` ")"
   MissingPermissionMessage 'Nothing = "Insufficient permissions"
+
+--------------------------------------------------------------------------------
+-- Legal hold Errors
+
+type instance MapError 'TooManyTeamMembersOnTeamWithLegalhold = 'StaticError 403 "too-many-members-for-legalhold" "cannot add more members to team when legalhold service is enabled."
+
+type instance MapError 'LegalHoldServiceInvalidKey = 'StaticError 400 "legalhold-invalid-key" "legal hold service pubkey is invalid"
+
+type instance MapError 'MissingLegalholdConsent = 'StaticError 403 "missing-legalhold-consent" "Failed to connect to a user or to invite a user to a group because somebody is under legalhold and somebody else has not granted consent"
+
+type instance MapError 'LegalHoldServiceNotRegistered = 'StaticError 400 "legalhold-not-registered" "legal hold service has not been registered for this team"
+
+type instance MapError 'LegalHoldServiceBadResponse = 'StaticError 400 "legalhold-status-bad" "legal hold service: invalid response"
+
+type instance MapError 'LegalHoldNotEnabled = 'StaticError 403 "legalhold-not-enabled" "legal hold is not enabled for this team"
+
+type instance MapError 'LegalHoldDisableUnimplemented = 'StaticError 403 "legalhold-disable-unimplemented" "legal hold cannot be disabled for whitelisted teams"
+
+type instance MapError 'UserLegalHoldAlreadyEnabled = 'StaticError 409 "legalhold-already-enabled" "legal hold is already enabled for this user"
+
+type instance MapError 'NoUserLegalHoldConsent = 'StaticError 409 "legalhold-no-consent" "user has not given consent to using legal hold"
+
+type instance MapError 'UserLegalHoldIllegalOperation = 'StaticError 500 "legalhold-illegal-op" "internal server error: inconsistent change of user's legalhold state"
+
+type instance MapError 'UserLegalHoldNotPending = 'StaticError 412 "legalhold-not-pending" "legal hold cannot be approved without being in a pending state"
+
+type instance MapError 'NoLegalHoldDeviceAllocated = 'StaticError 404 "legalhold-no-device-allocated" "no legal hold device is registered for this user. POST /teams/:tid/legalhold/:uid/ to start the flow."
+
+type instance MapError 'LegalHoldCouldNotBlockConnections = 'StaticError 500 "legalhold-internal" "legal hold service: could not block connections when resolving policy conflicts."
 
 --------------------------------------------------------------------------------
 -- Authentication errors
@@ -225,3 +314,29 @@ instance Member (Error DynError) r => ServerEffect (Error TeamFeatureError) r wh
     LegalHoldWhitelistedOnly -> dynError @(MapError 'LegalHoldWhitelistedOnly)
     DisableSsoNotImplemented -> dynError @(MapError 'DisableSsoNotImplemented)
     FeatureLocked -> dynError @(MapError 'FeatureLocked)
+
+--------------------------------------------------------------------------------
+-- Proposal failure
+
+data MLSProposalFailure = MLSProposalFailure
+  { pfInner :: Wai.Error
+  }
+
+type instance ErrorEffect MLSProposalFailure = Error MLSProposalFailure
+
+-- Proposal failures are only reported generically in Swagger
+instance IsSwaggerError MLSProposalFailure where
+  addToSwagger = S.allOperations . S.description %~ Just . (<> desc) . fold
+    where
+      desc =
+        "\n\n**Note**: this endpoint can execute proposals, and therefore \
+        \return all possible errors associated with adding or removing members to \
+        \a conversation, in addition to the ones listed below. See the documentation of [POST \
+        \/conversations/{cnv}/members/v2](#/default/post_conversations__cnv__members_v2) \
+        \and [POST \
+        \/conversations/{cnv_domain}/{cnv}/members/{usr_domain}/{usr}](#/default/delete_conversations__cnv_domain___cnv__members__usr_domain___usr_) \
+        \for more details on the possible error responses of each type of \
+        \proposal."
+
+instance Member (Error Wai.Error) r => ServerEffect (Error MLSProposalFailure) r where
+  interpretServerEffect = mapError pfInner

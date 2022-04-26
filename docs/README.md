@@ -1,63 +1,169 @@
-# Reference documentation
+# Wire-docs
 
-What you need to know as a user of the Wire backend: concepts, features, and API. We strive to keep these up to date.
+Source files for wire-server documentation hosted on https://docs.wire.com
 
-## Users
+## Reading the documentation
 
-User lifecycle:
+Visit https://docs.wire.com/
 
-* [User registration](reference/user/registration.md) `{#RefRegistration}`
-* [User activation](reference/user/activation.md) `{#RefActivation}`
+## Making contributions
 
-User profiles and metadata:
+The structure of this document has been heavily inspired by [this blog
+post](https://www.divio.com/blog/documentation/).
 
-* [Connections between users](reference/user/connection.md) `{#RefConnection}`
-* [Rich info](reference/user/rich-info.md) `{#RefRichInfo}`
+We use [sphinx](https://www.sphinx-doc.org/) for rendering documentation.
 
-TODO.
+Most documentation is written in RestructuredText (with `.rst` file extension).
+The reason for that is A) the default support from sphinx and B) some of the
+features of RST such as includes, "typesafe" ("well, giving warnings on
+compiling when broken") cross-linking to another section in a different file,
+etc.
 
-## Teams
+For dealing with RST, here are some resources:
 
-TODO.
+* here is a [cheat sheet](https://docutils.sourceforge.io/docs/user/rst/quickref.html)
+* [here is another one](https://docutils.sourceforge.io/docs/user/rst/cheatsheet.html).
+* And [another one](https://sublime-and-sphinx-guide.readthedocs.io/en/latest/references.html).
 
-## Messaging
+At the popular request, there is now also some support for markdown files (`.md` file
+extension). Note that this is [commonmark](https://spec.commonmark.org/0.30/) which is
+different to e.g.  github-flavoured markdown. See
+[recommonmark](https://recommonmark.readthedocs.io/en/latest/) for the
+currently-supported markdown.
 
-TODO.
+At this point, a documentation contributor creating a new file can choose to use
+commonmark markdown as the file format. Please hold off converting any existing files to
+a different format until better markdown support (`myst_parser` support, see
+[MyST](https://myst-parser.readthedocs.io/en/latest/)) has been added to wire-docs and
+pros and cons of the formats have been internally evaluated.
 
-## Single sign-on
+### Conventions
 
-TODO.
+The re-structured spec text allows for choosing any underline/overline symbol
+for any level. In this repository we have not been very consistent. For any new
+contribution let's stick to this convention:
 
-## SCIM provisioning
+```rst
+######
+Part 1
+######
 
-We have support for provisioning users via SCIM ([RFC 7664][], [RFC 7643][]). It's in the beta stage.
+*********
+Chapter 1
+*********
 
-[RFC 7664]: https://tools.ietf.org/html/rfc7664
-[RFC 7643]: https://tools.ietf.org/html/rfc7643
+Section 1
+=========
 
-* [Using the SCIM API with curl](reference/provisioning/scim-via-curl.md) `{#RefScimViaCurl}`
-* [Authentication via SCIM tokens](reference/provisioning/scim-token.md) `{#RefScimToken}`
+Sub-section 1
+-------------
 
-# Developer documentation
+Sub-sub-section 1
+^^^^^^^^^^^^^^^^^
 
-Internal documentation detailing what you need to know as a Wire backend developer. All of these documents can and should be referenced in the code.
+Paragraph 1
+~~~~~~~~~~~
 
-If you're not a member of the Wire backend team, you might still find these documents useful, but keep in mind that they are a work in progress.
+Sub-paragraph 1
++++++++++++++++
+```
 
-* [Development setup](developer/dependencies.md) `{#DevDeps}`
-* [Editor setup](developer/editor-setup.md) `{#DevEditor}`
-* [Storing SCIM-related data](developer/scim/storage.md) `{#DevScimStorage}`
-* TODO
+If another level is needed, please add the chosen symbol here.
 
-## Cassandra
+## Building the docs
 
-We use [Cassandra](http://cassandra.apache.org/) as the primary data store. It is scalable, has very fast reads and writes, and is conceptually simple (or at least simpler than SQL databases).
+### Dependencies
 
-Some helpful links:
+Install the dependencies locally:
 
-* [Query syntax](https://docs.datastax.com/en/cql/3.3/cql/cql_reference/cqlReferenceTOC.html)
+1. Install [Nix](https://nixos.org/download.html)
+   * MacOS users with a recent Mac might need to follow [these
+   instructions](https://nixos.org/nix/manual/#sect-macos-installation)
+   * Debian users can use their distro's `nix` package, and should remember
+   to add their user to the `nix-users` group in /etc/group, and re-start
+   their login session.
+2. Install [Direnv](https://direnv.net/).
+   * On debian, you can install the `direnv` package. On MacOS use `brew install direnv`.
+   * On NixOS with home-manager, you can set `programs.direnv.enable = true;`.
+   * Make sure direnv is hooked into your shell via it's appripriate `rc` file.
+     Add `eval "$(direnv hook bash|zsh|fish)"` to your ~/.(bash|zsh|fish)rc .
+   * When successfully installed and hooked, direnv should ask you to `direnv allow`
+     the current `.envrc` when you cd to this repository.
+     See the [Installation documentation](https://direnv.net/docs/installation.html) for further details.
 
-* How deletes work in Cassandra:
+Now, whenever you cd to wire-docs, you will have the relevant binaries (make, sphinx, rst2pdf, ...) in your PATH.
 
-  - [Understanding Deletes](https://medium.com/@foundev/domain-modeling-around-deletes-1cc9b6da0d24)
-  - [Cassandra Compaction and Tombstone Behavior](http://engblog.polyvore.com/2015/03/cassandra-compaction-and-tombstone.html)
+### Generating html output (one-off)
+
+```
+make html
+```
+
+### Generating html output continuously (recommended) with file watching
+
+Enter a *development mode* by running
+
+```
+make dev-run
+```
+
+to start a local server and file watcher. Then, point your browser at `http://localhost:3000`. (or, alternatively, look at results by opening `build/html/index.html`) which will auto-update whenever files under `./src` change.
+
+### Generating a PDF file
+
+NOTE: support is experimental and resulting pdf may not have great formatting. See the [rst2pdf](https://rst2pdf.org/static/manual.pdf) manual to improve the configuration here so the resulting PDF becomes nicer.
+
+Run `make pdf` and look at files in `./build/pdf/`.
+
+You can use the `make dev-pdf` target to get auto-refreshing PDF files as you save source files. (requires a PDF viewer installed globally)
+
+<details>
+
+<summary> Alternative ways to build the documentation for preview without nix+direnv </summary>
+
+*Note: when switching from a docker-based building to a local building, you might encounter permission issues due to the build directory being owned by root. These can be solved by cleaning the build directory: `sudo rm -rf ./build/*`
+
+## Building the docs with docker
+
+You need `docker` available on your system.
+The docker image that is used is defined in the `Makefile`. To build the docker image locally (e.g. after updating dependencies) run `make docker`.
+
+### html
+
+Generate docs using docker (so you don't need to install python dependencies yourself)
+
+```
+make docs
+```
+
+See build/html/index.html
+
+### pdf
+
+```
+make docs-pdf
+```
+
+Then see build/pdf/
+
+</details>
+
+## For maintainers (Wire employees)
+
+### CI/CD configuration
+
+On a Pull request, the script inside [pr.yml](ci/pr.yml) will run. On a commit to master, the script inside [compile-and-upload.yml](ci/compile-and-upload.yml) will run.
+
+The actual concourse pipeline doing so is configured in [this private repository only available for Wire employees](https://github.com/zinfra/cailleach/blob/master/wire-server-private/ci/pipelines/wire_docs.yml)
+
+### Upload to S3
+
+CI is set up to do this automatically on a push to master. If for some reason you wish to upload manually to S3:
+
+(You need amazon credentials for pushing to S3)
+
+```
+make push
+```
+
+Please note that cloudfront CDN has a certain cache duration (at the time of writing: 1 minute), so changes will take a bit of time to take effect.

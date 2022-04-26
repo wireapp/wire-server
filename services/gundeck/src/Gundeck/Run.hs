@@ -24,6 +24,7 @@ import Control.Lens hiding (enum)
 import Data.Metrics.Middleware (metrics)
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Data.Text (unpack)
+import qualified Database.Redis as Redis
 import Gundeck.API (sitemap)
 import qualified Gundeck.Aws as Aws
 import Gundeck.Env
@@ -52,11 +53,12 @@ run o = do
   let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (optSettings . setSqsThrottleMillis)
   lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))
   wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState m tbs 10
-  runSettingsWithShutdown s (middleware e $ app e) 5 `finally` do
+  runSettingsWithShutdown s (middleware e $ mkApp e) 5 `finally` do
     Log.info l $ Log.msg (Log.val "Shutting down ...")
     shutdown (e ^. cstate)
     Async.cancel lst
     forM_ wtbs Async.cancel
+    Redis.disconnect (e ^. rstate)
     Log.close (e ^. applog)
   where
     middleware :: Env -> Wai.Middleware
@@ -66,6 +68,8 @@ run o = do
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. monitor]
         . versionMiddleware
-    app :: Env -> Wai.Application
-    app e r k = runGundeck e r (route routes r k)
+
+mkApp :: Env -> Wai.Application
+mkApp e r k = runGundeck e r (route routes r k)
+  where
     routes = compile sitemap

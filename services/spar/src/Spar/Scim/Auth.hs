@@ -56,10 +56,6 @@ import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
-import Spar.Sem.Now (Now)
-import qualified Spar.Sem.Now as Now
-import Spar.Sem.Random (Random)
-import qualified Spar.Sem.Random as Random
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import qualified Web.Scim.Class.Auth as Scim.Class.Auth
@@ -69,6 +65,10 @@ import Wire.API.Routes.Public.Spar (APIScimToken)
 import Wire.API.User as User
 import Wire.API.User.Saml (Opts, maxScimTokens)
 import Wire.API.User.Scim as Api
+import Wire.Sem.Now (Now)
+import qualified Wire.Sem.Now as Now
+import Wire.Sem.Random (Random)
+import qualified Wire.Sem.Random as Random
 
 -- | An instance that tells @hscim@ how authentication should be done for SCIM routes.
 instance Member ScimTokenStore r => Scim.Class.Auth.AuthDB SparTag (Sem r) where
@@ -149,7 +149,7 @@ createScimToken zusr Api.CreateScimToken {..} = do
               ScimTokenInfo
                 { stiId = tokenid,
                   stiTeam = teamid,
-                  stiCreatedAt = SAML.fromTime now,
+                  stiCreatedAt = now,
                   stiIdP = midpid,
                   stiDescr = descr
                 }

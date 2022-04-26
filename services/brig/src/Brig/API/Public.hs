@@ -46,6 +46,8 @@ import qualified Brig.Docs.Swagger
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
+import Brig.Sem.CodeStore (CodeStore)
+import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
@@ -63,6 +65,7 @@ import Control.Error hiding (bool)
 import Control.Lens (view, (%~), (.~), (?~), (^.), _Just)
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
+import Data.Bifunctor
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
@@ -84,13 +87,14 @@ import qualified Data.ZAuth.Token as ZAuth
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
 import Network.HTTP.Types.Status
-import Network.Wai (Response, lazyRequestBody)
+import Network.Wai
 import Network.Wai.Predicate hiding (result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
-import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import Network.Wai.Utilities.ZAuth (zauthUserId)
+import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
 import Servant.Swagger.Internal.Orphans ()
@@ -107,7 +111,6 @@ import Wire.API.Routes.Public.Brig
 import qualified Wire.API.Routes.Public.Cannon as CannonAPI
 import qualified Wire.API.Routes.Public.Cargohold as CargoholdAPI
 import qualified Wire.API.Routes.Public.Galley as GalleyAPI
-import qualified Wire.API.Routes.Public.LegalHold as LegalHoldAPI
 import qualified Wire.API.Routes.Public.Spar as SparAPI
 import qualified Wire.API.Routes.Public.Util as Public
 import Wire.API.Routes.Version
@@ -136,7 +139,6 @@ swaggerDocsAPI =
     ( brigSwagger
         <> versionSwagger
         <> GalleyAPI.swaggerDoc
-        <> LegalHoldAPI.swaggerDoc
         <> SparAPI.swaggerDoc
         <> CargoholdAPI.swaggerDoc
         <> CannonAPI.swaggerDoc
@@ -164,7 +166,7 @@ swaggerDocsAPI =
         . (S.enum_ . _Just %~ nub)
 
 servantSitemap :: ServerT BrigAPI (Handler r)
-servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> mlsAPI
+servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> propertiesAPI :<|> mlsAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -233,6 +235,16 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"update-connection" updateConnection
         :<|> Named @"search-contacts" Search.search
 
+    propertiesAPI :: ServerT PropertiesAPI (Handler r)
+    propertiesAPI =
+      ( Named @"set-property" setProperty
+          :<|> Named @"delete-property" deleteProperty
+          :<|> Named @"clear-properties" clearProperties
+          :<|> Named @"get-property" getProperty
+          :<|> Named @"list-property-keys" listPropertyKeys
+      )
+        :<|> Named @"list-properties" listPropertyKeysAndValues
+
     mlsAPI :: ServerT MLSAPI (Handler r)
     mlsAPI =
       Named @"mls-key-packages-upload" uploadKeyPackages
@@ -246,7 +258,9 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
 -- - UserDeleted event to contacts of the user
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
-sitemap :: Routes Doc.ApiBuilder (Handler r) ()
+sitemap ::
+  Members '[CodeStore, PasswordResetStore] r =>
+  Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   -- User Handle API ----------------------------------------------------
 
@@ -299,75 +313,6 @@ sitemap = do
       Doc.description "JSON body"
     Doc.response 200 "Deletion is initiated." Doc.end
     Doc.errorResponse (errorToWai @'E.InvalidCode)
-
-  -- Properties API -----------------------------------------------------
-
-  -- This endpoint can lead to the following events being sent:
-  -- - PropertySet event to self
-  put "/properties/:key" (continue setPropertyH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "key"
-      .&. jsonRequest @Public.PropertyValue
-  document "PUT" "setProperty" $ do
-    Doc.summary "Set a user property."
-    Doc.parameter Doc.Path "key" Doc.string' $
-      Doc.description "Property key"
-    Doc.body (Doc.ref Public.modelPropertyValue) $
-      Doc.description "JSON body"
-    Doc.response 200 "Property set." Doc.end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - PropertyDeleted event to self
-  delete "/properties/:key" (continue deletePropertyH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "key"
-  document "DELETE" "deleteProperty" $ do
-    Doc.summary "Delete a property."
-    Doc.parameter Doc.Path "key" Doc.string' $
-      Doc.description "Property key"
-    Doc.response 200 "Property deleted." Doc.end
-
-  -- This endpoint can lead to the following events being sent:
-  -- - PropertiesCleared event to self
-  delete "/properties" (continue clearPropertiesH) $
-    zauthUserId
-      .&. zauthConnId
-  document "DELETE" "clearProperties" $ do
-    Doc.summary "Clear all properties."
-    Doc.response 200 "Properties cleared." Doc.end
-
-  get "/properties/:key" (continue getPropertyH) $
-    zauthUserId
-      .&. capture "key"
-      .&. accept "application" "json"
-  document "GET" "getProperty" $ do
-    Doc.summary "Get a property value."
-    Doc.parameter Doc.Path "key" Doc.string' $
-      Doc.description "Property key"
-    Doc.returns (Doc.ref Public.modelPropertyValue)
-    Doc.response 200 "The property value." Doc.end
-
-  -- This endpoint is used to test /i/metrics, when this is servantified, please
-  -- make sure some other endpoint is used to test that routes defined in this
-  -- function are recorded and reported correctly in /i/metrics.
-  -- see test/integration/API/Metrics.hs
-  get "/properties" (continue listPropertyKeysH) $
-    zauthUserId
-      .&. accept "application" "json"
-  document "GET" "listPropertyKeys" $ do
-    Doc.summary "List all property keys."
-    Doc.returns (Doc.array Doc.string')
-    Doc.response 200 "List of property keys." Doc.end
-
-  get "/properties-values" (continue listPropertyKeysAndValuesH) $
-    zauthUserId
-      .&. accept "application" "json"
-  document "GET" "listPropertyKeysAndValues" $ do
-    Doc.summary "List all properties with key and value."
-    Doc.returns (Doc.ref Public.modelPropertyDictionary)
-    Doc.response 200 "Object with properties as attributes." Doc.end
 
   -- TODO: put delete here, too?
   -- /activate, /password-reset ----------------------------------
@@ -455,6 +400,10 @@ sitemap = do
     Doc.summary "Complete a password reset."
     Doc.notes "DEPRECATED: Use 'POST /password-reset/complete'."
 
+  -- This endpoint is used to test /i/metrics, when this is servantified, please
+  -- make sure some other endpoint is used to test that routes defined in this
+  -- function are recorded and reported correctly in /i/metrics.
+  -- see test/integration/API/Metrics.hs
   post "/onboarding/v3" (continue deprecatedOnboardingH) $
     accept "application" "json"
       .&. zauthUserId
@@ -472,12 +421,15 @@ sitemap = do
   Team.routesPublic
   Calling.routesPublic
 
-apiDocs :: Routes Doc.ApiBuilder (Handler r) ()
+apiDocs ::
+  forall r.
+  Members '[CodeStore, PasswordResetStore] r =>
+  Routes Doc.ApiBuilder (Handler r) ()
 apiDocs =
   get
     "/users/api-docs"
     ( \(_ ::: url) k ->
-        let doc = mkSwaggerApi (decodeLatin1 url) Public.Swagger.models sitemap
+        let doc = mkSwaggerApi (decodeLatin1 url) Public.Swagger.models (sitemap @r)
          in k $ json doc
     )
     $ accept "application" "json"
@@ -486,57 +438,61 @@ apiDocs =
 ---------------------------------------------------------------------------
 -- Handlers
 
-setPropertyH :: UserId ::: ConnId ::: Public.PropertyKey ::: JsonRequest Public.PropertyValue -> (Handler r) Response
-setPropertyH (u ::: c ::: k ::: req) = do
-  propkey <- safeParsePropertyKey k
-  propval <- safeParsePropertyValue (lazyRequestBody (fromJsonRequest req))
-  empty <$ setProperty u c propkey propval
+setProperty :: UserId -> ConnId -> Public.PropertyKey -> Public.RawPropertyValue -> Handler r ()
+setProperty u c key raw = do
+  checkPropertyKey key
+  val <- safeParsePropertyValue raw
+  API.setProperty u c key val !>> propDataError
 
-setProperty :: UserId -> ConnId -> Public.PropertyKey -> Public.PropertyValue -> (Handler r) ()
-setProperty u c propkey propval =
-  API.setProperty u c propkey propval !>> propDataError
-
-safeParsePropertyKey :: Public.PropertyKey -> (Handler r) Public.PropertyKey
-safeParsePropertyKey k = do
+checkPropertyKey :: Public.PropertyKey -> Handler r ()
+checkPropertyKey k = do
   maxKeyLen <- fromMaybe defMaxKeyLen <$> view (settings . propertyMaxKeyLen)
   let keyText = Ascii.toText (Public.propertyKeyName k)
   when (Text.compareLength keyText (fromIntegral maxKeyLen) == GT) $
     throwStd propertyKeyTooLarge
-  pure k
 
 -- | Parse a 'PropertyValue' from a bytestring.  This is different from 'FromJSON' in that
 -- checks the byte size of the input, and fails *without consuming all of it* if that size
 -- exceeds the settings.
-safeParsePropertyValue :: IO Lazy.ByteString -> (Handler r) Public.PropertyValue
-safeParsePropertyValue lreqbody = do
+safeParsePropertyValue :: Public.RawPropertyValue -> Handler r Public.PropertyValue
+safeParsePropertyValue raw = do
   maxValueLen <- fromMaybe defMaxValueLen <$> view (settings . propertyMaxValueLen)
-  lbs <- Lazy.take (maxValueLen + 1) <$> liftIO lreqbody
+  let lbs = Lazy.take (maxValueLen + 1) (Public.rawPropertyBytes raw)
   unless (Lazy.length lbs <= maxValueLen) $
     throwStd propertyValueTooLarge
-  hoistEither $ fmapL (StdError . badRequest . pack) (eitherDecode lbs)
+  hoistEither $ first (StdError . badRequest . pack) (propertyValueFromRaw raw)
 
-deletePropertyH :: UserId ::: ConnId ::: Public.PropertyKey -> (Handler r) Response
-deletePropertyH (u ::: c ::: k) = lift (API.deleteProperty u c k) >> return empty
+propertyValueFromRaw :: Public.RawPropertyValue -> Either String Public.PropertyValue
+propertyValueFromRaw raw =
+  Public.PropertyValue raw
+    <$> eitherDecode (Public.rawPropertyBytes raw)
 
-clearPropertiesH :: UserId ::: ConnId -> (Handler r) Response
-clearPropertiesH (u ::: c) = lift (API.clearProperties u c) >> return empty
+parseStoredPropertyValue :: Public.RawPropertyValue -> Handler r Public.PropertyValue
+parseStoredPropertyValue raw = case propertyValueFromRaw raw of
+  Right value -> pure value
+  Left e -> do
+    Log.err $
+      Log.msg (Log.val "Failed to parse a stored property value")
+        . Log.field "raw_value" (Public.rawPropertyBytes raw)
+        . Log.field "parse_error" e
+    throwStd internalServerError
 
-getPropertyH :: UserId ::: Public.PropertyKey ::: JSON -> (Handler r) Response
-getPropertyH (u ::: k ::: _) = do
-  val <- lift . wrapClient $ API.lookupProperty u k
-  return $ case val of
-    Nothing -> setStatus status404 empty
-    Just v -> json (v :: Public.PropertyValue)
+deleteProperty :: UserId -> ConnId -> Public.PropertyKey -> Handler r ()
+deleteProperty u c k = lift (API.deleteProperty u c k)
 
-listPropertyKeysH :: UserId ::: JSON -> (Handler r) Response
-listPropertyKeysH (u ::: _) = do
-  keys <- lift $ wrapClient (API.lookupPropertyKeys u)
-  pure $ json (keys :: [Public.PropertyKey])
+clearProperties :: UserId -> ConnId -> Handler r ()
+clearProperties u c = lift (API.clearProperties u c)
 
-listPropertyKeysAndValuesH :: UserId ::: JSON -> (Handler r) Response
-listPropertyKeysAndValuesH (u ::: _) = do
-  keysAndVals <- lift $ wrapClient (API.lookupPropertyKeysAndValues u)
-  pure $ json (keysAndVals :: Public.PropertyKeysAndValues)
+getProperty :: UserId -> Public.PropertyKey -> Handler r (Maybe Public.RawPropertyValue)
+getProperty u k = lift . wrapClient $ API.lookupProperty u k
+
+listPropertyKeys :: UserId -> Handler r [Public.PropertyKey]
+listPropertyKeys u = lift $ wrapClient (API.lookupPropertyKeys u)
+
+listPropertyKeysAndValues :: UserId -> Handler r Public.PropertyKeysAndValues
+listPropertyKeysAndValues u = do
+  keysAndVals <- fmap Map.fromList . lift $ wrapClient (API.lookupPropertyKeysAndValues u)
+  fmap Public.PropertyKeysAndValues $ traverse parseStoredPropertyValue keysAndVals
 
 getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> (Handler r) Public.ClientPrekey
 getPrekeyUnqualifiedH zusr user client = do
@@ -580,7 +536,8 @@ addClient usr con ip new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
     throwE (clientError ClientLegalHoldCannotBeAdded)
-  clientResponse <$> API.addClient usr (Just con) (ipAddr <$> ip) new !>> clientError
+  clientResponse <$> API.addClient usr (Just con) (ipAddr <$> ip) new
+    !>> clientError
   where
     clientResponse :: Public.Client -> NewClientResponse
     clientResponse client = Servant.addHeader (Public.clientId client) client
@@ -681,7 +638,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
                 . maybe id logEmail (Public.userEmail usr)
                 . maybe id logInvitationCode invitationCode
             )
-  Log.info $ context . Log.msg @Text "Sucessfully created user"
+  lift . Log.info $ context . Log.msg @Text "Sucessfully created user"
 
   let Public.User {userLocale, userDisplayName, userId} = usr
   let userEmail = Public.userEmail usr
@@ -695,12 +652,16 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       sendWelcomeEmail e ct ut (Just userLocale)
   cok <-
     Auth.toWebCookie =<< case acc of
-      UserAccount _ Ephemeral -> lift $ Auth.newCookie @ZAuth.User userId Public.SessionCookie newUserLabel
-      UserAccount _ _ -> lift $ Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
+      UserAccount _ Ephemeral ->
+        lift . wrapHttpClient $
+          Auth.newCookie @ZAuth.User userId Public.SessionCookie newUserLabel
+      UserAccount _ _ ->
+        lift . wrapHttpClient $
+          Auth.newCookie @ZAuth.User userId Public.PersistentCookie newUserLabel
   -- pure $ CreateUserResponse cok userId (Public.SelfProfile usr)
   pure $ Public.RegisterSuccess cok (Public.SelfProfile usr)
   where
-    sendActivationEmail :: Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppIO r) ()
+    sendActivationEmail :: Public.Email -> Public.Name -> ActivationPair -> Maybe Public.Locale -> Maybe Public.NewTeamUser -> (AppT r) ()
     sendActivationEmail e u p l mTeamUser
       | Just teamUser <- mTeamUser,
         Public.NewTeamCreator creator <- teamUser,
@@ -709,7 +670,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       | otherwise =
         sendActivationMail e u p l Nothing
 
-    sendWelcomeEmail :: Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppIO r) ()
+    sendWelcomeEmail :: Public.Email -> CreateUserTeam -> Public.NewTeamUser -> Maybe Public.Locale -> (AppT r) ()
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
     sendWelcomeEmail e (CreateUserTeam t n) newUser l = case newUser of
       Public.NewTeamCreator _ ->
@@ -839,11 +800,17 @@ changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
   handle <- maybe (throwError Public.ChangeHandleInvalid) pure $ parseHandle h
   API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
 
-beginPasswordResetH :: JSON ::: JsonRequest Public.NewPasswordReset -> (Handler r) Response
+beginPasswordResetH ::
+  Members '[PasswordResetStore] r =>
+  JSON ::: JsonRequest Public.NewPasswordReset ->
+  (Handler r) Response
 beginPasswordResetH (_ ::: req) =
   setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
 
-beginPasswordReset :: Public.NewPasswordReset -> (Handler r) ()
+beginPasswordReset ::
+  Members '[PasswordResetStore] r =>
+  Public.NewPasswordReset ->
+  (Handler r) ()
 beginPasswordReset (Public.NewPasswordReset target) = do
   checkWhitelist target
   (u, pair) <- API.beginPasswordReset target !>> pwResetError
@@ -852,7 +819,10 @@ beginPasswordReset (Public.NewPasswordReset target) = do
     Left email -> sendPasswordResetMail email pair loc
     Right phone -> wrapClient $ sendPasswordResetSms phone pair loc
 
-completePasswordResetH :: JSON ::: JsonRequest Public.CompletePasswordReset -> (Handler r) Response
+completePasswordResetH ::
+  Members '[CodeStore, PasswordResetStore] r =>
+  JSON ::: JsonRequest Public.CompletePasswordReset ->
+  (Handler r) Response
 completePasswordResetH (_ ::: req) = do
   Public.CompletePasswordReset {..} <- parseJsonBody req
   API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
@@ -1034,10 +1004,10 @@ activate (Public.Activate tgt code dryrun)
   | otherwise = do
     result <- API.activate tgt code Nothing !>> actError
     return $ case result of
-      ActivationSuccess ident first -> respond ident first
+      ActivationSuccess ident x -> respond ident x
       ActivationPass -> ActivationRespPass
   where
-    respond (Just ident) first = ActivationResp $ Public.ActivationResponse ident first
+    respond (Just ident) x = ActivationResp $ Public.ActivationResponse ident x
     respond Nothing _ = ActivationRespSuccessNoIdent
 
 sendVerificationCode :: Public.SendVerificationCode -> (Handler r) ()
@@ -1092,7 +1062,10 @@ instance ToJSON DeprecatedMatchingResult where
         "auto-connects" .= ([] :: [()])
       ]
 
-deprecatedCompletePasswordResetH :: JSON ::: Public.PasswordResetKey ::: JsonRequest Public.PasswordReset -> (Handler r) Response
+deprecatedCompletePasswordResetH ::
+  Members '[CodeStore, PasswordResetStore] r =>
+  JSON ::: Public.PasswordResetKey ::: JsonRequest Public.PasswordReset ->
+  (Handler r) Response
 deprecatedCompletePasswordResetH (_ ::: k ::: req) = do
   pwr <- parseJsonBody req
   API.completePasswordReset

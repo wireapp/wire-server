@@ -51,7 +51,7 @@ import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
 import Data.Misc (HttpsUrl, mkHttpsUrl)
 import Data.String.Conversions (cs)
-import Data.Text.Encoding (encodeUtf8)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Vector as V
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
@@ -88,7 +88,6 @@ import qualified Wire.API.User.IdentityProvider as User
 import Wire.API.User.RichInfo
 import qualified Wire.API.User.Saml as Spar.Types
 import qualified Wire.API.User.Scim as Spar.Types
-import Wire.API.User.Search (SearchResult (..))
 import qualified Wire.API.User.Search as Search
 
 -- | Tests for @\/scim\/v2\/Users@.
@@ -112,6 +111,7 @@ spec = do
   describe "validateScimUser'" $ do
     it "works" $ do
       pendingWith "write a list of unit tests here that make the mapping explicit, exhaustive, and easy to read."
+  specTeamSearch
 
 specImportToScimFromSAML :: SpecWith TestEnv
 specImportToScimFromSAML =
@@ -639,15 +639,9 @@ testCreateUserNoIdP = do
         ( do
             let searchQuery = fromName searchTarget
             resp <- call $ executeSearch brig searcherId searchQuery
-            pure $ searchFound resp
+            pure $ Search.searchFound resp
         )
         (if shouldSucceed then (> 0) else (== 0))
-
-    refreshIndex :: BrigReq -> TestSpar ()
-    refreshIndex brig = do
-      call $ void $ post (brig . path "/i/index/reindex" . expect2xx)
-      -- wait for async reindexing to complete (hopefully)
-      lift $ threadDelay 3_000_000
 
     executeSearch :: BrigReq -> UserId -> Text -> Http (Search.SearchResult Search.Contact)
     executeSearch brig self q = do
@@ -660,6 +654,13 @@ testCreateUserNoIdP = do
               . expect2xx
           )
       responseJsonError r
+
+-- | ES is only refreshed occasionally; we don't want to wait for that in tests.
+refreshIndex :: BrigReq -> TestSpar ()
+refreshIndex brig = do
+  call $ void $ post (brig . path "/i/index/reindex" . expect2xx)
+  -- wait for async reindexing to complete (hopefully)
+  lift $ threadDelay 3_000_000
 
 testCreateUserNoIdPNoEmail :: TestSpar ()
 testCreateUserNoIdPNoEmail = do
@@ -2072,3 +2073,44 @@ specSCIMManaged = do
     randomAlphaNum = liftIO $ do
       nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
       return (cs (map chr nrs))
+
+----------------------------------------------------------------------------
+-- Team Search for SAML users
+
+-- | Tests for @GET /teams/:tid/search@.
+specTeamSearch :: SpecWith TestEnv
+specTeamSearch = describe "GET /teams/:tid/search" $ do
+  it "search contains scim_external_id and sso" testTeamSearchScimIdAndSso
+
+testTeamSearchScimIdAndSso :: TestSpar ()
+testTeamSearchScimIdAndSso = do
+  brig <- view teBrig
+  user <- randomScimUser
+  (tok, (ownerId, tid, idp)) <- registerIdPAndScimToken
+  storedUser <- createUser tok user
+  refreshIndex brig
+  results <- executeTeamUserSearch brig tid ownerId Nothing
+  let mbTeamContact = find ((==) (scimUserId storedUser) . Search.teamContactUserId) results
+  let Just externalId = Scim.User.externalId user
+  lift $ (Search.teamContactScimExternalId =<< mbTeamContact) `shouldBe` Just externalId
+  let Right idpissuer = decodeUtf8 . toByteString' <$> idp ^. SAML.idpMetadata . SAML.edIssuer . SAML.fromIssuer . to mkHttpsUrl
+  lift $ (Search.ssoIssuer <$> (Search.teamContactSso =<< mbTeamContact)) `shouldBe` Just idpissuer
+  lift $ (Search.ssoNameId <$> (Search.teamContactSso =<< mbTeamContact)) `shouldBe` Just externalId
+
+executeTeamUserSearch ::
+  (Request -> Request) ->
+  TeamId ->
+  UserId ->
+  Maybe Text ->
+  TestSpar [Search.TeamContact]
+executeTeamUserSearch brig teamid self mbSearchText =
+  call $
+    get
+      ( brig
+          . paths ["/teams", toByteString' teamid, "search"]
+          . zUser self
+          . maybe id (queryItem "q" . encodeUtf8) mbSearchText
+      )
+      <!! const 200
+      === statusCode
+      >>= fmap Search.searchResults . responseJsonError

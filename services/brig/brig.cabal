@@ -60,7 +60,6 @@ library
       Brig.Data.Instances
       Brig.Data.LoginCode
       Brig.Data.MLS.KeyPackage
-      Brig.Data.PasswordReset
       Brig.Data.Properties
       Brig.Data.Types
       Brig.Data.User
@@ -92,6 +91,10 @@ library
       Brig.Queue.Types
       Brig.RPC
       Brig.Run
+      Brig.Sem.CodeStore
+      Brig.Sem.CodeStore.Cassandra
+      Brig.Sem.PasswordResetStore
+      Brig.Sem.PasswordResetStore.CodeStore
       Brig.SMTP
       Brig.Team.API
       Brig.Team.DB
@@ -162,7 +165,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -330,7 +332,6 @@ executable brig
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -384,7 +385,6 @@ executable brig-index
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -470,7 +470,6 @@ executable brig-integration
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -523,6 +522,7 @@ executable brig-integration
     , network
     , optparse-applicative
     , pem
+    , polysemy
     , process
     , proto-lens
     , random >=1.0
@@ -625,6 +625,7 @@ executable brig-schema
       V67_MLSKeyPackages
       V68_AddMLSPublicKeys
       V69_MLSKeyPackageRefMapping
+      V70_UserEmailUnvalidated
       V9
       Paths_brig
   hs-source-dirs:
@@ -661,7 +662,6 @@ executable brig-schema
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -726,7 +726,6 @@ test-suite brig-tests
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

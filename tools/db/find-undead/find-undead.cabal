@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 30202a4d538697375b0b0dc3d4789ad278c7b41e40169f1b41c538410d03d3da
+-- hash: adce5275484bd0fc90a6377e1637cb7e61416b644d1cee3b97f6e161e9fe610f
 
 name:           find-undead
 version:        1.0.0
@@ -56,7 +56,6 @@ executable find-undead
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

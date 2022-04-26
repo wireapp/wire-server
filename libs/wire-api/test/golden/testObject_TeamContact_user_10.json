@@ -2,11 +2,17 @@
     "accent_id": 2,
     "created_at": "1864-05-06T05:51:36.680Z",
     "email": null,
+    "email_unvalidated": null,
     "handle": "",
     "id": "00000002-0000-0000-0000-000100000001",
     "managed_by": "scim",
     "name": "or",
     "role": "member",
     "saml_idp": "P-\u0019",
+    "scim_external_id": null,
+    "sso": {
+        "issuer": "https://example.com/issuer/123",
+        "nameid": "0307979d-c742-4421-954a-9ceb1f22e58f"
+    },
     "team": null
 }

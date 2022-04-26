@@ -18,6 +18,8 @@
 module Galley.API.Public.Servant (mkNamedAPI, servantSitemap) where
 
 import Galley.API.Create
+import Galley.API.CustomBackend
+import Galley.API.LegalHold
 import Galley.API.MLS
 import Galley.API.Query
 import Galley.API.Teams
@@ -31,7 +33,16 @@ import Wire.API.Routes.Public.Galley
 import Wire.API.Team.Feature
 
 servantSitemap :: API ServantAPI GalleyEffects
-servantSitemap = conversations <@> teamConversations <@> messaging <@> bot <@> team <@> features <@> mls
+servantSitemap =
+  conversations
+    <@> teamConversations
+    <@> messaging
+    <@> bot
+    <@> team
+    <@> features
+    <@> mls
+    <@> customBackend
+    <@> legalHold
   where
     conversations =
       mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
@@ -96,8 +107,6 @@ servantSitemap = conversations <@> teamConversations <@> messaging <@> bot <@> t
         <@> mkNamedAPI @"get-team" getTeamH
         <@> mkNamedAPI @"delete-team" deleteTeam
 
-    mls = mkNamedAPI @"mls-welcome-message" postMLSWelcome
-
     features =
       mkNamedAPI @'("get", 'TeamFeatureSSO)
         ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureSSO
@@ -134,6 +143,8 @@ servantSitemap = conversations <@> teamConversations <@> messaging <@> bot <@> t
               setTeamSearchVisibilityAvailableInternal
               . DoAuth
           )
+        <@> mkNamedAPI @"get-search-visibility" getSearchVisibility
+        <@> mkNamedAPI @"set-search-visibility" setSearchVisibility
         <@> mkNamedAPI @'("get", 'TeamFeatureValidateSAMLEmails)
           ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails
               getValidateSAMLEmailsInternal
@@ -215,6 +226,7 @@ servantSitemap = conversations <@> teamConversations <@> messaging <@> bot <@> t
               . DoAuth
           )
         <@> mkNamedAPI @"get-all-feature-configs" getAllFeatureConfigs
+        <@> mkNamedAPI @"get-all-features" (\luid tid -> AllFeatureConfigs <$> getAllFeatures luid tid)
         <@> mkNamedAPI @'("get-config", 'TeamFeatureLegalHold)
           ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureLegalHold
               getLegalholdStatusInternal
@@ -263,3 +275,22 @@ servantSitemap = conversations <@> teamConversations <@> messaging <@> bot <@> t
           ( getFeatureConfig @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge
               getSndFactorPasswordChallengeInternal
           )
+
+    mls :: API MLSAPI GalleyEffects
+    mls =
+      mkNamedAPI @"mls-welcome-message" postMLSWelcome
+        <@> mkNamedAPI @"mls-message" postMLSMessage
+
+    customBackend :: API CustomBackendAPI GalleyEffects
+    customBackend = mkNamedAPI @"get-custom-backend-by-domain" getCustomBackendByDomain
+
+    legalHold :: API LegalHoldAPI GalleyEffects
+    legalHold =
+      mkNamedAPI @"create-legal-hold-settings" createSettings
+        <@> mkNamedAPI @"get-legal-hold-settings" getSettings
+        <@> mkNamedAPI @"delete-legal-hold-settings" removeSettingsInternalPaging
+        <@> mkNamedAPI @"get-legal-hold" getUserStatus
+        <@> mkNamedAPI @"consent-to-legal-hold" grantConsent
+        <@> mkNamedAPI @"request-legal-hold-device" requestDevice
+        <@> mkNamedAPI @"disable-legal-hold-for-user" disableForUser
+        <@> mkNamedAPI @"approve-legal-hold-device" approveDevice

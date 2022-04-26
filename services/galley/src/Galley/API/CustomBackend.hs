@@ -17,7 +17,7 @@
 
 -- | See also: 'DomainsBlockedForRegistration'.
 module Galley.API.CustomBackend
-  ( getCustomBackendByDomainH,
+  ( getCustomBackendByDomain,
     internalPutCustomBackendByDomainH,
     internalDeleteCustomBackendByDomainH,
   )
@@ -39,17 +39,6 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 
 -- PUBLIC ---------------------------------------------------------------------
-
-getCustomBackendByDomainH ::
-  Members
-    '[ CustomBackendStore,
-       ErrorS 'CustomBackendNotFound
-     ]
-    r =>
-  Domain ::: JSON ->
-  Sem r Response
-getCustomBackendByDomainH (domain ::: _) =
-  json <$> getCustomBackendByDomain domain
 
 getCustomBackendByDomain ::
   Members '[CustomBackendStore, ErrorS 'CustomBackendNotFound] r =>

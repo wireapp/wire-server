@@ -23,6 +23,7 @@ library
       Wire.API.Connection
       Wire.API.Conversation
       Wire.API.Conversation.Action
+      Wire.API.Conversation.Action.Tag
       Wire.API.Conversation.Bot
       Wire.API.Conversation.Code
       Wire.API.Conversation.Member
@@ -80,7 +81,6 @@ library
       Wire.API.Routes.Public.Cannon
       Wire.API.Routes.Public.Cargohold
       Wire.API.Routes.Public.Galley
-      Wire.API.Routes.Public.LegalHold
       Wire.API.Routes.Public.Spar
       Wire.API.Routes.Public.Util
       Wire.API.Routes.QualifiedCapture
@@ -156,7 +156,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -235,6 +234,7 @@ library
     , string-conversions
     , swagger >=0.1
     , swagger2
+    , tagged
     , text >=0.11
     , time >=1.4
     , types-common >=0.16
@@ -382,7 +382,6 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.PrekeyId_user
       Test.Wire.API.Golden.Generated.Priority_user
       Test.Wire.API.Golden.Generated.PropertyKey_user
-      Test.Wire.API.Golden.Generated.PropertyValue_user
       Test.Wire.API.Golden.Generated.Provider_provider
       Test.Wire.API.Golden.Generated.ProviderActivationResponse_provider
       Test.Wire.API.Golden.Generated.ProviderLogin_provider
@@ -529,7 +528,6 @@ test-suite wire-api-golden-tests
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -634,7 +632,6 @@ test-suite wire-api-tests
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

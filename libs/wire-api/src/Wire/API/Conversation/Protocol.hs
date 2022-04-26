@@ -1,3 +1,6 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -19,7 +22,11 @@ module Wire.API.Conversation.Protocol
   ( ProtocolTag (..),
     protocolTag,
     protocolTagSchema,
+    protocolValidAction,
+    Epoch (..),
     Protocol (..),
+    _ProtocolMLS,
+    _ProtocolProteus,
     protocolSchema,
     ConversationMLSData (..),
   )
@@ -31,7 +38,9 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Schema
 import Imports
 import Wire.API.Arbitrary
+import Wire.API.Conversation.Action.Tag
 import Wire.API.MLS.Group
+import Wire.API.MLS.Message
 
 data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag
   deriving stock (Eq, Show, Enum, Bounded, Generic)
@@ -39,7 +48,9 @@ data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag
 
 data ConversationMLSData = ConversationMLSData
   { -- | The MLS group ID associated to the conversation.
-    cnvmlsGroupId :: GroupId
+    cnvmlsGroupId :: GroupId,
+    -- | The current epoch number of the corresponding MLS group.
+    cnvmlsEpoch :: Epoch
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform ConversationMLSData
@@ -56,6 +67,18 @@ $(makePrisms ''Protocol)
 protocolTag :: Protocol -> ProtocolTag
 protocolTag ProtocolProteus = ProtocolProteusTag
 protocolTag (ProtocolMLS _) = ProtocolMLSTag
+
+-- | Certain actions need to be performed at the level of the underlying
+-- protocol (MLS, mostly) before being applied to conversations. This function
+-- returns whether a given action tag is directly applicable to a conversation
+-- with the given protocol.
+protocolValidAction :: Protocol -> ConversationActionTag -> Bool
+protocolValidAction ProtocolProteus _ = True
+protocolValidAction (ProtocolMLS _) ConversationJoinTag = False
+protocolValidAction (ProtocolMLS _) ConversationLeaveTag = False
+protocolValidAction (ProtocolMLS _) ConversationRemoveMembersTag = False
+protocolValidAction (ProtocolMLS _) ConversationDeleteTag = False
+protocolValidAction (ProtocolMLS _) _ = True
 
 instance ToSchema ProtocolTag where
   schema =
@@ -93,4 +116,9 @@ mlsDataSchema =
     .= fieldWithDocModifier
       "group_id"
       (description ?~ "An MLS group identifier (at most 256 bytes long)")
+      schema
+    <*> cnvmlsEpoch
+    .= fieldWithDocModifier
+      "epoch"
+      (description ?~ "The epoch number of the corresponding MLS group")
       schema

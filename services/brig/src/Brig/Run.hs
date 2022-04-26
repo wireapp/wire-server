@@ -110,12 +110,12 @@ mkApp o = do
   e <- newEnv o
   return (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)
   where
-    rtree :: Tree (App (Handler r))
+    rtree :: Tree (App (Handler BrigCanonicalEffects))
     rtree = compile sitemap
 
     middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
     middleware e =
-      Metrics.servantPlusWAIPrometheusMiddleware sitemap (Proxy @ServantCombinedAPI)
+      Metrics.servantPlusWAIPrometheusMiddleware (sitemap @BrigCanonicalEffects) (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. metrics]
@@ -173,7 +173,7 @@ bodyParserErrorFormatter _ _ errMsg =
       Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
     }
 
-pendingActivationCleanup :: forall r. AppIO r ()
+pendingActivationCleanup :: forall r. AppT r ()
 pendingActivationCleanup = do
   safeForever "pendingActivationCleanup" $ do
     now <- liftIO =<< view currentTime
@@ -209,17 +209,17 @@ pendingActivationCleanup = do
           -- pause to keep worst-case noise in logs manageable
           threadDelay 60_000_000
 
-    forExpirationsPaged :: ([UserPendingActivation] -> (AppIO r) ()) -> (AppIO r) ()
+    forExpirationsPaged :: ([UserPendingActivation] -> (AppT r) ()) -> (AppT r) ()
     forExpirationsPaged f = do
       go =<< wrapClient usersPendingActivationList
       where
-        go :: Page UserPendingActivation -> (AppIO r) ()
+        go :: Page UserPendingActivation -> (AppT r) ()
         go (Page hasMore result nextPage) = do
           f result
           when hasMore $
             go =<< wrapClient (lift nextPage)
 
-    threadDelayRandom :: (AppIO r) ()
+    threadDelayRandom :: (AppT r) ()
     threadDelayRandom = do
       cleanupTimeout <- fromMaybe (hours 24) . setExpiredUserCleanupTimeout <$> view settings
       let d = realToFrac cleanupTimeout

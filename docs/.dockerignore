@@ -1,0 +1,5 @@
+*.tar
+*.tar.gz
+*.deb
+.terraform
+build

@@ -32,12 +32,14 @@ module Wire.API.MLS.Serialisation
     decodeMLSWith',
     RawMLS (..),
     rawMLSSchema,
+    mlsSwagger,
     parseRawMLS,
   )
 where
 
 import Control.Applicative
 import Control.Comonad
+import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..))
 import qualified Data.Aeson as Aeson
 import Data.Bifunctor
@@ -162,6 +164,14 @@ rawMLSSchema :: Text -> (ByteString -> Either Text a) -> ValueSchema NamedSwagge
 rawMLSSchema name p =
   (toBase64Text . rmRaw)
     .= parsedText name (rawMLSFromText p)
+
+mlsSwagger :: Text -> S.NamedSchema
+mlsSwagger name =
+  S.NamedSchema (Just name) $
+    mempty
+      & S.description
+        ?~ "This object can only be parsed in TLS format. \
+           \Please refer to the MLS specification for details."
 
 rawMLSFromText :: (ByteString -> Either Text a) -> Text -> Either String (RawMLS a)
 rawMLSFromText p txt = do

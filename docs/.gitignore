@@ -1,0 +1,8 @@
+build
+.venv
+
+# Vim temporary files
+*.swp
+
+# direnv - nix derivation
+result

@@ -31,7 +31,8 @@ tests m b _opts =
     [ test m "POST /mls/key-packages/self/:client" (testKeyPackageUpload b),
       test m "POST /mls/key-packages/self/:client (no public keys)" (testKeyPackageUploadNoKey b),
       test m "GET /mls/key-packages/self/:client/count" (testKeyPackageZeroCount b),
-      test m "GET /mls/key-packages/claim/:domain/:user" (testKeyPackageClaim b)
+      test m "GET /mls/key-packages/claim/:domain/:user" (testKeyPackageClaim b),
+      test m "GET /mls/key-packages/claim/:domain/:user - self claim" (testKeyPackageSelfClaim b)
     ]
 
 testKeyPackageUpload :: Brig -> Http ()
@@ -86,13 +87,7 @@ testKeyPackageClaim brig = do
 
   -- check that we have one fewer key package now
   for_ [c1, c2] $ \c -> do
-    count :: KeyPackageCount <-
-      responseJsonError
-        =<< get
-          ( brig . paths ["mls", "key-packages", "self", toByteString' c, "count"]
-              . zUser (qUnqualified u)
-          )
-        <!! const 200 === statusCode
+    count <- getKeyPackageCount brig u c
     liftIO $ count @?= 2
 
   -- check that the package refs are correctly mapped
@@ -105,6 +100,53 @@ testKeyPackageClaim brig = do
       ciDomain cid @?= qDomain u
       ciUser cid @?= qUnqualified u
       ciClient cid @?= kpbeClient e
+
+testKeyPackageSelfClaim :: Brig -> Http ()
+testKeyPackageSelfClaim brig = do
+  -- setup a user u with two clients c1 and c2
+  u <- userQualifiedId <$> randomUser brig
+  [c1, c2] <- for [0, 1] $ \i -> do
+    c <- createClient brig u i
+    -- upload 3 key packages for each client
+    withSystemTempFile "store.db" $ \store _ ->
+      uploadKeyPackages brig store SetKey u c 3
+    pure c
+
+  -- claim own packages but skip the first
+  do
+    bundle <-
+      responseJsonError
+        =<< post
+          ( brig
+              . paths ["mls", "key-packages", "claim", toByteString' (qDomain u), toByteString' (qUnqualified u)]
+              . queryItem "skip_own" (toByteString' c1)
+              . zUser (qUnqualified u)
+          )
+          <!! const 200 === statusCode
+    liftIO $ Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle) @?= Set.fromList [(u, c2)]
+
+    -- check that we still have all keypackages for client c1
+    count <- getKeyPackageCount brig u c1
+    liftIO $ count @?= 3
+
+  -- if another user sets skip_own, nothing is skipped
+  do
+    u' <- userQualifiedId <$> randomUser brig
+    bundle <-
+      responseJsonError
+        =<< post
+          ( brig
+              . paths ["mls", "key-packages", "claim", toByteString' (qDomain u), toByteString' (qUnqualified u)]
+              . queryItem "skip_own" (toByteString' c1)
+              . zUser (qUnqualified u')
+          )
+          <!! const 200 === statusCode
+    liftIO $ Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle) @?= Set.fromList [(u, c1), (u, c2)]
+
+  -- check package counts again
+  for_ [(c1, 2), (c2, 1)] $ \(c, n) -> do
+    count <- getKeyPackageCount brig u c
+    liftIO $ count @?= n
 
 --------------------------------------------------------------------------------
 

@@ -695,7 +695,6 @@ addMembers ::
     '[ BrigAccess,
        ConversationStore,
        Error FederationError,
-       Error LegalHoldError,
        ErrorS ('ActionDenied 'AddConversationMember),
        ErrorS ('ActionDenied 'LeaveConversation),
        ErrorS 'ConvAccessDenied,
@@ -704,6 +703,7 @@ addMembers ::
        ErrorS 'NotConnected,
        ErrorS 'NotATeamMember,
        ErrorS 'TooManyMembers,
+       ErrorS 'MissingLegalholdConsent,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -730,7 +730,6 @@ addMembersUnqualified ::
     '[ BrigAccess,
        ConversationStore,
        Error FederationError,
-       Error LegalHoldError,
        ErrorS ('ActionDenied 'AddConversationMember),
        ErrorS ('ActionDenied 'LeaveConversation),
        ErrorS 'ConvAccessDenied,
@@ -739,6 +738,7 @@ addMembersUnqualified ::
        ErrorS 'NotConnected,
        ErrorS 'NotATeamMember,
        ErrorS 'TooManyMembers,
+       ErrorS 'MissingLegalholdConsent,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
@@ -1278,12 +1278,8 @@ updateLocalConversationName ::
   Local ConvId ->
   ConversationRename ->
   Sem r (UpdateResult Event)
-updateLocalConversationName lusr zcon lcnv rename = getUpdateResult $
-  do
-    alive <- E.isConversationAlive (tUnqualified lcnv)
-    unless alive $ do
-      E.deleteConversation (tUnqualified lcnv)
-      throwS @'ConvNotFound
+updateLocalConversationName lusr zcon lcnv rename =
+  getUpdateResult $
     updateLocalConversationWithLocalUser @'ConversationRenameTag lcnv lusr (Just zcon) rename
 
 isTypingUnqualified ::

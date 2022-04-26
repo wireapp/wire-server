@@ -3,9 +3,10 @@ kind: ConfigMap
 metadata:
   name: "spar"
 data:
+{{- with .Values.config }}
   spar.yaml: |
     logNetStrings: True # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)
-    logLevel: {{ .Values.config.logLevel }}
+    logLevel: {{ .logLevel }}
 
     brig:
       host: brig
@@ -17,25 +18,29 @@ data:
 
     cassandra:
       endpoint:
-        host: {{ .Values.config.cassandra.host }}
+        host: {{ .cassandra.host }}
         port: 9042
       keyspace: spar
+      {{- if hasKey .cassandra "filterNodesByDatacentre" }}
+      filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
+      {{- end }}
 
-    maxttlAuthreq: {{ .Values.config.maxttlAuthreq }}
-    maxttlAuthresp: {{ .Values.config.maxttlAuthresp }}
+    maxttlAuthreq: {{ .maxttlAuthreq }}
+    maxttlAuthresp: {{ .maxttlAuthresp }}
 
-    richInfoLimit: {{ .Values.config.richInfoLimit }}
+    richInfoLimit: {{ .richInfoLimit }}
 
-    maxScimTokens: {{ .Values.config.maxScimTokens }}
+    maxScimTokens: {{ .maxScimTokens }}
 
     saml:
       version:     SAML2.0
-      logLevel:    {{ .Values.config.logLevel }}
+      logLevel:    {{ .logLevel }}
 
       spHost: 0.0.0.0
-      spPort: {{ .Values.service.externalPort }}
-      spAppUri: {{ .Values.config.appUri }}
-      spSsoUri: {{ .Values.config.ssoUri }}
+      spPort: {{ $.Values.service.externalPort }}
+      spAppUri: {{ .appUri }}
+      spSsoUri: {{ .ssoUri }}
 
       contacts:
-{{ toYaml .Values.config.contacts | indent 12 }}
+{{ toYaml .contacts | indent 12 }}
+{{- end }}

@@ -27,14 +27,13 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input (Input, input)
-import SAML2.WebSSO (fromTime)
 import qualified SAML2.WebSSO as SAML
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
 import Spar.Sem.AReqIDStore
-import Spar.Sem.Now (Now)
-import qualified Spar.Sem.Now as Now
 import Wire.API.User.Saml
+import Wire.Sem.Now (Now)
+import qualified Wire.Sem.Now as Now
 
 aReqIDStoreToCassandra ::
   forall m r a.
@@ -43,7 +42,7 @@ aReqIDStoreToCassandra ::
   Sem r a
 aReqIDStoreToCassandra = interpret $ \case
   Store itla t -> do
-    denv <- Data.mkEnv <$> input <*> (fromTime <$> Now.get)
+    denv <- Data.mkEnv <$> input <*> Now.get
     a <- embed @m $ runExceptT $ runReaderT (storeAReqID itla t) denv
     case a of
       Left err -> throw err

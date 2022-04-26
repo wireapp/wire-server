@@ -42,6 +42,8 @@ import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import Wire.API.Connection
+import Wire.API.Error
+import Wire.API.Error.Brig
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.Internal.Brig.Connection
@@ -49,6 +51,7 @@ import Wire.API.Routes.Internal.Brig.EJPD
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
+import Wire.API.Routes.QualifiedCapture
 import Wire.API.Team.Feature (TeamFeatureName (TeamFeatureSearchVisibilityInbound))
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User
@@ -141,7 +144,7 @@ type AccountAPI =
         :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
     )
 
-type MLSAPI = GetClientByKeyPackageRef
+type MLSAPI = GetClientByKeyPackageRef :<|> GetMLSClients
 
 type GetClientByKeyPackageRef =
   Summary "Resolve an MLS key package ref to a qualified client ID"
@@ -155,6 +158,18 @@ type GetClientByKeyPackageRef =
             Respond 200 "Key package ref found" ClientIdentity
           ]
          (Maybe ClientIdentity)
+
+type GetMLSClients =
+  Summary "Return all MLS-enabled clients of a user"
+    :> "mls"
+    :> "clients"
+    :> CanThrow 'UserNotFound
+    :> QualifiedCapture "user" UserId
+    :> QueryParam' '[Required, Strict] "sig_scheme" SignatureSchemeTag
+    :> MultiVerb1
+         'GET
+         '[Servant.JSON]
+         (Respond 200 "MLS clients" (Set ClientId))
 
 type GetVerificationCode =
   Summary "Get verification code for a given email and action"

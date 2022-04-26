@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6552470103e25be8ed8fd4931964969c9f7d7be9704d270ab70c56112754a4c2
+-- hash: 2e6bc533a2e630a022751905d911a3d50831c4351143ff9d1e0eb07d298ae422
 
 name:           brig-types
 version:        1.35.0
@@ -29,7 +29,6 @@ library
       Brig.Types.Connection
       Brig.Types.Instances
       Brig.Types.Intra
-      Brig.Types.Properties
       Brig.Types.Provider
       Brig.Types.Provider.External
       Brig.Types.Provider.Tag
@@ -77,7 +76,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -152,7 +150,6 @@ test-suite brig-types-tests
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

@@ -44,7 +44,7 @@ import Imports
 -------------------------------------------------------------------------------
 -- Activation Email
 
-sendActivationMail :: Name -> Email -> Code.Key -> Code.Value -> Bool -> (AppIO r) ()
+sendActivationMail :: Name -> Email -> Code.Key -> Code.Value -> Bool -> (AppT r) ()
 sendActivationMail name email key code update = do
   tpl <- selectTemplate update . snd <$> providerTemplates Nothing
   branding <- view templateBranding
@@ -96,7 +96,7 @@ renderActivationUrl t (Code.Key k) (Code.Value v) branding =
 --------------------------------------------------------------------------------
 -- Approval Request Email
 
-sendApprovalRequestMail :: Name -> Email -> HttpsUrl -> Text -> Code.Key -> Code.Value -> (AppIO r) ()
+sendApprovalRequestMail :: Name -> Email -> HttpsUrl -> Text -> Code.Key -> Code.Value -> (AppT r) ()
 sendApprovalRequestMail name email url descr key val = do
   tpl <- approvalRequestEmail . snd <$> providerTemplates Nothing
   branding <- view templateBranding
@@ -147,7 +147,7 @@ renderApprovalUrl t (Code.Key k) (Code.Value v) branding =
 --------------------------------------------------------------------------------
 -- Approval Confirmation Email
 
-sendApprovalConfirmMail :: Name -> Email -> (AppIO r) ()
+sendApprovalConfirmMail :: Name -> Email -> (AppT r) ()
 sendApprovalConfirmMail name email = do
   tpl <- approvalConfirmEmail . snd <$> providerTemplates Nothing
   branding <- view templateBranding
@@ -183,7 +183,7 @@ renderApprovalConfirmMail ApprovalConfirmEmail {..} ApprovalConfirmEmailTemplate
 --------------------------------------------------------------------------------
 -- Password Reset Email
 
-sendPasswordResetMail :: Email -> Code.Key -> Code.Value -> (AppIO r) ()
+sendPasswordResetMail :: Email -> Code.Key -> Code.Value -> (AppT r) ()
 sendPasswordResetMail to key code = do
   tpl <- passwordResetEmail . snd <$> providerTemplates Nothing
   branding <- view templateBranding

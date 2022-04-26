@@ -71,7 +71,10 @@ userDoc1 =
       udManagedBy = Just ManagedByScim,
       udCreatedAt = Just (toUTCTimeMillis (mkTime 1598737800000)),
       udRole = Just RoleAdmin,
-      udSearchVisibilityInbound = Nothing
+      udSearchVisibilityInbound = Nothing,
+      udScimExternalId = Nothing,
+      udSso = Nothing,
+      udEmailUnvalidated = Nothing
     }
 
 -- Dont touch this. This represents serialized legacy data.

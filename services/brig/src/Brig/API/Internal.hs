@@ -31,7 +31,7 @@ import Brig.API.Handler
 import Brig.API.Types
 import qualified Brig.API.User as API
 import qualified Brig.API.User as Api
-import Brig.API.Util (validateHandle)
+import Brig.API.Util
 import Brig.App
 import qualified Brig.Code as Code
 import Brig.Data.Activation
@@ -42,6 +42,8 @@ import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
+import Brig.Sem.CodeStore (CodeStore)
+import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Brig.Team.API as Team
 import Brig.Team.DB (lookupInvitationByEmail)
 import Brig.Types
@@ -52,6 +54,7 @@ import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.EJPD
 import qualified Brig.User.Search.Index as Index
+import Cassandra (MonadClient)
 import Control.Error hiding (bool)
 import Control.Lens (view)
 import Data.Aeson hiding (json)
@@ -59,7 +62,6 @@ import Data.ByteString.Conversion
 import qualified Data.ByteString.Conversion as List
 import Data.Handle (Handle)
 import Data.Id as Id
-import qualified Data.List1 as List1
 import qualified Data.Map.Strict as Map
 import Data.Qualified
 import qualified Data.Set as Set
@@ -68,14 +70,17 @@ import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (result, setStatus)
-import Network.Wai.Routing
+import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
+import Polysemy
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
+import UnliftIO.Async
 import Wire.API.Error
+import Wire.API.Error.Brig
 import qualified Wire.API.Error.Brig as E
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -103,7 +108,7 @@ ejpdAPI =
     :<|> getConnectionsStatus
 
 mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
-mlsAPI = getClientByKeyPackageRef
+mlsAPI = getClientByKeyPackageRef :<|> getMLSClients
 
 accountAPI :: ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI = Named @"createUserNoVerify" createUserNoVerify
@@ -128,6 +133,21 @@ deleteAccountFeatureConfig uid =
 getClientByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe ClientIdentity)
 getClientByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.derefKeyPackage
 
+getMLSClients :: Qualified UserId -> SignatureSchemeTag -> Handler r (Set ClientId)
+getMLSClients qusr ss = do
+  usr <- lift $ tUnqualified <$> ensureLocal qusr
+  results <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult usr
+  keys <- lift . wrapClient $ pooledMapConcurrentlyN 16 getKey (toList results)
+  pure . Set.fromList . map fst . filter (isJust . snd) $ keys
+  where
+    getResult _ [] = throwStd (errorToWai @'UserNotFound)
+    getResult usr ((u, cs) : rs)
+      | u == usr = pure cs
+      | otherwise = getResult usr rs
+
+    getKey :: MonadClient m => ClientId -> m (ClientId, Maybe LByteString)
+    getKey cid = (cid,) <$> Data.lookupMLSPublicKey (qUnqualified qusr) cid ss
+
 getVerificationCode :: UserId -> VerificationAction -> (Handler r) (Maybe Code.Value)
 getVerificationCode uid action = do
   user <- wrapClientE $ Api.lookupUser NoPendingInvitations uid
@@ -145,7 +165,9 @@ swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
 ---------------------------------------------------------------------------
 -- Sitemap (wai-route)
 
-sitemap :: Routes a (Handler r) ()
+sitemap ::
+  Members '[CodeStore, PasswordResetStore] r =>
+  Routes a (Handler r) ()
 sitemap = do
   get "/i/status" (continue $ const $ return empty) true
   head "/i/status" (continue $ const $ return empty) true
@@ -280,6 +302,7 @@ sitemap = do
   -- - UserLegalHoldEnabled event to contacts of the user, if client type is legalhold
   post "/i/clients/:uid" (continue addClientInternalH) $
     capture "uid"
+      .&. opt (param "skip_reauth")
       .&. jsonRequest @NewClient
       .&. opt zauthConnId
       .&. accept "application" "json"
@@ -307,14 +330,17 @@ sitemap = do
 -- Handlers
 
 -- | Add a client without authentication checks
-addClientInternalH :: UserId ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON -> (Handler r) Response
-addClientInternalH (usr ::: req ::: connId ::: _) = do
+addClientInternalH :: UserId ::: Maybe Bool ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON -> (Handler r) Response
+addClientInternalH (usr ::: mSkipReAuth ::: req ::: connId ::: _) = do
   new <- parseJsonBody req
-  setStatus status201 . json <$> addClientInternal usr new connId
+  setStatus status201 . json <$> addClientInternal usr mSkipReAuth new connId
 
-addClientInternal :: UserId -> NewClient -> Maybe ConnId -> (Handler r) Client
-addClientInternal usr new connId = do
-  API.addClient usr connId Nothing new !>> clientError
+addClientInternal :: UserId -> Maybe Bool -> NewClient -> Maybe ConnId -> (Handler r) Client
+addClientInternal usr mSkipReAuth new connId = do
+  let policy
+        | mSkipReAuth == Just True = \_ _ -> False
+        | otherwise = Data.reAuthForNewClients
+  API.addClientWithReAuthPolicy policy usr connId Nothing new !>> clientError
 
 legalHoldClientRequestedH :: UserId ::: JsonRequest LegalHoldClientRequest ::: JSON -> (Handler r) Response
 legalHoldClientRequestedH (targetUser ::: req ::: _) = do
@@ -331,7 +357,7 @@ internalListClientsH :: JSON ::: JsonRequest UserSet -> (Handler r) Response
 internalListClientsH (_ ::: req) = do
   json <$> (lift . internalListClients =<< parseJsonBody req)
 
-internalListClients :: UserSet -> (AppIO r) UserClients
+internalListClients :: UserSet -> (AppT r) UserClients
 internalListClients (UserSet usrs) = do
   UserClients . Map.fromList
     <$> wrapClient (API.lookupUsersClientIds (Set.toList usrs))
@@ -340,7 +366,7 @@ internalListFullClientsH :: JSON ::: JsonRequest UserSet -> (Handler r) Response
 internalListFullClientsH (_ ::: req) =
   json <$> (lift . internalListFullClients =<< parseJsonBody req)
 
-internalListFullClients :: UserSet -> (AppIO r) UserClientsFull
+internalListFullClients :: UserSet -> (AppT r) UserClientsFull
 internalListFullClients (UserSet usrs) =
   UserClientsFull <$> wrapClient (Data.lookupClientsBulk (Set.toList usrs))
 
@@ -390,7 +416,7 @@ listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) ::: Bool -
 listActivatedAccountsH (_ ::: qry ::: includePendingInvitations) = do
   json <$> lift (listActivatedAccounts qry includePendingInvitations)
 
-listActivatedAccounts :: Either (List UserId) (List Handle) -> Bool -> (AppIO r) [UserAccount]
+listActivatedAccounts :: Either (List UserId) (List Handle) -> Bool -> (AppT r) [UserAccount]
 listActivatedAccounts elh includePendingInvitations = do
   Log.debug (Log.msg $ "listActivatedAccounts: " <> show (elh, includePendingInvitations))
   case elh of
@@ -399,10 +425,10 @@ listActivatedAccounts elh includePendingInvitations = do
       us <- mapM (wrapClient . API.lookupHandle) (fromList hs)
       byIds (catMaybes us)
   where
-    byIds :: [UserId] -> (AppIO r) [UserAccount]
+    byIds :: [UserId] -> (AppT r) [UserAccount]
     byIds uids = wrapClient (API.lookupAccounts uids) >>= filterM accountValid
 
-    accountValid :: UserAccount -> (AppIO r) Bool
+    accountValid :: UserAccount -> (AppT r) Bool
     accountValid account = case userIdentity . accountUser $ account of
       Nothing -> pure False
       Just ident ->
@@ -441,12 +467,18 @@ newtype GetActivationCodeResp = GetActivationCodeResp (ActivationKey, Activation
 instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-getPasswordResetCodeH :: JSON ::: Either Email Phone -> (Handler r) Response
+getPasswordResetCodeH ::
+  Members '[CodeStore, PasswordResetStore] r =>
+  JSON ::: Either Email Phone ->
+  (Handler r) Response
 getPasswordResetCodeH (_ ::: emailOrPhone) = do
   maybe (throwStd invalidPwResetKey) (pure . json) =<< lift (getPasswordResetCode emailOrPhone)
 
-getPasswordResetCode :: Either Email Phone -> (AppIO r) (Maybe GetPasswordResetCodeResp)
-getPasswordResetCode emailOrPhone = do
+getPasswordResetCode ::
+  Members '[CodeStore, PasswordResetStore] r =>
+  Either Email Phone ->
+  (AppT r) (Maybe GetPasswordResetCodeResp)
+getPasswordResetCode emailOrPhone =
   GetPasswordResetCodeResp <$$> API.lookupPasswordResetCode emailOrPhone
 
 newtype GetPasswordResetCodeResp = GetPasswordResetCodeResp (PasswordResetKey, PasswordResetCode)
@@ -457,7 +489,7 @@ instance ToJSON GetPasswordResetCodeResp where
 changeAccountStatusH :: UserId ::: JsonRequest AccountStatusUpdate -> (Handler r) Response
 changeAccountStatusH (usr ::: req) = do
   status <- suStatus <$> parseJsonBody req
-  API.changeAccountStatus (List1.singleton usr) status !>> accountStatusError
+  wrapHttpClientE (API.changeSingleAccountStatus usr status) !>> accountStatusError
   return empty
 
 getAccountStatusH :: JSON ::: UserId -> (Handler r) Response

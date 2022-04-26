@@ -61,12 +61,6 @@ library
       Spar.Sem.IdPRawMetadataStore.Spec
       Spar.Sem.Logger
       Spar.Sem.Logger.TinyLog
-      Spar.Sem.Now
-      Spar.Sem.Now.Input
-      Spar.Sem.Now.IO
-      Spar.Sem.Now.Spec
-      Spar.Sem.Random
-      Spar.Sem.Random.IO
       Spar.Sem.Reporter
       Spar.Sem.Reporter.Wai
       Spar.Sem.SAML2
@@ -126,7 +120,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -176,6 +169,7 @@ library
     , polysemy
     , polysemy-check >=0.9
     , polysemy-plugin
+    , polysemy-wire-zoo
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -241,7 +235,6 @@ executable spar
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -291,6 +284,7 @@ executable spar
     , polysemy
     , polysemy-check >=0.9
     , polysemy-plugin
+    , polysemy-wire-zoo
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -371,7 +365,6 @@ executable spar-integration
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -427,6 +420,7 @@ executable spar-integration
     , polysemy
     , polysemy-check >=0.9
     , polysemy-plugin
+    , polysemy-wire-zoo
     , random
     , raw-strings-qq
     , retry
@@ -505,7 +499,6 @@ executable spar-migrate-data
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -556,6 +549,7 @@ executable spar-migrate-data
     , polysemy
     , polysemy-check >=0.9
     , polysemy-plugin
+    , polysemy-wire-zoo
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -638,7 +632,6 @@ executable spar-schema
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -688,6 +681,7 @@ executable spar-schema
     , polysemy
     , polysemy-check >=0.9
     , polysemy-plugin
+    , polysemy-wire-zoo
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18
@@ -767,7 +761,6 @@ test-suite spec
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -820,6 +813,7 @@ test-suite spec
     , polysemy
     , polysemy-check >=0.9
     , polysemy-plugin
+    , polysemy-wire-zoo
     , raw-strings-qq
     , retry
     , saml2-web-sso >=0.18

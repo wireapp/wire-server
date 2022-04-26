@@ -77,7 +77,7 @@ import Network.Wire.Client.Monad
 import Network.Wire.Client.Session
 import qualified System.Logger as Log
 import Wire.API.Connection (UserConnection (..))
-import Wire.API.Conversation.Member (MemberUpdate (..))
+import Wire.API.Conversation
 import Wire.API.Event.Conversation hiding (Event, EventType)
 import Wire.API.User (Name (..), User (..), UserIdList (..), userEmail)
 

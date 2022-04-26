@@ -642,33 +642,11 @@ postConv ::
   TestM ResponseLBS
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
 
--- | Create a group MLS conversation
-postMLSConv ::
-  Local UserId ->
-  UserList UserId ->
-  Maybe Text ->
-  [Access] ->
-  Maybe (Set AccessRoleV2) ->
-  Maybe Milliseconds ->
-  TestM ResponseLBS
-postMLSConv lusr us name access r timer =
-  postConvQualified
-    (tUnqualified lusr)
-    NewConv
-      { newConvUsers = [],
-        newConvQualifiedUsers = ulAll lusr us,
-        newConvName = name >>= checked,
-        newConvAccess = Set.fromList access,
-        newConvAccessRoles = r,
-        newConvTeam = Nothing,
-        newConvMessageTimer = timer,
-        newConvUsersRole = roleNameWireAdmin,
-        newConvReceiptMode = Nothing,
-        newConvProtocol = ProtocolMLSTag
-      }
-
 defNewProteusConv :: NewConv
 defNewProteusConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+
+defNewMLSConv :: NewConv
+defNewMLSConv = defNewProteusConv {newConvProtocol = ProtocolMLSTag}
 
 postConvQualified ::
   (HasCallStack, HasGalley m, MonadIO m, MonadMask m, MonadHttp m) =>
@@ -1609,6 +1587,31 @@ wsAssertMLSWelcome u welcome n = do
   evtFrom e @?= u
   evtData e @?= EdMLSWelcome welcome
 
+wsAssertMLSMessage ::
+  HasCallStack =>
+  Qualified ConvId ->
+  Qualified UserId ->
+  ByteString ->
+  Notification ->
+  IO ()
+wsAssertMLSMessage conv u message n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  assertMLSMessageEvent conv u message e
+
+assertMLSMessageEvent ::
+  HasCallStack =>
+  Qualified ConvId ->
+  Qualified UserId ->
+  ByteString ->
+  Event ->
+  IO ()
+assertMLSMessageEvent conv u message e = do
+  evtConv e @?= conv
+  evtType e @?= MLSMessageAdd
+  evtFrom e @?= u
+  evtData e @?= EdMLSMessage message
+
 -- | This assumes the default role name
 wsAssertMemberJoin :: HasCallStack => Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> Notification -> IO ()
 wsAssertMemberJoin conv usr new = wsAssertMemberJoinWithRole conv usr new roleNameWireAdmin
@@ -1617,6 +1620,10 @@ wsAssertMemberJoinWithRole :: HasCallStack => Qualified ConvId -> Qualified User
 wsAssertMemberJoinWithRole conv usr new role n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
+  assertJoinEvent conv usr new role e
+
+assertJoinEvent :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> RoleName -> Event -> IO ()
+assertJoinEvent conv usr new role e = do
   evtConv e @?= conv
   evtType e @?= Conv.MemberJoin
   evtFrom e @?= usr
@@ -2740,7 +2747,7 @@ matchFedRequest domain reqpath req =
   frTargetDomain req == domain
     && frRPC req == reqpath
 
-spawn :: CreateProcess -> Maybe ByteString -> IO ByteString
+spawn :: HasCallStack => CreateProcess -> Maybe ByteString -> IO ByteString
 spawn cp minput = do
   (mout, ex) <- withCreateProcess
     cp

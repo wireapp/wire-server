@@ -183,7 +183,7 @@ clientDataError TooManyClients = StdError (errorToWai @'E.TooManyClients)
 clientDataError (ClientReAuthError e) = reauthError e
 clientDataError ClientMissingAuth = StdError (errorToWai @'E.MissingAuth)
 clientDataError MalformedPrekeys = StdError (errorToWai @'E.MalformedPrekeys)
-clientDataError MLSPublicKeyDuplicate = StdError (errorToWai @'E.DuplicateMLSPublicKey)
+clientDataError MLSPublicKeyDuplicate = StdError (errorToWai @'E.MLSDuplicatePublicKey)
 
 deleteUserError :: DeleteUserError -> Error
 deleteUserError DeleteUserInvalid = StdError (errorToWai @'E.InvalidUser)
@@ -195,6 +195,7 @@ deleteUserError DeleteUserOwnerDeletingSelf = StdError (errorToWai @'E.OwnerDele
 
 accountStatusError :: AccountStatusError -> Error
 accountStatusError InvalidAccountStatus = StdError invalidAccountStatus
+accountStatusError AccountNotFound = StdError (notFound "Account not found")
 
 phoneError :: PhoneException -> Error
 phoneError PhoneNumberUnreachable = StdError (errorToWai @'E.InvalidPhone)

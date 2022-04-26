@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 80100f7bcc806d6eef6f942564fb7afa966abe1df367224e68b29a904fbe3cf2
+-- hash: 261411519b3ae85505adfff99bfb0679316824330e5ae1e8742948509ddd5778
 
 name:           makedeb
 version:        0.3.0
@@ -59,7 +59,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -114,7 +113,6 @@ executable makedeb
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

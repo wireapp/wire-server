@@ -3,8 +3,6 @@ cabal-version: 1.12
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
---
--- hash: b5ae0ca8cfcc22e0751375eaf5b925d7557c88056d881b85cf7d82e3a8c322be
 
 name:           gundeck
 version:        1.45.0
@@ -90,7 +88,6 @@ library
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -120,6 +117,7 @@ library
     , extended
     , extra >=1.1
     , gundeck-types >=1.0
+    , hedis >=0.14.0
     , http-client >=0.4
     , http-client-tls >=0.2.2
     , http-types >=0.8
@@ -129,10 +127,10 @@ library
     , metrics-core >=0.2.1
     , metrics-wai >=0.5.7
     , mtl >=2.2
+    , network
     , network-uri >=2.6
     , optparse-applicative >=0.10
     , psqueues >=0.2.2
-    , redis-io >=0.4
     , resourcet >=1.1
     , retry >=0.5
     , safe-exceptions
@@ -191,7 +189,6 @@ executable gundeck
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -221,6 +218,7 @@ executable gundeck-integration
       API
       Metrics
       TestSetup
+      Util
       Paths_gundeck
   hs-source-dirs:
       test/integration
@@ -256,7 +254,6 @@ executable gundeck-integration
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -283,14 +280,18 @@ executable gundeck-integration
     , http-client
     , http-client-tls
     , imports
+    , kan-extensions
     , lens
     , lens-aeson
+    , metrics-wai
     , mtl
+    , network
     , network-uri
     , optparse-applicative
     , random
     , retry
     , safe
+    , streaming-commons
     , tagged
     , tasty >=1.0
     , tasty-hunit >=0.9
@@ -298,8 +299,13 @@ executable gundeck-integration
     , time
     , tinylog
     , types-common
+    , unix
     , unordered-containers
     , uuid
+    , wai
+    , wai-utilities
+    , warp
+    , warp-tls
     , websockets >=0.8
     , yaml
   default-language: Haskell2010
@@ -350,7 +356,6 @@ executable gundeck-schema
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -418,7 +423,6 @@ test-suite gundeck-tests
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies
@@ -504,7 +508,6 @@ benchmark gundeck-bench
       RankNTypes
       ScopedTypeVariables
       StandaloneDeriving
-      TemplateHaskell
       TupleSections
       TypeApplications
       TypeFamilies

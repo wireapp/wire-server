@@ -32,10 +32,11 @@ module Brig.Data.Activation
 where
 
 import Brig.App (Env)
-import Brig.Data.PasswordReset
 import Brig.Data.User
 import Brig.Data.UserKey
 import Brig.Options
+import qualified Brig.Sem.CodeStore as E
+import Brig.Sem.CodeStore.Cassandra
 import Brig.Types
 import Brig.Types.Intra
 import Cassandra
@@ -48,6 +49,7 @@ import qualified Data.Text.Lazy as LT
 import Imports
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
+import Polysemy
 import Text.Printf (printf)
 import Wire.API.User
 
@@ -86,6 +88,7 @@ maxAttempts = 3
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey ::
+  forall m.
   (MonadClient m, MonadReader Env m) =>
   ActivationKey ->
   ActivationCode ->
@@ -119,15 +122,19 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
       -- activating existing key and exactly same profile
       -- (can happen when a user clicks on activation links more than once)
       | oldKey == Just key && profileNeedsUpdate = do
-        lift $ foldKey (updateEmail uid) (updatePhone uid) key
+        lift $ foldKey (updateEmailAndDeleteEmailUnvalidated uid) (updatePhone uid) key
         return . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
       -- if the key is the same, we only want to update our profile
       | otherwise = do
-        mkPasswordResetKey uid >>= lift . deletePasswordResetCode
+        lift (runM (codeStoreToCassandra @m @'[Embed m] (E.mkPasswordResetKey uid >>= E.codeDelete)))
         claim key uid
-        lift $ foldKey (updateEmail uid) (updatePhone uid) key
+        lift $ foldKey (updateEmailAndDeleteEmailUnvalidated uid) (updatePhone uid) key
         for_ oldKey $ lift . deleteKey
         return . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
+      where
+        updateEmailAndDeleteEmailUnvalidated :: MonadClient m => UserId -> Email -> m ()
+        updateEmailAndDeleteEmailUnvalidated u' email =
+          updateEmail u' email <* deleteEmailUnvalidated u'
     claim key uid = do
       ok <- lift $ claimKey key uid
       unless ok $

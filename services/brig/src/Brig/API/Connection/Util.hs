@@ -33,11 +33,11 @@ import Data.Qualified (Local, tUnqualified)
 import Imports
 import Wire.API.Connection (Relation (..))
 
-type ConnectionM r = ExceptT ConnectionError (AppIO r)
+type ConnectionM r = ExceptT ConnectionError (AppT r)
 
 -- Helpers
 
-checkLimit :: Local UserId -> ExceptT ConnectionError (AppIO r) ()
+checkLimit :: Local UserId -> ExceptT ConnectionError (AppT r) ()
 checkLimit u = noteT (TooManyConnections (tUnqualified u)) $ do
   n <- lift . wrapClient $ Data.countConnections u [Accepted, Sent]
   l <- setUserMaxConnections <$> view settings

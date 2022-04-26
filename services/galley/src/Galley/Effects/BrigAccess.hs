@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -47,6 +49,7 @@ module Galley.Effects.BrigAccess
 
     -- * MLS
     getClientByKeyPackageRef,
+    getMLSClients,
 
     -- * Features
     getAccountFeatureConfigClient,
@@ -65,6 +68,7 @@ import Galley.External.LegalHoldService.Types
 import Imports
 import Network.HTTP.Types.Status
 import Polysemy
+import Polysemy.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -111,15 +115,16 @@ data BrigAccess m a where
     UserId ->
     Maybe PlainTextPassword ->
     BrigAccess m OpaqueAuthToken
-  AddLegalHoldClientToUser ::
+  AddLegalHoldClientToUserEither ::
     UserId ->
     ConnId ->
     [Prekey] ->
     LastPrekey ->
-    BrigAccess m ClientId
+    BrigAccess m (Either AuthenticationError ClientId)
   RemoveLegalHoldClientFromUser :: UserId -> BrigAccess m ()
   GetAccountFeatureConfigClient :: UserId -> BrigAccess m TeamFeatureStatusNoConfig
   GetClientByKeyPackageRef :: KeyPackageRef -> BrigAccess m (Maybe ClientIdentity)
+  GetMLSClients :: Qualified UserId -> SignatureSchemeTag -> BrigAccess m (Set ClientId)
   UpdateSearchVisibilityInbound ::
     Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound ->
     BrigAccess m ()
@@ -128,3 +133,14 @@ makeSem ''BrigAccess
 
 getUser :: Member BrigAccess r => UserId -> Sem r (Maybe UserAccount)
 getUser = fmap listToMaybe . getUsers . pure
+
+addLegalHoldClientToUser ::
+  (Member BrigAccess r, Member (Error AuthenticationError) r) =>
+  UserId ->
+  ConnId ->
+  [Prekey] ->
+  LastPrekey ->
+  Sem r ClientId
+addLegalHoldClientToUser uid con pks lpk =
+  addLegalHoldClientToUserEither uid con pks lpk
+    >>= either throw pure

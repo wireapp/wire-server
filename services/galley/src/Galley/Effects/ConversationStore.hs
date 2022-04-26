@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -25,12 +27,12 @@ module Galley.Effects.ConversationStore
 
     -- * Read conversation
     getConversation,
+    getConversationIdByGroupId,
     getConversations,
     getConversationMetadata,
     isConversationAlive,
     getRemoteConversationStatus,
     selectConversations,
-    getConversationIdByGroupId,
 
     -- * Update conversation
     setConversationType,
@@ -38,6 +40,7 @@ module Galley.Effects.ConversationStore
     setConversationAccess,
     setConversationReceiptMode,
     setConversationMessageTimer,
+    setConversationEpoch,
     acceptConnectConversation,
     setGroupId,
 
@@ -55,12 +58,14 @@ import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
+import Wire.API.MLS.Message
 
 data ConversationStore m a where
   CreateConversationId :: ConversationStore m ConvId
   CreateConversation :: Local ConvId -> NewConversation -> ConversationStore m Conversation
   DeleteConversation :: ConvId -> ConversationStore m ()
   GetConversation :: ConvId -> ConversationStore m (Maybe Conversation)
+  GetConversationIdByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvId))
   GetConversations :: [ConvId] -> ConversationStore m [Conversation]
   GetConversationMetadata :: ConvId -> ConversationStore m (Maybe ConversationMetadata)
   IsConversationAlive :: ConvId -> ConversationStore m Bool
@@ -74,7 +79,7 @@ data ConversationStore m a where
   SetConversationAccess :: ConvId -> ConversationAccessData -> ConversationStore m ()
   SetConversationReceiptMode :: ConvId -> ReceiptMode -> ConversationStore m ()
   SetConversationMessageTimer :: ConvId -> Maybe Milliseconds -> ConversationStore m ()
-  GetConversationIdByGroupId :: GroupId -> ConversationStore m (Maybe (Qualified ConvId))
+  SetConversationEpoch :: ConvId -> Epoch -> ConversationStore m ()
   SetGroupId :: GroupId -> Qualified ConvId -> ConversationStore m ()
 
 makeSem ''ConversationStore

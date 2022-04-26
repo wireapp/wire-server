@@ -73,6 +73,7 @@ import Bilge.RPC
 import Bilge.Retry
 import Brig.API.Error (internalServerError)
 import Brig.API.Types
+import Brig.API.Util
 import Brig.App
 import Brig.Data.Connection (lookupContactList)
 import qualified Brig.Data.Connection as Data
@@ -86,6 +87,7 @@ import qualified Brig.User.Search.Index as Search
 import Cassandra (MonadClient)
 import Conduit (runConduit, (.|))
 import Control.Error (ExceptT)
+import Control.Error.Util
 import Control.Lens (view, (.~), (?~), (^.))
 import Control.Monad.Catch
 import Control.Monad.Trans.Except (runExceptT, throwE)
@@ -121,9 +123,11 @@ import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding (name, (.=))
+import qualified System.Logger.Extended as ExLog
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Message (UserClients)
+import Wire.API.Properties
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 import qualified Wire.API.Team.Member as Member
@@ -160,7 +164,7 @@ onConnectionEvent ::
   Maybe ConnId ->
   -- | The event.
   ConnectionEvent ->
-  (AppIO r) ()
+  (AppT r) ()
 onConnectionEvent orig conn evt = do
   let from = ucFrom (ucConn evt)
   wrapHttp $
@@ -177,7 +181,7 @@ onPropertyEvent ::
   -- | Client connection ID.
   ConnId ->
   PropertyEvent ->
-  (AppIO r) ()
+  (AppT r) ()
 onPropertyEvent orig conn e =
   wrapHttp $
     notify
@@ -194,7 +198,7 @@ onClientEvent ::
   Maybe ConnId ->
   -- | The event.
   ClientEvent ->
-  (AppIO r) ()
+  (AppT r) ()
 onClientEvent orig conn e = do
   let events = singleton (ClientEvent e)
   let rcps = list1 orig []
@@ -463,9 +467,26 @@ notify ::
   -- | Users to notify.
   m (List1 UserId) ->
   m ()
-notify events orig route conn recipients = forkAppIO (Just orig) $ do
+notify events orig route conn recipients = fork (Just orig) $ do
   rs <- recipients
   push events rs orig route conn
+
+fork ::
+  (MonadIO m, MonadUnliftIO m, MonadReader Env m) =>
+  Maybe UserId ->
+  m a ->
+  m ()
+fork u ma = do
+  g <- view applog
+  r <- view requestId
+  let logErr e = ExLog.err g $ request r ~~ user u ~~ msg (show e)
+  withRunInIO $ \lower ->
+    void . liftIO . forkIO $
+      either logErr (const $ return ())
+        =<< runExceptT (syncIO $ lower ma)
+  where
+    request = field "request" . unRequestId
+    user = maybe id (field "user" . toByteString)
 
 notifySelf ::
   ( MonadIO m,
@@ -627,7 +648,7 @@ toPushFormat (PropertyEvent (PropertySet _ k v)) =
     KeyMap.fromList
       [ "type" .= ("user.properties-set" :: Text),
         "key" .= k,
-        "value" .= v
+        "value" .= propertyValue v
       ]
 toPushFormat (PropertyEvent (PropertyDeleted _ k)) =
   Just $
@@ -742,17 +763,12 @@ createConnectConv ::
   Qualified UserId ->
   Maybe Text ->
   Maybe ConnId ->
-  (AppIO r) (Qualified ConvId)
+  (AppT r) (Qualified ConvId)
 createConnectConv from to cname conn = do
   lfrom <- ensureLocal from
   lto <- ensureLocal to
   qUntagged . qualifyAs lfrom
     <$> wrapHttp (createLocalConnectConv lfrom lto cname conn)
-  where
-    ensureLocal :: Qualified a -> (AppIO r) (Local a)
-    ensureLocal x = do
-      loc <- qualifyLocal ()
-      foldQualified loc pure (\_ -> throwM federationNotImplemented) x
 
 -- | Calls 'Galley.API.acceptConvH'.
 acceptLocalConnectConv ::
@@ -780,7 +796,7 @@ acceptLocalConnectConv from conn cnv = do
         . maybe id (header "Z-Connection" . fromConnId) conn
         . expect2xx
 
-acceptConnectConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppIO r Conversation
+acceptConnectConv :: Local UserId -> Maybe ConnId -> Qualified ConvId -> AppT r Conversation
 acceptConnectConv from conn =
   foldQualified
     from

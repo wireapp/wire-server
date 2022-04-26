@@ -25,6 +25,7 @@ module Brig.API.Util
     traverseConcurrentlyWithErrors,
     exceptTToMaybe,
     lookupSearchPolicy,
+    ensureLocal,
   )
 where
 
@@ -44,6 +45,7 @@ import Data.Domain (Domain)
 import Data.Handle (Handle, parseHandle)
 import Data.Id
 import Data.Maybe
+import Data.Qualified
 import Data.String.Conversions (cs)
 import Data.Text.Ascii (AsciiText (toText))
 import Imports
@@ -54,6 +56,7 @@ import UnliftIO.Exception (throwIO, try)
 import Util.Logging (sha256String)
 import Wire.API.Error
 import Wire.API.Error.Brig
+import Wire.API.Federation.Error
 import Wire.API.User.Search (FederatedUserSearchPolicy (NoSearch))
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
@@ -63,7 +66,7 @@ lookupProfilesMaybeFilterSameTeamOnly self us = do
     Just team -> filter (\x -> profileTeam x == Just team) us
     Nothing -> us
 
-fetchUserIdentity :: UserId -> (AppIO r) (Maybe UserIdentity)
+fetchUserIdentity :: UserId -> (AppT r) (Maybe UserIdentity)
 fetchUserIdentity uid =
   lookupSelfProfile uid
     >>= maybe
@@ -71,7 +74,7 @@ fetchUserIdentity uid =
       (return . userIdentity . selfUser)
 
 -- | Obtain a profile for a user as he can see himself.
-lookupSelfProfile :: UserId -> (AppIO r) (Maybe SelfProfile)
+lookupSelfProfile :: UserId -> (AppT r) (Maybe SelfProfile)
 lookupSelfProfile = fmap (fmap mk) . wrapClient . Data.lookupAccount
   where
     mk a = SelfProfile (accountUser a)
@@ -109,3 +112,9 @@ lookupDomainConfig domain = do
 -- | If domain is not configured fall back to `FullSearch`
 lookupSearchPolicy :: MonadReader Env m => Domain -> m FederatedUserSearchPolicy
 lookupSearchPolicy domain = fromMaybe NoSearch <$> (Opts.cfgSearchPolicy <$$> lookupDomainConfig domain)
+
+-- | Convert a qualified value into a local one. Throw if the value is not actually local.
+ensureLocal :: Qualified a -> AppT r (Local a)
+ensureLocal x = do
+  loc <- qualifyLocal ()
+  foldQualified loc pure (\_ -> throwM federationNotImplemented) x
