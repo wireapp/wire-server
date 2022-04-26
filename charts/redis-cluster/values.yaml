@@ -1,5 +1,5 @@
 redis-cluster:
   usePassword: false
-
+  fullNameOverride: "redis-cluster"
   # global:
   #   storageClass: "-"
