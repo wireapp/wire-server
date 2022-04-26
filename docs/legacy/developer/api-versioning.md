@@ -223,8 +223,57 @@ using the old endpoint when the negotiated version is known not to contain it.
 
 #### Removing an endpoint
 
-Clients would just stop using the removed endpoint. Of course, this usually means refactoring whatever code was using it so that some other combination of endpoints is used instead.
+Clients would just stop using the removed endpoint. Of course, this usually
+means refactoring whatever code was using it so that some other combination of
+endpoints is used instead.
 
 #### Incompatible changes to an endpoint
 
-Again, this is a combination of the previous two scenarios. After negotiation, clients need to determine which version of the endpoint can be used, and act accordingly.
+Again, this is a combination of the previous two scenarios. After negotiation,
+clients need to determine which version of the endpoint can be used, and act
+accordingly.
+
+### Federation client in wire-server
+
+In wire-server itself, changes in the federation API have to be reflected not
+only in the implementation of the corresponding handlers, but also in client
+invocations.
+
+To that end, the module `Wire.API.Federation.Client` provides a
+`FederatorClient` monad which is integrated with the client functionality of
+Servant. To create an action in the `FederatorClient` monad, we use `fedClient`
+in `Wire.API.Federation.API`, e.g.:
+
+```haskell
+fedClient @'Brig @"get-user-clients"
+```
+
+returns a function of type `A -> FederatorClient 'Brig B`, where `A` and `B`
+are respectively the input and output of the `get-user-clients` endpoint.
+Running such an action will automatically perform version negotiation and then
+send the corresponding request.
+
+When invoking an endpoint as a federation client, we need to make sure that all
+supported versions are covered. The `FederatorClient` monad has an
+`Alternative` instance which can be useful for this purpose: an action will fail
+(before even performing any request) if it refers to an endpoint whose version
+range does not contain the version that was negotiatted.
+
+For example, suppose that `get-user-clients` disappears in version 2, and
+clients are now supposed to use an endpoint called `get-clients-ng`, with
+slightly different input and output types. Then the client invocation will look
+something like:
+
+```haskell
+fedClient @'Brig @"get-user-clients" input <|>
+(adaptOutput <$> fedClient @'Brig @"get-clients-ng" (adaptInput input)
+```
+
+where `adaptInput` and `adaptOutput` are (pure) functions that convert the input
+of the old endpoint into the input of the new, and the output of the new
+endpoint into the output of the old, respectively.
+
+Many variations on this theme are possible. For example, one could choose to
+write adapting functions in terms of the new input/output types, or even use a
+mixed approach. The adapting functions need not be pure in general, and they
+might even perform further RPC calls.
