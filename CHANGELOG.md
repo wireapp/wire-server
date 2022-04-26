@@ -7,6 +7,8 @@
 
 * Wire cloud operators: [Update brig's ES index mapping before deploying. After deploying, run a re-index](https://github.com/wireapp/wire-server/blob/master/docs/reference/elastic-search.md) (#2213, #2220)
 
+* Upgrade webapp version to [2022-04-21-production.0](https://github.com/wireapp/wire-webapp/releases/tag/2022-04-21-production.0) (#2302)
+
 * Upgrade team-settings version to [4.7.0-v0.29.7-0-74b81b8](https://github.com/wireapp/wire-team-settings/releases/tag/v4.7.0) (#2180)
 
 
