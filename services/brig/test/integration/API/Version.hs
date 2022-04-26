@@ -43,7 +43,7 @@ testVersion brig = do
     responseJsonError =<< get (brig . path "/api-version")
       <!! const 200 === statusCode
   liftIO $
-    vinfoSupported vinfo @?= [V0, V1]
+    vinfoSupported vinfo @?= supportedVersions
 
 testVersionV1 :: Brig -> Http ()
 testVersionV1 brig = do
@@ -51,7 +51,7 @@ testVersionV1 brig = do
     responseJsonError =<< get (brig . path "/v1/api-version")
       <!! const 200 === statusCode
   liftIO $
-    vinfoSupported vinfo @?= [V0, V1]
+    vinfoSupported vinfo @?= supportedVersions
 
 testUnsupportedVersion :: Brig -> Http ()
 testUnsupportedVersion brig = do
