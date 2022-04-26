@@ -59,15 +59,13 @@ releases:
     namespace: '{{ .Values.namespace }}'
     chart: '../.local/charts/redis-cluster'
     values:
-      - global:
-          storageClass: csi-hostpath-sc
+      - './helm_vars/redis-cluster/values.yaml'
 
   - name: '{{ .Values.namespace }}-redis-cluster-2'
     namespace: '{{ .Values.namespaceFed2 }}'
     chart: '../.local/charts/redis-cluster'
     values:
-      - global:
-          storageClass: csi-hostpath-sc
+      - './helm_vars/redis-cluster/values.yaml'
 
   - name: '{{ .Values.namespace }}-nginx-ingress-controller'
     namespace: '{{ .Values.namespace }}'
