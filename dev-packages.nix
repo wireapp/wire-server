@@ -175,6 +175,7 @@ in
   pkgs.cfssl
   pkgs.docker-compose
   pkgs.gnumake
+  pkgs.gnused
   (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
   pkgs.jq
   pkgs.niv
