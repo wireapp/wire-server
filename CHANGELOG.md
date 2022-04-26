@@ -45,7 +45,7 @@
 ## Documentation
 
 
-* Import wire-docs to docs/ (see also #2258) (#PR_NOT_FOUND)
+* Import wire-docs to docs/ (see also #2258)
 
 
 ## Internal changes
