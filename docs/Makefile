@@ -64,7 +64,7 @@ docker-push:
 .PHONY: push
 push:
 	aws s3 sync $(BUILDDIR)/html s3://origin-docs.wire.com/
-	[[ -f  $(BUILDDIR)/latex/main.pdf ]] && aws cp $(BUILDDIR)/latex/main.pdf s3://origin-docs.wire.com/main.pdf || exit 0
+	[[ -f  $(BUILDDIR)/latex/main.pdf ]] && aws s3 cp $(BUILDDIR)/latex/main.pdf s3://origin-docs.wire.com/main.pdf || exit 0
 
 .PHONY: dev-run
 dev-run: clean
