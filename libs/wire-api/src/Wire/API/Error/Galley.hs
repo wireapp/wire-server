@@ -44,6 +44,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as BrigError
 import Wire.API.Routes.API
+import Wire.API.Team.Member
 import Wire.API.Team.Permission
 import Wire.API.Util.Aeson (CustomEncoded (..))
 
@@ -106,7 +107,9 @@ data GalleyError
   | TooManyTeamMembersOnTeamWithLegalhold
   | NoLegalHoldDeviceAllocated
   | UserLegalHoldNotPending
-  deriving (Show, Eq, Generic)
+  | -- Team Member errors
+    BulkGetMemberLimitExceeded
+   deriving (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded GalleyError)
 
 $(genSingletons [''GalleyError])
@@ -246,6 +249,11 @@ type instance MapError 'UserLegalHoldNotPending = 'StaticError 412 "legalhold-no
 type instance MapError 'NoLegalHoldDeviceAllocated = 'StaticError 404 "legalhold-no-device-allocated" "no legal hold device is registered for this user. POST /teams/:tid/legalhold/:uid/ to start the flow."
 
 type instance MapError 'LegalHoldCouldNotBlockConnections = 'StaticError 500 "legalhold-internal" "legal hold service: could not block connections when resolving policy conflicts."
+
+--------------------------------------------------------------------------------
+-- Team Member errors
+
+type instance MapError 'BulkGetMemberLimitExceeded = 'StaticError 400 "too-many-uids" ("Can only process " `AppendSymbol` Show_ HardTruncationLimit `AppendSymbol` " user ids per request.")
 
 --------------------------------------------------------------------------------
 -- Authentication errors

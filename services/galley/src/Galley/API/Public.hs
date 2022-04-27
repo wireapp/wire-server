@@ -65,8 +65,6 @@ import Wire.API.Routes.API
 import qualified Wire.API.Swagger as Public.Swagger (models)
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.Permission as Public
-import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
-import Wire.Swagger (int32Between)
 
 -- These are all the errors that can be thrown by wai-routing handlers.
 -- We don't do any static checks on these errors, so we simply remap them to
@@ -132,27 +130,6 @@ sitemap = do
       description "Team ID"
     response 200 "Team members CSV file" end
     errorSResponse @'AccessDenied
-
-  post "/teams/:tid/get-members-by-ids-using-post" (continueE Teams.bulkGetTeamMembersH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. def (unsafeRange Public.hardTruncationLimit) (query "maxResults")
-      .&. jsonRequest @Public.UserIdList
-      .&. accept "application" "json"
-  document "POST" "bulkGetTeamMembers" $ do
-    summary "Get team members by user id list"
-    notes "The `has_more` field in the response body is always `false`."
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    parameter Query "maxResults" (int32Between 1 Public.hardTruncationLimit) $ do
-      optional
-      description "Maximum Results to be returned"
-    body (ref Public.modelUserIdList) $
-      description "JSON body"
-    returns (ref Public.modelTeamMemberList)
-    response 200 "Team members" end
-    errorSResponse @'NotATeamMember
-    errorResponse Error.bulkGetMemberLimitExceeded
 
   get "/teams/notifications" (continueE Teams.getTeamNotificationsH) $
     zauthUserId

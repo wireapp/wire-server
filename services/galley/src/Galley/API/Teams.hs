@@ -33,7 +33,7 @@ module Galley.API.Teams
     getTeamConversationRoles,
     getTeamMembers,
     getTeamMembersCSVH,
-    bulkGetTeamMembersH,
+    bulkGetTeamMembers,
     getTeamMember,
     deleteTeamMemberH,
     updateTeamMemberH,
@@ -107,7 +107,6 @@ import Galley.Effects.WaiRoutes
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
 import Galley.Options
-import Galley.Types (UserIdList (UserIdList))
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles as Roles
 import Galley.Types.Teams hiding (newTeam)
@@ -136,11 +135,10 @@ import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
-import Wire.API.Team.Member (TeamMemberOptPerms, ntmNewTeamMember, setOptionalPerms, setOptionalPermsMany, teamMemberListJson)
+import Wire.API.Team.Member (TeamMemberOptPerms, ntmNewTeamMember, setOptionalPerms, setOptionalPermsMany)
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.SearchVisibility as Public
-import Wire.API.User (User, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
-import qualified Wire.API.User as Public (UserIdList)
+import Wire.API.User (User, UserIdList, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
 import qualified Wire.API.User as U
 import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
@@ -486,7 +484,7 @@ getTeamMembers ::
   Sem r TeamMemberListOptPerms
 getTeamMembers lzusr tid mbMaxResults = do
   m <- E.getTeamMember tid (tUnqualified lzusr) >>= noteS @'NotATeamMember
-  memberList <- E.getTeamMembersWithLimit tid ((fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults))
+  memberList <- E.getTeamMembersWithLimit tid (fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults)
   let withPerms = (m `canSeePermsOf`)
   pure $ setOptionalPermsMany withPerms memberList
 
@@ -602,37 +600,22 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
         (UserSSOId (SAML.UserRef _idp nameId)) -> Just . CI.original . SAML.unsafeShowNameID $ nameId
         (UserScimExternalId _) -> Nothing
 
-bulkGetTeamMembersH ::
-  Members
-    '[ Error InvalidInput,
-       ErrorS 'NotATeamMember,
-       TeamStore,
-       WaiRoutes
-     ]
-    r =>
-  UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JsonRequest Public.UserIdList ::: JSON ->
-  Sem r Response
-bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do
-  UserIdList uids <- fromJsonBody body
-  (memberList, withPerms) <- bulkGetTeamMembers zusr tid maxResults uids
-  pure . json $ teamMemberListJson withPerms memberList
-
 -- | like 'getTeamMembers', but with an explicit list of users we are to return.
 bulkGetTeamMembers ::
-  Members '[Error InvalidInput, ErrorS 'NotATeamMember, TeamStore] r =>
-  UserId ->
+  Members '[ErrorS 'BulkGetMemberLimitExceeded, ErrorS 'NotATeamMember, TeamStore] r =>
+  Local UserId ->
   TeamId ->
-  Range 1 HardTruncationLimit Int32 ->
-  [UserId] ->
-  Sem r (TeamMemberList, TeamMember -> Bool)
-bulkGetTeamMembers zusr tid maxResults uids = do
-  unless (length uids <= fromIntegral (fromRange maxResults)) $
-    throw BulkGetMemberLimitExceeded
-  m <- E.getTeamMember tid zusr >>= noteS @'NotATeamMember
-  mems <- E.selectTeamMembers tid uids
+  Maybe (Range 1 HardTruncationLimit Int32) ->
+  UserIdList ->
+  Sem r TeamMemberListOptPerms
+bulkGetTeamMembers lzusr tid mbMaxResults uids = do
+  unless (length (U.mUsers uids) <= fromIntegral (fromRange (fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults))) $
+    throwS @'BulkGetMemberLimitExceeded
+  m <- E.getTeamMember tid (tUnqualified lzusr) >>= noteS @'NotATeamMember
+  mems <- E.selectTeamMembers tid (U.mUsers uids)
   let withPerms = (m `canSeePermsOf`)
       hasMore = ListComplete
-  pure (newTeamMemberList mems hasMore, withPerms)
+  pure $ setOptionalPermsMany withPerms (newTeamMemberList mems hasMore)
 
 getTeamMember ::
   Members '[ErrorS 'TeamMemberNotFound, ErrorS 'NotATeamMember, TeamStore] r =>

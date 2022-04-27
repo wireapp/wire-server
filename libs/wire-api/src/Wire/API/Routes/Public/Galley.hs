@@ -59,6 +59,7 @@ import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (..))
 import Wire.API.Team.SearchVisibility (TeamSearchVisibilityView)
+import qualified Wire.API.User as User
 
 instance AsHeaders '[ConvId] Conversation Conversation where
   toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
@@ -1520,6 +1521,26 @@ type TeamMemberAPI =
                :> "members"
                :> Capture "uid" UserId
                :> Get '[JSON] TeamMemberOptPerms
+           )
+    :<|> Named
+           "get-team-members-by-ids"
+           ( Summary "Get team members by user id list"
+               :> Description "The `has_more` field in the response body is always `false`."
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'BulkGetMemberLimitExceeded
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "get-members-by-ids-using-post"
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "Maximum results to be returned"
+                    ]
+                    "maxResults"
+                    (Range 1 HardTruncationLimit Int32)
+               :> ReqBody '[JSON] User.UserIdList
+               :> Post '[JSON] TeamMemberListOptPerms
            )
 
 -- This is a work-around for the fact that we sometimes want to send larger lists of user ids
