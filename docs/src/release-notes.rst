@@ -29,6 +29,95 @@ specific operations.
 
 The following helm chart versions have been published since then:
 
+Chart Release 4.9.0 (2022-04-04)
+================================
+
+Release notes
+-------------
+
+* Note for wire.com operators: deploy nginz (#2175)
+
+* Deploy galley before brig (#2248)
+
+* Wire cloud operators: `Update brig's ES index mapping before deploying. After deploying run a reindex <https://github.com/wireapp/wire-server/blob/master/docs/reference/elastic-search.md>`_. (#2241)
+
+* Upgrade webapp version to 2022-03-30-production.0-v0.29.2-0-d144552 (#2246)
+
+
+API changes
+-----------
+
+* New endpoint to get the status of the guest links feature for a conversation that potentially has been created by someone from another team. (#2231)
+
+
+Features
+--------
+
+* Cross-team user search (#2208)
+
+* restund chart: add dtls support (#2227)
+
+* MLS implementation progress:
+
+   - welcome messages are now being propagated (#2175)
+
+* The bot API will be blocked if the 2nd factor authentication team feature is enabled. Please refer to `/docs/reference/config-options.md#2nd-factor-password-challenge <https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge>`_. (#2207)
+
+* Translations for 2nd factor authentication email templates (#2235)
+
+* Script for creating a team with owner via the public API (#2218)
+
+
+Bug fixes and other updates
+---------------------------
+
+* Conversation rename endpoints now return 204 instead of 404 when the conversation name is unchanged (#2239)
+
+* Revert temporary sftd bump (#2230)
+
+
+Internal changes
+----------------
+
+* Remove the MonadMask instance for AppT in Brig (#2259)
+
+* Remove the MonadUnliftIO instance for the app monad in Brig (#2233)
+
+* Bump hsaml2 version (#2221)
+
+* Fix: cabal-install-artefacts.sh fails if not run from root of wire-server (#2236)
+
+* Fix: pushing to cachix not working (#2257)
+
+* Cannon has been fully migrated to Servant (#2243)
+
+* Refactor conversation record and conversation creation functions. This removes a lot of duplication and makes the types of protocol-specific data in a conversation tighter. (#2234)
+
+   - Move conversation name size check to `NewConv`
+   - Make the `NewConversation` record (used as input to the data
+     function creating a conversation) contain a `ConversationMetadata`.
+   - Implement all "special" conversation creation in terms of a general `createConversation`
+   - Move protocol field from metadata to Conversation
+   - Restructure MLS fields in Conversation record
+   - Factor out metadata fields from Data.Conversation
+
+* Fix Docs: real-world domain used in examples (#2238)
+
+* The `CanThrow` combinator can now be used to set the corresponding error effects in polysemy handlers. (#2239)
+
+* Most error effects in Galley are now defined at the granularity of single error values. For example, a handler throwing `ConvNotFound` will now directly declare `ConvNotFound` (as a promoted constructor) among its error effects, instead of the generic `ConversationError` that was used before. Correspondingly, all such fine-grained Galley errors have been moved to wire-api as constructors of a single enumerated type `GalleyError`, and similarly for Brig, Cannon and Cargohold. (#2239)
+
+* Add a column for MLS clients to the Galley member table (#2245)
+
+* Pin direnv version in nix-hls.sh script (#2232)
+
+* nginx-ingress-services chart: allow for custom challenge solvers (#2222, #2229)
+
+* Remove unused debian Makefile targets (#2237)
+
+* Use local serial consistency for Cassandra lightweight transactions (#2251)
+
+
 Chart Release 4.8.0 (2022-03-30)
 ================================
 
