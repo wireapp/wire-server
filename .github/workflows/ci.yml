@@ -28,5 +28,3 @@ jobs:
        run: nix-build --no-out-link direnv.nix
      - name: Install the wire-server-direnv
        run: nix-env -f direnv.nix -i
-     - name: Ensure everything is formatted
-       run: make formatc
