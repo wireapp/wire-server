@@ -29,6 +29,102 @@ specific operations.
 
 The following helm chart versions have been published since then:
 
+Chart Release 4.10.0 (2022-04-25)
+=================================
+
+Release notes
+-------------
+
+* Note for wire.com operators: deploy nginz (#2270)
+
+* Wire cloud operators: `Update brig's ES index mapping before deploying. After deploying, run a re-index <https://github.com/wireapp/wire-server/blob/master/docs/reference/elastic-search.md>`_. (#2213, #2220)
+
+* Upgrade webapp version to `2022-04-21-production.0 <https://github.com/wireapp/wire-webapp/releases/tag/2022-04-21-production.0>`_. (#2302)
+
+* Upgrade team-settings version to `4.7.0-v0.29.7-0-74b81b8 <https://github.com/wireapp/wire-team-settings/releases/tag/v4.7.0>`_. (#2180)
+
+Features
+--------
+
+* [helm-charts] Allow filtering cassandra nodes by datacenter (#2273)
+
+* MLS implementation progress:
+   - commit messages containing add proposals are now processed (#2247)
+   - do initial validation and forwarding of all types of messages via POST /mls/messages (#2253)
+   - fixed bug where users could not be added to MLS conversations if they had non-MLS clients (#2290)
+   - MLS/Proteus mismatches (e.g. sending a proteus message to an MLS conversation) are now handled (#2278)
+   - the `POST /mls/key-packages/claim` endpoint gained a `skip_own` query parameter, which can be used to avoid claiming a key package for the requesting client itself (#2287)
+
+* The user profiles that are returned by a team admin search now contain the additional fields SAML NameID, IdP Issuer, and SCIM externalId (#2213), and  unvalidated email address (#2220)
+
+* *  Avoid dropping messages when redis is down. (#2295)
+
+Bug fixes and other updates
+---------------------------
+
+* Add missing helm chart mapping for inbound search visibility (#2265)
+
+* Fix bug: User search endpoint hides exact handle results in SearchVisibilityNoNameOutsideTeam setting (#2280)
+
+* backoffice app (aka stern):
+    - Suspending a non-existing user now returns 404 and does not create an empty entry in the DB (#2267)
+    - Support for deleting teams with more than one member (#2275)
+    - Fix update of user email (#2281)
+
+Documentation
+-------------
+
+* Import wire-docs to docs/ (see also #2258)
+
+Internal changes
+----------------
+
+* Migrate API routes from wai-route to servant for better Swagger (#2284, #2277, #2266, #2286, #2294, #2244)
+
+* Update nginx to latest stable: v1.20.2 (#2289)
+
+* Allow additional origins at random ports in nginz Helm chart. This is useful for
+  testing with an HTTP proxy. It should not be used in production. (#2283)
+
+* makdeb and bonanza: remove stack-based Makefiles (#2311)
+
+* Add `skip_reauth` param to internal API for creating clients. This is intended to be used in test. (#2260)
+
+* Removes an unused function in Brig and relocates another one (#2305)
+
+* Print more logs while migrating data in Elasticsearch (#2279)
+
+* Replace the base monad in Brig with the Polysemy Sem monad (#2264, #2288)
+
+* Move the Random effect from Spar to the polysemy-wire-zoo library (#2303)
+
+* Move the Now effect from Spar to a library (#2292)
+
+* Improve readability of user search test cases (#2276)
+
+* Chart/gundeck's 'bulkpush' optimization is now activated by default (after using it in production for some time) (#2293)
+
+* Add an alpha version of a Helm chart for coturn. (#2209)
+
+* Document error handling and simplify error logging (#2274)
+
+* Improve speed of reindexing by increasing the batch size of processing users. (#2200)
+
+* Fix federator integration tests (#2298)
+
+* Switch the Haskell driver used in Gundeck to connect to Redis from 'redis-io' to `hedis <https://hackage.haskell.org/package/hedis>`_., which now supports cluster mode. (#2151)
+
+* Various Galley MLS test improvements and cleanups (#2278)
+
+* Flag for sending a validation email when updating a user's email address via backoffice/stern (#2301)
+
+* Remove stack from all builder docker images (#2312)
+
+* Make internal search-visibility endpoint available to staging environments (#2282)
+
+* Remove TemplateHaskell as a global default extension (#2291)
+
+
 Chart Release 4.9.0 (2022-04-04)
 ================================
 
