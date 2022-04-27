@@ -38,6 +38,11 @@ while getopts ":fch" opt; do
     h ) echo "$USAGE" 1>&2
          exit 0
       ;;
+    * ) echo "Invalid option: $opt"
+         echo "$USAGE" 1>&2
+         exit 1
+      ;;
+
   esac
 done
 shift $((OPTIND -1))
@@ -59,12 +64,13 @@ fi
 
 readarray -t EXTS < <(sed -n '/^default-extensions:/,$ { s/^- //p }' < package-defaults.yaml)
 echo "ormolu mode: $ARG_ORMOLU_MODE"
+# shellcheck disable=SC2145
 echo "language extensions: ${EXTS[@]}"
 
 FAILURES=0
 
 if [ -t 1 ]; then
-    : ${ORMOLU_CONDENSE_OUTPUT:=1}
+    : "${ORMOLU_CONDENSE_OUTPUT:=1}"
 fi
 
 # https://github.com/tweag/ormolu/issues/38
@@ -73,9 +79,8 @@ export LANG=C.UTF-8
 export LC_ALL=C.UTF-8
 
 for hsfile in $(git ls-files | grep '\.hsc\?$'); do
-    FAILED=0
-
     # run in background so that we can detect Ctrl-C properly
+    # shellcheck disable=2068
     ormolu --mode $ARG_ORMOLU_MODE --check-idempotence ${EXTS[@]/#/'-o -X'} "$hsfile" &
     wait $! && err=0 || err=$?
 

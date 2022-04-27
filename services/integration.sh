@@ -28,6 +28,8 @@ function list_descendants () {
 function kill_gracefully() {
     pkill "gundeck|brig|galley|cargohold|cannon|spar|nginz"
     sleep 1
+
+    # shellcheck disable=SC2046
     kill $(list_descendants "$PARENT_PID") &> /dev/null
 }
 
@@ -97,13 +99,15 @@ function run() {
         echo -e "\n\nWARNING: log output is buffered and may not show on your screen!\n\n"
         UNBUFFERED=''
     fi
+    # shellcheck disable=SC2086
     ( ( cd "${DIR}/${service}" && "${TOP_LEVEL}/dist/${service}" -c "${configfile}" ) || kill_all) \
-        | sed ${UNBUFFERED} -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
+        | sed "${UNBUFFERED}" -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
 }
 
 
 if [[ $INTEGRATION_CARGOHOLD_ONLY_COMPAT -eq 1 ]]; then
-    source "${CARGOHOLD_COMPAT_CONFIG_FOLDER}/env.sh"
+    # shellcheck disable=SC1091
+    source "${CARGOHOLD_COMPAT_CONFIG_FOLDER}"/env.sh
     echo run cargohold "" ${purpleish} "${CARGOHOLD_COMPAT_CONFIG_FOLDER}/cargohold.integration.yaml"
     run cargohold "" ${purpleish} "${CARGOHOLD_COMPAT_CONFIG_FOLDER}/cargohold.integration.yaml"
 else
@@ -125,12 +129,14 @@ function run_nginz() {
       # For nix we don't need LD_LIBRARY_PATH; we link against libzauth directly.
       # nix-build will put a symlink to ./result with the nginx artifact
       nginz=$(nix-build "${TOP_LEVEL}/nix" -A nginz --no-out-link )
-      (cd ${NGINZ_WORK_DIR} && ${nginz}/bin/nginx -p ${NGINZ_WORK_DIR} -c ${NGINZ_WORK_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
+      # shellcheck disable=SC2015,SC2086
+      (cd "${NGINZ_WORK_DIR}" && "${nginz}"/bin/nginx -p "${NGINZ_WORK_DIR}" -c "${NGINZ_WORK_DIR}"/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
           | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
     else
       prefix=$([ -w /usr/local ] && echo /usr/local || echo "${HOME}/.wire-dev")
 
-      (cd ${NGINZ_WORK_DIR} && LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${prefix}/lib/ ${TOP_LEVEL}/dist/nginx -p ${NGINZ_WORK_DIR} -c ${NGINZ_WORK_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
+      # shellcheck disable=SC2015,SC2086
+      (cd "${NGINZ_WORK_DIR}" && LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${prefix}/lib/ "${TOP_LEVEL}"/dist/nginx -p "${NGINZ_WORK_DIR}" -c "${NGINZ_WORK_DIR}"/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
           | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
     fi
 }
@@ -166,4 +172,5 @@ echo "all services are up!"
 ( ${EXE} "${@:2}" && echo 0 > "${EXIT_STATUS_LOCATION}" && kill_gracefully ) || kill_gracefully &
 
 wait
+# shellcheck disable=SC2046
 exit $(<"${EXIT_STATUS_LOCATION}")
