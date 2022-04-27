@@ -1,0 +1,5 @@
+Apply `versionMiddleware` last. This makes sure that every other middleware sees
+the rewritten (unversioned) path. In particular, the prometheus middleware will
+now only see paths it knows about, which prevents it from reporting "N/A" as the
+path.
+

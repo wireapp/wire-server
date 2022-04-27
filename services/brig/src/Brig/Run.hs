@@ -115,11 +115,11 @@ mkApp o = do
 
     middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
     middleware e =
-      Metrics.servantPlusWAIPrometheusMiddleware (sitemap @BrigCanonicalEffects) (Proxy @ServantCombinedAPI)
+      versionMiddleware -- this rewrites the request, so it must be at the top (i.e. applied last)
+        . Metrics.servantPlusWAIPrometheusMiddleware (sitemap @BrigCanonicalEffects) (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. metrics]
-        . versionMiddleware
         . lookupRequestIdMiddleware
     app e r k = runHandler e r (Server.route rtree r k) k
 
