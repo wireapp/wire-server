@@ -119,7 +119,7 @@ formatc:
 	./tools/ormolu.sh -c
 
 # lint all shell scripts with ShellCheck
-.PHONY: shellckeck
+.PHONY: shellcheck
 shellcheck:
 	shellcheck **/*.sh
 
