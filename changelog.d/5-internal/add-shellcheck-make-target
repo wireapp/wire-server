@@ -1,0 +1,1 @@
+Add a target to the Makefile to run ShellCheck. I.e. to run a linter on all shell scripts. This will be used in the CI.
