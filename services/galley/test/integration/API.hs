@@ -73,7 +73,6 @@ import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.Members
 import Galley.Types.Conversations.Roles
 import qualified Galley.Types.Teams as Teams
-import Gundeck.Types.Notification
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Network.Wai.Utilities.Error
@@ -93,6 +92,7 @@ import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Internal.Notification
 import qualified Wire.API.Message as Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Named

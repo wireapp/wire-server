@@ -93,7 +93,6 @@ import qualified Federator.MockServer as Mock
 import GHC.TypeLits
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import qualified Galley.Types.Teams as Team
-import Gundeck.Types.Notification
 import Imports
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Media.MediaType
@@ -129,6 +128,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Federation.API
 import Wire.API.Federation.Domain
+import Wire.API.Internal.Notification
 import Wire.API.Routes.MultiTablePaging
 
 type Brig = Request -> Request

@@ -1,0 +1,8 @@
+global:
+  storageClass: csi-hostpath-sc
+
+redis-cluster:
+  persistence:
+    size: 100Mi
+  volumePermissions:
+    enabled: true

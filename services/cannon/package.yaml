@@ -92,6 +92,7 @@ tests:
     - types-common
     - uuid
     - wai-utilities
+    - wire-api
 benchmarks:
   cannon-bench:
     main: Main.hs

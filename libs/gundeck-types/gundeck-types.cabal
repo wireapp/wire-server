@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5ecbff5b5248085ccaf245621fb9388ff13a1cdace8dff356ea98ccd1cb72a03
+-- hash: 738b7369cd6cbbf07382a5645aa9c475292f016888ee76c40569aa56d24d9cae
 
 name:           gundeck-types
 version:        1.45.0
@@ -20,10 +20,8 @@ build-type:     Simple
 library
   exposed-modules:
       Gundeck.Types
-      Gundeck.Types.BulkPush
       Gundeck.Types.Common
       Gundeck.Types.Event
-      Gundeck.Types.Notification
       Gundeck.Types.Presence
       Gundeck.Types.Push
       Gundeck.Types.Push.V2

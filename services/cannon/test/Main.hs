@@ -17,13 +17,13 @@
 
 module Main where
 
-import Cannon.API.Internal
 import Data.Metrics.Servant (routesToPaths)
 import Data.Metrics.Test (pathsConsistencyCheck)
 import Imports
 import qualified Test.Cannon.Dict as D
 import Test.Tasty
 import Test.Tasty.HUnit
+import qualified Wire.API.Routes.Internal.Cannon as Internal
 
 main :: IO ()
 main =
@@ -34,6 +34,6 @@ main =
           assertEqual
             "inconcistent sitemap"
             mempty
-            (pathsConsistencyCheck $ routesToPaths @InternalAPI),
+            (pathsConsistencyCheck $ routesToPaths @Internal.API),
         D.tests
       ]

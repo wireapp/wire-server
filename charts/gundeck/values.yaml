@@ -20,6 +20,10 @@ config:
     host: redis-ephemeral-master
     port: 6379
     connectionMode: "master" # master | cluster
+  # redisAdditionalWrite:
+  #   host: redis-two
+  #   port: 6379
+  #   connectionMode: master
   bulkPush: true
   aws:
     region: "eu-west-1"

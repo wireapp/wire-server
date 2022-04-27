@@ -70,7 +70,6 @@ import Galley.Types
 import Galley.Types.Bot (ServiceRef, newServiceRef, serviceRefId, serviceRefProvider)
 import Galley.Types.Conversations.Roles (roleNameWireAdmin)
 import qualified Galley.Types.Teams as Team
-import Gundeck.Types.Notification
 import Imports hiding (threadDelay)
 import Network.HTTP.Types.Status (status200, status201, status400)
 import Network.Wai (Application, responseLBS, strictRequestBody)
@@ -89,6 +88,7 @@ import Util
 import Web.Cookie (SetCookie (..), parseSetCookie)
 import Wire.API.Asset hiding (Asset)
 import Wire.API.Event.Conversation
+import Wire.API.Internal.Notification
 import qualified Wire.API.Team.Feature as Public
 
 tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree

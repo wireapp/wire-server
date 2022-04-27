@@ -51,6 +51,7 @@ data Env = Env
     _manager :: !Manager,
     _cstate :: !ClientState,
     _rstate :: !Redis.Connection,
+    _rstateAdditionalWrite :: !(Maybe Redis.Connection),
     _awsEnv :: !Aws.Env,
     _time :: !(IO Milliseconds),
     _threadBudgetState :: !(Maybe ThreadBudgetState)
@@ -77,22 +78,14 @@ createEnv m o = do
           managerResponseTimeout = responseTimeoutMicro 5000000
         }
 
-  let redisConnInfo =
-        Redis.defaultConnectInfo
-          { Redis.connectHost = unpack $ o ^. optRedis . rHost,
-            Redis.connectPort = Redis.PortNumber (fromIntegral $ o ^. optRedis . rPort),
-            Redis.connectTimeout = Just (secondsToNominalDiffTime 5),
-            Redis.connectMaxConnections = 100
-          }
+  r <- createRedisPool l (o ^. optRedis) "main-redis"
 
-  Log.info l $
-    Log.msg (Log.val "starting connection to redis...")
-      . Log.field "connectionMode" (show $ o ^. optRedis . rConnectionMode)
-      . Log.field "connInfo" (show redisConnInfo)
-  r <- case o ^. optRedis . rConnectionMode of
-    Master -> Redis.checkedConnect redisConnInfo
-    Cluster -> checkedConnectCluster l redisConnInfo
-  Log.info l $ Log.msg (Log.val "Established connection to redis")
+  rAdditional <- case o ^. optRedisAdditionalWrite of
+    Nothing -> pure Nothing
+    Just additionalRedis -> do
+      rAdd <- createRedisPool l additionalRedis "additional-write-redis"
+      pure $ Just rAdd
+
   p <-
     C.init $
       C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.gundeck") l))
@@ -114,11 +107,31 @@ createEnv m o = do
         { updateAction = Ms . round . (* 1000) <$> getPOSIXTime
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. optSettings . setMaxConcurrentNativePushes)
-  return $! Env def m o l n p r a io mtbs
+  return $! Env def m o l n p r rAdditional a io mtbs
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId
 {-# INLINE reqIdMsg #-}
+
+createRedisPool :: Logger.Logger -> RedisEndpoint -> ByteString -> IO Redis.Connection
+createRedisPool l endpoint identifier = do
+  let redisConnInfo =
+        Redis.defaultConnectInfo
+          { Redis.connectHost = unpack $ endpoint ^. rHost,
+            Redis.connectPort = Redis.PortNumber (fromIntegral $ endpoint ^. rPort),
+            Redis.connectTimeout = Just (secondsToNominalDiffTime 5),
+            Redis.connectMaxConnections = 100
+          }
+
+  Log.info l $
+    Log.msg (Log.val $ "starting connection to " <> identifier <> "...")
+      . Log.field "connectionMode" (show $ endpoint ^. rConnectionMode)
+      . Log.field "connInfo" (show redisConnInfo)
+  r <- case endpoint ^. rConnectionMode of
+    Master -> Redis.checkedConnect redisConnInfo
+    Cluster -> checkedConnectCluster l redisConnInfo
+  Log.info l $ Log.msg (Log.val $ "Established connection to " <> identifier <> ".")
+  pure r
 
 -- | Similar to 'checkedConnect' but for redis cluster:
 -- Constructs a 'Connection' pool to a Redis server designated by the

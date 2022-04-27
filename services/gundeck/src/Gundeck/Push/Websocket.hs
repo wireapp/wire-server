@@ -42,8 +42,6 @@ import qualified Data.Set as Set
 import Data.Time.Clock.POSIX
 import Gundeck.Monad
 import qualified Gundeck.Presence.Data as Presence
-import Gundeck.Types.BulkPush
-import Gundeck.Types.Notification
 import Gundeck.Types.Presence
 import Gundeck.Util
 import Imports
@@ -54,6 +52,8 @@ import qualified Network.URI as URI
 import System.Logger.Class (val, (+++), (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO (handleAny, mapConcurrently)
+import Wire.API.Internal.BulkPush
+import Wire.API.Internal.Notification
 
 class (Monad m, MonadThrow m, Log.MonadLogger m) => MonadBulkPush m where
   mbpBulkSend :: URI -> BulkPushRequest -> m (URI, Either SomeException BulkPushResponse)
@@ -64,7 +64,7 @@ class (Monad m, MonadThrow m, Log.MonadLogger m) => MonadBulkPush m where
 
 instance MonadBulkPush Gundeck where
   mbpBulkSend = bulkSend
-  mbpDeleteAllPresences = Presence.deleteAll
+  mbpDeleteAllPresences = runWithAdditionalRedis . Presence.deleteAll
   mbpPosixTime = posixTime
   mbpMapConcurrently = mapConcurrently
   mbpMonitorBadCannons = monitorBadCannons
@@ -314,7 +314,7 @@ push ::
 push notif (toList -> tgts) originUser originConn conns = do
   pp <- handleAny noPresences listPresences
   (ok, gone) <- foldM onResult ([], []) =<< send notif pp
-  Presence.deleteAll gone
+  runWithAdditionalRedis $ Presence.deleteAll gone
   return ok
   where
     listPresences =
@@ -323,7 +323,7 @@ push notif (toList -> tgts) originUser originConn conns = do
         . concat
         . filterByClient
         . zip tgts
-        <$> Presence.listAll (view targetUser <$> tgts)
+        <$> runWithDefaultRedis (Presence.listAll (view targetUser <$> tgts))
     noPresences exn = do
       Log.err $
         Log.field "error" (show exn)

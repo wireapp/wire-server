@@ -40,7 +40,6 @@ import Data.Qualified
 import Data.Range (checked)
 import qualified Data.Set as Set
 import Federation.Util (connectUsersEnd2End, generateClientPrekeys, getConvQualified)
-import Gundeck.Types.Notification (ntfTransient)
 import Imports
 import qualified System.Logger as Log
 import Test.Tasty
@@ -54,6 +53,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Event.Conversation
+import Wire.API.Internal.Notification (ntfTransient)
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.User (ListUsersQuery (ListUsersByIds))

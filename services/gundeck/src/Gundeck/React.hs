@@ -46,6 +46,7 @@ import Gundeck.Util
 import Imports
 import System.Logger.Class (Msg, msg, val, (+++), (.=), (~~))
 import qualified System.Logger.Class as Log
+import Wire.API.Internal.Notification
 
 onEvent :: Event -> Gundeck ()
 onEvent ev = case ev ^. evType of
