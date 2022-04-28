@@ -22,7 +22,7 @@ let pkgs = (import ./nix).pkgs;
     attrsets = pkgs.lib.attrsets;
     hPkgs = pkgs.haskell.packages.ghc8107.override {
       overrides = hself: hsuper:
-        let externalOverrides = import ./nix/haskell-overrides.nix hself hsuper;
+        let externalOverrides = import ./nix/haskell-overrides.nix hsuper hself;
             localOverrides = import ./nix/local-overrides.nix hself hsuper;
             manualOverrides = {
               network-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.network-arbitrary);
@@ -53,10 +53,16 @@ let pkgs = (import ./nix).pkgs;
               lens = hsuper.lens_5_1;
               servant-foreign = hlib.doJailbreak hsuper.servant-foreign;
               servant-multipart = hlib.doJailbreak hsuper.servant-multipart;
+              hashtables = hsuper.hashtables_1_3;
+              quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
+              stache = hsuper.stache_2_3_1;
+
+              # Avoid infinite recursion
+              snappy = hself.callPackage ./nix/haskell-overrides/snappy.nix { snappy = pkgs.snappy; };
             };
             executableOverrides = attrsets.genAttrs executables (e: withCleanedPath localOverrides.${e});
             staticExecutableOverrides = attrsets.mapAttrs' (name: value:
-              pkgs.lib.attrsets.nameValuePair "${name}-static" (hlib.justStaticExecutables value)
+              attrsets.nameValuePair "${name}-static" (hlib.justStaticExecutables value)
             ) executableOverrides;
         in (externalOverrides // localOverrides // manualOverrides // executableOverrides // staticExecutableOverrides);
     };
@@ -89,6 +95,10 @@ let pkgs = (import ./nix).pkgs;
       '';
     };};
 in {
-  # inherit brig cannon cargohold federator galley gundeck proxy spar;
   images = imagesWithBrigTemplates;
+
+  dev-shell = hPkgs.shellFor {
+    packages = p: builtins.map (e: p.${e}) (builtins.attrNames (import ./nix/local-overrides.nix {} {}));
+    buildInputs = [pkgs.cabal-install];
+  };
 } // attrsets.genAttrs executables (e: hPkgs.${e})
