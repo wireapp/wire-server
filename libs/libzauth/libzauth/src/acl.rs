@@ -49,12 +49,12 @@ impl Acl {
                 let mut acl = HashMap::new();
                 for &(ref key, ref list) in entries {
                     if let Some(k) = key.get_str().map(String::from) {
-                        acl.insert(k, try!(List::from_sexp(&list)));
+                        acl.insert(k, List::from_sexp(&list)?);
                     } else {
                         return Err(Error::Parse("not a string"))
                     }
                 }
-                Ok(Acl { acl: acl })
+                Ok(Acl { acl })
             }
             _ => Err(Error::Parse("expected key and values"))
         }
@@ -104,7 +104,7 @@ impl List {
             _ => {
                 let mut t = Tree::new();
                 for x in xs {
-                    t.add(&try!(List::read_path(x)))
+                    t.add(&List::read_path(x)?)
                 }
                 Ok(Some(t))
             }

@@ -36,10 +36,10 @@ impl Keystore {
     }
 
     pub fn open(p: &Path) -> Result<Keystore, Error> {
-        let reader = BufReader::new(try!(File::open(p)));
+        let reader = BufReader::new(File::open(p)?);
         let mut keys = Vec::new();
         for line in reader.lines() {
-            let decoded = try!(try!(line).from_base64());
+            let decoded = line?.from_base64()?;
             match PublicKey::from_slice(&decoded) {
                 None    => return Err(Error::Invalid("public key")),
                 Some(k) => keys.push(k)
@@ -122,9 +122,9 @@ impl<'r> Token<'r> {
             };
 
         let signature =
-            match Signature::from_slice(&try!(sgn.from_base64())) {
-                Some(s) => s,
-                None    => return Err(Error::Invalid("signature"))
+            match Signature::from_bytes(&sgn.from_base64()?) {
+                Ok(s) => s,
+                Err(_) => return Err(Error::Invalid("signature"))
             };
 
         let mut meta = HashMap::new();
@@ -140,14 +140,14 @@ impl<'r> Token<'r> {
         }
 
         Ok(Token {
-            signature:  signature,
+            signature,
             version:    to_field!(meta.remove(&'v'), "version"),
             key_idx:    to_field!(meta.remove(&'k'), "key index"),
             timestamp:  to_field!(meta.remove(&'d'), "timestamp"),
             token_type: to_field!(meta.remove(&'t'), "type"),
             token_tag:  meta.remove(&'l')
                             .and_then(|t| if t == "" { None } else { Some(t) }),
-            meta:       meta,
+            meta,
             data:       data[1..].as_bytes()
         })
     }
