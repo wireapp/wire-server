@@ -4,6 +4,10 @@ Features can be enabled or disabled on a team level or server wide. Here we will
 
 When a feature's lock status is `unlocked` it means that its settings can be overridden on a team level by team admins. This can be done via the team management app or via the team feature API and is not covered here.
 
+Features can be enabled or disabled on a team level or server wide.
+
+When a feature's lock status is `unlocked` its settings can be overridden on a team level by team admins.
+
 ## 2nd factor password challenge
 
 By default Wire enforces a 2nd factor authentication for certain user operations like e.g. activating an account, changing email or password, or deleting an account.
