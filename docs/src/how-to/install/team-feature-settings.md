@@ -1,5 +1,9 @@
 # Feature settings
 
+Features can be enabled or disabled on a team level or server wide.
+
+When a feature's lock status is `unlocked` its settings can be overridden on a team level by team admins.
+
 ## 2nd factor password challenge
 
 By default Wire enforces a 2nd factor authentication for certain user operations like e.g. activating an account, changing email or password, or deleting an account.
@@ -20,5 +24,7 @@ galley:
         sndFactorPasswordChallenge:
           defaults:
             status: enabled
-            lockStatus: locked # note that the lockstatus is required and should be locked
+            lockStatus: locked
 ```
+
+Note that the lock status is required but has no effect, as it is currently not supported for team admins to enable or disable `sndFactorPasswordChallenge`. We recommend to set the lock status to `locked`.
