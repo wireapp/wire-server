@@ -1,8 +1,8 @@
 # Feature settings
 
-Features can be enabled or disabled on a team level or server wide.
+Features can be enabled or disabled on a team level or server wide. Here we will only cover the server wide configuration.
 
-When a feature's lock status is `unlocked` its settings can be overridden on a team level by team admins.
+When a feature's lock status is `unlocked` it means that its settings can be overridden on a team level by team admins. This can be done via the team management app or via the team feature API and is not covered here.
 
 ## 2nd factor password challenge
 
