@@ -253,8 +253,8 @@ git-add-cassandra-schema: db-reset git-add-cassandra-schema-impl
 .PHONY: git-add-cassandra-schema-impl
 git-add-cassandra-schema-impl:
 	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1'))
-	( echo '-- automatically generated with `make git-add-cassandra-schema`' ; docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) > ./docs/reference/cassandra-schema.cql
-	git add ./docs/reference/cassandra-schema.cql
+	( echo '-- automatically generated with `make git-add-cassandra-schema`' ; docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) > ./cassandra-schema.cql
+	git add ./cassandra-schema.cql
 
 .PHONY: cqlsh
 cqlsh:
