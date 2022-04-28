@@ -483,12 +483,12 @@ projectFile relativeFilename =
 
 debug :: IO ()
 debug = do
-  cassandraSchema <- projectFile "docs/reference/cassandra-schema.cql"
+  cassandraSchema <- projectFile "cassandra-schema.cql"
   withArgs [cassandraSchema] main
 
 debugwrite :: IO ()
 debugwrite = do
-  cassandraSchema <- projectFile "docs/reference/cassandra-schema.cql"
+  cassandraSchema <- projectFile "cassandra-schema.cql"
   outputFile <- projectFile "tools/db/move-team/src/Schema.hs"
   withArgs [cassandraSchema, "--output=" <> outputFile] main
 

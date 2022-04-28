@@ -10,7 +10,7 @@ with a a single team id. This can be useful for testing.
 
 `src/Schema.hs` is created by the executable `move-team-generate`.
 You can also use `ParseSchema.debugwrite` to recreate it from a ghci.
-It parses the cql `docs/reference/cassandra-schema.cql`
+It parses the cql `/cassandra-schema.cql`
 
 Note:
   `move-team` has not been thoroughly tested yet.
