@@ -9,6 +9,17 @@ let pkgs = (import ./nix).pkgs;
             in baseName != "dist";
         };
       });
+    executables = [
+      "brig"
+      "cannon"
+      "cargohold"
+      "federator"
+      "galley"
+      "gundeck"
+      "proxy"
+      "spar"
+    ];
+    attrsets = pkgs.lib.attrsets;
     hPkgs = pkgs.haskell.packages.ghc8107.override {
       overrides = hself: hsuper:
         let externalOverrides = import ./nix/haskell-overrides.nix hself hsuper;
@@ -42,23 +53,42 @@ let pkgs = (import ./nix).pkgs;
               lens = hsuper.lens_5_1;
               servant-foreign = hlib.doJailbreak hsuper.servant-foreign;
               servant-multipart = hlib.doJailbreak hsuper.servant-multipart;
-              # singeltons = hlib.doJailbreak generated.singletons;
-              # saml2-web-sso = hlib.dontCheck generated.saml2-web-sso;
-
-              brig = withCleanedPath localOverrides.brig;
-              cannon = withCleanedPath localOverrides.cannon;
-              cargohold = withCleanedPath localOverrides.cargohold;
-              federator = withCleanedPath localOverrides.federator;
-              galley = withCleanedPath localOverrides.galley;
-              gundeck = withCleanedPath localOverrides.gundeck;
-              proxy = withCleanedPath localOverrides.proxy;
-              spar = withCleanedPath localOverrides.spar;
             };
-        in
-          # builtins.mapAttrs (name: value: hlib.dontHaddock (hlib.dontCheck value))
-          (externalOverrides // localOverrides // manualOverrides);
+            executableOverrides = attrsets.genAttrs executables (e: withCleanedPath localOverrides.${e});
+            staticExecutableOverrides = attrsets.mapAttrs' (name: value:
+              pkgs.lib.attrsets.nameValuePair "${name}-static" (hlib.justStaticExecutables value)
+            ) executableOverrides;
+        in (externalOverrides // localOverrides // manualOverrides // executableOverrides // staticExecutableOverrides);
     };
 
-in with hPkgs; rec {
-  inherit brig cannon cargohold federator galley gundeck proxy spar;
-}
+    images = attrsets.genAttrs executables (e:
+      pkgs.dockerTools.buildImage {
+        name = "quay.io/wire/${e}";
+        # TODO: Do we want more things in the image like ip, ss, curl, ping, dig?
+        contents = [
+          pkgs.cacert
+          pkgs.coreutils
+          pkgs.bashInteractive
+          hPkgs."${e}-static"
+        ];
+      }
+    );
+
+    brig-templates = pkgs.srcOnly {
+      name = "brig-templates";
+      src = ./services/brig/deb/opt/brig/templates;
+    };
+
+    imagesWithBrigTemplates = images // {brig = pkgs.dockerTools.buildImage {
+      name = "quay.io/wire/brig";
+      fromImage = images.brig;
+      runAsRoot = ''
+      #!${pkgs.runtimeShell}
+      mkdir -p /usr/share/wire/
+      ln -s ${brig-templates} /usr/share/wire/templates
+      '';
+    };};
+in {
+  # inherit brig cannon cargohold federator galley gundeck proxy spar;
+  images = imagesWithBrigTemplates;
+} // attrsets.genAttrs executables (e: hPkgs.${e})
