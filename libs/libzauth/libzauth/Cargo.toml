@@ -10,7 +10,7 @@ name = "zauth"
 [dependencies]
 asexp           = ">= 0.3"
 rustc-serialize = ">= 0.3"
-sodiumoxide     = "= 0.0.16"
+sodiumoxide     = "= 0.2.7"
 
 [dev-dependencies]
 clap = ">= 2.0"
