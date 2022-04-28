@@ -209,7 +209,7 @@ docker-builder:
 
 .PHONY: docker-intermediate
 docker-intermediate:
-	# `docker-intermediate` needs to be built whenever code changes - this essentially runs `stack clean && stack install` on the whole repo
+	# `docker-intermediate` needs to be built whenever code changes - this essentially runs `cabal clean && cabal build all` on the whole repo
 	docker build -t $(DOCKER_USER)/ubuntu20-intermediate:$(DOCKER_TAG) -f build/ubuntu/Dockerfile.intermediate --build-arg builder=$(DOCKER_USER)/ubuntu20-builder:develop --build-arg deps=$(DOCKER_USER)/ubuntu20-deps:develop .;
 	docker tag $(DOCKER_USER)/ubuntu20-intermediate:$(DOCKER_TAG) $(DOCKER_USER)/ubuntu20-intermediate:latest;
 	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/ubuntu20-intermediate:$(DOCKER_TAG); docker push $(DOCKER_USER)/ubuntu20-intermediate:latest; fi;
