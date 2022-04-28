@@ -272,7 +272,7 @@ Features
    - for "add new client" via 6 digit code, sent by email. This only happens inside the login flow (in particular, when logging in from a new device).  The code obtained for logging in is used a second time for adding the device. (#2186)
    - 2nd factor authentication for "delete team" via 6 digit code, sent by email. (#2193)
    - The `SndFactorPasswordChallenge` team feature is locked by default. (#2205)
-   - Details: [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge)
+   - Details: `/docs/reference/config-options.md#2nd-factor-password-challenge <https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge>`__
 
 Bug fixes and other updates
 ---------------------------
@@ -388,7 +388,7 @@ Federation changes
 ------------------
 
 * Make restrictions on federated user search configurable by domain: `NoSearch`, `ExactHandleSearch` and `FullSearch`.
-  Details about the configuration are described in [config-options.md](docs/reference/config-options.md).
+  Details about the configuration are described in `config-options.md <https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md>`__.
   There are sane defaults (*deny to find any users as long as there is no other configuration for the domain*), so no measures have to be taken by on-premise customers (unless the default is not the desired behavior). (#2087)
 
 
@@ -717,7 +717,7 @@ Features
    `ldap-scim-bridge <https://github.com/wireapp/ldap-scim-bridge>`__
    (#1709)
 -  Per-account configuration of conference call initiation (details:
-   /docs/reference/config-options.md#conference-calling-1) (#1811,
+   `/docs/reference/config-options.md#conference-calling-1 <https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#conference-calling-1>`__) (#1811,
    #1818)
 
 Bug fixes and other updates
