@@ -58,6 +58,7 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.API.Util.Aeson (CustomEncoded (..))
 
 --------------------------------------------------------------------------------
 -- Permissions
@@ -151,6 +152,7 @@ data Perm
   -- read Note [team roles] first.
   deriving stock (Eq, Ord, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform Perm)
+  deriving (FromJSON, ToJSON) via (CustomEncoded Perm)
 
 permsToInt :: Set Perm -> Word64
 permsToInt = Set.foldr' (\p n -> n .|. permToInt p) 0

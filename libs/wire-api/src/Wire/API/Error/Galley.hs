@@ -14,6 +14,9 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE StandaloneKindSignatures #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 module Wire.API.Error.Galley
   ( GalleyError (..),
@@ -27,6 +30,8 @@ module Wire.API.Error.Galley
 where
 
 import Control.Lens ((%~))
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Singletons.CustomStar (genSingletons)
 import Data.Singletons.Prelude (Show_)
 import qualified Data.Swagger as S
 import Data.Tagged
@@ -40,6 +45,7 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as BrigError
 import Wire.API.Routes.API
 import Wire.API.Team.Permission
+import Wire.API.Util.Aeson (CustomEncoded (..))
 
 data GalleyError
   = InvalidAction
@@ -100,6 +106,10 @@ data GalleyError
   | TooManyTeamMembersOnTeamWithLegalhold
   | NoLegalHoldDeviceAllocated
   | UserLegalHoldNotPending
+  deriving (Show, Eq, Generic)
+  deriving (FromJSON, ToJSON) via (CustomEncoded GalleyError)
+
+$(genSingletons [''GalleyError])
 
 instance KnownError (MapError e) => IsSwaggerError (e :: GalleyError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
