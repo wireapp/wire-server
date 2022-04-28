@@ -77,6 +77,7 @@ let
 
   devPackages = [
     (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
+    pkgs.cabal2nix
     pkgs.cfssl
     pkgs.mls_test_cli
     pkgs.ghcid

@@ -1,0 +1,90 @@
+gitPins:
+
+  # this block should be kept in sync to cabal.project
+
+  - location: https://github.com/dpwright/HaskellNet-SSL
+    commit: ca84ef29a93eaef7673fa58056cdd8dae1568d2d
+
+  - location: https://github.com/fimad/prometheus-haskell
+    commit: 2e3282e5fb27ba8d989c271a0a989823fad7ec43
+    subdirs: [wai-middleware-prometheus]
+
+  - location: https://github.com/haskell-servant/servant.git
+    commit: 75db4a5327d6d04ae2460bd5ffd008fe16197ba8
+    subdirs:
+      - servant
+      - servant-client
+      - servant-client-core
+      - servant-server
+
+  - location: https://github.com/kim/hs-collectd
+    commit: 885da222be2375f78c7be36127620ed772b677c9
+
+  - location: https://github.com/vincenthz/hs-certificate
+    commit: a899bda3d7666d25143be7be8f3105fc076703d9
+    subdirs: [x509-store]
+
+  - location: https://github.com/wireapp/amazonka
+    commit: 7ced54b0396296307b9871d293cc0ac161e5743d
+    subdirs:
+      - lib/amazonka
+      - lib/amazonka-core
+      - lib/services/amazonka-cloudfront
+      - lib/services/amazonka-dynamodb
+      - lib/services/amazonka-s3
+      - lib/services/amazonka-ses
+      - lib/services/amazonka-sns
+      - lib/services/amazonka-sqs
+      - lib/services/amazonka-sso
+      - lib/services/amazonka-sts
+
+  - location: https://github.com/wireapp/bloodhound
+    commit: c68e6d877d87988331bf391ed16780383a58eefa
+
+  - location: https://github.com/wireapp/cryptobox-haskell
+    commit: 7546a1a25635ef65183e3d44c1052285e8401608
+
+  - location: https://github.com/wireapp/haskell-multihash.git
+    commit: 300a6f46384bfca33e545c8bab52ef3717452d12
+
+  - location: https://github.com/wireapp/hsaml2
+    commit: d43818aac56678f0be02d0101d224fe0f6cdf131
+
+  - location: https://github.com/wireapp/hspec-wai
+    commit: 0a5142cd3ba48116ff059c041348b817fb7bdb25
+
+  - location: https://github.com/wireapp/http-client
+    commit: 9100baeddbd15d93dc58a826ae812dafff29d5fd
+    subdirs:
+      - http-client
+      - http-client-openssl
+      - http-client-tls
+      - http-conduit
+
+  - location: https://github.com/wireapp/http2
+    commit: aa3501ad58e1abbd196781fac25a84f41ec2a787
+
+  - location: https://github.com/wireapp/saml2-web-sso
+    commit: 74371cd775cb98d6cf85f6e182244a3c4fd48702
+
+  - location: https://gitlab.com/axeman/swagger
+    commit: e2d3f5b5274b8d8d301b5377b0af4319cea73f9e
+
+  - location: https://gitlab.com/twittner/wai-routing
+    commit: 7e996a93fec5901767f845a50316b3c18e51a61d
+
+  # this block is not reflected in cabal.project
+
+  - location: https://github.com/wireapp/snappy
+    commit: b0e5c08af48911caecffa4fa6a3e74872018b258
+
+  - location: https://github.com/kim/snappy-framing
+    commit: d99f702c0086729efd6848dea8a01e5266c3a61c
+
+# this block is not reflected in cabal.project
+
+hackagePins:
+  - package: kind-generics
+    version: 0.4.1.0
+  - package: wai-route
+    version: 0.4.0
