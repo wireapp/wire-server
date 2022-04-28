@@ -183,7 +183,6 @@ import Spar.CanonicalInterpreter
 import qualified Spar.Intra.BrigApp as Intra
 import qualified Spar.Options
 import Spar.Run
-import Spar.Sem.Logger.TinyLog (toLevel)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import qualified System.Logger.Extended as Log
@@ -212,6 +211,7 @@ import Wire.API.User.Identity (mkSampleUref)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (runValidExternalIdEither)
+import Wire.Sem.Logger.TinyLog
 
 -- | Call 'mkEnv' with options from config files.
 mkEnvFromOptions :: IO TestEnv
@@ -257,7 +257,7 @@ cliOptsParser =
 mkEnv :: HasCallStack => IntegrationConfig -> Opts -> IO TestEnv
 mkEnv _teTstOpts _teOpts = do
   _teMgr :: Manager <- newManager defaultManagerSettings
-  sparCtxLogger <- Log.mkLogger (toLevel $ saml _teOpts ^. SAML.cfgLogLevel) (logNetStrings _teOpts) (logFormat _teOpts)
+  sparCtxLogger <- Log.mkLogger (samlToLevel $ saml _teOpts ^. SAML.cfgLogLevel) (logNetStrings _teOpts) (logFormat _teOpts)
   _teCql :: ClientState <- initCassandra _teOpts sparCtxLogger
   let _teBrig = endpointToReq (cfgBrig _teTstOpts)
       _teGalley = endpointToReq (cfgGalley _teTstOpts)

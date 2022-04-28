@@ -79,8 +79,6 @@ import Spar.Sem.IdPConfigStore (GetIdPResult (..), IdPConfigStore, Replaced (..)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.IdPRawMetadataStore (IdPRawMetadataStore)
 import qualified Spar.Sem.IdPRawMetadataStore as IdPRawMetadataStore
-import Spar.Sem.Logger (Logger)
-import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Reporter (Reporter)
 import Spar.Sem.SAML2 (SAML2)
 import qualified Spar.Sem.SAML2 as SAML2
@@ -100,6 +98,8 @@ import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
+import Wire.Sem.Logger (Logger)
+import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
@@ -272,7 +272,7 @@ authreq authreqttl _ zusr msucc merr idpid = do
     SAML2.authReq authreqttl (SamlProtocolSettings.spIssuer mbtid) idpid
   VerdictFormatStore.store authreqttl reqid vformat
   cky <- initializeBindCookie zusr authreqttl
-  Logger.log SAML.Debug $ "setting bind cookie: " <> show cky
+  Logger.log Logger.Debug $ "setting bind cookie: " <> show cky
   pure $ addHeader cky form
 
 -- | If the user is already authenticated, create bind cookie with a given life expectancy and our
@@ -618,8 +618,8 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
       _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing
   enforceHttps requri
   idp <- getIdPConfigByIssuer (_idpMetadata ^. SAML.edIssuer) teamId
-  Logger.log SAML.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
-  Logger.log SAML.Debug $ show (_idpId, oldIssuers, idp)
+  Logger.log Logger.Debug $ show (apiversion, _idpMetadata, teamId, mReplaces)
+  Logger.log Logger.Debug $ show (_idpId, oldIssuers, idp)
 
   let handleIdPClash :: Either id idp -> m ()
       -- (HINT: using type vars above instead of the actual types constitutes a proof that
@@ -746,10 +746,10 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just
 
 withDebugLog :: Member (Logger String) r => String -> (a -> Maybe String) -> Sem r a -> Sem r a
 withDebugLog msg showval action = do
-  Logger.log SAML.Debug $ "entering " ++ msg
+  Logger.log Logger.Debug $ "entering " ++ msg
   val <- action
   let mshowedval = showval val
-  Logger.log SAML.Debug $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
+  Logger.log Logger.Debug $ "leaving " ++ msg ++ mconcat [": " ++ fromJust mshowedval | isJust mshowedval]
   pure val
 
 authorizeIdP ::

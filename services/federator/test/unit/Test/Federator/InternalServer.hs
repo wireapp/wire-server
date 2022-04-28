@@ -35,7 +35,6 @@ import qualified Network.Wai.Utilities.Server as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
-import Polysemy.TinyLog
 import Servant.Client.Core
 import Servant.Types.SourceT
 import Test.Federator.Options (noClientCertSettings)
@@ -44,6 +43,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain
+import Wire.Sem.Logger.TinyLog
 
 tests :: TestTree
 tests =
@@ -93,7 +93,7 @@ federatedRequestSuccess =
         . interpretCall
         . assertNoError @ValidationError
         . assertNoError @ServerError
-        . discardLogs
+        . discardTinyLogs
         . runInputConst settings
         $ callOutward request
     Wai.responseStatus res @?= HTTP.status200
@@ -134,7 +134,7 @@ federatedRequestFailureAllowList =
         . void
         . checkRequest
         . assertNoError @ServerError
-        . discardLogs
+        . discardTinyLogs
         . runInputConst settings
         $ callOutward request
     eith @?= Left (FederationDenied targetDomain)

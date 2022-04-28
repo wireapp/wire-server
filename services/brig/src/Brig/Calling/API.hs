@@ -56,11 +56,11 @@ import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import OpenSSL.EVP.Digest (Digest, hmacBS)
 import Polysemy
-import Polysemy.TinyLog
 import qualified System.Random.MWC as MWC
 import Wire.API.Call.Config (SFTServer)
 import qualified Wire.API.Call.Config as Public
 import Wire.Network.DNS.SRV (srvTarget)
+import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 
 routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
@@ -109,7 +109,7 @@ getCallsConfigV2 _ _ limit = do
   manager <- view httpManager
   liftIO
     . runM @IO
-    . runTinyLog logger
+    . loggerToTinyLog logger
     . interpretSFT manager
     $ newConfig env staticUrl sftEnv' limit sftListAllServers CallsConfigV2
 
@@ -125,7 +125,7 @@ getCallsConfig _ _ = do
   fmap dropTransport
     . liftIO
     . runM @IO
-    . runTinyLog logger
+    . loggerToTinyLog logger
     . interpretSFT manager
     $ newConfig env Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
   where

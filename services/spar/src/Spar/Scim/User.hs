@@ -75,8 +75,6 @@ import Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
-import Spar.Sem.Logger (Logger)
-import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
@@ -104,6 +102,8 @@ import qualified Wire.API.User.RichInfo as RI
 import Wire.API.User.Saml (Opts, derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
 import Wire.API.User.Scim (ScimTokenInfo (..))
 import qualified Wire.API.User.Scim as ST
+import Wire.Sem.Logger (Logger)
+import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Now (Now)
 import qualified Wire.Sem.Now as Now
 import Wire.Sem.Random (Random)

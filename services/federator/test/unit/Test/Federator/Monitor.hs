@@ -30,7 +30,6 @@ import Federator.Options
 import Imports
 import qualified Polysemy
 import qualified Polysemy.Error as Polysemy
-import qualified Polysemy.TinyLog as Polysemy
 import System.FilePath
 import System.IO.Temp
 import System.Posix (createSymbolicLink, getWorkingDirectory)
@@ -39,6 +38,7 @@ import Test.Federator.Options (defRunSettings)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+import qualified Wire.Sem.Logger.TinyLog as Log
 
 timeoutMicroseconds :: Int
 timeoutMicroseconds = 10000000
@@ -123,7 +123,7 @@ withSilentMonitor reloads settings = do
       (runSem . delMonitor)
   pure tlsVar
   where
-    runSem = Polysemy.runM . Polysemy.discardLogs
+    runSem = Polysemy.runM . Log.discardTinyLogs
     runSemE action = do
       r <- runSem (Polysemy.runError @FederationSetupError action)
       writeChan reloads (either Just (const Nothing) r)

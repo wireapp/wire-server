@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: be6e191f98f61663091d940ccdb428f4f844cf94b6defd13f19a3c65d9e4e894
+-- hash: 0204c1b2ab38844b968c4c7d7eaa789d6a585ce3d7b9f347de6b9f18792b1055
 
 name:           polysemy-wire-zoo
 version:        0.1.0
@@ -21,6 +21,9 @@ library
   exposed-modules:
       Polysemy.TinyLog
       Wire.Sem.FromUTC
+      Wire.Sem.Logger
+      Wire.Sem.Logger.Level
+      Wire.Sem.Logger.TinyLog
       Wire.Sem.Now
       Wire.Sem.Now.Input
       Wire.Sem.Now.IO

@@ -40,11 +40,11 @@ import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Spar.Sem.AssIDStore (AssIDStore)
 import qualified Spar.Sem.AssIDStore as AssIDStore
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
-import Spar.Sem.Logger (Logger)
-import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.SAML2
 import Wire.API.User.IdentityProvider (WireIdP)
 import Wire.API.User.Saml
+import Wire.Sem.Logger (Logger)
+import qualified Wire.Sem.Logger as Logger
 
 wrapMonadClientSPImpl :: Members '[Error SparError, Final IO] r => Sem r a -> SPImpl r a
 wrapMonadClientSPImpl action =
@@ -69,7 +69,7 @@ instance Member (Input Opts) r => HasConfig (SPImpl r) where
   getConfig = SPImpl $ inputs saml
 
 instance Members '[Input Opts, Logger String] r => HasLogger (SPImpl r) where
-  logger lvl = SPImpl . Logger.log lvl
+  logger lvl = SPImpl . Logger.log (Logger.samlFromLevel lvl)
 
 instance Member (Embed IO) r => MonadIO (SPImpl r) where
   liftIO = SPImpl . embed @IO

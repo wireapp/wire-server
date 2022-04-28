@@ -50,6 +50,7 @@ import Polysemy.TinyLog
 import Servant.Client.Core
 import Servant.Types.SourceT
 import Wire.Network.DNS.Effect
+import Wire.Sem.Logger.TinyLog
 
 defaultHeaders :: [HTTP.Header]
 defaultHeaders = [("Content-Type", "application/json")]
@@ -127,7 +128,7 @@ runFederator :: Env -> Sem AllEffects Wai.Response -> Codensity IO Wai.Response
 runFederator env =
   runM
     . runEmbedded @IO @(Codensity IO) liftIO
-    . runTinyLog (view applog env) -- FUTUREWORK: add request id
+    . loggerToTinyLogReqId (view requestId env) (view applog env)
     . runWaiErrors
       @'[ ValidationError,
           RemoteError,

@@ -102,6 +102,7 @@ import qualified UnliftIO.Exception as UnliftIO
 import Util.Options
 import Wire.API.Error
 import Wire.API.Federation.Error
+import qualified Wire.Sem.Logger as Log
 
 -- Effects needed by the interpretation of other effects
 type GalleyEffects0 =
@@ -195,7 +196,7 @@ interpretTinyLog ::
   Sem (P.TinyLog ': r) a ->
   Sem r a
 interpretTinyLog e = interpret $ \case
-  P.Polylog l m -> Logger.log (e ^. applog) l (reqIdMsg (e ^. reqId) . m)
+  P.Log l m -> Logger.log (e ^. applog) (Log.toLevel l) (reqIdMsg (e ^. reqId) . m)
 
 toServantHandler :: Env -> Sem GalleyEffects a -> Servant.Handler a
 toServantHandler e = liftIO . evalGalley e

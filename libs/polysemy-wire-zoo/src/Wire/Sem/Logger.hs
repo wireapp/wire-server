@@ -17,21 +17,42 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.Logger
-  ( module Spar.Sem.Logger,
-    SAML.Level (..),
+module Wire.Sem.Logger
+  ( module Wire.Sem.Logger,
+    module Wire.Sem.Logger.Level,
   )
 where
 
 import Imports hiding (log)
 import Polysemy
-import qualified SAML2.WebSSO as SAML
+import Wire.Sem.Logger.Level
 
 data Logger msg m a where
-  Log :: SAML.Level -> msg -> Logger msg m ()
+  Log :: Level -> msg -> Logger msg m ()
 
 -- TODO(sandy): Inline this definition --- no TH
 makeSem ''Logger
+
+trace :: Member (Logger msg) r => msg -> Sem r ()
+trace = log Trace
+
+debug :: Member (Logger msg) r => msg -> Sem r ()
+debug = log Debug
+
+info :: Member (Logger msg) r => msg -> Sem r ()
+info = log Info
+
+warn :: Member (Logger msg) r => msg -> Sem r ()
+warn = log Warn
+
+err :: Member (Logger msg) r => msg -> Sem r ()
+err = log Error
+
+fatal :: Member (Logger msg) r => msg -> Sem r ()
+fatal = log Fatal
+
+--------------------------------------------------------------------------------
+-- General interpreters
 
 mapLogger ::
   forall msg msg' r a.
@@ -42,20 +63,5 @@ mapLogger ::
 mapLogger f = interpret $ \case
   Log lvl msg -> log lvl $ f msg
 
-trace :: Member (Logger msg) r => msg -> Sem r ()
-trace = log SAML.Trace
-
-debug :: Member (Logger msg) r => msg -> Sem r ()
-debug = log SAML.Debug
-
-info :: Member (Logger msg) r => msg -> Sem r ()
-info = log SAML.Info
-
-warn :: Member (Logger msg) r => msg -> Sem r ()
-warn = log SAML.Warn
-
-err :: Member (Logger msg) r => msg -> Sem r ()
-err = log SAML.Error
-
-fatal :: Member (Logger msg) r => msg -> Sem r ()
-fatal = log SAML.Fatal
+discardLogs :: Sem (Logger msg ': r) a -> Sem r a
+discardLogs = interpret $ \(Log _ _) -> pure ()

@@ -46,6 +46,7 @@ import System.Posix.ByteString (RawFilePath)
 import System.Posix.Files
 import System.X509
 import Wire.API.Arbitrary
+import qualified Wire.Sem.Logger.TinyLog as Log
 
 data Monitor = Monitor
   { monINotify :: INotify,
@@ -98,7 +99,7 @@ watchPathEvents (WatchedDir _ _) = [MoveIn, Create]
 type Watches = Map RawFilePath (WatchDescriptor, WatchedPath)
 
 runSemDefault :: Logger -> Sem '[TinyLog, Embed IO] a -> IO a
-runSemDefault logger = Polysemy.runM . Log.runTinyLog logger
+runSemDefault logger = Polysemy.runM . Log.loggerToTinyLog logger
 
 logErrors ::
   Members '[TinyLog, Polysemy.Error FederationSetupError] r =>
