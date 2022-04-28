@@ -1,0 +1,1 @@
+Add python3 to nix development environment. It's needed by hack/bin/serve-charts.sh .
