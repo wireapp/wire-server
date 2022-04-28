@@ -177,6 +177,7 @@ in
   pkgs.gnumake
   pkgs.gnused
   (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
+  pkgs.python3
   pkgs.jq
   pkgs.niv
   pkgs.ormolu
