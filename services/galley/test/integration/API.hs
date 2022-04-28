@@ -204,6 +204,7 @@ tests s =
           test s "remote conversation member update (everything)" putRemoteConvMemberAllOk,
           test s "conversation receipt mode update" putReceiptModeOk,
           test s "conversation receipt mode update with remote members" putReceiptModeWithRemotesOk,
+          test s "remote conversation receipt mode update" putRemoteReceiptModeOk,
           test s "send typing indicators" postTypingIndicators,
           test s "leave connect conversation" leaveConnectConversation,
           test s "post conversations/:cnv/otr/message: message delivery and missing clients" postCryptoMessageVerifyMsgSentAndRejectIfMissingClient,
@@ -3442,6 +3443,88 @@ putReceiptModeOk = do
         EdConvReceiptModeUpdate (ConversationReceiptModeUpdate (ReceiptMode mode)) ->
           assertEqual "modes should match" mode 0
         _ -> assertFailure "Unexpected event data"
+
+-- | Test setup
+-- A (local)  - alice: admin on remote conversation, adam: regular member of remote conversation
+-- B (mocked) - owns the conversation
+--
+-- The federator on A is also mocked.
+--
+-- alice changes receipt remote via client api
+-- assertion: A's federator is called correctly
+-- assertion: backend A generates events for adam
+-- and federator's response
+putRemoteReceiptModeOk :: TestM ()
+putRemoteReceiptModeOk = do
+  c <- view tsCannon
+  qalice <- randomQualifiedUser
+  let alice = qUnqualified qalice
+
+  -- create a remote conversation at bob with alice as admin
+  let remoteDomain = Domain "bobland.example.com"
+  qbob <- Qualified <$> randomId <*> pure remoteDomain
+  qconv <- Qualified <$> randomId <*> pure remoteDomain
+  connectWithRemoteUser alice qbob
+  fedGalleyClient <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  let cuAddAlice =
+        F.ConversationUpdate
+          { cuTime = now,
+            cuOrigUserId = qbob,
+            cuConvId = qUnqualified qconv,
+            cuAlreadyPresentUsers = [],
+            cuAction =
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireAdmin)
+          }
+  runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAlice
+
+  -- add another user adam as member
+  qadam <- randomQualifiedUser
+  let adam = qUnqualified qadam
+  connectWithRemoteUser adam qbob
+  let cuAddAdam =
+        F.ConversationUpdate
+          { cuTime = now,
+            cuOrigUserId = qbob,
+            cuConvId = qUnqualified qconv,
+            cuAlreadyPresentUsers = [],
+            cuAction =
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qadam) roleNameWireMember)
+          }
+  runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAdam
+
+  let newReceiptMode = ReceiptMode 42
+  let action = ConversationReceiptModeUpdate newReceiptMode
+  let responseConvUpdate =
+        F.ConversationUpdate
+          { cuTime = now,
+            cuOrigUserId = qalice,
+            cuConvId = qUnqualified qconv,
+            cuAlreadyPresentUsers = [adam],
+            cuAction =
+              SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) action
+          }
+  let mockResponse = const (ConversationUpdateResponseUpdate responseConvUpdate)
+
+  WS.bracketR c adam $ \wsAdam -> do
+    (res, federatedRequests) <- withTempMockFederator mockResponse $ do
+      putQualifiedReceiptMode alice qconv newReceiptMode
+        <!! const 200 === statusCode
+
+    let event :: Event = responseJsonUnsafe res
+    let (EdConvReceiptModeUpdate (ConversationReceiptModeUpdate receiptModeEvent)) = evtData event
+
+    liftIO $ assertEqual "Unexcepected receipt mode in event" newReceiptMode receiptModeEvent
+
+    cFedReq <- assertOne $ filter (\r -> frTargetDomain r == remoteDomain && frRPC r == "update-conversation") federatedRequests
+    cFedReqBody <- assertRight $ parseFedRequest cFedReq
+    liftIO $ do
+      curUser cFedReqBody @?= alice
+      curConvId cFedReqBody @?= qUnqualified qconv
+      curAction cFedReqBody @?= SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) action
+
+    WS.assertMatch_ (5 # Second) wsAdam $ \n -> do
+      liftIO $ wsAssertConvReceiptModeUpdate qconv qalice newReceiptMode n
 
 putReceiptModeWithRemotesOk :: TestM ()
 putReceiptModeWithRemotesOk = do
