@@ -41,6 +41,8 @@ library
       Wire.API.Event.Conversation
       Wire.API.Event.FeatureConfig
       Wire.API.Event.Team
+      Wire.API.Internal.BulkPush
+      Wire.API.Internal.Notification
       Wire.API.Message
       Wire.API.Message.Proto
       Wire.API.MLS.CipherSuite
@@ -69,6 +71,7 @@ library
       Wire.API.Routes.Internal.Brig
       Wire.API.Routes.Internal.Brig.Connection
       Wire.API.Routes.Internal.Brig.EJPD
+      Wire.API.Routes.Internal.Cannon
       Wire.API.Routes.Internal.Cargohold
       Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
       Wire.API.Routes.Internal.LegalHold

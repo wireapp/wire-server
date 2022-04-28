@@ -47,6 +47,7 @@ import Data.Id (ClientId, ConnId, UserId)
 import Gundeck.Aws.Arn
 import Gundeck.Types
 import Imports
+import Wire.API.Internal.Notification
 
 -- | Native push address information of a device.
 data Address = Address

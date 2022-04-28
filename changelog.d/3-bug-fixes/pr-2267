@@ -1,1 +1,0 @@
-Suspending a non-existing user via stern (customer support) now returns 404 and does not create an empty entry in the DB

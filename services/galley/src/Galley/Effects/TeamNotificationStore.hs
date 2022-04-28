@@ -30,9 +30,9 @@ import Data.Id
 import Data.List1 (List1)
 import Data.Range
 import Galley.Data.TeamNotifications
-import Gundeck.Types.Notification
 import Imports
 import Polysemy
+import Wire.API.Internal.Notification
 
 data TeamNotificationStore m a where
   CreateTeamNotification ::

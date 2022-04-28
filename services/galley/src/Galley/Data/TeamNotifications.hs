@@ -26,8 +26,8 @@
 module Galley.Data.TeamNotifications (ResultPage (..)) where
 
 import Data.Sequence (Seq)
-import Gundeck.Types.Notification
 import Imports
+import Wire.API.Internal.Notification
 
 data ResultPage = ResultPage
   { -- | A sequence of notifications.

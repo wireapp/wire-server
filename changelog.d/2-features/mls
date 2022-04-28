@@ -1,6 +1,0 @@
-MLS implementation progress:
- - commit messages containing add proposals are now processed (#2247)
- - do initial validation and forwarding of all types of messages via POST /mls/messages (#2253)
- - fixed bug where users could not be added to MLS conversations if they had non-MLS clients (#2290)
- - MLS/Proteus mismatches (e.g. sending a proteus message to an MLS conversation) are now handled (#2278)
- - the `POST /mls/key-packages/claim` endpoint gained a `skip_own` query parameter, which can be used to avoid claiming a key package for the requesting client itself (#2287)

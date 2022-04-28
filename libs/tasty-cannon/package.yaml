@@ -16,7 +16,6 @@ dependencies:
 - bytestring
 - bytestring-conversion
 - data-timeout
-- gundeck-types
 - exceptions
 - http-client >=0.5
 - http-types
@@ -25,5 +24,6 @@ dependencies:
 - tasty-hunit >=0.9
 - types-common >=0.16
 - websockets >=0.8
+- wire-api
 library:
   source-dirs: src

@@ -63,7 +63,6 @@ import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
-import Gundeck.Types.Notification hiding (target)
 import Imports
 import Network.HTTP.Types.Status (status403)
 import qualified Network.Wai.Utilities.Error as Error
@@ -79,6 +78,7 @@ import TestHelpers (test, viewFederationDomain)
 import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
 import Wire.API.Conversation.Protocol
+import Wire.API.Internal.Notification hiding (target)
 import Wire.API.Team (Icon (..))
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public

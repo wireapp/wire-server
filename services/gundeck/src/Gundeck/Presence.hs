@@ -36,12 +36,12 @@ import Network.Wai (Request, Response)
 import Network.Wai.Utilities
 
 list :: UserId ::: JSON -> Gundeck Response
-list (uid ::: _) = setStatus status200 . json <$> Data.list uid
+list (uid ::: _) = setStatus status200 . json <$> runWithDefaultRedis (Data.list uid)
 
 listAll :: List UserId ::: JSON -> Gundeck Response
 listAll (uids ::: _) =
   setStatus status200 . json . concat
-    <$> Data.listAll (fromList uids)
+    <$> runWithDefaultRedis (Data.listAll (fromList uids))
 
 add :: Request ::: JSON -> Gundeck Response
 add (req ::: _) = do

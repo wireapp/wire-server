@@ -116,7 +116,8 @@ mkApp sparCtxOpts = do
           . Bilge.port (sparCtxOpts ^. to galley . epPort)
           $ Bilge.empty
   let wrappedApp =
-        WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
+        versionMiddleware
+          . WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
           . servantPrometheusMiddleware (Proxy @API)
           . WU.catchErrors sparCtxLogger []
           -- Error 'Response's are usually not thrown as exceptions, but logged in
@@ -125,7 +126,6 @@ mkApp sparCtxOpts = do
           -- still here for errors outside the power of the 'Application', like network
           -- outages.
           . SAML.setHttpCachePolicy
-          . versionMiddleware
           . lookupRequestIdMiddleware
           $ \sparCtxRequestId -> app Env {..}
       heavyLogOnly :: (Wai.Request, LByteString) -> Maybe (Wai.Request, LByteString)

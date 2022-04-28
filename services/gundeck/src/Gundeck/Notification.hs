@@ -31,8 +31,8 @@ import Data.Time.Clock.POSIX
 import Gundeck.API.Error
 import Gundeck.Monad
 import qualified Gundeck.Notification.Data as Data
-import Gundeck.Types.Notification
 import Imports hiding (getLast)
+import Wire.API.Internal.Notification
 
 data PaginateResult = PaginateResult
   { paginateResultGap :: Bool,

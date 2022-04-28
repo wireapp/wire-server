@@ -91,7 +91,6 @@ import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import qualified Galley.Types.Teams.Intra as Team
 import Galley.Types.Teams.SearchVisibility
-import Gundeck.Types
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
@@ -101,6 +100,7 @@ import Stern.Types
 import System.Logger.Class hiding (Error, name, (.=))
 import qualified System.Logger.Class as Log
 import UnliftIO.Exception hiding (Handler)
+import Wire.API.Internal.Notification
 import Wire.API.Properties
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD

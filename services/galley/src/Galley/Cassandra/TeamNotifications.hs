@@ -40,12 +40,12 @@ import Galley.Cassandra.Store
 import Galley.Data.TeamNotifications
 import Galley.Effects
 import Galley.Effects.TeamNotificationStore (TeamNotificationStore (..))
-import Gundeck.Types.Notification
 import Imports
 import Network.HTTP.Types
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
 import Polysemy.Input
+import Wire.API.Internal.Notification
 
 interpretTeamNotificationStoreToCassandra ::
   Members '[Embed IO, Input ClientState] r =>

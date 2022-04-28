@@ -50,7 +50,6 @@ import qualified Data.Text.Ascii as Ascii
 import qualified Data.Vector as Vec
 import Federation.Util (withTempMockFederator)
 import Federator.MockServer (FederatedRequest (..))
-import Gundeck.Types (Notification (..))
 import Imports
 import Polysemy
 import qualified Test.Tasty.Cannon as WS
@@ -60,6 +59,7 @@ import Wire.API.Asset
 import qualified Wire.API.Event.Conversation as Conv
 import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.Component
+import Wire.API.Internal.Notification (Notification (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging (LocalOrRemoteTable, MultiTablePagingState)
 import qualified Wire.API.Team.Feature as Public

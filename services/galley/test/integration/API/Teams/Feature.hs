@@ -39,7 +39,6 @@ import qualified Data.Text.Encoding as TE
 import Data.Timeout (TimeoutUnit (Second), (#))
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
-import Gundeck.Types (Notification)
 import Imports
 import Network.Wai.Utilities (label)
 import Test.Hspec (expectationFailure)
@@ -50,6 +49,7 @@ import TestHelpers (test)
 import TestSetup
 import Wire.API.Event.FeatureConfig (EventData (..))
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
+import Wire.API.Internal.Notification (Notification)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature (TeamFeatureName (..), TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public

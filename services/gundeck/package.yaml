@@ -117,6 +117,7 @@ executables:
     - warp
     - warp-tls
     - websockets >=0.8
+    - wire-api
     - yaml
   gundeck-schema:
     main: Main.hs
@@ -192,6 +193,7 @@ tests:
     - unordered-containers
     - uuid
     - wai-utilities
+    - wire-api
 benchmarks:
   gundeck-bench:
     main: Main.hs
