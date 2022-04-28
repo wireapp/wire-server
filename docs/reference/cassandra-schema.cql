@@ -1,1 +1,1 @@
-file has moved [here](../legacy/reference/cassandra-schema.cql)
+file has moved to ../legacy/reference/cassandra-schema.cql
