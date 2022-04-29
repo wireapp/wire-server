@@ -30,3 +30,17 @@ webapp:
     # ...
     FEATURE_ENFORCE_CONSTANT_BITRATE: "true"
 ```
+
+## Disable media plugins
+
+Wire is built for media plugins to be active in the chat windows so that users don't have to click the link and leave the app. In some cases it may be desired that these plugins get disabled by default. With this setting all media plugins, including but not limited to YouTube, Spotify, Soundcloud, and Vimeo can be disabled.
+
+To disable media plugins add the following to your Helm overrides in `values/wire-server/values.yaml`:
+
+```yaml
+webapp:
+  # ...
+  envVars:
+    # ...
+    FEATURE_ENABLE_MEDIA_EMBEDS: "false"
+```
