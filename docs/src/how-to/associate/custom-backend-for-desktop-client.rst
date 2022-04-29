@@ -4,7 +4,7 @@ How to connect the desktop application to a custom backend
 Introduction
 ------------
 
-This page explains how to connect the Wire desktop client to a custom Backend.
+This page explains how to connect the Wire desktop client to a custom Backend, which can be done either via a start-up parameter or via an initialization file.
 
 Prerequisites
 --------------
@@ -15,15 +15,18 @@ Have a running Wire backend in your infrastructure/cloud.
 
 Note down the full URL of the webapp served by that backend (e.g. https://app.custom-wire.com )
 
+Using start-up parameters
+-------------------------
+
 Windows
--------
+~~~~~~~
 
 - Create a shortcut to the Wire application
 - Edit the shortcut ( Right click > Properties )
 - Add the following command line parameters to the shortcut: `--env {URL}`, where `{URL}` is the URL of your webapp as noted down above
 
 MacOS
------
+~~~~~
 
 To create the application
 
@@ -35,8 +38,45 @@ To create the application
 - To run the application: Just open the application you created in the first step
 
 Linux
------
+~~~~~
 
 - Open a Terminal
 - Start the application with the command line arguments: `--env {URL}`, where `{URL}` is the URL of your webapp as noted down above
 
+Using an initialization file
+----------------------------
+
+By providing an initialization file the instance connection parameters plus proxy settings for the Wire desktop application can be pre-configured. This requires Wire version >= 3.27.
+
+Create a file named ``init.json`` and set ``customWebAppURL`` and ``proxyServerURL`` e.g. as follows:
+
+.. code-block:: json
+
+  {
+    "customWebAppURL": "https://app.custom-wire.com",
+    "env": "CUSTOM",
+    "proxyServerURL": "http://127.0.0.1:3128",
+  }
+
+The ``env`` setting must be set to ``CUSTOM`` for this to work.
+
+Windows
+~~~~~~~
+
+Move the ``init.json`` file to ``%APPDATA%\Wire\config\init.json`` if it does not already exist. If it exists update it accordingly.
+
+MacOS
+~~~~~
+
+Move the ``init.json`` file to 
+
+::
+
+    ~/Library/Containers/com.wearezeta.zclient.mac/Data/Library/Application\ Support/Wire/config/init.json
+    
+if it does not already exist. If it exists update it accordingly.
+
+Linux
+~~~~~
+
+TBD
