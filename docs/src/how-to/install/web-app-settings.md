@@ -47,7 +47,7 @@ webapp:
 
 ## Enable extra entropy
 
-The Wire desktop application uses system-dependent pseudo-random number generators (PRNG) as an internal entropy source when generating cryptographic keys. In certain cases it may be desired to enable externally generated entropy derived from mouse movement.
+The Wire desktop application uses system-dependent source of random bits as an internal entropy source when generating cryptographic keys. In certain cases it may be desired to enable externally generated entropy derived from mouse movement.
 
 To enable additional entropy during client creation add the following to your Helm overrides in `values/wire-server/values.yaml`:
 
