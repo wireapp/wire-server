@@ -1542,6 +1542,30 @@ type TeamMemberAPI =
                :> ReqBody '[JSON] User.UserIdList
                :> Post '[JSON] TeamMemberListOptPerms
            )
+    :<|> Named
+           "add-team-member"
+           ( Summary "Add a new team member"
+               :> CanThrow 'InvalidPermissions
+               :> CanThrow 'NoAddToBinding
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'NotConnected
+               :> CanThrow OperationDenied
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'TooManyTeamMembers
+               :> CanThrow 'UserBindingExists
+               :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
+               :> ZLocalUser
+               :> ZConn
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "members"
+               :> ReqBody '[JSON] NewTeamMember
+               :> MultiVerb
+                    'POST
+                    '[JSON]
+                    '[RespondEmpty 200 ""]
+                    ()
+           )
 
 -- This is a work-around for the fact that we sometimes want to send larger lists of user ids
 -- in the filter query than fits the url length limit.  For details, see

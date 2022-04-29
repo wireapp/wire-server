@@ -171,25 +171,6 @@ sitemap = do
     errorSResponse @'TeamNotFound
     errorResponse Error.invalidTeamNotificationId
 
-  post "/teams/:tid/members" (continueE Teams.addTeamMemberH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "tid"
-      .&. jsonRequest @Public.NewTeamMember
-      .&. accept "application" "json"
-  document "POST" "addTeamMember" $ do
-    summary "Add a new team member"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    body (ref Public.modelNewTeamMember) $
-      description "JSON body"
-    errorSResponse @'NotATeamMember
-    errorSResponse @('MissingPermission ('Just 'Public.AddTeamMember))
-    errorSResponse @'NotConnected
-    errorSResponse @'InvalidPermissions
-    errorSResponse @'TooManyTeamMembers
-    errorSResponse @'TooManyTeamMembersOnTeamWithLegalhold
-
   delete "/teams/:tid/members/:uid" (continueE Teams.deleteTeamMemberH) $
     zauthUserId
       .&. zauthConnId

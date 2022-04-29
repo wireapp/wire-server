@@ -301,3 +301,4 @@ servantSitemap =
       mkNamedAPI @"get-team-members" getTeamMembers
         <@> mkNamedAPI @"get-team-member" getTeamMember
         <@> mkNamedAPI @"get-team-members-by-ids" bulkGetTeamMembers
+        <@> mkNamedAPI @"add-team-member" addTeamMember

@@ -28,7 +28,7 @@ module Galley.API.Teams
     getManyTeams,
     deleteTeam,
     uncheckedDeleteTeam,
-    addTeamMemberH,
+    addTeamMember,
     getTeamNotificationsH,
     getTeamConversationRoles,
     getTeamMembers,
@@ -678,12 +678,13 @@ addTeamMember ::
        P.TinyLog
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   TeamId ->
   Public.NewTeamMember ->
   Sem r ()
-addTeamMember zusr zcon tid nmem = do
+addTeamMember lzusr zcon tid nmem = do
+  let zusr = tUnqualified lzusr
   let uid = nmem ^. nUserId
   P.debug $
     Log.field "targets" (toByteString uid)
@@ -701,38 +702,6 @@ addTeamMember zusr zcon tid nmem = do
   ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   memList <- getTeamMembersForFanout tid
   void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
-
-addTeamMemberH ::
-  Members
-    '[ BrigAccess,
-       GundeckAccess,
-       ErrorS 'InvalidPermissions,
-       ErrorS 'NoAddToBinding,
-       ErrorS 'NotATeamMember,
-       ErrorS 'NotConnected,
-       ErrorS OperationDenied,
-       ErrorS 'TeamNotFound,
-       ErrorS 'TooManyTeamMembers,
-       ErrorS 'UserBindingExists,
-       ErrorS 'TooManyTeamMembersOnTeamWithLegalhold,
-       Input (Local ()),
-       Input Opts,
-       Input UTCTime,
-       LegalHoldStore,
-       MemberStore,
-       P.TinyLog,
-       TeamFeatureStore,
-       TeamNotificationStore,
-       TeamStore,
-       WaiRoutes
-     ]
-    r =>
-  UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON ->
-  Sem r Response
-addTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
-  nmem <- fromJsonBody req
-  addTeamMember zusr zcon tid nmem
-  pure empty
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMember ::
