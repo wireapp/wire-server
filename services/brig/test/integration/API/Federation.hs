@@ -41,12 +41,13 @@ import Imports
 import Test.QuickCheck hiding ((===))
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
-import Test.Tasty.HUnit (assertEqual, assertFailure)
+import Test.Tasty.HUnit
 import Util
 import Wire.API.Federation.API.Brig (GetUserClients (..), SearchRequest (SearchRequest), UserDeletedConnectionsNotification (..))
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import qualified Wire.API.Federation.API.Brig as S
 import Wire.API.Federation.Component
+import Wire.API.Federation.Version
 import Wire.API.Message (UserClients (..))
 import Wire.API.User.Client (mkUserClientPrekeyMap)
 import Wire.API.User.Search (FederatedUserSearchPolicy (..))
@@ -75,7 +76,8 @@ tests m opts brig cannon fedBrigClient =
         test m "POST /federation/claim-multi-prekey-bundle : 200" (testClaimMultiPrekeyBundleSuccess brig fedBrigClient),
         test m "POST /federation/get-user-clients : 200" (testGetUserClients brig fedBrigClient),
         test m "POST /federation/get-user-clients : Not Found" (testGetUserClientsNotFound fedBrigClient),
-        test m "POST /federation/on-user-deleted-connections : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient)
+        test m "POST /federation/on-user-deleted-connections : 200" (testRemoteUserGetsDeleted opts brig cannon fedBrigClient),
+        test m "POST /federation/api-version : 200" (testAPIVersion brig fedBrigClient)
       ]
 
 allowFullSearch :: Domain -> Opt.Opts -> Opt.Opts
@@ -386,3 +388,8 @@ testRemoteUserGetsDeleted opts brig cannon fedBrigClient = do
   for_ localUsers $ \u ->
     getConnectionQualified brig u remoteUser !!! do
       const 404 === statusCode
+
+testAPIVersion :: Brig -> FedClient 'Brig -> Http ()
+testAPIVersion _brig fedBrigClient = do
+  vinfo <- runFedClient @"api-version" fedBrigClient (Domain "far-away.example.com") ()
+  liftIO $ vinfoSupported vinfo @?= toList supportedVersions
