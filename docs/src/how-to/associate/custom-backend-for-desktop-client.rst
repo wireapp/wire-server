@@ -63,7 +63,7 @@ The ``env`` setting must be set to ``CUSTOM`` for this to work.
 Windows
 ~~~~~~~
 
-Move the ``init.json`` file to ``%APPDATA%\Wire\config\init.json`` if it does not already exist. If it exists update it accordingly.
+Move the ``init.json`` file to ``%APPDATA%\Wire\config\init.json`` if it does not already exist. Otherwise update it accordingly.
 
 MacOS
 ~~~~~
