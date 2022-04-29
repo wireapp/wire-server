@@ -24,6 +24,7 @@ module Wire.API.Routes.Version
     VersionInfo (..),
     versionSwagger,
     versionHeader,
+    VersionHeader,
 
     -- * Version
     Version (..),
@@ -39,10 +40,15 @@ where
 
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON (..))
+import qualified Data.Aeson as Aeson
+import Data.Bifunctor
+import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Schema
 import Data.Singletons.TH
 import qualified Data.Swagger as S
+import Data.Text as Text
+import Data.Text.Encoding as Text
 import Imports
 import Servant
 import Servant.Swagger
@@ -60,6 +66,10 @@ instance ToSchema Version where
         element 1 V1,
         element 2 V2
       ]
+
+instance FromHttpApiData Version where
+  parseHeader = first Text.pack . Aeson.eitherDecode . LBS.fromStrict
+  parseUrlPiece = parseHeader . Text.encodeUtf8
 
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]

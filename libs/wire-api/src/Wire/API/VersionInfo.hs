@@ -23,6 +23,7 @@ module Wire.API.VersionInfo
     readVersionNumber,
     mkVersion,
     versionHeader,
+    VersionHeader,
 
     -- * Servant combinators
     From,
@@ -33,12 +34,14 @@ where
 
 import Data.Aeson (FromJSON)
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Char8 as B8
 import qualified Data.CaseInsensitive as CI
 import Data.Metrics.Servant
 import Data.Schema
 import Data.Singletons
 import qualified Data.Text as Text
 import qualified Data.Text.Read as Text
+import GHC.TypeLits
 import Imports
 import qualified Network.Wai as Wai
 import Servant
@@ -63,8 +66,10 @@ mkVersion n = case Aeson.fromJSON (Aeson.Number (fromIntegral n)) of
   Aeson.Error _ -> Nothing
   Aeson.Success v -> pure v
 
+type VersionHeader = "X-Wire-API-Version"
+
 versionHeader :: CI.CI ByteString
-versionHeader = "X-Wire-API-Version"
+versionHeader = CI.mk . B8.pack $ symbolVal (Proxy @VersionHeader)
 
 --------------------------------------------------------------------------------
 -- Servant combinators
