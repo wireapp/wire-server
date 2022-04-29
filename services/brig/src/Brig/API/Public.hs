@@ -43,7 +43,6 @@ import qualified Brig.Code as Code
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import qualified Brig.Data.UserKey as UserKey
-import qualified Brig.Docs.Swagger
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
@@ -147,7 +146,7 @@ swaggerDocsAPI (Just V2) =
         <> CannonAPI.swaggerDoc
     )
       & S.info . S.title .~ "Wire-Server API"
-      & S.info . S.description ?~ Brig.Docs.Swagger.contents <> mempty
+      & S.info . S.description ?~ $(embedText "docs/swagger.md") <> mempty
       & S.security %~ nub
       -- sanitise definitions
       & S.definitions . traverse %~ sanitise
