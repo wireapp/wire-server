@@ -1,4 +1,4 @@
-# Feature settings
+# Server and team feature settings
 
 Features can be enabled or disabled on a team level or server wide. Here we will only cover the server wide configuration.
 
