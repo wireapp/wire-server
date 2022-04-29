@@ -74,7 +74,7 @@ Move the ``init.json`` file to
 
     ~/Library/Containers/com.wearezeta.zclient.mac/Data/Library/Application\ Support/Wire/config/init.json
     
-if it does not already exist. If it exists update it accordingly.
+if it does not already exist. Otherwise, update it accordingly.
 
 Linux
 ~~~~~
