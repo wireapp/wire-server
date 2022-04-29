@@ -51,12 +51,14 @@ servantSitemap =
         <@> mkNamedAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
         <@> mkNamedAPI @"list-conversation-ids" conversationIdsPageFrom
         <@> mkNamedAPI @"get-conversations" getConversations
+        <@> mkNamedAPI @"list-conversations-v1" listConversations
         <@> mkNamedAPI @"list-conversations" listConversations
         <@> mkNamedAPI @"get-conversation-by-reusable-code" getConversationByReusableCode
         <@> mkNamedAPI @"create-group-conversation" createGroupConversation
         <@> mkNamedAPI @"create-self-conversation" createSelfConversation
         <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
         <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified
+        <@> mkNamedAPI @"add-members-to-conversation-unqualified2" addMembersUnqualifiedV2
         <@> mkNamedAPI @"add-members-to-conversation" addMembers
         <@> mkNamedAPI @"join-conversation-by-id-unqualified" joinConversationById
         <@> mkNamedAPI @"join-conversation-by-code-unqualified" joinConversationByReusableCode
