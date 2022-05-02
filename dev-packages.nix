@@ -173,7 +173,6 @@ let
 in
 [
   pkgs.cfssl
-  pkgs.docker-compose
   pkgs.gnumake
   pkgs.gnused
   (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
@@ -181,15 +180,11 @@ in
   pkgs.jq
   pkgs.niv
   pkgs.ormolu
-  pkgs.telepresence
   pkgs.wget
   pkgs.yq
   pkgs.rsync
   pkgs.netcat
   pkgs.crypto_cli
-
-  # To actually run buildah on nixos, I had to follow this: https://gist.github.com/alexhrescale/474d55635154e6b2cd6362c3bb403faf
-  pkgs.buildah
 
   stack-wrapper
   pinned.helm
@@ -204,5 +199,11 @@ in
   # which sets LD_LIBRARY_PATH and others correctly.
   cabal-wrapper
   pkgs.haskellPackages.implicit-hie
+] ++ pkgs.lib.optional pkgs.stdenv.isLinux [
+  # linux-only, not strictly required tools
+
+  pkgs.docker-compose
+  pkgs.telepresence
+  pkgs.buildah # To actually run buildah on nixos, I had to follow this: https://gist.github.com/alexhrescale/474d55635154e6b2cd6362c3bb403faf
 ]
 ++ c-lib-out-deps # Required to run HLS
