@@ -40,10 +40,13 @@ spec:
             value: https://{{ .Values.config.externalUrls.backendRest }}
           - name: BACKEND_WS
             value: wss://{{ .Values.config.externalUrls.backendWebsocket }}
+
+          {{- if not (hasKey .Values.envVars "FEATURE_ENABLE_PAYMENT") }}
             # NOTE defaults to 'true', but since we assume on-prem here, we default to 'false'
             # SRC https://github.com/wireapp/wire-web-config-default/blob/master/wire-team-settings/.env.defaults#L48
           - name: FEATURE_ENABLE_PAYMENT
             value: {{ .Values.config.enablePayment | default false | quote }}
+          {{- end }}
       {{- range $key, $val := .Values.envVars }}
           - name: {{ $key }}
             value: {{ $val | quote }}
