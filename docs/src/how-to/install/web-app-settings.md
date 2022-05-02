@@ -18,7 +18,8 @@ webapp:
 
 ## Enforce constant bit rate
 
-Since there is a theoretical risk of information leakage through packet size analysis when using Opus with variable bitrate encoding during audio calls, constant bit rate encoding (CBR) can be enforced for all call types (conference and 1:1).
+By default Wire users can choose, whether to use constant bit rate (CBR) or variable bit rate (VBR) encoding for 1:1 calls (conference calls always use CBR).
+Since there is a theoretical risk of information leakage through packet size analysis when using Opus with variable bitrate encoding during audio calls, CBR can be fully enforced for 1:1 calls in the web app, too.
 
 
 To enforce CBR add the following to your Helm overrides in `values/wire-server/values.yaml`:
