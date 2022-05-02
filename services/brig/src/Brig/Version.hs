@@ -32,6 +32,7 @@ versionAPI = Named $ do
   pure $
     VersionInfo
       { vinfoSupported = supportedVersions,
+        vinfoDevelopment = developmentVersions,
         vinfoFederation = isJust fed,
         vinfoDomain = dom
       }

@@ -29,6 +29,7 @@ module Wire.API.Routes.Version
     -- * Version
     Version (..),
     supportedVersions,
+    developmentVersions,
     readVersionNumber,
     mkVersion,
 
@@ -55,6 +56,7 @@ import Servant.Swagger
 import Wire.API.Routes.Named
 import Wire.API.VersionInfo
 
+-- | Version of the public API.
 data Version = V0 | V1 | V2
   deriving stock (Eq, Ord, Bounded, Enum, Show)
   deriving (FromJSON, ToJSON) via (Schema Version)
@@ -74,8 +76,18 @@ instance FromHttpApiData Version where
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
 
+developmentVersions :: [Version]
+developmentVersions = [V2]
+
+-- | Information related to the public API version.
+--
+-- This record also contains whether federation is enabled and the federation
+-- domain. Clients should fetch this information early when connecting to a
+-- backend, in order to decide how to form request paths, and how to deal with
+-- federated backends and qualified user IDs.
 data VersionInfo = VersionInfo
   { vinfoSupported :: [Version],
+    vinfoDevelopment :: [Version],
     vinfoFederation :: Bool,
     vinfoDomain :: Domain
   }
@@ -86,6 +98,7 @@ instance ToSchema VersionInfo where
     objectWithDocModifier "VersionInfo" (S.schema . S.example ?~ toJSON example) $
       VersionInfo
         <$> vinfoSupported .= vinfoObjectSchema schema
+        <*> vinfoDevelopment .= field "development" (array schema)
         <*> vinfoFederation .= field "federation" schema
         <*> vinfoDomain .= field "domain" schema
     where
@@ -93,6 +106,7 @@ instance ToSchema VersionInfo where
       example =
         VersionInfo
           { vinfoSupported = supportedVersions,
+            vinfoDevelopment = [maxBound],
             vinfoFederation = False,
             vinfoDomain = Domain "example.com"
           }
