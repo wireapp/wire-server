@@ -21,13 +21,18 @@ module Brig.Data.MLS.KeyPackage
     mapKeyPackageRef,
     countKeyPackages,
     derefKeyPackage,
+    keyPackageRefConvId,
+    keyPackageRefSetConvId,
   )
 where
 
 import Brig.App
 import Cassandra
+import Cassandra.Settings
 import Control.Error
+import Control.Exception
 import Control.Lens
+import Control.Monad.Catch
 import Control.Monad.Random (randomRIO)
 import Data.Domain
 import Data.Functor
@@ -96,6 +101,34 @@ derefKeyPackage ref = do
   where
     q :: PrepQuery R (Identity KeyPackageRef) (Domain, UserId, ClientId)
     q = "SELECT domain, user, client from mls_key_package_refs WHERE ref = ?"
+
+keyPackageRefConvId :: MonadClient m => KeyPackageRef -> MaybeT m (Qualified ConvId)
+keyPackageRefConvId ref = MaybeT $ do
+  qr <- retry x1 $ query1 q (params LocalSerial (Identity ref))
+  pure $ do
+    (domain, cid) <- qr
+    Qualified <$> cid <*> domain
+  where
+    q :: PrepQuery R (Identity KeyPackageRef) (Maybe Domain, Maybe ConvId)
+    q = "SELECT conv_domain, conv FROM mls_key_package_refs WHERE ref = ?"
+
+-- We want to proper update, not an upsert, to avoid "ghost" refs without user+client
+keyPackageRefSetConvId :: MonadClient m => KeyPackageRef -> Qualified ConvId -> m Bool
+keyPackageRefSetConvId ref convId = do
+  updated <-
+    retry x5 $
+      trans
+        q
+        (params LocalQuorum (qDomain convId, qUnqualified convId, ref))
+          { serialConsistency = Just LocalSerialConsistency
+          }
+  case updated of
+    [] -> return False
+    [_] -> return True
+    _ -> throwM $ ErrorCall "Primary key violation detected mls_key_package_refs.ref"
+  where
+    q :: PrepQuery W (Domain, ConvId, KeyPackageRef) x
+    q = "UPDATE mls_key_package_refs SET conv_domain = ?, conv = ? WHERE ref = ? IF EXISTS"
 
 --------------------------------------------------------------------------------
 -- Utilities

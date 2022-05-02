@@ -34,6 +34,7 @@ where
 import Control.Lens ((.~))
 import qualified Data.Code as Code
 import Data.Id as Id
+import Data.Qualified (Qualified)
 import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
 import Imports hiding (head)
 import Servant hiding (Handler, JSON, addHeader, respond)
@@ -144,24 +145,61 @@ type AccountAPI =
         :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
     )
 
-type MLSAPI = GetClientByKeyPackageRef :<|> GetMLSClients :<|> MapKeyPackageRefs
+type MLSAPI =
+  "mls"
+    :> ( ( "key-packages" :> Capture "ref" KeyPackageRef
+             :> ( Named
+                    "get-client-by-key-package-ref"
+                    ( Summary "Resolve an MLS key package ref to a qualified client ID"
+                        :> MultiVerb
+                             'GET
+                             '[Servant.JSON]
+                             '[ RespondEmpty 404 "Key package ref not found",
+                                Respond 200 "Key package ref found" ClientIdentity
+                              ]
+                             (Maybe ClientIdentity)
+                    )
+                    :<|> ( "conversation"
+                             :> ( PutConversationByKeyPackageRef
+                                    :<|> GetConversationByKeyPackageRef
+                                )
+                         )
+                )
+         )
+           :<|> GetMLSClients
+           :<|> MapKeyPackageRefs
+       )
 
-type GetClientByKeyPackageRef =
-  Summary "Resolve an MLS key package ref to a qualified client ID"
-    :> "mls"
-    :> "key-packages"
-    :> Capture "ref" KeyPackageRef
-    :> MultiVerb
-         'GET
-         '[Servant.JSON]
-         '[ RespondEmpty 404 "Key package ref not found",
-            Respond 200 "Key package ref found" ClientIdentity
-          ]
-         (Maybe ClientIdentity)
+type PutConversationByKeyPackageRef =
+  Named
+    "put-conversation-by-key-package-ref"
+    ( Summary "Associate a conversation with a key package"
+        :> ReqBody '[Servant.JSON] (Qualified ConvId)
+        :> MultiVerb
+             'PUT
+             '[Servant.JSON]
+             [ RespondEmpty 404 "No key package found by reference",
+               RespondEmpty 204 "Converstaion associated"
+             ]
+             Bool
+    )
+
+type GetConversationByKeyPackageRef =
+  Named
+    "get-conversation-by-key-package-ref"
+    ( Summary
+        "Retrieve the conversation associated with a key package"
+        :> MultiVerb
+             'GET
+             '[Servant.JSON]
+             [ RespondEmpty 404 "No associated conversation or bad key package",
+               Respond 200 "Conversation found" (Qualified ConvId)
+             ]
+             (Maybe (Qualified ConvId))
+    )
 
 type GetMLSClients =
   Summary "Return all MLS-enabled clients of a user"
-    :> "mls"
     :> "clients"
     :> CanThrow 'UserNotFound
     :> QualifiedCapture "user" UserId
@@ -173,7 +211,6 @@ type GetMLSClients =
 
 type MapKeyPackageRefs =
   Summary "Insert bundle into the KeyPackage ref mapping. Only for tests."
-    :> "mls"
     :> "key-package-refs"
     :> ReqBody '[Servant.JSON] KeyPackageBundle
     :> MultiVerb 'PUT '[Servant.JSON] '[RespondEmpty 204 "Mapping was updated"] ()
