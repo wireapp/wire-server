@@ -28,3 +28,4 @@ config:
   aws:
     region: "eu-west-1"
   proxy: {}
+# serviceAccountName:
