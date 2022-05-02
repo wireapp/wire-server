@@ -157,7 +157,7 @@ Features
 
    - welcome messages are now being propagated (#2175)
 
-* The bot API will be blocked if the 2nd factor authentication team feature is enabled. Please refer to `/docs/reference/config-options.md#2nd-factor-password-challenge <https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge>`_. (#2207)
+* The bot API will be blocked if the 2nd factor authentication team feature is enabled. Please refer to `Server and team feature settings <how-to/install/team-feature-settings.html#nd-factor-password-challenge#nd-factor-password-challenge>`_. (#2207)
 
 * Translations for 2nd factor authentication email templates (#2235)
 
@@ -272,7 +272,7 @@ Features
    - for "add new client" via 6 digit code, sent by email. This only happens inside the login flow (in particular, when logging in from a new device).  The code obtained for logging in is used a second time for adding the device. (#2186)
    - 2nd factor authentication for "delete team" via 6 digit code, sent by email. (#2193)
    - The `SndFactorPasswordChallenge` team feature is locked by default. (#2205)
-   - Details: `/docs/reference/config-options.md#2nd-factor-password-challenge <https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge>`__
+   - Details: `Server and team feature settings`_
 
 Bug fixes and other updates
 ---------------------------
@@ -388,7 +388,7 @@ Federation changes
 ------------------
 
 * Make restrictions on federated user search configurable by domain: `NoSearch`, `ExactHandleSearch` and `FullSearch`.
-  Details about the configuration are described in `config-options.md <https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md>`__.
+  Details about the configuration are described in `config-options.md <https://github.com/wireapp/wire-server/blob/develop/docs/legacy/reference/config-options.md>`__.
   There are sane defaults (*deny to find any users as long as there is no other configuration for the domain*), so no measures have to be taken by on-premise customers (unless the default is not the desired behavior). (#2087)
 
 
@@ -414,7 +414,7 @@ Release notes
    galley.yaml. The feature was disabled by default before this release
    and is now enabled by default. The server wide default can be changed
    in galley.yaml. Please refer to
-   `/docs/reference/config-options.md#validate-saml-emails <https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#validate-saml-emails>`__
+   `/docs/reference/config-options.md#validate-saml-emails <https://github.com/wireapp/wire-server/blob/develop/docs/legacy/reference/config-options.md#validate-saml-emails>`__
    (#2117)
 
 API changes
@@ -475,7 +475,7 @@ Internal changes
    ``sndFactorPasswordChallenge`` added to galley.yaml. The feature is
    disabled by default. The server wide default can be changed in
    galley.yaml. Please refer to
-   `/docs/reference/config-options.md#2nd-factor-password-challenge <https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge>`__
+   `Server and team feature settings`_
    (#2138)
 -  Prometheus: Ignore RawResponses (e.g. cannon’s await responses) from
    metrics (#2108)
@@ -681,7 +681,7 @@ Release notes
 -  You can now configure if personal accounts are allowed to initiate conference calls
    in ``brig.yaml``. ``enabled`` is both the default and
    the previous behavior, so if you are not sure if you need this, it's safe to do nothing. If you want to change the default, read
-   `/docs/reference/config-options.md#conference-calling-1 <https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#conference-calling-1>`__
+   `/docs/reference/config-options.md#conference-calling-1 <https://github.com/wireapp/wire-server/blob/develop/docs/legacy/reference/config-options.md#conference-calling-1>`__
    (#1811, #1818)
 -  Only if you are an early adopter of multi-team IdP issuers on release
    `2021-09-14 <https://github.com/wireapp/wire-server/releases/tag/v2021-09-14>`__:
@@ -717,7 +717,7 @@ Features
    `ldap-scim-bridge <https://github.com/wireapp/ldap-scim-bridge>`__
    (#1709)
 -  Per-account configuration of conference call initiation (details:
-   `/docs/reference/config-options.md#conference-calling-1 <https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#conference-calling-1>`__) (#1811,
+   `/docs/reference/config-options.md#conference-calling-1 <https://github.com/wireapp/wire-server/blob/develop/docs/legacy/reference/config-options.md#conference-calling-1>`__) (#1811,
    #1818)
 
 Bug fixes and other updates
@@ -1049,7 +1049,7 @@ Upstream release notes: https://github.com/wireapp/wire-server/blob/develop/CHAN
 Release Notes
 -------------
 
-If you want to set the default for file sharing in all teams to `disabled`, search for "File Sharing" in https://github.com/wireapp/wire-server/tree/develop/docs/reference/config-options.md.
+If you want to set the default for file sharing in all teams to `disabled`, search for "File Sharing" in https://github.com/wireapp/wire-server/tree/develop/docs/legacy/reference/config-options.md.
 
 Release Notes for Wire.com Cloud operators
 ------------------------------------------
