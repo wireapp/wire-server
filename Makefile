@@ -121,7 +121,8 @@ formatc:
 # lint all shell scripts with ShellCheck
 .PHONY: shellcheck
 shellcheck:
-	shellcheck **/*.sh
+	shellcheck -x $(shell find -not -path "./dist-newstyle/*" -not -path "./services/nginz/third_party/*" -type f -iname '*.sh')
+
 
 # For any Haskell or Rust file, update or add a license header if necessary.
 # Headers should be added according to Ormolu's formatting rules, but please check just in case.

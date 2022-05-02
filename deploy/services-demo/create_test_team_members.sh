@@ -82,6 +82,7 @@ END=$((COUNT + START - 1))
 for i in $(seq "$START" "$END")
 do
     EMAIL='w'$(printf "%03d" "$i")"@$TARGET_EMAIL_DOMAIN"
+    # shellcheck disable=SC2002
     PASSWORD=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
 
     # Generate the invitation
@@ -123,7 +124,7 @@ do
 
     if [ "$TEAM" != "$TEAM_UUID" ]; then
         echo "unexpected error: user got assigned to no / the wrong team?!"
-        echo ${CURL_OUT}
+        echo "${CURL_OUT}"
         exit 1
     fi
 

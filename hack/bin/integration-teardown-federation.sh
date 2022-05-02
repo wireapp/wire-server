@@ -12,5 +12,6 @@ export NAMESPACE_2="$NAMESPACE-fed2"
 export FEDERATION_DOMAIN_1="."
 export FEDERATION_DOMAIN_2="."
 
+# shellcheck disable=SC1091
 . "$DIR/helm_overrides.sh"
 helmfile --file "${TOP_LEVEL}/hack/helmfile.yaml" destroy

@@ -46,9 +46,12 @@ fi
 
 # Generate users
 
+# shellcheck disable=SC2034
 for i in $(seq 1 "$COUNT")
 do
+    # shellcheck disable=2002
     EMAIL=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)"@example.com"
+    # shellcheck disable=2002
     PASSWORD=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
 
     CURL_OUT=$(curl -i -s --show-error \

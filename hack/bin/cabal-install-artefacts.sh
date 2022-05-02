@@ -19,4 +19,4 @@ cd "$TOP_LEVEL"
 cabal-plan list-bins "$pattern:exe:*" |
   awk '{print $2}' |
   xargs -i sh -c 'test -f {} && echo {} || true' |
-  xargs -P8 -i rsync -a {} "$DIST"
+  xargs -P8 -I{} rsync -a {} "$DIST"

@@ -1,5 +1,6 @@
 #!/usr/bin/env nix-shell
 #!nix-shell shell.nix -i bash
+#shellcheck shell=bash
 
 set -e
 
@@ -9,5 +10,5 @@ if [[ "$INTEGRATION_SKIP_SCIM_SUITE" -eq 1 ]]; then
     exit 0
 fi
 
-make collection -C $SOURCE_DIR
-$SOURCE_DIR/run.sh
+make collection -C "$SOURCE_DIR"
+"$SOURCE_DIR/run.sh"

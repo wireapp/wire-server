@@ -1,4 +1,6 @@
 #!/bin/bash
+
+# shellcheck disable=SC2162
 sed 's| =/= |\n|' | {
     IFS= read first
     IFS= read second

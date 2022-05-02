@@ -8,8 +8,9 @@ export NAMESPACE=${NAMESPACE:-test-integration}
 HELMFILE_ENV=${HELMFILE_ENV:-default}
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 
+# shellcheck disable=SC1091
 . "$DIR/helm_overrides.sh"
-${DIR}/integration-cleanup.sh
+"${DIR}/integration-cleanup.sh"
 
 # FUTUREWORK explore: have helmfile do the interpolation (and skip the "make charts" step) https://wearezeta.atlassian.net/browse/SQPIT-722
 #

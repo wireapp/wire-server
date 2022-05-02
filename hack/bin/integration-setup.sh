@@ -8,6 +8,7 @@ export NAMESPACE=${NAMESPACE:-test-integration}
 HELMFILE_ENV=${HELMFILE_ENV:-default}
 CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 
+# shellcheck disable=SC1091
 . "$DIR/helm_overrides.sh"
 
 "${DIR}/integration-cleanup.sh"

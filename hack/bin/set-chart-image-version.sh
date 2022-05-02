@@ -2,6 +2,7 @@
 
 USAGE="$0 <docker-tag> <chart-name>..."
 docker_tag=${1?$USAGE}
+# shellcheck disable=SC2124
 charts=${@:2}
 
 TOP_LEVEL="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../.." && pwd )"

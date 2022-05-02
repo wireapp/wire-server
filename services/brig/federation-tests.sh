@@ -36,5 +36,5 @@ while read -r ip; do
   alsoProxyOptions+=("--also-proxy=${ip}")
 done < <(kubectl get pods -n "$NAMESPACE" -l wireService=cannon -o json | jq -r '.items[].status.podIPs[].ip')
 
-# shellcheck disable=SC2086
+# shellcheck disable=SC2048,SC2086
 telepresence --namespace "$NAMESPACE" --also-proxy=cassandra-ephemeral ${alsoProxyOptions[*]} --run bash -c "export INTEGRATION_FEDERATION_TESTS=1; ./dist/brig-integration -p federation-end2end-user -i i.yaml -s b.yaml"

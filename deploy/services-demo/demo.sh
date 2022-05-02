@@ -4,6 +4,7 @@
 
 set -eo pipefail
 
+# shellcheck disable=SC2034
 USAGE="$0 [docker] [--run-backoffice]"
 docker_deployment="false"
 if [ "$1" = "docker" ] || [ "$2" = "docker" ] ; then
@@ -27,7 +28,8 @@ function kill_all() {
 }
 
 function list_descendants () {
-  local children=$(pgrep -P "$1")
+  local children
+  children=$(pgrep -P "$1")
   for pid in $children
   do
     list_descendants "$pid"
@@ -38,14 +40,14 @@ function list_descendants () {
 function kill_gracefully() {
     pkill "gundeck|brig|galley|cargohold|cannon|spar|stern"
     sleep 1
-    kill $(list_descendants $PARENT_PID) &> /dev/null
+    kill "$(list_descendants $PARENT_PID)" &> /dev/null
 }
 
 function run_zauth() {
     if [ "$docker_deployment" = "false" ]; then
-        ${DIR}/../dist/zauth "$@"
+        "${DIR}/../dist/zauth" "$@"
     else
-        docker run --entrypoint "/usr/bin/zauth" ${docker_zauth_image:-quay.io/wire/zauth} $@
+        docker run --entrypoint "/usr/bin/zauth" "${docker_zauth_image:-quay.io/wire/zauth}" "$@"
     fi
 }
 
@@ -53,47 +55,53 @@ trap "kill_gracefully; kill_all" INT TERM ERR
 
 function check_secrets() {
     if [ "$docker_deployment" = "false" ]; then
-        test -f ${DIR}/../dist/zauth || { echo "zauth is not compiled. How about you run 'cd ${TOP_LEVEL} && make services' first?"; exit 1; }
+        test -f "${DIR}/../dist/zauth" || { echo "zauth is not compiled. How about you run 'cd ${TOP_LEVEL} && make services' first?"; exit 1; }
     fi
 
     if [[ ! -f ${SCRIPT_DIR}/resources/turn/secret.txt ]]; then
         echo "Generate a secret for the TURN servers (must match the turn.secret key in brig's config)..."
-        openssl rand -base64 64 | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 42 > ${SCRIPT_DIR}/resources/turn/secret.txt
+        openssl rand -base64 64 | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 42 > "${SCRIPT_DIR}/resources/turn/secret.txt"
     else
         echo "re-using existing TURN secret"
     fi
     if [[ ! -f ${SCRIPT_DIR}/resources/zauth/privkeys.txt || ! -f ${SCRIPT_DIR}/resources/zauth/pubkeys.txt ]]; then
         echo "Generate private and public keys (used both by brig and nginz)..."
-        mkdir -p ${SCRIPT_DIR}/resources/zauth/
+        mkdir -p "${SCRIPT_DIR}/resources/zauth/"
         TMP_KEYS=$(mktemp "/tmp/demo.keys.XXXXXXXXXXX")
-        run_zauth -m gen-keypair -i 1 > $TMP_KEYS
-        cat $TMP_KEYS | sed -n 's/public: \(.*\)/\1/p' > ${SCRIPT_DIR}/resources/zauth/pubkeys.txt
-        cat $TMP_KEYS | sed -n 's/secret: \(.*\)/\1/p' > ${SCRIPT_DIR}/resources/zauth/privkeys.txt
+        run_zauth -m gen-keypair -i 1 > "$TMP_KEYS"
+        # shellcheck disable=SC2002
+        cat "$TMP_KEYS" | sed -n 's/public: \(.*\)/\1/p' > "${SCRIPT_DIR}/resources/zauth/pubkeys.txt"
+        # shellcheck disable=SC2002
+        cat "$TMP_KEYS" | sed -n 's/secret: \(.*\)/\1/p' > "${SCRIPT_DIR}/resources/zauth/privkeys.txt"
     else
         echo "re-using existing public/private keys"
     fi
 }
 
 function check_prerequisites() {
+
+    # shellcheck disable=SC2015
     nc -z 127.0.0.1 9042 \
         && nc -z 127.0.0.1 9200 \
         && nc -z 127.0.0.1 6379 \
         || { echo "Databases not up. Maybe run 'deploy/dockerephemeral/run.sh' in a separate terminal first?";  exit 1; }
     if [ "$docker_deployment" = "false" ]; then
-        test -f ${DIR}/../dist/brig \
-            && test -f ${DIR}/../dist/galley \
-            && test -f ${DIR}/../dist/cannon \
-            && test -f ${DIR}/../dist/gundeck \
-            && test -f ${DIR}/../dist/cargohold \
-            && test -f ${DIR}/../dist/proxy \
-            && test -f ${DIR}/../dist/spar \
-            && test -f ${DIR}/../dist/stern \
-            && ( test -f ${DIR}/../dist/nginx || which nix-build ) \
+        # shellcheck disable=SC2015
+        test -f "${DIR}/../dist/brig" \
+            && test -f "${DIR}/../dist/galley" \
+            && test -f "${DIR}/../dist/cannon" \
+            && test -f "${DIR}/../dist/gundeck" \
+            && test -f "${DIR}/../dist/cargohold" \
+            && test -f "${DIR}/../dist/proxy" \
+            && test -f "${DIR}/../dist/spar" \
+            && test -f "${DIR}/../dist/stern" \
+            && ( test -f "${DIR}/../dist/nginx" || which nix-build ) \
             || { echo "Not all services are compiled. How about you run 'cd ${TOP_LEVEL} && make services' first?"; exit 1; }
     fi
 }
 
 blue=6
+# shellcheck disable=SC2034
 white=7
 green=10
 orange=3
@@ -105,8 +113,9 @@ blueish=4
 function run_haskell_service() {
     service=$1
     colour=$2
-    (cd ${SCRIPT_DIR} && ${DIR}/../dist/${service} -c ${SCRIPT_DIR}/conf/${service}.demo.yaml || kill_all) \
-        | sed -e "s/^/$(tput setaf ${colour})[${service}] /" -e "s/$/$(tput sgr0)/" &
+    # shellcheck disable=SC2015
+    (cd "${SCRIPT_DIR}" && "${DIR}/../dist/${service}" -c "${SCRIPT_DIR}/conf/${service}.demo.yaml" || kill_all) \
+        | sed -e "s/^/$(tput setaf "${colour}")[${service}] /" -e "s/$/$(tput sgr0)/" &
 }
 
 function run_nginz() {
@@ -117,12 +126,14 @@ function run_nginz() {
     # nix-build will put a symlink to ./result with the nginx artifact
     if which nix-build; then
       nginz=$(nix-build "${DIR}/../nix" -A nginz --no-out-link )
-      (cd ${SCRIPT_DIR} && ${nginz}/bin/nginx -p ${SCRIPT_DIR} -c ${SCRIPT_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
-          | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
+      # shellcheck disable=SC2015
+      (cd "${SCRIPT_DIR}" && "${nginz}/bin/nginx" -p "${SCRIPT_DIR}" -c "${SCRIPT_DIR}/conf/nginz/nginx.conf" -g 'daemon off;' || kill_all) \
+          | sed -e "s/^/$(tput setaf "${colour}")[nginz] /" -e "s/$/$(tput sgr0)/" &
     else
       prefix=$([ -w /usr/local ] && echo /usr/local || echo "${HOME}/.wire-dev")
-      (cd ${SCRIPT_DIR} && LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${prefix}/lib/ ${DIR}/../dist/nginx -p ${SCRIPT_DIR} -c ${SCRIPT_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
-          | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
+      # shellcheck disable=SC2015
+      (cd "${SCRIPT_DIR}" && LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${prefix}/lib/ "${DIR}/../dist/nginx" -p "${SCRIPT_DIR}" -c "${SCRIPT_DIR}/conf/nginz/nginx.conf" -g 'daemon off;' || kill_all) \
+          | sed -e "s/^/$(tput setaf "${colour}")[nginz] /" -e "s/$/$(tput sgr0)/" &
     fi
 }
 

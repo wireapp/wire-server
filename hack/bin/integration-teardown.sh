@@ -9,5 +9,6 @@ export FEDERATION_DOMAIN="."
 
 set -ex
 
+# shellcheck disable=SC1091
 . "$DIR/helm_overrides.sh"
 helmfile --file "${TOP_LEVEL}/hack/helmfile-single.yaml" destroy
