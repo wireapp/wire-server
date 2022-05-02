@@ -30,7 +30,7 @@ import Data.Map.Lens (toMapOf)
 import Data.Qualified
 import Data.Range (Range (fromRange))
 import qualified Data.Set as Set
-import Data.Singletons (sing)
+import Data.Singletons (SingI (..), demote, sing)
 import qualified Data.Text.Lazy as LT
 import Data.Time.Clock
 import Galley.API.Action
@@ -52,11 +52,12 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Internal.Kind (Append)
 import qualified Polysemy.TinyLog as P
 import Servant (ServerT)
 import Servant.API
 import qualified System.Logger.Class as Log
-import Wire.API.Conversation
+import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
@@ -66,7 +67,9 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
+import Wire.API.Federation.API.Galley (ConversationUpdateResponse)
 import qualified Wire.API.Federation.API.Galley as F
+import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.ServantProto
@@ -74,6 +77,7 @@ import Wire.API.User.Client (userClientMap)
 
 type FederationAPI = "federation" :> FedApi 'Galley
 
+-- | Convert a polysemy handler to an 'API' value.
 federationSitemap :: ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =
   Named @"on-conversation-created" onConversationCreated
@@ -83,6 +87,7 @@ federationSitemap =
     :<|> Named @"on-message-sent" onMessageSent
     :<|> Named @"send-message" sendMessage
     :<|> Named @"on-user-deleted-conversations" onUserDeleted
+    :<|> Named @"update-conversation" updateConversation
 
 onConversationCreated ::
   Members
@@ -250,6 +255,7 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
   E.createMembersInRemoteConversation remoteConvId connectedList
   pure connected
 
+-- as of now this will not generate the necessary events on the leaver's domain
 leaveConversation ::
   Members
     '[ ConversationStore,
@@ -417,3 +423,103 @@ onUserDeleted origDomain udcn = do
                   botsAndMembers = convBotsAndMembers conv
               void $ notifyConversationAction (sing @'ConversationLeaveTag) untaggedDeletedUser Nothing lc botsAndMembers action
   pure EmptyResponse
+
+updateConversation ::
+  forall r.
+  ( Members
+      '[ BrigAccess,
+         CodeStore,
+         BotAccess,
+         FireAndForget,
+         Error FederationError,
+         Error InvalidInput,
+         ExternalAccess,
+         FederatorAccess,
+         Error InternalError,
+         GundeckAccess,
+         Input Opts,
+         Input UTCTime,
+         LegalHoldStore,
+         MemberStore,
+         TeamStore,
+         ConversationStore,
+         Input (Local ())
+       ]
+      r
+  ) =>
+  -- |
+  Domain ->
+  -- |
+  F.ConversationUpdateRequest ->
+  Sem r ConversationUpdateResponse
+updateConversation origDomain updateRequest = do
+  loc <- qualifyLocal ()
+  let rusr = toRemoteUnsafe origDomain (F.curUser updateRequest)
+      lcnv = qualifyAs loc (F.curConvId updateRequest)
+
+  mkResponse $ case F.curAction updateRequest of
+    SomeConversationAction tag action ->
+      case tag of
+        SConversationJoinTag ->
+          mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationJoinTag) $
+            updateLocalConversationWithRemoteUser tag lcnv rusr action
+        SConversationLeaveTag ->
+          mapToGalleyError
+            @(HasConversationActionGalleyErrors 'ConversationLeaveTag)
+            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
+        SConversationRemoveMembersTag ->
+          mapToGalleyError
+            @(HasConversationActionGalleyErrors 'ConversationRemoveMembersTag)
+            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
+        SConversationMemberUpdateTag ->
+          mapToGalleyError
+            @(HasConversationActionGalleyErrors 'ConversationMemberUpdateTag)
+            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
+        SConversationDeleteTag ->
+          mapToGalleyError
+            @(HasConversationActionGalleyErrors 'ConversationDeleteTag)
+            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
+        SConversationRenameTag ->
+          mapToGalleyError
+            @(HasConversationActionGalleyErrors 'ConversationRenameTag)
+            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
+        SConversationMessageTimerUpdateTag ->
+          mapToGalleyError
+            @(HasConversationActionGalleyErrors 'ConversationMessageTimerUpdateTag)
+            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
+        SConversationReceiptModeUpdateTag ->
+          mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag) $
+            updateLocalConversationWithRemoteUser tag lcnv rusr action
+        SConversationAccessDataTag ->
+          mapToGalleyError
+            @(HasConversationActionGalleyErrors 'ConversationAccessDataTag)
+            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
+  where
+    mkResponse = fmap toResponse . runError @GalleyError . runError @NoChanges
+
+    toResponse (Left galleyErr) = F.ConversationUpdateResponseError galleyErr
+    toResponse (Right (Left NoChanges)) = F.ConversationUpdateResponseNoChanges
+    toResponse (Right (Right update)) = F.ConversationUpdateResponseUpdate update
+
+class ToGalleyRuntimeError (effs :: EffectRow) r where
+  mapToGalleyError ::
+    Member (Error GalleyError) r =>
+    Sem (Append effs r) a ->
+    Sem r a
+
+instance ToGalleyRuntimeError '[] r where
+  mapToGalleyError = id
+
+instance
+  forall (err :: GalleyError) effs r.
+  ( ToGalleyRuntimeError effs r,
+    SingI err,
+    Member (Error GalleyError) (Append effs r)
+  ) =>
+  ToGalleyRuntimeError (ErrorS err ': effs) r
+  where
+  mapToGalleyError act =
+    mapToGalleyError @effs @r $
+      runError act >>= \case
+        Left _ -> throw (demote @err)
+        Right res -> pure res

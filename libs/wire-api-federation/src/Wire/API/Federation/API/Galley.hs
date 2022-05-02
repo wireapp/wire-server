@@ -31,6 +31,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName)
+import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
 import Wire.API.Message
@@ -57,6 +58,7 @@ type GalleyApi =
     -- this backend
     :<|> FedEndpoint "send-message" MessageSendRequest MessageSendResponse
     :<|> FedEndpoint "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
+    :<|> FedEndpoint "update-conversation" ConversationUpdateRequest ConversationUpdateResponse
 
 data GetConversationsRequest = GetConversationsRequest
   { gcrUserId :: UserId,
@@ -229,3 +231,25 @@ data UserDeletedConversationsNotification = UserDeletedConversationsNotification
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDeletedConversationsNotification)
   deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConversationsNotification)
+
+data ConversationUpdateRequest = ConversationUpdateRequest
+  { -- | The user that is attempting to perform the action. This is qualified
+    -- implicitly by the origin domain
+    curUser :: UserId,
+    -- | Id of conversation the action should be performed on. The is qualified
+    -- implicity by the owning backend which receives this request.
+    curConvId :: ConvId,
+    curAction :: SomeConversationAction
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationUpdateRequest)
+  deriving (FromJSON, ToJSON) via (CustomEncoded ConversationUpdateRequest)
+
+data ConversationUpdateResponse
+  = ConversationUpdateResponseError GalleyError
+  | ConversationUpdateResponseUpdate ConversationUpdate
+  | ConversationUpdateResponseNoChanges
+  deriving stock (Eq, Show, Generic)
+  deriving
+    (ToJSON, FromJSON)
+    via (CustomEncoded ConversationUpdateResponse)

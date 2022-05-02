@@ -60,6 +60,7 @@ type ResponsesForExistedCreated eDesc cDesc a =
 data UpdateResult a
   = Unchanged
   | Updated !a
+  deriving (Functor)
 
 type UpdateResponses unchangedDesc updatedDesc a =
   '[ RespondEmpty 204 unchangedDesc,

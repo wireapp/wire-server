@@ -38,6 +38,7 @@ module API.Federation where
 import API.Util
 import Bilge
 import Bilge.Assert
+import Bilge.TestSession (liftSession)
 import Control.Lens hiding ((#))
 import Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as A
@@ -104,7 +105,8 @@ tests s =
       test s "POST /federation/leave-conversation : Invalid type" leaveConversationInvalidType,
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage,
-      test s "POST /federation/on-user-deleted-conversations : Remove deleted remote user from local conversations" onUserDeleted
+      test s "POST /federation/on-user-deleted-conversations : Remove deleted remote user from local conversations" onUserDeleted,
+      test s "POST /federation/update-conversation : Update local conversation by a remote admin " updateConversationByRemoteAdmin
     ]
 
 getConversationsAllFound :: TestM ()
@@ -1055,4 +1057,125 @@ onUserDeleted = do
       FedGalley.cuOrigUserId cDomainRPCReq @?= qUntagged bob
       FedGalley.cuConvId cDomainRPCReq @?= qUnqualified groupConvId
       FedGalley.cuAlreadyPresentUsers cDomainRPCReq @?= [qUnqualified carl]
-      FedGalley.cuAction cDomainRPCReq @?= (SomeConversationAction (sing @'ConversationLeaveTag) (pure $ qUntagged bob))
+      FedGalley.cuAction cDomainRPCReq @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure $ qUntagged bob)
+
+-- | We test only ReceiptMode update here
+--
+-- A : local domain, owns the conversation
+-- B : bob is an admin of the converation
+-- C : charlie is a regular member of the conversation
+updateConversationByRemoteAdmin :: TestM ()
+updateConversationByRemoteAdmin = do
+  c <- view tsCannon
+  (alice, qalice) <- randomUserTuple
+
+  let bdomain = Domain "b.example.com"
+      cdomain = Domain "c.example.com"
+  qbob <- randomQualifiedId bdomain
+  qcharlie <- randomQualifiedId cdomain
+  mapM_ (connectWithRemoteUser alice) [qbob, qcharlie]
+
+  let convName = "Test Conv"
+  WS.bracketR c alice $ \wsAlice -> do
+    (rsp, _federatedRequests) <-
+      withTempMockFederator (const ()) $ do
+        postConvQualified alice defNewProteusConv {newConvName = checked convName, newConvQualifiedUsers = [qbob, qcharlie]}
+          <!! const 201 === statusCode
+
+    cid <- assertConvQualified rsp RegularConv alice qalice [qbob, qcharlie] (Just convName) Nothing
+    let cnv = Qualified cid (qDomain qalice)
+
+    let newReceiptMode = ReceiptMode 41
+    let action = SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) (ConversationReceiptModeUpdate newReceiptMode)
+
+    (_, federatedRequests) <-
+      withTempMockFederator (const ()) $ do
+        -- promote chad to admin
+        putOtherMemberQualified alice qbob (OtherMemberUpdate (Just roleNameWireAdmin)) cnv
+          !!! const 200 === statusCode
+
+        -- bob updates the conversation
+        let cnvUpdateRequest =
+              ConversationUpdateRequest
+                { curUser = qUnqualified qbob,
+                  curConvId = qUnqualified cnv,
+                  curAction = action
+                }
+        resp <-
+          liftSession $
+            runWaiTestFedClient bdomain $
+              createWaiTestFedClient @"update-conversation" @'Galley $
+                cnvUpdateRequest
+
+        cnvUpdate' <- liftIO $ case resp of
+          ConversationUpdateResponseError err -> assertFailure ("Expected ConversationUpdateResponseUpdate but got " <> show err)
+          ConversationUpdateResponseNoChanges -> assertFailure "Expected ConversationUpdateResponseUpdate but got ConversationUpdateResponseNoChanges"
+          ConversationUpdateResponseUpdate up -> pure up
+
+        liftIO $ do
+          cuOrigUserId cnvUpdate' @?= qbob
+          cuAlreadyPresentUsers cnvUpdate' @?= [qUnqualified qbob]
+          cuAction cnvUpdate' @?= action
+
+    -- backend A generates a notification for alice
+    void $
+      WS.awaitMatch (5 # Second) wsAlice $ \n -> do
+        liftIO $ wsAssertConvReceiptModeUpdate cnv qalice newReceiptMode n
+
+    -- backend B does *not* get notified of the conversation update ony of bob's promotion
+    liftIO $ do
+      [(_fr, cUpdate)] <- mapM parseConvUpdate $ filter (\r -> frTargetDomain r == bdomain) federatedRequests
+      assertBool "Action is not a ConversationMemberUpdate" (isJust (getConvAction (sing @'ConversationMemberUpdateTag) (cuAction cUpdate)))
+
+    -- conversation has been modified by action
+    updatedConv :: Conversation <- fmap responseJsonUnsafe $ getConvQualified alice cnv <!! const 200 === statusCode
+    liftIO $
+      (cnvmReceiptMode . cnvMetadata) updatedConv @?= Just newReceiptMode
+
+    -- backend C gets notified of the conversation update and bob's promotion
+    liftIO $ do
+      dUpdates <- mapM parseConvUpdate $ filter (\r -> frTargetDomain r == cdomain) federatedRequests
+
+      (_fr1, _cu1, _up1) <- assertOne $ mapMaybe (\(fr, up) -> getConvAction (sing @'ConversationMemberUpdateTag) (cuAction up) <&> (fr,up,)) dUpdates
+
+      (_fr2, convUpdate, receiptModeUpdate) <- assertOne $ mapMaybe (\(fr, up) -> getConvAction (sing @'ConversationReceiptModeUpdateTag) (cuAction up) <&> (fr,up,)) dUpdates
+
+      cruReceiptMode receiptModeUpdate @?= newReceiptMode
+      cuOrigUserId convUpdate @?= qbob
+      cuConvId convUpdate @?= qUnqualified cnv
+      cuAlreadyPresentUsers convUpdate @?= [qUnqualified qcharlie]
+
+    WS.assertMatch_ (5 # Second) wsAlice $ \n -> do
+      wsAssertConvReceiptModeUpdate cnv qbob newReceiptMode n
+  where
+    _toOtherMember qid = OtherMember qid Nothing roleNameWireAdmin
+    _convView cnv usr = responseJsonUnsafeWithMsg "conversation" <$> getConv usr cnv
+
+    parseConvUpdate :: FederatedRequest -> IO (FederatedRequest, ConversationUpdate)
+    parseConvUpdate rpc = do
+      frComponent rpc @?= Galley
+      frRPC rpc @?= "on-conversation-updated"
+      let convUpdate :: ConversationUpdate = fromRight (error $ "Could not parse ConversationUpdate from " <> show (frBody rpc)) $ A.eitherDecode (frBody rpc)
+      pure (rpc, convUpdate)
+
+getConvAction :: Sing tag -> SomeConversationAction -> Maybe (ConversationAction tag)
+getConvAction tquery (SomeConversationAction tag action) =
+  case (tag, tquery) of
+    (SConversationJoinTag, SConversationJoinTag) -> Just action
+    (SConversationJoinTag, _) -> Nothing
+    (SConversationLeaveTag, SConversationLeaveTag) -> Just action
+    (SConversationLeaveTag, _) -> Nothing
+    (SConversationMemberUpdateTag, SConversationMemberUpdateTag) -> Just action
+    (SConversationMemberUpdateTag, _) -> Nothing
+    (SConversationDeleteTag, SConversationDeleteTag) -> Just action
+    (SConversationDeleteTag, _) -> Nothing
+    (SConversationRenameTag, SConversationRenameTag) -> Just action
+    (SConversationRenameTag, _) -> Nothing
+    (SConversationMessageTimerUpdateTag, SConversationMessageTimerUpdateTag) -> Just action
+    (SConversationMessageTimerUpdateTag, _) -> Nothing
+    (SConversationReceiptModeUpdateTag, SConversationReceiptModeUpdateTag) -> Just action
+    (SConversationReceiptModeUpdateTag, _) -> Nothing
+    (SConversationAccessDataTag, SConversationAccessDataTag) -> Just action
+    (SConversationAccessDataTag, _) -> Nothing
+    (SConversationRemoveMembersTag, SConversationRemoveMembersTag) -> Just action
+    (SConversationRemoveMembersTag, _) -> Nothing
