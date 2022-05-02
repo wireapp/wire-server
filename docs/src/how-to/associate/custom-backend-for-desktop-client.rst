@@ -60,6 +60,10 @@ Create a file named ``init.json`` and set ``customWebAppURL`` and ``proxyServerU
 
 The ``env`` setting must be set to ``CUSTOM`` for this to work.
 
+.. note:: 
+  
+    Consult your site admin to learn what goes into these settings. The value of ``customWebAppURL`` can be found `here <https://github.com/wireapp/wire-server/blob/e6aa50913cdcfde1200114787baabf7896394a2f/charts/webapp/templates/deployment.yaml#L40-L41>`_ or `resp. here <https://github.com/wireapp/wire-server/blob/e6aa50913cdcfde1200114787baabf7896394a2f/charts/webapp/values.yaml#L26>`_.  The value of ``proxyServerURL`` is your browser proxy.  It depends on the configuration of the network your client is running in.
+
 Windows
 ~~~~~~~
 
@@ -79,4 +83,8 @@ if it does not already exist. Otherwise, update it accordingly.
 Linux
 ~~~~~
 
-TBD
+On Linux the ``init.json`` file should be located in the following directory:
+
+::
+
+    $HOME/.config/Wire/config/init.json
