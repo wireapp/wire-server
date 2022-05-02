@@ -9,16 +9,25 @@ let pkgs = (import ./nix).pkgs;
             in baseName != "dist";
         };
       });
-    executables = [
-      "brig"
-      "cannon"
-      "cargohold"
-      "federator"
-      "galley"
-      "gundeck"
-      "proxy"
-      "spar"
-    ];
+
+    # Mapping from package -> executbale
+    executablesMap = {
+      brig = ["brig" "brig-index" "brig-integration" "brig-schema"];
+      cannon = ["cannon"];
+      cargohold = ["cargohold" "cargohold-integration"];
+      federator = ["federator" "federator-integration"];
+      galley = ["galley" "galley-integration" "galley-schema" "galley-migrate-data"];
+      gundeck = ["gundeck" "gundeck-integration" "gundeck-schema"];
+      proxy = ["proxy"];
+      spar = ["spar" "spar-integration" "spar-schema" "spar-migrate-data"];
+      stern = ["stern"];
+
+      bonanza = ["bonanza"];
+      billing-team-member-backfill = ["billing-team-member-backfill"];
+      api-smoketest = ["api-smoketest"];
+      zauth = ["zauth"];
+    };
+
     attrsets = pkgs.lib.attrsets;
     hPkgs = pkgs.haskell.packages.ghc8107.override {
       overrides = hself: hsuper:
@@ -60,25 +69,42 @@ let pkgs = (import ./nix).pkgs;
               # Avoid infinite recursion
               snappy = hself.callPackage ./nix/haskell-overrides/snappy.nix { snappy = pkgs.snappy; };
             };
-            executableOverrides = attrsets.genAttrs executables (e: withCleanedPath localOverrides.${e});
+            executableOverrides = attrsets.genAttrs (builtins.attrNames executablesMap) (e: withCleanedPath localOverrides.${e});
             staticExecutableOverrides = attrsets.mapAttrs' (name: value:
               attrsets.nameValuePair "${name}-static" (hlib.justStaticExecutables value)
             ) executableOverrides;
         in (externalOverrides // localOverrides // manualOverrides // executableOverrides // staticExecutableOverrides);
     };
 
-    images = attrsets.genAttrs executables (e:
+    extractExec = hPkgName: execName:
+      pkgs.stdenv.mkDerivation {
+        name = execName;
+        buildInputs = [hPkgs."${hPkgName}-static"];
+        phases = "installPhase";
+        installPhase = ''
+          mkdir -p $out/bin
+          cp "${hPkgs."${hPkgName}-static"}/bin/${execName}" "$out/bin/${execName}"
+          '';
+      };
+
+    staticExecs =
+      let nested = attrsets.mapAttrs (hPkgName: execNames:
+            attrsets.genAttrs execNames (extractExec hPkgName)
+          ) executablesMap;
+          unnested = pkgs.lib.lists.foldr (x: y: x // y) {} (attrsets.attrValues nested);
+      in unnested;
+
+    images = attrsets.mapAttrs (execName: drv:
       pkgs.dockerTools.buildImage {
-        name = "quay.io/wire/${e}";
-        # TODO: Do we want more things in the image like ip, ss, curl, ping, dig?
+        name = "quay.io/wire/${execName}";
         contents = [
           pkgs.cacert
           pkgs.coreutils
           pkgs.bashInteractive
-          hPkgs."${e}-static"
+          drv
         ];
       }
-    );
+    ) staticExecs;
 
     brig-templates = pkgs.srcOnly {
       name = "brig-templates";
@@ -101,4 +127,4 @@ in {
     packages = p: builtins.map (e: p.${e}) (builtins.attrNames (import ./nix/local-overrides.nix {} {}));
     buildInputs = [pkgs.cabal-install];
   };
-} // attrsets.genAttrs executables (e: hPkgs.${e})
+} // attrsets.genAttrs (builtins.attrNames executablesMap) (e: hPkgs.${e})
