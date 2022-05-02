@@ -1,0 +1,3 @@
+# this file is not required to track in git as it is a library here and lock files are only used for binaries
+# we track the lock file in libzauth-c.
+Cargo.lock
