@@ -30,7 +30,12 @@ You can then run all the builds, and the native dependencies will be automatical
    * When successfully installed and hooked, direnv should ask you to `direnv allow`
      the current `.envrc` when you cd to this repository.
      See the [Installation documentation](https://direnv.net/docs/installation.html) for further details.
-3. [Optional, but very helpful] install [cachix](https://app.cachix.org/cache/wire-server).
+3. Optionally, enable the [wire-server Cachix cache](https://app.cachix.org/cache/wire-server).
+   * The Cachix page includes instructions for using the `cachix` command-line
+     tool for enabling the wire-server cache.
+   * Alternatively, you can enable the cache manually by adding the
+     cache's public key (listed on the Cachix page) and the substituter URL
+     (https://wire-server.cachix.org) to your `nix.conf` file.
 
 ### Fedora:
 
