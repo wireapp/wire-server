@@ -48,7 +48,7 @@ module Galley.Effects.BrigAccess
     removeLegalHoldClientFromUser,
 
     -- * MLS
-    getClientByKeyPackageRef,
+    derefKeyPackageRef,
     getMLSClients,
 
     -- * Features
@@ -123,7 +123,9 @@ data BrigAccess m a where
     BrigAccess m (Either AuthenticationError ClientId)
   RemoveLegalHoldClientFromUser :: UserId -> BrigAccess m ()
   GetAccountFeatureConfigClient :: UserId -> BrigAccess m TeamFeatureStatusNoConfig
-  GetClientByKeyPackageRef :: KeyPackageRef -> BrigAccess m (Maybe ClientIdentity)
+  DerefKeyPackageRef ::
+    KeyPackageRef ->
+    BrigAccess m (Maybe (ClientIdentity, Qualified ConvId))
   GetMLSClients :: Qualified UserId -> SignatureSchemeTag -> BrigAccess m (Set ClientId)
   UpdateSearchVisibilityInbound ::
     Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound ->

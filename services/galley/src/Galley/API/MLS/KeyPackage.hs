@@ -17,6 +17,8 @@
 
 module Galley.API.MLS.KeyPackage where
 
+import Data.Id
+import Data.Qualified
 import Galley.Effects.BrigAccess
 import Imports
 import Polysemy
@@ -32,5 +34,5 @@ derefKeyPackage ::
      ]
     r =>
   KeyPackageRef ->
-  Sem r ClientIdentity
-derefKeyPackage = noteS @'MLSKeyPackageRefNotFound <=< getClientByKeyPackageRef
+  Sem r (ClientIdentity, Qualified ConvId)
+derefKeyPackage = noteS @'MLSKeyPackageRefNotFound <=< derefKeyPackageRef

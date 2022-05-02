@@ -89,13 +89,16 @@ countKeyPackages u c =
     q :: PrepQuery R (UserId, ClientId) (Identity Int64)
     q = "SELECT COUNT(*) FROM mls_key_packages WHERE user = ? AND client = ?"
 
-derefKeyPackage :: MonadClient m => KeyPackageRef -> MaybeT m ClientIdentity
+derefKeyPackage ::
+  MonadClient m =>
+  KeyPackageRef ->
+  MaybeT m (ClientIdentity, Qualified ConvId)
 derefKeyPackage ref = do
-  (d, u, c) <- MaybeT . retry x1 $ query1 q (params LocalQuorum (Identity ref))
-  pure $ ClientIdentity d u c
+  (cl, cnv, cnvDomain, uDomain, u) <- MaybeT . retry x1 $ query1 q (params LocalQuorum (Identity ref))
+  pure $ (ClientIdentity uDomain u cl, Qualified cnv cnvDomain)
   where
-    q :: PrepQuery R (Identity KeyPackageRef) (Domain, UserId, ClientId)
-    q = "SELECT domain, user, client from mls_key_package_refs WHERE ref = ?"
+    q :: PrepQuery R (Identity KeyPackageRef) (ClientId, ConvId, Domain, Domain, UserId)
+    q = "SELECT client, conv, conv_domain, domain, user from mls_key_package_refs WHERE ref = ?"
 
 --------------------------------------------------------------------------------
 -- Utilities
