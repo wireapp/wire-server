@@ -13,7 +13,9 @@ This repository makes use of git submodules. When cloning or updating, use `git 
 Using Stack's [Nix integration](https://docs.haskellstack.org/en/stable/nix_integration/), Stack will take care of installing any system
 dependencies automatically - including `cryptobox-c`. If new system dependencies are needed, add them to the `stack-deps.nix` file in the project root.
 
-If you have `direnv` and `nix`, you will automatically have `make`, `docker-compose` and `stack` in `PATH` once you `cd` into the project root and `direnv allow`.
+If you have `direnv` and `nix`, you will automatically have `make`,
+`docker-compose` and `stack` in `PATH` once you `cd` into the project root and
+`direnv allow`.
 You can then run all the builds, and the native dependencies will be automatically present.
 
 1. Install [Nix](https://nixos.org/download.html)
