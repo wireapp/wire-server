@@ -2,35 +2,63 @@
 
 This page documents how to install necessary dependencies to work with the wire-server code base.
 
-This repository makes use of git submodules. When cloning or updating, use `git submodule update --init --recursive` to check out the code dependencies.
-
 ## General package dependencies (needed to compile Haskell services)
 
 *Note: all the below sections for getting compile-time dependencies necessary to compile all of wire-server may potentially go out of date; if you spot a mistake please open an issue or PR*
 
 ### Nix + Direnv
 
-Using Stack's [Nix integration](https://docs.haskellstack.org/en/stable/nix_integration/), Stack will take care of installing any system
-dependencies automatically - including `cryptobox-c`. If new system dependencies are needed, add them to the `stack-deps.nix` file in the project root.
+1. Install [Nix](https://nixos.org/download.html). macOS users with a recent
+   Mac and non-NixOS Linux users should follow [these
+   instructions](https://nixos.org/manual/nix/stable/installation/installing-binary.html)
+   to install a binary distribution of Nix.
 
-If you have `direnv` and `nix`, you will automatically have `make`, `docker-compose` and `stack` in `PATH` once you `cd` into the project root and `direnv allow`.
-You can then run all the builds, and the native dependencies will be automatically present.
-
-1. Install [Nix](https://nixos.org/download.html)
-   * MacOS users with a recent Mac might need to follow [these
-   instructions](https://nixos.org/nix/manual/#sect-macos-installation)
-   * Debian users can use their distro's `nix` package, and should remember
-   
-   to add their user to the `nix-users` group in /etc/group, and re-start
-   their login session.
-2. Install [Direnv](https://direnv.net/).
-   * On debian, you can install the `direnv` package. On MacOS use `brew install direnv`.
-   * On NixOS with home-manager, you can set `programs.direnv.enable = true;`.
-   * Make sure direnv is hooked into your shell via it's appripriate `rc` file.
+   Debian users (running at least Debian 11) can use this distro's `nix-bin`
+   package. In this case, ensure your user is added to the `nix-users` group
+   (and restart your login session to pick this up). Note that Debian's Nix
+   package provides a *multi-user* installation (as opposed to a single-user
+   installation, which is an option when using the binary distribution tarball).
+2. Add the `wire-server` Cachix cache to your system. On NixOS, this can be
+   done by adding the following snippet to your system configuration:
+   ```nix
+   {
+     nix.binaryCachePublicKeys = [ "wire-server.cachix.org-1:fVWmRcvdsqzKek3X5Ad8nYNsBSjKZ9Um2NMLfMLS77Y=" ];
+     nix.binaryCaches = [ "https://wire-server.cachix.org" ];
+   }
+   ```
+   On non-NixOS systems, these need to be manually added to your `nix.conf`
+   (this is at `~/.config/nix/nix.conf` for single-user installations, and
+   `/etc/nix/nix.conf` for multi-user installations; you can create this file if
+   it doesn't exist):
+   ```
+   substituters = https://cache.nixos.org https://wire-server.cachix.org
+   trusted-public-keys = wire-server.cachix.org-1:fVWmRcvdsqzKek3X5Ad8nYNsBSjKZ9Um2NMLfMLS77Y= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+   ```
+3. Install [Direnv](https://direnv.net/).
+   On Debian, you can install the `direnv` package. On MacOS use `brew install direnv`.
+   * Make sure direnv is hooked into your shell via its appripriate `rc` file.
      Add `eval "$(direnv hook bash|zsh|fish)"` to your ~/.(bash|zsh|fish)rc .
-   * When successfully installed and hooked, direnv should ask you to `direnv allow`
-     the current `.envrc` when you cd to this repository.
-     See the [Installation documentation](https://direnv.net/docs/installation.html) for further details.
+
+   On NixOS with home-manager, you can set `programs.direnv.enable = true;`,
+   which does all of the above.
+
+   See the [Installation documentation](https://direnv.net/docs/installation.html)
+   for further details.
+
+   When successfully installed and hooked, direnv should ask you to `direnv allow`
+   the current `.envrc` when you cd to this repository.
+4. As this repo uses git submodules, ensure you're fetching from them automatically.
+   Run `git config --global submodule.recurse true` to enable this globally.
+   Run `git config --global fetch.parallel 10` to fetch more submodules in parallel.
+   If you've already cloned this repo before having enabled this, run `git
+   submodule update --init --recursive` once.
+
+#### Stack's Nix Integration
+Using Stack's
+[Nix integration](https://docs.haskellstack.org/en/stable/nix_integration/),
+Stack will take care of installing any system dependencies automatically -
+including `cryptobox-c`. If new system dependencies are needed, add them to the
+`stack-deps.nix` file in the project root.
 
 ### Fedora:
 
