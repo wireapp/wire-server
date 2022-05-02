@@ -27,6 +27,9 @@ spec:
         checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
+      {{- if hasKey .Values "serviceAccountName" }}
+      serviceAccountName: {{ .Values.serviceAccountName }}
+      {{- end }}
       volumes:
         - name: "cargohold-config"
           configMap:
@@ -44,6 +47,7 @@ spec:
           - name: "cargohold-config"
             mountPath: "/etc/wire/cargohold/conf"
           env:
+          {{- if hasKey .Values.secrets "awsKeyId" }}
           - name: AWS_ACCESS_KEY_ID
             valueFrom:
               secretKeyRef:
@@ -54,6 +58,7 @@ spec:
               secretKeyRef:
                 name: cargohold
                 key: awsSecretKey
+          {{- end }}
           - name: AWS_REGION
             value: "{{ .Values.config.aws.region }}"
           {{- with .Values.config.proxy }}

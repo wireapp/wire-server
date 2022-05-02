@@ -19,3 +19,4 @@ config:
     region: "eu-west-1"
     s3Bucket: assets
   proxy: {}
+# serviceAccountName:
