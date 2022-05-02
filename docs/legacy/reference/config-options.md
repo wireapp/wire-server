@@ -28,6 +28,8 @@ production.
 
 ## Feature flags
 
+> Also see [Wire docs](https://docs.wire.com/how-to/install/team-feature-settings.html) where some of the feature flags are documented from an operations point of view.
+
 Feature flags can be used to turn features on or off, or determine the
 behavior of the features. Example:
 
