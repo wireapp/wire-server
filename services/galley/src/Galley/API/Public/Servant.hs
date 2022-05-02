@@ -302,3 +302,5 @@ servantSitemap =
         <@> mkNamedAPI @"get-team-member" getTeamMember
         <@> mkNamedAPI @"get-team-members-by-ids" bulkGetTeamMembers
         <@> mkNamedAPI @"add-team-member" addTeamMember
+        <@> mkNamedAPI @"delete-team-member" deleteTeamMember
+        <@> mkNamedAPI @"delete-non-binding-team-member" deleteNonBindingTeamMember

@@ -1560,12 +1560,67 @@ type TeamMemberAPI =
                :> Capture "tid" TeamId
                :> "members"
                :> ReqBody '[JSON] NewTeamMember
-               :> MultiVerb
+               :> MultiVerb1
                     'POST
                     '[JSON]
-                    '[RespondEmpty 200 ""]
-                    ()
+                    (RespondEmpty 200 "")
            )
+    :<|> Named
+           "delete-team-member"
+           ( Summary "Remove an existing team member"
+               :> CanThrow AuthenticationError
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'TeamMemberNotFound
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> ZLocalUser
+               :> ZConn
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "members"
+               :> Capture "uid" UserId
+               :> ReqBody '[JSON] TeamMemberDeleteData
+               :> MultiVerb
+                    'DELETE
+                    '[JSON]
+                    TeamMemberDeleteResultResponseType
+                    TeamMemberDeleteResult
+           )
+    :<|> Named
+           "delete-non-binding-team-member"
+           ( Summary "Remove an existing team member"
+               :> CanThrow AuthenticationError
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'TeamMemberNotFound
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> ZLocalUser
+               :> ZConn
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "members"
+               :> Capture "uid" UserId
+               :> MultiVerb
+                    'DELETE
+                    '[JSON]
+                    TeamMemberDeleteResultResponseType
+                    TeamMemberDeleteResult
+           )
+
+type TeamMemberDeleteResultResponseType =
+  '[ RespondEmpty 202 "Team member scheduled for deletion",
+     RespondEmpty 200 ""
+   ]
+
+data TeamMemberDeleteResult
+  = TeamMemberDeleteAccepted
+  | TeamMemberDeleteCompleted
+  deriving (Generic)
+  deriving (AsUnion TeamMemberDeleteResultResponseType) via GenericAsUnion TeamMemberDeleteResultResponseType TeamMemberDeleteResult
+
+instance GSOP.Generic TeamMemberDeleteResult
 
 -- This is a work-around for the fact that we sometimes want to send larger lists of user ids
 -- in the filter query than fits the url length limit.  For details, see

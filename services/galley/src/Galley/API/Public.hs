@@ -171,27 +171,6 @@ sitemap = do
     errorSResponse @'TeamNotFound
     errorResponse Error.invalidTeamNotificationId
 
-  delete "/teams/:tid/members/:uid" (continueE Teams.deleteTeamMemberH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "tid"
-      .&. capture "uid"
-      .&. optionalJsonRequest @Public.TeamMemberDeleteData
-      .&. accept "application" "json"
-  document "DELETE" "deleteTeamMember" $ do
-    summary "Remove an existing team member"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    parameter Path "uid" bytes' $
-      description "User ID"
-    body (ref Public.modelTeamMemberDelete) $ do
-      optional
-      description "JSON body, required only for binding teams."
-    response 202 "Team member scheduled for deletion" end
-    errorSResponse @'NotATeamMember
-    errorSResponse @('MissingPermission ('Just 'Public.RemoveTeamMember))
-    errorSResponse @'ReAuthFailed
-
   put "/teams/:tid/members" (continueE Teams.updateTeamMemberH) $
     zauthUserId
       .&. zauthConnId

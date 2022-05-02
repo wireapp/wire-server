@@ -35,7 +35,8 @@ module Galley.API.Teams
     getTeamMembersCSVH,
     bulkGetTeamMembers,
     getTeamMember,
-    deleteTeamMemberH,
+    deleteTeamMember,
+    deleteNonBindingTeamMember,
     updateTeamMemberH,
     getTeamConversations,
     getTeamConversation,
@@ -131,6 +132,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.Error
 import qualified Wire.API.Notification as Public
+import Wire.API.Routes.Public.Galley
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
@@ -837,43 +839,63 @@ updateTeamMember zusr zcon tid targetMember = do
       let pushPriv = newPushLocal (updatedMembers ^. teamMemberListType) zusr (TeamEvent ePriv) $ privilegedRecipients
       for_ pushPriv $ \p -> E.push1 $ p & pushConn .~ Just zcon
 
-deleteTeamMemberH ::
+deleteTeamMember ::
   Members
     '[ BrigAccess,
        ConversationStore,
        Error AuthenticationError,
        Error InvalidInput,
        ErrorS 'AccessDenied,
-       ErrorS 'NotATeamMember,
        ErrorS 'TeamMemberNotFound,
        ErrorS 'TeamNotFound,
+       ErrorS 'NotATeamMember,
        ErrorS OperationDenied,
        ExternalAccess,
-       GundeckAccess,
-       Input (Local ()),
        Input Opts,
        Input UTCTime,
+       GundeckAccess,
        MemberStore,
-       P.TinyLog,
        TeamStore,
-       WaiRoutes
+       P.TinyLog
      ]
     r =>
-  UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest Public.TeamMemberDeleteData ::: JSON ->
-  Sem r Response
-deleteTeamMemberH (zusr ::: zcon ::: tid ::: remove ::: req ::: _) = do
-  lusr <- qualifyLocal zusr
-  mBody <- fromOptionalJsonBody req
-  deleteTeamMember lusr zcon tid remove mBody >>= \case
-    TeamMemberDeleteAccepted -> pure (empty & setStatus status202)
-    TeamMemberDeleteCompleted -> pure empty
+  Local UserId ->
+  ConnId ->
+  TeamId ->
+  UserId ->
+  Public.TeamMemberDeleteData ->
+  Sem r TeamMemberDeleteResult
+deleteTeamMember lusr zcon tid remove body = deleteTeamMember' lusr zcon tid remove (Just body)
 
-data TeamMemberDeleteResult
-  = TeamMemberDeleteAccepted
-  | TeamMemberDeleteCompleted
+deleteNonBindingTeamMember ::
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       Error AuthenticationError,
+       Error InvalidInput,
+       ErrorS 'AccessDenied,
+       ErrorS 'TeamMemberNotFound,
+       ErrorS 'TeamNotFound,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       ExternalAccess,
+       Input Opts,
+       Input UTCTime,
+       GundeckAccess,
+       MemberStore,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
+  Local UserId ->
+  ConnId ->
+  TeamId ->
+  UserId ->
+  Sem r TeamMemberDeleteResult
+deleteNonBindingTeamMember lusr zcon tid remove = deleteTeamMember' lusr zcon tid remove Nothing
 
 -- | 'TeamMemberDeleteData' is only required for binding teams
-deleteTeamMember ::
+deleteTeamMember' ::
   Members
     '[ BrigAccess,
        ConversationStore,
@@ -899,7 +921,7 @@ deleteTeamMember ::
   UserId ->
   Maybe Public.TeamMemberDeleteData ->
   Sem r TeamMemberDeleteResult
-deleteTeamMember lusr zcon tid remove mBody = do
+deleteTeamMember' lusr zcon tid remove mBody = do
   P.debug $
     Log.field "targets" (toByteString remove)
       . Log.field "action" (Log.val "Teams.deleteTeamMember")
