@@ -312,7 +312,7 @@ runFederatorClientToCodensity ::
   Codensity IO (Either FederatorClientError a)
 runFederatorClientToCodensity env action = runExceptT $ do
   v <-
-    runVersionedFederatorClientToCodensity @c
+    runVersionedFederatorClientToCodensity
       (FederatorClientVersionedEnv env Nothing)
       versionNegotiation
   runVersionedFederatorClientToCodensity @c
@@ -330,7 +330,7 @@ runVersionedFederatorClientToCodensity env =
     . runMaybeT
     . unFederatorClient
 
-versionNegotiation :: forall c. KnownComponent c => FederatorClient c Version
+versionNegotiation :: FederatorClient 'Brig Version
 versionNegotiation =
   let req =
         defaultRequest
@@ -339,7 +339,7 @@ versionNegotiation =
             requestHeaders = [],
             requestMethod = HTTP.methodPost
           }
-   in withHTTP2StreamingRequest @c HTTP.statusIsSuccessful req $ \resp -> do
+   in withHTTP2StreamingRequest @'Brig HTTP.statusIsSuccessful req $ \resp -> do
         body <- toLazyByteString <$> streamingResponseStrictBody resp
         remoteVersions <- case Aeson.decode body of
           Nothing -> E.throw (FederatorClientVersionNegotiationError InvalidVersionInfo)
