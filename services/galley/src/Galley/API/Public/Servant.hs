@@ -304,3 +304,4 @@ servantSitemap =
         <@> mkNamedAPI @"add-team-member" addTeamMember
         <@> mkNamedAPI @"delete-team-member" deleteTeamMember
         <@> mkNamedAPI @"delete-non-binding-team-member" deleteNonBindingTeamMember
+        <@> mkNamedAPI @"update-team-member" updateTeamMember

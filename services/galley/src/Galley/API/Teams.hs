@@ -37,7 +37,7 @@ module Galley.API.Teams
     getTeamMember,
     deleteTeamMember,
     deleteNonBindingTeamMember,
-    updateTeamMemberH,
+    updateTeamMember,
     getTeamConversations,
     getTeamConversation,
     deleteTeamConversation,
@@ -104,7 +104,6 @@ import qualified Galley.Effects.SparAccess as Spar
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
 import qualified Galley.Effects.TeamMemberStore as E
 import qualified Galley.Effects.TeamStore as E
-import Galley.Effects.WaiRoutes
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
 import Galley.Options
@@ -734,31 +733,6 @@ uncheckedAddTeamMember tid nmem = do
   billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList (ntmNewTeamMember nmem : mems ^. teamMembers) (mems ^. teamMemberListType)
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
 
-updateTeamMemberH ::
-  Members
-    '[ BrigAccess,
-       ErrorS 'AccessDenied,
-       ErrorS 'InvalidPermissions,
-       ErrorS 'TeamNotFound,
-       ErrorS 'NotATeamMember,
-       ErrorS 'TeamMemberNotFound,
-       ErrorS OperationDenied,
-       Input Opts,
-       Input UTCTime,
-       GundeckAccess,
-       P.TinyLog,
-       TeamStore,
-       WaiRoutes
-     ]
-    r =>
-  UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON ->
-  Sem r Response
-updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
-  -- the team member to be updated
-  targetMember <- ntmNewTeamMember <$> fromJsonBody req
-  updateTeamMember zusr zcon tid targetMember
-  pure empty
-
 updateTeamMember ::
   forall r.
   Members
@@ -776,12 +750,14 @@ updateTeamMember ::
        TeamStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   TeamId ->
-  TeamMember ->
+  NewTeamMember ->
   Sem r ()
-updateTeamMember zusr zcon tid targetMember = do
+updateTeamMember lzusr zcon tid newMember = do
+  let zusr = tUnqualified lzusr
+  let targetMember = ntmNewTeamMember newMember
   let targetId = targetMember ^. userId
       targetPermissions = targetMember ^. permissions
   P.debug $
@@ -809,7 +785,7 @@ updateTeamMember zusr zcon tid targetMember = do
 
   updatedMembers <- getTeamMembersForFanout tid
   updateJournal team updatedMembers
-  updatePeers targetId targetPermissions updatedMembers
+  updatePeers zusr targetId targetMember targetPermissions updatedMembers
   where
     canDowngradeOwner = canDeleteMember
 
@@ -825,8 +801,8 @@ updateTeamMember zusr zcon tid targetMember = do
         billingUserIds <- Journal.getBillingUserIds tid $ Just mems
         Journal.teamUpdate tid size billingUserIds
 
-    updatePeers :: UserId -> Permissions -> TeamMemberList -> Sem r ()
-    updatePeers targetId targetPermissions updatedMembers = do
+    updatePeers :: UserId -> UserId -> TeamMember -> Permissions -> TeamMemberList -> Sem r ()
+    updatePeers zusr targetId targetMember targetPermissions updatedMembers = do
       -- inform members of the team about the change
       -- some (privileged) users will be informed about which change was applied
       let privileged = filter (`canSeePermsOf` targetMember) (updatedMembers ^. teamMembers)

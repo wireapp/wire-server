@@ -1608,6 +1608,26 @@ type TeamMemberAPI =
                     TeamMemberDeleteResultResponseType
                     TeamMemberDeleteResult
            )
+    :<|> Named
+           "update-team-member"
+           ( Summary "Update an existing team member"
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'InvalidPermissions
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'TeamMemberNotFound
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> ZLocalUser
+               :> ZConn
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "members"
+               :> ReqBody '[JSON] NewTeamMember
+               :> MultiVerb1
+                    'PUT
+                    '[JSON]
+                    (RespondEmpty 200 "")
+           )
 
 type TeamMemberDeleteResultResponseType =
   '[ RespondEmpty 202 "Team member scheduled for deletion",

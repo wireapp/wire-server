@@ -63,8 +63,6 @@ import qualified Wire.API.Message as Public
 import qualified Wire.API.Notification as Public
 import Wire.API.Routes.API
 import qualified Wire.API.Swagger as Public.Swagger (models)
-import qualified Wire.API.Team.Member as Public
-import qualified Wire.API.Team.Permission as Public
 
 -- These are all the errors that can be thrown by wai-routing handlers.
 -- We don't do any static checks on these errors, so we simply remap them to
@@ -113,7 +111,6 @@ errorSResponse = errorResponse (toWai (dynError @(MapError e)))
 sitemap :: Routes ApiBuilder (Sem GalleyEffects) ()
 sitemap = do
   -- Team Member API -----------------------------------------------------
-  -- todo(leif): servantify this
 
   get "/teams/:tid/members/csv" (continueE Teams.getTeamMembersCSVH) $
     -- we could discriminate based on accept header only, but having two paths makes building
@@ -170,22 +167,6 @@ sitemap = do
     response 200 "List of team notifications" end
     errorSResponse @'TeamNotFound
     errorResponse Error.invalidTeamNotificationId
-
-  put "/teams/:tid/members" (continueE Teams.updateTeamMemberH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "tid"
-      .&. jsonRequest @Public.NewTeamMember
-      .&. accept "application" "json"
-  document "PUT" "updateTeamMember" $ do
-    summary "Update an existing team member"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    body (ref Public.modelNewTeamMember) $
-      description "JSON body"
-    errorSResponse @'NotATeamMember
-    errorSResponse @'TeamMemberNotFound
-    errorSResponse @('MissingPermission ('Just 'Public.SetMemberPermissions))
 
   -- Bot API ------------------------------------------------------------
 
