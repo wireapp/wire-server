@@ -36,3 +36,4 @@ serviceAccount:
   annotations: {}
   automountServiceAccountToken: true
 
+secrets: {}

@@ -26,3 +26,5 @@ serviceAccount:
   name: cargohold
   annotations: {}
   automountServiceAccountToken: true
+
+secrets: {}

@@ -99,3 +99,5 @@ serviceAccount:
   name: brig
   annotations: {}
   automountServiceAccountToken: true
+
+secrets: {}
