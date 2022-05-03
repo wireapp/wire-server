@@ -28,10 +28,9 @@ config:
   aws:
     region: "eu-west-1"
   proxy: {}
-  settings:
-    # perNativePushConcurrency
-    maxConcurrentNativePushes:
-      soft: 1000
+  # perNativePushConcurrency
+  maxConcurrentNativePushes:
+    soft: 1000
 serviceAccount:
   # When setting this to 'false', either make sure that a service account named
   # 'gundeck' exists or change the 'name' field to 'default'
