@@ -29,9 +29,7 @@ spec:
         checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
         fluentbit.io/parser: json
     spec:
-      {{- if hasKey .Values "serviceAccountName" }}
-      serviceAccountName: {{ .Values.serviceAccountName }}
-      {{- end }}
+      serviceAccountName: {{ .Values.serviceAccount.name }}
       volumes:
         - name: "brig-config"
           configMap:

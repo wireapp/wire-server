@@ -19,4 +19,10 @@ config:
     region: "eu-west-1"
     s3Bucket: assets
   proxy: {}
-# serviceAccountName:
+serviceAccount:
+  # When setting this to 'false', either make sure that a service account named
+  # 'cargohold' exists or change the 'name' field to 'default'
+  create: true
+  name: cargohold
+  annotations: {}
+  automountServiceAccountToken: true

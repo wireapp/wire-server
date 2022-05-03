@@ -48,5 +48,10 @@ config:
   aws:
     region: "eu-west-1"
   proxy: {}
-
-# serviceAccountName:
+serviceAccount:
+  # When setting this to 'false', either make sure that a service account named
+  # 'galley' exists or change the 'name' field to 'default'
+  create: true
+  name: galley
+  annotations: {}
+  automountServiceAccountToken: true

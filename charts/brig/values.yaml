@@ -92,3 +92,10 @@ turnStatic:
   - turn:localhost:3478?transport=tcp
 tests:
   enableFederationTests: false
+serviceAccount:
+  # When setting this to 'false', either make sure that a service account named
+  # 'brig' exists or change the 'name' field to 'default'
+  create: true
+  name: brig
+  annotations: {}
+  automountServiceAccountToken: true
