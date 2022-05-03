@@ -401,6 +401,7 @@ executable brig-integration
       API.Internal.Util
       API.Metrics
       API.MLS
+      API.MLS.Util
       API.Provider
       API.RichInfo.Util
       API.Search

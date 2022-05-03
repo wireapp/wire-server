@@ -17,6 +17,7 @@
 
 module Federation.End2end where
 
+import API.MLS.Util
 import API.Search.Util
 import API.User.Util
 import Bilge
@@ -46,6 +47,7 @@ import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
+import UnliftIO.Temporary
 import Util
 import Util.Options (Endpoint)
 import Wire.API.Asset
@@ -54,6 +56,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Event.Conversation
 import Wire.API.Internal.Notification (ntfTransient)
+import Wire.API.MLS.KeyPackage
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.User (ListUsersQuery (ListUsersByIds))
@@ -104,7 +107,8 @@ spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo carg
         test mg "send a message to a remote user" $ testSendMessage brig brigTwo galleyTwo cannon,
         test mg "send a message in a remote conversation" $ testSendMessageToRemoteConv brig brigTwo galley galleyTwo cannon,
         test mg "delete user connected to remotes and in conversation with remotes" $ testDeleteUser brig brigTwo galley galleyTwo cannon,
-        test mg "download remote asset" $ testRemoteAsset brig brigTwo cargohold cargoholdTwo
+        test mg "download remote asset" $ testRemoteAsset brig brigTwo cargohold cargoholdTwo,
+        test mg "claim remote key packages" $ claimRemoteKeyPackages brig brigTwo
       ]
 
 -- | Path covered by this test:
@@ -649,3 +653,29 @@ testRemoteAsset brig1 brig2 ch1 ch2 = do
     !!! do
       const 200 === statusCode
       const (Just "hello world") === responseBody
+
+claimRemoteKeyPackages :: Brig -> Brig -> Http ()
+claimRemoteKeyPackages brig1 brig2 = do
+  alice <- userQualifiedId <$> randomUser brig1
+
+  bob <- userQualifiedId <$> randomUser brig2
+  bobClients <- for (take 3 someLastPrekeys) $ \lpk -> do
+    let new = defNewClient TemporaryClientType [] lpk
+    responseJsonError =<< addClient brig2 (qUnqualified bob) new
+
+  withSystemTempFile "store.db" $ \store _ ->
+    for_ bobClients $ \c ->
+      uploadKeyPackages brig2 store SetKey bob c 5
+
+  bundle <-
+    responseJsonError
+      =<< post
+        ( brig1
+            . paths ["mls", "key-packages", "claim", toByteString' (qDomain bob), toByteString' (qUnqualified bob)]
+            . zUser (qUnqualified alice)
+        )
+        <!! const 200 === statusCode
+
+  liftIO $
+    Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle)
+      @?= Set.fromList [(bob, c) | c <- bobClients]
