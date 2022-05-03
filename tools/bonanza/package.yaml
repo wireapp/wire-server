@@ -40,8 +40,6 @@ library:
   - protobuf >=0.2.1.1
   - scientific
   - safe
-  - snappy
-  - snappy-framing
   - time >=1.5
   - unordered-containers
   - vector
