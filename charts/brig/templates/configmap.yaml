@@ -67,6 +67,9 @@ data:
       {{- if .dynamoDBEndpoint }}
       dynamoDBEndpoint: {{ .dynamoDBEndpoint | quote }}
       {{- end }}
+      {{- if .userJournalQueue }}
+      userJournalQueue: {{ .userJournalQueue | quote }}
+      {{- end }}
     {{- end }}
 
     internalEvents:
@@ -112,7 +115,9 @@ data:
         activationUrl: {{ .emailSMS.user.activationUrl }}
         smsActivationUrl: {{ .emailSMS.user.smsActivationUrl }}
         passwordResetUrl: {{ .emailSMS.user.passwordResetUrl }}
+        {{- if .emailSMS.user.invitationUrl }}
         invitationUrl: {{ .emailSMS.user.invitationUrl }}
+        {{- end }}
         deletionUrl: {{ .emailSMS.user.deletionUrl }}
       {{- else }}
         activationUrl: {{ .externalUrls.nginz }}/activate?key=${key}&code=${code}
@@ -226,6 +231,9 @@ data:
       {{- if .setSearchSameTeamOnly }}
       setSearchSameTeamOnly: {{ .setSearchSameTeamOnly }}
       {{- end }}
+      {{- if .setProviderSearchFilter }}
+      setProviderSearchFilter: {{ .setProviderSearchFilter }}
+      {{- end }}
       {{- if .setUserMaxPermClients }}
       setUserMaxPermClients: {{ .setUserMaxPermClients }}
       {{- end }}
@@ -241,6 +249,17 @@ data:
       {{- end }}
       {{- if .setSftListAllServers }}
       setSftListAllServers: {{ .setSftListAllServers }}
+      {{- end }}
+      {{- if .setWhitelist }}
+      setWhitelist: {{ toYaml .setWhitelist | nindent 8 }}
+      {{- end }}
+      {{- if .setFeatureFlags }}
+      setFeatureFlags: {{ toYaml .setFeatureFlags | nindent 8 }}
+      {{- end }}
+      # Customer extensions. If this is not part of your contract with wire, use at your own risk!
+      # Details: https://github.com/wireapp/wire-server/blob/3a21a82a1781f0d128f503df6a705b0b5f733d7b/services/brig/src/Brig/Options.hs#L465-L503
+      {{- if .setCustomerExtensions }}
+      setCustomerExtensions: {{ toYaml .setCustomerExtensions | nindent 8 }}
       {{- end }}
     {{- end }}
   {{- end }}

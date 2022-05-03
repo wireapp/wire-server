@@ -64,7 +64,7 @@ config:
       retryAfter: 86400
     setRichInfoLimit: 5000
     setDefaultUserLocale: en
-    setMaxTeamSize: 500
+    setMaxTeamSize: 10000
     setMaxConvSize: 500
     # Allowed values: https://github.com/wireapp/wire-server/blob/0126651a25aabc0c5589edc2b1988bb06550a03a/services/brig/src/Brig/Options.hs#L304-L306
     # Description: https://github.com/wireapp/wire-server/blob/0126651a25aabc0c5589edc2b1988bb06550a03a/services/brig/src/Brig/Options.hs#L290-L299
