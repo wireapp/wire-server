@@ -30,7 +30,8 @@ Stable versions are all supported versions that are not development.
 Stable versions map to well-defined and fixed API *contracts*, which will not
 change over time. That is to say, if two different instances of the backend
 both list version `3` in `supported`, a client can assume that they will accept
-the same exact requests when version `3` is used, and handle them in exactly the same way.
+the same exact requests when version `3` is used, and handle them in exactly
+the same way.
 
 On the other hand, development versions give no such guarantees. When making
 requests using a development version on some backend, the client needs to be
@@ -39,6 +40,10 @@ aware of the corresponding API contract used by that specific backend.
 Of course, development versions are useful while building a new API, but are
 not suitable for production. Backends deployed to production environments
 should disable development versions (and not advertise them in `/api-version`).
+
+Similarly, clients that are meant for production use can decide to ignore
+development versions on their backend. This is not strictly necessary, but it
+can be used as a safeguard against mistakes in deployment.
 
 The `/api-version` endpoint returns information about the public-facing
 (client) API. The corresponding information for the federation API is available
