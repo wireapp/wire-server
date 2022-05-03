@@ -28,7 +28,7 @@ config:
   aws:
     region: "eu-west-1"
   proxy: {}
-  # perNativePushConcurrency
+  # perNativePushConcurrency: 32
   maxConcurrentNativePushes:
     soft: 1000
 serviceAccount:
