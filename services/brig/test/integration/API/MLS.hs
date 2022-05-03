@@ -162,15 +162,6 @@ testKeyPackageSelfClaim brig = do
 
 --------------------------------------------------------------------------------
 
-getKeyPackageCount :: Brig -> Qualified UserId -> ClientId -> Http KeyPackageCount
-getKeyPackageCount brig u c =
-  responseJsonError
-    =<< get
-      ( brig . paths ["mls", "key-packages", "self", toByteString' c, "count"]
-          . zUser (qUnqualified u)
-      )
-    <!! const 200 === statusCode
-
 createClient :: Brig -> Qualified UserId -> Int -> Http ClientId
 createClient brig u i =
   fmap clientId $

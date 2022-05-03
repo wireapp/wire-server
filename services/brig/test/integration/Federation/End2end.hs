@@ -661,7 +661,7 @@ claimRemoteKeyPackages brig1 brig2 = do
   bob <- userQualifiedId <$> randomUser brig2
   bobClients <- for (take 3 someLastPrekeys) $ \lpk -> do
     let new = defNewClient TemporaryClientType [] lpk
-    responseJsonError =<< addClient brig2 (qUnqualified bob) new
+    fmap clientId $ responseJsonError =<< addClient brig2 (qUnqualified bob) new
 
   withSystemTempFile "store.db" $ \store _ ->
     for_ bobClients $ \c ->

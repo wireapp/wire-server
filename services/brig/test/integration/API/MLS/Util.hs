@@ -31,12 +31,21 @@ import Imports
 import System.Process
 import Util
 import Wire.API.MLS.Credential
+import Wire.API.MLS.KeyPackage
 import Wire.API.User.Client
 
 data SetKey = SetKey | DontSetKey
   deriving (Eq)
 
-uploadKeyPackages :: Brig -> FilePath -> SetKey -> Qualified UserId -> ClientId -> Int -> Http ()
+uploadKeyPackages ::
+  HasCallStack =>
+  Brig ->
+  FilePath ->
+  SetKey ->
+  Qualified UserId ->
+  ClientId ->
+  Int ->
+  Http ()
 uploadKeyPackages brig store sk u c n = do
   let cmd0 = ["crypto-cli", "--store", store, "--enc-key", "test"]
       clientId =
@@ -68,3 +77,12 @@ uploadKeyPackages brig store sk u c n = do
         . json upload
     )
     !!! const (case sk of SetKey -> 201; DontSetKey -> 400) === statusCode
+
+getKeyPackageCount :: HasCallStack => Brig -> Qualified UserId -> ClientId -> Http KeyPackageCount
+getKeyPackageCount brig u c =
+  responseJsonError
+    =<< get
+      ( brig . paths ["mls", "key-packages", "self", toByteString' c, "count"]
+          . zUser (qUnqualified u)
+      )
+    <!! const 200 === statusCode
