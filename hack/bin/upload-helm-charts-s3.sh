@@ -99,8 +99,7 @@ if [ -n "$chart_dir" ] && [ -d "$chart_dir" ]; then
     echo "only syncing $chart_name"
     charts=( "$chart_name" )
 else
-    # shellcheck disable=SC2207
-    charts=( $(make -s -C "$TOP_LEVEL_DIR" echo-release-charts) )
+    IFS=" " read -r -a charts <<< "$(make -s -C "$TOP_LEVEL_DIR" echo-release-charts)"
     # See Makefile/ CHARTS_RELEASE FUTUREWORK
     #charts=( $(find $CHART_DIR/ -maxdepth 1 -type d | sed -n "s=$CHART_DIR/\(.\+\)=\1 =p") )
 fi
