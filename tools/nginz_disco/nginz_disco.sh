@@ -42,7 +42,8 @@ function upstream() {
     port=${2:-'8080'}
     ips=$(dig +short +retries=3 +search "${name}" | sort)
     unset servers
-    for ip in "${ips[@]}"; do
+    # shellcheck disable=SC2068
+    for ip in ${ips[@]}; do
         if valid_ipv4 "$ip" || valid_ipv6 "$ip"; then
             servers+=("\n\t server ${ip}:${port} max_fails=3 weight=100;")
         fi
