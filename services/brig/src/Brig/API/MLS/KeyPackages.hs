@@ -97,15 +97,23 @@ claimRemoteKeyPackages ::
   Local UserId ->
   Remote UserId ->
   ExceptT ClientError (AppT r) KeyPackageBundle
-claimRemoteKeyPackages lusr target =
-  (handleFailure =<<) $
-    withExceptT ClientFederationError $
-      runBrigFederatorClient (tDomain target) $
-        fedClient @'Brig @"claim-key-packages" $
-          ClaimKeyPackageRequest
-            { ckprClaimant = tUnqualified lusr,
-              ckprTarget = tUnqualified target
-            }
+claimRemoteKeyPackages lusr target = do
+  bundle <-
+    (handleFailure =<<) $
+      withExceptT ClientFederationError $
+        runBrigFederatorClient (tDomain target) $
+          fedClient @'Brig @"claim-key-packages" $
+            ClaimKeyPackageRequest
+              { ckprClaimant = tUnqualified lusr,
+                ckprTarget = tUnqualified target
+              }
+
+  -- set up mappings for all claimed key packages
+  wrapClientE $
+    for_ (kpbEntries bundle) $ \e ->
+      Data.mapKeyPackageRef (kpbeRef e) (kpbeUser e) (kpbeClient e)
+
+  pure bundle
   where
     handleFailure :: Monad m => Maybe x -> ExceptT ClientError m x
     handleFailure = maybe (throwE (ClientUserNotFound (tUnqualified target))) pure
