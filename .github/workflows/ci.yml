@@ -11,7 +11,8 @@ jobs:
      matrix:
        os:
          - ubuntu-latest
-         - macos-latest
+         # This is too expensive
+         # - macos-latest
    runs-on: ${{ matrix.os }}
    steps:
      - uses: actions/checkout@v2
