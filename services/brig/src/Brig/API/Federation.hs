@@ -25,6 +25,7 @@ import qualified Brig.API.Client as API
 import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error
 import Brig.API.Handler (Handler)
+import Brig.API.MLS.KeyPackages
 import qualified Brig.API.User as API
 import Brig.API.Util (lookupSearchPolicy)
 import Brig.App
@@ -37,6 +38,7 @@ import Brig.User.API.Handle
 import Brig.User.Search.Index
 import qualified Brig.User.Search.SearchIndex as Q
 import Cassandra (MonadClient)
+import Control.Error.Util
 import Control.Monad.Catch (MonadMask)
 import Control.Monad.Trans.Except
 import Data.Domain
@@ -56,6 +58,7 @@ import UnliftIO.Async (pooledForConcurrentlyN_)
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Version
+import Wire.API.MLS.KeyPackage
 import Wire.API.Message (UserClients)
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
@@ -80,6 +83,7 @@ federationSitemap =
     :<|> Named @"get-user-clients" getUserClients
     :<|> Named @"send-connection-action" sendConnectionAction
     :<|> Named @"on-user-deleted-connections" onUserDeleted
+    :<|> Named @"claim-key-packages" fedClaimKeyPackages
 
 sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do
@@ -146,6 +150,13 @@ claimPrekeyBundle _ user =
 
 claimMultiPrekeyBundle :: Domain -> UserClients -> (Handler r) UserClientPrekeyMap
 claimMultiPrekeyBundle _ uc = API.claimLocalMultiPrekeyBundles LegalholdPlusFederationNotImplemented uc !>> clientError
+
+fedClaimKeyPackages :: Domain -> ClaimKeyPackageRequest -> Handler r (Maybe KeyPackageBundle)
+fedClaimKeyPackages domain ckpr = do
+  ltarget <- qualifyLocal (ckprTarget ckpr)
+  let rusr = toRemoteUnsafe domain (ckprClaimant ckpr)
+  lift . fmap hush . runExceptT $
+    claimLocalKeyPackages (qUntagged rusr) Nothing ltarget
 
 -- | Searching for federated users on a remote backend should
 -- only search by exact handle search, not in elasticsearch.

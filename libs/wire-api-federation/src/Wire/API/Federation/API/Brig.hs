@@ -28,6 +28,7 @@ import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
+import Wire.API.MLS.KeyPackage
 import Wire.API.Message (UserClients)
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
@@ -68,6 +69,7 @@ type BrigApi =
     :<|> FedEndpoint "get-user-clients" GetUserClients (UserMap (Set PubClient))
     :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
     :<|> FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
+    :<|> FedEndpoint "claim-key-packages" ClaimKeyPackageRequest (Maybe KeyPackageBundle)
 
 newtype GetUserClients = GetUserClients
   { gucUsers :: [UserId]
@@ -127,3 +129,14 @@ data UserDeletedConnectionsNotification = UserDeletedConnectionsNotification
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDeletedConnectionsNotification)
   deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConnectionsNotification)
+
+data ClaimKeyPackageRequest = ClaimKeyPackageRequest
+  { -- | The user making the request, implictly qualified by the origin domain.
+    ckprClaimant :: UserId,
+    -- | The user whose key packages are being claimed, implictly qualified by
+    -- the target domain.
+    ckprTarget :: UserId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ClaimKeyPackageRequest)
+  deriving (FromJSON, ToJSON) via (CustomEncoded ClaimKeyPackageRequest)
