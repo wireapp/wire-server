@@ -1,7 +1,7 @@
 Start version 2 of the public API. Main changes:
 
  - Asset endpoints have lost their `v3` and `v4` suffixes. So for example
-   `/assets/v3` has been replaced by `/access`.
+   `/assets/v3` has been replaced by `/assets`.
  - `GET /conversations/:conv/assets/:id` and `GET
    /conversations/:conv/otr/assets/:id` have been removed.
  - `GET /assets/:key/v3` has been removed. Use the qualified endpoint `GET
