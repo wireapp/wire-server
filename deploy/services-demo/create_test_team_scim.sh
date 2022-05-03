@@ -172,7 +172,6 @@ SCIM_USER_INVITATION_CODE=$(curl --silent --show-error \
 
 scimUserPassword=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
 
-# shellcheck disable=SC2034
 REGISTER_ACCEPT=$(cat <<EOF
 {
    "name": "$scimUserDisplayName",
@@ -187,7 +186,7 @@ EOF
 CURL_OUT=$(curl \
             -XPOST "$BRIG_HOST/i/users" \
             -H'Content-type: application/json' \
-            -d'{"email":"'"$scimUserEmail"'","password":"'"$scimUserPassword"'","name":"'"$scimUserDisplayName"'","team_code":"'"$SCIM_USER_INVITATION_CODE"'"}')
+            -d"$REGISTER_ACCEPT")
 
 SCIM_USER_REGISTER_TEAM=$(echo "$CURL_OUT" | jq -r .team)
 
