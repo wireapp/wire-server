@@ -196,7 +196,7 @@ which version to use. The recommended flow is as follows:
    versions;
  - decide whether using a development version is unacceptable, and
    if so, take it out of consideration;
- - use the latest (i.e. numerically larger) version that the client supports;
+ - use the latest (i.e. numerically largest) version that the client supports;
  - if no backend-supported version is supported by the client, return a
    versioning error (either ask the user or the backend administrator to
    upgrade, depending on which versions are higher).
