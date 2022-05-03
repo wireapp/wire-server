@@ -19,12 +19,14 @@ module Galley.API.MLS.Welcome (postMLSWelcome) where
 
 import Control.Comonad
 import Data.Id
+import Data.Json.Util
 import Data.Qualified
 import Data.Time
 import Galley.API.MLS.KeyPackage
 import Galley.API.Push
 import Galley.Data.Conversation
 import Galley.Effects.BrigAccess
+import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Imports
 import Polysemy
@@ -32,6 +34,8 @@ import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.Federation.API
+import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
@@ -39,6 +43,7 @@ import Wire.API.MLS.Welcome
 postMLSWelcome ::
   Members
     '[ BrigAccess,
+       FederatorAccess,
        GundeckAccess,
        ErrorS 'MLSKeyPackageRefNotFound,
        Input UTCTime
@@ -70,7 +75,8 @@ welcomeRecipients =
 
 sendWelcomes ::
   Members
-    '[ GundeckAccess,
+    '[ FederatorAccess,
+       GundeckAccess,
        Input UTCTime
      ]
     r =>
@@ -102,5 +108,17 @@ sendLocalWelcomes con now rawWelcome lclients = do
           e = Event (qUntagged lcnv) (qUntagged lusr) now $ EdMLSWelcome rawWelcome
        in newMessagePush lclients () (Just con) defMessageMetadata (u, c) e
 
-sendRemoteWelcomes :: ByteString -> Remote [(UserId, ClientId)] -> Sem r ()
-sendRemoteWelcomes = undefined
+sendRemoteWelcomes ::
+  Members '[FederatorAccess] r =>
+  ByteString ->
+  Remote [(UserId, ClientId)] ->
+  Sem r ()
+sendRemoteWelcomes rawWelcome rClients = do
+  let req =
+        MLSWelcomeRequest
+          { mwrRawWelcome = toBase64ByteString rawWelcome,
+            mwrRecipients = MLSWelcomeRecipient <$> tUnqualified rClients
+          }
+  let rpc = fedClient @'Galley @"mls-welcome" req
+  -- TODO(md): do error handling
+  void $ runFederated rClients rpc
