@@ -45,9 +45,7 @@ if [ "$#" -ne 0 ]; then
 fi
 
 
-# shellcheck disable=SC2002
 ADMIN_EMAIL=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)"@example.com"
-# shellcheck disable=SC2002
 ADMIN_PASSWORD=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
 
 CURL_OUT=$(curl -i -s --show-error \
@@ -78,9 +76,7 @@ SCIM_TOKEN_ID=$(echo "$SCIM_TOKEN_FULL" | jq -r .info.id)
 
 # Create regular user via team invitation
 
-# shellcheck disable=SC2002
 REGULAR_USER_EMAIL=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)"@example.com"
-# shellcheck disable=SC2002
 REGULAR_USER_PASSWORD=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
 CURL_OUT_INVITATION=$(curl -i -s --show-error \
                             -XPOST "$BRIG_HOST/teams/$TEAM_UUID/invitations" \
@@ -126,7 +122,6 @@ REGULAR_TEAM_MEMBER_UUID=$(echo "$CURL_OUT" | tail -1 | sed 's/.*\"id\":\"\([a-z
 # Create user via SCIM invitation
 
 
-# shellcheck disable=SC2002
 scimUserName=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
 scimUserDisplayName="Display of $scimUserName"
 scimUserEmail="$scimUserName@example.com"
@@ -175,7 +170,6 @@ SCIM_USER_INVITATION_CODE=$(curl --silent --show-error \
                             -XGET "$BRIG_HOST/i/teams/invitation-code?team=$TEAM_UUID&invitation_id=$SCIM_USER_INVITATION_ID" | jq -r .code
                             )
 
-# shellcheck disable=SC2002
 scimUserPassword=$(cat /dev/urandom | env LC_CTYPE=C tr -dc a-zA-Z0-9 | head -c 8)
 
 # shellcheck disable=SC2034

@@ -69,9 +69,7 @@ function check_secrets() {
         mkdir -p "${SCRIPT_DIR}/resources/zauth/"
         TMP_KEYS=$(mktemp "/tmp/demo.keys.XXXXXXXXXXX")
         run_zauth -m gen-keypair -i 1 > "$TMP_KEYS"
-        # shellcheck disable=SC2002
         cat "$TMP_KEYS" | sed -n 's/public: \(.*\)/\1/p' > "${SCRIPT_DIR}/resources/zauth/pubkeys.txt"
-        # shellcheck disable=SC2002
         cat "$TMP_KEYS" | sed -n 's/secret: \(.*\)/\1/p' > "${SCRIPT_DIR}/resources/zauth/privkeys.txt"
     else
         echo "re-using existing public/private keys"

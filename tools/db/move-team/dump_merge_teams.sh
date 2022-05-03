@@ -5,7 +5,6 @@ set -eu
 
 dir="$1"
 
-#shellcheck disable=SC2002
 script=$(
     for row in $(cat "$1/galley.team" | jq '.[0]' | uniq); do
         echo "s/$row/\"e09f7a63-b5d4-4db4-a3c1-18bddf3df7fc\"/g;"
