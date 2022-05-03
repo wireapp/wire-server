@@ -30,7 +30,7 @@ Stable versions are all supported versions that are not development.
 Stable versions map to well-defined and fixed API *contracts*, which will not
 change over time. That is to say, if two different instances of the backend
 both list version `3` in `supported`, a client can assume that they will accept
-the same exact requests when version `3` is used.
+the same exact requests when version `3` is used, and handle them in exactly the same way.
 
 On the other hand, development versions give no such guarantees. When making
 requests using a development version on some backend, the client needs to be
