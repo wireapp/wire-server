@@ -43,7 +43,11 @@ uninstall:
 	rm -f $(PREFIX_INSTALL)/lib/libzauth.$(LIB_TYPE)
 	rm -f $(PREFIX_INSTALL)/lib/pkgconfig/libzauth.pc
 
-dist: build-release
+.PHONY: test
+test:
+	cd ../libzauth && cargo test --release
+
+dist: test build-release
 	mkdir -p deb$(PREFIX_PACKAGE)/include
 	mkdir -p deb$(PREFIX_PACKAGE)/lib/pkgconfig
 	cp src/zauth.h deb$(PREFIX_PACKAGE)/include/

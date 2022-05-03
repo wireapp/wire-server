@@ -18,24 +18,24 @@
 extern crate clap;
 extern crate zauth;
 
-use clap::{Arg, App};
+use clap::{Arg, Command};
 use std::path::Path;
 use std::process;
 use zauth::{Token, Keystore};
 
 pub fn main() {
-    let args = App::new("verify")
+    let args = Command::new("verify")
         .about("Test application verifying tokens")
-        .arg(Arg::with_name("store")
+        .arg(Arg::new("store")
              .required(true)
-             .short("s")
+             .short('s')
              .long("store")
              .value_name("FILE")
              .help("Keystore")
              .takes_value(true))
-        .arg(Arg::with_name("token")
+        .arg(Arg::new("token")
              .required(true)
-             .short("t")
+             .short('t')
              .long("token")
              .value_name("STRING")
              .help("Token string to verify")

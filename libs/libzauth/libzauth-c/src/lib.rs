@@ -18,7 +18,7 @@
 extern crate libc;
 extern crate zauth;
 
-use libc::{size_t, uint8_t};
+use libc::size_t;
 use std::char;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
@@ -41,7 +41,6 @@ macro_rules! try_unwrap {
 }
 
 #[repr(C)]
-#[no_mangle]
 #[derive(Clone, Copy, Debug)]
 pub struct Range {
     ptr: *const u8,
@@ -53,7 +52,7 @@ pub struct ZauthKeystore(zauth::Keystore);
 pub struct ZauthToken(zauth::Token<'static>);
 
 #[no_mangle]
-pub extern fn zauth_keystore_open(f: *const uint8_t, n: size_t, s: *mut *mut ZauthKeystore) -> ZauthResult {
+pub extern fn zauth_keystore_open(f: *const u8, n: size_t, s: *mut *mut ZauthKeystore) -> ZauthResult {
     if f.is_null() {
         return ZauthResult::NullArg;
     }
@@ -77,7 +76,7 @@ pub extern fn zauth_keystore_delete(s: *mut ZauthKeystore) {
 }
 
 #[no_mangle]
-pub extern fn zauth_acl_open(f: *const uint8_t, n: size_t, a: *mut *mut ZauthAcl) -> ZauthResult {
+pub extern fn zauth_acl_open(f: *const u8, n: size_t, a: *mut *mut ZauthAcl) -> ZauthResult {
     if f.is_null() {
         return ZauthResult::NullArg;
     }
@@ -104,7 +103,7 @@ pub extern fn zauth_acl_delete(a: *mut ZauthAcl) {
 }
 
 #[no_mangle]
-pub extern fn zauth_token_parse(cs: *const uint8_t, n: size_t, zt: *mut *mut ZauthToken) -> ZauthResult {
+pub extern fn zauth_token_parse(cs: *const u8, n: size_t, zt: *mut *mut ZauthToken) -> ZauthResult {
     if cs.is_null() {
         return ZauthResult::NullArg;
     }
@@ -129,7 +128,7 @@ pub extern fn zauth_token_verify(t: &ZauthToken, s: &ZauthKeystore) -> ZauthResu
 
 #[no_mangle]
 pub extern
-fn zauth_token_allowed(t: &ZauthToken, acl: &ZauthAcl, cp: *const uint8_t, n: size_t, out: *mut uint8_t) -> ZauthResult {
+fn zauth_token_allowed(t: &ZauthToken, acl: &ZauthAcl, cp: *const u8, n: size_t, out: *mut u8) -> ZauthResult {
     catch_unwind(|| {
         let b = unsafe { slice::from_raw_parts(cp, n) };
         let s = try_unwrap!(str::from_utf8(b));
@@ -154,12 +153,12 @@ pub extern fn zauth_token_type(t: &ZauthToken) -> ZauthTokenType {
 //}
 
 #[no_mangle]
-pub extern fn zauth_token_version(t: &ZauthToken) -> uint8_t {
+pub extern fn zauth_token_version(t: &ZauthToken) -> u8 {
     t.0.version
 }
 
 #[no_mangle]
-pub extern fn zauth_token_lookup(t: &ZauthToken, c: uint8_t) -> Range {
+pub extern fn zauth_token_lookup(t: &ZauthToken, c: u8) -> Range {
     if let Some(k) = char::from_u32(c as u32) {
         if let Some(s) = t.0.lookup(k) {
             return Range { ptr: s.as_ptr(), len: s.len() }
@@ -177,7 +176,6 @@ pub extern fn zauth_token_delete(t: *mut ZauthToken) {
 }
 
 #[repr(C)]
-#[no_mangle]
 #[derive(Clone, Copy, Debug)]
 pub enum ZauthTokenType {
     User            = 0,
@@ -204,7 +202,6 @@ impl From<TokenType> for ZauthTokenType {
 }
 
 #[repr(C)]
-#[no_mangle]
 #[derive(Clone, Copy, Debug)]
 pub enum ZauthResult {
     Ok                = 0,
