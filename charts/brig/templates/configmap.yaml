@@ -143,6 +143,12 @@ data:
       {{- end }}
 
       team:
+      {{- if .emailSMS.team }}
+        tInvitationUrl: {{ .emailSMS.team.tInvitationUrl }}
+        tActivationUrl: {{ .emailSMS.team.tActivationUrl }}
+        tCreatorWelcomeUrl: {{ .emailSMS.team.tCreatorWelcomeUrl }}
+        tMemberWelcomeUrl: {{ .emailSMS.team.tMemberWelcomeUrl }}
+      {{- else }}
       {{- if .externalUrls.teamSettings }}
         tInvitationUrl: {{ .externalUrls.teamSettings }}/join/?team-code=${code}
       {{- else }}
@@ -151,6 +157,7 @@ data:
         tActivationUrl: {{ .externalUrls.nginz }}/register?team=${team}&team_code=${code}
         tCreatorWelcomeUrl: {{ .externalUrls.teamCreatorWelcome }}
         tMemberWelcomeUrl: {{ .externalUrls.teamMemberWelcome }}
+      {{- end }}
 
     zauth:
       privateKeys: /etc/wire/brig/secrets/secretkey.txt
