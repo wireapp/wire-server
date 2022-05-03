@@ -181,7 +181,6 @@ in
   pkgs.niv
   pkgs.ormolu
   pkgs.shellcheck
-  pkgs.telepresence
   pkgs.wget
   pkgs.yq
   pkgs.rsync
