@@ -45,7 +45,7 @@ uninstall:
 
 .PHONY: test
 test:
-	cd ../libzauth && cargo test
+	cd ../libzauth && cargo test --release
 
 dist: test build-release
 	mkdir -p deb$(PREFIX_PACKAGE)/include
