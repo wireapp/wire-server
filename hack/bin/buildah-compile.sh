@@ -2,7 +2,7 @@
 
 # This compiles wire-server inside an ubuntu-based container based on quay.io/wire/ubuntu20-builder.
 # the tool 'buildah' is used to mount some folders in, and to
-# keep the stack caches of /.root/.cabal and dist-newstyle (renamed to avoid conflicts) for the next compilation
+# keep the caches of /.root/.cabal and dist-newstyle (renamed to avoid conflicts) for the next compilation
 
 # After compilation, ./buildah-make-images.sh can be used
 # to bake individual executables into their respective docker images used by kubernetes.
