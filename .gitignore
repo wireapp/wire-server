@@ -110,3 +110,6 @@ cabal.project.local
 # Nix output symlinks
 result
 result-*
+
+# emacs misc
+.dir-locals.el
