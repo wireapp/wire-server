@@ -139,7 +139,7 @@ Then build and push the `brig` image by running
 
 ```
 export DOCKER_TAG_LOCAL_BUILD=$USER
-hack/bin/buildah-compile.sh
+hack/bin/buildah-compile.sh all
 DOCKER_TAG=$DOCKER_TAG_LOCAL_BUILD EXECUTABLES=brig BUILDAH_PUSH=1 ./hack/bin/buildah-make-images.sh
 ```
 

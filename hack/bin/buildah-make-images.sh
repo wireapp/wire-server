@@ -17,7 +17,7 @@ buildah run "$CONTAINER_NAME" -- sh -c 'mkdir -p /usr/share/wire/ && cp -r "/src
 
 for EX in $EXECUTABLES; do
     # Copy the main executable into the PATH on the container
-    buildah run "$CONTAINER_NAME" -- cp "/src/dist-buildah/$EX" "/usr/bin/$EX"
+    buildah run "$CONTAINER_NAME" -- cp "/src/buildah/dist/$EX" "/usr/bin/$EX"
 
     # Start that executable by default when launching the docker image
     buildah config --entrypoint "[ \"/usr/bin/dumb-init\", \"--\", \"/usr/bin/$EX\" ]" "$CONTAINER_NAME"
