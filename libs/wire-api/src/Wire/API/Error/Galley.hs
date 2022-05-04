@@ -109,7 +109,7 @@ data GalleyError
   | UserLegalHoldNotPending
   | -- Team Member errors
     BulkGetMemberLimitExceeded
-   deriving (Show, Eq, Generic)
+  deriving (Show, Eq, Generic)
   deriving (FromJSON, ToJSON) via (CustomEncoded GalleyError)
 
 $(genSingletons [''GalleyError])
