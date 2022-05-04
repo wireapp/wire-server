@@ -1,3 +1,11 @@
+# [2022-05-04] (Chart Release 4.11.0)
+
+## Release notes
+
+
+* Upgrade webapp version to 2022-05-04-production.0-v0.29.7-0-a6f2ded (#2302)
+
+
 # [2022-04-25] (Chart Release 4.10.0)
 
 ## Release notes
