@@ -66,13 +66,12 @@ module Wire.API.Team
     -- * Swagger
     modelTeam,
     modelTeamList,
-    modelNewNonBindingTeam,
     modelUpdateData,
     modelTeamDelete,
   )
 where
 
-import Control.Lens (makeLenses)
+import Control.Lens (makeLenses, (?~))
 import Data.Aeson (FromJSON, ToJSON, Value (..))
 import Data.Aeson.Types (Parser)
 import qualified Data.Attoparsec.ByteString as Atto (Parser, string)
@@ -90,7 +89,7 @@ import Imports
 import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Asset (AssetKey)
-import Wire.API.Team.Member (TeamMember, modelTeamMember)
+import Wire.API.Team.Member (TeamMember)
 
 --------------------------------------------------------------------------------
 -- Team
@@ -218,20 +217,6 @@ instance ToSchema NonBindingNewTeam where
       sch :: ValueSchema SwaggerDoc (Range 1 127 [TeamMember])
       sch = fromRange .= rangedSchema (array schema)
 
-modelNewNonBindingTeam :: Doc.Model
-modelNewNonBindingTeam = Doc.defineModel "newNonBindingTeam" $ do
-  Doc.description "Required data when creating new regular teams"
-  Doc.property "name" Doc.string' $
-    Doc.description "team name"
-  Doc.property "icon" Doc.string' $
-    Doc.description "team icon (asset ID)"
-  Doc.property "icon_key" Doc.string' $ do
-    Doc.description "team icon asset key"
-    Doc.optional
-  Doc.property "members" (Doc.unique $ Doc.array (Doc.ref modelTeamMember)) $ do
-    Doc.description "initial team member ids (between 1 and 127)"
-    Doc.optional
-
 data NewTeam a = NewTeam
   { _newTeamName :: Range 1 256 Text,
     _newTeamIcon :: Icon,
@@ -247,10 +232,10 @@ newNewTeam nme ico = NewTeam nme ico Nothing Nothing
 newTeamObjectSchema :: ValueSchema SwaggerDoc a -> ObjectSchema SwaggerDoc (NewTeam a)
 newTeamObjectSchema sch =
   NewTeam
-    <$> _newTeamName .= field "name" schema
-    <*> _newTeamIcon .= field "icon" schema
-    <*> _newTeamIconKey .= maybe_ (optField "icon_key" schema)
-    <*> _newTeamMembers .= maybe_ (optField "members" sch)
+    <$> _newTeamName .= fieldWithDocModifier "name" (description ?~ "team name") schema
+    <*> _newTeamIcon .= fieldWithDocModifier "icon" (description ?~ "team icon (asset ID)") schema
+    <*> _newTeamIconKey .= maybe_ (optFieldWithDocModifier "icon_key" (description ?~ "team icon asset key") schema)
+    <*> _newTeamMembers .= maybe_ (optFieldWithDocModifier "members" (description ?~ "initial team member ids (between 1 and 127)") sch)
 
 --------------------------------------------------------------------------------
 -- TeamUpdateData

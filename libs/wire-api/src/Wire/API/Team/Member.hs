@@ -28,10 +28,7 @@ module Wire.API.Team.Member
     invitation,
     legalHoldStatus,
     ntmNewTeamMember,
-
-    -- * TODO(leif): remove after servantification
     teamMemberJson,
-    teamMemberListJson,
     setOptionalPerms,
     setOptionalPermsMany,
 
@@ -60,29 +57,22 @@ module Wire.API.Team.Member
     TeamMemberDeleteData,
     newTeamMemberDeleteData,
     tmdAuthPassword,
-
-    -- * Swagger
-    modelTeamMember,
-    modelTeamMemberList,
-    modelNewTeamMember,
-    modelTeamMemberDelete,
   )
 where
 
-import Control.Lens (Lens, Lens', makeLenses, (%~))
+import Control.Lens (Lens, Lens', makeLenses, (%~), (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..), Value (..))
 import Data.Id (UserId)
 import Data.Json.Util
-import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus, typeUserLegalHoldStatus)
+import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import Data.Schema
-import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Swagger.Schema as S
 import GHC.TypeLits
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
-import Wire.API.Team.Permission (Permissions, modelPermissions)
+import Wire.API.Team.Permission (Permissions)
 
 data PermissionTag = Required | Optional
 
@@ -147,42 +137,26 @@ instance ToSchema TeamMember where
     object "TeamMember" $
       TeamMember
         <$> _newTeamMember .= newTeamMemberSchema
-        <*> _legalHoldStatus .= (fromMaybe defUserLegalHoldStatus <$> optField "legalhold_status" schema)
+        <*> _legalHoldStatus .= (fromMaybe defUserLegalHoldStatus <$> optFieldWithDocModifier "legalhold_status" (description ?~ lhDesc) schema)
 
 instance ToSchema (TeamMember' 'Optional) where
   schema =
-    object "TeamMember" $
+    objectWithDocModifier "TeamMember" (description ?~ "team member data") $
       TeamMember
         <$> _newTeamMember
           .= ( NewTeamMember
-                 <$> _nUserId .= field "user" schema
-                 <*> _nPermissions .= maybe_ (optField "permissions" schema)
+                 <$> _nUserId .= fieldWithDocModifier "user" (description ?~ "user ID") schema
+                 <*> _nPermissions .= maybe_ (optFieldWithDocModifier "permissions" (description ?~ permissionsDesc) schema)
                  <*> _nInvitation .= invitedSchema'
              )
-        <*> _legalHoldStatus .= (fromMaybe defUserLegalHoldStatus <$> optField "legalhold_status" schema)
+        <*> _legalHoldStatus .= (fromMaybe defUserLegalHoldStatus <$> optFieldWithDocModifier "legalhold_status" (description ?~ lhDesc) schema)
+    where
+      permissionsDesc =
+        "The permissions this user has in the given team \
+        \ (only visible with permission `GetMemberPermissions`)."
 
-modelTeamMember :: Doc.Model
-modelTeamMember = Doc.defineModel "TeamMember" $ do
-  Doc.description "team member data"
-  Doc.property "user" Doc.bytes' $
-    Doc.description "user ID"
-  Doc.property "permissions" (Doc.ref modelPermissions) $ do
-    Doc.description
-      "The permissions this user has in the given team \
-      \ (only visible with permission `GetMemberPermissions`)."
-    Doc.optional -- not optional in the type, but in the json instance.  (in
-    -- servant, we could probably just add a helper type for this.)
-    -- TODO: even without servant, it would be nicer to introduce
-    -- a type with optional permissions.
-  Doc.property "created_at" Doc.dateTime' $ do
-    Doc.description "Timestamp of invitation creation.  Requires created_by."
-    Doc.optional
-  Doc.property "created_by" Doc.bytes' $ do
-    Doc.description "ID of the inviting user.  Requires created_at."
-    Doc.optional
-  Doc.property "legalhold_status" typeUserLegalHoldStatus $ do
-    Doc.description "The state of Legal Hold compliance for the member"
-    Doc.optional
+lhDesc :: Text
+lhDesc = "The state of Legal Hold compliance for the member"
 
 setPerm :: Bool -> Permissions -> Maybe Permissions
 setPerm True = Just
@@ -230,20 +204,12 @@ deriving via
 newTeamMemberList :: [TeamMember] -> ListType -> TeamMemberList
 newTeamMemberList = TeamMemberList
 
-modelTeamMemberList :: Doc.Model
-modelTeamMemberList = Doc.defineModel "TeamMemberList" $ do
-  Doc.description "list of team member"
-  Doc.property "members" (Doc.unique $ Doc.array (Doc.ref modelTeamMember)) $
-    Doc.description "the array of team members"
-  Doc.property "hasMore" Doc.bool' $
-    Doc.description "true if 'members' doesn't contain all team members"
-
 instance ToSchema (TeamMember' tag) => ToSchema (TeamMemberList' tag) where
   schema =
-    object "TeamMemberList" $
+    objectWithDocModifier "TeamMemberList" (description ?~ "list of team member") $
       TeamMemberList
-        <$> _teamMembers .= field "members" (array schema)
-        <*> _teamMemberListType .= field "hasMore" schema
+        <$> _teamMembers .= fieldWithDocModifier "members" (description ?~ "the array of team members") (array schema)
+        <*> _teamMemberListType .= fieldWithDocModifier "hasMore" (description ?~ "true if 'members' doesn't contain all team members") schema
 
 type HardTruncationLimit = (2000 :: Nat)
 
@@ -338,8 +304,8 @@ newTeamMemberSchema =
 
 invitedSchema :: ObjectSchemaP SwaggerDoc (Maybe (UserId, UTCTimeMillis)) (Maybe UserId, Maybe UTCTimeMillis)
 invitedSchema =
-  (,) <$> fmap fst .= optField "created_by" (maybeWithDefault Null schema)
-    <*> fmap snd .= optField "created_at" (maybeWithDefault Null schema)
+  (,) <$> fmap fst .= optFieldWithDocModifier "created_by" (description ?~ "ID of the inviting user.  Requires created_at.") (maybeWithDefault Null schema)
+    <*> fmap snd .= optFieldWithDocModifier "created_at" (description ?~ "Timestamp of invitation creation.  Requires created_by.") (maybeWithDefault Null schema)
 
 invitedSchema' :: ObjectSchema SwaggerDoc (Maybe (UserId, UTCTimeMillis))
 invitedSchema' = withParser invitedSchema $ \(invby, invat) ->
@@ -350,14 +316,8 @@ invitedSchema' = withParser invitedSchema $ \(invby, invat) ->
 
 instance ToSchema NewTeamMember where
   schema =
-    object "NewTeamMember" $
-      field "member" $ unnamed (object "Unnamed" newTeamMemberSchema)
-
-modelNewTeamMember :: Doc.Model
-modelNewTeamMember = Doc.defineModel "NewTeamMember" $ do
-  Doc.description "Required data when creating new team members"
-  Doc.property "member" (Doc.ref modelTeamMember) $
-    Doc.description "the team member to add (the legalhold_status field must be null or missing!)"
+    objectWithDocModifier "NewTeamMember" (description ?~ "Required data when creating new team members") $
+      fieldWithDocModifier "member" (description ?~ "the team member to add (the legalhold_status field must be null or missing!)") $ unnamed (object "Unnamed" newTeamMemberSchema)
 
 --------------------------------------------------------------------------------
 -- TeamMemberDeleteData
@@ -371,18 +331,11 @@ newtype TeamMemberDeleteData = TeamMemberDeleteData
 
 instance ToSchema TeamMemberDeleteData where
   schema =
-    object "TeamMemberDeleteData" $
-      TeamMemberDeleteData <$> _tmdAuthPassword .= optField "password" (maybeWithDefault Null schema)
+    objectWithDocModifier "TeamMemberDeleteData" (description ?~ "Data for a team member deletion request in case of binding teams.") $
+      TeamMemberDeleteData <$> _tmdAuthPassword .= optFieldWithDocModifier "password" (description ?~ "The account password to authorise the deletion.") (maybeWithDefault Null schema)
 
 newTeamMemberDeleteData :: Maybe PlainTextPassword -> TeamMemberDeleteData
 newTeamMemberDeleteData = TeamMemberDeleteData
-
--- FUTUREWORK: fix name of model?
-modelTeamMemberDelete :: Doc.Model
-modelTeamMemberDelete = Doc.defineModel "teamDeleteData" $ do
-  Doc.description "Data for a team member deletion request in case of binding teams."
-  Doc.property "password" Doc.string' $
-    Doc.description "The account password to authorise the deletion."
 
 makeLenses ''TeamMember'
 makeLenses ''TeamMemberList'
@@ -401,17 +354,11 @@ permissions = newTeamMember . nPermissions
 invitation :: Lens' TeamMember (Maybe (UserId, UTCTimeMillis))
 invitation = newTeamMember . nInvitation
 
--- JSON serialisation utilities (FUTUREWORK(leif): remove after servantification)
-
 teamMemberJson :: (TeamMember -> Bool) -> TeamMember -> Value
 teamMemberJson withPerms = toJSON . setOptionalPerms withPerms
 
 setOptionalPerms :: (TeamMember -> Bool) -> TeamMember -> TeamMember' 'Optional
 setOptionalPerms withPerms m = m & permissions %~ setPerm (withPerms m)
-
--- | Show a list of team members using 'teamMemberJson'.
-teamMemberListJson :: (TeamMember -> Bool) -> TeamMemberList -> Value
-teamMemberListJson withPerms = toJSON . setOptionalPermsMany withPerms
 
 setOptionalPermsMany :: (TeamMember -> Bool) -> TeamMemberList -> TeamMemberList' 'Optional
 setOptionalPermsMany withPerms l =
