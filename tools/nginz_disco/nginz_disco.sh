@@ -40,7 +40,8 @@ function valid_ipv6() {
 function upstream() {
     name=$1
     port=${2:-'8080'}
-    ips=$(dig +short +retries=3 +search "${name}" | sort)
+    # shellcheck disable=2086
+    ips=$(dig +short +retries=3 +search ${name} | sort)
     unset servers
     # shellcheck disable=SC2068
     for ip in ${ips[@]}; do
