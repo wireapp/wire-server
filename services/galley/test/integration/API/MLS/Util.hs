@@ -58,6 +58,8 @@ data CreateClients = CreateWithoutKey | CreateWithKey | DontCreateClients
 data CreateConv = CreateConv | CreateProteusConv | DontCreateConv
   deriving (Eq)
 
+data CreatorOrigin = LocalCreator | RemoteCreator Domain
+
 createNewConv :: CreateConv -> Maybe NewConv
 createNewConv CreateConv = Just defNewMLSConv
 createNewConv CreateProteusConv = Just defNewProteusConv
@@ -65,6 +67,7 @@ createNewConv DontCreateConv = Nothing
 
 data SetupOptions = SetupOptions
   { createClients :: CreateClients,
+    creatorOrigin :: CreatorOrigin,
     createConv :: CreateConv,
     makeConnections :: Bool
   }
@@ -73,6 +76,7 @@ instance Default SetupOptions where
   def =
     SetupOptions
       { createClients = CreateWithKey,
+        creatorOrigin = LocalCreator,
         createConv = DontCreateConv,
         makeConnections = True
       }
@@ -152,17 +156,31 @@ setupParticipants ::
   [Int] ->
   State.StateT [LastPrekey] TestM (Participant, [Participant])
 setupParticipants tmp SetupOptions {..} ns = do
-  creator <- lift randomQualifiedUser >>= setupParticipant tmp DontCreateClients 1
+  creator <- lift createUserOrId >>= setupParticipant tmp DontCreateClients 1
   others <- for ns $ \n ->
     lift randomQualifiedUser >>= setupParticipant tmp createClients n
-  lift . when makeConnections $
-    traverse_
-      ( connectUsers (qUnqualified (pUserId creator))
-          . List1
-          . fmap (qUnqualified . pUserId)
-      )
-      (nonEmpty others)
+  lift . when makeConnections $ case creatorOrigin of
+    LocalCreator ->
+      traverse_
+        ( connectUsers (qUnqualified (pUserId creator))
+            . List1
+            . fmap (qUnqualified . pUserId)
+        )
+        (nonEmpty others)
+    RemoteCreator _ ->
+      traverse_
+        ( \u ->
+            connectWithRemoteUser
+              (qUnqualified . pUserId $ u)
+              (pUserId creator)
+        )
+        others
   pure (creator, others)
+  where
+    createUserOrId :: TestM (Qualified UserId)
+    createUserOrId = case creatorOrigin of
+      LocalCreator -> randomQualifiedUser
+      RemoteCreator d -> randomQualifiedId d
 
 withLastPrekeys :: Monad m => State.StateT [LastPrekey] m a -> m a
 withLastPrekeys m = State.evalStateT m someLastPrekeys
@@ -218,11 +236,12 @@ takeLastPrekey = do
   State.put lpks
   pure lpk
 
--- | Setup: Alice creates a group and invites bob. Return welcome and commit message.
+-- | Setup: Alice creates a group and invites Bob that is local or remote to
+-- Alice depending on the passed in creator origin. Return welcome and commit
+-- message.
 aliceInvitesBob :: HasCallStack => Int -> SetupOptions -> TestM MessagingSetup
 aliceInvitesBob numBobClients opts@SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
   (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp opts [numBobClients]
-
   -- create a group
   conversation <- setupGroup tmp createConv alice "group"
 
