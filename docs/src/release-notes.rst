@@ -29,6 +29,15 @@ specific operations.
 
 The following helm chart versions have been published since then:
 
+Chart Release 4.11.0 (2022-05-04)
+=================================
+
+Release notes
+-------------
+
+* Upgrade webapp version to 2022-05-04-production.0-v0.29.7-0-a6f2ded (#2302)
+
+
 Chart Release 4.10.0 (2022-04-25)
 =================================
 
