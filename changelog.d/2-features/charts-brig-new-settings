@@ -1,0 +1,22 @@
+charts: Various new values can now be configured and some got changed
+
+Allow new configurations in the brig chart:
+* `config.emailSMS.user.invitationUrl`
+* `config.emailSMS.team.tInvitationUrl`
+* `config.emailSMS.team.tActivationUrl`
+* `config.emailSMS.team.tCreatorWelcomeUrl`
+* `config.emailSMS.team.tMemberWelcomeUrl`
+* `config.setProviderSearchFilter`
+* `config.setWhitelist`
+* `config.setFeatureFlags`
+* `config.setCustomerExtensions`
+
+If any values in config.emailSMS.team are specified, all must be specified.
+
+Allow new configurations in the gundeck chart:
+* `config.perNativePushConcurrency`
+* `config.maxConcurrentNativePushes.soft`
+* `config.maxConcurrentNativePushes.hard`
+
+Other changes:
+* Default `maxTeamSize` changed to 10000 from 500.
