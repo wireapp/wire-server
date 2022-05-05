@@ -50,7 +50,13 @@ data:
       httpPoolSize: 1024
       notificationTTL: 2419200
       bulkPush: {{ .bulkPush }}
+      {{- if hasKey . "perNativePushConcurrency" }}
+      perNativePushConcurrency: {{ .perNativePushConcurrency }}
+      {{- end }}
       maxConcurrentNativePushes:
-        soft: 1000
+        soft: {{ .maxConcurrentNativePushes.soft }}
+        {{- if hasKey .maxConcurrentNativePushes "hard" }}
+        hard: {{ .maxConcurrentNativePushes.hard }}
+        {{- end }}
         # hard: 30  # more than this number of threads will not be allowed
   {{- end }}

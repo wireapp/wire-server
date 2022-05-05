@@ -21,7 +21,7 @@ config:
     replicaCount: 3
   enableFederator: false # keep enableFederator default in sync with brig and cargohold chart's config.enableFederator as well as wire-server chart's tag.federator
   settings:
-    maxTeamSize: 500
+    maxTeamSize: 10000
     maxConvSize: 500
     # Before making indexedBillingTeamMember true while upgrading, please
     # refer to notes here: https://github.com/wireapp/wire-server-deploy/releases/tag/v2020-05-15
@@ -48,3 +48,12 @@ config:
   aws:
     region: "eu-west-1"
   proxy: {}
+serviceAccount:
+  # When setting this to 'false', either make sure that a service account named
+  # 'galley' exists or change the 'name' field to 'default'
+  create: true
+  name: galley
+  annotations: {}
+  automountServiceAccountToken: true
+
+secrets: {}
