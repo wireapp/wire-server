@@ -21,11 +21,12 @@
 module Test.Brig.Calling where
 
 import Brig.Calling
-import Brig.Calling.API (CallsConfigVersion (..), newConfig)
+import Brig.Calling.API (CallsConfigVersion (..), NoTurnServers, newConfig)
 import Brig.Calling.Internal (sftServerFromSrvTarget)
 import Brig.Effects.SFT
 import Brig.Options
 import Control.Lens ((^.))
+import Control.Monad.Catch (throwM)
 import Control.Retry
 import Data.Bifunctor
 import Data.List.NonEmpty (NonEmpty (..))
@@ -38,6 +39,7 @@ import Data.String.Conversions
 import Imports
 import Network.DNS
 import Polysemy
+import Polysemy.Error
 import Polysemy.TinyLog
 import qualified System.Logger as Log
 import Test.Tasty
@@ -265,13 +267,17 @@ retryEvery10MicrosWhileN n f m =
 
 -- | Creates a calling environment and an https URL to be used in unit-testing
 -- the logic of call configuration endpoints
-sftStaticEnv :: IO (Env, HttpsUrl)
+sftStaticEnv :: IO (TurnEnv, HttpsUrl)
 sftStaticEnv = do
   turnUri <- generate arbitrary
   let tokenTtl = 10 -- seconds
       configTtl = 10 -- seconds
       secret = "secret word"
-  env <- newEnv undefined (pure turnUri) tokenTtl configTtl secret
+  env <- mkTurnEnv "test/resources/turn/servers.txt" "test/resources/turn/servers-v2.txt" tokenTtl configTtl secret undefined
+  let serversV1IORef = env ^. turnServersV1
+      serversV2IORef = env ^. turnServersV2
+  atomicWriteIORef serversV1IORef (Discovered turnUri)
+  atomicWriteIORef serversV2IORef (Discovered turnUri)
   let Right staticUrl =
         mkHttpsUrl
           =<< first
@@ -287,7 +293,8 @@ testSFTStaticDeprecatedEndpoint = do
     runM @IO
       . ignoreLogs
       . interpretSFTInMemory mempty
-      $ newConfig env Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
+      . throwErrorInIO @_ @NoTurnServers
+      $ newConfig env turnServersV1 Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
   assertEqual
     "when SFT static URL is disabled, sft_servers should be empty."
     Set.empty
@@ -311,7 +318,8 @@ testSFTStaticV2NoStaticUrl = do
     runM @IO
       . ignoreLogs
       . interpretSFTInMemory mempty
-      $ newConfig env Nothing (Just sftEnv) (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
+      . throwErrorInIO @_ @NoTurnServers
+      $ newConfig env turnServersV2 Nothing (Just sftEnv) (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL is disabled, sft_servers_all should be from SFT environment"
     (Just . fmap (sftServerFromSrvTarget . srvTarget) . toList $ servers)
@@ -324,9 +332,9 @@ testSFTStaticV2StaticUrlError = do
   cfg <-
     runM @IO
       . ignoreLogs
-      . interpretSFTInMemory mempty -- an empty lookup map, meaning there was
-      -- an error
-      $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
+      . interpretSFTInMemory mempty -- an empty lookup map, meaning there was an error
+      . throwErrorInIO @_ @NoTurnServers
+      $ newConfig env turnServersV2 (Just staticUrl) Nothing (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL is enabled (and setSftListAllServers is enabled), but returns error, sft_servers_all should be omitted"
     Nothing
@@ -343,7 +351,8 @@ testSFTStaticV2StaticUrlList = do
     runM @IO
       . ignoreLogs
       . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse . Right $ servers))
-      $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 3) ListAllSFTServers CallsConfigV2
+      . throwErrorInIO @_ @NoTurnServers
+      $ newConfig env turnServersV2 (Just staticUrl) Nothing (Just . unsafeRange $ 3) ListAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL and setSftListAllServers are enabled, sft_servers_all should be from /sft_servers_all.json"
     (Just servers)
@@ -359,8 +368,16 @@ testSFTStaticV2ListAllServersDisabled = do
     runM @IO
       . ignoreLogs
       . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse . Right $ servers))
-      $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 3) HideAllSFTServers CallsConfigV2
+      . throwErrorInIO @_ @NoTurnServers
+      $ newConfig env turnServersV2 (Just staticUrl) Nothing (Just . unsafeRange $ 3) HideAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL is enabled and setSftListAllServers is \"disabled\" then sft_servers_all is missing"
     Nothing
     (cfg ^. rtcConfSftServersAll)
+
+throwErrorInIO :: (Member (Embed IO) r, Exception e) => Sem (Error e ': r) a -> Sem r a
+throwErrorInIO action = do
+  eitherResult <- runError action
+  case eitherResult of
+    Right x -> pure x
+    Left e -> liftIO $ throwM e

@@ -163,6 +163,7 @@ tests:
     - containers
     - dns
     - dns-util
+    - exceptions
     - http-types
     - imports
     - lens

@@ -42,7 +42,7 @@ import Bilge
 import Bilge.Assert
 import qualified Brig.AWS as AWS
 import Brig.AWS.Types
-import Brig.App (applog, sftEnv)
+import Brig.App (applog, fsWatcher, sftEnv, turnEnv)
 import Brig.Calling as Calling
 import qualified Brig.Code as Code
 import qualified Brig.Options as Opt
@@ -1005,6 +1005,7 @@ withSettingsOverrides opts action = liftIO $ do
   sftDiscovery <-
     forM (env ^. sftEnv) $ \sftEnv' ->
       Async.async $ Calling.startSFTServiceDiscovery (env ^. applog) sftEnv'
+  Calling.startTurnDiscovery (env ^. applog) (env ^. fsWatcher) (env ^. turnEnv)
   res <- WaiTest.runSession action brigApp
   mapM_ Async.cancel sftDiscovery
   pure res

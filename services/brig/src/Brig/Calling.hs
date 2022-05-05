@@ -26,15 +26,19 @@ module Brig.Calling
     mkSFTServers,
     SFTEnv (..),
     Discovery (..),
-    Env (..),
+    TurnEnv,
     mkSFTEnv,
-    newEnv,
+    mkTurnEnv,
     sftDiscoveryLoop,
     discoverSFTServers,
     discoveryToMaybe,
     randomize,
     startSFTServiceDiscovery,
-    turnServers,
+    startTurnDiscovery,
+    turnServersV1,
+    turnServersV1File,
+    turnServersV2,
+    turnServersV2File,
     turnTokenTTL,
     turnConfigTTL,
     turnSecret,
@@ -46,18 +50,24 @@ where
 import Brig.Options (SFTOptions (..), defSftDiscoveryIntervalSeconds, defSftListLength, defSftServiceName)
 import qualified Brig.Options as Opts
 import Brig.Types (TurnURI)
+import Control.Exception.Enclosed (handleAny)
 import Control.Lens
 import Control.Monad.Random.Class (MonadRandom)
+import Data.ByteString.Conversion (fromByteString)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.List1
 import Data.Range
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.Text.IO as Text
 import Data.Time.Clock (DiffTime, diffTimeToPicoseconds)
 import Imports
 import qualified Network.DNS as DNS
 import OpenSSL.EVP.Digest (Digest)
 import Polysemy
 import Polysemy.TinyLog
+import qualified System.FSNotify as FS
+import qualified System.FilePath as Path
 import qualified System.Logger as Log
 import System.Random.MWC (GenIO, createSystemRandom)
 import System.Random.Shuffle
@@ -172,8 +182,11 @@ diffTimeToMicroseconds = fromIntegral . (`quot` 1000000) . diffTimeToPicoseconds
 
 -- TURN specific
 
-data Env = Env
-  { _turnServers :: List1 TurnURI,
+data TurnEnv = TurnEnv
+  { _turnServersV1 :: IORef (Discovery (NonEmpty TurnURI)),
+    _turnServersV2 :: IORef (Discovery (NonEmpty TurnURI)),
+    _turnServersV1File :: FilePath,
+    _turnServersV2File :: FilePath,
     _turnTokenTTL :: Word32,
     _turnConfigTTL :: Word32,
     _turnSecret :: ByteString,
@@ -181,7 +194,53 @@ data Env = Env
     _turnPrng :: GenIO
   }
 
-makeLenses ''Env
+makeLenses ''TurnEnv
 
-newEnv :: Digest -> List1 TurnURI -> Word32 -> Word32 -> ByteString -> IO Env
-newEnv sha512 srvs tTTL cTTL secret = Env srvs tTTL cTTL secret sha512 <$> createSystemRandom
+mkTurnEnv :: FilePath -> FilePath -> Word32 -> Word32 -> ByteString -> Digest -> IO TurnEnv
+mkTurnEnv v1File v2File _turnTokenTTL _turnConfigTTL _turnSecret _turnSHA512 = do
+  _turnServersV1 <- newIORef NotDiscoveredYet
+  _turnServersV2 <- newIORef NotDiscoveredYet
+  _turnPrng <- createSystemRandom
+  _turnServersV1File <- canonicalizePath v1File
+  _turnServersV2File <- canonicalizePath v2File
+  pure $ TurnEnv {..}
+
+-- | Returns an action which can be executed to stop this
+startTurnDiscovery :: Log.Logger -> FS.WatchManager -> TurnEnv -> IO ()
+startTurnDiscovery l w e = do
+  atomicWriteIORef (e ^. turnServersV1)
+    . maybe NotDiscoveredYet Discovered
+    =<< readTurnList (e ^. turnServersV1File)
+  atomicWriteIORef (e ^. turnServersV2)
+    . maybe NotDiscoveredYet Discovered
+    =<< readTurnList (e ^. turnServersV2File)
+  Log.warn l $
+    Log.msg (Log.val "Waiting for TURN files")
+      . Log.field "file1" (e ^. turnServersV1File)
+      . Log.field "file2" (e ^. turnServersV2File)
+  startWatching w (e ^. turnServersV1File) (replaceTurnServers l (e ^. turnServersV1))
+  startWatching w (e ^. turnServersV2File) (replaceTurnServers l (e ^. turnServersV2))
+
+replaceTurnServers :: Log.Logger -> IORef (Discovery (NonEmpty TurnURI)) -> FS.Event -> IO ()
+replaceTurnServers g ref e = do
+  let logErr x = Log.err g (Log.msg $ Log.val "Error loading turn servers: " Log.+++ show x)
+  handleAny logErr $
+    readTurnList (FS.eventPath e) >>= \case
+      Just servers -> do
+        atomicWriteIORef ref (Discovered servers)
+        Log.info g (Log.msg $ Log.val "New turn servers loaded.")
+      Nothing -> Log.warn g (Log.msg $ Log.val "Empty or malformed turn servers list, ignoring!")
+
+startWatching :: FS.WatchManager -> FilePath -> FS.Action -> IO ()
+startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
+  where
+    predicate (FS.Added f _ _) = Path.equalFilePath f p
+    predicate (FS.Modified f _ _) = Path.equalFilePath f p
+    predicate FS.Removed {} = False
+    predicate FS.Unknown {} = False
+
+readTurnList :: FilePath -> IO (Maybe (NonEmpty TurnURI))
+readTurnList = Text.readFile >=> return . fn . mapMaybe (fromByteString . Text.encodeUtf8) . Text.lines
+  where
+    fn [] = Nothing
+    fn (x : xs) = Just (x :| xs)

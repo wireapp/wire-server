@@ -122,6 +122,7 @@ testSFTUnavailble b opts domain = do
         (cfg ^. rtcConfSftServersAll)
 
 modifyAndAssert ::
+  HasCallStack =>
   Brig ->
   UserId ->
   (UserId -> Brig -> Http RTCConfiguration) ->
