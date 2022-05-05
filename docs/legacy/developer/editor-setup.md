@@ -67,6 +67,8 @@ be put in the root directory of the project:
                   )))
 ```
 
+Or alternatively, using [emacs-direnv](https://github.com/wbolster/emacs-direnv).
+
 ### Ormolu integration
 
 There are make targets `format`, `formatf`, `formatc` to re-format
