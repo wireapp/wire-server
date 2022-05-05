@@ -170,6 +170,8 @@ Terminology and concepts
 
 (Definitons adapted from `collab.net <http://help.collab.net/index.jsp?topic=/teamforge178/action/saml.html>`_)
 
+.. _Setting up SSO externally:
+
 Setting up SSO externally
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -220,6 +222,8 @@ Take care to share the code only with members of your team.
 If you haven't set up :term:`SCIM` (`we recommend you do <#introduction>`_), your team members can create accounts on Wire using :term:`SSO` simply by logging in, and will appear on the People tab of the team management page.
 
 If team members already have Wire accounts, use :term:`SCIM` to associate them with the :term:`SAML` credentials.  If you make a mistake here, you may end up with several accounts for the same person.
+
+.. _User provisioning:
 
 User provisioning (SCIM/LDAP)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
