@@ -601,6 +601,7 @@ type ConnectionAPI =
     :<|> Named
            "list-connections"
            ( Summary "List the connections to other users, including remote users"
+               :> Description PaginationDocs
                :> ZUser
                :> "list-connections"
                :> ReqBody '[JSON] ListConnectionsRequestPaginated
