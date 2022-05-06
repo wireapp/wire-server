@@ -53,8 +53,7 @@ tests s =
     [ testGroup
         "Welcome"
         [ test s "local welcome" testLocalWelcome,
-          test s "local welcome (client with no public key)" testWelcomeNoKey,
-          test s "local welcome (client with no public key)" testWelcomeUnknownClient
+          test s "local welcome (client with no public key)" testWelcomeNoKey
         ],
       testGroup
         "Creation"
@@ -145,23 +144,10 @@ testWelcomeNoKey = do
         . paths ["mls", "welcome"]
         . zUser (qUnqualified (pUserId creator))
         . content "message/mls"
+        . zConn "conn"
         . bytes welcome
     )
-    !!! const 400 === statusCode
-
-testWelcomeUnknownClient :: TestM ()
-testWelcomeUnknownClient = do
-  MessagingSetup {..} <- aliceInvitesBob 1 def {createClients = DontCreateClients}
-
-  galley <- viewGalley
-  post
-    ( galley
-        . paths ["mls", "welcome"]
-        . zUser (qUnqualified (pUserId creator))
-        . content "message/mls"
-        . bytes welcome
-    )
-    !!! const 400 === statusCode
+    !!! const 404 === statusCode
 
 -- | Send a commit message, and assert that all participants see an event with
 -- the given list of new members.
@@ -264,7 +250,7 @@ testAddUserWithProteusClients = do
       participants@(_, [bob]) <- setupParticipants tmp def [2]
 
       -- and a non-MLS client
-      void $ takeLastPrekey >>= lift . addClient (pUserId bob)
+      void $ takeLastPrekey >>= lift . randomClient (qUnqualified (pUserId bob))
 
       pure participants
 

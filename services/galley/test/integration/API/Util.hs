@@ -2004,7 +2004,12 @@ randomClientWithCaps :: HasCallStack => UserId -> LastPrekey -> Maybe (Set Clien
 randomClientWithCaps uid lk caps = do
   b <- view tsBrig
   resp <-
-    post (b . paths ["i", "clients", toByteString' uid] . json newClientBody)
+    post
+      ( b
+          . paths ["i", "clients", toByteString' uid]
+          . queryItem "skip_reauth" "true"
+          . json newClientBody
+      )
       <!! const rStatus === statusCode
   client <- responseJsonError resp
   return (clientId client)

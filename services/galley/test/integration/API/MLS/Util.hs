@@ -40,6 +40,7 @@ import Imports
 import System.FilePath
 import System.IO.Temp
 import System.Process
+import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty.HUnit
 import TestSetup
 import Wire.API.Conversation
@@ -109,8 +110,8 @@ setupUserClient tmp doCreateClients usr = do
   lift $ do
     -- create client if requested
     c <- case doCreateClients of
-      DontCreateClients -> randomClient (qUnqualified usr) lpk
-      _ -> addClient usr lpk
+      DontCreateClients -> liftIO $ generate arbitrary
+      _ -> randomClient (qUnqualified usr) lpk
 
     let qcid =
           show (qUnqualified usr)
@@ -234,24 +235,6 @@ aliceInvitesBob numBobClients opts@SetupOptions {..} = withSystemTempDirectory "
         users = [bob],
         ..
       }
-
-addClient :: HasCallStack => Qualified UserId -> LastPrekey -> TestM ClientId
-addClient u lpk = do
-  let new = newClient PermanentClientType lpk
-
-  brig <- view tsBrig
-  c <-
-    responseJsonError
-      =<< post
-        ( brig
-            . paths ["i", "clients", toByteString' (qUnqualified u)]
-            . zConn "conn"
-            . queryItem "skip_reauth" "true"
-            . json new
-        )
-      <!! const 201 === statusCode
-
-  pure (clientId c)
 
 addKeyPackage :: HasCallStack => Qualified UserId -> ClientId -> RawMLS KeyPackage -> TestM ()
 addKeyPackage u c kp = do
