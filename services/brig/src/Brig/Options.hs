@@ -359,28 +359,6 @@ instance ToSchema ListAllSFTServers where
           element "disabled" HideAllSFTServers
         ]
 
-data AllowedUserSearch
-  = NoSearch
-  | ExactHandleSearch
-  | FullSearch
-  deriving (Show, Generic, Enum, Bounded)
-
-instance ToJSON AllowedUserSearch where
-  toJSON NoSearch = "no_search"
-  toJSON ExactHandleSearch = "exact_handle_search"
-  toJSON FullSearch = "full_search"
-
-instance FromJSON AllowedUserSearch where
-  parseJSON = withText "AllowedUserSearch" $ \case
-    "no_search" -> pure NoSearch
-    "exact_handle_search" -> pure ExactHandleSearch
-    "full_search" -> pure FullSearch
-    _ ->
-      fail $
-        "unexpected value for AllowedUserSearch settings: "
-          <> "expected one of "
-          <> show (Aeson.encode <$> [(minBound :: AllowedUserSearch) ..])
-
 data FederationDomainConfig = FederationDomainConfig
   { domain :: Domain,
     cfgSearchPolicy :: FederatedUserSearchPolicy
