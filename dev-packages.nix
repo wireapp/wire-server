@@ -199,11 +199,11 @@ in
   # which sets LD_LIBRARY_PATH and others correctly.
   cabal-wrapper
   pkgs.haskellPackages.implicit-hie
-] ++ (if pkgs.stdenv.isLinux then [
+] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
   # linux-only, not strictly required tools
 
   pkgs.docker-compose
   pkgs.telepresence
   pkgs.buildah # To actually run buildah on nixos, I had to follow this: https://gist.github.com/alexhrescale/474d55635154e6b2cd6362c3bb403faf
-] else [])
+]
 ++ c-lib-out-deps # Required to run HLS
