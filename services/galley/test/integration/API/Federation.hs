@@ -1,24 +1,5 @@
 -- This file is part of the Wire Server implementation.
 --
--- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
---
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-{-# LANGUAGE RecordWildCards #-}
-
--- This file is part of the Wire Server implementation.
---
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
 --
 -- This program is free software: you can redistribute it and/or modify it under
@@ -33,6 +14,8 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module API.Federation where
 
@@ -45,10 +28,11 @@ import Control.Lens hiding ((#))
 import Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion (toByteString')
+import Data.Default
 import Data.Domain
 import Data.Id (ConvId, Id (..), UserId, newClientId, randomId)
 import Data.Json.Util hiding ((#))
-import Data.List.NonEmpty (NonEmpty(..), head)
+import Data.List.NonEmpty (NonEmpty (..), head)
 import Data.List1
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
@@ -83,7 +67,6 @@ import Wire.API.Internal.Notification
 import Wire.API.Message (ClientMismatchStrategy (..), MessageSendingStatus (mssDeletedClients, mssFailedToSend, mssRedundantClients), mkQualifiedOtrPayload, mssMissingClients)
 import Wire.API.User.Client (PubClient (..))
 import Wire.API.User.Profile
-import Data.Default
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -1166,7 +1149,7 @@ sendMLSWelcome :: TestM ()
 sendMLSWelcome = do
   let aliceDomain = Domain "a.far-away.example.com"
   -- Alice is from the originating domain and Bob is local, i.e., on the receiving domain
-  MessagingSetup {..} <- aliceInvitesBob 1 def { creatorOrigin = RemoteCreator aliceDomain }
+  MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {creatorOrigin = RemoteUser aliceDomain}
   let bob = users !! 0
       bobClient = snd . Data.List.NonEmpty.head . pClients $ bob
 
@@ -1185,7 +1168,6 @@ sendMLSWelcome = do
     void . liftIO $
       WS.assertMatch (5 # WS.Second) wsB $
         wsAssertMLSWelcome (pUserId bob) welcome
-
 
 getConvAction :: Sing tag -> SomeConversationAction -> Maybe (ConversationAction tag)
 getConvAction tquery (SomeConversationAction tag action) =

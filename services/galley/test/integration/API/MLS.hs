@@ -29,6 +29,7 @@ import Data.Id
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1
 import Data.Qualified
+import Data.Qualified (Qualified (qUnqualified), toLocalUnsafe)
 import Data.Range
 import Data.String.Conversions
 import qualified Data.Text as T
@@ -53,7 +54,8 @@ tests s =
     [ testGroup
         "Welcome"
         [ test s "local welcome" testLocalWelcome,
-          test s "local welcome (client with no public key)" testWelcomeNoKey
+          test s "local welcome (client with no public key)" testWelcomeNoKey,
+          test s "remote welcome" testRemoteWelcome
         ],
       testGroup
         "Creation"
@@ -111,7 +113,7 @@ postMLSConvOk = do
 
 testLocalWelcome :: TestM ()
 testLocalWelcome = do
-  MessagingSetup {..} <- aliceInvitesBob 1 def
+  MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def
   let bob = users !! 0
 
   galley <- viewGalley
@@ -136,7 +138,7 @@ testLocalWelcome = do
 
 testWelcomeNoKey :: TestM ()
 testWelcomeNoKey = do
-  MessagingSetup {..} <- aliceInvitesBob 1 def {createClients = CreateWithoutKey}
+  MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createClients = CreateWithoutKey}
 
   galley <- viewGalley
   post
@@ -148,6 +150,62 @@ testWelcomeNoKey = do
         . bytes welcome
     )
     !!! const 404 === statusCode
+
+testRemoteWelcome :: TestM ()
+testRemoteWelcome = withSystemTempDirectory "mls" $ \tmp -> do
+  -- MessagingSetup {..} <- aliceInvitesBob (1, RemoteUser) def
+
+  -- galley <- viewGalley
+  -- cannon <- view tsCannon
+
+  -- Things to do:
+
+  --   1. Have a group and a conversation created by Alice. At this point no one
+  --   but Alice is in. We need to create a local user Alice, her one client
+  --   and a key package for it.
+
+  let opts@SetupOptions {..} = def {createConv = CreateConv}
+  (alice, _) <- withLastPrekeys $ setupParticipants tmp opts []
+  let lAlice = qTagUnsafe @QLocal (pUserId alice)
+  -- create a group
+  conversation <- setupGroup tmp createConv alice "group"
+
+  --   2. Create a fake remote user Bob. Bob should have one client. It's fine
+  --   to use CLI to create a key package for the client because it doesn't
+  --   matter that the client is remote.
+
+  let bobDomain = "b.far-away.example.com"
+  bob <- randomQualifiedId bobDomain
+
+  Participant _ bobClients <- withLastPrekeys $ setupParticipant tmp DontCreateClients 1 bob
+
+  --   3. Connect Alice and Bob.
+  connectWithRemoteUser (qUnqualified alice) bob
+
+  --   4. Alice claims Bob's key package.
+data KeyPackageBundleEntry = KeyPackageBundleEntry
+  { kpbeUser :: Qualified UserId,
+    kpbeClient :: ClientId,
+    kpbeRef :: KeyPackageRef,
+    kpbeKeyPackage :: KeyPackageData
+  }
+  deriving stock (Eq, Ord, Show)
+
+  let bundle = KeyPackageBundle $ Set.singleton $ KeyPackageBundleEntry
+        { kpbeUser = bob,
+          kpbeClient = bobClients !! 0,
+          kpbeRef =
+
+        }
+  (resp, reqs) <-
+    withTempMockFederator'
+      ( \fedReq -> pure . encode bundle )
+      (claimKeyPackage lAlice bob)
+
+--   5. Alice creates a welcome message and bob's key package is needed for that.
+
+--   6. Using 'POST /mls/welcome' Alice submits a welcome message for Bob.
+--   Assert the correct federated call is made.
 
 -- | Send a commit message, and assert that all participants see an event with
 -- the given list of new members.
@@ -216,7 +274,7 @@ testSuccessfulCommit setup = testSuccessfulCommitWithNewUsers setup (map pUserId
 
 testAddUser :: TestM ()
 testAddUser = do
-  setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = CreateConv}
+  setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
   testSuccessfulCommit setup
 
   -- check that bob can now see the conversation
@@ -231,7 +289,7 @@ testAddUser = do
 
 testAddUserNotConnected :: TestM ()
 testAddUserNotConnected = do
-  setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = CreateConv, makeConnections = False}
+  setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv, makeConnections = False}
   let bob = users !! 0
 
   -- try to add unconnected user
@@ -247,7 +305,7 @@ testAddUserWithProteusClients = do
   setup <- withSystemTempDirectory "mls" $ \tmp -> do
     (alice, users@[bob]) <- withLastPrekeys $ do
       -- bob has 2 MLS clients
-      participants@(_, [bob]) <- setupParticipants tmp def [2]
+      participants@(_, [bob]) <- setupParticipants tmp def [(2, LocalUser)]
 
       -- and a non-MLS client
       void $ takeLastPrekey >>= lift . randomClient (qUnqualified (pUserId bob))
@@ -266,7 +324,7 @@ testAddUserPartial :: TestM ()
 testAddUserPartial = do
   (creator, commit) <- withSystemTempDirectory "mls" $ \tmp -> do
     -- Bob has 3 clients, Charlie has 2
-    (alice, [bob, charlie]) <- withLastPrekeys $ setupParticipants tmp def [3, 2]
+    (alice, [bob, charlie]) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [3, 2])
     void $ setupGroup tmp CreateConv alice "group"
     (commit, _) <-
       liftIO . setupCommit tmp "group" "group" $
@@ -292,7 +350,7 @@ testAddNewClient :: TestM ()
 testAddNewClient = do
   withSystemTempDirectory "mls" $ \tmp -> withLastPrekeys $ do
     -- bob starts with a single client
-    (creator, users@[bob]) <- setupParticipants tmp def [1]
+    (creator, users@[bob]) <- setupParticipants tmp def [(1, LocalUser)]
     conversation <- lift $ setupGroup tmp CreateConv creator "group"
 
     -- creator sends first commit message
@@ -310,13 +368,13 @@ testAddNewClient = do
 
 testAddUsersToProteus :: TestM ()
 testAddUsersToProteus = do
-  setup <- aliceInvitesBob 1 def {createConv = CreateProteusConv}
+  setup <- aliceInvitesBob (1, LocalUser) def {createConv = CreateProteusConv}
   err <- testFailedCommit setup 404
   liftIO $ Wai.label err @?= "no-conversation"
 
 testAddUsersDirectly :: TestM ()
 testAddUsersDirectly = do
-  setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = CreateConv}
+  setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
   void $ postCommit setup
   charlie <- randomUser
   e <-
@@ -330,7 +388,7 @@ testAddUsersDirectly = do
 
 testRemoveUsersDirectly :: TestM ()
 testRemoveUsersDirectly = do
-  setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = CreateConv}
+  setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
   void $ postCommit setup
   e <-
     responseJsonError
@@ -343,7 +401,7 @@ testRemoveUsersDirectly = do
 
 testProteusMessage :: TestM ()
 testProteusMessage = do
-  setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = CreateConv}
+  setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
   void $ postCommit setup
   e <-
     responseJsonError
@@ -359,7 +417,7 @@ testProteusMessage = do
 
 testStaleCommit :: TestM ()
 testStaleCommit = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, users) <- withLastPrekeys $ setupParticipants tmp def [2, 3]
+  (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [2, 3])
   conversation <- setupGroup tmp CreateConv creator "group.0"
   let (users1, users2) = splitAt 1 users
 
@@ -382,7 +440,7 @@ testStaleCommit = withSystemTempDirectory "mls" $ \tmp -> do
 
 testAppMessage :: TestM ()
 testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, users) <- withLastPrekeys $ setupParticipants tmp def [1, 2, 3]
+  (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [1, 2, 3])
   conversation <- setupGroup tmp CreateConv creator "group"
 
   (commit, welcome) <-

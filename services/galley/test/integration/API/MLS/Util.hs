@@ -30,9 +30,8 @@ import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Json.Util
-import Data.List.NonEmpty (NonEmpty, nonEmpty)
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.List1
 import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Text as T
@@ -58,7 +57,7 @@ data CreateClients = CreateWithoutKey | CreateWithKey | DontCreateClients
 data CreateConv = CreateConv | CreateProteusConv | DontCreateConv
   deriving (Eq)
 
-data CreatorOrigin = LocalCreator | RemoteCreator Domain
+data UserOrigin = LocalUser | RemoteUser Domain
 
 createNewConv :: CreateConv -> Maybe NewConv
 createNewConv CreateConv = Just defNewMLSConv
@@ -67,7 +66,7 @@ createNewConv DontCreateConv = Nothing
 
 data SetupOptions = SetupOptions
   { createClients :: CreateClients,
-    creatorOrigin :: CreatorOrigin,
+    creatorOrigin :: UserOrigin,
     createConv :: CreateConv,
     makeConnections :: Bool
   }
@@ -76,7 +75,7 @@ instance Default SetupOptions where
   def =
     SetupOptions
       { createClients = CreateWithKey,
-        creatorOrigin = LocalCreator,
+        creatorOrigin = LocalUser,
         createConv = DontCreateConv,
         makeConnections = True
       }
@@ -153,34 +152,36 @@ setupParticipants ::
   HasCallStack =>
   FilePath ->
   SetupOptions ->
-  [Int] ->
+  -- | A list of pairs, where each pair represents the number of clients for a
+  -- participant other than the group creator and whether the participant is
+  -- local or remote.
+  [(Int, UserOrigin)] ->
   State.StateT [LastPrekey] TestM (Participant, [Participant])
 setupParticipants tmp SetupOptions {..} ns = do
-  creator <- lift createUserOrId >>= setupParticipant tmp DontCreateClients 1
-  others <- for ns $ \n ->
-    lift randomQualifiedUser >>= setupParticipant tmp createClients n
-  lift . when makeConnections $ case creatorOrigin of
-    LocalCreator ->
-      traverse_
-        ( connectUsers (qUnqualified (pUserId creator))
-            . List1
-            . fmap (qUnqualified . pUserId)
-        )
-        (nonEmpty others)
-    RemoteCreator _ ->
-      traverse_
-        ( \u ->
-            connectWithRemoteUser
-              (qUnqualified . pUserId $ u)
-              (pUserId creator)
-        )
-        others
-  pure (creator, others)
+  creator <- lift (createUserOrId creatorOrigin) >>= setupParticipant tmp DontCreateClients 1
+  others <- for ns $ \(n, ur) ->
+    lift (createUserOrId ur) >>= fmap (,ur) . setupParticipant tmp createClients n
+  lift . when makeConnections $ do
+    for_ others $ \(o, ur) -> case (creatorOrigin, ur) of
+      (LocalUser, LocalUser) ->
+        connectUsers (qUnqualified (pUserId creator)) (pure ((qUnqualified . pUserId) o))
+      (LocalUser, RemoteUser _) ->
+        connectWithRemoteUser
+          (qUnqualified . pUserId $ creator)
+          (pUserId o)
+      (RemoteUser _, LocalUser) ->
+        connectWithRemoteUser
+          (qUnqualified . pUserId $ o)
+          (pUserId creator)
+      (RemoteUser _, RemoteUser _) ->
+        liftIO $
+          assertFailure "Trying to have both the creator and a group participant remote"
+  pure (creator, fst <$> others)
   where
-    createUserOrId :: TestM (Qualified UserId)
-    createUserOrId = case creatorOrigin of
-      LocalCreator -> randomQualifiedUser
-      RemoteCreator d -> randomQualifiedId d
+    createUserOrId :: UserOrigin -> TestM (Qualified UserId)
+    createUserOrId = \case
+      LocalUser -> randomQualifiedUser
+      RemoteUser d -> randomQualifiedId d
 
 withLastPrekeys :: Monad m => State.StateT [LastPrekey] m a -> m a
 withLastPrekeys m = State.evalStateT m someLastPrekeys
@@ -239,9 +240,9 @@ takeLastPrekey = do
 -- | Setup: Alice creates a group and invites Bob that is local or remote to
 -- Alice depending on the passed in creator origin. Return welcome and commit
 -- message.
-aliceInvitesBob :: HasCallStack => Int -> SetupOptions -> TestM MessagingSetup
-aliceInvitesBob numBobClients opts@SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
-  (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp opts [numBobClients]
+aliceInvitesBob :: HasCallStack => (Int, UserOrigin) -> SetupOptions -> TestM MessagingSetup
+aliceInvitesBob bobConf opts@SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
+  (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp opts [bobConf]
   -- create a group
   conversation <- setupGroup tmp createConv alice "group"
 
@@ -287,6 +288,14 @@ addKeyPackage u c kp = do
         )
       <!! const 200 === statusCode
   liftIO $ map (Just . kpbeRef) (toList (kpbEntries bundle)) @?= [kpRef' kp]
+
+claimKeyPackage :: (MonadIO m, MonadHttp m, HasGalley m) => Local UserId -> Qualified UserId -> m ResponseLBS
+claimKeyPackage claimant target =
+  post
+    ( brig
+        . paths ["mls", "key-packages", "claim", toByteString' (qDomain target), toByteString' (qUnqualified target)]
+        . zUser (tUnqualified claimant)
+    )
 
 postCommit :: MessagingSetup -> TestM [Event]
 postCommit MessagingSetup {..} = do
