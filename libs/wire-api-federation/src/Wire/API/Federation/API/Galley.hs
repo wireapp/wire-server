@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Wire.API.Federation.API.Galley where
 
@@ -259,6 +260,7 @@ newtype MLSWelcomeRecipient = MLSWelcomeRecipient {unMLSWelRecipient :: (UserId,
   deriving stock (Generic)
   deriving (Arbitrary) via (GenericUniform MLSWelcomeRecipient)
   deriving (FromJSON, ToJSON) via CustomEncoded MLSWelcomeRecipient
+  deriving newtype (Show, Eq)
 
 data MLSWelcomeRequest = MLSWelcomeRequest
   { mwrRawWelcome :: Base64ByteString,

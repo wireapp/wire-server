@@ -116,7 +116,7 @@ sendRemoteWelcomes ::
 sendRemoteWelcomes rawWelcome rClients = do
   let req =
         MLSWelcomeRequest
-          { mwrRawWelcome = toBase64ByteString rawWelcome,
+          { mwrRawWelcome = Base64ByteString rawWelcome,
             mwrRecipients = MLSWelcomeRecipient <$> tUnqualified rClients
           }
   let rpc = fedClient @'Galley @"mls-welcome" req

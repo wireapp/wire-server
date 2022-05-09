@@ -24,15 +24,18 @@ import API.Util
 import Bilge
 import Bilge.Assert
 import Control.Lens (view)
+import qualified Data.Aeson as Aeson
 import Data.Default
+import Data.Domain
 import Data.Id
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1
 import Data.Qualified
-import Data.Qualified (Qualified (qUnqualified), toLocalUnsafe)
 import Data.Range
+import qualified Data.Set as Set
 import Data.String.Conversions
 import qualified Data.Text as T
+import Federator.MockServer (FederatedRequest (frRPC), frBody)
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import System.FilePath
@@ -45,6 +48,9 @@ import TestHelpers
 import TestSetup
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
+import Wire.API.Federation.API.Galley (MLSWelcomeRecipient (MLSWelcomeRecipient), MLSWelcomeRequest, mwrRecipients)
+import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Serialisation
 import Wire.API.Message
 
 tests :: IO TestSetup -> TestTree
@@ -121,14 +127,7 @@ testLocalWelcome = do
 
   WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
     -- send welcome message
-    post
-      ( galley
-          . paths ["mls", "welcome"]
-          . zUser (qUnqualified (pUserId creator))
-          . zConn "conn"
-          . content "message/mls"
-          . bytes welcome
-      )
+    postWelcome galley (qUnqualified $ pUserId creator) welcome
       !!! const 201 === statusCode
 
     -- check that the corresponding event is received
@@ -153,59 +152,58 @@ testWelcomeNoKey = do
 
 testRemoteWelcome :: TestM ()
 testRemoteWelcome = withSystemTempDirectory "mls" $ \tmp -> do
-  -- MessagingSetup {..} <- aliceInvitesBob (1, RemoteUser) def
+  galley <- viewGalley
+  brig <- view tsBrig
 
-  -- galley <- viewGalley
-  -- cannon <- view tsCannon
-
-  -- Things to do:
-
-  --   1. Have a group and a conversation created by Alice. At this point no one
-  --   but Alice is in. We need to create a local user Alice, her one client
-  --   and a key package for it.
-
+  -- 1. Create a conversation with just alice
   let opts@SetupOptions {..} = def {createConv = CreateConv}
   (alice, _) <- withLastPrekeys $ setupParticipants tmp opts []
-  let lAlice = qTagUnsafe @QLocal (pUserId alice)
-  -- create a group
-  conversation <- setupGroup tmp createConv alice "group"
+  _conversation <- setupGroup tmp createConv alice "group"
 
-  --   2. Create a fake remote user Bob. Bob should have one client. It's fine
-  --   to use CLI to create a key package for the client because it doesn't
-  --   matter that the client is remote.
-
-  let bobDomain = "b.far-away.example.com"
+  -- 2. Create a fake remote user Bob with one client. It's fine to use CLI to
+  -- create a key package for the client because it doesn't matter that the
+  -- client is remote.
+  let bobDomain = Domain "b.far-away.example.com"
   bob <- randomQualifiedId bobDomain
+  (qcidBob, cBob, kpBob) <- withLastPrekeys $ setupUserClient tmp DontCreateClients bob
 
-  Participant _ bobClients <- withLastPrekeys $ setupParticipant tmp DontCreateClients 1 bob
+  -- 3. Connect Alice and Bob.
+  connectWithRemoteUser (qUnqualified (pUserId alice)) bob
 
-  --   3. Connect Alice and Bob.
-  connectWithRemoteUser (qUnqualified alice) bob
+  -- 4. Alice claims Bob's key package and sends a welcome message
+  let bundle =
+        KeyPackageBundle $
+          Set.singleton $
+            KeyPackageBundleEntry
+              { kpbeUser = bob,
+                kpbeClient = cBob,
+                kpbeRef = fromJust $ kpRef' kpBob,
+                kpbeKeyPackage = KeyPackageData $ rmRaw kpBob
+              }
 
-  --   4. Alice claims Bob's key package.
-data KeyPackageBundleEntry = KeyPackageBundleEntry
-  { kpbeUser :: Qualified UserId,
-    kpbeClient :: ClientId,
-    kpbeRef :: KeyPackageRef,
-    kpbeKeyPackage :: KeyPackageData
-  }
-  deriving stock (Eq, Ord, Show)
+  let mockedResponse fedReq =
+        case frRPC fedReq of
+          "claim-key-packages" -> pure (Aeson.encode bundle)
+          "mls-welcome" -> pure (Aeson.encode ())
+          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
 
-  let bundle = KeyPackageBundle $ Set.singleton $ KeyPackageBundleEntry
-        { kpbeUser = bob,
-          kpbeClient = bobClients !! 0,
-          kpbeRef =
+  (_resp, reqs) <-
+    withTempMockFederator' mockedResponse $ do
+      -- TODO: this does not work, because we are only mocking the federator for
+      -- galley, not brig
+      claimKeyPackage brig (qUnqualified $ pUserId alice) bob
+        !!! const 200 === statusCode
 
-        }
-  (resp, reqs) <-
-    withTempMockFederator'
-      ( \fedReq -> pure . encode bundle )
-      (claimKeyPackage lAlice bob)
+      (_commit, welcome) <- liftIO $ setupCommit tmp "group" "group" [(qcidBob, cBob)]
 
---   5. Alice creates a welcome message and bob's key package is needed for that.
+      postWelcome galley (qUnqualified $ pUserId alice) welcome
+        !!! const 201 === statusCode
 
---   6. Using 'POST /mls/welcome' Alice submits a welcome message for Bob.
---   Assert the correct federated call is made.
+  --  Assert the correct federated call is made.
+  fedWelcome <- assertOne (filter ((== "mls-welcome") . frRPC) reqs)
+  let welcomeRequest :: MLSWelcomeRequest = fromJust $ Aeson.decode (frBody fedWelcome)
+  liftIO $ do
+    mwrRecipients welcomeRequest @?= [MLSWelcomeRecipient (qUnqualified bob, cBob)]
 
 -- | Send a commit message, and assert that all participants see an event with
 -- the given list of new members.
@@ -360,7 +358,8 @@ testAddNewClient = do
 
     do
       -- then bob adds a new client
-      bobC <- setupUserClient tmp CreateWithKey (pUserId bob)
+      (qcid, c, _kp) <- setupUserClient tmp CreateWithKey (pUserId bob)
+      let bobC = (qcid, c)
       -- which gets added to the group
       (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" [bobC]
       -- and the corresponding commit is sent

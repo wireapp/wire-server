@@ -107,7 +107,7 @@ setupUserClient ::
   FilePath ->
   CreateClients ->
   Qualified UserId ->
-  State.StateT [LastPrekey] TestM (String, ClientId)
+  State.StateT [LastPrekey] TestM (String, ClientId, RawMLS KeyPackage)
 setupUserClient tmp doCreateClients usr = do
   lpk <- takeLastPrekey
   lift $ do
@@ -135,7 +135,7 @@ setupUserClient tmp doCreateClients usr = do
       CreateWithKey -> addKeyPackage usr c kp
       _ -> pure ()
 
-    pure (qcid, c)
+    pure (qcid, c, kp)
 
 setupParticipant ::
   HasCallStack =>
@@ -145,7 +145,7 @@ setupParticipant ::
   Qualified UserId ->
   State.StateT [LastPrekey] TestM Participant
 setupParticipant tmp doCreateClients numClients usr =
-  Participant usr . NonEmpty.fromList
+  Participant usr . NonEmpty.fromList . fmap (\(qcid, c, _kp) -> (qcid, c))
     <$> replicateM numClients (setupUserClient tmp doCreateClients usr)
 
 setupParticipants ::
@@ -289,12 +289,12 @@ addKeyPackage u c kp = do
       <!! const 200 === statusCode
   liftIO $ map (Just . kpbeRef) (toList (kpbEntries bundle)) @?= [kpRef' kp]
 
-claimKeyPackage :: (MonadIO m, MonadHttp m, HasGalley m) => Local UserId -> Qualified UserId -> m ResponseLBS
-claimKeyPackage claimant target =
+claimKeyPackage :: (MonadIO m, MonadHttp m, HasGalley m) => (Request -> Request) -> UserId -> Qualified UserId -> m ResponseLBS
+claimKeyPackage brig claimant target =
   post
     ( brig
         . paths ["mls", "key-packages", "claim", toByteString' (qDomain target), toByteString' (qUnqualified target)]
-        . zUser (tUnqualified claimant)
+        . zUser claimant
     )
 
 postCommit :: MessagingSetup -> TestM [Event]
@@ -309,3 +309,14 @@ postCommit MessagingSetup {..} = do
           . bytes commit
       )
     <!! const 201 === statusCode
+
+postWelcome :: (MonadIO m, MonadHttp m, HasGalley m) => (Request -> Request) -> UserId -> ByteString -> m ResponseLBS
+postWelcome galley uid welcome =
+  post
+    ( galley
+        . paths ["mls", "welcome"]
+        . zUser uid
+        . zConn "conn"
+        . content "message/mls"
+        . bytes welcome
+    )
