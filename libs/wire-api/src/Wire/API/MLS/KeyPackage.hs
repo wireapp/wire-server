@@ -80,7 +80,7 @@ data KeyPackageBundleEntry = KeyPackageBundleEntry
     kpbeRef :: KeyPackageRef,
     kpbeKeyPackage :: KeyPackageData
   }
-  deriving stock (Eq, Ord)
+  deriving stock (Eq, Ord, Show)
 
 instance ToSchema KeyPackageBundleEntry where
   schema =
@@ -92,6 +92,7 @@ instance ToSchema KeyPackageBundleEntry where
         <*> kpbeKeyPackage .= field "key_package" schema
 
 newtype KeyPackageBundle = KeyPackageBundle {kpbEntries :: Set KeyPackageBundleEntry}
+  deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema KeyPackageBundle
 
 instance ToSchema KeyPackageBundle where

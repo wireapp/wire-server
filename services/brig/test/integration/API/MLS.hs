@@ -21,11 +21,14 @@ import API.MLS.Util
 import Bilge
 import Bilge.Assert
 import Brig.Options
+import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Qualified
 import qualified Data.Set as Set
+import Federation.Util
 import Imports
+import Test.QuickCheck (arbitrary, generate, resize)
 import Test.Tasty
 import Test.Tasty.HUnit
 import UnliftIO.Temporary
@@ -37,14 +40,15 @@ import Wire.API.User
 import Wire.API.User.Client
 
 tests :: Manager -> Brig -> Opts -> TestTree
-tests m b _opts =
+tests m b opts =
   testGroup
     "MLS"
     [ test m "POST /mls/key-packages/self/:client" (testKeyPackageUpload b),
       test m "POST /mls/key-packages/self/:client (no public keys)" (testKeyPackageUploadNoKey b),
       test m "GET /mls/key-packages/self/:client/count" (testKeyPackageZeroCount b),
-      test m "GET /mls/key-packages/claim/:domain/:user" (testKeyPackageClaim b),
-      test m "GET /mls/key-packages/claim/:domain/:user - self claim" (testKeyPackageSelfClaim b)
+      test m "GET /mls/key-packages/claim/local/:user" (testKeyPackageClaim b),
+      test m "GET /mls/key-packages/claim/local/:user - self claim" (testKeyPackageSelfClaim b),
+      test m "GET /mls/key-packages/claim/remote/:user" (testKeyPackageRemoteClaim opts b)
     ]
 
 testKeyPackageUpload :: Brig -> Http ()
@@ -95,23 +99,14 @@ testKeyPackageClaim brig = do
             . zUser (qUnqualified u')
         )
         <!! const 200 === statusCode
+
   liftIO $ Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle) @?= Set.fromList [(u, c1), (u, c2)]
+  checkMapping brig u bundle
 
   -- check that we have one fewer key package now
   for_ [c1, c2] $ \c -> do
     count <- getKeyPackageCount brig u c
     liftIO $ count @?= 2
-
-  -- check that the package refs are correctly mapped
-  for_ (kpbEntries bundle) $ \e -> do
-    cid <-
-      responseJsonError
-        =<< get (brig . paths ["i", "mls", "key-packages", toHeader (kpbeRef e)])
-        <!! const 200 === statusCode
-    liftIO $ do
-      ciDomain cid @?= qDomain u
-      ciUser cid @?= qUnqualified u
-      ciClient cid @?= kpbeClient e
 
 testKeyPackageSelfClaim :: Brig -> Http ()
 testKeyPackageSelfClaim brig = do
@@ -160,7 +155,49 @@ testKeyPackageSelfClaim brig = do
     count <- getKeyPackageCount brig u c
     liftIO $ count @?= n
 
+testKeyPackageRemoteClaim :: Opts -> Brig -> Http ()
+testKeyPackageRemoteClaim opts brig = do
+  u <- fakeRemoteUser
+
+  u' <- userQualifiedId <$> randomUser brig
+
+  entries <-
+    liftIO . replicateM 2 . generate $
+      -- claimed key packages are not validated by the backend, so it is fine to
+      -- make up some random data here
+      KeyPackageBundleEntry
+        <$> pure u
+        <*> arbitrary
+        <*> (KeyPackageRef <$> arbitrary)
+        <*> (KeyPackageData <$> resize 64 arbitrary)
+  let mockBundle = KeyPackageBundle (Set.fromList entries)
+  (bundle :: KeyPackageBundle, _reqs) <-
+    liftIO . withTempMockFederator opts (Aeson.encode mockBundle) $
+      responseJsonError
+        =<< post
+          ( brig
+              . paths ["mls", "key-packages", "claim", toByteString' (qDomain u), toByteString' (qUnqualified u)]
+              . zUser (qUnqualified u')
+          )
+          <!! const 200 === statusCode
+
+  liftIO $ bundle @?= mockBundle
+  checkMapping brig u bundle
+
 --------------------------------------------------------------------------------
+
+-- | Check that the package refs are correctly mapped
+checkMapping :: Brig -> Qualified UserId -> KeyPackageBundle -> Http ()
+checkMapping brig u bundle =
+  for_ (kpbEntries bundle) $ \e -> do
+    cid <-
+      responseJsonError
+        =<< get (brig . paths ["i", "mls", "key-packages", toHeader (kpbeRef e)])
+        <!! const 200 === statusCode
+    liftIO $ do
+      ciDomain cid @?= qDomain u
+      ciUser cid @?= qUnqualified u
+      ciClient cid @?= kpbeClient e
 
 createClient :: Brig -> Qualified UserId -> Int -> Http ClientId
 createClient brig u i =
