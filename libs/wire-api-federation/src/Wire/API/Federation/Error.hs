@@ -69,6 +69,7 @@ module Wire.API.Federation.Error
   ( FederatorClientHTTP2Error (..),
     FederatorClientError (..),
     FederationError (..),
+    VersionNegotiationError (..),
     federationErrorToWai,
     federationRemoteHTTP2Error,
     federationRemoteResponseError,
@@ -114,6 +115,14 @@ data FederatorClientError
     FederatorClientServantError ClientError
   | -- | This error will be thrown when federator returns an error response.
     FederatorClientError Wai.Error
+  | -- | This happens when an invalid version information response is returned
+    -- by federator, or when negotiation fails because no common version could
+    -- be found.
+    FederatorClientVersionNegotiationError VersionNegotiationError
+  | -- | This happens when no endpoint for the negotiated version could be
+    -- found among the alternative. This error could in principle be checked
+    -- statically, but it is not trivial to do so.
+    FederatorClientVersionMismatch
   deriving (Show, Typeable)
 
 instance Exception FederatorClientError
@@ -144,6 +153,20 @@ data FederationError
     FederationUnexpectedError Text
   deriving (Show, Typeable)
 
+data VersionNegotiationError
+  = InvalidVersionInfo
+  | RemoteTooOld
+  | RemoteTooNew
+  deriving (Show, Typeable)
+
+versionNegotiationErrorMessage :: VersionNegotiationError -> LText
+versionNegotiationErrorMessage InvalidVersionInfo =
+  "Remote federator returned invalid version information"
+versionNegotiationErrorMessage RemoteTooOld =
+  "Version negotiation failed: the remote backend is too old"
+versionNegotiationErrorMessage RemoteTooNew =
+  "Version negotiation failed: the remote backend is too new"
+
 instance Exception FederationError
 
 instance APIError FederationError where
@@ -164,6 +187,16 @@ federationClientErrorToWai FederatorClientStreamingNotSupported =
 federationClientErrorToWai (FederatorClientServantError err) =
   federationServantErrorToWai err
 federationClientErrorToWai (FederatorClientError err) = err
+federationClientErrorToWai (FederatorClientVersionNegotiationError err) =
+  Wai.mkError
+    unexpectedFederationResponseStatus
+    "federation-version-error"
+    (versionNegotiationErrorMessage err)
+federationClientErrorToWai FederatorClientVersionMismatch =
+  Wai.mkError
+    HTTP.status500
+    "internal-error"
+    "Endpoint version mismatch in federation client"
 
 federationRemoteHTTP2Error :: FederatorClientHTTP2Error -> Wai.Error
 federationRemoteHTTP2Error FederatorClientNoStatusCode =

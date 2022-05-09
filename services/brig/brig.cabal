@@ -1,4 +1,4 @@
-cabal-version: 2.0
+cabal-version: 1.12
 
 -- This file has been generated from package.yaml by hpack version 0.34.4.
 --
@@ -13,18 +13,11 @@ maintainer:     Wire Swiss GmbH <backend@wire.com>
 copyright:      (c) 2017 Wire Swiss GmbH
 license:        AGPL-3
 license-file:   LICENSE
-build-type:     Custom
+build-type:     Simple
 extra-source-files:
+    docs/swagger-v0.json
+    docs/swagger-v1.json
     docs/swagger.md
-
-custom-setup
-  setup-depends:
-      Cabal
-    , base
-    , containers
-    , directory
-    , filepath
-    , text
 
 library
   exposed-modules:
@@ -128,9 +121,6 @@ library
       Main
   other-modules:
       Paths_brig
-      Brig.Docs.Swagger
-  autogen-modules:
-      Brig.Docs.Swagger
   hs-source-dirs:
       src
   default-extensions:
@@ -212,6 +202,7 @@ library
     , errors >=1.4
     , exceptions >=0.5
     , extended
+    , file-embed-lzma
     , filepath >=1.3
     , fsnotify >=0.2
     , galley-types >=0.75.3

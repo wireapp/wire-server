@@ -1,0 +1,8 @@
+A new field `development` has been added to the object returned by `GET
+/api-version`. Versions listed there are considered in flux, meaning that the
+corresponding API contracts can change arbitrarily over time. Clients are free
+to use development versions, as long as they are also listed in `supported`,
+and failures due to incompatibilities are acceptable (e.g. in testing
+environments). Backends are the authoritative source on whether a development
+version can be used at all. If a development version should not be used, the
+backend will not list it among the supported versions at all.

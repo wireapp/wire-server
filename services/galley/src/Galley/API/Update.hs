@@ -39,6 +39,7 @@ module Galley.API.Update
 
     -- * Managing Members
     addMembersUnqualified,
+    addMembersUnqualifiedV2,
     addMembers,
     updateUnqualifiedSelfMember,
     updateSelfMember,
@@ -785,10 +786,45 @@ addMembers ::
     r =>
   Local UserId ->
   ConnId ->
+  Qualified ConvId ->
+  InviteQualified ->
+  Sem r (UpdateResult Event)
+addMembers lusr zcon qcnv (InviteQualified users role) = do
+  lcnv <- ensureLocal lusr qcnv
+  getUpdateResult $
+    updateLocalConversationWithLocalUser @'ConversationJoinTag lcnv lusr (Just zcon) $
+      ConversationJoin users role
+
+addMembersUnqualifiedV2 ::
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       Error FederationError,
+       ErrorS ('ActionDenied 'AddConversationMember),
+       ErrorS ('ActionDenied 'LeaveConversation),
+       ErrorS 'ConvAccessDenied,
+       ErrorS 'ConvNotFound,
+       ErrorS 'InvalidOperation,
+       ErrorS 'NotConnected,
+       ErrorS 'NotATeamMember,
+       ErrorS 'TooManyMembers,
+       ErrorS 'MissingLegalholdConsent,
+       ExternalAccess,
+       FederatorAccess,
+       GundeckAccess,
+       Input Opts,
+       Input UTCTime,
+       LegalHoldStore,
+       MemberStore,
+       TeamStore
+     ]
+    r =>
+  Local UserId ->
+  ConnId ->
   ConvId ->
   InviteQualified ->
   Sem r (UpdateResult Event)
-addMembers lusr zcon cnv (InviteQualified users role) = do
+addMembersUnqualifiedV2 lusr zcon cnv (InviteQualified users role) = do
   let lcnv = qualifyAs lusr cnv
   getUpdateResult $
     updateLocalConversationWithLocalUser @'ConversationJoinTag lcnv lusr (Just zcon) $
@@ -825,7 +861,7 @@ addMembersUnqualified ::
   Sem r (UpdateResult Event)
 addMembersUnqualified lusr zcon cnv (Invite users role) = do
   let qusers = fmap (qUntagged . qualifyAs lusr) (toNonEmpty users)
-  addMembers lusr zcon cnv (InviteQualified qusers role)
+  addMembers lusr zcon (qUntagged (qualifyAs lusr cnv)) (InviteQualified qusers role)
 
 updateSelfMember ::
   Members

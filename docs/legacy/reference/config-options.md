@@ -493,3 +493,9 @@ Valid values for `search_policy` are:
 - `full_search`: Additionally to `exact_handle_search`, users are found by a freetext search on handle and display name.
 
 If there is no configuration for a domain, it's defaulted to `no_search`.
+
+### API Versioning
+
+#### `setEnableDevelopmentVersions`
+
+This options determines whether development versions should be enabled. If set to `False`, all development versions are removed from the `supported` field of the `/api-version` endpoint. Note that they are still listed in the `development` field, and continue to work normally.

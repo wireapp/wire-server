@@ -547,7 +547,9 @@ data Settings = Settings
     -- field. The default setting is to exclude and omit the field from the
     -- response.
     setSftListAllServers :: Maybe ListAllSFTServers,
-    setKeyPackageMaximumLifetime :: Maybe NominalDiffTime
+    setKeyPackageMaximumLifetime :: Maybe NominalDiffTime,
+    -- | When set, development API versions are advertised to clients.
+    setEnableDevelopmentVersions :: Maybe Bool
   }
   deriving (Show, Generic)
 
@@ -766,7 +768,8 @@ Lens.makeLensesFor
     ("setSqsThrottleMillis", "sqsThrottleMillis"),
     ("setSftStaticUrl", "sftStaticUrl"),
     ("setSftListAllServers", "sftListAllServers"),
-    ("setFederationDomainConfigs", "federationDomainConfigs")
+    ("setFederationDomainConfigs", "federationDomainConfigs"),
+    ("setEnableDevelopmentVersions", "enableDevelopmentVersions")
   ]
   ''Settings
 

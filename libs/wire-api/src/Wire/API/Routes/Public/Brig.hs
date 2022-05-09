@@ -46,6 +46,7 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
+import Wire.API.Routes.Version
 import Wire.API.User hiding (NoIdentity)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -97,7 +98,8 @@ type UserAPI =
   -- See Note [ephemeral user sideeffect]
   Named
     "get-user-unqualified"
-    ( Summary "Get a user by UserId (deprecated)"
+    ( Summary "Get a user by UserId"
+        :> Until 'V2
         :> ZUser
         :> "users"
         :> CaptureUserId "uid"
@@ -127,6 +129,7 @@ type UserAPI =
     :<|> Named
            "get-handle-info-unqualified"
            ( Summary "(deprecated, use /search/contacts) Get information on a user handle"
+               :> Until 'V2
                :> ZUser
                :> "users"
                :> "handles"
@@ -142,6 +145,7 @@ type UserAPI =
     :<|> Named
            "get-user-by-handle-qualified"
            ( Summary "(deprecated, use /search/contacts) Get information on a user handle"
+               :> Until 'V2
                :> ZUser
                :> "users"
                :> "by-handle"
@@ -159,6 +163,7 @@ type UserAPI =
     Named
       "list-users-by-unqualified-ids-or-handles"
       ( Summary "List users (deprecated)"
+          :> Until 'V2
           :> Description "The 'ids' and 'handles' parameters are mutually exclusive."
           :> ZUser
           :> "users"
@@ -337,6 +342,7 @@ type PrekeyAPI =
   Named
     "get-users-prekeys-client-unqualified"
     ( Summary "(deprecated) Get a prekey for a specific client of a user."
+        :> Until 'V2
         :> ZUser
         :> "users"
         :> CaptureUserId "uid"
@@ -357,6 +363,7 @@ type PrekeyAPI =
     :<|> Named
            "get-users-prekey-bundle-unqualified"
            ( Summary "(deprecated) Get a prekey for each client of a user."
+               :> Until 'V2
                :> ZUser
                :> "users"
                :> CaptureUserId "uid"
@@ -378,6 +385,7 @@ type PrekeyAPI =
                "(deprecated)  Given a map of user IDs to client IDs return a \
                \prekey for each one. You can't request information for more users than \
                \maximum conversation size."
+               :> Until 'V2
                :> ZUser
                :> "users"
                :> "prekeys"
@@ -484,7 +492,8 @@ type UserClientAPI =
 type ClientAPI =
   Named
     "get-user-clients-unqualified"
-    ( Summary "Get all of a user's clients (deprecated)."
+    ( Summary "Get all of a user's clients"
+        :> Until 'V2
         :> "users"
         :> CaptureUserId "uid"
         :> "clients"
@@ -492,7 +501,7 @@ type ClientAPI =
     )
     :<|> Named
            "get-user-clients-qualified"
-           ( Summary "Get all of a user's clients."
+           ( Summary "Get all of a user's clients"
                :> "users"
                :> QualifiedCaptureUserId "uid"
                :> "clients"
@@ -500,7 +509,8 @@ type ClientAPI =
            )
     :<|> Named
            "get-user-client-unqualified"
-           ( Summary "Get a specific client of a user (deprecated)."
+           ( Summary "Get a specific client of a user"
+               :> Until 'V2
                :> "users"
                :> CaptureUserId "uid"
                :> "clients"
@@ -509,7 +519,7 @@ type ClientAPI =
            )
     :<|> Named
            "get-user-client-qualified"
-           ( Summary "Get a specific client of a user."
+           ( Summary "Get a specific client of a user"
                :> "users"
                :> QualifiedCaptureUserId "uid"
                :> "clients"
@@ -518,7 +528,8 @@ type ClientAPI =
            )
     :<|> Named
            "list-clients-bulk"
-           ( Summary "List all clients for a set of user ids (deprecated, use /users/list-clients/v2)"
+           ( Summary "List all clients for a set of user ids"
+               :> Until 'V2
                :> ZUser
                :> "users"
                :> "list-clients"
@@ -528,10 +539,21 @@ type ClientAPI =
     :<|> Named
            "list-clients-bulk-v2"
            ( Summary "List all clients for a set of user ids"
+               :> Until 'V2
                :> ZUser
                :> "users"
                :> "list-clients"
                :> "v2"
+               :> ReqBody '[JSON] (LimitedQualifiedUserIdList MaxUsersForListClientsBulk)
+               :> Post '[JSON] (WrappedQualifiedUserMap (Set PubClient))
+           )
+    :<|> Named
+           "list-clients-bulk@v2"
+           ( Summary "List all clients for a set of user ids"
+               :> From 'V2
+               :> ZUser
+               :> "users"
+               :> "list-clients"
                :> ReqBody '[JSON] (LimitedQualifiedUserIdList MaxUsersForListClientsBulk)
                :> Post '[JSON] (WrappedQualifiedUserMap (Set PubClient))
            )
@@ -547,7 +569,8 @@ type ClientAPI =
 type ConnectionAPI =
   Named
     "create-connection-unqualified"
-    ( Summary "Create a connection to another user (deprecated)"
+    ( Summary "Create a connection to another user"
+        :> Until 'V2
         :> CanThrow 'MissingLegalholdConsent
         :> CanThrow 'InvalidUser
         :> CanThrow 'ConnectionLimitReached
@@ -591,7 +614,8 @@ type ConnectionAPI =
            )
     :<|> Named
            "list-local-connections"
-           ( Summary "List the local connections to other users (deprecated)"
+           ( Summary "List the local connections to other users"
+               :> Until 'V2
                :> ZUser
                :> "connections"
                :> QueryParam' '[Optional, Strict, Description "User ID to start from when paginating"] "start" UserId
@@ -609,7 +633,8 @@ type ConnectionAPI =
            )
     :<|> Named
            "get-connection-unqualified"
-           ( Summary "Get an existing connection to another user (deprecated)"
+           ( Summary "Get an existing connection to another user"
+               :> Until 'V2
                :> ZUser
                :> "connections"
                :> CaptureUserId "uid"
@@ -644,7 +669,8 @@ type ConnectionAPI =
     -- - MemberJoin event to self and other (via galley)
     Named
       "update-connection-unqualified"
-      ( Summary "Update a connection to another user (deprecated)"
+      ( Summary "Update a connection to another user"
+          :> Until 'V2
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached
@@ -671,7 +697,8 @@ type ConnectionAPI =
     -- - MemberJoin event to self and other (via galley)
     Named
       "update-connection"
-      ( Summary "Update a connection to another user (deprecatd)"
+      ( Summary "Update a connection to another user"
+          :> Until 'V2
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached

@@ -32,14 +32,11 @@ import Control.Monad.Trans.Except (ExceptT (..), throwE)
 import Data.Domain
 import Data.Handle
 import Data.Id (ClientId, UserId)
-import Data.Proxy
 import Data.Qualified
 import Data.Range (Range)
 import qualified Data.Text as T
-import GHC.TypeLits
 import Imports
 import Servant.Client hiding (client)
-import Servant.Client.Core
 import qualified System.Logger.Class as Log
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
@@ -59,7 +56,7 @@ getUserHandleInfo ::
   ExceptT FederationError m (Maybe UserProfile)
 getUserHandleInfo (qUntagged -> Qualified handle domain) = do
   lift $ Log.info $ Log.msg $ T.pack "Brig-federation: handle lookup call on remote backend"
-  executeFederated @"get-user-by-handle" domain handle
+  runBrigFederatorClient domain $ fedClient @'Brig @"get-user-by-handle" handle
 
 getUsersByIds ::
   ( MonadReader Env m,
@@ -71,7 +68,7 @@ getUsersByIds ::
   ExceptT FederationError m [UserProfile]
 getUsersByIds domain uids = do
   lift $ Log.info $ Log.msg ("Brig-federation: get users by ids on remote backends" :: ByteString)
-  executeFederated @"get-users-by-ids" domain uids
+  runBrigFederatorClient domain $ fedClient @'Brig @"get-users-by-ids" uids
 
 claimPrekey ::
   (MonadReader Env m, MonadIO m, Log.MonadLogger m) =>
@@ -80,7 +77,7 @@ claimPrekey ::
   ExceptT FederationError m (Maybe ClientPrekey)
 claimPrekey (Qualified user domain) client = do
   lift $ Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey"
-  executeFederated @"claim-prekey" domain (user, client)
+  runBrigFederatorClient domain $ fedClient @'Brig @"claim-prekey" (user, client)
 
 claimPrekeyBundle ::
   ( MonadReader Env m,
@@ -91,7 +88,7 @@ claimPrekeyBundle ::
   ExceptT FederationError m PrekeyBundle
 claimPrekeyBundle (Qualified user domain) = do
   lift $ Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey bundle"
-  executeFederated @"claim-prekey-bundle" domain user
+  runBrigFederatorClient domain $ fedClient @'Brig @"claim-prekey-bundle" user
 
 claimMultiPrekeyBundle ::
   ( Log.MonadLogger m,
@@ -103,7 +100,7 @@ claimMultiPrekeyBundle ::
   ExceptT FederationError m UserClientPrekeyMap
 claimMultiPrekeyBundle domain uc = do
   lift . Log.info $ Log.msg @Text "Brig-federation: claiming remote multi-user prekey bundle"
-  executeFederated @"claim-multi-prekey-bundle" domain uc
+  runBrigFederatorClient domain $ fedClient @'Brig @"claim-multi-prekey-bundle" uc
 
 searchUsers ::
   ( MonadReader Env m,
@@ -115,7 +112,7 @@ searchUsers ::
   ExceptT FederationError m SearchResponse
 searchUsers domain searchTerm = do
   lift $ Log.info $ Log.msg $ T.pack "Brig-federation: search call on remote backend"
-  executeFederated @"search-users" domain searchTerm
+  runBrigFederatorClient domain $ fedClient @'Brig @"search-users" searchTerm
 
 getUserClients ::
   ( MonadReader Env m,
@@ -127,7 +124,7 @@ getUserClients ::
   ExceptT FederationError m (UserMap (Set PubClient))
 getUserClients domain guc = do
   lift $ Log.info $ Log.msg @Text "Brig-federation: get users' clients from remote backend"
-  executeFederated @"get-user-clients" domain guc
+  runBrigFederatorClient domain $ fedClient @'Brig @"get-user-clients" guc
 
 sendConnectionAction ::
   (MonadReader Env m, MonadIO m, Log.MonadLogger m) =>
@@ -138,7 +135,7 @@ sendConnectionAction ::
 sendConnectionAction self (qUntagged -> other) action = do
   let req = NewConnectionRequest (tUnqualified self) (qUnqualified other) action
   lift $ Log.info $ Log.msg @Text "Brig-federation: sending connection action to remote backend"
-  executeFederated @"send-connection-action" (qDomain other) req
+  runBrigFederatorClient (qDomain other) $ fedClient @'Brig @"send-connection-action" req
 
 notifyUserDeleted ::
   ( MonadReader Env m,
@@ -153,8 +150,9 @@ notifyUserDeleted ::
 notifyUserDeleted self remotes = do
   let remoteConnections = tUnqualified remotes
   void $
-    executeFederated @"on-user-deleted-connections" (tDomain remotes) $
-      UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
+    runBrigFederatorClient (tDomain remotes) $
+      fedClient @'Brig @"on-user-deleted-connections" $
+        UserDeletedConnectionsNotification (tUnqualified self) remoteConnections
 
 runBrigFederatorClient ::
   (MonadReader Env m, MonadIO m) =>
@@ -172,17 +170,3 @@ runBrigFederatorClient targetDomain action = do
           }
   liftIO (runFederatorClient env action)
     >>= either (throwE . FederationCallFailure) pure
-
-executeFederated ::
-  forall (name :: Symbol) api m.
-  ( MonadReader Env m,
-    MonadIO m,
-    HasFedEndpoint 'Brig api name,
-    HasClient ClientM api,
-    HasClient (FederatorClient 'Brig) api
-  ) =>
-  Domain ->
-  Client (ExceptT FederationError m) api
-executeFederated domain =
-  hoistClient (Proxy @api) (runBrigFederatorClient @m domain) $
-    clientIn (Proxy @api) (Proxy @(FederatorClient 'Brig))
