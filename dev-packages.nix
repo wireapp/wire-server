@@ -180,6 +180,7 @@ in
   pkgs.jq
   pkgs.niv
   pkgs.ormolu
+  pkgs.shellcheck
   pkgs.wget
   pkgs.yq
   pkgs.rsync

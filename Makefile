@@ -128,6 +128,52 @@ add-license:
 	@echo ""
 	@echo "you might want to run 'make formatf' now to make sure ormolu is happy"
 
+# lint all shell scripts with ShellCheck
+# FUTUREWORK: Fix issues of the explicitly (no globbing) excluded files.
+SHELL_FILES_TO_LINT=$(shell find \
+	-not -path "./dist-newstyle/*" \
+	-not -path "./services/nginz/third_party/*" \
+	-not -path "./libs/wire-api/test/golden/gentests.sh" \
+	-not -path "./changelog.d/mk-changelog.sh" \
+	-not -path "./hack/bin/integration-teardown.sh" \
+	-not -path "./hack/bin/diff-failure.sh" \
+	-not -path "./hack/bin/integration-setup.sh" \
+	-not -path "./hack/bin/cabal-run-tests.sh" \
+	-not -path "./hack/bin/integration-teardown-federation.sh" \
+	-not -path "./hack/bin/integration-setup-federation.sh" \
+	-not -path "./hack/bin/serve-charts.sh" \
+	-not -path "./hack/bin/cabal-install-artefacts.sh" \
+	-not -path "./hack/bin/helm-template.sh" \
+	-not -path "./hack/bin/set-chart-image-version.sh" \
+	-not -path "./hack/bin/copy-charts.sh" \
+	-not -path "./hack/bin/set-helm-chart-version.sh" \
+	-not -path "./hack/bin/integration-spring-cleaning.sh" \
+	-not -path "./hack/bin/upload-helm-charts-s3.sh" \
+	-not -path "./hack/bin/integration-test-logs.sh" \
+	-not -path "./services/nginz/nginz_reload.sh" \
+	-not -path "./services/spar/test-scim-suite/mk_collection.sh" \
+	-not -path "./services/spar/test-scim-suite/runsuite.sh" \
+	-not -path "./services/spar/test-scim-suite/run.sh" \
+	-not -path "./services/brig/federation-tests.sh" \
+	-not -path "./services/integration.sh" \
+	-not -path "./deploy/services-demo/create_test_team_members.sh" \
+	-not -path "./deploy/services-demo/demo.sh" \
+	-not -path "./deploy/services-demo/create_test_team_scim.sh" \
+	-not -path "./deploy/services-demo/create_test_user.sh" \
+	-not -path "./deploy/services-demo/create_team_members.sh" \
+	-not -path "./deploy/services-demo/register_idp_internal.sh" \
+	-not -path "./deploy/services-demo/create_test_team_admins.sh" \
+	-not -path "./deploy/dockerephemeral/init.sh" \
+	-not -path "./tools/nginz_disco/nginz_disco.sh" \
+	-not -path "./tools/rebase-onto-formatter.sh" \
+	-not -path "./tools/sftd_disco/sftd_disco.sh" \
+	-not -path "./tools/ormolu.sh" \
+	-not -path "./tools/db/move-team/dump_merge_teams.sh" \
+	-type f -iname '*.sh')
+.PHONY: shellcheck
+shellcheck:
+	shellcheck -x $(SHELL_FILES_TO_LINT)
+
 # Clean
 .PHONY: clean
 clean:
