@@ -1,0 +1,3 @@
+MLS implementation progress:
+
+ - remote key package claim is now supported (#2353)
