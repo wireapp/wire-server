@@ -1382,6 +1382,7 @@ specUpdateUser = describe "PUT /Users/:id" $ do
   it "updates the matching Brig user" $ testBrigSideIsUpdated
   it "cannot update user to match another user's externalId" $ testUpdateToExistingExternalIdFails
   it "cannot remove display name" $ testCannotRemoveDisplayName
+  it "updates the externalId of unregistered account" $ testUpdateExternalIdOfUnregisteredAccount
   context "user is from different team" $ do
     it "fails to update user with 404" testUserUpdateFailsWithNotFoundIfOutsideTeam
   context "user does not exist" $ do
@@ -1566,7 +1567,7 @@ testUpdateExternalId withidp = do
         let userid = scimUserId storedUser
         if withidp
           then call $ activateEmail brig email
-          else registerUser email
+          else registerUser brig tid email
         veid :: ValidExternalId <-
           either (error . show) pure $ mkValidExternalId midp (Scim.User.externalId user)
         -- Overwrite the user with another randomly-generated user (only controlling externalId)
@@ -1585,8 +1586,8 @@ testUpdateExternalId withidp = do
         _ <- updateUser tok userid user'
 
         when hasChanged (call $ activateEmail brig otherEmail)
-        muserid <- lookupByValidExternalId veid
-        muserid' <- lookupByValidExternalId veid'
+        muserid <- lookupByValidExternalId tid veid
+        muserid' <- lookupByValidExternalId tid veid'
         liftIO $ do
           if hasChanged
             then do
@@ -1597,29 +1598,61 @@ testUpdateExternalId withidp = do
               (hasChanged, muserid') `shouldBe` (hasChanged, Just userid)
         eventually $ checkEmail userid (Just $ if hasChanged then otherEmail else email)
 
-      lookupByValidExternalId :: ValidExternalId -> TestSpar (Maybe UserId)
-      lookupByValidExternalId =
-        runValidExternalIdEither
-          (runSpar . SAMLUserStore.get)
-          ( \email -> do
-              let action = SU.scimFindUserByEmail midp tid $ fromEmail email
-              result <- runSpar . runExceptT . runMaybeT $ action
-              case result of
-                Right muser -> pure $ Scim.id . Scim.thing <$> muser
-                Left err -> error $ show err
-          )
-
-      registerUser :: Email -> TestSpar ()
-      registerUser email = do
-        let r = call $ get (brig . path "/i/teams/invitations/by-email" . queryItem "email" (toByteString' email))
-        inv <- responseJsonError =<< r <!! statusCode === const 200
-        Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
-        call $
-          post (brig . path "/register" . contentJson . json (acceptWithName (Name "Alice") email inviteeCode))
-            !!! const 201 === statusCode
-
   checkUpdate True
   checkUpdate False
+
+testUpdateExternalIdOfUnregisteredAccount :: TestSpar ()
+testUpdateExternalIdOfUnregisteredAccount = do
+  env <- ask
+  brig <- view teBrig
+  (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+  tok <- registerScimToken tid Nothing
+  -- Create a user via SCIM
+  email <- randomEmail
+  user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
+  storedUser <- createUser tok user
+  let userid = scimUserId storedUser
+  veid :: ValidExternalId <-
+    either (error . show) pure $ mkValidExternalId Nothing (Scim.User.externalId user)
+  -- Overwrite the user with another randomly-generated user (only controlling externalId)
+  -- And update the user before they have registered their account
+  otherEmail <- randomEmail
+  user' <- do
+    let upd u = u {Scim.User.externalId = Just $ fromEmail otherEmail}
+    randomScimUser <&> upd
+  let veid' = either (error . show) id $ mkValidExternalId Nothing (Scim.User.externalId user')
+  _ <- updateUser tok userid user'
+  -- Now the user registers their account (via old email)
+  registerUser brig tid email
+  -- Then the user activates their new email address
+  call $ activateEmail brig otherEmail
+  muserid <- lookupByValidExternalId tid veid
+  muserid' <- lookupByValidExternalId tid veid'
+  liftIO $ do
+    muserid `shouldBe` Nothing
+    muserid' `shouldBe` Just userid
+  eventually $ checkEmail userid (Just otherEmail)
+
+lookupByValidExternalId :: TeamId -> ValidExternalId -> TestSpar (Maybe UserId)
+lookupByValidExternalId tid =
+  runValidExternalIdEither
+    (runSpar . SAMLUserStore.get)
+    ( \email -> do
+        let action = SU.scimFindUserByEmail Nothing tid $ fromEmail email
+        result <- runSpar . runExceptT . runMaybeT $ action
+        case result of
+          Right muser -> pure $ Scim.id . Scim.thing <$> muser
+          Left err -> error $ show err
+    )
+
+registerUser :: BrigReq -> TeamId -> Email -> TestSpar ()
+registerUser brig tid email = do
+  let r = call $ get (brig . path "/i/teams/invitations/by-email" . queryItem "email" (toByteString' email))
+  inv <- responseJsonError =<< r <!! statusCode === const 200
+  Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+  call $
+    post (brig . path "/register" . contentJson . json (acceptWithName (Name "Alice") email inviteeCode))
+      !!! const 201 === statusCode
 
 -- | Test that when the user is updated via SCIM, the data in Brig is also updated.
 testBrigSideIsUpdated :: TestSpar ()
