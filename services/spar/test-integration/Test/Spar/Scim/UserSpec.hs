@@ -1556,7 +1556,6 @@ testUpdateExternalId withidp = do
       else do
         (_owner, tid) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         (,Nothing,tid) <$> registerScimToken tid Nothing
-  setSamlEmailValidation tid Feature.TeamFeatureEnabled
 
   let checkUpdate :: HasCallStack => Bool -> TestSpar ()
       checkUpdate hasChanged {- is externalId updated with a different value, or with itself? -} = do
