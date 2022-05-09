@@ -66,7 +66,7 @@ import Network.URI (URI, parseURI)
 import Polysemy
 import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
-import Spar.App (GetUserResult (..), getUserIdByScimExternalId, getUserIdByUref, validateEmailIfExists)
+import Spar.App (GetUserResult (..), getUserIdByScimExternalId, getUserIdByUref, validateEmail, validateEmailIfExists)
 import qualified Spar.Intra.BrigApp as Brig
 import Spar.Scim.Auth ()
 import Spar.Scim.Types (normalizeLikeStored)
@@ -612,9 +612,8 @@ updateVsuUref ::
   ST.ValidExternalId ->
   Sem r ()
 updateVsuUref team uid old new = do
-  let geturef = ST.runValidExternalIdEither Just (const Nothing)
-  case (geturef old, geturef new) of
-    (mo, mn@(Just newuref)) | mo /= mn -> validateEmailIfExists uid newuref
+  case (veidEmail old, veidEmail new) of
+    (mo, mn@(Just email)) | mo /= mn -> validateEmail (Just team) uid email
     _ -> pure ()
 
   old & ST.runValidExternalIdBoth (>>) (SAMLUserStore.delete uid) (ScimExternalIdStore.delete team)

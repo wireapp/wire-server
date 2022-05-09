@@ -130,6 +130,7 @@ module Util.Core
     checkErrHspec,
     updateTeamMemberRole,
     checkChangeRoleOfTeamMember,
+    eventually,
   )
 where
 
@@ -1329,3 +1330,6 @@ checkChangeRoleOfTeamMember tid adminId targetId = forM_ [minBound ..] $ \role -
   updateTeamMemberRole tid adminId targetId role
   [member'] <- filter ((== targetId) . (^. Member.userId)) <$> getTeamMembers adminId tid
   liftIO $ (member' ^. Member.permissions . to Teams.permissionsRole) `shouldBe` Just role
+
+eventually :: HasCallStack => TestSpar a -> TestSpar a
+eventually = recovering (limitRetries 3 <> exponentialBackoff 100000) [] . const

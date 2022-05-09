@@ -28,6 +28,7 @@ module Spar.App
     getUserIdByScimExternalId,
     insertUser,
     validateEmailIfExists,
+    validateEmail,
     errorPage,
     getIdPIdByIssuer,
     getIdPConfigByIssuer,
@@ -72,7 +73,6 @@ import SAML2.WebSSO
     uidTenant,
   )
 import qualified SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Servant
 import qualified Servant.Multipart as Multipart
 import Spar.Error hiding (sparToServerErrorWithLogging)
@@ -301,16 +301,16 @@ autoprovisionSamlUserWithId mbteam buid suid = do
 -- make brig initiate the email validate procedure.
 validateEmailIfExists :: forall r. Members '[GalleyAccess, BrigAccess] r => UserId -> SAML.UserRef -> Sem r ()
 validateEmailIfExists uid = \case
-  (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate (CI.original email)
+  (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> do
+    mbTid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
+    validateEmail mbTid uid . Intra.emailFromSAML . CI.original $ email
   _ -> pure ()
-  where
-    doValidate :: SAMLEmail.Email -> Sem r ()
-    doValidate email = do
-      enabled <- do
-        tid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
-        maybe (pure False) (GalleyAccess.isEmailValidationEnabledTeam) tid
-      when enabled $ do
-        BrigAccess.updateEmail uid (Intra.emailFromSAML email)
+
+validateEmail :: forall r. Members '[GalleyAccess, BrigAccess] r => Maybe TeamId -> UserId -> Email -> Sem r ()
+validateEmail mbTid uid email = do
+  enabled <- maybe (pure False) GalleyAccess.isEmailValidationEnabledTeam mbTid
+  when enabled $ do
+    BrigAccess.updateEmail uid email
 
 -- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so,
 -- register a the user under its SAML credentials and write the 'UserRef' into the
