@@ -43,6 +43,7 @@ servantSitemap =
     <@> mls
     <@> customBackend
     <@> legalHold
+    <@> teamMember
   where
     conversations =
       mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
@@ -296,3 +297,13 @@ servantSitemap =
         <@> mkNamedAPI @"request-legal-hold-device" requestDevice
         <@> mkNamedAPI @"disable-legal-hold-for-user" disableForUser
         <@> mkNamedAPI @"approve-legal-hold-device" approveDevice
+
+    teamMember :: API TeamMemberAPI GalleyEffects
+    teamMember =
+      mkNamedAPI @"get-team-members" getTeamMembers
+        <@> mkNamedAPI @"get-team-member" getTeamMember
+        <@> mkNamedAPI @"get-team-members-by-ids" bulkGetTeamMembers
+        <@> mkNamedAPI @"add-team-member" addTeamMember
+        <@> mkNamedAPI @"delete-team-member" deleteTeamMember
+        <@> mkNamedAPI @"delete-non-binding-team-member" deleteNonBindingTeamMember
+        <@> mkNamedAPI @"update-team-member" updateTeamMember
