@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE OverloadedStrings #-}
 
 module Galley.API.Federation where
 
@@ -33,6 +34,7 @@ import Data.Range (Range (fromRange))
 import qualified Data.Set as Set
 import Data.Singletons (SingI (..), demote, sing)
 import qualified Data.Text.Lazy as LT
+import qualified Data.Text.Lazy as TL
 import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
@@ -531,21 +533,24 @@ mlsSendWelcome ::
   Members
     '[ GundeckAccess,
        Input (Local ()),
-       Input UTCTime
+       Input UTCTime,
+       Error InvalidInput
      ]
     r =>
   Domain ->
   F.MLSWelcomeRequest ->
   Sem r ()
 mlsSendWelcome _origDomain (F.MLSWelcomeRequest b64RawWelcome rcpts) = do
-  let lclients = F.unMLSWelRecipient <$> rcpts
-      -- TODO: use 'B64.decode' instead of lenient decoding
-      rawWelcome = B64.decodeLenient . fromBase64ByteString $ b64RawWelcome
   loc <- input @(Local ())
   now <- input @UTCTime
-  runMessagePush loc Nothing $
-    foldMap (uncurry $ mkPush rawWelcome loc now) lclients
-  pure ()
+  let eithWelcome = B64.decode . fromBase64ByteString $ b64RawWelcome
+  rawWelcome <- case eithWelcome of
+    Left str -> throw (InvalidPayload ("Encoding of value in \"raw_welcome\" is not RFC 4648 compliant: " <> TL.pack str))
+    Right rawWelcome -> pure rawWelcome
+
+  void $
+    runMessagePush loc Nothing $
+      foldMap (uncurry $ mkPush rawWelcome loc now) (F.unMLSWelRecipient <$> rcpts)
   where
     mkPush :: ByteString -> Local x -> UTCTime -> UserId -> ClientId -> MessagePush 'Broadcast
     mkPush rawWelcome l time u c =
