@@ -23,6 +23,7 @@ import API.Util
 import Bilge
 import Bilge.Assert
 import Control.Lens (preview, to, view)
+import Control.Monad.Catch
 import qualified Control.Monad.State as State
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
@@ -289,7 +290,17 @@ addKeyPackage u c kp = do
       <!! const 200 === statusCode
   liftIO $ map (Just . kpbeRef) (toList (kpbEntries bundle)) @?= [kpRef' kp]
 
-claimKeyPackage :: (MonadIO m, MonadHttp m, HasGalley m) => (Request -> Request) -> UserId -> Qualified UserId -> m ResponseLBS
+mapRemoteKeyPackageRef :: (MonadIO m, MonadHttp m, MonadCatch m) => (Request -> Request) -> KeyPackageBundle -> m ()
+mapRemoteKeyPackageRef brig bundle =
+  void $
+    put
+      ( brig
+          . paths ["i", "mls", "key-package-refs"]
+          . json bundle
+      )
+      !!! const 204 === statusCode
+
+claimKeyPackage :: (MonadIO m, MonadHttp m) => (Request -> Request) -> UserId -> Qualified UserId -> m ResponseLBS
 claimKeyPackage brig claimant target =
   post
     ( brig

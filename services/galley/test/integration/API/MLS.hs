@@ -183,17 +183,13 @@ testRemoteWelcome = withSystemTempDirectory "mls" $ \tmp -> do
 
   let mockedResponse fedReq =
         case frRPC fedReq of
-          "claim-key-packages" -> pure (Aeson.encode bundle)
           "mls-welcome" -> pure (Aeson.encode ())
           ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
 
+  mapRemoteKeyPackageRef brig bundle
+
   (_resp, reqs) <-
     withTempMockFederator' mockedResponse $ do
-      -- TODO: this does not work, because we are only mocking the federator for
-      -- galley, not brig
-      claimKeyPackage brig (qUnqualified $ pUserId alice) bob
-        !!! const 200 === statusCode
-
       (_commit, welcome) <- liftIO $ setupCommit tmp "group" "group" [(qcidBob, cBob)]
 
       postWelcome galley (qUnqualified $ pUserId alice) welcome
