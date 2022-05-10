@@ -24,9 +24,8 @@ module Galley.API.Action
     HasConversationActionGalleyErrors,
 
     -- * Performing actions
-    updateLocalConversationWithLocalUser,
-    updateLocalConversationWithLocalUserUnchecked,
-    updateLocalConversationWithRemoteUser,
+    updateLocalConversation,
+    updateLocalConversationUnchecked,
     NoChanges (..),
 
     -- * Utilities
@@ -47,7 +46,6 @@ import Data.List.NonEmpty (nonEmpty)
 import qualified Data.Map as Map
 import Data.Misc
 import Data.Qualified
-import qualified Data.Set as S
 import qualified Data.Set as Set
 import Data.Singletons
 import Data.Time.Clock
@@ -410,7 +408,7 @@ performConversationJoin qusr lcnv conv (ConversationJoin invited role) = do
               when (consentGiven status == ConsentNotGiven) $ do
                 let lvictim = qualifyAs lcnv (lmId mem)
                 void . runError @NoChanges $
-                  updateLocalConversationWithLocalUser @'ConversationLeaveTag lcnv lvictim Nothing $
+                  updateLocalConversation @'ConversationLeaveTag lcnv (qUntagged lvictim) Nothing $
                     pure (qUntagged lvictim)
           else throwS @'MissingLegalholdConsent
 
@@ -495,7 +493,7 @@ performConversationAccessData qusr lcnv conv action = do
             pure $ bm {bmLocals = Set.fromList noTeamMembers}
           Nothing -> pure bm
 
-updateLocalConversationWithLocalUser ::
+updateLocalConversation ::
   forall tag r.
   ( Members
       '[ ConversationStore,
@@ -513,11 +511,11 @@ updateLocalConversationWithLocalUser ::
     SingI tag
   ) =>
   Local ConvId ->
-  Local UserId ->
+  Qualified UserId ->
   Maybe ConnId ->
   ConversationAction tag ->
-  Sem r Event
-updateLocalConversationWithLocalUser lcnv lusr con action = do
+  Sem r (Event, ConversationUpdate)
+updateLocalConversation lcnv qusr con action = do
   let tag = sing @tag
 
   -- retrieve conversation
@@ -528,7 +526,7 @@ updateLocalConversationWithLocalUser lcnv lusr con action = do
     throwS @'InvalidOperation
 
   -- perform all authorisation checks and, if successful, the update itself
-  updateLocalConversationWithLocalUserUnchecked @tag conv lusr con action
+  updateLocalConversationUnchecked @tag (qualifyAs lcnv conv) qusr con action
 
 -- | Similar to 'updateLocalConversationWithLocalUser', but takes a
 -- 'Conversation' value directly, instead of a 'ConvId', and skips protocol
@@ -537,7 +535,7 @@ updateLocalConversationWithLocalUser lcnv lusr con action = do
 -- This is intended to be used by protocol-aware code, once all the
 -- protocol-specific checks and updates have been performed, to finally apply
 -- the changes to the conversation as seen by the backend.
-updateLocalConversationWithLocalUserUnchecked ::
+updateLocalConversationUnchecked ::
   forall tag r.
   ( SingI tag,
     Member (ErrorS ('ActionDenied (ConversationActionPermission tag))) r,
@@ -549,90 +547,32 @@ updateLocalConversationWithLocalUserUnchecked ::
     Member (Input UTCTime) r,
     HasConversationActionEffects tag r
   ) =>
-  Conversation ->
-  Local UserId ->
+  Local Conversation ->
+  Qualified UserId ->
   Maybe ConnId ->
   ConversationAction tag ->
-  Sem r Event
-updateLocalConversationWithLocalUserUnchecked conv lusr con action = do
+  Sem r (Event, ConversationUpdate)
+updateLocalConversationUnchecked lconv qusr con action = do
   let tag = sing @tag
-      lcnv = qualifyAs lusr (convId conv)
+      lcnv = fmap convId lconv
+      conv = tUnqualified lconv
 
   -- retrieve member
-  self <- noteS @'ConvNotFound $ getConvMember lusr conv lusr
+  self <- noteS @'ConvNotFound $ getConvMember lconv conv qusr
 
   -- perform checks
   ensureConversationActionAllowed (sing @tag) lcnv action conv self
 
   -- perform action
-  (extraTargets, action') <- performAction tag (qUntagged lusr) lcnv conv action
+  (extraTargets, action') <- performAction tag qusr lcnv conv action
 
   notifyConversationAction
     (sing @tag)
-    (qUntagged lusr)
+    qusr
     con
     lcnv
     (convBotsAndMembers conv <> extraTargets)
     action'
-
-updateLocalConversationWithRemoteUser ::
-  forall tag r.
-  ( Members
-      '[ ConversationStore,
-         Error NoChanges,
-         ErrorS ('ActionDenied (ConversationActionPermission tag)),
-         ErrorS 'InvalidOperation,
-         ErrorS 'ConvNotFound,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         Input UTCTime
-       ]
-      r,
-    HasConversationActionEffects tag r
-  ) =>
-  Sing tag ->
-  Local ConvId ->
-  Remote UserId ->
-  ConversationAction tag ->
-  Sem r ConversationUpdate
-updateLocalConversationWithRemoteUser tag lcnv rusr action = do
-  -- retrieve conversation
-  (conv, self) <- getConversationAndMemberWithError @'ConvNotFound (qUntagged rusr) lcnv
-
-  -- perform checks
-  ensureConversationActionAllowed tag lcnv action conv self
-
-  -- perform action
-  (extraTargets, action') <- performAction tag (qUntagged rusr) lcnv conv action
-
-  -- filter out user from rusr's domain, because rusr's backend will update
-  -- local state and notify its users itself using the ConversationUpdate
-  -- returned by this function
-  let targets = convBotsAndMembers conv <> extraTargets
-      remotes = bmRemotes targets
-      remotesUserDomain = S.filter ((== tDomain rusr) . tDomain) remotes
-      remotesOtherDomain = remotes Set.\\ remotesUserDomain
-
-  void $
-    notifyConversationAction
-      tag
-      (qUntagged rusr)
-      Nothing
-      lcnv
-      (targets {bmRemotes = remotesOtherDomain})
-      action'
-
-  now <- input
-
-  pure $
-    ConversationUpdate
-      { cuTime = now,
-        cuOrigUserId = qUntagged rusr,
-        cuConvId = tUnqualified lcnv,
-        cuAlreadyPresentUsers = tUnqualified <$> S.toList remotesUserDomain,
-        cuAction = SomeConversationAction tag action'
-      }
 
 -- --------------------------------------------------------------------------------
 -- -- Utilities
@@ -687,17 +627,35 @@ notifyConversationAction ::
   Local ConvId ->
   BotsAndMembers ->
   ConversationAction (tag :: ConversationActionTag) ->
-  Sem r Event
+  Sem r (Event, ConversationUpdate)
 notifyConversationAction tag quid con lcnv targets action = do
   now <- input
   let e = conversationActionToEvent tag now quid (qUntagged lcnv) action
 
-  E.runFederatedConcurrently_ (toList (bmRemotes targets)) $ \ruids ->
-    fedClient @'Galley @"on-conversation-updated" $
-      ConversationUpdate now quid (tUnqualified lcnv) (tUnqualified ruids) (SomeConversationAction tag action)
+  let mkUpdate uids =
+        ConversationUpdate
+          now
+          quid
+          (tUnqualified lcnv)
+          uids
+          (SomeConversationAction tag action)
+  update <- fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified)
+    . E.runFederatedConcurrently (toList (bmRemotes targets))
+    $ \ruids -> do
+      let update = mkUpdate (tUnqualified ruids)
+      -- filter out user from quid's domain, because quid's backend will update
+      -- local state and notify its users itself using the ConversationUpdate
+      -- returned by this function
+      if (tDomain ruids == qDomain quid)
+        then pure (Just update)
+        else fedClient @'Galley @"on-conversation-updated" update $> Nothing
 
   -- notify local participants and bots
-  pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets) $> e
+  pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)
+
+  -- return both the event and the 'ConversationUpdate' structure corresponding
+  -- to the originating domain (if it is remote)
+  pure $ (e, update)
 
 -- | Notify all local members about a remote conversation update that originated
 -- from a local user

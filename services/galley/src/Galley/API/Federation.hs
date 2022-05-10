@@ -294,7 +294,14 @@ leaveConversation requestingDomain lc = do
       . mapError @NoChanges (const F.RemoveFromConversationErrorUnchanged)
       $ do
         (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound (qUntagged leaver) lcnv
-        update <- updateLocalConversationWithRemoteUser SConversationLeaveTag lcnv leaver (pure (qUntagged leaver))
+        update <-
+          snd
+            <$> updateLocalConversation
+              @'ConversationLeaveTag
+              lcnv
+              (qUntagged leaver)
+              Nothing
+              (pure (qUntagged leaver))
         pure (update, conv)
 
   case res of
@@ -304,7 +311,7 @@ leaveConversation requestingDomain lc = do
 
       let remotes = filter ((== tDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
-      _event <- notifyConversationAction SConversationLeaveTag (qUntagged leaver) Nothing lcnv botsAndMembers action
+      _ <- notifyConversationAction SConversationLeaveTag (qUntagged leaver) Nothing lcnv botsAndMembers action
 
       pure $ F.LeaveConversationResponse (Right ())
 
@@ -446,9 +453,7 @@ updateConversation ::
        ]
       r
   ) =>
-  --
   Domain ->
-  --
   F.ConversationUpdateRequest ->
   Sem r ConversationUpdateResponse
 updateConversation origDomain updateRequest = do
@@ -457,42 +462,50 @@ updateConversation origDomain updateRequest = do
       lcnv = qualifyAs loc (F.curConvId updateRequest)
 
   mkResponse $ case F.curAction updateRequest of
-    SomeConversationAction tag action ->
-      case tag of
-        SConversationJoinTag ->
-          mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationJoinTag) $
-            updateLocalConversationWithRemoteUser tag lcnv rusr action
-        SConversationLeaveTag ->
-          mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationLeaveTag)
-            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
-        SConversationRemoveMembersTag ->
-          mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationRemoveMembersTag)
-            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
-        SConversationMemberUpdateTag ->
-          mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationMemberUpdateTag)
-            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
-        SConversationDeleteTag ->
-          mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationDeleteTag)
-            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
-        SConversationRenameTag ->
-          mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationRenameTag)
-            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
-        SConversationMessageTimerUpdateTag ->
-          mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationMessageTimerUpdateTag)
-            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
-        SConversationReceiptModeUpdateTag ->
-          mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag) $
-            updateLocalConversationWithRemoteUser tag lcnv rusr action
-        SConversationAccessDataTag ->
-          mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationAccessDataTag)
-            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
+    SomeConversationAction tag action -> case tag of
+      SConversationJoinTag ->
+        mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationJoinTag)
+          . fmap snd
+          $ updateLocalConversation @'ConversationJoinTag lcnv (qUntagged rusr) Nothing action
+      SConversationLeaveTag ->
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationLeaveTag)
+          . fmap snd
+          $ updateLocalConversation @'ConversationLeaveTag lcnv (qUntagged rusr) Nothing action
+      SConversationRemoveMembersTag ->
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationRemoveMembersTag)
+          . fmap snd
+          $ updateLocalConversation @'ConversationRemoveMembersTag lcnv (qUntagged rusr) Nothing action
+      SConversationMemberUpdateTag ->
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationMemberUpdateTag)
+          . fmap snd
+          $ updateLocalConversation @'ConversationMemberUpdateTag lcnv (qUntagged rusr) Nothing action
+      SConversationDeleteTag ->
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationDeleteTag)
+          . fmap snd
+          $ updateLocalConversation @'ConversationDeleteTag lcnv (qUntagged rusr) Nothing action
+      SConversationRenameTag ->
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationRenameTag)
+          . fmap snd
+          $ updateLocalConversation @'ConversationRenameTag lcnv (qUntagged rusr) Nothing action
+      SConversationMessageTimerUpdateTag ->
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationMessageTimerUpdateTag)
+          . fmap snd
+          $ updateLocalConversation @'ConversationMessageTimerUpdateTag lcnv (qUntagged rusr) Nothing action
+      SConversationReceiptModeUpdateTag ->
+        mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag)
+          . fmap snd
+          $ updateLocalConversation @'ConversationReceiptModeUpdateTag lcnv (qUntagged rusr) Nothing action
+      SConversationAccessDataTag ->
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationAccessDataTag)
+          . fmap snd
+          $ updateLocalConversation @'ConversationAccessDataTag lcnv (qUntagged rusr) Nothing action
   where
     mkResponse = fmap toResponse . runError @GalleyError . runError @NoChanges
 
