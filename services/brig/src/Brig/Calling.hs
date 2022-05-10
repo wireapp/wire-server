@@ -30,7 +30,7 @@ module Brig.Calling
     mkSFTEnv,
     mkTurnEnv,
     sftDiscoveryLoop,
-    discoverSFTServers,
+    discoverSRVRecords,
     discoveryToMaybe,
     randomize,
     startSFTServiceDiscovery,
@@ -139,29 +139,37 @@ discoveryToMaybe = \case
   NotDiscoveredYet -> Nothing
   Discovered x -> Just x
 
-discoverSFTServers :: Members [DNSLookup, TinyLog] r => DNS.Domain -> Sem r (Maybe (NonEmpty SrvEntry))
-discoverSFTServers domain =
+discoverSRVRecords :: Members [DNSLookup, TinyLog] r => DNS.Domain -> Sem r (Maybe (NonEmpty SrvEntry))
+discoverSRVRecords domain =
   lookupSRV domain >>= \case
     SrvAvailable es -> pure $ Just es
     SrvNotAvailable -> do
-      warn (Log.msg ("No SFT servers available" :: ByteString))
+      warn $
+        Log.msg (Log.val "SRV Records not available")
+          . Log.field "domain" domain
       pure Nothing
     SrvResponseError e -> do
-      err (Log.msg ("DNS Lookup failed for SFT Discovery" :: ByteString) . Log.field "Error" (show e))
+      err $
+        Log.msg (Log.val "SRV Lookup failed")
+          . Log.field "Error" (show e)
+          . Log.field "domain" domain
       pure Nothing
+
+srvDiscoveryLoop :: Members [DNSLookup, TinyLog, Embed IO] r => DNS.Domain -> Int -> (NonEmpty SrvEntry -> IO ()) -> Sem r ()
+srvDiscoveryLoop domain discoveryInterval saveAction = forever $ do
+  servers <- discoverSRVRecords domain
+  case servers of
+    Nothing -> pure ()
+    Just es -> liftIO $ saveAction es
+  threadDelay discoveryInterval
 
 mkSFTDomain :: SFTOptions -> DNS.Domain
 mkSFTDomain SFTOptions {..} = DNS.normalize $ maybe defSftServiceName ("_" <>) sftSRVServiceName <> "._tcp." <> sftBaseDomain
 
--- FUTUREWORK: Remove Embed IO from here and put threadDelay into another
--- effect. This will also make tests for this faster and deterministic
 sftDiscoveryLoop :: Members [DNSLookup, TinyLog, Embed IO] r => SFTEnv -> Sem r ()
-sftDiscoveryLoop SFTEnv {..} = forever $ do
-  servers <- discoverSFTServers sftDomain
-  case servers of
-    Nothing -> pure ()
-    Just es -> atomicWriteIORef sftServers (Discovered (SFTServers es))
-  threadDelay sftDiscoveryInterval
+sftDiscoveryLoop SFTEnv {..} =
+  srvDiscoveryLoop sftDomain sftDiscoveryInterval $
+    atomicWriteIORef sftServers . Discovered . SFTServers
 
 mkSFTEnv :: SFTOptions -> IO SFTEnv
 mkSFTEnv opts =

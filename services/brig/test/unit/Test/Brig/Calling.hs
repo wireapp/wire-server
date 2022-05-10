@@ -103,10 +103,10 @@ tests =
           testCase "when service cannot be discovered" testDiscoveryLoopWhenUnsuccessful,
           testCase "when service cannot be discovered after a successful discovery" testDiscoveryLoopWhenUnsuccessfulAfterSuccess
         ],
-      testGroup "discoverSFTServers" $
-        [ testCase "when service is available" testSFTDiscoverWhenAvailable,
-          testCase "when service is not available" testSFTDiscoverWhenNotAvailable,
-          testCase "when dns lookup fails" testSFTDiscoverWhenDNSFails
+      testGroup "discoverSRVRecords" $
+        [ testCase "when service is available" testSRVDiscoverWhenAvailable,
+          testCase "when service is not available" testSRVDiscoverWhenNotAvailable,
+          testCase "when dns lookup fails" testSRVDiscoverWhenDNSFails
         ],
       testGroup "Get Random SFT Servers" $
         [ testCase "more servers in SRV than limit" testSFTManyServers,
@@ -193,8 +193,8 @@ testDiscoveryLoopWhenURLsChange = do
   actualServers <- readIORef (sftServers sftEnv)
   assertEqual "servers should get overwritten" (Discovered (mkSFTServers newEntries)) actualServers
 
-testSFTDiscoverWhenAvailable :: IO ()
-testSFTDiscoverWhenAvailable = do
+testSRVDiscoverWhenAvailable :: IO ()
+testSRVDiscoverWhenAvailable = do
   logRecorder <- newLogRecorder
   let entry1 = SrvEntry 0 0 (SrvTarget "sft7.foo.example.com." 443)
       entry2 = SrvEntry 0 0 (SrvTarget "sft8.foo.example.com." 8843)
@@ -203,33 +203,33 @@ testSFTDiscoverWhenAvailable = do
 
   assertEqual "discovered servers should be returned" (Just returnedEntries)
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
-            discoverSFTServers "_sft._tcp.foo.example.com"
+            discoverSRVRecords "_sft._tcp.foo.example.com"
         )
   assertEqual "nothing should be logged" []
     =<< readIORef (recordedLogs logRecorder)
 
-testSFTDiscoverWhenNotAvailable :: IO ()
-testSFTDiscoverWhenNotAvailable = do
+testSRVDiscoverWhenNotAvailable :: IO ()
+testSRVDiscoverWhenNotAvailable = do
   logRecorder <- newLogRecorder
   fakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable)
 
   assertEqual "discovered servers should be returned" Nothing
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
-            discoverSFTServers "_sft._tcp.foo.example.com"
+            discoverSRVRecords "_sft._tcp.foo.example.com"
         )
-  assertEqual "should warn about it in the logs" [(Warn, "No SFT servers available\n")]
+  assertEqual "should warn about it in the logs" [(Warn, "SRV Records not available, domain=_sft._tcp.foo.example.com\n")]
     =<< readIORef (recordedLogs logRecorder)
 
-testSFTDiscoverWhenDNSFails :: IO ()
-testSFTDiscoverWhenDNSFails = do
+testSRVDiscoverWhenDNSFails :: IO ()
+testSRVDiscoverWhenDNSFails = do
   logRecorder <- newLogRecorder
   fakeDNSEnv <- newFakeDNSEnv (const $ SrvResponseError IllegalDomain)
 
   assertEqual "no servers should be returned" Nothing
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
-            discoverSFTServers "_sft._tcp.foo.example.com"
+            discoverSRVRecords "_sft._tcp.foo.example.com"
         )
-  assertEqual "should warn about it in the logs" [(Error, "DNS Lookup failed for SFT Discovery, Error=IllegalDomain\n")]
+  assertEqual "should warn about it in the logs" [(Error, "SRV Lookup failed, Error=IllegalDomain, domain=_sft._tcp.foo.example.com\n")]
     =<< readIORef (recordedLogs logRecorder)
 
 testSFTManyServers :: IO ()
