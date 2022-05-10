@@ -76,6 +76,12 @@ endif
 ci: c
 	./hack/bin/cabal-run-integration.sh $(package)
 
+# Use ghcid to watch a particular package.
+# pass target=package:name to specify which target is watched.
+.PHONY: ghcid
+ghcid:
+	ghcid --command "cabal repl $(target)"
+
 # reset db using cabal
 .PHONY: db-reset-package
 db-reset-package: c
