@@ -437,6 +437,7 @@ executable galley-integration
     , http-media
     , http-types
     , imports
+    , kan-extensions
     , lens
     , lens-aeson
     , metrics-wai

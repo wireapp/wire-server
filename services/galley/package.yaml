@@ -193,6 +193,7 @@ executables:
     - http-client-tls
     - http-media
     - http-types
+    - kan-extensions
     - lens
     - lens-aeson
     - mtl

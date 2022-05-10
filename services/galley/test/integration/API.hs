@@ -67,7 +67,7 @@ import Data.Time.Clock (getCurrentTime)
 import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer (FederatedRequest (..), MockException (..))
 import Galley.API.Mapping
-import Galley.Options (Opts, optFederator)
+import Galley.Options (optFederator)
 import Galley.Types hiding (LocalMember (..))
 import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.Members
@@ -2021,13 +2021,12 @@ postConvQualifiedNonExistentDomain = do
 
 postConvQualifiedFederationNotEnabled :: TestM ()
 postConvQualifiedFederationNotEnabled = do
-  g <- view tsGalley
   alice <- randomUser
   bob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
-  opts <- view tsGConf
   connectWithRemoteUser alice bob
-  let federatorNotConfigured :: Opts = opts & optFederator .~ Nothing
-  withSettingsOverrides federatorNotConfigured $
+  let federatorNotConfigured = \opts -> opts & optFederator .~ Nothing
+  withSettingsOverrides federatorNotConfigured $ do
+    g <- view tsGalley
     postConvHelper g alice [bob] !!! do
       const 400 === statusCode
       const (Just "federation-not-enabled") === fmap label . responseJsonUnsafe
@@ -2585,10 +2584,9 @@ testAddRemoteMemberFederationDisabled = do
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   connectWithRemoteUser alice remoteBob
 
-  opts <- view tsGConf
   -- federator endpoint not configured is equivalent to federation being disabled
   -- This is the case on staging/production in May 2021.
-  let federatorNotConfigured :: Opts = opts & optFederator .~ Nothing
+  let federatorNotConfigured = \opts -> opts & optFederator .~ Nothing
   withSettingsOverrides federatorNotConfigured $
     postQualifiedMembers alice (remoteBob :| []) convId !!! do
       const 400 === statusCode
@@ -2605,12 +2603,11 @@ testAddRemoteMemberFederationUnavailable = do
   convId <- decodeConvId <$> postConv alice [] (Just "remote gossip") [] Nothing Nothing
   connectWithRemoteUser alice remoteBob
 
-  opts <- view tsGConf
   -- federator endpoint being configured in brig and/or galley, but not being
   -- available (i.e. no service listing on that IP/port) can happen due to a
   -- misconfiguration of federator. That should give a 500.
   -- Port 1 should always be wrong hopefully.
-  let federatorUnavailable :: Opts = opts & optFederator ?~ Endpoint "127.0.0.1" 1
+  let federatorUnavailable = \opts -> opts & optFederator ?~ Endpoint "127.0.0.1" 1
   withSettingsOverrides federatorUnavailable $
     postQualifiedMembers alice (remoteBob :| []) convId !!! do
       const 500 === statusCode
