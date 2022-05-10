@@ -27,6 +27,7 @@ module Galley.API.Action
     updateLocalConversation,
     updateLocalConversationUnchecked,
     NoChanges (..),
+    LocalConversationUpdate (..),
 
     -- * Utilities
     ensureConversationActionAllowed,
@@ -493,6 +494,11 @@ performConversationAccessData qusr lcnv conv action = do
             pure $ bm {bmLocals = Set.fromList noTeamMembers}
           Nothing -> pure bm
 
+data LocalConversationUpdate = LocalConversationUpdate
+  { lcuEvent :: Event,
+    lcuUpdate :: ConversationUpdate
+  }
+
 updateLocalConversation ::
   forall tag r.
   ( Members
@@ -514,7 +520,7 @@ updateLocalConversation ::
   Qualified UserId ->
   Maybe ConnId ->
   ConversationAction tag ->
-  Sem r (Event, ConversationUpdate)
+  Sem r LocalConversationUpdate
 updateLocalConversation lcnv qusr con action = do
   let tag = sing @tag
 
@@ -551,7 +557,7 @@ updateLocalConversationUnchecked ::
   Qualified UserId ->
   Maybe ConnId ->
   ConversationAction tag ->
-  Sem r (Event, ConversationUpdate)
+  Sem r LocalConversationUpdate
 updateLocalConversationUnchecked lconv qusr con action = do
   let tag = sing @tag
       lcnv = fmap convId lconv
@@ -627,7 +633,7 @@ notifyConversationAction ::
   Local ConvId ->
   BotsAndMembers ->
   ConversationAction (tag :: ConversationActionTag) ->
-  Sem r (Event, ConversationUpdate)
+  Sem r LocalConversationUpdate
 notifyConversationAction tag quid con lcnv targets action = do
   now <- input
   let e = conversationActionToEvent tag now quid (qUntagged lcnv) action
@@ -655,7 +661,7 @@ notifyConversationAction tag quid con lcnv targets action = do
 
   -- return both the event and the 'ConversationUpdate' structure corresponding
   -- to the originating domain (if it is remote)
-  pure $ (e, update)
+  pure $ LocalConversationUpdate e update
 
 -- | Notify all local members about a remote conversation update that originated
 -- from a local user

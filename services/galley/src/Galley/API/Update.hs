@@ -291,7 +291,7 @@ updateConversationAccess ::
   Sem r (UpdateResult Event)
 updateConversationAccess lusr con qcnv update = do
   lcnv <- ensureLocal lusr qcnv
-  getUpdateResult . fmap fst $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationAccessDataTag lcnv (qUntagged lusr) (Just con) update
 
 updateConversationAccessUnqualified ::
@@ -302,7 +302,7 @@ updateConversationAccessUnqualified ::
   ConversationAccessData ->
   Sem r (UpdateResult Event)
 updateConversationAccessUnqualified lusr con cnv update =
-  getUpdateResult . fmap fst $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationAccessDataTag
       (qualifyAs lusr cnv)
       (qUntagged lusr)
@@ -335,7 +335,7 @@ updateConversationReceiptMode lusr zcon qcnv update =
   foldQualified
     lusr
     ( \lcnv ->
-        getUpdateResult . fmap fst $
+        getUpdateResult . fmap lcuEvent $
           updateLocalConversation
             @'ConversationReceiptModeUpdateTag
             lcnv
@@ -451,7 +451,7 @@ updateConversationMessageTimer lusr zcon qcnv update =
     foldQualified
       lusr
       ( \lcnv ->
-          fst
+          lcuEvent
             <$> updateLocalConversation
               @'ConversationMessageTimerUpdateTag
               lcnv
@@ -503,7 +503,7 @@ deleteLocalConversation ::
   Local ConvId ->
   Sem r (UpdateResult Event)
 deleteLocalConversation lusr con lcnv =
-  getUpdateResult . fmap fst $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationDeleteTag lcnv (qUntagged lusr) (Just con) ()
 
 getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
@@ -782,7 +782,7 @@ joinConversation lusr zcon conv access = do
     let users = filter (notIsConvMember lusr conv) [tUnqualified lusr]
     (extraTargets, action) <-
       addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember
-    fst
+    lcuEvent
       <$> notifyConversationAction
         (sing @'ConversationJoinTag)
         (qUntagged lusr)
@@ -822,7 +822,7 @@ addMembers ::
   Sem r (UpdateResult Event)
 addMembers lusr zcon qcnv (InviteQualified users role) = do
   lcnv <- ensureLocal lusr qcnv
-  getUpdateResult . fmap fst $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationJoinTag lcnv (qUntagged lusr) (Just zcon) $
       ConversationJoin users role
 
@@ -857,7 +857,7 @@ addMembersUnqualifiedV2 ::
   Sem r (UpdateResult Event)
 addMembersUnqualifiedV2 lusr zcon cnv (InviteQualified users role) = do
   let lcnv = qualifyAs lusr cnv
-  getUpdateResult . fmap fst $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationJoinTag lcnv (qUntagged lusr) (Just zcon) $
       ConversationJoin users role
 
@@ -983,7 +983,7 @@ updateOtherMemberLocalConv ::
   Qualified UserId ->
   OtherMemberUpdate ->
   Sem r ()
-updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult . fmap fst $ do
+updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult . fmap lcuEvent $ do
   when (qUntagged lusr == qvictim) $
     throwS @'InvalidTarget
   updateLocalConversation @'ConversationMemberUpdateTag lcnv (qUntagged lusr) (Just con) $
@@ -1159,13 +1159,13 @@ removeMemberFromLocalConv ::
   Sem r (Maybe Event)
 removeMemberFromLocalConv lcnv lusr con victim
   | qUntagged lusr == victim =
-    fmap (fmap fst . hush)
+    fmap (fmap lcuEvent . hush)
       . runError @NoChanges
       . updateLocalConversation @'ConversationLeaveTag lcnv (qUntagged lusr) con
       . pure
       $ victim
   | otherwise =
-    fmap (fmap fst . hush)
+    fmap (fmap lcuEvent . hush)
       . runError @NoChanges
       . updateLocalConversation @'ConversationRemoveMembersTag lcnv (qUntagged lusr) con
       . pure
@@ -1413,7 +1413,7 @@ updateLocalConversationName ::
   ConversationRename ->
   Sem r (UpdateResult Event)
 updateLocalConversationName lusr zcon lcnv rename =
-  getUpdateResult . fmap fst $
+  getUpdateResult . fmap lcuEvent $
     updateLocalConversation @'ConversationRenameTag lcnv (qUntagged lusr) (Just zcon) rename
 
 isTypingUnqualified ::

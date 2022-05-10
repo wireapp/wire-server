@@ -312,7 +312,7 @@ executeProposalAction qusr con lconv action = do
       -- FUTUREWORK: update key package ref mapping to reflect conversation membership
       handleNoChanges
         . handleMLSProposalFailures @ProposalErrors
-        . fmap (pure . fst) -- TODO: keep track of ConversationUpdate in the remote case
+        . fmap (pure . lcuEvent) -- TODO: keep track of ConversationUpdate in the remote case
         . updateLocalConversationUnchecked
           @'ConversationJoinTag
           lconv
