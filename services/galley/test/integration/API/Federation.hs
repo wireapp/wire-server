@@ -1158,11 +1158,10 @@ sendMLSWelcome = do
 
   WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
     -- send welcome message
-    EmptyResponse <-
-      runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
-        MLSWelcomeRequest
-          (toBase64ByteString welcome)
-          [MLSWelcomeRecipient (qUnqualified . pUserId $ bob, bobClient)]
+    runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
+      MLSWelcomeRequest
+        (toBase64ByteString welcome)
+        [MLSWelcomeRecipient (qUnqualified . pUserId $ bob, bobClient)]
 
     -- check that the corresponding event is received
     void . liftIO $

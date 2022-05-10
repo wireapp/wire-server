@@ -536,7 +536,7 @@ mlsSendWelcome ::
     r =>
   Domain ->
   F.MLSWelcomeRequest ->
-  Sem r EmptyResponse
+  Sem r ()
 mlsSendWelcome _origDomain (F.MLSWelcomeRequest b64RawWelcome rcpts) = do
   let lclients = F.unMLSWelRecipient <$> rcpts
       -- TODO: use 'B64.decode' instead of lenient decoding
@@ -545,7 +545,7 @@ mlsSendWelcome _origDomain (F.MLSWelcomeRequest b64RawWelcome rcpts) = do
   now <- input @UTCTime
   runMessagePush loc Nothing $
     foldMap (uncurry $ mkPush rawWelcome loc now) lclients
-  pure EmptyResponse
+  pure ()
   where
     mkPush :: ByteString -> Local x -> UTCTime -> UserId -> ClientId -> MessagePush 'Broadcast
     mkPush rawWelcome l time u c =
