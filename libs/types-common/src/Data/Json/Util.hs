@@ -40,7 +40,6 @@ module Data.Json.Util
     -- * Base64
     Base64ByteString (..),
     base64Schema,
-    toBase64ByteString,
     Base64ByteStringL (..),
     base64SchemaL,
     fromBase64TextLenient,
@@ -211,9 +210,6 @@ base64SchemaN = toBase64Text .= parsedText "Base64ByteString" fromBase64Text
 
 base64Schema :: ValueSchema SwaggerDoc ByteString
 base64Schema = unnamed base64SchemaN
-
-toBase64ByteString :: ByteString -> Base64ByteString
-toBase64ByteString = Base64ByteString . B64.encode
 
 --------------------------------------------------------------------------------
 
