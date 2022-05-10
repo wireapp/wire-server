@@ -76,8 +76,8 @@ interpretBrigAccess = interpret $ \case
     embedApp $ removeLegalHoldClientFromUser uid
   GetAccountFeatureConfigClient uid ->
     embedApp $ getAccountFeatureConfigClient uid
-  DerefKeyPackageRef ref ->
-    embedApp $ derefKeyPackageRef ref
+  GetClientByKeyPackageRef ref ->
+    embedApp $ getClientByKeyPackageRef ref
   GetMLSClients qusr ss -> embedApp $ getMLSClients qusr ss
   UpdateSearchVisibilityInbound status ->
     embedApp $ updateSearchVisibilityInbound status

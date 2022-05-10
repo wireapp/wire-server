@@ -130,13 +130,8 @@ deleteAccountFeatureConfig :: UserId -> (Handler r) NoContent
 deleteAccountFeatureConfig uid =
   lift $ wrapClient $ Data.updateFeatureConferenceCalling uid Nothing $> NoContent
 
-derefKeyPackageRef ::
-  KeyPackageRef ->
-  Handler r (Maybe (ClientIdentity, Qualified ConvId))
-derefKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.derefKeyPackage
-
 getClientByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe ClientIdentity)
-getClientByKeyPackageRef = (fmap . fmap) fst . derefKeyPackageRef
+getClientByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.derefKeyPackage
 
 getMLSClients :: Qualified UserId -> SignatureSchemeTag -> Handler r (Set ClientId)
 getMLSClients qusr ss = do

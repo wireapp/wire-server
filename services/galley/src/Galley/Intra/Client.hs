@@ -22,7 +22,7 @@ module Galley.Intra.Client
     addLegalHoldClientToUser,
     removeLegalHoldClientFromUser,
     getLegalHoldAuthToken,
-    derefKeyPackageRef,
+    getClientByKeyPackageRef,
     getMLSClients,
   )
 where
@@ -169,9 +169,9 @@ brigAddClient uid connId client = do
     then Right <$> parseResponse (mkError status502 "server-error") r
     else pure (Left ReAuthFailed)
 
--- | Calls 'Brig.API.Internal.derefKeyPackageRef'.
-derefKeyPackageRef :: KeyPackageRef -> App (Maybe (ClientIdentity, Qualified ConvId))
-derefKeyPackageRef ref = do
+-- | Calls 'Brig.API.Internal.getClientByKeyPackageRef'.
+getClientByKeyPackageRef :: KeyPackageRef -> App (Maybe ClientIdentity)
+getClientByKeyPackageRef ref = do
   r <-
     call Brig $
       method GET

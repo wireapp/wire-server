@@ -180,7 +180,7 @@ applyProposal (AddProposal kp) = do
   ref <-
     kpRef' kp
       & note (mlsProtocolError "Could not compute ref of a key package in an Add proposal")
-  qclient <- cidQualifiedClient . fst <$> derefKeyPackage ref
+  qclient <- cidQualifiedClient <$> derefKeyPackage ref
   pure (paClient qclient)
 applyProposal _ = throwS @'MLSUnsupportedProposal
 
