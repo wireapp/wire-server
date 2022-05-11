@@ -116,7 +116,7 @@ function run_nginz() {
     # For nix we dont need LD_LIBRARY_PATH; we link against libzauth directly.
     # nix-build will put a symlink to ./result with the nginx artifact
     if which nix-build; then
-      nginz=$(nix-build "${DIR}/../nix" -A nginz --no-out-link )
+      nginz=$(nix-build "${DIR}/../nix" -A pkgs.nginz --no-out-link )
       (cd ${SCRIPT_DIR} && ${nginz}/bin/nginx -p ${SCRIPT_DIR} -c ${SCRIPT_DIR}/conf/nginz/nginx.conf -g 'daemon off;' || kill_all) \
           | sed -e "s/^/$(tput setaf ${colour})[nginz] /" -e "s/$/$(tput sgr0)/" &
     else

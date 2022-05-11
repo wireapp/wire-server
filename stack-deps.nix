@@ -1,5 +1,6 @@
+# FUTUREWORK: remove this file when we drop stack support
 let
-  pkgs = import ./nix;
+  pkgs = (import ./nix).pkgs;
   native_libs = pkgs.lib.optionals pkgs.stdenv.isDarwin (with pkgs.darwin.apple_sdk.frameworks; [
     Cocoa
     CoreServices

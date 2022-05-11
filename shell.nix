@@ -1,8 +1,8 @@
 let
-  pkgs = import ./nix;
-  packages = import ./dev-packages.nix { pkgs = pkgs; };
+  pkgs = (import ./nix).pkgs;
+  devPackages = (import ./nix).devPackages;
 in
 pkgs.mkShell {
   name = "wire-server-direnv";
-  buildInputs = packages; 
+  buildInputs = devPackages;
 }

@@ -171,41 +171,45 @@ let
     exec "${pinned.stack}/bin/stack" "$@"
   '';
 in
-[
-  pkgs.cfssl
-  pkgs.gnumake
-  pkgs.gnused
-  (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
-  pkgs.python3
-  pkgs.jq
-  pkgs.niv
-  pkgs.ormolu
-  pkgs.shellcheck
-  pkgs.wget
-  pkgs.yq
-  pkgs.rsync
-  pkgs.netcat
-  pkgs.crypto_cli
-  pkgs.ghcid
+{
+  devPackages = [
+    pkgs.cfssl
+    pkgs.gnumake
+    pkgs.gnused
+    (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
+    pkgs.python3
+    pkgs.jq
+    pkgs.niv
+    pkgs.ormolu
+    pkgs.shellcheck
+    pkgs.wget
+    pkgs.yq
+    pkgs.rsync
+    pkgs.netcat
+    pkgs.crypto_cli
+    pkgs.ghcid
 
-  stack-wrapper
-  pinned.helm
-  pinned.helmfile
-  pinned.kubectl
-  pinned.kind
+    stack-wrapper
+    pinned.helm
+    pinned.helmfile
+    pinned.kubectl
+    pinned.kind
 
-  # For cabal-migration
-  pkgs.haskellPackages.cabal-plan
+    # For cabal-migration
+    pkgs.haskellPackages.cabal-plan
 
-  # We don't use pkgs.cabal-install here, as we invoke it with a wrapper
-  # which sets LD_LIBRARY_PATH and others correctly.
-  cabal-wrapper
-  pkgs.haskellPackages.implicit-hie
-] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
-  # linux-only, not strictly required tools
+    # We don't use pkgs.cabal-install here, as we invoke it with a wrapper
+    # which sets LD_LIBRARY_PATH and others correctly.
+    cabal-wrapper
+    pkgs.haskellPackages.implicit-hie
+  ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+    # linux-only, not strictly required tools
 
-  pkgs.docker-compose
-  pkgs.telepresence
-  pkgs.buildah # To actually run buildah on nixos, I had to follow this: https://gist.github.com/alexhrescale/474d55635154e6b2cd6362c3bb403faf
-]
-++ c-lib-out-deps # Required to run HLS
+    pkgs.docker-compose
+    pkgs.telepresence
+    pkgs.buildah # To actually run buildah on nixos, I had to follow this: https://gist.github.com/alexhrescale/474d55635154e6b2cd6362c3bb403faf
+  ]
+  ++ c-lib-out-deps; # Required to run HLS
+
+  inherit compile-deps;
+}
