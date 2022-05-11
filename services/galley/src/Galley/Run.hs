@@ -25,7 +25,7 @@ import Bilge.Request (requestIdName)
 import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import qualified Control.Concurrent.Async as Async
-import Control.Exception (bracket, finally)
+import Control.Exception (bracket)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Codensity
 import qualified Data.Aeson as Aeson
@@ -60,28 +60,40 @@ import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
-run o = lowerCodensity $ do
-  (app, env) <- mkApp o
-  let l = env ^. App.applog
-  lift $ do
-    s <-
-      newSettings $
-        defaultServer
-          (unpack $ o ^. optGalley . epHost)
-          (portNumber $ fromIntegral $ o ^. optGalley . epPort)
-          l
-          (env ^. monitor)
-    deleteQueueThread <- Async.async $ runApp env deleteLoop
-    refreshMetricsThread <- Async.async $ runApp env refreshMetrics
-    runSettingsWithShutdown s app 5 `finally` do
-      Async.cancel deleteQueueThread
-      Async.cancel refreshMetricsThread
-      shutdown (env ^. cstate)
+run opts = lowerCodensity $ do
+  (app, env) <- mkApp opts
+  runAppThreads opts app env
+
+runAppThreads :: Opts -> Application -> Env -> Codensity IO ()
+runAppThreads opts app env = Codensity $ \k ->
+  bracket
+    ( do
+        settings <-
+          newSettings $
+            defaultServer
+              (unpack $ opts ^. optGalley . epHost)
+              (portNumber $ fromIntegral $ opts ^. optGalley . epPort)
+              (env ^. App.applog)
+              (env ^. monitor)
+
+        deleteQueueThread <- Async.async $ runApp env deleteLoop
+        refreshMetricsThread <- Async.async $ runApp env refreshMetrics
+        pure (settings, deleteQueueThread, refreshMetricsThread)
+    )
+    ( \(_settings, deleteQueueThread, refreshMetricsThread) -> do
+        Async.cancel deleteQueueThread
+        Async.cancel refreshMetricsThread
+        shutdown (env ^. cstate)
+    )
+    ( \(settings, _deleteQueueThread, _refreshMetricsThread) -> do
+        runSettingsWithShutdown settings app 5
+        k ()
+    )
 
 mkApp :: Opts -> Codensity IO (Application, Env)
 mkApp opts = Codensity $ \k ->
   bracket
-    ( liftIO $ do
+    ( do
         metrics <- M.metrics
         env <- App.createEnv metrics opts
 
