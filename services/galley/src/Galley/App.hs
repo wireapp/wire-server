@@ -49,7 +49,7 @@ import Bilge hiding (Request, header, options, statusCode, statusMessage)
 import Cassandra hiding (Set)
 import qualified Cassandra as C
 import qualified Cassandra.Settings as C
-import Control.Error
+import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
 import Data.ByteString.Conversion (toByteString')
 import Data.Default (def)
@@ -96,13 +96,14 @@ import Polysemy.Internal (Append)
 import qualified Polysemy.TinyLog as P
 import qualified Servant
 import Ssl.Util
+import qualified System.Logger as Log
 import System.Logger.Class
 import qualified System.Logger.Extended as Logger
 import qualified UnliftIO.Exception as UnliftIO
 import Util.Options
 import Wire.API.Error
 import Wire.API.Federation.Error
-import qualified Wire.Sem.Logger as Log
+import qualified Wire.Sem.Logger
 
 -- Effects needed by the interpretation of other effects
 type GalleyEffects0 =
@@ -196,10 +197,17 @@ interpretTinyLog ::
   Sem (P.TinyLog ': r) a ->
   Sem r a
 interpretTinyLog e = interpret $ \case
-  P.Log l m -> Logger.log (e ^. applog) (Log.toLevel l) (reqIdMsg (e ^. reqId) . m)
+  P.Log l m -> Logger.log (e ^. applog) (Wire.Sem.Logger.toLevel l) (reqIdMsg (e ^. reqId) . m)
 
 toServantHandler :: Env -> Sem GalleyEffects a -> Servant.Handler a
-toServantHandler e = liftIO . evalGalley e
+toServantHandler env action =
+  liftIO $
+    evalGalley env action `UnliftIO.catch` \(e :: SomeException) -> do
+      Log.err (env ^. applog) $
+        Log.msg ("IO Exception occurred" :: ByteString)
+          . Log.field "message" (displayException e)
+          . Log.field "request" (unRequestId (env ^. reqId))
+      UnliftIO.throwIO e
 
 interpretErrorToException ::
   (Exception exc, Member (Embed IO) r) =>
