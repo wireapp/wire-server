@@ -2024,7 +2024,7 @@ postConvQualifiedFederationNotEnabled = do
   alice <- randomUser
   bob <- flip Qualified (Domain "some-remote-backend.example.com") <$> randomId
   connectWithRemoteUser alice bob
-  let federatorNotConfigured = \opts -> opts & optFederator .~ Nothing
+  let federatorNotConfigured = optFederator .~ Nothing
   withSettingsOverrides federatorNotConfigured $ do
     g <- view tsGalley
     postConvHelper g alice [bob] !!! do
@@ -2586,7 +2586,7 @@ testAddRemoteMemberFederationDisabled = do
 
   -- federator endpoint not configured is equivalent to federation being disabled
   -- This is the case on staging/production in May 2021.
-  let federatorNotConfigured = \opts -> opts & optFederator .~ Nothing
+  let federatorNotConfigured = optFederator .~ Nothing
   withSettingsOverrides federatorNotConfigured $
     postQualifiedMembers alice (remoteBob :| []) convId !!! do
       const 400 === statusCode
@@ -2607,7 +2607,7 @@ testAddRemoteMemberFederationUnavailable = do
   -- available (i.e. no service listing on that IP/port) can happen due to a
   -- misconfiguration of federator. That should give a 500.
   -- Port 1 should always be wrong hopefully.
-  let federatorUnavailable = \opts -> opts & optFederator ?~ Endpoint "127.0.0.1" 1
+  let federatorUnavailable = optFederator ?~ Endpoint "127.0.0.1" 1
   withSettingsOverrides federatorUnavailable $
     postQualifiedMembers alice (remoteBob :| []) convId !!! do
       const 500 === statusCode

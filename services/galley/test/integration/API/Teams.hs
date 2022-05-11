@@ -1926,9 +1926,9 @@ postCryptoBroadcastMessageFilteredTooLargeTeam bcast = do
     WS.bracketR (c . queryItem "client" (toByteString' ac2)) alice $ \wsA2 ->
       WS.bracketR (c . queryItem "client" (toByteString' ac)) alice $ \wsA1 -> do
         -- We change also max conv size due to the invariants that galley forces us to keep
-        let newOpts = \opts ->
-              opts & optSettings . setMaxFanoutSize .~ Just (unsafeRange 4)
-                & optSettings . setMaxConvSize .~ 4
+        let newOpts =
+              ((optSettings . setMaxFanoutSize) ?~ unsafeRange 4)
+                . (optSettings . setMaxConvSize .~ 4)
         withSettingsOverrides newOpts $ do
           -- Untargeted, Alice's team is too large
           Util.postBroadcast (q alice) ac bcast {bMessage = msg} !!! do
