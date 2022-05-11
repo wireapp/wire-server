@@ -159,14 +159,15 @@ testRemoteWelcome = do
 
   --  Assert the correct federated call is made.
   fedWelcome <- assertOne (filter ((== "mls-welcome") . frRPC) reqs)
-  let welcomeRequest :: MLSWelcomeRequest = fromJust $ Aeson.decode (frBody fedWelcome)
+  let welcomeRequest :: Maybe MLSWelcomeRequest = Aeson.decode (frBody fedWelcome)
   liftIO $
-    mwrRecipients welcomeRequest
-      @?= [ MLSWelcomeRecipient
-              ( qUnqualified . pUserId $ bob,
-                snd . NonEmpty.head . pClients $ bob
-              )
-          ]
+    fmap mwrRecipients welcomeRequest
+      @?= Just
+        [ MLSWelcomeRecipient
+            ( qUnqualified . pUserId $ bob,
+              snd . NonEmpty.head . pClients $ bob
+            )
+        ]
 
 -- | Send a commit message, and assert that all participants see an event with
 -- the given list of new members.
