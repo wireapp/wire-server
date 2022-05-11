@@ -28,7 +28,7 @@ import Brig.Types.Intra (UserAccount (..), UserSet (..))
 import Brig.Types.Team.Invitation
 import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Concurrent.Async
-import Control.Exception (finally, throw)
+import Control.Exception (throw)
 import Control.Lens hiding (from, to, (#), (.=))
 import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.Codensity (lowerCodensity)
@@ -2331,8 +2331,8 @@ withSettingsOverrides :: (Opts.Opts -> Opts.Opts) -> TestM a -> TestM a
 withSettingsOverrides f action = do
   ts :: TestSetup <- ask
   let opts = f (ts ^. tsGConf)
-  (galleyApp, _, finalizer) <- liftIO $ Run.mkApp opts
   liftIO . lowerCodensity $ do
+    (galleyApp, _env) <- Run.mkApp opts
     port' <- withMockServer galleyApp
     liftIO $
       runReaderT
@@ -2341,7 +2341,6 @@ withSettingsOverrides f action = do
             & tsGalley .~ Bilge.host "127.0.0.1" . Bilge.port port'
             & tsFedGalleyClient .~ FedClient (ts ^. tsManager) (Endpoint "127.0.0.1" port')
         )
-        `finally` finalizer
 
 waitForMemberDeletion :: UserId -> TeamId -> UserId -> TestM ()
 waitForMemberDeletion zusr tid uid = do

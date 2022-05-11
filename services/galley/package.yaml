@@ -61,6 +61,7 @@ library:
   - http-media
   - http-types >=0.8
   - insert-ordered-containers
+  - kan-extensions
   - lens >=4.4
   - memory
   - metrics-wai >=0.4
