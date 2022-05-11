@@ -110,7 +110,7 @@ setupUserClient ::
   FilePath ->
   CreateClients ->
   Qualified UserId ->
-  State.StateT [LastPrekey] TestM (String, ClientId, RawMLS KeyPackage)
+  State.StateT [LastPrekey] TestM (String, ClientId)
 setupUserClient tmp doCreateClients usr = do
   localDomain <- lift viewFederationDomain
   lpk <- takeLastPrekey
@@ -153,7 +153,7 @@ setupUserClient tmp doCreateClients usr = do
         mapRemoteKeyPackageRef brig bundle
       _ -> pure ()
 
-    pure (qcid, c, kp)
+    pure (qcid, c)
 
 setupParticipant ::
   HasCallStack =>
@@ -163,7 +163,7 @@ setupParticipant ::
   Qualified UserId ->
   State.StateT [LastPrekey] TestM Participant
 setupParticipant tmp doCreateClients numClients usr =
-  Participant usr . NonEmpty.fromList . fmap (\(qcid, c, _kp) -> (qcid, c))
+  Participant usr . NonEmpty.fromList
     <$> replicateM numClients (setupUserClient tmp doCreateClients usr)
 
 setupParticipants ::
