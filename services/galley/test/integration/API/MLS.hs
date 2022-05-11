@@ -96,17 +96,14 @@ postMLSConvOk :: TestM ()
 postMLSConvOk = do
   c <- view tsCannon
   qalice <- randomQualifiedUser
-  bob <- randomUser
   let alice = qUnqualified qalice
   let nameMaxSize = T.replicate 256 "a"
-  connectUsers alice (list1 bob [])
-  WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
+  WS.bracketR c alice $ \wsA -> do
     rsp <- postConvQualified alice defNewMLSConv {newConvName = checked nameMaxSize}
     pure rsp !!! do
       const 201 === statusCode
       const Nothing === fmap Wai.label . responseJsonError
     cid <- assertConv rsp RegularConv alice qalice [] (Just nameMaxSize) Nothing
-    WS.assertNoEvent (2 # WS.Second) [wsB]
     checkConvCreateEvent cid wsA
 
 testLocalWelcome :: TestM ()
