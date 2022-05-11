@@ -22,13 +22,14 @@ import Bilge
 import Bilge.Assert
 import Brig.Options
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Qualified
 import qualified Data.Set as Set
 import Federation.Util
 import Imports
-import Test.QuickCheck (arbitrary, generate, resize)
+import Test.QuickCheck hiding ((===))
 import Test.Tasty
 import Test.Tasty.HUnit
 import UnliftIO.Temporary
@@ -168,8 +169,8 @@ testKeyPackageRemoteClaim opts brig = do
       KeyPackageBundleEntry
         <$> pure u
         <*> arbitrary
-        <*> (KeyPackageRef <$> arbitrary)
-        <*> (KeyPackageData <$> resize 64 arbitrary)
+        <*> (KeyPackageRef . BS.pack <$> vector 32)
+        <*> (KeyPackageData . BS.pack <$> vector 64)
   let mockBundle = KeyPackageBundle (Set.fromList entries)
   (bundle :: KeyPackageBundle, _reqs) <-
     liftIO . withTempMockFederator opts (Aeson.encode mockBundle) $
