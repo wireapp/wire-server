@@ -32,7 +32,6 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1
 import Data.Qualified
 import Data.Range
-import qualified Data.Set as Set
 import Data.String.Conversions
 import qualified Data.Text as T
 import Federator.MockServer
@@ -49,8 +48,6 @@ import TestSetup
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
-import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.Serialisation
 import Wire.API.Message
 
 tests :: IO TestSetup -> TestTree
@@ -142,54 +139,34 @@ testWelcomeNoKey = do
     !!! const 404 === statusCode
 
 testRemoteWelcome :: TestM ()
-testRemoteWelcome = withSystemTempDirectory "mls" $ \tmp -> do
-  brig <- view tsBrig
-
-  -- 1. Create a conversation with just alice
-  let opts@SetupOptions {..} = def {createConv = CreateConv}
-  (alice, _) <- withLastPrekeys $ setupParticipants tmp opts []
-  _conversation <- setupGroup tmp createConv alice "group"
-
-  -- 2. Create a fake remote user Bob with one client. It's fine to use CLI to
-  -- create a key package for the client because it doesn't matter that the
-  -- client is remote.
+testRemoteWelcome = do
+  -- 1. Create a conversation with Alice and Bob
   let bobDomain = Domain "b.far-away.example.com"
-  bob <- randomQualifiedId bobDomain
-  (qcidBob, cBob, kpBob) <- withLastPrekeys $ setupUserClient tmp DontCreateClients bob
-
-  -- 3. Connect Alice and Bob.
-  connectWithRemoteUser (qUnqualified (pUserId alice)) bob
-
-  -- 4. Alice claims Bob's key package and sends a welcome message
-  let bundle =
-        KeyPackageBundle $
-          Set.singleton $
-            KeyPackageBundleEntry
-              { kpbeUser = bob,
-                kpbeClient = cBob,
-                kpbeRef = fromJust $ kpRef' kpBob,
-                kpbeKeyPackage = KeyPackageData $ rmRaw kpBob
-              }
+      opts = def {createConv = CreateConv, createClients = DontCreateClients}
+  MessagingSetup {..} <- aliceInvitesBob (1, RemoteUser bobDomain) opts
+  let alice = creator
+      bob = Imports.head users
 
   let mockedResponse fedReq =
         case frRPC fedReq of
           "mls-welcome" -> pure (Aeson.encode ())
           ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
 
-  mapRemoteKeyPackageRef brig bundle
-
   (_resp, reqs) <-
-    withTempMockFederator' mockedResponse $ do
-      (_commit, welcome) <- liftIO $ setupCommit tmp "group" "group" [(qcidBob, cBob)]
-
+    withTempMockFederator' mockedResponse $
       postWelcome (qUnqualified $ pUserId alice) welcome
         !!! const 201 === statusCode
 
   --  Assert the correct federated call is made.
   fedWelcome <- assertOne (filter ((== "mls-welcome") . frRPC) reqs)
   let welcomeRequest :: MLSWelcomeRequest = fromJust $ Aeson.decode (frBody fedWelcome)
-  liftIO $ do
-    mwrRecipients welcomeRequest @?= [MLSWelcomeRecipient (qUnqualified bob, cBob)]
+  liftIO $
+    mwrRecipients welcomeRequest
+      @?= [ MLSWelcomeRecipient
+              ( qUnqualified . pUserId $ bob,
+                snd . NonEmpty.head . pClients $ bob
+              )
+          ]
 
 -- | Send a commit message, and assert that all participants see an event with
 -- the given list of new members.

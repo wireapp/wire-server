@@ -35,6 +35,7 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
 import Data.Qualified
+import qualified Data.Set as Set
 import qualified Data.Text as T
 import Imports
 import System.FilePath
@@ -42,6 +43,7 @@ import System.IO.Temp
 import System.Process
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty.HUnit
+import TestHelpers
 import TestSetup
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
@@ -110,6 +112,7 @@ setupUserClient ::
   Qualified UserId ->
   State.StateT [LastPrekey] TestM (String, ClientId, RawMLS KeyPackage)
 setupUserClient tmp doCreateClients usr = do
+  localDomain <- lift viewFederationDomain
   lpk <- takeLastPrekey
   lift $ do
     -- create client if requested
@@ -131,9 +134,23 @@ setupUserClient tmp doCreateClients usr = do
           =<< spawn (cli tmp ["key-package", qcid]) Nothing
     liftIO $ BS.writeFile (tmp </> qcid) (rmRaw kp)
 
-    -- set bob's private key and upload key package if required
+    -- Set Bob's private key and upload key package if required. If a client
+    -- does not have to be created and it is remote, pretend to have claimed its
+    -- key package.
     case doCreateClients of
       CreateWithKey -> addKeyPackage usr c kp
+      DontCreateClients | localDomain /= qDomain usr -> do
+        brig <- view tsBrig
+        let bundle =
+              KeyPackageBundle $
+                Set.singleton $
+                  KeyPackageBundleEntry
+                    { kpbeUser = usr,
+                      kpbeClient = c,
+                      kpbeRef = fromJust $ kpRef' kp,
+                      kpbeKeyPackage = KeyPackageData $ rmRaw kp
+                    }
+        mapRemoteKeyPackageRef brig bundle
       _ -> pure ()
 
     pure (qcid, c, kp)
