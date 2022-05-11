@@ -90,7 +90,7 @@ type CanonicalEffs =
      IdPConfigStore,
      IdPRawMetadataStore,
      SAMLUserStore,
-     Embed (Cas.Client),
+     Embed Cas.Client,
      BrigAccess,
      GalleyAccess,
      Error TTLError,

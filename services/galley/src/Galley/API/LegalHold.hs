@@ -105,7 +105,7 @@ isLegalHoldEnabledForTeam tid = do
     FeatureLegalHoldDisabledByDefault -> do
       statusValue <-
         Public.tfwoStatus <$$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid
-      return $ case statusValue of
+      pure $ case statusValue of
         Just Public.TeamFeatureEnabled -> True
         Just Public.TeamFeatureDisabled -> False
         Nothing -> False
@@ -471,7 +471,7 @@ requestDevice lzusr tid uid = do
       LegalHoldData.dropPendingPrekeys (tUnqualified luid)
       lhDevice <- LHService.requestNewDevice tid (tUnqualified luid)
       let NewLegalHoldClient prekeys lastKey = lhDevice
-      return (lastKey, prekeys)
+      pure (lastKey, prekeys)
 
 -- | Approve the adding of a Legal Hold device to the user.
 --

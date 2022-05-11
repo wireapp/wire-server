@@ -103,7 +103,7 @@ mkEnv lgr mgr opts = do
   let g = Logger.clone (Just "aws.galley") lgr
   e <- mkAwsEnv g
   q <- getQueueUrl e (opts ^. awsQueueName)
-  return (Env e g q)
+  pure (Env e g q)
   where
     sqs e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) SQS.defaultService
     mkAwsEnv g = do
@@ -153,7 +153,7 @@ mkEnv lgr mgr opts = do
             AWS.send e (SQS.newGetQueueUrl q)
       either
         (throwM . GeneralError)
-        (return . QueueUrl . view SQS.getQueueUrlResponse_queueUrl)
+        (pure . QueueUrl . view SQS.getQueueUrlResponse_queueUrl)
         x
 
 execute :: MonadIO m => Env -> Amazon a -> m a
@@ -165,7 +165,7 @@ enqueue e = do
   rnd <- liftIO nextRandom
   amaznkaEnv <- view awsEnv
   res <- retrying (limitRetries 5 <> exponentialBackoff 1000000) (const canRetry) $ const (sendCatch amaznkaEnv (req url rnd))
-  either (throwM . GeneralError) (const (return ())) res
+  either (throwM . GeneralError) (const (pure ())) res
   where
     event = decodeLatin1 $ B64.encode $ encodeMessage e
     req url dedup =

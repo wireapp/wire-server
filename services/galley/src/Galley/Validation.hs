@@ -35,14 +35,14 @@ import Polysemy
 import Polysemy.Error
 
 rangeChecked :: (Member (Error InvalidInput) r, Within a n m) => a -> Sem r (Range n m a)
-rangeChecked = either throwErr return . checkedEither
+rangeChecked = either throwErr pure . checkedEither
 {-# INLINE rangeChecked #-}
 
 rangeCheckedMaybe ::
   (Member (Error InvalidInput) r, Within a n m) =>
   Maybe a ->
   Sem r (Maybe (Range n m a))
-rangeCheckedMaybe Nothing = return Nothing
+rangeCheckedMaybe Nothing = pure Nothing
 rangeCheckedMaybe (Just a) = Just <$> rangeChecked a
 {-# INLINE rangeCheckedMaybe #-}
 
@@ -63,7 +63,7 @@ checkedConvSize o x = do
   let minV :: Integer = 0
       limit = o ^. optSettings . setMaxConvSize - 1
   if length x <= fromIntegral limit
-    then return (ConvSizeChecked x)
+    then pure (ConvSizeChecked x)
     else throwErr (errorMsg minV limit "")
 
 throwErr :: Member (Error InvalidInput) r => String -> Sem r a

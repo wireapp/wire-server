@@ -38,12 +38,12 @@ propsForInterpreter ::
 propsForInterpreter interpreter extract lower = do
   describe interpreter $ do
     prop "delete/delete" $ prop_deleteDelete Nothing lower
-    prop "delete/lookup" $ prop_deleteLookup (Just $ show . (() <$) . extract) lower
+    prop "delete/lookup" $ prop_deleteLookup (Just $ show . void . extract) lower
     prop "delete/insert" $ prop_deleteInsert Nothing lower
     prop "lookup/insert" $ prop_lookupInsert Nothing lower
     prop "insert/delete" $ prop_insertDelete Nothing lower
-    prop "insert/lookup" $ prop_insertLookup (Just $ show . (() <$) . extract) lower
-    prop "insert/insert" $ prop_insertInsert (Just $ show . (() <$) . extract) lower
+    prop "insert/lookup" $ prop_insertLookup (Just $ show . void . extract) lower
+    prop "insert/insert" $ prop_insertInsert (Just $ show . void . extract) lower
 
 -- | All the constraints we need to generalize properties in this module.
 -- A regular type synonym doesn't work due to dreaded impredicative

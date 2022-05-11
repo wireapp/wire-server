@@ -148,5 +148,5 @@ lookupBindingTeam zusr = do
   tid <- getOneUserTeam zusr >>= noteS @'TeamNotFound
   binding <- getTeamBinding tid >>= noteS @'TeamNotFound
   case binding of
-    Binding -> return tid
+    Binding -> pure tid
     NonBinding -> throwS @'NonBindingTeam

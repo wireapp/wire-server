@@ -426,35 +426,34 @@ createConnectConversation lusr conn j = do
     update n conv = do
       let mems = Data.convLocalMembers conv
        in conversationExisted lusr
-            =<< if
-                | (tUnqualified lusr) `isMember` mems ->
-                  -- we already were in the conversation, maybe also other
-                  connect n conv
-                | otherwise -> do
-                  let lcid = qualifyAs lusr (Data.convId conv)
-                  mm <- E.createMember lcid lusr
-                  let conv' =
-                        conv
-                          { Data.convLocalMembers = Data.convLocalMembers conv <> toList mm
-                          }
-                  if null mems
-                    then do
-                      -- the conversation was empty
-                      connect n conv'
-                    else do
-                      -- we were not in the conversation, but someone else
-                      conv'' <- acceptOne2One lusr conv' conn
-                      if Data.convType conv'' == ConnectConv
-                        then connect n conv''
-                        else return conv''
+            =<< if tUnqualified lusr `isMember` mems
+              then -- we already were in the conversation, maybe also other
+                connect n conv
+              else do
+                let lcid = qualifyAs lusr (Data.convId conv)
+                mm <- E.createMember lcid lusr
+                let conv' =
+                      conv
+                        { Data.convLocalMembers = Data.convLocalMembers conv <> toList mm
+                        }
+                if null mems
+                  then do
+                    -- the conversation was empty
+                    connect n conv'
+                  else do
+                    -- we were not in the conversation, but someone else
+                    conv'' <- acceptOne2One lusr conv' conn
+                    if Data.convType conv'' == ConnectConv
+                      then connect n conv''
+                      else pure conv''
     connect n conv
       | Data.convType conv == ConnectConv = do
         let lcnv = qualifyAs lusr (Data.convId conv)
         n' <- case n of
           Just x -> do
             E.setConversationName (Data.convId conv) x
-            return . Just $ fromRange x
-          Nothing -> return $ Data.convName conv
+            pure . Just $ fromRange x
+          Nothing -> pure $ Data.convName conv
         t <- input
         let e = Event (qUntagged lcnv) (qUntagged lusr) t (EdConnect j)
         for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> Data.convLocalMembers conv)) $ \p ->
@@ -463,7 +462,7 @@ createConnectConversation lusr conn j = do
               & pushRoute .~ RouteDirect
               & pushConn .~ conn
         pure $ Data.convSetName n' conv
-      | otherwise = return conv
+      | otherwise = pure conv
 
 --------------------------------------------------------------------------------
 -- Conversation creation records
@@ -525,7 +524,7 @@ notifyCreatedConversation ::
   Data.Conversation ->
   Sem r ()
 notifyCreatedConversation dtime lusr conn c = do
-  now <- maybe (input) pure dtime
+  now <- maybe input pure dtime
   -- FUTUREWORK: Handle failures in notifying so it does not abort half way
   -- through (either when notifying remotes or locals)
   --
@@ -542,7 +541,7 @@ notifyCreatedConversation dtime lusr conn c = do
       let lconv = qualifyAs lusr (Data.convId c)
       c' <- conversationView (qualifyAs lusr (lmId m)) c
       let e = Event (qUntagged lconv) (qUntagged lusr) t (EdConversation c')
-      return $
+      pure $
         newPushLocal1 ListComplete (tUnqualified lusr) (ConvEvent e) (list1 (recipient m) [])
           & pushConn .~ conn
           & pushRoute .~ route
@@ -564,7 +563,7 @@ toUUIDs ::
 toUUIDs a b = do
   a' <- U.fromUUID (toUUID a) & note InvalidUUID4
   b' <- U.fromUUID (toUUID b) & note InvalidUUID4
-  return (a', b')
+  pure (a', b')
 
 accessRoles :: NewConv -> Set AccessRoleV2
 accessRoles b = fromMaybe Data.defRole (newConvAccessRoles b)

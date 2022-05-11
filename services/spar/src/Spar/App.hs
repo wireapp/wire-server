@@ -131,10 +131,10 @@ getIdPConfig ::
     r =>
   IdPId ->
   Sem r IdP
-getIdPConfig = (>>= maybe (throwSparSem (SparIdPNotFound mempty)) pure) . IdPConfigStore.getConfig
+getIdPConfig = maybe (throwSparSem (SparIdPNotFound mempty)) pure <=< IdPConfigStore.getConfig
 
 storeIdPConfig :: Member IdPConfigStore r => IdP -> Sem r ()
-storeIdPConfig idp = IdPConfigStore.storeConfig idp
+storeIdPConfig = IdPConfigStore.storeConfig
 
 getIdPConfigByIssuerOptionalSPId :: Members '[IdPConfigStore, Error SparError] r => Issuer -> Maybe TeamId -> Sem r IdP
 getIdPConfigByIssuerOptionalSPId issuer mbteam = do
@@ -146,7 +146,7 @@ getIdPConfigByIssuerOptionalSPId issuer mbteam = do
     res@(GetIdPWrongTeam _) -> throwSparSem $ SparIdPNotFound (cs $ show res)
 
 insertUser :: Member SAMLUserStore r => SAML.UserRef -> UserId -> Sem r ()
-insertUser uref uid = SAMLUserStore.insert uref uid
+insertUser = SAMLUserStore.insert
 
 -- | Look up user locally in table @spar.user@ or @spar.scim_user@ (depending on the
 -- argument), then in brig, then return the 'UserId'.  If either lookup fails, or user is not
@@ -198,7 +198,7 @@ instance Functor GetUserResult where
 -- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR
 getUserIdByScimExternalId :: Members '[BrigAccess, ScimExternalIdStore] r => TeamId -> Email -> Sem r (Maybe UserId)
 getUserIdByScimExternalId tid email = do
-  muid <- (ScimExternalIdStore.lookup tid email)
+  muid <- ScimExternalIdStore.lookup tid email
   case muid of
     Nothing -> pure Nothing
     Just uid -> do
@@ -395,7 +395,7 @@ verdictHandler cky mbteam aresp verdict = do
   reqid <- either (throwSparSem . SparNoRequestRefInResponse . cs) pure $ SAML.rspInResponseTo aresp
   format :: Maybe VerdictFormat <- VerdictFormatStore.get reqid
   resp <- case format of
-    Just (VerdictFormatWeb) ->
+    Just VerdictFormatWeb ->
       verdictHandlerResult cky mbteam verdict >>= verdictHandlerWeb
     Just (VerdictFormatMobile granted denied) ->
       verdictHandlerResult cky mbteam verdict >>= verdictHandlerMobile granted denied
@@ -509,7 +509,7 @@ verdictHandlerResultCore bindCky mbteam = \case
     pure $ VerifyHandlerDenied reasons
   SAML.AccessGranted userref -> do
     uid :: UserId <- do
-      viaBindCookie <- maybe (pure Nothing) (BindCookieStore.lookup) bindCky
+      viaBindCookie <- maybe (pure Nothing) BindCookieStore.lookup bindCky
       viaSparCassandra <- getUserIdByUref mbteam userref
       -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
       -- returns 'Nothing'.  this is ok assuming 'createUser', 'bindUser' (called below) are
@@ -696,7 +696,7 @@ errorPage err mpInputs mcky =
 -- | Like 'getIdPIdByIssuer', but do not require a 'TeamId'.  If none is provided, see if a
 -- single solution can be found without.
 getIdPIdByIssuerAllowOld ::
-  (HasCallStack) =>
+  HasCallStack =>
   Member IdPConfigStore r =>
   SAML.Issuer ->
   Maybe TeamId ->

@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE LambdaCase #-}
 
 module Galley.API.Teams
   ( createBindingTeam,
@@ -293,11 +294,11 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
     journal _ _ = throwS @'InvalidTeamStatusUpdate
     validateTransition :: Member (ErrorS 'InvalidTeamStatusUpdate) r => (TeamStatus, TeamStatus) -> Sem r Bool
     validateTransition = \case
-      (PendingActive, Active) -> return True
-      (Active, Active) -> return False
-      (Active, Suspended) -> return True
-      (Suspended, Active) -> return True
-      (Suspended, Suspended) -> return False
+      (PendingActive, Active) -> pure True
+      (Active, Active) -> pure False
+      (Active, Suspended) -> pure True
+      (Suspended, Active) -> pure True
+      (Suspended, Suspended) -> pure False
       (_, _) -> throwS @'InvalidTeamStatusUpdate
 
 updateTeamH ::
@@ -326,7 +327,7 @@ updateTeamH zusr zcon tid updateData = do
   memList <- getTeamMembersForFanout tid
   let e = newEvent tid now (EdTeamUpdate updateData)
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
-  E.push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
+  E.push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn ?~ zcon
 
 deleteTeam ::
   forall r.
@@ -357,7 +358,7 @@ deleteTeam zusr zcon tid body = do
   where
     checkPermissions team = do
       void $ permissionCheck DeleteTeam =<< E.getTeamMember tid zusr
-      when ((tdTeam team) ^. teamBinding == Binding) $ do
+      when (tdTeam team ^. teamBinding == Binding) $ do
         ensureReAuthorised zusr (body ^. tdAuthPassword) (body ^. tdVerificationCode) (Just U.DeleteTeam)
 
 -- This can be called by stern
@@ -438,8 +439,8 @@ uncheckedDeleteTeam lusr zcon tid = do
       -- To avoid DoS on gundeck, send team deletion events in chunks
       let chunkSize = fromMaybe defConcurrentDeletionEvents (o ^. setConcurrentDeletionEvents)
       let chunks = List.chunksOf chunkSize (toList r)
-      forM_ chunks $ \chunk -> case chunk of
-        [] -> return ()
+      forM_ chunks $ \case
+        [] -> pure ()
         -- push TeamDelete events. Note that despite having a complete list, we are guaranteed in the
         -- push module to never fan this out to more than the limit
         x : xs -> E.push1 (newPushLocal1 ListComplete (tUnqualified lusr) (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
@@ -652,7 +653,7 @@ uncheckedGetTeamMembers ::
   TeamId ->
   Range 1 HardTruncationLimit Int32 ->
   Sem r TeamMemberList
-uncheckedGetTeamMembers tid maxResults = E.getTeamMembersWithLimit tid maxResults
+uncheckedGetTeamMembers = E.getTeamMembersWithLimit
 
 addTeamMember ::
   Members
@@ -812,7 +813,7 @@ updateTeamMember lzusr zcon tid newMember = do
       let ePriv = newEvent tid now privilegedUpdate
       -- push to all members (user is privileged)
       let pushPriv = newPushLocal (updatedMembers ^. teamMemberListType) zusr (TeamEvent ePriv) $ privilegedRecipients
-      for_ pushPriv $ \p -> E.push1 $ p & pushConn .~ Just zcon
+      for_ pushPriv $ \p -> E.push1 $ p & pushConn ?~ zcon
 
 deleteTeamMember ::
   Members
@@ -1130,7 +1131,7 @@ ensureUnboundUsers uids = do
   -- can only be part of one team.
   teams <- Map.elems <$> E.getUsersTeams uids
   binds <- E.getTeamsBindings teams
-  when (any (== Binding) binds) $
+  when (Binding `elem` binds) $
     throwS @'UserBindingExists
 
 ensureNonBindingTeam ::
@@ -1139,7 +1140,7 @@ ensureNonBindingTeam ::
   Sem r ()
 ensureNonBindingTeam tid = do
   team <- noteS @'TeamNotFound =<< E.getTeam tid
-  when ((tdTeam team) ^. teamBinding == Binding) $
+  when (tdTeam team ^. teamBinding == Binding) $
     throwS @'NoAddToBinding
 
 -- ensure that the permissions are not "greater" than the user's copy permissions
@@ -1161,7 +1162,7 @@ ensureNotTooLarge tid = do
   (TeamSize size) <- E.getSize tid
   unless (size < fromIntegral (o ^. optSettings . setMaxTeamSize)) $
     throwS @'TooManyTeamMembers
-  return $ TeamSize size
+  pure $ TeamSize size
 
 -- | Ensure that a team doesn't exceed the member count limit for the LegalHold
 -- feature. A team with more members than the fanout limit is too large, because
@@ -1239,7 +1240,7 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) memList = 
   E.push1 $
     newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   APITeamQueue.pushTeamEvent tid e
-  return sizeBeforeAdd
+  pure sizeBeforeAdd
   where
     recipients (Just o) n =
       list1

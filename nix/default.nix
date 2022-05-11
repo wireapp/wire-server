@@ -80,6 +80,7 @@ let
     pkgs.gnused
     pkgs.helm
     pkgs.helmfile
+    pkgs.hlint
     pkgs.jq
     pkgs.kind
     pkgs.kubectl
