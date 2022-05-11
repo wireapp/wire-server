@@ -321,8 +321,9 @@ postCommit MessagingSetup {..} = do
       )
     <!! const 201 === statusCode
 
-postWelcome :: (MonadIO m, MonadHttp m, HasGalley m) => (Request -> Request) -> UserId -> ByteString -> m ResponseLBS
-postWelcome galley uid welcome =
+postWelcome :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> ByteString -> m ResponseLBS
+postWelcome uid welcome = do
+  galley <- viewGalley
   post
     ( galley
         . paths ["mls", "welcome"]

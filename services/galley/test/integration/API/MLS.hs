@@ -122,12 +122,11 @@ testLocalWelcome = do
   MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def
   let bob = users !! 0
 
-  galley <- viewGalley
   cannon <- view tsCannon
 
   WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
     -- send welcome message
-    postWelcome galley (qUnqualified $ pUserId creator) welcome
+    postWelcome (qUnqualified $ pUserId creator) welcome
       !!! const 201 === statusCode
 
     -- check that the corresponding event is received
@@ -139,20 +138,11 @@ testWelcomeNoKey :: TestM ()
 testWelcomeNoKey = do
   MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createClients = CreateWithoutKey}
 
-  galley <- viewGalley
-  post
-    ( galley
-        . paths ["mls", "welcome"]
-        . zUser (qUnqualified (pUserId creator))
-        . content "message/mls"
-        . zConn "conn"
-        . bytes welcome
-    )
+  postWelcome (qUnqualified (pUserId creator)) welcome
     !!! const 404 === statusCode
 
 testRemoteWelcome :: TestM ()
 testRemoteWelcome = withSystemTempDirectory "mls" $ \tmp -> do
-  galley <- viewGalley
   brig <- view tsBrig
 
   -- 1. Create a conversation with just alice
@@ -192,7 +182,7 @@ testRemoteWelcome = withSystemTempDirectory "mls" $ \tmp -> do
     withTempMockFederator' mockedResponse $ do
       (_commit, welcome) <- liftIO $ setupCommit tmp "group" "group" [(qcidBob, cBob)]
 
-      postWelcome galley (qUnqualified $ pUserId alice) welcome
+      postWelcome (qUnqualified $ pUserId alice) welcome
         !!! const 201 === statusCode
 
   --  Assert the correct federated call is made.
