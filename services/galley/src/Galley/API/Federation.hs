@@ -20,7 +20,6 @@ module Galley.API.Federation where
 
 import Brig.Types.Connection (Relation (Accepted))
 import Control.Lens (itraversed, (<.>))
-import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain (Domain)
@@ -34,7 +33,6 @@ import Data.Range (Range (fromRange))
 import qualified Data.Set as Set
 import Data.Singletons (SingI (..), demote, sing)
 import qualified Data.Text.Lazy as LT
-import qualified Data.Text.Lazy as TL
 import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
@@ -533,8 +531,7 @@ mlsSendWelcome ::
   Members
     '[ GundeckAccess,
        Input (Local ()),
-       Input UTCTime,
-       Error InvalidInput
+       Input UTCTime
      ]
     r =>
   Domain ->
@@ -543,11 +540,7 @@ mlsSendWelcome ::
 mlsSendWelcome _origDomain (F.MLSWelcomeRequest b64RawWelcome rcpts) = do
   loc <- input @(Local ())
   now <- input @UTCTime
-  let eithWelcome = B64.decode . fromBase64ByteString $ b64RawWelcome
-  rawWelcome <- case eithWelcome of
-    Left str -> throw (InvalidPayload ("Encoding of value in \"raw_welcome\" is not RFC 4648 compliant: " <> TL.pack str))
-    Right rawWelcome -> pure rawWelcome
-
+  let rawWelcome = fromBase64ByteString b64RawWelcome
   void $
     runMessagePush loc Nothing $
       foldMap (uncurry $ mkPush rawWelcome loc now) (F.unMLSWelRecipient <$> rcpts)
