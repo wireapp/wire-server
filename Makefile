@@ -82,6 +82,12 @@ ci: c
 ghcid:
 	ghcid --command "cabal repl $(target)"
 
+# (Re-)generate $name.cabal files from package.yaml files.
+# Should be used when adding new libs, dependencies or modules.
+.PHONY: generate-cabal
+generate-cabal:
+	./hack/bin/generate-cabal-files.sh $(force)
+
 # reset db using cabal
 .PHONY: db-reset-package
 db-reset-package: c

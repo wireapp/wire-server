@@ -187,6 +187,7 @@ in
   pkgs.netcat
   pkgs.crypto_cli
   pkgs.ghcid
+  pkgs.hpack
 
   stack-wrapper
   pinned.helm
