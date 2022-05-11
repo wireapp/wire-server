@@ -551,14 +551,16 @@ setTeamFeatureFlagNoConfig ::
   TeamId ->
   Public.TeamFeatureName ->
   Public.TeamFeatureStatusValue ->
+  Public.TeamFeatureTTLValue ->
   Handler ()
-setTeamFeatureFlagNoConfig tid featureName statusValue = do
+setTeamFeatureFlagNoConfig tid featureName statusValue ttlValue = do
   info $ msg "Setting team feature status for feature without config"
   gly <- view galley
   let req =
         method PUT
           . paths ["/i/teams", toByteString' tid, "features", toByteString' featureName]
           . Bilge.json (Public.TeamFeatureStatusNoConfig statusValue)
+          . Bilge.query [("ttl", Just . toByteString' $ ttlValue)]
           . contentJson
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of

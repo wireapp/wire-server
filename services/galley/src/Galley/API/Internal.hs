@@ -407,11 +407,11 @@ featureAPI =
   fs getSSOStatusInternal setSSOStatusInternal
     <@> fs getLegalholdStatusInternal (setLegalholdStatusInternal @InternalPaging)
     <@> fs getTeamSearchVisibilityAvailableInternal setTeamSearchVisibilityAvailableInternal
-    <@> fs getTeamSearchVisibilityAvailableInternal setTeamSearchVisibilityAvailableInternal
+    <@> fsDeprecated getTeamSearchVisibilityAvailableInternal setTeamSearchVisibilityAvailableInternal
     <@> fs getValidateSAMLEmailsInternal setValidateSAMLEmailsInternal
-    <@> fs getValidateSAMLEmailsInternal setValidateSAMLEmailsInternal
+    <@> fsDeprecated getValidateSAMLEmailsInternal setValidateSAMLEmailsInternal
     <@> fs getDigitalSignaturesInternal setDigitalSignaturesInternal
-    <@> fs getDigitalSignaturesInternal setDigitalSignaturesInternal
+    <@> fsDeprecated getDigitalSignaturesInternal setDigitalSignaturesInternal
     <@> fs getAppLockInternal setAppLockInternal
     <@> ( fsGet getFileSharingInternal
             <@> fsSet setFileSharingInternal
@@ -435,10 +435,13 @@ featureAPI =
     <@> mkNamedAPI getTeamSearchVisibilityInboundInternalMulti
   where
     fs g s = fsGet g <@> fsSet s
+    fsDeprecated g s = fsGet g <@> fsSetD s
 
     fsGet g = mkNamedAPI (getFeatureStatus g DontDoAuth)
 
     fsSet s = mkNamedAPI (setFeatureStatus s DontDoAuth)
+
+    fsSetD s = mkNamedAPI (setFeatureStatusNoTTL s DontDoAuth)
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()
 internalSitemap = do

@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -25,6 +26,7 @@ module Wire.API.Team.Feature
     TeamFeatureSelfDeletingMessagesConfig (..),
     TeamFeatureClassifiedDomainsConfig (..),
     TeamFeatureStatusValue (..),
+    TeamFeatureTTLValue (..),
     FeatureHasNoConfig,
     EnforceAppLock (..),
     KnownTeamFeatureName (..),
@@ -42,6 +44,7 @@ module Wire.API.Team.Feature
     -- * Swagger
     typeTeamFeatureName,
     typeTeamFeatureStatusValue,
+    typeTeamFeatureTTLValue,
     modelTeamFeatureStatusNoConfig,
     modelTeamFeatureStatusWithConfig,
     modelTeamFeatureAppLockConfig,
@@ -66,10 +69,11 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.Lazy as TL
 import Deriving.Aeson
 import GHC.TypeLits (Symbol)
 import Imports
-import Servant (FromHttpApiData (..))
+import Servant (FromHttpApiData (..), Proxy (..), ToHttpApiData (..))
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -256,6 +260,52 @@ instance HasDeprecatedFeatureName 'TeamFeatureDigitalSignatures where
 
 typeTeamFeatureName :: Doc.DataType
 typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound :: TeamFeatureName) ..]
+
+----------------------------------------------------------------------
+-- TeamFeatureTTLValue
+
+-- Using Word to avoid dealing with negative numbers.
+-- Ideally we would also not support zero.
+-- Currently a TTL=0 is ignored on the cassandra side.
+data TeamFeatureTTLValue
+  = TeamFeatureTTLDays Word
+  | TeamFeatureTTLUnlimited
+  deriving stock (Eq, Show, Generic)
+
+deriving instance ToJSON TeamFeatureTTLValue
+
+deriving instance FromJSON TeamFeatureTTLValue
+
+instance ToHttpApiData TeamFeatureTTLValue where
+  toQueryParam a = case a of
+    TeamFeatureTTLDays d -> T.pack . show $ d
+    TeamFeatureTTLUnlimited -> "unlimited"
+
+instance FromHttpApiData TeamFeatureTTLValue where
+  parseQueryParam = \case
+    "unlimited" -> Right TeamFeatureTTLUnlimited
+    d -> case readEither . T.unpack $ d of
+      Right d' -> Right . TeamFeatureTTLDays $ d'
+      Left e -> Left . T.pack $ e <> " oops."
+
+instance S.ToParamSchema TeamFeatureTTLValue where
+  toParamSchema _ = S.toParamSchema (Proxy @Int)
+
+instance ToByteString TeamFeatureTTLValue where
+  builder TeamFeatureTTLUnlimited = "unlimited"
+  builder (TeamFeatureTTLDays d) = (builder . TL.pack . show) d
+
+instance FromByteString TeamFeatureTTLValue where
+  parser =
+    Parser.takeByteString >>= \b ->
+      case T.decodeUtf8' b of
+        Right "unlimited" -> pure TeamFeatureTTLUnlimited
+        Right d -> pure . TeamFeatureTTLDays . read . T.unpack $ d
+        Left e -> fail $ "Invalid TeamFeatureTTLDays: " <> show e
+
+typeTeamFeatureTTLValue :: Doc.DataType
+typeTeamFeatureTTLValue =
+  Doc.int64'
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusValue

@@ -142,7 +142,7 @@ servantSitemap =
               . DoAuth
           )
         <@> mkNamedAPI @'("put-deprecated", 'TeamFeatureSearchVisibility)
-          ( setFeatureStatus @'TeamFeatureSearchVisibility
+          ( setFeatureStatusNoTTL @'TeamFeatureSearchVisibility
               setTeamSearchVisibilityAvailableInternal
               . DoAuth
           )

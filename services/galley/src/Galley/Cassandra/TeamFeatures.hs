@@ -96,14 +96,24 @@ setFeatureStatusNoConfig ::
   Proxy a ->
   TeamId ->
   TeamFeatureStatus 'WithoutLockStatus a ->
+  Maybe TeamFeatureTTLValue ->
   m (TeamFeatureStatus 'WithoutLockStatus a)
-setFeatureStatusNoConfig _ tid status = do
+setFeatureStatusNoConfig _ tid status ttl = do
   let flag = tfwoStatus status
   retry x5 $ write insert (params LocalQuorum (tid, flag))
   pure status
   where
+    minutes = (* 60)
+    hours = minutes . (* 60)
+    days = hours . (* 24)
+
     insert :: PrepQuery W (TeamId, TeamFeatureStatusValue) ()
-    insert = fromString $ "insert into team_features (team_id, " <> statusCol @a <> ") values (?, ?)"
+    insert =
+      fromString $
+        "insert into team_features (team_id, " <> statusCol @a <> ") values (?, ?)"
+          <> case ttl of
+            Just (TeamFeatureTTLDays d) | d > 0 -> " using ttl " <> show (days d)
+            _ -> mempty
 
 getApplockFeatureStatus ::
   forall m.
@@ -232,7 +242,7 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
   GetFeatureStatusNoConfig' tfn tid -> embedClient $ getFeatureStatusNoConfig tfn tid
   GetFeatureStatusNoConfigMulti tfn tids -> embedClient $ getFeatureStatusNoConfigMulti tfn tids
   GetFeatureStatusNoConfigAndLockStatus' tfn tid -> embedClient $ getFeatureStatusNoConfigAndLockStatus tfn tid
-  SetFeatureStatusNoConfig' tfn tid value -> embedClient $ setFeatureStatusNoConfig tfn tid value
+  SetFeatureStatusNoConfig' tfn tid value ttl -> embedClient $ setFeatureStatusNoConfig tfn tid value ttl
   SetLockStatus' p tid value -> embedClient $ setLockStatus p tid value
   GetLockStatus' p tid -> embedClient $ getLockStatus p tid
   GetApplockFeatureStatus tid -> embedClient $ getApplockFeatureStatus tid

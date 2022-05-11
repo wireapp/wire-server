@@ -1176,6 +1176,7 @@ type FeatureStatusBasePut errs featureName =
     :> "features"
     :> KnownTeamFeatureNameSymbol featureName
     :> ReqBody '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
+    :> QueryParam "ttl" TeamFeatureTTLValue
     :> Put '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
 
 -- | A type for a GET endpoint for a feature with a deprecated path
