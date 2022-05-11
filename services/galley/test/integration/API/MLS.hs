@@ -35,7 +35,7 @@ import Data.Range
 import qualified Data.Set as Set
 import Data.String.Conversions
 import qualified Data.Text as T
-import Federator.MockServer (FederatedRequest (frRPC), frBody)
+import Federator.MockServer
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import System.FilePath
@@ -48,7 +48,7 @@ import TestHelpers
 import TestSetup
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
-import Wire.API.Federation.API.Galley (MLSWelcomeRecipient (MLSWelcomeRecipient), MLSWelcomeRequest, mwrRecipients)
+import Wire.API.Federation.API.Galley
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
