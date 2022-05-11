@@ -1160,7 +1160,7 @@ sendMLSWelcome = do
     -- send welcome message
     runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
       MLSWelcomeRequest
-        (toBase64ByteString welcome)
+        (Base64ByteString welcome)
         [MLSWelcomeRecipient (qUnqualified . pUserId $ bob, bobClient)]
 
     -- check that the corresponding event is received
