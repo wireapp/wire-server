@@ -186,6 +186,7 @@ in
   pkgs.rsync
   pkgs.netcat
   pkgs.crypto_cli
+  pkgs.ghcid
 
   stack-wrapper
   pinned.helm

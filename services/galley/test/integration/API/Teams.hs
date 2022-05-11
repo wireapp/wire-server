@@ -532,7 +532,7 @@ testAddTeamMember = do
   Util.connectUsers (mem1 ^. userId) (list1 (mem3 ^. userId) [])
   Util.connectUsers (mem2 ^. userId) (list1 (mem3 ^. userId) [])
   -- `mem1` lacks permission to add new team members
-  post (g . paths ["teams", toByteString' tid, "members"] . zUser (mem1 ^. userId) . payload)
+  post (g . paths ["teams", toByteString' tid, "members"] . zUser (mem1 ^. userId) . zConn "conn" . payload)
     !!! const 403 === statusCode
   WS.bracketRN c [owner, (mem1 ^. userId), (mem2 ^. userId), (mem3 ^. userId)] $ \[wsOwner, wsMem1, wsMem2, wsMem3] -> do
     -- `mem2` has `AddTeamMember` permission

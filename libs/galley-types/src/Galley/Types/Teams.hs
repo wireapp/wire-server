@@ -76,6 +76,7 @@ module Galley.Types.Teams
     nInvitation,
     legalHoldStatus,
     TeamMemberList,
+    TeamMemberListOptPerms,
     ListType (..),
     newTeamMemberList,
     teamMembers,
@@ -467,8 +468,8 @@ isTeamMember u = isJust . findTeamMember u
 findTeamMember :: Foldable m => UserId -> m TeamMember -> Maybe TeamMember
 findTeamMember u = find ((u ==) . view userId)
 
-isTeamOwner :: TeamMember -> Bool
-isTeamOwner tm = fullPermissions == (tm ^. permissions)
+isTeamOwner :: TeamMemberOptPerms -> Bool
+isTeamOwner tm = optionalPermissions tm == Just fullPermissions
 
 -- | Use this to construct the condition expected by 'teamMemberJson', 'teamMemberListJson'
 canSeePermsOf :: TeamMember -> TeamMember -> Bool
