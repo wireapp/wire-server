@@ -119,5 +119,5 @@ sendRemoteWelcomes rawWelcome rClients = do
           { mwrRawWelcome = Base64ByteString rawWelcome,
             mwrRecipients = MLSWelcomeRecipient <$> tUnqualified rClients
           }
-  let rpc = fedClient @'Galley @"mls-welcome" req
+      rpc = fedClient @'Galley @"mls-welcome" req
   void $ runFederated rClients rpc
