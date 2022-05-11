@@ -71,6 +71,7 @@ import qualified V65_MLSRemoteClients
 import qualified V66_AddSplashScreen
 import qualified V67_MLSFeature
 import qualified V68_MLSCommitLock
+import qualified V69_MLSProposal
 
 main :: IO ()
 main = do
@@ -127,7 +128,8 @@ main = do
       V65_MLSRemoteClients.migration,
       V66_AddSplashScreen.migration,
       V67_MLSFeature.migration,
-      V68_MLSCommitLock.migration
+      V68_MLSCommitLock.migration,
+      V69_MLSProposal.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Cassandra
       -- (see also docs/developer/cassandra-interaction.md)
