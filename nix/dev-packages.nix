@@ -1,4 +1,4 @@
-{ pkgs ? import ./nix }:
+{ pkgs ? (import ./nix).pkgs }:
 let
   staticBinaryInTarball = { pname, version, linuxAmd64Url, linuxAmd64Sha256, darwinAmd64Url, darwinAmd64Sha256, binPath ? pname }:
     pkgs.stdenv.mkDerivation {
