@@ -18,16 +18,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Brig.Calling where
+module Test.Brig.Calling (tests) where
 
 import Brig.Calling
 import Brig.Calling.API (CallsConfigVersion (..), NoTurnServers, newConfig)
 import Brig.Calling.Internal (sftServerFromSrvTarget)
 import Brig.Effects.SFT
 import Brig.Options
+import qualified Control.Concurrent.Timeout as System
 import Control.Lens ((^.))
 import Control.Monad.Catch (throwM)
-import Control.Retry
 import Data.Bifunctor
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
@@ -35,13 +35,14 @@ import qualified Data.Map as Map
 import Data.Misc
 import Data.Range
 import qualified Data.Set as Set
-import Data.String.Conversions
+import Data.Timeout
 import Imports
 import Network.DNS
 import Polysemy
 import Polysemy.Error
 import Polysemy.TinyLog
 import qualified System.Logger as Log
+import Test.Brig.Effects.Delay
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck (Arbitrary (..), generate)
@@ -98,10 +99,11 @@ tests =
               (mkSFTDomain (SFTOptions "example.com" Nothing Nothing Nothing))
         ],
       testGroup "sftDiscoveryLoop" $
-        [ testCase "when service can be discovered" $ void testDiscoveryLoopWhenSuccessful,
-          testCase "when service can be discovered and the URLs change" testDiscoveryLoopWhenURLsChange,
-          testCase "when service cannot be discovered" testDiscoveryLoopWhenUnsuccessful,
-          testCase "when service cannot be discovered after a successful discovery" testDiscoveryLoopWhenUnsuccessfulAfterSuccess
+        [ testCase "when service can be discovered" $ void testSFTDiscoveryLoopWhenSuccessful
+        ],
+      testGroup "srvDiscoveryLoop" $
+        [ testCase "when service can be discovered" $ testSRVDiscoveryLoopWhenSuccessful,
+          testCase "when service cannot be discovered" $ testSRVDiscoveryLoopWhenUnsuccessful
         ],
       testGroup "discoverSRVRecords" $
         [ testCase "when service is available" testSRVDiscoverWhenAvailable,
@@ -123,75 +125,86 @@ tests =
         ]
     ]
 
-testDiscoveryLoopWhenSuccessful :: IO SFTEnv
-testDiscoveryLoopWhenSuccessful = do
+testSFTDiscoveryLoopWhenSuccessful :: IO SFTEnv
+testSFTDiscoveryLoopWhenSuccessful = do
   let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.example.com." 443)
       entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
       entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
       returnedEntries = entry1 :| [entry2, entry3]
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries)
-  sftEnv <- mkSFTEnv $ SFTOptions "foo.example.com" Nothing (Just 0.001) Nothing
+  let intervalInSeconds = 0.001
+      intervalInMicroseconds = 1000
+  sftEnv <- mkSFTEnv $ SFTOptions "foo.example.com" Nothing (Just intervalInSeconds) Nothing
 
-  discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
-  void $ retryEvery10MicrosWhileN 2000 (== 0) (length <$> readIORef (fakeLookupSrvCalls fakeDNSEnv))
-  -- We don't want to stop the loop before it has written to the sftServers IORef
-  void $ retryEvery10MicrosWhileN 2000 (== NotDiscoveredYet) (readIORef (sftServers sftEnv))
-  Async.cancel discoveryLoop
+  tick <- newEmptyMVar
+  delayCallsTVar <- newTVarIO []
+  discoveryLoop <-
+    Async.async . runM
+      . ignoreLogs
+      . runDelayWithTick tick delayCallsTVar
+      . runFakeDNSLookup fakeDNSEnv
+      $ sftDiscoveryLoop sftEnv
+
+  Async.race_ (Async.wait discoveryLoop) (System.timeout (30 # Second) $ takeMVar tick)
 
   actualServers <- readIORef (sftServers sftEnv)
+  delayCalls <- readTVarIO delayCallsTVar
   assertEqual "servers should be the ones read from DNS" (Discovered (mkSFTServers returnedEntries)) actualServers
+  assertEqual "delay should be called with the configured interval" intervalInMicroseconds (head delayCalls)
   pure sftEnv
 
-testDiscoveryLoopWhenUnsuccessful :: IO ()
-testDiscoveryLoopWhenUnsuccessful = do
+testSRVDiscoveryLoopWhenSuccessful :: IO ()
+testSRVDiscoveryLoopWhenSuccessful = do
+  let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.example.com." 443)
+      entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
+      entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
+      returnedEntries = entry1 :| [entry2, entry3]
+  fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries)
+  let intervalInMicroseconds = 1000
+
+  tick <- newEmptyMVar
+  delayCallsTVar <- newTVarIO []
+  savedSrvRecordsMVar <- newEmptyMVar
+  discoveryLoop <-
+    Async.async
+      . runM
+      . ignoreLogs
+      . runDelayWithTick tick delayCallsTVar
+      . runFakeDNSLookup fakeDNSEnv
+      $ srvDiscoveryLoop "foo.example.com" intervalInMicroseconds (putMVar savedSrvRecordsMVar)
+
+  Async.race_ (Async.wait discoveryLoop) (System.timeout (30 # Second) $ takeMVar tick)
+
+  savedSrvRecords <- tryReadMVar savedSrvRecordsMVar
+  delayCalls <- readTVarIO delayCallsTVar
+  assertEqual "servers should be the ones read from DNS" (Just returnedEntries) savedSrvRecords
+  assertEqual "delay should be called with the configured interval" intervalInMicroseconds (head delayCalls)
+
+testSRVDiscoveryLoopWhenUnsuccessful :: IO ()
+testSRVDiscoveryLoopWhenUnsuccessful = do
   fakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable)
-  sftEnv <- mkSFTEnv $ SFTOptions "foo.example.com" Nothing (Just 0.001) Nothing
 
-  discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
+  -- Irrelevant for this test, but types make us choose a number
+  let intervalInMicroseconds = 1000
+  tick <- newEmptyMVar
+  delayCallsTVar <- newTVarIO []
+  discoveryLoop <-
+    Async.async
+      . runM
+      . ignoreLogs
+      . runDelayWithTick tick delayCallsTVar
+      . runFakeDNSLookup fakeDNSEnv
+      . srvDiscoveryLoop "foo.example.com" intervalInMicroseconds
+      $ ( \_ ->
+            liftIO $ assertFailure "shouldn't try to save SRV records when they are unavailable"
+        )
   -- We wait for at least two lookups to be sure that the lookup loop looped at
-  -- least once
-  void $ retryEvery10MicrosWhileN 2000 (<= 1) (length <$> readIORef (fakeLookupSrvCalls fakeDNSEnv))
-  Async.cancel discoveryLoop
+  -- least once this tests that the loop keeps going even when discovery fails
+  void . System.timeout (30 # Second) $ takeMVar tick
+  Async.race_ (Async.wait discoveryLoop) (System.timeout (30 # Second) $ takeMVar tick)
 
-  actualServers <- readIORef (sftServers sftEnv)
-  assertEqual "servers should be the ones read from DNS" NotDiscoveredYet actualServers
-
-testDiscoveryLoopWhenUnsuccessfulAfterSuccess :: IO ()
-testDiscoveryLoopWhenUnsuccessfulAfterSuccess = do
-  sftEnv <- testDiscoveryLoopWhenSuccessful
-  previousEntries <- readIORef (sftServers sftEnv)
-
-  -- In the following lines we re-use the 'sftEnv' from a successful lookup to
-  -- replicate what will happen when a dns lookup fails after success
-  failingFakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable)
-  discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup failingFakeDNSEnv $ sftDiscoveryLoop sftEnv
-  -- We wait for at least two lookups to be sure that the lookup loop looped at
-  -- least once
-  void $ retryEvery10MicrosWhileN 2000 (<= 1) (length <$> readIORef (fakeLookupSrvCalls failingFakeDNSEnv))
-  Async.cancel discoveryLoop
-
-  actualServers <- readIORef (sftServers sftEnv)
-  assertEqual "servers shouldn't get overwriten" previousEntries actualServers
-
-testDiscoveryLoopWhenURLsChange :: IO ()
-testDiscoveryLoopWhenURLsChange = do
-  sftEnv <- testDiscoveryLoopWhenSuccessful
-
-  -- In the following lines we re-use the 'sftEnv' from a successful lookup to
-  -- replicate what will happen when a dns lookup returns new URLs
-  let entry1 = SrvEntry 0 0 (SrvTarget "sft4.foo.example.com." 443)
-      entry2 = SrvEntry 0 0 (SrvTarget "sft5.foo.example.com." 443)
-      newEntries = entry1 :| [entry2]
-
-  fakeDNSEnv <- newFakeDNSEnv (const $ SrvAvailable newEntries)
-  discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
-  void $ retryEvery10MicrosWhileN 2000 (== 0) (length <$> readIORef (fakeLookupSrvCalls fakeDNSEnv))
-  -- We don't want to stop the loop before it has written to the sftServers IORef
-  void $ retryEvery10MicrosWhileN 2000 (== Discovered (mkSFTServers newEntries)) (readIORef (sftServers sftEnv))
-  Async.cancel discoveryLoop
-
-  actualServers <- readIORef (sftServers sftEnv)
-  assertEqual "servers should get overwritten" (Discovered (mkSFTServers newEntries)) actualServers
+  numberOfDealys <- length <$> readTVarIO delayCallsTVar
+  assertBool "discovery loop should run again even if discovery fails" (numberOfDealys >= 2)
 
 testSRVDiscoverWhenAvailable :: IO ()
 testSRVDiscoverWhenAvailable = do
@@ -257,13 +270,6 @@ testSFTFewerServers = do
 
   allServers <- getRandomElements (unsafeRange 10) . unSFTServers $ sftServers
   assertEqual "should return all of them" (Set.fromList $ NonEmpty.toList allServers) (Set.fromList $ NonEmpty.toList entries)
-
-retryEvery10MicrosWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
-retryEvery10MicrosWhileN n f m =
-  retrying
-    (constantDelay 10 <> limitRetries n)
-    (const (return . f))
-    (const m)
 
 -- | Creates a calling environment and an https URL to be used in unit-testing
 -- the logic of call configuration endpoints

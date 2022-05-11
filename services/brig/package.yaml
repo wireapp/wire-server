@@ -161,6 +161,7 @@ tests:
     - brig-types
     - bytestring
     - containers
+    - data-timeout
     - dns
     - dns-util
     - exceptions

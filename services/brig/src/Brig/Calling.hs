@@ -29,6 +29,7 @@ module Brig.Calling
     TurnEnv,
     mkSFTEnv,
     mkTurnEnv,
+    srvDiscoveryLoop,
     sftDiscoveryLoop,
     discoverSRVRecords,
     discoveryToMaybe,
@@ -47,6 +48,7 @@ module Brig.Calling
   )
 where
 
+import Brig.Effects.Delay
 import Brig.Options (SFTOptions (..), defSftDiscoveryIntervalSeconds, defSftListLength, defSftServiceName)
 import qualified Brig.Options as Opts
 import Brig.Types (TurnURI)
@@ -155,18 +157,18 @@ discoverSRVRecords domain =
           . Log.field "domain" domain
       pure Nothing
 
-srvDiscoveryLoop :: Members [DNSLookup, TinyLog, Embed IO] r => DNS.Domain -> Int -> (NonEmpty SrvEntry -> IO ()) -> Sem r ()
+srvDiscoveryLoop :: Members [DNSLookup, TinyLog, Delay] r => DNS.Domain -> Int -> (NonEmpty SrvEntry -> Sem r ()) -> Sem r ()
 srvDiscoveryLoop domain discoveryInterval saveAction = forever $ do
   servers <- discoverSRVRecords domain
   case servers of
     Nothing -> pure ()
-    Just es -> liftIO $ saveAction es
-  threadDelay discoveryInterval
+    Just es -> saveAction es
+  delay discoveryInterval
 
 mkSFTDomain :: SFTOptions -> DNS.Domain
 mkSFTDomain SFTOptions {..} = DNS.normalize $ maybe defSftServiceName ("_" <>) sftSRVServiceName <> "._tcp." <> sftBaseDomain
 
-sftDiscoveryLoop :: Members [DNSLookup, TinyLog, Embed IO] r => SFTEnv -> Sem r ()
+sftDiscoveryLoop :: Members [DNSLookup, TinyLog, Delay, Embed IO] r => SFTEnv -> Sem r ()
 sftDiscoveryLoop SFTEnv {..} =
   srvDiscoveryLoop sftDomain sftDiscoveryInterval $
     atomicWriteIORef sftServers . Discovered . SFTServers
@@ -181,7 +183,7 @@ mkSFTEnv opts =
 
 startSFTServiceDiscovery :: Log.Logger -> SFTEnv -> IO ()
 startSFTServiceDiscovery logger =
-  runM . loggerToTinyLog logger . runDNSLookupDefault . sftDiscoveryLoop
+  runM . loggerToTinyLog logger . runDNSLookupDefault . runDelay . sftDiscoveryLoop
 
 -- | >>> diffTimeToMicroseconds 1
 -- 1000000
