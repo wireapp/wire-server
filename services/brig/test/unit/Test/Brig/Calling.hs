@@ -279,9 +279,9 @@ sftStaticEnv = do
   let tokenTtl = 10 -- seconds
       configTtl = 10 -- seconds
       secret = "secret word"
-  env <- mkTurnEnv "test/resources/turn/servers.txt" "test/resources/turn/servers-v2.txt" tokenTtl configTtl secret undefined
-  let serversV1IORef = env ^. turnServersV1
-      serversV2IORef = env ^. turnServersV2
+      turnSource = TurnSourceFiles (TurnServersFiles "test/resources/turn/servers.txt" "test/resources/turn/servers-v2.txt")
+  env <- mkTurnEnv turnSource tokenTtl configTtl secret undefined
+  let TurnServersFromFiles _ serversV1IORef serversV2IORef = env ^. turnServers
   atomicWriteIORef serversV1IORef (Discovered turnUri)
   atomicWriteIORef serversV2IORef (Discovered turnUri)
   let Right staticUrl =
@@ -295,12 +295,13 @@ sftStaticEnv = do
 testSFTStaticDeprecatedEndpoint :: IO ()
 testSFTStaticDeprecatedEndpoint = do
   env <- fst <$> sftStaticEnv
+  turnUri <- generate arbitrary
   cfg <-
     runM @IO
       . ignoreLogs
       . interpretSFTInMemory mempty
       . throwErrorInIO @_ @NoTurnServers
-      $ newConfig env turnServersV1 Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
+      $ newConfig env (Discovered turnUri) Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
   assertEqual
     "when SFT static URL is disabled, sft_servers should be empty."
     Set.empty
@@ -320,12 +321,13 @@ testSFTStaticV2NoStaticUrl = do
       <*> pure "foo.example.com"
       <*> pure 5
       <*> pure (unsafeRange 1)
+  turnUri <- generate arbitrary
   cfg <-
     runM @IO
       . ignoreLogs
       . interpretSFTInMemory mempty
       . throwErrorInIO @_ @NoTurnServers
-      $ newConfig env turnServersV2 Nothing (Just sftEnv) (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
+      $ newConfig env (Discovered turnUri) Nothing (Just sftEnv) (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL is disabled, sft_servers_all should be from SFT environment"
     (Just . fmap (sftServerFromSrvTarget . srvTarget) . toList $ servers)
@@ -335,12 +337,13 @@ testSFTStaticV2NoStaticUrl = do
 testSFTStaticV2StaticUrlError :: IO ()
 testSFTStaticV2StaticUrlError = do
   (env, staticUrl) <- sftStaticEnv
+  turnUri <- generate arbitrary
   cfg <-
     runM @IO
       . ignoreLogs
       . interpretSFTInMemory mempty -- an empty lookup map, meaning there was an error
       . throwErrorInIO @_ @NoTurnServers
-      $ newConfig env turnServersV2 (Just staticUrl) Nothing (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
+      $ newConfig env (Discovered turnUri) (Just staticUrl) Nothing (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL is enabled (and setSftListAllServers is enabled), but returns error, sft_servers_all should be omitted"
     Nothing
@@ -353,12 +356,13 @@ testSFTStaticV2StaticUrlList = do
   -- 10 servers compared to the limit of 3 below that should be disregarded
   -- for sft_servers_all
   servers <- generate $ replicateM 10 arbitrary
+  turnUri <- generate arbitrary
   cfg <-
     runM @IO
       . ignoreLogs
       . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse . Right $ servers))
       . throwErrorInIO @_ @NoTurnServers
-      $ newConfig env turnServersV2 (Just staticUrl) Nothing (Just . unsafeRange $ 3) ListAllSFTServers CallsConfigV2
+      $ newConfig env (Discovered turnUri) (Just staticUrl) Nothing (Just . unsafeRange $ 3) ListAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL and setSftListAllServers are enabled, sft_servers_all should be from /sft_servers_all.json"
     (Just servers)
@@ -370,12 +374,13 @@ testSFTStaticV2ListAllServersDisabled = do
   -- 10 servers compared to the limit of 3 below that should be disregarded
   -- for sft_servers_all
   servers <- generate $ replicateM 10 arbitrary
+  turnUri <- generate arbitrary
   cfg <-
     runM @IO
       . ignoreLogs
       . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse . Right $ servers))
       . throwErrorInIO @_ @NoTurnServers
-      $ newConfig env turnServersV2 (Just staticUrl) Nothing (Just . unsafeRange $ 3) HideAllSFTServers CallsConfigV2
+      $ newConfig env (Discovered turnUri) (Just staticUrl) Nothing (Just . unsafeRange $ 3) HideAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL is enabled and setSftListAllServers is \"disabled\" then sft_servers_all is missing"
     Nothing

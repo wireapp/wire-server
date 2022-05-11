@@ -223,7 +223,7 @@ newEnv o = do
   g <- geoSetup lgr w $ Opt.geoDb o
   let turnOpts = Opt.turn o
   turnSecret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret turnOpts)
-  turn <- Calling.mkTurnEnv (Opt.servers turnOpts) (Opt.serversV2 turnOpts) (Opt.tokenTTL turnOpts) (Opt.configTTL turnOpts) turnSecret sha512
+  turn <- Calling.mkTurnEnv (Opt.serversSource turnOpts) (Opt.tokenTTL turnOpts) (Opt.configTTL turnOpts) turnSecret sha512
   let sett = Opt.optSettings o
   nxm <- initCredentials (Opt.setNexmo sett)
   twl <- initCredentials (Opt.setTwilio sett)

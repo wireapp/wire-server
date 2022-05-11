@@ -93,7 +93,7 @@ run o = do
       AWS.execute (e ^. awsEnv) $
         AWS.listen throttleMillis q (runAppT e . SesNotification.onEvent)
   sftDiscovery <- forM (e ^. sftEnv) $ Async.async . Calling.startSFTServiceDiscovery (e ^. applog)
-  Calling.startTurnDiscovery (e ^. applog) (e ^. fsWatcher) (e ^. turnEnv)
+  turnDiscovery <- Calling.startTurnDiscovery (e ^. applog) (e ^. fsWatcher) (e ^. turnEnv)
   pendingActivationCleanupAsync <- Async.async (runAppT e pendingActivationCleanup)
 
   runSettingsWithShutdown s app 5 `finally` do
@@ -101,6 +101,7 @@ run o = do
     Async.cancel internalEventListener
     mapM_ Async.cancel sftDiscovery
     Async.cancel pendingActivationCleanupAsync
+    mapM_ Async.cancel turnDiscovery
     closeEnv e
   where
     endpoint = brig o

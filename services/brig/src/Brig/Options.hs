@@ -30,6 +30,7 @@ import qualified Brig.ZAuth as ZAuth
 import Control.Applicative
 import qualified Control.Lens as Lens
 import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON, withText)
+import qualified Data.Aeson as A
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (typeMismatch)
 import qualified Data.Char as Char
@@ -297,13 +298,8 @@ instance FromJSON ZAuthOpts
 
 -- | TURN server options
 data TurnOpts = TurnOpts
-  { -- | Line separated file with IP addresses of
-    --   available TURN servers supporting UDP
-    servers :: !FilePath,
-    -- | Line separated file with hostnames of all
-    --   available TURN servers with all protocols
-    --   and transports
-    serversV2 :: !FilePath,
+  { -- | Where to get list of turn servers from
+    serversSource :: !TurnServersSource,
     -- | TURN shared secret file path
     secret :: !FilePath,
     -- | For how long TURN credentials should be
@@ -313,9 +309,50 @@ data TurnOpts = TurnOpts
     --   should be fetched, in seconds
     configTTL :: !Word32
   }
-  deriving (Show, Generic)
+  deriving (Show)
 
-instance FromJSON TurnOpts
+instance FromJSON TurnOpts where
+  parseJSON = A.withObject "TurnOpts" $ \o ->
+    TurnOpts
+      <$> A.parseJSON (A.Object o)
+      <*> o .: "secret"
+      <*> o .: "tokenTTL"
+      <*> o .: "configTTL"
+
+data TurnServersSource
+  = TurnSourceDNS TurnDnsOpts
+  | TurnSourceFiles TurnServersFiles
+  deriving (Show)
+
+instance FromJSON TurnServersSource where
+  parseJSON v =
+    -- TODO: print better errors on failure
+    (TurnSourceDNS <$> A.parseJSON v)
+      <|> (TurnSourceFiles <$> A.parseJSON v)
+
+data TurnServersFiles = TurnServersFiles
+  { tsfServers :: !FilePath,
+    tsfServersV2 :: !FilePath
+  }
+  deriving (Show)
+
+instance FromJSON TurnServersFiles where
+  parseJSON = A.withObject "TurnServersFiles" $ \o ->
+    TurnServersFiles
+      <$> o .: "servers"
+      <*> o .: "serversV2"
+
+data TurnDnsOpts = TurnDnsOpts
+  { tdoBaseDomain :: DNS.Domain,
+    tdoDiscoveryIntervalSeconds :: !(Maybe DiffTime)
+  }
+  deriving (Show)
+
+instance FromJSON TurnDnsOpts where
+  parseJSON = A.withObject "TurnDnsOpts" $ \o ->
+    TurnDnsOpts
+      <$> (asciiOnly =<< o .: "baseDomain")
+      <*> o .:? "discoveryIntervalSeconds"
 
 -- | Configurations for whether to show a user's email to others.
 data EmailVisibility
@@ -695,12 +732,12 @@ instance FromJSON SFTOptions where
       <*> (mapM asciiOnly =<< o .:? "sftSRVServiceName")
       <*> (secondsToDiffTime <$$> o .:? "sftDiscoveryIntervalSeconds")
       <*> (o .:? "sftListLength")
-    where
-      asciiOnly :: Text -> Y.Parser ByteString
-      asciiOnly t =
-        if Text.all Char.isAscii t
-          then pure $ Text.encodeUtf8 t
-          else fail $ "Expected ascii string only, found: " <> Text.unpack t
+
+asciiOnly :: Text -> Y.Parser ByteString
+asciiOnly t =
+  if Text.all Char.isAscii t
+    then pure $ Text.encodeUtf8 t
+    else fail $ "Expected ascii string only, found: " <> Text.unpack t
 
 defMaxKeyLen :: Int64
 defMaxKeyLen = 1024
@@ -720,8 +757,8 @@ defUserMaxPermClients = 7
 defSftServiceName :: ByteString
 defSftServiceName = "_sft"
 
-defSftDiscoveryIntervalSeconds :: DiffTime
-defSftDiscoveryIntervalSeconds = secondsToDiffTime 10
+defSrvDiscoveryIntervalSeconds :: DiffTime
+defSrvDiscoveryIntervalSeconds = secondsToDiffTime 10
 
 defSftListLength :: Range 1 100 Int
 defSftListLength = unsafeRange 5

@@ -1006,9 +1006,10 @@ withSettingsOverrides opts action = liftIO $ do
   sftDiscovery <-
     forM (env ^. sftEnv) $ \sftEnv' ->
       Async.async $ Calling.startSFTServiceDiscovery (env ^. applog) sftEnv'
-  Calling.startTurnDiscovery (env ^. applog) (env ^. fsWatcher) (env ^. turnEnv)
+  turnDiscovery <- Calling.startTurnDiscovery (env ^. applog) (env ^. fsWatcher) (env ^. turnEnv)
   res <- WaiTest.runSession action brigApp
   mapM_ Async.cancel sftDiscovery
+  mapM_ Async.cancel turnDiscovery
   pure res
 
 -- | When we remove the customer-specific extension of domain blocking, this test will fail to

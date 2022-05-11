@@ -27,6 +27,7 @@ module Brig.Calling
     SFTEnv (..),
     Discovery (..),
     TurnEnv,
+    TurnServers (..),
     mkSFTEnv,
     mkTurnEnv,
     srvDiscoveryLoop,
@@ -36,10 +37,9 @@ module Brig.Calling
     randomize,
     startSFTServiceDiscovery,
     startTurnDiscovery,
+    turnServers,
     turnServersV1,
-    turnServersV1File,
     turnServersV2,
-    turnServersV2File,
     turnTokenTTL,
     turnConfigTTL,
     turnSecret,
@@ -49,16 +49,17 @@ module Brig.Calling
 where
 
 import Brig.Effects.Delay
-import Brig.Options (SFTOptions (..), defSftDiscoveryIntervalSeconds, defSftListLength, defSftServiceName)
+import Brig.Options (SFTOptions (..), defSftListLength, defSftServiceName, defSrvDiscoveryIntervalSeconds)
 import qualified Brig.Options as Opts
-import Brig.Types (TurnURI)
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens
 import Control.Monad.Random.Class (MonadRandom)
 import Data.ByteString.Conversion (fromByteString)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.Misc
 import Data.Range
+import Data.String.Conversions (cs)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.IO as Text
@@ -73,6 +74,9 @@ import qualified System.FilePath as Path
 import qualified System.Logger as Log
 import System.Random.MWC (GenIO, createSystemRandom)
 import System.Random.Shuffle
+import UnliftIO (Async)
+import qualified UnliftIO.Async as Async
+import Wire.API.Call.Config
 import Wire.Network.DNS.Effect
 import Wire.Network.DNS.SRV
 import Wire.Sem.Logger.TinyLog
@@ -136,6 +140,11 @@ data Discovery a
   | Discovered a
   deriving (Show, Eq)
 
+instance Semigroup a => Semigroup (Discovery a) where
+  NotDiscoveredYet <> other = other
+  other <> NotDiscoveredYet = other
+  Discovered x <> Discovered y = Discovered (x <> y)
+
 discoveryToMaybe :: Discovery a -> Maybe a
 discoveryToMaybe = \case
   NotDiscoveredYet -> Nothing
@@ -178,9 +187,10 @@ mkSFTEnv opts =
   SFTEnv
     <$> newIORef NotDiscoveredYet
     <*> pure (mkSFTDomain opts)
-    <*> pure (diffTimeToMicroseconds (fromMaybe defSftDiscoveryIntervalSeconds (Opts.sftDiscoveryIntervalSeconds opts)))
+    <*> pure (diffTimeToMicroseconds (fromMaybe defSrvDiscoveryIntervalSeconds (Opts.sftDiscoveryIntervalSeconds opts)))
     <*> pure (fromMaybe defSftListLength (Opts.sftListLength opts))
 
+-- | Start SFT service discovery synchronously
 startSFTServiceDiscovery :: Log.Logger -> SFTEnv -> IO ()
 startSFTServiceDiscovery logger =
   runM . loggerToTinyLog logger . runDNSLookupDefault . runDelay . sftDiscoveryLoop
@@ -192,11 +202,17 @@ diffTimeToMicroseconds = fromIntegral . (`quot` 1000000) . diffTimeToPicoseconds
 
 -- TURN specific
 
+type TurnServersRef = IORef (Discovery (NonEmpty TurnURI))
+
+data TurnServers
+  = TurnServersFromFiles Opts.TurnServersFiles TurnServersRef TurnServersRef
+  | TurnServersFromDNS Opts.TurnDnsOpts TurnServersRef TurnServersRef TurnServersRef TurnServersRef
+
 data TurnEnv = TurnEnv
-  { _turnServersV1 :: IORef (Discovery (NonEmpty TurnURI)),
-    _turnServersV2 :: IORef (Discovery (NonEmpty TurnURI)),
-    _turnServersV1File :: FilePath,
-    _turnServersV2File :: FilePath,
+  { -- _turnServersV1 :: TurnServersRef,
+    -- _turnServersV2 :: TurnServersRef,
+    _turnServers :: TurnServers,
+    -- _turnServersSource :: Opts.TurnServersSource,
     _turnTokenTTL :: Word32,
     _turnConfigTTL :: Word32,
     _turnSecret :: ByteString,
@@ -206,30 +222,94 @@ data TurnEnv = TurnEnv
 
 makeLenses ''TurnEnv
 
-mkTurnEnv :: FilePath -> FilePath -> Word32 -> Word32 -> ByteString -> Digest -> IO TurnEnv
-mkTurnEnv v1File v2File _turnTokenTTL _turnConfigTTL _turnSecret _turnSHA512 = do
-  _turnServersV1 <- newIORef NotDiscoveredYet
-  _turnServersV2 <- newIORef NotDiscoveredYet
+mkTurnEnv :: Opts.TurnServersSource -> Word32 -> Word32 -> ByteString -> Digest -> IO TurnEnv
+mkTurnEnv serversSource _turnTokenTTL _turnConfigTTL _turnSecret _turnSHA512 = do
+  _turnServers <- case serversSource of
+    Opts.TurnSourceDNS opts ->
+      do
+        TurnServersFromDNS opts
+        <$> newIORef NotDiscoveredYet
+        <*> newIORef NotDiscoveredYet
+        <*> newIORef NotDiscoveredYet
+        <*> newIORef NotDiscoveredYet
+    Opts.TurnSourceFiles files -> do
+      TurnServersFromFiles files
+        <$> newIORef NotDiscoveredYet
+        <*> newIORef NotDiscoveredYet
   _turnPrng <- createSystemRandom
-  _turnServersV1File <- canonicalizePath v1File
-  _turnServersV2File <- canonicalizePath v2File
   pure $ TurnEnv {..}
 
--- | Returns an action which can be executed to stop this
-startTurnDiscovery :: Log.Logger -> FS.WatchManager -> TurnEnv -> IO ()
-startTurnDiscovery l w e = do
-  atomicWriteIORef (e ^. turnServersV1)
+turnServersV1 :: MonadIO m => TurnServers -> m (Discovery (NonEmpty TurnURI))
+turnServersV1 =
+  readIORef . \case
+    TurnServersFromFiles _opts v1Ref _v2Ref ->
+      v1Ref
+    TurnServersFromDNS _opts v1UdpRef _v2UdpRef _tcpRef _tlsRef ->
+      v1UdpRef
+
+turnServersV2 :: MonadIO m => TurnServers -> m (Discovery (NonEmpty TurnURI))
+turnServersV2 = \case
+  TurnServersFromFiles _opts _v1Udref v2Ref ->
+    readIORef v2Ref
+  TurnServersFromDNS _opts _v1UdpRef v2UdpRef tcpRef tlsRef -> do
+    v2Udp <- readIORef v2UdpRef
+    tcp <- readIORef tcpRef
+    tls <- readIORef tlsRef
+    pure $ v2Udp <> tcp <> tls
+
+-- | Start TURN service discovery asychronously.
+startTurnDiscovery :: Log.Logger -> FS.WatchManager -> TurnEnv -> IO [Async ()]
+startTurnDiscovery l w env = do
+  case env ^. turnServers of
+    TurnServersFromFiles files v1Ref v2Ref -> do
+      startFileBasedTurnDiscovery l w files v1Ref v2Ref
+      -- File based discovery runs in background using fsnotify, so we don't
+      -- need to watch any async processes.
+      pure []
+    TurnServersFromDNS dnsOpts v1UdpRef v2UdpRef tcpRef tlsRef ->
+      startDNSBasedTurnDiscovery l dnsOpts v1UdpRef v2UdpRef tcpRef tlsRef
+
+startDNSBasedTurnDiscovery :: Log.Logger -> Opts.TurnDnsOpts -> TurnServersRef -> TurnServersRef -> TurnServersRef -> TurnServersRef -> IO [Async ()]
+startDNSBasedTurnDiscovery logger opts v1UdpRef v2UdpRef tcpRef tlsRef = do
+  let udpDomain = DNS.normalize $ "_turn._udp." <> Opts.tdoBaseDomain opts
+      tcpDomain = DNS.normalize $ "_turn._tcp." <> Opts.tdoBaseDomain opts
+      tlsDomain = DNS.normalize $ "_turn._tls." <> Opts.tdoBaseDomain opts
+      interval = diffTimeToMicroseconds (fromMaybe defSrvDiscoveryIntervalSeconds (Opts.tdoDiscoveryIntervalSeconds opts))
+      runLoopAsync = Async.async . runM . loggerToTinyLog logger . runDNSLookupDefault . runDelay
+  udpLoop <- runLoopAsync $ do
+    srvDiscoveryLoop udpDomain interval $ \records -> do
+      atomicWriteIORef v1UdpRef . Discovered $ turnURIFromSRV SchemeTurn Nothing <$> records
+      atomicWriteIORef v2UdpRef . Discovered $ turnURIFromSRV SchemeTurn (Just TransportUDP) <$> records
+
+  tcpLoop <- runLoopAsync $ do
+    srvDiscoveryLoop tcpDomain interval $
+      atomicWriteIORef tcpRef . Discovered . fmap (turnURIFromSRV SchemeTurn (Just TransportTCP))
+
+  tlsLoop <- runLoopAsync $ do
+    srvDiscoveryLoop tlsDomain interval $
+      atomicWriteIORef tlsRef . Discovered . fmap (turnURIFromSRV SchemeTurns (Just TransportTCP))
+  pure [udpLoop, tcpLoop, tlsLoop]
+
+turnURIFromSRV :: Scheme -> Maybe Transport -> SrvEntry -> TurnURI
+turnURIFromSRV sch mtr SrvEntry {..} =
+  turnURI sch (TurnHostName . cs $ srvTargetDomain srvTarget) (Port $ srvTargetPort srvTarget) mtr
+
+startFileBasedTurnDiscovery :: Log.Logger -> FS.WatchManager -> Opts.TurnServersFiles -> TurnServersRef -> TurnServersRef -> IO ()
+startFileBasedTurnDiscovery l w files v1ServersRef v2ServersRef = do
+  v1FileCanonicalPath <- canonicalizePath (Opts.tsfServers files)
+  v2FileCanonicalPath <- canonicalizePath (Opts.tsfServersV2 files)
+  atomicWriteIORef v1ServersRef
     . maybe NotDiscoveredYet Discovered
-    =<< readTurnList (e ^. turnServersV1File)
-  atomicWriteIORef (e ^. turnServersV2)
+    =<< readTurnList v1FileCanonicalPath
+  atomicWriteIORef v2ServersRef
     . maybe NotDiscoveredYet Discovered
-    =<< readTurnList (e ^. turnServersV2File)
-  Log.warn l $
+    =<< readTurnList v2FileCanonicalPath
+  Log.info l $
     Log.msg (Log.val "Waiting for TURN files")
-      . Log.field "file1" (e ^. turnServersV1File)
-      . Log.field "file2" (e ^. turnServersV2File)
-  startWatching w (e ^. turnServersV1File) (replaceTurnServers l (e ^. turnServersV1))
-  startWatching w (e ^. turnServersV2File) (replaceTurnServers l (e ^. turnServersV2))
+      . Log.field "v1File" v1FileCanonicalPath
+      . Log.field "v2File" v2FileCanonicalPath
+  startWatching w v1FileCanonicalPath (replaceTurnServers l v1ServersRef)
+  startWatching w v2FileCanonicalPath (replaceTurnServers l v2ServersRef)
 
 replaceTurnServers :: Log.Logger -> IORef (Discovery (NonEmpty TurnURI)) -> FS.Event -> IO ()
 replaceTurnServers g ref e = do
