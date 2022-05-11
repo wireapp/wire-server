@@ -120,5 +120,4 @@ sendRemoteWelcomes rawWelcome rClients = do
             mwrRecipients = MLSWelcomeRecipient <$> tUnqualified rClients
           }
   let rpc = fedClient @'Galley @"mls-welcome" req
-  -- TODO(md): do error handling
   void $ runFederated rClients rpc
