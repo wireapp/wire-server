@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE OverloadedStrings #-}
 
 module Galley.API.Federation where
 
@@ -22,8 +23,8 @@ import Control.Lens (itraversed, (<.>))
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain (Domain)
-import Data.Id (ConvId, UserId)
-import Data.Json.Util (Base64ByteString (..))
+import Data.Id
+import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.Map as Map
 import Data.Map.Lens (toMapOf)
@@ -37,6 +38,7 @@ import Galley.API.Action
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
+import Galley.API.Push
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
@@ -88,6 +90,7 @@ federationSitemap =
     :<|> Named @"send-message" sendMessage
     :<|> Named @"on-user-deleted-conversations" onUserDeleted
     :<|> Named @"update-conversation" updateConversation
+    :<|> Named @"mls-welcome" mlsSendWelcome
 
 onConversationCreated ::
   Members
@@ -523,3 +526,29 @@ instance
       runError act >>= \case
         Left _ -> throw (demote @err)
         Right res -> pure res
+
+mlsSendWelcome ::
+  Members
+    '[ GundeckAccess,
+       Input (Local ()),
+       Input UTCTime
+     ]
+    r =>
+  Domain ->
+  F.MLSWelcomeRequest ->
+  Sem r ()
+mlsSendWelcome _origDomain (F.MLSWelcomeRequest b64RawWelcome rcpts) = do
+  loc <- input @(Local ())
+  now <- input @UTCTime
+  let rawWelcome = fromBase64ByteString b64RawWelcome
+  void $
+    runMessagePush loc Nothing $
+      foldMap (uncurry $ mkPush rawWelcome loc now) (F.unMLSWelRecipient <$> rcpts)
+  where
+    mkPush :: ByteString -> Local x -> UTCTime -> UserId -> ClientId -> MessagePush 'Broadcast
+    mkPush rawWelcome l time u c =
+      -- FUTUREWORK: use the conversation ID stored in the key package mapping table
+      let lcnv = qualifyAs l (Data.selfConv u)
+          lusr = qualifyAs l u
+          e = Event (qUntagged lcnv) (qUntagged lusr) time $ EdMLSWelcome rawWelcome
+       in newMessagePush l () Nothing defMessageMetadata (u, c) e

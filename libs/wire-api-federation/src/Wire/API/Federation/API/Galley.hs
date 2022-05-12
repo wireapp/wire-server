@@ -14,12 +14,13 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Wire.API.Federation.API.Galley where
 
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Id (ClientId, ConvId, UserId)
-import Data.Json.Util (Base64ByteString)
+import Data.Id
+import Data.Json.Util
 import Data.Misc (Milliseconds)
 import Data.Qualified
 import Data.Range
@@ -59,6 +60,7 @@ type GalleyApi =
     :<|> FedEndpoint "send-message" MessageSendRequest MessageSendResponse
     :<|> FedEndpoint "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
     :<|> FedEndpoint "update-conversation" ConversationUpdateRequest ConversationUpdateResponse
+    :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest ()
 
 data GetConversationsRequest = GetConversationsRequest
   { gcrUserId :: UserId,
@@ -253,3 +255,18 @@ data ConversationUpdateResponse
   deriving
     (ToJSON, FromJSON)
     via (CustomEncoded ConversationUpdateResponse)
+
+newtype MLSWelcomeRecipient = MLSWelcomeRecipient {unMLSWelRecipient :: (UserId, ClientId)}
+  deriving stock (Generic)
+  deriving (Arbitrary) via (GenericUniform MLSWelcomeRecipient)
+  deriving (FromJSON, ToJSON) via CustomEncoded MLSWelcomeRecipient
+  deriving newtype (Show, Eq)
+
+data MLSWelcomeRequest = MLSWelcomeRequest
+  { mwrRawWelcome :: Base64ByteString,
+    -- | These are qualified implicitly by the target domain
+    mwrRecipients :: [MLSWelcomeRecipient]
+  }
+  deriving stock (Generic)
+  deriving (Arbitrary) via (GenericUniform MLSWelcomeRequest)
+  deriving (FromJSON, ToJSON) via (CustomEncoded MLSWelcomeRequest)
