@@ -25,7 +25,7 @@ import Bilge.Request (requestIdName)
 import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import qualified Control.Concurrent.Async as Async
-import Control.Exception (bracket)
+import Control.Exception (finally)
 import Control.Lens (view, (.~), (^.))
 import Control.Monad.Codensity
 import qualified Data.Aeson as Aeson
@@ -62,62 +62,39 @@ import Wire.API.Routes.Version.Wai
 run :: Opts -> IO ()
 run opts = lowerCodensity $ do
   (app, env) <- mkApp opts
-  runAppThreads opts app env
+  settings <-
+    lift $
+      newSettings $
+        defaultServer
+          (unpack $ opts ^. optGalley . epHost)
+          (portNumber $ fromIntegral $ opts ^. optGalley . epPort)
+          (env ^. App.applog)
+          (env ^. monitor)
 
-runAppThreads :: Opts -> Application -> Env -> Codensity IO ()
-runAppThreads opts app env = Codensity $ \k ->
-  bracket
-    ( do
-        settings <-
-          newSettings $
-            defaultServer
-              (unpack $ opts ^. optGalley . epHost)
-              (portNumber $ fromIntegral $ opts ^. optGalley . epPort)
-              (env ^. App.applog)
-              (env ^. monitor)
-
-        deleteQueueThread <- Async.async $ runApp env deleteLoop
-        refreshMetricsThread <- Async.async $ runApp env refreshMetrics
-        pure (settings, deleteQueueThread, refreshMetricsThread)
-    )
-    ( \(_settings, deleteQueueThread, refreshMetricsThread) -> do
-        Async.cancel deleteQueueThread
-        Async.cancel refreshMetricsThread
-        shutdown (env ^. cstate)
-    )
-    ( \(settings, _deleteQueueThread, _refreshMetricsThread) -> do
-        runSettingsWithShutdown settings app 5
-        k ()
-    )
+  void $ Codensity $ Async.withAsync $ runApp env deleteLoop
+  void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
+  lift $ finally (runSettingsWithShutdown settings app 5) (shutdown (env ^. cstate))
 
 mkApp :: Opts -> Codensity IO (Application, Env)
-mkApp opts = Codensity $ \k ->
-  bracket
-    ( do
-        metrics <- M.metrics
-        env <- App.createEnv metrics opts
+mkApp opts =
+  do
+    metrics <- lift $ M.metrics
+    env <- lift $ App.createEnv metrics opts
+    lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
 
-        runClient (env ^. cstate) $
-          versionCheck schemaVersion
+    let logger = env ^. App.applog
 
-        let logger = env ^. App.applog
-
-        let middlewares =
-              versionMiddleware
-                . servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
-                . GZip.gunzip
-                . GZip.gzip GZip.def
-                . catchErrors logger [Right metrics]
-
-        pure (middlewares $ servantApp env, env, metrics)
-    )
-    ( \(_app, env, _metrics) -> do
-        let logger = env ^. App.applog
-        Log.info logger $ Log.msg @Text "Galley application finished."
-        Log.flush logger
-        Log.close logger
-    )
-    (\(app, env, _metrics) -> k (app, env))
+    let middlewares =
+          versionMiddleware
+            . servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
+            . GZip.gunzip
+            . GZip.gzip GZip.def
+            . catchErrors logger [Right metrics]
+    Codensity $ \k -> finally (k ()) $ do
+      Log.info logger $ Log.msg @Text "Galley application finished."
+      Log.flush logger
+      Log.close logger
+    pure (middlewares $ servantApp env, env)
   where
     rtree = compile API.sitemap
     runGalley e r k = evalGalley e (route rtree r k)
