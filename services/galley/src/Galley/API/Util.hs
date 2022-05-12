@@ -101,16 +101,17 @@ ensureAccessRole roles users = do
 ensureConnectedOrSameTeam ::
   Members '[BrigAccess, ErrorS 'NotConnected, TeamStore] r =>
   Local UserId ->
-  [UserId] ->
+  UserList UserId ->
   Sem r ()
-ensureConnectedOrSameTeam _ [] = pure ()
-ensureConnectedOrSameTeam (tUnqualified -> u) uids = do
-  uTeams <- getUserTeams u
+ensureConnectedOrSameTeam _ (UserList [] []) = pure ()
+ensureConnectedOrSameTeam self uids = do
+  uTeams <- getUserTeams (tUnqualified self)
   -- We collect all the relevant uids from same teams as the origin user
   sameTeamUids <- forM uTeams $ \team ->
-    fmap (view userId) <$> selectTeamMembers team uids
+    fmap (view userId) <$> selectTeamMembers team (ulLocals uids)
   -- Do not check connections for users that are on the same team
-  ensureConnectedToLocals u (uids \\ join sameTeamUids)
+  ensureConnectedToLocals (tUnqualified self) (ulLocals uids \\ join sameTeamUids)
+  ensureConnectedToRemotes self (ulRemotes uids)
 
 -- | Check that the user is connected to everybody else.
 --
