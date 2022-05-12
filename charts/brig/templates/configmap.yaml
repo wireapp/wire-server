@@ -174,8 +174,13 @@ data:
       {{- end }}
 
     turn:
+      {{- if $.Values.turnDNS.enable }}
+      baseDomain: {{ required ".turnDNS.baseDomain must be configured if .turnDNS.enable is set to True" $.Values.turnDNS.baseDomain  }}
+      discoveryIntervalSeconds: {{ $.Values.turnDNS.discoveryIntervalSeconds }}
+      {{- else }}
       servers: /etc/wire/brig/turn/turn-servers.txt
       serversV2: /etc/wire/brig/turn/turn-servers-v2.txt
+      {{- end }}
       secret: /etc/wire/brig/secrets/turn-secret.txt
       configTTL: 3600 # 1 hour
       tokenTTL: 43200 # 12 hours

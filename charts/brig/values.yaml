@@ -90,6 +90,14 @@ turnStatic:
   v2:
   - turn:localhost:3478
   - turn:localhost:3478?transport=tcp
+
+# If turnDNS config is enabled, turnStatic values are ignored. Specifying
+# baseDomain is mandatory
+turnDNS:
+  enable: false
+  # baseDomain: turn.example.com
+  discoveryIntervalSeconds: 10
+
 tests:
   enableFederationTests: false
 serviceAccount:
