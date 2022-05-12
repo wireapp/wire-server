@@ -39,6 +39,7 @@ import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.KeyPackage
+import Galley.API.MLS.Message
 import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
@@ -59,6 +60,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal.Kind (Append)
+import Polysemy.Resource
 import qualified Polysemy.TinyLog as P
 import Servant (ServerT)
 import Servant.API
@@ -99,6 +101,7 @@ federationSitemap =
     :<|> Named @"update-conversation" updateConversation
     :<|> Named @"mls-welcome" mlsSendWelcome
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
+    :<|> Named @"send-mls-message" sendMLSMessage
 
 onConversationCreated ::
   Members
@@ -512,6 +515,45 @@ updateConversation origDomain updateRequest = do
     toResponse (Left galleyErr) = F.ConversationUpdateResponseError galleyErr
     toResponse (Right (Left NoChanges)) = F.ConversationUpdateResponseNoChanges
     toResponse (Right (Right update)) = F.ConversationUpdateResponseUpdate update
+
+sendMLSMessage ::
+  ( Members
+      [ BrigAccess,
+        ConversationStore,
+        ExternalAccess,
+        Error FederationError,
+        Error InternalError,
+        FederatorAccess,
+        GundeckAccess,
+        Input (Local ()),
+        Input Opts,
+        Input UTCTime,
+        LegalHoldStore,
+        MemberStore,
+        Resource,
+        TeamStore,
+        P.TinyLog
+      ]
+      r
+  ) =>
+  Domain ->
+  F.MessageSendRequest ->
+  Sem r F.MLSMessageResponse
+sendMLSMessage remoteDomain msr =
+  fmap (either F.MLSMessageResponseProtocolError id)
+    . runError
+    . fmap (either F.MLSMessageResponseError id)
+    . runError
+    . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
+    . runError
+    $ do
+      loc <- qualifyLocal ()
+      let sender = toRemoteUnsafe remoteDomain (F.msrSender msr)
+      raw <- either throw pure $ decodeMLS' (fromBase64ByteString (F.msrRawMessage msr))
+      mapToGalleyError @MLSMessageStaticErrors
+        . mapError @MLSProtocolError unTagged
+        $ F.MLSMessageResponseUpdates . map lcuUpdate
+          <$> postMLSMessage loc (qUntagged sender) Nothing raw
 
 class ToGalleyRuntimeError (effs :: EffectRow) r where
   mapToGalleyError ::

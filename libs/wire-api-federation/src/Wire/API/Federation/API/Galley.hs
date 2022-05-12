@@ -25,6 +25,7 @@ import Data.Qualified
 import Data.Range
 import Data.Time.Clock (UTCTime)
 import Imports
+import qualified Network.Wai.Utilities.Error as Wai
 import Servant.API
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation
@@ -61,6 +62,7 @@ type GalleyApi =
     :<|> FedEndpoint "update-conversation" ConversationUpdateRequest ConversationUpdateResponse
     :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest EmptyResponse
     :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage EmptyResponse
+    :<|> FedEndpoint "send-mls-message" MessageSendRequest MLSMessageResponse
 
 data GetConversationsRequest = GetConversationsRequest
   { gcrUserId :: UserId,
@@ -275,3 +277,13 @@ newtype MLSWelcomeRequest = MLSWelcomeRequest
   deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via (GenericUniform MLSWelcomeRequest)
   deriving (FromJSON, ToJSON) via (CustomEncoded MLSWelcomeRequest)
+
+data MLSMessageResponse
+  = MLSMessageResponseError GalleyError
+  | MLSMessageResponseProtocolError Text
+  | MLSMessageResponseProposalFailure Wai.Error
+  | MLSMessageResponseUpdates [ConversationUpdate]
+  deriving stock (Show, Generic)
+  deriving
+    (ToJSON, FromJSON)
+    via (CustomEncoded MLSMessageResponse)
