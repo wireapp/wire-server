@@ -58,6 +58,7 @@ library
       Brig.Data.User
       Brig.Data.UserKey
       Brig.Data.UserPendingActivation
+      Brig.Effects.Delay
       Brig.Effects.SFT
       Brig.Email
       Brig.Federation.Client
@@ -680,6 +681,7 @@ test-suite brig-tests
   other-modules:
       Test.Brig.Calling
       Test.Brig.Calling.Internal
+      Test.Brig.Effects.Delay
       Test.Brig.MLS
       Test.Brig.Roundtrip
       Test.Brig.User.Search.Index.Types
@@ -735,8 +737,10 @@ test-suite brig-tests
     , brig-types
     , bytestring
     , containers
+    , data-timeout
     , dns
     , dns-util
+    , exceptions
     , http-types
     , imports
     , lens
