@@ -23,6 +23,7 @@ import Control.Lens (itraversed, (<.>))
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain (Domain)
+import Data.Either.Combinators
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty (..))
@@ -32,6 +33,7 @@ import Data.Qualified
 import Data.Range (Range (fromRange))
 import qualified Data.Set as Set
 import Data.Singletons (SingI (..), demote, sing)
+import Data.Tagged
 import qualified Data.Text.Lazy as LT
 import Data.Time.Clock
 import Galley.API.Action
@@ -69,7 +71,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Common (EmptyResponse (..))
-import Wire.API.Federation.API.Galley (ConversationUpdateResponse)
+import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
@@ -529,19 +531,23 @@ instance
 
 mlsSendWelcome ::
   Members
-    '[ GundeckAccess,
+    '[ BrigAccess,
+       GundeckAccess,
        Input (Local ()),
        Input UTCTime
      ]
     r =>
   Domain ->
   F.MLSWelcomeRequest ->
-  Sem r ()
-mlsSendWelcome _origDomain (F.MLSWelcomeRequest b64RawWelcome rcpts) = do
+  Sem r F.MLSWelcomeResponse
+mlsSendWelcome origDomain (F.MLSWelcomeRequest sender b64RawWelcome rcpts) = do
   loc <- input @(Local ())
   now <- input @UTCTime
   let rawWelcome = fromBase64ByteString b64RawWelcome
-  void $
+      rsender = toRemoteUnsafe origDomain sender
+      urcpts = qualifyAs loc . fst . F.unMLSWelRecipient <$> rcpts
+  mapRunError $ do
+    for_ urcpts $ flip ensureConnectedToRemotes [rsender]
     runMessagePush loc Nothing $
       foldMap (uncurry $ mkPush rawWelcome loc now) (F.unMLSWelRecipient <$> rcpts)
   where
@@ -552,3 +558,6 @@ mlsSendWelcome _origDomain (F.MLSWelcomeRequest b64RawWelcome rcpts) = do
           lusr = qualifyAs l u
           e = Event (qUntagged lcnv) (qUntagged lusr) time $ EdMLSWelcome rawWelcome
        in newMessagePush l () Nothing defMessageMetadata (u, c) e
+    mapRunError =
+      fmap (F.MLSWelcomeResponse . mapLeft (const MLSWelcomeErrorNotConnected))
+        . runError @(Tagged 'NotConnected ())

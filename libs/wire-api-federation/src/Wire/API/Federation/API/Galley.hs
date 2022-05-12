@@ -60,7 +60,7 @@ type GalleyApi =
     :<|> FedEndpoint "send-message" MessageSendRequest MessageSendResponse
     :<|> FedEndpoint "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
     :<|> FedEndpoint "update-conversation" ConversationUpdateRequest ConversationUpdateResponse
-    :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest ()
+    :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest MLSWelcomeResponse
 
 data GetConversationsRequest = GetConversationsRequest
   { gcrUserId :: UserId,
@@ -263,10 +263,25 @@ newtype MLSWelcomeRecipient = MLSWelcomeRecipient {unMLSWelRecipient :: (UserId,
   deriving newtype (Show, Eq)
 
 data MLSWelcomeRequest = MLSWelcomeRequest
-  { mwrRawWelcome :: Base64ByteString,
+  { -- | The sender of the welcome message. They are implicitly qualified by the
+    -- origin domain.
+    mwrSender :: UserId,
+    -- | The raw welcome message
+    mwrRawWelcome :: Base64ByteString,
     -- | These are qualified implicitly by the target domain
     mwrRecipients :: [MLSWelcomeRecipient]
   }
   deriving stock (Generic)
   deriving (Arbitrary) via (GenericUniform MLSWelcomeRequest)
   deriving (FromJSON, ToJSON) via (CustomEncoded MLSWelcomeRequest)
+
+newtype MLSWelcomeResponse = MLSWelcomeResponse
+  {unWelcomeResponse :: Either MLSWelcomeError ()}
+  deriving stock (Eq, Show)
+  deriving
+    (ToJSON, FromJSON)
+    via (Either (CustomEncoded MLSWelcomeError) ())
+
+data MLSWelcomeError = MLSWelcomeErrorNotConnected
+  deriving (Eq, Generic, Show)
+  deriving (ToJSON, FromJSON) via CustomEncoded MLSWelcomeError

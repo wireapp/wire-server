@@ -93,7 +93,8 @@ tests s =
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage,
       test s "POST /federation/on-user-deleted-conversations : Remove deleted remote user from local conversations" onUserDeleted,
       test s "POST /federation/update-conversation : Update local conversation by a remote admin " updateConversationByRemoteAdmin,
-      test s "POST /federation/mls-welcome : Post an MLS welcome message received from another backend" sendMLSWelcome
+      test s "POST /federation/mls-welcome : MLS welcome message received from another backend" sendMLSWelcome,
+      test s "POST /federation/mls-welcome : MLS welcome message (not connected)" sendMLSWelcomeNotConnected
     ]
 
 getConversationsAllFound :: TestM ()
@@ -1145,12 +1146,42 @@ updateConversationByRemoteAdmin = do
       let convUpdate :: ConversationUpdate = fromRight (error $ "Could not parse ConversationUpdate from " <> show (frBody rpc)) $ A.eitherDecode (frBody rpc)
       pure (rpc, convUpdate)
 
+sendMLSWelcomeNotConnected :: TestM ()
+sendMLSWelcomeNotConnected = do
+  let aliceDomain = Domain "a.far-away.example.com"
+  -- Alice is from the originating domain and Bob is local, i.e., on the receiving domain
+  MessagingSetup {..} <-
+    aliceInvitesBob
+      (1, LocalUser)
+      def {creatorOrigin = RemoteUser aliceDomain, makeConnections = False}
+  let alice = creator
+      bob = users !! 0
+      bobClient = snd . Data.List.NonEmpty.head . pClients $ bob
+
+  fedGalleyClient <- view tsFedGalleyClient
+  cannon <- view tsCannon
+
+  WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
+    -- attempt to send a welcome message to a disconnected user
+    resp <-
+      runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
+        MLSWelcomeRequest
+          (qUnqualified . pUserId $ alice)
+          (Base64ByteString welcome)
+          [MLSWelcomeRecipient (qUnqualified . pUserId $ bob, bobClient)]
+
+    -- check that no event is received and make sure there was an error response
+    liftIO $ do
+      WS.assertNoEvent (1 # Second) [wsB]
+      resp @?= MLSWelcomeResponse (Left MLSWelcomeErrorNotConnected)
+
 sendMLSWelcome :: TestM ()
 sendMLSWelcome = do
   let aliceDomain = Domain "a.far-away.example.com"
   -- Alice is from the originating domain and Bob is local, i.e., on the receiving domain
   MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {creatorOrigin = RemoteUser aliceDomain}
-  let bob = users !! 0
+  let alice = creator
+      bob = users !! 0
       bobClient = snd . Data.List.NonEmpty.head . pClients $ bob
 
   fedGalleyClient <- view tsFedGalleyClient
@@ -1158,15 +1189,19 @@ sendMLSWelcome = do
 
   WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
     -- send welcome message
-    runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
-      MLSWelcomeRequest
-        (Base64ByteString welcome)
-        [MLSWelcomeRecipient (qUnqualified . pUserId $ bob, bobClient)]
+    resp <-
+      runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
+        MLSWelcomeRequest
+          (qUnqualified . pUserId $ alice)
+          (Base64ByteString welcome)
+          [MLSWelcomeRecipient (qUnqualified . pUserId $ bob, bobClient)]
 
-    -- check that the corresponding event is received
-    void . liftIO $
-      WS.assertMatch (5 # WS.Second) wsB $
+    -- check that the corresponding event is received and make sure there were no errors
+    liftIO $ do
+      void . WS.assertMatch (5 # WS.Second) wsB $
         wsAssertMLSWelcome (pUserId bob) welcome
+
+      resp @?= MLSWelcomeResponse (Right ())
 
 getConvAction :: Sing tag -> SomeConversationAction -> Maybe (ConversationAction tag)
 getConvAction tquery (SomeConversationAction tag action) =

@@ -1276,6 +1276,7 @@ type MLSMessagingAPI =
     "mls-welcome-message"
     ( Summary "Post an MLS welcome message"
         :> CanThrow 'MLSKeyPackageRefNotFound
+        :> CanThrow 'NotConnected
         :> "welcome"
         :> ZConn
         :> ReqBody '[MLS] (RawMLS Welcome)

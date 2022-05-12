@@ -57,8 +57,10 @@ tests s =
     [ testGroup
         "Welcome"
         [ test s "local welcome" testLocalWelcome,
+          test s "local welcome (not connected)" testLocalWelcomeNotConnected,
           test s "local welcome (client with no public key)" testWelcomeNoKey,
-          test s "remote welcome" testRemoteWelcome
+          test s "remote welcome" testRemoteWelcome,
+          test s "remote welcome (not connected)" testRemoteWelcomeNotConnected
         ],
       testGroup
         "Creation"
@@ -128,6 +130,22 @@ testLocalWelcome = do
       WS.assertMatch (5 # WS.Second) wsB $
         wsAssertMLSWelcome (pUserId bob) welcome
 
+testLocalWelcomeNotConnected :: TestM ()
+testLocalWelcomeNotConnected = do
+  MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {makeConnections = False}
+  let bob = users !! 0
+
+  cannon <- view tsCannon
+
+  WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
+    -- attempt to send a welcome message to a disconnected user
+    postWelcome (qUnqualified $ pUserId creator) welcome
+      !!! const 403 === statusCode
+
+    -- check that no event is received
+    void . liftIO $
+      WS.assertNoEvent (1 # WS.Second) [wsB]
+
 testWelcomeNoKey :: TestM ()
 testWelcomeNoKey = do
   MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createClients = CreateWithoutKey}
@@ -146,7 +164,7 @@ testRemoteWelcome = do
 
   let mockedResponse fedReq =
         case frRPC fedReq of
-          "mls-welcome" -> pure (Aeson.encode ())
+          "mls-welcome" -> pure (Aeson.encode $ MLSWelcomeResponse (Right ()))
           ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
 
   (_resp, reqs) <-
@@ -165,6 +183,31 @@ testRemoteWelcome = do
               snd . NonEmpty.head . pClients $ bob
             )
         ]
+
+testRemoteWelcomeNotConnected :: TestM ()
+testRemoteWelcomeNotConnected = do
+  -- 1. Create a conversation with Alice and Bob
+  let bobDomain = Domain "b.far-away.example.com"
+      opts =
+        def
+          { createConv = CreateConv,
+            createClients = DontCreateClients,
+            makeConnections = False
+          }
+  MessagingSetup {..} <- aliceInvitesBob (1, RemoteUser bobDomain) opts
+  let alice = creator
+
+  let mockedResponse fedReq =
+        case frRPC fedReq of
+          "mls-welcome" ->
+            pure
+              (Aeson.encode $ MLSWelcomeResponse (Left MLSWelcomeErrorNotConnected))
+          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+  void
+    . withTempMockFederator' mockedResponse
+    $ postWelcome (qUnqualified $ pUserId alice) welcome
+      !!! const 403 === statusCode
 
 -- | Send a commit message, and assert that all participants see an event with
 -- the given list of new members.

@@ -21,15 +21,20 @@ import Control.Comonad
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
+import Data.Tagged
 import Data.Time
 import Galley.API.MLS.KeyPackage
 import Galley.API.Push
+import Galley.API.Util
 import Galley.Data.Conversation
 import Galley.Effects.BrigAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
+import Galley.Effects.TeamStore
+import Galley.Types.UserList
 import Imports
 import Polysemy
+import Polysemy.Error
 import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -43,10 +48,12 @@ import Wire.API.MLS.Welcome
 postMLSWelcome ::
   Members
     '[ BrigAccess,
+       ErrorS 'MLSKeyPackageRefNotFound,
+       ErrorS 'NotConnected,
        FederatorAccess,
        GundeckAccess,
-       ErrorS 'MLSKeyPackageRefNotFound,
-       Input UTCTime
+       Input UTCTime,
+       TeamStore
      ]
     r =>
   Local UserId ->
@@ -55,6 +62,8 @@ postMLSWelcome ::
   Sem r ()
 postMLSWelcome lusr con wel = do
   rcpts <- welcomeRecipients (rmValue wel)
+  let urcpts = fst <$$> rcpts
+  ensureConnectedOrSameTeam lusr $ toUserList lusr urcpts
   traverse_ (sendWelcomes lusr con (rmRaw wel)) (bucketQualified rcpts)
 
 welcomeRecipients ::
@@ -75,19 +84,20 @@ welcomeRecipients =
 
 sendWelcomes ::
   Members
-    '[ FederatorAccess,
+    '[ ErrorS 'NotConnected,
+       FederatorAccess,
        GundeckAccess,
        Input UTCTime
      ]
     r =>
-  Local x ->
+  Local UserId ->
   ConnId ->
   ByteString ->
   Qualified [(UserId, ClientId)] ->
   Sem r ()
-sendWelcomes loc con rawWelcome recipients = do
+sendWelcomes lusr con rawWelcome recipients = do
   now <- input
-  foldQualified loc (sendLocalWelcomes con now rawWelcome) (sendRemoteWelcomes rawWelcome) recipients
+  foldQualified lusr (sendLocalWelcomes con now rawWelcome) (sendRemoteWelcomes lusr rawWelcome) recipients
 
 sendLocalWelcomes ::
   Members '[GundeckAccess] r =>
@@ -109,15 +119,27 @@ sendLocalWelcomes con now rawWelcome lclients = do
        in newMessagePush lclients () (Just con) defMessageMetadata (u, c) e
 
 sendRemoteWelcomes ::
-  Members '[FederatorAccess] r =>
+  Members
+    '[ ErrorS 'NotConnected,
+       FederatorAccess
+     ]
+    r =>
+  Local UserId ->
   ByteString ->
   Remote [(UserId, ClientId)] ->
   Sem r ()
-sendRemoteWelcomes rawWelcome rClients = do
+sendRemoteWelcomes lusr rawWelcome rClients = do
   let req =
         MLSWelcomeRequest
-          { mwrRawWelcome = Base64ByteString rawWelcome,
+          { mwrSender = tUnqualified lusr,
+            mwrRawWelcome = Base64ByteString rawWelcome,
             mwrRecipients = MLSWelcomeRecipient <$> tUnqualified rClients
           }
       rpc = fedClient @'Galley @"mls-welcome" req
-  void $ runFederated rClients rpc
+  runFederated rClients rpc >>= mapFedError
+  where
+    mapFedError :: Member (ErrorS 'NotConnected) r => MLSWelcomeResponse -> Sem r ()
+    mapFedError =
+      mapError @MLSWelcomeError @(Tagged 'NotConnected ()) (const (Tagged ()))
+        . fromEither
+        . unWelcomeResponse
