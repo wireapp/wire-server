@@ -1,3 +1,4 @@
 MLS implementation progress:
 
  - remote key package claim is now supported (#2353)
+ - ensure users are connected before exchanging welcome messages (#2391)
