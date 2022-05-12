@@ -51,7 +51,8 @@ tests m b opts turn turnV2 = do
       [ testGroup "turn" $
           [ test m "basic /calls/config - 200" $ testCallsConfig b,
             -- FIXME: requires tests to run on same host as brig
-            test m "multiple servers /calls/config - 200" . withTurnFile turn $ testCallsConfigMultiple b,
+            test m "multiple servers using files /calls/config - 200" . withTurnFile turn $ testCallsConfigMultiple b,
+            test m "multiple servers using SRV /calls/config - 200" $ testCallsConfigSRV b opts,
             test m "multiple servers using files /calls/config/v2 - 200" . withTurnFile turnV2 $ testCallsConfigMultipleV2 b,
             test m "multiple servers using SRV records /calls/config/v2 - 200" $ testCallsConfigV2SRV b opts
           ],
@@ -167,12 +168,28 @@ testCallsConfigMultipleV2 b turnUpdaterV2 = do
   let _expected = toTurnURI SchemeTurn "localhost" 3478 Nothing :| []
   modifyAndAssert b uid getTurnConfigurationV2 turnUpdaterV2 "turn:localhost:3478" _expected
 
+testCallsConfigSRV :: Brig -> Opts.Opts -> Http ()
+testCallsConfigSRV b opts = do
+  uid <- userId <$> randomUser b
+  let dnsOpts = Opts.TurnSourceDNS (Opts.TurnDnsOpts "integration-tests.zinfra.io" (Just 0.5))
+  config <-
+    withSettingsOverrides (opts & Opts.turnL . Opts.serversSourceL .~ dnsOpts) $
+      responseJsonError
+        =<< ( retryWhileN 10 (\r -> statusCode r /= 200) (getTurnConfiguration "" uid b)
+                <!! const 200 === statusCode
+            )
+  assertConfiguration
+    config
+    ( toTurnURI SchemeTurn "127.0.0.27" 3479 Nothing
+        :| [toTurnURI SchemeTurn "127.0.0.27" 3478 Nothing]
+    )
+
 testCallsConfigV2SRV :: Brig -> Opts.Opts -> Http ()
 testCallsConfigV2SRV b opts = do
   uid <- userId <$> randomUser b
   let dnsOpts = Opts.TurnSourceDNS (Opts.TurnDnsOpts "integration-tests.zinfra.io" (Just 0.5))
   config <-
-    withSettingsOverrides (opts & Opts.turnL . Opts.serversSourceL .~ dnsOpts) $ do
+    withSettingsOverrides (opts & Opts.turnL . Opts.serversSourceL .~ dnsOpts) $
       responseJsonError
         =<< ( retryWhileN 10 (\r -> statusCode r /= 200) (getTurnConfiguration "v2" uid b)
                 <!! const 200 === statusCode

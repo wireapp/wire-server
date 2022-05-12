@@ -56,6 +56,7 @@ import Control.Lens
 import Control.Monad.Random.Class (MonadRandom)
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion (fromByteString)
+import qualified Data.IP as IP
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Misc
@@ -292,8 +293,11 @@ startDNSBasedTurnDiscovery logger opts deprecatedUdpRef udpRef tcpRef tlsRef = d
           . withNonZeroWeightRecords
   udpLoop <- runLoopAsync udpDomain $
     \records -> do
-      -- TODO: Lookup IP Address for UDPv1 or delete this v1 stuff.
-      atomicWriteIORef deprecatedUdpRef . Discovered $ turnURIFromSRV SchemeTurn Nothing <$> records
+      ipsAndPorts <- fetchIpsAndPorts records
+      case ipsAndPorts of
+        [] -> pure ()
+        (x : xs) ->
+          atomicWriteIORef deprecatedUdpRef . Discovered $ uncurry turnURIFromIpAndPort <$> (x :| xs)
       atomicWriteIORef udpRef . Discovered $ turnURIFromSRV SchemeTurn (Just TransportUDP) <$> records
 
   tcpLoop <-
@@ -305,11 +309,25 @@ startDNSBasedTurnDiscovery logger opts deprecatedUdpRef udpRef tcpRef tlsRef = d
       atomicWriteIORef tlsRef . Discovered . fmap (turnURIFromSRV SchemeTurns (Just TransportTCP))
   pure [udpLoop, tcpLoop, tlsLoop]
   where
-    withNonZeroWeightRecords :: (NonEmpty SrvEntry -> Sem r ()) -> NonEmpty SrvEntry -> Sem r ()
+    withNonZeroWeightRecords :: Monad m => (NonEmpty SrvEntry -> m ()) -> NonEmpty SrvEntry -> m ()
     withNonZeroWeightRecords action records =
       case NonEmpty.filter (\e -> srvWeight e /= 0) records of
         [] -> pure ()
         (r : rs) -> action (r :| rs)
+
+    fetchIpsAndPorts :: (Member DNSLookup r) => NonEmpty SrvEntry -> Sem r [(IP.IPv4, Word16)]
+    fetchIpsAndPorts =
+      fmap catMaybes
+        . mapM
+          ( \r -> do
+              eitherIPs <- lookupA . srvTargetDomain $ srvTarget r
+              case eitherIPs of
+                Left _err -> pure Nothing
+                Right [] -> pure Nothing
+                Right (first : _) -> do
+                  pure $ Just (first, srvTargetPort $ srvTarget r)
+          )
+        . NonEmpty.toList
 
 turnURIFromSRV :: Scheme -> Maybe Transport -> SrvEntry -> TurnURI
 turnURIFromSRV sch mtr SrvEntry {..} =
@@ -318,6 +336,10 @@ turnURIFromSRV sch mtr SrvEntry {..} =
     stripDot h
       | "." `BS.isSuffixOf` h = BS.take (BS.length h - 1) h
       | otherwise = h
+
+turnURIFromIpAndPort :: IP.IPv4 -> Word16 -> TurnURI
+turnURIFromIpAndPort ip port =
+  turnURI SchemeTurn (TurnHostIp . IpAddr $ IP.IPv4 ip) (Port port) Nothing
 
 startFileBasedTurnDiscovery :: Log.Logger -> FS.WatchManager -> Opts.TurnServersFiles -> TurnServersRef -> TurnServersRef -> IO ()
 startFileBasedTurnDiscovery l w files v1ServersRef v2ServersRef = do
