@@ -791,7 +791,8 @@ instance FromJSON Opts
 Lens.makeLensesFor
   [ ("optSettings", "optionSettings"),
     ("elasticsearch", "elasticsearchL"),
-    ("sft", "sftL")
+    ("sft", "sftL"),
+    ("turn", "turnL")
   ]
   ''Opts
 
@@ -819,3 +820,5 @@ Lens.makeLensesFor
   ''ElasticSearchOpts
 
 Lens.makeLensesFor [("sftBaseDomain", "sftBaseDomainL")] ''SFTOptions
+
+Lens.makeLensesFor [("serversSource", "serversSourceL")] ''TurnOpts

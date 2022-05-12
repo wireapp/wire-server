@@ -54,6 +54,7 @@ import qualified Brig.Options as Opts
 import Control.Exception.Enclosed (handleAny)
 import Control.Lens
 import Control.Monad.Random.Class (MonadRandom)
+import qualified Data.ByteString as BS
 import Data.ByteString.Conversion (fromByteString)
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
@@ -145,6 +146,9 @@ instance Semigroup a => Semigroup (Discovery a) where
   other <> NotDiscoveredYet = other
   Discovered x <> Discovered y = Discovered (x <> y)
 
+instance Semigroup a => Monoid (Discovery a) where
+  mempty = NotDiscoveredYet
+
 discoveryToMaybe :: Discovery a -> Maybe a
 discoveryToMaybe = \case
   NotDiscoveredYet -> Nothing
@@ -155,6 +159,12 @@ discoverSRVRecords domain =
   lookupSRV domain >>= \case
     SrvAvailable es -> pure $ Just es
     SrvNotAvailable -> do
+      warn $
+        Log.msg (Log.val "SRV Records not available")
+          . Log.field "domain" domain
+      pure Nothing
+    -- It is not an error if the record doesn't exist
+    SrvResponseError DNS.NameError -> do
       warn $
         Log.msg (Log.val "SRV Records not available")
           . Log.field "domain" domain
@@ -251,11 +261,8 @@ turnServersV2 :: MonadIO m => TurnServers -> m (Discovery (NonEmpty TurnURI))
 turnServersV2 = \case
   TurnServersFromFiles _opts _v1Udref v2Ref ->
     readIORef v2Ref
-  TurnServersFromDNS _opts _v1UdpRef v2UdpRef tcpRef tlsRef -> do
-    v2Udp <- readIORef v2UdpRef
-    tcp <- readIORef tcpRef
-    tls <- readIORef tlsRef
-    pure $ v2Udp <> tcp <> tls
+  TurnServersFromDNS _opts _v1UdpRef v2UdpRef tcpRef tlsRef ->
+    mconcat <$> mapM readIORef [v2UdpRef, tcpRef, tlsRef]
 
 -- | Start TURN service discovery asychronously.
 startTurnDiscovery :: Log.Logger -> FS.WatchManager -> TurnEnv -> IO [Async ()]
@@ -266,33 +273,51 @@ startTurnDiscovery l w env = do
       -- File based discovery runs in background using fsnotify, so we don't
       -- need to watch any async processes.
       pure []
-    TurnServersFromDNS dnsOpts v1UdpRef v2UdpRef tcpRef tlsRef ->
-      startDNSBasedTurnDiscovery l dnsOpts v1UdpRef v2UdpRef tcpRef tlsRef
+    TurnServersFromDNS dnsOpts deprecatedUdpRef udpRef tcpRef tlsRef ->
+      startDNSBasedTurnDiscovery l dnsOpts deprecatedUdpRef udpRef tcpRef tlsRef
 
 startDNSBasedTurnDiscovery :: Log.Logger -> Opts.TurnDnsOpts -> TurnServersRef -> TurnServersRef -> TurnServersRef -> TurnServersRef -> IO [Async ()]
-startDNSBasedTurnDiscovery logger opts v1UdpRef v2UdpRef tcpRef tlsRef = do
+startDNSBasedTurnDiscovery logger opts deprecatedUdpRef udpRef tcpRef tlsRef = do
   let udpDomain = DNS.normalize $ "_turn._udp." <> Opts.tdoBaseDomain opts
       tcpDomain = DNS.normalize $ "_turn._tcp." <> Opts.tdoBaseDomain opts
       tlsDomain = DNS.normalize $ "_turn._tls." <> Opts.tdoBaseDomain opts
       interval = diffTimeToMicroseconds (fromMaybe defSrvDiscoveryIntervalSeconds (Opts.tdoDiscoveryIntervalSeconds opts))
-      runLoopAsync = Async.async . runM . loggerToTinyLog logger . runDNSLookupDefault . runDelay
-  udpLoop <- runLoopAsync $ do
-    srvDiscoveryLoop udpDomain interval $ \records -> do
-      atomicWriteIORef v1UdpRef . Discovered $ turnURIFromSRV SchemeTurn Nothing <$> records
-      atomicWriteIORef v2UdpRef . Discovered $ turnURIFromSRV SchemeTurn (Just TransportUDP) <$> records
+      runLoopAsync domain =
+        Async.async
+          . runM
+          . loggerToTinyLog logger
+          . runDNSLookupDefault
+          . runDelay
+          . srvDiscoveryLoop domain interval
+          . withNonZeroWeightRecords
+  udpLoop <- runLoopAsync udpDomain $
+    \records -> do
+      -- TODO: Lookup IP Address for UDPv1 or delete this v1 stuff.
+      atomicWriteIORef deprecatedUdpRef . Discovered $ turnURIFromSRV SchemeTurn Nothing <$> records
+      atomicWriteIORef udpRef . Discovered $ turnURIFromSRV SchemeTurn (Just TransportUDP) <$> records
 
-  tcpLoop <- runLoopAsync $ do
-    srvDiscoveryLoop tcpDomain interval $
+  tcpLoop <-
+    runLoopAsync tcpDomain $
       atomicWriteIORef tcpRef . Discovered . fmap (turnURIFromSRV SchemeTurn (Just TransportTCP))
 
-  tlsLoop <- runLoopAsync $ do
-    srvDiscoveryLoop tlsDomain interval $
+  tlsLoop <-
+    runLoopAsync tlsDomain $
       atomicWriteIORef tlsRef . Discovered . fmap (turnURIFromSRV SchemeTurns (Just TransportTCP))
   pure [udpLoop, tcpLoop, tlsLoop]
+  where
+    withNonZeroWeightRecords :: (NonEmpty SrvEntry -> Sem r ()) -> NonEmpty SrvEntry -> Sem r ()
+    withNonZeroWeightRecords action records =
+      case NonEmpty.filter (\e -> srvWeight e /= 0) records of
+        [] -> pure ()
+        (r : rs) -> action (r :| rs)
 
 turnURIFromSRV :: Scheme -> Maybe Transport -> SrvEntry -> TurnURI
 turnURIFromSRV sch mtr SrvEntry {..} =
-  turnURI sch (TurnHostName . cs $ srvTargetDomain srvTarget) (Port $ srvTargetPort srvTarget) mtr
+  turnURI sch (TurnHostName . cs . stripDot $ srvTargetDomain srvTarget) (Port $ srvTargetPort srvTarget) mtr
+  where
+    stripDot h
+      | "." `BS.isSuffixOf` h = BS.take (BS.length h - 1) h
+      | otherwise = h
 
 startFileBasedTurnDiscovery :: Log.Logger -> FS.WatchManager -> Opts.TurnServersFiles -> TurnServersRef -> TurnServersRef -> IO ()
 startFileBasedTurnDiscovery l w files v1ServersRef v2ServersRef = do
