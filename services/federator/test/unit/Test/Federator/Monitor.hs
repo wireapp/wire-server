@@ -21,6 +21,8 @@ import Control.Concurrent.Chan
 import Control.Exception (bracket)
 import Control.Lens (view)
 import Control.Monad.Trans.Cont
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as B8
 import qualified Data.Set as Set
 import Data.X509 (CertificateChain (..))
 import Federator.Env (TLSSettings (..), creds)
@@ -395,15 +397,26 @@ testMergeWatchedPaths =
          in mergedPaths == origPaths
     ]
 
-newtype Path = Path {getPath :: FilePath}
+newtype Path = Path {getRawPath :: ByteString}
+
+getPath :: Path -> IO FilePath
+getPath = fromRawPath . getRawPath
+
+getAbsolutePath :: Path -> IO FilePath
+getAbsolutePath p = do
+  path <- getPath p
+  makeAbsolute ("/" <> path)
 
 instance Show Path where
-  show = show . getPath
+  show = show . getRawPath
 
 instance Arbitrary Path where
-  arbitrary = Path . intercalate "/" <$> listOf (listOf1 ch)
+  arbitrary =
+    Path . B8.intercalate "/"
+      <$> listOf (BS.pack <$> listOf1 ch)
     where
-      ch = arbitrary `suchThat` (/= '/')
+      ch :: Gen Word8
+      ch = arbitrary `suchThat` (/= fromIntegral (ord '/'))
 
 trivialResolve :: FilePath -> IO (Maybe FilePath)
 trivialResolve _ = pure Nothing
@@ -414,13 +427,13 @@ testDirectoryTraversal =
     "directory traversal"
     [ testProperty "the number of entries is the same as the number of path components" $
         \(path' :: Path) -> ioProperty $ do
-          path <- makeAbsolute ("/" <> getPath path')
+          path <- getAbsolutePath path'
           wpaths <- watchedPaths trivialResolve path
           pure (length wpaths == length (splitPath path)),
       testProperty "relative paths are resolved correctly" $
         \(path' :: Path) -> ioProperty $ do
           dir <- getWorkingDirectory
-          let path = getPath path'
+          path <- getPath path'
           wpaths <- watchedPaths trivialResolve path
           wpaths' <- watchedPaths trivialResolve (dir </> path)
           pure $ wpaths == wpaths',

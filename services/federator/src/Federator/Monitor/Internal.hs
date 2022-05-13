@@ -18,7 +18,7 @@
 module Federator.Monitor.Internal where
 
 import Control.Exception (try)
-import Data.ByteString (packCStringLen)
+import Data.ByteString (packCStringLen, useAsCStringLen)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -28,7 +28,7 @@ import qualified Data.X509 as X509
 import Data.X509.CertificateStore
 import Federator.Env (TLSSettings (..))
 import Federator.Options (RunSettings (..))
-import GHC.Foreign (withCStringLen)
+import GHC.Foreign (peekCStringLen, withCStringLen)
 import GHC.IO.Encoding (getFileSystemEncoding)
 import Imports
 import qualified Network.TLS as TLS
@@ -66,6 +66,11 @@ rawPath :: FilePath -> IO RawFilePath
 rawPath path = do
   encoding <- getFileSystemEncoding
   withCStringLen encoding path packCStringLen
+
+fromRawPath :: RawFilePath -> IO FilePath
+fromRawPath path = do
+  encoding <- getFileSystemEncoding
+  useAsCStringLen path (peekCStringLen encoding)
 
 data WatchedPath
   = WatchedFile RawFilePath
