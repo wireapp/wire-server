@@ -77,7 +77,6 @@ import qualified Data.Map.Strict as Map
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Singletons
-import qualified Data.Text as T
 import Data.Time
 import Galley.API.Action
 import Galley.API.Error
@@ -382,27 +381,7 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
     ConversationUpdateResponseUpdate convUpdate -> pure convUpdate
 
   onConversationUpdated (tDomain rcnv) convUpdate
-  notifyRemoteConversationAction (qualifyAs rcnv convUpdate) conn
-
-class RethrowErrors (effs :: EffectRow) r where
-  rethrowErrors :: GalleyError -> Sem r a
-
-instance (Member (Error FederationError) r) => RethrowErrors '[] r where
-  rethrowErrors :: GalleyError -> Sem r a
-  rethrowErrors err' = throw (FederationUnexpectedError (T.pack . show $ err'))
-
-instance
-  ( SingI (e :: GalleyError),
-    Member (ErrorS e) r,
-    RethrowErrors effs r
-  ) =>
-  RethrowErrors (ErrorS e ': effs) r
-  where
-  rethrowErrors :: GalleyError -> Sem r a
-  rethrowErrors err' =
-    if err' == demote @e
-      then throwS @e
-      else rethrowErrors @effs @r err'
+  notifyRemoteConversationAction lusr (qualifyAs rcnv convUpdate) (Just conn)
 
 updateConversationReceiptModeUnqualified ::
   Members

@@ -79,7 +79,8 @@ import Wire.API.MLS.Serialisation
 import Wire.API.Message
 
 type MLSMessageStaticErrors =
-  '[ ErrorS 'ConvNotFound,
+  '[ ErrorS 'ConvAccessDenied,
+     ErrorS 'ConvNotFound,
      ErrorS 'MLSUnsupportedMessage,
      ErrorS 'MLSStaleMessage,
      ErrorS 'MLSProposalNotFound,
@@ -117,6 +118,7 @@ postMLSMessage ::
     Members
       '[ Error FederationError,
          Error InternalError,
+         ErrorS 'ConvAccessDenied,
          ErrorS 'ConvNotFound,
          ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MLSStaleMessage,
@@ -133,17 +135,43 @@ postMLSMessage ::
   RawMLS SomeMessage ->
   Sem r [LocalConversationUpdate]
 postMLSMessage loc qusr con smsg = case rmValue smsg of
-  SomeMessage tag msg -> do
-    -- fetch conversation
+  SomeMessage _ msg -> do
+    -- fetch conversation ID
     qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-    lcnv <- ensureLocal loc qcnv -- FUTUREWORK: allow remote conversations
+    foldQualified
+      loc
+      (postMLSMessageToLocalConv qusr con smsg)
+      (postMLSMessageToRemoteConv loc qusr con smsg)
+      qcnv
+
+postMLSMessageToLocalConv ::
+  ( HasProposalEffects r,
+    Members
+      '[ Error FederationError,
+         Error InternalError,
+         ErrorS 'ConvNotFound,
+         ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSProposalNotFound,
+         ErrorS 'MissingLegalholdConsent,
+         TinyLog
+       ]
+      r
+  ) =>
+  Qualified UserId ->
+  Maybe ConnId ->
+  RawMLS SomeMessage ->
+  Local ConvId ->
+  Sem r [LocalConversationUpdate]
+postMLSMessageToLocalConv qusr con smsg lcnv = case rmValue smsg of
+  SomeMessage tag msg -> do
     conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
 
     -- validate message
     events <- case tag of
       SMLSPlainText -> case msgTBS (msgPayload msg) of
         CommitMessage c ->
-          processCommit qusr con (qualifyAs loc conv) (msgEpoch msg) (msgSender msg) c
+          processCommit qusr con (qualifyAs lcnv conv) (msgEpoch msg) (msgSender msg) c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
         ProposalMessage _ -> pure mempty -- FUTUREWORK: handle proposals
       SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
@@ -153,9 +181,41 @@ postMLSMessage loc qusr con smsg = case rmValue smsg of
         Left _ -> throwS @'MLSUnsupportedMessage
 
     -- forward message
-    propagateMessage loc qusr conv con (rmRaw smsg)
+    propagateMessage lcnv qusr conv con (rmRaw smsg)
 
     pure events
+
+postMLSMessageToRemoteConv ::
+  ( Members MLSMessageStaticErrors r,
+    Members '[Error FederationError, TinyLog] r,
+    HasProposalEffects r
+  ) =>
+  Local x ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  RawMLS SomeMessage ->
+  Remote ConvId ->
+  Sem r [LocalConversationUpdate]
+postMLSMessageToRemoteConv loc qusr con smsg rcnv = do
+  -- only local users can send messages to remote conversations
+  lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
+  resp <-
+    runFederated rcnv $
+      fedClient @'Galley @"send-mls-message" $
+        MessageSendRequest
+          { msrConvId = tUnqualified rcnv,
+            msrSender = tUnqualified lusr,
+            msrRawMessage = Base64ByteString (rmRaw smsg)
+          }
+  updates <- case resp of
+    MLSMessageResponseError e -> rethrowErrors @MLSMessageStaticErrors e
+    MLSMessageResponseProtocolError e -> throw (mlsProtocolError e)
+    MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
+    MLSMessageResponseUpdates updates -> pure updates
+
+  for updates $ \update -> do
+    e <- notifyRemoteConversationAction loc (qualifyAs rcnv update) con
+    pure (LocalConversationUpdate e update)
 
 type HasProposalEffects r =
   ( Member BrigAccess r,

@@ -671,14 +671,14 @@ notifyRemoteConversationAction ::
        ExternalAccess,
        GundeckAccess,
        MemberStore,
-       Input (Local ()),
        P.TinyLog
      ]
     r =>
+  Local x ->
   Remote ConversationUpdate ->
-  ConnId ->
+  Maybe ConnId ->
   Sem r Event
-notifyRemoteConversationAction rconvUpdate con = do
+notifyRemoteConversationAction loc rconvUpdate con = do
   let convUpdate = tUnqualified rconvUpdate
       rconvId = qualifyAs rconvUpdate . cuConvId $ convUpdate
 
@@ -692,7 +692,6 @@ notifyRemoteConversationAction rconvUpdate con = do
   -- backend.
   (presentUsers, allUsersArePresent) <-
     E.selectRemoteMembers (cuAlreadyPresentUsers convUpdate) rconvId
-  loc <- qualifyLocal ()
   let localPresentUsers = qualifyAs loc presentUsers
 
   unless allUsersArePresent $
@@ -709,4 +708,4 @@ notifyRemoteConversationAction rconvUpdate con = do
   -- implemented.
   let bots = []
 
-  pushConversationEvent (Just con) event localPresentUsers bots $> event
+  pushConversationEvent con event localPresentUsers bots $> event

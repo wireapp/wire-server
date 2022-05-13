@@ -34,6 +34,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Singletons
+import qualified Data.Text as T
 import Data.Time
 import Galley.API.Error
 import qualified Galley.Data.Conversation as Data
@@ -829,3 +830,26 @@ ensureMemberLimit old new = do
   let maxSize = fromIntegral (o ^. optSettings . setMaxConvSize)
   when (length old + length new > maxSize) $
     throwS @'TooManyMembers
+
+--------------------------------------------------------------------------------
+-- Handling remote errors
+
+class RethrowErrors (effs :: EffectRow) r where
+  rethrowErrors :: GalleyError -> Sem r a
+
+instance (Member (Error FederationError) r) => RethrowErrors '[] r where
+  rethrowErrors :: GalleyError -> Sem r a
+  rethrowErrors err' = throw (FederationUnexpectedError (T.pack . show $ err'))
+
+instance
+  ( SingI (e :: GalleyError),
+    Member (ErrorS e) r,
+    RethrowErrors effs r
+  ) =>
+  RethrowErrors (ErrorS e ': effs) r
+  where
+  rethrowErrors :: GalleyError -> Sem r a
+  rethrowErrors err' =
+    if err' == demote @e
+      then throwS @e
+      else rethrowErrors @effs @r err'
