@@ -48,6 +48,7 @@ import Wire.API.MLS.Welcome
 postMLSWelcome ::
   Members
     '[ BrigAccess,
+       ErrorS 'ConvAccessDenied,
        ErrorS 'MLSKeyPackageRefNotFound,
        ErrorS 'NotConnected,
        FederatorAccess,
@@ -84,7 +85,7 @@ welcomeRecipients =
 
 sendWelcomes ::
   Members
-    '[ ErrorS 'NotConnected,
+    '[ ErrorS 'ConvAccessDenied,
        FederatorAccess,
        GundeckAccess,
        Input UTCTime
@@ -120,7 +121,7 @@ sendLocalWelcomes con now rawWelcome lclients = do
 
 sendRemoteWelcomes ::
   Members
-    '[ ErrorS 'NotConnected,
+    '[ ErrorS 'ConvAccessDenied,
        FederatorAccess
      ]
     r =>
@@ -138,8 +139,8 @@ sendRemoteWelcomes lusr rawWelcome rClients = do
       rpc = fedClient @'Galley @"mls-welcome" req
   runFederated rClients rpc >>= mapFedError
   where
-    mapFedError :: Member (ErrorS 'NotConnected) r => MLSWelcomeResponse -> Sem r ()
+    mapFedError :: Member (ErrorS 'ConvAccessDenied) r => MLSWelcomeResponse -> Sem r ()
     mapFedError =
-      mapError @MLSWelcomeError @(Tagged 'NotConnected ()) (const (Tagged ()))
+      mapError @MLSWelcomeError @(Tagged 'ConvAccessDenied ()) (const (Tagged ()))
         . fromEither
         . unWelcomeResponse

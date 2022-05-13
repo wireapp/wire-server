@@ -559,5 +559,5 @@ mlsSendWelcome origDomain (F.MLSWelcomeRequest sender b64RawWelcome rcpts) = do
           e = Event (qUntagged lcnv) (qUntagged lusr) time $ EdMLSWelcome rawWelcome
        in newMessagePush l () Nothing defMessageMetadata (u, c) e
     mapRunError =
-      fmap (F.MLSWelcomeResponse . mapLeft (const MLSWelcomeErrorNotConnected))
+      fmap (F.MLSWelcomeResponse . mapLeft (const MLSWelcomeErrorConvAccessDenied))
         . runError @(Tagged 'NotConnected ())

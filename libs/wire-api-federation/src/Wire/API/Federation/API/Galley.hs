@@ -282,6 +282,10 @@ newtype MLSWelcomeResponse = MLSWelcomeResponse
     (ToJSON, FromJSON)
     via (Either (CustomEncoded MLSWelcomeError) ())
 
-data MLSWelcomeError = MLSWelcomeErrorNotConnected
+data MLSWelcomeError
+  = -- | The following error currently corresponds to a not-connected error, but
+    -- we do not expose that information to the welcome message sender. Instead,
+    -- they are given a conversation access denied error.
+    MLSWelcomeErrorConvAccessDenied
   deriving (Eq, Generic, Show)
   deriving (ToJSON, FromJSON) via CustomEncoded MLSWelcomeError

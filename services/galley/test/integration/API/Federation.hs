@@ -1173,7 +1173,7 @@ sendMLSWelcomeNotConnected = do
     -- check that no event is received and make sure there was an error response
     liftIO $ do
       WS.assertNoEvent (1 # Second) [wsB]
-      resp @?= MLSWelcomeResponse (Left MLSWelcomeErrorNotConnected)
+      resp @?= MLSWelcomeResponse (Left MLSWelcomeErrorConvAccessDenied)
 
 sendMLSWelcome :: TestM ()
 sendMLSWelcome = do

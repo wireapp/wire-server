@@ -1275,6 +1275,7 @@ type MLSMessagingAPI =
   Named
     "mls-welcome-message"
     ( Summary "Post an MLS welcome message"
+        :> CanThrow 'ConvAccessDenied
         :> CanThrow 'MLSKeyPackageRefNotFound
         :> CanThrow 'NotConnected
         :> "welcome"

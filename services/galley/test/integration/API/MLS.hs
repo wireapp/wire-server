@@ -201,7 +201,7 @@ testRemoteWelcomeNotConnected = do
         case frRPC fedReq of
           "mls-welcome" ->
             pure
-              (Aeson.encode $ MLSWelcomeResponse (Left MLSWelcomeErrorNotConnected))
+              (Aeson.encode $ MLSWelcomeResponse (Left MLSWelcomeErrorConvAccessDenied))
           ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
 
   void
