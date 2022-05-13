@@ -22,6 +22,7 @@ import Data.Binary.Get
 import Imports
 import Wire.API.Arbitrary
 import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Context
 import Wire.API.MLS.Extension
 import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
@@ -65,6 +66,13 @@ instance ParseMLS Proposal where
       AppAckProposalTag -> AppAckProposal <$> parseMLSVector @Word32 parseMLS
       GroupContextExtensionsProposalTag ->
         GroupContextExtensionsProposal <$> parseMLSVector @Word32 parseMLS
+
+-- | Compute the proposal ref given a ciphersuite and the raw proposal data.
+proposalRef :: CipherSuiteTag -> RawMLS Proposal -> ProposalRef
+proposalRef cs =
+  ProposalRef
+    . csHash cs proposalContext
+    . rmRaw
 
 data PreSharedKeyTag = ExternalKeyTag | ResumptionKeyTag
   deriving (Bounded, Enum, Eq, Show)
