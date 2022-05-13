@@ -1,5 +1,4 @@
 SHELL                 := /usr/bin/env bash
-LANG                  := en_US.UTF-8
 DOCKER_USER           ?= quay.io/wire
 # kubernetes namespace for running integration tests
 NAMESPACE             ?= test-$(USER)
