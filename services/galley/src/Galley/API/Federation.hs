@@ -540,8 +540,8 @@ sendMLSMessage ::
   F.MessageSendRequest ->
   Sem r F.MLSMessageResponse
 sendMLSMessage remoteDomain msr =
-  fmap (either F.MLSMessageResponseProtocolError id)
-    . runError
+  fmap (either (F.MLSMessageResponseProtocolError . unTagged) id)
+    . runError @MLSProtocolError
     . fmap (either F.MLSMessageResponseError id)
     . runError
     . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
@@ -549,10 +549,9 @@ sendMLSMessage remoteDomain msr =
     $ do
       loc <- qualifyLocal ()
       let sender = toRemoteUnsafe remoteDomain (F.msrSender msr)
-      raw <- either throw pure $ decodeMLS' (fromBase64ByteString (F.msrRawMessage msr))
-      mapToGalleyError @MLSMessageStaticErrors
-        . mapError @MLSProtocolError unTagged
-        $ F.MLSMessageResponseUpdates . map lcuUpdate
+      raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.msrRawMessage msr))
+      mapToGalleyError @MLSMessageStaticErrors $
+        F.MLSMessageResponseUpdates . map lcuUpdate
           <$> postMLSMessage loc (qUntagged sender) Nothing raw
 
 class ToGalleyRuntimeError (effs :: EffectRow) r where
