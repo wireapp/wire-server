@@ -86,13 +86,14 @@ run o = do
     Async.async $
       runAppT e $
         wrapHttpClient $
-          Queue.listen (e ^. internalEvents) $ Internal.onEvent
+          Queue.listen (e ^. internalEvents) Internal.onEvent
   let throttleMillis = fromMaybe defSqsThrottleMillis $ setSqsThrottleMillis (optSettings o)
   emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
     Async.async $
       AWS.execute (e ^. awsEnv) $
         AWS.listen throttleMillis q (runAppT e . SesNotification.onEvent)
   sftDiscovery <- forM (e ^. sftEnv) $ Async.async . Calling.startSFTServiceDiscovery (e ^. applog)
+  Calling.startTurnDiscovery (e ^. applog) (e ^. fsWatcher) (e ^. turnEnv)
   pendingActivationCleanupAsync <- Async.async (runAppT e pendingActivationCleanup)
 
   runSettingsWithShutdown s app 5 `finally` do

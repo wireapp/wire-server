@@ -18,15 +18,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Brig.Calling where
+module Test.Brig.Calling (tests) where
 
 import Brig.Calling
-import Brig.Calling.API (CallsConfigVersion (..), newConfig)
+import Brig.Calling.API (CallsConfigVersion (..), NoTurnServers, newConfig)
 import Brig.Calling.Internal (sftServerFromSrvTarget)
 import Brig.Effects.SFT
 import Brig.Options
+import qualified Control.Concurrent.Timeout as System
 import Control.Lens ((^.))
-import Control.Retry
+import Control.Monad.Catch (throwM)
 import Data.Bifunctor
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
@@ -34,12 +35,14 @@ import qualified Data.Map as Map
 import Data.Misc
 import Data.Range
 import qualified Data.Set as Set
-import Data.String.Conversions
+import Data.Timeout
 import Imports
 import Network.DNS
 import Polysemy
+import Polysemy.Error
 import Polysemy.TinyLog
 import qualified System.Logger as Log
+import Test.Brig.Effects.Delay
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck (Arbitrary (..), generate)
@@ -96,15 +99,16 @@ tests =
               (mkSFTDomain (SFTOptions "example.com" Nothing Nothing Nothing))
         ],
       testGroup "sftDiscoveryLoop" $
-        [ testCase "when service can be discovered" $ void testDiscoveryLoopWhenSuccessful,
-          testCase "when service can be discovered and the URLs change" testDiscoveryLoopWhenURLsChange,
-          testCase "when service cannot be discovered" testDiscoveryLoopWhenUnsuccessful,
-          testCase "when service cannot be discovered after a successful discovery" testDiscoveryLoopWhenUnsuccessfulAfterSuccess
+        [ testCase "when service can be discovered" $ void testSFTDiscoveryLoopWhenSuccessful
         ],
-      testGroup "discoverSFTServers" $
-        [ testCase "when service is available" testSFTDiscoverWhenAvailable,
-          testCase "when service is not available" testSFTDiscoverWhenNotAvailable,
-          testCase "when dns lookup fails" testSFTDiscoverWhenDNSFails
+      testGroup "srvDiscoveryLoop" $
+        [ testCase "when service can be discovered" $ testSRVDiscoveryLoopWhenSuccessful,
+          testCase "when service cannot be discovered" $ testSRVDiscoveryLoopWhenUnsuccessful
+        ],
+      testGroup "discoverSRVRecords" $
+        [ testCase "when service is available" testSRVDiscoverWhenAvailable,
+          testCase "when service is not available" testSRVDiscoverWhenNotAvailable,
+          testCase "when dns lookup fails" testSRVDiscoverWhenDNSFails
         ],
       testGroup "Get Random SFT Servers" $
         [ testCase "more servers in SRV than limit" testSFTManyServers,
@@ -121,78 +125,89 @@ tests =
         ]
     ]
 
-testDiscoveryLoopWhenSuccessful :: IO SFTEnv
-testDiscoveryLoopWhenSuccessful = do
+testSFTDiscoveryLoopWhenSuccessful :: IO SFTEnv
+testSFTDiscoveryLoopWhenSuccessful = do
   let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.example.com." 443)
       entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
       entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
       returnedEntries = entry1 :| [entry2, entry3]
   fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries)
-  sftEnv <- mkSFTEnv $ SFTOptions "foo.example.com" Nothing (Just 0.001) Nothing
+  let intervalInSeconds = 0.001
+      intervalInMicroseconds = 1000
+  sftEnv <- mkSFTEnv $ SFTOptions "foo.example.com" Nothing (Just intervalInSeconds) Nothing
 
-  discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
-  void $ retryEvery10MicrosWhileN 2000 (== 0) (length <$> readIORef (fakeLookupSrvCalls fakeDNSEnv))
-  -- We don't want to stop the loop before it has written to the sftServers IORef
-  void $ retryEvery10MicrosWhileN 2000 (== NotDiscoveredYet) (readIORef (sftServers sftEnv))
-  Async.cancel discoveryLoop
+  tick <- newEmptyMVar
+  delayCallsTVar <- newTVarIO []
+  discoveryLoop <-
+    Async.async . runM
+      . ignoreLogs
+      . runDelayWithTick tick delayCallsTVar
+      . runFakeDNSLookup fakeDNSEnv
+      $ sftDiscoveryLoop sftEnv
+
+  Async.race_ (Async.wait discoveryLoop) (System.timeout (30 # Second) $ takeMVar tick)
 
   actualServers <- readIORef (sftServers sftEnv)
+  delayCalls <- readTVarIO delayCallsTVar
   assertEqual "servers should be the ones read from DNS" (Discovered (mkSFTServers returnedEntries)) actualServers
+  assertEqual "delay should be called with the configured interval" intervalInMicroseconds (head delayCalls)
   pure sftEnv
 
-testDiscoveryLoopWhenUnsuccessful :: IO ()
-testDiscoveryLoopWhenUnsuccessful = do
+testSRVDiscoveryLoopWhenSuccessful :: IO ()
+testSRVDiscoveryLoopWhenSuccessful = do
+  let entry1 = SrvEntry 0 0 (SrvTarget "sft1.foo.example.com." 443)
+      entry2 = SrvEntry 0 0 (SrvTarget "sft2.foo.example.com." 443)
+      entry3 = SrvEntry 0 0 (SrvTarget "sft3.foo.example.com." 443)
+      returnedEntries = entry1 :| [entry2, entry3]
+  fakeDNSEnv <- newFakeDNSEnv (\_ -> SrvAvailable returnedEntries)
+  let intervalInMicroseconds = 1000
+
+  tick <- newEmptyMVar
+  delayCallsTVar <- newTVarIO []
+  savedSrvRecordsMVar <- newEmptyMVar
+  discoveryLoop <-
+    Async.async
+      . runM
+      . ignoreLogs
+      . runDelayWithTick tick delayCallsTVar
+      . runFakeDNSLookup fakeDNSEnv
+      $ srvDiscoveryLoop "foo.example.com" intervalInMicroseconds (putMVar savedSrvRecordsMVar)
+
+  Async.race_ (Async.wait discoveryLoop) (System.timeout (30 # Second) $ takeMVar tick)
+
+  savedSrvRecords <- tryReadMVar savedSrvRecordsMVar
+  delayCalls <- readTVarIO delayCallsTVar
+  assertEqual "servers should be the ones read from DNS" (Just returnedEntries) savedSrvRecords
+  assertEqual "delay should be called with the configured interval" intervalInMicroseconds (head delayCalls)
+
+testSRVDiscoveryLoopWhenUnsuccessful :: IO ()
+testSRVDiscoveryLoopWhenUnsuccessful = do
   fakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable)
-  sftEnv <- mkSFTEnv $ SFTOptions "foo.example.com" Nothing (Just 0.001) Nothing
 
-  discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
+  -- Irrelevant for this test, but types make us choose a number
+  let intervalInMicroseconds = 1000
+  tick <- newEmptyMVar
+  delayCallsTVar <- newTVarIO []
+  discoveryLoop <-
+    Async.async
+      . runM
+      . ignoreLogs
+      . runDelayWithTick tick delayCallsTVar
+      . runFakeDNSLookup fakeDNSEnv
+      . srvDiscoveryLoop "foo.example.com" intervalInMicroseconds
+      $ ( \_ ->
+            liftIO $ assertFailure "shouldn't try to save SRV records when they are unavailable"
+        )
   -- We wait for at least two lookups to be sure that the lookup loop looped at
-  -- least once
-  void $ retryEvery10MicrosWhileN 2000 (<= 1) (length <$> readIORef (fakeLookupSrvCalls fakeDNSEnv))
-  Async.cancel discoveryLoop
+  -- least once this tests that the loop keeps going even when discovery fails
+  void . System.timeout (30 # Second) $ takeMVar tick
+  Async.race_ (Async.wait discoveryLoop) (System.timeout (30 # Second) $ takeMVar tick)
 
-  actualServers <- readIORef (sftServers sftEnv)
-  assertEqual "servers should be the ones read from DNS" NotDiscoveredYet actualServers
+  numberOfDealys <- length <$> readTVarIO delayCallsTVar
+  assertBool "discovery loop should run again even if discovery fails" (numberOfDealys >= 2)
 
-testDiscoveryLoopWhenUnsuccessfulAfterSuccess :: IO ()
-testDiscoveryLoopWhenUnsuccessfulAfterSuccess = do
-  sftEnv <- testDiscoveryLoopWhenSuccessful
-  previousEntries <- readIORef (sftServers sftEnv)
-
-  -- In the following lines we re-use the 'sftEnv' from a successful lookup to
-  -- replicate what will happen when a dns lookup fails after success
-  failingFakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable)
-  discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup failingFakeDNSEnv $ sftDiscoveryLoop sftEnv
-  -- We wait for at least two lookups to be sure that the lookup loop looped at
-  -- least once
-  void $ retryEvery10MicrosWhileN 2000 (<= 1) (length <$> readIORef (fakeLookupSrvCalls failingFakeDNSEnv))
-  Async.cancel discoveryLoop
-
-  actualServers <- readIORef (sftServers sftEnv)
-  assertEqual "servers shouldn't get overwriten" previousEntries actualServers
-
-testDiscoveryLoopWhenURLsChange :: IO ()
-testDiscoveryLoopWhenURLsChange = do
-  sftEnv <- testDiscoveryLoopWhenSuccessful
-
-  -- In the following lines we re-use the 'sftEnv' from a successful lookup to
-  -- replicate what will happen when a dns lookup returns new URLs
-  let entry1 = SrvEntry 0 0 (SrvTarget "sft4.foo.example.com." 443)
-      entry2 = SrvEntry 0 0 (SrvTarget "sft5.foo.example.com." 443)
-      newEntries = entry1 :| [entry2]
-
-  fakeDNSEnv <- newFakeDNSEnv (const $ SrvAvailable newEntries)
-  discoveryLoop <- Async.async $ runM . ignoreLogs . runFakeDNSLookup fakeDNSEnv $ sftDiscoveryLoop sftEnv
-  void $ retryEvery10MicrosWhileN 2000 (== 0) (length <$> readIORef (fakeLookupSrvCalls fakeDNSEnv))
-  -- We don't want to stop the loop before it has written to the sftServers IORef
-  void $ retryEvery10MicrosWhileN 2000 (== Discovered (mkSFTServers newEntries)) (readIORef (sftServers sftEnv))
-  Async.cancel discoveryLoop
-
-  actualServers <- readIORef (sftServers sftEnv)
-  assertEqual "servers should get overwritten" (Discovered (mkSFTServers newEntries)) actualServers
-
-testSFTDiscoverWhenAvailable :: IO ()
-testSFTDiscoverWhenAvailable = do
+testSRVDiscoverWhenAvailable :: IO ()
+testSRVDiscoverWhenAvailable = do
   logRecorder <- newLogRecorder
   let entry1 = SrvEntry 0 0 (SrvTarget "sft7.foo.example.com." 443)
       entry2 = SrvEntry 0 0 (SrvTarget "sft8.foo.example.com." 8843)
@@ -201,33 +216,33 @@ testSFTDiscoverWhenAvailable = do
 
   assertEqual "discovered servers should be returned" (Just returnedEntries)
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
-            discoverSFTServers "_sft._tcp.foo.example.com"
+            discoverSRVRecords "_sft._tcp.foo.example.com"
         )
   assertEqual "nothing should be logged" []
     =<< readIORef (recordedLogs logRecorder)
 
-testSFTDiscoverWhenNotAvailable :: IO ()
-testSFTDiscoverWhenNotAvailable = do
+testSRVDiscoverWhenNotAvailable :: IO ()
+testSRVDiscoverWhenNotAvailable = do
   logRecorder <- newLogRecorder
   fakeDNSEnv <- newFakeDNSEnv (const SrvNotAvailable)
 
   assertEqual "discovered servers should be returned" Nothing
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
-            discoverSFTServers "_sft._tcp.foo.example.com"
+            discoverSRVRecords "_sft._tcp.foo.example.com"
         )
-  assertEqual "should warn about it in the logs" [(Warn, "No SFT servers available\n")]
+  assertEqual "should warn about it in the logs" [(Warn, "SRV Records not available, domain=_sft._tcp.foo.example.com\n")]
     =<< readIORef (recordedLogs logRecorder)
 
-testSFTDiscoverWhenDNSFails :: IO ()
-testSFTDiscoverWhenDNSFails = do
+testSRVDiscoverWhenDNSFails :: IO ()
+testSRVDiscoverWhenDNSFails = do
   logRecorder <- newLogRecorder
   fakeDNSEnv <- newFakeDNSEnv (const $ SrvResponseError IllegalDomain)
 
   assertEqual "no servers should be returned" Nothing
     =<< ( runM . recordLogs logRecorder . runFakeDNSLookup fakeDNSEnv $
-            discoverSFTServers "_sft._tcp.foo.example.com"
+            discoverSRVRecords "_sft._tcp.foo.example.com"
         )
-  assertEqual "should warn about it in the logs" [(Error, "DNS Lookup failed for SFT Discovery, Error=IllegalDomain\n")]
+  assertEqual "should warn about it in the logs" [(Error, "SRV Lookup failed, Error=IllegalDomain, domain=_sft._tcp.foo.example.com\n")]
     =<< readIORef (recordedLogs logRecorder)
 
 testSFTManyServers :: IO ()
@@ -256,22 +271,19 @@ testSFTFewerServers = do
   allServers <- getRandomElements (unsafeRange 10) . unSFTServers $ sftServers
   assertEqual "should return all of them" (Set.fromList $ NonEmpty.toList allServers) (Set.fromList $ NonEmpty.toList entries)
 
-retryEvery10MicrosWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
-retryEvery10MicrosWhileN n f m =
-  retrying
-    (constantDelay 10 <> limitRetries n)
-    (const (return . f))
-    (const m)
-
 -- | Creates a calling environment and an https URL to be used in unit-testing
 -- the logic of call configuration endpoints
-sftStaticEnv :: IO (Env, HttpsUrl)
+sftStaticEnv :: IO (TurnEnv, HttpsUrl)
 sftStaticEnv = do
   turnUri <- generate arbitrary
   let tokenTtl = 10 -- seconds
       configTtl = 10 -- seconds
       secret = "secret word"
-  env <- newEnv undefined (pure turnUri) tokenTtl configTtl secret
+  env <- mkTurnEnv "test/resources/turn/servers.txt" "test/resources/turn/servers-v2.txt" tokenTtl configTtl secret undefined
+  let serversV1IORef = env ^. turnServersV1
+      serversV2IORef = env ^. turnServersV2
+  atomicWriteIORef serversV1IORef (Discovered turnUri)
+  atomicWriteIORef serversV2IORef (Discovered turnUri)
   let Right staticUrl =
         mkHttpsUrl
           =<< first
@@ -287,7 +299,8 @@ testSFTStaticDeprecatedEndpoint = do
     runM @IO
       . ignoreLogs
       . interpretSFTInMemory mempty
-      $ newConfig env Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
+      . throwErrorInIO @_ @NoTurnServers
+      $ newConfig env turnServersV1 Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
   assertEqual
     "when SFT static URL is disabled, sft_servers should be empty."
     Set.empty
@@ -311,7 +324,8 @@ testSFTStaticV2NoStaticUrl = do
     runM @IO
       . ignoreLogs
       . interpretSFTInMemory mempty
-      $ newConfig env Nothing (Just sftEnv) (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
+      . throwErrorInIO @_ @NoTurnServers
+      $ newConfig env turnServersV2 Nothing (Just sftEnv) (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL is disabled, sft_servers_all should be from SFT environment"
     (Just . fmap (sftServerFromSrvTarget . srvTarget) . toList $ servers)
@@ -324,9 +338,9 @@ testSFTStaticV2StaticUrlError = do
   cfg <-
     runM @IO
       . ignoreLogs
-      . interpretSFTInMemory mempty -- an empty lookup map, meaning there was
-      -- an error
-      $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
+      . interpretSFTInMemory mempty -- an empty lookup map, meaning there was an error
+      . throwErrorInIO @_ @NoTurnServers
+      $ newConfig env turnServersV2 (Just staticUrl) Nothing (Just . unsafeRange $ 2) ListAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL is enabled (and setSftListAllServers is enabled), but returns error, sft_servers_all should be omitted"
     Nothing
@@ -343,7 +357,8 @@ testSFTStaticV2StaticUrlList = do
     runM @IO
       . ignoreLogs
       . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse . Right $ servers))
-      $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 3) ListAllSFTServers CallsConfigV2
+      . throwErrorInIO @_ @NoTurnServers
+      $ newConfig env turnServersV2 (Just staticUrl) Nothing (Just . unsafeRange $ 3) ListAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL and setSftListAllServers are enabled, sft_servers_all should be from /sft_servers_all.json"
     (Just servers)
@@ -359,8 +374,16 @@ testSFTStaticV2ListAllServersDisabled = do
     runM @IO
       . ignoreLogs
       . interpretSFTInMemory (Map.singleton staticUrl (SFTGetResponse . Right $ servers))
-      $ newConfig env (Just staticUrl) Nothing (Just . unsafeRange $ 3) HideAllSFTServers CallsConfigV2
+      . throwErrorInIO @_ @NoTurnServers
+      $ newConfig env turnServersV2 (Just staticUrl) Nothing (Just . unsafeRange $ 3) HideAllSFTServers CallsConfigV2
   assertEqual
     "when SFT static URL is enabled and setSftListAllServers is \"disabled\" then sft_servers_all is missing"
     Nothing
     (cfg ^. rtcConfSftServersAll)
+
+throwErrorInIO :: (Member (Embed IO) r, Exception e) => Sem (Error e ': r) a -> Sem r a
+throwErrorInIO action = do
+  eitherResult <- runError action
+  case eitherResult of
+    Right x -> pure x
+    Left e -> liftIO $ throwM e

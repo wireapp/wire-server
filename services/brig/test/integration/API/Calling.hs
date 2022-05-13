@@ -58,8 +58,8 @@ tests m b opts turn turnV2 = do
         testGroup
           "sft"
           [ test m "SFT servers /calls/config/v2 - 200" $ testSFT b opts,
-            test m "SFT servers /calls/config/v2 - 200 - SFT does not respond as expected" $ testSFTUnavailble b opts "https://example.com",
-            test m "SFT servers /calls/config/v2 - 200 - SFT DNS does not resolve" $ testSFTUnavailble b opts "https://sft.example.com"
+            test m "SFT servers /calls/config/v2 - 200 - SFT does not respond as expected" $ testSFTUnavailable b opts "https://example.com",
+            test m "SFT servers /calls/config/v2 - 200 - SFT DNS does not resolve" $ testSFTUnavailable b opts "https://sft.example.com"
           ]
       ]
 
@@ -110,8 +110,8 @@ testSFT b opts = do
         (Set.fromList [sftServer server1, sftServer server2])
         (Set.fromList $ maybe [] NonEmpty.toList $ cfg1 ^. rtcConfSftServers)
 
-testSFTUnavailble :: Brig -> Opts.Opts -> String -> Http ()
-testSFTUnavailble b opts domain = do
+testSFTUnavailable :: Brig -> Opts.Opts -> String -> Http ()
+testSFTUnavailable b opts domain = do
   uid <- userId <$> randomUser b
   withSettingsOverrides (opts {Opts.optSettings = (Opts.optSettings opts) {Opts.setSftStaticUrl = fromByteString (cs domain), Opts.setSftListAllServers = Just Opts.ListAllSFTServers}}) $ do
     cfg <- getTurnConfigurationV2 uid b
@@ -122,6 +122,7 @@ testSFTUnavailble b opts domain = do
         (cfg ^. rtcConfSftServersAll)
 
 modifyAndAssert ::
+  HasCallStack =>
   Brig ->
   UserId ->
   (UserId -> Brig -> Http RTCConfiguration) ->

@@ -72,6 +72,7 @@ import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
+import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
@@ -146,7 +147,7 @@ swaggerDocsAPI (Just V2) =
         <> CannonAPI.swaggerDoc
     )
       & S.info . S.title .~ "Wire-Server API"
-      & S.info . S.description ?~ $(embedText "docs/swagger.md") <> mempty
+      & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
       & S.security %~ nub
       -- sanitise definitions
       & S.definitions . traverse %~ sanitise
@@ -170,12 +171,12 @@ swaggerDocsAPI (Just V0) =
   swaggerSchemaUIServer
     . fromMaybe Aeson.Null
     . Aeson.decode
-    $ $(embedLazyByteString "docs/swagger-v0.json")
+    $ $(embedLazyByteString =<< makeRelativeToProject "docs/swagger-v0.json")
 swaggerDocsAPI (Just V1) =
   swaggerSchemaUIServer
     . fromMaybe Aeson.Null
     . Aeson.decode
-    $ $(embedLazyByteString "docs/swagger-v1.json")
+    $ $(embedLazyByteString =<< makeRelativeToProject "docs/swagger-v1.json")
 swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
 
 servantSitemap :: ServerT BrigAPI (Handler r)
