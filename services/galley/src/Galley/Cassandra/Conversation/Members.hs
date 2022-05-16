@@ -174,17 +174,19 @@ newRemoteMemberWithRole :: Remote (UserId, RoleName) -> RemoteMember
 newRemoteMemberWithRole ur@(qUntagged -> (Qualified (u, r) _)) =
   RemoteMember
     { rmId = qualifyAs ur u,
-      rmConvRoleName = r
+      rmConvRoleName = r,
+      rmMLSClients = mempty
     }
 
 lookupRemoteMembers :: ConvId -> Client [RemoteMember]
 lookupRemoteMembers conv = do
   fmap (map mkMem) . retry x1 $ query Cql.selectRemoteMembers (params LocalQuorum (Identity conv))
   where
-    mkMem (domain, usr, role) =
+    mkMem (domain, usr, role, clients) =
       RemoteMember
         { rmId = toRemoteUnsafe domain usr,
-          rmConvRoleName = role
+          rmConvRoleName = role,
+          rmMLSClients = Set.fromList (fromSet clients)
         }
 
 member ::

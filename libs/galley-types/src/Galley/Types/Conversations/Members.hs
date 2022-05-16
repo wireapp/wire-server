@@ -41,7 +41,8 @@ import Wire.API.Provider.Service (ServiceRef)
 -- | Internal (cassandra) representation of a remote conversation member.
 data RemoteMember = RemoteMember
   { rmId :: Remote UserId,
-    rmConvRoleName :: RoleName
+    rmConvRoleName :: RoleName,
+    rmMLSClients :: Set ClientId
   }
   deriving stock (Show)
 

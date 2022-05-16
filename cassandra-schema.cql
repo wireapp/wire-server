@@ -267,6 +267,7 @@ CREATE TABLE galley_test.member_remote_user (
     user_remote_domain text,
     user_remote_id uuid,
     conversation_role text,
+    mls_clients set<text>,
     PRIMARY KEY (conv, user_remote_domain, user_remote_id)
 ) WITH CLUSTERING ORDER BY (user_remote_domain ASC, user_remote_id ASC)
     AND bloom_filter_fp_chance = 0.1
