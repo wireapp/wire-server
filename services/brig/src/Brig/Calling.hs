@@ -220,10 +220,7 @@ data TurnServers
   | TurnServersFromDNS Opts.TurnDnsOpts TurnServersRef TurnServersRef TurnServersRef TurnServersRef
 
 data TurnEnv = TurnEnv
-  { -- _turnServersV1 :: TurnServersRef,
-    -- _turnServersV2 :: TurnServersRef,
-    _turnServers :: TurnServers,
-    -- _turnServersSource :: Opts.TurnServersSource,
+  { _turnServers :: TurnServers,
     _turnTokenTTL :: Word32,
     _turnConfigTTL :: Word32,
     _turnSecret :: ByteString,

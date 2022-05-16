@@ -110,14 +110,14 @@ getCallsConfigV2 _ _ limit = do
   sftEnv' <- view sftEnv
   logger <- view applog
   manager <- view httpManager
-  discoverdServers <- turnServersV2 (env ^. turnServers)
+  discoveredServers <- turnServersV2 (env ^. turnServers)
   eitherConfig <-
     liftIO
       . runM @IO
       . loggerToTinyLog logger
       . interpretSFT manager
       . Polysemy.runError
-      $ newConfig env discoverdServers staticUrl sftEnv' limit sftListAllServers CallsConfigV2
+      $ newConfig env discoveredServers staticUrl sftEnv' limit sftListAllServers CallsConfigV2
   handleNoTurnServers eitherConfig
 
 -- | Throws '500 Internal Server Error' when no turn servers are found. This is
@@ -141,7 +141,7 @@ getCallsConfig _ _ = do
   env <- view turnEnv
   logger <- view applog
   manager <- view httpManager
-  discoverdServers <- turnServersV1 (env ^. turnServers)
+  discoveredServers <- turnServersV1 (env ^. turnServers)
   eitherConfig <-
     (dropTransport <$$>)
       . liftIO
@@ -149,7 +149,7 @@ getCallsConfig _ _ = do
       . loggerToTinyLog logger
       . interpretSFT manager
       . Polysemy.runError
-      $ newConfig env discoverdServers Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
+      $ newConfig env discoveredServers Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
   handleNoTurnServers eitherConfig
   where
     -- In order to avoid being backwards incompatible, remove the `transport` query param from the URIs

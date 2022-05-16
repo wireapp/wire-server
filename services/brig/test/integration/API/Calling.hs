@@ -90,6 +90,8 @@ testCallsConfigMultiple b turnUpdater = do
   let _expected = toTurnURILegacy "127.0.0.1" 3478 :| []
   modifyAndAssert b uid getTurnConfigurationV1 turnUpdater "turn:127.0.0.1:3478" _expected
 
+-- | This test relies on pre-created public DNS records. Code here:
+-- https://github.com/zinfra/cailleach/blob/fb4caacaca02e6e28d68dc0cdebbbc987f5e31da/targets/misc/wire-server-integration-tests/dns.tf
 testSFT :: Brig -> Opts.Opts -> Http ()
 testSFT b opts = do
   uid <- userId <$> randomUser b
@@ -168,6 +170,8 @@ testCallsConfigMultipleV2 b turnUpdaterV2 = do
   let _expected = toTurnURI SchemeTurn "localhost" 3478 Nothing :| []
   modifyAndAssert b uid getTurnConfigurationV2 turnUpdaterV2 "turn:localhost:3478" _expected
 
+-- | This test relies on pre-created public DNS records. Code here:
+-- https://github.com/zinfra/cailleach/blob/fb4caacaca02e6e28d68dc0cdebbbc987f5e31da/targets/misc/wire-server-integration-tests/dns.tf
 testCallsConfigSRV :: Brig -> Opts.Opts -> Http ()
 testCallsConfigSRV b opts = do
   uid <- userId <$> randomUser b
@@ -184,6 +188,8 @@ testCallsConfigSRV b opts = do
         :| [toTurnURI SchemeTurn "127.0.0.27" 3478 Nothing]
     )
 
+-- | This test relies on pre-created public DNS records. Code here:
+-- https://github.com/zinfra/cailleach/blob/fb4caacaca02e6e28d68dc0cdebbbc987f5e31da/targets/misc/wire-server-integration-tests/dns.tf
 testCallsConfigV2SRV :: Brig -> Opts.Opts -> Http ()
 testCallsConfigV2SRV b opts = do
   uid <- userId <$> randomUser b
