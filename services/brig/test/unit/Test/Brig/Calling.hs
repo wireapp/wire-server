@@ -38,6 +38,7 @@ import qualified Data.Set as Set
 import Data.Timeout
 import Imports
 import Network.DNS
+import OpenSSL.EVP.Digest (getDigestByName)
 import Polysemy
 import Polysemy.Error
 import Polysemy.TinyLog
@@ -280,7 +281,8 @@ sftStaticEnv = do
       configTtl = 10 -- seconds
       secret = "secret word"
       turnSource = TurnSourceFiles (TurnServersFiles "test/resources/turn/servers.txt" "test/resources/turn/servers-v2.txt")
-  env <- mkTurnEnv turnSource tokenTtl configTtl secret undefined
+  Just sha512 <- getDigestByName "SHA512"
+  env <- mkTurnEnv turnSource tokenTtl configTtl secret sha512
   let TurnServersFromFiles _ serversV1IORef serversV2IORef = env ^. turnServers
   atomicWriteIORef serversV1IORef (Discovered turnUri)
   atomicWriteIORef serversV2IORef (Discovered turnUri)

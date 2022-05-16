@@ -730,7 +730,8 @@ test-suite brig-tests
       ViewPatterns
   ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields -threaded -with-rtsopts=-N
   build-depends:
-      aeson
+      HsOpenSSL >=0.10
+    , aeson
     , base
     , binary
     , bloodhound
