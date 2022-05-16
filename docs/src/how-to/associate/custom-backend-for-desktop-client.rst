@@ -46,9 +46,9 @@ Linux
 Using an initialization file
 ----------------------------
 
-By providing an initialization file the instance connection parameters plus proxy settings for the Wire desktop application can be pre-configured. This requires Wire version >= 3.27.
+By providing an initialization file the instance connection parameters and/or proxy settings for the Wire desktop application can be pre-configured. This requires Wire version >= 3.27.
 
-Create a file named ``init.json`` and set ``customWebAppURL`` and ``proxyServerURL`` e.g. as follows:
+Create a file named ``init.json`` and set ``customWebAppURL`` and optionally ``proxyServerURL`` e.g. as follows:
 
 .. code-block:: json
 
