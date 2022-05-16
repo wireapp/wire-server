@@ -224,8 +224,7 @@ executeProposalAction lusr con conv action = do
   result <- foldMap addMembers . nonEmpty . map fst $ newUserClients
   -- add clients to the database
   for_ newUserClients $ \(qtarget, newClients) -> do
-    ltarget <- ensureLocal lusr qtarget -- FUTUREWORK: support remote users
-    addMLSClients (convId conv) (tUnqualified ltarget) newClients
+    addMLSClients (qualifyAs lusr (convId conv)) qtarget newClients
   pure result
   where
     addUserClients :: SignatureSchemeTag -> ClientMap -> Qualified UserId -> Set ClientId -> Sem r ()
