@@ -56,19 +56,29 @@ servers, override ``values/wire-server/values.yaml`` like this:
 When configured like this, the wire-server would look for these 3 SRV records
 every 10 seconds:
 
-1. ``_turn._udp.prod.example.com`` will be used to discover UDP port for all the
+1. ``_turn._udp.prod.example.com`` will be used to discover UDP hostnames and port for all the
    turn servers.
-2. ``_turn._tcp.prod.example.com`` will be used to discover the TCP port for all
+2. ``_turn._tcp.prod.example.com`` will be used to discover the TCP hostnames and port for all
    the turn servers.
-3. ``_turns._tcp.prod.example.com`` will be used to discover the TLS port for
+3. ``_turns._tcp.prod.example.com`` will be used to discover the TLS hostnames and port for
    all the turn servers.
+
+Entries with weight 0 will be ignored. Example:
+
+.. code::
+
+   dig +retries=3 +short SRV _turn._udp.prod.example.com
+
+   0 0 3478 turn36.prod.example.com
+   0 10 3478 turn34..prod.example.com
+   0 10 3478 turn35.prod.example.com
 
 At least one of these 3 lookups must succeed for the wire-server to be able to
 respond correctly when ``GET /calls/config/v2`` is called. All successful
 responses are served in the result.
 
 In addition, if there are any clients using the legacy endpoint, ``GET
-/calls/cofnfig``, they will be served by the servers listed in the
+/calls/config``, (all versions of all mobile apps since 2018 no longer use this) they will be served by the servers listed in the
 ``_turn._udp.prod.example.com`` SRV record. This endpoint, however, will not
 serve the domain names received inside the SRV record, instead it will serve the
 first ``A`` record that is associated with each domain name in the SRV record.
