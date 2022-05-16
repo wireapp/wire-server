@@ -29,7 +29,7 @@ import Brig.Whitelist (Whitelist (..))
 import qualified Brig.ZAuth as ZAuth
 import Control.Applicative
 import qualified Control.Lens as Lens
-import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON, withText, (.!=))
+import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON, withText)
 import qualified Data.Aeson as A
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (typeMismatch)
