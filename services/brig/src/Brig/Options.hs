@@ -313,7 +313,7 @@ data TurnOpts = TurnOpts
 
 instance FromJSON TurnOpts where
   parseJSON = A.withObject "TurnOpts" $ \o -> do
-    sourceName <- o .:? "serversSource" .!= "files"
+    sourceName <- o .: "serversSource"
     source <-
       case sourceName of
         "files" -> TurnSourceFiles <$> A.parseJSON (A.Object o)
