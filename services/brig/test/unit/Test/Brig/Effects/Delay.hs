@@ -24,5 +24,5 @@ import Polysemy
 runDelayWithTick :: Member (Embed IO) r => MVar () -> TVar [Int] -> Sem (Delay ': r) a -> Sem r a
 runDelayWithTick tick calls = interpret $ \case
   Delay i -> do
-    putMVar tick ()
     atomically $ modifyTVar calls (<> [i])
+    putMVar tick ()
