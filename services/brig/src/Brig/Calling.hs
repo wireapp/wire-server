@@ -278,7 +278,7 @@ startDNSBasedTurnDiscovery :: Log.Logger -> Opts.TurnDnsOpts -> TurnServersRef -
 startDNSBasedTurnDiscovery logger opts deprecatedUdpRef udpRef tcpRef tlsRef = do
   let udpDomain = DNS.normalize $ "_turn._udp." <> Opts.tdoBaseDomain opts
       tcpDomain = DNS.normalize $ "_turn._tcp." <> Opts.tdoBaseDomain opts
-      tlsDomain = DNS.normalize $ "_turn._tls." <> Opts.tdoBaseDomain opts
+      tlsDomain = DNS.normalize $ "_turns._tcp." <> Opts.tdoBaseDomain opts
       interval = diffTimeToMicroseconds (fromMaybe defSrvDiscoveryIntervalSeconds (Opts.tdoDiscoveryIntervalSeconds opts))
       runLoopAsync domain =
         Async.async
