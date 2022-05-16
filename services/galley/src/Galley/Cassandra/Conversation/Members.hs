@@ -18,8 +18,6 @@
 module Galley.Cassandra.Conversation.Members
   ( addMembers,
     members,
-    memberLists,
-    remoteMemberLists,
     lookupRemoteMembers,
     removeMembersFromLocalConv,
     toMemberStatus,
@@ -28,10 +26,8 @@ module Galley.Cassandra.Conversation.Members
 where
 
 import Cassandra
-import Data.Domain
 import Data.Id
 import qualified Data.List.Extra as List
-import qualified Data.Map as Map
 import Data.Monoid
 import Data.Qualified
 import qualified Data.Set as Set
@@ -117,21 +113,10 @@ removeRemoteMembersFromLocalConv cnv victims = do
     for_ victims $ \(qUntagged -> Qualified uid domain) ->
       addPrepQuery Cql.removeRemoteMember (cnv, domain, uid)
 
-memberLists :: [ConvId] -> Client [[LocalMember]]
-memberLists convs = do
-  mems <- retry x1 $ query Cql.selectMembers (params LocalQuorum (Identity convs))
-  let convMembers = foldr (\m acc -> insert (mkMem m) acc) mempty mems
-  return $ map (\c -> fromMaybe [] (Map.lookup c convMembers)) convs
-  where
-    insert (_, Nothing) acc = acc
-    insert (conv, Just mem) acc =
-      let f = (Just . maybe [mem] (mem :))
-       in Map.alter f conv acc
-    mkMem (cnv, usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn, clients) =
-      (cnv, toMember (usr, srv, prv, st, omus, omur, oar, oarr, hid, hidr, crn, clients))
-
 members :: ConvId -> Client [LocalMember]
-members = fmap concat . memberLists . pure
+members conv =
+  fmap (catMaybes . map toMember) . retry x1 $
+    query Cql.selectMembers (params LocalQuorum (Identity conv))
 
 toMemberStatus ::
   ( -- otr muted
@@ -185,9 +170,6 @@ toMember (usr, srv, prv, Just 0, omus, omur, oar, oarr, hid, hidr, crn, cs) =
       }
 toMember _ = Nothing
 
-toRemoteMember :: UserId -> Domain -> RoleName -> RemoteMember
-toRemoteMember u d = RemoteMember (toRemoteUnsafe d u)
-
 newRemoteMemberWithRole :: Remote (UserId, RoleName) -> RemoteMember
 newRemoteMemberWithRole ur@(qUntagged -> (Qualified (u, r) _)) =
   RemoteMember
@@ -195,19 +177,15 @@ newRemoteMemberWithRole ur@(qUntagged -> (Qualified (u, r) _)) =
       rmConvRoleName = r
     }
 
-remoteMemberLists :: [ConvId] -> Client [[RemoteMember]]
-remoteMemberLists convs = do
-  mems <- retry x1 $ query Cql.selectRemoteMembers (params LocalQuorum (Identity convs))
-  let convMembers = foldr (insert . mkMem) Map.empty mems
-  return $ map (\c -> fromMaybe [] (Map.lookup c convMembers)) convs
-  where
-    insert (conv, mem) acc =
-      let f = (Just . maybe [mem] (mem :))
-       in Map.alter f conv acc
-    mkMem (cnv, domain, usr, role) = (cnv, toRemoteMember usr domain role)
-
 lookupRemoteMembers :: ConvId -> Client [RemoteMember]
-lookupRemoteMembers conv = join <$> remoteMemberLists [conv]
+lookupRemoteMembers conv = do
+  fmap (map mkMem) . retry x1 $ query Cql.selectRemoteMembers (params LocalQuorum (Identity conv))
+  where
+    mkMem (domain, usr, role) =
+      RemoteMember
+        { rmId = toRemoteUnsafe domain usr,
+          rmConvRoleName = role
+        }
 
 member ::
   ConvId ->
