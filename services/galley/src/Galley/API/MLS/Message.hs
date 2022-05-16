@@ -37,6 +37,7 @@ import qualified Galley.Data.Conversation.Types as Data
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.ConversationStore
+import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore
 import Galley.Options
 import Galley.Types
@@ -50,6 +51,8 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Federation.API
+import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
@@ -230,7 +233,7 @@ executeProposalAction lusr con conv action = do
       -- compute final set of clients in the conversation
       let cs = newClients <> Map.findWithDefault mempty qtarget cm
       -- get list of mls clients from brig
-      allClients <- getMLSClients qtarget ss
+      allClients <- getMLSClients lusr qtarget ss
       -- if not all clients have been added to the conversation, return an error
       when (cs /= allClients) $ do
         -- FUTUREWORK: turn this error into a proper response
@@ -256,10 +259,11 @@ convClientMap :: Local x -> Data.Conversation -> ClientMap
 convClientMap loc =
   mconcat
     [ foldMap localMember . convLocalMembers,
-      mempty -- FUTUREWORK: add mls clients of remote members
+      foldMap remoteMember . convRemoteMembers
     ]
   where
     localMember lm = Map.singleton (qUntagged (qualifyAs loc (lmId lm))) (lmMLSClients lm)
+    remoteMember rm = Map.singleton (qUntagged (rmId rm)) (rmMLSClients rm)
 
 -- | Propagate a message.
 propagateMessage ::
@@ -291,6 +295,23 @@ propagateMessage lusr conv con raw = do
     cToList (u, s) = (u,) <$> Set.toList s
     clients :: Local x -> LocalMember -> Local (UserId, Set ClientId)
     clients loc LocalMember {..} = qualifyAs loc (lmId, lmMLSClients)
+
+getMLSClients ::
+  Members '[BrigAccess, FederatorAccess] r =>
+  Local x ->
+  Qualified UserId ->
+  SignatureSchemeTag ->
+  Sem r (Set ClientId)
+getMLSClients loc = foldQualified loc getLocalMLSClients getRemoteMLSClients
+
+getRemoteMLSClients :: Member FederatorAccess r => Remote UserId -> SignatureSchemeTag -> Sem r (Set ClientId)
+getRemoteMLSClients rusr ss = do
+  runFederated rusr $
+    fedClient @'Brig @"get-mls-clients" $
+      MLSClientsRequest
+        { mcrUserId = tUnqualified rusr,
+          mcrSignatureScheme = ss
+        }
 
 --------------------------------------------------------------------------------
 -- Error handling of proposal execution

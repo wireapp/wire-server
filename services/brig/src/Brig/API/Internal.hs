@@ -21,6 +21,7 @@ module Brig.API.Internal
     swaggerDocsAPI,
     BrigIRoutes.API,
     BrigIRoutes.SwaggerDocsAPI,
+    getMLSClients,
   )
 where
 
@@ -80,7 +81,6 @@ import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import UnliftIO.Async
 import Wire.API.Error
-import Wire.API.Error.Brig
 import qualified Wire.API.Error.Brig as E
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -148,20 +148,19 @@ putConvIdByKeyPackageRef ref = lift . wrapClient . Data.keyPackageRefSetConvId r
 getConvIdByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe (Qualified ConvId))
 getConvIdByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.keyPackageRefConvId
 
-getMLSClients :: Qualified UserId -> SignatureSchemeTag -> Handler r (Set ClientId)
-getMLSClients qusr ss = do
-  usr <- lift $ tUnqualified <$> ensureLocal qusr
-  results <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult usr
+getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientId)
+getMLSClients usr ss = do
+  results <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult
   keys <- lift . wrapClient $ pooledMapConcurrentlyN 16 getKey (toList results)
   pure . Set.fromList . map fst . filter (isJust . snd) $ keys
   where
-    getResult _ [] = throwStd (errorToWai @'UserNotFound)
-    getResult usr ((u, cs) : rs)
+    getResult [] = pure mempty
+    getResult ((u, cs) : rs)
       | u == usr = pure cs
-      | otherwise = getResult usr rs
+      | otherwise = getResult rs
 
     getKey :: MonadClient m => ClientId -> m (ClientId, Maybe LByteString)
-    getKey cid = (cid,) <$> Data.lookupMLSPublicKey (qUnqualified qusr) cid ss
+    getKey cid = (cid,) <$> Data.lookupMLSPublicKey usr cid ss
 
 mapKeyPackageRefsInternal :: KeyPackageBundle -> Handler r ()
 mapKeyPackageRefsInternal bundle = do

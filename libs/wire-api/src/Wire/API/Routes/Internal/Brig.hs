@@ -52,7 +52,6 @@ import Wire.API.Routes.Internal.Brig.EJPD
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
-import Wire.API.Routes.QualifiedCapture
 import Wire.API.Team.Feature (TeamFeatureName (TeamFeatureSearchVisibilityInbound))
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User
@@ -202,7 +201,7 @@ type GetMLSClients =
   Summary "Return all MLS-enabled clients of a user"
     :> "clients"
     :> CanThrow 'UserNotFound
-    :> QualifiedCapture "user" UserId
+    :> Capture "user" UserId
     :> QueryParam' '[Required, Strict] "sig_scheme" SignatureSchemeTag
     :> MultiVerb1
          'GET
