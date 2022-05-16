@@ -91,12 +91,10 @@ turnStatic:
   - turn:localhost:3478
   - turn:localhost:3478?transport=tcp
 
-# If turnDNS config is enabled, turnStatic values are ignored. Specifying
-# baseDomain is mandatory
-turnDNS:
-  enable: false
-  # baseDomain: turn.example.com
-  discoveryIntervalSeconds: 10
+turn:
+  serversSource: files # files | dns
+  # baseDomain: turn.example.com # Must be configured if serversSource is dns
+  discoveryIntervalSeconds: 10 # Used only if serversSource is dns
 
 tests:
   enableFederationTests: false

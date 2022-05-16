@@ -34,7 +34,7 @@ spec:
         - name: "brig-config"
           configMap:
             name: "brig"
-        {{- if not .Values.turnDNS.enable }}
+        {{- if eq $.Values.turn.serversSource "files" }}
         - name: "turn-servers"
           configMap:
             name: "turn"
@@ -51,7 +51,7 @@ spec:
             mountPath: "/etc/wire/brig/secrets"
           - name: "brig-config"
             mountPath: "/etc/wire/brig/conf"
-          {{- if not .Values.turnDNS.enable }}
+          {{- if eq $.Values.turn.serversSource "files" }}
           - name: "turn-servers"
             mountPath: "/etc/wire/brig/turn"
           {{- end }}

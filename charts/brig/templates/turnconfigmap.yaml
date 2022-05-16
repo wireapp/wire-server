@@ -1,4 +1,4 @@
-{{- if not .Values.turnDNS.enable }}
+{{- if eq $.Values.turn.serversSource "files" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

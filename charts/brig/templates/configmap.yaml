@@ -174,14 +174,16 @@ data:
       {{- end }}
 
     turn:
-      {{- if $.Values.turnDNS.enable }}
+      {{- if eq $.Values.turn.serversSource "dns" }}
       serversSource: dns
-      baseDomain: {{ required ".turnDNS.baseDomain must be configured if .turnDNS.enable is set to True" $.Values.turnDNS.baseDomain  }}
-      discoveryIntervalSeconds: {{ $.Values.turnDNS.discoveryIntervalSeconds }}
-      {{- else }}
+      baseDomain: {{ required ".turn.baseDomain must be configured if .turn.serversSource is set to dns" $.Values.turn.baseDomain  }}
+      discoveryIntervalSeconds: {{ $.Values.turn.discoveryIntervalSeconds }}
+      {{- else if eq $.Values.turn.serversSource "files" }}
       serversSource: files
       servers: /etc/wire/brig/turn/turn-servers.txt
       serversV2: /etc/wire/brig/turn/turn-servers-v2.txt
+      {{- else }}
+      {{- fail (cat "Invalid value for .turn.serversSource, expected dns or files, got: " $.Values.turn.serversSource) }}
       {{- end }}
       secret: /etc/wire/brig/secrets/turn-secret.txt
       configTTL: 3600 # 1 hour

@@ -1,5 +1,5 @@
 {{ define "turn-servers.txt" }}
-{{- if not .Values.turnDNS.enable }}
+{{- if eq $.Values.turn.serversSource "files" }}
 {{ range .Values.turnStatic.v1 }}{{ . }}
 {{ end -}}
 {{- end }}
