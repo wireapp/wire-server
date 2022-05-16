@@ -5,6 +5,74 @@ Restund (TURN)
 
 .. _allocations:
 
+Wire-Server Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The wire-server can either serve a static list of TURN servers to the clients or
+it can discovery them using DNS SRV Records.
+
+Static List
++++++++++++
+
+To configure a static list of TURN servers to use, override
+``values/wire-server/values.yaml`` like this:
+
+.. code:: yaml
+
+  # (...)
+
+  brig:
+  # (...)
+    turnStatic:
+      v1:
+        # v1 entries can be ignored and are not in use anymore since end of 2018.
+      v2:
+      - turn:server1.example.com:3478 # server 1 UDP
+      - turn:server1.example.com:3478?transport=tcp # server 1 TCP
+      - turns:server1.example.com:5478?transport=tcp # server 1 TLS
+      - turn:server2.example.com:3478 # server 2 UDP
+      - turn:server2.example.com:3478?transport=tcp # server 2 TCP
+      - turns:server2.example.com:5478?transport=tcp # server 2 TLS
+    turn:
+      serversSource: files
+
+DNS SRV Records
++++++++++++++++
+
+To configure wire-server to use DNS SRV records in order to discover TURN
+servers, override ``values/wire-server/values.yaml`` like this:
+
+.. code:: yaml
+
+  # (...)
+
+  brig:
+  # (...)
+    turn:
+      serversSource: dns
+      baseDomain: prod.example.com
+      discoveryIntervalSeconds: 10
+
+When configured like this, the wire-server would look for these 3 SRV records
+every 10 seconds:
+
+1. ``_turn._udp.prod.example.com`` will be used to discover UDP port for all the
+   turn servers.
+2. ``_turn._tcp.prod.example.com`` will be used to discover the TCP port for all
+   the turn servers.
+3. ``_turns._tcp.prod.example.com`` will be used to discover the TLS port for
+   all the turn servers.
+
+At least one of these 3 lookups must succeed for the wire-server to be able to
+respond correctly when ``GET /calls/config/v2`` is called. All successful
+responses are served in the result.
+
+In addition, if there are any clients using the legacy endpoint, ``GET
+/calls/cofnfig``, they will be served by the servers listed in the
+``_turn._udp.prod.example.com`` SRV record. This endpoint, however, will not
+serve the domain names received inside the SRV record, instead it will serve the
+first ``A`` record that is associated with each domain name in the SRV record.
+
 How to see how many people are currently connected to the restund server
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
