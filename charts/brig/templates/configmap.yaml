@@ -175,9 +175,11 @@ data:
 
     turn:
       {{- if $.Values.turnDNS.enable }}
+      serversSource: dns
       baseDomain: {{ required ".turnDNS.baseDomain must be configured if .turnDNS.enable is set to True" $.Values.turnDNS.baseDomain  }}
       discoveryIntervalSeconds: {{ $.Values.turnDNS.discoveryIntervalSeconds }}
       {{- else }}
+      serversSource: files
       servers: /etc/wire/brig/turn/turn-servers.txt
       serversV2: /etc/wire/brig/turn/turn-servers-v2.txt
       {{- end }}

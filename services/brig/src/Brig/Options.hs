@@ -29,7 +29,7 @@ import Brig.Whitelist (Whitelist (..))
 import qualified Brig.ZAuth as ZAuth
 import Control.Applicative
 import qualified Control.Lens as Lens
-import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON, withText)
+import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON, withText, (.!=))
 import qualified Data.Aeson as A
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (typeMismatch)
@@ -312,10 +312,15 @@ data TurnOpts = TurnOpts
   deriving (Show)
 
 instance FromJSON TurnOpts where
-  parseJSON = A.withObject "TurnOpts" $ \o ->
-    TurnOpts
-      <$> A.parseJSON (A.Object o)
-      <*> o .: "secret"
+  parseJSON = A.withObject "TurnOpts" $ \o -> do
+    sourceName <- o .:? "serversSource" .!= "files"
+    source <-
+      case sourceName of
+        "files" -> TurnSourceFiles <$> A.parseJSON (A.Object o)
+        "dns" -> TurnSourceDNS <$> A.parseJSON (A.Object o)
+        _ -> fail $ "TurnOpts: Invalid sourceType, expected one of [files, dns] but got: " <> Text.unpack sourceName
+    TurnOpts source
+      <$> o .: "secret"
       <*> o .: "tokenTTL"
       <*> o .: "configTTL"
 
@@ -323,12 +328,6 @@ data TurnServersSource
   = TurnSourceDNS TurnDnsOpts
   | TurnSourceFiles TurnServersFiles
   deriving (Show)
-
-instance FromJSON TurnServersSource where
-  parseJSON v =
-    -- TODO: print better errors on failure
-    (TurnSourceDNS <$> A.parseJSON v)
-      <|> (TurnSourceFiles <$> A.parseJSON v)
 
 data TurnServersFiles = TurnServersFiles
   { tsfServers :: !FilePath,
