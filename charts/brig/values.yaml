@@ -90,6 +90,12 @@ turnStatic:
   v2:
   - turn:localhost:3478
   - turn:localhost:3478?transport=tcp
+
+turn:
+  serversSource: files # files | dns
+  # baseDomain: turn.example.com # Must be configured if serversSource is dns
+  discoveryIntervalSeconds: 10 # Used only if serversSource is dns
+
 tests:
   enableFederationTests: false
 serviceAccount:

@@ -1,3 +1,4 @@
+{{- if eq $.Values.turn.serversSource "files" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -12,3 +13,4 @@ data:
 {{- include "turn-servers.txt" . | indent 4 }}
   turn-servers-v2.txt: |2
 {{- include "turn-servers-v2.txt" . | indent 4 }}
+{{- end }}

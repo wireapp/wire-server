@@ -145,6 +145,7 @@ tests:
     - -threaded
     - -with-rtsopts=-N
     dependencies:
+    - HsOpenSSL >=0.10
     - aeson
     - base
     - binary

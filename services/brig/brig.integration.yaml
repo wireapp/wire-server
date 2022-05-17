@@ -125,8 +125,13 @@ zauth:
     legalHoldAccessTokenTimeout: 30
 
 turn:
+  serversSource: files # files | dns
   servers: test/resources/turn/servers.txt
   serversV2: test/resources/turn/servers-v2.txt
+  # If configured to dns, also configure:
+  # baseDomain: example.com
+  # discoveryIntervalSeconds: 10
+
   # This should be the same secret as used by the TURN servers
   secret: test/resources/turn/secret.txt
   configTTL: 3600

@@ -34,9 +34,11 @@ spec:
         - name: "brig-config"
           configMap:
             name: "brig"
+        {{- if eq $.Values.turn.serversSource "files" }}
         - name: "turn-servers"
           configMap:
             name: "turn"
+        {{- end }}
         - name: "brig-secrets"
           secret:
             secretName: "brig"
@@ -49,8 +51,10 @@ spec:
             mountPath: "/etc/wire/brig/secrets"
           - name: "brig-config"
             mountPath: "/etc/wire/brig/conf"
+          {{- if eq $.Values.turn.serversSource "files" }}
           - name: "turn-servers"
             mountPath: "/etc/wire/brig/turn"
+          {{- end }}
           env:
           - name: LOG_LEVEL
             value: {{ .Values.config.logLevel }}

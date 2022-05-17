@@ -110,13 +110,14 @@ getCallsConfigV2 _ _ limit = do
   sftEnv' <- view sftEnv
   logger <- view applog
   manager <- view httpManager
+  discoveredServers <- turnServersV2 (env ^. turnServers)
   eitherConfig <-
     liftIO
       . runM @IO
       . loggerToTinyLog logger
       . interpretSFT manager
       . Polysemy.runError
-      $ newConfig env turnServersV2 staticUrl sftEnv' limit sftListAllServers CallsConfigV2
+      $ newConfig env discoveredServers staticUrl sftEnv' limit sftListAllServers CallsConfigV2
   handleNoTurnServers eitherConfig
 
 -- | Throws '500 Internal Server Error' when no turn servers are found. This is
@@ -140,6 +141,7 @@ getCallsConfig _ _ = do
   env <- view turnEnv
   logger <- view applog
   manager <- view httpManager
+  discoveredServers <- turnServersV1 (env ^. turnServers)
   eitherConfig <-
     (dropTransport <$$>)
       . liftIO
@@ -147,7 +149,7 @@ getCallsConfig _ _ = do
       . loggerToTinyLog logger
       . interpretSFT manager
       . Polysemy.runError
-      $ newConfig env turnServersV1 Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
+      $ newConfig env discoveredServers Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
   handleNoTurnServers eitherConfig
   where
     -- In order to avoid being backwards incompatible, remove the `transport` query param from the URIs
@@ -174,22 +176,19 @@ instance Exception NoTurnServers
 newConfig ::
   Members [Embed IO, SFT, Polysemy.Error NoTurnServers] r =>
   Calling.TurnEnv ->
-  Getter Calling.TurnEnv (IORef (Discovery (NonEmpty Public.TurnURI))) ->
+  Discovery (NonEmpty Public.TurnURI) ->
   Maybe HttpsUrl ->
   Maybe SFTEnv ->
   Maybe (Range 1 10 Int) ->
   ListAllSFTServers ->
   CallsConfigVersion ->
   Sem r Public.RTCConfiguration
-newConfig env discoveredServersL sftStaticUrl mSftEnv limit listAllServers version = do
+newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers version = do
   let (sha, secret, tTTL, cTTL, prng) = (env ^. turnSHA512, env ^. turnSecret, env ^. turnTokenTTL, env ^. turnConfigTTL, env ^. turnPrng)
   -- randomize list of servers (before limiting the list, to ensure not always the same servers are chosen if limit is set)
   randomizedUris <-
-    liftIO
-      . randomize
-      =<< Polysemy.note NoTurnServers
-        . discoveryToMaybe
-      =<< readIORef (env ^. discoveredServersL)
+    liftIO . randomize
+      =<< Polysemy.note NoTurnServers (discoveryToMaybe discoveredServers)
   let limitedUris = case limit of
         Nothing -> randomizedUris
         Just lim -> limitedList randomizedUris lim
