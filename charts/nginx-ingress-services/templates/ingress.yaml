@@ -11,8 +11,12 @@ spec:
   - hosts:
       - {{ .Values.config.dns.https }}
       - {{ .Values.config.dns.ssl }}
+{{- if .Values.webapp.enabled }}
       - {{ .Values.config.dns.webapp }}
+{{- end }}
+{{- if .Values.fakeS3.enabled }}
       - {{ .Values.config.dns.fakeS3 }}
+{{- end }}
 {{- if .Values.teamSettings.enabled }}
       - {{ .Values.config.dns.teamSettings }}
 {{- end }}

@@ -6,6 +6,10 @@ teamSettings:
 # Account pages may be useful to enable password reset or email validation done after the initial registration
 accountPages:
   enabled: false
+webapp:
+  enabled: true
+fakeS3:
+  enabled: true
 federator:
   enabled: false
   integrationTestHelper: false
@@ -90,7 +94,9 @@ service:
 #     https: nginz-https.<domain>
 #     ssl: nginz-ssl.<domain>
 #     webapp: webapp.<domain>
+#     ^ webapp is ignored if webapp.enabled == false
 #     fakeS3: assets.<domain>
+#     ^ fakeS3 is ignored if fakeS3.enabled == false
 #     federator: federator.<domain>
 #     ^ federator is ignored unless federator.enabled == true
 #     teamSettings: teams.<domain>
