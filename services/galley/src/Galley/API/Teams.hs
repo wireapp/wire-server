@@ -214,6 +214,7 @@ createNonBindingTeamH ::
     Member (ErrorS 'NotConnected) r,
     Member GundeckAccess r,
     Member (Input UTCTime) r,
+    Member (Input (Local ())) r,
     Member P.TinyLog r,
     Member TeamStore r,
     Member WaiRoutes r
@@ -223,6 +224,7 @@ createNonBindingTeamH ::
   Public.NonBindingNewTeam ->
   Sem r TeamId
 createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
+  lusr <- qualifyLocal zusr
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   let others =
         filter ((zusr /=) . view userId)
@@ -230,7 +232,7 @@ createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
           $ body ^. newTeamMembers
   let zothers = map (view userId) others
   ensureUnboundUsers (zusr : zothers)
-  ensureConnectedToLocals zusr zothers
+  ensureConnected lusr (ulFromLocals zothers)
   P.debug $
     Log.field "targets" (toByteString . show $ toByteString <$> zothers)
       . Log.field "action" (Log.val "Teams.createNonBindingTeam")
@@ -698,7 +700,7 @@ addTeamMember lzusr zcon tid nmem = do
   targetPermissions `ensureNotElevated` zusrMembership
   ensureNonBindingTeam tid
   ensureUnboundUsers [uid]
-  ensureConnectedToLocals zusr [uid]
+  ensureConnected lzusr (ulFromLocals [uid])
   (TeamSize sizeBeforeJoin) <- E.getSize tid
   ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   memList <- getTeamMembersForFanout tid

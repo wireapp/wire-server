@@ -161,8 +161,10 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
 
   -- Team members are always considered to be connected, so we only check
   -- 'ensureConnected' for non-team-members.
-  ensureConnectedToLocals (tUnqualified lusr) (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
-  ensureConnectedToRemotes lusr (ulRemotes allUsers)
+  ensureConnected lusr $
+    UserList
+      (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
+      (ulRemotes allUsers)
 
 ----------------------------------------------------------------------------
 -- Other kinds of conversations

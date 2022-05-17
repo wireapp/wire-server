@@ -361,7 +361,7 @@ performConversationJoin qusr lcnv conv (ConversationJoin invited role) = do
       unless (null remotes) $
         unlessM E.isFederationConfigured $
           throw FederationNotConfigured
-      ensureConnectedToRemotes lusr remotes
+      ensureConnected lusr (ulFromRemotes remotes)
 
     checkLHPolicyConflictsLocal ::
       Members
