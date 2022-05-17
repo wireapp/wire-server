@@ -1,5 +1,4 @@
-{{- if .Values.tls.createIssuer -}}
-{{- if and .Values.tls.enabled .Values.tls.useCertManager -}}
+{{- if and .Values.tls.enabled .Values.tls.useCertManager .Values.tls.createIssuer -}}
 apiVersion: cert-manager.io/v1
 {{- if or (eq .Values.tls.issuer.kind "Issuer") (eq .Values.tls.issuer.kind "ClusterIssuer") }}
 kind: "{{ .Values.tls.issuer.kind }}"
@@ -30,5 +29,4 @@ spec:
           ingress:
             class: nginx
 {{- end }}
-{{- end -}}
 {{- end -}}
