@@ -38,6 +38,7 @@ import qualified Data.Set as Set
 import Data.Timeout
 import Imports
 import Network.DNS
+import OpenSSL
 import OpenSSL.EVP.Digest (getDigestByName)
 import Polysemy
 import Polysemy.Error
@@ -275,7 +276,7 @@ testSFTFewerServers = do
 -- | Creates a calling environment and an https URL to be used in unit-testing
 -- the logic of call configuration endpoints
 sftStaticEnv :: IO (TurnEnv, HttpsUrl)
-sftStaticEnv = do
+sftStaticEnv = withOpenSSL $ do
   turnUri <- generate arbitrary
   let tokenTtl = 10 -- seconds
       configTtl = 10 -- seconds
