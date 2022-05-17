@@ -1,2 +1,2 @@
-charts/{brig,cargohol,galley,gundeck}: Allow not configuring AWS credentials and allow using a special service account.
-This way, when operating wire in AWS cloud either instance profiles or IAM role attached to a service account can be used to communicate with AWS.
+charts/{brig,cargohold,galley,gundeck}: Allow not configuring AWS credentials and allow using a special service account.
+This way, when operating wire in AWS cloud either instance profiles or IAM role attached to a service account can be used to communicate with AWS. (#2347)
