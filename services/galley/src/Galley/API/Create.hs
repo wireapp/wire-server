@@ -53,7 +53,7 @@ import qualified Galley.Effects.TeamStore as E
 import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
-import Galley.Types.Teams (ListType (..), Perm (..), TeamBinding (Binding), notTeamMember)
+import Galley.Types.Teams (ListType (..), Perm (..), TeamBinding (Binding))
 import Galley.Types.ToUserRole
 import Galley.Types.UserList
 import Galley.Validation
@@ -159,12 +159,7 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   when (length allUsers > 1) $ do
     void $ permissionCheck DoNotUseDeprecatedAddRemoveConvMember zusrMembership
 
-  -- Team members are always considered to be connected, so we only check
-  -- 'ensureConnected' for non-team-members.
-  ensureConnected lusr $
-    UserList
-      (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
-      (ulRemotes allUsers)
+  ensureConnectedOrSameTeam lusr allUsers
 
 ----------------------------------------------------------------------------
 -- Other kinds of conversations
