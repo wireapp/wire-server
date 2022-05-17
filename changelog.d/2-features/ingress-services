@@ -1,0 +1,1 @@
+charts/nginx-ingress-services: Allow more fine-grained control over what services are installed. Upgrade Certificate/Issuer resources to 'cert-manager.io/v1'
