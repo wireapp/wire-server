@@ -918,9 +918,9 @@ specCRUDIdentityProvider = do
         (SampleIdP metadata2 _ _ _) <- makeSampleIdPMetadata
         callIdpUpdate' (env ^. teSpar) (Just owner) (idp1 ^. idpId) (IdPMetadataValue (cs $ SAML.encode metadata2) undefined)
           `shouldRespondWith` ((== 200) . statusCode)
-        -- create a new idp with the first metadata
+        -- create a new idp with the first metadata (should succeed)
         callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata1
-          `shouldRespondWith` ((== 200) . statusCode)
+          `shouldRespondWith` ((== 201) . statusCode)
 
       context "invalid body" $ do
         it "rejects" $ do
@@ -1186,7 +1186,6 @@ specCRUDIdentityProvider = do
           idp `shouldBe` idp'
           let prefix = "<EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
           ST.take (ST.length prefix) rawmeta `shouldBe` prefix
-
     context "client is owner without email" $ do
       it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
         pending

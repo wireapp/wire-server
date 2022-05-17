@@ -683,6 +683,7 @@ idpUpdateXML ::
 idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   GalleyAccess.assertSSOEnabled teamid
+  forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) IdPConfigStore.deleteIssuer
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
   -- structured idp config.  since this will lead to a 5xx response, the client is epected to
