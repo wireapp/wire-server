@@ -23,6 +23,7 @@ import Control.Lens (itraversed, (<.>))
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain (Domain)
+import Data.Either.Combinators
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty (..))
@@ -36,6 +37,7 @@ import qualified Data.Text.Lazy as LT
 import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
+import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
 import Galley.API.Push
@@ -72,6 +74,7 @@ import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley (ConversationUpdateResponse)
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
+import Wire.API.MLS.Serialisation
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.ServantProto
@@ -299,7 +302,6 @@ leaveConversation requestingDomain lc = do
       _event <- notifyConversationAction SConversationLeaveTag (qUntagged leaver) Nothing lcnv botsAndMembers action
 
       pure $ F.LeaveConversationResponse (Right ())
-  where
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
@@ -529,21 +531,33 @@ instance
 
 mlsSendWelcome ::
   Members
-    '[ GundeckAccess,
+    '[ BrigAccess,
+       GundeckAccess,
        Input (Local ()),
        Input UTCTime
      ]
     r =>
   Domain ->
   F.MLSWelcomeRequest ->
-  Sem r ()
-mlsSendWelcome _origDomain (F.MLSWelcomeRequest b64RawWelcome rcpts) = do
+  Sem r F.MLSWelcomeResponse
+mlsSendWelcome _origDomain (F.unMLSWelcomeRequest -> welBase64) = do
   loc <- input @(Local ())
   now <- input @UTCTime
-  let rawWelcome = fromBase64ByteString b64RawWelcome
-  void $
-    runMessagePush loc Nothing $
-      foldMap (uncurry $ mkPush rawWelcome loc now) (F.unMLSWelRecipient <$> rcpts)
+  let rawWelcome = fromBase64ByteString welBase64
+  runErrors $ do
+    welcome <-
+      fromEither
+        . mapLeft (const . mlsProtocolError $ "Could not parse the welcome message")
+        . decodeMLS'
+        $ rawWelcome
+    -- Extract only recipients local to this backend
+    rcpts <-
+      fmap fold $
+        foldQualified loc ((: []) . tUnqualified) (const mempty)
+          <$$> welcomeRecipients welcome
+    void $
+      runMessagePush loc Nothing $
+        foldMap (uncurry $ mkPush rawWelcome loc now) rcpts
   where
     mkPush :: ByteString -> Local x -> UTCTime -> UserId -> ClientId -> MessagePush 'Broadcast
     mkPush rawWelcome l time u c =
@@ -552,3 +566,8 @@ mlsSendWelcome _origDomain (F.MLSWelcomeRequest b64RawWelcome rcpts) = do
           lusr = qualifyAs l u
           e = Event (qUntagged lcnv) (qUntagged lusr) time $ EdMLSWelcome rawWelcome
        in newMessagePush l () Nothing defMessageMetadata (u, c) e
+    runErrors = runDerefError >=> runProtocolError . _
+    runDerefError :: Sem (ErrorS 'MLSKeyPackageRefNotFound : r) () -> Sem r (Either F.MLSWelcomeResponseError ())
+    runDerefError = undefined
+    runProtocolError :: Sem (Error MLSProtocolError : r) () -> Sem r (Either F.MLSWelcomeResponseError ())
+    runProtocolError = undefined
