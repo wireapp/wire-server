@@ -78,10 +78,10 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
+import Wire.API.Message
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.ServantProto
-import Wire.API.User.Client (userClientMap)
 
 type FederationAPI = "federation" :> FedApi 'Galley
 
@@ -455,9 +455,9 @@ updateConversation ::
        ]
       r
   ) =>
-  -- |
+  --
   Domain ->
-  -- |
+  --
   F.ConversationUpdateRequest ->
   Sem r ConversationUpdateResponse
 updateConversation origDomain updateRequest = do

@@ -30,8 +30,11 @@
 -- wire-message-proto-lens package.
 module Wire.API.Message
   ( -- * Message
+    MessageMetadata (..),
+    defMessageMetadata,
     NewOtrMessage (..),
     QualifiedNewOtrMessage (..),
+    qualifiedNewOtrMetadata,
     protoToNewOtrMessage,
 
     -- * Protobuf messages
@@ -94,6 +97,36 @@ import Wire.API.User.Client (QualifiedUserClientMap (QualifiedUserClientMap), Qu
 --------------------------------------------------------------------------------
 -- Message
 
+data MessageMetadata = MessageMetadata
+  { mmNativePush :: Bool,
+    mmTransient :: Bool,
+    mmNativePriority :: Maybe Priority,
+    mmData :: Maybe Text
+  }
+  deriving stock (Eq, Generic, Ord, Show)
+  deriving (Arbitrary) via (GenericUniform MessageMetadata)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema MessageMetadata)
+
+messageMetadataObjectSchema :: ObjectSchema SwaggerDoc MessageMetadata
+messageMetadataObjectSchema =
+  MessageMetadata
+    <$> mmNativePush .= fmap (fromMaybe True) (optField "native_push" schema)
+    <*> mmTransient .= fmap (fromMaybe False) (optField "transient" schema)
+    <*> mmNativePriority .= maybe_ (optField "native_priority" schema)
+    <*> mmData .= maybe_ (optField "data" schema)
+
+instance ToSchema MessageMetadata where
+  schema = object "MessageMetadata" messageMetadataObjectSchema
+
+defMessageMetadata :: MessageMetadata
+defMessageMetadata =
+  MessageMetadata
+    { mmNativePush = True,
+      mmTransient = False,
+      mmNativePriority = Nothing,
+      mmData = Nothing
+    }
+
 data NewOtrMessage = NewOtrMessage
   { newOtrSender :: ClientId,
     newOtrRecipients :: OtrRecipients,
@@ -110,6 +143,14 @@ data NewOtrMessage = NewOtrMessage
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewOtrMessage)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema NewOtrMessage)
+
+newOtrMessageMetadata :: NewOtrMessage -> MessageMetadata
+newOtrMessageMetadata msg =
+  MessageMetadata
+    (newOtrNativePush msg)
+    (newOtrTransient msg)
+    (newOtrNativePriority msg)
+    (newOtrData msg)
 
 modelNewOtrMessage :: Doc.Model
 modelNewOtrMessage = Doc.defineModel "NewOtrMessage" $ do
@@ -139,14 +180,21 @@ modelNewOtrMessage = Doc.defineModel "NewOtrMessage" $ do
 instance ToSchema NewOtrMessage where
   schema =
     object "new-otr-message" $
-      NewOtrMessage
+      mk
         <$> newOtrSender .= field "sender" schema
         <*> newOtrRecipients .= field "recipients" schema
-        <*> newOtrNativePush .= (field "native_push" schema <|> pure True)
-        <*> newOtrTransient .= (field "transient" schema <|> pure False)
-        <*> newOtrNativePriority .= maybe_ (optField "native_priority" schema)
-        <*> newOtrData .= maybe_ (optField "data" schema)
+        <*> newOtrMessageMetadata .= messageMetadataObjectSchema
         <*> newOtrReportMissing .= maybe_ (optField "report_missing" (array schema))
+    where
+      mk :: ClientId -> OtrRecipients -> MessageMetadata -> Maybe [UserId] -> NewOtrMessage
+      mk cid rcpts mm =
+        NewOtrMessage
+          cid
+          rcpts
+          (mmNativePush mm)
+          (mmTransient mm)
+          (mmNativePriority mm)
+          (mmData mm)
 
 instance FromProto NewOtrMessage where
   fromProto bs = protoToNewOtrMessage <$> runGet Protobuf.decodeMessage bs
@@ -178,6 +226,15 @@ data QualifiedNewOtrMessage = QualifiedNewOtrMessage
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform QualifiedNewOtrMessage)
+
+qualifiedNewOtrMetadata :: QualifiedNewOtrMessage -> MessageMetadata
+qualifiedNewOtrMetadata msg =
+  MessageMetadata
+    { mmNativePush = qualifiedNewOtrNativePush msg,
+      mmTransient = qualifiedNewOtrTransient msg,
+      mmNativePriority = qualifiedNewOtrNativePriority msg,
+      mmData = Just . toBase64Text $ qualifiedNewOtrData msg
+    }
 
 instance S.ToSchema QualifiedNewOtrMessage where
   declareNamedSchema _ =

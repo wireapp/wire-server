@@ -61,6 +61,7 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
+import Wire.API.Message
 
 postMLSMessage ::
   ( HasProposalEffects r,

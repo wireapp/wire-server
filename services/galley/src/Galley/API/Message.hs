@@ -600,15 +600,6 @@ newMessageEvent mconvId sender senderClient dat time (receiver, receiverClient) 
             otrData = dat
           }
 
-qualifiedNewOtrMetadata :: QualifiedNewOtrMessage -> MessageMetadata
-qualifiedNewOtrMetadata msg =
-  MessageMetadata
-    { mmNativePush = qualifiedNewOtrNativePush msg,
-      mmTransient = qualifiedNewOtrTransient msg,
-      mmNativePriority = qualifiedNewOtrNativePriority msg,
-      mmData = Just . toBase64Text $ qualifiedNewOtrData msg
-    }
-
 -- unqualified
 
 legacyClientMismatchStrategy :: Domain -> Maybe [UserId] -> Maybe IgnoreMissing -> Maybe ReportMissing -> ClientMismatchStrategy

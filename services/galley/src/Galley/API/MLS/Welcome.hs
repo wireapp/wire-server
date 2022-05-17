@@ -48,6 +48,7 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
+import Wire.API.Message
 
 postMLSWelcome ::
   Members

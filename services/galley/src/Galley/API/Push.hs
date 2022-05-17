@@ -19,11 +19,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Push
-  ( -- * Message metadata
-    MessageMetadata (..),
-    defMessageMetadata,
-
-    -- * Message pushes
+  ( -- * Message pushes
     MessagePush (..),
     MessageType (..),
     newBotPush,
@@ -57,23 +53,7 @@ import Polysemy
 import Polysemy.TinyLog
 import qualified System.Logger.Class as Log
 import Wire.API.Event.Conversation
-
-data MessageMetadata = MessageMetadata
-  { mmNativePush :: Bool,
-    mmTransient :: Bool,
-    mmNativePriority :: Maybe Priority,
-    mmData :: Maybe Text
-  }
-  deriving (Eq, Ord, Show)
-
-defMessageMetadata :: MessageMetadata
-defMessageMetadata =
-  MessageMetadata
-    { mmNativePush = True,
-      mmTransient = False,
-      mmNativePriority = Nothing,
-      mmData = Nothing
-    }
+import Wire.API.Message
 
 data MessageType = NormalMessage | Broadcast
 
