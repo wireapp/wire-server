@@ -575,7 +575,7 @@ getClassifiedDomainsInternal = Tagged . const $ do
   globalConfig <- inputs (view (optSettings . setFeatureFlags . flagClassifiedDomains))
   let config = globalConfig
   pure $ case tfwcStatus config of
-    TeamFeatureDisabled -> defaultClassifiedDomains
+    TeamFeatureDisabled -> defTeamFeatureStatus @'TeamFeatureClassifiedDomains
     TeamFeatureEnabled -> config
 
 getConferenceCallingInternal ::
