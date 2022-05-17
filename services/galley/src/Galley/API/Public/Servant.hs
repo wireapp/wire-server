@@ -229,7 +229,7 @@ servantSitemap =
               . DoAuth
           )
         <@> mkNamedAPI @"get-all-feature-configs" getAllFeatureConfigs
-        <@> mkNamedAPI @"get-all-features" (\luid tid -> AllFeatureConfigs <$> getAllFeatures luid tid)
+        <@> mkNamedAPI @"get-all-features" getAllFeatures
         <@> mkNamedAPI @'("get-config", 'TeamFeatureLegalHold)
           ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureLegalHold
               getLegalholdStatusInternal

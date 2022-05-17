@@ -60,9 +60,6 @@ module Galley.API.Teams.Features
 where
 
 import Control.Lens
-import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Key as AesonKey
-import qualified Data.Aeson.KeyMap as KeyMap
 import Data.ByteString.Conversion hiding (fromList)
 import Data.Either.Extra (eitherToMaybe)
 import Data.Id
@@ -215,6 +212,8 @@ getFeatureConfig (Tagged getter) zusr = do
       assertTeamExists tid
       getter (Right tid)
 
+-- | Get feature config for a user. If the user is a member of a team and has the required permissions, this will return the team feature config.
+-- If the user is not a member of a team, this will return the personal feature configs (the server defaults).
 getAllFeatureConfigs ::
   Members
     '[ BrigAccess,
@@ -231,37 +230,32 @@ getAllFeatureConfigs ::
 getAllFeatureConfigs zusr = do
   mbTeam <- getOneUserTeam zusr
   zusrMembership <- maybe (pure Nothing) (flip getTeamMember zusr) mbTeam
+  when (isJust mbTeam) $ void $ permissionCheck ViewTeamFeature zusrMembership
   let getStatus ::
         forall (ps :: IncludeLockStatus) (a :: TeamFeatureName) r.
         ( KnownTeamFeatureName a,
-          Aeson.ToJSON (TeamFeatureStatus ps a),
           Members '[ErrorS 'NotATeamMember, ErrorS OperationDenied, TeamStore] r
         ) =>
         FeatureGetter ps a r ->
-        Sem r (Aeson.Key, Aeson.Value)
+        Sem r (TeamFeatureStatus ps a)
       getStatus (Tagged getter) = do
-        when (isJust mbTeam) $ do
-          void $ permissionCheck ViewTeamFeature zusrMembership
-        status <- getter (maybe (Left (Just zusr)) Right mbTeam)
-        let feature = knownTeamFeatureName @a
-        pure $ AesonKey.fromText (cs (toByteString' feature)) Aeson..= status
+        getter (maybe (Left (Just zusr)) Right mbTeam)
 
-  AllFeatureConfigs . KeyMap.fromList
-    <$> sequence
-      [ getStatus @'WithoutLockStatus @'TeamFeatureLegalHold getLegalholdStatusInternal,
-        getStatus @'WithoutLockStatus @'TeamFeatureSSO getSSOStatusInternal,
-        getStatus @'WithoutLockStatus @'TeamFeatureSearchVisibility getTeamSearchVisibilityAvailableInternal,
-        getStatus @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal,
-        getStatus @'WithoutLockStatus @'TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
-        getStatus @'WithoutLockStatus @'TeamFeatureAppLock getAppLockInternal,
-        getStatus @'WithLockStatus @'TeamFeatureFileSharing getFileSharingInternal,
-        getStatus @'WithoutLockStatus @'TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
-        getStatus @'WithoutLockStatus @'TeamFeatureConferenceCalling getConferenceCallingInternal,
-        getStatus @'WithLockStatus @'TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal,
-        getStatus @'WithLockStatus @'TeamFeatureGuestLinks getGuestLinkInternal,
-        getStatus @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge getSndFactorPasswordChallengeInternal
-      ]
+  AllFeatureConfigs
+    <$> getStatus @'WithoutLockStatus @'TeamFeatureLegalHold getLegalholdStatusInternal
+    <*> getStatus @'WithoutLockStatus @'TeamFeatureSSO getSSOStatusInternal
+    <*> getStatus @'WithoutLockStatus @'TeamFeatureSearchVisibility getTeamSearchVisibilityAvailableInternal
+    <*> getStatus @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal
+    <*> getStatus @'WithoutLockStatus @'TeamFeatureDigitalSignatures getDigitalSignaturesInternal
+    <*> getStatus @'WithoutLockStatus @'TeamFeatureAppLock getAppLockInternal
+    <*> getStatus @'WithLockStatus @'TeamFeatureFileSharing getFileSharingInternal
+    <*> getStatus @'WithoutLockStatus @'TeamFeatureClassifiedDomains getClassifiedDomainsInternal
+    <*> getStatus @'WithoutLockStatus @'TeamFeatureConferenceCalling getConferenceCallingInternal
+    <*> getStatus @'WithLockStatus @'TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal
+    <*> getStatus @'WithLockStatus @'TeamFeatureGuestLinks getGuestLinkInternal
+    <*> getStatus @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge getSndFactorPasswordChallengeInternal
 
+-- | Get feature configs for a team. User must be a member of the team and have permission to view team features.
 getAllFeatures ::
   forall r.
   Members
@@ -277,35 +271,22 @@ getAllFeatures ::
     r =>
   Local UserId ->
   TeamId ->
-  Sem r Aeson.Object
+  Sem r AllFeatureConfigs
 getAllFeatures luid tid = do
-  KeyMap.fromList
-    <$> sequence
-      [ getStatus @'WithoutLockStatus @'TeamFeatureSSO getSSOStatusInternal,
-        getStatus @'WithoutLockStatus @'TeamFeatureLegalHold getLegalholdStatusInternal,
-        getStatus @'WithoutLockStatus @'TeamFeatureSearchVisibility getTeamSearchVisibilityAvailableInternal,
-        getStatus @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal,
-        getStatus @'WithoutLockStatus @'TeamFeatureDigitalSignatures getDigitalSignaturesInternal,
-        getStatus @'WithoutLockStatus @'TeamFeatureAppLock getAppLockInternal,
-        getStatus @'WithLockStatus @'TeamFeatureFileSharing getFileSharingInternal,
-        getStatus @'WithoutLockStatus @'TeamFeatureClassifiedDomains getClassifiedDomainsInternal,
-        getStatus @'WithoutLockStatus @'TeamFeatureConferenceCalling getConferenceCallingInternal,
-        getStatus @'WithLockStatus @'TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal,
-        getStatus @'WithLockStatus @'TeamFeatureGuestLinks getGuestLinkInternal,
-        getStatus @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge getSndFactorPasswordChallengeInternal
-      ]
-  where
-    getStatus ::
-      forall (ps :: IncludeLockStatus) (a :: TeamFeatureName).
-      ( KnownTeamFeatureName a,
-        Aeson.ToJSON (TeamFeatureStatus ps a)
-      ) =>
-      FeatureGetter ps a r ->
-      Sem r (Aeson.Key, Aeson.Value)
-    getStatus getter = do
-      status <- getFeatureStatus @ps @a getter (DoAuth (tUnqualified luid)) tid
-      let feature = knownTeamFeatureName @a
-      pure $ AesonKey.fromText (cs (toByteString' feature)) Aeson..= status
+  let auth = DoAuth (tUnqualified luid)
+  AllFeatureConfigs
+    <$> getFeatureStatus @'WithoutLockStatus @'TeamFeatureLegalHold getLegalholdStatusInternal auth tid
+    <*> getFeatureStatus @'WithoutLockStatus @'TeamFeatureSSO getSSOStatusInternal auth tid
+    <*> getFeatureStatus @'WithoutLockStatus @'TeamFeatureSearchVisibility getTeamSearchVisibilityAvailableInternal auth tid
+    <*> getFeatureStatus @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal auth tid
+    <*> getFeatureStatus @'WithoutLockStatus @'TeamFeatureDigitalSignatures getDigitalSignaturesInternal auth tid
+    <*> getFeatureStatus @'WithoutLockStatus @'TeamFeatureAppLock getAppLockInternal auth tid
+    <*> getFeatureStatus @'WithLockStatus @'TeamFeatureFileSharing getFileSharingInternal auth tid
+    <*> getFeatureStatus @'WithoutLockStatus @'TeamFeatureClassifiedDomains getClassifiedDomainsInternal auth tid
+    <*> getFeatureStatus @'WithoutLockStatus @'TeamFeatureConferenceCalling getConferenceCallingInternal auth tid
+    <*> getFeatureStatus @'WithLockStatus @'TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal auth tid
+    <*> getFeatureStatus @'WithLockStatus @'TeamFeatureGuestLinks getGuestLinkInternal auth tid
+    <*> getFeatureStatus @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge getSndFactorPasswordChallengeInternal auth tid
 
 getFeatureStatusNoConfig ::
   forall (a :: TeamFeatureName) r.

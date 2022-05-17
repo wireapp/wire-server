@@ -62,8 +62,6 @@ module Wire.API.Team.Feature
 where
 
 import qualified Cassandra.CQL as Cass
-import Control.Lens.Combinators (dimap)
-import qualified Data.Aeson as Aeson
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), fromByteString, toByteString')
 import Data.Domain (Domain)
@@ -361,6 +359,59 @@ modelForTeamFeature name@TeamFeatureSelfDeletingMessages = modelTeamFeatureStatu
 modelForTeamFeature TeamFeatureGuestLinks = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureSndFactorPasswordChallenge = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureSearchVisibilityInbound = modelTeamFeatureStatusNoConfig
+
+data AllFeatureConfigs = AllFeatureConfigs
+  { afcLegalholdStatusInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold,
+    afcSSOStatusInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSSO,
+    afcTeamSearchVisibilityAvailableInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSearchVisibility,
+    afcValidateSAMLEmailsInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails,
+    afcDigitalSignaturesInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureDigitalSignatures,
+    afcAppLockInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureAppLock,
+    afcFileSharingInternal :: TeamFeatureStatus 'WithLockStatus 'TeamFeatureFileSharing,
+    afcClassifiedDomainsInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureClassifiedDomains,
+    afcConferenceCallingInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureConferenceCalling,
+    afcSelfDeletingMessagesInternal :: TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages,
+    afcGuestLinkInternal :: TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks,
+    afcSndFactorPasswordChallengeInternal :: TeamFeatureStatus 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge
+  }
+  deriving stock (Eq, Show)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
+
+instance ToSchema AllFeatureConfigs where
+  schema =
+    object "AllFeatureConfigs" $
+      AllFeatureConfigs
+        <$> afcLegalholdStatusInternal .= field (name @'TeamFeatureLegalHold) schema
+        <*> afcSSOStatusInternal .= field (name @'TeamFeatureSSO) schema
+        <*> afcTeamSearchVisibilityAvailableInternal .= field (name @'TeamFeatureSearchVisibility) schema
+        <*> afcValidateSAMLEmailsInternal .= field (name @'TeamFeatureValidateSAMLEmails) schema
+        <*> afcDigitalSignaturesInternal .= field (name @'TeamFeatureDigitalSignatures) schema
+        <*> afcAppLockInternal .= field (name @'TeamFeatureAppLock) schema
+        <*> afcFileSharingInternal .= field (name @'TeamFeatureFileSharing) schema
+        <*> afcClassifiedDomainsInternal .= field (name @'TeamFeatureClassifiedDomains) schema
+        <*> afcConferenceCallingInternal .= field (name @'TeamFeatureConferenceCalling) schema
+        <*> afcSelfDeletingMessagesInternal .= field (name @'TeamFeatureSelfDeletingMessages) schema
+        <*> afcGuestLinkInternal .= field (name @'TeamFeatureGuestLinks) schema
+        <*> afcSndFactorPasswordChallengeInternal .= field (name @'TeamFeatureSndFactorPasswordChallenge) schema
+    where
+      name :: forall a. KnownTeamFeatureName a => Text
+      name = cs (toByteString' (knownTeamFeatureName @a))
+
+instance Arbitrary AllFeatureConfigs where
+  arbitrary =
+    AllFeatureConfigs
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusNoConfig
@@ -665,12 +716,3 @@ data LowerCaseFirst
 instance StringModifier LowerCaseFirst where
   getStringModifier (x : xs) = toLower x : xs
   getStringModifier [] = []
-
-newtype AllFeatureConfigs = AllFeatureConfigs {_allFeatureConfigs :: Aeson.Object}
-  deriving stock (Eq, Show)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
-
-instance ToSchema AllFeatureConfigs where
-  schema =
-    named "AllFeatureConfigs" $
-      dimap _allFeatureConfigs AllFeatureConfigs jsonObject

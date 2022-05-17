@@ -201,6 +201,7 @@ tests =
       testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithLockStatus 'Team.Feature.TeamFeatureSelfDeletingMessages),
       testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureSelfDeletingMessages),
       testRoundTrip @(Team.Feature.TeamFeatureStatus 'Team.Feature.WithoutLockStatus 'Team.Feature.TeamFeatureSearchVisibilityInbound),
+      testRoundTrip @Team.Feature.AllFeatureConfigs,
       testRoundTrip @Team.Feature.TeamFeatureStatusValue,
       testRoundTrip @Team.Feature.LockStatusValue,
       testRoundTrip @Team.Feature.LockStatus,
