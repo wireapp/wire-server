@@ -159,7 +159,12 @@ checkCreateConvPermissions lusr newConv (Just tinfo) allUsers = do
   when (length allUsers > 1) $ do
     void $ permissionCheck DoNotUseDeprecatedAddRemoveConvMember zusrMembership
 
-  ensureConnectedOrSameTeam lusr allUsers
+  -- Team members are always considered to be connected, so we only check
+  -- 'ensureConnected' for non-team-members.
+  ensureConnected lusr $
+    UserList
+      (notTeamMember (ulLocals allUsers) (catMaybes convLocalMemberships))
+      (ulRemotes allUsers)
 
 ----------------------------------------------------------------------------
 -- Other kinds of conversations

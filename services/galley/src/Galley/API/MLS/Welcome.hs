@@ -15,11 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS.Welcome
-  ( postMLSWelcome,
-    welcomeRecipients,
-  )
-where
+module Galley.API.MLS.Welcome (postMLSWelcome) where
 
 import Control.Comonad
 import Data.Id
@@ -118,6 +114,10 @@ sendRemoteWelcomes ::
   Remote [(UserId, ClientId)] ->
   Sem r ()
 sendRemoteWelcomes rawWelcome rClients = do
-  let req = MLSWelcomeRequest . Base64ByteString $ rawWelcome
+  let req =
+        MLSWelcomeRequest
+          { mwrRawWelcome = Base64ByteString rawWelcome,
+            mwrRecipients = MLSWelcomeRecipient <$> tUnqualified rClients
+          }
       rpc = fedClient @'Galley @"mls-welcome" req
   void $ runFederated rClients rpc
