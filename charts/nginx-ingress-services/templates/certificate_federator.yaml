@@ -2,7 +2,7 @@
 {{- fail "TLS is required by federator. Either disable federation or enable tls." }}
 {{- end }}
 {{- if and .Values.federator.enabled (and .Values.tls.enabled .Values.tls.useCertManager) }}
-apiVersion: cert-manager.io/v1alpha2
+apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: "federator-{{ include "nginx-ingress-services.zone" . | replace "." "-" }}-csr"
