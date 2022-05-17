@@ -1,0 +1,1 @@
+If using [cert-manager](https://github.com/cert-manager/cert-manager), you need to have least version 1.0.0 (1.8.0 works at the time of writing) installed. Older cert-manager 0.15.X will no longer work.
