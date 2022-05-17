@@ -1,3 +1,4 @@
+{{- if .Values.tls.createIssuer -}}
 {{- if and .Values.tls.enabled .Values.tls.useCertManager -}}
 apiVersion: cert-manager.io/v1alpha2
 kind: Issuer
@@ -23,4 +24,5 @@ spec:
           ingress:
             class: nginx
 {{- end }}
+{{- end -}}
 {{- end -}}

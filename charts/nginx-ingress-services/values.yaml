@@ -26,6 +26,7 @@ federator:
 # for an example)
 tls:
   enabled: true
+  createIssuer: true
   # NOTE:
   #  (1) enables automated certificate renewal provided by https://github.com/jetstack/cert-manager
   #  (2) supersedes wildcard certificate configuration mentioned above
