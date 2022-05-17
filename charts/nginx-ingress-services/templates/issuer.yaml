@@ -1,10 +1,16 @@
 {{- if .Values.tls.createIssuer -}}
 {{- if and .Values.tls.enabled .Values.tls.useCertManager -}}
-apiVersion: cert-manager.io/v1alpha2
-kind: Issuer
+apiVersion: cert-manager.io/v1
+{{- if or (eq .Values.tls.issuer.kind "Issuer") (eq .Values.tls.issuer.kind "ClusterIssuer") }}
+kind: "{{ .Values.tls.issuer.kind }}"
+{{- else }}
+{{- fail (cat ".tls.issuer.kind can only be one of Issuer or ClusterIssuer, got: " .tls.issuer.kind )}}
+{{- end }}
 metadata:
-  name: letsencrypt-http01
+  name: {{ .Values.tls.issuer.name }}
+  {{- if eq .Values.tls.issuer.kind "Issuer" }}
   namespace: {{ .Release.Namespace }}
+  {{- end }}
   labels:
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
     release: "{{ .Release.Name }}"

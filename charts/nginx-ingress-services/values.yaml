@@ -26,7 +26,6 @@ federator:
 # for an example)
 tls:
   enabled: true
-  createIssuer: true
   # NOTE:
   #  (1) enables automated certificate renewal provided by https://github.com/jetstack/cert-manager
   #  (2) supersedes wildcard certificate configuration mentioned above
@@ -36,6 +35,10 @@ tls:
   useCertManager: false
   # the validation depth between a federator client certificate and tlsClientCA
   verify_depth: 1
+  issuer:
+    create: true
+    name: letsencrypt-http01
+    kind: Issuer # Issuer | ClusterIssuer
 
 certManager:
   # Indicates whether Letsencrypt's staging API server is used and therefore certificates are NOT trusted

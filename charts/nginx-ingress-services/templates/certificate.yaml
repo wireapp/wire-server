@@ -10,8 +10,8 @@ metadata:
     heritage: "{{ .Release.Service }}"
 spec:
   issuerRef:
-    name: letsencrypt-http01
-    kind: Issuer
+    name: {{ .Values.tls.issuer.name }}
+    kind: {{ .Values.tls.issuer.kind }}
   usages:
     - server auth
   duration: 2160h     # 90d, Letsencrypt default; NOTE: changes are ignored by Letsencrypt
