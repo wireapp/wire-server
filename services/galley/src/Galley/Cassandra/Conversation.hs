@@ -24,6 +24,7 @@ where
 
 import Cassandra hiding (Set)
 import qualified Cassandra as Cql
+import Control.Error.Util
 import Control.Monad.Trans.Maybe
 import Data.ByteString.Conversion
 import Data.Id
@@ -176,37 +177,29 @@ conversationGC conv =
       lift (deleteConversation (convId conv)) *> mzero
     ]
 
+localConversation :: ConvId -> Client (Maybe Conversation)
+localConversation cid =
+  UnliftIO.runConcurrently $
+    toConv cid
+      <$> UnliftIO.Concurrently (members cid)
+        <*> UnliftIO.Concurrently (lookupRemoteMembers cid)
+        <*> UnliftIO.Concurrently (retry x1 $ query1 Cql.selectConv (params LocalQuorum (Identity cid)))
+
 localConversations ::
-  (Members '[Embed IO, Input ClientState, TinyLog] r) =>
+  Members '[Embed IO, Input ClientState, TinyLog] r =>
   [ConvId] ->
   Sem r [Conversation]
-localConversations [] = return []
-localConversations ids = do
-  cs <- embedClient $ do
-    convs <- UnliftIO.async fetchConvs
-    mems <- UnliftIO.async $ memberLists ids
-    remoteMems <- UnliftIO.async $ remoteMemberLists ids
-    zipWith4 toConv ids
-      <$> UnliftIO.wait mems
-        <*> UnliftIO.wait remoteMems
-        <*> UnliftIO.wait convs
-  foldrM flatten [] (zip ids cs)
+localConversations =
+  (collectAndLog =<<)
+    . embedClient
+    . UnliftIO.pooledMapConcurrentlyN 8 localConversation'
   where
-    fetchConvs = do
-      cs <- retry x1 $ query Cql.selectConvs (params LocalQuorum (Identity ids))
-      let m =
-            Map.fromList $
-              map
-                ( \(cId, cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm, p, gid, mep) ->
-                    (cId, (cType, uId, access, aRolesFromLegacy, aRoles, name, tId, del, timer, rm, p, gid, mep))
-                )
-                cs
-      return $ map (`Map.lookup` m) ids
-    flatten (i, c) cc = case c of
-      Nothing -> do
-        warn $ Log.msg ("No conversation for: " <> toByteString i)
-        return cc
-      Just c' -> return (c' : cc)
+    collectAndLog cs = case partitionEithers cs of
+      (errs, convs) -> traverse_ (warn . Log.msg) errs $> convs
+
+    localConversation' :: ConvId -> Client (Either ByteString Conversation)
+    localConversation' cid =
+      note ("No conversation for: " <> toByteString' cid) <$> localConversation cid
 
 -- | Takes a list of conversation ids and returns those found for the given
 -- user.
