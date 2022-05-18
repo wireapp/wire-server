@@ -71,21 +71,8 @@ spec:
               secretKeyRef:
                 name: brig-geoip
                 key: editionIds
-          command:
-            - /bin/sh
-            - -c
-            - |
-              set -eu
-
-              conf_file=$(mktemp)
-
-              cat <<EOF > "$conf_file"
-              AccountID $GEOIPUPDATE_ACCOUNT_ID
-              LicenseKey $GEOIPUPDATE_LICENSE_KEY
-              EditionIDs $GEOIPUPDATE_EDITION_IDS
-              EOF
-
-              geoipupdate -d /usr/share/GeoIP -f "$conf_file"
+          - name: GEOIPUPDATE_FREQUENCY
+            value: 0 # Setting this to 0 makes the script only update it once.
       {{- end }}
       containers:
         - name: brig
@@ -179,4 +166,6 @@ spec:
               secretKeyRef:
                 name: brig-geoip
                 key: editionIds
+          - name: GEOIPUPDATE_FREQUENCY
+            value: 24 # hours
         {{- end }}
