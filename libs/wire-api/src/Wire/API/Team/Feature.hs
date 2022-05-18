@@ -83,7 +83,7 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 ----------------------------------------------------------------------
 -- TeamFeatureName
 
--- | If you add a constructor here, you need extend multiple defintions, which
+-- | If you add a constructor here, you need extend multiple definitions, which
 --   aren't checked by GHC.
 --
 --   Follow this Checklist:
@@ -100,9 +100,8 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 --   * Update the Arbitrary instance of FeatureFlags
 --       in libs/galley-types/test/unit/Test/Galley/Types.hs
 --   * roleHiddenPermissions ChangeTeamFeature and ViewTeamFeature
--- * services/galley/src/Galley/API/Teams/Features.hs
---   * maybe extend getAllFeatureConfigs (if feature status is user-visibile)
---   * maybe extend getAllFeatures (if feature status is user-visibile)
+-- * add the feature status to `AllFeatureConfigs` (see below)
+--   * follow the type errors and fix them (e.g. in services/galley/src/Galley/API/Teams/Features.hs)
 -- * services/galley/schema/src/
 --   * add a migration like the one in "V43_TeamFeatureDigitalSignatures.hs"
 -- * services/galley/test/integration/API/Teams/Feature.hs
