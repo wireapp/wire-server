@@ -126,7 +126,7 @@
 
 * Documentation on how to set the instance connection parameters and proxy settings (#2340)
 
-* Merged SAML/SCIM docs with its main documentation (#PR_NOT_FOUND)
+* Merged SAML/SCIM docs with its main documentation (#2356)
 
 
 ## Internal changes
@@ -151,8 +151,7 @@
 * Apply `versionMiddleware` last. This makes sure that every other middleware sees
   the rewritten (unversioned) path. In particular, the prometheus middleware will
   now only see paths it knows about, which prevents it from reporting "N/A" as the
-  path.
-   (#2316)
+  path. (#2316)
 
 * Upgrade version of libzauth dependencies, notably sodiumoxide bindings to libsodium, and fix resulting errors and warnings. (#2327)
 
