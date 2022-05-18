@@ -1,5 +1,4 @@
 SHELL                 := /usr/bin/env bash
-LANG                  := en_US.UTF-8
 DOCKER_USER           ?= quay.io/wire
 # kubernetes namespace for running integration tests
 NAMESPACE             ?= test-$(USER)
@@ -8,13 +7,13 @@ DOCKER_TAG            ?= $(USER)
 # default helm chart version must be 0.0.42 for local development (because 42 is the answer to the universe and everything)
 HELM_SEMVER           ?= 0.0.42
 # The list of helm charts needed on internal kubernetes testing environments
-CHARTS_INTEGRATION    := wire-server databases-ephemeral fake-aws nginx-ingress-controller nginx-ingress-services wire-server-metrics fluent-bit kibana sftd restund coturn
+CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster fake-aws nginx-ingress-controller nginx-ingress-services wire-server-metrics fluent-bit kibana sftd restund coturn
 # The list of helm charts to publish on S3
 # FUTUREWORK: after we "inline local subcharts",
 # (e.g. move charts/brig to charts/wire-server/brig)
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
-CHARTS_RELEASE        := wire-server redis-ephemeral databases-ephemeral fake-aws fake-aws-s3 fake-aws-sqs aws-ingress  fluent-bit kibana backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external elasticsearch-ephemeral minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd restund coturn
+CHARTS_RELEASE        := wire-server redis-ephemeral redis-cluster databases-ephemeral fake-aws fake-aws-s3 fake-aws-sqs aws-ingress  fluent-bit kibana backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external elasticsearch-ephemeral minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd restund coturn
 BUILDAH_PUSH          ?= 0
 KIND_CLUSTER_NAME     := wire-server
 BUILDAH_KIND_LOAD     ?= 1
@@ -76,6 +75,12 @@ endif
 ci: c
 	./hack/bin/cabal-run-integration.sh $(package)
 
+# Use ghcid to watch a particular package.
+# pass target=package:name to specify which target is watched.
+.PHONY: ghcid
+ghcid:
+	ghcid --command "cabal repl $(target)"
+
 # reset db using cabal
 .PHONY: db-reset-package
 db-reset-package: c
@@ -127,6 +132,10 @@ add-license:
 	headroom run
 	@echo ""
 	@echo "you might want to run 'make formatf' now to make sure ormolu is happy"
+
+.PHONY: shellcheck
+shellcheck:
+	./hack/bin/shellcheck.sh
 
 # Clean
 .PHONY: clean
@@ -209,7 +218,7 @@ docker-builder:
 
 .PHONY: docker-intermediate
 docker-intermediate:
-	# `docker-intermediate` needs to be built whenever code changes - this essentially runs `stack clean && stack install` on the whole repo
+	# `docker-intermediate` needs to be built whenever code changes - this essentially runs `cabal clean && cabal build all` on the whole repo
 	docker build -t $(DOCKER_USER)/ubuntu20-intermediate:$(DOCKER_TAG) -f build/ubuntu/Dockerfile.intermediate --build-arg builder=$(DOCKER_USER)/ubuntu20-builder:develop --build-arg deps=$(DOCKER_USER)/ubuntu20-deps:develop .;
 	docker tag $(DOCKER_USER)/ubuntu20-intermediate:$(DOCKER_TAG) $(DOCKER_USER)/ubuntu20-intermediate:latest;
 	if test -n "$$DOCKER_PUSH"; then docker login -u $(DOCKER_USERNAME) -p $(DOCKER_PASSWORD); docker push $(DOCKER_USER)/ubuntu20-intermediate:$(DOCKER_TAG); docker push $(DOCKER_USER)/ubuntu20-intermediate:latest; fi;
@@ -253,8 +262,8 @@ git-add-cassandra-schema: db-reset git-add-cassandra-schema-impl
 .PHONY: git-add-cassandra-schema-impl
 git-add-cassandra-schema-impl:
 	$(eval CASSANDRA_CONTAINER := $(shell docker ps | grep '/cassandra:' | perl -ne '/^(\S+)\s/ && print $$1'))
-	( echo '-- automatically generated with `make git-add-cassandra-schema`' ; docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) > ./docs/reference/cassandra-schema.cql
-	git add ./docs/reference/cassandra-schema.cql
+	( echo '-- automatically generated with `make git-add-cassandra-schema`' ; docker exec -i $(CASSANDRA_CONTAINER) /usr/bin/cqlsh -e "DESCRIBE schema;" ) > ./cassandra-schema.cql
+	git add ./cassandra-schema.cql
 
 .PHONY: cqlsh
 cqlsh:
@@ -434,7 +443,7 @@ echo-release-charts:
 
 .PHONY: buildah-docker
 buildah-docker: buildah-docker-nginz
-	./hack/bin/buildah-compile.sh
+	./hack/bin/buildah-compile.sh all
 	BUILDAH_PUSH=${BUILDAH_PUSH} KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME} BUILDAH_KIND_LOAD=${BUILDAH_KIND_LOAD}  ./hack/bin/buildah-make-images.sh
 
 .PHONY: buildah-docker-nginz

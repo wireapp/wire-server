@@ -108,7 +108,7 @@ ejpdAPI =
     :<|> getConnectionsStatus
 
 mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
-mlsAPI = getClientByKeyPackageRef :<|> getMLSClients
+mlsAPI = getClientByKeyPackageRef :<|> getMLSClients :<|> mapKeyPackageRefsInternal
 
 accountAPI :: ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI = Named @"createUserNoVerify" createUserNoVerify
@@ -147,6 +147,12 @@ getMLSClients qusr ss = do
 
     getKey :: MonadClient m => ClientId -> m (ClientId, Maybe LByteString)
     getKey cid = (cid,) <$> Data.lookupMLSPublicKey (qUnqualified qusr) cid ss
+
+mapKeyPackageRefsInternal :: KeyPackageBundle -> Handler r ()
+mapKeyPackageRefsInternal bundle = do
+  wrapClientE $
+    for_ (kpbEntries bundle) $ \e ->
+      Data.mapKeyPackageRef (kpbeRef e) (kpbeUser e) (kpbeClient e)
 
 getVerificationCode :: UserId -> VerificationAction -> (Handler r) (Maybe Code.Value)
 getVerificationCode uid action = do

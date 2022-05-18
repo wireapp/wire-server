@@ -28,15 +28,16 @@ module Galley.API.Teams
     getManyTeams,
     deleteTeam,
     uncheckedDeleteTeam,
-    addTeamMemberH,
+    addTeamMember,
     getTeamNotificationsH,
     getTeamConversationRoles,
-    getTeamMembersH,
+    getTeamMembers,
     getTeamMembersCSVH,
-    bulkGetTeamMembersH,
-    getTeamMemberH,
-    deleteTeamMemberH,
-    updateTeamMemberH,
+    bulkGetTeamMembers,
+    getTeamMember,
+    deleteTeamMember,
+    deleteNonBindingTeamMember,
+    updateTeamMember,
     getTeamConversations,
     getTeamConversation,
     deleteTeamConversation,
@@ -103,11 +104,9 @@ import qualified Galley.Effects.SparAccess as Spar
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
 import qualified Galley.Effects.TeamMemberStore as E
 import qualified Galley.Effects.TeamStore as E
-import Galley.Effects.WaiRoutes
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
 import Galley.Options
-import Galley.Types (UserIdList (UserIdList))
 import qualified Galley.Types as Conv
 import Galley.Types.Conversations.Roles as Roles
 import Galley.Types.Teams hiding (newTeam)
@@ -132,15 +131,15 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.Error
 import qualified Wire.API.Notification as Public
+import Wire.API.Routes.Public.Galley
 import qualified Wire.API.Team as Public
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
-import Wire.API.Team.Member (ntmNewTeamMember, teamMemberJson, teamMemberListJson)
+import Wire.API.Team.Member (TeamMemberOptPerms, ntmNewTeamMember, setOptionalPerms, setOptionalPermsMany)
 import qualified Wire.API.Team.Member as Public
 import qualified Wire.API.Team.SearchVisibility as Public
-import Wire.API.User (User, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
-import qualified Wire.API.User as Public (UserIdList)
+import Wire.API.User (User, UserIdList, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
 import qualified Wire.API.User as U
 import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
@@ -478,25 +477,17 @@ getTeamConversationRoles zusr tid = do
   --       be merged with the team roles (if they exist)
   pure $ Public.ConversationRolesList wireConvRoles
 
-getTeamMembersH ::
-  Members '[ErrorS 'NotATeamMember, TeamStore] r =>
-  UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JSON ->
-  Sem r Response
-getTeamMembersH (zusr ::: tid ::: maxResults ::: _) = do
-  (memberList, withPerms) <- getTeamMembers zusr tid maxResults
-  pure . json $ teamMemberListJson withPerms memberList
-
 getTeamMembers ::
   Members '[ErrorS 'NotATeamMember, TeamStore] r =>
-  UserId ->
+  Local UserId ->
   TeamId ->
-  Range 1 Public.HardTruncationLimit Int32 ->
-  Sem r (Public.TeamMemberList, Public.TeamMember -> Bool)
-getTeamMembers zusr tid maxResults = do
-  m <- E.getTeamMember tid zusr >>= noteS @'NotATeamMember
-  mems <- E.getTeamMembersWithLimit tid maxResults
+  Maybe (Range 1 Public.HardTruncationLimit Int32) ->
+  Sem r TeamMemberListOptPerms
+getTeamMembers lzusr tid mbMaxResults = do
+  m <- E.getTeamMember tid (tUnqualified lzusr) >>= noteS @'NotATeamMember
+  memberList <- E.getTeamMembersWithLimit tid (fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults)
   let withPerms = (m `canSeePermsOf`)
-  pure (mems, withPerms)
+  pure $ setOptionalPermsMany withPerms memberList
 
 outputToStreamingBody :: Member (Final IO) r => Sem (Output LByteString ': r) () -> Sem r StreamingBody
 outputToStreamingBody action = withWeavingToFinal @IO $ \state weave _inspect ->
@@ -610,59 +601,36 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
         (UserSSOId (SAML.UserRef _idp nameId)) -> Just . CI.original . SAML.unsafeShowNameID $ nameId
         (UserScimExternalId _) -> Nothing
 
-bulkGetTeamMembersH ::
-  Members
-    '[ Error InvalidInput,
-       ErrorS 'NotATeamMember,
-       TeamStore,
-       WaiRoutes
-     ]
-    r =>
-  UserId ::: TeamId ::: Range 1 Public.HardTruncationLimit Int32 ::: JsonRequest Public.UserIdList ::: JSON ->
-  Sem r Response
-bulkGetTeamMembersH (zusr ::: tid ::: maxResults ::: body ::: _) = do
-  UserIdList uids <- fromJsonBody body
-  (memberList, withPerms) <- bulkGetTeamMembers zusr tid maxResults uids
-  pure . json $ teamMemberListJson withPerms memberList
-
 -- | like 'getTeamMembers', but with an explicit list of users we are to return.
 bulkGetTeamMembers ::
-  Members '[Error InvalidInput, ErrorS 'NotATeamMember, TeamStore] r =>
-  UserId ->
+  Members '[ErrorS 'BulkGetMemberLimitExceeded, ErrorS 'NotATeamMember, TeamStore] r =>
+  Local UserId ->
   TeamId ->
-  Range 1 HardTruncationLimit Int32 ->
-  [UserId] ->
-  Sem r (TeamMemberList, TeamMember -> Bool)
-bulkGetTeamMembers zusr tid maxResults uids = do
-  unless (length uids <= fromIntegral (fromRange maxResults)) $
-    throw BulkGetMemberLimitExceeded
-  m <- E.getTeamMember tid zusr >>= noteS @'NotATeamMember
-  mems <- E.selectTeamMembers tid uids
+  Maybe (Range 1 HardTruncationLimit Int32) ->
+  UserIdList ->
+  Sem r TeamMemberListOptPerms
+bulkGetTeamMembers lzusr tid mbMaxResults uids = do
+  unless (length (U.mUsers uids) <= fromIntegral (fromRange (fromMaybe (unsafeRange Public.hardTruncationLimit) mbMaxResults))) $
+    throwS @'BulkGetMemberLimitExceeded
+  m <- E.getTeamMember tid (tUnqualified lzusr) >>= noteS @'NotATeamMember
+  mems <- E.selectTeamMembers tid (U.mUsers uids)
   let withPerms = (m `canSeePermsOf`)
       hasMore = ListComplete
-  pure (newTeamMemberList mems hasMore, withPerms)
-
-getTeamMemberH ::
-  Members '[ErrorS 'TeamMemberNotFound, ErrorS 'NotATeamMember, TeamStore] r =>
-  UserId ::: TeamId ::: UserId ::: JSON ->
-  Sem r Response
-getTeamMemberH (zusr ::: tid ::: uid ::: _) = do
-  (member, withPerms) <- getTeamMember zusr tid uid
-  pure . json $ teamMemberJson withPerms member
+  pure $ setOptionalPermsMany withPerms (newTeamMemberList mems hasMore)
 
 getTeamMember ::
   Members '[ErrorS 'TeamMemberNotFound, ErrorS 'NotATeamMember, TeamStore] r =>
-  UserId ->
+  Local UserId ->
   TeamId ->
   UserId ->
-  Sem r (Public.TeamMember, Public.TeamMember -> Bool)
-getTeamMember zusr tid uid = do
+  Sem r TeamMemberOptPerms
+getTeamMember lzusr tid uid = do
   m <-
-    E.getTeamMember tid zusr
+    E.getTeamMember tid (tUnqualified lzusr)
       >>= noteS @'NotATeamMember
   let withPerms = (m `canSeePermsOf`)
   member <- E.getTeamMember tid uid >>= noteS @'TeamMemberNotFound
-  pure (member, withPerms)
+  pure $ setOptionalPerms withPerms member
 
 uncheckedGetTeamMember ::
   Members '[ErrorS 'TeamMemberNotFound, TeamStore] r =>
@@ -711,12 +679,13 @@ addTeamMember ::
        P.TinyLog
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   TeamId ->
   Public.NewTeamMember ->
   Sem r ()
-addTeamMember zusr zcon tid nmem = do
+addTeamMember lzusr zcon tid nmem = do
+  let zusr = tUnqualified lzusr
   let uid = nmem ^. nUserId
   P.debug $
     Log.field "targets" (toByteString uid)
@@ -734,38 +703,6 @@ addTeamMember zusr zcon tid nmem = do
   ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
   memList <- getTeamMembersForFanout tid
   void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
-
-addTeamMemberH ::
-  Members
-    '[ BrigAccess,
-       GundeckAccess,
-       ErrorS 'InvalidPermissions,
-       ErrorS 'NoAddToBinding,
-       ErrorS 'NotATeamMember,
-       ErrorS 'NotConnected,
-       ErrorS OperationDenied,
-       ErrorS 'TeamNotFound,
-       ErrorS 'TooManyTeamMembers,
-       ErrorS 'UserBindingExists,
-       ErrorS 'TooManyTeamMembersOnTeamWithLegalhold,
-       Input (Local ()),
-       Input Opts,
-       Input UTCTime,
-       LegalHoldStore,
-       MemberStore,
-       P.TinyLog,
-       TeamFeatureStore,
-       TeamNotificationStore,
-       TeamStore,
-       WaiRoutes
-     ]
-    r =>
-  UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON ->
-  Sem r Response
-addTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
-  nmem <- fromJsonBody req
-  addTeamMember zusr zcon tid nmem
-  pure empty
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMember ::
@@ -796,31 +733,6 @@ uncheckedAddTeamMember tid nmem = do
   billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList (ntmNewTeamMember nmem : mems ^. teamMembers) (mems ^. teamMemberListType)
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
 
-updateTeamMemberH ::
-  Members
-    '[ BrigAccess,
-       ErrorS 'AccessDenied,
-       ErrorS 'InvalidPermissions,
-       ErrorS 'TeamNotFound,
-       ErrorS 'NotATeamMember,
-       ErrorS 'TeamMemberNotFound,
-       ErrorS OperationDenied,
-       Input Opts,
-       Input UTCTime,
-       GundeckAccess,
-       P.TinyLog,
-       TeamStore,
-       WaiRoutes
-     ]
-    r =>
-  UserId ::: ConnId ::: TeamId ::: JsonRequest Public.NewTeamMember ::: JSON ->
-  Sem r Response
-updateTeamMemberH (zusr ::: zcon ::: tid ::: req ::: _) = do
-  -- the team member to be updated
-  targetMember <- ntmNewTeamMember <$> fromJsonBody req
-  updateTeamMember zusr zcon tid targetMember
-  pure empty
-
 updateTeamMember ::
   forall r.
   Members
@@ -838,12 +750,14 @@ updateTeamMember ::
        TeamStore
      ]
     r =>
-  UserId ->
+  Local UserId ->
   ConnId ->
   TeamId ->
-  TeamMember ->
+  NewTeamMember ->
   Sem r ()
-updateTeamMember zusr zcon tid targetMember = do
+updateTeamMember lzusr zcon tid newMember = do
+  let zusr = tUnqualified lzusr
+  let targetMember = ntmNewTeamMember newMember
   let targetId = targetMember ^. userId
       targetPermissions = targetMember ^. permissions
   P.debug $
@@ -871,7 +785,7 @@ updateTeamMember zusr zcon tid targetMember = do
 
   updatedMembers <- getTeamMembersForFanout tid
   updateJournal team updatedMembers
-  updatePeers targetId targetPermissions updatedMembers
+  updatePeers zusr targetId targetMember targetPermissions updatedMembers
   where
     canDowngradeOwner = canDeleteMember
 
@@ -887,8 +801,8 @@ updateTeamMember zusr zcon tid targetMember = do
         billingUserIds <- Journal.getBillingUserIds tid $ Just mems
         Journal.teamUpdate tid size billingUserIds
 
-    updatePeers :: UserId -> Permissions -> TeamMemberList -> Sem r ()
-    updatePeers targetId targetPermissions updatedMembers = do
+    updatePeers :: UserId -> UserId -> TeamMember -> Permissions -> TeamMemberList -> Sem r ()
+    updatePeers zusr targetId targetMember targetPermissions updatedMembers = do
       -- inform members of the team about the change
       -- some (privileged) users will be informed about which change was applied
       let privileged = filter (`canSeePermsOf` targetMember) (updatedMembers ^. teamMembers)
@@ -901,43 +815,63 @@ updateTeamMember zusr zcon tid targetMember = do
       let pushPriv = newPushLocal (updatedMembers ^. teamMemberListType) zusr (TeamEvent ePriv) $ privilegedRecipients
       for_ pushPriv $ \p -> E.push1 $ p & pushConn .~ Just zcon
 
-deleteTeamMemberH ::
+deleteTeamMember ::
   Members
     '[ BrigAccess,
        ConversationStore,
        Error AuthenticationError,
        Error InvalidInput,
        ErrorS 'AccessDenied,
-       ErrorS 'NotATeamMember,
        ErrorS 'TeamMemberNotFound,
        ErrorS 'TeamNotFound,
+       ErrorS 'NotATeamMember,
        ErrorS OperationDenied,
        ExternalAccess,
-       GundeckAccess,
-       Input (Local ()),
        Input Opts,
        Input UTCTime,
+       GundeckAccess,
        MemberStore,
-       P.TinyLog,
        TeamStore,
-       WaiRoutes
+       P.TinyLog
      ]
     r =>
-  UserId ::: ConnId ::: TeamId ::: UserId ::: OptionalJsonRequest Public.TeamMemberDeleteData ::: JSON ->
-  Sem r Response
-deleteTeamMemberH (zusr ::: zcon ::: tid ::: remove ::: req ::: _) = do
-  lusr <- qualifyLocal zusr
-  mBody <- fromOptionalJsonBody req
-  deleteTeamMember lusr zcon tid remove mBody >>= \case
-    TeamMemberDeleteAccepted -> pure (empty & setStatus status202)
-    TeamMemberDeleteCompleted -> pure empty
+  Local UserId ->
+  ConnId ->
+  TeamId ->
+  UserId ->
+  Public.TeamMemberDeleteData ->
+  Sem r TeamMemberDeleteResult
+deleteTeamMember lusr zcon tid remove body = deleteTeamMember' lusr zcon tid remove (Just body)
 
-data TeamMemberDeleteResult
-  = TeamMemberDeleteAccepted
-  | TeamMemberDeleteCompleted
+deleteNonBindingTeamMember ::
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       Error AuthenticationError,
+       Error InvalidInput,
+       ErrorS 'AccessDenied,
+       ErrorS 'TeamMemberNotFound,
+       ErrorS 'TeamNotFound,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       ExternalAccess,
+       Input Opts,
+       Input UTCTime,
+       GundeckAccess,
+       MemberStore,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
+  Local UserId ->
+  ConnId ->
+  TeamId ->
+  UserId ->
+  Sem r TeamMemberDeleteResult
+deleteNonBindingTeamMember lusr zcon tid remove = deleteTeamMember' lusr zcon tid remove Nothing
 
 -- | 'TeamMemberDeleteData' is only required for binding teams
-deleteTeamMember ::
+deleteTeamMember' ::
   Members
     '[ BrigAccess,
        ConversationStore,
@@ -963,7 +897,7 @@ deleteTeamMember ::
   UserId ->
   Maybe Public.TeamMemberDeleteData ->
   Sem r TeamMemberDeleteResult
-deleteTeamMember lusr zcon tid remove mBody = do
+deleteTeamMember' lusr zcon tid remove mBody = do
   P.debug $
     Log.field "targets" (toByteString remove)
       . Log.field "action" (Log.val "Teams.deleteTeamMember")
@@ -1468,6 +1402,7 @@ userIsTeamOwner ::
     '[ ErrorS 'TeamMemberNotFound,
        ErrorS 'AccessDenied,
        ErrorS 'NotATeamMember,
+       Input (Local ()),
        TeamStore
      ]
     r =>
@@ -1475,8 +1410,8 @@ userIsTeamOwner ::
   UserId ->
   Sem r ()
 userIsTeamOwner tid uid = do
-  let asking = uid
-  (mem, _) <- getTeamMember asking tid uid
+  asking <- qualifyLocal uid
+  mem <- getTeamMember asking tid uid
   unless (isTeamOwner mem) $ throwS @'AccessDenied
 
 -- Queues a team for async deletion

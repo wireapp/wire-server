@@ -1,0 +1,1 @@
+Start TURN discovery only when the app starts and not when the Env is created

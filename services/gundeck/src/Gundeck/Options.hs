@@ -116,6 +116,7 @@ data Opts = Opts
     _optGundeck :: !Endpoint,
     _optCassandra :: !CassandraOpts,
     _optRedis :: !RedisEndpoint,
+    _optRedisAdditionalWrite :: !(Maybe RedisEndpoint),
     _optAws :: !AWSOpts,
     _optDiscoUrl :: !(Maybe Text),
     _optSettings :: !Settings,

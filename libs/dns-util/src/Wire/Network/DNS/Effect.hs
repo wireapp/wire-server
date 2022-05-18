@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -14,10 +16,10 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE TemplateHaskell #-}
 
 module Wire.Network.DNS.Effect where
 
+import qualified Data.IP as IP
 import Imports
 import Network.DNS (Domain, Resolver)
 import qualified Network.DNS as DNS
@@ -26,16 +28,23 @@ import qualified Wire.Network.DNS.SRV as SRV
 
 data DNSLookup m a where
   LookupSRV :: Domain -> DNSLookup m SRV.SrvResponse
+  LookupA :: Domain -> DNSLookup m (Either DNS.DNSError [IP.IPv4])
 
 makeSem ''DNSLookup
 
 runDNSLookupDefault :: Member (Embed IO) r => Sem (DNSLookup ': r) a -> Sem r a
 runDNSLookupDefault =
-  interpret $ \(LookupSRV domain) -> embed $ do
+  interpret $ \action -> embed $ do
     rs <- DNS.makeResolvSeed DNS.defaultResolvConf
-    DNS.withResolver rs $ \resolver ->
-      SRV.interpretResponse <$> DNS.lookupSRV resolver domain
+    DNS.withResolver rs $ flip runLookupIO action
 
 runDNSLookupWithResolver :: Member (Embed IO) r => Resolver -> Sem (DNSLookup ': r) a -> Sem r a
-runDNSLookupWithResolver resolver = interpret $ \(LookupSRV domain) ->
-  embed (SRV.interpretResponse <$> DNS.lookupSRV resolver domain)
+runDNSLookupWithResolver resolver = interpret $ embed . runLookupIO resolver
+
+runLookupIO :: Resolver -> DNSLookup m a -> IO a
+runLookupIO resolver action =
+  case action of
+    LookupSRV domain -> do
+      SRV.interpretResponse <$> DNS.lookupSRV resolver domain
+    LookupA domain ->
+      DNS.lookupA resolver domain

@@ -7,4 +7,10 @@ DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOP_LEVEL="$(cd "$DIR/../.." && pwd)"
 
 cd "$TOP_LEVEL"
-stack install --local-bin-path=dist-buildah --work-dir=.stack-work-buildah --stack-root="${TOP_LEVEL}"/.stack-root-buildah --fast "$@"
+
+cabal build \
+    --prefix=./buildah/dot-cabal \
+    --builddir=./buildah/dist-newstyle \
+    "$@"
+
+DIST="$TOP_LEVEL"/buildah/dist PLAN_FILE="$TOP_LEVEL"/buildah/dist-newstyle/cache/plan.json ./hack/bin/cabal-install-artefacts.sh "$@"

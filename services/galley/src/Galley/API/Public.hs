@@ -63,10 +63,6 @@ import qualified Wire.API.Message as Public
 import qualified Wire.API.Notification as Public
 import Wire.API.Routes.API
 import qualified Wire.API.Swagger as Public.Swagger (models)
-import qualified Wire.API.Team.Member as Public
-import qualified Wire.API.Team.Permission as Public
-import qualified Wire.API.User as Public (UserIdList, modelUserIdList)
-import Wire.Swagger (int32Between)
 
 -- These are all the errors that can be thrown by wai-routing handlers.
 -- We don't do any static checks on these errors, so we simply remap them to
@@ -115,21 +111,6 @@ errorSResponse = errorResponse (toWai (dynError @(MapError e)))
 sitemap :: Routes ApiBuilder (Sem GalleyEffects) ()
 sitemap = do
   -- Team Member API -----------------------------------------------------
-  get "/teams/:tid/members" (continueE Teams.getTeamMembersH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. def (unsafeRange Public.hardTruncationLimit) (query "maxResults")
-      .&. accept "application" "json"
-  document "GET" "getTeamMembers" $ do
-    summary "Get team members"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    parameter Query "maxResults" (int32Between 1 Public.hardTruncationLimit) $ do
-      optional
-      description "Maximum Results to be returned"
-    returns (ref Public.modelTeamMemberList)
-    response 200 "Team members" end
-    errorSResponse @'NotATeamMember
 
   get "/teams/:tid/members/csv" (continueE Teams.getTeamMembersCSVH) $
     -- we could discriminate based on accept header only, but having two paths makes building
@@ -146,43 +127,6 @@ sitemap = do
       description "Team ID"
     response 200 "Team members CSV file" end
     errorSResponse @'AccessDenied
-
-  post "/teams/:tid/get-members-by-ids-using-post" (continueE Teams.bulkGetTeamMembersH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. def (unsafeRange Public.hardTruncationLimit) (query "maxResults")
-      .&. jsonRequest @Public.UserIdList
-      .&. accept "application" "json"
-  document "POST" "bulkGetTeamMembers" $ do
-    summary "Get team members by user id list"
-    notes "The `has_more` field in the response body is always `false`."
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    parameter Query "maxResults" (int32Between 1 Public.hardTruncationLimit) $ do
-      optional
-      description "Maximum Results to be returned"
-    body (ref Public.modelUserIdList) $
-      description "JSON body"
-    returns (ref Public.modelTeamMemberList)
-    response 200 "Team members" end
-    errorSResponse @'NotATeamMember
-    errorResponse Error.bulkGetMemberLimitExceeded
-
-  get "/teams/:tid/members/:uid" (continueE Teams.getTeamMemberH) $
-    zauthUserId
-      .&. capture "tid"
-      .&. capture "uid"
-      .&. accept "application" "json"
-  document "GET" "getTeamMember" $ do
-    summary "Get single team member"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    parameter Path "uid" bytes' $
-      description "User ID"
-    returns (ref Public.modelTeamMember)
-    response 200 "Team member" end
-    errorSResponse @'NotATeamMember
-    errorSResponse @'TeamMemberNotFound
 
   get "/teams/notifications" (continueE Teams.getTeamNotificationsH) $
     zauthUserId
@@ -223,62 +167,6 @@ sitemap = do
     response 200 "List of team notifications" end
     errorSResponse @'TeamNotFound
     errorResponse Error.invalidTeamNotificationId
-
-  post "/teams/:tid/members" (continueE Teams.addTeamMemberH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "tid"
-      .&. jsonRequest @Public.NewTeamMember
-      .&. accept "application" "json"
-  document "POST" "addTeamMember" $ do
-    summary "Add a new team member"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    body (ref Public.modelNewTeamMember) $
-      description "JSON body"
-    errorSResponse @'NotATeamMember
-    errorSResponse @('MissingPermission ('Just 'Public.AddTeamMember))
-    errorSResponse @'NotConnected
-    errorSResponse @'InvalidPermissions
-    errorSResponse @'TooManyTeamMembers
-    errorSResponse @'TooManyTeamMembersOnTeamWithLegalhold
-
-  delete "/teams/:tid/members/:uid" (continueE Teams.deleteTeamMemberH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "tid"
-      .&. capture "uid"
-      .&. optionalJsonRequest @Public.TeamMemberDeleteData
-      .&. accept "application" "json"
-  document "DELETE" "deleteTeamMember" $ do
-    summary "Remove an existing team member"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    parameter Path "uid" bytes' $
-      description "User ID"
-    body (ref Public.modelTeamMemberDelete) $ do
-      optional
-      description "JSON body, required only for binding teams."
-    response 202 "Team member scheduled for deletion" end
-    errorSResponse @'NotATeamMember
-    errorSResponse @('MissingPermission ('Just 'Public.RemoveTeamMember))
-    errorSResponse @'ReAuthFailed
-
-  put "/teams/:tid/members" (continueE Teams.updateTeamMemberH) $
-    zauthUserId
-      .&. zauthConnId
-      .&. capture "tid"
-      .&. jsonRequest @Public.NewTeamMember
-      .&. accept "application" "json"
-  document "PUT" "updateTeamMember" $ do
-    summary "Update an existing team member"
-    parameter Path "tid" bytes' $
-      description "Team ID"
-    body (ref Public.modelNewTeamMember) $
-      description "JSON body"
-    errorSResponse @'NotATeamMember
-    errorSResponse @'TeamMemberNotFound
-    errorSResponse @('MissingPermission ('Just 'Public.SetMemberPermissions))
 
   -- Bot API ------------------------------------------------------------
 

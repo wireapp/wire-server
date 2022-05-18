@@ -24,7 +24,9 @@ import API.Util
 import Bilge
 import Bilge.Assert
 import Control.Lens (view)
+import qualified Data.Aeson as Aeson
 import Data.Default
+import Data.Domain
 import Data.Id
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1
@@ -32,6 +34,7 @@ import Data.Qualified
 import Data.Range
 import Data.String.Conversions
 import qualified Data.Text as T
+import Federator.MockServer
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import System.FilePath
@@ -44,6 +47,7 @@ import TestHelpers
 import TestSetup
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
+import Wire.API.Federation.API.Galley
 import Wire.API.Message
 
 tests :: IO TestSetup -> TestTree
@@ -54,7 +58,7 @@ tests s =
         "Welcome"
         [ test s "local welcome" testLocalWelcome,
           test s "local welcome (client with no public key)" testWelcomeNoKey,
-          test s "local welcome (client with no public key)" testWelcomeUnknownClient
+          test s "remote welcome" testRemoteWelcome
         ],
       testGroup
         "Creation"
@@ -97,37 +101,26 @@ postMLSConvOk :: TestM ()
 postMLSConvOk = do
   c <- view tsCannon
   qalice <- randomQualifiedUser
-  bob <- randomUser
   let alice = qUnqualified qalice
   let nameMaxSize = T.replicate 256 "a"
-  connectUsers alice (list1 bob [])
-  WS.bracketR2 c alice bob $ \(wsA, wsB) -> do
+  WS.bracketR c alice $ \wsA -> do
     rsp <- postConvQualified alice defNewMLSConv {newConvName = checked nameMaxSize}
     pure rsp !!! do
       const 201 === statusCode
       const Nothing === fmap Wai.label . responseJsonError
     cid <- assertConv rsp RegularConv alice qalice [] (Just nameMaxSize) Nothing
-    WS.assertNoEvent (2 # WS.Second) [wsB]
     checkConvCreateEvent cid wsA
 
 testLocalWelcome :: TestM ()
 testLocalWelcome = do
-  MessagingSetup {..} <- aliceInvitesBob 1 def
+  MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def
   let bob = users !! 0
 
-  galley <- viewGalley
   cannon <- view tsCannon
 
   WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
     -- send welcome message
-    post
-      ( galley
-          . paths ["mls", "welcome"]
-          . zUser (qUnqualified (pUserId creator))
-          . zConn "conn"
-          . content "message/mls"
-          . bytes welcome
-      )
+    postWelcome (qUnqualified $ pUserId creator) welcome
       !!! const 201 === statusCode
 
     -- check that the corresponding event is received
@@ -137,31 +130,41 @@ testLocalWelcome = do
 
 testWelcomeNoKey :: TestM ()
 testWelcomeNoKey = do
-  MessagingSetup {..} <- aliceInvitesBob 1 def {createClients = CreateWithoutKey}
+  MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createClients = CreateWithoutKey}
 
-  galley <- viewGalley
-  post
-    ( galley
-        . paths ["mls", "welcome"]
-        . zUser (qUnqualified (pUserId creator))
-        . content "message/mls"
-        . bytes welcome
-    )
-    !!! const 400 === statusCode
+  postWelcome (qUnqualified (pUserId creator)) welcome
+    !!! const 404 === statusCode
 
-testWelcomeUnknownClient :: TestM ()
-testWelcomeUnknownClient = do
-  MessagingSetup {..} <- aliceInvitesBob 1 def {createClients = DontCreateClients}
+testRemoteWelcome :: TestM ()
+testRemoteWelcome = do
+  -- 1. Create a conversation with Alice and Bob
+  let bobDomain = Domain "b.far-away.example.com"
+      opts = def {createConv = CreateConv, createClients = DontCreateClients}
+  MessagingSetup {..} <- aliceInvitesBob (1, RemoteUser bobDomain) opts
+  let alice = creator
+      bob = Imports.head users
 
-  galley <- viewGalley
-  post
-    ( galley
-        . paths ["mls", "welcome"]
-        . zUser (qUnqualified (pUserId creator))
-        . content "message/mls"
-        . bytes welcome
-    )
-    !!! const 400 === statusCode
+  let mockedResponse fedReq =
+        case frRPC fedReq of
+          "mls-welcome" -> pure (Aeson.encode ())
+          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+  (_resp, reqs) <-
+    withTempMockFederator' mockedResponse $
+      postWelcome (qUnqualified $ pUserId alice) welcome
+        !!! const 201 === statusCode
+
+  --  Assert the correct federated call is made.
+  fedWelcome <- assertOne (filter ((== "mls-welcome") . frRPC) reqs)
+  let welcomeRequest :: Maybe MLSWelcomeRequest = Aeson.decode (frBody fedWelcome)
+  liftIO $
+    fmap mwrRecipients welcomeRequest
+      @?= Just
+        [ MLSWelcomeRecipient
+            ( qUnqualified . pUserId $ bob,
+              snd . NonEmpty.head . pClients $ bob
+            )
+        ]
 
 -- | Send a commit message, and assert that all participants see an event with
 -- the given list of new members.
@@ -230,7 +233,7 @@ testSuccessfulCommit setup = testSuccessfulCommitWithNewUsers setup (map pUserId
 
 testAddUser :: TestM ()
 testAddUser = do
-  setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = CreateConv}
+  setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
   testSuccessfulCommit setup
 
   -- check that bob can now see the conversation
@@ -245,7 +248,7 @@ testAddUser = do
 
 testAddUserNotConnected :: TestM ()
 testAddUserNotConnected = do
-  setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = CreateConv, makeConnections = False}
+  setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv, makeConnections = False}
   let bob = users !! 0
 
   -- try to add unconnected user
@@ -261,10 +264,10 @@ testAddUserWithProteusClients = do
   setup <- withSystemTempDirectory "mls" $ \tmp -> do
     (alice, users@[bob]) <- withLastPrekeys $ do
       -- bob has 2 MLS clients
-      participants@(_, [bob]) <- setupParticipants tmp def [2]
+      participants@(_, [bob]) <- setupParticipants tmp def [(2, LocalUser)]
 
       -- and a non-MLS client
-      void $ takeLastPrekey >>= lift . addClient (pUserId bob)
+      void $ takeLastPrekey >>= lift . randomClient (qUnqualified (pUserId bob))
 
       pure participants
 
@@ -280,7 +283,7 @@ testAddUserPartial :: TestM ()
 testAddUserPartial = do
   (creator, commit) <- withSystemTempDirectory "mls" $ \tmp -> do
     -- Bob has 3 clients, Charlie has 2
-    (alice, [bob, charlie]) <- withLastPrekeys $ setupParticipants tmp def [3, 2]
+    (alice, [bob, charlie]) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [3, 2])
     void $ setupGroup tmp CreateConv alice "group"
     (commit, _) <-
       liftIO . setupCommit tmp "group" "group" $
@@ -306,7 +309,7 @@ testAddNewClient :: TestM ()
 testAddNewClient = do
   withSystemTempDirectory "mls" $ \tmp -> withLastPrekeys $ do
     -- bob starts with a single client
-    (creator, users@[bob]) <- setupParticipants tmp def [1]
+    (creator, users@[bob]) <- setupParticipants tmp def [(1, LocalUser)]
     conversation <- lift $ setupGroup tmp CreateConv creator "group"
 
     -- creator sends first commit message
@@ -316,7 +319,8 @@ testAddNewClient = do
 
     do
       -- then bob adds a new client
-      bobC <- setupUserClient tmp CreateWithKey (pUserId bob)
+      (qcid, c) <- setupUserClient tmp CreateWithKey (pUserId bob)
+      let bobC = (qcid, c)
       -- which gets added to the group
       (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" [bobC]
       -- and the corresponding commit is sent
@@ -324,13 +328,13 @@ testAddNewClient = do
 
 testAddUsersToProteus :: TestM ()
 testAddUsersToProteus = do
-  setup <- aliceInvitesBob 1 def {createConv = CreateProteusConv}
+  setup <- aliceInvitesBob (1, LocalUser) def {createConv = CreateProteusConv}
   err <- testFailedCommit setup 404
   liftIO $ Wai.label err @?= "no-conversation"
 
 testAddUsersDirectly :: TestM ()
 testAddUsersDirectly = do
-  setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = CreateConv}
+  setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
   void $ postCommit setup
   charlie <- randomUser
   e <-
@@ -344,7 +348,7 @@ testAddUsersDirectly = do
 
 testRemoveUsersDirectly :: TestM ()
 testRemoveUsersDirectly = do
-  setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = CreateConv}
+  setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
   void $ postCommit setup
   e <-
     responseJsonError
@@ -357,7 +361,7 @@ testRemoveUsersDirectly = do
 
 testProteusMessage :: TestM ()
 testProteusMessage = do
-  setup@MessagingSetup {..} <- aliceInvitesBob 1 def {createConv = CreateConv}
+  setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
   void $ postCommit setup
   e <-
     responseJsonError
@@ -373,7 +377,7 @@ testProteusMessage = do
 
 testStaleCommit :: TestM ()
 testStaleCommit = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, users) <- withLastPrekeys $ setupParticipants tmp def [2, 3]
+  (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [2, 3])
   conversation <- setupGroup tmp CreateConv creator "group.0"
   let (users1, users2) = splitAt 1 users
 
@@ -396,7 +400,7 @@ testStaleCommit = withSystemTempDirectory "mls" $ \tmp -> do
 
 testAppMessage :: TestM ()
 testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, users) <- withLastPrekeys $ setupParticipants tmp def [1, 2, 3]
+  (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [1, 2, 3])
   conversation <- setupGroup tmp CreateConv creator "group"
 
   (commit, welcome) <-

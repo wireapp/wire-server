@@ -24,6 +24,7 @@ import Imports
 import Servant
 import Wire.API.Federation.Domain
 import Wire.API.Routes.Named
+import Wire.API.VersionInfo
 
 class HasTrivialHandler api where
   trivialHandler :: String -> Server api
@@ -39,6 +40,12 @@ instance HasTrivialHandler api => HasTrivialHandler (OriginDomainHeader :> api) 
 
 instance HasTrivialHandler api => HasTrivialHandler (ReqBody cs a :> api) where
   trivialHandler name _ = trivialHandler @api name
+
+instance HasTrivialHandler api => HasTrivialHandler (Until v :> api) where
+  trivialHandler = trivialHandler @api
+
+instance HasTrivialHandler api => HasTrivialHandler (From v :> api) where
+  trivialHandler = trivialHandler @api
 
 trivialNamedHandler ::
   forall (name :: Symbol) api.

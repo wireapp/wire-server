@@ -42,7 +42,7 @@ import Bilge
 import Bilge.Assert
 import qualified Brig.AWS as AWS
 import Brig.AWS.Types
-import Brig.App (applog, sftEnv)
+import Brig.App (applog, fsWatcher, sftEnv, turnEnv)
 import Brig.Calling as Calling
 import qualified Brig.Code as Code
 import qualified Brig.Options as Opt
@@ -93,7 +93,6 @@ import qualified Federator.MockServer as Mock
 import GHC.TypeLits
 import Galley.Types.Conversations.One2One (one2OneConvId)
 import qualified Galley.Types.Teams as Team
-import Gundeck.Types.Notification
 import Imports
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Media.MediaType
@@ -129,7 +128,9 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Federation.API
 import Wire.API.Federation.Domain
+import Wire.API.Internal.Notification
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.VersionInfo
 
 type Brig = Request -> Request
 
@@ -1005,8 +1006,10 @@ withSettingsOverrides opts action = liftIO $ do
   sftDiscovery <-
     forM (env ^. sftEnv) $ \sftEnv' ->
       Async.async $ Calling.startSFTServiceDiscovery (env ^. applog) sftEnv'
+  turnDiscovery <- Calling.startTurnDiscovery (env ^. applog) (env ^. fsWatcher) (env ^. turnEnv)
   res <- WaiTest.runSession action brigApp
   mapM_ Async.cancel sftDiscovery
+  mapM_ Async.cancel turnDiscovery
   pure res
 
 -- | When we remove the customer-specific extension of domain blocking, this test will fail to
@@ -1179,6 +1182,9 @@ instance Servant.RunClient WaiTestFedClient where
       unWaiTestFedClient $ throwClientError (FailureResponse (bimap (const ()) (\x -> (Servant.BaseUrl Servant.Http "" 80 "", cs (toLazyByteString x))) servantRequest) servantResponse)
     pure servantResponse
   throwClientError = liftIO . throw
+
+instance VersionedMonad v WaiTestFedClient where
+  guardVersion _ = pure ()
 
 fromServantRequest :: Domain -> Servant.Request -> WaiTest.SRequest
 fromServantRequest domain r =

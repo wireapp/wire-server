@@ -86,13 +86,14 @@ run o = do
     Async.async $
       runAppT e $
         wrapHttpClient $
-          Queue.listen (e ^. internalEvents) $ Internal.onEvent
+          Queue.listen (e ^. internalEvents) Internal.onEvent
   let throttleMillis = fromMaybe defSqsThrottleMillis $ setSqsThrottleMillis (optSettings o)
   emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
     Async.async $
       AWS.execute (e ^. awsEnv) $
         AWS.listen throttleMillis q (runAppT e . SesNotification.onEvent)
   sftDiscovery <- forM (e ^. sftEnv) $ Async.async . Calling.startSFTServiceDiscovery (e ^. applog)
+  turnDiscovery <- Calling.startTurnDiscovery (e ^. applog) (e ^. fsWatcher) (e ^. turnEnv)
   pendingActivationCleanupAsync <- Async.async (runAppT e pendingActivationCleanup)
 
   runSettingsWithShutdown s app 5 `finally` do
@@ -100,6 +101,7 @@ run o = do
     Async.cancel internalEventListener
     mapM_ Async.cancel sftDiscovery
     Async.cancel pendingActivationCleanupAsync
+    mapM_ Async.cancel turnDiscovery
     closeEnv e
   where
     endpoint = brig o
@@ -115,11 +117,11 @@ mkApp o = do
 
     middleware :: Env -> (RequestId -> Wai.Application) -> Wai.Application
     middleware e =
-      Metrics.servantPlusWAIPrometheusMiddleware (sitemap @BrigCanonicalEffects) (Proxy @ServantCombinedAPI)
+      versionMiddleware -- this rewrites the request, so it must be at the top (i.e. applied last)
+        . Metrics.servantPlusWAIPrometheusMiddleware (sitemap @BrigCanonicalEffects) (Proxy @ServantCombinedAPI)
         . GZip.gunzip
         . GZip.gzip GZip.def
         . catchErrors (e ^. applog) [Right $ e ^. metrics]
-        . versionMiddleware
         . lookupRequestIdMiddleware
     app e r k = runHandler e r (Server.route rtree r k) k
 

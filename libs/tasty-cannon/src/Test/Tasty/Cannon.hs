@@ -83,7 +83,6 @@ import Data.ByteString.Conversion
 import Data.Id
 import Data.List1
 import Data.Timeout (Timeout, TimeoutUnit (..), (#))
-import Gundeck.Types
 import Imports
 import Network.HTTP.Client
 import qualified Network.HTTP.Client as Http
@@ -91,6 +90,7 @@ import Network.HTTP.Types.Status
 import qualified Network.WebSockets as WS
 import System.Random (randomIO)
 import Test.Tasty.HUnit
+import Wire.API.Internal.Notification
 
 type Cannon = Http.Request -> Http.Request
 

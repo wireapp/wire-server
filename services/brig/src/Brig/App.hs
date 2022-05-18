@@ -54,12 +54,12 @@ module Brig.App
     metrics,
     applog,
     turnEnv,
-    turnEnvV2,
     sftEnv,
     internalEvents,
     emailSender,
     randomPrekeyLocalLock,
     keyPackageLocalLock,
+    fsWatcher,
 
     -- * App Monad
     AppT,
@@ -102,7 +102,7 @@ import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
 import Brig.Sem.PasswordResetSupply.IO
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
-import Brig.Types (Locale (..), TurnURI)
+import Brig.Types (Locale (..))
 import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
@@ -123,7 +123,6 @@ import Data.Domain
 import qualified Data.GeoIP2 as GeoIp
 import Data.IP
 import qualified Data.List.NonEmpty as NE
-import Data.List1 (List1, list1)
 import Data.Metrics (Metrics)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Misc
@@ -189,8 +188,7 @@ data Env = Env
     _twilioCreds :: Twilio.Credentials,
     _geoDb :: Maybe (IORef GeoIp.GeoDB),
     _fsWatcher :: FS.WatchManager,
-    _turnEnv :: IORef Calling.Env,
-    _turnEnvV2 :: IORef Calling.Env,
+    _turnEnv :: Calling.TurnEnv,
     _sftEnv :: Maybe Calling.SFTEnv,
     _currentTime :: IO UTCTime,
     _zauthEnv :: ZAuth.Env,
@@ -225,7 +223,9 @@ newEnv o = do
     FS.startManagerConf $
       FS.defaultConfig {FS.confDebounce = FS.Debounce 0.5, FS.confPollInterval = 10000000}
   g <- geoSetup lgr w $ Opt.geoDb o
-  (turn, turnV2) <- turnSetup lgr w sha512 (Opt.turn o)
+  let turnOpts = Opt.turn o
+  turnSecret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret turnOpts)
+  turn <- Calling.mkTurnEnv (Opt.serversSource turnOpts) (Opt.tokenTTL turnOpts) (Opt.configTTL turnOpts) turnSecret sha512
   let sett = Opt.optSettings o
   nxm <- initCredentials (Opt.setNexmo sett)
   twl <- initCredentials (Opt.setTwilio sett)
@@ -270,7 +270,6 @@ newEnv o = do
         _twilioCreds = twl,
         _geoDb = g,
         _turnEnv = turn,
-        _turnEnvV2 = turnV2,
         _sftEnv = mSFTEnv,
         _fsWatcher = w,
         _currentTime = clock,
@@ -312,20 +311,6 @@ geoSetup lgr w (Just db) = do
   startWatching w path (replaceGeoDb lgr geodb)
   return $ Just geodb
 
-turnSetup :: Logger -> FS.WatchManager -> Digest -> Opt.TurnOpts -> IO (IORef Calling.Env, IORef Calling.Env)
-turnSetup lgr w dig o = do
-  secret <- Text.encodeUtf8 . Text.strip <$> Text.readFile (Opt.secret o)
-  cfg <- setupTurn secret (Opt.servers o)
-  cfgV2 <- setupTurn secret (Opt.serversV2 o)
-  return (cfg, cfgV2)
-  where
-    setupTurn secret cfg = do
-      path <- canonicalizePath cfg
-      servers <- fromMaybe (error "Empty TURN list, check turn file!") <$> readTurnList path
-      te <- newIORef =<< Calling.newEnv dig servers (Opt.tokenTTL o) (Opt.configTTL o) secret
-      startWatching w path (replaceTurnServers lgr te)
-      return te
-
 startWatching :: FS.WatchManager -> FilePath -> FS.Action -> IO ()
 startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
   where
@@ -340,17 +325,6 @@ replaceGeoDb g ref e = do
   handleAny logErr $ do
     GeoIp.openGeoDB (FS.eventPath e) >>= atomicWriteIORef ref
     Log.info g (msg $ val "New GeoIP database loaded.")
-
-replaceTurnServers :: Logger -> IORef Calling.Env -> FS.Event -> IO ()
-replaceTurnServers g ref e = do
-  let logErr x = Log.err g (msg $ val "Error loading turn servers: " +++ show x)
-  handleAny logErr $
-    readTurnList (FS.eventPath e) >>= \case
-      Just servers ->
-        readIORef ref >>= \old -> do
-          atomicWriteIORef ref (old & Calling.turnServers .~ servers)
-          Log.info g (msg $ val "New turn servers loaded.")
-      Nothing -> Log.warn g (msg $ val "Empty or malformed turn servers list, ignoring!")
 
 initZAuth :: Opts -> IO ZAuth.Env
 initZAuth o = do
@@ -646,12 +620,6 @@ locationOf ip =
         loc <- GeoIp.geoLocation =<< hush (GeoIp.findGeoData database "en" ip)
         return $ location (Latitude $ GeoIp.locationLatitude loc) (Longitude $ GeoIp.locationLongitude loc)
     Nothing -> return Nothing
-
-readTurnList :: FilePath -> IO (Maybe (List1 TurnURI))
-readTurnList = Text.readFile >=> return . fn . mapMaybe (fromByteString . Text.encodeUtf8) . Text.lines
-  where
-    fn [] = Nothing
-    fn (x : xs) = Just (list1 x xs)
 
 --------------------------------------------------------------------------------
 -- Federation

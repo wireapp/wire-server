@@ -34,6 +34,7 @@ import Wire.API.Routes.AssetBody
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Public
 import Wire.API.Routes.QualifiedCapture
+import Wire.API.Routes.Version
 
 data PrincipalTag = UserPrincipalTag | BotPrincipalTag | ProviderPrincipalTag
   deriving (Eq, Show)
@@ -45,7 +46,9 @@ type family PrincipalId (tag :: PrincipalTag) = (id :: *) | id -> tag where
 
 type family ApplyPrincipalPath (tag :: PrincipalTag) api
 
-type instance ApplyPrincipalPath 'UserPrincipalTag api = ZLocalUser :> "assets" :> "v3" :> api
+type instance
+  ApplyPrincipalPath 'UserPrincipalTag api =
+    ZLocalUser :> Until 'V2 :> "assets" :> "v3" :> api
 
 type instance ApplyPrincipalPath 'BotPrincipalTag api = ZBot :> "bot" :> "assets" :> api
 
@@ -87,6 +90,7 @@ type GetAsset =
 
 type ServantAPI =
   ( Summary "Renew an asset token"
+      :> Until 'V2
       :> CanThrow 'AssetNotFound
       :> CanThrow 'Unauthorised
       :> ZLocalUser
@@ -97,6 +101,7 @@ type ServantAPI =
       :> Post '[JSON] NewAssetToken
   )
     :<|> ( Summary "Delete an asset token"
+             :> Until 'V2
              :> Description "**Note**: deleting the token makes the asset public."
              :> ZLocalUser
              :> "assets"
@@ -114,7 +119,12 @@ type ServantAPI =
     :<|> BaseAPIv3 'ProviderPrincipalTag
     :<|> QualifiedAPI
     :<|> LegacyAPI
+    :<|> MainAPI
 
+-- | Asset API for a given principal (user/bot/provider).
+--
+-- This was introduced before API versioning, and the user endpoints contain a
+-- v3 suffix, which is removed starting from API V2.
 type BaseAPIv3 (tag :: PrincipalTag) =
   ( Summary "Upload an asset"
       :> CanThrow 'AssetTooLarge
@@ -150,8 +160,12 @@ type BaseAPIv3 (tag :: PrincipalTag) =
                   ()
          )
 
+-- | Qualified asset API. Only download and delete endpoints are supported, as
+-- upload has stayed unqualified. These endpoints also predate API versioning,
+-- and contain a v4 suffix.
 type QualifiedAPI =
   ( Summary "Download an asset"
+      :> Until 'V2
       :> Description
            "**Note**: local assets result in a redirect, \
            \while remote assets are streamed directly."
@@ -171,6 +185,7 @@ type QualifiedAPI =
            (Maybe LocalOrRemoteAsset)
   )
     :<|> ( Summary "Delete an asset"
+             :> Until 'V2
              :> Description "**Note**: only local assets can be deleted."
              :> CanThrow 'AssetNotFound
              :> CanThrow 'Unauthorised
@@ -185,14 +200,17 @@ type QualifiedAPI =
                   ()
          )
 
+-- Old endpoints, predating BaseAPIv3, and therefore API versioning.
 type LegacyAPI =
   ( ZLocalUser
+      :> Until 'V2
       :> "assets"
       :> QueryParam' [Required, Strict] "conv_id" ConvId
       :> Capture "id" AssetId
       :> GetAsset
   )
     :<|> ( ZLocalUser
+             :> Until 'V2
              :> "conversations"
              :> Capture "cnv" ConvId
              :> "assets"
@@ -200,12 +218,91 @@ type LegacyAPI =
              :> GetAsset
          )
     :<|> ( ZLocalUser
+             :> Until 'V2
              :> "conversations"
              :> Capture "cnv" ConvId
              :> "otr"
              :> "assets"
              :> Capture "id" AssetId
              :> GetAsset
+         )
+
+-- | With API versioning, the previous ad-hoc v3/v4 versioning is abandoned, and
+-- asset endpoints are versioned normally as part of the public API, without any
+-- explicit prefix.
+type MainAPI =
+  ( Summary "Renew an asset token"
+      :> From 'V2
+      :> CanThrow 'AssetNotFound
+      :> CanThrow 'Unauthorised
+      :> ZLocalUser
+      :> "assets"
+      :> Capture "key" AssetKey
+      :> "token"
+      :> Post '[JSON] NewAssetToken
+  )
+    :<|> ( Summary "Delete an asset token"
+             :> From 'V2
+             :> Description "**Note**: deleting the token makes the asset public."
+             :> ZLocalUser
+             :> "assets"
+             :> Capture "key" AssetKey
+             :> "token"
+             :> MultiVerb
+                  'DELETE
+                  '[JSON]
+                  '[RespondEmpty 200 "Asset token deleted"]
+                  ()
+         )
+    :<|> ( Summary "Upload an asset"
+             :> From 'V2
+             :> CanThrow 'AssetTooLarge
+             :> CanThrow 'InvalidLength
+             :> ZLocalUser
+             :> "assets"
+             :> AssetBody
+             :> MultiVerb
+                  'POST
+                  '[JSON]
+                  '[ WithHeaders
+                       (AssetLocationHeader Relative)
+                       (Asset, AssetLocation Relative)
+                       (Respond 201 "Asset posted" Asset)
+                   ]
+                  (Asset, AssetLocation Relative)
+         )
+    :<|> ( Summary "Download an asset"
+             :> From 'V2
+             :> Description
+                  "**Note**: local assets result in a redirect, \
+                  \while remote assets are streamed directly."
+             :> ZLocalUser
+             :> "assets"
+             :> QualifiedCapture "key" AssetKey
+             :> Header "Asset-Token" AssetToken
+             :> QueryParam "asset_token" AssetToken
+             :> MultiVerb
+                  'GET
+                  '()
+                  '[ ErrorResponse 'AssetNotFound,
+                     AssetRedirect,
+                     AssetStreaming
+                   ]
+                  (Maybe LocalOrRemoteAsset)
+         )
+    :<|> ( Summary "Delete an asset"
+             :> From 'V2
+             :> Description "**Note**: only local assets can be deleted."
+             :> CanThrow 'AssetNotFound
+             :> CanThrow 'Unauthorised
+             :> ZLocalUser
+             :> "assets"
+             :> QualifiedCapture "key" AssetKey
+             :> MultiVerb
+                  'DELETE
+                  '[JSON]
+                  '[RespondEmpty 200 "Asset deleted"]
+                  ()
          )
 
 swaggerDoc :: Swagger.Swagger

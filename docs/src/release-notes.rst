@@ -29,6 +29,200 @@ specific operations.
 
 The following helm chart versions have been published since then:
 
+Chart Release 4.11.0 (2022-05-04)
+=================================
+
+Release notes
+-------------
+
+* Upgrade webapp version to 2022-05-04-production.0-v0.29.7-0-a6f2ded (#2302)
+
+
+Chart Release 4.10.0 (2022-04-25)
+=================================
+
+Release notes
+-------------
+
+* Note for wire.com operators: deploy nginz (#2270)
+
+* Wire cloud operators: `Update brig's ES index mapping before deploying. After deploying, run a re-index <https://github.com/wireapp/wire-server/blob/master/docs/reference/elastic-search.md>`_. (#2213, #2220)
+
+* Upgrade webapp version to `2022-04-21-production.0 <https://github.com/wireapp/wire-webapp/releases/tag/2022-04-21-production.0>`_. (#2302)
+
+* Upgrade team-settings version to `4.7.0-v0.29.7-0-74b81b8 <https://github.com/wireapp/wire-team-settings/releases/tag/v4.7.0>`_. (#2180)
+
+Features
+--------
+
+* [helm-charts] Allow filtering cassandra nodes by datacenter (#2273)
+
+* MLS implementation progress:
+   - commit messages containing add proposals are now processed (#2247)
+   - do initial validation and forwarding of all types of messages via POST /mls/messages (#2253)
+   - fixed bug where users could not be added to MLS conversations if they had non-MLS clients (#2290)
+   - MLS/Proteus mismatches (e.g. sending a proteus message to an MLS conversation) are now handled (#2278)
+   - the `POST /mls/key-packages/claim` endpoint gained a `skip_own` query parameter, which can be used to avoid claiming a key package for the requesting client itself (#2287)
+
+* The user profiles that are returned by a team admin search now contain the additional fields SAML NameID, IdP Issuer, and SCIM externalId (#2213), and  unvalidated email address (#2220)
+
+* *  Avoid dropping messages when redis is down. (#2295)
+
+Bug fixes and other updates
+---------------------------
+
+* Add missing helm chart mapping for inbound search visibility (#2265)
+
+* Fix bug: User search endpoint hides exact handle results in SearchVisibilityNoNameOutsideTeam setting (#2280)
+
+* backoffice app (aka stern):
+    - Suspending a non-existing user now returns 404 and does not create an empty entry in the DB (#2267)
+    - Support for deleting teams with more than one member (#2275)
+    - Fix update of user email (#2281)
+
+Documentation
+-------------
+
+* Import wire-docs to docs/ (see also #2258)
+
+Internal changes
+----------------
+
+* Migrate API routes from wai-route to servant for better Swagger (#2284, #2277, #2266, #2286, #2294, #2244)
+
+* Update nginx to latest stable: v1.20.2 (#2289)
+
+* Allow additional origins at random ports in nginz Helm chart. This is useful for
+  testing with an HTTP proxy. It should not be used in production. (#2283)
+
+* makdeb and bonanza: remove stack-based Makefiles (#2311)
+
+* Add `skip_reauth` param to internal API for creating clients. This is intended to be used in test. (#2260)
+
+* Removes an unused function in Brig and relocates another one (#2305)
+
+* Print more logs while migrating data in Elasticsearch (#2279)
+
+* Replace the base monad in Brig with the Polysemy Sem monad (#2264, #2288)
+
+* Move the Random effect from Spar to the polysemy-wire-zoo library (#2303)
+
+* Move the Now effect from Spar to a library (#2292)
+
+* Improve readability of user search test cases (#2276)
+
+* Chart/gundeck's 'bulkpush' optimization is now activated by default (after using it in production for some time) (#2293)
+
+* Add an alpha version of a Helm chart for coturn. (#2209)
+
+* Document error handling and simplify error logging (#2274)
+
+* Improve speed of reindexing by increasing the batch size of processing users. (#2200)
+
+* Fix federator integration tests (#2298)
+
+* Switch the Haskell driver used in Gundeck to connect to Redis from 'redis-io' to `hedis <https://hackage.haskell.org/package/hedis>`_., which now supports cluster mode. (#2151)
+
+* Various Galley MLS test improvements and cleanups (#2278)
+
+* Flag for sending a validation email when updating a user's email address via backoffice/stern (#2301)
+
+* Remove stack from all builder docker images (#2312)
+
+* Make internal search-visibility endpoint available to staging environments (#2282)
+
+* Remove TemplateHaskell as a global default extension (#2291)
+
+
+Chart Release 4.9.0 (2022-04-04)
+================================
+
+Release notes
+-------------
+
+* Note for wire.com operators: deploy nginz (#2175)
+
+* Deploy galley before brig (#2248)
+
+* Wire cloud operators: `Update brig's ES index mapping before deploying. After deploying run a reindex <https://github.com/wireapp/wire-server/blob/master/docs/reference/elastic-search.md>`_. (#2241)
+
+* Upgrade webapp version to 2022-03-30-production.0-v0.29.2-0-d144552 (#2246)
+
+
+API changes
+-----------
+
+* New endpoint to get the status of the guest links feature for a conversation that potentially has been created by someone from another team. (#2231)
+
+
+Features
+--------
+
+* Cross-team user search (#2208)
+
+* restund chart: add dtls support (#2227)
+
+* MLS implementation progress:
+
+   - welcome messages are now being propagated (#2175)
+
+* The bot API will be blocked if the 2nd factor authentication team feature is enabled. Please refer to `Server and team feature settings <how-to/install/team-feature-settings.html#nd-factor-password-challenge#nd-factor-password-challenge>`_. (#2207)
+
+* Translations for 2nd factor authentication email templates (#2235)
+
+* Script for creating a team with owner via the public API (#2218)
+
+
+Bug fixes and other updates
+---------------------------
+
+* Conversation rename endpoints now return 204 instead of 404 when the conversation name is unchanged (#2239)
+
+* Revert temporary sftd bump (#2230)
+
+
+Internal changes
+----------------
+
+* Remove the MonadMask instance for AppT in Brig (#2259)
+
+* Remove the MonadUnliftIO instance for the app monad in Brig (#2233)
+
+* Bump hsaml2 version (#2221)
+
+* Fix: cabal-install-artefacts.sh fails if not run from root of wire-server (#2236)
+
+* Fix: pushing to cachix not working (#2257)
+
+* Cannon has been fully migrated to Servant (#2243)
+
+* Refactor conversation record and conversation creation functions. This removes a lot of duplication and makes the types of protocol-specific data in a conversation tighter. (#2234)
+
+   - Move conversation name size check to `NewConv`
+   - Make the `NewConversation` record (used as input to the data
+     function creating a conversation) contain a `ConversationMetadata`.
+   - Implement all "special" conversation creation in terms of a general `createConversation`
+   - Move protocol field from metadata to Conversation
+   - Restructure MLS fields in Conversation record
+   - Factor out metadata fields from Data.Conversation
+
+* Fix Docs: real-world domain used in examples (#2238)
+
+* The `CanThrow` combinator can now be used to set the corresponding error effects in polysemy handlers. (#2239)
+
+* Most error effects in Galley are now defined at the granularity of single error values. For example, a handler throwing `ConvNotFound` will now directly declare `ConvNotFound` (as a promoted constructor) among its error effects, instead of the generic `ConversationError` that was used before. Correspondingly, all such fine-grained Galley errors have been moved to wire-api as constructors of a single enumerated type `GalleyError`, and similarly for Brig, Cannon and Cargohold. (#2239)
+
+* Add a column for MLS clients to the Galley member table (#2245)
+
+* Pin direnv version in nix-hls.sh script (#2232)
+
+* nginx-ingress-services chart: allow for custom challenge solvers (#2222, #2229)
+
+* Remove unused debian Makefile targets (#2237)
+
+* Use local serial consistency for Cassandra lightweight transactions (#2251)
+
+
 Chart Release 4.8.0 (2022-03-30)
 ================================
 
@@ -87,7 +281,7 @@ Features
    - for "add new client" via 6 digit code, sent by email. This only happens inside the login flow (in particular, when logging in from a new device).  The code obtained for logging in is used a second time for adding the device. (#2186)
    - 2nd factor authentication for "delete team" via 6 digit code, sent by email. (#2193)
    - The `SndFactorPasswordChallenge` team feature is locked by default. (#2205)
-   - Details: [/docs/reference/config-options.md#2nd-factor-password-challenge](https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge)
+   - Details: `Server and team feature settings`_
 
 Bug fixes and other updates
 ---------------------------
@@ -203,7 +397,7 @@ Federation changes
 ------------------
 
 * Make restrictions on federated user search configurable by domain: `NoSearch`, `ExactHandleSearch` and `FullSearch`.
-  Details about the configuration are described in [config-options.md](docs/reference/config-options.md).
+  Details about the configuration are described in `config-options.md <https://github.com/wireapp/wire-server/blob/develop/docs/legacy/reference/config-options.md>`__.
   There are sane defaults (*deny to find any users as long as there is no other configuration for the domain*), so no measures have to be taken by on-premise customers (unless the default is not the desired behavior). (#2087)
 
 
@@ -229,7 +423,7 @@ Release notes
    galley.yaml. The feature was disabled by default before this release
    and is now enabled by default. The server wide default can be changed
    in galley.yaml. Please refer to
-   `/docs/reference/config-options.md#validate-saml-emails <https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#validate-saml-emails>`__
+   `/docs/reference/config-options.md#validate-saml-emails <https://github.com/wireapp/wire-server/blob/develop/docs/legacy/reference/config-options.md#validate-saml-emails>`__
    (#2117)
 
 API changes
@@ -290,7 +484,7 @@ Internal changes
    ``sndFactorPasswordChallenge`` added to galley.yaml. The feature is
    disabled by default. The server wide default can be changed in
    galley.yaml. Please refer to
-   `/docs/reference/config-options.md#2nd-factor-password-challenge <https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#2nd-factor-password-challenge>`__
+   `Server and team feature settings`_
    (#2138)
 -  Prometheus: Ignore RawResponses (e.g. cannon’s await responses) from
    metrics (#2108)
@@ -496,7 +690,7 @@ Release notes
 -  You can now configure if personal accounts are allowed to initiate conference calls
    in ``brig.yaml``. ``enabled`` is both the default and
    the previous behavior, so if you are not sure if you need this, it's safe to do nothing. If you want to change the default, read
-   `/docs/reference/config-options.md#conference-calling-1 <https://github.com/wireapp/wire-server/blob/develop/docs/reference/config-options.md#conference-calling-1>`__
+   `/docs/reference/config-options.md#conference-calling-1 <https://github.com/wireapp/wire-server/blob/develop/docs/legacy/reference/config-options.md#conference-calling-1>`__
    (#1811, #1818)
 -  Only if you are an early adopter of multi-team IdP issuers on release
    `2021-09-14 <https://github.com/wireapp/wire-server/releases/tag/v2021-09-14>`__:
@@ -532,7 +726,7 @@ Features
    `ldap-scim-bridge <https://github.com/wireapp/ldap-scim-bridge>`__
    (#1709)
 -  Per-account configuration of conference call initiation (details:
-   /docs/reference/config-options.md#conference-calling-1) (#1811,
+   `/docs/reference/config-options.md#conference-calling-1 <https://github.com/wireapp/wire-server/blob/develop/docs/legacy/reference/config-options.md#conference-calling-1>`__) (#1811,
    #1818)
 
 Bug fixes and other updates
@@ -864,7 +1058,7 @@ Upstream release notes: https://github.com/wireapp/wire-server/blob/develop/CHAN
 Release Notes
 -------------
 
-If you want to set the default for file sharing in all teams to `disabled`, search for "File Sharing" in https://github.com/wireapp/wire-server/tree/develop/docs/reference/config-options.md.
+If you want to set the default for file sharing in all teams to `disabled`, search for "File Sharing" in https://github.com/wireapp/wire-server/tree/develop/docs/legacy/reference/config-options.md.
 
 Release Notes for Wire.com Cloud operators
 ------------------------------------------

@@ -27,6 +27,8 @@ import Test.QuickCheck (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
+import Wire.API.Federation.Version
+import Wire.API.MLS.KeyPackage
 import Wire.API.Message (UserClients)
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
@@ -54,10 +56,9 @@ instance ToJSON SearchResponse
 instance FromJSON SearchResponse
 
 -- | For conventions see /docs/developer/federation-api-conventions.md
---
--- Maybe this module should be called Brig
 type BrigApi =
-  FedEndpoint "get-user-by-handle" Handle (Maybe UserProfile)
+  FedEndpoint "api-version" () VersionInfo
+    :<|> FedEndpoint "get-user-by-handle" Handle (Maybe UserProfile)
     :<|> FedEndpoint "get-users-by-ids" [UserId] [UserProfile]
     :<|> FedEndpoint "claim-prekey" (UserId, ClientId) (Maybe ClientPrekey)
     :<|> FedEndpoint "claim-prekey-bundle" UserId PrekeyBundle
@@ -68,6 +69,7 @@ type BrigApi =
     :<|> FedEndpoint "get-user-clients" GetUserClients (UserMap (Set PubClient))
     :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
     :<|> FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
+    :<|> FedEndpoint "claim-key-packages" ClaimKeyPackageRequest (Maybe KeyPackageBundle)
 
 newtype GetUserClients = GetUserClients
   { gucUsers :: [UserId]
@@ -127,3 +129,14 @@ data UserDeletedConnectionsNotification = UserDeletedConnectionsNotification
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDeletedConnectionsNotification)
   deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConnectionsNotification)
+
+data ClaimKeyPackageRequest = ClaimKeyPackageRequest
+  { -- | The user making the request, implictly qualified by the origin domain.
+    ckprClaimant :: UserId,
+    -- | The user whose key packages are being claimed, implictly qualified by
+    -- the target domain.
+    ckprTarget :: UserId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ClaimKeyPackageRequest)
+  deriving (FromJSON, ToJSON) via (CustomEncoded ClaimKeyPackageRequest)

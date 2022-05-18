@@ -43,7 +43,7 @@ data:
 
     {{- if (.journal) }}
     journal:
-      queueName: {{ .journal.queue }}
+      queueName: {{ .journal.queueName }}
       endpoint: {{ .journal.endpoint }}
     {{- end }}
 

@@ -51,13 +51,16 @@ import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Util
 import Wire.API.Routes.QualifiedCapture
+import Wire.API.Routes.Version
 import Wire.API.ServantProto (Proto, RawProto)
 import Wire.API.Team
 import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold
+import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (..))
 import Wire.API.Team.SearchVisibility (TeamSearchVisibilityView)
+import qualified Wire.API.User as User
 
 instance AsHeaders '[ConvId] Conversation Conversation where
   toHeaders c = (I (qUnqualified (cnvQualifiedId c)) :* Nil, c)
@@ -166,6 +169,7 @@ type ServantAPI =
     :<|> MLSAPI
     :<|> CustomBackendAPI
     :<|> LegalHoldAPI
+    :<|> TeamMemberAPI
 
 type ConversationAPI =
   Named
@@ -225,17 +229,7 @@ type ConversationAPI =
     :<|> Named
            "list-conversation-ids"
            ( Summary "Get all conversation IDs."
-               :> Description
-                    "The IDs returned by this endpoint are paginated. To\
-                    \ get the first page, make a call with the `paging_state` field set to\
-                    \ `null` (or omitted). Whenever the `has_more` field of the response is\
-                    \ set to `true`, more results are available, and they can be obtained\
-                    \ by calling the endpoint again, but this time passing the value of\
-                    \ `paging_state` returned by the previous call. One can continue in\
-                    \ this fashion until all results are returned, which is indicated by\
-                    \ `has_more` being `false`. Note that `paging_state` should be\
-                    \ considered an opaque token. It should not be inspected, or stored, or\
-                    \ reused across multiple unrelated invokations of the endpoint."
+               :> Description PaginationDocs
                :> ZLocalUser
                :> "conversations"
                :> "list-ids"
@@ -248,7 +242,7 @@ type ConversationAPI =
                :> Description
                     "Will not return remote conversations.\n\n\
                     \Use `POST /conversations/list-ids` followed by \
-                    \`POST /conversations/list/v2` instead."
+                    \`POST /conversations/list` instead."
                :> ZLocalUser
                :> "conversations"
                :> QueryParam'
@@ -275,12 +269,23 @@ type ConversationAPI =
                :> Get '[Servant.JSON] (ConversationList Conversation)
            )
     :<|> Named
-           "list-conversations"
+           "list-conversations-v1"
            ( Summary "Get conversation metadata for a list of conversation ids"
+               :> Until 'V2
                :> ZLocalUser
                :> "conversations"
                :> "list"
                :> "v2"
+               :> ReqBody '[Servant.JSON] ListConversations
+               :> Post '[Servant.JSON] ConversationsResponse
+           )
+    :<|> Named
+           "list-conversations"
+           ( Summary "Get conversation metadata for a list of conversation ids"
+               :> From 'V2
+               :> ZLocalUser
+               :> "conversations"
+               :> "list"
                :> ReqBody '[Servant.JSON] ListConversations
                :> Post '[Servant.JSON] ConversationsResponse
            )
@@ -352,6 +357,7 @@ type ConversationAPI =
     :<|> Named
            "add-members-to-conversation-unqualified"
            ( Summary "Add members to an existing conversation (deprecated)"
+               :> Until 'V2
                :> CanThrow ('ActionDenied 'AddConversationMember)
                :> CanThrow ('ActionDenied 'LeaveConversation)
                :> CanThrow 'ConvNotFound
@@ -370,8 +376,9 @@ type ConversationAPI =
                :> MultiVerb 'POST '[JSON] ConvUpdateResponses (UpdateResult Event)
            )
     :<|> Named
-           "add-members-to-conversation"
+           "add-members-to-conversation-unqualified2"
            ( Summary "Add qualified members to an existing conversation."
+               :> Until 'V2
                :> CanThrow ('ActionDenied 'AddConversationMember)
                :> CanThrow ('ActionDenied 'LeaveConversation)
                :> CanThrow 'ConvNotFound
@@ -387,6 +394,27 @@ type ConversationAPI =
                :> Capture "cnv" ConvId
                :> "members"
                :> "v2"
+               :> ReqBody '[Servant.JSON] InviteQualified
+               :> MultiVerb 'POST '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
+           )
+    :<|> Named
+           "add-members-to-conversation"
+           ( Summary "Add qualified members to an existing conversation."
+               :> From 'V2
+               :> CanThrow ('ActionDenied 'AddConversationMember)
+               :> CanThrow ('ActionDenied 'LeaveConversation)
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'InvalidOperation
+               :> CanThrow 'TooManyMembers
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'NotConnected
+               :> CanThrow 'MissingLegalholdConsent
+               :> ZLocalUser
+               :> ZConn
+               :> "conversations"
+               :> QualifiedCapture "cnv" ConvId
+               :> "members"
                :> ReqBody '[Servant.JSON] InviteQualified
                :> MultiVerb 'POST '[Servant.JSON] ConvUpdateResponses (UpdateResult Event)
            )
@@ -1488,6 +1516,156 @@ data GrantConsentResult
   deriving (AsUnion GrantConsentResultResponseTypes) via GenericAsUnion GrantConsentResultResponseTypes GrantConsentResult
 
 instance GSOP.Generic GrantConsentResult
+
+type TeamMemberAPI =
+  Named
+    "get-team-members"
+    ( Summary "Get team members"
+        :> CanThrow 'NotATeamMember
+        :> ZLocalUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "members"
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Maximum results to be returned"
+             ]
+             "maxResults"
+             (Range 1 HardTruncationLimit Int32)
+        :> Get '[JSON] TeamMemberListOptPerms
+    )
+    :<|> Named
+           "get-team-member"
+           ( Summary "Get single team member"
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'TeamMemberNotFound
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "members"
+               :> Capture "uid" UserId
+               :> Get '[JSON] TeamMemberOptPerms
+           )
+    :<|> Named
+           "get-team-members-by-ids"
+           ( Summary "Get team members by user id list"
+               :> Description "The `has_more` field in the response body is always `false`."
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'BulkGetMemberLimitExceeded
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "get-members-by-ids-using-post"
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "Maximum results to be returned"
+                    ]
+                    "maxResults"
+                    (Range 1 HardTruncationLimit Int32)
+               :> ReqBody '[JSON] User.UserIdList
+               :> Post '[JSON] TeamMemberListOptPerms
+           )
+    :<|> Named
+           "add-team-member"
+           ( Summary "Add a new team member"
+               :> CanThrow 'InvalidPermissions
+               :> CanThrow 'NoAddToBinding
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'NotConnected
+               :> CanThrow OperationDenied
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'TooManyTeamMembers
+               :> CanThrow 'UserBindingExists
+               :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
+               :> ZLocalUser
+               :> ZConn
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "members"
+               :> ReqBody '[JSON] NewTeamMember
+               :> MultiVerb1
+                    'POST
+                    '[JSON]
+                    (RespondEmpty 200 "")
+           )
+    :<|> Named
+           "delete-team-member"
+           ( Summary "Remove an existing team member"
+               :> CanThrow AuthenticationError
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'TeamMemberNotFound
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> ZLocalUser
+               :> ZConn
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "members"
+               :> Capture "uid" UserId
+               :> ReqBody '[JSON] TeamMemberDeleteData
+               :> MultiVerb
+                    'DELETE
+                    '[JSON]
+                    TeamMemberDeleteResultResponseType
+                    TeamMemberDeleteResult
+           )
+    :<|> Named
+           "delete-non-binding-team-member"
+           ( Summary "Remove an existing team member"
+               :> CanThrow AuthenticationError
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'TeamMemberNotFound
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> ZLocalUser
+               :> ZConn
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "members"
+               :> Capture "uid" UserId
+               :> MultiVerb
+                    'DELETE
+                    '[JSON]
+                    TeamMemberDeleteResultResponseType
+                    TeamMemberDeleteResult
+           )
+    :<|> Named
+           "update-team-member"
+           ( Summary "Update an existing team member"
+               :> CanThrow 'AccessDenied
+               :> CanThrow 'InvalidPermissions
+               :> CanThrow 'TeamNotFound
+               :> CanThrow 'TeamMemberNotFound
+               :> CanThrow 'NotATeamMember
+               :> CanThrow OperationDenied
+               :> ZLocalUser
+               :> ZConn
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "members"
+               :> ReqBody '[JSON] NewTeamMember
+               :> MultiVerb1
+                    'PUT
+                    '[JSON]
+                    (RespondEmpty 200 "")
+           )
+
+type TeamMemberDeleteResultResponseType =
+  '[ RespondEmpty 202 "Team member scheduled for deletion",
+     RespondEmpty 200 ""
+   ]
+
+data TeamMemberDeleteResult
+  = TeamMemberDeleteAccepted
+  | TeamMemberDeleteCompleted
+  deriving (Generic)
+  deriving (AsUnion TeamMemberDeleteResultResponseType) via GenericAsUnion TeamMemberDeleteResultResponseType TeamMemberDeleteResult
+
+instance GSOP.Generic TeamMemberDeleteResult
 
 -- This is a work-around for the fact that we sometimes want to send larger lists of user ids
 -- in the filter query than fits the url length limit.  For details, see

@@ -1,3 +1,5 @@
+{-# LANGUAGE StandaloneKindSignatures #-}
+{-# LANGUAGE TemplateHaskell #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -14,36 +16,48 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 module Wire.API.Routes.Version
   ( -- * API version endpoint
     VersionAPI,
     VersionInfo (..),
     versionSwagger,
+    versionHeader,
+    VersionHeader,
 
     -- * Version
     Version (..),
     supportedVersions,
+    developmentVersions,
     readVersionNumber,
     mkVersion,
+
+    -- * Servant combinators
+    Until,
+    From,
   )
 where
 
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON, ToJSON (..))
 import qualified Data.Aeson as Aeson
+import Data.Bifunctor
+import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import Data.Schema
+import Data.Singletons.TH
 import qualified Data.Swagger as S
-import qualified Data.Text as Text
-import qualified Data.Text.Read as Text
+import Data.Text as Text
+import Data.Text.Encoding as Text
 import Imports
 import Servant
 import Servant.Swagger
 import Wire.API.Routes.Named
 import Wire.API.VersionInfo
 
-data Version = V0 | V1
+-- | Version of the public API.
+data Version = V0 | V1 | V2
   deriving stock (Eq, Ord, Bounded, Enum, Show)
   deriving (FromJSON, ToJSON) via (Schema Version)
 
@@ -51,26 +65,29 @@ instance ToSchema Version where
   schema =
     enum @Integer "Version" . mconcat $
       [ element 0 V0,
-        element 1 V1
+        element 1 V1,
+        element 2 V2
       ]
 
-readVersionNumber :: Text -> Maybe Integer
-readVersionNumber v = do
-  ('v', rest) <- Text.uncons v
-  case Text.decimal rest of
-    Right (n, "") -> pure n
-    _ -> Nothing
-
-mkVersion :: Integer -> Maybe Version
-mkVersion n = case Aeson.fromJSON (Aeson.Number (fromIntegral n)) of
-  Aeson.Error _ -> Nothing
-  Aeson.Success v -> pure v
+instance FromHttpApiData Version where
+  parseHeader = first Text.pack . Aeson.eitherDecode . LBS.fromStrict
+  parseUrlPiece = parseHeader . Text.encodeUtf8
 
 supportedVersions :: [Version]
 supportedVersions = [minBound .. maxBound]
 
+developmentVersions :: [Version]
+developmentVersions = [V2]
+
+-- | Information related to the public API version.
+--
+-- This record also contains whether federation is enabled and the federation
+-- domain. Clients should fetch this information early when connecting to a
+-- backend, in order to decide how to form request paths, and how to deal with
+-- federated backends and qualified user IDs.
 data VersionInfo = VersionInfo
   { vinfoSupported :: [Version],
+    vinfoDevelopment :: [Version],
     vinfoFederation :: Bool,
     vinfoDomain :: Domain
   }
@@ -81,6 +98,7 @@ instance ToSchema VersionInfo where
     objectWithDocModifier "VersionInfo" (S.schema . S.example ?~ toJSON example) $
       VersionInfo
         <$> vinfoSupported .= vinfoObjectSchema schema
+        <*> vinfoDevelopment .= field "development" (array schema)
         <*> vinfoFederation .= field "federation" schema
         <*> vinfoDomain .= field "domain" schema
     where
@@ -88,6 +106,7 @@ instance ToSchema VersionInfo where
       example =
         VersionInfo
           { vinfoSupported = supportedVersions,
+            vinfoDevelopment = [maxBound],
             vinfoFederation = False,
             vinfoDomain = Domain "example.com"
           }
@@ -101,3 +120,5 @@ type VersionAPI =
 
 versionSwagger :: S.Swagger
 versionSwagger = toSwagger (Proxy @VersionAPI)
+
+$(genSingletons [''Version])

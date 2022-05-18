@@ -17,6 +17,8 @@ Installing wire-server
    (production) How to monitor wire-server <monitoring.rst>
    (production) How to see centralized logs for wire-server <logging.rst>
    (production) Other configuration options <configuration-options.rst>
+   Server and team feature settings <team-feature-settings.md>
+   Web app settings <web-app-settings.md>
    sft
    restund
    configure-federation

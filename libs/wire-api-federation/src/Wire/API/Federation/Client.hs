@@ -20,9 +20,11 @@
 
 module Wire.API.Federation.Client
   ( FederatorClientEnv (..),
+    FederatorClientVersionedEnv (..),
     FederatorClient,
     runFederatorClient,
     runFederatorClientToCodensity,
+    runVersionedFederatorClientToCodensity,
     performHTTP2Request,
     withHTTP2Request,
     streamingResponseStrictBody,
@@ -34,6 +36,7 @@ import qualified Control.Exception as E
 import Control.Monad.Catch
 import Control.Monad.Codensity
 import Control.Monad.Except
+import Control.Monad.Trans.Maybe
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder
@@ -41,6 +44,7 @@ import Data.ByteString.Conversion (toByteString')
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
 import qualified Data.Sequence as Seq
+import qualified Data.Set as Set
 import Data.Streaming.Network
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Encoding.Error as Text
@@ -49,10 +53,11 @@ import Foreign.Marshal.Alloc
 import Imports
 import qualified Network.HPACK as HTTP2
 import qualified Network.HPACK.Token as HTTP2
+import qualified Network.HTTP.Media as HTTP
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP2.Client as HTTP2
 import qualified Network.Socket as NS
-import Network.TLS as TLS
+import qualified Network.TLS as TLS
 import qualified Network.Wai.Utilities.Error as Wai
 import Servant.Client
 import Servant.Client.Core
@@ -62,6 +67,8 @@ import Util.Options (Endpoint (..))
 import Wire.API.Federation.Component
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Federation.Error
+import Wire.API.Federation.Version
+import Wire.API.VersionInfo
 
 data FederatorClientEnv = FederatorClientEnv
   { ceOriginDomain :: Domain,
@@ -69,19 +76,40 @@ data FederatorClientEnv = FederatorClientEnv
     ceFederator :: Endpoint
   }
 
+data FederatorClientVersionedEnv = FederatorClientVersionedEnv
+  { cveEnv :: FederatorClientEnv,
+    cveVersion :: Maybe Version
+  }
+
+-- | A request to a remote backend. The API version of the remote backend is in
+-- the environment. The 'MaybeT' layer is used to match endpoint versions (via
+-- the 'Alternative' and 'VersionedMonad' instances).
 newtype FederatorClient (c :: Component) a = FederatorClient
-  {unFederatorClient :: ReaderT FederatorClientEnv (ExceptT FederatorClientError (Codensity IO)) a}
+  { unFederatorClient ::
+      MaybeT
+        ( ReaderT
+            FederatorClientVersionedEnv
+            (ExceptT FederatorClientError (Codensity IO))
+        )
+        a
+  }
   deriving newtype
     ( Functor,
+      Alternative,
       Applicative,
       Monad,
-      MonadReader FederatorClientEnv,
+      MonadReader FederatorClientVersionedEnv,
       MonadError FederatorClientError,
       MonadIO
     )
 
+instance VersionedMonad Version (FederatorClient c) where
+  guardVersion p = do
+    v <- asks cveVersion
+    guard (maybe True p v)
+
 liftCodensity :: Codensity IO a -> FederatorClient c a
-liftCodensity = FederatorClient . lift . lift
+liftCodensity = FederatorClient . lift . lift . lift
 
 headersFromTable :: HTTP2.HeaderTable -> [HTTP.Header]
 headersFromTable (headerList, _) = flip map headerList $ \(token, headerValue) ->
@@ -178,6 +206,7 @@ streamingResponseStrictBody resp =
     . responseBody
     $ resp
 
+-- Perform a streaming request to the local federator.
 withHTTP2StreamingRequest ::
   forall c a.
   KnownComponent c =>
@@ -186,7 +215,7 @@ withHTTP2StreamingRequest ::
   (StreamingResponse -> IO a) ->
   FederatorClient c a
 withHTTP2StreamingRequest successfulStatus req handleResponse = do
-  env <- ask
+  env <- asks cveEnv
   let baseUrlPath =
         HTTP.encodePathSegments
           [ "rpc",
@@ -194,12 +223,15 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
             componentName (componentVal @c)
           ]
   let path = baseUrlPath <> requestPath req
-  body <- case requestBody req of
-    Just (RequestBodyLBS lbs, _) -> pure lbs
-    Just (RequestBodyBS bs, _) -> pure (LBS.fromStrict bs)
-    Just (RequestBodySource _, _) ->
-      throwError FederatorClientStreamingNotSupported
-    Nothing -> pure mempty
+
+  body <- do
+    body <- case requestBody req of
+      Just (RequestBodyLBS lbs, _) -> pure lbs
+      Just (RequestBodyBS bs, _) -> pure (LBS.fromStrict bs)
+      Just (RequestBodySource _, _) ->
+        throwError FederatorClientStreamingNotSupported
+      Nothing -> pure mempty
+    pure body
   let req' =
         HTTP2.requestBuilder
           (requestMethod req)
@@ -273,14 +305,52 @@ runFederatorClient env =
     . runFederatorClientToCodensity env
 
 runFederatorClientToCodensity ::
+  forall c a.
   KnownComponent c =>
   FederatorClientEnv ->
   FederatorClient c a ->
   Codensity IO (Either FederatorClientError a)
-runFederatorClientToCodensity env =
-  runExceptT
-    . flip runReaderT env
+runFederatorClientToCodensity env action = runExceptT $ do
+  v <-
+    runVersionedFederatorClientToCodensity
+      (FederatorClientVersionedEnv env Nothing)
+      versionNegotiation
+  runVersionedFederatorClientToCodensity @c
+    (FederatorClientVersionedEnv env (Just v))
+    action
+
+runVersionedFederatorClientToCodensity ::
+  KnownComponent c =>
+  FederatorClientVersionedEnv ->
+  FederatorClient c a ->
+  ExceptT FederatorClientError (Codensity IO) a
+runVersionedFederatorClientToCodensity env =
+  flip runReaderT env
+    . (maybe (E.throw FederatorClientVersionMismatch) pure =<<)
+    . runMaybeT
     . unFederatorClient
+
+versionNegotiation :: FederatorClient 'Brig Version
+versionNegotiation =
+  let req =
+        defaultRequest
+          { requestPath = "/api-version",
+            requestBody = Just (RequestBodyLBS (Aeson.encode ()), "application" HTTP.// "json"),
+            requestHeaders = [],
+            requestMethod = HTTP.methodPost
+          }
+   in withHTTP2StreamingRequest @'Brig HTTP.statusIsSuccessful req $ \resp -> do
+        body <- toLazyByteString <$> streamingResponseStrictBody resp
+        remoteVersions <- case Aeson.decode body of
+          Nothing -> E.throw (FederatorClientVersionNegotiationError InvalidVersionInfo)
+          Just info -> pure (Set.fromList (vinfoSupported info))
+        case Set.lookupMax (Set.intersection remoteVersions supportedVersions) of
+          Just v -> pure v
+          Nothing ->
+            E.throw . FederatorClientVersionNegotiationError $
+              if Set.lookupMax supportedVersions > Set.lookupMax remoteVersions
+                then RemoteTooOld
+                else RemoteTooNew
 
 freeTLSConfig :: HTTP2.Config -> IO ()
 freeTLSConfig cfg = free (HTTP2.confWriteBuffer cfg)

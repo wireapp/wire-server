@@ -33,7 +33,6 @@ import Data.Singletons
 import Federator.MockServer (FederatedRequest (..))
 import Galley.Types
 import Galley.Types.Conversations.Roles
-import Gundeck.Types.Notification (Notification (..))
 import Imports
 import Network.Wai.Utilities.Error
 import Test.Tasty
@@ -47,6 +46,7 @@ import Wire.API.Conversation.Action
 import Wire.API.Event.Conversation
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Component
+import Wire.API.Internal.Notification (Notification (..))
 
 tests :: IO TestSetup -> TestTree
 tests s =

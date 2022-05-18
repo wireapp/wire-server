@@ -65,6 +65,7 @@ Errors in this category are returned in case of communication issues between the
  - **Connection refused** (status: 521, label: `federation-connection-refused`): The local federator could not connect to a remote one. This could be transient, so clients should retry the request.
  - **TLS failure**: (status: 525, label: `federation-tls-error`): An error occurred during the TLS handshake between the local federator and a remote one. This is most likely due to an issue with the certificate on the remote end.
  - **Remote federation error** (status: 533, label: `federation-remote-error`): The remote backend could not process a request coming from this backend. Check the error message for more details.
+ - **Version negotiation error** (status: 533, label: `federation-version-error`): The remote backend returned invalid version information.
 
 ### Backend compatibility errors
 

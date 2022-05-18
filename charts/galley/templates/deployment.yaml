@@ -27,23 +27,20 @@ spec:
         checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
       volumes:
         - name: "galley-config"
           configMap:
             name: "galley"
-        - name: "galley-secrets"
-          secret:
-            secretName: "galley"
       containers:
         - name: galley
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           volumeMounts:
-          - name: "galley-secrets"
-            mountPath: "/etc/wire/galley/secrets"
           - name: "galley-config"
             mountPath: "/etc/wire/galley/conf"
           env:
+          {{- if hasKey .Values.secrets "awsKeyId" }}
           - name: AWS_ACCESS_KEY_ID
             valueFrom:
               secretKeyRef:
@@ -54,6 +51,7 @@ spec:
               secretKeyRef:
                 name: galley
                 key: awsSecretKey
+          {{- end }}
           - name: AWS_REGION
             value: "{{ .Values.config.aws.region }}"
           {{- with .Values.config.proxy }}

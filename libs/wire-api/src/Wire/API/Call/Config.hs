@@ -243,7 +243,7 @@ data TurnURI = TurnURI
     _turiPort :: Port,
     _turiTransport :: Maybe Transport
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Ord, Generic)
 
 turnURI :: Scheme -> TurnHost -> Port -> Maybe Transport -> TurnURI
 turnURI = TurnURI
@@ -293,7 +293,7 @@ instance Arbitrary TurnURI where
 data Scheme
   = SchemeTurn
   | SchemeTurns
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform Scheme)
 
 instance BC.ToByteString Scheme where
@@ -318,7 +318,7 @@ instance FromJSON Scheme where
 data TurnHost
   = TurnHostIp IpAddr
   | TurnHostName Text
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Ord, Generic)
   deriving anyclass (ToJSON, FromJSON)
 
 instance BC.FromByteString TurnHost where
@@ -360,7 +360,7 @@ parseTurnHost h = case BC.fromByteString host of
 data Transport
   = TransportUDP
   | TransportTCP
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform Transport)
 
 instance BC.ToByteString Transport where

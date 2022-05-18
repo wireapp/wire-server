@@ -14,12 +14,13 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Wire.API.Federation.API.Galley where
 
 import Data.Aeson (FromJSON, ToJSON)
-import Data.Id (ClientId, ConvId, UserId)
-import Data.Json.Util (Base64ByteString)
+import Data.Id
+import Data.Json.Util
 import Data.Misc (Milliseconds)
 import Data.Qualified
 import Data.Range
@@ -31,6 +32,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName)
+import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
 import Wire.API.Message
@@ -57,6 +59,8 @@ type GalleyApi =
     -- this backend
     :<|> FedEndpoint "send-message" MessageSendRequest MessageSendResponse
     :<|> FedEndpoint "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
+    :<|> FedEndpoint "update-conversation" ConversationUpdateRequest ConversationUpdateResponse
+    :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest ()
 
 data GetConversationsRequest = GetConversationsRequest
   { gcrUserId :: UserId,
@@ -229,3 +233,40 @@ data UserDeletedConversationsNotification = UserDeletedConversationsNotification
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform UserDeletedConversationsNotification)
   deriving (FromJSON, ToJSON) via (CustomEncoded UserDeletedConversationsNotification)
+
+data ConversationUpdateRequest = ConversationUpdateRequest
+  { -- | The user that is attempting to perform the action. This is qualified
+    -- implicitly by the origin domain
+    curUser :: UserId,
+    -- | Id of conversation the action should be performed on. The is qualified
+    -- implicity by the owning backend which receives this request.
+    curConvId :: ConvId,
+    curAction :: SomeConversationAction
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ConversationUpdateRequest)
+  deriving (FromJSON, ToJSON) via (CustomEncoded ConversationUpdateRequest)
+
+data ConversationUpdateResponse
+  = ConversationUpdateResponseError GalleyError
+  | ConversationUpdateResponseUpdate ConversationUpdate
+  | ConversationUpdateResponseNoChanges
+  deriving stock (Eq, Show, Generic)
+  deriving
+    (ToJSON, FromJSON)
+    via (CustomEncoded ConversationUpdateResponse)
+
+newtype MLSWelcomeRecipient = MLSWelcomeRecipient {unMLSWelRecipient :: (UserId, ClientId)}
+  deriving stock (Generic)
+  deriving (Arbitrary) via (GenericUniform MLSWelcomeRecipient)
+  deriving (FromJSON, ToJSON) via CustomEncoded MLSWelcomeRecipient
+  deriving newtype (Show, Eq)
+
+data MLSWelcomeRequest = MLSWelcomeRequest
+  { mwrRawWelcome :: Base64ByteString,
+    -- | These are qualified implicitly by the target domain
+    mwrRecipients :: [MLSWelcomeRecipient]
+  }
+  deriving stock (Generic)
+  deriving (Arbitrary) via (GenericUniform MLSWelcomeRequest)
+  deriving (FromJSON, ToJSON) via (CustomEncoded MLSWelcomeRequest)

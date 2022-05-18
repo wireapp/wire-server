@@ -23,9 +23,11 @@ module Brig.Calling.API
     -- * Exposed for testing purposes
     newConfig,
     CallsConfigVersion (..),
+    NoTurnServers,
   )
 where
 
+import Brig.API.Error
 import Brig.API.Handler
 import Brig.App
 import Brig.Calling
@@ -34,14 +36,13 @@ import Brig.Calling.Internal
 import Brig.Effects.SFT
 import Brig.Options (ListAllSFTServers (..))
 import qualified Brig.Options as Opt
-import Control.Error (hush)
+import Control.Error (hush, throwE)
 import Control.Lens
 import Data.ByteString.Conversion
 import Data.ByteString.Lens
 import Data.Id
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.List1 as List1
 import Data.Misc (HttpsUrl)
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
@@ -56,11 +57,13 @@ import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import OpenSSL.EVP.Digest (Digest, hmacBS)
 import Polysemy
-import Polysemy.TinyLog
+import qualified Polysemy.Error as Polysemy
+import qualified System.Logger.Class as Log
 import qualified System.Random.MWC as MWC
 import Wire.API.Call.Config (SFTServer)
 import qualified Wire.API.Call.Config as Public
 import Wire.Network.DNS.SRV (srvTarget)
+import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 
 routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
@@ -101,17 +104,33 @@ getCallsConfigV2H (_ ::: uid ::: connid ::: limit) =
 -- | ('UserId', 'ConnId' are required as args here to make sure this is an authenticated end-point.)
 getCallsConfigV2 :: UserId -> ConnId -> Maybe (Range 1 10 Int) -> (Handler r) Public.RTCConfiguration
 getCallsConfigV2 _ _ limit = do
-  env <- liftIO . readIORef =<< view turnEnvV2
+  env <- view turnEnv
   staticUrl <- view $ settings . Opt.sftStaticUrl
   sftListAllServers <- fromMaybe Opt.HideAllSFTServers <$> view (settings . Opt.sftListAllServers)
   sftEnv' <- view sftEnv
   logger <- view applog
   manager <- view httpManager
-  liftIO
-    . runM @IO
-    . runTinyLog logger
-    . interpretSFT manager
-    $ newConfig env staticUrl sftEnv' limit sftListAllServers CallsConfigV2
+  discoveredServers <- turnServersV2 (env ^. turnServers)
+  eitherConfig <-
+    liftIO
+      . runM @IO
+      . loggerToTinyLog logger
+      . interpretSFT manager
+      . Polysemy.runError
+      $ newConfig env discoveredServers staticUrl sftEnv' limit sftListAllServers CallsConfigV2
+  handleNoTurnServers eitherConfig
+
+-- | Throws '500 Internal Server Error' when no turn servers are found. This is
+-- done to keep backwards compatiblity, the previous code initialized an 'IORef'
+-- with an 'error' so reading the 'IORef' threw a 500.
+--
+-- FUTUREWORK: Making this a '404 Not Found' would be more idiomatic, but this
+-- should be done after consulting with client teams.
+handleNoTurnServers :: Either NoTurnServers a -> (Handler r) a
+handleNoTurnServers (Right x) = pure x
+handleNoTurnServers (Left NoTurnServers) = do
+  Log.err $ Log.msg (Log.val "Call config requested before TURN URIs could be discovered.")
+  throwE $ StdError internalServerError
 
 getCallsConfigH :: JSON ::: UserId ::: ConnId -> (Handler r) Response
 getCallsConfigH (_ ::: uid ::: connid) =
@@ -119,15 +138,19 @@ getCallsConfigH (_ ::: uid ::: connid) =
 
 getCallsConfig :: UserId -> ConnId -> (Handler r) Public.RTCConfiguration
 getCallsConfig _ _ = do
-  env <- liftIO . readIORef =<< view turnEnv
+  env <- view turnEnv
   logger <- view applog
   manager <- view httpManager
-  fmap dropTransport
-    . liftIO
-    . runM @IO
-    . runTinyLog logger
-    . interpretSFT manager
-    $ newConfig env Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
+  discoveredServers <- turnServersV1 (env ^. turnServers)
+  eitherConfig <-
+    (dropTransport <$$>)
+      . liftIO
+      . runM @IO
+      . loggerToTinyLog logger
+      . interpretSFT manager
+      . Polysemy.runError
+      $ newConfig env discoveredServers Nothing Nothing Nothing HideAllSFTServers CallsConfigDeprecated
+  handleNoTurnServers eitherConfig
   where
     -- In order to avoid being backwards incompatible, remove the `transport` query param from the URIs
     dropTransport :: Public.RTCConfiguration -> Public.RTCConfiguration
@@ -140,24 +163,32 @@ data CallsConfigVersion
   = CallsConfigDeprecated
   | CallsConfigV2
 
+data NoTurnServers = NoTurnServers
+  deriving (Show)
+
+instance Exception NoTurnServers
+
 -- | FUTUREWORK: It is not reflected in the function type the part of the
 -- business logic that says that the SFT static URL parameter cannot be set at
 -- the same time as the SFT environment parameter. See how to allow either none
 -- to be set or only one of them (perhaps Data.These combined with error
 -- handling).
 newConfig ::
-  Members [Embed IO, SFT] r =>
-  Calling.Env ->
+  Members [Embed IO, SFT, Polysemy.Error NoTurnServers] r =>
+  Calling.TurnEnv ->
+  Discovery (NonEmpty Public.TurnURI) ->
   Maybe HttpsUrl ->
   Maybe SFTEnv ->
   Maybe (Range 1 10 Int) ->
   ListAllSFTServers ->
   CallsConfigVersion ->
   Sem r Public.RTCConfiguration
-newConfig env sftStaticUrl mSftEnv limit listAllServers version = do
+newConfig env discoveredServers sftStaticUrl mSftEnv limit listAllServers version = do
   let (sha, secret, tTTL, cTTL, prng) = (env ^. turnSHA512, env ^. turnSecret, env ^. turnTokenTTL, env ^. turnConfigTTL, env ^. turnPrng)
   -- randomize list of servers (before limiting the list, to ensure not always the same servers are chosen if limit is set)
-  randomizedUris <- liftIO $ randomize (List1.toNonEmpty $ env ^. turnServers)
+  randomizedUris <-
+    liftIO . randomize
+      =<< Polysemy.note NoTurnServers (discoveryToMaybe discoveredServers)
   let limitedUris = case limit of
         Nothing -> randomizedUris
         Just lim -> limitedList randomizedUris lim

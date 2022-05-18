@@ -67,7 +67,6 @@ import Data.Vector (Vector)
 import qualified Data.Vector as Vec
 import Federator.MockServer (FederatedRequest (..), MockException (..))
 import Galley.Types.Teams (noPermissions)
-import Gundeck.Types.Notification
 import Imports hiding (head)
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP.Types as Http
@@ -87,6 +86,7 @@ import qualified Wire.API.Asset as Asset
 import Wire.API.Federation.API.Brig (UserDeletedConnectionsNotification (..))
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Federation.API.Common (EmptyResponse (EmptyResponse))
+import Wire.API.Internal.Notification
 import Wire.API.Team.Invitation (Invitation (inInvitation))
 import Wire.API.User (ListUsersQuery (..))
 import Wire.API.User.Identity (mkSampleUref, mkSimpleSampleUref)
@@ -608,7 +608,7 @@ testUserInvalidDomain brig = do
   get (brig . paths ["users", "invalid.example.com", toByteString' uid] . zUser uid)
     !!! do
       const 422 === statusCode
-      const (Just "/federation/get-users-by-ids")
+      const (Just "/federation/api-version")
         === preview (ix "data" . ix "path") . responseJsonUnsafe @Value
       const (Just "invalid.example.com")
         === preview (ix "data" . ix "domain") . responseJsonUnsafe @Value

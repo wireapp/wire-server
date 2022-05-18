@@ -91,7 +91,7 @@ This requires a range of dependencies that depend on your platform/OS, such as:
 - Haskell & Rust compiler and package managers
 - Some package dependencies (libsodium, openssl, protobuf, icu, geoip, snappy, [cryptobox-c](https://github.com/wireapp/cryptobox-c), ...) that depend on your platform/OS
 
-See [docs/developer/dependencies.md](docs/developer/dependencies.md) for details.
+See [docs/developer/dependencies.md](docs/legacy/developer/dependencies.md) for details.
 
 Once all dependencies are set up, the following should succeed:
 

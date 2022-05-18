@@ -29,9 +29,9 @@ import Polysemy.Error
 import Spar.Error (SparError)
 import qualified Spar.Intra.Galley as Intra
 import Spar.Sem.GalleyAccess
-import Spar.Sem.Logger (Logger)
 import Spar.Sem.Utils
 import qualified System.Logger as TinyLog
+import Wire.Sem.Logger (Logger)
 
 galleyAccessToHttp ::
   Members '[Logger (TinyLog.Msg -> TinyLog.Msg), Error SparError, Embed IO] r =>

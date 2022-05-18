@@ -1,0 +1,3 @@
+redis-cluster:
+  usePassword: false
+  fullnameOverride: "redis-cluster"

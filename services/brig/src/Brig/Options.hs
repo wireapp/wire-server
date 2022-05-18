@@ -30,6 +30,7 @@ import qualified Brig.ZAuth as ZAuth
 import Control.Applicative
 import qualified Control.Lens as Lens
 import Data.Aeson (defaultOptions, fieldLabelModifier, genericParseJSON, withText)
+import qualified Data.Aeson as A
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (typeMismatch)
 import qualified Data.Char as Char
@@ -297,13 +298,8 @@ instance FromJSON ZAuthOpts
 
 -- | TURN server options
 data TurnOpts = TurnOpts
-  { -- | Line separated file with IP addresses of
-    --   available TURN servers supporting UDP
-    servers :: !FilePath,
-    -- | Line separated file with hostnames of all
-    --   available TURN servers with all protocols
-    --   and transports
-    serversV2 :: !FilePath,
+  { -- | Where to get list of turn servers from
+    serversSource :: !TurnServersSource,
     -- | TURN shared secret file path
     secret :: !FilePath,
     -- | For how long TURN credentials should be
@@ -313,9 +309,49 @@ data TurnOpts = TurnOpts
     --   should be fetched, in seconds
     configTTL :: !Word32
   }
-  deriving (Show, Generic)
+  deriving (Show)
 
-instance FromJSON TurnOpts
+instance FromJSON TurnOpts where
+  parseJSON = A.withObject "TurnOpts" $ \o -> do
+    sourceName <- o .: "serversSource"
+    source <-
+      case sourceName of
+        "files" -> TurnSourceFiles <$> A.parseJSON (A.Object o)
+        "dns" -> TurnSourceDNS <$> A.parseJSON (A.Object o)
+        _ -> fail $ "TurnOpts: Invalid sourceType, expected one of [files, dns] but got: " <> Text.unpack sourceName
+    TurnOpts source
+      <$> o .: "secret"
+      <*> o .: "tokenTTL"
+      <*> o .: "configTTL"
+
+data TurnServersSource
+  = TurnSourceDNS TurnDnsOpts
+  | TurnSourceFiles TurnServersFiles
+  deriving (Show)
+
+data TurnServersFiles = TurnServersFiles
+  { tsfServers :: !FilePath,
+    tsfServersV2 :: !FilePath
+  }
+  deriving (Show)
+
+instance FromJSON TurnServersFiles where
+  parseJSON = A.withObject "TurnServersFiles" $ \o ->
+    TurnServersFiles
+      <$> o .: "servers"
+      <*> o .: "serversV2"
+
+data TurnDnsOpts = TurnDnsOpts
+  { tdoBaseDomain :: DNS.Domain,
+    tdoDiscoveryIntervalSeconds :: !(Maybe DiffTime)
+  }
+  deriving (Show)
+
+instance FromJSON TurnDnsOpts where
+  parseJSON = A.withObject "TurnDnsOpts" $ \o ->
+    TurnDnsOpts
+      <$> (asciiOnly =<< o .: "baseDomain")
+      <*> o .:? "discoveryIntervalSeconds"
 
 -- | Configurations for whether to show a user's email to others.
 data EmailVisibility
@@ -358,28 +394,6 @@ instance ToSchema ListAllSFTServers where
         [ element "enabled" ListAllSFTServers,
           element "disabled" HideAllSFTServers
         ]
-
-data AllowedUserSearch
-  = NoSearch
-  | ExactHandleSearch
-  | FullSearch
-  deriving (Show, Generic, Enum, Bounded)
-
-instance ToJSON AllowedUserSearch where
-  toJSON NoSearch = "no_search"
-  toJSON ExactHandleSearch = "exact_handle_search"
-  toJSON FullSearch = "full_search"
-
-instance FromJSON AllowedUserSearch where
-  parseJSON = withText "AllowedUserSearch" $ \case
-    "no_search" -> pure NoSearch
-    "exact_handle_search" -> pure ExactHandleSearch
-    "full_search" -> pure FullSearch
-    _ ->
-      fail $
-        "unexpected value for AllowedUserSearch settings: "
-          <> "expected one of "
-          <> show (Aeson.encode <$> [(minBound :: AllowedUserSearch) ..])
 
 data FederationDomainConfig = FederationDomainConfig
   { domain :: Domain,
@@ -569,7 +583,9 @@ data Settings = Settings
     -- field. The default setting is to exclude and omit the field from the
     -- response.
     setSftListAllServers :: Maybe ListAllSFTServers,
-    setKeyPackageMaximumLifetime :: Maybe NominalDiffTime
+    setKeyPackageMaximumLifetime :: Maybe NominalDiffTime,
+    -- | When set, development API versions are advertised to clients.
+    setEnableDevelopmentVersions :: Maybe Bool
   }
   deriving (Show, Generic)
 
@@ -715,12 +731,12 @@ instance FromJSON SFTOptions where
       <*> (mapM asciiOnly =<< o .:? "sftSRVServiceName")
       <*> (secondsToDiffTime <$$> o .:? "sftDiscoveryIntervalSeconds")
       <*> (o .:? "sftListLength")
-    where
-      asciiOnly :: Text -> Y.Parser ByteString
-      asciiOnly t =
-        if Text.all Char.isAscii t
-          then pure $ Text.encodeUtf8 t
-          else fail $ "Expected ascii string only, found: " <> Text.unpack t
+
+asciiOnly :: Text -> Y.Parser ByteString
+asciiOnly t =
+  if Text.all Char.isAscii t
+    then pure $ Text.encodeUtf8 t
+    else fail $ "Expected ascii string only, found: " <> Text.unpack t
 
 defMaxKeyLen :: Int64
 defMaxKeyLen = 1024
@@ -740,8 +756,8 @@ defUserMaxPermClients = 7
 defSftServiceName :: ByteString
 defSftServiceName = "_sft"
 
-defSftDiscoveryIntervalSeconds :: DiffTime
-defSftDiscoveryIntervalSeconds = secondsToDiffTime 10
+defSrvDiscoveryIntervalSeconds :: DiffTime
+defSrvDiscoveryIntervalSeconds = secondsToDiffTime 10
 
 defSftListLength :: Range 1 100 Int
 defSftListLength = unsafeRange 5
@@ -774,7 +790,8 @@ instance FromJSON Opts
 Lens.makeLensesFor
   [ ("optSettings", "optionSettings"),
     ("elasticsearch", "elasticsearchL"),
-    ("sft", "sftL")
+    ("sft", "sftL"),
+    ("turn", "turnL")
   ]
   ''Opts
 
@@ -788,7 +805,8 @@ Lens.makeLensesFor
     ("setSqsThrottleMillis", "sqsThrottleMillis"),
     ("setSftStaticUrl", "sftStaticUrl"),
     ("setSftListAllServers", "sftListAllServers"),
-    ("setFederationDomainConfigs", "federationDomainConfigs")
+    ("setFederationDomainConfigs", "federationDomainConfigs"),
+    ("setEnableDevelopmentVersions", "enableDevelopmentVersions")
   ]
   ''Settings
 
@@ -801,3 +819,5 @@ Lens.makeLensesFor
   ''ElasticSearchOpts
 
 Lens.makeLensesFor [("sftBaseDomain", "sftBaseDomainL")] ''SFTOptions
+
+Lens.makeLensesFor [("serversSource", "serversSourceL")] ''TurnOpts

@@ -11,8 +11,12 @@ spec:
   - hosts:
       - {{ .Values.config.dns.https }}
       - {{ .Values.config.dns.ssl }}
+{{- if .Values.webapp.enabled }}
       - {{ .Values.config.dns.webapp }}
+{{- end }}
+{{- if .Values.fakeS3.enabled }}
       - {{ .Values.config.dns.fakeS3 }}
+{{- end }}
 {{- if .Values.teamSettings.enabled }}
       - {{ .Values.config.dns.teamSettings }}
 {{- end }}
@@ -35,6 +39,7 @@ spec:
             backend:
               serviceName: nginz-tcp
               servicePort: {{ .Values.service.nginz.externalTcpPort }}
+{{- if .Values.webapp.enabled }}
     - host: {{ .Values.config.dns.webapp }}
       http:
         paths:
@@ -42,6 +47,8 @@ spec:
             backend:
               serviceName: webapp-http
               servicePort: {{ .Values.service.webapp.externalPort }}
+{{- end }}
+{{- if .Values.fakeS3.enabled }}
     - host: {{ .Values.config.dns.fakeS3 }}
       http:
         paths:
@@ -49,6 +56,7 @@ spec:
             backend:
               serviceName: {{ .Values.service.s3.serviceName }}
               servicePort: {{ .Values.service.s3.externalPort }}
+{{- end }}
 {{- if .Values.teamSettings.enabled }}
     - host: {{ .Values.config.dns.teamSettings }}
       http:

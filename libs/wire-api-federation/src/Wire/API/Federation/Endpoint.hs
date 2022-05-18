@@ -21,10 +21,19 @@ import Servant.API
 import Wire.API.Federation.Domain
 import Wire.API.Routes.Named
 
-type FedEndpoint name input output =
+type family ApplyMods (mods :: [*]) api where
+  ApplyMods '[] api = api
+  ApplyMods (x ': xs) api = x :> ApplyMods xs api
+
+type FedEndpointWithMods (mods :: [*]) name input output =
   Named
     name
-    (name :> OriginDomainHeader :> ReqBody '[JSON] input :> Post '[JSON] output)
+    ( ApplyMods
+        mods
+        (name :> OriginDomainHeader :> ReqBody '[JSON] input :> Post '[JSON] output)
+    )
+
+type FedEndpoint name input output = FedEndpointWithMods '[] name input output
 
 type StreamingFedEndpoint name input output =
   Named

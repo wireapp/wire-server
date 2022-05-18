@@ -71,7 +71,6 @@ import qualified Galley.Env as Galley
 import Galley.Options (optSettings, setFeatureFlags)
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Teams
-import Gundeck.Types.Notification (ntfPayload)
 import Imports
 import Network.HTTP.Types.Status (status200, status400, status404)
 import Network.Wai as Wai
@@ -90,6 +89,7 @@ import TestSetup
 import Wire.API.Connection (UserConnection)
 import qualified Wire.API.Connection as Conn
 import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
+import Wire.API.Internal.Notification (ntfPayload)
 import qualified Wire.API.Message as Msg
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Team.Feature as Public

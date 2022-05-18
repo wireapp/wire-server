@@ -1,3 +1,4 @@
+# FUTUREWORK: move services into the respective charts
 apiVersion: v1
 kind: Service
 metadata:
@@ -21,6 +22,7 @@ spec:
       targetPort: 8081
   selector:
     wireService: nginz
+{{- if .Values.webapp.enabled }}
 ---
 apiVersion: v1
 kind: Service
@@ -33,6 +35,7 @@ spec:
       targetPort: 8080
   selector:
     wireService: webapp
+{{- end }}
 {{- if not .Values.service.s3.externallyCreated }}
 ---
 apiVersion: v1

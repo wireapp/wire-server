@@ -34,7 +34,7 @@ import qualified Data.ByteString.Lazy as Lazy
 import Data.Id
 import Data.Misc (Milliseconds)
 import Database.Redis
-import Gundeck.Monad (Gundeck, posixTime)
+import Gundeck.Monad (Gundeck, posixTime, runWithAdditionalRedis)
 import Gundeck.Types
 import Gundeck.Util.Redis
 import Imports
@@ -62,7 +62,7 @@ add p = do
   let k = toKey (userId p)
   let v = toField (connId p)
   let d = Lazy.toStrict $ encode $ PresenceData (resource p) (clientId p) now
-  retry x3 $ do
+  runWithAdditionalRedis . retry x3 $ do
     void . (fromTxResult =<<) . liftRedis . multiExec $ do
       void $ hset k v d
       -- nb. All presences of a user are expired 'maxIdleTime' after the

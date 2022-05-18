@@ -62,6 +62,7 @@ import Network.Wai.Utilities.Request (JsonRequest, lookupRequestId, parseBody)
 import Network.Wai.Utilities.Response (addHeader, json, setStatus)
 import qualified Network.Wai.Utilities.Server as Server
 import qualified Servant
+import qualified System.Logger as Log
 import System.Logger.Class (Logger)
 import Wire.API.Error
 import Wire.API.Error.Brig
@@ -79,17 +80,21 @@ runHandler ::
   IO ResponseReceived
 runHandler e r h k = do
   let e' = set requestId (maybe def RequestId (lookupRequestId r)) e
-  a <- runAppT e' (runExceptT h) `catches` brigErrorHandlers
+  a <-
+    runAppT e' (runExceptT h)
+      `catches` brigErrorHandlers (view applog e) (unRequestId (view requestId e))
   either (onError (view applog e') r k) return a
 
 toServantHandler :: Env -> (Handler BrigCanonicalEffects) a -> Servant.Handler a
 toServantHandler env action = do
-  a <- liftIO $ runAppT env (runExceptT action) `catches` brigErrorHandlers
+  let logger = view applog env
+      reqId = unRequestId $ view requestId env
+  a <-
+    liftIO $
+      runAppT env (runExceptT action)
+        `catches` brigErrorHandlers logger reqId
   case a of
-    Left werr ->
-      let reqId = unRequestId $ view requestId env
-          logger = view applog env
-       in handleWaiErrors logger reqId werr
+    Left werr -> handleWaiErrors logger reqId werr
     Right x -> pure x
   where
     mkCode = statusCode . WaiError.code
@@ -112,8 +117,8 @@ newtype UserNotAllowedToJoinTeam = UserNotAllowedToJoinTeam WaiError.Error
 
 instance Exception UserNotAllowedToJoinTeam
 
-brigErrorHandlers :: [Catch.Handler IO (Either Error a)]
-brigErrorHandlers =
+brigErrorHandlers :: Logger -> ByteString -> [Catch.Handler IO (Either Error a)]
+brigErrorHandlers logger reqId =
   [ Catch.Handler $ \(ex :: PhoneException) ->
       pure (Left (phoneError ex)),
     Catch.Handler $ \(ex :: ZV.Failure) ->
@@ -122,8 +127,13 @@ brigErrorHandlers =
       case ex of
         AWS.SESInvalidDomain -> pure (Left (StdError (errorToWai @'InvalidEmail)))
         _ -> throwM ex,
-    Catch.Handler $ \(UserNotAllowedToJoinTeam e) ->
-      pure (Left $ StdError e)
+    Catch.Handler $ \(UserNotAllowedToJoinTeam e) -> pure (Left $ StdError e),
+    Catch.Handler $ \(e :: SomeException) -> do
+      Log.err logger $
+        Log.msg ("IO Exception occurred" :: ByteString)
+          . Log.field "message" (displayException e)
+          . Log.field "request" reqId
+      throwIO e
   ]
 
 onError :: Logger -> Request -> Continue IO -> Error -> IO ResponseReceived

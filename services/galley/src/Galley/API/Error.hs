@@ -26,15 +26,12 @@ module Galley.API.Error
     legalHoldServiceUnavailable,
 
     -- * Errors thrown by wai-routing handlers
-    bulkGetMemberLimitExceeded,
     invalidTeamNotificationId,
   )
 where
 
 import Data.Id
-import Data.String.Conversions (cs)
 import Data.Text.Lazy as LT (pack)
-import Galley.Types.Teams (hardTruncationLimit)
 import Imports
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
@@ -58,7 +55,6 @@ data InvalidInput
   = CustomRolesNotSupported
   | InvalidRange LText
   | InvalidUUID4
-  | BulkGetMemberLimitExceeded
   | InvalidPayload LText
   | InvalidTeamNotificationId
 
@@ -66,7 +62,6 @@ instance APIError InvalidInput where
   toWai CustomRolesNotSupported = badRequest "Custom roles not supported"
   toWai (InvalidRange t) = invalidRange t
   toWai InvalidUUID4 = invalidUUID4
-  toWai BulkGetMemberLimitExceeded = bulkGetMemberLimitExceeded
   toWai (InvalidPayload t) = invalidPayload t
   toWai InvalidTeamNotificationId = invalidTeamNotificationId
 
@@ -96,13 +91,6 @@ badConvState cid =
   Wai.mkError status500 "bad-state" $
     "Connect conversation with more than 2 members: "
       <> LT.pack (show cid)
-
-bulkGetMemberLimitExceeded :: Wai.Error
-bulkGetMemberLimitExceeded =
-  Wai.mkError
-    status400
-    "too-many-uids"
-    ("Can only process " <> cs (show @Int hardTruncationLimit) <> " user ids per request.")
 
 legalHoldServiceUnavailable :: Wai.Error
 legalHoldServiceUnavailable = Wai.mkError status412 "legalhold-unavailable" "legal hold service does not respond or tls handshake could not be completed (did you pin the wrong public key?)"

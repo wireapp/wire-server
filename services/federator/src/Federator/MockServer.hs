@@ -27,6 +27,7 @@ where
 import qualified Control.Exception as Exception
 import Control.Exception.Base (throw)
 import Control.Monad.Catch hiding (fromException)
+import qualified Data.Aeson as Aeson
 import Data.Domain (Domain)
 import qualified Data.Text.Lazy as LText
 import Federator.Error
@@ -43,9 +44,10 @@ import Network.Wai.Utilities.Error as Wai
 import Network.Wai.Utilities.MockServer
 import Polysemy
 import Polysemy.Error hiding (throw)
-import Polysemy.TinyLog
 import Wire.API.Federation.API (Component)
 import Wire.API.Federation.Domain
+import Wire.API.Federation.Version
+import Wire.Sem.Logger.TinyLog
 
 -- | This can be thrown by actions passed to mock federator to simulate
 -- failures either in federator itself, or in the services it calls.
@@ -89,7 +91,7 @@ withTempMockFederator headers resp action = do
   let app request respond = do
         response <-
           runM
-            . discardLogs
+            . discardTinyLogs
             . runWaiErrors
               @'[ ValidationError,
                   ServerError,
@@ -109,11 +111,14 @@ withTempMockFederator headers resp action = do
                           frBody = rdBody
                         }
                     )
-              embed @IO $ modifyIORef remoteCalls (<> [fedRequest])
               (ct, body) <-
-                fromException @MockException
-                  . handle (throw . handleException)
-                  $ resp fedRequest
+                if rdRPC == "api-version"
+                  then pure ("application/json", Aeson.encode versionInfo)
+                  else do
+                    embed @IO $ modifyIORef remoteCalls (<> [fedRequest])
+                    fromException @MockException
+                      . handle (throw . handleException)
+                      $ resp fedRequest
               let headers' = ("Content-Type", HTTP.renderHeader ct) : headers
               pure $ Wai.responseLBS HTTP.status200 headers' body
         respond response

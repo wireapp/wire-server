@@ -51,12 +51,12 @@ import Spar.App
 import qualified Spar.Data as Data
 import Spar.Data.Instances ()
 import Spar.Orphans ()
-import Spar.Sem.Logger.TinyLog (toLevel)
 import System.Logger.Class (Logger)
 import qualified System.Logger.Extended as Log
 import Util.Options (casEndpoint, casFilterNodesByDatacentre, casKeyspace, epHost, epPort)
 import Wire.API.Routes.Version.Wai
 import Wire.API.User.Saml as Types
+import Wire.Sem.Logger.TinyLog
 
 ----------------------------------------------------------------------
 -- cassandra
@@ -103,7 +103,7 @@ runServer sparCtxOpts = do
 
 mkApp :: Opts -> IO (Application, Env)
 mkApp sparCtxOpts = do
-  let logLevel = toLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel
+  let logLevel = samlToLevel $ saml sparCtxOpts ^. SAML.cfgLogLevel
   sparCtxLogger <- Log.mkLogger logLevel (logNetStrings sparCtxOpts) (logFormat sparCtxOpts)
   sparCtxCas <- initCassandra sparCtxOpts sparCtxLogger
   sparCtxHttpManager <- newManager defaultManagerSettings
@@ -116,7 +116,8 @@ mkApp sparCtxOpts = do
           . Bilge.port (sparCtxOpts ^. to galley . epPort)
           $ Bilge.empty
   let wrappedApp =
-        WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
+        versionMiddleware
+          . WU.heavyDebugLogging heavyLogOnly logLevel sparCtxLogger
           . servantPrometheusMiddleware (Proxy @API)
           . WU.catchErrors sparCtxLogger []
           -- Error 'Response's are usually not thrown as exceptions, but logged in
@@ -125,7 +126,6 @@ mkApp sparCtxOpts = do
           -- still here for errors outside the power of the 'Application', like network
           -- outages.
           . SAML.setHttpCachePolicy
-          . versionMiddleware
           . lookupRequestIdMiddleware
           $ \sparCtxRequestId -> app Env {..}
       heavyLogOnly :: (Wai.Request, LByteString) -> Maybe (Wai.Request, LByteString)

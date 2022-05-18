@@ -48,6 +48,7 @@ servantSitemap =
     :<|> providerAPI
     :<|> qualifiedAPI
     :<|> legacyAPI
+    :<|> mainAPI
   where
     userAPI :: forall tag. tag ~ 'UserPrincipalTag => ServerT (BaseAPIv3 tag) Handler
     userAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
@@ -57,6 +58,12 @@ servantSitemap =
     providerAPI = uploadAssetV3 @tag :<|> downloadAssetV3 @tag :<|> deleteAssetV3 @tag
     legacyAPI = legacyDownloadPlain :<|> legacyDownloadPlain :<|> legacyDownloadOtr
     qualifiedAPI = downloadAssetV4 :<|> deleteAssetV4
+    mainAPI =
+      renewTokenV3
+        :<|> deleteTokenV3
+        :<|> uploadAssetV3 @'UserPrincipalTag
+        :<|> downloadAssetV4
+        :<|> deleteAssetV4
 
 internalSitemap :: ServerT InternalAPI Handler
 internalSitemap = pure ()

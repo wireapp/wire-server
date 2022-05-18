@@ -20,6 +20,7 @@ module API.Version (tests) where
 import Bilge
 import Bilge.Assert
 import Brig.Options
+import Control.Lens ((?~))
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Test.Tasty
@@ -33,6 +34,7 @@ tests p opts brig =
     "version"
     [ test p "GET /api-version" $ testVersion brig,
       test p "GET /v1/api-version" $ testVersionV1 brig,
+      test p "GET /api-version (with dev)" $ testDevVersion opts brig,
       test p "GET /v500/api-version" $ testUnsupportedVersion brig,
       test p "GET /api-version (federation info)" $ testFederationDomain opts brig
     ]
@@ -43,7 +45,7 @@ testVersion brig = do
     responseJsonError =<< get (brig . path "/api-version")
       <!! const 200 === statusCode
   liftIO $
-    vinfoSupported vinfo @?= [V0, V1]
+    vinfoSupported vinfo @?= supportedVersions \\ developmentVersions
 
 testVersionV1 :: Brig -> Http ()
 testVersionV1 brig = do
@@ -51,7 +53,17 @@ testVersionV1 brig = do
     responseJsonError =<< get (brig . path "/v1/api-version")
       <!! const 200 === statusCode
   liftIO $
-    vinfoSupported vinfo @?= [V0, V1]
+    vinfoSupported vinfo @?= supportedVersions \\ developmentVersions
+
+testDevVersion :: Opts -> Brig -> Http ()
+testDevVersion opts brig = withSettingsOverrides
+  (opts & optionSettings . enableDevelopmentVersions ?~ True)
+  $ do
+    vinfo <-
+      responseJsonError =<< get (brig . path "/api-version")
+        <!! const 200 === statusCode
+    liftIO $
+      vinfoSupported vinfo @?= supportedVersions
 
 testUnsupportedVersion :: Brig -> Http ()
 testUnsupportedVersion brig = do

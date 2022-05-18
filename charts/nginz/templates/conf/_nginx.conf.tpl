@@ -211,7 +211,7 @@ http {
         #
         # Hence, for safety, we deny access to the vts metrics endpoints to
         # clients which are connected via PROXY protocol.
-        if ($proxy_protocol_address != "") {
+        if ($proxy_protocol_addr != "") {
             return 403;
         }
 

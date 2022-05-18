@@ -18,7 +18,7 @@
 module Federator.Monitor.Internal where
 
 import Control.Exception (try)
-import Data.ByteString (packCStringLen)
+import Data.ByteString (packCStringLen, useAsCStringLen)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Text as Text
@@ -28,7 +28,7 @@ import qualified Data.X509 as X509
 import Data.X509.CertificateStore
 import Federator.Env (TLSSettings (..))
 import Federator.Options (RunSettings (..))
-import GHC.Foreign (withCStringLen)
+import GHC.Foreign (peekCStringLen, withCStringLen)
 import GHC.IO.Encoding (getFileSystemEncoding)
 import Imports
 import qualified Network.TLS as TLS
@@ -46,6 +46,7 @@ import System.Posix.ByteString (RawFilePath)
 import System.Posix.Files
 import System.X509
 import Wire.API.Arbitrary
+import qualified Wire.Sem.Logger.TinyLog as Log
 
 data Monitor = Monitor
   { monINotify :: INotify,
@@ -65,6 +66,11 @@ rawPath :: FilePath -> IO RawFilePath
 rawPath path = do
   encoding <- getFileSystemEncoding
   withCStringLen encoding path packCStringLen
+
+fromRawPath :: RawFilePath -> IO FilePath
+fromRawPath path = do
+  encoding <- getFileSystemEncoding
+  useAsCStringLen path (peekCStringLen encoding)
 
 data WatchedPath
   = WatchedFile RawFilePath
@@ -98,7 +104,7 @@ watchPathEvents (WatchedDir _ _) = [MoveIn, Create]
 type Watches = Map RawFilePath (WatchDescriptor, WatchedPath)
 
 runSemDefault :: Logger -> Sem '[TinyLog, Embed IO] a -> IO a
-runSemDefault logger = Polysemy.runM . Log.runTinyLog logger
+runSemDefault logger = Polysemy.runM . Log.loggerToTinyLog logger
 
 logErrors ::
   Members '[TinyLog, Polysemy.Error FederationSetupError] r =>

@@ -110,3 +110,10 @@ cabal.project.local
 # Nix output symlinks
 result
 result-*
+
+# Created by .envrc
+.direnv
+.env
+
+# emacs misc
+.dir-locals.el

@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
@@ -29,6 +28,7 @@ module Spar.App
     getUserIdByScimExternalId,
     insertUser,
     validateEmailIfExists,
+    validateEmail,
     errorPage,
     getIdPIdByIssuer,
     getIdPConfigByIssuer,
@@ -73,7 +73,6 @@ import SAML2.WebSSO
     uidTenant,
   )
 import qualified SAML2.WebSSO as SAML
-import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Servant
 import qualified Servant.Multipart as Multipart
 import Spar.Error hiding (sparToServerErrorWithLogging)
@@ -88,8 +87,6 @@ import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
 import Spar.Sem.IdPConfigStore (GetIdPResult (..), IdPConfigStore)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
-import Spar.Sem.Logger (Logger)
-import qualified Spar.Sem.Logger as Logger
 import Spar.Sem.Reporter (Reporter)
 import qualified Spar.Sem.Reporter as Reporter
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
@@ -108,6 +105,8 @@ import Wire.API.User.Identity (Email (..))
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
+import Wire.Sem.Logger (Logger)
+import qualified Wire.Sem.Logger as Logger
 import Wire.Sem.Random (Random)
 import qualified Wire.Sem.Random as Random
 
@@ -302,16 +301,16 @@ autoprovisionSamlUserWithId mbteam buid suid = do
 -- make brig initiate the email validate procedure.
 validateEmailIfExists :: forall r. Members '[GalleyAccess, BrigAccess] r => UserId -> SAML.UserRef -> Sem r ()
 validateEmailIfExists uid = \case
-  (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> doValidate (CI.original email)
+  (SAML.UserRef _ (view SAML.nameID -> UNameIDEmail email)) -> do
+    mbTid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
+    validateEmail mbTid uid . Intra.emailFromSAML . CI.original $ email
   _ -> pure ()
-  where
-    doValidate :: SAMLEmail.Email -> Sem r ()
-    doValidate email = do
-      enabled <- do
-        tid <- Intra.getBrigUserTeam Intra.NoPendingInvitations uid
-        maybe (pure False) (GalleyAccess.isEmailValidationEnabledTeam) tid
-      when enabled $ do
-        BrigAccess.updateEmail uid (Intra.emailFromSAML email)
+
+validateEmail :: forall r. Members '[GalleyAccess, BrigAccess] r => Maybe TeamId -> UserId -> Email -> Sem r ()
+validateEmail mbTid uid email = do
+  enabled <- maybe (pure False) GalleyAccess.isEmailValidationEnabledTeam mbTid
+  when enabled $ do
+    BrigAccess.updateEmail uid email
 
 -- | Check if 'UserId' is in the team that hosts the idp that owns the 'UserRef'.  If so,
 -- register a the user under its SAML credentials and write the 'UserRef' into the
@@ -392,7 +391,7 @@ verdictHandler cky mbteam aresp verdict = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
-  Logger.log SAML.Debug $ "entering verdictHandler: " <> show (fromBindCookie <$> cky, aresp, verdict)
+  Logger.log Logger.Debug $ "entering verdictHandler: " <> show (fromBindCookie <$> cky, aresp, verdict)
   reqid <- either (throwSparSem . SparNoRequestRefInResponse . cs) pure $ SAML.rspInResponseTo aresp
   format :: Maybe VerdictFormat <- VerdictFormatStore.get reqid
   resp <- case format of
@@ -403,7 +402,7 @@ verdictHandler cky mbteam aresp verdict = do
     Nothing ->
       -- (this shouldn't happen too often, see 'storeVerdictFormat')
       throwSparSem SparNoSuchRequest
-  Logger.log SAML.Debug $ "leaving verdictHandler: " <> show resp
+  Logger.log Logger.Debug $ "leaving verdictHandler: " <> show resp
   pure resp
 
 data VerdictHandlerResult
@@ -432,9 +431,9 @@ verdictHandlerResult ::
   SAML.AccessVerdict ->
   Sem r VerdictHandlerResult
 verdictHandlerResult bindCky mbteam verdict = do
-  Logger.log SAML.Debug $ "entering verdictHandlerResult: " <> show (fromBindCookie <$> bindCky)
+  Logger.log Logger.Debug $ "entering verdictHandlerResult: " <> show (fromBindCookie <$> bindCky)
   result <- catchVerdictErrors $ verdictHandlerResultCore bindCky mbteam verdict
-  Logger.log SAML.Debug $ "leaving verdictHandlerResult" <> show result
+  Logger.log Logger.Debug $ "leaving verdictHandlerResult" <> show result
   pure result
 
 catchVerdictErrors ::
@@ -549,7 +548,7 @@ verdictHandlerResultCore bindCky mbteam = \case
         (Just _, GetUserFound _, GetUserFound _) ->
           -- to see why, consider the condition on the call to 'findUserWithOldIssuer' above.
           error "impossible."
-    Logger.log SAML.Debug ("granting sso login for " <> show uid)
+    Logger.log Logger.Debug ("granting sso login for " <> show uid)
     cky <- BrigAccess.ssoLogin uid
     pure $ VerifyHandlerGranted cky uid
 

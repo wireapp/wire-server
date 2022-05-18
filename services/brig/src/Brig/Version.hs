@@ -19,6 +19,7 @@ module Brig.Version where
 
 import Brig.API.Handler
 import Brig.App
+import Brig.Options
 import Control.Lens
 import Imports
 import Servant (ServerT)
@@ -29,9 +30,14 @@ versionAPI :: ServerT VersionAPI (Handler r)
 versionAPI = Named $ do
   fed <- view federator
   dom <- viewFederationDomain
+  dev <- view (settings . enableDevelopmentVersions . to (fromMaybe False))
+  let supported
+        | dev = supportedVersions
+        | otherwise = supportedVersions \\ developmentVersions
   pure $
     VersionInfo
-      { vinfoSupported = supportedVersions,
+      { vinfoSupported = supported,
+        vinfoDevelopment = developmentVersions,
         vinfoFederation = isJust fed,
         vinfoDomain = dom
       }
