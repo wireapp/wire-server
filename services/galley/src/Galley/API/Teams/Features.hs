@@ -21,8 +21,8 @@ module Galley.API.Teams.Features
     getFeatureStatusNoConfig,
     setFeatureStatus,
     getFeatureConfig,
-    getAllFeatureConfigs,
-    getAllFeatures,
+    getAllFeatureConfigsForUser,
+    getAllFeatureConfigsForTeam,
     getSSOStatusInternal,
     setSSOStatusInternal,
     getLegalholdStatusInternal,
@@ -212,9 +212,9 @@ getFeatureConfig (Tagged getter) zusr = do
       assertTeamExists tid
       getter (Right tid)
 
--- | Get feature config for a user. If the user is a member of a team and has the required permissions, this will return the team feature config.
+-- | Get feature config for a user. If the user is a member of a team and has the required permissions, this will return the team's feature configs.
 -- If the user is not a member of a team, this will return the personal feature configs (the server defaults).
-getAllFeatureConfigs ::
+getAllFeatureConfigsForUser ::
   Members
     '[ BrigAccess,
        ErrorS 'NotATeamMember,
@@ -227,36 +227,16 @@ getAllFeatureConfigs ::
     r =>
   UserId ->
   Sem r AllFeatureConfigs
-getAllFeatureConfigs zusr = do
+getAllFeatureConfigsForUser zusr = do
   mbTeam <- getOneUserTeam zusr
-  zusrMembership <- maybe (pure Nothing) (flip getTeamMember zusr) mbTeam
-  when (isJust mbTeam) $ void $ permissionCheck ViewTeamFeature zusrMembership
-  let getStatus ::
-        forall (ps :: IncludeLockStatus) (a :: TeamFeatureName) r.
-        ( KnownTeamFeatureName a,
-          Members '[ErrorS 'NotATeamMember, ErrorS OperationDenied, TeamStore] r
-        ) =>
-        FeatureGetter ps a r ->
-        Sem r (TeamFeatureStatus ps a)
-      getStatus (Tagged getter) = do
-        getter (maybe (Left (Just zusr)) Right mbTeam)
-
-  AllFeatureConfigs
-    <$> getStatus @'WithoutLockStatus @'TeamFeatureLegalHold getLegalholdStatusInternal
-    <*> getStatus @'WithoutLockStatus @'TeamFeatureSSO getSSOStatusInternal
-    <*> getStatus @'WithoutLockStatus @'TeamFeatureSearchVisibility getTeamSearchVisibilityAvailableInternal
-    <*> getStatus @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal
-    <*> getStatus @'WithoutLockStatus @'TeamFeatureDigitalSignatures getDigitalSignaturesInternal
-    <*> getStatus @'WithoutLockStatus @'TeamFeatureAppLock getAppLockInternal
-    <*> getStatus @'WithLockStatus @'TeamFeatureFileSharing getFileSharingInternal
-    <*> getStatus @'WithoutLockStatus @'TeamFeatureClassifiedDomains getClassifiedDomainsInternal
-    <*> getStatus @'WithoutLockStatus @'TeamFeatureConferenceCalling getConferenceCallingInternal
-    <*> getStatus @'WithLockStatus @'TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal
-    <*> getStatus @'WithLockStatus @'TeamFeatureGuestLinks getGuestLinkInternal
-    <*> getStatus @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge getSndFactorPasswordChallengeInternal
+  when (isJust mbTeam) $ do
+    zusrMembership <- maybe (pure Nothing) (`getTeamMember` zusr) mbTeam
+    void $ permissionCheck ViewTeamFeature zusrMembership
+  let byUserOrTeam = maybe (Left (Just zusr)) Right mbTeam
+  getAllFeatureConfigsInternal byUserOrTeam
 
 -- | Get feature configs for a team. User must be a member of the team and have permission to view team features.
-getAllFeatures ::
+getAllFeatureConfigsForTeam ::
   forall r.
   Members
     '[ BrigAccess,
@@ -272,21 +252,38 @@ getAllFeatures ::
   Local UserId ->
   TeamId ->
   Sem r AllFeatureConfigs
-getAllFeatures luid tid = do
-  let auth = DoAuth (tUnqualified luid)
+getAllFeatureConfigsForTeam luid tid = do
+  zusrMembership <- getTeamMember tid (tUnqualified luid)
+  void $ permissionCheck ViewTeamFeature zusrMembership
+  getAllFeatureConfigsInternal (Right tid)
+
+getAllFeatureConfigsInternal ::
+  Members
+    '[ BrigAccess,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       Input Opts,
+       LegalHoldStore,
+       TeamFeatureStore,
+       TeamStore
+     ]
+    r =>
+  GetFeatureInternalParam ->
+  Sem r AllFeatureConfigs
+getAllFeatureConfigsInternal byUserOrTeam =
   AllFeatureConfigs
-    <$> getFeatureStatus @'WithoutLockStatus @'TeamFeatureLegalHold getLegalholdStatusInternal auth tid
-    <*> getFeatureStatus @'WithoutLockStatus @'TeamFeatureSSO getSSOStatusInternal auth tid
-    <*> getFeatureStatus @'WithoutLockStatus @'TeamFeatureSearchVisibility getTeamSearchVisibilityAvailableInternal auth tid
-    <*> getFeatureStatus @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails getValidateSAMLEmailsInternal auth tid
-    <*> getFeatureStatus @'WithoutLockStatus @'TeamFeatureDigitalSignatures getDigitalSignaturesInternal auth tid
-    <*> getFeatureStatus @'WithoutLockStatus @'TeamFeatureAppLock getAppLockInternal auth tid
-    <*> getFeatureStatus @'WithLockStatus @'TeamFeatureFileSharing getFileSharingInternal auth tid
-    <*> getFeatureStatus @'WithoutLockStatus @'TeamFeatureClassifiedDomains getClassifiedDomainsInternal auth tid
-    <*> getFeatureStatus @'WithoutLockStatus @'TeamFeatureConferenceCalling getConferenceCallingInternal auth tid
-    <*> getFeatureStatus @'WithLockStatus @'TeamFeatureSelfDeletingMessages getSelfDeletingMessagesInternal auth tid
-    <*> getFeatureStatus @'WithLockStatus @'TeamFeatureGuestLinks getGuestLinkInternal auth tid
-    <*> getFeatureStatus @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge getSndFactorPasswordChallengeInternal auth tid
+    <$> unTagged getLegalholdStatusInternal byUserOrTeam
+    <*> unTagged getSSOStatusInternal byUserOrTeam
+    <*> unTagged getTeamSearchVisibilityAvailableInternal byUserOrTeam
+    <*> unTagged getValidateSAMLEmailsInternal byUserOrTeam
+    <*> unTagged getDigitalSignaturesInternal byUserOrTeam
+    <*> unTagged getAppLockInternal byUserOrTeam
+    <*> unTagged getFileSharingInternal byUserOrTeam
+    <*> unTagged getClassifiedDomainsInternal byUserOrTeam
+    <*> unTagged getConferenceCallingInternal byUserOrTeam
+    <*> unTagged getSelfDeletingMessagesInternal byUserOrTeam
+    <*> unTagged getGuestLinkInternal byUserOrTeam
+    <*> unTagged getSndFactorPasswordChallengeInternal byUserOrTeam
 
 getFeatureStatusNoConfig ::
   forall (a :: TeamFeatureName) r.
