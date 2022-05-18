@@ -519,10 +519,11 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
           lookupUser <$> E.lookupActivatedUsers (fmap (view userId) members)
         richInfos <-
           lookupRichInfo <$> E.getRichInfoMultiUser (fmap (view userId) members)
+        numUserClients <- lookupClients <$> E.lookupClients (fmap (view userId) members)
         output @LByteString
           ( encodeDefaultOrderedByNameWith
               defaultEncodeOptions
-              (mapMaybe (teamExportUser users inviters richInfos) members)
+              (mapMaybe (teamExportUser users inviters richInfos numUserClients) members)
           )
   pure $
     responseStream
@@ -548,9 +549,10 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
       (UserId -> Maybe User) ->
       (UserId -> Maybe Handle.Handle) ->
       (UserId -> Maybe RichInfo) ->
+      (UserId -> Int) ->
       TeamMember ->
       Maybe TeamExportUser
-    teamExportUser users inviters richInfos member = do
+    teamExportUser users inviters richInfos numClients member = do
       let uid = member ^. userId
       user <- users uid
       pure $
@@ -567,7 +569,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
             tExportSCIMExternalId = fromMaybe "" (userSCIMExternalId user),
             tExportSCIMRichInfo = richInfos uid,
             tExportUserId = U.userId user,
-            tExportNumDevices = -1
+            tExportNumDevices = numClients uid
           }
 
     lookupInviterHandle :: Member BrigAccess r => [TeamMember] -> Sem r (UserId -> Maybe Handle.Handle)
@@ -595,6 +597,9 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
 
     lookupRichInfo :: [(UserId, RichInfo)] -> (UserId -> Maybe RichInfo)
     lookupRichInfo pairs = (`M.lookup` M.fromList pairs)
+
+    lookupClients :: Conv.UserClients -> UserId -> Int
+    lookupClients userClients uid = maybe 0 length (M.lookup uid (Conv.userClients userClients))
 
     samlNamedId :: User -> Maybe Text
     samlNamedId =
