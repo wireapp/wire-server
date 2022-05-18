@@ -89,7 +89,6 @@ import qualified Wire.API.User as U
 import qualified Wire.API.User.Client as C
 import qualified Wire.API.User.Client.Prekey as PC
 
-
 tests :: IO TestSetup -> TestTree
 tests s =
   testGroup "Teams API" $
@@ -327,7 +326,6 @@ testListTeamMembersCsv numMembers = do
       assertEqual ("tExportManagedBy: " <> show (U.userId user)) (U.userManagedBy user) (tExportManagedBy export)
       assertEqual ("tExportUserId: " <> show (U.userId user)) (U.userId user) (tExportUserId export)
       assertEqual ("tExportNumDevices: ") 1 (tExportNumDevices export)
-
   where
     userToIdPIssuer :: HasCallStack => U.User -> Maybe HttpsUrl
     userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
@@ -340,7 +338,7 @@ testListTeamMembersCsv numMembers = do
 
     countOn :: Eq b => (a -> b) -> b -> [a] -> Int
     countOn prop val xs = sum $ fmap (bool 0 1 . (== val) . prop) xs
-    
+
     addClients :: [UserId] -> TestM ()
     addClients xs = forM_ xs addClient
 
@@ -350,9 +348,9 @@ testListTeamMembersCsv numMembers = do
       post (brig . paths ["i", "clients", toByteString' uid] . contentJson . json newClient) !!! const 201 === statusCode
 
     newClient :: C.NewClient
-    newClient = 
+    newClient =
       let lpk = PC.lastPrekey "pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
-      in C.newClient C.PermanentClientType lpk
+       in C.newClient C.PermanentClientType lpk
 
 testListTeamMembersTruncated :: TestM ()
 testListTeamMembersTruncated = do
