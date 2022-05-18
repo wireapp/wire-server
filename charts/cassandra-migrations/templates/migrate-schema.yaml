@@ -3,7 +3,7 @@ kind: Job
 metadata:
   name: cassandra-migrations
   labels:
-    wireService: cassandra-migrations
+    app: cassandra-migrations
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
@@ -15,7 +15,7 @@ spec:
   template:
     metadata:
       labels:
-        wireService: cassandra-migrations
+        app: cassandra-migrations
         release: {{ .Release.Name }}
     spec:
       restartPolicy: OnFailure

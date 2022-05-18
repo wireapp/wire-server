@@ -360,8 +360,8 @@ kube-integration-teardown-sans-federation:
 
 .PHONY: kube-restart-%
 kube-restart-%:
-	kubectl delete pod -n $(NAMESPACE) -l wireService=$(*)
-	kubectl delete pod -n $(NAMESPACE)-fed2 -l wireService=$(*)
+	kubectl delete pod -n $(NAMESPACE) -l app=$(*)
+	kubectl delete pod -n $(NAMESPACE)-fed2 -l app=$(*)
 
 .PHONY: latest-tag
 latest-tag:
@@ -522,8 +522,8 @@ kind-restart-nginx-ingress: .local/kind-kubeconfig
 
 kind-restart-%: .local/kind-kubeconfig
 	export KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig && \
-	kubectl delete pod -n $(NAMESPACE) -l wireService=$(*) && \
-	kubectl delete pod -n $(NAMESPACE)-fed2 -l wireService=$(*)
+	kubectl delete pod -n $(NAMESPACE) -l app=$(*) && \
+	kubectl delete pod -n $(NAMESPACE)-fed2 -l app=$(*)
 
 # This target can be used to template a helm chart with values filled in from
 # hack/helm_vars (what CI uses) as overrrides, if available. This allows debugging helm

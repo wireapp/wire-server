@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: federator
   labels:
-    wireService: federator
+    app: federator
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
@@ -18,5 +18,5 @@ spec:
       port: {{ .Values.service.externalFederatorPort }}
       targetPort: {{ .Values.service.externalFederatorPort }}
   selector:
-    wireService: federator
+    app: federator
     release: {{ .Release.Name }}

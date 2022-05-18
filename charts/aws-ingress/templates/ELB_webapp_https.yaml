@@ -13,7 +13,7 @@ metadata:
 spec:
   type: LoadBalancer
   selector:
-    wireService: webapp
+    app: webapp
   ports:
   - name: https
     protocol: TCP

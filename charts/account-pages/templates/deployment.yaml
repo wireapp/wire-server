@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: account-pages
   labels:
-    wireService: account-pages
+    app: account-pages
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
@@ -16,12 +16,10 @@ spec:
       maxSurge: {{ .Values.replicaCount | mul 2 }}
   selector:
     matchLabels:
-      wireService: account-pages
       app: account-pages
   template:
     metadata:
       labels:
-        wireService: account-pages
         app: account-pages
         release: {{ .Release.Name }}
     spec:

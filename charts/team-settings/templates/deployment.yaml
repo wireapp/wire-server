@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: team-settings
   labels:
-    wireService: team-settings
+    app: team-settings
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
@@ -16,12 +16,10 @@ spec:
       maxSurge: {{ .Values.replicaCount | mul 2 }}
   selector:
     matchLabels:
-      wireService: team-settings
       app: team-settings
   template:
     metadata:
       labels:
-        wireService: team-settings
         app: team-settings
         release: {{ .Release.Name }}
     spec:

@@ -3,7 +3,7 @@ kind: CronJob
 metadata:
   name: ldap-scim-bridge
   labels:
-    wireService: ldap-scim-bridge
+    app: ldap-scim-bridge
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
@@ -13,7 +13,7 @@ spec:
   jobTemplate:
     metadata:
       labels:
-        wireService: ldap-scim-bridge
+        app: ldap-scim-bridge
         release: {{ .Release.Name }}
       annotations:
         # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`

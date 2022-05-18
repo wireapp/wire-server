@@ -13,7 +13,7 @@ metadata:
 spec:
   type: LoadBalancer
   selector:
-    wireService: nginz
+    app: nginz
   ports:
   - name: https
     protocol: TCP
