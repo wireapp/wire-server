@@ -37,7 +37,7 @@ module Wire.API.Team.Feature
     LockStatus (..),
     LockStatusValue (..),
     IncludeLockStatus (..),
-    TeamFeatureDefaults (..),
+    DefTeamFeatureStatus (..),
 
     -- * Swagger
     typeTeamFeatureName,
@@ -653,44 +653,44 @@ instance Cass.Cql LockStatusValue where
 ----------------------------------------------------------------------
 -- defaults
 
-class TeamFeatureDefaults (a :: TeamFeatureName) where
+class DefTeamFeatureStatus (a :: TeamFeatureName) where
   defTeamFeatureStatus :: TeamFeatureStatus 'WithLockStatus a
 
-instance TeamFeatureDefaults 'TeamFeatureGuestLinks where
+instance DefTeamFeatureStatus 'TeamFeatureGuestLinks where
   defTeamFeatureStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked
 
-instance TeamFeatureDefaults 'TeamFeatureValidateSAMLEmails where
+instance DefTeamFeatureStatus 'TeamFeatureValidateSAMLEmails where
   defTeamFeatureStatus = TeamFeatureStatusNoConfig TeamFeatureEnabled
 
-instance TeamFeatureDefaults 'TeamFeatureSndFactorPasswordChallenge where
+instance DefTeamFeatureStatus 'TeamFeatureSndFactorPasswordChallenge where
   defTeamFeatureStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Locked
 
-instance TeamFeatureDefaults 'TeamFeatureSearchVisibilityInbound where
+instance DefTeamFeatureStatus 'TeamFeatureSearchVisibilityInbound where
   defTeamFeatureStatus = TeamFeatureStatusNoConfig TeamFeatureDisabled
 
-instance TeamFeatureDefaults 'TeamFeatureFileSharing where
+instance DefTeamFeatureStatus 'TeamFeatureFileSharing where
   defTeamFeatureStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked
 
-instance TeamFeatureDefaults 'TeamFeatureSelfDeletingMessages where
+instance DefTeamFeatureStatus 'TeamFeatureSelfDeletingMessages where
   defTeamFeatureStatus =
     TeamFeatureStatusWithConfigAndLockStatus
       TeamFeatureEnabled
       (TeamFeatureSelfDeletingMessagesConfig 0)
       Unlocked
 
-instance TeamFeatureDefaults 'TeamFeatureClassifiedDomains where
+instance DefTeamFeatureStatus 'TeamFeatureClassifiedDomains where
   defTeamFeatureStatus =
     TeamFeatureStatusWithConfig
       TeamFeatureDisabled
       (TeamFeatureClassifiedDomainsConfig [])
 
-instance TeamFeatureDefaults 'TeamFeatureAppLock where
+instance DefTeamFeatureStatus 'TeamFeatureAppLock where
   defTeamFeatureStatus =
     TeamFeatureStatusWithConfig
       TeamFeatureEnabled
       (TeamFeatureAppLockConfig (EnforceAppLock False) 60)
 
-instance TeamFeatureDefaults 'TeamFeatureConferenceCalling where
+instance DefTeamFeatureStatus 'TeamFeatureConferenceCalling where
   defTeamFeatureStatus = TeamFeatureStatusNoConfig TeamFeatureEnabled
 
 ----------------------------------------------------------------------
