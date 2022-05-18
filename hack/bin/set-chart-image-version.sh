@@ -11,8 +11,8 @@ for chart in $charts
 do
 if [[ "$chart" == "nginz" ]]; then
     # nginz has a different docker tag indentation
-    sed -i "s/   tag: .*/   tag: $docker_tag/g" "$CHARTS_DIR/$chart/values.yaml"
+    sed -i "s/^    tag: .*/    tag: $docker_tag/g" "$CHARTS_DIR/$chart/values.yaml"
 else
-    sed -i "s/  tag: .*/  tag: $docker_tag/g" "$CHARTS_DIR/$chart/values.yaml"
+    sed -i "s/^  tag: .*/  tag: $docker_tag/g" "$CHARTS_DIR/$chart/values.yaml"
 fi
 done
