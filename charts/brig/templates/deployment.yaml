@@ -55,6 +55,8 @@ spec:
           volumeMounts:
           - name: "geoip"
             mountPath: "/usr/share/GeoIP"
+          # The environment variables are documented at:
+          # https://github.com/maxmind/geoipupdate/blob/62b34e648a842dc03ccf4ad3f61e2d85eaec98fc/doc/docker.md
           env:
           - name: GEOIPUPDATE_ACCOUNT_ID
             valueFrom:
@@ -72,7 +74,7 @@ spec:
                 name: brig-geoip
                 key: editionIds
           - name: GEOIPUPDATE_FREQUENCY
-            value: 0 # Setting this to 0 makes the script only update it once.
+            value: 0 # Setting this to 0 makes the script only run geoipupdate once.
       {{- end }}
       containers:
         - name: brig
@@ -150,6 +152,8 @@ spec:
           volumeMounts:
           - name: "geoip"
             mountPath: "/usr/share/GeoIP"
+          # The environment variables are documented at:
+          # https://github.com/maxmind/geoipupdate/blob/62b34e648a842dc03ccf4ad3f61e2d85eaec98fc/doc/docker.md
           env:
           - name: GEOIPUPDATE_ACCOUNT_ID
             valueFrom:
