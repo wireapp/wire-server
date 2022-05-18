@@ -86,6 +86,9 @@ import qualified Wire.API.Team.Member as Member
 import qualified Wire.API.Team.Member as TM
 import qualified Wire.API.User as Public
 import qualified Wire.API.User as U
+import qualified Wire.API.User.Client as C
+import qualified Wire.API.User.Client.Prekey as PC
+
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -286,7 +289,8 @@ testListTeamMembersCsv :: HasCallStack => Int -> TestM ()
 testListTeamMembersCsv numMembers = do
   let teamSize = numMembers + 1
 
-  (owner, tid, _mbs) <- Util.createBindingTeamWithNMembersWithHandles True numMembers
+  (owner, tid, mbs) <- Util.createBindingTeamWithNMembersWithHandles True numMembers
+  addClients (owner : mbs)
   resp <- Util.getTeamMembersCsv owner tid
   let rbody = fromMaybe (error "no body") . responseBody $ resp
   usersInCsv <- either (error "could not decode csv") pure (decodeCSV @TeamExportUser rbody)
@@ -322,6 +326,8 @@ testListTeamMembersCsv numMembers = do
       assertEqual ("tExportIdpIssuer: " <> show (U.userId user)) (userToIdPIssuer user) (tExportIdpIssuer export)
       assertEqual ("tExportManagedBy: " <> show (U.userId user)) (U.userManagedBy user) (tExportManagedBy export)
       assertEqual ("tExportUserId: " <> show (U.userId user)) (U.userId user) (tExportUserId export)
+      assertEqual ("tExportNumDevices: ") 1 (tExportNumDevices export)
+
   where
     userToIdPIssuer :: HasCallStack => U.User -> Maybe HttpsUrl
     userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
@@ -334,6 +340,19 @@ testListTeamMembersCsv numMembers = do
 
     countOn :: Eq b => (a -> b) -> b -> [a] -> Int
     countOn prop val xs = sum $ fmap (bool 0 1 . (== val) . prop) xs
+    
+    addClients :: [UserId] -> TestM ()
+    addClients xs = forM_ xs addClient
+
+    addClient :: UserId -> TestM ()
+    addClient uid = do
+      brig <- view tsBrig
+      post (brig . paths ["i", "clients", toByteString' uid] . contentJson . json newClient) !!! const 201 === statusCode
+
+    newClient :: C.NewClient
+    newClient = 
+      let lpk = PC.lastPrekey "pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
+      in C.newClient C.PermanentClientType lpk
 
 testListTeamMembersTruncated :: TestM ()
 testListTeamMembersTruncated = do

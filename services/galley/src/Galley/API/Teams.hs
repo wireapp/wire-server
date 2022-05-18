@@ -566,7 +566,8 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
             tExportSAMLNamedId = fromMaybe "" (samlNamedId user),
             tExportSCIMExternalId = fromMaybe "" (userSCIMExternalId user),
             tExportSCIMRichInfo = richInfos uid,
-            tExportUserId = U.userId user
+            tExportUserId = U.userId user,
+            tExportNumDevices = -1
           }
 
     lookupInviterHandle :: Member BrigAccess r => [TeamMember] -> Sem r (UserId -> Maybe Handle.Handle)
