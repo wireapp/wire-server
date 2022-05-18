@@ -38,7 +38,6 @@ import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.Random (randomRIO)
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
-import Control.Retry (exponentialBackoff, limitRetries, recovering)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Lens (key, _String)
 import Data.Aeson.QQ (aesonQQ)
@@ -70,7 +69,7 @@ import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
 import qualified Text.XML.DSig as SAML
 import Util
-import Util.Invitation (getInvitation, getInvitationCode, headInvitation404, registerInvitation)
+import Util.Invitation
 import qualified Web.Scim.Class.User as Scim.UserC
 import qualified Web.Scim.Filter as Filter
 import qualified Web.Scim.Schema.Common as Scim
@@ -1548,6 +1547,7 @@ testUpdateSameHandle = do
 testUpdateExternalId :: Bool -> TestSpar ()
 testUpdateExternalId withidp = do
   env <- ask
+  brig <- view teBrig
   (tok, midp, tid) <-
     if withidp
       then do
@@ -1564,11 +1564,14 @@ testUpdateExternalId withidp = do
         user <- randomScimUser <&> \u -> u {Scim.User.externalId = Just $ fromEmail email}
         storedUser <- createUser tok user
         let userid = scimUserId storedUser
+        if withidp
+          then call $ activateEmail brig email
+          else registerUser email
         veid :: ValidExternalId <-
           either (error . show) pure $ mkValidExternalId midp (Scim.User.externalId user)
         -- Overwrite the user with another randomly-generated user (only controlling externalId)
+        otherEmail <- randomEmail
         user' <- do
-          otherEmail <- randomEmail
           let upd u =
                 u
                   { Scim.User.externalId =
@@ -1581,6 +1584,7 @@ testUpdateExternalId withidp = do
 
         _ <- updateUser tok userid user'
 
+        when hasChanged (call $ activateEmail brig otherEmail)
         muserid <- lookupByValidExternalId veid
         muserid' <- lookupByValidExternalId veid'
         liftIO $ do
@@ -1591,6 +1595,7 @@ testUpdateExternalId withidp = do
             else do
               (hasChanged, veid') `shouldBe` (hasChanged, veid)
               (hasChanged, muserid') `shouldBe` (hasChanged, Just userid)
+        eventually $ checkEmail userid (Just $ if hasChanged then otherEmail else email)
 
       lookupByValidExternalId :: ValidExternalId -> TestSpar (Maybe UserId)
       lookupByValidExternalId =
@@ -1603,6 +1608,15 @@ testUpdateExternalId withidp = do
                 Right muser -> pure $ Scim.id . Scim.thing <$> muser
                 Left err -> error $ show err
           )
+
+      registerUser :: Email -> TestSpar ()
+      registerUser email = do
+        let r = call $ get (brig . path "/i/teams/invitations/by-email" . queryItem "email" (toByteString' email))
+        inv <- responseJsonError =<< r <!! statusCode === const 200
+        Just inviteeCode <- call $ getInvitationCode brig tid (inInvitation inv)
+        call $
+          post (brig . path "/register" . contentJson . json (acceptWithName (Name "Alice") email inviteeCode))
+            !!! const 201 === statusCode
 
   checkUpdate True
   checkUpdate False
@@ -1959,10 +1973,7 @@ specAzureQuirks = do
 specEmailValidation :: SpecWith TestEnv
 specEmailValidation = do
   describe "email validation" $ do
-    let eventually :: HasCallStack => TestSpar a -> TestSpar a
-        eventually = recovering (limitRetries 3 <> exponentialBackoff 100000) [] . const
-
-        setup :: HasCallStack => Bool -> TestSpar (UserId, Email)
+    let setup :: HasCallStack => Bool -> TestSpar (UserId, Email)
         setup enabled = do
           (tok, (_ownerid, teamid, idp)) <- registerIdPAndScimToken
           if enabled

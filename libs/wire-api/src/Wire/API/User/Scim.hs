@@ -329,6 +329,8 @@ data ValidScimUser = ValidScimUser
   }
   deriving (Eq, Show)
 
+-- | Note that a 'SAML.UserRef' may contain an email. Even though it is possible to construct a 'ValidExternalId' from such a 'UserRef' with 'UrefOnly',
+-- this does not represent a valid 'ValidExternalId'. So in case of a 'UrefOnly', we can assume that the 'UserRef' does not contain an email.
 data ValidExternalId
   = EmailAndUref Email SAML.UserRef
   | UrefOnly SAML.UserRef
