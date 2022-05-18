@@ -202,7 +202,7 @@ data:
     {{- end }}
     {{- end }}
 
-    {{- if .Values.geoip.enabled }}
+    {{- if .geoip.enabled }}
     # Shared emptyDir with geoipupdate container
     geoDb: /usr/share/GeoIP/GeoIP2-City.mmdb
     {{- end }}

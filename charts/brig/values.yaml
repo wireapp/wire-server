@@ -84,6 +84,14 @@ config:
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}
+
+  geoip:
+    # When enabling this, .secrets.geoip.accountId, .secrets.geoip.licenseKey and
+    # .secret.geoip.editionIds must be provided.
+    enabled: false
+    image:
+      repository: docker.io/maxmindinc/geoipupdate
+      tag: v4.9
 turnStatic:
   v1:
   - turn:localhost:3478
@@ -95,14 +103,6 @@ turn:
   serversSource: files # files | dns
   # baseDomain: turn.example.com # Must be configured if serversSource is dns
   discoveryIntervalSeconds: 10 # Used only if serversSource is dns
-
-geoip:
-  # When enabling this, .secrets.geoip.accountId, .secrets.geoip.licenseKey and
-  # .secret.geoip.editionIds must be provided.
-  enabled: false
-  image:
-    repository: docker.io/maxmindinc/geoipupdate
-    tag: v4.9
 
 tests:
   enableFederationTests: false

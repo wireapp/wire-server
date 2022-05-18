@@ -42,16 +42,16 @@ spec:
         - name: "brig-secrets"
           secret:
             secretName: "brig"
-        {{- if .Values.geoip.enabled }}
+        {{- if .Values.config.geoip.enabled }}
         - name: "geoip"
           emptyDir: {}
         {{- end }}
-      {{- if .Values.geoip.enabled }}
+      {{- if .Values.config.geoip.enabled }}
       # Brig needs GeoIP database to be downloaded before it can start.
       initContainers:
         - name: geoipdownload
-          image: "{{ .Values.geoip.image.repository }}:{{ .Values.geoip.image.tag }}"
-          imagePullPolicy: {{ default "" .Values.geoip.imagePullPolicy | quote }}
+          image: "{{ .Values.config.geoip.image.repository }}:{{ .Values.config.geoip.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.config.geoip.imagePullPolicy | quote }}
           volumeMounts:
           - name: "geoip"
             mountPath: "/usr/share/GeoIP"
@@ -89,7 +89,7 @@ spec:
           - name: "turn-servers"
             mountPath: "/etc/wire/brig/turn"
           {{- end }}
-          {{- if .Values.geoip.enabled }}
+          {{- if .Values.config.geoip.enabled }}
           - name: "geoip"
             mountPath: "/usr/share/GeoIP"
           {{- end }}
@@ -145,10 +145,10 @@ spec:
               port: {{ .Values.service.internalPort }}
           resources:
 {{ toYaml .Values.resources | indent 12 }}
-        {{- if .Values.geoip.enabled }}
+        {{- if .Values.config.geoip.enabled }}
         - name: geoipupdate
-          image: "{{ .Values.geoip.image.repository }}:{{ .Values.geoip.image.tag }}"
-          imagePullPolicy: {{ default "" .Values.geoip.imagePullPolicy | quote }}
+          image: "{{ .Values.config.geoip.image.repository }}:{{ .Values.config.geoip.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.config.geoip.imagePullPolicy | quote }}
           volumeMounts:
           - name: "geoip"
             mountPath: "/usr/share/GeoIP"
