@@ -74,7 +74,7 @@ spec:
                 name: brig-geoip
                 key: editionIds
           - name: GEOIPUPDATE_FREQUENCY
-            value: 0 # Setting this to 0 makes the script only run geoipupdate once.
+            value: "0" # Setting this to 0 makes the script only run geoipupdate once.
       {{- end }}
       containers:
         - name: brig
@@ -171,5 +171,5 @@ spec:
                 name: brig-geoip
                 key: editionIds
           - name: GEOIPUPDATE_FREQUENCY
-            value: 24 # hours
+            value: "24" # hours
         {{- end }}
