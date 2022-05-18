@@ -1,4 +1,0 @@
-When `config.enablePayment` and `FEATURE_ENABLE_PAYMENT` (`envVars`) were set,
-the team-settings feature flag `FEATURE_ENABLE_PAYMENT` was rendered two times.
-The new behavior is to give the `envVars` entry priority. I.e. when it's set,
-it's used instead of the `config.enablePayment` value.

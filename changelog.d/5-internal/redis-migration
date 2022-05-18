@@ -1,1 +1,0 @@
-Allow specifying 'redisAdditionalWrite' for a secondary redis to which gundeck will write in the context of a redis migration without downtime.
