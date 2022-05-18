@@ -24,13 +24,12 @@ spec:
   secretName: federator-certificate-secret
   privateKey:
     algorithm: ECDSA
-    size: 384         # 521 is not supported by Letsencrypt
+    size: 256         # hs-tls only supports p256
     encoding: PKCS1
-    rotationPolicy: Always
-  # NOTE: disabled due to https://github.com/jetstack/cert-manager/issues/2978
-  # TODO: enable when fixed (probably when cert-manager:v0.16 released)
-  #privateKey:
-  #  rotationPolicy: Always
+    # NOTE: disabled due to https://github.com/jetstack/cert-manager/issues/2978
+    # TODO: enable when fixed (probably when cert-manager:v0.16 released)
+    #privateKey:
+    #  rotationPolicy: Always
   dnsNames:
     - {{ .Values.config.dns.federator }}
 {{- end -}}
