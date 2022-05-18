@@ -137,7 +137,7 @@ getFeatureStatus (Tagged getter) doauth tid = do
   case doauth of
     DoAuth uid -> do
       zusrMembership <- getTeamMember tid uid
-      void $ permissionCheck (ViewTeamFeature (knownTeamFeatureName @a)) zusrMembership
+      void $ permissionCheck ViewTeamFeature zusrMembership
     DontDoAuth ->
       assertTeamExists tid
   getter (Right tid)
@@ -165,7 +165,7 @@ setFeatureStatus (Tagged setter) doauth tid status = do
   case doauth of
     DoAuth uid -> do
       zusrMembership <- getTeamMember tid uid
-      void $ permissionCheck (ChangeTeamFeature (knownTeamFeatureName @a)) zusrMembership
+      void $ permissionCheck ChangeTeamFeature zusrMembership
     DontDoAuth ->
       assertTeamExists tid
   setter tid status
@@ -211,7 +211,7 @@ getFeatureConfig (Tagged getter) zusr = do
     Nothing -> getter (Left (Just zusr))
     Just tid -> do
       zusrMembership <- getTeamMember tid zusr
-      void $ permissionCheck (ViewTeamFeature (knownTeamFeatureName @a)) zusrMembership
+      void $ permissionCheck ViewTeamFeature zusrMembership
       assertTeamExists tid
       getter (Right tid)
 
@@ -241,7 +241,7 @@ getAllFeatureConfigs zusr = do
         Sem r (Aeson.Key, Aeson.Value)
       getStatus (Tagged getter) = do
         when (isJust mbTeam) $ do
-          void $ permissionCheck (ViewTeamFeature (knownTeamFeatureName @a)) zusrMembership
+          void $ permissionCheck ViewTeamFeature zusrMembership
         status <- getter (maybe (Left (Just zusr)) Right mbTeam)
         let feature = knownTeamFeatureName @a
         pure $ AesonKey.fromText (cs (toByteString' feature)) Aeson..= status
