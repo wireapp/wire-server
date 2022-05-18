@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Wire.API.Federation.API.Galley where
 
@@ -60,7 +59,7 @@ type GalleyApi =
     :<|> FedEndpoint "send-message" MessageSendRequest MessageSendResponse
     :<|> FedEndpoint "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
     :<|> FedEndpoint "update-conversation" ConversationUpdateRequest ConversationUpdateResponse
-    :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest ()
+    :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest MLSWelcomeResponse
 
 data GetConversationsRequest = GetConversationsRequest
   { gcrUserId :: UserId,
@@ -256,17 +255,23 @@ data ConversationUpdateResponse
     (ToJSON, FromJSON)
     via (CustomEncoded ConversationUpdateResponse)
 
-newtype MLSWelcomeRecipient = MLSWelcomeRecipient {unMLSWelRecipient :: (UserId, ClientId)}
-  deriving stock (Generic)
-  deriving (Arbitrary) via (GenericUniform MLSWelcomeRecipient)
-  deriving (FromJSON, ToJSON) via CustomEncoded MLSWelcomeRecipient
-  deriving newtype (Show, Eq)
-
-data MLSWelcomeRequest = MLSWelcomeRequest
-  { mwrRawWelcome :: Base64ByteString,
-    -- | These are qualified implicitly by the target domain
-    mwrRecipients :: [MLSWelcomeRecipient]
+-- | A wrapper around a raw welcome message
+newtype MLSWelcomeRequest = MLSWelcomeRequest
+  { unMLSWelcomeRequest :: Base64ByteString
   }
-  deriving stock (Generic)
+  deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via (GenericUniform MLSWelcomeRequest)
   deriving (FromJSON, ToJSON) via (CustomEncoded MLSWelcomeRequest)
+
+data MLSWelcomeResponseError
+  = MLSWelcomeResponseErrorRefNotFound
+  | MLSWelcomeResponseErrorDecodingFailed Text
+  deriving stock (Eq, Generic, Show)
+  deriving (Arbitrary) via GenericUniform MLSWelcomeResponseError
+  deriving (FromJSON, ToJSON) via CustomEncoded MLSWelcomeResponseError
+
+newtype MLSWelcomeResponse = MLSWelcomeResponse
+  {unMLSWelcomeResponse :: Either MLSWelcomeResponseError ()}
+  deriving stock (Eq, Generic, Show)
+  deriving (Arbitrary) via GenericUniform MLSWelcomeResponse
+  deriving (FromJSON, ToJSON) via CustomEncoded MLSWelcomeResponse

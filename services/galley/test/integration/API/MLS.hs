@@ -28,6 +28,7 @@ import qualified Data.Aeson as Aeson
 import Data.Default
 import Data.Domain
 import Data.Id
+import Data.Json.Util hiding ((#))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1
 import Data.Qualified
@@ -142,11 +143,11 @@ testRemoteWelcome = do
       opts = def {createConv = CreateConv, createClients = DontCreateClients}
   MessagingSetup {..} <- aliceInvitesBob (1, RemoteUser bobDomain) opts
   let alice = creator
-      bob = Imports.head users
 
+  let okResp = MLSWelcomeResponse . Right $ ()
   let mockedResponse fedReq =
         case frRPC fedReq of
-          "mls-welcome" -> pure (Aeson.encode ())
+          "mls-welcome" -> pure (Aeson.encode okResp)
           ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
 
   (_resp, reqs) <-
@@ -156,15 +157,8 @@ testRemoteWelcome = do
 
   --  Assert the correct federated call is made.
   fedWelcome <- assertOne (filter ((== "mls-welcome") . frRPC) reqs)
-  let welcomeRequest :: Maybe MLSWelcomeRequest = Aeson.decode (frBody fedWelcome)
-  liftIO $
-    fmap mwrRecipients welcomeRequest
-      @?= Just
-        [ MLSWelcomeRecipient
-            ( qUnqualified . pUserId $ bob,
-              snd . NonEmpty.head . pClients $ bob
-            )
-        ]
+  let req :: Maybe MLSWelcomeRequest = Aeson.decode (frBody fedWelcome)
+  liftIO $ req @?= (Just . MLSWelcomeRequest . Base64ByteString) welcome
 
 -- | Send a commit message, and assert that all participants see an event with
 -- the given list of new members.

@@ -32,7 +32,7 @@ import Data.Default
 import Data.Domain
 import Data.Id (ConvId, Id (..), UserId, newClientId, randomId)
 import Data.Json.Util hiding ((#))
-import Data.List.NonEmpty (NonEmpty (..), head)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
@@ -1151,22 +1151,22 @@ sendMLSWelcome = do
   -- Alice is from the originating domain and Bob is local, i.e., on the receiving domain
   MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {creatorOrigin = RemoteUser aliceDomain}
   let bob = users !! 0
-      bobClient = snd . Data.List.NonEmpty.head . pClients $ bob
 
   fedGalleyClient <- view tsFedGalleyClient
   cannon <- view tsCannon
 
-  WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
+  void . WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
     -- send welcome message
-    runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
-      MLSWelcomeRequest
-        (Base64ByteString welcome)
-        [MLSWelcomeRecipient (qUnqualified . pUserId $ bob, bobClient)]
+    MLSWelcomeResponse resp <-
+      runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
+        MLSWelcomeRequest
+          (Base64ByteString welcome)
 
     -- check that the corresponding event is received
-    void . liftIO $
-      WS.assertMatch (5 # WS.Second) wsB $
+    void . liftIO $ do
+      void . WS.assertMatch (5 # WS.Second) wsB $
         wsAssertMLSWelcome (pUserId bob) welcome
+      resp @?= Right ()
 
 getConvAction :: Sing tag -> SomeConversationAction -> Maybe (ConversationAction tag)
 getConvAction tquery (SomeConversationAction tag action) =

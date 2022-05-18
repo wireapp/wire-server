@@ -19,10 +19,12 @@
 module Galley.API.Federation where
 
 import Brig.Types.Connection (Relation (Accepted))
+import Control.Error
 import Control.Lens (itraversed, (<.>))
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain (Domain)
+import Data.Either.Combinators
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty (..))
@@ -32,10 +34,12 @@ import Data.Qualified
 import Data.Range (Range (fromRange))
 import qualified Data.Set as Set
 import Data.Singletons (SingI (..), demote, sing)
+import Data.Tagged
 import qualified Data.Text.Lazy as LT
 import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
+import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
 import Galley.API.Push
@@ -72,6 +76,7 @@ import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley (ConversationUpdateResponse)
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
+import Wire.API.MLS.Serialisation
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.ServantProto
@@ -290,7 +295,7 @@ leaveConversation requestingDomain lc = do
         pure (update, conv)
 
   case res of
-    Left err -> pure $ F.LeaveConversationResponse (Left err)
+    Left e -> pure $ F.LeaveConversationResponse (Left e)
     Right (_update, conv) -> do
       let action = pure (qUntagged leaver)
 
@@ -299,7 +304,6 @@ leaveConversation requestingDomain lc = do
       _event <- notifyConversationAction SConversationLeaveTag (qUntagged leaver) Nothing lcnv botsAndMembers action
 
       pure $ F.LeaveConversationResponse (Right ())
-  where
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
@@ -529,22 +533,35 @@ instance
 
 mlsSendWelcome ::
   Members
-    '[ GundeckAccess,
+    '[ BrigAccess,
+       GundeckAccess,
        Input (Local ()),
        Input UTCTime
      ]
     r =>
   Domain ->
   F.MLSWelcomeRequest ->
-  Sem r ()
-mlsSendWelcome _origDomain (F.MLSWelcomeRequest b64RawWelcome rcpts) = do
+  Sem r F.MLSWelcomeResponse
+mlsSendWelcome _origDomain (F.unMLSWelcomeRequest -> welBase64) = do
   loc <- input @(Local ())
   now <- input @UTCTime
-  let rawWelcome = fromBase64ByteString b64RawWelcome
-  void $
-    runMessagePush loc Nothing $
-      foldMap (uncurry $ mkPush rawWelcome loc now) (F.unMLSWelRecipient <$> rcpts)
+  let rawWelcome = fromBase64ByteString welBase64
+  runErrors $ do
+    welcome <-
+      fromEither
+        . mapLeft (const . mlsProtocolError $ decodingErrorMsg)
+        . decodeMLS'
+        $ rawWelcome
+    -- Extract only recipients local to this backend
+    rcpts <-
+      fmap fold $
+        foldQualified loc ((: []) . tUnqualified) (const mempty)
+          <$$> welcomeRecipients welcome
+    void $
+      runMessagePush loc Nothing $
+        foldMap (uncurry $ mkPush rawWelcome loc now) rcpts
   where
+    decodingErrorMsg = "Could not decode the welcome message"
     mkPush :: ByteString -> Local x -> UTCTime -> UserId -> ClientId -> MessagePush 'Broadcast
     mkPush rawWelcome l time u c =
       -- FUTUREWORK: use the conversation ID stored in the key package mapping table
@@ -552,3 +569,22 @@ mlsSendWelcome _origDomain (F.MLSWelcomeRequest b64RawWelcome rcpts) = do
           lusr = qualifyAs l u
           e = Event (qUntagged lcnv) (qUntagged lusr) time $ EdMLSWelcome rawWelcome
        in newMessagePush l () Nothing defMessageMetadata (u, c) e
+
+    runErrors ::
+      Sem (Error MLSProtocolError ': ErrorS 'MLSKeyPackageRefNotFound ': r) () ->
+      Sem r F.MLSWelcomeResponse
+    runErrors = fmap F.MLSWelcomeResponse . runDerefError . runProtocolError
+
+    runProtocolError ::
+      Sem (Error MLSProtocolError ': r) () ->
+      Sem r (Either F.MLSWelcomeResponseError ())
+    runProtocolError =
+      fmap (mapLeft (\(Tagged msg) -> F.MLSWelcomeResponseErrorDecodingFailed msg))
+        . runError
+
+    runDerefError ::
+      Sem (ErrorS 'MLSKeyPackageRefNotFound ': r) (Either F.MLSWelcomeResponseError ()) ->
+      Sem r (Either F.MLSWelcomeResponseError ())
+    runDerefError =
+      fmap (join . mapLeft (const F.MLSWelcomeResponseErrorRefNotFound))
+        . runError
