@@ -89,6 +89,7 @@ zauth:
     legalHoldAccessTokenTimeout: 900 # 15 minutes
 
 turn:
+  serversSource: files # files | dns
   serversV2: resources/turn/servers-v2.txt
   servers: resources/turn/servers.txt
   secret: resources/turn/secret.txt
