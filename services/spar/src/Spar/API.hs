@@ -683,12 +683,14 @@ idpUpdateXML ::
 idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   GalleyAccess.assertSSOEnabled teamid
-  forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) IdPConfigStore.deleteIssuer
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
-  -- structured idp config.  since this will lead to a 5xx response, the client is epected to
+  -- structured idp config.  since this will lead to a 5xx response, the client is expected to
   -- try again, which would clean up cassandra state.)
   storeIdPConfig idp
+  -- if the IdP issuer is updated, the old issuer must be removed explicitly.
+  -- if this step is ommitted (due to a crash) resending the update request should fix the inconsistent state.
+  forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) IdPConfigStore.deleteIssuer
   pure idp
 
 -- | Check that: idp id is valid; calling user is admin in that idp's home team; team id in
