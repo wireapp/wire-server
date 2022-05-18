@@ -42,6 +42,51 @@ spec:
         - name: "brig-secrets"
           secret:
             secretName: "brig"
+        {{- if .Values.geoip.enable }}
+        - name: "geoip"
+          emptyDir: {}
+        {{- end }}
+      {{- if .Values.geoip.enable }}
+      # Brig needs GeoIP database to be downloaded before it can start.
+      initContainers:
+        - name: geoipdownload
+          image: "{{ .Values.geoip.image.repository }}:{{ .Values.geoip.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.geoip.imagePullPolicy | quote }}
+          volumeMounts:
+          - name: "geoip"
+            mountPath: "/usr/share/GeoIP"
+          env:
+          - name: GEOIPUPDATE_ACCOUNT_ID
+            valueFrom:
+              secretKeyRef:
+                name: brig-geoip
+                key: accountId
+          - name: GEOIPUPDATE_LICENSE_KEY
+            valueFrom:
+              secretKeyRef:
+                name: brig-geoip
+                key: licenseKey
+          - name: GEOIPUPDATE_EDITION_IDS
+            valueFrom:
+              secretKeyRef:
+                name: brig-geoip
+                key: editionIds
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+
+              conf_file=$(mktemp)
+
+              cat <<EOF > "$conf_file"
+              AccountID $GEOIPUPDATE_ACCOUNT_ID
+              LicenseKey $GEOIPUPDATE_LICENSE_KEY
+              EditionIDs $GEOIPUPDATE_EDITION_IDS
+              EOF
+
+              geoipupdate -d /usr/share/GeoIP -f "$conf_file"
+      {{- end }}
       containers:
         - name: brig
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -54,6 +99,10 @@ spec:
           {{- if eq $.Values.turn.serversSource "files" }}
           - name: "turn-servers"
             mountPath: "/etc/wire/brig/turn"
+          {{- end }}
+          {{- if .Values.geoip.enable }}
+          - name: "geoip"
+            mountPath: "/usr/share/GeoIP"
           {{- end }}
           env:
           - name: LOG_LEVEL
@@ -107,3 +156,27 @@ spec:
               port: {{ .Values.service.internalPort }}
           resources:
 {{ toYaml .Values.resources | indent 12 }}
+        {{- if .Values.geoip.enable }}
+        - name: geoipupdate
+          image: "{{ .Values.geoip.image.repository }}:{{ .Values.geoip.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.geoip.imagePullPolicy | quote }}
+          volumeMounts:
+          - name: "geoip"
+            mountPath: "/usr/share/GeoIP"
+          env:
+          - name: GEOIPUPDATE_ACCOUNT_ID
+            valueFrom:
+              secretKeyRef:
+                name: brig-geoip
+                key: accountId
+          - name: GEOIPUPDATE_LICENSE_KEY
+            valueFrom:
+              secretKeyRef:
+                name: brig-geoip
+                key: licenseKey
+          - name: GEOIPUPDATE_EDITION_IDS
+            valueFrom:
+              secretKeyRef:
+                name: brig-geoip
+                key: editionIds
+        {{- end }}
