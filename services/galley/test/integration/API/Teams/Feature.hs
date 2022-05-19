@@ -24,18 +24,16 @@ import Bilge
 import Bilge.Assert
 import Control.Lens (over, to, view)
 import Control.Monad.Catch (MonadCatch)
-import Data.Aeson (FromJSON, ToJSON, object, (.=))
+import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
-import Data.ByteString.Conversion (toByteString')
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.List1 (list1)
 import qualified Data.List1 as List1
 import Data.Schema (ToSchema)
 import qualified Data.Set as Set
-import qualified Data.Text.Encoding as TE
 import Data.Timeout (TimeoutUnit (Second), (#))
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
@@ -652,40 +650,23 @@ testAllFeatures = do
     statusCode === const 200
     responseJsonMaybe === const (Just (expected TeamFeatureEnabled defLockStatus {- determined by 'getAfcConferenceCallingDefNew' in brig -}))
   where
+    expected :: Public.TeamFeatureStatusValue -> Public.LockStatusValue -> Public.AllFeatureConfigs
     expected confCalling lockState =
-      object
-        [ toS TeamFeatureLegalHold .= Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
-          toS TeamFeatureSSO .= Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
-          toS TeamFeatureSearchVisibility .= Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
-          toS TeamFeatureValidateSAMLEmails .= Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
-          toS TeamFeatureDigitalSignatures .= Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
-          toS TeamFeatureAppLock
-            .= Public.TeamFeatureStatusWithConfig
-              TeamFeatureEnabled
-              (Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) (60 :: Int32)),
-          toS TeamFeatureFileSharing .= Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Public.Unlocked,
-          toS TeamFeatureClassifiedDomains
-            .= Public.TeamFeatureStatusWithConfig
-              TeamFeatureEnabled
-              (Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"]),
-          toS TeamFeatureConferenceCalling
-            .= Public.TeamFeatureStatusNoConfig confCalling,
-          toS TeamFeatureSelfDeletingMessages
-            .= Public.TeamFeatureStatusWithConfigAndLockStatus @Public.TeamFeatureSelfDeletingMessagesConfig
-              TeamFeatureEnabled
-              (Public.TeamFeatureSelfDeletingMessagesConfig 0)
-              lockState,
-          toS TeamFeatureGuestLinks
-            .= Public.TeamFeatureStatusNoConfigAndLockStatus
-              TeamFeatureEnabled
-              Public.Unlocked,
-          toS TeamFeatureValidateSAMLEmails .= Public.TeamFeatureStatusNoConfig TeamFeatureEnabled,
-          toS TeamFeatureGuestLinks .= Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Public.Unlocked,
-          toS TeamFeatureSndFactorPasswordChallenge .= Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Public.Locked
-        ]
-    toS :: TeamFeatureName -> Aeson.Key
-    toS = AesonKey.fromText . TE.decodeUtf8 . toByteString'
-
+        Public.AllFeatureConfigs
+          { Public.afcLegalholdStatus = Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
+            Public.afcSSOStatus = Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
+            Public.afcTeamSearchVisibilityAvailable = Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
+            Public.afcValidateSAMLEmails = Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Public.Unlocked,
+            Public.afcDigitalSignatures = Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
+            Public.afcAppLock = Public.TeamFeatureStatusWithConfig TeamFeatureEnabled (Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) (60 :: Int32)),
+            Public.afcFileSharing = Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Public.Unlocked,
+            Public.afcClassifiedDomains = Public.TeamFeatureStatusWithConfig TeamFeatureEnabled (Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"]),
+            Public.afcConferenceCalling = Public.TeamFeatureStatusNoConfig confCalling,
+            Public.afcSelfDeletingMessages = Public.TeamFeatureStatusWithConfigAndLockStatus @Public.TeamFeatureSelfDeletingMessagesConfig TeamFeatureEnabled (Public.TeamFeatureSelfDeletingMessagesConfig 0) lockState,
+            Public.afcGuestLink = Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Public.Unlocked,
+            Public.afcSndFactorPasswordChallenge = Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Public.Locked
+          }
+          
 testFeatureConfigConsistency :: TestM ()
 testFeatureConfigConsistency = do
   owner <- Util.randomUser

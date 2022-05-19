@@ -367,9 +367,9 @@ getValidateSAMLEmailsInternal ::
   ( Member TeamFeatureStore r,
     Member (Input Opts) r
   ) =>
-  FeatureGetter 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails r
+  FeatureGetter 'WithLockStatus 'TeamFeatureValidateSAMLEmails r
 getValidateSAMLEmailsInternal =
-  Tagged $ getFeatureStatusWithDefaultConfig @'TeamFeatureValidateSAMLEmails flagsTeamFeatureValidateSAMLEmailsStatus . mbTeam
+  Tagged $ getFeatureStatusWithDefaultConfigAndImplicitLockStatus @'TeamFeatureValidateSAMLEmails flagsTeamFeatureValidateSAMLEmailsStatus . mbTeam
   where
     mbTeam = \case
       FeatureScopeTeam tid -> Just tid
@@ -515,6 +515,27 @@ getFeatureStatusWithDefaultConfig lens' =
   where
     getDef :: Sem r TeamFeatureStatusValue
     getDef = inputs (view (optSettings . setFeatureFlags . lens')) <&> tfwoStatus
+
+getFeatureStatusWithDefaultConfigAndImplicitLockStatus ::
+  forall (a :: TeamFeatureName) r.
+  ( KnownTeamFeatureName a,
+    HasStatusCol a,
+    FeatureHasNoConfig 'WithLockStatus a,
+    FeatureHasNoConfig 'WithoutLockStatus a,
+    Members '[Input Opts, TeamFeatureStore] r
+  ) =>
+  Lens' FeatureFlags (TeamFeatureStatus 'WithLockStatus a) ->
+  Maybe TeamId ->
+  Sem r (TeamFeatureStatus 'WithLockStatus a)
+getFeatureStatusWithDefaultConfigAndImplicitLockStatus lens' = \case
+  Nothing -> getDef
+  Just tid -> do
+    tfStatus <- getFeatureStatusNoConfig @a (getDef <&> tfwoapsStatus) tid <&> tfwoStatus
+    def <- getDef
+    pure $ def {tfwoapsStatus = tfStatus}
+  where
+    getDef :: Sem r TeamFeatureStatusNoConfigAndLockStatus
+    getDef = inputs (view (optSettings . setFeatureFlags . lens'))
 
 setFileSharingInternal ::
   forall r.

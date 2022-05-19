@@ -225,7 +225,7 @@ data FeatureFlags = FeatureFlags
     _flagConferenceCalling :: !(TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureConferenceCalling),
     _flagSelfDeletingMessages :: !(TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages),
     _flagConversationGuestLinks :: !(TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks),
-    _flagsTeamFeatureValidateSAMLEmailsStatus :: !(TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails),
+    _flagsTeamFeatureValidateSAMLEmailsStatus :: !(TeamFeatureStatus 'WithLockStatus 'TeamFeatureValidateSAMLEmails),
     _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(TeamFeatureStatus 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge),
     _flagTeamFeatureSearchVisibilityInbound :: !(TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSearchVisibilityInbound)
   }
@@ -262,6 +262,30 @@ data FeatureTeamSearchVisibility
   | FeatureTeamSearchVisibilityDisabledByDefault
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
+newtype ImplcitLockStatus (a :: TeamFeatureName) = ImplicitLockStatus {_unImplicitLockStatus :: TeamFeatureStatus 'WithLockStatus a}
+
+instance
+  ( FromJSON (TeamFeatureStatus 'WithoutLockStatus a),
+    DefTeamFeatureStatus a,
+    FeatureHasNoConfig 'WithLockStatus a,
+    FeatureHasNoConfig 'WithoutLockStatus a
+  ) =>
+  FromJSON (ImplcitLockStatus a)
+  where
+  parseJSON v = do
+    tfStatus <- parseJSON v
+    pure $ ImplicitLockStatus $ TeamFeatureStatusNoConfigAndLockStatus (tfwoStatus tfStatus) (tfwoapsLockStatus $ defTeamFeatureStatus @a)
+
+instance
+  ( ToJSON (TeamFeatureStatus 'WithoutLockStatus a),
+    DefTeamFeatureStatus a,
+    FeatureHasNoConfig 'WithLockStatus a,
+    FeatureHasNoConfig 'WithoutLockStatus a
+  ) =>
+  ToJSON (ImplcitLockStatus a)
+  where
+  toJSON (ImplicitLockStatus a) = toJSON $ TeamFeatureStatusNoConfig (tfwoapsStatus a)
+
 -- NOTE: This is used only in the config and thus YAML... camelcase
 instance FromJSON FeatureFlags where
   parseJSON = withObject "FeatureFlags" $ \obj ->
@@ -275,7 +299,7 @@ instance FromJSON FeatureFlags where
       <*> (maybe (defTeamFeatureStatus @'TeamFeatureConferenceCalling) _unDefaults <$> (obj .:? "conferenceCalling"))
       <*> (maybe (defTeamFeatureStatus @'TeamFeatureSelfDeletingMessages) _unDefaults <$> (obj .:? "selfDeletingMessages"))
       <*> (maybe (defTeamFeatureStatus @'TeamFeatureGuestLinks) _unDefaults <$> (obj .:? "conversationGuestLinks"))
-      <*> (maybe (defTeamFeatureStatus @'TeamFeatureValidateSAMLEmails) _unDefaults <$> (obj .:? "validateSAMLEmails"))
+      <*> (maybe (defTeamFeatureStatus @'TeamFeatureValidateSAMLEmails) (_unImplicitLockStatus @'TeamFeatureValidateSAMLEmails . _unDefaults) <$> (obj .:? "validateSAMLEmails"))
       <*> (maybe (defTeamFeatureStatus @'TeamFeatureSndFactorPasswordChallenge) _unDefaults <$> (obj .:? "sndFactorPasswordChallenge"))
       <*> (maybe (defTeamFeatureStatus @'TeamFeatureSearchVisibilityInbound) _unDefaults <$> (obj .:? "searchVisibilityInbound"))
 
@@ -305,7 +329,7 @@ instance ToJSON FeatureFlags where
           "conferenceCalling" .= Defaults conferenceCalling,
           "selfDeletingMessages" .= Defaults selfDeletingMessages,
           "conversationGuestLinks" .= Defaults guestLinks,
-          "validateSAMLEmails" .= Defaults validateSAMLEmails,
+          "validateSAMLEmails" .= Defaults (ImplicitLockStatus @'TeamFeatureValidateSAMLEmails validateSAMLEmails),
           "sndFactorPasswordChallenge" .= Defaults sndFactorPasswordChallenge,
           "searchVisibilityInbound" .= Defaults searchVisibilityInbound
         ]

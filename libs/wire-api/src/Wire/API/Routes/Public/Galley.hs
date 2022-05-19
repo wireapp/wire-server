@@ -1103,7 +1103,7 @@ type FeatureAPI =
     :<|> SearchVisibilityGet
     :<|> SearchVisibilitySet
     :<|> FeatureStatusGet 'TeamFeatureValidateSAMLEmails
-    :<|> FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails
+    :<|> FeatureStatusDeprecatedGet 'WithLockStatus 'TeamFeatureValidateSAMLEmails
     :<|> FeatureStatusGet 'TeamFeatureDigitalSignatures
     :<|> FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureDigitalSignatures
     :<|> FeatureStatusGet 'TeamFeatureAppLock
@@ -1123,7 +1123,7 @@ type FeatureAPI =
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureLegalHold
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSSO
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSearchVisibility
-    :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails
+    :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureValidateSAMLEmails
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureDigitalSignatures
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureAppLock
     :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureFileSharing

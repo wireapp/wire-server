@@ -123,11 +123,13 @@ type IFeatureAPI =
             )
            'TeamFeatureLegalHold
     :<|> IFeatureStatus '() 'TeamFeatureSearchVisibility
-    :<|> IFeatureStatusDeprecated 'TeamFeatureSearchVisibility
-    :<|> IFeatureStatus '() 'TeamFeatureValidateSAMLEmails
-    :<|> IFeatureStatusDeprecated 'TeamFeatureValidateSAMLEmails
+    :<|> IFeatureStatusDeprecated 'WithoutLockStatus 'TeamFeatureSearchVisibility
+    :<|> IFeatureStatusGet 'WithLockStatus 'TeamFeatureValidateSAMLEmails
+    :<|> IFeatureStatusPut '() 'TeamFeatureValidateSAMLEmails
+    :<|> Named '("iget-deprecated", 'TeamFeatureValidateSAMLEmails) (FeatureStatusBaseDeprecatedGet 'WithLockStatus 'TeamFeatureValidateSAMLEmails)
+    :<|> Named '("iput-deprecated", 'TeamFeatureValidateSAMLEmails) (FeatureStatusBaseDeprecatedPut 'TeamFeatureValidateSAMLEmails)
     :<|> IFeatureStatus '() 'TeamFeatureDigitalSignatures
-    :<|> IFeatureStatusDeprecated 'TeamFeatureDigitalSignatures
+    :<|> IFeatureStatusDeprecated 'WithoutLockStatus 'TeamFeatureDigitalSignatures
     :<|> IFeatureStatus '() 'TeamFeatureAppLock
     :<|> IFeatureStatusWithLock '() 'TeamFeatureFileSharing
     :<|> IFeatureStatusGet 'WithLockStatus 'TeamFeatureClassifiedDomains
@@ -316,8 +318,8 @@ type IFeatureStatusPut errs f = Named '("iput", f) (FeatureStatusBasePut errs f)
 
 type IFeatureStatus errs f = IFeatureStatusGet 'WithoutLockStatus f :<|> IFeatureStatusPut errs f
 
-type IFeatureStatusDeprecated f =
-  Named '("iget-deprecated", f) (FeatureStatusBaseDeprecatedGet 'WithoutLockStatus f)
+type IFeatureStatusDeprecated l f =
+  Named '("iget-deprecated", f) (FeatureStatusBaseDeprecatedGet l f)
     :<|> Named '("iput-deprecated", f) (FeatureStatusBaseDeprecatedPut f)
 
 type IFeatureStatusLockStatusPut featureName =
@@ -408,8 +410,10 @@ featureAPI =
     <@> fs getLegalholdStatusInternal (setLegalholdStatusInternal @InternalPaging)
     <@> fs getTeamSearchVisibilityAvailableInternal setTeamSearchVisibilityAvailableInternal
     <@> fs getTeamSearchVisibilityAvailableInternal setTeamSearchVisibilityAvailableInternal
-    <@> fs getValidateSAMLEmailsInternal setValidateSAMLEmailsInternal
-    <@> fs getValidateSAMLEmailsInternal setValidateSAMLEmailsInternal
+    <@> fsGet getValidateSAMLEmailsInternal
+    <@> fsSet setValidateSAMLEmailsInternal
+    <@> fsGet getValidateSAMLEmailsInternal
+    <@> fsSet setValidateSAMLEmailsInternal
     <@> fs getDigitalSignaturesInternal setDigitalSignaturesInternal
     <@> fs getDigitalSignaturesInternal setDigitalSignaturesInternal
     <@> fs getAppLockInternal setAppLockInternal

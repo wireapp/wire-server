@@ -317,7 +317,8 @@ type family TeamFeatureStatus (ps :: IncludeLockStatus) (a :: TeamFeatureName) :
   TeamFeatureStatus _ 'TeamFeatureLegalHold = TeamFeatureStatusNoConfig
   TeamFeatureStatus _ 'TeamFeatureSSO = TeamFeatureStatusNoConfig
   TeamFeatureStatus _ 'TeamFeatureSearchVisibility = TeamFeatureStatusNoConfig
-  TeamFeatureStatus _ 'TeamFeatureValidateSAMLEmails = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails = TeamFeatureStatusNoConfig
+  TeamFeatureStatus 'WithLockStatus 'TeamFeatureValidateSAMLEmails = TeamFeatureStatusNoConfigAndLockStatus
   TeamFeatureStatus _ 'TeamFeatureDigitalSignatures = TeamFeatureStatusNoConfig
   TeamFeatureStatus _ 'TeamFeatureAppLock = TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
   TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureFileSharing = TeamFeatureStatusNoConfig
@@ -353,18 +354,18 @@ modelForTeamFeature TeamFeatureSndFactorPasswordChallenge = modelTeamFeatureStat
 modelForTeamFeature TeamFeatureSearchVisibilityInbound = modelTeamFeatureStatusNoConfig
 
 data AllFeatureConfigs = AllFeatureConfigs
-  { afcLegalholdStatusInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold,
-    afcSSOStatusInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSSO,
-    afcTeamSearchVisibilityAvailableInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSearchVisibility,
-    afcValidateSAMLEmailsInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails,
-    afcDigitalSignaturesInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureDigitalSignatures,
-    afcAppLockInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureAppLock,
-    afcFileSharingInternal :: TeamFeatureStatus 'WithLockStatus 'TeamFeatureFileSharing,
-    afcClassifiedDomainsInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureClassifiedDomains,
-    afcConferenceCallingInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureConferenceCalling,
-    afcSelfDeletingMessagesInternal :: TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages,
-    afcGuestLinkInternal :: TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks,
-    afcSndFactorPasswordChallengeInternal :: TeamFeatureStatus 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge
+  { afcLegalholdStatus :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold,
+    afcSSOStatus :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSSO,
+    afcTeamSearchVisibilityAvailable :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSearchVisibility,
+    afcValidateSAMLEmails :: TeamFeatureStatus 'WithLockStatus 'TeamFeatureValidateSAMLEmails,
+    afcDigitalSignatures :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureDigitalSignatures,
+    afcAppLock :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureAppLock,
+    afcFileSharing :: TeamFeatureStatus 'WithLockStatus 'TeamFeatureFileSharing,
+    afcClassifiedDomains :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureClassifiedDomains,
+    afcConferenceCalling :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureConferenceCalling,
+    afcSelfDeletingMessages :: TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages,
+    afcGuestLink :: TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks,
+    afcSndFactorPasswordChallenge :: TeamFeatureStatus 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -373,18 +374,18 @@ instance ToSchema AllFeatureConfigs where
   schema =
     object "AllFeatureConfigs" $
       AllFeatureConfigs
-        <$> afcLegalholdStatusInternal .= field (name @'TeamFeatureLegalHold) schema
-        <*> afcSSOStatusInternal .= field (name @'TeamFeatureSSO) schema
-        <*> afcTeamSearchVisibilityAvailableInternal .= field (name @'TeamFeatureSearchVisibility) schema
-        <*> afcValidateSAMLEmailsInternal .= field (name @'TeamFeatureValidateSAMLEmails) schema
-        <*> afcDigitalSignaturesInternal .= field (name @'TeamFeatureDigitalSignatures) schema
-        <*> afcAppLockInternal .= field (name @'TeamFeatureAppLock) schema
-        <*> afcFileSharingInternal .= field (name @'TeamFeatureFileSharing) schema
-        <*> afcClassifiedDomainsInternal .= field (name @'TeamFeatureClassifiedDomains) schema
-        <*> afcConferenceCallingInternal .= field (name @'TeamFeatureConferenceCalling) schema
-        <*> afcSelfDeletingMessagesInternal .= field (name @'TeamFeatureSelfDeletingMessages) schema
-        <*> afcGuestLinkInternal .= field (name @'TeamFeatureGuestLinks) schema
-        <*> afcSndFactorPasswordChallengeInternal .= field (name @'TeamFeatureSndFactorPasswordChallenge) schema
+        <$> afcLegalholdStatus .= field (name @'TeamFeatureLegalHold) schema
+        <*> afcSSOStatus .= field (name @'TeamFeatureSSO) schema
+        <*> afcTeamSearchVisibilityAvailable .= field (name @'TeamFeatureSearchVisibility) schema
+        <*> afcValidateSAMLEmails .= field (name @'TeamFeatureValidateSAMLEmails) schema
+        <*> afcDigitalSignatures .= field (name @'TeamFeatureDigitalSignatures) schema
+        <*> afcAppLock .= field (name @'TeamFeatureAppLock) schema
+        <*> afcFileSharing .= field (name @'TeamFeatureFileSharing) schema
+        <*> afcClassifiedDomains .= field (name @'TeamFeatureClassifiedDomains) schema
+        <*> afcConferenceCalling .= field (name @'TeamFeatureConferenceCalling) schema
+        <*> afcSelfDeletingMessages .= field (name @'TeamFeatureSelfDeletingMessages) schema
+        <*> afcGuestLink .= field (name @'TeamFeatureGuestLinks) schema
+        <*> afcSndFactorPasswordChallenge .= field (name @'TeamFeatureSndFactorPasswordChallenge) schema
     where
       name :: forall a. KnownTeamFeatureName a => Text
       name = cs (toByteString' (knownTeamFeatureName @a))
@@ -660,7 +661,7 @@ instance DefTeamFeatureStatus 'TeamFeatureGuestLinks where
   defTeamFeatureStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked
 
 instance DefTeamFeatureStatus 'TeamFeatureValidateSAMLEmails where
-  defTeamFeatureStatus = TeamFeatureStatusNoConfig TeamFeatureEnabled
+  defTeamFeatureStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked
 
 instance DefTeamFeatureStatus 'TeamFeatureSndFactorPasswordChallenge where
   defTeamFeatureStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Locked

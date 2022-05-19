@@ -149,12 +149,12 @@ servantSitemap =
         <@> mkNamedAPI @"get-search-visibility" getSearchVisibility
         <@> mkNamedAPI @"set-search-visibility" setSearchVisibility
         <@> mkNamedAPI @'("get", 'TeamFeatureValidateSAMLEmails)
-          ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails
+          ( getFeatureStatus @'WithLockStatus @'TeamFeatureValidateSAMLEmails
               getValidateSAMLEmailsInternal
               . DoAuth
           )
         <@> mkNamedAPI @'("get-deprecated", 'TeamFeatureValidateSAMLEmails)
-          ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails
+          ( getFeatureStatus @'WithLockStatus @'TeamFeatureValidateSAMLEmails
               getValidateSAMLEmailsInternal
               . DoAuth
           )
@@ -243,7 +243,7 @@ servantSitemap =
               getTeamSearchVisibilityAvailableInternal
           )
         <@> mkNamedAPI @'("get-config", 'TeamFeatureValidateSAMLEmails)
-          ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails
+          ( getFeatureConfig @'WithLockStatus @'TeamFeatureValidateSAMLEmails
               getValidateSAMLEmailsInternal
           )
         <@> mkNamedAPI @'("get-config", 'TeamFeatureDigitalSignatures)
