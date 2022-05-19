@@ -250,6 +250,43 @@ sendMsg message k c = do
 
     kb = key2bytes k
 
+-- | Closes all websockets connected to this instance of cannon.
+--
+-- This function is not tested anywhere as it is difficult to write an automated
+-- test for. Some pointers on testing this function:
+--
+-- 1. Set values in cannon.integration.yaml for drainOpts such that it drains
+-- "slowly", something like:
+--
+-- @
+-- {gracePeriodSeconds: 1, millisecondsBetweenBatches: 500, minBatchSize: 5}
+-- @
+--
+-- This will ensure that if there 10 or more websockets open, they get drained
+-- in 2 batches of n/2.
+--
+-- 2. Write a test in brig or galley using 'bracketRN' function from
+-- tasty-cannon. This function doesn't require users to exist. Just pass it n
+-- UserIds and threadDelay for a long-ish time.
+--
+-- 3. During this threadDelay, send either SIGINT or SIGTERM to the cannon
+-- process and use cannon logs to determine what is going on.
+--
+-- Example test, which worked at the time of writing this comment:
+--
+-- @
+-- testCannonDrain :: Cannon -> Http ()
+-- testCannonDrain cannon = do
+--   users <- replicateM 50 randomId
+--   WS.bracketRN cannon users $ \_websockets -> do
+--     putStrLn "-------------------> Before delay"
+--     threadDelay 100_000_000
+--     putStrLn "-------------------> After delay"
+--   putStrLn "-------------------> After bracket"
+-- @
+--
+-- Use @pkill -INT -f cannon.integration.yaml@ to send SIGINT to the cannon
+-- process.
 drain :: WS ()
 drain = do
   opts <- asks drainOpts

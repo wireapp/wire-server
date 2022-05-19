@@ -18,8 +18,8 @@ gundeck:
 
 drainOpts:
   gracePeriodSeconds: 1
-  millisecondsBetweenBatches: 5
-  minBatchSize: 100
+  millisecondsBetweenBatches: 500
+  minBatchSize: 5
 
 logLevel: Info
 logNetStrings: false
