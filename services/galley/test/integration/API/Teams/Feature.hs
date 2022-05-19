@@ -652,21 +652,21 @@ testAllFeatures = do
   where
     expected :: Public.TeamFeatureStatusValue -> Public.LockStatusValue -> Public.AllFeatureConfigs
     expected confCalling lockState =
-        Public.AllFeatureConfigs
-          { Public.afcLegalholdStatus = Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
-            Public.afcSSOStatus = Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
-            Public.afcTeamSearchVisibilityAvailable = Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
-            Public.afcValidateSAMLEmails = Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Public.Unlocked,
-            Public.afcDigitalSignatures = Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
-            Public.afcAppLock = Public.TeamFeatureStatusWithConfig TeamFeatureEnabled (Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) (60 :: Int32)),
-            Public.afcFileSharing = Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Public.Unlocked,
-            Public.afcClassifiedDomains = Public.TeamFeatureStatusWithConfig TeamFeatureEnabled (Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"]),
-            Public.afcConferenceCalling = Public.TeamFeatureStatusNoConfig confCalling,
-            Public.afcSelfDeletingMessages = Public.TeamFeatureStatusWithConfigAndLockStatus @Public.TeamFeatureSelfDeletingMessagesConfig TeamFeatureEnabled (Public.TeamFeatureSelfDeletingMessagesConfig 0) lockState,
-            Public.afcGuestLink = Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Public.Unlocked,
-            Public.afcSndFactorPasswordChallenge = Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Public.Locked
-          }
-          
+      Public.AllFeatureConfigs
+        { Public.afcLegalholdStatus = Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
+          Public.afcSSOStatus = Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
+          Public.afcTeamSearchVisibilityAvailable = Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
+          Public.afcValidateSAMLEmails = Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Public.Unlocked,
+          Public.afcDigitalSignatures = Public.TeamFeatureStatusNoConfig TeamFeatureDisabled,
+          Public.afcAppLock = Public.TeamFeatureStatusWithConfig TeamFeatureEnabled (Public.TeamFeatureAppLockConfig (Public.EnforceAppLock False) (60 :: Int32)),
+          Public.afcFileSharing = Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Public.Unlocked,
+          Public.afcClassifiedDomains = Public.TeamFeatureStatusWithConfig TeamFeatureEnabled (Public.TeamFeatureClassifiedDomainsConfig [Domain "example.com"]),
+          Public.afcConferenceCalling = Public.TeamFeatureStatusNoConfig confCalling,
+          Public.afcSelfDeletingMessages = Public.TeamFeatureStatusWithConfigAndLockStatus @Public.TeamFeatureSelfDeletingMessagesConfig TeamFeatureEnabled (Public.TeamFeatureSelfDeletingMessagesConfig 0) lockState,
+          Public.afcGuestLink = Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Public.Unlocked,
+          Public.afcSndFactorPasswordChallenge = Public.TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Public.Locked
+        }
+
 testFeatureConfigConsistency :: TestM ()
 testFeatureConfigConsistency = do
   owner <- Util.randomUser
