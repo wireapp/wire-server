@@ -24,7 +24,6 @@ import Control.Lens (itraversed, (<.>))
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain (Domain)
-import Data.Either.Combinators
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty (..))
@@ -542,26 +541,25 @@ mlsSendWelcome ::
   Domain ->
   F.MLSWelcomeRequest ->
   Sem r F.MLSWelcomeResponse
-mlsSendWelcome _origDomain (F.unMLSWelcomeRequest -> welBase64) = do
-  loc <- input @(Local ())
-  now <- input @UTCTime
-  let rawWelcome = fromBase64ByteString welBase64
-  runErrors $ do
-    welcome <-
-      fromEither
-        . mapLeft (const . mlsProtocolError $ decodingErrorMsg)
-        . decodeMLS'
-        $ rawWelcome
-    -- Extract only recipients local to this backend
-    rcpts <-
-      fmap fold $
-        foldQualified loc ((: []) . tUnqualified) (const mempty)
-          <$$> welcomeRecipients welcome
-    void $
+mlsSendWelcome _origDomain (F.unMLSWelcomeRequest -> welBase64) =
+  fmap (either (const F.MLSWelcomeResponseRefNotFound) id)
+    . runError @(Tagged 'MLSKeyPackageRefNotFound ())
+    . fmap (either F.MLSWelcomeResponseDecodingFailed id)
+    . runError
+    $ do
+      loc <- qualifyLocal ()
+      now <- input
+      let rawWelcome = fromBase64ByteString welBase64
+      welcome <- either throw pure $ decodeMLS' rawWelcome
+      -- Extract only recipients local to this backend
+      rcpts <-
+        fmap fold $
+          foldQualified loc ((: []) . tUnqualified) (const mempty)
+            <$$> welcomeRecipients welcome
       runMessagePush loc Nothing $
         foldMap (uncurry $ mkPush rawWelcome loc now) rcpts
+      pure F.MLSWelcomeResponseSuccess
   where
-    decodingErrorMsg = "Could not decode the welcome message"
     mkPush :: ByteString -> Local x -> UTCTime -> UserId -> ClientId -> MessagePush 'Broadcast
     mkPush rawWelcome l time u c =
       -- FUTUREWORK: use the conversation ID stored in the key package mapping table
@@ -569,22 +567,3 @@ mlsSendWelcome _origDomain (F.unMLSWelcomeRequest -> welBase64) = do
           lusr = qualifyAs l u
           e = Event (qUntagged lcnv) (qUntagged lusr) time $ EdMLSWelcome rawWelcome
        in newMessagePush l () Nothing defMessageMetadata (u, c) e
-
-    runErrors ::
-      Sem (Error MLSProtocolError ': ErrorS 'MLSKeyPackageRefNotFound ': r) () ->
-      Sem r F.MLSWelcomeResponse
-    runErrors = fmap F.MLSWelcomeResponse . runDerefError . runProtocolError
-
-    runProtocolError ::
-      Sem (Error MLSProtocolError ': r) () ->
-      Sem r (Either F.MLSWelcomeResponseError ())
-    runProtocolError =
-      fmap (mapLeft (\(Tagged msg) -> F.MLSWelcomeResponseErrorDecodingFailed msg))
-        . runError
-
-    runDerefError ::
-      Sem (ErrorS 'MLSKeyPackageRefNotFound ': r) (Either F.MLSWelcomeResponseError ()) ->
-      Sem r (Either F.MLSWelcomeResponseError ())
-    runDerefError =
-      fmap (join . mapLeft (const F.MLSWelcomeResponseErrorRefNotFound))
-        . runError

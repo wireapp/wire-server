@@ -144,7 +144,7 @@ testRemoteWelcome = do
   MessagingSetup {..} <- aliceInvitesBob (1, RemoteUser bobDomain) opts
   let alice = creator
 
-  let okResp = MLSWelcomeResponse . Right $ ()
+  let okResp = MLSWelcomeResponseSuccess
   let mockedResponse fedReq =
         case frRPC fedReq of
           "mls-welcome" -> pure (Aeson.encode okResp)

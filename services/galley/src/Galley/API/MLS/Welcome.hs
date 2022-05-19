@@ -22,7 +22,6 @@ module Galley.API.MLS.Welcome
 where
 
 import Control.Comonad
-import Data.Either.Combinators
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
@@ -130,7 +129,7 @@ sendRemoteWelcomes ::
 sendRemoteWelcomes rawWelcome rClients = do
   let req = MLSWelcomeRequest . Base64ByteString $ rawWelcome
       rpc = fedClient @'Galley @"mls-welcome" req
-  resp <- unMLSWelcomeResponse <$> runFederated rClients rpc
-  whenLeft resp $ \case
-    MLSWelcomeResponseErrorRefNotFound -> throwS @'MLSKeyPackageRefNotFound
-    MLSWelcomeResponseErrorDecodingFailed msg -> throw . mlsProtocolError $ msg
+  runFederated rClients rpc >>= \case
+    MLSWelcomeResponseRefNotFound -> throwS @'MLSKeyPackageRefNotFound
+    MLSWelcomeResponseDecodingFailed msg -> throw . mlsProtocolError $ msg
+    MLSWelcomeResponseSuccess -> pure ()

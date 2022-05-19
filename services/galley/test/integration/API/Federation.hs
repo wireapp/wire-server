@@ -1159,7 +1159,7 @@ sendMLSWelcome = do
 
   void . WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
     -- send welcome message
-    MLSWelcomeResponse resp <-
+    resp <-
       runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
         MLSWelcomeRequest
           (Base64ByteString welcome)
@@ -1168,7 +1168,7 @@ sendMLSWelcome = do
     void . liftIO $ do
       void . WS.assertMatch (5 # WS.Second) wsB $
         wsAssertMLSWelcome (pUserId bob) welcome
-      resp @?= Right ()
+      resp @?= MLSWelcomeResponseSuccess
 
 sendMLSWelcomeKeyPackageNotFound :: TestM ()
 sendMLSWelcomeKeyPackageNotFound = do
@@ -1188,7 +1188,7 @@ sendMLSWelcomeKeyPackageNotFound = do
 
   void . WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
     -- send welcome message
-    MLSWelcomeResponse resp <-
+    resp <-
       runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
         MLSWelcomeRequest
           (Base64ByteString welcome)
@@ -1196,7 +1196,7 @@ sendMLSWelcomeKeyPackageNotFound = do
     -- check that no event is received
     void . liftIO $ do
       WS.assertNoEvent (1 # Second) [wsB]
-      resp @?= Left MLSWelcomeResponseErrorRefNotFound
+      resp @?= MLSWelcomeResponseRefNotFound
 
 sendMLSWelcomeDecodingFailed :: TestM ()
 sendMLSWelcomeDecodingFailed = do
@@ -1208,7 +1208,7 @@ sendMLSWelcomeDecodingFailed = do
 
   void . WS.bracketR cannon (qUnqualified bob) $ \wsB -> do
     -- send a gibberish welcome message
-    MLSWelcomeResponse resp <-
+    resp <-
       runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
         MLSWelcomeRequest
           (Base64ByteString "gibberish")
@@ -1217,10 +1217,9 @@ sendMLSWelcomeDecodingFailed = do
     void . liftIO $ do
       WS.assertNoEvent (1 # Second) [wsB]
       resp
-        @?= Left
-          ( MLSWelcomeResponseErrorDecodingFailed
-              "Could not decode the welcome message"
-          )
+        @?= ( MLSWelcomeResponseDecodingFailed
+                "Could not decode the welcome message"
+            )
 
 getConvAction :: Sing tag -> SomeConversationAction -> Maybe (ConversationAction tag)
 getConvAction tquery (SomeConversationAction tag action) =

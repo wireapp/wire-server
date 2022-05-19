@@ -263,15 +263,10 @@ newtype MLSWelcomeRequest = MLSWelcomeRequest
   deriving (Arbitrary) via (GenericUniform MLSWelcomeRequest)
   deriving (FromJSON, ToJSON) via (CustomEncoded MLSWelcomeRequest)
 
-data MLSWelcomeResponseError
-  = MLSWelcomeResponseErrorRefNotFound
-  | MLSWelcomeResponseErrorDecodingFailed Text
-  deriving stock (Eq, Generic, Show)
-  deriving (Arbitrary) via GenericUniform MLSWelcomeResponseError
-  deriving (FromJSON, ToJSON) via CustomEncoded MLSWelcomeResponseError
-
-newtype MLSWelcomeResponse = MLSWelcomeResponse
-  {unMLSWelcomeResponse :: Either MLSWelcomeResponseError ()}
+data MLSWelcomeResponse
+  = MLSWelcomeResponseRefNotFound
+  | MLSWelcomeResponseDecodingFailed Text
+  | MLSWelcomeResponseSuccess
   deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via GenericUniform MLSWelcomeResponse
   deriving (FromJSON, ToJSON) via CustomEncoded MLSWelcomeResponse
