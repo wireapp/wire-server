@@ -76,8 +76,7 @@ import Network.WebSockets hiding (Request)
 import qualified System.Logger as Logger
 import System.Logger.Class hiding (Error, Settings, close, (.=))
 import System.Random.MWC (GenIO, uniform)
-import UnliftIO (cancel, pooledMapConcurrentlyN_, race_)
-import UnliftIO.Async (async)
+import UnliftIO.Async (async, cancel, pooledMapConcurrentlyN_)
 
 -----------------------------------------------------------------------------
 -- Key
