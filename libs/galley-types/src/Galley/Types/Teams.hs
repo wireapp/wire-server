@@ -362,8 +362,8 @@ data HiddenPerm
   = ChangeLegalHoldTeamSettings
   | ChangeLegalHoldUserSettings
   | ViewLegalHoldUserSettings
-  | ViewTeamFeature TeamFeatureName
-  | ChangeTeamFeature TeamFeatureName
+  | ViewTeamFeature
+  | ChangeTeamFeature
   | ChangeTeamSearchVisibility
   | ViewTeamSearchVisibility
   | ViewSameTeamEmails
@@ -398,13 +398,7 @@ roleHiddenPermissions role = HiddenPermissions p p
           [ ChangeLegalHoldTeamSettings,
             ChangeLegalHoldUserSettings,
             ChangeTeamSearchVisibility,
-            ChangeTeamFeature TeamFeatureAppLock,
-            ChangeTeamFeature TeamFeatureFileSharing,
-            ChangeTeamFeature TeamFeatureClassifiedDomains {- the features not listed here can only be changed in stern -},
-            ChangeTeamFeature TeamFeatureSelfDeletingMessages,
-            ChangeTeamFeature TeamFeatureGuestLinks,
-            ChangeTeamFeature TeamFeatureSndFactorPasswordChallenge,
-            ChangeTeamFeature TeamFeatureSearchVisibilityInbound,
+            ChangeTeamFeature,
             ChangeTeamMemberProfiles,
             ReadIdp,
             CreateUpdateDeleteIdp,
@@ -416,18 +410,7 @@ roleHiddenPermissions role = HiddenPermissions p p
         Set.fromList [ViewSameTeamEmails]
     roleHiddenPerms RoleExternalPartner =
       Set.fromList
-        [ ViewTeamFeature TeamFeatureLegalHold,
-          ViewTeamFeature TeamFeatureSSO,
-          ViewTeamFeature TeamFeatureSearchVisibility,
-          ViewTeamFeature TeamFeatureValidateSAMLEmails,
-          ViewTeamFeature TeamFeatureDigitalSignatures,
-          ViewTeamFeature TeamFeatureAppLock,
-          ViewTeamFeature TeamFeatureFileSharing,
-          ViewTeamFeature TeamFeatureClassifiedDomains,
-          ViewTeamFeature TeamFeatureConferenceCalling,
-          ViewTeamFeature TeamFeatureSelfDeletingMessages,
-          ViewTeamFeature TeamFeatureGuestLinks,
-          ViewTeamFeature TeamFeatureSndFactorPasswordChallenge,
+        [ ViewTeamFeature,
           ViewLegalHoldUserSettings,
           ViewTeamSearchVisibility
         ]

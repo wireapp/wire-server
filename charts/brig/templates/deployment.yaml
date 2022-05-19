@@ -42,6 +42,40 @@ spec:
         - name: "brig-secrets"
           secret:
             secretName: "brig"
+        {{- if .Values.config.geoip.enabled }}
+        - name: "geoip"
+          emptyDir: {}
+        {{- end }}
+      {{- if .Values.config.geoip.enabled }}
+      # Brig needs GeoIP database to be downloaded before it can start.
+      initContainers:
+        - name: geoipdownload
+          image: "{{ .Values.config.geoip.image.repository }}:{{ .Values.config.geoip.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.config.geoip.imagePullPolicy | quote }}
+          volumeMounts:
+          - name: "geoip"
+            mountPath: "/usr/share/GeoIP"
+          # The environment variables are documented at:
+          # https://github.com/maxmind/geoipupdate/blob/62b34e648a842dc03ccf4ad3f61e2d85eaec98fc/doc/docker.md
+          env:
+          - name: GEOIPUPDATE_ACCOUNT_ID
+            valueFrom:
+              secretKeyRef:
+                name: brig-geoip
+                key: accountId
+          - name: GEOIPUPDATE_LICENSE_KEY
+            valueFrom:
+              secretKeyRef:
+                name: brig-geoip
+                key: licenseKey
+          - name: GEOIPUPDATE_EDITION_IDS
+            valueFrom:
+              secretKeyRef:
+                name: brig-geoip
+                key: editionIds
+          - name: GEOIPUPDATE_FREQUENCY
+            value: "0" # Setting this to 0 makes the script only run geoipupdate once.
+      {{- end }}
       containers:
         - name: brig
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -54,6 +88,10 @@ spec:
           {{- if eq $.Values.turn.serversSource "files" }}
           - name: "turn-servers"
             mountPath: "/etc/wire/brig/turn"
+          {{- end }}
+          {{- if .Values.config.geoip.enabled }}
+          - name: "geoip"
+            mountPath: "/usr/share/GeoIP"
           {{- end }}
           env:
           - name: LOG_LEVEL
@@ -107,3 +145,31 @@ spec:
               port: {{ .Values.service.internalPort }}
           resources:
 {{ toYaml .Values.resources | indent 12 }}
+        {{- if .Values.config.geoip.enabled }}
+        - name: geoipupdate
+          image: "{{ .Values.config.geoip.image.repository }}:{{ .Values.config.geoip.image.tag }}"
+          imagePullPolicy: {{ default "" .Values.config.geoip.imagePullPolicy | quote }}
+          volumeMounts:
+          - name: "geoip"
+            mountPath: "/usr/share/GeoIP"
+          # The environment variables are documented at:
+          # https://github.com/maxmind/geoipupdate/blob/62b34e648a842dc03ccf4ad3f61e2d85eaec98fc/doc/docker.md
+          env:
+          - name: GEOIPUPDATE_ACCOUNT_ID
+            valueFrom:
+              secretKeyRef:
+                name: brig-geoip
+                key: accountId
+          - name: GEOIPUPDATE_LICENSE_KEY
+            valueFrom:
+              secretKeyRef:
+                name: brig-geoip
+                key: licenseKey
+          - name: GEOIPUPDATE_EDITION_IDS
+            valueFrom:
+              secretKeyRef:
+                name: brig-geoip
+                key: editionIds
+          - name: GEOIPUPDATE_FREQUENCY
+            value: "24" # hours
+        {{- end }}
