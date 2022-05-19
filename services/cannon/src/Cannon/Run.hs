@@ -57,15 +57,16 @@ type CombinedAPI = PublicAPI :<|> Internal.API
 
 run :: Opts -> IO ()
 run o = do
+  when (o ^. drainOpts . millisecondsBetweenBatches == 0) $
+    error "drainOpts.millisecondsBetweenBatches must not be set to 0."
+  when (o ^. drainOpts . gracePeriodSeconds == 0) $
+    error "drainOpts.gracePeriodSeconds must not be set to 0."
   ext <- loadExternal
   m <- Middleware.metrics
   g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
   e <-
-    mkEnv <$> pure m
-      <*> pure ext
-      <*> pure o
-      <*> pure g
-      <*> D.empty 128
+    mkEnv m ext o g
+      <$> D.empty 128
       <*> newManager defaultManagerSettings {managerConnCount = 128}
       <*> createSystemRandom
       <*> mkClock
@@ -93,7 +94,7 @@ run o = do
     loadExternal :: IO ByteString
     loadExternal = do
       let extFile = fromMaybe (error "One of externalHost or externalHostFile must be defined") (o ^. cannon . externalHostFile)
-      fromMaybe (readExternal extFile) (return . encodeUtf8 <$> o ^. cannon . externalHost)
+      maybe (readExternal extFile) (return . encodeUtf8) (o ^. cannon . externalHost)
     readExternal :: FilePath -> IO ByteString
     readExternal f = encodeUtf8 . strip . pack <$> Strict.readFile f
 

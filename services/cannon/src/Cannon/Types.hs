@@ -109,7 +109,7 @@ mkEnv ::
   Env
 mkEnv m external o l d p g t =
   Env m o l d def $
-    WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t
+    WS.env external (o ^. cannon . port) (encodeUtf8 $ o ^. gundeck . host) (o ^. gundeck . port) l p d g t (o ^. drainOpts)
 
 runCannon :: Env -> Cannon a -> Request -> IO a
 runCannon e c r =

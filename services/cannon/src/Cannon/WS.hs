@@ -22,6 +22,7 @@ module Cannon.WS
     WS,
     env,
     runWS,
+    drain,
     close,
     mkWebSocket,
     setRequestId,
@@ -50,8 +51,10 @@ import Bilge.RPC
 import Bilge.Retry
 import Cannon.Dict (Dict)
 import qualified Cannon.Dict as D
+import Cannon.Options (DrainOpts, gracePeriodSeconds, millisecondsBetweenBatches, minBatchSize)
 import Conduit
 import Control.Concurrent.Timeout
+import Control.Lens ((^.))
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson hiding (Error, Key)
@@ -61,6 +64,7 @@ import qualified Data.ByteString.Lazy as L
 import Data.Default (def)
 import Data.Hashable
 import Data.Id (ClientId, ConnId (..), UserId)
+import Data.List.Extra (chunksOf)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
 import Gundeck.Types
@@ -72,6 +76,8 @@ import Network.WebSockets hiding (Request)
 import qualified System.Logger as Logger
 import System.Logger.Class hiding (Error, Settings, close, (.=))
 import System.Random.MWC (GenIO, uniform)
+import UnliftIO (pooledMapConcurrentlyN_, race_)
+import UnliftIO.Async (async)
 
 -----------------------------------------------------------------------------
 -- Key
@@ -140,7 +146,8 @@ data Env = Env
     manager :: !Manager,
     dict :: !(Dict Key Websocket),
     rand :: !GenIO,
-    clock :: !Clock
+    clock :: !Clock,
+    drainOpts :: DrainOpts
   }
 
 setRequestId :: RequestId -> Env -> Env
@@ -185,6 +192,7 @@ env ::
   Dict Key Websocket ->
   GenIO ->
   Clock ->
+  DrainOpts ->
   Env
 env leh lp gh gp = Env leh lp (host gh . port gp $ empty) def
 
@@ -241,6 +249,35 @@ sendMsg message k c = do
     logMsg m = val "sendMsgConduit: \"" +++ L.take 128 (toLazyByteString m) +++ val "...\""
 
     kb = key2bytes k
+
+drain :: WS ()
+drain = do
+  opts <- asks drainOpts
+  websockets <- asks dict
+  numberOfConns <- fromIntegral <$> D.size websockets
+  let maxNumberOfBatches = (opts ^. gracePeriodSeconds * 1000) `div` (opts ^. millisecondsBetweenBatches)
+      computedBatchSize = numberOfConns `div` maxNumberOfBatches
+      batchSize = min (opts ^. minBatchSize) computedBatchSize
+  conns <- D.toList websockets
+  info $
+    msg (val "draining all websockets")
+      . field "numberOfConns" numberOfConns
+      . field "computedBatchSize" computedBatchSize
+      . field "minBatchSize" (opts ^. minBatchSize)
+      . field "batchSize" batchSize
+      . field "maxNumberOfBatches" maxNumberOfBatches
+  let drainAction = do
+        for_ (chunksOf (fromIntegral batchSize) conns) $ \batch -> do
+          void . async $ pooledMapConcurrentlyN_ 16 (uncurry close) batch
+          liftIO $ threadDelay ((opts ^. millisecondsBetweenBatches) # MilliSecond)
+        info $ msg (val "Draining complete")
+      -- Sleeps for the grace period. This is to be run in 'race_' with the
+      -- drain action. If the sleep completes, it means that draining didn't
+      -- finish, and we should log and it is time to exit the process.
+      timeoutAction = do
+        liftIO $ threadDelay ((opts ^. gracePeriodSeconds) # Second)
+        err $ msg (val "Drain grace period expired") . field "gracePeriodSeconds" (opts ^. gracePeriodSeconds)
+  race_ timeoutAction drainAction
 
 close :: Key -> Websocket -> WS ()
 close k c = do
