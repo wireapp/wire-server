@@ -19,7 +19,7 @@ ${DIR}/integration-cleanup.sh
 # script beforehand on all relevant charts to download the nested dependencies
 # (e.g. cassandra from underneath databases-ephemeral)
 echo "updating recursive dependencies ..."
-charts=(fake-aws databases-ephemeral wire-server nginx-ingress-controller nginx-ingress-services)
+charts=(fake-aws databases-ephemeral redis-cluster wire-server nginx-ingress-controller nginx-ingress-services)
 for chart in "${charts[@]}"; do
     "$DIR/update.sh" "$CHARTS_DIR/$chart"
 done

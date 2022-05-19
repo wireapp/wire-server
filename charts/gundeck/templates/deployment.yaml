@@ -27,23 +27,20 @@ spec:
         checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
     spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
       volumes:
         - name: "gundeck-config"
           configMap:
             name: "gundeck"
-        - name: "gundeck-secrets"
-          secret:
-            secretName: "gundeck"
       containers:
         - name: gundeck
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ default "" .Values.imagePullPolicy | quote }}
           volumeMounts:
-          - name: "gundeck-secrets"
-            mountPath: "/etc/wire/gundeck/secrets"
           - name: "gundeck-config"
             mountPath: "/etc/wire/gundeck/conf"
           env:
+          {{- if hasKey .Values.secrets "awsKeyId" }}
           - name: AWS_ACCESS_KEY_ID
             valueFrom:
               secretKeyRef:
@@ -54,6 +51,7 @@ spec:
               secretKeyRef:
                 name: gundeck
                 key: awsSecretKey
+          {{- end }}
           - name: AWS_REGION
             value: "{{ .Values.config.aws.region }}"
           {{- with .Values.config.proxy }}

@@ -26,6 +26,7 @@ import Servant.API (Header', Required, Strict, (:>))
 import Servant.Client
 import Servant.Server
 import Servant.Server.Internal (MkContextWithErrorFormatter)
+import Wire.API.Routes.ClientAlgebra
 
 type OriginDomainHeaderName = "Wire-Origin-Domain" :: Symbol
 
@@ -38,6 +39,10 @@ instance HasClient m api => HasClient m (OriginDomainHeader :> api) where
   type Client m (OriginDomainHeader :> api) = Client m api
   clientWithRoute pm _ req = clientWithRoute pm (Proxy @api) req
   hoistClientMonad pm _ = hoistClientMonad pm (Proxy @api)
+
+instance HasClientAlgebra m api => HasClientAlgebra m (OriginDomainHeader :> api) where
+  joinClient = joinClient @m @api
+  bindClient = bindClient @m @api
 
 type OriginDomainHeaderHasServer = Header' [Strict, Required] OriginDomainHeaderName Domain
 

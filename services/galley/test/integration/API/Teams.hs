@@ -63,7 +63,6 @@ import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
-import Gundeck.Types.Notification hiding (target)
 import Imports
 import Network.HTTP.Types.Status (status403)
 import qualified Network.Wai.Utilities.Error as Error
@@ -79,6 +78,7 @@ import TestHelpers (test, viewFederationDomain)
 import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
 import Wire.API.Conversation.Protocol
+import Wire.API.Internal.Notification hiding (target)
 import Wire.API.Team (Icon (..))
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
@@ -532,7 +532,7 @@ testAddTeamMember = do
   Util.connectUsers (mem1 ^. userId) (list1 (mem3 ^. userId) [])
   Util.connectUsers (mem2 ^. userId) (list1 (mem3 ^. userId) [])
   -- `mem1` lacks permission to add new team members
-  post (g . paths ["teams", toByteString' tid, "members"] . zUser (mem1 ^. userId) . payload)
+  post (g . paths ["teams", toByteString' tid, "members"] . zUser (mem1 ^. userId) . zConn "conn" . payload)
     !!! const 403 === statusCode
   WS.bracketRN c [owner, (mem1 ^. userId), (mem2 ^. userId), (mem3 ^. userId)] $ \[wsOwner, wsMem1, wsMem2, wsMem3] -> do
     -- `mem2` has `AddTeamMember` permission

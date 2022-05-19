@@ -92,9 +92,6 @@ extra-deps:
 - git: https://github.com/kim/hs-collectd
   commit: 885da222be2375f78c7be36127620ed772b677c9
 
-- git: https://github.com/kim/snappy-framing
-  commit: d99f702c0086729efd6848dea8a01e5266c3a61c
-
 - git: https://gitlab.com/twittner/wai-routing
   commit: 7e996a93fec5901767f845a50316b3c18e51a61d
 
@@ -240,10 +237,6 @@ extra-deps:
 # Fix for server sending too many empty data frames
 - git: https://github.com/wireapp/http2
   commit: aa3501ad58e1abbd196781fac25a84f41ec2a787 # avoid-empty-data branch
-
-# Fix in PR: https://github.com/bos/snappy/pull/7
-- git: https://github.com/wireapp/snappy
-  commit: b0e5c08af48911caecffa4fa6a3e74872018b258 # master (Sep 03, 2021)
 
 # Error handling fix: https://github.com/vincenthz/hs-certificate/pull/125
 - git: https://github.com/vincenthz/hs-certificate

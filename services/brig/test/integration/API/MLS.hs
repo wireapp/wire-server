@@ -1,19 +1,35 @@
+-- This file is part of the Wire Server implementation.
+--
+-- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
+--
+-- This program is free software: you can redistribute it and/or modify it under
+-- the terms of the GNU Affero General Public License as published by the Free
+-- Software Foundation, either version 3 of the License, or (at your option) any
+-- later version.
+--
+-- This program is distributed in the hope that it will be useful, but WITHOUT
+-- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+-- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+-- details.
+--
+-- You should have received a copy of the GNU Affero General Public License along
+-- with this program. If not, see <https://www.gnu.org/licenses/>.
+
 module API.MLS where
 
+import API.MLS.Util
 import Bilge
 import Bilge.Assert
 import Brig.Options
-import Data.Aeson (object, toJSON, (.=))
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
-import Data.Domain
 import Data.Id
-import Data.Json.Util
-import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
-import qualified Data.Text as T
+import Federation.Util
 import Imports
-import System.Process
+import Test.QuickCheck hiding ((===))
 import Test.Tasty
 import Test.Tasty.HUnit
 import UnliftIO.Temporary
@@ -25,14 +41,15 @@ import Wire.API.User
 import Wire.API.User.Client
 
 tests :: Manager -> Brig -> Opts -> TestTree
-tests m b _opts =
+tests m b opts =
   testGroup
     "MLS"
     [ test m "POST /mls/key-packages/self/:client" (testKeyPackageUpload b),
       test m "POST /mls/key-packages/self/:client (no public keys)" (testKeyPackageUploadNoKey b),
       test m "GET /mls/key-packages/self/:client/count" (testKeyPackageZeroCount b),
-      test m "GET /mls/key-packages/claim/:domain/:user" (testKeyPackageClaim b),
-      test m "GET /mls/key-packages/claim/:domain/:user - self claim" (testKeyPackageSelfClaim b)
+      test m "GET /mls/key-packages/claim/local/:user" (testKeyPackageClaim b),
+      test m "GET /mls/key-packages/claim/local/:user - self claim" (testKeyPackageSelfClaim b),
+      test m "GET /mls/key-packages/claim/remote/:user" (testKeyPackageRemoteClaim opts b)
     ]
 
 testKeyPackageUpload :: Brig -> Http ()
@@ -83,23 +100,14 @@ testKeyPackageClaim brig = do
             . zUser (qUnqualified u')
         )
         <!! const 200 === statusCode
+
   liftIO $ Set.map (\e -> (kpbeUser e, kpbeClient e)) (kpbEntries bundle) @?= Set.fromList [(u, c1), (u, c2)]
+  checkMapping brig u bundle
 
   -- check that we have one fewer key package now
   for_ [c1, c2] $ \c -> do
     count <- getKeyPackageCount brig u c
     liftIO $ count @?= 2
-
-  -- check that the package refs are correctly mapped
-  for_ (kpbEntries bundle) $ \e -> do
-    cid <-
-      responseJsonError
-        =<< get (brig . paths ["i", "mls", "key-packages", toHeader (kpbeRef e)])
-        <!! const 200 === statusCode
-    liftIO $ do
-      ciDomain cid @?= qDomain u
-      ciUser cid @?= qUnqualified u
-      ciClient cid @?= kpbeClient e
 
 testKeyPackageSelfClaim :: Brig -> Http ()
 testKeyPackageSelfClaim brig = do
@@ -148,19 +156,49 @@ testKeyPackageSelfClaim brig = do
     count <- getKeyPackageCount brig u c
     liftIO $ count @?= n
 
+testKeyPackageRemoteClaim :: Opts -> Brig -> Http ()
+testKeyPackageRemoteClaim opts brig = do
+  u <- fakeRemoteUser
+
+  u' <- userQualifiedId <$> randomUser brig
+
+  entries <-
+    liftIO . replicateM 2 . generate $
+      -- claimed key packages are not validated by the backend, so it is fine to
+      -- make up some random data here
+      KeyPackageBundleEntry
+        <$> pure u
+        <*> arbitrary
+        <*> (KeyPackageRef . BS.pack <$> vector 32)
+        <*> (KeyPackageData . BS.pack <$> vector 64)
+  let mockBundle = KeyPackageBundle (Set.fromList entries)
+  (bundle :: KeyPackageBundle, _reqs) <-
+    liftIO . withTempMockFederator opts (Aeson.encode mockBundle) $
+      responseJsonError
+        =<< post
+          ( brig
+              . paths ["mls", "key-packages", "claim", toByteString' (qDomain u), toByteString' (qUnqualified u)]
+              . zUser (qUnqualified u')
+          )
+          <!! const 200 === statusCode
+
+  liftIO $ bundle @?= mockBundle
+  checkMapping brig u bundle
+
 --------------------------------------------------------------------------------
 
-data SetKey = SetKey | DontSetKey
-  deriving (Eq)
-
-getKeyPackageCount :: Brig -> Qualified UserId -> ClientId -> Http KeyPackageCount
-getKeyPackageCount brig u c =
-  responseJsonError
-    =<< get
-      ( brig . paths ["mls", "key-packages", "self", toByteString' c, "count"]
-          . zUser (qUnqualified u)
-      )
-    <!! const 200 === statusCode
+-- | Check that the package refs are correctly mapped
+checkMapping :: Brig -> Qualified UserId -> KeyPackageBundle -> Http ()
+checkMapping brig u bundle =
+  for_ (kpbEntries bundle) $ \e -> do
+    cid <-
+      responseJsonError
+        =<< get (brig . paths ["i", "mls", "key-packages", toHeader (kpbeRef e)])
+        <!! const 200 === statusCode
+    liftIO $ do
+      ciDomain cid @?= qDomain u
+      ciUser cid @?= qUnqualified u
+      ciClient cid @?= kpbeClient e
 
 createClient :: Brig -> Qualified UserId -> Int -> Http ClientId
 createClient brig u i =
@@ -171,36 +209,3 @@ createClient brig u i =
         (qUnqualified u)
         (defNewClient PermanentClientType [somePrekeys !! i] (someLastPrekeys !! i))
       <!! const 201 === statusCode
-
-uploadKeyPackages :: Brig -> FilePath -> SetKey -> Qualified UserId -> ClientId -> Int -> Http ()
-uploadKeyPackages brig store sk u c n = do
-  let cmd0 = ["crypto-cli", "--store", store, "--enc-key", "test"]
-      clientId =
-        show (qUnqualified u)
-          <> ":"
-          <> T.unpack (client c)
-          <> "@"
-          <> T.unpack (domainText (qDomain u))
-  kps <-
-    replicateM n . liftIO . spawn . shell . unwords $
-      cmd0 <> ["key-package", clientId]
-  when (sk == SetKey) $
-    do
-      pk <-
-        liftIO . spawn . shell . unwords $
-          cmd0 <> ["public-key", clientId]
-      put
-        ( brig
-            . paths ["clients", toByteString' c]
-            . zUser (qUnqualified u)
-            . json defUpdateClient {updateClientMLSPublicKeys = Map.fromList [(Ed25519, pk)]}
-        )
-      !!! const 200 === statusCode
-  let upload = object ["key_packages" .= toJSON (map Base64ByteString kps)]
-  post
-    ( brig
-        . paths ["mls", "key-packages", "self", toByteString' c]
-        . zUser (qUnqualified u)
-        . json upload
-    )
-    !!! const (case sk of SetKey -> 201; DontSetKey -> 400) === statusCode

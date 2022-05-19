@@ -14,6 +14,9 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE StandaloneKindSignatures #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wno-unused-top-binds #-}
 
 module Wire.API.Error.Galley
   ( GalleyError (..),
@@ -27,6 +30,8 @@ module Wire.API.Error.Galley
 where
 
 import Control.Lens ((%~))
+import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Singletons.CustomStar (genSingletons)
 import Data.Singletons.Prelude (Show_)
 import qualified Data.Swagger as S
 import Data.Tagged
@@ -39,7 +44,9 @@ import Wire.API.Conversation.Role
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as BrigError
 import Wire.API.Routes.API
+import Wire.API.Team.Member
 import Wire.API.Team.Permission
+import Wire.API.Util.Aeson (CustomEncoded (..))
 
 data GalleyError
   = InvalidAction
@@ -100,6 +107,12 @@ data GalleyError
   | TooManyTeamMembersOnTeamWithLegalhold
   | NoLegalHoldDeviceAllocated
   | UserLegalHoldNotPending
+  | -- Team Member errors
+    BulkGetMemberLimitExceeded
+  deriving (Show, Eq, Generic)
+  deriving (FromJSON, ToJSON) via (CustomEncoded GalleyError)
+
+$(genSingletons [''GalleyError])
 
 instance KnownError (MapError e) => IsSwaggerError (e :: GalleyError) where
   addToSwagger = addStaticErrorToSwagger @(MapError e)
@@ -236,6 +249,11 @@ type instance MapError 'UserLegalHoldNotPending = 'StaticError 412 "legalhold-no
 type instance MapError 'NoLegalHoldDeviceAllocated = 'StaticError 404 "legalhold-no-device-allocated" "no legal hold device is registered for this user. POST /teams/:tid/legalhold/:uid/ to start the flow."
 
 type instance MapError 'LegalHoldCouldNotBlockConnections = 'StaticError 500 "legalhold-internal" "legal hold service: could not block connections when resolving policy conflicts."
+
+--------------------------------------------------------------------------------
+-- Team Member errors
+
+type instance MapError 'BulkGetMemberLimitExceeded = 'StaticError 400 "too-many-uids" ("Can only process " `AppendSymbol` Show_ HardTruncationLimit `AppendSymbol` " user ids per request.")
 
 --------------------------------------------------------------------------------
 -- Authentication errors

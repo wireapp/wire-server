@@ -33,12 +33,11 @@ import Spar.Error
 import Spar.Intra.Brig (MonadSparToBrig (..))
 import Spar.Intra.Galley (MonadSparToGalley)
 import qualified Spar.Intra.Galley as Intra
-import Spar.Sem.Logger (Logger)
-import qualified Spar.Sem.Logger as Logger
-import Spar.Sem.Logger.TinyLog (fromLevel)
 import qualified System.Logger as TinyLog
 import qualified System.Logger.Class as TinyLog
 import Wire.API.User.Saml
+import Wire.Sem.Logger (Logger)
+import qualified Wire.Sem.Logger as Logger
 
 -- | Run an embedded Cassandra 'Client'  in @Final IO@.
 interpretClientToIO ::
@@ -91,7 +90,7 @@ viaRunHttp env m = do
     Right a -> pure a
 
 instance Member (Logger (TinyLog.Msg -> TinyLog.Msg)) r => TinyLog.MonadLogger (RunHttp r) where
-  log lvl msg = semToRunHttp $ Logger.log (fromLevel lvl) msg
+  log lvl msg = semToRunHttp $ Logger.log (Logger.fromLevel lvl) msg
 
 instance Members '[Logger (TinyLog.Msg -> TinyLog.Msg), Embed IO] r => MonadSparToGalley (RunHttp r) where
   call modreq = do

@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -42,7 +43,6 @@ import qualified Brig.Code as Code
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import qualified Brig.Data.UserKey as UserKey
-import qualified Brig.Docs.Swagger
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
@@ -65,12 +65,14 @@ import Control.Error hiding (bool)
 import Control.Lens (view, (%~), (.~), (?~), (^.), _Just)
 import Control.Monad.Catch (throwM)
 import Data.Aeson hiding (json)
+import qualified Data.Aeson as Aeson
 import Data.Bifunctor
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.CommaSeparatedList (CommaSeparatedList (fromCommaSeparatedList))
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain
+import Data.FileEmbed
 import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
@@ -84,6 +86,7 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
+import FileEmbedLzma
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
 import Network.HTTP.Types.Status
@@ -131,10 +134,10 @@ import qualified Wire.API.Wrapped as Public
 
 -- User API -----------------------------------------------------------
 
-type SwaggerDocsAPI = "api" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
+type SwaggerDocsAPI = "api" :> Header VersionHeader Version :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 
 swaggerDocsAPI :: Servant.Server SwaggerDocsAPI
-swaggerDocsAPI =
+swaggerDocsAPI (Just V2) =
   swaggerSchemaUIServer $
     ( brigSwagger
         <> versionSwagger
@@ -144,7 +147,7 @@ swaggerDocsAPI =
         <> CannonAPI.swaggerDoc
     )
       & S.info . S.title .~ "Wire-Server API"
-      & S.info . S.description ?~ Brig.Docs.Swagger.contents <> mempty
+      & S.info . S.description ?~ $(embedText =<< makeRelativeToProject "docs/swagger.md")
       & S.security %~ nub
       -- sanitise definitions
       & S.definitions . traverse %~ sanitise
@@ -164,6 +167,17 @@ swaggerDocsAPI =
       (S.properties . traverse . S._Inline %~ sanitise)
         . (S.required %~ nubOrd)
         . (S.enum_ . _Just %~ nub)
+swaggerDocsAPI (Just V0) =
+  swaggerSchemaUIServer
+    . fromMaybe Aeson.Null
+    . Aeson.decode
+    $ $(embedLazyByteString =<< makeRelativeToProject "docs/swagger-v0.json")
+swaggerDocsAPI (Just V1) =
+  swaggerSchemaUIServer
+    . fromMaybe Aeson.Null
+    . Aeson.decode
+    $ $(embedLazyByteString =<< makeRelativeToProject "docs/swagger-v1.json")
+swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
 
 servantSitemap :: ServerT BrigAPI (Handler r)
 servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> propertiesAPI :<|> mlsAPI
@@ -203,6 +217,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"get-user-client-qualified" getUserClientQualified
         :<|> Named @"list-clients-bulk" listClientsBulk
         :<|> Named @"list-clients-bulk-v2" listClientsBulkV2
+        :<|> Named @"list-clients-bulk@v2" listClientsBulkV2
 
     prekeyAPI :: ServerT PrekeyAPI (Handler r)
     prekeyAPI =

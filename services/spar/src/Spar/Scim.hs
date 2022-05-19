@@ -1,6 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -83,7 +82,6 @@ import Spar.Scim.User
 import Spar.Sem.BrigAccess (BrigAccess)
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
-import Spar.Sem.Logger (Logger)
 import Spar.Sem.Reporter (Reporter)
 import Spar.Sem.SAMLUserStore (SAMLUserStore)
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
@@ -100,6 +98,7 @@ import qualified Web.Scim.Server as Scim
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.Saml (Opts)
 import Wire.API.User.Scim
+import Wire.Sem.Logger (Logger)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Random (Random)
 

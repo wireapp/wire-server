@@ -113,8 +113,9 @@ runTests iConf brigOpts otherArgs = do
       galleyTwo = mkRequest $ remoteGalley (backendTwo iConf)
       ch2 = mkRequest $ remoteCargohold (backendTwo iConf)
 
-  let turnFile = Opts.servers . Opts.turn $ brigOpts
-      turnFileV2 = (Opts.serversV2 . Opts.turn) brigOpts
+  let Opts.TurnServersFiles turnFile turnFileV2 = case Opts.serversSource $ Opts.turn brigOpts of
+        Opts.TurnSourceFiles files -> files
+        Opts.TurnSourceDNS _ -> error "The integration tests can only be run when TurnServers are sourced from files"
       localDomain = brigOpts ^. Opts.optionSettings . Opts.federationDomain
       casHost = (\v -> (Opts.cassandra v) ^. casEndpoint . epHost) brigOpts
       casPort = (\v -> (Opts.cassandra v) ^. casEndpoint . epPort) brigOpts

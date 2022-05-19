@@ -25,8 +25,6 @@ jobs:
          signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
      - name: Build the wire-server-direnv
-       run: nix-build --no-out-link direnv.nix
+       run: nix-build --no-out-link ./nix -A devEnv
      - name: Install the wire-server-direnv
-       run: nix-env -f direnv.nix -i
-     - name: Ensure everything is formatted
-       run: make formatc
+       run: nix-env -if ./nix -A devEnv

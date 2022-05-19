@@ -13,7 +13,7 @@ CHARTS_DIR="${TOP_LEVEL}/.local/charts"
 "${DIR}/integration-cleanup.sh"
 
 echo "updating recursive dependencies ..."
-charts=(fake-aws databases-ephemeral wire-server nginx-ingress-controller nginx-ingress-services)
+charts=(fake-aws databases-ephemeral redis-cluster wire-server nginx-ingress-controller nginx-ingress-services)
 for chart in "${charts[@]}"; do
     "$DIR/update.sh" "$CHARTS_DIR/$chart"
 done

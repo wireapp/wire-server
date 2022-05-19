@@ -22,7 +22,6 @@
 module Test.Galley.Types where
 
 import Control.Lens
-import qualified Data.List as List
 import Data.Set hiding (drop)
 import qualified Data.Set as Set
 import Galley.Types.Teams
@@ -33,7 +32,6 @@ import qualified Test.QuickCheck as QC
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
-import Wire.API.Team.Feature (TeamFeatureName (TeamFeatureSearchVisibilityInbound))
 
 tests :: TestTree
 tests =
@@ -48,15 +46,6 @@ tests =
           \(r1, r2) -> do
             assertBool "owner.self" ((rolePermissions r2 ^. self) `isSubsetOf` (rolePermissions r1 ^. self))
             assertBool "owner.copy" ((rolePermissions r2 ^. copy) `isSubsetOf` (rolePermissions r1 ^. copy)),
-      testCase "permissions for viewing feature flags" $
-        -- We currently (at the time of writing this test) grant view permissions for all
-        -- 'TeamFeatureName's to all roles.  If we add more features in the future and forget to
-        -- add them, this test will fail, and remind us that there we should consider adding.
-        -- If you want to handle view permissions for future features differntly, adopt the test
-        -- accordingly.  Just maintain the property that adding a new feature name will break
-        -- this test, and force future develpers to consider what permissions they want to set.
-        let viewableFeatures = List.filter (/= TeamFeatureSearchVisibilityInbound) [minBound ..]
-         in assertBool "all covered" (all (roleHasPerm RoleExternalPartner) (ViewTeamFeature <$> viewableFeatures)),
       testRoundTrip @FeatureFlags,
       testRoundTrip @GuardLegalholdPolicyConflicts,
       testGroup

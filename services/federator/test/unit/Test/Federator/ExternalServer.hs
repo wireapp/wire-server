@@ -53,7 +53,6 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Output
-import Polysemy.TinyLog
 import qualified Servant.Client.Core as Servant
 import Servant.Types.SourceT
 import Test.Federator.Options (noClientCertSettings)
@@ -62,6 +61,7 @@ import Test.Federator.Validation (mockDiscoveryTrivial)
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Federation.Component
+import Wire.Sem.Logger.TinyLog
 
 tests :: TestTree
 tests =
@@ -126,7 +126,7 @@ requestBrigSuccess =
         . assertNoError @ValidationError
         . assertNoError @DiscoveryFailure
         . assertNoError @ServerError
-        . discardLogs
+        . discardTinyLogs
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
         $ callInward request
@@ -151,7 +151,7 @@ requestBrigFailure =
         . assertNoError @ValidationError
         . assertNoError @DiscoveryFailure
         . assertNoError @ServerError
-        . discardLogs
+        . discardTinyLogs
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
         $ callInward request
@@ -177,7 +177,7 @@ requestGalleySuccess =
           . assertNoError @ValidationError
           . assertNoError @DiscoveryFailure
           . assertNoError @ServerError
-          . discardLogs
+          . discardTinyLogs
           . mockDiscoveryTrivial
           . runInputConst noClientCertSettings
           $ callInward request
@@ -205,7 +205,7 @@ requestNoDomain =
           . runError
           . assertNoError @ValidationError
           . assertNoError @DiscoveryFailure
-          . discardLogs
+          . discardTinyLogs
           . mockDiscoveryTrivial
           . runInputConst noClientCertSettings
           $ callInward request
@@ -230,7 +230,7 @@ requestNoCertificate =
         . runError
         . assertNoError @ServerError
         . assertNoError @DiscoveryFailure
-        . discardLogs
+        . discardTinyLogs
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
         $ callInward request
@@ -281,7 +281,7 @@ testInvalidPaths = do
           . runError @ServerError
           . assertNoError @ValidationError
           . assertNoError @DiscoveryFailure
-          . discardLogs
+          . discardTinyLogs
           . mockDiscoveryTrivial
           . runInputConst noClientCertSettings
           $ callInward request
@@ -304,7 +304,7 @@ testInvalidComponent =
         . runError @ServerError
         . assertNoError @ValidationError
         . assertNoError @DiscoveryFailure
-        . discardLogs
+        . discardTinyLogs
         . mockDiscoveryTrivial
         . runInputConst noClientCertSettings
         $ callInward request
@@ -332,7 +332,7 @@ testMethod =
           . interpret @ServiceStreaming (\_ -> embed $ assertFailure "unexpected call to service")
           . assertNoError @ValidationError
           . assertNoError @DiscoveryFailure
-          . discardLogs
+          . discardTinyLogs
           . mockDiscoveryTrivial
           . runInputConst noClientCertSettings
           $ callInward request

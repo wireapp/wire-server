@@ -144,7 +144,7 @@ type AccountAPI =
         :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
     )
 
-type MLSAPI = GetClientByKeyPackageRef :<|> GetMLSClients
+type MLSAPI = GetClientByKeyPackageRef :<|> GetMLSClients :<|> MapKeyPackageRefs
 
 type GetClientByKeyPackageRef =
   Summary "Resolve an MLS key package ref to a qualified client ID"
@@ -170,6 +170,13 @@ type GetMLSClients =
          'GET
          '[Servant.JSON]
          (Respond 200 "MLS clients" (Set ClientId))
+
+type MapKeyPackageRefs =
+  Summary "Insert bundle into the KeyPackage ref mapping. Only for tests."
+    :> "mls"
+    :> "key-package-refs"
+    :> ReqBody '[Servant.JSON] KeyPackageBundle
+    :> MultiVerb 'PUT '[Servant.JSON] '[RespondEmpty 204 "Mapping was updated"] ()
 
 type GetVerificationCode =
   Summary "Get verification code for a given email and action"

@@ -49,10 +49,11 @@ import qualified System.IO.Strict as Strict
 import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as L
 import System.Random.MWC (createSystemRandom)
+import qualified Wire.API.Routes.Internal.Cannon as Internal
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Version.Wai
 
-type CombinedAPI = PublicAPI :<|> InternalAPI
+type CombinedAPI = PublicAPI :<|> Internal.API
 
 run :: Opts -> IO ()
 run o = do
@@ -72,16 +73,16 @@ run o = do
   s <- newSettings $ Server (o ^. cannon . host) (o ^. cannon . port) (applog e) m (Just idleTimeout)
   let middleware :: Wai.Middleware
       middleware =
-        servantPrometheusMiddleware (Proxy @CombinedAPI)
+        versionMiddleware
+          . servantPrometheusMiddleware (Proxy @CombinedAPI)
           . Gzip.gzip Gzip.def
           . catchErrors g [Right m]
-          . versionMiddleware
       app :: Application
       app = middleware (serve (Proxy @CombinedAPI) server)
       server :: Servant.Server CombinedAPI
       server =
         hoistServer (Proxy @PublicAPI) (runCannonToServant e) publicAPIServer
-          :<|> hoistServer (Proxy @InternalAPI) (runCannonToServant e) internalServer
+          :<|> hoistServer (Proxy @Internal.API) (runCannonToServant e) internalServer
   runSettings s app `finally` do
     Async.cancel refreshMetricsThread
     L.close (applog e)

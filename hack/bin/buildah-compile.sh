@@ -2,7 +2,7 @@
 
 # This compiles wire-server inside an ubuntu-based container based on quay.io/wire/ubuntu20-builder.
 # the tool 'buildah' is used to mount some folders in, and to
-# keep the stack caches of .stack and .stack-work (renamed to avoid conflicts) for the next compilation
+# keep the caches of /.root/.cabal and dist-newstyle (renamed to avoid conflicts) for the next compilation
 
 # After compilation, ./buildah-make-images.sh can be used
 # to bake individual executables into their respective docker images used by kubernetes.
@@ -13,18 +13,18 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 TOP_LEVEL="$(cd "$DIR/../.." && pwd)"
 
 # Note: keep the following names and paths in sync with the other buildah-* scripts.
-mkdir -p "$TOP_LEVEL"/.stack-root-buildah
-mkdir -p "$TOP_LEVEL"/.stack-work-buildah
-mkdir -p "$TOP_LEVEL"/dist-buildah
+mkdir -p "$TOP_LEVEL"/buildah/dot-cabal
+mkdir -p "$TOP_LEVEL"/buildah/dist-newstyle
+mkdir -p "$TOP_LEVEL"/buildah/dist
+
 CONTAINER_NAME=wire-server-dev
 
 # check for the existence of; or create a working container
 buildah containers | awk '{print $5}' | grep "$CONTAINER_NAME" \
     || buildah from --name "$CONTAINER_NAME" -v "${TOP_LEVEL}":/src --pull quay.io/wire/ubuntu20-builder:develop
 
-# The first time round, we want to copy the .stack folder from the ubuntu20-builder for future use. Afterwards, we want to re-use the "dirty" stack root folder.
-# Current check hinges on the existence of a config file, and hardcodes some paths
-ls "$TOP_LEVEL/.stack-root-buildah/config.yaml" 2> /dev/null \
-    || buildah run "$CONTAINER_NAME" -- cp -a /root/.stack/. /src/.stack-root-buildah/
+# copy /root/.cabal out of the container
+ls "$TOP_LEVEL"/buildah/dot-cabal/store 2> /dev/null \
+    || buildah run "$CONTAINER_NAME" -- cp -a /root/.cabal/. /src/buildah/dot-cabal
 
 buildah run "$CONTAINER_NAME" -- /src/hack/bin/buildah-inside.sh "$@"

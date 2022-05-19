@@ -18,6 +18,7 @@
 module Brig.Data.MLS.KeyPackage
   ( insertKeyPackages,
     claimKeyPackage,
+    mapKeyPackageRef,
     countKeyPackages,
     derefKeyPackage,
   )
@@ -64,8 +65,7 @@ claimKeyPackage u c = do
     for mk $ \(ref, kpd) -> do
       retry x5 $ write deleteQuery (params LocalQuorum (tUnqualified u, c, ref))
       pure (ref, kpd)
-  -- add key package ref to mapping table
-  lift $ write insertQuery (params LocalQuorum (ref, tDomain u, tUnqualified u, c))
+  lift $ mapKeyPackageRef ref (qUntagged u) c
   pure (ref, kpd)
   where
     lookupQuery :: PrepQuery R (UserId, ClientId) (KeyPackageRef, KeyPackageData)
@@ -74,6 +74,11 @@ claimKeyPackage u c = do
     deleteQuery :: PrepQuery W (UserId, ClientId, KeyPackageRef) ()
     deleteQuery = "DELETE FROM mls_key_packages WHERE user = ? AND client = ? AND ref = ?"
 
+-- | Add key package ref to mapping table.
+mapKeyPackageRef :: MonadClient m => KeyPackageRef -> Qualified UserId -> ClientId -> m ()
+mapKeyPackageRef ref u c =
+  write insertQuery (params LocalQuorum (ref, qDomain u, qUnqualified u, c))
+  where
     insertQuery :: PrepQuery W (KeyPackageRef, Domain, UserId, ClientId) ()
     insertQuery = "INSERT INTO mls_key_package_refs (ref, domain, user, client) VALUES (?, ?, ?, ?)"
 

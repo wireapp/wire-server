@@ -67,6 +67,9 @@ data:
       {{- if .dynamoDBEndpoint }}
       dynamoDBEndpoint: {{ .dynamoDBEndpoint | quote }}
       {{- end }}
+      {{- if .userJournalQueue }}
+      userJournalQueue: {{ .userJournalQueue | quote }}
+      {{- end }}
     {{- end }}
 
     internalEvents:
@@ -112,7 +115,9 @@ data:
         activationUrl: {{ .emailSMS.user.activationUrl }}
         smsActivationUrl: {{ .emailSMS.user.smsActivationUrl }}
         passwordResetUrl: {{ .emailSMS.user.passwordResetUrl }}
+        {{- if .emailSMS.user.invitationUrl }}
         invitationUrl: {{ .emailSMS.user.invitationUrl }}
+        {{- end }}
         deletionUrl: {{ .emailSMS.user.deletionUrl }}
       {{- else }}
         activationUrl: {{ .externalUrls.nginz }}/activate?key=${key}&code=${code}
@@ -138,6 +143,12 @@ data:
       {{- end }}
 
       team:
+      {{- if .emailSMS.team }}
+        tInvitationUrl: {{ .emailSMS.team.tInvitationUrl }}
+        tActivationUrl: {{ .emailSMS.team.tActivationUrl }}
+        tCreatorWelcomeUrl: {{ .emailSMS.team.tCreatorWelcomeUrl }}
+        tMemberWelcomeUrl: {{ .emailSMS.team.tMemberWelcomeUrl }}
+      {{- else }}
       {{- if .externalUrls.teamSettings }}
         tInvitationUrl: {{ .externalUrls.teamSettings }}/join/?team-code=${code}
       {{- else }}
@@ -146,6 +157,7 @@ data:
         tActivationUrl: {{ .externalUrls.nginz }}/register?team=${team}&team_code=${code}
         tCreatorWelcomeUrl: {{ .externalUrls.teamCreatorWelcome }}
         tMemberWelcomeUrl: {{ .externalUrls.teamMemberWelcome }}
+      {{- end }}
 
     zauth:
       privateKeys: /etc/wire/brig/secrets/secretkey.txt
@@ -162,8 +174,17 @@ data:
       {{- end }}
 
     turn:
+      {{- if eq $.Values.turn.serversSource "dns" }}
+      serversSource: dns
+      baseDomain: {{ required ".turn.baseDomain must be configured if .turn.serversSource is set to dns" $.Values.turn.baseDomain  }}
+      discoveryIntervalSeconds: {{ $.Values.turn.discoveryIntervalSeconds }}
+      {{- else if eq $.Values.turn.serversSource "files" }}
+      serversSource: files
       servers: /etc/wire/brig/turn/turn-servers.txt
       serversV2: /etc/wire/brig/turn/turn-servers-v2.txt
+      {{- else }}
+      {{- fail (cat "Invalid value for .turn.serversSource, expected dns or files, got: " $.Values.turn.serversSource) }}
+      {{- end }}
       secret: /etc/wire/brig/secrets/turn-secret.txt
       configTTL: 3600 # 1 hour
       tokenTTL: 43200 # 12 hours
@@ -226,6 +247,9 @@ data:
       {{- if .setSearchSameTeamOnly }}
       setSearchSameTeamOnly: {{ .setSearchSameTeamOnly }}
       {{- end }}
+      {{- if .setProviderSearchFilter }}
+      setProviderSearchFilter: {{ .setProviderSearchFilter }}
+      {{- end }}
       {{- if .setUserMaxPermClients }}
       setUserMaxPermClients: {{ .setUserMaxPermClients }}
       {{- end }}
@@ -241,6 +265,17 @@ data:
       {{- end }}
       {{- if .setSftListAllServers }}
       setSftListAllServers: {{ .setSftListAllServers }}
+      {{- end }}
+      {{- if .setWhitelist }}
+      setWhitelist: {{ toYaml .setWhitelist | nindent 8 }}
+      {{- end }}
+      {{- if .setFeatureFlags }}
+      setFeatureFlags: {{ toYaml .setFeatureFlags | nindent 8 }}
+      {{- end }}
+      # Customer extensions. If this is not part of your contract with wire, use at your own risk!
+      # Details: https://github.com/wireapp/wire-server/blob/3a21a82a1781f0d128f503df6a705b0b5f733d7b/services/brig/src/Brig/Options.hs#L465-L503
+      {{- if .setCustomerExtensions }}
+      setCustomerExtensions: {{ toYaml .setCustomerExtensions | nindent 8 }}
       {{- end }}
     {{- end }}
   {{- end }}

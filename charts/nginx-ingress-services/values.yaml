@@ -6,6 +6,10 @@ teamSettings:
 # Account pages may be useful to enable password reset or email validation done after the initial registration
 accountPages:
   enabled: false
+webapp:
+  enabled: true
+fakeS3:
+  enabled: true
 federator:
   enabled: false
   integrationTestHelper: false
@@ -31,6 +35,10 @@ tls:
   useCertManager: false
   # the validation depth between a federator client certificate and tlsClientCA
   verify_depth: 1
+  issuer:
+    create: true
+    name: letsencrypt-http01
+    kind: Issuer # Issuer | ClusterIssuer
 
 certManager:
   # Indicates whether Letsencrypt's staging API server is used and therefore certificates are NOT trusted
@@ -90,7 +98,9 @@ service:
 #     https: nginz-https.<domain>
 #     ssl: nginz-ssl.<domain>
 #     webapp: webapp.<domain>
+#     ^ webapp is ignored if webapp.enabled == false
 #     fakeS3: assets.<domain>
+#     ^ fakeS3 is ignored if fakeS3.enabled == false
 #     federator: federator.<domain>
 #     ^ federator is ignored unless federator.enabled == true
 #     teamSettings: teams.<domain>

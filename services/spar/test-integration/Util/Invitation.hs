@@ -20,6 +20,7 @@ module Util.Invitation
     getInvitation,
     getInvitationCode,
     registerInvitation,
+    acceptWithName,
   )
 where
 

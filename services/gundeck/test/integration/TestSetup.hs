@@ -29,6 +29,7 @@ module TestSetup
     tsCass,
     tsLogger,
     tsOpts,
+    tsRedis2,
     TestM (..),
     TestSetup (..),
     BrigR (..),
@@ -41,6 +42,7 @@ import Bilge (HttpT (..), Manager, MonadHttp, Request, runHttpT)
 import qualified Cassandra as Cql
 import Control.Lens (makeLenses, (^.))
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)
+import Gundeck.Options (RedisEndpoint)
 import qualified Gundeck.Options as Gundeck
 import Imports
 import qualified System.Logger as Log
@@ -78,7 +80,8 @@ data TestSetup = TestSetup
     _tsBrig :: BrigR,
     _tsCass :: Cql.ClientState,
     _tsLogger :: Log.Logger,
-    _tsOpts :: Gundeck.Opts
+    _tsOpts :: Gundeck.Opts,
+    _tsRedis2 :: RedisEndpoint
   }
 
 makeLenses ''TestSetup

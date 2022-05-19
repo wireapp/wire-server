@@ -34,9 +34,9 @@ import Data.Range (Range, fromRange)
 import Data.Sequence (Seq, ViewL (..), ViewR (..), (<|), (><))
 import qualified Data.Sequence as Seq
 import Gundeck.Options (NotificationTTL (..))
-import Gundeck.Types.Notification
 import Imports
 import UnliftIO (pooledForConcurrentlyN_)
+import Wire.API.Internal.Notification
 
 data ResultPage = ResultPage
   { -- | A sequence of notifications.

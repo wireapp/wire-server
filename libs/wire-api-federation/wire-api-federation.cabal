@@ -28,6 +28,7 @@ library
       Wire.API.Federation.Domain
       Wire.API.Federation.Endpoint
       Wire.API.Federation.Error
+      Wire.API.Federation.Version
   other-modules:
       Paths_wire_api_federation
   hs-source-dirs:
@@ -84,14 +85,17 @@ library
     , either
     , errors
     , exceptions
+    , http-media
     , http-types
     , http2
     , imports
     , kan-extensions
+    , lens
     , lifted-base
     , metrics-wai
     , mtl
     , network
+    , schema-profunctor
     , servant >=0.16
     , servant-client
     , servant-client-core
@@ -99,11 +103,13 @@ library
     , singletons
     , sop-core
     , streaming-commons
+    , swagger2
     , template-haskell
     , text >=0.11
     , time >=1.8
     , time-manager
     , tls
+    , transformers
     , types-common
     , wai-utilities
     , wire-api
@@ -183,15 +189,18 @@ test-suite spec
     , errors
     , exceptions
     , hspec
+    , http-media
     , http-types
     , http2
     , imports
     , kan-extensions
+    , lens
     , lifted-base
     , metrics-wai
     , mtl
     , network
     , retry
+    , schema-profunctor
     , servant >=0.16
     , servant-client
     , servant-client-core
@@ -199,11 +208,13 @@ test-suite spec
     , singletons
     , sop-core
     , streaming-commons
+    , swagger2
     , template-haskell
     , text >=0.11
     , time >=1.8
     , time-manager
     , tls
+    , transformers
     , types-common
     , uuid
     , wai-utilities

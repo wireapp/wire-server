@@ -1,1 +1,1 @@
-# This page [has gone here](https://docs.wire.com/understand/single-sign-on/main.html#using-scim-via-curl).
+file has moved [here](../legacy/reference/provisioning/scim-via-curl.md)

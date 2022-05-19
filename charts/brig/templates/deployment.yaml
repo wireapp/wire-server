@@ -29,13 +29,16 @@ spec:
         checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
         fluentbit.io/parser: json
     spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
       volumes:
         - name: "brig-config"
           configMap:
             name: "brig"
+        {{- if eq $.Values.turn.serversSource "files" }}
         - name: "turn-servers"
           configMap:
             name: "turn"
+        {{- end }}
         - name: "brig-secrets"
           secret:
             secretName: "brig"
@@ -48,11 +51,14 @@ spec:
             mountPath: "/etc/wire/brig/secrets"
           - name: "brig-config"
             mountPath: "/etc/wire/brig/conf"
+          {{- if eq $.Values.turn.serversSource "files" }}
           - name: "turn-servers"
             mountPath: "/etc/wire/brig/turn"
+          {{- end }}
           env:
           - name: LOG_LEVEL
             value: {{ .Values.config.logLevel }}
+          {{- if hasKey .Values.secrets "awsKeyId" }}
           - name: AWS_ACCESS_KEY_ID
             valueFrom:
               secretKeyRef:
@@ -63,6 +69,7 @@ spec:
               secretKeyRef:
                 name: brig
                 key: awsSecretKey
+          {{- end }}
           # TODO: Is this the best way to do this?
           - name: AWS_REGION
             value: "{{ .Values.config.aws.region }}"

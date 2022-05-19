@@ -29,7 +29,6 @@ import Bonanza.Geo
 import Bonanza.Metrics
 import qualified Bonanza.Streaming.Kibana as Kibana
 import qualified Bonanza.Streaming.Parser as Parser
-import qualified Bonanza.Streaming.Snappy as Snappy
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
@@ -48,16 +47,14 @@ import System.CPUTime
 data Opts = Opts CommonOpts Command
   deriving (Show)
 
-data Compression = GZip | Snappy
+data Compression = GZip
 
 instance Read Compression where
   readsPrec _ ('g' : 'z' : 'i' : 'p' : xs) = [(GZip, xs)]
-  readsPrec _ ('s' : 'n' : 'a' : 'p' : 'p' : 'y' : xs) = [(Snappy, xs)]
   readsPrec _ _ = []
 
 instance Show Compression where
   show GZip = "gzip"
-  show Snappy = "snappy"
 
 data CommonOpts = CommonOpts
   { parser :: !String,
@@ -250,9 +247,7 @@ runBonanza =
     runDecompress :: Maybe Compression -> ConduitM ByteString ByteString IO ()
     runDecompress Nothing = Conduit.map id
     runDecompress (Just GZip) = Conduit.ungzip
-    runDecompress (Just Snappy) = Snappy.decode .| Snappy.bytes
     runCompress :: Maybe Compression -> ConduitM ByteString ByteString IO ()
     runCompress Nothing = Conduit.map id
     runCompress (Just GZip) = Conduit.gzip
-    runCompress (Just Snappy) = Snappy.encode .| Snappy.bytes
     readWith p = Parser.stream (Parser.byName p)

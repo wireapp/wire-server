@@ -48,7 +48,8 @@ data IntegrationConfig = IntegrationConfig
   { gundeck :: Endpoint,
     cannon :: Endpoint,
     cannon2 :: Endpoint,
-    brig :: Endpoint
+    brig :: Endpoint,
+    redis2 :: RedisEndpoint
   }
   deriving (Show, Generic)
 
@@ -110,6 +111,6 @@ main = withOpenSSL $ runTests go
           ck = gConf ^. optCassandra . casKeyspace
       lg <- Logger.new Logger.defSettings
       db <- defInitCassandra ck ch cp lg
-      return $ TestSetup m g c c2 b db lg gConf
+      return $ TestSetup m g c c2 b db lg gConf (redis2 iConf)
     releaseOpts _ = return ()
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p

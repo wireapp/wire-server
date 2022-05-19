@@ -70,10 +70,10 @@ mkApp o = Codensity $ \k ->
   where
     middleware :: Env -> Wai.Middleware
     middleware e =
-      servantPrometheusMiddleware (Proxy @CombinedAPI)
+      versionMiddleware
+        . servantPrometheusMiddleware (Proxy @CombinedAPI)
         . GZip.gzip GZip.def
         . catchErrors (e ^. appLogger) [Right $ e ^. metrics]
-        . versionMiddleware
     servantApp :: Env -> Application
     servantApp e0 r =
       let e = set requestId (maybe def RequestId (lookupRequestId r)) e0

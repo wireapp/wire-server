@@ -22,14 +22,17 @@ dependencies:
 - either
 - errors
 - exceptions
+- http-media
 - http-types
 - http2
 - imports
 - kan-extensions
+- lens
 - lifted-base
 - metrics-wai
 - mtl
 - network
+- schema-profunctor
 - servant >=0.16
 - servant-client
 - servant-client-core
@@ -37,11 +40,13 @@ dependencies:
 - singletons
 - sop-core
 - streaming-commons
+- swagger2
 - template-haskell
 - text >=0.11
 - time-manager
 - tls
 - time >=1.8
+- transformers
 - types-common
 - wai-utilities
 - wire-api

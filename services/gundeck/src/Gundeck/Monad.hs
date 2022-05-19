@@ -35,12 +35,17 @@ module Gundeck.Monad
     fromJsonBody,
     ifNothing,
     posixTime,
+
+    -- * Select which redis to target
+    runWithDefaultRedis,
+    runWithAdditionalRedis,
   )
 where
 
 import Bilge hiding (Request, header, options, statusCode)
 import Bilge.RPC
 import Cassandra
+import Control.Concurrent.Async (async)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (tryJust)
@@ -74,13 +79,69 @@ newtype Gundeck a = Gundeck
       MonadUnliftIO
     )
 
-instance Redis.MonadRedis Gundeck where
-  liftRedis m = do
-    p <- view rstate
-    liftIO $ Redis.runRedis p m
+-- | 'Gundeck' doesn't have an instance for 'MonadRedis' because it contains two
+-- connections to two redis instances. When using 'WithDefaultRedis', any redis
+-- operation will only target the default redis instance (configured under
+-- 'redis:' in the gundeck config). To write to both redises use
+-- 'WithAdditionalRedis'.
+newtype WithDefaultRedis a = WithDefaultRedis {runWithDefaultRedis :: Gundeck a}
+  deriving newtype
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadIO,
+      MonadThrow,
+      MonadCatch,
+      MonadMask,
+      MonadReader Env,
+      MonadClient,
+      MonadUnliftIO
+    )
 
-instance Redis.RedisCtx Gundeck (Either Redis.Reply) where
-  returnDecode :: Redis.RedisResult a => Redis.Reply -> Gundeck (Either Redis.Reply a)
+instance Redis.MonadRedis WithDefaultRedis where
+  liftRedis action = do
+    defaultConn <- view rstate
+    liftIO $ Redis.runRedis defaultConn action
+
+instance Redis.RedisCtx WithDefaultRedis (Either Redis.Reply) where
+  returnDecode :: Redis.RedisResult a => Redis.Reply -> WithDefaultRedis (Either Redis.Reply a)
+  returnDecode = Redis.liftRedis . Redis.returnDecode
+
+-- | 'Gundeck' doesn't have an instance for 'MonadRedis' because it contains two
+-- connections to two redis instances. When using 'WithAdditionalRedis', any
+-- redis operation will target both redis instances (configured under 'redis:'
+-- and 'redisAddtionalWrite:' in the gundeck config). To write to only the
+-- default redis use 'WithDefaultRedis'.
+newtype WithAdditionalRedis a = WithAdditionalRedis {runWithAdditionalRedis :: Gundeck a}
+  deriving newtype
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadIO,
+      MonadThrow,
+      MonadCatch,
+      MonadMask,
+      MonadReader Env,
+      MonadClient,
+      MonadUnliftIO,
+      MonadLogger
+    )
+
+instance Redis.MonadRedis WithAdditionalRedis where
+  liftRedis action = do
+    defaultConn <- view rstate
+    ret <- liftIO $ Redis.runRedis defaultConn action
+
+    mAdditionalRedisConn <- view rstateAdditionalWrite
+    liftIO . for_ mAdditionalRedisConn $ \additionalRedisConn ->
+      -- We just fire and forget this call, as there is not much we can do if
+      -- this fails.
+      async $ Redis.runRedis additionalRedisConn action
+
+    pure ret
+
+instance Redis.RedisCtx WithAdditionalRedis (Either Redis.Reply) where
+  returnDecode :: Redis.RedisResult a => Redis.Reply -> WithAdditionalRedis (Either Redis.Reply a)
   returnDecode = Redis.liftRedis . Redis.returnDecode
 
 instance MonadLogger Gundeck where

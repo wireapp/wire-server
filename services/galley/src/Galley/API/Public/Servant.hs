@@ -43,6 +43,7 @@ servantSitemap =
     <@> mls
     <@> customBackend
     <@> legalHold
+    <@> teamMember
   where
     conversations =
       mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
@@ -51,12 +52,14 @@ servantSitemap =
         <@> mkNamedAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
         <@> mkNamedAPI @"list-conversation-ids" conversationIdsPageFrom
         <@> mkNamedAPI @"get-conversations" getConversations
+        <@> mkNamedAPI @"list-conversations-v1" listConversations
         <@> mkNamedAPI @"list-conversations" listConversations
         <@> mkNamedAPI @"get-conversation-by-reusable-code" getConversationByReusableCode
         <@> mkNamedAPI @"create-group-conversation" createGroupConversation
         <@> mkNamedAPI @"create-self-conversation" createSelfConversation
         <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
         <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified
+        <@> mkNamedAPI @"add-members-to-conversation-unqualified2" addMembersUnqualifiedV2
         <@> mkNamedAPI @"add-members-to-conversation" addMembers
         <@> mkNamedAPI @"join-conversation-by-id-unqualified" joinConversationById
         <@> mkNamedAPI @"join-conversation-by-code-unqualified" joinConversationByReusableCode
@@ -294,3 +297,13 @@ servantSitemap =
         <@> mkNamedAPI @"request-legal-hold-device" requestDevice
         <@> mkNamedAPI @"disable-legal-hold-for-user" disableForUser
         <@> mkNamedAPI @"approve-legal-hold-device" approveDevice
+
+    teamMember :: API TeamMemberAPI GalleyEffects
+    teamMember =
+      mkNamedAPI @"get-team-members" getTeamMembers
+        <@> mkNamedAPI @"get-team-member" getTeamMember
+        <@> mkNamedAPI @"get-team-members-by-ids" bulkGetTeamMembers
+        <@> mkNamedAPI @"add-team-member" addTeamMember
+        <@> mkNamedAPI @"delete-team-member" deleteTeamMember
+        <@> mkNamedAPI @"delete-non-binding-team-member" deleteNonBindingTeamMember
+        <@> mkNamedAPI @"update-team-member" updateTeamMember

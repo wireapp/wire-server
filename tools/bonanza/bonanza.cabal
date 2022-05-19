@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ffc381288ee6d06f96874ae5e486cc962dfb84f417859c96f4b3f60531aeb634
+-- hash: 69f8e076592d4a3cea6af611bba2106000127e011bce90b73813a629885867bf
 
 name:           bonanza
 version:        3.6.0
@@ -38,7 +38,6 @@ library
       Bonanza.Streaming.Kibana
       Bonanza.Streaming.Parser
       Bonanza.Streaming.Protobuf
-      Bonanza.Streaming.Snappy
       Bonanza.Types
   other-modules:
       Paths_bonanza
@@ -109,8 +108,6 @@ library
     , protobuf >=0.2.1.1
     , safe
     , scientific
-    , snappy
-    , snappy-framing
     , text
     , time >=1.5
     , unordered-containers

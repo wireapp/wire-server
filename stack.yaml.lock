@@ -47,17 +47,6 @@ packages:
     git: https://github.com/kim/hs-collectd
     commit: 885da222be2375f78c7be36127620ed772b677c9
 - completed:
-    name: snappy-framing
-    version: 0.1.1
-    git: https://github.com/kim/snappy-framing
-    pantry-tree:
-      size: 651
-      sha256: 91a2ac7e0dd161fd82eee3007a6b488e53ad14a5d4e640ffdeba23f4741fbf64
-    commit: d99f702c0086729efd6848dea8a01e5266c3a61c
-  original:
-    git: https://github.com/kim/snappy-framing
-    commit: d99f702c0086729efd6848dea8a01e5266c3a61c
-- completed:
     name: wai-routing
     version: 0.13.0
     git: https://gitlab.com/twittner/wai-routing
@@ -803,17 +792,6 @@ packages:
   original:
     git: https://github.com/wireapp/http2
     commit: aa3501ad58e1abbd196781fac25a84f41ec2a787
-- completed:
-    name: snappy
-    version: 0.2.0.2
-    git: https://github.com/wireapp/snappy
-    pantry-tree:
-      size: 989
-      sha256: ae7fdf1988910fa026279052e85ade0a99962a3e7812ace104797e12ead0cd1d
-    commit: b0e5c08af48911caecffa4fa6a3e74872018b258
-  original:
-    git: https://github.com/wireapp/snappy
-    commit: b0e5c08af48911caecffa4fa6a3e74872018b258
 - completed:
     subdir: x509-store
     name: x509-store

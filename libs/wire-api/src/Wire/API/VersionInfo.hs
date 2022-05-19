@@ -16,11 +16,169 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.VersionInfo
-  ( vinfoObjectSchema,
+  ( -- * Version info
+    vinfoObjectSchema,
+
+    -- * Version utilities
+    readVersionNumber,
+    mkVersion,
+    versionHeader,
+    VersionHeader,
+
+    -- * Servant combinators
+    From,
+    Until,
+    VersionedMonad (..),
   )
 where
 
+import Data.Aeson (FromJSON)
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Char8 as B8
+import qualified Data.CaseInsensitive as CI
+import Data.Metrics.Servant
 import Data.Schema
+import Data.Singletons
+import qualified Data.Text as Text
+import qualified Data.Text.Read as Text
+import GHC.TypeLits
+import Imports
+import qualified Network.Wai as Wai
+import Servant
+import Servant.Client.Core
+import Servant.Server.Internal.Delayed
+import Servant.Server.Internal.DelayedIO
+import Servant.Swagger
+import Wire.API.Routes.ClientAlgebra
 
 vinfoObjectSchema :: ValueSchema NamedSwaggerDoc v -> ObjectSchema SwaggerDoc [v]
 vinfoObjectSchema sch = field "supported" (array sch)
+
+readVersionNumber :: Text -> Maybe Integer
+readVersionNumber v = do
+  ('v', rest) <- Text.uncons v
+  case Text.decimal rest of
+    Right (n, "") -> pure n
+    _ -> Nothing
+
+mkVersion :: FromJSON v => Integer -> Maybe v
+mkVersion n = case Aeson.fromJSON (Aeson.Number (fromIntegral n)) of
+  Aeson.Error _ -> Nothing
+  Aeson.Success v -> pure v
+
+type VersionHeader = "X-Wire-API-Version"
+
+versionHeader :: CI.CI ByteString
+versionHeader = CI.mk . B8.pack $ symbolVal (Proxy @VersionHeader)
+
+--------------------------------------------------------------------------------
+-- Servant combinators
+
+data Until v
+
+data From v
+
+instance
+  ( SingI n,
+    Ord (Demote v),
+    Enum (Demote v),
+    SingKind v,
+    HasServer api ctx
+  ) =>
+  HasServer (Until (n :: v) :> api) ctx
+  where
+  type ServerT (Until n :> api) m = ServerT api m
+
+  route _ ctx action =
+    route (Proxy @api) ctx $
+      fmap const action `addHeaderCheck` withRequest headerCheck
+    where
+      headerCheck :: Wai.Request -> DelayedIO ()
+      headerCheck req = do
+        let v =
+              toEnum $
+                maybe
+                  0
+                  (either (const 0) id . parseHeader)
+                  (lookup versionHeader (Wai.requestHeaders req))
+        when (v >= demote @n) $
+          delayedFail err404
+
+  hoistServerWithContext _ ctx f =
+    hoistServerWithContext (Proxy @api) ctx f
+
+class VersionedMonad v m where
+  guardVersion :: (v -> Bool) -> m ()
+
+instance
+  ( VersionedMonad (Demote v) m,
+    SingI n,
+    Ord (Demote v),
+    SingKind v,
+    HasClientAlgebra m api
+  ) =>
+  HasClient m (Until (n :: v) :> api)
+  where
+  type Client m (Until n :> api) = Client m api
+  clientWithRoute pm _ req = bindClient @m @api
+    (guardVersion (\v -> v < demote @n))
+    $ \_ ->
+      clientWithRoute pm (Proxy @api) req
+  hoistClientMonad pm _ f = hoistClientMonad pm (Proxy @api) f
+
+instance HasSwagger api => HasSwagger (Until v :> api) where
+  toSwagger _ = mempty
+
+instance RoutesToPaths api => RoutesToPaths (Until v :> api) where
+  getRoutes = getRoutes @api
+
+instance
+  ( SingI n,
+    Ord (Demote v),
+    Enum (Demote v),
+    SingKind v,
+    HasServer api ctx
+  ) =>
+  HasServer (From (n :: v) :> api) ctx
+  where
+  type ServerT (From n :> api) m = ServerT api m
+
+  route _ ctx action =
+    route (Proxy @api) ctx $
+      fmap const action `addHeaderCheck` withRequest headerCheck
+    where
+      headerCheck :: Wai.Request -> DelayedIO ()
+      headerCheck req = do
+        let v =
+              toEnum $
+                maybe
+                  0
+                  (either (const 0) id . parseHeader)
+                  (lookup versionHeader (Wai.requestHeaders req))
+        when (v < demote @n) $
+          delayedFail err404
+
+  hoistServerWithContext _ ctx f =
+    hoistServerWithContext (Proxy @api) ctx f
+
+instance
+  ( VersionedMonad (Demote v) m,
+    SingI n,
+    Ord (Demote v),
+    SingKind v,
+    HasClientAlgebra m api
+  ) =>
+  HasClient m (From (n :: v) :> api)
+  where
+  type Client m (From n :> api) = Client m api
+  clientWithRoute pm _ req = bindClient @m @api
+    (guardVersion (\v -> v >= demote @n))
+    $ \_ ->
+      clientWithRoute pm (Proxy @api) req
+  hoistClientMonad pm _ f = hoistClientMonad pm (Proxy @api) f
+
+instance HasSwagger api => HasSwagger (From v :> api) where
+  toSwagger _ = toSwagger (Proxy @api)
+
+instance RoutesToPaths api => RoutesToPaths (From v :> api) where
+  getRoutes = getRoutes @api

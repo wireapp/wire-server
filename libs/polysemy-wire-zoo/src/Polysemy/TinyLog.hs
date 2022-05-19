@@ -14,40 +14,22 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE TemplateHaskell #-}
 
-module Polysemy.TinyLog where
+-- NOTE: This is an obsolete module. Instead, please use the more general
+-- Wire.Sem.Logger logging effect.
+module Polysemy.TinyLog
+  ( module Polysemy.TinyLog,
+    Logger (..),
+    trace,
+    debug,
+    info,
+    warn,
+    err,
+    fatal,
+  )
+where
 
-import Imports
-import Polysemy
-import System.Logger (Level (..))
 import qualified System.Logger as Log
+import Wire.Sem.Logger
 
-data TinyLog m a where
-  Polylog :: Log.Level -> (Log.Msg -> Log.Msg) -> TinyLog m ()
-
-makeSem ''TinyLog
-
-runTinyLog :: Member (Embed IO) r => Log.Logger -> Sem (TinyLog ': r) a -> Sem r a
-runTinyLog logger = interpret $ \(Polylog lvl msg) -> Log.log logger lvl msg
-
-discardLogs :: Sem (TinyLog ': r) a -> Sem r a
-discardLogs = interpret f
-  where
-    f :: Applicative n => TinyLog m x -> n x
-    f (Polylog _ _) = pure ()
-
--- | Abbreviation of 'log' using the corresponding log level.
-trace, debug, info, warn, err, fatal :: Member TinyLog r => (Log.Msg -> Log.Msg) -> Sem r ()
-trace = polylog Trace
-debug = polylog Debug
-info = polylog Info
-warn = polylog Warn
-err = polylog Error
-fatal = polylog Fatal
-{-# INLINE trace #-}
-{-# INLINE debug #-}
-{-# INLINE info #-}
-{-# INLINE warn #-}
-{-# INLINE err #-}
-{-# INLINE fatal #-}
+type TinyLog = Logger (Log.Msg -> Log.Msg)

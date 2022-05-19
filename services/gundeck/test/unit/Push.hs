@@ -30,6 +30,7 @@ import Test.QuickCheck
 import Test.QuickCheck.Instances ()
 import Test.Tasty
 import Test.Tasty.QuickCheck
+import Wire.API.Internal.Notification
 
 tests :: TestTree
 tests =

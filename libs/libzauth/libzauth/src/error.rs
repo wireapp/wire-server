@@ -52,7 +52,7 @@ impl error::Error for Error {
         "zauth error"
     }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
             Error::Io(ref e) => Some(e),
             _                => None

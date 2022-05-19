@@ -20,7 +20,23 @@ config:
     host: redis-ephemeral-master
     port: 6379
     connectionMode: "master" # master | cluster
+  # redisAdditionalWrite:
+  #   host: redis-two
+  #   port: 6379
+  #   connectionMode: master
   bulkPush: true
   aws:
     region: "eu-west-1"
   proxy: {}
+  # perNativePushConcurrency: 32
+  maxConcurrentNativePushes:
+    soft: 1000
+serviceAccount:
+  # When setting this to 'false', either make sure that a service account named
+  # 'gundeck' exists or change the 'name' field to 'default'
+  create: true
+  name: gundeck
+  annotations: {}
+  automountServiceAccountToken: true
+
+secrets: {}
