@@ -17,6 +17,7 @@
 
 module Galley.API.MLS.Welcome
   ( postMLSWelcome,
+    sendLocalWelcomes,
     welcomeRecipients,
   )
 where
@@ -34,7 +35,6 @@ import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Imports
 import Polysemy
-import Polysemy.Error
 import Polysemy.Input
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -50,7 +50,6 @@ postMLSWelcome ::
     '[ BrigAccess,
        FederatorAccess,
        GundeckAccess,
-       Error MLSProtocolError,
        ErrorS 'MLSKeyPackageRefNotFound,
        Input UTCTime
      ]
@@ -81,8 +80,7 @@ welcomeRecipients =
 
 sendWelcomes ::
   Members
-    '[ Error MLSProtocolError,
-       ErrorS 'MLSKeyPackageRefNotFound,
+    '[ ErrorS 'MLSKeyPackageRefNotFound,
        FederatorAccess,
        GundeckAccess,
        Input UTCTime
@@ -95,11 +93,11 @@ sendWelcomes ::
   Sem r ()
 sendWelcomes loc con rawWelcome recipients = do
   now <- input
-  foldQualified loc (sendLocalWelcomes con now rawWelcome) (sendRemoteWelcomes rawWelcome) recipients
+  foldQualified loc (sendLocalWelcomes (Just con) now rawWelcome) (sendRemoteWelcomes rawWelcome) recipients
 
 sendLocalWelcomes ::
   Members '[GundeckAccess] r =>
-  ConnId ->
+  Maybe ConnId ->
   UTCTime ->
   ByteString ->
   Local [(UserId, ClientId)] ->
@@ -114,12 +112,11 @@ sendLocalWelcomes con now rawWelcome lclients = do
       let lcnv = qualifyAs lclients (selfConv u)
           lusr = qualifyAs lclients u
           e = Event (qUntagged lcnv) (qUntagged lusr) now $ EdMLSWelcome rawWelcome
-       in newMessagePush lclients () (Just con) defMessageMetadata (u, c) e
+       in newMessagePush lclients () con defMessageMetadata (u, c) e
 
 sendRemoteWelcomes ::
   Members
-    '[ Error MLSProtocolError,
-       ErrorS 'MLSKeyPackageRefNotFound,
+    '[ ErrorS 'MLSKeyPackageRefNotFound,
        FederatorAccess
      ]
     r =>
@@ -131,5 +128,7 @@ sendRemoteWelcomes rawWelcome rClients = do
       rpc = fedClient @'Galley @"mls-welcome" req
   runFederated rClients rpc >>= \case
     MLSWelcomeResponseRefNotFound -> throwS @'MLSKeyPackageRefNotFound
-    MLSWelcomeResponseDecodingFailed msg -> throw . mlsProtocolError $ msg
+    MLSWelcomeResponseDecodingFailed _msg -> do
+      -- TODO: log this issue, but we know we sent a valid welcome message
+      pure ()
     MLSWelcomeResponseSuccess -> pure ()

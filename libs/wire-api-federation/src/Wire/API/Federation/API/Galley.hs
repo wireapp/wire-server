@@ -264,8 +264,7 @@ newtype MLSWelcomeRequest = MLSWelcomeRequest
   deriving (FromJSON, ToJSON) via (CustomEncoded MLSWelcomeRequest)
 
 data MLSWelcomeResponse
-  = MLSWelcomeResponseRefNotFound
-  | MLSWelcomeResponseDecodingFailed Text
+  = MLSWelcomeResponseDecodingFailed Text
   | MLSWelcomeResponseSuccess
   deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via GenericUniform MLSWelcomeResponse

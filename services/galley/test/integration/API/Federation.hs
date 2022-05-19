@@ -1196,7 +1196,7 @@ sendMLSWelcomeKeyPackageNotFound = do
     -- check that no event is received
     void . liftIO $ do
       WS.assertNoEvent (1 # Second) [wsB]
-      resp @?= MLSWelcomeResponseRefNotFound
+      resp @?= MLSWelcomeResponseSuccess
 
 sendMLSWelcomeDecodingFailed :: TestM ()
 sendMLSWelcomeDecodingFailed = do
@@ -1218,7 +1218,7 @@ sendMLSWelcomeDecodingFailed = do
       WS.assertNoEvent (1 # Second) [wsB]
       resp
         @?= ( MLSWelcomeResponseDecodingFailed
-                "Could not decode the welcome message"
+                "not enough bytes"
             )
 
 getConvAction :: Sing tag -> SomeConversationAction -> Maybe (ConversationAction tag)

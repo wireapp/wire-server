@@ -38,10 +38,10 @@ import qualified Data.Text.Lazy as LT
 import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
+import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
-import Galley.API.Push
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
@@ -75,7 +75,9 @@ import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley (ConversationUpdateResponse)
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
+import Wire.API.MLS.Credential
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.Welcome
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.ServantProto
@@ -541,29 +543,25 @@ mlsSendWelcome ::
   Domain ->
   F.MLSWelcomeRequest ->
   Sem r F.MLSWelcomeResponse
-mlsSendWelcome _origDomain (F.unMLSWelcomeRequest -> welBase64) =
-  fmap (either (const F.MLSWelcomeResponseRefNotFound) id)
-    . runError @(Tagged 'MLSKeyPackageRefNotFound ())
-    . fmap (either F.MLSWelcomeResponseDecodingFailed id)
+mlsSendWelcome _origDomain (fromBase64ByteString . F.unMLSWelcomeRequest -> rawWelcome) =
+  fmap (either F.MLSWelcomeResponseDecodingFailed id)
     . runError
     $ do
       loc <- qualifyLocal ()
       now <- input
-      let rawWelcome = fromBase64ByteString welBase64
       welcome <- either throw pure $ decodeMLS' rawWelcome
       -- Extract only recipients local to this backend
       rcpts <-
-        fmap fold $
-          foldQualified loc ((: []) . tUnqualified) (const mempty)
-            <$$> welcomeRecipients welcome
-      runMessagePush loc Nothing $
-        foldMap (uncurry $ mkPush rawWelcome loc now) rcpts
+        fmap catMaybes $
+          traverse
+            ( fmap (fmap cidQualifiedClient . hush)
+                . runError @(Tagged 'MLSKeyPackageRefNotFound ())
+                . derefKeyPackage
+                . gsNewMember
+            )
+            $ welSecrets welcome
+      let lrcpts = qualifyAs loc $ fst $ partitionQualified loc rcpts
+
+      sendLocalWelcomes Nothing now rawWelcome lrcpts
+
       pure F.MLSWelcomeResponseSuccess
-  where
-    mkPush :: ByteString -> Local x -> UTCTime -> UserId -> ClientId -> MessagePush 'Broadcast
-    mkPush rawWelcome l time u c =
-      -- FUTUREWORK: use the conversation ID stored in the key package mapping table
-      let lcnv = qualifyAs l (Data.selfConv u)
-          lusr = qualifyAs l u
-          e = Event (qUntagged lcnv) (qUntagged lusr) time $ EdMLSWelcome rawWelcome
-       in newMessagePush l () Nothing defMessageMetadata (u, c) e
