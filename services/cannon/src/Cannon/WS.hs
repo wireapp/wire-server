@@ -257,7 +257,7 @@ drain = do
   numberOfConns <- fromIntegral <$> D.size websockets
   let maxNumberOfBatches = (opts ^. gracePeriodSeconds * 1000) `div` (opts ^. millisecondsBetweenBatches)
       computedBatchSize = numberOfConns `div` maxNumberOfBatches
-      batchSize = min (opts ^. minBatchSize) computedBatchSize
+      batchSize = max (opts ^. minBatchSize) computedBatchSize
   conns <- D.toList websockets
   info $
     msg (val "draining all websockets")
