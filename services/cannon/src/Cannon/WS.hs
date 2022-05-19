@@ -76,7 +76,7 @@ import Network.WebSockets hiding (Request)
 import qualified System.Logger as Logger
 import System.Logger.Class hiding (Error, Settings, close, (.=))
 import System.Random.MWC (GenIO, uniform)
-import UnliftIO (pooledMapConcurrentlyN_, race_)
+import UnliftIO (cancel, pooledMapConcurrentlyN_, race_)
 import UnliftIO.Async (async)
 
 -----------------------------------------------------------------------------
@@ -266,18 +266,21 @@ drain = do
       . field "minBatchSize" (opts ^. minBatchSize)
       . field "batchSize" batchSize
       . field "maxNumberOfBatches" maxNumberOfBatches
-  let drainAction = do
-        for_ (chunksOf (fromIntegral batchSize) conns) $ \batch -> do
-          void . async $ pooledMapConcurrentlyN_ 16 (uncurry close) batch
-          liftIO $ threadDelay ((opts ^. millisecondsBetweenBatches) # MilliSecond)
-        info $ msg (val "Draining complete")
-      -- Sleeps for the grace period. This is to be run in 'race_' with the
-      -- drain action. If the sleep completes, it means that draining didn't
-      -- finish, and we should log and it is time to exit the process.
-      timeoutAction = do
-        liftIO $ threadDelay ((opts ^. gracePeriodSeconds) # Second)
-        err $ msg (val "Drain grace period expired") . field "gracePeriodSeconds" (opts ^. gracePeriodSeconds)
-  race_ timeoutAction drainAction
+
+  -- Sleeps for the grace period + 1 second. If the sleep completes, it means
+  -- that draining didn't finish, and we should log that.
+  timeoutAction <- async $ do
+    -- Allocate 1 second more than the grace period to allow for overhead of
+    -- spawning threads.
+    liftIO $ threadDelay ((opts ^. gracePeriodSeconds) # Second + 1 # Second)
+    err $ msg (val "Drain grace period expired") . field "gracePeriodSeconds" (opts ^. gracePeriodSeconds)
+
+  for_ (chunksOf (fromIntegral batchSize) conns) $ \batch -> do
+    -- 16 was chosen with a roll of a fair dice.
+    void . async $ pooledMapConcurrentlyN_ 16 (uncurry close) batch
+    liftIO $ threadDelay ((opts ^. millisecondsBetweenBatches) # MilliSecond)
+  cancel timeoutAction
+  info $ msg (val "Draining complete")
 
 close :: Key -> Websocket -> WS ()
 close k c = do
