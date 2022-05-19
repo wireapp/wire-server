@@ -483,7 +483,7 @@ getFileSharingInternal = Tagged $ \case
   FeatureScopeServer -> getCfgDefault
   where
     getCfgDefault :: Sem r (TeamFeatureStatus 'WithLockStatus 'TeamFeatureFileSharing)
-    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagFileSharing . unDefaults)
+    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagFileSharing)
 
 determineFeatureStatus ::
   TeamFeatureStatusNoConfigAndLockStatus ->
@@ -505,7 +505,7 @@ getFeatureStatusWithDefaultConfig ::
     FeatureHasNoConfig 'WithoutLockStatus a,
     Members '[Input Opts, TeamFeatureStore] r
   ) =>
-  Lens' FeatureFlags (Defaults (TeamFeatureStatus 'WithoutLockStatus a)) ->
+  Lens' FeatureFlags (TeamFeatureStatus 'WithoutLockStatus a) ->
   Maybe TeamId ->
   Sem r (TeamFeatureStatus 'WithoutLockStatus a)
 getFeatureStatusWithDefaultConfig lens' =
@@ -514,9 +514,7 @@ getFeatureStatusWithDefaultConfig lens' =
     (getFeatureStatusNoConfig @a getDef)
   where
     getDef :: Sem r TeamFeatureStatusValue
-    getDef =
-      inputs (view (optSettings . setFeatureFlags . lens'))
-        <&> tfwoStatus . view unDefaults
+    getDef = inputs (view (optSettings . setFeatureFlags . lens')) <&> tfwoStatus
 
 setFileSharingInternal ::
   forall r.
@@ -541,10 +539,11 @@ setFileSharingInternal = Tagged $ \tid status -> do
   TeamFeatures.setFeatureStatusNoConfig @'TeamFeatureFileSharing tid status <* pushEvent
   where
     getDftLockStatus :: Sem r LockStatusValue
-    getDftLockStatus = input <&> view (optSettings . setFeatureFlags . flagFileSharing . unDefaults . to tfwoapsLockStatus)
+    getDftLockStatus = input <&> view (optSettings . setFeatureFlags . flagFileSharing . to tfwoapsLockStatus)
 
 getAppLockInternal ::
-  Members '[Input Opts, TeamFeatureStore] r =>
+  forall r.
+  (Member TeamFeatureStore r, Member (Input Opts) r) =>
   FeatureGetter 'WithoutLockStatus 'TeamFeatureAppLock r
 getAppLockInternal = Tagged $ \case
   FeatureScopeTeam tid -> do
@@ -554,8 +553,8 @@ getAppLockInternal = Tagged $ \case
   FeatureScopeUser _ -> getCfgDefault
   FeatureScopeServer -> getCfgDefault
   where
-    getCfgDefault = do
-      inputs (view (optSettings . setFeatureFlags . flagAppLockDefaults . unDefaults))
+    getCfgDefault :: Sem r (TeamFeatureStatusWithConfig TeamFeatureAppLockConfig)
+    getCfgDefault = inputs (view (optSettings . setFeatureFlags . flagAppLockDefaults))
 
 setAppLockInternal ::
   Members '[GundeckAccess, TeamFeatureStore, TeamStore, Error TeamFeatureError, P.TinyLog] r =>
@@ -615,7 +614,7 @@ getSelfDeletingMessagesInternal = Tagged $ \case
   FeatureScopeServer -> getCfgDefault
   where
     getCfgDefault :: Sem r (TeamFeatureStatusWithConfigAndLockStatus TeamFeatureSelfDeletingMessagesConfig)
-    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagSelfDeletingMessages . unDefaults)
+    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagSelfDeletingMessages)
 
 setSelfDeletingMessagesInternal ::
   forall r.
@@ -635,7 +634,7 @@ setSelfDeletingMessagesInternal = Tagged $ \tid st -> do
   TeamFeatures.setSelfDeletingMessagesStatus tid st <* pushEvent
   where
     getDftLockStatus :: Sem r LockStatusValue
-    getDftLockStatus = input <&> view (optSettings . setFeatureFlags . flagSelfDeletingMessages . unDefaults . to tfwcapsLockStatus)
+    getDftLockStatus = input <&> view (optSettings . setFeatureFlags . flagSelfDeletingMessages . to tfwcapsLockStatus)
 
 getGuestLinkInternal ::
   forall r.
@@ -650,7 +649,7 @@ getGuestLinkInternal = Tagged $ \case
   FeatureScopeServer -> getCfgDefault
   where
     getCfgDefault :: Sem r (TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks)
-    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
+    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks)
 
 setGuestLinkInternal ::
   forall r.
@@ -675,7 +674,7 @@ setGuestLinkInternal = Tagged $ \tid status -> do
   TeamFeatures.setFeatureStatusNoConfig @'TeamFeatureGuestLinks tid status <* pushEvent
   where
     getDftLockStatus :: Sem r LockStatusValue
-    getDftLockStatus = input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults . to tfwoapsLockStatus)
+    getDftLockStatus = input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . to tfwoapsLockStatus)
 
 getSndFactorPasswordChallengeInternal ::
   forall r.
@@ -690,7 +689,7 @@ getSndFactorPasswordChallengeInternal = Tagged $ \case
   FeatureScopeServer -> getCfgDefault
   where
     getCfgDefault :: Sem r (TeamFeatureStatus 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge)
-    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSndFactorPasswordChallengeStatus . unDefaults)
+    getCfgDefault = input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSndFactorPasswordChallengeStatus)
 
 getSndFactorPasswordChallengeNoAuth ::
   forall r.
@@ -772,7 +771,7 @@ setSndFactorPasswordChallengeInternal = Tagged $ \tid status -> do
   TeamFeatures.setFeatureStatusNoConfig @'TeamFeatureSndFactorPasswordChallenge tid status <* pushEvent
   where
     getDftLockStatus :: Sem r LockStatusValue
-    getDftLockStatus = input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSndFactorPasswordChallengeStatus . unDefaults . to tfwoapsLockStatus)
+    getDftLockStatus = input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSndFactorPasswordChallengeStatus . to tfwoapsLockStatus)
 
 getTeamSearchVisibilityInboundInternal ::
   Members '[Input Opts, TeamFeatureStore] r =>
@@ -808,7 +807,7 @@ getFeatureStatusMulti ::
        ]
       r
   ) =>
-  Lens' FeatureFlags (Defaults (TeamFeatureStatus 'WithoutLockStatus f)) ->
+  Lens' FeatureFlags (TeamFeatureStatus 'WithoutLockStatus f) ->
   (Multi.TeamFeatureNoConfigMultiRequest -> (Sem r) (Multi.TeamFeatureNoConfigMultiResponse 'TeamFeatureSearchVisibilityInbound))
 getFeatureStatusMulti lens' (Multi.TeamFeatureNoConfigMultiRequest teams) = do
   triples <- TeamFeatures.getFeatureStatusNoConfigMulti (Proxy @f) teams
@@ -819,9 +818,7 @@ getFeatureStatusMulti lens' (Multi.TeamFeatureNoConfigMultiRequest teams) = do
   pure $ Multi.TeamFeatureNoConfigMultiResponse $ tsExplicit <> tsImplicit
   where
     getDef :: Sem r TeamFeatureStatusValue
-    getDef =
-      inputs (view (optSettings . setFeatureFlags . lens'))
-        <&> tfwoStatus . view unDefaults
+    getDef = inputs (view (optSettings . setFeatureFlags . lens')) <&> tfwoStatus
 
 getTeamSearchVisibilityInboundInternalMulti ::
   Members

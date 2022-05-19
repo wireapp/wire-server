@@ -38,7 +38,6 @@ module Galley.Types.Teams
     flagTeamFeatureSndFactorPasswordChallengeStatus,
     flagTeamFeatureSearchVisibilityInbound,
     Defaults (..),
-    unDefaults,
     FeatureSSO (..),
     FeatureLegalHold (..),
     FeatureTeamSearchVisibility (..),
@@ -220,15 +219,15 @@ data FeatureFlags = FeatureFlags
   { _flagSSO :: !FeatureSSO,
     _flagLegalHold :: !FeatureLegalHold,
     _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility,
-    _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureAppLock)),
+    _flagAppLockDefaults :: !(TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureAppLock),
     _flagClassifiedDomains :: !(TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureClassifiedDomains),
-    _flagFileSharing :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureFileSharing)),
-    _flagConferenceCalling :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureConferenceCalling)),
-    _flagSelfDeletingMessages :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages)),
-    _flagConversationGuestLinks :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks)),
-    _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails)),
-    _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge)),
-    _flagTeamFeatureSearchVisibilityInbound :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSearchVisibilityInbound))
+    _flagFileSharing :: !(TeamFeatureStatus 'WithLockStatus 'TeamFeatureFileSharing),
+    _flagConferenceCalling :: !(TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureConferenceCalling),
+    _flagSelfDeletingMessages :: !(TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages),
+    _flagConversationGuestLinks :: !(TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks),
+    _flagsTeamFeatureValidateSAMLEmailsStatus :: !(TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails),
+    _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(TeamFeatureStatus 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge),
+    _flagTeamFeatureSearchVisibilityInbound :: !(TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSearchVisibilityInbound)
   }
   deriving (Eq, Show, Generic)
 
@@ -270,15 +269,15 @@ instance FromJSON FeatureFlags where
       <$> obj .: "sso"
       <*> obj .: "legalhold"
       <*> obj .: "teamSearchVisibility"
-      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureAppLock)) <$> (obj .:? "appLock"))
+      <*> (maybe (defTeamFeatureStatus @'TeamFeatureAppLock) _unDefaults <$> (obj .:? "appLock"))
       <*> (fromMaybe (defTeamFeatureStatus @'TeamFeatureClassifiedDomains) <$> (obj .:? "classifiedDomains"))
-      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureFileSharing)) <$> (obj .:? "fileSharing"))
-      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureConferenceCalling)) <$> (obj .:? "conferenceCalling"))
-      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureSelfDeletingMessages)) <$> (obj .:? "selfDeletingMessages"))
-      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureGuestLinks)) <$> (obj .:? "conversationGuestLinks"))
-      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureValidateSAMLEmails)) <$> (obj .:? "validateSAMLEmails"))
-      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureSndFactorPasswordChallenge)) <$> (obj .:? "sndFactorPasswordChallenge"))
-      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureSearchVisibilityInbound)) <$> (obj .:? "searchVisibilityInbound"))
+      <*> (maybe (defTeamFeatureStatus @'TeamFeatureFileSharing) _unDefaults <$> (obj .:? "fileSharing"))
+      <*> (maybe (defTeamFeatureStatus @'TeamFeatureConferenceCalling) _unDefaults <$> (obj .:? "conferenceCalling"))
+      <*> (maybe (defTeamFeatureStatus @'TeamFeatureSelfDeletingMessages) _unDefaults <$> (obj .:? "selfDeletingMessages"))
+      <*> (maybe (defTeamFeatureStatus @'TeamFeatureGuestLinks) _unDefaults <$> (obj .:? "conversationGuestLinks"))
+      <*> (maybe (defTeamFeatureStatus @'TeamFeatureValidateSAMLEmails) _unDefaults <$> (obj .:? "validateSAMLEmails"))
+      <*> (maybe (defTeamFeatureStatus @'TeamFeatureSndFactorPasswordChallenge) _unDefaults <$> (obj .:? "sndFactorPasswordChallenge"))
+      <*> (maybe (defTeamFeatureStatus @'TeamFeatureSearchVisibilityInbound) _unDefaults <$> (obj .:? "searchVisibilityInbound"))
 
 instance ToJSON FeatureFlags where
   toJSON
@@ -300,15 +299,15 @@ instance ToJSON FeatureFlags where
         [ "sso" .= sso,
           "legalhold" .= legalhold,
           "teamSearchVisibility" .= searchVisibility,
-          "appLock" .= appLock,
+          "appLock" .= Defaults appLock,
           "classifiedDomains" .= classifiedDomains,
-          "fileSharing" .= fileSharing,
-          "conferenceCalling" .= conferenceCalling,
-          "selfDeletingMessages" .= selfDeletingMessages,
-          "conversationGuestLinks" .= guestLinks,
-          "validateSAMLEmails" .= validateSAMLEmails,
-          "sndFactorPasswordChallenge" .= sndFactorPasswordChallenge,
-          "searchVisibilityInbound" .= searchVisibilityInbound
+          "fileSharing" .= Defaults fileSharing,
+          "conferenceCalling" .= Defaults conferenceCalling,
+          "selfDeletingMessages" .= Defaults selfDeletingMessages,
+          "conversationGuestLinks" .= Defaults guestLinks,
+          "validateSAMLEmails" .= Defaults validateSAMLEmails,
+          "sndFactorPasswordChallenge" .= Defaults sndFactorPasswordChallenge,
+          "searchVisibilityInbound" .= Defaults searchVisibilityInbound
         ]
 
 instance FromJSON FeatureSSO where
@@ -342,7 +341,6 @@ instance ToJSON FeatureTeamSearchVisibility where
 
 makeLenses ''TeamCreationTime
 makeLenses ''FeatureFlags
-makeLenses ''Defaults
 
 -- Note [hidden team roles]
 --

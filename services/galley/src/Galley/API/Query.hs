@@ -592,7 +592,7 @@ getConversationGuestLinksStatusValue ::
   Maybe TeamId ->
   Sem r TeamFeatureStatusValue
 getConversationGuestLinksStatusValue mbTid = do
-  defaultStatus <- tfwoapsStatus <$> (input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults))
+  defaultStatus <- tfwoapsStatus <$> (input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks))
   maybe defaultStatus tfwoStatus . join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` mbTid
 
 -------------------------------------------------------------------------------

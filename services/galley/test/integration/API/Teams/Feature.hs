@@ -488,7 +488,6 @@ testSelfDeletingMessages = do
           . optSettings
           . setFeatureFlags
           . flagSelfDeletingMessages
-          . unDefaults
           . to Public.tfwcapsLockStatus
       )
 
@@ -637,7 +636,6 @@ testAllFeatures = do
           . optSettings
           . setFeatureFlags
           . flagSelfDeletingMessages
-          . unDefaults
           . to Public.tfwcapsLockStatus
       )
 
