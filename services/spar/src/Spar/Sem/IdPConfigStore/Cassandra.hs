@@ -56,6 +56,7 @@ idPToCassandra =
          in deleteIdPConfig idpid issuer team
       SetReplacedBy r r11 -> setReplacedBy r r11
       ClearReplacedBy r -> clearReplacedBy r
+      DeleteIssuer i -> deleteIssuer i
 
 type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId, Maybe WireIdPAPIVersion, [SAML.Issuer], Maybe SAML.IdPId)
 
@@ -231,3 +232,9 @@ clearReplacedBy (Replaced old) = do
   where
     ins :: PrepQuery W (Identity SAML.IdPId) ()
     ins = "UPDATE idp SET replaced_by = null WHERE idp = ?"
+
+deleteIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m ()
+deleteIssuer issuer = retry x5 $ write del (params LocalQuorum (Identity issuer))
+  where
+    del :: PrepQuery W (Identity SAML.Issuer) ()
+    del = "DELETE FROM issuer_idp_v2 WHERE issuer = ?"
