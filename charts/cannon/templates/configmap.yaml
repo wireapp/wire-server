@@ -13,6 +13,12 @@ data:
     gundeck:
       host: gundeck
       port: 8080
+
+    drainOpts:
+      gracePeriodSeconds: {{ .Values.config.drainOpts.gracePeriodSeconds }}
+      millisecondsBetweenBatches: {{ .Values.config.drainOpts.millisecondsBetweenBatches }}
+      minBatchSize: {{ .Values.config.drainOpts.minBatchSize }}
+
 kind: ConfigMap
 metadata:
   name: cannon
