@@ -27,7 +27,7 @@ import Cannon.API.Public
 import Cannon.App (maxPingInterval)
 import qualified Cannon.Dict as D
 import Cannon.Options
-import Cannon.Types (Cannon, applog, clients, mkEnv, monitor, runCannon', runCannonToServant)
+import Cannon.Types (Cannon, applog, clients, env, mkEnv, monitor, runCannon', runCannonToServant)
 import Cannon.WS hiding (env)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
@@ -48,7 +48,10 @@ import Servant
 import qualified System.IO.Strict as Strict
 import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as L
+import System.Posix.Signals
+import qualified System.Posix.Signals as Signals
 import System.Random.MWC (createSystemRandom)
+import UnliftIO.Concurrent (myThreadId, throwTo)
 import qualified Wire.API.Routes.Internal.Cannon as Internal
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Version.Wai
@@ -84,6 +87,9 @@ run o = do
       server =
         hoistServer (Proxy @PublicAPI) (runCannonToServant e) publicAPIServer
           :<|> hoistServer (Proxy @Internal.API) (runCannonToServant e) internalServer
+  tid <- myThreadId
+  void $ installHandler sigTERM (signalHandler (env e) tid) Nothing
+  void $ installHandler sigINT (signalHandler (env e) tid) Nothing
   runSettings s app `finally` do
     Async.cancel refreshMetricsThread
     L.close (applog e)
@@ -97,6 +103,16 @@ run o = do
       maybe (readExternal extFile) (return . encodeUtf8) (o ^. cannon . externalHost)
     readExternal :: FilePath -> IO ByteString
     readExternal f = encodeUtf8 . strip . pack <$> Strict.readFile f
+
+signalHandler :: Env -> ThreadId -> Signals.Handler
+signalHandler e mainThread = CatchOnce $ do
+  runWS e drain
+  throwTo mainThread SignalledToExit
+
+data SignalledToExit = SignalledToExit
+  deriving (Show)
+
+instance Exception SignalledToExit
 
 refreshMetrics :: Cannon ()
 refreshMetrics = do

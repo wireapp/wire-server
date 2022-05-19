@@ -66,10 +66,10 @@ makeFields ''Gundeck
 deriveApiFieldJSON ''Gundeck
 
 data DrainOpts = DrainOpts
-  { -- | Maximum amount of time draining should take
+  { -- | Maximum amount of time draining should take. Must not be set to 0.
     _drainOptsGracePeriodSeconds :: Word64,
     -- | Maximum amount of time between batches, this speeds up draining in case
-    -- there are not many users connected
+    -- there are not many users connected. Must not be set to 0.
     _drainOptsMillisecondsBetweenBatches :: Word64,
     -- | Batch size is calculated considering actual number of websockets and
     -- gracePeriod. If this number is too little, '_drainOptsMinBatchSize' is
