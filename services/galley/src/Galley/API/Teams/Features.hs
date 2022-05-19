@@ -555,8 +555,7 @@ getAppLockInternal = Tagged $ \case
   FeatureScopeServer -> getCfgDefault
   where
     getCfgDefault = do
-      Defaults defaultStatus <- inputs (view (optSettings . setFeatureFlags . flagAppLockDefaults))
-      pure defaultStatus
+      inputs (view (optSettings . setFeatureFlags . flagAppLockDefaults . unDefaults))
 
 setAppLockInternal ::
   Members '[GundeckAccess, TeamFeatureStore, TeamStore, Error TeamFeatureError, P.TinyLog] r =>
