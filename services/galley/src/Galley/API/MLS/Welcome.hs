@@ -18,7 +18,6 @@
 module Galley.API.MLS.Welcome
   ( postMLSWelcome,
     sendLocalWelcomes,
-    welcomeRecipients,
   )
 where
 
