@@ -16,5 +16,10 @@ gundeck:
   host: 127.0.0.1
   port: 8086
 
+drainOpts:
+  gracePeriodSeconds: 1
+  millisecondsBetweenBatches: 500
+  minBatchSize: 5
+
 logLevel: Info
 logNetStrings: false

@@ -108,7 +108,14 @@ ejpdAPI =
     :<|> getConnectionsStatus
 
 mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
-mlsAPI = getClientByKeyPackageRef :<|> getMLSClients :<|> mapKeyPackageRefsInternal
+mlsAPI =
+  ( \ref ->
+      Named @"get-client-by-key-package-ref" (getClientByKeyPackageRef ref)
+        :<|> Named @"put-conversation-by-key-package-ref" (putConvIdByKeyPackageRef ref)
+        :<|> Named @"get-conversation-by-key-package-ref" (getConvIdByKeyPackageRef ref)
+  )
+    :<|> getMLSClients
+    :<|> mapKeyPackageRefsInternal
 
 accountAPI :: ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI = Named @"createUserNoVerify" createUserNoVerify
@@ -132,6 +139,14 @@ deleteAccountFeatureConfig uid =
 
 getClientByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe ClientIdentity)
 getClientByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.derefKeyPackage
+
+-- Used by galley to update conversation id in mls_key_package_ref
+putConvIdByKeyPackageRef :: KeyPackageRef -> Qualified ConvId -> Handler r Bool
+putConvIdByKeyPackageRef ref = lift . wrapClient . Data.keyPackageRefSetConvId ref
+
+-- Used by galley to retrieve conversation id from mls_key_package_ref
+getConvIdByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe (Qualified ConvId))
+getConvIdByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.keyPackageRefConvId
 
 getMLSClients :: Qualified UserId -> SignatureSchemeTag -> Handler r (Set ClientId)
 getMLSClients qusr ss = do

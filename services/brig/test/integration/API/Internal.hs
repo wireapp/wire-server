@@ -21,27 +21,35 @@ module API.Internal
 where
 
 import API.Internal.Util
+import API.MLS (createClient)
+import API.MLS.Util (SetKey (SetKey), uploadKeyPackages)
 import Bilge
 import Bilge.Assert
 import Brig.Data.User (lookupFeatureConferenceCalling, lookupStatus, userExists)
 import qualified Brig.Options as Opt
 import Brig.Types.Intra
-import Brig.Types.User (userId)
+import Brig.Types.User (User (userQualifiedId), userId)
 import qualified Cassandra as Cass
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens ((^.), (^?!))
 import Control.Monad.Catch
+import Data.Aeson (decode)
 import qualified Data.Aeson.Lens as Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
+import Data.Qualified (Qualified (qDomain, qUnqualified))
 import qualified Data.Set as Set
 import Imports
+import Servant.API (ToHttpApiData (toUrlPiece))
+import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
 import Test.Tasty.HUnit
+import UnliftIO (withSystemTempFile)
 import Util
 import Util.Options (Endpoint)
 import qualified Wire.API.Connection as Conn
+import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.Internal.Brig.EJPD as EJPD
 import qualified Wire.API.Team.Feature as ApiFt
 import qualified Wire.API.Team.Member as Team
@@ -51,9 +59,17 @@ tests opts mgr db brig brigep gundeck galley = do
   return $
     testGroup "api/internal" $
       [ test mgr "ejpd requests" $ testEJPDRequest mgr brig brigep gundeck,
-        test mgr "account features: conferenceCalling" $ testFeatureConferenceCallingByAccount opts mgr db brig brigep galley,
+        test mgr "account features: conferenceCalling" $
+          testFeatureConferenceCallingByAccount opts mgr db brig brigep galley,
         test mgr "suspend and unsuspend user" $ testSuspendUser db brig,
-        test mgr "suspend non existing user and verify no db entry" $ testSuspendNonExistingUser db brig
+        test mgr "suspend non existing user and verify no db entry" $
+          testSuspendNonExistingUser db brig,
+        testGroup "mls/key-packages" $
+          [ test mgr "fresh get" $ testKpcFreshGet brig,
+            test mgr "put,get" $ testKpcPutGet brig,
+            test mgr "get,get" $ testKpcGetGet brig,
+            test mgr "put,put" $ testKpcPutPut brig
+          ]
       ]
 
 testSuspendUser :: forall m. TestConstraints m => Cass.ClientState -> Brig -> m ()
@@ -200,6 +216,87 @@ testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig 
   check $ ApiFt.TeamFeatureStatusNoConfig ApiFt.TeamFeatureEnabled
   check $ ApiFt.TeamFeatureStatusNoConfig ApiFt.TeamFeatureDisabled
   check'
+
+keyPackageCreate :: HasCallStack => Brig -> Http KeyPackageRef
+keyPackageCreate brig = do
+  uid <- userQualifiedId <$> randomUser brig
+  clid <- createClient brig uid 0
+  withSystemTempFile "api.internal.kpc" $ \store _ ->
+    uploadKeyPackages brig store SetKey uid clid 2
+
+  uid2 <- userQualifiedId <$> randomUser brig
+  claimResp <-
+    post
+      ( brig
+          . paths
+            [ "mls",
+              "key-packages",
+              "claim",
+              toByteString' (qDomain uid),
+              toByteString' (qUnqualified uid)
+            ]
+          . zUser (qUnqualified uid2)
+          . contentJson
+      )
+  liftIO $
+    assertEqual "POST mls/key-packages/claim/:domain/:user failed" 200 (statusCode claimResp)
+  case responseBody claimResp >>= decode of
+    Nothing -> liftIO $ assertFailure "Claim response empty"
+    Just bundle -> case toList $ kpbEntries bundle of
+      [] -> liftIO $ assertFailure "Claim response held no bundles"
+      (h : _) -> return $ kpbeRef h
+
+kpcPut :: HasCallStack => Brig -> KeyPackageRef -> Qualified ConvId -> Http ()
+kpcPut brig ref qConv = do
+  resp <-
+    put
+      ( brig
+          . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref, "conversation"]
+          . contentJson
+          . json qConv
+      )
+  liftIO $ assertEqual "PUT i/mls/key-packages/:ref/conversation failed" 204 (statusCode resp)
+
+kpcGet :: HasCallStack => Brig -> KeyPackageRef -> Http (Maybe (Qualified ConvId))
+kpcGet brig ref = do
+  resp <-
+    get (brig . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref, "conversation"])
+  liftIO $ case statusCode resp of
+    404 -> return Nothing
+    200 -> return $ responseBody resp >>= decode
+    _ -> assertFailure "GET i/mls/key-packages/:ref/conversation failed"
+
+testKpcFreshGet :: Brig -> Http ()
+testKpcFreshGet brig = do
+  ref <- keyPackageCreate brig
+  mqConv <- kpcGet brig ref
+  liftIO $ assertEqual "(fresh) Get ~= Nothing" Nothing mqConv
+
+testKpcPutGet :: Brig -> Http ()
+testKpcPutGet brig = do
+  ref <- keyPackageCreate brig
+  qConv <- liftIO $ generate arbitrary
+  kpcPut brig ref qConv
+  mqConv <- kpcGet brig ref
+  liftIO $ assertEqual "Put x; Get ~= x" (Just qConv) mqConv
+
+testKpcGetGet :: Brig -> Http ()
+testKpcGetGet brig = do
+  ref <- keyPackageCreate brig
+  liftIO (generate arbitrary) >>= kpcPut brig ref
+  mqConv1 <- kpcGet brig ref
+  mqConv2 <- kpcGet brig ref
+  liftIO $ assertEqual "Get; Get ~= Get" mqConv1 mqConv2
+
+testKpcPutPut :: Brig -> Http ()
+testKpcPutPut brig = do
+  ref <- keyPackageCreate brig
+  qConv <- liftIO $ generate arbitrary
+  qConv2 <- liftIO $ generate arbitrary
+  kpcPut brig ref qConv
+  kpcPut brig ref qConv2
+  mqConv <- kpcGet brig ref
+  liftIO $ assertEqual "Put x; Put y ~= Put y" (Just qConv2) mqConv
 
 getFeatureConfig :: (MonadIO m, MonadHttp m, HasCallStack) => ApiFt.TeamFeatureName -> (Request -> Request) -> UserId -> m ResponseLBS
 getFeatureConfig feature galley uid = do

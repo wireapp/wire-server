@@ -22,6 +22,7 @@ module Cannon.WS
     WS,
     env,
     runWS,
+    drain,
     close,
     mkWebSocket,
     setRequestId,
@@ -50,8 +51,10 @@ import Bilge.RPC
 import Bilge.Retry
 import Cannon.Dict (Dict)
 import qualified Cannon.Dict as D
+import Cannon.Options (DrainOpts, gracePeriodSeconds, millisecondsBetweenBatches, minBatchSize)
 import Conduit
 import Control.Concurrent.Timeout
+import Control.Lens ((^.))
 import Control.Monad.Catch
 import Control.Retry
 import Data.Aeson hiding (Error, Key)
@@ -61,6 +64,7 @@ import qualified Data.ByteString.Lazy as L
 import Data.Default (def)
 import Data.Hashable
 import Data.Id (ClientId, ConnId (..), UserId)
+import Data.List.Extra (chunksOf)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Timeout (TimeoutUnit (..), (#))
 import Gundeck.Types
@@ -72,6 +76,7 @@ import Network.WebSockets hiding (Request)
 import qualified System.Logger as Logger
 import System.Logger.Class hiding (Error, Settings, close, (.=))
 import System.Random.MWC (GenIO, uniform)
+import UnliftIO.Async (async, cancel, pooledMapConcurrentlyN_)
 
 -----------------------------------------------------------------------------
 -- Key
@@ -140,7 +145,8 @@ data Env = Env
     manager :: !Manager,
     dict :: !(Dict Key Websocket),
     rand :: !GenIO,
-    clock :: !Clock
+    clock :: !Clock,
+    drainOpts :: DrainOpts
   }
 
 setRequestId :: RequestId -> Env -> Env
@@ -185,6 +191,7 @@ env ::
   Dict Key Websocket ->
   GenIO ->
   Clock ->
+  DrainOpts ->
   Env
 env leh lp gh gp = Env leh lp (host gh . port gp $ empty) def
 
@@ -241,6 +248,75 @@ sendMsg message k c = do
     logMsg m = val "sendMsgConduit: \"" +++ L.take 128 (toLazyByteString m) +++ val "...\""
 
     kb = key2bytes k
+
+-- | Closes all websockets connected to this instance of cannon.
+--
+-- This function is not tested anywhere as it is difficult to write an automated
+-- test for. Some pointers on testing this function:
+--
+-- 1. Set values in cannon.integration.yaml for drainOpts such that it drains
+-- "slowly", something like:
+--
+-- @
+-- {gracePeriodSeconds: 1, millisecondsBetweenBatches: 500, minBatchSize: 5}
+-- @
+--
+-- This will ensure that if there 10 or more websockets open, they get drained
+-- in 2 batches of n/2.
+--
+-- 2. Write a test in brig or galley using 'bracketRN' function from
+-- tasty-cannon. This function doesn't require users to exist. Just pass it n
+-- UserIds and threadDelay for a long-ish time.
+--
+-- 3. During this threadDelay, send either SIGINT or SIGTERM to the cannon
+-- process and use cannon logs to determine what is going on.
+--
+-- Example test, which worked at the time of writing this comment:
+--
+-- @
+-- testCannonDrain :: Cannon -> Http ()
+-- testCannonDrain cannon = do
+--   users <- replicateM 50 randomId
+--   WS.bracketRN cannon users $ \_websockets -> do
+--     putStrLn "-------------------> Before delay"
+--     threadDelay 100_000_000
+--     putStrLn "-------------------> After delay"
+--   putStrLn "-------------------> After bracket"
+-- @
+--
+-- Use @pkill -INT -f cannon.integration.yaml@ to send SIGINT to the cannon
+-- process.
+drain :: WS ()
+drain = do
+  opts <- asks drainOpts
+  websockets <- asks dict
+  numberOfConns <- fromIntegral <$> D.size websockets
+  let maxNumberOfBatches = (opts ^. gracePeriodSeconds * 1000) `div` (opts ^. millisecondsBetweenBatches)
+      computedBatchSize = numberOfConns `div` maxNumberOfBatches
+      batchSize = max (opts ^. minBatchSize) computedBatchSize
+  conns <- D.toList websockets
+  info $
+    msg (val "draining all websockets")
+      . field "numberOfConns" numberOfConns
+      . field "computedBatchSize" computedBatchSize
+      . field "minBatchSize" (opts ^. minBatchSize)
+      . field "batchSize" batchSize
+      . field "maxNumberOfBatches" maxNumberOfBatches
+
+  -- Sleeps for the grace period + 1 second. If the sleep completes, it means
+  -- that draining didn't finish, and we should log that.
+  timeoutAction <- async $ do
+    -- Allocate 1 second more than the grace period to allow for overhead of
+    -- spawning threads.
+    liftIO $ threadDelay ((opts ^. gracePeriodSeconds) # Second + 1 # Second)
+    err $ msg (val "Drain grace period expired") . field "gracePeriodSeconds" (opts ^. gracePeriodSeconds)
+
+  for_ (chunksOf (fromIntegral batchSize) conns) $ \batch -> do
+    -- 16 was chosen with a roll of a fair dice.
+    void . async $ pooledMapConcurrentlyN_ 16 (uncurry close) batch
+    liftIO $ threadDelay ((opts ^. millisecondsBetweenBatches) # MilliSecond)
+  cancel timeoutAction
+  info $ msg (val "Draining complete")
 
 close :: Key -> Websocket -> WS ()
 close k c = do

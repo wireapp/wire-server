@@ -58,6 +58,7 @@ idPToMem = evState . evEff
         modify' (updateReplacedBy (Just replacing) replaced <$>)
       ClearReplacedBy (Replaced replaced) ->
         modify' (updateReplacedBy Nothing replaced <$>)
+      DeleteIssuer issuer -> modify' (deleteIssuer issuer)
 
 storeConfig :: IP.IdP -> TypedState -> TypedState
 storeConfig iw =
@@ -114,3 +115,6 @@ updateReplacedBy mbReplacing replaced idp =
     & if idp ^. SAML.idpId == replaced
       then SAML.idpExtraInfo . IP.wiReplacedBy .~ mbReplacing
       else id
+
+deleteIssuer :: SAML.Issuer -> TypedState -> TypedState
+deleteIssuer = const id

@@ -24,6 +24,7 @@ module Cannon.Dict
     removeIf,
     lookup,
     size,
+    toList,
   )
 where
 
@@ -32,10 +33,11 @@ import Data.SizedHashMap (SizedHashMap)
 import qualified Data.SizedHashMap as SHM
 import Data.Vector (Vector, (!))
 import qualified Data.Vector as V
-import Imports hiding (lookup)
+import Imports hiding (lookup, toList)
 
 newtype Dict a b = Dict
-  {_map :: Vector (IORef (SizedHashMap a b))}
+  { _map :: Vector (IORef (SizedHashMap a b))
+  }
 
 size :: MonadIO m => Dict a b -> m Int
 size d = liftIO $ sum <$> mapM (\r -> SHM.size <$> readIORef r) (_map d)
@@ -67,6 +69,12 @@ removeIf f k d = liftIO . atomicModifyIORef' (getSlice k d) $ \m ->
 
 lookup :: (Eq a, Hashable a, MonadIO m) => a -> Dict a b -> m (Maybe b)
 lookup k = liftIO . fmap (SHM.lookup k) . readIORef . getSlice k
+
+toList :: (MonadIO m, Hashable a) => Dict a b -> m [(a, b)]
+toList =
+  fmap (mconcat . V.toList)
+    . V.mapM (fmap SHM.toList . readIORef)
+    . _map
 
 -----------------------------------------------------------------------------
 -- Internal

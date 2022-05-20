@@ -30,17 +30,10 @@ spec:
       annotations:
         checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
-      terminationGracePeriodSeconds: {{ .Values.drainTimeout }} # should be higher than the sleep duration of preStop
+      terminationGracePeriodSeconds: {{ add .Values.config.drainOpts.gracePeriodSeconds 5 }}
       containers:
       - name: cannon
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-        lifecycle:
-          preStop:
-            # kubernetes by default immediately sends a SIGTERM to the container,
-            # which would cause cannon to exit, breaking existing websocket connections.
-            # Instead we sleep for a day. (SIGTERM is still sent, but after the preStop completes)
-            exec:
-              command: ["sleep", {{ .Values.drainTimeout | quote }} ]
         volumeMounts:
         - name: empty
           mountPath: /etc/wire/cannon/externalHost
@@ -65,7 +58,7 @@ spec:
 {{ toYaml .Values.resources | indent 12 }}
       initContainers:
       - name: cannon-configurator
-        image: alpine:3.13.1
+        image: alpine:3.15.4
         command:
         - /bin/sh
         args:

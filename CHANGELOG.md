@@ -1,3 +1,203 @@
+# [2022-05-18] (Chart Release 4.12.0)
+
+## Release notes
+
+
+* If using [cert-manager](https://github.com/cert-manager/cert-manager), you need to have least version 1.0.0 (1.8.0 works at the time of writing) installed. Older cert-manager 0.15.X will no longer work. (#2401)
+
+* Upgrade team-settings version to 4.9.0-v0.29.7-0-142a76f (#2180)
+
+
+## API changes
+
+
+* Start version 2 of the public API. Main changes:
+
+   - Asset endpoints have lost their `v3` and `v4` suffixes. So for example
+     `/assets/v3` has been replaced by `/assets`.
+   - `GET /conversations/:conv/assets/:id` and `GET
+     /conversations/:conv/otr/assets/:id` have been removed.
+   - `GET /assets/:key/v3` has been removed. Use the qualified endpoint `GET
+     /assets/:domain/:key` instead.
+   - `DELETE /assets/:key/v3` has been removed. Use the qualified endpoint
+     `DELETE /assets/:domain/:key` instead.
+   - `GET /connections` has been removed. Use `POST /list-connections` instead.
+   - `POST /connections` has been removed. Use `POST /connections/:domain/:user` instead.
+   - `PUT /connections/:domain/:user` has been removed: use `POST` instead.
+   - `GET /conversations` has been removed. Use `POST /conversations/list-ids`
+     followed by `POST /conversations/list` instead.
+   - `POST /conversations/list/v2` has been replaced by `POST
+     /conversations/list`.
+   - `POST /conversations/:domain/:conv/members/v2` has lost its `v2` suffix, so
+     it is now `POST /conversations/:domain/:conv/members`.
+   - `GET /users`, `GET /users/by-handle` and `GET /users/handles` have been
+     removed. Use `POST /search/contacts` instead.
+   - `GET /users/:id` has been removed. Use the qualified endpoint `GET
+     /users/:domain/:id` instead.
+   - `GET /users/:id/clients` has been removed. Use the qualified endpoint `GET
+     /users/:domain/:id/clients` instead.
+   - `GET /users/:id/clients/:client` has been removed. Use the qualified
+     endpoint `GET /users/:domain/:id/clients/:client` instead.
+
+  Swagger documentation for the previous version of the API can be accessed at
+  `/v1/api/swagger-ui`. (#2297)
+
+* A new field `development` has been added to the object returned by `GET
+  /api-version`. Versions listed there are considered in flux, meaning that the
+  corresponding API contracts can change arbitrarily over time. Clients are free
+  to use development versions, as long as they are also listed in `supported`,
+  and failures due to incompatibilities are acceptable (e.g. in testing
+  environments). Backends are the authoritative source on whether a development
+  version can be used at all. If a development version should not be used, the
+  backend will not list it among the supported versions at all. (#2297)
+
+
+## Features
+
+
+* charts: Various new values can now be configured and some got changed
+
+  Allow new configurations in the brig chart:
+  * `config.emailSMS.user.invitationUrl`
+  * `config.emailSMS.team.tInvitationUrl`
+  * `config.emailSMS.team.tActivationUrl`
+  * `config.emailSMS.team.tCreatorWelcomeUrl`
+  * `config.emailSMS.team.tMemberWelcomeUrl`
+  * `config.setProviderSearchFilter`
+  * `config.setWhitelist`
+  * `config.setFeatureFlags`
+  * `config.setCustomerExtensions`
+
+  If any values in config.emailSMS.team are specified, all must be specified.
+
+  Allow new configurations in the gundeck chart:
+  * `config.perNativePushConcurrency`
+  * `config.maxConcurrentNativePushes.soft`
+  * `config.maxConcurrentNativePushes.hard`
+
+  Other changes:
+  * Default `maxTeamSize` changed to 10000 from 500. (#2347)
+
+* charts/nginx-ingress-services: Allow more fine-grained control over what services are installed. Upgrade Certificate/Issuer resources to 'cert-manager.io/v1' (#2401)
+
+* MLS implementation progress:
+
+   - remote key package claim is now supported (#2353)
+
+* charts/{brig,cargohold,galley,gundeck}: Allow not configuring AWS credentials and allow using a special service account.
+  This way, when operating wire in AWS cloud either instance profiles or IAM role attached to a service account can be used to communicate with AWS. (#2347)
+
+* Implement TURN service discovery using SRV records (#2389)
+
+
+## Bug fixes and other updates
+
+
+* When `config.enablePayment` and `FEATURE_ENABLE_PAYMENT` (`envVars`) were set,
+  the team-settings feature flag `FEATURE_ENABLE_PAYMENT` was rendered two times.
+  The new behavior is to give the `envVars` entry priority. I.e. when it's set,
+  it's used instead of the `config.enablePayment` value. (#2332)
+
+* Modify the nginz access control configuration to prevent clients connecting
+  to listeners with PROXY protocol enabled (such as the websocket listener) from
+  accessing a private metrics endpoint. (#2307)
+
+* Verification email is sent when external id is updated via SCIM (#2374)
+
+
+## Documentation
+
+
+* Move old /docs to /docs/legacy (leaving references). (#2328)
+
+* Fixup for #2321 (#2323)
+
+* Add pagination docs to `POST /list-connections` (#2369)
+
+* Documentation for the 2nd factor password challenge feature (#2329)
+
+* Documentation on how to enforce desktop application only for web app (#2334)
+
+* Documentation on how to enforce constant bit rate for all calls (#2336)
+
+* Documentation on how to disable media plugins for the web app (#2337)
+
+* Documentation on how to extra entropy in the web app (#2338)
+
+* Documentation on how to set the instance connection parameters and proxy settings (#2340)
+
+* Merged SAML/SCIM docs with its main documentation (#2356)
+
+
+## Internal changes
+
+
+* View and change team feature permissions apply to all features now (#2402)
+
+* Add sed to direnv (#2319)
+
+* Add python3 to nix development environment. It's needed by hack/bin/serve-charts.sh . (#2333)
+
+* Add a target to the Makefile to run ShellCheck. I.e. to run a linter on shell scripts. This will be used in the CI. For now, all scripts with linter issues are excluded from this check. (#2361)
+
+* Drop snappy support from bonanza (#2350)
+
+* Use cabal in buildah-based builds (#2341)
+
+* Fix flakyness of path traversal test (#2387)
+
+* Github Actions: disable mac builds (#2355)
+
+* Apply `versionMiddleware` last. This makes sure that every other middleware sees
+  the rewritten (unversioned) path. In particular, the prometheus middleware will
+  now only see paths it knows about, which prevents it from reporting "N/A" as the
+  path. (#2316)
+
+* Upgrade version of libzauth dependencies, notably sodiumoxide bindings to libsodium, and fix resulting errors and warnings. (#2327)
+
+* libzauth: Update sha256 for source in nix expression (#2354)
+
+* Log IO exceptions in Galley and Brig (#2385)
+
+* Generalise and move the Logger effect (#2306)
+
+* Fix a comment in a Makefile target (#2330)
+
+* Fix flaky MLS conversation creation test (#2386)
+
+* Fix flaky key package test (#2384)
+
+* Fix locale variables in Nix and .envrc (#2393)
+
+* Team Member API has been migrated to Servant (#2309)
+
+* Integration test for edge case: change external id before account registration (#2396)
+
+* Allow specifying 'redisAdditionalWrite' for a secondary redis to which gundeck will write in the context of a redis migration without downtime. (#2304)
+
+* Start TURN discovery only when the app starts and not when the Env is created (#2376)
+
+* Avoid using IN queries for fetching multiple conversations (#2397)
+
+* Remove oromolu GH action (has been moved to concourse https://github.com/zinfra/cailleach/pull/1033) (#2320)
+
+* Remove unused data type AllowedUserSearch (#2373)
+
+* docs: add latex to docs and publish pdf if exists (#2321)
+
+
+## Federation changes
+
+
+* We now fetch version information from other backends and negotiate a version to use. (#2297)
+
+* Fix assertion in testWelcomeNoKey (#2372)
+
+* Support remote welcome messages (#2368)
+
+* Implement remote admin action: Update receipt mode (#2141)
+
+
 # [2022-05-04] (Chart Release 4.11.0)
 
 ## Release notes
