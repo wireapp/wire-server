@@ -37,11 +37,10 @@ passwordResetSupplyToIO ::
   Sem r a
 passwordResetSupplyToIO =
   interpret $
-    embed @IO
-      . \case
-        MkPasswordResetKey uid -> mkPwdResetKey uid
-        GenerateEmailCode -> genEmailCode
-        GeneratePhoneCode -> genPhoneCode
+    embed @IO . \case
+      MkPasswordResetKey uid -> mkPwdResetKey uid
+      GenerateEmailCode -> genEmailCode
+      GeneratePhoneCode -> genPhoneCode
 
 genEmailCode :: MonadIO m => m PasswordResetCode
 genEmailCode = PasswordResetCode . encodeBase64Url <$> liftIO (randBytes 24)
