@@ -32,7 +32,7 @@ module Galley.API.Teams
     getTeamNotificationsH,
     getTeamConversationRoles,
     getTeamMembers,
-    getTeamMembersCSVH,
+    getTeamMembersCSV,
     bulkGetTeamMembers,
     getTeamMember,
     deleteTeamMember,
@@ -114,7 +114,6 @@ import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
 import Galley.Types.UserList
 import Imports hiding (forkIO)
-import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import Network.Wai.Utilities hiding (Error)
@@ -497,12 +496,15 @@ outputToStreamingBody action = withWeavingToFinal @IO $ \state weave _inspect ->
           flush
     void . weave . (<$ state) $ runOutputSem writeChunk action
 
-getTeamMembersCSVH ::
+-- TODO: add header ("Content-Disposition", "attachment; filename=\"wire_team_members.csv\"")
+
+getTeamMembersCSV ::
   (Members '[BrigAccess, ErrorS 'AccessDenied, TeamMemberStore InternalPaging, TeamStore, Final IO] r) =>
-  UserId ::: TeamId ::: JSON ->
-  Sem r Response
-getTeamMembersCSVH (zusr ::: tid ::: _) = do
-  E.getTeamMember tid zusr >>= \case
+  Local UserId ->
+  TeamId ->
+  Sem r StreamingBody
+getTeamMembersCSV lusr tid = do
+  E.getTeamMember tid (tUnqualified lusr) >>= \case
     Nothing -> throwS @'AccessDenied
     Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throwS @'AccessDenied
 
@@ -510,7 +512,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
   -- the response will not contain a correct error message, but rather be an
   -- http error such as 'InvalidChunkHeaders'. The exception however still
   -- reaches the middleware and is being tracked in logging and metrics.
-  body <- outputToStreamingBody $ do
+  outputToStreamingBody $ do
     output headerLine
     E.withChunks (\mps -> E.listTeamMembers @InternalPaging tid mps maxBound) $
       \members -> do
@@ -524,13 +526,6 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
               defaultEncodeOptions
               (mapMaybe (teamExportUser users inviters richInfos) members)
           )
-  pure $
-    responseStream
-      status200
-      [ (hContentType, "text/csv"),
-        ("Content-Disposition", "attachment; filename=\"wire_team_members.csv\"")
-      ]
-      body
   where
     headerLine :: LByteString
     headerLine = encodeDefaultOrderedByNameWith (defaultEncodeOptions {encIncludeHeader = True}) ([] :: [TeamExportUser])
