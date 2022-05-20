@@ -1193,9 +1193,11 @@ sendMLSWelcomeKeyPackageNotFound = do
         MLSWelcomeRequest
           (Base64ByteString welcome)
 
-    -- check that no event is received
     void . liftIO $ do
+      -- check that no event is received
       WS.assertNoEvent (1 # Second) [wsB]
+      -- success is reported, even though no no client receives the welcome
+      -- message due to missing key package references
       resp @?= MLSWelcomeResponseSuccess
 
 sendMLSWelcomeDecodingFailed :: TestM ()
@@ -1216,10 +1218,7 @@ sendMLSWelcomeDecodingFailed = do
     -- check that no event is received
     void . liftIO $ do
       WS.assertNoEvent (1 # Second) [wsB]
-      resp
-        @?= ( MLSWelcomeResponseDecodingFailed
-                "not enough bytes"
-            )
+      resp @?= MLSWelcomeResponseDecodingFailed "not enough bytes"
 
 getConvAction :: Sing tag -> SomeConversationAction -> Maybe (ConversationAction tag)
 getConvAction tquery (SomeConversationAction tag action) =
