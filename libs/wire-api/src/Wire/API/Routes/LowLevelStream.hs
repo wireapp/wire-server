@@ -18,6 +18,8 @@
 module Wire.API.Routes.LowLevelStream where
 
 import Control.Lens (at, (.~), (?~))
+import Data.ByteString.Char8 as B8
+import qualified Data.CaseInsensitive as CI
 import qualified Data.HashMap.Strict.InsOrd as InsOrdHashMap
 import Data.Metrics.Servant
 import Data.Proxy
@@ -36,13 +38,31 @@ import Servant.Server.Internal
 import Servant.Swagger as S
 import Servant.Swagger.Internal as S
 
-data LowLevelStream method status desc ctype
+-- FUTUREWORK: make it possible to generate headers at runtime
+data LowLevelStream method status (headers :: [(Symbol, Symbol)]) desc ctype
+
+class RenderHeaders (headers :: [(Symbol, Symbol)]) where
+  renderHeaders :: [(HeaderName, ByteString)]
+
+instance RenderHeaders '[] where
+  renderHeaders = []
 
 instance
-  (ReflectMethod method, KnownNat status, Accept ctype) =>
-  HasServer (LowLevelStream method status desc ctype) context
+  (KnownSymbol name, KnownSymbol value, RenderHeaders headers) =>
+  RenderHeaders ('(name, value) ': headers)
   where
-  type ServerT (LowLevelStream method status desc ctype) m = m StreamingBody
+  renderHeaders = (name, value) : renderHeaders @headers
+    where
+      name :: HeaderName
+      name = CI.mk (B8.pack (symbolVal (Proxy @name)))
+      value :: ByteString
+      value = B8.pack (symbolVal (Proxy @value))
+
+instance
+  (ReflectMethod method, KnownNat status, RenderHeaders headers, Accept ctype) =>
+  HasServer (LowLevelStream method status headers desc ctype) context
+  where
+  type ServerT (LowLevelStream method status headers desc ctype) m = m StreamingBody
   hoistServerWithContext _ _ nt s = nt s
 
   route Proxy _ action = leafRouter $ \env request respond ->
@@ -57,14 +77,15 @@ instance
           env
           request
           respond
-          $ Route . responseStream status [contentHeader]
+          $ Route . responseStream status (contentHeader : extraHeaders)
     where
       method = reflectMethod (Proxy :: Proxy method)
       status = statusFromNat (Proxy :: Proxy status)
+      extraHeaders = renderHeaders @headers
 
 instance
   (Accept ctype, KnownNat status, KnownSymbol desc, SwaggerMethod method) =>
-  HasSwagger (LowLevelStream method status desc ctype)
+  HasSwagger (LowLevelStream method status headers desc ctype)
   where
   toSwagger _ =
     mempty
@@ -85,5 +106,5 @@ instance
           $ mempty
             & S.description .~ Text.pack (symbolVal (Proxy @desc))
 
-instance RoutesToPaths (LowLevelStream method status desc ctype) where
+instance RoutesToPaths (LowLevelStream method status headers desc ctype) where
   getRoutes = []

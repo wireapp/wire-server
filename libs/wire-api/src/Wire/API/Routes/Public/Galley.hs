@@ -1668,7 +1668,15 @@ type TeamMemberAPI =
                :> Capture "tid" TeamId
                :> "members"
                :> "csv"
-               :> LowLevelStream 'GET 200 "CSV of team members" CSV
+               :> LowLevelStream
+                    'GET
+                    200
+                    '[ '( "Content-Disposition",
+                          "attachment; filename=\"wire_team_members.csv\""
+                        )
+                     ]
+                    "CSV of team members"
+                    CSV
            )
 
 type TeamMemberDeleteResultResponseType =

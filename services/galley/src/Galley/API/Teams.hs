@@ -496,8 +496,6 @@ outputToStreamingBody action = withWeavingToFinal @IO $ \state weave _inspect ->
           flush
     void . weave . (<$ state) $ runOutputSem writeChunk action
 
--- TODO: add header ("Content-Disposition", "attachment; filename=\"wire_team_members.csv\"")
-
 getTeamMembersCSV ::
   (Members '[BrigAccess, ErrorS 'AccessDenied, TeamMemberStore InternalPaging, TeamStore, Final IO] r) =>
   Local UserId ->
