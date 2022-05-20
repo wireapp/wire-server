@@ -46,6 +46,7 @@ import Data.Json.Util hiding ((#))
 import qualified Data.LegalHold as LH
 import Data.List1
 import qualified Data.List1 as List1
+import qualified Data.Map as Map
 import Data.Misc (HttpsUrl, PlainTextPassword (..), mkHttpsUrl)
 import Data.Qualified
 import Data.Range
@@ -86,6 +87,8 @@ import qualified Wire.API.Team.Member as Member
 import qualified Wire.API.Team.Member as TM
 import qualified Wire.API.User as Public
 import qualified Wire.API.User as U
+import qualified Wire.API.User.Client as C
+import qualified Wire.API.User.Client.Prekey as PC
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -286,7 +289,9 @@ testListTeamMembersCsv :: HasCallStack => Int -> TestM ()
 testListTeamMembersCsv numMembers = do
   let teamSize = numMembers + 1
 
-  (owner, tid, _mbs) <- Util.createBindingTeamWithNMembersWithHandles True numMembers
+  (owner, tid, mbs) <- Util.createBindingTeamWithNMembersWithHandles True numMembers
+  let numClientMappings = Map.fromList $ (owner : mbs) `zip` (cycle [1, 2, 3] :: [Int])
+  addClients numClientMappings
   resp <- Util.getTeamMembersCsv owner tid
   let rbody = fromMaybe (error "no body") . responseBody $ resp
   usersInCsv <- either (error "could not decode csv") pure (decodeCSV @TeamExportUser rbody)
@@ -322,6 +327,7 @@ testListTeamMembersCsv numMembers = do
       assertEqual ("tExportIdpIssuer: " <> show (U.userId user)) (userToIdPIssuer user) (tExportIdpIssuer export)
       assertEqual ("tExportManagedBy: " <> show (U.userId user)) (U.userManagedBy user) (tExportManagedBy export)
       assertEqual ("tExportUserId: " <> show (U.userId user)) (U.userId user) (tExportUserId export)
+      assertEqual ("tExportNumDevices: ") (Map.findWithDefault (-1) (U.userId user) numClientMappings) (tExportNumDevices export)
   where
     userToIdPIssuer :: HasCallStack => U.User -> Maybe HttpsUrl
     userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
@@ -334,6 +340,20 @@ testListTeamMembersCsv numMembers = do
 
     countOn :: Eq b => (a -> b) -> b -> [a] -> Int
     countOn prop val xs = sum $ fmap (bool 0 1 . (== val) . prop) xs
+
+    addClients :: Map.Map UserId Int -> TestM ()
+    addClients xs = forM_ (Map.toList xs) addClientForUser
+
+    addClientForUser :: (UserId, Int) -> TestM ()
+    addClientForUser (uid, n) = forM_ [0 .. (n -1)] (addClient uid)
+
+    addClient :: UserId -> Int -> TestM ()
+    addClient uid i = do
+      brig <- view tsBrig
+      post (brig . paths ["i", "clients", toByteString' uid] . contentJson . json (newClient (someLastPrekeys !! i)) . queryItem "skip_reauth" "true") !!! const 201 === statusCode
+
+    newClient :: PC.LastPrekey -> C.NewClient
+    newClient lpk = C.newClient C.PermanentClientType lpk
 
 testListTeamMembersTruncated :: TestM ()
 testListTeamMembersTruncated = do
