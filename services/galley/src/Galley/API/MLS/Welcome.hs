@@ -82,8 +82,7 @@ welcomeRecipients =
 
 sendWelcomes ::
   Members
-    '[ ErrorS 'MLSKeyPackageRefNotFound,
-       FederatorAccess,
+    '[ FederatorAccess,
        GundeckAccess,
        Input UTCTime,
        P.TinyLog
@@ -123,8 +122,7 @@ sendLocalWelcomes con now rawWelcome lclients = do
 
 sendRemoteWelcomes ::
   Members
-    '[ ErrorS 'MLSKeyPackageRefNotFound,
-       FederatorAccess,
+    '[ FederatorAccess,
        P.TinyLog
      ]
     r =>
