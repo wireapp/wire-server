@@ -127,7 +127,6 @@ sendRemoteWelcomes rawWelcome rClients = do
   let req = MLSWelcomeRequest . Base64ByteString $ rawWelcome
       rpc = fedClient @'Galley @"mls-welcome" req
   runFederated rClients rpc >>= \case
-    MLSWelcomeResponseRefNotFound -> throwS @'MLSKeyPackageRefNotFound
     MLSWelcomeResponseDecodingFailed _msg -> do
       -- TODO: log this issue, but we know we sent a valid welcome message
       pure ()
