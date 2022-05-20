@@ -36,6 +36,8 @@ import Galley.Effects.GundeckAccess
 import Imports
 import Polysemy
 import Polysemy.Input
+import qualified Polysemy.TinyLog as P
+import qualified System.Logger.Class as Logger
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -51,7 +53,8 @@ postMLSWelcome ::
        FederatorAccess,
        GundeckAccess,
        ErrorS 'MLSKeyPackageRefNotFound,
-       Input UTCTime
+       Input UTCTime,
+       P.TinyLog
      ]
     r =>
   Local UserId ->
@@ -83,7 +86,8 @@ sendWelcomes ::
     '[ ErrorS 'MLSKeyPackageRefNotFound,
        FederatorAccess,
        GundeckAccess,
-       Input UTCTime
+       Input UTCTime,
+       P.TinyLog
      ]
     r =>
   Local x ->
@@ -93,7 +97,11 @@ sendWelcomes ::
   Sem r ()
 sendWelcomes loc con rawWelcome recipients = do
   now <- input
-  foldQualified loc (sendLocalWelcomes (Just con) now rawWelcome) (sendRemoteWelcomes rawWelcome) recipients
+  foldQualified
+    loc
+    (sendLocalWelcomes (Just con) now rawWelcome)
+    (sendRemoteWelcomes rawWelcome)
+    recipients
 
 sendLocalWelcomes ::
   Members '[GundeckAccess] r =>
@@ -117,7 +125,8 @@ sendLocalWelcomes con now rawWelcome lclients = do
 sendRemoteWelcomes ::
   Members
     '[ ErrorS 'MLSKeyPackageRefNotFound,
-       FederatorAccess
+       FederatorAccess,
+       P.TinyLog
      ]
     r =>
   ByteString ->
@@ -127,7 +136,8 @@ sendRemoteWelcomes rawWelcome rClients = do
   let req = MLSWelcomeRequest . Base64ByteString $ rawWelcome
       rpc = fedClient @'Galley @"mls-welcome" req
   runFederated rClients rpc >>= \case
-    MLSWelcomeResponseDecodingFailed _msg -> do
-      -- TODO: log this issue, but we know we sent a valid welcome message
-      pure ()
+    MLSWelcomeResponseDecodingFailed e ->
+      P.warn $
+        Logger.msg ("A remote backend failed to decode a valid welcome message" :: ByteString)
+          . Logger.field "error" e
     MLSWelcomeResponseSuccess -> pure ()
