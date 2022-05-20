@@ -908,6 +908,20 @@ specCRUDIdentityProvider = do
           `shouldRespondWith` ((== 200) . statusCode)
         callIdpGet (env ^. teSpar) (Just owner) idpid
           `shouldRespondWith` ((== idpmeta') . view idpMetadata)
+      it "updates IdP metadata and creates a new IdP with the first metadata" $ do
+        env <- ask
+        (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+        -- create new idp
+        (SampleIdP metadata1 _ _ _) <- makeSampleIdPMetadata
+        idp1 <- call $ callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata1
+        -- update the idp metadata
+        (SampleIdP metadata2 _ _ _) <- makeSampleIdPMetadata
+        callIdpUpdate' (env ^. teSpar) (Just owner) (idp1 ^. idpId) (IdPMetadataValue (cs $ SAML.encode metadata2) undefined)
+          `shouldRespondWith` ((== 200) . statusCode)
+        -- create a new idp with the first metadata (should succeed)
+        callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata1
+          `shouldRespondWith` ((== 201) . statusCode)
+
       context "invalid body" $ do
         it "rejects" $ do
           env <- ask

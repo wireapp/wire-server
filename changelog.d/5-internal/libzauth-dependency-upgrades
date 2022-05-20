@@ -1,1 +1,0 @@
-Upgrade version of libzauth dependencies, notably sodiumoxide bindings to libsodium, and fix resulting errors and warnings.

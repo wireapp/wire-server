@@ -29,7 +29,12 @@ module Cannon.Options
     logLevel,
     logNetStrings,
     logFormat,
+    drainOpts,
     Opts,
+    gracePeriodSeconds,
+    millisecondsBetweenBatches,
+    minBatchSize,
+    DrainOpts,
   )
 where
 
@@ -60,12 +65,30 @@ makeFields ''Gundeck
 
 deriveApiFieldJSON ''Gundeck
 
+data DrainOpts = DrainOpts
+  { -- | Maximum amount of time draining should take. Must not be set to 0.
+    _drainOptsGracePeriodSeconds :: Word64,
+    -- | Maximum amount of time between batches, this speeds up draining in case
+    -- there are not many users connected. Must not be set to 0.
+    _drainOptsMillisecondsBetweenBatches :: Word64,
+    -- | Batch size is calculated considering actual number of websockets and
+    -- gracePeriod. If this number is too little, '_drainOptsMinBatchSize' is
+    -- used.
+    _drainOptsMinBatchSize :: Word64
+  }
+  deriving (Eq, Show, Generic)
+
+makeFields ''DrainOpts
+
+deriveApiFieldJSON ''DrainOpts
+
 data Opts = Opts
   { _optsCannon :: !Cannon,
     _optsGundeck :: !Gundeck,
     _optsLogLevel :: !Level,
     _optsLogNetStrings :: !(Maybe (Last Bool)),
-    _optsLogFormat :: !(Maybe (Last LogFormat))
+    _optsLogFormat :: !(Maybe (Last LogFormat)),
+    _optsDrainOpts :: DrainOpts
   }
   deriving (Eq, Show, Generic)
 

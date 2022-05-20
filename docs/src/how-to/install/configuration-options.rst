@@ -119,6 +119,50 @@ Keys below ``gundeck.secrets`` belong into ``values/wire-server/secrets.yaml``:
 
 After making this change and applying it to gundeck (ensure gundeck pods have restarted to make use of the updated configuration - that should happen automatically), make sure to reset the push token on any mobile devices that you may have in use.
 
+Controlling the speed of websocket draining during cannon pod replacement
+-------------------------------------------------------------------------
+
+The 'cannon' component is responsible for persistent websocket connections.
+Normally the default options would slowly and gracefully drain active websocket
+connections over a maximum of ``(amount of cannon replicas * 30 seconds)`` during
+the deployment of a new wire-server version. This will lead to a very brief
+interruption for Wire clients when their client has to re-connect on the
+websocket.
+
+You're not expected to need to change these settings.
+
+``drainOpts``: Drain websockets in a controlled fashion when cannon receives a
+SIGTERM or SIGINT (this happens when a pod is terminated e.g. during rollout
+of a new version). Instead of waiting for connections to close on their own,
+the websockets are now severed at a controlled pace. This allows for quicker
+rollouts of new versions.
+
+There is no way to entirely disable this behaviour, two extreme examples below
+
+* the quickest way to kill cannon is to set ``gracePeriodSeconds: 1`` and
+  ``minBatchSize: 100000`` which would sever all connections immediately; but it's
+  not recommended as you could DDoS yourself by forcing all active clients to
+  reconnect at the same time. With this, cannon pod replacement takes only 1
+  second per pod.
+* the slowest way to roll out a new version of cannon without severing websocket
+  connections for a long time is to set ``minBatchSize: 1``,
+  ``millisecondsBetweenBatches: 86400000`` and ``gracePeriodSeconds: 86400``
+  which would lead to one single websocket connection being closed immediately,
+  and all others only after 1 day. With this, cannon pod replacement takes a
+  full day per pod.
+
+.. code:: yaml
+
+   # overrides for wire-server/values.yaml
+   cannon:
+     drainOpts:
+       # The following defaults drain a minimum of 400 connections/second
+       # for a total of 10000 over 25 seconds
+       # (if cannon holds more connections, draining will happen at a faster pace)
+       gracePeriodSeconds: 25
+       millisecondsBetweenBatches: 50
+       minBatchSize: 20
+
 
 Blocking creation of personal users, new teams
 --------------------------------------------------------------------------
