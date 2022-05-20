@@ -1,0 +1,2 @@
+The `.cannon.drainTimeout` setting on the wire-server helm chart has been
+removed and replaced with `.cannon.config.drainOpts`.

@@ -5,6 +5,16 @@ image:
   pullPolicy: IfNotPresent
 config:
   logLevel: Info
+
+  # See also the section 'Controlling the speed of websocket draining during
+  # cannon pod replacement' in docs/how-to/install/configuration-options.rst
+  drainOpts:
+    # The following drains a minimum of 400 connections/second
+    # for a total of 10000 over 25 seconds
+    # (if cannon holds more connections, draining will happen at a faster pace)
+    gracePeriodSeconds: 25
+    millisecondsBetweenBatches: 50
+    minBatchSize: 20
 resources:
   requests:
     memory: "256Mi"
@@ -16,4 +26,3 @@ service:
   name: cannon
   internalPort: 8080
   externalPort: 8080
-drainTimeout: 0

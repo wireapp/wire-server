@@ -1,0 +1,4 @@
+Drain websockets in a controlled fashion when cannon receives a SIGTERM or
+SIGINT. Instead of waiting for connections to close on their own, the websockets
+are now severed at a controlled pace. This allows for quicker rollouts of new
+versions.
