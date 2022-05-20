@@ -69,6 +69,7 @@ library
       Wire.API.Routes.API
       Wire.API.Routes.AssetBody
       Wire.API.Routes.ClientAlgebra
+      Wire.API.Routes.CSV
       Wire.API.Routes.Internal.Brig
       Wire.API.Routes.Internal.Brig.Connection
       Wire.API.Routes.Internal.Brig.EJPD
@@ -76,6 +77,7 @@ library
       Wire.API.Routes.Internal.Cargohold
       Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
       Wire.API.Routes.Internal.LegalHold
+      Wire.API.Routes.LowLevelStream
       Wire.API.Routes.MultiTablePaging
       Wire.API.Routes.MultiTablePaging.State
       Wire.API.Routes.MultiVerb
