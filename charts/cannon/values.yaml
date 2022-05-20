@@ -5,6 +5,9 @@ image:
   pullPolicy: IfNotPresent
 config:
   logLevel: Info
+
+  # See also the section 'Controlling the speed of websocket draining during
+  # cannon pod replacement' in docs/how-to/install/configuration-options.rst
   drainOpts:
     # The following drains a minimum of 400 connections/second
     # for a total of 10000 over 25 seconds
