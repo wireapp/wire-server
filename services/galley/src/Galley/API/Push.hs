@@ -102,12 +102,9 @@ newMessagePush ::
   Event ->
   MessagePush t
 newMessagePush loc members mconn mm (user, client) e = withSing @t $ \case
-  SNormalMessage -> fold $ do
-    member <- Map.lookup user members
-    newBotMessagePush member <|> newUserMessagePush loc mconn mm (lmId member) client e
-    where
-      newBotMessagePush :: LocalMember -> Maybe (MessagePush 'NormalMessage)
-      newBotMessagePush member = newBotPush <$> newBotMember member <*> pure e
+  SNormalMessage -> case newBotMember =<< Map.lookup user members of
+    Just bm -> newBotPush bm e
+    Nothing -> fold $ newUserMessagePush loc mconn mm user client e
   SBroadcast -> fold $ newUserMessagePush loc mconn mm user client e
 
 runMessagePush ::
