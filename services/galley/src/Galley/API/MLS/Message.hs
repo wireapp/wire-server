@@ -21,6 +21,7 @@ module Galley.API.MLS.Message (postMLSMessage) where
 import Control.Arrow
 import Control.Comonad
 import Control.Lens (preview, to)
+import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
@@ -44,11 +45,13 @@ import Galley.Options
 import Galley.Types
 import Galley.Types.Conversations.Members
 import Imports
+import Network.Wai.Utilities.Server
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
 import Polysemy.TinyLog
+import qualified System.Logger.Class as Logger
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -299,8 +302,9 @@ propagateMessage lusr conv con raw = do
     foldMap (uncurry mkPush) (cToList =<< lclients)
 
   -- send to remotes
-  runFederatedConcurrently_ (map remoteMemberQualify (Data.convRemoteMembers conv)) $
-    \(tUnqualified -> rs) ->
+  (traverse_ handleError =<<)
+    . runFederatedConcurrentlyEither (map remoteMemberQualify (Data.convRemoteMembers conv))
+    $ \(tUnqualified -> rs) ->
       fedClient @'Galley @"on-mls-message-sent" $
         RemoteMLSMessage
           { rmmTime = now,
@@ -321,6 +325,14 @@ propagateMessage lusr conv con raw = do
       map
         (tUnqualified (rmId rm),)
         (toList (rmMLSClients rm))
+
+    handleError :: Member TinyLog r => Either (Remote [a], FederationError) x -> Sem r ()
+    handleError (Right _) = pure ()
+    handleError (Left (r, e)) =
+      warn $
+        Logger.msg ("A message could not be delivered to a remote backend" :: ByteString)
+          . Logger.field "remote_domain" (domainText (tDomain r))
+          . (logErrorMsg Nothing (toWai e))
 
 getMLSClients ::
   Members '[BrigAccess, FederatorAccess] r =>
