@@ -23,7 +23,6 @@ import API.MLS.Util
 import API.Util
 import Bilge
 import Bilge.Assert
-import Bilge.TestSession (liftSession)
 import Control.Lens hiding ((#))
 import Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as A
@@ -1088,11 +1087,9 @@ updateConversationByRemoteAdmin = do
                   curConvId = qUnqualified cnv,
                   curAction = action
                 }
-        resp <-
-          liftSession $
-            runWaiTestFedClient bdomain $
-              createWaiTestFedClient @"update-conversation" @'Galley $
-                cnvUpdateRequest
+        resp <- do
+          fedGalleyClient <- view tsFedGalleyClient
+          runFedClient @"update-conversation" fedGalleyClient bdomain cnvUpdateRequest
 
         cnvUpdate' <- liftIO $ case resp of
           ConversationUpdateResponseError err -> assertFailure ("Expected ConversationUpdateResponseUpdate but got " <> show err)

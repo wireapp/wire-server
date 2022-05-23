@@ -210,6 +210,7 @@ library
     , http-types >=0.8
     , imports
     , insert-ordered-containers
+    , kan-extensions
     , lens >=4.4
     , memory
     , metrics-wai >=0.4
@@ -437,6 +438,7 @@ executable galley-integration
     , http-media
     , http-types
     , imports
+    , kan-extensions
     , lens
     , lens-aeson
     , metrics-wai
