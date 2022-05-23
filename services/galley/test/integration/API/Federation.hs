@@ -63,7 +63,7 @@ import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as FedGalley
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification
-import Wire.API.Message (ClientMismatchStrategy (..), MessageSendingStatus (mssDeletedClients, mssFailedToSend, mssRedundantClients), mkQualifiedOtrPayload, mssMissingClients)
+import Wire.API.Message
 import Wire.API.User.Client (PubClient (..))
 import Wire.API.User.Profile
 
@@ -93,7 +93,8 @@ tests s =
       test s "POST /federation/on-user-deleted-conversations : Remove deleted remote user from local conversations" onUserDeleted,
       test s "POST /federation/update-conversation : Update local conversation by a remote admin " updateConversationByRemoteAdmin,
       test s "POST /federation/mls-welcome : Post an MLS welcome message received from another backend" sendMLSWelcome,
-      test s "POST /federation/mls-welcome : Post an MLS welcome message (key package ref not found)" sendMLSWelcomeKeyPackageNotFound
+      test s "POST /federation/mls-welcome : Post an MLS welcome message (key package ref not found)" sendMLSWelcomeKeyPackageNotFound,
+      test s "POST /federation/on-mls-message-sent" onMLSMessageSent
     ]
 
 getConversationsAllFound :: TestM ()
@@ -1192,8 +1193,59 @@ sendMLSWelcomeKeyPackageNotFound = do
       -- check that no event is received
       WS.assertNoEvent (1 # Second) [wsB]
 
--- success is reported, even though no client receives the welcome
--- message due to missing key package references
+onMLSMessageSent :: TestM ()
+onMLSMessageSent = do
+  localDomain <- viewFederationDomain
+  c <- view tsCannon
+  alice <- randomUser
+  eve <- randomUser
+  bob <- randomId
+  conv <- randomId
+  let aliceC1 = newClientId 0
+      aliceC2 = newClientId 1
+      eveC = newClientId 0
+      bdom = Domain "bob.example.com"
+      qconv = Qualified conv bdom
+      qbob = Qualified bob bdom
+      qalice = Qualified alice localDomain
+  now <- liftIO getCurrentTime
+  fedGalleyClient <- view tsFedGalleyClient
+
+  -- only add alice to the remote conversation
+  connectWithRemoteUser alice qbob
+  let cu =
+        FedGalley.ConversationUpdate
+          { FedGalley.cuTime = now,
+            FedGalley.cuOrigUserId = qbob,
+            FedGalley.cuConvId = conv,
+            FedGalley.cuAlreadyPresentUsers = [],
+            FedGalley.cuAction =
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
+          }
+  runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
+
+  let txt = "Hello from another backend"
+      rcpts = [(alice, aliceC1), (alice, aliceC2), (eve, eveC)]
+      rm =
+        FedGalley.RemoteMLSMessage
+          { FedGalley.rmmTime = now,
+            FedGalley.rmmMetadata = defMessageMetadata,
+            FedGalley.rmmSender = qbob,
+            FedGalley.rmmConversation = conv,
+            FedGalley.rmmRecipients = rcpts,
+            FedGalley.rmmMessage = Base64ByteString txt
+          }
+
+  -- send message to alice and check reception
+  WS.bracketAsClientRN c [(alice, aliceC1), (alice, aliceC2), (eve, eveC)] $ \[wsA1, wsA2, wsE] -> do
+    runFedClient @"on-mls-message-sent" fedGalleyClient bdom rm
+    liftIO $ do
+      -- alice should receive the message on her first client
+      WS.assertMatch_ (5 # Second) wsA1 $ \n -> wsAssertMLSMessage qconv qbob txt n
+      WS.assertMatch_ (5 # Second) wsA2 $ \n -> wsAssertMLSMessage qconv qbob txt n
+
+      -- eve should not receive the message
+      WS.assertNoEvent (1 # Second) [wsE]
 
 getConvAction :: Sing tag -> SomeConversationAction -> Maybe (ConversationAction tag)
 getConvAction tquery (SomeConversationAction tag action) =

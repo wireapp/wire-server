@@ -65,12 +65,12 @@ data instance MessagePush 'NormalMessage = NormalMessagePush
   { userPushes :: [Push],
     botPushes :: [(BotMember, Event)]
   }
-  deriving stock (Generic)
+  deriving stock (Generic, Show)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid (MessagePush 'NormalMessage)
 
 data instance MessagePush 'Broadcast = BroadcastPush
   {broadcastPushes :: [Push]}
-  deriving stock (Generic)
+  deriving stock (Generic, Show)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid (MessagePush 'Broadcast)
 
 newUserPush :: forall t. SingI t => Push -> MessagePush t

@@ -332,7 +332,7 @@ propagateMessage lusr conv con raw = do
       warn $
         Logger.msg ("A message could not be delivered to a remote backend" :: ByteString)
           . Logger.field "remote_domain" (domainText (tDomain r))
-          . (logErrorMsg Nothing (toWai e))
+          . logErrorMsg (toWai e)
 
 getMLSClients ::
   Members '[BrigAccess, FederatorAccess] r =>
