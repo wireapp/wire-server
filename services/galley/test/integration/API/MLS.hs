@@ -48,6 +48,7 @@ import TestHelpers
 import TestSetup
 import Wire.API.Conversation
 import Wire.API.Conversation.Role
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Message
 
@@ -144,7 +145,7 @@ testRemoteWelcome = do
   MessagingSetup {..} <- aliceInvitesBob (1, RemoteUser bobDomain) opts
   let alice = creator
 
-  let okResp = MLSWelcomeResponseSuccess
+  let okResp = EmptyResponse
   let mockedResponse fedReq =
         case frRPC fedReq of
           "mls-welcome" -> pure (Aeson.encode okResp)

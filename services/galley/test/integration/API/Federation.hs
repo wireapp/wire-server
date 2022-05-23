@@ -94,8 +94,7 @@ tests s =
       test s "POST /federation/on-user-deleted-conversations : Remove deleted remote user from local conversations" onUserDeleted,
       test s "POST /federation/update-conversation : Update local conversation by a remote admin " updateConversationByRemoteAdmin,
       test s "POST /federation/mls-welcome : Post an MLS welcome message received from another backend" sendMLSWelcome,
-      test s "POST /federation/mls-welcome : Post an MLS welcome message (key package ref not found)" sendMLSWelcomeKeyPackageNotFound,
-      test s "POST /federation/mls-welcome : Post an MLS welcome message (MLS decoding failed)" sendMLSWelcomeDecodingFailed
+      test s "POST /federation/mls-welcome : Post an MLS welcome message (key package ref not found)" sendMLSWelcomeKeyPackageNotFound
     ]
 
 getConversationsAllFound :: TestM ()
@@ -1157,18 +1156,17 @@ sendMLSWelcome = do
   fedGalleyClient <- view tsFedGalleyClient
   cannon <- view tsCannon
 
-  void . WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
+  WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
     -- send welcome message
-    resp <-
+    void $
       runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
         MLSWelcomeRequest
           (Base64ByteString welcome)
 
     -- check that the corresponding event is received
-    void . liftIO $ do
-      void . WS.assertMatch (5 # WS.Second) wsB $
+    liftIO $ do
+      WS.assertMatch_ (5 # WS.Second) wsB $
         wsAssertMLSWelcome (pUserId bob) welcome
-      resp @?= MLSWelcomeResponseSuccess
 
 sendMLSWelcomeKeyPackageNotFound :: TestM ()
 sendMLSWelcomeKeyPackageNotFound = do
@@ -1186,39 +1184,19 @@ sendMLSWelcomeKeyPackageNotFound = do
   fedGalleyClient <- view tsFedGalleyClient
   cannon <- view tsCannon
 
-  void . WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
+  WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
     -- send welcome message
-    resp <-
+    void $
       runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
         MLSWelcomeRequest
           (Base64ByteString welcome)
 
-    void . liftIO $ do
+    liftIO $ do
       -- check that no event is received
       WS.assertNoEvent (1 # Second) [wsB]
-      -- success is reported, even though no no client receives the welcome
-      -- message due to missing key package references
-      resp @?= MLSWelcomeResponseSuccess
 
-sendMLSWelcomeDecodingFailed :: TestM ()
-sendMLSWelcomeDecodingFailed = do
-  let aliceDomain = Domain "a.far-away.example.com"
-  bob <- randomQualifiedUser
-
-  fedGalleyClient <- view tsFedGalleyClient
-  cannon <- view tsCannon
-
-  void . WS.bracketR cannon (qUnqualified bob) $ \wsB -> do
-    -- send a gibberish welcome message
-    resp <-
-      runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
-        MLSWelcomeRequest
-          (Base64ByteString "gibberish")
-
-    -- check that no event is received
-    void . liftIO $ do
-      WS.assertNoEvent (1 # Second) [wsB]
-      resp @?= MLSWelcomeResponseDecodingFailed "not enough bytes"
+-- success is reported, even though no client receives the welcome
+-- message due to missing key package references
 
 getConvAction :: Sing tag -> SomeConversationAction -> Maybe (ConversationAction tag)
 getConvAction tquery (SomeConversationAction tag action) =
