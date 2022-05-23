@@ -8,8 +8,7 @@ TOP_LEVEL="$(cd "$DIR/../.." && pwd)"
 packages=$(find "$TOP_LEVEL" -name '*.cabal' |
     grep -v dist-newstyle |
     xargs -n 1 dirname |
-    xargs -n 1 basename |
-    xargs -n 1 echo)
+    xargs -n 1 basename)
 
 for p in $packages; do
     echo "==== Testing $p..."
