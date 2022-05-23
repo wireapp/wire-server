@@ -59,7 +59,7 @@ type GalleyApi =
     :<|> FedEndpoint "send-message" MessageSendRequest MessageSendResponse
     :<|> FedEndpoint "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
     :<|> FedEndpoint "update-conversation" ConversationUpdateRequest ConversationUpdateResponse
-    :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest MLSWelcomeResponse
+    :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest EmptyResponse
 
 data GetConversationsRequest = GetConversationsRequest
   { gcrUserId :: UserId,
@@ -262,10 +262,3 @@ newtype MLSWelcomeRequest = MLSWelcomeRequest
   deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via (GenericUniform MLSWelcomeRequest)
   deriving (FromJSON, ToJSON) via (CustomEncoded MLSWelcomeRequest)
-
-data MLSWelcomeResponse
-  = MLSWelcomeResponseDecodingFailed Text
-  | MLSWelcomeResponseSuccess
-  deriving stock (Eq, Generic, Show)
-  deriving (Arbitrary) via GenericUniform MLSWelcomeResponse
-  deriving (FromJSON, ToJSON) via CustomEncoded MLSWelcomeResponse

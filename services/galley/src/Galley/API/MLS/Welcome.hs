@@ -33,6 +33,7 @@ import Galley.Effects.BrigAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Imports
+import Network.Wai.Utilities.Server
 import Polysemy
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
@@ -132,9 +133,9 @@ sendRemoteWelcomes ::
 sendRemoteWelcomes rawWelcome rClients = do
   let req = MLSWelcomeRequest . Base64ByteString $ rawWelcome
       rpc = fedClient @'Galley @"mls-welcome" req
-  runFederated rClients rpc >>= \case
-    MLSWelcomeResponseDecodingFailed e ->
+  runFederatedEither rClients rpc >>= \case
+    Left e ->
       P.warn $
-        Logger.msg ("A remote backend failed to decode a valid welcome message" :: ByteString)
-          . Logger.field "error" e
-    MLSWelcomeResponseSuccess -> pure ()
+        Logger.msg ("A welcome message could not be delivered to a remote backend" :: ByteString)
+          . (logErrorMsg . toWai $ e)
+    Right _ -> pure ()

@@ -535,6 +535,7 @@ instance
 mlsSendWelcome ::
   Members
     '[ BrigAccess,
+       Error InternalError,
        GundeckAccess,
        Input (Local ()),
        Input UTCTime
@@ -542,26 +543,23 @@ mlsSendWelcome ::
     r =>
   Domain ->
   F.MLSWelcomeRequest ->
-  Sem r F.MLSWelcomeResponse
-mlsSendWelcome _origDomain (fromBase64ByteString . F.unMLSWelcomeRequest -> rawWelcome) =
-  fmap (either F.MLSWelcomeResponseDecodingFailed id)
-    . runError
-    $ do
-      loc <- qualifyLocal ()
-      now <- input
-      welcome <- either throw pure $ decodeMLS' rawWelcome
-      -- Extract only recipients local to this backend
-      rcpts <-
-        fmap catMaybes $
-          traverse
-            ( fmap (fmap cidQualifiedClient . hush)
-                . runError @(Tagged 'MLSKeyPackageRefNotFound ())
-                . derefKeyPackage
-                . gsNewMember
-            )
-            $ welSecrets welcome
-      let lrcpts = qualifyAs loc $ fst $ partitionQualified loc rcpts
+  Sem r EmptyResponse
+mlsSendWelcome _origDomain (fromBase64ByteString . F.unMLSWelcomeRequest -> rawWelcome) = do
+  loc <- qualifyLocal ()
+  now <- input
+  welcome <- either (throw . InternalErrorWithDescription . LT.fromStrict) pure $ decodeMLS' rawWelcome
+  -- Extract only recipients local to this backend
+  rcpts <-
+    fmap catMaybes $
+      traverse
+        ( fmap (fmap cidQualifiedClient . hush)
+            . runError @(Tagged 'MLSKeyPackageRefNotFound ())
+            . derefKeyPackage
+            . gsNewMember
+        )
+        $ welSecrets welcome
+  let lrcpts = qualifyAs loc $ fst $ partitionQualified loc rcpts
 
-      sendLocalWelcomes Nothing now rawWelcome lrcpts
+  sendLocalWelcomes Nothing now rawWelcome lrcpts
 
-      pure F.MLSWelcomeResponseSuccess
+  pure EmptyResponse
