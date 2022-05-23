@@ -190,7 +190,7 @@ instance ToJSON SESNotification where
       [ "notificationType" .= ("Bounce" :: Text),
         "bounce"
           .= object
-            [ "bouncedRecipients" .= (fmap (\e -> object ["emailAddress" .= e]) ems),
+            [ "bouncedRecipients" .= fmap (\e -> object ["emailAddress" .= e]) ems,
               "bounceType" .= typ
             ]
       ]
@@ -199,7 +199,7 @@ instance ToJSON SESNotification where
       [ "notificationType" .= ("Complaint" :: Text),
         "complaint"
           .= object
-            [ "complainedRecipients" .= (fmap (\e -> object ["emailAddress" .= e]) ems)
+            [ "complainedRecipients" .= fmap (\e -> object ["emailAddress" .= e]) ems
             ]
       ]
 
@@ -322,13 +322,13 @@ getActivationCode brig ep = do
   let lbs = fromMaybe "" $ responseBody r
   let akey = ActivationKey . Ascii.unsafeFromText <$> (lbs ^? key "key" . _String)
   let acode = ActivationCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
-  return $ (,) <$> akey <*> acode
+  pure $ (,) <$> akey <*> acode
 
 getPhoneLoginCode :: Brig -> Phone -> Http (Maybe LoginCode)
 getPhoneLoginCode brig p = do
   r <- get $ brig . path "/i/users/login-code" . queryItem "phone" (toByteString' p)
   let lbs = fromMaybe "" $ responseBody r
-  return (LoginCode <$> (lbs ^? key "code" . _String))
+  pure (LoginCode <$> (lbs ^? key "code" . _String))
 
 assertUpdateNotification :: WS.WebSocket -> UserId -> UserUpdate -> IO Notification
 assertUpdateNotification ws uid upd = WS.assertMatch (5 # Second) ws $ \n -> do
@@ -411,12 +411,12 @@ postUserWithEmail hasPassword validateBody name email havePhone ssoid teamid bri
 postUserInternal :: Object -> Brig -> Http User
 postUserInternal payload brig = do
   rs <- post (brig . path "/i/users" . contentJson . body (RequestBodyLBS $ encode payload)) <!! const 201 === statusCode
-  maybe (error $ "postUserInternal: Failed to decode user due to: " ++ show rs) return (responseJsonMaybe rs)
+  maybe (error $ "postUserInternal: Failed to decode user due to: " ++ show rs) pure (responseJsonMaybe rs)
 
 postUserRegister :: Object -> Brig -> Http User
 postUserRegister payload brig = do
   rs <- postUserRegister' payload brig <!! const 201 === statusCode
-  maybe (error $ "postUserRegister: Failed to decode user due to: " ++ show rs) return (responseJsonMaybe rs)
+  maybe (error $ "postUserRegister: Failed to decode user due to: " ++ show rs) pure (responseJsonMaybe rs)
 
 postUserRegister' :: (MonadIO m, MonadCatch m, MonadHttp m) => Object -> Brig -> m ResponseLBS
 postUserRegister' payload brig = do
@@ -748,8 +748,8 @@ isMember g usr cnv = do
         . paths ["i", "conversations", toByteString' cnv, "members", toByteString' (tUnqualified usr)]
         . expect2xx
   case responseJsonMaybe res of
-    Nothing -> return False
-    Just m -> return (qUntagged usr == memId m)
+    Nothing -> pure False
+    Just m -> pure (qUntagged usr == memId m)
 
 getStatus :: HasCallStack => Brig -> UserId -> (MonadIO m, MonadHttp m) => m AccountStatus
 getStatus brig u =
@@ -802,7 +802,7 @@ mkEmailRandomLocalSuffix :: MonadIO m => Text -> m Email
 mkEmailRandomLocalSuffix e = do
   uid <- liftIO UUID.nextRandom
   case parseEmail e of
-    Just (Email loc dom) -> return $ Email (loc <> "+" <> UUID.toText uid) dom
+    Just (Email loc dom) -> pure $ Email (loc <> "+" <> UUID.toText uid) dom
     Nothing -> error $ "Invalid email address: " ++ Text.unpack e
 
 -- | Generate emails that are in the trusted whitelist of domains whose @+@ suffices count for email
@@ -825,7 +825,7 @@ randomPhone :: MonadIO m => m Phone
 randomPhone = liftIO $ do
   nrs <- map show <$> replicateM 14 (randomRIO (0, 9) :: IO Int)
   let phone = parsePhone . Text.pack $ "+0" ++ concat nrs
-  return $ fromMaybe (error "Invalid random phone#") phone
+  pure $ fromMaybe (error "Invalid random phone#") phone
 
 randomActivationCode :: (HasCallStack, MonadIO m) => m ActivationCode
 randomActivationCode =
@@ -938,7 +938,7 @@ randomBytes n = BS.pack <$> replicateM n randomIO
 randomHandle :: MonadIO m => m Text
 randomHandle = liftIO $ do
   nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
-  return (Text.pack (map chr nrs))
+  pure (Text.pack (map chr nrs))
 
 randomName :: MonadIO m => m Name
 randomName = randomNameWithMaxLen 128
@@ -956,9 +956,9 @@ randomNameWithMaxLen :: MonadIO m => Word -> m Name
 randomNameWithMaxLen maxLen = liftIO $ do
   len <- randomRIO (2, maxLen)
   chars <- fill len []
-  return $ Name (Text.pack chars)
+  pure $ Name (Text.pack chars)
   where
-    fill 0 chars = return chars
+    fill 0 chars = pure chars
     fill 1 chars = (: chars) <$> randLetter
     fill n chars = do
       c <- randChar
@@ -969,14 +969,14 @@ randomNameWithMaxLen maxLen = liftIO $ do
     randLetter = do
       c <- randChar
       if isLetter c
-        then return c
+        then pure c
         else randLetter
 
 retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
 retryWhileN n f m =
   retrying
     (constantDelay 1000000 <> limitRetries n)
-    (const (return . f))
+    (const (pure . f))
     (const m)
 
 recoverN :: (MonadIO m, MonadMask m) => Int -> m a -> m a
@@ -1036,7 +1036,7 @@ aFewTimes
     retrying
       (exponentialBackoff 1000 <> limitRetries retries)
       (\_ -> pure . not . good)
-      (\_ -> action)
+      (const action)
 
 assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
 assertOne [a] = pure a

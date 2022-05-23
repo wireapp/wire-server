@@ -88,7 +88,7 @@ createBot scon new = do
     -- here, not a @Response (Maybe ByteString)@.
     decodeBytes ctx bs = case eitherDecode' bs of
       Left e -> throwM $ ParseException ctx e
-      Right a -> return a
+      Right a -> pure a
     reqBuilder =
       extReq scon ["bots"]
         . method POST
@@ -235,7 +235,7 @@ removeBotMember zusr zcon conv bot = do
   rs <- galleyRequest DELETE req
   if isJust (responseBody rs) && Bilge.statusCode rs == 200
     then Just <$> decodeBody "galley" rs
-    else return Nothing
+    else pure Nothing
   where
     req =
       path "/i/bots"

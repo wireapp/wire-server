@@ -99,7 +99,7 @@ insertInvitation iid t role (toUTCTimeMillis -> now) minviter email inviteeName 
     addPrepQuery cqlInvitation (t, role, iid, code, email, now, minviter, inviteeName, phone, round timeout)
     addPrepQuery cqlInvitationInfo (code, t, iid, round timeout)
     addPrepQuery cqlInvitationByEmail (email, t, iid, code, round timeout)
-  return (inv, code)
+  pure (inv, code)
   where
     cqlInvitationInfo :: PrepQuery W (InvitationCode, TeamId, InvitationId, Int32) ()
     cqlInvitationInfo = "INSERT INTO team_invitation_info (code, team, id) VALUES (?, ?, ?) USING TTL ?"
@@ -121,7 +121,7 @@ lookupInvitationByCode :: MonadClient m => InvitationCode -> m (Maybe Invitation
 lookupInvitationByCode i =
   lookupInvitationInfo i >>= \case
     Just InvitationInfo {..} -> lookupInvitation iiTeam iiInvId
-    _ -> return Nothing
+    _ -> pure Nothing
 
 lookupInvitationCode :: MonadClient m => TeamId -> InvitationId -> m (Maybe InvitationCode)
 lookupInvitationCode t r =
@@ -142,7 +142,7 @@ lookupInvitations team start (fromRange -> size) = do
   page <- case start of
     Just ref -> retry x1 $ paginate cqlSelectFrom (paramsP LocalQuorum (team, ref) (size + 1))
     Nothing -> retry x1 $ paginate cqlSelect (paramsP LocalQuorum (Identity team) (size + 1))
-  return $ toResult (hasMore page) $ map toInvitation (trim page)
+  pure $ toResult (hasMore page) $ map toInvitation (trim page)
   where
     trim p = take (fromIntegral size) (result p)
     toResult more invs =
@@ -188,7 +188,7 @@ deleteInvitations t =
 
 lookupInvitationInfo :: MonadClient m => InvitationCode -> m (Maybe InvitationInfo)
 lookupInvitationInfo ic@(InvitationCode c)
-  | c == mempty = return Nothing
+  | c == mempty = pure Nothing
   | otherwise =
     fmap (toInvitationInfo ic)
       <$> retry x1 (query1 cqlInvitationInfo (params LocalQuorum (Identity ic)))
@@ -201,29 +201,29 @@ lookupInvitationByEmail :: (Log.MonadLogger m, MonadClient m) => Email -> m (May
 lookupInvitationByEmail e =
   lookupInvitationInfoByEmail e >>= \case
     InvitationByEmail InvitationInfo {..} -> lookupInvitation iiTeam iiInvId
-    _ -> return Nothing
+    _ -> pure Nothing
 
 lookupInvitationInfoByEmail :: (Log.MonadLogger m, MonadClient m) => Email -> m InvitationByEmail
 lookupInvitationInfoByEmail email = do
   res <- retry x1 (query cqlInvitationEmail (params LocalQuorum (Identity email)))
   case res of
-    [] -> return InvitationByEmailNotFound
-    (tid, invId, code) : [] ->
+    [] -> pure InvitationByEmailNotFound
+    [(tid, invId, code)] ->
       -- one invite pending
-      return $ InvitationByEmail (InvitationInfo code tid invId)
+      pure $ InvitationByEmail (InvitationInfo code tid invId)
     _ : _ : _ -> do
       -- edge case: more than one pending invite from different teams
       Log.info $
         Log.msg (Log.val "team_invidation_email: multiple pending invites from different teams for the same email")
           Log.~~ Log.field "email" (show email)
-      return InvitationByEmailMoreThanOne
+      pure InvitationByEmailMoreThanOne
   where
     cqlInvitationEmail :: PrepQuery R (Identity Email) (TeamId, InvitationId, InvitationCode)
     cqlInvitationEmail = "SELECT team, invitation, code FROM team_invitation_email WHERE email = ?"
 
 countInvitations :: MonadClient m => TeamId -> m Int64
 countInvitations t =
-  fromMaybe 0 . fmap runIdentity
+  maybe 0 runIdentity
     <$> retry x1 (query1 cqlSelect (params LocalQuorum (Identity t)))
   where
     cqlSelect :: PrepQuery R (Identity TeamId) (Identity Int64)

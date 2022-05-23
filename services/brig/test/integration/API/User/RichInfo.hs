@@ -124,7 +124,7 @@ testRichInfoSizeLimit brig conf = do
           ]
       bad2 =
         mkRichInfoAssocList $
-          [0 .. ((maxSize `div` 2))]
+          [0 .. (maxSize `div` 2)]
             <&> \i -> RichField (CI.mk $ Text.pack $ show i) "#"
   putRichInfo brig owner bad1 !!! const 413 === statusCode
   putRichInfo brig owner bad2 !!! const 413 === statusCode

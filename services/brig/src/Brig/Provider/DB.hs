@@ -52,7 +52,7 @@ insertAccount ::
 insertAccount name pass url descr = do
   pid <- randomId
   retry x5 $ write cql $ params LocalQuorum (pid, name, pass, url, descr)
-  return pid
+  pure pid
   where
     cql :: PrepQuery W (ProviderId, Name, Password, HttpsUrl, Text) ()
     cql = "INSERT INTO provider (id, name, password, url, descr) VALUES (?, ?, ?, ?, ?)"
@@ -204,7 +204,7 @@ insertService pid name summary descr url token key fprint assets tags = do
       params
         LocalQuorum
         (pid, sid, name, summary, descr, url, [token], [key], [fprint], assets, tagSet, False)
-  return sid
+  pure sid
   where
     cql ::
       PrepQuery
@@ -516,7 +516,7 @@ updateServiceTags ::
   (Name, RangedServiceTags) ->
   BatchM ()
 updateServiceTags pid sid (oldName, oldTags) (newName, newTags)
-  | eqTags && eqNames = return ()
+  | eqTags && eqNames = pure ()
   | eqNames = do
     let name = oldNameLower
     let added = diffTags newTags oldTags
@@ -582,21 +582,21 @@ paginateServiceTags tags start size providerFilter = liftClient $ do
   p <- filterResults providerFilter start' <$> queryAll start' size' tags'
   r <- mapConcurrently resolveRow (result p)
   -- See Note [buggy pagination]
-  return $! ServiceProfilePage (hasMore p) (catMaybes r)
+  pure $! ServiceProfilePage (hasMore p) (catMaybes r)
   where
     start' = maybe "" Text.toLower start
     unpackTags :: QueryAnyTags 1 3 -> [QueryAllTags 1 3]
     unpackTags = Set.toList . fromRange . queryAnyTagsRange
     queryAll :: Text -> Int32 -> [QueryAllTags 1 3] -> Client (Page IndexRow)
-    queryAll _ _ [] = return emptyPage
+    queryAll _ _ [] = pure emptyPage
     queryAll s l [t] = do
       p <- queryTags s l t
-      return $! p {result = trim size (result p)}
+      pure $! p {result = trim size (result p)}
     queryAll s l ts = do
       ps <- mapConcurrently (queryTags s l) ts
       let rows = trim l (unfoldr nextRow (map result ps))
       let more = any hasMore ps || length rows > fromIntegral size
-      return $! emptyPage {hasMore = more, result = trim size rows}
+      pure $! emptyPage {hasMore = more, result = trim size rows}
     nextRow :: [[IndexRow]] -> Maybe (IndexRow, [[IndexRow]])
     nextRow rs = case mapMaybe uncons rs of
       [] -> Nothing
@@ -670,7 +670,7 @@ paginateServiceNames mbPrefix size providerFilter = liftClient $ do
        in filterResults providerFilter prefix' <$> queryPrefixes prefix' size'
   r <- mapConcurrently resolveRow (result p)
   -- See Note [buggy pagination]
-  return $! ServiceProfilePage (hasMore p) (catMaybes r)
+  pure $! ServiceProfilePage (hasMore p) (catMaybes r)
   where
     queryAll len = do
       let cql :: PrepQuery R () IndexRow
@@ -678,7 +678,7 @@ paginateServiceNames mbPrefix size providerFilter = liftClient $ do
             "SELECT name, provider, service \
             \FROM service_prefix"
       p <- retry x1 $ paginate cql $ paramsP One () len
-      return $! p {result = trim size (result p)}
+      pure $! p {result = trim size (result p)}
     queryPrefixes prefix len = do
       let cql :: PrepQuery R (Text, Text) IndexRow
           cql =
@@ -689,7 +689,7 @@ paginateServiceNames mbPrefix size providerFilter = liftClient $ do
         retry x1 $
           paginate cql $
             paramsP One (mkPrefixIndex (Name prefix), prefix) len
-      return $! p {result = trim size (result p)}
+      pure $! p {result = trim size (result p)}
 
 -- Pagination utilities
 filterResults :: Maybe ProviderId -> Text -> Page IndexRow -> Page IndexRow
@@ -705,7 +705,7 @@ filterbyProvider pid p = do
 
 filterPrefix :: Text -> Page IndexRow -> Page IndexRow
 filterPrefix prefix p = do
-  let prefixed = filter (\(Name n, _, _) -> prefix `Text.isPrefixOf` (Text.toLower n)) (result p)
+  let prefixed = filter (\(Name n, _, _) -> prefix `Text.isPrefixOf` Text.toLower n) (result p)
       -- if they were all valid prefixes, there may be more in Cassandra
       allValid = length prefixed == length (result p)
       more = allValid && hasMore p
@@ -795,7 +795,7 @@ paginateServiceWhitelist tid mbPrefix filterDisabled size = liftClient $ do
       . maybeFilterDisabled
       . catMaybes
       <$> mapConcurrently (uncurry lookupServiceProfile) p
-  return
+  pure
     $! ServiceProfilePage
       (length r > fromIntegral size)
       (trim size r)

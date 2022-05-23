@@ -42,7 +42,7 @@ insert uk = retry x5 $ write keyInsert (params LocalQuorum (Identity $ keyText u
 
 exists :: MonadClient m => UserKey -> m Bool
 exists uk =
-  (return . isJust) . fmap runIdentity
+  (pure . isJust) . fmap runIdentity
     =<< retry x1 (query1 keySelect (params LocalQuorum (Identity $ keyText uk)))
 
 delete :: MonadClient m => UserKey -> m ()
@@ -80,12 +80,12 @@ getAllPrefixes prefix = do
 existsAnyPrefix :: MonadClient m => Phone -> m Bool
 existsAnyPrefix phone = do
   let prefixes = fromPhonePrefix <$> allPrefixes (fromPhone phone)
-  (not . null) <$> selectPrefixes prefixes
+  not . null <$> selectPrefixes prefixes
 
 selectPrefixes :: MonadClient m => [Text] -> m [ExcludedPrefix]
 selectPrefixes prefixes = do
   results <- retry x1 (query sel (params LocalQuorum (Identity $ prefixes)))
-  return $ (\(p, c) -> ExcludedPrefix p c) <$> results
+  pure $ uncurry ExcludedPrefix <$> results
   where
     sel :: PrepQuery R (Identity [Text]) (PhonePrefix, Text)
     sel = "SELECT prefix, comment FROM excluded_phones WHERE prefix IN ?"

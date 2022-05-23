@@ -109,7 +109,7 @@ assertUserId :: String -> UserId -> PU.UserEvent -> IO ()
 assertUserId l uid ev = assertEqual (l <> "userId") uid (Id $ fromMaybe (error "failed to decode userId") $ UUID.fromByteString $ Lazy.fromStrict (ev ^. PU.userId))
 
 assertTeamId :: String -> Maybe TeamId -> PU.UserEvent -> IO ()
-assertTeamId l (Just tid) ev = assertEqual (l <> "teamId should exist") tid (Id . fromMaybe (error "failed to parse teamId") . join $ fmap (UUID.fromByteString . Lazy.fromStrict) (ev ^? PU.teamId))
+assertTeamId l (Just tid) ev = assertEqual (l <> "teamId should exist") tid ((Id . fromMaybe (error "failed to parse teamId")) ((UUID.fromByteString . Lazy.fromStrict) =<< (ev ^? PU.teamId)))
 assertTeamId l Nothing ev = assertEqual (l <> "teamId should not exist") Nothing (ev ^. PU.maybe'teamId)
 
 assertName :: String -> Maybe Name -> PU.UserEvent -> IO ()

@@ -61,7 +61,7 @@ withClaim u v t io = do
   case claims of
     [] -> claim -- Free
     [u'] | u == u' -> claim -- Claimed by 'u' (retries are allowed).
-    _ -> return Nothing -- Conflicting claims, TTL must expire.
+    _ -> pure Nothing -- Conflicting claims, TTL must expire.
   where
     -- [Note: Guarantees]
     claim = do
@@ -70,7 +70,7 @@ withClaim u v t io = do
       claimed <- (== [u]) <$> lookupClaims v
       if claimed
         then liftIO $ timeout (fromIntegral ttl # Second) io
-        else return Nothing
+        else pure Nothing
     cql :: PrepQuery W (Int32, C.Set (Id a), Text) ()
     cql = "UPDATE unique_claims USING TTL ? SET claims = claims + ? WHERE value = ?"
 

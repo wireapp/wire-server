@@ -95,7 +95,7 @@ newCookie uid typ label = do
             cookieValue = tok
           }
   DB.insertCookie uid c Nothing
-  return c
+  pure c
 
 -- | Renew the given cookie with a fresh token, if its age
 -- exceeds the configured minimum threshold.
@@ -119,7 +119,7 @@ nextCookie c = do
   -- a different zauth key index, regardless of age.
   if persist c && diffUTCTime now created > renewAge
     then Just <$> getNext
-    else return Nothing
+    else pure Nothing
   where
     persist = (PersistentCookie ==) . cookieType
     getNext = case cookieSucc c of
@@ -132,7 +132,7 @@ nextCookie c = do
           Nothing -> renewCookie c
           Just c' -> do
             t <- ZAuth.mkUserToken uid (cookieIdNum ck) (cookieExpires c')
-            return c' {cookieValue = t}
+            pure c' {cookieValue = t}
 
 -- | Renew the given cookie with a fresh token.
 renewCookie ::
@@ -154,7 +154,7 @@ renewCookie old = do
   let old' = old {cookieSucc = Just (cookieId new)}
   ttl <- setUserCookieRenewAge <$> view settings
   DB.insertCookie uid old' (Just (DB.TTL (fromIntegral ttl)))
-  return new
+  pure new
 
 -- | Whether a user has not renewed any of her cookies for longer than
 -- 'suspendCookiesOlderThanSecs'.  Call this always before 'newCookie', 'nextCookie',
@@ -189,7 +189,7 @@ newAccessToken c mt = do
     Just t -> ZAuth.renewAccessToken t
   zSettings <- view (zauthEnv . ZAuth.settings)
   let ttl = view (ZAuth.settingsTTL (Proxy @a)) zSettings
-  return $
+  pure $
     bearerToken
       (ZAuth.accessTokenOf t')
       (toByteString t')
@@ -248,7 +248,7 @@ newCookieLimited u typ label = do
   if null evict
     then Right <$> newCookie u typ label
     else case throttleCookies now thr cs of
-      Just wait -> return (Left wait)
+      Just wait -> pure (Left wait)
       Nothing -> do
         revokeCookies u evict []
         Right <$> newCookie u typ label
@@ -263,7 +263,7 @@ setResponseCookie ::
   m Response
 setResponseCookie c r = do
   hdr <- toByteString' . WebCookie.renderSetCookie <$> toWebCookie c
-  return (addHeader "Set-Cookie" hdr r)
+  pure (addHeader "Set-Cookie" hdr r)
 
 toWebCookie :: (Monad m, MonadReader Env m, ZAuth.UserTokenLike u) => Cookie (ZAuth.Token u) -> m WebCookie.SetCookie
 toWebCookie c = do

@@ -51,7 +51,7 @@ userActivate :: (MonadReader Env m, MonadIO m) => User -> m ()
 userActivate u@User {..} = journalEvent UserEvent'USER_ACTIVATE userId (userEmail u) (Just userLocale) userTeam (Just userDisplayName)
 
 userUpdate :: (MonadReader Env m, MonadIO m) => UserId -> Maybe Email -> Maybe Locale -> Maybe Name -> m ()
-userUpdate uid em loc nm = journalEvent UserEvent'USER_UPDATE uid em loc Nothing nm
+userUpdate uid em loc = journalEvent UserEvent'USER_UPDATE uid em loc Nothing
 
 userEmailRemove :: (MonadReader Env m, MonadIO m) => UserId -> Email -> m ()
 userEmailRemove uid em = journalEvent UserEvent'USER_EMAIL_REMOVE uid (Just em) Nothing Nothing Nothing
@@ -67,7 +67,7 @@ journalEvent typ uid em loc tid nm =
     let userEvent :: UserEvent =
           defMessage
             & U.eventType .~ typ
-            & U.userId .~ (toBytes uid)
+            & U.userId .~ toBytes uid
             & U.utcTime .~ ts
             & U.maybe'email .~ (toByteString' <$> em)
             & U.maybe'locale .~ (pack . show <$> loc)

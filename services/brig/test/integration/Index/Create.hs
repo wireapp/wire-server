@@ -51,7 +51,7 @@ testCreateIndexWhenNotPresent brigOpts = do
   case parseURI strictURIParserOptions (Text.encodeUtf8 esURL) of
     Left e -> fail $ "Invalid ES URL: " <> show esURL <> "\nerror: " <> show e
     Right esURI -> do
-      indexName <- ES.IndexName . Text.pack <$> (replicateM 20 $ Random.randomRIO ('a', 'z'))
+      indexName <- ES.IndexName . Text.pack <$> replicateM 20 (Random.randomRIO ('a', 'z'))
       let replicas = 2
           shards = 2
           refreshInterval = 5
@@ -59,7 +59,7 @@ testCreateIndexWhenNotPresent brigOpts = do
             IndexOpts.localElasticSettings
               & IndexOpts.esServer .~ esURI
               & IndexOpts.esIndex .~ indexName
-              & IndexOpts.esIndexReplicas .~ (ES.ReplicaCount replicas)
+              & IndexOpts.esIndexReplicas .~ ES.ReplicaCount replicas
               & IndexOpts.esIndexShardCount .~ shards
               & IndexOpts.esIndexRefreshInterval .~ refreshInterval
       devNullLogger <- Log.create (Log.Path "/dev/null")
@@ -83,7 +83,7 @@ testCreateIndexWhenPresent brigOpts = do
   case parseURI strictURIParserOptions (Text.encodeUtf8 esURL) of
     Left e -> fail $ "Invalid ES URL: " <> show esURL <> "\nerror: " <> show e
     Right esURI -> do
-      indexName <- ES.IndexName . Text.pack <$> (replicateM 20 $ Random.randomRIO ('a', 'z'))
+      indexName <- ES.IndexName . Text.pack <$> replicateM 20 (Random.randomRIO ('a', 'z'))
       ES.withBH HTTP.defaultManagerSettings (ES.Server esURL) $ do
         _ <- ES.createIndex (ES.IndexSettings (ES.ShardCount 1) (ES.ReplicaCount 1)) indexName
         indexExists <- ES.indexExists indexName
@@ -96,7 +96,7 @@ testCreateIndexWhenPresent brigOpts = do
             IndexOpts.localElasticSettings
               & IndexOpts.esServer .~ esURI
               & IndexOpts.esIndex .~ indexName
-              & IndexOpts.esIndexReplicas .~ (ES.ReplicaCount replicas)
+              & IndexOpts.esIndexReplicas .~ ES.ReplicaCount replicas
               & IndexOpts.esIndexShardCount .~ shards
               & IndexOpts.esIndexRefreshInterval .~ refreshInterval
       devNullLogger <- Log.create (Log.Path "/dev/null")

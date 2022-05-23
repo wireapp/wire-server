@@ -70,7 +70,7 @@ import Wire.API.User.Scim (CreateScimToken (..), ScimToken, ScimUserExtra (ScimU
 
 tests :: Opts -> Manager -> ClientState -> Brig -> Galley -> Spar -> IO TestTree
 tests opts m db brig galley spar = do
-  return $
+  pure $
     testGroup
       "cleanExpiredPendingInvitations"
       [ test m "expired users get cleaned" (testCleanExpiredPendingInvitations opts db brig galley spar),
@@ -139,7 +139,7 @@ userExists uid = do
     case x of
       Nothing -> False
       Just (_, mbStatus) ->
-        maybe True (/= Deleted) mbStatus
+        Just Deleted /= mbStatus
   where
     usersSelect :: PrepQuery R (Identity UserId) (UserId, Maybe AccountStatus)
     usersSelect = "SELECT id, status FROM user where id = ?"
@@ -176,7 +176,7 @@ createUserWithTeamDisableSSO brg gly = do
   () <-
     Control.Exception.assert {- "Team ID in self profile and team table do not match" -} (selfTeam == Just tid) $
       pure ()
-  return (uid, tid)
+  pure (uid, tid)
 
 randomScimUser :: (HasCallStack, MonadRandom m, MonadIO m) => m (Scim.User.User SparTag)
 randomScimUser = fst <$> randomScimUserWithSubject
@@ -310,7 +310,7 @@ getInvitationCode brig t ref = do
           . queryItem "invitation_id" (toByteString' ref)
       )
   let lbs = fromMaybe "" $ responseBody r
-  return $ fromByteString . fromMaybe (error "No code?") $ encodeUtf8 <$> (lbs ^? key "code" . _String)
+  pure $ fromByteString (maybe (error "No code?") encodeUtf8 (lbs ^? key "code" . _String))
 
 -- | Create a SCIM token.
 createToken_ ::

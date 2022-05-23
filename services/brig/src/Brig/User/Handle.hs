@@ -39,7 +39,7 @@ claimHandle uid oldHandle newHandle =
   isJust <$> do
     owner <- lookupHandle newHandle
     case owner of
-      Just uid' | uid /= uid' -> return Nothing
+      Just uid' | uid /= uid' -> pure Nothing
       _ -> do
         env <- ask
         let key = "@" <> fromHandle newHandle
@@ -53,7 +53,7 @@ claimHandle uid oldHandle newHandle =
               -- Free old handle (if it changed)
               for_ (mfilter (/= newHandle) oldHandle) $
                 wrapClient . freeHandle uid
-              return result
+              pure result
 
 -- | Free a 'Handle', making it available to be claimed again.
 freeHandle :: MonadClient m => UserId -> Handle -> m ()

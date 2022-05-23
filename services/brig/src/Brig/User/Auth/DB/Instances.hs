@@ -39,7 +39,7 @@ instance Cql CookieId where
   ctype = Tagged BigIntColumn
   toCql = CqlBigInt . fromIntegral . cookieIdNum
 
-  fromCql (CqlBigInt i) = return (CookieId (fromIntegral i))
+  fromCql (CqlBigInt i) = pure (CookieId (fromIntegral i))
   fromCql _ = Left "fromCql: invalid cookie id"
 
 instance Cql CookieType where
@@ -48,6 +48,6 @@ instance Cql CookieType where
   toCql SessionCookie = CqlInt 0
   toCql PersistentCookie = CqlInt 1
 
-  fromCql (CqlInt 0) = return SessionCookie
-  fromCql (CqlInt 1) = return PersistentCookie
+  fromCql (CqlInt 0) = pure SessionCookie
+  fromCql (CqlInt 1) = pure PersistentCookie
   fromCql _ = Left "fromCql: invalid cookie type"

@@ -1,5 +1,4 @@
 {-# LANGUAGE NondecreasingIndentation #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -93,7 +92,7 @@ import qualified Wire.API.Team.Feature as Public
 
 tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
 tests dom conf p db b c g = do
-  return $
+  pure $
     testGroup
       "provider"
       [ testGroup
@@ -457,14 +456,14 @@ testListServices config db brig = do
             ("search for " <> show name <> " without and with tags")
             (serviceProfilePageResults r1)
             (serviceProfilePageResults r2)
-        return r1
+        pure r1
   -- This function searches for a prefix and check that the results match
   -- our known list of services
   let searchAndCheck :: HasCallStack => Name -> Http [ServiceProfile]
       searchAndCheck name = do
         result <- search name
         assertServiceDetails ("name " <> show name) (select name services) result
-        return (serviceProfilePageResults result)
+        pure (serviceProfilePageResults result)
   -- Search for our unique prefix and check that all services are found
   search (Name uniq) >>= assertServiceDetails ("all with prefix " <> show uniq) services
   -- Search by exact name and check that only one service is found
@@ -594,7 +593,7 @@ testMessageBot config db brig galley cannon = withTestService config db brig def
   usr <- createUser "User" brig
   let uid = userId usr
   let quid = userQualifiedId usr
-  let new = defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
+  let new = defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)
   _rs <- addClient brig uid new <!! const 201 === statusCode
   let Just uc = clientId <$> responseJsonMaybe _rs
   -- Create conversation
@@ -616,7 +615,7 @@ testBadFingerprint config db brig galley _cannon = do
     -- Prepare user with client
     usr <- createUser "User" brig
     let uid = userId usr
-    let new = defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
+    let new = defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)
     _rs <- addClient brig uid new <!! const 201 === statusCode
     -- Create conversation
     _rs <- createConv galley uid [] <!! const 201 === statusCode
@@ -673,7 +672,7 @@ testMessageBotTeam config db brig galley cannon = withTestService config db brig
   let sid = sref ^. serviceRefId
   -- Prepare user with client
   (uid, tid) <- Team.createUserWithTeam brig
-  let new = defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0)
+  let new = defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)
   _rs <- addClient brig uid new <!! const 201 === statusCode
   let Just uc = clientId <$> responseJsonMaybe _rs
   -- Whitelist the bot
@@ -804,7 +803,7 @@ testSearchWhitelist config db brig galley = do
             ("search for " <> show mbName <> " with and without filtering")
             r1
             r2
-        return r1
+        pure r1
   -- Check that search finds all services that we created
   search (Just uniq)
     >>= assertServiceDetails ("all with prefix " <> show uniq) services
@@ -826,7 +825,7 @@ testSearchWhitelist config db brig galley = do
       searchAndCheck (Name name) = do
         result <- search (Just name)
         assertServiceDetails ("name " <> show name) (select name services) result
-        return (serviceProfilePageResults result)
+        pure (serviceProfilePageResults result)
   -- Search by exact name and check that only one service is found
   forM_ (take 3 services) $ \(sid, Name name) ->
     search (Just name) >>= assertServiceDetails ("name " <> show name) [(sid, Name name)]
@@ -1491,7 +1490,7 @@ randomProvider db brig = do
   -- Fetch
   _rs <- getProvider brig pid <!! const 200 === statusCode
   let Just prv = responseJsonMaybe _rs
-  return prv
+  pure prv
 
 addGetService :: HasCallStack => Brig -> ProviderId -> NewService -> Http Service
 addGetService brig pid new = do
@@ -1500,7 +1499,7 @@ addGetService brig pid new = do
   let sid = rsNewServiceId srs
   _rs <- getService brig pid sid <!! const 200 === statusCode
   let Just svc = responseJsonMaybe _rs
-  return svc
+  pure svc
 
 enableService :: HasCallStack => Brig -> ProviderId -> ServiceId -> Http ()
 enableService brig pid sid = do
@@ -1555,7 +1554,7 @@ dewhitelistService brig uid tid pid sid =
 defNewService :: MonadIO m => Config -> m NewService
 defNewService config = liftIO $ do
   key <- readServiceKey (publicKey config)
-  return
+  pure
     NewService
       { newServiceName = defServiceName,
         newServiceSummary = unsafeRange defProviderSummary,
@@ -1617,19 +1616,19 @@ readServiceKey :: MonadIO m => FilePath -> m ServiceKeyPEM
 readServiceKey fp = liftIO $ do
   bs <- BS.readFile fp
   let Right [k] = pemParseBS bs
-  return (ServiceKeyPEM k)
+  pure (ServiceKeyPEM k)
 
 randServiceKey :: MonadIO m => m ServiceKeyPEM
 randServiceKey = liftIO $ do
   kp <- generateRSAKey' 4096 65537
   Right [k] <- pemParseBS . C8.pack <$> writePublicKey kp
-  return (ServiceKeyPEM k)
+  pure (ServiceKeyPEM k)
 
 waitFor :: MonadIO m => Timeout -> (a -> Bool) -> m a -> m a
 waitFor t f ma = do
   a <- ma
   if
-      | f a -> return a
+      | f a -> pure a
       | t <= 0 -> liftIO $ throwM TimedOut
       | otherwise -> do
         liftIO $ threadDelay (1 # Second)
@@ -1659,7 +1658,7 @@ registerService config db brig = do
   let pid = providerId prv
   let sid = serviceId svc
   enableService brig pid sid
-  return (newServiceRef sid pid)
+  pure (newServiceRef sid pid)
 
 runService ::
   Config ->
@@ -1706,8 +1705,8 @@ defServiceApp buf =
       case eitherDecode js of
         Left e -> k $ responseLBS status400 [] (LC8.pack e)
         Right new -> do
-          let pks = [somePrekeys !! 0]
-          let lpk = someLastPrekeys !! 0
+          let pks = [head somePrekeys]
+          let lpk = head someLastPrekeys
           let rsp =
                 Ext.NewBotResponse
                   { Ext.rsNewBotPrekeys = pks,
@@ -1842,7 +1841,7 @@ svcAssertBotCreated buf bid cid = liftIO $ do
       assertEqual "conv" cid (testBotConv b ^. Ext.botConvId)
       -- TODO: Verify the conversation name
       -- TODO: Verify the list of members
-      return b
+      pure b
     _ -> throwM $ HUnitFailure Nothing "Event timeout (TestBotCreated)"
 
 svcAssertMessage :: MonadIO m => Chan TestBotEvent -> Qualified UserId -> OtrMessage -> Qualified ConvId -> m ()
@@ -1949,7 +1948,7 @@ testAddRemoveBotUtil localDomain pid sid cid u1 u2 h sref buf brig galley cannon
     forM_ [ws1, ws2] $ \ws -> wsAssertMemberJoin ws qcid quid1 [qbuid]
     -- Member join event for the bot
     svcAssertMemberJoin buf quid1 [qbuid] qcid
-    return (rs, bot)
+    pure (rs, bot)
   let bid = rsAddBotId rs
       buid = botUserId bid
       -- Check that the bot token grants access to the right user and conversation
@@ -2033,11 +2032,11 @@ testMessageBotUtil quid uc cid pid sid sref buf brig galley cannon = do
     assertEqual "service" (Just sref) (omService =<< other)
   -- The bot greets the user
   WS.bracketR cannon uid $ \ws -> do
-    postBotMessage galley bid bc cid [(uid, uc, (toBase64Text "Hi User!"))]
+    postBotMessage galley bid bc cid [(uid, uc, toBase64Text "Hi User!")]
       !!! const 201 === statusCode
     wsAssertMessage ws qcid (qUntagged lbuid) bc uc (toBase64Text "Hi User!")
   -- The user replies
-  postMessage galley uid uc cid [(buid, bc, (toBase64Text "Hi Bot"))]
+  postMessage galley uid uc cid [(buid, bc, toBase64Text "Hi Bot")]
     !!! const 201 === statusCode
   let msg = OtrMessage uc bc (toBase64Text "Hi Bot") (Just "data")
   svcAssertMessage buf quid msg qcid
@@ -2070,7 +2069,7 @@ prepareBotUsersTeam brig galley sref = do
   whitelistService brig uid1 tid pid sid
   -- Create conversation
   cid <- Team.createTeamConv galley tid uid1 [uid2] Nothing
-  return (u1, u2, h, tid, cid, pid, sid)
+  pure (u1, u2, h, tid, cid, pid, sid)
 
 addBotConv ::
   HasCallStack =>
@@ -2101,7 +2100,7 @@ addBotConv localDomain brig cannon uid1 uid2 cid pid sid buf = do
     forM_ [ws1, ws2] $ \ws -> wsAssertMemberJoin ws qcid quid1 [qbotId]
     -- Member join event for the bot
     svcAssertMemberJoin buf quid1 [qbotId] qcid
-    return (rsAddBotId rs)
+    pure (rsAddBotId rs)
 
 ----------------------------------------------------------------------------
 -- Service search utilities (abstracted out because we have more than one

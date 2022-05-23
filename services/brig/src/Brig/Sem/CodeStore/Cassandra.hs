@@ -85,8 +85,8 @@ genPhoneCode =
 
 mkPwdResetKey :: MonadIO m => UserId -> m PasswordResetKey
 mkPwdResetKey u = do
-  d <- liftIO $ getDigestByName "SHA256" >>= maybe (error "SHA256 not found") return
-  return . PasswordResetKey . encodeBase64Url . digestBS d $ toByteString' u
+  d <- liftIO $ getDigestByName "SHA256" >>= maybe (error "SHA256 not found") pure
+  pure . PasswordResetKey . encodeBase64Url . digestBS d $ toByteString' u
 
 interpretClientToIO ::
   Member (Final IO) r =>

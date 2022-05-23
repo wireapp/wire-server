@@ -1,4 +1,3 @@
-{-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -68,6 +67,7 @@ import qualified Data.Vector as Vec
 import Federator.MockServer (FederatedRequest (..), MockException (..))
 import Galley.Types.Teams (noPermissions)
 import Imports hiding (head)
+import qualified Imports
 import qualified Network.HTTP.Types as HTTP
 import qualified Network.HTTP.Types as Http
 import qualified Network.Wai as Wai
@@ -393,7 +393,7 @@ testCreateUserPending _ brig = do
     const 200 === statusCode
     const (Just True) === \rs' -> do
       self <- responseJsonMaybe rs'
-      return $! isNothing (userIdentity (selfUser self))
+      pure $! isNothing (userIdentity (selfUser self))
   -- should not appear in search
   suid <- userId <$> randomUser brig
   Search.refreshIndex brig
@@ -767,12 +767,12 @@ testCreateUserAnonExpiry b = do
   alice <- randomUser b
   now <- liftIO getCurrentTime
   bob <- createAnonUserExpiry (Just 2) "bob" b
-  liftIO $ assertBool "expiry not set on regular creation" (not $ isJust $ userExpire alice)
+  liftIO $ assertBool "expiry not set on regular creation" (isNothing (userExpire alice))
   ensureExpiry now (fromUTCTimeMillis <$> userExpire bob) "bob/register"
   resAlice <- getProfile (userId u1) (userId alice)
   resBob <- getProfile (userId u1) (userId bob)
   selfBob <- get (b . zUser (userId bob) . path "self") <!! const 200 === statusCode
-  liftIO $ assertBool "Bob must not be in a deleted state initially" (fromMaybe True (not <$> deleted selfBob))
+  liftIO $ assertBool "Bob must not be in a deleted state initially" (maybe True not (deleted selfBob))
   liftIO $ assertBool "Regular user should not have any expiry" (null $ expire resAlice)
   ensureExpiry now (expire resBob) "bob/public"
   ensureExpiry now (expire selfBob) "bob/self"
@@ -786,7 +786,7 @@ testCreateUserAnonExpiry b = do
     awaitExpiry n zusr uid = do
       -- after expiration, a profile lookup should trigger garbage collection of ephemeral users
       r <- getProfile zusr uid
-      when (statusCode r == 200 && deleted r == Nothing && n > 0) $ do
+      when (statusCode r == 200 && isNothing (deleted r) && n > 0) $ do
         liftIO $ threadDelay 1000000
         awaitExpiry (n -1) zusr uid
     ensureExpiry :: UTCTime -> Maybe UTCTime -> String -> Http ()
@@ -799,9 +799,9 @@ testCreateUserAnonExpiry b = do
         liftIO $ assertBool "expiry must in be the future" (diff >= fromIntegral minExp)
         liftIO $ assertBool "expiry must be less than 10 days" (diff < fromIntegral maxExp)
     expire :: ResponseLBS -> Maybe UTCTime
-    expire r = join $ field "expires_at" <$> responseJsonMaybe r
+    expire r = field "expires_at" =<< responseJsonMaybe r
     deleted :: ResponseLBS -> Maybe Bool
-    deleted r = join $ field "deleted" <$> responseJsonMaybe r
+    deleted r = field "deleted" =<< responseJsonMaybe r
     field :: FromJSON a => Text -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
 
@@ -1030,7 +1030,7 @@ testGetByIdentity brig = do
     const 200 === statusCode
     const (Just [uid]) === getUids
   where
-    getUids r = return . fmap (userId . accountUser) =<< responseJsonMaybe r
+    getUids r = fmap (userId . accountUser) <$> responseJsonMaybe r
 
 testPasswordSet :: Brig -> Http ()
 testPasswordSet brig = do
@@ -1254,7 +1254,7 @@ testDeleteUserByPassword brig cannon aws = do
   con32 <- putConnection brig uid3 uid2 Accepted <!! const 200 === statusCode
   con23 <- getConnection brig uid2 uid3 <!! const 200 === statusCode
   -- Register a client
-  addClient brig uid1 (defNewClient PermanentClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
+  addClient brig uid1 (defNewClient PermanentClientType [Imports.head somePrekeys] (Imports.head someLastPrekeys))
     !!! const 201 === statusCode
   -- Initial login
   login brig (defEmailLogin email) PersistentCookie
@@ -1290,7 +1290,7 @@ testDeleteUserWithLegalHold brig cannon aws = do
   user <- randomUser brig
   let uid = userId user
   -- Register a legalhold client
-  addClientInternal brig uid (defNewClient LegalHoldClientType [somePrekeys !! 0] (someLastPrekeys !! 0))
+  addClientInternal brig uid (defNewClient LegalHoldClientType [Imports.head somePrekeys] (Imports.head someLastPrekeys))
     !!! const 201 === statusCode
   liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal1: " aws (userActivateJournaled user)
   setHandleAndDeleteUser brig cannon user [] aws $
@@ -1474,7 +1474,7 @@ testUpdateSSOId brig galley = do
         member <- createTeamMember brig galley owner teamid noPermissions
         when hasPhone $ do
           updatePhone brig (userId member) =<< randomPhone
-        when (not hasEmail) $ do
+        unless hasEmail $ do
           error "not implemented"
         selfUser <$> (responseJsonError =<< get (brig . path "/self" . zUser (userId member)))
   let ssoids1 = [UserSSOId (mkSampleUref "1" "1"), UserSSOId (mkSampleUref "1" "2")]
@@ -1487,8 +1487,8 @@ testUpdateSSOId brig galley = do
         -- , mkMember False  False
         -- , mkMember False  True
       ]
-  sequence_ $ zipWith go users ssoids1
-  sequence_ $ zipWith go users ssoids2
+  zipWithM_ go users ssoids1
+  zipWithM_ go users ssoids2
 
 testDomainsBlockedForRegistration :: Opt.Opts -> Brig -> Http ()
 testDomainsBlockedForRegistration opts brig = withDomainsBlockedForRegistration opts ["bad1.domain.com", "bad2.domain.com"] $ do
