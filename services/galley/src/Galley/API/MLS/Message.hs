@@ -22,6 +22,7 @@ import Control.Arrow
 import Control.Comonad
 import Control.Lens (preview, to)
 import Data.Id
+import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import qualified Data.Map as Map
 import Data.Qualified
@@ -41,6 +42,7 @@ import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore
 import Galley.Options
 import Galley.Types
+import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -53,6 +55,7 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
+import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
@@ -267,10 +270,12 @@ convClientMap loc =
 
 -- | Propagate a message.
 propagateMessage ::
-  Member ExternalAccess r =>
-  Member GundeckAccess r =>
-  Member (Input UTCTime) r =>
-  Member TinyLog r =>
+  ( Member ExternalAccess r,
+    Member FederatorAccess r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member TinyLog r
+  ) =>
   Local UserId ->
   Data.Conversation ->
   ConnId ->
@@ -279,22 +284,43 @@ propagateMessage ::
 propagateMessage lusr conv con raw = do
   -- FUTUREWORK: check the epoch
   let lmems = Data.convLocalMembers conv
-      -- FUTUREWORK: support remote recipients
       lmMap = Map.fromList $ fmap (lmId &&& id) lmems
+      mm = defMessageMetadata
   now <- input @UTCTime
   let lcnv = qualifyAs lusr (Data.convId conv)
       qcnv = qUntagged lcnv
       e = Event qcnv (qUntagged lusr) now $ EdMLSMessage raw
       lclients = tUnqualified . clients lusr <$> lmems
       mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
-      mkPush u c = newMessagePush lcnv lmMap (Just con) defMessageMetadata (u, c) e
+      mkPush u c = newMessagePush lcnv lmMap (Just con) mm (u, c) e
+
+  -- send to locals
   runMessagePush lusr (Just qcnv) $
     foldMap (uncurry mkPush) (cToList =<< lclients)
+
+  -- send to remotes
+  runFederatedConcurrently_ (map remoteMemberQualify (Data.convRemoteMembers conv)) $
+    \(tUnqualified -> rs) ->
+      fedClient @'Galley @"on-mls-message-sent" $
+        RemoteMLSMessage
+          { rmmTime = now,
+            rmmSender = qUntagged lusr,
+            rmmMetadata = mm,
+            rmmConversation = tUnqualified lcnv,
+            rmmRecipients = rs >>= remoteMemberMLSClients,
+            rmmMessage = Base64ByteString raw
+          }
   where
     cToList :: (UserId, Set ClientId) -> [(UserId, ClientId)]
     cToList (u, s) = (u,) <$> Set.toList s
     clients :: Local x -> LocalMember -> Local (UserId, Set ClientId)
     clients loc LocalMember {..} = qualifyAs loc (lmId, lmMLSClients)
+
+    remoteMemberMLSClients :: RemoteMember -> [(UserId, ClientId)]
+    remoteMemberMLSClients rm =
+      map
+        (tUnqualified (rmId rm),)
+        (toList (rmMLSClients rm))
 
 getMLSClients ::
   Members '[BrigAccess, FederatorAccess] r =>

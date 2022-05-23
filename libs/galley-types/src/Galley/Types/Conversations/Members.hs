@@ -20,6 +20,7 @@
 module Galley.Types.Conversations.Members
   ( RemoteMember (..),
     remoteMemberToOther,
+    remoteMemberQualify,
     LocalMember (..),
     localMemberToOther,
     newMember,
@@ -53,6 +54,9 @@ remoteMemberToOther x =
       omService = Nothing,
       omConvRoleName = rmConvRoleName x
     }
+
+remoteMemberQualify :: RemoteMember -> Remote RemoteMember
+remoteMemberQualify m = qualifyAs (rmId m) m
 
 -- | Internal (cassandra) representation of a local conversation member.
 data LocalMember = LocalMember
