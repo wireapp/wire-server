@@ -1,0 +1,29 @@
+{{- if .Values.service.nginz.enabled }}
+# This service has to be exposed using type `LoadBalancer` to ensure that there
+# is no other pod between the load balancer and this service. This ensures that
+# only thing which disrupts the websocket connection is when a cannon pod gets
+# stopped. If, like other services we have a separate nginz and an
+# ingress-controller between the load balancer and the service, stopping any of
+# these pods would cause websockets to be disrupted.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.service.nginz.name }}
+  labels:
+    wireService: cannon
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+  annotations:
+{{ toYaml .Values.service.nginz.annotations | indent 4 }}
+spec:
+  type: LoadBalancer
+  ports:
+    - name: http
+      port: {{ .Values.service.nginz.externalPort }}
+      targetPort: {{ .Values.service.nginz.internalPort }}
+      protocol: TCP
+  selector:
+    wireService: cannon
+    release: {{ .Release.Name }}
+{{- end }}

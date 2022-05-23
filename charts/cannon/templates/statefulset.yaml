@@ -29,9 +29,42 @@ spec:
         release: {{ .Release.Name }}
       annotations:
         checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/nginz-configmap: {{ include (print .Template.BasePath "/nginz-configmap.yaml") . | sha256sum }}
     spec:
       terminationGracePeriodSeconds: {{ add .Values.config.drainOpts.gracePeriodSeconds 5 }}
       containers:
+      - name: nginz
+        image: "{{ .Values.nginzImage.repository }}:{{ .Values.nginzImage.tag }}"
+        imagePullPolicy: "{{ .Values.nginzImage.pullPolicy }}"
+        volumeMounts:
+        - name: nginz-config
+          mountPath: /etc/wire/nginz/conf
+          readOnly: true
+        - name: nginz-secrets
+          mountPath: /etc/wire/nginz/secrets
+          readOnly: true
+        #  TODO: This shouldn't be required but /services/nginz/nginz-reload.sh
+        #  has this path hardcoded :(
+        - name: upstreams
+          mountPath: /etc/wire/nginz/upstreams
+          readOnly: true
+        ports:
+        - name: https
+          containerPort: {{ .Values.service.nginz.internalPort }}
+        readinessProbe:
+          httpGet:
+            path: /status
+            port: {{ .Values.service.nginz.internalPort }}
+            scheme: HTTP
+        livenessProbe:
+          initialDelaySeconds: 30
+          timeoutSeconds: 1
+          httpGet:
+            path: /status
+            port: {{ .Values.service.nginz.internalPort }}
+            scheme: HTTP
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
       - name: cannon
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         volumeMounts:
@@ -39,6 +72,9 @@ spec:
           mountPath: /etc/wire/cannon/externalHost
         - name: cannon-config
           mountPath: /etc/wire/cannon/conf
+        - name: nginz-config
+          mountPath: /etc/wire/nginz/conf
+          readOnly: true
         ports:
         - name: http
           containerPort: {{ .Values.service.internalPort }}
@@ -75,4 +111,14 @@ spec:
         configMap:
           name: cannon
       - name: empty
+        emptyDir: {}
+      - name: nginz-config
+        configMap:
+          name: cannon-nginz
+      - name: nginz-secrets
+        secret:
+          secretName: cannon-nginz
+      #  TODO: This shouldn't be required but /services/nginz/nginz-reload.sh
+      #  has this path hardcoded :(
+      - name: upstreams
         emptyDir: {}

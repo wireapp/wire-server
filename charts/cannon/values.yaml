@@ -3,6 +3,10 @@ image:
   repository: quay.io/wire/cannon
   tag: do-not-use
   pullPolicy: IfNotPresent
+nginzImage:
+  repository: quay.io/wire/nginz
+  tag: do-not-use
+  pullPolicy: IfNotPresent
 config:
   logLevel: Info
 
@@ -15,6 +19,39 @@ config:
     gracePeriodSeconds: 25
     millisecondsBetweenBatches: 50
     minBatchSize: 20
+
+nginx_conf:
+  user: nginx
+  group: nginx
+  zauth_keystore: /etc/wire/nginz/secrets/zauth.conf
+  zauth_acl: /etc/wire/nginz/conf/zauth.acl
+  worker_processes: auto
+  worker_rlimit_nofile: 131072
+  worker_connections: 65536
+  disabled_paths: []
+
+  # FUTUREWORK: Upgrade nginx in nginz to support TLS 1.3
+  tls:
+    protocols: TLSv1.2
+    ciphers: ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256
+
+  # -- The origins from which we allow CORS requests. These are combined with 'external_env_domain' to form a full url
+  allowlisted_origins:
+    - webapp
+    - teams
+    - account
+  # -- The origins from which we allow CORS requests at random ports. This is
+  # useful for testing with HTTP proxies and should not be used in production.
+  # The list entries are combined with 'external_env_domain' to form a full url
+  # regex that matches for all ports.
+  randomport_allowlisted_origins: [] # default is empty by intention
+  upstreams:
+    cannon:
+    - path: /await
+      envs:
+      - all
+      use_websockets: true
+
 resources:
   requests:
     memory: "256Mi"
@@ -26,3 +63,11 @@ service:
   name: cannon
   internalPort: 8080
   externalPort: 8080
+  nginz:
+    # Enable this only if service of `type: LoadBalancer` can work in your K8s
+    # cluster.
+    enabled: false
+    name: cannon-nginz
+    internalPort: 8443
+    externalPort: 443
+    annotations: {}
