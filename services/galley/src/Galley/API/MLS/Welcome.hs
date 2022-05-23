@@ -22,6 +22,7 @@ module Galley.API.MLS.Welcome
 where
 
 import Control.Comonad
+import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
@@ -43,6 +44,7 @@ import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
@@ -62,8 +64,11 @@ postMLSWelcome ::
   RawMLS Welcome ->
   Sem r ()
 postMLSWelcome lusr con wel = do
+  now <- input
   rcpts <- welcomeRecipients (rmValue wel)
-  traverse_ (sendWelcomes lusr con (rmRaw wel)) (bucketQualified rcpts)
+  let (locals, remotes) = partitionQualified lusr rcpts
+  sendLocalWelcomes (Just con) now (rmRaw wel) (qualifyAs lusr locals)
+  sendRemoteWelcomes (rmRaw wel) remotes
 
 welcomeRecipients ::
   Members
@@ -80,27 +85,6 @@ welcomeRecipients =
         . gsNewMember
     )
     . welSecrets
-
-sendWelcomes ::
-  Members
-    '[ FederatorAccess,
-       GundeckAccess,
-       Input UTCTime,
-       P.TinyLog
-     ]
-    r =>
-  Local x ->
-  ConnId ->
-  ByteString ->
-  Qualified [(UserId, ClientId)] ->
-  Sem r ()
-sendWelcomes loc con rawWelcome recipients = do
-  now <- input
-  foldQualified
-    loc
-    (sendLocalWelcomes (Just con) now rawWelcome)
-    (sendRemoteWelcomes rawWelcome)
-    recipients
 
 sendLocalWelcomes ::
   Members '[GundeckAccess] r =>
@@ -128,14 +112,19 @@ sendRemoteWelcomes ::
      ]
     r =>
   ByteString ->
-  Remote [(UserId, ClientId)] ->
+  [Remote (UserId, ClientId)] ->
   Sem r ()
-sendRemoteWelcomes rawWelcome rClients = do
+sendRemoteWelcomes rawWelcome clients = do
   let req = MLSWelcomeRequest . Base64ByteString $ rawWelcome
       rpc = fedClient @'Galley @"mls-welcome" req
-  runFederatedEither rClients rpc >>= \case
-    Left e ->
+  (traverse_ handleError =<<)
+    . runFederatedConcurrentlyEither clients
+    $ \_ -> rpc
+  where
+    handleError :: Member P.TinyLog r => Either (Remote [a], FederationError) x -> Sem r ()
+    handleError (Right _) = pure ()
+    handleError (Left (r, e)) =
       P.warn $
         Logger.msg ("A welcome message could not be delivered to a remote backend" :: ByteString)
-          . (logErrorMsg . toWai $ e)
-    Right _ -> pure ()
+          . Logger.field "remote_domain" (domainText (tDomain r))
+          . (logErrorMsg (toWai e))
