@@ -317,8 +317,8 @@ type IFeatureStatusPut errs f = Named '("iput", f) (FeatureStatusBasePut errs f)
 type IFeatureStatus errs f = IFeatureStatusGet 'WithoutLockStatus f :<|> IFeatureStatusPut errs f
 
 type IFeatureStatusDeprecated f =
-  Named '("iget-deprecated", f) (FeatureStatusBaseDeprecatedGet 'WithoutLockStatus f)
-    :<|> Named '("iput-deprecated", f) (FeatureStatusBaseDeprecatedPut f)
+  Named '("iget-deprecated", f) (FeatureStatusBaseDeprecatedGet "" 'WithoutLockStatus f)
+    :<|> Named '("iput-deprecated", f) (FeatureStatusBaseDeprecatedPut "" f)
 
 type IFeatureStatusLockStatusPut featureName =
   Named
