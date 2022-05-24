@@ -30,10 +30,14 @@ nginx_conf:
   worker_connections: 65536
   disabled_paths: []
 
-  # FUTUREWORK: Upgrade nginx in nginz to support TLS 1.3
   tls:
-    protocols: TLSv1.2
-    ciphers: ECDHE-RSA-AES256-GCM-SHA384:ECDHE-RSA-AES128-GCM-SHA256
+    protocols: TLSv1.2 TLSv1.3
+    # NOTE: These are some sane defaults (compliant to TR-02102-2), you may want to overrride them on your own installation
+    # For TR-02102-2 see https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.html
+    # As a Wire employee, for Wire-internal discussions and context see
+    # * https://wearezeta.atlassian.net/browse/FS-33
+    # * https://wearezeta.atlassian.net/browse/FS-444
+    ciphers: "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
 
   # -- The origins from which we allow CORS requests. These are combined with 'external_env_domain' to form a full url
   allowlisted_origins:
