@@ -126,5 +126,5 @@ spec:
           secretName: cannon-nginz
       - name: certificate
         secret:
-          secretName: {{ .Values.tls.secretName }}
+          secretName: {{ .Values.service.nginz.tls.secretName }}
       {{- end }}

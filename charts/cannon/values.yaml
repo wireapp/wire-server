@@ -71,20 +71,21 @@ service:
     # Enable this only if service of `type: LoadBalancer` can work in your K8s
     # cluster.
     enabled: false
+    # hostname: # Needed when using either externalDNS or certManager
     name: cannon-nginz
     internalPort: 8443
     externalPort: 443
     annotations: {}
-
-tls:
-  secretName: cannon-nginz-cert
-  # When this is false, certifiates must be provided at .secrets.nginz.tls.crt
-  # and .secrets.nginz.tls.key.
-  useCertManager: false
-  certManager:
-    certificate:
-      name: cannon-nginz
-      # dnsNames: [ nginz-ssl.wire.example.com ]
-    issuer:
-      name: letsencrypt
-      kind: ClusterIssuer
+    tls:
+      secretName: cannon-nginz-cert
+    externalDNS:
+      enabled: false
+    certManager:
+      # When certManager is not enabled, certificates must be provided at
+      # .secrets.nginz.tls.crt and .secrets.nginz.tls.key.
+      enabled: false
+      certificate:
+        name: cannon-nginz
+      issuer:
+        name: letsencrypt
+        kind: ClusterIssuer
