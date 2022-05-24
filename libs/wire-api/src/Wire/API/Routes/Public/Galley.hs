@@ -1098,14 +1098,37 @@ type FeatureAPI =
            'TeamFeatureLegalHold
     :<|> FeatureStatusGet 'TeamFeatureSearchVisibility
     :<|> FeatureStatusPut '() 'TeamFeatureSearchVisibility
-    :<|> FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureSearchVisibility
-    :<|> FeatureStatusDeprecatedPut 'TeamFeatureSearchVisibility
+    :<|> FeatureStatusDeprecatedGet
+           ( "Deprecated. Please use `GET /teams/:tid/features/"
+               `AppendSymbol` KnownTeamFeatureNameSymbol 'TeamFeatureSearchVisibility
+               `AppendSymbol` "` instead. This endpoint is used by Android ???"
+           )
+           'WithoutLockStatus
+           'TeamFeatureSearchVisibility
+    :<|> FeatureStatusDeprecatedPut
+           ( "Deprecated. Please use `PUT /teams/:tid/features/"
+               `AppendSymbol` KnownTeamFeatureNameSymbol 'TeamFeatureSearchVisibility
+               `AppendSymbol` "` instead. This endpoint is used by Android ???"
+           )
+           'TeamFeatureSearchVisibility
     :<|> SearchVisibilityGet
     :<|> SearchVisibilitySet
     :<|> FeatureStatusGet 'TeamFeatureValidateSAMLEmails
-    :<|> FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails
+    :<|> FeatureStatusDeprecatedGet
+           ( "Deprecated. Please use `GET /teams/:tid/features/"
+               `AppendSymbol` KnownTeamFeatureNameSymbol 'TeamFeatureValidateSAMLEmails
+               `AppendSymbol` "` instead. This endpoint is used by Android ???"
+           )
+           'WithoutLockStatus
+           'TeamFeatureValidateSAMLEmails
     :<|> FeatureStatusGet 'TeamFeatureDigitalSignatures
-    :<|> FeatureStatusDeprecatedGet 'WithoutLockStatus 'TeamFeatureDigitalSignatures
+    :<|> FeatureStatusDeprecatedGet
+           ( "Deprecated. Please use `GET /teams/:tid/features/"
+               `AppendSymbol` KnownTeamFeatureNameSymbol 'TeamFeatureDigitalSignatures
+               `AppendSymbol` "` instead. This endpoint is used by iOS (version 3.99 or lower), Android ???"
+           )
+           'WithoutLockStatus
+           'TeamFeatureDigitalSignatures
     :<|> FeatureStatusGet 'TeamFeatureAppLock
     :<|> FeatureStatusPut '() 'TeamFeatureAppLock
     :<|> FeatureStatusGet 'TeamFeatureFileSharing
@@ -1120,18 +1143,18 @@ type FeatureAPI =
     :<|> FeatureStatusPut '() 'TeamFeatureSndFactorPasswordChallenge
     :<|> AllFeatureConfigsGet
     :<|> AllFeaturesGet
-    :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureLegalHold
-    :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSSO
-    :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSearchVisibility
-    :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails
-    :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureDigitalSignatures
-    :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureAppLock
-    :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureFileSharing
-    :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureClassifiedDomains
-    :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureConferenceCalling
-    :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureSelfDeletingMessages
-    :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureGuestLinks
-    :<|> FeatureConfigGet 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge
+    :<|> FeatureConfigGet "Deprecated. Please use `GET /feature-configs` instead. This endpoint is used by iOS (version 3.99 or lower), Android ???" 'WithoutLockStatus 'TeamFeatureLegalHold
+    :<|> FeatureConfigGet "Deprecated. Please use `GET /feature-configs` instead. This endpoint is used by iOS (version 3.99 or lower), webapp (version 0.16.0 or lower), and or TM (version 4.9.0 or lower), Android ???" 'WithoutLockStatus 'TeamFeatureSSO
+    :<|> FeatureConfigGet "Deprecated. Please use `GET /feature-configs` instead. This endpoint is used by iOS (version 3.99 or lower), Android ???" 'WithoutLockStatus 'TeamFeatureSearchVisibility
+    :<|> FeatureConfigGet "Deprecated. Please use `GET /feature-configs` instead. This endpoint is used by iOS (version 3.99 or lower), Android ???" 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails
+    :<|> FeatureConfigGet "Deprecated. Please use `GET /feature-configs` instead. This endpoint is used by iOS (version 3.99 or lower), webapp (version 0.16.0 or lower), and or TM (version 4.9.0 or lower), Android ???" 'WithoutLockStatus 'TeamFeatureDigitalSignatures
+    :<|> FeatureConfigGet "Deprecated. Please use `GET /feature-configs` instead. This endpoint is used by iOS (version 3.99 or lower), webapp (version 0.16.0 or lower), and or TM (version 4.9.0 or lower), Android ???" 'WithoutLockStatus 'TeamFeatureAppLock
+    :<|> FeatureConfigGet "Deprecated. Please use `GET /feature-configs` instead. This endpoint is used by iOS (version 3.99 or lower), webapp (version 0.16.0 or lower), and or TM (version 4.9.0 or lower), Android ???" 'WithLockStatus 'TeamFeatureFileSharing
+    :<|> FeatureConfigGet "Deprecated. Please use `GET /feature-configs` instead. This endpoint is used by iOS (version 3.99 or lower), Android ???" 'WithoutLockStatus 'TeamFeatureClassifiedDomains
+    :<|> FeatureConfigGet "Deprecated. Please use `GET /feature-configs` instead. This endpoint is used by iOS (version 3.99 or lower), Android ???" 'WithLockStatus 'TeamFeatureConferenceCalling
+    :<|> FeatureConfigGet "Deprecated. Please use `GET /feature-configs` instead. This endpoint is used by iOS (version 3.99 or lower), Android ???" 'WithLockStatus 'TeamFeatureSelfDeletingMessages
+    :<|> FeatureConfigGet "Deprecated. Please use `GET /feature-configs` instead. This endpoint is used by iOS (version 3.99 or lower), webapp (version 0.16.0 or lower), and or TM (version 4.9.0 or lower), Android ???" 'WithLockStatus 'TeamFeatureGuestLinks
+    :<|> FeatureConfigGet "Deprecated. Please use `GET /feature-configs` instead. This endpoint is used by iOS (version 3.99 or lower), webapp (version 0.16.0 or lower), and or TM (version 4.9.0 or lower), Android ???" 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge
 
 type FeatureStatusGet f =
   Named
@@ -1143,15 +1166,15 @@ type FeatureStatusPut errs f =
     '("put", f)
     (ZUser :> FeatureStatusBasePut errs f)
 
-type FeatureStatusDeprecatedGet l f =
+type FeatureStatusDeprecatedGet d l f =
   Named
     '("get-deprecated", f)
-    (ZUser :> FeatureStatusBaseDeprecatedGet l f)
+    (ZUser :> FeatureStatusBaseDeprecatedGet d l f)
 
-type FeatureStatusDeprecatedPut f =
+type FeatureStatusDeprecatedPut d f =
   Named
     '("put-deprecated", f)
-    (ZUser :> FeatureStatusBaseDeprecatedPut f)
+    (ZUser :> FeatureStatusBaseDeprecatedPut d f)
 
 type FeatureStatusBaseGet lockStatus featureName =
   Summary (AppendSymbol "Get config for " (KnownTeamFeatureNameSymbol featureName))
@@ -1179,9 +1202,10 @@ type FeatureStatusBasePut errs featureName =
     :> Put '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
 
 -- | A type for a GET endpoint for a feature with a deprecated path
-type FeatureStatusBaseDeprecatedGet lockStatus featureName =
+type FeatureStatusBaseDeprecatedGet desc lockStatus featureName =
   ( Summary
       (AppendSymbol "[deprecated] Get config for " (KnownTeamFeatureNameSymbol featureName))
+      :> Description desc
       :> CanThrow 'NotATeamMember
       :> CanThrow OperationDenied
       :> CanThrow 'TeamNotFound
@@ -1193,9 +1217,10 @@ type FeatureStatusBaseDeprecatedGet lockStatus featureName =
   )
 
 -- | A type for a PUT endpoint for a feature with a deprecated path
-type FeatureStatusBaseDeprecatedPut featureName =
+type FeatureStatusBaseDeprecatedPut desc featureName =
   Summary
-    (AppendSymbol "[deprecated] Get config for " (KnownTeamFeatureNameSymbol featureName))
+    (AppendSymbol "[deprecated] Put config for " (KnownTeamFeatureNameSymbol featureName))
+    :> Description desc
     :> CanThrow 'NotATeamMember
     :> CanThrow OperationDenied
     :> CanThrow 'TeamNotFound
@@ -1206,17 +1231,18 @@ type FeatureStatusBaseDeprecatedPut featureName =
     :> ReqBody '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
     :> Put '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
 
-type FeatureConfigGet ps featureName =
+type FeatureConfigGet desc lockStatus featureName =
   Named
     '("get-config", featureName)
-    ( Summary (AppendSymbol "Get feature config for feature " (KnownTeamFeatureNameSymbol featureName))
+    ( Summary (AppendSymbol "[deprecated] Get feature config for feature " (KnownTeamFeatureNameSymbol featureName))
+        :> Description desc
         :> ZUser
         :> CanThrow 'NotATeamMember
         :> CanThrow OperationDenied
         :> CanThrow 'TeamNotFound
         :> "feature-configs"
         :> KnownTeamFeatureNameSymbol featureName
-        :> Get '[Servant.JSON] (TeamFeatureStatus ps featureName)
+        :> Get '[Servant.JSON] (TeamFeatureStatus lockStatus featureName)
     )
 
 type AllFeatureConfigsGet =
