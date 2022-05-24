@@ -216,7 +216,7 @@ getFeatureConfig (Tagged getter) zusr = do
       assertTeamExists tid
       getter (FeatureScopeTeam tid)
 
--- | Get feature config for a user. If the user is a member of a team and has the required permissions, this will return the team's feature configs.
+-- | Get feature configs for a user. If the user is a member of a team and has the required permissions, this will return the team's feature configs.
 -- If the user is not a member of a team, this will return the personal feature configs (the server defaults).
 getAllFeatureConfigsForUser ::
   Members

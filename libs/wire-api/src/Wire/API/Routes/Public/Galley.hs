@@ -1118,8 +1118,8 @@ type FeatureAPI =
     :<|> FeatureStatusPut '() 'TeamFeatureGuestLinks
     :<|> FeatureStatusGet 'TeamFeatureSndFactorPasswordChallenge
     :<|> FeatureStatusPut '() 'TeamFeatureSndFactorPasswordChallenge
-    :<|> AllFeatureConfigsGet
-    :<|> AllFeaturesGet
+    :<|> AllFeatureConfigsUserGet
+    :<|> AllFeatureConfigsTeamGet
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureLegalHold
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSSO
     :<|> FeatureConfigGet 'WithoutLockStatus 'TeamFeatureSearchVisibility
@@ -1219,10 +1219,14 @@ type FeatureConfigGet ps featureName =
         :> Get '[Servant.JSON] (TeamFeatureStatus ps featureName)
     )
 
-type AllFeatureConfigsGet =
+type AllFeatureConfigsUserGet =
   Named
-    "get-all-feature-configs"
-    ( Summary "Get configurations of all features"
+    "get-all-feature-configs-for-user"
+    ( Summary
+        "Gets feature configs for a user"
+        :> Description
+             "Gets feature configs for a user. If the user is a member of a team and has the required permissions, this will return the team's feature configs.\
+             \If the user is not a member of a team, this will return the personal feature configs (the server defaults)."
         :> ZUser
         :> CanThrow 'NotATeamMember
         :> CanThrow OperationDenied
@@ -1231,10 +1235,11 @@ type AllFeatureConfigsGet =
         :> Get '[Servant.JSON] AllFeatureConfigs
     )
 
-type AllFeaturesGet =
+type AllFeatureConfigsTeamGet =
   Named
-    "get-all-features"
-    ( Summary "Shows the configuration status of every team feature"
+    "get-all-feature-configs-for-team"
+    ( Summary "Gets feature configs for a team"
+        :> Description "Gets feature configs for a team. User must be a member of the team and have permission to view team features."
         :> CanThrow 'NotATeamMember
         :> CanThrow OperationDenied
         :> CanThrow 'TeamNotFound

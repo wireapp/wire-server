@@ -228,8 +228,8 @@ servantSitemap =
               setSndFactorPasswordChallengeInternal
               . DoAuth
           )
-        <@> mkNamedAPI @"get-all-feature-configs" getAllFeatureConfigsForUser
-        <@> mkNamedAPI @"get-all-features" getAllFeatureConfigsForTeam
+        <@> mkNamedAPI @"get-all-feature-configs-for-user" getAllFeatureConfigsForUser
+        <@> mkNamedAPI @"get-all-feature-configs-for-team" getAllFeatureConfigsForTeam
         <@> mkNamedAPI @'("get-config", 'TeamFeatureLegalHold)
           ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureLegalHold
               getLegalholdStatusInternal
