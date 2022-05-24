@@ -66,13 +66,14 @@ module Wire.API.Team.Feature
 where
 
 import qualified Cassandra.CQL as Cass
-import Control.Lens (makeLenses)
+import Control.Lens (makeLenses, (?~))
 import qualified Data.Aeson as A
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Conversion
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.Domain (Domain)
 import Data.Either.Extra (maybeToEither)
+import Data.Id
 import Data.Proxy
 import Data.Schema
 import Data.String.Conversions (cs)
@@ -87,6 +88,8 @@ import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
+import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519))
 
 ----------------------------------------------------------------------
 -- FeatureTag
@@ -94,14 +97,11 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 -- | Checklist for adding a new feature
 --
 --
--- 1. Add a data type for your feature's "config" part, naming convention: "<NameOfFeature>Config". If your feature doesn't
+-- 1. Add a data type for your feature's "config" part, naming convention: **<NameOfFeature>Config**. If your feature doesn't
 -- have a config besides being enabled/disabled, locked/unlocked, then the
--- config should be a unit type, e.g. data MyFeatureConfig = MyFeatureConfig.(<%=)
--- 2. Implement type clases 'IsFeatureConfig'
+-- config should be a unit type, e.g. **data MyFeatureConfig = MyFeatureConfig**
+-- 2. Implement type clases 'ToSchema', 'IsFeatureConfig'. If your feature doesn't have a config implement 'FeatureTrivialConfig'
 --
--- . old (TODO: adapt or remove) *
--- libs/wire-api/test/unit/Test/Wire/API/Roundtrip/Aeson.hs * add call to
--- 'testRoundTrip' * libs/wire-api/src/Wire/API/Routes/Public/Galley.hs * add a
 -- FeatureStatusGet (and maybe FeatureStatusPut) route to the FeatureAPI * maybe
 -- add a FeatureConfigGet route to FeatureAPI *
 -- services/galley/src/Galley/API/Internal.hs * add IFeatureStatus to
@@ -140,6 +140,8 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 class IsFeatureConfig cfg where
   type FeatureSymbol cfg :: Symbol
   defFeatureStatus :: WithStatus cfg
+
+  -- | Swagger 1.2 model for stern and wai routes
   configModel :: Maybe Doc.Model
   configModel = Nothing
 
@@ -723,6 +725,39 @@ instance IsFeatureConfig SelfDeletingMessagesConfig where
     Doc.defineModel "SelfDeletingMessagesConfig" $ do
       Doc.property "enforcedTimeoutSeconds" Doc.int32' $ Doc.description "optional; default: `0` (no enforcement)"
   objectSchema = field "config" schema
+
+----------------------------------------------------------------------
+-- MLSConfig
+
+data MLSConfig = MLSConfig
+  { mlsProtocolToggleUsers :: [UserId],
+    mlsDefaultProtocol :: ProtocolTag,
+    mlsAllowedCipherSuites :: [CipherSuiteTag],
+    mlsDefaultCipherSuite :: CipherSuiteTag
+  }
+  deriving stock (Eq, Show, Generic)
+
+instance ToSchema MLSConfig where
+  schema =
+    object "MLSConfig" $
+      MLSConfig
+        <$> mlsProtocolToggleUsers .= fieldWithDocModifier "protocolToggleUsers" (S.description ?~ "allowlist of users that may change protocols") (array schema)
+        <*> mlsDefaultProtocol .= field "defaultProtocol" schema
+        <*> mlsAllowedCipherSuites .= field "allowedCipherSuites" (array schema)
+        <*> mlsDefaultCipherSuite .= field "defaultCipherSuite" schema
+
+instance IsFeatureConfig MLSConfig where
+  type FeatureSymbol MLSConfig = "mls"
+  defFeatureStatus =
+    let config = MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+     in WithStatus FeatureStatusDisabled LockStatusUnlocked config
+  objectSchema = field "config" schema
+  configModel = Just $
+    Doc.defineModel "MLSConfig" $ do
+      Doc.property "protocolToggleUsers" (Doc.array Doc.string') $ Doc.description "allowlist of users that may change protocols"
+      Doc.property "defaultProtocol" Doc.string' $ Doc.description "default protocol, either \"proteus\" or \"mls\""
+      Doc.property "allowedCipherSuites" (Doc.array Doc.int32') $ Doc.description "cipher suite numbers,  See https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5"
+      Doc.property "defaultCipherSuite" Doc.int32' $ Doc.description "cipher suite number. See https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5"
 
 ----------------------------------------------------------------------
 -- FeatureStatus
