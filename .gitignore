@@ -114,6 +114,7 @@ result-*
 # Created by .envrc
 .direnv
 .env
+.vars
 
 # emacs misc
 .dir-locals.el
