@@ -46,6 +46,7 @@ import Data.Json.Util hiding ((#))
 import qualified Data.LegalHold as LH
 import Data.List1
 import qualified Data.List1 as List1
+import qualified Data.Map as Map
 import Data.Misc (HttpsUrl, PlainTextPassword (..), mkHttpsUrl)
 import Data.Qualified
 import Data.Range
@@ -86,6 +87,8 @@ import qualified Wire.API.Team.Member as Member
 import qualified Wire.API.Team.Member as TM
 import qualified Wire.API.User as Public
 import qualified Wire.API.User as U
+import qualified Wire.API.User.Client as C
+import qualified Wire.API.User.Client.Prekey as PC
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -286,7 +289,9 @@ testListTeamMembersCsv :: HasCallStack => Int -> TestM ()
 testListTeamMembersCsv numMembers = do
   let teamSize = numMembers + 1
 
-  (owner, tid, _mbs) <- Util.createBindingTeamWithNMembersWithHandles True numMembers
+  (owner, tid, mbs) <- Util.createBindingTeamWithNMembersWithHandles True numMembers
+  let numClientMappings = Map.fromList $ (owner : mbs) `zip` (cycle [1, 2, 3] :: [Int])
+  addClients numClientMappings
   resp <- Util.getTeamMembersCsv owner tid
   let rbody = fromMaybe (error "no body") . responseBody $ resp
   usersInCsv <- either (error "could not decode csv") pure (decodeCSV @TeamExportUser rbody)
@@ -322,6 +327,7 @@ testListTeamMembersCsv numMembers = do
       assertEqual ("tExportIdpIssuer: " <> show (U.userId user)) (userToIdPIssuer user) (tExportIdpIssuer export)
       assertEqual ("tExportManagedBy: " <> show (U.userId user)) (U.userManagedBy user) (tExportManagedBy export)
       assertEqual ("tExportUserId: " <> show (U.userId user)) (U.userId user) (tExportUserId export)
+      assertEqual ("tExportNumDevices: ") (Map.findWithDefault (-1) (U.userId user) numClientMappings) (tExportNumDevices export)
   where
     userToIdPIssuer :: HasCallStack => U.User -> Maybe HttpsUrl
     userToIdPIssuer usr = case (U.userIdentity >=> U.ssoIdentity) usr of
@@ -334,6 +340,20 @@ testListTeamMembersCsv numMembers = do
 
     countOn :: Eq b => (a -> b) -> b -> [a] -> Int
     countOn prop val xs = sum $ fmap (bool 0 1 . (== val) . prop) xs
+
+    addClients :: Map.Map UserId Int -> TestM ()
+    addClients xs = forM_ (Map.toList xs) addClientForUser
+
+    addClientForUser :: (UserId, Int) -> TestM ()
+    addClientForUser (uid, n) = forM_ [0 .. (n -1)] (addClient uid)
+
+    addClient :: UserId -> Int -> TestM ()
+    addClient uid i = do
+      brig <- view tsBrig
+      post (brig . paths ["i", "clients", toByteString' uid] . contentJson . json (newClient (someLastPrekeys !! i)) . queryItem "skip_reauth" "true") !!! const 201 === statusCode
+
+    newClient :: PC.LastPrekey -> C.NewClient
+    newClient lpk = C.newClient C.PermanentClientType lpk
 
 testListTeamMembersTruncated :: TestM ()
 testListTeamMembersTruncated = do
@@ -429,27 +449,30 @@ testEnableSSOPerTeam = do
 
 testEnableTeamSearchVisibilityPerTeam :: TestM ()
 testEnableTeamSearchVisibilityPerTeam = do
-  g <- view tsGalley
   (tid, owner, member : _) <- Util.createBindingTeamWithMembers 2
-  let check :: (HasCallStack, MonadCatch m, MonadIO m, Monad m, MonadHttp m) => String -> Public.TeamFeatureStatusValue -> m ()
+  let check :: String -> Public.TeamFeatureStatusValue -> TestM ()
       check msg enabledness = do
+        g <- view tsGalley
         status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibility <- responseJsonUnsafe <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
         let statusValue = Public.tfwoStatus status
 
         liftIO $ assertEqual msg enabledness statusValue
-  let putSearchVisibilityCheckNotAllowed :: (HasCallStack, Monad m, MonadIO m, MonadHttp m) => m ()
+  let putSearchVisibilityCheckNotAllowed :: TestM ()
       putSearchVisibilityCheckNotAllowed = do
+        g <- view tsGalley
         Wai.Error status label _ _ <- responseJsonUnsafe <$> putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam
         liftIO $ do
           assertEqual "bad status" status403 status
           assertEqual "bad label" "team-search-visibility-not-enabled" label
-  let getSearchVisibilityCheck :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => TeamSearchVisibility -> m ()
-      getSearchVisibilityCheck vis =
+  let getSearchVisibilityCheck :: TeamSearchVisibility -> TestM ()
+      getSearchVisibilityCheck vis = do
+        g <- view tsGalley
         getSearchVisibility g owner tid !!! do
           const 200 === statusCode
           const (Just (TeamSearchVisibilityView vis)) === responseJsonUnsafe
 
   Util.withCustomSearchFeature FeatureTeamSearchVisibilityEnabledByDefault $ do
+    g <- view tsGalley
     check "Teams should start with Custom Search Visibility enabled" Public.TeamFeatureEnabled
     putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam !!! const 204 === statusCode
     putSearchVisibility g owner tid SearchVisibilityStandard !!! const 204 === statusCode
@@ -457,6 +480,7 @@ testEnableTeamSearchVisibilityPerTeam = do
     check "Teams should start with Custom Search Visibility disabled" Public.TeamFeatureDisabled
     putSearchVisibilityCheckNotAllowed
 
+  g <- view tsGalley
   Util.putTeamSearchVisibilityAvailableInternal g tid Public.TeamFeatureEnabled
   -- Nothing was set, default value
   getSearchVisibilityCheck SearchVisibilityStandard
@@ -1649,7 +1673,7 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
   opts <- view tsGConf
   galley <- view tsGalley
   let withoutIndexedBillingTeamMembers =
-        withSettingsOverrides (opts & optSettings . setEnableIndexedBillingTeamMembers ?~ False)
+        withSettingsOverrides (\o -> o & optSettings . setEnableIndexedBillingTeamMembers ?~ False)
   let fanoutLimit = fromRange $ Galley.currentFanoutLimit opts
 
   -- Billing should work properly upto fanout limit
@@ -1678,8 +1702,9 @@ testBillingInLargeTeamWithoutIndexedBillingTeamMembers = do
   let memFanoutPlusTwo = json $ Member.mkNewTeamMember ownerFanoutPlusTwo (rolePermissions RoleOwner) Nothing
   -- We cannot properly add the new owner with an invite as we don't have a way to
   -- override galley settings while making a call to brig
-  withoutIndexedBillingTeamMembers $
-    post (galley . paths ["i", "teams", toByteString' team, "members"] . memFanoutPlusTwo)
+  withoutIndexedBillingTeamMembers $ do
+    g <- view tsGalley
+    post (g . paths ["i", "teams", toByteString' team, "members"] . memFanoutPlusTwo)
       !!! const 200 === statusCode
   assertQueue ("add " <> show (fanoutLimit + 2) <> "th billing member: " <> show ownerFanoutPlusTwo) $
     \s maybeEvent ->
@@ -1888,7 +1913,6 @@ postCryptoBroadcastMessageFilteredTooLargeTeam bcast = do
   localDomain <- viewFederationDomain
   let q :: Id a -> Qualified (Id a)
       q = (`Qualified` localDomain)
-  opts <- view tsGConf
   c <- view tsCannon
   -- Team1: alice, bob and 3 unnamed
   (alice, tid) <- Util.createBindingTeam
@@ -1923,8 +1947,8 @@ postCryptoBroadcastMessageFilteredTooLargeTeam bcast = do
       WS.bracketR (c . queryItem "client" (toByteString' ac)) alice $ \wsA1 -> do
         -- We change also max conv size due to the invariants that galley forces us to keep
         let newOpts =
-              opts & optSettings . setMaxFanoutSize .~ Just (unsafeRange 4)
-                & optSettings . setMaxConvSize .~ 4
+              ((optSettings . setMaxFanoutSize) ?~ unsafeRange 4)
+                . (optSettings . setMaxConvSize .~ 4)
         withSettingsOverrides newOpts $ do
           -- Untargeted, Alice's team is too large
           Util.postBroadcast (q alice) ac bcast {bMessage = msg} !!! do

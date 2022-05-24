@@ -32,7 +32,7 @@ module Galley.API.Teams
     getTeamNotificationsH,
     getTeamConversationRoles,
     getTeamMembers,
-    getTeamMembersCSVH,
+    getTeamMembersCSV,
     bulkGetTeamMembers,
     getTeamMember,
     deleteTeamMember,
@@ -114,7 +114,6 @@ import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
 import Galley.Types.UserList
 import Imports hiding (forkIO)
-import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import Network.Wai.Utilities hiding (Error)
@@ -497,12 +496,13 @@ outputToStreamingBody action = withWeavingToFinal @IO $ \state weave _inspect ->
           flush
     void . weave . (<$ state) $ runOutputSem writeChunk action
 
-getTeamMembersCSVH ::
+getTeamMembersCSV ::
   (Members '[BrigAccess, ErrorS 'AccessDenied, TeamMemberStore InternalPaging, TeamStore, Final IO] r) =>
-  UserId ::: TeamId ::: JSON ->
-  Sem r Response
-getTeamMembersCSVH (zusr ::: tid ::: _) = do
-  E.getTeamMember tid zusr >>= \case
+  Local UserId ->
+  TeamId ->
+  Sem r StreamingBody
+getTeamMembersCSV lusr tid = do
+  E.getTeamMember tid (tUnqualified lusr) >>= \case
     Nothing -> throwS @'AccessDenied
     Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throwS @'AccessDenied
 
@@ -510,7 +510,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
   -- the response will not contain a correct error message, but rather be an
   -- http error such as 'InvalidChunkHeaders'. The exception however still
   -- reaches the middleware and is being tracked in logging and metrics.
-  body <- outputToStreamingBody $ do
+  outputToStreamingBody $ do
     output headerLine
     E.withChunks (\mps -> E.listTeamMembers @InternalPaging tid mps maxBound) $
       \members -> do
@@ -519,18 +519,12 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
           lookupUser <$> E.lookupActivatedUsers (fmap (view userId) members)
         richInfos <-
           lookupRichInfo <$> E.getRichInfoMultiUser (fmap (view userId) members)
+        numUserClients <- lookupClients <$> E.lookupClients (fmap (view userId) members)
         output @LByteString
           ( encodeDefaultOrderedByNameWith
               defaultEncodeOptions
-              (mapMaybe (teamExportUser users inviters richInfos) members)
+              (mapMaybe (teamExportUser users inviters richInfos numUserClients) members)
           )
-  pure $
-    responseStream
-      status200
-      [ (hContentType, "text/csv"),
-        ("Content-Disposition", "attachment; filename=\"wire_team_members.csv\"")
-      ]
-      body
   where
     headerLine :: LByteString
     headerLine = encodeDefaultOrderedByNameWith (defaultEncodeOptions {encIncludeHeader = True}) ([] :: [TeamExportUser])
@@ -548,9 +542,10 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
       (UserId -> Maybe User) ->
       (UserId -> Maybe Handle.Handle) ->
       (UserId -> Maybe RichInfo) ->
+      (UserId -> Int) ->
       TeamMember ->
       Maybe TeamExportUser
-    teamExportUser users inviters richInfos member = do
+    teamExportUser users inviters richInfos numClients member = do
       let uid = member ^. userId
       user <- users uid
       pure $
@@ -566,7 +561,8 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
             tExportSAMLNamedId = fromMaybe "" (samlNamedId user),
             tExportSCIMExternalId = fromMaybe "" (userSCIMExternalId user),
             tExportSCIMRichInfo = richInfos uid,
-            tExportUserId = U.userId user
+            tExportUserId = U.userId user,
+            tExportNumDevices = numClients uid
           }
 
     lookupInviterHandle :: Member BrigAccess r => [TeamMember] -> Sem r (UserId -> Maybe Handle.Handle)
@@ -594,6 +590,9 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
 
     lookupRichInfo :: [(UserId, RichInfo)] -> (UserId -> Maybe RichInfo)
     lookupRichInfo pairs = (`M.lookup` M.fromList pairs)
+
+    lookupClients :: Conv.UserClients -> UserId -> Int
+    lookupClients userClients uid = maybe 0 length (M.lookup uid (Conv.userClients userClients))
 
     samlNamedId :: User -> Maybe Text
     samlNamedId =

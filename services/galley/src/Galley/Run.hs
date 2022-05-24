@@ -27,6 +27,7 @@ import Cassandra.Schema (versionCheck)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (finally)
 import Control.Lens (view, (.~), (^.))
+import Control.Monad.Codensity
 import qualified Data.Aeson as Aeson
 import Data.Default
 import Data.Id
@@ -59,45 +60,44 @@ import qualified Wire.API.Routes.Public.Galley as GalleyAPI
 import Wire.API.Routes.Version.Wai
 
 run :: Opts -> IO ()
-run o = do
-  (app, e, appFinalizer) <- mkApp o
-  let l = e ^. App.applog
-  s <-
-    newSettings $
-      defaultServer
-        (unpack $ o ^. optGalley . epHost)
-        (portNumber $ fromIntegral $ o ^. optGalley . epPort)
-        l
-        (e ^. monitor)
-  deleteQueueThread <- Async.async $ runApp e deleteLoop
-  refreshMetricsThread <- Async.async $ runApp e refreshMetrics
-  runSettingsWithShutdown s app 5 `finally` do
-    Async.cancel deleteQueueThread
-    Async.cancel refreshMetricsThread
-    shutdown (e ^. cstate)
-    appFinalizer
+run opts = lowerCodensity $ do
+  (app, env) <- mkApp opts
+  settings <-
+    lift $
+      newSettings $
+        defaultServer
+          (unpack $ opts ^. optGalley . epHost)
+          (portNumber $ fromIntegral $ opts ^. optGalley . epPort)
+          (env ^. App.applog)
+          (env ^. monitor)
 
-mkApp :: Opts -> IO (Application, Env, IO ())
-mkApp o = do
-  m <- M.metrics
-  e <- App.createEnv m o
-  let l = e ^. App.applog
-  runClient (e ^. cstate) $
-    versionCheck schemaVersion
-  let finalizer = do
-        Log.info l $ Log.msg @Text "Galley application finished."
-        Log.flush l
-        Log.close l
-      middlewares =
-        versionMiddleware
-          . servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
-          . GZip.gunzip
-          . GZip.gzip GZip.def
-          . catchErrors l [Right m]
-  return (middlewares $ servantApp e, e, finalizer)
+  void $ Codensity $ Async.withAsync $ runApp env deleteLoop
+  void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
+  lift $ finally (runSettingsWithShutdown settings app 5) (shutdown (env ^. cstate))
+
+mkApp :: Opts -> Codensity IO (Application, Env)
+mkApp opts =
+  do
+    metrics <- lift $ M.metrics
+    env <- lift $ App.createEnv metrics opts
+    lift $ runClient (env ^. cstate) $ versionCheck schemaVersion
+
+    let logger = env ^. App.applog
+
+    let middlewares =
+          versionMiddleware
+            . servantPlusWAIPrometheusMiddleware API.sitemap (Proxy @CombinedAPI)
+            . GZip.gunzip
+            . GZip.gzip GZip.def
+            . catchErrors logger [Right metrics]
+    Codensity $ \k -> finally (k ()) $ do
+      Log.info logger $ Log.msg @Text "Galley application finished."
+      Log.flush logger
+      Log.close logger
+    pure (middlewares $ servantApp env, env)
   where
     rtree = compile API.sitemap
-    app e r k = evalGalley e (route rtree r k)
+    runGalley e r k = evalGalley e (route rtree r k)
     -- the servant API wraps the one defined using wai-routing
     servantApp e0 r =
       let e = reqId .~ lookupReqId r $ e0
@@ -110,7 +110,7 @@ mkApp o = do
             ( hoistAPIHandler (toServantHandler e) API.servantSitemap
                 :<|> hoistAPIHandler (toServantHandler e) internalAPI
                 :<|> hoistServerWithDomain @FederationAPI (toServantHandler e) federationSitemap
-                :<|> Servant.Tagged (app e)
+                :<|> Servant.Tagged (runGalley e)
             )
             r
 

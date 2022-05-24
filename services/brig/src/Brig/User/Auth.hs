@@ -196,7 +196,7 @@ verifyCode mbCode action uid = do
   (mbEmail, mbTeamId) <- getEmailAndTeamId uid
   featureEnabled <- lift $ do
     mbFeatureEnabled <- Intra.getVerificationCodeEnabled `traverse` mbTeamId
-    pure $ fromMaybe (Public.tfwoapsStatus Public.defaultTeamFeatureSndFactorPasswordChallengeStatus == Public.TeamFeatureEnabled) mbFeatureEnabled
+    pure $ fromMaybe (Public.tfwoapsStatus (Public.defTeamFeatureStatus @'Public.TeamFeatureSndFactorPasswordChallenge) == Public.TeamFeatureEnabled) mbFeatureEnabled
   when featureEnabled $ do
     case (mbCode, mbEmail) of
       (Just code, Just email) -> do

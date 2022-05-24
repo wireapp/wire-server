@@ -172,43 +172,31 @@ testSearchVisibility = do
   Util.connectUsers owner (list1 member [])
   Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
-  g <- view tsGalley
-  let getTeamSearchVisibility ::
-        (Monad m, MonadHttp m, MonadIO m, MonadCatch m, HasCallStack) =>
-        TeamId ->
-        Public.TeamFeatureStatusValue ->
-        m ()
-      getTeamSearchVisibility teamid expected =
+  let getTeamSearchVisibility :: TeamId -> Public.TeamFeatureStatusValue -> TestM ()
+      getTeamSearchVisibility teamid expected = do
+        g <- view tsGalley
         Util.getTeamSearchVisibilityAvailable g owner teamid !!! do
           statusCode === const 200
           responseJsonEither === const (Right (Public.TeamFeatureStatusNoConfig expected))
 
-  let getTeamSearchVisibilityInternal ::
-        (Monad m, MonadHttp m, MonadIO m, MonadCatch m, HasCallStack) =>
-        TeamId ->
-        Public.TeamFeatureStatusValue ->
-        m ()
-      getTeamSearchVisibilityInternal teamid expected =
+  let getTeamSearchVisibilityInternal :: TeamId -> Public.TeamFeatureStatusValue -> TestM ()
+      getTeamSearchVisibilityInternal teamid expected = do
+        g <- view tsGalley
         Util.getTeamSearchVisibilityAvailableInternal g teamid !!! do
           statusCode === const 200
           responseJsonEither === const (Right (Public.TeamFeatureStatusNoConfig expected))
 
-  let getTeamSearchVisibilityFeatureConfig ::
-        (Monad m, MonadHttp m, MonadIO m, MonadCatch m, HasCallStack) =>
-        UserId ->
-        Public.TeamFeatureStatusValue ->
-        m ()
-      getTeamSearchVisibilityFeatureConfig uid expected =
+  let getTeamSearchVisibilityFeatureConfig :: UserId -> Public.TeamFeatureStatusValue -> TestM ()
+      getTeamSearchVisibilityFeatureConfig uid expected = do
+        g <- view tsGalley
         Util.getFeatureConfigWithGalley Public.TeamFeatureSearchVisibility g uid !!! do
           statusCode === const 200
           responseJsonEither === const (Right (Public.TeamFeatureStatusNoConfig expected))
 
-  let setTeamSearchVisibilityInternal ::
-        (Monad m, MonadHttp m, MonadIO m, HasCallStack) =>
-        TeamId ->
-        Public.TeamFeatureStatusValue ->
-        m ()
-      setTeamSearchVisibilityInternal = Util.putTeamSearchVisibilityAvailableInternal g
+  let setTeamSearchVisibilityInternal :: TeamId -> Public.TeamFeatureStatusValue -> TestM ()
+      setTeamSearchVisibilityInternal teamid val = do
+        g <- view tsGalley
+        Util.putTeamSearchVisibilityAvailableInternal g teamid val
 
   assertFlagForbidden $ Util.getTeamFeatureFlag Public.TeamFeatureSearchVisibility nonMember tid
 
@@ -311,8 +299,7 @@ testClassifiedDomainsDisabled = do
         assertFlagWithConfig @Public.TeamFeatureClassifiedDomainsConfig $
           Util.getFeatureConfig Public.TeamFeatureClassifiedDomains uid
 
-  opts <- view tsGConf
-  let classifiedDomainsDisabled =
+  let classifiedDomainsDisabled = \opts ->
         opts
           & over
             (optSettings . setFeatureFlags . flagClassifiedDomains)

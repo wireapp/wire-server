@@ -49,7 +49,8 @@ data TeamExportUser = TeamExportUser
     tExportSAMLNamedId :: Text, -- If SAML IdP and SCIM peer are set up correctly, 'tExportSAMLNamedId' and 'tExportSCIMExternalId' always align.
     tExportSCIMExternalId :: Text,
     tExportSCIMRichInfo :: Maybe RichInfo,
-    tExportUserId :: UserId
+    tExportUserId :: UserId,
+    tExportNumDevices :: Int
   }
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform TeamExportUser)
@@ -68,7 +69,8 @@ instance ToNamedRecord TeamExportUser where
         ("saml_name_id", secureCsvFieldToByteString (tExportSAMLNamedId row)),
         ("scim_external_id", secureCsvFieldToByteString (tExportSCIMExternalId row)),
         ("scim_rich_info", maybe "" (cs . Aeson.encode) (tExportSCIMRichInfo row)),
-        ("user_id", secureCsvFieldToByteString (tExportUserId row))
+        ("user_id", secureCsvFieldToByteString (tExportUserId row)),
+        ("num_devices", secureCsvFieldToByteString (tExportNumDevices row))
       ]
 
 secureCsvFieldToByteString :: forall a. ToByteString a => a -> ByteString
@@ -89,7 +91,8 @@ instance DefaultOrdered TeamExportUser where
           "saml_name_id",
           "scim_external_id",
           "scim_rich_info",
-          "user_id"
+          "user_id",
+          "num_devices"
         ]
 
 allowEmpty :: (ByteString -> Parser a) -> ByteString -> Parser (Maybe a)
@@ -117,6 +120,7 @@ instance FromNamedRecord TeamExportUser where
       <*> (nrec .: "scim_external_id" >>= parseByteString)
       <*> (nrec .: "scim_rich_info" >>= allowEmpty (maybe (fail "failed to decode RichInfo") pure . Aeson.decode . cs))
       <*> (nrec .: "user_id" >>= parseByteString)
+      <*> (nrec .: "num_devices" >>= parseByteString)
 
 quoted :: ByteString -> ByteString
 quoted bs = case C.uncons bs of
