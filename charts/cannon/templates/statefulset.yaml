@@ -33,6 +33,7 @@ spec:
     spec:
       terminationGracePeriodSeconds: {{ add .Values.config.drainOpts.gracePeriodSeconds 5 }}
       containers:
+      {{- if .Values.service.nginz.enabled }}
       - name: nginz
         image: "{{ .Values.nginzImage.repository }}:{{ .Values.nginzImage.tag }}"
         imagePullPolicy: "{{ .Values.nginzImage.pullPolicy }}"
@@ -68,6 +69,7 @@ spec:
             scheme: HTTP
         resources:
 {{ toYaml .Values.resources | indent 12 }}
+      {{- end }}
       - name: cannon
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         volumeMounts:
@@ -115,6 +117,7 @@ spec:
           name: cannon
       - name: empty
         emptyDir: {}
+      {{- if .Values.service.nginz.enabled }}
       - name: nginz-config
         configMap:
           name: cannon-nginz
@@ -124,3 +127,4 @@ spec:
       - name: certificate
         secret:
           secretName: {{ .Values.tls.secretName }}
+      {{- end }}

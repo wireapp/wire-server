@@ -1,4 +1,4 @@
-{{- if .Values.tls.useCertManager -}}
+{{- if and .Values.service.nginz.enabled .Values.tls.useCertManager -}}
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
