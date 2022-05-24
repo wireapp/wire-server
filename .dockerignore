@@ -9,3 +9,6 @@
 .stack-root-buildah
 .local
 services/nginz/src/objs
+dist-newstyle
+.env
+.direnv
