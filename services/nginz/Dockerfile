@@ -144,7 +144,9 @@ RUN mkdir -p /var/cache/nginx/client_temp && chown -R nginx:nginx /var/cache/ngi
 
 RUN apk add --no-cache inotify-tools dumb-init bash curl && \
     # add libzauth runtime dependencies back in
-    apk add --no-cache libsodium llvm-libunwind libgcc
+    apk add --no-cache libsodium llvm-libunwind libgcc && \
+    # add openssl runtime dependencies for TLS/SSL certificate support
+    apk add --no-cache openssl
 
 COPY services/nginz/nginz_reload.sh /usr/bin/nginz_reload.sh
 
