@@ -574,7 +574,10 @@ revokeIdentityH emailOrPhone = do
   lift $ API.revokeIdentity emailOrPhone
   pure $ setStatus status200 empty
 
-updateConnectionInternalH :: JSON ::: JsonRequest UpdateConnectionsInternal -> (Handler r) Response
+updateConnectionInternalH ::
+  Member UserQuery r =>
+  JSON ::: JsonRequest UpdateConnectionsInternal ->
+  (Handler r) Response
 updateConnectionInternalH (_ ::: req) = do
   updateConn <- parseJsonBody req
   API.updateConnectionInternal updateConn !>> connError

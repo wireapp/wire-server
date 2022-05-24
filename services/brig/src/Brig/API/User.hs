@@ -41,7 +41,7 @@ module Brig.API.User
     lookupProfiles,
     lookupLocalProfiles,
     getLegalHoldStatus,
-    Data.lookupName,
+    Data.getName,
     Data.lookupLocale,
     Data.lookupUser,
     Data.lookupRichInfo,

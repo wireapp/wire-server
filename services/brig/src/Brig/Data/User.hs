@@ -38,7 +38,7 @@ module Brig.Data.User
     lookupAccounts,
     lookupUser,
     lookupUsers,
-    lookupName,
+    getName,
     lookupLocale,
     lookupPassword,
     lookupStatus,
@@ -78,7 +78,7 @@ import Brig.App (Env, currentTime, settings, viewFederationDomain, zauthEnv)
 import Brig.Data.Instances ()
 import Brig.Options
 import Brig.Password
-import Brig.Sem.UserQuery (UserQuery, getId, getUsers)
+import Brig.Sem.UserQuery (UserQuery, getId, getName, getUsers)
 import Brig.Types
 import Brig.Types.Intra
 import qualified Brig.ZAuth as ZAuth
@@ -407,11 +407,6 @@ lookupLocale u = do
   defLoc <- setDefaultUserLocale <$> view settings
   fmap (toLocale defLoc) <$> retry x1 (query1 localeSelect (params LocalQuorum (Identity u)))
 
-lookupName :: MonadClient m => UserId -> m (Maybe Name)
-lookupName u =
-  fmap runIdentity
-    <$> retry x1 (query1 nameSelect (params LocalQuorum (Identity u)))
-
 lookupPassword :: MonadClient m => UserId -> m (Maybe Password)
 lookupPassword u =
   (runIdentity =<<)
@@ -582,9 +577,6 @@ type AccountRow =
     Maybe TeamId,
     Maybe ManagedBy
   )
-
-nameSelect :: PrepQuery R (Identity UserId) (Identity Name)
-nameSelect = "SELECT name FROM user WHERE id = ?"
 
 localeSelect :: PrepQuery R (Identity UserId) (Maybe Language, Maybe Country)
 localeSelect = "SELECT language, country FROM user WHERE id = ?"

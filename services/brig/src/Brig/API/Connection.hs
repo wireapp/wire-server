@@ -40,6 +40,7 @@ import qualified Brig.Data.Connection as Data
 import Brig.Data.Types (resultHasMore, resultList)
 import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
+import Brig.Sem.UserQuery (UserQuery)
 import Brig.Types
 import Brig.Types.User.Event
 import Control.Error
@@ -52,6 +53,7 @@ import Data.Range
 import qualified Data.UUID.V4 as UUID
 import Galley.Types (ConvType (..), cnvType)
 import Imports
+import Polysemy
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import Wire.API.Connection (RelationWithHistory (..))
@@ -72,6 +74,7 @@ ensureNotSameTeam self target = do
     throwE ConnectSameBindingTeamUsers
 
 createConnection ::
+  Member UserQuery r =>
   Local UserId ->
   ConnId ->
   Qualified UserId ->
@@ -91,6 +94,8 @@ createConnection self con target = do
     target
 
 createConnectionToLocalUser ::
+  forall r.
+  Member UserQuery r =>
   Local UserId ->
   ConnId ->
   Local UserId ->
@@ -119,7 +124,7 @@ createConnectionToLocalUser self conn target = do
       o2s' <- wrapClient $ Data.insertConnection target (qUntagged self) PendingWithHistory qcnv
       e2o <-
         ConnectionUpdated o2s' (ucStatus <$> o2s)
-          <$> wrapClient (Data.lookupName (tUnqualified self))
+          <$> liftSem (Data.getName (tUnqualified self))
       let e2s = ConnectionUpdated s2o' (ucStatus <$> s2o) Nothing
       mapM_ (Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
       pure s2o'
@@ -154,9 +159,9 @@ createConnectionToLocalUser self conn target = do
             then Data.updateConnection o2s BlockedWithHistory
             else Data.updateConnection o2s AcceptedWithHistory
       e2o <-
-        lift . wrapClient $
+        lift . liftSem $
           ConnectionUpdated o2s' (Just $ ucStatus o2s)
-            <$> Data.lookupName (tUnqualified self)
+            <$> Data.getName (tUnqualified self)
       let e2s = ConnectionUpdated s2o' (Just $ ucStatus s2o) Nothing
       lift $ mapM_ (Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
       pure $ Existed s2o'
@@ -201,6 +206,7 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   oneway status2 status1
 
 updateConnection ::
+  Member UserQuery r =>
   Local UserId ->
   Qualified UserId ->
   Relation ->
@@ -220,6 +226,8 @@ updateConnection self other newStatus conn =
 -- because a connection between two team members can not exist in the first place.
 -- {#RefConnectionTeam}
 updateConnectionToLocalUser ::
+  forall r.
+  Member UserQuery r =>
   -- | From
   Local UserId ->
   -- | To
@@ -298,7 +306,7 @@ updateConnectionToLocalUser self other newStatus conn = do
               else Data.updateConnection o2s BlockedWithHistory
         e2o <-
           ConnectionUpdated o2s' (Just $ ucStatus o2s)
-            <$> wrapClient (Data.lookupName (tUnqualified self))
+            <$> liftSem (Data.getName (tUnqualified self))
         Intra.onConnectionEvent (tUnqualified self) conn e2o
       lift . wrapClient $ Just <$> Data.updateConnection s2o AcceptedWithHistory
 
@@ -326,9 +334,9 @@ updateConnectionToLocalUser self other newStatus conn = do
               then Data.updateConnection o2s AcceptedWithHistory
               else Data.updateConnection o2s BlockedWithHistory
         e2o :: ConnectionEvent <-
-          wrapClient $
+          liftSem $
             ConnectionUpdated o2s' (Just $ ucStatus o2s)
-              <$> Data.lookupName (tUnqualified self)
+              <$> Data.getName (tUnqualified self)
         -- TODO: is this correct? shouldnt o2s be sent to other?
         Intra.onConnectionEvent (tUnqualified self) conn e2o
       lift . wrapClient $ Just <$> Data.updateConnection s2o (mkRelationWithHistory (error "impossible") new)
@@ -378,6 +386,7 @@ mkRelationWithHistory oldRel = \case
 
 updateConnectionInternal ::
   forall r.
+  Member UserQuery r =>
   UpdateConnectionsInternal ->
   ExceptT ConnectionError (AppT r) ()
 updateConnectionInternal = \case
@@ -446,7 +455,7 @@ updateConnectionInternal = \case
           void . lift . for (ucConvId uconn) $ wrapHttp . Intra.unblockConv lfrom Nothing
           uconnRevRel :: RelationWithHistory <- relationWithHistory lfrom (ucTo uconnRev)
           uconnRev' <- lift . wrapClient $ Data.updateConnection uconnRev (undoRelationHistory uconnRevRel)
-          connName <- lift . wrapClient $ Data.lookupName (tUnqualified lfrom)
+          connName <- lift . liftSem $ Data.getName (tUnqualified lfrom)
           let connEvent =
                 ConnectionUpdated
                   { ucConn = uconnRev',

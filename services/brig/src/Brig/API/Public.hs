@@ -921,23 +921,45 @@ customerExtensionCheckBlockedDomains email = do
         when (domain `elem` blockedDomains) $
           throwM $ customerExtensionBlockedDomain domain
 
-createConnectionUnqualified :: UserId -> ConnId -> Public.ConnectionRequest -> (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
+createConnectionUnqualified ::
+  Member UserQuery r =>
+  UserId ->
+  ConnId ->
+  Public.ConnectionRequest ->
+  (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
 createConnectionUnqualified self conn cr = do
   lself <- qualifyLocal self
   target <- qualifyLocal (Public.crUser cr)
   API.createConnection lself conn (qUntagged target) !>> connError
 
-createConnection :: UserId -> ConnId -> Qualified UserId -> (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
+createConnection ::
+  Member UserQuery r =>
+  UserId ->
+  ConnId ->
+  Qualified UserId ->
+  (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
 createConnection self conn target = do
   lself <- qualifyLocal self
   API.createConnection lself conn target !>> connError
 
-updateLocalConnection :: UserId -> ConnId -> UserId -> Public.ConnectionUpdate -> (Handler r) (Public.UpdateResult Public.UserConnection)
+updateLocalConnection ::
+  Member UserQuery r =>
+  UserId ->
+  ConnId ->
+  UserId ->
+  Public.ConnectionUpdate ->
+  (Handler r) (Public.UpdateResult Public.UserConnection)
 updateLocalConnection self conn other update = do
   lother <- qualifyLocal other
   updateConnection self conn (qUntagged lother) update
 
-updateConnection :: UserId -> ConnId -> Qualified UserId -> Public.ConnectionUpdate -> (Handler r) (Public.UpdateResult Public.UserConnection)
+updateConnection ::
+  Member UserQuery r =>
+  UserId ->
+  ConnId ->
+  Qualified UserId ->
+  Public.ConnectionUpdate ->
+  (Handler r) (Public.UpdateResult Public.UserConnection)
 updateConnection self conn other update = do
   let newStatus = Public.cuStatus update
   lself <- qualifyLocal self
