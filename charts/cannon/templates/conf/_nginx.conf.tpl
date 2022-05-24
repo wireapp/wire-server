@@ -204,8 +204,6 @@ http {
     location /status {
         zauth off;
         access_log off;
-        allow 10.0.0.0/8;
-        deny all;
 
         return 200;
     }
