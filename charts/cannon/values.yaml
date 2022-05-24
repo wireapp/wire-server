@@ -71,3 +71,16 @@ service:
     internalPort: 8443
     externalPort: 443
     annotations: {}
+
+tls:
+  secretName: cannon-nginz-cert
+  # When this is false, certifiates must be provided at .secrets.nginz.tls.crt
+  # and .secrets.nginz.tls.key.
+  useCertManager: false
+  certManager:
+    certificate:
+      name: cannon-nginz
+      # dnsNames: [ nginz-ssl.wire.example.com ]
+    issuer:
+      name: letsencrypt
+      kind: ClusterIssuer

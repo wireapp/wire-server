@@ -185,21 +185,18 @@ http {
   #
 
   server {
-    listen {{ .Values.service.nginz.internalPort }};
+    listen {{ .Values.service.nginz.internalPort }} ssl;
 
-    # TODO: Enable TLS
-    # listen {{ .Values.service.nginz.internalPort }} ssl;
+    ssl_certificate /etc/wire/nginz/tls/tls.crt;
+    ssl_certificate_key /etc/wire/nginz/tls/tls.key;
 
-    # ssl_certificate /etc/wire/nginz/tls/tls.crt;
-    # ssl_certificate_key /etc/wire/nginz/tls/tls.key;
+    ssl_protocols {{ .Values.nginx_conf.tls.protocols }};
+    ssl_ciphers {{ .Values.nginx_conf.tls.ciphers }};
 
-    # ssl_protocols {{ .Values.nginx_conf.tls.protocols }};
-    # ssl_ciphers {{ .Values.nginx_conf.tls.ciphers }};
-
-    # # Disable session resumption. See comments in SQPIT-226 for more context and
-    # # discussion.
-    # ssl_session_tickets off;
-    # ssl_session_cache off;
+    # Disable session resumption. See comments in SQPIT-226 for more context and
+    # discussion.
+    ssl_session_tickets off;
+    ssl_session_cache off;
 
     zauth_keystore {{ .Values.nginx_conf.zauth_keystore }};
     zauth_acl      {{ .Values.nginx_conf.zauth_acl }};

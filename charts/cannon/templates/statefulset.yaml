@@ -36,6 +36,11 @@ spec:
       - name: nginz
         image: "{{ .Values.nginzImage.repository }}:{{ .Values.nginzImage.tag }}"
         imagePullPolicy: "{{ .Values.nginzImage.pullPolicy }}"
+        env:
+        # Any file changes to this path causes nginx to reload configs without
+        # restarting or breaking any connections.
+        - name: WATCH_PATHS
+          value: "/etc/wire/nginz/tls"
         volumeMounts:
         - name: nginz-config
           mountPath: /etc/wire/nginz/conf
@@ -43,10 +48,8 @@ spec:
         - name: nginz-secrets
           mountPath: /etc/wire/nginz/secrets
           readOnly: true
-        #  TODO: This shouldn't be required but /services/nginz/nginz-reload.sh
-        #  has this path hardcoded :(
-        - name: upstreams
-          mountPath: /etc/wire/nginz/upstreams
+        - name: certificate
+          mountPath: /etc/wire/nginz/tls
           readOnly: true
         ports:
         - name: https
@@ -55,7 +58,7 @@ spec:
           httpGet:
             path: /status
             port: {{ .Values.service.nginz.internalPort }}
-            scheme: HTTP
+            scheme: HTTPS
         livenessProbe:
           initialDelaySeconds: 30
           timeoutSeconds: 1
@@ -118,7 +121,6 @@ spec:
       - name: nginz-secrets
         secret:
           secretName: cannon-nginz
-      #  TODO: This shouldn't be required but /services/nginz/nginz-reload.sh
-      #  has this path hardcoded :(
-      - name: upstreams
-        emptyDir: {}
+      - name: certificate
+        secret:
+          secretName: {{ .Values.tls.secretName }}
