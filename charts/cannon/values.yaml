@@ -81,6 +81,7 @@ service:
       secretName: cannon-nginz-cert
     externalDNS:
       enabled: false
+      ttl: "10m"
     certManager:
       # When certManager is not enabled, certificates must be provided at
       # .secrets.nginz.tls.crt and .secrets.nginz.tls.key.
