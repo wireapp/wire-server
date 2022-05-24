@@ -55,12 +55,12 @@ uploadKeyPackages brig store sk u c n = do
           <> "@"
           <> T.unpack (domainText (qDomain u))
   kps <-
-    replicateM n . liftIO . spawn . shell . unwords $
+    replicateM n . liftIO . flip spawn Nothing . shell . unwords $
       cmd0 <> ["key-package", clientId]
   when (sk == SetKey) $
     do
       pk <-
-        liftIO . spawn . shell . unwords $
+        liftIO . flip spawn Nothing . shell . unwords $
           cmd0 <> ["public-key", clientId]
       put
         ( brig

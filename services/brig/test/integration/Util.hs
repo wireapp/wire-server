@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NumericUnderscores #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2020 Wire Swiss GmbH <opensource@wire.com>
@@ -15,26 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 -- for SES notifications
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -fno-warn-orphans -Wno-deprecations #-}
-
--- This file is part of the Wire Server implementation.
---
--- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
---
--- This program is free software: you can redistribute it and/or modify it under
--- the terms of the GNU Affero General Public License as published by the Free
--- Software Foundation, either version 3 of the License, or (at your option) any
--- later version.
---
--- This program is distributed in the hope that it will be useful, but WITHOUT
--- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
--- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
--- details.
---
--- You should have received a copy of the GNU Affero General Public License along
--- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Util where
 
@@ -55,6 +38,7 @@ import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth
 import qualified Brig.ZAuth as ZAuth
+import Control.Concurrent.Async
 import Control.Exception (throw)
 import Control.Lens ((^.), (^?), (^?!))
 import Control.Monad.Catch (MonadCatch, MonadMask)
@@ -695,6 +679,27 @@ getConversationQualified galley usr cnv =
       . paths ["conversations", toByteString' (qDomain cnv), toByteString' (qUnqualified cnv)]
       . zAuthAccess usr "conn"
 
+createMLSConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> m ResponseLBS
+createMLSConversation galley zusr = do
+  let conv =
+        NewConv
+          []
+          mempty
+          (checked "gossip")
+          mempty
+          Nothing
+          Nothing
+          Nothing
+          Nothing
+          roleNameWireAdmin
+          ProtocolMLSTag
+  post $
+    galley
+      . path "/conversations"
+      . zUser zusr
+      . zConn "conn"
+      . json conv
+
 createConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
 createConversation galley zusr usersToAdd = do
   let conv =
@@ -1254,10 +1259,18 @@ runWaiTestFedClient ::
 runWaiTestFedClient domain action =
   runReaderT (unWaiTestFedClient action) domain
 
-spawn :: CreateProcess -> IO ByteString
-spawn cp = do
-  (mout, ex) <- withCreateProcess cp {std_out = CreatePipe} $ \_ mouth _ ph ->
-    (,) <$> traverse BS.hGetContents mouth <*> waitForProcess ph
+spawn :: HasCallStack => CreateProcess -> Maybe ByteString -> IO ByteString
+spawn cp minput = do
+  (mout, ex) <- withCreateProcess
+    cp
+      { std_out = CreatePipe,
+        std_in = if isJust minput then CreatePipe else Inherit
+      }
+    $ \minh mouth _ ph ->
+      let writeInput = for_ ((,) <$> minput <*> minh) $ \(input, inh) ->
+            BS.hPutStr inh input >> hClose inh
+          readOutput = (,) <$> traverse BS.hGetContents mouth <*> waitForProcess ph
+       in fmap snd $ concurrently writeInput readOutput
   case (mout, ex) of
     (Just out, ExitSuccess) -> pure out
     _ -> assertFailure "Failed spawning process"
