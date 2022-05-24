@@ -118,6 +118,8 @@ import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Brig.Sem.PasswordResetStore as E
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
 import qualified Brig.Sem.PasswordResetSupply as E
+import Brig.Sem.UserQuery (UserQuery)
+import Brig.Sem.UserQuery.Cassandra
 import qualified Brig.Team.DB as Team
 import Brig.Types
 import Brig.Types.Code (Timeout (..))
@@ -479,10 +481,18 @@ checkRestrictedUserCreation new = do
 -------------------------------------------------------------------------------
 -- Update Profile
 
-updateUser :: UserId -> Maybe ConnId -> UserUpdate -> AllowSCIMUpdates -> ExceptT UpdateProfileError (AppT r) ()
+updateUser ::
+  Member UserQuery r =>
+  UserId ->
+  Maybe ConnId ->
+  UserUpdate ->
+  AllowSCIMUpdates ->
+  ExceptT UpdateProfileError (AppT r) ()
 updateUser uid mconn uu allowScim = do
+  loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
+  locale <- setDefaultUserLocale <$> view settings
   for_ (uupName uu) $ \newName -> do
-    mbUser <- lift . wrapClient $ Data.lookupUser WithPendingInvitations uid
+    mbUser <- lift . liftSem $ Data.lookupUser loc locale WithPendingInvitations uid
     user <- maybe (throwE ProfileNotFound) pure mbUser
     unless
       ( userManagedBy user /= ManagedByScim
@@ -513,11 +523,19 @@ changeManagedBy uid conn (ManagedByUpdate mb) = do
 --------------------------------------------------------------------------------
 -- Change Handle
 
-changeHandle :: UserId -> Maybe ConnId -> Handle -> AllowSCIMUpdates -> ExceptT ChangeHandleError (AppT r) ()
+changeHandle ::
+  Member UserQuery r =>
+  UserId ->
+  Maybe ConnId ->
+  Handle ->
+  AllowSCIMUpdates ->
+  ExceptT ChangeHandleError (AppT r) ()
 changeHandle uid mconn hdl allowScim = do
   when (isBlacklistedHandle hdl) $
     throwE ChangeHandleInvalid
-  usr <- lift $ wrapClient $ Data.lookupUser WithPendingInvitations uid
+  loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
+  locale <- setDefaultUserLocale <$> view settings
+  usr <- lift . liftSem $ Data.lookupUser loc locale WithPendingInvitations uid
   case usr of
     Nothing -> throwE ChangeHandleNoIdentity
     Just u -> do
@@ -586,7 +604,12 @@ checkHandles check num = reverse <$> collectFree [] check num
 
 -- | Call 'changeEmail' and process result: if email changes to itself, succeed, if not, send
 -- validation email.
-changeSelfEmail :: UserId -> Email -> AllowSCIMUpdates -> ExceptT Error.Error (AppT r) ChangeEmailResponse
+changeSelfEmail ::
+  Member UserQuery r =>
+  UserId ->
+  Email ->
+  AllowSCIMUpdates ->
+  ExceptT Error.Error (AppT r) ChangeEmailResponse
 changeSelfEmail u email allowScim = do
   changeEmail u email allowScim !>> Error.changeEmailError >>= \case
     ChangeEmailIdempotent ->
@@ -606,7 +629,12 @@ changeSelfEmail u email allowScim = do
         (userIdentity usr)
 
 -- | Prepare changing the email (checking a number of invariants).
-changeEmail :: UserId -> Email -> AllowSCIMUpdates -> ExceptT ChangeEmailError (AppT r) ChangeEmailResult
+changeEmail ::
+  Member UserQuery r =>
+  UserId ->
+  Email ->
+  AllowSCIMUpdates ->
+  ExceptT ChangeEmailError (AppT r) ChangeEmailResult
 changeEmail u email allowScim = do
   em <-
     either
@@ -621,7 +649,11 @@ changeEmail u email allowScim = do
   unless available $
     throwE $
       EmailExists email
-  usr <- maybe (throwM $ UserProfileNotFound u) pure =<< lift (wrapClient $ Data.lookupUser WithPendingInvitations u)
+  loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
+  locale <- setDefaultUserLocale <$> view settings
+  usr <-
+    maybe (throwM $ UserProfileNotFound u) pure
+      =<< lift (liftSem $ Data.lookupUser loc locale WithPendingInvitations u)
   case emailIdentity =<< userIdentity usr of
     -- The user already has an email address and the new one is exactly the same
     Just current | current == em -> pure ChangeEmailIdempotent
@@ -771,7 +803,7 @@ changeSingleAccountStatus ::
   AccountStatus ->
   ExceptT AccountStatusError m ()
 changeSingleAccountStatus uid status = do
-  unlessM (Data.userExists uid) $ throwE AccountNotFound
+  unlessM (lift $ runM $ userQueryToCassandra @m @'[Embed m] $ Data.userExists uid) $ throwE AccountNotFound
   ev <- mkUserEvent (List1.singleton uid) status
   lift $ do
     Data.updateStatus uid status
@@ -853,7 +885,12 @@ onActivated (PhoneActivated uid phone) = do
   pure (uid, Just (PhoneIdentity phone), False)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
-sendActivationCode :: Either Email Phone -> Maybe Locale -> Bool -> ExceptT SendActivationCodeError (AppT r) ()
+sendActivationCode ::
+  Member UserQuery r =>
+  Either Email Phone ->
+  Maybe Locale ->
+  Bool ->
+  ExceptT SendActivationCodeError (AppT r) ()
 sendActivationCode emailOrPhone loc call = case emailOrPhone of
   Left email -> do
     ek <-
@@ -916,7 +953,11 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
     sendActivationEmail ek uc uid = do
       -- FUTUREWORK(fisx): we allow for 'PendingInvitations' here, but I'm not sure this
       -- top-level function isn't another piece of a deprecated onboarding flow?
-      u <- maybe (notFound uid) pure =<< lift (wrapClient $ Data.lookupUser WithPendingInvitations uid)
+      locu <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
+      locale <- setDefaultUserLocale <$> view settings
+      u <-
+        maybe (notFound uid) pure
+          =<< lift (liftSem $ Data.lookupUser locu locale WithPendingInvitations uid)
       p <- wrapClientE $ mkPair ek (Just uc) (Just uid)
       let ident = userIdentity u
           name = userDisplayName u
@@ -1334,7 +1375,14 @@ lookupLocalProfiles ::
   [UserId] ->
   m [UserProfile]
 lookupLocalProfiles requestingUser others = do
-  users <- Data.lookupUsers NoPendingInvitations others >>= mapM userGC
+  loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
+  locale <- setDefaultUserLocale <$> view settings
+  users <-
+    runM
+      ( userQueryToCassandra @m @'[Embed m]
+          (Data.lookupUsers loc locale NoPendingInvitations others)
+      )
+      >>= mapM userGC
   css <- case requestingUser of
     Just localReqUser -> toMap <$> Data.lookupConnectionStatus (map userId users) [localReqUser]
     Nothing -> pure mempty
@@ -1342,7 +1390,7 @@ lookupLocalProfiles requestingUser others = do
   emailVisibility'' <- case emailVisibility' of
     EmailVisibleIfOnTeam -> pure EmailVisibleIfOnTeam'
     EmailVisibleIfOnSameTeam -> case requestingUser of
-      Just localReqUser -> EmailVisibleIfOnSameTeam' <$> getSelfInfo localReqUser
+      Just localReqUser -> EmailVisibleIfOnSameTeam' <$> getSelfInfo loc locale localReqUser
       Nothing -> pure EmailVisibleToSelf'
     EmailVisibleToSelf -> pure EmailVisibleToSelf'
   usersAndStatus <- for users $ \u -> (u,) <$> getLegalHoldStatus' u
@@ -1351,12 +1399,16 @@ lookupLocalProfiles requestingUser others = do
     toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
 
-    getSelfInfo :: UserId -> m (Maybe (TeamId, Team.TeamMember))
-    getSelfInfo selfId = do
+    getSelfInfo :: Local x -> Locale -> UserId -> m (Maybe (TeamId, Team.TeamMember))
+    getSelfInfo loc locale selfId = do
       -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
       -- to return 'Nothing'.  we could throw errors here if that happens, rather than just
       -- returning an empty profile list from 'lookupProfiles'.
-      mUser <- Data.lookupUser NoPendingInvitations selfId
+      mUser <-
+        runM
+          ( userQueryToCassandra @m @'[Embed m]
+              (Data.lookupUser loc locale NoPendingInvitations selfId)
+          )
       case userTeam =<< mUser of
         Nothing -> pure Nothing
         Just tid -> (tid,) <$$> Intra.getTeamMember selfId tid

@@ -22,17 +22,21 @@ module Brig.User.EJPD (ejpdRequest) where
 
 import Brig.API.Handler
 import Brig.API.User (lookupHandle)
-import Brig.App (AppT, wrapClient, wrapHttp)
+import Brig.App
 import qualified Brig.Data.Connection as Conn
 import Brig.Data.User (lookupUser)
 import qualified Brig.IO.Intra as Intra
-import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
+import Brig.Options (setDefaultUserLocale)
+import Brig.Sem.UserQuery (UserQuery)
+import Brig.Types.User (HavePendingInvitations (NoPendingInvitations), Locale)
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
 import Data.Handle (Handle)
 import Data.Id (UserId)
+import Data.Qualified
 import qualified Data.Set as Set
 import Imports hiding (head)
+import Polysemy
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Connection (Relation, RelationWithHistory (..), relationDropHistory)
 import qualified Wire.API.Push.Token as PushTok
@@ -40,20 +44,27 @@ import Wire.API.Routes.Internal.Brig.EJPD (EJPDRequestBody (EJPDRequestBody), EJ
 import qualified Wire.API.Team.Member as Team
 import Wire.API.User (User, userDisplayName, userEmail, userHandle, userId, userPhone, userTeam)
 
-ejpdRequest :: Maybe Bool -> EJPDRequestBody -> (Handler r) EJPDResponseBody
+ejpdRequest ::
+  forall r.
+  Member UserQuery r =>
+  Maybe Bool ->
+  EJPDRequestBody ->
+  (Handler r) EJPDResponseBody
 ejpdRequest includeContacts (EJPDRequestBody handles) = do
   ExceptT $ Right . EJPDResponseBody . catMaybes <$> forM handles (go1 (fromMaybe False includeContacts))
   where
     -- find uid given handle
     go1 :: Bool -> Handle -> (AppT r) (Maybe EJPDResponseItem)
     go1 includeContacts' handle = do
+      loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
+      locale <- setDefaultUserLocale <$> view settings
       mbUid <- wrapClient $ lookupHandle handle
-      mbUsr <- maybe (pure Nothing) (wrapClient . lookupUser NoPendingInvitations) mbUid
-      maybe (pure Nothing) (fmap Just . go2 includeContacts') mbUsr
+      mbUsr <- maybe (pure Nothing) (liftSem . lookupUser loc locale NoPendingInvitations) mbUid
+      maybe (pure Nothing) (fmap Just . go2 loc locale includeContacts') mbUsr
 
     -- construct response item given uid
-    go2 :: Bool -> User -> (AppT r) EJPDResponseItem
-    go2 includeContacts' target = do
+    go2 :: Local x -> Locale -> Bool -> User -> (AppT r) EJPDResponseItem
+    go2 loc locale includeContacts' target = do
       let uid = userId target
 
       ptoks <-
@@ -67,8 +78,8 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
 
             contactsFull :: [Maybe (Relation, EJPDResponseItem)] <-
               forM contacts $ \(uid', relationDropHistory -> rel) -> do
-                mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid'
-                maybe (pure Nothing) (fmap (Just . (rel,)) . go2 False) mbUsr
+                mbUsr <- liftSem $ lookupUser loc locale NoPendingInvitations uid'
+                maybe (pure Nothing) (fmap (Just . (rel,)) . go2 loc locale False) mbUsr
 
             pure . Just . Set.fromList . catMaybes $ contactsFull
           else do
@@ -82,8 +93,8 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
 
             contactsFull :: [Maybe EJPDResponseItem] <-
               forM members $ \uid' -> do
-                mbUsr <- wrapClient $ lookupUser NoPendingInvitations uid'
-                maybe (pure Nothing) (fmap Just . go2 False) mbUsr
+                mbUsr <- liftSem $ lookupUser loc locale NoPendingInvitations uid'
+                maybe (pure Nothing) (fmap Just . go2 loc locale False) mbUsr
 
             pure . Just . (,Team.toNewListType (memberList ^. Team.teamMemberListType)) . Set.fromList . catMaybes $ contactsFull
           _ -> do

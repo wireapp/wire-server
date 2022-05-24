@@ -78,6 +78,7 @@ import Brig.App (Env, currentTime, settings, viewFederationDomain, zauthEnv)
 import Brig.Data.Instances ()
 import Brig.Options
 import Brig.Password
+import Brig.Sem.UserQuery (UserQuery, getId, getUsers)
 import Brig.Types
 import Brig.Types.Intra
 import qualified Brig.ZAuth as ZAuth
@@ -96,6 +97,7 @@ import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Galley.Types.Bot
 import Imports
+import Polysemy
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User.RichInfo
 
@@ -362,8 +364,8 @@ updateStatus :: MonadClient m => UserId -> AccountStatus -> m ()
 updateStatus u s =
   retry x5 $ write userStatusUpdate (params LocalQuorum (s, u))
 
-userExists :: MonadClient m => UserId -> m Bool
-userExists uid = isJust <$> retry x1 (query1 idSelect (params LocalQuorum (Identity uid)))
+userExists :: Member UserQuery r => UserId -> Sem r Bool
+userExists uid = isJust <$> getId uid
 
 -- | Whether the account has been activated by verifying
 -- an email address or phone number.
@@ -381,8 +383,14 @@ filterActive us =
     isActiveUser (_, True, Just Active) = True
     isActiveUser _ = False
 
-lookupUser :: (MonadClient m, MonadReader Env m) => HavePendingInvitations -> UserId -> m (Maybe User)
-lookupUser hpi u = listToMaybe <$> lookupUsers hpi [u]
+lookupUser ::
+  Member UserQuery r =>
+  Local x ->
+  Locale ->
+  HavePendingInvitations ->
+  UserId ->
+  Sem r (Maybe User)
+lookupUser loc locale hpi u = listToMaybe <$> lookupUsers loc locale hpi [u]
 
 activateUser :: MonadClient m => UserId -> UserIdentity -> m ()
 activateUser u ident = do
@@ -441,11 +449,15 @@ lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params LocalQuorum (Ident
 -- | Return users with given IDs.
 --
 -- Skips nonexistent users. /Does not/ skip users who have been deleted.
-lookupUsers :: (MonadClient m, MonadReader Env m) => HavePendingInvitations -> [UserId] -> m [User]
-lookupUsers hpi usrs = do
-  loc <- setDefaultUserLocale <$> view settings
-  domain <- viewFederationDomain
-  toUsers domain loc hpi <$> retry x1 (query usersSelect (params LocalQuorum (Identity usrs)))
+lookupUsers ::
+  Member UserQuery r =>
+  Local x ->
+  Locale ->
+  HavePendingInvitations ->
+  [UserId] ->
+  Sem r [User]
+lookupUsers loc locale hpi usrs =
+  toUsers (tDomain loc) locale hpi <$> getUsers usrs
 
 lookupAccount :: (MonadClient m, MonadReader Env m) => UserId -> m (Maybe UserAccount)
 lookupAccount u = listToMaybe <$> lookupAccounts [u]
@@ -549,8 +561,6 @@ type UserRowInsert =
     ManagedBy
   )
 
-deriving instance Show UserRowInsert
-
 -- Represents a 'UserAccount'
 type AccountRow =
   ( UserId,
@@ -572,16 +582,6 @@ type AccountRow =
     Maybe TeamId,
     Maybe ManagedBy
   )
-
-usersSelect :: PrepQuery R (Identity [UserId]) UserRow
-usersSelect =
-  "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
-  \activated, status, expires, language, country, provider, service, \
-  \handle, team, managed_by \
-  \FROM user where id IN ?"
-
-idSelect :: PrepQuery R (Identity UserId) (Identity UserId)
-idSelect = "SELECT id FROM user WHERE id = ?"
 
 nameSelect :: PrepQuery R (Identity UserId) (Identity Name)
 nameSelect = "SELECT name FROM user WHERE id = ?"

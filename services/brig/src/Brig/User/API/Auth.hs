@@ -27,6 +27,7 @@ import Brig.API.Types
 import qualified Brig.API.User as User
 import Brig.App
 import Brig.Phone
+import Brig.Sem.UserQuery (UserQuery)
 import Brig.Types.Intra (ReAuthUser, reAuthCode, reAuthCodeAction, reAuthPassword)
 import Brig.Types.User.Auth
 import qualified Brig.User.Auth as Auth
@@ -57,13 +58,16 @@ import Network.Wai.Utilities.Response (empty, json)
 import qualified Network.Wai.Utilities.Response as WaiResp
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
+import Polysemy
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import qualified Wire.API.User as Public
 import Wire.API.User.Auth as Public
 import Wire.Swagger as Doc (pendingLoginError)
 
-routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
+routesPublic ::
+  Member UserQuery r =>
+  Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   -- Note: this endpoint should always remain available at its unversioned
   -- path, since the login cookie hardcodes @/access@ as a path.
@@ -290,6 +294,7 @@ logout (Just (Left ut)) (Just (Left at)) = wrapHttpClientE (Auth.logout ut at) !
 logout (Just (Right ut)) (Just (Right at)) = wrapHttpClientE (Auth.logout ut at) !>> zauthError
 
 changeSelfEmailH ::
+  Member UserQuery r =>
   JSON
     ::: JsonRequest Public.EmailUpdate
     ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken))

@@ -38,7 +38,7 @@ import qualified Brig.Data.User as User
 import Brig.Email (mkEmailKey, validateEmail)
 import qualified Brig.IO.Intra as RPC
 import qualified Brig.InternalEvent.Types as Internal
-import Brig.Options (Settings (..))
+import Brig.Options (Settings (..), setDefaultUserLocale)
 import qualified Brig.Options as Opt
 import Brig.Password
 import Brig.Provider.DB (ServiceConn (..))
@@ -46,6 +46,8 @@ import qualified Brig.Provider.DB as DB
 import Brig.Provider.Email
 import qualified Brig.Provider.RPC as RPC
 import qualified Brig.Queue as Queue
+import Brig.Sem.UserQuery (UserQuery)
+import Brig.Sem.UserQuery.Cassandra
 import Brig.Team.Util
 import Brig.Types.Client (Client (..), ClientType (..), newClient, newClientPrekeys)
 import Brig.Types.Intra (AccountStatus (..), UserAccount (..))
@@ -97,6 +99,7 @@ import qualified OpenSSL.EVP.PKey as SSL
 import qualified OpenSSL.PEM as SSL
 import qualified OpenSSL.RSA as SSL
 import OpenSSL.Random (randBytes)
+import Polysemy
 import qualified Ssl.Util as SSL
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
@@ -116,7 +119,9 @@ import qualified Wire.API.User.Client as Public (Client, ClientCapability (Clien
 import qualified Wire.API.User.Client.Prekey as Public (PrekeyId)
 import qualified Wire.API.User.Identity as Public (Email)
 
-routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
+routesPublic ::
+  Member UserQuery r =>
+  Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   -- Public API (Unauthenticated) --------------------------------------------
 
@@ -878,14 +883,25 @@ updateServiceWhitelist uid con tid upd = do
       wrapClientE $ DB.deleteServiceWhitelist (Just tid) pid sid
       pure UpdateServiceWhitelistRespChanged
 
-addBotH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.AddBot -> (Handler r) Response
+addBotH ::
+  Member UserQuery r =>
+  UserId ::: ConnId ::: ConvId ::: JsonRequest Public.AddBot ->
+  (Handler r) Response
 addBotH (zuid ::: zcon ::: cid ::: req) = do
   mapExceptT wrapHttp $ guardSecondFactorDisabled (Just zuid)
   setStatus status201 . json <$> (addBot zuid zcon cid =<< parseJsonBody req)
 
-addBot :: UserId -> ConnId -> ConvId -> Public.AddBot -> (Handler r) Public.AddBotResponse
+addBot ::
+  Member UserQuery r =>
+  UserId ->
+  ConnId ->
+  ConvId ->
+  Public.AddBot ->
+  (Handler r) Public.AddBotResponse
 addBot zuid zcon cid add = do
-  zusr <- lift (wrapClient $ User.lookupUser NoPendingInvitations zuid) >>= maybeInvalidUser
+  loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
+  locale <- setDefaultUserLocale <$> view settings
+  zusr <- lift (liftSem $ User.lookupUser loc locale NoPendingInvitations zuid) >>= maybeInvalidUser
   let pid = addBotProvider add
   let sid = addBotService add
   -- Get the conversation and check preconditions
@@ -924,7 +940,6 @@ addBot zuid zcon cid add = do
   let botReq = Ext.NewBotRequest bid bcl busr bcnv btk bloc
   rs <- RPC.createBot scon botReq !>> StdError . serviceError
   -- Insert the bot user and client
-  locale <- Opt.setDefaultUserLocale <$> view settings
   let name = fromMaybe (serviceProfileName svp) (Ext.rsNewBotName rs)
   let assets = fromMaybe (serviceProfileAssets svp) (Ext.rsNewBotAssets rs)
   let colour = fromMaybe defaultAccentId (Ext.rsNewBotColour rs)
@@ -980,14 +995,22 @@ removeBot zusr zcon cid bid = do
 --------------------------------------------------------------------------------
 -- Bot API
 
-botGetSelfH :: BotId -> (Handler r) Response
+botGetSelfH ::
+  Member UserQuery r =>
+  BotId ->
+  (Handler r) Response
 botGetSelfH bot = do
   mapExceptT wrapHttp $ guardSecondFactorDisabled (Just (botUserId bot))
   json <$> botGetSelf bot
 
-botGetSelf :: BotId -> (Handler r) Public.UserProfile
+botGetSelf ::
+  Member UserQuery r =>
+  BotId ->
+  (Handler r) Public.UserProfile
 botGetSelf bot = do
-  p <- lift $ wrapClient $ User.lookupUser NoPendingInvitations (botUserId bot)
+  loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
+  locale <- setDefaultUserLocale <$> view settings
+  p <- lift . liftSem $ User.lookupUser loc locale NoPendingInvitations (botUserId bot)
   maybe (throwStd (errorToWai @'UserNotFound)) (pure . (`Public.publicProfile` UserLegalHoldNoConsent)) p
 
 botGetClientH :: BotId -> (Handler r) Response
@@ -1037,14 +1060,22 @@ botClaimUsersPrekeys body = do
     throwStd (errorToWai @'TooManyClients)
   Client.claimLocalMultiPrekeyBundles UnprotectedBot body !>> clientError
 
-botListUserProfilesH :: List UserId -> (Handler r) Response
+botListUserProfilesH ::
+  Member UserQuery r =>
+  List UserId ->
+  (Handler r) Response
 botListUserProfilesH uids = do
   mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing -- should we check all user ids?
   json <$> botListUserProfiles uids
 
-botListUserProfiles :: List UserId -> (Handler r) [Public.BotUserView]
+botListUserProfiles ::
+  Member UserQuery r =>
+  List UserId ->
+  (Handler r) [Public.BotUserView]
 botListUserProfiles uids = do
-  us <- lift . wrapClient $ User.lookupUsers NoPendingInvitations (fromList uids)
+  loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
+  locale <- setDefaultUserLocale <$> view settings
+  us <- lift . liftSem $ User.lookupUsers loc locale NoPendingInvitations (fromList uids)
   pure (map mkBotUserView us)
 
 botGetUserClientsH :: UserId -> (Handler r) Response
@@ -1058,15 +1089,24 @@ botGetUserClients uid =
   where
     pubClient c = Public.PubClient (clientId c) (clientClass c)
 
-botDeleteSelfH :: BotId ::: ConvId -> (Handler r) Response
+botDeleteSelfH ::
+  Member UserQuery r =>
+  BotId ::: ConvId ->
+  (Handler r) Response
 botDeleteSelfH (bid ::: cid) = do
   mapExceptT wrapHttp $ guardSecondFactorDisabled (Just (botUserId bid))
   empty <$ botDeleteSelf bid cid
 
-botDeleteSelf :: BotId -> ConvId -> (Handler r) ()
+botDeleteSelf ::
+  Member UserQuery r =>
+  BotId ->
+  ConvId ->
+  (Handler r) ()
 botDeleteSelf bid cid = do
+  loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
+  locale <- setDefaultUserLocale <$> view settings
   mapExceptT wrapHttp $ guardSecondFactorDisabled (Just (botUserId bid))
-  bot <- lift . wrapClient $ User.lookupUser NoPendingInvitations (botUserId bid)
+  bot <- lift . liftSem $ User.lookupUser loc locale NoPendingInvitations (botUserId bid)
   _ <- maybeInvalidBot (userService =<< bot)
   _ <- lift $ wrapHttpClient $ deleteBot (botUserId bid) Nothing bid cid
   pure ()
@@ -1102,6 +1142,7 @@ activate pid old new = do
   wrapClientE $ DB.insertKey pid (mkEmailKey <$> old) emailKey
 
 deleteBot ::
+  forall m.
   ( MonadHttp m,
     MonadReader Env m,
     MonadIO m,
@@ -1120,7 +1161,12 @@ deleteBot zusr zcon bid cid = do
   ev <- RPC.removeBotMember zusr zcon cid bid
   -- Delete the bot user and client
   let buid = botUserId bid
-  mbUser <- User.lookupUser NoPendingInvitations buid
+  loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
+  locale <- setDefaultUserLocale <$> view settings
+  mbUser <-
+    runM $
+      userQueryToCassandra @m @'[Embed m] $
+        User.lookupUser loc locale NoPendingInvitations buid
   User.lookupClients buid >>= mapM_ (User.rmClient buid . clientId)
   for_ (userService =<< mbUser) $ \sref -> do
     let pid = sref ^. serviceRefProvider

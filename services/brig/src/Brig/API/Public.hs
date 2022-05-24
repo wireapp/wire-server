@@ -48,6 +48,7 @@ import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
+import Brig.Sem.UserQuery (UserQuery)
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
@@ -180,8 +181,20 @@ swaggerDocsAPI (Just V1) =
     $ $(embedLazyByteString =<< makeRelativeToProject "docs/swagger-v1.json")
 swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
 
-servantSitemap :: ServerT BrigAPI (Handler r)
-servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> propertiesAPI :<|> mlsAPI
+servantSitemap ::
+  forall r.
+  Member UserQuery r =>
+  ServerT BrigAPI (Handler r)
+servantSitemap =
+  userAPI
+    :<|> selfAPI
+    :<|> accountAPI
+    :<|> clientAPI
+    :<|> prekeyAPI
+    :<|> userClientAPI
+    :<|> connectionAPI
+    :<|> propertiesAPI
+    :<|> mlsAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -275,7 +288,13 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
 sitemap ::
-  Members '[P.TinyLog, PasswordResetStore, PasswordResetSupply] r =>
+  Members
+    '[ P.TinyLog,
+       PasswordResetStore,
+       PasswordResetSupply,
+       UserQuery
+     ]
+    r =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   -- User Handle API ----------------------------------------------------
@@ -439,7 +458,13 @@ sitemap = do
 
 apiDocs ::
   forall r.
-  Members '[P.TinyLog, PasswordResetStore, PasswordResetSupply] r =>
+  Members
+    '[ P.TinyLog,
+       PasswordResetStore,
+       PasswordResetSupply,
+       UserQuery
+     ]
+    r =>
   Routes Doc.ApiBuilder (Handler r) ()
 apiDocs =
   get
@@ -603,20 +628,29 @@ getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
   maybe (throwStd (errorToWai @'E.ClientNotFound)) (pure . Public.clientCapabilities) mclient
 
-getRichInfoH :: UserId ::: UserId ::: JSON -> (Handler r) Response
+getRichInfoH ::
+  Member UserQuery r =>
+  UserId ::: UserId ::: JSON ->
+  (Handler r) Response
 getRichInfoH (self ::: user ::: _) =
   json <$> getRichInfo self user
 
-getRichInfo :: UserId -> UserId -> (Handler r) Public.RichInfoAssocList
+getRichInfo ::
+  Member UserQuery r =>
+  UserId ->
+  UserId ->
+  (Handler r) Public.RichInfoAssocList
 getRichInfo self user = do
+  loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
+  locale <- setDefaultUserLocale <$> view settings
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
   selfUser <-
     ifNothing (errorToWai @'E.UserNotFound)
-      =<< lift (wrapClient $ Data.lookupUser NoPendingInvitations self)
+      =<< lift (liftSem $ Data.lookupUser loc locale NoPendingInvitations self)
   otherUser <-
     ifNothing (errorToWai @'E.UserNotFound)
-      =<< lift (wrapClient $ Data.lookupUser NoPendingInvitations user)
+      =<< lift (liftSem $ Data.lookupUser loc locale NoPendingInvitations user)
   case (Public.userTeam selfUser, Public.userTeam otherUser) of
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
@@ -756,7 +790,12 @@ newtype GetActivationCodeResp
 instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-updateUser :: UserId -> ConnId -> Public.UserUpdate -> (Handler r) (Maybe Public.UpdateProfileError)
+updateUser ::
+  Member UserQuery r =>
+  UserId ->
+  ConnId ->
+  Public.UserUpdate ->
+  (Handler r) (Maybe Public.UpdateProfileError)
 updateUser uid conn uu = do
   eithErr <- lift $ runExceptT $ API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates
   pure $ either Just (const Nothing) eithErr
@@ -811,7 +850,12 @@ getHandleInfoUnqualifiedH self handle = do
   Public.UserHandleInfo . Public.profileQualifiedId
     <$$> Handle.getHandleInfo self (Qualified handle domain)
 
-changeHandle :: UserId -> ConnId -> Public.HandleUpdate -> (Handler r) (Maybe Public.ChangeHandleError)
+changeHandle ::
+  Member UserQuery r =>
+  UserId ->
+  ConnId ->
+  Public.HandleUpdate ->
+  (Handler r) (Maybe Public.ChangeHandleError)
 changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
   handle <- maybe (throwError Public.ChangeHandleInvalid) pure $ parseHandle h
   API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
@@ -844,13 +888,19 @@ completePasswordResetH (_ ::: req) = do
   API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
   pure empty
 
-sendActivationCodeH :: JsonRequest Public.SendActivationCode -> (Handler r) Response
+sendActivationCodeH ::
+  Member UserQuery r =>
+  JsonRequest Public.SendActivationCode ->
+  (Handler r) Response
 sendActivationCodeH req =
   empty <$ (sendActivationCode =<< parseJsonBody req)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
-sendActivationCode :: Public.SendActivationCode -> (Handler r) ()
+sendActivationCode ::
+  Member UserQuery r =>
+  Public.SendActivationCode ->
+  (Handler r) ()
 sendActivationCode Public.SendActivationCode {..} = do
   either customerExtensionCheckBlockedDomains (const $ pure ()) saUserKey
   checkWhitelist saUserKey
@@ -965,7 +1015,12 @@ verifyDeleteUserH (r ::: _) = do
   API.verifyDeleteUser body !>> deleteUserError
   pure (setStatus status200 empty)
 
-updateUserEmail :: UserId -> UserId -> Public.EmailUpdate -> (Handler r) ()
+updateUserEmail ::
+  Member UserQuery r =>
+  UserId ->
+  UserId ->
+  Public.EmailUpdate ->
+  (Handler r) ()
 updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   maybeZuserTeamId <- lift $ wrapClient $ Data.lookupUserTeam zuserId
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions

@@ -44,6 +44,7 @@ import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
+import Brig.Sem.UserQuery (UserQuery)
 import qualified Brig.Team.API as Team
 import Brig.Team.DB (lookupInvitationByEmail)
 import Brig.Types
@@ -95,10 +96,14 @@ import Wire.API.User.RichInfo
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
 
-servantSitemap :: ServerT BrigIRoutes.API (Handler r)
+servantSitemap ::
+  Member UserQuery r =>
+  ServerT BrigIRoutes.API (Handler r)
 servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI
 
-ejpdAPI :: ServerT BrigIRoutes.EJPD_API (Handler r)
+ejpdAPI ::
+  Member UserQuery r =>
+  ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
   Brig.User.EJPD.ejpdRequest
     :<|> Named @"get-account-feature-config" getAccountFeatureConfig
@@ -169,9 +174,15 @@ mapKeyPackageRefsInternal bundle = do
     for_ (kpbEntries bundle) $ \e ->
       Data.mapKeyPackageRef (kpbeRef e) (kpbeUser e) (kpbeClient e)
 
-getVerificationCode :: UserId -> VerificationAction -> (Handler r) (Maybe Code.Value)
+getVerificationCode ::
+  Member UserQuery r =>
+  UserId ->
+  VerificationAction ->
+  (Handler r) (Maybe Code.Value)
 getVerificationCode uid action = do
-  user <- wrapClientE $ Api.lookupUser NoPendingInvitations uid
+  loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
+  locale <- setDefaultUserLocale <$> view settings
+  user <- lift . liftSem $ Api.lookupUser loc locale NoPendingInvitations uid
   maybe (pure Nothing) (lookupCode action) (userEmail =<< user)
   where
     lookupCode :: VerificationAction -> Email -> (Handler r) (Maybe Code.Value)
@@ -187,7 +198,12 @@ swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
 -- Sitemap (wai-route)
 
 sitemap ::
-  Members '[PasswordResetStore, PasswordResetSupply] r =>
+  Members
+    '[ PasswordResetStore,
+       PasswordResetSupply,
+       UserQuery
+     ]
+    r =>
   Routes a (Handler r) ()
 sitemap = do
   get "/i/status" (continue $ const $ pure empty) true
@@ -416,7 +432,10 @@ deleteUserNoVerify uid = do
       >>= ifNothing (errorToWai @'E.UserNotFound)
   lift $ API.deleteUserNoVerify uid
 
-changeSelfEmailMaybeSendH :: UserId ::: Bool ::: JsonRequest EmailUpdate -> (Handler r) Response
+changeSelfEmailMaybeSendH ::
+  Member UserQuery r =>
+  UserId ::: Bool ::: JsonRequest EmailUpdate ->
+  (Handler r) Response
 changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
   email <- euEmail <$> parseJsonBody req
   changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email API.AllowSCIMUpdates >>= \case
@@ -425,7 +444,13 @@ changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
-changeSelfEmailMaybeSend :: UserId -> MaybeSendEmail -> Email -> API.AllowSCIMUpdates -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSend ::
+  Member UserQuery r =>
+  UserId ->
+  MaybeSendEmail ->
+  Email ->
+  API.AllowSCIMUpdates ->
+  (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   API.changeSelfEmail u email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
@@ -642,19 +667,35 @@ getRichInfoMulti :: [UserId] -> (Handler r) [(UserId, RichInfo)]
 getRichInfoMulti uids =
   lift (wrapClient $ API.lookupRichInfoMultiUsers uids)
 
-updateHandleH :: UserId ::: JSON ::: JsonRequest HandleUpdate -> (Handler r) Response
+updateHandleH ::
+  Member UserQuery r =>
+  UserId ::: JSON ::: JsonRequest HandleUpdate ->
+  (Handler r) Response
 updateHandleH (uid ::: _ ::: body) = empty <$ (updateHandle uid =<< parseJsonBody body)
 
-updateHandle :: UserId -> HandleUpdate -> (Handler r) ()
+updateHandle ::
+  Member UserQuery r =>
+  UserId ->
+  HandleUpdate ->
+  (Handler r) ()
 updateHandle uid (HandleUpdate handleUpd) = do
   handle <- validateHandle handleUpd
   API.changeHandle uid Nothing handle API.AllowSCIMUpdates !>> changeHandleError
 
-updateUserNameH :: UserId ::: JSON ::: JsonRequest NameUpdate -> (Handler r) Response
+updateUserNameH ::
+  Member UserQuery r =>
+  UserId ::: JSON ::: JsonRequest NameUpdate ->
+  (Handler r) Response
 updateUserNameH (uid ::: _ ::: body) = empty <$ (updateUserName uid =<< parseJsonBody body)
 
-updateUserName :: UserId -> NameUpdate -> (Handler r) ()
+updateUserName ::
+  Member UserQuery r =>
+  UserId ->
+  NameUpdate ->
+  (Handler r) ()
 updateUserName uid (NameUpdate nameUpd) = do
+  loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
+  locale <- setDefaultUserLocale <$> view settings
   name <- either (const $ throwStd (errorToWai @'E.InvalidUser)) pure $ mkName nameUpd
   let uu =
         UserUpdate
@@ -663,7 +704,7 @@ updateUserName uid (NameUpdate nameUpd) = do
             uupAssets = Nothing,
             uupAccentId = Nothing
           }
-  lift (wrapClient $ Data.lookupUser WithPendingInvitations uid) >>= \case
+  lift (liftSem $ Data.lookupUser loc locale WithPendingInvitations uid) >>= \case
     Just _ -> API.updateUser uid Nothing uu API.AllowSCIMUpdates !>> updateProfileError
     Nothing -> throwStd (errorToWai @'E.InvalidUser)
 

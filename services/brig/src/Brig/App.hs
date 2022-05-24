@@ -100,6 +100,8 @@ import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetStore.CodeStore
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
 import Brig.Sem.PasswordResetSupply.IO
+import Brig.Sem.UserQuery (UserQuery)
+import Brig.Sem.UserQuery.Cassandra
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
 import Brig.Types (Locale (..))
@@ -442,7 +444,8 @@ closeEnv e = do
 -- App Monad
 
 type BrigCanonicalEffects =
-  '[ PasswordResetStore,
+  '[ UserQuery,
+     PasswordResetStore,
      Now,
      PasswordResetSupply,
      CodeStore,
@@ -613,6 +616,7 @@ runAppT e (AppT ma) =
     . passwordResetSupplyToIO
     . nowToIOAction (_currentTime e)
     . passwordResetStoreToCodeStore
+    . userQueryToCassandra @Cas.Client
     $ runReaderT ma e
 
 locationOf :: (MonadIO m, MonadReader Env m) => IP -> m (Maybe Location)

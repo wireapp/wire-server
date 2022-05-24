@@ -27,6 +27,7 @@ import Bilge
 import Bilge.Assert
 import Brig.Data.User (lookupFeatureConferenceCalling, lookupStatus, userExists)
 import qualified Brig.Options as Opt
+import Brig.Sem.UserQuery.Cassandra
 import Brig.Types.Intra
 import Brig.Types.User (User (userQualifiedId), userId)
 import qualified Cassandra as Cass
@@ -41,6 +42,7 @@ import Data.Id
 import Data.Qualified (Qualified (qDomain, qUnqualified))
 import qualified Data.Set as Set
 import Imports
+import Polysemy
 import Servant.API (ToHttpApiData (toUrlPiece))
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
@@ -88,7 +90,7 @@ testSuspendNonExistingUser :: forall m. TestConstraints m => Cass.ClientState ->
 testSuspendNonExistingUser db brig = do
   nonExistingUserId <- randomId
   setAccountStatus brig nonExistingUserId Suspended !!! const 404 === statusCode
-  isUserCreated <- Cass.runClient db (userExists nonExistingUserId)
+  isUserCreated <- Cass.runClient db (runM $ userQueryToCassandra @Cass.Client @'[Embed Cass.Client] $ userExists nonExistingUserId)
   liftIO $ isUserCreated @?= False
 
 setAccountStatus :: (MonadIO m, MonadHttp m, HasCallStack, MonadCatch m) => Brig -> UserId -> AccountStatus -> m ResponseLBS
