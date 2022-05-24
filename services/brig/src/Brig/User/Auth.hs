@@ -52,6 +52,7 @@ import Brig.Email
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opt
 import Brig.Phone
+import Brig.Sem.UserQuery.Cassandra
 import Brig.Types.Common
 import Brig.Types.Intra
 import Brig.Types.User
@@ -75,6 +76,7 @@ import Data.Misc (PlainTextPassword (..))
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
+import Polysemy
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
@@ -87,6 +89,7 @@ data Access u = Access
   }
 
 sendLoginCode ::
+  forall m.
   ( MonadClient m,
     MonadReader Env m,
     MonadCatch m,
@@ -111,7 +114,8 @@ sendLoginCode phone call force = do
       unless (isNothing pw || force) $
         throwE SendLoginPasswordExists
       lift $ do
-        l <- Data.lookupLocale u
+        defLoc <- Opt.setDefaultUserLocale <$> view settings
+        l <- runM $ userQueryToCassandra @m @'[Embed m] $ Data.lookupLocale defLoc u
         c <- Data.createLoginCode u
         void . forPhoneKey pk $ \ph ->
           if call

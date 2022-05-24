@@ -78,7 +78,7 @@ import Brig.App (Env, currentTime, settings, viewFederationDomain, zauthEnv)
 import Brig.Data.Instances ()
 import Brig.Options
 import Brig.Password
-import Brig.Sem.UserQuery (UserQuery, getId, getName, getUsers)
+import Brig.Sem.UserQuery (UserQuery, getId, getLocale, getName, getUsers)
 import Brig.Types
 import Brig.Types.Intra
 import qualified Brig.ZAuth as ZAuth
@@ -402,10 +402,12 @@ deactivateUser :: MonadClient m => UserId -> m ()
 deactivateUser u =
   retry x5 $ write userDeactivatedUpdate (params LocalQuorum (Identity u))
 
-lookupLocale :: (MonadClient m, MonadReader Env m) => UserId -> m (Maybe Locale)
-lookupLocale u = do
-  defLoc <- setDefaultUserLocale <$> view settings
-  fmap (toLocale defLoc) <$> retry x1 (query1 localeSelect (params LocalQuorum (Identity u)))
+lookupLocale ::
+  Member UserQuery r =>
+  Locale ->
+  UserId ->
+  Sem r (Maybe Locale)
+lookupLocale defLoc u = fmap (toLocale defLoc) <$> getLocale u
 
 lookupPassword :: MonadClient m => UserId -> m (Maybe Password)
 lookupPassword u =
@@ -577,9 +579,6 @@ type AccountRow =
     Maybe TeamId,
     Maybe ManagedBy
   )
-
-localeSelect :: PrepQuery R (Identity UserId) (Maybe Language, Maybe Country)
-localeSelect = "SELECT language, country FROM user WHERE id = ?"
 
 authSelect :: PrepQuery R (Identity UserId) (Maybe Password, Maybe AccountStatus)
 authSelect = "SELECT password, status FROM user WHERE id = ?"

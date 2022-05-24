@@ -800,10 +800,16 @@ updateUser uid conn uu = do
   eithErr <- lift $ runExceptT $ API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates
   pure $ either Just (const Nothing) eithErr
 
-changePhone :: UserId -> ConnId -> Public.PhoneUpdate -> (Handler r) (Maybe Public.ChangePhoneError)
+changePhone ::
+  Member UserQuery r =>
+  UserId ->
+  ConnId ->
+  Public.PhoneUpdate ->
+  (Handler r) (Maybe Public.ChangePhoneError)
 changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
   (adata, pn) <- API.changePhone u phone
-  loc <- lift $ wrapClient $ API.lookupLocale u
+  defLocale <- setDefaultUserLocale <$> view settings
+  loc <- lift . liftSem $ API.lookupLocale defLocale u
   let apair = (activationKey adata, activationCode adata)
   lift . wrapClient $ sendActivationSms pn apair loc
 
@@ -861,20 +867,31 @@ changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
   API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
 
 beginPasswordResetH ::
-  Members '[P.TinyLog, PasswordResetStore] r =>
+  Members
+    '[ P.TinyLog,
+       PasswordResetStore,
+       UserQuery
+     ]
+    r =>
   JSON ::: JsonRequest Public.NewPasswordReset ->
   (Handler r) Response
 beginPasswordResetH (_ ::: req) =
   setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
 
 beginPasswordReset ::
-  Members '[P.TinyLog, PasswordResetStore] r =>
+  Members
+    '[ P.TinyLog,
+       PasswordResetStore,
+       UserQuery
+     ]
+    r =>
   Public.NewPasswordReset ->
   (Handler r) ()
 beginPasswordReset (Public.NewPasswordReset target) = do
   checkWhitelist target
   (u, pair) <- API.beginPasswordReset target !>> pwResetError
-  loc <- lift $ wrapClient $ API.lookupLocale u
+  defLocale <- setDefaultUserLocale <$> view settings
+  loc <- lift . liftSem $ API.lookupLocale defLocale u
   lift $ case target of
     Left email -> sendPasswordResetMail email pair loc
     Right phone -> wrapClient $ sendPasswordResetSms phone pair loc
