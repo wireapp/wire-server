@@ -6,6 +6,8 @@ teamSettings:
 # Account pages may be useful to enable password reset or email validation done after the initial registration
 accountPages:
   enabled: false
+websockets:
+  enabled: true
 webapp:
   enabled: true
 fakeS3:
@@ -96,7 +98,8 @@ service:
 # config:
 #   dns:
 #     https: nginz-https.<domain>
-#     ssl: nginz-ssl.<domain>
+#     ssl: nginz-ssl.<domain> # For websockets
+#     ^ ssl is ignored if websockets.enabled == false
 #     webapp: webapp.<domain>
 #     ^ webapp is ignored if webapp.enabled == false
 #     fakeS3: assets.<domain>

@@ -27,7 +27,9 @@ spec:
 
   dnsNames:
     - {{ .Values.config.dns.https }}
+    {{- if .Values.websockets.enabled }}
     - {{ .Values.config.dns.ssl }}
+    {{- end }}
     {{- if .Values.webapp.enabled }}
     - {{ .Values.config.dns.webapp }}
     {{- end }}
