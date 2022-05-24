@@ -5,6 +5,9 @@
 # stopped. If, like other services we have a separate nginz and an
 # ingress-controller between the load balancer and the service, stopping any of
 # these pods would cause websockets to be disrupted.
+#
+# In the future, if desired, type=LoadBalancer could also become type=NodePort
+# if this is needed on some environments without loadbalancer support.
 apiVersion: v1
 kind: Service
 metadata:

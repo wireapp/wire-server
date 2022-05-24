@@ -56,6 +56,7 @@ nginx_conf:
       - all
       use_websockets: true
 
+# FUTUREWORK: allow resources for cannon and nginz to be different
 resources:
   requests:
     memory: "256Mi"
