@@ -7,7 +7,12 @@
 
 nginx_pid=$!
 
-trap "kill -QUIT $nginx_pid" EXIT
+cleanup () {
+    kill -QUIT $nginx_pid
+    wait $nginx_pid
+}
+
+trap "cleanup" EXIT
 
 watches=${WATCH_PATHS:-"/etc/wire/nginz/upstreams"}
 
