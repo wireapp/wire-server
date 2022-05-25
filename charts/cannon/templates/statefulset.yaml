@@ -68,7 +68,7 @@ spec:
           httpGet:
             path: /status
             port: {{ .Values.service.nginz.internalPort }}
-            scheme: HTTP
+            scheme: HTTPS
         resources:
 {{ toYaml .Values.resources | indent 12 }}
       {{- end }}
