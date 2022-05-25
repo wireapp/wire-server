@@ -69,6 +69,14 @@ spec:
             path: /status
             port: {{ .Values.service.nginz.internalPort }}
             scheme: HTTPS
+        lifecycle:
+          preStop:
+            exec:
+              # kubernetes by default sends a SIGTERM to the container,
+              # which would cause nginz to exit, breaking existing websocket connections.
+              # Instead we terminate gracefully and sleep given grace period + 5 seconds.
+              # (SIGTERM is still sent, but afterwards)
+              command: ["sh", "-c", "nginx -c /etc/wire/nginz/conf/nginx.conf -s quit && sleep {{ add .Values.config.drainOpts.gracePeriodSeconds 5 }}"]
         resources:
 {{ toYaml .Values.resources | indent 12 }}
       {{- end }}
