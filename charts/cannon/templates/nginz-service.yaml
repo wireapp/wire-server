@@ -25,6 +25,10 @@ metadata:
 {{ toYaml .Values.service.nginz.annotations | indent 4 }}
 spec:
   type: LoadBalancer
+  # This ensures websocket traffic does not go from one kubernetes node to
+  # another, if that happened, restarting the originating kubernetes node would
+  # cause all websocket connections to be severed at once.
+  externalTrafficPolicy: "Local"
   ports:
     - name: http
       port: {{ .Values.service.nginz.externalPort }}
