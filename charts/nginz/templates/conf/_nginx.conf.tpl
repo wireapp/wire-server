@@ -234,6 +234,7 @@ http {
     #
 
   {{ range $name, $locations := .Values.nginx_conf.upstreams -}}
+    {{- if not (has $name $.Values.nginx_conf.ignored_upstreams) -}}
     {{- range $location := $locations -}}
       {{- if hasKey $location "envs" -}}
         {{- range $env := $location.envs -}}
@@ -331,6 +332,7 @@ http {
         {{- end -}}
 
       {{- end -}}
+    {{- end -}}
     {{- end -}}
   {{- end }}
 

@@ -62,6 +62,11 @@ nginx_conf:
   # The list entries are combined with 'external_env_domain' to form a full url
   # regex that matches for all ports.
   randomport_allowlisted_origins: [] # default is empty by intention
+  # Add 'cannon' to 'ignored_upstreams' if you wish to make use of separate
+  # network traffic to cannon-with-its-own-nginz
+  # See also "Separate incoming websocket network traffic from the rest of the
+  # https traffic" section in the docs.
+  ignored_upstreams: []
   upstreams:
     cargohold:
     - path: /conversations/([^/]*)/assets
