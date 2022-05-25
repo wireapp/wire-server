@@ -1,0 +1,10 @@
+{{- if .Values.service.nginz.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cannon-nginz
+data:
+  nginx.conf: |2
+{{- include "cannon_nginz_nginx.conf" . | indent 4 }}
+{{ (.Files.Glob "conf/static/*").AsConfig | indent 2 }}
+{{- end }}

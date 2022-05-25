@@ -1,4 +1,4 @@
-{{- define "nginz_nginx.conf" }}
+{{- define "cannon_nginz_nginx.conf" }}
 user {{ .Values.nginx_conf.user }} {{ .Values.nginx_conf.group }};
 worker_processes {{ .Values.nginx_conf.worker_processes }};
 worker_rlimit_nofile {{ .Values.nginx_conf.worker_rlimit_nofile | default 1024 }};
@@ -163,7 +163,11 @@ http {
   #  Proxied Upstream Services
   #
 
-  include {{ .Values.nginx_conf.upstream_config }};
+  upstream cannon {
+      least_conn;
+      keepalive 32;
+      server localhost:{{ .Values.service.internalPort }};
+  }
 
   #
   # Mapping for websocket connections
@@ -181,8 +185,18 @@ http {
   #
 
   server {
-    listen {{ .Values.config.http.httpPort }};
-    listen {{ .Values.config.ws.wsPort }}{{ if (.Values.config.ws.useProxyProtocol) }} proxy_protocol{{ end }};
+    listen {{ .Values.service.nginz.internalPort }} ssl;
+
+    ssl_certificate /etc/wire/nginz/tls/tls.crt;
+    ssl_certificate_key /etc/wire/nginz/tls/tls.key;
+
+    ssl_protocols {{ .Values.nginx_conf.tls.protocols }};
+    ssl_ciphers {{ .Values.nginx_conf.tls.ciphers }};
+
+    # Disable session resumption. See comments in SQPIT-226 for more context and
+    # discussion.
+    ssl_session_tickets off;
+    ssl_session_cache off;
 
     zauth_keystore {{ .Values.nginx_conf.zauth_keystore }};
     zauth_acl      {{ .Values.nginx_conf.zauth_acl }};
@@ -234,16 +248,10 @@ http {
     #
 
   {{ range $name, $locations := .Values.nginx_conf.upstreams -}}
-    {{- if not (has $name $.Values.nginx_conf.ignored_upstreams) -}}
     {{- range $location := $locations -}}
       {{- if hasKey $location "envs" -}}
         {{- range $env := $location.envs -}}
           {{- if or (eq $env $.Values.nginx_conf.env) (eq $env "all") -}}
-
-            {{- if and (not (eq $.Values.nginx_conf.env "prod")) ($location.doc) -}}
-
-    rewrite ^/api-docs{{ $location.path }}  {{ $location.path }}/api-docs?base_url=https://{{ $.Values.nginx_conf.env }}-nginz-https.{{ $.Values.nginx_conf.external_env_domain }}/ break;
-            {{- end }}
 
             {{- if $location.strip_version }}
 
@@ -260,11 +268,6 @@ http {
         if ($sanitized_request ~ (.*)access_token=[^&\s]*(.*)) {
             set $sanitized_request $1access_token=****$2;
         }
-
-            {{- if ($location.basic_auth) }}
-        auth_basic "Restricted";
-        auth_basic_user_file {{ $.Values.nginx_conf.basic_auth_file }};
-            {{- end -}}
 
             {{- if ($location.disable_zauth) }}
         zauth off;
@@ -333,61 +336,7 @@ http {
 
       {{- end -}}
     {{- end -}}
-    {{- end -}}
   {{- end }}
-
-    {{ if not (eq $.Values.nginx_conf.env "prod")  }}
-    #
-    # Swagger Resource Listing
-    #
-
-    location /api-docs {
-        default_type application/json;
-        root {{ $.Values.nginx_conf.swagger_root }};
-        index resources.json;
-        if ($request_method = 'OPTIONS') {
-              add_header 'Access-Control-Allow-Methods' "GET, POST, PUT, DELETE, OPTIONS";
-              add_header 'Access-Control-Allow-Headers' "$http_access_control_request_headers, DNT,X-Mx-ReqToken,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type";
-              add_header 'Content-Type' 'text/plain; charset=UTF-8';
-              add_header 'Content-Length' 0;
-              return 204;
-        }
-        more_set_headers 'Access-Control-Allow-Origin: $http_origin';
-    }
-    {{ end }}
-
-    # Swagger UI
-
-    location /swagger-ui {
-        zauth  off;
-        gzip   off;
-        alias /opt/zwagger-ui;
-        types {
-            application/javascript  js;
-            text/css                css;
-            text/html               html;
-            image/png               png;
-        }
-    }
-
-    {{- if hasKey .Values.nginx_conf "deeplink" }}
-    location ~* ^/deeplink.(json|html)$ {
-        zauth off;
-        root /etc/wire/nginz/conf/;
-        types {
-            application/json  json;
-            text/html         html;
-        }
-        if ($request_method = 'OPTIONS') {
-                add_header 'Access-Control-Allow-Methods' "GET, OPTIONS";
-                add_header 'Access-Control-Allow-Headers' "$http_access_control_request_headers, DNT,X-Mx-ReqToken,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type";
-                add_header 'Content-Type' 'text/plain; charset=UTF-8';
-                add_header 'Content-Length' 0;
-                return 204;
-        }
-        more_set_headers 'Access-Control-Allow-Origin: $http_origin';
-    }
-    {{- end }}
   }
 }
 {{- end }}

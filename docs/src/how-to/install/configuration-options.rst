@@ -131,6 +131,10 @@ websocket.
 
 You're not expected to need to change these settings.
 
+The following options are only relevant during the restart of cannon itself.
+During a restart of nginz or ingress-controller, all websockets will get
+severed. If this is to be avoided, see section :ref:`separate-websocket-traffic`
+
 ``drainOpts``: Drain websockets in a controlled fashion when cannon receives a
 SIGTERM or SIGINT (this happens when a pod is terminated e.g. during rollout
 of a new version). Instead of waiting for connections to close on their own,
@@ -162,6 +166,59 @@ There is no way to entirely disable this behaviour, two extreme examples below
        gracePeriodSeconds: 25
        millisecondsBetweenBatches: 50
        minBatchSize: 20
+
+.. _separate-websocket-traffic:
+
+Separate incoming websocket network traffic from the rest of the https traffic
+-------------------------------------------------------------------------------
+
+By default, incoming network traffic for websockets comes through these network
+hops:
+
+Internet -> LoadBalancer -> kube-proxy -> nginx-ingress-controller -> nginz -> cannon
+
+In order to have graceful draining of websockets when something gets restarted, as it is not easily
+possible to implement the graceful draining on nginx-ingress-controller or nginz by itself, there is
+a configuration option to get the following network hops:
+
+Internet -> separate LoadBalancer for cannon only -> kube-proxy -> [nginz->cannon (2 containers in the same pod)]
+
+.. code:: yaml
+
+   # example on AWS when using cert-manager for TLS certificates and external-dns for DNS records
+   # (see wire-server/charts/cannon/values.yaml for more possible options)
+
+   # in your wire-server/values.yaml overrides:
+   cannon:
+     service:
+       nginz:
+         enabled: true
+         hostname: "nginz-ssl.example.com"
+         externalDNS:
+           enabled: true
+         certManager:
+           enabled: true
+         annotations:
+           service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+           service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+   nginz:
+     nginx_conf:
+       ignored_upstreams: ["cannon"]
+
+.. code:: yaml
+
+   # in your wire-server/secrets.yaml overrides:
+   cannon:
+     secrets:
+       nginz:
+         zAuth:
+           publicKeys: ... # same values as in nginz.secrets.zAuth.publicKeys
+
+.. code:: yaml
+
+   # in your nginx-ingress-services/values.yaml overrides:
+   websockets:
+     enabled: false
 
 
 Blocking creation of personal users, new teams

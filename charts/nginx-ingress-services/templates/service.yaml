@@ -10,6 +10,7 @@ spec:
       targetPort: 8080
   selector:
     wireService: nginz
+{{- if .Values.websockets.enabled }}
 ---
 apiVersion: v1
 kind: Service
@@ -22,6 +23,7 @@ spec:
       targetPort: 8081
   selector:
     wireService: nginz
+{{- end }}
 {{- if .Values.webapp.enabled }}
 ---
 apiVersion: v1
