@@ -29,7 +29,9 @@ spec:
         release: {{ .Release.Name }}
       annotations:
         checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.service.nginz.enabled }}
         checksum/nginz-configmap: {{ include (print .Template.BasePath "/nginz-configmap.yaml") . | sha256sum }}
+        {{- end }}
     spec:
       terminationGracePeriodSeconds: {{ add .Values.config.drainOpts.gracePeriodSeconds 5 }}
       containers:
@@ -77,9 +79,6 @@ spec:
           mountPath: /etc/wire/cannon/externalHost
         - name: cannon-config
           mountPath: /etc/wire/cannon/conf
-        - name: nginz-config
-          mountPath: /etc/wire/nginz/conf
-          readOnly: true
         ports:
         - name: http
           containerPort: {{ .Values.service.internalPort }}
