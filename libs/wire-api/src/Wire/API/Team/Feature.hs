@@ -473,10 +473,13 @@ modelTeamFeatureStatusWithConfig name cfgModel = Doc.defineModel (cs $ show name
 
 instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfig cfg) where
   schema =
-    object "TeamFeatureStatusWithConfig" $
+    object name $
       TeamFeatureStatusWithConfig
         <$> tfwcStatus .= field "status" schema
-        <*> tfwcConfig .= field "config" schema
+        <*> tfwcConfig .= field "config" inner
+    where
+      inner = schema @cfg
+      name = "TeamFeatureStatusWithConfig." <> fromMaybe "" (getName (schemaDoc inner))
 
 data TeamFeatureStatusWithConfigAndLockStatus (cfg :: *) = TeamFeatureStatusWithConfigAndLockStatus
   { tfwcapsStatus :: TeamFeatureStatusValue,
@@ -498,11 +501,14 @@ modelTeamFeatureStatusWithConfigAndLockStatus name cfgModel = Doc.defineModel (c
 
 instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfigAndLockStatus cfg) where
   schema =
-    object "TeamFeatureStatusWithConfigAndLockStatus" $
+    object name $
       TeamFeatureStatusWithConfigAndLockStatus
         <$> tfwcapsStatus .= field "status" schema
-        <*> tfwcapsConfig .= field "config" schema
+        <*> tfwcapsConfig .= field "config" inner
         <*> tfwcapsLockStatus .= field "lockStatus" schema
+    where
+      inner = schema @cfg
+      name = "TeamFeatureStatusWithConfigAndLockStatus." <> fromMaybe "" (getName (schemaDoc inner))
 
 ----------------------------------------------------------------------
 -- TeamFeatureClassifiedDomainsConfig
