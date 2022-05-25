@@ -5,7 +5,7 @@ Last updated: 2022-05-25
 
 On Monday, 2022-05-23 the Wire website wire.com was affected by an outage of our hosting provider.
 
-This outage only concerns **only wire.com** website and none of the services provided by Wire.
+This outage concerns **only wire.com** website and none of the services provided by Wire.
 
 ## Timeline
 
