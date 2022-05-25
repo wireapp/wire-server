@@ -19,7 +19,6 @@ config:
   ws:
     wsPort: 8081
     useProxyProtocol: true
-drainTimeout: 0
 terminationGracePeriodSeconds: 30
 nginx_conf:
   user: nginx
