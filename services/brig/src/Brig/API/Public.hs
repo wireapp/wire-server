@@ -29,7 +29,7 @@ where
 
 import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
-import Brig.API.Error
+import Brig.API.Error hiding (Error)
 import Brig.API.Handler
 import Brig.API.MLS.KeyPackages
 import qualified Brig.API.Properties as API
@@ -92,13 +92,15 @@ import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai
-import Network.Wai.Predicate hiding (result, setStatus)
+import Network.Wai.Predicate hiding (Error, result, setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthUserId)
 import Polysemy
+import qualified Polysemy.Error as P
+import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
@@ -183,7 +185,7 @@ swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
 
 servantSitemap ::
   forall r.
-  Member UserQuery r =>
+  Members '[P.Error ReAuthError, Input (Local ()), UserQuery] r =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
   userAPI
@@ -289,7 +291,8 @@ servantSitemap =
 
 sitemap ::
   Members
-    '[ P.TinyLog,
+    '[ Input (Local ()),
+       P.TinyLog,
        PasswordResetStore,
        PasswordResetSupply,
        UserQuery
@@ -459,7 +462,8 @@ sitemap = do
 apiDocs ::
   forall r.
   Members
-    '[ P.TinyLog,
+    '[ Input (Local ()),
+       P.TinyLog,
        PasswordResetStore,
        PasswordResetSupply,
        UserQuery
@@ -572,7 +576,13 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
     throwStd (errorToWai @'E.TooManyClients)
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
-addClient :: UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> (Handler r) NewClientResponse
+addClient ::
+  Members '[Input (Local ()), UserQuery] r =>
+  UserId ->
+  ConnId ->
+  Maybe IpAddr ->
+  Public.NewClient ->
+  Handler r NewClientResponse
 addClient usr con ip new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
@@ -583,7 +593,13 @@ addClient usr con ip new = do
     clientResponse :: Public.Client -> NewClientResponse
     clientResponse client = Servant.addHeader (Public.clientId client) client
 
-deleteClient :: UserId -> ConnId -> ClientId -> Public.RmClient -> (Handler r) ()
+deleteClient ::
+  Members '[Input (Local ()), P.Error ReAuthError, UserQuery] r =>
+  UserId ->
+  ConnId ->
+  ClientId ->
+  Public.RmClient ->
+  (Handler r) ()
 deleteClient usr con clt body =
   API.rmClient usr con clt (Public.rmPassword body) !>> clientError
 
@@ -661,7 +677,10 @@ getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
 -- | docs/reference/user/registration.md {#RefRegistration}
-createUser :: Public.NewUserPublic -> (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
+createUser ::
+  Members '[Input (Local ()), UserQuery] r =>
+  Public.NewUserPublic ->
+  Handler r (Either Public.RegisterError Public.RegisterSuccess)
 createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
   for_ (Public.newUserEmail new) $ mapExceptT wrapHttp . checkWhitelistWithError RegisterErrorWhitelistError . Left
@@ -730,7 +749,10 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
       Public.NewTeamMemberSSO _ ->
         Team.sendMemberWelcomeMail e t n l
 
-getSelf :: UserId -> (Handler r) Public.SelfProfile
+getSelf ::
+  Members '[Input (Local ()), UserQuery] r =>
+  UserId ->
+  Handler r Public.SelfProfile
 getSelf self =
   lift (API.lookupSelfProfile self)
     >>= ifNothing (errorToWai @'E.UserNotFound)
@@ -813,11 +835,19 @@ changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
   let apair = (activationKey adata, activationCode adata)
   lift . wrapClient $ sendActivationSms pn apair loc
 
-removePhone :: UserId -> ConnId -> (Handler r) (Maybe Public.RemoveIdentityError)
+removePhone ::
+  Members '[Input (Local ()), UserQuery] r =>
+  UserId ->
+  ConnId ->
+  Handler r (Maybe Public.RemoveIdentityError)
 removePhone self conn =
   lift . exceptTToMaybe $ API.removePhone self conn
 
-removeEmail :: UserId -> ConnId -> (Handler r) (Maybe Public.RemoveIdentityError)
+removeEmail ::
+  Members '[Input (Local ()), UserQuery] r =>
+  UserId ->
+  ConnId ->
+  Handler r (Maybe Public.RemoveIdentityError)
 removeEmail self conn =
   lift . exceptTToMaybe $ API.removeEmail self conn
 
@@ -1042,13 +1072,17 @@ getConnection self other = do
   lift . wrapClient $ Data.lookupConnection lself other
 
 deleteSelfUser ::
+  Members '[Input (Local ()), UserQuery] r =>
   UserId ->
   Public.DeleteUser ->
-  (Handler r) (Maybe Code.Timeout)
+  Handler r (Maybe Code.Timeout)
 deleteSelfUser u body =
   API.deleteSelfUser u (Public.deleteUserPassword body) !>> deleteUserError
 
-verifyDeleteUserH :: JsonRequest Public.VerifyDeleteUser ::: JSON -> (Handler r) Response
+verifyDeleteUserH ::
+  Members '[Input (Local ()), UserQuery] r =>
+  JsonRequest Public.VerifyDeleteUser ::: JSON ->
+  Handler r Response
 verifyDeleteUserH (r ::: _) = do
   body <- parseJsonBody r
   API.verifyDeleteUser body !>> deleteUserError
@@ -1120,7 +1154,11 @@ activate (Public.Activate tgt code dryrun)
     respond (Just ident) x = ActivationResp $ Public.ActivationResponse ident x
     respond Nothing _ = ActivationRespSuccessNoIdent
 
-sendVerificationCode :: Public.SendVerificationCode -> (Handler r) ()
+sendVerificationCode ::
+  forall r.
+  Members '[Input (Local ()), UserQuery] r =>
+  Public.SendVerificationCode ->
+  Handler r ()
 sendVerificationCode req = do
   let email = Public.svcEmail req
   let action = Public.svcAction req
@@ -1143,8 +1181,9 @@ sendVerificationCode req = do
   where
     getAccount :: Public.Email -> (Handler r) (Maybe UserAccount)
     getAccount email = lift $ do
+      locale <- setDefaultUserLocale <$> view settings
       mbUserId <- wrapClient . UserKey.lookupKey $ UserKey.userEmailKey email
-      join <$> wrapClient (Data.lookupAccount `traverse` mbUserId)
+      join <$> liftSem (Data.lookupAccount locale `traverse` mbUserId)
 
     sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
     sendMail email value mbLocale =

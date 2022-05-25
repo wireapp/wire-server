@@ -34,6 +34,7 @@ import qualified Brig.Email as Email
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import qualified Brig.Phone as Phone
+import Brig.Sem.UserQuery (UserQuery)
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
@@ -48,6 +49,7 @@ import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import Data.Id
 import qualified Data.List1 as List1
+import Data.Qualified
 import Data.Range
 import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
@@ -61,6 +63,8 @@ import Network.Wai.Routing
 import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
+import Polysemy
+import Polysemy.Input
 import System.Logger (Msg)
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
@@ -71,7 +75,9 @@ import qualified Wire.API.Team.Role as Public
 import qualified Wire.API.Team.Size as Public
 import qualified Wire.API.User as Public
 
-routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
+routesPublic ::
+  Members '[Input (Local ()), UserQuery] r =>
+  Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   post "/teams/:tid/invitations" (continue createInvitationPublicH) $
     accept "application" "json"
@@ -237,7 +243,10 @@ newtype FoundInvitationCode = FoundInvitationCode InvitationCode
 instance ToJSON FoundInvitationCode where
   toJSON (FoundInvitationCode c) = object ["code" .= c]
 
-createInvitationPublicH :: JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest -> (Handler r) Response
+createInvitationPublicH ::
+  Members '[Input (Local ()), UserQuery] r =>
+  JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest ->
+  Handler r Response
 createInvitationPublicH (_ ::: uid ::: tid ::: req) = do
   body <- parseJsonBody req
   newInv <- createInvitationPublic uid tid body
@@ -253,7 +262,12 @@ data CreateInvitationInviter = CreateInvitationInviter
   }
   deriving (Eq, Show)
 
-createInvitationPublic :: UserId -> TeamId -> Public.InvitationRequest -> (Handler r) Public.Invitation
+createInvitationPublic ::
+  Members '[Input (Local ()), UserQuery] r =>
+  UserId ->
+  TeamId ->
+  Public.InvitationRequest ->
+  Handler r Public.Invitation
 createInvitationPublic uid tid body = do
   let inviteeRole = fromMaybe Team.defaultRole . irRole $ body
   inviter <- do

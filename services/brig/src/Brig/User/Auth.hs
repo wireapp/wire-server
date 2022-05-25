@@ -41,7 +41,6 @@ import Bilge.RPC
 import Brig.API.Types
 import Brig.API.User (changeSingleAccountStatus)
 import Brig.App
-import Brig.Budget
 import qualified Brig.Code as Code
 import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.LoginCode as Data
@@ -52,6 +51,9 @@ import Brig.Email
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opt
 import Brig.Phone
+import Brig.Sem.BudgetStore
+import Brig.Sem.BudgetStore.Cassandra
+import Brig.Sem.UserQuery (UserQuery)
 import Brig.Sem.UserQuery.Cassandra
 import Brig.Types.Common
 import Brig.Types.Intra
@@ -66,7 +68,9 @@ import Cassandra
 import Control.Error hiding (bool)
 import Control.Lens (to, view)
 import Control.Monad.Catch
+import Control.Monad.Trans.Except
 import Data.ByteString.Conversion (toByteString)
+import Data.Either.Combinators
 import Data.Handle (Handle)
 import Data.Id
 import qualified Data.List.NonEmpty as NE
@@ -77,6 +81,8 @@ import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
+import Polysemy.Error
+import Polysemy.Input
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
@@ -156,30 +162,33 @@ login ::
 login (PasswordLogin li pw label code) typ = do
   uid <- resolveLoginId li
   lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
-  checkRetryLimit uid
-  Data.authenticate uid pw `catchE` \case
-    AuthInvalidUser -> loginFailed uid
-    AuthInvalidCredentials -> loginFailed uid
+  mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
+  runBudgetStoreAction $ checkRetryLimit uid mLimitFailedLogins
+  o <- runUserQueryAction $ Data.authenticate uid pw
+  whenLeft o $ \case
+    AuthInvalidUser -> runBudgetStoreAction $ loginFailed uid mLimitFailedLogins
+    AuthInvalidCredentials -> runBudgetStoreAction $ loginFailed uid mLimitFailedLogins
     AuthSuspended -> throwE LoginSuspended
     AuthEphemeral -> throwE LoginEphemeral
     AuthPendingInvitation -> throwE LoginPendingActivation
-  verifyLoginCode code uid
+  verifyLoginCode code uid mLimitFailedLogins
   newAccess @ZAuth.User @ZAuth.Access uid typ label
   where
-    verifyLoginCode :: Maybe Code.Value -> UserId -> ExceptT LoginError m ()
-    verifyLoginCode mbCode uid =
+    verifyLoginCode :: Maybe Code.Value -> UserId -> Maybe Opt.LimitFailedLogins -> ExceptT LoginError m ()
+    verifyLoginCode mbCode uid mLimitFailedLogins =
       verifyCode mbCode Login uid
         `catchE` \case
-          VerificationCodeNoPendingCode -> loginFailedWith LoginCodeInvalid uid
-          VerificationCodeRequired -> loginFailedWith LoginCodeRequired uid
-          VerificationCodeNoEmail -> loginFailed uid
+          VerificationCodeNoPendingCode -> runBudgetStoreAction $ loginFailedWith LoginCodeInvalid uid mLimitFailedLogins
+          VerificationCodeRequired -> runBudgetStoreAction $ loginFailedWith LoginCodeRequired uid mLimitFailedLogins
+          VerificationCodeNoEmail -> runBudgetStoreAction $ loginFailed uid mLimitFailedLogins
 login (SmsLogin phone code label) typ = do
   uid <- resolveLoginId (LoginByPhone phone)
   lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
-  checkRetryLimit uid
+  mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
+  runBudgetStoreAction $ checkRetryLimit uid mLimitFailedLogins
   ok <- lift $ Data.verifyLoginCode uid code
   unless ok $
-    loginFailed uid
+    runBudgetStoreAction $ loginFailed uid mLimitFailedLogins
   newAccess @ZAuth.User @ZAuth.Access uid typ label
 
 verifyCode ::
@@ -214,37 +223,61 @@ verifyCode mbCode action uid = do
       UserId ->
       ExceptT e m (Maybe Email, Maybe TeamId)
     getEmailAndTeamId u = do
-      mbAccount <- Data.lookupAccount u
+      locDomain <- qualifyLocal ()
+      locale <- Opt.setDefaultUserLocale <$> view settings
+      mbAccount <-
+        lift
+          . runM
+          . userQueryToCassandra @m @'[Embed m]
+          . runInputConst locDomain
+          $ Data.lookupAccount locale u
       pure (userEmail <$> accountUser =<< mbAccount, userTeam <$> accountUser =<< mbAccount)
 
-loginFailedWith :: (MonadClient m, MonadReader Env m) => LoginError -> UserId -> ExceptT LoginError m ()
-loginFailedWith e uid = decrRetryLimit uid >> throwE e
+loginFailedWith ::
+  Member BudgetStore r =>
+  LoginError ->
+  UserId ->
+  Maybe Opt.LimitFailedLogins ->
+  Sem (Error LoginError ': r) ()
+loginFailedWith e uid mLimitFailedLogins =
+  decrRetryLimit uid mLimitFailedLogins >> throw e
 
-loginFailed :: (MonadClient m, MonadReader Env m) => UserId -> ExceptT LoginError m ()
+loginFailed ::
+  Member BudgetStore r =>
+  UserId ->
+  Maybe Opt.LimitFailedLogins ->
+  Sem (Error LoginError ': r) ()
 loginFailed = loginFailedWith LoginFailed
 
-decrRetryLimit :: (MonadClient m, MonadReader Env m) => UserId -> ExceptT LoginError m ()
+decrRetryLimit ::
+  Member BudgetStore r =>
+  UserId ->
+  Maybe Opt.LimitFailedLogins ->
+  Sem (Error LoginError ': r) ()
 decrRetryLimit = withRetryLimit (\k b -> withBudget k b $ pure ())
 
-checkRetryLimit :: (MonadClient m, MonadReader Env m) => UserId -> ExceptT LoginError m ()
+checkRetryLimit ::
+  Member BudgetStore r =>
+  UserId ->
+  Maybe Opt.LimitFailedLogins ->
+  Sem (Error LoginError ': r) ()
 checkRetryLimit = withRetryLimit checkBudget
 
 withRetryLimit ::
-  (MonadClient m, MonadReader Env m) =>
-  (BudgetKey -> Budget -> ExceptT LoginError m (Budgeted ())) ->
+  Member BudgetStore r =>
+  (BudgetKey -> Budget -> Sem r (Budgeted ())) ->
   UserId ->
-  ExceptT LoginError m ()
-withRetryLimit action uid = do
-  mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
+  Maybe Opt.LimitFailedLogins ->
+  Sem (Error LoginError ': r) ()
+withRetryLimit action uid mLimitFailedLogins = do
   forM_ mLimitFailedLogins $ \opts -> do
     let bkey = BudgetKey ("login#" <> idToText uid)
         budget =
           Budget
             (Opt.timeoutDiff $ Opt.timeout opts)
             (fromIntegral $ Opt.retryLimit opts)
-    bresult <- action bkey budget
-    case bresult of
-      BudgetExhausted ttl -> throwE . LoginBlocked . RetryAfter . floor $ ttl
+    raise @(Error LoginError) (action bkey budget) >>= \case
+      BudgetExhausted ttl -> throw . LoginBlocked . RetryAfter . floor $ ttl
       BudgetedValue () _ -> pure ()
 
 logout ::
@@ -284,6 +317,7 @@ renewAccess uts at = do
   pure $ Access at' ck'
 
 revokeAccess ::
+  forall m.
   (MonadClient m, Log.MonadLogger m, MonadReader Env m) =>
   UserId ->
   PlainTextPassword ->
@@ -292,7 +326,10 @@ revokeAccess ::
   ExceptT AuthError m ()
 revokeAccess u pw cc ll = do
   lift $ Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.revokeAccess")
-  unlessM (Data.isSamlUser u) $ Data.authenticate u pw
+  locDomain <- qualifyLocal ()
+  locale <- Opt.setDefaultUserLocale <$> view settings
+  unlessM (lift . runM . userQueryToCassandra @m @'[Embed m] $ runInputConst locDomain $ Data.isSamlUser locale u) $
+    runUserQueryAction (Data.authenticate u pw) >>= except
   lift $ revokeCookies u cc ll
 
 --------------------------------------------------------------------------------
@@ -380,7 +417,7 @@ validateLoginId (LoginByPhone phone) =
 validateLoginId (LoginByHandle h) =
   pure (Right h)
 
-isPendingActivation :: (MonadClient m, MonadReader Env m) => LoginId -> m Bool
+isPendingActivation :: forall m. (MonadClient m, MonadReader Env m) => LoginId -> m Bool
 isPendingActivation ident = case ident of
   (LoginByHandle _) -> pure False
   (LoginByEmail e) -> checkKey (userEmailKey e)
@@ -388,9 +425,16 @@ isPendingActivation ident = case ident of
   where
     checkKey k = do
       usr <- (>>= fst) <$> Data.lookupActivationCode k
+      locale <- Opt.setDefaultUserLocale <$> view settings
+      locDomain <- qualifyLocal ()
       case usr of
         Nothing -> pure False
-        Just u -> maybe False (checkAccount k) <$> Data.lookupAccount u
+        Just u ->
+          maybe False (checkAccount k)
+            <$> ( runM . userQueryToCassandra @m @'[Embed m]
+                    . runInputConst locDomain
+                    $ Data.lookupAccount locale u
+                )
     checkAccount k a =
       let i = userIdentity (accountUser a)
           statusAdmitsPending = case accountStatus a of
@@ -451,6 +495,7 @@ validateToken ut at = do
 
 -- | Allow to login as any user without having the credentials.
 ssoLogin ::
+  forall m.
   ( MonadClient m,
     MonadReader Env m,
     ZAuth.MonadZAuth m,
@@ -466,7 +511,10 @@ ssoLogin ::
   CookieType ->
   ExceptT LoginError m (Access ZAuth.User)
 ssoLogin (SsoLogin uid label) typ = do
-  Data.reauthenticate uid Nothing `catchE` \case
+  locale <- Opt.setDefaultUserLocale <$> view settings
+  locDomain <- qualifyLocal ()
+  o <- runUserQueryAction $ runInputConst locDomain $ Data.reauthenticate locale uid Nothing
+  whenLeft o $ \case
     ReAuthMissingPassword -> pure ()
     ReAuthCodeVerificationRequired -> pure ()
     ReAuthCodeVerificationNoPendingCode -> pure ()
@@ -495,7 +543,10 @@ legalHoldLogin ::
   CookieType ->
   ExceptT LegalHoldLoginError m (Access ZAuth.LegalHoldUser)
 legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
-  Data.reauthenticate uid plainTextPassword !>> LegalHoldReAuthError
+  locale <- Opt.setDefaultUserLocale <$> view settings
+  locDomain <- qualifyLocal ()
+  o <- runUserQueryAction $ runInputConst locDomain $ Data.reauthenticate locale uid plainTextPassword
+  except o !>> LegalHoldReAuthError
   -- legalhold login is only possible if
   -- the user is a team user
   -- and the team has legalhold enabled
@@ -522,3 +573,39 @@ assertLegalHoldEnabled tid = do
   case tfwoStatus stat of
     TeamFeatureDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
     TeamFeatureEnabled -> pure ()
+
+--------------------------------------------------------------------------------
+-- Polysemy crutches
+--
+-- These can be removed once functions in this module run in 'Sem r' instead of
+-- 'ExceptT e m' or 'm' for some constrained 'm'.
+
+runBudgetStoreAction ::
+  forall m e a.
+  MonadClient m =>
+  Sem '[Error e, BudgetStore, Embed m] a ->
+  ExceptT e m a
+runBudgetStoreAction = runStoreActionExceptT (budgetStoreToCassandra @m)
+
+runUserQueryAction ::
+  forall m e a t.
+  (MonadClient m, MonadTrans t) =>
+  Sem '[Error e, UserQuery, Embed m] a ->
+  t m (Either e a)
+runUserQueryAction = runStoreAction (userQueryToCassandra @m)
+
+runStoreAction ::
+  forall m e a t store.
+  (MonadClient m, MonadTrans t) =>
+  (forall n b. (MonadClient n, n ~ m) => Sem '[store, Embed n] b -> Sem '[Embed n] b) ->
+  Sem '[Error e, store, Embed m] a ->
+  t m (Either e a)
+runStoreAction interpreter = lift . runM . interpreter @m . runError @e
+
+runStoreActionExceptT ::
+  forall m e a store.
+  MonadClient m =>
+  (forall n b. (MonadClient n, n ~ m) => Sem '[store, Embed n] b -> Sem '[Embed n] b) ->
+  Sem '[Error e, store, Embed m] a ->
+  ExceptT e m a
+runStoreActionExceptT interpreter = runStoreAction interpreter >=> except

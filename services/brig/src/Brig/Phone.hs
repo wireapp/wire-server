@@ -39,7 +39,8 @@ where
 
 import Bilge.Retry (httpHandlers)
 import Brig.App
-import Brig.Budget
+import Brig.Sem.BudgetStore
+import Brig.Sem.BudgetStore.Cassandra
 import Brig.Types
 import Cassandra (MonadClient)
 import Control.Lens (view)
@@ -51,6 +52,7 @@ import qualified Data.Text as Text
 import Data.Time.Clock
 import Imports
 import Network.HTTP.Client (HttpException, Manager)
+import Polysemy
 import qualified Ropes.Nexmo as Nexmo
 import Ropes.Twilio (LookupDetail (..))
 import qualified Ropes.Twilio as Twilio
@@ -232,6 +234,7 @@ smsBudget =
     }
 
 withSmsBudget ::
+  forall m a.
   ( MonadClient m,
     Log.MonadLogger m,
     MonadReader Env m
@@ -241,7 +244,7 @@ withSmsBudget ::
   m a
 withSmsBudget phone go = do
   let k = BudgetKey ("sms#" <> phone)
-  r <- withBudget k smsBudget go
+  r <- runM $ budgetStoreToCassandra @m @'[Embed m] $ withBudget k smsBudget (embed @m go)
   case r of
     BudgetExhausted t -> do
       Log.info $
@@ -267,6 +270,7 @@ callBudget =
     }
 
 withCallBudget ::
+  forall m a.
   ( MonadClient m,
     Log.MonadLogger m,
     MonadReader Env m
@@ -276,7 +280,7 @@ withCallBudget ::
   m a
 withCallBudget phone go = do
   let k = BudgetKey ("call#" <> phone)
-  r <- withBudget k callBudget go
+  r <- runM $ budgetStoreToCassandra @m @'[Embed m] $ withBudget k callBudget (embed @m go)
   case r of
     BudgetExhausted t -> do
       Log.info $

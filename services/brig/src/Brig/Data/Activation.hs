@@ -31,7 +31,7 @@ module Brig.Data.Activation
   )
 where
 
-import Brig.App (Env)
+import Brig.App (Env, qualifyLocal, settings)
 import Brig.Data.User
 import Brig.Data.UserKey
 import Brig.Options
@@ -39,10 +39,12 @@ import qualified Brig.Sem.CodeStore as E
 import Brig.Sem.CodeStore.Cassandra
 import qualified Brig.Sem.PasswordResetSupply as E
 import Brig.Sem.PasswordResetSupply.IO
+import Brig.Sem.UserQuery.Cassandra
 import Brig.Types
 import Brig.Types.Intra
 import Cassandra
 import Control.Error
+import Control.Lens (view)
 import Data.Id
 import Data.Text (pack)
 import qualified Data.Text.Ascii as Ascii
@@ -52,6 +54,7 @@ import Imports
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import Polysemy
+import Polysemy.Input
 import Text.Printf (printf)
 import Wire.API.User
 
@@ -100,7 +103,16 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
   where
     pickUser (uk, u') = maybe (throwE invalidUser) (pure . (uk,)) (u <|> u')
     activate (key, uid) = do
-      a <- lift (lookupAccount uid) >>= maybe (throwE invalidUser) pure
+      locale <- setDefaultUserLocale <$> view settings
+      locDomain <- qualifyLocal ()
+      a <-
+        lift
+          ( runM
+              . userQueryToCassandra @m @'[Embed m]
+              . runInputConst locDomain
+              $ lookupAccount locale uid
+          )
+          >>= maybe (throwE invalidUser) pure
       unless (accountStatus a == Active) $ -- this is never 'PendingActivation' in the flow this function is used in.
         throwE invalidCode
       case userIdentity (accountUser a) of

@@ -79,6 +79,7 @@ module Brig.App
     wrapHttp,
     HttpClientIO (..),
     liftSem,
+    liftSemE,
   )
 where
 
@@ -100,7 +101,7 @@ import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetStore.CodeStore
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
 import Brig.Sem.PasswordResetSupply.IO
-import Brig.Sem.UserQuery (UserQuery)
+import Brig.Sem.UserQuery (ReAuthError, UserQuery)
 import Brig.Sem.UserQuery.Cassandra
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
@@ -145,7 +146,9 @@ import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
 import Polysemy
+import qualified Polysemy.Error as P
 import Polysemy.Final
+import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified Ropes.Nexmo as Nexmo
 import qualified Ropes.Twilio as Twilio
@@ -155,7 +158,9 @@ import qualified System.FilePath as Path
 import System.Logger.Class hiding (Settings, settings)
 import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
+import qualified UnliftIO.Exception as UnliftIO
 import Util.Options
+import Wire.API.Error (APIError, toWai)
 import Wire.API.User.Identity (Email)
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Now (Now)
@@ -450,7 +455,9 @@ type BrigCanonicalEffects =
      PasswordResetSupply,
      CodeStore,
      P.TinyLog,
+     Input (Local ()),
      Embed Cas.Client,
+     P.Error ReAuthError,
      Embed IO,
      Final IO
    ]
@@ -501,6 +508,9 @@ instance MonadReader Env (AppT r) where
 
 liftSem :: Sem r a -> AppT r a
 liftSem sem = AppT $ lift sem
+
+liftSemE :: ExceptT e (Sem r) a -> ExceptT e (AppT r) a
+liftSemE = mapExceptT liftSem
 
 instance MonadIO m => MonadLogger (ReaderT Env m) where
   log l m = do
@@ -606,11 +616,27 @@ instance MonadIndexIO (AppT r) => MonadIndexIO (ExceptT err (AppT r)) where
 instance Monad m => HasRequestId (AppT r) where
   getRequestId = view requestId
 
+-- TODO(md): Copied from Galley.App. Move this utility function to a library.
+interpretErrorToException ::
+  (Exception exc, Member (Embed IO) r) =>
+  (err -> exc) ->
+  Sem (P.Error err ': r) a ->
+  Sem r a
+interpretErrorToException f = either (embed @IO . UnliftIO.throwIO . f) pure <=< P.runError
+
+interpretWaiErrorToException ::
+  (APIError e, Member (Embed IO) r) =>
+  Sem (P.Error e ': r) a ->
+  Sem r a
+interpretWaiErrorToException = interpretErrorToException toWai
+
 runAppT :: Env -> AppT BrigCanonicalEffects a -> IO a
 runAppT e (AppT ma) =
   runFinal
     . embedToFinal
+    . interpretWaiErrorToException
     . interpretClientToIO (_casClient e)
+    . runInputConst (toLocalUnsafe (Opt.setFederationDomain . _settings $ e) ())
     . loggerToTinyLogReqId (view requestId e) (view applog e)
     . codeStoreToCassandra @Cas.Client
     . passwordResetSupplyToIO

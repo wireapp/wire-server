@@ -157,6 +157,7 @@ import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import Network.Wai.Utilities
 import Polysemy
+import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
@@ -207,7 +208,10 @@ verifyUniquenessAndCheckBlacklist uk = do
         throwE IdentityErrorUserKeyExists
 
 -- docs/reference/user/registration.md {#RefRegistration}
-createUser :: NewUser -> ExceptT RegisterError (AppT r) CreateUserResult
+createUser ::
+  Members '[Input (Local ()), UserQuery] r =>
+  NewUser ->
+  ExceptT RegisterError (AppT r) CreateUserResult
 createUser new = do
   (email, phone) <- validateEmailAndPhone new
 
@@ -228,7 +232,8 @@ createUser new = do
       Nothing ->
         pure (Nothing, Nothing, Nothing)
   let mbInv = Team.inInvitation . fst <$> teamInvitation
-  mbExistingAccount <- lift $ join <$> for mbInv (\(Id uuid) -> wrapClient $ Data.lookupAccount (Id uuid))
+  locale <- setDefaultUserLocale <$> view settings
+  mbExistingAccount <- lift $ join <$> for mbInv (\(Id uuid) -> liftSem $ Data.lookupAccount locale (Id uuid))
 
   let (new', mbHandle) = case mbExistingAccount of
         Nothing ->
@@ -695,7 +700,11 @@ changePhone u phone = do
 -------------------------------------------------------------------------------
 -- Remove Email
 
-removeEmail :: UserId -> ConnId -> ExceptT RemoveIdentityError (AppT r) ()
+removeEmail ::
+  Members '[Input (Local ()), UserQuery] r =>
+  UserId ->
+  ConnId ->
+  ExceptT RemoveIdentityError (AppT r) ()
 removeEmail uid conn = do
   ident <- lift $ fetchUserIdentity uid
   case ident of
@@ -709,7 +718,11 @@ removeEmail uid conn = do
 -------------------------------------------------------------------------------
 -- Remove Phone
 
-removePhone :: UserId -> ConnId -> ExceptT RemoveIdentityError (AppT r) ()
+removePhone ::
+  Members '[Input (Local ()), UserQuery] r =>
+  UserId ->
+  ConnId ->
+  ExceptT RemoveIdentityError (AppT r) ()
 removePhone uid conn = do
   ident <- lift $ fetchUserIdentity uid
   case ident of
@@ -727,7 +740,10 @@ removePhone uid conn = do
 -------------------------------------------------------------------------------
 -- Forcefully revoke a verified identity
 
-revokeIdentity :: Either Email Phone -> AppT r ()
+revokeIdentity ::
+  Members '[Input (Local ()), UserQuery] r =>
+  Either Email Phone ->
+  AppT r ()
 revokeIdentity key = do
   let uk = either userEmailKey userPhoneKey key
   mu <- wrapClient $ Data.lookupKey uk
@@ -1084,9 +1100,14 @@ mkPasswordResetKey ident = case ident of
 -- delete them in the team settings.  This protects teams against orphanhood.
 --
 -- TODO: communicate deletions of SSO users to SSO service.
-deleteSelfUser :: UserId -> Maybe PlainTextPassword -> ExceptT DeleteUserError (AppT r) (Maybe Timeout)
+deleteSelfUser ::
+  Members '[Input (Local ()), UserQuery] r =>
+  UserId ->
+  Maybe PlainTextPassword ->
+  ExceptT DeleteUserError (AppT r) (Maybe Timeout)
 deleteSelfUser uid pwd = do
-  account <- lift . wrapClient $ Data.lookupAccount uid
+  locale <- setDefaultUserLocale <$> view settings
+  account <- lift . liftSem $ Data.lookupAccount locale uid
   case account of
     Nothing -> throwE DeleteUserInvalid
     Just a -> case accountStatus a of
@@ -1157,13 +1178,17 @@ deleteSelfUser uid pwd = do
 
 -- | Conclude validation and scheduling of user's deletion request that was initiated in
 -- 'deleteUser'.  Called via @post /delete@.
-verifyDeleteUser :: VerifyDeleteUser -> ExceptT DeleteUserError (AppT r) ()
+verifyDeleteUser ::
+  Members '[Input (Local ()), UserQuery] r =>
+  VerifyDeleteUser ->
+  ExceptT DeleteUserError (AppT r) ()
 verifyDeleteUser d = do
   let key = verifyDeleteUserKey d
   let code = verifyDeleteUserCode d
   c <- lift . wrapClient $ Code.verify key Code.AccountDeletion code
   a <- maybe (throwE DeleteUserInvalidCode) pure (Code.codeAccount =<< c)
-  account <- lift . wrapClient $ Data.lookupAccount (Id a)
+  locale <- setDefaultUserLocale <$> view settings
+  account <- lift . liftSem $ Data.lookupAccount locale (Id a)
   for_ account $ lift . wrapHttpClient . deleteAccount
   lift . wrapClient $ Code.delete key Code.AccountDeletion
 
@@ -1424,6 +1449,7 @@ lookupLocalProfiles requestingUser others = do
        in baseProfile {profileEmail = profileEmail'}
 
 getLegalHoldStatus ::
+  forall m.
   ( MonadLogger m,
     MonadReader Env m,
     MonadMask m,
@@ -1433,7 +1459,11 @@ getLegalHoldStatus ::
   ) =>
   UserId ->
   m (Maybe UserLegalHoldStatus)
-getLegalHoldStatus uid = traverse (getLegalHoldStatus' . accountUser) =<< lookupAccount uid
+getLegalHoldStatus uid = do
+  locale <- setDefaultUserLocale <$> view settings
+  locDomain <- qualifyLocal ()
+  traverse (getLegalHoldStatus' . accountUser)
+    =<< (runM . userQueryToCassandra @m @'[Embed m] . runInputConst locDomain $ lookupAccount locale uid)
 
 getLegalHoldStatus' ::
   ( MonadLogger m,
@@ -1476,12 +1506,17 @@ getEmailForProfile _ EmailVisibleToSelf' = Nothing
 
 -- | Find user accounts for a given identity, both activated and those
 -- currently pending activation.
-lookupAccountsByIdentity :: Either Email Phone -> Bool -> (AppT r) [UserAccount]
+lookupAccountsByIdentity ::
+  Members '[Input (Local ()), UserQuery] r =>
+  Either Email Phone ->
+  Bool ->
+  AppT r [UserAccount]
 lookupAccountsByIdentity emailOrPhone includePendingInvitations = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
   activeUid <- wrapClient $ Data.lookupKey uk
   uidFromKey <- (>>= fst) <$> wrapClient (Data.lookupActivationCode uk)
-  result <- wrapClient $ Data.lookupAccounts (nub $ catMaybes [activeUid, uidFromKey])
+  locale <- setDefaultUserLocale <$> view settings
+  result <- liftSem $ Data.lookupAccounts locale (nub $ catMaybes [activeUid, uidFromKey])
   if includePendingInvitations
     then pure result
     else pure $ filter ((/= PendingInvitation) . accountStatus) result

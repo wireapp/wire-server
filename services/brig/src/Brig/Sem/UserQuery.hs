@@ -17,16 +17,53 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Brig.Sem.UserQuery where
+module Brig.Sem.UserQuery
+  ( UserQuery (..),
+    getId,
+    getUsers,
+    getName,
+    getLocale,
+    getAuthentication,
+    getPassword,
+    getActivated,
+    getAccountStatus,
+    getAccountStatuses,
+    getTeam,
+    getAccounts,
+    insertAccount,
+    updateUser,
+
+    -- * effect-derived functions
+    lookupAccount,
+    lookupAccounts,
+
+    -- * error types
+    AuthError (..),
+    ReAuthError (..),
+
+    -- * misc types
+    AccountRow,
+    UserRow,
+    UserRowInsert,
+  )
+where
 
 import Brig.Password
 import Brig.Types
 import Brig.Types.Intra
+import Data.Domain
 import Data.Handle
 import Data.Id
 import Data.Json.Util
+import Data.Qualified
 import Imports
+import Network.HTTP.Types.Status
+import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
+import Polysemy.Input
+import Wire.API.Error
+import qualified Wire.API.Error.Brig as E
+import Wire.API.Provider.Service
 
 type Activated = Bool
 
@@ -97,6 +134,135 @@ type UserRowInsert =
 
 deriving instance Show UserRowInsert
 
+-- | Authentication errors.
+data AuthError
+  = AuthInvalidUser
+  | AuthInvalidCredentials
+  | AuthSuspended
+  | AuthEphemeral
+  | AuthPendingInvitation
+
+instance APIError AuthError where
+  toWai AuthInvalidUser = errorToWai @'E.BadCredentials
+  toWai AuthInvalidCredentials = errorToWai @'E.BadCredentials
+  toWai AuthSuspended = accountSuspended
+  toWai AuthEphemeral = accountEphemeral
+  toWai AuthPendingInvitation = accountPending
+
+-- TODO(md): all the Wai.Error values in this module have been copied from
+-- Brig.API.Error to avoid a cycle in module imports. Fix that.
+accountSuspended :: Wai.Error
+accountSuspended = Wai.mkError status403 "suspended" "Account suspended."
+
+accountEphemeral :: Wai.Error
+accountEphemeral = Wai.mkError status403 "ephemeral" "Account is ephemeral."
+
+accountPending :: Wai.Error
+accountPending = Wai.mkError status403 "pending-activation" "Account pending activation."
+
+-- | Re-authentication errors.
+data ReAuthError
+  = ReAuthError !AuthError
+  | ReAuthMissingPassword
+  | ReAuthCodeVerificationRequired
+  | ReAuthCodeVerificationNoPendingCode
+  | ReAuthCodeVerificationNoEmail
+
+instance APIError ReAuthError where
+  toWai (ReAuthError e) = toWai e
+  toWai ReAuthMissingPassword = errorToWai @'E.MissingAuth
+  toWai ReAuthCodeVerificationRequired = verificationCodeRequired
+  toWai ReAuthCodeVerificationNoPendingCode = verificationCodeNoPendingCode
+  toWai ReAuthCodeVerificationNoEmail = verificationCodeNoEmail
+
+verificationCodeRequired :: Wai.Error
+verificationCodeRequired = Wai.mkError status403 "code-authentication-required" "Verification code required."
+
+verificationCodeNoPendingCode :: Wai.Error
+verificationCodeNoPendingCode = Wai.mkError status403 "code-authentication-failed" "Code authentication failed (no such code)."
+
+verificationCodeNoEmail :: Wai.Error
+verificationCodeNoEmail = Wai.mkError status403 "code-authentication-failed" "Code authentication failed (no such email)."
+
+-------------------------------------------------------------------------------
+-- Conversions
+
+-- | Construct a 'UserAccount' from a raw user record in the database.
+toUserAccount :: Domain -> Locale -> AccountRow -> UserAccount
+toUserAccount
+  domain
+  defaultLocale
+  ( uid,
+    name,
+    pict,
+    email,
+    phone,
+    ssoid,
+    accent,
+    assets,
+    activated,
+    status,
+    expires,
+    lan,
+    con,
+    pid,
+    sid,
+    handle,
+    tid,
+    managed_by
+    ) =
+    let ident = toIdentity activated email phone ssoid
+        deleted = Just Deleted == status
+        expiration = if status == Just Ephemeral then expires else Nothing
+        loc = toLocale defaultLocale (lan, con)
+        svc = newServiceRef <$> sid <*> pid
+     in UserAccount
+          ( User
+              uid
+              (Qualified uid domain)
+              ident
+              name
+              (fromMaybe noPict pict)
+              (fromMaybe [] assets)
+              accent
+              deleted
+              loc
+              svc
+              handle
+              expiration
+              tid
+              (fromMaybe ManagedByWire managed_by)
+          )
+          (fromMaybe Active status)
+
+toLocale :: Locale -> (Maybe Language, Maybe Country) -> Locale
+toLocale _ (Just l, c) = Locale l c
+toLocale l _ = l
+
+-- | Construct a 'UserIdentity'.
+--
+-- If the user is not activated, 'toIdentity' will return 'Nothing' as a precaution, because
+-- elsewhere we rely on the fact that a non-empty 'UserIdentity' means that the user is
+-- activated.
+--
+-- The reason it's just a "precaution" is that we /also/ have an invariant that having an
+-- email or phone in the database means the user has to be activated.
+toIdentity ::
+  -- | Whether the user is activated
+  Bool ->
+  Maybe Email ->
+  Maybe Phone ->
+  Maybe UserSSOId ->
+  Maybe UserIdentity
+toIdentity True (Just e) (Just p) Nothing = Just $! FullIdentity e p
+toIdentity True (Just e) Nothing Nothing = Just $! EmailIdentity e
+toIdentity True Nothing (Just p) Nothing = Just $! PhoneIdentity p
+toIdentity True email phone (Just ssoid) = Just $! SSOIdentity ssoid email phone
+toIdentity True Nothing Nothing Nothing = Nothing
+toIdentity False _ _ _ = Nothing
+
+-------------------------------------------------------------------------------
+
 data UserQuery m a where
   GetId :: UserId -> UserQuery m (Maybe UserId) -- idSelect
   GetUsers :: [UserId] -> UserQuery m [UserRow] -- usersSelect
@@ -122,3 +288,19 @@ data UserQuery m a where
   UpdateUser :: UserId -> UserUpdate -> UserQuery m ()
 
 makeSem ''UserQuery
+
+lookupAccount ::
+  Members '[Input (Local ()), UserQuery] r =>
+  Locale ->
+  UserId ->
+  Sem r (Maybe UserAccount)
+lookupAccount locale u = listToMaybe <$> lookupAccounts locale [u]
+
+lookupAccounts ::
+  Members '[Input (Local ()), UserQuery] r =>
+  Locale ->
+  [UserId] ->
+  Sem r [UserAccount]
+lookupAccounts locale users = do
+  domain <- tDomain <$> input @(Local ())
+  fmap (toUserAccount domain locale) <$> getAccounts users

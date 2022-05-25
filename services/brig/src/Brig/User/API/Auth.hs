@@ -21,11 +21,12 @@ module Brig.User.API.Auth
   )
 where
 
-import Brig.API.Error
+import Brig.API.Error hiding (Error)
 import Brig.API.Handler
 import Brig.API.Types
 import qualified Brig.API.User as User
 import Brig.App
+import Brig.Options (setDefaultUserLocale)
 import Brig.Phone
 import Brig.Sem.UserQuery (UserQuery)
 import Brig.Types.Intra (ReAuthUser, reAuthCode, reAuthCodeAction, reAuthPassword)
@@ -34,6 +35,7 @@ import qualified Brig.User.Auth as Auth
 import qualified Brig.User.Auth.Cookie as Auth
 import qualified Brig.ZAuth as ZAuth
 import Control.Error (catchE)
+import Control.Lens (view)
 import Control.Monad.Except
 import Control.Monad.Trans.Except (throwE)
 import qualified Data.ByteString as BS
@@ -43,12 +45,13 @@ import Data.Id
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Predicate
+import Data.Qualified
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
-import Network.Wai.Predicate
+import Network.Wai.Predicate hiding (Error)
 import qualified Network.Wai.Predicate as P
 import qualified Network.Wai.Predicate.Request as R
 import Network.Wai.Routing
@@ -59,6 +62,8 @@ import qualified Network.Wai.Utilities.Response as WaiResp
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Polysemy
+import Polysemy.Error
+import Polysemy.Input
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import qualified Wire.API.User as Public
@@ -193,7 +198,9 @@ routesPublic = do
     Doc.body (Doc.ref Public.modelRemoveCookies) Doc.end
     Doc.errorResponse (errorToWai @'E.BadCredentials)
 
-routesInternal :: Routes a (Handler r) ()
+routesInternal ::
+  Members '[Error ReAuthError, Input (Local ()), UserQuery] r =>
+  Routes a (Handler r) ()
 routesInternal = do
   -- galley can query this endpoint at the right moment in the LegalHold flow
   post "/i/legalhold-login" (continue legalHoldLoginH) $
@@ -233,14 +240,32 @@ getLoginCode phone = do
   code <- lift $ wrapClient $ Auth.lookupLoginCode phone
   maybe (throwStd loginCodeNotFound) pure code
 
-reAuthUserH :: UserId ::: JsonRequest ReAuthUser -> (Handler r) Response
+reAuthUserH ::
+  Members
+    '[ Error ReAuthError,
+       Input (Local ()),
+       UserQuery
+     ]
+    r =>
+  UserId ::: JsonRequest ReAuthUser ->
+  (Handler r) Response
 reAuthUserH (uid ::: req) = do
   reAuthUser uid =<< parseJsonBody req
   pure empty
 
-reAuthUser :: UserId -> ReAuthUser -> (Handler r) ()
+reAuthUser ::
+  Members
+    '[ Error ReAuthError,
+       Input (Local ()),
+       UserQuery
+     ]
+    r =>
+  UserId ->
+  ReAuthUser ->
+  (Handler r) ()
 reAuthUser uid body = do
-  wrapClientE (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
+  locale <- setDefaultUserLocale <$> view settings
+  lift (liftSem (User.reauthenticate locale uid (reAuthPassword body))) !>> reauthError
   case reAuthCodeAction body of
     Just action ->
       wrapHttpClientE (Auth.verifyCode (reAuthCode body) action uid)

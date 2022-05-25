@@ -36,6 +36,7 @@ import Brig.App
 import qualified Brig.Data.User as Data
 import Brig.Options (FederationDomainConfig, federationDomainConfigs)
 import qualified Brig.Options as Opts
+import Brig.Sem.UserQuery (UserQuery)
 import Brig.Types
 import Brig.Types.Intra (accountUser)
 import Control.Lens (view)
@@ -49,6 +50,8 @@ import Data.Qualified
 import Data.String.Conversions (cs)
 import Data.Text.Ascii (AsciiText (toText))
 import Imports
+import Polysemy
+import Polysemy.Input
 import System.Logger (Msg)
 import qualified System.Logger as Log
 import UnliftIO.Async
@@ -66,7 +69,14 @@ lookupProfilesMaybeFilterSameTeamOnly self us = do
     Just team -> filter (\x -> profileTeam x == Just team) us
     Nothing -> us
 
-fetchUserIdentity :: UserId -> (AppT r) (Maybe UserIdentity)
+fetchUserIdentity ::
+  Members
+    '[ Input (Local ()),
+       UserQuery
+     ]
+    r =>
+  UserId ->
+  AppT r (Maybe UserIdentity)
 fetchUserIdentity uid =
   lookupSelfProfile uid
     >>= maybe
@@ -74,8 +84,17 @@ fetchUserIdentity uid =
       (pure . userIdentity . selfUser)
 
 -- | Obtain a profile for a user as he can see himself.
-lookupSelfProfile :: UserId -> (AppT r) (Maybe SelfProfile)
-lookupSelfProfile = fmap (fmap mk) . wrapClient . Data.lookupAccount
+lookupSelfProfile ::
+  Members
+    '[ Input (Local ()),
+       UserQuery
+     ]
+    r =>
+  UserId ->
+  AppT r (Maybe SelfProfile)
+lookupSelfProfile u = do
+  locale <- Opts.setDefaultUserLocale <$> view settings
+  fmap (fmap mk) $ liftSem $ Data.lookupAccount locale u
   where
     mk a = SelfProfile (accountUser a)
 

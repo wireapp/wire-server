@@ -78,7 +78,18 @@ import Brig.App (Env, currentTime, settings, viewFederationDomain, zauthEnv)
 import Brig.Data.Instances ()
 import Brig.Options
 import Brig.Password
-import Brig.Sem.UserQuery (UserQuery, getId, getLocale, getName, getUsers)
+import Brig.Sem.UserQuery
+  ( AuthError (..),
+    ReAuthError (..),
+    UserQuery,
+    getAuthentication,
+    getId,
+    getLocale,
+    getName,
+    getUsers,
+    lookupAccount,
+    lookupAccounts,
+  )
 import Brig.Types
 import Brig.Types.Intra
 import qualified Brig.ZAuth as ZAuth
@@ -98,24 +109,10 @@ import Data.UUID.V4
 import Galley.Types.Bot
 import Imports
 import Polysemy
+import Polysemy.Error
+import Polysemy.Input
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User.RichInfo
-
--- | Authentication errors.
-data AuthError
-  = AuthInvalidUser
-  | AuthInvalidCredentials
-  | AuthSuspended
-  | AuthEphemeral
-  | AuthPendingInvitation
-
--- | Re-authentication errors.
-data ReAuthError
-  = ReAuthError !AuthError
-  | ReAuthMissingPassword
-  | ReAuthCodeVerificationRequired
-  | ReAuthCodeVerificationNoPendingCode
-  | ReAuthCodeVerificationNoEmail
 
 -- | Preconditions:
 --
@@ -186,42 +183,64 @@ newAccountInviteViaScim uid tid locale name email = do
         ManagedByScim
 
 -- | Mandatory password authentication.
-authenticate :: MonadClient m => UserId -> PlainTextPassword -> ExceptT AuthError m ()
+authenticate ::
+  Members
+    '[ Error AuthError,
+       UserQuery
+     ]
+    r =>
+  UserId ->
+  PlainTextPassword ->
+  Sem r ()
 authenticate u pw =
-  lift (lookupAuth u) >>= \case
-    Nothing -> throwE AuthInvalidUser
-    Just (_, Deleted) -> throwE AuthInvalidUser
-    Just (_, Suspended) -> throwE AuthSuspended
-    Just (_, Ephemeral) -> throwE AuthEphemeral
-    Just (_, PendingInvitation) -> throwE AuthPendingInvitation
-    Just (Nothing, _) -> throwE AuthInvalidCredentials
+  lookupAuth u >>= \case
+    Nothing -> throw AuthInvalidUser
+    Just (_, Deleted) -> throw AuthInvalidUser
+    Just (_, Suspended) -> throw AuthSuspended
+    Just (_, Ephemeral) -> throw AuthEphemeral
+    Just (_, PendingInvitation) -> throw AuthPendingInvitation
+    Just (Nothing, _) -> throw AuthInvalidCredentials
     Just (Just pw', Active) ->
       unless (verifyPassword pw pw') $
-        throwE AuthInvalidCredentials
+        throw AuthInvalidCredentials
 
 -- | Password reauthentication. If the account has a password, reauthentication
 -- is mandatory. If the account has no password, or is an SSO user, and no password is given,
 -- reauthentication is a no-op.
-reauthenticate :: (MonadClient m, MonadReader Env m) => UserId -> Maybe PlainTextPassword -> ExceptT ReAuthError m ()
-reauthenticate u pw =
-  lift (lookupAuth u) >>= \case
-    Nothing -> throwE (ReAuthError AuthInvalidUser)
-    Just (_, Deleted) -> throwE (ReAuthError AuthInvalidUser)
-    Just (_, Suspended) -> throwE (ReAuthError AuthSuspended)
-    Just (_, PendingInvitation) -> throwE (ReAuthError AuthPendingInvitation)
-    Just (Nothing, _) -> for_ pw $ const (throwE $ ReAuthError AuthInvalidCredentials)
+reauthenticate ::
+  Members
+    '[ Error ReAuthError,
+       Input (Local ()),
+       UserQuery
+     ]
+    r =>
+  Locale ->
+  UserId ->
+  Maybe PlainTextPassword ->
+  Sem r ()
+reauthenticate locale u pw =
+  lookupAuth u >>= \case
+    Nothing -> throw (ReAuthError AuthInvalidUser)
+    Just (_, Deleted) -> throw (ReAuthError AuthInvalidUser)
+    Just (_, Suspended) -> throw (ReAuthError AuthSuspended)
+    Just (_, PendingInvitation) -> throw (ReAuthError AuthPendingInvitation)
+    Just (Nothing, _) -> for_ pw $ const (throw $ ReAuthError AuthInvalidCredentials)
     Just (Just pw', Active) -> maybeReAuth pw'
     Just (Just pw', Ephemeral) -> maybeReAuth pw'
   where
     maybeReAuth pw' = case pw of
-      Nothing -> unlessM (isSamlUser u) $ throwE ReAuthMissingPassword
+      Nothing -> unlessM (isSamlUser locale u) $ throw ReAuthMissingPassword
       Just p ->
         unless (verifyPassword p pw') $
-          throwE (ReAuthError AuthInvalidCredentials)
+          throw (ReAuthError AuthInvalidCredentials)
 
-isSamlUser :: (MonadClient m, MonadReader Env m) => UserId -> m Bool
-isSamlUser uid = do
-  account <- lookupAccount uid
+isSamlUser ::
+  Members '[Input (Local ()), UserQuery] r =>
+  Locale ->
+  UserId ->
+  Sem r Bool
+isSamlUser locale uid = do
+  account <- lookupAccount locale uid
   case userIdentity . accountUser =<< account of
     Just (SSOIdentity (UserSSOId _) _ _) -> pure True
     _ -> pure False
@@ -438,8 +457,11 @@ lookupUserTeam u =
   (runIdentity =<<)
     <$> retry x1 (query1 teamSelect (params LocalQuorum (Identity u)))
 
-lookupAuth :: MonadClient m => (MonadClient m) => UserId -> m (Maybe (Maybe Password, AccountStatus))
-lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params LocalQuorum (Identity u)))
+lookupAuth ::
+  Member UserQuery r =>
+  UserId ->
+  Sem r (Maybe (Maybe Password, AccountStatus))
+lookupAuth u = fmap f <$> getAuthentication u
   where
     f (pw, st) = (pw, fromMaybe Active st)
 
@@ -455,15 +477,6 @@ lookupUsers ::
   Sem r [User]
 lookupUsers loc locale hpi usrs =
   toUsers (tDomain loc) locale hpi <$> getUsers usrs
-
-lookupAccount :: (MonadClient m, MonadReader Env m) => UserId -> m (Maybe UserAccount)
-lookupAccount u = listToMaybe <$> lookupAccounts [u]
-
-lookupAccounts :: (MonadClient m, MonadReader Env m) => [UserId] -> m [UserAccount]
-lookupAccounts usrs = do
-  loc <- setDefaultUserLocale <$> view settings
-  domain <- viewFederationDomain
-  fmap (toUserAccount domain loc) <$> retry x1 (query accountsSelect (params LocalQuorum (Identity usrs)))
 
 lookupServiceUser :: MonadClient m => ProviderId -> ServiceId -> BotId -> m (Maybe (ConvId, Maybe TeamId))
 lookupServiceUser pid sid bid = retry x1 (query1 cql (params LocalQuorum (pid, sid, bid)))
@@ -558,31 +571,6 @@ type UserRowInsert =
     ManagedBy
   )
 
--- Represents a 'UserAccount'
-type AccountRow =
-  ( UserId,
-    Name,
-    Maybe Pict,
-    Maybe Email,
-    Maybe Phone,
-    Maybe UserSSOId,
-    ColourId,
-    Maybe [Asset],
-    Activated,
-    Maybe AccountStatus,
-    Maybe UTCTimeMillis,
-    Maybe Language,
-    Maybe Country,
-    Maybe ProviderId,
-    Maybe ServiceId,
-    Maybe Handle,
-    Maybe TeamId,
-    Maybe ManagedBy
-  )
-
-authSelect :: PrepQuery R (Identity UserId) (Maybe Password, Maybe AccountStatus)
-authSelect = "SELECT password, status FROM user WHERE id = ?"
-
 passwordSelect :: PrepQuery R (Identity UserId) (Identity (Maybe Password))
 passwordSelect = "SELECT password FROM user WHERE id = ?"
 
@@ -603,13 +591,6 @@ richInfoSelectMulti = "SELECT user, json FROM rich_info WHERE user in ?"
 
 teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
 teamSelect = "SELECT team FROM user WHERE id = ?"
-
-accountsSelect :: PrepQuery R (Identity [UserId]) AccountRow
-accountsSelect =
-  "SELECT id, name, picture, email, phone, sso_id, accent_id, assets, \
-  \activated, status, expires, language, country, provider, \
-  \service, handle, team, managed_by \
-  \FROM user WHERE id IN ?"
 
 userInsert :: PrepQuery W UserRowInsert ()
 userInsert =
@@ -677,54 +658,6 @@ userRichInfoUpdate = "UPDATE rich_info SET json = ? WHERE user = ?"
 
 -------------------------------------------------------------------------------
 -- Conversions
-
--- | Construct a 'UserAccount' from a raw user record in the database.
-toUserAccount :: Domain -> Locale -> AccountRow -> UserAccount
-toUserAccount
-  domain
-  defaultLocale
-  ( uid,
-    name,
-    pict,
-    email,
-    phone,
-    ssoid,
-    accent,
-    assets,
-    activated,
-    status,
-    expires,
-    lan,
-    con,
-    pid,
-    sid,
-    handle,
-    tid,
-    managed_by
-    ) =
-    let ident = toIdentity activated email phone ssoid
-        deleted = Just Deleted == status
-        expiration = if status == Just Ephemeral then expires else Nothing
-        loc = toLocale defaultLocale (lan, con)
-        svc = newServiceRef <$> sid <*> pid
-     in UserAccount
-          ( User
-              uid
-              (Qualified uid domain)
-              ident
-              name
-              (fromMaybe noPict pict)
-              (fromMaybe [] assets)
-              accent
-              deleted
-              loc
-              svc
-              handle
-              expiration
-              tid
-              (fromMaybe ManagedByWire managed_by)
-          )
-          (fromMaybe Active status)
 
 toUsers :: Domain -> Locale -> HavePendingInvitations -> [UserRow] -> [User]
 toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp

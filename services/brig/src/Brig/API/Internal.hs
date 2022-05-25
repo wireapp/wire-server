@@ -75,6 +75,8 @@ import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 import Polysemy
+import qualified Polysemy.Error as P
+import Polysemy.Input
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
@@ -97,7 +99,7 @@ import Wire.API.User.RichInfo
 -- Sitemap (servant)
 
 servantSitemap ::
-  Member UserQuery r =>
+  Members '[Input (Local ()), UserQuery] r =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI
 
@@ -122,7 +124,9 @@ mlsAPI =
     :<|> getMLSClients
     :<|> mapKeyPackageRefsInternal
 
-accountAPI :: ServerT BrigIRoutes.AccountAPI (Handler r)
+accountAPI ::
+  Members '[Input (Local ()), UserQuery] r =>
+  ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI = Named @"createUserNoVerify" createUserNoVerify
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
@@ -199,7 +203,9 @@ swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
 
 sitemap ::
   Members
-    '[ PasswordResetStore,
+    '[ Input (Local ()),
+       P.Error ReAuthError,
+       PasswordResetStore,
        PasswordResetSupply,
        UserQuery
      ]
@@ -367,12 +373,21 @@ sitemap = do
 -- Handlers
 
 -- | Add a client without authentication checks
-addClientInternalH :: UserId ::: Maybe Bool ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON -> (Handler r) Response
+addClientInternalH ::
+  Members '[Input (Local ()), UserQuery] r =>
+  UserId ::: Maybe Bool ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON ->
+  Handler r Response
 addClientInternalH (usr ::: mSkipReAuth ::: req ::: connId ::: _) = do
   new <- parseJsonBody req
   setStatus status201 . json <$> addClientInternal usr mSkipReAuth new connId
 
-addClientInternal :: UserId -> Maybe Bool -> NewClient -> Maybe ConnId -> (Handler r) Client
+addClientInternal ::
+  Members '[Input (Local ()), UserQuery] r =>
+  UserId ->
+  Maybe Bool ->
+  NewClient ->
+  Maybe ConnId ->
+  Handler r Client
 addClientInternal usr mSkipReAuth new connId = do
   let policy
         | mSkipReAuth == Just True = \_ _ -> False
@@ -407,7 +422,10 @@ internalListFullClients :: UserSet -> (AppT r) UserClientsFull
 internalListFullClients (UserSet usrs) =
   UserClientsFull <$> wrapClient (Data.lookupClientsBulk (Set.toList usrs))
 
-createUserNoVerify :: NewUser -> (Handler r) (Either RegisterError SelfProfile)
+createUserNoVerify ::
+  Members '[Input (Local ()), UserQuery] r =>
+  NewUser ->
+  Handler r (Either RegisterError SelfProfile)
 createUserNoVerify uData = lift . runExceptT $ do
   result <- API.createUser uData
   let acc = createdAccount result
@@ -421,14 +439,21 @@ createUserNoVerify uData = lift . runExceptT $ do
      in API.activate key code (Just uid) !>> activationErrorToRegisterError
   pure (SelfProfile usr)
 
-deleteUserNoVerifyH :: UserId -> (Handler r) Response
+deleteUserNoVerifyH ::
+  Members '[Input (Local ()), UserQuery] r =>
+  UserId ->
+  Handler r Response
 deleteUserNoVerifyH uid = do
   setStatus status202 empty <$ deleteUserNoVerify uid
 
-deleteUserNoVerify :: UserId -> (Handler r) ()
+deleteUserNoVerify ::
+  Members '[Input (Local ()), UserQuery] r =>
+  UserId ->
+  Handler r ()
 deleteUserNoVerify uid = do
+  locale <- setDefaultUserLocale <$> view settings
   void $
-    lift (wrapClient $ API.lookupAccount uid)
+    lift (liftSem $ API.lookupAccount locale uid)
       >>= ifNothing (errorToWai @'E.UserNotFound)
   lift $ API.deleteUserNoVerify uid
 
@@ -458,11 +483,19 @@ changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
     ChangeEmailIdempotent -> pure ChangeEmailResponseIdempotent
     ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
 
-listActivatedAccountsH :: JSON ::: Either (List UserId) (List Handle) ::: Bool -> (Handler r) Response
+listActivatedAccountsH ::
+  Members '[Input (Local ()), UserQuery] r =>
+  JSON ::: Either (List UserId) (List Handle) ::: Bool ->
+  Handler r Response
 listActivatedAccountsH (_ ::: qry ::: includePendingInvitations) = do
   json <$> lift (listActivatedAccounts qry includePendingInvitations)
 
-listActivatedAccounts :: Either (List UserId) (List Handle) -> Bool -> (AppT r) [UserAccount]
+listActivatedAccounts ::
+  forall r.
+  Members '[Input (Local ()), UserQuery] r =>
+  Either (List UserId) (List Handle) ->
+  Bool ->
+  AppT r [UserAccount]
 listActivatedAccounts elh includePendingInvitations = do
   Log.debug (Log.msg $ "listActivatedAccounts: " <> show (elh, includePendingInvitations))
   case elh of
@@ -472,7 +505,9 @@ listActivatedAccounts elh includePendingInvitations = do
       byIds (catMaybes us)
   where
     byIds :: [UserId] -> (AppT r) [UserAccount]
-    byIds uids = wrapClient (API.lookupAccounts uids) >>= filterM accountValid
+    byIds uids = do
+      locale <- setDefaultUserLocale <$> view settings
+      liftSem (API.lookupAccounts locale uids) >>= filterM accountValid
 
     accountValid :: UserAccount -> (AppT r) Bool
     accountValid account = case userIdentity . accountUser $ account of
@@ -493,7 +528,10 @@ listActivatedAccounts elh includePendingInvitations = do
           (Deleted, _, _) -> pure True
           (Ephemeral, _, _) -> pure True
 
-listAccountsByIdentityH :: JSON ::: Either Email Phone ::: Bool -> (Handler r) Response
+listAccountsByIdentityH ::
+  Members '[Input (Local ()), UserQuery] r =>
+  JSON ::: Either Email Phone ::: Bool ->
+  Handler r Response
 listAccountsByIdentityH (_ ::: emailOrPhone ::: includePendingInvitations) =
   lift $
     json
@@ -569,7 +607,10 @@ getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
   where
     filterByRelation l rel = filter ((== rel) . csv2Status) l
 
-revokeIdentityH :: Either Email Phone -> (Handler r) Response
+revokeIdentityH ::
+  Members '[Input (Local ()), UserQuery] r =>
+  Either Email Phone ->
+  Handler r Response
 revokeIdentityH emailOrPhone = do
   lift $ API.revokeIdentity emailOrPhone
   pure $ setStatus status200 empty

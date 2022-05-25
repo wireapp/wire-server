@@ -25,14 +25,17 @@ import Bilge.RPC (HasRequestId)
 import qualified Brig.API.User as API
 import Brig.App
 import Brig.InternalEvent.Types
-import Brig.Options (defDeleteThrottleMillis, setDeleteThrottleMillis)
+import Brig.Options (defDeleteThrottleMillis, setDefaultUserLocale, setDeleteThrottleMillis)
 import qualified Brig.Provider.API as API
+import Brig.Sem.UserQuery.Cassandra
 import Brig.User.Search.Index (MonadIndexIO)
 import Cassandra (MonadClient)
 import Control.Lens (view)
 import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Imports
+import Polysemy
+import Polysemy.Input
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO (timeout)
@@ -41,6 +44,7 @@ import UnliftIO (timeout)
 --
 -- Has a one-minute timeout that should be enough for anything that it does.
 onEvent ::
+  forall m.
   ( Log.MonadLogger m,
     MonadCatch m,
     MonadThrow m,
@@ -55,23 +59,26 @@ onEvent ::
   ) =>
   InternalNotification ->
   m ()
-onEvent n = handleTimeout $ case n of
-  DeleteUser uid -> do
-    Log.info $
-      msg (val "Processing user delete event")
-        ~~ field "user" (toByteString uid)
-    API.lookupAccount uid >>= mapM_ API.deleteAccount
-    -- As user deletions are expensive resource-wise in the context of
-    -- bulk user deletions (e.g. during team deletions),
-    -- wait 'delay' ms before processing the next event
-    delay <- fromMaybe defDeleteThrottleMillis . setDeleteThrottleMillis <$> view settings
-    liftIO $ threadDelay (1000 * delay)
-  DeleteService pid sid -> do
-    Log.info $
-      msg (val "Processing service delete event")
-        ~~ field "provider" (toByteString pid)
-        ~~ field "service" (toByteString sid)
-    API.finishDeleteService pid sid
+onEvent n = do
+  locale <- setDefaultUserLocale <$> view settings
+  locDomain <- qualifyLocal ()
+  handleTimeout $ case n of
+    DeleteUser uid -> do
+      Log.info $
+        msg (val "Processing user delete event")
+          ~~ field "user" (toByteString uid)
+      (runM . userQueryToCassandra @m @'[Embed m] . runInputConst locDomain $ API.lookupAccount locale uid) >>= mapM_ API.deleteAccount
+      -- As user deletions are expensive resource-wise in the context of
+      -- bulk user deletions (e.g. during team deletions),
+      -- wait 'delay' ms before processing the next event
+      delay <- fromMaybe defDeleteThrottleMillis . setDeleteThrottleMillis <$> view settings
+      liftIO $ threadDelay (1000 * delay)
+    DeleteService pid sid -> do
+      Log.info $
+        msg (val "Processing service delete event")
+          ~~ field "provider" (toByteString pid)
+          ~~ field "service" (toByteString sid)
+      API.finishDeleteService pid sid
   where
     handleTimeout act =
       timeout 60000000 act >>= \case
