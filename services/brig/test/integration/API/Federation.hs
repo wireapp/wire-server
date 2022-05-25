@@ -61,7 +61,7 @@ import Wire.API.UserMap (UserMap (UserMap))
 -- Note: POST /federation/send-connection-action is implicitly tested in API.User.Connection
 tests :: Manager -> Opt.Opts -> Brig -> Cannon -> FedClient 'Brig -> IO TestTree
 tests m opts brig cannon fedBrigClient =
-  return $
+  pure $
     testGroup
       "federation"
       [ test m "POST /federation/search-users : Found" (testSearchSuccess opts brig),

@@ -62,11 +62,11 @@ createPopulatedBindingTeamWithNamesAndHandles ::
   Int ->
   m (TeamId, User, [User])
 createPopulatedBindingTeamWithNamesAndHandles brig numMembers = do
-  names <- forM [1 .. numMembers] $ \_ -> randomName
+  names <- forM [1 .. numMembers] $ const randomName
   (tid, owner, mems) <- createPopulatedBindingTeamWithNames brig names
   membersWithHandle <- mapM (setRandomHandle brig) mems
   ownerWithHandle <- setRandomHandle brig owner
-  return (tid, ownerWithHandle, membersWithHandle)
+  pure (tid, ownerWithHandle, membersWithHandle)
 
 createPopulatedBindingTeam ::
   (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
@@ -74,9 +74,9 @@ createPopulatedBindingTeam ::
   Int ->
   m (TeamId, UserId, [User])
 createPopulatedBindingTeam brig numMembers = do
-  names <- forM [1 .. numMembers] $ \_ -> randomName
+  names <- forM [1 .. numMembers] $ const randomName
   (tid, owner, others) <- createPopulatedBindingTeamWithNames brig names
-  return (tid, userId owner, others)
+  pure (tid, userId owner, others)
 
 createPopulatedBindingTeamWithNames ::
   (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
@@ -118,7 +118,7 @@ createTeam u galley = do
           . expect2xx
           . lbytes (encode newTeam)
       )
-  maybe (error "invalid team id") return $
+  maybe (error "invalid team id") pure $
     fromByteString $
       getHeader' "Location" r
 
@@ -128,7 +128,7 @@ createTeam u galley = do
 createUserWithTeam :: (MonadIO m, MonadHttp m, MonadCatch m, MonadThrow m) => Brig -> m (UserId, TeamId)
 createUserWithTeam brig = do
   (user, tid) <- createUserWithTeam' brig
-  return (userId user, tid)
+  pure (userId user, tid)
 
 -- | Create user and binding team.
 --
@@ -149,7 +149,7 @@ createUserWithTeam' brig = do
   let Just tid = userTeam user
   selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId user)
   liftIO $ assertBool "Team ID in self profile and team table do not match" (selfTeam == Just tid)
-  return (user, tid)
+  pure (user, tid)
 
 -- | Create a team member with given permissions.
 createTeamMember ::
@@ -165,7 +165,7 @@ createTeamMember ::
 createTeamMember brig galley owner tid perm = do
   user <- inviteAndRegisterUser owner tid brig
   updatePermissions owner tid (userId user, perm) galley
-  return user
+  pure user
 
 inviteAndRegisterUser ::
   (MonadIO m, MonadCatch m, MonadFail m, MonadHttp m, HasCallStack) =>
@@ -192,7 +192,7 @@ inviteAndRegisterUser u tid brig = do
   liftIO $ assertEqual "Team ID in registration and team table do not match" (Just tid) (userTeam invitee)
   selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId invitee)
   liftIO $ assertEqual "Team ID in self profile and team table do not match" selfTeam (Just tid)
-  return invitee
+  pure invitee
 
 updatePermissions :: HasCallStack => UserId -> TeamId -> (UserId, Team.Permissions) -> Galley -> Http ()
 updatePermissions from tid (to, perm) galley =
@@ -224,7 +224,7 @@ createTeamConv g tid u us mtimer = do
       )
       <!! const 201
       === statusCode
-  maybe (error "invalid conv id") return $
+  maybe (error "invalid conv id") pure $
     fromByteString $
       getHeader' "Location" r
 
@@ -285,7 +285,7 @@ putLHWhitelistTeam galley tid = do
     )
 
 accept :: Email -> InvitationCode -> RequestBody
-accept email code = acceptWithName (Name "Bob") email code
+accept = acceptWithName (Name "Bob")
 
 acceptWithName :: Name -> Email -> InvitationCode -> RequestBody
 acceptWithName name email code =
@@ -357,7 +357,7 @@ getInvitation brig c = do
       brig
         . path "/teams/invitations/info"
         . queryItem "code" (toByteString' c)
-  return . decode . fromMaybe "" $ responseBody r
+  pure . decode . fromMaybe "" $ responseBody r
 
 postInvitation ::
   (MonadIO m, MonadHttp m, HasCallStack) =>
@@ -407,7 +407,7 @@ getInvitationCode brig t ref = do
           . queryItem "invitation_id" (toByteString' ref)
       )
   let lbs = fromMaybe "" $ responseBody r
-  return $ fromByteString . fromMaybe (error "No code?") $ T.encodeUtf8 <$> (lbs ^? key "code" . _String)
+  pure $ fromByteString (maybe (error "No code?") T.encodeUtf8 (lbs ^? key "code" . _String))
 
 assertNoInvitationCode :: HasCallStack => Brig -> TeamId -> InvitationId -> (MonadIO m, MonadHttp m, MonadCatch m) => m ()
 assertNoInvitationCode brig t i =

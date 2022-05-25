@@ -123,8 +123,8 @@ keyPackageRefSetConvId ref convId = do
           { serialConsistency = Just LocalSerialConsistency
           }
   case updated of
-    [] -> return False
-    [_] -> return True
+    [] -> pure False
+    [_] -> pure True
     _ -> throwM $ ErrorCall "Primary key violation detected mls_key_package_refs.ref"
   where
     q :: PrepQuery W (Domain, ConvId, KeyPackageRef) x

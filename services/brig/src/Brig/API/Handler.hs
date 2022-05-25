@@ -83,7 +83,7 @@ runHandler e r h k = do
   a <-
     runAppT e' (runExceptT h)
       `catches` brigErrorHandlers (view applog e) (unRequestId (view requestId e))
-  either (onError (view applog e') r k) return a
+  either (onError (view applog e') r k) pure a
 
 toServantHandler :: Env -> (Handler BrigCanonicalEffects) a -> Servant.Handler a
 toServantHandler env action = do

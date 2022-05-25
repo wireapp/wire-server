@@ -73,14 +73,14 @@ initSMTP lg host port credentials connType = do
             SMTP.defaultSettingsSMTPSSL {SMTP.sslPort = p}
       ok <- case credentials of
         (Just (Username u, Password p)) -> SMTP.authenticate SMTP.LOGIN (unpack u) (unpack p) conn
-        _ -> return True
-      return (ok, conn)
+        _ -> pure True
+      pure (ok, conn)
     create = do
       (ok, conn) <- connect
       if ok
         then Logger.log lg Logger.Debug (msg $ val "Established connection to: " +++ host)
         else Logger.log lg Logger.Warn (msg $ val "Failed to established connection, check your credentials to connect to: " +++ host)
-      return conn
+      pure conn
     destroy c = do
       SMTP.closeSMTP c
       Logger.log lg Logger.Debug (msg $ val "Closing connection to: " +++ host)

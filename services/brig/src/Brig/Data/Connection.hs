@@ -290,7 +290,7 @@ countConnections u r = do
   rels <- retry x1 . query selectStatus $ params One (Identity (tUnqualified u))
   relsRemote <- retry x1 . query selectStatusRemote $ params One (Identity (tUnqualified u))
 
-  return $ foldl' count 0 rels + foldl' count 0 relsRemote
+  pure $ foldl' count 0 rels + foldl' count 0 relsRemote
   where
     selectStatus :: QueryString R (Identity UserId) (Identity RelationWithHistory)
     selectStatus = "SELECT status FROM connection WHERE left = ?"

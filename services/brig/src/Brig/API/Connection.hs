@@ -122,15 +122,15 @@ createConnectionToLocalUser self conn target = do
           <$> wrapClient (Data.lookupName (tUnqualified self))
       let e2s = ConnectionUpdated s2o' (ucStatus <$> s2o) Nothing
       mapM_ (Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
-      return s2o'
+      pure s2o'
 
     update :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
     update s2o o2s = case (ucStatus s2o, ucStatus o2s) of
       (MissingLegalholdConsent, _) -> throwE $ InvalidTransition (tUnqualified self)
       (_, MissingLegalholdConsent) -> throwE $ InvalidTransition (tUnqualified self)
-      (Accepted, Accepted) -> return $ Existed s2o
-      (Accepted, Blocked) -> return $ Existed s2o
-      (Sent, Blocked) -> return $ Existed s2o
+      (Accepted, Accepted) -> pure $ Existed s2o
+      (Accepted, Blocked) -> pure $ Existed s2o
+      (Sent, Blocked) -> pure $ Existed s2o
       (Blocked, _) -> throwE $ InvalidTransition (tUnqualified self)
       (_, Blocked) -> change s2o SentWithHistory
       (_, Sent) -> accept s2o o2s
@@ -159,7 +159,7 @@ createConnectionToLocalUser self conn target = do
             <$> Data.lookupName (tUnqualified self)
       let e2s = ConnectionUpdated s2o' (Just $ ucStatus s2o) Nothing
       lift $ mapM_ (Intra.onConnectionEvent (tUnqualified self) (Just conn)) [e2o, e2s]
-      return $ Existed s2o'
+      pure $ Existed s2o'
 
     resend :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
     resend s2o o2s = do
@@ -169,7 +169,7 @@ createConnectionToLocalUser self conn target = do
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
           . msg (val "Resending connection request")
       s2o' <- insert (Just s2o) (Just o2s)
-      return $ Existed s2o'
+      pure $ Existed s2o'
 
     change :: UserConnection -> RelationWithHistory -> ExceptT ConnectionError (AppT r) (ResponseForExistedCreated UserConnection)
     change c s = Existed <$> lift (wrapClient $ Data.updateConnection c s)
@@ -183,7 +183,7 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   let catchProfileNotFound =
         -- Does not fit into 'ExceptT', so throw in '(AppT r)'.  Anyway at the time of writing
         -- this, users are guaranteed to exist when called from 'createConnectionToLocalUser'.
-        maybe (throwM (errorToWai @'E.UserNotFound)) return
+        maybe (throwM (errorToWai @'E.UserNotFound)) pure
 
   status1 <- lift (wrapHttpClient $ getLegalHoldStatus uid1) >>= catchProfileNotFound
   status2 <- lift (wrapHttpClient $ getLegalHoldStatus uid2) >>= catchProfileNotFound
@@ -270,14 +270,14 @@ updateConnectionToLocalUser self other newStatus conn = do
     -- Cancelled -> {Blocked}
     (Cancelled, _, Blocked) -> block s2o
     -- no change
-    (old, _, new) | old == new -> return Nothing
+    (old, _, new) | old == new -> pure Nothing
     -- invalid
     _ -> throwE $ InvalidTransition (tUnqualified self)
   let s2oUserConn = s2o'
   lift . for_ s2oUserConn $ \c ->
     let e2s = ConnectionUpdated c (Just $ ucStatus s2o) Nothing
      in Intra.onConnectionEvent (tUnqualified self) conn e2s
-  return s2oUserConn
+  pure s2oUserConn
   where
     accept :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
     accept s2o o2s = do
@@ -496,4 +496,4 @@ lookupConnections :: UserId -> Maybe UserId -> Range 1 500 Int32 -> (AppT r) Use
 lookupConnections from start size = do
   lusr <- qualifyLocal from
   rs <- wrapClient $ Data.lookupLocalConnections lusr start size
-  return $! UserConnectionList (Data.resultList rs) (Data.resultHasMore rs)
+  pure $! UserConnectionList (Data.resultList rs) (Data.resultHasMore rs)

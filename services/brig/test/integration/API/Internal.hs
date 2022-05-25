@@ -56,7 +56,7 @@ import qualified Wire.API.Team.Member as Team
 
 tests :: Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Gundeck -> Galley -> IO TestTree
 tests opts mgr db brig brigep gundeck galley = do
-  return $
+  pure $
     testGroup "api/internal" $
       [ test mgr "ejpd requests" $ testEJPDRequest mgr brig brigep gundeck,
         test mgr "account features: conferenceCalling" $
@@ -244,7 +244,7 @@ keyPackageCreate brig = do
     Nothing -> liftIO $ assertFailure "Claim response empty"
     Just bundle -> case toList $ kpbEntries bundle of
       [] -> liftIO $ assertFailure "Claim response held no bundles"
-      (h : _) -> return $ kpbeRef h
+      (h : _) -> pure $ kpbeRef h
 
 kpcPut :: HasCallStack => Brig -> KeyPackageRef -> Qualified ConvId -> Http ()
 kpcPut brig ref qConv = do
@@ -262,8 +262,8 @@ kpcGet brig ref = do
   resp <-
     get (brig . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref, "conversation"])
   liftIO $ case statusCode resp of
-    404 -> return Nothing
-    200 -> return $ responseBody resp >>= decode
+    404 -> pure Nothing
+    200 -> pure $ responseBody resp >>= decode
     _ -> assertFailure "GET i/mls/key-packages/:ref/conversation failed"
 
 testKpcFreshGet :: Brig -> Http ()

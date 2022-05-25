@@ -114,9 +114,9 @@ mkEnv lgr opts emailOpts mgr = do
       sesEndpoint
       dynamoEndpoint
       (mkEndpoint SQS.defaultService (Opt.sqsEndpoint opts))
-  sq <- maybe (return Nothing) (fmap Just . getQueueUrl e . Opt.sesQueue) emailOpts
-  jq <- maybe (return Nothing) (fmap Just . getQueueUrl e) (Opt.userJournalQueue opts)
-  return (Env g sq jq pk e)
+  sq <- maybe (pure Nothing) (fmap Just . getQueueUrl e . Opt.sesQueue) emailOpts
+  jq <- maybe (pure Nothing) (fmap Just . getQueueUrl e) (Opt.userJournalQueue opts)
+  pure (Env g sq jq pk e)
   where
     mkEndpoint svc e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) svc
     mkAwsEnv g ses dyn sqs = do
@@ -180,7 +180,7 @@ listen throttleMillis url callback = forever . handleAny unexpectedError $ do
         & set SQS.receiveMessage_waitTimeSeconds (Just 20)
           . set SQS.receiveMessage_maxNumberOfMessages (Just 10)
     onMessage m =
-      case decodeStrict =<< Text.encodeUtf8 <$> m ^. SQS.message_body of
+      case decodeStrict . Text.encodeUtf8 =<< (m ^. SQS.message_body) of
         Nothing -> err $ msg ("Failed to parse SQS event: " ++ show m)
         Just n -> do
           debug $ msg ("Received SQS event: " ++ show n)
@@ -214,7 +214,7 @@ sendMail m = do
           & SES.sendRawEmail_destinations ?~ fmap addressEmail (mailTo m)
           & SES.sendRawEmail_source ?~ addressEmail (mailFrom m)
   resp <- retrying retry5x (const canRetry) $ const (sendCatch raw)
-  void $ either check return resp
+  void $ either check pure resp
   where
     check x = case x of
       -- To map rejected domain names by SES to 400 responses, in order
@@ -242,7 +242,7 @@ send :: AWSRequest r => r -> Amazon (AWSResponse r)
 send r = throwA =<< sendCatch r
 
 throwA :: Either AWS.Error a -> Amazon a
-throwA = either (throwM . GeneralError) return
+throwA = either (throwM . GeneralError) pure
 
 execCatch ::
   (AWSRequest a, MonadUnliftIO m, MonadCatch m, MonadThrow m, MonadIO m) =>
@@ -259,7 +259,7 @@ exec ::
   AWS.Env ->
   a ->
   m (AWSResponse a)
-exec e cmd = liftIO (execCatch e cmd) >>= either (throwM . GeneralError) return
+exec e cmd = liftIO (execCatch e cmd) >>= either (throwM . GeneralError) pure
 
 canRetry :: MonadIO m => Either AWS.Error a -> m Bool
 canRetry (Right _) = pure False

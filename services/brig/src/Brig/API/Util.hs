@@ -62,7 +62,7 @@ import Wire.API.User.Search (FederatedUserSearchPolicy (NoSearch))
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
 lookupProfilesMaybeFilterSameTeamOnly self us = do
   selfTeam <- lift $ wrapClient $ Data.lookupUserTeam self
-  return $ case selfTeam of
+  pure $ case selfTeam of
     Just team -> filter (\x -> profileTeam x == Just team) us
     Nothing -> us
 
@@ -71,7 +71,7 @@ fetchUserIdentity uid =
   lookupSelfProfile uid
     >>= maybe
       (throwM $ UserProfileNotFound uid)
-      (return . userIdentity . selfUser)
+      (pure . userIdentity . selfUser)
 
 -- | Obtain a profile for a user as he can see himself.
 lookupSelfProfile :: UserId -> (AppT r) (Maybe SelfProfile)
@@ -80,7 +80,7 @@ lookupSelfProfile = fmap (fmap mk) . wrapClient . Data.lookupAccount
     mk a = SelfProfile (accountUser a)
 
 validateHandle :: Text -> (Handler r) Handle
-validateHandle = maybe (throwStd (errorToWai @'InvalidHandle)) return . parseHandle
+validateHandle = maybe (throwStd (errorToWai @'InvalidHandle)) pure . parseHandle
 
 logEmail :: Email -> (Msg -> Msg)
 logEmail email =

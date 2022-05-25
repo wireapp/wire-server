@@ -219,7 +219,7 @@ sendLoginCode :: Public.SendLoginCode -> (Handler r) Public.LoginCodeTimeout
 sendLoginCode (Public.SendLoginCode phone call force) = do
   checkWhitelist (Right phone)
   c <- wrapClientE (Auth.sendLoginCode phone call force) !>> sendLoginCodeError
-  return $ Public.LoginCodeTimeout (pendingLoginTimeout c)
+  pure $ Public.LoginCodeTimeout (pendingLoginTimeout c)
 
 getLoginCodeH :: JSON ::: Phone -> (Handler r) Response
 getLoginCodeH (_ ::: phone) = json <$> getLoginCode phone
@@ -227,12 +227,12 @@ getLoginCodeH (_ ::: phone) = json <$> getLoginCode phone
 getLoginCode :: Phone -> (Handler r) Public.PendingLoginCode
 getLoginCode phone = do
   code <- lift $ wrapClient $ Auth.lookupLoginCode phone
-  maybe (throwStd loginCodeNotFound) return code
+  maybe (throwStd loginCodeNotFound) pure code
 
 reAuthUserH :: UserId ::: JsonRequest ReAuthUser -> (Handler r) Response
 reAuthUserH (uid ::: req) = do
   reAuthUser uid =<< parseJsonBody req
-  return empty
+  pure empty
 
 reAuthUser :: UserId -> ReAuthUser -> (Handler r) ()
 reAuthUser uid body = do
@@ -401,7 +401,7 @@ tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| l
     bearer (Okay _ b) =
       let (prefix, suffix) = BS.splitAt 7 b
        in if prefix == "Bearer "
-            then return suffix
+            then pure suffix
             else
               Fail
                 ( setReason
@@ -419,7 +419,7 @@ tokenRequest = opt (userToken ||| legalHoldUserToken) .&. opt (accessToken ||| l
               TypeError
               (setMessage "Invalid access token" (err status403))
           )
-      Just t -> return t
+      Just t -> pure t
 
 tokenResponse :: ZAuth.UserTokenLike u => Auth.Access u -> (AppT r) Response
 tokenResponse (Auth.Access t Nothing) = pure $ json t
@@ -438,7 +438,7 @@ cookies k r =
     cc ->
       case mapMaybe fromByteString cc of
         [] -> Fail . addLabel "cookie" . typeError k $ "Failed to get zuid cookies"
-        (x : xs) -> return $ List1.list1 x xs
+        (x : xs) -> pure $ List1.list1 x xs
 
 notAvailable :: ByteString -> P.Error
 notAvailable k = e400 & setReason NotAvailable . setSource k

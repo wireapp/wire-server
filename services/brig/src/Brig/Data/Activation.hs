@@ -96,9 +96,9 @@ activateKey ::
   ExceptT ActivationError m (Maybe ActivationEvent)
 activateKey k c u = verifyCode k c >>= pickUser >>= activate
   where
-    pickUser (uk, u') = maybe (throwE invalidUser) (return . (uk,)) (u <|> u')
+    pickUser (uk, u') = maybe (throwE invalidUser) (pure . (uk,)) (u <|> u')
     activate (key, uid) = do
-      a <- lift (lookupAccount uid) >>= maybe (throwE invalidUser) return
+      a <- lift (lookupAccount uid) >>= maybe (throwE invalidUser) pure
       unless (accountStatus a == Active) $ -- this is never 'PendingActivation' in the flow this function is used in.
         throwE invalidCode
       case userIdentity (accountUser a) of
@@ -107,7 +107,7 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
           let ident = foldKey EmailIdentity PhoneIdentity key
           lift $ activateUser uid ident
           let a' = a {accountUser = (accountUser a) {userIdentity = Just ident}}
-          return . Just $ AccountActivated a'
+          pure . Just $ AccountActivated a'
         Just _ -> do
           let usr = accountUser a
               (profileNeedsUpdate, oldKey) =
@@ -118,19 +118,19 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
                   usr
            in handleExistingIdentity uid profileNeedsUpdate oldKey key
     handleExistingIdentity uid profileNeedsUpdate oldKey key
-      | oldKey == Just key && not profileNeedsUpdate = return Nothing
+      | oldKey == Just key && not profileNeedsUpdate = pure Nothing
       -- activating existing key and exactly same profile
       -- (can happen when a user clicks on activation links more than once)
       | oldKey == Just key && profileNeedsUpdate = do
         lift $ foldKey (updateEmailAndDeleteEmailUnvalidated uid) (updatePhone uid) key
-        return . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
+        pure . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
       -- if the key is the same, we only want to update our profile
       | otherwise = do
         lift (runM (codeStoreToCassandra @m @'[Embed m] (E.mkPasswordResetKey uid >>= E.codeDelete)))
         claim key uid
         lift $ foldKey (updateEmailAndDeleteEmailUnvalidated uid) (updatePhone uid) key
         for_ oldKey $ lift . deleteKey
-        return . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
+        pure . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
       where
         updateEmailAndDeleteEmailUnvalidated :: MonadClient m => UserId -> Email -> m ()
         updateEmailAndDeleteEmailUnvalidated u' email =
@@ -162,7 +162,7 @@ newActivation uk timeout u = do
     insert t k c = do
       key <- liftIO $ mkActivationKey uk
       retry x5 . write keyInsert $ params LocalQuorum (key, t, k, c, u, maxAttempts, round timeout)
-      return $ Activation key c
+      pure $ Activation key c
     genCode =
       ActivationCode . Ascii.unsafeFromText . pack . printf "%06d"
         <$> randIntegerZeroToNMinusOne 1000000
@@ -190,10 +190,10 @@ verifyCode key code = do
     Nothing -> throwE invalidCode
   where
     mkScope "email" k u = case parseEmail k of
-      Just e -> return (userEmailKey e, u)
+      Just e -> pure (userEmailKey e, u)
       Nothing -> throwE invalidCode
     mkScope "phone" k u = case parsePhone k of
-      Just p -> return (userPhoneKey p, u)
+      Just p -> pure (userPhoneKey p, u)
       Nothing -> throwE invalidCode
     mkScope _ _ _ = throwE invalidCode
     countdown = lift . retry x5 . write keyInsert . params LocalQuorum
@@ -202,9 +202,9 @@ verifyCode key code = do
 mkActivationKey :: UserKey -> IO ActivationKey
 mkActivationKey k = do
   d <- liftIO $ getDigestByName "SHA256"
-  d' <- maybe (fail "SHA256 not found") return d
+  d' <- maybe (fail "SHA256 not found") pure d
   let bs = digestBS d' (T.encodeUtf8 $ keyText k)
-  return . ActivationKey $ Ascii.encodeBase64Url bs
+  pure . ActivationKey $ Ascii.encodeBase64Url bs
 
 deleteActivationPair :: MonadClient m => ActivationKey -> m ()
 deleteActivationPair = write keyDelete . params LocalQuorum . Identity

@@ -100,7 +100,7 @@ sendLoginCode phone call force = do
   pk <-
     maybe
       (throwE $ SendLoginInvalidPhone phone)
-      (return . userPhoneKey)
+      (pure . userPhoneKey)
       =<< lift (validatePhone phone)
   user <- lift $ Data.lookupKey pk
   case user of
@@ -117,7 +117,7 @@ sendLoginCode phone call force = do
           if call
             then sendLoginCall ph (pendingLoginCode c) l
             else sendLoginSms ph (pendingLoginCode c) l
-        return c
+        pure c
 
 lookupLoginCode ::
   ( MonadClient m,
@@ -128,7 +128,7 @@ lookupLoginCode ::
   m (Maybe PendingLoginCode)
 lookupLoginCode phone =
   Data.lookupKey (userPhoneKey phone) >>= \case
-    Nothing -> return Nothing
+    Nothing -> pure Nothing
     Just u -> do
       Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.lookupLoginCode")
       Data.lookupLoginCode u
@@ -277,7 +277,7 @@ renewAccess uts at = do
   catchSuspendInactiveUser uid ZAuth.Expired
   ck' <- lift $ nextCookie ck
   at' <- lift $ newAccessToken (fromMaybe ck ck') at
-  return $ Access at' ck'
+  pure $ Access at' ck'
 
 revokeAccess ::
   (MonadClient m, Log.MonadLogger m) =>
@@ -348,7 +348,7 @@ newAccess uid ct cl = do
     Left delay -> throwE $ LoginThrottled delay
     Right ck -> do
       t <- lift $ newAccessToken @u @a ck Nothing
-      return $ Access t (Just ck)
+      pure $ Access t (Just ck)
 
 resolveLoginId :: (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m UserId
 resolveLoginId li = do
@@ -360,32 +360,32 @@ resolveLoginId li = do
         if pending
           then LoginPendingActivation
           else LoginFailed
-    Just uid -> return uid
+    Just uid -> pure uid
 
 validateLoginId :: (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m (Either UserKey Handle)
 validateLoginId (LoginByEmail email) =
   either
     (const $ throwE LoginFailed)
-    (return . Left . userEmailKey)
+    (pure . Left . userEmailKey)
     (validateEmail email)
 validateLoginId (LoginByPhone phone) =
   maybe
     (throwE LoginFailed)
-    (return . Left . userPhoneKey)
+    (pure . Left . userPhoneKey)
     =<< lift (validatePhone phone)
 validateLoginId (LoginByHandle h) =
-  return (Right h)
+  pure (Right h)
 
 isPendingActivation :: (MonadClient m, MonadReader Env m) => LoginId -> m Bool
 isPendingActivation ident = case ident of
-  (LoginByHandle _) -> return False
+  (LoginByHandle _) -> pure False
   (LoginByEmail e) -> checkKey (userEmailKey e)
   (LoginByPhone p) -> checkKey (userPhoneKey p)
   where
     checkKey k = do
       usr <- (>>= fst) <$> Data.lookupActivationCode k
       case usr of
-        Nothing -> return False
+        Nothing -> pure False
         Just u -> maybe False (checkAccount k) <$> Data.lookupAccount u
     checkAccount k a =
       let i = userIdentity (accountUser a)
@@ -421,7 +421,7 @@ validateTokens uts at = do
       List1 (Either ZAuth.Failure (UserId, Cookie (ZAuth.Token u))) ->
       ExceptT ZAuth.Failure m (UserId, Cookie (ZAuth.Token u))
     getFirstSuccessOrFirstFail tks = case (lefts $ NE.toList $ List1.toNonEmpty tks, rights $ NE.toList $ List1.toNonEmpty tks) of
-      (_, suc : _) -> return suc
+      (_, suc : _) -> pure suc
       (e : _, _) -> throwE e
       _ -> throwE ZAuth.Invalid -- Impossible
 
@@ -442,8 +442,8 @@ validateToken ut at = do
     ExceptT (ZAuth.validateToken token)
       `catchE` \e ->
         unless (e == ZAuth.Expired) (throwE e)
-  ck <- lift (lookupCookie ut) >>= maybe (throwE ZAuth.Invalid) return
-  return (ZAuth.userTokenOf ut, ck)
+  ck <- lift (lookupCookie ut) >>= maybe (throwE ZAuth.Invalid) pure
+  pure (ZAuth.userTokenOf ut, ck)
 
 -- | Allow to login as any user without having the credentials.
 ssoLogin ::

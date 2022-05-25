@@ -63,12 +63,12 @@ getLocalHandleInfo self handle = do
   lift . Log.info $ Log.msg $ Log.val "getHandleInfo - local lookup"
   maybeOwnerId <- lift . wrapClient $ API.lookupHandle handle
   case maybeOwnerId of
-    Nothing -> return Nothing
+    Nothing -> pure Nothing
     Just ownerId -> do
       domain <- viewFederationDomain
       ownerProfile <- wrapHttpClientE (API.lookupProfile self (Qualified ownerId domain)) !>> fedError
       owner <- filterHandleResults self (maybeToList ownerProfile)
-      return $ listToMaybe owner
+      pure $ listToMaybe owner
 
 -- | Checks search permissions and filters accordingly
 filterHandleResults :: Local UserId -> [Public.UserProfile] -> (Handler r) [Public.UserProfile]
@@ -77,10 +77,10 @@ filterHandleResults searchingUser us = do
   if sameTeamSearchOnly
     then do
       fromTeam <- lift . wrapClient $ Data.lookupUserTeam (tUnqualified searchingUser)
-      return $ case fromTeam of
+      pure $ case fromTeam of
         Just team -> filter (\x -> Public.profileTeam x == Just team) us
         Nothing -> us
-    else return us
+    else pure us
 
 contactFromProfile :: Public.UserProfile -> Public.Contact
 contactFromProfile profile =

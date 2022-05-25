@@ -242,7 +242,7 @@ newEnv o = do
     Just True -> Just <$> newMVar ()
     _ -> pure Nothing
   kpLock <- newMVar ()
-  return
+  pure
     $! Env
       { _cargohold = mkEndpoint $ Opt.cargohold o,
         _galley = mkEndpoint $ Opt.galley o,
@@ -279,17 +279,17 @@ newEnv o = do
         _keyPackageLocalLock = kpLock
       }
   where
-    emailConn _ (Opt.EmailAWS aws) = return (Just aws, Nothing)
+    emailConn _ (Opt.EmailAWS aws) = pure (Just aws, Nothing)
     emailConn lgr (Opt.EmailSMTP s) = do
       let host = Opt.smtpEndpoint s ^. epHost
           port = Just $ fromInteger $ toInteger $ Opt.smtpEndpoint s ^. epPort
       smtpCredentials <- case Opt.smtpCredentials s of
         Just (Opt.EmailSMTPCredentials u p) -> do
           pass <- initCredentials p
-          return $ Just (SMTP.Username u, SMTP.Password pass)
-        _ -> return Nothing
+          pure $ Just (SMTP.Username u, SMTP.Password pass)
+        _ -> pure Nothing
       smtp <- SMTP.initSMTP lgr host port smtpCredentials (Opt.smtpConnType s)
-      return (Nothing, Just smtp)
+      pure (Nothing, Just smtp)
     mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
 
 mkIndexEnv :: Opts -> Logger -> Manager -> Metrics -> Endpoint -> IndexEnv
@@ -302,12 +302,12 @@ mkIndexEnv o lgr mgr mtr galleyEndpoint =
    in IndexEnv mtr lgr' bhe Nothing mainIndex additionalIndex additionalBhe galleyEndpoint mgr
 
 geoSetup :: Logger -> FS.WatchManager -> Maybe FilePath -> IO (Maybe (IORef GeoIp.GeoDB))
-geoSetup _ _ Nothing = return Nothing
+geoSetup _ _ Nothing = pure Nothing
 geoSetup lgr w (Just db) = do
   path <- canonicalizePath db
   geodb <- newIORef =<< GeoIp.openGeoDB path
   startWatching w path (replaceGeoDb lgr geodb)
-  return $ Just geodb
+  pure $ Just geodb
 
 startWatching :: FS.WatchManager -> FilePath -> FS.Action -> IO ()
 startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
@@ -384,7 +384,7 @@ initExtGetManager = do
           managerResponseTimeout = responseTimeoutMicro 10000000
         }
   Just sha <- getDigestByName "SHA256"
-  return (mgr, mkVerify sha)
+  pure (mgr, mkVerify sha)
   where
     mkVerify sha fprs =
       let pinset = map toByteString' fprs
@@ -411,12 +411,12 @@ initCassandra o g = do
         . Cas.setPolicy (Cas.dcFilterPolicyIfConfigured g (Opt.cassandra o ^. casFilterNodesByDatacentre))
         $ Cas.defSettings
   runClient p $ versionCheck schemaVersion
-  return p
+  pure p
 
 initCredentials :: (FromJSON a) => FilePathSecrets -> IO a
 initCredentials secretFile = do
   dat <- loadSecret secretFile
-  return $ either (\e -> error $ "Could not load secrets from " ++ show secretFile ++ ": " ++ e) id dat
+  pure $ either (\e -> error $ "Could not load secrets from " ++ show secretFile ++ ": " ++ e) id dat
 
 userTemplates :: MonadReader Env m => Maybe Locale -> m (Locale, UserTemplates)
 userTemplates l = forLocale l <$> view usrTemplates
@@ -612,10 +612,10 @@ locationOf ip =
   view geoDb >>= \case
     Just g -> do
       database <- liftIO $ readIORef g
-      return $! do
+      pure $! do
         loc <- GeoIp.geoLocation =<< hush (GeoIp.findGeoData database "en" ip)
-        return $ location (Latitude $ GeoIp.locationLatitude loc) (Longitude $ GeoIp.locationLongitude loc)
-    Nothing -> return Nothing
+        pure $ location (Latitude $ GeoIp.locationLatitude loc) (Longitude $ GeoIp.locationLongitude loc)
+    Nothing -> pure Nothing
 
 --------------------------------------------------------------------------------
 -- Federation

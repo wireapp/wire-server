@@ -105,7 +105,7 @@ setRandomHandle brig user = do
     )
     !!! const 200
     === statusCode
-  return user {userHandle = Just (Handle h)}
+  pure user {userHandle = Just (Handle h)}
 
 -- Note: This actually _will_ send out an email, so we ensure that the email
 --       used here has a domain 'simulator.amazonses.com'.
@@ -139,7 +139,7 @@ createRandomPhoneUser brig = do
   get (brig . path "/self" . zUser uid) !!! do
     const 200 === statusCode
     const (Just phn) === (userPhone <=< responseJsonMaybe)
-  return (uid, phn)
+  pure (uid, phn)
 
 initiatePasswordReset :: Brig -> Email -> (MonadIO m, MonadHttp m) => m ResponseLBS
 initiatePasswordReset brig email =
@@ -205,7 +205,7 @@ preparePasswordReset brig cs email uid newpw = do
   let Just pwcode = PasswordResetCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
   ident <- PasswordResetIdentityKey <$> runSem (mkPasswordResetKey uid)
   let complete = CompletePasswordReset ident pwcode newpw
-  return complete
+  pure complete
   where
     runSem = liftIO . runFinal @IO . interpretClientToIO cs . codeStoreToCassandra @DB.Client
 
@@ -331,7 +331,7 @@ countCookies brig u label = do
       )
       <!! const 200
       === statusCode
-  return $ Vec.length <$> (preview (key "cookies" . _Array) =<< responseJsonMaybe @Value r)
+  pure $ Vec.length <$> (preview (key "cookies" . _Array) =<< responseJsonMaybe @Value r)
 
 assertConnections :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> [ConnectionStatus] -> m ()
 assertConnections brig u connections =

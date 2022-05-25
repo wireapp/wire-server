@@ -173,7 +173,7 @@ onConnectionEvent orig conn evt = do
       orig
       Push.RouteAny
       conn
-      (return $ list1 from [])
+      (pure $ list1 from [])
 
 onPropertyEvent ::
   -- | Originator of the event.
@@ -189,7 +189,7 @@ onPropertyEvent orig conn e =
       orig
       Push.RouteDirect
       (Just conn)
-      (return $ list1 orig [])
+      (pure $ list1 orig [])
 
 onClientEvent ::
   -- | Originator of the event.
@@ -221,13 +221,13 @@ updateSearchIndex ::
   m ()
 updateSearchIndex orig e = case e of
   -- no-ops
-  UserCreated {} -> return ()
+  UserCreated {} -> pure ()
   UserIdentityUpdated UserIdentityUpdatedData {..} -> do
     when (isJust eiuEmail) $ Search.reindex orig
-  UserIdentityRemoved {} -> return ()
-  UserLegalHoldDisabled {} -> return ()
-  UserLegalHoldEnabled {} -> return ()
-  LegalHoldClientRequested {} -> return ()
+  UserIdentityRemoved {} -> pure ()
+  UserLegalHoldDisabled {} -> pure ()
+  UserLegalHoldEnabled {} -> pure ()
+  LegalHoldClientRequested {} -> pure ()
   UserSuspended {} -> Search.reindex orig
   UserResumed {} -> Search.reindex orig
   UserActivated {} -> Search.reindex orig
@@ -258,7 +258,7 @@ journalEvent orig e = case e of
   UserDeleted {} ->
     Journal.userDelete orig
   _ ->
-    return ()
+    pure ()
 
 -------------------------------------------------------------------------------
 -- Low-Level Event Notification
@@ -282,9 +282,9 @@ dispatchNotifications ::
   UserEvent ->
   m ()
 dispatchNotifications orig conn e = case e of
-  UserCreated {} -> return ()
-  UserSuspended {} -> return ()
-  UserResumed {} -> return ()
+  UserCreated {} -> pure ()
+  UserSuspended {} -> pure ()
+  UserResumed {} -> pure ()
   LegalHoldClientRequested {} -> notifyContacts event orig Push.RouteAny conn
   UserLegalHoldDisabled {} -> notifyContacts event orig Push.RouteAny conn
   UserLegalHoldEnabled {} -> notifyContacts event orig Push.RouteAny conn
@@ -334,7 +334,7 @@ notifyUserDeletionRemotes ::
 notifyUserDeletionRemotes deleted = do
   runConduit $
     Data.lookupRemoteConnectedUsersC deleted (fromInteger (natVal (Proxy @UserDeletedNotificationMaxConnections)))
-      .| C.mapM_ (fanoutNotifications)
+      .| C.mapM_ fanoutNotifications
   where
     fanoutNotifications :: [Remote UserId] -> m ()
     fanoutNotifications = mapM_ notifyBackend . bucketRemote
@@ -482,7 +482,7 @@ fork u ma = do
   let logErr e = ExLog.err g $ request r ~~ user u ~~ msg (show e)
   withRunInIO $ \lower ->
     void . liftIO . forkIO $
-      either logErr (const $ return ())
+      either logErr (const $ pure ())
         =<< runExceptT (syncIO $ lower ma)
   where
     request = field "request" . unRequestId
@@ -542,8 +542,8 @@ notifyContacts events orig route conn = do
     screenMemberList :: Maybe Team.TeamMemberList -> m [UserId]
     screenMemberList (Just mems)
       | mems ^. Team.teamMemberListType == Team.ListComplete =
-        return $ fmap (view Team.userId) (mems ^. Team.teamMembers)
-    screenMemberList _ = return []
+        pure $ fmap (view Team.userId) (mems ^. Team.teamMembers)
+    screenMemberList _ = pure []
 
 -- Event Serialisation:
 
@@ -754,7 +754,7 @@ createLocalConnectConv from to cname conn = do
           . lbytes (encode $ Connect (qUntagged to) Nothing cname Nothing)
           . expect2xx
   r <- galleyRequest POST req
-  maybe (error "invalid conv id") return $
+  maybe (error "invalid conv id") pure $
     fromByteString $
       getHeader' "Location" r
 
@@ -911,7 +911,7 @@ getConv usr cnv = do
   rs <- galleyRequest GET req
   case Bilge.statusCode rs of
     200 -> Just <$> decodeBody "galley" rs
-    _ -> return Nothing
+    _ -> pure Nothing
   where
     req =
       paths ["conversations", toByteString' cnv]
@@ -960,7 +960,7 @@ getTeamConv usr tid cnv = do
   rs <- galleyRequest GET req
   case Bilge.statusCode rs of
     200 -> Just <$> decodeBody "galley" rs
-    _ -> return Nothing
+    _ -> pure Nothing
   where
     req =
       paths ["teams", toByteString' tid, "conversations", toByteString' cnv]
@@ -1110,10 +1110,10 @@ checkUserCanJoinTeam tid = do
     remote "galley"
       . msg (val "Check if can add member to team")
   rs <- galleyRequest GET req
-  return $ case Bilge.statusCode rs of
+  pure $ case Bilge.statusCode rs of
     200 -> Nothing
     _ -> case decodeBody "galley" rs of
-      Just (e :: Wai.Error) -> return e
+      Just (e :: Wai.Error) -> pure e
       Nothing -> error ("Invalid response from galley: " <> show rs)
   where
     req =
@@ -1138,7 +1138,7 @@ addTeamMember u tid (minvmeta, role) = do
     remote "galley"
       . msg (val "Adding member to team")
   rs <- galleyRequest POST req
-  return $ case Bilge.statusCode rs of
+  pure $ case Bilge.statusCode rs of
     200 -> True
     _ -> False
   where
@@ -1170,10 +1170,10 @@ createTeam u t@(Team.BindingNewTeam bt) teamid = do
       . msg (val "Creating Team")
   r <- galleyRequest PUT $ req teamid
   tid <-
-    maybe (error "invalid team id") return $
+    maybe (error "invalid team id") pure $
       fromByteString $
         getHeader' "Location" r
-  return (CreateUserTeam tid $ fromRange (bt ^. Team.newTeamName))
+  pure (CreateUserTeam tid $ fromRange (bt ^. Team.newTeamName))
   where
     req tid =
       paths ["i", "teams", toByteString' tid]
@@ -1201,7 +1201,7 @@ getTeamMember u tid = do
   rs <- galleyRequest GET req
   case Bilge.statusCode rs of
     200 -> Just <$> decodeBody "galley" rs
-    _ -> return Nothing
+    _ -> pure Nothing
   where
     req =
       paths ["i", "teams", toByteString' tid, "members", toByteString' u]
@@ -1265,7 +1265,7 @@ getTeamContacts u = do
   rs <- galleyRequest GET req
   case Bilge.statusCode rs of
     200 -> Just <$> decodeBody "galley" rs
-    _ -> return Nothing
+    _ -> pure Nothing
   where
     req =
       paths ["i", "users", toByteString' u, "team", "members"]
@@ -1287,7 +1287,7 @@ getTeamId u = do
   rs <- galleyRequest GET req
   case Bilge.statusCode rs of
     200 -> Just <$> decodeBody "galley" rs
-    _ -> return Nothing
+    _ -> pure Nothing
   where
     req =
       paths ["i", "users", toByteString' u, "team"]

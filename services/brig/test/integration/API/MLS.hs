@@ -166,9 +166,7 @@ testKeyPackageRemoteClaim opts brig = do
     liftIO . replicateM 2 . generate $
       -- claimed key packages are not validated by the backend, so it is fine to
       -- make up some random data here
-      KeyPackageBundleEntry
-        <$> pure u
-        <*> arbitrary
+      KeyPackageBundleEntry u <$> arbitrary
         <*> (KeyPackageRef . BS.pack <$> vector 32)
         <*> (KeyPackageData . BS.pack <$> vector 64)
   let mockBundle = KeyPackageBundle (Set.fromList entries)
