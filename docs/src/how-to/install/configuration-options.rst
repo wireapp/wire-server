@@ -178,7 +178,7 @@ hops:
 Internet -> LoadBalancer -> kube-proxy -> nginx-ingress-controller -> nginz -> cannon
 
 In order to have graceful draining of websockets when something gets restarted, as it is not easily
-possible to implement the graceful draining on nginx-ingress-controller or nginz by itelf, there is
+possible to implement the graceful draining on nginx-ingress-controller or nginz by itself, there is
 a configuration option to get the following network hops:
 
 Internet -> separate LoadBalancer for cannon only -> kube-proxy -> [nginz->cannon (2 containers in the same pod)]
@@ -201,6 +201,15 @@ Internet -> separate LoadBalancer for cannon only -> kube-proxy -> [nginz->canno
          annotations:
            service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
            service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+
+.. code:: yaml
+
+   # in your wire-server/secrets.yaml overrides:
+   cannon:
+     secrets:
+       nginz:
+         zAuth:
+           publicKeys: ... # same values as in nginz.secrets.zAuth.publicKeys
 
 .. code:: yaml
 
