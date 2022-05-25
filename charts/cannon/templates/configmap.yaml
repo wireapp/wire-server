@@ -1,8 +1,7 @@
 apiVersion: v1
 data:
   cannon.yaml: |
-    logNetStrings: True # log using netstrings encoding:
-                        # http://cr.yp.to/proto/netstrings.txt
+    logFormat: StructuredJSON
     logLevel: {{ .Values.config.logLevel }}
 
     cannon:
