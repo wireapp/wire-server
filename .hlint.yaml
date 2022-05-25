@@ -1,0 +1,15 @@
+# We need quasi quotes support.
+- arguments: [ -XQuasiQuotes, --color ]
+# Used to enforce ormolu styling. Can be revisited if we change formatters.
+- ignore: { name: Redundant $ }
+- ignore: { name: Redundant do }
+- ignore: { name: Use newtype instead of data  }
+#
+# Left for the programmer to decide. See discussion at https://github.com/wireapp/wire-server/pull/2382#discussion_r871194424
+- ignore: { name: Avoid lambda }
+- ignore: { name: Avoid lambda using `infix` }
+
+- ignore: { name: Use section }
+# custom rules:
+- hint: { lhs: (() <$), rhs: void }
+- hint: { lhs: return, rhs: pure }

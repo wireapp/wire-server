@@ -143,7 +143,7 @@ createTeam ::
   TeamBinding ->
   Client Team
 createTeam t uid (fromRange -> n) i k b = do
-  tid <- maybe (Id <$> liftIO nextRandom) return t
+  tid <- maybe (Id <$> liftIO nextRandom) pure t
   retry x5 $ write Cql.insertTeam (params LocalQuorum (tid, uid, n, i, fromRange <$> k, initialStatus b, b))
   pure (newTeam tid uid n i b & teamIconKey .~ (fromRange <$> k))
   where
@@ -284,7 +284,7 @@ teamMembersCollectedWithPagination lh tid = do
       tMembers <- mapM (newTeamMember' lh tid) (result mems)
       if hasMore mems
         then collectTeamMembersPaginated (tMembers ++ acc) =<< nextPage mems
-        else return (tMembers ++ acc)
+        else pure (tMembers ++ acc)
 
 -- Lookup only specific team members: this is particularly useful for large teams when
 -- needed to look up only a small subset of members (typically 2, user to perform the action

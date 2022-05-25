@@ -85,7 +85,7 @@ initExtEnv = do
           managerConnCount = 100
         }
   Just sha <- getDigestByName "SHA256"
-  return $ ExtEnv (mgr, mkVerify sha)
+  pure $ ExtEnv (mgr, mkVerify sha)
   where
     mkVerify sha fprs =
       let pinset = map toByteString' fprs
@@ -97,6 +97,6 @@ reqIdMsg = ("request" .=) . unRequestId
 
 currentFanoutLimit :: Opts -> Range 1 Teams.HardTruncationLimit Int32
 currentFanoutLimit o = do
-  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defFanoutLimit (o ^. optSettings ^. setMaxFanoutSize)
-  let maxTeamSize = fromIntegral (o ^. optSettings ^. setMaxTeamSize)
+  let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defFanoutLimit (o ^. (optSettings . setMaxFanoutSize))
+  let maxTeamSize = fromIntegral (o ^. (optSettings . setMaxTeamSize))
   unsafeRange (min maxTeamSize optFanoutLimit)

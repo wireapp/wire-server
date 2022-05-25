@@ -32,8 +32,8 @@ interpretWaiRoutes ::
   Sem (WaiRoutes ': r) a ->
   Sem r a
 interpretWaiRoutes = interpret $ \case
-  FromJsonBody r -> exceptT (throw . InvalidPayload) return (parseBody r)
-  FromOptionalJsonBody r -> exceptT (throw . InvalidPayload) return (parseOptionalBody r)
+  FromJsonBody r -> exceptT (throw . InvalidPayload) pure (parseBody r)
+  FromOptionalJsonBody r -> exceptT (throw . InvalidPayload) pure (parseOptionalBody r)
   FromProtoBody r -> do
     b <- readBody r
-    either (throw . InvalidPayload . fromString) return (runGetLazy Proto.decodeMessage b)
+    either (throw . InvalidPayload . fromString) pure (runGetLazy Proto.decodeMessage b)

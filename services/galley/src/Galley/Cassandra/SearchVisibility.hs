@@ -44,7 +44,7 @@ getSearchVisibility tid =
     retry x1 $ query1 selectSearchVisibility (params LocalQuorum (Identity tid))
   where
     -- The value is either set or we return the default
-    toSearchVisibility :: (Maybe (Identity (Maybe TeamSearchVisibility))) -> TeamSearchVisibility
+    toSearchVisibility :: Maybe (Identity (Maybe TeamSearchVisibility)) -> TeamSearchVisibility
     toSearchVisibility (Just (Identity (Just status))) = status
     toSearchVisibility _ = SearchVisibilityStandard
 

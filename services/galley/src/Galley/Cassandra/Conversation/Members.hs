@@ -115,7 +115,7 @@ removeRemoteMembersFromLocalConv cnv victims = do
 
 members :: ConvId -> Client [LocalMember]
 members conv =
-  fmap (catMaybes . map toMember) . retry x1 $
+  fmap (mapMaybe toMember) . retry x1 $
     query Cql.selectMembers (params LocalQuorum (Identity conv))
 
 toMemberStatus ::

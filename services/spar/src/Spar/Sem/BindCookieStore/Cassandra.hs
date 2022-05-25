@@ -76,7 +76,7 @@ insertBindCookie cky uid ttlNDT = do
 lookupBindCookie :: (HasCallStack, MonadClient m) => BindCookie -> m (Maybe UserId)
 lookupBindCookie (cs . fromBindCookie -> ckyval :: ST) =
   runIdentity <$$> do
-    (retry x1 . query1 sel $ params LocalQuorum (Identity ckyval))
+    retry x1 . query1 sel $ params LocalQuorum (Identity ckyval)
   where
     sel :: PrepQuery R (Identity ST) (Identity UserId)
     sel = "SELECT session_owner FROM bind_cookie WHERE cookie = ?"

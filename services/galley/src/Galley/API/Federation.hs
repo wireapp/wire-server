@@ -299,7 +299,6 @@ leaveConversation requestingDomain lc = do
       _event <- notifyConversationAction SConversationLeaveTag (qUntagged leaver) Nothing lcnv botsAndMembers action
 
       pure $ F.LeaveConversationResponse (Right ())
-  where
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients

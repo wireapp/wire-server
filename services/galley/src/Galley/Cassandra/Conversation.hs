@@ -190,9 +190,10 @@ localConversations ::
   [ConvId] ->
   Sem r [Conversation]
 localConversations =
-  (collectAndLog =<<)
-    . embedClient
-    . UnliftIO.pooledMapConcurrentlyN 8 localConversation'
+  collectAndLog
+    <=< ( embedClient
+            . UnliftIO.pooledMapConcurrentlyN 8 localConversation'
+        )
   where
     collectAndLog cs = case partitionEithers cs of
       (errs, convs) -> traverse_ (warn . Log.msg) errs $> convs

@@ -195,12 +195,12 @@ filterMissing :: HasQuery r => Predicate r P.Error Public.OtrFilterMissing
 filterMissing = (>>= go) <$> (query "ignore_missing" ||| query "report_missing")
   where
     go (Left ign) = case fromByteString ign of
-      Just True -> return Public.OtrIgnoreAllMissing
-      Just False -> return Public.OtrReportAllMissing
+      Just True -> pure Public.OtrIgnoreAllMissing
+      Just False -> pure Public.OtrReportAllMissing
       Nothing -> Public.OtrIgnoreMissing <$> users "ignore_missing" ign
     go (Right rep) = case fromByteString rep of
-      Just True -> return Public.OtrReportAllMissing
-      Just False -> return Public.OtrIgnoreAllMissing
+      Just True -> pure Public.OtrReportAllMissing
+      Just False -> pure Public.OtrIgnoreAllMissing
       Nothing -> Public.OtrReportMissing <$> users "report_missing" rep
     users :: ByteString -> ByteString -> P.Result P.Error (Set UserId)
     users src bs = case fromByteString bs of

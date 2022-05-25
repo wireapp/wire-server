@@ -74,15 +74,15 @@ insertScimToken token ScimTokenInfo {..} = retry x5 . batch $ do
 insByToken, insByTeam :: PrepQuery W ScimTokenRow ()
 insByToken =
   [r|
-  INSERT INTO team_provisioning_by_token
-    (token_, team, id, created_at, idp, descr)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO team_provisioning_by_token
+      (token_, team, id, created_at, idp, descr)
+      VALUES (?, ?, ?, ?, ?, ?)
   |]
 insByTeam =
   [r|
-  INSERT INTO team_provisioning_by_team
-    (token_, team, id, created_at, idp, descr)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO team_provisioning_by_team
+      (token_, team, id, created_at, idp, descr)
+      VALUES (?, ?, ?, ?, ?, ?)
   |]
 
 scimTokenLookupKey :: ScimTokenRow -> ScimTokenLookupKey

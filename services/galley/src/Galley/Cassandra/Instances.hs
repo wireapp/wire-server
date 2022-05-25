@@ -52,10 +52,10 @@ instance Cql ConvType where
   toCql ConnectConv = CqlInt 3
 
   fromCql (CqlInt i) = case i of
-    0 -> return RegularConv
-    1 -> return SelfConv
-    2 -> return One2OneConv
-    3 -> return ConnectConv
+    0 -> pure RegularConv
+    1 -> pure SelfConv
+    2 -> pure One2OneConv
+    3 -> pure ConnectConv
     n -> Left $ "unexpected conversation-type: " ++ show n
   fromCql _ = Left "conv-type: int expected"
 
@@ -68,10 +68,10 @@ instance Cql Access where
   toCql CodeAccess = CqlInt 4
 
   fromCql (CqlInt i) = case i of
-    1 -> return PrivateAccess
-    2 -> return InviteAccess
-    3 -> return LinkAccess
-    4 -> return CodeAccess
+    1 -> pure PrivateAccess
+    2 -> pure InviteAccess
+    3 -> pure LinkAccess
+    4 -> pure CodeAccess
     n -> Left $ "Unexpected Access value: " ++ show n
   fromCql _ = Left "Access value: int expected"
 
@@ -84,10 +84,10 @@ instance Cql AccessRoleLegacy where
   toCql NonActivatedAccessRole = CqlInt 4
 
   fromCql (CqlInt i) = case i of
-    1 -> return PrivateAccessRole
-    2 -> return TeamAccessRole
-    3 -> return ActivatedAccessRole
-    4 -> return NonActivatedAccessRole
+    1 -> pure PrivateAccessRole
+    2 -> pure TeamAccessRole
+    3 -> pure ActivatedAccessRole
+    4 -> pure NonActivatedAccessRole
     n -> Left $ "Unexpected AccessRole value: " ++ show n
   fromCql _ = Left "AccessRole value: int expected"
 
@@ -101,10 +101,10 @@ instance Cql AccessRoleV2 where
     ServiceAccessRole -> CqlInt 4
 
   fromCql (CqlInt i) = case i of
-    1 -> return TeamMemberAccessRole
-    2 -> return NonTeamMemberAccessRole
-    3 -> return GuestAccessRole
-    4 -> return ServiceAccessRole
+    1 -> pure TeamMemberAccessRole
+    2 -> pure NonTeamMemberAccessRole
+    3 -> pure GuestAccessRole
+    4 -> pure ServiceAccessRole
     n -> Left $ "Unexpected AccessRoleV2 value: " ++ show n
   fromCql _ = Left "AccessRoleV2 value: int expected"
 
@@ -138,11 +138,11 @@ instance Cql TeamStatus where
   toCql PendingActive = CqlInt 4
 
   fromCql (CqlInt i) = case i of
-    0 -> return Active
-    1 -> return PendingDelete
-    2 -> return Deleted
-    3 -> return Suspended
-    4 -> return PendingActive
+    0 -> pure Active
+    1 -> pure PendingDelete
+    2 -> pure Deleted
+    3 -> pure Suspended
+    4 -> pure PendingActive
     n -> Left $ "unexpected team-status: " ++ show n
   fromCql _ = Left "team-status: int expected"
 
@@ -181,8 +181,8 @@ instance Cql ProtocolTag where
   toCql ProtocolMLSTag = CqlInt 1
 
   fromCql (CqlInt i) = case i of
-    0 -> return ProtocolProteusTag
-    1 -> return ProtocolMLSTag
+    0 -> pure ProtocolProteusTag
+    1 -> pure ProtocolMLSTag
     n -> Left $ "unexpected protocol: " ++ show n
   fromCql _ = Left "protocol: int expected"
 
