@@ -14,3 +14,6 @@ export FEDERATION_DOMAIN_2="."
 
 . "$DIR/helm_overrides.sh"
 helmfile --file "${TOP_LEVEL}/hack/helmfile.yaml" destroy
+
+kubectl delete namespace "$NAMESPACE_1"
+kubectl delete namespace "$NAMESPACE_2"
