@@ -41,6 +41,9 @@ module Wire.API.Team.Feature
     IncludeLockStatus (..),
     DefTeamFeatureStatus (..),
 
+    -- * Helper
+    teamFeatureTTLDays,
+
     -- * Swagger
     typeTeamFeatureName,
     typeTeamFeatureStatusValue,
@@ -268,7 +271,7 @@ typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound 
 -- Ideally we would also not support zero.
 -- Currently a TTL=0 is ignored on the cassandra side.
 data TeamFeatureTTLValue
-  = TeamFeatureTTLDays Word
+  = TeamFeatureTTLSeconds Word
   | TeamFeatureTTLUnlimited
   deriving stock (Eq, Show, Generic)
 
@@ -278,14 +281,14 @@ deriving instance FromJSON TeamFeatureTTLValue
 
 instance ToHttpApiData TeamFeatureTTLValue where
   toQueryParam a = case a of
-    TeamFeatureTTLDays d -> T.pack . show $ d
+    TeamFeatureTTLSeconds d -> T.pack . show $ d
     TeamFeatureTTLUnlimited -> "unlimited"
 
 instance FromHttpApiData TeamFeatureTTLValue where
   parseQueryParam = \case
     "unlimited" -> Right TeamFeatureTTLUnlimited
     d -> case readEither . T.unpack $ d of
-      Right d' -> Right . TeamFeatureTTLDays $ d'
+      Right d' -> Right . TeamFeatureTTLSeconds $ d'
       Left e -> Left . T.pack $ e <> " oops."
 
 instance S.ToParamSchema TeamFeatureTTLValue where
@@ -293,15 +296,33 @@ instance S.ToParamSchema TeamFeatureTTLValue where
 
 instance ToByteString TeamFeatureTTLValue where
   builder TeamFeatureTTLUnlimited = "unlimited"
-  builder (TeamFeatureTTLDays d) = (builder . TL.pack . show) d
+  builder (TeamFeatureTTLSeconds d) = (builder . TL.pack . show) d
 
 instance FromByteString TeamFeatureTTLValue where
   parser =
     Parser.takeByteString >>= \b ->
       case T.decodeUtf8' b of
         Right "unlimited" -> pure TeamFeatureTTLUnlimited
-        Right d -> pure . TeamFeatureTTLDays . read . T.unpack $ d
-        Left e -> fail $ "Invalid TeamFeatureTTLDays: " <> show e
+        Right d -> pure . TeamFeatureTTLSeconds . read . T.unpack $ d
+        Left e -> fail $ "Invalid TeamFeatureTTLSeconds: " <> show e
+
+instance Cass.Cql TeamFeatureTTLValue where
+  ctype = Cass.Tagged Cass.IntColumn
+
+  fromCql (Cass.CqlInt n) = pure . TeamFeatureTTLSeconds . fromIntegral $ n
+  fromCql _ = Left "fromCql: TTLValue: CqlInt expected"
+
+  toCql TeamFeatureTTLUnlimited = Cass.CqlInt 0
+  toCql (TeamFeatureTTLSeconds d) = Cass.CqlInt . fromIntegral $ d
+
+teamFeatureTTLDays :: Word -> TeamFeatureTTLValue
+teamFeatureTTLDays d
+  | d == 0 = TeamFeatureTTLUnlimited
+  | otherwise = TeamFeatureTTLSeconds . fromDays $ d
+  where
+    fromMinutes = (* 60)
+    fromHours = fromMinutes . (* 60)
+    fromDays = fromHours . (* 24)
 
 typeTeamFeatureTTLValue :: Doc.DataType
 typeTeamFeatureTTLValue =

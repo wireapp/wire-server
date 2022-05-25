@@ -103,17 +103,13 @@ setFeatureStatusNoConfig _ tid status ttl = do
   retry x5 $ write insert (params LocalQuorum (tid, flag))
   pure status
   where
-    minutes = (* 60)
-    hours = minutes . (* 60)
-    days = hours . (* 24)
-
     insert :: PrepQuery W (TeamId, TeamFeatureStatusValue) ()
     insert =
       fromString $
         "insert into team_features (team_id, " <> statusCol @a <> ") values (?, ?)"
           <> case ttl of
-            Just (TeamFeatureTTLDays d) | d > 0 -> " using ttl " <> show (days d)
-            _ -> mempty
+            Just (TeamFeatureTTLSeconds d) | d > 0 -> " using ttl " <> show d
+            _ -> " using ttl 0"
 
 getApplockFeatureStatus ::
   forall m.

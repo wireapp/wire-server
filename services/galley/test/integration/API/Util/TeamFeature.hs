@@ -55,6 +55,7 @@ putTeamSearchVisibilityAvailableInternal g tid statusValue =
       expect2xx
       tid
       (Public.TeamFeatureStatusNoConfig statusValue)
+      Public.TeamFeatureTTLUnlimited
 
 putLegalHoldEnabledInternal' ::
   HasCallStack =>
@@ -164,6 +165,21 @@ putTeamFeatureFlagWithGalley galley uid tid status =
       . json status
       . zUser uid
 
+putTeamFeatureFlagInternalTTL ::
+  forall (a :: Public.TeamFeatureName).
+  ( HasCallStack,
+    Public.KnownTeamFeatureName a,
+    ToJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
+  ) =>
+  (Request -> Request) ->
+  TeamId ->
+  Public.TeamFeatureStatus 'Public.WithoutLockStatus a ->
+  Public.TeamFeatureTTLValue ->
+  TestM ResponseLBS
+putTeamFeatureFlagInternalTTL reqmod tid status ttl = do
+  g <- view tsGalley
+  putTeamFeatureFlagInternalWithGalleyAndMod @a g reqmod tid status ttl
+
 putTeamFeatureFlagInternal ::
   forall (a :: Public.TeamFeatureName).
   ( HasCallStack,
@@ -176,7 +192,7 @@ putTeamFeatureFlagInternal ::
   TestM ResponseLBS
 putTeamFeatureFlagInternal reqmod tid status = do
   g <- view tsGalley
-  putTeamFeatureFlagInternalWithGalleyAndMod @a g reqmod tid status
+  putTeamFeatureFlagInternalWithGalleyAndMod @a g reqmod tid status Public.TeamFeatureTTLUnlimited
 
 putTeamFeatureFlagInternalWithGalleyAndMod ::
   forall (a :: Public.TeamFeatureName) m.
@@ -190,13 +206,17 @@ putTeamFeatureFlagInternalWithGalleyAndMod ::
   (Request -> Request) ->
   TeamId ->
   Public.TeamFeatureStatus 'Public.WithoutLockStatus a ->
+  Public.TeamFeatureTTLValue ->
   m ResponseLBS
-putTeamFeatureFlagInternalWithGalleyAndMod galley reqmod tid status =
+putTeamFeatureFlagInternalWithGalleyAndMod galley reqmod tid status ttl =
   put $
     galley
       . paths ["i", "teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a)]
       . json status
+      . query [("ttl", justBS ttl)]
       . reqmod
+  where
+    justBS = Just . toByteString'
 
 setLockStatusInternal ::
   forall (a :: Public.TeamFeatureName).

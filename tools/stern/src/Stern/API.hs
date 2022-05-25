@@ -380,7 +380,7 @@ routes = do
     capture "tid"
       .&. capture "feature"
       .&. param "status"
-      .&. def (Public.TeamFeatureTTLDays $ 8 * 7) (query "ttl") -- default is 8 weeks
+      .&. def (Public.teamFeatureTTLDays $ 8 * 7) (query "ttl") -- default is 8 weeks
   document "PUT" "setTeamFeatureFlag" $ do
     summary "Disable / enable feature flag for a given team"
     Doc.parameter Doc.Path "tid" Doc.bytes' $
