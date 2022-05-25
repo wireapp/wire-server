@@ -150,9 +150,5 @@ RUN apk add --no-cache inotify-tools dumb-init bash curl && \
 
 COPY services/nginz/nginz_reload.sh /usr/bin/nginz_reload.sh
 
-# This ensures graceful shutdown, default is SIGTERM, which causes "fast
-# shutdown" which severs any open connections immediately.
-STOPSIGNAL SIGQUIT
-
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["/usr/bin/nginz_reload.sh", "-g", "daemon off;", "-c", "/etc/wire/nginz/conf/nginx.conf"]

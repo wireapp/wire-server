@@ -7,6 +7,8 @@
 
 nginx_pid=$!
 
+trap "kill -QUIT $nginx_pid" EXIT
+
 watches=${WATCH_PATHS:-"/etc/wire/nginz/upstreams"}
 
 # only react on changes to upstreams.conf
