@@ -85,6 +85,8 @@ library
       Brig.Queue.Types
       Brig.RPC
       Brig.Run
+      Brig.Sem.BudgetStore
+      Brig.Sem.BudgetStore.Cassandra
       Brig.Sem.CodeStore
       Brig.Sem.CodeStore.Cassandra
       Brig.Sem.PasswordResetStore
