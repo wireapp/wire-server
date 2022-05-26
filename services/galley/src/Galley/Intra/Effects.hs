@@ -82,6 +82,8 @@ interpretBrigAccess = interpret $ \case
   AddKeyPackageRef ref qusr cl qcnv ->
     embedApp $
       addKeyPackageRef ref qusr cl qcnv
+  GetConvIdByKeyPackageRef ref -> embedApp $ getConvIdByKeyPackageRef ref
+  PutConvIdByKeyPackageRef ref cid -> embedApp $ putConvIdByKeyPackageRef ref cid
   ValidateAndAddKeyPackageRef nkp ->
     embedApp $
       validateAndAddKeyPackageRef nkp

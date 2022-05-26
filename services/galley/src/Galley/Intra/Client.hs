@@ -27,6 +27,8 @@ module Galley.Intra.Client
     addKeyPackageRef,
     updateKeyPackageRef,
     validateAndAddKeyPackageRef,
+    getConvIdByKeyPackageRef,
+    putConvIdByKeyPackageRef,
   )
 where
 
@@ -36,12 +38,14 @@ import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Auth (LegalHoldLogin (..))
 import Control.Monad.Catch
+import Control.Exception (ErrorCall (ErrorCall))
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Misc
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Text.Encoding
+import qualified Data.Text.Lazy as LText
 import Galley.API.Error
 import Galley.Effects
 import Galley.Env
@@ -187,6 +191,28 @@ getClientByKeyPackageRef ref = do
   if statusCode (responseStatus r) == 200
     then Just <$> parseResponse (mkError status502 "server-error") r
     else pure Nothing
+
+-- | Calls 'Brig.API.Internal.getConvIdByKeyPackageRef'.
+getConvIdByKeyPackageRef :: KeyPackageRef -> App (Maybe (Qualified ConvId))
+getConvIdByKeyPackageRef ref = do
+  r <-
+    call Brig $
+      method GET
+        . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref, "conversation"]
+        . expectStatus (flip elem [200, 404])
+  if statusCode (responseStatus r) == 200
+    then Just <$> parseResponse (ErrorCall . LText.unpack) r
+    else pure Nothing
+
+-- | Calls 'Brig.API.Internal.getConvIdByKeyPackageRef'.
+putConvIdByKeyPackageRef :: KeyPackageRef -> Qualified ConvId -> App ()
+putConvIdByKeyPackageRef ref cid = do
+  void . call Brig $
+    method PUT
+      . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref, "conversation"]
+      . contentJson
+      . json cid
+      . expectStatus (204 ==)
 
 -- | Calls 'Brig.API.Internal.getMLSClients'.
 getLocalMLSClients :: Local UserId -> SignatureSchemeTag -> App (Set ClientInfo)

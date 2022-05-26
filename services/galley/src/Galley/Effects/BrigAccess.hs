@@ -53,6 +53,8 @@ module Galley.Effects.BrigAccess
     addKeyPackageRef,
     validateAndAddKeyPackageRef,
     updateKeyPackageRef,
+    getConvIdByKeyPackageRef,
+    putConvIdByKeyPackageRef,
 
     -- * Features
     getAccountConferenceCallingConfigClient,
@@ -133,6 +135,8 @@ data BrigAccess m a where
   AddKeyPackageRef :: KeyPackageRef -> Qualified UserId -> ClientId -> Qualified ConvId -> BrigAccess m ()
   ValidateAndAddKeyPackageRef :: NewKeyPackage -> BrigAccess m (Maybe NewKeyPackageResult)
   UpdateKeyPackageRef :: KeyPackageUpdate -> BrigAccess m ()
+  GetConvIdByKeyPackageRef :: KeyPackageRef -> BrigAccess m (Maybe (Qualified ConvId))
+  PutConvIdByKeyPackageRef :: KeyPackageRef -> Qualified ConvId -> BrigAccess m ()
   UpdateSearchVisibilityInbound ::
     Multi.TeamStatus SearchVisibilityInboundConfig ->
     BrigAccess m ()
