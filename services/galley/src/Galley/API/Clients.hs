@@ -50,7 +50,7 @@ getClients usr = do
     if isInternal
       then fromUserClients <$> E.lookupClients [usr]
       else E.getClients [usr]
-  return $ clientIds usr clts
+  pure (clientIds usr clts)
 
 addClientH ::
   Member ClientStore r =>
@@ -58,7 +58,7 @@ addClientH ::
   Sem r Response
 addClientH (usr ::: clt) = do
   E.createClient usr clt
-  return empty
+  pure empty
 
 rmClientH ::
   Member ClientStore r =>
@@ -66,4 +66,4 @@ rmClientH ::
   Sem r Response
 rmClientH (usr ::: clt) = do
   E.deleteClient usr clt
-  return empty
+  pure empty

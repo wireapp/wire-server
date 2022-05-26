@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -54,7 +52,7 @@ getTeamMembers tid = do
     call $
       method GET
         . paths ["i", "teams", toByteString' tid, "members"]
-  if (statusCode resp == 200)
+  if statusCode resp == 200
     then (^. teamMembers) <$> parseResponse @TeamMemberList "galley" resp
     else rethrow "galley" resp
 
@@ -69,7 +67,7 @@ assertHasPermission tid perm uid = do
   resp <-
     call $
       method GET
-        . (paths ["i", "teams", toByteString' tid, "members", toByteString' uid])
+        . paths ["i", "teams", toByteString' tid, "members", toByteString' uid]
   case (statusCode resp, parseResponse @TeamMember "galley" resp) of
     (200, Right member) | hasPermission member perm -> pure ()
     _ -> throwSpar (SparNoPermission (cs $ show perm))
@@ -93,8 +91,7 @@ isEmailValidationEnabledTeam :: (HasCallStack, MonadSparToGalley m) => TeamId ->
 isEmailValidationEnabledTeam tid = do
   resp <- call $ method GET . paths ["i", "teams", toByteString' tid, "features", "validateSAMLemails"]
   pure
-    ( (statusCode resp == 200)
-        && ( responseJsonMaybe @(TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails) resp
-               == Just (TeamFeatureStatusNoConfig TeamFeatureEnabled)
-           )
+    ( statusCode resp == 200
+        && responseJsonMaybe @(TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails) resp
+          == Just (TeamFeatureStatusNoConfig TeamFeatureEnabled)
     )

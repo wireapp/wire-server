@@ -7,6 +7,13 @@
 
 nginx_pid=$!
 
+cleanup () {
+    kill -QUIT $nginx_pid
+    wait $nginx_pid
+}
+
+trap "cleanup" EXIT
+
 watches=${WATCH_PATHS:-"/etc/wire/nginz/upstreams"}
 
 # only react on changes to upstreams.conf

@@ -23,7 +23,6 @@ import API.MLS.Util
 import API.Util
 import Bilge
 import Bilge.Assert
-import Bilge.TestSession (liftSession)
 import Control.Lens hiding ((#))
 import Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as A
@@ -32,7 +31,7 @@ import Data.Default
 import Data.Domain
 import Data.Id (ConvId, Id (..), UserId, newClientId, randomId)
 import Data.Json.Util hiding ((#))
-import Data.List.NonEmpty (NonEmpty (..), head)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.List1
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
@@ -93,7 +92,8 @@ tests s =
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage,
       test s "POST /federation/on-user-deleted-conversations : Remove deleted remote user from local conversations" onUserDeleted,
       test s "POST /federation/update-conversation : Update local conversation by a remote admin " updateConversationByRemoteAdmin,
-      test s "POST /federation/mls-welcome : Post an MLS welcome message received from another backend" sendMLSWelcome
+      test s "POST /federation/mls-welcome : Post an MLS welcome message received from another backend" sendMLSWelcome,
+      test s "POST /federation/mls-welcome : Post an MLS welcome message (key package ref not found)" sendMLSWelcomeKeyPackageNotFound
     ]
 
 getConversationsAllFound :: TestM ()
@@ -1088,11 +1088,9 @@ updateConversationByRemoteAdmin = do
                   curConvId = qUnqualified cnv,
                   curAction = action
                 }
-        resp <-
-          liftSession $
-            runWaiTestFedClient bdomain $
-              createWaiTestFedClient @"update-conversation" @'Galley $
-                cnvUpdateRequest
+        resp <- do
+          fedGalleyClient <- view tsFedGalleyClient
+          runFedClient @"update-conversation" fedGalleyClient bdomain cnvUpdateRequest
 
         cnvUpdate' <- liftIO $ case resp of
           ConversationUpdateResponseError err -> assertFailure ("Expected ConversationUpdateResponseUpdate but got " <> show err)
@@ -1151,22 +1149,51 @@ sendMLSWelcome = do
   -- Alice is from the originating domain and Bob is local, i.e., on the receiving domain
   MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {creatorOrigin = RemoteUser aliceDomain}
   let bob = users !! 0
-      bobClient = snd . Data.List.NonEmpty.head . pClients $ bob
 
   fedGalleyClient <- view tsFedGalleyClient
   cannon <- view tsCannon
 
   WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
     -- send welcome message
-    runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
-      MLSWelcomeRequest
-        (Base64ByteString welcome)
-        [MLSWelcomeRecipient (qUnqualified . pUserId $ bob, bobClient)]
+    void $
+      runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
+        MLSWelcomeRequest
+          (Base64ByteString welcome)
 
     -- check that the corresponding event is received
-    void . liftIO $
-      WS.assertMatch (5 # WS.Second) wsB $
+    liftIO $ do
+      WS.assertMatch_ (5 # WS.Second) wsB $
         wsAssertMLSWelcome (pUserId bob) welcome
+
+sendMLSWelcomeKeyPackageNotFound :: TestM ()
+sendMLSWelcomeKeyPackageNotFound = do
+  let aliceDomain = Domain "a.far-away.example.com"
+  -- Alice is from the originating domain and Bob is local, i.e., on the receiving domain
+  MessagingSetup {..} <-
+    aliceInvitesBob
+      (1, LocalUser)
+      def
+        { creatorOrigin = RemoteUser aliceDomain,
+          createClients = DontCreateClients -- no key package upload will happen
+        }
+  let bob = users !! 0
+
+  fedGalleyClient <- view tsFedGalleyClient
+  cannon <- view tsCannon
+
+  WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
+    -- send welcome message
+    void $
+      runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
+        MLSWelcomeRequest
+          (Base64ByteString welcome)
+
+    liftIO $ do
+      -- check that no event is received
+      WS.assertNoEvent (1 # Second) [wsB]
+
+-- success is reported, even though no client receives the welcome
+-- message due to missing key package references
 
 getConvAction :: Sing tag -> SomeConversationAction -> Maybe (ConversationAction tag)
 getConvAction tquery (SomeConversationAction tag action) =

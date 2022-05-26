@@ -110,7 +110,7 @@ run o = do
 mkApp :: Opts -> IO (Wai.Application, Env)
 mkApp o = do
   e <- newEnv o
-  return (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)
+  pure (middleware e $ \reqId -> servantApp (e & requestId .~ reqId), e)
   where
     rtree :: Tree (App (Handler BrigCanonicalEffects))
     rtree = compile sitemap

@@ -443,7 +443,7 @@ featureAPI =
 internalSitemap :: Routes a (Sem GalleyEffects) ()
 internalSitemap = do
   -- Conversation API (internal) ----------------------------------------
-  put "/i/conversations/:cnv/channel" (continue $ const (return empty)) $
+  put "/i/conversations/:cnv/channel" (continue $ const (pure empty)) $
     zauthUserId
       .&. (capture "cnv" :: HasCaptures r => Predicate r Predicate.Error ConvId)
       .&. request
@@ -581,7 +581,7 @@ rmUser lusr conn = do
       cc <- getConversations ids
       now <- input
       pp <- for cc $ \c -> case Data.convType c of
-        SelfConv -> return Nothing
+        SelfConv -> pure Nothing
         One2OneConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         ConnectConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
@@ -598,7 +598,7 @@ rmUser lusr conn = do
               Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
                 <&> set Intra.pushConn conn
                   . set Intra.pushRoute Intra.RouteDirect
-          | otherwise -> return Nothing
+          | otherwise -> pure Nothing
 
       for_
         (maybeList1 (catMaybes pp))

@@ -60,10 +60,10 @@ interpretTeamNotificationStoreToCassandra = interpret $ \case
 mkNotificationId :: IO NotificationId
 mkNotificationId = do
   ni <- fmap Id <$> retrying x10 fun (const (liftIO UUID.nextUUID))
-  maybe (throwM err) return ni
+  maybe (throwM err) pure ni
   where
     x10 = limitRetries 10 <> exponentialBackoff 10
-    fun = const (return . isNothing)
+    fun = const (pure . isNothing)
     err = mkError status500 "internal-error" "unable to generate notification ID"
 
 -- FUTUREWORK: the magic 32 should be made configurable, so it can be tuned
@@ -102,7 +102,7 @@ fetch tid since (fromRange -> size) = do
   -- This can probably simplified a lot further, but we need to understand
   -- 'Seq' in order to do that.  If you find a bug, this may be a good
   -- place to start looking.
-  return $! case Seq.viewl (trim (isize - 1) ns) of
+  pure $! case Seq.viewl (trim (isize - 1) ns) of
     EmptyL -> ResultPage Seq.empty False
     (x :< xs) -> ResultPage (x <| xs) more
   where
@@ -118,7 +118,7 @@ fetch tid since (fromRange -> size) = do
           num' = num - Seq.length nseq
           acc' = acc >< nseq
        in if not more || num' == 0
-            then return (acc', more || not (null (snd ns)))
+            then pure (acc', more || not (null (snd ns)))
             else liftClient (nextPage page) >>= collect acc' num'
     trim :: Int -> Seq a -> Seq a
     trim l ns

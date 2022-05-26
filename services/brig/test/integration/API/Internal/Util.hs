@@ -113,8 +113,8 @@ scaffolding brig gundeck = do
     randomToken :: MonadIO m => m PushToken.PushToken
     randomToken = liftIO $ do
       c <- liftIO $ newClientId <$> (randomIO :: IO Word64)
-      tok <- PushToken.Token . T.decodeUtf8 <$> B16.encode <$> randomBytes 32
-      return $ PushToken.pushToken PushToken.APNSSandbox (PushToken.AppName "test") tok c
+      tok <- (PushToken.Token . T.decodeUtf8) . B16.encode <$> randomBytes 32
+      pure $ PushToken.pushToken PushToken.APNSSandbox (PushToken.AppName "test") tok c
 
 ejpdRequestClientM :: Maybe Bool -> EJPDRequestBody -> Client.ClientM EJPDResponseBody
 ejpdRequestClientM = Client.client (Proxy @("i" :> IAPI.EJPDRequest))

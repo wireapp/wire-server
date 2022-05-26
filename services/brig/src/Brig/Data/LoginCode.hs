@@ -53,7 +53,7 @@ createLoginCode u = do
   now <- liftIO =<< view currentTime
   code <- liftIO genCode
   insertLoginCode u code maxAttempts (ttl `addUTCTime` now)
-  return $! PendingLoginCode code (Timeout ttl)
+  pure $! PendingLoginCode code (Timeout ttl)
   where
     genCode = LoginCode . T.pack . printf "%06d" <$> randIntegerZeroToNMinusOne 1000000
 
@@ -62,18 +62,18 @@ verifyLoginCode u c = do
   code <- retry x1 (query1 codeSelect (params LocalQuorum (Identity u)))
   now <- liftIO =<< view currentTime
   case code of
-    Just (c', _, t) | c == c' && t >= now -> deleteLoginCode u >> return True
-    Just (c', n, t) | n > 1 && t > now -> insertLoginCode u c' (n - 1) t >> return False
-    Just (_, _, _) -> deleteLoginCode u >> return False
-    Nothing -> return False
+    Just (c', _, t) | c == c' && t >= now -> deleteLoginCode u >> pure True
+    Just (c', n, t) | n > 1 && t > now -> insertLoginCode u c' (n - 1) t >> pure False
+    Just (_, _, _) -> deleteLoginCode u >> pure False
+    Nothing -> pure False
 
 lookupLoginCode :: (MonadReader Env m, MonadClient m) => UserId -> m (Maybe PendingLoginCode)
 lookupLoginCode u = do
   now <- liftIO =<< view currentTime
   validate now =<< retry x1 (query1 codeSelect (params LocalQuorum (Identity u)))
   where
-    validate now (Just (c, _, t)) | now < t = return (Just (pending c now t))
-    validate _ _ = return Nothing
+    validate now (Just (c, _, t)) | now < t = pure (Just (pending c now t))
+    validate _ _ = pure Nothing
     pending c now t = PendingLoginCode c (timeout now t)
     timeout now t = Timeout (t `diffUTCTime` now)
 

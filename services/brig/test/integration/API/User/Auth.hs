@@ -171,7 +171,7 @@ randomAccessToken :: forall u a. ZAuth.TokenPair u a => ZAuth (ZAuth.Token a)
 randomAccessToken = randomUserToken @u >>= ZAuth.newAccessToken
 
 randomUserToken :: ZAuth.UserTokenLike u => ZAuth (ZAuth.Token u)
-randomUserToken = (Id <$> liftIO UUID.nextRandom) >>= ZAuth.newUserToken
+randomUserToken = liftIO UUID.nextRandom >>= ZAuth.newUserToken . Id
 
 -------------------------------------------------------------------------------
 -- Nginz authentication tests (end-to-end sanity checks)
@@ -192,14 +192,14 @@ testNginz b n = do
   -- Note: If you get 403 test failures:
   -- 1. check that the private/public keys in brig and nginz match.
   -- 2. check that the nginz acl file is correct.
-  _rs <- get (n . path "/clients" . header "Authorization" ("Bearer " <> (toByteString' t)))
+  _rs <- get (n . path "/clients" . header "Authorization" ("Bearer " <> toByteString' t))
   liftIO $ assertEqual "Ensure nginz is started. Ensure nginz and brig share the same private/public zauth keys. Ensure ACL file is correct." 200 (statusCode _rs)
   -- ensure nginz allows refresh at /access
   _rs <-
-    post (n . path "/access" . cookie c . header "Authorization" ("Bearer " <> (toByteString' t))) <!! do
+    post (n . path "/access" . cookie c . header "Authorization" ("Bearer " <> toByteString' t)) <!! do
       const 200 === statusCode
   -- ensure regular user tokens can fetch notifications
-  get (n . path "/notifications" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 200 === statusCode
+  get (n . path "/notifications" . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 200 === statusCode
 
 testNginzLegalHold :: Brig -> Galley -> Nginz -> Http ()
 testNginzLegalHold b g n = do
@@ -226,13 +226,13 @@ testNginzLegalHold b g n = do
     pure (c, t)
 
   -- ensure nginz allows passing legalhold cookies / tokens through to /access
-  post (n . path "/access" . cookie c . header "Authorization" ("Bearer " <> (toByteString' t))) !!! do
+  post (n . path "/access" . cookie c . header "Authorization" ("Bearer " <> toByteString' t)) !!! do
     const 200 === statusCode
   -- ensure legalhold tokens CANNOT fetch /clients
-  get (n . path "/clients" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 403 === statusCode
-  get (n . path "/self" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 403 === statusCode
+  get (n . path "/clients" . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 403 === statusCode
+  get (n . path "/self" . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 403 === statusCode
   -- ensure legal hold tokens can fetch notifications
-  get (n . path "/notifications" . header "Authorization" ("Bearer " <> (toByteString' t))) !!! const 200 === statusCode
+  get (n . path "/notifications" . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 200 === statusCode
 
 -- | Corner case for 'testNginz': when upgrading a wire backend from the old behavior (setting
 -- cookie domain to eg. @*.wire.com@) to the new behavior (leaving cookie domain empty,
@@ -901,7 +901,7 @@ getAndTestDBSupersededCookieAndItsValidSuccessor config b n = do
     [Nothing] @=? map cookieSucc _cs
   -- Return non-expired cookie but removed from DB (because it was renewed)
   -- and a valid cookie
-  return (c, c')
+  pure (c, c')
 
 testNewSessionCookie :: Opts.Opts -> Brig -> Http ()
 testNewSessionCookie config b = do
@@ -1073,7 +1073,7 @@ testTooManyCookies config b = do
     loginWhenAllowed pwl t = do
       x <- login b pwl t <* wait
       case statusCode x of
-        200 -> return $ decodeCookie x
+        200 -> pure $ decodeCookie x
         429 -> do
           -- After the amount of time specified in "Retry-After", though,
           -- throttling should stop and login should work again
@@ -1126,12 +1126,12 @@ testReauthentication b = do
 -----------------------------------------------------------------------------
 -- Helpers
 
-prepareLegalHoldUser :: Brig -> Galley -> Http (UserId)
+prepareLegalHoldUser :: Brig -> Galley -> Http UserId
 prepareLegalHoldUser brig galley = do
   (uid, tid) <- createUserWithTeam brig
   -- enable it for this team - without that, legalhold login will fail.
   putLHWhitelistTeam galley tid !!! const 200 === statusCode
-  return uid
+  pure uid
 
 getCookieId :: forall u. (HasCallStack, ZAuth.UserTokenLike u) => Http.Cookie -> CookieId
 getCookieId c =
@@ -1153,7 +1153,7 @@ listCookiesWithLabel b u l = do
       )
       <!! const 200 === statusCode
   let Just cs = cookieList <$> responseJsonMaybe rs
-  return cs
+  pure cs
   where
     labels = BS.intercalate "," $ map toByteString' l
 

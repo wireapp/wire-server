@@ -381,7 +381,7 @@ getConversationsInternal luser mids mstart msize = do
   let localConvIds = ids
   cs <-
     E.getConversations localConvIds
-      >>= filterM (removeDeleted)
+      >>= filterM removeDeleted
       >>= filterM (pure . isMember (tUnqualified luser) . Data.convLocalMembers)
   pure $ Public.ConversationList cs more
   where

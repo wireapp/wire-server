@@ -29,7 +29,6 @@ import qualified API.SQS as SQS
 import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
-import qualified Bilge.TestSession as BilgeTest
 import Brig.Types.Client
 import Brig.Types.Intra (UserSet (..))
 import Brig.Types.Provider
@@ -1564,11 +1563,11 @@ withDummyTestServiceForTeamNoService go = do
 -- it's here for historical reason because we did this in galley.yaml
 -- at some point in the past rather than in an internal end-point, and that required spawning
 -- another galley 'Application' with 'withSettingsOverrides'.
-withLHWhitelist :: forall a. HasCallStack => TeamId -> BilgeTest.SessionT TestM a -> TestM a
+withLHWhitelist :: forall a. HasCallStack => TeamId -> TestM a -> TestM a
 withLHWhitelist tid action = do
   void $ putLHWhitelistTeam tid
   opts <- view tsGConf
-  withSettingsOverrides opts action
+  withSettingsOverrides (const opts) action
 
 -- | If you play with whitelists, you should use this one.  Every whitelisted team that does
 -- not get fully deleted will blow up the whitelist that is cached in every warp handler.

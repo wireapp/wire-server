@@ -61,7 +61,7 @@ create u target = do
     key
     (PRQueryData code u (Identity maxAttempts) (Identity (ttl `addUTCTime` now)))
     (round ttl)
-  return (key, code)
+  pure (key, code)
 
 lookup ::
   Members '[CodeStore, Now, PasswordResetSupply] r =>
@@ -72,8 +72,8 @@ lookup u = do
   now <- Now.get
   validate now =<< codeSelect key
   where
-    validate now (Just (PRQueryData c _ _ (Just t))) | t > now = return $ Just c
-    validate _ _ = return Nothing
+    validate now (Just (PRQueryData c _ _ (Just t))) | t > now = pure $ Just c
+    validate _ _ = pure Nothing
 
 verify ::
   Members '[CodeStore, Now] r =>
@@ -83,12 +83,12 @@ verify (k, c) = do
   now <- Now.get
   code <- codeSelect k
   case code of
-    Just (PRQueryData c' u _ (Just t)) | c == c' && t >= now -> return (Just u)
+    Just (PRQueryData c' u _ (Just t)) | c == c' && t >= now -> pure (Just u)
     Just (PRQueryData c' u (Just n) (Just t)) | n > 1 && t > now -> do
       codeInsert k (PRQueryData c' u (Identity (n - 1)) (Identity t)) (round ttl)
-      return Nothing
+      pure Nothing
     Just PRQueryData {} -> codeDelete k $> Nothing
-    Nothing -> return Nothing
+    Nothing -> pure Nothing
 
 delete :: Member CodeStore r => PasswordResetKey -> Sem r ()
 delete = codeDelete

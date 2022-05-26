@@ -15,9 +15,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS.Welcome (postMLSWelcome) where
+module Galley.API.MLS.Welcome
+  ( postMLSWelcome,
+    sendLocalWelcomes,
+  )
+where
 
 import Control.Comonad
+import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
@@ -29,13 +34,17 @@ import Galley.Effects.BrigAccess
 import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Imports
+import Network.Wai.Utilities.Server
 import Polysemy
 import Polysemy.Input
+import qualified Polysemy.TinyLog as P
+import qualified System.Logger.Class as Logger
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
+import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
@@ -46,7 +55,8 @@ postMLSWelcome ::
        FederatorAccess,
        GundeckAccess,
        ErrorS 'MLSKeyPackageRefNotFound,
-       Input UTCTime
+       Input UTCTime,
+       P.TinyLog
      ]
     r =>
   Local UserId ->
@@ -54,8 +64,11 @@ postMLSWelcome ::
   RawMLS Welcome ->
   Sem r ()
 postMLSWelcome lusr con wel = do
+  now <- input
   rcpts <- welcomeRecipients (rmValue wel)
-  traverse_ (sendWelcomes lusr con (rmRaw wel)) (bucketQualified rcpts)
+  let (locals, remotes) = partitionQualified lusr rcpts
+  sendLocalWelcomes (Just con) now (rmRaw wel) (qualifyAs lusr locals)
+  sendRemoteWelcomes (rmRaw wel) remotes
 
 welcomeRecipients ::
   Members
@@ -73,25 +86,9 @@ welcomeRecipients =
     )
     . welSecrets
 
-sendWelcomes ::
-  Members
-    '[ FederatorAccess,
-       GundeckAccess,
-       Input UTCTime
-     ]
-    r =>
-  Local x ->
-  ConnId ->
-  ByteString ->
-  Qualified [(UserId, ClientId)] ->
-  Sem r ()
-sendWelcomes loc con rawWelcome recipients = do
-  now <- input
-  foldQualified loc (sendLocalWelcomes con now rawWelcome) (sendRemoteWelcomes rawWelcome) recipients
-
 sendLocalWelcomes ::
   Members '[GundeckAccess] r =>
-  ConnId ->
+  Maybe ConnId ->
   UTCTime ->
   ByteString ->
   Local [(UserId, ClientId)] ->
@@ -106,18 +103,28 @@ sendLocalWelcomes con now rawWelcome lclients = do
       let lcnv = qualifyAs lclients (selfConv u)
           lusr = qualifyAs lclients u
           e = Event (qUntagged lcnv) (qUntagged lusr) now $ EdMLSWelcome rawWelcome
-       in newMessagePush lclients () (Just con) defMessageMetadata (u, c) e
+       in newMessagePush lclients () con defMessageMetadata (u, c) e
 
 sendRemoteWelcomes ::
-  Members '[FederatorAccess] r =>
+  Members
+    '[ FederatorAccess,
+       P.TinyLog
+     ]
+    r =>
   ByteString ->
-  Remote [(UserId, ClientId)] ->
+  [Remote (UserId, ClientId)] ->
   Sem r ()
-sendRemoteWelcomes rawWelcome rClients = do
-  let req =
-        MLSWelcomeRequest
-          { mwrRawWelcome = Base64ByteString rawWelcome,
-            mwrRecipients = MLSWelcomeRecipient <$> tUnqualified rClients
-          }
+sendRemoteWelcomes rawWelcome clients = do
+  let req = MLSWelcomeRequest . Base64ByteString $ rawWelcome
       rpc = fedClient @'Galley @"mls-welcome" req
-  void $ runFederated rClients rpc
+  (traverse_ handleError =<<)
+    . runFederatedConcurrentlyEither clients
+    $ \_ -> rpc
+  where
+    handleError :: Member P.TinyLog r => Either (Remote [a], FederationError) x -> Sem r ()
+    handleError (Right _) = pure ()
+    handleError (Left (r, e)) =
+      P.warn $
+        Logger.msg ("A welcome message could not be delivered to a remote backend" :: ByteString)
+          . Logger.field "remote_domain" (domainText (tDomain r))
+          . (logErrorMsg (toWai e))

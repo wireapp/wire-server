@@ -111,7 +111,7 @@ checkRequiredExtensions re =
     <*> maybe (Left "Missing capability extension") (pure . Identity) (reCapabilities re)
 
 findExtensions :: [Extension] -> Either Text (RequiredExtensions Identity)
-findExtensions = (checkRequiredExtensions =<<) . getAp . foldMap findExtension
+findExtensions = checkRequiredExtensions <=< (getAp . foldMap findExtension)
 
 findExtension :: Extension -> Ap (Either Text) (RequiredExtensions Maybe)
 findExtension ext = (Ap (decodeExtension ext) >>=) . foldMap $ \case

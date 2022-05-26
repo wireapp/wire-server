@@ -332,7 +332,7 @@ newAccountH req = do
 newAccount :: Public.NewProvider -> (Handler r) Public.NewProviderResponse
 newAccount new = do
   email <- case validateEmail (Public.newProviderEmail new) of
-    Right em -> return em
+    Right em -> pure em
     Left _ -> throwStd (errorToWai @'InvalidEmail)
   let name = Public.newProviderName new
   let pass = Public.newProviderPassword new
@@ -345,7 +345,7 @@ newAccount new = do
     Nothing -> do
       newPass <- genPassword
       safePass <- mkSafePassword newPass
-      return (safePass, Just newPass)
+      pure (safePass, Just newPass)
   pid <- wrapClientE $ DB.insertAccount name safePass url descr
   gen <- Code.mkGen (Code.ForEmail email)
   code <-
@@ -359,7 +359,7 @@ newAccount new = do
   let key = Code.codeKey code
   let val = Code.codeValue code
   lift $ sendActivationMail name email key val False
-  return $ Public.NewProviderResponse pid newPass
+  pure $ Public.NewProviderResponse pid newPass
 
 activateAccountKeyH :: Code.Key ::: Code.Value -> (Handler r) Response
 activateAccountKeyH (key ::: val) = do
@@ -370,23 +370,23 @@ activateAccountKey :: Code.Key -> Code.Value -> (Handler r) (Maybe Public.Provid
 activateAccountKey key val = do
   c <- wrapClientE (Code.verify key Code.IdentityVerification val) >>= maybeInvalidCode
   (pid, email) <- case (Code.codeAccount c, Code.codeForEmail c) of
-    (Just p, Just e) -> return (Id p, e)
+    (Just p, Just e) -> pure (Id p, e)
     _ -> throwStd (errorToWai @'InvalidCode)
   (name, memail, _url, _descr) <- wrapClientE (DB.lookupAccountData pid) >>= maybeInvalidCode
   case memail of
-    Just email' | email == email' -> return Nothing
+    Just email' | email == email' -> pure Nothing
     Just email' -> do
       -- Ensure we remove any pending password reset
       gen <- Code.mkGen (Code.ForEmail email')
       lift $ wrapClient $ Code.delete (Code.genKey gen) Code.PasswordReset
       -- Activate the new and remove the old key
       activate pid (Just email') email
-      return . Just $ Public.ProviderActivationResponse email
+      pure . Just $ Public.ProviderActivationResponse email
     -- Immediate approval for everybody (for now).
     Nothing -> do
       activate pid Nothing email
       lift $ sendApprovalConfirmMail name email
-      return . Just $ Public.ProviderActivationResponse email
+      pure . Just $ Public.ProviderActivationResponse email
 
 getActivationCodeH :: Public.Email -> (Handler r) Response
 getActivationCodeH e = do
@@ -396,11 +396,11 @@ getActivationCodeH e = do
 getActivationCode :: Public.Email -> (Handler r) FoundActivationCode
 getActivationCode e = do
   email <- case validateEmail e of
-    Right em -> return em
+    Right em -> pure em
     Left _ -> throwStd (errorToWai @'InvalidEmail)
   gen <- Code.mkGen (Code.ForEmail email)
   code <- wrapClientE $ Code.lookup (Code.genKey gen) Code.IdentityVerification
-  maybe (throwStd activationKeyNotFound) (return . FoundActivationCode) code
+  maybe (throwStd activationKeyNotFound) (pure . FoundActivationCode) code
 
 newtype FoundActivationCode = FoundActivationCode Code.Code
 
@@ -514,7 +514,7 @@ updateAccountEmailH (pid ::: req) = do
 updateAccountEmail :: ProviderId -> Public.EmailUpdate -> (Handler r) ()
 updateAccountEmail pid (Public.EmailUpdate new) = do
   email <- case validateEmail new of
-    Right em -> return em
+    Right em -> pure em
     Left _ -> throwStd (errorToWai @'InvalidEmail)
   let emailKey = mkEmailKey email
   wrapClientE (DB.lookupKey emailKey) >>= mapM_ (const $ throwStd emailExists)
@@ -559,10 +559,10 @@ addService pid new = do
   let assets = newServiceAssets new
   let tags = fromRange (newServiceTags new)
   (pk, fp) <- validateServiceKey pubkey >>= maybeInvalidServiceKey
-  token <- maybe randServiceToken return (newServiceToken new)
+  token <- maybe randServiceToken pure (newServiceToken new)
   sid <- wrapClientE $ DB.insertService pid name summary descr baseUrl token pk fp assets tags
   let rstoken = maybe (Just token) (const Nothing) (newServiceToken new)
-  return $ Public.NewServiceResponse sid rstoken
+  pure $ Public.NewServiceResponse sid rstoken
 
 listServicesH :: ProviderId -> (Handler r) Response
 listServicesH pid = do
@@ -736,8 +736,8 @@ deleteAccount ::
   Public.DeleteProvider ->
   ExceptT Error m ()
 deleteAccount pid del = do
-  prov <- (DB.lookupAccount pid) >>= maybeInvalidProvider
-  pass <- (DB.lookupPassword pid) >>= maybeBadCredentials
+  prov <- DB.lookupAccount pid >>= maybeInvalidProvider
+  pass <- DB.lookupPassword pid >>= maybeBadCredentials
   unless (verifyPassword (deleteProviderPassword del) pass) $
     throwStd (errorToWai @'BadCredentials)
   svcs <- DB.listServices pid
@@ -828,7 +828,7 @@ getServiceTagListH () = do
   json <$> getServiceTagList ()
 
 getServiceTagList :: () -> Monad m => m Public.ServiceTagList
-getServiceTagList () = return (Public.ServiceTagList allTags)
+getServiceTagList () = pure (Public.ServiceTagList allTags)
   where
     allTags = [(minBound :: Public.ServiceTag) ..]
 
@@ -856,11 +856,11 @@ updateServiceWhitelist uid con tid upd = do
   -- Add to various tables
   whitelisted <- wrapClientE $ DB.getServiceWhitelistStatus tid pid sid
   case (whitelisted, newWhitelisted) of
-    (False, False) -> return UpdateServiceWhitelistRespUnchanged
-    (True, True) -> return UpdateServiceWhitelistRespUnchanged
+    (False, False) -> pure UpdateServiceWhitelistRespUnchanged
+    (True, True) -> pure UpdateServiceWhitelistRespUnchanged
     (False, True) -> do
       wrapClientE $ DB.insertServiceWhitelist tid pid sid
-      return UpdateServiceWhitelistRespChanged
+      pure UpdateServiceWhitelistRespChanged
     (True, False) -> do
       -- When the service is de-whitelisted, remove its bots from team
       -- conversations
@@ -876,7 +876,7 @@ updateServiceWhitelist uid con tid upd = do
                   )
               )
       wrapClientE $ DB.deleteServiceWhitelist (Just tid) pid sid
-      return UpdateServiceWhitelistRespChanged
+      pure UpdateServiceWhitelistRespChanged
 
 addBotH :: UserId ::: ConnId ::: ConvId ::: JsonRequest Public.AddBot -> (Handler r) Response
 addBotH (zuid ::: zcon ::: cid ::: req) = do
@@ -947,7 +947,7 @@ addBot zuid zcon cid add = do
 
   -- Add the bot to the conversation
   ev <- lift $ RPC.addBotMember zuid zcon cid bid (clientId clt) pid sid
-  return $
+  pure $
     Public.AddBotResponse
       { Public.rsAddBotId = bid,
         Public.rsAddBotClient = bcl,
@@ -973,9 +973,9 @@ removeBot zusr zcon cid bid = do
   let busr = botUserId bid
   let bot = List.find ((== busr) . qUnqualified . omQualifiedId) (cmOthers mems)
   case bot >>= omService of
-    Nothing -> return Nothing
+    Nothing -> pure Nothing
     Just _ -> do
-      lift $ Public.RemoveBotResponse <$$> (wrapHttpClient $ deleteBot zusr (Just zcon) bid cid)
+      lift $ Public.RemoveBotResponse <$$> wrapHttpClient (deleteBot zusr (Just zcon) bid cid)
 
 --------------------------------------------------------------------------------
 -- Bot API
@@ -988,7 +988,7 @@ botGetSelfH bot = do
 botGetSelf :: BotId -> (Handler r) Public.UserProfile
 botGetSelf bot = do
   p <- lift $ wrapClient $ User.lookupUser NoPendingInvitations (botUserId bot)
-  maybe (throwStd (errorToWai @'UserNotFound)) (return . (`Public.publicProfile` UserLegalHoldNoConsent)) p
+  maybe (throwStd (errorToWai @'UserNotFound)) (pure . (`Public.publicProfile` UserLegalHoldNoConsent)) p
 
 botGetClientH :: BotId -> (Handler r) Response
 botGetClientH bot = do
@@ -1008,7 +1008,7 @@ botListPrekeys :: BotId -> (Handler r) [Public.PrekeyId]
 botListPrekeys bot = do
   clt <- lift $ listToMaybe <$> wrapClient (User.lookupClients (botUserId bot))
   case clientId <$> clt of
-    Nothing -> return []
+    Nothing -> pure []
     Just ci -> lift (wrapClient $ User.lookupPrekeyIds (botUserId bot) ci)
 
 botUpdatePrekeysH :: BotId ::: JsonRequest Public.UpdateBotPrekeys -> (Handler r) Response
@@ -1045,7 +1045,7 @@ botListUserProfilesH uids = do
 botListUserProfiles :: List UserId -> (Handler r) [Public.BotUserView]
 botListUserProfiles uids = do
   us <- lift . wrapClient $ User.lookupUsers NoPendingInvitations (fromList uids)
-  return (map mkBotUserView us)
+  pure (map mkBotUserView us)
 
 botGetUserClientsH :: UserId -> (Handler r) Response
 botGetUserClientsH uid = do
@@ -1069,7 +1069,7 @@ botDeleteSelf bid cid = do
   bot <- lift . wrapClient $ User.lookupUser NoPendingInvitations (botUserId bid)
   _ <- maybeInvalidBot (userService =<< bot)
   _ <- lift $ wrapHttpClient $ deleteBot (botUserId bid) Nothing bid cid
-  return ()
+  pure ()
 
 --------------------------------------------------------------------------------
 -- Utilities
@@ -1129,28 +1129,28 @@ deleteBot zusr zcon bid cid = do
   -- TODO: Consider if we can actually delete the bot user entirely,
   -- i.e. not just marking the account as deleted.
   void $ runExceptT $ User.updateStatus buid Deleted
-  return ev
+  pure ev
 
 validateServiceKey :: MonadIO m => Public.ServiceKeyPEM -> m (Maybe (Public.ServiceKey, Fingerprint Rsa))
 validateServiceKey pem =
   liftIO $
     readPublicKey >>= \pk ->
       case SSL.toPublicKey =<< pk of
-        Nothing -> return Nothing
+        Nothing -> pure Nothing
         Just pk' -> do
           Just sha <- SSL.getDigestByName "SHA256"
           let size = SSL.rsaSize (pk' :: SSL.RSAPubKey)
           if size < minRsaKeySize
-            then return Nothing
+            then pure Nothing
             else do
               fpr <- Fingerprint <$> SSL.rsaFingerprint sha pk'
               let bits = fromIntegral size * 8
               let key = Public.ServiceKey Public.RsaServiceKey bits pem
-              return $ Just (key, fpr)
+              pure $ Just (key, fpr)
   where
     readPublicKey =
       handleAny
-        (const $ return Nothing)
+        (const $ pure Nothing)
         (SSL.readPublicKey (LC8.unpack (toByteString pem)) <&> Just)
 
 mkBotUserView :: User -> Public.BotUserView
@@ -1167,7 +1167,7 @@ setProviderCookie :: ZAuth.ProviderToken -> Response -> (Handler r) Response
 setProviderCookie t r = do
   s <- view settings
   let hdr = toByteString' (Cookie.renderSetCookie (cookie s))
-  return (addHeader "Set-Cookie" hdr r)
+  pure (addHeader "Set-Cookie" hdr r)
   where
     cookie s =
       Cookie.def
@@ -1180,34 +1180,34 @@ setProviderCookie t r = do
         }
 
 maybeInvalidProvider :: Monad m => Maybe a -> (ExceptT Error m) a
-maybeInvalidProvider = maybe (throwStd invalidProvider) return
+maybeInvalidProvider = maybe (throwStd invalidProvider) pure
 
 maybeInvalidCode :: Monad m => Maybe a -> (ExceptT Error m) a
-maybeInvalidCode = maybe (throwStd (errorToWai @'InvalidCode)) return
+maybeInvalidCode = maybe (throwStd (errorToWai @'InvalidCode)) pure
 
 maybeServiceNotFound :: Monad m => Maybe a -> (ExceptT Error m) a
-maybeServiceNotFound = maybe (throwStd (notFound "Service not found")) return
+maybeServiceNotFound = maybe (throwStd (notFound "Service not found")) pure
 
 maybeProviderNotFound :: Monad m => Maybe a -> (ExceptT Error m) a
-maybeProviderNotFound = maybe (throwStd (notFound "Provider not found")) return
+maybeProviderNotFound = maybe (throwStd (notFound "Provider not found")) pure
 
 maybeConvNotFound :: Monad m => Maybe a -> (ExceptT Error m) a
-maybeConvNotFound = maybe (throwStd (notFound "Conversation not found")) return
+maybeConvNotFound = maybe (throwStd (notFound "Conversation not found")) pure
 
 maybeBadCredentials :: Monad m => Maybe a -> (ExceptT Error m) a
-maybeBadCredentials = maybe (throwStd (errorToWai @'BadCredentials)) return
+maybeBadCredentials = maybe (throwStd (errorToWai @'BadCredentials)) pure
 
 maybeInvalidServiceKey :: Monad m => Maybe a -> (ExceptT Error m) a
-maybeInvalidServiceKey = maybe (throwStd invalidServiceKey) return
+maybeInvalidServiceKey = maybe (throwStd invalidServiceKey) pure
 
 maybeInvalidBot :: Monad m => Maybe a -> (ExceptT Error m) a
-maybeInvalidBot = maybe (throwStd invalidBot) return
+maybeInvalidBot = maybe (throwStd invalidBot) pure
 
 maybeInvalidUser :: Monad m => Maybe a -> (ExceptT Error m) a
-maybeInvalidUser = maybe (throwStd (errorToWai @'InvalidUser)) return
+maybeInvalidUser = maybe (throwStd (errorToWai @'InvalidUser)) pure
 
 rangeChecked :: (Within a n m, Monad monad) => a -> (ExceptT Error monad) (Range n m a)
-rangeChecked = either (throwStd . invalidRange . fromString) return . checkedEither
+rangeChecked = either (throwStd . invalidRange . fromString) pure . checkedEither
 
 invalidServiceKey :: Wai.Error
 invalidServiceKey = Wai.mkError status400 "invalid-service-key" "Invalid service key."

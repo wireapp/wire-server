@@ -145,22 +145,22 @@ validateServiceKey :: MonadIO m => ServiceKeyPEM -> m (Maybe (ServiceKey, Finger
 validateServiceKey pem =
   liftIO $
     readPublicKey >>= \pk ->
-      case join (SSL.toPublicKey <$> pk) of
-        Nothing -> return Nothing
+      case SSL.toPublicKey =<< pk of
+        Nothing -> pure Nothing
         Just pk' -> do
           Just sha <- SSL.getDigestByName "SHA256"
           let size = SSL.rsaSize (pk' :: SSL.RSAPubKey)
           if size < minRsaKeySize
-            then return Nothing
+            then pure Nothing
             else do
               fpr <- Fingerprint <$> SSL.rsaFingerprint sha pk'
               let bits = fromIntegral size * 8
               let key = ServiceKey RsaServiceKey bits pem
-              return $ Just (key, fpr)
+              pure (Just (key, fpr))
   where
     readPublicKey =
       handleAny
-        (const $ return Nothing)
-        (SSL.readPublicKey (LC8.unpack (toByteString pem)) >>= return . Just)
+        (const $ pure Nothing)
+        (SSL.readPublicKey (LC8.unpack (toByteString pem)) <&> Just)
     minRsaKeySize :: Int
     minRsaKeySize = 256 -- Bytes (= 2048 bits)

@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeOperators #-}
@@ -77,7 +76,7 @@ start o = do
   s <- Server.newSettings (server e)
   runSettings s (pipeline e)
   where
-    server e = Server.defaultServer (unpack $ (stern o) ^. epHost) ((stern o) ^. epPort) (e ^. applog) (e ^. metrics)
+    server e = Server.defaultServer (unpack $ stern o ^. epHost) (stern o ^. epPort) (e ^. applog) (e ^. metrics)
     pipeline e = GZip.gzip GZip.def $ serve e
     serve e r k = runHandler e r (Server.route (Server.compile sitemap) r k) k
 
@@ -90,8 +89,8 @@ routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
   -- Begin Internal
 
-  get "/i/status" (continue $ const $ return empty) true
-  head "/i/status" (continue $ const $ return empty) true
+  get "/i/status" (continue $ const $ pure empty) true
+  head "/i/status" (continue $ const $ pure empty) true
 
   -- End Internal
 
@@ -387,7 +386,7 @@ routes = do
       description "Team ID"
     Doc.parameter Doc.Path "feature" Doc.typeTeamFeatureNameNoConfig $
       description "Feature name"
-    Doc.parameter Doc.Query "status" Public.typeTeamFeatureStatusValue $ do
+    Doc.parameter Doc.Query "status" Public.typeTeamFeatureStatusValue $
       Doc.description "team feature status (enabled or disabled)"
     Doc.response 200 "Team feature flag status" Doc.end
 
@@ -395,7 +394,7 @@ routes = do
 
   -- These endpoints should be part of team settings. Until then, we access them from here
   -- for authorized personnel to enable/disable this on the team's behalf
-  get "/teams/:tid/search-visibility" (continue (liftM json . Intra.getSearchVisibility)) $
+  get "/teams/:tid/search-visibility" (continue (fmap json . Intra.getSearchVisibility)) $
     capture "tid"
   document "GET" "getSearchVisibility" $ do
     summary "Shows the current TeamSearchVisibility value for the given team"
@@ -480,7 +479,7 @@ routes = do
   document "GET" "getConsentLog" $ do
     summary "Fetch the consent log given an email address of a non-user"
     notes "Relevant only internally at Wire"
-    Doc.parameter Doc.Query "email" Doc.string' $ do
+    Doc.parameter Doc.Query "email" Doc.string' $
       Doc.description "An email address"
     Doc.response 200 "Consent Log" Doc.end
     Doc.response 403 "Access denied! There is a user with this email address" Doc.end
@@ -490,7 +489,7 @@ routes = do
   document "GET" "getUserMetaInfo" $ do
     summary "Fetch a user's meta info given a user id: TEMPORARY!"
     notes "Relevant only internally at Wire"
-    Doc.parameter Doc.Query "id" Doc.bytes' $ do
+    Doc.parameter Doc.Query "id" Doc.bytes' $
       Doc.description "A user's ID"
     Doc.response 200 "Meta Info" Doc.end
 
@@ -513,22 +512,22 @@ type JSON = Media "application" "json"
 suspendUser :: UserId -> Handler Response
 suspendUser uid = do
   Intra.putUserStatus Suspended uid
-  return empty
+  pure empty
 
 unsuspendUser :: UserId -> Handler Response
-unsuspendUser uid = Intra.putUserStatus Active uid >> return empty
+unsuspendUser uid = Intra.putUserStatus Active uid >> pure empty
 
 usersByEmail :: Email -> Handler Response
-usersByEmail = liftM json . Intra.getUserProfilesByIdentity . Left
+usersByEmail = fmap json . Intra.getUserProfilesByIdentity . Left
 
 usersByPhone :: Phone -> Handler Response
-usersByPhone = liftM json . Intra.getUserProfilesByIdentity . Right
+usersByPhone = fmap json . Intra.getUserProfilesByIdentity . Right
 
 usersByIds :: List UserId -> Handler Response
-usersByIds = liftM json . Intra.getUserProfiles . Left . fromList
+usersByIds = fmap json . Intra.getUserProfiles . Left . fromList
 
 usersByHandles :: List Handle -> Handler Response
-usersByHandles = liftM json . Intra.getUserProfiles . Right . fromList
+usersByHandles = fmap json . Intra.getUserProfiles . Right . fromList
 
 ejpdInfoByHandles :: (List Handle ::: Bool) -> Handler Response
 ejpdInfoByHandles (handles ::: includeContacts) = json <$> Intra.getEjpdInfo (fromList handles) includeContacts
@@ -536,29 +535,29 @@ ejpdInfoByHandles (handles ::: includeContacts) = json <$> Intra.getEjpdInfo (fr
 userConnections :: UserId -> Handler Response
 userConnections uid = do
   conns <- Intra.getUserConnections uid
-  return . json $ groupByStatus conns
+  pure . json $ groupByStatus conns
 
 usersConnections :: List UserId -> Handler Response
-usersConnections = liftM json . Intra.getUsersConnections
+usersConnections = fmap json . Intra.getUsersConnections
 
 searchOnBehalf :: UserId ::: T.Text ::: Range 1 100 Int32 -> Handler Response
 searchOnBehalf (uid ::: q ::: s) =
-  liftM json $ Intra.getContacts uid q (fromRange s)
+  json <$> Intra.getContacts uid q (fromRange s)
 
 revokeIdentity :: Either Email Phone -> Handler Response
-revokeIdentity emailOrPhone = Intra.revokeIdentity emailOrPhone >> return empty
+revokeIdentity emailOrPhone = Intra.revokeIdentity emailOrPhone >> pure empty
 
 changeEmail :: JSON ::: UserId ::: Bool ::: JsonRequest EmailUpdate -> Handler Response
 changeEmail (_ ::: uid ::: validate ::: req) = do
   upd <- parseBody req !>> mkError status400 "client-error"
   Intra.changeEmail uid upd validate
-  return empty
+  pure empty
 
 changePhone :: JSON ::: UserId ::: JsonRequest PhoneUpdate -> Handler Response
 changePhone (_ ::: uid ::: req) = do
   upd <- parseBody req !>> mkError status400 "client-error"
   Intra.changePhone uid upd
-  return empty
+  pure empty
 
 deleteUser :: UserId ::: Either Email Phone -> Handler Response
 deleteUser (uid ::: emailOrPhone) = do
@@ -569,9 +568,9 @@ deleteUser (uid ::: emailOrPhone) = do
         then do
           info $ userMsg uid . msg (val "Deleting account")
           void $ Intra.deleteAccount uid
-          return empty
+          pure empty
         else throwE $ mkError status400 "match-error" "email or phone did not match UserId"
-    _ -> return $ setStatus status404 empty
+    _ -> pure $ setStatus status404 empty
   where
     checkUUID u = userId u == uid
 
@@ -590,7 +589,7 @@ deleteTeam (givenTid ::: False ::: Just email) = do
   unless (length (tiMembers tInfo) == 1) $
     throwE wrongMemberCount
   void $ Intra.deleteBindingTeam givenTid
-  return $ setStatus status202 empty
+  pure $ setStatus status202 empty
   where
     handleNoUser = ifNothing (mkError status404 "no-user" "No such user with that email")
     handleNoTeam = ifNothing (mkError status404 "no-binding-team" "No such binding team")
@@ -599,7 +598,7 @@ deleteTeam (givenTid ::: False ::: Just email) = do
 deleteTeam (tid ::: True ::: _) = do
   void $ Intra.getTeamData tid -- throws 404 if team does not exist
   void $ Intra.deleteBindingTeamForce tid
-  return $ setStatus status202 empty
+  pure $ setStatus status202 empty
 
 isUserKeyBlacklisted :: Either Email Phone -> Handler Response
 isUserKeyBlacklisted emailOrPhone = do
@@ -609,7 +608,7 @@ isUserKeyBlacklisted emailOrPhone = do
     else response status404 "The given user key is NOT blacklisted"
   where
     response st reason =
-      return
+      pure
         . setStatus st
         . json
         $ object ["status" .= (reason :: Text)]
@@ -617,18 +616,18 @@ isUserKeyBlacklisted emailOrPhone = do
 addBlacklist :: Either Email Phone -> Handler Response
 addBlacklist emailOrPhone = do
   Intra.setBlacklistStatus True emailOrPhone
-  return empty
+  pure empty
 
 deleteFromBlacklist :: Either Email Phone -> Handler Response
 deleteFromBlacklist emailOrPhone = do
   Intra.setBlacklistStatus False emailOrPhone
-  return empty
+  pure empty
 
 getTeamInfo :: TeamId -> Handler Response
-getTeamInfo = liftM json . Intra.getTeamInfo
+getTeamInfo = fmap json . Intra.getTeamInfo
 
 getTeamAdminInfo :: TeamId -> Handler Response
-getTeamAdminInfo = liftM (json . toAdminInfo) . Intra.getTeamInfo
+getTeamAdminInfo = fmap (json . toAdminInfo) . Intra.getTeamInfo
 
 getTeamFeatureFlagH ::
   forall (a :: Public.TeamFeatureName).
@@ -669,13 +668,13 @@ setTeamFeatureNoConfigFlagH (tid ::: featureName ::: statusValue) =
 setSearchVisibility :: JSON ::: TeamId ::: JsonRequest Team.TeamSearchVisibility -> Handler Response
 setSearchVisibility (_ ::: tid ::: req) = do
   status :: Team.TeamSearchVisibility <- parseBody req !>> mkError status400 "client-error"
-  liftM json $ Intra.setSearchVisibility tid status
+  json <$> Intra.setSearchVisibility tid status
 
 getTeamBillingInfo :: TeamId -> Handler Response
 getTeamBillingInfo tid = do
   ti <- Intra.getTeamBillingInfo tid
   case ti of
-    Just t -> return $ json t
+    Just t -> pure $ json t
     Nothing -> throwE (mkError status404 "no-team" "No team or no billing info for team")
 
 updateTeamBillingInfo :: JSON ::: TeamId ::: JsonRequest TeamBillingInfoUpdate -> Handler Response
@@ -684,20 +683,20 @@ updateTeamBillingInfo (_ ::: tid ::: req) = do
   current <- Intra.getTeamBillingInfo tid >>= handleNoTeam
   let changes = parse update current
   Intra.setTeamBillingInfo tid changes
-  liftM json $ Intra.getTeamBillingInfo tid
+  json <$> Intra.getTeamBillingInfo tid
   where
     handleNoTeam = ifNothing (mkError status404 "no-team" "No team or no billing info for team")
     parse :: TeamBillingInfoUpdate -> TeamBillingInfo -> TeamBillingInfo
     parse TeamBillingInfoUpdate {..} tbi =
       tbi
-        { tbiFirstname = fromMaybe (tbiFirstname tbi) (fromRange <$> tbiuFirstname),
-          tbiLastname = fromMaybe (tbiLastname tbi) (fromRange <$> tbiuLastname),
-          tbiStreet = fromMaybe (tbiStreet tbi) (fromRange <$> tbiuStreet),
-          tbiZip = fromMaybe (tbiZip tbi) (fromRange <$> tbiuZip),
-          tbiCity = fromMaybe (tbiCity tbi) (fromRange <$> tbiuCity),
-          tbiCountry = fromMaybe (tbiCountry tbi) (fromRange <$> tbiuCountry),
-          tbiCompany = (fromRange <$> tbiuCompany) <|> tbiCompany tbi,
-          tbiState = (fromRange <$> tbiuState) <|> tbiState tbi
+        { tbiFirstname = maybe (tbiFirstname tbi) fromRange tbiuFirstname,
+          tbiLastname = maybe (tbiLastname tbi) fromRange tbiuLastname,
+          tbiStreet = maybe (tbiStreet tbi) fromRange tbiuStreet,
+          tbiZip = maybe (tbiZip tbi) fromRange tbiuZip,
+          tbiCity = maybe (tbiCity tbi) fromRange tbiuCity,
+          tbiCountry = maybe (tbiCountry tbi) fromRange tbiuCountry,
+          tbiCompany = fromRange <$> tbiuCompany <|> tbiCompany tbi,
+          tbiState = fromRange <$> tbiuState <|> tbiState tbi
         }
 
 setTeamBillingInfo :: JSON ::: TeamId ::: JsonRequest TeamBillingInfo -> Handler Response
@@ -711,9 +710,9 @@ setTeamBillingInfo (_ ::: tid ::: req) = do
 
 getTeamInfoByMemberEmail :: Email -> Handler Response
 getTeamInfoByMemberEmail e = do
-  acc <- (listToMaybe <$> Intra.getUserProfilesByIdentity (Left e)) >>= handleUser
+  acc <- Intra.getUserProfilesByIdentity (Left e) >>= handleUser . listToMaybe
   tid <- (Intra.getUserBindingTeam . userId . accountUser $ acc) >>= handleTeam
-  liftM json $ Intra.getTeamInfo tid
+  json <$> Intra.getTeamInfo tid
   where
     handleUser = ifNothing (mkError status404 "no-user" "No such user with that email")
     handleTeam = ifNothing (mkError status404 "no-binding-team" "No such binding team")
@@ -721,17 +720,17 @@ getTeamInfoByMemberEmail e = do
 getTeamInvoice :: TeamId ::: InvoiceId ::: JSON -> Handler Response
 getTeamInvoice (tid ::: iid ::: _) = do
   url <- Intra.getInvoiceUrl tid iid
-  return $ plain (fromStrict url)
+  pure $ plain (fromStrict url)
 
 getConsentLog :: Email -> Handler Response
 getConsentLog e = do
-  acc <- (listToMaybe <$> Intra.getUserProfilesByIdentity (Left e))
+  acc <- listToMaybe <$> Intra.getUserProfilesByIdentity (Left e)
   when (isJust acc) $
     throwE $
       mkError status403 "user-exists" "Trying to access consent log of existing user!"
   consentLog <- Intra.getEmailConsentLog e
   marketo <- Intra.getMarketoResult e
-  return . json $
+  pure . json $
     object
       [ "consent_log" .= consentLog,
         "marketo" .= marketo
@@ -740,7 +739,7 @@ getConsentLog e = do
 -- TODO: This will be removed as soon as this is ported to another tool
 getUserData :: UserId -> Handler Response
 getUserData uid = do
-  account <- (listToMaybe <$> Intra.getUserProfiles (Left [uid])) >>= noSuchUser
+  account <- Intra.getUserProfiles (Left [uid]) >>= noSuchUser . listToMaybe
   conns <- Intra.getUserConnections uid
   convs <- Intra.getUserConversations uid
   clts <- Intra.getUserClients uid
@@ -751,8 +750,8 @@ getUserData uid = do
   properties <- Intra.getUserProperties uid
   -- Get all info from Marketo too
   let em = userEmail $ accountUser account
-  marketo <- maybe (return noEmail) Intra.getMarketoResult em
-  return . json $
+  marketo <- maybe (pure noEmail) Intra.getMarketoResult em
+  pure . json $
     object
       [ "account" .= account,
         "cookies" .= cookies,
@@ -786,7 +785,7 @@ groupByStatus conns =
     byStatus s = length . filter ((==) s . ucStatus)
 
 ifNothing :: Error -> Maybe a -> Handler a
-ifNothing e = maybe (throwE e) return
+ifNothing e = maybe (throwE e) pure
 
 noSuchUser :: Maybe a -> Handler a
 noSuchUser = ifNothing (mkError status404 "no-user" "No such user")

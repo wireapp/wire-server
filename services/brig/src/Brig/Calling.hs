@@ -374,7 +374,7 @@ startWatching w p = void . FS.watchDir w (Path.dropFileName p) predicate
     predicate FS.Unknown {} = False
 
 readTurnList :: FilePath -> IO (Maybe (NonEmpty TurnURI))
-readTurnList = Text.readFile >=> return . fn . mapMaybe (fromByteString . Text.encodeUtf8) . Text.lines
+readTurnList = Text.readFile >=> pure . fn . mapMaybe (fromByteString . Text.encodeUtf8) . Text.lines
   where
     fn [] = Nothing
     fn (x : xs) = Just (x :| xs)

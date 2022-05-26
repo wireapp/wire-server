@@ -190,8 +190,8 @@ sitemap ::
   Members '[PasswordResetStore, PasswordResetSupply] r =>
   Routes a (Handler r) ()
 sitemap = do
-  get "/i/status" (continue $ const $ return empty) true
-  head "/i/status" (continue $ const $ return empty) true
+  get "/i/status" (continue $ const $ pure empty) true
+  head "/i/status" (continue $ const $ pure empty) true
 
   -- internal email activation (used in tests and in spar for validating emails obtained as
   -- SAML user identifiers).  if the validate query parameter is false or missing, only set
@@ -367,12 +367,12 @@ legalHoldClientRequestedH :: UserId ::: JsonRequest LegalHoldClientRequest ::: J
 legalHoldClientRequestedH (targetUser ::: req ::: _) = do
   clientRequest <- parseJsonBody req
   lift $ API.legalHoldClientRequested targetUser clientRequest
-  return $ setStatus status200 empty
+  pure $ setStatus status200 empty
 
 removeLegalHoldClientH :: UserId ::: JSON -> (Handler r) Response
 removeLegalHoldClientH (uid ::: _) = do
   lift $ API.removeLegalHoldClient uid
-  return $ setStatus status200 empty
+  pure $ setStatus status200 empty
 
 internalListClientsH :: JSON ::: JsonRequest UserSet -> (Handler r) Response
 internalListClientsH (_ ::: req) = do
@@ -481,7 +481,7 @@ getActivationCodeH (_ ::: emailOrPhone) = do
 getActivationCode :: Either Email Phone -> (Handler r) GetActivationCodeResp
 getActivationCode emailOrPhone = do
   apair <- lift . wrapClient $ API.lookupActivationCode emailOrPhone
-  maybe (throwStd activationKeyNotFound) (return . GetActivationCodeResp) apair
+  maybe (throwStd activationKeyNotFound) (pure . GetActivationCodeResp) apair
 
 newtype GetActivationCodeResp = GetActivationCodeResp (ActivationKey, ActivationCode)
 
@@ -511,19 +511,19 @@ changeAccountStatusH :: UserId ::: JsonRequest AccountStatusUpdate -> (Handler r
 changeAccountStatusH (usr ::: req) = do
   status <- suStatus <$> parseJsonBody req
   wrapHttpClientE (API.changeSingleAccountStatus usr status) !>> accountStatusError
-  return empty
+  pure empty
 
 getAccountStatusH :: JSON ::: UserId -> (Handler r) Response
 getAccountStatusH (_ ::: usr) = do
   status <- lift $ wrapClient $ API.lookupStatus usr
-  return $ case status of
+  pure $ case status of
     Just s -> json $ AccountStatusResp s
     Nothing -> setStatus status404 empty
 
 getConnectionsStatusUnqualified :: ConnectionsStatusRequest -> Maybe Relation -> (Handler r) [ConnectionStatus]
 getConnectionsStatusUnqualified ConnectionsStatusRequest {csrFrom, csrTo} flt = lift $ do
   r <- wrapClient $ maybe (API.lookupConnectionStatus' csrFrom) (API.lookupConnectionStatus csrFrom) csrTo
-  return $ maybe r (filterByRelation r) flt
+  pure $ maybe r (filterByRelation r) flt
   where
     filterByRelation l rel = filter ((== rel) . csStatus) l
 
@@ -547,35 +547,35 @@ getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
 revokeIdentityH :: Either Email Phone -> (Handler r) Response
 revokeIdentityH emailOrPhone = do
   lift $ API.revokeIdentity emailOrPhone
-  return $ setStatus status200 empty
+  pure $ setStatus status200 empty
 
 updateConnectionInternalH :: JSON ::: JsonRequest UpdateConnectionsInternal -> (Handler r) Response
 updateConnectionInternalH (_ ::: req) = do
   updateConn <- parseJsonBody req
   API.updateConnectionInternal updateConn !>> connError
-  return $ setStatus status200 empty
+  pure $ setStatus status200 empty
 
 checkBlacklistH :: Either Email Phone -> (Handler r) Response
 checkBlacklistH emailOrPhone = do
   bl <- lift $ API.isBlacklisted emailOrPhone
-  return $ setStatus (bool status404 status200 bl) empty
+  pure $ setStatus (bool status404 status200 bl) empty
 
 deleteFromBlacklistH :: Either Email Phone -> (Handler r) Response
 deleteFromBlacklistH emailOrPhone = do
   void . lift $ API.blacklistDelete emailOrPhone
-  return empty
+  pure empty
 
 addBlacklistH :: Either Email Phone -> (Handler r) Response
 addBlacklistH emailOrPhone = do
   void . lift $ API.blacklistInsert emailOrPhone
-  return empty
+  pure empty
 
 -- | Get any matching prefixes. Also try for shorter prefix matches,
 -- i.e. checking for +123456 also checks for +12345, +1234, ...
 getPhonePrefixesH :: PhonePrefix -> (Handler r) Response
 getPhonePrefixesH prefix = do
   results <- lift $ API.phonePrefixGet prefix
-  return $ case results of
+  pure $ case results of
     [] -> setStatus status404 empty
     _ -> json results
 
@@ -583,13 +583,13 @@ getPhonePrefixesH prefix = do
 deleteFromPhonePrefixH :: PhonePrefix -> (Handler r) Response
 deleteFromPhonePrefixH prefix = do
   void . lift $ API.phonePrefixDelete prefix
-  return empty
+  pure empty
 
 addPhonePrefixH :: JSON ::: JsonRequest ExcludedPrefix -> (Handler r) Response
 addPhonePrefixH (_ ::: req) = do
   prefix :: ExcludedPrefix <- parseJsonBody req
   void . lift $ API.phonePrefixInsert prefix
-  return empty
+  pure empty
 
 updateSSOIdH :: UserId ::: JSON ::: JsonRequest UserSSOId -> (Handler r) Response
 updateSSOIdH (uid ::: _ ::: req) = do
@@ -598,8 +598,8 @@ updateSSOIdH (uid ::: _ ::: req) = do
   if success
     then do
       lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
-      return empty
-    else return . setStatus status404 $ plain "User does not exist or has no team."
+      pure empty
+    else pure . setStatus status404 $ plain "User does not exist or has no team."
 
 deleteSSOIdH :: UserId ::: JSON -> (Handler r) Response
 deleteSSOIdH (uid ::: _) = do
@@ -607,14 +607,14 @@ deleteSSOIdH (uid ::: _) = do
   if success
     then do
       lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
-      return empty
-    else return . setStatus status404 $ plain "User does not exist or has no team."
+      pure empty
+    else pure . setStatus status404 $ plain "User does not exist or has no team."
 
 updateManagedByH :: UserId ::: JSON ::: JsonRequest ManagedByUpdate -> (Handler r) Response
 updateManagedByH (uid ::: _ ::: req) = do
   ManagedByUpdate managedBy <- parseJsonBody req
   lift $ wrapClient $ Data.updateManagedBy uid managedBy
-  return empty
+  pure empty
 
 updateRichInfoH :: UserId ::: JSON ::: JsonRequest RichInfoUpdate -> (Handler r) Response
 updateRichInfoH (uid ::: _ ::: req) = do
@@ -677,9 +677,9 @@ checkHandleInternalH =
 getContactListH :: JSON ::: UserId -> (Handler r) Response
 getContactListH (_ ::: uid) = do
   contacts <- lift . wrapClient $ API.lookupContactList uid
-  return $ json $ UserIds contacts
+  pure $ json $ UserIds contacts
 
 -- Utilities
 
 ifNothing :: Utilities.Error -> Maybe a -> (Handler r) a
-ifNothing e = maybe (throwStd e) return
+ifNothing e = maybe (throwStd e) pure

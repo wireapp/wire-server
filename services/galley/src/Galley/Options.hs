@@ -95,7 +95,7 @@ data Settings = Settings
     --   allowedDomains:
     --     - wire.com
     --     - example.com
-    _setFederationDomain :: !(Domain),
+    _setFederationDomain :: !Domain,
     -- | When true, galley will assume data in `billing_team_member` table is
     -- consistent and use it for billing.
     -- When false, billing information for large teams is not guaranteed to have all

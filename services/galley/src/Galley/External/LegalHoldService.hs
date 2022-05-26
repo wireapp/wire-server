@@ -63,11 +63,11 @@ checkLegalHoldServiceStatus ::
   Sem r ()
 checkLegalHoldServiceStatus fpr url = do
   resp <- makeVerifiedRequestFreshManager fpr url reqBuilder
-  if
-      | Bilge.statusCode resp < 400 -> pure ()
-      | otherwise -> do
-        P.info . Log.msg $ showResponse resp
-        throwS @'LegalHoldServiceBadResponse
+  if Bilge.statusCode resp < 400
+    then pure ()
+    else do
+      P.info . Log.msg $ showResponse resp
+      throwS @'LegalHoldServiceBadResponse
   where
     reqBuilder :: Http.Request -> Http.Request
     reqBuilder =

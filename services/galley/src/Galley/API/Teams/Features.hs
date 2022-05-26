@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE RecordWildCards #-}
 
 module Galley.API.Teams.Features
   ( getFeatureStatus,
@@ -575,7 +574,7 @@ getClassifiedDomainsInternal = Tagged . const $ do
   globalConfig <- inputs (view (optSettings . setFeatureFlags . flagClassifiedDomains))
   let config = globalConfig
   pure $ case tfwcStatus config of
-    TeamFeatureDisabled -> defaultClassifiedDomains
+    TeamFeatureDisabled -> defTeamFeatureStatus @'TeamFeatureClassifiedDomains
     TeamFeatureEnabled -> config
 
 getConferenceCallingInternal ::

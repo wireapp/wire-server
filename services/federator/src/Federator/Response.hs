@@ -88,7 +88,7 @@ runWaiError =
   where
     logError :: Members '[Error Wai.Error, TinyLog] r => Wai.Error -> Sem r a
     logError e = do
-      err $ Wai.logErrorMsg Nothing e
+      err $ Wai.logErrorMsg e
       throw e
 
 serve ::

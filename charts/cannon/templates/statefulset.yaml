@@ -29,9 +29,57 @@ spec:
         release: {{ .Release.Name }}
       annotations:
         checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.service.nginz.enabled }}
+        checksum/nginz-configmap: {{ include (print .Template.BasePath "/nginz-configmap.yaml") . | sha256sum }}
+        {{- end }}
     spec:
       terminationGracePeriodSeconds: {{ add .Values.config.drainOpts.gracePeriodSeconds 5 }}
       containers:
+      {{- if .Values.service.nginz.enabled }}
+      - name: nginz
+        image: "{{ .Values.nginzImage.repository }}:{{ .Values.nginzImage.tag }}"
+        imagePullPolicy: "{{ .Values.nginzImage.pullPolicy }}"
+        env:
+        # Any file changes to this path causes nginx to reload configs without
+        # restarting or breaking any connections.
+        - name: WATCH_PATHS
+          value: "/etc/wire/nginz/tls"
+        volumeMounts:
+        - name: nginz-config
+          mountPath: /etc/wire/nginz/conf
+          readOnly: true
+        - name: nginz-secrets
+          mountPath: /etc/wire/nginz/secrets
+          readOnly: true
+        - name: certificate
+          mountPath: /etc/wire/nginz/tls
+          readOnly: true
+        ports:
+        - name: https
+          containerPort: {{ .Values.service.nginz.internalPort }}
+        readinessProbe:
+          httpGet:
+            path: /status
+            port: {{ .Values.service.nginz.internalPort }}
+            scheme: HTTPS
+        livenessProbe:
+          initialDelaySeconds: 30
+          timeoutSeconds: 1
+          httpGet:
+            path: /status
+            port: {{ .Values.service.nginz.internalPort }}
+            scheme: HTTPS
+        lifecycle:
+          preStop:
+            exec:
+              # kubernetes by default sends a SIGTERM to the container,
+              # which would cause nginz to exit, breaking existing websocket connections.
+              # Instead we terminate gracefully and sleep given grace period + 5 seconds.
+              # (SIGTERM is still sent, but afterwards)
+              command: ["sh", "-c", "nginx -c /etc/wire/nginz/conf/nginx.conf -s quit && sleep {{ add .Values.config.drainOpts.gracePeriodSeconds 5 }}"]
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+      {{- end }}
       - name: cannon
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
         volumeMounts:
@@ -76,3 +124,14 @@ spec:
           name: cannon
       - name: empty
         emptyDir: {}
+      {{- if .Values.service.nginz.enabled }}
+      - name: nginz-config
+        configMap:
+          name: cannon-nginz
+      - name: nginz-secrets
+        secret:
+          secretName: cannon-nginz
+      - name: certificate
+        secret:
+          secretName: {{ .Values.service.nginz.tls.secretName }}
+      {{- end }}

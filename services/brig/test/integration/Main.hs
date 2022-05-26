@@ -117,9 +117,9 @@ runTests iConf brigOpts otherArgs = do
         Opts.TurnSourceFiles files -> files
         Opts.TurnSourceDNS _ -> error "The integration tests can only be run when TurnServers are sourced from files"
       localDomain = brigOpts ^. Opts.optionSettings . Opts.federationDomain
-      casHost = (\v -> (Opts.cassandra v) ^. casEndpoint . epHost) brigOpts
-      casPort = (\v -> (Opts.cassandra v) ^. casEndpoint . epPort) brigOpts
-      casKey = (\v -> (Opts.cassandra v) ^. casKeyspace) brigOpts
+      casHost = (\v -> Opts.cassandra v ^. casEndpoint . epHost) brigOpts
+      casPort = (\v -> Opts.cassandra v ^. casEndpoint . epPort) brigOpts
+      casKey = (\v -> Opts.cassandra v ^. casKeyspace) brigOpts
       awsOpts = Opts.aws brigOpts
   lg <- Logger.new Logger.defSettings -- TODO: use mkLogger'?
   db <- defInitCassandra casKey casHost casPort lg
@@ -176,8 +176,8 @@ runTests iConf brigOpts otherArgs = do
 
     parseEmailAWSOpts :: IO (Maybe Opts.EmailAWSOpts)
     parseEmailAWSOpts = case Opts.email . Opts.emailSMS $ brigOpts of
-      (Opts.EmailAWS aws) -> return (Just aws)
-      (Opts.EmailSMTP _) -> return Nothing
+      (Opts.EmailAWS aws) -> pure (Just aws)
+      (Opts.EmailSMTP _) -> pure Nothing
 
 main :: IO ()
 main = withOpenSSL $ do
@@ -187,8 +187,8 @@ main = withOpenSSL $ do
   let configArgs = getConfigArgs args
   let otherArgs = args \\ configArgs
   (iPath, bPath) <- withArgs configArgs parseConfigPaths
-  iConf <- join $ handleParseError <$> decodeFileEither iPath
-  bConf <- join $ handleParseError <$> decodeFileEither bPath
+  iConf <- handleParseError =<< decodeFileEither iPath
+  bConf <- handleParseError =<< decodeFileEither bPath
   brigOpts <- maybe (fail "failed to parse brig options file") pure bConf
   integrationConfig <- maybe (fail "failed to parse integration.yaml file") pure iConf
   runTests integrationConfig brigOpts otherArgs
@@ -211,17 +211,17 @@ parseConfigPaths = do
     pathParser :: Parser (String, String)
     pathParser =
       (,)
-        <$> ( strOption $
-                long "integration-config"
-                  <> short 'i'
-                  <> help "Integration config to load"
-                  <> showDefault
-                  <> value defaultIntPath
-            )
-        <*> ( strOption $
-                long "service-config"
-                  <> short 's'
-                  <> help "Brig application config to load"
-                  <> showDefault
-                  <> value defaultBrigPath
-            )
+        <$> strOption
+          ( long "integration-config"
+              <> short 'i'
+              <> help "Integration config to load"
+              <> showDefault
+              <> value defaultIntPath
+          )
+        <*> strOption
+          ( long "service-config"
+              <> short 's'
+              <> help "Brig application config to load"
+              <> showDefault
+              <> value defaultBrigPath
+          )

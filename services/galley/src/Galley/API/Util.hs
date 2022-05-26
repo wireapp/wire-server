@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -219,7 +218,7 @@ permissionCheckS ::
 permissionCheckS p =
   \case
     Just m -> do
-      if m `hasPermission` (fromSing p)
+      if m `hasPermission` fromSing p
         then pure m
         else throwS @(PermError p)
     -- FUTUREWORK: factor `noteS` out of this function.
@@ -253,7 +252,7 @@ assertOnTeam :: Members '[ErrorS 'NotATeamMember, TeamStore] r => UserId -> Team
 assertOnTeam uid tid =
   getTeamMember tid uid >>= \case
     Nothing -> throwS @'NotATeamMember
-    Just _ -> return ()
+    Just _ -> pure ()
 
 -- | Try to accept a 1-1 conversation, promoting connect conversations as appropriate.
 acceptOne2One ::
@@ -277,10 +276,10 @@ acceptOne2One lusr conv conn = do
   case Data.convType conv of
     One2OneConv ->
       if tUnqualified lusr `isMember` mems
-        then return conv
+        then pure conv
         else do
           mm <- createMember lcid lusr
-          return $ conv {Data.convLocalMembers = mems <> toList mm}
+          pure conv {Data.convLocalMembers = mems <> toList mm}
     ConnectConv -> case mems of
       [_, _] | tUnqualified lusr `isMember` mems -> promote
       [_, _] -> throwS @'ConvNotFound
@@ -294,7 +293,7 @@ acceptOne2One lusr conv conn = do
         let mems' = mems <> toList mm
         for_ (newPushLocal ListComplete (tUnqualified lusr) (ConvEvent e) (recipient <$> mems')) $ \p ->
           push1 $ p & pushConn .~ conn & pushRoute .~ RouteDirect
-        return $ conv' {Data.convLocalMembers = mems'}
+        pure conv' {Data.convLocalMembers = mems'}
     _ -> throwS @'InvalidOperation
   where
     cid = Data.convId conv
@@ -457,8 +456,7 @@ getSelfMemberFromLocals ::
   UserId ->
   t LocalMember ->
   Sem r LocalMember
-getSelfMemberFromLocals usr lmems =
-  getMember @'ConvNotFound lmId usr lmems
+getSelfMemberFromLocals = getMember @'ConvNotFound lmId
 
 -- | Throw 'ConvMemberNotFound' if the given user is not part of a
 -- conversation (either locally or remotely).
@@ -558,7 +556,7 @@ verifyReusableCode convCode = do
       >>= noteS @'CodeNotFound
   unless (DataTypes.codeValue c == conversationCode convCode) $
     throwS @'CodeNotFound
-  return c
+  pure c
 
 ensureConversationAccess ::
   Members
@@ -794,7 +792,7 @@ allLegalholdConsentGiven uids = do
       -- conversation with user under legalhold.
       flip allM (chunksOf 32 uids) $ \uidsPage -> do
         teamsPage <- nub . Map.elems <$> getUsersTeams uidsPage
-        allM (isTeamLegalholdWhitelisted) teamsPage
+        allM isTeamLegalholdWhitelisted teamsPage
 
 -- | Add to every uid the legalhold status
 getLHStatusForUsers ::
@@ -803,11 +801,13 @@ getLHStatusForUsers ::
   Sem r [(UserId, UserLegalHoldStatus)]
 getLHStatusForUsers uids =
   mconcat
-    <$> ( for (chunksOf 32 uids) $ \uidsChunk -> do
-            teamsOfUsers <- getUsersTeams uidsChunk
-            for uidsChunk $ \uid -> do
-              (uid,) <$> getLHStatus (Map.lookup uid teamsOfUsers) uid
-        )
+    <$> for
+      (chunksOf 32 uids)
+      ( \uidsChunk -> do
+          teamsOfUsers <- getUsersTeams uidsChunk
+          for uidsChunk $ \uid -> do
+            (uid,) <$> getLHStatus (Map.lookup uid teamsOfUsers) uid
+      )
 
 getTeamMembersForFanout :: Member TeamStore r => TeamId -> Sem r TeamMemberList
 getTeamMembersForFanout tid = do

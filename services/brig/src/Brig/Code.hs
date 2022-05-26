@@ -136,13 +136,13 @@ instance Cql Scope where
   toCql CreateScimToken = CqlInt 6
   toCql DeleteTeam = CqlInt 7
 
-  fromCql (CqlInt 1) = return AccountDeletion
-  fromCql (CqlInt 2) = return IdentityVerification
-  fromCql (CqlInt 3) = return PasswordReset
-  fromCql (CqlInt 4) = return AccountLogin
-  fromCql (CqlInt 5) = return AccountApproval
-  fromCql (CqlInt 6) = return CreateScimToken
-  fromCql (CqlInt 7) = return DeleteTeam
+  fromCql (CqlInt 1) = pure AccountDeletion
+  fromCql (CqlInt 2) = pure IdentityVerification
+  fromCql (CqlInt 3) = pure PasswordReset
+  fromCql (CqlInt 4) = pure AccountLogin
+  fromCql (CqlInt 5) = pure AccountApproval
+  fromCql (CqlInt 6) = pure CreateScimToken
+  fromCql (CqlInt 7) = pure DeleteTeam
   fromCql _ = Left "fromCql: Scope: int expected"
 
 newtype Retries = Retries {numRetries :: Word8}
@@ -151,7 +151,7 @@ newtype Retries = Retries {numRetries :: Word8}
 instance Cql Retries where
   ctype = Tagged IntColumn
   toCql = CqlInt . fromIntegral . numRetries
-  fromCql (CqlInt n) = return (Retries (fromIntegral n))
+  fromCql (CqlInt n) = pure (Retries (fromIntegral n))
   fromCql _ = Left "fromCql: Retries: int expected"
 
 --------------------------------------------------------------------------------
@@ -178,7 +178,7 @@ mkKey cfor = liftIO $ do
 mkGen :: MonadIO m => CodeFor -> m Gen
 mkGen cfor = liftIO $ do
   Just sha256 <- getDigestByName "SHA256"
-  return (initGen sha256 cfor)
+  pure (initGen sha256 cfor)
   where
     initGen d (ForEmail e) = mkEmailLinkGen e d
     initGen d _ = mk6DigitGen' cfor d
@@ -187,7 +187,7 @@ mkGen cfor = liftIO $ do
 mk6DigitGen :: MonadIO m => CodeFor -> m Gen
 mk6DigitGen cfor = liftIO $ do
   Just sha256 <- getDigestByName "SHA256"
-  return $ mk6DigitGen' cfor sha256
+  pure $ mk6DigitGen' cfor sha256
 
 mk6DigitGen' :: CodeFor -> Digest -> Gen
 mk6DigitGen' cfor d =
@@ -224,7 +224,7 @@ generate ::
 generate gen scope retries ttl account = do
   let key = genKey gen
   val <- liftIO $ genValue gen
-  return $ mkCode key val
+  pure $ mkCode key val
   where
     mkCode key val =
       Code
@@ -297,14 +297,14 @@ lookup k s = fmap (toCode k s) <$> retry x1 (query1 cql (params LocalQuorum (k, 
 -- | Lookup and verify the code for the given key and scope
 -- against the given value.
 verify :: MonadClient m => Key -> Scope -> Value -> m (Maybe Code)
-verify k s v = lookup k s >>= maybe (return Nothing) continue
+verify k s v = lookup k s >>= maybe (pure Nothing) continue
   where
     continue c
-      | codeValue c == v = return (Just c)
+      | codeValue c == v = pure (Just c)
       | codeRetries c > 0 = do
         insert (c {codeRetries = codeRetries c - 1})
-        return Nothing
-      | otherwise = return Nothing
+        pure Nothing
+      | otherwise = pure Nothing
 
 -- | Delete a code associated with the given key and scope.
 delete :: MonadClient m => Key -> Scope -> m ()

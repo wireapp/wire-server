@@ -71,11 +71,11 @@ newEnv :: Opts -> IO Env
 newEnv o = do
   mt <- Metrics.metrics
   l <- Log.mkLogger (O.logLevel o) (O.logNetStrings o) (O.logFormat o)
-  Env (mkRequest $ O.brig o) (mkRequest $ O.galley o) (mkRequest $ O.gundeck o) (mkRequest $ O.ibis o) (mkRequest $ O.galeb o) l mt
-    <$> pure def
-    <*> Bilge.newManager (Bilge.defaultManagerSettings {Bilge.managerResponseTimeout = responseTimeoutMicro 10000000})
+  Env (mkRequest $ O.brig o) (mkRequest $ O.galley o) (mkRequest $ O.gundeck o) (mkRequest $ O.ibis o) (mkRequest $ O.galeb o) l mt def
+    <$> newManager
   where
     mkRequest s = Bilge.host (encodeUtf8 (s ^. epHost)) . Bilge.port (s ^. epPort) $ Bilge.empty
+    newManager = Bilge.newManager (Bilge.defaultManagerSettings {Bilge.managerResponseTimeout = responseTimeoutMicro 10000000})
 
 -- Monads
 newtype AppT m a = AppT (ReaderT Env m a)
@@ -131,12 +131,12 @@ runHandler e r h k = do
   i <- reqId (lookupRequestId r)
   let e' = set requestId (Bilge.RequestId i) e
   a <- runAppT e' (runExceptT h)
-  either (onError (view applog e) r k) return a
+  either (onError (view applog e) r k) pure a
   where
-    reqId (Just i) = return i
+    reqId (Just i) = pure i
     reqId Nothing = do
       uuid <- UUID.nextRandom
-      return $ toByteString' $ "stern-" ++ toString uuid
+      pure $ toByteString' $ "stern-" ++ toString uuid
 
 onError :: Logger -> Request -> Continue IO -> Error -> IO ResponseReceived
 onError g r k e = do

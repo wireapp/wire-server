@@ -413,8 +413,7 @@ updateConversationReceiptModeUnqualified ::
   ConvId ->
   ConversationReceiptModeUpdate ->
   Sem r (UpdateResult Event)
-updateConversationReceiptModeUnqualified lusr zcon cnv update =
-  updateConversationReceiptMode lusr zcon (qUntagged (qualifyAs lusr cnv)) update
+updateConversationReceiptModeUnqualified lusr zcon cnv = updateConversationReceiptMode lusr zcon (qUntagged (qualifyAs lusr cnv))
 
 updateConversationMessageTimer ::
   Members
@@ -460,8 +459,7 @@ updateConversationMessageTimerUnqualified ::
   ConvId ->
   ConversationMessageTimerUpdate ->
   Sem r (UpdateResult Event)
-updateConversationMessageTimerUnqualified lusr zcon cnv update =
-  updateConversationMessageTimer lusr zcon (qUntagged (qualifyAs lusr cnv)) update
+updateConversationMessageTimerUnqualified lusr zcon cnv = updateConversationMessageTimer lusr zcon (qUntagged (qualifyAs lusr cnv))
 
 deleteLocalConversation ::
   Members
@@ -1086,7 +1084,7 @@ removeMemberFromRemoteConv cnv lusr victim
   | qUntagged lusr == victim = do
     let lc = LeaveConversationRequest (tUnqualified cnv) (qUnqualified victim)
     let rpc = fedClient @'Galley @"leave-conversation" lc
-    (either handleError handleSuccess =<<) . fmap leaveResponse $
+    (either handleError handleSuccess . leaveResponse =<<) $
       E.runFederated cnv rpc
   | otherwise = throwS @('ActionDenied 'RemoveConversationMember)
   where
@@ -1195,7 +1193,7 @@ postProteusBroadcast ::
   ConnId ->
   QualifiedNewOtrMessage ->
   Sem r (PostOtrResponse MessageSendingStatus)
-postProteusBroadcast sender zcon msg = postBroadcast sender (Just zcon) msg
+postProteusBroadcast sender zcon = postBroadcast sender (Just zcon)
 
 unqualifyEndpoint ::
   Functor f =>
@@ -1435,7 +1433,7 @@ addServiceH ::
   Sem r Response
 addServiceH req = do
   E.createService =<< fromJsonBody req
-  return empty
+  pure empty
 
 rmServiceH ::
   Members '[ServiceStore, WaiRoutes] r =>
@@ -1443,7 +1441,7 @@ rmServiceH ::
   Sem r Response
 rmServiceH req = do
   E.deleteService =<< fromJsonBody req
-  return empty
+  pure empty
 
 addBotH ::
   Members
@@ -1526,7 +1524,7 @@ addBot lusr zcon b = do
       unless (any ((== b ^. addBotId) . botMemId) bots) $ do
         let botId = qualifyAs lusr (botUserId (b ^. addBotId))
         ensureMemberLimit (toList $ Data.convLocalMembers c) [qUntagged botId]
-      return (bots, users)
+      pure (bots, users)
 
 rmBotH ::
   Members

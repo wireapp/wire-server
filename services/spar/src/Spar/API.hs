@@ -1,6 +1,8 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
+
+{-# HLINT ignore "Use $>" #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -171,7 +173,7 @@ apiSSO ::
   Opts ->
   ServerT APISSO (Sem r)
 apiSSO opts =
-  (SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing))
+  SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing)
     :<|> (\tid -> SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
     :<|> authreqPrecheck
     :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
@@ -235,7 +237,7 @@ authreqPrecheck ::
 authreqPrecheck msucc merr idpid =
   validateAuthreqParams msucc merr
     *> getIdPConfig idpid
-    *> return NoContent
+    *> pure NoContent
 
 authreq ::
   Members
@@ -315,7 +317,7 @@ validateRedirectURL :: Member (Error SparError) r => URI.URI -> Sem r ()
 validateRedirectURL uri = do
   unless ((SBS.take 4 . URI.schemeBS . URI.uriScheme $ uri) == "wire") $ do
     throwSparSem $ SparBadInitiateLoginQueryParams "invalid-schema"
-  unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
+  unless (SBS.length (URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
     throwSparSem $ SparBadInitiateLoginQueryParams "url-too-long"
 
 authresp ::
@@ -364,7 +366,7 @@ authresp mbtid ckyraw arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSet
             ckyraw
 
 ssoSettings :: Member DefaultSsoCode r => Sem r SsoSettings
-ssoSettings = do
+ssoSettings =
   SsoSettings <$> DefaultSsoCode.get
 
 ----------------------------------------------------------------------------
@@ -464,7 +466,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
           BrigAccess.delete uid
           SAMLUserStore.delete uid uref
         unless (null some) doPurge
-  when (not idpIsEmpty) $ do
+  unless idpIsEmpty $
     if purge
       then doPurge
       else throwSparSem SparIdPHasBoundUsers
@@ -480,7 +482,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
   do
     IdPConfigStore.deleteConfig idp
     IdPRawMetadataStore.delete idpid
-  return NoContent
+  pure NoContent
   where
     updateOldIssuers :: IdP -> Sem r ()
     updateOldIssuers _ = pure ()
@@ -492,7 +494,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     -- leave old issuers dangling for now.
 
     updateReplacingIdP :: IdP -> Sem r ()
-    updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer -> do
+    updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer ->
       getIdPIdByIssuer oldIssuer (idp ^. SAML.idpExtraInfo . wiTeam) >>= \case
         GetIdPFound iid -> IdPConfigStore.clearReplacedBy $ Replaced iid
         GetIdPNotFound -> pure ()
@@ -519,7 +521,7 @@ idpCreate ::
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Sem r IdP
-idpCreate zusr (IdPMetadataValue raw xml) midpid apiversion = idpCreateXML zusr raw xml midpid apiversion
+idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
 idpCreateXML ::
@@ -547,7 +549,7 @@ idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apive
   idp <- validateNewIdP apiversion idpmeta teamid mReplaces
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   storeIdPConfig idp
-  forM_ mReplaces $ \replaces -> do
+  forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
   pure idp
 
@@ -567,7 +569,7 @@ assertNoScimOrNoIdP ::
 assertNoScimOrNoIdP teamid = do
   numTokens <- length <$> ScimTokenStore.lookupByTeam teamid
   numIdps <- length <$> IdPConfigStore.getConfigsByTeam teamid
-  when (numTokens > 0 && numIdps > 0) $ do
+  when (numTokens > 0 && numIdps > 0) $
     throwSparSem $
       SparProvisioningMoreThanOneIdP
         "Teams with SCIM tokens can only have at most one IdP"
@@ -662,7 +664,7 @@ idpUpdate ::
   IdPMetadataInfo ->
   SAML.IdPId ->
   Sem r IdP
-idpUpdate zusr (IdPMetadataValue raw xml) idpid = idpUpdateXML zusr raw xml idpid
+idpUpdate zusr (IdPMetadataValue raw xml) = idpUpdateXML zusr raw xml
 
 idpUpdateXML ::
   Members
@@ -719,7 +721,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just
       Nothing -> throw errUnknownIdPId
       Just idp -> pure idp
   teamId <- authorizeIdP zusr previousIdP
-  unless (previousIdP ^. SAML.idpExtraInfo . wiTeam == teamId) $ do
+  unless (previousIdP ^. SAML.idpExtraInfo . wiTeam == teamId) $
     throw errUnknownIdP
   _idpExtraInfo <- do
     let previousIssuer = previousIdP ^. SAML.idpMetadata . SAML.edIssuer
@@ -735,7 +737,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just
           res@(GetIdPNonUnique _) -> throwSparSem . SparIdPNotFound . ("validateIdPUpdate: " <>) . cs . show $ res -- impossible (because team id was used in lookup)
           GetIdPWrongTeam _ -> pure False
         if notInUseByOthers
-          then pure $ (previousIdP ^. SAML.idpExtraInfo) & wiOldIssuers %~ nub . (previousIssuer :)
+          then pure $ previousIdP ^. SAML.idpExtraInfo & wiOldIssuers %~ nub . (previousIssuer :)
           else throwSparSem SparIdPIssuerInUse
   let requri = _idpMetadata ^. SAML.edRequestURI
   enforceHttps requri
@@ -767,7 +769,7 @@ authorizeIdP (Just zusr) idp = do
   pure teamid
 
 enforceHttps :: Member (Error SparError) r => URI.URI -> Sem r ()
-enforceHttps uri = do
+enforceHttps uri =
   unless ((uri ^. URI.uriSchemeL . URI.schemeBSL) == "https") $ do
     throwSparSem . SparNewIdPWantHttps . cs . SAML.renderURI $ uri
 
@@ -796,7 +798,7 @@ internalPutSsoSettings ::
 internalPutSsoSettings SsoSettings {defaultSsoCode = Nothing} = do
   DefaultSsoCode.delete
   pure NoContent
-internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} = do
+internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} =
   IdPConfigStore.getConfig code >>= \case
     Nothing ->
       -- this will return a 404, which is not quite right,

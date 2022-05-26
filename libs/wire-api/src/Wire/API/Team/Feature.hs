@@ -37,14 +37,7 @@ module Wire.API.Team.Feature
     LockStatus (..),
     LockStatusValue (..),
     IncludeLockStatus (..),
-    defaultAppLockStatus,
-    defaultClassifiedDomains,
-    defaultSelfDeletingMessagesStatus,
-    defaultGuestLinksStatus,
-    defaultTeamFeatureFileSharing,
-    defaultTeamFeatureValidateSAMLEmailsStatus,
-    defaultTeamFeatureSndFactorPasswordChallengeStatus,
-    defaultTeamFeatureSearchVisibilityInbound,
+    DefTeamFeatureStatus (..),
 
     -- * Swagger
     typeTeamFeatureName,
@@ -480,10 +473,13 @@ modelTeamFeatureStatusWithConfig name cfgModel = Doc.defineModel (cs $ show name
 
 instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfig cfg) where
   schema =
-    object "TeamFeatureStatusWithConfig" $
+    object name $
       TeamFeatureStatusWithConfig
         <$> tfwcStatus .= field "status" schema
-        <*> tfwcConfig .= field "config" schema
+        <*> tfwcConfig .= field "config" inner
+    where
+      inner = schema @cfg
+      name = "TeamFeatureStatusWithConfig." <> fromMaybe "" (getName (schemaDoc inner))
 
 data TeamFeatureStatusWithConfigAndLockStatus (cfg :: *) = TeamFeatureStatusWithConfigAndLockStatus
   { tfwcapsStatus :: TeamFeatureStatusValue,
@@ -505,18 +501,14 @@ modelTeamFeatureStatusWithConfigAndLockStatus name cfgModel = Doc.defineModel (c
 
 instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfigAndLockStatus cfg) where
   schema =
-    object "TeamFeatureStatusWithConfigAndLockStatus" $
+    object name $
       TeamFeatureStatusWithConfigAndLockStatus
         <$> tfwcapsStatus .= field "status" schema
-        <*> tfwcapsConfig .= field "config" schema
+        <*> tfwcapsConfig .= field "config" inner
         <*> tfwcapsLockStatus .= field "lockStatus" schema
-
-----------------------------------------------------------------------
--- TeamFeatureFileSharing
-
-defaultTeamFeatureFileSharing :: TeamFeatureStatusNoConfigAndLockStatus
-defaultTeamFeatureFileSharing =
-  TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked
+    where
+      inner = schema @cfg
+      name = "TeamFeatureStatusWithConfigAndLockStatus." <> fromMaybe "" (getName (schemaDoc inner))
 
 ----------------------------------------------------------------------
 -- TeamFeatureClassifiedDomainsConfig
@@ -539,12 +531,6 @@ modelTeamFeatureClassifiedDomainsConfig :: Doc.Model
 modelTeamFeatureClassifiedDomainsConfig =
   Doc.defineModel "TeamFeatureClassifiedDomainsConfig" $ do
     Doc.property "domains" (Doc.array Doc.string') $ Doc.description "domains"
-
-defaultClassifiedDomains :: TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
-defaultClassifiedDomains =
-  TeamFeatureStatusWithConfig
-    TeamFeatureDisabled
-    (TeamFeatureClassifiedDomainsConfig [])
 
 ----------------------------------------------------------------------
 -- TeamFeatureAppLockConfig
@@ -579,12 +565,6 @@ modelTeamFeatureAppLockConfig =
     Doc.property "enforceAppLock" Doc.bool' $ Doc.description "enforceAppLock"
     Doc.property "inactivityTimeoutSecs" Doc.int32' $ Doc.description ""
 
-defaultAppLockStatus :: TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
-defaultAppLockStatus =
-  TeamFeatureStatusWithConfig
-    TeamFeatureEnabled
-    (TeamFeatureAppLockConfig (EnforceAppLock False) 60)
-
 ----------------------------------------------------------------------
 -- TeamFeatureSelfDeletingMessagesConfig
 
@@ -605,13 +585,6 @@ modelTeamFeatureSelfDeletingMessagesConfig :: Doc.Model
 modelTeamFeatureSelfDeletingMessagesConfig =
   Doc.defineModel "TeamFeatureSelfDeletingMessagesConfig" $ do
     Doc.property "enforcedTimeoutSeconds" Doc.int32' $ Doc.description "optional; default: `0` (no enforcement)"
-
-defaultSelfDeletingMessagesStatus :: TeamFeatureStatusWithConfigAndLockStatus TeamFeatureSelfDeletingMessagesConfig
-defaultSelfDeletingMessagesStatus =
-  TeamFeatureStatusWithConfigAndLockStatus
-    TeamFeatureEnabled
-    (TeamFeatureSelfDeletingMessagesConfig 0)
-    Unlocked
 
 ----------------------------------------------------------------------
 -- LockStatus
@@ -684,28 +657,47 @@ instance Cass.Cql LockStatusValue where
   toCql Unlocked = Cass.CqlInt 1
 
 ----------------------------------------------------------------------
--- guest links
+-- defaults
 
-defaultGuestLinksStatus :: TeamFeatureStatusNoConfigAndLockStatus
-defaultGuestLinksStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked
+class DefTeamFeatureStatus (a :: TeamFeatureName) where
+  defTeamFeatureStatus :: TeamFeatureStatus 'WithLockStatus a
 
-----------------------------------------------------------------------
--- TeamFeatureValidateSAMLEmails
+instance DefTeamFeatureStatus 'TeamFeatureGuestLinks where
+  defTeamFeatureStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked
 
-defaultTeamFeatureValidateSAMLEmailsStatus :: TeamFeatureStatusNoConfig
-defaultTeamFeatureValidateSAMLEmailsStatus = TeamFeatureStatusNoConfig TeamFeatureEnabled
+instance DefTeamFeatureStatus 'TeamFeatureValidateSAMLEmails where
+  defTeamFeatureStatus = TeamFeatureStatusNoConfig TeamFeatureEnabled
 
-----------------------------------------------------------------------
--- TeamFeatureSndFactorPasswordChallenge
+instance DefTeamFeatureStatus 'TeamFeatureSndFactorPasswordChallenge where
+  defTeamFeatureStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Locked
 
-defaultTeamFeatureSndFactorPasswordChallengeStatus :: TeamFeatureStatusNoConfigAndLockStatus
-defaultTeamFeatureSndFactorPasswordChallengeStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Locked
+instance DefTeamFeatureStatus 'TeamFeatureSearchVisibilityInbound where
+  defTeamFeatureStatus = TeamFeatureStatusNoConfig TeamFeatureDisabled
 
-----------------------------------------------------------------------
--- TeamFeatureSearchVisibilityInbound
+instance DefTeamFeatureStatus 'TeamFeatureFileSharing where
+  defTeamFeatureStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked
 
-defaultTeamFeatureSearchVisibilityInbound :: TeamFeatureStatusNoConfig
-defaultTeamFeatureSearchVisibilityInbound = TeamFeatureStatusNoConfig TeamFeatureDisabled
+instance DefTeamFeatureStatus 'TeamFeatureSelfDeletingMessages where
+  defTeamFeatureStatus =
+    TeamFeatureStatusWithConfigAndLockStatus
+      TeamFeatureEnabled
+      (TeamFeatureSelfDeletingMessagesConfig 0)
+      Unlocked
+
+instance DefTeamFeatureStatus 'TeamFeatureClassifiedDomains where
+  defTeamFeatureStatus =
+    TeamFeatureStatusWithConfig
+      TeamFeatureDisabled
+      (TeamFeatureClassifiedDomainsConfig [])
+
+instance DefTeamFeatureStatus 'TeamFeatureAppLock where
+  defTeamFeatureStatus =
+    TeamFeatureStatusWithConfig
+      TeamFeatureEnabled
+      (TeamFeatureAppLockConfig (EnforceAppLock False) 60)
+
+instance DefTeamFeatureStatus 'TeamFeatureConferenceCalling where
+  defTeamFeatureStatus = TeamFeatureStatusNoConfig TeamFeatureEnabled
 
 ----------------------------------------------------------------------
 -- internal

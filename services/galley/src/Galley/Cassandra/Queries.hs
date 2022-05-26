@@ -391,7 +391,7 @@ insertLegalHoldSettings =
     where team_id = ?
   |]
 
-selectLegalHoldSettings :: PrepQuery R (Identity TeamId) (HttpsUrl, (Fingerprint Rsa), ServiceToken, ServiceKey)
+selectLegalHoldSettings :: PrepQuery R (Identity TeamId) (HttpsUrl, Fingerprint Rsa, ServiceToken, ServiceKey)
 selectLegalHoldSettings =
   [r|
    select base_url, fingerprint, auth_token, pubkey

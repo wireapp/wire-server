@@ -41,9 +41,9 @@ data SESBounceType
   deriving (Eq, Show)
 
 instance FromJSON SESBounceType where
-  parseJSON "Undetermined" = return BounceUndetermined
-  parseJSON "Permanent" = return BouncePermanent
-  parseJSON "Transient" = return BounceTransient
+  parseJSON "Undetermined" = pure BounceUndetermined
+  parseJSON "Permanent" = pure BouncePermanent
+  parseJSON "Transient" = pure BounceTransient
   parseJSON x = fail $ "Unknown type: " <> show x
 
 instance FromJSON SESNotification where
@@ -55,10 +55,10 @@ instance FromJSON SESNotification where
         bt <- b .: "bounceType"
         br <- b .: "bouncedRecipients"
         em <- mapM (\r -> r .: "emailAddress") br
-        return $! MailBounce bt em
+        pure $! MailBounce bt em
       "Complaint" -> do
         c <- o .: "complaint"
         cr <- c .: "complainedRecipients"
         em <- mapM (\r -> r .: "emailAddress") cr
-        return $! MailComplaint em
+        pure $! MailComplaint em
       x -> fail ("Brig.AWS: Unexpected notification type" ++ show x)

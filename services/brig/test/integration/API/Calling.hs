@@ -46,7 +46,7 @@ import Wire.API.Call.Config
 
 tests :: Manager -> Brig -> Opts.Opts -> FilePath -> FilePath -> IO TestTree
 tests m b opts turn turnV2 = do
-  return $
+  pure $
     testGroup "calling" $
       [ testGroup "turn" $
           [ test m "basic /calls/config - 200" $ testCallsConfig b,
@@ -253,7 +253,7 @@ toTurnURILegacy :: ByteString -> Port -> TurnURI
 toTurnURILegacy h p = toTurnURI SchemeTurn h p Nothing
 
 toTurnURI :: Scheme -> ByteString -> Port -> Maybe Transport -> TurnURI
-toTurnURI s h p t = turnURI s ip p t
+toTurnURI s h = turnURI s ip
   where
     ip =
       fromMaybe (error "Failed to parse host address") $

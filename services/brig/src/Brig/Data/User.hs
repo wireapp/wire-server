@@ -132,7 +132,7 @@ newAccount u inv tid mbHandle = do
         (Just (toUUID -> uuid), _) -> pure uuid
         (_, Just uuid) -> pure uuid
         (Nothing, Nothing) -> liftIO nextRandom
-  passwd <- maybe (return Nothing) (fmap Just . liftIO . mkSafePassword) pass
+  passwd <- maybe (pure Nothing) (fmap Just . liftIO . mkSafePassword) pass
   expiry <- case status of
     Ephemeral -> do
       -- Ephemeral users' expiry time is in expires_in (default sessionTokenTimeout) seconds
@@ -140,9 +140,9 @@ newAccount u inv tid mbHandle = do
       let ZAuth.SessionTokenTimeout defTTL = e ^. ZAuth.settings . ZAuth.sessionTokenTimeout
           ttl = maybe defTTL fromRange (newUserExpiresIn u)
       now <- liftIO =<< view currentTime
-      return . Just . toUTCTimeMillis $ addUTCTime (fromIntegral ttl) now
-    _ -> return Nothing
-  return (UserAccount (user uid domain (locale defLoc) expiry) status, passwd)
+      pure . Just . toUTCTimeMillis $ addUTCTime (fromIntegral ttl) now
+    _ -> pure Nothing
+  pure (UserAccount (user uid domain (locale defLoc) expiry) status, passwd)
   where
     ident = newUserIdentity u
     pass = newUserPassword u
@@ -162,7 +162,7 @@ newAccountInviteViaScim :: (MonadClient m, MonadReader Env m) => UserId -> TeamI
 newAccountInviteViaScim uid tid locale name email = do
   defLoc <- setDefaultUserLocale <$> view settings
   domain <- viewFederationDomain
-  return (UserAccount (user domain (fromMaybe defLoc locale)) PendingInvitation)
+  pure (UserAccount (user domain (fromMaybe defLoc locale)) PendingInvitation)
   where
     user domain loc =
       User
@@ -703,7 +703,7 @@ toUserAccount
     managed_by
     ) =
     let ident = toIdentity activated email phone ssoid
-        deleted = maybe False (== Deleted) status
+        deleted = Just Deleted == status
         expiration = if status == Just Ephemeral then expires else Nothing
         loc = toLocale defaultLocale (lan, con)
         svc = newServiceRef <$> sid <*> pid
@@ -777,7 +777,7 @@ toUsers domain defaultLocale havePendingInvitations = fmap mk . filter fp
         managed_by
         ) =
         let ident = toIdentity activated email phone ssoid
-            deleted = maybe False (== Deleted) status
+            deleted = Just Deleted == status
             expiration = if status == Just Ephemeral then expires else Nothing
             loc = toLocale defaultLocale (lan, con)
             svc = newServiceRef <$> sid <*> pid

@@ -72,10 +72,10 @@ deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
     exec :: (BotMember, Event) -> App Bool
     exec (b, e) =
       lookupService (botMemService b) >>= \case
-        Nothing -> return False
+        Nothing -> pure False
         Just s -> do
           deliver1 s b e
-          return True
+          pure True
     eval :: [BotMember] -> (BotMember, Async Bool) -> App [BotMember]
     eval gone (b, a) = do
       let s = botMemService b
@@ -87,14 +87,14 @@ deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
               ~~ field "service" (toByteString (s ^. serviceRefId))
               ~~ field "bot" (toByteString (botMemId b))
               ~~ msg (val "External delivery success")
-          return gone
+          pure gone
         Right False -> do
           Log.debug $
             field "provider" (toByteString (s ^. serviceRefProvider))
               ~~ field "service" (toByteString (s ^. serviceRefId))
               ~~ field "bot" (toByteString (botMemId b))
               ~~ msg (val "External service gone")
-          return (b : gone)
+          pure (b : gone)
         Left ex
           | Just (Http.HttpExceptionRequest _ (Http.StatusCodeException rs _)) <- fromException ex,
             Http.responseStatus rs == status410 -> do
@@ -103,7 +103,7 @@ deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
                 ~~ field "service" (toByteString (s ^. serviceRefId))
                 ~~ field "bot" (toByteString (botMemId b))
                 ~~ msg (val "External bot gone")
-            return (b : gone)
+            pure (b : gone)
         Left ex -> do
           Log.info $
             field "provider" (toByteString (s ^. serviceRefProvider))
@@ -111,7 +111,7 @@ deliver pp = mapM (async . exec) pp >>= foldM eval [] . zip (map fst pp)
               ~~ field "bot" (toByteString (botMemId b))
               ~~ field "error" (show ex)
               ~~ msg (val "External delivery failure")
-          return gone
+          pure gone
 
 -- Internal -------------------------------------------------------------------
 
@@ -134,7 +134,7 @@ deliver1 s bm e
             . timeout 5000
             . secure
             . expect2xx
-  | otherwise = return ()
+  | otherwise = pure ()
 
 urlHost :: HttpsUrl -> Maybe ByteString
 urlHost (HttpsUrl u) = u ^. authorityL <&> view (authorityHostL . hostBSL)
@@ -143,13 +143,13 @@ urlPort :: HttpsUrl -> Maybe Word16
 urlPort (HttpsUrl u) = do
   a <- u ^. authorityL
   p <- a ^. authorityPortL
-  return (fromIntegral (p ^. portNumberL))
+  pure (fromIntegral (p ^. portNumberL))
 
 sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> App ()
 sendMessage fprs reqBuilder = do
   (man, verifyFingerprints) <- view (extEnv . extGetManager)
   liftIO . withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $ \req ->
-    Http.withResponse req man (const $ return ())
+    Http.withResponse req man (const $ pure ())
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> constantDelay 1000000

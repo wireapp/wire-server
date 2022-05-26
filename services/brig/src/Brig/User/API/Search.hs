@@ -180,11 +180,11 @@ searchLocally searcherId searchTerm maybeMaxResults = do
     mkTeamSearchInfo searcherTeamId = lift $ do
       sameTeamSearchOnly <- fromMaybe False <$> view (settings . Opts.searchSameTeamOnly)
       case searcherTeamId of
-        Nothing -> return Search.NoTeam
+        Nothing -> pure Search.NoTeam
         Just t ->
           -- This flag in brig overrules any flag on galley - it is system wide
           if sameTeamSearchOnly
-            then return (Search.TeamOnly t)
+            then pure (Search.TeamOnly t)
             else do
               -- For team users, we need to check the visibility flag
               handleTeamVisibility t <$> wrapHttp (Intra.getTeamSearchVisibility t)

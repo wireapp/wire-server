@@ -76,7 +76,7 @@ isOwner :: TeamMember -> Bool
 isOwner m = hasPermission m SetBilling
 
 isAdmin :: TeamMember -> Bool
-isAdmin m = (hasPermission m AddTeamMember) && not (hasPermission m SetBilling)
+isAdmin m = hasPermission m AddTeamMember && not (hasPermission m SetBilling)
 
 instance ToJSON TeamInfo where
   toJSON (TeamInfo d m) =

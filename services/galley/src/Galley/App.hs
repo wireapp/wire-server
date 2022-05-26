@@ -152,7 +152,7 @@ createEnv m o = do
   Env def m o l mgr (o ^. optFederator) (o ^. optBrig) cass
     <$> Q.new 16000
     <*> initExtEnv
-    <*> maybe (return Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
+    <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do
@@ -214,7 +214,7 @@ interpretErrorToException ::
   (err -> exc) ->
   Sem (Error err ': r) a ->
   Sem r a
-interpretErrorToException f = (either (embed @IO . UnliftIO.throwIO . f) pure =<<) . runError
+interpretErrorToException f = either (embed @IO . UnliftIO.throwIO . f) pure <=< runError
 
 interpretWaiErrorToException ::
   (APIError e, Member (Embed IO) r) =>

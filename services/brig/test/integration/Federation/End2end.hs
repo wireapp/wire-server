@@ -498,7 +498,7 @@ testSendMessage brig1 brig2 galley2 cannon1 = do
       <$> addClient
         brig1
         (userId alice)
-        (defNewClient PermanentClientType [] (someLastPrekeys !! 0))
+        (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
 
   -- create bob user and client on domain 2
   bob <- randomUser brig2
@@ -523,7 +523,7 @@ testSendMessage brig1 brig2 galley2 cannon1 = do
       rcpts = [(userQualifiedId alice, aliceClient, msgText)]
       msg = mkQualifiedOtrPayload bobClient rcpts "" MismatchReportAll
 
-  WS.bracketR cannon1 (userId alice) $ \(wsAlice) -> do
+  WS.bracketR cannon1 (userId alice) $ \wsAlice -> do
     post
       ( galley2
           . paths
@@ -562,7 +562,7 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
   alice <- randomUser brig1
   aliceClient <-
     fmap clientId . responseJsonError
-      =<< addClient brig1 (userId alice) (defNewClient PermanentClientType [] (someLastPrekeys !! 0))
+      =<< addClient brig1 (userId alice) (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
       <!! const 201 === statusCode
 
   -- create bob user and client on domain 2
@@ -586,7 +586,7 @@ testSendMessageToRemoteConv brig1 brig2 galley1 galley2 cannon1 = do
       rcpts = [(userQualifiedId alice, aliceClient, msgText)]
       msg = mkQualifiedOtrPayload bobClient rcpts "" MismatchReportAll
 
-  WS.bracketR cannon1 (userId alice) $ \(wsAlice) -> do
+  WS.bracketR cannon1 (userId alice) $ \wsAlice -> do
     post
       ( galley2
           . paths

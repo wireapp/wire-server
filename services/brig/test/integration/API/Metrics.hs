@@ -1,8 +1,5 @@
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE ViewPatterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -39,7 +36,7 @@ import Util
 
 tests :: Manager -> Brig -> IO TestTree
 tests manager brig = do
-  return $
+  pure $
     testGroup
       "metrics"
       [ testCase "prometheus" . void $ runHttpT manager (testPrometheusMetrics brig),
@@ -79,7 +76,7 @@ testMetricsEndpoint brig = do
       rsp <- responseBody <$> get (brig . path "i/metrics")
       -- is there some responseBodyAsText function used elsewhere?
       let asText = fromMaybe "" (fromByteString' (fromMaybe "" rsp))
-      return $ fromRight 0 (parseOnly (parseCount endpoint m) asText)
+      pure $ fromRight 0 (parseOnly (parseCount endpoint m) asText)
     parseCount :: Text -> Text -> Parser Integer
     parseCount endpoint m =
       manyTill anyChar (string ("http_request_duration_seconds_count{handler=\"" <> endpoint <> "\",method=\"" <> m <> "\",status_code=\"200\"} "))

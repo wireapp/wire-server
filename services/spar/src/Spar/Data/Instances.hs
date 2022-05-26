@@ -50,7 +50,7 @@ instance Cql SAML.XmlText where
   fromCql (CqlText t) = pure $ SAML.mkXmlText t
   fromCql _ = Left "XmlText: expected CqlText"
 
-instance Cql (SignedCertificate) where
+instance Cql SignedCertificate where
   ctype = Tagged BlobColumn
   toCql = CqlBlob . cs . renderKeyInfo
 
@@ -88,8 +88,8 @@ instance Cql VerdictFormatCon where
   toCql VerdictFormatConMobile = CqlInt 1
 
   fromCql (CqlInt i) = case i of
-    0 -> return VerdictFormatConWeb
-    1 -> return VerdictFormatConMobile
+    0 -> pure VerdictFormatConWeb
+    1 -> pure VerdictFormatConMobile
     n -> Left $ "unexpected VerdictFormatCon: " ++ show n
   fromCql _ = Left "member-status: int expected"
 

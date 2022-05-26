@@ -30,15 +30,14 @@ import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Concurrent.Async
 import Control.Exception (throw)
 import Control.Lens hiding (from, to, (#), (.=))
-import Control.Monad.Catch (MonadCatch, MonadMask, finally)
+import Control.Monad.Catch (MonadCatch, MonadMask)
+import Control.Monad.Codensity (lowerCodensity)
 import Control.Monad.Except (ExceptT, runExceptT)
 import Control.Retry (constantDelay, exponentialBackoff, limitRetries, retrying)
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens (key, _String)
 import qualified Data.ByteString as BS
-import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString.Char8 as C
-import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.CaseInsensitive as CI
@@ -60,7 +59,6 @@ import qualified Data.ProtoLens as Protolens
 import Data.ProtocolBuffers (encodeMessage)
 import Data.Qualified
 import Data.Range
-import qualified Data.Sequence as Seq
 import Data.Serialize (runPut)
 import qualified Data.Set as Set
 import Data.Singletons
@@ -74,7 +72,6 @@ import qualified Data.UUID as UUID
 import Data.UUID.V4
 import Federator.MockServer (FederatedRequest (..))
 import qualified Federator.MockServer as Mock
-import GHC.TypeLits
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
@@ -89,19 +86,12 @@ import Galley.Types.Teams.Intra
 import Galley.Types.UserList
 import Imports
 import Network.HTTP.Media.MediaType
-import Network.HTTP.Media.RenderHeader (renderHeader)
-import Network.HTTP.Types (http11, renderQuery)
 import qualified Network.HTTP.Types as HTTP
 import Network.Wai (Application, defaultRequest)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Test as Wai
-import qualified Network.Wai.Test as WaiTest
+import Network.Wai.Utilities.MockServer (withMockServer)
 import Servant (Handler, HasServer, Server, ServerT, serve, (:<|>) (..))
-import Servant.Client (ClientError (FailureResponse))
-import qualified Servant.Client as Servant
-import Servant.Client.Core (RunClient (throwClientError))
-import qualified Servant.Client.Core as Servant
-import qualified Servant.Client.Core.Request as ServantRequest
 import System.Exit
 import System.Process
 import System.Random
@@ -661,10 +651,9 @@ defNewMLSConv :: NewConv
 defNewMLSConv = defNewProteusConv {newConvProtocol = ProtocolMLSTag}
 
 postConvQualified ::
-  (HasCallStack, HasGalley m, MonadIO m, MonadMask m, MonadHttp m) =>
   UserId ->
   NewConv ->
-  m ResponseLBS
+  TestM ResponseLBS
 postConvQualified u n = do
   g <- viewGalley
   post $
@@ -2338,14 +2327,20 @@ postSSOUser name hasEmail ssoid teamid = do
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"
 
--- | This allows you to run requests against a galley instantiated using the given options.
---   Note that ONLY 'galley' calls should occur within the provided action, calls to other
---   services will fail.
-withSettingsOverrides :: (HasGalley m, MonadIO m, MonadMask m) => Opts.Opts -> SessionT m a -> m a
-withSettingsOverrides opts action = do
-  (galleyApp, _, finalizer) <- liftIO $ Run.mkApp opts
-  runSessionT action galleyApp
-    `finally` liftIO finalizer
+withSettingsOverrides :: (Opts.Opts -> Opts.Opts) -> TestM a -> TestM a
+withSettingsOverrides f action = do
+  ts :: TestSetup <- ask
+  let opts = f (ts ^. tsGConf)
+  liftIO . lowerCodensity $ do
+    (galleyApp, _env) <- Run.mkApp opts
+    port' <- withMockServer galleyApp
+    liftIO $
+      runReaderT
+        (runTestM action)
+        ( ts
+            & tsGalley .~ Bilge.host "127.0.0.1" . Bilge.port port'
+            & tsFedGalleyClient .~ FedClient (ts ^. tsManager) (Endpoint "127.0.0.1" port')
+        )
 
 waitForMemberDeletion :: UserId -> TeamId -> UserId -> TestM ()
 waitForMemberDeletion zusr tid uid = do
@@ -2483,36 +2478,30 @@ mkProfile quid name =
 -- federator response (of an arbitrary JSON-serialisable type a) for every
 -- expected request.
 withTempMockFederator ::
-  (MonadIO m, ToJSON a, HasGalley m, MonadMask m) =>
+  ToJSON a =>
   (FederatedRequest -> a) ->
-  SessionT m b ->
-  m (b, [FederatedRequest])
+  TestM b ->
+  TestM (b, [FederatedRequest])
 withTempMockFederator resp = withTempMockFederator' $ pure . encode . resp
 
 withTempMockFederator' ::
-  (MonadIO m, HasGalley m, MonadMask m) =>
   (FederatedRequest -> IO LByteString) ->
-  SessionT m b ->
-  m (b, [FederatedRequest])
+  TestM b ->
+  TestM (b, [FederatedRequest])
 withTempMockFederator' resp action = do
-  opts <- viewGalleyOpts
   Mock.withTempMockFederator
     [("Content-Type", "application/json")]
     ((\r -> pure ("application" // "json", r)) <=< resp)
     $ \mockPort -> do
-      let opts' =
-            opts & Opts.optFederator
-              ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)
-      withSettingsOverrides opts' action
+      withSettingsOverrides (\opts -> opts & Opts.optFederator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action
 
 -- Start a mock federator. Use proveded Servant handler for the mocking mocking function.
 withTempServantMockFederator ::
-  (MonadMask m, MonadIO m, HasGalley m) =>
   (Domain -> ServerT (FedApi 'Brig) Handler) ->
   (Domain -> ServerT (FedApi 'Galley) Handler) ->
   Domain ->
-  SessionT m b ->
-  m (b, [FederatedRequest])
+  TestM b ->
+  TestM (b, [FederatedRequest])
 withTempServantMockFederator brigApi galleyApi originDomain =
   withTempMockFederator' mock
   where
@@ -2793,90 +2782,3 @@ wsAssertConvReceiptModeUpdate conv usr new n = do
   evtType e @?= ConvReceiptModeUpdate
   evtFrom e @?= usr
   evtData e @?= EdConvReceiptModeUpdate (ConversationReceiptModeUpdate new)
-
-newtype WaiTestFedClient a = WaiTestFedClient {unWaiTestFedClient :: ReaderT Domain WaiTest.Session a}
-  deriving (Functor, Applicative, Monad, MonadIO)
-
-instance Servant.RunClient WaiTestFedClient where
-  runRequestAcceptStatus expectedStatuses servantRequest = WaiTestFedClient $ do
-    domain <- ask
-    let req' = fromServantRequest domain servantRequest
-    res <- lift $ WaiTest.srequest req'
-    let servantResponse = toServantResponse res
-    let status = Servant.responseStatusCode servantResponse
-    let statusIsSuccess =
-          case expectedStatuses of
-            Nothing -> HTTP.statusIsSuccessful status
-            Just ex -> status `elem` ex
-    unless statusIsSuccess $
-      unWaiTestFedClient $ throwClientError (FailureResponse (bimap (const ()) (\x -> (Servant.BaseUrl Servant.Http "" 80 "", cs (toLazyByteString x))) servantRequest) servantResponse)
-    pure servantResponse
-  throwClientError = liftIO . throw
-
-fromServantRequest :: Domain -> Servant.Request -> WaiTest.SRequest
-fromServantRequest domain r =
-  let pathBS = "/federation" <> Data.String.Conversions.cs (toLazyByteString (Servant.requestPath r))
-      bodyBS = case Servant.requestBody r of
-        Nothing -> ""
-        Just (bdy, _) -> case bdy of
-          Servant.RequestBodyLBS lbs -> Data.String.Conversions.cs lbs
-          Servant.RequestBodyBS bs -> bs
-          Servant.RequestBodySource _ -> error "fromServantRequest: not implemented for RequestBodySource"
-
-      -- Content-Type and Accept are specified by requestBody and requestAccept
-      headers =
-        filter (\(h, _) -> h /= "Accept" && h /= "Content-Type") $
-          toList $ Servant.requestHeaders r
-      acceptHdr
-        | null hs = Nothing
-        | otherwise = Just ("Accept", renderHeader hs)
-        where
-          hs = toList $ ServantRequest.requestAccept r
-      contentTypeHdr = case ServantRequest.requestBody r of
-        Nothing -> Nothing
-        Just (_', typ) -> Just (HTTP.hContentType, renderHeader typ)
-      req =
-        Wai.defaultRequest
-          { Wai.requestMethod = Servant.requestMethod r,
-            Wai.rawPathInfo = pathBS,
-            Wai.rawQueryString = renderQuery True (toList (Servant.requestQueryString r)),
-            Wai.requestHeaders =
-              -- Inspired by 'Servant.Client.Internal.HttpClient.defaultMakeClientRequest',
-              -- the Servant function that maps @Request@ to @Client.Request@.
-              -- This solution is a bit sophisticated due to two constraints:
-              --   - Accept header may contain a list of accepted media types.
-              --   - Accept and Content-Type headers should only appear once in the result.
-              maybeToList acceptHdr
-                <> maybeToList contentTypeHdr
-                <> headers
-                <> [(originDomainHeaderName, Text.encodeUtf8 (domainText domain))],
-            Wai.isSecure = True,
-            Wai.pathInfo = filter (not . Text.null) (map Data.String.Conversions.cs (C8.split '/' pathBS)),
-            Wai.queryString = toList (Servant.requestQueryString r)
-          }
-   in WaiTest.SRequest req (cs bodyBS)
-
-toServantResponse :: WaiTest.SResponse -> Servant.Response
-toServantResponse res =
-  Servant.Response
-    { Servant.responseStatusCode = WaiTest.simpleStatus res,
-      Servant.responseHeaders = Seq.fromList (WaiTest.simpleHeaders res),
-      Servant.responseBody = WaiTest.simpleBody res,
-      Servant.responseHttpVersion = http11
-    }
-
-createWaiTestFedClient ::
-  forall (name :: Symbol) comp api.
-  ( HasFedEndpoint comp api name,
-    Servant.HasClient WaiTestFedClient api
-  ) =>
-  Servant.Client WaiTestFedClient api
-createWaiTestFedClient =
-  Servant.clientIn (Proxy @api) (Proxy @WaiTestFedClient)
-
-runWaiTestFedClient ::
-  Domain ->
-  WaiTestFedClient a ->
-  WaiTest.Session a
-runWaiTestFedClient domain action =
-  runReaderT (unWaiTestFedClient action) domain

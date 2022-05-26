@@ -93,12 +93,12 @@ sendCall call = unless (isTestPhone $ Nexmo.callTo call) $ do
         Nexmo.CallUnroutable -> unreachable ex
         Nexmo.CallDestinationBarred -> barred ex
         _ -> throwM ex
-      Right _ -> return ()
+      Right _ -> pure ()
   where
     nexmoHandlers =
       httpHandlers
         ++ [ const . Handler $ \(ex :: Nexmo.CallErrorResponse) ->
-               return $ case Nexmo.caStatus ex of
+               pure $ case Nexmo.caStatus ex of
                  Nexmo.CallThrottled -> True
                  Nexmo.CallInternal -> True
                  _ -> False
@@ -140,7 +140,7 @@ sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
           21610 -> barred ex'
           -- A real problem
           _ -> throwM ex'
-        Right () -> return ()
+        Right () -> pure ()
   where
     sendNexmoSms :: (MonadIO f, MonadReader Env f) => Manager -> f ()
     sendNexmoSms mgr = do
@@ -167,14 +167,14 @@ sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
           Twilio.sendMessage crd mgr (Twilio.Message smsFrom smsTo smsText)
     nexmoFailed =
       [ Handler $ \(ex :: HttpException) ->
-          return (Just (SomeException ex)),
+          pure (Just (SomeException ex)),
         Handler $ \(ex :: Nexmo.MessageErrorResponse) ->
-          return (Just (SomeException ex))
+          pure (Just (SomeException ex))
       ]
     nexmoHandlers =
       httpHandlers
         ++ [ const . Handler $ \(ex :: Nexmo.MessageErrorResponse) ->
-               return $ case Nexmo.erStatus ex of
+               pure $ case Nexmo.erStatus ex of
                  Nexmo.MessageThrottled -> True
                  Nexmo.MessageInternal -> True
                  Nexmo.MessageCommunicationFailed -> True
@@ -183,7 +183,7 @@ sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
     twilioHandlers =
       httpHandlers
         ++ [ const . Handler $ \(ex :: Twilio.ErrorResponse) ->
-               return $ case Twilio.errStatus ex of
+               pure $ case Twilio.errStatus ex of
                  20429 -> True -- Too Many Requests
                  20500 -> True -- Internal Server Error
                  20503 -> True -- Temporarily Unavailable
@@ -204,7 +204,7 @@ sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
 -- E.164 format of the given phone number on success.
 validatePhone :: (MonadClient m, MonadReader Env m) => Phone -> m (Maybe Phone)
 validatePhone (Phone p)
-  | isTestPhone p = return (Just (Phone p))
+  | isTestPhone p = pure (Just (Phone p))
   | otherwise = do
     c <- view twilioCreds
     m <- view httpManager
@@ -214,8 +214,8 @@ validatePhone (Phone p)
           const $
             Twilio.lookupPhone c m p LookupNoDetail Nothing
     case r of
-      Right x -> return (Just (Phone (Twilio.lookupE164 x)))
-      Left e | Twilio.errStatus e == 404 -> return Nothing
+      Right x -> pure (Just (Phone (Twilio.lookupE164 x)))
+      Left e | Twilio.errStatus e == 404 -> pure Nothing
       Left e -> throwM e
 
 isTestPhone :: Text -> Bool
@@ -254,7 +254,7 @@ withSmsBudget phone go = do
         msg (val "SMS budget deducted.")
           ~~ field "budget" b
           ~~ field "phone" phone
-      return a
+      pure a
 
 --------------------------------------------------------------------------------
 -- Voice Call Budgeting
@@ -289,7 +289,7 @@ withCallBudget phone go = do
         msg (val "Voice call budget deducted.")
           ~~ field "budget" b
           ~~ field "phone" phone
-      return a
+      pure a
 
 --------------------------------------------------------------------------------
 -- Unique Keys
