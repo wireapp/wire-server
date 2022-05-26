@@ -144,6 +144,7 @@ import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
 import Polysemy
 import Polysemy.Final
+import qualified Polysemy.TinyLog as P
 import qualified Ropes.Nexmo as Nexmo
 import qualified Ropes.Twilio as Twilio
 import Ssl.Util
@@ -154,6 +155,7 @@ import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as Log
 import Util.Options
 import Wire.API.User.Identity (Email)
+import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO
 
@@ -444,6 +446,7 @@ type BrigCanonicalEffects =
      Now,
      PasswordResetSupply,
      CodeStore,
+     P.TinyLog,
      Embed Cas.Client,
      Embed IO,
      Final IO
@@ -605,6 +608,7 @@ runAppT e (AppT ma) =
   runFinal
     . embedToFinal
     . interpretClientToIO (_casClient e)
+    . loggerToTinyLogReqId (view requestId e) (view applog e)
     . codeStoreToCassandra @Cas.Client
     . passwordResetSupplyToIO
     . nowToIOAction (_currentTime e)

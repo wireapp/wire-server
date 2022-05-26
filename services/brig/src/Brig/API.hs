@@ -28,9 +28,10 @@ import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
 import qualified Data.Swagger.Build.Api as Doc
 import Network.Wai.Routing (Routes)
 import Polysemy
+import qualified Polysemy.TinyLog as P
 
 sitemap ::
-  Members '[PasswordResetStore, PasswordResetSupply] r =>
+  Members '[P.TinyLog, PasswordResetStore, PasswordResetSupply] r =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   Public.sitemap

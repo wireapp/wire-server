@@ -98,6 +98,7 @@ import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthUserId)
 import Polysemy
+import qualified Polysemy.TinyLog as P
 import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
 import Servant.Swagger.Internal.Orphans ()
@@ -274,7 +275,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
 sitemap ::
-  Members '[PasswordResetStore, PasswordResetSupply] r =>
+  Members '[P.TinyLog, PasswordResetStore, PasswordResetSupply] r =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   -- User Handle API ----------------------------------------------------
@@ -438,7 +439,7 @@ sitemap = do
 
 apiDocs ::
   forall r.
-  Members '[PasswordResetStore, PasswordResetSupply] r =>
+  Members '[P.TinyLog, PasswordResetStore, PasswordResetSupply] r =>
   Routes Doc.ApiBuilder (Handler r) ()
 apiDocs =
   get
@@ -816,14 +817,14 @@ changeHandle u conn (Public.HandleUpdate h) = lift . exceptTToMaybe $ do
   API.changeHandle u (Just conn) handle API.ForbidSCIMUpdates
 
 beginPasswordResetH ::
-  Members '[PasswordResetStore] r =>
+  Members '[P.TinyLog, PasswordResetStore] r =>
   JSON ::: JsonRequest Public.NewPasswordReset ->
   (Handler r) Response
 beginPasswordResetH (_ ::: req) =
   setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
 
 beginPasswordReset ::
-  Members '[PasswordResetStore] r =>
+  Members '[P.TinyLog, PasswordResetStore] r =>
   Public.NewPasswordReset ->
   (Handler r) ()
 beginPasswordReset (Public.NewPasswordReset target) = do

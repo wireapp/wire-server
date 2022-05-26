@@ -155,6 +155,7 @@ import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import Network.Wai.Utilities
 import Polysemy
+import qualified Polysemy.TinyLog as P
 import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
 import System.Logger.Message
@@ -972,13 +973,14 @@ changePassword uid cp = do
       lift $ wrapClient (Data.updatePassword uid newpw) >> wrapClient (revokeAllCookies uid)
 
 beginPasswordReset ::
-  Members '[PasswordResetStore] r =>
+  Members '[P.TinyLog, PasswordResetStore] r =>
   Either Email Phone ->
   ExceptT PasswordResetError (AppT r) (UserId, PasswordResetPair)
 beginPasswordReset target = do
   let key = either userEmailKey userPhoneKey target
   user <- lift (wrapClient $ Data.lookupKey key) >>= maybe (throwE InvalidPasswordResetKey) pure
-  lift . Log.debug $ field "user" (toByteString user) . field "action" (Log.val "User.beginPasswordReset")
+  lift . liftSem . P.debug $
+    field "user" (toByteString user) . field "action" (Log.val "User.beginPasswordReset")
   status <- lift . wrapClient $ Data.lookupStatus user
   unless (status == Just Active) $
     throwE InvalidPasswordResetKey
