@@ -51,7 +51,7 @@ module Brig.API.User
     revokeIdentity,
     deleteUserNoVerify,
     deleteUsersNoVerify,
-    Brig.API.User.deleteUser,
+    deleteSelfUser,
     verifyDeleteUser,
     deleteAccount,
     checkHandles,
@@ -1041,8 +1041,8 @@ mkPasswordResetKey ident = case ident of
 -- delete them in the team settings.  This protects teams against orphanhood.
 --
 -- TODO: communicate deletions of SSO users to SSO service.
-deleteUser :: UserId -> Maybe PlainTextPassword -> ExceptT DeleteUserError (AppT r) (Maybe Timeout)
-deleteUser uid pwd = do
+deleteSelfUser :: UserId -> Maybe PlainTextPassword -> ExceptT DeleteUserError (AppT r) (Maybe Timeout)
+deleteSelfUser uid pwd = do
   account <- lift . wrapClient $ Data.lookupAccount uid
   case account of
     Nothing -> throwE DeleteUserInvalid

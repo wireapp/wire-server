@@ -182,7 +182,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
       Named @"get-self" getSelf
-        :<|> Named @"delete-self" deleteUser
+        :<|> Named @"delete-self" deleteSelfUser
         :<|> Named @"put-self" updateUser
         :<|> Named @"change-phone" changePhone
         :<|> Named @"remove-phone" removePhone
@@ -936,12 +936,12 @@ getConnection self other = do
   lself <- qualifyLocal self
   lift . wrapClient $ Data.lookupConnection lself other
 
-deleteUser ::
+deleteSelfUser ::
   UserId ->
   Public.DeleteUser ->
   (Handler r) (Maybe Code.Timeout)
-deleteUser u body =
-  API.deleteUser u (Public.deleteUserPassword body) !>> deleteUserError
+deleteSelfUser u body =
+  API.deleteSelfUser u (Public.deleteUserPassword body) !>> deleteUserError
 
 verifyDeleteUserH :: JsonRequest Public.VerifyDeleteUser ::: JSON -> (Handler r) Response
 verifyDeleteUserH (r ::: _) = do

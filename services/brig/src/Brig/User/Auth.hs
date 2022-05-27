@@ -280,7 +280,7 @@ renewAccess uts at = do
   return $ Access at' ck'
 
 revokeAccess ::
-  (MonadClient m, Log.MonadLogger m) =>
+  (MonadClient m, Log.MonadLogger m, MonadReader Env m) =>
   UserId ->
   PlainTextPassword ->
   [CookieId] ->
@@ -288,7 +288,7 @@ revokeAccess ::
   ExceptT AuthError m ()
 revokeAccess u pw cc ll = do
   lift $ Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.revokeAccess")
-  Data.authenticate u pw
+  unlessM (Data.isSSOUser u) $ Data.authenticate u pw
   lift $ revokeCookies u cc ll
 
 --------------------------------------------------------------------------------
