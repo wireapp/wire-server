@@ -1,0 +1,1 @@
+On actions that require re-authentication a password is not required if the user has SAML credentials
