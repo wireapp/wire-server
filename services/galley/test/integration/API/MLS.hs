@@ -33,6 +33,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 hiding (head)
 import Data.Qualified
 import Data.Range
+import qualified Data.Set as Set
 import Data.String.Conversions
 import qualified Data.Text as T
 import Federator.MockServer
@@ -47,6 +48,7 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Conversation
+import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
@@ -74,7 +76,8 @@ tests s =
           test s "add user (partial client list)" testAddUserPartial,
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
           test s "add new client of an already-present user to a conversation" testAddNewClient,
-          test s "send a stale commit" testStaleCommit
+          test s "send a stale commit" testStaleCommit,
+          test s "add remote user to a conversation" testAddRemoteUser
         ],
       testGroup
         "Application Message"
@@ -392,6 +395,56 @@ testStaleCommit = withSystemTempDirectory "mls" $ \tmp -> do
           users2 >>= toList . pClients
     err <- testFailedCommit MessagingSetup {..} 409
     liftIO $ Wai.label err @?= "mls-stale-message"
+
+testAddRemoteUser :: TestM ()
+testAddRemoteUser = do
+  setup <-
+    aliceInvitesBob
+      (1, RemoteUser (Domain "faraway.example.com"))
+      def
+        { createClients = DontCreateClients,
+          createConv = CreateConv
+        }
+  bob <- assertOne (users setup)
+  let mock req = case frRPC req of
+        "on-conversation-updated" -> pure (Aeson.encode ())
+        "get-mls-clients" ->
+          pure
+            . Aeson.encode
+            . Set.fromList
+            . map snd
+            . toList
+            . pClients
+            $ bob
+        ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+  (events, reqs) <- withTempMockFederator' mock $ do
+    postCommit setup
+
+  liftIO $ do
+    req <- assertOne $ filter ((== "on-conversation-updated") . frRPC) reqs
+    frTargetDomain req @?= qDomain (pUserId bob)
+    bdy <- case Aeson.eitherDecode (frBody req) of
+      Right b -> pure b
+      Left e -> assertFailure $ "Could not parse on-conversation-updated request body: " <> e
+    cuOrigUserId bdy @?= pUserId (creator setup)
+    cuConvId bdy @?= qUnqualified (conversation setup)
+    cuAlreadyPresentUsers bdy @?= [qUnqualified (pUserId bob)]
+    cuAction bdy
+      @?= SomeConversationAction
+        SConversationJoinTag
+        ConversationJoin
+          { cjUsers = pure (pUserId bob),
+            cjRole = roleNameWireMember
+          }
+
+  liftIO $ do
+    event <- assertOne events
+    assertJoinEvent
+      (conversation setup)
+      (pUserId (creator setup))
+      [pUserId bob]
+      roleNameWireMember
+      event
 
 testAppMessage :: TestM ()
 testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do

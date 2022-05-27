@@ -576,7 +576,7 @@ onMLSMessageSent ::
     r =>
   Domain ->
   F.RemoteMLSMessage ->
-  Sem r ()
+  Sem r EmptyResponse
 onMLSMessageSent domain rmm = do
   loc <- qualifyLocal ()
   let rcnv = toRemoteUnsafe domain (F.rmmConversation rmm)
@@ -603,3 +603,4 @@ onMLSMessageSent domain rmm = do
 
   runMessagePush loc (Just (qUntagged rcnv)) $
     foldMap mkPush recipients
+  pure EmptyResponse

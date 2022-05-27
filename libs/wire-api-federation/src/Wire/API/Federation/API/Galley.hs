@@ -60,7 +60,7 @@ type GalleyApi =
     :<|> FedEndpoint "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
     :<|> FedEndpoint "update-conversation" ConversationUpdateRequest ConversationUpdateResponse
     :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest EmptyResponse
-    :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage ()
+    :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage EmptyResponse
 
 data GetConversationsRequest = GetConversationsRequest
   { gcrUserId :: UserId,
