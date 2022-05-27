@@ -869,6 +869,13 @@ packages:
   original:
     hackage: tracing-0.0.7.2
 - completed:
+    hackage: zlib-0.6.3.0@sha256:8214a9d37580f17f8b675109578a5dbe6853559eef156e34dc2233f1123ace33,5216
+    pantry-tree:
+      size: 2622
+      sha256: 87b7fd16379d679eb01d9fae78b4db97356d301fce4a040ba9e690d16eeb98b2
+  original:
+    hackage: zlib-0.6.3.0
+- completed:
     hackage: ormolu-0.1.4.1@sha256:ed404eac6e4eb64da1ca5fb749e0f99907431a9633e6ba34e44d260e7d7728ba,6499
     pantry-tree:
       size: 74141
