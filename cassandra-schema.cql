@@ -40,6 +40,7 @@ CREATE TABLE galley_test.conversation (
     access set<int>,
     access_role int,
     access_roles_v2 set<int>,
+    cipher_suite int,
     creator uuid,
     deleted boolean,
     epoch bigint,

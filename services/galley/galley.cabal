@@ -628,6 +628,7 @@ executable galley-schema
       V67_MLSFeature
       V68_MLSCommitLock
       V69_MLSProposal
+      V70_MLSCipherSuite
       Paths_galley
   hs-source-dirs:
       schema/src
