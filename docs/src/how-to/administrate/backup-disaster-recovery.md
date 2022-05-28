@@ -138,8 +138,15 @@ Where:
 * `user` is the user you used to install Wire on this server, typically `wire` or `root`
 * `minio-vm.mydomain.com` is the domain name or IP address for the server with your MinIO node
 
+To backup the MinIO data, we need to backup two servers over SSH, the same way we did for Cassandra and wire-server:
 
+    ssh user@my-minio-server.mydomain.com 'cd /var/lib/ && tar -cf - minio-server1 | gzip -9' > minio-server1-backup.tar.gz
+    ssh user@my-minio-server.mydomain.com 'cd /var/lib/ && tar -cf - minio-server2 | gzip -9' > minio-server2-backup.tar.gz
 
+Where:
 
+* `user` is the user you used to install Wire on this server, typically `wire` or `root`
+* `my-minio-server.mydomain.com` is the domain name or IP address for the MinIO Virtual Machine
+* `minio-server[number]-backup.tar.gz` is the name of the file in which each minio data folder will be stored
 
 ## Recovery procedure
