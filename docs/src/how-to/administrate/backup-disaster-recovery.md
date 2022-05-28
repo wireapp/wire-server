@@ -48,9 +48,9 @@ Cassandra stores things such as user profiles/accounts, conversations, etc. It i
 
 To backup your Cassandra database, do as follows:
 
-You can read general information about connecting to your Cassandra node on [This page](/how-to/administrate/cassandra.html)
+You can read general information about connecting to your Cassandra node on [this page](/how-to/administrate/cassandra.html)
 
-In particular, SSH into the Cassandra VM with:
+In particular, SSH into the Cassandra Virtual Machine with:
 
     ssh user@cassandra-vm.your-domain.com
 
@@ -119,7 +119,24 @@ Repeat this for each of the snapshots.
 
 Now simply save these files in multiple locations as per your normal company backup procedures, and repeat this procedure on a regular basis as is appropriate.
 
+### MinIO
 
+MinIO emulates an Amazon-S3-compatible file-storage setup, and is used by Wire to store things such as file attachements, images etc.
+
+If your specific installation is using the actual Amazon file storage (and not a local emulated alternative), you should skip this section (but still actually backup whatever you are using).
+
+Similarly to Cassandra, to create a backup you need to SSH into the Virtual Machine running MinIO in your installation:
+
+You can read general information about your MinIO node on [this page](/how-to/administrate/minio.html)
+
+SSH into the MinIO Virtual Machine with:
+
+    ssh user@minio-vm.your-domain.com
+
+Where:
+
+* `user` is the user you used to install Wire on this server, typically `wire` or `root`
+* `minio-vm.mydomain.com` is the domain name or IP address for the server with your MinIO node
 
 
 
