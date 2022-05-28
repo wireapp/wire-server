@@ -90,6 +90,10 @@ After editing the file, make sure you restart cassandra with:
 
     sudo service cassandra restart
 
+You can find a list of all keyspaces by doing: building
+
+    ls /mnt/cassandra/data/
+
 Now (while connected via ssh, as per above), use nodetool to actually generate a snapshot of all tables:
 
     nodetool snapshot --tag catalog-ks catalogkeyspace
@@ -106,18 +110,18 @@ To actually save the files, you'll need to locate them with:
 
 Which should give you a list of paths to snapshots, such as:
 
-    ./cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/snapshots
-    ./cassandra/data/data/catalogkeyspace/magazine-446eae30c22a11e9b1350d927649052c/snapshots
+    /mnt/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/snapshots
+    /mnt/cassandra/data/data/catalogkeyspace/magazine-446eae30c22a11e9b1350d927649052c/snapshots
 
 Now to create a (local) backup of these snapshots, we use `ssh` the same way we did above for `wire-server`:
 
-    ssh user@cassandra-vm.your-domain.com 'cd /path/to/my/folder/for/cassandra/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/ && tar -cf - snapshots | gzip -9' > cassandra-journal-backup.tar.gz
+    ssh user@cassandra-vm.your-domain.com 'cd /mnt/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/ && tar -cf - snapshots | gzip -9' > cassandra-journal-backup.tar.gz
 
 Where :
 
 * `user` is the user you used to install Wire on this server, typically `wire` or `root`
 * `cassandra-vm.your-domain.com` is the domain name or IP address for the server with your Wire install
-* `/path/to/my/folder/for/cassandra/` is the (absolute) path, on the server, where your cassandra folder is located, to which you add the location of the specific snapshot, found with `find` above
+* `/mnt/cassandra/` is the (absolute) path, on the server, where your cassandra folder is located, to which you add the location of the specific snapshot, found with `find` above
 
 Repeat this for each of the snapshots.
 
