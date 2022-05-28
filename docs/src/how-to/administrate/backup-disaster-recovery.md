@@ -86,6 +86,10 @@ Same with: `snapshot_before_compaction`
 
     snapshot_before_compaction: false
 
+After editing the file, make sure you restart cassandra with:
+
+    sudo service cassandra restart
+
 Now (while connected via ssh, as per above), use nodetool to actually generate a snapshot of all tables:
 
     nodetool snapshot --tag catalog-ks catalogkeyspace
