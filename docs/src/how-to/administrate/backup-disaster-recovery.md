@@ -48,6 +48,80 @@ Cassandra stores things such as user profiles/accounts, conversations, etc. It i
 
 To backup your Cassandra database, do as follows:
 
+You can read general information about connecting to your Cassandra node on [This page](/how-to/administrate/cassandra.html)
+
+In particular, SSH into the Cassandra VM with:
+
+    ssh user@cassandra-vm.your-domain.com
+
+Where:
+
+* `user` is the user you used to install Wire on this server, typically `wire` or `root`
+* `cassandra-vm.mydomain.com` is the domain name or IP address for the server with your Cassandra node
+
+Make sure (while connected via ssh) your Cassandra installation is doing well with:
+
+    nodetool status
+
+You should see something like:
+
+You should see a list of nodes like this:
+
+    Datacenter: datacenter1
+    =======================
+    Status=Up/Down
+    |/ State=Normal/Leaving/Joining/Moving
+    --  Address         Load       Tokens          Owns (effective)   Host ID                                Rack
+    UN  192.168.220.13  9.51MiB    256             100.0%             3dba71c8-eea7-4e35-8f35-4386e7944894   rack1
+    UN  192.168.220.23  9.53MiB    256             100.0%             3af56f1f-7685-4b5b-b73f-efdaa371e96e   rack1
+    UN  192.168.220.33  9.55MiB    256             100.0%             RANDOMLY-MADE-UUID-GOES-INTHISPLACE!   rack1
+
+As per the [Cassandra documentation](https://cassandra.apache.org/doc/latest/cassandra/operating/backups.html) to backup your database, you will use the `nodetool snapshot` command.
+
+First we need to edit the `cassandra.yaml` file (which you can if needed find with `find -name cassandra.yaml`) has `auto_snapshot` set to `false`:
+
+    auto_snapshot: false
+
+Same with: `snapshot_before_compaction`
+
+    snapshot_before_compaction: false
+
+Now (while connected via ssh, as per above), use nodetool to actually generate a snapshot of all tables:
+
+    nodetool snapshot --tag catalog-ks catalogkeyspace
+
+This should succesfully save the snapshots to the disk.
+
+You should now be able to find your snapshots in the snapshots list with:
+
+    nodetool listsnapshots
+
+To actually save the files, you'll need to locate them with:
+
+    find -name snapshots
+
+Which should give you a list of paths to snapshots, such as:
+
+    ./cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/snapshots
+    ./cassandra/data/data/catalogkeyspace/magazine-446eae30c22a11e9b1350d927649052c/snapshots
+
+Now to create a (local) backup of these snapshots, we use `ssh` the same way we did above for `wire-server`:
+
+    ssh user@cassandra-vm.your-domain.com 'cd /path/to/my/folder/for/cassandra/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/ && tar -cf - snapshots | gzip -9' > cassandra-journal-backup.tar.gz
+
+Where :
+
+* `user` is the user you used to install Wire on this server, typically `wire` or `root`
+* `cassandra-vm.your-domain.com` is the domain name or IP address for the server with your Wire install
+* `/path/to/my/folder/for/cassandra/` is the (absolute) path, on the server, where your cassandra folder is located, to which you add the location of the specific snapshot, found with `find` above
+
+Repeat this for each of the snapshots.
+
+Now simply save these files in multiple locations as per your normal company backup procedures, and repeat this procedure on a regular basis as is appropriate.
+
+
+
+
 
 
 
