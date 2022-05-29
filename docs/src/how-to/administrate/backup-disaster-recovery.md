@@ -6,6 +6,8 @@ While you might never use them, your backup plan (and the corresponding disaster
 
 This page explains in detail how to properly backup an on-premise Wire installation, and how to recover from your backup if you ever need to.
 
+Note that you should not trust this page (or your execution of it) to allow for a proper backup and restore, therefore, you should immediately (before it becomes critical to do so) back up your Wire installation **and** attempt (as a test) to restore it. This will ensure that you can **in fact** backup and restore Wire, and will catch any problem in the process before any problem becomes damaging to you.
+
 ## Backing up
 
 By nature, a significant part of a Wire installation is ephemeral, and not meant to be stored long-term or recovered: in case of trouble, those parts can just be started fresh with minimal impact on user experience. 
@@ -20,7 +22,7 @@ If you save these, you can then whenever needed create a fresh install of Wire, 
 
 Here is how to back up each:
 
-### Wire-server
+### Backing up Wire-server
 
 To backup the wire-server folder, we simply use ssh to read it from the server in which it is installed:
 
@@ -42,7 +44,7 @@ Once the command is done executing, make sure the file exists and is not empty w
 
 Now simply save this file in multiple locations as per your normal company backup procedures, and repeat this procedure on a regular basis as is appropriate.
 
-### Cassandra
+### Backing up Cassandra
 
 Cassandra stores things such as user profiles/accounts, conversations, etc. It is the most critical data to backup/store/recover.
 
@@ -115,7 +117,7 @@ Which should give you a list of paths to snapshots, such as:
 
 Now to create a (local) backup of these snapshots, we use `ssh` the same way we did above for `wire-server`:
 
-    ssh user@cassandra-vm.your-domain.com 'cd /mnt/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/ && tar -cf - snapshots | gzip -9' > cassandra-journal-backup.tar.gz
+    ssh user@cassandra-vm.your-domain.com 'cd /mnt/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/ && tar -cf - snapshots | gzip -9' > cassandra-catalogkeyspace-journal-backup.tar.gz
 
 Where :
 
@@ -127,7 +129,7 @@ Repeat this for each of the snapshots.
 
 Now simply save these files in multiple locations as per your normal company backup procedures, and repeat this procedure on a regular basis as is appropriate.
 
-### MinIO
+### Backing up MinIO
 
 MinIO emulates an Amazon-S3-compatible file-storage setup, and is used by Wire to store things such as file attachements, images etc.
 
@@ -158,3 +160,99 @@ Where:
 * `minio-server[number]-backup.tar.gz` is the name of the file in which each minio data folder will be stored
 
 ## Recovery procedure
+
+If the worse has happened, and you need to recover/restore your Wire installation, you will need to do the following:
+
+1. Create a new Wire installation from scratch (following this website or other customer-specific on-premise instructions you used the first time around).
+2. While creating this new wire installation, instead of using a fresh/empty `wire-server` folder, you use the `wire-server` folder you backed up above (as it contains your `values` and `secret` files among other important files).
+3. Restore your Cassandra backup files over your new Cassandra installation.
+4. Restore your MinIO backup files over your new MinIO installation.
+5. Restart all services.
+6. Ensure all services are functionning correctly
+
+### Restoring Wire-Server from a backup
+
+If you correctly backup up your `wire-server` installation, you should have access to a file named `wire-server-backup.tar.gz` (see above).
+
+You can extract this file to the remote machine with the following command:
+
+    cat wire-server-backup.tar.gz | ssh user@my-wire-server.mydomain.com "cd /path/to/my/folder/for/wire-server/ && tar zxvf -"
+
+Where :
+
+* `wire-server-backup.tar.gz` is the name of the file in which your wire-server folder was be stored
+* `my-wire-server.mydomain.com` is the domain name or IP address for the server with your Wire install
+* `user` is the user you used to install Wire on this server, typically `wire` or `root`
+* `/path/to/my/folder/for/wire-server/` is the (absolute) path, on the server, where your wire-server folder is located
+
+Now all files should be in their proper place, with the proper values, and you should be able to run the required ansible/helm commands that will result in a full installation of Wire
+
+### Restoring Cassandra from a backup
+
+If you correctly backed up your Cassandra database, you should have a series of `snapshot` files, which you now need to restore over your "fresh" (ie. empty) Cassandra installation.
+
+[This page from the Cassandra documentation](https://docs.datastax.com/en/cassandra-oss/3.0/cassandra/operations/opsBackupSnapshotRestore.html) goes over how to restore from snapshots.
+
+You should have lots of snapshots from the backup process. This example will go over how to restore one of the snapshots, but you should do this process for **each and every** snapshot you backup up.
+
+First, transfer and extract the snapshot to the Cassandra Virtual Machine:
+
+    cat cassandra-catalogkeyspace-journal-backup.tar.gz | ssh user@cassandra-vm.mydomain.com "cd /mnt/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/ && tar zxvf -"
+
+Now the folder `/mnt/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/snapshots/` should contain your snapshot.
+
+Next, ssh into the Cassandra Virtual Machine and cd to the snapshot folder:
+
+    ssh user@cassandra-vm.your-domain.com
+    cd /mnt/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/
+
+Next run 
+
+    ls -lh
+
+This will show you a list of the snapshots available:
+
+    drwxr-xr-x 2 cassandra cassandra 4.0K May 26 14:45 1653752714460
+    drwxr-xr-x 2 cassandra cassandra 4.0K May 28 17:46 1653752759667
+
+Select the most recent one (here it is `1653752759667`).
+
+Finally, use the `sstableloader` file to load the snapshot to Cassandra:
+
+    sstableloader -d localhost /mnt/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/snapshots/1653752759667/
+
+This should load the snapshot.
+
+Repeat this for all snapshots you saved, and you should have a fully restored Cassandra database.
+
+Finally, restart Cassandra:
+
+    sudo service cassandra restart
+
+And ensure that it is working properly.
+
+### Restoring MinIO from a backup
+
+Restoring MinIO from a backup is as simple as extracting the files (`minio-server1-backup.tar.gz` and `minio-server2-backup.tar.gz` which you have backup up in the backup procedure and should have access to) to the correct remote host (MinIO Virtual Machine), and restarting MinIO:
+
+First run:
+
+    cat minio-server1-backup.tar.gz | ssh user@my-minio-server.mydomain.com "cd /var/lib/  && tar zxvf -"
+    cat minio-server2-backup.tar.gz | ssh user@my-minio-server.mydomain.com "cd /var/lib/  && tar zxvf -"
+
+Where:
+
+* `user` is the user you used to install Wire on this server, typically `wire` or `root`
+* `my-minio-server.mydomain.com` is the domain name or IP address for the MinIO Virtual Machine
+* `minio-server[number]-backup.tar.gz` is the name of the file in which each minio data folder was be stored and backup up
+
+Finally SSH into the server and restart MinIO:
+
+    ssh user@minio-vm.your-domain.com
+    sudo service minio restart
+
+Where:
+
+* `user` is the user you used to install Wire on this server, typically `wire` or `root`
+* `minio-vm.mydomain.com` is the domain name or IP address for the server with your MinIO node
+
