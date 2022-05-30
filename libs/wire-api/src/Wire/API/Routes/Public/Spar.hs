@@ -19,7 +19,6 @@ module Wire.API.Routes.Public.Spar where
 
 import Data.Id
 import Data.Proxy
-import Data.String.Conversions (ST)
 import Data.Swagger (Swagger)
 import Imports
 import qualified SAML2.WebSSO as SAML
@@ -32,7 +31,6 @@ import qualified URI.ByteString as URI
 import Web.Scim.Capabilities.MetaSchema as Scim.Meta
 import Web.Scim.Class.Auth as Scim.Auth
 import Web.Scim.Class.User as Scim.User
-import Wire.API.Cookie
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Routes.Public
@@ -47,8 +45,6 @@ import Wire.API.User.Scim
 
 type API =
   "sso" :> APISSO
-    :<|> "sso-initiate-bind" :> APIAuthReqPrecheck -- (see comment on 'APIAuthReq')
-    :<|> "sso-initiate-bind" :> APIAuthReq -- (see comment on 'APIAuthReq')
     :<|> "identity-providers" :> APIIDP
     :<|> "scim" :> APIScim
     :<|> OmitDocs :> "i" :> APIINTERNAL
@@ -70,74 +66,15 @@ type APIAuthReqPrecheck =
     :> Capture "idp" SAML.IdPId
     :> CheckOK '[PlainText] NoContent
 
--- | Dual-use route for initiating either login or bind.
---
--- We could distinguish the two cases by the presence or absence of a `Z-User` header.  However, we
--- also need to use this route under two different prefices because nginz only supports mandatory
--- auth and no auth, but not optional auth for any given end-point.  See also: 'DoInitiate'.
---
--- __Binding existing users to SSO__
---
--- A user has an existing account with email address and password, and gets idp credentails.  She
--- now wants to upgrade her password-based login to sso login, or *bind* the existing user to the
--- sso credentials.
---
--- __The Solution__
---
---   0. user logs in with password
---   1. inside the session, she requests `/sso-initiate-bind/<idp>` for an idp of her choice (idp
---      must be registered with her team)
---   2. spar checks the `Z-User` header and sends a short-lived bind cookie with the response that
---      otherwise is the same as for `/sso/initiate-login/<idp>`
---   3. everybody goes through the well-known SAML web sso moves, until:
---   4. the authentication response is sent to `/sso/finalize-login/<idp>` together with the bind
---      cookie
---   5. spar identifies the user both via the bind cookie and via the SAML authentication response,
---      and performs the binding.
---
--- Why a special cookie, and not the cookie already available, or the session token?  The wire cookie
--- gets only sent to `/access`, and we would need to change that; session tokens are hard to handle
--- while switching between app context and browser context.  Having a separate cookie makes both the
--- context switching simple and allows us to set a different cookie recipient end-point and short
--- cookie lifetime.
---
--- This solution is very flexible.  UX variants:
---
---   * team admin posts the initiate-bind link in a group in the wire team.  no new UI components
---     are needed in the frontend.
---   * we add buttons in the settings page somewhere.
---   * we send a link containing a token to the user by email.  when the user clicks on the link,
---     she gets authenticated and redirected to the initiate-bind end-point in step 1 above.
---   * ...?
---
--- __Corner Case: Accidental Creation of new SSO User__
---
--- What happens if the user authenticates via SSO first, creates a new user, and then receives the
--- bind invite?
---
--- Possible solutions:
---
---   * The IdP could create all users via SCIM and we block implicit user creation.
---   * After the fact, the duplicated user deletes the SSO user, loses a little bit of user data,
---     and goes through the bind process.
---   * Block implicit creation for a short time window, and ask all existing users to use that time
---     window to bind.
 type APIAuthReq =
-  ZOptUser
-    :> QueryParam "success_redirect" URI.URI
+  QueryParam "success_redirect" URI.URI
     :> QueryParam "error_redirect" URI.URI
     -- (SAML.APIAuthReq from here on, except for the cookies)
     :> Capture "idp" SAML.IdPId
-    :> Get '[SAML.HTML] (WithSetBindCookie (SAML.FormRedirect SAML.AuthnRequest))
-
-data DoInitiate = DoInitiateLogin | DoInitiateBind
-  deriving (Eq, Show, Bounded, Enum)
-
-type WithSetBindCookie = Headers '[Servant.Header "Set-Cookie" SetBindCookie]
+    :> Get '[SAML.HTML] (SAML.FormRedirect SAML.AuthnRequest)
 
 type APIAuthRespLegacy =
   "finalize-login"
-    :> Header "Cookie" ST
     -- (SAML.APIAuthResp from here on, except for response)
     :> MultipartForm Mem SAML.AuthnResponseBody
     :> Post '[PlainText] Void
@@ -145,7 +82,6 @@ type APIAuthRespLegacy =
 type APIAuthResp =
   "finalize-login"
     :> Capture "team" TeamId
-    :> Header "Cookie" ST
     -- (SAML.APIAuthResp from here on, except for response)
     :> MultipartForm Mem SAML.AuthnResponseBody
     :> Post '[PlainText] Void

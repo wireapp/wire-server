@@ -171,7 +171,7 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
       asks (^. teWireIdPAPIVersion) <&> \case
         User.WireIdPAPIV1 -> Nothing
         User.WireIdPAPIV2 -> Just (idp ^. SAML.idpExtraInfo . User.wiTeam)
-    runSpar $ Spar.verdictHandler Nothing mbteam authnresp verdict
+    runSpar $ Spar.verdictHandler mbteam authnresp verdict
   let loc :: URI.URI
       loc =
         maybe (error "no location") (either error id . SAML.parseURI' . cs)

@@ -25,7 +25,7 @@ import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 3 "Add cookie stash for binding existing users to sso identities" $ do
+migration = Migration 3 "DEPRECATED AS OF https://github.com/wireapp/wire-server/pull/2441" $ do
   void $
     schema'
       [r|

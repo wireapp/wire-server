@@ -30,7 +30,6 @@ library
       Wire.API.Conversation.Protocol
       Wire.API.Conversation.Role
       Wire.API.Conversation.Typing
-      Wire.API.Cookie
       Wire.API.CustomBackend
       Wire.API.Error
       Wire.API.Error.Brig

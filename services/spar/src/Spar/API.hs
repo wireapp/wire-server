@@ -47,7 +47,6 @@ where
 import Control.Lens
 import Control.Monad.Except
 import qualified Data.ByteString as SBS
-import qualified Data.ByteString.Base64 as ES
 import Data.ByteString.Builder (toLazyByteString)
 import Data.Id
 import Data.Proxy
@@ -69,8 +68,6 @@ import Spar.Orphans ()
 import Spar.Scim
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AssIDStore (AssIDStore)
-import Spar.Sem.BindCookieStore (BindCookieStore)
-import qualified Spar.Sem.BindCookieStore as BindCookieStore
 import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
@@ -96,7 +93,6 @@ import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
 import qualified URI.ByteString as URI
-import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
@@ -116,7 +112,6 @@ api ::
     '[ GalleyAccess,
        BrigAccess,
        Input Opts,
-       BindCookieStore,
        AssIDStore,
        AReqIDStore,
        VerdictFormatStore,
@@ -143,8 +138,6 @@ api ::
   ServerT API (Sem r)
 api opts =
   apiSSO opts
-    :<|> authreqPrecheck
-    :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateBind
     :<|> apiIDP
     :<|> apiScim
     :<|> apiINTERNAL
@@ -155,7 +148,6 @@ apiSSO ::
        Logger String,
        Input Opts,
        BrigAccess,
-       BindCookieStore,
        AssIDStore,
        VerdictFormatStore,
        AReqIDStore,
@@ -176,7 +168,7 @@ apiSSO opts =
   SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing)
     :<|> (\tid -> SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
     :<|> authreqPrecheck
-    :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
+    :<|> authreq (maxttlAuthreqDiffTime opts)
     :<|> authresp Nothing
     :<|> authresp . Just
     :<|> ssoSettings
@@ -244,7 +236,6 @@ authreq ::
     '[ Random,
        Input Opts,
        Logger String,
-       BindCookieStore,
        AssIDStore,
        VerdictFormatStore,
        AReqIDStore,
@@ -255,15 +246,11 @@ authreq ::
      ]
     r =>
   NominalDiffTime ->
-  DoInitiate ->
-  Maybe UserId ->
   Maybe URI.URI ->
   Maybe URI.URI ->
   SAML.IdPId ->
-  Sem r (WithSetBindCookie (SAML.FormRedirect SAML.AuthnRequest))
-authreq _ DoInitiateLogin (Just _) _ _ _ = throwSparSem SparInitLoginWithAuth
-authreq _ DoInitiateBind Nothing _ _ _ = throwSparSem SparInitBindWithoutAuth
-authreq authreqttl _ zusr msucc merr idpid = do
+  Sem r (SAML.FormRedirect SAML.AuthnRequest)
+authreq authreqttl msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
     idp :: IdP <- IdPConfigStore.getConfig idpid >>= maybe (throwSparSem (SparIdPNotFound (cs $ show idpid))) pure
@@ -273,34 +260,7 @@ authreq authreqttl _ zusr msucc merr idpid = do
           WireIdPAPIV2 -> Just $ idp ^. SAML.idpExtraInfo . wiTeam
     SAML2.authReq authreqttl (SamlProtocolSettings.spIssuer mbtid) idpid
   VerdictFormatStore.store authreqttl reqid vformat
-  cky <- initializeBindCookie zusr authreqttl
-  Logger.log Logger.Debug $ "setting bind cookie: " <> show cky
-  pure $ addHeader cky form
-
--- | If the user is already authenticated, create bind cookie with a given life expectancy and our
--- domain, and store it in C*.  If the user is not authenticated, return a deletion 'SetCookie'
--- value that deletes any bind cookies on the client.
-initializeBindCookie ::
-  Members
-    '[ Random,
-       SAML2,
-       Input Opts,
-       Logger String,
-       BindCookieStore
-     ]
-    r =>
-  Maybe UserId ->
-  NominalDiffTime ->
-  Sem r SetBindCookie
-initializeBindCookie zusr authreqttl = do
-  DerivedOpts {derivedOptsBindCookiePath} <- inputs derivedOpts
-  msecret <-
-    if isJust zusr
-      then Just . cs . ES.encode <$> Random.bytes 32
-      else pure Nothing
-  cky <- fmap SetBindCookie . SAML2.toggleCookie derivedOptsBindCookiePath $ (,authreqttl) <$> msecret
-  forM_ zusr $ \userid -> BindCookieStore.insert cky userid authreqttl
-  pure cky
+  pure form
 
 redirectURLMaxLength :: Int
 redirectURLMaxLength = 140
@@ -328,7 +288,6 @@ authresp ::
        Input Opts,
        GalleyAccess,
        BrigAccess,
-       BindCookieStore,
        AssIDStore,
        VerdictFormatStore,
        AReqIDStore,
@@ -342,17 +301,13 @@ authresp ::
      ]
     r =>
   Maybe TeamId ->
-  Maybe ST ->
   SAML.AuthnResponseBody ->
   Sem r Void
-authresp mbtid ckyraw arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSettings.spIssuer mbtid) (SamlProtocolSettings.responseURI mbtid) go arbody
+authresp mbtid arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSettings.spIssuer mbtid) (SamlProtocolSettings.responseURI mbtid) go arbody
   where
-    cky :: Maybe BindCookie
-    cky = ckyraw >>= bindCookieFromHeader
-
     go :: SAML.AuthnResponse -> SAML.AccessVerdict -> Sem r Void
     go resp verdict = do
-      result :: SAML.ResponseVerdict <- verdictHandler cky mbtid resp verdict
+      result :: SAML.ResponseVerdict <- verdictHandler mbtid resp verdict
       throw @SparError $ SAML.CustomServant result
 
     logErrors :: Sem r Void -> Sem r Void
@@ -363,7 +318,6 @@ authresp mbtid ckyraw arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSet
           errorPage
             e
             (Multipart.inputs (SAML.authnResponseBodyRaw arbody))
-            ckyraw
 
 ssoSettings :: Member DefaultSsoCode r => Sem r SsoSettings
 ssoSettings =
