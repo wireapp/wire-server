@@ -258,6 +258,7 @@ extra-deps:
 - proto-lens-runtime-0.7.0.1
 - proto-lens-setup-0.4.0.5
 - tracing-0.0.7.2
+- zlib-0.6.3.0
 
 ############################################################
 # Development tools

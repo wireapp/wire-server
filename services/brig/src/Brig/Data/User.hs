@@ -31,6 +31,7 @@ module Brig.Data.User
     reauthenticate,
     filterActive,
     isActivated,
+    isSamlUser,
 
     -- * Lookups
     lookupAccount,
@@ -196,9 +197,9 @@ authenticate u pw =
         throwE AuthInvalidCredentials
 
 -- | Password reauthentication. If the account has a password, reauthentication
--- is mandatory. If the account has no password and no password is given,
+-- is mandatory. If the account has no password, or is an SSO user, and no password is given,
 -- reauthentication is a no-op.
-reauthenticate :: MonadClient m => UserId -> Maybe PlainTextPassword -> ExceptT ReAuthError m ()
+reauthenticate :: (MonadClient m, MonadReader Env m) => UserId -> Maybe PlainTextPassword -> ExceptT ReAuthError m ()
 reauthenticate u pw =
   lift (lookupAuth u) >>= \case
     Nothing -> throwE (ReAuthError AuthInvalidUser)
@@ -210,10 +211,17 @@ reauthenticate u pw =
     Just (Just pw', Ephemeral) -> maybeReAuth pw'
   where
     maybeReAuth pw' = case pw of
-      Nothing -> throwE ReAuthMissingPassword
+      Nothing -> unlessM (isSamlUser u) $ throwE ReAuthMissingPassword
       Just p ->
         unless (verifyPassword p pw') $
           throwE (ReAuthError AuthInvalidCredentials)
+
+isSamlUser :: (MonadClient m, MonadReader Env m) => UserId -> m Bool
+isSamlUser uid = do
+  account <- lookupAccount uid
+  case userIdentity . accountUser =<< account of
+    Just (SSOIdentity (UserSSOId _) _ _) -> pure True
+    _ -> pure False
 
 insertAccount ::
   MonadClient m =>
