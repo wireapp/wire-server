@@ -31,7 +31,7 @@ module Brig.Data.User
     reauthenticate,
     filterActive,
     isActivated,
-    isSSOUser,
+    isSamlUser,
 
     -- * Lookups
     lookupAccount,
@@ -211,16 +211,16 @@ reauthenticate u pw =
     Just (Just pw', Ephemeral) -> maybeReAuth pw'
   where
     maybeReAuth pw' = case pw of
-      Nothing -> unlessM (isSSOUser u) $ throwE ReAuthMissingPassword
+      Nothing -> unlessM (isSamlUser u) $ throwE ReAuthMissingPassword
       Just p ->
         unless (verifyPassword p pw') $
           throwE (ReAuthError AuthInvalidCredentials)
 
-isSSOUser :: (MonadClient m, MonadReader Env m) => UserId -> m Bool
-isSSOUser uid = do
+isSamlUser :: (MonadClient m, MonadReader Env m) => UserId -> m Bool
+isSamlUser uid = do
   account <- lookupAccount uid
   case userIdentity . accountUser =<< account of
-    Just SSOIdentity {} -> pure True
+    Just (SSOIdentity (UserSSOId _) _ _) -> pure True
     _ -> pure False
 
 insertAccount ::
