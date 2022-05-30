@@ -52,7 +52,6 @@ module Util.Core
     -- * Other
     randomEmail,
     defPassword,
-    defPassword',
     getUserBrig,
     changeHandleBrig,
     updateProfileBrig,
@@ -676,11 +675,8 @@ postUser name haveEmail ssoid teamid brig_ = do
             ]
   post (brig_ . path "/i/users" . contentJson . body p)
 
-defPassword' :: Text
-defPassword' = "secret"
-
 defPassword :: PlainTextPassword
-defPassword = PlainTextPassword defPassword'
+defPassword = PlainTextPassword "secret"
 
 defCookieLabel :: Brig.CookieLabel
 defCookieLabel = Brig.CookieLabel "auth"

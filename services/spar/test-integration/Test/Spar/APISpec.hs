@@ -37,6 +37,7 @@ import qualified Data.ByteString.Builder as LB
 import Data.ByteString.Conversion
 import Data.Id
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.Misc
 import Data.Proxy
 import Data.String.Conversions
 import qualified Data.Text as ST
@@ -1630,7 +1631,7 @@ specReAuthSsoUserWithPassword =
       -- attempt to delete client again without password should still fail
       deleteClient (env ^. teBrig) uid cid Nothing 403
       -- attempt to delete client with correct password should succeed
-      deleteClient (env ^. teBrig) uid cid (Just defPassword') 200
+      deleteClient (env ^. teBrig) uid cid (Just (fromPlainTextPassword defPassword)) 200
     it "password user that was upgraded to SAML does not need to provide password" $ do
       env <- ask
       let withIdp = True
