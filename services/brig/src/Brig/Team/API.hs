@@ -292,7 +292,7 @@ createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
             irInviteePhone = Nothing
           }
 
-  let context =
+      context =
         logFunction "Brig.Team.API.createInvitationViaScim"
           . logTeam tid
           . logEmail email
