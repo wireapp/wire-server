@@ -33,6 +33,7 @@ import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
+import qualified Data.Text as T
 import Data.Time
 import Galley.API.Action
 import Galley.API.Error
@@ -48,6 +49,7 @@ import Galley.Effects.BrigAccess
 import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore
+import Galley.Effects.ProposalStore
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Imports
@@ -98,10 +100,11 @@ postMLSMessageFromLocalUser ::
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvNotFound,
          Error InternalError,
+         ErrorS 'MLSProposalNotFound,
          ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSProposalNotFound,
          ErrorS 'MissingLegalholdConsent,
+         ProposalStore,
          TinyLog
        ]
       r
@@ -175,7 +178,7 @@ postMLSMessageToLocalConv qusr con smsg lcnv = case rmValue smsg of
         CommitMessage c ->
           processCommit qusr con (qualifyAs lcnv conv) (msgEpoch msg) (msgSender msg) c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
-        ProposalMessage _ -> pure mempty -- FUTUREWORK: handle proposals
+        ProposalMessage prop -> processProposal conv msg prop
       SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
         Right CommitMessageTag -> throwS @'MLSUnsupportedMessage
         Right ProposalMessageTag -> throwS @'MLSUnsupportedMessage
@@ -331,6 +334,36 @@ applyProposal (AddProposal kp) = do
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
   pure (paClient qclient)
 applyProposal _ = throwS @'MLSUnsupportedProposal
+
+processProposal ::
+  HasProposalEffects r =>
+  Members
+    '[ ErrorS 'ConvNotFound,
+       ProposalStore
+     ]
+    r =>
+  Data.Conversation ->
+  Message 'MLSPlainText ->
+  RawMLS Proposal ->
+  Sem r [Event]
+processProposal conv msg prop = do
+  suite <-
+    preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) conv
+      & noteS @'ConvNotFound
+  suiteTag <-
+    cipherSuiteTag suite
+      & note
+        ( mlsProtocolError
+            . T.pack
+            . ("An unknown cipher suite associated with a conversation: " <>)
+            . show
+            . cipherSuiteNumber
+            $ suite
+        )
+  let propRef = proposalRef suiteTag prop
+  -- TODO(md): do any needed validation of the proposal
+  storeProposal propRef prop (msgGroupId msg) (msgEpoch msg)
+  pure mempty
 
 executeProposalAction ::
   forall r.
