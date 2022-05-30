@@ -546,7 +546,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
         void . call $
           head
             ( (env ^. teSpar)
-                . path (cs $ "/ /" -/ idp)
+                . path (cs $ "/sso-initiate-bind/" -/ idp)
                 . header "Z-User" (toByteString' owner)
                 . expect2xx
             )
