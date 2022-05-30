@@ -105,7 +105,7 @@ instance
 
   fromUnion (Z (I c)) = CodeAlreadyExisted c
   fromUnion (S (Z (I e))) = CodeAdded e
-  fromUnion (S (S x)) = case x of {}
+  fromUnion (S (S x)) = case x of
 
 type ConvUpdateResponses = UpdateResponses "Conversation unchanged" "Conversation updated" Event
 
