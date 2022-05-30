@@ -1625,12 +1625,16 @@ specReAuthSsoUserWithPassword =
   describe "Re-auth for SSO users" $ do
     it "password user that was upgraded to SCIM has to provide password" $ do
       env <- ask
-      (uid, cid) <- setup env False
+      let withoutIdp = False
+      (uid, cid) <- setup env withoutIdp
       -- attempt to delete client again without password should still fail
       deleteClient (env ^. teBrig) uid cid Nothing 403
+      -- attempt to delete client with correct password should succeed
+      deleteClient (env ^. teBrig) uid cid (Just defPassword') 200
     it "password user that was upgraded to SAML does not need to provide password" $ do
       env <- ask
-      (uid, cid) <- setup env True
+      let withIdp = True
+      (uid, cid) <- setup env withIdp
       -- attempt to delete client again without password should now succeed
       deleteClient (env ^. teBrig) uid cid Nothing 200
   where
