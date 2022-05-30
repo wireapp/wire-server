@@ -39,15 +39,16 @@ nginx_conf:
     # * https://wearezeta.atlassian.net/browse/FS-444
     ciphers: "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
 
-  # -- The origins from which we allow CORS requests. These are combined with 'external_env_domain' to form a full url
+  # The origins from which we allow CORS requests. These are combined with
+  # 'external_env_domain' to form a full url
   allowlisted_origins:
     - webapp
     - teams
     - account
-  # -- The origins from which we allow CORS requests at random ports. This is
+  # The origins from which we allow CORS requests at random ports. This is
   # useful for testing with HTTP proxies and should not be used in production.
-  # The list entries are combined with 'external_env_domain' to form a full url
-  # regex that matches for all ports.
+  # The list entries must be full hostnames (they are **not** combined with
+  # 'external_env_domain'). http and https URLs are allow listed.
   randomport_allowlisted_origins: [] # default is empty by intention
   upstreams:
     cannon:
