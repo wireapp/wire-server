@@ -583,7 +583,7 @@ getAppLockInternal = Tagged $ \case
 setAppLockInternal ::
   Members '[GundeckAccess, TeamFeatureStore, TeamStore, Error TeamFeatureError, P.TinyLog] r =>
   FeatureSetter 'TeamFeatureAppLock r
-setAppLockInternal = Tagged $ \tid status _ -> do
+setAppLockInternal = Tagged $ \tid status _ttl -> do
   when (applockInactivityTimeoutSecs (tfwcConfig status) < 30) $
     throw AppLockInactivityTimeoutTooLow
   let pushEvent =
