@@ -238,3 +238,12 @@ instance Cql (RawMLS Proposal) where
   toCql = CqlBlob . LBS.fromStrict . rmRaw
   fromCql (CqlBlob b) = mapLeft T.unpack $ decodeMLS b
   fromCql _ = Left "Proposal: blob expected"
+
+instance Cql CipherSuite where
+  ctype = Tagged IntColumn
+  toCql = CqlInt . fromIntegral . cipherSuiteNumber
+  fromCql (CqlInt i) =
+    if i < 2 ^ (16 :: Integer)
+      then Right . CipherSuite . fromIntegral $ i
+      else Left "CipherSuite: an out of bounds value for Word16"
+  fromCql _ = Left "CipherSuite: int expected"

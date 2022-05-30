@@ -30,6 +30,7 @@ import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.MLS.CipherSuite
 
 domain :: Domain
 domain = Domain "golden.example.com"
@@ -127,5 +128,5 @@ conv2 =
                 },
             cmOthers = []
           },
-      cnvProtocol = ProtocolMLS (ConversationMLSData (GroupId ("test_group")) (Epoch 42))
+      cnvProtocol = ProtocolMLS (ConversationMLSData (GroupId "test_group") (Epoch 42) (CipherSuite 1))
     }
