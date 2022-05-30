@@ -54,6 +54,7 @@ let
   # for cabal, as setting it in direnv can interfere with programs in the host
   # system, especially for non-NixOS users.
   cabal-wrapper = pkgs.writeShellScriptBin "cabal" ''
+    export NIX_BUILD_SHELL="${pkgs.bash}/bin/bash"
     export CPATH="${compile-deps}/include"
     export LD_LIBRARY_PATH="${compile-deps}/lib"
     export LIBRARY_PATH="${compile-deps}/lib"
