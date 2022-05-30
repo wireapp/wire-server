@@ -1622,32 +1622,47 @@ specSparUserMigration = do
 
 specReAuthSsoUserWithPassword :: SpecWith TestEnv
 specReAuthSsoUserWithPassword =
-  describe "Re-auth for SSO users" $
-    it "password user that was upgraded to SAML" $ do
-      -- user has been invited via TM and has a password
+  describe "Re-auth for SSO users" $ do
+    it "password user that was upgraded to SCIM has to provide password" $ do
       env <- ask
+      (uid, cid) <- setup env False
+      -- attempt to delete client again without password should still fail
+      deleteClient (env ^. teBrig) uid cid Nothing 403
+    it "password user that was upgraded to SAML does not need to provide password" $ do
+      env <- ask
+      (uid, cid) <- setup env True
+      -- attempt to delete client again without password should now succeed
+      deleteClient (env ^. teBrig) uid cid Nothing 200
+  where
+    setup :: TestEnv -> Bool -> TestSpar (UserId, ClientId)
+    setup env withIdp = do
+      -- user has been invited via TM and has a password
       (owner, tid) <- call (createUserWithTeam (env ^. teBrig) (env ^. teGalley))
       email <- randomEmail
       user <- call $ inviteAndRegisterUser (env ^. teBrig) owner tid email
       -- user adds a client
-      cId <- addClientInternal (env ^. teBrig) (userId user) (defNewClient PermanentClientType [prekey] lPrekey)
+      cid <- addClientInternal (env ^. teBrig) (userId user) (defNewClient PermanentClientType [prekey] lPrekey)
       checkNumClients (env ^. teBrig) (userId user) 1
       -- attempt to delete the client without password fails
-      deleteClient (env ^. teBrig) (userId user) cId Nothing 403
+      deleteClient (env ^. teBrig) (userId user) cid Nothing 403
       -- attempt to delete the client with wrong password fails
-      deleteClient (env ^. teBrig) (userId user) cId (Just "wrong password") 403
-      -- idp is created
-      SampleIdP idpmeta _privkey _ _ <- makeSampleIdPMetadata
-      apiVersion <- view teWireIdPAPIVersion
-      idp <- call $ callIdpCreate apiVersion (env ^. teSpar) (Just owner) idpmeta
-      -- then user gets upgraded to scim and gets saml credentials
-      tok <- registerScimToken tid (Just (idp ^. idpId))
+      deleteClient (env ^. teBrig) (userId user) cid (Just "wrong password") 403
+      -- maybe idp is created
+      maybeIdpId <-
+        if withIdp
+          then do
+            SampleIdP idpmeta _privkey _ _ <- makeSampleIdPMetadata
+            apiVersion <- view teWireIdPAPIVersion
+            idp <- call $ callIdpCreate apiVersion (env ^. teSpar) (Just owner) idpmeta
+            pure $ Just (idp ^. idpId)
+          else pure Nothing
+      -- then user gets upgraded to scim with or without SAML
+      tok <- registerScimToken tid maybeIdpId
       _ <- listUsers tok (Just (filterBy "externalId" (fromEmail email)))
       -- attempt to delete the client with wrong password still fails
-      deleteClient (env ^. teBrig) (userId user) cId (Just "wrong password") 403
-      -- attempt to delete client again without password should now succeed
-      deleteClient (env ^. teBrig) (userId user) cId Nothing 200
-  where
+      deleteClient (env ^. teBrig) (userId user) cid (Just "wrong password") 403
+      pure (userId user, cid)
+
     checkNumClients :: BrigReq -> UserId -> Int -> TestSpar ()
     checkNumClients brig u expected = do
       r <-
