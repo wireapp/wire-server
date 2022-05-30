@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -23,10 +24,12 @@ module Test.Spar.APISpec
 where
 
 import Bilge
+import Brig.Types.Client
 import Brig.Types.Intra (AccountStatus (Deleted))
 import Brig.Types.User
 import Cassandra hiding (Value)
 import Control.Lens hiding ((.=))
+import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Random.Class (getRandomR)
 import Data.Aeson as Aeson
 import Data.Aeson.Lens
@@ -41,6 +44,7 @@ import qualified Data.Text as T
 import Data.Text.Ascii (decodeBase64, validateBase64)
 import qualified Data.UUID as UUID hiding (fromByteString, null)
 import qualified Data.UUID.V4 as UUID (nextRandom)
+import qualified Data.Vector as Vec
 import qualified Data.ZAuth.Token as ZAuth
 import qualified Galley.Types.Teams as Galley
 import Imports hiding (head)
@@ -79,6 +83,7 @@ import Text.XML.DSig (SignPrivCreds, mkSignCredsWithCert)
 import qualified URI.ByteString as URI
 import URI.ByteString.QQ (uri)
 import Util.Core
+import Util.Scim (filterBy, listUsers, registerScimToken)
 import qualified Util.Scim as ScimT
 import Util.Types
 import qualified Web.Cookie as Cky
@@ -102,6 +107,7 @@ spec = do
   specAux
   specSsoSettings
   specSparUserMigration
+  specReAuthSsoUserWithPassword
 
 specMisc :: SpecWith TestEnv
 specMisc = do
@@ -540,7 +546,7 @@ specBindingUsers = describe "binding existing users to sso identities" $ do
         void . call $
           head
             ( (env ^. teSpar)
-                . path (cs $ "/sso-initiate-bind/" -/ idp)
+                . path (cs $ "/ /" -/ idp)
                 . header "Z-User" (toByteString' owner)
                 . expect2xx
             )
@@ -1613,3 +1619,89 @@ specSparUserMigration = do
         ssoToUidSpar tid ssoid
 
       liftIO $ mbUserId `shouldBe` Just memberUid
+
+specReAuthSsoUserWithPassword :: SpecWith TestEnv
+specReAuthSsoUserWithPassword =
+  describe "Re-auth for SSO users" $
+    it "password user that was upgraded to SAML" $ do
+      -- user has been invited via TM and has a password
+      env <- ask
+      (owner, tid) <- call (createUserWithTeam (env ^. teBrig) (env ^. teGalley))
+      email <- randomEmail
+      user <- call $ inviteAndRegisterUser (env ^. teBrig) owner tid email
+      -- user adds a client
+      cId <- addClientInternal (env ^. teBrig) (userId user) (defNewClient PermanentClientType [prekey] lPrekey)
+      checkNumClients (env ^. teBrig) (userId user) 1
+      -- attempt to delete the client without password fails
+      deleteClient (env ^. teBrig) (userId user) cId Nothing 403
+      -- attempt to delete the client with wrong password fails
+      deleteClient (env ^. teBrig) (userId user) cId (Just "wrong password") 403
+      -- idp is created
+      SampleIdP idpmeta _privkey _ _ <- makeSampleIdPMetadata
+      apiVersion <- view teWireIdPAPIVersion
+      idp <- call $ callIdpCreate apiVersion (env ^. teSpar) (Just owner) idpmeta
+      -- then user gets upgraded to scim and gets saml credentials
+      tok <- registerScimToken tid (Just (idp ^. idpId))
+      _ <- listUsers tok (Just (filterBy "externalId" (fromEmail email)))
+      -- attempt to delete the client with wrong password still fails
+      deleteClient (env ^. teBrig) (userId user) cId (Just "wrong password") 403
+      -- attempt to delete client again without password should now succeed
+      deleteClient (env ^. teBrig) (userId user) cId Nothing 200
+  where
+    checkNumClients :: BrigReq -> UserId -> Int -> TestSpar ()
+    checkNumClients brig u expected = do
+      r <-
+        call $
+          get $
+            brig
+              . path "clients"
+              . zUser u
+      let actual = Vec.length <$> (preview _Array =<< responseJsonMaybe @Value r)
+      lift $ actual `shouldBe` Just expected
+
+    prekey :: Prekey
+    prekey = Prekey (PrekeyId 1) "pQABAQECoQBYIOjl7hw0D8YRNqkkBQETCxyr7/ywE/2R5RWcUPM+GJACA6EAoQBYILLf1TIwSB62q69Ojs/X1tzJ+dYHNAw4QbW/7TC5vSZqBPY="
+
+    lPrekey :: LastPrekey
+    lPrekey = lastPrekey "pQABARn//wKhAFggnCcZIK1pbtlJf4wRQ44h4w7/sfSgj5oWXMQaUGYAJ/sDoQChAFgglacihnqg/YQJHkuHNFU7QD6Pb3KN4FnubaCF2EVOgRkE9g=="
+
+    addClientInternal :: (HasCallStack, MonadIO m, MonadReader TestEnv m, MonadThrow m) => BrigReq -> UserId -> NewClient -> m ClientId
+    addClientInternal brig uid new = do
+      c <-
+        responseJsonError
+          =<< call
+            ( post $
+                brig
+                  . paths ["i", "clients", toByteString' uid]
+                  . contentJson
+                  . body (RequestBodyLBS $ encode new)
+                  . expect2xx
+            )
+      pure $ clientId c
+
+    defNewClient :: ClientType -> [Prekey] -> LastPrekey -> NewClient
+    defNewClient ty pks lpk =
+      (newClient ty lpk)
+        { newClientPassword = Just defPassword,
+          newClientPrekeys = pks,
+          newClientLabel = Just "Test Device",
+          newClientModel = Just "Test Model",
+          newClientVerificationCode = Nothing
+        }
+
+    deleteClient :: (MonadIO m, MonadReader TestEnv m) => BrigReq -> UserId -> ClientId -> Maybe Text -> Int -> m ()
+    deleteClient brig u c pw expectedStatus =
+      void $
+        call $
+          delete $
+            brig
+              . paths ["clients", toByteString' c]
+              . zUser u
+              . zConn "conn"
+              . contentJson
+              . body payload
+              . expectStatus ((==) expectedStatus)
+      where
+        payload =
+          RequestBodyLBS . encode . object . maybeToList $
+            fmap ("password" .=) pw
