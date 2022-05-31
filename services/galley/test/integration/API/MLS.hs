@@ -26,6 +26,7 @@ import Bilge.Assert
 import Cassandra
 import Control.Lens (view)
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString as BS
 import Data.Default
 import Data.Domain
 import Data.Id
@@ -594,7 +595,29 @@ testAppMessageRemoteConv = do
   let domain = Domain "faraway.example.com"
   qcnv <- randomQualifiedId domain
   bob <- randomQualifiedId domain
-  registerRemoteConv qcnv (qUnqualified bob) Nothing mempty
+  let bobClientId =
+        show (qUnqualified bob)
+          <> ":0@"
+          <> T.unpack (domainText domain)
+  let groupId = "test_conv"
+  registerRemoteMLSConv qcnv groupId (qUnqualified bob)
+
+  -- create group and message
+  message <- liftIO $
+    withSystemTempDirectory "mls" $ \tmp -> do
+      groupJSON <-
+        spawn
+          ( cli
+              bobClientId
+              tmp
+              [ "group",
+                bobClientId,
+                T.unpack (toBase64Text (unGroupId groupId))
+              ]
+          )
+          Nothing
+      BS.writeFile (tmp <> "group.json") groupJSON
+      spawn (cli bobClientId tmp ["message", "--group", tmp <> "group.json", "hi"]) Nothing
 
   let mock _ = pure (Aeson.encode ())
   void $
@@ -606,7 +629,7 @@ testAppMessageRemoteConv = do
             . zUser (qUnqualified alice)
             . zConn "conn"
             . content "message/mls"
-            . bytes "hello"
+            . bytes message
         )
         !!! const 201
         === statusCode

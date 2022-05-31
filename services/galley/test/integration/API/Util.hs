@@ -1404,6 +1404,25 @@ getTeamQueue' zusr msince msize onlyLast = do
 asOtherMember :: Qualified UserId -> OtherMember
 asOtherMember quid = OtherMember quid Nothing roleNameWireMember
 
+registerRemoteMLSConv :: Qualified ConvId -> GroupId -> UserId -> TestM ()
+registerRemoteMLSConv convId groupId originUser = do
+  fedGalleyClient <- view tsFedGalleyClient
+  now <- liftIO getCurrentTime
+  runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
+    NewRemoteConversation
+      { rcTime = now,
+        rcOrigUserId = originUser,
+        rcCnvId = qUnqualified convId,
+        rcCnvType = RegularConv,
+        rcCnvAccess = [],
+        rcCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
+        rcCnvName = Nothing,
+        rcNonCreatorMembers = mempty,
+        rcMessageTimer = Nothing,
+        rcReceiptMode = Nothing,
+        rcProtocol = ProtocolMLS (ConversationMLSData groupId (Epoch 0))
+      }
+
 registerRemoteConv :: Qualified ConvId -> UserId -> Maybe Text -> Set OtherMember -> TestM ()
 registerRemoteConv convId originUser name othMembers = do
   fedGalleyClient <- view tsFedGalleyClient
