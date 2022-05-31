@@ -19,7 +19,7 @@
 module Galley.API.Federation where
 
 import Control.Error
-import Control.Lens (itraversed, (<.>))
+import Control.Lens (itraversed, preview, to, (<.>))
 import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
@@ -69,6 +69,7 @@ import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -106,6 +107,7 @@ federationSitemap =
 onConversationCreated ::
   Members
     '[ BrigAccess,
+       ConversationStore,
        GundeckAccess,
        ExternalAccess,
        Input (Local ()),
@@ -139,7 +141,11 @@ onConversationCreated domain rc = do
   -- Make sure to notify only about local users connected to the adder
   let qrcConnected = qrc {F.rcNonCreatorMembers = connectedMembers}
 
-  forM_ (fromNewRemoteConversation loc qrcConnected) $ \(mem, c) -> do
+  -- update group_id -> conv_id mapping
+  for_ (preview (to F.rcProtocol . _ProtocolMLS) rc) $ \mls -> do
+    E.setGroupId (cnvmlsGroupId mls) (qUntagged (F.rcCnvId qrc))
+
+  for_ (fromNewRemoteConversation loc qrcConnected) $ \(mem, c) -> do
     let event =
           Event
             (qUntagged (F.rcCnvId qrcConnected))
