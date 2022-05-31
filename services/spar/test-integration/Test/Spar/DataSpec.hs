@@ -27,8 +27,6 @@ import Cassandra
 import Control.Lens
 import Control.Monad.Except
 import Data.Kind (Type)
-import Data.UUID as UUID
-import Data.UUID.V4 as UUID
 import Imports
 import Polysemy
 import SAML2.WebSSO as SAML
@@ -36,7 +34,6 @@ import Spar.App as App
 import Spar.Intra.BrigApp (veidFromUserSSOId)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.AssIDStore as AssIDStore
-import qualified Spar.Sem.BindCookieStore as BindCookieStore
 import Spar.Sem.IdPConfigStore (GetIdPResult (..), Replaced (..), Replacing (..))
 import qualified Spar.Sem.IdPConfigStore as IdPEffect
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
@@ -49,7 +46,6 @@ import Util.Scim
 import Util.Types
 import Web.Scim.Schema.Common as Scim.Common
 import Web.Scim.Schema.Meta as Scim.Meta
-import Wire.API.Cookie
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim
@@ -146,28 +142,6 @@ spec = do
             () <- runSpar $ SAMLUserStore.delete uid uref
             muid <- runSpar (SAMLUserStore.get uref) `aFewTimes` isNothing
             liftIO $ muid `shouldBe` Nothing
-    describe "BindCookie" $ do
-      let mkcky :: TestSpar SetBindCookie
-          mkcky = fmap SetBindCookie . runSimpleSP . SAML.toggleCookie "/" . Just . (,1) . UUID.toText =<< liftIO UUID.nextRandom
-      it "insert and get are \"inverses\"" $ do
-        uid <- nextWireId
-        cky <- mkcky
-        () <- runSpar $ BindCookieStore.insert cky uid 1
-        muid <- runSpar $ BindCookieStore.lookup (setBindCookieValue cky)
-        liftIO $ muid `shouldBe` Just uid
-      context "has timed out" $ do
-        it "BindCookieStore.lookup returns Nothing" $ do
-          uid <- nextWireId
-          cky <- mkcky
-          () <- runSpar $ BindCookieStore.insert cky uid 1
-          liftIO $ threadDelay 2000000
-          muid <- runSpar $ BindCookieStore.lookup (setBindCookieValue cky)
-          liftIO $ muid `shouldBe` Nothing
-      context "does not exist" $ do
-        it "BindCookieStore.lookup returns Nothing" $ do
-          cky <- mkcky
-          muid <- runSpar $ BindCookieStore.lookup (setBindCookieValue cky)
-          liftIO $ muid `shouldBe` Nothing
     describe "Team" $ do
       testDeleteTeam
     describe "IdPConfig" $ do

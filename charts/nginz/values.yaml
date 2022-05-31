@@ -436,9 +436,6 @@ nginx_conf:
       envs:
       - staging
       versioned: false
-    - path: /sso-initiate-bind
-      envs:
-      - all
     - path: /sso/initiate-login
       envs:
       - all

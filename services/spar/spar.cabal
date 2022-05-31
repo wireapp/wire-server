@@ -40,9 +40,6 @@ library
       Spar.Sem.AssIDStore
       Spar.Sem.AssIDStore.Cassandra
       Spar.Sem.AssIDStore.Mem
-      Spar.Sem.BindCookieStore
-      Spar.Sem.BindCookieStore.Cassandra
-      Spar.Sem.BindCookieStore.Mem
       Spar.Sem.BrigAccess
       Spar.Sem.BrigAccess.Http
       Spar.Sem.DefaultSsoCode

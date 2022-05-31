@@ -88,8 +88,6 @@ module Util.Core
     negotiateAuthnRequest',
     getCookie,
     hasPersistentCookieHeader,
-    hasDeleteBindCookieHeader,
-    hasSetBindCookieHeader,
     submitAuthnResponse,
     submitAuthnResponse',
     loginSsoUserFirstTime,
@@ -151,7 +149,6 @@ import Control.Retry
 import Crypto.Random.Types (MonadRandom)
 import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
-import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64.Lazy as EL
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle))
@@ -198,8 +195,6 @@ import URI.ByteString as URI
 import Util.Options
 import Util.Types
 import qualified Web.Cookie as Web
-import Wire.API.Cookie
-import Wire.API.Routes.Public.Spar
 import Wire.API.Team (Icon (..))
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
@@ -823,9 +818,6 @@ getCookie proxy rsp = do
     then Right $ SimpleSetCookie web
     else Left $ "bad cookie name.  (found, expected) == " <> show (Web.setCookieName web, SAML.cookieName proxy)
 
-getSetBindCookie :: ResponseLBS -> Either String SetBindCookie
-getSetBindCookie = fmap SetBindCookie . getCookie (Proxy @"zbind")
-
 -- | In 'setResponseCookie' we set an expiration date iff cookie is persistent.  So here we test for
 -- expiration date.  Easier than parsing and inspecting the cookie value.
 hasPersistentCookieHeader :: ResponseLBS -> Either String ()
@@ -834,31 +826,6 @@ hasPersistentCookieHeader rsp = do
   when (isNothing . Web.setCookieExpires $ fromSimpleSetCookie cky) $
     Left $
       "expiration date should NOT empty: " <> show cky
-
--- | A bind cookie is always sent, but if we do not want to send one, it looks like this:
--- "wire.com=; Path=/sso/finalize-login; Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure"
-hasDeleteBindCookieHeader :: HasCallStack => ResponseLBS -> Either String ()
-hasDeleteBindCookieHeader rsp = isDeleteBindCookie =<< getSetBindCookie rsp
-
-isDeleteBindCookie :: HasCallStack => SetBindCookie -> Either String ()
-isDeleteBindCookie (SetBindCookie (SimpleSetCookie cky)) =
-  if (SAML.Time <$> Web.setCookieExpires cky) == Just (SAML.unsafeReadTime "1970-01-01T00:00:00Z")
-    then Right ()
-    else Left $ "expiration should be empty: " <> show cky
-
-hasSetBindCookieHeader :: HasCallStack => ResponseLBS -> Either String ()
-hasSetBindCookieHeader rsp = isSetBindCookie =<< getSetBindCookie rsp
-
-isSetBindCookie :: HasCallStack => SetBindCookie -> Either String ()
-isSetBindCookie (SetBindCookie (SimpleSetCookie cky)) = do
-  unless (Web.setCookieName cky == "zbind") $ do
-    Left $ "expected zbind cookie: " <> show cky
-  unless (maybe False ("/sso/finalize-login" `SBS.isPrefixOf`) $ Web.setCookiePath cky) $ do
-    Left $ "expected path prefix /sso/finalize-login: " <> show cky
-  unless (Web.setCookieSecure cky) $ do
-    Left $ "cookie must be secure: " <> show cky
-  unless (Web.setCookieSameSite cky == Just Web.sameSiteStrict) $ do
-    Left $ "cookie must be same-site: " <> show cky
 
 tryLogin :: HasCallStack => SignPrivCreds -> IdP -> NameID -> TestSpar SAML.UserRef
 tryLogin privkey idp userSubject = do
@@ -892,37 +859,25 @@ negotiateAuthnRequest ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
   IdP ->
   m SAML.AuthnRequest
-negotiateAuthnRequest idp =
-  negotiateAuthnRequest' DoInitiateLogin idp id >>= \case
-    (req, cky) -> case maybe (Left "missing") isDeleteBindCookie cky of
-      Right () -> pure req
-      Left msg -> error $ "unexpected bind cookie: " <> show (cky, msg)
-
-doInitiatePath :: DoInitiate -> [ST]
-doInitiatePath DoInitiateLogin = ["sso", "initiate-login"]
-doInitiatePath DoInitiateBind = ["sso-initiate-bind"]
+negotiateAuthnRequest idp = negotiateAuthnRequest' idp id
 
 negotiateAuthnRequest' ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
-  DoInitiate ->
   IdP ->
   (Request -> Request) ->
-  m (SAML.AuthnRequest, Maybe SetBindCookie)
-negotiateAuthnRequest' (doInitiatePath -> doInit) idp modreq = do
+  m SAML.AuthnRequest
+negotiateAuthnRequest' idp modreq = do
   env <- ask
   resp :: ResponseLBS <-
     call $
       get
         ( modreq
             . (env ^. teSpar)
-            . paths (cs <$> (doInit <> [idPIdToST $ idp ^. SAML.idpId]))
+            . paths (cs <$> ["sso", "initiate-login", idPIdToST $ idp ^. SAML.idpId])
             . expect2xx
         )
   (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp
-  let wireCookie =
-        SetBindCookie . SAML.SimpleSetCookie . Web.parseSetCookie
-          <$> lookup "Set-Cookie" (responseHeaders resp)
-  pure (authnreq, wireCookie)
+  pure authnreq
 
 submitAuthnResponse ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
