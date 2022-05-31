@@ -124,7 +124,7 @@ mkClock = do
   void . forkIO . forever $ do
     threadDelay (1 # Second)
     modifyIORef' r (+ 1)
-  return $ Clock r
+  pure $ Clock r
 
 getClock :: WS Clock
 getClock = WS $ asks clock
@@ -230,7 +230,7 @@ isRemoteRegistered u c = do
       const $
         rpc' "gundeck" (upstream e) (method GET . paths ["/i/presences", toByteString' u] . expect2xx)
   cs <- map connId <$> parseResponse (mkError status502 "server-error") rs
-  return $ c `elem` cs
+  pure $ c `elem` cs
 
 sendMsgIO :: (WebSocketsData a) => a -> Websocket -> IO ()
 sendMsgIO m c =
@@ -330,7 +330,7 @@ regInfo k c = do
   let h = externalHostname e
       p = portnum e
       r = "http://" <> h <> ":" <> pack (show p) <> "/i/push/"
-  return . lbytes . encode . object $
+  pure . lbytes . encode . object $
     [ "user_id" .= decodeUtf8 (keyUserBytes k),
       "device_id" .= decodeUtf8 (keyConnBytes k),
       "resource" .= decodeUtf8 (r <> keyUserBytes k <> "/" <> keyConnBytes k),

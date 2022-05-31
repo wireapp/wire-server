@@ -55,7 +55,7 @@ someDict (ks, vs) = do
   run $ forM_ entries $ \e -> uncurry D.insert e d
   s <- run $ D.size d
   assertEq "entries length" s (length entries)
-  return d
+  pure d
 
 insertRemove :: ([Key], [ByteString]) -> PropertyM IO ()
 insertRemove kv = do
@@ -106,7 +106,7 @@ insertLookup = do
 
 assertEq :: (Show a, Eq a, Monad m) => String -> a -> a -> PropertyM m ()
 assertEq m a b
-  | a == b = return ()
+  | a == b = pure ()
   | otherwise =
     fail $
       "assertEq: " ++ m ++ ": " ++ show a ++ " =/= " ++ show b
@@ -115,7 +115,7 @@ samples :: Int -> Gen a -> IO [a]
 samples n (MkGen f) = do
   gen <- newQCGen
   let rands g = g1 : rands g2 where (g1, g2) = split g
-  return $ [f r i | i <- repeat n, r <- rands gen]
+  pure $ [f r i | i <- repeat n, r <- rands gen]
 
 runProp :: (Show a, Arbitrary a, Testable b) => (a -> PropertyM IO b) -> Property
 runProp = monadicIO . forAllM arbitrary

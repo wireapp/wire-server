@@ -92,14 +92,14 @@ continue ws clock k = do
       (Right (Left x)) ->
         let text = client (key2bytes k) . msg (val "write: " +++ show x)
          in runInIO $ Logger.debug text
-      _ -> return ()
+      _ -> pure ()
 
 terminate :: Key -> Websocket -> WS ()
 terminate k ws = do
   success <- unregisterLocal k ws
   debug $ client (key2bytes k) ~~ "websocket" .= connIdent ws ~~ "removed" .= success
   when success $
-    close k ws `catchAll` const (return ())
+    close k ws `catchAll` const (pure ())
 
 writeLoop :: Websocket -> Clock -> TTL -> IORef State -> IO ()
 writeLoop ws clock (TTL ttl) st = loop
@@ -116,7 +116,7 @@ writeLoop ws clock (TTL ttl) st = loop
             send (connection ws) ping
             threadDelay $ (10 # Second) `min` (s ^. pingFreq)
             keepAlive
-          | otherwise -> return ()
+          | otherwise -> pure ()
     keepAlive = do
       time <- getTime clock
       unless (time > ttl) loop
@@ -132,14 +132,14 @@ readLoop ws s = loop
           reset counter s 0
           send (connection ws) (pong p)
           loop
-        ControlMessage (Close _ _) -> return ()
+        ControlMessage (Close _ _) -> pure ()
         perhapsPingMsg -> do
           reset counter s 0
           when (isAppLevelPing perhapsPingMsg) sendAppLevelPong
           loop
     adjustPingFreq p = case fromByteString (toStrict p) of
       Just i | i > 0 && i < maxPingInterval -> reset pingFreq s (i # Second)
-      _ -> return ()
+      _ -> pure ()
     -- control messages are internal to the browser that manages the websockets
     -- <https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_servers#Pings_and_Pongs_The_Heartbeat_of_WebSockets>.
     -- since the browser may silently lose a websocket connection, wire clients are allowed send

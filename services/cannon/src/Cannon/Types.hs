@@ -136,7 +136,7 @@ wsenv :: Cannon WS.Env
 wsenv = Cannon $ do
   e <- asks env
   r <- asks reqId
-  return $ WS.setRequestId r e
+  pure $ WS.setRequestId r e
 
 logger :: Cannon Logger
 logger = Cannon $ asks applog
