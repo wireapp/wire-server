@@ -271,7 +271,8 @@ processCommit ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member Resource r
+    Member Resource r,
+    Member ProposalStore r
   ) =>
   Qualified UserId ->
   Maybe ConnId ->
@@ -325,11 +326,17 @@ processCommit qusr con lconv epoch sender commit = do
 
 applyProposalRef ::
   ( HasProposalEffects r,
-    Member (ErrorS 'MLSProposalNotFound) r
+    Members
+      '[ ErrorS 'MLSProposalNotFound,
+         ProposalStore
+       ]
+      r
   ) =>
   ProposalOrRef ->
   Sem r ProposalAction
-applyProposalRef (Ref _) = throwS @'MLSProposalNotFound
+applyProposalRef (Ref ref) = do
+  (p, _gid, _epoch) <- getProposal ref >>= noteS @'MLSProposalNotFound
+  applyProposal (rmValue p)
 applyProposalRef (Inline p) = applyProposal p
 
 applyProposal :: HasProposalEffects r => Proposal -> Sem r ProposalAction
