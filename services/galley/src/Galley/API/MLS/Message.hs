@@ -437,6 +437,7 @@ executeProposalAction ::
     Member (ErrorS 'ConvNotFound) r,
     Member (Error FederationError) r,
     Member (ErrorS 'MLSClientMismatch) r,
+    Member (Error MLSProtocolError) r,
     Member (Error MLSProposalFailure) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
@@ -455,10 +456,20 @@ executeProposalAction ::
   ProposalAction ->
   Sem r [LocalConversationUpdate]
 executeProposalAction qusr con lconv action = do
-  -- For the moment, assume a fixed ciphersuite.
-  -- FUTUREWORK: store ciphersuite with the conversation
-  let cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-      ss = csSignatureScheme cs
+  suite <-
+    preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) (tUnqualified lconv)
+      & noteS @'ConvNotFound
+  cs <-
+    cipherSuiteTag suite
+      & note
+        ( mlsProtocolError
+            . T.pack
+            . ("An unknown cipher suite associated with a conversation: " <>)
+            . show
+            . cipherSuiteNumber
+            $ suite
+        )
+  let ss = csSignatureScheme cs
       cm = convClientMap lconv
       newUserClients = Map.assocs (paAdd action)
   -- check that all clients of each user are added to the conversation, and
