@@ -145,6 +145,10 @@ http {
   limit_req_zone $rate_limited_by_zuser zone=reqs_per_user:12m rate=10r/s;
   limit_req_zone $rate_limited_by_addr zone=reqs_per_addr:12m rate=5r/m;
 
+{{- range $limit := .Values.nginx_conf.user_rate_limit_request_zones }}
+  {{ $limit }}
+{{- end }}
+
   limit_conn_zone $rate_limited_by_zuser zone=conns_per_user:10m;
   limit_conn_zone $rate_limited_by_addr zone=conns_per_addr:10m;
 
@@ -277,6 +281,10 @@ http {
         limit_req zone=reqs_per_addr burst=5 nodelay;
         limit_conn conns_per_addr 20;
               {{- end -}}
+            {{- else }}
+              {{- if hasKey $location "specific_user_rate_limit" }}
+        limit_req zone={{ $location.specific_user_rate_limit }} nodelay;
+              {{- endif }}
             {{- end }}
 
         if ($request_method = 'OPTIONS') {

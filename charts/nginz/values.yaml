@@ -51,6 +51,10 @@ nginx_conf:
   - /conversations/([^/]*)/call/state
   - /search/top
   - /search/common
+
+  user_rate_limit_request_zones:
+    - limit_req_zone $rate_limited_by_zuser zone=reqs_per_user_signatures:12m rate=10r/m;
+
   # The origins from which we allow CORS requests. These are combined with
   # 'external_env_domain' to form a full url
   allowlisted_origins:
@@ -484,6 +488,27 @@ nginx_conf:
       - all
       versioned: false
       strip_version: true
+    galeb:
+    - path: /consent
+      envs:
+      - all
+      disable_zauth: true
+      versioned: false
+      strip_version: true
+    - path: /self/consent
+      versioned: false
+      strip_version: true
+    - path: /signature
+      versioned: false
+      specific_user_rate_limit: reqs_per_user_signatures
+      strip_version: true
+    - path: /i/marketo/emails/([^/]*)$
+      disable_zauth: true
+      versioned: false
+      basic_auth: true
+      envs:
+      - staging
+
     calling-test:
     - path: /calling-test
       envs:
