@@ -47,11 +47,11 @@ data State = State !Int !Timeout
 newtype TTL = TTL Word64
 
 counter :: Functor f => LensLike' f State Int
-counter f (State c p) = (\x -> State x p) `fmap` (f c)
+counter f (State c p) = (\x -> State x p) `fmap` f c
 {-# INLINE counter #-}
 
 pingFreq :: Functor f => LensLike' f State Timeout
-pingFreq f (State c p) = (\x -> State c x) `fmap` (f p)
+pingFreq f (State c p) = (\x -> State c x) `fmap` f p
 {-# INLINE pingFreq #-}
 
 -- | Maximum ping interval in seconds. The ping interval controls
