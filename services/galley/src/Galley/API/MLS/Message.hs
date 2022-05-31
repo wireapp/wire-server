@@ -180,7 +180,7 @@ postMLSMessageToLocalConv qusr con smsg lcnv = case rmValue smsg of
         CommitMessage c ->
           processCommit qusr con (qualifyAs lcnv conv) (msgEpoch msg) (msgSender msg) c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
-        ProposalMessage prop -> processProposal conv msg prop
+        ProposalMessage prop -> processProposal conv msg prop $> mempty
       SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
         Right CommitMessageTag -> throwS @'MLSUnsupportedMessage
         Right ProposalMessageTag -> throwS @'MLSUnsupportedMessage
@@ -347,7 +347,7 @@ processProposal ::
   Data.Conversation ->
   Message 'MLSPlainText ->
   RawMLS Proposal ->
-  Sem r [LocalConversationUpdate]
+  Sem r ()
 processProposal conv msg prop = do
   suite <-
     preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) conv
@@ -365,7 +365,6 @@ processProposal conv msg prop = do
   let propRef = proposalRef suiteTag prop
   -- TODO(md): do any needed validation of the proposal
   storeProposal propRef prop (msgGroupId msg) (msgEpoch msg)
-  pure mempty
 
 executeProposalAction ::
   forall r.
