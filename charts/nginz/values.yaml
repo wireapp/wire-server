@@ -100,6 +100,7 @@ nginx_conf:
       envs:
       - all
       disable_zauth: true
+      unlimited_requests_endpoint: true
     - path: /users
       envs:
       - all
