@@ -37,7 +37,7 @@ import Data.Range
 import qualified Data.Set as Set
 import Data.String.Conversions
 import qualified Data.Text as T
-import Federator.MockServer
+import Federator.MockServer hiding (withTempMockFederator)
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import System.FilePath
@@ -88,7 +88,8 @@ tests s =
         "Application Message"
         [ test s "send application message" testAppMessage,
           test s "send remote application message" testRemoteAppMessage,
-          test s "another participant sends an application message" testAppMessage2
+          test s "another participant sends an application message" testAppMessage2,
+          test s "send message to remote conversation" testAppMessageRemoteConv
         ],
       testGroup
         "Protocol mismatch"
@@ -586,6 +587,29 @@ testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
     rmmMessage bdy @?= Base64ByteString message
 
   liftIO $ assertBool "Unexpected events returned" (null events)
+
+testAppMessageRemoteConv :: TestM ()
+testAppMessageRemoteConv = do
+  alice <- randomQualifiedUser
+  let domain = Domain "faraway.example.com"
+  qcnv <- randomQualifiedId domain
+  bob <- randomQualifiedId domain
+  registerRemoteConv qcnv (qUnqualified bob) Nothing mempty
+
+  let mock _ = pure (Aeson.encode ())
+  void $
+    withTempMockFederator' mock $ do
+      galley <- viewGalley
+
+      post
+        ( galley . paths ["mls", "messages"]
+            . zUser (qUnqualified alice)
+            . zConn "conn"
+            . content "message/mls"
+            . bytes "hello"
+        )
+        !!! const 201
+        === statusCode
 
 testAppMessage :: TestM ()
 testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
