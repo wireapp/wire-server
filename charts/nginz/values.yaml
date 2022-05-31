@@ -71,6 +71,10 @@ nginx_conf:
   # See also "Separate incoming websocket network traffic from the rest of the
   # https traffic" section in the docs.
   ignored_upstreams: []
+  # TODO: Copy into cannon
+  upstream_namespace: {
+    # galeb: integrations
+  }
   upstreams:
     cargohold:
     - path: /conversations/([^/]*)/assets
