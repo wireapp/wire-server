@@ -132,7 +132,7 @@ http {
     # Allow additional origins at random ports. This is useful for testing with an HTTP proxy.
     # It should not be used in production.
     {{ range $origin := .Values.nginx_conf.randomport_allowlisted_origins }}
-      "~^https://{{ $origin }}.{{ $.Values.nginx_conf.external_env_domain}}(:[0-9]{2,5})?$" "$http_origin";
+      "~^https?://{{ $origin }}(:[0-9]{2,5})?$" "$http_origin";
     {{ end }}
    }
 

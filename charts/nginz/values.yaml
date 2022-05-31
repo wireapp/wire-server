@@ -51,15 +51,16 @@ nginx_conf:
   - /conversations/([^/]*)/call/state
   - /search/top
   - /search/common
-  # -- The origins from which we allow CORS requests. These are combined with 'external_env_domain' to form a full url
+  # The origins from which we allow CORS requests. These are combined with
+  # 'external_env_domain' to form a full url
   allowlisted_origins:
     - webapp
     - teams
     - account
-  # -- The origins from which we allow CORS requests at random ports. This is
+  # The origins from which we allow CORS requests at random ports. This is
   # useful for testing with HTTP proxies and should not be used in production.
-  # The list entries are combined with 'external_env_domain' to form a full url
-  # regex that matches for all ports.
+  # The list entries must be full hostnames (they are **not** combined with
+  # 'external_env_domain'). http and https URLs are allow listed.
   randomport_allowlisted_origins: [] # default is empty by intention
   # Add 'cannon' to 'ignored_upstreams' if you wish to make use of separate
   # network traffic to cannon-with-its-own-nginz
