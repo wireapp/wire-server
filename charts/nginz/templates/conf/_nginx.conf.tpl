@@ -35,6 +35,7 @@ http {
   ignore_invalid_headers off;
 
   types_hash_max_size 2048;
+  map_hash_bucket_size 128;
 
   server_names_hash_bucket_size 64;
   server_name_in_redirect off;
