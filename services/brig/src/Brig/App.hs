@@ -107,7 +107,7 @@ import Brig.User.Search.Index (IndexEnv (..), MonadIndexIO (..), runIndexIO)
 import Brig.User.Template
 import Brig.ZAuth (MonadZAuth (..), runZAuth)
 import qualified Brig.ZAuth as ZAuth
-import Cassandra (Keyspace (Keyspace), runClient)
+import Cassandra (Keyspace (Keyspace), liftClient, localState, runClient)
 import qualified Cassandra as Cas
 import Cassandra.Schema (versionCheck)
 import qualified Cassandra.Settings as Cas
@@ -144,6 +144,7 @@ import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
 import Polysemy
 import Polysemy.Final
+import Polysemy.Input
 import qualified Ropes.Nexmo as Nexmo
 import qualified Ropes.Twilio as Twilio
 import Ssl.Util
@@ -492,6 +493,21 @@ instance MonadCatch (AppT r) where
 instance MonadReader Env (AppT r) where
   ask = AppT ask
   local f (AppT m) = AppT $ local f m
+
+instance Member (Input Env) r => MonadReader Env (Sem r) where
+  ask = input
+  local f sem = do
+    env <- input
+    runInputConst (f env) . raise @(Input Env) $ sem
+
+instance
+  ( Members '[Final IO, Embed IO, Embed Cas.Client] r,
+    MonadReader Env (Sem r)
+  ) =>
+  Cas.MonadClient (Sem r)
+  where
+  liftClient = embed @Cas.Client
+  localState f = local (casClient %~ f)
 
 liftSem :: Sem r a -> AppT r a
 liftSem sem = AppT $ lift sem
