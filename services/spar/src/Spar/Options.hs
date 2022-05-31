@@ -37,7 +37,6 @@ import Options.Applicative
 import qualified SAML2.WebSSO as SAML
 import Text.Ascii (ascii)
 import URI.ByteString as URI
-import Wire.API.Routes.Public.Spar
 import Wire.API.User.Saml
 
 type OptsRaw = Opts' (Maybe ())
@@ -74,9 +73,6 @@ newtype WithConfig a = WithConfig (Reader OptsRaw a)
 
 instance SAML.HasConfig WithConfig where
   getConfig = WithConfig $ asks saml
-
-runWithConfig :: OptsRaw -> WithConfig a -> a
-runWithConfig opts (WithConfig act) = act `runReader` opts
 
 -- | Accept config file location as cli option.
 --
