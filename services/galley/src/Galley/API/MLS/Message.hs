@@ -180,7 +180,8 @@ postMLSMessageToLocalConv qusr con smsg lcnv = case rmValue smsg of
         CommitMessage c ->
           processCommit qusr con (qualifyAs lcnv conv) (msgEpoch msg) (msgSender msg) c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
-        ProposalMessage prop -> processProposal conv msg prop $> mempty
+        ProposalMessage prop ->
+          processProposal lusr conv msg prop $> mempty
       SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
         Right CommitMessageTag -> throwS @'MLSUnsupportedMessage
         Right ProposalMessageTag -> throwS @'MLSUnsupportedMessage
@@ -337,18 +338,60 @@ applyProposal (AddProposal kp) = do
   pure (paClient qclient)
 applyProposal _ = throwS @'MLSUnsupportedProposal
 
-processProposal ::
-  HasProposalEffects r =>
+checkProposal ::
   Members
-    '[ ErrorS 'ConvNotFound,
+    '[ Error MLSProtocolError,
        ProposalStore
      ]
     r =>
+  CipherSuite ->
+  Proposal ->
+  ProposalRef ->
+  Sem r ()
+checkProposal suite (AddProposal kpRaw) ref = do
+  let kp = rmValue kpRaw
+  unless (kpCipherSuite kp == suite)
+    . throw
+    . mlsProtocolError
+    . T.pack
+    $ "The group's cipher suite "
+      <> show (cipherSuiteNumber suite)
+      <> " and the cipher suite of the proposal's key package "
+      <> show (cipherSuiteNumber (kpCipherSuite kp))
+      <> " do not match."
+  unlessM (isNothing <$> getProposal ref)
+    . throw
+    . mlsProtocolError
+    . T.pack
+    $ "A proposal with reference " <> show ref <> " already exists."
+checkProposal _suite _prop _ref = pure ()
+
+processProposal ::
+  HasProposalEffects r =>
+  Members
+    '[ Error MLSProtocolError,
+       ErrorS 'ConvNotFound,
+       ErrorS 'MLSStaleMessage,
+       ProposalStore
+     ]
+    r =>
+  Local UserId ->
   Data.Conversation ->
   Message 'MLSPlainText ->
   RawMLS Proposal ->
   Sem r ()
-processProposal conv msg prop = do
+processProposal lusr conv msg prop = do
+  -- check epoch number
+  curEpoch <-
+    preview (to convProtocol . _ProtocolMLS . to cnvmlsEpoch) conv
+      & noteS @'ConvNotFound
+  unless (msgEpoch msg == curEpoch) $ throwS @'MLSStaleMessage
+  -- check group ID
+  groupId <-
+    preview (to convProtocol . _ProtocolMLS . to cnvmlsGroupId) conv
+      & noteS @'ConvNotFound
+  unless (msgGroupId msg == groupId) $ throwS @'ConvNotFound
+
   suite <-
     preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) conv
       & noteS @'ConvNotFound
@@ -363,7 +406,16 @@ processProposal conv msg prop = do
             $ suite
         )
   let propRef = proposalRef suiteTag prop
-  -- TODO(md): do any needed validation of the proposal
+
+  -- validate the proposal
+  --
+  -- is the user a member of the conversation?
+  void $
+    getLocalMember (convId conv) (tUnqualified lusr)
+      >>= noteS @'ConvNotFound
+  -- FUTUREWORK: validate the member's conversation role
+  checkProposal suite (rmValue prop) propRef
+
   storeProposal propRef prop (msgGroupId msg) (msgEpoch msg)
 
 executeProposalAction ::
