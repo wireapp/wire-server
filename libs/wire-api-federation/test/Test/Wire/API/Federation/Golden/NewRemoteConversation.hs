@@ -25,6 +25,7 @@ import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Imports
 import Wire.API.Conversation
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
 import Wire.API.Provider.Service
@@ -65,7 +66,8 @@ testObject_NewRemoteConversation1 =
               }
           ],
       rcMessageTimer = Just (Ms 1000),
-      rcReceiptMode = Just (ReceiptMode 42)
+      rcReceiptMode = Just (ReceiptMode 42),
+      rcProtocol = ProtocolProteus
     }
 
 testObject_NewRemoteConversation2 :: NewRemoteConversation ConvId
@@ -80,5 +82,6 @@ testObject_NewRemoteConversation2 =
       rcCnvName = Nothing,
       rcNonCreatorMembers = Set.fromList [],
       rcMessageTimer = Nothing,
-      rcReceiptMode = Nothing
+      rcReceiptMode = Nothing,
+      rcProtocol = ProtocolMLS (ConversationMLSData (GroupId "group") (Epoch 3))
     }

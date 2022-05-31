@@ -125,7 +125,8 @@ data NewRemoteConversation conv = NewRemoteConversation
     -- | Members of the conversation apart from the creator
     rcNonCreatorMembers :: Set OtherMember,
     rcMessageTimer :: Maybe Milliseconds,
-    rcReceiptMode :: Maybe ReceiptMode
+    rcReceiptMode :: Maybe ReceiptMode,
+    rcProtocol :: Protocol
   }
   deriving stock (Eq, Show, Generic, Functor)
   deriving (ToJSON, FromJSON) via (CustomEncoded (NewRemoteConversation conv))

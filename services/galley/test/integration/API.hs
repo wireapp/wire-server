@@ -3677,7 +3677,8 @@ removeUser = do
             F.rcCnvName = Just "gossip4",
             F.rcNonCreatorMembers = Set.fromList $ createOtherMember <$> quids,
             F.rcMessageTimer = Nothing,
-            F.rcReceiptMode = Nothing
+            F.rcReceiptMode = Nothing,
+            F.rcProtocol = ProtocolProteus
           }
   runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB1 bart [alice, alexDel]
   runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB2 bart [alexDel]

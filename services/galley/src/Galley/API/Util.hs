@@ -633,7 +633,8 @@ toNewRemoteConversation now localDomain Data.Conversation {convMetadata = Conver
       rcCnvName = cnvmName,
       rcNonCreatorMembers = toMembers (filter (\lm -> lmId lm /= cnvmCreator) convLocalMembers) convRemoteMembers,
       rcMessageTimer = cnvmMessageTimer,
-      rcReceiptMode = cnvmReceiptMode
+      rcReceiptMode = cnvmReceiptMode,
+      rcProtocol = convProtocol
     }
   where
     toMembers ::
