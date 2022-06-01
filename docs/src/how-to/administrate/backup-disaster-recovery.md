@@ -32,12 +32,12 @@ Here is how to back up each:
 
 To backup the wire-server folder, we simply use ssh to read it from the server in which it is installed:
 
-    ssh user@my-wire-server.mydomain.com 'cd /path/to/my/folder/for/wire-server/ && tar -cf - wire-server | gzip -9' > wire-server-backup.tar.gz
+    ssh user@my-wire-server.your-domain.com 'cd /path/to/my/folder/for/wire-server/ && tar -cf - wire-server | gzip -9' > wire-server-backup.tar.gz
 
 Where :
 
 * `user` is the user you used to install Wire on this server, typically `wire` or `root`
-* `my-wire-server.mydomain.com` is the domain name or IP address for the server with your Wire install
+* `my-wire-server.your-domain.com` is the domain name or IP address for the server with your Wire install
 * `/path/to/my/folder/for/wire-server/` is the (absolute) path, on the server, where your wire-server folder is located
 * `wire-server` is the name of the folder for your wire-server install, typically (as per instructions) simply `wire-server`
 * `wire-server-backup.tar.gz` is the name of the file in which your wire-server folder will be stored
@@ -65,7 +65,7 @@ In particular, SSH into the Cassandra Virtual Machine with:
 Where:
 
 * `user` is the user you used to install Wire on this server, typically `wire` or `root`
-* `cassandra-vm.mydomain.com` is the domain name or IP address for the server with your Cassandra node
+* `cassandra-vm.your-domain.com` is the domain name or IP address for the server with your Cassandra node
 
 Make sure (while connected via ssh) your Cassandra installation is doing well with:
 
@@ -167,18 +167,71 @@ SSH into the MinIO Virtual Machine with:
 Where:
 
 * `user` is the user you used to install Wire on this server, typically `wire` or `root`
-* `minio-vm.mydomain.com` is the domain name or IP address for the server with your MinIO node
+* `minio-vm.your-domain.com` is the domain name or IP address for the server with your MinIO node
 
 To backup the MinIO data, we need to backup two servers over SSH, the same way we did for Cassandra and wire-server:
 
-    ssh user@my-minio-server.mydomain.com 'cd /var/lib/ && tar -cf - minio-server1 | gzip -9' > minio-server1-backup.tar.gz
-    ssh user@my-minio-server.mydomain.com 'cd /var/lib/ && tar -cf - minio-server2 | gzip -9' > minio-server2-backup.tar.gz
+    ssh user@my-minio-server.your-domain.com 'cd /var/lib/ && tar -cf - minio-server1 | gzip -9' > minio-server1-backup.tar.gz
+    ssh user@my-minio-server.your-domain.com 'cd /var/lib/ && tar -cf - minio-server2 | gzip -9' > minio-server2-backup.tar.gz
 
 Where:
 
 * `user` is the user you used to install Wire on this server, typically `wire` or `root`
-* `my-minio-server.mydomain.com` is the domain name or IP address for the MinIO Virtual Machine
+* `my-minio-server.your-domain.com` is the domain name or IP address for the MinIO Virtual Machine
 * `minio-server[number]-backup.tar.gz` is the name of the file in which each minio data folder will be stored
+
+### Automated regular backups
+
+It is important to back up as often as possible. You can use `cron` to automaticall run your backup commands on a regular basis.
+
+For example, you can create the following shell script, and write it to `/home/myuser/backup/wire-backup.sh`:
+
+    #!/bin/sh
+    # Make the folder if it does not exist yet
+    mkdir -p /home/myuser/backup/data/
+
+    # Back up wire-server folder
+    ssh user@my-wire-server.your-domain.com 'cd /path/to/my/folder/for/wire-server/ && tar -cf - wire-server | gzip -9' > /home/myuser/backup/data/wire-server-backup.tar.gz
+
+    # Cause Cassandra to generate new snapshots
+    ssh user@cassandra-vm.your-domain.com 'nodetool snapshot --tag catalog-ks catalogkeyspace`
+
+    # Backup Cassandra snapshots to a file
+    ssh user@cassandra-vm.your-domain.com 'find /mnt/cassandra/ -name "snapshots" -print0 | tar -cvf - --null -T - | gzip -9 ' > /home/myuser/backup/data/cassandra-batch.tar.gz
+
+    # Backup MinIO files
+    ssh user@my-minio-server.your-domain.com 'cd /var/lib/ && tar -cf - minio-server1 | gzip -9' > /home/myuser/backup/data/minio-server1-backup.tar.gz
+    ssh user@my-minio-server.your-domain.com 'cd /var/lib/ && tar -cf - minio-server2 | gzip -9' > /home/myuser/backup/data/minio-server2-backup.tar.gz
+
+    # Tar all backup files into a single unified archive
+    tar -cf /home/myuser/backup/full-backup.tar /home/myuser/backup/data/*
+
+    # Make remote copies of this single file to remote hosts for redundancy
+    scp /home/myuser/backup/full-backup.tar user@remote-redundancy-host-one.your-domain.com:/path/to/backup/folder/
+    scp /home/myuser/backup/full-backup.tar user@remote-redundancy-host-two.your-domain.com:/path/to/backup/folder/
+
+Make the file executable with:
+
+    chmod +x /home/myuser/backup/wire-backup.sh
+
+You can then manually run the file with:
+
+    ./home/myuser/backup/wire-backup.sh
+
+As a test, run the script manually to make sure it actually properly does its job without any errors.
+
+Then, you can add this to your cron file (by running `crontab -e`) to make sure this commands gets executed on a regular basis (here we will use an hourly backup):
+                                                                                                                                                                                               
+    # Edit this file to introduce tasks to be run by cron.
+    # 
+    # m h  dom mon dow   command
+    @hourly /home/myuser/backup/wire-backup.sh
+
+Your backup should now happen every hour automatically, ensuring you always have a backup at least an hour fresh in case of an emergency.
+
+There are ways to have incremental backups and to do more complex/refined backup procedure, but those are beyond the scope of this document. You should check out [Borg](https://borgbackup.readthedocs.io/en/stable/)
+
+You should also set up your monitoring software (for example [Nagios](https://www.nagios.org/)) to check whether your backup file is [older than an hour](https://support.nagios.com/kb/article/file-and-folder-checks-783.html#file_modified), and if it is (meaning something went wrong), warn you immediately.
 
 ## Recovery procedure
 
@@ -197,12 +250,12 @@ If you correctly backup up your `wire-server` installation, you should have acce
 
 You can extract this file to the remote machine with the following command:
 
-    cat wire-server-backup.tar.gz | ssh user@my-wire-server.mydomain.com "cd /path/to/my/folder/for/wire-server/ && tar zxvf -"
+    cat wire-server-backup.tar.gz | ssh user@my-wire-server.your-domain.com "cd /path/to/my/folder/for/wire-server/ && tar zxvf -"
 
 Where :
 
 * `wire-server-backup.tar.gz` is the name of the file in which your wire-server folder was be stored
-* `my-wire-server.mydomain.com` is the domain name or IP address for the server with your Wire install
+* `my-wire-server.your-domain.com` is the domain name or IP address for the server with your Wire install
 * `user` is the user you used to install Wire on this server, typically `wire` or `root`
 * `/path/to/my/folder/for/wire-server/` is the (absolute) path, on the server, where your wire-server folder is located
 
@@ -218,7 +271,7 @@ You should have lots of snapshots from the backup process. This example will go 
 
 First, transfer and extract the snapshot to the Cassandra Virtual Machine:
 
-    cat cassandra-catalogkeyspace-journal-backup.tar.gz | ssh user@cassandra-vm.mydomain.com "cd /mnt/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/ && tar zxvf -"
+    cat cassandra-catalogkeyspace-journal-backup.tar.gz | ssh user@cassandra-vm.your-domain.com "cd /mnt/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/ && tar zxvf -"
 
 Now the folder `/mnt/cassandra/data/data/catalogkeyspace/journal-296a2d30c22a11e9b1350d927649052c/snapshots/` should contain your snapshot.
 
@@ -258,13 +311,13 @@ Restoring MinIO from a backup is as simple as extracting the files (`minio-serve
 
 First run:
 
-    cat minio-server1-backup.tar.gz | ssh user@my-minio-server.mydomain.com "cd /var/lib/  && tar zxvf -"
-    cat minio-server2-backup.tar.gz | ssh user@my-minio-server.mydomain.com "cd /var/lib/  && tar zxvf -"
+    cat minio-server1-backup.tar.gz | ssh user@my-minio-server.your-domain.com "cd /var/lib/  && tar zxvf -"
+    cat minio-server2-backup.tar.gz | ssh user@my-minio-server.your-domain.com "cd /var/lib/  && tar zxvf -"
 
 Where:
 
 * `user` is the user you used to install Wire on this server, typically `wire` or `root`
-* `my-minio-server.mydomain.com` is the domain name or IP address for the MinIO Virtual Machine
+* `my-minio-server.your-domain.com` is the domain name or IP address for the MinIO Virtual Machine
 * `minio-server[number]-backup.tar.gz` is the name of the file in which each minio data folder was be stored and backup up
 
 Finally SSH into the server and restart MinIO:
@@ -275,5 +328,5 @@ Finally SSH into the server and restart MinIO:
 Where:
 
 * `user` is the user you used to install Wire on this server, typically `wire` or `root`
-* `minio-vm.mydomain.com` is the domain name or IP address for the server with your MinIO node
+* `minio-vm.your-domain.com` is the domain name or IP address for the server with your MinIO node
 
