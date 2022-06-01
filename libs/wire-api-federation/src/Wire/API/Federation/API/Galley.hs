@@ -285,6 +285,4 @@ data MLSMessageResponse
   | MLSMessageResponseProposalFailure Wai.Error
   | MLSMessageResponseUpdates [ConversationUpdate]
   deriving stock (Show, Generic)
-  deriving
-    (ToJSON, FromJSON)
-    via (CustomEncoded MLSMessageResponse)
+  deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)

@@ -619,20 +619,33 @@ testAppMessageRemoteConv = do
       BS.writeFile (tmp <> "group.json") groupJSON
       spawn (cli bobClientId tmp ["message", "--group", tmp <> "group.json", "hi"]) Nothing
 
-  let mock _ = pure (Aeson.encode ())
-  void $
-    withTempMockFederator' mock $ do
-      galley <- viewGalley
+  let mock req = case frRPC req of
+        "send-mls-message" -> pure (Aeson.encode (MLSMessageResponseUpdates []))
+        rpc -> assertFailure $ "unmocked RPC called: " <> T.unpack rpc
 
-      post
-        ( galley . paths ["mls", "messages"]
-            . zUser (qUnqualified alice)
-            . zConn "conn"
-            . content "message/mls"
-            . bytes message
-        )
-        !!! const 201
-        === statusCode
+  (_, reqs) <- withTempMockFederator' mock $ do
+    galley <- viewGalley
+
+    post
+      ( galley . paths ["mls", "messages"]
+          . zUser (qUnqualified alice)
+          . zConn "conn"
+          . content "message/mls"
+          . bytes message
+      )
+      !!! const 201
+      === statusCode
+
+  liftIO $ do
+    req <- assertOne reqs
+    frRPC req @?= "send-mls-message"
+    frTargetDomain req @?= qDomain qcnv
+    bdy <- case Aeson.eitherDecode (frBody req) of
+      Right b -> pure b
+      Left e -> assertFailure $ "Could not parse send-mls-message request body: " <> e
+    msrConvId bdy @?= qUnqualified qcnv
+    msrSender bdy @?= qUnqualified alice
+    msrRawMessage bdy @?= Base64ByteString message
 
 testAppMessage :: TestM ()
 testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
