@@ -478,7 +478,6 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.ViewLegalHoldService_team
       Test.Wire.API.Golden.Generated.ViewLegalHoldServiceInfo_team
       Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
-      Test.Wire.API.Golden.Generator
       Test.Wire.API.Golden.Manual
       Test.Wire.API.Golden.Manual.ClientCapability
       Test.Wire.API.Golden.Manual.ClientCapabilityList
