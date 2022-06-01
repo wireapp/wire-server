@@ -4,6 +4,12 @@
 
 While you might never use them, your backup plan (and the corresponding disaster recovery steps) are possibly your most important procedure.
 
+You should:
+
+1. Write it up fully
+2. Test it from beginning to end, simulating an actual disaster
+3. Run backups on a regular basis, ideally automatically
+
 This page explains in detail how to properly backup an on-premise Wire installation, and how to recover from your backup if you ever need to.
 
 Note that you should not trust this page (or your execution of it) to allow for a proper backup and restore, therefore, you should immediately (before it becomes critical to do so) back up your Wire installation **and** attempt (as a test) to restore it. This will ensure that you can **in fact** backup and restore Wire, and will catch any problem in the process before any problem becomes damaging to you.
@@ -128,6 +134,21 @@ Where :
 Repeat this for each of the snapshots.
 
 Now simply save these files in multiple locations as per your normal company backup procedures, and repeat this procedure on a regular basis as is appropriate.
+
+### Batch Cassandra backup
+
+The backup procedure above presumes manually backing up each Cassandra snapshot serially one by one.
+
+If you want to back all files at once, you can use the `find` command to find all snapshots and pack them into a single archive:
+
+    ssh user@cassandra-vm.your-domain.com 'find /mnt/cassandra/ -name "snapshots" -print0 | tar -cvf - --null -T - | gzip -9 ' > cassandra-batch.tar.gz
+
+* `user` is the user you used to install Wire on this server, typically `wire` or `root`
+* `cassandra-vm.your-domain.com` is the domain name or IP address for the server with your Wire install
+* `/mnt/cassandra/` is the (absolute) path, on the server, where your cassandra folder is located, to which you add the location of the specific snapshot, found with `find` above
+* `cassandra-batch.tar.gz` is the local file everything will be written to
+
+This will (over ssh) find all `snapshot` folders in the `cassandra` folder, pack them into a tar file, gzip it to save space, and output it to a local file.
 
 ### Backing up MinIO
 
