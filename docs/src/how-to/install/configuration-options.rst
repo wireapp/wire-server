@@ -514,3 +514,19 @@ You need Giphy/Google/Spotify/Soundcloud API keys (if you want to
 support previews by proxying these services)
 
 See the ``proxy`` chart for configuration.
+
+Routing traffic to other namespaces via nginz
+---------------------------------------------
+
+If you have some components running in namespaces different from nginz. For
+instance, the billing service (``ibis``) could be deployed to a separate
+namespace, say ``integrations``. But it still needs to get traffic via
+``nginz``. When this is needed, the helm config can be adjusted like this:
+
+.. code:: yaml
+
+   # in your wire-server/values.yaml overrides:
+   nginz:
+     nginx_conf:
+       upstream_namespace:
+         ibis: integrations
