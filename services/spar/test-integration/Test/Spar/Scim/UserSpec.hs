@@ -135,7 +135,7 @@ specImportToScimFromSAML =
         let uref = SAML.UserRef tenant subj
             subj = emailToSAMLNameID email
             tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
-        !(Just !uid) <- createViaSaml idp privCreds uref
+        (Just !uid) <- createViaSaml idp privCreds uref
         samlUserShouldSatisfy uref isJust
         pure (uref, uid)
 
@@ -193,7 +193,7 @@ specImportToScimFromSAML =
       assertBrigCassandra uid uref (Scim.value . Scim.thing $ storedUserUpdated) (valemail, True) ManagedByScim
 
       -- login again
-      !(Just !uid') <- createViaSaml idp privCreds uref
+      (Just !uid') <- createViaSaml idp privCreds uref
       liftIO $ uid' `shouldBe` uid
 
 specImportToScimFromInvitation :: SpecWith TestEnv
@@ -213,7 +213,7 @@ specImportToScimFromInvitation =
       email <- randomEmail
       memberInvited <- call (inviteAndRegisterUser (env ^. teBrig) owner teamid email)
       let memberIdInvited = userId memberInvited
-          emailInvited = maybe (error "must have email") id (userEmail memberInvited)
+          emailInvited = fromMaybe (error "must have email") (userEmail memberInvited)
       pure (memberIdInvited, emailInvited)
 
     addSamlIdP :: HasCallStack => UserId -> TestSpar (SAML.IdPConfig User.WireIdP, SAML.SignPrivCreds)
@@ -507,7 +507,7 @@ testCsvData tid owner uid mbeid mbsaml hasissuer = do
     pure (decodeCSV @CsvExport.TeamExportUser rbody)
 
   liftIO $ do
-    any (== uid) (CsvExport.tExportUserId <$> usersInCsv) `shouldBe` True
+    elem uid (CsvExport.tExportUserId <$> usersInCsv) `shouldBe` True
     forM_ usersInCsv $ \export -> when (CsvExport.tExportUserId export == uid) $ do
       ('e', CsvExport.tExportSCIMExternalId export)
         `shouldBe` ('e', fromMaybe "" mbeid)
@@ -924,7 +924,7 @@ testScimCreateVsUserRef = do
   let uref = SAML.UserRef tenant subj
       subj = either (error . show) id $ SAML.mkNameID uname Nothing Nothing Nothing
       tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
-  !(Just !uid) <- createViaSaml idp privCreds uref
+  (Just !uid) <- createViaSaml idp privCreds uref
   samlUserShouldSatisfy uref isJust
   deleteViaBrig uid
   samlUserShouldSatisfy uref isJust -- brig doesn't talk to spar right now when users
@@ -1138,7 +1138,7 @@ testFindTeamSettingsInvitedUserMigratedWithEmailInTeamWithSSOViaUserId = do
   let memberIdInvited = userId memberInvited
 
   _ <- getUser tok memberIdInvited
-  Just brigUserInvited' <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations (memberIdInvited)
+  Just brigUserInvited' <- runSpar $ Intra.getBrigUser Intra.NoPendingInvitations memberIdInvited
   liftIO $ userManagedBy brigUserInvited' `shouldBe` ManagedByScim
 
 testFindProvisionedUserNoIdP :: TestSpar ()
@@ -2116,7 +2116,7 @@ specSCIMManaged = do
     randomAlphaNum :: MonadIO m => m Text
     randomAlphaNum = liftIO $ do
       nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
-      return (cs (map chr nrs))
+      pure (cs (map chr nrs))
 
 ----------------------------------------------------------------------------
 -- Team Search for SAML users

@@ -153,7 +153,7 @@ getActivationCode brig ep = do
   let lbs = fromMaybe "" $ responseBody r
   let akey = ActivationKey . Ascii.unsafeFromText <$> (lbs ^? key "key" . _String)
   let acode = ActivationCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
-  return $ (,) <$> akey <*> acode
+  pure $ (,) <$> akey <*> acode
 
 setSamlEmailValidation :: HasCallStack => TeamId -> Feature.TeamFeatureStatusValue -> TestSpar ()
 setSamlEmailValidation tid status = do

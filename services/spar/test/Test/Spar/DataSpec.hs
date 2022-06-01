@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -36,13 +34,13 @@ spec = do
   describe "ttlToNominalDiffTime" $ do
     it "" $ do
       addTime (ttlToNominalDiffTime $ TTL 3) (Time $ parsetm "1924-07-14T08:30:00Z")
-        `shouldBe` (Time $ parsetm "1924-07-14T08:30:03Z")
+        `shouldBe` Time (parsetm "1924-07-14T08:30:03Z")
 
 check :: HasCallStack => Int -> Env -> String -> Either TTLError (TTL "authresp") -> Spec
 check testnumber env (parsetm -> endOfLife) expectttl =
   it (show testnumber) $ mkTTLAssertions env endOfLife `shouldBe` expectttl
 
-mkDataEnv :: HasCallStack => String -> (TTL "authresp") -> Env
+mkDataEnv :: HasCallStack => String -> TTL "authresp" -> Env
 mkDataEnv now maxttl =
   Env
     (parsetm now)

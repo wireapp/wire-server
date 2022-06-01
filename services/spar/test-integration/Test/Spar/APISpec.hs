@@ -1013,7 +1013,7 @@ specCRUDIdentityProvider = do
           idp2 ^. idpMetadata . SAML.edIssuer `shouldBe` issuer2
           idp2 ^. idpId `shouldNotBe` idp1 ^. idpId
           idp2 ^. idpExtraInfo . wiOldIssuers `shouldBe` [idpmeta1 ^. edIssuer]
-          idp1' ^. idpExtraInfo . wiReplacedBy `shouldBe` (Just $ idp2 ^. idpId)
+          idp1' ^. idpExtraInfo . wiReplacedBy `shouldBe` Just (idp2 ^. idpId)
           -- erase everything that is supposed to be different between idp1, idp2, and make
           -- sure the result is equal.
           let erase :: IdP -> IdP
@@ -1088,7 +1088,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
     uid <- getUserIdViaRef' uref
     liftIO $ do
       uid `shouldSatisfy` isJust
-      uref `shouldBe` (SAML.UserRef issuer1 userSubject)
+      uref `shouldBe` SAML.UserRef issuer1 userSubject
     idp2 <-
       let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
        in call $ callIdpCreateReplace (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2 (idp1 ^. SAML.idpId)
@@ -1097,7 +1097,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
     uid' <- getUserIdViaRef' uref'
     liftIO $ do
       uid' `shouldBe` uid
-      uref' `shouldBe` (SAML.UserRef issuer1 userSubject)
+      uref' `shouldBe` SAML.UserRef issuer1 userSubject
   it "deleting the replacing idp2 before it has users does not block registrations on idp1" $ do
     env <- ask
     (owner1, _, idp1, (IdPMetadataValue _ idpmeta1, privkey1)) <- registerTestIdPWithMeta
@@ -1112,7 +1112,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
     uid <- getUserIdViaRef' uref
     liftIO $ do
       uid `shouldSatisfy` isJust
-      uref `shouldBe` (SAML.UserRef issuer1 userSubject)
+      uref `shouldBe` SAML.UserRef issuer1 userSubject
   it "create user1 via idp1 (saml); delete user1; create user via newly created idp2 (saml)" $ do
     pending
   it "create user1 via saml; delete user1; create via scim (in same team)" $ do
@@ -1134,7 +1134,7 @@ specDeleteCornerCases = describe "delete corner cases" $ do
     let uref = SAML.UserRef tenant subj
         subj = either (error . show) id $ SAML.mkNameID uname Nothing Nothing Nothing
         tenant = idp ^. SAML.idpMetadata . SAML.edIssuer
-    !(Just !uid) <- createViaSaml idp privcreds uref
+    (Just !uid) <- createViaSaml idp privcreds uref
     samlUserShouldSatisfy uref isJust
     deleteViaBrig uid
     samlUserShouldSatisfy uref isJust -- brig doesn't talk to spar right now when users
@@ -1298,10 +1298,9 @@ specSsoSettings = do
       -- check it is set
       callGetDefaultSsoCode (env ^. teSpar)
         `shouldRespondWith` \resp ->
-          and
-            [ statusCode resp == 200,
-              responseJsonEither resp == Right (ssoSettings (Just idpid1))
-            ]
+          (statusCode resp == 200)
+            && ( responseJsonEither resp == Right (ssoSettings (Just idpid1))
+               )
       -- update to 2
       callSetDefaultSsoCode (env ^. teSpar) idpid2
         `shouldRespondWith` \resp ->
@@ -1309,10 +1308,9 @@ specSsoSettings = do
       -- check it is set
       callGetDefaultSsoCode (env ^. teSpar)
         `shouldRespondWith` \resp ->
-          and
-            [ statusCode resp == 200,
-              responseJsonEither resp == Right (ssoSettings (Just idpid2))
-            ]
+          (statusCode resp == 200)
+            && ( responseJsonEither resp == Right (ssoSettings (Just idpid2))
+               )
     it "allows removing the default SSO code" $ do
       env <- ask
       (_userid, _teamid, (^. idpId) -> idpid) <- registerTestIdP
@@ -1327,10 +1325,9 @@ specSsoSettings = do
       -- check it is not set anymore
       callGetDefaultSsoCode (env ^. teSpar)
         `shouldRespondWith` \resp ->
-          and
-            [ statusCode resp == 200,
-              responseJsonEither resp == Right (ssoSettings Nothing)
-            ]
+          (statusCode resp == 200)
+            && ( responseJsonEither resp == Right (ssoSettings Nothing)
+               )
     it "removes the default SSO code if the IdP gets removed" $ do
       env <- ask
       (userid, _teamid, (^. idpId) -> idpid) <- registerTestIdP
@@ -1344,10 +1341,9 @@ specSsoSettings = do
       -- check it is not set anymore
       callGetDefaultSsoCode (env ^. teSpar)
         `shouldRespondWith` \resp ->
-          and
-            [ statusCode resp == 200,
-              responseJsonEither resp == Right (ssoSettings Nothing)
-            ]
+          (statusCode resp == 200)
+            && ( responseJsonEither resp == Right (ssoSettings Nothing)
+               )
   where
     ssoSettings maybeCode =
       object
