@@ -29,6 +29,7 @@ nginx_conf:
   worker_rlimit_nofile: 131072
   worker_connections: 65536
   disabled_paths: []
+  user_rate_limit_request_zones: []
 
   tls:
     protocols: TLSv1.2 TLSv1.3
@@ -50,6 +51,17 @@ nginx_conf:
   # The list entries must be full hostnames (they are **not** combined with
   # 'external_env_domain'). http and https URLs are allow listed.
   randomport_allowlisted_origins: [] # default is empty by intention
+
+  # Setting this value does nothing as the only upstream recongnized here is
+  # 'cannon' and is forwarded to localhost. This is here only to make sure that
+  # nginx.conf templating doesn't differ too much with the one in nginz helm
+  # chart.
+  upstream_namespace: {}
+
+  # Only upstream recognized by the generated nginx config is 'cannon', the
+  # server for this will be cannon running on localhost. This setting is like
+  # this so that templating for nginx.conf doesn't differ too much from the one
+  # in the nginz helm chart.
   upstreams:
     cannon:
     - path: /await
