@@ -56,7 +56,7 @@ Cassandra stores things such as user profiles/accounts, conversations, etc. It i
 
 To backup your Cassandra database, do as follows:
 
-You can read general information about connecting to your Cassandra node on [this page](/how-to/administrate/cassandra.html)
+You can read general information about connecting to your Cassandra node on [this page](/how-to/administrate/cassandra)
 
 In particular, SSH into the Cassandra Virtual Machine with:
 
@@ -158,7 +158,7 @@ If your specific installation is using the actual Amazon file storage (and not a
 
 Similarly to Cassandra, to create a backup you need to SSH into the Virtual Machine running MinIO in your installation:
 
-You can read general information about your MinIO node on [this page](/how-to/administrate/minio.html)
+You can read general information about your MinIO node on [this page](/how-to/administrate/minio)
 
 SSH into the MinIO Virtual Machine with:
 
