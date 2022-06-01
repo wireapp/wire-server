@@ -416,7 +416,6 @@ processProposal qusr conv msg prop = do
             . cipherSuiteNumber
             $ suite
         )
-  let propRef = proposalRef suiteTag prop
 
   -- validate the proposal
   --
@@ -426,6 +425,7 @@ processProposal qusr conv msg prop = do
   unless isMember' $ throwS @'ConvNotFound
 
   -- FUTUREWORK: validate the member's conversation role
+  let propRef = proposalRef suiteTag prop
   checkProposal suite (rmValue prop) propRef
 
   storeProposal propRef prop (msgGroupId msg) (msgEpoch msg)
