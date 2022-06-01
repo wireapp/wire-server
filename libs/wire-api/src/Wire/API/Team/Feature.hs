@@ -277,9 +277,7 @@ deriving instance ToJSON TeamFeatureTTLValue
 deriving instance FromJSON TeamFeatureTTLValue
 
 instance ToHttpApiData TeamFeatureTTLValue where
-  toQueryParam a = case a of
-    TeamFeatureTTLSeconds d -> T.pack . show $ d
-    TeamFeatureTTLUnlimited -> "unlimited"
+  toQueryParam = T.decodeUtf8 . toByteString'
 
 instance FromHttpApiData TeamFeatureTTLValue where
   parseQueryParam = \case
