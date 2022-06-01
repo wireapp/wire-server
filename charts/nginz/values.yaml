@@ -52,6 +52,10 @@ nginx_conf:
   - /search/top
   - /search/common
 
+  # This value must be a list of strings. Each string is copied verbatim into
+  # the nginx.conf after the default 'limit_req_zone' directives. This should be
+  # used to create request zones which can then be specified in
+  # 'upstreams.<upstream>.<n>.specific_user_rate_limit'.
   user_rate_limit_request_zones:
     - limit_req_zone $rate_limited_by_zuser zone=reqs_per_user_signatures:12m rate=10r/m;
 
@@ -61,20 +65,26 @@ nginx_conf:
     - webapp
     - teams
     - account
+
   # The origins from which we allow CORS requests at random ports. This is
   # useful for testing with HTTP proxies and should not be used in production.
   # The list entries must be full hostnames (they are **not** combined with
   # 'external_env_domain'). http and https URLs are allow listed.
   randomport_allowlisted_origins: [] # default is empty by intention
+
   # Add 'cannon' to 'ignored_upstreams' if you wish to make use of separate
-  # network traffic to cannon-with-its-own-nginz
-  # See also "Separate incoming websocket network traffic from the rest of the
-  # https traffic" section in the docs.
+  # network traffic to cannon-with-its-own-nginz See also "Separate incoming
+  # websocket network traffic from the rest of the https traffic" section in the
+  # docs.
   ignored_upstreams: []
-  # TODO: Copy into cannon
+
+  # If an upstream runs in a different namespace than nginz, its namespace must
+  # be specified here otherwise nginz_disco will fail to find the upstream and
+  # nginx will think that the upstream is down.
   upstream_namespace: {
     # galeb: integrations
   }
+
   upstreams:
     cargohold:
     - path: /conversations/([^/]*)/assets
