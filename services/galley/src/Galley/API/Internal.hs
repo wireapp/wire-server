@@ -435,13 +435,13 @@ featureAPI =
     <@> mkNamedAPI getTeamSearchVisibilityInboundInternalMulti
   where
     fs g s = fsGet g <@> fsSet s
-    fsDeprecated g s = fsGet g <@> fsSetD s
+    fsDeprecated g s = fsGet g <@> fsSetDeprecated s
 
     fsGet g = mkNamedAPI (getFeatureStatus g DontDoAuth)
 
     fsSet s = mkNamedAPI (setFeatureStatus s DontDoAuth)
 
-    fsSetD s = mkNamedAPI (setFeatureStatusNoTTL s DontDoAuth)
+    fsSetDeprecated s = mkNamedAPI (setFeatureStatusNoTTL s DontDoAuth)
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()
 internalSitemap = do
