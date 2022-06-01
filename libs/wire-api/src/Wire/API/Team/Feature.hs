@@ -303,7 +303,9 @@ instance FromByteString TeamFeatureTTLValue where
     Parser.takeByteString >>= \b ->
       case T.decodeUtf8' b of
         Right "unlimited" -> pure TeamFeatureTTLUnlimited
-        Right d -> pure . TeamFeatureTTLSeconds . read . T.unpack $ d
+        Right d -> case readEither . T.unpack $ d of
+          Left _ -> fail "Invalid TeamFeatureTTLSeconds: must be a positive integer."
+          Right d' -> pure . TeamFeatureTTLSeconds $ d'
         Left e -> fail $ "Invalid TeamFeatureTTLSeconds: " <> show e
 
 instance Cass.Cql TeamFeatureTTLValue where
