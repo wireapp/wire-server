@@ -380,7 +380,7 @@ routes = do
     capture "tid"
       .&. capture "feature"
       .&. param "status"
-      .&. def (Public.teamFeatureTTLDays $ 8 * 7) (query "ttl") -- default is 8 weeks
+      .&. def Public.TeamFeatureTTLUnlimited (query "ttl") -- default is unlimited
   document "PUT" "setTeamFeatureFlag" $ do
     summary "Disable / enable feature flag for a given team"
     Doc.parameter Doc.Path "tid" Doc.bytes' $
@@ -390,7 +390,7 @@ routes = do
     Doc.parameter Doc.Query "status" Public.typeTeamFeatureStatusValue $
       Doc.description "team feature status (enabled or disabled)"
     Doc.parameter Doc.Query "ttl" Public.typeTeamFeatureTTLValue $ do
-      Doc.description "team feature time to live, given in days (default 8 weeks) or 'unlimited'. Only applies to conference calling. It's ignored by other features."
+      Doc.description "team feature time to live, given in days or 'unlimited' (default). Only applies to conference calling. It's ignored by other features."
       Doc.optional
     Doc.response 200 "Team feature flag status" Doc.end
 

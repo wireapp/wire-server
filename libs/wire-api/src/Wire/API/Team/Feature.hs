@@ -41,9 +41,6 @@ module Wire.API.Team.Feature
     IncludeLockStatus (..),
     DefTeamFeatureStatus (..),
 
-    -- * Helper
-    teamFeatureTTLDays,
-
     -- * Swagger
     typeTeamFeatureName,
     typeTeamFeatureStatusValue,
@@ -316,15 +313,6 @@ instance Cass.Cql TeamFeatureTTLValue where
 
   toCql TeamFeatureTTLUnlimited = Cass.CqlInt 0
   toCql (TeamFeatureTTLSeconds d) = Cass.CqlInt . fromIntegral $ d
-
-teamFeatureTTLDays :: Word -> TeamFeatureTTLValue
-teamFeatureTTLDays d
-  | d == 0 = TeamFeatureTTLUnlimited
-  | otherwise = TeamFeatureTTLSeconds . fromDays $ d
-  where
-    fromMinutes = (* 60)
-    fromHours = fromMinutes . (* 60)
-    fromDays = fromHours . (* 24)
 
 typeTeamFeatureTTLValue :: Doc.DataType
 typeTeamFeatureTTLValue =
