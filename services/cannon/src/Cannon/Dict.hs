@@ -40,7 +40,7 @@ newtype Dict a b = Dict
   }
 
 size :: MonadIO m => Dict a b -> m Int
-size d = liftIO $ sum <$> mapM (\r -> SHM.size <$> readIORef r) (_map d)
+size d = liftIO $ sum <$> mapM (fmap SHM.size . readIORef) (_map d)
 
 empty :: MonadIO m => Int -> m (Dict a b)
 empty w =

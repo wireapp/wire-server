@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE StandaloneDeriving #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -63,7 +62,7 @@ singlePush n (PushTarget usrid conid) = do
   case c of
     Nothing -> do
       LC.debug $ client (key2bytes k) . msg (val "push: client gone")
-      return PushStatusGone
+      pure PushStatusGone
     Just x -> do
       e <- wsenv
       runWS e $ do

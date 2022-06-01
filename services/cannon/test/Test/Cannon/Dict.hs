@@ -52,16 +52,16 @@ someDict :: ([Key], [ByteString]) -> PropertyM IO (Dict Key ByteString)
 someDict (ks, vs) = do
   let entries = zip (List.nub ks) vs
   d <- run $ D.empty 64
-  run $ forM_ entries $ \e -> D.insert (fst e) (snd e) d
+  run $ forM_ entries $ \e -> uncurry D.insert e d
   s <- run $ D.size d
   assertEq "entries length" s (length entries)
-  return d
+  pure d
 
 insertRemove :: ([Key], [ByteString]) -> PropertyM IO ()
 insertRemove kv = do
   d <- someDict kv
-  a <- head <$> (run $ sample' arbitrary)
-  b <- head <$> (run $ sample' arbitrary)
+  a <- head <$> run (sample' arbitrary)
+  b <- head <$> run (sample' arbitrary)
   exists <- run $ isJust <$> D.lookup a d
   pre $ not exists
   x <- run $ D.size d
@@ -75,16 +75,16 @@ insertRemove kv = do
 insertRemoveIf :: ([Key], [ByteString]) -> PropertyM IO ()
 insertRemoveIf kv = do
   d <- someDict kv
-  a <- head <$> (run $ sample' arbitrary)
-  b <- head <$> (run $ sample' arbitrary)
+  a <- head <$> run (sample' arbitrary)
+  b <- head <$> run (sample' arbitrary)
   b' <- run $ do
     D.insert a b d
     D.lookup a d
   pre $ Just b == b'
-  x <- run $ D.removeIf (maybe False (b ==)) a d
+  x <- run $ D.removeIf (Just b ==) a d
   assert x
-  c <- head <$> (run $ sample' arbitrary)
-  y <- run $ D.removeIf (maybe False (c ==)) a d
+  c <- head <$> run (sample' arbitrary)
+  y <- run $ D.removeIf (Just c ==) a d
   assert (not y)
 
 insertLookup :: Assertion
@@ -106,7 +106,7 @@ insertLookup = do
 
 assertEq :: (Show a, Eq a, Monad m) => String -> a -> a -> PropertyM m ()
 assertEq m a b
-  | a == b = return ()
+  | a == b = pure ()
   | otherwise =
     fail $
       "assertEq: " ++ m ++ ": " ++ show a ++ " =/= " ++ show b
@@ -115,7 +115,7 @@ samples :: Int -> Gen a -> IO [a]
 samples n (MkGen f) = do
   gen <- newQCGen
   let rands g = g1 : rands g2 where (g1, g2) = split g
-  return $ [f r i | i <- repeat n, r <- rands gen]
+  pure $ [f r i | i <- repeat n, r <- rands gen]
 
 runProp :: (Show a, Arbitrary a, Testable b) => (a -> PropertyM IO b) -> Property
 runProp = monadicIO . forAllM arbitrary

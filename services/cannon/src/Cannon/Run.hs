@@ -100,7 +100,7 @@ run o = do
     loadExternal :: IO ByteString
     loadExternal = do
       let extFile = fromMaybe (error "One of externalHost or externalHostFile must be defined") (o ^. cannon . externalHostFile)
-      maybe (readExternal extFile) (return . encodeUtf8) (o ^. cannon . externalHost)
+      maybe (readExternal extFile) (pure . encodeUtf8) (o ^. cannon . externalHost)
     readExternal :: FilePath -> IO ByteString
     readExternal f = encodeUtf8 . strip . pack <$> Strict.readFile f
 
