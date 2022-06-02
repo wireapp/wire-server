@@ -98,8 +98,7 @@ newEnv o = do
   return $ Env ama met lgr mgr def o loc
 
 initAws :: AWSOpts -> Logger -> Manager -> IO AWS.Env
-initAws o l m =
-  AWS.mkEnv l (o ^. awsS3Endpoint) downloadEndpoint (o ^. awsS3Bucket) (o ^. awsCloudFront) m
+initAws o l = AWS.mkEnv l (o ^. awsS3Endpoint) downloadEndpoint (o ^. awsS3Bucket) (o ^. awsCloudFront)
   where
     downloadEndpoint = fromMaybe (o ^. awsS3Endpoint) (o ^. awsS3DownloadEndpoint)
 

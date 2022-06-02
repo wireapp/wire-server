@@ -37,7 +37,7 @@ import qualified CargoHold.Types.V3 as V3
 import CargoHold.Util
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
-import qualified Conduit as Conduit
+import qualified Conduit
 import Control.Applicative (optional)
 import Control.Error
 import Control.Lens (set, view, (^.))

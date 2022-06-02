@@ -167,7 +167,7 @@ downloadAssetV4 usr qkey tok1 tok2 =
         qkey
 
 deleteAssetV3 :: MakePrincipal tag id => id -> AssetKey -> Handler ()
-deleteAssetV3 usr key = V3.delete (mkPrincipal usr) key
+deleteAssetV3 usr = V3.delete (mkPrincipal usr)
 
 deleteAssetV4 :: Local UserId -> Qualified AssetKey -> Handler ()
 deleteAssetV4 usr qkey = do
@@ -179,7 +179,7 @@ renewTokenV3 (tUnqualified -> usr) key =
   NewAssetToken <$> V3.renewToken (V3.UserPrincipal usr) key
 
 deleteTokenV3 :: Local UserId -> AssetKey -> Handler ()
-deleteTokenV3 (tUnqualified -> usr) key = V3.deleteToken (V3.UserPrincipal usr) key
+deleteTokenV3 (tUnqualified -> usr) = V3.deleteToken (V3.UserPrincipal usr)
 
 legacyDownloadPlain :: Local UserId -> ConvId -> AssetId -> Handler (Maybe (AssetLocation Absolute))
 legacyDownloadPlain (tUnqualified -> usr) cnv ast =
