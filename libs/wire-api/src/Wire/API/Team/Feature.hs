@@ -280,11 +280,7 @@ instance ToHttpApiData TeamFeatureTTLValue where
   toQueryParam = T.decodeUtf8 . toByteString'
 
 instance FromHttpApiData TeamFeatureTTLValue where
-  parseQueryParam = \case
-    "unlimited" -> Right TeamFeatureTTLUnlimited
-    d -> case readEither . T.unpack $ d of
-      Right d' -> Right . TeamFeatureTTLSeconds $ d'
-      Left e -> Left . T.pack $ e <> " oops."
+  parseQueryParam = maybeToEither invalidTTLErrorString . fromByteString . T.encodeUtf8
 
 instance S.ToParamSchema TeamFeatureTTLValue where
   toParamSchema _ = S.toParamSchema (Proxy @Int)
@@ -299,9 +295,9 @@ instance FromByteString TeamFeatureTTLValue where
       case T.decodeUtf8' b of
         Right "unlimited" -> pure TeamFeatureTTLUnlimited
         Right d -> case readEither . T.unpack $ d of
-          Left _ -> fail "Invalid TeamFeatureTTLSeconds: must be a positive integer."
+          Left _ -> fail $ T.unpack invalidTTLErrorString
           Right d' -> pure . TeamFeatureTTLSeconds $ d'
-        Left e -> fail $ "Invalid TeamFeatureTTLSeconds: " <> show e
+        Left _ -> fail $ T.unpack invalidTTLErrorString
 
 instance Cass.Cql TeamFeatureTTLValue where
   ctype = Cass.Tagged Cass.IntColumn
@@ -315,6 +311,9 @@ instance Cass.Cql TeamFeatureTTLValue where
 typeTeamFeatureTTLValue :: Doc.DataType
 typeTeamFeatureTTLValue =
   Doc.int64'
+
+invalidTTLErrorString :: Text
+invalidTTLErrorString = "Invalid TeamFeatureTTLSeconds: must be a positive integer or 'unlimited.'"
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusValue
