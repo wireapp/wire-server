@@ -32,4 +32,4 @@ genSignedURL path = do
     view (aws . cloudFront) >>= \case
       Nothing -> S3.signedURL path
       Just cf -> CloudFront.signedURL cf path
-  return $! uri
+  pure $! uri

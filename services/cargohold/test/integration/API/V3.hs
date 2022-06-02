@@ -72,7 +72,7 @@ testSimpleRoundtrip = do
       let Just date = C8.unpack <$> lookup "Date" (responseHeaders r1)
       let utc = parseTimeOrError False defaultTimeLocale rfc822DateFormat date :: UTCTime
       -- Potentially check for the expires header
-      when (isJust $ join (assetRetentionSeconds <$> (sets ^. setAssetRetention))) $ do
+      when (isJust $ assetRetentionSeconds =<< (sets ^. setAssetRetention)) $ do
         liftIO $ assertBool "invalid expiration" (Just utc < view assetExpires ast)
       -- Lookup with token and download via redirect.
       r2 <-

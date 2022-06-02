@@ -95,11 +95,10 @@ newEnv o = do
   mgr <- initHttpManager (o ^. optAws . awsS3Compatibility)
   ama <- initAws (o ^. optAws) lgr mgr
   let loc = toLocalUnsafe (o ^. optSettings . Opt.setFederationDomain) ()
-  return $ Env ama met lgr mgr def o loc
+  pure $ Env ama met lgr mgr def o loc
 
 initAws :: AWSOpts -> Logger -> Manager -> IO AWS.Env
-initAws o l m =
-  AWS.mkEnv l (o ^. awsS3Endpoint) downloadEndpoint (o ^. awsS3Bucket) (o ^. awsCloudFront) m
+initAws o l = AWS.mkEnv l (o ^. awsS3Endpoint) downloadEndpoint (o ^. awsS3Bucket) (o ^. awsCloudFront)
   where
     downloadEndpoint = fromMaybe (o ^. awsS3Endpoint) (o ^. awsS3DownloadEndpoint)
 
@@ -136,7 +135,7 @@ initSSLContext = do
   SSL.contextLoadSystemCerts ctx
   SSL.contextSetVerificationMode ctx $
     SSL.VerifyPeer True True Nothing
-  return ctx
+  pure ctx
 
 closeEnv :: Env -> IO ()
 closeEnv e = Log.close $ e ^. appLogger
