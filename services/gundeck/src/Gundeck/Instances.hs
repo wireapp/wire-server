@@ -44,11 +44,11 @@ instance Cql Transport where
   toCql APNSVoIPSandbox = CqlInt 4
 
   fromCql (CqlInt i) = case i of
-    0 -> return GCM
-    1 -> return APNS
-    2 -> return APNSSandbox
-    3 -> return APNSVoIP
-    4 -> return APNSVoIPSandbox
+    0 -> pure GCM
+    1 -> pure APNS
+    2 -> pure APNSSandbox
+    3 -> pure APNSVoIP
+    4 -> pure APNSVoIPSandbox
     n -> Left $ "unexpected transport: " ++ show n
   fromCql _ = Left "transport: int expected"
 
@@ -57,13 +57,13 @@ instance Cql ConnId where
 
   toCql (ConnId c) = CqlBlob (Bytes.fromStrict c)
 
-  fromCql (CqlBlob b) = return . ConnId $ Bytes.toStrict b
+  fromCql (CqlBlob b) = pure . ConnId $ Bytes.toStrict b
   fromCql _ = Left "ConnId: Blob expected"
 
 instance Cql EndpointArn where
   ctype = Tagged TextColumn
   toCql = CqlText . toText
-  fromCql (CqlText txt) = either Left return (fromText txt)
+  fromCql (CqlText txt) = either Left pure (fromText txt)
   fromCql _ = Left "EndpointArn: Text expected"
 
 instance Cql Token where
@@ -87,4 +87,4 @@ instance FromText (Id a) where
       Parser.take 36 >>= \txt ->
         txt & Text.encodeUtf8
           & Uuid.fromASCIIBytes
-          & maybe (fail "Invalid UUID") (return . Id)
+          & maybe (fail "Invalid UUID") (pure . Id)

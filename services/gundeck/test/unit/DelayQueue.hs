@@ -38,28 +38,28 @@ tests =
 
 enqueueLimitProp :: Positive Int -> Property
 enqueueLimitProp (Positive l) = ioProperty $ do
-  q <- DelayQueue.new (Clock (return 1)) (Delay 1) (Limit l)
+  q <- DelayQueue.new (Clock (pure 1)) (Delay 1) (Limit l)
   r <- forM [1 .. l + 1] $ \(i :: Int) -> DelayQueue.enqueue q i i
   l' <- DelayQueue.length q
-  return $
+  pure $
     r == replicate l True ++ [False]
       && l' == l
 
 enqueueUniqueProp :: Positive Int -> Property
 enqueueUniqueProp (Positive n) = ioProperty $ do
-  q <- DelayQueue.new (Clock (return 1)) (Delay 1) (Limit (n + 1))
+  q <- DelayQueue.new (Clock (pure 1)) (Delay 1) (Limit (n + 1))
   r <- forM [1 .. n] $ \(i :: Int) -> DelayQueue.enqueue q (1 :: Int) i
   l <- DelayQueue.length q
-  return $ all (== True) r && l == 1
+  pure $ all (== True) r && l == 1
 
 enqueueCancelProp :: Int -> Int -> Property
 enqueueCancelProp k v = ioProperty $ do
-  q <- DelayQueue.new (Clock (return 1)) (Delay 1) (Limit 1)
+  q <- DelayQueue.new (Clock (pure 1)) (Delay 1) (Limit 1)
   e <- DelayQueue.enqueue q k v
   l <- DelayQueue.length q
   c <- DelayQueue.cancel q k
   l' <- DelayQueue.length q
-  return $ e && c && l == 1 && l' == 0
+  pure $ e && c && l == 1 && l' == 0
 
 dequeueDelayProp :: Word16 -> Property
 dequeueDelayProp d = ioProperty $ do
@@ -70,9 +70,9 @@ dequeueDelayProp d = ioProperty $ do
     x <- DelayQueue.dequeue q
     tick c
     let diff = fromIntegral (d - (i - 1))
-    return $ x == Just (Left (Delay diff))
+    pure $ x == Just (Left (Delay diff))
   s <- DelayQueue.dequeue q
-  return $ e && and r && s == Just (Right 1)
+  pure $ e && and r && s == Just (Right 1)
 
 dequeueOrderProp :: Int -> Property
 dequeueOrderProp k = ioProperty $ do
@@ -84,7 +84,7 @@ dequeueOrderProp k = ioProperty $ do
   tick c
   d1 <- DelayQueue.dequeue q
   d2 <- DelayQueue.dequeue q
-  return $ e1 && e2 && d1 == Just (Right 1) && d2 == Just (Right 2)
+  pure $ e1 && e2 && d1 == Just (Right 1) && d2 == Just (Right 2)
 
 -- Utilities
 

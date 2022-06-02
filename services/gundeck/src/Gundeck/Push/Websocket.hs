@@ -315,7 +315,7 @@ push notif (toList -> tgts) originUser originConn conns = do
   pp <- handleAny noPresences listPresences
   (ok, gone) <- foldM onResult ([], []) =<< send notif pp
   runWithAdditionalRedis $ Presence.deleteAll gone
-  return ok
+  pure ok
   where
     listPresences =
       excludeOrigin
@@ -328,7 +328,7 @@ push notif (toList -> tgts) originUser originConn conns = do
       Log.err $
         Log.field "error" (show exn)
           ~~ Log.msg (val "Failed to get presences.")
-      return []
+      pure []
     filterByClient = map $ \(tgt, ps) ->
       let cs = tgt ^. targetClients
        in if null cs
@@ -344,10 +344,10 @@ push notif (toList -> tgts) originUser originConn conns = do
        in filter (\p -> neqUser p || neqConn p)
     onResult (ok, gone) (PushSuccess p) = do
       Log.debug $ logPresence p ~~ Log.msg (val "WebSocket push success")
-      return (p : ok, gone)
+      pure (p : ok, gone)
     onResult (ok, gone) (PushGone p) = do
       Log.debug $ logPresence p ~~ Log.msg (val "WebSocket presence gone")
-      return (ok, p : gone)
+      pure (ok, p : gone)
     onResult (ok, gone) (PushFailure p _) = do
       view monitor >>= Metrics.counterIncr (Metrics.path "push.ws.unreachable")
       Log.info $
@@ -356,8 +356,8 @@ push notif (toList -> tgts) originUser originConn conns = do
           ~~ Log.msg (val "WebSocket presence unreachable: " +++ toByteString (resource p))
       now <- posixTime
       if now - createdAt p > 10 * posixDay
-        then return (ok, p : gone)
-        else return (ok, gone)
+        then pure (ok, p : gone)
+        else pure (ok, gone)
     posixDay = Ms (round (1000 * posixDayLength))
 
 -----------------------------------------------------------------------------

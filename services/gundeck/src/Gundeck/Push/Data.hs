@@ -64,7 +64,7 @@ mkAddr ::
   (UserId, Transport, AppName, Token, Maybe EndpointArn, ConnId, Maybe ClientId) ->
   m (Maybe Address)
 mkAddr (usr, trp, app, tok, arn, con, clt) = case (clt, arn) of
-  (Just c, Just a) -> return $! Just $! Address usr a con (pushToken trp app tok c)
+  (Just c, Just a) -> pure $! Just $! Address usr a con (pushToken trp app tok c)
   _ -> do
     Log.info $
       field "user" (toByteString usr)
@@ -73,4 +73,4 @@ mkAddr (usr, trp, app, tok, arn, con, clt) = case (clt, arn) of
         ~~ field "token" (tokenText tok)
         ~~ msg (val "Deleting legacy push token without a client or ARN.")
     delete usr trp app tok
-    return Nothing
+    pure Nothing

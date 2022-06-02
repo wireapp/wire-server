@@ -86,7 +86,7 @@ fetchLast :: MonadClient m => UserId -> Maybe ClientId -> m (Maybe QueuedNotific
 fetchLast u c = do
   ls <- query cqlLast (params LocalQuorum (Identity u)) & retry x1
   case ls of
-    [] -> return Nothing
+    [] -> pure Nothing
     ns@(n : _) ->
       ns `getFirstOrElse` do
         p <- paginate cqlSeek (paramsP LocalQuorum (u, n ^. _1) 100) & retry x1
@@ -96,10 +96,10 @@ fetchLast u c = do
       result p
         `getFirstOrElse` if hasMore p
           then liftClient (nextPage p) >>= seek
-          else return Nothing
+          else pure Nothing
     getFirstOrElse ns f =
       case listToMaybe (foldr' (toNotif c) [] ns) of
-        Just n -> return (Just n)
+        Just n -> pure (Just n)
         Nothing -> f
     cqlLast :: PrepQuery R (Identity UserId) (TimeUuid, Blob, Maybe (C.Set ClientId))
     cqlLast =
@@ -128,7 +128,7 @@ fetch u c since (fromRange -> size) = do
   (ns, more) <- collect Seq.empty isize page1
   -- Drop the extra element from the end as well as the inclusive start
   -- value (if a 'since' was given and found).
-  return $! case Seq.viewl (trim (isize - 1) ns) of
+  pure $! case Seq.viewl (trim (isize - 1) ns) of
     EmptyL -> ResultPage Seq.empty False (isJust since)
     x :< xs -> case since of
       Just s
@@ -143,7 +143,7 @@ fetch u c since (fromRange -> size) = do
           num' = num - Seq.length nseq
           acc' = acc >< nseq
        in if not more || num' == 0
-            then return (acc', more || not (null (snd ns)))
+            then pure (acc', more || not (null (snd ns)))
             else liftClient (nextPage page) >>= collect acc' num'
     trim l ns
       | Seq.length ns <= l = ns

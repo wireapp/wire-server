@@ -89,8 +89,8 @@ instance ToText EventType where
 instance FromJSON Event where
   -- n.b. The SNS topic publishing these events must be configured for raw
   -- message delivery: cf. https://aws.amazon.com/sns/faqs/#raw-message-delivery
-  parseJSON m = maybe (fail "Failed to parse SNS event") return $ do
+  parseJSON m = maybe (fail "Failed to parse SNS event") pure $ do
     e <- m ^? key "EndpointArn" . _String >>= hush . fromText
     t <- m ^? key "EventType" . _String
     let f = m ^? key "FailureType" . _String
-    return $! Event (readEventType t f) e
+    pure $! Event (readEventType t f) e

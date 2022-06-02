@@ -151,7 +151,7 @@ mkEnv lgr opts mgr = do
       (mkEndpoint SQS.defaultService (opts ^. optAws . awsSqsEndpoint))
       (mkEndpoint SNS.defaultService (opts ^. optAws . awsSnsEndpoint))
   q <- getQueueUrl e (opts ^. optAws . awsQueueName)
-  return (Env e g q (opts ^. optAws . awsRegion) (opts ^. optAws . awsAccount))
+  pure (Env e g q (opts ^. optAws . awsRegion) (opts ^. optAws . awsAccount))
   where
     mkEndpoint svc e = AWS.setEndpoint (e ^. awsSecure) (e ^. awsHost) (e ^. awsPort) svc
     mkAwsEnv g sqs sns = do
@@ -204,7 +204,7 @@ mkEnv lgr opts mgr = do
             AWS.send e (SQS.newGetQueueUrl q)
       either
         (throwM . GeneralError)
-        (return . QueueUrl . view SQS.getQueueUrlResponse_queueUrl)
+        (pure . QueueUrl . view SQS.getQueueUrlResponse_queueUrl)
         x
 
 execute :: MonadIO m => Env -> Amazon a -> m a
@@ -234,7 +234,7 @@ updateEndpoint us tk arn = do
   env <- ask
   res <- retrying (limitRetries 1) (const isTimeout) (const (sendCatch (env ^. awsEnv) req))
   case res of
-    Right _ -> return ()
+    Right _ -> pure ()
     Left x@(AWS.ServiceError e)
       | is "SNS" 400 x && AWS.newErrorCode "InvalidParameter" == e ^. serviceCode
           && isMetadataLengthError (e ^. serviceMessage) ->
@@ -255,13 +255,13 @@ updateEndpoint us tk arn = do
       let prefix = "Invalid parameter: Attributes Reason: "
       _ <- string prefix
       _ <- string "Invalid value for attribute: CustomUserData: must be at most 2048 bytes long in UTF-8 encoding"
-      return ()
+      pure ()
 
 deleteEndpoint :: EndpointArn -> Amazon ()
 deleteEndpoint arn = do
   e <- view awsEnv
   res <- retrying (limitRetries 1) (const isTimeout) (const (sendCatch e req))
-  either (throwM . GeneralError) (const (return ())) res
+  either (throwM . GeneralError) (const (pure ())) res
   where
     req = SNS.newDeleteEndpoint (toText arn)
 
@@ -272,14 +272,14 @@ lookupEndpoint arn = do
   let attrs = fromMaybe mempty . view SNS.getEndpointAttributesResponse_attributes <$> res
   case attrs of
     Right a -> Just <$> mkEndpoint a
-    Left x -> if is "SNS" 404 x then return Nothing else throwM (GeneralError x)
+    Left x -> if is "SNS" 404 x then pure Nothing else throwM (GeneralError x)
   where
     req = SNS.newGetEndpointAttributes (toText arn)
     mkEndpoint a = do
-      t <- maybe (throwM $ NoToken arn) return (Map.lookup "Token" a)
+      t <- maybe (throwM $ NoToken arn) pure (Map.lookup "Token" a)
       let e = either (const Nothing) Just . fromText =<< Map.lookup "Enabled" a
           d = maybe Set.empty mkUsers $ Map.lookup "CustomUserData" a
-      return (SNSEndpoint (Push.Token t) (fromMaybe False e) d)
+      pure (SNSEndpoint (Push.Token t) (fromMaybe False e) d)
     mkUsers = Set.fromList . mapMaybe (hush . fromText) . Text.split (== ':')
 
 createEndpoint :: UserId -> Push.Transport -> ArnEnv -> AppName -> Push.Token -> Amazon (Either CreateEndpointError EndpointArn)
@@ -301,21 +301,21 @@ createEndpoint u tr arnEnv app token = do
     Left x@(AWS.ServiceError e)
       | is "SNS" 400 x && AWS.newErrorCode "InvalidParameter" == e ^. serviceCode,
         Just ep <- parseExistsError (e ^. serviceMessage) ->
-        return (Left (EndpointInUse ep))
+        pure (Left (EndpointInUse ep))
       | is "SNS" 400 x && AWS.newErrorCode "InvalidParameter" == e ^. serviceCode
           && isLengthError (e ^. serviceMessage) ->
-        return (Left (TokenTooLong $ tokenLength token))
+        pure (Left (TokenTooLong $ tokenLength token))
       | is "SNS" 400 x && AWS.newErrorCode "InvalidParameter" == e ^. serviceCode
           && isTokenError (e ^. serviceMessage) ->
-        return (Left (InvalidToken token))
+        pure (Left (InvalidToken token))
       | is "SNS" 404 x ->
-        return (Left (AppNotFound app))
+        pure (Left (AppNotFound app))
       | is "SNS" 403 x -> do
         warn $ "arn" .= toText arn ~~ msg (val "Not authorized.")
-        return (Left (AppNotFound app))
+        pure (Left (AppNotFound app))
     Left x -> throwM (GeneralError x)
   where
-    readArn r = either (throwM . InvalidArn r) return (fromText r)
+    readArn r = either (throwM . InvalidArn r) pure (fromText r)
     tokenLength = toInteger . Text.length . Push.tokenText
     -- Thank you Amazon for not having granular error codes!
     parseExistsError Nothing = Nothing
@@ -324,11 +324,11 @@ createEndpoint u tr arnEnv app token = do
       let endParser = string " already exists with the same Token, but different attributes."
       a <- manyTill anyChar endParser >>= either fail pure . AWS.fromText . Text.pack
       _ <- endParser
-      return a
+      pure a
     isTokenError Nothing = False
     isTokenError (Just s) = isRight . flip parseOnly (toText s) $ do
       _ <- string "Invalid parameter: Token"
-      return ()
+      pure ()
     isLengthError Nothing = False
     isLengthError (Just s) = isRight . flip parseOnly (toText s) $ do
       let prefix = "Invalid parameter: Token Reason: "
@@ -336,7 +336,7 @@ createEndpoint u tr arnEnv app token = do
       _ <-
         string "must be at most 8192 bytes long in UTF-8 encoding"
           <|> string "iOS device tokens must be no more than 400 hexadecimal characters"
-      return ()
+      pure ()
 
 --------------------------------------------------------------------------------
 -- Publish
@@ -398,19 +398,19 @@ publish arn txt attrs = do
   env <- ask
   res <- retrying (limitRetries 3) (const isTimeout) (const (sendCatch (env ^. awsEnv) req))
   case res of
-    Right _ -> return (Right ())
+    Right _ -> pure (Right ())
     Left x@(AWS.ServiceError e)
       | is "SNS" 400 x && AWS.newErrorCode "EndpointDisabled" == e ^. serviceCode ->
-        return (Left (EndpointDisabled arn))
+        pure (Left (EndpointDisabled arn))
       | is "SNS" 400 x && AWS.newErrorCode "InvalidParameter" == e ^. serviceCode
           && isProtocolSizeError (e ^. serviceMessage) ->
-        return (Left (PayloadTooLarge arn))
+        pure (Left (PayloadTooLarge arn))
       | is "SNS" 400 x && AWS.newErrorCode "InvalidParameter" == e ^. serviceCode
           && isSnsSizeError (e ^. serviceMessage) ->
-        return (Left (PayloadTooLarge arn))
+        pure (Left (PayloadTooLarge arn))
       | is "SNS" 400 x && AWS.newErrorCode "InvalidParameter" == e ^. serviceCode
           && isArnError (e ^. serviceMessage) ->
-        return (Left (InvalidEndpoint arn))
+        pure (Left (InvalidEndpoint arn))
     Left x -> throwM (GeneralError x)
   where
     -- Thank you Amazon for not having granular error codes!
@@ -424,15 +424,15 @@ publish arn txt attrs = do
       _ <- case t of
         Push.GCM -> string ": Notification data is larger than allowed limit"
         _ -> string ": Notification is too long"
-      return ()
+      pure ()
     isSnsSizeError Nothing = False
     isSnsSizeError (Just s) = isRight . flip parseOnly (toText s) $ do
       _ <- string "Invalid parameter: Message too long"
-      return ()
+      pure ()
     isArnError Nothing = False
     isArnError (Just s) = isRight . flip parseOnly (toText s) $ do
       _ <- string "Invalid parameter: TargetArn Reason: No endpoint found for the target arn specified"
-      return ()
+      pure ()
 
 --------------------------------------------------------------------------------
 -- Feedback
@@ -473,7 +473,7 @@ sendCatch :: AWSRequest r => AWS.Env -> r -> Amazon (Either AWS.Error (AWSRespon
 sendCatch env = AWS.trying AWS._Error . AWS.send env
 
 send :: AWSRequest r => AWS.Env -> r -> Amazon (AWSResponse r)
-send env r = either (throwM . GeneralError) return =<< sendCatch env r
+send env r = either (throwM . GeneralError) pure =<< sendCatch env r
 
 is :: AWS.Abbrev -> Int -> AWS.Error -> Bool
 is srv s (AWS.ServiceError e) = srv == e ^. serviceAbbrev && s == statusCode (e ^. serviceStatus)

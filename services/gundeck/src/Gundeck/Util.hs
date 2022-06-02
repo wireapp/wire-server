@@ -34,10 +34,10 @@ type JSON = Media "application" "json"
 mkNotificationId :: (MonadIO m, MonadThrow m) => m NotificationId
 mkNotificationId = do
   ni <- fmap Id <$> retrying x10 fun (const (liftIO nextUUID))
-  maybe (throwM err) return ni
+  maybe (throwM err) pure ni
   where
     x10 = limitRetries 10 <> exponentialBackoff 10
-    fun = const (return . isNothing)
+    fun = const (pure . isNothing)
     err = mkError status500 "internal-error" "unable to generate notification ID"
 
 mapAsync ::
