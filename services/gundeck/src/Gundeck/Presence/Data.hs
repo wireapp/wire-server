@@ -63,7 +63,7 @@ add p = do
   let v = toField (connId p)
   let d = Lazy.toStrict $ encode $ PresenceData (resource p) (clientId p) now
   runWithAdditionalRedis . retry x3 $ do
-    void . (fromTxResult =<<) . liftRedis . multiExec $ do
+    void . fromTxResult <=< (liftRedis . multiExec) $ do
       void $ hset k v d
       -- nb. All presences of a user are expired 'maxIdleTime' after the
       -- last presence was registered. A client who keeps a presence

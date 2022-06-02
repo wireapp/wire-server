@@ -60,7 +60,7 @@ budgetSpent' = sum . fmap fst . filter (isJust . snd) . HM.elems . bmap
 cancelAllThreads :: ThreadBudgetState -> IO ()
 cancelAllThreads (ThreadBudgetState _ ref) =
   readIORef ref
-    >>= mapM_ cancel . catMaybes . fmap snd . HM.elems . bmap
+    >>= mapM_ cancel . mapMaybe snd . HM.elems . bmap
 
 mkThreadBudgetState :: HasCallStack => MaxConcurrentNativePushes -> IO ThreadBudgetState
 mkThreadBudgetState limits = ThreadBudgetState limits <$> newIORef (BudgetMap 0 HM.empty)
@@ -81,7 +81,7 @@ register ::
 register ref key handle =
   atomicModifyIORef' ref $
     \(BudgetMap spent hm) ->
-      ( BudgetMap spent (HM.adjust (_2 .~ Just handle) key hm),
+      ( BudgetMap spent (HM.adjust (_2 ?~ handle) key hm),
         spent
       )
 
@@ -219,7 +219,7 @@ removeStaleHandles ref = do
   unless (null staleHandles) $ do
     warnStaleHandles (Set.size staleHandles) =<< readIORef ref
     forM_ staleHandles $ \key -> do
-      mapM_ waitCatch . join . fmap snd =<< HM.lookup key . bmap <$> readIORef ref
+      (mapM_ waitCatch . (snd =<<)) . HM.lookup key . bmap =<< readIORef ref
       unregister ref key
   isSanitary <- (\bm -> bspent bm == budgetSpent' bm) <$> readIORef ref
   unless isSanitary . LC.warn . LC.msg . LC.val $

@@ -452,7 +452,7 @@ listen throttleMillis callback = do
         & set SQS.receiveMessage_waitTimeSeconds (Just 20)
           . set SQS.receiveMessage_maxNumberOfMessages (Just 10)
     onMessage awsE url m =
-      case decodeStrict =<< Text.encodeUtf8 <$> m ^. SQS.message_body of
+      case decodeStrict . Text.encodeUtf8 =<< (m ^. SQS.message_body) of
         Nothing ->
           err . msg $ val "Failed to parse SQS event notification"
         Just e -> do

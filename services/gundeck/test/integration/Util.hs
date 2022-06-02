@@ -76,7 +76,7 @@ resolve socketType mhost port passive =
     hints =
       defaultHints
         { addrSocketType = socketType,
-          addrFlags = if passive then [AI_PASSIVE] else []
+          addrFlags = [AI_PASSIVE | passive]
         }
 
 openServerSocket :: AddrInfo -> IO Socket
