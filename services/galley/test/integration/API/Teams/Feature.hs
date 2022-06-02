@@ -356,7 +356,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
   let feature = Public.knownTeamFeatureName @a
   owner <- Util.randomUser
   member <- Util.randomUser
-  -- nonMember <- Util.randomUser
+  nonMember <- Util.randomUser
   tid <- Util.createNonBindingTeam "foo" owner []
   Util.connectUsers owner (list1 member [])
   Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
@@ -386,7 +386,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
       half = 500000
       seconds = 1000000
 
-  -- assertFlagForbidden $ Util.getTeamFeatureFlag feature nonMember tid
+  assertFlagForbidden $ Util.getTeamFeatureFlag feature nonMember tid
 
   let otherValue = case defaultValue of
         Public.TeamFeatureDisabled -> Public.TeamFeatureEnabled
