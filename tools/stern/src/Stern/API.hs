@@ -380,7 +380,7 @@ routes = do
     capture "tid"
       .&. capture "feature"
       .&. param "status"
-      .&. def Public.TeamFeatureTTLUnlimited (query "ttl") -- default is unlimited
+      .&. def Public.TeamFeatureTTLUnlimited (query "ttl")
   document "PUT" "setTeamFeatureFlag" $ do
     summary "Disable / enable feature flag for a given team"
     Doc.parameter Doc.Path "tid" Doc.bytes' $
