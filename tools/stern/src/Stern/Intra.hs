@@ -568,7 +568,12 @@ setTeamFeatureFlagNoConfig tid featureName statusValue ttlValue = do
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE $ responseJsonUnsafe resp
   where
-    justBS = Just . toByteString'
+    justBS = Just . toByteString' . fromDays
+    fromMinutes = (* 60)
+    fromHours = fromMinutes . (* 60)
+
+    fromDays (Public.TeamFeatureTTLSeconds s) = Public.TeamFeatureTTLSeconds . fromHours . (* 24) $ s
+    fromDays Public.TeamFeatureTTLUnlimited = Public.TeamFeatureTTLUnlimited
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do
