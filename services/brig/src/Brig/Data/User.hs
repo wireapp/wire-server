@@ -74,7 +74,7 @@ module Brig.Data.User
   )
 where
 
-import Brig.App (Env, currentTime, settings, viewFederationDomain, zauthEnv)
+import Brig.App (Env, SemClient, currentTime, settings, viewFederationDomain, zauthEnv)
 import Brig.Data.Instances ()
 import Brig.Options
 import Brig.Password
@@ -96,6 +96,7 @@ import Data.Time (addUTCTime)
 import Data.UUID.V4
 import Galley.Types.Bot
 import Imports
+import Polysemy
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User.RichInfo
 
@@ -319,7 +320,11 @@ updatePassword u t = do
 updateRichInfo :: MonadClient m => UserId -> RichInfoAssocList -> m ()
 updateRichInfo u ri = retry x5 $ write userRichInfoUpdate (params LocalQuorum (ri, u))
 
-updateFeatureConferenceCalling :: MonadClient m => UserId -> Maybe ApiFt.TeamFeatureStatusNoConfig -> m (Maybe ApiFt.TeamFeatureStatusNoConfig)
+updateFeatureConferenceCalling ::
+  SemClient r =>
+  UserId ->
+  Maybe ApiFt.TeamFeatureStatusNoConfig ->
+  Sem r (Maybe ApiFt.TeamFeatureStatusNoConfig)
 updateFeatureConferenceCalling uid mbStatus = do
   let flag = ApiFt.tfwoStatus <$> mbStatus
   retry x5 $ write update (params LocalQuorum (flag, uid))

@@ -41,7 +41,6 @@ import Bilge.Retry (httpHandlers)
 import Brig.App
 import Brig.Budget
 import Brig.Types
-import Cassandra (MonadClient)
 import Control.Lens (view)
 import Control.Monad.Catch
 import Control.Retry
@@ -51,10 +50,11 @@ import qualified Data.Text as Text
 import Data.Time.Clock
 import Imports
 import Network.HTTP.Client (HttpException, Manager)
+import Polysemy
+import qualified Polysemy.TinyLog as P
 import qualified Ropes.Nexmo as Nexmo
 import Ropes.Twilio (LookupDetail (..))
 import qualified Ropes.Twilio as Twilio
-import qualified System.Logger.Class as Log
 import System.Logger.Message (field, msg, val, (~~))
 
 -------------------------------------------------------------------------------
@@ -75,9 +75,10 @@ data PhoneException
 instance Exception PhoneException
 
 sendCall ::
-  (MonadClient m, MonadReader Env m, Log.MonadLogger m) =>
+  SemClient r =>
+  Members '[P.TinyLog] r =>
   Nexmo.Call ->
-  m ()
+  Sem r ()
 sendCall call = unless (isTestPhone $ Nexmo.callTo call) $ do
   m <- view httpManager
   cred <- view nexmoCreds
@@ -106,20 +107,17 @@ sendCall call = unless (isTestPhone $ Nexmo.callTo call) $ do
     unreachable ex = warn (toException ex) >> throwM PhoneNumberUnreachable
     barred ex = warn (toException ex) >> throwM PhoneNumberBarred
     warn ex =
-      Log.warn $
+      P.warn $
         msg (val "Voice call failed.")
           ~~ field "error" (show ex)
           ~~ field "phone" (Nexmo.callTo call)
 
 sendSms ::
-  ( MonadClient m,
-    MonadCatch m,
-    Log.MonadLogger m,
-    MonadReader Env m
-  ) =>
+  SemClient r =>
+  Member P.TinyLog r =>
   Locale ->
   SMSMessage ->
-  m ()
+  Sem r ()
 sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
   m <- view httpManager
   withSmsBudget smsTo $ do
@@ -192,7 +190,7 @@ sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
     unreachable ex = warn (toException ex) >> throwM PhoneNumberUnreachable
     barred ex = warn (toException ex) >> throwM PhoneNumberBarred
     warn ex =
-      Log.warn $
+      P.warn $
         msg (val "SMS failed.")
           ~~ field "error" (show ex)
           ~~ field "phone" smsTo
@@ -202,7 +200,7 @@ sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
 
 -- | Validate a phone number. Returns the canonical
 -- E.164 format of the given phone number on success.
-validatePhone :: (MonadClient m, MonadReader Env m) => Phone -> m (Maybe Phone)
+validatePhone :: SemClient r => Phone -> Sem r (Maybe Phone)
 validatePhone (Phone p)
   | isTestPhone p = pure (Just (Phone p))
   | otherwise = do
@@ -232,25 +230,23 @@ smsBudget =
     }
 
 withSmsBudget ::
-  ( MonadClient m,
-    Log.MonadLogger m,
-    MonadReader Env m
-  ) =>
+  SemClient r =>
+  Member P.TinyLog r =>
   Text ->
-  m a ->
-  m a
+  Sem r a ->
+  Sem r a
 withSmsBudget phone go = do
   let k = BudgetKey ("sms#" <> phone)
   r <- withBudget k smsBudget go
   case r of
     BudgetExhausted t -> do
-      Log.info $
+      P.info $
         msg (val "SMS budget exhausted.")
           ~~ field "phone" phone
       Metrics.counterIncr (Metrics.path "budget.sms.exhausted") =<< view metrics
       throwM (PhoneBudgetExhausted t)
     BudgetedValue a b -> do
-      Log.debug $
+      P.debug $
         msg (val "SMS budget deducted.")
           ~~ field "budget" b
           ~~ field "phone" phone
@@ -267,25 +263,23 @@ callBudget =
     }
 
 withCallBudget ::
-  ( MonadClient m,
-    Log.MonadLogger m,
-    MonadReader Env m
-  ) =>
+  SemClient r =>
+  Member P.TinyLog r =>
   Text ->
-  m a ->
-  m a
+  Sem r a ->
+  Sem r a
 withCallBudget phone go = do
   let k = BudgetKey ("call#" <> phone)
   r <- withBudget k callBudget go
   case r of
     BudgetExhausted t -> do
-      Log.info $
+      P.info $
         msg (val "Voice call budget exhausted.")
           ~~ field "phone" phone
       Metrics.counterIncr (Metrics.path "budget.call.exhausted") =<< view metrics
       throwM (PhoneBudgetExhausted t)
     BudgetedValue a b -> do
-      Log.debug $
+      P.debug $
         msg (val "Voice call budget deducted.")
           ~~ field "budget" b
           ~~ field "phone" phone

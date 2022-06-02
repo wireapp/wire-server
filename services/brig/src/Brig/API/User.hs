@@ -114,6 +114,7 @@ import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
 import Brig.Password
 import qualified Brig.Queue as Queue
+import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Brig.Sem.PasswordResetStore as E
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
@@ -155,6 +156,7 @@ import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import Network.Wai.Utilities
 import Polysemy
+import qualified Polysemy.TinyLog as P
 import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
 import System.Logger.Message
@@ -204,7 +206,13 @@ verifyUniquenessAndCheckBlacklist uk = do
         throwE IdentityErrorUserKeyExists
 
 -- docs/reference/user/registration.md {#RefRegistration}
-createUser :: NewUser -> ExceptT RegisterError (AppT r) CreateUserResult
+createUser ::
+  forall r.
+  ( SemClient r,
+    Members '[CodeStore, PasswordResetSupply] r
+  ) =>
+  NewUser ->
+  ExceptT RegisterError (AppT r) CreateUserResult
 createUser new = do
   (email, phone) <- validateEmailAndPhone new
 
@@ -317,7 +325,7 @@ createUser new = do
         maybe
           (throwE RegisterErrorInvalidPhone)
           pure
-          =<< lift (wrapClient $ validatePhone p)
+          =<< lift (liftSem $ validatePhone p)
 
       for_ (catMaybes [userEmailKey <$> email, userPhoneKey <$> phone]) $ \k ->
         verifyUniquenessAndCheckBlacklist k !>> identityErrorToRegisterError
@@ -396,7 +404,11 @@ createUser new = do
       pure $ CreateUserTeam tid nm
 
     -- Handle e-mail activation (deprecated, see #RefRegistrationNoPreverification in /docs/reference/user/registration.md)
-    handleEmailActivation :: Maybe Email -> UserId -> Maybe BindingNewTeamUser -> ExceptT RegisterError (AppT r) (Maybe Activation)
+    handleEmailActivation ::
+      Maybe Email ->
+      UserId ->
+      Maybe BindingNewTeamUser ->
+      ExceptT RegisterError (AppT r) (Maybe Activation)
     handleEmailActivation email uid newTeam = do
       fmap join . for (userEmailKey <$> email) $ \ek -> case newUserEmailCode new of
         Nothing -> do
@@ -431,10 +443,10 @@ createUser new = do
           void $ activate (ActivateKey ak) c (Just uid) !>> activationErrorToRegisterError
           pure Nothing
 
-initAccountFeatureConfig :: UserId -> (AppT r) ()
+initAccountFeatureConfig :: SemClient r => UserId -> (AppT r) ()
 initAccountFeatureConfig uid = do
   mbCciDefNew <- view (settings . getAfcConferenceCallingDefNewMaybe)
-  forM_ mbCciDefNew $ wrapClient . Data.updateFeatureConferenceCalling uid . Just
+  forM_ mbCciDefNew $ liftSem . Data.updateFeatureConferenceCalling uid . Just
 
 -- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where
@@ -637,13 +649,13 @@ changeEmail u email allowScim = do
 -------------------------------------------------------------------------------
 -- Change Phone
 
-changePhone :: UserId -> Phone -> ExceptT ChangePhoneError (AppT r) (Activation, Phone)
+changePhone :: SemClient r => UserId -> Phone -> ExceptT ChangePhoneError (AppT r) (Activation, Phone)
 changePhone u phone = do
   canonical <-
     maybe
       (throwE InvalidNewPhone)
       pure
-      =<< lift (wrapClient $ validatePhone phone)
+      =<< lift (liftSem $ validatePhone phone)
   let pk = userPhoneKey canonical
   available <- lift . wrapClient $ Data.keyAvailable pk (Just u)
   unless available $
@@ -789,6 +801,8 @@ mkUserEvent usrs status =
 -- Activation
 
 activate ::
+  SemClient r =>
+  Members '[CodeStore, PasswordResetSupply] r =>
   ActivationTarget ->
   ActivationCode ->
   -- | The user for whom to activate the key.
@@ -797,6 +811,9 @@ activate ::
 activate tgt code usr = activateWithCurrency tgt code usr Nothing
 
 activateWithCurrency ::
+  forall r.
+  SemClient r =>
+  Members '[CodeStore, PasswordResetSupply] r =>
   ActivationTarget ->
   ActivationCode ->
   -- | The user for whom to activate the key.
@@ -806,12 +823,12 @@ activateWithCurrency ::
   Maybe Currency.Alpha ->
   ExceptT ActivationError (AppT r) ActivationResult
 activateWithCurrency tgt code usr cur = do
-  key <- wrapClientE $ mkActivationKey tgt
+  key <- liftSemE $ mkActivationKey tgt
   lift . Log.info $
     field "activation.key" (toByteString key)
       . field "activation.code" (toByteString code)
       . msg (val "Activating")
-  event <- wrapClientE $ Data.activateKey key code usr
+  event <- liftSemE $ Data.activateKey key code usr
   case event of
     Nothing -> pure ActivationPass
     Just e -> do
@@ -826,12 +843,10 @@ activateWithCurrency tgt code usr cur = do
       for_ tid $ \t -> wrapHttp $ Intra.changeTeamStatus t Team.Active cur
 
 preverify ::
-  ( MonadClient m,
-    MonadReader Env m
-  ) =>
+  SemClient r =>
   ActivationTarget ->
   ActivationCode ->
-  ExceptT ActivationError m ()
+  ExceptT ActivationError (Sem r) ()
 preverify tgt code = do
   key <- mkActivationKey tgt
   void $ Data.verifyCode key code
@@ -852,7 +867,13 @@ onActivated (PhoneActivated uid phone) = do
   pure (uid, Just (PhoneIdentity phone), False)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
-sendActivationCode :: Either Email Phone -> Maybe Locale -> Bool -> ExceptT SendActivationCodeError (AppT r) ()
+sendActivationCode ::
+  SemClient r =>
+  Members '[P.TinyLog] r =>
+  Either Email Phone ->
+  Maybe Locale ->
+  Bool ->
+  ExceptT SendActivationCodeError (AppT r) ()
 sendActivationCode emailOrPhone loc call = case emailOrPhone of
   Left email -> do
     ek <-
@@ -878,7 +899,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
       maybe
         (throwE $ InvalidRecipient (userPhoneKey phone))
         pure
-        =<< lift (wrapClient $ validatePhone phone)
+        =<< lift (liftSem $ validatePhone phone)
     let pk = userPhoneKey canonical
     exists <- lift $ isJust <$> wrapClient (Data.lookupKey pk)
     when exists $
@@ -896,8 +917,8 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
     void . forPhoneKey pk $ \ph ->
       lift $
         if call
-          then wrapClient $ sendActivationCall ph p loc
-          else wrapClient $ sendActivationSms ph p loc
+          then liftSem $ sendActivationCall ph p loc
+          else liftSem $ sendActivationSms ph p loc
   where
     notFound = throwM . UserDisplayNameNotFound
     mkPair k c u = do
@@ -934,7 +955,10 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
           _otherwise ->
             sendActivationMail em name p loc' ident
 
-mkActivationKey :: (MonadClient m, MonadReader Env m) => ActivationTarget -> ExceptT ActivationError m ActivationKey
+mkActivationKey ::
+  SemClient r =>
+  ActivationTarget ->
+  ExceptT ActivationError (Sem r) ActivationKey
 mkActivationKey (ActivateKey k) = pure k
 mkActivationKey (ActivateEmail e) = do
   ek <-
@@ -1041,7 +1065,11 @@ mkPasswordResetKey ident = case ident of
 -- delete them in the team settings.  This protects teams against orphanhood.
 --
 -- TODO: communicate deletions of SSO users to SSO service.
-deleteSelfUser :: UserId -> Maybe PlainTextPassword -> ExceptT DeleteUserError (AppT r) (Maybe Timeout)
+deleteSelfUser ::
+  (SemClient r, Member P.TinyLog r) =>
+  UserId ->
+  Maybe PlainTextPassword ->
+  ExceptT DeleteUserError (AppT r) (Maybe Timeout)
 deleteSelfUser uid pwd = do
   account <- lift . wrapClient $ Data.lookupAccount uid
   case account of
@@ -1107,7 +1135,7 @@ deleteSelfUser uid pwd = do
           let n = userDisplayName (accountUser a)
           either
             (\e -> lift $ sendDeletionEmail n e k v l)
-            (\p -> lift $ wrapClient $ sendDeletionSms p k v l)
+            (\p -> lift $ liftSem $ sendDeletionSms p k v l)
             target
             `onException` wrapClientE (Code.delete k Code.AccountDeletion)
           pure $! Just $! Code.codeTTL c

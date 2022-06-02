@@ -31,14 +31,12 @@ module Brig.Data.Activation
   )
 where
 
-import Brig.App (Env)
+import Brig.App
 import Brig.Data.User
 import Brig.Data.UserKey
 import Brig.Options
 import qualified Brig.Sem.CodeStore as E
-import Brig.Sem.CodeStore.Cassandra
 import qualified Brig.Sem.PasswordResetSupply as E
-import Brig.Sem.PasswordResetSupply.IO
 import Brig.Types
 import Brig.Types.Intra
 import Cassandra
@@ -90,12 +88,18 @@ maxAttempts = 3
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey ::
-  forall m.
-  (MonadClient m, MonadReader Env m) =>
+  forall r.
+  ( SemClient r,
+    Members
+      '[ E.CodeStore,
+         E.PasswordResetSupply
+       ]
+      r
+  ) =>
   ActivationKey ->
   ActivationCode ->
   Maybe UserId ->
-  ExceptT ActivationError m (Maybe ActivationEvent)
+  ExceptT ActivationError (Sem r) (Maybe ActivationEvent)
 activateKey k c u = verifyCode k c >>= pickUser >>= activate
   where
     pickUser (uk, u') = maybe (throwE invalidUser) (pure . (uk,)) (u <|> u')
@@ -134,20 +138,11 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
         for_ oldKey $ lift . deleteKey
         pure . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
       where
-        updateEmailAndDeleteEmailUnvalidated :: MonadClient m => UserId -> Email -> m ()
+        updateEmailAndDeleteEmailUnvalidated :: UserId -> Email -> Sem r ()
         updateEmailAndDeleteEmailUnvalidated u' email =
           updateEmail u' email <* deleteEmailUnvalidated u'
-        deleteCode :: UserId -> m ()
-        deleteCode uId =
-          runM
-            -- FUTUREWORK: use the DeletePasswordResetCode action instead of CodeDelete
-            ( codeStoreToCassandra @m
-                ( embed @m
-                    ( liftIO @m (runM (passwordResetSupplyToIO @'[Embed IO] (E.mkPasswordResetKey uId)))
-                    )
-                    >>= E.codeDelete
-                )
-            )
+        deleteCode :: UserId -> Sem r ()
+        deleteCode uId = E.mkPasswordResetKey uId >>= E.codeDelete
     claim key uid = do
       ok <- lift $ claimKey key uid
       unless ok $
@@ -188,10 +183,10 @@ lookupActivationCode k =
 
 -- | Verify an activation code.
 verifyCode ::
-  MonadClient m =>
+  SemClient r =>
   ActivationKey ->
   ActivationCode ->
-  ExceptT ActivationError m (UserKey, Maybe UserId)
+  ExceptT ActivationError (Sem r) (UserKey, Maybe UserId)
 verifyCode key code = do
   s <- lift . retry x1 . query1 keySelect $ params LocalQuorum (Identity key)
   case s of
@@ -219,7 +214,7 @@ mkActivationKey k = do
   let bs = digestBS d' (T.encodeUtf8 $ keyText k)
   pure . ActivationKey $ Ascii.encodeBase64Url bs
 
-deleteActivationPair :: MonadClient m => ActivationKey -> m ()
+deleteActivationPair :: SemClient r => ActivationKey -> Sem r ()
 deleteActivationPair = write keyDelete . params LocalQuorum . Identity
 
 invalidUser :: ActivationError

@@ -75,6 +75,8 @@ import Data.Misc (PlainTextPassword (..))
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
+import Polysemy
+import qualified Polysemy.TinyLog as P
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
@@ -87,6 +89,8 @@ data Access u = Access
   }
 
 sendLoginCode ::
+  SemClient r =>
+  Members '[P.TinyLog] r =>
   ( MonadClient m,
     MonadReader Env m,
     MonadCatch m,
@@ -95,7 +99,7 @@ sendLoginCode ::
   Phone ->
   Bool ->
   Bool ->
-  ExceptT SendLoginCodeError m PendingLoginCode
+  ExceptT SendLoginCodeError (Sem r) PendingLoginCode
 sendLoginCode phone call force = do
   pk <-
     maybe
@@ -106,7 +110,7 @@ sendLoginCode phone call force = do
   case user of
     Nothing -> throwE $ SendLoginInvalidPhone phone
     Just u -> do
-      lift . Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.sendLoginCode")
+      lift . P.debug $ field "user" (toByteString u) . field "action" (Log.val "User.sendLoginCode")
       pw <- lift $ Data.lookupPassword u
       unless (isNothing pw || force) $
         throwE SendLoginPasswordExists
@@ -350,7 +354,7 @@ newAccess uid ct cl = do
       t <- lift $ newAccessToken @u @a ck Nothing
       pure $ Access t (Just ck)
 
-resolveLoginId :: (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m UserId
+resolveLoginId :: SemClient r => LoginId -> ExceptT LoginError (Sem r) UserId
 resolveLoginId li = do
   usr <- validateLoginId li >>= lift . either lookupKey lookupHandle
   case usr of
@@ -362,7 +366,10 @@ resolveLoginId li = do
           else LoginFailed
     Just uid -> pure uid
 
-validateLoginId :: (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m (Either UserKey Handle)
+validateLoginId ::
+  SemClient r =>
+  LoginId ->
+  ExceptT LoginError (Sem r) (Either UserKey Handle)
 validateLoginId (LoginByEmail email) =
   either
     (const $ throwE LoginFailed)

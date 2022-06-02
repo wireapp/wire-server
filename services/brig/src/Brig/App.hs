@@ -79,6 +79,9 @@ module Brig.App
     wrapHttp,
     HttpClientIO (..),
     liftSem,
+    liftSemE,
+    SemClient,
+    SemReader,
   )
 where
 
@@ -494,16 +497,21 @@ instance MonadReader Env (AppT r) where
   ask = AppT ask
   local f (AppT m) = AppT $ local f m
 
-instance Member (Input Env) r => MonadReader Env (Sem r) where
+type SemReader r = Member (Input Env) r
+
+instance SemReader r => MonadReader Env (Sem r) where
   ask = input
   local f sem = do
     env <- input
     runInputConst (f env) . raise @(Input Env) $ sem
 
-instance
+type SemClient r =
   ( Members '[Final IO, Embed IO, Embed Cas.Client] r,
-    MonadReader Env (Sem r)
-  ) =>
+    SemReader r
+  )
+
+instance
+  (SemClient r, MonadReader Env (Sem r)) =>
   Cas.MonadClient (Sem r)
   where
   liftClient = embed @Cas.Client
@@ -511,6 +519,9 @@ instance
 
 liftSem :: Sem r a -> AppT r a
 liftSem sem = AppT $ lift sem
+
+liftSemE :: ExceptT e (Sem r) a -> ExceptT e (AppT r) a
+liftSemE = mapExceptT liftSem
 
 instance MonadIO m => MonadLogger (ReaderT Env m) where
   log l m = do
