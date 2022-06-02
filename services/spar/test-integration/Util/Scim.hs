@@ -249,7 +249,7 @@ listUsers ::
   HasCallStack =>
   ScimToken ->
   Maybe Scim.Filter ->
-  TestSpar [(Scim.StoredUser SparTag)]
+  TestSpar [Scim.StoredUser SparTag]
 listUsers tok mbFilter = do
   env <- ask
   r <-
