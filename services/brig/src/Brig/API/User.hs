@@ -368,7 +368,8 @@ createUser new = do
       ExceptT RegisterError (AppT r) ()
     acceptTeamInvitation account inv ii uk ident = do
       let uid = userId (accountUser account)
-      ok <- lift . wrapClient $ Data.claimKey uk uid
+      d <- view digestSHA256
+      ok <- lift . wrapClient $ Data.claimKey d uk uid
       unless ok $
         throwE RegisterErrorUserKeyExists
       let minvmeta :: (Maybe (UserId, UTCTimeMillis), Team.Role)
@@ -707,9 +708,10 @@ removeEmail ::
   ExceptT RemoveIdentityError (AppT r) ()
 removeEmail uid conn = do
   ident <- lift $ fetchUserIdentity uid
+  d <- view digestSHA256
   case ident of
     Just (FullIdentity e _) -> lift $ do
-      wrapClient . deleteKey $ userEmailKey e
+      wrapClient . deleteKey d $ userEmailKey e
       wrapClient $ Data.deleteEmail uid
       wrapHttpClient $ Intra.onUserEvent uid (Just conn) (emailRemoved uid e)
     Just _ -> throwE LastIdentity
@@ -725,13 +727,14 @@ removePhone ::
   ExceptT RemoveIdentityError (AppT r) ()
 removePhone uid conn = do
   ident <- lift $ fetchUserIdentity uid
+  d <- view digestSHA256
   case ident of
     Just (FullIdentity _ p) -> do
       pw <- lift . wrapClient $ Data.lookupPassword uid
       unless (isJust pw) $
         throwE NoPassword
       lift $ do
-        wrapClient . deleteKey $ userPhoneKey p
+        wrapClient . deleteKey d $ userPhoneKey p
         wrapClient $ Data.deletePhone uid
         wrapHttpClient $ Intra.onUserEvent uid (Just conn) (phoneRemoved uid p)
     Just _ -> throwE LastIdentity
@@ -762,7 +765,8 @@ revokeIdentity key = do
   where
     revokeKey :: UserId -> UserKey -> AppT r ()
     revokeKey u uk = do
-      wrapClient $ deleteKey uk
+      d <- view digestSHA256
+      wrapClient $ deleteKey d uk
       wrapClient $
         foldKey
           (\(_ :: Email) -> Data.deleteEmail u)
@@ -860,7 +864,8 @@ activateWithCurrency tgt code usr cur = do
     field "activation.key" (toByteString key)
       . field "activation.code" (toByteString code)
       . msg (val "Activating")
-  event <- wrapClientE $ Data.activateKey key code usr
+  d <- view digestSHA256
+  event <- wrapClientE $ Data.activateKey d key code usr
   case event of
     Nothing -> pure ActivationPass
     Just e -> do
@@ -1215,8 +1220,9 @@ deleteAccount account@(accountUser -> user) = do
   let uid = userId user
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
   -- Free unique keys
-  for_ (userEmail user) $ deleteKey . userEmailKey
-  for_ (userPhone user) $ deleteKey . userPhoneKey
+  d <- view digestSHA256
+  for_ (userEmail user) $ deleteKey d . userEmailKey
+  for_ (userPhone user) $ deleteKey d . userPhoneKey
   for_ (userHandle user) $ freeHandle (userId user)
   -- Wipe data
   Data.clearProperties uid

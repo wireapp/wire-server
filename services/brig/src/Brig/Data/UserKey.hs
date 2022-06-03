@@ -33,21 +33,19 @@ module Brig.Data.UserKey
   )
 where
 
-import Brig.App (Env, digestSHA256)
 import Brig.Data.Instances ()
 import qualified Brig.Data.User as User
 import Brig.Email
 import Brig.Phone
 import Brig.Types
 import Cassandra
-import Control.Lens (view)
 import qualified Data.ByteString as B
 import Data.ByteString.Lazy (toStrict)
 import Data.Id
 import qualified Data.Multihash.Digest as MH
 import qualified Data.Text.Encoding as T
 import Imports
-import OpenSSL.EVP.Digest (digestBS)
+import OpenSSL.EVP.Digest (Digest, digestBS)
 
 -- | A natural identifier (i.e. unique key) of a user.
 data UserKey
@@ -118,15 +116,17 @@ keyTextOriginal (UserPhoneKey k) = fromPhone (phoneKeyOrig k)
 
 -- | Claim a 'UserKey' for a user.
 claimKey ::
-  (MonadClient m, MonadReader Env m) =>
+  MonadClient m =>
+  -- | The SHA256 digest
+  Digest ->
   -- | The key to claim.
   UserKey ->
   -- | The user claiming the key.
   UserId ->
   m Bool
-claimKey k u = do
+claimKey d k u = do
   free <- keyAvailable k (Just u)
-  when free (insertKey u k)
+  when free (insertKey d u k)
   pure free
 
 -- | Check whether a 'UserKey' is available.
@@ -151,25 +151,23 @@ lookupKey k =
   fmap runIdentity
     <$> retry x1 (query1 keySelect (params LocalQuorum (Identity $ keyText k)))
 
-insertKey :: (MonadClient m, MonadReader Env m) => UserId -> UserKey -> m ()
-insertKey u k = do
-  hk <- hashKey k
-  let kt = foldKey (\(_ :: Email) -> UKHashEmail) (\(_ :: Phone) -> UKHashPhone) k
+insertKey :: MonadClient m => Digest -> UserId -> UserKey -> m ()
+insertKey d u k = do
+  let hk = hashKey d k
+      kt = foldKey (\(_ :: Email) -> UKHashEmail) (\(_ :: Phone) -> UKHashPhone) k
   retry x5 $ write insertHashed (params LocalQuorum (hk, kt, u))
   retry x5 $ write keyInsert (params LocalQuorum (keyText k, u))
 
-deleteKey :: (MonadClient m, MonadReader Env m) => UserKey -> m ()
-deleteKey k = do
-  hk <- hashKey k
+deleteKey :: MonadClient m => Digest -> UserKey -> m ()
+deleteKey d k = do
+  let hk = hashKey d k
   retry x5 $ write deleteHashed (params LocalQuorum (Identity hk))
   retry x5 $ write keyDelete (params LocalQuorum (Identity $ keyText k))
 
-hashKey :: MonadReader Env m => UserKey -> m UserKeyHash
-hashKey uk = do
-  d <- view digestSHA256
+hashKey :: Digest -> UserKey -> UserKeyHash
+hashKey d uk =
   let d' = digestBS d $ T.encodeUtf8 (keyText uk)
-  pure . UserKeyHash $
-    MH.MultihashDigest MH.SHA256 (B.length d') d'
+   in UserKeyHash $ MH.MultihashDigest MH.SHA256 (B.length d') d'
 
 lookupPhoneHashes :: MonadClient m => [ByteString] -> m [(ByteString, UserId)]
 lookupPhoneHashes hp =

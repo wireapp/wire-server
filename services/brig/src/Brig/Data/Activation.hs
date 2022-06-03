@@ -52,7 +52,7 @@ import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as LT
 import Imports
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
-import OpenSSL.EVP.Digest (digestBS, getDigestByName)
+import OpenSSL.EVP.Digest (Digest, digestBS, getDigestByName)
 import Polysemy
 import Polysemy.Input
 import Text.Printf (printf)
@@ -94,12 +94,15 @@ maxAttempts = 3
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey ::
   forall m.
-  (MonadClient m, MonadReader Env m) =>
+  ( MonadClient m,
+    MonadReader Env m
+  ) =>
+  Digest ->
   ActivationKey ->
   ActivationCode ->
   Maybe UserId ->
   ExceptT ActivationError m (Maybe ActivationEvent)
-activateKey k c u = verifyCode k c >>= pickUser >>= activate
+activateKey d k c u = verifyCode k c >>= pickUser >>= activate
   where
     pickUser (uk, u') = maybe (throwE invalidUser) (pure . (uk,)) (u <|> u')
     activate (key, uid) = do
@@ -143,7 +146,7 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
         lift (deleteCode uid)
         claim key uid
         lift $ foldKey (updateEmailAndDeleteEmailUnvalidated uid) (updatePhone uid) key
-        for_ oldKey $ lift . deleteKey
+        for_ oldKey $ lift . deleteKey d
         pure . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
       where
         updateEmailAndDeleteEmailUnvalidated :: MonadClient m => UserId -> Email -> m ()
@@ -161,7 +164,7 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
                 )
             )
     claim key uid = do
-      ok <- lift $ claimKey key uid
+      ok <- lift $ claimKey d key uid
       unless ok $
         throwE . UserKeyExists . LT.fromStrict $
           foldKey fromEmail fromPhone key
