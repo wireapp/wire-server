@@ -560,7 +560,7 @@ setTeamFeatureFlagNoConfig tid featureName statusValue ttlValue = do
         method PUT
           . paths ["/i/teams", toByteString' tid, "features", toByteString' featureName]
           . Bilge.json (Public.TeamFeatureStatusNoConfig statusValue)
-          . Bilge.query [("ttl", justBS ttlValue)]
+          . Bilge.query [("ttl", convert ttlValue)]
           . contentJson
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
@@ -568,7 +568,7 @@ setTeamFeatureFlagNoConfig tid featureName statusValue ttlValue = do
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE $ responseJsonUnsafe resp
   where
-    justBS = Just . toByteString' . fromDays
+    convert = Just . toByteString' . fromDays
     fromMinutes = (* 60)
     fromHours = fromMinutes . (* 60)
 
