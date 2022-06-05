@@ -571,9 +571,9 @@ setTeamFeatureFlagNoConfig tid featureName statusValue ttlValue = do
     convert = Just . toByteString' . fromDays
     fromMinutes = (* 60)
     fromHours = fromMinutes . (* 60)
-
-    fromDays (Public.TeamFeatureTTLSeconds s) = Public.TeamFeatureTTLSeconds . fromHours . (* 24) $ s
-    fromDays Public.TeamFeatureTTLUnlimited = Public.TeamFeatureTTLUnlimited
+    fromDays = \case
+      Public.TeamFeatureTTLSeconds s -> Public.TeamFeatureTTLSeconds . fromHours . (* 24) $ s
+      Public.TeamFeatureTTLUnlimited -> Public.TeamFeatureTTLUnlimited
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do
