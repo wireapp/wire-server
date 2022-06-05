@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
@@ -272,10 +271,6 @@ data TeamFeatureTTLValue
   | TeamFeatureTTLUnlimited
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamFeatureTTLValue)
-
-deriving instance ToJSON TeamFeatureTTLValue
-
-deriving instance FromJSON TeamFeatureTTLValue
 
 instance ToHttpApiData TeamFeatureTTLValue where
   toQueryParam = T.decodeUtf8 . toByteString'
