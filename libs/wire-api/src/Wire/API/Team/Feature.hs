@@ -298,6 +298,7 @@ instance FromByteString TeamFeatureTTLValue where
 instance Cass.Cql TeamFeatureTTLValue where
   ctype = Cass.Tagged Cass.IntColumn
 
+  fromCql (Cass.CqlInt 0) = pure TeamFeatureTTLUnlimited
   fromCql (Cass.CqlInt n) = pure . TeamFeatureTTLSeconds . fromIntegral $ n
   fromCql _ = Left "fromCql: TTLValue: CqlInt expected"
 
