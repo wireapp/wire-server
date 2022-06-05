@@ -271,6 +271,7 @@ data TeamFeatureTTLValue
   = TeamFeatureTTLSeconds Word
   | TeamFeatureTTLUnlimited
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamFeatureTTLValue)
 
 deriving instance ToJSON TeamFeatureTTLValue
 
