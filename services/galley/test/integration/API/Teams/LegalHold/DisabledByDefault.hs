@@ -923,7 +923,7 @@ getUserStatusTyped uid tid = do
 getUserStatusTyped' :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => GalleyR -> UserId -> TeamId -> m UserLegalHoldStatusResponse
 getUserStatusTyped' g uid tid = do
   resp <- getUserStatus' g uid tid <!! testResponse 200 Nothing
-  return $ responseJsonUnsafe resp
+  pure $ responseJsonUnsafe resp
 
 getUserStatus' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> UserId -> TeamId -> m ResponseLBS
 getUserStatus' g uid tid = do
@@ -1050,7 +1050,7 @@ newLegalHoldService = do
   let Just url =
         fromByteString $
           encodeUtf8 (botHost config) <> ":" <> cs (show (botPort config)) <> "/legalhold"
-  return
+  pure
     NewLegalHoldService
       { newLegalHoldServiceUrl = url,
         newLegalHoldServiceKey = key',
@@ -1062,7 +1062,7 @@ readServiceKey :: (HasCallStack, MonadIO m) => FilePath -> m ServiceKeyPEM
 readServiceKey fp = liftIO $ do
   bs <- BS.readFile fp
   let Right [k] = pemParseBS bs
-  return (ServiceKeyPEM k)
+  pure (ServiceKeyPEM k)
 
 -- FUTUREWORK: run this test suite against an actual LH service (by changing URL and key in
 -- the config file), and see if it works as well as with our mock service.

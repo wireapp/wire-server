@@ -57,26 +57,26 @@ ensureQueueEmpty = view tsAwsEnv >>= ensureQueueEmptyIO
 
 ensureQueueEmptyIO :: MonadIO m => Maybe Aws.Env -> m ()
 ensureQueueEmptyIO (Just env) = liftIO $ Aws.execute env purgeQueue
-ensureQueueEmptyIO Nothing = return ()
+ensureQueueEmptyIO Nothing = pure ()
 
 assertQueue :: String -> (String -> Maybe E.TeamEvent -> IO ()) -> TestM ()
 assertQueue label check =
   view tsAwsEnv >>= \case
     Just env -> liftIO $ Aws.execute env $ fetchMessage label check
-    Nothing -> return ()
+    Nothing -> pure ()
 
 -- Try to assert an event in the queue for a `timeout` amount of seconds
 tryAssertQueue :: Int -> String -> (String -> Maybe E.TeamEvent -> IO ()) -> TestM ()
 tryAssertQueue timeout label check =
   view tsAwsEnv >>= \case
     Just env -> liftIO $ Aws.execute env $ awaitMessage label timeout check
-    Nothing -> return ()
+    Nothing -> pure ()
 
 assertQueueEmpty :: HasCallStack => TestM ()
 assertQueueEmpty =
   view tsAwsEnv >>= \case
     Just env -> liftIO $ Aws.execute env ensureNoMessages
-    Nothing -> return ()
+    Nothing -> pure ()
 
 tActivateWithCurrency :: HasCallStack => Maybe Currency.Alpha -> String -> Maybe E.TeamEvent -> IO ()
 tActivateWithCurrency c l (Just e) = do
@@ -170,10 +170,10 @@ tryMatch label tries url callback = go tries
     check e =
       do
         liftIO $ callback label e
-        return (Right $ show e)
+        pure (Right $ show e)
         `catchAll` \ex -> case asyncExceptionFromException ex of
           Just x -> throwM (x :: SomeAsyncException)
-          Nothing -> return . Left $ MatchFailure (e, ex)
+          Nothing -> pure . Left $ MatchFailure (e, ex)
 
 -- Note that Amazon's purge queue is a bit incovenient for testing purposes because
 -- it may be delayed in ~60 seconds which causes messages that are published later
@@ -208,7 +208,7 @@ readAllUntilEmpty = do
   msgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> AWS.send amazonkaEnv (receive 10 url)
   readUntilEmpty msgs url msgs
   where
-    readUntilEmpty acc _ [] = return acc
+    readUntilEmpty acc _ [] = pure acc
     readUntilEmpty acc url msgs = do
       forM_ msgs $ deleteMessage url
       amazonkaEnv <- view awsEnv
@@ -228,12 +228,12 @@ parseDeleteMessage url m = do
   evt <- case decodedMessage <$> (m ^. SQS.message_body) of
     Just (Right e) -> do
       trace $ msg $ val "SQS event received"
-      return (Just e)
+      pure (Just e)
     _ -> do
       err . msg $ val "Failed to parse SQS message or event"
-      return Nothing
+      pure Nothing
   deleteMessage url m
-  return evt
+  pure evt
 
 initHttpManager :: IO Manager
 initHttpManager = do

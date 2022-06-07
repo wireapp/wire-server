@@ -177,9 +177,9 @@ createBindingTeamWithMembers numUsers = do
     -- refreshing the index once at the end would be that the hard member limit wouldn't hold
     -- any more.
     refreshIndex
-    return $ view Galley.Types.Teams.userId mem
+    pure $ view Galley.Types.Teams.userId mem
 
-  return (tid, owner, members)
+  pure (tid, owner, members)
 
 createBindingTeamWithQualifiedMembers :: HasCallStack => Int -> TestM (TeamId, Qualified UserId, [Qualified UserId])
 createBindingTeamWithQualifiedMembers num = do
@@ -200,7 +200,7 @@ getTeams u queryItems = do
           . zType "access"
           . expect2xx
       )
-  return $ responseJsonUnsafe r
+  pure $ responseJsonUnsafe r
 
 createBindingTeamWithNMembers :: Int -> TestM (UserId, TeamId, [UserId])
 createBindingTeamWithNMembers = createBindingTeamWithNMembersWithHandles False
@@ -220,7 +220,7 @@ createBindingTeamWithNMembersWithHandles withHandles n = do
     mkRandomHandle :: MonadIO m => m Text
     mkRandomHandle = liftIO $ do
       nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
-      return (cs (map chr nrs))
+      pure (cs (map chr nrs))
 
     setHandle :: UserId -> TestM ()
     setHandle uid = when withHandles $ do
@@ -260,7 +260,7 @@ createBindingTeamInternal :: HasCallStack => Text -> UserId -> TestM TeamId
 createBindingTeamInternal name owner = do
   tid <- createBindingTeamInternalNoActivate name owner
   changeTeamStatus tid Active
-  return tid
+  pure tid
 
 createBindingTeamInternalNoActivate :: HasCallStack => Text -> UserId -> TestM TeamId
 createBindingTeamInternalNoActivate name owner = do
@@ -271,7 +271,7 @@ createBindingTeamInternalNoActivate name owner = do
     put (g . paths ["/i/teams", toByteString' tid] . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
       const 201 === statusCode
       const True === isJust . getHeader "Location"
-  return tid
+  pure tid
 
 createBindingTeamInternalWithCurrency :: HasCallStack => Text -> UserId -> Currency.Alpha -> TestM TeamId
 createBindingTeamInternalWithCurrency name owner cur = do
@@ -280,7 +280,7 @@ createBindingTeamInternalWithCurrency name owner cur = do
   _ <-
     put (g . paths ["i", "teams", toByteString' tid, "status"] . json (TeamStatusUpdate Active $ Just cur))
       !!! const 200 === statusCode
-  return tid
+  pure tid
 
 getTeamInternal :: HasCallStack => TeamId -> TestM TeamData
 getTeamInternal tid = do
@@ -418,7 +418,7 @@ addUserToTeamWithRole' role inviter tid = do
           . contentJson
           . body (acceptInviteBody inviteeEmail inviteeCode)
       )
-  return (inv, r)
+  pure (inv, r)
 
 addUserToTeamWithSSO :: HasCallStack => Bool -> TeamId -> TestM TeamMember
 addUserToTeamWithSSO hasEmail tid = do
@@ -481,7 +481,7 @@ getInvitationCode t ref = do
                 . queryItem "invitation_id" (toByteString' ref)
             )
         let lbs = fromMaybe "" $ responseBody r
-        return $ fromByteString . Text.encodeUtf8 =<< lbs ^? key "code" . _String
+        pure $ fromByteString . Text.encodeUtf8 =<< lbs ^? key "code" . _String
 
   fromMaybe (error "No code?")
     <$> retrying
@@ -1493,8 +1493,8 @@ assertConvWithRole r t c s us n mt role = do
       SelfConv -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
       ConnectConv -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
       One2OneConv -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
-      _ -> return ()
-  return cId
+      _ -> pure ()
+  pure cId
 
 assertConvQualified ::
   HasCallStack =>
@@ -1541,8 +1541,8 @@ assertConvQualifiedWithRole r t c s us n mt role = do
       SelfConv -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
       ConnectConv -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
       One2OneConv -> assertEqual "access" (Just privateAccess) (cnvAccess <$> cnv)
-      _ -> return ()
-  return cId
+      _ -> pure ()
+  pure cId
 
 wsAssertOtr ::
   HasCallStack =>
@@ -1705,7 +1705,7 @@ assertNoMsg :: HasCallStack => WS.WebSocket -> (Notification -> Assertion) -> Te
 assertNoMsg ws f = do
   x <- WS.awaitMatch (1 # Second) ws f
   liftIO $ case x of
-    Left _ -> return () -- expected
+    Left _ -> pure () -- expected
     Right _ -> assertFailure "Unexpected message"
 
 assertRemoveUpdate :: (MonadIO m, HasCallStack) => FederatedRequest -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
@@ -1840,7 +1840,7 @@ connectUsersWith fn u = mapM connectTo
               . json (ConnectionUpdate Accepted)
               . fn
           )
-      return (r1, r2)
+      pure (r1, r2)
 
 connectWithRemoteUser ::
   (MonadReader TestSetup m, MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) =>
@@ -1983,7 +1983,7 @@ ephemeralUser = do
   let p = object ["name" .= name]
   r <- post (b . path "/register" . json p) <!! const 201 === statusCode
   user <- responseJsonError r
-  return $ Brig.Types.userId user
+  pure $ Brig.Types.userId user
 
 randomClient :: HasCallStack => UserId -> LastPrekey -> TestM ClientId
 randomClient uid lk = randomClientWithCaps uid lk Nothing
@@ -2000,7 +2000,7 @@ randomClientWithCaps uid lk caps = do
       )
       <!! const rStatus === statusCode
   client <- responseJsonError resp
-  return (clientId client)
+  pure (clientId client)
   where
     cType = PermanentClientType
     rStatus = 201
@@ -2082,7 +2082,7 @@ isUserDeleted u = do
     Just j -> do
       let st = maybeFromJSON =<< j ^? key "status"
       let decoded = fromMaybe (error $ "getStatus: failed to decode status" ++ show j) st
-      return $ decoded == Deleted
+      pure $ decoded == Deleted
   where
     maybeFromJSON :: FromJSON a => Value -> Maybe a
     maybeFromJSON v = case fromJSON v of
@@ -2097,18 +2097,18 @@ isMember usr cnv = do
       g
         . paths ["i", "conversations", toByteString' cnv, "members", toByteString' usr]
         . expect2xx
-  return $ isJust (responseJsonMaybe @Member res)
+  pure $ isJust (responseJsonMaybe @Member res)
 
 randomUserWithClient :: LastPrekey -> TestM (UserId, ClientId)
 randomUserWithClient lk = do
   (u, c) <- randomUserWithClientQualified lk
-  return (qUnqualified u, c)
+  pure (qUnqualified u, c)
 
 randomUserWithClientQualified :: LastPrekey -> TestM (Qualified UserId, ClientId)
 randomUserWithClientQualified lk = do
   u <- randomQualifiedUser
   c <- randomClient (qUnqualified u) lk
-  return (u, c)
+  pure (u, c)
 
 newNonce :: TestM (Id ())
 newNonce = randomId
@@ -2213,7 +2213,7 @@ defPassword = PlainTextPassword "secret"
 randomEmail :: MonadIO m => m Email
 randomEmail = do
   uid <- liftIO nextRandom
-  return $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
+  pure $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
 
 selfConv :: UserId -> ConvId
 selfConv u = Id (toUUID u)
@@ -2223,7 +2223,7 @@ retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
 retryWhileN n f m =
   retrying
     (constantDelay 1000000 <> limitRetries n)
-    (const (return . f))
+    (const (pure . f))
     (const m)
 
 -- | Changing this will break tests; all prekeys and client Id must match the same
@@ -2398,7 +2398,7 @@ getUsersBy keyName = chunkify $ \keys -> do
           . expect2xx
       )
   let accounts = fromJust $ responseJsonMaybe @[UserAccount] res
-  return $ fmap accountUser accounts
+  pure $ fmap accountUser accounts
 
 getUserProfile :: UserId -> UserId -> TestM UserProfile
 getUserProfile zusr uid = do

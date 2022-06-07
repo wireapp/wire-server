@@ -1732,7 +1732,7 @@ paginateConvIds = do
           then assertEqual "hasMore should be True" True (convHasMore c)
           else assertEqual ("hasMore should be False, " <> show n <> " more chunks to go") False (convHasMore c)
 
-      return (Just (Right (last (convList c))))
+      pure (Just (Right (last (convList c))))
 
 getConvIdsFailMaxSize :: TestM ()
 getConvIdsFailMaxSize = do
@@ -1882,7 +1882,7 @@ getChunkedConvs size lastSize alice pagingState n = do
       then assertEqual ("hasMore should be True, " <> show n <> " more chunk(s) to go") True (mtpHasMore c)
       else assertEqual "hasMore should be False, no more chunks to go" False (mtpHasMore c)
 
-  return . Just $ mtpPagingState c
+  pure . Just $ mtpPagingState c
 
 getConvsPagingOk :: TestM ()
 getConvsPagingOk = do
@@ -1904,7 +1904,7 @@ getConvsPagingOk = do
       let ids3 = map (qUnqualified . cnvQualifiedId) . convList <$> responseJsonUnsafe r2
       liftIO $ assertEqual "unexpected length (getConvs)" (Just n) (length <$> ids3)
       liftIO $ assertBool "getConvIds /= getConvs" (ids1 == ids3)
-      return $ ids1 >>= listToMaybe . reverse
+      pure $ ids1 >>= listToMaybe . reverse
 
 postConvFailNotConnected :: TestM ()
 postConvFailNotConnected = do
@@ -2638,7 +2638,7 @@ postMembersOk = do
   -- Check that last_event markers are set for all members
   forM_ [alice, bob, chuck, eve] $ \u -> do
     _ <- getSelfMember u conv <!! const 200 === statusCode
-    return ()
+    pure ()
 
 postMembersOk2 :: TestM ()
 postMembersOk2 = do

@@ -1583,7 +1583,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
         if expect
           then checkTeamMemberJoin tid member wsOrigin
           else WS.assertNoEvent (1 # Second) [wsOrigin]
-        return member
+        pure member
     removeTeamMemberAndExpectEvent :: HasCallStack => Bool -> UserId -> TeamId -> UserId -> [UserId] -> TestM ()
     removeTeamMemberAndExpectEvent expect owner tid victim others = do
       c <- view tsCannon
@@ -2092,10 +2092,10 @@ postCryptoBroadcastMessage100OrMaxConns bcast = do
       (r1, r2) <- List1.head <$> connectUsersUnchecked alice (singleton uid)
       case (statusCode r1, statusCode r2, remaining, acc) of
         (201, 200, 0, []) -> error "Need to connect with at least 1 user"
-        (201, 200, 0, x : xs) -> return (x, xs)
+        (201, 200, 0, x : xs) -> pure (x, xs)
         (201, 200, _, _) -> createAndConnectUserWhileLimitNotReached alice (remaining -1) ((uid, cid) : acc) pk
         (403, 403, _, []) -> error "Need to connect with at least 1 user"
-        (403, 403, _, x : xs) -> return (x, xs)
+        (403, 403, _, x : xs) -> pure (x, xs)
         (xxx, yyy, _, _) -> error ("Unexpected while connecting users: " ++ show xxx ++ " and " ++ show yyy)
 
 newTeamMember' :: Permissions -> UserId -> TeamMember
