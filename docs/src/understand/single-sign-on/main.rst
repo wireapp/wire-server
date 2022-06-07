@@ -503,6 +503,25 @@ Note that ``$SCIM_USER`` is in the JSON format and is declared before running th
       --header 'Content-Type: application/json;charset=utf-8' \
       $WIRE_BACKEND/scim/v2/Users/$STORED_USER_ID
 
+**Search a specific user**
+
+SCIM user search is quite flexible.  Wire currently only supports lookup by wire handle or email address.
+
+Email address (and/or SAML NameID, if /a):
+
+.. code-block:: bash
+   :linenos:
+
+    curl -X GET \
+      --header "Authorization: Bearer $SCIM_TOKEN" \
+      --header 'Content-Type: application/json;charset=utf-8' \
+      $WIRE_BACKEND/scim/v2/Users/'?filter=externalId%20eq%20%22me%40example.com%22'
+
+Wire handle: same request, just replace the query part with
+
+.. code-block:: bash
+    '?filter=userName%20eq%20%22me%22'
+
 **Update a specific user**
 
 For each put request, you need to provide the full json object.  All omitted fields will be set to ``null``.  (If you do not have an up-to-date user present, just ``GET`` one right before the ``PUT``.)
