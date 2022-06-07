@@ -1,1 +1,2 @@
-charts/nginz: Resolve collision between brig and galeb endpoints
+charts/nginz: Resolve collision between brig and galeb endpoints. Ensure
+/self/consent and /signatures endpoints are configured in all environments

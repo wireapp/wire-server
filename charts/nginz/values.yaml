@@ -528,9 +528,13 @@ nginx_conf:
       versioned: false
       strip_version: true
     - path: /self/consent
+      envs:
+      - all
       versioned: false
       strip_version: true
     - path: /signature
+      envs:
+      - all
       versioned: false
       specific_user_rate_limit: reqs_per_user_signatures
       strip_version: true
