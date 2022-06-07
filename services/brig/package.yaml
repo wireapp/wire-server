@@ -68,6 +68,7 @@ library:
   - imports
   - insert-ordered-containers
   - iproute >=1.5
+  - iso3166-country-codes
   - iso639 >=0.1
   - lens >=3.8
   - lens-aeson >=1.0

@@ -49,8 +49,13 @@ userQueryToCassandra =
       GetAccountStatuses uids -> retry x1 (query accountStateSelectAll (params LocalQuorum (Identity uids)))
       GetTeam uid -> (runIdentity =<<) <$> retry x1 (query1 teamSelect (params LocalQuorum (Identity uid)))
       GetAccounts uids -> retry x1 (query accountsSelect (params LocalQuorum (Identity uids)))
+      IsActivated uid -> isActivatedQuery uid
       InsertAccount ua mConvTeam mPass act -> accountInsert ua mConvTeam mPass act
       UpdateUser uid update -> userUpdate uid update
+      UpdateEmail uid email -> updateEmailQuery uid email
+      UpdatePhone uid phone -> updatePhoneQuery uid phone
+      ActivateUser uid ui -> activateUserQuery uid ui
+      DeleteEmailUnvalidated uid -> deleteEmailUnvalidatedQuery uid
 
 --------------------------------------------------------------------------------
 -- Queries
@@ -174,3 +179,36 @@ userUpdate u UserUpdate {..} = retry x5 . batch $ do
 
     userAccentIdUpdate :: PrepQuery W (ColourId, UserId) ()
     userAccentIdUpdate = "UPDATE user SET accent_id = ? WHERE id = ?"
+
+isActivatedQuery :: MonadClient m => UserId -> m Bool
+isActivatedQuery u =
+  (== Just (Identity True))
+    <$> retry x1 (query1 activatedSelect (params LocalQuorum (Identity u)))
+
+updateEmailQuery :: MonadClient m => UserId -> Email -> m ()
+updateEmailQuery u e = retry x5 $ write userEmailUpdate (params LocalQuorum (e, u))
+  where
+    userEmailUpdate :: PrepQuery W (Email, UserId) ()
+    userEmailUpdate = "UPDATE user SET email = ? WHERE id = ?"
+
+deleteEmailUnvalidatedQuery :: MonadClient m => UserId -> m ()
+deleteEmailUnvalidatedQuery u =
+  retry x5 $ write userEmailUnvalidatedDelete (params LocalQuorum (Identity u))
+  where
+    userEmailUnvalidatedDelete :: PrepQuery W (Identity UserId) ()
+    userEmailUnvalidatedDelete = "UPDATE user SET email_unvalidated = null WHERE id = ?"
+
+updatePhoneQuery :: MonadClient m => UserId -> Phone -> m ()
+updatePhoneQuery u p = retry x5 $ write userPhoneUpdate (params LocalQuorum (p, u))
+  where
+    userPhoneUpdate :: PrepQuery W (Phone, UserId) ()
+    userPhoneUpdate = "UPDATE user SET phone = ? WHERE id = ?"
+
+activateUserQuery :: MonadClient m => UserId -> UserIdentity -> m ()
+activateUserQuery u ident = do
+  let email = emailIdentity ident
+  let phone = phoneIdentity ident
+  retry x5 $ write userActivatedUpdate (params LocalQuorum (email, phone, u))
+  where
+    userActivatedUpdate :: PrepQuery W (Maybe Email, Maybe Phone, UserId) ()
+    userActivatedUpdate = "UPDATE user SET activated = true, email = ?, phone = ? WHERE id = ?"

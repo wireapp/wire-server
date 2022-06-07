@@ -31,31 +31,29 @@ module Brig.Data.Activation
   )
 where
 
-import Brig.App (Env, qualifyLocal, settings)
 import Brig.Data.User
 import Brig.Data.UserKey
 import Brig.Options
-import qualified Brig.Sem.CodeStore as E
-import Brig.Sem.CodeStore.Cassandra
+import Brig.Sem.ActivationKeyStore
+import Brig.Sem.ActivationSupply
+import Brig.Sem.PasswordResetStore
+import qualified Brig.Sem.PasswordResetStore as E
 import qualified Brig.Sem.PasswordResetSupply as E
-import Brig.Sem.PasswordResetSupply.IO
-import Brig.Sem.UserQuery.Cassandra
+import Brig.Sem.UserKeyStore (UserKeyStore)
+import Brig.Sem.UserQuery (UserQuery)
 import Brig.Types
 import Brig.Types.Intra
 import Cassandra
 import Control.Error
-import Control.Lens (view)
 import Data.Id
-import Data.Text (pack)
+import Data.Qualified
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as LT
 import Imports
-import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import OpenSSL.EVP.Digest (Digest, digestBS, getDigestByName)
 import Polysemy
 import Polysemy.Input
-import Text.Printf (printf)
 import Wire.API.User
 
 --  | The information associated with the pending activation of a 'UserKey'.
@@ -87,35 +85,30 @@ data ActivationEvent
   | EmailActivated !UserId !Email
   | PhoneActivated !UserId !Phone
 
--- | Max. number of activation attempts per 'ActivationKey'.
-maxAttempts :: Int32
-maxAttempts = 3
-
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKey ::
-  forall m.
-  ( MonadClient m,
-    MonadReader Env m
-  ) =>
+  forall r.
+  Members
+    '[ ActivationKeyStore,
+       Input (Local ()),
+       E.PasswordResetSupply,
+       PasswordResetStore,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
+  Locale ->
   Digest ->
   ActivationKey ->
   ActivationCode ->
   Maybe UserId ->
-  ExceptT ActivationError m (Maybe ActivationEvent)
-activateKey d k c u = verifyCode k c >>= pickUser >>= activate
+  ExceptT ActivationError (Sem r) (Maybe ActivationEvent)
+activateKey locale d k c u = verifyCode k c >>= pickUser >>= activate
   where
     pickUser (uk, u') = maybe (throwE invalidUser) (pure . (uk,)) (u <|> u')
     activate (key, uid) = do
-      locale <- setDefaultUserLocale <$> view settings
-      locDomain <- qualifyLocal ()
       a <-
-        lift
-          ( runM
-              . userQueryToCassandra @m @'[Embed m]
-              . runInputConst locDomain
-              $ lookupAccount locale uid
-          )
-          >>= maybe (throwE invalidUser) pure
+        lift (lookupAccount locale uid) >>= maybe (throwE invalidUser) pure
       unless (accountStatus a == Active) $ -- this is never 'PendingActivation' in the flow this function is used in.
         throwE invalidCode
       case userIdentity (accountUser a) of
@@ -149,20 +142,14 @@ activateKey d k c u = verifyCode k c >>= pickUser >>= activate
         for_ oldKey $ lift . deleteKey d
         pure . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
       where
-        updateEmailAndDeleteEmailUnvalidated :: MonadClient m => UserId -> Email -> m ()
+        updateEmailAndDeleteEmailUnvalidated :: UserId -> Email -> Sem r ()
         updateEmailAndDeleteEmailUnvalidated u' email =
           updateEmail u' email <* deleteEmailUnvalidated u'
-        deleteCode :: UserId -> m ()
+        deleteCode :: UserId -> Sem r ()
         deleteCode uId =
-          runM
-            -- FUTUREWORK: use the DeletePasswordResetCode action instead of CodeDelete
-            ( codeStoreToCassandra @m
-                ( embed @m
-                    ( liftIO @m (runM (passwordResetSupplyToIO @'[Embed IO] (E.mkPasswordResetKey uId)))
-                    )
-                    >>= E.codeDelete
-                )
-            )
+          -- FUTUREWORK: use the DeletePasswordResetCode action instead of CodeDelete
+          E.mkPasswordResetKey uId
+            >>= E.deletePasswordResetCode
     claim key uid = do
       ok <- lift $ claimKey d key uid
       unless ok $
@@ -171,29 +158,25 @@ activateKey d k c u = verifyCode k c >>= pickUser >>= activate
 
 -- | Create a new pending activation for a given 'UserKey'.
 newActivation ::
-  (MonadIO m, MonadClient m) =>
+  Members '[ActivationKeyStore, ActivationSupply] r =>
   UserKey ->
   -- | The timeout for the activation code.
   Timeout ->
   -- | The user with whom to associate the activation code.
   Maybe UserId ->
-  m Activation
+  Sem r Activation
 newActivation uk timeout u = do
   (typ, key, code) <-
-    liftIO $
-      foldKey
-        (\e -> ("email",fromEmail e,) <$> genCode)
-        (\p -> ("phone",fromPhone p,) <$> genCode)
-        uk
+    foldKey
+      (\e -> ("email",fromEmail e,) <$> makeActivationCode)
+      (\p -> ("phone",fromPhone p,) <$> makeActivationCode)
+      uk
   insert typ key code
   where
     insert t k c = do
-      key <- liftIO $ mkActivationKey uk
-      retry x5 . write keyInsert $ params LocalQuorum (key, t, k, c, u, maxAttempts, round timeout)
+      key <- makeActivationKey uk
+      insertActivationKey (key, t, k, c, u, maxAttempts, round timeout)
       pure $ Activation key c
-    genCode =
-      ActivationCode . Ascii.unsafeFromText . pack . printf "%06d"
-        <$> randIntegerZeroToNMinusOne 1000000
 
 -- | Lookup an activation code and it's associated owner (if any) for a 'UserKey'.
 lookupActivationCode :: MonadClient m => UserKey -> m (Maybe (Maybe UserId, ActivationCode))
@@ -203,12 +186,12 @@ lookupActivationCode k =
 
 -- | Verify an activation code.
 verifyCode ::
-  MonadClient m =>
+  Members '[ActivationKeyStore] r =>
   ActivationKey ->
   ActivationCode ->
-  ExceptT ActivationError m (UserKey, Maybe UserId)
+  ExceptT ActivationError (Sem r) (UserKey, Maybe UserId)
 verifyCode key code = do
-  s <- lift . retry x1 . query1 keySelect $ params LocalQuorum (Identity key)
+  s <- lift . getActivationKey $ key
   case s of
     Just (ttl, Ascii t, k, c, u, r) ->
       if
@@ -234,26 +217,11 @@ mkActivationKey k = do
   let bs = digestBS d' (T.encodeUtf8 $ keyText k)
   pure . ActivationKey $ Ascii.encodeBase64Url bs
 
-deleteActivationPair :: MonadClient m => ActivationKey -> m ()
-deleteActivationPair = write keyDelete . params LocalQuorum . Identity
-
 invalidUser :: ActivationError
 invalidUser = InvalidActivationCodeWrongUser -- "User does not exist."
 
 invalidCode :: ActivationError
 invalidCode = InvalidActivationCodeWrongCode -- "Invalid activation code"
 
-keyInsert :: PrepQuery W (ActivationKey, Text, Text, ActivationCode, Maybe UserId, Int32, Int32) ()
-keyInsert =
-  "INSERT INTO activation_keys \
-  \(key, key_type, key_text, code, user, retries) VALUES \
-  \(?  , ?       , ?       , ?   , ?   , ?      ) USING TTL ?"
-
-keySelect :: PrepQuery R (Identity ActivationKey) (Int32, Ascii, Text, ActivationCode, Maybe UserId, Int32)
-keySelect = "SELECT ttl(code) as ttl, key_type, key_text, code, user, retries FROM activation_keys WHERE key = ?"
-
 codeSelect :: PrepQuery R (Identity ActivationKey) (Maybe UserId, ActivationCode)
 codeSelect = "SELECT user, code FROM activation_keys WHERE key = ?"
-
-keyDelete :: PrepQuery W (Identity ActivationKey) ()
-keyDelete = "DELETE FROM activation_keys WHERE key = ?"

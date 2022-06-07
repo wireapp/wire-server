@@ -82,13 +82,18 @@ import Brig.Sem.UserQuery
   ( AuthError (..),
     ReAuthError (..),
     UserQuery,
+    activateUser,
+    deleteEmailUnvalidated,
     getAuthentication,
     getId,
     getLocale,
     getName,
     getUsers,
+    isActivated,
     lookupAccount,
     lookupAccounts,
+    updateEmail,
+    updatePhone,
   )
 import Brig.Types
 import Brig.Types.Intra
@@ -309,14 +314,8 @@ updateUser u UserUpdate {..} = retry x5 . batch $ do
   for_ uupAssets $ \a -> addPrepQuery userAssetsUpdate (a, u)
   for_ uupAccentId $ \c -> addPrepQuery userAccentIdUpdate (c, u)
 
-updateEmail :: MonadClient m => UserId -> Email -> m ()
-updateEmail u e = retry x5 $ write userEmailUpdate (params LocalQuorum (e, u))
-
 updateEmailUnvalidated :: MonadClient m => UserId -> Email -> m ()
 updateEmailUnvalidated u e = retry x5 $ write userEmailUnvalidatedUpdate (params LocalQuorum (e, u))
-
-updatePhone :: MonadClient m => UserId -> Phone -> m ()
-updatePhone u p = retry x5 $ write userPhoneUpdate (params LocalQuorum (p, u))
 
 updateSSOId :: MonadClient m => UserId -> Maybe UserSSOId -> m Bool
 updateSSOId u ssoid = do
@@ -353,9 +352,6 @@ updateFeatureConferenceCalling uid mbStatus = do
 deleteEmail :: MonadClient m => UserId -> m ()
 deleteEmail u = retry x5 $ write userEmailDelete (params LocalQuorum (Identity u))
 
-deleteEmailUnvalidated :: MonadClient m => UserId -> m ()
-deleteEmailUnvalidated u = retry x5 $ write userEmailUnvalidatedDelete (params LocalQuorum (Identity u))
-
 deletePhone :: MonadClient m => UserId -> m ()
 deletePhone u = retry x5 $ write userPhoneDelete (params LocalQuorum (Identity u))
 
@@ -386,13 +382,6 @@ updateStatus u s =
 userExists :: Member UserQuery r => UserId -> Sem r Bool
 userExists uid = isJust <$> getId uid
 
--- | Whether the account has been activated by verifying
--- an email address or phone number.
-isActivated :: MonadClient m => UserId -> m Bool
-isActivated u =
-  (== Just (Identity True))
-    <$> retry x1 (query1 activatedSelect (params LocalQuorum (Identity u)))
-
 filterActive :: MonadClient m => [UserId] -> m [UserId]
 filterActive us =
   map (view _1) . filter isActiveUser
@@ -410,12 +399,6 @@ lookupUser ::
   UserId ->
   Sem r (Maybe User)
 lookupUser loc locale hpi u = listToMaybe <$> lookupUsers loc locale hpi [u]
-
-activateUser :: MonadClient m => UserId -> UserIdentity -> m ()
-activateUser u ident = do
-  let email = emailIdentity ident
-  let phone = phoneIdentity ident
-  retry x5 $ write userActivatedUpdate (params LocalQuorum (email, phone, u))
 
 deactivateUser :: MonadClient m => UserId -> m ()
 deactivateUser u =
@@ -574,9 +557,6 @@ type UserRowInsert =
 passwordSelect :: PrepQuery R (Identity UserId) (Identity (Maybe Password))
 passwordSelect = "SELECT password FROM user WHERE id = ?"
 
-activatedSelect :: PrepQuery R (Identity UserId) (Identity Bool)
-activatedSelect = "SELECT activated FROM user WHERE id = ?"
-
 accountStateSelectAll :: PrepQuery R (Identity [UserId]) (UserId, Bool, Maybe AccountStatus)
 accountStateSelectAll = "SELECT id, activated, status FROM user WHERE id IN ?"
 
@@ -611,17 +591,8 @@ userAssetsUpdate = "UPDATE user SET assets = ? WHERE id = ?"
 userAccentIdUpdate :: PrepQuery W (ColourId, UserId) ()
 userAccentIdUpdate = "UPDATE user SET accent_id = ? WHERE id = ?"
 
-userEmailUpdate :: PrepQuery W (Email, UserId) ()
-userEmailUpdate = "UPDATE user SET email = ? WHERE id = ?"
-
 userEmailUnvalidatedUpdate :: PrepQuery W (Email, UserId) ()
 userEmailUnvalidatedUpdate = "UPDATE user SET email_unvalidated = ? WHERE id = ?"
-
-userEmailUnvalidatedDelete :: PrepQuery W (Identity UserId) ()
-userEmailUnvalidatedDelete = "UPDATE user SET email_unvalidated = null WHERE id = ?"
-
-userPhoneUpdate :: PrepQuery W (Phone, UserId) ()
-userPhoneUpdate = "UPDATE user SET phone = ? WHERE id = ?"
 
 userSSOIdUpdate :: PrepQuery W (Maybe UserSSOId, UserId) ()
 userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?"
@@ -640,9 +611,6 @@ userStatusUpdate = "UPDATE user SET status = ? WHERE id = ?"
 
 userDeactivatedUpdate :: PrepQuery W (Identity UserId) ()
 userDeactivatedUpdate = "UPDATE user SET activated = false WHERE id = ?"
-
-userActivatedUpdate :: PrepQuery W (Maybe Email, Maybe Phone, UserId) ()
-userActivatedUpdate = "UPDATE user SET activated = true, email = ?, phone = ? WHERE id = ?"
 
 userLocaleUpdate :: PrepQuery W (Language, Maybe Country, UserId) ()
 userLocaleUpdate = "UPDATE user SET language = ?, country = ? WHERE id = ?"

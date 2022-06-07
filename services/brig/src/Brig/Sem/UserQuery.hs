@@ -30,8 +30,13 @@ module Brig.Sem.UserQuery
     getAccountStatuses,
     getTeam,
     getAccounts,
+    isActivated,
     insertAccount,
     updateUser,
+    updateEmail,
+    updatePhone,
+    activateUser,
+    deleteEmailUnvalidated,
 
     -- * effect-derived functions
     lookupAccount,
@@ -275,6 +280,10 @@ data UserQuery m a where
   GetAccountStatuses :: [UserId] -> UserQuery m [(UserId, Bool, Maybe AccountStatus)] -- accountStateSelectAll
   GetTeam :: UserId -> UserQuery m (Maybe TeamId) -- teamSelect
   GetAccounts :: [UserId] -> UserQuery m [AccountRow] -- accountsSelect
+
+  -- | Whether the account has been activated by verifying an email address or
+  -- phone number.
+  IsActivated :: UserId -> UserQuery m Bool
   -- FUTUREWORK: The 'InsertAccount' action should perhaps be in an account store effect
   InsertAccount ::
     UserAccount ->
@@ -286,6 +295,10 @@ data UserQuery m a where
     Bool ->
     UserQuery m ()
   UpdateUser :: UserId -> UserUpdate -> UserQuery m ()
+  UpdateEmail :: UserId -> Email -> UserQuery m ()
+  UpdatePhone :: UserId -> Phone -> UserQuery m ()
+  ActivateUser :: UserId -> UserIdentity -> UserQuery m ()
+  DeleteEmailUnvalidated :: UserId -> UserQuery m ()
 
 makeSem ''UserQuery
 
