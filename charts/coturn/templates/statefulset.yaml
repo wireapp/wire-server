@@ -93,6 +93,15 @@ spec:
               ZREST_SECRET="$(cat /secrets/zrest_secret.txt)"
               sed -Ee "s;__COTURN_EXT_IP__;$EXTERNAL_IP;g" -e "s;__COTURN_POD_IP__;$POD_IP;g" -e "s;__COTURN_SECRET__;$ZREST_SECRET;" /coturn-template/coturn.conf.template > /coturn-config/turnserver.conf
               exec /usr/bin/turnserver -c /coturn-config/turnserver.conf
+          {{- if .Values.coturnGracefulTermination }}
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - exec /usr/local/bin/pre-stop-hook "$POD_IP" {{ .Values.coturnMetricsListenPort }}
+          {{- end }}
 
           ports:
             - name: coturn-tcp
@@ -114,6 +123,9 @@ spec:
 
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+      {{- if .Values.coturnGracefulTermination }}
+      terminationGracePeriodSeconds: {{ .Values.coturnGracePeriodSeconds }}
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
