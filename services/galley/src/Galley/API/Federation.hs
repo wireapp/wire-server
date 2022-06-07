@@ -329,7 +329,8 @@ onMessageSent domain rmUnqualified = do
       recipientMap = userClientMap $ F.rmRecipients rm
       msgs = toMapOf (itraversed <.> itraversed) recipientMap
   (members, allMembers) <-
-    E.selectRemoteMembers (Map.keys recipientMap) (F.rmConversation rm)
+    first Set.fromList
+      <$> E.selectRemoteMembers (Map.keys recipientMap) (F.rmConversation rm)
   unless allMembers $
     P.warn $
       Log.field "conversation" (toByteString' (qUnqualified convId))
@@ -350,7 +351,7 @@ onMessageSent domain rmUnqualified = do
       (Just convId)
       mempty
       msgMetadata
-      msgs
+      (Map.filterWithKey (\(uid, _) _ -> Set.member uid members) msgs)
 
 sendMessage ::
   Members
