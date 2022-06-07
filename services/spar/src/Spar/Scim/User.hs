@@ -271,7 +271,7 @@ validateScimUser' errloc midp richInfoLimit user = do
     either err pure $ Brig.mkUserName (Scim.displayName user) veid
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
-  lang <- maybe (error "TODO: scim error") pure $ mapM parseLanguage $ Scim.preferredLanguage user
+  lang <- maybe (error "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
   pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang)
   where
     -- Validate rich info (@richInfo@). It must not exceed the rich info limit.
