@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE DeriveAnyClass #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -84,7 +83,6 @@ import qualified Galley.Types.Clients as Clients
 import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types.Status (status200, status400, status404)
-import Network.Wai
 import Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import qualified Network.Wai.Handler.Warp.Internal as Warp
@@ -367,7 +365,7 @@ testDisableLegalHoldForUser = do
       Ev.ClientAdded _ client -> do
         clientId client @?= someClientId
         clientType client @?= LegalHoldClientType
-        clientClass client @?= (Just LegalHoldClient)
+        clientClass client @?= Just LegalHoldClient
       _ -> assertBool "Unexpected event" False
     -- Only the admin can disable legal hold
     disableLegalHoldForUser (Just defPassword) tid member member !!! testResponse 403 (Just "operation-denied")
@@ -526,8 +524,8 @@ testRemoveLegalHoldFromTeam = do
     let delete'' expectRemoteLHCall = do
           deleteSettings (Just defPassword) owner tid !!! testResponse 204 Nothing
           when expectRemoteLHCall . liftIO . assertMatchChan chan $ \(req, _) -> do
-            putStrLn (show (pathInfo req, pathInfo req == ["legalhold", "remove"]))
-            putStrLn (show (requestMethod req, requestMethod req == "POST"))
+            print (pathInfo req, pathInfo req == ["legalhold", "remove"])
+            print (requestMethod req, requestMethod req == "POST")
             assertEqual "path" ["legalhold", "remove"] (pathInfo req)
             assertEqual "method" "POST" (requestMethod req)
           resp <- getSettings owner tid
@@ -633,7 +631,7 @@ testCannotCreateLegalHoldDeviceOldAPI = do
     tryout uid = do
       brg <- view tsBrig
       let newClientBody =
-            (newClient LegalHoldClientType (someLastPrekeys !! 0))
+            (newClient LegalHoldClientType (head someLastPrekeys))
               { newClientPassword = Just defPassword
               }
           req =
@@ -755,9 +753,7 @@ testOldClientsBlockDeviceHandshake = do
           assertEqual "" wantStatus (statusCode rsp)
           assertBool
             (show $ responseBody rsp)
-            ( case responseJsonMaybe rsp of
-                Nothing -> False
-                Just bdy -> wantBody bdy
+            ( maybe False wantBody (responseJsonMaybe rsp)
             )
 
     -- LH devices are treated as clients that have the ClientSupportsLegalholdImplicitConsent
@@ -1236,7 +1232,7 @@ instance FromJSON Ev.Event where
     if
         | typ `elem` ["user.legalhold-request", "user.legalhold-enable", "user.legalhold-disable"] -> Ev.UserEvent <$> Aeson.parseJSON ev
         | typ `elem` ["user.client-add", "user.client-remove"] -> Ev.ClientEvent <$> Aeson.parseJSON ev
-        | typ `elem` ["user.connection"] -> Ev.ConnectionEvent <$> Aeson.parseJSON ev
+        | typ == "user.connection" -> Ev.ConnectionEvent <$> Aeson.parseJSON ev
         | otherwise -> fail $ "Ev.Event: unsupported event type: " <> show typ
 
 -- (partial implementation, just good enough to make the tests work)

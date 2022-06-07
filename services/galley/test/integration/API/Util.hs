@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module API.Util where
@@ -156,7 +155,7 @@ symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
 createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
 createBindingTeam = do
-  (first Brig.Types.userId) <$> createBindingTeam'
+  first Brig.Types.userId <$> createBindingTeam'
 
 createBindingTeam' :: HasCallStack => TestM (User, TeamId)
 createBindingTeam' = do
@@ -735,7 +734,7 @@ postO2OConv u1 u2 n = do
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS
 postConnectConv a b name msg email = do
-  qb <- pure (Qualified b) <*> viewFederationDomain
+  qb <- Qualified b <$> viewFederationDomain
   g <- view tsGalley
   post $
     g
@@ -1359,7 +1358,7 @@ getTeamQueue zusr msince msize onlyLast =
         fmap (_2 %~ parseEvt) . mconcat . fmap parseEvts . view queuedNotifications $ qnl
 
     parseEvts :: QueuedNotification -> [(NotificationId, Object)]
-    parseEvts qn = (qn ^. queuedNotificationId,) <$> (toList $ qn ^. queuedNotificationPayload)
+    parseEvts qn = (qn ^. queuedNotificationId,) <$> toList (qn ^. queuedNotificationPayload)
 
     parseEvt :: Object -> UserId
     parseEvt o = case fromJSON (Object o) of
@@ -2203,8 +2202,7 @@ otrRecipients =
   OtrRecipients
     . UserClientMap
     . fmap Map.fromList
-    . foldr (uncurry Map.insert . fmap pure) mempty
-    . map (\(a, b, c) -> (a, (b, c)))
+    . foldr ((uncurry Map.insert . fmap pure) . (\(a, b, c) -> (a, (b, c)))) mempty
 
 genRandom :: (Q.Arbitrary a, MonadIO m) => m a
 genRandom = liftIO . Q.generate $ Q.arbitrary
@@ -2764,7 +2762,7 @@ spawn cp minput = do
       let writeInput = for_ ((,) <$> minput <*> minh) $ \(input, inh) ->
             BS.hPutStr inh input >> hClose inh
           readOutput = (,) <$> traverse BS.hGetContents mouth <*> waitForProcess ph
-       in fmap snd $ concurrently writeInput readOutput
+       in snd <$> concurrently writeInput readOutput
   case (mout, ex) of
     (Just out, ExitSuccess) -> pure out
     _ -> assertFailure "Failed spawning process"

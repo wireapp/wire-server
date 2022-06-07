@@ -72,7 +72,7 @@ tryAssertQueue timeout label check =
     Just env -> liftIO $ Aws.execute env $ awaitMessage label timeout check
     Nothing -> return ()
 
-assertQueueEmpty :: (HasCallStack) => TestM ()
+assertQueueEmpty :: HasCallStack => TestM ()
 assertQueueEmpty =
   view tsAwsEnv >>= \case
     Just env -> liftIO $ Aws.execute env ensureNoMessages
@@ -107,7 +107,7 @@ tUpdate c = tUpdateUncertainCount [c]
 tUpdateUncertainCount :: HasCallStack => [Int32] -> [UserId] -> String -> Maybe E.TeamEvent -> IO ()
 tUpdateUncertainCount countPossibilities uids l (Just e) = do
   assertEqual (l <> ": eventType") E.TeamEvent'TEAM_UPDATE (e ^. eventType)
-  let actualCount = (e ^. eventData . memberCount)
+  let actualCount = e ^. eventData . memberCount
   assertBool
     (l <> ": count, expected one of: " <> show countPossibilities <> ", got: " <> show actualCount)
     (actualCount `elem` countPossibilities)
@@ -224,7 +224,8 @@ deleteMessage url m = do
 
 parseDeleteMessage :: Text -> SQS.Message -> Amazon (Maybe E.TeamEvent)
 parseDeleteMessage url m = do
-  evt <- case (>>= decodeMessage) . B64.decode . Text.encodeUtf8 <$> (m ^. SQS.message_body) of
+  let decodedMessage = decodeMessage <=< (B64.decode . Text.encodeUtf8)
+  evt <- case decodedMessage <$> (m ^. SQS.message_body) of
     Just (Right e) -> do
       trace $ msg $ val "SQS event received"
       return (Just e)

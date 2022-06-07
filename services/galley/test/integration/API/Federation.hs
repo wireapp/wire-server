@@ -21,7 +21,7 @@ module API.Federation where
 
 import API.MLS.Util
 import API.Util
-import Bilge
+import Bilge hiding (head)
 import Bilge.Assert
 import Control.Lens hiding ((#))
 import Data.Aeson (ToJSON (..))
@@ -32,7 +32,7 @@ import Data.Domain
 import Data.Id (ConvId, Id (..), UserId, newClientId, randomId)
 import Data.Json.Util hiding ((#))
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.List1
+import Data.List1 hiding (head)
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
 import qualified Data.ProtoLens as Protolens
@@ -826,7 +826,7 @@ sendMessage = do
   localDomain <- viewFederationDomain
 
   -- users and clients
-  (alice, aliceClient) <- randomUserWithClientQualified (someLastPrekeys !! 0)
+  (alice, aliceClient) <- randomUserWithClientQualified (head someLastPrekeys)
   let aliceId = qUnqualified alice
   bobId <- randomId
   bobClient <- liftIO $ generate arbitrary
@@ -1036,7 +1036,7 @@ onUserDeleted = do
       FedGalley.cuOrigUserId bobDomainRPCReq @?= qUntagged bob
       FedGalley.cuConvId bobDomainRPCReq @?= qUnqualified groupConvId
       sort (FedGalley.cuAlreadyPresentUsers bobDomainRPCReq) @?= sort [tUnqualified bob, qUnqualified bart]
-      FedGalley.cuAction bobDomainRPCReq @?= (SomeConversationAction (sing @'ConversationLeaveTag) (pure $ qUntagged bob))
+      FedGalley.cuAction bobDomainRPCReq @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure $ qUntagged bob)
 
       -- Assertions about RPC to 'cDomain'
       cDomainRPC <- assertOne $ filter (\c -> frTargetDomain c == cDomain) rpcCalls
@@ -1148,7 +1148,7 @@ sendMLSWelcome = do
   let aliceDomain = Domain "a.far-away.example.com"
   -- Alice is from the originating domain and Bob is local, i.e., on the receiving domain
   MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {creatorOrigin = RemoteUser aliceDomain}
-  let bob = users !! 0
+  let bob = head users
 
   fedGalleyClient <- view tsFedGalleyClient
   cannon <- view tsCannon
@@ -1176,7 +1176,7 @@ sendMLSWelcomeKeyPackageNotFound = do
         { creatorOrigin = RemoteUser aliceDomain,
           createClients = DontCreateClients -- no key package upload will happen
         }
-  let bob = users !! 0
+  let bob = head users
 
   fedGalleyClient <- view tsFedGalleyClient
   cannon <- view tsCannon

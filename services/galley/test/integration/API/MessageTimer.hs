@@ -76,7 +76,7 @@ messageTimerInit ::
 messageTimerInit mtimer = do
   -- Create a conversation with a timer
   [alice, bob, jane] <- randomUsers 3
-  qAlice <- Qualified <$> pure alice <*> viewFederationDomain
+  qAlice <- Qualified alice <$> viewFederationDomain
   connectUsers alice (list1 bob [jane])
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing mtimer
@@ -90,7 +90,7 @@ messageTimerChange :: TestM ()
 messageTimerChange = do
   -- Create a conversation without a timer
   [alice, bob, jane] <- randomUsers 3
-  qAlice <- Qualified <$> pure alice <*> viewFederationDomain
+  qAlice <- Qualified alice <$> viewFederationDomain
   connectUsers alice (list1 bob [jane])
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing Nothing
@@ -120,7 +120,7 @@ messageTimerChangeQualified = do
   localDomain <- viewFederationDomain
   -- Create a conversation without a timer
   [alice, bob, jane] <- randomUsers 3
-  qAlice <- Qualified <$> pure alice <*> viewFederationDomain
+  qAlice <- Qualified alice <$> viewFederationDomain
   connectUsers alice (list1 bob [jane])
   rsp <-
     postConv alice [bob, jane] Nothing [] Nothing Nothing
@@ -213,7 +213,7 @@ messageTimerChangeO2O :: TestM ()
 messageTimerChangeO2O = do
   -- Create a 1:1 conversation
   [alice, bob] <- randomUsers 2
-  qAlice <- Qualified <$> pure alice <*> viewFederationDomain
+  qAlice <- Qualified alice <$> viewFederationDomain
   connectUsers alice (singleton bob)
   rsp <-
     postO2OConv alice bob Nothing
@@ -232,7 +232,7 @@ messageTimerEvent = do
   ca <- view tsCannon
   -- Create a conversation
   [alice, bob] <- randomUsers 2
-  qAlice <- Qualified <$> pure alice <*> viewFederationDomain
+  qAlice <- Qualified alice <$> viewFederationDomain
   connectUsers alice (singleton bob)
   rsp <-
     postConv alice [bob] Nothing [] Nothing Nothing

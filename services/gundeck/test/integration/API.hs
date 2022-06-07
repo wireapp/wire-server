@@ -22,7 +22,7 @@ module API
   )
 where
 
-import Bilge
+import Bilge hiding (head)
 import Bilge.Assert
 import qualified Cassandra as Cql
 import Control.Arrow ((&&&))

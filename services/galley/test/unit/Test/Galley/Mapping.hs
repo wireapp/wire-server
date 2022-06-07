@@ -57,17 +57,15 @@ tests =
         \(ConvWithLocalUser c luid) -> case conversationViewMaybe luid c of
           Nothing -> False
           Just cnv ->
-            not
-              ( qUntagged luid
-                  `elem` (map omQualifiedId (cmOthers (cnvMembers cnv)))
-              ),
+            qUntagged luid
+              `notElem` map omQualifiedId (cmOthers (cnvMembers cnv)),
       testProperty "conversation view contains all users" $
         \(ConvWithLocalUser c luid) ->
           fmap (sort . cnvUids) (conversationViewMaybe luid c)
             == Just (sort (convUids (tDomain luid) c)),
       testProperty "conversation view for an invalid user is empty" $
         \(RandomConversation c) luid ->
-          not (elem (tUnqualified luid) (map lmId (Data.convLocalMembers c)))
+          notElem (tUnqualified luid) (map lmId (Data.convLocalMembers c))
             ==> isNothing (conversationViewMaybe luid c),
       testProperty "remote conversation view for a valid user is non-empty" $
         \(ConvWithRemoteUser c ruid) dom ->
@@ -81,16 +79,14 @@ tests =
       testProperty "remote conversation view metadata is correct" $
         \(ConvWithRemoteUser c ruid) dom ->
           qDomain (qUntagged ruid) /= dom
-            ==> fmap (rcnvMetadata) (conversationToRemote dom ruid c)
+            ==> fmap rcnvMetadata (conversationToRemote dom ruid c)
               == Just (Data.convMetadata c),
       testProperty "remote conversation view does not contain self" $
         \(ConvWithRemoteUser c ruid) dom -> case conversationToRemote dom ruid c of
           Nothing -> False
           Just rcnv ->
-            not
-              ( qUntagged ruid
-                  `elem` (map omQualifiedId (rcmOthers (rcnvMembers rcnv)))
-              )
+            qUntagged ruid
+              `notElem` map omQualifiedId (rcmOthers (rcnvMembers rcnv))
     ]
 
 cnvUids :: Conversation -> [Qualified UserId]
@@ -128,9 +124,7 @@ genConversation =
 
 genConversationMetadata :: Gen ConversationMetadata
 genConversationMetadata =
-  ConversationMetadata
-    <$> pure RegularConv
-    <*> arbitrary
+  ConversationMetadata RegularConv <$> arbitrary
     <*> pure []
     <*> pure (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
     <*> arbitrary
