@@ -187,7 +187,7 @@ handler :: (MonadIO m, MonadMask m) => RetryStatus -> Handler m Bool
 handler = const . Handler $ \case
   Client.HttpExceptionRequest _ Client.NoResponseDataReceived -> return True
   Client.HttpExceptionRequest _ Client.IncompleteHeaders -> return True
-  Client.HttpExceptionRequest _ (Client.ConnectionTimeout) -> return True
+  Client.HttpExceptionRequest _ Client.ConnectionTimeout -> return True
   Client.HttpExceptionRequest _ (Client.ConnectionFailure _) -> return True
   _ -> return False
 
