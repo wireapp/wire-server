@@ -142,10 +142,10 @@ arnTransportText APNSVoIPSandbox = "APNS_VOIP_SANDBOX"
 snsArnParser :: (FromText t, ToText t) => Parser (SnsArn t)
 snsArnParser = do
   _ <- string "arn" *> char ':' *> string "aws" *> char ':' *> string "sns"
-  r <- char ':' *> takeTill (== ':') >>= either fail return . fromText
+  r <- char ':' *> takeTill (== ':') >>= either fail pure . fromText
   a <- char ':' *> takeTill (== ':')
-  t <- char ':' *> takeText >>= either fail return . fromText
-  return $ mkSnsArn r (Account a) t
+  t <- char ':' *> takeText >>= either fail pure . fromText
+  pure $ mkSnsArn r (Account a) t
 
 endpointTopicParser :: Parser EndpointTopic
 endpointTopicParser = do
@@ -154,7 +154,7 @@ endpointTopicParser = do
   e <- char '/' *> takeTill (== '-')
   a <- char '-' *> takeTill (== '/')
   i <- char '/' *> takeWhile1 (not . isSpace)
-  return $ mkEndpointTopic (ArnEnv e) t (AppName a) (EndpointId i)
+  pure $ mkEndpointTopic (ArnEnv e) t (AppName a) (EndpointId i)
 
 transportParser :: Parser Transport
 transportParser =

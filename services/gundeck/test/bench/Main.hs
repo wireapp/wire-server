@@ -61,12 +61,12 @@ notice = do
       uid = a ^. addrUser
       transp = a ^. addrTransport
   Right txt <- serialise msg uid transp
-  return $! LT.toStrict txt
+  pure $! LT.toStrict txt
 
 bench_BudgetSpent' :: IORef BudgetMap -> IO ()
 bench_BudgetSpent' ref = do
   budgetmap <- readIORef ref
-  void $ return $ budgetSpent' budgetmap
+  void $ pure $ budgetSpent' budgetmap
 
 -----------------------------------------------------------------------------
 -- Utilities
@@ -79,7 +79,7 @@ mkAddress t = do
   let tok = Token "test"
   let con = ConnId "conn"
   let clt = ClientId "client"
-  return $! Address u ept con (pushToken t app tok clt)
+  pure $! Address u ept con (pushToken t app tok clt)
 
 mkEndpoint :: Transport -> AppName -> EndpointArn
 mkEndpoint t a = mkSnsArn Ireland (Account "test") topic
@@ -93,4 +93,4 @@ prepareBudgetState size = do
     key <- nextRandom
     weight <- randomRIO (1, 1000)
     allocate ref key weight
-  return ref
+  pure ref

@@ -41,7 +41,7 @@ runRedisProxy redisHost redisPort proxyPort = do
   where
     getServerSocket servAddr = do
       server <- socket (addrFamily servAddr) Stream defaultProtocol
-      connect server (addrAddress servAddr) >> return server
+      connect server (addrAddress servAddr) >> pure server
     p1 <~~> p2 = finally (race_ (p1 `mapData` p2) (p2 `mapData` p1)) (close p1 >> close p2)
     mapData f t = do
       content <- recv f 4096
@@ -58,7 +58,7 @@ runTCPServer mhost port server = withSocketsDo $ do
   where
     open addr = E.bracketOnError (openServerSocket addr) close $ \sock -> do
       listen sock 1024
-      return sock
+      pure sock
     loop clientThreads sock = forever $ do
       E.bracketOnError (accept sock) (close . fst) $
         \(conn, _peer) -> do
@@ -76,7 +76,7 @@ resolve socketType mhost port passive =
     hints =
       defaultHints
         { addrSocketType = socketType,
-          addrFlags = if passive then [AI_PASSIVE] else []
+          addrFlags = [AI_PASSIVE | passive]
         }
 
 openServerSocket :: AddrInfo -> IO Socket
@@ -84,7 +84,7 @@ openServerSocket addr = E.bracketOnError (openSocket addr) close $ \sock -> do
   setSocketOption sock ReuseAddr 1
   withFdSocket sock $ setCloseOnExecIfNeeded
   bind sock $ addrAddress addr
-  return sock
+  pure sock
 
 openSocket :: AddrInfo -> IO Socket
 openSocket addr = socket (addrFamily addr) (addrSocketType addr) (addrProtocol addr)

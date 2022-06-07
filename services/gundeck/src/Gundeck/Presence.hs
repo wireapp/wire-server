@@ -47,11 +47,11 @@ add :: Request ::: JSON -> Gundeck Response
 add (req ::: _) = do
   p <- fromJsonBody (JsonRequest req)
   Data.add p
-  return $
+  pure $
     ( setStatus status201
         . addHeader hLocation (toByteString' (resource p))
     )
       empty
 
 remove :: UserId ::: ConnId ::: CannonId -> Gundeck Response
-remove _ = return (empty & setStatus status204)
+remove _ = pure (empty & setStatus status204)

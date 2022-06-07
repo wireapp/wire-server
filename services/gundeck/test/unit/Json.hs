@@ -77,7 +77,7 @@ genRecipient :: Gen Recipient
 genRecipient = do
   r <- recipient <$> arbitrary <*> elements [RouteAny, RouteDirect, RouteNative]
   c <- genRecipientClients
-  return $ r & set recipientClients c
+  pure $ r & set recipientClients c
 
 genRecipientClients :: Gen RecipientClients
 genRecipientClients =

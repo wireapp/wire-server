@@ -55,9 +55,9 @@ paginate uid since clt size = do
 getById :: UserId -> NotificationId -> Maybe ClientId -> Gundeck QueuedNotification
 getById uid nid clt = do
   mn <- Data.fetchId uid nid clt
-  maybe (throwM notificationNotFound) return mn
+  maybe (throwM notificationNotFound) pure mn
 
 getLast :: UserId -> Maybe ClientId -> Gundeck QueuedNotification
 getLast uid clt = do
   mn <- Data.fetchLast uid clt
-  maybe (throwM notificationNotFound) return mn
+  maybe (throwM notificationNotFound) pure mn

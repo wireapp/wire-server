@@ -144,7 +144,7 @@ type JSON = Media "application" "json"
 docsH :: ByteString ::: JSON -> Gundeck Response
 docsH (url ::: _) =
   let doc = mkSwaggerApi (decodeLatin1 url) Public.Swagger.models sitemap
-   in return $ json doc
+   in pure $ json doc
 
 addTokenH :: UserId ::: ConnId ::: JsonRequest Public.PushToken ::: JSON -> Gundeck Response
 addTokenH (uid ::: cid ::: req ::: _) = do
@@ -236,7 +236,7 @@ paginateH (_ ::: uid ::: sinceRaw ::: clt ::: size) = do
     since :: Maybe (Maybe NotificationId)
     since = parseUUID <$> sinceRaw
     parseUUID :: ByteString -> Maybe NotificationId
-    parseUUID = UUID.fromASCIIBytes >=> isV1UUID >=> return . Id
+    parseUUID = UUID.fromASCIIBytes >=> isV1UUID >=> pure . Id
     isV1UUID :: UUID -> Maybe UUID
     isV1UUID u = if UUID.version u == 1 then Just u else Nothing
     updStatus :: Bool -> Response -> Response
