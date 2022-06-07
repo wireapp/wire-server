@@ -1,1 +1,0 @@
-charts/{redis-ephemeral,legalhold}: Use old index for bitnami repo as the new index doesn't have old versions of postgresql and redis helm charts

@@ -1,3 +1,0 @@
-charts/{cannon,nginz}: values listed in
-`nginx_conf.randomport_allowlisted_origins` must be full hostnames. Hostnames
-listed here will be allowlisted with and without TLS.

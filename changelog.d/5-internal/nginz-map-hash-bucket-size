@@ -1,1 +1,0 @@
-charts/{nginz,cannon}: Increase map_hash_bucket_size for nginx to 128
