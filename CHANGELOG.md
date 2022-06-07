@@ -28,7 +28,7 @@
   Some (internal) context: https://wearezeta.atlassian.net/wiki/spaces/PS/pages/585564424/How+to+gracefully+drain+cannon+but+not+so+slowly
   For details on how to configure this, see docs/src/how-to/install/configuration-options.rst (#2421)
 
-* * Support running brig with GeoIP database when using helm charts (#2406)
+* Support running brig with GeoIP database when using helm charts (#2406)
 
 * charts/nginz: Add upstream configuration for galeb (#2444)
 
