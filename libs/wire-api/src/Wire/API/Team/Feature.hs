@@ -298,6 +298,8 @@ instance FromByteString TeamFeatureTTLValue where
 instance Cass.Cql TeamFeatureTTLValue where
   ctype = Cass.Tagged Cass.IntColumn
 
+  -- Passing TTL = 0 to Cassandra removes the TTL.
+  -- It does not instantly revert back.
   fromCql (Cass.CqlInt 0) = pure TeamFeatureTTLUnlimited
   fromCql (Cass.CqlInt n) = pure . TeamFeatureTTLSeconds . fromIntegral $ n
   fromCql _ = Left "fromCql: TTLValue: CqlInt expected"
