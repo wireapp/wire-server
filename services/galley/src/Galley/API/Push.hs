@@ -25,7 +25,7 @@ module Galley.API.Push
     newBotPush,
 
     -- * Executing message pushes
-    LocalMemberMap,
+    BotMap,
     MessagePushEffects,
     newMessagePush,
     runMessagePush,
@@ -81,6 +81,8 @@ newUserPush p = withSing @t $ \case
 newBotPush :: BotMember -> Event -> MessagePush 'NormalMessage
 newBotPush b e = NormalMessagePush {userPushes = mempty, botPushes = pure (b, e)}
 
+type BotMap = Map UserId BotMember
+
 type family LocalMemberMap (t :: MessageType) = (m :: *) | m -> t where
   LocalMemberMap 'NormalMessage = Map UserId LocalMember
   LocalMemberMap 'Broadcast = ()
@@ -95,14 +97,14 @@ newMessagePush ::
   forall t x.
   SingI t =>
   Local x ->
-  LocalMemberMap t ->
+  BotMap ->
   Maybe ConnId ->
   MessageMetadata ->
   (UserId, ClientId) ->
   Event ->
   MessagePush t
-newMessagePush loc members mconn mm (user, client) e = withSing @t $ \case
-  SNormalMessage -> case newBotMember =<< Map.lookup user members of
+newMessagePush loc bots mconn mm (user, client) e = withSing @t $ \case
+  SNormalMessage -> case Map.lookup user bots of
     Just bm -> newBotPush bm e
     Nothing -> fold $ newUserMessagePush loc mconn mm user client e
   SBroadcast -> fold $ newUserMessagePush loc mconn mm user client e

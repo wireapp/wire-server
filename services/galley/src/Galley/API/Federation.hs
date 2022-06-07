@@ -68,7 +68,6 @@ import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
-import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -311,6 +310,7 @@ leaveConversation requestingDomain lc = do
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
+-- FUTUREWORK: support bots
 onMessageSent ::
   Members '[GundeckAccess, ExternalAccess, MemberStore, Input (Local ()), P.TinyLog] r =>
   Domain ->
@@ -339,31 +339,18 @@ onMessageSent domain rmUnqualified = do
             \ users not in the conversation" ::
               ByteString
           )
-  localMembers <- sequence $ Map.fromSet mkLocalMember (Set.fromList members)
   loc <- qualifyLocal ()
   void $
-    sendLocalMessages
+    sendLocalMessages @'NormalMessage
       loc
       (F.rmTime rm)
       (F.rmSender rm)
       (F.rmSenderClient rm)
       Nothing
       (Just convId)
-      localMembers
+      mempty
       msgMetadata
       msgs
-  where
-    -- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQCORE-875
-    mkLocalMember :: UserId -> Sem r LocalMember
-    mkLocalMember m =
-      pure $
-        LocalMember
-          { lmId = m,
-            lmService = Nothing,
-            lmStatus = defMemberStatus,
-            lmConvRoleName = Public.roleNameWireMember,
-            lmMLSClients = Set.empty
-          }
 
 sendMessage ::
   Members

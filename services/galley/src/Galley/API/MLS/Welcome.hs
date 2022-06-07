@@ -104,7 +104,7 @@ sendLocalWelcomes con now rawWelcome lclients = do
       let lcnv = qualifyAs lclients (selfConv u)
           lusr = qualifyAs lclients u
           e = Event (qUntagged lcnv) (qUntagged lusr) now $ EdMLSWelcome rawWelcome
-       in newMessagePush lclients () con defMessageMetadata (u, c) e
+       in newMessagePush lclients mempty con defMessageMetadata (u, c) e
 
 sendRemoteWelcomes ::
   Members

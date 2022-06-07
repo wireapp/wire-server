@@ -18,7 +18,6 @@
 
 module Galley.API.MLS.Message (postMLSMessage) where
 
-import Control.Arrow
 import Control.Comonad
 import Control.Lens (preview, to)
 import Data.Domain
@@ -36,6 +35,7 @@ import Galley.API.Push
 import Galley.API.Util
 import Galley.Data.Conversation.Types hiding (Conversation)
 import qualified Galley.Data.Conversation.Types as Data
+import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.ConversationStore
@@ -287,7 +287,10 @@ propagateMessage ::
 propagateMessage lusr conv con raw = do
   -- FUTUREWORK: check the epoch
   let lmems = Data.convLocalMembers conv
-      lmMap = Map.fromList $ fmap (lmId &&& id) lmems
+      botMap = Map.fromList $ do
+        m <- lmems
+        b <- maybeToList $ newBotMember m
+        pure (lmId m, b)
       mm = defMessageMetadata
   now <- input @UTCTime
   let lcnv = qualifyAs lusr (Data.convId conv)
@@ -295,7 +298,7 @@ propagateMessage lusr conv con raw = do
       e = Event qcnv (qUntagged lusr) now $ EdMLSMessage raw
       lclients = tUnqualified . clients lusr <$> lmems
       mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
-      mkPush u c = newMessagePush lcnv lmMap (Just con) mm (u, c) e
+      mkPush u c = newMessagePush lcnv botMap (Just con) mm (u, c) e
 
   -- send to locals
   runMessagePush lusr (Just qcnv) $
