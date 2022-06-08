@@ -288,7 +288,7 @@ revokeAccess ::
   ExceptT AuthError m ()
 revokeAccess u pw cc ll = do
   lift $ Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.revokeAccess")
-  unlessM (Data.isSamlUser u) $ Data.authenticate u pw
+  unlessM (Data.userIdHasSAML u) $ Data.authenticate u pw
   lift $ revokeCookies u cc ll
 
 --------------------------------------------------------------------------------
