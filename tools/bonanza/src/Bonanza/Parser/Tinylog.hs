@@ -127,7 +127,7 @@ tinyFields = pair `sepBy` char sep
         _ -> do
           k <- optional $ takeWhile1 (\c -> c /= '\n' && c /= '=') <* char '='
           q' <- peekChar
-          let tup = (,) ((T.strip . toText) <$> k)
+          let tup = (,) (T.strip . toText <$> k)
           tup <$> case q' of
             Just y | y == '"' -> quoted' <* skipToSepOrEnd
             _ -> unquoted
@@ -145,7 +145,7 @@ tinyFieldsNetstr = map (bimap (fmap toText) toText) <$> tagged '='
 -- Internal
 
 filterFields :: [(Maybe Text, Text)] -> [(Text, Text)]
-filterFields = mapMaybe (\(k, v) -> flip (,) v `fmap` k)
+filterFields = mapMaybe (\(k, v) -> (,v) <$> k)
 {-# INLINEABLE filterFields #-}
 
 filterMessage :: [(Maybe Text, Text)] -> [Text]

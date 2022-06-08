@@ -127,7 +127,7 @@ commonLogRecord moreFieldParsers = do
     parseField name parser = do
       v <- optional parser
       _ <- skipHSpace
-      return $ maybe (name, CEmpty) ((,) name) v
+      return $ maybe (name, CEmpty) (name,) v
 
 field :: Parser TagValue -> Parser CommonLogField
 field p = emptyField <|> (go <?> "field")
@@ -139,7 +139,7 @@ field p = emptyField <|> (go <?> "field")
         _ -> CField <$> p
 
 emptyField :: Parser CommonLogField
-emptyField = const CEmpty <$> (string "\"-\"" <|> string "-") <?> "empty field"
+emptyField = CEmpty <$ ((string "\"-\"" <|> string "-") <?> "empty field")
 
 stringField :: Parser CommonLogField
 stringField = emptyField <|> (go <?> "string field")
@@ -155,7 +155,7 @@ stringField = emptyField <|> (go <?> "string field")
       (char '"' *> takeWhile1 (/= '"') <* char '"')
         <?> "quoted string field"
     unquoted =
-      (takeWhile1 (not . isSpace))
+      takeWhile1 (not . isSpace)
         <?> "unquoted string field"
 
 intField :: Parser CommonLogField

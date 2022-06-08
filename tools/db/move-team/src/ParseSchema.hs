@@ -167,14 +167,14 @@ argParser :: OA.Parser Arguments
 argParser =
   Arguments
     <$> OA.argument OA.str (OA.metavar "SCHEMA_FILE")
-    <*> ( optional $
-            OA.strOption
-              ( OA.long "output"
-                  <> OA.short 'o'
-                  <> OA.metavar "FILE"
-                  <> OA.help "Write output to FILE"
-              )
-        )
+    <*> optional
+      ( OA.strOption
+          ( OA.long "output"
+              <> OA.short 'o'
+              <> OA.metavar "FILE"
+              <> OA.help "Write output to FILE"
+          )
+      )
 
 moduleTemplate :: Text
 moduleTemplate =

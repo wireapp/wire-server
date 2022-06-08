@@ -328,7 +328,7 @@ mkSvInput df rec msg =
       msg
     ]
 
-instance Arbitrary (ParseInput (NginzLogRecord)) where
+instance Arbitrary (ParseInput NginzLogRecord) where
   arbitrary = do
     raddr <- genIPv4Field
     ruser <- genStringField
@@ -365,25 +365,24 @@ instance Arbitrary (ParseInput (NginzLogRecord)) where
     where
       genFields :: Gen [(Text, CommonLogField)]
       genFields =
-        sequence $
-          map
-            (\(f, g) -> (f,) <$> g)
-            [ ("status", genIntField),
-              ("body_bytes_sent", genIntField),
-              ("http_referer", genStringField),
-              ("http_user_agent", genStringField),
-              ("http_x_forwarded_for", genIPv4Field),
-              ("separator", genEmptyField),
-              ("connection", genIntField),
-              ("request_time", genDoubleField),
-              ("upstream_response_time", genDoubleField),
-              ("upstream_cache_status", genStringField),
-              ("user", genStringField),
-              ("zconn", genStringField),
-              ("request", genStringField),
-              ("proxy_protocol_addr", genIPv4Field),
-              ("tracestate", genStringField)
-            ]
+        mapM
+          (\(f, g) -> (f,) <$> g)
+          [ ("status", genIntField),
+            ("body_bytes_sent", genIntField),
+            ("http_referer", genStringField),
+            ("http_user_agent", genStringField),
+            ("http_x_forwarded_for", genIPv4Field),
+            ("separator", genEmptyField),
+            ("connection", genIntField),
+            ("request_time", genDoubleField),
+            ("upstream_response_time", genDoubleField),
+            ("upstream_cache_status", genStringField),
+            ("user", genStringField),
+            ("zconn", genStringField),
+            ("request", genStringField),
+            ("proxy_protocol_addr", genIPv4Field),
+            ("tracestate", genStringField)
+          ]
       genIntField :: Gen CommonLogField
       genIntField =
         maybe CEmpty (CField . Number . fromIntegral . getNonNegative)
@@ -478,8 +477,7 @@ mkSockInput df rec msg =
           mconcat
             [ "|",
               BC.intercalate ","
-                . map (\(k, v) -> BC.intercalate "=" [k, v])
-                . map (encodeUtf8 *** encodeUtf8)
+                . map ((\(k, v) -> BC.intercalate "=" [k, v]) . (encodeUtf8 *** encodeUtf8))
                 $ sockTags rec,
               "|"
             ],

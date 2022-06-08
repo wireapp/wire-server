@@ -112,10 +112,11 @@ run_prop ::
 run_prop p i =
   ioProperty $
     runConduit $
-      Conduit.sourceLbs inp
-        .| P.stream (P.MkParser p)
-        .| Conduit.consume
-        >>= pure . (=== out) . map secs
+      ( Conduit.sourceLbs inp
+          .| P.stream (P.MkParser p)
+          .| Conduit.consume
+      )
+        <&> ((=== out) . map secs)
   where
     inp = BL.fromStrict . B.intercalate "\n" $ map (snd . parseInput) i
     out = map (secs . toLogEvent . fst . parseInput) i

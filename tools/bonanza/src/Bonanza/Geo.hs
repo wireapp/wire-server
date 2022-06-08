@@ -60,12 +60,10 @@ geolocate db t evt =
           .~ fmap (toJSON . toGeo) x
 
 ip :: Text -> LogEvent -> Maybe IP.IP
-ip t = join . fmap parse . view (logTags . _Wrapped' . at (Key.fromText t))
+ip t = parse <=< view (logTags . _Wrapped' . at (Key.fromText t))
   where
     parse =
-      join
-        . fmap (preview _Right . Safe.readEitherSafe . Text.unpack)
-        . preview _String
+      (preview _Right . Safe.readEitherSafe . Text.unpack) <=< preview _String
 
 toGeo :: GeoResult -> Geo
 toGeo GeoResult {..} =

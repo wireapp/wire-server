@@ -28,6 +28,7 @@ where
 
 import Control.Applicative (optional)
 import Data.Attoparsec.ByteString.Char8
+import Data.Bifunctor (first)
 import qualified Data.List as List
 import Data.Time
 import Data.Time.Clock.POSIX
@@ -36,7 +37,7 @@ import Imports hiding (take)
 
 tai64N :: Parser UTCTime
 tai64N = do
-  secs <- take 16 >>= int >>= return . subtract taiBase
+  secs <- (take 16 >>= int) <&> subtract taiBase
   nano <- take 8 >>= int
   let t = posixSecondsToUTCTime $ posix secs nano
       l = (-1) * fromIntegral (leapSeconds t)
@@ -46,7 +47,7 @@ tai64N = do
     int bs =
       either
         (const $ fail "not a hexadecimal number")
-        (return . id)
+        return
         (parseOnly hexadecimal bs)
     posix :: Integer -> Integer -> POSIXTime
     posix secs nano =
@@ -132,7 +133,7 @@ leapSeconds = fromMaybe def . leapSecondsMap . utctDay
 
 -- Source: https://www.ietf.org/timezones/data/leap-seconds.list
 leapSecondsMap :: LeapSecondMap
-leapSecondsMap v = List.lookup v $ map (\(x, y) -> (read x, y)) leap
+leapSecondsMap v = List.lookup v $ map (first read) leap
   where
     leap =
       [ ("1972-01-01", 10),

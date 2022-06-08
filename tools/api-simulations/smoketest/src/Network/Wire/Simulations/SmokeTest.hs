@@ -110,7 +110,7 @@ mainBotNet n = do
     c <- getConv meetup
     assertEqual
       (Just True)
-      ((memOtrArchived . cmSelf . cnvMembers) <$> c)
+      (memOtrArchived . cmSelf . cnvMembers <$> c)
       "Archived update failed"
   info $ msg "Bill kicks and then re-adds Ally"
   runBotSession bill $ do
