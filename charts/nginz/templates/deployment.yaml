@@ -54,7 +54,7 @@ spec:
           mountPath: /etc/wire/nginz/upstreams
           readOnly: true
         - name: swagger-ui
-          mountPath: /opt/swagger-ui
+          mountPath: /opt/zwagger-ui
           readOnly: true
         - name: swagger-resources
           mountPath: {{ .Values.nginx_conf.swagger_root }}
