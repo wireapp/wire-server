@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -51,6 +50,7 @@ import qualified Codec.MIME.Type as MIME
 import Conduit
 import Control.Error (ExceptT, throwE)
 import Control.Lens hiding (parts, (.=), (:<), (:>))
+import Data.Bifunctor (first)
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
@@ -159,13 +159,13 @@ getMetadataV3 (s3Key . mkKey -> key) = do
       ~~ "asset.key" .= key
       ~~ msg
         (val "Getting asset metadata")
-  maybe (return Nothing) handle =<< execCatch req
+  maybe (pure Nothing) handle =<< execCatch req
   where
     req b = newHeadObject (BucketName b) (ObjectKey key)
     handle r = do
       let ct = fromMaybe octets (MIME.parseMIMEType =<< r ^. headObjectResponse_contentType)
       let meta = HML.toList $ r ^. headObjectResponse_metadata
-      return $ parse ct meta
+      pure $ parse ct meta
     parse ct h =
       S3AssetMeta
         <$> getAmzMetaPrincipal h
@@ -225,7 +225,7 @@ signedURL path = do
             ~~ msg (val "Failed to generate a signed URI")
             ~~ msg (show e)
         throwE serverError
-      Right u -> return u
+      Right u -> pure u
 
 mkKey :: V3.AssetKey -> S3AssetKey
 mkKey (V3.AssetKeyV3 i r) = S3AssetKey $ "v3/" <> retention <> "/" <> key
@@ -280,7 +280,7 @@ setAmzMetaPrincipal (V3.ProviderPrincipal p) = setAmzMetaProvider p
 -- S3 Metadata Getters
 
 lookupCI :: (CI.FoldCase a, Eq a) => a -> [(a, b)] -> Maybe b
-lookupCI k = lookup (CI.mk k) . fmap (\(a, b) -> (CI.mk a, b))
+lookupCI k = lookup (CI.mk k) . fmap (first CI.mk)
 
 getAmzMetaPrincipal :: [(Text, Text)] -> Maybe V3.Principal
 getAmzMetaPrincipal h =
@@ -336,7 +336,7 @@ otrKey c a = S3AssetKey $ "otr/" <> Text.pack (show c) <> "/" <> Text.pack (show
 getMetadata :: AssetId -> ExceptT Error App (Maybe Bool)
 getMetadata ast = do
   r <- execCatch req
-  return $ parse <$> HML.toList <$> view headObjectResponse_metadata <$> r
+  pure $ (parse <$> HML.toList) . view headObjectResponse_metadata <$> r
   where
     req b = newHeadObject (BucketName b) (ObjectKey . Text.pack $ show ast)
     parse =
@@ -347,6 +347,6 @@ getOtrMetadata :: ConvId -> AssetId -> ExceptT Error App (Maybe UserId)
 getOtrMetadata cnv ast = do
   let S3AssetKey key = otrKey cnv ast
   r <- execCatch (req key)
-  return $ getAmzMetaUser =<< HML.toList <$> view headObjectResponse_metadata <$> r
+  pure $ getAmzMetaUser . (HML.toList <$> view headObjectResponse_metadata) =<< r
   where
     req k b = newHeadObject (BucketName b) (ObjectKey k)

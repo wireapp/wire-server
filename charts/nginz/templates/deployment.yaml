@@ -30,7 +30,7 @@ spec:
         checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
         fluentbit.io/parser-nginz: nginz
     spec:
-      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }} # should be higher than the drainTimeout (sleep duration of preStop)
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       containers:
       - name: nginz-disco
         image: "{{ .Values.images.nginzDisco.repository }}:{{ .Values.images.nginzDisco.tag }}"
@@ -43,14 +43,6 @@ spec:
           readOnly: false
       - name: nginz
         image: "{{ .Values.images.nginz.repository }}:{{ .Values.images.nginz.tag }}"
-        lifecycle:
-          preStop:
-            exec:
-              # kubernetes by default sends a SIGTERM to the container,
-              # which would cause nginz to exit, breaking existing websocket connections.
-              # Instead we sleep for a day, then terminate gracefully.
-              # (SIGTERM is still sent, but afterwards)
-              command: ["sh", "-c", "sleep {{ .Values.drainTimeout }} && nginx -c /etc/wire/nginz/conf/nginx.conf -s quit"]
         volumeMounts:
         - name: secrets
           mountPath: /etc/wire/nginz/secrets

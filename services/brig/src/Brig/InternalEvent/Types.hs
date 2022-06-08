@@ -36,8 +36,8 @@ data InternalNotificationType
 
 instance FromJSON InternalNotificationType where
   parseJSON = \case
-    "user.delete" -> return UserDeletion
-    "service.delete" -> return ServiceDeletion
+    "user.delete" -> pure UserDeletion
+    "service.delete" -> pure ServiceDeletion
     x -> fail $ "InternalNotificationType: Unknown type " <> show x
 
 instance ToJSON InternalNotificationType where

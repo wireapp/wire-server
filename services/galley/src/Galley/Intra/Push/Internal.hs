@@ -131,7 +131,7 @@ pushLocal ps = do
       filter
         ( \p ->
             (pushRecipientListType p == Teams.ListComplete)
-              && (length (_pushRecipients p) <= (fromIntegral $ fromRange limit))
+              && (length (_pushRecipients p) <= fromIntegral (fromRange limit))
         )
 
 recipient :: LocalMember -> Recipient
@@ -155,14 +155,14 @@ newPush1 recipientListType from e rr =
     }
 
 newPushLocal1 :: Teams.ListType -> UserId -> PushEvent -> List1 Recipient -> Push
-newPushLocal1 lt uid e rr = newPush1 lt (Just uid) e rr
+newPushLocal1 lt uid = newPush1 lt (Just uid)
 
 newPush :: Teams.ListType -> Maybe UserId -> PushEvent -> [Recipient] -> Maybe Push
 newPush _ _ _ [] = Nothing
 newPush t u e (r : rr) = Just $ newPush1 t u e (list1 r rr)
 
 newPushLocal :: Teams.ListType -> UserId -> PushEvent -> [Recipient] -> Maybe Push
-newPushLocal lt uid e rr = newPush lt (Just uid) e rr
+newPushLocal lt uid = newPush lt (Just uid)
 
 newConversationEventPush :: Event -> Local [UserId] -> Maybe Push
 newConversationEventPush e users =
@@ -172,7 +172,7 @@ newConversationEventPush e users =
 pushSlowly :: Foldable f => f Push -> App ()
 pushSlowly ps = do
   mmillis <- view (options . optSettings . setDeleteConvThrottleMillis)
-  let delay = 1000 * (fromMaybe defDeleteConvThrottleMillis mmillis)
+  let delay = 1000 * fromMaybe defDeleteConvThrottleMillis mmillis
   forM_ ps $ \p -> do
     push [p]
     threadDelay delay

@@ -155,7 +155,7 @@ getUserConnections uid = do
       let batch = clConnections userConnectionList
       if (not . null) batch && clHasMore userConnectionList
         then fetchAll (batch ++ xs) (Just . qUnqualified . ucTo $ last batch)
-        else return (batch ++ xs)
+        else pure (batch ++ xs)
     fetchBatch :: Maybe UserId -> Handler UserConnectionList
     fetchBatch start = do
       b <- view brig
@@ -196,7 +196,7 @@ getUserProfiles :: Either [UserId] [Handle] -> Handler [UserAccount]
 getUserProfiles uidsOrHandles = do
   info $ msg "Getting user accounts"
   b <- view brig
-  return . concat =<< mapM (doRequest b) (prepareQS uidsOrHandles)
+  concat <$> mapM (doRequest b) (prepareQS uidsOrHandles)
   where
     doRequest :: Request -> (Request -> Request) -> Handler [UserAccount]
     doRequest b qry = do
@@ -211,7 +211,7 @@ getUserProfiles uidsOrHandles = do
                 . expect2xx
             )
       parseResponse (mkError status502 "bad-upstream") r
-    prepareQS :: Either [UserId] [Handle] -> [(Request -> Request)]
+    prepareQS :: Either [UserId] [Handle] -> [Request -> Request]
     prepareQS (Left uids) = fmap (queryItem "ids") (toQS uids)
     prepareQS (Right handles) = fmap (queryItem "handles") (toQS handles)
     toQS :: ToByteString a => [a] -> [ByteString]
@@ -240,7 +240,7 @@ getEjpdInfo handles includeContacts = do
   info $ msg "Getting ejpd info on users by handle"
   b <- view brig
   let bdy :: Value
-      bdy = object ["ejpd_request" .= ((cs @_ @Text . toByteString') <$> handles)]
+      bdy = object ["ejpd_request" .= (cs @_ @Text . toByteString' <$> handles)]
   r <-
     catchRpcErrors $
       rpc'
@@ -301,7 +301,7 @@ deleteAccount uid = do
 
 setStatusBindingTeam :: TeamId -> Team.TeamStatus -> Handler ()
 setStatusBindingTeam tid status = do
-  info $ msg ("Setting team status to " <> (cs $ encode status))
+  info $ msg ("Setting team status to " <> cs (encode status))
   g <- view galley
   void . catchRpcErrors $
     rpc'
@@ -380,7 +380,7 @@ getTeamInfo :: TeamId -> Handler TeamInfo
 getTeamInfo tid = do
   d <- getTeamData tid
   m <- getTeamMembers tid
-  return $ TeamInfo d (map TeamMemberInfo (m ^. teamMembers))
+  pure $ TeamInfo d (map TeamMemberInfo (m ^. teamMembers))
 
 getUserBindingTeam :: UserId -> Handler (Maybe TeamId)
 getUserBindingTeam u = do
@@ -398,7 +398,7 @@ getUserBindingTeam u = do
             . expect2xx
         )
   teams <- parseResponse (mkError status502 "bad-upstream") r
-  return $
+  pure $
     listToMaybe $
       fmap (view teamId) $
         filter ((== Binding) . view teamBinding) $
@@ -418,7 +418,7 @@ getInvoiceUrl tid iid = do
             . noRedirect
             . expectStatus (== 307)
         )
-  return $ getHeader' "Location" r
+  pure $ getHeader' "Location" r
 
 getTeamBillingInfo :: TeamId -> Handler (Maybe TeamBillingInfo)
 getTeamBillingInfo tid = do
@@ -434,7 +434,7 @@ getTeamBillingInfo tid = do
         )
   case Bilge.statusCode r of
     200 -> Just <$> parseResponse (mkError status502 "bad-upstream") r
-    404 -> return Nothing
+    404 -> pure Nothing
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
 
 setTeamBillingInfo :: TeamId -> TeamBillingInfo -> Handler ()
@@ -466,8 +466,8 @@ isBlacklisted emailOrPhone = do
             . userKeyToParam emailOrPhone
         )
   case Bilge.statusCode r of
-    200 -> return True
-    404 -> return False
+    200 -> pure True
+    404 -> pure False
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
 
 setBlacklistStatus :: Bool -> Either Email Phone -> Handler ()
@@ -551,26 +551,35 @@ setTeamFeatureFlagNoConfig ::
   TeamId ->
   Public.TeamFeatureName ->
   Public.TeamFeatureStatusValue ->
+  Public.TeamFeatureTTLValue ->
   Handler ()
-setTeamFeatureFlagNoConfig tid featureName statusValue = do
+setTeamFeatureFlagNoConfig tid featureName statusValue ttlValue = do
   info $ msg "Setting team feature status for feature without config"
   gly <- view galley
   let req =
         method PUT
           . paths ["/i/teams", toByteString' tid, "features", toByteString' featureName]
           . Bilge.json (Public.TeamFeatureStatusNoConfig statusValue)
+          . Bilge.query [("ttl", convert ttlValue)]
           . contentJson
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
     200 -> pure ()
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE $ responseJsonUnsafe resp
+  where
+    convert = Just . toByteString' . fromDays
+    fromMinutes = (* 60)
+    fromHours = fromMinutes . (* 60)
+    fromDays = \case
+      Public.TeamFeatureTTLSeconds s -> Public.TeamFeatureTTLSeconds . fromHours . (* 24) $ s
+      Public.TeamFeatureTTLUnlimited -> Public.TeamFeatureTTLUnlimited
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do
   info $ msg "Getting TeamSearchVisibilityView value"
   gly <- view galley
-  (>>= fromResponseBody) . catchRpcErrors $
+  fromResponseBody <=< catchRpcErrors $
     rpc'
       "galley"
       gly
@@ -708,7 +717,7 @@ getMarketoResult email = do
   -- 404 is acceptable when marketo doesn't know about this user, return an empty result
   case statusCode r of
     200 -> parseResponse (mkError status502 "bad-upstream") r
-    404 -> return noEmail
+    404 -> pure noEmail
     _ -> throwE (mkError status502 "bad-upstream" "")
   where
     noEmail = MarketoResult $ KeyMap.singleton "results" emptyArray
@@ -752,9 +761,9 @@ getUserConversations uid = do
     fetchAll xs start = do
       userConversationList <- fetchBatch start
       let batch = convList userConversationList
-      if (not . null) batch && (convHasMore userConversationList)
+      if (not . null) batch && convHasMore userConversationList
         then fetchAll (batch ++ xs) (Just . qUnqualified . cnvQualifiedId $ last batch)
-        else return (batch ++ xs)
+        else pure (batch ++ xs)
     fetchBatch :: Maybe ConvId -> Handler (ConversationList Conversation)
     fetchBatch start = do
       b <- view galley
@@ -808,7 +817,7 @@ getUserProperties uid = do
   keys <- parseResponse (mkError status502 "bad-upstream") r :: Handler [PropertyKey]
   UserProperties <$> fetchProperty b keys mempty
   where
-    fetchProperty _ [] acc = return acc
+    fetchProperty _ [] acc = pure acc
     fetchProperty b (x : xs) acc = do
       r <-
         catchRpcErrors $
@@ -832,9 +841,9 @@ getUserNotifications uid = do
     fetchAll xs start = do
       userNotificationList <- fetchBatch start
       let batch = view queuedNotifications userNotificationList
-      if (not . null) batch && (view queuedHasMore userNotificationList)
-        then fetchAll (batch ++ xs) (Just . (view queuedNotificationId) $ last batch)
-        else return (batch ++ xs)
+      if (not . null) batch && view queuedHasMore userNotificationList
+        then fetchAll (batch ++ xs) (Just . view queuedNotificationId $ last batch)
+        else pure (batch ++ xs)
     fetchBatch :: Maybe NotificationId -> Handler QueuedNotificationList
     fetchBatch start = do
       b <- view gundeck

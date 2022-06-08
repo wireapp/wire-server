@@ -38,8 +38,8 @@ import qualified Wire.API.Push.Token as PushTok
 
 sitemap :: Routes a Gundeck ()
 sitemap = do
-  head "/i/status" (continue $ const (return empty)) true
-  get "/i/status" (continue $ const (return empty)) true
+  head "/i/status" (continue $ const (pure empty)) true
+  get "/i/status" (continue $ const (pure empty)) true
 
   -- Push API -----------------------------------------------------------
 

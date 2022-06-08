@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
 -- This file is part of the Wire Server implementation.
@@ -33,6 +34,6 @@ instance SAML.HasConfig ((->) SAML.Config) where
   getConfig = id
 
 sparRouteToServant :: SAML.Config -> Sem (SamlProtocolSettings ': r) a -> Sem r a
-sparRouteToServant cfg = interpret $ \x -> case x of
+sparRouteToServant cfg = interpret $ \case
   SpIssuer mitlt -> pure $ sparSPIssuer mitlt cfg
   ResponseURI mitlt -> pure $ sparResponseURI mitlt cfg

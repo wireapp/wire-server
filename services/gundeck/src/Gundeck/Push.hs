@@ -79,7 +79,7 @@ push ps = do
       then (Right <$> pushAll ps) `catch` (pure . Left . Seq.singleton)
       else pushAny ps
   case rs of
-    Right () -> return ()
+    Right () -> pure ()
     Left exs -> do
       forM_ exs $ Log.err . msg . (val "Push failed: " +++) . show
       throwM (mkError status500 "server-error" "Server Error")
@@ -305,7 +305,7 @@ shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecip
     isOrigin =
       psh ^. pushOrigin == Just (userId pres)
         && psh ^. pushOriginConnection == Just (connId pres)
-    okByPushWhitelist = if whitelistExists then isWhitelisted else True
+    okByPushWhitelist = not whitelistExists || isWhitelisted
       where
         whitelist = psh ^. pushConnections
         whitelistExists = not $ Set.null whitelist
@@ -319,7 +319,7 @@ shouldActuallyPush psh rcp pres = not isOrigin && okByPushWhitelist && okByRecip
 -- | Failures to push natively can be ignored.  Logging already happens in
 -- 'Gundeck.Push.Native.push1', and we cannot recover from any of the error cases.
 pushNative :: Notification -> Priority -> [Address] -> Gundeck ()
-pushNative _ _ [] = return ()
+pushNative _ _ [] = pure ()
 pushNative notif prio rcps = do
   Native.push (Native.NativePush (ntfId notif) prio Nothing) rcps
 
@@ -348,7 +348,7 @@ nativeTargets psh rcps' alreadySent =
     addresses :: Recipient -> m [Address]
     addresses u = do
       addrs <- mntgtLookupAddresses (u ^. recipientId)
-      return $
+      pure $
         preference
           . filter (eligible u)
           $ addrs
@@ -398,8 +398,8 @@ nativeTargets psh rcps' alreadySent =
           LowPriority -> ApsStdPreference
           HighPriority -> ApsVoIPPreference
     check :: Either SomeException [a] -> m [a]
-    check (Left e) = mntgtLogErr e >> return []
-    check (Right r) = return r
+    check (Left e) = mntgtLogErr e >> pure []
+    check (Right r) = pure r
 
 data AddTokenResponse
   = AddTokenSuccess Public.PushToken
@@ -418,10 +418,10 @@ addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
       ~~ msg (val "Registering push token")
   continue newtok cur
     >>= either
-      return
+      pure
       ( \a -> do
           Native.deleteTokens old (Just a)
-          return (AddTokenSuccess newtok)
+          pure (AddTokenSuccess newtok)
       )
   where
     matching ::
@@ -462,18 +462,18 @@ addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
           update (n + 1) t arn
         Left (Aws.AppNotFound app') -> do
           Log.info $ msg ("Push token of unknown application: '" <> appNameText app' <> "'")
-          return (Left AddTokenNotFound)
+          pure (Left AddTokenNotFound)
         Left (Aws.InvalidToken _) -> do
           Log.info $
             "token" .= tokenText tok
               ~~ msg (val "Invalid push token.")
-          return (Left AddTokenInvalid)
+          pure (Left AddTokenInvalid)
         Left (Aws.TokenTooLong l) -> do
           Log.info $ msg ("Push token is too long: token length = " ++ show l)
-          return (Left AddTokenTooLong)
+          pure (Left AddTokenTooLong)
         Right arn -> do
           Data.insert uid trp app tok arn cid (t ^. tokenClient)
-          return (Right (mkAddr t arn))
+          pure (Right (mkAddr t arn))
 
     update ::
       Int ->
@@ -499,7 +499,7 @@ addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
               arn
               cid
               (t ^. tokenClient)
-            return (Right (mkAddr t arn))
+            pure (Right (mkAddr t arn))
             `catch` \case
               -- Note: If the endpoint was recently deleted (not necessarily
               -- concurrently), we may get an EndpointNotFound error despite
@@ -508,7 +508,7 @@ addToken uid cid newtok = mpaRunWithBudget 1 AddTokenNoBudget $ do
               -- possibly updates in general). We make another attempt to (re-)create
               -- the endpoint in these cases instead of failing immediately.
               Aws.EndpointNotFound {} -> create (n + 1) t
-              Aws.InvalidCustomData {} -> return (Left AddTokenMetadataTooLong)
+              Aws.InvalidCustomData {} -> pure (Left AddTokenMetadataTooLong)
               ex -> throwM ex
 
     mkAddr ::

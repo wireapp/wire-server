@@ -30,5 +30,5 @@ instance Cql Scope where
 
   toCql ReusableCode = CqlInt 1
 
-  fromCql (CqlInt 1) = return ReusableCode
+  fromCql (CqlInt 1) = pure ReusableCode
   fromCql _ = Left "unknown Scope"

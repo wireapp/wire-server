@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -39,7 +37,7 @@ import Polysemy
 import Polysemy.Error
 import qualified Polysemy.TinyLog as P
 import System.Logger.Message (msg, val, (+++))
-import Wire.API.Conversation hiding (Member (..))
+import Wire.API.Conversation
 import qualified Wire.API.Conversation as Conversation
 import Wire.API.Federation.API.Galley
 

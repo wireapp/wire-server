@@ -10,7 +10,9 @@ spec:
   tls:
   - hosts:
       - {{ .Values.config.dns.https }}
+{{- if .Values.websockets.enabled }}
       - {{ .Values.config.dns.ssl }}
+{{- end }}
 {{- if .Values.webapp.enabled }}
       - {{ .Values.config.dns.webapp }}
 {{- end }}
@@ -32,6 +34,7 @@ spec:
             backend:
               serviceName: nginz-http
               servicePort: {{ .Values.service.nginz.externalHttpPort }}
+{{- if .Values.websockets.enabled }}
     - host: {{ .Values.config.dns.ssl }}
       http:
         paths:
@@ -39,6 +42,7 @@ spec:
             backend:
               serviceName: nginz-tcp
               servicePort: {{ .Values.service.nginz.externalTcpPort }}
+{{- end }}
 {{- if .Values.webapp.enabled }}
     - host: {{ .Values.config.dns.webapp }}
       http:

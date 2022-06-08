@@ -200,27 +200,25 @@ elasticSettingsParser =
           )
     templateParser :: Parser (Maybe ES.TemplateName) =
       ES.TemplateName
-        <$$> ( optional
-                 ( option
-                     str
-                     ( long "delete-template"
-                         <> metavar "TEMPLATE_NAME"
-                         <> help "Delete this ES template before creating a new index"
-                     )
-                 )
-             )
+        <$$> optional
+          ( option
+              str
+              ( long "delete-template"
+                  <> metavar "TEMPLATE_NAME"
+                  <> help "Delete this ES template before creating a new index"
+              )
+          )
 
 cassandraSettingsParser :: Parser CassandraSettings
 cassandraSettingsParser =
   CassandraSettings
-    <$> ( strOption
-            ( long "cassandra-host"
-                <> metavar "HOST"
-                <> help "Cassandra Host."
-                <> value (_cHost localCassandraSettings)
-                <> showDefault
-            )
-        )
+    <$> strOption
+      ( long "cassandra-host"
+          <> metavar "HOST"
+          <> help "Cassandra Host."
+          <> value (_cHost localCassandraSettings)
+          <> showDefault
+      )
     <*> option
       auto
       ( long "cassandra-port"
@@ -257,36 +255,33 @@ reindexToAnotherIndexSettingsParser =
                   <> help "Elasticsearch index name to reindex to"
               )
         )
-    <*> ( option
-            auto
-            ( long "timeout"
-                <> metavar "SECONDS"
-                <> help "Number of seconds to wait for reindexing to complete. The reindexing will not be cancelled when this timeout expires."
-                <> value 600
-                <> showDefault
-            )
-        )
+    <*> option
+      auto
+      ( long "timeout"
+          <> metavar "SECONDS"
+          <> help "Number of seconds to wait for reindexing to complete. The reindexing will not be cancelled when this timeout expires."
+          <> value 600
+          <> showDefault
+      )
 
 galleyEndpointParser :: Parser Endpoint
 galleyEndpointParser =
   Endpoint
-    <$> ( strOption
-            ( long "galley-host"
-                <> help "Hostname or IP address of galley"
-                <> metavar "HOSTNAME"
-                <> value "localhost"
-                <> showDefault
-            )
-        )
-    <*> ( option
-            auto
-            ( long "galley-port"
-                <> help "Port number of galley"
-                <> metavar "PORT"
-                <> value 8085
-                <> showDefault
-            )
-        )
+    <$> strOption
+      ( long "galley-host"
+          <> help "Hostname or IP address of galley"
+          <> metavar "HOSTNAME"
+          <> value "localhost"
+          <> showDefault
+      )
+    <*> option
+      auto
+      ( long "galley-port"
+          <> help "Port number of galley"
+          <> metavar "PORT"
+          <> value 8085
+          <> showDefault
+      )
 
 commandParser :: Parser Command
 commandParser =
@@ -295,7 +290,7 @@ commandParser =
         "create"
         ( info
             (Create <$> elasticSettingsParser <*> galleyEndpointParser)
-            (progDesc ("Create the ES user index, if it doesn't already exist. "))
+            (progDesc "Create the ES user index, if it doesn't already exist. ")
         )
         <> command
           "update-mapping"
@@ -307,7 +302,7 @@ commandParser =
           "reset"
           ( info
               (Reset <$> restrictedElasticSettingsParser <*> galleyEndpointParser)
-              (progDesc ("Delete and re-create the ES user index. Only works on a test index (directory_test)."))
+              (progDesc "Delete and re-create the ES user index. Only works on a test index (directory_test).")
           )
         <> command
           "reindex"

@@ -352,23 +352,26 @@ logError :: (MonadIO m, HasRequest r) => Logger -> Maybe r -> Wai.Error -> m ()
 logError g mr = logError' g (lookupRequestId =<< mr)
 
 logError' :: (MonadIO m) => Logger -> Maybe ByteString -> Wai.Error -> m ()
-logError' g mr e = liftIO $ doLog g (logErrorMsg mr e)
+logError' g mr e = liftIO $ doLog g (logErrorMsgWithRequest mr e)
   where
     doLog
       | statusCode (Error.code e) >= 500 = Log.err
       | otherwise = Log.debug
 
-logErrorMsg :: Maybe ByteString -> Wai.Error -> Msg -> Msg
-logErrorMsg mr (Wai.Error c l m md) =
+logErrorMsg :: Wai.Error -> Msg -> Msg
+logErrorMsg (Wai.Error c l m md) =
   field "code" (statusCode c)
     . field "label" l
-    . field "request" (fromMaybe "N/A" mr)
     . fromMaybe id (fmap logErrorData md)
     . msg (val "\"" +++ m +++ val "\"")
   where
     logErrorData (Wai.FederationErrorData d p) =
       field "domain" (domainText d)
         . field "path" p
+
+logErrorMsgWithRequest :: Maybe ByteString -> Wai.Error -> Msg -> Msg
+logErrorMsgWithRequest mr e =
+  field "request" (fromMaybe "N/A" mr) . logErrorMsg e
 
 logIO :: (ToBytes msg, HasRequest r) => Logger -> Level -> Maybe r -> msg -> IO ()
 logIO lg lv r a =

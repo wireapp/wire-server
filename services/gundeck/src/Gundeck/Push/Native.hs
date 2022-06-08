@@ -127,7 +127,7 @@ publish m a = flip catches pushException $ do
       ~~ field "prio" (show (npPriority m))
       ~~ Log.msg (val "Native push")
   case txt of
-    Left f -> return $! Failure f a
+    Left f -> pure $! Failure f a
     Right v -> toResult <$> Aws.publish ept v mempty
   where
     toResult (Left (Aws.EndpointDisabled _)) = Failure EndpointDisabled a
@@ -138,7 +138,7 @@ publish m a = flip catches pushException $ do
       [ Handler (\(ex :: SomeAsyncException) -> throwM ex),
         Handler
           ( \(ex :: SomeException) ->
-              return (Failure (PushException ex) a)
+              pure (Failure (PushException ex) a)
           )
       ]
 

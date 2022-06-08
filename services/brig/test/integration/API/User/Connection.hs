@@ -624,7 +624,7 @@ testLocalConnectionsPaging b = do
       let (conns, more) = (fmap clConnections &&& fmap clHasMore) $ responseJsonMaybe r
       liftIO $ assertEqual "page size" (Just n) (length <$> conns)
       liftIO $ assertEqual "has more" (Just (count' < total)) more
-      return . (count',) $ (conns >>= fmap (qUnqualified . ucTo) . listToMaybe . reverse)
+      pure . (count',) $ (conns >>= fmap (qUnqualified . ucTo) . listToMaybe . reverse)
 
 testAllConnectionsPaging :: Brig -> DB.ClientState -> Http ()
 testAllConnectionsPaging b db = do
@@ -688,7 +688,7 @@ testConnectionLimit brig (ConnectionLimit l) = do
     newConn from = do
       to <- userId <$> randomUser brig
       postConnection brig from to !!! const 201 === statusCode
-      return to
+      pure to
     assertLimited = do
       const 403 === statusCode
       const (Just "connection-limit") === fmap Error.label . responseJsonMaybe
@@ -713,7 +713,7 @@ testConnectionLimitQualified brig (ConnectionLimit l) = do
     newConn from = do
       to <- userQualifiedId <$> randomUser brig
       postConnectionQualified brig from to !!! const 201 === statusCode
-      return to
+      pure to
     assertLimited = do
       const 403 === statusCode
       const (Just "connection-limit") === fmap Error.label . responseJsonMaybe

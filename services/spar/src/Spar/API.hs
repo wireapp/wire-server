@@ -1,6 +1,8 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
+
+{-# HLINT ignore "Use $>" #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -45,7 +47,6 @@ where
 import Control.Lens
 import Control.Monad.Except
 import qualified Data.ByteString as SBS
-import qualified Data.ByteString.Base64 as ES
 import Data.ByteString.Builder (toLazyByteString)
 import Data.Id
 import Data.Proxy
@@ -67,8 +68,6 @@ import Spar.Orphans ()
 import Spar.Scim
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AssIDStore (AssIDStore)
-import Spar.Sem.BindCookieStore (BindCookieStore)
-import qualified Spar.Sem.BindCookieStore as BindCookieStore
 import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
@@ -94,7 +93,6 @@ import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
 import qualified URI.ByteString as URI
-import Wire.API.Cookie
 import Wire.API.Routes.Public.Spar
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
@@ -114,7 +112,6 @@ api ::
     '[ GalleyAccess,
        BrigAccess,
        Input Opts,
-       BindCookieStore,
        AssIDStore,
        AReqIDStore,
        VerdictFormatStore,
@@ -141,8 +138,6 @@ api ::
   ServerT API (Sem r)
 api opts =
   apiSSO opts
-    :<|> authreqPrecheck
-    :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateBind
     :<|> apiIDP
     :<|> apiScim
     :<|> apiINTERNAL
@@ -153,7 +148,6 @@ apiSSO ::
        Logger String,
        Input Opts,
        BrigAccess,
-       BindCookieStore,
        AssIDStore,
        VerdictFormatStore,
        AReqIDStore,
@@ -171,10 +165,10 @@ apiSSO ::
   Opts ->
   ServerT APISSO (Sem r)
 apiSSO opts =
-  (SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing))
+  SAML2.meta appName (SamlProtocolSettings.spIssuer Nothing) (SamlProtocolSettings.responseURI Nothing)
     :<|> (\tid -> SAML2.meta appName (SamlProtocolSettings.spIssuer (Just tid)) (SamlProtocolSettings.responseURI (Just tid)))
     :<|> authreqPrecheck
-    :<|> authreq (maxttlAuthreqDiffTime opts) DoInitiateLogin
+    :<|> authreq (maxttlAuthreqDiffTime opts)
     :<|> authresp Nothing
     :<|> authresp . Just
     :<|> ssoSettings
@@ -235,14 +229,13 @@ authreqPrecheck ::
 authreqPrecheck msucc merr idpid =
   validateAuthreqParams msucc merr
     *> getIdPConfig idpid
-    *> return NoContent
+    *> pure NoContent
 
 authreq ::
   Members
     '[ Random,
        Input Opts,
        Logger String,
-       BindCookieStore,
        AssIDStore,
        VerdictFormatStore,
        AReqIDStore,
@@ -253,15 +246,11 @@ authreq ::
      ]
     r =>
   NominalDiffTime ->
-  DoInitiate ->
-  Maybe UserId ->
   Maybe URI.URI ->
   Maybe URI.URI ->
   SAML.IdPId ->
-  Sem r (WithSetBindCookie (SAML.FormRedirect SAML.AuthnRequest))
-authreq _ DoInitiateLogin (Just _) _ _ _ = throwSparSem SparInitLoginWithAuth
-authreq _ DoInitiateBind Nothing _ _ _ = throwSparSem SparInitBindWithoutAuth
-authreq authreqttl _ zusr msucc merr idpid = do
+  Sem r (SAML.FormRedirect SAML.AuthnRequest)
+authreq authreqttl msucc merr idpid = do
   vformat <- validateAuthreqParams msucc merr
   form@(SAML.FormRedirect _ ((^. SAML.rqID) -> reqid)) <- do
     idp :: IdP <- IdPConfigStore.getConfig idpid >>= maybe (throwSparSem (SparIdPNotFound (cs $ show idpid))) pure
@@ -271,34 +260,7 @@ authreq authreqttl _ zusr msucc merr idpid = do
           WireIdPAPIV2 -> Just $ idp ^. SAML.idpExtraInfo . wiTeam
     SAML2.authReq authreqttl (SamlProtocolSettings.spIssuer mbtid) idpid
   VerdictFormatStore.store authreqttl reqid vformat
-  cky <- initializeBindCookie zusr authreqttl
-  Logger.log Logger.Debug $ "setting bind cookie: " <> show cky
-  pure $ addHeader cky form
-
--- | If the user is already authenticated, create bind cookie with a given life expectancy and our
--- domain, and store it in C*.  If the user is not authenticated, return a deletion 'SetCookie'
--- value that deletes any bind cookies on the client.
-initializeBindCookie ::
-  Members
-    '[ Random,
-       SAML2,
-       Input Opts,
-       Logger String,
-       BindCookieStore
-     ]
-    r =>
-  Maybe UserId ->
-  NominalDiffTime ->
-  Sem r SetBindCookie
-initializeBindCookie zusr authreqttl = do
-  DerivedOpts {derivedOptsBindCookiePath} <- inputs derivedOpts
-  msecret <-
-    if isJust zusr
-      then Just . cs . ES.encode <$> Random.bytes 32
-      else pure Nothing
-  cky <- fmap SetBindCookie . SAML2.toggleCookie derivedOptsBindCookiePath $ (,authreqttl) <$> msecret
-  forM_ zusr $ \userid -> BindCookieStore.insert cky userid authreqttl
-  pure cky
+  pure form
 
 redirectURLMaxLength :: Int
 redirectURLMaxLength = 140
@@ -315,7 +277,7 @@ validateRedirectURL :: Member (Error SparError) r => URI.URI -> Sem r ()
 validateRedirectURL uri = do
   unless ((SBS.take 4 . URI.schemeBS . URI.uriScheme $ uri) == "wire") $ do
     throwSparSem $ SparBadInitiateLoginQueryParams "invalid-schema"
-  unless ((SBS.length $ URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
+  unless (SBS.length (URI.serializeURIRef' uri) <= redirectURLMaxLength) $ do
     throwSparSem $ SparBadInitiateLoginQueryParams "url-too-long"
 
 authresp ::
@@ -326,7 +288,6 @@ authresp ::
        Input Opts,
        GalleyAccess,
        BrigAccess,
-       BindCookieStore,
        AssIDStore,
        VerdictFormatStore,
        AReqIDStore,
@@ -340,17 +301,13 @@ authresp ::
      ]
     r =>
   Maybe TeamId ->
-  Maybe ST ->
   SAML.AuthnResponseBody ->
   Sem r Void
-authresp mbtid ckyraw arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSettings.spIssuer mbtid) (SamlProtocolSettings.responseURI mbtid) go arbody
+authresp mbtid arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSettings.spIssuer mbtid) (SamlProtocolSettings.responseURI mbtid) go arbody
   where
-    cky :: Maybe BindCookie
-    cky = ckyraw >>= bindCookieFromHeader
-
     go :: SAML.AuthnResponse -> SAML.AccessVerdict -> Sem r Void
     go resp verdict = do
-      result :: SAML.ResponseVerdict <- verdictHandler cky mbtid resp verdict
+      result :: SAML.ResponseVerdict <- verdictHandler mbtid resp verdict
       throw @SparError $ SAML.CustomServant result
 
     logErrors :: Sem r Void -> Sem r Void
@@ -361,10 +318,9 @@ authresp mbtid ckyraw arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSet
           errorPage
             e
             (Multipart.inputs (SAML.authnResponseBodyRaw arbody))
-            ckyraw
 
 ssoSettings :: Member DefaultSsoCode r => Sem r SsoSettings
-ssoSettings = do
+ssoSettings =
   SsoSettings <$> DefaultSsoCode.get
 
 ----------------------------------------------------------------------------
@@ -464,7 +420,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
           BrigAccess.delete uid
           SAMLUserStore.delete uid uref
         unless (null some) doPurge
-  when (not idpIsEmpty) $ do
+  unless idpIsEmpty $
     if purge
       then doPurge
       else throwSparSem SparIdPHasBoundUsers
@@ -480,7 +436,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
   do
     IdPConfigStore.deleteConfig idp
     IdPRawMetadataStore.delete idpid
-  return NoContent
+  pure NoContent
   where
     updateOldIssuers :: IdP -> Sem r ()
     updateOldIssuers _ = pure ()
@@ -492,7 +448,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     -- leave old issuers dangling for now.
 
     updateReplacingIdP :: IdP -> Sem r ()
-    updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer -> do
+    updateReplacingIdP idp = forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) $ \oldIssuer ->
       getIdPIdByIssuer oldIssuer (idp ^. SAML.idpExtraInfo . wiTeam) >>= \case
         GetIdPFound iid -> IdPConfigStore.clearReplacedBy $ Replaced iid
         GetIdPNotFound -> pure ()
@@ -519,7 +475,7 @@ idpCreate ::
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
   Sem r IdP
-idpCreate zusr (IdPMetadataValue raw xml) midpid apiversion = idpCreateXML zusr raw xml midpid apiversion
+idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
 
 -- | We generate a new UUID for each IdP used as IdPConfig's path, thereby ensuring uniqueness.
 idpCreateXML ::
@@ -547,7 +503,7 @@ idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apive
   idp <- validateNewIdP apiversion idpmeta teamid mReplaces
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   storeIdPConfig idp
-  forM_ mReplaces $ \replaces -> do
+  forM_ mReplaces $ \replaces ->
     IdPConfigStore.setReplacedBy (Replaced replaces) (Replacing (idp ^. SAML.idpId))
   pure idp
 
@@ -567,7 +523,7 @@ assertNoScimOrNoIdP ::
 assertNoScimOrNoIdP teamid = do
   numTokens <- length <$> ScimTokenStore.lookupByTeam teamid
   numIdps <- length <$> IdPConfigStore.getConfigsByTeam teamid
-  when (numTokens > 0 && numIdps > 0) $ do
+  when (numTokens > 0 && numIdps > 0) $
     throwSparSem $
       SparProvisioningMoreThanOneIdP
         "Teams with SCIM tokens can only have at most one IdP"
@@ -662,7 +618,7 @@ idpUpdate ::
   IdPMetadataInfo ->
   SAML.IdPId ->
   Sem r IdP
-idpUpdate zusr (IdPMetadataValue raw xml) idpid = idpUpdateXML zusr raw xml idpid
+idpUpdate zusr (IdPMetadataValue raw xml) = idpUpdateXML zusr raw xml
 
 idpUpdateXML ::
   Members
@@ -685,9 +641,12 @@ idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdate" (Just . show . (^
   GalleyAccess.assertSSOEnabled teamid
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
-  -- structured idp config.  since this will lead to a 5xx response, the client is epected to
+  -- structured idp config.  since this will lead to a 5xx response, the client is expected to
   -- try again, which would clean up cassandra state.)
   storeIdPConfig idp
+  -- if the IdP issuer is updated, the old issuer must be removed explicitly.
+  -- if this step is ommitted (due to a crash) resending the update request should fix the inconsistent state.
+  forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) IdPConfigStore.deleteIssuer
   pure idp
 
 -- | Check that: idp id is valid; calling user is admin in that idp's home team; team id in
@@ -716,7 +675,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just
       Nothing -> throw errUnknownIdPId
       Just idp -> pure idp
   teamId <- authorizeIdP zusr previousIdP
-  unless (previousIdP ^. SAML.idpExtraInfo . wiTeam == teamId) $ do
+  unless (previousIdP ^. SAML.idpExtraInfo . wiTeam == teamId) $
     throw errUnknownIdP
   _idpExtraInfo <- do
     let previousIssuer = previousIdP ^. SAML.idpMetadata . SAML.edIssuer
@@ -732,7 +691,7 @@ validateIdPUpdate zusr _idpMetadata _idpId = withDebugLog "validateNewIdP" (Just
           res@(GetIdPNonUnique _) -> throwSparSem . SparIdPNotFound . ("validateIdPUpdate: " <>) . cs . show $ res -- impossible (because team id was used in lookup)
           GetIdPWrongTeam _ -> pure False
         if notInUseByOthers
-          then pure $ (previousIdP ^. SAML.idpExtraInfo) & wiOldIssuers %~ nub . (previousIssuer :)
+          then pure $ previousIdP ^. SAML.idpExtraInfo & wiOldIssuers %~ nub . (previousIssuer :)
           else throwSparSem SparIdPIssuerInUse
   let requri = _idpMetadata ^. SAML.edRequestURI
   enforceHttps requri
@@ -764,7 +723,7 @@ authorizeIdP (Just zusr) idp = do
   pure teamid
 
 enforceHttps :: Member (Error SparError) r => URI.URI -> Sem r ()
-enforceHttps uri = do
+enforceHttps uri =
   unless ((uri ^. URI.uriSchemeL . URI.schemeBSL) == "https") $ do
     throwSparSem . SparNewIdPWantHttps . cs . SAML.renderURI $ uri
 
@@ -793,7 +752,7 @@ internalPutSsoSettings ::
 internalPutSsoSettings SsoSettings {defaultSsoCode = Nothing} = do
   DefaultSsoCode.delete
   pure NoContent
-internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} = do
+internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} =
   IdPConfigStore.getConfig code >>= \case
     Nothing ->
       -- this will return a 404, which is not quite right,

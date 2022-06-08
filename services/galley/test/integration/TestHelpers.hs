@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fprint-potential-instances #-}
 
 -- This file is part of the Wire Server implementation.

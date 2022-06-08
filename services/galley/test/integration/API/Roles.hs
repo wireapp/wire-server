@@ -109,7 +109,7 @@ handleConversationRoleAdmin = do
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
         wsAssertMemberJoinWithRole qcid qalice [qjack] roleNameWireMember
-    return cid
+    pure cid
   -- Added bob as a wire_admin and do the checks
   wireAdminChecks cid alice bob jack
   -- Demote bob and run the member checks
@@ -146,7 +146,7 @@ handleConversationRoleMember = do
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
         wsAssertMemberJoinWithRole qcid qalice [qeve] role
-    return cid
+    pure cid
   -- Added bob as a wire_member and do the checks
   wireMemberChecks cid bob alice chuck
   -- Let's promote bob

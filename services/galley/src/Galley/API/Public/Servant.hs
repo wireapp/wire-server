@@ -142,7 +142,7 @@ servantSitemap =
               . DoAuth
           )
         <@> mkNamedAPI @'("put-deprecated", 'TeamFeatureSearchVisibility)
-          ( setFeatureStatus @'TeamFeatureSearchVisibility
+          ( setFeatureStatusNoTTL @'TeamFeatureSearchVisibility
               setTeamSearchVisibilityAvailableInternal
               . DoAuth
           )
@@ -228,8 +228,8 @@ servantSitemap =
               setSndFactorPasswordChallengeInternal
               . DoAuth
           )
-        <@> mkNamedAPI @"get-all-feature-configs" getAllFeatureConfigs
-        <@> mkNamedAPI @"get-all-features" (\luid tid -> AllFeatureConfigs <$> getAllFeatures luid tid)
+        <@> mkNamedAPI @"get-all-feature-configs" getAllFeatureConfigsForUser
+        <@> mkNamedAPI @"get-all-features" getAllFeatureConfigsForTeam
         <@> mkNamedAPI @'("get-config", 'TeamFeatureLegalHold)
           ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureLegalHold
               getLegalholdStatusInternal
@@ -307,3 +307,4 @@ servantSitemap =
         <@> mkNamedAPI @"delete-team-member" deleteTeamMember
         <@> mkNamedAPI @"delete-non-binding-team-member" deleteNonBindingTeamMember
         <@> mkNamedAPI @"update-team-member" updateTeamMember
+        <@> mkNamedAPI @"get-team-members-csv" getTeamMembersCSV

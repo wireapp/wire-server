@@ -55,13 +55,13 @@ instance FromJSON Whitelist
 verify :: (MonadIO m, MonadMask m, MonadHttp m) => Whitelist -> Either Email Phone -> m Bool
 verify (Whitelist url user pass) key =
   if isKnownDomain key
-    then return True
+    then pure True
     else recovering x3 httpHandlers . const $ do
       rq <- parseRequest $ unpack url
       rsp <- get' rq $ req (encodeUtf8 user) (encodeUtf8 pass)
       case statusCode rsp of
-        200 -> return True
-        404 -> return False
+        200 -> pure True
+        404 -> pure False
         _ ->
           throwM $
             HttpExceptionRequest rq (StatusCodeException (rsp {responseBody = ()}) mempty)

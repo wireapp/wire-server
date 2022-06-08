@@ -39,12 +39,12 @@ newtype ServiceConfigFile = ServiceConfigFile String
 instance IsOption ServiceConfigFile where
   defaultValue = ServiceConfigFile "/etc/wire/cargohold/conf/cargohold.yaml"
   parseValue = fmap ServiceConfigFile . safeRead
-  optionName = return "service-config"
-  optionHelp = return "Service config file to read from"
+  optionName = pure "service-config"
+  optionHelp = pure "Service config file to read from"
   optionCLParser =
     fmap ServiceConfigFile $
       strOption $
-        ( short (untag (return 's' :: Tagged ServiceConfigFile Char))
+        ( short (untag (pure 's' :: Tagged ServiceConfigFile Char))
             <> long (untag (optionName :: Tagged ServiceConfigFile String))
             <> help (untag (optionHelp :: Tagged ServiceConfigFile String))
         )

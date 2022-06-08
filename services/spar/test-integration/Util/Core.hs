@@ -88,8 +88,6 @@ module Util.Core
     negotiateAuthnRequest',
     getCookie,
     hasPersistentCookieHeader,
-    hasDeleteBindCookieHeader,
-    hasSetBindCookieHeader,
     submitAuthnResponse,
     submitAuthnResponse',
     loginSsoUserFirstTime,
@@ -151,7 +149,6 @@ import Control.Retry
 import Crypto.Random.Types (MonadRandom)
 import Data.Aeson as Aeson hiding (json)
 import Data.Aeson.Lens as Aeson
-import qualified Data.ByteString as SBS
 import qualified Data.ByteString.Base64.Lazy as EL
 import Data.ByteString.Conversion
 import Data.Handle (Handle (Handle))
@@ -198,8 +195,6 @@ import URI.ByteString as URI
 import Util.Options
 import Util.Types
 import qualified Web.Cookie as Web
-import Wire.API.Cookie
-import Wire.API.Routes.Public.Spar
 import Wire.API.Team (Icon (..))
 import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
 import qualified Wire.API.Team.Feature as Public
@@ -227,20 +222,20 @@ mkEnvFromOptions = do
 cliOptsParser :: OPA.Parser (String, String)
 cliOptsParser =
   (,)
-    <$> ( OPA.strOption $
-            OPA.long "integration-config"
-              <> OPA.short 'i'
-              <> OPA.help "Integration config to load"
-              <> OPA.showDefault
-              <> OPA.value defaultIntPath
-        )
-    <*> ( OPA.strOption $
-            OPA.long "service-config"
-              <> OPA.short 's'
-              <> OPA.help "Spar application config to load"
-              <> OPA.showDefault
-              <> OPA.value defaultSparPath
-        )
+    <$> OPA.strOption
+      ( OPA.long "integration-config"
+          <> OPA.short 'i'
+          <> OPA.help "Integration config to load"
+          <> OPA.showDefault
+          <> OPA.value defaultIntPath
+      )
+    <*> OPA.strOption
+      ( OPA.long "service-config"
+          <> OPA.short 's'
+          <> OPA.help "Spar application config to load"
+          <> OPA.showDefault
+          <> OPA.value defaultSparPath
+      )
   where
     defaultIntPath = "/etc/wire/integration/integration.yaml"
     defaultSparPath = "/etc/wire/spar/conf/spar.yaml"
@@ -338,7 +333,7 @@ getUserBrig uid = do
     200 -> do
       let user = selfUser $ responseJsonUnsafe resp
       pure $
-        if (userDeleted user)
+        if userDeleted user
           then Nothing
           else Just user
     404 -> pure Nothing
@@ -372,7 +367,7 @@ createUserWithTeamDisableSSO brg gly = do
   () <-
     Control.Exception.assert {- "Team ID in self profile and team table do not match" -} (selfTeam == Just tid) $
       pure ()
-  return (uid, tid)
+  pure (uid, tid)
 
 getSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> m ResponseLBS
 getSSOEnabledInternal gly tid = do
@@ -412,7 +407,7 @@ inviteAndRegisterUser brig u tid inviteeEmail = do
   unless (Just tid == userTeam invitee) $ error "Team ID in registration and team table do not match"
   selfTeam <- userTeam . selfUser <$> getSelfProfile brig (userId invitee)
   unless (selfTeam == Just tid) $ error "Team ID in self profile and team table do not match"
-  return invitee
+  pure invitee
   where
     accept' :: User.Email -> User.InvitationCode -> RequestBody
     accept' email code = acceptWithName (User.Name "Bob") email code
@@ -455,7 +450,7 @@ inviteAndRegisterUser brig u tid inviteeEmail = do
               . queryItem "invitation_id" (toByteString' ref)
           )
       let lbs = fromMaybe "" $ responseBody r
-      return $ fromByteString . fromMaybe (error "No code?") $ encodeUtf8 <$> (lbs ^? key "code" . _String)
+      pure $ fromByteString (maybe (error "No code?") encodeUtf8 (lbs ^? key "code" . _String))
 
 -- | NB: this does create an SSO UserRef on brig, but not on spar.  this is inconsistent, but the
 -- inconsistency does not affect the tests we're running with this.  to resolve it, we could add an
@@ -555,11 +550,9 @@ nextSubject = liftIO $ do
 nextUserRef :: MonadIO m => m SAML.UserRef
 nextUserRef = liftIO $ do
   tenant <- UUID.toText <$> UUID.nextRandom
-  subject <- nextSubject
-  pure $
-    SAML.UserRef
-      (SAML.Issuer $ SAML.unsafeParseURI ("http://" <> tenant))
-      subject
+  SAML.UserRef
+    (SAML.Issuer $ SAML.unsafeParseURI ("http://" <> tenant))
+    <$> nextSubject
 
 createRandomPhoneUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m (UserId, Brig.Phone)
 createRandomPhoneUser brig_ = do
@@ -579,7 +572,7 @@ createRandomPhoneUser brig_ = do
   get (brig_ . path "/self" . zUser uid) !!! do
     const 200 === statusCode
     const (Right (Just phn)) === (fmap Brig.userPhone . responseJsonEither)
-  return (uid, phn)
+  pure (uid, phn)
 
 getTeams :: (HasCallStack, MonadHttp m, MonadIO m) => UserId -> GalleyReq -> m Galley.TeamList
 getTeams u gly = do
@@ -590,7 +583,7 @@ getTeams u gly = do
           . zAuthAccess u "conn"
           . expect2xx
       )
-  return $ responseJsonUnsafe r
+  pure $ responseJsonUnsafe r
 
 getTeamMemberIds :: HasCallStack => UserId -> TeamId -> TestSpar [UserId]
 getTeamMemberIds usr tid = (^. Galley.userId) <$$> getTeamMembers usr tid
@@ -618,7 +611,7 @@ promoteTeamMember usr tid memid = do
 getSelfProfile :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> UserId -> m Brig.SelfProfile
 getSelfProfile brg usr = do
   rsp <- get $ brg . path "/self" . zUser usr
-  return $ responseJsonUnsafe rsp
+  pure $ responseJsonUnsafe rsp
 
 zAuthAccess :: UserId -> SBS -> Request -> Request
 zAuthAccess u c = header "Z-Type" "access" . zUser u . zConn c
@@ -629,13 +622,13 @@ newTeam = Galley.BindingNewTeam $ Galley.newNewTeam (unsafeRange "teamName") Def
 randomEmail :: MonadIO m => m Brig.Email
 randomEmail = do
   uid <- liftIO nextRandom
-  return $ Brig.Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
+  pure $ Brig.Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
 
 randomPhone :: MonadIO m => m Brig.Phone
 randomPhone = liftIO $ do
   nrs <- map show <$> replicateM 14 (randomRIO (0, 9) :: IO Int)
   let phone = Brig.parsePhone . cs $ "+0" ++ concat nrs
-  return $ fromMaybe (error "Invalid random phone#") phone
+  pure $ fromMaybe (error "Invalid random phone#") phone
 
 randomUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m Brig.User
 randomUser brig_ = do
@@ -649,7 +642,7 @@ createUser ::
   m Brig.User
 createUser name brig_ = do
   r <- postUser name True Nothing Nothing brig_ <!! const 201 === statusCode
-  return $ responseJsonUnsafe r
+  pure $ responseJsonUnsafe r
 
 -- more flexible variant of 'createUser' (see above).  (check the variant that brig has before you
 -- clone this again!)
@@ -692,7 +685,7 @@ getActivationCode brig_ ep = do
   let lbs = fromMaybe "" $ responseBody r
   let akey = Brig.ActivationKey . Ascii.unsafeFromText <$> (lbs ^? Aeson.key "key" . Aeson._String)
   let acode = Brig.ActivationCode . Ascii.unsafeFromText <$> (lbs ^? Aeson.key "code" . Aeson._String)
-  return $ (,) <$> akey <*> acode
+  pure $ (,) <$> akey <*> acode
 
 activate ::
   (HasCallStack, MonadIO m, MonadHttp m) =>
@@ -758,7 +751,7 @@ makeTestIdP = do
   SampleIdP md _ _ _ <- makeSampleIdPMetadata
   IdPConfig
     <$> (IdPId <$> liftIO UUID.nextRandom)
-    <*> (pure md)
+    <*> pure md
     <*> nextWireIdP apiversion
 
 getTestSPMetadata :: (HasCallStack, MonadReader TestEnv m, MonadIO m) => TeamId -> m SPMetadata
@@ -823,9 +816,6 @@ getCookie proxy rsp = do
     then Right $ SimpleSetCookie web
     else Left $ "bad cookie name.  (found, expected) == " <> show (Web.setCookieName web, SAML.cookieName proxy)
 
-getSetBindCookie :: ResponseLBS -> Either String SetBindCookie
-getSetBindCookie = fmap SetBindCookie . getCookie (Proxy @"zbind")
-
 -- | In 'setResponseCookie' we set an expiration date iff cookie is persistent.  So here we test for
 -- expiration date.  Easier than parsing and inspecting the cookie value.
 hasPersistentCookieHeader :: ResponseLBS -> Either String ()
@@ -834,31 +824,6 @@ hasPersistentCookieHeader rsp = do
   when (isNothing . Web.setCookieExpires $ fromSimpleSetCookie cky) $
     Left $
       "expiration date should NOT empty: " <> show cky
-
--- | A bind cookie is always sent, but if we do not want to send one, it looks like this:
--- "wire.com=; Path=/sso/finalize-login; Expires=Thu, 01-Jan-1970 00:00:00 GMT; Max-Age=-1; Secure"
-hasDeleteBindCookieHeader :: HasCallStack => ResponseLBS -> Either String ()
-hasDeleteBindCookieHeader rsp = isDeleteBindCookie =<< getSetBindCookie rsp
-
-isDeleteBindCookie :: HasCallStack => SetBindCookie -> Either String ()
-isDeleteBindCookie (SetBindCookie (SimpleSetCookie cky)) =
-  if (SAML.Time <$> Web.setCookieExpires cky) == Just (SAML.unsafeReadTime "1970-01-01T00:00:00Z")
-    then Right ()
-    else Left $ "expiration should be empty: " <> show cky
-
-hasSetBindCookieHeader :: HasCallStack => ResponseLBS -> Either String ()
-hasSetBindCookieHeader rsp = isSetBindCookie =<< getSetBindCookie rsp
-
-isSetBindCookie :: HasCallStack => SetBindCookie -> Either String ()
-isSetBindCookie (SetBindCookie (SimpleSetCookie cky)) = do
-  unless (Web.setCookieName cky == "zbind") $ do
-    Left $ "expected zbind cookie: " <> show cky
-  unless (maybe False ("/sso/finalize-login" `SBS.isPrefixOf`) $ Web.setCookiePath cky) $ do
-    Left $ "expected path prefix /sso/finalize-login: " <> show cky
-  unless (Web.setCookieSecure cky) $ do
-    Left $ "cookie must be secure: " <> show cky
-  unless (Web.setCookieSameSite cky == Just Web.sameSiteStrict) $ do
-    Left $ "cookie must be same-site: " <> show cky
 
 tryLogin :: HasCallStack => SignPrivCreds -> IdP -> NameID -> TestSpar SAML.UserRef
 tryLogin privkey idp userSubject = do
@@ -892,37 +857,25 @@ negotiateAuthnRequest ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
   IdP ->
   m SAML.AuthnRequest
-negotiateAuthnRequest idp =
-  negotiateAuthnRequest' DoInitiateLogin idp id >>= \case
-    (req, cky) -> case maybe (Left "missing") isDeleteBindCookie cky of
-      Right () -> pure req
-      Left msg -> error $ "unexpected bind cookie: " <> show (cky, msg)
-
-doInitiatePath :: DoInitiate -> [ST]
-doInitiatePath DoInitiateLogin = ["sso", "initiate-login"]
-doInitiatePath DoInitiateBind = ["sso-initiate-bind"]
+negotiateAuthnRequest idp = negotiateAuthnRequest' idp id
 
 negotiateAuthnRequest' ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
-  DoInitiate ->
   IdP ->
   (Request -> Request) ->
-  m (SAML.AuthnRequest, Maybe SetBindCookie)
-negotiateAuthnRequest' (doInitiatePath -> doInit) idp modreq = do
+  m SAML.AuthnRequest
+negotiateAuthnRequest' idp modreq = do
   env <- ask
   resp :: ResponseLBS <-
     call $
       get
         ( modreq
             . (env ^. teSpar)
-            . paths (cs <$> (doInit <> [idPIdToST $ idp ^. SAML.idpId]))
+            . paths (cs <$> ["sso", "initiate-login", idPIdToST $ idp ^. SAML.idpId])
             . expect2xx
         )
   (_, authnreq) <- either error pure . parseAuthnReqResp $ cs <$> responseBody resp
-  let wireCookie =
-        SetBindCookie . SAML.SimpleSetCookie . Web.parseSetCookie
-          <$> lookup "Set-Cookie" (responseHeaders resp)
-  pure (authnreq, wireCookie)
+  pure authnreq
 
 submitAuthnResponse ::
   (HasCallStack, MonadIO m, MonadReader TestEnv m) =>
@@ -977,7 +930,7 @@ loginCreatedSsoUser nameid idp privCreds = do
   authnResp <- runSimpleSP $ mkAuthnResponseWithSubj nameid privCreds idp spmeta authnReq True
   sparAuthnResp <- submitAuthnResponse tid authnResp
 
-  let wireCookie = maybe (error (show sparAuthnResp)) id . lookup "Set-Cookie" $ responseHeaders sparAuthnResp
+  let wireCookie = fromMaybe (error (show sparAuthnResp)) . lookup "Set-Cookie" $ responseHeaders sparAuthnResp
   accessResp :: ResponseLBS <-
     call $
       post ((env ^. teBrig) . path "/access" . header "Cookie" wireCookie . expect2xx)
@@ -1140,16 +1093,15 @@ callIdpCreateReplace' apiversion sparreq_ muid metadata idpid = do
       . maybe id zUser muid
       . path "/identity-providers/"
       . Bilge.query
-        ( [ ( "api_version",
-              case apiversion of
-                WireIdPAPIV1 -> if explicitQueryParam then Just "v1" else Nothing
-                WireIdPAPIV2 -> Just "v2"
-            ),
-            ( "replaces",
-              Just . cs . idPIdToST $ idpid
-            )
-          ]
-        )
+        [ ( "api_version",
+            case apiversion of
+              WireIdPAPIV1 -> if explicitQueryParam then Just "v1" else Nothing
+              WireIdPAPIV2 -> Just "v2"
+          ),
+          ( "replaces",
+            Just . cs . idPIdToST $ idpid
+          )
+        ]
       . body (RequestBodyLBS . cs $ SAML.encode metadata)
       . header "Content-Type" "application/xml"
 

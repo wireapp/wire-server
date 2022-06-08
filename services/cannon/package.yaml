@@ -26,6 +26,7 @@ library:
   - data-default >=0.5
   - data-timeout >=0.3
   - exceptions >=0.6
+  - extra
   - gundeck-types
   - hashable >=1.2
   - http-types >=0.8
@@ -43,6 +44,8 @@ library:
   - text >=1.1
   - tinylog >=0.10
   - types-common >=0.16
+  - unix
+  - unliftio
   - uuid >=1.3
   - vector >=0.10
   - wai >=3.0

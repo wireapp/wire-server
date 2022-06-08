@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,21 +15,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.BindCookieStore
-  ( BindCookieStore (..),
-    insert,
-    lookup,
-  )
-where
+module Wire.API.Routes.CSV where
 
-import Data.Id (UserId)
-import Data.Time (NominalDiffTime)
-import Imports (Maybe)
-import Polysemy
-import Wire.API.Cookie
+import Network.HTTP.Media.MediaType
+import Servant.API
 
-data BindCookieStore m a where
-  Insert :: SetBindCookie -> UserId -> NominalDiffTime -> BindCookieStore m ()
-  Lookup :: BindCookie -> BindCookieStore m (Maybe UserId)
+data CSV
 
-makeSem ''BindCookieStore
+instance Accept CSV where
+  contentType _ = "text" // "csv"

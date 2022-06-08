@@ -30,6 +30,7 @@ module Spar.Sem.IdPConfigStore
     deleteConfig,
     setReplacedBy,
     clearReplacedBy,
+    deleteIssuer,
   )
 where
 
@@ -70,6 +71,7 @@ data IdPConfigStore m a where
   -- affects _wiReplacedBy in GetConfig
   SetReplacedBy :: Replaced -> Replacing -> IdPConfigStore m ()
   ClearReplacedBy :: Replaced -> IdPConfigStore m ()
+  DeleteIssuer :: SAML.Issuer -> IdPConfigStore m ()
 
 deriving stock instance Show (IdPConfigStore m a)
 

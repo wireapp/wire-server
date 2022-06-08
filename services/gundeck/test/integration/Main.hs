@@ -61,12 +61,12 @@ newtype ServiceConfigFile = ServiceConfigFile String
 instance IsOption ServiceConfigFile where
   defaultValue = ServiceConfigFile "/etc/wire/gundeck/conf/gundeck.yaml"
   parseValue = fmap ServiceConfigFile . safeRead
-  optionName = return "service-config"
-  optionHelp = return "Service config file to read from"
+  optionName = pure "service-config"
+  optionHelp = pure "Service config file to read from"
   optionCLParser =
     ServiceConfigFile
       <$> strOption
-        ( short (untag (return 's' :: Tagged ServiceConfigFile Char))
+        ( short (untag (pure 's' :: Tagged ServiceConfigFile Char))
             <> long (untag (optionName :: Tagged ServiceConfigFile String))
             <> help (untag (optionHelp :: Tagged ServiceConfigFile String))
         )
@@ -111,6 +111,6 @@ main = withOpenSSL $ runTests go
           ck = gConf ^. optCassandra . casKeyspace
       lg <- Logger.new Logger.defSettings
       db <- defInitCassandra ck ch cp lg
-      return $ TestSetup m g c c2 b db lg gConf (redis2 iConf)
-    releaseOpts _ = return ()
+      pure $ TestSetup m g c c2 b db lg gConf (redis2 iConf)
+    releaseOpts _ = pure ()
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p

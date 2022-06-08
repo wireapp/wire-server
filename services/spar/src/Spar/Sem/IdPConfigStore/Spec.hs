@@ -48,16 +48,16 @@ propsForInterpreter ::
   (forall x. Show x => Maybe (f x -> String)) ->
   (forall x. Sem r x -> IO (f x)) ->
   Spec
-propsForInterpreter interpreter extract labeler lower = do
+propsForInterpreter interpreter extract labeler lower =
   describe interpreter $ do
     prop "deleteConfig/deleteConfig" $ prop_deleteDelete Nothing lower
     prop "deleteConfig/getConfig" $ prop_deleteGet labeler lower
-    prop "getConfig/storeConfig" $ prop_getStore (Just $ show . (() <$) . extract) lower
-    prop "getConfig/getConfig" $ prop_getGet (Just $ show . ((() <$) *** (() <$)) . extract) lower
+    prop "getConfig/storeConfig" $ prop_getStore (Just $ show . void . extract) lower
+    prop "getConfig/getConfig" $ prop_getGet (Just $ show . (void *** void) . extract) lower
     prop "setReplacedBy/clearReplacedBy" $ prop_setClear labeler lower
-    prop "setReplacedBy/getReplacedBy" $ prop_setGet (Just $ show . (fmap (() <$)) . extract) lower
-    prop "setReplacedBy/setReplacedBy" $ prop_setSet (Just $ show . (fmap (() <$)) . extract) lower
-    prop "storeConfig/getConfig" $ prop_storeGet (Just $ show . (() <$) . extract) lower
+    prop "setReplacedBy/getReplacedBy" $ prop_setGet (Just $ show . fmap void . extract) lower
+    prop "setReplacedBy/setReplacedBy" $ prop_setSet (Just $ show . fmap void . extract) lower
+    prop "storeConfig/getConfig" $ prop_storeGet (Just $ show . void . extract) lower
     xit "storeConfig/getIdByIssuerWithoutTeam" $ property $ prop_storeGetByIssuer (Just $ constructorLabel . extract) lower
     prop "storeConfig/storeConfig (different keys)" $ prop_storeStoreInterleave Nothing lower
     prop "storeConfig/storeConfig (same keys)" $ prop_storeStore Nothing lower

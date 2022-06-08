@@ -167,7 +167,7 @@ listen b q callback =
         msg (val "Exception when listening to a STOMP queue")
           ~~ field "queue" (show q)
           ~~ field "error" (show e)
-      return True
+      pure True
 
 -- Note [exception handling]
 -- ~~~

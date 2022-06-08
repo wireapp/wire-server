@@ -52,7 +52,7 @@ newtype Limit = Limit {getLimit :: Int}
 new :: Clock -> Delay -> Limit -> IO (DelayQueue k v)
 new c d l = do
   queue <- newIORef PSQ.empty
-  return $! DelayQueue queue c d l
+  pure $! DelayQueue queue c d l
 
 enqueue :: Ord k => DelayQueue k v -> k -> v -> IO Bool
 enqueue (DelayQueue queue clock d l) k v = do

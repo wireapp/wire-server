@@ -75,6 +75,7 @@ data TeamFeatureStore m a where
     Proxy a ->
     TeamId ->
     TeamFeatureStatus 'WithoutLockStatus a ->
+    Maybe TeamFeatureTTLValue ->
     TeamFeatureStore m (TeamFeatureStatus 'WithoutLockStatus a)
   GetApplockFeatureStatus ::
     TeamId ->
@@ -127,6 +128,7 @@ setFeatureStatusNoConfig ::
   (Member TeamFeatureStore r, FeatureHasNoConfig 'WithoutLockStatus a, HasStatusCol a) =>
   TeamId ->
   TeamFeatureStatus 'WithoutLockStatus a ->
+  Maybe TeamFeatureTTLValue ->
   Sem r (TeamFeatureStatus 'WithoutLockStatus a)
 setFeatureStatusNoConfig = setFeatureStatusNoConfig' (Proxy @a)
 

@@ -37,7 +37,7 @@ import qualified CargoHold.Types.V3 as V3
 import CargoHold.Util
 import qualified Codec.MIME.Parse as MIME
 import qualified Codec.MIME.Type as MIME
-import qualified Conduit as Conduit
+import qualified Conduit
 import Control.Applicative (optional)
 import Control.Error
 import Control.Lens (set, view, (^.))
@@ -73,7 +73,7 @@ upload own bdy = do
   when (cl > maxTotalBytes) $
     throwE assetTooLarge
   ast <- liftIO $ Id <$> nextRandom
-  tok <- if sets ^. V3.setAssetPublic then return Nothing else Just <$> randToken
+  tok <- if sets ^. V3.setAssetPublic then pure Nothing else Just <$> randToken
   let ret = fromMaybe V3.AssetPersistent (sets ^. V3.setAssetRetention)
   key <- qualifyLocal (V3.AssetKeyV3 ast ret)
   void $ S3.uploadV3 own (tUnqualified key) hdrs tok src
@@ -81,8 +81,8 @@ upload own bdy = do
   Metrics.s3UploadSize cl
   expires <- case V3.assetRetentionSeconds ret of
     Just n -> Just . addUTCTime n <$> liftIO getCurrentTime
-    Nothing -> return Nothing
-  return $! V3.mkAsset key
+    Nothing -> pure Nothing
+  pure $! V3.mkAsset key
     & set V3.assetExpires expires
     & set V3.assetToken tok
 
@@ -90,14 +90,14 @@ renewToken :: V3.Principal -> V3.AssetKey -> Handler V3.AssetToken
 renewToken own key = do
   tok <- randToken
   updateToken own key (Just tok)
-  return tok
+  pure tok
 
 deleteToken :: V3.Principal -> V3.AssetKey -> Handler ()
 deleteToken own key = updateToken own key Nothing
 
 updateToken :: V3.Principal -> V3.AssetKey -> Maybe V3.AssetToken -> Handler ()
 updateToken own key tok = do
-  m <- S3.getMetadataV3 key >>= maybe (throwE assetNotFound) return
+  m <- S3.getMetadataV3 key >>= maybe (throwE assetNotFound) pure
   unless (S3.v3AssetOwner m == own) $
     throwE unauthorised
   let m' = m {S3.v3AssetToken = tok}
@@ -118,7 +118,7 @@ checkMetadata mown key tok = do
 
 delete :: V3.Principal -> V3.AssetKey -> Handler ()
 delete own key = do
-  m <- S3.getMetadataV3 key >>= maybe (throwE assetNotFound) return
+  m <- S3.getMetadataV3 key >>= maybe (throwE assetNotFound) pure
   unless (S3.v3AssetOwner m == own) $
     throwE unauthorised
   S3.deleteV3 key
@@ -156,7 +156,7 @@ assetSettings = do
   unless (MIME.mimeType ct == MIME.Application "json") $
     fail "Invalid metadata Content-Type. Expected 'application/json'."
   bs <- take (fromIntegral cl)
-  either fail return (eitherDecodeStrict' bs)
+  either fail pure (eitherDecodeStrict' bs)
 
 metadataHeaders :: Parser (MIME.Type, Word)
 metadataHeaders =
@@ -168,7 +168,7 @@ metadataHeaders =
     go hdrs = do
       ct <- contentType hdrs
       cl <- contentLength hdrs
-      return (ct, cl)
+      pure (ct, cl)
 
 assetHeaders :: Parser AssetHeaders
 assetHeaders =
@@ -186,14 +186,14 @@ contentType :: [(HeaderName, ByteString)] -> Parser MIME.Type
 contentType hdrs =
   maybe
     (fail "Missing Content-Type")
-    (maybe (fail "Invalid MIME type") return . MIME.parseMIMEType . decodeLatin1)
+    (maybe (fail "Invalid MIME type") pure . MIME.parseMIMEType . decodeLatin1)
     (lookup (CI.mk "Content-Type") hdrs)
 
 contentLength :: [(HeaderName, ByteString)] -> Parser Word
 contentLength hdrs =
   maybe
     (fail "Missing Content-Type")
-    (either fail return . parseOnly decimal)
+    (either fail pure . parseOnly decimal)
     (lookup (CI.mk "Content-Length") hdrs)
 
 boundary :: Parser ()

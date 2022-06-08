@@ -196,7 +196,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
       Named @"get-self" getSelf
-        :<|> Named @"delete-self" deleteUser
+        :<|> Named @"delete-self" deleteSelfUser
         :<|> Named @"put-self" updateUser
         :<|> Named @"change-phone" changePhone
         :<|> Named @"remove-phone" removePhone
@@ -507,7 +507,7 @@ listPropertyKeys u = lift $ wrapClient (API.lookupPropertyKeys u)
 listPropertyKeysAndValues :: UserId -> Handler r Public.PropertyKeysAndValues
 listPropertyKeysAndValues u = do
   keysAndVals <- fmap Map.fromList . lift $ wrapClient (API.lookupPropertyKeysAndValues u)
-  fmap Public.PropertyKeysAndValues $ traverse parseStoredPropertyValue keysAndVals
+  Public.PropertyKeysAndValues <$> traverse parseStoredPropertyValue keysAndVals
 
 getPrekeyUnqualifiedH :: UserId -> UserId -> ClientId -> (Handler r) Public.ClientPrekey
 getPrekeyUnqualifiedH zusr user client = do
@@ -689,7 +689,7 @@ createUser (Public.NewUserPublic new) = lift . runExceptT $ do
     -- NOTE: Welcome e-mails for the team creator are not dealt by brig anymore
     sendWelcomeEmail e (CreateUserTeam t n) newUser l = case newUser of
       Public.NewTeamCreator _ ->
-        return ()
+        pure ()
       Public.NewTeamMember _ ->
         Team.sendMemberWelcomeMail e t n l
       Public.NewTeamMemberSSO _ ->
@@ -798,7 +798,7 @@ checkHandlesH (_ ::: _ ::: req) = do
   Public.CheckHandles hs num <- parseJsonBody req
   let handles = mapMaybe parseHandle (fromRange hs)
   free <- lift . wrapClient $ API.checkHandles handles (fromRange num)
-  return $ json (free :: [Handle])
+  pure $ json (free :: [Handle])
 
 -- | This endpoint returns UserHandleInfo instead of UserProfile for backwards
 -- compatibility, whereas the corresponding qualified endpoint (implemented by
@@ -841,7 +841,7 @@ completePasswordResetH ::
 completePasswordResetH (_ ::: req) = do
   Public.CompletePasswordReset {..} <- parseJsonBody req
   API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
-  return empty
+  pure empty
 
 sendActivationCodeH :: JsonRequest Public.SendActivationCode -> (Handler r) Response
 sendActivationCodeH req =
@@ -891,7 +891,7 @@ updateConnection self conn other update = do
   let newStatus = Public.cuStatus update
   lself <- qualifyLocal self
   mc <- API.updateConnection lself other newStatus (Just conn) !>> connError
-  return $ maybe Public.Unchanged Public.Updated mc
+  pure $ maybe Public.Unchanged Public.Updated mc
 
 listLocalConnections :: UserId -> Maybe UserId -> Maybe (Range 1 500 Int32) -> (Handler r) Public.UserConnectionList
 listLocalConnections uid start msize = do
@@ -951,18 +951,18 @@ getConnection self other = do
   lself <- qualifyLocal self
   lift . wrapClient $ Data.lookupConnection lself other
 
-deleteUser ::
+deleteSelfUser ::
   UserId ->
   Public.DeleteUser ->
   (Handler r) (Maybe Code.Timeout)
-deleteUser u body =
-  API.deleteUser u (Public.deleteUserPassword body) !>> deleteUserError
+deleteSelfUser u body =
+  API.deleteSelfUser u (Public.deleteUserPassword body) !>> deleteUserError
 
 verifyDeleteUserH :: JsonRequest Public.VerifyDeleteUser ::: JSON -> (Handler r) Response
 verifyDeleteUserH (r ::: _) = do
   body <- parseJsonBody r
   API.verifyDeleteUser body !>> deleteUserError
-  return (setStatus status200 empty)
+  pure (setStatus status200 empty)
 
 updateUserEmail :: UserId -> UserId -> Public.EmailUpdate -> (Handler r) ()
 updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
@@ -1015,10 +1015,10 @@ activate :: Public.Activate -> (Handler r) ActivationRespWithStatus
 activate (Public.Activate tgt code dryrun)
   | dryrun = do
     wrapClientE (API.preverify tgt code) !>> actError
-    return ActivationRespDryRun
+    pure ActivationRespDryRun
   | otherwise = do
     result <- API.activate tgt code Nothing !>> actError
-    return $ case result of
+    pure $ case result of
       ActivationSuccess ident x -> respond ident x
       ActivationPass -> ActivationRespPass
   where
@@ -1088,9 +1088,9 @@ deprecatedCompletePasswordResetH (_ ::: k ::: req) = do
     (Public.pwrCode pwr)
     (Public.pwrPassword pwr)
     !>> pwResetError
-  return empty
+  pure empty
 
 -- Utilities
 
 ifNothing :: Utilities.Error -> Maybe a -> (Handler r) a
-ifNothing e = maybe (throwStd e) return
+ifNothing e = maybe (throwStd e) pure

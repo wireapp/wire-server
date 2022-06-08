@@ -66,7 +66,7 @@ tests :: Opt.Opts -> Manager -> Nginz -> Brig -> Cannon -> Galley -> AWS.Env -> 
 tests conf m n b c g aws = do
   let tl = TeamSizeLimit . Opt.setMaxTeamSize . Opt.optSettings $ conf
   let it = Opt.setTeamInvitationTimeout . Opt.optSettings $ conf
-  return $
+  pure $
     testGroup
       "team"
       [ testGroup "invitation" $
@@ -303,7 +303,7 @@ testInvitationEmailAndPhoneAccepted brig galley = do
   (profile, invitation) <- createAndVerifyInvitation (extAccept inviteeEmail inviteeName inviteePhone phoneCode) extInvite brig galley
   liftIO $ assertEqual "Wrong name in profile" (Just inviteeName) (userDisplayName . selfUser <$> profile)
   liftIO $ assertEqual "Wrong name in invitation" (Just inviteeName) (inInviteeName invitation)
-  liftIO $ assertEqual "Wrong phone number in profile" (Just inviteePhone) (join (userPhone . selfUser <$> profile))
+  liftIO $ assertEqual "Wrong phone number in profile" (Just inviteePhone) ((userPhone . selfUser) =<< profile)
   liftIO $ assertEqual "Wrong phone number in invitation" (Just inviteePhone) (inInviteePhone invitation)
 
 -- | FUTUREWORK: this is an alternative helper to 'createPopulatedBindingTeam'.  it has been
@@ -314,7 +314,7 @@ createAndVerifyInvitation ::
   InvitationRequest ->
   Brig ->
   Galley ->
-  Http ((Maybe SelfProfile), Invitation)
+  Http (Maybe SelfProfile, Invitation)
 createAndVerifyInvitation acceptFn invite brig galley = do
   createAndVerifyInvitation' Nothing acceptFn invite brig galley
 
@@ -335,7 +335,7 @@ createAndVerifyInvitation' ::
   InvitationRequest ->
   Brig ->
   Galley ->
-  m ((Maybe SelfProfile), Invitation)
+  m (Maybe SelfProfile, Invitation)
 createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
   (inviter, tid) <- createUserWithTeam brig
   let invitationHandshake ::
@@ -375,7 +375,7 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
   liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
   conns <- listConnections invitee brig
   liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
-  return (responseJsonMaybe rsp2, invitation)
+  pure (responseJsonMaybe rsp2, invitation)
 
 testCreateTeam :: Brig -> Galley -> AWS.Env -> Http ()
 testCreateTeam brig galley aws = do
@@ -592,7 +592,7 @@ testInvitationPaging brig = do
         liftIO $ assertEqual "page size" actualPageLen (length invs)
         liftIO $ assertEqual "has more" (count' < total) more
         liftIO $ validateInv `mapM_` invs
-        return (count', fmap inInvitation . listToMaybe . reverse $ invs)
+        pure (count', fmap inInvitation . listToMaybe . reverse $ invs)
       validateInv :: Invitation -> Assertion
       validateInv inv = do
         assertEqual "tid" tid (inTeam inv)

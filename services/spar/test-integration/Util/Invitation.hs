@@ -66,7 +66,7 @@ getInvitationCode brig t ref = do
           . queryItem "invitation_id" (toByteString' ref)
       )
   let lbs = fromMaybe "" $ responseBody r
-  return $ fromByteString . fromMaybe (error "No code?") $ encodeUtf8 <$> (lbs ^? key "code" . _String)
+  pure $ fromByteString (maybe (error "No code?") encodeUtf8 (lbs ^? key "code" . _String))
 
 registerInvitation :: HasCallStack => Email -> Name -> InvitationCode -> Bool -> TestSpar ()
 registerInvitation email name inviteeCode shouldSucceed = do

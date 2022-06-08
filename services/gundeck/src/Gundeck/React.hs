@@ -78,7 +78,7 @@ onUpdated ev = withEndpoint ev $ \e as ->
         logUserEvent (a ^. addrUser) ev $ msg (val "Removing superseded token")
         deleteToken (a ^. addrUser) ev (a ^. addrToken) (a ^. addrClient)
       if
-          | null sup -> return ()
+          | null sup -> pure ()
           | null cur -> deleteEndpoint ev
           | otherwise -> updateEndpoint ev e (map (view addrUser) cur)
 

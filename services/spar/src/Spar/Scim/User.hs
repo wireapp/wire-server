@@ -7,7 +7,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
@@ -44,7 +43,7 @@ where
 
 import Brig.Types.Common (parseEmail)
 import Brig.Types.Intra (AccountStatus, UserAccount (accountStatus, accountUser))
-import Brig.Types.User (ManagedBy (..), Name (..), User (..))
+import Brig.Types.User (Locale (..), ManagedBy (..), Name (..), User (..))
 import qualified Brig.Types.User as BT
 import qualified Control.Applicative as Applicative (empty)
 import Control.Lens (view, (^.))
@@ -96,7 +95,7 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
-import Wire.API.User (Email)
+import Wire.API.User (Email, parseLanguage)
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.RichInfo as RI
 import Wire.API.User.Saml (Opts, derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
@@ -133,7 +132,7 @@ instance
     ScimTokenInfo ->
     Maybe Scim.Filter ->
     Scim.ScimHandler (Sem r) (Scim.ListResponse (Scim.StoredUser ST.SparTag))
-  getUsers _ Nothing = do
+  getUsers _ Nothing =
     throwError $ Scim.badRequest Scim.TooMany (Just "Please specify a filter when getting users.")
   getUsers tokeninfo@ScimTokenInfo {stiTeam, stiIdP} (Just filter') =
     logScim
@@ -209,7 +208,7 @@ validateScimUser errloc tokinfo user = do
   validateScimUser' errloc mIdpConfig richInfoLimit user
 
 tokenInfoToIdP :: Member IdPConfigStore r => ScimTokenInfo -> Scim.ScimHandler (Sem r) (Maybe IdP)
-tokenInfoToIdP ScimTokenInfo {stiIdP} = do
+tokenInfoToIdP ScimTokenInfo {stiIdP} =
   maybe (pure Nothing) (lift . IdPConfigStore.getConfig) stiIdP
 
 -- | Validate a handle (@userName@).
@@ -272,7 +271,8 @@ validateScimUser' errloc midp richInfoLimit user = do
     either err pure $ Brig.mkUserName (Scim.displayName user) veid
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
-  pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active)
+  lang <- maybe (error "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
+  pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang)
   where
     -- Validate rich info (@richInfo@). It must not exceed the rich info limit.
     validateRichInfo :: RI.RichInfo -> m RI.RichInfo
@@ -307,7 +307,7 @@ mkValidExternalId ::
   Maybe IdP ->
   Maybe Text ->
   m ST.ValidExternalId
-mkValidExternalId _ Nothing = do
+mkValidExternalId _ Nothing =
   throwError $
     Scim.badRequest
       Scim.InvalidValue
@@ -332,7 +332,7 @@ mkValidExternalId (Just idp) (Just extid) = do
       unameId :: SAML.UnqualifiedNameID <- do
         let eEmail = SAML.mkUNameIDEmail txt
             unspec = SAML.mkUNameIDUnspecified txt
-        pure . either (const unspec) id $ eEmail
+        pure . fromRight unspec $ eEmail
       case SAML.mkNameID unameId Nothing Nothing Nothing of
         Right nameId -> pure nameId
         Left err ->
@@ -368,7 +368,7 @@ logEmail email =
   Log.field "email_sha256" (sha256String . cs . show $ email)
 
 logVSU :: ST.ValidScimUser -> (Msg -> Msg)
-logVSU (ST.ValidScimUser veid handl _name _richInfo _active) =
+logVSU (ST.ValidScimUser veid handl _name _richInfo _active _lang) =
   maybe id logEmail (veidEmail veid)
     . logHandle handl
 
@@ -423,7 +423,7 @@ createValidScimUser ::
   ScimTokenInfo ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
-createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl name richInfo _) =
+createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl name richInfo _active language) =
   logScim
     ( logFunction "Spar.Scim.User.createValidScimUser"
         . logVSU vsu
@@ -451,8 +451,8 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
                     uid <- Id <$> Random.uuid
                     BrigAccess.createSAML uref uid stiTeam name ManagedByScim
               )
-              ( \email -> do
-                  BrigAccess.createNoSAML email stiTeam name
+              ( \email ->
+                  BrigAccess.createNoSAML email stiTeam name language
               )
               veid
 
@@ -577,16 +577,16 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newValidScimUser =
           do
             let old = oldValidScimUser ^. ST.vsuExternalId
                 new = newValidScimUser ^. ST.vsuExternalId
-            when (old /= new) $ do
+            when (old /= new) $
               updateVsuUref stiTeam uid old new
 
-          when (newValidScimUser ^. ST.vsuName /= oldValidScimUser ^. ST.vsuName) $ do
+          when (newValidScimUser ^. ST.vsuName /= oldValidScimUser ^. ST.vsuName) $
             BrigAccess.setName uid (newValidScimUser ^. ST.vsuName)
 
-          when (oldValidScimUser ^. ST.vsuHandle /= newValidScimUser ^. ST.vsuHandle) $ do
+          when (oldValidScimUser ^. ST.vsuHandle /= newValidScimUser ^. ST.vsuHandle) $
             BrigAccess.setHandle uid (newValidScimUser ^. ST.vsuHandle)
 
-          when (oldValidScimUser ^. ST.vsuRichInfo /= newValidScimUser ^. ST.vsuRichInfo) $ do
+          when (oldValidScimUser ^. ST.vsuRichInfo /= newValidScimUser ^. ST.vsuRichInfo) $
             BrigAccess.setRichInfo uid (newValidScimUser ^. ST.vsuRichInfo)
 
           BrigAccess.getStatusMaybe uid >>= \case
@@ -698,7 +698,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
     $ do
       mbBrigUser <- lift (Brig.getBrigUser Brig.WithPendingInvitations uid)
       case mbBrigUser of
-        Nothing -> do
+        Nothing ->
           -- double-deletion gets you a 404.
           throwError $ Scim.notFound "user" (idToText uid)
         Just brigUser -> do
@@ -724,7 +724,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
 
           lift $ ScimUserTimesStore.delete uid
           lift $ BrigAccess.delete uid
-          return ()
+          pure ()
 
 ----------------------------------------------------------------------------
 -- Utilities
@@ -753,13 +753,15 @@ calculateVersion uid usr = Scim.Weak (Text.pack (show h))
 --
 -- ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
 -- to a single `externalId`.
-assertExternalIdUnused :: Members '[BrigAccess, ScimExternalIdStore, SAMLUserStore] r => TeamId -> ST.ValidExternalId -> Scim.ScimHandler (Sem r) ()
-assertExternalIdUnused tid veid = do
+assertExternalIdUnused ::
+  Members '[BrigAccess, ScimExternalIdStore, SAMLUserStore] r =>
+  TeamId ->
+  ST.ValidExternalId ->
+  Scim.ScimHandler (Sem r) ()
+assertExternalIdUnused =
   assertExternalIdInAllowedValues
     [Nothing]
     "externalId is already taken"
-    tid
-    veid
 
 -- |
 -- Check that the UserRef is not taken any user other than the passed 'UserId'
@@ -768,7 +770,7 @@ assertExternalIdUnused tid veid = do
 -- ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
 -- to a single `externalId`.
 assertExternalIdNotUsedElsewhere :: Members '[BrigAccess, ScimExternalIdStore, SAMLUserStore] r => TeamId -> ST.ValidExternalId -> UserId -> Scim.ScimHandler (Sem r) ()
-assertExternalIdNotUsedElsewhere tid veid wireUserId = do
+assertExternalIdNotUsedElsewhere tid veid wireUserId =
   assertExternalIdInAllowedValues
     [Nothing, Just wireUserId]
     "externalId already in use by another Wire user"
@@ -846,12 +848,12 @@ synthesizeStoredUser usr veid =
 
       let writeState :: Maybe (UTCTimeMillis, UTCTimeMillis) -> ManagedBy -> RI.RichInfo -> Scim.StoredUser ST.SparTag -> Sem r ()
           writeState oldAccessTimes oldManagedBy oldRichInfo storedUser = do
-            when (isNothing oldAccessTimes) $ do
+            when (isNothing oldAccessTimes) $
               ScimUserTimesStore.write storedUser
-            when (oldManagedBy /= ManagedByScim) $ do
+            when (oldManagedBy /= ManagedByScim) $
               BrigAccess.setManagedBy uid ManagedByScim
             let newRichInfo = view ST.sueRichInfo . Scim.extra . Scim.value . Scim.thing $ storedUser
-            when (oldRichInfo /= newRichInfo) $ do
+            when (oldRichInfo /= newRichInfo) $
               BrigAccess.setRichInfo uid newRichInfo
 
       (richInfo, accessTimes, baseuri) <- lift readState
@@ -871,6 +873,7 @@ synthesizeStoredUser usr veid =
           createdAt
           lastUpdatedAt
           baseuri
+          (userLocale (accountUser usr))
       lift $ writeState accessTimes (userManagedBy (accountUser usr)) richInfo storedUser
       pure storedUser
 
@@ -884,8 +887,9 @@ synthesizeStoredUser' ::
   UTCTimeMillis ->
   UTCTimeMillis ->
   URIBS.URI ->
+  Locale ->
   MonadError Scim.ScimError m => m (Scim.StoredUser ST.SparTag)
-synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpdatedAt baseuri = do
+synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpdatedAt baseuri locale = do
   let scimUser :: Scim.User ST.SparTag
       scimUser =
         synthesizeScimUser
@@ -896,7 +900,8 @@ synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpd
                                         redundantly, without the 'Maybe'. -},
               ST._vsuName = dname,
               ST._vsuRichInfo = richInfo,
-              ST._vsuActive = ST.scimActiveFlagFromAccountStatus accStatus
+              ST._vsuActive = ST.scimActiveFlagFromAccountStatus accStatus,
+              ST._vsuLocale = Just locale
             }
 
   pure $ toScimStoredUser' createdAt lastUpdatedAt baseuri uid (normalizeLikeStored scimUser)
@@ -938,9 +943,9 @@ getUserById midp stiTeam uid = do
       assertExternalIdNotUsedElsewhere stiTeam veid uid
       createValidScimUserSpar stiTeam uid storedUser veid
       lift $ do
-        when (veidChanged (accountUser brigUser) veid) $ do
+        when (veidChanged (accountUser brigUser) veid) $
           BrigAccess.setVeid uid veid
-        when (managedByChanged (accountUser brigUser)) $ do
+        when (managedByChanged (accountUser brigUser)) $
           BrigAccess.setManagedBy uid ManagedByScim
       pure storedUser
     _ -> Applicative.empty
@@ -1008,7 +1013,7 @@ scimFindUserByEmail mIdpConfig stiTeam email = do
   getUserById mIdpConfig stiTeam . userId . accountUser $ brigUser
   where
     withUref :: SAML.UserRef -> Sem r (Maybe UserId)
-    withUref uref = do
+    withUref uref =
       SAMLUserStore.get uref >>= \case
         Nothing -> maybe (pure Nothing) withEmailOnly $ Brig.urefToEmail uref
         Just uid -> pure (Just uid)

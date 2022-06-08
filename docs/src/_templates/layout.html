@@ -1,0 +1,21 @@
+{%- extends "sphinx_rtd_theme/layout.html" %}
+
+{% block sidebartitle %}
+    <a href="{{ pathto(master_doc) }}"> 
+        <img src="{{ logo_url }}" class="logo" alt="{{ _('Logo') }}"/>
+    </a>
+
+    <!-- {%- if theme_display_version %}
+        {%- set nav_version = version %}
+        {%- if READTHEDOCS and current_version %}
+              {%- set nav_version = current_version %}
+        {%- endif %}
+        {%- if nav_version %}
+            <div class="version">
+                {{ nav_version }}
+            </div>
+        {%- endif %}
+    {%- endif %} -->
+
+    {%- include "searchbox.html" %}
+{% endblock %}

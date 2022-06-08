@@ -74,7 +74,7 @@ instance Cql Email where
   ctype = Tagged TextColumn
 
   fromCql (CqlText t) = case parseEmail t of
-    Just e -> return e
+    Just e -> pure e
     Nothing -> Left "fromCql: Invalid email"
   fromCql _ = Left "fromCql: email: CqlText expected"
 
@@ -84,7 +84,7 @@ instance Cql UserSSOId where
   ctype = Tagged TextColumn
 
   fromCql (CqlText t) = case eitherDecode $ cs t of
-    Right i -> return i
+    Right i -> pure i
     Left msg -> Left $ "fromCql: Invalid UserSSOId: " ++ msg
   fromCql _ = Left "fromCql: UserSSOId: CqlText expected"
 
@@ -129,8 +129,8 @@ instance Cql Pict where
   fromCql (CqlList l) = do
     vs <- map (\(Blob lbs) -> lbs) <$> mapM fromCql l
     as <- mapM (note "Failed to read asset" . JSON.decode) vs
-    return $ Pict as
-  fromCql _ = return noPict
+    pure $ Pict as
+  fromCql _ = pure noPict
 
   toCql = toCql . map (Blob . JSON.encode) . fromPict
 
@@ -145,8 +145,8 @@ instance Cql AssetKey where
 instance Cql AssetSize where
   ctype = Tagged IntColumn
 
-  fromCql (CqlInt 0) = return AssetPreview
-  fromCql (CqlInt 1) = return AssetComplete
+  fromCql (CqlInt 0) = pure AssetPreview
+  fromCql (CqlInt 1) = pure AssetComplete
   fromCql n = Left $ "Unexpected asset size: " ++ show n
 
   toCql AssetPreview = CqlInt 0
@@ -171,7 +171,7 @@ instance Cql Asset where
     k <- required "key"
     s <- optional "size"
     case (t :: Int32) of
-      0 -> return $! ImageAsset k s
+      0 -> pure $! ImageAsset k s
       _ -> Left $ "unexpected user asset type: " ++ show t
     where
       required :: Cql r => Text -> Either String r
@@ -201,11 +201,11 @@ instance Cql AccountStatus where
   toCql PendingInvitation = CqlInt 4
 
   fromCql (CqlInt i) = case i of
-    0 -> return Active
-    1 -> return Suspended
-    2 -> return Deleted
-    3 -> return Ephemeral
-    4 -> return PendingInvitation
+    0 -> pure Active
+    1 -> pure Suspended
+    2 -> pure Deleted
+    3 -> pure Ephemeral
+    4 -> pure PendingInvitation
     n -> Left $ "unexpected account status: " ++ show n
   fromCql _ = Left "account status: int expected"
 
@@ -215,9 +215,9 @@ instance Cql ClientType where
   toCql PermanentClientType = CqlInt 1
   toCql LegalHoldClientType = CqlInt 2
 
-  fromCql (CqlInt 0) = return TemporaryClientType
-  fromCql (CqlInt 1) = return PermanentClientType
-  fromCql (CqlInt 2) = return LegalHoldClientType
+  fromCql (CqlInt 0) = pure TemporaryClientType
+  fromCql (CqlInt 1) = pure PermanentClientType
+  fromCql (CqlInt 2) = pure LegalHoldClientType
   fromCql _ = Left "ClientType: Int [0, 2] expected"
 
 instance Cql ClientClass where
@@ -227,10 +227,10 @@ instance Cql ClientClass where
   toCql DesktopClient = CqlInt 2
   toCql LegalHoldClient = CqlInt 3
 
-  fromCql (CqlInt 0) = return PhoneClient
-  fromCql (CqlInt 1) = return TabletClient
-  fromCql (CqlInt 2) = return DesktopClient
-  fromCql (CqlInt 3) = return LegalHoldClient
+  fromCql (CqlInt 0) = pure PhoneClient
+  fromCql (CqlInt 1) = pure TabletClient
+  fromCql (CqlInt 2) = pure DesktopClient
+  fromCql (CqlInt 3) = pure LegalHoldClient
   fromCql _ = Left "ClientClass: Int [0, 3] expected"
 
 instance Cql RawPropertyValue where
@@ -244,7 +244,7 @@ instance Cql Country where
   toCql = toCql . con2Text
 
   fromCql (CqlAscii c) = case parseCountry c of
-    Just c' -> return c'
+    Just c' -> pure c'
     Nothing -> Left "Country: ISO 3166-1-alpha2 expected."
   fromCql _ = Left "Country: ASCII expected"
 
@@ -253,15 +253,15 @@ instance Cql Language where
   toCql = toCql . lan2Text
 
   fromCql (CqlAscii l) = case parseLanguage l of
-    Just l' -> return l'
+    Just l' -> pure l'
     Nothing -> Left "Language: ISO 639-1 expected."
   fromCql _ = Left "Language: ASCII expected"
 
 instance Cql ManagedBy where
   ctype = Tagged IntColumn
 
-  fromCql (CqlInt 0) = return ManagedByWire
-  fromCql (CqlInt 1) = return ManagedByScim
+  fromCql (CqlInt 0) = pure ManagedByWire
+  fromCql (CqlInt 1) = pure ManagedByScim
   fromCql n = Left $ "Unexpected ManagedBy: " ++ show n
 
   toCql ManagedByWire = CqlInt 0

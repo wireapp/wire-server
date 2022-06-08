@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -70,8 +68,8 @@ instance Cql UKHashType where
   ctype = Tagged IntColumn
 
   fromCql (CqlInt i) = case i of
-    0 -> return UKHashPhone
-    1 -> return UKHashEmail
+    0 -> pure UKHashPhone
+    1 -> pure UKHashEmail
     n -> Left $ "unexpected hashtype: " ++ show n
   fromCql _ = Left "userkeyhashtype: int expected"
 
@@ -85,7 +83,7 @@ instance Cql UserKeyHash where
 
   fromCql (CqlBlob lbs) = case MH.decode (toStrict lbs) of
     Left e -> Left ("userkeyhash: " ++ e)
-    Right h -> return $ UserKeyHash h
+    Right h -> pure $ UserKeyHash h
   fromCql _ = Left "userkeyhash: expected blob"
 
   toCql (UserKeyHash d) = CqlBlob $ MH.encode (MH.algorithm d) (MH.digest d)
@@ -129,7 +127,7 @@ claimKey ::
 claimKey k u = do
   free <- keyAvailable k (Just u)
   when free (insertKey u k)
-  return free
+  pure free
 
 -- | Check whether a 'UserKey' is available.
 -- A key is available if it is not already actived for another user or
@@ -144,8 +142,8 @@ keyAvailable ::
 keyAvailable k u = do
   o <- lookupKey k
   case (o, u) of
-    (Nothing, _) -> return True
-    (Just x, Just y) | x == y -> return True
+    (Nothing, _) -> pure True
+    (Just x, Just y) | x == y -> pure True
     (Just x, _) -> not <$> User.isActivated x
 
 lookupKey :: MonadClient m => UserKey -> m (Maybe UserId)
@@ -170,7 +168,7 @@ hashKey :: MonadReader Env m => UserKey -> m UserKeyHash
 hashKey uk = do
   d <- view digestSHA256
   let d' = digestBS d $ T.encodeUtf8 (keyText uk)
-  return . UserKeyHash $
+  pure . UserKeyHash $
     MH.MultihashDigest MH.SHA256 (B.length d') d'
 
 lookupPhoneHashes :: MonadClient m => [ByteString] -> m [(ByteString, UserId)]

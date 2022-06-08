@@ -38,4 +38,4 @@ scimTokenStoreToMem = (runState mempty .) $
     Lookup st -> gets $ M.lookup st
     LookupByTeam tid -> gets $ filter ((== tid) . stiTeam) . M.elems
     Delete tid stid -> modify $ M.filter $ \sti -> not $ stiTeam sti == tid && stiId sti == stid
-    DeleteByTeam tid -> modify $ M.filter (not . (== tid) . stiTeam)
+    DeleteByTeam tid -> modify $ M.filter ((/= tid) . stiTeam)

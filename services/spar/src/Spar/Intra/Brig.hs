@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -120,9 +118,10 @@ createBrigUserNoSAML ::
   TeamId ->
   -- | User name
   Name ->
+  Maybe Locale ->
   m UserId
-createBrigUserNoSAML email teamid uname = do
-  let newUser = NewUserScimInvitation teamid Nothing uname email
+createBrigUserNoSAML email teamid uname locale = do
+  let newUser = NewUserScimInvitation teamid locale uname email
   resp :: ResponseLBS <-
     call $
       method POST
@@ -165,7 +164,7 @@ getBrigUserAccount havePending buid = do
           ]
 
   case statusCode resp of
-    200 -> do
+    200 ->
       parseResponse @[UserAccount] "brig" resp >>= \case
         [account] ->
           pure $
@@ -220,11 +219,9 @@ setBrigUserName buid (Name name) = do
         . paths ["/i/users", toByteString' buid, "name"]
         . json (NameUpdate name)
   let sCode = statusCode resp
-  if
-      | sCode < 300 ->
-        pure ()
-      | otherwise ->
-        rethrow "brig" resp
+  if sCode < 300
+    then pure ()
+    else rethrow "brig" resp
 
 -- | Set user's handle.  Fails with status <500 if brig fails with <500, and with 500 if brig fails
 -- with >= 500.
@@ -240,9 +237,9 @@ setBrigUserHandle buid handle = do
         . paths ["/i/users", toByteString' buid, "handle"]
         . json (HandleUpdate (fromHandle handle))
   case (statusCode resp, Wai.label <$> responseJsonMaybe @Wai.Error resp) of
-    (200, Nothing) -> do
+    (200, Nothing) ->
       pure ()
-    _ -> do
+    _ ->
       rethrow "brig" resp
 
 -- | Set user's managedBy. Fails with status <500 if brig fails with <500, and with 500 if
@@ -355,7 +352,7 @@ ssoLogin buid = do
         . path "/i/sso-login"
         . json (SsoLogin buid Nothing)
         . queryItem "persist" "true"
-  if (statusCode resp == 200)
+  if statusCode resp == 200
     then respToCookie resp
     else rethrow "brig" resp
 

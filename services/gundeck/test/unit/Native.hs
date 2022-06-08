@@ -53,10 +53,10 @@ serialiseOkProp t = ioProperty $ do
   let sn = either (const Nothing) Just r >>= decode' . LT.encodeUtf8
   let equalTransport = fmap snsNotifTransport sn == Just t
   equalNotif <- case snsNotifBundle <$> sn of
-    Nothing -> return False
-    Just (NoticeBundle n') -> return $ ntfId n == n'
+    Nothing -> pure False
+    Just (NoticeBundle n') -> pure $ ntfId n == n'
   let debugInfo = (t, a, n, r, sn, equalTransport, equalNotif)
-  return . counterexample (show debugInfo) $ equalTransport && equalNotif
+  pure . counterexample (show debugInfo) $ equalTransport && equalNotif
 
 -----------------------------------------------------------------------------
 -- Types

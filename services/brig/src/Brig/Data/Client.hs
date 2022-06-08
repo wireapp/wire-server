@@ -147,7 +147,7 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients loc cps = do
   new <- insert
   let !total = fromIntegral (length clients + if upsert then 0 else 1)
   let old = maybe (filter (not . exists) typed) (const []) limit
-  return (new, old, total)
+  pure (new, old, total)
   where
     limit :: Maybe Int
     limit = case newClientType c of
@@ -170,7 +170,7 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients loc cps = do
           prm = (u, newId, now, newClientType c, newClientLabel c, newClientClass c, newClientCookie c, lat, lon, mdl, C.Set . Set.toList <$> cps)
       retry x5 $ write insertClient (params LocalQuorum prm)
       addMLSPublicKeys u newId (Map.assocs (newClientMLSPublicKeys c))
-      return
+      pure
         $! Client
           { clientId = newId,
             clientType = newClientType c,
@@ -265,8 +265,8 @@ updatePrekeys u c pks = do
     check a b = do
       i <- CryptoBox.isPrekey b
       case i of
-        Success n -> return (CryptoBox.prekeyId n == keyId (prekeyId a))
-        _ -> return False
+        Success n -> pure (CryptoBox.prekeyId n == keyId (prekeyId a))
+        _ -> pure False
 
 claimPrekey ::
   ( Log.MonadLogger m,
@@ -298,8 +298,8 @@ claimPrekey u c =
             field "user" (toByteString u)
               . field "client" (toByteString c)
               . msg (val "last resort prekey used")
-      return $ Just (ClientPrekey c (Prekey i k))
-    removeAndReturnPreKey Nothing = return Nothing
+      pure $ Just (ClientPrekey c (Prekey i k))
+    removeAndReturnPreKey Nothing = pure Nothing
 
     pickRandomPrekey :: MonadIO f => [(PrekeyId, Text)] -> f (Maybe (PrekeyId, Text))
     pickRandomPrekey [] = pure Nothing
@@ -309,7 +309,7 @@ claimPrekey u c =
     pickRandomPrekey pks = do
       let pks' = filter (\k -> fst k /= lastPrekeyId) pks
       ind <- liftIO $ randomRIO (0, length pks' - 1)
-      return $ atMay pks' ind
+      pure $ atMay pks' ind
 
 lookupMLSPublicKey ::
   MonadClient m =>
@@ -488,13 +488,13 @@ withOptLock ::
 withOptLock u c ma = go (10 :: Int)
   where
     go !n = do
-      v <- (version =<<) <$> execDyn return get
+      v <- (version =<<) <$> execDyn pure get
       a <- ma
-      r <- execDyn return (put v)
+      r <- execDyn pure (put v)
       case r of
         Nothing | n > 0 -> reportAttemptFailure >> go (n - 1)
-        Nothing -> reportFailureAndLogError >> return a
-        Just _ -> return a
+        Nothing -> reportFailureAndLogError >> pure a
+        Just _ -> pure a
     version :: AWS.GetItemResponse -> Maybe Word32
     version v = conv =<< HashMap.lookup ddbVersion (view AWS.getItemResponse_item v)
       where
@@ -549,13 +549,13 @@ withOptLock u c ma = go (10 :: Int)
           IO (Maybe y)
         execDyn' e m conv cmd = recovering policy handlers (const run)
           where
-            run = execCatch e cmd >>= either handleErr (return . conv)
+            run = execCatch e cmd >>= either handleErr (pure . conv)
             handlers = httpHandlers ++ [const $ EL.handler_ AWS._ConditionalCheckFailedException (pure True)]
             policy = limitRetries 3 <> exponentialBackoff 100000
             handleErr (AWS.ServiceError se) | se ^. AWS.serviceCode == AWS.ErrorCode "ProvisionedThroughputExceeded" = do
               Metrics.counterIncr (Metrics.path "client.opt_lock.provisioned_throughput_exceeded") m
-              return Nothing
-            handleErr _ = return Nothing
+              pure Nothing
+            handleErr _ = pure Nothing
 
 withLocalLock :: (MonadMask m, MonadIO m) => MVar () -> m a -> m a
 withLocalLock l ma = do

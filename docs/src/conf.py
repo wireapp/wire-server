@@ -22,7 +22,7 @@ project = 'Wire'
 today_date = datetime.date.today()
 copyright = f'{today_date.year}, Wire'
 author = 'Wire Swiss GmbH'
-version = '0.0.3'
+version = '0.0.4'
 # the 'release' variable is used in latex-based PDF generation
 release = version
 
@@ -97,6 +97,16 @@ html_theme = 'sphinx_rtd_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
+# NOTE: if you want to fully override default theme css, use this property (presumes it is in _static folder)
+#html_style = 'css/wire.css'
+
+# additional css files (presumes they are in _static folder)
+html_css_files = [
+    'css/wire.css',
+]
+
+html_favicon = '_static/favicon/favicon.ico'
+html_logo = '_static/image/wire_logo.svg'
 
 smv_tag_whitelist = ''
 smv_branch_whitelist = r'^(install-with-poetry)$'

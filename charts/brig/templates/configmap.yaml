@@ -202,6 +202,11 @@ data:
     {{- end }}
     {{- end }}
 
+    {{- if .geoip.enabled }}
+    # Shared emptyDir with geoipupdate container
+    geoDb: /usr/share/GeoIP/GeoIP2-City.mmdb
+    {{- end }}
+
     {{- with .optSettings }}
     optSettings:
       setActivationTimeout: {{ .setActivationTimeout }}

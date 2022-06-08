@@ -119,6 +119,107 @@ Keys below ``gundeck.secrets`` belong into ``values/wire-server/secrets.yaml``:
 
 After making this change and applying it to gundeck (ensure gundeck pods have restarted to make use of the updated configuration - that should happen automatically), make sure to reset the push token on any mobile devices that you may have in use.
 
+Controlling the speed of websocket draining during cannon pod replacement
+-------------------------------------------------------------------------
+
+The 'cannon' component is responsible for persistent websocket connections.
+Normally the default options would slowly and gracefully drain active websocket
+connections over a maximum of ``(amount of cannon replicas * 30 seconds)`` during
+the deployment of a new wire-server version. This will lead to a very brief
+interruption for Wire clients when their client has to re-connect on the
+websocket.
+
+You're not expected to need to change these settings.
+
+The following options are only relevant during the restart of cannon itself.
+During a restart of nginz or ingress-controller, all websockets will get
+severed. If this is to be avoided, see section :ref:`separate-websocket-traffic`
+
+``drainOpts``: Drain websockets in a controlled fashion when cannon receives a
+SIGTERM or SIGINT (this happens when a pod is terminated e.g. during rollout
+of a new version). Instead of waiting for connections to close on their own,
+the websockets are now severed at a controlled pace. This allows for quicker
+rollouts of new versions.
+
+There is no way to entirely disable this behaviour, two extreme examples below
+
+* the quickest way to kill cannon is to set ``gracePeriodSeconds: 1`` and
+  ``minBatchSize: 100000`` which would sever all connections immediately; but it's
+  not recommended as you could DDoS yourself by forcing all active clients to
+  reconnect at the same time. With this, cannon pod replacement takes only 1
+  second per pod.
+* the slowest way to roll out a new version of cannon without severing websocket
+  connections for a long time is to set ``minBatchSize: 1``,
+  ``millisecondsBetweenBatches: 86400000`` and ``gracePeriodSeconds: 86400``
+  which would lead to one single websocket connection being closed immediately,
+  and all others only after 1 day. With this, cannon pod replacement takes a
+  full day per pod.
+
+.. code:: yaml
+
+   # overrides for wire-server/values.yaml
+   cannon:
+     drainOpts:
+       # The following defaults drain a minimum of 400 connections/second
+       # for a total of 10000 over 25 seconds
+       # (if cannon holds more connections, draining will happen at a faster pace)
+       gracePeriodSeconds: 25
+       millisecondsBetweenBatches: 50
+       minBatchSize: 20
+
+.. _separate-websocket-traffic:
+
+Separate incoming websocket network traffic from the rest of the https traffic
+-------------------------------------------------------------------------------
+
+By default, incoming network traffic for websockets comes through these network
+hops:
+
+Internet -> LoadBalancer -> kube-proxy -> nginx-ingress-controller -> nginz -> cannon
+
+In order to have graceful draining of websockets when something gets restarted, as it is not easily
+possible to implement the graceful draining on nginx-ingress-controller or nginz by itself, there is
+a configuration option to get the following network hops:
+
+Internet -> separate LoadBalancer for cannon only -> kube-proxy -> [nginz->cannon (2 containers in the same pod)]
+
+.. code:: yaml
+
+   # example on AWS when using cert-manager for TLS certificates and external-dns for DNS records
+   # (see wire-server/charts/cannon/values.yaml for more possible options)
+
+   # in your wire-server/values.yaml overrides:
+   cannon:
+     service:
+       nginz:
+         enabled: true
+         hostname: "nginz-ssl.example.com"
+         externalDNS:
+           enabled: true
+         certManager:
+           enabled: true
+         annotations:
+           service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+           service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+   nginz:
+     nginx_conf:
+       ignored_upstreams: ["cannon"]
+
+.. code:: yaml
+
+   # in your wire-server/secrets.yaml overrides:
+   cannon:
+     secrets:
+       nginz:
+         zAuth:
+           publicKeys: ... # same values as in nginz.secrets.zAuth.publicKeys
+
+.. code:: yaml
+
+   # in your nginx-ingress-services/values.yaml overrides:
+   websockets:
+     enabled: false
+
 
 Blocking creation of personal users, new teams
 --------------------------------------------------------------------------
@@ -413,3 +514,19 @@ You need Giphy/Google/Spotify/Soundcloud API keys (if you want to
 support previews by proxying these services)
 
 See the ``proxy`` chart for configuration.
+
+Routing traffic to other namespaces via nginz
+---------------------------------------------
+
+If you have some components running in namespaces different from nginz. For
+instance, the billing service (``ibis``) could be deployed to a separate
+namespace, say ``integrations``. But it still needs to get traffic via
+``nginz``. When this is needed, the helm config can be adjusted like this:
+
+.. code:: yaml
+
+   # in your wire-server/values.yaml overrides:
+   nginz:
+     nginx_conf:
+       upstream_namespace:
+         ibis: integrations

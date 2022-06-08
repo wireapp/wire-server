@@ -41,7 +41,7 @@ brigAccessToHttp mgr req =
   interpret $
     viaRunHttp (RunHttpEnv mgr req) . \case
       CreateSAML u itlu itlt n m -> Intra.createBrigUserSAML u itlu itlt n m
-      CreateNoSAML e itlt n -> Intra.createBrigUserNoSAML e itlt n
+      CreateNoSAML e itlt n locale -> Intra.createBrigUserNoSAML e itlt n locale
       UpdateEmail itlu e -> Intra.updateEmail itlu e
       GetAccount h itlu -> Intra.getBrigUserAccount h itlu
       GetByHandle h -> Intra.getBrigUserByHandle h

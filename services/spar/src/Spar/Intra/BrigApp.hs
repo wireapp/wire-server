@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 
 -- This file is part of the Wire Server implementation.
@@ -114,7 +113,7 @@ mkUserName (Just n) = const $ mkName n
 mkUserName Nothing =
   runValidExternalIdEither
     (\uref -> mkName (CI.original . SAML.unsafeShowNameID $ uref ^. SAML.uidSubject))
-    (\email -> mkName (fromEmail email))
+    (mkName . fromEmail)
 
 renderValidExternalId :: ValidExternalId -> Maybe Text
 renderValidExternalId = runValidExternalIdEither urefToExternalId (Just . fromEmail)

@@ -63,7 +63,7 @@ add p = do
   let v = toField (connId p)
   let d = Lazy.toStrict $ encode $ PresenceData (resource p) (clientId p) now
   runWithAdditionalRedis . retry x3 $ do
-    void . (fromTxResult =<<) . liftRedis . multiExec $ do
+    void . fromTxResult <=< (liftRedis . multiExec) $ do
       void $ hset k v d
       -- nb. All presences of a user are expired 'maxIdleTime' after the
       -- last presence was registered. A client who keeps a presence
@@ -74,7 +74,7 @@ add p = do
     maxIdleTime = 7 * 24 * 60 * 60 -- 7 days in seconds
 
 deleteAll :: (MonadRedis m, MonadMask m, MonadThrow m, MonadIO m, RedisCtx m (Either Reply), MonadLogger m) => [Presence] -> m ()
-deleteAll [] = return ()
+deleteAll [] = pure ()
 deleteAll pp = for_ pp $ \p -> do
   let k = toKey (userId p)
   let f = Lazy.toStrict $ __field p
@@ -102,7 +102,7 @@ list' u = mapMaybe (readPresence u) <$$> hgetall (toKey u)
 
 -- FUTUREWORK: Make this not fail if it fails only for a few users.
 listAll :: (MonadRedis m, MonadThrow m) => [UserId] -> m [[Presence]]
-listAll [] = return []
+listAll [] = pure []
 listAll uu = mapM list uu
 
 -- Helpers -------------------------------------------------------------------
@@ -139,4 +139,4 @@ readPresence u (f, b) = do
     if "http" `Strict.isPrefixOf` b
       then PresenceData <$> fromByteString b <*> pure Nothing <*> pure 0
       else decodeStrict' b
-  return (Presence u (fromField f) uri clt tme (Lazy.fromStrict f))
+  pure (Presence u (fromField f) uri clt tme (Lazy.fromStrict f))

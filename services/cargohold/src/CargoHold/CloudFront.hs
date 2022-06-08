@@ -74,7 +74,7 @@ signedURL :: (MonadIO m, ToByteString p) => CloudFront -> p -> m URI
 signedURL (CloudFront base kid ttl clock sign) path = liftIO $ do
   time <- (+ ttl) . round <$> clock
   sig <- sign (toStrict (toLazyByteString (policy url time)))
-  return
+  pure
     $! url
       { uriQuery =
           Query
@@ -105,10 +105,10 @@ sha1Rsa fp = do
   sha1 <-
     liftIO $
       getDigestByName "SHA1"
-        >>= maybe (error "OpenSSL: SHA1 not found") return
+        >>= maybe (error "OpenSSL: SHA1 not found") pure
   kbs <- readFile fp
   key <- readPrivateKey kbs PwNone
-  return (SSL.signBS sha1 key)
+  pure (SSL.signBS sha1 key)
 
 mkPOSIXClock :: IO (IO POSIXTime)
 mkPOSIXClock =

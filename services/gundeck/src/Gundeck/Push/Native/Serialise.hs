@@ -36,10 +36,10 @@ serialise :: HasCallStack => NativePush -> UserId -> Transport -> IO (Either Fai
 serialise m uid transport = do
   let rs = prepare m uid
   case rs of
-    Left failure -> return $! Left $! failure
+    Left failure -> pure $! Left $! failure
     Right (v, prio) -> case renderText transport prio v of
-      Nothing -> return $ Left PayloadTooLarge
-      Just txt -> return $ Right txt
+      Nothing -> pure $ Left PayloadTooLarge
+      Just txt -> pure $ Right txt
 
 prepare :: NativePush -> UserId -> Either Failure (Value, Priority)
 prepare m uid = case m of

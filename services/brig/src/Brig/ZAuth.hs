@@ -237,7 +237,7 @@ mkEnv :: NonEmpty SecretKey -> NonEmpty PublicKey -> Settings -> IO Env
 mkEnv sk pk sets = do
   zc <- ZC.mkEnv (NonEmpty.head sk) (NonEmpty.tail sk)
   let zv = ZV.mkEnv (NonEmpty.head pk) (NonEmpty.tail pk)
-  return $! Env zc zv sets
+  pure $! Env zc zv sets
 
 class (UserTokenLike u, AccessTokenLike a) => TokenPair u a where
   newAccessToken :: MonadZAuth m => Token u -> m (Token a)

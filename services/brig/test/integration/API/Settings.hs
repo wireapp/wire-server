@@ -38,7 +38,7 @@ import Test.Tasty.HUnit
 import Util
 
 tests :: Opts -> Manager -> Brig -> Galley -> IO TestTree
-tests defOpts manager brig galley = return $ do
+tests defOpts manager brig galley = pure $ do
   testGroup
     "settings"
     [ testGroup

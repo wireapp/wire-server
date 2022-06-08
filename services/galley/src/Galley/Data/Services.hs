@@ -43,7 +43,7 @@ instance Ord BotMember where
   compare = compare `on` botMemId
 
 newBotMember :: LocalMember -> Maybe BotMember
-newBotMember m = const (BotMember m) <$> lmService m
+newBotMember m = BotMember m <$ lmService m
 
 botMemId :: BotMember -> BotId
 botMemId = BotId . lmId . fromBotMember

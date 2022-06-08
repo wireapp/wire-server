@@ -384,7 +384,7 @@ resetIndex ciSettings = liftIndexIO $ do
   gone <-
     ES.indexExists idx >>= \case
       True -> ES.isSuccess <$> traceES "Delete Index" (ES.deleteIndex idx)
-      False -> return True
+      False -> pure True
   if gone
     then createIndex ciSettings
     else throwM (IndexError "Index deletion failed.")
@@ -432,7 +432,7 @@ traceES descr act = liftIndexIO $ do
   info (msg descr)
   r <- act
   info . msg $ (r & statusCode . responseStatus) +++ val " - " +++ responseBody r
-  return r
+  pure r
 
 -- | This mapping defines how elasticsearch will treat each field in a document. Here
 -- is how it treats each field:
@@ -865,18 +865,16 @@ reindexRowToIndexUser
       version :: [Maybe (Writetime Name)] -> m IndexVersion
       version = mkIndexVersion . getMax . mconcat . fmap Max . catMaybes
       shouldIndex =
-        and
-          [ case status of
-              Nothing -> True
-              Just Active -> True
-              Just Suspended -> True
-              Just Deleted -> False
-              Just Ephemeral -> False
-              Just PendingInvitation -> False,
-            activated, -- FUTUREWORK: how is this adding to the first case?
-            isNothing service
-          ]
-
+        ( case status of
+            Nothing -> True
+            Just Active -> True
+            Just Suspended -> True
+            Just Deleted -> False
+            Just Ephemeral -> False
+            Just PendingInvitation -> False
+        )
+          && activated -- FUTUREWORK: how is this adding to the first case?
+          && isNothing service
       idpUrl :: UserSSOId -> Maybe Text
       idpUrl (UserSSOId (SAML.UserRef (SAML.Issuer uri) _subject)) =
         Just $ fromUri uri
@@ -928,7 +926,7 @@ getTeamSearchVisibilityInboundMulti tids = do
           res <- try $ RPC.httpLbs rq id
           case res of
             Left x -> throwM $ RPCException nm rq x
-            Right x -> return x
+            Right x -> pure x
       where
         mkEndpoint service = RPC.host (encodeUtf8 (service ^. epHost)) . RPC.port (service ^. epPort) $ RPC.empty
 

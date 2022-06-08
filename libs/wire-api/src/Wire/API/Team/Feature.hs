@@ -25,6 +25,7 @@ module Wire.API.Team.Feature
     TeamFeatureSelfDeletingMessagesConfig (..),
     TeamFeatureClassifiedDomainsConfig (..),
     TeamFeatureStatusValue (..),
+    TeamFeatureTTLValue (..),
     FeatureHasNoConfig,
     EnforceAppLock (..),
     KnownTeamFeatureName (..),
@@ -37,18 +38,12 @@ module Wire.API.Team.Feature
     LockStatus (..),
     LockStatusValue (..),
     IncludeLockStatus (..),
-    defaultAppLockStatus,
-    defaultClassifiedDomains,
-    defaultSelfDeletingMessagesStatus,
-    defaultGuestLinksStatus,
-    defaultTeamFeatureFileSharing,
-    defaultTeamFeatureValidateSAMLEmailsStatus,
-    defaultTeamFeatureSndFactorPasswordChallengeStatus,
-    defaultTeamFeatureSearchVisibilityInbound,
+    DefTeamFeatureStatus (..),
 
     -- * Swagger
     typeTeamFeatureName,
     typeTeamFeatureStatusValue,
+    typeTeamFeatureTTLValue,
     modelTeamFeatureStatusNoConfig,
     modelTeamFeatureStatusWithConfig,
     modelTeamFeatureAppLockConfig,
@@ -62,8 +57,6 @@ module Wire.API.Team.Feature
 where
 
 import qualified Cassandra.CQL as Cass
-import Control.Lens.Combinators (dimap)
-import qualified Data.Aeson as Aeson
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), fromByteString, toByteString')
 import Data.Domain (Domain)
@@ -75,17 +68,18 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.Lazy as TL
 import Deriving.Aeson
 import GHC.TypeLits (Symbol)
 import Imports
-import Servant (FromHttpApiData (..))
+import Servant (FromHttpApiData (..), Proxy (..), ToHttpApiData (..))
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 ----------------------------------------------------------------------
 -- TeamFeatureName
 
--- | If you add a constructor here, you need extend multiple defintions, which
+-- | If you add a constructor here, you need extend multiple definitions, which
 --   aren't checked by GHC.
 --
 --   Follow this Checklist:
@@ -102,9 +96,8 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 --   * Update the Arbitrary instance of FeatureFlags
 --       in libs/galley-types/test/unit/Test/Galley/Types.hs
 --   * roleHiddenPermissions ChangeTeamFeature and ViewTeamFeature
--- * services/galley/src/Galley/API/Teams/Features.hs
---   * maybe extend getAllFeatureConfigs (if feature status is user-visibile)
---   * maybe extend getAllFeatures (if feature status is user-visibile)
+-- * add the feature status to `AllFeatureConfigs` (see below)
+--   * follow the type errors and fix them (e.g. in services/galley/src/Galley/API/Teams/Features.hs)
 -- * services/galley/schema/src/
 --   * add a migration like the one in "V43_TeamFeatureDigitalSignatures.hs"
 -- * services/galley/test/integration/API/Teams/Feature.hs
@@ -268,6 +261,60 @@ typeTeamFeatureName :: Doc.DataType
 typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound :: TeamFeatureName) ..]
 
 ----------------------------------------------------------------------
+-- TeamFeatureTTLValue
+
+-- Using Word to avoid dealing with negative numbers.
+-- Ideally we would also not support zero.
+-- Currently a TTL=0 is ignored on the cassandra side.
+data TeamFeatureTTLValue
+  = TeamFeatureTTLSeconds Word
+  | TeamFeatureTTLUnlimited
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamFeatureTTLValue)
+
+instance ToHttpApiData TeamFeatureTTLValue where
+  toQueryParam = T.decodeUtf8 . toByteString'
+
+instance FromHttpApiData TeamFeatureTTLValue where
+  parseQueryParam = maybeToEither invalidTTLErrorString . fromByteString . T.encodeUtf8
+
+instance S.ToParamSchema TeamFeatureTTLValue where
+  toParamSchema _ = S.toParamSchema (Proxy @Int)
+
+instance ToByteString TeamFeatureTTLValue where
+  builder TeamFeatureTTLUnlimited = "unlimited"
+  builder (TeamFeatureTTLSeconds d) = (builder . TL.pack . show) d
+
+instance FromByteString TeamFeatureTTLValue where
+  parser =
+    Parser.takeByteString >>= \b ->
+      case T.decodeUtf8' b of
+        Right "unlimited" -> pure TeamFeatureTTLUnlimited
+        Right d -> case readEither . T.unpack $ d of
+          Left _ -> fail $ T.unpack invalidTTLErrorString
+          Right d' -> pure . TeamFeatureTTLSeconds $ d'
+        Left _ -> fail $ T.unpack invalidTTLErrorString
+
+instance Cass.Cql TeamFeatureTTLValue where
+  ctype = Cass.Tagged Cass.IntColumn
+
+  -- Passing TTL = 0 to Cassandra removes the TTL.
+  -- It does not instantly revert back.
+  fromCql (Cass.CqlInt 0) = pure TeamFeatureTTLUnlimited
+  fromCql (Cass.CqlInt n) = pure . TeamFeatureTTLSeconds . fromIntegral $ n
+  fromCql _ = Left "fromCql: TTLValue: CqlInt expected"
+
+  toCql TeamFeatureTTLUnlimited = Cass.CqlInt 0
+  toCql (TeamFeatureTTLSeconds d) = Cass.CqlInt . fromIntegral $ d
+
+typeTeamFeatureTTLValue :: Doc.DataType
+typeTeamFeatureTTLValue =
+  Doc.int64'
+
+invalidTTLErrorString :: Text
+invalidTTLErrorString = "Invalid TeamFeatureTTLSeconds: must be a positive integer or 'unlimited.'"
+
+----------------------------------------------------------------------
 -- TeamFeatureStatusValue
 
 data TeamFeatureStatusValue
@@ -362,6 +409,59 @@ modelForTeamFeature TeamFeatureGuestLinks = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureSndFactorPasswordChallenge = modelTeamFeatureStatusNoConfig
 modelForTeamFeature TeamFeatureSearchVisibilityInbound = modelTeamFeatureStatusNoConfig
 
+data AllFeatureConfigs = AllFeatureConfigs
+  { afcLegalholdStatusInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold,
+    afcSSOStatusInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSSO,
+    afcTeamSearchVisibilityAvailableInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSearchVisibility,
+    afcValidateSAMLEmailsInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails,
+    afcDigitalSignaturesInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureDigitalSignatures,
+    afcAppLockInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureAppLock,
+    afcFileSharingInternal :: TeamFeatureStatus 'WithLockStatus 'TeamFeatureFileSharing,
+    afcClassifiedDomainsInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureClassifiedDomains,
+    afcConferenceCallingInternal :: TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureConferenceCalling,
+    afcSelfDeletingMessagesInternal :: TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages,
+    afcGuestLinkInternal :: TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks,
+    afcSndFactorPasswordChallengeInternal :: TeamFeatureStatus 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge
+  }
+  deriving stock (Eq, Show)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
+
+instance ToSchema AllFeatureConfigs where
+  schema =
+    object "AllFeatureConfigs" $
+      AllFeatureConfigs
+        <$> afcLegalholdStatusInternal .= field (name @'TeamFeatureLegalHold) schema
+        <*> afcSSOStatusInternal .= field (name @'TeamFeatureSSO) schema
+        <*> afcTeamSearchVisibilityAvailableInternal .= field (name @'TeamFeatureSearchVisibility) schema
+        <*> afcValidateSAMLEmailsInternal .= field (name @'TeamFeatureValidateSAMLEmails) schema
+        <*> afcDigitalSignaturesInternal .= field (name @'TeamFeatureDigitalSignatures) schema
+        <*> afcAppLockInternal .= field (name @'TeamFeatureAppLock) schema
+        <*> afcFileSharingInternal .= field (name @'TeamFeatureFileSharing) schema
+        <*> afcClassifiedDomainsInternal .= field (name @'TeamFeatureClassifiedDomains) schema
+        <*> afcConferenceCallingInternal .= field (name @'TeamFeatureConferenceCalling) schema
+        <*> afcSelfDeletingMessagesInternal .= field (name @'TeamFeatureSelfDeletingMessages) schema
+        <*> afcGuestLinkInternal .= field (name @'TeamFeatureGuestLinks) schema
+        <*> afcSndFactorPasswordChallengeInternal .= field (name @'TeamFeatureSndFactorPasswordChallenge) schema
+    where
+      name :: forall a. KnownTeamFeatureName a => Text
+      name = cs (toByteString' (knownTeamFeatureName @a))
+
+instance Arbitrary AllFeatureConfigs where
+  arbitrary =
+    AllFeatureConfigs
+      <$> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+      <*> arbitrary
+
 ----------------------------------------------------------------------
 -- TeamFeatureStatusNoConfig
 
@@ -430,10 +530,13 @@ modelTeamFeatureStatusWithConfig name cfgModel = Doc.defineModel (cs $ show name
 
 instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfig cfg) where
   schema =
-    object "TeamFeatureStatusWithConfig" $
+    object name $
       TeamFeatureStatusWithConfig
         <$> tfwcStatus .= field "status" schema
-        <*> tfwcConfig .= field "config" schema
+        <*> tfwcConfig .= field "config" inner
+    where
+      inner = schema @cfg
+      name = "TeamFeatureStatusWithConfig." <> fromMaybe "" (getName (schemaDoc inner))
 
 data TeamFeatureStatusWithConfigAndLockStatus (cfg :: *) = TeamFeatureStatusWithConfigAndLockStatus
   { tfwcapsStatus :: TeamFeatureStatusValue,
@@ -455,18 +558,14 @@ modelTeamFeatureStatusWithConfigAndLockStatus name cfgModel = Doc.defineModel (c
 
 instance ToSchema cfg => ToSchema (TeamFeatureStatusWithConfigAndLockStatus cfg) where
   schema =
-    object "TeamFeatureStatusWithConfigAndLockStatus" $
+    object name $
       TeamFeatureStatusWithConfigAndLockStatus
         <$> tfwcapsStatus .= field "status" schema
-        <*> tfwcapsConfig .= field "config" schema
+        <*> tfwcapsConfig .= field "config" inner
         <*> tfwcapsLockStatus .= field "lockStatus" schema
-
-----------------------------------------------------------------------
--- TeamFeatureFileSharing
-
-defaultTeamFeatureFileSharing :: TeamFeatureStatusNoConfigAndLockStatus
-defaultTeamFeatureFileSharing =
-  TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked
+    where
+      inner = schema @cfg
+      name = "TeamFeatureStatusWithConfigAndLockStatus." <> fromMaybe "" (getName (schemaDoc inner))
 
 ----------------------------------------------------------------------
 -- TeamFeatureClassifiedDomainsConfig
@@ -489,12 +588,6 @@ modelTeamFeatureClassifiedDomainsConfig :: Doc.Model
 modelTeamFeatureClassifiedDomainsConfig =
   Doc.defineModel "TeamFeatureClassifiedDomainsConfig" $ do
     Doc.property "domains" (Doc.array Doc.string') $ Doc.description "domains"
-
-defaultClassifiedDomains :: TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig
-defaultClassifiedDomains =
-  TeamFeatureStatusWithConfig
-    TeamFeatureDisabled
-    (TeamFeatureClassifiedDomainsConfig [])
 
 ----------------------------------------------------------------------
 -- TeamFeatureAppLockConfig
@@ -529,12 +622,6 @@ modelTeamFeatureAppLockConfig =
     Doc.property "enforceAppLock" Doc.bool' $ Doc.description "enforceAppLock"
     Doc.property "inactivityTimeoutSecs" Doc.int32' $ Doc.description ""
 
-defaultAppLockStatus :: TeamFeatureStatusWithConfig TeamFeatureAppLockConfig
-defaultAppLockStatus =
-  TeamFeatureStatusWithConfig
-    TeamFeatureEnabled
-    (TeamFeatureAppLockConfig (EnforceAppLock False) 60)
-
 ----------------------------------------------------------------------
 -- TeamFeatureSelfDeletingMessagesConfig
 
@@ -555,13 +642,6 @@ modelTeamFeatureSelfDeletingMessagesConfig :: Doc.Model
 modelTeamFeatureSelfDeletingMessagesConfig =
   Doc.defineModel "TeamFeatureSelfDeletingMessagesConfig" $ do
     Doc.property "enforcedTimeoutSeconds" Doc.int32' $ Doc.description "optional; default: `0` (no enforcement)"
-
-defaultSelfDeletingMessagesStatus :: TeamFeatureStatusWithConfigAndLockStatus TeamFeatureSelfDeletingMessagesConfig
-defaultSelfDeletingMessagesStatus =
-  TeamFeatureStatusWithConfigAndLockStatus
-    TeamFeatureEnabled
-    (TeamFeatureSelfDeletingMessagesConfig 0)
-    Unlocked
 
 ----------------------------------------------------------------------
 -- LockStatus
@@ -634,28 +714,47 @@ instance Cass.Cql LockStatusValue where
   toCql Unlocked = Cass.CqlInt 1
 
 ----------------------------------------------------------------------
--- guest links
+-- defaults
 
-defaultGuestLinksStatus :: TeamFeatureStatusNoConfigAndLockStatus
-defaultGuestLinksStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked
+class DefTeamFeatureStatus (a :: TeamFeatureName) where
+  defTeamFeatureStatus :: TeamFeatureStatus 'WithLockStatus a
 
-----------------------------------------------------------------------
--- TeamFeatureValidateSAMLEmails
+instance DefTeamFeatureStatus 'TeamFeatureGuestLinks where
+  defTeamFeatureStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked
 
-defaultTeamFeatureValidateSAMLEmailsStatus :: TeamFeatureStatusNoConfig
-defaultTeamFeatureValidateSAMLEmailsStatus = TeamFeatureStatusNoConfig TeamFeatureEnabled
+instance DefTeamFeatureStatus 'TeamFeatureValidateSAMLEmails where
+  defTeamFeatureStatus = TeamFeatureStatusNoConfig TeamFeatureEnabled
 
-----------------------------------------------------------------------
--- TeamFeatureSndFactorPasswordChallenge
+instance DefTeamFeatureStatus 'TeamFeatureSndFactorPasswordChallenge where
+  defTeamFeatureStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Locked
 
-defaultTeamFeatureSndFactorPasswordChallengeStatus :: TeamFeatureStatusNoConfigAndLockStatus
-defaultTeamFeatureSndFactorPasswordChallengeStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureDisabled Locked
+instance DefTeamFeatureStatus 'TeamFeatureSearchVisibilityInbound where
+  defTeamFeatureStatus = TeamFeatureStatusNoConfig TeamFeatureDisabled
 
-----------------------------------------------------------------------
--- TeamFeatureSearchVisibilityInbound
+instance DefTeamFeatureStatus 'TeamFeatureFileSharing where
+  defTeamFeatureStatus = TeamFeatureStatusNoConfigAndLockStatus TeamFeatureEnabled Unlocked
 
-defaultTeamFeatureSearchVisibilityInbound :: TeamFeatureStatusNoConfig
-defaultTeamFeatureSearchVisibilityInbound = TeamFeatureStatusNoConfig TeamFeatureDisabled
+instance DefTeamFeatureStatus 'TeamFeatureSelfDeletingMessages where
+  defTeamFeatureStatus =
+    TeamFeatureStatusWithConfigAndLockStatus
+      TeamFeatureEnabled
+      (TeamFeatureSelfDeletingMessagesConfig 0)
+      Unlocked
+
+instance DefTeamFeatureStatus 'TeamFeatureClassifiedDomains where
+  defTeamFeatureStatus =
+    TeamFeatureStatusWithConfig
+      TeamFeatureDisabled
+      (TeamFeatureClassifiedDomainsConfig [])
+
+instance DefTeamFeatureStatus 'TeamFeatureAppLock where
+  defTeamFeatureStatus =
+    TeamFeatureStatusWithConfig
+      TeamFeatureEnabled
+      (TeamFeatureAppLockConfig (EnforceAppLock False) 60)
+
+instance DefTeamFeatureStatus 'TeamFeatureConferenceCalling where
+  defTeamFeatureStatus = TeamFeatureStatusNoConfig TeamFeatureEnabled
 
 ----------------------------------------------------------------------
 -- internal
@@ -665,12 +764,3 @@ data LowerCaseFirst
 instance StringModifier LowerCaseFirst where
   getStringModifier (x : xs) = toLower x : xs
   getStringModifier [] = []
-
-newtype AllFeatureConfigs = AllFeatureConfigs {_allFeatureConfigs :: Aeson.Object}
-  deriving stock (Eq, Show)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
-
-instance ToSchema AllFeatureConfigs where
-  schema =
-    named "AllFeatureConfigs" $
-      dimap _allFeatureConfigs AllFeatureConfigs jsonObject

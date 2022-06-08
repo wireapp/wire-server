@@ -73,16 +73,11 @@ data SparCustomError
   | SparNotInTeam
   | SparNoPermission LT
   | SparSSODisabled
-  | SparInitLoginWithAuth
-  | SparInitBindWithoutAuth
   | SparNoSuchRequest
   | SparNoRequestRefInResponse LT
   | SparCouldNotSubstituteSuccessURI LT
   | SparCouldNotSubstituteFailureURI LT
   | SparBadInitiateLoginQueryParams LT
-  | SparBindFromWrongOrNoTeam LT
-  | SparBindFromBadAccountStatus LT
-  | SparBindUserRefTaken
   | SparUserRefInNoOrMultipleTeams LT
   | SparBadUserName LT
   | SparCannotCreateUsersOnReplacedIdP LT
@@ -139,9 +134,6 @@ renderSparError (SAML.CustomError (SparNoRequestRefInResponse msg)) = Right $ Wa
 renderSparError (SAML.CustomError (SparCouldNotSubstituteSuccessURI msg)) = Right $ Wai.mkError status400 "bad-success-redirect" ("re-parsing the substituted URI failed: " <> msg)
 renderSparError (SAML.CustomError (SparCouldNotSubstituteFailureURI msg)) = Right $ Wai.mkError status400 "bad-failure-redirect" ("re-parsing the substituted URI failed: " <> msg)
 renderSparError (SAML.CustomError (SparBadInitiateLoginQueryParams label)) = Right $ Wai.mkError status400 label label
-renderSparError (SAML.CustomError (SparBindFromWrongOrNoTeam msg)) = Right $ Wai.mkError status403 "bad-team" ("Forbidden: wrong user team " <> msg)
-renderSparError (SAML.CustomError (SparBindFromBadAccountStatus msg)) = Right $ Wai.mkError status403 "bad-account-status" ("Forbidden: user has account status " <> msg <> "; only Active, PendingInvitation are supported")
-renderSparError (SAML.CustomError SparBindUserRefTaken) = Right $ Wai.mkError status403 "subject-id-taken" "Forbidden: SubjectID is used by another wire user.  If you have an old user bound to this IdP, unbind or delete that user."
 renderSparError (SAML.CustomError (SparUserRefInNoOrMultipleTeams msg)) = Right $ Wai.mkError status403 "bad-team" ("Forbidden: multiple teams or no team for same UserRef " <> msg)
 renderSparError (SAML.CustomError (SparBadUserName msg)) = Right $ Wai.mkError status400 "bad-username" ("Bad UserName in SAML response, except len [1, 128]: " <> msg)
 renderSparError (SAML.CustomError (SparCannotCreateUsersOnReplacedIdP replacingIdPId)) = Right $ Wai.mkError status400 "cannont-provision-on-replaced-idp" ("This IdP has been replaced, users can only be auto-provisioned on the replacing IdP " <> replacingIdPId)
@@ -158,10 +150,10 @@ renderSparError (SAML.Forbidden msg) = Right $ Wai.mkError status403 "forbidden"
 renderSparError (SAML.BadSamlResponseBase64Error msg) = Right $ Wai.mkError status400 "bad-response-encoding" ("Bad response: base64 error: " <> cs msg)
 renderSparError (SAML.BadSamlResponseXmlError msg) = Right $ Wai.mkError status400 "bad-response-xml" ("Bad response: XML parse error: " <> cs msg)
 renderSparError (SAML.BadSamlResponseSamlError msg) = Right $ Wai.mkError status400 "bad-response-saml" ("Bad response: SAML parse error: " <> cs msg)
-renderSparError SAML.BadSamlResponseFormFieldMissing = Right $ Wai.mkError status400 "bad-response-saml" ("Bad response: SAMLResponse form field missing from HTTP body")
-renderSparError SAML.BadSamlResponseIssuerMissing = Right $ Wai.mkError status400 "bad-response-saml" ("Bad response: no Issuer in AuthnResponse")
-renderSparError SAML.BadSamlResponseNoAssertions = Right $ Wai.mkError status400 "bad-response-saml" ("Bad response: no assertions in AuthnResponse")
-renderSparError SAML.BadSamlResponseAssertionWithoutID = Right $ Wai.mkError status400 "bad-response-saml" ("Bad response: assertion without ID")
+renderSparError SAML.BadSamlResponseFormFieldMissing = Right $ Wai.mkError status400 "bad-response-saml" "Bad response: SAMLResponse form field missing from HTTP body"
+renderSparError SAML.BadSamlResponseIssuerMissing = Right $ Wai.mkError status400 "bad-response-saml" "Bad response: no Issuer in AuthnResponse"
+renderSparError SAML.BadSamlResponseNoAssertions = Right $ Wai.mkError status400 "bad-response-saml" "Bad response: no assertions in AuthnResponse"
+renderSparError SAML.BadSamlResponseAssertionWithoutID = Right $ Wai.mkError status400 "bad-response-saml" "Bad response: assertion without ID"
 renderSparError (SAML.BadSamlResponseInvalidSignature msg) = Right $ Wai.mkError status400 "bad-response-signature" (cs msg)
 renderSparError (SAML.CustomError (SparIdPNotFound "")) = Right $ Wai.mkError status404 "not-found" "Could not find IdP."
 renderSparError (SAML.CustomError (SparIdPNotFound msg)) = Right $ Wai.mkError status404 "not-found" ("Could not find IdP: " <> msg)
@@ -170,8 +162,6 @@ renderSparError (SAML.CustomError SparMissingZUsr) = Right $ Wai.mkError status4
 renderSparError (SAML.CustomError SparNotInTeam) = Right $ Wai.mkError status403 "no-team-member" "Requesting user is not a team member or not a member of this team."
 renderSparError (SAML.CustomError (SparNoPermission perm)) = Right $ Wai.mkError status403 "insufficient-permissions" ("You need permission " <> cs perm <> ".")
 renderSparError (SAML.CustomError SparSSODisabled) = Right $ Wai.mkError status403 "sso-disabled" "Please ask customer support to enable this feature for your team."
-renderSparError (SAML.CustomError SparInitLoginWithAuth) = Right $ Wai.mkError status403 "login-with-auth" "This end-point is only for login, not binding."
-renderSparError (SAML.CustomError SparInitBindWithoutAuth) = Right $ Wai.mkError status403 "bind-without-auth" "This end-point is only for binding, not login."
 renderSparError SAML.UnknownError = Right $ Wai.mkError status500 "server-error" "Unknown server error."
 renderSparError (SAML.BadServerConfig msg) = Right $ Wai.mkError status500 "server-error" ("Error in server config: " <> msg)
 renderSparError (SAML.InvalidCert msg) = Right $ Wai.mkError status500 "invalid-certificate" ("Error in idp certificate: " <> msg)

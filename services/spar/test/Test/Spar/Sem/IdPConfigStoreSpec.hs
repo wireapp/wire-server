@@ -1,6 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE QuantifiedConstraints #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# OPTIONS_GHC -fplugin=Polysemy.Plugin #-}
 

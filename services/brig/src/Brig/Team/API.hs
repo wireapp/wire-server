@@ -229,7 +229,7 @@ getInvitationCodeH (_ ::: t ::: r) = do
 getInvitationCode :: TeamId -> InvitationId -> (Handler r) FoundInvitationCode
 getInvitationCode t r = do
   code <- lift . wrapClient $ DB.lookupInvitationCode t r
-  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (return . FoundInvitationCode) code
+  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) (pure . FoundInvitationCode) code
 
 newtype FoundInvitationCode = FoundInvitationCode InvitationCode
   deriving (Eq, Show, Generic)
@@ -258,8 +258,8 @@ createInvitationPublic uid tid body = do
   let inviteeRole = fromMaybe Team.defaultRole . irRole $ body
   inviter <- do
     let inviteePerms = Team.rolePermissions inviteeRole
-    idt <- maybe (throwStd (errorToWai @'E.NoIdentity)) return =<< lift (fetchUserIdentity uid)
-    from <- maybe (throwStd noEmail) return (emailIdentity idt)
+    idt <- maybe (throwStd (errorToWai @'E.NoIdentity)) pure =<< lift (fetchUserIdentity uid)
+    from <- maybe (throwStd noEmail) pure (emailIdentity idt)
     ensurePermissionToAddUser uid tid inviteePerms
     pure $ CreateInvitationInviter uid from
 
@@ -292,7 +292,7 @@ createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
             irInviteePhone = Nothing
           }
 
-  let context =
+      context =
         logFunction "Brig.Team.API.createInvitationViaScim"
           . logTeam tid
           . logEmail email
@@ -322,7 +322,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   --             sendActivationCode. Refactor this to a single place
 
   -- Validate e-mail
-  inviteeEmail <- either (const $ throwStd (errorToWai @'E.InvalidEmail)) return (Email.validateEmail (irInviteeEmail body))
+  inviteeEmail <- either (const $ throwStd (errorToWai @'E.InvalidEmail)) pure (Email.validateEmail (irInviteeEmail body))
   let uke = userEmailKey inviteeEmail
   blacklistedEm <- lift $ wrapClient $ Blacklist.exists uke
   when blacklistedEm $
@@ -333,7 +333,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
 
   -- Validate phone
   inviteePhone <- for (irInviteePhone body) $ \p -> do
-    validatedPhone <- maybe (throwStd (errorToWai @'E.InvalidPhone)) return =<< lift (wrapClient $ Phone.validatePhone p)
+    validatedPhone <- maybe (throwStd (errorToWai @'E.InvalidPhone)) pure =<< lift (wrapClient $ Phone.validatePhone p)
     let ukp = userPhoneKey validatedPhone
     blacklistedPh <- lift $ wrapClient $ Blacklist.exists ukp
     when blacklistedPh $
@@ -341,7 +341,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
     phoneTaken <- lift $ isJust <$> wrapClient (Data.lookupKey ukp)
     when phoneTaken $
       throwStd phoneExists
-    return validatedPhone
+    pure validatedPhone
   maxSize <- setMaxTeamSize <$> view settings
   pending <- lift $ wrapClient $ DB.countInvitations tid
   when (fromIntegral pending >= maxSize) $
@@ -385,12 +385,12 @@ listInvitations :: UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -
 listInvitations uid tid start size = do
   ensurePermissions uid tid [Team.AddTeamMember]
   rs <- lift $ wrapClient $ DB.lookupInvitations tid start size
-  return $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
+  pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
 getInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
 getInvitationH (_ ::: uid ::: tid ::: iid) = do
   inv <- getInvitation uid tid iid
-  return $ case inv of
+  pure $ case inv of
     Just i -> json i
     Nothing -> setStatus status404 empty
 
@@ -406,12 +406,12 @@ getInvitationByCodeH (_ ::: c) = do
 getInvitationByCode :: Public.InvitationCode -> (Handler r) Public.Invitation
 getInvitationByCode c = do
   inv <- lift . wrapClient $ DB.lookupInvitationByCode c
-  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) return inv
+  maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) pure inv
 
 headInvitationByEmailH :: JSON ::: Email -> (Handler r) Response
 headInvitationByEmailH (_ ::: e) = do
   inv <- lift $ wrapClient $ DB.lookupInvitationInfoByEmail e
-  return $ case inv of
+  pure $ case inv of
     DB.InvitationByEmail _ -> setStatus status200 empty
     DB.InvitationByEmailNotFound -> setStatus status404 empty
     DB.InvitationByEmailMoreThanOne -> setStatus status409 empty
@@ -426,7 +426,7 @@ getInvitationByEmailH (_ ::: email) =
 getInvitationByEmail :: Email -> (Handler r) Public.Invitation
 getInvitationByEmail email = do
   inv <- lift $ wrapClient $ DB.lookupInvitationByEmail email
-  maybe (throwStd (notFound "Invitation not found")) return inv
+  maybe (throwStd (notFound "Invitation not found")) pure inv
 
 suspendTeamH :: JSON ::: TeamId -> (Handler r) Response
 suspendTeamH (_ ::: tid) = do
@@ -458,5 +458,5 @@ changeTeamAccountStatuses tid s = do
   uids <- toList1 =<< lift (fmap (view Team.userId) . view Team.teamMembers <$> wrapHttp (Intra.getTeamMembers tid))
   wrapHttpClientE (API.changeAccountStatus uids s) !>> accountStatusError
   where
-    toList1 (x : xs) = return $ List1.list1 x xs
+    toList1 (x : xs) = pure $ List1.list1 x xs
     toList1 [] = throwStd (notFound "Team not found or no members")

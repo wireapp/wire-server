@@ -35,6 +35,7 @@ http {
   ignore_invalid_headers off;
 
   types_hash_max_size 2048;
+  map_hash_bucket_size 128;
 
   server_names_hash_bucket_size 64;
   server_name_in_redirect off;
@@ -132,7 +133,7 @@ http {
     # Allow additional origins at random ports. This is useful for testing with an HTTP proxy.
     # It should not be used in production.
     {{ range $origin := .Values.nginx_conf.randomport_allowlisted_origins }}
-      "~^https://{{ $origin }}.{{ $.Values.nginx_conf.external_env_domain}}(:[0-9]{2,5})?$" "$http_origin";
+      "~^https?://{{ $origin }}(:[0-9]{2,5})?$" "$http_origin";
     {{ end }}
    }
 
@@ -143,6 +144,10 @@ http {
 
   limit_req_zone $rate_limited_by_zuser zone=reqs_per_user:12m rate=10r/s;
   limit_req_zone $rate_limited_by_addr zone=reqs_per_addr:12m rate=5r/m;
+
+{{- range $limit := .Values.nginx_conf.user_rate_limit_request_zones }}
+  {{ $limit }}
+{{- end }}
 
   limit_conn_zone $rate_limited_by_zuser zone=conns_per_user:10m;
   limit_conn_zone $rate_limited_by_addr zone=conns_per_addr:10m;
@@ -190,8 +195,6 @@ http {
     location /status {
         zauth off;
         access_log off;
-        allow 10.0.0.0/8;
-        deny all;
 
         return 200;
     }
@@ -236,6 +239,7 @@ http {
     #
 
   {{ range $name, $locations := .Values.nginx_conf.upstreams -}}
+    {{- if not (has $name $.Values.nginx_conf.ignored_upstreams) -}}
     {{- range $location := $locations -}}
       {{- if hasKey $location "envs" -}}
         {{- range $env := $location.envs -}}
@@ -277,6 +281,11 @@ http {
         limit_req zone=reqs_per_addr burst=5 nodelay;
         limit_conn conns_per_addr 20;
               {{- end -}}
+            {{- else }}
+
+              {{- if hasKey $location "specific_user_rate_limit" }}
+        limit_req zone={{ $location.specific_user_rate_limit }} nodelay;
+              {{- end }}
             {{- end }}
 
         if ($request_method = 'OPTIONS') {
@@ -287,7 +296,7 @@ http {
             return 204;
         }
 
-        proxy_pass         http://{{ $name }};
+        proxy_pass         http://{{ $name }}{{ if hasKey $.Values.nginx_conf.upstream_namespace $name }}.{{ get $.Values.nginx_conf.upstream_namespace $name }}{{end}};
         proxy_http_version 1.1;
 
             {{- if ($location.disable_request_buffering) }}
@@ -333,6 +342,7 @@ http {
         {{- end -}}
 
       {{- end -}}
+    {{- end -}}
     {{- end -}}
   {{- end }}
 

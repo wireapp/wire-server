@@ -87,7 +87,7 @@ spec = describe "accessVerdict" $ do
           Servant.errHTTPCode outcome `shouldBe` 303
           Servant.errReasonPhrase outcome `shouldBe` "forbidden"
           Servant.errBody outcome `shouldBe` "[\"No Bearer SubjectConfirmation\",\"no AuthnStatement\"]"
-          uriScheme loc `shouldBe` (URI.Scheme "wire")
+          uriScheme loc `shouldBe` URI.Scheme "wire"
           List.lookup "userid" qry `shouldBe` Nothing
           List.lookup "cookie" qry `shouldBe` Nothing
           List.lookup "label" qry `shouldBe` Just "forbidden"
@@ -99,7 +99,7 @@ spec = describe "accessVerdict" $ do
           Servant.errHTTPCode outcome `shouldBe` 303
           Servant.errReasonPhrase outcome `shouldBe` "success"
           Servant.errBody outcome `shouldBe` mempty
-          uriScheme loc `shouldBe` (URI.Scheme "wire")
+          uriScheme loc `shouldBe` URI.Scheme "wire"
           List.lookup "label" qry `shouldBe` Nothing
           List.lookup "userid" qry `shouldBe` (Just . cs . show $ uid)
           List.lookup "cookie" qry `shouldNotBe` Nothing
@@ -171,7 +171,7 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
       asks (^. teWireIdPAPIVersion) <&> \case
         User.WireIdPAPIV1 -> Nothing
         User.WireIdPAPIV2 -> Just (idp ^. SAML.idpExtraInfo . User.wiTeam)
-    runSpar $ Spar.verdictHandler Nothing mbteam authnresp verdict
+    runSpar $ Spar.verdictHandler mbteam authnresp verdict
   let loc :: URI.URI
       loc =
         maybe (error "no location") (either error id . SAML.parseURI' . cs)

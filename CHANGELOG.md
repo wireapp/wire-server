@@ -1,3 +1,99 @@
+# [2022-06-08] (Chart Release 4.13.0)
+
+## Release notes
+
+
+* The `.cannon.drainTimeout` setting on the wire-server helm chart has been
+  removed and replaced with `.cannon.config.drainOpts`. (#2416)
+
+* Note for wire.com operators: deploy nginz (#2439)
+
+
+## API changes
+
+
+* The back-office (aka stern) team feature API now accenpts an optional TTL parameter (in days), so features can be activated for a limited period. (#2417)
+
+* Disable rate limiting for /api-version (#2439)
+
+
+## Features
+
+
+* Drain websockets in a controlled fashion when cannon receives a SIGTERM or
+  SIGINT. Instead of waiting for connections to close on their own, the websockets
+  are now severed at a controlled pace. This allows for quicker rollouts of new
+  versions. (#2416)
+
+* Optionally allow to run cannon with its own nginz inside the same pod; and connect to a load balancer directly.
+  This allows the cannon-slow-drain behaviour implemented in #2416 to take effect by not having other intermediate network hops which could break websocket connections all at once.
+  Some (internal) context: https://wearezeta.atlassian.net/wiki/spaces/PS/pages/585564424/How+to+gracefully+drain+cannon+but+not+so+slowly
+  For details on how to configure this, see docs/src/how-to/install/configuration-options.rst (#2421)
+
+* Support running brig with GeoIP database when using helm charts (#2406)
+
+* charts/nginz: Add upstream configuration for galeb (#2444)
+
+* charts/nginz: Allow upstreams to be in other namespaces (#2444)
+
+* CSV export in team management now includes the number of devices per user (#2407)
+
+
+## Bug fixes and other updates
+
+
+* charts/nginz: Resolve collision between brig and galeb endpoints. Ensure
+  /self/consent and /signatures endpoints are configured in all environments (#2457)
+
+* When an IdP issuer (aka entity ID) is updated, the old issuer was still marked as "in use". (#2400)
+
+* On actions that require re-authentication a password is not required if the user has SAML credentials (#2430, #2434, #2437)
+
+* Use SCIM's preferred language as a fallback when privisioning users without a locale. (#2445)
+
+
+## Documentation
+
+
+* Feature configs should have different swagger schema names (#2425)
+
+
+## Internal changes
+
+
+* `AllFeatureConfigs` is now typed (#2403)
+
+* Type class for default team feature status (#2404)
+
+* charts/{redis-ephemeral,legalhold}: Use old index for bitnami repo as the new index doesn't have old versions of postgresql and redis helm charts (#2448)
+
+* Bump haskell/zlib version to 0.6.3.0 (#2431)
+
+* New internal brig endpoints for MLS KeyPackage -> Conversation association query/update (#2375)
+
+* galley: refactor withSettingsOverrides (#2381)
+
+* charts/{nginz,cannon}: Increase map_hash_bucket_size for nginx to 128 (#2443)
+
+* charts/{cannon,nginz}: values listed in
+  `nginx_conf.randomport_allowlisted_origins` must be full hostnames. Hostnames
+  listed here will be allowlisted with and without TLS. (#2438)
+
+* Remove binding of users to saml idps using saml (this has never been picked up by clients; use scim instead) (#2441)
+
+* Remove golden test case generator
+
+   (#2442)
+
+* Convert Team CSV endpoint to Servant (#2419)
+
+
+## Federation changes
+
+
+* Send only the raw welcome message in the Galley "mls-welcome" federation endpoint (#2412)
+
+
 # [2022-05-18] (Chart Release 4.12.0)
 
 ## Release notes

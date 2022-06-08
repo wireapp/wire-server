@@ -3,8 +3,73 @@ image:
   repository: quay.io/wire/cannon
   tag: do-not-use
   pullPolicy: IfNotPresent
+nginzImage:
+  repository: quay.io/wire/nginz
+  tag: do-not-use
+  pullPolicy: IfNotPresent
 config:
   logLevel: Info
+
+  # See also the section 'Controlling the speed of websocket draining during
+  # cannon pod replacement' in docs/how-to/install/configuration-options.rst
+  drainOpts:
+    # The following drains a minimum of 400 connections/second
+    # for a total of 10000 over 25 seconds
+    # (if cannon holds more connections, draining will happen at a faster pace)
+    gracePeriodSeconds: 25
+    millisecondsBetweenBatches: 50
+    minBatchSize: 20
+
+nginx_conf:
+  user: nginx
+  group: nginx
+  zauth_keystore: /etc/wire/nginz/secrets/zauth.conf
+  zauth_acl: /etc/wire/nginz/conf/zauth.acl
+  worker_processes: auto
+  worker_rlimit_nofile: 131072
+  worker_connections: 65536
+  disabled_paths: []
+  user_rate_limit_request_zones: []
+
+  tls:
+    protocols: TLSv1.2 TLSv1.3
+    # NOTE: These are some sane defaults (compliant to TR-02102-2), you may want to overrride them on your own installation
+    # For TR-02102-2 see https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.html
+    # As a Wire employee, for Wire-internal discussions and context see
+    # * https://wearezeta.atlassian.net/browse/FS-33
+    # * https://wearezeta.atlassian.net/browse/FS-444
+    ciphers: "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
+
+  # The origins from which we allow CORS requests. These are combined with
+  # 'external_env_domain' to form a full url
+  allowlisted_origins:
+    - webapp
+    - teams
+    - account
+  # The origins from which we allow CORS requests at random ports. This is
+  # useful for testing with HTTP proxies and should not be used in production.
+  # The list entries must be full hostnames (they are **not** combined with
+  # 'external_env_domain'). http and https URLs are allow listed.
+  randomport_allowlisted_origins: [] # default is empty by intention
+
+  # Setting this value does nothing as the only upstream recongnized here is
+  # 'cannon' and is forwarded to localhost. This is here only to make sure that
+  # nginx.conf templating doesn't differ too much with the one in nginz helm
+  # chart.
+  upstream_namespace: {}
+
+  # Only upstream recognized by the generated nginx config is 'cannon', the
+  # server for this will be cannon running on localhost. This setting is like
+  # this so that templating for nginx.conf doesn't differ too much from the one
+  # in the nginz helm chart.
+  upstreams:
+    cannon:
+    - path: /await
+      envs:
+      - all
+      use_websockets: true
+
+# FUTUREWORK: allow resources for cannon and nginz to be different
 resources:
   requests:
     memory: "256Mi"
@@ -16,4 +81,26 @@ service:
   name: cannon
   internalPort: 8080
   externalPort: 8080
-drainTimeout: 0
+  nginz:
+    # Enable this only if service of `type: LoadBalancer` can work in your K8s
+    # cluster.
+    enabled: false
+    # hostname: # Needed when using either externalDNS or certManager
+    name: cannon-nginz
+    internalPort: 8443
+    externalPort: 443
+    annotations: {}
+    tls:
+      secretName: cannon-nginz-cert
+    externalDNS:
+      enabled: false
+      ttl: "10m"
+    certManager:
+      # When certManager is not enabled, certificates must be provided at
+      # .secrets.nginz.tls.crt and .secrets.nginz.tls.key.
+      enabled: false
+      certificate:
+        name: cannon-nginz
+      issuer:
+        name: letsencrypt
+        kind: ClusterIssuer

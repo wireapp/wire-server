@@ -1,0 +1,30 @@
+{{- if and .Values.service.nginz.enabled .Values.service.nginz.certManager.enabled -}}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.service.nginz.certManager.certificate.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  issuerRef:
+    name: {{ .Values.service.nginz.certManager.issuer.name }}
+    kind: {{ .Values.service.nginz.certManager.issuer.kind }}
+  usages:
+    - server auth
+  duration: 2160h     # 90d, Letsencrypt default; NOTE: changes are ignored by Letsencrypt
+  renewBefore: 360h   # 15d
+  isCA: false
+  secretName: {{ .Values.service.nginz.tls.secretName }}
+
+  privateKey:
+    algorithm: ECDSA
+    size: 384         # 521 is not supported by Letsencrypt
+    encoding: PKCS1
+    rotationPolicy: Always
+
+  dnsNames:
+  - {{ required "Please provide .service.nginz.hostname when .service.nginz.enabled and .service.nginz.certManager.enabled are True" .Values.service.nginz.hostname | quote }}
+{{- end -}}

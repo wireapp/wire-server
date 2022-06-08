@@ -270,15 +270,15 @@ instance FromJSON FeatureFlags where
       <$> obj .: "sso"
       <*> obj .: "legalhold"
       <*> obj .: "teamSearchVisibility"
-      <*> (fromMaybe (Defaults defaultAppLockStatus) <$> (obj .:? "appLock"))
-      <*> (fromMaybe defaultClassifiedDomains <$> (obj .:? "classifiedDomains"))
-      <*> (fromMaybe (Defaults defaultTeamFeatureFileSharing) <$> (obj .:? "fileSharing"))
-      <*> (fromMaybe (Defaults (TeamFeatureStatusNoConfig TeamFeatureEnabled)) <$> (obj .:? "conferenceCalling"))
-      <*> (fromMaybe (Defaults defaultSelfDeletingMessagesStatus) <$> (obj .:? "selfDeletingMessages"))
-      <*> (fromMaybe (Defaults defaultGuestLinksStatus) <$> (obj .:? "conversationGuestLinks"))
-      <*> (fromMaybe (Defaults defaultTeamFeatureValidateSAMLEmailsStatus) <$> (obj .:? "validateSAMLEmails"))
-      <*> (fromMaybe (Defaults defaultTeamFeatureSndFactorPasswordChallengeStatus) <$> (obj .:? "sndFactorPasswordChallenge"))
-      <*> (fromMaybe (Defaults defaultTeamFeatureSearchVisibilityInbound) <$> (obj .:? "searchVisibilityInbound"))
+      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureAppLock)) <$> (obj .:? "appLock"))
+      <*> (fromMaybe (defTeamFeatureStatus @'TeamFeatureClassifiedDomains) <$> (obj .:? "classifiedDomains"))
+      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureFileSharing)) <$> (obj .:? "fileSharing"))
+      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureConferenceCalling)) <$> (obj .:? "conferenceCalling"))
+      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureSelfDeletingMessages)) <$> (obj .:? "selfDeletingMessages"))
+      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureGuestLinks)) <$> (obj .:? "conversationGuestLinks"))
+      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureValidateSAMLEmails)) <$> (obj .:? "validateSAMLEmails"))
+      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureSndFactorPasswordChallenge)) <$> (obj .:? "sndFactorPasswordChallenge"))
+      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureSearchVisibilityInbound)) <$> (obj .:? "searchVisibilityInbound"))
 
 instance ToJSON FeatureFlags where
   toJSON

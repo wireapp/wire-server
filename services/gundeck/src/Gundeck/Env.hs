@@ -107,7 +107,7 @@ createEnv m o = do
         { updateAction = Ms . round . (* 1000) <$> getPOSIXTime
         }
   mtbs <- mkThreadBudgetState `mapM` (o ^. optSettings . setMaxConcurrentNativePushes)
-  return $! Env def m o l n p r rAdditional a io mtbs
+  pure $! Env def m o l n p r rAdditional a io mtbs
 
 reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId
@@ -151,4 +151,4 @@ checkedConnectCluster l connInfo = do
       Left r -> error ("could not ping redis cluster: " <> show r)
       Right _ -> pure ()
   Log.info l $ Log.msg (Log.val "ping went through")
-  return conn
+  pure conn

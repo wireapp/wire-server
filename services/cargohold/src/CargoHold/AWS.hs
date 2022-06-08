@@ -111,10 +111,10 @@ mkEnv lgr s3End s3Download bucket cfOpts mgr = do
   let g = Logger.clone (Just "aws.cargohold") lgr
   e <- mkAwsEnv g (setAWSEndpoint s3End S3.defaultService)
   cf <- mkCfEnv cfOpts
-  return (Env g bucket e s3Download cf)
+  pure (Env g bucket e s3Download cf)
   where
     mkCfEnv (Just o) = Just <$> initCloudFront (o ^. cfPrivateKey) (o ^. cfKeyPairId) 300 (o ^. cfDomain)
-    mkCfEnv Nothing = return Nothing
+    mkCfEnv Nothing = pure Nothing
     mkAwsEnv g s3 = do
       baseEnv <-
         AWS.newEnv AWS.discover
@@ -161,7 +161,7 @@ send :: AWSRequest r => AWS.Env -> r -> Amazon (AWSResponse r)
 send env r = throwA =<< sendCatch env r
 
 throwA :: Either AWS.Error a -> Amazon a
-throwA = either (throwM . GeneralError) return
+throwA = either (throwM . GeneralError) pure
 
 exec ::
   (AWSRequest r, Show r, MonadLogger m, MonadIO m, MonadThrow m) =>
@@ -180,7 +180,7 @@ exec env request = do
       -- We just re-throw the error, but logging it here also gives us the request
       -- that caused it.
       throwM (GeneralError err)
-    Right r -> return r
+    Right r -> pure r
 
 execStream ::
   (AWSRequest r, Show r) =>
@@ -215,8 +215,8 @@ execCatch env request = do
         Log.field "remote" (Log.val "S3")
           ~~ Log.msg (show err)
           ~~ Log.msg (show req)
-      return Nothing
-    Right r -> return $ Just r
+      pure Nothing
+    Right r -> pure $ Just r
 
 canRetry :: MonadIO m => Either AWS.Error a -> m Bool
 canRetry (Right _) = pure False

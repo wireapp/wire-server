@@ -19,6 +19,7 @@
 module Galley.API.Federation where
 
 import Brig.Types.Connection (Relation (Accepted))
+import Control.Error
 import Control.Lens (itraversed, (<.>))
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
@@ -32,13 +33,15 @@ import Data.Qualified
 import Data.Range (Range (fromRange))
 import qualified Data.Set as Set
 import Data.Singletons (SingI (..), demote, sing)
+import Data.Tagged
 import qualified Data.Text.Lazy as LT
 import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
+import Galley.API.MLS.KeyPackage
+import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
-import Galley.API.Push
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
@@ -72,6 +75,9 @@ import Wire.API.Federation.API.Common (EmptyResponse (..))
 import Wire.API.Federation.API.Galley (ConversationUpdateResponse)
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
+import Wire.API.MLS.Credential
+import Wire.API.MLS.Serialisation
+import Wire.API.MLS.Welcome
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.ServantProto
@@ -290,7 +296,7 @@ leaveConversation requestingDomain lc = do
         pure (update, conv)
 
   case res of
-    Left err -> pure $ F.LeaveConversationResponse (Left err)
+    Left e -> pure $ F.LeaveConversationResponse (Left e)
     Right (_update, conv) -> do
       let action = pure (qUntagged leaver)
 
@@ -299,7 +305,6 @@ leaveConversation requestingDomain lc = do
       _event <- notifyConversationAction SConversationLeaveTag (qUntagged leaver) Nothing lcnv botsAndMembers action
 
       pure $ F.LeaveConversationResponse (Right ())
-  where
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
@@ -529,26 +534,32 @@ instance
 
 mlsSendWelcome ::
   Members
-    '[ GundeckAccess,
+    '[ BrigAccess,
+       Error InternalError,
+       GundeckAccess,
        Input (Local ()),
        Input UTCTime
      ]
     r =>
   Domain ->
   F.MLSWelcomeRequest ->
-  Sem r ()
-mlsSendWelcome _origDomain (F.MLSWelcomeRequest b64RawWelcome rcpts) = do
-  loc <- input @(Local ())
-  now <- input @UTCTime
-  let rawWelcome = fromBase64ByteString b64RawWelcome
-  void $
-    runMessagePush loc Nothing $
-      foldMap (uncurry $ mkPush rawWelcome loc now) (F.unMLSWelRecipient <$> rcpts)
-  where
-    mkPush :: ByteString -> Local x -> UTCTime -> UserId -> ClientId -> MessagePush 'Broadcast
-    mkPush rawWelcome l time u c =
-      -- FUTUREWORK: use the conversation ID stored in the key package mapping table
-      let lcnv = qualifyAs l (Data.selfConv u)
-          lusr = qualifyAs l u
-          e = Event (qUntagged lcnv) (qUntagged lusr) time $ EdMLSWelcome rawWelcome
-       in newMessagePush l () Nothing defMessageMetadata (u, c) e
+  Sem r EmptyResponse
+mlsSendWelcome _origDomain (fromBase64ByteString . F.unMLSWelcomeRequest -> rawWelcome) = do
+  loc <- qualifyLocal ()
+  now <- input
+  welcome <- either (throw . InternalErrorWithDescription . LT.fromStrict) pure $ decodeMLS' rawWelcome
+  -- Extract only recipients local to this backend
+  rcpts <-
+    fmap catMaybes $
+      traverse
+        ( fmap (fmap cidQualifiedClient . hush)
+            . runError @(Tagged 'MLSKeyPackageRefNotFound ())
+            . derefKeyPackage
+            . gsNewMember
+        )
+        $ welSecrets welcome
+  let lrcpts = qualifyAs loc $ fst $ partitionQualified loc rcpts
+
+  sendLocalWelcomes Nothing now rawWelcome lrcpts
+
+  pure EmptyResponse

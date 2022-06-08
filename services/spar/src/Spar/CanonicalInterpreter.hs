@@ -38,8 +38,6 @@ import Spar.Sem.AReqIDStore (AReqIDStore)
 import Spar.Sem.AReqIDStore.Cassandra (aReqIDStoreToCassandra)
 import Spar.Sem.AssIDStore (AssIDStore)
 import Spar.Sem.AssIDStore.Cassandra (assIDStoreToCassandra)
-import Spar.Sem.BindCookieStore (BindCookieStore)
-import Spar.Sem.BindCookieStore.Cassandra (bindCookieStoreToCassandra)
 import Spar.Sem.BrigAccess (BrigAccess)
 import Spar.Sem.BrigAccess.Http (brigAccessToHttp)
 import Spar.Sem.DefaultSsoCode (DefaultSsoCode)
@@ -79,7 +77,6 @@ import Wire.Sem.Random.IO (randomToIO)
 type CanonicalEffs =
   '[ SAML2,
      SamlProtocolSettings,
-     BindCookieStore,
      AssIDStore,
      AReqIDStore,
      VerdictFormatStore,
@@ -90,7 +87,7 @@ type CanonicalEffs =
      IdPConfigStore,
      IdPRawMetadataStore,
      SAMLUserStore,
-     Embed (Cas.Client),
+     Embed Cas.Client,
      BrigAccess,
      GalleyAccess,
      Error TTLError,
@@ -133,7 +130,6 @@ runSparToIO ctx action =
     . verdictFormatStoreToCassandra
     . aReqIDStoreToCassandra
     . assIDStoreToCassandra
-    . bindCookieStoreToCassandra
     . sparRouteToServant (saml $ sparCtxOpts ctx)
     $ saml2ToSaml2WebSso action
 

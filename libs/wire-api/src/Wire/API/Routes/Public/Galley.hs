@@ -46,6 +46,8 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Servant
 import Wire.API.MLS.Welcome
 import Wire.API.Message
+import Wire.API.Routes.CSV
+import Wire.API.Routes.LowLevelStream
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
@@ -1174,6 +1176,7 @@ type FeatureStatusBasePut errs featureName =
     :> "features"
     :> KnownTeamFeatureNameSymbol featureName
     :> ReqBody '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
+    :> QueryParam "ttl" TeamFeatureTTLValue
     :> Put '[Servant.JSON] (TeamFeatureStatus 'WithoutLockStatus featureName)
 
 -- | A type for a GET endpoint for a feature with a deprecated path
@@ -1652,6 +1655,29 @@ type TeamMemberAPI =
                     'PUT
                     '[JSON]
                     (RespondEmpty 200 "")
+           )
+    :<|> Named
+           "get-team-members-csv"
+           ( Summary "Get all members of the team as a CSV file"
+               :> CanThrow 'AccessDenied
+               :> Description
+                    "The endpoint returns data in chunked transfer encoding.\
+                    \ Internal server errors might result in a failed transfer\
+                    \ instead of a 500 response."
+               :> ZLocalUser
+               :> "teams"
+               :> Capture "tid" TeamId
+               :> "members"
+               :> "csv"
+               :> LowLevelStream
+                    'GET
+                    200
+                    '[ '( "Content-Disposition",
+                          "attachment; filename=\"wire_team_members.csv\""
+                        )
+                     ]
+                    "CSV of team members"
+                    CSV
            )
 
 type TeamMemberDeleteResultResponseType =

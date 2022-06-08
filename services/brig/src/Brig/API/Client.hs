@@ -145,9 +145,9 @@ addClientWithReAuthPolicy ::
   NewClient ->
   ExceptT ClientError (AppT r) Client
 addClientWithReAuthPolicy policy u con ip new = do
-  acc <- lift (wrapClient $ Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) return
+  acc <- lift (wrapClient $ Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) pure
   wrapHttpClientE $ verifyCode (newClientVerificationCode new) (userId . accountUser $ acc)
-  loc <- maybe (return Nothing) locationOf ip
+  loc <- maybe (pure Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
   let caps :: Maybe (Set ClientCapability)
       caps = updlhdev $ newClientCapabilities new
@@ -172,7 +172,7 @@ addClientWithReAuthPolicy policy u con ip new = do
       for_ (userEmail usr) $
         \email ->
           sendNewClientEmail (userDisplayName usr) email clt (userLocale usr)
-  return clt
+  pure clt
   where
     clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
 
@@ -374,7 +374,7 @@ claimLocalMultiPrekeyBundles protectee userClients = do
     getClientKeys u c = do
       key <- fmap prekeyData <$> Data.claimPrekey u c
       when (isNothing key) $ noPrekeys u c
-      return key
+      pure key
 
 -- Utilities
 

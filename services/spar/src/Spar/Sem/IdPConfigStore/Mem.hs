@@ -58,16 +58,15 @@ idPToMem = evState . evEff
         modify' (updateReplacedBy (Just replacing) replaced <$>)
       ClearReplacedBy (Replaced replaced) ->
         modify' (updateReplacedBy Nothing replaced <$>)
+      DeleteIssuer issuer -> modify' (deleteIssuer issuer)
 
 storeConfig :: IP.IdP -> TypedState -> TypedState
 storeConfig iw =
   M.insert (iw ^. SAML.idpId) iw
     . M.filter
       ( \iw' ->
-          or
-            [ iw' ^. SAML.idpMetadata . SAML.edIssuer /= iw ^. SAML.idpMetadata . SAML.edIssuer,
-              iw' ^. SAML.idpExtraInfo . IP.wiTeam /= iw ^. SAML.idpExtraInfo . IP.wiTeam
-            ]
+          (iw' ^. SAML.idpMetadata . SAML.edIssuer /= iw ^. SAML.idpMetadata . SAML.edIssuer)
+            || (iw' ^. SAML.idpExtraInfo . IP.wiTeam /= iw ^. SAML.idpExtraInfo . IP.wiTeam)
       )
 
 getConfig :: SAML.IdPId -> TypedState -> Maybe IP.IdP
@@ -114,3 +113,6 @@ updateReplacedBy mbReplacing replaced idp =
     & if idp ^. SAML.idpId == replaced
       then SAML.idpExtraInfo . IP.wiReplacedBy .~ mbReplacing
       else id
+
+deleteIssuer :: SAML.Issuer -> TypedState -> TypedState
+deleteIssuer = const id

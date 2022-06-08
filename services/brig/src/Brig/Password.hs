@@ -42,7 +42,7 @@ instance Show Password where
 instance Cql Password where
   ctype = Tagged BlobColumn
 
-  fromCql (CqlBlob lbs) = return . Password . EncryptedPass $ toStrict lbs
+  fromCql (CqlBlob lbs) = pure . Password . EncryptedPass $ toStrict lbs
   fromCql _ = Left "password: expected blob"
 
   toCql = CqlBlob . fromStrict . getEncryptedPass . fromPassword

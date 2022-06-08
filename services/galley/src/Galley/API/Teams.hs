@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE LambdaCase #-}
 
 module Galley.API.Teams
   ( createBindingTeam,
@@ -32,7 +33,7 @@ module Galley.API.Teams
     getTeamNotificationsH,
     getTeamConversationRoles,
     getTeamMembers,
-    getTeamMembersCSVH,
+    getTeamMembersCSV,
     bulkGetTeamMembers,
     getTeamMember,
     deleteTeamMember,
@@ -114,7 +115,6 @@ import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
 import Galley.Types.UserList
 import Imports hiding (forkIO)
-import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, or, result, setStatus)
 import Network.Wai.Utilities hiding (Error)
@@ -294,11 +294,11 @@ updateTeamStatus tid (TeamStatusUpdate newStatus cur) = do
     journal _ _ = throwS @'InvalidTeamStatusUpdate
     validateTransition :: Member (ErrorS 'InvalidTeamStatusUpdate) r => (TeamStatus, TeamStatus) -> Sem r Bool
     validateTransition = \case
-      (PendingActive, Active) -> return True
-      (Active, Active) -> return False
-      (Active, Suspended) -> return True
-      (Suspended, Active) -> return True
-      (Suspended, Suspended) -> return False
+      (PendingActive, Active) -> pure True
+      (Active, Active) -> pure False
+      (Active, Suspended) -> pure True
+      (Suspended, Active) -> pure True
+      (Suspended, Suspended) -> pure False
       (_, _) -> throwS @'InvalidTeamStatusUpdate
 
 updateTeamH ::
@@ -327,7 +327,7 @@ updateTeamH zusr zcon tid updateData = do
   memList <- getTeamMembersForFanout tid
   let e = newEvent tid now (EdTeamUpdate updateData)
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
-  E.push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn .~ Just zcon
+  E.push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn ?~ zcon
 
 deleteTeam ::
   forall r.
@@ -358,7 +358,7 @@ deleteTeam zusr zcon tid body = do
   where
     checkPermissions team = do
       void $ permissionCheck DeleteTeam =<< E.getTeamMember tid zusr
-      when ((tdTeam team) ^. teamBinding == Binding) $ do
+      when (tdTeam team ^. teamBinding == Binding) $ do
         ensureReAuthorised zusr (body ^. tdAuthPassword) (body ^. tdVerificationCode) (Just U.DeleteTeam)
 
 -- This can be called by stern
@@ -439,8 +439,8 @@ uncheckedDeleteTeam lusr zcon tid = do
       -- To avoid DoS on gundeck, send team deletion events in chunks
       let chunkSize = fromMaybe defConcurrentDeletionEvents (o ^. setConcurrentDeletionEvents)
       let chunks = List.chunksOf chunkSize (toList r)
-      forM_ chunks $ \chunk -> case chunk of
-        [] -> return ()
+      forM_ chunks $ \case
+        [] -> pure ()
         -- push TeamDelete events. Note that despite having a complete list, we are guaranteed in the
         -- push module to never fan this out to more than the limit
         x : xs -> E.push1 (newPushLocal1 ListComplete (tUnqualified lusr) (TeamEvent e) (list1 x xs) & pushConn .~ zcon)
@@ -497,12 +497,13 @@ outputToStreamingBody action = withWeavingToFinal @IO $ \state weave _inspect ->
           flush
     void . weave . (<$ state) $ runOutputSem writeChunk action
 
-getTeamMembersCSVH ::
+getTeamMembersCSV ::
   (Members '[BrigAccess, ErrorS 'AccessDenied, TeamMemberStore InternalPaging, TeamStore, Final IO] r) =>
-  UserId ::: TeamId ::: JSON ->
-  Sem r Response
-getTeamMembersCSVH (zusr ::: tid ::: _) = do
-  E.getTeamMember tid zusr >>= \case
+  Local UserId ->
+  TeamId ->
+  Sem r StreamingBody
+getTeamMembersCSV lusr tid = do
+  E.getTeamMember tid (tUnqualified lusr) >>= \case
     Nothing -> throwS @'AccessDenied
     Just member -> unless (member `hasPermission` DownloadTeamMembersCsv) $ throwS @'AccessDenied
 
@@ -510,7 +511,7 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
   -- the response will not contain a correct error message, but rather be an
   -- http error such as 'InvalidChunkHeaders'. The exception however still
   -- reaches the middleware and is being tracked in logging and metrics.
-  body <- outputToStreamingBody $ do
+  outputToStreamingBody $ do
     output headerLine
     E.withChunks (\mps -> E.listTeamMembers @InternalPaging tid mps maxBound) $
       \members -> do
@@ -519,18 +520,12 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
           lookupUser <$> E.lookupActivatedUsers (fmap (view userId) members)
         richInfos <-
           lookupRichInfo <$> E.getRichInfoMultiUser (fmap (view userId) members)
+        numUserClients <- lookupClients <$> E.lookupClients (fmap (view userId) members)
         output @LByteString
           ( encodeDefaultOrderedByNameWith
               defaultEncodeOptions
-              (mapMaybe (teamExportUser users inviters richInfos) members)
+              (mapMaybe (teamExportUser users inviters richInfos numUserClients) members)
           )
-  pure $
-    responseStream
-      status200
-      [ (hContentType, "text/csv"),
-        ("Content-Disposition", "attachment; filename=\"wire_team_members.csv\"")
-      ]
-      body
   where
     headerLine :: LByteString
     headerLine = encodeDefaultOrderedByNameWith (defaultEncodeOptions {encIncludeHeader = True}) ([] :: [TeamExportUser])
@@ -548,9 +543,10 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
       (UserId -> Maybe User) ->
       (UserId -> Maybe Handle.Handle) ->
       (UserId -> Maybe RichInfo) ->
+      (UserId -> Int) ->
       TeamMember ->
       Maybe TeamExportUser
-    teamExportUser users inviters richInfos member = do
+    teamExportUser users inviters richInfos numClients member = do
       let uid = member ^. userId
       user <- users uid
       pure $
@@ -566,7 +562,8 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
             tExportSAMLNamedId = fromMaybe "" (samlNamedId user),
             tExportSCIMExternalId = fromMaybe "" (userSCIMExternalId user),
             tExportSCIMRichInfo = richInfos uid,
-            tExportUserId = U.userId user
+            tExportUserId = U.userId user,
+            tExportNumDevices = numClients uid
           }
 
     lookupInviterHandle :: Member BrigAccess r => [TeamMember] -> Sem r (UserId -> Maybe Handle.Handle)
@@ -594,6 +591,9 @@ getTeamMembersCSVH (zusr ::: tid ::: _) = do
 
     lookupRichInfo :: [(UserId, RichInfo)] -> (UserId -> Maybe RichInfo)
     lookupRichInfo pairs = (`M.lookup` M.fromList pairs)
+
+    lookupClients :: Conv.UserClients -> UserId -> Int
+    lookupClients userClients uid = maybe 0 length (M.lookup uid (Conv.userClients userClients))
 
     samlNamedId :: User -> Maybe Text
     samlNamedId =
@@ -653,7 +653,7 @@ uncheckedGetTeamMembers ::
   TeamId ->
   Range 1 HardTruncationLimit Int32 ->
   Sem r TeamMemberList
-uncheckedGetTeamMembers tid maxResults = E.getTeamMembersWithLimit tid maxResults
+uncheckedGetTeamMembers = E.getTeamMembersWithLimit
 
 addTeamMember ::
   Members
@@ -813,7 +813,7 @@ updateTeamMember lzusr zcon tid newMember = do
       let ePriv = newEvent tid now privilegedUpdate
       -- push to all members (user is privileged)
       let pushPriv = newPushLocal (updatedMembers ^. teamMemberListType) zusr (TeamEvent ePriv) $ privilegedRecipients
-      for_ pushPriv $ \p -> E.push1 $ p & pushConn .~ Just zcon
+      for_ pushPriv $ \p -> E.push1 $ p & pushConn ?~ zcon
 
 deleteTeamMember ::
   Members
@@ -1131,7 +1131,7 @@ ensureUnboundUsers uids = do
   -- can only be part of one team.
   teams <- Map.elems <$> E.getUsersTeams uids
   binds <- E.getTeamsBindings teams
-  when (any (== Binding) binds) $
+  when (Binding `elem` binds) $
     throwS @'UserBindingExists
 
 ensureNonBindingTeam ::
@@ -1140,7 +1140,7 @@ ensureNonBindingTeam ::
   Sem r ()
 ensureNonBindingTeam tid = do
   team <- noteS @'TeamNotFound =<< E.getTeam tid
-  when ((tdTeam team) ^. teamBinding == Binding) $
+  when (tdTeam team ^. teamBinding == Binding) $
     throwS @'NoAddToBinding
 
 -- ensure that the permissions are not "greater" than the user's copy permissions
@@ -1162,7 +1162,7 @@ ensureNotTooLarge tid = do
   (TeamSize size) <- E.getSize tid
   unless (size < fromIntegral (o ^. optSettings . setMaxTeamSize)) $
     throwS @'TooManyTeamMembers
-  return $ TeamSize size
+  pure $ TeamSize size
 
 -- | Ensure that a team doesn't exceed the member count limit for the LegalHold
 -- feature. A team with more members than the fanout limit is too large, because
@@ -1240,7 +1240,7 @@ addTeamMemberInternal tid origin originConn (ntmNewTeamMember -> new) memList = 
   E.push1 $
     newPushLocal1 (memList ^. teamMemberListType) (new ^. userId) (TeamEvent e) (recipients origin new) & pushConn .~ originConn
   APITeamQueue.pushTeamEvent tid e
-  return sizeBeforeAdd
+  pure sizeBeforeAdd
   where
     recipients (Just o) n =
       list1

@@ -1,8 +1,7 @@
 apiVersion: v1
 data:
   cannon.yaml: |
-    logNetStrings: True # log using netstrings encoding:
-                        # http://cr.yp.to/proto/netstrings.txt
+    logFormat: StructuredJSON
     logLevel: {{ .Values.config.logLevel }}
 
     cannon:
@@ -13,6 +12,12 @@ data:
     gundeck:
       host: gundeck
       port: 8080
+
+    drainOpts:
+      gracePeriodSeconds: {{ .Values.config.drainOpts.gracePeriodSeconds }}
+      millisecondsBetweenBatches: {{ .Values.config.drainOpts.millisecondsBetweenBatches }}
+      minBatchSize: {{ .Values.config.drainOpts.minBatchSize }}
+
 kind: ConfigMap
 metadata:
   name: cannon

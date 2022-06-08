@@ -30,7 +30,6 @@ library
       Wire.API.Conversation.Protocol
       Wire.API.Conversation.Role
       Wire.API.Conversation.Typing
-      Wire.API.Cookie
       Wire.API.CustomBackend
       Wire.API.Error
       Wire.API.Error.Brig
@@ -69,6 +68,7 @@ library
       Wire.API.Routes.API
       Wire.API.Routes.AssetBody
       Wire.API.Routes.ClientAlgebra
+      Wire.API.Routes.CSV
       Wire.API.Routes.Internal.Brig
       Wire.API.Routes.Internal.Brig.Connection
       Wire.API.Routes.Internal.Brig.EJPD
@@ -76,6 +76,7 @@ library
       Wire.API.Routes.Internal.Cargohold
       Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
       Wire.API.Routes.Internal.LegalHold
+      Wire.API.Routes.LowLevelStream
       Wire.API.Routes.MultiTablePaging
       Wire.API.Routes.MultiTablePaging.State
       Wire.API.Routes.MultiVerb
@@ -477,7 +478,6 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.ViewLegalHoldService_team
       Test.Wire.API.Golden.Generated.ViewLegalHoldServiceInfo_team
       Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
-      Test.Wire.API.Golden.Generator
       Test.Wire.API.Golden.Manual
       Test.Wire.API.Golden.Manual.ClientCapability
       Test.Wire.API.Golden.Manual.ClientCapabilityList

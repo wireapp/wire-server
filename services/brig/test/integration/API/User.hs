@@ -59,7 +59,7 @@ tests conf fbc fgc p b c ch g n aws db = do
   let cl = ConnectionLimit $ Opt.setUserMaxConnections (Opt.optSettings conf)
   let at = Opt.setActivationTimeout (Opt.optSettings conf)
   z <- mkZAuthEnv (Just conf)
-  return $
+  pure $
     testGroup
       "user"
       [ API.User.Client.tests cl at conf p db b c g,

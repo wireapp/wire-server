@@ -27,7 +27,7 @@ import Cannon.API.Public
 import Cannon.App (maxPingInterval)
 import qualified Cannon.Dict as D
 import Cannon.Options
-import Cannon.Types (Cannon, applog, clients, mkEnv, monitor, runCannon', runCannonToServant)
+import Cannon.Types (Cannon, applog, clients, env, mkEnv, monitor, runCannon', runCannonToServant)
 import Cannon.WS hiding (env)
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
@@ -48,7 +48,10 @@ import Servant
 import qualified System.IO.Strict as Strict
 import qualified System.Logger.Class as LC
 import qualified System.Logger.Extended as L
+import System.Posix.Signals
+import qualified System.Posix.Signals as Signals
 import System.Random.MWC (createSystemRandom)
+import UnliftIO.Concurrent (myThreadId, throwTo)
 import qualified Wire.API.Routes.Internal.Cannon as Internal
 import Wire.API.Routes.Public.Cannon
 import Wire.API.Routes.Version.Wai
@@ -57,15 +60,16 @@ type CombinedAPI = PublicAPI :<|> Internal.API
 
 run :: Opts -> IO ()
 run o = do
+  when (o ^. drainOpts . millisecondsBetweenBatches == 0) $
+    error "drainOpts.millisecondsBetweenBatches must not be set to 0."
+  when (o ^. drainOpts . gracePeriodSeconds == 0) $
+    error "drainOpts.gracePeriodSeconds must not be set to 0."
   ext <- loadExternal
   m <- Middleware.metrics
   g <- L.mkLogger (o ^. logLevel) (o ^. logNetStrings) (o ^. logFormat)
   e <-
-    mkEnv <$> pure m
-      <*> pure ext
-      <*> pure o
-      <*> pure g
-      <*> D.empty 128
+    mkEnv m ext o g
+      <$> D.empty 128
       <*> newManager defaultManagerSettings {managerConnCount = 128}
       <*> createSystemRandom
       <*> mkClock
@@ -83,6 +87,9 @@ run o = do
       server =
         hoistServer (Proxy @PublicAPI) (runCannonToServant e) publicAPIServer
           :<|> hoistServer (Proxy @Internal.API) (runCannonToServant e) internalServer
+  tid <- myThreadId
+  void $ installHandler sigTERM (signalHandler (env e) tid) Nothing
+  void $ installHandler sigINT (signalHandler (env e) tid) Nothing
   runSettings s app `finally` do
     Async.cancel refreshMetricsThread
     L.close (applog e)
@@ -93,9 +100,19 @@ run o = do
     loadExternal :: IO ByteString
     loadExternal = do
       let extFile = fromMaybe (error "One of externalHost or externalHostFile must be defined") (o ^. cannon . externalHostFile)
-      fromMaybe (readExternal extFile) (return . encodeUtf8 <$> o ^. cannon . externalHost)
+      maybe (readExternal extFile) (pure . encodeUtf8) (o ^. cannon . externalHost)
     readExternal :: FilePath -> IO ByteString
     readExternal f = encodeUtf8 . strip . pack <$> Strict.readFile f
+
+signalHandler :: Env -> ThreadId -> Signals.Handler
+signalHandler e mainThread = CatchOnce $ do
+  runWS e drain
+  throwTo mainThread SignalledToExit
+
+data SignalledToExit = SignalledToExit
+  deriving (Show)
+
+instance Exception SignalledToExit
 
 refreshMetrics :: Cannon ()
 refreshMetrics = do
