@@ -21,14 +21,11 @@ Checkout the repository, including its submodules:
 We provide a container containing all needed tools for setting up and
 interacting with a wire-server cluster.
 
-Ensure you have docker installed:
+Ensure you have Docker >= 20.10.14 installed, as the glibc version used is
+incompatible with older container runtimes.
 
-::
-
-   sudo apt install docker.io
-
-Or, depending on your distro, see `how to install docker <https://docker.com>`__.
-
+Your Distro might ship an older version, so best see `how to install docker
+<https://docker.com>`__.
 
 To bring the tools in scope, we run the container, and mount the local ``wire-server-deploy``
 checkout into it.
