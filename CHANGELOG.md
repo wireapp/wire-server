@@ -12,7 +12,7 @@
 ## API changes
 
 
-* The back-office (aka stern) team feature API now accenpts an optional TTL parameter (in days), so features can be activated for a limited period. (#PR_NOT_FOUND)
+* The back-office (aka stern) team feature API now accenpts an optional TTL parameter (in days), so features can be activated for a limited period. (#2417)
 
 * Disable rate limiting for /api-version (#2439)
 
@@ -30,7 +30,7 @@
   Some (internal) context: https://wearezeta.atlassian.net/wiki/spaces/PS/pages/585564424/How+to+gracefully+drain+cannon+but+not+so+slowly
   For details on how to configure this, see docs/src/how-to/install/configuration-options.rst (#2421)
 
-* * Support running brig with GeoIP database when using helm charts (#2406)
+* Support running brig with GeoIP database when using helm charts (#2406)
 
 * charts/nginz: Add upstream configuration for galeb (#2444)
 
@@ -49,7 +49,7 @@
 
 * On actions that require re-authentication a password is not required if the user has SAML credentials (#2430, #2434, #2437)
 
-* Use SCIM's preferred language as a fallback when privisioning users without a locale. (#PR_NOT_FOUND)
+* Use SCIM's preferred language as a fallback when privisioning users without a locale. (#2445)
 
 
 ## Documentation
