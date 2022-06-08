@@ -629,8 +629,14 @@ changeEmail u email allowScim = do
     else do
       -- case 2: No or different old email address
       let changeAllowed =
-            userManagedBy usr /= ManagedByScim
-              || allowScim == AllowSCIMUpdates
+            ( userManagedBy usr /= ManagedByScim
+                || allowScim == AllowSCIMUpdates -- spar is always allowed to call this function (from the scim handlers)
+            )
+              && not
+                ( -- user is auto-provisioned by saml (deprecated use case)
+                  userManagedBy usr /= ManagedByScim && userHasSAML usr
+                )
+
       unless changeAllowed $
         throwE EmailManagedByScim
 
