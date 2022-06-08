@@ -234,7 +234,13 @@ testSuccessfulCommit setup = testSuccessfulCommitWithNewUsers setup (map pUserId
 
 testAddUser :: TestM ()
 testAddUser = do
-  setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
+  setup@MessagingSetup {..} <-
+    aliceInvitesBob
+      (1, LocalUser)
+      def
+        { createConv = CreateConv,
+          numCreatorClients = 3
+        }
   testSuccessfulCommit setup
 
   -- check that bob can now see the conversation
@@ -320,7 +326,7 @@ testAddNewClient = do
 
     do
       -- then bob adds a new client
-      (qcid, c) <- setupUserClient tmp CreateWithKey (pUserId bob)
+      (qcid, c) <- setupUserClient tmp CreateWithKey True (pUserId bob)
       let bobC = (qcid, c)
       -- which gets added to the group
       (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" [bobC]
