@@ -618,7 +618,9 @@ changeEmail u email allowScim = do
   unless available $
     throwE (EmailExists email)
 
-  usr <- maybe (throwM $ UserProfileNotFound u) pure =<< lift (wrapClient $ Data.lookupUser WithPendingInvitations u)
+  usr <-
+    maybe (throwM $ UserProfileNotFound u) pure
+      =<< lift (wrapClient $ Data.lookupUser WithPendingInvitations u)
 
   case emailIdentity =<< userIdentity usr of
     -- The user already has an email address and the new one is exactly the same
