@@ -153,7 +153,7 @@ expectStatus :: (Int -> Bool) -> Request -> Request
 expectStatus property r = r {Rq.checkResponse = check}
   where
     check _ res
-      | property (HTTP.statusCode (Rq.responseStatus res)) = return ()
+      | property (HTTP.statusCode (Rq.responseStatus res)) = pure ()
       | otherwise = do
         some <- Lazy.toStrict <$> brReadSome (Rq.responseBody res) 1024
         throwHttp $ Rq.StatusCodeException (() <$ res) some
@@ -242,4 +242,4 @@ extPort :: URI.URI -> Maybe Word16
 extPort u = do
   a <- u ^. URI.authorityL
   p <- a ^. URI.authorityPortL
-  return (fromIntegral (p ^. URI.portNumberL))
+  pure (fromIntegral (p ^. URI.portNumberL))

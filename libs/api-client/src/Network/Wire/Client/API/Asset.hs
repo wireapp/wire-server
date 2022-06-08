@@ -69,8 +69,8 @@ getAsset :: MonadSession m => AssetKey -> Maybe AssetToken -> m (Maybe AssetData
 getAsset key tok = do
   rs <- sessionRequest req rsc consumeBody
   liftIO $ case statusCode rs of
-    200 -> maybe (unexpected rs "getAsset: missing body") (return . Just) (responseBody rs)
-    404 -> return Nothing
+    200 -> maybe (unexpected rs "getAsset: missing body") (pure . Just) (responseBody rs)
+    404 -> pure Nothing
     _ -> unexpected rs "getAsset: response code"
   where
     req =

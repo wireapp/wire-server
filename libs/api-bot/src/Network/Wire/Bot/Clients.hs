@@ -66,4 +66,4 @@ foldSessions self c a f =
 lookupSession :: MonadIO m => Clients -> UserId -> ClientId -> m (Maybe Session)
 lookupSession self u d = do
   s <- liftIO $ readTVarIO (sessions self)
-  return $ Map.lookup u (clients s) >>= Map.lookup d
+  pure $ Map.lookup u (clients s) >>= Map.lookup d

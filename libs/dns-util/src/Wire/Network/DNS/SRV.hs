@@ -117,7 +117,7 @@ orderSrvResult =
     >>> fmap concat
   where
     orderSublist :: [SrvEntry] -> IO [SrvEntry]
-    orderSublist [] = return []
+    orderSublist [] = pure []
     orderSublist sublist = do
       -- Compute the running sum, as well as the total sum of the sublist.
       -- Add the running sum to the SRV tuples.
@@ -135,4 +135,4 @@ orderSrvResult =
       let remainingSrvs = map fst (beginning ++ end)
       -- Repeat the ordering procedure on the remaining elements.
       rest <- orderSublist remainingSrvs
-      return $ firstSrv : rest
+      pure $ firstSrv : rest

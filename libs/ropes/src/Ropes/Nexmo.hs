@@ -113,18 +113,18 @@ data MessageErrorStatus
   deriving (Eq, Show)
 
 instance FromJSON MessageErrorStatus where
-  parseJSON "1" = return MessageThrottled
-  parseJSON "5" = return MessageInternal
-  parseJSON "6" = return MessageUnroutable
-  parseJSON "7" = return MessageNumBarred
-  parseJSON "8" = return MessagePartnerAccountBarred
-  parseJSON "9" = return MessagePartnerQuotaExceeded
-  parseJSON "12" = return MessageTooLong
-  parseJSON "13" = return MessageCommunicationFailed
-  parseJSON "15" = return MessageInvalidSenderAddress
-  parseJSON "19" = return MessageFacilityNotAllowed
-  parseJSON "20" = return MessageInvalidMessageClass
-  parseJSON _ = return MessageOther
+  parseJSON "1" = pure MessageThrottled
+  parseJSON "5" = pure MessageInternal
+  parseJSON "6" = pure MessageUnroutable
+  parseJSON "7" = pure MessageNumBarred
+  parseJSON "8" = pure MessagePartnerAccountBarred
+  parseJSON "9" = pure MessagePartnerQuotaExceeded
+  parseJSON "12" = pure MessageTooLong
+  parseJSON "13" = pure MessageCommunicationFailed
+  parseJSON "15" = pure MessageInvalidSenderAddress
+  parseJSON "19" = pure MessageFacilityNotAllowed
+  parseJSON "20" = pure MessageInvalidMessageClass
+  parseJSON _ = pure MessageOther
 
 data MessageErrorResponse = MessageErrorResponse
   { erStatus :: !MessageErrorStatus,
@@ -145,15 +145,15 @@ newtype ParseError = ParseError String
 instance Exception ParseError
 
 instance FromJSON MessageId where
-  parseJSON = withText "MessageId" $ return . MessageId
+  parseJSON = withText "MessageId" $ pure . MessageId
 
 instance ToJSON MessageId where
   toJSON = String . messageIdText
 
 instance FromJSON Charset where
-  parseJSON "text" = return GSM7
-  parseJSON "binary" = return GSM8
-  parseJSON "unicode" = return UCS2
+  parseJSON "text" = pure GSM7
+  parseJSON "binary" = pure GSM8
+  parseJSON "unicode" = pure UCS2
   parseJSON x = fail $ "Unsupported charset " <> show x
 
 instance ToJSON Charset where
@@ -179,8 +179,8 @@ parseMessageResponse = withObject "nexmo-response" $ \o -> do
   xs <- o .: "messages"
   ys <- sequence <$> mapM parseMessageFeedback xs
   case ys of
-    Left e -> return $ Left e
-    Right (f : fs) -> return $ Right $ MessageResponse (f :| fs)
+    Left e -> pure $ Left e
+    Right (f : fs) -> pure $ Right $ MessageResponse (f :| fs)
     Right _ -> fail "Must have at least one message-id"
 
 -- * Call related
@@ -207,14 +207,14 @@ data CallErrorStatus
   deriving (Eq, Show)
 
 instance FromJSON CallErrorStatus where
-  parseJSON "1" = return CallThrottled
-  parseJSON "5" = return CallInternal
-  parseJSON "6" = return CallDestinationNotPermitted
-  parseJSON "7" = return CallDestinationBarred
-  parseJSON "9" = return CallPartnerQuotaExceeded
-  parseJSON "15" = return CallInvalidDestinationAddress
-  parseJSON "17" = return CallUnroutable
-  parseJSON _ = return CallOther
+  parseJSON "1" = pure CallThrottled
+  parseJSON "5" = pure CallInternal
+  parseJSON "6" = pure CallDestinationNotPermitted
+  parseJSON "7" = pure CallDestinationBarred
+  parseJSON "9" = pure CallPartnerQuotaExceeded
+  parseJSON "15" = pure CallInvalidDestinationAddress
+  parseJSON "17" = pure CallUnroutable
+  parseJSON _ = pure CallOther
 
 data CallErrorResponse = CallErrorResponse
   { caStatus :: !CallErrorStatus,
@@ -264,7 +264,7 @@ sendCall cr mgr call = httpLbs req mgr >>= parseResult
   where
     parseResult res = case parseEither parseCallResponse =<< eitherDecode (responseBody res) of
       Left e -> throwIO $ ParseError e
-      Right r -> either throwIO return r
+      Right r -> either throwIO pure r
     req =
       defaultRequest
         { method = "POST",
@@ -331,7 +331,7 @@ sendMessages cr mgr msgs = forM msgs $ \m -> httpLbs (req m) mgr >>= parseResult
   where
     parseResult res = case parseEither parseMessageResponse =<< eitherDecode (responseBody res) of
       Left e -> throwIO $ ParseError e
-      Right r -> either throwIO return r
+      Right r -> either throwIO pure r
     req m =
       defaultRequest
         { method = "POST",

@@ -158,7 +158,7 @@ newBotNetEnv manager logger o = do
   gen <- MWC.createSystemRandom
   let domain = setBotNetFederationDomain o
   usr <- maybe Cache.empty (Cache.fromFile logger gen domain) (setBotNetUsersFile o)
-  mbx <- maybe (return []) loadMailboxConfig (setBotNetMailboxConfig o)
+  mbx <- maybe (pure []) loadMailboxConfig (setBotNetMailboxConfig o)
   met <- initMetrics
   let srv =
         Server
@@ -169,7 +169,7 @@ newBotNetEnv manager logger o = do
             serverSSL = setBotNetApiSSL o,
             serverManager = manager
           }
-  return
+  pure
     $! BotNetEnv
       { botNetGen = gen,
         botNetMailboxes = mbx,
@@ -192,7 +192,7 @@ initMetrics = do
   m <- Metrics.metrics
   forM_ counters $ \c -> Metrics.counterGet c m
   forM_ gauges $ \g -> Metrics.gaugeGet g m
-  return m
+  pure m
   where
     counters =
       Metrics.assertionsTotal :
@@ -403,7 +403,7 @@ addBotClient self cty label = do
   cid <- clientId <$> runBotSession self (registerClient nc)
   clt <- BotClient cid label box <$> liftIO Clients.empty
   liftIO . atomically $ modifyTVar' (botClients self) (clt :)
-  return clt
+  pure clt
 
 -- TODO: withBotClient :: MonadBotNet m => Bot -> ClientType -> Maybe Text -> (BotClient -> m a) -> m a
 
@@ -455,7 +455,7 @@ newBot tag = liftBotNet $ do
   bot <- mkBot tag user pw
   -- TODO: addBotClient?
   incrBotsCreatedNew
-  return bot
+  pure bot
 
 -- | Obtain a "cached" 'Bot' based on an existing user identity. The same
 -- bot will never be returned again by 'cachedBot'.
@@ -466,7 +466,7 @@ cachedBot t = liftBotNet $ do
   CachedUser p u <- BotNet (asks botNetUsers) >>= Cache.get
   bot <- mkBot t (tagged t u) p
   incrBotsCreatedCached
-  return bot
+  pure bot
 
 -- | Wait for the Bot's assertions to finish (through matching
 -- an event or through timeout) before killing it (see 'killBot').
@@ -560,20 +560,20 @@ awaitAssertions bot = whenAsserts $ do
 -- enabled or not. If the requirement fails, a 'RequirementFailed' exception
 -- is thrown.
 require :: MonadThrow m => Bool -> Text -> m ()
-require True _ = return ()
+require True _ = pure ()
 require False m = throwM $ RequirementFailed m
 
 -- | Require a 'Maybe a' to be 'Just a', regardless of whether assertions are
 -- enabled or not. If it is 'Nothing' a 'RequirementFailed' exception is thrown.
 requireMaybe :: MonadThrow m => Maybe a -> Text -> m a
 requireMaybe Nothing m = throwM $ RequirementFailed m
-requireMaybe (Just a) _ = return a
+requireMaybe (Just a) _ = pure a
 
 -- | Require a 'Either e a' to be 'Right a', regardless of whether assertions are
 -- enabled or not. If it is 'Left e 'RequirementFailed' exception is thrown.
 requireRight :: (Show e, MonadThrow m) => Either e a -> m a
 requireRight (Left e) = throwM $ RequirementFailed (pack $ show e)
-requireRight (Right a) = return a
+requireRight (Right a) = pure a
 
 -- TODO: change argument order to match 'assertEqual' from tasty-hunit
 assertEqual :: (HasCallStack, MonadBotNet m, Show a, Eq a) => a -> a -> Text -> m ()
@@ -630,11 +630,11 @@ scheduleAssert bot typ f out = whenAsserts $ do
   r <- liftIO . atomically $ do
     n <- readTVar (botAssertCount bot)
     if n >= botMaxAsserts (botSettings bot)
-      then return False
+      then pure False
       else do
         writeTQueue (botAsserts bot) (EventAssertion typ t f out callStack)
         writeTVar (botAssertCount bot) (n + 1)
-        return True
+        pure True
   unless r . liftBotNet $ do
     incrAssertFailed
     runBotSession bot . log Error . msg $
@@ -675,13 +675,13 @@ try ma = do
     Left e -> do
       liftBotNet $ log Error . msg $ show e
       incrExceptionsTotal
-      return $ Left e
-    Right a -> return $ Right a
+      pure $ Left e
+    Right a -> pure $ Right a
   where
     handlers =
-      [ Handler $ \e -> return . Left $ BotNetFailure e,
-        Handler $ \e -> return . Left $ HttpFailure e,
-        Handler $ \e -> return . Left $ ClientFailure e
+      [ Handler $ \e -> pure . Left $ BotNetFailure e,
+        Handler $ \e -> pure . Left $ HttpFailure e,
+        Handler $ \e -> pure . Left $ ClientFailure e
       ]
 
 -------------------------------------------------------------------------------
@@ -692,7 +692,7 @@ mkBot tag user pw = do
   log Info $ botLogFields (userId user) tag . msg (val "Login")
   let ident = fromMaybe (error "No email") (userEmail user)
   let cred = PasswordLogin (LoginByEmail ident) pw Nothing Nothing
-  auth <- login cred >>= maybe (throwM LoginFailed) return
+  auth <- login cred >>= maybe (throwM LoginFailed) pure
   aref <- nextAuthRefresh auth
   env <- BotNet ask
   bot <-
@@ -715,7 +715,7 @@ mkBot tag user pw = do
     when (botNetAssert env) $
       writeIORef (botAssertThread bot) . Just =<< async (assert bot env)
   incrBotsAlive
-  return bot
+  pure bot
 
 connectPush :: Bot -> BotNetEnv -> IO (Async ())
 connectPush bot e = runBotNet e . runBotSession bot $ do
@@ -775,7 +775,7 @@ heartbeat bot e = forever $ do
             <> "\nAssertion was created at: "
             <> pack (prettyCallStack stack)
   -- Re-establish the push connection, if it died
-  push <- maybe (return Nothing) poll =<< readIORef (botPushThread bot)
+  push <- maybe (pure Nothing) poll =<< readIORef (botPushThread bot)
   case push of
     Just x -> do
       case x of
@@ -783,7 +783,7 @@ heartbeat bot e = forever $ do
         Right _ -> botLog l bot Warn $ msg $ val "Unexpected exit of push thread"
       a <- connectPush bot e
       writeIORef (botPushThread bot) (Just a)
-    Nothing -> return ()
+    Nothing -> pure ()
 
 assert :: Bot -> BotNetEnv -> IO a
 assert bot e = forever $ do
@@ -807,7 +807,7 @@ matchAssertion bot a@(EventAssertion _ _ f out _) = do
       modifyTVar' (botAssertCount bot) (subtract 1)
       incrEventsAckd bot (eventType ev)
     Nothing -> modifyTVar' (botBacklog bot) (a :)
-  return found
+  pure found
   where
     go (events, found) (et, ev)
       | isNothing found && f ev = (events, Just ev)
@@ -833,7 +833,7 @@ gcEvents bot now = do
   when (numDel > 0) $ do
     writeTVar (botEvents bot) (num - numDel, keep)
     mapM_ (incrEventsIgnd bot . eventType . snd) del
-  return $ fmap snd del
+  pure $ fmap snd del
 
 gcBacklog :: Bot -> UTCTime -> STM [EventAssertion]
 gcBacklog bot now = do
@@ -847,12 +847,12 @@ gcBacklog bot now = do
     forM_ del $ \(EventAssertion typ _ _ out _) -> do
       for_ out $ flip tryPutTMVar Nothing
       incrEventsMssd bot typ
-  return del
+  pure del
 
 nextAuthRefresh :: MonadIO m => Auth -> m UTCTime
 nextAuthRefresh (Auth _ tok) = liftIO $ do
   now <- getCurrentTime
-  return $ (fromInteger (expiresIn tok) - 60) `addUTCTime` now
+  pure $ (fromInteger (expiresIn tok) - 60) `addUTCTime` now
 
 -------------------------------------------------------------------------------
 
@@ -869,7 +869,7 @@ report t s = do
           f = showString (unpack t) . showString "-" . showString d $ ".bot"
        in writeReport (dir </> f) r
     Nothing -> printReport r
-  return r
+  pure r
 
 getMetrics :: MonadBotNet m => m Metrics
 getMetrics = liftBotNet . BotNet $ asks botNetMetrics
@@ -883,7 +883,7 @@ timed p ma = do
   m <- getMetrics
   let timeHisto = Metrics.deprecatedRequestDurationHistogram p
   liftIO $ Metrics.histoSubmit durationInMillis timeHisto m
-  return a
+  pure a
 
 incrAssertTotal :: MonadBotNet m => m ()
 incrAssertTotal = getMetrics >>= liftIO . Metrics.counterIncr Metrics.assertionsTotal
@@ -951,7 +951,7 @@ transferBotMetrics b =
       ackd <- readTVar $ botEventsAckd (botMetrics b)
       ignd <- readTVar $ botEventsIgnd (botMetrics b)
       mssd <- readTVar $ botEventsMssd (botMetrics b)
-      return [rcvd, ackd, ignd, mssd]
+      pure [rcvd, ackd, ignd, mssd]
     -- Update per event type counters
     let add (p, n) = Metrics.counterAdd n p m
     mapM_ add (concatMap HashMap.toList l)
@@ -981,7 +981,7 @@ randUser (Email loc dom) (BotTag tag) = do
   pwdUuid <- nextRandom
   let email = Email (loc <> "+" <> tag <> "-" <> pack (toString uuid)) dom
   let passw = PlainTextPassword (pack (toString pwdUuid))
-  return
+  pure
     ( NewUser
         { newUserDisplayName = Name (tag <> "-Wirebot-" <> pack (toString uuid)),
           newUserUUID = Nothing,
@@ -1005,7 +1005,7 @@ randMailbox :: BotNet Mailbox
 randMailbox = do
   e <- BotNet ask
   i <- liftIO $ MWC.uniformR (0, length (botNetMailboxes e) - 1) (botNetGen e)
-  return $ botNetMailboxes e !! i
+  pure $ botNetMailboxes e !! i
 
 tagged :: BotTag -> User -> User
 tagged t u = u {userDisplayName = Name $ unTag t <> "-" <> fromName (userDisplayName u)}

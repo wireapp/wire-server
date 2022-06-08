@@ -47,31 +47,31 @@ instance FromByteString AWSEndpoint where
   parser = do
     url <- uriParser strictURIParserOptions
     secure <- case url ^. uriSchemeL . schemeBSL of
-      "https" -> return True
-      "http" -> return False
+      "https" -> pure True
+      "http" -> pure False
       x -> fail ("Unsupported scheme: " ++ show x)
     host <- case url ^. authorityL <&> view (authorityHostL . hostBSL) of
-      Just h -> return h
+      Just h -> pure h
       Nothing -> fail ("No host in: " ++ show url)
     port <- case urlPort url of
-      Just p -> return p
+      Just p -> pure p
       Nothing ->
-        return $
+        pure $
           if secure
             then 443
             else 80
-    return $ AWSEndpoint host secure port
+    pure $ AWSEndpoint host secure port
 
 instance FromJSON AWSEndpoint where
   parseJSON =
     withText "AWSEndpoint" $
-      either fail return . runParser parser . encodeUtf8
+      either fail pure . runParser parser . encodeUtf8
 
 urlPort :: URIRef Absolute -> Maybe Int
 urlPort u = do
   a <- u ^. authorityL
   p <- a ^. authorityPortL
-  return (fromIntegral (p ^. portNumberL))
+  pure (fromIntegral (p ^. portNumberL))
 
 makeLenses ''AWSEndpoint
 
@@ -110,7 +110,7 @@ loadSecret (FilePathSecrets p) = do
   exists <- doesFileExist path
   if exists
     then over _Left show . decodeEither' <$> BS.readFile path
-    else return (Left "File doesn't exist")
+    else pure (Left "File doesn't exist")
 
 getOptions ::
   FromJSON a =>
@@ -130,7 +130,7 @@ getOptions desc pars defaultPath = do
       configFile <- decodeFileEither path
       case configFile of
         Left e -> fail $ show e
-        Right o -> return o
+        Right o -> pure o
     -- Config doesn't exist but at least we have a CLI options parser
     (False, Just p) -> do
       hPutStrLn stderr $
@@ -160,7 +160,7 @@ parseConfigPath defaultPath desc = do
           <> value defaultPath
 
 parseAWSEndpoint :: ReadM AWSEndpoint
-parseAWSEndpoint = readerAsk >>= maybe (error "Could not parse AWS endpoint") return . fromByteString . fromString
+parseAWSEndpoint = readerAsk >>= maybe (error "Could not parse AWS endpoint") pure . fromByteString . fromString
 
 discoUrlParser :: Parser Text
 discoUrlParser =

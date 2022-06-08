@@ -190,7 +190,7 @@ instance FromByteString (Id a) where
         void $ Atto.count 12 hexDigit
     case UUID.fromASCIIBytes match of
       Nothing -> fail "Invalid UUID"
-      Just ui -> return (Id ui)
+      Just ui -> pure (Id ui)
     where
       matching = fmap fst . Atto.match
       hexDigit = Atto.satisfy Char.isHexDigit <?> "hexadecimal digit"
@@ -316,7 +316,7 @@ instance EncodeWire ClientId where
   encodeWire t = encodeWire t . client
 
 instance DecodeWire ClientId where
-  decodeWire (DelimitedField _ x) = either fail return (runParser parser x)
+  decodeWire (DelimitedField _ x) = either fail pure (runParser parser x)
   decodeWire _ = fail "Invalid ClientId"
 
 -- BotId -----------------------------------------------------------------------

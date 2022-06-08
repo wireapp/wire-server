@@ -90,7 +90,7 @@ io <!! aa = do
       title "Assertions failed:\n" :
       intersperse "\n" (map msg failures)
         ++ ["\n\nResponse was:\n\n" ++ show r]
-  return r
+  pure r
   where
     msg :: (Int, Maybe String) -> String
     msg (i, Just m) = printf "%2d: " i ++ err m

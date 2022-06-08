@@ -83,7 +83,7 @@ instance Arbitrary Type where
   arbitrary = elements [A, U, LA, LU]
 
 instance Arbitrary Tag where
-  arbitrary = return S
+  arbitrary = pure S
 
 instance Bounded UUID where
   minBound = nil

@@ -116,7 +116,7 @@ instance ToJSON a => ToJSON (Range n m a) where
   toJSON = toJSON . fromRange
 
 instance (Within a n m, FromJSON a) => FromJSON (Range n m a) where
-  parseJSON v = parseJSON v >>= maybe (msg sing sing) return . checked
+  parseJSON v = parseJSON v >>= maybe (msg sing sing) pure . checked
     where
       msg :: Bounds a => SNat n -> SNat m -> Aeson.Parser (Range n m a)
       msg sn sm = fail (errorMsg (fromSing sn) (fromSing sm) "")
@@ -184,7 +184,7 @@ instance (Within a n m, ToSchema a, HasRangedSchemaDocModifier NamedSwaggerDoc a
 instance (Within a n m, Cql a) => Cql (Range n m a) where
   ctype = retag (ctype :: Tagged a ColumnType)
   toCql = toCql . fromRange
-  fromCql c = fromCql c >>= maybe (msg sing sing) return . checked
+  fromCql c = fromCql c >>= maybe (msg sing sing) pure . checked
     where
       msg :: Bounds a => SNat n -> SNat m -> Either String (Range n m a)
       msg sn sm = Left (errorMsg (fromSing sn) (fromSing sm) "")
@@ -423,7 +423,7 @@ instance (Within a n m, Read a) => Read (Range n m a) where
 -----------------------------------------------------------------------------
 
 instance (Within a n m, FromByteString a) => FromByteString (Range n m a) where
-  parser = parser >>= maybe (msg sing sing) return . checked
+  parser = parser >>= maybe (msg sing sing) pure . checked
     where
       msg :: Bounds a => SNat n -> SNat m -> Atto.Parser (Range n m a)
       msg sn sm = fail (errorMsg (fromSing sn) (fromSing sm) "")

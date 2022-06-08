@@ -104,13 +104,13 @@ validate Nothing Nothing = throwError Invalid
 validate (Just _) Nothing = throwError Invalid
 validate Nothing (Just t) = validateAccess t
 validate (Just c) (Just t) = do
-  u <- maybe (throwError Invalid) return (fromByteString c)
-  a <- maybe (throwError Invalid) return (fromByteString t)
+  u <- maybe (throwError Invalid) pure (fromByteString c)
+  a <- maybe (throwError Invalid) pure (fromByteString t)
   void $ check u
   void $ check a
   unless (u ^. body . user == a ^. body . userId) $
     throwError Invalid
-  return a
+  pure a
 
 check :: ToByteString a => Token a -> Validate (Token a)
 check t = do
@@ -124,11 +124,11 @@ check t = do
     throwError Falsified
   isExpired <-
     if t ^. header . time == -1
-      then return False
+      then pure False
       else (t ^. header . time <) <$> now
   when isExpired $
     throwError Expired
-  return t
+  pure t
 
 now :: (Functor m, MonadIO m) => m Integer
 now = floor <$> liftIO getPOSIXTime

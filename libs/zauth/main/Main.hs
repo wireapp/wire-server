@@ -123,7 +123,7 @@ uuid :: ByteString -> UUID
 uuid s = fromMaybe (error $ "Invalid UUID: " ++ show s) $ fromASCIIBytes s
 
 check' :: ToByteString a => ByteString -> Token a -> IO ()
-check' k t = exceptT (\e -> putStrLn e >> exitFailure) (const $ return ()) $ do
+check' k t = exceptT (\e -> putStrLn e >> exitFailure) (const $ pure ()) $ do
   p <- hoistEither $ PublicKey <$> decode k
   e <- liftIO $ runValidate (V.mkEnv p (replicate (t ^. header . key) p)) (check t)
   hoistEither $ fmapL show e
@@ -181,14 +181,14 @@ options =
           <> help "token data"
     toMode =
       readerAsk >>= \s -> case s of
-        "create-user" -> return CreateUser
-        "create-session" -> return CreateSession
-        "create-access" -> return CreateAccess
-        "create-bot" -> return CreateBot
-        "create-provider" -> return CreateProvider
-        "verify-user" -> return VerifyUser
-        "verify-access" -> return VerifyAccess
-        "verify-bot" -> return VerifyBot
-        "verify-provider" -> return VerifyProvider
-        "gen-keypair" -> return GenKeyPair
+        "create-user" -> pure CreateUser
+        "create-session" -> pure CreateSession
+        "create-access" -> pure CreateAccess
+        "create-bot" -> pure CreateBot
+        "create-provider" -> pure CreateProvider
+        "verify-user" -> pure VerifyUser
+        "verify-access" -> pure VerifyAccess
+        "verify-bot" -> pure VerifyBot
+        "verify-provider" -> pure VerifyProvider
+        "gen-keypair" -> pure GenKeyPair
         other -> readerError $ "invalid mode: " <> other

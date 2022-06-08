@@ -275,7 +275,7 @@ assertTimeoutOption =
 greater :: (Integral a, Show a) => a -> a -> ReadM a
 greater n a
   | a <= n = readerError ("must be > " ++ show n)
-  | otherwise = return a
+  | otherwise = pure a
 
 bsOption :: Mod OptionFields String -> Parser ByteString
 bsOption = fmap pack . strOption

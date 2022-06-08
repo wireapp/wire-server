@@ -114,7 +114,7 @@ connectAsMaybeClient can uid client conn = liftIO $ do
   nchan <- newTChanIO
   latch <- newEmptyMVar
   wsapp <- run can uid client conn (clientApp nchan latch)
-  return $ WebSocket nchan latch wsapp
+  pure $ WebSocket nchan latch wsapp
 
 close :: MonadIO m => WebSocket -> m ()
 close ws = liftIO $ do
@@ -299,7 +299,7 @@ awaitMatch t ws match = go [] []
           do
             liftIO (match n)
             refill buf
-            return (Right n)
+            pure (Right n)
             `catchAll` \e -> case asyncExceptionFromException e of
               Just x -> throwM (x :: SomeAsyncException)
               Nothing ->
@@ -307,7 +307,7 @@ awaitMatch t ws match = go [] []
                  in go (n : buf) (e' : errs)
         Nothing -> do
           refill buf
-          return (Left (MatchTimeout errs))
+          pure (Left (MatchTimeout errs))
     refill = mapM_ (liftIO . atomically . writeTChan (wsChan ws))
 
 awaitMatch_ ::
@@ -367,7 +367,7 @@ assertMatchN_ ::
 assertMatchN_ t wss f = void $ assertMatchN t wss f
 
 assertSuccess :: (HasCallStack, MonadIO m, MonadThrow m) => Either MatchTimeout Notification -> m Notification
-assertSuccess = either throwM return
+assertSuccess = either throwM pure
 
 assertNoEvent :: (HasCallStack, MonadIO m, MonadCatch m) => Timeout -> [WebSocket] -> m ()
 assertNoEvent t ww = do
@@ -393,7 +393,7 @@ unpackPayload = fmap decodeEvent . ntfPayload
 randomConnId :: MonadIO m => m ConnId
 randomConnId = liftIO $ do
   r <- randomIO :: IO Word32
-  return . ConnId $ C.pack $ show r
+  pure . ConnId $ C.pack $ show r
 
 -----------------------------------------------------------------------------
 -- Internals
@@ -419,7 +419,7 @@ run cannon@(($ Http.defaultRequest) -> ca) uid client connId app = liftIO $ do
   stat <- poll wsapp
   case stat of
     Just (Left ex) -> throwIO ex
-    _ -> waitForRegistry numRetries >> return wsapp
+    _ -> waitForRegistry numRetries >> pure wsapp
   where
     caHost = C.unpack (Http.host ca)
     caPort = Http.port ca

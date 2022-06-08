@@ -32,12 +32,12 @@ newtype IntegrationConfigFile = IntegrationConfigFile String
 instance IsOption IntegrationConfigFile where
   defaultValue = IntegrationConfigFile "/etc/wire/integration/integration.yaml"
   parseValue = fmap IntegrationConfigFile . safeRead
-  optionName = return "integration-config"
-  optionHelp = return "Integration config file to read from"
+  optionName = pure "integration-config"
+  optionHelp = pure "Integration config file to read from"
   optionCLParser =
     fmap IntegrationConfigFile $
       strOption $
-        ( short (untag (return 'i' :: Tagged IntegrationConfigFile Char))
+        ( short (untag (pure 'i' :: Tagged IntegrationConfigFile Char))
             <> long (untag (optionName :: Tagged IntegrationConfigFile String))
             <> help (untag (optionHelp :: Tagged IntegrationConfigFile String))
         )

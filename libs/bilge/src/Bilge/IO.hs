@@ -128,7 +128,7 @@ instance MonadIO m => MonadHttp (HttpT m) where
 trivialBodyReader :: ByteString -> IO BodyReader
 trivialBodyReader bodyBytes = do
   bodyVar <- newTVarIO bodyBytes
-  return $ mkBodyReader bodyVar
+  pure $ mkBodyReader bodyVar
   where
     mkBodyReader :: TVar ByteString -> BodyReader
     mkBodyReader bodyVar = do
@@ -300,4 +300,4 @@ consumeBody r = do
         if null chunks
           then Nothing
           else Just (LBS.fromChunks chunks)
-  return $ r {responseBody = bdy}
+  pure $ r {responseBody = bdy}

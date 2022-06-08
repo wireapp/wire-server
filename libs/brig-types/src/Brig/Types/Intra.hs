@@ -107,7 +107,7 @@ instance FromJSON UserAccount where
   parseJSON j@(Object o) = do
     u <- parseJSON j
     s <- o .: "status"
-    return $ UserAccount u s
+    pure $ UserAccount u s
   parseJSON _ = mzero
 
 instance ToJSON UserAccount where

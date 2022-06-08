@@ -42,7 +42,7 @@ tests = do
   (p3, s3) <- newKeyPair
   z <- C.mkEnv s1 [s2, s3]
   let v = V.mkEnv p1 [p2, p3]
-  return $
+  pure $
     testGroup
       "ZAuth"
       [ testGroup
