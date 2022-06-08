@@ -1,1 +1,0 @@
-Remove binding of users to saml idps using saml (this has never been picked up by clients; use scim instead)

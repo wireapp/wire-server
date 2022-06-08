@@ -1,4 +1,0 @@
-Optionally allow to run cannon with its own nginz inside the same pod; and connect to a load balancer directly.
-This allows the cannon-slow-drain behaviour implemented in #2416 to take effect by not having other intermediate network hops which could break websocket connections all at once.
-Some (internal) context: https://wearezeta.atlassian.net/wiki/spaces/PS/pages/585564424/How+to+gracefully+drain+cannon+but+not+so+slowly
-For details on how to configure this, see docs/src/how-to/install/configuration-options.rst
