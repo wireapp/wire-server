@@ -627,11 +627,13 @@ changeEmail u email allowScim = do
       -- The user already has an email address and the new one is exactly the same
       pure ChangeEmailIdempotent
     else do
-      unless
-        ( userManagedBy usr /= ManagedByScim
-            || allowScim == AllowSCIMUpdates
-        )
-        $ throwE EmailManagedByScim
+      -- case 2: No or different old email address
+      let changeAllowed =
+            userManagedBy usr /= ManagedByScim
+              || allowScim == AllowSCIMUpdates
+      unless changeAllowed $
+        throwE EmailManagedByScim
+
       timeout <- setActivationTimeout <$> view settings
       act <- lift . wrapClient $ Data.newActivation eky timeout (Just u)
       pure $ ChangeEmailNeedsActivation (usr, act, eml)
