@@ -162,8 +162,9 @@ newAccount u inv tid mbHandle = do
 newAccountInviteViaScim :: (MonadClient m, MonadReader Env m) => UserId -> TeamId -> Maybe Locale -> Name -> Email -> m UserAccount
 newAccountInviteViaScim uid tid locale name email = do
   defLoc <- setDefaultUserLocale <$> view settings
+  let loc = fromMaybe defLoc locale
   domain <- viewFederationDomain
-  pure (UserAccount (user domain (fromMaybe defLoc locale)) PendingInvitation)
+  pure (UserAccount (user domain loc) PendingInvitation)
   where
     user domain loc =
       User

@@ -325,7 +325,8 @@ data ValidScimUser = ValidScimUser
     _vsuHandle :: Handle,
     _vsuName :: BT.Name,
     _vsuRichInfo :: RI.RichInfo,
-    _vsuActive :: Bool
+    _vsuActive :: Bool,
+    _vsuLocale :: Maybe Locale
   }
   deriving (Eq, Show)
 

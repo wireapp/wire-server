@@ -43,7 +43,7 @@ where
 
 import Brig.Types.Common (parseEmail)
 import Brig.Types.Intra (AccountStatus, UserAccount (accountStatus, accountUser))
-import Brig.Types.User (ManagedBy (..), Name (..), User (..))
+import Brig.Types.User (Locale (..), ManagedBy (..), Name (..), User (..))
 import qualified Brig.Types.User as BT
 import qualified Control.Applicative as Applicative (empty)
 import Control.Lens (view, (^.))
@@ -95,7 +95,7 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
-import Wire.API.User (Email)
+import Wire.API.User (Email, parseLanguage)
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.RichInfo as RI
 import Wire.API.User.Saml (Opts, derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
@@ -271,7 +271,8 @@ validateScimUser' errloc midp richInfoLimit user = do
     either err pure $ Brig.mkUserName (Scim.displayName user) veid
   richInfo <- validateRichInfo (Scim.extra user ^. ST.sueRichInfo)
   let active = Scim.active user
-  pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active)
+  lang <- maybe (error "Could not parse language. Expected format is ISO 639-1.") pure $ mapM parseLanguage $ Scim.preferredLanguage user
+  pure $ ST.ValidScimUser veid handl uname richInfo (maybe True Scim.unScimBool active) (flip Locale Nothing <$> lang)
   where
     -- Validate rich info (@richInfo@). It must not exceed the rich info limit.
     validateRichInfo :: RI.RichInfo -> m RI.RichInfo
@@ -367,7 +368,7 @@ logEmail email =
   Log.field "email_sha256" (sha256String . cs . show $ email)
 
 logVSU :: ST.ValidScimUser -> (Msg -> Msg)
-logVSU (ST.ValidScimUser veid handl _name _richInfo _active) =
+logVSU (ST.ValidScimUser veid handl _name _richInfo _active _lang) =
   maybe id logEmail (veidEmail veid)
     . logHandle handl
 
@@ -422,7 +423,7 @@ createValidScimUser ::
   ScimTokenInfo ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
-createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl name richInfo _) =
+createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid handl name richInfo _active language) =
   logScim
     ( logFunction "Spar.Scim.User.createValidScimUser"
         . logVSU vsu
@@ -451,7 +452,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
                     BrigAccess.createSAML uref uid stiTeam name ManagedByScim
               )
               ( \email ->
-                  BrigAccess.createNoSAML email stiTeam name
+                  BrigAccess.createNoSAML email stiTeam name language
               )
               veid
 
@@ -872,6 +873,7 @@ synthesizeStoredUser usr veid =
           createdAt
           lastUpdatedAt
           baseuri
+          (userLocale (accountUser usr))
       lift $ writeState accessTimes (userManagedBy (accountUser usr)) richInfo storedUser
       pure storedUser
 
@@ -885,8 +887,9 @@ synthesizeStoredUser' ::
   UTCTimeMillis ->
   UTCTimeMillis ->
   URIBS.URI ->
+  Locale ->
   MonadError Scim.ScimError m => m (Scim.StoredUser ST.SparTag)
-synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpdatedAt baseuri = do
+synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpdatedAt baseuri locale = do
   let scimUser :: Scim.User ST.SparTag
       scimUser =
         synthesizeScimUser
@@ -897,7 +900,8 @@ synthesizeStoredUser' uid veid dname handle richInfo accStatus createdAt lastUpd
                                         redundantly, without the 'Maybe'. -},
               ST._vsuName = dname,
               ST._vsuRichInfo = richInfo,
-              ST._vsuActive = ST.scimActiveFlagFromAccountStatus accStatus
+              ST._vsuActive = ST.scimActiveFlagFromAccountStatus accStatus,
+              ST._vsuLocale = Just locale
             }
 
   pure $ toScimStoredUser' createdAt lastUpdatedAt baseuri uid (normalizeLikeStored scimUser)
