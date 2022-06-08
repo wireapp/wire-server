@@ -68,7 +68,7 @@ octet :: Parser Word16
 octet = do
   x <- decimal
   guard (0 <= x && x < 256)
-  return x
+  pure x
 
 showIPv4Text :: IPv4 -> Text
 showIPv4Text (IPv4 ip) =

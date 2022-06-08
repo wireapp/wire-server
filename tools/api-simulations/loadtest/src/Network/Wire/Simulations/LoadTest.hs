@@ -68,7 +68,7 @@ runLoadTest s =
           (conversationMinPassiveMembers s)
           (conversationMaxPassiveMembers s)
       -- since we use 'cachedBot' here, all returned accounts will be distinct
-      return
+      pure
         ( [cachedBot (fromString ("bot" <> show i)) | i <- [1 .. active]],
           [cachedBot (fromString ("passiveBot" <> show i)) | i <- [1 .. passive]]
         )
@@ -101,7 +101,7 @@ runConv s g = do
       otherClients <- for [1 .. nClients - 1] $ \i -> do
         let label = "client-" <> Text.pack (show i) <> "-" <> UUID.toText uniq
         addBotClient b PermanentClientType (Just label)
-      return $! BotState mainClient otherClients conv bots nmsg nast
+      pure $! BotState mainClient otherClients conv bots nmsg nast
   -- Run -----------------------------
   log Info $ msg $ val "Running"
   pooledForConcurrentlyN_ (parallelRequests s) (zip bots states) $ \(b, st) ->
@@ -124,15 +124,15 @@ runConv s g = do
     drainBot b
 
 runBot :: LoadTestSettings -> BotState -> BotSession ()
-runBot _ BotState {..} | done = return ()
+runBot _ BotState {..} | done = pure ()
   where
     done = messagesLeft <= 0 && assetsLeft <= 0
 runBot ls s@BotState {..} = do
   liftIO . threadDelay $ stepDelay ls
   runBot ls
     =<< if messagesLeft >= assetsLeft
-      then postMsg >> return s {messagesLeft = messagesLeft - 1}
-      else postAst >> return s {assetsLeft = assetsLeft - 1}
+      then postMsg >> pure s {messagesLeft = messagesLeft - 1}
+      else postAst >> pure s {assetsLeft = assetsLeft - 1}
   where
     postMsg = do
       self <- getBot
@@ -178,10 +178,10 @@ runBot ls s@BotState {..} = do
               assertEqual plainData' (Just plainData) "OTR asset plaintext mismatch"
     mkMsg = do
       l <- between (messageMinLength ls) (messageMaxLength ls)
-      return $ Text.replicate l "A"
+      pure $ Text.replicate l "A"
     mkAst = do
       l <- between (assetMinSize ls) (assetMaxSize ls)
-      return $ BS.replicate (fromIntegral l) 42
+      pure $ BS.replicate (fromIntegral l) 42
 
 data BotState = BotState
   { botClient :: !BotClient, -- "main" client (sends messages, etc)

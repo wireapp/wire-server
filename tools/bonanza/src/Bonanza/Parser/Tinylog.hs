@@ -66,7 +66,7 @@ tinyLogRecord = tinyLogRecordNetstr <|> tinyLogRecordLegacy <|> tinyLogCatchAll
 tinyLogCatchAll :: Parser TinyLogRecord
 tinyLogCatchAll = do
   ms <- T.strip . toText <$> takeTill (== '\n')
-  return
+  pure
     TinyLogRecord
       { tDate = Nothing,
         tLevel = 'T',
@@ -79,7 +79,7 @@ tinyLogRecordLegacy = do
   dt <- optional date
   lv <- tinyLevel
   fs <- tinyFields <* (endOfLine <|> endOfInput)
-  return
+  pure
     TinyLogRecord
       { tDate = dt,
         tLevel = lv,
@@ -92,7 +92,7 @@ tinyLogRecordNetstr = do
   dt <- optional dateNetstr
   lv <- tinyLevelNetstr
   fs <- tinyFieldsNetstr <* (endOfLine <|> endOfInput)
-  return
+  pure
     TinyLogRecord
       { tDate = dt,
         tLevel = lv,

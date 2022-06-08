@@ -55,7 +55,7 @@ decodeLengthPrefixedMessage = do
   bs <- getBytes $ fromIntegral (len :: Int64)
   case runGetState decodeMessage bs 0 of
     Right (a, bs')
-      | BS.null bs' -> return (Decoded a)
-      | otherwise -> return (Truncated a)
+      | BS.null bs' -> pure (Decoded a)
+      | otherwise -> pure (Truncated a)
     Left e -> fail e
 {-# INLINE decodeLengthPrefixedMessage #-}

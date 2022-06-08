@@ -105,7 +105,7 @@ commonLogRecord moreFieldParsers = do
   time <- commonLogDate <* ws
   req <- dq *> request <* dq <* ws
   flds <- mapM (uncurry parseField) fields
-  return
+  pure
     CommonLogRecord
       { cTime = time,
         cFields =
@@ -127,7 +127,7 @@ commonLogRecord moreFieldParsers = do
     parseField name parser = do
       v <- optional parser
       _ <- skipHSpace
-      return $ maybe (name, CEmpty) (name,) v
+      pure $ maybe (name, CEmpty) (name,) v
 
 field :: Parser TagValue -> Parser CommonLogField
 field p = emptyField <|> (go <?> "field")
@@ -177,7 +177,7 @@ request = do
   p <- takeWhile1 (\c -> c /= '?' && c /= ' ')
   q <- optional $ char '?' *> takeWhile1 (/= ' ')
   _ <- skipSpace *> string "HTTP/1." *> choice [char '0', char '1']
-  return $ HttpRequest m (toText p) (fmap toText q)
+  pure $ HttpRequest m (toText p) (fmap toText q)
 
 method :: Parser StdMethod
 method = takeWhile1 isUpper >>= either (fail . unpack) pure . parseMethod

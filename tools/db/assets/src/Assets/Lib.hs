@@ -148,7 +148,7 @@ instance Cql AssetText where
     t <- required "typ"
     k <- required "key"
     case (t :: Int32) of
-      0 -> return $! ImageAssetText k
+      0 -> pure $! ImageAssetText k
       _ -> Left $ "unexpected user asset type: " ++ show t
     where
       required :: Cql r => Text -> Either String r

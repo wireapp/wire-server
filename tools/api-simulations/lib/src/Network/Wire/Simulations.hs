@@ -83,7 +83,7 @@ prepareConv (a : bs) = do
   conv <- qUnqualified . cnvQualifiedId <$> runBotSession a (createConv bIds Nothing)
   lconv <- qualifyLocal conv
   assertConvCreated lconv a bs
-  return conv
+  pure conv
 
 -- | Make sure that there is a connection between two bots.
 connectIfNeeded :: Bot -> Bot -> BotNet ()
@@ -93,7 +93,7 @@ connectIfNeeded = go 6 -- six turns should be enough
     -- (first one side takes a step towards a connection, then another,
     -- etc). If we make more than N turns, we give up.
     go :: Int -> Bot -> Bot -> BotNet ()
-    go 0 _ _ = return ()
+    go 0 _ _ = pure ()
     go n a b = do
       connected <- runBotSession a $ do
         s <- fmap ucStatus <$> getConnection (botId b)
@@ -102,16 +102,16 @@ connectIfNeeded = go 6 -- six turns should be enough
           Nothing -> do
             void $ connectTo (ConnectionRequest (botId b) (unsafeRange (fromMaybe "" (botEmail a))))
             assertConnectRequested a b
-            return False
+            pure False
           -- If there's a pending connection to us: accept it
           Just Pending -> do
             void $ updateConnection (botId b) (ConnectionUpdate Accepted)
             assertConnectAccepted a b
-            return True
+            pure True
           -- If we have sent a request, we can't do anything
-          Just Sent -> return False
+          Just Sent -> pure False
           -- In case of any other status, we pretend it's good
-          _ -> return True
+          _ -> pure True
       unless connected (go (n - 1) b a)
 
 --------------------------------------------------------------------------------
@@ -133,7 +133,7 @@ instance Serialize BotMessage where
         bs <- remaining >>= getByteString
         either
           (fail . show)
-          (return . BotTextMessage)
+          (pure . BotTextMessage)
           (Text.decodeUtf8' bs)
       2 -> BotAssetMessage <$> get
       _ -> fail $ "Unexpected message type: " ++ show t
@@ -161,17 +161,17 @@ instance Serialize AssetInfo where
     k <-
       maybe
         (fail "Invalid asset key")
-        return
+        pure
         (fromByteString kbs)
     tlen <- getWord16be
     t <-
       if tlen == 0
-        then return Nothing
+        then pure Nothing
         else do
           tbs <- getByteString (fromIntegral tlen)
           maybe
             (fail "Invalid asset token")
-            (return . Just)
+            (pure . Just)
             (fromByteString tbs)
     AssetInfo k t <$> get
 
@@ -188,14 +188,14 @@ requireAssetMsg :: MonadThrow m => ByteString -> m AssetInfo
 requireAssetMsg bs = do
   m <- requireMessage bs
   case m of
-    BotAssetMessage info -> return info
+    BotAssetMessage info -> pure info
     x -> throwM $ RequirementFailed ("Unexpected message: " <> Text.pack (show x))
 
 requireTextMsg :: MonadThrow m => ByteString -> m Text
 requireTextMsg bs = do
   m <- requireMessage bs
   case m of
-    BotTextMessage t -> return t
+    BotTextMessage t -> pure t
     x -> throwM $ RequirementFailed ("Unexpected message: " <> Text.pack (show x))
 
 requireMessage :: MonadThrow m => ByteString -> m BotMessage

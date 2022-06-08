@@ -224,7 +224,7 @@ data SocketStats = SocketStats
 getSocketStats :: Word16 -> IO (Maybe SocketStats)
 getSocketStats port = do
   pnu <- Text.readFile "/proc/net/udp"
-  return
+  pure
     . find ((== port) . lPort)
     . map (mk . Text.words)
     . drop 1
@@ -245,7 +245,7 @@ getAppStats lgr addr sock = fmap mconcat . for cmds $ \cmd -> do
   sendAllTo sock cmd addr
   (reply, _) <- recvFrom sock 1024
   Log.trace lgr $ msg (ByteString.intercalate "\n" (ByteString.lines reply))
-  return $
+  pure $
     parseAppStats reply
   where
     cmds = ["stat", "turnstats", "turnreply", "tcpstats", "authstats"]
