@@ -57,7 +57,7 @@ spec:
           mountPath: /opt/zwagger-ui
           readOnly: true
         - name: swagger-resources
-          mountPath: {{ .Values.nginx_conf.swagger_root }}
+          mountPath: {{ .Values.nginx_conf.swagger_root }}/api-docs
         ports:
         - name: http
           containerPort: {{ .Values.config.http.httpPort }}
