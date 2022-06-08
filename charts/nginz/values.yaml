@@ -135,7 +135,28 @@ nginx_conf:
       disable_zauth: true
       envs:
       - all
-    - path: /self
+    - path: /self$ # Matches exactly /self
+      envs:
+      - all
+    - path: /self/name
+      envs:
+      - all
+    - path: /self/email
+      envs:
+      - all
+    - path: /self/phone
+      envs:
+      - all
+    - path: /self/password
+      envs:
+      - all
+    - path: /self/locale
+      envs:
+      - all
+    - path: /self/handle
+      envs:
+      - all
+    - path: /self/searchable
       envs:
       - all
     - path: /connections
@@ -507,9 +528,13 @@ nginx_conf:
       versioned: false
       strip_version: true
     - path: /self/consent
+      envs:
+      - all
       versioned: false
       strip_version: true
     - path: /signature
+      envs:
+      - all
       versioned: false
       specific_user_rate_limit: reqs_per_user_signatures
       strip_version: true
