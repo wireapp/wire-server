@@ -551,7 +551,7 @@ whenAsserts ma = liftBotNet $ do
 -- | Wait for the Bot's assertion queue to become empty.
 awaitAssertions :: MonadBotNet m => Bot -> m ()
 awaitAssertions bot = whenAsserts $ do
-  n <- liftIO . atomically $ readTVar (botAssertCount bot)
+  n <- liftIO (readTVarIO (botAssertCount bot))
   unless (n <= 0) $ do
     liftIO $ threadDelay 1000000
     awaitAssertions bot

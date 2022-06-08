@@ -2,7 +2,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StandaloneDeriving #-}
+
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -101,7 +101,8 @@ fetchMessage url label callback = do
 
 parseDeleteMessage :: (Monad m, Message a, MonadIO m, MonadReader AWS.Env m, MonadResource m) => Text -> SQS.Message -> m (Maybe a)
 parseDeleteMessage url m = do
-  evt <- case (>>= decodeMessage) . B64.decode . Text.encodeUtf8 <$> (m ^. SQS.message_body) of
+  let decodedMessage = decodeMessage <=< (B64.decode . Text.encodeUtf8)
+  evt <- case decodedMessage <$> (m ^. SQS.message_body) of
     Just (Right e) -> return (Just e)
     _ -> do
       liftIO $ print ("Failed to parse SQS message or event" :: String)

@@ -803,7 +803,7 @@ type MLSKeyPackageAPI =
                :> ReqBody '[JSON] KeyPackageUpload
                :> MultiVerb 'POST '[JSON, MLS] '[RespondEmpty 201 "Key packages uploaded"] ()
            )
-           :<|> ( Named
+           :<|> Named
                     "mls-key-packages-claim"
                     ( "claim"
                         :> Summary "Claim one key package for each client of the given user"
@@ -817,8 +817,7 @@ type MLSKeyPackageAPI =
                              ClientId
                         :> MultiVerb1 'POST '[JSON] (Respond 200 "Claimed key packages" KeyPackageBundle)
                     )
-                )
-           :<|> ( Named
+           :<|> Named
                     "mls-key-packages-count"
                     ( "self"
                         :> CaptureClientId "client"
@@ -826,7 +825,6 @@ type MLSKeyPackageAPI =
                         :> Summary "Return the number of unused key packages for the given client"
                         :> MultiVerb1 'GET '[JSON] (Respond 200 "Number of key packages" KeyPackageCount)
                     )
-                )
        )
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)

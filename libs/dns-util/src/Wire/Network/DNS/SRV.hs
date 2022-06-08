@@ -129,10 +129,10 @@ orderSrvResult =
       -- than or equal to the random number.
       let (beginning, (firstSrv, _), end) =
             case break (\(_, running) -> randomNumber <= running) sublistWithRunning of
-              (b, (c : e)) -> (b, c, e)
+              (b, c : e) -> (b, c, e)
               _ -> error "orderSrvResult: no record with running sum greater than random number"
       -- Remove the running total number from the remaining elements.
-      let remainingSrvs = map fst (concat [beginning, end])
+      let remainingSrvs = map fst (beginning ++ end)
       -- Repeat the ordering procedure on the remaining elements.
       rest <- orderSublist remainingSrvs
       return $ firstSrv : rest

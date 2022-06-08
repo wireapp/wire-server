@@ -50,7 +50,7 @@ instance FromByteString AWSEndpoint where
       "https" -> return True
       "http" -> return False
       x -> fail ("Unsupported scheme: " ++ show x)
-    host <- case (url ^. authorityL <&> view (authorityHostL . hostBSL)) of
+    host <- case url ^. authorityL <&> view (authorityHostL . hostBSL) of
       Just h -> return h
       Nothing -> fail ("No host in: " ++ show url)
     port <- case urlPort url of
@@ -109,7 +109,7 @@ loadSecret (FilePathSecrets p) = do
   path <- canonicalizePath p
   exists <- doesFileExist path
   if exists
-    then return . over _Left show . decodeEither' =<< BS.readFile path
+    then over _Left show . decodeEither' <$> BS.readFile path
     else return (Left "File doesn't exist")
 
 getOptions ::

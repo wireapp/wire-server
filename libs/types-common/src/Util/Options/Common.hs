@@ -1,6 +1,6 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
+
+
+
 
 -- This file is part of the Wire Server implementation.
 --
@@ -50,7 +50,7 @@ toOptionFieldName = defaultOptions {fieldLabelModifier = lowerFirst . dropPrefix
     dropPrefix :: String -> String
     dropPrefix = dropWhile (not . isUpper)
 
-optOrEnv :: (a -> b) -> (Maybe a) -> (String -> b) -> String -> IO b
+optOrEnv :: (a -> b) -> Maybe a -> (String -> b) -> String -> IO b
 optOrEnv getter conf reader var = case conf of
   Nothing -> reader <$> getEnv var
   Just c -> pure $ getter c

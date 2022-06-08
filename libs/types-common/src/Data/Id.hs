@@ -85,6 +85,7 @@ import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
+import Data.Bifunctor (first)
 
 data IdTag = A | C | I | U | P | S | T | STo
 
@@ -173,7 +174,7 @@ instance Show (Id a) where
   show = UUID.toString . toUUID
 
 instance Read (Id a) where
-  readsPrec n = map (\(a, x) -> (Id a, x)) . readsPrec n
+  readsPrec n = map (first Id) . readsPrec n
 
 instance FromByteString (Id a) where
   parser = do
@@ -339,7 +340,7 @@ instance Show BotId where
   show = show . botUserId
 
 instance Read BotId where
-  readsPrec n = map (\(a, x) -> (BotId a, x)) . readsPrec n
+  readsPrec n = map (first BotId) . readsPrec n
 
 deriving instance Cql BotId
 

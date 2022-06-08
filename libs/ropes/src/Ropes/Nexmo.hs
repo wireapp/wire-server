@@ -2,7 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns #-}
+
 
 -- This file is part of the Wire Server implementation.
 --
@@ -154,7 +154,7 @@ instance FromJSON Charset where
   parseJSON "text" = return GSM7
   parseJSON "binary" = return GSM8
   parseJSON "unicode" = return UCS2
-  parseJSON x = fail $ "Unsupported charset " <> (show x)
+  parseJSON x = fail $ "Unsupported charset " <> show x
 
 instance ToJSON Charset where
   toJSON GSM7 = "text"

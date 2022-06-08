@@ -270,7 +270,7 @@ http ::
   (Request -> Request) ->
   (Response BodyReader -> IO a) ->
   m a
-http r f h = handleRequestWithCont (f r) h
+http r f = handleRequestWithCont (f r)
 
 httpDebug ::
   (MonadIO m, MonadHttp m) =>
@@ -289,7 +289,7 @@ httpDebug debug r f h = do
     consumeBody >=> \rsp -> do
       if debug > Head
         then putStrLn (showResponse rsp)
-        else putStrLn (showResponse $ rsp {responseBody = ("" :: String)})
+        else putStrLn (showResponse $ rsp {responseBody = "" :: String})
       putStrLn "--"
       h rsp
 

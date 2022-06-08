@@ -130,7 +130,7 @@ versionCheck v = do
       "Schema Version too old! Expecting at least: "
         <> show v
         <> ", but got: "
-        <> fromMaybe "" (show <$> v')
+        <> maybe "" show v'
 
 createKeyspace :: Keyspace -> ReplicationStrategy -> Client ()
 createKeyspace (Keyspace k) rs = void $ schema (cql rs) (params All ())
@@ -276,19 +276,17 @@ migrationPolicy = do
 migrationOptsParser :: Parser MigrationOpts
 migrationOptsParser =
   MigrationOpts
-    <$> ( strOption $
+    <$> strOption (
             long "host"
               <> metavar "HOST"
               <> value "localhost"
-              <> help "Cassandra host"
-        )
-    <*> ( option auto $
+              <> help "Cassandra host")
+    <*> option auto (
             long "port"
               <> metavar "PORT"
               <> value 9042
-              <> help "Cassandra port"
-        )
-    <*> ( (fmap pack) . strOption $
+              <> help "Cassandra port")
+    <*> ( fmap pack . strOption $
             long "keyspace"
               <> metavar "STRING"
               <> help "Cassandra Keyspace"
@@ -304,7 +302,6 @@ migrationOptsParser =
                       <> help "Replication Map (i.e. \"eu-west:3,us-east:3\")"
                 )
         )
-    <*> ( switch $
+    <*> switch (
             long "reset"
-              <> help "Reset the keyspace before running migrations"
-        )
+              <> help "Reset the keyspace before running migrations")

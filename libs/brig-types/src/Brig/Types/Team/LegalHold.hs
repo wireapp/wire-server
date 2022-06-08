@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 {-# LANGUAGE OverloadedStrings #-}
 
 -- This file is part of the Wire Server implementation.
@@ -80,7 +80,7 @@ instance FromJSON LegalHoldService where
       <*> o .: "public_key"
 
 legalHoldService :: TeamId -> Fingerprint Rsa -> NewLegalHoldService -> ServiceKey -> LegalHoldService
-legalHoldService tid fpr (NewLegalHoldService u _ t) k = LegalHoldService tid u fpr t k
+legalHoldService tid fpr (NewLegalHoldService u _ t) = LegalHoldService tid u fpr t
 
 viewLegalHoldService :: LegalHoldService -> ViewLegalHoldService
 viewLegalHoldService (LegalHoldService tid u fpr t k) =

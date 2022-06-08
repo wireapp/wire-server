@@ -236,7 +236,7 @@ mkToken :: Signature -> Header -> a -> Token a
 mkToken = Token
 
 mkHeader :: Int -> Int -> Integer -> Type -> Maybe Tag -> Header
-mkHeader v k d t g = Header v k d t g
+mkHeader = Header
 
 mkAccess :: UUID -> Word64 -> Access
 mkAccess = Access

@@ -496,8 +496,7 @@ genRangeAsciiText ::
   (HasCallStack, KnownNat n, KnownNat m, LTE n m, AsciiChars c) =>
   Gen (AsciiChar c) ->
   Gen (Range n m (AsciiText c))
-genRangeAsciiText gc =
-  genRange @n @m fromAsciiChars gc
+genRangeAsciiText = genRange @n @m fromAsciiChars
 
 genRange ::
   forall (n :: Nat) (m :: Nat) (a :: *) (b :: *).

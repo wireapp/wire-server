@@ -147,7 +147,7 @@ usersFileOption =
         \ containing a list of ALREADY EXISTING users with the columns: \
         \ User-Id,Email,Password"
 
-usersFederationDomain :: Parser (Domain)
+usersFederationDomain :: Parser Domain
 usersFederationDomain =
   domainOption $
     long "users-federation-domain"

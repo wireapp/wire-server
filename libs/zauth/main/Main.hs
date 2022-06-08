@@ -102,14 +102,14 @@ go CreateAccess o = do
 go CreateBot o = do
   when (length (o ^. dat) /= 3) $
     error "invalid --data, must have 3 elements"
-  let p = uuid $ (o ^. dat) !! 0
+  let p = uuid $ head (o ^. dat)
       b = uuid $ (o ^. dat) !! 1
       c = uuid $ (o ^. dat) !! 2
   runCreate' o $ toByteString <$> botToken p b c
 go CreateProvider o = do
   when (length (o ^. dat) /= 1) $
     error "missing --data"
-  let p = uuid $ (o ^. dat) !! 0
+  let p = uuid $ head (o ^. dat)
   runCreate' o $ toByteString <$> providerToken (o ^. dur) p
 go GenKeyPair _ = do
   (p, s) <- newKeyPair

@@ -149,9 +149,8 @@ netStringsToLogFormat False = Plain
 mkLogger :: Log.Level -> Maybe (Last Bool) -> Maybe (Last LogFormat) -> IO Log.Logger
 mkLogger lvl useNetstrings logFormat = do
   mkLoggerNew lvl $
-    case (fmap netStringsToLogFormat <$> useNetstrings) <> logFormat of
-      Just x -> getLast x
-      Nothing -> Plain
+    maybe Plain getLast
+      ((fmap netStringsToLogFormat <$> useNetstrings) <> logFormat)
 
 -- | Version of mkLogger that doesn't support the deprecated useNetstrings option
 mkLoggerNew :: Log.Level -> LogFormat -> IO Log.Logger

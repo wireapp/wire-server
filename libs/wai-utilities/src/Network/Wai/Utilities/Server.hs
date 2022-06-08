@@ -284,7 +284,7 @@ emitLByteString lbs = do
 rethrow5xx :: Logger -> Middleware
 rethrow5xx logger app req k = app req k'
   where
-    k' resp@(WaiInt.ResponseRaw {}) = do
+    k' resp@WaiInt.ResponseRaw {} = do
       -- See Note [Raw Response]
       let logMsg =
             field "canoncalpath" (show $ pathInfo req)
@@ -362,7 +362,7 @@ logErrorMsg :: Wai.Error -> Msg -> Msg
 logErrorMsg (Wai.Error c l m md) =
   field "code" (statusCode c)
     . field "label" l
-    . fromMaybe id (fmap logErrorData md)
+    . maybe id logErrorData md
     . msg (val "\"" +++ m +++ val "\"")
   where
     logErrorData (Wai.FederationErrorData d p) =

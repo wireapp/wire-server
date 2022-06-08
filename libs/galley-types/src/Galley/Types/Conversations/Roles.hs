@@ -53,7 +53,7 @@ isActionAllowed action rn
 
 -- | Custom RoleNames _must not_ start with `wire_`
 isCustomRoleName :: RoleName -> Bool
-isCustomRoleName (fromRoleName -> r) = isValidRoleName r && (not $ "wire_" `T.isPrefixOf` r)
+isCustomRoleName (fromRoleName -> r) = isValidRoleName r && not ("wire_" `T.isPrefixOf` r)
 
 roleNameToActions :: RoleName -> Maybe (Set Action)
 roleNameToActions r = roleActions <$> toConvRole r Nothing

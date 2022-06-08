@@ -79,7 +79,7 @@ instance ToJSON Error where
         "label" .= l,
         "message" .= m
       ]
-        ++ fromMaybe [] (fmap dataFields md)
+        ++ maybe [] dataFields md
     where
       dataFields :: ErrorData -> [Pair]
       dataFields d = ["data" .= d]

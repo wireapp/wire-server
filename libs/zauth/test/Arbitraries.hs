@@ -74,7 +74,7 @@ instance Arbitrary LegalHoldUser where
   arbitrary = mkLegalHoldUser <$> arbitrary <*> arbitrary
 
 instance Arbitrary ByteString where
-  arbitrary = fromString <$> arbitrary `suchThat` (not . any (== '.'))
+  arbitrary = fromString <$> arbitrary `suchThat` notElem '.'
 
 instance Arbitrary Signature where
   arbitrary = Signature <$> arbitrary
