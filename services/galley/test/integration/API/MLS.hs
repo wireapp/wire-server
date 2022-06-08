@@ -530,19 +530,22 @@ testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
   galley <- viewGalley
   cannon <- view tsCannon
 
-  WS.bracketRN cannon (qUnqualified . pUserId <$> users) $ \wss -> do
-    post
-      ( galley . paths ["mls", "messages"]
-          . zUser (qUnqualified (pUserId creator))
-          . zConn "conn"
-          . content "message/mls"
-          . bytes message
-      )
-      !!! const 201
-      === statusCode
+  WS.bracketRN
+    cannon
+    (map (qUnqualified . pUserId) (creator : users))
+    $ \wss -> do
+      post
+        ( galley . paths ["mls", "messages"]
+            . zUser (qUnqualified (pUserId creator))
+            . zConn "conn"
+            . content "message/mls"
+            . bytes message
+        )
+        !!! const 201
+        === statusCode
 
-    -- check that the corresponding event is received
+      -- check that the corresponding event is received
 
-    liftIO $
-      WS.assertMatchN_ (5 # WS.Second) wss $
-        wsAssertMLSMessage conversation (pUserId creator) message
+      liftIO $
+        WS.assertMatchN_ (5 # WS.Second) wss $
+          wsAssertMLSMessage conversation (pUserId creator) message
