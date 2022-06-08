@@ -100,6 +100,10 @@ nginx_conf:
       - all
       max_body_size: "0"
       disable_request_buffering: true
+    - path: /assets/api-docs$
+      envs:
+      - staging
+      disable_zauth: true
     - path: /assets
       envs:
       - all
@@ -123,6 +127,10 @@ nginx_conf:
       - all
       disable_zauth: true
       unlimited_requests_endpoint: true
+    - path: /users/api-docs$
+      envs:
+      - staging
+      disable_zauth: true
     - path: /users
       envs:
       - all
@@ -357,6 +365,10 @@ nginx_conf:
       disable_zauth: true
       envs:
       - all
+    - path: /conversations/api-docs$
+      envs:
+      - staging
+      disable_zauth: true
     - path: /conversations/([^/]*)/otr/messages
       envs:
       - all
@@ -463,6 +475,10 @@ nginx_conf:
       envs:
       - all
     gundeck:
+    - path: /push/api-docs$
+      envs:
+      - staging
+      disable_zauth: true
     - path: /push
       envs:
       - all
