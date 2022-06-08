@@ -288,12 +288,6 @@ nginx_conf:
       disable_zauth: true
       basic_auth: true
       versioned: false
-    - path: /i/legalhold/whitelisted-teams(.*)
-      envs:
-        - staging
-      disable_zauth: true
-      basic_auth: true
-      versioned: false
     - path: /cookies
       envs:
       - all
@@ -417,6 +411,12 @@ nginx_conf:
       basic_auth: true
       envs:
       - staging
+      versioned: false
+    - path: /i/legalhold/whitelisted-teams(.*)
+      envs:
+        - staging
+      disable_zauth: true
+      basic_auth: true
       versioned: false
     - path: /teams/api-docs
       envs:
