@@ -607,23 +607,19 @@ changeSelfEmail u email allowScim = do
 -- | Prepare changing the email (checking a number of invariants).
 changeEmail :: UserId -> Email -> AllowSCIMUpdates -> ExceptT ChangeEmailError (AppT r) ChangeEmailResult
 changeEmail u email allowScim = do
-  em <-
-    either
-      (throwE . InvalidNewEmail email)
-      pure
-      (validateEmail email)
-  let ek = userEmailKey em
-  blacklisted <- lift . wrapClient $ Blacklist.exists ek
+  eml <- either (throwE . InvalidNewEmail email) pure (validateEmail email)
+  let eky = userEmailKey eml
+  blacklisted <- lift . wrapClient $ Blacklist.exists eky
   when blacklisted $
     throwE (ChangeBlacklistedEmail email)
-  available <- lift . wrapClient $ Data.keyAvailable ek (Just u)
+  available <- lift . wrapClient $ Data.keyAvailable eky (Just u)
   unless available $
     throwE $
       EmailExists email
   usr <- maybe (throwM $ UserProfileNotFound u) pure =<< lift (wrapClient $ Data.lookupUser WithPendingInvitations u)
   case emailIdentity =<< userIdentity usr of
     -- The user already has an email address and the new one is exactly the same
-    Just current | current == em -> pure ChangeEmailIdempotent
+    Just current | current == eml -> pure ChangeEmailIdempotent
     _ -> do
       unless
         ( userManagedBy usr /= ManagedByScim
@@ -631,8 +627,8 @@ changeEmail u email allowScim = do
         )
         $ throwE EmailManagedByScim
       timeout <- setActivationTimeout <$> view settings
-      act <- lift . wrapClient $ Data.newActivation ek timeout (Just u)
-      pure $ ChangeEmailNeedsActivation (usr, act, em)
+      act <- lift . wrapClient $ Data.newActivation eky timeout (Just u)
+      pure $ ChangeEmailNeedsActivation (usr, act, eml)
 
 -------------------------------------------------------------------------------
 -- Change Phone
