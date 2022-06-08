@@ -25,6 +25,7 @@ module Wire.API.Team.Feature
     TeamFeatureSelfDeletingMessagesConfig (..),
     TeamFeatureClassifiedDomainsConfig (..),
     TeamFeatureStatusValue (..),
+    TeamFeatureTTLValue (..),
     FeatureHasNoConfig,
     EnforceAppLock (..),
     KnownTeamFeatureName (..),
@@ -42,6 +43,7 @@ module Wire.API.Team.Feature
     -- * Swagger
     typeTeamFeatureName,
     typeTeamFeatureStatusValue,
+    typeTeamFeatureTTLValue,
     modelTeamFeatureStatusNoConfig,
     modelTeamFeatureStatusWithConfig,
     modelTeamFeatureAppLockConfig,
@@ -66,10 +68,11 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.Lazy as TL
 import Deriving.Aeson
 import GHC.TypeLits (Symbol)
 import Imports
-import Servant (FromHttpApiData (..))
+import Servant (FromHttpApiData (..), Proxy (..), ToHttpApiData (..))
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
@@ -256,6 +259,60 @@ instance HasDeprecatedFeatureName 'TeamFeatureDigitalSignatures where
 
 typeTeamFeatureName :: Doc.DataType
 typeTeamFeatureName = Doc.string . Doc.enum $ cs . toByteString' <$> [(minBound :: TeamFeatureName) ..]
+
+----------------------------------------------------------------------
+-- TeamFeatureTTLValue
+
+-- Using Word to avoid dealing with negative numbers.
+-- Ideally we would also not support zero.
+-- Currently a TTL=0 is ignored on the cassandra side.
+data TeamFeatureTTLValue
+  = TeamFeatureTTLSeconds Word
+  | TeamFeatureTTLUnlimited
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamFeatureTTLValue)
+
+instance ToHttpApiData TeamFeatureTTLValue where
+  toQueryParam = T.decodeUtf8 . toByteString'
+
+instance FromHttpApiData TeamFeatureTTLValue where
+  parseQueryParam = maybeToEither invalidTTLErrorString . fromByteString . T.encodeUtf8
+
+instance S.ToParamSchema TeamFeatureTTLValue where
+  toParamSchema _ = S.toParamSchema (Proxy @Int)
+
+instance ToByteString TeamFeatureTTLValue where
+  builder TeamFeatureTTLUnlimited = "unlimited"
+  builder (TeamFeatureTTLSeconds d) = (builder . TL.pack . show) d
+
+instance FromByteString TeamFeatureTTLValue where
+  parser =
+    Parser.takeByteString >>= \b ->
+      case T.decodeUtf8' b of
+        Right "unlimited" -> pure TeamFeatureTTLUnlimited
+        Right d -> case readEither . T.unpack $ d of
+          Left _ -> fail $ T.unpack invalidTTLErrorString
+          Right d' -> pure . TeamFeatureTTLSeconds $ d'
+        Left _ -> fail $ T.unpack invalidTTLErrorString
+
+instance Cass.Cql TeamFeatureTTLValue where
+  ctype = Cass.Tagged Cass.IntColumn
+
+  -- Passing TTL = 0 to Cassandra removes the TTL.
+  -- It does not instantly revert back.
+  fromCql (Cass.CqlInt 0) = pure TeamFeatureTTLUnlimited
+  fromCql (Cass.CqlInt n) = pure . TeamFeatureTTLSeconds . fromIntegral $ n
+  fromCql _ = Left "fromCql: TTLValue: CqlInt expected"
+
+  toCql TeamFeatureTTLUnlimited = Cass.CqlInt 0
+  toCql (TeamFeatureTTLSeconds d) = Cass.CqlInt . fromIntegral $ d
+
+typeTeamFeatureTTLValue :: Doc.DataType
+typeTeamFeatureTTLValue =
+  Doc.int64'
+
+invalidTTLErrorString :: Text
+invalidTTLErrorString = "Invalid TeamFeatureTTLSeconds: must be a positive integer or 'unlimited.'"
 
 ----------------------------------------------------------------------
 -- TeamFeatureStatusValue

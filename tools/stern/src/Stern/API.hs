@@ -380,6 +380,7 @@ routes = do
     capture "tid"
       .&. capture "feature"
       .&. param "status"
+      .&. def Public.TeamFeatureTTLUnlimited (query "ttl")
   document "PUT" "setTeamFeatureFlag" $ do
     summary "Disable / enable feature flag for a given team"
     Doc.parameter Doc.Path "tid" Doc.bytes' $
@@ -388,6 +389,9 @@ routes = do
       description "Feature name"
     Doc.parameter Doc.Query "status" Public.typeTeamFeatureStatusValue $
       Doc.description "team feature status (enabled or disabled)"
+    Doc.parameter Doc.Query "ttl" Public.typeTeamFeatureTTLValue $ do
+      Doc.description "team feature time to live, given in days or 'unlimited' (default). Only applies to conference calling. It's ignored by other features."
+      Doc.optional
     Doc.response 200 "Team feature flag status" Doc.end
 
   mkFeaturePutGetRoute @'Public.TeamFeatureAppLock
@@ -660,10 +664,10 @@ getTeamFeatureFlagNoConfigH (tid ::: featureName) =
   json <$> Intra.getTeamFeatureFlagNoConfig tid featureName
 
 setTeamFeatureNoConfigFlagH ::
-  TeamId ::: Public.TeamFeatureName ::: Public.TeamFeatureStatusValue ->
+  TeamId ::: Public.TeamFeatureName ::: Public.TeamFeatureStatusValue ::: Public.TeamFeatureTTLValue ->
   Handler Response
-setTeamFeatureNoConfigFlagH (tid ::: featureName ::: statusValue) =
-  json <$> Intra.setTeamFeatureFlagNoConfig tid featureName statusValue
+setTeamFeatureNoConfigFlagH (tid ::: featureName ::: statusValue ::: ttlValue) =
+  json <$> Intra.setTeamFeatureFlagNoConfig tid featureName statusValue ttlValue
 
 setSearchVisibility :: JSON ::: TeamId ::: JsonRequest Team.TeamSearchVisibility -> Handler Response
 setSearchVisibility (_ ::: tid ::: req) = do

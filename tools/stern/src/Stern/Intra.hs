@@ -551,20 +551,29 @@ setTeamFeatureFlagNoConfig ::
   TeamId ->
   Public.TeamFeatureName ->
   Public.TeamFeatureStatusValue ->
+  Public.TeamFeatureTTLValue ->
   Handler ()
-setTeamFeatureFlagNoConfig tid featureName statusValue = do
+setTeamFeatureFlagNoConfig tid featureName statusValue ttlValue = do
   info $ msg "Setting team feature status for feature without config"
   gly <- view galley
   let req =
         method PUT
           . paths ["/i/teams", toByteString' tid, "features", toByteString' featureName]
           . Bilge.json (Public.TeamFeatureStatusNoConfig statusValue)
+          . Bilge.query [("ttl", convert ttlValue)]
           . contentJson
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
     200 -> pure ()
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE $ responseJsonUnsafe resp
+  where
+    convert = Just . toByteString' . fromDays
+    fromMinutes = (* 60)
+    fromHours = fromMinutes . (* 60)
+    fromDays = \case
+      Public.TeamFeatureTTLSeconds s -> Public.TeamFeatureTTLSeconds . fromHours . (* 24) $ s
+      Public.TeamFeatureTTLUnlimited -> Public.TeamFeatureTTLUnlimited
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do
