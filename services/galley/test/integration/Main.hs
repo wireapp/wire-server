@@ -57,12 +57,12 @@ newtype ServiceConfigFile = ServiceConfigFile String
 instance IsOption ServiceConfigFile where
   defaultValue = ServiceConfigFile "/etc/wire/galley/conf/galley.yaml"
   parseValue = fmap ServiceConfigFile . safeRead
-  optionName = return "service-config"
-  optionHelp = return "Service config file to read from"
+  optionName = pure "service-config"
+  optionHelp = pure "Service config file to read from"
   optionCLParser =
     fmap ServiceConfigFile $
       strOption $
-        ( short (untag (return 's' :: Tagged ServiceConfigFile Char))
+        ( short (untag (pure 's' :: Tagged ServiceConfigFile Char))
             <> long (untag (optionName :: Tagged ServiceConfigFile String))
             <> help (untag (optionHelp :: Tagged ServiceConfigFile String))
         )
@@ -118,11 +118,11 @@ main = withOpenSSL $ runTests go
       let ck = fromJust gConf ^. optCassandra . casKeyspace
       lg <- Logger.new Logger.defSettings
       db <- defInitCassandra ck ch cp lg
-      return $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db (FedClient m galleyEndpoint)
+      pure $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db (FedClient m galleyEndpoint)
     queueName = fmap (view awsQueueName) . view optJournal
     endpoint = fmap (view awsEndpoint) . view optJournal
     maxSize = view (optSettings . setMaxConvSize)
     initAwsEnv (Just e) (Just q) = Just <$> SQS.mkAWSEnv (JournalOpts q e)
-    initAwsEnv _ _ = return Nothing
-    releaseOpts _ = return ()
+    initAwsEnv _ _ = pure Nothing
+    releaseOpts _ = pure ()
     mkRequest (Endpoint h p) = host (encodeUtf8 h) . port p

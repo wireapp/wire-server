@@ -117,9 +117,8 @@ sendRemoteWelcomes ::
 sendRemoteWelcomes rawWelcome clients = do
   let req = MLSWelcomeRequest . Base64ByteString $ rawWelcome
       rpc = fedClient @'Galley @"mls-welcome" req
-  (traverse_ handleError =<<)
-    . runFederatedConcurrentlyEither clients
-    $ \_ -> rpc
+  traverse_ handleError <=< runFederatedConcurrentlyEither clients $
+    const rpc
   where
     handleError :: Member P.TinyLog r => Either (Remote [a], FederationError) x -> Sem r ()
     handleError (Right _) = pure ()
@@ -127,4 +126,4 @@ sendRemoteWelcomes rawWelcome clients = do
       P.warn $
         Logger.msg ("A welcome message could not be delivered to a remote backend" :: ByteString)
           . Logger.field "remote_domain" (domainText (tDomain r))
-          . (logErrorMsg (toWai e))
+          . logErrorMsg (toWai e)

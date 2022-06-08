@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 
@@ -420,7 +419,7 @@ testDisableLegalHoldForUser = withTeam $ \owner tid -> do
       Ev.ClientAdded _ client -> do
         clientId client @?= someClientId
         clientType client @?= LegalHoldClientType
-        clientClass client @?= (Just LegalHoldClient)
+        clientClass client @?= Just LegalHoldClient
       _ -> assertBool "Unexpected event" False
     -- Only the admin can disable legal hold
     disableLegalHoldForUser (Just defPassword) tid member member !!! testResponse 403 (Just "operation-denied")
@@ -616,7 +615,7 @@ testCannotCreateLegalHoldDeviceOldAPI = do
     tryout uid = do
       brg <- view tsBrig
       let newClientBody =
-            (newClient LegalHoldClientType (someLastPrekeys !! 0))
+            (newClient LegalHoldClientType (head someLastPrekeys))
               { newClientPassword = Just defPassword
               }
           req =
@@ -950,9 +949,9 @@ data GroupConvAdmin
 testNoConsentRemoveFromGroupConv :: GroupConvAdmin -> HasCallStack => TestM ()
 testNoConsentRemoveFromGroupConv whoIsAdmin = do
   (legalholder :: UserId, tid) <- createBindingTeam
-  qLegalHolder <- Qualified <$> pure legalholder <*> viewFederationDomain
+  qLegalHolder <- Qualified legalholder <$> viewFederationDomain
   (peer :: UserId, teamPeer) <- createBindingTeam
-  qPeer <- Qualified <$> pure peer <*> viewFederationDomain
+  qPeer <- Qualified peer <$> viewFederationDomain
   galley <- view tsGalley
 
   let enableLHForLegalholder :: HasCallStack => TestM ()
@@ -982,7 +981,7 @@ testNoConsentRemoveFromGroupConv whoIsAdmin = do
       mapM_ (assertConvMemberWithRole roleNameWireAdmin convId) ([inviter] <> [invitee | whoIsAdmin == BothAreAdmins])
       mapM_ (assertConvMemberWithRole roleNameWireMember convId) [invitee | whoIsAdmin /= BothAreAdmins]
       pure convId
-    qconvId <- Qualified <$> pure convId <*> viewFederationDomain
+    qconvId <- Qualified convId <$> viewFederationDomain
 
     checkConvCreateEvent convId legalholderWs
     checkConvCreateEvent convId peerWs
@@ -1016,11 +1015,11 @@ testGroupConvInvitationHandlesLHConflicts :: HasCallStack => GroupConvInvCase ->
 testGroupConvInvitationHandlesLHConflicts inviteCase = do
   -- team that is legalhold whitelisted
   (legalholder :: UserId, tid) <- createBindingTeam
-  qLegalHolder <- Qualified <$> pure legalholder <*> viewFederationDomain
+  qLegalHolder <- Qualified legalholder <$> viewFederationDomain
   userWithConsent <- (^. userId) <$> addUserToTeam legalholder tid
   userWithConsent2 <- do
     uid <- (^. userId) <$> addUserToTeam legalholder tid
-    Qualified <$> pure uid <*> viewFederationDomain
+    Qualified uid <$> viewFederationDomain
   ensureQueueEmpty
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
@@ -1098,7 +1097,7 @@ testNoConsentCannotBeInvited = do
       >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
     localdomain <- viewFederationDomain
-    API.Util.postQualifiedMembers userLHNotActivated ((Qualified peer2 localdomain) :| []) convId
+    API.Util.postQualifiedMembers userLHNotActivated (Qualified peer2 localdomain :| []) convId
       >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
 testCannotCreateGroupWithUsersInConflict :: HasCallStack => TestM ()
@@ -1371,7 +1370,7 @@ getUserStatusTyped uid tid = do
 getUserStatusTyped' :: (HasCallStack, MonadHttp m, MonadIO m, MonadCatch m) => GalleyR -> UserId -> TeamId -> m UserLegalHoldStatusResponse
 getUserStatusTyped' g uid tid = do
   resp <- getUserStatus' g uid tid <!! testResponse 200 Nothing
-  return $ responseJsonUnsafe resp
+  pure $ responseJsonUnsafe resp
 
 getUserStatus' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> UserId -> TeamId -> m ResponseLBS
 getUserStatus' g uid tid = do
@@ -1480,7 +1479,7 @@ newLegalHoldService = do
   let Just url =
         fromByteString $
           encodeUtf8 (botHost config) <> ":" <> cs (show (botPort config)) <> "/legalhold"
-  return
+  pure
     NewLegalHoldService
       { newLegalHoldServiceUrl = url,
         newLegalHoldServiceKey = key',
@@ -1492,7 +1491,7 @@ readServiceKey :: (HasCallStack, MonadIO m) => FilePath -> m ServiceKeyPEM
 readServiceKey fp = liftIO $ do
   bs <- BS.readFile fp
   let Right [k] = pemParseBS bs
-  return (ServiceKeyPEM k)
+  pure (ServiceKeyPEM k)
 
 withDummyTestServiceForTeam ::
   forall a.
@@ -1701,7 +1700,7 @@ instance FromJSON Ev.Event where
     if
         | typ `elem` ["user.legalhold-request", "user.legalhold-enable", "user.legalhold-disable"] -> Ev.UserEvent <$> Aeson.parseJSON ev
         | typ `elem` ["user.client-add", "user.client-remove"] -> Ev.ClientEvent <$> Aeson.parseJSON ev
-        | typ `elem` ["user.connection"] -> Ev.ConnectionEvent <$> Aeson.parseJSON ev
+        | typ == "user.connection" -> Ev.ConnectionEvent <$> Aeson.parseJSON ev
         | otherwise -> fail $ "Ev.Event: unsupported event type: " <> show typ
 
 -- (partial implementation, just good enough to make the tests work)
@@ -1833,7 +1832,5 @@ errWith wantStatus wantBody rsp = liftIO $ do
   assertEqual "" wantStatus (statusCode rsp)
   assertBool
     (show $ responseBody rsp)
-    ( case responseJsonMaybe rsp of
-        Nothing -> False
-        Just bdy -> wantBody bdy
+    ( maybe False wantBody (responseJsonMaybe rsp)
     )
