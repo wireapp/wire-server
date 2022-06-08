@@ -27,5 +27,5 @@ data:
 
 kind: ConfigMap
 metadata:
-  name: nginz-swagger
+  name: nginz-swagger-resources
 

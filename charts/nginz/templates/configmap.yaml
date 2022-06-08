@@ -10,7 +10,7 @@ data:
 {{- include "nginz_deeplink.json" . | indent 4 }}
   deeplink.html: |2
 {{- include "nginz_deeplink.html" . | indent 4 }}
-{{ (.Files.Glob "conf/static/*").AsConfig | indent 2 }}
+{{ (.Files.Glob "static/conf/*").AsConfig | indent 2 }}
 kind: ConfigMap
 metadata:
   creationTimestamp: null
