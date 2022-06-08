@@ -136,10 +136,10 @@ instance Cql AccountStatus where
   toCql PendingInvitation = CqlInt 4
 
   fromCql (CqlInt i) = case i of
-    0 -> return Active
-    1 -> return Suspended
-    2 -> return Deleted
-    3 -> return Ephemeral
-    4 -> return PendingInvitation
+    0 -> pure Active
+    1 -> pure Suspended
+    2 -> pure Deleted
+    3 -> pure Ephemeral
+    4 -> pure PendingInvitation
     n -> Left $ "unexpected account status: " ++ show n
   fromCql _ = Left "account status: int expected"

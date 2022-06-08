@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -57,7 +56,7 @@ getServices = retry x5 $ query cql (params LocalQuorum ())
 -- | Check if a service exists
 doesServiceExist :: (ProviderId, ServiceId, a) -> Client Bool
 doesServiceExist (pid, sid, _) =
-  retry x5 $ fmap isJust $ query1 cql (params LocalQuorum (pid, sid))
+  retry x5 $ isJust <$> query1 cql (params LocalQuorum (pid, sid))
   where
     cql :: PrepQuery R (ProviderId, ServiceId) (Identity ServiceId)
     cql =

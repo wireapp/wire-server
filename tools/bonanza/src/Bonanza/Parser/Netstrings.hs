@@ -30,8 +30,7 @@ import Imports
 netstring :: Parser ByteString
 netstring = do
   len <- decimal <* char ':'
-  str <- A.take len <* char ',' <* skipWhile (== ' ')
-  pure str
+  A.take len <* char ',' <* skipWhile (== ' ')
 
 -- | Find pairs in a stream of netstrings.
 --
@@ -53,8 +52,8 @@ tagged sep = do
   strs <- many' netstring
   pure . reverse . fst $ foldl' go ([], False) strs
   where
-    go ((h : t), True) e = ((Just (snd h), e) : t, False)
-    go ([], _) e = ((Nothing, e) : [], False)
+    go (h : t, True) e = ((Just (snd h), e) : t, False)
+    go ([], _) e = ([(Nothing, e)], False)
     go (acc, False) e
       | is_sep e = (acc, True)
       | otherwise = ((Nothing, e) : acc, False)
