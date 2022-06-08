@@ -609,14 +609,17 @@ changeEmail :: UserId -> Email -> AllowSCIMUpdates -> ExceptT ChangeEmailError (
 changeEmail u email allowScim = do
   eml <- either (throwE . InvalidNewEmail email) pure (validateEmail email)
   let eky = userEmailKey eml
+
   blacklisted <- lift . wrapClient $ Blacklist.exists eky
   when blacklisted $
     throwE (ChangeBlacklistedEmail email)
+
   available <- lift . wrapClient $ Data.keyAvailable eky (Just u)
   unless available $
-    throwE $
-      EmailExists email
+    throwE (EmailExists email)
+
   usr <- maybe (throwM $ UserProfileNotFound u) pure =<< lift (wrapClient $ Data.lookupUser WithPendingInvitations u)
+
   case emailIdentity =<< userIdentity usr of
     -- The user already has an email address and the new one is exactly the same
     Just current | current == eml -> pure ChangeEmailIdempotent
