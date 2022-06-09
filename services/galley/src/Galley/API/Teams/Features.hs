@@ -24,7 +24,7 @@ module Galley.API.Teams.Features
     getFeatureStatusNoPermissionCheck,
     getFeatureStatusMulti,
     setFeatureStatus,
-    setFeatureStatusNoTTL,
+    -- setFeatureStatusNoTTL,
     getFeatureStatusForUser,
     getAllFeatureConfigsForTeam,
     getAllFeatureConfigsForUser,
@@ -63,7 +63,7 @@ import Galley.Effects.Paging
 import qualified Galley.Effects.SearchVisibilityStore as SearchVisibilityData
 import Galley.Effects.TeamFeatureStore
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
-import Galley.Effects.TeamStore (getLegalHoldFlag, getOneUserTeam, getTeam, getTeamMember)
+import Galley.Effects.TeamStore (getOneUserTeam, getTeam, getTeamMember)
 import Galley.Intra.Push (PushEvent (FeatureConfigEvent), newPush)
 import Galley.Options
 import Galley.Types.Conversations.Roles (Action (RemoveConversationMember))
@@ -159,6 +159,7 @@ class GetFeatureConfig (db :: *) cfg => SetFeatureConfig (db :: *) cfg where
     ) =>
     TeamId ->
     WithStatusNoLock cfg ->
+    Maybe TeamFeatureTTLValue ->
     Sem r (WithStatus cfg)
 
 getFeatureStatusNoPermissionCheck ::
@@ -252,12 +253,12 @@ setFeatureStatus ::
        ]
       r
   ) =>
+  Maybe TeamFeatureTTLValue ->
   DoAuth ->
   TeamId ->
   WithStatusNoLock cfg ->
-  Maybe TeamFeatureTTLValue ->
   Sem r (WithStatus cfg)
-setFeatureStatus doauth tid wsnl ttl = do
+setFeatureStatus mTtl doauth tid wsnl = do
   case doauth of
     DoAuth uid -> do
       zusrMembership <- getTeamMember tid uid
@@ -265,28 +266,28 @@ setFeatureStatus doauth tid wsnl ttl = do
     DontDoAuth ->
       assertTeamExists tid
   guardLockStatus . wsLockStatus =<< getConfigForTeam @db @cfg tid
-  setConfigForTeam @db @cfg tid wsnl
+  setConfigForTeam @db @cfg tid wsnl mTtl
 
--- |  Does not support TTL.
-setFeatureStatusNoTTL ::
-  forall (a :: TeamFeatureName) r.
-  ( KnownTeamFeatureName a,
-    MaybeHasLockStatusCol a,
-    Members
-      '[ ErrorS 'NotATeamMember,
-         ErrorS OperationDenied,
-         ErrorS 'TeamNotFound,
-         TeamStore,
-         TeamFeatureStore
-       ]
-      r
-  ) =>
-  FeatureSetter a r ->
-  DoAuth ->
-  TeamId ->
-  TeamFeatureStatus 'WithoutLockStatus a ->
-  Sem r (TeamFeatureStatus 'WithoutLockStatus a)
-setFeatureStatusNoTTL setter doauth tid status = setFeatureStatus setter doauth tid status Nothing
+-- -- |  Does not support TTL.
+-- setFeatureStatusNoTTL ::
+--   forall (a :: TeamFeatureName) r.
+--   ( KnownTeamFeatureName a,
+--     MaybeHasLockStatusCol a,
+--     Members
+--       '[ ErrorS 'NotATeamMember,
+--          ErrorS OperationDenied,
+--          ErrorS 'TeamNotFound,
+--          TeamStore,
+--          TeamFeatureStore
+--        ]
+--       r
+--   ) =>
+--   FeatureSetter a r ->
+--   DoAuth ->
+--   TeamId ->
+--   TeamFeatureStatus 'WithoutLockStatus a ->
+--   Sem r (TeamFeatureStatus 'WithoutLockStatus a)
+-- setFeatureStatusNoTTL setter doauth tid status = setFeatureStatus setter doauth tid status Nothing
 
 setLockStatus ::
   forall db cfg r.
@@ -565,9 +566,10 @@ persistAndPushEvent ::
   ) =>
   TeamId ->
   WithStatusNoLock cfg ->
+  Maybe TeamFeatureTTLValue ->
   Sem r (WithStatus cfg)
-persistAndPushEvent tid wsnl = do
-  setFeatureConfig @db (Proxy @cfg) tid wsnl
+persistAndPushEvent tid wsnl mTtl = do
+  setFeatureConfig @db (Proxy @cfg) tid wsnl mTtl
   fs <- getConfigForTeam @db @cfg tid
   pushFeatureConfigEvent tid (Event.mkUpdateEvent fs)
   pure fs
@@ -615,11 +617,11 @@ instance GetFeatureConfig db SSOConfig where
 instance SetFeatureConfig db SSOConfig where
   type SetConfigForTeamConstraints db SSOConfig (r :: EffectRow) = (Members '[Error TeamFeatureError] r)
 
-  setConfigForTeam tid wsnl = do
+  setConfigForTeam tid wsnl _ = do
     case wssStatus wsnl of
       FeatureStatusEnabled -> pure ()
       FeatureStatusDisabled -> throw DisableSsoNotImplemented
-    persistAndPushEvent @db tid wsnl
+    persistAndPushEvent @db tid wsnl Nothing
 
 instance GetFeatureConfig db SearchVisibilityAvailableConfig where
   getConfigForServer = do
@@ -632,18 +634,18 @@ instance GetFeatureConfig db SearchVisibilityAvailableConfig where
 instance SetFeatureConfig db SearchVisibilityAvailableConfig where
   type SetConfigForTeamConstraints db SearchVisibilityAvailableConfig (r :: EffectRow) = (Members '[SearchVisibilityStore] r)
 
-  setConfigForTeam tid wsnl = do
+  setConfigForTeam tid wsnl _ = do
     case wssStatus wsnl of
       FeatureStatusEnabled -> pure ()
       FeatureStatusDisabled -> SearchVisibilityData.resetSearchVisibility tid
-    persistAndPushEvent @db tid wsnl
+    persistAndPushEvent @db tid wsnl Nothing
 
 instance GetFeatureConfig db ValidateSAMLEmailsConfig where
   getConfigForServer =
     inputs (view (optSettings . setFeatureFlags . flagsTeamFeatureValidateSAMLEmailsStatus . unDefaults))
 
 instance SetFeatureConfig db ValidateSAMLEmailsConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+  setConfigForTeam tid wsnl _ = persistAndPushEvent @db tid wsnl Nothing
 
 instance GetFeatureConfig db DigitalSignaturesConfig where
   -- FUTUREWORK: we may also want to get a default from the server config file here, like for
@@ -651,7 +653,7 @@ instance GetFeatureConfig db DigitalSignaturesConfig where
   getConfigForServer = pure defFeatureStatus
 
 instance SetFeatureConfig db DigitalSignaturesConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+  setConfigForTeam tid wsnl _ = persistAndPushEvent @db tid wsnl Nothing
 
 instance GetFeatureConfig db LegalholdConfig where
   type
@@ -732,21 +734,19 @@ instance SetFeatureConfig db LegalholdConfig where
         FeaturePersistentConstraint db LegalholdConfig
       )
 
-    -- we're good to update the status now.
-
+  -- we're good to update the status now.
+  setConfigForTeam tid wsnl _ = do
     case wssStatus wsnl of
       FeatureStatusDisabled -> LegalHold.removeSettings' @InternalPaging tid
       FeatureStatusEnabled -> ensureNotTooLargeToActivateLegalHold tid
-
-    persistAndPushEvent @db tid wsnl
+    persistAndPushEvent @db tid wsnl Nothing
 
 instance GetFeatureConfig db FileSharingConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagFileSharing . unDefaults)
 
 instance SetFeatureConfig db FileSharingConfig where
-  setConfigForTeam tid wsnl =
-    persistAndPushEvent @db tid wsnl
+  setConfigForTeam tid wsnl _ = persistAndPushEvent @db tid wsnl Nothing
 
 instance GetFeatureConfig db AppLockConfig where
   getConfigForServer =
@@ -755,10 +755,10 @@ instance GetFeatureConfig db AppLockConfig where
 instance SetFeatureConfig db AppLockConfig where
   type SetConfigForTeamConstraints db AppLockConfig r = Members '[Error TeamFeatureError] r
 
-  setConfigForTeam tid wsnl = do
+  setConfigForTeam tid wsnl _ = do
     when ((applockInactivityTimeoutSecs . wssConfig $ wsnl) < 30) $
       throw AppLockInactivityTimeoutTooLow
-    persistAndPushEvent @db tid wsnl
+    persistAndPushEvent @db tid wsnl Nothing
 
 instance GetFeatureConfig db ClassifiedDomainsConfig where
   getConfigForServer =
@@ -788,26 +788,24 @@ instance GetFeatureConfig db ConferenceCallingConfig where
     pure $ withLockStatus (wsLockStatus (defFeatureStatus @ConferenceCallingConfig)) wsnl
 
 instance SetFeatureConfig db ConferenceCallingConfig where
-  setConfigForTeam tid wsnl =
-    persistAndPushEvent @db tid wsnl
+  setConfigForTeam tid wsnl mTtl = persistAndPushEvent @db tid wsnl mTtl
 
 instance GetFeatureConfig db SelfDeletingMessagesConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagSelfDeletingMessages . unDefaults)
 
 instance SetFeatureConfig db SelfDeletingMessagesConfig where
-  setConfigForTeam tid wsnl =
-    persistAndPushEvent @db tid wsnl
+  setConfigForTeam tid wsnl _ = persistAndPushEvent @db tid wsnl Nothing
 
 instance SetFeatureConfig db GuestLinksConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+  setConfigForTeam tid wsnl _ = persistAndPushEvent @db tid wsnl Nothing
 
 instance GetFeatureConfig db GuestLinksConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
 
 instance SetFeatureConfig db SndFactorPasswordChallengeConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
+  setConfigForTeam tid wsnl _ = persistAndPushEvent @db tid wsnl Nothing
 
 instance GetFeatureConfig db SndFactorPasswordChallengeConfig where
   getConfigForServer =
@@ -815,9 +813,9 @@ instance GetFeatureConfig db SndFactorPasswordChallengeConfig where
 
 instance SetFeatureConfig db SearchVisibilityInboundConfig where
   type SetConfigForTeamConstraints db SearchVisibilityInboundConfig (r :: EffectRow) = (Members '[BrigAccess] r)
-  setConfigForTeam tid wsnl = do
+  setConfigForTeam tid wsnl _ = do
     updateSearchVisibilityInbound $ toTeamStatus tid wsnl
-    persistAndPushEvent @db tid wsnl
+    persistAndPushEvent @db tid wsnl Nothing
 
 instance GetFeatureConfig db SearchVisibilityInboundConfig where
   getConfigForServer =

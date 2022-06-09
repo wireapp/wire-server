@@ -347,7 +347,7 @@ type ITeamsAPIBase =
 
 type IFeatureStatusGet f = Named '("iget", f) (FeatureStatusBaseGet f)
 
-type IFeatureStatusPut errs f = Named '("iput", f) (FeatureStatusBasePut errs f)
+type IFeatureStatusPut errs f = Named '("iput", f) (FeatureStatusBasePutInternal errs f)
 
 type IFeatureStatusDeprecatedGet f = Named '("iget-deprecated", f) (FeatureStatusBaseDeprecatedGet f)
 
@@ -432,84 +432,42 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
-  -- <<<<<<< HEAD
-  --   fs getSSOStatusInternal setSSOStatusInternal
-  --     <@> fs getLegalholdStatusInternal (setLegalholdStatusInternal @InternalPaging)
-  --     <@> fs getTeamSearchVisibilityAvailableInternal setTeamSearchVisibilityAvailableInternal
-  --     <@> fsDeprecated getTeamSearchVisibilityAvailableInternal setTeamSearchVisibilityAvailableInternal
-  --     <@> fs getValidateSAMLEmailsInternal setValidateSAMLEmailsInternal
-  --     <@> fsDeprecated getValidateSAMLEmailsInternal setValidateSAMLEmailsInternal
-  --     <@> fs getDigitalSignaturesInternal setDigitalSignaturesInternal
-  --     <@> fsDeprecated getDigitalSignaturesInternal setDigitalSignaturesInternal
-  --     <@> fs getAppLockInternal setAppLockInternal
-  --     <@> ( fsGet getFileSharingInternal
-  --             <@> fsSet setFileSharingInternal
-  --             <@> mkNamedAPI (setLockStatus @'TeamFeatureFileSharing)
-  --         )
-  --     <@> fsGet getClassifiedDomainsInternal
-  --     <@> fs getConferenceCallingInternal setConferenceCallingInternal
-  --     <@> ( fsGet getSelfDeletingMessagesInternal
-  --             <@> fsSet setSelfDeletingMessagesInternal
-  --             <@> mkNamedAPI (setLockStatus @'TeamFeatureSelfDeletingMessages)
-  --         )
-  --     <@> ( fsGet getGuestLinkInternal
-  --             <@> fsSet setGuestLinkInternal
-  --             <@> mkNamedAPI (setLockStatus @'TeamFeatureGuestLinks)
-  --         )
-  --     <@> ( fsGet getSndFactorPasswordChallengeInternal
-  --             <@> fsSet setSndFactorPasswordChallengeInternal
-  --             <@> mkNamedAPI (setLockStatus @'TeamFeatureSndFactorPasswordChallenge)
-  --         )
-  --     <@> fs getTeamSearchVisibilityInboundInternal setTeamSearchVisibilityInboundInternal
-  --     <@> mkNamedAPI getTeamSearchVisibilityInboundInternalMulti
-  --   where
-  --     fs g s = fsGet g <@> fsSet s
-  --     fsDeprecated g s = fsGet g <@> fsSetDeprecated s
-
-  --     fsGet g = mkNamedAPI (getFeatureStatus g DontDoAuth)
-
-  --     fsSet s = mkNamedAPI (setFeatureStatus s DontDoAuth)
-  -- =======
   mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (setFeatureStatus @Cassandra Nothing DontDoAuth)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (setFeatureStatus @Cassandra Nothing DontDoAuth)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (setFeatureStatus @Cassandra Nothing DontDoAuth)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (setLockStatus @Cassandra @FileSharingConfig)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (setLockStatus @Cassandra @SelfDeletingMessagesConfig)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (setLockStatus @Cassandra @GuestLinksConfig)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (setLockStatus @Cassandra @SndFactorPasswordChallengeConfig)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (getFeatureStatusMulti @Cassandra @SearchVisibilityInboundConfig)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-
--- >>>>>>> 447bf419f (Refactor features)
-
--- fsSetDeprecated s = mkNamedAPI (setFeatureStatusNoTTL s DontDoAuth)
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()
 internalSitemap = do

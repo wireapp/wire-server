@@ -1141,7 +1141,13 @@ type FeatureStatusGet f =
 type FeatureStatusPut errs f =
   Named
     '("put", f)
-    (ZUser :> FeatureStatusBasePut errs f)
+    (ZUser :> FeatureStatusBasePutPublic errs f)
+
+-- todo(leif): move to internal
+type FeatureStatusPutInternal errs f =
+  Named
+    '("put", f)
+    (ZUser :> FeatureStatusBasePutInternal errs f)
 
 type FeatureStatusDeprecatedGet f =
   Named
@@ -1164,8 +1170,21 @@ type FeatureStatusBaseGet featureConfig =
     :> FeatureSymbol featureConfig
     :> Get '[Servant.JSON] (WithStatus featureConfig)
 
--- TODO: disinguish between public and internal put
-type FeatureStatusBasePut errs featureConfig =
+type FeatureStatusBasePutPublic errs featureConfig =
+  Summary (AppendSymbol "Put config for " (FeatureSymbol featureConfig))
+    :> CanThrow OperationDenied
+    :> CanThrow 'NotATeamMember
+    :> CanThrow 'TeamNotFound
+    :> CanThrow TeamFeatureError
+    :> CanThrowMany errs
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> FeatureSymbol featureConfig
+    :> ReqBody '[Servant.JSON] (WithStatusNoLock featureConfig)
+    :> Put '[Servant.JSON] (WithStatus featureConfig)
+
+type FeatureStatusBasePutInternal errs featureConfig =
   Summary (AppendSymbol "Put config for " (FeatureSymbol featureConfig))
     :> CanThrow OperationDenied
     :> CanThrow 'NotATeamMember
