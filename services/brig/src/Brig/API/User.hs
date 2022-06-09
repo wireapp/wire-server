@@ -607,32 +607,42 @@ changeSelfEmail u email allowScim = do
 -- | Prepare changing the email (checking a number of invariants).
 changeEmail :: UserId -> Email -> AllowSCIMUpdates -> ExceptT ChangeEmailError (AppT r) ChangeEmailResult
 changeEmail u email allowScim = do
-  em <-
-    either
-      (throwE . InvalidNewEmail email)
-      pure
-      (validateEmail email)
-  let ek = userEmailKey em
-  blacklisted <- lift . wrapClient $ Blacklist.exists ek
+  eml <- either (throwE . InvalidNewEmail email) pure (validateEmail email)
+  let eky = userEmailKey eml
+
+  blacklisted <- lift . wrapClient $ Blacklist.exists eky
   when blacklisted $
     throwE (ChangeBlacklistedEmail email)
-  available <- lift . wrapClient $ Data.keyAvailable ek (Just u)
+
+  available <- lift . wrapClient $ Data.keyAvailable eky (Just u)
   unless available $
-    throwE $
-      EmailExists email
-  usr <- maybe (throwM $ UserProfileNotFound u) pure =<< lift (wrapClient $ Data.lookupUser WithPendingInvitations u)
-  case emailIdentity =<< userIdentity usr of
-    -- The user already has an email address and the new one is exactly the same
-    Just current | current == em -> pure ChangeEmailIdempotent
-    _ -> do
-      unless
-        ( userManagedBy usr /= ManagedByScim
-            || allowScim == AllowSCIMUpdates
-        )
-        $ throwE EmailManagedByScim
+    throwE (EmailExists email)
+
+  usr <-
+    maybe (throwM $ UserProfileNotFound u) pure
+      =<< lift (wrapClient $ Data.lookupUser WithPendingInvitations u)
+
+  if (emailIdentity =<< userIdentity usr) == Just eml
+    then do
+      -- The user already has an email address and the new one is exactly the same
+      pure ChangeEmailIdempotent
+    else do
+      -- case 2: No or different old email address
+      let changeAllowed =
+            ( userManagedBy usr /= ManagedByScim
+                || allowScim == AllowSCIMUpdates -- spar is always allowed to call this function (from the scim handlers)
+            )
+              && not
+                ( -- user is auto-provisioned by saml (deprecated use case)
+                  userManagedBy usr /= ManagedByScim && userHasSAML usr
+                )
+
+      unless changeAllowed $
+        throwE EmailManagedByScim
+
       timeout <- setActivationTimeout <$> view settings
-      act <- lift . wrapClient $ Data.newActivation ek timeout (Just u)
-      pure $ ChangeEmailNeedsActivation (usr, act, em)
+      act <- lift . wrapClient $ Data.newActivation eky timeout (Just u)
+      pure $ ChangeEmailNeedsActivation (usr, act, eml)
 
 -------------------------------------------------------------------------------
 -- Change Phone
