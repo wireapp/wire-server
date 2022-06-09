@@ -616,8 +616,8 @@ setDefaultTemplateLocale = fromMaybe defaultTemplateLocale . setDefaultTemplateL
 -- they are grandfathered), and feature-specific extra data (eg., TLL for self-deleting
 -- messages).  For now, we have something quick & simple.
 data AccountFeatureConfigs = AccountFeatureConfigs
-  { afcConferenceCallingDefNew :: !(ApiFT.TeamFeatureStatus 'ApiFT.WithoutLockStatus 'ApiFT.TeamFeatureConferenceCalling),
-    afcConferenceCallingDefNull :: !(ApiFT.TeamFeatureStatus 'ApiFT.WithoutLockStatus 'ApiFT.TeamFeatureConferenceCalling)
+  { afcConferenceCallingDefNew :: !(ApiFT.WithStatus ApiFT.ConferenceCallingConfig),
+    afcConferenceCallingDefNull :: !(ApiFT.WithStatus ApiFT.ConferenceCallingConfig)
   }
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform AccountFeatureConfigs)
@@ -652,23 +652,23 @@ instance ToJSON AccountFeatureConfigs where
               ]
         ]
 
-getAfcConferenceCallingDefNewMaybe :: Lens.Getter Settings (Maybe ApiFT.TeamFeatureStatusNoConfig)
+getAfcConferenceCallingDefNewMaybe :: Lens.Getter Settings (Maybe (ApiFT.WithStatus ApiFT.ConferenceCallingConfig))
 getAfcConferenceCallingDefNewMaybe = Lens.to (Lens.^? (Lens.to setFeatureFlags . Lens._Just . Lens.to afcConferenceCallingDefNew))
 
-getAfcConferenceCallingDefNullMaybe :: Lens.Getter Settings (Maybe ApiFT.TeamFeatureStatusNoConfig)
+getAfcConferenceCallingDefNullMaybe :: Lens.Getter Settings (Maybe (ApiFT.WithStatus ApiFT.ConferenceCallingConfig))
 getAfcConferenceCallingDefNullMaybe = Lens.to (Lens.^? (Lens.to setFeatureFlags . Lens._Just . Lens.to afcConferenceCallingDefNull))
 
-getAfcConferenceCallingDefNew :: Lens.Getter Settings ApiFT.TeamFeatureStatusNoConfig
+getAfcConferenceCallingDefNew :: Lens.Getter Settings (ApiFT.WithStatus ApiFT.ConferenceCallingConfig)
 getAfcConferenceCallingDefNew = Lens.to (afcConferenceCallingDefNew . fromMaybe defAccountFeatureConfigs . setFeatureFlags)
 
-getAfcConferenceCallingDefNull :: Lens.Getter Settings ApiFT.TeamFeatureStatusNoConfig
+getAfcConferenceCallingDefNull :: Lens.Getter Settings (ApiFT.WithStatus ApiFT.ConferenceCallingConfig)
 getAfcConferenceCallingDefNull = Lens.to (afcConferenceCallingDefNull . fromMaybe defAccountFeatureConfigs . setFeatureFlags)
 
 defAccountFeatureConfigs :: AccountFeatureConfigs
 defAccountFeatureConfigs =
   AccountFeatureConfigs
-    { afcConferenceCallingDefNew = ApiFT.TeamFeatureStatusNoConfig ApiFT.TeamFeatureEnabled,
-      afcConferenceCallingDefNull = ApiFT.TeamFeatureStatusNoConfig ApiFT.TeamFeatureEnabled
+    { afcConferenceCallingDefNew = ApiFT.defFeatureStatus,
+      afcConferenceCallingDefNull = ApiFT.defFeatureStatus
     }
 
 -- | Customer extensions naturally are covered by the AGPL like everything else, but use them

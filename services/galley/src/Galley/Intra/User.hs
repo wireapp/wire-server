@@ -234,12 +234,12 @@ getRichInfoMultiUser = chunkify $ \uids -> do
         . expect2xx
   parseResponse (mkError status502 "server-error") resp
 
-getAccountFeatureConfigClient :: HasCallStack => UserId -> App TeamFeatureStatusNoConfig
+getAccountFeatureConfigClient :: HasCallStack => UserId -> App (WithStatusNoLock ConferenceCallingConfig)
 getAccountFeatureConfigClient uid =
   runHereClientM (namedClient @IAPI.API @"get-account-feature-config" uid)
     >>= handleServantResp
 
-updateSearchVisibilityInbound :: Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound -> App ()
+updateSearchVisibilityInbound :: Multi.TeamStatus SearchVisibilityInboundConfig -> App ()
 updateSearchVisibilityInbound =
   handleServantResp
     <=< runHereClientM

@@ -73,7 +73,6 @@ library
       Galley.Data.Conversation.Types
       Galley.Data.Scope
       Galley.Data.Services
-      Galley.Data.TeamFeatures
       Galley.Data.TeamNotifications
       Galley.Data.Types
       Galley.Effects
@@ -229,6 +228,7 @@ library
     , safe >=0.3
     , safe-exceptions >=0.1
     , saml2-web-sso >=0.18
+    , schema-profunctor
     , semigroups
     , servant
     , servant-client

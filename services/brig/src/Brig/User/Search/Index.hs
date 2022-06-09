@@ -99,7 +99,7 @@ import System.Logger.Class (Logger, MonadLogger (..), field, info, msg, val, (++
 import URI.ByteString (URI, serializeURIRef)
 import Util.Options (Endpoint, epHost, epPort)
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
-import Wire.API.Team.Feature (TeamFeatureName (..))
+import Wire.API.Team.Feature (SearchVisibilityInboundConfig, featureNameBS)
 import qualified Wire.API.User as User
 import Wire.API.User.Search (Sso (..))
 
@@ -267,7 +267,7 @@ updateIndex (IndexDeleteUser u) = liftIndexIO $ do
     404 -> pure ()
     _ -> ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
 
-updateSearchVisibilityInbound :: (MonadIndexIO m) => Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound -> m ()
+updateSearchVisibilityInbound :: (MonadIndexIO m) => Multi.TeamStatus SearchVisibilityInboundConfig -> m ()
 updateSearchVisibilityInbound status = liftIndexIO $ do
   withDefaultESUrl . updateAllDocs =<< asks idxName
   withAdditionalESUrl $ traverse_ updateAllDocs =<< asks idxAdditionalName
@@ -279,7 +279,7 @@ updateSearchVisibilityInbound status = liftIndexIO $ do
         ES.parseEsResponse r >>= throwM . IndexUpdateError . either id id
 
     query :: ES.Query
-    query = ES.TermQuery (ES.Term "team" $ idToText (Multi.tsuTeam status)) Nothing
+    query = ES.TermQuery (ES.Term "team" $ idToText (Multi.team status)) Nothing
 
     script :: ES.Script
     script = ES.Script (Just (ES.ScriptLanguage "painless")) (Just (ES.ScriptInline scriptText)) Nothing Nothing
@@ -289,7 +289,7 @@ updateSearchVisibilityInbound status = liftIndexIO $ do
       "ctx._source."
         <> searchVisibilityInboundFieldName
         <> " = '"
-        <> decodeUtf8 (toByteString' (searchVisibilityInboundFromFeatureStatus (Multi.tsuStatus status)))
+        <> decodeUtf8 (toByteString' (searchVisibilityInboundFromFeatureStatus (Multi.status status)))
         <> "';"
 
 --------------------------------------------------------------------------------
@@ -408,8 +408,8 @@ reindexAllWith updateType = do
         let teamsInPage = mapMaybe teamInReindexRow (C.result page)
         lookupFn <- liftIndexIO $ getSearchVisibilityInboundMulti teamsInPage
         let reindexRow row =
-              let (sv, t) = maybe (defaultSearchVisibilityInbound, Nothing) lookupFn (teamInReindexRow row)
-               in reindexRowToIndexUser row sv t
+              let sv = maybe defaultSearchVisibilityInbound lookupFn (teamInReindexRow row)
+               in reindexRowToIndexUser row sv
         indexUsers <- mapM reindexRow (C.result page)
         updateIndex (IndexUpdateUsers updateType indexUsers)
       when (C.hasMore page) $
@@ -692,8 +692,8 @@ lookupForIndex u = do
   mrow <- C.retry C.x1 (C.query1 cql (C.params C.LocalQuorum (Identity u)))
   for mrow $ \row -> do
     let mteam = teamInReindexRow row
-    (searchVis, searchVisWriteTime) <- liftIndexIO $ getSearchVisibilityInbound mteam
-    reindexRowToIndexUser row searchVis searchVisWriteTime
+    searchVis <- liftIndexIO $ getSearchVisibilityInbound mteam
+    reindexRowToIndexUser row searchVis
   where
     cql :: C.PrepQuery C.R (Identity UserId) ReindexRow
     cql =
@@ -725,22 +725,22 @@ lookupForIndex u = do
 
 getSearchVisibilityInbound ::
   Maybe TeamId ->
-  IndexIO (SearchVisibilityInbound, Maybe (Writetime SearchVisibilityInbound))
-getSearchVisibilityInbound Nothing = pure (defaultSearchVisibilityInbound, Nothing)
+  IndexIO SearchVisibilityInbound
+getSearchVisibilityInbound Nothing = pure defaultSearchVisibilityInbound
 getSearchVisibilityInbound (Just tid) = do
-  mtvi <- getTeamSearchVisibilityInbound tid
-  pure $ maybe (defaultSearchVisibilityInbound, Nothing) toSearchVisibility mtvi
+  searchVisibilityInboundFromStatus <$> getTeamSearchVisibilityInbound tid
 
-getSearchVisibilityInboundMulti :: [TeamId] -> IndexIO (TeamId -> (SearchVisibilityInbound, Maybe (Writetime SearchVisibilityInbound)))
+getSearchVisibilityInboundMulti :: [TeamId] -> IndexIO (TeamId -> SearchVisibilityInbound)
 getSearchVisibilityInboundMulti tids = do
   Multi.TeamFeatureNoConfigMultiResponse teamsStatuses <- getTeamSearchVisibilityInboundMulti tids
   let lookupMap = Map.fromList (teamsStatuses <&> \x -> (Multi.team x, x))
   pure $ \tid ->
-    maybe (defaultSearchVisibilityInbound, Nothing) toSearchVisibility (tid `Map.lookup` lookupMap)
+    searchVisibilityInboundFromStatus (tid `Map.lookup` lookupMap)
 
-toSearchVisibility :: Multi.TeamStatus 'TeamFeatureSearchVisibilityInbound -> (SearchVisibilityInbound, Maybe (Writetime SearchVisibilityInbound))
-toSearchVisibility (Multi.TeamStatus _tid status t) =
-  (searchVisibilityInboundFromFeatureStatus status, t)
+searchVisibilityInboundFromStatus :: Maybe (Multi.TeamStatus SearchVisibilityInboundConfig) -> SearchVisibilityInbound
+searchVisibilityInboundFromStatus = \case
+  Nothing -> defaultSearchVisibilityInbound
+  Just tvi -> searchVisibilityInboundFromFeatureStatus . Multi.status $ tvi
 
 scanForIndex :: Int32 -> C.Client (C.Page ReindexRow)
 scanForIndex num = do
@@ -810,7 +810,7 @@ type ReindexRow =
 teamInReindexRow :: ReindexRow -> Maybe TeamId
 teamInReindexRow (_f1, f2, _f3, _f4, _f5, _f6, _f7, _f8, _f9, _f10, _f11, _f12, _f13, _f14, _f15, _f16, _f17, _f18, _f19, _f20, _f21, _f22) = f2
 
-reindexRowToIndexUser :: forall m. MonadThrow m => ReindexRow -> SearchVisibilityInbound -> Maybe (Writetime SearchVisibilityInbound) -> m IndexUser
+reindexRowToIndexUser :: forall m. MonadThrow m => ReindexRow -> SearchVisibilityInbound -> m IndexUser
 reindexRowToIndexUser
   ( u,
     mteam,
@@ -835,10 +835,9 @@ reindexRowToIndexUser
     emailUnvalidated,
     tEmailUnvalidated
     )
-  searchVisInbound
-  tSearchVisInbound =
+  searchVisInbound =
     do
-      iu <- mkIndexUser u <$> version [Just tName, tStatus, tHandle, tEmail, Just tColour, Just tActivated, tService, tManagedBy, tSsoId, tEmailUnvalidated, tSearchVisInbound]
+      iu <- mkIndexUser u <$> version [Just tName, tStatus, tHandle, tEmail, Just tColour, Just tActivated, tService, tManagedBy, tSsoId, tEmailUnvalidated]
       pure $
         if shouldIndex
           then
@@ -890,7 +889,7 @@ reindexRowToIndexUser
 
 getTeamSearchVisibilityInbound ::
   TeamId ->
-  IndexIO (Maybe (Multi.TeamStatus 'TeamFeatureSearchVisibilityInbound))
+  IndexIO (Maybe (Multi.TeamStatus SearchVisibilityInboundConfig))
 getTeamSearchVisibilityInbound tid = do
   Multi.TeamFeatureNoConfigMultiResponse teamsStatuses <- getTeamSearchVisibilityInboundMulti [tid]
   case filter ((== tid) . Multi.team) teamsStatuses of
@@ -899,13 +898,13 @@ getTeamSearchVisibilityInbound tid = do
 
 getTeamSearchVisibilityInboundMulti ::
   [TeamId] ->
-  IndexIO (Multi.TeamFeatureNoConfigMultiResponse 'TeamFeatureSearchVisibilityInbound)
+  IndexIO (Multi.TeamFeatureNoConfigMultiResponse SearchVisibilityInboundConfig)
 getTeamSearchVisibilityInboundMulti tids = do
   galley <- asks idxGalley
   serviceRequest' "galley" galley POST req >>= responseJsonThrow (ParseException "galley")
   where
     req =
-      paths ["i", "features-multi-teams", toByteString' TeamFeatureSearchVisibilityInbound]
+      paths ["i", "features-multi-teams", featureNameBS @SearchVisibilityInboundConfig]
         . header "Content-Type" "application/json"
         . expect2xx
         . lbytes (encode $ Multi.TeamFeatureNoConfigMultiRequest tids)

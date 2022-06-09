@@ -37,6 +37,7 @@ library:
   - mtl                       >= 2.1
   - split                     >= 0.2
   - string-conversions
+  - schema-profunctor
   - swagger                   >= 0.3
   - text                      >= 1.1
   - tinylog                   >= 0.10

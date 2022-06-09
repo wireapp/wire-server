@@ -116,8 +116,8 @@ testAddGetClientVerificationCode db brig galley = do
   let addClient' :: Maybe Code.Value -> Http Client
       addClient' codeValue = responseJsonError =<< addClient brig uid (defNewClientWithVerificationCode codeValue PermanentClientType [head somePrekeys] (head someLastPrekeys))
 
-  Util.setTeamFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge galley tid Public.Unlocked
-  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   k <- Code.mkKey (Code.ForEmail email)
   codeValue <- Code.codeValue <$$> lookupCode db k Code.AccountLogin
@@ -137,8 +137,8 @@ testAddGetClientMissingCode brig galley = do
   let Just email = userEmail u
   let addClient' codeValue = addClient brig uid (defNewClientWithVerificationCode codeValue PermanentClientType [head somePrekeys] (head someLastPrekeys))
 
-  Util.setTeamFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge galley tid Public.Unlocked
-  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   addClient' Nothing !!! do
     const 403 === statusCode
@@ -156,8 +156,8 @@ testAddGetClientWrongCode brig galley = do
   let Just email = userEmail u
   let addClient' codeValue = addClient brig uid (defNewClientWithVerificationCode codeValue PermanentClientType [head somePrekeys] (head someLastPrekeys))
 
-  Util.setTeamFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge galley tid Public.Unlocked
-  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
   addClient' (Just wrongCode) !!! do
@@ -177,8 +177,8 @@ testAddGetClientCodeExpired db brig galley = do
   let checkLoginSucceeds b = login brig b PersistentCookie !!! const 200 === statusCode
   let addClient' codeValue = addClient brig uid (defNewClientWithVerificationCode codeValue PermanentClientType [head somePrekeys] (head someLastPrekeys))
 
-  Util.setTeamFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge galley tid Public.Unlocked
-  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   k <- Code.mkKey (Code.ForEmail email)
   codeValue <- Code.codeValue <$$> lookupCode db k Code.AccountLogin

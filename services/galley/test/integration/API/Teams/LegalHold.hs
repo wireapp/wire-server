@@ -564,16 +564,16 @@ testEnablePerTeam = withTeam $ \owner tid -> do
   addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   do
-    status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-    let statusValue = Public.tfwoStatus status
-    liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.TeamFeatureDisabled
+    status :: Public.WithStatusNoLock Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+    let statusValue = Public.wssStatus status
+    liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.FeatureStatusDisabled
 
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
   do
-    status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-    let statusValue = Public.tfwoStatus status
-    liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" statusValue Public.TeamFeatureEnabled
+    status :: Public.WithStatusNoLock Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+    let statusValue = Public.wssStatus status
+    liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" statusValue Public.FeatureStatusEnabled
   withDummyTestServiceForTeam owner tid $ \_chan -> do
     putLHWhitelistTeam tid !!! const 200 === statusCode
     requestLegalHoldDevice owner member tid !!! const 201 === statusCode
@@ -582,10 +582,10 @@ testEnablePerTeam = withTeam $ \owner tid -> do
       UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
       liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
     do
-      putEnabled' id tid Public.TeamFeatureDisabled !!! testResponse 403 (Just "legalhold-whitelisted-only")
-      status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-      let statusValue = Public.tfwoStatus status
-      liftIO $ assertEqual "Calling 'putEnabled False' should have no effect." statusValue Public.TeamFeatureEnabled
+      putEnabled' id tid Public.FeatureStatusDisabled !!! testResponse 403 (Just "legalhold-whitelisted-only")
+      status :: Public.WithStatusNoLock Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+      let statusValue = Public.wssStatus status
+      liftIO $ assertEqual "Calling 'putEnabled False' should have no effect." statusValue Public.FeatureStatusEnabled
 
 testAddTeamUserTooLargeWithLegalholdWhitelisted :: HasCallStack => TestM ()
 testAddTeamUserTooLargeWithLegalholdWhitelisted = withTeam $ \owner tid -> do
@@ -1298,25 +1298,25 @@ renewToken tok = do
       . cookieRaw "zuid" (toByteString' tok)
       . expect2xx
 
-_putEnabled :: HasCallStack => TeamId -> Public.TeamFeatureStatusValue -> TestM ()
+_putEnabled :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
 _putEnabled tid enabled = do
   g <- view tsGalley
   putEnabledM g tid enabled
 
-putEnabledM :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> Public.TeamFeatureStatusValue -> m ()
+putEnabledM :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> Public.FeatureStatus -> m ()
 putEnabledM g tid enabled = void $ putEnabledM' g expect2xx tid enabled
 
-putEnabled' :: HasCallStack => (Bilge.Request -> Bilge.Request) -> TeamId -> Public.TeamFeatureStatusValue -> TestM ResponseLBS
+putEnabled' :: HasCallStack => (Bilge.Request -> Bilge.Request) -> TeamId -> Public.FeatureStatus -> TestM ResponseLBS
 putEnabled' extra tid enabled = do
   g <- view tsGalley
   putEnabledM' g extra tid enabled
 
-putEnabledM' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> (Bilge.Request -> Bilge.Request) -> TeamId -> Public.TeamFeatureStatusValue -> m ResponseLBS
+putEnabledM' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> (Bilge.Request -> Bilge.Request) -> TeamId -> Public.FeatureStatus -> m ResponseLBS
 putEnabledM' g extra tid enabled = do
   put $
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
-      . json (Public.TeamFeatureStatusNoConfig enabled)
+      . json (Public.WithStatusNoLock enabled Public.LegalholdConfig)
       . extra
 
 postSettings :: HasCallStack => UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS

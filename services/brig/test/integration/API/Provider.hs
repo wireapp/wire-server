@@ -88,6 +88,7 @@ import Web.Cookie (SetCookie (..), parseSetCookie)
 import Wire.API.Asset hiding (Asset)
 import Wire.API.Event.Conversation
 import Wire.API.Internal.Notification
+import Wire.API.Team.Feature (featureNameBS)
 import qualified Wire.API.Team.Feature as Public
 
 tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
@@ -1394,15 +1395,15 @@ enabled2ndFaForTeamInternal :: Galley -> TeamId -> Http ()
 enabled2ndFaForTeamInternal galley tid = do
   put
     ( galley
-        . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge, toByteString' Public.Unlocked]
+        . paths ["i", "teams", toByteString' tid, "features", featureNameBS @Public.SndFactorPasswordChallengeConfig, toByteString' Public.LockStatusUnlocked]
         . contentJson
     )
     !!! const 200 === statusCode
   put
     ( galley
-        . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge]
+        . paths ["i", "teams", toByteString' tid, "features", featureNameBS @Public.SndFactorPasswordChallengeConfig]
         . contentJson
-        . Bilge.json (Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled)
+        . Bilge.json (Public.WithStatusNoLock Public.FeatureStatusEnabled Public.SndFactorPasswordChallengeConfig)
     )
     !!! const 200 === statusCode
 

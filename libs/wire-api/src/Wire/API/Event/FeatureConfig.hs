@@ -14,31 +14,31 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# LANGUAGE TemplateHaskell #-}
 
 module Wire.API.Event.FeatureConfig
   ( Event (..),
     EventType (..),
-    EventData (..),
+    mkUpdateEvent,
   )
 where
 
-import Control.Arrow ((&&&))
-import Control.Lens (makePrisms, _1)
-import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson (toJSON)
+import qualified Data.Aeson as A
 import qualified Data.Aeson.KeyMap as KeyMap
-import Data.Json.Util (ToJSONObject (..))
+import Data.Json.Util (ToJSONObject (toJSONObject))
 import Data.Schema
 import qualified Data.Swagger as S
+import GHC.TypeLits (KnownSymbol)
 import Imports
-import Wire.API.Team.Feature (TeamFeatureAppLockConfig, TeamFeatureClassifiedDomainsConfig, TeamFeatureName (..), TeamFeatureSelfDeletingMessagesConfig, TeamFeatureStatusNoConfig, TeamFeatureStatusNoConfigAndLockStatus, TeamFeatureStatusWithConfig)
+import Wire.API.Team.Feature
 
 data Event = Event
   { _eventType :: EventType,
-    _eventFeatureName :: TeamFeatureName,
-    _eventData :: EventData
+    _eventFeatureName :: Text,
+    _eventData :: A.Value
   }
   deriving (Eq, Show, Generic)
+  deriving (A.ToJSON, A.FromJSON) via Schema Event
 
 data EventType = Update
   deriving (Eq, Show)
@@ -50,48 +50,16 @@ instance ToSchema EventType where
         [ element "feature-config.update" Update
         ]
 
-data EventData
-  = EdFeatureWithoutConfigChanged TeamFeatureStatusNoConfig
-  | EdFeatureWithoutConfigAndLockStatusChanged TeamFeatureStatusNoConfigAndLockStatus
-  | EdFeatureApplockChanged (TeamFeatureStatusWithConfig TeamFeatureAppLockConfig)
-  | EdFeatureClassifiedDomainsChanged (TeamFeatureStatusWithConfig TeamFeatureClassifiedDomainsConfig)
-  | EdFeatureSelfDeletingMessagesChanged (TeamFeatureStatusWithConfig TeamFeatureSelfDeletingMessagesConfig)
-  deriving (Eq, Show, Generic)
-
-makePrisms ''EventData
-
-taggedEventDataSchema :: ObjectSchema SwaggerDoc (TeamFeatureName, EventData)
-taggedEventDataSchema =
-  bind
-    (fst .= field "name" schema)
-    (snd .= fieldOver _1 "data" edata)
-  where
-    edata = dispatch $ \case
-      TeamFeatureLegalHold -> tag _EdFeatureWithoutConfigChanged (unnamed schema)
-      TeamFeatureSSO -> tag _EdFeatureWithoutConfigChanged (unnamed schema)
-      TeamFeatureSearchVisibility -> tag _EdFeatureWithoutConfigChanged (unnamed schema)
-      TeamFeatureValidateSAMLEmails -> tag _EdFeatureWithoutConfigChanged (unnamed schema)
-      TeamFeatureDigitalSignatures -> tag _EdFeatureWithoutConfigChanged (unnamed schema)
-      TeamFeatureAppLock -> tag _EdFeatureApplockChanged (unnamed schema)
-      TeamFeatureFileSharing -> tag _EdFeatureWithoutConfigAndLockStatusChanged (unnamed schema)
-      TeamFeatureClassifiedDomains -> tag _EdFeatureClassifiedDomainsChanged (unnamed schema)
-      TeamFeatureConferenceCalling -> tag _EdFeatureWithoutConfigChanged (unnamed schema)
-      TeamFeatureSelfDeletingMessages -> tag _EdFeatureSelfDeletingMessagesChanged (unnamed schema)
-      TeamFeatureGuestLinks -> tag _EdFeatureWithoutConfigAndLockStatusChanged (unnamed schema)
-      TeamFeatureSndFactorPasswordChallenge -> tag _EdFeatureWithoutConfigAndLockStatusChanged (unnamed schema)
-      TeamFeatureSearchVisibilityInbound -> tag _EdFeatureWithoutConfigAndLockStatusChanged (unnamed schema)
-
 eventObjectSchema :: ObjectSchema SwaggerDoc Event
 eventObjectSchema =
-  mkEvent
-    <$> (_eventFeatureName &&& _eventData) .= taggedEventDataSchema
-    <*> _eventType .= field "type" schema
-  where
-    mkEvent :: (TeamFeatureName, EventData) -> EventType -> Event
-    mkEvent (feature, eventData) eventType = Event eventType feature eventData
+  Event
+    <$> _eventType .= field "type" schema
+    <*> _eventFeatureName .= field "name" schema
+    <*> _eventData .= field "data" jsonValue
 
 instance ToSchema Event where
-  schema = object "Event" eventObjectSchema
+  schema =
+    object "Event" eventObjectSchema
 
 instance ToJSONObject Event where
   toJSONObject =
@@ -99,11 +67,8 @@ instance ToJSONObject Event where
       . fromMaybe []
       . schemaOut eventObjectSchema
 
-instance FromJSON Event where
-  parseJSON = schemaParseJSON
-
-instance ToJSON Event where
-  toJSON = schemaToJSON
-
 instance S.ToSchema Event where
   declareNamedSchema = schemaToSwagger
+
+mkUpdateEvent :: forall cfg. (IsFeatureConfig cfg, ToSchema cfg, KnownSymbol (FeatureSymbol cfg)) => WithStatus cfg -> Event
+mkUpdateEvent ws = Event Update (featureName @cfg) (toJSON ws)

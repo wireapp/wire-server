@@ -39,7 +39,7 @@ import Data.Id (TeamId)
 import Data.Text.Encoding
 import Imports
 import Test.QuickCheck
-import Wire.API.Team.Feature (TeamFeatureStatusValue (TeamFeatureDisabled, TeamFeatureEnabled))
+import Wire.API.Team.Feature
 import Wire.API.User.Search
 
 -- | Outbound search restrictions configured by team admin of the searcher. This
@@ -85,9 +85,9 @@ instance FromByteString SearchVisibilityInbound where
 defaultSearchVisibilityInbound :: SearchVisibilityInbound
 defaultSearchVisibilityInbound = SearchableByOwnTeam
 
-searchVisibilityInboundFromFeatureStatus :: TeamFeatureStatusValue -> SearchVisibilityInbound
-searchVisibilityInboundFromFeatureStatus TeamFeatureDisabled = SearchableByOwnTeam
-searchVisibilityInboundFromFeatureStatus TeamFeatureEnabled = SearchableByAllTeams
+searchVisibilityInboundFromFeatureStatus :: FeatureStatus -> SearchVisibilityInbound
+searchVisibilityInboundFromFeatureStatus FeatureStatusDisabled = SearchableByOwnTeam
+searchVisibilityInboundFromFeatureStatus FeatureStatusEnabled = SearchableByAllTeams
 
 instance ToJSON SearchVisibilityInbound where
   toJSON = String . decodeUtf8 . toStrict . toLazyByteString . builder

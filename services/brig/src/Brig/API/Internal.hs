@@ -127,12 +127,12 @@ teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
-getAccountFeatureConfig :: UserId -> (Handler r) ApiFt.TeamFeatureStatusNoConfig
+getAccountFeatureConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
 getAccountFeatureConfig uid =
   lift (wrapClient $ Data.lookupFeatureConferenceCalling uid)
-    >>= maybe (view (settings . getAfcConferenceCallingDefNull)) pure
+    >>= maybe (ApiFt.forgetLock <$> view (settings . getAfcConferenceCallingDefNull)) pure
 
-putAccountFeatureConfig :: UserId -> ApiFt.TeamFeatureStatusNoConfig -> (Handler r) NoContent
+putAccountFeatureConfig :: UserId -> ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig -> (Handler r) NoContent
 putAccountFeatureConfig uid status =
   lift $ wrapClient $ Data.updateFeatureConferenceCalling uid (Just status) $> NoContent
 

@@ -50,6 +50,7 @@ import qualified Data.Text.Ascii as Ascii
 import qualified Data.Vector as Vec
 import Federation.Util (withTempMockFederator)
 import Federator.MockServer (FederatedRequest (..))
+import GHC.TypeLits (KnownSymbol)
 import Imports
 import Polysemy
 import qualified Test.Tasty.Cannon as WS
@@ -62,6 +63,7 @@ import Wire.API.Federation.Component
 import Wire.API.Internal.Notification (Notification (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging (LocalOrRemoteTable, MultiTablePagingState)
+import Wire.API.Team.Feature (featureNameBS)
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.User as Public
 
@@ -499,25 +501,26 @@ generateVerificationCode brig req = do
   let js = RequestBodyLBS $ encode req
   post (brig . paths ["verification-code", "send"] . contentJson . body js) !!! const 200 === statusCode
 
-setTeamSndFactorPasswordChallenge :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Galley -> TeamId -> Public.TeamFeatureStatusValue -> m ()
+setTeamSndFactorPasswordChallenge :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Galley -> TeamId -> Public.FeatureStatus -> m ()
 setTeamSndFactorPasswordChallenge galley tid status = do
-  let js = RequestBodyLBS $ encode $ Public.TeamFeatureStatusNoConfig status
-  put (galley . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge] . contentJson . body js) !!! const 200 === statusCode
+  let js = RequestBodyLBS $ encode $ Public.WithStatusNoLock status Public.SndFactorPasswordChallengeConfig
+  put (galley . paths ["i", "teams", toByteString' tid, "features", featureNameBS @Public.SndFactorPasswordChallengeConfig] . contentJson . body js) !!! const 200 === statusCode
 
 setTeamFeatureLockStatus ::
-  forall (a :: Public.TeamFeatureName) m.
+  forall (cfg :: *) m.
   ( MonadCatch m,
     MonadIO m,
     MonadHttp m,
     HasCallStack,
-    Public.KnownTeamFeatureName a
+    Public.IsFeatureConfig cfg,
+    KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   Galley ->
   TeamId ->
-  Public.LockStatusValue ->
+  Public.LockStatus ->
   m ()
 setTeamFeatureLockStatus galley tid status =
-  put (galley . paths ["i", "teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a), toByteString' status]) !!! const 200 === statusCode
+  put (galley . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg, toByteString' status]) !!! const 200 === statusCode
 
 lookupCode :: MonadIO m => DB.ClientState -> Code.Key -> Code.Scope -> m (Maybe Code.Code)
 lookupCode db k = liftIO . DB.runClient db . Code.lookup k

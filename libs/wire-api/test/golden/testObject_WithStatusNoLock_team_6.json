@@ -1,0 +1,6 @@
+{
+    "config": {
+        "enforcedTimeoutSeconds": 77
+    },
+    "status": "enabled"
+}

@@ -196,8 +196,7 @@ import Util.Options
 import Util.Types
 import qualified Web.Cookie as Web
 import Wire.API.Team (Icon (..))
-import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
-import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature (FeatureStatus (..), FeatureTrivialConfig (trivialConfig), SSOConfig, WithStatusNoLock (WithStatusNoLock))
 import qualified Wire.API.Team.Invitation as TeamInvitation
 import qualified Wire.API.Team.Member as Member
 import qualified Wire.API.Team.Role as Role
@@ -342,7 +341,7 @@ getUserBrig uid = do
 createUserWithTeam :: (HasCallStack, MonadHttp m, MonadIO m, MonadFail m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
 createUserWithTeam brg gly = do
   (uid, tid) <- createUserWithTeamDisableSSO brg gly
-  putSSOEnabledInternal gly tid TeamFeatureEnabled
+  putSSOEnabledInternal gly tid FeatureStatusEnabled
   pure (uid, tid)
 
 createUserWithTeamDisableSSO :: (HasCallStack, MonadHttp m, MonadIO m, MonadFail m) => BrigReq -> GalleyReq -> m (UserId, TeamId)
@@ -375,12 +374,12 @@ getSSOEnabledInternal gly tid = do
     gly
       . paths ["i", "teams", toByteString' tid, "features", "sso"]
 
-putSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> TeamFeatureStatusValue -> m ()
+putSSOEnabledInternal :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyReq -> TeamId -> FeatureStatus -> m ()
 putSSOEnabledInternal gly tid enabled = do
   void . put $
     gly
       . paths ["i", "teams", toByteString' tid, "features", "sso"]
-      . json (Public.TeamFeatureStatusNoConfig enabled)
+      . json (WithStatusNoLock @SSOConfig enabled trivialConfig)
       . expect2xx
 
 -- | cloned from `/services/brig/test/integration/API/Team/Util.hs`.

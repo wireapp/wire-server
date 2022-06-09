@@ -117,7 +117,7 @@ specImportToScimFromSAML =
   describe "Create with SAML autoprovisioning; then re-provision with SCIM" $ do
     forM_ ((,,) <$> [minBound ..] <*> [minBound ..] <*> [minBound ..]) $ \(x, y, z) -> check x y z
   where
-    check :: Bool -> Bool -> Feature.TeamFeatureStatusValue -> SpecWith TestEnv
+    check :: Bool -> Bool -> Feature.FeatureStatus -> SpecWith TestEnv
     check sameHandle sameDisplayName valemail = it (show (sameHandle, sameDisplayName, valemail)) $ do
       (_ownerid, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
       setSamlEmailValidation teamid valemail
@@ -148,10 +148,10 @@ specImportToScimFromSAML =
 
       -- activate email
       case valemail of
-        Feature.TeamFeatureEnabled -> do
+        Feature.FeatureStatusEnabled -> do
           asks (view teBrig) >>= \brig -> call (activateEmail brig email)
           assertBrigCassandra uid uref usr (valemail, True) ManagedByWire
-        Feature.TeamFeatureDisabled -> do
+        Feature.FeatureStatusDisabled -> do
           pure ()
 
       -- now import to scim
@@ -340,7 +340,7 @@ assertBrigCassandra ::
   UserId ->
   SAML.UserRef ->
   Scim.User.User SparTag ->
-  (Feature.TeamFeatureStatusValue, Bool) ->
+  (Feature.FeatureStatus, Bool) ->
   ManagedBy ->
   TestSpar ()
 assertBrigCassandra uid uref usr (valemail, emailValidated) managedBy = do
@@ -352,7 +352,7 @@ assertBrigCassandra uid uref usr (valemail, emailValidated) managedBy = do
         name = Name . fromMaybe (error "name") $ Scim.User.displayName usr
 
         email = case (valemail, emailValidated) of
-          (Feature.TeamFeatureEnabled, True) ->
+          (Feature.FeatureStatusEnabled, True) ->
             Just . fromJust . parseEmail . fromJust . Scim.User.externalId $ usr
           _ ->
             Nothing
@@ -2010,8 +2010,8 @@ specEmailValidation = do
         setup enabled = do
           (tok, (_ownerid, teamid, idp)) <- registerIdPAndScimToken
           if enabled
-            then setSamlEmailValidation teamid Feature.TeamFeatureEnabled
-            else setSamlEmailValidation teamid Feature.TeamFeatureDisabled
+            then setSamlEmailValidation teamid Feature.FeatureStatusEnabled
+            else setSamlEmailValidation teamid Feature.FeatureStatusDisabled
           (user, email) <- randomScimUserWithEmail
           scimStoredUser <- createUser tok user
           uref :: SAML.UserRef <-
@@ -2074,7 +2074,7 @@ specSCIMManaged = do
       let brig = env ^. teBrig
 
       (tok, (_ownerid, teamid, idp, (_, privCreds))) <- registerIdPAndScimTokenWithMeta
-      setSamlEmailValidation teamid Feature.TeamFeatureEnabled
+      setSamlEmailValidation teamid Feature.FeatureStatusEnabled
       (user, oldEmail) <- randomScimUserWithEmail
       storedUser <- createUser tok user
       let uid :: UserId = Scim.id . Scim.thing $ storedUser

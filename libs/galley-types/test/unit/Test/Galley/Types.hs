@@ -31,6 +31,7 @@ import qualified Test.QuickCheck as QC
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+import Wire.API.Team.Feature as Public
 
 tests :: TestTree
 tests =
@@ -83,12 +84,14 @@ instance Arbitrary FeatureFlags where
       <$> QC.elements [minBound ..]
       <*> QC.elements [minBound ..]
       <*> QC.elements [minBound ..]
+      -- the default lock status is implicitly added on deserialization and ignored on serialization, therefore we need to fix it to the default here
+      -- we will be able to remove this once the lock status is explicitly included in the config
+      <*> (arbitrary <&> fmap Public.withUnlocked)
+      <*> (arbitrary <&> Public.withUnlocked)
+      <*> arbitrary
+      <*> (arbitrary <&> fmap Public.withUnlocked)
       <*> arbitrary
       <*> arbitrary
+      <*> (arbitrary <&> fmap Public.withUnlocked)
       <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
+      <*> (arbitrary <&> fmap Public.withUnlocked)

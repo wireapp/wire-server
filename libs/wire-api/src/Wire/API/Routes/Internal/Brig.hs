@@ -41,7 +41,7 @@ import Data.Schema hiding (swaggerDoc)
 import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
 import qualified Data.Swagger as S
 import Imports hiding (head)
-import Servant hiding (Handler, JSON, addHeader, respond)
+import Servant hiding (Handler, JSON, WithStatus, addHeader, respond)
 import qualified Servant
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
@@ -56,8 +56,7 @@ import Wire.API.Routes.Internal.Brig.EJPD
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
-import Wire.API.Team.Feature (TeamFeatureName (TeamFeatureSearchVisibilityInbound))
-import qualified Wire.API.Team.Feature as ApiFt
+import Wire.API.Team.Feature
 import Wire.API.User
 
 type EJPDRequest =
@@ -85,7 +84,7 @@ type GetAccountFeatureConfig =
     :> Capture "uid" UserId
     :> "features"
     :> "conferenceCalling"
-    :> Get '[Servant.JSON] (ApiFt.TeamFeatureStatus 'ApiFt.WithoutLockStatus 'ApiFt.TeamFeatureConferenceCalling)
+    :> Get '[Servant.JSON] (WithStatusNoLock ConferenceCallingConfig)
 
 type PutAccountFeatureConfig =
   Summary
@@ -94,7 +93,7 @@ type PutAccountFeatureConfig =
     :> Capture "uid" UserId
     :> "features"
     :> "conferenceCalling"
-    :> Servant.ReqBody '[Servant.JSON] (ApiFt.TeamFeatureStatus 'ApiFt.WithoutLockStatus 'ApiFt.TeamFeatureConferenceCalling)
+    :> Servant.ReqBody '[Servant.JSON] (WithStatusNoLock ConferenceCallingConfig)
     :> Put '[Servant.JSON] NoContent
 
 type DeleteAccountFeatureConfig =
@@ -260,7 +259,7 @@ type TeamsAPI =
   Named
     "updateSearchVisibilityInbound"
     ( "teams"
-        :> ReqBody '[Servant.JSON] (Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound)
+        :> ReqBody '[Servant.JSON] (Multi.TeamStatus SearchVisibilityInboundConfig)
         :> Post '[Servant.JSON] ()
     )
 

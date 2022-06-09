@@ -38,8 +38,10 @@ import qualified Galley.API.Query as Query
 import qualified Galley.API.Teams as Teams
 import qualified Galley.API.Teams.Features as Features
 import Galley.App
+import Galley.Cassandra.TeamFeatures
 import Galley.Effects
 import qualified Galley.Effects as E
+import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import Galley.Options
 import Imports hiding (head)
 import Network.HTTP.Types
@@ -63,6 +65,7 @@ import qualified Wire.API.Message as Public
 import qualified Wire.API.Notification as Public
 import Wire.API.Routes.API
 import qualified Wire.API.Swagger as Public.Swagger (models)
+import Wire.API.Team.Feature
 
 -- These are all the errors that can be thrown by wai-routing handlers.
 -- We don't do any static checks on these errors, so we simply remap them to
@@ -152,29 +155,30 @@ sitemap = do
 
   -- Bot API ------------------------------------------------------------
 
-  get "/bot/conversation" (continueE getBotConversationH) $
+  get "/bot/conversation" (continueE (getBotConversationH @Cassandra)) $
     zauth ZAuthBot
       .&> zauthBotId
       .&. zauthConvId
       .&. accept "application" "json"
 
 getBotConversationH ::
-  forall r.
+  forall db r.
   ( Member E.ConversationStore r,
     Member (Input (Local ())) r,
     Member (Input Opts) r,
-    Member TeamFeatureStore r,
+    Member (TeamFeatureStore db) r,
     Member (ErrorS 'AccessDenied) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS OperationDenied) r,
     Member (ErrorS 'NotATeamMember) r,
     Member (ErrorS 'TeamNotFound) r,
-    Member TeamStore r
+    Member TeamStore r,
+    FeaturePersistentConstraint db SndFactorPasswordChallengeConfig
   ) =>
   BotId ::: ConvId ::: JSON ->
   Sem r Response
 getBotConversationH arg@(bid ::: cid ::: _) =
-  Features.guardSecondFactorDisabled (botUserId bid) cid (Query.getBotConversationH arg)
+  Features.guardSecondFactorDisabled @db (botUserId bid) cid (Query.getBotConversationH arg)
 
 apiDocs :: Routes ApiBuilder (Sem r) ()
 apiDocs =

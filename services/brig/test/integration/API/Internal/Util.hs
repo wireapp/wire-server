@@ -119,10 +119,10 @@ scaffolding brig gundeck = do
 ejpdRequestClientM :: Maybe Bool -> EJPDRequestBody -> Client.ClientM EJPDResponseBody
 ejpdRequestClientM = Client.client (Proxy @("i" :> IAPI.EJPDRequest))
 
-getAccountFeatureConfigClientM :: UserId -> Client.ClientM Public.TeamFeatureStatusNoConfig
+getAccountFeatureConfigClientM :: UserId -> Client.ClientM (Public.WithStatusNoLock Public.ConferenceCallingConfig)
 getAccountFeatureConfigClientM = Client.client (Proxy @("i" :> IAPI.GetAccountFeatureConfig))
 
-putAccountFeatureConfigClientM :: UserId -> Public.TeamFeatureStatusNoConfig -> Client.ClientM NoContent
+putAccountFeatureConfigClientM :: UserId -> Public.WithStatusNoLock Public.ConferenceCallingConfig -> Client.ClientM NoContent
 putAccountFeatureConfigClientM = Client.client (Proxy @("i" :> IAPI.PutAccountFeatureConfig))
 
 deleteAccountFeatureConfigClientM :: UserId -> Client.ClientM NoContent
@@ -131,10 +131,10 @@ deleteAccountFeatureConfigClientM = Client.client (Proxy @("i" :> IAPI.DeleteAcc
 ejpdRequestClient :: (HasCallStack, MonadThrow m, MonadIO m, MonadHttp m) => Endpoint -> Manager -> Maybe Bool -> EJPDRequestBody -> m EJPDResponseBody
 ejpdRequestClient brigep mgr includeContacts ejpdReqBody = runHereClientM brigep mgr (ejpdRequestClientM includeContacts ejpdReqBody) >>= either throwM pure
 
-getAccountFeatureConfigClient :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> UserId -> m (Either Client.ClientError Public.TeamFeatureStatusNoConfig)
+getAccountFeatureConfigClient :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> UserId -> m (Either Client.ClientError (Public.WithStatusNoLock Public.ConferenceCallingConfig))
 getAccountFeatureConfigClient brigep mgr uid = runHereClientM brigep mgr (getAccountFeatureConfigClientM uid)
 
-putAccountFeatureConfigClient :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> UserId -> Public.TeamFeatureStatusNoConfig -> m (Either Client.ClientError NoContent)
+putAccountFeatureConfigClient :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> UserId -> Public.WithStatusNoLock Public.ConferenceCallingConfig -> m (Either Client.ClientError NoContent)
 putAccountFeatureConfigClient brigep mgr uid cfg = runHereClientM brigep mgr (putAccountFeatureConfigClientM uid cfg)
 
 deleteAccountFeatureConfigClient :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> UserId -> m (Either Client.ClientError NoContent)

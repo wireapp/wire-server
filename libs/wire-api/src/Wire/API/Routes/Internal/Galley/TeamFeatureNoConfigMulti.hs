@@ -19,7 +19,6 @@ module Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
   ( TeamFeatureNoConfigMultiRequest (..),
     TeamFeatureNoConfigMultiResponse (..),
     TeamStatus (..),
-    TeamStatusUpdate (..),
   )
 where
 
@@ -28,7 +27,6 @@ import Data.Id
 import Data.Schema
 import qualified Data.Swagger as S
 import Imports
-import Wire.API.Team.Feature (TeamFeatureName)
 import qualified Wire.API.Team.Feature as Public
 
 newtype TeamFeatureNoConfigMultiRequest = TeamFeatureNoConfigMultiRequest
@@ -43,46 +41,28 @@ instance ToSchema TeamFeatureNoConfigMultiRequest where
       TeamFeatureNoConfigMultiRequest
         <$> teams .= field "teams" (array schema)
 
-newtype TeamFeatureNoConfigMultiResponse (a :: TeamFeatureName) = TeamFeatureNoConfigMultiResponse
-  { teamsStatuses :: [TeamStatus a]
+newtype TeamFeatureNoConfigMultiResponse cfg = TeamFeatureNoConfigMultiResponse
+  { teamsStatuses :: [TeamStatus cfg]
   }
   deriving (Show, Eq)
-  deriving (A.ToJSON, A.FromJSON) via (Schema (TeamFeatureNoConfigMultiResponse a))
+  deriving (A.ToJSON, A.FromJSON) via (Schema (TeamFeatureNoConfigMultiResponse cfg))
 
-instance ToSchema (TeamFeatureNoConfigMultiResponse a) where
+instance ToSchema (TeamFeatureNoConfigMultiResponse cfg) where
   schema =
     object "TeamFeatureNoConfigMultiResponse" $
       TeamFeatureNoConfigMultiResponse
         <$> teamsStatuses .= field "default_status" (array schema)
 
-data TeamStatus (a :: TeamFeatureName) = TeamStatus
+data TeamStatus cfg = TeamStatus
   { team :: TeamId,
-    status :: Public.TeamFeatureStatusValue,
-    writeTime :: Maybe Int64
+    status :: Public.FeatureStatus
   }
   deriving (Show, Eq)
-  deriving (A.ToJSON, A.FromJSON) via (Schema (TeamStatus a))
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema (TeamStatus cfg))
 
-instance ToSchema (TeamStatus a) where
+instance ToSchema (TeamStatus cfg) where
   schema =
     object "TeamStatus" $
       TeamStatus
         <$> team .= field "team" schema
         <*> status .= field "status" schema
-        <*> writeTime .= maybe_ (optField "writetime" schema)
-
-data TeamStatusUpdate (a :: TeamFeatureName) = TeamStatusUpdate
-  { tsuTeam :: TeamId,
-    tsuStatus :: Public.TeamFeatureStatusValue,
-    tsuWriteTime :: Int64
-  }
-  deriving (Show, Eq)
-  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema (TeamStatusUpdate a))
-
-instance ToSchema (TeamStatusUpdate a) where
-  schema =
-    object "TeamStatusUpdate" $
-      TeamStatusUpdate
-        <$> tsuTeam .= field "team" schema
-        <*> tsuStatus .= field "status" schema
-        <*> tsuWriteTime .= field "writetime" schema

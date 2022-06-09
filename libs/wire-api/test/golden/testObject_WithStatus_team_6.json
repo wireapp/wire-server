@@ -1,0 +1,7 @@
+{
+    "config": {
+        "enforcedTimeoutSeconds": 77
+    },
+    "lockStatus": "locked",
+    "status": "enabled"
+}

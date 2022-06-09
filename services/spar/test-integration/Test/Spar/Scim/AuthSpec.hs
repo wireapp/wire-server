@@ -50,6 +50,7 @@ import qualified SAML2.WebSSO.Test.Util as SAML
 import Spar.Scim
 import Text.RawString.QQ (r)
 import Util
+import Wire.API.Team.Feature (featureNameBS)
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.User as Public
 
@@ -111,7 +112,7 @@ testCreateTokenWithVerificationCode = do
   env <- ask
   (owner, teamId, _) <- registerTestIdP
   unlockFeature (env ^. teGalley) teamId
-  setSndFactorPasswordChallengeStatus (env ^. teGalley) teamId Public.TeamFeatureEnabled
+  setSndFactorPasswordChallengeStatus (env ^. teGalley) teamId Public.FeatureStatusEnabled
   user <- getUserBrig owner
   let email = fromMaybe undefined (Brig.userEmail =<< user)
 
@@ -137,13 +138,13 @@ testCreateTokenWithVerificationCode = do
 
 unlockFeature :: GalleyReq -> TeamId -> TestSpar ()
 unlockFeature galley tid =
-  call $ put (galley . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge, toByteString' Public.Unlocked]) !!! const 200 === statusCode
+  call $ put (galley . paths ["i", "teams", toByteString' tid, "features", featureNameBS @Public.SndFactorPasswordChallengeConfig, toByteString' Public.LockStatusUnlocked]) !!! const 200 === statusCode
 
-setSndFactorPasswordChallengeStatus :: GalleyReq -> TeamId -> Public.TeamFeatureStatusValue -> TestSpar ()
+setSndFactorPasswordChallengeStatus :: GalleyReq -> TeamId -> Public.FeatureStatus -> TestSpar ()
 setSndFactorPasswordChallengeStatus galley tid status = do
-  let js = RequestBodyLBS $ encode $ Public.TeamFeatureStatusNoConfig status
+  let js = RequestBodyLBS $ encode $ Public.WithStatusNoLock @Public.SndFactorPasswordChallengeConfig status Public.trivialConfig
   call $
-    put (galley . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge] . contentJson . body js)
+    put (galley . paths ["i", "teams", toByteString' tid, "features", featureNameBS @Public.SndFactorPasswordChallengeConfig] . contentJson . body js)
       !!! const 200 === statusCode
 
 requestVerificationCode :: BrigReq -> Brig.Email -> Public.VerificationAction -> TestSpar ()
