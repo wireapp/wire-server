@@ -35,5 +35,5 @@ sitemap e = do
 
 routesInternal :: Routes a Proxy ()
 routesInternal = do
-  head "/i/status" (continue $ const (return empty)) true
-  get "/i/status" (continue $ const (return empty)) true
+  head "/i/status" (continue $ const (pure empty)) true
+  get "/i/status" (continue $ const (pure empty)) true

@@ -52,22 +52,22 @@ sitemap e = do
   get
     "/proxy/youtube/v3/:path"
     (proxy e "key" "secrets.youtube" Prefix "/youtube/v3" youtube)
-    return
+    pure
 
   get
     "/proxy/googlemaps/api/staticmap"
     (proxy e "key" "secrets.googlemaps" Static "/maps/api/staticmap" googleMaps)
-    return
+    pure
 
   get
     "/proxy/googlemaps/maps/api/geocode/:path"
     (proxy e "key" "secrets.googlemaps" Prefix "/maps/api/geocode" googleMaps)
-    return
+    pure
 
   get
     "/proxy/giphy/v1/gifs/:path"
     (proxy e "api_key" "secrets.giphy" Prefix "/v1/gifs" giphy)
-    return
+    pure
 
   post "/proxy/spotify/api/token" (continue spotifyToken) request
 
@@ -98,7 +98,7 @@ proxy e qparam keyname reroute path phost rq k = do
   liftIO $ loop runInIO (2 :: Int) r (WPRModifiedRequestSecure r' phost)
   where
     loop runInIO !n waiReq req =
-      waiProxyTo (const $ return req) (onUpstreamError runInIO) (e ^. manager) waiReq $ \res ->
+      waiProxyTo (const $ pure req) (onUpstreamError runInIO) (e ^. manager) waiReq $ \res ->
         if responseStatus res == status502 && n > 0
           then do
             threadDelay 5000
@@ -123,7 +123,7 @@ spotifyToken rq = do
         ~~ "upstream" .= val "spotify::token"
         ~~ "status" .= S (Client.responseStatus res)
         ~~ "body" .= B.take 256 (Client.responseBody res)
-  return $
+  pure $
     plain (Client.responseBody res)
       & setStatus (Client.responseStatus res)
         . maybeHeader hContentType res
@@ -148,7 +148,7 @@ soundcloudResolve url = do
         ~~ "upstream" .= val "soundcloud::resolve"
         ~~ "status" .= S (Client.responseStatus res)
         ~~ "body" .= B.take 256 (Client.responseBody res)
-  return $
+  pure $
     plain (Client.responseBody res)
       & setStatus (Client.responseStatus res)
         . maybeHeader hContentType res
@@ -178,18 +178,18 @@ soundcloudStream url = do
     failWith "unexpected upstream response"
   case Res.getHeader hLocation res of
     Nothing -> failWith "missing location header"
-    Just loc -> return (empty & setStatus status302 . addHeader hLocation loc)
+    Just loc -> pure (empty & setStatus status302 . addHeader hLocation loc)
 
 x2 :: RetryPolicy
 x2 = exponentialBackoff 5000 <> limitRetries 2
 
 handler :: (MonadIO m, MonadMask m) => RetryStatus -> Handler m Bool
 handler = const . Handler $ \case
-  Client.HttpExceptionRequest _ Client.NoResponseDataReceived -> return True
-  Client.HttpExceptionRequest _ Client.IncompleteHeaders -> return True
-  Client.HttpExceptionRequest _ (Client.ConnectionTimeout) -> return True
-  Client.HttpExceptionRequest _ (Client.ConnectionFailure _) -> return True
-  _ -> return False
+  Client.HttpExceptionRequest _ Client.NoResponseDataReceived -> pure True
+  Client.HttpExceptionRequest _ Client.IncompleteHeaders -> pure True
+  Client.HttpExceptionRequest _ Client.ConnectionTimeout -> pure True
+  Client.HttpExceptionRequest _ (Client.ConnectionFailure _) -> pure True
+  _ -> pure False
 
 safeQuery :: Query -> Query
 safeQuery = filter noAccessToken
