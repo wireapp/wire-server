@@ -516,20 +516,26 @@ setTeamFeatureFlag ::
   ) =>
   TeamId ->
   Public.WithStatusNoLock cfg ->
+  Public.TeamFeatureTTValue ->
   Handler ()
-setTeamFeatureFlag tid status = do
+setTeamFeatureFlag tid status ttl = do
   info $ msg "Setting team feature status"
   gly <- view galley
   let req =
         method PUT
           . paths ["/i/teams", toByteString' tid, "features", Public.featureNameBS @cfg]
           . Bilge.json status
-          . contentJson
+          . Bilge.query [("ttl", toBytestring' ttlAPI)]
+          . contentJso n
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
     200 -> pure ()
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
+  where
+    ttlAPI = case ttl of
+      Public.TeamFeatureTTLSeconds days -> Public.TeamFeatureTTLSeconds (60 * 60 * 24 * days)
+      Public.TeamFeatureTTLUnlimited -> Public.TeamFeatureTTLUnlimited
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do
