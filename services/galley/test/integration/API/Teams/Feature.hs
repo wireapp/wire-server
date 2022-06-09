@@ -338,7 +338,7 @@ testSimpleFlagTTLOverride ::
     Typeable cfg,
     Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg),
-    -- Public.FeatureTrivialConfig cfg,
+    Public.FeatureTrivialConfig cfg,
     ToSchema cfg,
     FromJSON (Public.WithStatusNoLock cfg),
     ToJSON (Public.WithStatusNoLock cfg)
@@ -356,16 +356,20 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
   Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
   let getFlag :: HasCallStack => Public.FeatureStatus -> TestM ()
-      getFlag = assertFlag @cfg feature member tid
+      getFlag expected =
+        flip (assertFlagNoConfig @cfg) expected $ Util.getTeamFeatureFlag @cfg member tid
 
       getFeatureConfig :: HasCallStack => Public.FeatureStatus -> TestM ()
-      getFeatureConfig = assertFeatureConfig @cfg feature member
+      getFeatureConfig expected =
+        flip (assertFlagNoConfig @cfg) expected $ Util.getFeatureConfig @cfg member
 
       getFlagInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
-      getFlagInternal = assertFlagInternal @cfg feature tid
+      getFlagInternal expected =
+        flip (assertFlagNoConfig @cfg) expected $ Util.getTeamFeatureFlagInternal @cfg tid
 
-      setFlagInternal' :: Public.FeatureStatus -> TeamFeatureTTLValue -> TestM ()
-      setFlagInternal' = setFlagInternal @cfg tid
+      setFlagInternal :: Public.FeatureStatus -> TeamFeatureTTLValue -> TestM ()
+      setFlagInternal statusValue ttl' =
+        void $ Util.putTeamFeatureFlagInternalTTL @cfg expect2xx tid (Public.WithStatusNoLock statusValue (Public.trivialConfig @cfg)) ttl'
 
       select :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureTTLValue))
       select = fromString "select ttl(conference_calling) from team_features where team_id = ?"
@@ -380,7 +384,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
       half = 500000
       seconds = 1000000
 
-  assertFlagForbidden $ Util.getTeamFeatureFlag feature nonMember tid
+  assertFlagForbidden $ Util.getTeamFeatureFlag @cfg nonMember tid
 
   let otherValue = case defaultValue of
         Public.FeatureStatusDisabled -> Public.FeatureStatusEnabled
@@ -392,7 +396,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
   getFeatureConfig defaultValue
 
   -- Setting should work
-  setFlagInternal' otherValue ttl
+  setFlagInternal otherValue ttl
   getFlag otherValue
   getFeatureConfig otherValue
   getFlagInternal otherValue
@@ -401,7 +405,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
     (TeamFeatureTTLSeconds d, TeamFeatureTTLSeconds d') -> do
       -- wait less than expiration, override and recheck.
       liftIO $ threadDelay (fromIntegral d * half) -- waiting half of TTL
-      setFlagInternal' otherValue ttlAfter
+      setFlagInternal otherValue ttlAfter
       -- value is still correct
       getFlag otherValue
 
@@ -411,13 +415,13 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
     (TeamFeatureTTLSeconds d, TeamFeatureTTLUnlimited) -> do
       -- wait less than expiration, override and recheck.
       liftIO $ threadDelay (fromIntegral d * half) -- waiting half of TTL
-      setFlagInternal' otherValue ttlAfter
+      setFlagInternal otherValue ttlAfter
       -- value is still correct
       getFlag otherValue
       assertUnlimited
     (TeamFeatureTTLUnlimited, TeamFeatureTTLUnlimited) -> do
       -- overriding in this case should have no effect.
-      setFlagInternal' otherValue ttl
+      setFlagInternal otherValue ttl
       getFlag otherValue
       getFeatureConfig otherValue
       getFlagInternal otherValue
@@ -426,7 +430,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
     (TeamFeatureTTLUnlimited, TeamFeatureTTLSeconds d) -> do
       assertUnlimited
 
-      setFlagInternal' otherValue ttlAfter
+      setFlagInternal otherValue ttlAfter
       getFlag otherValue
       getFeatureConfig otherValue
       getFlagInternal otherValue
@@ -438,7 +442,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
       assertUnlimited
 
   -- Clean up
-  setFlagInternal' defaultValue TeamFeatureTTLUnlimited
+  setFlagInternal defaultValue TeamFeatureTTLUnlimited
   getFlag defaultValue
 
 -- TODO: remove a, add cfg
@@ -464,22 +468,6 @@ testSimpleFlagTTL defaultValue ttl = do
   Util.connectUsers owner (list1 member [])
   Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
-  -- let getFlag :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-  --     getFlag = assertFlag @a feature member tid
-
-  --     getFeatureConfig :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-  --     getFeatureConfig = assertFeatureConfig @a feature member
-
-  --     getFlagInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-  --     getFlagInternal = assertFlagInternal @a feature tid
-
-  --     setFlagInternal' :: Public.TeamFeatureStatusValue -> TeamFeatureTTLValue -> TestM ()
-  --     setFlagInternal' = setFlagInternal @a tid
-
-  --     select :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureTTLValue))
-  --     select = fromString "select ttl(conference_calling) from team_features where team_id = ?"
-  -- =======
-
   let getFlag :: HasCallStack => Public.FeatureStatus -> TestM ()
       getFlag expected =
         flip (assertFlagNoConfig @cfg) expected $ Util.getTeamFeatureFlag @cfg member tid
@@ -492,9 +480,12 @@ testSimpleFlagTTL defaultValue ttl = do
       getFlagInternal expected =
         flip (assertFlagNoConfig @cfg) expected $ Util.getTeamFeatureFlagInternal @cfg tid
 
-      setFlagInternal :: Public.FeatureStatus -> TestM ()
-      setFlagInternal statusValue =
-        void $ Util.putTeamFeatureFlagInternal @cfg expect2xx tid (Public.WithStatusNoLock statusValue (Public.trivialConfig @cfg))
+      setFlagInternal :: Public.FeatureStatus -> TeamFeatureTTLValue -> TestM ()
+      setFlagInternal statusValue ttl' =
+        void $ Util.putTeamFeatureFlagInternalTTL @cfg expect2xx tid (Public.WithStatusNoLock statusValue (Public.trivialConfig @cfg)) ttl'
+
+      select :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureTTLValue))
+      select = fromString "select ttl(conference_calling) from team_features where team_id = ?"
 
   assertFlagForbidden $ Util.getTeamFeatureFlag @cfg nonMember tid
 
@@ -511,7 +502,7 @@ testSimpleFlagTTL defaultValue ttl = do
   cannon <- view tsCannon
   -- should receive an event
   WS.bracketR cannon member $ \ws -> do
-    setFlagInternal' otherValue ttl
+    setFlagInternal otherValue ttl
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
         wsAssertFeatureConfigUpdate @cfg otherValue
@@ -532,7 +523,7 @@ testSimpleFlagTTL defaultValue ttl = do
         runIdentity <$> storedTTL `shouldBe` Just Nothing
 
   -- Clean up
-  setFlagInternal' defaultValue TeamFeatureTTLUnlimited
+  setFlagInternal defaultValue TeamFeatureTTLUnlimited
   getFlag defaultValue
 
 testSimpleFlagWithLockStatus ::
@@ -874,17 +865,6 @@ testSearchVisibilityInbound = do
   owner <- Util.randomUser
   tid <- Util.createNonBindingTeam "foo" owner []
 
-  -- <<<<<<< HEAD
-  --   let getFlagInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-  --       getFlagInternal = assertFlagInternal @'TeamFeatureSearchVisibilityInbound feature tid
-
-  --       setFlagInternal' :: Public.TeamFeatureStatusValue -> TestM ()
-  --       setFlagInternal' = flip (setFlagInternal @'TeamFeatureSearchVisibilityInbound tid) TeamFeatureTTLUnlimited
-
-  --       otherValue = case defaultValue of
-  --         Public.TeamFeatureDisabled -> Public.TeamFeatureEnabled
-  --         Public.TeamFeatureEnabled -> Public.TeamFeatureDisabled
-  -- =======
   let getFlagInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
       getFlagInternal expected =
         flip (assertFlagNoConfig @Public.SearchVisibilityInboundConfig) expected $ Util.getTeamFeatureFlagInternal @Public.SearchVisibilityInboundConfig tid
@@ -899,7 +879,7 @@ testSearchVisibilityInbound = do
 
   -- Initial value should be the default value
   getFlagInternal defaultValue
-  setFlagInternal' otherValue
+  setFlagInternal otherValue
   getFlagInternal otherValue
 
 testFeatureNoConfigMultiSearchVisibilityInbound :: TestM ()
@@ -1039,64 +1019,3 @@ wsAssertFeatureConfigWithLockStatusUpdate status lockStatus notification = do
   FeatureConfig._eventType e @?= FeatureConfig.Update
   FeatureConfig._eventFeatureName e @?= (Public.featureName @cfg)
   FeatureConfig._eventData e @?= Aeson.toJSON (Public.WithStatus status lockStatus (Public.trivialConfig @cfg))
-
--- assertFlag ::
---   forall (a :: Public.TeamFeatureName).
---   ( HasStatusCol a,
---     Public.FeatureHasNoConfig 'Public.WithoutLockStatus a,
---     Public.KnownTeamFeatureName a,
---     Typeable a,
---     HasCallStack
---   ) =>
---   Public.TeamFeatureName ->
---   UserId ->
---   TeamId ->
---   Public.TeamFeatureStatusValue ->
---   TestM ()
--- assertFlag feature member tid expected =
---   flip (assertFlagNoConfig @a) expected $ Util.getTeamFeatureFlag feature member tid
-
--- assertFeatureConfig ::
---   forall (a :: Public.TeamFeatureName).
---   ( HasStatusCol a,
---     Public.FeatureHasNoConfig 'Public.WithoutLockStatus a,
---     Public.KnownTeamFeatureName a,
---     Typeable a,
---     HasCallStack
---   ) =>
---   Public.TeamFeatureName ->
---   UserId ->
---   Public.TeamFeatureStatusValue ->
---   TestM ()
--- assertFeatureConfig feature member expected =
---   flip (assertFlagNoConfig @a) expected $ Util.getFeatureConfig feature member
-
--- assertFlagInternal ::
---   forall (a :: Public.TeamFeatureName).
---   ( HasStatusCol a,
---     Public.FeatureHasNoConfig 'Public.WithoutLockStatus a,
---     Public.KnownTeamFeatureName a,
---     Typeable a,
---     HasCallStack
---   ) =>
---   Public.TeamFeatureName ->
---   TeamId ->
---   Public.TeamFeatureStatusValue ->
---   TestM ()
--- assertFlagInternal feature tid expected =
---   flip (assertFlagNoConfig @a) expected $ Util.getTeamFeatureFlagInternal feature tid
-
--- setFlagInternal ::
---   forall (a :: Public.TeamFeatureName).
---   ( HasStatusCol a,
---     Public.FeatureHasNoConfig 'Public.WithoutLockStatus a,
---     Public.KnownTeamFeatureName a,
---     Typeable a,
---     HasCallStack
---   ) =>
---   TeamId ->
---   Public.TeamFeatureStatusValue ->
---   TeamFeatureTTLValue ->
---   TestM ()
--- setFlagInternal tid statusValue ttl' =
---   void $ Util.putTeamFeatureFlagInternalTTL @a expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue) ttl'
