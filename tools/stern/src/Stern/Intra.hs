@@ -516,7 +516,7 @@ setTeamFeatureFlag ::
   ) =>
   TeamId ->
   Public.WithStatusNoLock cfg ->
-  Public.TeamFeatureTTValue ->
+  Public.TeamFeatureTTLValue ->
   Handler ()
 setTeamFeatureFlag tid status ttl = do
   info $ msg "Setting team feature status"
@@ -525,8 +525,8 @@ setTeamFeatureFlag tid status ttl = do
         method PUT
           . paths ["/i/teams", toByteString' tid, "features", Public.featureNameBS @cfg]
           . Bilge.json status
-          . Bilge.query [("ttl", toBytestring' ttlAPI)]
-          . contentJso n
+          . Bilge.query [("ttl", Just $ toByteString' ttlAPI)]
+          . contentJson
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
     200 -> pure ()
