@@ -59,7 +59,7 @@ import Galley.Effects.Paging
 import qualified Galley.Effects.SearchVisibilityStore as SearchVisibilityData
 import Galley.Effects.TeamFeatureStore
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
-import Galley.Effects.TeamStore (getOneUserTeam, getTeam, getTeamMember)
+import Galley.Effects.TeamStore (getLegalHoldFlag, getOneUserTeam, getTeam, getTeamMember)
 import Galley.Intra.Push (PushEvent (FeatureConfigEvent), newPush)
 import Galley.Options
 import Galley.Types.Conversations.Roles (Action (RemoveConversationMember))
