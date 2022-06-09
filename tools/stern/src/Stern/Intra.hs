@@ -507,6 +507,7 @@ getTeamFeatureFlag tid = do
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
 
+-- TODO: add ttl here
 setTeamFeatureFlag ::
   forall cfg.
   ( ToJSON (Public.WithStatusNoLock cfg),
@@ -530,55 +531,6 @@ setTeamFeatureFlag tid status = do
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
 
-<<<<<<< HEAD
-getTeamFeatureFlagNoConfig ::
-  TeamId ->
-  Public.TeamFeatureName ->
-  Handler Public.TeamFeatureStatusNoConfig
-getTeamFeatureFlagNoConfig tid featureName = do
-  info $ msg "Getting team feature status"
-  gly <- view galley
-  let req =
-        method GET
-          . paths ["/i/teams", toByteString' tid, "features", toByteString' featureName]
-          . expect2xx
-
-  resp <- catchRpcErrors (rpc' "galley" gly req)
-  case statusCode resp of
-    200 -> pure $ responseJsonUnsafe @Public.TeamFeatureStatusNoConfig resp
-    404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
-    _ -> throwE (mkError status502 "bad-upstream" "bad response")
-
-setTeamFeatureFlagNoConfig ::
-  TeamId ->
-  Public.TeamFeatureName ->
-  Public.TeamFeatureStatusValue ->
-  Public.TeamFeatureTTLValue ->
-  Handler ()
-setTeamFeatureFlagNoConfig tid featureName statusValue ttlValue = do
-  info $ msg "Setting team feature status for feature without config"
-  gly <- view galley
-  let req =
-        method PUT
-          . paths ["/i/teams", toByteString' tid, "features", toByteString' featureName]
-          . Bilge.json (Public.TeamFeatureStatusNoConfig statusValue)
-          . Bilge.query [("ttl", convert ttlValue)]
-          . contentJson
-  resp <- catchRpcErrors $ rpc' "galley" gly req
-  case statusCode resp of
-    200 -> pure ()
-    404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
-    _ -> throwE $ responseJsonUnsafe resp
-  where
-    convert = Just . toByteString' . fromDays
-    fromMinutes = (* 60)
-    fromHours = fromMinutes . (* 60)
-    fromDays = \case
-      Public.TeamFeatureTTLSeconds s -> Public.TeamFeatureTTLSeconds . fromHours . (* 24) $ s
-      Public.TeamFeatureTTLUnlimited -> Public.TeamFeatureTTLUnlimited
-
-=======
->>>>>>> 447bf419f (Refactor features)
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do
   info $ msg "Getting TeamSearchVisibilityView value"
