@@ -276,16 +276,19 @@ migrationPolicy = do
 migrationOptsParser :: Parser MigrationOpts
 migrationOptsParser =
   MigrationOpts
-    <$> strOption (
-            long "host"
-              <> metavar "HOST"
-              <> value "localhost"
-              <> help "Cassandra host")
-    <*> option auto (
-            long "port"
-              <> metavar "PORT"
-              <> value 9042
-              <> help "Cassandra port")
+    <$> strOption
+      ( long "host"
+          <> metavar "HOST"
+          <> value "localhost"
+          <> help "Cassandra host"
+      )
+    <*> option
+      auto
+      ( long "port"
+          <> metavar "PORT"
+          <> value 9042
+          <> help "Cassandra port"
+      )
     <*> ( fmap pack . strOption $
             long "keyspace"
               <> metavar "STRING"
@@ -302,6 +305,7 @@ migrationOptsParser =
                       <> help "Replication Map (i.e. \"eu-west:3,us-east:3\")"
                 )
         )
-    <*> switch (
-            long "reset"
-              <> help "Reset the keyspace before running migrations")
+    <*> switch
+      ( long "reset"
+          <> help "Reset the keyspace before running migrations"
+      )

@@ -61,6 +61,7 @@ import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.Types as A
 import Data.Attoparsec.ByteString ((<?>))
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
+import Data.Bifunctor (first)
 import Data.Binary
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Conversion
@@ -85,7 +86,6 @@ import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck
 import Test.QuickCheck.Instances ()
-import Data.Bifunctor (first)
 
 data IdTag = A | C | I | U | P | S | T | STo
 
