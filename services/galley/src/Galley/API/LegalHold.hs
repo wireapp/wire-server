@@ -109,17 +109,10 @@ isLegalHoldEnabledForTeam tid = do
       pure False
     FeatureLegalHoldDisabledByDefault -> do
       statusValue <-
-<<<<<<< HEAD
-        Public.tfwoStatus <$$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureLegalHold tid
-      pure $ case statusValue of
-        Just Public.TeamFeatureEnabled -> True
-        Just Public.TeamFeatureDisabled -> False
-=======
         Public.wssStatus <$$> TeamFeatures.getFeatureConfig @db (Proxy @Public.LegalholdConfig) tid
-      return $ case statusValue of
+      pure $ case statusValue of
         Just Public.FeatureStatusEnabled -> True
         Just Public.FeatureStatusDisabled -> False
->>>>>>> 447bf419f (Refactor features)
         Nothing -> False
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent ->
       LegalHoldData.isTeamLegalholdWhitelisted tid
