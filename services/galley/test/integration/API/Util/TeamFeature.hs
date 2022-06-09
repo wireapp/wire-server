@@ -24,6 +24,7 @@ import Control.Lens (view, (.~))
 import Data.Aeson (ToJSON)
 import Data.ByteString.Conversion (toByteString')
 import Data.Id (ConvId, TeamId, UserId)
+import Data.Schema
 import GHC.TypeLits (KnownSymbol)
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
@@ -169,19 +170,21 @@ putTeamFeatureFlagWithGalley galley uid tid status =
       . zUser uid
 
 putTeamFeatureFlagInternalTTL ::
-  forall (a :: Public.TeamFeatureName).
+  forall cfg.
   ( HasCallStack,
-    Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
+    Typeable cfg,
+    Public.IsFeatureConfig cfg,
+    KnownSymbol (Public.FeatureSymbol cfg),
+    ToSchema cfg
   ) =>
   (Request -> Request) ->
   TeamId ->
-  Public.TeamFeatureStatus 'Public.WithoutLockStatus a ->
+  Public.WithStatusNoLock cfg ->
   Public.TeamFeatureTTLValue ->
   TestM ResponseLBS
 putTeamFeatureFlagInternalTTL reqmod tid status ttl = do
   g <- view tsGalley
-  putTeamFeatureFlagInternalWithGalleyAndMod @a g reqmod tid status ttl
+  putTeamFeatureFlagInternalWithGalleyAndMod @cfg g reqmod tid status ttl
 
 putTeamFeatureFlagInternal ::
   forall cfg.

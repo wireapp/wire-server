@@ -7,6 +7,7 @@
 -- Software Foundation, either version 3 of the License, or (at your option) any
 -- later version.
 --
+
 -- This program is distributed in the hope that it will be useful, but WITHOUT
 -- ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 -- FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
@@ -77,17 +78,17 @@ tests s =
       test s "SearchVisibilityInbound - internal multi team API" testFeatureNoConfigMultiSearchVisibilityInbound,
       testGroup
         "Conferece calling"
-        [ test s "ConferenceCalling unlimited TTL" $ testSimpleFlagTTL @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled TeamFeatureTTLUnlimited,
-          test s "ConferenceCalling 1s TTL" $ testSimpleFlagTTL @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled (TeamFeatureTTLSeconds 1),
-          test s "ConferenceCalling 2s TTL" $ testSimpleFlagTTL @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled (TeamFeatureTTLSeconds 2)
+        [ test s "ConferenceCalling unlimited TTL" $ testSimpleFlagTTL @Public.ConferenceCallingConfig Public.FeatureStatusEnabled TeamFeatureTTLUnlimited,
+          test s "ConferenceCalling 1s TTL" $ testSimpleFlagTTL @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (TeamFeatureTTLSeconds 1),
+          test s "ConferenceCalling 2s TTL" $ testSimpleFlagTTL @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (TeamFeatureTTLSeconds 2)
         ],
       testGroup
         "Overrides"
-        [ test s "increase to unlimited" $ testSimpleFlagTTLOverride @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled (TeamFeatureTTLSeconds 1) TeamFeatureTTLUnlimited,
-          test s "increase" $ testSimpleFlagTTLOverride @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled (TeamFeatureTTLSeconds 1) (TeamFeatureTTLSeconds 2),
-          test s "reduce from unlimited" $ testSimpleFlagTTLOverride @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled TeamFeatureTTLUnlimited (TeamFeatureTTLSeconds 1),
-          test s "reduce" $ testSimpleFlagTTLOverride @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled (TeamFeatureTTLSeconds 5) (TeamFeatureTTLSeconds 1),
-          test s "Unlimited to unlimited" $ testSimpleFlagTTLOverride @'Public.TeamFeatureConferenceCalling Public.TeamFeatureEnabled TeamFeatureTTLUnlimited TeamFeatureTTLUnlimited
+        [ test s "increase to unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (TeamFeatureTTLSeconds 1) TeamFeatureTTLUnlimited,
+          test s "increase" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (TeamFeatureTTLSeconds 1) (TeamFeatureTTLSeconds 2),
+          test s "reduce from unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled TeamFeatureTTLUnlimited (TeamFeatureTTLSeconds 1),
+          test s "reduce" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (TeamFeatureTTLSeconds 5) (TeamFeatureTTLSeconds 1),
+          test s "Unlimited to unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled TeamFeatureTTLUnlimited TeamFeatureTTLUnlimited
         ]
     ]
 
@@ -331,23 +332,22 @@ testSimpleFlag ::
   TestM ()
 testSimpleFlag defaultValue = testSimpleFlagTTL @cfg defaultValue TeamFeatureTTLUnlimited
 
--- TODO: remove a, add cfg
 testSimpleFlagTTLOverride ::
-  forall (a :: Public.TeamFeatureName).
+  forall cfg.
   ( HasCallStack,
-    HasStatusCol a,
-    Typeable a,
-    Public.FeatureHasNoConfig 'Public.WithoutLockStatus a,
-    Public.KnownTeamFeatureName a,
-    FromJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a),
-    ToJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
+    Typeable cfg,
+    Public.IsFeatureConfig cfg,
+    KnownSymbol (Public.FeatureSymbol cfg),
+    -- Public.FeatureTrivialConfig cfg,
+    ToSchema cfg,
+    FromJSON (Public.WithStatusNoLock cfg),
+    ToJSON (Public.WithStatusNoLock cfg)
   ) =>
-  Public.TeamFeatureStatusValue ->
+  Public.FeatureStatus ->
   TeamFeatureTTLValue ->
   TeamFeatureTTLValue ->
   TestM ()
 testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
-  let feature = Public.knownTeamFeatureName @a
   owner <- Util.randomUser
   member <- Util.randomUser
   nonMember <- Util.randomUser
@@ -355,17 +355,17 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
   Util.connectUsers owner (list1 member [])
   Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
-  let getFlag :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getFlag = assertFlag @a feature member tid
+  let getFlag :: HasCallStack => Public.FeatureStatus -> TestM ()
+      getFlag = assertFlag @cfg feature member tid
 
-      getFeatureConfig :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getFeatureConfig = assertFeatureConfig @a feature member
+      getFeatureConfig :: HasCallStack => Public.FeatureStatus -> TestM ()
+      getFeatureConfig = assertFeatureConfig @cfg feature member
 
-      getFlagInternal :: HasCallStack => Public.TeamFeatureStatusValue -> TestM ()
-      getFlagInternal = assertFlagInternal @a feature tid
+      getFlagInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
+      getFlagInternal = assertFlagInternal @cfg feature tid
 
-      setFlagInternal' :: Public.TeamFeatureStatusValue -> TeamFeatureTTLValue -> TestM ()
-      setFlagInternal' = setFlagInternal @a tid
+      setFlagInternal' :: Public.FeatureStatus -> TeamFeatureTTLValue -> TestM ()
+      setFlagInternal' = setFlagInternal @cfg tid
 
       select :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureTTLValue))
       select = fromString "select ttl(conference_calling) from team_features where team_id = ?"
@@ -383,8 +383,8 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
   assertFlagForbidden $ Util.getTeamFeatureFlag feature nonMember tid
 
   let otherValue = case defaultValue of
-        Public.TeamFeatureDisabled -> Public.TeamFeatureEnabled
-        Public.TeamFeatureEnabled -> Public.TeamFeatureDisabled
+        Public.FeatureStatusDisabled -> Public.FeatureStatusEnabled
+        Public.FeatureStatusEnabled -> Public.FeatureStatusDisabled
 
   -- Initial value should be the default value
   getFlag defaultValue
@@ -443,20 +443,20 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
 
 -- TODO: remove a, add cfg
 testSimpleFlagTTL ::
-  forall (a :: Public.TeamFeatureName).
+  forall cfg.
   ( HasCallStack,
-    HasStatusCol a,
-    Typeable a,
-    Public.FeatureHasNoConfig 'Public.WithoutLockStatus a,
-    Public.KnownTeamFeatureName a,
-    FromJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a),
-    ToJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
+    Typeable cfg,
+    Public.IsFeatureConfig cfg,
+    KnownSymbol (Public.FeatureSymbol cfg),
+    Public.FeatureTrivialConfig cfg,
+    ToSchema cfg,
+    FromJSON (Public.WithStatusNoLock cfg),
+    ToJSON (Public.WithStatusNoLock cfg)
   ) =>
-  Public.TeamFeatureStatusValue ->
+  Public.FeatureStatus ->
   TeamFeatureTTLValue ->
   TestM ()
 testSimpleFlagTTL defaultValue ttl = do
-  let feature = Public.knownTeamFeatureName @a
   owner <- Util.randomUser
   member <- Util.randomUser
   nonMember <- Util.randomUser
