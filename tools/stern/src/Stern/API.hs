@@ -88,6 +88,8 @@ sitemap = do
   routes
   apiDocs
 
+data SupportsTtl = TtlEnabled | TtlDisabled
+
 routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
   -- Begin Internal
@@ -388,7 +390,7 @@ routes = do
   mkFeatureGetRoute @ClassifiedDomainsConfig
 
   mkFeatureGetRoute @ConferenceCallingConfig
-  mkFeaturePutRouteTrivialConfig @ConferenceCallingConfig
+  mkFeaturePutRouteTrivialConfig' @ConferenceCallingConfig TtlEnabled
 
   mkFeatureGetRoute @AppLockConfig
   mkFeaturePutRoute @AppLockConfig
@@ -837,20 +839,60 @@ mkFeaturePutRouteTrivialConfig ::
     Typeable cfg
   ) =>
   Routes Doc.ApiBuilder Handler ()
-mkFeaturePutRouteTrivialConfig = do
-  put ("/teams/:tid/features/" <> featureNameBS @cfg) (continue (setTeamFeatureFlagTrivialConfigH @cfg)) $
-    capture "tid"
-      .&. param "status"
-      .&. def Public.TeamFeatureTTLUnlimited (query "ttl")
+mkFeaturePutRouteTrivialConfig = mkFeaturePutRouteTrivialConfig' @cfg TtlDisabled
+
+mkFeaturePutRouteTrivialConfig' ::
+  forall cfg.
+  ( IsFeatureConfig cfg,
+    FeatureTrivialConfig cfg,
+    KnownSymbol (FeatureSymbol cfg),
+    S.ToSchema cfg,
+    FromJSON (WithStatusNoLock cfg),
+    ToJSON (WithStatusNoLock cfg),
+    Typeable cfg
+  ) =>
+  SupportsTtl ->
+  Routes Doc.ApiBuilder Handler ()
+mkFeaturePutRouteTrivialConfig' ttlSupport = do
+  handler
   document "PUT" "setTeamFeatureFlag" $ do
     summary "Disable / enable feature flag for a given team"
     Doc.parameter Doc.Path "tid" Doc.bytes' $
       description "Team ID"
     Doc.parameter Doc.Query "status" typeFeatureStatus $ do
       Doc.description "team feature status (enabled or disabled)"
-    Doc.parameter Doc.Query "ttl" Public.typeTeamFeatureTTLValue $ do
-      Doc.description "team feature time to live, given in days or 'unlimited' (default). Only applies to conference calling. It's ignored by other features."
+    case ttlSupport of
+      TtlEnabled -> Doc.parameter Doc.Query "ttl" Public.typeTeamFeatureTTLValue $ do
+        Doc.description "team feature time to live, given in days or 'unlimited' (default). Only applies to conference calling. It's ignored by other features."
+      TtlDisabled -> pure ()
     Doc.response 200 "Team feature flag status" Doc.end
+  where
+    handler = case ttlSupport of
+      TtlEnabled ->
+        put ("/teams/:tid/features/" <> featureNameBS @cfg) (continue (setTeamFeatureFlagTrivialConfigH @cfg)) $
+          capture "tid"
+            .&. param "status"
+            .&. def Public.TeamFeatureTTLUnlimited (query "ttl")
+      TtlDisabled ->
+        put ("/teams/:tid/features/" <> featureNameBS @cfg) (continue (setTeamFeatureFlagTrivialConfigHNoTtl @cfg)) $
+          capture "tid"
+            .&. param "status"
+
+setTeamFeatureFlagTrivialConfigHNoTtl ::
+  forall cfg.
+  ( IsFeatureConfig cfg,
+    FeatureTrivialConfig cfg,
+    KnownSymbol (FeatureSymbol cfg),
+    S.ToSchema cfg,
+    FromJSON (WithStatusNoLock cfg),
+    ToJSON (WithStatusNoLock cfg),
+    Typeable cfg
+  ) =>
+  TeamId ::: FeatureStatus ->
+  Handler Response
+setTeamFeatureFlagTrivialConfigHNoTtl (tid ::: featureStatus) = do
+  let status = WithStatusNoLock featureStatus trivialConfig
+  empty <$ Intra.setTeamFeatureFlag @cfg tid status TeamFeatureTTLUnlimited
 
 setTeamFeatureFlagTrivialConfigH ::
   forall cfg.
