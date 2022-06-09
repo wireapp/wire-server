@@ -100,10 +100,10 @@ data Participant = Participant
   }
   deriving (Show)
 
-cli :: FilePath -> [String] -> CreateProcess
-cli tmp args =
+cli :: String -> FilePath -> [String] -> CreateProcess
+cli store tmp args =
   proc "crypto-cli" $
-    ["--store", tmp </> "store.db", "--enc-key", "test"] <> args
+    ["--store", tmp </> (store <> ".db"), "--enc-key", "test"] <> args
 
 pClientQid :: Participant -> String
 pClientQid = fst . NonEmpty.head . pClients
@@ -136,7 +136,7 @@ setupUserClient tmp doCreateClients mapKeyPackage usr = do
     kp <-
       liftIO $
         decodeMLSError
-          =<< spawn (cli tmp ["key-package", qcid]) Nothing
+          =<< spawn (cli qcid tmp ["key-package", qcid]) Nothing
     liftIO $ BS.writeFile (tmp </> qcid) (rmRaw kp)
 
     -- Set Bob's private key and upload key package if required. If a client
@@ -230,7 +230,7 @@ setupGroup tmp createConv creator name = do
   let groupId = toBase64Text (maybe "test_group" unGroupId mGroupId)
   groupJSON <-
     liftIO $
-      spawn (cli tmp ["group", pClientQid creator, T.unpack groupId]) Nothing
+      spawn (cli (pClientQid creator) tmp ["group", pClientQid creator, T.unpack groupId]) Nothing
   liftIO $ BS.writeFile (tmp </> name) groupJSON
 
   pure conversation
@@ -238,14 +238,16 @@ setupGroup tmp createConv creator name = do
 setupCommit ::
   (HasCallStack, Foldable f) =>
   String ->
+  Participant ->
   String ->
   String ->
   f (String, ClientId) ->
   IO (ByteString, ByteString)
-setupCommit tmp groupName newGroupName clients =
+setupCommit tmp admin groupName newGroupName clients =
   (,)
     <$> spawn
       ( cli
+          (pClientQid admin)
           tmp
           $ [ "member",
               "add",
@@ -260,6 +262,15 @@ setupCommit tmp groupName newGroupName clients =
       )
       Nothing
       <*> BS.readFile (tmp </> "welcome")
+
+createMessage ::
+  String ->
+  Participant ->
+  String ->
+  String ->
+  IO ByteString
+createMessage tmp sender groupName msgText =
+  spawn (cli (pClientQid sender) tmp ["message", "--group", tmp </> groupName, msgText]) Nothing
 
 takeLastPrekey :: MonadFail m => State.StateT [LastPrekey] m LastPrekey
 takeLastPrekey = do
@@ -279,7 +290,7 @@ aliceInvitesBob bobConf opts@SetupOptions {..} = withSystemTempDirectory "mls" $
   -- add clients to it and get welcome message
   (commit, welcome) <-
     liftIO $
-      setupCommit tmp "group" "group" $
+      setupCommit tmp alice "group" "group" $
         NonEmpty.tail (pClients alice) <> toList (pClients bob)
 
   pure $

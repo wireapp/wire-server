@@ -25,7 +25,6 @@ import Bilge hiding (head)
 import Bilge.Assert
 import Control.Lens (view)
 import qualified Data.Aeson as Aeson
-import qualified Data.ByteString as BS
 import Data.Default
 import Data.Domain
 import Data.Id
@@ -282,7 +281,7 @@ testAddUserWithProteusClients = do
 
     -- alice creates a conversation and adds Bob's MLS clients
     conversation <- setupGroup tmp CreateConv alice "group"
-    (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" (pClients bob)
+    (commit, welcome) <- liftIO $ setupCommit tmp alice "group" "group" (pClients bob)
 
     pure MessagingSetup {creator = alice, ..}
 
@@ -295,7 +294,7 @@ testAddUserPartial = do
     (alice, [bob, charlie]) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [3, 2])
     void $ setupGroup tmp CreateConv alice "group"
     (commit, _) <-
-      liftIO . setupCommit tmp "group" "group" $
+      liftIO . setupCommit tmp alice "group" "group" $
         -- only 2 out of the 3 clients of Bob's are added to the conversation
         NonEmpty.take 2 (pClients bob) <> toList (pClients charlie)
     pure (alice, commit)
@@ -323,7 +322,7 @@ testAddNewClient = do
 
     -- creator sends first commit message
     do
-      (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" (pClients bob)
+      (commit, welcome) <- liftIO $ setupCommit tmp creator "group" "group" (pClients bob)
       lift $ testSuccessfulCommit MessagingSetup {..}
 
     do
@@ -331,7 +330,7 @@ testAddNewClient = do
       (qcid, c) <- setupUserClient tmp CreateWithKey True (pUserId bob)
       let bobC = (qcid, c)
       -- which gets added to the group
-      (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" [bobC]
+      (commit, welcome) <- liftIO $ setupCommit tmp creator "group" "group" [bobC]
       -- and the corresponding commit is sent
       lift $ testSuccessfulCommitWithNewUsers MessagingSetup {..} []
 
@@ -394,7 +393,7 @@ testStaleCommit = withSystemTempDirectory "mls" $ \tmp -> do
   do
     (commit, welcome) <-
       liftIO $
-        setupCommit tmp "group.0" "group.1" $
+        setupCommit tmp creator "group.0" "group.1" $
           users1 >>= toList . pClients
     testSuccessfulCommit MessagingSetup {users = users1, ..}
 
@@ -402,7 +401,7 @@ testStaleCommit = withSystemTempDirectory "mls" $ \tmp -> do
   do
     (commit, welcome) <-
       liftIO $
-        setupCommit tmp "group.0" "group.2" $
+        setupCommit tmp creator "group.0" "group.2" $
           users2 >>= toList . pClients
     err <- testFailedCommit MessagingSetup {..} 409
     liftIO $ Wai.label err @?= "mls-stale-message"
@@ -520,14 +519,11 @@ testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
 
   (commit, welcome) <-
     liftIO $
-      setupCommit tmp "group" "group" $
+      setupCommit tmp creator "group" "group" $
         users >>= toList . pClients
 
   void $ postCommit MessagingSetup {..}
-
-  message <-
-    liftIO $
-      spawn (cli tmp ["message", "--group", tmp </> "group", "some text"]) Nothing
+  message <- liftIO $ createMessage tmp creator "group" "some text"
 
   galley <- viewGalley
   cannon <- view tsCannon
@@ -554,25 +550,23 @@ testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
 
 testAppMessage2 :: TestM ()
 testAppMessage2 = do
-  setup <- withSystemTempDirectory "mls" $ \tmp -> do
+  (MessagingSetup {..}, message) <- withSystemTempDirectory "mls" $ \tmp -> do
     (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [2, 1])
     conversation <- setupGroup tmp CreateConv creator "group"
 
     (commit, welcome) <-
       liftIO $
-        setupCommit tmp "group" "group" $
+        setupCommit tmp creator "group" "group" $
           users >>= toList . pClients
 
-    pure MessagingSetup {..}
+    let setup = MessagingSetup {..}
+    void $ postCommit setup
 
-  void $ postCommit setup
-
-  let [bob, charlie] = users setup
-  message <- withSystemTempDirectory "mls" $ \tmp -> do
-    liftIO $ BS.writeFile (tmp </> "welcome") (welcome setup)
+    let bob = head users
     void . liftIO $
       spawn
         ( cli
+            (pClientQid bob)
             tmp
             [ "group-from-welcome",
               "--group-out",
@@ -581,9 +575,12 @@ testAppMessage2 = do
             ]
         )
         Nothing
-    liftIO $
-      spawn (cli tmp ["message", "--group", tmp </> "group", "some text"]) Nothing
+    message <-
+      liftIO $
+        createMessage tmp bob "group" "some text"
+    pure (setup, message)
 
+  let [bob, charlie] = users
   galley <- viewGalley
   cannon <- view tsCannon
 
@@ -593,7 +590,7 @@ testAppMessage2 = do
 
   WS.bracketAsClientRN
     cannon
-    ( toList (mkClients (creator setup))
+    ( toList (mkClients creator)
         <> NonEmpty.tail (mkClients bob)
         <> toList (mkClients charlie)
     )
@@ -612,4 +609,4 @@ testAppMessage2 = do
 
       liftIO $
         WS.assertMatchN_ (5 # WS.Second) wss $
-          wsAssertMLSMessage (conversation setup) (pUserId bob) message
+          wsAssertMLSMessage conversation (pUserId bob) message
