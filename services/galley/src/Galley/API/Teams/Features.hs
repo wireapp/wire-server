@@ -736,6 +736,18 @@ instance SetFeatureConfig db LegalholdConfig where
 
   -- we're good to update the status now.
   setConfigForTeam tid wsnl _ = do
+    -- this extra do is to encapsulate the assertions running before the actual operation.
+    -- enabling LH for teams is only allowed in normal operation; disabled-permanently and
+    -- whitelist-teams have no or their own way to do that, resp.
+    featureLegalHold <- getLegalHoldFlag
+    case featureLegalHold of
+      FeatureLegalHoldDisabledByDefault -> do
+        pure ()
+      FeatureLegalHoldDisabledPermanently -> do
+        throw LegalHoldFeatureFlagNotEnabled
+      FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
+        throw LegalHoldWhitelistedOnly
+
     case wssStatus wsnl of
       FeatureStatusDisabled -> LegalHold.removeSettings' @InternalPaging tid
       FeatureStatusEnabled -> ensureNotTooLargeToActivateLegalHold tid
