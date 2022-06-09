@@ -369,31 +369,31 @@ routes = do
   mkFeatureGetRoute @LegalholdConfig
   mkFeaturePutRouteTrivialConfig @LegalholdConfig
 
-<<<<<<< HEAD
-  put "/teams/:tid/features/:feature" (continue setTeamFeatureNoConfigFlagH) $
-    capture "tid"
-      .&. capture "feature"
-      .&. param "status"
-      .&. def Public.TeamFeatureTTLUnlimited (query "ttl")
-  document "PUT" "setTeamFeatureFlag" $ do
-    summary "Disable / enable feature flag for a given team"
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      description "Team ID"
-    Doc.parameter Doc.Path "feature" Doc.typeTeamFeatureNameNoConfig $
-      description "Feature name"
-    Doc.parameter Doc.Query "status" Public.typeTeamFeatureStatusValue $
-      Doc.description "team feature status (enabled or disabled)"
-    Doc.parameter Doc.Query "ttl" Public.typeTeamFeatureTTLValue $ do
-      Doc.description "team feature time to live, given in days or 'unlimited' (default). Only applies to conference calling. It's ignored by other features."
-      Doc.optional
-    Doc.response 200 "Team feature flag status" Doc.end
-=======
+  -- <<<<<<< HEAD
+  --   put "/teams/:tid/features/:feature" (continue setTeamFeatureNoConfigFlagH) $
+  --     capture "tid"
+  --       .&. capture "feature"
+  --       .&. param "status"
+  --       .&. def Public.TeamFeatureTTLUnlimited (query "ttl")
+  --   document "PUT" "setTeamFeatureFlag" $ do
+  --     summary "Disable / enable feature flag for a given team"
+  --     Doc.parameter Doc.Path "tid" Doc.bytes' $
+  --       description "Team ID"
+  --     Doc.parameter Doc.Path "feature" Doc.typeTeamFeatureNameNoConfig $
+  --       description "Feature name"
+  --     Doc.parameter Doc.Query "status" Public.typeTeamFeatureStatusValue $
+  --       Doc.description "team feature status (enabled or disabled)"
+  --     Doc.parameter Doc.Query "ttl" Public.typeTeamFeatureTTLValue $ do
+  --       Doc.description "team feature time to live, given in days or 'unlimited' (default). Only applies to conference calling. It's ignored by other features."
+  --       Doc.optional
+  --     Doc.response 200 "Team feature flag status" Doc.end
+  -- =======
+
   mkFeatureGetRoute @SSOConfig
   mkFeaturePutRouteTrivialConfig @SSOConfig
 
   mkFeatureGetRoute @SearchVisibilityAvailableConfig
   mkFeaturePutRouteTrivialConfig @SearchVisibilityAvailableConfig
->>>>>>> 447bf419f (Refactor features)
 
   mkFeatureGetRoute @ValidateSAMLEmailsConfig
   mkFeaturePutRouteTrivialConfig @ValidateSAMLEmailsConfig
@@ -656,19 +656,19 @@ getTeamAdminInfo = fmap (json . toAdminInfo) . Intra.getTeamInfo
 -- getTeamFeatureFlagNoConfigH (tid ::: featureName) =
 --   json <$> Intra.getTeamFeatureFlagNoConfig tid featureName
 
-<<<<<<< HEAD
-setTeamFeatureNoConfigFlagH ::
-  TeamId ::: Public.TeamFeatureName ::: Public.TeamFeatureStatusValue ::: Public.TeamFeatureTTLValue ->
-  Handler Response
-setTeamFeatureNoConfigFlagH (tid ::: featureName ::: statusValue ::: ttlValue) =
-  json <$> Intra.setTeamFeatureFlagNoConfig tid featureName statusValue ttlValue
-=======
+-- <<<<<<< HEAD
+-- setTeamFeatureNoConfigFlagH ::
+--   TeamId ::: Public.TeamFeatureName ::: Public.TeamFeatureStatusValue ::: Public.TeamFeatureTTLValue ->
+--   Handler Response
+-- setTeamFeatureNoConfigFlagH (tid ::: featureName ::: statusValue ::: ttlValue) =
+--   json <$> Intra.setTeamFeatureFlagNoConfig tid featureName statusValue ttlValue
+-- =======
 -- setTeamFeatureNoConfigFlagH ::
 --   TeamId ::: Public.FeatureTag ::: Public.FeatureStatus ->
 --   Handler Response
 -- setTeamFeatureNoConfigFlagH (tid ::: featureName ::: statusValue) =
 --   json <$> Intra.setTeamFeatureFlagNoConfig tid featureName statusValue
->>>>>>> 447bf419f (Refactor features)
+-- >>>>>>> 447bf419f (Refactor features)
 
 setSearchVisibility :: JSON ::: TeamId ::: JsonRequest Team.TeamSearchVisibility -> Handler Response
 setSearchVisibility (_ ::: tid ::: req) = do
@@ -866,6 +866,7 @@ setTeamFeatureFlagH (tid ::: req ::: _) = do
   status :: WithStatusNoLock cfg <- parseBody req !>> mkError status400 "client-error"
   empty <$ Intra.setTeamFeatureFlag @cfg tid status
 
+-- TODO: add Public.TeamFeatureTTLValue
 mkFeaturePutRouteTrivialConfig ::
   forall cfg.
   ( IsFeatureConfig cfg,
@@ -889,6 +890,7 @@ mkFeaturePutRouteTrivialConfig = do
       Doc.description "team feature status (enabled or disabled)"
     Doc.response 200 "Team feature flag status" Doc.end
 
+-- TODO: add Public.TeamFeatureTTLValue
 setTeamFeatureFlagTrivialConfigH ::
   forall cfg.
   ( IsFeatureConfig cfg,
