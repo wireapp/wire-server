@@ -47,7 +47,7 @@ interpretTeamFeatureStoreToCassandra ::
 interpretTeamFeatureStoreToCassandra = interpret $ \case
   TFS.GetFeatureConfig proxy tid -> embedClient $ getFeatureConfig proxy tid
   TFS.GetFeatureConfigMulti proxy tids -> embedClient $ getFeatureConfigMulti proxy tids
-  TFS.SetFeatureConfig proxy tid wsnl -> embedClient $ setFeatureConfig proxy tid wsnl
+  TFS.SetFeatureConfig proxy tid wsnl mTtl -> embedClient $ setFeatureConfig proxy tid wsnl mTtl
   TFS.GetFeatureLockStatus proxy tid -> embedClient $ getFeatureLockStatus proxy tid
   TFS.SetFeatureLockStatus proxy tid ls -> embedClient $ setFeatureLockStatus proxy tid ls
 
@@ -81,84 +81,24 @@ getTrivialConfigC statusCol tid = do
           <> statusCol
           <> " from team_features where team_id = ?"
 
-<<<<<<< HEAD
-getFeatureStatusNoConfig ::
-  forall (a :: TeamFeatureName) m.
-  ( MonadClient m,
-    FeatureHasNoConfig 'WithoutLockStatus a,
-    HasStatusCol a
-  ) =>
-  Proxy a ->
+setFeatureStatusC ::
+  forall m.
+  (MonadClient m) =>
+  String ->
   TeamId ->
-  m (Maybe (TeamFeatureStatus 'WithoutLockStatus a))
-getFeatureStatusNoConfig _ tid = do
-  let q = query1 select (params LocalQuorum (Identity tid))
-  mStatusValue <- (>>= runIdentity) <$> retry x1 q
-  pure $ TeamFeatureStatusNoConfig <$> mStatusValue
-  where
-    select :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureStatusValue))
-    select = fromString $ "select " <> statusCol @a <> " from team_features where team_id = ?"
-
-getFeatureStatusNoConfigMulti ::
-  forall (a :: TeamFeatureName) m.
-  ( MonadClient m,
-    FeatureHasNoConfig 'WithoutLockStatus a,
-    HasStatusCol a
-  ) =>
-  Proxy a ->
-  [TeamId] ->
-  m [(TeamId, TeamFeatureStatusValue, Int64)]
-getFeatureStatusNoConfigMulti _ tids = do
-  mapMaybe
-    ( \(t, mStatus, mTime) -> do
-        status <- mStatus
-        time <- mTime
-        pure (t, status, time)
-    )
-    <$> retry x1 (query select (params LocalQuorum (Identity tids)))
-  where
-    select :: PrepQuery R (Identity [TeamId]) (TeamId, Maybe TeamFeatureStatusValue, Maybe Int64)
-    select = fromString $ "select team_id, " <> statusCol @a <> ", writetime(" <> statusCol @a <> ") from team_features where team_id in ?"
-
-setFeatureStatusNoConfig ::
-  forall (a :: TeamFeatureName) m.
-  ( MonadClient m,
-    FeatureHasNoConfig 'WithoutLockStatus a,
-    HasStatusCol a
-  ) =>
-  Proxy a ->
-  TeamId ->
-  TeamFeatureStatus 'WithoutLockStatus a ->
   Maybe TeamFeatureTTLValue ->
-  m (TeamFeatureStatus 'WithoutLockStatus a)
-setFeatureStatusNoConfig _ tid status ttl = do
-  let flag = tfwoStatus status
-  retry x5 $ write insert (params LocalQuorum (tid, flag))
-  pure status
+  FeatureStatus ->
+  m ()
+setFeatureStatusC statusCol tid status mTtl = do
+  retry x5 $ write insert (params LocalQuorum (tid, status))
   where
-    insert :: PrepQuery W (TeamId, TeamFeatureStatusValue) ()
+    insert :: PrepQuery W (TeamId, FeatureStatus) ()
     insert =
       fromString $
         "insert into team_features (team_id, " <> statusCol @a <> ") values (?, ?)"
           <> case ttl of
             Just (TeamFeatureTTLSeconds d) | d > 0 -> " using ttl " <> show d
             _ -> " using ttl 0"
-
-getApplockFeatureStatus ::
-=======
-setFeatureStatusC ::
->>>>>>> 447bf419f (Refactor features)
-  forall m.
-  (MonadClient m) =>
-  String ->
-  TeamId ->
-  FeatureStatus ->
-  m ()
-setFeatureStatusC statusCol tid status = do
-  retry x5 $ write insert (params LocalQuorum (tid, status))
-  where
-    insert :: PrepQuery W (TeamId, FeatureStatus) ()
-    insert = fromString $ "insert into team_features (team_id, " <> statusCol <> ") values (?, ?)"
 
 getLockStatusC ::
   forall m.
@@ -191,23 +131,6 @@ setLockStatusC col tid status = do
       fromString $
         "insert into team_features (team_id, " <> col <> ") values (?, ?)"
 
-<<<<<<< HEAD
-interpretTeamFeatureStoreToCassandra ::
-  Members '[Embed IO, Input ClientState] r =>
-  Sem (TeamFeatureStore ': r) a ->
-  Sem r a
-interpretTeamFeatureStoreToCassandra = interpret $ \case
-  GetFeatureStatusNoConfig' tfn tid -> embedClient $ getFeatureStatusNoConfig tfn tid
-  GetFeatureStatusNoConfigMulti tfn tids -> embedClient $ getFeatureStatusNoConfigMulti tfn tids
-  GetFeatureStatusNoConfigAndLockStatus' tfn tid -> embedClient $ getFeatureStatusNoConfigAndLockStatus tfn tid
-  SetFeatureStatusNoConfig' tfn tid value ttl -> embedClient $ setFeatureStatusNoConfig tfn tid value ttl
-  SetLockStatus' p tid value -> embedClient $ setLockStatus p tid value
-  GetLockStatus' p tid -> embedClient $ getLockStatus p tid
-  GetApplockFeatureStatus tid -> embedClient $ getApplockFeatureStatus tid
-  SetApplockFeatureStatus tid value -> embedClient $ setApplockFeatureStatus tid value
-  GetSelfDeletingMessagesStatus tid -> embedClient $ getSelfDeletingMessagesStatus tid
-  SetSelfDeletingMessagesStatus tid value -> embedClient $ setSelfDeletingMessagesStatus tid value
-=======
 getFeatureConfigMulti ::
   forall cfg m.
   (FeatureStatusCassandra cfg, MonadClient m, MonadUnliftIO m) =>
@@ -323,4 +246,3 @@ instance FeatureStatusCassandra SndFactorPasswordChallengeConfig where
 instance FeatureStatusCassandra SearchVisibilityInboundConfig where
   getFeatureConfig _ = getTrivialConfigC "search_visibility_status"
   setFeatureConfig _ tid statusNoLock = setFeatureStatusC "search_visibility_status" tid (wssStatus statusNoLock)
->>>>>>> 447bf419f (Refactor features)
