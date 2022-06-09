@@ -111,43 +111,6 @@ servantSitemap =
         <@> mkNamedAPI @"delete-team" deleteTeam
 
     features =
-<<<<<<< HEAD
-      mkNamedAPI @'("get", 'TeamFeatureSSO)
-        ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureSSO
-            getSSOStatusInternal
-            . DoAuth
-        )
-        <@> mkNamedAPI @'("get", 'TeamFeatureLegalHold)
-          ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureLegalHold
-              getLegalholdStatusInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("put", 'TeamFeatureLegalHold)
-          ( setFeatureStatus @'TeamFeatureLegalHold
-              (setLegalholdStatusInternal @InternalPaging)
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("get", 'TeamFeatureSearchVisibility)
-          ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureSearchVisibility
-              getTeamSearchVisibilityAvailableInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("put", 'TeamFeatureSearchVisibility)
-          ( setFeatureStatus @'TeamFeatureSearchVisibility
-              setTeamSearchVisibilityAvailableInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("get-deprecated", 'TeamFeatureSearchVisibility)
-          ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureSearchVisibility
-              getTeamSearchVisibilityAvailableInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("put-deprecated", 'TeamFeatureSearchVisibility)
-          ( setFeatureStatusNoTTL @'TeamFeatureSearchVisibility
-              setTeamSearchVisibilityAvailableInternal
-              . DoAuth
-          )
-=======
       mkNamedAPI @'("get", SSOConfig) (getFeatureStatus @Cassandra . DoAuth)
         <@> mkNamedAPI @'("get", LegalholdConfig) (getFeatureStatus @Cassandra . DoAuth)
         <@> mkNamedAPI @'("put", LegalholdConfig) (setFeatureStatus @Cassandra . DoAuth)
@@ -155,7 +118,6 @@ servantSitemap =
         <@> mkNamedAPI @'("put", SearchVisibilityAvailableConfig) (setFeatureStatus @Cassandra . DoAuth)
         <@> mkNamedAPI @'("get-deprecated", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)
         <@> mkNamedAPI @'("put-deprecated", SearchVisibilityAvailableConfig) (setFeatureStatus @Cassandra . DoAuth)
->>>>>>> 447bf419f (Refactor features)
         <@> mkNamedAPI @"get-search-visibility" getSearchVisibility
         <@> mkNamedAPI @"set-search-visibility" (setSearchVisibility @Cassandra)
         <@> mkNamedAPI @'("get", ValidateSAMLEmailsConfig) (getFeatureStatus @Cassandra . DoAuth)
