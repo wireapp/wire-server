@@ -1,6 +1,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+
+{-# HLINT ignore "Use mapM" #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -365,24 +368,27 @@ instance Arbitrary (ParseInput NginzLogRecord) where
     where
       genFields :: Gen [(Text, CommonLogField)]
       genFields =
-        mapM
-          (\(f, g) -> (f,) <$> g)
-          [ ("status", genIntField),
-            ("body_bytes_sent", genIntField),
-            ("http_referer", genStringField),
-            ("http_user_agent", genStringField),
-            ("http_x_forwarded_for", genIPv4Field),
-            ("separator", genEmptyField),
-            ("connection", genIntField),
-            ("request_time", genDoubleField),
-            ("upstream_response_time", genDoubleField),
-            ("upstream_cache_status", genStringField),
-            ("user", genStringField),
-            ("zconn", genStringField),
-            ("request", genStringField),
-            ("proxy_protocol_addr", genIPv4Field),
-            ("tracestate", genStringField)
-          ]
+        -- we're disabling the linter rule here to avoid an issue from GHC
+        -- https://gitlab.haskell.org/ghc/ghc/-/issues/18730
+        sequence $
+          map
+            (\(f, g) -> (f,) <$> g)
+            [ ("status", genIntField),
+              ("body_bytes_sent", genIntField),
+              ("http_referer", genStringField),
+              ("http_user_agent", genStringField),
+              ("http_x_forwarded_for", genIPv4Field),
+              ("separator", genEmptyField),
+              ("connection", genIntField),
+              ("request_time", genDoubleField),
+              ("upstream_response_time", genDoubleField),
+              ("upstream_cache_status", genStringField),
+              ("user", genStringField),
+              ("zconn", genStringField),
+              ("request", genStringField),
+              ("proxy_protocol_addr", genIPv4Field),
+              ("tracestate", genStringField)
+            ]
       genIntField :: Gen CommonLogField
       genIntField =
         maybe CEmpty (CField . Number . fromIntegral . getNonNegative)
