@@ -270,6 +270,12 @@ nginx_conf:
       disable_zauth: true
       basic_auth: true
       versioned: false
+    - path: /i/users/([^/]*)/features/([^/])*
+      envs:
+      - staging
+      disable_zauth: true
+      basic_auth: true
+      versioned: false
     - path: /i/teams/([^/]*)/suspend
       envs:
       - staging
