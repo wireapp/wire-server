@@ -48,41 +48,13 @@ data TeamFeatureStore db m a where
     FeaturePersistentConstraint db cfg =>
     Proxy cfg ->
     [TeamId] ->
-<<<<<<< HEAD
-    TeamFeatureStore m [(TeamId, TeamFeatureStatusValue, Int64)]
-  GetFeatureStatusNoConfigAndLockStatus' ::
-    forall (a :: TeamFeatureName) m.
-    (FeatureHasNoConfig 'WithoutLockStatus a, HasStatusCol a, HasLockStatusCol a) =>
-    Proxy a ->
-    TeamId ->
-    TeamFeatureStore m (Maybe (TeamFeatureStatus 'WithoutLockStatus a), Maybe LockStatusValue)
-  -- the proxy argument makes sure that makeSem below generates type-inference-friendly code
-  SetFeatureStatusNoConfig' ::
-    forall (a :: TeamFeatureName) m.
-    ( FeatureHasNoConfig 'WithoutLockStatus a,
-      HasStatusCol a
-    ) =>
-    Proxy a ->
-    TeamId ->
-    TeamFeatureStatus 'WithoutLockStatus a ->
-    Maybe TeamFeatureTTLValue ->
-    TeamFeatureStore m (TeamFeatureStatus 'WithoutLockStatus a)
-  GetApplockFeatureStatus ::
-    TeamId ->
-    TeamFeatureStore m (Maybe (TeamFeatureStatus ps 'TeamFeatureAppLock))
-  SetApplockFeatureStatus ::
-    TeamId ->
-    TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureAppLock ->
-    TeamFeatureStore m (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureAppLock)
-  GetSelfDeletingMessagesStatus ::
-=======
     TeamFeatureStore db m [(TeamId, Maybe (WithStatusNoLock cfg))]
   SetFeatureConfig ::
     FeaturePersistentConstraint db cfg =>
     Proxy cfg ->
->>>>>>> 447bf419f (Refactor features)
     TeamId ->
     WithStatusNoLock cfg ->
+    Maybe TeamFeatureTTLValue ->
     TeamFeatureStore db m ()
   GetFeatureLockStatus ::
     FeaturePersistentConstraint db cfg =>
@@ -97,44 +69,3 @@ data TeamFeatureStore db m a where
     TeamFeatureStore db m ()
 
 makeSem ''TeamFeatureStore
-<<<<<<< HEAD
-
-getFeatureStatusNoConfig ::
-  forall (a :: TeamFeatureName) r.
-  (Member TeamFeatureStore r, FeatureHasNoConfig 'WithoutLockStatus a, HasStatusCol a) =>
-  TeamId ->
-  Sem r (Maybe (TeamFeatureStatus 'WithoutLockStatus a))
-getFeatureStatusNoConfig = getFeatureStatusNoConfig' (Proxy @a)
-
-getFeatureStatusNoConfigAndLockStatus ::
-  forall (a :: TeamFeatureName) r.
-  (Member TeamFeatureStore r, FeatureHasNoConfig 'WithoutLockStatus a, HasStatusCol a, HasLockStatusCol a) =>
-  TeamId ->
-  Sem r (Maybe (TeamFeatureStatus 'WithoutLockStatus a), Maybe LockStatusValue)
-getFeatureStatusNoConfigAndLockStatus = getFeatureStatusNoConfigAndLockStatus' (Proxy @a)
-
-setFeatureStatusNoConfig ::
-  forall (a :: TeamFeatureName) r.
-  (Member TeamFeatureStore r, FeatureHasNoConfig 'WithoutLockStatus a, HasStatusCol a) =>
-  TeamId ->
-  TeamFeatureStatus 'WithoutLockStatus a ->
-  Maybe TeamFeatureTTLValue ->
-  Sem r (TeamFeatureStatus 'WithoutLockStatus a)
-setFeatureStatusNoConfig = setFeatureStatusNoConfig' (Proxy @a)
-
-setLockStatus ::
-  forall (a :: TeamFeatureName) r.
-  (Member TeamFeatureStore r, HasLockStatusCol a) =>
-  TeamId ->
-  LockStatus ->
-  Sem r LockStatus
-setLockStatus = setLockStatus' (Proxy @a)
-
-getLockStatus ::
-  forall (a :: TeamFeatureName) r.
-  (Member TeamFeatureStore r, MaybeHasLockStatusCol a) =>
-  TeamId ->
-  Sem r (Maybe LockStatusValue)
-getLockStatus = getLockStatus' (Proxy @a)
-=======
->>>>>>> 447bf419f (Refactor features)
