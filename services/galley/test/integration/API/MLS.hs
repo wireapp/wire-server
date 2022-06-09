@@ -1,5 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -16,6 +15,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module API.MLS (tests) where
 
@@ -25,6 +25,7 @@ import Bilge hiding (head)
 import Bilge.Assert
 import Control.Lens (view)
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString as BS
 import Data.Default
 import Data.Domain
 import Data.Id
@@ -83,7 +84,8 @@ tests s =
       testGroup
         "Application Message"
         [ test s "send application message" testAppMessage,
-          test s "send remote application message" testRemoteAppMessage
+          test s "send remote application message" testRemoteAppMessage,
+          test s "another participant sends an application message" testAppMessage2
         ],
       testGroup
         "Protocol mismatch"
@@ -549,3 +551,65 @@ testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
       liftIO $
         WS.assertMatchN_ (5 # WS.Second) wss $
           wsAssertMLSMessage conversation (pUserId creator) message
+
+testAppMessage2 :: TestM ()
+testAppMessage2 = do
+  setup <- withSystemTempDirectory "mls" $ \tmp -> do
+    (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [2, 1])
+    conversation <- setupGroup tmp CreateConv creator "group"
+
+    (commit, welcome) <-
+      liftIO $
+        setupCommit tmp "group" "group" $
+          users >>= toList . pClients
+
+    pure MessagingSetup {..}
+
+  void $ postCommit setup
+
+  let [bob, charlie] = users setup
+  message <- withSystemTempDirectory "mls" $ \tmp -> do
+    liftIO $ BS.writeFile (tmp </> "welcome") (welcome setup)
+    void . liftIO $
+      spawn
+        ( cli
+            tmp
+            [ "group-from-welcome",
+              "--group-out",
+              tmp </> "group",
+              tmp </> "welcome"
+            ]
+        )
+        Nothing
+    liftIO $
+      spawn (cli tmp ["message", "--group", tmp </> "group", "some text"]) Nothing
+
+  galley <- viewGalley
+  cannon <- view tsCannon
+
+  let mkClients p = do
+        c <- pClients p
+        pure (qUnqualified (pUserId p), snd c)
+
+  WS.bracketAsClientRN
+    cannon
+    ( toList (mkClients (creator setup))
+        <> NonEmpty.tail (mkClients bob)
+        <> toList (mkClients charlie)
+    )
+    $ \wss -> do
+      post
+        ( galley . paths ["mls", "messages"]
+            . zUser (qUnqualified (pUserId bob))
+            . zConn "conn"
+            . content "message/mls"
+            . bytes message
+        )
+        !!! const 201
+        === statusCode
+
+      -- check that the corresponding event is received
+
+      liftIO $
+        WS.assertMatchN_ (5 # WS.Second) wss $
+          wsAssertMLSMessage (conversation setup) (pUserId bob) message
