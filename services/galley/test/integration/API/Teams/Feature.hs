@@ -890,18 +890,11 @@ testFeatureNoConfigMultiSearchVisibilityInbound = do
   owner2 <- Util.randomUser
   team2 <- Util.createNonBindingTeam "team2" owner2 []
 
-  -- <<<<<<< HEAD
-  --   let setFlagInternal' :: TeamId -> Public.TeamFeatureStatusValue -> TestM ()
-  --       setFlagInternal' tid = flip (setFlagInternal @'TeamFeatureSearchVisibilityInbound tid) TeamFeatureTTLUnlimited
-
-  --   setFlagInternal' team2 Public.TeamFeatureEnabled
-  -- =======
   let setFlagInternal :: TeamId -> Public.FeatureStatus -> TestM ()
       setFlagInternal tid statusValue =
         void $ Util.putTeamFeatureFlagInternal @Public.SearchVisibilityInboundConfig expect2xx tid (Public.WithStatusNoLock statusValue Public.SearchVisibilityInboundConfig)
 
   setFlagInternal team2 Public.FeatureStatusEnabled
-  -- >>>>>>> 447bf419f (Refactor features)
 
   r <-
     getFeatureStatusMulti @Public.SearchVisibilityInboundConfig (Multi.TeamFeatureNoConfigMultiRequest [team1, team2])
