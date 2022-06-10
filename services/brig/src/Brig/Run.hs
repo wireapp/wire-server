@@ -29,7 +29,7 @@ import Brig.API.Handler
 import qualified Brig.API.Internal as IAPI
 import Brig.API.Public (SwaggerDocsAPI, servantSitemap, swaggerDocsAPI)
 import qualified Brig.API.User as API
-import Brig.AWS (sesQueue)
+import Brig.AWS (amazonkaEnv, sesQueue)
 import qualified Brig.AWS as AWS
 import qualified Brig.AWS.SesNotification as SesNotification
 import Brig.App
@@ -49,10 +49,12 @@ import Control.Monad.Random (randomRIO)
 import qualified Data.Aeson as Aeson
 import Data.Default (Default (def))
 import Data.Id (RequestId (..))
+import Data.Metrics (gaugeSet, path)
 import qualified Data.Metrics.Servant as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
 import Data.Text (unpack)
+import Data.Time (NominalDiffTime)
 import Imports hiding (head)
 import qualified Network.HTTP.Media as HTTPMedia
 import qualified Network.HTTP.Types as HTTP
@@ -94,6 +96,7 @@ run o = do
         AWS.listen throttleMillis q (runAppT e . SesNotification.onEvent)
   sftDiscovery <- forM (e ^. sftEnv) $ Async.async . Calling.startSFTServiceDiscovery (e ^. applog)
   turnDiscovery <- Calling.startTurnDiscovery (e ^. applog) (e ^. fsWatcher) (e ^. turnEnv)
+  authMetrics <- Async.async (runAppT e collectAuthMetrics)
   pendingActivationCleanupAsync <- Async.async (runAppT e pendingActivationCleanup)
 
   runSettingsWithShutdown s app 5 `finally` do
@@ -102,6 +105,7 @@ run o = do
     mapM_ Async.cancel sftDiscovery
     Async.cancel pendingActivationCleanupAsync
     mapM_ Async.cancel turnDiscovery
+    Async.cancel authMetrics
     closeEnv e
   where
     endpoint = brig o
@@ -230,3 +234,17 @@ pendingActivationCleanup = do
 
     hours :: Double -> Timeout
     hours n = realToFrac (n * 60 * 60)
+
+collectAuthMetrics :: forall r. AppT r ()
+collectAuthMetrics = do
+  m <- view metrics
+  env <- view (awsEnv . amazonkaEnv)
+
+  forever $ do
+    t <- toSeconds . fromMaybe 0 <$$> liftIO $ AWS.readAuthExpiration env
+    gaugeSet t (path "aws_auth.token_secs_remaining") m
+    gaugeSet (if AWS.isAuthARef env then 1.0 else 0.0) (path "aws_auth.token_is_reference") m
+    liftIO $ threadDelay 1_000_000
+  where
+    toSeconds :: NominalDiffTime -> Double
+    toSeconds = fromRational . toRational
