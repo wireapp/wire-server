@@ -51,7 +51,7 @@ import TestSetup
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 import Wire.API.Internal.Notification (Notification)
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
-import Wire.API.Team.Feature (FeatureStatus (..), TeamFeatureTTLValue (..))
+import Wire.API.Team.Feature (FeatureStatus (..), FeatureTTL (..))
 import qualified Wire.API.Team.Feature as Public
 
 tests :: IO TestSetup -> TestTree
@@ -77,18 +77,18 @@ tests s =
       test s "SearchVisibilityInbound - internal API" testSearchVisibilityInbound,
       test s "SearchVisibilityInbound - internal multi team API" testFeatureNoConfigMultiSearchVisibilityInbound,
       testGroup
-        "Conferece calling"
-        [ test s "ConferenceCalling unlimited TTL" $ testSimpleFlagTTL @Public.ConferenceCallingConfig Public.FeatureStatusEnabled TeamFeatureTTLUnlimited,
-          test s "ConferenceCalling 1s TTL" $ testSimpleFlagTTL @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (TeamFeatureTTLSeconds 1),
-          test s "ConferenceCalling 2s TTL" $ testSimpleFlagTTL @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (TeamFeatureTTLSeconds 2)
+        "Conference calling"
+        [ test s "ConferenceCalling unlimited TTL" $ testSimpleFlagTTL @Public.ConferenceCallingConfig Public.FeatureStatusEnabled FeatureTTLUnlimited,
+          test s "ConferenceCalling 1s TTL" $ testSimpleFlagTTL @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 1),
+          test s "ConferenceCalling 2s TTL" $ testSimpleFlagTTL @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 2)
         ],
       testGroup
         "Overrides"
-        [ test s "increase to unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (TeamFeatureTTLSeconds 1) TeamFeatureTTLUnlimited,
-          test s "increase" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (TeamFeatureTTLSeconds 1) (TeamFeatureTTLSeconds 2),
-          test s "reduce from unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled TeamFeatureTTLUnlimited (TeamFeatureTTLSeconds 1),
-          test s "reduce" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (TeamFeatureTTLSeconds 5) (TeamFeatureTTLSeconds 1),
-          test s "Unlimited to unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled TeamFeatureTTLUnlimited TeamFeatureTTLUnlimited
+        [ test s "increase to unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 1) FeatureTTLUnlimited,
+          test s "increase" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 1) (FeatureTTLSeconds 2),
+          test s "reduce from unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled FeatureTTLUnlimited (FeatureTTLSeconds 1),
+          test s "reduce" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 5) (FeatureTTLSeconds 1),
+          test s "Unlimited to unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled FeatureTTLUnlimited FeatureTTLUnlimited
         ]
     ]
 
@@ -330,7 +330,7 @@ testSimpleFlag ::
   ) =>
   Public.FeatureStatus ->
   TestM ()
-testSimpleFlag defaultValue = testSimpleFlagTTL @cfg defaultValue TeamFeatureTTLUnlimited
+testSimpleFlag defaultValue = testSimpleFlagTTL @cfg defaultValue FeatureTTLUnlimited
 
 testSimpleFlagTTLOverride ::
   forall cfg.
@@ -344,8 +344,8 @@ testSimpleFlagTTLOverride ::
     ToJSON (Public.WithStatusNoLock cfg)
   ) =>
   Public.FeatureStatus ->
-  TeamFeatureTTLValue ->
-  TeamFeatureTTLValue ->
+  FeatureTTL ->
+  FeatureTTL ->
   TestM ()
 testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
   owner <- Util.randomUser
@@ -367,11 +367,11 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
       getFlagInternal expected =
         flip (assertFlagNoConfig @cfg) expected $ Util.getTeamFeatureFlagInternal @cfg tid
 
-      setFlagInternal :: Public.FeatureStatus -> TeamFeatureTTLValue -> TestM ()
+      setFlagInternal :: Public.FeatureStatus -> FeatureTTL -> TestM ()
       setFlagInternal statusValue ttl' =
         void $ Util.putTeamFeatureFlagInternalTTL @cfg expect2xx tid (Public.WithStatusNoLock statusValue (Public.trivialConfig @cfg)) ttl'
 
-      select :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureTTLValue))
+      select :: PrepQuery R (Identity TeamId) (Identity (Maybe FeatureTTL))
       select = fromString "select ttl(conference_calling) from team_features where team_id = ?"
 
       assertUnlimited = do
@@ -402,7 +402,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
   getFlagInternal otherValue
 
   case (ttl, ttlAfter) of
-    (TeamFeatureTTLSeconds d, TeamFeatureTTLSeconds d') -> do
+    (FeatureTTLSeconds d, FeatureTTLSeconds d') -> do
       -- wait less than expiration, override and recheck.
       liftIO $ threadDelay (fromIntegral d * half) -- waiting half of TTL
       setFlagInternal otherValue ttlAfter
@@ -412,14 +412,14 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
       liftIO $ threadDelay (fromIntegral d' * seconds) -- waiting for new TTL
       getFlag defaultValue
       assertUnlimited -- TTL should be NULL after expiration.
-    (TeamFeatureTTLSeconds d, TeamFeatureTTLUnlimited) -> do
+    (FeatureTTLSeconds d, FeatureTTLUnlimited) -> do
       -- wait less than expiration, override and recheck.
       liftIO $ threadDelay (fromIntegral d * half) -- waiting half of TTL
       setFlagInternal otherValue ttlAfter
       -- value is still correct
       getFlag otherValue
       assertUnlimited
-    (TeamFeatureTTLUnlimited, TeamFeatureTTLUnlimited) -> do
+    (FeatureTTLUnlimited, FeatureTTLUnlimited) -> do
       -- overriding in this case should have no effect.
       setFlagInternal otherValue ttl
       getFlag otherValue
@@ -427,7 +427,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
       getFlagInternal otherValue
 
       assertUnlimited
-    (TeamFeatureTTLUnlimited, TeamFeatureTTLSeconds d) -> do
+    (FeatureTTLUnlimited, FeatureTTLSeconds d) -> do
       assertUnlimited
 
       setFlagInternal otherValue ttlAfter
@@ -442,7 +442,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
       assertUnlimited
 
   -- Clean up
-  setFlagInternal defaultValue TeamFeatureTTLUnlimited
+  setFlagInternal defaultValue FeatureTTLUnlimited
   getFlag defaultValue
 
 -- TODO: remove a, add cfg
@@ -458,7 +458,7 @@ testSimpleFlagTTL ::
     ToJSON (Public.WithStatusNoLock cfg)
   ) =>
   Public.FeatureStatus ->
-  TeamFeatureTTLValue ->
+  FeatureTTL ->
   TestM ()
 testSimpleFlagTTL defaultValue ttl = do
   owner <- Util.randomUser
@@ -480,11 +480,11 @@ testSimpleFlagTTL defaultValue ttl = do
       getFlagInternal expected =
         flip (assertFlagNoConfig @cfg) expected $ Util.getTeamFeatureFlagInternal @cfg tid
 
-      setFlagInternal :: Public.FeatureStatus -> TeamFeatureTTLValue -> TestM ()
+      setFlagInternal :: Public.FeatureStatus -> FeatureTTL -> TestM ()
       setFlagInternal statusValue ttl' =
         void $ Util.putTeamFeatureFlagInternalTTL @cfg expect2xx tid (Public.WithStatusNoLock statusValue (Public.trivialConfig @cfg)) ttl'
 
-      select :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamFeatureTTLValue))
+      select :: PrepQuery R (Identity TeamId) (Identity (Maybe FeatureTTL))
       select = fromString "select ttl(conference_calling) from team_features where team_id = ?"
 
   assertFlagForbidden $ Util.getTeamFeatureFlag @cfg nonMember tid
@@ -511,11 +511,11 @@ testSimpleFlagTTL defaultValue ttl = do
   getFlagInternal otherValue
 
   case ttl of
-    TeamFeatureTTLSeconds d -> do
+    FeatureTTLSeconds d -> do
       -- should revert back after TTL expires
       liftIO $ threadDelay (fromIntegral d * 1000000)
       getFlag defaultValue
-    TeamFeatureTTLUnlimited -> do
+    FeatureTTLUnlimited -> do
       -- TTL should be NULL inside cassandra
       cassState <- view tsCass
       liftIO $ do
@@ -523,7 +523,7 @@ testSimpleFlagTTL defaultValue ttl = do
         runIdentity <$> storedTTL `shouldBe` Just Nothing
 
   -- Clean up
-  setFlagInternal defaultValue TeamFeatureTTLUnlimited
+  setFlagInternal defaultValue FeatureTTLUnlimited
   getFlag defaultValue
 
 testSimpleFlagWithLockStatus ::

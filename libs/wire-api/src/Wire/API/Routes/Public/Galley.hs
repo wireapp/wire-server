@@ -1196,7 +1196,7 @@ type FeatureStatusBasePutInternal errs featureConfig =
     :> "features"
     :> FeatureSymbol featureConfig
     :> ReqBody '[Servant.JSON] (WithStatusNoLock featureConfig)
-    :> QueryParam "ttl" TeamFeatureTTLValue
+    :> QueryParam "ttl" FeatureTTL
     :> Put '[Servant.JSON] (WithStatus featureConfig)
 
 -- | A type for a GET endpoint for a feature with a deprecated path

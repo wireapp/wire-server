@@ -58,7 +58,7 @@ putTeamSearchVisibilityAvailableInternal g tid statusValue =
       expect2xx
       tid
       (Public.WithStatusNoLock statusValue Public.SearchVisibilityAvailableConfig)
-      Public.TeamFeatureTTLUnlimited
+      Public.FeatureTTLUnlimited
 
 putLegalHoldEnabledInternal' ::
   HasCallStack =>
@@ -180,7 +180,7 @@ putTeamFeatureFlagInternalTTL ::
   (Request -> Request) ->
   TeamId ->
   Public.WithStatusNoLock cfg ->
-  Public.TeamFeatureTTLValue ->
+  Public.FeatureTTL ->
   TestM ResponseLBS
 putTeamFeatureFlagInternalTTL reqmod tid status ttl = do
   g <- view tsGalley
@@ -199,7 +199,7 @@ putTeamFeatureFlagInternal ::
   TestM ResponseLBS
 putTeamFeatureFlagInternal reqmod tid status = do
   g <- view tsGalley
-  putTeamFeatureFlagInternalWithGalleyAndMod @cfg g reqmod tid status Public.TeamFeatureTTLUnlimited
+  putTeamFeatureFlagInternalWithGalleyAndMod @cfg g reqmod tid status Public.FeatureTTLUnlimited
 
 putTeamFeatureFlagInternalWithGalleyAndMod ::
   forall cfg m.
@@ -214,7 +214,7 @@ putTeamFeatureFlagInternalWithGalleyAndMod ::
   (Request -> Request) ->
   TeamId ->
   Public.WithStatusNoLock cfg ->
-  Public.TeamFeatureTTLValue ->
+  Public.FeatureTTL ->
   m ResponseLBS
 putTeamFeatureFlagInternalWithGalleyAndMod galley reqmod tid status ttl =
   put $

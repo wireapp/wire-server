@@ -516,7 +516,7 @@ setTeamFeatureFlag ::
   ) =>
   TeamId ->
   Public.WithStatusNoLock cfg ->
-  Public.TeamFeatureTTLValue ->
+  Public.FeatureTTL ->
   Handler ()
 setTeamFeatureFlag tid status ttl = do
   info $ msg "Setting team feature status"
@@ -534,8 +534,8 @@ setTeamFeatureFlag tid status ttl = do
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
   where
     ttlAPI = case ttl of
-      Public.TeamFeatureTTLSeconds days -> Public.TeamFeatureTTLSeconds (60 * 60 * 24 * days)
-      Public.TeamFeatureTTLUnlimited -> Public.TeamFeatureTTLUnlimited
+      Public.FeatureTTLSeconds days -> Public.FeatureTTLSeconds (60 * 60 * 24 * days)
+      Public.FeatureTTLUnlimited -> Public.FeatureTTLUnlimited
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do

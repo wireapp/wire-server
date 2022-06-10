@@ -31,7 +31,7 @@ module Wire.API.Team.Feature
     forgetLock,
     withLockStatus,
     withUnlocked,
-    TeamFeatureTTLValue (..),
+    FeatureTTL (..),
     EnforceAppLock (..),
     defFeatureStatusNoLock,
     computeFeatureConfigForTeamUser,
@@ -54,7 +54,7 @@ module Wire.API.Team.Feature
     AppLockConfig (..),
     FileSharingConfig (..),
     AllFeatureConfigs (..),
-    typeTeamFeatureTTLValue,
+    typeFeatureTTL,
     withStatusModel,
     withStatusNoLockModel,
     allFeatureModels,
@@ -247,58 +247,58 @@ withStatusNoLockModel =
         Doc.property "status" typeFeatureStatus $ Doc.description "status"
 
 ----------------------------------------------------------------------
--- TeamFeatureTTLValue
+-- FeatureTTL
 
 -- Using Word to avoid dealing with negative numbers.
 -- Ideally we would also not support zero.
 -- Currently a TTL=0 is ignored on the cassandra side.
-data TeamFeatureTTLValue
-  = TeamFeatureTTLSeconds Word
-  | TeamFeatureTTLUnlimited
+data FeatureTTL
+  = FeatureTTLSeconds Word
+  | FeatureTTLUnlimited
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform TeamFeatureTTLValue)
+  deriving (Arbitrary) via (GenericUniform FeatureTTL)
 
-instance ToHttpApiData TeamFeatureTTLValue where
+instance ToHttpApiData FeatureTTL where
   toQueryParam = T.decodeUtf8 . toByteString'
 
-instance FromHttpApiData TeamFeatureTTLValue where
+instance FromHttpApiData FeatureTTL where
   parseQueryParam = maybeToEither invalidTTLErrorString . fromByteString . T.encodeUtf8
 
-instance S.ToParamSchema TeamFeatureTTLValue where
+instance S.ToParamSchema FeatureTTL where
   toParamSchema _ = S.toParamSchema (Proxy @Int)
 
-instance ToByteString TeamFeatureTTLValue where
-  builder TeamFeatureTTLUnlimited = "unlimited"
-  builder (TeamFeatureTTLSeconds d) = (builder . TL.pack . show) d
+instance ToByteString FeatureTTL where
+  builder FeatureTTLUnlimited = "unlimited"
+  builder (FeatureTTLSeconds d) = (builder . TL.pack . show) d
 
-instance FromByteString TeamFeatureTTLValue where
+instance FromByteString FeatureTTL where
   parser =
     Parser.takeByteString >>= \b ->
       case T.decodeUtf8' b of
-        Right "unlimited" -> pure TeamFeatureTTLUnlimited
+        Right "unlimited" -> pure FeatureTTLUnlimited
         Right d -> case readEither . T.unpack $ d of
           Left _ -> fail $ T.unpack invalidTTLErrorString
-          Right d' -> pure . TeamFeatureTTLSeconds $ d'
+          Right d' -> pure . FeatureTTLSeconds $ d'
         Left _ -> fail $ T.unpack invalidTTLErrorString
 
-instance Cass.Cql TeamFeatureTTLValue where
+instance Cass.Cql FeatureTTL where
   ctype = Cass.Tagged Cass.IntColumn
 
   -- Passing TTL = 0 to Cassandra removes the TTL.
   -- It does not instantly revert back.
-  fromCql (Cass.CqlInt 0) = pure TeamFeatureTTLUnlimited
-  fromCql (Cass.CqlInt n) = pure . TeamFeatureTTLSeconds . fromIntegral $ n
+  fromCql (Cass.CqlInt 0) = pure FeatureTTLUnlimited
+  fromCql (Cass.CqlInt n) = pure . FeatureTTLSeconds . fromIntegral $ n
   fromCql _ = Left "fromCql: TTLValue: CqlInt expected"
 
-  toCql TeamFeatureTTLUnlimited = Cass.CqlInt 0
-  toCql (TeamFeatureTTLSeconds d) = Cass.CqlInt . fromIntegral $ d
+  toCql FeatureTTLUnlimited = Cass.CqlInt 0
+  toCql (FeatureTTLSeconds d) = Cass.CqlInt . fromIntegral $ d
 
-typeTeamFeatureTTLValue :: Doc.DataType
-typeTeamFeatureTTLValue =
+typeFeatureTTL :: Doc.DataType
+typeFeatureTTL =
   Doc.int64'
 
 invalidTTLErrorString :: Text
-invalidTTLErrorString = "Invalid TeamFeatureTTLSeconds: must be a positive integer or 'unlimited.'"
+invalidTTLErrorString = "Invalid FeatureTTLSeconds: must be a positive integer or 'unlimited.'"
 
 -- LockStatus
 

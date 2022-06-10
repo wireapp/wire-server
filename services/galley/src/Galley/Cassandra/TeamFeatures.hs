@@ -53,7 +53,7 @@ interpretTeamFeatureStoreToCassandra = interpret $ \case
 
 class FeatureStatusCassandra cfg where
   getFeatureConfig :: MonadClient m => Proxy cfg -> TeamId -> m (Maybe (WithStatusNoLock cfg))
-  setFeatureConfig :: MonadClient m => Proxy cfg -> TeamId -> WithStatusNoLock cfg -> Maybe TeamFeatureTTLValue -> m ()
+  setFeatureConfig :: MonadClient m => Proxy cfg -> TeamId -> WithStatusNoLock cfg -> Maybe FeatureTTL -> m ()
 
   -- default implementation: no lock status
   getFeatureLockStatus :: MonadClient m => Proxy cfg -> TeamId -> m (Maybe LockStatus)
@@ -87,7 +87,7 @@ setFeatureStatusC ::
   String ->
   TeamId ->
   FeatureStatus ->
-  Maybe TeamFeatureTTLValue ->
+  Maybe FeatureTTL ->
   m ()
 setFeatureStatusC statusCol tid status mTtl = do
   retry x5 $ write insert (params LocalQuorum (tid, status))
@@ -97,7 +97,7 @@ setFeatureStatusC statusCol tid status mTtl = do
       fromString $
         "insert into team_features (team_id, " <> statusCol <> ") values (?, ?)"
           <> case mTtl of
-            Just (TeamFeatureTTLSeconds d) | d > 0 -> " using ttl " <> show d
+            Just (FeatureTTLSeconds d) | d > 0 -> " using ttl " <> show d
             _ -> " using ttl 0"
 
 getLockStatusC ::

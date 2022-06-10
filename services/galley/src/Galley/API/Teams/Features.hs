@@ -155,7 +155,7 @@ class GetFeatureConfig (db :: *) cfg => SetFeatureConfig (db :: *) cfg where
     ) =>
     TeamId ->
     WithStatusNoLock cfg ->
-    Maybe TeamFeatureTTLValue ->
+    Maybe FeatureTTL ->
     Sem r (WithStatus cfg)
 
 getFeatureStatusNoPermissionCheck ::
@@ -249,7 +249,7 @@ setFeatureStatus ::
        ]
       r
   ) =>
-  Maybe TeamFeatureTTLValue ->
+  Maybe FeatureTTL ->
   DoAuth ->
   TeamId ->
   WithStatusNoLock cfg ->
@@ -562,7 +562,7 @@ persistAndPushEvent ::
   ) =>
   TeamId ->
   WithStatusNoLock cfg ->
-  Maybe TeamFeatureTTLValue ->
+  Maybe FeatureTTL ->
   Sem r (WithStatus cfg)
 persistAndPushEvent tid wsnl mTtl = do
   setFeatureConfig @db (Proxy @cfg) tid wsnl mTtl

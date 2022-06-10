@@ -826,7 +826,7 @@ setTeamFeatureFlagH ::
   Handler Response
 setTeamFeatureFlagH (tid ::: req ::: _) = do
   status :: WithStatusNoLock cfg <- parseBody req !>> mkError status400 "client-error"
-  empty <$ Intra.setTeamFeatureFlag @cfg tid status Public.TeamFeatureTTLUnlimited
+  empty <$ Intra.setTeamFeatureFlag @cfg tid status Public.FeatureTTLUnlimited
 
 mkFeaturePutRouteTrivialConfig ::
   forall cfg.
@@ -862,7 +862,7 @@ mkFeaturePutRouteTrivialConfig' ttlSupport = do
     Doc.parameter Doc.Query "status" typeFeatureStatus $ do
       Doc.description "team feature status (enabled or disabled)"
     case ttlSupport of
-      TtlEnabled -> Doc.parameter Doc.Query "ttl" Public.typeTeamFeatureTTLValue $ do
+      TtlEnabled -> Doc.parameter Doc.Query "ttl" Public.typeFeatureTTL $ do
         Doc.description "team feature time to live, given in days or 'unlimited' (default). Only applies to conference calling. It's ignored by other features."
       TtlDisabled -> pure ()
     Doc.response 200 "Team feature flag status" Doc.end
@@ -872,7 +872,7 @@ mkFeaturePutRouteTrivialConfig' ttlSupport = do
         put ("/teams/:tid/features/" <> featureNameBS @cfg) (continue (setTeamFeatureFlagTrivialConfigH @cfg)) $
           capture "tid"
             .&. param "status"
-            .&. def Public.TeamFeatureTTLUnlimited (query "ttl")
+            .&. def Public.FeatureTTLUnlimited (query "ttl")
       TtlDisabled ->
         put ("/teams/:tid/features/" <> featureNameBS @cfg) (continue (setTeamFeatureFlagTrivialConfigHNoTtl @cfg)) $
           capture "tid"
@@ -892,7 +892,7 @@ setTeamFeatureFlagTrivialConfigHNoTtl ::
   Handler Response
 setTeamFeatureFlagTrivialConfigHNoTtl (tid ::: featureStatus) = do
   let status = WithStatusNoLock featureStatus trivialConfig
-  empty <$ Intra.setTeamFeatureFlag @cfg tid status TeamFeatureTTLUnlimited
+  empty <$ Intra.setTeamFeatureFlag @cfg tid status FeatureTTLUnlimited
 
 setTeamFeatureFlagTrivialConfigH ::
   forall cfg.
@@ -904,7 +904,7 @@ setTeamFeatureFlagTrivialConfigH ::
     ToJSON (WithStatusNoLock cfg),
     Typeable cfg
   ) =>
-  TeamId ::: FeatureStatus ::: TeamFeatureTTLValue ->
+  TeamId ::: FeatureStatus ::: FeatureTTL ->
   Handler Response
 setTeamFeatureFlagTrivialConfigH (tid ::: featureStatus ::: ttl) = do
   let status = WithStatusNoLock featureStatus trivialConfig
