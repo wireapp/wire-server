@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: "federator"
   labels:
-    wireService: federator
+    app: federator
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}

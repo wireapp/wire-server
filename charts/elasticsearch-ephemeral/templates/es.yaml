@@ -3,7 +3,6 @@ kind: Deployment
 metadata:
   name: {{ template "fullname" . }}
   labels:
-    wireService: {{ template "fullname" . }}
     app: {{ template "fullname" . }}
     chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
     release: "{{ .Release.Name }}"

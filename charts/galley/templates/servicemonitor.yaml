@@ -1,0 +1,19 @@
+{{- if .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: galley
+  labels:
+    app: galley
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  endpoints:
+    - port: http
+      path: /i/metrics
+  selector:
+    matchLabels:
+      app: galley
+      release: {{ .Release.Name }}
+{{- end }}

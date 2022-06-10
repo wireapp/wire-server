@@ -14,7 +14,7 @@ metadata:
 spec:
   type: LoadBalancer
   selector:
-    wireService: account-pages
+    app: account-pages
   ports:
   - name: https
     protocol: TCP

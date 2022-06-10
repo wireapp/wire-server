@@ -4,7 +4,7 @@ metadata:
   name: openldap
 spec:
   selector:
-    wireService: openldap
+    app: openldap
   ports:
     - name: openldap
       protocol: TCP

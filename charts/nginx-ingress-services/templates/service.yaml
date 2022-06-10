@@ -9,7 +9,7 @@ spec:
     - port: {{ .Values.service.nginz.externalHttpPort }}
       targetPort: 8080
   selector:
-    wireService: nginz
+    app: nginz
 {{- if .Values.websockets.enabled }}
 ---
 apiVersion: v1
@@ -22,7 +22,7 @@ spec:
     - port: {{ .Values.service.nginz.externalTcpPort }}
       targetPort: 8081
   selector:
-    wireService: nginz
+    app: nginz
 {{- end }}
 {{- if .Values.webapp.enabled }}
 ---
@@ -36,7 +36,7 @@ spec:
     - port: {{ .Values.service.webapp.externalPort }}
       targetPort: 8080
   selector:
-    wireService: webapp
+    app: webapp
 {{- end }}
 {{- if not .Values.service.s3.externallyCreated }}
 ---
@@ -50,7 +50,7 @@ spec:
     - port: {{ .Values.service.s3.externalPort }}
       targetPort: 9000
   selector:
-    wireService: {{ .Values.service.s3.serviceName }}
+    app: {{ .Values.service.s3.serviceName }}
 {{- end }}
 {{- if .Values.teamSettings.enabled }}
 ---
@@ -64,7 +64,7 @@ spec:
     - port: {{ .Values.service.teamSettings.externalPort }}
       targetPort: 8080
   selector:
-    wireService: team-settings
+    app: team-settings
 {{- end }}
 {{- if .Values.accountPages.enabled }}
 ---
@@ -78,5 +78,5 @@ spec:
     - port: {{ .Values.service.accountPages.externalPort }}
       targetPort: 8080
   selector:
-    wireService: account-pages
+    app: account-pages
 {{- end }}

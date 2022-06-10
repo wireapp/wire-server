@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: nginz
   labels:
-    wireService: nginz
+    app: nginz
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
@@ -16,12 +16,10 @@ spec:
       maxSurge: {{ .Values.replicaCount | mul 2 }}
   selector:
     matchLabels:
-      wireService: nginz
       app: nginz
   template:
     metadata:
       labels:
-        wireService: nginz
         app: nginz
         release: {{ .Release.Name }}
       annotations:

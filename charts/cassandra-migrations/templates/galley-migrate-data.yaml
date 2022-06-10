@@ -7,7 +7,7 @@ kind: Job
 metadata:
   name: galley-migrate-data
   labels:
-    wireService: "cassandra-migrations"
+    app: "cassandra-migrations"
     chart: "{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}"
     release: "{{ .Release.Name }}"
     heritage: "{{ .Release.Service }}"
@@ -20,7 +20,7 @@ spec:
     metadata:
       name: "{{.Release.Name}}"
       labels:
-        wireService: galley-migrate-data
+        app: galley-migrate-data
         app: galley-migrate-data
         heritage: {{.Release.Service | quote }}
         release: {{.Release.Name | quote }}
