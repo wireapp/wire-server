@@ -42,6 +42,8 @@ module Brig.AWS
     -- * AWS
     exec,
     execCatch,
+    readAuthExpiration,
+    isAuthARef,
   )
 where
 
@@ -62,6 +64,7 @@ import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Data.Time
 import Data.UUID hiding (null)
 import Imports hiding (group)
 import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), Manager)
@@ -270,3 +273,19 @@ canRetry (Left e) = case e of
 
 retry5x :: (Monad m) => RetryPolicyM m
 retry5x = limitRetries 5 <> exponentialBackoff 100000
+
+readAuthExpiration :: AWS.Env -> IO (Maybe NominalDiffTime)
+readAuthExpiration env = do
+  authEnv <-
+    case runIdentity (AWS.envAuth env) of
+      AWS.Auth authEnv -> pure authEnv
+      AWS.Ref _ ref -> do
+        readIORef ref
+  now <- getCurrentTime
+  pure $ ((`diffUTCTime` now) . AWS.fromTime) <$> (AWS._authExpiration authEnv)
+
+isAuthARef :: AWS.Env -> Bool
+isAuthARef env =
+  case runIdentity (AWS.envAuth env) of
+    AWS.Auth _ -> False
+    AWS.Ref _ _ -> True
