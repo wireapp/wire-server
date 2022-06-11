@@ -128,7 +128,7 @@ verifyFingerprint ::
   SSL ->
   IO ()
 verifyFingerprint hash fprs ssl = do
-  cert <- SSL.getPeerCertificate ssl >>= maybe (throwIO PinMissingCert) return
+  cert <- SSL.getPeerCertificate ssl >>= maybe (throwIO PinMissingCert) pure
   pkey <- X509.getPublicKey cert
   mfpr <- hash pkey
   case mfpr of
@@ -161,13 +161,13 @@ rsaFingerprint d k = fmap (digestLBS d . toLazyByteString) $ do
   let s = rsaSize k
   n <- integerToMPI (rsaN k)
   e <- integerToMPI (rsaE k)
-  return $! intDec s <> byteString n <> byteString e
+  pure $! intDec s <> byteString n <> byteString e
 
 -- | 'verifyFingerprint' specialised to 'RSAPubKey's using 'rsaFingerprint'.
 verifyRsaFingerprint :: Digest -> [ByteString] -> SSL -> IO ()
 verifyRsaFingerprint d = verifyFingerprint $ \pk ->
   case toPublicKey pk of
-    Nothing -> return Nothing
+    Nothing -> pure Nothing
     Just k -> Just <$> rsaFingerprint d (k :: RSAPubKey)
 
 -- [Note: Hostname verification]

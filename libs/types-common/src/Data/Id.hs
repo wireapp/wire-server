@@ -61,6 +61,7 @@ import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.Types as A
 import Data.Attoparsec.ByteString ((<?>))
 import qualified Data.Attoparsec.ByteString.Char8 as Atto
+import Data.Bifunctor (first)
 import Data.Binary
 import Data.ByteString.Builder (byteString)
 import Data.ByteString.Conversion
@@ -173,7 +174,7 @@ instance Show (Id a) where
   show = UUID.toString . toUUID
 
 instance Read (Id a) where
-  readsPrec n = map (\(a, x) -> (Id a, x)) . readsPrec n
+  readsPrec n = map (first Id) . readsPrec n
 
 instance FromByteString (Id a) where
   parser = do
@@ -189,7 +190,7 @@ instance FromByteString (Id a) where
         void $ Atto.count 12 hexDigit
     case UUID.fromASCIIBytes match of
       Nothing -> fail "Invalid UUID"
-      Just ui -> return (Id ui)
+      Just ui -> pure (Id ui)
     where
       matching = fmap fst . Atto.match
       hexDigit = Atto.satisfy Char.isHexDigit <?> "hexadecimal digit"
@@ -315,7 +316,7 @@ instance EncodeWire ClientId where
   encodeWire t = encodeWire t . client
 
 instance DecodeWire ClientId where
-  decodeWire (DelimitedField _ x) = either fail return (runParser parser x)
+  decodeWire (DelimitedField _ x) = either fail pure (runParser parser x)
   decodeWire _ = fail "Invalid ClientId"
 
 -- BotId -----------------------------------------------------------------------
@@ -339,7 +340,7 @@ instance Show BotId where
   show = show . botUserId
 
 instance Read BotId where
-  readsPrec n = map (\(a, x) -> (BotId a, x)) . readsPrec n
+  readsPrec n = map (first BotId) . readsPrec n
 
 deriving instance Cql BotId
 

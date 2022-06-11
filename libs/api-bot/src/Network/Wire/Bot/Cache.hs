@@ -58,7 +58,7 @@ fromFile logger gen domain path = do
   triples <- map (Text.splitOn ",") . Text.lines <$> Text.readFile path
   shuffled <- V.toList <$> uniformShuffle (V.fromList triples) gen
   c <- newIORef =<< foldM (toUser logger domain) [] shuffled
-  return (Cache c)
+  pure (Cache c)
 
 empty :: IO Cache
 empty = Cache <$> newIORef []
@@ -82,7 +82,7 @@ toUser _ domain acc [i, e, p] = do
   let ie = error "Cache.toUser: invalid email"
   let ui = fromMaybe iu . fromByteString . encodeUtf8 . Text.toStrict . Text.strip $ i
   let em = fromMaybe ie . parseEmail . Text.toStrict . Text.strip $ e
-  return . (: acc) $
+  pure . (: acc) $
     CachedUser
       pw
       User
@@ -103,4 +103,4 @@ toUser _ domain acc [i, e, p] = do
         }
 toUser g _ acc entry = do
   warn g $ msg (val "invalid entry: " +++ show entry)
-  return acc
+  pure acc

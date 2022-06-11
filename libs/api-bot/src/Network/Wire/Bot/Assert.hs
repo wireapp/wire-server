@@ -63,8 +63,8 @@ awaitOtrMessage ::
   m (Maybe (ConvEvent OtrMessage))
 awaitOtrMessage c (from, fc) (to, tc) =
   awaitEvent to TConvOtrMessageAdd assertion >>= \case
-    Just (EOtrMessage m) -> return (Just m)
-    _ -> return Nothing
+    Just (EOtrMessage m) -> pure (Just m)
+    _ -> pure Nothing
   where
     assertion (EOtrMessage evt) =
       let e = convEvtData evt
@@ -83,7 +83,7 @@ assertMembersJoined ::
   -- | Users who have (presumably) joined
   Maybe (ConvEvent SimpleMembers) ->
   m ()
-assertMembersJoined _ Nothing = return ()
+assertMembersJoined _ Nothing = pure ()
 assertMembersJoined bs (Just e) = forM_ bs $ \b ->
   assertEvent b TConvMemberJoin memAdd
   where
@@ -99,7 +99,7 @@ assertMembersLeft ::
   -- | Users who have (presumably) left
   Maybe (ConvEvent UserIdList) ->
   m ()
-assertMembersLeft _ Nothing = return ()
+assertMembersLeft _ Nothing = pure ()
 assertMembersLeft bs (Just e) = forM_ bs $ \b ->
   assertEvent b TConvMemberLeave memRem
   where

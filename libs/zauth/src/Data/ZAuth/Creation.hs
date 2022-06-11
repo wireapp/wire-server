@@ -156,7 +156,7 @@ newToken ti ty ta a = do
   k <- Create $ asks keyIdx
   let h = mkHeader tokenVersion k (floor ti) ty ta
   s <- signToken h a
-  return $ mkToken s h a
+  pure $ mkToken s h a
 
 -----------------------------------------------------------------------------
 -- Internal

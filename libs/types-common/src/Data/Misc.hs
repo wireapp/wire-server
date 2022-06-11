@@ -103,7 +103,7 @@ instance FromByteString IpAddr where
     s <- Chars.takeWhile1 (not . isSpace)
     case readMaybe (unpack s) of
       Nothing -> fail "Failed parsing bytestring as IpAddr."
-      Just ip -> return (IpAddr ip)
+      Just ip -> pure (IpAddr ip)
 
 instance ToByteString IpAddr where
   builder = string8 . show . ipAddr
@@ -136,7 +136,7 @@ instance FromJSON IpAddr where
   parseJSON = A.withText "IpAddr" $ \txt ->
     case readMaybe (Text.unpack txt) of
       Nothing -> fail "Failed parsing IP address."
-      Just ip -> return (IpAddr ip)
+      Just ip -> pure (IpAddr ip)
 
 instance ToJSON Port where
   toJSON (Port p) = toJSON p
@@ -198,7 +198,7 @@ instance Cql Latitude where
 
   toCql (Latitude x) = CqlDouble x
 
-  fromCql (CqlDouble x) = return (Latitude x)
+  fromCql (CqlDouble x) = pure (Latitude x)
   fromCql _ = Left "Latitude: Expected CqlDouble."
 
 instance Cql Longitude where
@@ -206,7 +206,7 @@ instance Cql Longitude where
 
   toCql (Longitude x) = CqlDouble x
 
-  fromCql (CqlDouble x) = return (Longitude x)
+  fromCql (CqlDouble x) = pure (Longitude x)
   fromCql _ = Left "Longitude: Expected CqlDouble."
 
 --------------------------------------------------------------------------------
@@ -329,7 +329,7 @@ instance Cql (Fingerprint a) where
   ctype = Tagged BlobColumn
   toCql = CqlBlob . toByteString
 
-  fromCql (CqlBlob b) = return (Fingerprint (toStrict b))
+  fromCql (CqlBlob b) = pure (Fingerprint (toStrict b))
   fromCql _ = Left "Fingerprint: Expected CqlBlob"
 
 instance Arbitrary (Fingerprint Rsa) where

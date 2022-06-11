@@ -95,7 +95,7 @@ clientInitSession cl uid = do
       k <- decodePrekey c
       let i = mkSID uid (prekeyClient c)
       s <- liftIO $ unwrap =<< CBox.sessionFromPrekey b i k
-      return (prekeyClient c, s)
+      pure (prekeyClient c, s)
 
 -- | Initialise an OTR session between the given 'BotClient' and the sender of
 -- the given OTR message.
@@ -116,12 +116,12 @@ encrypt cl cnv val = fmap (OtrRecipients . UserClientMap)
   . foldSessions (botClientSessions cl) cnv Map.empty
   $ \u c s rcps ->
     if botClientId cl == c
-      then return rcps
+      then pure rcps
       else liftIO $ do
         ciphertext <- do
           bs <- CBox.encrypt s val >>= unwrap >>= CBox.copyBytes
-          return $! decodeUtf8 $! B64.encode bs
-        return $ Map.insertWith Map.union u (Map.singleton c ciphertext) rcps
+          pure $! decodeUtf8 $! B64.encode bs
+        pure $ Map.insertWith Map.union u (Map.singleton c ciphertext) rcps
 
 -- | Decrypt an OTR message received from a given user and client.
 decrypt :: BotClient -> UserId -> ClientId -> ByteString -> BotSession ByteString
@@ -172,7 +172,7 @@ encryptSymmetric clt (SymmetricKeys ekey mkey) msg = liftIO $ do
   iv <- randomBytes (botClientBox clt) 16
   let ciphertext = iv <> cbcEncrypt aes (aesIV iv) (padPKCS7 msg)
   let mac = hmac (toByteString' mkey) ciphertext :: HMAC SHA256
-  return $ convert mac <> ciphertext
+  pure $ convert mac <> ciphertext
 
 decryptSymmetric :: MonadIO m => BotClient -> SymmetricKeys -> Ciphertext -> m Plaintext
 decryptSymmetric _ (SymmetricKeys ekey mkey) msg = liftIO $ do
@@ -184,7 +184,7 @@ decryptSymmetric _ (SymmetricKeys ekey mkey) msg = liftIO $ do
     throwM $
       RequirementFailed "Bad MAC"
   let (iv, dat) = BS.splitAt 16 ciphertext
-  return $ unpadPKCS7 $ cbcDecrypt aes (aesIV iv) dat
+  pure $ unpadPKCS7 $ cbcDecrypt aes (aesIV iv) dat
 
 -----------------------------------------------------------------------------
 -- Helpers

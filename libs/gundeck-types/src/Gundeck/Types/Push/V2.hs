@@ -101,9 +101,9 @@ data Route
   deriving (Eq, Ord, Enum, Bounded, Show)
 
 instance FromJSON Route where
-  parseJSON (String "any") = return RouteAny
-  parseJSON (String "direct") = return RouteDirect
-  parseJSON (String "native") = return RouteNative
+  parseJSON (String "any") = pure RouteAny
+  parseJSON (String "direct") = pure RouteDirect
+  parseJSON (String "native") = pure RouteNative
   parseJSON x = fail $ "Invalid routing: " ++ show (encode x)
 
 instance ToJSON Route where
