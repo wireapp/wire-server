@@ -57,6 +57,7 @@ module Wire.API.Team
     nameUpdate,
     iconUpdate,
     iconKeyUpdate,
+    splashScreenUpdate,
 
     -- * TeamDeleteData
     TeamDeleteData (..),
@@ -267,7 +268,8 @@ instance ToSchema Icon where
 data TeamUpdateData = TeamUpdateData
   { _nameUpdate :: Maybe (Range 1 256 Text),
     _iconUpdate :: Maybe Icon,
-    _iconKeyUpdate :: Maybe (Range 1 256 Text)
+    _iconKeyUpdate :: Maybe (Range 1 256 Text),
+    _splashScreenUpdate :: Maybe AssetKey
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamUpdateData)
@@ -275,8 +277,8 @@ data TeamUpdateData = TeamUpdateData
 instance Arbitrary TeamUpdateData where
   arbitrary = arb `suchThat` valid
     where
-      arb = TeamUpdateData <$> arbitrary <*> arbitrary <*> arbitrary
-      valid (TeamUpdateData Nothing Nothing Nothing) = False
+      arb = TeamUpdateData <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+      valid (TeamUpdateData Nothing Nothing Nothing Nothing) = False
       valid _ = True
 
 modelUpdateData :: Doc.Model
@@ -293,12 +295,12 @@ modelUpdateData = Doc.defineModel "TeamUpdateData" $ do
     Doc.optional
 
 newTeamUpdateData :: TeamUpdateData
-newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing
+newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing Nothing
 
 validateTeamUpdateData :: TeamUpdateData -> Parser TeamUpdateData
 validateTeamUpdateData u =
   when
-    (isNothing (_nameUpdate u) && isNothing (_iconUpdate u) && isNothing (_iconKeyUpdate u))
+    (isNothing (_nameUpdate u) && isNothing (_iconUpdate u) && isNothing (_iconKeyUpdate u) && isNothing (_splashScreenUpdate u))
     (fail "TeamUpdateData: no update data specified")
     $> u
 
@@ -310,6 +312,7 @@ instance ToSchema TeamUpdateData where
         <$> _nameUpdate .= maybe_ (optField "name" schema)
         <*> _iconUpdate .= maybe_ (optField "icon" schema)
         <*> _iconKeyUpdate .= maybe_ (optField "icon_key" schema)
+        <*> _splashScreenUpdate .= maybe_ (optField "splash_screen" schema)
 
 --------------------------------------------------------------------------------
 -- TeamDeleteData
