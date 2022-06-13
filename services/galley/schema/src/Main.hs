@@ -68,6 +68,7 @@ import qualified V62_TeamFeatureSearchVisibilityInbound
 import qualified V63_MLSConversationClients
 import qualified V64_Epoch
 import qualified V65_MLSRemoteClients
+import qualified V66_AddSplashScreen
 
 main :: IO ()
 main = do
@@ -121,7 +122,8 @@ main = do
       V62_TeamFeatureSearchVisibilityInbound.migration,
       V63_MLSConversationClients.migration,
       V64_Epoch.migration,
-      V65_MLSRemoteClients.migration
+      V65_MLSRemoteClients.migration,
+      V66_AddSplashScreen.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Cassandra
       -- (see also docs/developer/cassandra-interaction.md)
