@@ -2,28 +2,20 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: nginz-http
+  name: nginz
 spec:
   type: ClusterIP
   ports:
-    - port: {{ .Values.service.nginz.externalHttpPort }}
+    - name: http
+      port: {{ .Values.service.nginz.externalHttpPort }}
       targetPort: 8080
-  selector:
-    app: nginz
 {{- if .Values.websockets.enabled }}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: nginz-tcp
-spec:
-  type: ClusterIP
-  ports:
-    - port: {{ .Values.service.nginz.externalTcpPort }}
+    - name: ws
+      port: {{ .Values.service.nginz.externalTcpPort }}
       targetPort: 8081
+{{- end }}
   selector:
     app: nginz
-{{- end }}
 {{- if .Values.webapp.enabled }}
 ---
 apiVersion: v1
