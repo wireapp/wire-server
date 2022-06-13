@@ -1,0 +1,1 @@
+`GET teams/:tid` response now contains an optional field `splash_screen` which contains the asset key of the team's splash screen. `PUT teams/:tid` now supports updating the splash screen asset key.
