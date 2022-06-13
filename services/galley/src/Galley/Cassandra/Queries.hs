@@ -36,13 +36,14 @@ import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
 import Imports
 import Text.RawString.QQ
+import Wire.API.Asset (AssetKey)
 import Wire.API.Conversation.Protocol
 import Wire.API.Team
 
 -- Teams --------------------------------------------------------------------
 
-selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Icon, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe TeamBinding)
-selectTeam = "select creator, name, icon, icon_key, deleted, status, writetime(status), binding from team where team = ?"
+selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Icon, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe TeamBinding, Maybe AssetKey)
+selectTeam = "select creator, name, icon, icon_key, deleted, status, writetime(status), binding, splash_screen from team where team = ?"
 
 selectTeamName :: PrepQuery R (Identity TeamId) (Identity Text)
 selectTeamName = "select name from team where team = ?"

@@ -62,7 +62,7 @@ import Imports hiding (Set, max)
 import Polysemy
 import Polysemy.Input
 import qualified UnliftIO
-import Wire.API.Team (Icon (..))
+import Wire.API.Team (Icon (..), teamSplashScreen)
 import Wire.API.Team.Member
 
 interpretTeamStoreToCassandra ::
@@ -250,8 +250,8 @@ team :: TeamId -> Client (Maybe TeamData)
 team tid =
   fmap toTeam <$> retry x1 (query1 Cql.selectTeam (params LocalQuorum (Identity tid)))
   where
-    toTeam (u, n, i, k, d, s, st, b) =
-      let t = newTeam tid u n i (fromMaybe NonBinding b) & teamIconKey .~ k
+    toTeam (u, n, i, k, d, s, st, b, ss) =
+      let t = newTeam tid u n i (fromMaybe NonBinding b) & teamIconKey .~ k & teamSplashScreen .~ ss
           status = if d then PendingDelete else fromMaybe Active s
        in TeamData t status (writeTimeToUTC <$> st)
 

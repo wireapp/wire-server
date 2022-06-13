@@ -29,6 +29,7 @@ module Wire.API.Team
     teamIcon,
     teamIconKey,
     teamBinding,
+    teamSplashScreen,
     TeamBinding (..),
     Icon (..),
 
@@ -100,14 +101,15 @@ data Team = Team
     _teamName :: Text,
     _teamIcon :: Icon,
     _teamIconKey :: Maybe Text,
-    _teamBinding :: TeamBinding
+    _teamBinding :: TeamBinding,
+    _teamSplashScreen :: Maybe AssetKey
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Team)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Team)
 
 newTeam :: TeamId -> UserId -> Text -> Icon -> TeamBinding -> Team
-newTeam tid uid nme ico = Team tid uid nme ico Nothing
+newTeam tid uid nme ico tb = Team tid uid nme ico Nothing tb Nothing
 
 modelTeam :: Doc.Model
 modelTeam = Doc.defineModel "Team" $ do
@@ -136,6 +138,7 @@ instance ToSchema Team where
         <*> _teamIcon .= field "icon" schema
         <*> _teamIconKey .= maybe_ (optField "icon_key" schema)
         <*> _teamBinding .= (fromMaybe Binding <$> optField "binding" schema)
+        <*> _teamSplashScreen .= maybe_ (optField "splash_screen" schema)
 
 data TeamBinding
   = Binding
