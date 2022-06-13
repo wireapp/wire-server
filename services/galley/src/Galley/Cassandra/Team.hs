@@ -62,7 +62,7 @@ import Imports hiding (Set, max)
 import Polysemy
 import Polysemy.Input
 import qualified UnliftIO
-import Wire.API.Team (Icon (..), teamSplashScreen)
+import Wire.API.Team (Icon (..))
 import Wire.API.Team.Member
 
 interpretTeamStoreToCassandra ::
@@ -381,6 +381,8 @@ updateTeam tid u = retry x5 . batch $ do
     addPrepQuery Cql.updateTeamIcon (decodeUtf8 . toByteString' $ i, tid)
   for_ (u ^. iconKeyUpdate) $ \k ->
     addPrepQuery Cql.updateTeamIconKey (fromRange k, tid)
+  for_ (u ^. splashScreenUpdate) $ \ss ->
+    addPrepQuery Cql.updateTeamSplashScreen (ss, tid)    
 
 -- | Construct 'TeamMember' from database tuple.
 -- If FeatureLegalHoldWhitelistTeamsAndImplicitConsent is enabled set UserLegalHoldDisabled

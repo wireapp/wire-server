@@ -189,6 +189,9 @@ updateTeamIconKey = "update team set icon_key = ? where team = ?"
 updateTeamStatus :: PrepQuery W (TeamStatus, TeamId) ()
 updateTeamStatus = "update team set status = ? where team = ?"
 
+updateTeamSplashScreen :: PrepQuery W (AssetKey, TeamId) ()
+updateTeamSplashScreen = "update team set splash_screen = ? where team = ?"
+
 -- Conversations ------------------------------------------------------------
 
 selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (C.Set Access), Maybe AccessRoleLegacy, Maybe (C.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch)
