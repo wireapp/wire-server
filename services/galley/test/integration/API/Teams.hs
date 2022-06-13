@@ -1448,11 +1448,7 @@ testUpdateTeam :: TestM ()
 testUpdateTeam = do
   g <- view tsGalley
   c <- view tsCannon
-  owner <- Util.randomUser
-  let p = Util.symmPermissions [DoNotUseDeprecatedDeleteConversation]
-  member <- newTeamMember' p <$> Util.randomUser
-  Util.connectUsers owner (list1 (member ^. userId) [])
-  tid <- Util.createNonBindingTeam "foo" owner [member]
+  (tid, owner, [member]) <- Util.createBindingTeamWithMembers 2
   let bad = object ["name" .= T.replicate 100 "too large"]
   put
     ( g
@@ -1468,7 +1464,8 @@ testUpdateTeam = do
           & nameUpdate .~ (Just $ unsafeRange "bar")
           & iconUpdate .~ fromByteString "3-1-47de4580-ae51-4650-acbb-d10c028cb0ac"
           & iconKeyUpdate .~ (Just $ unsafeRange "yyy")
-  WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
+          & splashScreenUpdate .~ fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a"
+  WS.bracketR2 c owner member $ \(wsOwner, wsMember) -> do
     put
       ( g
           . paths ["teams", toByteString' tid]
@@ -1481,6 +1478,8 @@ testUpdateTeam = do
     checkTeamUpdateEvent tid u wsOwner
     checkTeamUpdateEvent tid u wsMember
     WS.assertNoEvent timeout [wsOwner, wsMember]
+  t <- Util.getTeam owner tid
+  liftIO $ assertEqual "teamSplashScreen" (t ^. teamSplashScreen) (fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a")
 
 testTeamAddRemoveMemberAboveThresholdNoEvents :: HasCallStack => TestM ()
 testTeamAddRemoveMemberAboveThresholdNoEvents = do
