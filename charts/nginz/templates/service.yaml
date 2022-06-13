@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginz
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.config.http.httpPort }}
+      targetPort: 8080
+    - name: ws
+      port: {{ .Values.config.ws.wsPort }}
+      targetPort: 8081
+  selector:
+    app: nginz

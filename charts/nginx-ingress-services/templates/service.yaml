@@ -1,21 +1,4 @@
 # FUTUREWORK: move services into the respective charts
-apiVersion: v1
-kind: Service
-metadata:
-  name: nginz
-spec:
-  type: ClusterIP
-  ports:
-    - name: http
-      port: {{ .Values.service.nginz.externalHttpPort }}
-      targetPort: 8080
-{{- if .Values.websockets.enabled }}
-    - name: ws
-      port: {{ .Values.service.nginz.externalTcpPort }}
-      targetPort: 8081
-{{- end }}
-  selector:
-    app: nginz
 {{- if .Values.webapp.enabled }}
 ---
 apiVersion: v1
