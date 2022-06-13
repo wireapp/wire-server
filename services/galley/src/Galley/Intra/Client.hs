@@ -23,7 +23,7 @@ module Galley.Intra.Client
     removeLegalHoldClientFromUser,
     getLegalHoldAuthToken,
     getClientByKeyPackageRef,
-    getMLSClients,
+    getLocalMLSClients,
   )
 where
 
@@ -182,8 +182,8 @@ getClientByKeyPackageRef ref = do
     else pure Nothing
 
 -- | Calls 'Brig.API.Internal.getMLSClients'.
-getMLSClients :: Qualified UserId -> SignatureSchemeTag -> App (Set ClientId)
-getMLSClients qusr ss =
+getLocalMLSClients :: Local UserId -> SignatureSchemeTag -> App (Set ClientId)
+getLocalMLSClients lusr ss =
   call
     Brig
     ( method GET
@@ -191,8 +191,7 @@ getMLSClients qusr ss =
           [ "i",
             "mls",
             "clients",
-            toByteString' (qDomain qusr),
-            toByteString' (qUnqualified qusr)
+            toByteString' (tUnqualified lusr)
           ]
         . queryItem "sig_scheme" (toByteString' (signatureSchemeName ss))
         . expect2xx

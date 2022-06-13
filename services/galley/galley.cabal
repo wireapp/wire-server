@@ -620,6 +620,7 @@ executable galley-schema
       V62_TeamFeatureSearchVisibilityInbound
       V63_MLSConversationClients
       V64_Epoch
+      V65_MLSRemoteClients
       Paths_galley
   hs-source-dirs:
       schema/src

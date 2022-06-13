@@ -34,7 +34,7 @@ import Imports
 -- | For now we assume bots to always be local
 --
 -- FUTUREWORK(federation): allow remote bots
-newtype BotMember = BotMember {fromBotMember :: LocalMember}
+newtype BotMember = BotMember {fromBotMember :: LocalMember} deriving (Show)
 
 instance Eq BotMember where
   (==) = (==) `on` botMemId

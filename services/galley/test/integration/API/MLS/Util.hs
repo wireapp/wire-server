@@ -90,6 +90,7 @@ data MessagingSetup = MessagingSetup
     welcome :: ByteString,
     commit :: ByteString
   }
+  deriving (Show)
 
 data Participant = Participant
   { pUserId :: Qualified UserId,

@@ -58,7 +58,7 @@ data RecipientBy user = Recipient
   { _recipientUserId :: user,
     _recipientClients :: RecipientClients
   }
-  deriving stock (Functor, Foldable, Traversable)
+  deriving stock (Functor, Foldable, Traversable, Show)
 
 makeLenses ''RecipientBy
 
@@ -75,7 +75,7 @@ data PushTo user = Push
     pushJson :: Object,
     pushRecipientListType :: Teams.ListType
   }
-  deriving stock (Functor, Foldable, Traversable)
+  deriving stock (Functor, Foldable, Traversable, Show)
 
 makeLenses ''PushTo
 

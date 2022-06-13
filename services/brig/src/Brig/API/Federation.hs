@@ -25,6 +25,7 @@ import qualified Brig.API.Client as API
 import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error
 import Brig.API.Handler (Handler)
+import qualified Brig.API.Internal as Internal
 import Brig.API.MLS.KeyPackages
 import qualified Brig.API.User as API
 import Brig.API.Util (lookupSearchPolicy)
@@ -81,6 +82,7 @@ federationSitemap =
     :<|> Named @"claim-multi-prekey-bundle" claimMultiPrekeyBundle
     :<|> Named @"search-users" (\d sr -> wrapHttpClientE $ searchUsers d sr)
     :<|> Named @"get-user-clients" getUserClients
+    :<|> Named @"get-mls-clients" getMLSClients
     :<|> Named @"send-connection-action" sendConnectionAction
     :<|> Named @"on-user-deleted-connections" onUserDeleted
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
@@ -210,6 +212,10 @@ searchUsers domain (SearchRequest searchTerm) = do
 
 getUserClients :: Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
 getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
+
+getMLSClients :: Domain -> MLSClientsRequest -> Handler r (Set ClientId)
+getMLSClients _domain mcr = do
+  Internal.getMLSClients (mcrUserId mcr) (mcrSignatureScheme mcr)
 
 onUserDeleted :: Domain -> UserDeletedConnectionsNotification -> (Handler r) EmptyResponse
 onUserDeleted origDomain udcn = lift $ do

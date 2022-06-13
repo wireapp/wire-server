@@ -33,6 +33,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 hiding (head)
 import Data.Qualified
 import Data.Range
+import qualified Data.Set as Set
 import Data.String.Conversions
 import qualified Data.Text as T
 import Federator.MockServer
@@ -47,7 +48,9 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Conversation
+import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
+import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.Message
@@ -74,11 +77,14 @@ tests s =
           test s "add user (partial client list)" testAddUserPartial,
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
           test s "add new client of an already-present user to a conversation" testAddNewClient,
-          test s "send a stale commit" testStaleCommit
+          test s "send a stale commit" testStaleCommit,
+          test s "add remote user to a conversation" testAddRemoteUser
         ],
       testGroup
         "Application Message"
-        [test s "send application message" testAppMessage],
+        [ test s "send application message" testAppMessage,
+          test s "send remote application message" testRemoteAppMessage
+        ],
       testGroup
         "Protocol mismatch"
         [ test s "send a commit to a proteus conversation" testAddUsersToProteus,
@@ -392,6 +398,112 @@ testStaleCommit = withSystemTempDirectory "mls" $ \tmp -> do
           users2 >>= toList . pClients
     err <- testFailedCommit MessagingSetup {..} 409
     liftIO $ Wai.label err @?= "mls-stale-message"
+
+testAddRemoteUser :: TestM ()
+testAddRemoteUser = do
+  setup <-
+    aliceInvitesBob
+      (1, RemoteUser (Domain "faraway.example.com"))
+      def
+        { createClients = DontCreateClients,
+          createConv = CreateConv
+        }
+  bob <- assertOne (users setup)
+  let mock req = case frRPC req of
+        "on-conversation-updated" -> pure (Aeson.encode ())
+        "get-mls-clients" ->
+          pure
+            . Aeson.encode
+            . Set.fromList
+            . map snd
+            . toList
+            . pClients
+            $ bob
+        ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+  (events, reqs) <- withTempMockFederator' mock $ do
+    postCommit setup
+
+  liftIO $ do
+    req <- assertOne $ filter ((== "on-conversation-updated") . frRPC) reqs
+    frTargetDomain req @?= qDomain (pUserId bob)
+    bdy <- case Aeson.eitherDecode (frBody req) of
+      Right b -> pure b
+      Left e -> assertFailure $ "Could not parse on-conversation-updated request body: " <> e
+    cuOrigUserId bdy @?= pUserId (creator setup)
+    cuConvId bdy @?= qUnqualified (conversation setup)
+    cuAlreadyPresentUsers bdy @?= [qUnqualified (pUserId bob)]
+    cuAction bdy
+      @?= SomeConversationAction
+        SConversationJoinTag
+        ConversationJoin
+          { cjUsers = pure (pUserId bob),
+            cjRole = roleNameWireMember
+          }
+
+  liftIO $ do
+    event <- assertOne events
+    assertJoinEvent
+      (conversation setup)
+      (pUserId (creator setup))
+      [pUserId bob]
+      roleNameWireMember
+      event
+
+testRemoteAppMessage :: TestM ()
+testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
+  let opts =
+        def
+          { createClients = DontCreateClients,
+            createConv = CreateConv
+          }
+  (alice, [bob]) <-
+    withLastPrekeys $
+      setupParticipants tmp opts [(1, RemoteUser (Domain "faraway.example.com"))]
+  conversation <- setupGroup tmp CreateConv alice "group"
+  (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" (pClients bob)
+  message <-
+    liftIO $
+      spawn (cli tmp ["message", "--group", tmp </> "group", "some text"]) Nothing
+
+  let mock req = case frRPC req of
+        "on-conversation-updated" -> pure (Aeson.encode ())
+        "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
+        "get-mls-clients" ->
+          pure
+            . Aeson.encode
+            . Set.fromList
+            . map snd
+            . toList
+            . pClients
+            $ bob
+        ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+  (events :: [Event], reqs) <- withTempMockFederator' mock $ do
+    galley <- viewGalley
+    void $ postCommit MessagingSetup {creator = alice, users = [bob], ..}
+    responseJsonError
+      =<< post
+        ( galley . paths ["mls", "messages"]
+            . zUser (qUnqualified (pUserId alice))
+            . zConn "conn"
+            . content "message/mls"
+            . bytes message
+        )
+      <!! const 201
+      === statusCode
+
+  liftIO $ do
+    req <- assertOne $ filter ((== "on-mls-message-sent") . frRPC) reqs
+    frTargetDomain req @?= qDomain (pUserId bob)
+    bdy <- case Aeson.eitherDecode (frBody req) of
+      Right b -> pure b
+      Left e -> assertFailure $ "Could not parse on-mls-message-sent request body: " <> e
+    rmmSender bdy @?= pUserId alice
+    rmmConversation bdy @?= qUnqualified conversation
+    rmmRecipients bdy
+      @?= [(qUnqualified (pUserId bob), c) | (_, c) <- toList (pClients bob)]
+    rmmMessage bdy @?= Base64ByteString message
+
+  liftIO $ assertBool "Unexpected events returned" (null events)
 
 testAppMessage :: TestM ()
 testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
