@@ -23,10 +23,12 @@ module Brig.Data.MLS.KeyPackage
     derefKeyPackage,
     keyPackageRefConvId,
     keyPackageRefSetConvId,
+    addKeyPackageRef,
   )
 where
 
 import Brig.App
+import Wire.API.Routes.Internal.Brig
 import Cassandra
 import Cassandra.Settings
 import Control.Error
@@ -129,6 +131,16 @@ keyPackageRefSetConvId ref convId = do
   where
     q :: PrepQuery W (Domain, ConvId, KeyPackageRef) x
     q = "UPDATE mls_key_package_refs SET conv_domain = ?, conv = ? WHERE ref = ? IF EXISTS"
+
+addKeyPackageRef :: MonadClient m => KeyPackageRef -> NewKeyPackageRef -> m ()
+addKeyPackageRef ref nkpr = do
+  retry x5 $
+    write
+      q
+      (params LocalQuorum (nkprClientId nkpr, qUnqualified (nkprConversation nkpr), qDomain (nkprConversation nkpr), qDomain (nkprUserId nkpr), qUnqualified (nkprUserId nkpr), ref))
+  where
+    q :: PrepQuery W (ClientId, ConvId, Domain, Domain, UserId, KeyPackageRef) x
+    q = "UPDATE mls_key_package_refs SET client = ?, conv = ?, conv_domain = ?, domain = ?, user = ? WHERE ref = ?"
 
 --------------------------------------------------------------------------------
 -- Utilities

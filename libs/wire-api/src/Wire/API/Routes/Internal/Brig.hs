@@ -28,13 +28,16 @@ module Wire.API.Routes.Internal.Brig
     SwaggerDocsAPI,
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
+    NewKeyPackageRef (..),
   )
 where
 
 import Control.Lens ((.~))
+import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.Code as Code
 import Data.Id as Id
 import Data.Qualified (Qualified)
+import Data.Schema hiding (swaggerDoc)
 import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
 import Imports hiding (head)
 import Servant hiding (Handler, JSON, addHeader, respond)
@@ -55,6 +58,7 @@ import Wire.API.Routes.Named
 import Wire.API.Team.Feature (TeamFeatureName (TeamFeatureSearchVisibilityInbound))
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User
+import qualified Data.Swagger as S
 
 type EJPDRequest =
   Summary
@@ -144,6 +148,22 @@ type AccountAPI =
         :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
     )
 
+data NewKeyPackageRef = NewKeyPackageRef
+  { nkprUserId :: Qualified UserId,
+    nkprClientId :: ClientId,
+    nkprConversation :: Qualified ConvId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewKeyPackageRef)
+
+instance ToSchema NewKeyPackageRef where
+  schema =
+    object "NewKeyPackageRef" $
+      NewKeyPackageRef
+        <$> nkprUserId .= field "user_id" schema
+          <*> nkprClientId .= field "client_id" schema
+          <*> nkprConversation .= field "conversation" schema
+
 type MLSAPI =
   "mls"
     :> ( ( "key-packages" :> Capture "ref" KeyPackageRef
@@ -163,6 +183,16 @@ type MLSAPI =
                                     :<|> GetConversationByKeyPackageRef
                                 )
                          )
+                    :<|> Named
+                           "put-key-package-ref"
+                           ( Summary "Create a new KeyPackageRef mapping"
+                               :> ReqBody '[Servant.JSON] NewKeyPackageRef
+                               :> MultiVerb
+                                    'POST
+                                    '[Servant.JSON]
+                                    '[RespondEmpty 200 "Key package ref mapping created"]
+                                    ()
+                           )
                 )
          )
            :<|> GetMLSClients
