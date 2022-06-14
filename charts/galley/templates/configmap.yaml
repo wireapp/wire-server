@@ -79,5 +79,25 @@ data:
         searchVisibilityInbound:
           {{- toYaml .settings.featureFlags.searchVisibilityInbound | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.validateSAMLemails }}
+        validateSAMLemails:
+          {{- toYaml .settings.featureFlags.validateSAMLemails | nindent 10 }}
+        {{- end }}
+        {{- if .settings.featureFlags.appLock }}
+        appLock:
+          {{- toYaml .settings.featureFlags.appLock | nindent 10 }}
+        {{- end }}        
+        {{- if .settings.featureFlags.conferenceCalling }}
+        conferenceCalling:
+          {{- toYaml .settings.featureFlags.conferenceCalling | nindent 10 }}
+        {{- end }}        
+        {{- if .settings.featureFlags.selfDeletingMessages }}
+        selfDeletingMessages:
+          {{- toYaml .settings.featureFlags.selfDeletingMessages | nindent 10 }}
+        {{- end }}        
+        {{- if .settings.featureFlags.conversationGuestLinks }}
+        conversationGuestLinks:
+          {{- toYaml .settings.featureFlags.conversationGuestLinks | nindent 10 }}
+        {{- end }}        
       {{- end }}
   {{- end }}
