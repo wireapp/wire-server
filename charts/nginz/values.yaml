@@ -100,10 +100,6 @@ nginx_conf:
       - all
       max_body_size: "0"
       disable_request_buffering: true
-    - path: /assets/api-docs$
-      envs:
-      - staging
-      disable_zauth: true
     - path: /assets
       envs:
       - all
