@@ -1,3 +1,97 @@
+# [2022-06-14] (Chart Release 4.14.0)
+
+## Release notes
+
+
+* The `nginz{-tcp,-http}` services have been unified into a `nginz` service, and
+  moved into the nginz chart.
+
+  The nginz-ingress-services chart simply targets the `nginz` service, so there's
+  no need to set matching `service.nginz.external{Http,Tcp}Port` inside the
+  `nginx-ingress-services` chart anymore.
+
+  The `config.http.httpPort` and `config.ws.wsPort` values in the `nginz` chart
+  still configure the ports the `nginz` service is listening on.
+
+  The `nginz` chart also gained support for `metrics.serviceMonitor.enabled`,
+  creating a `ServiceMonitor` resource to scrape metrics, like for other wire
+  services.
+
+  (#2476)
+
+* Upgrade team-settings version to 4.10.0-v0.29.7-0-3be8ca3 (#2180)
+
+* Upgrade webapp version to 2022-06-13-production.0-v0.29.7-0-2819b90 (#2302)
+
+* In the helm charts, the `wireService` label has been removed.
+
+  In some cases, we were already setting the `app` label too.
+
+  Now we consistently use the `app` label to label different wire services.
+
+  The `wireService` label was also used in the `spec.selector.matchLabels` field
+  on existing `Deployment` / `StatefulSet` resources.
+  As these fields being immutable, changing them isn't possible without recreation.
+
+  If you encounter an issue like
+
+  > field is immutable && cannot patch "*" with kind *
+
+  you need to manually delete these StatefulSet and Deployment resources, and apply helm again, which will recreate them.
+
+  This means downtime, so plan a maintenance window for it.
+
+  The `wire-server-metrics` chart was previously running some custom
+  configuration to automatically add all payloads with a `wireService` label into
+  metrics scraping.
+
+  With the removal of the `wireService` label, this custom configuration has been
+  removed.
+
+  Instead, all services that expose metrics will now create `ServiceMonitor`
+  resources, if their helm chart is applied with `metrics.serviceMonitor.enable`
+  set to true.
+
+  This prevents scraping agents from querying services that don't expose metrics
+  at /i/metrics unnecessarily.
+
+  Additionally, makes it easier to run other metric scraping operators, like
+  `grafana-agent-operator`, without the need to also create some custom
+  `wireService` label config there.
+
+  Generally, if you have any monitoring solution installed in your cluster that
+  uses the Prometheus CRDs, set `metrics.serviceMonitor.enable` for the following charts:
+
+   - brig
+   - cannon
+   - cargohold
+   - galley
+   - gundeck
+   - proxy
+   - spar (#2413)
+
+
+## Features
+
+
+* MLS implementation progress:
+   - Remote users can be added to MLS conversations
+   - MLS messages (both handshake and application) are now propagates to remote
+     conversation participants. (#2415)
+
+* `GET teams/:tid` response now contains an optional field `splash_screen` which contains the asset key of the team's splash screen. `PUT teams/:tid` now supports updating the splash screen asset key. (#2474)
+
+
+## Internal changes
+
+
+* Forward /i/users/:uid/features/:feature to brig (#2468)
+
+* charts/nginz: Forward `/i/legalhold/whitelisted-teams` to galley instead of brig (#2460)
+
+* Add AWS security token metrics to brig (#2473)
+
+
 # [2022-06-08] (Chart Release 4.13.0)
 
 ## Release notes
