@@ -1,3 +1,25 @@
+# [2022-06-14] (Chart Release 4.14.0)
+
+## Release notes
+
+
+* Upgrade team-settings version to 4.10.0-v0.29.7-0-3be8ca3 (#2180)
+
+* Upgrade webapp version to 2022-06-13-production.0-v0.29.7-0-2819b90 (#2302)
+
+
+## Documentation
+
+
+* Docs for guest links server and team feature settings added (#2480)
+
+## Internal changes
+
+
+* All feature configs like guest links e.g. can now be overridden in the helm configuration, so that they can be disabled/enabled and configured server wide (#2479)
+
+
+
 # [2022-06-08] (Chart Release 4.13.0)
 
 ## Release notes
