@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE NumericUnderscores #-}
 
 module CargoHold.Run
   ( run,
@@ -21,8 +22,11 @@ module CargoHold.Run
   )
 where
 
+import AWS.Util (readAuthExpiration)
+import qualified Amazonka as AWS
 import CargoHold.API.Federation
 import CargoHold.API.Public
+import CargoHold.AWS (amazonkaEnv)
 import CargoHold.App
 import CargoHold.Options
 import Control.Exception (bracket)
@@ -30,6 +34,8 @@ import Control.Lens (set, (^.))
 import Control.Monad.Codensity
 import Data.Default
 import Data.Id
+import Data.Metrics (Metrics)
+import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Servant
 import Data.Proxy
 import Data.Text (unpack)
@@ -42,6 +48,7 @@ import qualified Network.Wai.Utilities.Server as Server
 import qualified Servant
 import Servant.API
 import Servant.Server hiding (Handler, runHandler)
+import qualified UnliftIO.Async as Async
 import Util.Options
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Cargohold
@@ -53,6 +60,7 @@ type CombinedAPI = FederationAPI :<|> ServantAPI :<|> InternalAPI
 run :: Opts -> IO ()
 run o = lowerCodensity $ do
   (app, e) <- mkApp o
+  void $ Codensity $ Async.withAsync (collectAuthMetrics (e ^. metrics) (e ^. aws . amazonkaEnv))
   liftIO $ do
     s <-
       Server.newSettings $
@@ -88,3 +96,11 @@ mkApp o = Codensity $ \k ->
 
 toServantHandler :: Env -> Handler a -> Servant.Handler a
 toServantHandler env = liftIO . runHandler env
+
+collectAuthMetrics :: MonadIO m => Metrics -> AWS.Env -> m ()
+collectAuthMetrics m env = do
+  liftIO $
+    forever $ do
+      mbRemaining <- readAuthExpiration env
+      gaugeTokenRemaing m mbRemaining
+      threadDelay 1_000_000
