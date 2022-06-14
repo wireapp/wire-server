@@ -29,6 +29,7 @@ module Wire.API.Team
     teamIcon,
     teamIconKey,
     teamBinding,
+    teamSplashScreen,
     TeamBinding (..),
     Icon (..),
 
@@ -56,6 +57,7 @@ module Wire.API.Team
     nameUpdate,
     iconUpdate,
     iconKeyUpdate,
+    splashScreenUpdate,
 
     -- * TeamDeleteData
     TeamDeleteData (..),
@@ -100,14 +102,15 @@ data Team = Team
     _teamName :: Text,
     _teamIcon :: Icon,
     _teamIconKey :: Maybe Text,
-    _teamBinding :: TeamBinding
+    _teamBinding :: TeamBinding,
+    _teamSplashScreen :: Maybe AssetKey
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Team)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Team)
 
 newTeam :: TeamId -> UserId -> Text -> Icon -> TeamBinding -> Team
-newTeam tid uid nme ico = Team tid uid nme ico Nothing
+newTeam tid uid nme ico tb = Team tid uid nme ico Nothing tb Nothing
 
 modelTeam :: Doc.Model
 modelTeam = Doc.defineModel "Team" $ do
@@ -136,6 +139,7 @@ instance ToSchema Team where
         <*> _teamIcon .= field "icon" schema
         <*> _teamIconKey .= maybe_ (optField "icon_key" schema)
         <*> _teamBinding .= (fromMaybe Binding <$> optField "binding" schema)
+        <*> _teamSplashScreen .= maybe_ (optField "splash_screen" schema)
 
 data TeamBinding
   = Binding
@@ -264,7 +268,8 @@ instance ToSchema Icon where
 data TeamUpdateData = TeamUpdateData
   { _nameUpdate :: Maybe (Range 1 256 Text),
     _iconUpdate :: Maybe Icon,
-    _iconKeyUpdate :: Maybe (Range 1 256 Text)
+    _iconKeyUpdate :: Maybe (Range 1 256 Text),
+    _splashScreenUpdate :: Maybe AssetKey
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamUpdateData)
@@ -272,8 +277,8 @@ data TeamUpdateData = TeamUpdateData
 instance Arbitrary TeamUpdateData where
   arbitrary = arb `suchThat` valid
     where
-      arb = TeamUpdateData <$> arbitrary <*> arbitrary <*> arbitrary
-      valid (TeamUpdateData Nothing Nothing Nothing) = False
+      arb = TeamUpdateData <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+      valid (TeamUpdateData Nothing Nothing Nothing Nothing) = False
       valid _ = True
 
 modelUpdateData :: Doc.Model
@@ -290,12 +295,12 @@ modelUpdateData = Doc.defineModel "TeamUpdateData" $ do
     Doc.optional
 
 newTeamUpdateData :: TeamUpdateData
-newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing
+newTeamUpdateData = TeamUpdateData Nothing Nothing Nothing Nothing
 
 validateTeamUpdateData :: TeamUpdateData -> Parser TeamUpdateData
 validateTeamUpdateData u =
   when
-    (isNothing (_nameUpdate u) && isNothing (_iconUpdate u) && isNothing (_iconKeyUpdate u))
+    (isNothing (_nameUpdate u) && isNothing (_iconUpdate u) && isNothing (_iconKeyUpdate u) && isNothing (_splashScreenUpdate u))
     (fail "TeamUpdateData: no update data specified")
     $> u
 
@@ -307,6 +312,7 @@ instance ToSchema TeamUpdateData where
         <$> _nameUpdate .= maybe_ (optField "name" schema)
         <*> _iconUpdate .= maybe_ (optField "icon" schema)
         <*> _iconKeyUpdate .= maybe_ (optField "icon_key" schema)
+        <*> _splashScreenUpdate .= maybe_ (optField "splash_screen" schema)
 
 --------------------------------------------------------------------------------
 -- TeamDeleteData

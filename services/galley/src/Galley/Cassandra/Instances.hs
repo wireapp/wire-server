@@ -35,6 +35,7 @@ import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Galley.Types.Teams.SearchVisibility
 import Imports
+import Wire.API.Asset (AssetKey, assetKeyToText)
 import Wire.API.Conversation.Protocol
 import Wire.API.Team
 import qualified Wire.API.Team.Feature as Public
@@ -199,6 +200,12 @@ instance Cql Icon where
   toCql = CqlText . T.decodeUtf8 . toByteString'
   fromCql (CqlText txt) = pure . fromRight DefaultIcon . runParser parser . T.encodeUtf8 $ txt
   fromCql _ = Left "Icon: Text expected"
+
+instance Cql AssetKey where
+  ctype = Tagged TextColumn
+  toCql = CqlText . assetKeyToText
+  fromCql (CqlText txt) = runParser parser . T.encodeUtf8 $ txt
+  fromCql _ = Left "AssetKey: Text expected"
 
 instance Cql Epoch where
   ctype = Tagged BigIntColumn

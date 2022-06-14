@@ -621,6 +621,7 @@ executable galley-schema
       V63_MLSConversationClients
       V64_Epoch
       V65_MLSRemoteClients
+      V66_AddSplashScreen
       Paths_galley
   hs-source-dirs:
       schema/src

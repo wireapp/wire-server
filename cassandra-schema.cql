@@ -481,6 +481,7 @@ CREATE TABLE galley_test.team (
     icon_key text,
     name text,
     search_visibility int,
+    splash_screen text,
     status int
 ) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}

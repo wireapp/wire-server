@@ -250,8 +250,8 @@ team :: TeamId -> Client (Maybe TeamData)
 team tid =
   fmap toTeam <$> retry x1 (query1 Cql.selectTeam (params LocalQuorum (Identity tid)))
   where
-    toTeam (u, n, i, k, d, s, st, b) =
-      let t = newTeam tid u n i (fromMaybe NonBinding b) & teamIconKey .~ k
+    toTeam (u, n, i, k, d, s, st, b, ss) =
+      let t = newTeam tid u n i (fromMaybe NonBinding b) & teamIconKey .~ k & teamSplashScreen .~ ss
           status = if d then PendingDelete else fromMaybe Active s
        in TeamData t status (writeTimeToUTC <$> st)
 
@@ -381,6 +381,8 @@ updateTeam tid u = retry x5 . batch $ do
     addPrepQuery Cql.updateTeamIcon (decodeUtf8 . toByteString' $ i, tid)
   for_ (u ^. iconKeyUpdate) $ \k ->
     addPrepQuery Cql.updateTeamIconKey (fromRange k, tid)
+  for_ (u ^. splashScreenUpdate) $ \ss ->
+    addPrepQuery Cql.updateTeamSplashScreen (ss, tid)
 
 -- | Construct 'TeamMember' from database tuple.
 -- If FeatureLegalHoldWhitelistTeamsAndImplicitConsent is enabled set UserLegalHoldDisabled

@@ -15,9 +15,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V66_AddSplashScreen where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 66
+migration :: Migration
+migration =
+  Migration 66 "Add splash screen column for team" $
+    schema'
+      [r| ALTER TABLE team ADD (
+          splash_screen text
+        )
+     |]

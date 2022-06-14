@@ -37,7 +37,8 @@ testObject_TeamUpdateData_team_1 =
         Just
           ( unsafeRange
               ("\1022724d^\GS\ENQ\CAN\163966ey{\131853\1078784q8\989062^\GS\a(\NAK\26149\&1\143037(U!w\USqC\NUL#g\CAN=\1001510\1040448\SO\166655zEJ\GS\24481\162891\134036\STXe0\1001249D\ETX\b9x@`VN7\166384i\72099uq\SIdjL\FS\GS\SO\1082202<\\\1078204%.\v0K\19396;5\DELh\DLEflQr\EOT\DLE%\1031074x\f\FSL&:/IK\67131:\179222E\1110477n7~\988971*tOI3\SOH\RS\990034pp-\16356\21562\1038682@O\180973\t9]27\994976U\1068604\51662\&3[\1093765B9\183546+\NAKS\991710\CAN~\GS92sLo\1061755t\SI\127014\138452\&2\62505\120746,\\\132777\1112482\11321^Q\147229W\54723dY\194645\GS\133328N\74578;\SOH\1021417'\167765\165511|\150535(\1097341]\GS!\1112618$\US\153908)hloBRpT\1076445\f<")
-          )
+          ),
+      _splashScreenUpdate = fromByteString' "3-1-6fcf77a2-f58f-464c-a0bd-20fc4aa686ac"
     }
 
 testObject_TeamUpdateData_team_2 :: TeamUpdateData
@@ -53,7 +54,8 @@ testObject_TeamUpdateData_team_2 =
         Just
           ( unsafeRange
               ("8Q(\995440\"\24914\1083052]1'N\172704?7&\n\1082773\a\f\187381K\NAK2\58591\997862\78864e7\998731)Gm\1102551ueG\1013007\1051103^\SYN\EOTi\USXKLxz\1105002\EM\1018599I\CAN@p\146418\1097021 4|D\rg\132917K\RS\1054553bHr\1105965\991873\SOHR\155079\1027295\STXr)\ETBt\NULy>\1086123lE\"\1068000\ENQ\97499v'T\1021675(VJn\DC4\50699feOI\1009582D&saC\f)k73\SOHCp9o\SYN\97923\40491\1109035\1019461IO\1082545\1036802\1094798K*w`xc8%\5428\bQ\1108643\1026166\DC3\NAK\t\186580\bd\1029714~\1044113\STX\61177p\378F\990904\1048094-\STX\v\169217!\1086602\ETB\167313+\DC1&A\v\US$\FS4\1103959\184039C\SI\1096634W6{BNO<\58455\DC1\b@\DEL!a\1002905r.-\1001694\175413\1046218\9086b")
-          )
+          ),
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_3 :: TeamUpdateData
@@ -65,7 +67,8 @@ testObject_TeamUpdateData_team_3 =
               ("\65759Z(\1086736\49591h\1037022\ENQSy~F\GS[\ETX\ESC3q\1097010\ENQ\1078669#\21679\v\172979\33156\NAK\181412'\1052188[\1069799\132404\ESCJXn$\SUB<\f\NAK\NAK@'c\n\95819%\10649nO\1048297\14805b\44502WW`5\rA2C\NAKF)\CANB\141169\101090*:\ESC\DLE>M\FS^\SI,\39922Rjve\NAK$\DC4!\\\SI/13xE\176873\41996X:B\DC1h\38384\&0\15928>\1084065\v5\GS'\1028874\ETX\SOHgj*\181871#P")
           ),
       _iconUpdate = fromByteString' "3-1-2ed18927-755c-4197-996a-7076baa23923",
-      _iconKeyUpdate = Just (unsafeRange ("`m\DEL$\1032324\44660`\152159b\1052163\"\FST\SYNiA%ZnO_\b\DEL\NULb"))
+      _iconKeyUpdate = Just (unsafeRange ("`m\DEL$\1032324\44660`\152159b\1052163\"\FST\SYNiA%ZnO_\b\DEL\NULb")),
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_4 :: TeamUpdateData
@@ -81,7 +84,8 @@ testObject_TeamUpdateData_team_4 =
         Just
           ( unsafeRange
               ("ch=\DC3zyXV\1454\1101200\128701[4N\97150\1113651(sN\1094602\59751\59442=J\CAN\ACKuZ\1025534[L\SYNf-\1043969S+zKX\DC3 L\NAK\EOT\159717,\DC4\168372'\1098967#b<q\CANOS\SOS\vz\EM\f\ETX\DC4*\5249\STX\DELn\1003044[(\8408 \92309\DC3\170639\&6\54117\GS\ENQx\30667\&5\STX)\1055711]f4\r\1013137X%\19501TE\1066195\GS\ENQ[d\ENQx\1037802c\9103\42477\998882\&4\DC3\tfT,6v\2116,d@{1s\"Ya\991140c\ENQXX5#\179447\187638;!\40003x\1039893TZ'4\33957)\147971n\159464\CANuL\1083827\STXZ\999710")
-          )
+          ),
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_5 :: TeamUpdateData
@@ -93,7 +97,8 @@ testObject_TeamUpdateData_team_5 =
               ("c\DC4\21957\1083082Am\SOH,0\5634\1011802\DLE\DC1\1048597\ESC>\DC1rj5Hd\1061313\DELI'$.\98215\DC2}\ENQ\DC2\1009633\158711\100133|\FS\r\DLE^\8538t\190283\1060031vf\1047172`d' '={4\48912\b5][T\165195\&7A1\32515\NAKY\\frek5$f6b_4%\129513\DC2\1047616!\DC16\f\ETXK[SQH\n\35821\1017522\1088735\EMd\\@RQB\1113466\75066A^ l\1085060\1033719X^i\1014199\SOH\1042929\176179I\1107945\US3\1044762xIC\DEL#C-\1054562\SUB\136101r\35811\f,\SYN=\SOHJ\40558I=\987545")
           ),
       _iconUpdate = fromByteString' "3-1-1ab65a15-a0de-4e3a-b5cf-533b43df652e",
-      _iconKeyUpdate = Nothing
+      _iconKeyUpdate = Nothing,
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_6 :: TeamUpdateData
@@ -105,7 +110,8 @@ testObject_TeamUpdateData_team_6 =
         Just
           ( unsafeRange
               ("\165611\1021466!itB3\1058831D\ro\120187xW'\147774-\187218XM\1068926\58137\vGM.`3\DC4\a#)R*\994856\1053602By^Dh\1093091!")
-          )
+          ),
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_7 :: TeamUpdateData
@@ -117,7 +123,8 @@ testObject_TeamUpdateData_team_7 =
               ("n{\1057261oZn\DC1\ESCJt kj\ACK\r\1009375\"'{\SUBX\183635?@\1072481Ly\1034079\ENQ@$\126078W\182880\152533mW\1031829\DC1\DLE^c)\185735\987874\168851\44285\&9\1026256\1081073\1088339\ETB\DC4\DC2My\EM\998884\CAN\155753gmi\18003\SIy:r[\1028859i.\\\SOH\1013999\ETB5\184553H#\DC2\100088#l\SI@\149391@\NAK)\155671Jg\16061c\ACKV\EOT\1052115\166619\1106254\DC3\7348\1014585\1039214fQ\36540\1014874\1099704|Ik\DC1X\SYN\FS}ii\1044665M&.)\163680\SYNL\1006642\ESCk\a!\DEL \SUB\1083653\150892+\RSRW\\x\US\GSt\988142\1060379\33437\CAN\STX\51186+\DC2\1051428,\\F%,w\174606a\\\DEL]\RS\141663~X;f\134482 \1065664p\DC1d8mhY7w\RSe\ETX\DC1\1112177l\ETB{3&\49028\ACK\DC4V=D\NUL\ENQ\SI\93957\aK_di=,")
           ),
       _iconUpdate = fromByteString' "3-1-b5aa5007-2939-4c53-874b-aecfbb6244fd",
-      _iconKeyUpdate = Nothing
+      _iconKeyUpdate = Nothing,
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_8 :: TeamUpdateData
@@ -125,7 +132,8 @@ testObject_TeamUpdateData_team_8 =
   TeamUpdateData
     { _nameUpdate = Nothing,
       _iconUpdate = Nothing,
-      _iconKeyUpdate = Just (unsafeRange (")\USi6V\175058>F9>\DLE\bOqU\DC4\67882l\1026522"))
+      _iconKeyUpdate = Just (unsafeRange (")\USi6V\175058>F9>\DLE\bOqU\DC4\67882l\1026522")),
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_9 :: TeamUpdateData
@@ -141,7 +149,8 @@ testObject_TeamUpdateData_team_9 =
         Just
           ( unsafeRange
               ("F;\ETXO\rTm\DC1\164377\&0\1035562\DC4\1059095\1053068\47858\&7\EOT\188212![\STX\1033259\1047034\DC2\SOH\b\n\SOmV\1033077\1112321\ACKB\188155z&\144324\DC4HP\3176WS\182549\SOHQT\RS\ETX$b_\186241\64092\NUL\1081667\1109728@~\DLE.~\141150sl\CAN\ENQ\EM\1079555\16908V(^|\190897\GS\18132\SOr\1113585\EMeb2(#*!\184596B\a^\983731\SUB{\DC2t\\\110623\fu\"\ETB\SO\np\1049207[\SOHlB\161213l\43878L\45439\SI\138287/\n\GS2Gw~y\143044u\4467\&1\998784\t\120970l8CE\DC1L\188694\998926CB\GS{Xl\148655\991418\DEL,\2349#{^\1055214S=.g\SYN\ETX%\STXb\1113290\181647\&4:\49720\1048192\1107038u\1010360\GS\ETX!\121055q\GS.J\1102032\1076353*2\1069991\STX\1068656x,.\DC3\fR\ESC\b\1004144/=2n^f\US<xYz\1089741kW\DLE\25945EU0c5s")
-          )
+          ),
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_10 :: TeamUpdateData
@@ -153,7 +162,8 @@ testObject_TeamUpdateData_team_10 =
         Just
           ( unsafeRange
               ("8\1021447\STX.\1002730.G\27632\1052631\ACK\22312\RS\ACK2h\27721c(\1112108S\993484j\1014633\US]\1048807Vrh%:\ACK\EMu9z\51503!\26510\DC1\GS\ETBQ:\137985\1111453\1081343\3422\EM\1025434\"$q\"\1086393\f1OcD\152663\DLE\144575\173054pc\DC1\182364\&7\SOHTE<\1027414cVC7})9n|2es\ESC7I=h\78030[$\v#\aX\SI;\992748Rr\61252\1091351\1105023\SYN\STXUP\50587\&9\EOT\181904F7$\vs\DC1\1049243\165519\164968\54311o\178522\t\NAKu\23146,\1107645\1096120@|@uJ\EOT\\TT\SIveg\62939-\189304H")
-          )
+          ),
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_11 :: TeamUpdateData
@@ -165,7 +175,8 @@ testObject_TeamUpdateData_team_11 =
               ("\fu^\f\SUB\EOT\DLE]\1103654\1073077B\ACK\SO\1073433\&4cS\142526\DEL:\DC4`\25718\ESC9\DC3\SOF??Ev1,\ETB~M\RSz{\9729\r?4\184571s\19216\1060220\8074Q\f\r}N)\DC417G\SIS\1104513\63502\511+A\984709\1078087M;7\99865P\1090541)v!_&\DC1\141974\120023\20983\1096711*b\1050523~-\21096\NAKw\1078534(\ETB\1876\998248\ESCm\49309\"b\78325r&\DC3i\36117\DC15\f&\US\1057502\&5\DC1\t\36126\SYN-(^XI\\\DC4p]}\STXrL\1102558gW`\1051194\a|\DLEP)iA\41441\ETB\"`\b")
           ),
       _iconUpdate = fromByteString' "3-1-e6d874c6-dcb0-46e6-94fd-4ec8d0b780f4",
-      _iconKeyUpdate = Nothing
+      _iconKeyUpdate = Nothing,
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_12 :: TeamUpdateData
@@ -181,7 +192,8 @@ testObject_TeamUpdateData_team_12 =
         Just
           ( unsafeRange
               ("i\59711f\DELk\v\1071702;uNl(\EM3W\ETX;g\n\1007122\1092907\\'t@#U\FSpqA$vL\5830\73791\NAKC\\\1082247T\RSR\ESC{\131157\63613;\DC2\1033640\52644\1011095\EMp<=\t\132117c\1066631&\\\EM\1084915\&7\ETBT\31537\1077730L\1058797IqY\1842\1033754>PK,\SOH\1069865<(3\ACK\USp\1058835e\NAKi^%c\SOh\1079603%o\NAK\82986\1084487\FSE40u \aaR\1030565\&0<'~\"\ESC/\1059815\159224[\1044979<\EMH$LLV{\nfze\ETXj\f\ESC\36400\ACKxoi\DC2~\1026287\970y\rv\SIM\24717^X\b!\38182\STX*G\STXm\vU\DC4\CAN")
-          )
+          ),
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_13 :: TeamUpdateData
@@ -195,7 +207,8 @@ testObject_TeamUpdateData_team_13 =
       _iconUpdate = fromByteString' "3-1-fb2b55d0-becc-449a-9755-ed72366c4e24",
       _iconKeyUpdate =
         Just
-          (unsafeRange ("i\165439\1084715\70744\984960r\143191\FSiL\SOH)I\EM\n9l>\SOHPu]\NUL\34711Q##\ETX\185628\DC2"))
+          (unsafeRange ("i\165439\1084715\70744\984960r\143191\FSiL\SOH)I\EM\n9l>\SOHPu]\NUL\34711Q##\ETX\185628\DC2")),
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_14 :: TeamUpdateData
@@ -211,7 +224,8 @@ testObject_TeamUpdateData_team_14 =
         Just
           ( unsafeRange
               ("yG\164154|\1050498c\1017018\"N\STXj\SIb\SUBH\GSNt\156151\1069016?p,l!\19573o\47847),k\a\991553\52599-\SOHqT@\992203S\EM\144078\&7\38954\r^T:=\66478\154889,DV\DC4\148156\1085560i\8145\SI\171841Kx\ETB\177238\SItLw\1023225\1080752\1062386\STXAf\33665\1048974\20100\1050342*}0\1011133\SO\1035494\1100843en[\133158\SIG\CANi\111137U.\f@\NULCr\13027\ACK\FS@\1027274PX\CAN\EM\SOH\16012\&0\42068\NULA\133179\a5\65016M\1069862")
-          )
+          ),
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_15 :: TeamUpdateData
@@ -227,7 +241,8 @@ testObject_TeamUpdateData_team_15 =
         Just
           ( unsafeRange
               ("`Ai(se\1064157q\1013082O\\w\41530z(.\ACK@g\68654\r@\1060564\v\SUB8\SOHc\18063;\FSq\121213\DC3\1008626\STX\177191w#\\<\SOH\94390v\164787\298K\37906AB\SI\16236\1036842k(\1059022\DLE<\1093484\SUBe[\ACKdHU'^=rX\32340Gv\DC34\159768o\141580\&3*\998145)")
-          )
+          ),
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_16 :: TeamUpdateData
@@ -243,7 +258,8 @@ testObject_TeamUpdateData_team_16 =
         Just
           ( unsafeRange
               ("\1038370\1000350\DC1X5rX\DC1+j\141026[Jt)\14003\987536pm\1000899\1001410\ESC%y\STX\ETX>\179680")
-          )
+          ),
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_17 :: TeamUpdateData
@@ -255,7 +271,8 @@ testObject_TeamUpdateData_team_17 =
               ("\ETX\FSS\SIf\100932\&6,/\1002474\132486,\97457\165667D\167566~\152771\127189av-W\n\1083763s(y`D;\17019n\SOHG\"]\SI\157483\"''A\170309G\ETBeu\146845\1100251 pM\DEL!4r\1075090\SUBK\1031588R\10916\DC1\FS\ENQ\vNu\r|{\SOH\ACK\140365v-\147660\30720} 6]\ACKp\992664>\ETX?\170592[\US8\1098891jT1\139047y\CAN)")
           ),
       _iconUpdate = fromByteString' "3-1-8a5fd50d-9c32-494f-83ff-69db6d290fca",
-      _iconKeyUpdate = Nothing
+      _iconKeyUpdate = Nothing,
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_18 :: TeamUpdateData
@@ -267,7 +284,8 @@ testObject_TeamUpdateData_team_18 =
               ("\1079724g^\SI4\SYN\1058518(\1009158dn\15153\5338\1106457\&8\3255\FS\NULd}W\1077482\1112219a\1045348\&8.DV\1112683\DC2Q!\SUB\1015114\NUL\165488|k\141351Y\b&]P\NAKM\23995{\SOH\US\1084668\8678fEL5\1099186^xy.\1081341\1097387ZD2EOw\1067991\1103136Z\990193v\SUB\17778:U,yu3)*\31312]\61413\&6t:Q\nQ\70111\DC3\ETXCd\983894&\165641p\1107770u|\1097560wh:%KJQB>I\20517W\169935\11540\135417\vIP+|9C\43303XBM\1070327$FR\68308J5d\GSK\DEL\167980\CAN\1107001\EMt'\RS[zmz\ESC-\1090175\1053386{o\153401/\DLE\NAK\1071487\DLE\DC2\DELz~>iz\1035567j`\156674G\rat{\b&\1091867\175116,W\1102256\1102670\1041725\180873G\1032893\1051388Q\SI\32211\RSg^&>\EOT&BB]\SUB\183680^^n\83211\1056047\DC3\33295\RS2\120638^I>^e\1088165\&2\1060054$+\1099972\&2\DC3>&4%4\1049880\DC1\985577M\95025\99763\&0\10709\ESCM\GSu")
           ),
       _iconUpdate = fromByteString' "3-1-a55ba42a-1fff-4720-ab1f-404ac449a8c4",
-      _iconKeyUpdate = Nothing
+      _iconKeyUpdate = Nothing,
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_19 :: TeamUpdateData
@@ -279,7 +297,8 @@ testObject_TeamUpdateData_team_19 =
               ("{ag\147194<-\41002\"\1080393Ad%\30025\1023746U>\28518<>g\bt\29617:\1083297^=6\1076845\1001362\95768\DC1\1083749\r\ESCIu%b\DC2\b`/-+`\1071102\\\ETB^\ETBw\DC1L\USb?'\1004489\ETX\DLE\ESC\v\1089138\161384}\1078506\\\10356\DEL$\DC4OE\ETB\RS\GS)Vej\1072959\174859!\DC1W*s\DC2U%-\140833KC`B\\k\1048017\RS:\DC4\1095557\USN\DC3\ESC:ns\GSj\DC2&-\ETX.h\SUBJN\1030050x1c\NAK\ACK\646+\SIb\DC2mnp\1075229\ETX\996854)\EOT ;u\169592\&5\EM;\f \6592")
           ),
       _iconUpdate = fromByteString' "3-1-03de6b21-0d74-4107-95cd-94808ece38a4",
-      _iconKeyUpdate = Just (unsafeRange ("\133920RaQ"))
+      _iconKeyUpdate = Just (unsafeRange ("\133920RaQ")),
+      _splashScreenUpdate = Nothing
     }
 
 testObject_TeamUpdateData_team_20 :: TeamUpdateData
@@ -292,5 +311,6 @@ testObject_TeamUpdateData_team_20 =
           ),
       _iconUpdate = fromByteString' "3-1-0646b16b-0732-4b69-909e-1bcafc3b7baa",
       _iconKeyUpdate =
-        Just (unsafeRange ("~ndy\a\1057180\&1H2\185151\1005778\ETB\n$3w\164759fsE\24634\9638jjG\1079112"))
+        Just (unsafeRange ("~ndy\a\1057180\&1H2\185151\1005778\ETB\n$3w\164759fsE\24634\9638jjG\1079112")),
+      _splashScreenUpdate = Nothing
     }
