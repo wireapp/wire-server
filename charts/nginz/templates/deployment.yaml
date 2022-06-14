@@ -25,6 +25,8 @@ spec:
       annotations:
         # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
         checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/swagger-ui-configmap: {{ include (print .Template.BasePath "/swagger-ui-configmap.yaml") . | sha256sum }}
+        checksum/swagger-resources-configmap: {{ include (print .Template.BasePath "/swagger-resources-configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
         fluentbit.io/parser-nginz: nginz
     spec:
@@ -51,6 +53,11 @@ spec:
         - name: upstreams
           mountPath: /etc/wire/nginz/upstreams
           readOnly: true
+        - name: swagger-ui
+          mountPath: /opt/zwagger-ui
+          readOnly: true
+        - name: swagger-resources
+          mountPath: {{ .Values.nginx_conf.swagger_root }}/api-docs
         ports:
         - name: http
           containerPort: {{ .Values.config.http.httpPort }}
@@ -83,3 +90,9 @@ spec:
           secretName: nginz
       - name: upstreams
         emptyDir: {}
+      - name: swagger-ui
+        configMap:
+          name: nginz-swagger-ui
+      - name: swagger-resources
+        configMap:
+          name: nginz-swagger-resources

@@ -329,6 +329,7 @@ http {
     #
 
     location /api-docs {
+        zauth off;
         default_type application/json;
         root {{ $.Values.nginx_conf.swagger_root }};
         index resources.json;
