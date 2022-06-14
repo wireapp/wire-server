@@ -14,13 +14,18 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE NumericUnderscores #-}
 
 module Gundeck.Run where
 
+import AWS.Util (readAuthExpiration)
+import qualified Amazonka as AWS
 import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import Control.Exception (finally)
 import Control.Lens hiding (enum)
+import Data.Metrics (Metrics)
+import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Middleware (metrics)
 import Data.Metrics.Middleware.Prometheus (waiPrometheusMiddleware)
 import Data.Text (unpack)
@@ -28,6 +33,7 @@ import qualified Database.Redis as Redis
 import Gundeck.API (sitemap)
 import qualified Gundeck.Aws as Aws
 import Gundeck.Env
+import qualified Gundeck.Env as Env
 import Gundeck.Monad
 import Gundeck.Options
 import Gundeck.React
@@ -53,10 +59,12 @@ run o = do
   let throttleMillis = fromMaybe defSqsThrottleMillis $ o ^. (optSettings . setSqsThrottleMillis)
   lst <- Async.async $ Aws.execute (e ^. awsEnv) (Aws.listen throttleMillis (runDirect e . onEvent))
   wtbs <- forM (e ^. threadBudgetState) $ \tbs -> Async.async $ runDirect e $ watchThreadBudgetState m tbs 10
+  wCollectAuth <- Async.async (collectAuthMetrics m (Aws._awsEnv (Env._awsEnv e)))
   runSettingsWithShutdown s (middleware e $ mkApp e) 5 `finally` do
     Log.info l $ Log.msg (Log.val "Shutting down ...")
     shutdown (e ^. cstate)
     Async.cancel lst
+    Async.cancel wCollectAuth
     forM_ wtbs Async.cancel
     Redis.disconnect (e ^. rstate)
     Log.close (e ^. applog)
@@ -73,3 +81,11 @@ mkApp :: Env -> Wai.Application
 mkApp e r k = runGundeck e r (route routes r k)
   where
     routes = compile sitemap
+
+collectAuthMetrics :: MonadIO m => Metrics -> AWS.Env -> m ()
+collectAuthMetrics m env = do
+  liftIO $
+    forever $ do
+      mbRemaining <- readAuthExpiration env
+      gaugeTokenRemaing m mbRemaining
+      threadDelay 1_000_000
