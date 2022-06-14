@@ -1,0 +1,1 @@
+All feature configs like guest links e.g. can now be overridden in the helm configuration, so that they can be disabled/enabled and configured server wide
