@@ -6,6 +6,9 @@ resources:
   limits:
     memory: "1024Mi"
     cpu: "2"
+metrics:
+  serviceMonitor:
+    enabled: false
 images:
   nginzDisco:
     repository: quay.io/wire/nginz_disco

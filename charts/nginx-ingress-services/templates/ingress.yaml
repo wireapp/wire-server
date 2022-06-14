@@ -32,16 +32,16 @@ spec:
         paths:
           - path: /
             backend:
-              serviceName: nginz-http
-              servicePort: {{ .Values.service.nginz.externalHttpPort }}
+              serviceName: nginz
+              servicePort: http
 {{- if .Values.websockets.enabled }}
     - host: {{ .Values.config.dns.ssl }}
       http:
         paths:
           - path: /
             backend:
-              serviceName: nginz-tcp
-              servicePort: {{ .Values.service.nginz.externalTcpPort }}
+              serviceName: nginz
+              servicePort: ws
 {{- end }}
 {{- if .Values.webapp.enabled }}
     - host: {{ .Values.config.dns.webapp }}
