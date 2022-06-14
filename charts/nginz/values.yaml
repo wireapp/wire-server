@@ -19,6 +19,7 @@ images:
 config:
   http:
     httpPort: 8080
+    metricsPort: 8082
   ws:
     wsPort: 8081
     useProxyProtocol: true

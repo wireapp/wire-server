@@ -56,6 +56,8 @@ spec:
           containerPort: {{ .Values.config.http.httpPort }}
         - name: tcp
           containerPort: {{ .Values.config.ws.wsPort }}
+        - name: http-metrics
+          containerPort: {{ .Values.config.http.metricsPort }}
         readinessProbe:
           httpGet:
             path: /status
