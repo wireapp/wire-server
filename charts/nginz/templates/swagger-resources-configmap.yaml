@@ -17,10 +17,6 @@ data:
             {
             "path": "/conversations",
             "description": "Conversations and Messaging"
-        },
-            {
-            "path": "/assets",
-            "description": "Assets"
         }
         ]
     }
