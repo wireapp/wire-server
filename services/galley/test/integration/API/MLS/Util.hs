@@ -62,10 +62,10 @@ data CreateConv = CreateConv | CreateProteusConv | DontCreateConv
 
 data UserOrigin = LocalUser | RemoteUser Domain
 
-createNewConv :: CreateConv -> Maybe NewConv
-createNewConv CreateConv = Just defNewMLSConv
-createNewConv CreateProteusConv = Just defNewProteusConv
-createNewConv DontCreateConv = Nothing
+createNewConv :: ClientId -> CreateConv -> Maybe NewConv
+createNewConv c CreateConv = Just (defNewMLSConv c)
+createNewConv _ CreateProteusConv = Just defNewProteusConv
+createNewConv _ DontCreateConv = Nothing
 
 data SetupOptions = SetupOptions
   { createClients :: CreateClients,
@@ -107,6 +107,9 @@ cli store tmp args =
 
 pClientQid :: Participant -> String
 pClientQid = fst . NonEmpty.head . pClients
+
+pClientId :: Participant -> ClientId
+pClientId = snd . NonEmpty.head . pClients
 
 setupUserClient ::
   HasCallStack =>
@@ -218,7 +221,7 @@ withLastPrekeys m = State.evalStateT m someLastPrekeys
 
 setupGroup :: HasCallStack => FilePath -> CreateConv -> Participant -> String -> TestM (Qualified ConvId)
 setupGroup tmp createConv creator name = do
-  (mGroupId, conversation) <- case createNewConv createConv of
+  (mGroupId, conversation) <- case createNewConv (pClientId creator) createConv of
     Nothing -> pure (Nothing, error "No conversation created")
     Just nc -> do
       conv <-

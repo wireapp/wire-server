@@ -714,6 +714,7 @@ createConversation galley zusr usersToAdd = do
           Nothing
           roleNameWireAdmin
           ProtocolProteusTag
+          Nothing
   post $
     galley
       . path "/conversations"

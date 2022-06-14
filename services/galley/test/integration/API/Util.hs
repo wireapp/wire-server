@@ -565,7 +565,7 @@ createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
   g <- view tsGalley
   let tinfo = ConvTeamInfo tid
   let conv =
-        NewConv us [] (name >>= checked) (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole) ProtocolProteusTag
+        NewConv us [] (name >>= checked) (fromMaybe (Set.fromList []) acc) role (Just tinfo) mtimer Nothing (fromMaybe roleNameWireAdmin convRole) ProtocolProteusTag Nothing
   post
     ( g
         . path "/conversations"
@@ -579,6 +579,7 @@ createTeamConvAccessRaw u tid us name acc role mtimer convRole = do
 createMLSTeamConv ::
   (HasGalley m, MonadIO m, MonadHttp m, HasCallStack) =>
   Local UserId ->
+  ClientId ->
   TeamId ->
   UserList UserId ->
   Maybe Text ->
@@ -587,7 +588,7 @@ createMLSTeamConv ::
   Maybe Milliseconds ->
   Maybe RoleName ->
   m (Local ConvId)
-createMLSTeamConv lusr tid users name access role timer convRole = do
+createMLSTeamConv lusr c tid users name access role timer convRole = do
   g <- viewGalley
   let conv =
         NewConv
@@ -600,7 +601,8 @@ createMLSTeamConv lusr tid users name access role timer convRole = do
             newConvMessageTimer = timer,
             newConvUsersRole = fromMaybe roleNameWireAdmin convRole,
             newConvReceiptMode = Nothing,
-            newConvProtocol = ProtocolMLSTag
+            newConvProtocol = ProtocolMLSTag,
+            newConvCreatorClient = Just c
           }
   r <-
     post
@@ -630,7 +632,7 @@ createOne2OneTeamConv :: UserId -> UserId -> Maybe Text -> TeamId -> TestM Respo
 createOne2OneTeamConv u1 u2 n tid = do
   g <- view tsGalley
   let conv =
-        NewConv [u2] [] (n >>= checked) mempty Nothing (Just $ ConvTeamInfo tid) Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+        NewConv [u2] [] (n >>= checked) mempty Nothing (Just $ ConvTeamInfo tid) Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConv ::
@@ -644,10 +646,14 @@ postConv ::
 postConv u us name a r mtimer = postConvWithRole u us name a r mtimer roleNameWireAdmin
 
 defNewProteusConv :: NewConv
-defNewProteusConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+defNewProteusConv = NewConv [] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
 
-defNewMLSConv :: NewConv
-defNewMLSConv = defNewProteusConv {newConvProtocol = ProtocolMLSTag}
+defNewMLSConv :: ClientId -> NewConv
+defNewMLSConv c =
+  defNewProteusConv
+    { newConvProtocol = ProtocolMLSTag,
+      newConvCreatorClient = Just c
+    }
 
 postConvQualified ::
   UserId ->
@@ -681,7 +687,7 @@ postConvWithRemoteUsers u n =
 postTeamConv :: TeamId -> UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> TestM ResponseLBS
 postTeamConv tid u us name a r mtimer = do
   g <- view tsGalley
-  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r (Just (ConvTeamInfo tid)) mtimer Nothing roleNameWireAdmin ProtocolProteusTag
+  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r (Just (ConvTeamInfo tid)) mtimer Nothing roleNameWireAdmin ProtocolProteusTag Nothing
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 deleteTeamConv :: (HasGalley m, MonadIO m, MonadHttp m) => TeamId -> ConvId -> UserId -> m ResponseLBS
@@ -718,7 +724,7 @@ postConvWithRole u members name access arole timer role =
 postConvWithReceipt :: UserId -> [UserId] -> Maybe Text -> [Access] -> Maybe (Set AccessRoleV2) -> Maybe Milliseconds -> ReceiptMode -> TestM ResponseLBS
 postConvWithReceipt u us name a r mtimer rcpt = do
   g <- view tsGalley
-  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin ProtocolProteusTag
+  let conv = NewConv us [] (name >>= checked) (Set.fromList a) r Nothing mtimer (Just rcpt) roleNameWireAdmin ProtocolProteusTag Nothing
   post $ g . path "/conversations" . zUser u . zConn "conn" . zType "access" . json conv
 
 postSelfConv :: UserId -> TestM ResponseLBS
@@ -729,7 +735,7 @@ postSelfConv u = do
 postO2OConv :: UserId -> UserId -> Maybe Text -> TestM ResponseLBS
 postO2OConv u1 u2 n = do
   g <- view tsGalley
-  let conv = NewConv [u2] [] (n >>= checked) mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+  let conv = NewConv [u2] [] (n >>= checked) mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
   post $ g . path "/conversations/one2one" . zUser u1 . zConn "conn" . zType "access" . json conv
 
 postConnectConv :: UserId -> UserId -> Text -> Text -> Maybe Text -> TestM ResponseLBS

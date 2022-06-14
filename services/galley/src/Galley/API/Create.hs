@@ -78,8 +78,9 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotIm
 -- | The public-facing endpoint for creating group conversations.
 createGroupConversation ::
   Members
-    '[ ConversationStore,
-       BrigAccess,
+    '[ BrigAccess,
+       ConversationStore,
+       MemberStore,
        ErrorS 'ConvAccessDenied,
        Error InternalError,
        Error InvalidInput,
@@ -108,6 +109,15 @@ createGroupConversation lusr conn newConv = do
   ensureNoLegalholdConflicts allUsers
   lcnv <- traverse (const E.createConversationId) lusr
   conv <- E.createConversation lcnv nc
+
+  -- set creator client for MLS conversations
+  case (newConvProtocol newConv, newConvCreatorClient newConv) of
+    (ProtocolProteusTag, _) -> pure ()
+    (ProtocolMLSTag, Just c) ->
+      E.addMLSClients (tUnqualified lcnv) (tUnqualified lusr) (Set.singleton c)
+    (ProtocolMLSTag, Nothing) ->
+      throw (InvalidPayload "Missing creator_client field when creating an MLS conversation")
+
   now <- input
   -- NOTE: We only send (conversation) events to members of the conversation
   notifyCreatedConversation (Just now) lusr (Just conn) conv

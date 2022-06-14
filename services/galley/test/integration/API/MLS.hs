@@ -99,9 +99,14 @@ postMLSConvFail :: TestM ()
 postMLSConvFail = do
   qalice <- randomQualifiedUser
   let alice = qUnqualified qalice
+  let aliceClient = newClientId 0
   bob <- randomUser
   connectUsers alice (list1 bob [])
-  postConvQualified alice defNewMLSConv {newConvQualifiedUsers = [Qualified bob (qDomain qalice)]}
+  postConvQualified
+    alice
+    (defNewMLSConv aliceClient)
+      { newConvQualifiedUsers = [Qualified bob (qDomain qalice)]
+      }
     !!! do
       const 400 === statusCode
       const (Just "non-empty-member-list") === fmap Wai.label . responseJsonError
@@ -111,9 +116,10 @@ postMLSConvOk = do
   c <- view tsCannon
   qalice <- randomQualifiedUser
   let alice = qUnqualified qalice
+  let aliceClient = newClientId 0
   let nameMaxSize = T.replicate 256 "a"
   WS.bracketR c alice $ \wsA -> do
-    rsp <- postConvQualified alice defNewMLSConv {newConvName = checked nameMaxSize}
+    rsp <- postConvQualified alice (defNewMLSConv aliceClient) {newConvName = checked nameMaxSize}
     pure rsp !!! do
       const 201 === statusCode
       const Nothing === fmap Wai.label . responseJsonError
