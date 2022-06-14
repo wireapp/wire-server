@@ -4,8 +4,6 @@ data:
 {{- include "nginz_nginx.conf" . | indent 4 }}
   upstreams.txt: |2
 {{- include "nginz_upstreams.txt" . | indent 4 }}
-  zwagger-config.js: |2
-{{- include "nginz_zwagger-config.js" . | indent 4 }}
   deeplink.json: |2
 {{- include "nginz_deeplink.json" . | indent 4 }}
   deeplink.html: |2
