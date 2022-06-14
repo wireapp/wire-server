@@ -16,5 +16,8 @@ spec:
     - name: ws
       port: {{ .Values.config.ws.wsPort }}
       targetPort: 8081
+    - name: http-metrics
+      port: {{ .Values.config.http.metricsPort }}
+      targetPort: 8082
   selector:
     app: nginz

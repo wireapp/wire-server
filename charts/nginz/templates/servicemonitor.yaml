@@ -10,7 +10,7 @@ metadata:
     heritage: {{ .Release.Service }}
 spec:
   endpoints:
-    - port: http
+    - port: http-metrics
       path: /vts/status/format/prometheus
   selector:
     matchLabels:
