@@ -24,6 +24,7 @@ dependencies:
 - tasty
 - tasty-hunit
 - text >=0.11
+- time
 library:
   source-dirs: src
   ghc-prof-options: -fprof-auto-exported

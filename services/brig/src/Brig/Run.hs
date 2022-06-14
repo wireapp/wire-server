@@ -23,6 +23,7 @@ module Brig.Run
   )
 where
 
+import AWS.Util (readAuthExpiration)
 import Brig.API (sitemap)
 import Brig.API.Federation
 import Brig.API.Handler
@@ -49,12 +50,11 @@ import Control.Monad.Random (randomRIO)
 import qualified Data.Aeson as Aeson
 import Data.Default (Default (def))
 import Data.Id (RequestId (..))
-import Data.Metrics (gaugeSet, path)
+import Data.Metrics.AWS (gaugeTokenRemaing)
 import qualified Data.Metrics.Servant as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
 import Data.Text (unpack)
-import Data.Time (NominalDiffTime)
 import Imports hiding (head)
 import qualified Network.HTTP.Media as HTTPMedia
 import qualified Network.HTTP.Types as HTTP
@@ -239,12 +239,8 @@ collectAuthMetrics :: forall r. AppT r ()
 collectAuthMetrics = do
   m <- view metrics
   env <- view (awsEnv . amazonkaEnv)
-
-  forever $ do
-    t <- toSeconds . fromMaybe 0 <$$> liftIO $ AWS.readAuthExpiration env
-    gaugeSet t (path "aws_auth.token_secs_remaining") m
-    gaugeSet (if AWS.isAuthARef env then 1.0 else 0.0) (path "aws_auth.token_is_reference") m
-    liftIO $ threadDelay 1_000_000
-  where
-    toSeconds :: NominalDiffTime -> Double
-    toSeconds = fromRational . toRational
+  liftIO $
+    forever $ do
+      mbRemaining <- readAuthExpiration env
+      gaugeTokenRemaing m mbRemaining
+      threadDelay 1_000_000
