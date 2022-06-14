@@ -37,17 +37,44 @@ config:
         status: disabled
         config:
           domains: []
-      # fileSharing setting is optional
-      # if not set the default feature status is enabled and the default lock status is unlocked
-      # fileSharing:
-      #   defaults:
-      #     status: enabled
-      #     lockStatus: unlocked
-      # sndFactorPasswordChallenge setting is optional
-      # sndFactorPasswordChallenge:
-      #   defaults:
-      #     status: disabled
-      #     lockStatus: locked
+      # optional
+      fileSharing:
+        defaults:
+          status: enabled
+          lockStatus: unlocked
+      # optional
+      sndFactorPasswordChallenge:
+        defaults:
+          status: disabled
+          lockStatus: locked
+      # optional
+      validateSAMLemails:
+        defaults:
+          status: enabled
+      # optional
+      appLock:
+        defaults:
+          status: enabled
+          config:
+            enforceAppLock: false
+            inactivityTimeoutSecs: 60
+      # optional
+      conferenceCalling:
+        defaults:
+          status: enabled
+      # optional
+      selfDeletingMessages:
+        defaults:
+          status: enabled
+          lockStatus: unlocked
+          config:
+            enforcedTimeoutSeconds: 0
+      # optional
+      conversationGuestLinks:
+        defaults:
+          status: enabled
+          lockStatus: unlocked
+ 
   aws:
     region: "eu-west-1"
   proxy: {}
