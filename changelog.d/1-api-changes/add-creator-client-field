@@ -1,0 +1,1 @@
+The request body of `POST /conversations` endpoint can now contain an optional `creator_client` field. The `creator_client` field is only relevant for MLS conversations, in which case it must be set to the ID of the client making the request.
