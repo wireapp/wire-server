@@ -2,7 +2,7 @@ replicaCount: 1
 images:
   frontend:
     repository: quay.io/wire/backoffice-frontend
-    tag: 2.93.0
+    tag: 2.87.0
     pullPolicy: IfNotPresent
   stern:
     repository: quay.io/wire/stern
