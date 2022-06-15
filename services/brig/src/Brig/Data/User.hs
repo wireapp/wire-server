@@ -89,10 +89,12 @@ import Brig.Sem.UserQuery
     getLocale,
     getName,
     getUsers,
+    insertAccount,
     isActivated,
     lookupAccount,
     lookupAccounts,
     updateEmail,
+    updateHandle,
     updatePhone,
   )
 import Brig.Types
@@ -249,58 +251,6 @@ isSamlUser locale uid = do
   case userIdentity . accountUser =<< account of
     Just (SSOIdentity (UserSSOId _) _ _) -> pure True
     _ -> pure False
-
-insertAccount ::
-  MonadClient m =>
-  UserAccount ->
-  -- | If a bot: conversation and team
-  --   (if a team conversation)
-  Maybe (ConvId, Maybe TeamId) ->
-  Maybe Password ->
-  -- | Whether the user is activated
-  Bool ->
-  m ()
-insertAccount (UserAccount u status) mbConv password activated = retry x5 . batch $ do
-  setType BatchLogged
-  setConsistency LocalQuorum
-  let Locale l c = userLocale u
-  addPrepQuery
-    userInsert
-    ( userId u,
-      userDisplayName u,
-      userPict u,
-      userAssets u,
-      userEmail u,
-      userPhone u,
-      userSSOId u,
-      userAccentId u,
-      password,
-      activated,
-      status,
-      userExpire u,
-      l,
-      c,
-      view serviceRefProvider <$> userService u,
-      view serviceRefId <$> userService u,
-      userHandle u,
-      userTeam u,
-      userManagedBy u
-    )
-  for_ ((,) <$> userService u <*> mbConv) $ \(sref, (cid, mbTid)) -> do
-    let pid = sref ^. serviceRefProvider
-        sid = sref ^. serviceRefId
-    addPrepQuery cqlServiceUser (pid, sid, BotId (userId u), cid, mbTid)
-    for_ mbTid $ \tid ->
-      addPrepQuery cqlServiceTeam (pid, sid, BotId (userId u), cid, tid)
-  where
-    cqlServiceUser :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, Maybe TeamId) ()
-    cqlServiceUser =
-      "INSERT INTO service_user (provider, service, user, conv, team) \
-      \VALUES (?, ?, ?, ?, ?)"
-    cqlServiceTeam :: PrepQuery W (ProviderId, ServiceId, BotId, ConvId, TeamId) ()
-    cqlServiceTeam =
-      "INSERT INTO service_team (provider, service, user, conv, team) \
-      \VALUES (?, ?, ?, ?, ?)"
 
 updateLocale :: MonadClient m => UserId -> Locale -> m ()
 updateLocale u (Locale l c) = write userLocaleUpdate (params LocalQuorum (l, c, u))
@@ -532,28 +482,6 @@ type UserRow =
     Maybe ManagedBy
   )
 
-type UserRowInsert =
-  ( UserId,
-    Name,
-    Pict,
-    [Asset],
-    Maybe Email,
-    Maybe Phone,
-    Maybe UserSSOId,
-    ColourId,
-    Maybe Password,
-    Activated,
-    AccountStatus,
-    Maybe UTCTimeMillis,
-    Language,
-    Maybe Country,
-    Maybe ProviderId,
-    Maybe ServiceId,
-    Maybe Handle,
-    Maybe TeamId,
-    ManagedBy
-  )
-
 passwordSelect :: PrepQuery R (Identity UserId) (Identity (Maybe Password))
 passwordSelect = "SELECT password FROM user WHERE id = ?"
 
@@ -599,9 +527,6 @@ userSSOIdUpdate = "UPDATE user SET sso_id = ? WHERE id = ?"
 
 userManagedByUpdate :: PrepQuery W (ManagedBy, UserId) ()
 userManagedByUpdate = "UPDATE user SET managed_by = ? WHERE id = ?"
-
-userHandleUpdate :: PrepQuery W (Handle, UserId) ()
-userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?"
 
 userPasswordUpdate :: PrepQuery W (Password, UserId) ()
 userPasswordUpdate = "UPDATE user SET password = ? WHERE id = ?"

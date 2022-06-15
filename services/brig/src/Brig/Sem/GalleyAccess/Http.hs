@@ -17,24 +17,60 @@
 
 module Brig.Sem.GalleyAccess.Http (galleyAccessToHttp) where
 
-import Brig.RPC
+import qualified Bilge as RPC
+import Bilge.IO
+import Bilge.RPC
+import Bilge.Request
+import Bilge.Retry
+import qualified Brig.RPC.Decode as RPC
 import Brig.Sem.GalleyAccess
+import Control.Monad.Catch
+import Control.Retry
+import Data.ByteString.Conversion.To
+import qualified Data.ByteString.Lazy as LBS
 import Imports
+import Network.HTTP.Client (Response)
+import Network.HTTP.Types.Method
 import Polysemy
+import Wire.API.Team.Feature
 
 galleyAccessToHttp ::
   forall m r a.
-  ( MonadReader Env m,
-    MonadIO m,
+  ( MonadIO m,
     MonadMask m,
     MonadHttp m,
-    HasRequestId m
+    HasRequestId m,
+    Member (Embed m) r
   ) =>
+  RPC.Request ->
   Sem (GalleyAccess ': r) a ->
   Sem r a
-galleyAccessToHttp =
+galleyAccessToHttp g =
   interpret $
     embed @m . \case
       GetTeamSndFactorPasswordChallenge tid -> do
-        response <- galleyRequest GET req
-        tfwoStatus <$> decodeBody "galley" response
+        let req =
+              paths
+                [ "i",
+                  "teams",
+                  toByteString' tid,
+                  "features",
+                  toByteString' TeamFeatureSndFactorPasswordChallenge
+                ]
+                . expect2xx
+        response <- makeReq g GET req
+        tfwoStatus <$> RPC.decodeBody "galley" response
+
+makeReq ::
+  (MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
+  RPC.Request ->
+  StdMethod ->
+  (Request -> Request) ->
+  m (Response (Maybe LBS.ByteString))
+makeReq galley m r =
+  recovering x3 rpcHandlers $
+    const $
+      rpc' "galley" galley (method m . r)
+
+x3 :: RetryPolicy
+x3 = limitRetries 3 <> exponentialBackoff 100000

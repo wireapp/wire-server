@@ -17,13 +17,28 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Sem.ActivationSupply where
+module Brig.Sem.UserHandleStore where
 
-import Brig.Types
+import Data.Handle
+import Data.Id
+import Imports
 import Polysemy
 
-data ActivationSupply m a where
-  MakeActivationKey :: UserKey -> ActivationSupply m ActivationKey
-  MakeActivationCode :: ActivationSupply m ActivationCode
+-- | An enum with a one-to-one mapping to 'Cassandra.Consistency'.
+data Consistency
+  = One
+  | LocalQuorum
+  | All
+  deriving (Eq)
 
-makeSem ''ActivationSupply
+data UserHandleStore m a where
+  InsertHandle :: Handle -> UserId -> UserHandleStore m ()
+  -- | Lookup the current owner of a 'Handle'.                                                                        │
+  GetHandleWithConsistency :: Consistency -> Handle -> UserHandleStore m (Maybe UserId)
+  DeleteHandle :: Handle -> UserHandleStore m ()
+
+makeSem ''UserHandleStore
+
+-- | Lookup the current owner of a 'Handle'.
+lookupHandle :: Member UserHandleStore r => Handle -> Sem r (Maybe UserId)
+lookupHandle = getHandleWithConsistency LocalQuorum

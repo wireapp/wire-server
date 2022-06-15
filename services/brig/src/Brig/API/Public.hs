@@ -46,9 +46,18 @@ import qualified Brig.Data.UserKey as UserKey
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
+import Brig.Sem.ActivationKeyStore
+import Brig.Sem.ActivationSupply
+import Brig.Sem.BudgetStore
+import Brig.Sem.GalleyAccess
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
+import Brig.Sem.Twilio
+import Brig.Sem.UniqueClaimsStore
+import Brig.Sem.UserHandleStore
+import Brig.Sem.UserKeyStore
 import Brig.Sem.UserQuery (UserQuery)
+import Brig.Sem.VerificationCodeStore
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
@@ -99,9 +108,13 @@ import Network.Wai.Utilities.Swagger (document, mkSwaggerApi)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Network.Wai.Utilities.ZAuth (zauthUserId)
 import Polysemy
+import Polysemy.Async
+import Polysemy.Conc.Effect.Race
 import qualified Polysemy.Error as P
 import Polysemy.Input
+import Polysemy.Resource
 import qualified Polysemy.TinyLog as P
+import qualified Ropes.Twilio as Twilio
 import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
 import Servant.Swagger.Internal.Orphans ()
@@ -185,7 +198,26 @@ swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
 
 servantSitemap ::
   forall r.
-  Members '[P.Error ReAuthError, Input (Local ()), UserQuery] r =>
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       Async,
+       GalleyAccess,
+       Input (Local ()),
+       P.Error ReAuthError,
+       P.Error Twilio.ErrorResponse,
+       PasswordResetStore,
+       PasswordResetSupply,
+       Race,
+       Resource,
+       Twilio,
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserKeyStore,
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
   ServerT BrigAPI (Handler r)
 servantSitemap =
   userAPI
@@ -291,11 +323,21 @@ servantSitemap =
 
 sitemap ::
   Members
-    '[ Input (Local ()),
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       BudgetStore,
+       GalleyAccess,
+       Input (Local ()),
+       P.Error Twilio.ErrorResponse,
        P.TinyLog,
        PasswordResetStore,
        PasswordResetSupply,
-       UserQuery
+       Twilio,
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserKeyStore,
+       UserQuery,
+       VerificationCodeStore
      ]
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
@@ -462,11 +504,21 @@ sitemap = do
 apiDocs ::
   forall r.
   Members
-    '[ Input (Local ()),
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       BudgetStore,
+       GalleyAccess,
+       Input (Local ()),
+       P.Error Twilio.ErrorResponse,
        P.TinyLog,
        PasswordResetStore,
        PasswordResetSupply,
-       UserQuery
+       Twilio,
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserKeyStore,
+       UserQuery,
+       VerificationCodeStore
      ]
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
@@ -492,8 +544,8 @@ setProperty u c key raw = do
 checkPropertyKey :: Public.PropertyKey -> Handler r ()
 checkPropertyKey k = do
   maxKeyLen <- fromMaybe defMaxKeyLen <$> view (settings . propertyMaxKeyLen)
-  let keyText = Ascii.toText (Public.propertyKeyName k)
-  when (Text.compareLength keyText (fromIntegral maxKeyLen) == GT) $
+  let keyTxt = Ascii.toText (Public.propertyKeyName k)
+  when (Text.compareLength keyTxt (fromIntegral maxKeyLen) == GT) $
     throwStd propertyKeyTooLarge
 
 -- | Parse a 'PropertyValue' from a bytestring.  This is different from 'FromJSON' in that
@@ -577,7 +629,13 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members
+    '[ GalleyAccess,
+       Input (Local ()),
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
   UserId ->
   ConnId ->
   Maybe IpAddr ->
@@ -678,7 +736,18 @@ getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       Input (Local ()),
+       P.Error Twilio.ErrorResponse,
+       PasswordResetStore,
+       PasswordResetSupply,
+       Twilio,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   Public.NewUserPublic ->
   Handler r (Either Public.RegisterError Public.RegisterSuccess)
 createUser (Public.NewUserPublic new) = lift . runExceptT $ do
@@ -768,7 +837,12 @@ getUser self qualifiedUserId = do
   wrapHttpClientE $ API.lookupProfile lself qualifiedUserId !>> fedError
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
-listUsersByUnqualifiedIdsOrHandles :: UserId -> Maybe (CommaSeparatedList UserId) -> Maybe (Range 1 4 (CommaSeparatedList Handle)) -> (Handler r) [Public.UserProfile]
+listUsersByUnqualifiedIdsOrHandles ::
+  Members '[UserHandleStore] r =>
+  UserId ->
+  Maybe (CommaSeparatedList UserId) ->
+  Maybe (Range 1 4 (CommaSeparatedList Handle)) ->
+  Handler r [Public.UserProfile]
 listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
   domain <- viewFederationDomain
   case (mUids, mHandles) of
@@ -784,7 +858,12 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
        in listUsersByIdsOrHandles self (Public.ListUsersByHandles qualifiedRangedList)
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
-listUsersByIdsOrHandles :: UserId -> Public.ListUsersQuery -> (Handler r) [Public.UserProfile]
+listUsersByIdsOrHandles ::
+  forall r.
+  Members '[UserHandleStore] r =>
+  UserId ->
+  Public.ListUsersQuery ->
+  Handler r [Public.UserProfile]
 listUsersByIdsOrHandles self q = do
   lself <- qualifyLocal self
   foundUsers <- case q of
@@ -800,7 +879,7 @@ listUsersByIdsOrHandles self q = do
   where
     getIds :: [Handle] -> (Handler r) [Qualified UserId]
     getIds localHandles = do
-      localUsers <- catMaybes <$> traverse (lift . wrapClient . API.lookupHandle) localHandles
+      localUsers <- catMaybes <$> traverse (lift . liftSem . API.lookupHandle) localHandles
       domain <- viewFederationDomain
       pure $ map (`Qualified` domain) localUsers
     byIds :: Local UserId -> [Qualified UserId] -> (Handler r) [Public.UserProfile]
@@ -823,7 +902,15 @@ updateUser uid conn uu = do
   pure $ either Just (const Nothing) eithErr
 
 changePhone ::
-  Member UserQuery r =>
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       P.Error Twilio.ErrorResponse,
+       Twilio,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   ConnId ->
   Public.PhoneUpdate ->
@@ -836,7 +923,7 @@ changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
   lift . wrapClient $ sendActivationSms pn apair loc
 
 removePhone ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[Input (Local ()), UserKeyStore, UserQuery] r =>
   UserId ->
   ConnId ->
   Handler r (Maybe Public.RemoveIdentityError)
@@ -844,7 +931,7 @@ removePhone self conn =
   lift . exceptTToMaybe $ API.removePhone self conn
 
 removeEmail ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[Input (Local ()), UserKeyStore, UserQuery] r =>
   UserId ->
   ConnId ->
   Handler r (Maybe Public.RemoveIdentityError)
@@ -854,7 +941,11 @@ removeEmail self conn =
 checkPasswordExists :: UserId -> (Handler r) Bool
 checkPasswordExists = fmap isJust . lift . wrapClient . API.lookupPassword
 
-changePassword :: UserId -> Public.PasswordChange -> (Handler r) (Maybe Public.ChangePasswordError)
+changePassword ::
+  Members '[UserQuery] r =>
+  UserId ->
+  Public.PasswordChange ->
+  Handler r (Maybe Public.ChangePasswordError)
 changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
 changeLocale :: UserId -> ConnId -> Public.LocaleUpdate -> (Handler r) ()
@@ -862,32 +953,50 @@ changeLocale u conn l = lift $ API.changeLocale u conn l
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
-checkHandleH :: UserId ::: Text -> (Handler r) Response
+checkHandleH ::
+  Members '[UserHandleStore] r =>
+  UserId ::: Text ->
+  Handler r Response
 checkHandleH (_uid ::: hndl) =
   API.checkHandle hndl >>= \case
     API.CheckHandleInvalid -> throwE (StdError (errorToWai @'E.InvalidHandle))
     API.CheckHandleFound -> pure $ setStatus status200 empty
     API.CheckHandleNotFound -> pure $ setStatus status404 empty
 
-checkHandlesH :: JSON ::: UserId ::: JsonRequest Public.CheckHandles -> (Handler r) Response
+checkHandlesH ::
+  Members '[UserHandleStore] r =>
+  JSON ::: UserId ::: JsonRequest Public.CheckHandles ->
+  Handler r Response
 checkHandlesH (_ ::: _ ::: req) = do
   Public.CheckHandles hs num <- parseJsonBody req
   let handles = mapMaybe parseHandle (fromRange hs)
-  free <- lift . wrapClient $ API.checkHandles handles (fromRange num)
+  free <- lift . liftSem $ API.checkHandles handles (fromRange num)
   pure $ json (free :: [Handle])
 
 -- | This endpoint returns UserHandleInfo instead of UserProfile for backwards
 -- compatibility, whereas the corresponding qualified endpoint (implemented by
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
-getHandleInfoUnqualifiedH :: UserId -> Handle -> (Handler r) (Maybe Public.UserHandleInfo)
+getHandleInfoUnqualifiedH ::
+  Members '[UserHandleStore] r =>
+  UserId ->
+  Handle ->
+  Handler r (Maybe Public.UserHandleInfo)
 getHandleInfoUnqualifiedH self handle = do
   domain <- viewFederationDomain
   Public.UserHandleInfo . Public.profileQualifiedId
     <$$> Handle.getHandleInfo self (Qualified handle domain)
 
 changeHandle ::
-  Member UserQuery r =>
+  Members
+    '[ Async,
+       Race,
+       Resource,
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   ConnId ->
   Public.HandleUpdate ->
@@ -900,6 +1009,7 @@ beginPasswordResetH ::
   Members
     '[ P.TinyLog,
        PasswordResetStore,
+       UserKeyStore,
        UserQuery
      ]
     r =>
@@ -912,6 +1022,7 @@ beginPasswordReset ::
   Members
     '[ P.TinyLog,
        PasswordResetStore,
+       UserKeyStore,
        UserQuery
      ]
     r =>
@@ -927,7 +1038,12 @@ beginPasswordReset (Public.NewPasswordReset target) = do
     Right phone -> wrapClient $ sendPasswordResetSms phone pair loc
 
 completePasswordResetH ::
-  Members '[PasswordResetStore, PasswordResetSupply] r =>
+  Members
+    '[ PasswordResetStore,
+       PasswordResetSupply,
+       UserKeyStore
+     ]
+    r =>
   JSON ::: JsonRequest Public.CompletePasswordReset ->
   (Handler r) Response
 completePasswordResetH (_ ::: req) = do
@@ -936,7 +1052,15 @@ completePasswordResetH (_ ::: req) = do
   pure empty
 
 sendActivationCodeH ::
-  Member UserQuery r =>
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       P.Error Twilio.ErrorResponse,
+       Twilio,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   JsonRequest Public.SendActivationCode ->
   (Handler r) Response
 sendActivationCodeH req =
@@ -945,7 +1069,15 @@ sendActivationCodeH req =
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
 sendActivationCode ::
-  Member UserQuery r =>
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       P.Error Twilio.ErrorResponse,
+       Twilio,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   Public.SendActivationCode ->
   (Handler r) ()
 sendActivationCode Public.SendActivationCode {..} = do
@@ -1072,7 +1204,14 @@ getConnection self other = do
   lift . wrapClient $ Data.lookupConnection lself other
 
 deleteSelfUser ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members
+    '[ Input (Local ()),
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
   UserId ->
   Public.DeleteUser ->
   Handler r (Maybe Code.Timeout)
@@ -1080,7 +1219,14 @@ deleteSelfUser u body =
   API.deleteSelfUser u (Public.deleteUserPassword body) !>> deleteUserError
 
 verifyDeleteUserH ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members
+    '[ Input (Local ()),
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
   JsonRequest Public.VerifyDeleteUser ::: JSON ->
   Handler r Response
 verifyDeleteUserH (r ::: _) = do
@@ -1089,7 +1235,13 @@ verifyDeleteUserH (r ::: _) = do
   pure (setStatus status200 empty)
 
 updateUserEmail ::
-  Member UserQuery r =>
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   UserId ->
   Public.EmailUpdate ->
@@ -1130,20 +1282,56 @@ respFromActivationRespWithStatus = \case
   ActivationRespSuccessNoIdent -> empty
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
-activateKeyH :: JSON ::: JsonRequest Public.Activate -> (Handler r) Response
+activateKeyH ::
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       Input (Local ()),
+       PasswordResetSupply,
+       PasswordResetStore,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
+  JSON ::: JsonRequest Public.Activate ->
+  Handler r Response
 activateKeyH (_ ::: req) = do
   activationRequest <- parseJsonBody req
   respFromActivationRespWithStatus <$> activate activationRequest
 
-activateH :: Public.ActivationKey ::: Public.ActivationCode -> (Handler r) Response
+activateH ::
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       Input (Local ()),
+       PasswordResetSupply,
+       PasswordResetStore,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
+  Public.ActivationKey ::: Public.ActivationCode ->
+  Handler r Response
 activateH (k ::: c) = do
   let activationRequest = Public.Activate (Public.ActivateKey k) c False
   respFromActivationRespWithStatus <$> activate activationRequest
 
-activate :: Public.Activate -> (Handler r) ActivationRespWithStatus
+activate ::
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       Input (Local ()),
+       PasswordResetSupply,
+       PasswordResetStore,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
+  Public.Activate ->
+  Handler r ActivationRespWithStatus
 activate (Public.Activate tgt code dryrun)
   | dryrun = do
-    wrapClientE (API.preverify tgt code) !>> actError
+    liftSemE (API.preverify tgt code) !>> actError
     pure ActivationRespDryRun
   | otherwise = do
     result <- API.activate tgt code Nothing !>> actError
@@ -1156,7 +1344,13 @@ activate (Public.Activate tgt code dryrun)
 
 sendVerificationCode ::
   forall r.
-  Members '[Input (Local ()), UserQuery] r =>
+  Members
+    '[ Input (Local ()),
+       UserKeyStore,
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
   Public.SendVerificationCode ->
   Handler r ()
 sendVerificationCode req = do
@@ -1167,22 +1361,22 @@ sendVerificationCode req = do
   case (mbAccount, featureEnabled) of
     (Just account, True) -> do
       gen <- Code.mk6DigitGen $ Code.ForEmail email
-      timeout <- setVerificationTimeout <$> view settings
+      tout <- setVerificationTimeout <$> view settings
       code <-
         Code.generate
           gen
           (Code.scopeFromAction action)
           (Code.Retries 3)
-          timeout
+          tout
           (Just $ toUUID $ Public.userId $ accountUser account)
-      wrapClientE $ Code.insert code
+      lift . liftSem $ Code.insertCode code
       sendMail email (Code.codeValue code) (Just $ Public.userLocale $ accountUser account) action
     _ -> pure ()
   where
-    getAccount :: Public.Email -> (Handler r) (Maybe UserAccount)
+    getAccount :: Public.Email -> Handler r (Maybe UserAccount)
     getAccount email = lift $ do
       locale <- setDefaultUserLocale <$> view settings
-      mbUserId <- wrapClient . UserKey.lookupKey $ UserKey.userEmailKey email
+      mbUserId <- liftSem . UserKey.getKey $ UserKey.userEmailKey email
       join <$> liftSem (Data.lookupAccount locale `traverse` mbUserId)
 
     sendMail :: Public.Email -> Code.Value -> Maybe Public.Locale -> Public.VerificationAction -> (Handler r) ()
@@ -1212,7 +1406,12 @@ instance ToJSON DeprecatedMatchingResult where
       ]
 
 deprecatedCompletePasswordResetH ::
-  Members '[PasswordResetStore, PasswordResetSupply] r =>
+  Members
+    '[ PasswordResetStore,
+       PasswordResetSupply,
+       UserKeyStore
+     ]
+    r =>
   JSON ::: Public.PasswordResetKey ::: JsonRequest Public.PasswordReset ->
   (Handler r) Response
 deprecatedCompletePasswordResetH (_ ::: k ::: req) = do

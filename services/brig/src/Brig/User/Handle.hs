@@ -24,73 +24,72 @@ module Brig.User.Handle
   )
 where
 
-import Brig.App
 import Brig.Data.Instances ()
 import qualified Brig.Data.User as User
+import Brig.Sem.UniqueClaimsStore
+import Brig.Sem.UserHandleStore
+  ( Consistency (..),
+    UserHandleStore,
+    deleteHandle,
+    getHandleWithConsistency,
+    insertHandle,
+    lookupHandle,
+  )
+import Brig.Sem.UserQuery
 import Brig.Unique
-import Cassandra
 import Data.Handle (Handle, fromHandle)
 import Data.Id
-import Imports
+import Imports hiding (All)
+import Polysemy
+import Polysemy.Async
+import Polysemy.Conc.Effect.Race
+import Polysemy.Resource
 
 -- | Claim a new handle for an existing 'User'.
-claimHandle :: (MonadClient m, MonadReader Env m) => UserId -> Maybe Handle -> Handle -> m Bool
+claimHandle ::
+  forall r.
+  Members
+    '[ Async,
+       Race,
+       Resource,
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserQuery
+     ]
+    r =>
+  UserId ->
+  Maybe Handle ->
+  Handle ->
+  Sem r Bool
 claimHandle uid oldHandle newHandle =
   isJust <$> do
     owner <- lookupHandle newHandle
     case owner of
       Just uid' | uid /= uid' -> pure Nothing
       _ -> do
-        env <- ask
         let key = "@" <> fromHandle newHandle
-        withClaim uid key (30 # Minute) $
-          runAppT env $
-            do
-              -- Record ownership
-              wrapClient $ retry x5 $ write handleInsert (params LocalQuorum (newHandle, uid))
-              -- Update profile
-              result <- wrapClient $ User.updateHandle uid newHandle
-              -- Free old handle (if it changed)
-              for_ (mfilter (/= newHandle) oldHandle) $
-                wrapClient . freeHandle uid
-              pure result
+        withClaim uid key (30 # Minute) $ do
+          -- Record ownership
+          insertHandle @r newHandle uid
+          -- Update profile
+          result <- User.updateHandle uid newHandle
+          -- Free old handle (if it changed)
+          for_ (mfilter (/= newHandle) oldHandle) $
+            freeHandle uid
+          pure result
 
 -- | Free a 'Handle', making it available to be claimed again.
-freeHandle :: MonadClient m => UserId -> Handle -> m ()
+freeHandle ::
+  Members '[UniqueClaimsStore, UserHandleStore] r =>
+  UserId ->
+  Handle ->
+  Sem r ()
 freeHandle uid h = do
-  retry x5 $ write handleDelete (params LocalQuorum (Identity h))
+  deleteHandle h
   let key = "@" <> fromHandle h
-  deleteClaim uid key (30 # Minute)
-
--- | Lookup the current owner of a 'Handle'.
-lookupHandle :: MonadClient m => Handle -> m (Maybe UserId)
-lookupHandle = lookupHandleWithPolicy LocalQuorum
+  deleteClaims uid (30 # Minute) key
 
 -- | A weaker version of 'lookupHandle' that trades availability
 -- (and potentially speed) for the possibility of returning stale data.
-glimpseHandle :: MonadClient m => Handle -> m (Maybe UserId)
-glimpseHandle = lookupHandleWithPolicy One
-
-{-# INLINE lookupHandleWithPolicy #-}
-
--- | Sending an empty 'Handle' here causes C* to throw "Key may not be empty"
--- error.
---
--- FUTUREWORK: This should ideally be tackled by hiding constructor for 'Handle'
--- and only allowing it to be parsed.
-lookupHandleWithPolicy :: MonadClient m => Consistency -> Handle -> m (Maybe UserId)
-lookupHandleWithPolicy policy h = do
-  (runIdentity =<<)
-    <$> retry x1 (query1 handleSelect (params policy (Identity h)))
-
---------------------------------------------------------------------------------
--- Queries
-
-handleInsert :: PrepQuery W (Handle, UserId) ()
-handleInsert = "INSERT INTO user_handle (handle, user) VALUES (?, ?)"
-
-handleSelect :: PrepQuery R (Identity Handle) (Identity (Maybe UserId))
-handleSelect = "SELECT user FROM user_handle WHERE handle = ?"
-
-handleDelete :: PrepQuery W (Identity Handle) ()
-handleDelete = "DELETE FROM user_handle WHERE handle = ?"
+glimpseHandle :: Member UserHandleStore r => Handle -> Sem r (Maybe UserId)
+glimpseHandle = getHandleWithConsistency One

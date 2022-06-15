@@ -28,6 +28,9 @@ module Brig.Data.Activation
     lookupActivationCode,
     activateKey,
     verifyCode,
+
+    -- * polysemized version of 'mkActivationKey'
+    makeActivationKey,
   )
 where
 
@@ -207,7 +210,7 @@ verifyCode key code = do
       Just p -> pure (userPhoneKey p, u)
       Nothing -> throwE invalidCode
     mkScope _ _ _ = throwE invalidCode
-    countdown = lift . retry x5 . write keyInsert . params LocalQuorum
+    countdown = lift . insertActivationKey
     revoke = lift $ deleteActivationPair key
 
 mkActivationKey :: UserKey -> IO ActivationKey

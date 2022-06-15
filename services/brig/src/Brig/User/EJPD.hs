@@ -21,12 +21,12 @@
 module Brig.User.EJPD (ejpdRequest) where
 
 import Brig.API.Handler
-import Brig.API.User (lookupHandle)
 import Brig.App
 import qualified Brig.Data.Connection as Conn
 import Brig.Data.User (lookupUser)
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setDefaultUserLocale)
+import Brig.Sem.UserHandleStore
 import Brig.Sem.UserQuery (UserQuery)
 import Brig.Types.User (HavePendingInvitations (NoPendingInvitations), Locale)
 import Control.Error hiding (bool)
@@ -46,7 +46,7 @@ import Wire.API.User (User, userDisplayName, userEmail, userHandle, userId, user
 
 ejpdRequest ::
   forall r.
-  Member UserQuery r =>
+  Members '[UserHandleStore, UserQuery] r =>
   Maybe Bool ->
   EJPDRequestBody ->
   (Handler r) EJPDResponseBody
@@ -58,7 +58,7 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
     go1 includeContacts' handle = do
       loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
       locale <- setDefaultUserLocale <$> view settings
-      mbUid <- wrapClient $ lookupHandle handle
+      mbUid <- liftSem $ lookupHandle handle
       mbUsr <- maybe (pure Nothing) (liftSem . lookupUser loc locale NoPendingInvitations) mbUid
       maybe (pure Nothing) (fmap Just . go2 loc locale includeContacts') mbUsr
 

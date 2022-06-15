@@ -35,7 +35,6 @@ import Brig.Data.Activation (Activation (..), ActivationError (..))
 import Brig.Data.Client (ClientDataError (..))
 import Brig.Data.Properties (PropertiesDataError (..))
 import Brig.Data.User (AuthError (..), ReAuthError (..))
-import Brig.Data.UserKey (UserKey, foldKey)
 import Brig.Types
 import Brig.Types.Code (Timeout)
 import Brig.Types.Intra

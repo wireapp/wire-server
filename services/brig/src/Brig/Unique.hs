@@ -19,8 +19,7 @@
 -- to contention, i.e. where strong guarantees on uniqueness are desired.
 module Brig.Unique
   ( withClaim,
-    deleteClaim,
-    lookupClaims,
+    getClaims,
 
     -- * Re-exports
     Timeout,
@@ -30,11 +29,16 @@ module Brig.Unique
 where
 
 import Brig.Data.Instances ()
-import Cassandra as C
-import Control.Concurrent.Timeout
+import Brig.Sem.UniqueClaimsStore
 import Data.Id
 import Data.Timeout
 import Imports
+import Polysemy
+import Polysemy.Async
+import Polysemy.Conc.Async
+import Polysemy.Conc.Effect.Race
+import Polysemy.Resource
+import Polysemy.Time.Data.TimeUnit
 
 -- | Obtain a (temporary) exclusive claim on a 'Text' value for some
 -- 'Id'entifier. The claim expires after the provided timeout, whether
@@ -44,7 +48,7 @@ import Imports
 -- and is responsible for turning the temporary claim into permanent
 -- ownership, if desired.
 withClaim ::
-  MonadClient m =>
+  Members '[Async, Race, Resource, UniqueClaimsStore] r =>
   -- | The 'Id' associated with the claim.
   Id a ->
   -- | The value on which to acquire the claim.
@@ -52,60 +56,29 @@ withClaim ::
   -- | The minimum timeout (i.e. duration) of the claim.
   Timeout ->
   -- | The computation to run with a successful claim.
-  IO b ->
-  -- | 'Just b' if the claim was successful and the 'IO'
-  --   computation completed within the given timeout.
-  m (Maybe b)
-withClaim u v t io = do
-  claims <- lookupClaims v
+  Sem r b ->
+  -- | 'Just b' if the claim was successful and the computation completed within
+  --   the given timeout.
+  Sem r (Maybe b)
+withClaim u v t action = do
+  claims <- getClaims v
+  -- [Note: Guarantees]
+  let claim = do
+        let ttl = max minTtl t
+        addClaims u t v
+        if claims == [u]
+          then withAsyncWait (toPolyTime ttl) action await
+          else pure Nothing
   case claims of
     [] -> claim -- Free
     [u'] | u == u' -> claim -- Claimed by 'u' (retries are allowed).
     _ -> pure Nothing -- Conflicting claims, TTL must expire.
-  where
-    -- [Note: Guarantees]
-    claim = do
-      let ttl = max minTtl (fromIntegral (t #> Second))
-      retry x5 $ write cql $ params LocalQuorum (ttl * 2, C.Set [u], v)
-      claimed <- (== [u]) <$> lookupClaims v
-      if claimed
-        then liftIO $ timeout (fromIntegral ttl # Second) io
-        else pure Nothing
-    cql :: PrepQuery W (Int32, C.Set (Id a), Text) ()
-    cql = "UPDATE unique_claims USING TTL ? SET claims = claims + ? WHERE value = ?"
 
-deleteClaim ::
-  MonadClient m =>
-  -- | The 'Id' associated with the claim.
-  Id a ->
-  -- | The value on which to acquire the claim.
-  Text ->
-  -- | The minimum timeout (i.e. duration) of the rest of the claim.  (Each
-  --   claim can have more than one claimer (even though this is a feature we
-  --   never use), so removing a claim is an update operation on the database.
-  --   Therefore, we reset the TTL the same way we reset it in 'withClaim'.)
-  Timeout ->
-  m ()
-deleteClaim u v t = do
-  let ttl = max minTtl (fromIntegral (t #> Second))
-  retry x5 $ write cql $ params LocalQuorum (ttl * 2, C.Set [u], v)
-  where
-    cql :: PrepQuery W (Int32, C.Set (Id a), Text) ()
-    cql = "UPDATE unique_claims USING TTL ? SET claims = claims - ? WHERE value = ?"
+toPolyTime :: Timeout -> NanoSeconds
+toPolyTime t = NanoSeconds . fromIntegral $ t #> NanoSecond
 
--- | Lookup the current claims on a value.
-lookupClaims :: MonadClient m => Text -> m [Id a]
-lookupClaims v =
-  fmap (maybe [] (fromSet . runIdentity)) $
-    retry x1 $
-      query1 cql $
-        params LocalQuorum (Identity v)
-  where
-    cql :: PrepQuery R (Identity Text) (Identity (C.Set (Id a)))
-    cql = "SELECT claims FROM unique_claims WHERE value = ?"
-
-minTtl :: Int32
-minTtl = 60 -- Seconds
+minTtl :: Timeout
+minTtl = 60 # Second
 
 -- [Note: Guarantees]
 -- ~~~~~~~~~~~~~~~~~~

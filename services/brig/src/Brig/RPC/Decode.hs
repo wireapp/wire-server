@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,13 +15,33 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Sem.ActivationSupply where
+module Brig.RPC.Decode where
 
-import Brig.Types
-import Polysemy
+import Bilge.Response
+import Control.Monad.Catch
+import Data.Aeson
+import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Text as Text
+import Imports
 
-data ActivationSupply m a where
-  MakeActivationKey :: UserKey -> ActivationSupply m ActivationKey
-  MakeActivationCode :: ActivationSupply m ActivationCode
+decodeBody ::
+  (Typeable a, FromJSON a, MonadThrow m) =>
+  Text ->
+  Response (Maybe LBS.ByteString) ->
+  m a
+decodeBody ctx = responseJsonThrow (ParseException ctx)
 
-makeSem ''ActivationSupply
+-- | Failed to parse a response from another service.
+data ParseException = ParseException
+  { _parseExceptionRemote :: !Text,
+    _parseExceptionMsg :: String
+  }
+
+instance Show ParseException where
+  show (ParseException r m) =
+    "Failed to parse response from remote "
+      ++ Text.unpack r
+      ++ " with message: "
+      ++ m
+
+instance Exception ParseException

@@ -42,9 +42,17 @@ import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
+import Brig.Sem.ActivationKeyStore
+import Brig.Sem.ActivationSupply
+import Brig.Sem.GalleyAccess
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
+import Brig.Sem.Twilio
+import Brig.Sem.UniqueClaimsStore
+import Brig.Sem.UserHandleStore
+import Brig.Sem.UserKeyStore
 import Brig.Sem.UserQuery (UserQuery)
+import Brig.Sem.VerificationCodeStore
 import qualified Brig.Team.API as Team
 import Brig.Team.DB (lookupInvitationByEmail)
 import Brig.Types
@@ -75,13 +83,18 @@ import Network.Wai.Routing hiding (toList)
 import Network.Wai.Utilities as Utilities
 import Network.Wai.Utilities.ZAuth (zauthConnId, zauthUserId)
 import Polysemy
+import Polysemy.Async
+import Polysemy.Conc.Effect.Race
 import qualified Polysemy.Error as P
 import Polysemy.Input
+import Polysemy.Resource
+import qualified Polysemy.TinyLog as P
+import qualified Ropes.Twilio as Twilio
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
-import UnliftIO.Async
+import UnliftIO.Async hiding (Async)
 import Wire.API.Error
 import Wire.API.Error.Brig
 import qualified Wire.API.Error.Brig as E
@@ -99,12 +112,25 @@ import Wire.API.User.RichInfo
 -- Sitemap (servant)
 
 servantSitemap ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       Input (Local ()),
+       P.Error Twilio.ErrorResponse,
+       PasswordResetStore,
+       PasswordResetSupply,
+       Twilio,
+       UserHandleStore,
+       UserKeyStore,
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
   ServerT BrigIRoutes.API (Handler r)
 servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI
 
 ejpdAPI ::
-  Member UserQuery r =>
+  Members '[UserHandleStore, UserQuery] r =>
   ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
   Brig.User.EJPD.ejpdRequest
@@ -125,7 +151,18 @@ mlsAPI =
     :<|> mapKeyPackageRefsInternal
 
 accountAPI ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       Input (Local ()),
+       P.Error Twilio.ErrorResponse,
+       PasswordResetSupply,
+       PasswordResetStore,
+       Twilio,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI = Named @"createUserNoVerify" createUserNoVerify
 
@@ -161,7 +198,7 @@ getMLSClients :: Qualified UserId -> SignatureSchemeTag -> Handler r (Set Client
 getMLSClients qusr ss = do
   usr <- lift $ tUnqualified <$> ensureLocal qusr
   results <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult usr
-  keys <- lift . wrapClient $ pooledMapConcurrentlyN 16 getKey (toList results)
+  keys <- lift . wrapClient $ pooledMapConcurrentlyN 16 getMLSKey (toList results)
   pure . Set.fromList . map fst . filter (isJust . snd) $ keys
   where
     getResult _ [] = throwStd (errorToWai @'UserNotFound)
@@ -169,8 +206,8 @@ getMLSClients qusr ss = do
       | u == usr = pure cs
       | otherwise = getResult usr rs
 
-    getKey :: MonadClient m => ClientId -> m (ClientId, Maybe LByteString)
-    getKey cid = (cid,) <$> Data.lookupMLSPublicKey (qUnqualified qusr) cid ss
+    getMLSKey :: MonadClient m => ClientId -> m (ClientId, Maybe LByteString)
+    getMLSKey cid = (cid,) <$> Data.lookupMLSPublicKey (qUnqualified qusr) cid ss
 
 mapKeyPackageRefsInternal :: KeyPackageBundle -> Handler r ()
 mapKeyPackageRefsInternal bundle = do
@@ -179,7 +216,8 @@ mapKeyPackageRefsInternal bundle = do
       Data.mapKeyPackageRef (kpbeRef e) (kpbeUser e) (kpbeClient e)
 
 getVerificationCode ::
-  Member UserQuery r =>
+  forall r.
+  Members '[VerificationCodeStore, UserQuery] r =>
   UserId ->
   VerificationAction ->
   (Handler r) (Maybe Code.Value)
@@ -189,10 +227,10 @@ getVerificationCode uid action = do
   user <- lift . liftSem $ Api.lookupUser loc locale NoPendingInvitations uid
   maybe (pure Nothing) (lookupCode action) (userEmail =<< user)
   where
-    lookupCode :: VerificationAction -> Email -> (Handler r) (Maybe Code.Value)
+    lookupCode :: VerificationAction -> Email -> Handler r (Maybe Code.Value)
     lookupCode a e = do
       key <- Code.mkKey (Code.ForEmail e)
-      code <- wrapClientE $ Code.lookup key (Code.scopeFromAction a)
+      code <- lift . liftSem $ Code.getPendingCode key (Code.scopeFromAction a)
       pure $ Code.codeValue <$> code
 
 swaggerDocsAPI :: Servant.Server BrigIRoutes.SwaggerDocsAPI
@@ -203,11 +241,24 @@ swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
 
 sitemap ::
   Members
-    '[ Input (Local ()),
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       Async,
+       GalleyAccess,
+       Input (Local ()),
        P.Error ReAuthError,
+       P.Error Twilio.ErrorResponse,
+       P.TinyLog,
        PasswordResetStore,
        PasswordResetSupply,
-       UserQuery
+       Race,
+       Resource,
+       Twilio,
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserKeyStore,
+       UserQuery,
+       VerificationCodeStore
      ]
     r =>
   Routes a (Handler r) ()
@@ -374,7 +425,13 @@ sitemap = do
 
 -- | Add a client without authentication checks
 addClientInternalH ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members
+    '[ GalleyAccess,
+       Input (Local ()),
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
   UserId ::: Maybe Bool ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON ->
   Handler r Response
 addClientInternalH (usr ::: mSkipReAuth ::: req ::: connId ::: _) = do
@@ -382,7 +439,13 @@ addClientInternalH (usr ::: mSkipReAuth ::: req ::: connId ::: _) = do
   setStatus status201 . json <$> addClientInternal usr mSkipReAuth new connId
 
 addClientInternal ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members
+    '[ GalleyAccess,
+       Input (Local ()),
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
   UserId ->
   Maybe Bool ->
   NewClient ->
@@ -423,7 +486,18 @@ internalListFullClients (UserSet usrs) =
   UserClientsFull <$> wrapClient (Data.lookupClientsBulk (Set.toList usrs))
 
 createUserNoVerify ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       P.Error Twilio.ErrorResponse,
+       Input (Local ()),
+       PasswordResetSupply,
+       PasswordResetStore,
+       Twilio,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   NewUser ->
   Handler r (Either RegisterError SelfProfile)
 createUserNoVerify uData = lift . runExceptT $ do
@@ -458,7 +532,13 @@ deleteUserNoVerify uid = do
   lift $ API.deleteUserNoVerify uid
 
 changeSelfEmailMaybeSendH ::
-  Member UserQuery r =>
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   UserId ::: Bool ::: JsonRequest EmailUpdate ->
   (Handler r) Response
 changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
@@ -470,7 +550,13 @@ changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
 changeSelfEmailMaybeSend ::
-  Member UserQuery r =>
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   MaybeSendEmail ->
   Email ->
@@ -484,7 +570,12 @@ changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
     ChangeEmailNeedsActivation _ -> pure ChangeEmailResponseNeedsActivation
 
 listActivatedAccountsH ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members
+    '[ Input (Local ()),
+       UserHandleStore,
+       UserQuery
+     ]
+    r =>
   JSON ::: Either (List UserId) (List Handle) ::: Bool ->
   Handler r Response
 listActivatedAccountsH (_ ::: qry ::: includePendingInvitations) = do
@@ -492,7 +583,12 @@ listActivatedAccountsH (_ ::: qry ::: includePendingInvitations) = do
 
 listActivatedAccounts ::
   forall r.
-  Members '[Input (Local ()), UserQuery] r =>
+  Members
+    '[ Input (Local ()),
+       UserHandleStore,
+       UserQuery
+     ]
+    r =>
   Either (List UserId) (List Handle) ->
   Bool ->
   AppT r [UserAccount]
@@ -501,7 +597,7 @@ listActivatedAccounts elh includePendingInvitations = do
   case elh of
     Left us -> byIds (fromList us)
     Right hs -> do
-      us <- mapM (wrapClient . API.lookupHandle) (fromList hs)
+      us <- mapM (liftSem . API.lookupHandle) (fromList hs)
       byIds (catMaybes us)
   where
     byIds :: [UserId] -> (AppT r) [UserAccount]
@@ -529,7 +625,7 @@ listActivatedAccounts elh includePendingInvitations = do
           (Ephemeral, _, _) -> pure True
 
 listAccountsByIdentityH ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[Input (Local ()), UserKeyStore, UserQuery] r =>
   JSON ::: Either Email Phone ::: Bool ->
   Handler r Response
 listAccountsByIdentityH (_ ::: emailOrPhone ::: includePendingInvitations) =
@@ -552,14 +648,24 @@ instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
 getPasswordResetCodeH ::
-  Members '[PasswordResetStore, PasswordResetSupply] r =>
+  Members
+    '[ PasswordResetStore,
+       PasswordResetSupply,
+       UserKeyStore
+     ]
+    r =>
   JSON ::: Either Email Phone ->
   (Handler r) Response
 getPasswordResetCodeH (_ ::: emailOrPhone) = do
   maybe (throwStd invalidPwResetKey) (pure . json) =<< lift (getPasswordResetCode emailOrPhone)
 
 getPasswordResetCode ::
-  Members '[PasswordResetStore, PasswordResetSupply] r =>
+  Members
+    '[ PasswordResetStore,
+       PasswordResetSupply,
+       UserKeyStore
+     ]
+    r =>
   Either Email Phone ->
   (AppT r) (Maybe GetPasswordResetCodeResp)
 getPasswordResetCode emailOrPhone =
@@ -608,7 +714,7 @@ getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
     filterByRelation l rel = filter ((== rel) . csv2Status) l
 
 revokeIdentityH ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[Input (Local ()), UserKeyStore, UserQuery] r =>
   Either Email Phone ->
   Handler r Response
 revokeIdentityH emailOrPhone = do
@@ -712,16 +818,32 @@ getRichInfoMulti uids =
   lift (wrapClient $ API.lookupRichInfoMultiUsers uids)
 
 updateHandleH ::
-  Member UserQuery r =>
+  Members
+    '[ Async,
+       Race,
+       Resource,
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserQuery
+     ]
+    r =>
   UserId ::: JSON ::: JsonRequest HandleUpdate ->
   (Handler r) Response
 updateHandleH (uid ::: _ ::: body) = empty <$ (updateHandle uid =<< parseJsonBody body)
 
 updateHandle ::
-  Member UserQuery r =>
+  Members
+    '[ Async,
+       Race,
+       Resource,
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   HandleUpdate ->
-  (Handler r) ()
+  Handler r ()
 updateHandle uid (HandleUpdate handleUpd) = do
   handle <- validateHandle handleUpd
   API.changeHandle uid Nothing handle API.AllowSCIMUpdates !>> changeHandleError
@@ -752,7 +874,10 @@ updateUserName uid (NameUpdate nameUpd) = do
     Just _ -> API.updateUser uid Nothing uu API.AllowSCIMUpdates !>> updateProfileError
     Nothing -> throwStd (errorToWai @'E.InvalidUser)
 
-checkHandleInternalH :: Text -> (Handler r) Response
+checkHandleInternalH ::
+  Members '[UserHandleStore] r =>
+  Text ->
+  Handler r Response
 checkHandleInternalH =
   API.checkHandle >=> \case
     API.CheckHandleInvalid -> throwE (StdError (errorToWai @'E.InvalidHandle))

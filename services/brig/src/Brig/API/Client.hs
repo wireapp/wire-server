@@ -57,7 +57,9 @@ import qualified Brig.Federation.Client as Federation
 import Brig.IO.Intra (guardLegalhold)
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opt
+import Brig.Sem.GalleyAccess
 import Brig.Sem.UserQuery (UserQuery)
+import Brig.Sem.VerificationCodeStore
 import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
@@ -132,7 +134,7 @@ lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppT r) (UserMap (
 lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 
 addClient ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members '[GalleyAccess, Input (Local ()), UserQuery, VerificationCodeStore] r =>
   UserId ->
   Maybe ConnId ->
   Maybe IP ->
@@ -143,7 +145,8 @@ addClient = addClientWithReAuthPolicy Data.reAuthForNewClients
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
 addClientWithReAuthPolicy ::
-  Members '[Input (Local ()), UserQuery] r =>
+  forall r.
+  Members '[GalleyAccess, Input (Local ()), UserQuery, VerificationCodeStore] r =>
   Data.ReAuthPolicy ->
   UserId ->
   Maybe ConnId ->
@@ -153,7 +156,7 @@ addClientWithReAuthPolicy ::
 addClientWithReAuthPolicy policy u con ip new = do
   locale <- Opt.setDefaultUserLocale <$> view settings
   acc <- lift (liftSem $ Data.lookupAccount locale u) >>= maybe (throwE (ClientUserNotFound u)) pure
-  wrapHttpClientE $ verifyCode (newClientVerificationCode new) (userId . accountUser $ acc)
+  verifyCodeThrow (newClientVerificationCode new) (userId . accountUser $ acc)
   loc <- maybe (pure Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
   let caps :: Maybe (Set ClientCapability)
@@ -183,19 +186,11 @@ addClientWithReAuthPolicy policy u con ip new = do
   where
     clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
 
-    verifyCode ::
-      ( MonadReader Env m,
-        MonadMask m,
-        MonadHttp m,
-        MonadIO m,
-        HasRequestId m,
-        Log.MonadLogger m,
-        MonadClient m
-      ) =>
+    verifyCodeThrow ::
       Maybe Code.Value ->
       UserId ->
-      ExceptT ClientError m ()
-    verifyCode mbCode userId =
+      ExceptT ClientError (AppT r) ()
+    verifyCodeThrow mbCode userId =
       -- this only happens inside the login flow (in particular, when logging in from a new device)
       -- the code obtained for logging in is used a second time for adding the device
       UserAuth.verifyCode mbCode Code.Login userId `catchE` \case

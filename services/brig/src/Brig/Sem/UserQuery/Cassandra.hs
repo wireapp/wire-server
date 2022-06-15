@@ -25,6 +25,7 @@ import Brig.Types
 import Brig.Types.Intra
 import Cassandra
 import Control.Lens (view, (^.))
+import Data.Handle
 import Data.Id
 import Imports
 import Polysemy
@@ -53,6 +54,7 @@ userQueryToCassandra =
       InsertAccount ua mConvTeam mPass act -> accountInsert ua mConvTeam mPass act
       UpdateUser uid update -> userUpdate uid update
       UpdateEmail uid email -> updateEmailQuery uid email
+      UpdateHandle uid handle -> updateHandleQuery uid handle
       UpdatePhone uid phone -> updatePhoneQuery uid phone
       ActivateUser uid ui -> activateUserQuery uid ui
       DeleteEmailUnvalidated uid -> deleteEmailUnvalidatedQuery uid
@@ -212,3 +214,9 @@ activateUserQuery u ident = do
   where
     userActivatedUpdate :: PrepQuery W (Maybe Email, Maybe Phone, UserId) ()
     userActivatedUpdate = "UPDATE user SET activated = true, email = ?, phone = ? WHERE id = ?"
+
+updateHandleQuery :: MonadClient m => UserId -> Handle -> m ()
+updateHandleQuery u h = retry x5 $ write userHandleUpdate (params LocalQuorum (h, u))
+  where
+    userHandleUpdate :: PrepQuery W (Handle, UserId) ()
+    userHandleUpdate = "UPDATE user SET handle = ? WHERE id = ?"

@@ -18,7 +18,7 @@
 module Brig.Sem.ActivationSupply.IO (activationSupplyToIO) where
 
 import Brig.Sem.ActivationSupply
-import Brig.Sem.UserKeyStore (UserKey, keyText)
+import Brig.Types
 import Data.Text
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as T
@@ -27,7 +27,6 @@ import OpenSSL.BN
 import OpenSSL.EVP.Digest
 import Polysemy
 import Text.Printf
-import Wire.API.User.Activation
 
 activationSupplyToIO ::
   forall r a.

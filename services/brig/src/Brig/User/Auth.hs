@@ -52,15 +52,18 @@ import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opt
 import Brig.Phone
 import Brig.Sem.BudgetStore
-import Brig.Sem.BudgetStore.Cassandra
+import Brig.Sem.GalleyAccess
+import Brig.Sem.Twilio (Twilio)
+import Brig.Sem.UserHandleStore
+import Brig.Sem.UserKeyStore (UserKeyStore)
 import Brig.Sem.UserQuery (UserQuery)
 import Brig.Sem.UserQuery.Cassandra
+import Brig.Sem.VerificationCodeStore (VerificationCodeStore)
 import Brig.Types.Common
 import Brig.Types.Intra
 import Brig.Types.User
 import Brig.Types.User.Auth hiding (user)
 import Brig.User.Auth.Cookie
-import Brig.User.Handle
 import Brig.User.Phone
 import Brig.User.Search.Index
 import qualified Brig.ZAuth as ZAuth
@@ -77,12 +80,16 @@ import qualified Data.List.NonEmpty as NE
 import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
+import Data.Qualified
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
 import Polysemy.Error
+import qualified Polysemy.Error as P
 import Polysemy.Input
+import qualified Polysemy.TinyLog as P
+import qualified Ropes.Twilio as Twilio
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
@@ -95,142 +102,160 @@ data Access u = Access
   }
 
 sendLoginCode ::
-  forall m.
-  ( MonadClient m,
-    MonadReader Env m,
-    MonadCatch m,
-    Log.MonadLogger m
-  ) =>
+  forall r.
+  Members
+    '[ Error Twilio.ErrorResponse,
+       P.TinyLog,
+       Twilio,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   Phone ->
   Bool ->
   Bool ->
-  ExceptT SendLoginCodeError m PendingLoginCode
+  ExceptT SendLoginCodeError (AppT r) PendingLoginCode
 sendLoginCode phone call force = do
+  creds <- view twilioCreds
+  m <- view httpManager
   pk <-
     maybe
       (throwE $ SendLoginInvalidPhone phone)
       (pure . userPhoneKey)
-      =<< lift (validatePhone phone)
-  user <- lift $ Data.lookupKey pk
+      =<< lift (liftSem $ validatePhone creds m phone)
+  user <- lift . liftSem $ Data.getKey pk
   case user of
     Nothing -> throwE $ SendLoginInvalidPhone phone
     Just u -> do
-      lift . Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.sendLoginCode")
-      pw <- lift $ Data.lookupPassword u
+      lift . liftSem
+        . P.debug
+        $ field "user" (toByteString u) . field "action" (Log.val "User.sendLoginCode")
+      pw <- lift . wrapClient $ Data.lookupPassword u
       unless (isNothing pw || force) $
         throwE SendLoginPasswordExists
       lift $ do
         defLoc <- Opt.setDefaultUserLocale <$> view settings
-        l <- runM $ userQueryToCassandra @m @'[Embed m] $ Data.lookupLocale defLoc u
-        c <- Data.createLoginCode u
+        l <- liftSem $ Data.lookupLocale defLoc u
+        c <- wrapClient $ Data.createLoginCode u
         void . forPhoneKey pk $ \ph ->
-          if call
-            then sendLoginCall ph (pendingLoginCode c) l
-            else sendLoginSms ph (pendingLoginCode c) l
+          wrapClient $
+            if call
+              then sendLoginCall ph (pendingLoginCode c) l
+              else sendLoginSms ph (pendingLoginCode c) l
         pure c
 
 lookupLoginCode ::
-  ( MonadClient m,
-    Log.MonadLogger m,
-    MonadReader Env m
-  ) =>
+  Members
+    '[ P.TinyLog,
+       UserKeyStore
+     ]
+    r =>
   Phone ->
-  m (Maybe PendingLoginCode)
+  AppT r (Maybe PendingLoginCode)
 lookupLoginCode phone =
-  Data.lookupKey (userPhoneKey phone) >>= \case
+  liftSem (Data.getKey (userPhoneKey phone)) >>= \case
     Nothing -> pure Nothing
     Just u -> do
-      Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.lookupLoginCode")
-      Data.lookupLoginCode u
+      liftSem $ P.debug $ field "user" (toByteString u) . field "action" (Log.val "User.lookupLoginCode")
+      wrapClient $ Data.lookupLoginCode u
 
 login ::
-  forall m.
-  ( MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    MonadIO m,
-    HasRequestId m,
-    Log.MonadLogger m,
-    MonadClient m,
-    ZAuth.MonadZAuth m,
-    MonadIndexIO m,
-    MonadUnliftIO m
-  ) =>
+  forall r.
+  Members
+    '[ BudgetStore,
+       Error Twilio.ErrorResponse,
+       GalleyAccess,
+       Input (Local ()),
+       P.TinyLog,
+       Twilio,
+       UserHandleStore,
+       UserKeyStore,
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
   Login ->
   CookieType ->
-  ExceptT LoginError m (Access ZAuth.User)
+  ExceptT LoginError (AppT r) (Access ZAuth.User)
 login (PasswordLogin li pw label code) typ = do
-  uid <- resolveLoginId li
-  lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
+  c <- view twilioCreds
+  man <- view httpManager
+  uid <- resolveLoginId c man li
+  lift . liftSem . P.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
   mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
-  runBudgetStoreAction $ checkRetryLimit uid mLimitFailedLogins
-  o <- runUserQueryAction $ Data.authenticate uid pw
+  liftSemE . semErrToExceptT $ checkRetryLimit uid mLimitFailedLogins
+  o <- lift . liftSem . runError @AuthError $ Data.authenticate uid pw
   whenLeft o $ \case
-    AuthInvalidUser -> runBudgetStoreAction $ loginFailed uid mLimitFailedLogins
-    AuthInvalidCredentials -> runBudgetStoreAction $ loginFailed uid mLimitFailedLogins
+    AuthInvalidUser -> liftSemE . semErrToExceptT $ loginFailed uid mLimitFailedLogins
+    AuthInvalidCredentials -> liftSemE . semErrToExceptT $ loginFailed uid mLimitFailedLogins
     AuthSuspended -> throwE LoginSuspended
     AuthEphemeral -> throwE LoginEphemeral
     AuthPendingInvitation -> throwE LoginPendingActivation
   verifyLoginCode code uid mLimitFailedLogins
-  newAccess @ZAuth.User @ZAuth.Access uid typ label
+  wrapHttpClientE $ newAccess @ZAuth.User @ZAuth.Access uid typ label
   where
-    verifyLoginCode :: Maybe Code.Value -> UserId -> Maybe Opt.LimitFailedLogins -> ExceptT LoginError m ()
+    verifyLoginCode ::
+      Maybe Code.Value ->
+      UserId ->
+      Maybe Opt.LimitFailedLogins ->
+      ExceptT LoginError (AppT r) ()
     verifyLoginCode mbCode uid mLimitFailedLogins =
       verifyCode mbCode Login uid
         `catchE` \case
-          VerificationCodeNoPendingCode -> runBudgetStoreAction $ loginFailedWith LoginCodeInvalid uid mLimitFailedLogins
-          VerificationCodeRequired -> runBudgetStoreAction $ loginFailedWith LoginCodeRequired uid mLimitFailedLogins
-          VerificationCodeNoEmail -> runBudgetStoreAction $ loginFailed uid mLimitFailedLogins
+          VerificationCodeNoPendingCode -> liftSemE . semErrToExceptT $ loginFailedWith LoginCodeInvalid uid mLimitFailedLogins
+          VerificationCodeRequired -> liftSemE . semErrToExceptT $ loginFailedWith LoginCodeRequired uid mLimitFailedLogins
+          VerificationCodeNoEmail -> liftSemE . semErrToExceptT $ loginFailed uid mLimitFailedLogins
 login (SmsLogin phone code label) typ = do
-  uid <- resolveLoginId (LoginByPhone phone)
+  c <- view twilioCreds
+  man <- view httpManager
+  uid <- resolveLoginId c man (LoginByPhone phone)
   lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
   mLimitFailedLogins <- view (settings . to Opt.setLimitFailedLogins)
-  runBudgetStoreAction $ checkRetryLimit uid mLimitFailedLogins
-  ok <- lift $ Data.verifyLoginCode uid code
-  unless ok $
-    runBudgetStoreAction $ loginFailed uid mLimitFailedLogins
-  newAccess @ZAuth.User @ZAuth.Access uid typ label
+  e <- lift . liftSem . runError $ checkRetryLimit uid mLimitFailedLogins
+  whenLeft e throwE
+  ok <- lift . wrapClient $ Data.verifyLoginCode uid code
+  unless ok $ do
+    r <- lift . liftSem . runError $ loginFailed uid mLimitFailedLogins
+    whenLeft r throwE
+  wrapHttpClientE $ newAccess @ZAuth.User @ZAuth.Access uid typ label
 
 verifyCode ::
-  forall m.
-  ( MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    MonadIO m,
-    HasRequestId m,
-    Log.MonadLogger m,
-    MonadClient m
-  ) =>
+  forall r.
+  Members
+    '[ GalleyAccess,
+       Input (Local ()),
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
   Maybe Code.Value ->
   VerificationAction ->
   UserId ->
-  ExceptT VerificationCodeError m ()
+  ExceptT VerificationCodeError (AppT r) ()
 verifyCode mbCode action uid = do
   (mbEmail, mbTeamId) <- getEmailAndTeamId uid
-  featureEnabled <- lift $ do
-    mbFeatureEnabled <- Intra.getVerificationCodeEnabled `traverse` mbTeamId
-    pure $ fromMaybe (Public.tfwoapsStatus (Public.defTeamFeatureStatus @'Public.TeamFeatureSndFactorPasswordChallenge) == Public.TeamFeatureEnabled) mbFeatureEnabled
+  featureEnabled <- lift . liftSem $ do
+    mbFeatureEnabled <- getTeamSndFactorPasswordChallenge `traverse` mbTeamId
+    pure $
+      maybe
+        (Public.tfwoapsStatus (Public.defTeamFeatureStatus @'Public.TeamFeatureSndFactorPasswordChallenge) == Public.TeamFeatureEnabled)
+        (== TeamFeatureEnabled)
+        mbFeatureEnabled
   when featureEnabled $ do
     case (mbCode, mbEmail) of
       (Just code, Just email) -> do
         key <- Code.mkKey $ Code.ForEmail email
-        codeValid <- isJust <$> Code.verify key (Code.scopeFromAction action) code
+        codeValid <- lift . liftSem $ isJust <$> Code.verifyCode key (Code.scopeFromAction action) code
         unless codeValid $ throwE VerificationCodeNoPendingCode
       (Nothing, _) -> throwE VerificationCodeRequired
       (_, Nothing) -> throwE VerificationCodeNoEmail
   where
     getEmailAndTeamId ::
       UserId ->
-      ExceptT e m (Maybe Email, Maybe TeamId)
+      ExceptT e (AppT r) (Maybe Email, Maybe TeamId)
     getEmailAndTeamId u = do
-      locDomain <- qualifyLocal ()
       locale <- Opt.setDefaultUserLocale <$> view settings
-      mbAccount <-
-        lift
-          . runM
-          . userQueryToCassandra @m @'[Embed m]
-          . runInputConst locDomain
-          $ Data.lookupAccount locale u
+      mbAccount <- lift . liftSem $ Data.lookupAccount locale u
       pure (userEmail <$> accountUser =<< mbAccount, userTeam <$> accountUser =<< mbAccount)
 
 loginFailedWith ::
@@ -391,30 +416,51 @@ newAccess uid ct cl = do
       t <- lift $ newAccessToken @u @a ck Nothing
       pure $ Access t (Just ck)
 
-resolveLoginId :: (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m UserId
-resolveLoginId li = do
-  usr <- validateLoginId li >>= lift . either lookupKey lookupHandle
+resolveLoginId ::
+  Members
+    '[ P.Error Twilio.ErrorResponse,
+       UserHandleStore,
+       UserKeyStore,
+       Twilio
+     ]
+    r =>
+  Twilio.Credentials ->
+  Manager ->
+  LoginId ->
+  ExceptT LoginError (AppT r) UserId
+resolveLoginId c m li = do
+  usr <-
+    liftSemE (validateLoginId c m li)
+      >>= lift
+        . either
+          (liftSem . getKey)
+          (liftSem . lookupHandle)
   case usr of
     Nothing -> do
-      pending <- lift $ isPendingActivation li
+      pending <- lift . wrapClient $ isPendingActivation li
       throwE $
         if pending
           then LoginPendingActivation
           else LoginFailed
     Just uid -> pure uid
 
-validateLoginId :: (MonadClient m, MonadReader Env m) => LoginId -> ExceptT LoginError m (Either UserKey Handle)
-validateLoginId (LoginByEmail email) =
+validateLoginId ::
+  Members '[P.Error Twilio.ErrorResponse, Twilio] r =>
+  Twilio.Credentials ->
+  Manager ->
+  LoginId ->
+  ExceptT LoginError (Sem r) (Either UserKey Handle)
+validateLoginId _ _ (LoginByEmail email) =
   either
     (const $ throwE LoginFailed)
     (pure . Left . userEmailKey)
     (validateEmail email)
-validateLoginId (LoginByPhone phone) =
+validateLoginId c m (LoginByPhone phone) =
   maybe
     (throwE LoginFailed)
     (pure . Left . userPhoneKey)
-    =<< lift (validatePhone phone)
-validateLoginId (LoginByHandle h) =
+    =<< lift (validatePhone c m phone)
+validateLoginId _ _ (LoginByHandle h) =
   pure (Right h)
 
 isPendingActivation :: forall m. (MonadClient m, MonadReader Env m) => LoginId -> m Bool
@@ -580,13 +626,6 @@ assertLegalHoldEnabled tid = do
 -- These can be removed once functions in this module run in 'Sem r' instead of
 -- 'ExceptT e m' or 'm' for some constrained 'm'.
 
-runBudgetStoreAction ::
-  forall m e a.
-  MonadClient m =>
-  Sem '[Error e, BudgetStore, Embed m] a ->
-  ExceptT e m a
-runBudgetStoreAction = runStoreActionExceptT (budgetStoreToCassandra @m)
-
 runUserQueryAction ::
   forall m e a t.
   (MonadClient m, MonadTrans t) =>
@@ -602,10 +641,10 @@ runStoreAction ::
   t m (Either e a)
 runStoreAction interpreter = lift . runM . interpreter @m . runError @e
 
-runStoreActionExceptT ::
-  forall m e a store.
-  MonadClient m =>
-  (forall n b. (MonadClient n, n ~ m) => Sem '[store, Embed n] b -> Sem '[Embed n] b) ->
-  Sem '[Error e, store, Embed m] a ->
-  ExceptT e m a
-runStoreActionExceptT interpreter = runStoreAction interpreter >=> except
+semErrToExceptT ::
+  Sem (Error e ': r) a ->
+  ExceptT e (Sem r) a
+semErrToExceptT act =
+  lift (runError act) >>= \case
+    Left p -> throwE p
+    Right v -> pure v

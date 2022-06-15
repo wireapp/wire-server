@@ -34,6 +34,8 @@ import qualified Brig.Email as Email
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import qualified Brig.Phone as Phone
+import Brig.Sem.Twilio (Twilio)
+import Brig.Sem.UserKeyStore (UserKeyStore)
 import Brig.Sem.UserQuery (UserQuery)
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
@@ -64,7 +66,9 @@ import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Polysemy
+import qualified Polysemy.Error as P
 import Polysemy.Input
+import qualified Ropes.Twilio as Twilio
 import System.Logger (Msg)
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
@@ -76,7 +80,14 @@ import qualified Wire.API.Team.Size as Public
 import qualified Wire.API.User as Public
 
 routesPublic ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members
+    '[ Input (Local ()),
+       P.Error Twilio.ErrorResponse,
+       Twilio,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   post "/teams/:tid/invitations" (continue createInvitationPublicH) $
@@ -187,7 +198,15 @@ routesPublic = do
     Doc.response 200 "Invitation successful." Doc.end
     Doc.response 403 "No permission (not admin or owner of this team)." Doc.end
 
-routesInternal :: Routes a (Handler r) ()
+routesInternal ::
+  Members
+    '[ P.Error Twilio.ErrorResponse,
+       Twilio,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
+  Routes a (Handler r) ()
 routesInternal = do
   get "/i/teams/invitations/by-email" (continue getInvitationByEmailH) $
     accept "application" "json"
@@ -244,7 +263,14 @@ instance ToJSON FoundInvitationCode where
   toJSON (FoundInvitationCode c) = object ["code" .= c]
 
 createInvitationPublicH ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members
+    '[ Input (Local ()),
+       P.Error Twilio.ErrorResponse,
+       Twilio,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest ->
   Handler r Response
 createInvitationPublicH (_ ::: uid ::: tid ::: req) = do
@@ -263,7 +289,14 @@ data CreateInvitationInviter = CreateInvitationInviter
   deriving (Eq, Show)
 
 createInvitationPublic ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members
+    '[ Input (Local ()),
+       P.Error Twilio.ErrorResponse,
+       Twilio,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   TeamId ->
   Public.InvitationRequest ->
@@ -287,12 +320,30 @@ createInvitationPublic uid tid body = do
       context
       (createInvitation' tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body)
 
-createInvitationViaScimH :: JSON ::: JsonRequest NewUserScimInvitation -> (Handler r) Response
+createInvitationViaScimH ::
+  Members
+    '[ P.Error Twilio.ErrorResponse,
+       Twilio,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
+  JSON ::: JsonRequest NewUserScimInvitation ->
+  Handler r Response
 createInvitationViaScimH (_ ::: req) = do
   body <- parseJsonBody req
   setStatus status201 . json <$> createInvitationViaScim body
 
-createInvitationViaScim :: NewUserScimInvitation -> (Handler r) UserAccount
+createInvitationViaScim ::
+  Members
+    '[ P.Error Twilio.ErrorResponse,
+       Twilio,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
+  NewUserScimInvitation ->
+  Handler r UserAccount
 createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
   env <- ask
   let inviteeRole = Team.defaultRole
@@ -330,7 +381,19 @@ logInvitationRequest context action =
         Log.info $ (context . logInvitationCode code) . Log.msg @Text "Successfully created invitation"
         pure (Right result)
 
-createInvitation' :: TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> (Handler r) (Public.Invitation, Public.InvitationCode)
+createInvitation' ::
+  Members
+    '[ P.Error Twilio.ErrorResponse,
+       Twilio,
+       UserKeyStore
+     ]
+    r =>
+  TeamId ->
+  Public.Role ->
+  Maybe UserId ->
+  Email ->
+  Public.InvitationRequest ->
+  Handler r (Public.Invitation, Public.InvitationCode)
 createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
   --             sendActivationCode. Refactor this to a single place
@@ -341,18 +404,21 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   blacklistedEm <- lift $ wrapClient $ Blacklist.exists uke
   when blacklistedEm $
     throwStd blacklistedEmail
-  emailTaken <- lift $ isJust <$> wrapClient (Data.lookupKey uke)
+  emailTaken <- lift $ isJust <$> liftSem (Data.getKey uke)
   when emailTaken $
     throwStd emailExists
 
   -- Validate phone
   inviteePhone <- for (irInviteePhone body) $ \p -> do
-    validatedPhone <- maybe (throwStd (errorToWai @'E.InvalidPhone)) pure =<< lift (wrapClient $ Phone.validatePhone p)
+    c <- view twilioCreds
+    m <- view httpManager
+    validatedPhone <-
+      maybe (throwStd (errorToWai @'E.InvalidPhone)) pure =<< lift (liftSem $ Phone.validatePhone c m p)
     let ukp = userPhoneKey validatedPhone
     blacklistedPh <- lift $ wrapClient $ Blacklist.exists ukp
     when blacklistedPh $
       throwStd (errorToWai @'E.BlacklistedPhone)
-    phoneTaken <- lift $ isJust <$> wrapClient (Data.lookupKey ukp)
+    phoneTaken <- lift $ isJust <$> liftSem (Data.getKey ukp)
     when phoneTaken $
       throwStd phoneExists
     pure validatedPhone

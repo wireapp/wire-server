@@ -26,14 +26,12 @@ module Brig.Phone
     -- * Validation
     validatePhone,
 
-    -- * Unique Keys
+    -- * Re-exports
+    Phone (..),
     PhoneKey,
     mkPhoneKey,
     phoneKeyUniq,
     phoneKeyOrig,
-
-    -- * Re-exports
-    Phone (..),
   )
 where
 
@@ -41,6 +39,7 @@ import Bilge.Retry (httpHandlers)
 import Brig.App
 import Brig.Sem.BudgetStore
 import Brig.Sem.BudgetStore.Cassandra
+import Brig.Sem.Twilio
 import Brig.Types
 import Cassandra (MonadClient)
 import Control.Lens (view)
@@ -48,11 +47,13 @@ import Control.Monad.Catch
 import Control.Retry
 import Data.LanguageCodes
 import qualified Data.Metrics as Metrics
+import Data.String.Conversions
 import qualified Data.Text as Text
 import Data.Time.Clock
 import Imports
 import Network.HTTP.Client (HttpException, Manager)
 import Polysemy
+import qualified Polysemy.Error as P
 import qualified Ropes.Nexmo as Nexmo
 import Ropes.Twilio (LookupDetail (..))
 import qualified Ropes.Twilio as Twilio
@@ -204,21 +205,19 @@ sendSms loc SMSMessage {..} = unless (isTestPhone smsTo) $ do
 
 -- | Validate a phone number. Returns the canonical
 -- E.164 format of the given phone number on success.
-validatePhone :: (MonadClient m, MonadReader Env m) => Phone -> m (Maybe Phone)
-validatePhone (Phone p)
+validatePhone ::
+  Members '[P.Error Twilio.ErrorResponse, Twilio] r =>
+  Twilio.Credentials ->
+  Manager ->
+  Phone ->
+  Sem r (Maybe Phone)
+validatePhone c m (Phone p)
   | isTestPhone p = pure (Just (Phone p))
   | otherwise = do
-    c <- view twilioCreds
-    m <- view httpManager
-    r <-
-      liftIO . try @_ @Twilio.ErrorResponse $
-        recovering x3 httpHandlers $
-          const $
-            Twilio.lookupPhone c m p LookupNoDetail Nothing
-    case r of
+    lookupPhone c m p LookupNoDetail Nothing >>= \case
       Right x -> pure (Just (Phone (Twilio.lookupE164 x)))
       Left e | Twilio.errStatus e == 404 -> pure Nothing
-      Left e -> throwM e
+      Left e -> P.throw e
 
 isTestPhone :: Text -> Bool
 isTestPhone = Text.isPrefixOf "+0"
@@ -294,27 +293,6 @@ withCallBudget phone go = do
           ~~ field "budget" b
           ~~ field "phone" phone
       pure a
-
---------------------------------------------------------------------------------
--- Unique Keys
-
-data PhoneKey = PhoneKey
-  { -- | canonical form of 'phoneKeyOrig', without whitespace.
-    phoneKeyUniq :: !Text,
-    -- | phone number with whitespace.
-    phoneKeyOrig :: !Phone
-  }
-
-instance Show PhoneKey where
-  showsPrec _ = shows . phoneKeyUniq
-
-instance Eq PhoneKey where
-  (PhoneKey k _) == (PhoneKey k' _) = k == k'
-
-mkPhoneKey :: Phone -> PhoneKey
-mkPhoneKey orig =
-  let uniq = Text.filter (not . isSpace) (fromPhone orig)
-   in PhoneKey uniq orig
 
 -------------------------------------------------------------------------------
 -- Retry Settings

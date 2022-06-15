@@ -20,10 +20,10 @@
 module Brig.Sem.GalleyAccess where
 
 import Data.Id
-import Imports
 import Polysemy
+import Wire.API.Team.Feature
 
 data GalleyAccess m a where
-  GetTeamSndFactorPasswordChallenge :: TeamId -> GalleyAccess m TeamFeatureEnabled
+  GetTeamSndFactorPasswordChallenge :: TeamId -> GalleyAccess m TeamFeatureStatusValue
 
 makeSem ''GalleyAccess

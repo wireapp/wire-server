@@ -29,6 +29,7 @@ import qualified Brig.Data.User as DB
 import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opts
+import Brig.Sem.UserHandleStore
 import Brig.Team.Util (ensurePermissions)
 import Brig.Types.Search as Search
 import qualified Brig.User.API.Handle as HandleAPI
@@ -51,6 +52,7 @@ import Network.Wai.Routing
 import Network.Wai.Utilities ((!>>))
 import Network.Wai.Utilities.Response (empty, json)
 import Network.Wai.Utilities.Swagger (document)
+import Polysemy
 import System.Logger (field, msg)
 import System.Logger.Class (val, (~~))
 import qualified System.Logger.Class as Log
@@ -122,7 +124,13 @@ routesInternal = do
 
 -- FUTUREWORK: Consider augmenting 'SearchResult' with full user profiles
 -- for all results. This is tracked in https://wearezeta.atlassian.net/browse/SQCORE-599
-search :: UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> (Handler r) (Public.SearchResult Public.Contact)
+search ::
+  Members '[UserHandleStore] r =>
+  UserId ->
+  Text ->
+  Maybe Domain ->
+  Maybe (Range 1 500 Int32) ->
+  Handler r (Public.SearchResult Public.Contact)
 search searcherId searchTerm maybeDomain maybeMaxResults = do
   federationDomain <- viewFederationDomain
   let queryDomain = fromMaybe federationDomain maybeDomain
@@ -148,7 +156,13 @@ searchRemotely domain searchTerm = do
         searchPolicy = S.searchPolicy searchResponse
       }
 
-searchLocally :: UserId -> Text -> Maybe (Range 1 500 Int32) -> (Handler r) (Public.SearchResult Public.Contact)
+searchLocally ::
+  forall r.
+  Members '[UserHandleStore] r =>
+  UserId ->
+  Text ->
+  Maybe (Range 1 500 Int32) ->
+  Handler r (Public.SearchResult Public.Contact)
 searchLocally searcherId searchTerm maybeMaxResults = do
   let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
   searcherTeamId <- lift $ wrapClient $ DB.lookupUserTeam searcherId
@@ -189,7 +203,7 @@ searchLocally searcherId searchTerm maybeMaxResults = do
               -- For team users, we need to check the visibility flag
               handleTeamVisibility t <$> wrapHttp (Intra.getTeamSearchVisibility t)
 
-    exactHandleSearch :: (Handler r) (Maybe Contact)
+    exactHandleSearch :: Handler r (Maybe Contact)
     exactHandleSearch = do
       lsearcherId <- qualifyLocal searcherId
       case parseHandle searchTerm of

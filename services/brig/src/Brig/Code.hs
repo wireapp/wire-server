@@ -1,5 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -52,9 +50,9 @@ module Brig.Code
     mkKey,
 
     -- * Storage
-    insert,
-    lookup,
-    verify,
+    insertCode,
+    getPendingCode,
+    verifyCode,
     delete,
   )
 where
@@ -62,7 +60,19 @@ where
 import Brig.Data.Instances ()
 import Brig.Email (emailKeyUniq, mkEmailKey)
 import Brig.Phone (mkPhoneKey, phoneKeyUniq)
-import Brig.Types (Email, Phone)
+import Brig.Sem.VerificationCodeStore
+  ( Code (..),
+    CodeFor (..),
+    Retries (..),
+    Scope (..),
+    codeForEmail,
+    codeForPhone,
+    getPendingCode,
+    insertCode,
+    verifyCode,
+  )
+import Brig.Sem.VerificationCodeStore.Cassandra ()
+import Brig.Types (Email)
 import Brig.Types.Code (Key (..), KeyValuePair (..), Timeout (..), Value (..))
 import Cassandra hiding (Value)
 import qualified Data.ByteString as BS
@@ -81,78 +91,11 @@ import qualified Wire.API.User as User
 --------------------------------------------------------------------------------
 -- Code
 
-data Code = Code
-  { codeKey :: !Key,
-    codeScope :: !Scope,
-    codeValue :: !Value,
-    codeRetries :: !Retries,
-    codeTTL :: !Timeout,
-    codeFor :: !CodeFor,
-    codeAccount :: !(Maybe UUID)
-  }
-  deriving (Eq, Show)
-
-data CodeFor
-  = ForEmail !Email
-  | ForPhone !Phone
-  deriving (Eq, Show)
-
-codeForEmail :: Code -> Maybe Email
-codeForEmail c
-  | ForEmail e <- codeFor c = Just e
-  | otherwise = Nothing
-
-codeForPhone :: Code -> Maybe Phone
-codeForPhone c
-  | ForPhone p <- codeFor c = Just p
-  | otherwise = Nothing
-
 scopeFromAction :: User.VerificationAction -> Scope
 scopeFromAction = \case
   User.CreateScimToken -> CreateScimToken
   User.Login -> AccountLogin
   User.DeleteTeam -> DeleteTeam
-
--- | The same 'Key' can exist with different 'Value's in different
--- 'Scope's at the same time.
-data Scope
-  = AccountDeletion
-  | IdentityVerification
-  | PasswordReset
-  | AccountLogin
-  | AccountApproval
-  | CreateScimToken
-  | DeleteTeam
-  deriving (Eq, Show)
-
-instance Cql Scope where
-  ctype = Tagged IntColumn
-
-  toCql AccountDeletion = CqlInt 1
-  toCql IdentityVerification = CqlInt 2
-  toCql PasswordReset = CqlInt 3
-  toCql AccountLogin = CqlInt 4
-  toCql AccountApproval = CqlInt 5
-  toCql CreateScimToken = CqlInt 6
-  toCql DeleteTeam = CqlInt 7
-
-  fromCql (CqlInt 1) = pure AccountDeletion
-  fromCql (CqlInt 2) = pure IdentityVerification
-  fromCql (CqlInt 3) = pure PasswordReset
-  fromCql (CqlInt 4) = pure AccountLogin
-  fromCql (CqlInt 5) = pure AccountApproval
-  fromCql (CqlInt 6) = pure CreateScimToken
-  fromCql (CqlInt 7) = pure DeleteTeam
-  fromCql _ = Left "fromCql: Scope: int expected"
-
-newtype Retries = Retries {numRetries :: Word8}
-  deriving (Eq, Show, Ord, Num, Integral, Enum, Real)
-
-instance Cql Retries where
-  ctype = Tagged IntColumn
-  toCql = CqlInt . fromIntegral . numRetries
-  fromCql (CqlInt n) = pure (Retries (fromIntegral n))
-  fromCql _ = Left "fromCql: Retries: int expected"
 
 --------------------------------------------------------------------------------
 -- Generation
@@ -312,24 +255,3 @@ delete k s = retry x5 $ write cql (params LocalQuorum (k, s))
   where
     cql :: PrepQuery W (Key, Scope) ()
     cql = "DELETE FROM vcodes WHERE key = ? AND scope = ?"
-
---------------------------------------------------------------------------------
--- Internal
-
-toCode :: Key -> Scope -> (Value, Int32, Retries, Maybe Email, Maybe Phone, Maybe UUID) -> Code
-toCode k s (val, ttl, retries, email, phone, account) =
-  let ek = ForEmail <$> email
-      pk = ForPhone <$> phone
-      to = Timeout (fromIntegral ttl)
-   in case ek <|> pk of
-        Nothing -> error "toCode: email or phone must be present"
-        Just cf ->
-          Code
-            { codeKey = k,
-              codeScope = s,
-              codeValue = val,
-              codeTTL = to,
-              codeRetries = retries,
-              codeFor = cf,
-              codeAccount = account
-            }

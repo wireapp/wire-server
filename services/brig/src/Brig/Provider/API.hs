@@ -48,6 +48,7 @@ import qualified Brig.Provider.RPC as RPC
 import qualified Brig.Queue as Queue
 import Brig.Sem.UserQuery (UserQuery)
 import Brig.Sem.UserQuery.Cassandra
+import Brig.Sem.VerificationCodeStore
 import Brig.Team.Util
 import Brig.Types.Client (Client (..), ClientType (..), newClient, newClientPrekeys)
 import Brig.Types.Intra (AccountStatus (..), UserAccount (..))
@@ -120,7 +121,7 @@ import qualified Wire.API.User.Client.Prekey as Public (PrekeyId)
 import qualified Wire.API.User.Identity as Public (Email)
 
 routesPublic ::
-  Member UserQuery r =>
+  Members '[UserQuery, VerificationCodeStore] r =>
   Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   -- Public API (Unauthenticated) --------------------------------------------
@@ -320,7 +321,9 @@ routesPublic = do
       .&> zauth ZAuthBot
       .&> capture "uid"
 
-routesInternal :: Routes a (Handler r) ()
+routesInternal ::
+  Members '[VerificationCodeStore] r =>
+  Routes a (Handler r) ()
 routesInternal = do
   get "/i/provider/activation-code" (continue getActivationCodeH) $
     accept "application" "json"
@@ -329,12 +332,18 @@ routesInternal = do
 --------------------------------------------------------------------------------
 -- Public API (Unauthenticated)
 
-newAccountH :: JsonRequest Public.NewProvider -> (Handler r) Response
+newAccountH ::
+  Members '[VerificationCodeStore] r =>
+  JsonRequest Public.NewProvider ->
+  Handler r Response
 newAccountH req = do
   mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
   setStatus status201 . json <$> (newAccount =<< parseJsonBody req)
 
-newAccount :: Public.NewProvider -> (Handler r) Public.NewProviderResponse
+newAccount ::
+  Members '[VerificationCodeStore] r =>
+  Public.NewProvider ->
+  Handler r Public.NewProviderResponse
 newAccount new = do
   email <- case validateEmail (Public.newProviderEmail new) of
     Right em -> pure em
@@ -360,20 +369,27 @@ newAccount new = do
       (Code.Retries 3)
       (Code.Timeout (3600 * 24)) -- 24h
       (Just (toUUID pid))
-  wrapClientE $ Code.insert code
+  lift . liftSem $ Code.insertCode code
   let key = Code.codeKey code
   let val = Code.codeValue code
   lift $ sendActivationMail name email key val False
   pure $ Public.NewProviderResponse pid newPass
 
-activateAccountKeyH :: Code.Key ::: Code.Value -> (Handler r) Response
+activateAccountKeyH ::
+  Members '[VerificationCodeStore] r =>
+  Code.Key ::: Code.Value ->
+  Handler r Response
 activateAccountKeyH (key ::: val) = do
   mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
   maybe (setStatus status204 empty) json <$> activateAccountKey key val
 
-activateAccountKey :: Code.Key -> Code.Value -> (Handler r) (Maybe Public.ProviderActivationResponse)
+activateAccountKey ::
+  Members '[VerificationCodeStore] r =>
+  Code.Key ->
+  Code.Value ->
+  Handler r (Maybe Public.ProviderActivationResponse)
 activateAccountKey key val = do
-  c <- wrapClientE (Code.verify key Code.IdentityVerification val) >>= maybeInvalidCode
+  c <- (lift . liftSem) (Code.verifyCode key Code.IdentityVerification val) >>= maybeInvalidCode
   (pid, email) <- case (Code.codeAccount c, Code.codeForEmail c) of
     (Just p, Just e) -> pure (Id p, e)
     _ -> throwStd (errorToWai @'InvalidCode)
@@ -393,18 +409,24 @@ activateAccountKey key val = do
       lift $ sendApprovalConfirmMail name email
       pure . Just $ Public.ProviderActivationResponse email
 
-getActivationCodeH :: Public.Email -> (Handler r) Response
+getActivationCodeH ::
+  Members '[VerificationCodeStore] r =>
+  Public.Email ->
+  Handler r Response
 getActivationCodeH e = do
   mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
   json <$> getActivationCode e
 
-getActivationCode :: Public.Email -> (Handler r) FoundActivationCode
+getActivationCode ::
+  Members '[VerificationCodeStore] r =>
+  Public.Email ->
+  Handler r FoundActivationCode
 getActivationCode e = do
   email <- case validateEmail e of
     Right em -> pure em
     Left _ -> throwStd (errorToWai @'InvalidEmail)
   gen <- Code.mkGen (Code.ForEmail email)
-  code <- wrapClientE $ Code.lookup (Code.genKey gen) Code.IdentityVerification
+  code <- lift . liftSem $ Code.getPendingCode (Code.genKey gen) Code.IdentityVerification
   maybe (throwStd activationKeyNotFound) (pure . FoundActivationCode) code
 
 newtype FoundActivationCode = FoundActivationCode Code.Code
@@ -414,14 +436,21 @@ instance ToJSON FoundActivationCode where
     toJSON $
       Code.KeyValuePair (Code.codeKey vcode) (Code.codeValue vcode)
 
-approveAccountKeyH :: Code.Key ::: Code.Value -> (Handler r) Response
+approveAccountKeyH ::
+  Members '[VerificationCodeStore] r =>
+  Code.Key ::: Code.Value ->
+  Handler r Response
 approveAccountKeyH (key ::: val) = do
   mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
   empty <$ approveAccountKey key val
 
-approveAccountKey :: Code.Key -> Code.Value -> (Handler r) ()
+approveAccountKey ::
+  Members '[VerificationCodeStore] r =>
+  Code.Key ->
+  Code.Value ->
+  Handler r ()
 approveAccountKey key val = do
-  c <- wrapClientE (Code.verify key Code.AccountApproval val) >>= maybeInvalidCode
+  c <- (lift . liftSem) (Code.verifyCode key Code.AccountApproval val) >>= maybeInvalidCode
   case (Code.codeAccount c, Code.codeForEmail c) of
     (Just pid, Just email) -> do
       (name, _, _, _) <- wrapClientE (DB.lookupAccountData (Id pid)) >>= maybeInvalidCode
@@ -443,16 +472,22 @@ login l = do
     throwStd (errorToWai @'BadCredentials)
   ZAuth.newProviderToken pid
 
-beginPasswordResetH :: JsonRequest Public.PasswordReset -> (Handler r) Response
+beginPasswordResetH ::
+  Members '[VerificationCodeStore] r =>
+  JsonRequest Public.PasswordReset ->
+  Handler r Response
 beginPasswordResetH req = do
   mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
   setStatus status201 empty <$ (beginPasswordReset =<< parseJsonBody req)
 
-beginPasswordReset :: Public.PasswordReset -> (Handler r) ()
+beginPasswordReset ::
+  Members '[VerificationCodeStore] r =>
+  Public.PasswordReset ->
+  Handler r ()
 beginPasswordReset (Public.PasswordReset target) = do
   pid <- wrapClientE (DB.lookupKey (mkEmailKey target)) >>= maybeBadCredentials
   gen <- Code.mkGen (Code.ForEmail target)
-  pending <- lift . wrapClient $ Code.lookup (Code.genKey gen) Code.PasswordReset
+  pending <- lift . liftSem $ Code.getPendingCode (Code.genKey gen) Code.PasswordReset
   code <- case pending of
     Just p -> throwE $ pwResetError (PasswordResetInProgress . Just $ Code.codeTTL p)
     Nothing ->
@@ -462,17 +497,23 @@ beginPasswordReset (Public.PasswordReset target) = do
         (Code.Retries 3)
         (Code.Timeout 3600) -- 1h
         (Just (toUUID pid))
-  wrapClientE $ Code.insert code
+  lift . liftSem $ Code.insertCode code
   lift $ sendPasswordResetMail target (Code.codeKey code) (Code.codeValue code)
 
-completePasswordResetH :: JsonRequest Public.CompletePasswordReset -> (Handler r) Response
+completePasswordResetH ::
+  Members '[VerificationCodeStore] r =>
+  JsonRequest Public.CompletePasswordReset ->
+  Handler r Response
 completePasswordResetH req = do
   mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
   empty <$ (completePasswordReset =<< parseJsonBody req)
 
-completePasswordReset :: Public.CompletePasswordReset -> (Handler r) ()
+completePasswordReset ::
+  Members '[VerificationCodeStore] r =>
+  Public.CompletePasswordReset ->
+  Handler r ()
 completePasswordReset (Public.CompletePasswordReset key val newpwd) = do
-  code <- wrapClientE (Code.verify key Code.PasswordReset val) >>= maybeInvalidCode
+  code <- (lift . liftSem) (Code.verifyCode key Code.PasswordReset val) >>= maybeInvalidCode
   case Id <$> Code.codeAccount code of
     Nothing -> throwE $ pwResetError InvalidPasswordResetCode
     Just pid -> do
@@ -511,12 +552,19 @@ updateAccountProfile pid upd = do
       (updateProviderUrl upd)
       (updateProviderDescr upd)
 
-updateAccountEmailH :: ProviderId ::: JsonRequest Public.EmailUpdate -> (Handler r) Response
+updateAccountEmailH ::
+  Members '[VerificationCodeStore] r =>
+  ProviderId ::: JsonRequest Public.EmailUpdate ->
+  Handler r Response
 updateAccountEmailH (pid ::: req) = do
   mapExceptT wrapHttp $ guardSecondFactorDisabled Nothing
   setStatus status202 empty <$ (updateAccountEmail pid =<< parseJsonBody req)
 
-updateAccountEmail :: ProviderId -> Public.EmailUpdate -> (Handler r) ()
+updateAccountEmail ::
+  Members '[VerificationCodeStore] r =>
+  ProviderId ->
+  Public.EmailUpdate ->
+  Handler r ()
 updateAccountEmail pid (Public.EmailUpdate new) = do
   email <- case validateEmail new of
     Right em -> pure em
@@ -531,7 +579,7 @@ updateAccountEmail pid (Public.EmailUpdate new) = do
       (Code.Retries 3)
       (Code.Timeout (3600 * 24)) -- 24h
       (Just (toUUID pid))
-  wrapClientE $ Code.insert code
+  lift . liftSem $ Code.insertCode code
   lift $ sendActivationMail (Name "name") email (Code.codeKey code) (Code.codeValue code) True
 
 updateAccountPasswordH :: ProviderId ::: JsonRequest Public.PasswordChange -> (Handler r) Response
@@ -950,7 +998,7 @@ addBot zuid zcon cid add = do
         (newClient PermanentClientType (Ext.rsNewBotLastPrekey rs))
           { newClientPrekeys = Ext.rsNewBotPrekeys rs
           }
-  lift $ wrapClient $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True
+  lift . liftSem $ User.insertAccount (UserAccount usr Active) (Just (cid, cnvTeam cnv)) Nothing True
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
   (clt, _, _) <- do
     _ <- do

@@ -54,11 +54,6 @@ userEmailKey = UserEmailKey . mkEmailKey
 userPhoneKey :: Phone -> UserKey
 userPhoneKey = UserPhoneKey . mkPhoneKey
 
-foldKey :: (Email -> a) -> (Phone -> a) -> UserKey -> a
-foldKey f g k = case k of
-  UserEmailKey ek -> f (emailKeyOrig ek)
-  UserPhoneKey pk -> g (phoneKeyOrig pk)
-
 forEmailKey :: Applicative f => UserKey -> (Email -> f a) -> f (Maybe a)
 forEmailKey k f = foldKey (fmap Just . f) (const (pure Nothing)) k
 

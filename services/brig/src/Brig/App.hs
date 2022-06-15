@@ -95,14 +95,32 @@ import Brig.Provider.Template
 import qualified Brig.Queue.Stomp as Stomp
 import Brig.Queue.Types (Queue (..))
 import qualified Brig.SMTP as SMTP
+import Brig.Sem.ActivationKeyStore (ActivationKeyStore)
+import Brig.Sem.ActivationKeyStore.Cassandra
+import Brig.Sem.ActivationSupply (ActivationSupply)
+import Brig.Sem.ActivationSupply.IO
+import Brig.Sem.BudgetStore (BudgetStore)
+import Brig.Sem.BudgetStore.Cassandra
 import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.CodeStore.Cassandra
+import Brig.Sem.GalleyAccess (GalleyAccess)
+import Brig.Sem.GalleyAccess.Http
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetStore.CodeStore
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
 import Brig.Sem.PasswordResetSupply.IO
+import Brig.Sem.Twilio
+import Brig.Sem.Twilio.IO
+import Brig.Sem.UniqueClaimsStore (UniqueClaimsStore)
+import Brig.Sem.UniqueClaimsStore.Cassandra
+import Brig.Sem.UserHandleStore (UserHandleStore)
+import Brig.Sem.UserHandleStore.Cassandra
+import Brig.Sem.UserKeyStore (UserKeyStore)
+import Brig.Sem.UserKeyStore.Cassandra
 import Brig.Sem.UserQuery (ReAuthError, UserQuery)
 import Brig.Sem.UserQuery.Cassandra
+import Brig.Sem.VerificationCodeStore (VerificationCodeStore)
+import Brig.Sem.VerificationCodeStore.Cassandra
 import Brig.Team.Template
 import Brig.Template (Localised, TemplateBranding, forLocale, genTemplateBranding)
 import Brig.Types (Locale (..))
@@ -130,6 +148,7 @@ import Data.Metrics (Metrics)
 import qualified Data.Metrics.Middleware as Metrics
 import Data.Misc
 import Data.Qualified
+import Data.String.Conversions
 import Data.Text (unpack)
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
@@ -141,14 +160,20 @@ import qualified Database.Bloodhound as ES
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
+import Network.HTTP.Types.Status
+import qualified Network.Wai.Utilities.Error as Wai
 import OpenSSL.EVP.Digest (Digest, getDigestByName)
 import OpenSSL.Session (SSLOption (..))
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL
 import Polysemy
+import Polysemy.Async
+import Polysemy.Conc.Effect.Race
+import Polysemy.Conc.Interpreter.Race
 import qualified Polysemy.Error as P
 import Polysemy.Final
 import Polysemy.Input
+import Polysemy.Resource
 import qualified Polysemy.TinyLog as P
 import qualified Ropes.Nexmo as Nexmo
 import qualified Ropes.Twilio as Twilio
@@ -449,14 +474,28 @@ closeEnv e = do
 -- App Monad
 
 type BrigCanonicalEffects =
-  '[ UserQuery,
+  '[ VerificationCodeStore,
+     UserKeyStore,
+     UserHandleStore,
+     Twilio,
+     ActivationKeyStore,
+     ActivationSupply,
+     UniqueClaimsStore,
+     GalleyAccess,
+     Embed HttpClientIO,
+     UserQuery,
      PasswordResetStore,
      Now,
      PasswordResetSupply,
      CodeStore,
+     BudgetStore,
      P.TinyLog,
      Input (Local ()),
+     Async,
+     Race,
+     Resource,
      Embed Cas.Client,
+     P.Error Twilio.ErrorResponse,
      P.Error ReAuthError,
      Embed IO,
      Final IO
@@ -630,21 +669,66 @@ interpretWaiErrorToException ::
   Sem r a
 interpretWaiErrorToException = interpretErrorToException toWai
 
+twilioToWai :: Twilio.ErrorResponse -> Wai.Error
+twilioToWai e =
+  Wai.Error
+    { Wai.code = Status (Twilio.errStatus e) "",
+      Wai.label = "twilio-error",
+      Wai.message = cs . Twilio.errMessage $ e,
+      Wai.errorData = Nothing
+    }
+
 runAppT :: Env -> AppT BrigCanonicalEffects a -> IO a
 runAppT e (AppT ma) =
   runFinal
     . embedToFinal
     . interpretWaiErrorToException
+    . interpretErrorToException twilioToWai
     . interpretClientToIO (_casClient e)
+    . resourceToIO
+    . interpretRace
+    . asyncToIO
     . runInputConst (toLocalUnsafe (Opt.setFederationDomain . _settings $ e) ())
     . loggerToTinyLogReqId (view requestId e) (view applog e)
+    . budgetStoreToCassandra @Cas.Client
     . codeStoreToCassandra @Cas.Client
     . passwordResetSupplyToIO
     . nowToIOAction (_currentTime e)
     . passwordResetStoreToCodeStore
     . userQueryToCassandra @Cas.Client
+    . interpretHttpToIO e
+    . galleyAccessToHttp @HttpClientIO (_galley e)
+    . uniqueClaimsStoreToCassandra @Cas.Client
+    . activationSupplyToIO
+    . activationKeyStoreToCassandra @Cas.Client
+    . twilioToIO
+    . userHandleStoreToCassandra @Cas.Client
+    . userKeyStoreToCassandra @Cas.Client
+    . verificationCodeStoreToCassandra @Cas.Client
     $ runReaderT ma e
 
+interpretHttpToIO ::
+  Member (Final IO) r =>
+  Env ->
+  Sem (Embed HttpClientIO ': r) a ->
+  Sem r a
+interpretHttpToIO e = interpret $ \case
+  Embed action -> embedFinal @IO $ do
+    let ctx = _casClient e
+        manager = _httpManager e
+    runClient ctx
+      . runHttpT manager
+      . flip runReaderT e
+      . runHttpClientIO
+      $ action
+
+-- interpretClientToIO ::
+--   Member (Final IO) r =>
+--   ClientState ->
+--   Sem (Embed Cassandra.Client ': r) a ->
+--   Sem r a
+-- interpretClientToIO ctx = interpret $ \case
+--   Embed action -> embedFinal @IO $ runClient ctx action
 locationOf :: (MonadIO m, MonadReader Env m) => IP -> m (Maybe Location)
 locationOf ip =
   view geoDb >>= \case

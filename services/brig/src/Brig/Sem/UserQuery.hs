@@ -34,6 +34,7 @@ module Brig.Sem.UserQuery
     insertAccount,
     updateUser,
     updateEmail,
+    updateHandle,
     updatePhone,
     activateUser,
     deleteEmailUnvalidated,
@@ -269,6 +270,16 @@ toIdentity False _ _ _ = Nothing
 -------------------------------------------------------------------------------
 
 data UserQuery m a where
+  -- FUTUREWORK: The 'InsertAccount' action should perhaps be in an account store effect
+  InsertAccount ::
+    UserAccount ->
+    -- | If a bot: conversation and team
+    --   (if a team conversation)
+    Maybe (ConvId, Maybe TeamId) ->
+    Maybe Password ->
+    -- | Whether the user is activated
+    Bool ->
+    UserQuery m ()
   GetId :: UserId -> UserQuery m (Maybe UserId) -- idSelect
   GetUsers :: [UserId] -> UserQuery m [UserRow] -- usersSelect
   GetName :: UserId -> UserQuery m (Maybe Name) -- nameSelect
@@ -284,18 +295,9 @@ data UserQuery m a where
   -- | Whether the account has been activated by verifying an email address or
   -- phone number.
   IsActivated :: UserId -> UserQuery m Bool
-  -- FUTUREWORK: The 'InsertAccount' action should perhaps be in an account store effect
-  InsertAccount ::
-    UserAccount ->
-    -- | If a bot: conversation and team
-    --   (if a team conversation)
-    Maybe (ConvId, Maybe TeamId) ->
-    Maybe Password ->
-    -- | Whether the user is activated
-    Bool ->
-    UserQuery m ()
   UpdateUser :: UserId -> UserUpdate -> UserQuery m ()
   UpdateEmail :: UserId -> Email -> UserQuery m ()
+  UpdateHandle :: UserId -> Handle -> UserQuery m ()
   UpdatePhone :: UserId -> Phone -> UserQuery m ()
   ActivateUser :: UserId -> UserIdentity -> UserQuery m ()
   DeleteEmailUnvalidated :: UserId -> UserQuery m ()

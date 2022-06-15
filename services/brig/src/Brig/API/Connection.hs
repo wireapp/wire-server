@@ -61,9 +61,12 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
 
-ensureIsActivated :: Local UserId -> MaybeT (AppT r) ()
+ensureIsActivated ::
+  Member UserQuery r =>
+  Local UserId ->
+  MaybeT (AppT r) ()
 ensureIsActivated lusr = do
-  active <- lift . wrapClient $ Data.isActivated (tUnqualified lusr)
+  active <- lift . liftSem $ Data.isActivated (tUnqualified lusr)
   guard active
 
 ensureNotSameTeam :: Local UserId -> Local UserId -> (ConnectionM r) ()

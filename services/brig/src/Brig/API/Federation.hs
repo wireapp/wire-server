@@ -32,10 +32,11 @@ import Brig.App
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import Brig.IO.Intra (notify)
+import Brig.Sem.UserHandleStore
+import Brig.Sem.UserQuery
 import Brig.Types (PrekeyBundle, Relation (Accepted))
 import Brig.Types.User.Event
 import Brig.User.API.Handle
-import Brig.User.Search.Index
 import qualified Brig.User.Search.SearchIndex as Q
 import Cassandra (MonadClient)
 import Control.Error.Util
@@ -51,6 +52,7 @@ import Data.Range
 import qualified Gundeck.Types.Push as Push
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
+import Polysemy
 import Servant (ServerT)
 import Servant.API
 import qualified System.Logger.Class as Log
@@ -71,23 +73,29 @@ import Wire.API.UserMap (UserMap)
 
 type FederationAPI = "federation" :> BrigApi
 
-federationSitemap :: ServerT FederationAPI (Handler r)
+federationSitemap ::
+  Members '[UserHandleStore, UserQuery] r =>
+  ServerT FederationAPI (Handler r)
 federationSitemap =
   Named @"api-version" (\_ _ -> pure versionInfo)
-    :<|> Named @"get-user-by-handle" (\d h -> wrapHttpClientE $ getUserByHandle d h)
+    :<|> Named @"get-user-by-handle" getUserByHandle
     :<|> Named @"get-users-by-ids" (\d us -> wrapHttpClientE $ getUsersByIds d us)
     :<|> Named @"claim-prekey" claimPrekey
     :<|> Named @"claim-prekey-bundle" claimPrekeyBundle
     :<|> Named @"claim-multi-prekey-bundle" claimMultiPrekeyBundle
-    :<|> Named @"search-users" (\d sr -> wrapHttpClientE $ searchUsers d sr)
+    :<|> Named @"search-users" searchUsers
     :<|> Named @"get-user-clients" getUserClients
     :<|> Named @"send-connection-action" sendConnectionAction
     :<|> Named @"on-user-deleted-connections" onUserDeleted
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
 
-sendConnectionAction :: Domain -> NewConnectionRequest -> Handler r NewConnectionResponse
+sendConnectionAction ::
+  Members '[UserQuery] r =>
+  Domain ->
+  NewConnectionRequest ->
+  Handler r NewConnectionResponse
 sendConnectionAction originDomain NewConnectionRequest {..} = do
-  active <- lift $ wrapClient $ Data.isActivated ncrTo
+  active <- lift . liftSem $ Data.isActivated ncrTo
   if active
     then do
       self <- qualifyLocal ncrTo
@@ -98,16 +106,10 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
     else pure NewConnectionResponseUserNotActivated
 
 getUserByHandle ::
-  ( HasRequestId m,
-    Log.MonadLogger m,
-    MonadClient m,
-    MonadHttp m,
-    MonadMask m,
-    MonadReader Env m
-  ) =>
+  Members '[UserHandleStore] r =>
   Domain ->
   Handle ->
-  ExceptT Error m (Maybe UserProfile)
+  ExceptT Error (AppT r) (Maybe UserProfile)
 getUserByHandle domain handle = do
   searchPolicy <- lookupSearchPolicy domain
 
@@ -119,12 +121,12 @@ getUserByHandle domain handle = do
   if not performHandleLookup
     then pure Nothing
     else lift $ do
-      maybeOwnerId <- API.lookupHandle handle
+      maybeOwnerId <- liftSem $ API.lookupHandle handle
       case maybeOwnerId of
         Nothing ->
           pure Nothing
         Just ownerId ->
-          listToMaybe <$> API.lookupLocalProfiles Nothing [ownerId]
+          listToMaybe <$> wrapHttpClient (API.lookupLocalProfiles Nothing [ownerId])
 
 getUsersByIds ::
   ( MonadClient m,
@@ -162,18 +164,11 @@ fedClaimKeyPackages domain ckpr = do
 -- only search by exact handle search, not in elasticsearch.
 -- (This decision may change in the future)
 searchUsers ::
-  forall m.
-  ( HasRequestId m,
-    Log.MonadLogger m,
-    MonadClient m,
-    MonadHttp m,
-    MonadIndexIO m,
-    MonadMask m,
-    MonadReader Env m
-  ) =>
+  forall r.
+  Members '[UserHandleStore] r =>
   Domain ->
   SearchRequest ->
-  ExceptT Error m SearchResponse
+  ExceptT Error (AppT r) SearchResponse
 searchUsers domain (SearchRequest searchTerm) = do
   searchPolicy <- lift $ lookupSearchPolicy domain
 
@@ -187,25 +182,25 @@ searchUsers domain (SearchRequest searchTerm) = do
   contacts <- go [] maxResults searches
   pure $ SearchResponse contacts searchPolicy
   where
-    go :: [Contact] -> Int -> [Int -> ExceptT Error m [Contact]] -> ExceptT Error m [Contact]
+    go :: [Contact] -> Int -> [Int -> ExceptT Error (AppT r) [Contact]] -> ExceptT Error (AppT r) [Contact]
     go contacts _ [] = pure contacts
     go contacts maxResult (search : searches) = do
       contactsNew <- search maxResult
       go (contacts <> contactsNew) (maxResult - length contactsNew) searches
 
-    fullSearch :: Int -> ExceptT Error m [Contact]
+    fullSearch :: Int -> ExceptT Error (AppT r) [Contact]
     fullSearch n
       | n > 0 = lift $ searchResults <$> Q.searchIndex Q.FederatedSearch searchTerm n
       | otherwise = pure []
 
-    exactHandleSearch :: Int -> ExceptT Error m [Contact]
+    exactHandleSearch :: Int -> ExceptT Error (AppT r) [Contact]
     exactHandleSearch n
       | n > 0 = do
         let maybeHandle = parseHandle searchTerm
-        maybeOwnerId <- maybe (pure Nothing) (lift . API.lookupHandle) maybeHandle
+        maybeOwnerId <- maybe (pure Nothing) (lift . liftSem . API.lookupHandle) maybeHandle
         case maybeOwnerId of
           Nothing -> pure []
-          Just foundUser -> lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]
+          Just foundUser -> lift $ contactFromProfile <$$> wrapHttpClient (API.lookupLocalProfiles Nothing [foundUser])
       | otherwise = pure []
 
 getUserClients :: Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))

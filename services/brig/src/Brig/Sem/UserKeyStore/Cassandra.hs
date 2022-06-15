@@ -15,12 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Sem.UserKeyStore.Cassandra (keyStoreToCassandra) where
+module Brig.Sem.UserKeyStore.Cassandra (userKeyStoreToCassandra) where
 
-import Brig.Data.UserKey
-import Brig.Email
-import Brig.Phone
 import Brig.Sem.UserKeyStore
+import Brig.Types.Common
 import Cassandra
 import qualified Data.ByteString as B
 import Data.Id
@@ -30,12 +28,12 @@ import Imports
 import OpenSSL.EVP.Digest
 import Polysemy
 
-keyStoreToCassandra ::
+userKeyStoreToCassandra ::
   forall m r a.
   (MonadClient m, Member (Embed m) r) =>
   Sem (UserKeyStore ': r) a ->
   Sem r a
-keyStoreToCassandra =
+userKeyStoreToCassandra =
   interpret $
     embed @m . \case
       GetKey uid -> lookupKeyQuery uid

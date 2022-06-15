@@ -19,8 +19,7 @@
 
 module Brig.Sem.UserKeyStore where
 
-import Brig.Email
-import Brig.Phone
+import Brig.Types
 import Cassandra
 import Data.ByteString.Lazy
 import Data.Id
@@ -28,16 +27,6 @@ import qualified Data.Multihash.Digest as MH
 import Imports
 import OpenSSL.EVP.Digest
 import Polysemy
-
--- | A natural identifier (i.e. unique key) of a user.
-data UserKey
-  = UserEmailKey !EmailKey
-  | UserPhoneKey !PhoneKey
-
-instance Eq UserKey where
-  (UserEmailKey k) == (UserEmailKey k') = k == k'
-  (UserPhoneKey k) == (UserPhoneKey k') = k == k'
-  _ == _ = False
 
 newtype UserKeyHash = UserKeyHash MH.MultihashDigest
 
@@ -74,8 +63,3 @@ data UserKeyStore m a where
   DeleteKey :: Digest -> UserKey -> UserKeyStore m ()
 
 makeSem ''UserKeyStore
-
--- | Get the normalised text of a 'UserKey'.
-keyText :: UserKey -> Text
-keyText (UserEmailKey k) = emailKeyUniq k
-keyText (UserPhoneKey k) = phoneKeyUniq k

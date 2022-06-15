@@ -28,7 +28,15 @@ import qualified Brig.API.User as User
 import Brig.App
 import Brig.Options (setDefaultUserLocale)
 import Brig.Phone
+import Brig.Sem.ActivationKeyStore
+import Brig.Sem.ActivationSupply
+import Brig.Sem.BudgetStore
+import Brig.Sem.GalleyAccess
+import Brig.Sem.Twilio
+import Brig.Sem.UserHandleStore
+import Brig.Sem.UserKeyStore
 import Brig.Sem.UserQuery (UserQuery)
+import Brig.Sem.VerificationCodeStore
 import Brig.Types.Intra (ReAuthUser, reAuthCode, reAuthCodeAction, reAuthPassword)
 import Brig.Types.User.Auth
 import qualified Brig.User.Auth as Auth
@@ -64,6 +72,8 @@ import qualified Network.Wai.Utilities.Swagger as Doc
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import qualified Polysemy.TinyLog as P
+import qualified Ropes.Twilio as Twilio
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import qualified Wire.API.User as Public
@@ -71,7 +81,21 @@ import Wire.API.User.Auth as Public
 import Wire.Swagger as Doc (pendingLoginError)
 
 routesPublic ::
-  Member UserQuery r =>
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       BudgetStore,
+       Error Twilio.ErrorResponse,
+       GalleyAccess,
+       Input (Local ()),
+       P.TinyLog,
+       Twilio,
+       UserHandleStore,
+       UserKeyStore,
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
   Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   -- Note: this endpoint should always remain available at its unversioned
@@ -199,7 +223,16 @@ routesPublic = do
     Doc.errorResponse (errorToWai @'E.BadCredentials)
 
 routesInternal ::
-  Members '[Error ReAuthError, Input (Local ()), UserQuery] r =>
+  Members
+    '[ Error ReAuthError,
+       GalleyAccess,
+       Input (Local ()),
+       P.TinyLog,
+       UserKeyStore,
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
   Routes a (Handler r) ()
 routesInternal = do
   -- galley can query this endpoint at the right moment in the LegalHold flow
@@ -222,29 +255,57 @@ routesInternal = do
 
 -- Handlers
 
-sendLoginCodeH :: JsonRequest Public.SendLoginCode -> (Handler r) Response
+sendLoginCodeH ::
+  Members
+    '[ Error Twilio.ErrorResponse,
+       P.TinyLog,
+       UserKeyStore,
+       UserQuery,
+       Twilio
+     ]
+    r =>
+  JsonRequest Public.SendLoginCode ->
+  Handler r Response
 sendLoginCodeH req = do
   json <$> (sendLoginCode =<< parseJsonBody req)
 
-sendLoginCode :: Public.SendLoginCode -> (Handler r) Public.LoginCodeTimeout
+sendLoginCode ::
+  Members
+    '[ Error Twilio.ErrorResponse,
+       P.TinyLog,
+       UserKeyStore,
+       UserQuery,
+       Twilio
+     ]
+    r =>
+  Public.SendLoginCode ->
+  Handler r Public.LoginCodeTimeout
 sendLoginCode (Public.SendLoginCode phone call force) = do
   checkWhitelist (Right phone)
-  c <- wrapClientE (Auth.sendLoginCode phone call force) !>> sendLoginCodeError
+  c <- Auth.sendLoginCode phone call force !>> sendLoginCodeError
   pure $ Public.LoginCodeTimeout (pendingLoginTimeout c)
 
-getLoginCodeH :: JSON ::: Phone -> (Handler r) Response
+getLoginCodeH ::
+  Members '[P.TinyLog, UserKeyStore] r =>
+  JSON ::: Phone ->
+  Handler r Response
 getLoginCodeH (_ ::: phone) = json <$> getLoginCode phone
 
-getLoginCode :: Phone -> (Handler r) Public.PendingLoginCode
+getLoginCode ::
+  Members '[P.TinyLog, UserKeyStore] r =>
+  Phone ->
+  Handler r Public.PendingLoginCode
 getLoginCode phone = do
-  code <- lift $ wrapClient $ Auth.lookupLoginCode phone
+  code <- lift $ Auth.lookupLoginCode phone
   maybe (throwStd loginCodeNotFound) pure code
 
 reAuthUserH ::
   Members
     '[ Error ReAuthError,
+       GalleyAccess,
        Input (Local ()),
-       UserQuery
+       UserQuery,
+       VerificationCodeStore
      ]
     r =>
   UserId ::: JsonRequest ReAuthUser ->
@@ -256,8 +317,10 @@ reAuthUserH (uid ::: req) = do
 reAuthUser ::
   Members
     '[ Error ReAuthError,
+       GalleyAccess,
        Input (Local ()),
-       UserQuery
+       UserQuery,
+       VerificationCodeStore
      ]
     r =>
   UserId ->
@@ -268,21 +331,52 @@ reAuthUser uid body = do
   lift (liftSem (User.reauthenticate locale uid (reAuthPassword body))) !>> reauthError
   case reAuthCodeAction body of
     Just action ->
-      wrapHttpClientE (Auth.verifyCode (reAuthCode body) action uid)
+      Auth.verifyCode (reAuthCode body) action uid
         `catchE` \case
           VerificationCodeRequired -> throwE $ reauthError ReAuthCodeVerificationRequired
           VerificationCodeNoPendingCode -> throwE $ reauthError ReAuthCodeVerificationNoPendingCode
           VerificationCodeNoEmail -> throwE $ reauthError ReAuthCodeVerificationNoEmail
     Nothing -> pure ()
 
-loginH :: JsonRequest Public.Login ::: Bool ::: JSON -> (Handler r) Response
+loginH ::
+  Members
+    '[ BudgetStore,
+       Error Twilio.ErrorResponse,
+       GalleyAccess,
+       Input (Local ()),
+       P.TinyLog,
+       Twilio,
+       UserHandleStore,
+       UserKeyStore,
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
+  JsonRequest Public.Login ::: Bool ::: JSON ->
+  Handler r Response
 loginH (req ::: persist ::: _) = do
   lift . tokenResponse =<< flip login persist =<< parseJsonBody req
 
-login :: Public.Login -> Bool -> (Handler r) (Auth.Access ZAuth.User)
+login ::
+  Members
+    '[ BudgetStore,
+       Error Twilio.ErrorResponse,
+       GalleyAccess,
+       Input (Local ()),
+       P.TinyLog,
+       Twilio,
+       UserHandleStore,
+       UserKeyStore,
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
+  Public.Login ->
+  Bool ->
+  (Handler r) (Auth.Access ZAuth.User)
 login l persist = do
   let typ = if persist then PersistentCookie else SessionCookie
-  wrapHttpClientE (Auth.login l typ) !>> loginError
+  Auth.login l typ !>> loginError
 
 ssoLoginH :: JsonRequest SsoLogin ::: Bool ::: JSON -> (Handler r) Response
 ssoLoginH (req ::: persist ::: _) = do
@@ -319,12 +413,18 @@ logout (Just (Left ut)) (Just (Left at)) = wrapHttpClientE (Auth.logout ut at) !
 logout (Just (Right ut)) (Just (Right at)) = wrapHttpClientE (Auth.logout ut at) !>> zauthError
 
 changeSelfEmailH ::
-  Member UserQuery r =>
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   JSON
     ::: JsonRequest Public.EmailUpdate
     ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken))
     ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
-  (Handler r) Response
+  Handler r Response
 changeSelfEmailH (_ ::: req ::: ckies ::: toks) = do
   usr <- validateCredentials ckies toks
   email <- Public.euEmail <$> parseJsonBody req
@@ -335,7 +435,7 @@ changeSelfEmailH (_ ::: req ::: ckies ::: toks) = do
     validateCredentials ::
       Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->
       Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
-      (Handler r) UserId
+      Handler r UserId
     validateCredentials = \case
       Nothing ->
         const $ throwStd authMissingCookie

@@ -24,25 +24,51 @@ import Brig.API.Handler (Handler)
 import qualified Brig.API.Internal as Internal
 import qualified Brig.API.Public as Public
 import Brig.API.Types
+import Brig.Sem.ActivationKeyStore
+import Brig.Sem.ActivationSupply
+import Brig.Sem.BudgetStore
+import Brig.Sem.GalleyAccess
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
-import Brig.Sem.UserQuery (UserQuery)
+import Brig.Sem.Twilio
+import Brig.Sem.UniqueClaimsStore
+import Brig.Sem.UserHandleStore
+import Brig.Sem.UserKeyStore
+import Brig.Sem.UserQuery
+import Brig.Sem.VerificationCodeStore
 import Data.Qualified
 import qualified Data.Swagger.Build.Api as Doc
 import Network.Wai.Routing (Routes)
 import Polysemy
+import Polysemy.Async
+import Polysemy.Conc.Effect.Race
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.Resource
 import qualified Polysemy.TinyLog as P
+import qualified Ropes.Twilio as Twilio
 
 sitemap ::
   Members
-    '[ Error ReAuthError,
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       Async,
+       BudgetStore,
+       Error ReAuthError,
+       Error Twilio.ErrorResponse,
+       GalleyAccess,
        Input (Local ()),
        P.TinyLog,
        PasswordResetStore,
        PasswordResetSupply,
-       UserQuery
+       Race,
+       Resource,
+       Twilio,
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserKeyStore,
+       UserQuery,
+       VerificationCodeStore
      ]
     r =>
   Routes Doc.ApiBuilder (Handler r) ()

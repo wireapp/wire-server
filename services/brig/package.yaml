@@ -86,6 +86,8 @@ library:
   - optparse-applicative >=0.11
   - pem >=0.2
   - polysemy
+  - polysemy-conc
+  - polysemy-time
   - polysemy-wire-zoo
   - proto-lens >=0.1
   - random-shuffle >=0.0.3

@@ -18,7 +18,6 @@
 module Brig.Sem.Twilio.IO (twilioToIO) where
 
 import Bilge.Retry
-import Brig.RPC
 import Brig.Sem.Twilio
 import Control.Monad.Catch
 import Control.Retry
@@ -38,3 +37,6 @@ twilioToIO =
         liftIO . try @_ @Ropes.ErrorResponse $
           recovering x3 httpHandlers $
             const $ Ropes.lookupPhone cred m txt detail code
+
+x3 :: RetryPolicy
+x3 = limitRetries 3 <> exponentialBackoff 100000

@@ -18,10 +18,8 @@
 module Brig.Provider.DB where
 
 import Brig.Data.Instances ()
-import Brig.Email (EmailKey, emailKeyOrig, emailKeyUniq)
-import Brig.Password
 -- import Brig.Provider.DB.Instances ()
-
+import Brig.Password
 import Brig.Types.Common
 import Brig.Types.Instances ()
 import Brig.Types.Provider hiding (updateServiceTags)

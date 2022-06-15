@@ -83,6 +83,7 @@ library
       Brig.Queue.Stomp
       Brig.Queue.Types
       Brig.RPC
+      Brig.RPC.Decode
       Brig.Run
       Brig.Sem.ActivationKeyStore
       Brig.Sem.ActivationKeyStore.Cassandra
@@ -100,10 +101,16 @@ library
       Brig.Sem.PasswordResetSupply.IO
       Brig.Sem.Twilio
       Brig.Sem.Twilio.IO
+      Brig.Sem.UniqueClaimsStore
+      Brig.Sem.UniqueClaimsStore.Cassandra
+      Brig.Sem.UserHandleStore
+      Brig.Sem.UserHandleStore.Cassandra
       Brig.Sem.UserKeyStore
       Brig.Sem.UserKeyStore.Cassandra
       Brig.Sem.UserQuery
       Brig.Sem.UserQuery.Cassandra
+      Brig.Sem.VerificationCodeStore
+      Brig.Sem.VerificationCodeStore.Cassandra
       Brig.SMTP
       Brig.Team.API
       Brig.Team.DB
@@ -251,6 +258,8 @@ library
     , optparse-applicative >=0.11
     , pem >=0.2
     , polysemy
+    , polysemy-conc
+    , polysemy-time
     , polysemy-wire-zoo
     , proto-lens >=0.1
     , random-shuffle >=0.0.3

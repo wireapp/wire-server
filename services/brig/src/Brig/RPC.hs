@@ -16,20 +16,23 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 -- | General RPC utilities.
-module Brig.RPC where
+module Brig.RPC
+  ( module Brig.RPC,
+    module Brig.RPC.Decode,
+  )
+where
 
 import Bilge
 import Bilge.RPC
 import Bilge.Retry
 import Brig.App
+import Brig.RPC.Decode
 import Control.Lens
 import Control.Monad.Catch
 import Control.Retry
-import Data.Aeson
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as BL
 import Data.Id
-import qualified Data.Text as Text
 import qualified Data.Text.Lazy as LT
 import Imports
 import Network.HTTP.Client (HttpExceptionContent (..), checkResponse)
@@ -45,9 +48,6 @@ zUser = header "Z-User" . toByteString'
 
 remote :: ByteString -> Msg -> Msg
 remote = field "remote"
-
-decodeBody :: (Typeable a, FromJSON a, MonadThrow m) => Text -> Response (Maybe BL.ByteString) -> m a
-decodeBody ctx = responseJsonThrow (ParseException ctx)
 
 expect :: [Status] -> Request -> Request
 expect ss rq = rq {checkResponse = check}
@@ -92,18 +92,3 @@ serviceRequest nm svc m r = do
   recovering x3 rpcHandlers $
     const $
       rpc' nm service (method m . r)
-
--- | Failed to parse a response from another service.
-data ParseException = ParseException
-  { _parseExceptionRemote :: !Text,
-    _parseExceptionMsg :: String
-  }
-
-instance Show ParseException where
-  show (ParseException r m) =
-    "Failed to parse response from remote "
-      ++ Text.unpack r
-      ++ " with message: "
-      ++ m
-
-instance Exception ParseException

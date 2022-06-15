@@ -17,13 +17,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Sem.ActivationSupply where
+module Brig.Sem.UniqueClaimsStore where
 
-import Brig.Types
+import Data.Id
+import Data.Timeout
+import Imports
 import Polysemy
 
-data ActivationSupply m a where
-  MakeActivationKey :: UserKey -> ActivationSupply m ActivationKey
-  MakeActivationCode :: ActivationSupply m ActivationCode
+data UniqueClaimsStore m a where
+  AddClaims :: Id a -> Timeout -> Text -> UniqueClaimsStore m ()
+  -- | Lookup the current claims on a value.
+  GetClaims :: Text -> UniqueClaimsStore m [Id a]
+  DeleteClaims :: Id i -> Timeout -> Text -> UniqueClaimsStore m ()
 
-makeSem ''ActivationSupply
+makeSem ''UniqueClaimsStore

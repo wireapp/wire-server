@@ -120,9 +120,13 @@ import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Brig.Sem.PasswordResetStore as E
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
 import qualified Brig.Sem.PasswordResetSupply as E
+import Brig.Sem.Twilio (Twilio)
+import Brig.Sem.UniqueClaimsStore
+import Brig.Sem.UserHandleStore
 import Brig.Sem.UserKeyStore (UserKeyStore)
 import Brig.Sem.UserQuery (UserQuery)
 import Brig.Sem.UserQuery.Cassandra
+import Brig.Sem.VerificationCodeStore
 import qualified Brig.Team.DB as Team
 import Brig.Types
 import Brig.Types.Code (Timeout (..))
@@ -160,12 +164,17 @@ import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import Network.Wai.Utilities
 import Polysemy
+import Polysemy.Async
+import Polysemy.Conc.Effect.Race (Race)
+import qualified Polysemy.Error as P
 import Polysemy.Input
+import Polysemy.Resource hiding (onException)
 import qualified Polysemy.TinyLog as P
+import qualified Ropes.Twilio as Twilio
 import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
 import System.Logger.Message
-import UnliftIO.Async
+import UnliftIO.Async hiding (Async)
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.Error
@@ -219,9 +228,11 @@ createUser ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       P.Error Twilio.ErrorResponse,
        Input (Local ()),
        PasswordResetSupply,
        PasswordResetStore,
+       Twilio,
        UserKeyStore,
        UserQuery
      ]
@@ -280,7 +291,7 @@ createUser new = do
     Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.createUser")
     Log.info $ field "user" (toByteString uid) . msg (val "Creating user")
 
-    wrapClient $ Data.insertAccount account Nothing pw False
+    liftSem $ Data.insertAccount account Nothing pw False
     wrapHttp $ Intra.createSelfConv uid
     wrapHttpClient $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
 
@@ -327,7 +338,9 @@ createUser new = do
   where
     -- NOTE: all functions in the where block don't use any arguments of createUser
 
-    validateEmailAndPhone :: NewUser -> ExceptT RegisterError (AppT r) (Maybe Email, Maybe Phone)
+    validateEmailAndPhone ::
+      NewUser ->
+      ExceptT RegisterError (AppT r) (Maybe Email, Maybe Phone)
     validateEmailAndPhone newUser = do
       -- Validate e-mail
       email <- for (newUserEmail newUser) $ \e ->
@@ -336,12 +349,14 @@ createUser new = do
           pure
           (validateEmail e)
 
+      c <- view twilioCreds
+      m <- view httpManager
       -- Validate phone
       phone <- for (newUserPhone newUser) $ \p ->
         maybe
           (throwE RegisterErrorInvalidPhone)
           pure
-          =<< lift (wrapClient $ validatePhone p)
+          =<< lift (liftSem $ validatePhone c m p)
 
       for_ (catMaybes [userEmailKey <$> email, userPhoneKey <$> phone]) $ \k ->
         verifyUniquenessAndCheckBlacklist k !>> identityErrorToRegisterError
@@ -489,7 +504,7 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = do
         -- would not produce an identity, and so we won't have the email address to construct
         -- the SCIM user.
         True
-  lift . wrapClient $ Data.insertAccount account Nothing Nothing activated
+  lift . liftSem $ Data.insertAccount account Nothing Nothing activated
 
   pure account
 
@@ -550,7 +565,15 @@ changeManagedBy uid conn (ManagedByUpdate mb) = do
 -- Change Handle
 
 changeHandle ::
-  Member UserQuery r =>
+  Members
+    '[ Async,
+       Race,
+       Resource,
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   Maybe ConnId ->
   Handle ->
@@ -576,7 +599,7 @@ changeHandle uid mconn hdl allowScim = do
     claim u = do
       unless (isJust (userIdentity u)) $
         throwE ChangeHandleNoIdentity
-      claimed <- lift . wrapClient $ claimHandle (userId u) (userHandle u) hdl
+      claimed <- lift . liftSem $ claimHandle (userId u) (userHandle u) hdl
       unless claimed $
         throwE ChangeHandleExists
       lift $ wrapHttpClient $ Intra.onUserEvent uid mconn (handleUpdated uid hdl)
@@ -589,10 +612,13 @@ data CheckHandleResp
   | CheckHandleFound
   | CheckHandleNotFound
 
-checkHandle :: Text -> API.Handler r CheckHandleResp
+checkHandle ::
+  Members '[UserHandleStore] r =>
+  Text ->
+  API.Handler r CheckHandleResp
 checkHandle uhandle = do
   xhandle <- validateHandle uhandle
-  owner <- lift . wrapClient $ lookupHandle xhandle
+  owner <- lift . liftSem $ lookupHandle xhandle
   if
       | isJust owner ->
         -- Handle is taken (=> getHandleInfo will return 200)
@@ -611,7 +637,11 @@ checkHandle uhandle = do
 --------------------------------------------------------------------------------
 -- Check Handles
 
-checkHandles :: MonadClient m => [Handle] -> Word -> m [Handle]
+checkHandles ::
+  Member UserHandleStore r =>
+  [Handle] ->
+  Word ->
+  Sem r [Handle]
 checkHandles check num = reverse <$> collectFree [] check num
   where
     collectFree free _ 0 = pure free
@@ -712,6 +742,8 @@ changePhone ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       P.Error Twilio.ErrorResponse,
+       Twilio,
        UserKeyStore,
        UserQuery
      ]
@@ -720,11 +752,13 @@ changePhone ::
   Phone ->
   ExceptT ChangePhoneError (AppT r) (Activation, Phone)
 changePhone u phone = do
+  c <- view twilioCreds
+  m <- view httpManager
   canonical <-
     maybe
       (throwE InvalidNewPhone)
       pure
-      =<< lift (wrapClient $ validatePhone phone)
+      =<< lift (liftSem $ validatePhone c m phone)
   let pk = userPhoneKey canonical
   available <- lift . liftSem $ Data.keyAvailable pk (Just u)
   unless available $
@@ -872,7 +906,11 @@ changeSingleAccountStatus uid status = do
     Data.updateStatus uid status
     Intra.onUserEvent uid Nothing (ev uid)
 
-mkUserEvent :: (MonadUnliftIO m, Traversable t, MonadClient m) => t UserId -> AccountStatus -> ExceptT AccountStatusError m (UserId -> UserEvent)
+mkUserEvent ::
+  (MonadUnliftIO m, Traversable t, MonadClient m) =>
+  t UserId ->
+  AccountStatus ->
+  ExceptT AccountStatusError m (UserId -> UserEvent)
 mkUserEvent usrs status =
   case status of
     Active -> pure UserResumed
@@ -972,7 +1010,15 @@ onActivated (PhoneActivated uid phone) = do
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 sendActivationCode ::
-  Members '[ActivationKeyStore, ActivationSupply, UserKeyStore, UserQuery] r =>
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       P.Error Twilio.ErrorResponse,
+       Twilio,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   Either Email Phone ->
   Maybe Locale ->
   Bool ->
@@ -1000,11 +1046,13 @@ sendActivationCode emailOrPhone loc call = do
         Just (Just uid, c) -> sendActivationEmail timeout ek c uid -- User re-requesting activation
     Right phone -> do
       -- validatePhone returns the canonical E.164 phone number format
+      creds <- view twilioCreds
+      m <- view httpManager
       canonical <-
         maybe
           (throwE $ InvalidRecipient (userPhoneKey phone))
           pure
-          =<< lift (wrapClient $ validatePhone phone)
+          =<< lift (liftSem $ validatePhone creds m phone)
       let pk = userPhoneKey canonical
       exists <- lift $ isJust <$> liftSem (Data.getKey pk)
       when exists $
@@ -1180,7 +1228,14 @@ mkPasswordResetKey ident = case ident of
 --
 -- TODO: communicate deletions of SSO users to SSO service.
 deleteSelfUser ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members
+    '[ Input (Local ()),
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
   UserId ->
   Maybe PlainTextPassword ->
   ExceptT DeleteUserError (AppT r) (Maybe Timeout)
@@ -1215,7 +1270,7 @@ deleteSelfUser uid pwd = do
       Just emailOrPhone -> sendCode a emailOrPhone
       Nothing -> case pwd of
         Just _ -> throwE DeleteUserMissingPassword
-        Nothing -> lift $ wrapHttpClient $ deleteAccount a >> pure Nothing
+        Nothing -> lift $ deleteAccount a >> pure Nothing
     byPassword a pw = do
       lift . Log.info $
         field "user" (toByteString uid)
@@ -1226,10 +1281,10 @@ deleteSelfUser uid pwd = do
         Just p -> do
           unless (verifyPassword pw p) $
             throwE DeleteUserInvalidPassword
-          lift $ wrapHttpClient $ deleteAccount a >> pure Nothing
+          lift $ deleteAccount a >> pure Nothing
     sendCode a target = do
       gen <- Code.mkGen (either Code.ForEmail Code.ForPhone target)
-      pending <- lift . wrapClient $ Code.lookup (Code.genKey gen) Code.AccountDeletion
+      pending <- lift . liftSem $ Code.getPendingCode (Code.genKey gen) Code.AccountDeletion
       case pending of
         Just c -> throwE $! DeleteUserPendingCode (Code.codeTTL c)
         Nothing -> do
@@ -1243,7 +1298,7 @@ deleteSelfUser uid pwd = do
               (Code.Retries 3)
               (Code.Timeout 600)
               (Just (toUUID uid))
-          wrapClientE $ Code.insert c
+          lift . liftSem $ Code.insertCode c
           let k = Code.codeKey c
           let v = Code.codeValue c
           let l = userLocale (accountUser a)
@@ -1258,17 +1313,24 @@ deleteSelfUser uid pwd = do
 -- | Conclude validation and scheduling of user's deletion request that was initiated in
 -- 'deleteUser'.  Called via @post /delete@.
 verifyDeleteUser ::
-  Members '[Input (Local ()), UserQuery] r =>
+  Members
+    '[ Input (Local ()),
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
   VerifyDeleteUser ->
   ExceptT DeleteUserError (AppT r) ()
 verifyDeleteUser d = do
   let key = verifyDeleteUserKey d
   let code = verifyDeleteUserCode d
-  c <- lift . wrapClient $ Code.verify key Code.AccountDeletion code
+  c <- lift . liftSem $ Code.verifyCode key Code.AccountDeletion code
   a <- maybe (throwE DeleteUserInvalidCode) pure (Code.codeAccount =<< c)
   locale <- setDefaultUserLocale <$> view settings
   account <- lift . liftSem $ Data.lookupAccount locale (Id a)
-  for_ account $ lift . wrapHttpClient . deleteAccount
+  for_ account $ lift . deleteAccount
   lift . wrapClient $ Code.delete key Code.AccountDeletion
 
 -- | Internal deletion without validation.  Called via @delete /i/user/:uid@, or indirectly
@@ -1276,40 +1338,48 @@ verifyDeleteUser d = do
 -- Team owners can be deleted if the team is not orphaned, i.e. there is at least one
 -- other owner left.
 deleteAccount ::
-  ( MonadLogger m,
-    MonadCatch m,
-    MonadThrow m,
-    MonadIndexIO m,
-    MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadUnliftIO m,
-    MonadClient m
-  ) =>
+  forall r.
+  Members
+    '[ UniqueClaimsStore,
+       UserHandleStore,
+       UserQuery
+     ]
+    r =>
+  -- ( MonadLogger m,
+  --   MonadCatch m,
+  --   -- MonadThrow m,
+  --   MonadIndexIO m,
+  --   MonadReader Env m,
+  --   MonadIO m,
+  --   MonadMask m,
+  --   MonadHttp m,
+  --   HasRequestId m,
+  --   -- MonadUnliftIO m,
+  --   MonadClient m
+  -- ) =>
   UserAccount ->
-  m ()
+  AppT r ()
 deleteAccount account@(accountUser -> user) = do
   let uid = userId user
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
   -- Free unique keys
-  d <- view digestSHA256
-  for_ (userEmail user) $ deleteKey d . userEmailKey
-  for_ (userPhone user) $ deleteKey d . userPhoneKey
-  for_ (userHandle user) $ freeHandle (userId user)
+  -- d <- view digestSHA256
+  -- TODO: Bring these two for loops back
+  -- for_ (userEmail user) $ deleteKey d . userEmailKey
+  -- for_ (userPhone user) $ deleteKey d . userPhoneKey
+  liftSem $ for_ (userHandle user) $ freeHandle (userId user)
   -- Wipe data
-  Data.clearProperties uid
+  wrapClient $ Data.clearProperties uid
   tombstone <- mkTombstone
-  Data.insertAccount tombstone Nothing Nothing False
-  Intra.rmUser uid (userAssets user)
-  Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId)
+  liftSem $ Data.insertAccount tombstone Nothing Nothing False
+  wrapHttp $ Intra.rmUser uid (userAssets user)
+  wrapClient (Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId))
   luid <- qualifyLocal uid
-  Intra.onUserEvent uid Nothing (UserDeleted (qUntagged luid))
+  wrapHttpClient $ Intra.onUserEvent uid Nothing (UserDeleted (qUntagged luid))
   -- Note: Connections can only be deleted afterwards, since
   --       they need to be notified.
-  Data.deleteConnections uid
-  revokeAllCookies uid
+  wrapClient $ Data.deleteConnections uid
+  wrapClient $ revokeAllCookies uid
   where
     mkTombstone = do
       defLoc <- setDefaultUserLocale <$> view settings
