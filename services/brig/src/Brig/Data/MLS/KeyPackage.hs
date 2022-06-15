@@ -28,7 +28,6 @@ module Brig.Data.MLS.KeyPackage
 where
 
 import Brig.App
-import Wire.API.Routes.Internal.Brig
 import Cassandra
 import Cassandra.Settings
 import Control.Error
@@ -43,6 +42,7 @@ import Data.Qualified
 import Imports
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.Routes.Internal.Brig
 
 insertKeyPackages :: MonadClient m => UserId -> ClientId -> [(KeyPackageRef, KeyPackageData)] -> m ()
 insertKeyPackages uid cid kps = retry x5 . batch $ do
