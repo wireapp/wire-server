@@ -205,7 +205,7 @@ addKeyPackageRef ref qusr cl qcnv =
   void $
     call
       Brig
-      ( method POST
+      ( method PUT
           . paths ["i", "mls", "key-packages", toHeader ref]
           . json (NewKeyPackageRef qusr cl qcnv)
           . expect2xx

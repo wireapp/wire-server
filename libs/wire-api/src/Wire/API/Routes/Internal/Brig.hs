@@ -39,6 +39,7 @@ import Data.Id as Id
 import Data.Qualified (Qualified)
 import Data.Schema hiding (swaggerDoc)
 import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
+import qualified Data.Swagger as S
 import Imports hiding (head)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import qualified Servant
@@ -58,7 +59,6 @@ import Wire.API.Routes.Named
 import Wire.API.Team.Feature (TeamFeatureName (TeamFeatureSearchVisibilityInbound))
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User
-import qualified Data.Swagger as S
 
 type EJPDRequest =
   Summary
@@ -188,9 +188,9 @@ type MLSAPI =
                            ( Summary "Create a new KeyPackageRef mapping"
                                :> ReqBody '[Servant.JSON] NewKeyPackageRef
                                :> MultiVerb
-                                    'POST
+                                    'PUT
                                     '[Servant.JSON]
-                                    '[RespondEmpty 200 "Key package ref mapping created"]
+                                    '[RespondEmpty 201 "Key package ref mapping created"]
                                     ()
                            )
                 )

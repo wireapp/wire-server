@@ -49,8 +49,9 @@ import UnliftIO (withSystemTempFile)
 import Util
 import Util.Options (Endpoint)
 import qualified Wire.API.Connection as Conn
+import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
-import Wire.API.Routes.Internal.Brig.EJPD as EJPD
+import Wire.API.Routes.Internal.Brig
 import qualified Wire.API.Team.Feature as ApiFt
 import qualified Wire.API.Team.Member as Team
 
@@ -68,7 +69,8 @@ tests opts mgr db brig brigep gundeck galley = do
           [ test mgr "fresh get" $ testKpcFreshGet brig,
             test mgr "put,get" $ testKpcPutGet brig,
             test mgr "get,get" $ testKpcGetGet brig,
-            test mgr "put,put" $ testKpcPutPut brig
+            test mgr "put,put" $ testKpcPutPut brig,
+            test mgr "add key package ref" $ testAddKeyPackageRef brig
           ]
       ]
 
@@ -297,6 +299,36 @@ testKpcPutPut brig = do
   kpcPut brig ref qConv2
   mqConv <- kpcGet brig ref
   liftIO $ assertEqual "Put x; Put y ~= Put y" (Just qConv2) mqConv
+
+testAddKeyPackageRef :: Brig -> Http ()
+testAddKeyPackageRef brig = do
+  ref <- keyPackageCreate brig
+  qcnv <- liftIO $ generate arbitrary
+  qusr <- liftIO $ generate arbitrary
+  c <- liftIO $ generate arbitrary
+  put
+    ( brig . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref]
+        . json
+          NewKeyPackageRef
+            { nkprUserId = qusr,
+              nkprClientId = c,
+              nkprConversation = qcnv
+            }
+    )
+    !!! const 201 === statusCode
+  ci <-
+    responseJsonError
+      =<< get (brig . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref])
+      <!! const 200 === statusCode
+  liftIO $ do
+    fmap ciDomain ci @?= Just (qDomain qusr)
+    fmap ciUser ci @?= Just (qUnqualified qusr)
+    fmap ciClient ci @?= Just c
+  mqcnv <-
+    responseJsonError
+      =<< get (brig . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref, "conversation"])
+      <!! const 200 === statusCode
+  liftIO $ mqcnv @?= Just qcnv
 
 getFeatureConfig :: (MonadIO m, MonadHttp m, HasCallStack) => ApiFt.TeamFeatureName -> (Request -> Request) -> UserId -> m ResponseLBS
 getFeatureConfig feature galley uid = do
