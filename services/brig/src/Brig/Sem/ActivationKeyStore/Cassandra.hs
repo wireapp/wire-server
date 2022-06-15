@@ -34,7 +34,7 @@ activationKeyStoreToCassandra =
     embed @m . \case
       GetActivationKey k -> getKey k
       InsertActivationKey tuple -> keyInsertQuery tuple
-      DeleteActivationPair k -> undefined k
+      DeleteActivationPair k -> keyDelete k
 
 getKey :: (MonadClient m, Cql ActivationKey, Cql ActivationCode) => ActivationKey -> m (Maybe GetKeyTuple)
 getKey key = retry x1 . query1 keySelect $ params LocalQuorum (Identity key)
@@ -51,3 +51,9 @@ keyInsertQuery (key, t, k, c, u, attempts, timeout) =
       "INSERT INTO activation_keys \
       \(key, key_type, key_text, code, user, retries) VALUES \
       \(?  , ?       , ?       , ?   , ?   , ?      ) USING TTL ?"
+
+keyDelete :: (MonadClient m, Cql ActivationKey) => ActivationKey -> m ()
+keyDelete = write q . params LocalQuorum . Identity
+  where
+    q :: PrepQuery W (Identity ActivationKey) ()
+    q = "DELETE FROM activation_keys WHERE key = ?"
