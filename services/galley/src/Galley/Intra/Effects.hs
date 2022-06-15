@@ -79,6 +79,9 @@ interpretBrigAccess = interpret $ \case
   GetClientByKeyPackageRef ref ->
     embedApp $ getClientByKeyPackageRef ref
   GetLocalMLSClients qusr ss -> embedApp $ getLocalMLSClients qusr ss
+  AddKeyPackageRef ref qusr cl qcnv ->
+    embedApp $
+      addKeyPackageRef ref qusr cl qcnv
   UpdateSearchVisibilityInbound status ->
     embedApp $ updateSearchVisibilityInbound status
 

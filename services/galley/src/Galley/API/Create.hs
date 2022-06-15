@@ -114,7 +114,7 @@ createGroupConversation lusr conn newConv = do
   case (newConvProtocol newConv, newConvCreatorClient newConv) of
     (ProtocolProteusTag, _) -> pure ()
     (ProtocolMLSTag, Just c) ->
-      E.addMLSClients (tUnqualified lcnv) (tUnqualified lusr) (Set.singleton c)
+      E.addMLSClients lcnv (qUntagged lusr) (Set.singleton c)
     (ProtocolMLSTag, Nothing) ->
       throw (InvalidPayload "Missing creator_client field when creating an MLS conversation")
 

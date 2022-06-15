@@ -50,6 +50,7 @@ module Galley.Effects.BrigAccess
     -- * MLS
     getClientByKeyPackageRef,
     getLocalMLSClients,
+    addKeyPackageRef,
 
     -- * Features
     getAccountFeatureConfigClient,
@@ -125,6 +126,7 @@ data BrigAccess m a where
   GetAccountFeatureConfigClient :: UserId -> BrigAccess m TeamFeatureStatusNoConfig
   GetClientByKeyPackageRef :: KeyPackageRef -> BrigAccess m (Maybe ClientIdentity)
   GetLocalMLSClients :: Local UserId -> SignatureSchemeTag -> BrigAccess m (Set ClientId)
+  AddKeyPackageRef :: KeyPackageRef -> Qualified UserId -> ClientId -> Qualified ConvId -> BrigAccess m ()
   UpdateSearchVisibilityInbound ::
     Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound ->
     BrigAccess m ()

@@ -74,6 +74,7 @@ postMLSMessage ::
     Members
       '[ Error FederationError,
          ErrorS 'ConvNotFound,
+         Error InternalError,
          ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSProposalNotFound,
@@ -97,7 +98,7 @@ postMLSMessage lusr con smsg = case rmValue smsg of
     events <- case tag of
       SMLSPlainText -> case msgTBS (msgPayload msg) of
         CommitMessage c ->
-          processCommit lusr con conv (msgEpoch msg) c
+          processCommit lusr con conv (msgEpoch msg) (msgSender msg) c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
         ProposalMessage _ -> pure mempty -- FUTUREWORK: handle proposals
       SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
@@ -152,20 +153,39 @@ processCommit ::
     Member (ErrorS 'MLSStaleMessage) r,
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (Error FederationError) r,
+    Member (Error InternalError) r,
     Member (ErrorS 'MissingLegalholdConsent) r
   ) =>
   Local UserId ->
   ConnId ->
   Data.Conversation ->
   Epoch ->
+  Sender 'MLSPlainText ->
   Commit ->
   Sem r [Event]
-processCommit lusr con conv epoch commit = do
+processCommit lusr con conv epoch sender commit = do
+  self <- noteS @'ConvNotFound $ getConvMember lusr conv lusr
+
   -- check epoch number
   curEpoch <-
     preview (to convProtocol . _ProtocolMLS . to cnvmlsEpoch) conv
       & noteS @'ConvNotFound
   when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
+
+  when (epoch == Epoch 0) $ do
+    -- this is a newly created conversation, and it should contain exactly one
+    -- client (the creator)
+    case (sender, toList (lmMLSClients self)) of
+      (MemberSender ref, [creatorClient]) -> do
+        -- register the creator client
+        addKeyPackageRef
+          ref
+          (qUntagged lusr)
+          creatorClient
+          (qUntagged (qualifyAs lusr (Data.convId conv)))
+      (MemberSender _, _) ->
+        throw (InternalErrorWithDescription "Unexpected creator client set")
+      _ -> throw (mlsProtocolError "Unexpected sender")
 
   -- process and execute proposals
   action <- foldMap applyProposalRef (cProposals commit)

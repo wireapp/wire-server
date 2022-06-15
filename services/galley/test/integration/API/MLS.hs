@@ -473,10 +473,10 @@ testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
     withLastPrekeys $
       setupParticipants tmp opts [(1, RemoteUser (Domain "faraway.example.com"))]
   conversation <- setupGroup tmp CreateConv alice "group"
-  (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" (pClients bob)
+  (commit, welcome) <- liftIO $ setupCommit tmp alice "group" "group" (pClients bob)
   message <-
     liftIO $
-      spawn (cli tmp ["message", "--group", tmp </> "group", "some text"]) Nothing
+      spawn (cli (pClientQid alice) tmp ["message", "--group", tmp </> "group", "some text"]) Nothing
 
   let mock req = case frRPC req of
         "on-conversation-updated" -> pure (Aeson.encode ())
