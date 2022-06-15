@@ -12,6 +12,9 @@ do
 if [[ "$chart" == "nginz" ]]; then
     # nginz has a different docker tag indentation
     sed -i "s/^    tag: .*/    tag: $docker_tag/g" "$CHARTS_DIR/$chart/values.yaml"
+elif [[ "$chart" == "backoffice" ]]; then
+    # There are two images at the same level and we want update only stern.
+    sed -i "s/tag: do-not-use/tag: $docker_tag/g" "$CHARTS_DIR/$chart/values.yaml"
 else
     sed -i "s/^  tag: .*/  tag: $docker_tag/g" "$CHARTS_DIR/$chart/values.yaml"
 fi
