@@ -101,6 +101,7 @@ import qualified OpenSSL.PEM as SSL
 import qualified OpenSSL.RSA as SSL
 import OpenSSL.Random (randBytes)
 import Polysemy
+import Polysemy.Input
 import qualified Ssl.Util as SSL
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
@@ -121,7 +122,12 @@ import qualified Wire.API.User.Client.Prekey as Public (PrekeyId)
 import qualified Wire.API.User.Identity as Public (Email)
 
 routesPublic ::
-  Members '[UserQuery, VerificationCodeStore] r =>
+  Members
+    '[ Input (Local ()),
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
   Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   -- Public API (Unauthenticated) --------------------------------------------
@@ -932,7 +938,11 @@ updateServiceWhitelist uid con tid upd = do
       pure UpdateServiceWhitelistRespChanged
 
 addBotH ::
-  Member UserQuery r =>
+  Members
+    '[ Input (Local ()),
+       UserQuery
+     ]
+    r =>
   UserId ::: ConnId ::: ConvId ::: JsonRequest Public.AddBot ->
   (Handler r) Response
 addBotH (zuid ::: zcon ::: cid ::: req) = do
@@ -940,7 +950,11 @@ addBotH (zuid ::: zcon ::: cid ::: req) = do
   setStatus status201 . json <$> (addBot zuid zcon cid =<< parseJsonBody req)
 
 addBot ::
-  Member UserQuery r =>
+  Members
+    '[ Input (Local ()),
+       UserQuery
+     ]
+    r =>
   UserId ->
   ConnId ->
   ConvId ->
@@ -1005,7 +1019,7 @@ addBot zuid zcon cid add = do
       -- if we want to protect bots against lh, 'addClient' cannot just send lh capability
       -- implicitly in the next line.
       pure $ FutureWork @'UnprotectedBot undefined
-    wrapClientE (User.addClient (botUserId bid) bcl newClt maxPermClients Nothing (Just $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent))
+    User.addClient (botUserId bid) bcl newClt maxPermClients Nothing (Just $ Set.singleton Public.ClientSupportsLegalholdImplicitConsent)
       !>> const (StdError badGateway) -- MalformedPrekeys
 
   -- Add the bot to the conversation

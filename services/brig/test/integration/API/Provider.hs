@@ -28,6 +28,8 @@ import qualified API.Team.Util as Team
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
 import qualified Brig.Code as Code
+import Brig.Sem.Common
+import Brig.Sem.VerificationCodeStore.Cassandra
 import Brig.Types hiding (CompletePasswordReset (..), EmailUpdate (..), NewPasswordReset (..), PasswordChange (..), PasswordReset (..))
 import qualified Brig.Types.Intra as Intra
 import Brig.Types.Provider
@@ -79,6 +81,7 @@ import qualified Network.Wai.Route as Wai
 import qualified Network.Wai.Utilities.Error as Error
 import OpenSSL.PEM (writePublicKey)
 import OpenSSL.RSA (generateRSAKey')
+import Polysemy
 import System.IO.Temp (withSystemTempFile)
 import Test.Tasty hiding (Timeout)
 import qualified Test.Tasty.Cannon as WS
@@ -1410,7 +1413,12 @@ enabled2ndFaForTeamInternal galley tid = do
 -- DB Operations
 
 lookupCode :: MonadIO m => DB.ClientState -> Code.Gen -> Code.Scope -> m (Maybe Code.Code)
-lookupCode db gen = liftIO . DB.runClient db . Code.lookup (Code.genKey gen)
+lookupCode db gen =
+  liftIO
+    . runFinal
+    . interpretClientToIO db
+    . verificationCodeStoreToCassandra @DB.Client
+    . Code.getPendingCode (Code.genKey gen)
 
 --------------------------------------------------------------------------------
 -- Utilities

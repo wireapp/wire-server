@@ -103,6 +103,7 @@ import Brig.Sem.BudgetStore (BudgetStore)
 import Brig.Sem.BudgetStore.Cassandra
 import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.CodeStore.Cassandra
+import Brig.Sem.Common
 import Brig.Sem.GalleyAccess (GalleyAccess)
 import Brig.Sem.GalleyAccess.Http
 import Brig.Sem.PasswordResetStore (PasswordResetStore)

@@ -55,20 +55,22 @@ import Bilge.Retry (httpHandlers)
 import Brig.AWS
 import Brig.App
 import Brig.Data.Instances ()
-import Brig.Data.User (AuthError (..), ReAuthError (..))
-import qualified Brig.Data.User as User
-import Brig.Options (setDefaultUserLocale)
-import Brig.Sem.UserQuery.Cassandra
+-- import Brig.Data.User (AuthError (..), ReAuthError (..))
+-- import qualified Brig.Data.User as User
+-- import Brig.Options (setDefaultUserLocale)
+import Brig.Sem.UserQuery
 import Brig.Types.Instances ()
 import Brig.Types.User.Auth (CookieLabel)
 import Brig.User.Auth.DB.Instances ()
 import Cassandra as C hiding (Client)
 import Cassandra.Settings as C hiding (Client)
+-- import Control.Arrow
 import Control.Error
 import qualified Control.Exception.Lens as EL
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Random (randomRIO)
+-- import Control.Monad.Trans.Except
 import Control.Retry
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Conversion (toByteString, toByteString')
@@ -80,12 +82,14 @@ import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import qualified Data.Map as Map
 import qualified Data.Metrics as Metrics
 import Data.Misc
+import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import Imports
 import Polysemy hiding (run)
 import Polysemy.Error
+import qualified Polysemy.Error as P
 import Polysemy.Input
 import System.CryptoBox (Result (Success))
 import qualified System.CryptoBox as CryptoBox
@@ -119,19 +123,19 @@ reAuthForNewClients :: ReAuthPolicy
 reAuthForNewClients count upsert = count > 0 && not upsert
 
 addClient ::
-  (MonadClient m, MonadReader Brig.App.Env m) =>
+  Members '[Input (Local ()), UserQuery] r =>
   UserId ->
   ClientId ->
   NewClient ->
   Int ->
   Maybe Location ->
   Maybe (Imports.Set ClientCapability) ->
-  ExceptT ClientDataError m (Client, [Client], Word)
+  ExceptT ClientDataError (AppT r) (Client, [Client], Word)
 addClient = addClientWithReAuthPolicy reAuthForNewClients
 
 addClientWithReAuthPolicy ::
-  forall m.
-  (MonadClient m, MonadReader Brig.App.Env m) =>
+  forall r.
+  Members '[Input (Local ()), UserQuery] r =>
   ReAuthPolicy ->
   UserId ->
   ClientId ->
@@ -139,24 +143,19 @@ addClientWithReAuthPolicy ::
   Int ->
   Maybe Location ->
   Maybe (Imports.Set ClientCapability) ->
-  ExceptT ClientDataError m (Client, [Client], Word)
-addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients loc cps = do
-  clients <- lookupClients u
-  locale <- setDefaultUserLocale <$> view settings
-  locDomain <- qualifyLocal ()
+  ExceptT ClientDataError (AppT r) (Client, [Client], Word)
+addClientWithReAuthPolicy _reAuthPolicy u newId c maxPermClients loc cps = do
+  clients <- lift . wrapClient $ lookupClients u
+  -- locale <- setDefaultUserLocale <$> view settings
   let typed = filter ((== newClientType c) . clientType) clients
   let count = length typed
   let upsert = any exists typed
-  when (reAuthPolicy count upsert) $ do
-    o <-
-      lift
-        . runM
-        . userQueryToCassandra @m @'[Embed m]
-        $ runError
-          . mapError ClientReAuthError
-          . runInputConst locDomain
-          $ User.reauthenticate locale u (newClientPassword c)
-    whenLeft o throwE
+  -- when (reAuthPolicy count upsert) $ do
+  --   liftSemE
+  --     . fmapLT ClientReAuthError
+  --     . semToExceptT
+  --     . raise @(P.Error ReAuthError)
+  --     $ User.reauthenticate locale u (newClientPassword c)
   let capacity = fmap (+ (- count)) limit
   unless (maybe True (> 0) capacity || upsert) $
     throwE TooManyClients
@@ -174,8 +173,8 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients loc cps = do
     exists :: Client -> Bool
     exists = (==) newId . clientId
 
-    insert :: (MonadClient m, MonadReader Brig.App.Env m) => ExceptT ClientDataError m Client
-    insert = do
+    insert :: ExceptT ClientDataError (AppT r) Client
+    insert = wrapClientE $ do
       -- Is it possible to do this somewhere else? Otherwise we could use `MonadClient` instead
       now <- toUTCTimeMillis <$> (liftIO =<< view currentTime)
       let keys = unpackLastPrekey (newClientLastKey c) : newClientPrekeys c
@@ -199,6 +198,9 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients loc cps = do
             clientCapabilities = ClientCapabilityList (fromMaybe mempty cps),
             clientMLSPublicKeys = mempty
           }
+
+_semToExceptT :: Sem (P.Error e ': r) () -> ExceptT e (Sem r) ()
+_semToExceptT = lift . runError >=> flip whenLeft throwE
 
 lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client)
 lookupClient u c = do

@@ -211,43 +211,43 @@ generate gen scope retries ttl account = do
 --------------------------------------------------------------------------------
 -- Storage
 
-insert :: MonadClient m => Code -> m ()
-insert c = do
-  let k = codeKey c
-  let s = codeScope c
-  let v = codeValue c
-  let r = fromIntegral (codeRetries c)
-  let a = codeAccount c
-  let e = codeForEmail c
-  let p = codeForPhone c
-  let t = round (codeTTL c)
-  retry x5 (write cql (params LocalQuorum (k, s, v, r, e, p, a, t)))
-  where
-    cql :: PrepQuery W (Key, Scope, Value, Retries, Maybe Email, Maybe Phone, Maybe UUID, Int32) ()
-    cql =
-      "INSERT INTO vcodes (key, scope, value, retries, email, phone, account) \
-      \VALUES (?, ?, ?, ?, ?, ?, ?) USING TTL ?"
+-- insert :: MonadClient m => Code -> m ()
+-- insert c = do
+--   let k = codeKey c
+--   let s = codeScope c
+--   let v = codeValue c
+--   let r = fromIntegral (codeRetries c)
+--   let a = codeAccount c
+--   let e = codeForEmail c
+--   let p = codeForPhone c
+--   let t = round (codeTTL c)
+--   retry x5 (write cql (params LocalQuorum (k, s, v, r, e, p, a, t)))
+--   where
+--     cql :: PrepQuery W (Key, Scope, Value, Retries, Maybe Email, Maybe Phone, Maybe UUID, Int32) ()
+--     cql =
+--       "INSERT INTO vcodes (key, scope, value, retries, email, phone, account) \
+--       \VALUES (?, ?, ?, ?, ?, ?, ?) USING TTL ?"
 
--- | Lookup a pending code.
-lookup :: MonadClient m => Key -> Scope -> m (Maybe Code)
-lookup k s = fmap (toCode k s) <$> retry x1 (query1 cql (params LocalQuorum (k, s)))
-  where
-    cql :: PrepQuery R (Key, Scope) (Value, Int32, Retries, Maybe Email, Maybe Phone, Maybe UUID)
-    cql =
-      "SELECT value, ttl(value), retries, email, phone, account \
-      \FROM vcodes WHERE key = ? AND scope = ?"
+-- -- | Lookup a pending code.
+-- lookup :: MonadClient m => Key -> Scope -> m (Maybe Code)
+-- lookup k s = fmap (toCode k s) <$> retry x1 (query1 cql (params LocalQuorum (k, s)))
+--   where
+--     cql :: PrepQuery R (Key, Scope) (Value, Int32, Retries, Maybe Email, Maybe Phone, Maybe UUID)
+--     cql =
+--       "SELECT value, ttl(value), retries, email, phone, account \
+--       \FROM vcodes WHERE key = ? AND scope = ?"
 
 -- | Lookup and verify the code for the given key and scope
 -- against the given value.
-verify :: MonadClient m => Key -> Scope -> Value -> m (Maybe Code)
-verify k s v = lookup k s >>= maybe (pure Nothing) continue
-  where
-    continue c
-      | codeValue c == v = pure (Just c)
-      | codeRetries c > 0 = do
-        insert (c {codeRetries = codeRetries c - 1})
-        pure Nothing
-      | otherwise = pure Nothing
+-- verify :: MonadClient m => Key -> Scope -> Value -> m (Maybe Code)
+-- verify k s v = lookup k s >>= maybe (pure Nothing) continue
+--   where
+--     continue c
+--       | codeValue c == v = pure (Just c)
+--       | codeRetries c > 0 = do
+--         insert (c {codeRetries = codeRetries c - 1})
+--         pure Nothing
+--       | otherwise = pure Nothing
 
 -- | Delete a code associated with the given key and scope.
 delete :: MonadClient m => Key -> Scope -> m ()

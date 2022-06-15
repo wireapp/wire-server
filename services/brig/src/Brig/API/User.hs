@@ -1111,6 +1111,8 @@ sendActivationCode emailOrPhone loc call = do
           _otherwise ->
             sendActivationMail em name p loc' ident
 
+-- TODO(md): polysemize this, it is straightforward given that everything
+-- underneath should be in Polysemy
 mkActivationKey ::
   Member ActivationSupply r =>
   ActivationTarget ->

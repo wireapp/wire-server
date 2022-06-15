@@ -26,7 +26,7 @@ import Brig.API.Handler
 import Brig.API.Types
 import qualified Brig.API.User as User
 import Brig.App
-import Brig.Options (setDefaultUserLocale)
+-- import Brig.Options (setDefaultUserLocale)
 import Brig.Phone
 import Brig.Sem.ActivationKeyStore
 import Brig.Sem.ActivationSupply
@@ -37,13 +37,14 @@ import Brig.Sem.UserHandleStore
 import Brig.Sem.UserKeyStore
 import Brig.Sem.UserQuery (UserQuery)
 import Brig.Sem.VerificationCodeStore
-import Brig.Types.Intra (ReAuthUser, reAuthCode, reAuthCodeAction, reAuthPassword)
+import Brig.Types.Intra (ReAuthUser, reAuthCode, reAuthCodeAction)
+-- import Brig.Types.Intra (ReAuthUser, reAuthCode, reAuthCodeAction, reAuthPassword)
 import Brig.Types.User.Auth
 import qualified Brig.User.Auth as Auth
 import qualified Brig.User.Auth.Cookie as Auth
 import qualified Brig.ZAuth as ZAuth
 import Control.Error (catchE)
-import Control.Lens (view)
+-- import Control.Lens (view)
 import Control.Monad.Except
 import Control.Monad.Trans.Except (throwE)
 import qualified Data.ByteString as BS
@@ -327,8 +328,8 @@ reAuthUser ::
   ReAuthUser ->
   (Handler r) ()
 reAuthUser uid body = do
-  locale <- setDefaultUserLocale <$> view settings
-  lift (liftSem (User.reauthenticate locale uid (reAuthPassword body))) !>> reauthError
+  -- locale <- setDefaultUserLocale <$> view settings
+  -- lift (liftSem (User.reauthenticate locale uid (reAuthPassword body))) !>> reauthError
   case reAuthCodeAction body of
     Just action ->
       Auth.verifyCode (reAuthCode body) action uid

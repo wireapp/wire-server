@@ -211,8 +211,11 @@ verifyCode key code = do
       Nothing -> throwE invalidCode
     mkScope _ _ _ = throwE invalidCode
     countdown = lift . insertActivationKey
+    -- countdown = lift . retry x5 . write keyInsert . params LocalQuorum
     revoke = lift $ deleteActivationPair key
 
+-- TODO(md): This should be deleted and an effect action 'makeActivationKey'
+-- should be used instead.
 mkActivationKey :: UserKey -> IO ActivationKey
 mkActivationKey k = do
   d <- liftIO $ getDigestByName "SHA256"

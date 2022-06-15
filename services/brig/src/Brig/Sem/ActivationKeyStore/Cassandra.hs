@@ -24,6 +24,9 @@ import Imports
 import Polysemy
 import Wire.API.User.Activation
 
+-- TODO(md): See why there's no instance for 'Cql ActivationKey', yet the
+-- Brig.Data.User module sees one. Then remove all explicitly spelled out Cql
+-- constraints in this module.
 activationKeyStoreToCassandra ::
   forall m r a.
   (MonadClient m, Member (Embed m) r, Cql ActivationKey, Cql ActivationCode) =>

@@ -279,8 +279,8 @@ updateSSOId u ssoid = do
 updateManagedBy :: MonadClient m => UserId -> ManagedBy -> m ()
 updateManagedBy u h = retry x5 $ write userManagedByUpdate (params LocalQuorum (h, u))
 
-updateHandle :: MonadClient m => UserId -> Handle -> m ()
-updateHandle u h = retry x5 $ write userHandleUpdate (params LocalQuorum (h, u))
+-- updateHandle :: MonadClient m => UserId -> Handle -> m ()
+-- updateHandle u h = retry x5 $ write userHandleUpdate (params LocalQuorum (h, u))
 
 updatePassword :: MonadClient m => UserId -> PlainTextPassword -> m ()
 updatePassword u t = do
@@ -500,12 +500,12 @@ richInfoSelectMulti = "SELECT user, json FROM rich_info WHERE user in ?"
 teamSelect :: PrepQuery R (Identity UserId) (Identity (Maybe TeamId))
 teamSelect = "SELECT team FROM user WHERE id = ?"
 
-userInsert :: PrepQuery W UserRowInsert ()
-userInsert =
-  "INSERT INTO user (id, name, picture, assets, email, phone, sso_id, \
-  \accent_id, password, activated, status, expires, language, \
-  \country, provider, service, handle, team, managed_by) \
-  \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+-- userInsert :: PrepQuery W UserRowInsert ()
+-- userInsert =
+--   "INSERT INTO user (id, name, picture, assets, email, phone, sso_id, \
+--   \accent_id, password, activated, status, expires, language, \
+--   \country, provider, service, handle, team, managed_by) \
+--   \VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 userDisplayNameUpdate :: PrepQuery W (Name, UserId) ()
 userDisplayNameUpdate = "UPDATE user SET name = ? WHERE id = ?"

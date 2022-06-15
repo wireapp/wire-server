@@ -55,6 +55,18 @@ onEvent ::
        UserQuery
      ]
     r =>
+  -- ( Log.MonadLogger m,
+  --   MonadCatch m,
+  --   MonadThrow m,
+  --   MonadIndexIO m,
+  --   MonadReader Env m,
+  --   MonadIO m,
+  --   MonadMask m,
+  --   MonadHttp m,
+  --   HasRequestId m,
+  --   MonadUnliftIO m,
+  --   MonadClient m
+  -- ) =>
   InternalNotification ->
   AppT r ()
 onEvent n = do
@@ -80,6 +92,12 @@ onEvent n = do
     handleTimeout :: AppT r a -> AppT r a
     handleTimeout _act = undefined
 
+-- act
+--   >>= ( \case
+--           Just x -> pure x
+--           Nothing -> throwM (InternalEventTimeout n)
+--       )
+--     . flip (withAsyncWait (Minutes 1)) await
 
 newtype InternalEventException
   = -- | 'onEvent' has timed out

@@ -153,28 +153,28 @@ addClientWithReAuthPolicy ::
   Maybe IP ->
   NewClient ->
   ExceptT ClientError (AppT r) Client
-addClientWithReAuthPolicy policy u con ip new = do
+addClientWithReAuthPolicy _policy u con ip new = do
   locale <- Opt.setDefaultUserLocale <$> view settings
   acc <- lift (liftSem $ Data.lookupAccount locale u) >>= maybe (throwE (ClientUserNotFound u)) pure
   verifyCodeThrow (newClientVerificationCode new) (userId . accountUser $ acc)
-  loc <- maybe (pure Nothing) locationOf ip
-  maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
-  let caps :: Maybe (Set ClientCapability)
-      caps = updlhdev $ newClientCapabilities new
+  _loc <- maybe (pure Nothing) locationOf ip
+  _maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
+  let _caps :: Maybe (Set ClientCapability)
+      _caps = updlhdev $ newClientCapabilities new
         where
           updlhdev =
             if newClientType new == LegalHoldClientType
               then Just . maybe (Set.singleton lhcaps) (Set.insert lhcaps)
               else id
           lhcaps = ClientSupportsLegalholdImplicitConsent
-  (clt0, old, count) <-
-    wrapClientE
-      (Data.addClientWithReAuthPolicy policy u clientId' new maxPermClients loc caps)
-      !>> ClientDataError
+  (clt0, old, count :: Word) <- undefined
+  -- wrapClientE
+  --   (Data.addClientWithReAuthPolicy policy u clientId' new maxPermClients loc caps)
+  --   !>> ClientDataError
   let clt = clt0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
   let usr = accountUser acc
   lift $ do
-    for_ old $ execDelete u con
+    for_ (old :: Maybe Client) $ execDelete u con
     wrapHttp $ Intra.newClient u (clientId clt)
     Intra.onClientEvent u con (ClientAdded u clt)
     when (clientType clt == LegalHoldClientType) $ wrapHttpClient $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
@@ -184,7 +184,7 @@ addClientWithReAuthPolicy policy u con ip new = do
           sendNewClientEmail (userDisplayName usr) email clt (userLocale usr)
   pure clt
   where
-    clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
+    -- clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
 
     verifyCodeThrow ::
       Maybe Code.Value ->
@@ -388,7 +388,7 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 -- Utilities
 
 -- | Perform an orderly deletion of an existing client.
-execDelete :: UserId -> Maybe ConnId -> Client -> (AppT r) ()
+execDelete :: UserId -> Maybe ConnId -> Client -> AppT r ()
 execDelete u con c = do
   wrapHttp $ Intra.rmClient u (clientId c)
   for_ (clientCookie c) $ \l -> wrapClient $ Auth.revokeCookies u [] [l]

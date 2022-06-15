@@ -21,11 +21,14 @@ module API.User.Util where
 
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import qualified Brig.Code as Code
 import Brig.Options (Opts)
+import Brig.Sem.Common
 import Brig.Sem.PasswordResetSupply
 import Brig.Sem.PasswordResetSupply.IO
+import qualified Brig.Sem.VerificationCodeStore as Code
+import Brig.Sem.VerificationCodeStore.Cassandra
 import Brig.Types
+import Brig.Types.Code hiding (Value)
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Auth hiding (user)
 import qualified Brig.ZAuth
@@ -33,7 +36,7 @@ import qualified Cassandra as DB
 import qualified Codec.MIME.Type as MIME
 import Control.Lens (preview, (^?))
 import Control.Monad.Catch (MonadCatch)
-import Data.Aeson
+import Data.Aeson hiding (Key)
 import Data.Aeson.Lens
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
@@ -518,5 +521,10 @@ setTeamFeatureLockStatus ::
 setTeamFeatureLockStatus galley tid status =
   put (galley . paths ["i", "teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a), toByteString' status]) !!! const 200 === statusCode
 
-lookupCode :: MonadIO m => DB.ClientState -> Code.Key -> Code.Scope -> m (Maybe Code.Code)
-lookupCode db k = liftIO . DB.runClient db . Code.lookup k
+lookupCode :: MonadIO m => DB.ClientState -> Key -> Code.Scope -> m (Maybe Code.Code)
+lookupCode db k =
+  liftIO
+    . runFinal
+    . interpretClientToIO db
+    . verificationCodeStoreToCassandra @DB.Client
+    . Code.getPendingCode k

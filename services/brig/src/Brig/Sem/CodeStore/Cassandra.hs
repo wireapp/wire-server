@@ -18,7 +18,6 @@
 
 module Brig.Sem.CodeStore.Cassandra
   ( codeStoreToCassandra,
-    interpretClientToIO,
   )
 where
 
@@ -64,14 +63,6 @@ codeStoreToCassandra =
       PRQueryData Maybe
     toRecord (prqdCode, prqdUser, prqdRetries, prqdTimeout) =
       PRQueryData {..}
-
-interpretClientToIO ::
-  Member (Final IO) r =>
-  ClientState ->
-  Sem (Embed Cassandra.Client ': r) a ->
-  Sem r a
-interpretClientToIO ctx = interpret $ \case
-  Embed action -> embedFinal @IO $ runClient ctx action
 
 ---------------------------------------------------------------------------------
 -- Queries

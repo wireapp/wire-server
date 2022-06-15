@@ -35,7 +35,9 @@ import qualified Brig.AWS.SesNotification as SesNotification
 import Brig.App
 import qualified Brig.Calling as Calling
 import Brig.Data.UserPendingActivation (UserPendingActivation (..), usersPendingActivationList, usersPendingActivationRemoveMultiple)
+-- import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
+-- import qualified Brig.Queue as Queue
 import Brig.Types.Intra (AccountStatus (PendingInvitation))
 import Brig.Version
 import Cassandra (Page (Page))
@@ -82,6 +84,9 @@ run o = do
   s <- Server.newSettings (server e)
   -- TODO(md): Find or implement a Polysemy equivalent
   internalEventListener :: Async.Async () <- undefined
+      -- Async.async
+      -- $ runAppT e $
+      --   Queue.listen (e ^. internalEvents) Internal.onEvent
   let throttleMillis = fromMaybe defSqsThrottleMillis $ setSqsThrottleMillis (optSettings o)
   emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
     Async.async $
