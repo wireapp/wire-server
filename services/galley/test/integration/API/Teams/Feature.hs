@@ -311,7 +311,7 @@ testClassifiedDomainsDisabled = do
         opts
           & over
             (optSettings . setFeatureFlags . flagClassifiedDomains)
-            (\s -> s {Public.wsStatus = Public.FeatureStatusDisabled, Public.wsConfig = Public.ClassifiedDomainsConfig []})
+            (\(ImplicitLockStatus s) -> ImplicitLockStatus $ s {Public.wsStatus = Public.FeatureStatusDisabled, Public.wsConfig = Public.ClassifiedDomainsConfig []})
   withSettingsOverrides classifiedDomainsDisabled $ do
     getClassifiedDomains member tid expected
     getClassifiedDomainsInternal tid expected
