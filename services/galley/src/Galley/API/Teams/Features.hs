@@ -617,7 +617,7 @@ instance SetFeatureConfig db SearchVisibilityAvailableConfig where
 
 instance GetFeatureConfig db ValidateSAMLEmailsConfig where
   getConfigForServer =
-    inputs (view (optSettings . setFeatureFlags . flagsTeamFeatureValidateSAMLEmailsStatus . unDefaults))
+    inputs (view (optSettings . setFeatureFlags . flagsTeamFeatureValidateSAMLEmailsStatus . unDefaults . unImplicitLockStatus))
 
 instance SetFeatureConfig db ValidateSAMLEmailsConfig where
   setConfigForTeam tid wsnl _ = persistAndPushEvent @db tid wsnl Nothing
@@ -737,7 +737,7 @@ instance SetFeatureConfig db FileSharingConfig where
 
 instance GetFeatureConfig db AppLockConfig where
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagAppLockDefaults . unDefaults)
+    input <&> view (optSettings . setFeatureFlags . flagAppLockDefaults . unDefaults . unImplicitLockStatus)
 
 instance SetFeatureConfig db AppLockConfig where
   type SetConfigForTeamConstraints db AppLockConfig r = Members '[Error TeamFeatureError] r
@@ -749,7 +749,7 @@ instance SetFeatureConfig db AppLockConfig where
 
 instance GetFeatureConfig db ClassifiedDomainsConfig where
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagClassifiedDomains)
+    input <&> view (optSettings . setFeatureFlags . flagClassifiedDomains . unImplicitLockStatus)
 
 instance GetFeatureConfig db ConferenceCallingConfig where
   type
@@ -768,7 +768,7 @@ instance GetFeatureConfig db ConferenceCallingConfig where
       )
 
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagConferenceCalling . unDefaults)
+    input <&> view (optSettings . setFeatureFlags . flagConferenceCalling . unDefaults . unImplicitLockStatus)
 
   getConfigForUser uid = do
     wsnl <- getAccountConferenceCallingConfigClient uid
@@ -806,7 +806,7 @@ instance SetFeatureConfig db SearchVisibilityInboundConfig where
 
 instance GetFeatureConfig db SearchVisibilityInboundConfig where
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSearchVisibilityInbound . unDefaults)
+    input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSearchVisibilityInbound . unDefaults . unImplicitLockStatus)
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --

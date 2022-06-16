@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -38,6 +39,8 @@ module Galley.Types.Teams
     flagTeamFeatureSndFactorPasswordChallengeStatus,
     flagTeamFeatureSearchVisibilityInbound,
     Defaults (..),
+    ImplicitLockStatus (..),
+    unImplicitLockStatus,
     unDefaults,
     FeatureSSO (..),
     FeatureLegalHold (..),
@@ -141,6 +144,7 @@ where
 
 import Control.Lens (makeLenses, view, (^.))
 import Data.Aeson
+import qualified Data.Aeson.Types as A
 import Data.Id (UserId)
 import qualified Data.Maybe as Maybe
 import qualified Data.Schema as Schema
@@ -223,15 +227,15 @@ data FeatureFlags = FeatureFlags
   { _flagSSO :: !FeatureSSO,
     _flagLegalHold :: !FeatureLegalHold,
     _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility,
-    _flagAppLockDefaults :: !(Defaults (WithStatus AppLockConfig)),
-    _flagClassifiedDomains :: !(WithStatus ClassifiedDomainsConfig),
+    _flagAppLockDefaults :: !(Defaults (ImplicitLockStatus AppLockConfig)),
+    _flagClassifiedDomains :: !(ImplicitLockStatus ClassifiedDomainsConfig),
     _flagFileSharing :: !(Defaults (WithStatus FileSharingConfig)),
-    _flagConferenceCalling :: !(Defaults (WithStatus ConferenceCallingConfig)),
+    _flagConferenceCalling :: !(Defaults (ImplicitLockStatus ConferenceCallingConfig)),
     _flagSelfDeletingMessages :: !(Defaults (WithStatus SelfDeletingMessagesConfig)),
     _flagConversationGuestLinks :: !(Defaults (WithStatus GuestLinksConfig)),
-    _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (WithStatus ValidateSAMLEmailsConfig)),
+    _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (ImplicitLockStatus ValidateSAMLEmailsConfig)),
     _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (WithStatus SndFactorPasswordChallengeConfig)),
-    _flagTeamFeatureSearchVisibilityInbound :: !(Defaults (WithStatus SearchVisibilityInboundConfig))
+    _flagTeamFeatureSearchVisibilityInbound :: !(Defaults (ImplicitLockStatus SearchVisibilityInboundConfig))
   }
   deriving (Eq, Show, Generic)
 
@@ -267,12 +271,15 @@ data FeatureTeamSearchVisibility
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
 newtype ImplicitLockStatus (cfg :: *) = ImplicitLockStatus {_unImplicitLockStatus :: WithStatus cfg}
+  deriving newtype (Eq, Show)
 
 instance (IsFeatureConfig a, Schema.ToSchema a) => ToJSON (ImplicitLockStatus a) where
   toJSON (ImplicitLockStatus a) = toJSON $ forgetLock a
 
 instance (IsFeatureConfig a, Schema.ToSchema a) => FromJSON (ImplicitLockStatus a) where
   parseJSON v = ImplicitLockStatus . withLockStatus (wsLockStatus $ defFeatureStatus @a) <$> parseJSON v
+
+makeLenses ''ImplicitLockStatus
 
 -- NOTE: This is used only in the config and thus YAML... camelcase
 instance FromJSON FeatureFlags where
@@ -281,18 +288,18 @@ instance FromJSON FeatureFlags where
       <$> obj .: "sso"
       <*> obj .: "legalhold"
       <*> obj .: "teamSearchVisibility"
-      <*> (withImplicitLockStatusOrDefault <$> (obj .:? "appLock"))
-      <*> (maybe (defFeatureStatus @ClassifiedDomainsConfig) (_unImplicitLockStatus @ClassifiedDomainsConfig) <$> (obj .:? "classifiedDomains"))
+      <*> withImplicitLockStatusOrDefault obj "appLock"
+      <*> (fromMaybe (ImplicitLockStatus (defFeatureStatus @ClassifiedDomainsConfig)) <$> (obj .:? "classifiedDomains"))
       <*> (fromMaybe (Defaults (defFeatureStatus @FileSharingConfig)) <$> (obj .:? "fileSharing"))
-      <*> (withImplicitLockStatusOrDefault <$> (obj .:? "conferenceCalling"))
+      <*> withImplicitLockStatusOrDefault obj "conferenceCalling"
       <*> (fromMaybe (Defaults (defFeatureStatus @SelfDeletingMessagesConfig)) <$> (obj .:? "selfDeletingMessages"))
       <*> (fromMaybe (Defaults (defFeatureStatus @GuestLinksConfig)) <$> (obj .:? "conversationGuestLinks"))
-      <*> (withImplicitLockStatusOrDefault <$> (obj .:? "validateSAMLEmails"))
+      <*> withImplicitLockStatusOrDefault obj "validateSAMLEmails"
       <*> (fromMaybe (Defaults (defFeatureStatus @SndFactorPasswordChallengeConfig)) <$> (obj .:? "sndFactorPasswordChallenge"))
-      <*> (withImplicitLockStatusOrDefault <$> (obj .:? "searchVisibilityInbound"))
+      <*> withImplicitLockStatusOrDefault obj "searchVisibilityInbound"
     where
-      withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg) => Maybe (Defaults (ImplicitLockStatus cfg)) -> Defaults (WithStatus cfg)
-      withImplicitLockStatusOrDefault = maybe (Defaults (defFeatureStatus @cfg)) (fmap (_unImplicitLockStatus @cfg))
+      withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg, Schema.ToSchema cfg) => Object -> Key -> A.Parser (Defaults (ImplicitLockStatus cfg))
+      withImplicitLockStatusOrDefault obj fieldName = fromMaybe (Defaults (ImplicitLockStatus (defFeatureStatus @cfg))) <$> obj .:? fieldName
 
 instance ToJSON FeatureFlags where
   toJSON
@@ -314,15 +321,15 @@ instance ToJSON FeatureFlags where
         [ "sso" .= sso,
           "legalhold" .= legalhold,
           "teamSearchVisibility" .= searchVisibility,
-          "appLock" .= (ImplicitLockStatus <$> appLock),
-          "classifiedDomains" .= ImplicitLockStatus classifiedDomains,
+          "appLock" .= appLock,
+          "classifiedDomains" .= classifiedDomains,
           "fileSharing" .= fileSharing,
-          "conferenceCalling" .= (ImplicitLockStatus <$> conferenceCalling),
+          "conferenceCalling" .= conferenceCalling,
           "selfDeletingMessages" .= selfDeletingMessages,
           "conversationGuestLinks" .= guestLinks,
-          "validateSAMLEmails" .= (ImplicitLockStatus <$> validateSAMLEmails),
+          "validateSAMLEmails" .= validateSAMLEmails,
           "sndFactorPasswordChallenge" .= sndFactorPasswordChallenge,
-          "searchVisibilityInbound" .= (ImplicitLockStatus <$> searchVisibilityInbound)
+          "searchVisibilityInbound" .= searchVisibilityInbound
         ]
 
 instance FromJSON FeatureSSO where
