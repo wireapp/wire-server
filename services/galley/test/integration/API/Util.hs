@@ -71,6 +71,7 @@ import qualified Data.UUID as UUID
 import Data.UUID.V4
 import Federator.MockServer (FederatedRequest (..))
 import qualified Federator.MockServer as Mock
+import GHC.TypeLits (KnownSymbol)
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
@@ -1410,11 +1411,11 @@ registerRemoteConv convId originUser name othMembers = do
         rcReceiptMode = Nothing
       }
 
-getFeatureStatusMulti :: TeamFeatureName -> Multi.TeamFeatureNoConfigMultiRequest -> TestM ResponseLBS
-getFeatureStatusMulti feat req = do
+getFeatureStatusMulti :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => Multi.TeamFeatureNoConfigMultiRequest -> TestM ResponseLBS
+getFeatureStatusMulti req = do
   g <- view tsGalley
   post
-    ( g . paths ["i", "features-multi-teams", toByteString' feat]
+    ( g . paths ["i", "features-multi-teams", featureNameBS @cfg]
         . json req
     )
 

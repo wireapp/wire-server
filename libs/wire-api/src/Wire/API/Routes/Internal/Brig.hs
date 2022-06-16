@@ -22,9 +22,9 @@ module Wire.API.Routes.Internal.Brig
     MLSAPI,
     TeamsAPI,
     EJPDRequest,
-    GetAccountFeatureConfig,
-    PutAccountFeatureConfig,
-    DeleteAccountFeatureConfig,
+    GetAccountConferenceCallingConfig,
+    PutAccountConferenceCallingConfig,
+    DeleteAccountConferenceCallingConfig,
     SwaggerDocsAPI,
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
@@ -41,7 +41,7 @@ import Data.Schema hiding (swaggerDoc)
 import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
 import qualified Data.Swagger as S
 import Imports hiding (head)
-import Servant hiding (Handler, JSON, addHeader, respond)
+import Servant hiding (Handler, JSON, WithStatus, addHeader, respond)
 import qualified Servant
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
@@ -56,8 +56,7 @@ import Wire.API.Routes.Internal.Brig.EJPD
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
-import Wire.API.Team.Feature (TeamFeatureName (TeamFeatureSearchVisibilityInbound))
-import qualified Wire.API.Team.Feature as ApiFt
+import Wire.API.Team.Feature
 import Wire.API.User
 
 type EJPDRequest =
@@ -78,26 +77,26 @@ type EJPDRequest =
     :> Servant.ReqBody '[Servant.JSON] EJPDRequestBody
     :> Post '[Servant.JSON] EJPDResponseBody
 
-type GetAccountFeatureConfig =
+type GetAccountConferenceCallingConfig =
   Summary
     "Read cassandra field 'brig.user.feature_conference_calling'"
     :> "users"
     :> Capture "uid" UserId
     :> "features"
     :> "conferenceCalling"
-    :> Get '[Servant.JSON] (ApiFt.TeamFeatureStatus 'ApiFt.WithoutLockStatus 'ApiFt.TeamFeatureConferenceCalling)
+    :> Get '[Servant.JSON] (WithStatusNoLock ConferenceCallingConfig)
 
-type PutAccountFeatureConfig =
+type PutAccountConferenceCallingConfig =
   Summary
     "Write to cassandra field 'brig.user.feature_conference_calling'"
     :> "users"
     :> Capture "uid" UserId
     :> "features"
     :> "conferenceCalling"
-    :> Servant.ReqBody '[Servant.JSON] (ApiFt.TeamFeatureStatus 'ApiFt.WithoutLockStatus 'ApiFt.TeamFeatureConferenceCalling)
+    :> Servant.ReqBody '[Servant.JSON] (WithStatusNoLock ConferenceCallingConfig)
     :> Put '[Servant.JSON] NoContent
 
-type DeleteAccountFeatureConfig =
+type DeleteAccountConferenceCallingConfig =
   Summary
     "Reset cassandra field 'brig.user.feature_conference_calling' to 'null'"
     :> "users"
@@ -130,9 +129,9 @@ type GetAllConnections =
 
 type EJPD_API =
   ( EJPDRequest
-      :<|> Named "get-account-feature-config" GetAccountFeatureConfig
-      :<|> PutAccountFeatureConfig
-      :<|> DeleteAccountFeatureConfig
+      :<|> Named "get-account-conference-calling-config" GetAccountConferenceCallingConfig
+      :<|> PutAccountConferenceCallingConfig
+      :<|> DeleteAccountConferenceCallingConfig
       :<|> GetAllConnectionsUnqualified
       :<|> GetAllConnections
   )
@@ -260,7 +259,7 @@ type TeamsAPI =
   Named
     "updateSearchVisibilityInbound"
     ( "teams"
-        :> ReqBody '[Servant.JSON] (Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound)
+        :> ReqBody '[Servant.JSON] (Multi.TeamStatus SearchVisibilityInboundConfig)
         :> Post '[Servant.JSON] ()
     )
 

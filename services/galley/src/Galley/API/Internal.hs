@@ -50,6 +50,7 @@ import qualified Galley.API.Update as Update
 import Galley.API.Util
 import Galley.App
 import Galley.Cassandra.Paging
+import Galley.Cassandra.TeamFeatures
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import Galley.Effects.ClientStore
@@ -82,8 +83,8 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
-import Servant hiding (JSON)
-import qualified Servant
+import Servant hiding (JSON, WithStatus)
+import qualified Servant hiding (WithStatus)
 import System.Logger.Class hiding (Path, name)
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation hiding (Member)
@@ -95,7 +96,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Routes.API
-import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti hiding (TeamStatusUpdate)
+import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
@@ -104,8 +105,12 @@ import Wire.API.Routes.Public.Galley
 import Wire.API.Team.Feature
 
 type IFeatureAPI =
-  IFeatureStatus '[] 'TeamFeatureSSO
-    :<|> IFeatureStatus
+  -- SSOConfig
+  IFeatureStatusGet SSOConfig
+    :<|> IFeatureStatusPut '() SSOConfig
+    -- LegalholdConfig
+    :<|> IFeatureStatusGet LegalholdConfig
+    :<|> IFeatureStatusPut
            '( 'ActionDenied 'RemoveConversationMember,
               '( AuthenticationError,
                  '( 'CannotEnableLegalHoldServiceLargeTeam,
@@ -121,22 +126,50 @@ type IFeatureAPI =
                   )
                )
             )
-           'TeamFeatureLegalHold
-    :<|> IFeatureStatus '() 'TeamFeatureSearchVisibility
-    :<|> IFeatureStatusDeprecated 'TeamFeatureSearchVisibility
-    :<|> IFeatureStatus '() 'TeamFeatureValidateSAMLEmails
-    :<|> IFeatureStatusDeprecated 'TeamFeatureValidateSAMLEmails
-    :<|> IFeatureStatus '() 'TeamFeatureDigitalSignatures
-    :<|> IFeatureStatusDeprecated 'TeamFeatureDigitalSignatures
-    :<|> IFeatureStatus '() 'TeamFeatureAppLock
-    :<|> IFeatureStatusWithLock '() 'TeamFeatureFileSharing
-    :<|> IFeatureStatusGet 'WithLockStatus 'TeamFeatureClassifiedDomains
-    :<|> IFeatureStatus '() 'TeamFeatureConferenceCalling
-    :<|> IFeatureStatusWithLock '() 'TeamFeatureSelfDeletingMessages
-    :<|> IFeatureStatusWithLock '() 'TeamFeatureGuestLinks
-    :<|> IFeatureStatusWithLock '() 'TeamFeatureSndFactorPasswordChallenge
-    :<|> IFeatureStatus '() 'TeamFeatureSearchVisibilityInbound
-    :<|> IFeatureNoConfigMultiGet 'TeamFeatureSearchVisibilityInbound
+           LegalholdConfig
+    -- SearchVisibilityAvailableConfig
+    :<|> IFeatureStatusGet SearchVisibilityAvailableConfig
+    :<|> IFeatureStatusPut '() SearchVisibilityAvailableConfig
+    :<|> IFeatureStatusDeprecatedGet SearchVisibilityAvailableConfig
+    :<|> IFeatureStatusDeprecatedPut SearchVisibilityAvailableConfig
+    -- ValidateSAMLEmailsConfig
+    :<|> IFeatureStatusGet ValidateSAMLEmailsConfig
+    :<|> IFeatureStatusPut '() ValidateSAMLEmailsConfig
+    :<|> IFeatureStatusDeprecatedGet ValidateSAMLEmailsConfig
+    :<|> IFeatureStatusDeprecatedPut ValidateSAMLEmailsConfig
+    -- DigitalSignaturesConfig
+    :<|> IFeatureStatusGet DigitalSignaturesConfig
+    :<|> IFeatureStatusPut '() DigitalSignaturesConfig
+    :<|> IFeatureStatusDeprecatedGet DigitalSignaturesConfig
+    :<|> IFeatureStatusDeprecatedPut DigitalSignaturesConfig
+    -- AppLockConfig
+    :<|> IFeatureStatusGet AppLockConfig
+    :<|> IFeatureStatusPut '() AppLockConfig
+    -- FileSharingConfig
+    :<|> IFeatureStatusGet FileSharingConfig
+    :<|> IFeatureStatusPut '() FileSharingConfig
+    :<|> IFeatureStatusLockStatusPut FileSharingConfig
+    -- ConferenceCallingConfig
+    :<|> IFeatureStatusGet ConferenceCallingConfig
+    :<|> IFeatureStatusPut '() ConferenceCallingConfig
+    -- SelfDeletingMessagesConfig
+    :<|> IFeatureStatusGet SelfDeletingMessagesConfig
+    :<|> IFeatureStatusPut '() SelfDeletingMessagesConfig
+    :<|> IFeatureStatusLockStatusPut SelfDeletingMessagesConfig
+    -- GuestLinksConfig
+    :<|> IFeatureStatusGet GuestLinksConfig
+    :<|> IFeatureStatusPut '() GuestLinksConfig
+    :<|> IFeatureStatusLockStatusPut GuestLinksConfig
+    --  SndFactorPasswordChallengeConfig
+    :<|> IFeatureStatusGet SndFactorPasswordChallengeConfig
+    :<|> IFeatureStatusPut '() SndFactorPasswordChallengeConfig
+    :<|> IFeatureStatusLockStatusPut SndFactorPasswordChallengeConfig
+    -- SearchVisibilityInboundConfig
+    :<|> IFeatureStatusGet SearchVisibilityInboundConfig
+    :<|> IFeatureStatusPut '() SearchVisibilityInboundConfig
+    :<|> IFeatureNoConfigMultiGet SearchVisibilityInboundConfig
+    -- ClassifiedDomainsConfig
+    :<|> IFeatureStatusGet ClassifiedDomainsConfig
 
 type InternalAPI = "i" :> InternalAPIBase
 
@@ -198,8 +231,10 @@ type InternalAPIBase =
            -- to make `AllFeatureConfigs` more type-safe.)
            ( Summary "Get feature config for the 2nd factor password challenge feature (for user/team; if n/a fall back to site config)."
                :> "feature-configs"
+               :> CanThrow OperationDenied
                :> CanThrow 'NotATeamMember
-               :> KnownTeamFeatureNameSymbol 'TeamFeatureSndFactorPasswordChallenge
+               :> CanThrow 'TeamNotFound
+               :> FeatureSymbol SndFactorPasswordChallengeConfig
                :> QueryParam'
                     [ Optional,
                       Strict,
@@ -207,7 +242,7 @@ type InternalAPIBase =
                     ]
                     "user_id"
                     UserId
-               :> Get '[Servant.JSON] TeamFeatureStatusNoConfig
+               :> Get '[Servant.JSON] (WithStatus SndFactorPasswordChallengeConfig)
            )
     :<|> IFeatureAPI
 
@@ -310,40 +345,48 @@ type ITeamsAPIBase =
                     )
          )
 
-type IFeatureStatusGet l f = Named '("iget", f) (FeatureStatusBaseGet l f)
+type IFeatureStatusGet f = Named '("iget", f) (FeatureStatusBaseGet f)
 
-type IFeatureStatusPut errs f = Named '("iput", f) (FeatureStatusBasePut errs f)
+type IFeatureStatusPut errs f = Named '("iput", f) (FeatureStatusBasePutInternal errs f)
 
-type IFeatureStatus errs f = IFeatureStatusGet 'WithoutLockStatus f :<|> IFeatureStatusPut errs f
+type FeatureStatusBasePutInternal errs featureConfig =
+  Summary (AppendSymbol "Put config for " (FeatureSymbol featureConfig))
+    :> CanThrow OperationDenied
+    :> CanThrow 'NotATeamMember
+    :> CanThrow 'TeamNotFound
+    :> CanThrow TeamFeatureError
+    :> CanThrowMany errs
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> FeatureSymbol featureConfig
+    :> ReqBody '[Servant.JSON] (WithStatusNoLock featureConfig)
+    :> QueryParam "ttl" FeatureTTL
+    :> Put '[Servant.JSON] (WithStatus featureConfig)
 
-type IFeatureStatusDeprecated f =
-  Named '("iget-deprecated", f) (FeatureStatusBaseDeprecatedGet 'WithoutLockStatus f)
-    :<|> Named '("iput-deprecated", f) (FeatureStatusBaseDeprecatedPut f)
+type IFeatureStatusDeprecatedGet f = Named '("iget-deprecated", f) (FeatureStatusBaseDeprecatedGet f)
+
+type IFeatureStatusDeprecatedPut f = Named '("iput-deprecated", f) (FeatureStatusBaseDeprecatedPut f)
 
 type IFeatureStatusLockStatusPut featureName =
   Named
     '("lock", featureName)
-    ( Summary (AppendSymbol "(Un-)lock " (KnownTeamFeatureNameSymbol featureName))
+    ( Summary (AppendSymbol "(Un-)lock " (FeatureSymbol featureName))
         :> CanThrow 'NotATeamMember
         :> CanThrow 'TeamNotFound
         :> "teams"
         :> Capture "tid" TeamId
         :> "features"
-        :> KnownTeamFeatureNameSymbol featureName
-        :> Capture "lockStatus" LockStatusValue
-        :> Put '[Servant.JSON] LockStatus
+        :> FeatureSymbol featureName
+        :> Capture "lockStatus" LockStatus
+        :> Put '[Servant.JSON] LockStatusResponse
     )
-
-type IFeatureStatusWithLock errs f =
-  IFeatureStatusGet 'WithLockStatus f
-    :<|> IFeatureStatusPut errs f
-    :<|> IFeatureStatusLockStatusPut f
 
 type FeatureNoConfigMultiGetBase featureName =
   Summary
-    (AppendSymbol "Get team feature status in bulk for feature " (KnownTeamFeatureNameSymbol featureName))
+    (AppendSymbol "Get team feature status in bulk for feature " (FeatureSymbol featureName))
     :> "features-multi-teams"
-    :> KnownTeamFeatureNameSymbol featureName
+    :> FeatureSymbol featureName
     :> ReqBody '[Servant.JSON] TeamFeatureNoConfigMultiRequest
     :> Post '[Servant.JSON] (TeamFeatureNoConfigMultiResponse featureName)
 
@@ -362,7 +405,7 @@ internalAPI =
       <@> legalholdWhitelistedTeamsAPI
       <@> iTeamsAPI
       <@> mkNamedAPI @"upsert-one2one" iUpsertOne2OneConversation
-      <@> mkNamedAPI @"feature-config-snd-factor-password-challenge" getSndFactorPasswordChallengeNoAuth
+      <@> mkNamedAPI @"feature-config-snd-factor-password-challenge" (getFeatureStatusNoPermissionCheck @Cassandra)
       <@> featureAPI
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
@@ -391,57 +434,55 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
         <@> mkNamedAPI @"get-team-name" (Teams.getTeamNameInternalH tid)
         <@> mkNamedAPI @"update-team-status" (Teams.updateTeamStatus tid)
         <@> hoistAPISegment
-          ( mkNamedAPI @"unchecked-add-team-member" (Teams.uncheckedAddTeamMember tid)
+          ( mkNamedAPI @"unchecked-add-team-member" (Teams.uncheckedAddTeamMember @Cassandra tid)
               <@> mkNamedAPI @"unchecked-get-team-members" (Teams.uncheckedGetTeamMembersH tid)
               <@> mkNamedAPI @"unchecked-get-team-member" (Teams.uncheckedGetTeamMember tid)
-              <@> mkNamedAPI @"can-user-join-team" (Teams.canUserJoinTeam tid)
+              <@> mkNamedAPI @"can-user-join-team" (Teams.canUserJoinTeam @Cassandra tid)
           )
         <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwner tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
-              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal tid)
+              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal @Cassandra tid)
           )
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
-  fs getSSOStatusInternal setSSOStatusInternal
-    <@> fs getLegalholdStatusInternal (setLegalholdStatusInternal @InternalPaging)
-    <@> fs getTeamSearchVisibilityAvailableInternal setTeamSearchVisibilityAvailableInternal
-    <@> fsDeprecated getTeamSearchVisibilityAvailableInternal setTeamSearchVisibilityAvailableInternal
-    <@> fs getValidateSAMLEmailsInternal setValidateSAMLEmailsInternal
-    <@> fsDeprecated getValidateSAMLEmailsInternal setValidateSAMLEmailsInternal
-    <@> fs getDigitalSignaturesInternal setDigitalSignaturesInternal
-    <@> fsDeprecated getDigitalSignaturesInternal setDigitalSignaturesInternal
-    <@> fs getAppLockInternal setAppLockInternal
-    <@> ( fsGet getFileSharingInternal
-            <@> fsSet setFileSharingInternal
-            <@> mkNamedAPI (setLockStatus @'TeamFeatureFileSharing)
-        )
-    <@> fsGet getClassifiedDomainsInternal
-    <@> fs getConferenceCallingInternal setConferenceCallingInternal
-    <@> ( fsGet getSelfDeletingMessagesInternal
-            <@> fsSet setSelfDeletingMessagesInternal
-            <@> mkNamedAPI (setLockStatus @'TeamFeatureSelfDeletingMessages)
-        )
-    <@> ( fsGet getGuestLinkInternal
-            <@> fsSet setGuestLinkInternal
-            <@> mkNamedAPI (setLockStatus @'TeamFeatureGuestLinks)
-        )
-    <@> ( fsGet getSndFactorPasswordChallengeInternal
-            <@> fsSet setSndFactorPasswordChallengeInternal
-            <@> mkNamedAPI (setLockStatus @'TeamFeatureSndFactorPasswordChallenge)
-        )
-    <@> fs getTeamSearchVisibilityInboundInternal setTeamSearchVisibilityInboundInternal
-    <@> mkNamedAPI getTeamSearchVisibilityInboundInternalMulti
-  where
-    fs g s = fsGet g <@> fsSet s
-    fsDeprecated g s = fsGet g <@> fsSetDeprecated s
-
-    fsGet g = mkNamedAPI (getFeatureStatus g DontDoAuth)
-
-    fsSet s = mkNamedAPI (setFeatureStatus s DontDoAuth)
-
-    fsSetDeprecated s = mkNamedAPI (setFeatureStatusNoTTL s DontDoAuth)
+  mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (setFeatureStatus @Cassandra Nothing DontDoAuth)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (setFeatureStatus @Cassandra Nothing DontDoAuth)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (setFeatureStatus @Cassandra Nothing DontDoAuth)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
+    <@> mkNamedAPI (setLockStatus @Cassandra @FileSharingConfig)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
+    <@> mkNamedAPI (setLockStatus @Cassandra @SelfDeletingMessagesConfig)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
+    <@> mkNamedAPI (setLockStatus @Cassandra @GuestLinksConfig)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
+    <@> mkNamedAPI (setLockStatus @Cassandra @SndFactorPasswordChallengeConfig)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
+    <@> mkNamedAPI (getFeatureStatusMulti @Cassandra @SearchVisibilityInboundConfig)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()
 internalSitemap = do

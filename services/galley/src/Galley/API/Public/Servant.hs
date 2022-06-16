@@ -26,7 +26,7 @@ import Galley.API.Teams
 import Galley.API.Teams.Features
 import Galley.API.Update
 import Galley.App
-import Galley.Cassandra.Paging
+import Galley.Cassandra.TeamFeatures
 import Imports
 import Wire.API.Routes.API
 import Wire.API.Routes.Public.Galley
@@ -54,20 +54,20 @@ servantSitemap =
         <@> mkNamedAPI @"get-conversations" getConversations
         <@> mkNamedAPI @"list-conversations-v1" listConversations
         <@> mkNamedAPI @"list-conversations" listConversations
-        <@> mkNamedAPI @"get-conversation-by-reusable-code" getConversationByReusableCode
+        <@> mkNamedAPI @"get-conversation-by-reusable-code" (getConversationByReusableCode @Cassandra)
         <@> mkNamedAPI @"create-group-conversation" createGroupConversation
         <@> mkNamedAPI @"create-self-conversation" createSelfConversation
         <@> mkNamedAPI @"create-one-to-one-conversation" createOne2OneConversation
         <@> mkNamedAPI @"add-members-to-conversation-unqualified" addMembersUnqualified
         <@> mkNamedAPI @"add-members-to-conversation-unqualified2" addMembersUnqualifiedV2
         <@> mkNamedAPI @"add-members-to-conversation" addMembers
-        <@> mkNamedAPI @"join-conversation-by-id-unqualified" joinConversationById
-        <@> mkNamedAPI @"join-conversation-by-code-unqualified" joinConversationByReusableCode
-        <@> mkNamedAPI @"code-check" checkReusableCode
-        <@> mkNamedAPI @"create-conversation-code-unqualified" addCodeUnqualified
-        <@> mkNamedAPI @"get-conversation-guest-links-status" getConversationGuestLinksStatus
+        <@> mkNamedAPI @"join-conversation-by-id-unqualified" (joinConversationById @Cassandra)
+        <@> mkNamedAPI @"join-conversation-by-code-unqualified" (joinConversationByReusableCode @Cassandra)
+        <@> mkNamedAPI @"code-check" (checkReusableCode @Cassandra)
+        <@> mkNamedAPI @"create-conversation-code-unqualified" (addCodeUnqualified @Cassandra)
+        <@> mkNamedAPI @"get-conversation-guest-links-status" (getConversationGuestLinksStatus @Cassandra)
         <@> mkNamedAPI @"remove-code-unqualified" rmCodeUnqualified
-        <@> mkNamedAPI @"get-code" getCode
+        <@> mkNamedAPI @"get-code" (getCode @Cassandra)
         <@> mkNamedAPI @"member-typing-unqualified" isTypingUnqualified
         <@> mkNamedAPI @"remove-member-unqualified" removeMemberUnqualified
         <@> mkNamedAPI @"remove-member" removeMemberQualified
@@ -111,173 +111,45 @@ servantSitemap =
         <@> mkNamedAPI @"delete-team" deleteTeam
 
     features =
-      mkNamedAPI @'("get", 'TeamFeatureSSO)
-        ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureSSO
-            getSSOStatusInternal
-            . DoAuth
-        )
-        <@> mkNamedAPI @'("get", 'TeamFeatureLegalHold)
-          ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureLegalHold
-              getLegalholdStatusInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("put", 'TeamFeatureLegalHold)
-          ( setFeatureStatus @'TeamFeatureLegalHold
-              (setLegalholdStatusInternal @InternalPaging)
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("get", 'TeamFeatureSearchVisibility)
-          ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureSearchVisibility
-              getTeamSearchVisibilityAvailableInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("put", 'TeamFeatureSearchVisibility)
-          ( setFeatureStatus @'TeamFeatureSearchVisibility
-              setTeamSearchVisibilityAvailableInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("get-deprecated", 'TeamFeatureSearchVisibility)
-          ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureSearchVisibility
-              getTeamSearchVisibilityAvailableInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("put-deprecated", 'TeamFeatureSearchVisibility)
-          ( setFeatureStatusNoTTL @'TeamFeatureSearchVisibility
-              setTeamSearchVisibilityAvailableInternal
-              . DoAuth
-          )
+      mkNamedAPI @'("get", SSOConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("get", LegalholdConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("put", LegalholdConfig) (setFeatureStatus @Cassandra Nothing . DoAuth)
+        <@> mkNamedAPI @'("get", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("put", SearchVisibilityAvailableConfig) (setFeatureStatus @Cassandra Nothing . DoAuth)
+        <@> mkNamedAPI @'("get-deprecated", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("put-deprecated", SearchVisibilityAvailableConfig) (setFeatureStatus @Cassandra Nothing . DoAuth)
         <@> mkNamedAPI @"get-search-visibility" getSearchVisibility
-        <@> mkNamedAPI @"set-search-visibility" setSearchVisibility
-        <@> mkNamedAPI @'("get", 'TeamFeatureValidateSAMLEmails)
-          ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails
-              getValidateSAMLEmailsInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("get-deprecated", 'TeamFeatureValidateSAMLEmails)
-          ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails
-              getValidateSAMLEmailsInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("get", 'TeamFeatureDigitalSignatures)
-          ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureDigitalSignatures
-              getDigitalSignaturesInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("get-deprecated", 'TeamFeatureDigitalSignatures)
-          ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureDigitalSignatures
-              getDigitalSignaturesInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("get", 'TeamFeatureAppLock)
-          ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureAppLock
-              getAppLockInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("put", 'TeamFeatureAppLock)
-          ( setFeatureStatus @'TeamFeatureAppLock
-              setAppLockInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("get", 'TeamFeatureFileSharing)
-          ( getFeatureStatus @'WithLockStatus @'TeamFeatureFileSharing
-              getFileSharingInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("put", 'TeamFeatureFileSharing)
-          ( setFeatureStatus @'TeamFeatureFileSharing
-              setFileSharingInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("get", 'TeamFeatureClassifiedDomains)
-          ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureClassifiedDomains
-              getClassifiedDomainsInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("get", 'TeamFeatureConferenceCalling)
-          ( getFeatureStatus @'WithoutLockStatus @'TeamFeatureConferenceCalling
-              getConferenceCallingInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("get", 'TeamFeatureSelfDeletingMessages)
-          ( getFeatureStatus @'WithLockStatus @'TeamFeatureSelfDeletingMessages
-              getSelfDeletingMessagesInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("put", 'TeamFeatureSelfDeletingMessages)
-          ( setFeatureStatus @'TeamFeatureSelfDeletingMessages
-              setSelfDeletingMessagesInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("get", 'TeamFeatureGuestLinks)
-          ( getFeatureStatus @'WithLockStatus @'TeamFeatureGuestLinks
-              getGuestLinkInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("put", 'TeamFeatureGuestLinks)
-          ( setFeatureStatus @'TeamFeatureGuestLinks
-              setGuestLinkInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("get", 'TeamFeatureSndFactorPasswordChallenge)
-          ( getFeatureStatus @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge
-              getSndFactorPasswordChallengeInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @'("put", 'TeamFeatureSndFactorPasswordChallenge)
-          ( setFeatureStatus @'TeamFeatureSndFactorPasswordChallenge
-              setSndFactorPasswordChallengeInternal
-              . DoAuth
-          )
-        <@> mkNamedAPI @"get-all-feature-configs" getAllFeatureConfigsForUser
-        <@> mkNamedAPI @"get-all-features" getAllFeatureConfigsForTeam
-        <@> mkNamedAPI @'("get-config", 'TeamFeatureLegalHold)
-          ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureLegalHold
-              getLegalholdStatusInternal
-          )
-        <@> mkNamedAPI @'("get-config", 'TeamFeatureSSO)
-          ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureSSO
-              getSSOStatusInternal
-          )
-        <@> mkNamedAPI @'("get-config", 'TeamFeatureSearchVisibility)
-          ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureSearchVisibility
-              getTeamSearchVisibilityAvailableInternal
-          )
-        <@> mkNamedAPI @'("get-config", 'TeamFeatureValidateSAMLEmails)
-          ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureValidateSAMLEmails
-              getValidateSAMLEmailsInternal
-          )
-        <@> mkNamedAPI @'("get-config", 'TeamFeatureDigitalSignatures)
-          ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureDigitalSignatures
-              getDigitalSignaturesInternal
-          )
-        <@> mkNamedAPI @'("get-config", 'TeamFeatureAppLock)
-          ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureAppLock
-              getAppLockInternal
-          )
-        <@> mkNamedAPI @'("get-config", 'TeamFeatureFileSharing)
-          ( getFeatureConfig @'WithLockStatus @'TeamFeatureFileSharing
-              getFileSharingInternal
-          )
-        <@> mkNamedAPI @'("get-config", 'TeamFeatureClassifiedDomains)
-          ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureClassifiedDomains
-              getClassifiedDomainsInternal
-          )
-        <@> mkNamedAPI @'("get-config", 'TeamFeatureConferenceCalling)
-          ( getFeatureConfig @'WithoutLockStatus @'TeamFeatureConferenceCalling
-              getConferenceCallingInternal
-          )
-        <@> mkNamedAPI @'("get-config", 'TeamFeatureSelfDeletingMessages)
-          ( getFeatureConfig @'WithLockStatus @'TeamFeatureSelfDeletingMessages
-              getSelfDeletingMessagesInternal
-          )
-        <@> mkNamedAPI @'("get-config", 'TeamFeatureGuestLinks)
-          ( getFeatureConfig @'WithLockStatus @'TeamFeatureGuestLinks
-              getGuestLinkInternal
-          )
-        <@> mkNamedAPI @'("get-config", 'TeamFeatureSndFactorPasswordChallenge)
-          ( getFeatureConfig @'WithLockStatus @'TeamFeatureSndFactorPasswordChallenge
-              getSndFactorPasswordChallengeInternal
-          )
+        <@> mkNamedAPI @"set-search-visibility" (setSearchVisibility @Cassandra)
+        <@> mkNamedAPI @'("get", ValidateSAMLEmailsConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("get-deprecated", ValidateSAMLEmailsConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("get", DigitalSignaturesConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("get-deprecated", DigitalSignaturesConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("get", AppLockConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("put", AppLockConfig) (setFeatureStatus @Cassandra Nothing . DoAuth)
+        <@> mkNamedAPI @'("get", FileSharingConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("put", FileSharingConfig) (setFeatureStatus @Cassandra Nothing . DoAuth)
+        <@> mkNamedAPI @'("get", ClassifiedDomainsConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("get", ConferenceCallingConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("get", SelfDeletingMessagesConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("put", SelfDeletingMessagesConfig) (setFeatureStatus @Cassandra Nothing . DoAuth)
+        <@> mkNamedAPI @'("get", GuestLinksConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("put", GuestLinksConfig) (setFeatureStatus @Cassandra Nothing . DoAuth)
+        <@> mkNamedAPI @'("get", SndFactorPasswordChallengeConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("put", SndFactorPasswordChallengeConfig) (setFeatureStatus @Cassandra Nothing . DoAuth)
+        <@> mkNamedAPI @"get-all-feature-configs-for-user" (getAllFeatureConfigsForUser @Cassandra)
+        <@> mkNamedAPI @"get-all-feature-configs-for-team" (getAllFeatureConfigsForTeam @Cassandra)
+        <@> mkNamedAPI @'("get-config", LegalholdConfig) (getFeatureStatusForUser @Cassandra)
+        <@> mkNamedAPI @'("get-config", SSOConfig) (getFeatureStatusForUser @Cassandra)
+        <@> mkNamedAPI @'("get-config", SearchVisibilityAvailableConfig) (getFeatureStatusForUser @Cassandra)
+        <@> mkNamedAPI @'("get-config", ValidateSAMLEmailsConfig) (getFeatureStatusForUser @Cassandra)
+        <@> mkNamedAPI @'("get-config", DigitalSignaturesConfig) (getFeatureStatusForUser @Cassandra)
+        <@> mkNamedAPI @'("get-config", AppLockConfig) (getFeatureStatusForUser @Cassandra)
+        <@> mkNamedAPI @'("get-config", FileSharingConfig) (getFeatureStatusForUser @Cassandra)
+        <@> mkNamedAPI @'("get-config", ClassifiedDomainsConfig) (getFeatureStatusForUser @Cassandra)
+        <@> mkNamedAPI @'("get-config", ConferenceCallingConfig) (getFeatureStatusForUser @Cassandra)
+        <@> mkNamedAPI @'("get-config", SelfDeletingMessagesConfig) (getFeatureStatusForUser @Cassandra)
+        <@> mkNamedAPI @'("get-config", GuestLinksConfig) (getFeatureStatusForUser @Cassandra)
+        <@> mkNamedAPI @'("get-config", SndFactorPasswordChallengeConfig) (getFeatureStatusForUser @Cassandra)
 
     mls :: API MLSAPI GalleyEffects
     mls =
@@ -289,21 +161,21 @@ servantSitemap =
 
     legalHold :: API LegalHoldAPI GalleyEffects
     legalHold =
-      mkNamedAPI @"create-legal-hold-settings" createSettings
-        <@> mkNamedAPI @"get-legal-hold-settings" getSettings
-        <@> mkNamedAPI @"delete-legal-hold-settings" removeSettingsInternalPaging
+      mkNamedAPI @"create-legal-hold-settings" (createSettings @Cassandra)
+        <@> mkNamedAPI @"get-legal-hold-settings" (getSettings @Cassandra)
+        <@> mkNamedAPI @"delete-legal-hold-settings" (removeSettingsInternalPaging @Cassandra)
         <@> mkNamedAPI @"get-legal-hold" getUserStatus
         <@> mkNamedAPI @"consent-to-legal-hold" grantConsent
-        <@> mkNamedAPI @"request-legal-hold-device" requestDevice
+        <@> mkNamedAPI @"request-legal-hold-device" (requestDevice @Cassandra)
         <@> mkNamedAPI @"disable-legal-hold-for-user" disableForUser
-        <@> mkNamedAPI @"approve-legal-hold-device" approveDevice
+        <@> mkNamedAPI @"approve-legal-hold-device" (approveDevice @Cassandra)
 
     teamMember :: API TeamMemberAPI GalleyEffects
     teamMember =
       mkNamedAPI @"get-team-members" getTeamMembers
         <@> mkNamedAPI @"get-team-member" getTeamMember
         <@> mkNamedAPI @"get-team-members-by-ids" bulkGetTeamMembers
-        <@> mkNamedAPI @"add-team-member" addTeamMember
+        <@> mkNamedAPI @"add-team-member" (addTeamMember @Cassandra)
         <@> mkNamedAPI @"delete-team-member" deleteTeamMember
         <@> mkNamedAPI @"delete-non-binding-team-member" deleteNonBindingTeamMember
         <@> mkNamedAPI @"update-team-member" updateTeamMember

@@ -64,7 +64,7 @@ import Util.Options (Endpoint (Endpoint))
 import Wire.API.Conversation (Conversation (cnvMembers))
 import Wire.API.Conversation.Member (OtherMember (OtherMember), cmOthers)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
-import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
+import Wire.API.Team.Feature (FeatureStatus (..))
 
 -- | Starts a server which will return the bytestring passed to this
 -- function, and makes the action passed to this function run in a modified brig

@@ -163,6 +163,7 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Team.Feature (forgetLock)
 import Wire.API.Team.Member (legalHoldStatus)
 import Wire.API.User
 
@@ -434,7 +435,7 @@ createUser new = do
 initAccountFeatureConfig :: UserId -> (AppT r) ()
 initAccountFeatureConfig uid = do
   mbCciDefNew <- view (settings . getAfcConferenceCallingDefNewMaybe)
-  forM_ mbCciDefNew $ wrapClient . Data.updateFeatureConferenceCalling uid . Just
+  forM_ (forgetLock <$> mbCciDefNew) $ wrapClient . Data.updateFeatureConferenceCalling uid . Just
 
 -- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where

@@ -27,7 +27,7 @@ module Galley.Intra.User
     getContactList,
     chunkify,
     getRichInfoMultiUser,
-    getAccountFeatureConfigClient,
+    getAccountConferenceCallingConfigClient,
     updateSearchVisibilityInbound,
   )
 where
@@ -234,12 +234,12 @@ getRichInfoMultiUser = chunkify $ \uids -> do
         . expect2xx
   parseResponse (mkError status502 "server-error") resp
 
-getAccountFeatureConfigClient :: HasCallStack => UserId -> App TeamFeatureStatusNoConfig
-getAccountFeatureConfigClient uid =
-  runHereClientM (namedClient @IAPI.API @"get-account-feature-config" uid)
+getAccountConferenceCallingConfigClient :: HasCallStack => UserId -> App (WithStatusNoLock ConferenceCallingConfig)
+getAccountConferenceCallingConfigClient uid =
+  runHereClientM (namedClient @IAPI.API @"get-account-conference-calling-config" uid)
     >>= handleServantResp
 
-updateSearchVisibilityInbound :: Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound -> App ()
+updateSearchVisibilityInbound :: Multi.TeamStatus SearchVisibilityInboundConfig -> App ()
 updateSearchVisibilityInbound =
   handleServantResp
     <=< runHereClientM

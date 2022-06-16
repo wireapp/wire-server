@@ -30,12 +30,6 @@ import Network.HTTP.Types.Method
 import Spar.Error
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature
-  ( IncludeLockStatus (..),
-    TeamFeatureName (..),
-    TeamFeatureStatus,
-    TeamFeatureStatusNoConfig (..),
-    TeamFeatureStatusValue (..),
-  )
 
 ----------------------------------------------------------------------
 
@@ -83,8 +77,8 @@ assertSSOEnabled tid = do
         . paths ["i", "teams", toByteString' tid, "features", "sso"]
   unless (statusCode resp == 200) $
     rethrow "galley" resp
-  TeamFeatureStatusNoConfig status <- parseResponse "galley" resp
-  unless (status == TeamFeatureEnabled) $
+  ws :: WithStatus SSOConfig <- parseResponse "galley" resp
+  unless (wsStatus ws == FeatureStatusEnabled) $
     throwSpar SparSSODisabled
 
 isEmailValidationEnabledTeam :: (HasCallStack, MonadSparToGalley m) => TeamId -> m Bool
@@ -92,6 +86,7 @@ isEmailValidationEnabledTeam tid = do
   resp <- call $ method GET . paths ["i", "teams", toByteString' tid, "features", "validateSAMLemails"]
   pure
     ( statusCode resp == 200
-        && responseJsonMaybe @(TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails) resp
-          == Just (TeamFeatureStatusNoConfig TeamFeatureEnabled)
+        && ( (wsStatus <$> responseJsonMaybe @(WithStatus ValidateSAMLEmailsConfig) resp)
+               == Just FeatureStatusEnabled
+           )
     )

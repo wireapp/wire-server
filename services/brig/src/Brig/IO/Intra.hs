@@ -1341,13 +1341,13 @@ getTeamLegalHoldStatus ::
     MonadLogger m
   ) =>
   TeamId ->
-  m (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold)
+  m (WithStatus LegalholdConfig)
 getTeamLegalHoldStatus tid = do
   debug $ remote "galley" . msg (val "Get legalhold settings")
   galleyRequest GET req >>= decodeBody "galley"
   where
     req =
-      paths ["i", "teams", toByteString' tid, "features", toByteString' TeamFeatureLegalHold]
+      paths ["i", "teams", toByteString' tid, "features", featureNameBS @LegalholdConfig]
         . expect2xx
 
 -- | Calls 'Galley.API.getSearchVisibilityInternalH'.
@@ -1383,13 +1383,13 @@ getVerificationCodeEnabled ::
 getVerificationCodeEnabled tid = do
   debug $ remote "galley" . msg (val "Get snd factor password challenge settings")
   response <- galleyRequest GET req
-  status <- tfwoStatus <$> decodeBody "galley" response
+  status <- wsStatus <$> decodeBody @(WithStatus SndFactorPasswordChallengeConfig) "galley" response
   case status of
-    TeamFeatureEnabled -> pure True
-    TeamFeatureDisabled -> pure False
+    FeatureStatusEnabled -> pure True
+    FeatureStatusDisabled -> pure False
   where
     req =
-      paths ["i", "teams", toByteString' tid, "features", toByteString' TeamFeatureSndFactorPasswordChallenge]
+      paths ["i", "teams", toByteString' tid, "features", featureNameBS @SndFactorPasswordChallengeConfig]
         . expect2xx
 
 getTeamFeatureStatusSndFactorPasswordChallenge ::
@@ -1400,12 +1400,12 @@ getTeamFeatureStatusSndFactorPasswordChallenge ::
     HasRequestId m
   ) =>
   Maybe UserId ->
-  m TeamFeatureStatusNoConfig
+  m (WithStatus SndFactorPasswordChallengeConfig)
 getTeamFeatureStatusSndFactorPasswordChallenge mbUserId =
   responseJsonUnsafe
     <$> galleyRequest
       GET
-      ( paths ["i", "feature-configs", toByteString' (knownTeamFeatureName @'TeamFeatureSndFactorPasswordChallenge)]
+      ( paths ["i", "feature-configs", featureNameBS @SndFactorPasswordChallengeConfig]
           . maybe id (queryItem "user_id" . toByteString') mbUserId
       )
 

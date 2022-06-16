@@ -57,6 +57,7 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import qualified Data.UUID.V1 as UUID
 import qualified Data.Vector as V
+import GHC.TypeLits (KnownSymbol)
 import qualified Galley.Env as Galley
 import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
 import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
@@ -421,10 +422,10 @@ testEnableSSOPerTeam = do
   owner <- Util.randomUser
   tid <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
-  let check :: HasCallStack => String -> Public.TeamFeatureStatusValue -> TestM ()
+  let check :: HasCallStack => String -> Public.FeatureStatus -> TestM ()
       check msg enabledness = do
-        status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSSO <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
-        let statusValue = Public.tfwoStatus status
+        status :: Public.WithStatusNoLock Public.SSOConfig <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
+        let statusValue = Public.wssStatus status
         liftIO $ assertEqual msg enabledness statusValue
   let putSSOEnabledInternalCheckNotImplemented :: HasCallStack => TestM ()
       putSSOEnabledInternalCheckNotImplemented = do
@@ -434,27 +435,27 @@ testEnableSSOPerTeam = do
             <$> put
               ( g
                   . paths ["i", "teams", toByteString' tid, "features", "sso"]
-                  . json (Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled)
+                  . json (Public.WithStatusNoLock Public.FeatureStatusDisabled Public.SSOConfig)
               )
         liftIO $ do
           assertEqual "bad status" status403 status
           assertEqual "bad label" "not-implemented" label
   featureSSO <- view (tsGConf . optSettings . setFeatureFlags . flagSSO)
   case featureSSO of
-    FeatureSSOEnabledByDefault -> check "Teams should start with SSO enabled" Public.TeamFeatureEnabled
-    FeatureSSODisabledByDefault -> check "Teams should start with SSO disabled" Public.TeamFeatureDisabled
-  putSSOEnabledInternal tid Public.TeamFeatureEnabled
-  check "Calling 'putEnabled True' should enable SSO" Public.TeamFeatureEnabled
+    FeatureSSOEnabledByDefault -> check "Teams should start with SSO enabled" Public.FeatureStatusEnabled
+    FeatureSSODisabledByDefault -> check "Teams should start with SSO disabled" Public.FeatureStatusDisabled
+  putSSOEnabledInternal tid Public.FeatureStatusEnabled
+  check "Calling 'putEnabled True' should enable SSO" Public.FeatureStatusEnabled
   putSSOEnabledInternalCheckNotImplemented
 
 testEnableTeamSearchVisibilityPerTeam :: TestM ()
 testEnableTeamSearchVisibilityPerTeam = do
   (tid, owner, member : _) <- Util.createBindingTeamWithMembers 2
-  let check :: String -> Public.TeamFeatureStatusValue -> TestM ()
+  let check :: String -> Public.FeatureStatus -> TestM ()
       check msg enabledness = do
         g <- view tsGalley
-        status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibility <- responseJsonUnsafe <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
-        let statusValue = Public.tfwoStatus status
+        status :: Public.WithStatusNoLock Public.SearchVisibilityAvailableConfig <- responseJsonUnsafe <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
+        let statusValue = Public.wssStatus status
 
         liftIO $ assertEqual msg enabledness statusValue
   let putSearchVisibilityCheckNotAllowed :: TestM ()
@@ -473,15 +474,15 @@ testEnableTeamSearchVisibilityPerTeam = do
 
   Util.withCustomSearchFeature FeatureTeamSearchVisibilityEnabledByDefault $ do
     g <- view tsGalley
-    check "Teams should start with Custom Search Visibility enabled" Public.TeamFeatureEnabled
+    check "Teams should start with Custom Search Visibility enabled" Public.FeatureStatusEnabled
     putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam !!! const 204 === statusCode
     putSearchVisibility g owner tid SearchVisibilityStandard !!! const 204 === statusCode
   Util.withCustomSearchFeature FeatureTeamSearchVisibilityDisabledByDefault $ do
-    check "Teams should start with Custom Search Visibility disabled" Public.TeamFeatureDisabled
+    check "Teams should start with Custom Search Visibility disabled" Public.FeatureStatusDisabled
     putSearchVisibilityCheckNotAllowed
 
   g <- view tsGalley
-  Util.putTeamSearchVisibilityAvailableInternal g tid Public.TeamFeatureEnabled
+  Util.putTeamSearchVisibilityAvailableInternal g tid Public.FeatureStatusEnabled
   -- Nothing was set, default value
   getSearchVisibilityCheck SearchVisibilityStandard
   putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam !!! testResponse 204 Nothing
@@ -492,7 +493,7 @@ testEnableTeamSearchVisibilityPerTeam = do
   -- Members can also see it?
   getSearchVisibility g member tid !!! testResponse 200 Nothing
   -- Once we disable the feature, team setting is back to the default value
-  Util.putTeamSearchVisibilityAvailableInternal g tid Public.TeamFeatureDisabled
+  Util.putTeamSearchVisibilityAvailableInternal g tid Public.FeatureStatusDisabled
   getSearchVisibilityCheck SearchVisibilityStandard
 
 testCreateOne2OneFailNonBindingTeamMembers :: TestM ()
@@ -1162,8 +1163,8 @@ testDeleteTeamVerificationCodeSuccess = do
   g <- view tsGalley
   (owner, tid) <- Util.createBindingTeam'
   let Just email = U.userEmail owner
-  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
-  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  setFeatureLockStatus @Public.SndFactorPasswordChallengeConfig tid Public.LockStatusUnlocked
+  setTeamSndFactorPasswordChallenge tid Public.FeatureStatusEnabled
   generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
   code <- getVerificationCode (U.userId owner) Public.DeleteTeam
   delete
@@ -1185,8 +1186,8 @@ testDeleteTeamVerificationCodeMissingCode :: TestM ()
 testDeleteTeamVerificationCodeMissingCode = do
   g <- view tsGalley
   (owner, tid) <- Util.createBindingTeam'
-  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
-  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  setFeatureLockStatus @Public.SndFactorPasswordChallengeConfig tid Public.LockStatusUnlocked
+  setTeamSndFactorPasswordChallenge tid Public.FeatureStatusEnabled
   let Just email = U.userEmail owner
   generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
   delete
@@ -1210,8 +1211,8 @@ testDeleteTeamVerificationCodeExpiredCode :: TestM ()
 testDeleteTeamVerificationCodeExpiredCode = do
   g <- view tsGalley
   (owner, tid) <- Util.createBindingTeam'
-  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
-  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  setFeatureLockStatus @Public.SndFactorPasswordChallengeConfig tid Public.LockStatusUnlocked
+  setTeamSndFactorPasswordChallenge tid Public.FeatureStatusEnabled
   let Just email = U.userEmail owner
   generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
   code <- getVerificationCode (U.userId owner) Public.DeleteTeam
@@ -1238,8 +1239,8 @@ testDeleteTeamVerificationCodeWrongCode :: TestM ()
 testDeleteTeamVerificationCodeWrongCode = do
   g <- view tsGalley
   (owner, tid) <- Util.createBindingTeam'
-  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
-  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  setFeatureLockStatus @Public.SndFactorPasswordChallengeConfig tid Public.LockStatusUnlocked
+  setTeamSndFactorPasswordChallenge tid Public.FeatureStatusEnabled
   let Just email = U.userEmail owner
   generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
   let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
@@ -1257,10 +1258,10 @@ testDeleteTeamVerificationCodeWrongCode = do
 
 -- @END
 
-setFeatureLockStatus :: forall (a :: Public.TeamFeatureName). (Public.KnownTeamFeatureName a) => TeamId -> Public.LockStatusValue -> TestM ()
+setFeatureLockStatus :: forall cfg. (Public.IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg)) => TeamId -> Public.LockStatus -> TestM ()
 setFeatureLockStatus tid status = do
   g <- view tsGalley
-  put (g . paths ["i", "teams", toByteString' tid, "features", toByteString' $ Public.knownTeamFeatureName @a, toByteString' status]) !!! const 200 === statusCode
+  put (g . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg, toByteString' status]) !!! const 200 === statusCode
 
 generateVerificationCode :: Public.SendVerificationCode -> TestM ()
 generateVerificationCode req = do
@@ -1268,11 +1269,11 @@ generateVerificationCode req = do
   let js = RequestBodyLBS $ encode req
   post (brig . paths ["verification-code", "send"] . contentJson . body js) !!! const 200 === statusCode
 
-setTeamSndFactorPasswordChallenge :: TeamId -> Public.TeamFeatureStatusValue -> TestM ()
+setTeamSndFactorPasswordChallenge :: TeamId -> Public.FeatureStatus -> TestM ()
 setTeamSndFactorPasswordChallenge tid status = do
   g <- view tsGalley
-  let js = RequestBodyLBS $ encode $ Public.TeamFeatureStatusNoConfig status
-  put (g . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge] . contentJson . body js) !!! const 200 === statusCode
+  let js = RequestBodyLBS $ encode $ Public.WithStatusNoLock status Public.SndFactorPasswordChallengeConfig
+  put (g . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @Public.SndFactorPasswordChallengeConfig] . contentJson . body js) !!! const 200 === statusCode
 
 getVerificationCode :: UserId -> Public.VerificationAction -> TestM Code.Value
 getVerificationCode uid action = do
@@ -2107,10 +2108,10 @@ newTeamMember' perms uid = Member.mkTeamMember uid perms Nothing LH.defUserLegal
 -- and with different kinds of internal checks, it's quite tedious to do so.
 
 getSSOEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
-getSSOEnabledInternal = Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO
+getSSOEnabledInternal = Util.getTeamFeatureFlagInternal @Public.SSOConfig
 
-putSSOEnabledInternal :: HasCallStack => TeamId -> Public.TeamFeatureStatusValue -> TestM ()
-putSSOEnabledInternal tid statusValue = void $ Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSSO expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+putSSOEnabledInternal :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
+putSSOEnabledInternal tid statusValue = void $ Util.putTeamFeatureFlagInternal @Public.SSOConfig expect2xx tid (Public.WithStatusNoLock statusValue Public.SSOConfig)
 
 getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getSearchVisibility g uid tid = do

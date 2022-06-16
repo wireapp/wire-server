@@ -74,8 +74,8 @@ interpretBrigAccess = interpret $ \case
     embedApp $ addLegalHoldClientToUser uid conn pks lpk
   RemoveLegalHoldClientFromUser uid ->
     embedApp $ removeLegalHoldClientFromUser uid
-  GetAccountFeatureConfigClient uid ->
-    embedApp $ getAccountFeatureConfigClient uid
+  GetAccountConferenceCallingConfigClient uid ->
+    embedApp $ getAccountConferenceCallingConfigClient uid
   GetClientByKeyPackageRef ref ->
     embedApp $ getClientByKeyPackageRef ref
   GetLocalMLSClients qusr ss -> embedApp $ getLocalMLSClients qusr ss

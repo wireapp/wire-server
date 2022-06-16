@@ -155,9 +155,9 @@ getActivationCode brig ep = do
   let acode = ActivationCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
   pure $ (,) <$> akey <*> acode
 
-setSamlEmailValidation :: HasCallStack => TeamId -> Feature.TeamFeatureStatusValue -> TestSpar ()
+setSamlEmailValidation :: HasCallStack => TeamId -> Feature.FeatureStatus -> TestSpar ()
 setSamlEmailValidation tid status = do
   galley <- view teGalley
-  let req = put $ galley . paths p . json (Feature.TeamFeatureStatusNoConfig status)
+  let req = put $ galley . paths p . json (Feature.WithStatusNoLock @Feature.ValidateSAMLEmailsConfig status Feature.trivialConfig)
       p = ["/i/teams", toByteString' tid, "features", "validate-saml-emails"]
   call req !!! const 200 === statusCode

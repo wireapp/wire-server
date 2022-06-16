@@ -33,7 +33,6 @@ import qualified Wire.API.Provider.Service as Provider.Service
 import qualified Wire.API.Push.Token as Push.Token
 import qualified Wire.API.Team as Team
 import qualified Wire.API.Team.Conversation as Team.Conversation
-import qualified Wire.API.Team.Feature as Team.Feature
 import qualified Wire.API.Team.Invitation as Team.Invitation
 import qualified Wire.API.Team.Permission as Team.Permission
 import qualified Wire.API.User as User
@@ -95,23 +94,6 @@ models =
     Team.modelTeamDelete,
     Team.Conversation.modelTeamConversation,
     Team.Conversation.modelTeamConversationList,
-    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureLegalHold,
-    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureSSO,
-    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureSearchVisibility,
-    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureValidateSAMLEmails,
-    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureDigitalSignatures,
-    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureAppLock,
-    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureClassifiedDomains,
-    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureFileSharing,
-    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureConferenceCalling,
-    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureSelfDeletingMessages,
-    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureGuestLinks,
-    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureSndFactorPasswordChallenge,
-    Team.Feature.modelForTeamFeature Team.Feature.TeamFeatureSearchVisibilityInbound,
-    Team.Feature.modelTeamFeatureAppLockConfig,
-    Team.Feature.modelTeamFeatureClassifiedDomainsConfig,
-    Team.Feature.modelTeamFeatureSelfDeletingMessagesConfig,
-    Team.Feature.modelLockStatus,
     Team.Invitation.modelTeamInvitation,
     Team.Invitation.modelTeamInvitationList,
     Team.Invitation.modelTeamInvitationRequest,
