@@ -679,8 +679,8 @@ getConversationQualified galley usr cnv =
       . paths ["conversations", toByteString' (qDomain cnv), toByteString' (qUnqualified cnv)]
       . zAuthAccess usr "conn"
 
-createMLSConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> m ResponseLBS
-createMLSConversation galley zusr = do
+createMLSConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> ClientId -> m ResponseLBS
+createMLSConversation galley zusr c = do
   let conv =
         NewConv
           []
@@ -693,6 +693,7 @@ createMLSConversation galley zusr = do
           Nothing
           roleNameWireAdmin
           ProtocolMLSTag
+          (Just c)
   post $
     galley
       . path "/conversations"
@@ -714,6 +715,7 @@ createConversation galley zusr usersToAdd = do
           Nothing
           roleNameWireAdmin
           ProtocolProteusTag
+          Nothing
   post $
     galley
       . path "/conversations"

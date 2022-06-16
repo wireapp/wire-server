@@ -212,7 +212,7 @@ createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Mayb
 createTeamConv g tid u us mtimer = do
   let tinfo = Just $ ConvTeamInfo tid
   let conv =
-        NewConv us [] Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin ProtocolProteusTag
+        NewConv us [] Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin ProtocolProteusTag Nothing
   r <-
     post
       ( g

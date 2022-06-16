@@ -1,5 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -16,6 +15,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module API.MLS (tests) where
 
@@ -83,7 +83,8 @@ tests s =
       testGroup
         "Application Message"
         [ test s "send application message" testAppMessage,
-          test s "send remote application message" testRemoteAppMessage
+          test s "send remote application message" testRemoteAppMessage,
+          test s "another participant sends an application message" testAppMessage2
         ],
       testGroup
         "Protocol mismatch"
@@ -98,9 +99,14 @@ postMLSConvFail :: TestM ()
 postMLSConvFail = do
   qalice <- randomQualifiedUser
   let alice = qUnqualified qalice
+  let aliceClient = newClientId 0
   bob <- randomUser
   connectUsers alice (list1 bob [])
-  postConvQualified alice defNewMLSConv {newConvQualifiedUsers = [Qualified bob (qDomain qalice)]}
+  postConvQualified
+    alice
+    (defNewMLSConv aliceClient)
+      { newConvQualifiedUsers = [Qualified bob (qDomain qalice)]
+      }
     !!! do
       const 400 === statusCode
       const (Just "non-empty-member-list") === fmap Wai.label . responseJsonError
@@ -110,9 +116,10 @@ postMLSConvOk = do
   c <- view tsCannon
   qalice <- randomQualifiedUser
   let alice = qUnqualified qalice
+  let aliceClient = newClientId 0
   let nameMaxSize = T.replicate 256 "a"
   WS.bracketR c alice $ \wsA -> do
-    rsp <- postConvQualified alice defNewMLSConv {newConvName = checked nameMaxSize}
+    rsp <- postConvQualified alice (defNewMLSConv aliceClient) {newConvName = checked nameMaxSize}
     pure rsp !!! do
       const 201 === statusCode
       const Nothing === fmap Wai.label . responseJsonError
@@ -234,7 +241,13 @@ testSuccessfulCommit setup = testSuccessfulCommitWithNewUsers setup (map pUserId
 
 testAddUser :: TestM ()
 testAddUser = do
-  setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
+  setup@MessagingSetup {..} <-
+    aliceInvitesBob
+      (1, LocalUser)
+      def
+        { createConv = CreateConv,
+          numCreatorClients = 3
+        }
   testSuccessfulCommit setup
 
   -- check that bob can now see the conversation
@@ -274,7 +287,7 @@ testAddUserWithProteusClients = do
 
     -- alice creates a conversation and adds Bob's MLS clients
     conversation <- setupGroup tmp CreateConv alice "group"
-    (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" (pClients bob)
+    (commit, welcome) <- liftIO $ setupCommit tmp alice "group" "group" (pClients bob)
 
     pure MessagingSetup {creator = alice, ..}
 
@@ -287,7 +300,7 @@ testAddUserPartial = do
     (alice, [bob, charlie]) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [3, 2])
     void $ setupGroup tmp CreateConv alice "group"
     (commit, _) <-
-      liftIO . setupCommit tmp "group" "group" $
+      liftIO . setupCommit tmp alice "group" "group" $
         -- only 2 out of the 3 clients of Bob's are added to the conversation
         NonEmpty.take 2 (pClients bob) <> toList (pClients charlie)
     pure (alice, commit)
@@ -315,15 +328,15 @@ testAddNewClient = do
 
     -- creator sends first commit message
     do
-      (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" (pClients bob)
+      (commit, welcome) <- liftIO $ setupCommit tmp creator "group" "group" (pClients bob)
       lift $ testSuccessfulCommit MessagingSetup {..}
 
     do
       -- then bob adds a new client
-      (qcid, c) <- setupUserClient tmp CreateWithKey (pUserId bob)
+      (qcid, c) <- setupUserClient tmp CreateWithKey True (pUserId bob)
       let bobC = (qcid, c)
       -- which gets added to the group
-      (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" [bobC]
+      (commit, welcome) <- liftIO $ setupCommit tmp creator "group" "group" [bobC]
       -- and the corresponding commit is sent
       lift $ testSuccessfulCommitWithNewUsers MessagingSetup {..} []
 
@@ -386,7 +399,7 @@ testStaleCommit = withSystemTempDirectory "mls" $ \tmp -> do
   do
     (commit, welcome) <-
       liftIO $
-        setupCommit tmp "group.0" "group.1" $
+        setupCommit tmp creator "group.0" "group.1" $
           users1 >>= toList . pClients
     testSuccessfulCommit MessagingSetup {users = users1, ..}
 
@@ -394,7 +407,7 @@ testStaleCommit = withSystemTempDirectory "mls" $ \tmp -> do
   do
     (commit, welcome) <-
       liftIO $
-        setupCommit tmp "group.0" "group.2" $
+        setupCommit tmp creator "group.0" "group.2" $
           users2 >>= toList . pClients
     err <- testFailedCommit MessagingSetup {..} 409
     liftIO $ Wai.label err @?= "mls-stale-message"
@@ -460,10 +473,10 @@ testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
     withLastPrekeys $
       setupParticipants tmp opts [(1, RemoteUser (Domain "faraway.example.com"))]
   conversation <- setupGroup tmp CreateConv alice "group"
-  (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" (pClients bob)
+  (commit, welcome) <- liftIO $ setupCommit tmp alice "group" "group" (pClients bob)
   message <-
     liftIO $
-      spawn (cli tmp ["message", "--group", tmp </> "group", "some text"]) Nothing
+      spawn (cli (pClientQid alice) tmp ["message", "--group", tmp </> "group", "some text"]) Nothing
 
   let mock req = case frRPC req of
         "on-conversation-updated" -> pure (Aeson.encode ())
@@ -512,31 +525,94 @@ testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
 
   (commit, welcome) <-
     liftIO $
-      setupCommit tmp "group" "group" $
+      setupCommit tmp creator "group" "group" $
         users >>= toList . pClients
 
   void $ postCommit MessagingSetup {..}
-
-  message <-
-    liftIO $
-      spawn (cli tmp ["message", "--group", tmp </> "group", "some text"]) Nothing
+  message <- liftIO $ createMessage tmp creator "group" "some text"
 
   galley <- viewGalley
   cannon <- view tsCannon
 
-  WS.bracketRN cannon (qUnqualified . pUserId <$> users) $ \wss -> do
-    post
-      ( galley . paths ["mls", "messages"]
-          . zUser (qUnqualified (pUserId creator))
-          . zConn "conn"
-          . content "message/mls"
-          . bytes message
-      )
-      !!! const 201
-      === statusCode
+  WS.bracketRN
+    cannon
+    (map (qUnqualified . pUserId) (creator : users))
+    $ \wss -> do
+      post
+        ( galley . paths ["mls", "messages"]
+            . zUser (qUnqualified (pUserId creator))
+            . zConn "conn"
+            . content "message/mls"
+            . bytes message
+        )
+        !!! const 201
+        === statusCode
 
-    -- check that the corresponding event is received
+      -- check that the corresponding event is received
 
-    liftIO $
-      WS.assertMatchN_ (5 # WS.Second) wss $
-        wsAssertMLSMessage conversation (pUserId creator) message
+      liftIO $
+        WS.assertMatchN_ (5 # WS.Second) wss $
+          wsAssertMLSMessage conversation (pUserId creator) message
+
+testAppMessage2 :: TestM ()
+testAppMessage2 = do
+  (MessagingSetup {..}, message) <- withSystemTempDirectory "mls" $ \tmp -> do
+    (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [2, 1])
+    conversation <- setupGroup tmp CreateConv creator "group"
+
+    (commit, welcome) <-
+      liftIO $
+        setupCommit tmp creator "group" "group" $
+          users >>= toList . pClients
+
+    let setup = MessagingSetup {..}
+    void $ postCommit setup
+
+    let bob = head users
+    void . liftIO $
+      spawn
+        ( cli
+            (pClientQid bob)
+            tmp
+            [ "group-from-welcome",
+              "--group-out",
+              tmp </> "group",
+              tmp </> "welcome"
+            ]
+        )
+        Nothing
+    message <-
+      liftIO $
+        createMessage tmp bob "group" "some text"
+    pure (setup, message)
+
+  let [bob, charlie] = users
+  galley <- viewGalley
+  cannon <- view tsCannon
+
+  let mkClients p = do
+        c <- pClients p
+        pure (qUnqualified (pUserId p), snd c)
+
+  WS.bracketAsClientRN
+    cannon
+    ( toList (mkClients creator)
+        <> NonEmpty.tail (mkClients bob)
+        <> toList (mkClients charlie)
+    )
+    $ \wss -> do
+      post
+        ( galley . paths ["mls", "messages"]
+            . zUser (qUnqualified (pUserId bob))
+            . zConn "conn"
+            . content "message/mls"
+            . bytes message
+        )
+        !!! const 201
+        === statusCode
+
+      -- check that the corresponding event is received
+
+      liftIO $
+        WS.assertMatchN_ (5 # WS.Second) wss $
+          wsAssertMLSMessage conversation (pUserId bob) message

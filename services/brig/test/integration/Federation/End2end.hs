@@ -272,6 +272,7 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
           Nothing
           roleNameWireAdmin
           ProtocolProteusTag
+          Nothing
   convId <-
     fmap cnvQualifiedId . responseJsonError
       =<< post
@@ -783,7 +784,7 @@ testSendMLSMessage brig1 brig2 galley2 cannon1 = do
     -- create conversation on domain 2
     conv <-
       responseJsonError
-        =<< createMLSConversation galley2 (userId bob)
+        =<< createMLSConversation galley2 (userId bob) bobClient
         <!! const 201 === statusCode
     groupId <- case cnvProtocol conv of
       ProtocolMLS p -> pure (unGroupId (cnvmlsGroupId p))

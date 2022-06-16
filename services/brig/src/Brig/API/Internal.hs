@@ -84,6 +84,7 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.Routes.Internal.Brig (NewKeyPackageRef)
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
@@ -111,8 +112,10 @@ mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
 mlsAPI =
   ( \ref ->
       Named @"get-client-by-key-package-ref" (getClientByKeyPackageRef ref)
-        :<|> Named @"put-conversation-by-key-package-ref" (putConvIdByKeyPackageRef ref)
-        :<|> Named @"get-conversation-by-key-package-ref" (getConvIdByKeyPackageRef ref)
+        :<|> ( Named @"put-conversation-by-key-package-ref" (putConvIdByKeyPackageRef ref)
+                 :<|> Named @"get-conversation-by-key-package-ref" (getConvIdByKeyPackageRef ref)
+             )
+        :<|> Named @"put-key-package-ref" (putKeyPackageRef ref)
   )
     :<|> getMLSClients
     :<|> mapKeyPackageRefsInternal
@@ -143,6 +146,10 @@ getClientByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.derefKeyPack
 -- Used by galley to update conversation id in mls_key_package_ref
 putConvIdByKeyPackageRef :: KeyPackageRef -> Qualified ConvId -> Handler r Bool
 putConvIdByKeyPackageRef ref = lift . wrapClient . Data.keyPackageRefSetConvId ref
+
+-- Used by galley to create a new record in mls_key_package_ref
+putKeyPackageRef :: KeyPackageRef -> NewKeyPackageRef -> Handler r ()
+putKeyPackageRef ref = lift . wrapClient . Data.addKeyPackageRef ref
 
 -- Used by galley to retrieve conversation id from mls_key_package_ref
 getConvIdByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe (Qualified ConvId))

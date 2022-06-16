@@ -24,6 +24,7 @@ module Galley.Intra.Client
     getLegalHoldAuthToken,
     getClientByKeyPackageRef,
     getLocalMLSClients,
+    addKeyPackageRef,
   )
 where
 
@@ -58,6 +59,7 @@ import qualified System.Logger.Class as Logger
 import Wire.API.Error.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.Routes.Internal.Brig
 import Wire.API.User.Client (UserClients, UserClientsFull, filterClients, filterClientsFull)
 
 -- | Calls 'Brig.API.internalListClientsH'.
@@ -197,3 +199,14 @@ getLocalMLSClients lusr ss =
         . expect2xx
     )
     >>= parseResponse (mkError status502 "server-error")
+
+addKeyPackageRef :: KeyPackageRef -> Qualified UserId -> ClientId -> Qualified ConvId -> App ()
+addKeyPackageRef ref qusr cl qcnv =
+  void $
+    call
+      Brig
+      ( method PUT
+          . paths ["i", "mls", "key-packages", toHeader ref]
+          . json (NewKeyPackageRef qusr cl qcnv)
+          . expect2xx
+      )
