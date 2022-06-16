@@ -102,9 +102,9 @@ servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<
 ejpdAPI :: ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
   Brig.User.EJPD.ejpdRequest
-    :<|> Named @"get-account-feature-config" getAccountFeatureConfig
-    :<|> putAccountFeatureConfig
-    :<|> deleteAccountFeatureConfig
+    :<|> Named @"get-account-conference-calling-config" getAccountConferenceCallingConfig
+    :<|> putAccountConferenceCallingConfig
+    :<|> deleteAccountConferenceCallingConfig
     :<|> getConnectionsStatusUnqualified
     :<|> getConnectionsStatus
 
@@ -127,17 +127,17 @@ teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
-getAccountFeatureConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
-getAccountFeatureConfig uid =
+getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
+getAccountConferenceCallingConfig uid =
   lift (wrapClient $ Data.lookupFeatureConferenceCalling uid)
     >>= maybe (ApiFt.forgetLock <$> view (settings . getAfcConferenceCallingDefNull)) pure
 
-putAccountFeatureConfig :: UserId -> ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig -> (Handler r) NoContent
-putAccountFeatureConfig uid status =
+putAccountConferenceCallingConfig :: UserId -> ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig -> (Handler r) NoContent
+putAccountConferenceCallingConfig uid status =
   lift $ wrapClient $ Data.updateFeatureConferenceCalling uid (Just status) $> NoContent
 
-deleteAccountFeatureConfig :: UserId -> (Handler r) NoContent
-deleteAccountFeatureConfig uid =
+deleteAccountConferenceCallingConfig :: UserId -> (Handler r) NoContent
+deleteAccountConferenceCallingConfig uid =
   lift $ wrapClient $ Data.updateFeatureConferenceCalling uid Nothing $> NoContent
 
 getClientByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe ClientIdentity)

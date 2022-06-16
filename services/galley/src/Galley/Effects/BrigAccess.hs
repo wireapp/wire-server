@@ -53,7 +53,7 @@ module Galley.Effects.BrigAccess
     addKeyPackageRef,
 
     -- * Features
-    getAccountFeatureConfigClient,
+    getAccountConferenceCallingConfigClient,
     updateSearchVisibilityInbound,
   )
 where
@@ -123,7 +123,7 @@ data BrigAccess m a where
     LastPrekey ->
     BrigAccess m (Either AuthenticationError ClientId)
   RemoveLegalHoldClientFromUser :: UserId -> BrigAccess m ()
-  GetAccountFeatureConfigClient :: UserId -> BrigAccess m (WithStatusNoLock ConferenceCallingConfig)
+  GetAccountConferenceCallingConfigClient :: UserId -> BrigAccess m (WithStatusNoLock ConferenceCallingConfig)
   GetClientByKeyPackageRef :: KeyPackageRef -> BrigAccess m (Maybe ClientIdentity)
   GetLocalMLSClients :: Local UserId -> SignatureSchemeTag -> BrigAccess m (Set ClientId)
   AddKeyPackageRef :: KeyPackageRef -> Qualified UserId -> ClientId -> Qualified ConvId -> BrigAccess m ()

@@ -52,7 +52,7 @@ import Galley.API.Teams (ensureNotTooLargeToActivateLegalHold)
 import Galley.API.Util (assertTeamExists, getTeamMembersForFanout, membersToRecipients, permissionCheck)
 import Galley.Cassandra.Paging
 import Galley.Effects
-import Galley.Effects.BrigAccess (getAccountFeatureConfigClient, updateSearchVisibilityInbound)
+import Galley.Effects.BrigAccess (getAccountConferenceCallingConfigClient, updateSearchVisibilityInbound)
 import Galley.Effects.ConversationStore as ConversationStore
 import Galley.Effects.GundeckAccess
 import Galley.Effects.Paging
@@ -263,27 +263,6 @@ setFeatureStatus mTtl doauth tid wsnl = do
       assertTeamExists tid
   guardLockStatus . wsLockStatus =<< getConfigForTeam @db @cfg tid
   setConfigForTeam @db @cfg tid wsnl mTtl
-
--- -- |  Does not support TTL.
--- setFeatureStatusNoTTL ::
---   forall (a :: TeamFeatureName) r.
---   ( KnownTeamFeatureName a,
---     MaybeHasLockStatusCol a,
---     Members
---       '[ ErrorS 'NotATeamMember,
---          ErrorS OperationDenied,
---          ErrorS 'TeamNotFound,
---          TeamStore,
---          TeamFeatureStore
---        ]
---       r
---   ) =>
---   FeatureSetter a r ->
---   DoAuth ->
---   TeamId ->
---   TeamFeatureStatus 'WithoutLockStatus a ->
---   Sem r (TeamFeatureStatus 'WithoutLockStatus a)
--- setFeatureStatusNoTTL setter doauth tid status = setFeatureStatus setter doauth tid status Nothing
 
 setLockStatus ::
   forall db cfg r.
@@ -792,7 +771,7 @@ instance GetFeatureConfig db ConferenceCallingConfig where
     input <&> view (optSettings . setFeatureFlags . flagConferenceCalling . unDefaults)
 
   getConfigForUser uid = do
-    wsnl <- getAccountFeatureConfigClient uid
+    wsnl <- getAccountConferenceCallingConfigClient uid
     pure $ withLockStatus (wsLockStatus (defFeatureStatus @ConferenceCallingConfig)) wsnl
 
 instance SetFeatureConfig db ConferenceCallingConfig where

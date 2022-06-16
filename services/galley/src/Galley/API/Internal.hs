@@ -102,7 +102,7 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley
-import Wire.API.Team.Feature as TF
+import Wire.API.Team.Feature
 
 type IFeatureAPI =
   -- SSOConfig
@@ -242,7 +242,7 @@ type InternalAPIBase =
                     ]
                     "user_id"
                     UserId
-               :> Get '[Servant.JSON] (TF.WithStatus SndFactorPasswordChallengeConfig)
+               :> Get '[Servant.JSON] (WithStatus SndFactorPasswordChallengeConfig)
            )
     :<|> IFeatureAPI
 

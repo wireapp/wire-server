@@ -157,10 +157,10 @@ testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig 
       check status = do
         uid <- userId <$> createUser "joe" brig
         _ <-
-          aFewTimes 12 (putAccountFeatureConfigClient brigep mgr uid status) isRight
-            >>= either (liftIO . throwIO . ErrorCall . ("putAccountFeatureConfigClient: " <>) . show) pure
+          aFewTimes 12 (putAccountConferenceCallingConfigClient brigep mgr uid status) isRight
+            >>= either (liftIO . throwIO . ErrorCall . ("putAccountConferenceCallingConfigClient: " <>) . show) pure
 
-        mbStatus' <- getAccountFeatureConfigClient brigep mgr uid
+        mbStatus' <- getAccountConferenceCallingConfigClient brigep mgr uid
         liftIO $ assertEqual "GET /i/users/:uid/features/conferenceCalling" (Right status) mbStatus'
 
         featureConfigs <- getAllFeatureConfigs galley uid
@@ -190,8 +190,8 @@ testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig 
           liftIO $ assertEqual mempty (ApiFt.forgetLock <$> defaultIfNewRaw) cassandraResp
 
         _ <-
-          aFewTimes 12 (deleteAccountFeatureConfigClient brigep mgr uid) isRight
-            >>= either (liftIO . throwIO . ErrorCall . ("deleteAccountFeatureConfigClient: " <>) . show) pure
+          aFewTimes 12 (deleteAccountConferenceCallingConfigClient brigep mgr uid) isRight
+            >>= either (liftIO . throwIO . ErrorCall . ("deleteAccountConferenceCallingConfigClient: " <>) . show) pure
 
         do
           cassandraResp :: Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig) <-
@@ -201,7 +201,7 @@ testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig 
               isJust
           liftIO $ assertEqual mempty Nothing cassandraResp
 
-        mbStatus' <- getAccountFeatureConfigClient brigep mgr uid
+        mbStatus' <- getAccountConferenceCallingConfigClient brigep mgr uid
         liftIO $ assertEqual "GET /i/users/:uid/features/conferenceCalling" (Right (ApiFt.forgetLock defaultIfNull)) mbStatus'
 
         featureConfigs <- getAllFeatureConfigs galley uid

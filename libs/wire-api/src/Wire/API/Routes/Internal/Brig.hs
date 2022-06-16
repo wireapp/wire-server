@@ -22,9 +22,9 @@ module Wire.API.Routes.Internal.Brig
     MLSAPI,
     TeamsAPI,
     EJPDRequest,
-    GetAccountFeatureConfig,
-    PutAccountFeatureConfig,
-    DeleteAccountFeatureConfig,
+    GetAccountConferenceCallingConfig,
+    PutAccountConferenceCallingConfig,
+    DeleteAccountConferenceCallingConfig,
     SwaggerDocsAPI,
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
@@ -77,7 +77,7 @@ type EJPDRequest =
     :> Servant.ReqBody '[Servant.JSON] EJPDRequestBody
     :> Post '[Servant.JSON] EJPDResponseBody
 
-type GetAccountFeatureConfig =
+type GetAccountConferenceCallingConfig =
   Summary
     "Read cassandra field 'brig.user.feature_conference_calling'"
     :> "users"
@@ -86,7 +86,7 @@ type GetAccountFeatureConfig =
     :> "conferenceCalling"
     :> Get '[Servant.JSON] (WithStatusNoLock ConferenceCallingConfig)
 
-type PutAccountFeatureConfig =
+type PutAccountConferenceCallingConfig =
   Summary
     "Write to cassandra field 'brig.user.feature_conference_calling'"
     :> "users"
@@ -96,7 +96,7 @@ type PutAccountFeatureConfig =
     :> Servant.ReqBody '[Servant.JSON] (WithStatusNoLock ConferenceCallingConfig)
     :> Put '[Servant.JSON] NoContent
 
-type DeleteAccountFeatureConfig =
+type DeleteAccountConferenceCallingConfig =
   Summary
     "Reset cassandra field 'brig.user.feature_conference_calling' to 'null'"
     :> "users"
@@ -129,9 +129,9 @@ type GetAllConnections =
 
 type EJPD_API =
   ( EJPDRequest
-      :<|> Named "get-account-feature-config" GetAccountFeatureConfig
-      :<|> PutAccountFeatureConfig
-      :<|> DeleteAccountFeatureConfig
+      :<|> Named "get-account-conference-calling-config" GetAccountConferenceCallingConfig
+      :<|> PutAccountConferenceCallingConfig
+      :<|> DeleteAccountConferenceCallingConfig
       :<|> GetAllConnectionsUnqualified
       :<|> GetAllConnections
   )
