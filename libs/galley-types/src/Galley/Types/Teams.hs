@@ -271,7 +271,7 @@ data FeatureTeamSearchVisibility
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
 newtype ImplicitLockStatus (cfg :: *) = ImplicitLockStatus {_unImplicitLockStatus :: WithStatus cfg}
-  deriving newtype (Eq, Show)
+  deriving newtype (Eq, Show, Arbitrary)
 
 instance (IsFeatureConfig a, Schema.ToSchema a) => ToJSON (ImplicitLockStatus a) where
   toJSON (ImplicitLockStatus a) = toJSON $ forgetLock a

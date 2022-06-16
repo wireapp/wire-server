@@ -86,12 +86,18 @@ instance Arbitrary FeatureFlags where
       <*> QC.elements [minBound ..]
       -- the default lock status is implicitly added on deserialization and ignored on serialization, therefore we need to fix it to the default here
       -- we will be able to remove this once the lock status is explicitly included in the config
-      <*> (arbitrary <&> fmap Public.withUnlocked)
-      <*> (arbitrary <&> Public.withUnlocked)
+      <*> fmap (fmap unlocked) arbitrary
+      <*> fmap unlocked arbitrary
       <*> arbitrary
-      <*> (arbitrary <&> fmap Public.withUnlocked)
+      <*> fmap (fmap unlocked) arbitrary
       <*> arbitrary
       <*> arbitrary
-      <*> (arbitrary <&> fmap Public.withUnlocked)
+      <*> fmap (fmap unlocked) arbitrary
       <*> arbitrary
-      <*> (arbitrary <&> fmap Public.withUnlocked)
+      <*> fmap (fmap unlocked) arbitrary
+    where
+      unlocked :: ImplicitLockStatus a -> ImplicitLockStatus a
+      unlocked = ImplicitLockStatus . setUnlocked . _unImplicitLockStatus
+
+      setUnlocked :: WithStatus a -> WithStatus a
+      setUnlocked ws = ws {wsLockStatus = Public.LockStatusUnlocked}
