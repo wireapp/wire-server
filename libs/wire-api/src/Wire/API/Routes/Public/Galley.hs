@@ -1098,14 +1098,14 @@ type FeatureAPI =
            LegalholdConfig
     :<|> FeatureStatusGet SearchVisibilityAvailableConfig
     :<|> FeatureStatusPut '() SearchVisibilityAvailableConfig
-    :<|> FeatureStatusDeprecatedGet SearchVisibilityAvailableConfig
-    :<|> FeatureStatusDeprecatedPut SearchVisibilityAvailableConfig
+    :<|> FeatureStatusDeprecatedGet "This endpoint is potentially used the old Android client. It is not used by iOS, team management, or webapp as of June 2022" SearchVisibilityAvailableConfig
+    :<|> FeatureStatusDeprecatedPut "This endpoint is potentially used the old Android client. It is not used by iOS, team management, or webapp as of June 2022" SearchVisibilityAvailableConfig
     :<|> SearchVisibilityGet
     :<|> SearchVisibilitySet
     :<|> FeatureStatusGet ValidateSAMLEmailsConfig
-    :<|> FeatureStatusDeprecatedGet ValidateSAMLEmailsConfig
+    :<|> FeatureStatusDeprecatedGet "This endpoint is potentially used the old Android client. It is not used by iOS, team management, or webapp as of June 2022" ValidateSAMLEmailsConfig
     :<|> FeatureStatusGet DigitalSignaturesConfig
-    :<|> FeatureStatusDeprecatedGet DigitalSignaturesConfig
+    :<|> FeatureStatusDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is potentially used by the old Android client. It is not used by team management, or webapp as of June 2022" DigitalSignaturesConfig
     :<|> FeatureStatusGet AppLockConfig
     :<|> FeatureStatusPut '() AppLockConfig
     :<|> FeatureStatusGet FileSharingConfig
@@ -1120,18 +1120,18 @@ type FeatureAPI =
     :<|> FeatureStatusPut '() SndFactorPasswordChallengeConfig
     :<|> AllFeatureConfigsUserGet
     :<|> AllFeatureConfigsTeamGet
-    :<|> FeatureConfigGet LegalholdConfig
-    :<|> FeatureConfigGet SSOConfig
-    :<|> FeatureConfigGet SearchVisibilityAvailableConfig
-    :<|> FeatureConfigGet ValidateSAMLEmailsConfig
-    :<|> FeatureConfigGet DigitalSignaturesConfig
-    :<|> FeatureConfigGet AppLockConfig
-    :<|> FeatureConfigGet FileSharingConfig
-    :<|> FeatureConfigGet ClassifiedDomainsConfig
-    :<|> FeatureConfigGet ConferenceCallingConfig
-    :<|> FeatureConfigGet SelfDeletingMessagesConfig
-    :<|> FeatureConfigGet GuestLinksConfig
-    :<|> FeatureConfigGet SndFactorPasswordChallengeConfig
+    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp as of June 2022" LegalholdConfig
+    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" SSOConfig
+    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp as of June 2022" SearchVisibilityAvailableConfig
+    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp as of June 2022" ValidateSAMLEmailsConfig
+    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" DigitalSignaturesConfig
+    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" AppLockConfig
+    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" FileSharingConfig
+    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp as of June 2022" ClassifiedDomainsConfig
+    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp as of June 2022" ConferenceCallingConfig
+    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp as of June 2022" SelfDeletingMessagesConfig
+    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" GuestLinksConfig
+    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" SndFactorPasswordChallengeConfig
 
 type FeatureStatusGet f =
   Named
@@ -1143,15 +1143,15 @@ type FeatureStatusPut errs f =
     '("put", f)
     (ZUser :> FeatureStatusBasePutPublic errs f)
 
-type FeatureStatusDeprecatedGet f =
+type FeatureStatusDeprecatedGet d f =
   Named
     '("get-deprecated", f)
-    (ZUser :> FeatureStatusBaseDeprecatedGet f)
+    (ZUser :> FeatureStatusBaseDeprecatedGet d f)
 
-type FeatureStatusDeprecatedPut f =
+type FeatureStatusDeprecatedPut d f =
   Named
     '("put-deprecated", f)
-    (ZUser :> FeatureStatusBaseDeprecatedPut f)
+    (ZUser :> FeatureStatusBaseDeprecatedPut d f)
 
 type FeatureStatusBaseGet featureConfig =
   Summary (AppendSymbol "Get config for " (FeatureSymbol featureConfig))
@@ -1179,9 +1179,16 @@ type FeatureStatusBasePutPublic errs featureConfig =
     :> Put '[Servant.JSON] (WithStatus featureConfig)
 
 -- | A type for a GET endpoint for a feature with a deprecated path
-type FeatureStatusBaseDeprecatedGet featureConfig =
+type FeatureStatusBaseDeprecatedGet desc featureConfig =
   ( Summary
       (AppendSymbol "[deprecated] Get config for " (FeatureSymbol featureConfig))
+      :> Until 'V2
+      :> Description
+           ( "Deprecated. Please use `GET /teams/:tid/features/"
+               `AppendSymbol` FeatureSymbol featureConfig
+               `AppendSymbol` "` instead."
+               `AppendSymbol` desc
+           )
       :> CanThrow 'NotATeamMember
       :> CanThrow OperationDenied
       :> CanThrow 'TeamNotFound
@@ -1193,9 +1200,16 @@ type FeatureStatusBaseDeprecatedGet featureConfig =
   )
 
 -- | A type for a PUT endpoint for a feature with a deprecated path
-type FeatureStatusBaseDeprecatedPut featureConfig =
+type FeatureStatusBaseDeprecatedPut desc featureConfig =
   Summary
     (AppendSymbol "[deprecated] Get config for " (FeatureSymbol featureConfig))
+    :> Until 'V2
+    :> Description
+         ( "Deprecated. Please use `PUT /teams/:tid/features/"
+             `AppendSymbol` FeatureSymbol featureConfig
+             `AppendSymbol` "` instead.\n"
+             `AppendSymbol` desc
+         )
     :> CanThrow 'NotATeamMember
     :> CanThrow OperationDenied
     :> CanThrow 'TeamNotFound
@@ -1207,10 +1221,12 @@ type FeatureStatusBaseDeprecatedPut featureConfig =
     :> ReqBody '[Servant.JSON] (WithStatusNoLock featureConfig)
     :> Put '[Servant.JSON] (WithStatus featureConfig)
 
-type FeatureConfigGet featureConfig =
+type FeatureConfigDeprecatedGet desc featureConfig =
   Named
     '("get-config", featureConfig)
-    ( Summary (AppendSymbol "Get feature config for feature " (FeatureSymbol featureConfig))
+    ( Summary (AppendSymbol "[deprecated] Get feature config for feature " (FeatureSymbol featureConfig))
+        :> Until 'V2
+        :> Description ("Deprecated. Please use `GET /feature-configs` instead.\n" `AppendSymbol` desc)
         :> ZUser
         :> CanThrow 'NotATeamMember
         :> CanThrow OperationDenied

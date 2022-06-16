@@ -130,18 +130,18 @@ type IFeatureAPI =
     -- SearchVisibilityAvailableConfig
     :<|> IFeatureStatusGet SearchVisibilityAvailableConfig
     :<|> IFeatureStatusPut '() SearchVisibilityAvailableConfig
-    :<|> IFeatureStatusDeprecatedGet SearchVisibilityAvailableConfig
-    :<|> IFeatureStatusDeprecatedPut SearchVisibilityAvailableConfig
+    :<|> IFeatureStatusDeprecatedGet "" SearchVisibilityAvailableConfig
+    :<|> IFeatureStatusDeprecatedPut "" SearchVisibilityAvailableConfig
     -- ValidateSAMLEmailsConfig
     :<|> IFeatureStatusGet ValidateSAMLEmailsConfig
     :<|> IFeatureStatusPut '() ValidateSAMLEmailsConfig
-    :<|> IFeatureStatusDeprecatedGet ValidateSAMLEmailsConfig
-    :<|> IFeatureStatusDeprecatedPut ValidateSAMLEmailsConfig
+    :<|> IFeatureStatusDeprecatedGet "" ValidateSAMLEmailsConfig
+    :<|> IFeatureStatusDeprecatedPut "" ValidateSAMLEmailsConfig
     -- DigitalSignaturesConfig
     :<|> IFeatureStatusGet DigitalSignaturesConfig
     :<|> IFeatureStatusPut '() DigitalSignaturesConfig
-    :<|> IFeatureStatusDeprecatedGet DigitalSignaturesConfig
-    :<|> IFeatureStatusDeprecatedPut DigitalSignaturesConfig
+    :<|> IFeatureStatusDeprecatedGet "" DigitalSignaturesConfig
+    :<|> IFeatureStatusDeprecatedPut "" DigitalSignaturesConfig
     -- AppLockConfig
     :<|> IFeatureStatusGet AppLockConfig
     :<|> IFeatureStatusPut '() AppLockConfig
@@ -364,9 +364,9 @@ type FeatureStatusBasePutInternal errs featureConfig =
     :> QueryParam "ttl" FeatureTTL
     :> Put '[Servant.JSON] (WithStatus featureConfig)
 
-type IFeatureStatusDeprecatedGet f = Named '("iget-deprecated", f) (FeatureStatusBaseDeprecatedGet f)
+type IFeatureStatusDeprecatedGet d f = Named '("iget-deprecated", f) (FeatureStatusBaseDeprecatedGet d f)
 
-type IFeatureStatusDeprecatedPut f = Named '("iput-deprecated", f) (FeatureStatusBaseDeprecatedPut f)
+type IFeatureStatusDeprecatedPut d f = Named '("iput-deprecated", f) (FeatureStatusBaseDeprecatedPut d f)
 
 type IFeatureStatusLockStatusPut featureName =
   Named
