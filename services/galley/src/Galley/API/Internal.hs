@@ -349,6 +349,21 @@ type IFeatureStatusGet f = Named '("iget", f) (FeatureStatusBaseGet f)
 
 type IFeatureStatusPut errs f = Named '("iput", f) (FeatureStatusBasePutInternal errs f)
 
+type FeatureStatusBasePutInternal errs featureConfig =
+  Summary (AppendSymbol "Put config for " (FeatureSymbol featureConfig))
+    :> CanThrow OperationDenied
+    :> CanThrow 'NotATeamMember
+    :> CanThrow 'TeamNotFound
+    :> CanThrow TeamFeatureError
+    :> CanThrowMany errs
+    :> "teams"
+    :> Capture "tid" TeamId
+    :> "features"
+    :> FeatureSymbol featureConfig
+    :> ReqBody '[Servant.JSON] (WithStatusNoLock featureConfig)
+    :> QueryParam "ttl" FeatureTTL
+    :> Put '[Servant.JSON] (WithStatus featureConfig)
+
 type IFeatureStatusDeprecatedGet f = Named '("iget-deprecated", f) (FeatureStatusBaseDeprecatedGet f)
 
 type IFeatureStatusDeprecatedPut f = Named '("iput-deprecated", f) (FeatureStatusBaseDeprecatedPut f)

@@ -1143,12 +1143,6 @@ type FeatureStatusPut errs f =
     '("put", f)
     (ZUser :> FeatureStatusBasePutPublic errs f)
 
--- todo(leif): move to internal
-type FeatureStatusPutInternal errs f =
-  Named
-    '("put", f)
-    (ZUser :> FeatureStatusBasePutInternal errs f)
-
 type FeatureStatusDeprecatedGet f =
   Named
     '("get-deprecated", f)
@@ -1182,21 +1176,6 @@ type FeatureStatusBasePutPublic errs featureConfig =
     :> "features"
     :> FeatureSymbol featureConfig
     :> ReqBody '[Servant.JSON] (WithStatusNoLock featureConfig)
-    :> Put '[Servant.JSON] (WithStatus featureConfig)
-
-type FeatureStatusBasePutInternal errs featureConfig =
-  Summary (AppendSymbol "Put config for " (FeatureSymbol featureConfig))
-    :> CanThrow OperationDenied
-    :> CanThrow 'NotATeamMember
-    :> CanThrow 'TeamNotFound
-    :> CanThrow TeamFeatureError
-    :> CanThrowMany errs
-    :> "teams"
-    :> Capture "tid" TeamId
-    :> "features"
-    :> FeatureSymbol featureConfig
-    :> ReqBody '[Servant.JSON] (WithStatusNoLock featureConfig)
-    :> QueryParam "ttl" FeatureTTL
     :> Put '[Servant.JSON] (WithStatus featureConfig)
 
 -- | A type for a GET endpoint for a feature with a deprecated path
