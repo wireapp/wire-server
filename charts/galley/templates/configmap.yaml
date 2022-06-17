@@ -98,6 +98,10 @@ data:
         {{- if .settings.featureFlags.conversationGuestLinks }}
         conversationGuestLinks:
           {{- toYaml .settings.featureFlags.conversationGuestLinks | nindent 10 }}
-        {{- end }}        
+        {{- end }}
+        {{- if .settings.featureFlags.searchVisibilityInbound }}
+        searchVisibilityInbound:
+          {{- toYaml .settings.featureFlags.searchVisibilityInbound | nindent 10 }}
+        {{- end }}
       {{- end }}
   {{- end }}
