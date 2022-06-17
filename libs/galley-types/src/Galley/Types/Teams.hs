@@ -270,17 +270,6 @@ data FeatureTeamSearchVisibility
   | FeatureTeamSearchVisibilityDisabledByDefault
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
-newtype ImplicitLockStatus (cfg :: *) = ImplicitLockStatus {_unImplicitLockStatus :: WithStatus cfg}
-  deriving newtype (Eq, Show, Arbitrary)
-
-instance (IsFeatureConfig a, Schema.ToSchema a) => ToJSON (ImplicitLockStatus a) where
-  toJSON (ImplicitLockStatus a) = toJSON $ forgetLock a
-
-instance (IsFeatureConfig a, Schema.ToSchema a) => FromJSON (ImplicitLockStatus a) where
-  parseJSON v = ImplicitLockStatus . withLockStatus (wsLockStatus $ defFeatureStatus @a) <$> parseJSON v
-
-makeLenses ''ImplicitLockStatus
-
 -- NOTE: This is used only in the config and thus YAML... camelcase
 instance FromJSON FeatureFlags where
   parseJSON = withObject "FeatureFlags" $ \obj ->
