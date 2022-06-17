@@ -33,7 +33,7 @@ import qualified Cassandra as DB
 import qualified Codec.MIME.Type as MIME
 import Control.Lens (preview, (^?))
 import Control.Monad.Catch (MonadCatch)
-import Data.Aeson
+import Data.Aeson hiding (json)
 import Data.Aeson.Lens
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
@@ -66,6 +66,7 @@ import Wire.API.Routes.MultiTablePaging (LocalOrRemoteTable, MultiTablePagingSta
 import Wire.API.Team.Feature (featureNameBS)
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.User as Public
+import Wire.API.User.Client hiding (UpdateClient)
 
 newtype ConnectionLimit = ConnectionLimit Int64
 
@@ -230,6 +231,20 @@ getClient brig u c =
     brig
       . paths ["clients", toByteString' c]
       . zUser u
+
+putClient ::
+  (MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  UserId ->
+  ClientId ->
+  MLSPublicKeys ->
+  m ResponseLBS
+putClient brig uid c keys =
+  put $
+    brig
+      . paths ["clients", toByteString' c]
+      . zUser uid
+      . json (UpdateClient [] Nothing Nothing Nothing keys)
 
 getClientCapabilities :: Brig -> UserId -> ClientId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getClientCapabilities brig u c =

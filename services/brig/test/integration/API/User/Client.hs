@@ -840,25 +840,11 @@ testMLSPublicKeyUpdate brig = do
           }
   c <- responseJsonError =<< addClient brig uid clt
   let keys = Map.fromList [(Ed25519, "aGVsbG8gd29ybGQ=")]
-  put
-    ( brig
-        . paths ["clients", toByteString' (clientId c)]
-        . zUser uid
-        . contentJson
-        . json (UpdateClient [] Nothing Nothing Nothing keys)
-    )
-    !!! const 200 === statusCode
+  putClient brig uid (clientId c) keys !!! const 200 === statusCode
   c' <- responseJsonError =<< getClient brig uid (clientId c) <!! const 200 === statusCode
   liftIO $ clientMLSPublicKeys c' @?= keys
   -- adding the key again should fail
-  put
-    ( brig
-        . paths ["clients", toByteString' (clientId c)]
-        . zUser uid
-        . contentJson
-        . json (UpdateClient [] Nothing Nothing Nothing keys)
-    )
-    !!! const 400 === statusCode
+  putClient brig uid (clientId c) keys !!! const 400 === statusCode
 
 testMissingClient :: Brig -> Http ()
 testMissingClient brig = do
