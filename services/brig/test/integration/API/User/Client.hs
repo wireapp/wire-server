@@ -308,10 +308,15 @@ testListClients brig = do
   let (pk1, lk1) = (somePrekeys !! 0, (someLastPrekeys !! 0))
   let (pk2, lk2) = (somePrekeys !! 1, (someLastPrekeys !! 1))
   let (pk3, lk3) = (somePrekeys !! 2, (someLastPrekeys !! 2))
-  c1 <- responseJsonMaybe <$> addClient brig uid (defNewClient PermanentClientType [pk1] lk1)
-  c2 <- responseJsonMaybe <$> addClient brig uid (defNewClient PermanentClientType [pk2] lk2)
-  c3 <- responseJsonMaybe <$> addClient brig uid (defNewClient TemporaryClientType [pk3] lk3)
-  let cs = sortBy (compare `on` clientId) $ catMaybes [c1, c2, c3]
+  c1 <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [pk1] lk1)
+  c2 <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [pk2] lk2)
+  c3 <- responseJsonError =<< addClient brig uid (defNewClient TemporaryClientType [pk3] lk3)
+
+  let pks = Map.fromList [(Ed25519, "random")]
+  void $ putClient brig uid (clientId c1) pks
+  let c1' = c1 {clientMLSPublicKeys = pks}
+  let cs = sortBy (compare `on` clientId) [c1', c2, c3]
+
   get
     ( brig
         . path "clients"
