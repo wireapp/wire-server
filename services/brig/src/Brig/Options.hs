@@ -52,7 +52,7 @@ import Imports
 import qualified Network.DNS as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
+import Wire.API.Arbitrary (Arbitrary, arbitrary)
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User.Search (FederatedUserSearchPolicy)
 
@@ -621,7 +621,15 @@ data AccountFeatureConfigs = AccountFeatureConfigs
     afcConferenceCallingDefNull :: !(Public.ImplicitLockStatus Public.ConferenceCallingConfig)
   }
   deriving (Show, Eq, Generic)
-  deriving (Arbitrary) via (GenericUniform AccountFeatureConfigs)
+
+instance Arbitrary AccountFeatureConfigs where
+  arbitrary = AccountFeatureConfigs <$> fmap unlocked arbitrary <*> fmap unlocked arbitrary
+    where
+      unlocked :: Public.ImplicitLockStatus a -> Public.ImplicitLockStatus a
+      unlocked = Public.ImplicitLockStatus . setUnlocked . Public._unImplicitLockStatus
+
+      setUnlocked :: Public.WithStatus a -> Public.WithStatus a
+      setUnlocked ws = ws {Public.wsLockStatus = Public.LockStatusUnlocked}
 
 instance FromJSON AccountFeatureConfigs where
   parseJSON =
