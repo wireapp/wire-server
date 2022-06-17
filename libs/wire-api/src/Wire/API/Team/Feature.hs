@@ -1,6 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -59,10 +60,14 @@ module Wire.API.Team.Feature
     withStatusNoLockModel,
     allFeatureModels,
     typeFeatureStatus,
+    unImplicitLockStatus,
+    ImplicitLockStatus (..),
   )
 where
 
 import qualified Cassandra.CQL as Cass
+import Control.Lens (makeLenses)
+import qualified Data.Aeson as A
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Conversion
 import qualified Data.ByteString.UTF8 as UTF8
@@ -361,6 +366,15 @@ instance ToSchema LockStatusResponse where
     object "LockStatusResponse" $
       LockStatusResponse
         <$> _unlockStatus .= field "lockStatus" schema
+
+newtype ImplicitLockStatus (cfg :: *) = ImplicitLockStatus {_unImplicitLockStatus :: WithStatus cfg}
+  deriving newtype (Eq, Show, Arbitrary)
+
+instance (IsFeatureConfig a, ToSchema a) => ToJSON (ImplicitLockStatus a) where
+  toJSON (ImplicitLockStatus a) = A.toJSON $ forgetLock a
+
+instance (IsFeatureConfig a, ToSchema a) => FromJSON (ImplicitLockStatus a) where
+  parseJSON v = ImplicitLockStatus . withLockStatus (wsLockStatus $ defFeatureStatus @a) <$> A.parseJSON v
 
 -- | This contains the pure business logic for users from teams
 computeFeatureConfigForTeamUser :: Maybe (WithStatusNoLock cfg) -> Maybe LockStatus -> WithStatus cfg -> WithStatus cfg
@@ -816,3 +830,5 @@ instance Arbitrary AllFeatureConfigs where
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
+
+makeLenses ''ImplicitLockStatus
