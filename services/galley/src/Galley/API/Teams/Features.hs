@@ -141,6 +141,9 @@ class GetFeatureConfig (db :: *) cfg => SetFeatureConfig (db :: *) cfg where
   type SetConfigForTeamConstraints db cfg (r :: EffectRow) :: Constraint
   type SetConfigForTeamConstraints db cfg (r :: EffectRow) = ()
 
+  -- | This method should generate the side-effects of changing the feautre and
+  -- also (depending on the feature) persist the new setting to the database and
+  -- push a event to clients (see 'persistAndPushEvent').
   setConfigForTeam ::
     ( SetConfigForTeamConstraints db cfg r,
       GetConfigForTeamConstraints db cfg r,
@@ -807,6 +810,14 @@ instance SetFeatureConfig db SearchVisibilityInboundConfig where
 instance GetFeatureConfig db SearchVisibilityInboundConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSearchVisibilityInbound . unDefaults . unImplicitLockStatus)
+
+instance GetFeatureConfig db MLSConfig where
+  getConfigForServer =
+    input <&> view (optSettings . setFeatureFlags . flagMLS . unDefaults . unImplicitLockStatus)
+
+instance SetFeatureConfig db MLSConfig where
+  setConfigForTeam tid wsnl _ = do
+    persistAndPushEvent @db tid wsnl Nothing
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --
