@@ -107,6 +107,9 @@ spec:
             - name: coturn-tcp
               containerPort: {{ .Values.coturnTurnListenPort }}
               protocol: TCP
+            - name: coturn-udp
+              containerPort: {{ .Values.coturnTurnListenPort }}
+              protocol: UDP
             - name: status-http
               containerPort: {{ .Values.coturnMetricsListenPort }}
               protocol: TCP
