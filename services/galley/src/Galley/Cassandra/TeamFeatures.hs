@@ -34,6 +34,8 @@ import Imports
 import Polysemy
 import Polysemy.Input
 import UnliftIO.Async (pooledMapConcurrentlyN)
+import Wire.API.Conversation.Protocol (ProtocolTag)
+import Wire.API.MLS.CipherSuite
 import Wire.API.Team.Feature
 
 data Cassandra
@@ -246,3 +248,38 @@ instance FeatureStatusCassandra SndFactorPasswordChallengeConfig where
 instance FeatureStatusCassandra SearchVisibilityInboundConfig where
   getFeatureConfig _ = getTrivialConfigC "search_visibility_status"
   setFeatureConfig _ tid statusNoLock _mTtl = setFeatureStatusC "search_visibility_status" tid (wssStatus statusNoLock) Nothing
+
+instance FeatureStatusCassandra MLSConfig where
+  getFeatureConfig _ tid = runMaybeT $ do
+    (status, defaultProtocol, protocolToggleUsers, allowedCipherSuites, defaultCipherSuite) <-
+      MaybeT . retry x1 $
+        query1 select (params LocalQuorum (Identity tid))
+    let config = MLSConfig protocolToggleUsers defaultProtocol allowedCipherSuites defaultCipherSuite
+    pure $ WithStatusNoLock status config
+    where
+      select :: PrepQuery R (Identity TeamId) (FeatureStatus, ProtocolTag, [UserId], [CipherSuiteTag], CipherSuiteTag)
+      select =
+        "select mls_status, mls_default_protocol, mls_protocol_toggle_users, mls_allowed_ciphersuites, \
+        \mls_default_ciphersuite from team_features where team_id = ?"
+
+  setFeatureConfig _ tid statusNoLock _mTtl = do
+    let status = wssStatus statusNoLock
+    let MLSConfig protocolToggleUsers defaultProtocol allowedCipherSuites defaultCipherSuite = wssConfig statusNoLock
+    retry x5 $
+      write
+        insert
+        ( params
+            LocalQuorum
+            ( tid,
+              status,
+              defaultProtocol,
+              protocolToggleUsers,
+              allowedCipherSuites,
+              defaultCipherSuite
+            )
+        )
+    where
+      insert :: PrepQuery W (TeamId, FeatureStatus, ProtocolTag, [UserId], [CipherSuiteTag], CipherSuiteTag) ()
+      insert =
+        "insert into team_features (team_id, mls_status, mls_default_protocol, \
+        \mls_protocol_toggle_users, mls_allowed_ciphersuites, mls_default_ciphersuite) values (?, ?, ?, ?, ?, ?)"

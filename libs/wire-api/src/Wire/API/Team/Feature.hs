@@ -54,6 +54,7 @@ module Wire.API.Team.Feature
     ClassifiedDomainsConfig (..),
     AppLockConfig (..),
     FileSharingConfig (..),
+    MLSConfig (..),
     AllFeatureConfigs (..),
     typeFeatureTTL,
     withStatusModel,
@@ -96,11 +97,15 @@ import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_S
 
 -- | Checklist for adding a new feature
 --
---
 -- 1. Add a data type for your feature's "config" part, naming convention: **<NameOfFeature>Config**. If your feature doesn't
 -- have a config besides being enabled/disabled, locked/unlocked, then the
 -- config should be a unit type, e.g. **data MyFeatureConfig = MyFeatureConfig**
+--
 -- 2. Implement type clases 'ToSchema', 'IsFeatureConfig'. If your feature doesn't have a config implement 'FeatureTrivialConfig'
+--
+-- 3. If your feature is configurable on a per-team basis, add a schema
+-- migration in galley and add 'FeatureStatusCassandra' instance in
+-- Galley.Cassandra.TreamFeatures together with a schema migration
 --
 -- FeatureStatusGet (and maybe FeatureStatusPut) route to the FeatureAPI * maybe
 -- add a FeatureConfigGet route to FeatureAPI *

@@ -15,9 +15,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V67_MLSFeature where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 67
+migration :: Migration
+migration =
+  Migration 67 "Add team feature config for MLSConfig" $
+    schema'
+      [r| ALTER TABLE team_features ADD (
+            mls_status int,
+            mls_default_protocol int,
+            mls_protocol_toggle_users set<uuid>,
+            mls_allowed_ciphersuites set<int>,
+            mls_default_ciphersuite int
+        )
+     |]
