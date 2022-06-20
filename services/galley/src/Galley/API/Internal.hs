@@ -130,18 +130,18 @@ type IFeatureAPI =
     -- SearchVisibilityAvailableConfig
     :<|> IFeatureStatusGet SearchVisibilityAvailableConfig
     :<|> IFeatureStatusPut '() SearchVisibilityAvailableConfig
-    :<|> IFeatureStatusDeprecatedGet "" SearchVisibilityAvailableConfig
-    :<|> IFeatureStatusDeprecatedPut "" SearchVisibilityAvailableConfig
+    :<|> IFeatureStatusDeprecatedGet "This endpoint is not used internally by wire-server, nor by stern. After verification that it is not used in ibis, this can be removed" SearchVisibilityAvailableConfig
+    :<|> IFeatureStatusDeprecatedPut "This endpoint is not used internally by wire-server, nor by stern. After verification that it is not used in ibis, this can be removed" SearchVisibilityAvailableConfig
     -- ValidateSAMLEmailsConfig
     :<|> IFeatureStatusGet ValidateSAMLEmailsConfig
     :<|> IFeatureStatusPut '() ValidateSAMLEmailsConfig
-    :<|> IFeatureStatusDeprecatedGet "" ValidateSAMLEmailsConfig
-    :<|> IFeatureStatusDeprecatedPut "" ValidateSAMLEmailsConfig
+    :<|> IFeatureStatusDeprecatedGet "This endpoint is not used internally by wire-server, nor by stern. After verification that it is not used in ibis, this can be removed" ValidateSAMLEmailsConfig
+    :<|> IFeatureStatusDeprecatedPut "This endpoint is not used internally by wire-server, nor by stern. After verification that it is not used in ibis, this can be removed" ValidateSAMLEmailsConfig
     -- DigitalSignaturesConfig
     :<|> IFeatureStatusGet DigitalSignaturesConfig
     :<|> IFeatureStatusPut '() DigitalSignaturesConfig
-    :<|> IFeatureStatusDeprecatedGet "" DigitalSignaturesConfig
-    :<|> IFeatureStatusDeprecatedPut "" DigitalSignaturesConfig
+    :<|> IFeatureStatusDeprecatedGet "This endpoint is not used internally by wire-server, nor by stern. After verification that it is not used in ibis, this can be removed" DigitalSignaturesConfig
+    :<|> IFeatureStatusDeprecatedPut "This endpoint is not used internally by wire-server, nor by stern. After verification that it is not used in ibis, this can be removed" DigitalSignaturesConfig
     -- AppLockConfig
     :<|> IFeatureStatusGet AppLockConfig
     :<|> IFeatureStatusPut '() AppLockConfig
