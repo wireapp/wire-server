@@ -395,6 +395,9 @@ routes = do
   mkFeatureGetRoute @AppLockConfig
   mkFeaturePutRoute @AppLockConfig
 
+  mkFeatureGetRoute @MLSConfig
+  mkFeaturePutRoute @MLSConfig
+
   -- These endpoints should be part of team settings. Until then, we access them from here
   -- for authorized personnel to enable/disable this on the team's behalf
   get "/teams/:tid/search-visibility" (continue (fmap json . Intra.getSearchVisibility)) $
