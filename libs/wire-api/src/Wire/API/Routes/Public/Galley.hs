@@ -1186,7 +1186,7 @@ type FeatureStatusBaseDeprecatedGet desc featureConfig =
       :> Description
            ( "Deprecated. Please use `GET /teams/:tid/features/"
                `AppendSymbol` FeatureSymbol featureConfig
-               `AppendSymbol` "` instead."
+               `AppendSymbol` "` instead.\n"
                `AppendSymbol` desc
            )
       :> CanThrow 'NotATeamMember
