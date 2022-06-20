@@ -19,6 +19,7 @@ module Galley.API.MLS.Welcome
   ( postMLSWelcome,
     postMLSWelcomeFromLocalUser,
     sendLocalWelcomes,
+    resolveMember,
   )
 where
 
@@ -27,7 +28,9 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
+import Data.Tagged (Tagged)
 import Data.Time
+import Data.Tuple.Extra (uncurry3)
 import Galley.API.MLS.KeyPackage
 import Galley.API.Push
 import Galley.Data.Conversation
@@ -37,6 +40,7 @@ import Galley.Effects.GundeckAccess
 import Imports
 import Network.Wai.Utilities.Server
 import Polysemy
+import Polysemy.Error (runError, throw)
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Logger
@@ -47,6 +51,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
+import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
@@ -68,9 +73,13 @@ postMLSWelcome ::
 postMLSWelcome loc con wel = do
   now <- input
   rcpts <- welcomeRecipients (rmValue wel)
-  let (locals, remotes) = partitionQualified loc rcpts
+  let (locals, remotes) = partitionQualified loc $ map (uncurry qTrip) rcpts
   sendLocalWelcomes con now (rmRaw wel) (qualifyAs loc locals)
   sendRemoteWelcomes (rmRaw wel) remotes
+  where
+    qTrip qc conv = qc {qUnqualified = (u, c, conv)}
+      where
+        (u, c) = qUnqualified qc
 
 postMLSWelcomeFromLocalUser ::
   Members
@@ -95,33 +104,34 @@ welcomeRecipients ::
      ]
     r =>
   Welcome ->
-  Sem r [Qualified (UserId, ClientId)]
+  Sem r [(Qualified (UserId, ClientId), Qualified ConvId)]
 welcomeRecipients =
-  traverse
-    ( fmap cidQualifiedClient
-        . derefKeyPackage
-        . gsNewMember
-    )
-    . welSecrets
+  traverse (either throw pure <=< resolveMember . gsNewMember) . welSecrets
+
+resolveMember :: Member BrigAccess r => KeyPackageRef -> Sem r (Either (Tagged 'MLSKeyPackageRefNotFound ()) (Qualified (UserId, ClientId), Qualified ConvId))
+resolveMember kpref = runError $ do
+  clientIdentity <- derefKeyPackage kpref
+  -- TODO Generate new + Put conversaion id?
+  let defConv = Qualified (selfConv (ciUser clientIdentity)) (ciDomain clientIdentity)
+  convId <- fromMaybe defConv <$> getConvIdByKeyPackageRef kpref
+  pure (cidQualifiedClient clientIdentity, convId)
 
 sendLocalWelcomes ::
   Members '[GundeckAccess] r =>
   Maybe ConnId ->
   UTCTime ->
   ByteString ->
-  Local [(UserId, ClientId)] ->
+  Local [(UserId, ClientId, Qualified ConvId)] ->
   Sem r ()
 sendLocalWelcomes con now rawWelcome lclients = do
   runMessagePush lclients Nothing $
-    foldMap (uncurry mkPush) (tUnqualified lclients)
+    foldMap (uncurry3 mkPush) (tUnqualified lclients)
   where
-    mkPush :: UserId -> ClientId -> MessagePush 'Broadcast
-    mkPush u c =
-      -- FUTUREWORK: use the conversation ID stored in the key package mapping table
-      let lcnv = qualifyAs lclients (selfConv u)
-          lusr = qualifyAs lclients u
-          e = Event (qUntagged lcnv) (qUntagged lusr) now $ EdMLSWelcome rawWelcome
-       in newMessagePush lclients mempty con defMessageMetadata (u, c) e
+    mkPush :: UserId -> ClientId -> Qualified ConvId -> MessagePush 'Broadcast
+    mkPush u cl conv =
+      let lusr = qualifyAs lclients u
+          e = Event conv (qUntagged lusr) now $ EdMLSWelcome rawWelcome
+       in newMessagePush lclients mempty con defMessageMetadata (u, cl) e
 
 sendRemoteWelcomes ::
   Members
@@ -130,7 +140,7 @@ sendRemoteWelcomes ::
      ]
     r =>
   ByteString ->
-  [Remote (UserId, ClientId)] ->
+  [Remote (UserId, ClientId, Qualified ConvId)] ->
   Sem r ()
 sendRemoteWelcomes rawWelcome clients = do
   let req = MLSWelcomeRequest . Base64ByteString $ rawWelcome

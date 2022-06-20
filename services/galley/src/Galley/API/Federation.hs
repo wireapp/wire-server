@@ -33,13 +33,11 @@ import Data.Qualified
 import Data.Range (Range (fromRange))
 import qualified Data.Set as Set
 import Data.Singletons (SingI (..), demote, sing)
-import Data.Tagged
 import qualified Data.Text.Lazy as LT
 import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.GroupInfo
-import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Message
 import Galley.API.MLS.Removal
 import Galley.API.MLS.Welcome
@@ -67,8 +65,7 @@ import Polysemy.Internal.Kind (Append)
 import Polysemy.Resource
 import Polysemy.TinyLog
 import qualified Polysemy.TinyLog as P
-import Servant (ServerT)
-import Servant.API
+import Servant
 import qualified System.Logger.Class as Log
 import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
@@ -85,7 +82,6 @@ import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
 import Wire.API.MLS.CommitBundle
-import Wire.API.MLS.Credential
 import Wire.API.MLS.Message
 import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
@@ -725,15 +721,18 @@ mlsSendWelcome _origDomain (fromBase64ByteString . F.unMLSWelcomeRequest -> rawW
   rcpts <-
     fmap catMaybes $
       traverse
-        ( fmap (fmap cidQualifiedClient . hush)
-            . runError @(Tagged 'MLSKeyPackageRefNotFound ())
-            . derefKeyPackage
+        ( fmap hush
+            . resolveMember
             . gsNewMember
         )
         $ welSecrets welcome
-  let lrcpts = qualifyAs loc $ fst $ partitionQualified loc rcpts
+  let lrcpts = qualifyAs loc $ fst $ partitionQualified loc $ map (uncurry qTrip) rcpts
   sendLocalWelcomes Nothing now rawWelcome lrcpts
   pure EmptyResponse
+  where
+    qTrip qc conv = qc {qUnqualified = (u, c, conv)}
+      where
+        (u, c) = qUnqualified qc
 
 onMLSMessageSent ::
   Members

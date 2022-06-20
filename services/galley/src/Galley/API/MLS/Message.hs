@@ -1037,7 +1037,7 @@ executeProposalAction qusr con lconv cm action = do
 
     addMembers :: NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
     addMembers =
-      -- FUTUREWORK: update key package ref mapping to reflect conversation membership
+      -- NB: key package ref mapping updated in processCommit
       foldMap
         ( handleNoChanges
             . handleMLSProposalFailures @ProposalErrors
