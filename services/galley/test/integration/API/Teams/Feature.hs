@@ -48,8 +48,10 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit (assertFailure, (@?=))
 import TestHelpers (test)
 import TestSetup
+import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 import Wire.API.Internal.Notification (Notification)
+import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature (FeatureStatus (..), FeatureTTL (..))
 import qualified Wire.API.Team.Feature as Public
@@ -829,7 +831,8 @@ testAllFeatures = do
           toS @Public.GuestLinksConfig .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
           toS @Public.ValidateSAMLEmailsConfig .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
           toS @Public.GuestLinksConfig .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
-          toS @Public.SndFactorPasswordChallengeConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusLocked Public.SndFactorPasswordChallengeConfig
+          toS @Public.SndFactorPasswordChallengeConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusLocked Public.SndFactorPasswordChallengeConfig,
+          toS @Public.MLSConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked (Public.MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
         ]
 
     toS :: forall cfg. (Public.IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg)) => Aeson.Key
