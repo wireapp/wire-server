@@ -24,8 +24,6 @@ module Wire.API.Team.Feature
   ( FeatureStatus (..),
     featureName,
     featureNameBS,
-    deprecatedFeatureName,
-    deprecatedFeatureNameBS,
     LockStatus (..),
     WithStatus (..),
     WithStatusNoLock (..),
@@ -157,12 +155,6 @@ featureName = T.pack $ symbolVal (Proxy @(FeatureSymbol cfg))
 
 featureNameBS :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => ByteString
 featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
-
-deprecatedFeatureName :: forall cfg. (HasDeprecatedFeatureName cfg, KnownSymbol (DeprecatedFeatureName cfg)) => Text
-deprecatedFeatureName = T.pack $ symbolVal (Proxy @(DeprecatedFeatureName cfg))
-
-deprecatedFeatureNameBS :: forall cfg. (HasDeprecatedFeatureName cfg, KnownSymbol (DeprecatedFeatureName cfg)) => ByteString
-deprecatedFeatureNameBS = UTF8.fromString $ symbolVal (Proxy @(DeprecatedFeatureName cfg))
 
 ----------------------------------------------------------------------
 -- WithStatus
