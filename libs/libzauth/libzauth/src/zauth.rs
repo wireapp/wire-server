@@ -15,7 +15,6 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use rustc_serialize::base64::FromBase64;
 use sodiumoxide::crypto::sign::ed25519::{PublicKey, Signature, verify_detached};
 use std::collections::HashMap;
 use std::fs::File;
@@ -39,7 +38,7 @@ impl Keystore {
         let reader = BufReader::new(File::open(p)?);
         let mut keys = Vec::new();
         for line in reader.lines() {
-            let decoded = line?.from_base64()?;
+            let decoded = base64::decode(line?)?;
             match PublicKey::from_slice(&decoded) {
                 None    => return Err(Error::Invalid("public key")),
                 Some(k) => keys.push(k)
@@ -122,7 +121,7 @@ impl<'r> Token<'r> {
             };
 
         let signature =
-            match Signature::from_bytes(&sgn.from_base64()?) {
+            match Signature::from_bytes(&base64::decode_config(sgn, base64::URL_SAFE)?) {
                 Ok(s) => s,
                 Err(_) => return Err(Error::Invalid("signature"))
             };
@@ -208,7 +207,6 @@ impl<'r> Token<'r> {
 
 #[cfg(test)]
 mod tests {
-    use rustc_serialize::base64::FromBase64;
     use super::*;
 
     const ACCESS_TOKEN: &'static str =
@@ -235,7 +233,7 @@ mod tests {
     #[test]
     fn parse_access() {
         let t = Token::parse(ACCESS_TOKEN).unwrap();
-        assert_eq!(t.signature.to_bytes(), "aEPOxMwUriGEv2qc7Pb672ygy-6VeJ-8VrX3jmwalZr7xygU4izyCWxiT7IXfybnNGIsk1FQPb0RRVPx1s2UCw==".from_base64().unwrap()[..]);
+        assert_eq!(t.signature.to_bytes(), base64::decode_config("aEPOxMwUriGEv2qc7Pb672ygy-6VeJ-8VrX3jmwalZr7xygU4izyCWxiT7IXfybnNGIsk1FQPb0RRVPx1s2UCw==", base64::URL_SAFE).unwrap()[..]);
         assert_eq!(t.version, 1);
         assert_eq!(t.key_idx, 1);
         assert_eq!(t.timestamp, 1466770783);
@@ -248,7 +246,7 @@ mod tests {
     #[test]
     fn parse_user() {
         let t = Token::parse(USER_TOKEN).unwrap();
-        assert_eq!(t.signature.to_bytes(), "vpJs7PEgwtsuzGlMY0-Vqs22s8o9ZDlp7wJrPmhCgIfg0NoTAxvxq5OtknabLMfNTEW9amn5tyeUM7tbFZABBA==".from_base64().unwrap()[..]);
+        assert_eq!(t.signature.to_bytes(), base64::decode_config("vpJs7PEgwtsuzGlMY0-Vqs22s8o9ZDlp7wJrPmhCgIfg0NoTAxvxq5OtknabLMfNTEW9amn5tyeUM7tbFZABBA==", base64::URL_SAFE).unwrap()[..]);
         assert_eq!(t.version, 1);
         assert_eq!(t.key_idx, 1);
         assert_eq!(t.timestamp, 1466770905);
@@ -261,7 +259,7 @@ mod tests {
     #[test]
     fn parse_bot() {
         let t = Token::parse(BOT_TOKEN).unwrap();
-        assert_eq!(t.signature.to_bytes(), "-cEsTNb68hb-By81MZd5fF6NMDVzR_emkV_HfOnIdZTXsoeRRRZA7hmv9y2uLUNWDifNd-B8u0AjiAT_2rzUDg==".from_base64().unwrap()[..]);
+        assert_eq!(t.signature.to_bytes(), base64::decode_config("-cEsTNb68hb-By81MZd5fF6NMDVzR_emkV_HfOnIdZTXsoeRRRZA7hmv9y2uLUNWDifNd-B8u0AjiAT_2rzUDg==", base64::URL_SAFE).unwrap()[..]);
         assert_eq!(t.version, 1);
         assert_eq!(t.key_idx, 1);
         assert_eq!(t.timestamp, -1);
@@ -275,7 +273,7 @@ mod tests {
     #[test]
     fn parse_session() {
         let t = Token::parse(SESSION_TOKEN).unwrap();
-        assert_eq!(t.signature.to_bytes(), "hmTE4dWsW3TuOXtvAuSuHMcEHxT4MCqGrJ2hCw0YLZ1_XnjSc3ByohekeSrz7zjmEzHM-QSkg8MbrawR-kcjBQ==".from_base64().unwrap()[..]);
+        assert_eq!(t.signature.to_bytes(), base64::decode_config("hmTE4dWsW3TuOXtvAuSuHMcEHxT4MCqGrJ2hCw0YLZ1_XnjSc3ByohekeSrz7zjmEzHM-QSkg8MbrawR-kcjBQ==", base64::URL_SAFE).unwrap()[..]);
         assert_eq!(t.version, 1);
         assert_eq!(t.key_idx, 1);
         assert_eq!(t.timestamp, 1466771315);
@@ -288,7 +286,7 @@ mod tests {
     #[test]
     fn parse_provider() {
         let t = Token::parse(PROVIDER_TOKEN).unwrap();
-        assert_eq!(t.signature.to_bytes(), "qcJ9zxFHMaiqj-tauhywI435BBs8t6wFyXAShkSQqaHK9r36k012rJYJIE7TTCHlFaGOzsk6E7h5G8JkLVjFDg==".from_base64().unwrap()[..]);
+        assert_eq!(t.signature.to_bytes(), base64::decode_config("qcJ9zxFHMaiqj-tauhywI435BBs8t6wFyXAShkSQqaHK9r36k012rJYJIE7TTCHlFaGOzsk6E7h5G8JkLVjFDg==", base64::URL_SAFE).unwrap()[..]);
         assert_eq!(t.version, 1);
         assert_eq!(t.key_idx, 1);
         assert_eq!(t.timestamp, 1467640768);
@@ -300,7 +298,7 @@ mod tests {
     #[test]
     fn parse_legal_hold_access() {
         let t = Token::parse(LEGAL_HOLD_ACCESS_TOKEN).unwrap();
-        assert_eq!(t.signature.to_bytes(), "6wca6kIO7_SFAev_Pl2uS6cBdkKuGk6MIh8WBK_ivZnwtRVrXF2pEHiocUWQZDy8YTrEweTJrqxUDptA7M1SBA==".from_base64().unwrap()[..]);
+        assert_eq!(t.signature.to_bytes(), base64::decode_config("6wca6kIO7_SFAev_Pl2uS6cBdkKuGk6MIh8WBK_ivZnwtRVrXF2pEHiocUWQZDy8YTrEweTJrqxUDptA7M1SBA==", base64::URL_SAFE).unwrap()[..]);
         assert_eq!(t.version, 1);
         assert_eq!(t.key_idx, 1);
         assert_eq!(t.timestamp, 1558361639);
@@ -313,7 +311,7 @@ mod tests {
     #[test]
     fn parse_legal_hold_user() {
         let t = Token::parse(LEGAL_HOLD_USER_TOKEN).unwrap();
-        assert_eq!(t.signature.to_bytes(), "GsydW1LQvwGYBGFErvqcqJvcipumtcdfVL4Li83KwR1ucnm-IrPM40SKl9Rhsdv0sqF_MF_eyTqMe_XpXR81Cg==".from_base64().unwrap()[..]);
+        assert_eq!(t.signature.to_bytes(), base64::decode_config("GsydW1LQvwGYBGFErvqcqJvcipumtcdfVL4Li83KwR1ucnm-IrPM40SKl9Rhsdv0sqF_MF_eyTqMe_XpXR81Cg==", base64::URL_SAFE).unwrap()[..]);
         assert_eq!(t.version, 1);
         assert_eq!(t.key_idx, 1);
         assert_eq!(t.timestamp, 1558361914);

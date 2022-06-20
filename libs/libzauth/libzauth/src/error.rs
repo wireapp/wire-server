@@ -15,7 +15,6 @@
 // You should have received a copy of the GNU Affero General Public License along
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use rustc_serialize::base64::FromBase64Error;
 use std::error;
 use std::fmt;
 use std::io;
@@ -66,8 +65,8 @@ impl From<io::Error> for Error {
     }
 }
 
-impl From<FromBase64Error> for Error {
-    fn from(_: FromBase64Error) -> Error {
+impl From<base64::DecodeError> for Error {
+    fn from(_: base64::DecodeError) -> Error {
         Error::Base64
     }
 }

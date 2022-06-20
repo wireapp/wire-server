@@ -16,7 +16,7 @@
 // with this program. If not, see <https://www.gnu.org/licenses/>.
 
 extern crate asexp;
-extern crate rustc_serialize;
+extern crate base64;
 extern crate sodiumoxide;
 
 pub mod acl;

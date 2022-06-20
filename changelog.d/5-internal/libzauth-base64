@@ -1,0 +1,1 @@
+Replace libzauth dependency rustc-serialize with base64
