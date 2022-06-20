@@ -1098,14 +1098,14 @@ type FeatureAPI =
            LegalholdConfig
     :<|> FeatureStatusGet SearchVisibilityAvailableConfig
     :<|> FeatureStatusPut '() SearchVisibilityAvailableConfig
-    :<|> FeatureStatusDeprecatedGet "This endpoint is potentially used the old Android client. It is not used by iOS, team management, or webapp as of June 2022" SearchVisibilityAvailableConfig
-    :<|> FeatureStatusDeprecatedPut "This endpoint is potentially used the old Android client. It is not used by iOS, team management, or webapp as of June 2022" SearchVisibilityAvailableConfig
+    :<|> FeatureStatusDeprecatedGet "This endpoint is potentially used by the old Android client. It is not used by iOS, team management, or webapp as of June 2022" SearchVisibilityAvailableConfig
+    :<|> FeatureStatusDeprecatedPut "This endpoint is potentially used by the old Android client. It is not used by iOS, team management, or webapp as of June 2022" SearchVisibilityAvailableConfig
     :<|> SearchVisibilityGet
     :<|> SearchVisibilitySet
     :<|> FeatureStatusGet ValidateSAMLEmailsConfig
-    :<|> FeatureStatusDeprecatedGet "This endpoint is potentially used the old Android client. It is not used by iOS, team management, or webapp as of June 2022" ValidateSAMLEmailsConfig
+    :<|> FeatureStatusDeprecatedGet "This endpoint is potentially used by the old Android client. It is not used by iOS, team management, or webapp as of June 2022" ValidateSAMLEmailsConfig
     :<|> FeatureStatusGet DigitalSignaturesConfig
-    :<|> FeatureStatusDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is potentially used by the old Android client. It is not used by team management, or webapp as of June 2022" DigitalSignaturesConfig
+    :<|> FeatureStatusDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is potentially used by the old Android client. It is not used by team management, or webapp as of June 2022" DigitalSignaturesConfig
     :<|> FeatureStatusGet AppLockConfig
     :<|> FeatureStatusPut '() AppLockConfig
     :<|> FeatureStatusGet FileSharingConfig
@@ -1120,18 +1120,18 @@ type FeatureAPI =
     :<|> FeatureStatusPut '() SndFactorPasswordChallengeConfig
     :<|> AllFeatureConfigsUserGet
     :<|> AllFeatureConfigsTeamGet
-    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp, and is potentially used by the old Android client as of June 2022" LegalholdConfig
-    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" SSOConfig
-    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp, and is potentially used by the old Android client as of June 2022" SearchVisibilityAvailableConfig
-    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp, and is potentially used by the old Android client as of June 2022" ValidateSAMLEmailsConfig
-    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" DigitalSignaturesConfig
-    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" AppLockConfig
-    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" FileSharingConfig
-    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp, and is potentially used by the old Android client as of June 2022" ClassifiedDomainsConfig
-    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp, and is potentially used by the old Android client as of June 2022" ConferenceCallingConfig
-    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp, and is potentially used by the old Android client as of June 2022" SelfDeletingMessagesConfig
-    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" GuestLinksConfig
-    :<|> FeatureConfigDeprecatedGet "This endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" SndFactorPasswordChallengeConfig
+    :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp, and is potentially used by the old Android client as of June 2022" LegalholdConfig
+    :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" SSOConfig
+    :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp, and is potentially used by the old Android client as of June 2022" SearchVisibilityAvailableConfig
+    :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp, and is potentially used by the old Android client as of June 2022" ValidateSAMLEmailsConfig
+    :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" DigitalSignaturesConfig
+    :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" AppLockConfig
+    :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" FileSharingConfig
+    :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp, and is potentially used by the old Android client as of June 2022" ClassifiedDomainsConfig
+    :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp, and is potentially used by the old Android client as of June 2022" ConferenceCallingConfig
+    :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is not used by team management, or webapp, and is potentially used by the old Android client as of June 2022" SelfDeletingMessagesConfig
+    :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" GuestLinksConfig
+    :<|> FeatureConfigDeprecatedGet "The usage of this endpoint was removed in iOS in version 3.101. It is used by team management, webapp, and potentially the old Android client as of June 2022" SndFactorPasswordChallengeConfig
 
 type FeatureStatusGet f =
   Named
