@@ -91,35 +91,33 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 ----------------------------------------------------------------------
 -- FeatureTag
 
--- | If you add a constructor here, you need extend multiple definitions, which
---   aren't checked by GHC.
+-- | Checklist for adding a new feature
 --
---   Follow this Checklist:
 --
--- * FUTUREWORK: Update this checklist when a new feature is added
+-- 1. Add a data type for your feature's "config" part, naming convention: "<NameOfFeature>Config". If your feature doesn't
+-- have a config besides being enabled/disabled, locked/unlocked, then the
+-- config should be a unit type, e.g. data MyFeatureConfig = MyFeatureConfig.(<%=)
+-- 2. Implement type clases 'IsFeatureConfig'
 --
--- * libs/wire-api/test/unit/Test/Wire/API/Roundtrip/Aeson.hs
---   * add call to 'testRoundTrip'
--- * libs/wire-api/src/Wire/API/Routes/Public/Galley.hs
---   * add a FeatureStatusGet (and maybe FeatureStatusPut) route to the FeatureAPI
---   * maybe add a FeatureConfigGet route to FeatureAPI
--- * services/galley/src/Galley/API/Internal.hs
---   * add IFeatureStatus to IFeatureAPI
--- * libs/galley-types/src/Galley/Types/Teams.hs
---   * FeatureFlags for server config file
---   * Update the Arbitrary instance of FeatureFlags
---       in libs/galley-types/test/unit/Test/Galley/Types.hs
---   * roleHiddenPermissions ChangeTeamFeature and ViewTeamFeature
--- * add the feature status to `AllFeatureConfigs` (see below)
---   * follow the type errors and fix them (e.g. in services/galley/src/Galley/API/Teams/Features.hs)
--- * services/galley/schema/src/
---   * add a migration like the one in "V43_TeamFeatureDigitalSignatures.hs"
--- * services/galley/test/integration/API/Teams/Feature.hs
---   * add an integration test for the feature
---   * extend testAllFeatures
--- * consider personal-account configurability (like for `conferenceCalling`, see
---     eg. https://github.com/wireapp/wire-server/pull/1811,
---     https://github.com/wireapp/wire-server/pull/1818)
+-- . old (TODO: adapt or remove) *
+-- libs/wire-api/test/unit/Test/Wire/API/Roundtrip/Aeson.hs * add call to
+-- 'testRoundTrip' * libs/wire-api/src/Wire/API/Routes/Public/Galley.hs * add a
+-- FeatureStatusGet (and maybe FeatureStatusPut) route to the FeatureAPI * maybe
+-- add a FeatureConfigGet route to FeatureAPI *
+-- services/galley/src/Galley/API/Internal.hs * add IFeatureStatus to
+-- IFeatureAPI * libs/galley-types/src/Galley/Types/Teams.hs * FeatureFlags for
+-- server config file * Update the Arbitrary instance of FeatureFlags in
+-- libs/galley-types/test/unit/Test/Galley/Types.hs * roleHiddenPermissions
+-- ChangeTeamFeature and ViewTeamFeature * add the feature status to
+-- `AllFeatureConfigs` (see below) * follow the type errors and fix them (e.g.
+-- in services/galley/src/Galley/API/Teams/Features.hs) *
+-- services/galley/schema/src/ * add a migration like the one in
+-- "V43_TeamFeatureDigitalSignatures.hs" *
+-- services/galley/test/integration/API/Teams/Feature.hs * add an integration
+-- test for the feature * extend testAllFeatures * consider personal-account
+-- configurability (like for `conferenceCalling`, see eg.
+-- https://github.com/wireapp/wire-server/pull/1811,
+-- https://github.com/wireapp/wire-server/pull/1818)
 --
 -- An example of all the places to change (including compiler errors and failing tests) can be found
 -- in eg. https://github.com/wireapp/wire-server/pull/1652.  (applock and conference calling also
@@ -144,7 +142,12 @@ class IsFeatureConfig cfg where
   defFeatureStatus :: WithStatus cfg
   configModel :: Maybe Doc.Model
   configModel = Nothing
-  objectSchema :: ObjectSchema SwaggerDoc cfg
+
+  objectSchema ::
+    -- | Should be "pure MyFeatureConfig" if the feature doesn't have config,
+    -- which results in a trivial empty schema and the "config" field being
+    -- omitted/ignored in the JSON encoder / parser.
+    ObjectSchema SwaggerDoc cfg
 
 class FeatureTrivialConfig cfg where
   trivialConfig :: cfg
