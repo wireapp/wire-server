@@ -123,30 +123,15 @@ import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_S
 --
 -- 6. Add internal routes in Galley.API.Internal
 --
--- * add an integration
--- test for the feature * extend testAllFeatures * consider personal-account
--- configurability (like for `conferenceCalling`, see eg.
--- https://github.com/wireapp/wire-server/pull/1811,
+-- 7. If the feature should be configurable via Stern add routes to Stern.API.
+-- Manually check that the swagger looks okay.
+--
+-- 8. If the feature is configured on a per-user level, see the
+-- 'ConferenceCallingConfig' as an example.
+-- (https://github.com/wireapp/wire-server/pull/1811,
 -- https://github.com/wireapp/wire-server/pull/1818)
 --
--- An example of all the places to change (including compiler errors and failing tests) can be found
--- in eg. https://github.com/wireapp/wire-server/pull/1652.  (applock and conference calling also
--- add interesting aspects, though.)
---
--- Using something like '[minBound..]' on those expressions would require dependent types.  We
--- could generate exhaustive lists of those calls using TH, along the lines of:
---
--- @
--- forAllFeatureTags ::
---   ExpQ {- [forall (a :: FeatureTag). b] -} ->
---   ExpQ {- [b] -}
--- forAllFeatureTags =
---   error
---     "...  and then somehow turn the values from '[minBound..]' into \
---     \type applications in the syntax tree"
--- @
---
--- But that seems excessive.  Let's wait for dependent types to be ready in ghc!
+-- 9. Extend the integration tests with cases
 class IsFeatureConfig cfg where
   type FeatureSymbol cfg :: Symbol
   defFeatureStatus :: WithStatus cfg
