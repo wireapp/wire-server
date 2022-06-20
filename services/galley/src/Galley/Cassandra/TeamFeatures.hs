@@ -24,6 +24,7 @@ module Galley.Cassandra.TeamFeatures
 where
 
 import Cassandra
+import qualified Cassandra as C
 import Control.Monad.Trans.Maybe
 import Data.Id
 import Data.Proxy
@@ -250,14 +251,21 @@ instance FeatureStatusCassandra SearchVisibilityInboundConfig where
   setFeatureConfig _ tid statusNoLock _mTtl = setFeatureStatusC "search_visibility_status" tid (wssStatus statusNoLock) Nothing
 
 instance FeatureStatusCassandra MLSConfig where
-  getFeatureConfig _ tid = runMaybeT $ do
-    (status, defaultProtocol, protocolToggleUsers, allowedCipherSuites, defaultCipherSuite) <-
-      MaybeT . retry x1 $
-        query1 select (params LocalQuorum (Identity tid))
-    let config = MLSConfig protocolToggleUsers defaultProtocol allowedCipherSuites defaultCipherSuite
-    pure $ WithStatusNoLock status config
+  getFeatureConfig _ tid = do
+    m <- retry x1 $ query1 select (params LocalQuorum (Identity tid))
+    pure $ case m of
+      Nothing -> Nothing
+      Just (status, defaultProtocol, protocolToggleUsers, allowedCipherSuites, defaultCipherSuite) ->
+        WithStatusNoLock
+          <$> status
+          <*> ( MLSConfig
+                  <$> fmap C.fromSet protocolToggleUsers
+                  <*> defaultProtocol
+                  <*> fmap C.fromSet allowedCipherSuites
+                  <*> defaultCipherSuite
+              )
     where
-      select :: PrepQuery R (Identity TeamId) (FeatureStatus, ProtocolTag, [UserId], [CipherSuiteTag], CipherSuiteTag)
+      select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe ProtocolTag, Maybe (C.Set UserId), Maybe (C.Set CipherSuiteTag), Maybe CipherSuiteTag)
       select =
         "select mls_status, mls_default_protocol, mls_protocol_toggle_users, mls_allowed_ciphersuites, \
         \mls_default_ciphersuite from team_features where team_id = ?"
