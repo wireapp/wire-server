@@ -1182,7 +1182,7 @@ type FeatureStatusBasePutPublic errs featureConfig =
 type FeatureStatusBaseDeprecatedGet desc featureConfig =
   ( Summary
       (AppendSymbol "[deprecated] Get config for " (FeatureSymbol featureConfig))
-      -- :> Until 'V2
+      :> Until 'V2
       :> Description
            ( "Deprecated. Please use `GET /teams/:tid/features/"
                `AppendSymbol` FeatureSymbol featureConfig
@@ -1203,7 +1203,7 @@ type FeatureStatusBaseDeprecatedGet desc featureConfig =
 type FeatureStatusBaseDeprecatedPut desc featureConfig =
   Summary
     (AppendSymbol "[deprecated] Get config for " (FeatureSymbol featureConfig))
-    -- :> Until 'V2
+    :> Until 'V2
     :> Description
          ( "Deprecated. Please use `PUT /teams/:tid/features/"
              `AppendSymbol` FeatureSymbol featureConfig
@@ -1225,7 +1225,7 @@ type FeatureConfigDeprecatedGet desc featureConfig =
   Named
     '("get-config", featureConfig)
     ( Summary (AppendSymbol "[deprecated] Get feature config for feature " (FeatureSymbol featureConfig))
-        -- :> Until 'V2
+        :> Until 'V2
         :> Description ("Deprecated. Please use `GET /feature-configs` instead.\n" `AppendSymbol` desc)
         :> ZUser
         :> CanThrow 'NotATeamMember
