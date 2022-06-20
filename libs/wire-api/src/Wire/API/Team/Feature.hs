@@ -97,28 +97,33 @@ import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_S
 
 -- | Checklist for adding a new feature
 --
--- 1. Add a data type for your feature's "config" part, naming convention: **<NameOfFeature>Config**. If your feature doesn't
--- have a config besides being enabled/disabled, locked/unlocked, then the
--- config should be a unit type, e.g. **data MyFeatureConfig = MyFeatureConfig**
+-- 1. Add a data type for your feature's "config" part, naming convention:
+-- **<NameOfFeature>Config**. If your feature doesn't have a config besides
+-- being enabled/disabled, locked/unlocked, then the config should be a unit
+-- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Implement type clases
+-- 'ToSchema', 'IsFeatureConfig' and 'Arbitrary'. If your feature doesn't have a
+-- config implement 'FeatureTrivialConfig'.
 --
--- 2. Implement type clases 'ToSchema', 'IsFeatureConfig'. If your feature doesn't have a config implement 'FeatureTrivialConfig'
+-- 2. Add the config to to 'AllFeatureConfigs'. Add your feature to 'allFeatureModels'.
 --
--- 3. If your feature is configurable on a per-team basis, add a schema
+-- 2. If your feature is configurable on a per-team basis, add a schema
 -- migration in galley and add 'FeatureStatusCassandra' instance in
 -- Galley.Cassandra.TreamFeatures together with a schema migration
 --
--- FeatureStatusGet (and maybe FeatureStatusPut) route to the FeatureAPI * maybe
--- add a FeatureConfigGet route to FeatureAPI *
--- services/galley/src/Galley/API/Internal.hs * add IFeatureStatus to
--- IFeatureAPI * libs/galley-types/src/Galley/Types/Teams.hs * FeatureFlags for
--- server config file * Update the Arbitrary instance of FeatureFlags in
--- libs/galley-types/test/unit/Test/Galley/Types.hs * roleHiddenPermissions
--- ChangeTeamFeature and ViewTeamFeature * add the feature status to
--- `AllFeatureConfigs` (see below) * follow the type errors and fix them (e.g.
--- in services/galley/src/Galley/API/Teams/Features.hs) *
--- services/galley/schema/src/ * add a migration like the one in
--- "V43_TeamFeatureDigitalSignatures.hs" *
--- services/galley/test/integration/API/Teams/Feature.hs * add an integration
+-- 3. Add the feature to the config schema of galley in Galley.Types.Teams.
+-- and extend the Arbitrary instance of FeatureConfigs in the unit tests Test.Galley.Types
+--
+-- 4. Implement 'GetFeatureConfig' and 'SetFeatureConfig' in
+-- Galley.API.Teams.Features which defines the main business logic for getting
+-- and setting (with side-effects).
+--
+-- 5. Add public routes to Routes.Public.Galley: 'FeatureStatusGet',
+-- 'FeatureStatusPut' (optional) and by by user: 'FeatureConfigGet'. Then
+-- implement them in Galley.API.Public.
+--
+-- 6. Add internal routes in Galley.API.Internal
+--
+-- * add an integration
 -- test for the feature * extend testAllFeatures * consider personal-account
 -- configurability (like for `conferenceCalling`, see eg.
 -- https://github.com/wireapp/wire-server/pull/1811,
@@ -414,6 +419,7 @@ allFeatureModels =
     withStatusNoLockModel @GuestLinksConfig,
     withStatusNoLockModel @SndFactorPasswordChallengeConfig,
     withStatusNoLockModel @SearchVisibilityInboundConfig,
+    withStatusNoLockModel @MLSConfig,
     withStatusModel @LegalholdConfig,
     withStatusModel @SSOConfig,
     withStatusModel @SearchVisibilityAvailableConfig,
@@ -426,7 +432,8 @@ allFeatureModels =
     withStatusModel @SelfDeletingMessagesConfig,
     withStatusModel @GuestLinksConfig,
     withStatusModel @SndFactorPasswordChallengeConfig,
-    withStatusModel @SearchVisibilityInboundConfig
+    withStatusModel @SearchVisibilityInboundConfig,
+    withStatusModel @MLSConfig
   ]
     <> catMaybes
       [ configModel @LegalholdConfig,
@@ -441,7 +448,8 @@ allFeatureModels =
         configModel @SelfDeletingMessagesConfig,
         configModel @GuestLinksConfig,
         configModel @SndFactorPasswordChallengeConfig,
-        configModel @SearchVisibilityInboundConfig
+        configModel @SearchVisibilityInboundConfig,
+        configModel @MLSConfig
       ]
 
 --------------------------------------------------------------------------------
@@ -741,6 +749,7 @@ data MLSConfig = MLSConfig
     mlsDefaultCipherSuite :: CipherSuiteTag
   }
   deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform MLSConfig)
 
 instance ToSchema MLSConfig where
   schema =
@@ -830,7 +839,8 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcConferenceCalling :: WithStatus ConferenceCallingConfig,
     afcSelfDeletingMessages :: WithStatus SelfDeletingMessagesConfig,
     afcGuestLink :: WithStatus GuestLinksConfig,
-    afcSndFactorPasswordChallenge :: WithStatus SndFactorPasswordChallengeConfig
+    afcSndFactorPasswordChallenge :: WithStatus SndFactorPasswordChallengeConfig,
+    afcMLS :: WithStatus MLSConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -851,6 +861,7 @@ instance ToSchema AllFeatureConfigs where
         <*> afcSelfDeletingMessages .= featureField
         <*> afcGuestLink .= featureField
         <*> afcSndFactorPasswordChallenge .= featureField
+        <*> afcMLS .= featureField
     where
       featureField ::
         forall cfg.
@@ -862,6 +873,7 @@ instance Arbitrary AllFeatureConfigs where
   arbitrary =
     AllFeatureConfigs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

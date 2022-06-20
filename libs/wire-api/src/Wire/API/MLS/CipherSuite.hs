@@ -41,7 +41,8 @@ newtype CipherSuite = CipherSuite {cipherSuiteNumber :: Word16}
   deriving newtype (ParseMLS, Arbitrary)
 
 data CipherSuiteTag = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-  deriving stock (Bounded, Enum, Eq, Show)
+  deriving stock (Bounded, Enum, Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform CipherSuiteTag)
 
 instance S.ToSchema CipherSuiteTag where
   declareNamedSchema _ =
