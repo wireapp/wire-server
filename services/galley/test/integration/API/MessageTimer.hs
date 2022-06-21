@@ -34,9 +34,6 @@ import Data.Misc
 import Data.Qualified
 import Data.Singletons
 import Federator.MockServer (FederatedRequest (..))
-import Galley.Types
-import Galley.Types.Conversations.Roles
-import qualified Galley.Types.Teams as Teams
 import Imports hiding (head)
 import Network.Wai.Utilities.Error
 import Test.Tasty
@@ -45,12 +42,15 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
+import Wire.API.Conversation
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification (Notification (..))
 import qualified Wire.API.Team.Member as Member
+import Wire.API.Team.Permission
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -190,7 +190,7 @@ messageTimerChangeWithoutAllowedAction = do
   -- Create a team and a guest user
   [owner, member, guest] <- randomUsers 3
   connectUsers owner (list1 member [guest])
-  tid <- createNonBindingTeam "team" owner [Member.mkTeamMember member Teams.fullPermissions Nothing LH.defUserLegalHoldStatus]
+  tid <- createNonBindingTeam "team" owner [Member.mkTeamMember member fullPermissions Nothing LH.defUserLegalHoldStatus]
   -- Create a conversation
   cid <- createTeamConvWithRole owner tid [member, guest] Nothing Nothing Nothing roleNameWireMember
   -- Try to change the timer (as a non admin, guest user) and observe failure

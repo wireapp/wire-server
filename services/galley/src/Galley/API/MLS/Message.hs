@@ -42,7 +42,6 @@ import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore
 import Galley.Options
-import Galley.Types
 import Galley.Types.Conversations.Members
 import Imports
 import Network.Wai.Utilities.Server
@@ -56,6 +55,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley

@@ -61,7 +61,7 @@ import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore
 import qualified Galley.External.LegalHoldService as LHService
-import Galley.Types (LocalMember, lmConvRoleName, lmId)
+import Galley.Types.Conversations.Members
 import Galley.Types.Teams as Team
 import Imports
 import Network.HTTP.Types.Status (status200)
@@ -79,6 +79,7 @@ import Wire.API.Routes.Public.Galley (DisableLegalHoldForUserResponse (..), Gran
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import qualified Wire.API.Team.LegalHold as Public
+import Wire.API.Team.Member
 
 assertLegalHoldEnabledForTeam ::
   forall db r.
@@ -329,7 +330,7 @@ removeSettings' tid =
       spawnMany (map removeLHForUser lhMembers)
     removeLHForUser :: TeamMember -> Sem r ()
     removeLHForUser member = do
-      luid <- qualifyLocal (member ^. Team.userId)
+      luid <- qualifyLocal (member ^. userId)
       removeLegalHoldClientFromUser (tUnqualified luid)
       LHService.removeLegalHold tid (tUnqualified luid)
       changeLegalholdStatus tid luid (member ^. legalHoldStatus) UserLegalHoldDisabled -- (support for withdrawing consent is not planned yet.)

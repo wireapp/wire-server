@@ -102,9 +102,9 @@ import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import Galley.Effects.WaiRoutes
 import Galley.Intra.Push
 import Galley.Options
-import Galley.Types
 import Galley.Types.Bot hiding (addBot)
-import Galley.Types.Teams hiding (Event, EventData (..), EventType (..), self)
+import Galley.Types.Bot.Service (Service)
+import Galley.Types.Conversations.Members (LocalMember (..))
 import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Network.HTTP.Types
@@ -117,6 +117,7 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Code
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -125,10 +126,12 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
+import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.Public.Galley
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
 import Wire.API.Team.Feature
+import Wire.API.Team.Member
 import Wire.API.User.Client
 
 acceptConvH ::

@@ -41,8 +41,8 @@ import Data.Id
 import qualified Data.Map.Strict as Map
 import Data.Range
 import qualified Data.Set as Set
-import Galley.Types (UserClients (..))
 import Imports hiding (filter, toList)
+import Wire.API.User.Client
 
 newtype Clients = Clients
   { clients :: UserClients

@@ -24,13 +24,13 @@ import Data.Predicate (exec)
 import Data.Set hiding (drop)
 import Galley.API ()
 import Galley.API.Public (filterMissing)
-import Galley.Types
 import Imports
 import qualified Network.HTTP.Types as H
 import qualified Network.Wai as W
 import qualified Network.Wai.Predicate as P
 import Test.Tasty
 import Test.Tasty.HUnit
+import Wire.API.Message
 
 tests :: TestTree
 tests =

@@ -31,7 +31,7 @@ import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.TeamStore
 import Galley.Options
-import Galley.Types.Teams hiding (self)
+import Galley.Types.Teams
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -39,6 +39,7 @@ import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Log
 import Wire.API.Team.LegalHold
+import Wire.API.Team.Member
 import Wire.API.User
 import Wire.API.User.Client as Client
 

@@ -79,9 +79,7 @@ import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
 import Galley.Options
-import Galley.Types
 import Galley.Types.Conversations.Members
-import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types
@@ -93,8 +91,11 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Logger
-import Wire.API.Conversation (ConversationCoverView (..))
+import Wire.API.Conversation (Access (CodeAccess), Conversation, ConversationCoverView (..), ConversationList (ConversationList), ConversationMetadata, convHasMore, convList)
 import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation.Code
+import Wire.API.Conversation.Member hiding (Member)
+import Wire.API.Conversation.Role
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
 import Wire.API.Error.Galley

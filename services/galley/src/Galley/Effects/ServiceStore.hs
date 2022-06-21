@@ -32,9 +32,10 @@ module Galley.Effects.ServiceStore
   )
 where
 
-import Galley.Types.Bot
+import Galley.Types.Bot.Service
 import Imports
 import Polysemy
+import Wire.API.Provider.Service (ServiceRef)
 
 data ServiceStore m a where
   CreateService :: Service -> ServiceStore m ()

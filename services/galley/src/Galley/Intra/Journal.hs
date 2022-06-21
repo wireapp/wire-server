@@ -46,6 +46,8 @@ import qualified Polysemy.TinyLog as P
 import Proto.TeamEvents (TeamEvent'EventData, TeamEvent'EventType (..))
 import qualified Proto.TeamEvents_Fields as T
 import System.Logger (field, msg, val)
+import Wire.API.Team.Member
+import Wire.API.Team.Permission
 
 -- [Note: journaling]
 -- Team journal operations to SQS are a no-op when the service

@@ -65,13 +65,11 @@ import qualified Galley.Intra.Push as Intra
 import Galley.Monad
 import Galley.Options
 import qualified Galley.Queue as Q
-import Galley.Types
 import Galley.Types.Bot (AddBot, RemoveBot)
 import Galley.Types.Bot.Service
 import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (..))
-import Galley.Types.Teams hiding (MemberLeave)
+import Galley.Types.Conversations.Members (RemoteMember (rmId))
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SearchVisibility
 import Galley.Types.UserList
 import Imports hiding (head)
 import Network.Wai.Predicate hiding (Error, err)
@@ -90,11 +88,14 @@ import qualified System.Logger.Class as Log
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
+import Wire.API.CustomBackend
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.Provider.Service hiding (Service)
 import Wire.API.Routes.API
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti
 import Wire.API.Routes.MultiTablePaging (mtpHasMore, mtpPagingState, mtpResults)
@@ -102,7 +103,10 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Routes.Public
 import Wire.API.Routes.Public.Galley
+import Wire.API.Team
 import Wire.API.Team.Feature
+import Wire.API.Team.Member
+import Wire.API.Team.SearchVisibility
 
 type IFeatureAPI =
   -- SSOConfig
