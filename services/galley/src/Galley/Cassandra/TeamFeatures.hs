@@ -259,9 +259,9 @@ instance FeatureStatusCassandra MLSConfig where
         WithStatusNoLock
           <$> status
           <*> ( MLSConfig
-                  <$> fmap C.fromSet protocolToggleUsers
+                  <$> maybe (Just []) (Just . C.fromSet) protocolToggleUsers
                   <*> defaultProtocol
-                  <*> fmap C.fromSet allowedCipherSuites
+                  <*> maybe (Just []) (Just . C.fromSet) allowedCipherSuites
                   <*> defaultCipherSuite
               )
     where
@@ -281,13 +281,13 @@ instance FeatureStatusCassandra MLSConfig where
             ( tid,
               status,
               defaultProtocol,
-              protocolToggleUsers,
-              allowedCipherSuites,
+              C.Set protocolToggleUsers,
+              C.Set allowedCipherSuites,
               defaultCipherSuite
             )
         )
     where
-      insert :: PrepQuery W (TeamId, FeatureStatus, ProtocolTag, [UserId], [CipherSuiteTag], CipherSuiteTag) ()
+      insert :: PrepQuery W (TeamId, FeatureStatus, ProtocolTag, C.Set UserId, C.Set CipherSuiteTag, CipherSuiteTag) ()
       insert =
         "insert into team_features (team_id, mls_status, mls_default_protocol, \
         \mls_protocol_toggle_users, mls_allowed_ciphersuites, mls_default_ciphersuite) values (?, ?, ?, ?, ?, ?)"
