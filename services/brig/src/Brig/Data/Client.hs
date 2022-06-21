@@ -187,8 +187,8 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients loc cps = do
 lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client)
 lookupClient u c = do
   keys <- retry x1 (query selectMLSPublicKeys (params LocalQuorum (u, c)))
-  toClient keys
-    <$$> retry x1 (query1 selectClient (params LocalQuorum (u, c)))
+  fmap (toClient keys)
+    <$> retry x1 (query1 selectClient (params LocalQuorum (u, c)))
 
 lookupClientsBulk :: (MonadClient m) => [UserId] -> m (Map UserId (Imports.Set Client))
 lookupClientsBulk uids = liftClient $ do

@@ -103,6 +103,7 @@ tests _cl _at opts p db b c g =
       test p "put /clients/:client - 200" $ testUpdateClient opts b,
       test p "put /clients/:client - 200 (mls keys)" $ testMLSPublicKeyUpdate b,
       test p "get /clients/:client - 404" $ testMissingClient b,
+      test p "get /clients/:client - 200" $ testMLSClient b,
       test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g,
       test p "client/prekeys/race" $ testPreKeyRace b
     ]
@@ -325,6 +326,26 @@ testListClients brig = do
     !!! do
       const 200 === statusCode
       const (Just cs) === responseJsonMaybe
+
+testMLSClient :: Brig -> Http ()
+testMLSClient brig = do
+  uid <- userId <$> randomUser brig
+  let (pk1, lk1) = (somePrekeys !! 0, (someLastPrekeys !! 0))
+  let (pk2, lk2) = (somePrekeys !! 1, (someLastPrekeys !! 1))
+  -- An MLS client
+  c1 <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [pk1] lk1)
+  -- Non-MLS client
+  c2 <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [pk2] lk2)
+
+  let pks = Map.fromList [(Ed25519, "random")]
+  void $ putClient brig uid (clientId c1) pks
+
+  -- Assert that adding MLS public keys to one client does not affect the other
+  -- client
+  getClient brig uid (clientId c2) !!! do
+    const 200 === statusCode
+    -- This is unfortunate, but fixing this breaks clients.
+    const (Just c2) === responseJsonMaybe
 
 testListClientsBulk :: Opt.Opts -> Brig -> Http ()
 testListClientsBulk opts brig = do
