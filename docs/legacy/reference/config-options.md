@@ -255,7 +255,7 @@ mls:
 
 ```
 
-This default configuration can be overriden on a per-team basisc through the [feature config API](./features.md)
+This default configuration can be overriden on a per-team basis through the [feature config API](./features.md)
 
 If this feature is enabled then clients that support this feature will allowing the users in `protocolToggleUsers` to switch between the Proteus and the MLS procotol. The default protocol can also be changed for that the whole team in `defaultProtocol`. The `defaultCipherSuite` and `allowedCipherSuites` contain the default ciphersuite and the allowed ciphersuites that clients should be using. The numerical values should correspond to the indices (starting at 1) specified here https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5
 

@@ -141,7 +141,7 @@ class GetFeatureConfig (db :: *) cfg => SetFeatureConfig (db :: *) cfg where
   type SetConfigForTeamConstraints db cfg (r :: EffectRow) :: Constraint
   type SetConfigForTeamConstraints db cfg (r :: EffectRow) = ()
 
-  -- | This method should generate the side-effects of changing the feautre and
+  -- | This method should generate the side-effects of changing the feature and
   -- also (depending on the feature) persist the new setting to the database and
   -- push a event to clients (see 'persistAndPushEvent').
   setConfigForTeam ::
