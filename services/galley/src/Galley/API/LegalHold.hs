@@ -170,7 +170,7 @@ getSettings ::
 getSettings lzusr tid = do
   let zusr = tUnqualified lzusr
   zusrMembership <- getTeamMember tid zusr
-  void $ permissionCheck ViewTeamFeature zusrMembership
+  void $ maybe (throwS @'NotATeamMember) pure zusrMembership
   isenabled <- isLegalHoldEnabledForTeam @db tid
   mresult <- LegalHoldData.getSettings tid
   pure $ case (isenabled, mresult) of

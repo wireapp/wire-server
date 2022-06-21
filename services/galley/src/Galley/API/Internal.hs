@@ -167,6 +167,23 @@ type IFeatureAPI =
     -- MLSConfig
     :<|> IFeatureStatusGet MLSConfig
     :<|> IFeatureStatusPut '() MLSConfig
+    -- all feature configs
+    :<|> Named
+           "feature-configs-internal"
+           ( Summary "Get all feature configs (for user/team; if n/a fall back to site config)."
+               :> "feature-configs"
+               :> CanThrow OperationDenied
+               :> CanThrow 'NotATeamMember
+               :> CanThrow 'TeamNotFound
+               :> QueryParam'
+                    [ Optional,
+                      Strict,
+                      Description "Optional user id"
+                    ]
+                    "user_id"
+                    UserId
+               :> Get '[Servant.JSON] AllFeatureConfigs
+           )
 
 type InternalAPI = "i" :> InternalAPIBase
 
@@ -219,27 +236,6 @@ type InternalAPIBase =
                :> "upsert"
                :> ReqBody '[Servant.JSON] UpsertOne2OneConversationRequest
                :> Post '[Servant.JSON] UpsertOne2OneConversationResponse
-           )
-    :<|> Named
-           "feature-config-snd-factor-password-challenge"
-           -- FUTUREWORK: Introduce `/i/feature-configs` and drop this one again.  The internal end-poins has the
-           -- same handler as the public one, plus optional user id in the query.  Maybe require `DoAuth` to disable
-           -- access control only on the internal end-point, not on the public one.  (This may also be a good oppportunity
-           -- to make `AllFeatureConfigs` more type-safe.)
-           ( Summary "Get feature config for the 2nd factor password challenge feature (for user/team; if n/a fall back to site config)."
-               :> "feature-configs"
-               :> CanThrow OperationDenied
-               :> CanThrow 'NotATeamMember
-               :> CanThrow 'TeamNotFound
-               :> FeatureSymbol SndFactorPasswordChallengeConfig
-               :> QueryParam'
-                    [ Optional,
-                      Strict,
-                      Description "Optional user id"
-                    ]
-                    "user_id"
-                    UserId
-               :> Get '[Servant.JSON] (WithStatus SndFactorPasswordChallengeConfig)
            )
     :<|> IFeatureAPI
 
@@ -398,7 +394,6 @@ internalAPI =
       <@> legalholdWhitelistedTeamsAPI
       <@> iTeamsAPI
       <@> mkNamedAPI @"upsert-one2one" iUpsertOne2OneConversation
-      <@> mkNamedAPI @"feature-config-snd-factor-password-challenge" (getFeatureStatusNoPermissionCheck @Cassandra)
       <@> featureAPI
 
 legalholdWhitelistedTeamsAPI :: API ILegalholdWhitelistedTeamsAPI GalleyEffects
@@ -472,6 +467,7 @@ featureAPI =
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
+    <@> mkNamedAPI (maybe (getAllFeatureConfigsForServer @Cassandra) (getAllFeatureConfigsForUser @Cassandra))
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()
 internalSitemap = do
