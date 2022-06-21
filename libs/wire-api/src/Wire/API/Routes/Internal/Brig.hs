@@ -146,6 +146,12 @@ type AccountAPI =
         :> ReqBody '[Servant.JSON] NewUser
         :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
     )
+    :<|> Named
+           "createUserNoVerifySafe"
+           ( "users" :> "safe" -- TODO: temporary name
+               :> ReqBody '[Servant.JSON] NewUserSpar
+               :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
+           )
 
 data NewKeyPackageRef = NewKeyPackageRef
   { nkprUserId :: Qualified UserId,

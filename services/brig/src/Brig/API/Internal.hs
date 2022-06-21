@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Brig.API.Internal
   ( sitemap,
     servantSitemap,
@@ -64,7 +63,7 @@ import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Conversion as List
-import Data.Handle (Handle)
+import Data.Handle
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Qualified
@@ -126,7 +125,9 @@ mlsAPI =
     :<|> mapKeyPackageRefsInternal
 
 accountAPI :: Member BlacklistStore r => ServerT BrigIRoutes.AccountAPI (Handler r)
-accountAPI = Named @"createUserNoVerify" createUserNoVerify
+accountAPI =
+  Named @"createUserNoVerify" createUserNoVerify
+    :<|> Named @"createUserNoVerifySafe" createUserNoVerifySafe
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
@@ -420,7 +421,37 @@ createUserNoVerify uData = lift . runExceptT $ do
     let key = ActivateKey $ activationKey adata
         code = activationCode adata
      in API.activate key code (Just uid) !>> activationErrorToRegisterError
-  pure (SelfProfile usr)
+  pure . SelfProfile $ usr
+
+createUserNoVerifySafe :: NewUserSpar -> (Handler r) (Either RegisterError SelfProfile)
+createUserNoVerifySafe uData =
+  lift . runExceptT $ do
+    result <- API.createUserSpar uData
+    let acc = createdAccount result
+    let usr = accountUser acc
+    let uid = userId usr
+    let eac = createdEmailActivation result
+    let pac = createdPhoneActivation result
+    for_ (catMaybes [eac, pac]) $ \adata ->
+      let key = ActivateKey $ activationKey adata
+          code = activationCode adata
+       in API.activate key code (Just uid) !>> activationErrorToRegisterError
+    pure . SelfProfile $ usr
+
+-- case usr of
+--   Right usr' -> do
+--     let uid = userId usr'
+--     case HandleUpdate . fromHandle <$> newUserHandle uData of
+--       Just handle -> do
+--         e <- D.trace "\n+++++++++++++++++++++++++++++++++++++ update handle failed" updateHandle uid handle
+--         pure . Left . CreateUserSparHandleError $ e
+--       Nothing -> do
+--         D.trace "\n++++++++++++++ no handle\n" pure ()
+--         pure . Right . SelfProfile $ usr'
+--     -- _ <- D.trace "\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% update rich info failed " updateRichInfo uid undefined
+--     pure . Right $ SelfProfile usr'
+--   Left e -> do
+--     pure . Left . CreateUserSparRegisterError $ RegisterErrorBlacklistedEmail
 
 deleteUserNoVerifyH :: UserId -> (Handler r) Response
 deleteUserNoVerifyH uid = do

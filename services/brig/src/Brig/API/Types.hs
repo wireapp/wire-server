@@ -59,11 +59,13 @@ data CreateUserResult = CreateUserResult
     -- | Info of a team just created/joined
     createdUserTeam :: !(Maybe CreateUserTeam)
   }
+  deriving (Show)
 
 data CreateUserTeam = CreateUserTeam
   { createdTeamId :: !TeamId,
     createdTeamName :: !Text
   }
+  deriving (Show)
 
 data ActivationResult
   = -- | The key/code was valid and successfully activated.

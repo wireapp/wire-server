@@ -63,6 +63,18 @@ import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
 import Data.Proxy (Proxy (..))
 import Data.Schema
+  ( HasDoc (doc),
+    ObjectSchema,
+    Schema (Schema),
+    SwaggerDoc,
+    ToSchema (..),
+    genericToSchema,
+    maybe_,
+    optField,
+    parsedText,
+    withParser,
+    (.=),
+  )
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Text as Text

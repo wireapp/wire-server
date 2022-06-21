@@ -19,6 +19,7 @@
 module Brig.API.User
   ( -- * User Accounts / Profiles
     createUser,
+    createUserSpar,
     createUserInviteViaScim,
     checkRestrictedUserCreation,
     Brig.API.User.updateUser,
@@ -178,6 +179,7 @@ import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
+import Wire.API.User.RichInfo
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -215,6 +217,83 @@ verifyUniquenessAndCheckBlacklist uk = do
       av <- lift $ Data.keyAvailable k u
       unless av $
         throwE IdentityErrorUserKeyExists
+
+createUserSpar :: NewUserSpar -> ExceptT RegisterError (AppT r) CreateUserResult
+createUserSpar new = do
+  let handle' = newUserSparHandle new
+      new' = newUserFromSpar new -- TODO: make it obsolete once we add rich info?
+      ident = newUserSparSSOId new
+      tid = newUserSparTeamId new
+
+  -- Create account
+  account <- lift $ do
+    (account, pw) <- wrapClient $ newAccount new' Nothing (Just tid) handle'
+
+    let uid = userId (accountUser account)
+
+    -- TODO: make this transactional?
+    wrapClient $ Data.insertAccount account Nothing pw False
+    case unRichInfo <$> newUserSparRichInfo new of
+      Just richInfo -> wrapClient $ Data.updateRichInfo uid richInfo
+      Nothing -> pure () -- Nothing to do
+
+    wrapHttp $ Intra.createSelfConv uid
+    wrapHttpClient $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
+
+    pure account
+
+
+  -- Add to team
+  userTeam <- addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing)
+
+  -- Set up feature flags
+  let uid = userId (accountUser account)
+  lift $ initAccountFeatureConfig uid
+
+  pure $! CreateUserResult account Nothing Nothing (Just userTeam)
+  where
+    addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
+    addUserToTeamSSO account tid ident = do
+      let uid = userId (accountUser account)
+      added <- lift $ wrapHttp $ Intra.addTeamMember uid tid (Nothing, defaultRole)
+      unless added $
+        throwE RegisterErrorTooManyTeamMembers
+      lift $ do
+        wrapClient $ activateUser uid ident
+        void $ onActivated (AccountActivated account)
+        Log.info $
+          field "user" (toByteString uid)
+            . field "team" (toByteString tid)
+            . msg (val "Added via SSO")
+      Team.TeamName nm <- lift $ wrapHttp $ Intra.getTeamName tid
+      pure $ CreateUserTeam tid nm
+
+-- ensureMemberCanJoin :: TeamId -> ExceptT RegisterError (AppT r) ()
+-- ensureMemberCanJoin tid = do
+--   maxSize <- fromIntegral . setMaxTeamSize <$> view settings
+--   (TeamSize teamSize) <- TeamSize.teamSize tid
+--   when (teamSize >= maxSize) $
+--     throwE RegisterErrorTooManyTeamMembers
+--   -- FUTUREWORK: The above can easily be done/tested in the intra call.
+--   --             Remove after the next release.
+--   canAdd <- lift $ wrapHttp $ Intra.checkUserCanJoinTeam tid
+--   case canAdd of
+--     Just e -> throwM $ API.UserNotAllowedToJoinTeam e
+--     Nothing -> pure ()
+
+-- findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT RegisterError (AppT r) (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
+-- findTeamInvitation Nothing _ = throwE RegisterErrorMissingIdentity
+-- findTeamInvitation (Just e) c =
+--   lift (wrapClient $ Team.lookupInvitationInfo c) >>= \case
+--     Just ii -> do
+--       inv <- lift . wrapClient $ Team.lookupInvitation (Team.iiTeam ii) (Team.iiInvId ii)
+--       case (inv, Team.inInviteeEmail <$> inv) of
+--         (Just invite, Just em)
+--           | e == userEmailKey em -> do
+--             _ <- ensureMemberCanJoin (Team.iiTeam ii)
+--             pure $ Just (invite, ii, Team.iiTeam ii)
+--         _ -> throwE RegisterErrorInvalidInvitationCode
+--     Nothing -> throwE RegisterErrorInvalidInvitationCode
 
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser :: forall r. Member BlacklistStore r => NewUser -> ExceptT RegisterError (AppT r) CreateUserResult

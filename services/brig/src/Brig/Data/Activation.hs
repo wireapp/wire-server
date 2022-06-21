@@ -60,7 +60,7 @@ data Activation = Activation
     -- | The confidential activation code.
     activationCode :: !ActivationCode
   }
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data ActivationError
   = UserKeyExists !LT.Text

@@ -44,11 +44,16 @@ module Wire.API.User
     -- * NewUser
     NewUserPublic (..),
     RegisterError (..),
+    -- CreateUserSparError (..),
     RegisterSuccess (..),
     RegisterResponses,
     RegisterInternalResponses,
     NewUser (..),
     emptyNewUser,
+    NewUserSpar (..),
+    newUserFromSpar,
+    urefToExternalId,
+    urefToEmail,
     ExpiresIn,
     newUserInvitationCode,
     newUserTeam,
@@ -112,7 +117,7 @@ where
 
 import Control.Applicative
 import Control.Error.Safe (rightMay)
-import Control.Lens (over, (.~), (?~))
+import Control.Lens (over, view, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson.Types as A
 import qualified Data.Attoparsec.ByteString as Parser
@@ -137,7 +142,7 @@ import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
-import Data.Text.Ascii
+import Data.Text.Ascii (AsciiBase64Url)
 import qualified Data.Text.Encoding as T
 import Data.UUID (UUID, nil)
 import qualified Data.UUID as UUID
@@ -146,6 +151,7 @@ import GHC.TypeLits (KnownNat, Nat)
 import qualified Generics.SOP as GSOP
 import Imports
 import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Servant (FromHttpApiData (..), ToHttpApiData (..), type (.++))
 import qualified Test.QuickCheck as QC
 import URI.ByteString (serializeURIRef)
@@ -161,6 +167,7 @@ import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
+import Wire.API.User.RichInfo
 
 --------------------------------------------------------------------------------
 -- UserIdList
@@ -519,6 +526,20 @@ isNewUserTeamMember u = case newUserTeam u of
 instance Arbitrary NewUserPublic where
   arbitrary = arbitrary `QC.suchThatMap` (rightMay . validateNewUserPublic)
 
+--   ChangeHandleErrorResponses -- .++ RegisterErrorResponses
+
+-- type CreateUserSparResponses =
+--   CreateUserSparErrorResponses
+--     .++ '[ WithHeaders
+--              '[DescHeader "Location" "UserId" UserId]
+--              SelfProfile
+--              (Respond 201 "User created and pending activation" SelfProfile)
+--          ]
+
+-- instance (res ~ CreateUserSparResponses) => AsUnion res (Either CreateUserSparError SelfProfile) where
+--   toUnion = eitherToUnion (toUnion @CreateUserSparErrorResponses) (Z . I)
+--   fromUnion = eitherFromUnion (fromUnion @CreateUserSparErrorResponses) (unI . unZ)
+
 data RegisterError
   = RegisterErrorWhitelistError
   | RegisterErrorInvalidInvitationCode
@@ -532,7 +553,7 @@ data RegisterError
   | RegisterErrorBlacklistedEmail
   | RegisterErrorTooManyTeamMembers
   | RegisterErrorUserCreationRestricted
-  deriving (Generic)
+  deriving (Show, Generic)
   deriving (AsUnion RegisterErrorResponses) via GenericAsUnion RegisterErrorResponses RegisterError
 
 instance GSOP.Generic RegisterError
@@ -587,6 +608,57 @@ instance AsHeaders '[UserId] SelfProfile SelfProfile where
 instance (res ~ RegisterInternalResponses) => AsUnion res (Either RegisterError SelfProfile) where
   toUnion = eitherToUnion (toUnion @RegisterErrorResponses) (Z . I)
   fromUnion = eitherFromUnion (fromUnion @RegisterErrorResponses) (unI . unZ)
+
+urefToExternalId :: SAML.UserRef -> Maybe Text
+urefToExternalId = fmap CI.original . SAML.shortShowNameID . view SAML.uidSubject
+
+urefToEmail :: SAML.UserRef -> Maybe Email
+urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
+  SAML.UNameIDEmail email -> parseEmail . SAMLEmail.render . CI.original $ email
+  _ -> Nothing
+
+data NewUserSpar = NewUserSpar
+  { newUserSparUUID :: UUID,
+    newUserSparSSOId :: UserSSOId,
+    newUserSparDisplayName :: Name,
+    newUserSparTeamId :: TeamId,
+    newUserSparManagedBy :: ManagedBy,
+    newUserSparHandle :: Maybe Handle,
+    newUserSparRichInfo :: Maybe RichInfo
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewUserSpar)
+
+instance ToSchema NewUserSpar where
+  schema =
+    object "NewUserSpar" $
+      NewUserSpar
+        <$> newUserSparUUID .= field "newUserSparUUID" genericToSchema
+        <*> newUserSparSSOId .= field "newUserSparSSOId" genericToSchema
+        <*> newUserSparDisplayName .= field "newUserSparDisplayName" schema
+        <*> newUserSparTeamId .= field "newUserSparTeamId" schema
+        <*> newUserSparManagedBy .= field "newUserSparManagedBy" schema
+        <*> newUserSparHandle .= maybe_ (optField "newUserSparHandle" schema)
+        <*> newUserSparRichInfo .= maybe_ (optField "newUserSparRichInfo" schema)
+
+newUserFromSpar :: NewUserSpar -> NewUser
+newUserFromSpar new =
+  NewUser
+    { newUserDisplayName = newUserSparDisplayName new,
+      newUserUUID = Just $ newUserSparUUID new,
+      newUserIdentity = Just $ SSOIdentity (newUserSparSSOId new) Nothing Nothing,
+      newUserPict = Nothing,
+      newUserAssets = [],
+      newUserAccentId = Nothing,
+      newUserEmailCode = Nothing,
+      newUserPhoneCode = Nothing,
+      newUserOrigin = Just . NewUserOriginTeamUser . NewTeamMemberSSO $ newUserSparTeamId new,
+      newUserLabel = Nothing,
+      newUserLocale = Nothing,
+      newUserPassword = Nothing,
+      newUserExpiresIn = Nothing,
+      newUserManagedBy = Just $ newUserSparManagedBy new
+    }
 
 data NewUser = NewUser
   { newUserDisplayName :: Name,
@@ -1130,7 +1202,7 @@ data ChangeHandleError
   | ChangeHandleExists
   | ChangeHandleInvalid
   | ChangeHandleManagedByScim
-  deriving (Generic)
+  deriving (Show, Generic)
   deriving (AsUnion ChangeHandleErrorResponses) via GenericAsUnion ChangeHandleErrorResponses ChangeHandleError
 
 instance GSOP.Generic ChangeHandleError
