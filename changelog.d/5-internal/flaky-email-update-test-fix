@@ -1,0 +1,1 @@
+Fixed flakiness of email update test, related to the test user account being suspended, causing subsequent runs of the test to fail.
