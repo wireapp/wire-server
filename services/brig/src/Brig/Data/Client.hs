@@ -211,8 +211,17 @@ lookupPubClientsBulk uids = liftClient $ do
 
 lookupClients :: MonadClient m => UserId -> m [Client]
 lookupClients u = do
-  keys <- retry x1 (query selectMLSPublicKeysByUser (params LocalQuorum (Identity u)))
-  toClient keys <$$> retry x1 (query selectClients (params LocalQuorum (Identity u)))
+  keys <-
+    (\(cid, ss, Blob b) -> (cid, [(ss, LBS.toStrict b)]))
+      <$$> retry x1 (query selectMLSPublicKeysByUser (params LocalQuorum (Identity u)))
+  let keyMap = Map.fromListWith (<>) keys
+      updateKeys c =
+        c
+          { clientMLSPublicKeys =
+              Map.fromList $ Map.findWithDefault [] (clientId c) keyMap
+          }
+  updateKeys . toClient []
+    <$$> retry x1 (query selectClients (params LocalQuorum (Identity u)))
 
 lookupClientIds :: MonadClient m => UserId -> m [ClientId]
 lookupClientIds u =
@@ -405,8 +414,8 @@ selectMLSPublicKey = "SELECT key from mls_public_keys where user = ? and client 
 selectMLSPublicKeys :: PrepQuery R (UserId, ClientId) (SignatureSchemeTag, Blob)
 selectMLSPublicKeys = "SELECT sig_scheme, key from mls_public_keys where user = ? and client = ?"
 
-selectMLSPublicKeysByUser :: PrepQuery R (Identity UserId) (SignatureSchemeTag, Blob)
-selectMLSPublicKeysByUser = "SELECT sig_scheme, key from mls_public_keys where user = ?"
+selectMLSPublicKeysByUser :: PrepQuery R (Identity UserId) (ClientId, SignatureSchemeTag, Blob)
+selectMLSPublicKeysByUser = "SELECT client, sig_scheme, key from mls_public_keys where user = ?"
 
 insertMLSPublicKeys :: PrepQuery W (UserId, ClientId, SignatureSchemeTag, Blob) Row
 insertMLSPublicKeys =

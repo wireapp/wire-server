@@ -44,6 +44,7 @@ module Wire.API.User.Client
     PubClient (..),
     ClientType (..),
     ClientClass (..),
+    MLSPublicKeys,
 
     -- * New/Update/Remove Client
     NewClient (..),

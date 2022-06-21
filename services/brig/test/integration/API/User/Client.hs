@@ -103,6 +103,7 @@ tests _cl _at opts p db b c g =
       test p "put /clients/:client - 200" $ testUpdateClient opts b,
       test p "put /clients/:client - 200 (mls keys)" $ testMLSPublicKeyUpdate b,
       test p "get /clients/:client - 404" $ testMissingClient b,
+      test p "get /clients/:client - 200" $ testMLSClient b,
       test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g,
       test p "client/prekeys/race" $ testPreKeyRace b
     ]
@@ -308,10 +309,15 @@ testListClients brig = do
   let (pk1, lk1) = (somePrekeys !! 0, (someLastPrekeys !! 0))
   let (pk2, lk2) = (somePrekeys !! 1, (someLastPrekeys !! 1))
   let (pk3, lk3) = (somePrekeys !! 2, (someLastPrekeys !! 2))
-  c1 <- responseJsonMaybe <$> addClient brig uid (defNewClient PermanentClientType [pk1] lk1)
-  c2 <- responseJsonMaybe <$> addClient brig uid (defNewClient PermanentClientType [pk2] lk2)
-  c3 <- responseJsonMaybe <$> addClient brig uid (defNewClient TemporaryClientType [pk3] lk3)
-  let cs = sortBy (compare `on` clientId) $ catMaybes [c1, c2, c3]
+  c1 <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [pk1] lk1)
+  c2 <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [pk2] lk2)
+  c3 <- responseJsonError =<< addClient brig uid (defNewClient TemporaryClientType [pk3] lk3)
+
+  let pks = Map.fromList [(Ed25519, "random")]
+  void $ putClient brig uid (clientId c1) pks
+  let c1' = c1 {clientMLSPublicKeys = pks}
+  let cs = sortBy (compare `on` clientId) [c1', c2, c3]
+
   get
     ( brig
         . path "clients"
@@ -320,6 +326,25 @@ testListClients brig = do
     !!! do
       const 200 === statusCode
       const (Just cs) === responseJsonMaybe
+
+testMLSClient :: Brig -> Http ()
+testMLSClient brig = do
+  uid <- userId <$> randomUser brig
+  let (pk1, lk1) = (somePrekeys !! 0, (someLastPrekeys !! 0))
+  let (pk2, lk2) = (somePrekeys !! 1, (someLastPrekeys !! 1))
+  -- An MLS client
+  c1 <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [pk1] lk1)
+  -- Non-MLS client
+  c2 <- responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [pk2] lk2)
+
+  let pks = Map.fromList [(Ed25519, "random")]
+  void $ putClient brig uid (clientId c1) pks
+
+  -- Assert that adding MLS public keys to one client does not affect the other
+  -- client
+  getClient brig uid (clientId c2) !!! do
+    const 200 === statusCode
+    const (Just c2) === responseJsonMaybe
 
 testListClientsBulk :: Opt.Opts -> Brig -> Http ()
 testListClientsBulk opts brig = do
@@ -840,25 +865,11 @@ testMLSPublicKeyUpdate brig = do
           }
   c <- responseJsonError =<< addClient brig uid clt
   let keys = Map.fromList [(Ed25519, "aGVsbG8gd29ybGQ=")]
-  put
-    ( brig
-        . paths ["clients", toByteString' (clientId c)]
-        . zUser uid
-        . contentJson
-        . json (UpdateClient [] Nothing Nothing Nothing keys)
-    )
-    !!! const 200 === statusCode
+  putClient brig uid (clientId c) keys !!! const 200 === statusCode
   c' <- responseJsonError =<< getClient brig uid (clientId c) <!! const 200 === statusCode
   liftIO $ clientMLSPublicKeys c' @?= keys
   -- adding the key again should fail
-  put
-    ( brig
-        . paths ["clients", toByteString' (clientId c)]
-        . zUser uid
-        . contentJson
-        . json (UpdateClient [] Nothing Nothing Nothing keys)
-    )
-    !!! const 400 === statusCode
+  putClient brig uid (clientId c) keys !!! const 400 === statusCode
 
 testMissingClient :: Brig -> Http ()
 testMissingClient brig = do
