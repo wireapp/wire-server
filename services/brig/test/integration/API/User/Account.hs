@@ -875,6 +875,12 @@ testEmailUpdate brig aws = do
   -- we want to use a non-trusted domain in order to verify profile changes
   flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
   flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
+
+  -- adding a clean-up step seems to avoid the subsequent failures.
+  -- If subsequent runs start failing, it's possible that the aggressive setting
+  -- for `setSuspendInactiveUsers` is triggering before we can clean that user up.
+  -- In that case, you might need to manually delete the user from the test DB. @elland
+  deleteUserInternal uid brig !!! const 202 === statusCode
   where
     ensureNoOtherUserWithEmail :: Email -> Http ()
     ensureNoOtherUserWithEmail eml = do
