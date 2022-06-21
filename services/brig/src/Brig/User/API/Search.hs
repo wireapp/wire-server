@@ -43,7 +43,6 @@ import Data.Id
 import Data.Predicate
 import Data.Range
 import qualified Data.Swagger.Build.Api as Doc
-import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
 import Network.Wai (Response)
 import Network.Wai.Predicate hiding (setStatus)
@@ -57,7 +56,7 @@ import qualified System.Logger.Class as Log
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import qualified Wire.API.Federation.API.Brig as S
 import qualified Wire.API.Team.Permission as Public
-import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
+import Wire.API.Team.SearchVisibility (TeamSearchVisibility (..))
 import Wire.API.User.Search (FederatedUserSearchPolicy (FullSearch))
 import qualified Wire.API.User.Search as Public
 
@@ -173,8 +172,8 @@ searchLocally searcherId searchTerm maybeMaxResults = do
       }
   where
     handleTeamVisibility :: TeamId -> TeamSearchVisibility -> Search.TeamSearchInfo
-    handleTeamVisibility _ Team.SearchVisibilityStandard = Search.AllUsers
-    handleTeamVisibility t Team.SearchVisibilityNoNameOutsideTeam = Search.TeamOnly t
+    handleTeamVisibility _ SearchVisibilityStandard = Search.AllUsers
+    handleTeamVisibility t SearchVisibilityNoNameOutsideTeam = Search.TeamOnly t
 
     mkTeamSearchInfo :: Maybe TeamId -> (Handler r) TeamSearchInfo
     mkTeamSearchInfo searcherTeamId = lift $ do

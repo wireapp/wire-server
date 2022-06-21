@@ -50,11 +50,11 @@ import Data.Proxy (Proxy (Proxy))
 import Data.Qualified
 import Data.Range
 import qualified Data.UUID.V4 as UUID
-import Galley.Types (ConvType (..), cnvType)
 import Imports
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import Wire.API.Connection (RelationWithHistory (..))
+import Wire.API.Conversation
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))

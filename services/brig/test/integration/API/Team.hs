@@ -58,6 +58,11 @@ import Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Asset
+import Wire.API.Team hiding (newTeam)
+import Wire.API.Team.Member hiding (invitation, userId)
+import qualified Wire.API.Team.Member as Member
+import Wire.API.Team.Permission
+import Wire.API.Team.Role
 import Wire.API.User.Identity (mkSimpleSampleUref)
 
 newtype TeamSizeLimit = TeamSizeLimit Word32
@@ -245,13 +250,13 @@ testInvitationRoles brig galley = do
   -- owner creates a member alice.
   alice :: UserId <- do
     aliceEmail <- randomEmail
-    let invite = stdInvitationRequest' Nothing (Just Team.RoleAdmin) aliceEmail
+    let invite = stdInvitationRequest' Nothing (Just RoleAdmin) aliceEmail
     inv :: Invitation <- responseJsonError =<< postInvitation brig tid owner invite
     registerInvite brig tid inv aliceEmail
   -- alice creates a external partner bob.  success!  bob only has externalPartner perms.
   do
     bobEmail <- randomEmail
-    let invite = stdInvitationRequest' Nothing (Just Team.RoleExternalPartner) bobEmail
+    let invite = stdInvitationRequest' Nothing (Just RoleExternalPartner) bobEmail
     inv :: Invitation <-
       responseJsonError
         =<< ( postInvitation brig tid alice invite <!! do
@@ -261,12 +266,12 @@ testInvitationRoles brig galley = do
     let memreq =
           galley . zUser owner . zConn "c"
             . paths ["teams", toByteString' tid, "members", toByteString' uid]
-    mem :: Team.TeamMember <- responseJsonError =<< (get memreq <!! const 200 === statusCode)
-    liftIO $ assertEqual "perms" (Team.rolePermissions Team.RoleExternalPartner) (mem ^. Team.permissions)
+    mem :: TeamMember <- responseJsonError =<< (get memreq <!! const 200 === statusCode)
+    liftIO $ assertEqual "perms" (Team.rolePermissions RoleExternalPartner) (mem ^. permissions)
   -- alice creates an owner charly.  failure!
   do
     charlyEmail <- randomEmail
-    let invite = stdInvitationRequest' Nothing (Just Team.RoleOwner) charlyEmail
+    let invite = stdInvitationRequest' Nothing (Just RoleOwner) charlyEmail
     postInvitation brig tid alice invite !!! do
       const 403 === statusCode
       const (Just "insufficient-permissions") === fmap Error.label . responseJsonMaybe
@@ -371,8 +376,8 @@ createAndVerifyInvitation' replacementBrigApp acceptFn invite brig galley = do
     Just app -> app invitationHandshake
   -- Verify that the user is part of the team
   mem <- getTeamMember invitee tid galley
-  liftIO $ assertEqual "Member not part of the team" invitee (mem ^. Team.userId)
-  liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
+  liftIO $ assertEqual "Member not part of the team" invitee (mem ^. Member.userId)
+  liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Member.invitation)
   conns <- listConnections invitee brig
   liftIO $ assertBool "User should have no connections" (null (clConnections conns) && not (clHasMore conns))
   pure (responseJsonMaybe rsp2, invitation)
@@ -383,18 +388,18 @@ testCreateTeam brig galley aws = do
   usr <- responseJsonError =<< register email newTeam brig
   let uid = userId usr
   -- Verify that the user is part of exactly one (binding) team
-  teams <- view Team.teamListTeams <$> getTeams uid galley
+  teams <- view teamListTeams <$> getTeams uid galley
   liftIO $ assertBool "User not part of exactly one team" (length teams == 1)
   let team = fromMaybe (error "No team??") $ listToMaybe teams
-  liftIO $ assertBool "Team not binding" (team ^. Team.teamBinding == Team.Binding)
-  mem <- getTeamMember uid (team ^. Team.teamId) galley
-  liftIO $ assertBool "Member not part of the team" (uid == mem ^. Team.userId)
+  liftIO $ assertBool "Team not binding" (team ^. teamBinding == Binding)
+  mem <- getTeamMember uid (team ^. teamId) galley
+  liftIO $ assertBool "Member not part of the team" (uid == mem ^. Member.userId)
   -- Verify that the user cannot send invitations before activating their account
   inviteeEmail <- randomEmail
   let invite = stdInvitationRequest inviteeEmail
-  postInvitation brig (team ^. Team.teamId) uid invite !!! const 403 === statusCode
+  postInvitation brig (team ^. teamId) uid invite !!! const 403 === statusCode
   -- Verify that the team is still in status "pending"
-  team2 <- getTeam galley (team ^. Team.teamId)
+  team2 <- getTeam galley (team ^. teamId)
   liftIO $ assertEqual "status" Team.PendingActive (Team.tdStatus team2)
   -- Activate account
   act <- getActivationCode brig (Left email)
@@ -403,7 +408,7 @@ testCreateTeam brig galley aws = do
     Just kc -> activate brig kc !!! const 200 === statusCode
   liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
   -- Verify that Team has status Active now
-  team3 <- getTeam galley (team ^. Team.teamId)
+  team3 <- getTeam galley (team ^. teamId)
   liftIO $ assertEqual "status" Team.Active (Team.tdStatus team3)
 
 testCreateTeamPreverified :: Brig -> Galley -> AWS.Env -> Http ()
@@ -417,18 +422,18 @@ testCreateTeamPreverified brig galley aws = do
       usr <- responseJsonError =<< register' email newTeam c brig <!! const 201 === statusCode
       let uid = userId usr
       liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled usr)
-      teams <- view Team.teamListTeams <$> getTeams uid galley
+      teams <- view teamListTeams <$> getTeams uid galley
       liftIO $ assertBool "User not part of exactly one team" (length teams == 1)
       let team = fromMaybe (error "No team??") $ listToMaybe teams
-      liftIO $ assertBool "Team not binding" (team ^. Team.teamBinding == Team.Binding)
-      mem <- getTeamMember uid (team ^. Team.teamId) galley
-      liftIO $ assertBool "Member not part of the team" (uid == mem ^. Team.userId)
-      team2 <- getTeam galley (team ^. Team.teamId)
+      liftIO $ assertBool "Team not binding" (team ^. teamBinding == Binding)
+      mem <- getTeamMember uid (team ^. teamId) galley
+      liftIO $ assertBool "Member not part of the team" (uid == mem ^. Member.userId)
+      team2 <- getTeam galley (team ^. teamId)
       liftIO $ assertEqual "Team should already be active" Team.Active (Team.tdStatus team2)
       -- Verify that the user can already send invitations before activating their account
       inviteeEmail <- randomEmail
       let invite = stdInvitationRequest inviteeEmail
-      postInvitation brig (team ^. Team.teamId) uid invite !!! const 201 === statusCode
+      postInvitation brig (team ^. teamId) uid invite !!! const 201 === statusCode
 
 testInvitationNoPermission :: Brig -> Http ()
 testInvitationNoPermission brig = do
@@ -532,7 +537,7 @@ testInvitationMutuallyExclusive brig = do
     req ::
       Email ->
       Maybe InvitationCode ->
-      Maybe Team.BindingNewTeam ->
+      Maybe BindingNewTeam ->
       Maybe InvitationCode ->
       HttpT IO (Response (Maybe LByteString))
     req e c t i =
@@ -555,7 +560,7 @@ testInvitationTooManyMembers :: Brig -> Galley -> TeamSizeLimit -> Http ()
 testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
   (creator, tid) <- createUserWithTeam brig
   pooledForConcurrentlyN_ 16 [1 .. limit -1] $ \_ -> do
-    void $ createTeamMember brig galley creator tid Team.fullPermissions
+    void $ createTeamMember brig galley creator tid fullPermissions
   SearchUtil.refreshIndex brig
   let invite email = stdInvitationRequest email
   email <- randomEmail
@@ -696,20 +701,20 @@ testDeleteTeamUser brig galley = do
     const (Just "no-self-delete-for-team-owner") === fmap Error.label . responseJsonMaybe
   -- We need to invite another user to a full permission member
   invitee <- userId <$> inviteAndRegisterUser creator tid brig
-  updatePermissions creator tid (invitee, Team.fullPermissions) galley
+  updatePermissions creator tid (invitee, fullPermissions) galley
   -- Still cannot delete, must be demoted first
   deleteUser creator (Just defPassword) brig !!! do
     const 403 === statusCode
     const (Just "no-self-delete-for-team-owner") === fmap Error.label . responseJsonMaybe
   -- Demote creator
-  updatePermissions invitee tid (creator, Team.rolePermissions Team.RoleAdmin) galley
+  updatePermissions invitee tid (creator, Team.rolePermissions RoleAdmin) galley
   -- Now the creator can delete the account
   deleteUser creator (Just defPassword) brig !!! const 200 === statusCode
   -- The new full permission member cannot
   deleteUser invitee (Just defPassword) brig !!! const 403 === statusCode
   -- We can still invite new users who can delete their account only if they are not an owner
   inviteeFull <- userId <$> inviteAndRegisterUser invitee tid brig
-  updatePermissions invitee tid (inviteeFull, Team.fullPermissions) galley
+  updatePermissions invitee tid (inviteeFull, fullPermissions) galley
   deleteUser inviteeFull (Just defPassword) brig !!! do
     const 403 === statusCode
     const (Just "no-self-delete-for-team-owner") === fmap Error.label . responseJsonMaybe
@@ -736,7 +741,7 @@ testSSOIsTeamOwner brig galley = do
   check expect2xx creator
   check expect4xx stranger
   check expect4xx invitee
-  updatePermissions creator tid (invitee, Team.fullPermissions) galley
+  updatePermissions creator tid (invitee, fullPermissions) galley
   check expect2xx invitee
 
 testConnectionSameTeam :: Brig -> Http ()
@@ -803,17 +808,17 @@ testDeleteUserSSO brig galley = do
   deleteUser user1 (Just defPassword) brig !!! const 200 === statusCode
   -- create sso user with email
   Just (userId -> creator') <- mkuser True
-  updatePermissions creator tid (creator', Team.fullPermissions) galley
+  updatePermissions creator tid (creator', fullPermissions) galley
   -- demote and delete creator, but cannot do it for second owner yet (as someone needs to demote them)
-  updatePermissions creator' tid (creator, Team.rolePermissions Team.RoleMember) galley
+  updatePermissions creator' tid (creator, Team.rolePermissions RoleMember) galley
   deleteUser creator (Just defPassword) brig !!! const 200 === statusCode
   -- create sso user without email, make an owner
   Just (userId -> user3) <- mkuser False
-  updatePermissions creator' tid (user3, Team.fullPermissions) galley
+  updatePermissions creator' tid (user3, fullPermissions) galley
   -- can't delete herself, even without email
   deleteUser user3 (Just defPassword) brig !!! const 403 === statusCode
   -- delete second owner now, we don't enforce existence of emails in the backend
-  updatePermissions user3 tid (creator', Team.rolePermissions Team.RoleMember) galley
+  updatePermissions user3 tid (creator', Team.rolePermissions RoleMember) galley
   deleteUser creator' (Just defPassword) brig !!! const 200 === statusCode
 
 -- TODO:

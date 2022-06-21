@@ -65,7 +65,6 @@ import qualified Data.UUID.V4 as UUID
 import Data.Vector (Vector)
 import qualified Data.Vector as Vec
 import Federator.MockServer (FederatedRequest (..), MockException (..))
-import Galley.Types.Teams (noPermissions)
 import Imports hiding (head)
 import qualified Imports
 import qualified Network.HTTP.Types as HTTP
@@ -88,6 +87,7 @@ import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Federation.API.Common (EmptyResponse (EmptyResponse))
 import Wire.API.Internal.Notification
 import Wire.API.Team.Invitation (Invitation (inInvitation))
+import Wire.API.Team.Permission hiding (self)
 import Wire.API.User (ListUsersQuery (..))
 import Wire.API.User.Identity (mkSampleUref, mkSimpleSampleUref)
 

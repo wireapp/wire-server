@@ -36,20 +36,22 @@ import Data.Misc (Milliseconds)
 import Data.Range
 import qualified Data.Set as Set
 import qualified Data.Text.Encoding as T
-import Galley.Types
-import Galley.Types.Conversations.Roles (roleNameWireAdmin)
-import qualified Galley.Types.Teams as Team
 import qualified Galley.Types.Teams.Intra as Team
-import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty.HUnit
 import Util
 import Web.Cookie (parseSetCookie, setCookieName)
-import Wire.API.Team (Icon (..))
+import Wire.API.Conversation
+import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role
+import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Feature (FeatureStatus (..))
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Member
+import Wire.API.Team.Permission
+import Wire.API.Team.Role
+import Wire.API.Team.SearchVisibility
 import qualified Wire.API.User as Public
 
 -- | FUTUREWORK: Remove 'createPopulatedBindingTeam', 'createPopulatedBindingTeamWithNames',
@@ -160,7 +162,7 @@ createTeamMember ::
   -- | Team where the new user will be created
   TeamId ->
   -- | Permissions that the new user will have
-  Team.Permissions ->
+  Permissions ->
   Http User
 createTeamMember brig galley owner tid perm = do
   user <- inviteAndRegisterUser owner tid brig
@@ -194,7 +196,7 @@ inviteAndRegisterUser u tid brig = do
   liftIO $ assertEqual "Team ID in self profile and team table do not match" selfTeam (Just tid)
   pure invitee
 
-updatePermissions :: HasCallStack => UserId -> TeamId -> (UserId, Team.Permissions) -> Galley -> Http ()
+updatePermissions :: HasCallStack => UserId -> TeamId -> (UserId, Permissions) -> Galley -> Http ()
 updatePermissions from tid (to, perm) galley =
   put
     ( galley
@@ -246,7 +248,7 @@ deleteTeam g tid u = do
         . paths ["teams", toByteString' tid]
         . zUser u
         . zConn "conn"
-        . json (Team.newTeamDeleteData $ Just Util.defPassword)
+        . json (newTeamDeleteData $ Just Util.defPassword)
     )
     !!! const 202
     === statusCode
@@ -255,7 +257,7 @@ getTeams ::
   (MonadIO m, MonadCatch m, MonadHttp m, HasCallStack) =>
   UserId ->
   Galley ->
-  m Team.TeamList
+  m TeamList
 getTeams u galley =
   responseJsonError
     =<< get
@@ -265,8 +267,8 @@ getTeams u galley =
           . expect2xx
       )
 
-newTeam :: Team.BindingNewTeam
-newTeam = Team.BindingNewTeam $ Team.newNewTeam (unsafeRange "teamName") DefaultIcon
+newTeam :: BindingNewTeam
+newTeam = BindingNewTeam $ newNewTeam (unsafeRange "teamName") DefaultIcon
 
 putLegalHoldEnabled :: HasCallStack => TeamId -> FeatureStatus -> Galley -> Http ()
 putLegalHoldEnabled tid enabled g = do
@@ -310,7 +312,7 @@ extAccept email name phone phoneCode code =
         "team_code" .= code
       ]
 
-register :: Email -> Team.BindingNewTeam -> Brig -> Http (Response (Maybe LByteString))
+register :: Email -> BindingNewTeam -> Brig -> Http (Response (Maybe LByteString))
 register e t brig =
   post
     ( brig . path "/register" . contentJson
@@ -325,7 +327,7 @@ register e t brig =
           )
     )
 
-register' :: Email -> Team.BindingNewTeam -> ActivationCode -> Brig -> Http (Response (Maybe LByteString))
+register' :: Email -> BindingNewTeam -> ActivationCode -> Brig -> Http (Response (Maybe LByteString))
 register' e t c brig =
   post
     ( brig . path "/register" . contentJson
@@ -431,7 +433,7 @@ isActivatedUser uid brig = do
 stdInvitationRequest :: Email -> InvitationRequest
 stdInvitationRequest = stdInvitationRequest' Nothing Nothing
 
-stdInvitationRequest' :: Maybe Locale -> Maybe Team.Role -> Email -> InvitationRequest
+stdInvitationRequest' :: Maybe Locale -> Maybe Role -> Email -> InvitationRequest
 stdInvitationRequest' loc role email =
   InvitationRequest loc role Nothing email Nothing
 
@@ -446,13 +448,13 @@ setTeamTeamSearchVisibilityAvailable galley tid status =
     !!! do
       const 200 === statusCode
 
-setTeamSearchVisibility :: HasCallStack => Galley -> TeamId -> Team.TeamSearchVisibility -> Http ()
+setTeamSearchVisibility :: HasCallStack => Galley -> TeamId -> TeamSearchVisibility -> Http ()
 setTeamSearchVisibility galley tid typ =
   put
     ( galley
         . paths ["i/teams", toByteString' tid, "search-visibility"]
         . contentJson
-        . body (RequestBodyLBS . encode $ Team.TeamSearchVisibilityView typ)
+        . body (RequestBodyLBS . encode $ TeamSearchVisibilityView typ)
     )
     !!! do
       const 204 === statusCode

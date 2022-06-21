@@ -36,6 +36,8 @@ import Imports
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util
+import Wire.API.Team.Permission
+import Wire.API.Team.Role
 
 tests :: Opts -> Manager -> Brig -> Galley -> IO TestTree
 tests defOpts manager brig galley = pure $ do
@@ -164,11 +166,11 @@ setup :: Brig -> Galley -> ViewingUserIs -> Http (UserId, User, User, User)
 setup brig galley viewingUserIs = do
   (creatorId, tid) <- createUserWithTeam brig
   (otherTeamCreatorId, otherTid) <- createUserWithTeam brig
-  userA <- createTeamMember brig galley creatorId tid Team.fullPermissions
-  userB <- createTeamMember brig galley otherTeamCreatorId otherTid Team.fullPermissions
+  userA <- createTeamMember brig galley creatorId tid fullPermissions
+  userB <- createTeamMember brig galley otherTeamCreatorId otherTid fullPermissions
   nonTeamUser <- createUser "joe" brig
   viewerId <- case viewingUserIs of
     Creator -> pure creatorId
-    Member -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions Team.RoleOwner)
-    Guest -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions Team.RoleExternalPartner)
+    Member -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions RoleOwner)
+    Guest -> userId <$> createTeamMember brig galley creatorId tid (Team.rolePermissions RoleExternalPartner)
   pure (viewerId, userA, userB, nonTeamUser)

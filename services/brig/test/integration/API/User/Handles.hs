@@ -37,7 +37,6 @@ import Data.Id hiding (client)
 import qualified Data.List1 as List1
 import Data.Qualified (Qualified (..))
 import qualified Data.UUID as UUID
-import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Network.Wai.Utilities.Error as Wai
@@ -49,6 +48,7 @@ import UnliftIO (mapConcurrently)
 import Util
 import Wire.API.Internal.Notification hiding (target)
 import Wire.API.Team.Feature (FeatureStatus (..))
+import Wire.API.Team.SearchVisibility
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at conf p b c g =
@@ -220,7 +220,7 @@ testHandleQuerySearchVisibilityNoNameOutsideTeam _opts brig galley = do
   (_, owner2, [member2]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
   extern <- randomUserWithHandle brig
   setTeamTeamSearchVisibilityAvailable galley tid1 FeatureStatusEnabled
-  setTeamSearchVisibility galley tid1 Team.SearchVisibilityNoNameOutsideTeam
+  setTeamSearchVisibility galley tid1 SearchVisibilityNoNameOutsideTeam
   -- this is the same as in 'testHandleQuerySearchVisibilityStandard' above, because we search
   -- for handles, not names.
   assertCanFind brig owner1 owner2

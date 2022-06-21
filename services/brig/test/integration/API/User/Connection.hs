@@ -37,13 +37,13 @@ import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
 import Data.Qualified
 import Data.Time.Clock (getCurrentTime)
 import qualified Data.UUID.V4 as UUID
-import Galley.Types
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util
 import Wire.API.Connection
+import Wire.API.Conversation
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversationsResponse (gcresConvs), RemoteConvMembers (rcmOthers), RemoteConversation (rcnvMembers))
 import Wire.API.Federation.Component
