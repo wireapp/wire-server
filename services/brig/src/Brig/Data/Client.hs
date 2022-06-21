@@ -187,8 +187,8 @@ addClientWithReAuthPolicy reAuthPolicy u newId c maxPermClients loc cps = do
 lookupClient :: MonadClient m => UserId -> ClientId -> m (Maybe Client)
 lookupClient u c = do
   keys <- retry x1 (query selectMLSPublicKeys (params LocalQuorum (u, c)))
-  fmap (toClient keys)
-    <$> retry x1 (query1 selectClient (params LocalQuorum (u, c)))
+  toClientTuple keys
+    <$$> retry x1 (query1 selectClient (params LocalQuorum (u, c)))
 
 lookupClientsBulk :: (MonadClient m) => [UserId] -> m (Map UserId (Imports.Set Client))
 lookupClientsBulk uids = liftClient $ do
@@ -211,8 +211,18 @@ lookupPubClientsBulk uids = liftClient $ do
 
 lookupClients :: MonadClient m => UserId -> m [Client]
 lookupClients u = do
-  keys <- retry x1 (query selectMLSPublicKeysByUser (params LocalQuorum (Identity u)))
-  toClient keys <$$> retry x1 (query selectClients (params LocalQuorum (Identity u)))
+  keys <-
+    (\(cid, ss, b) -> (cid, [(ss, b)]))
+      <$$> retry x1 (query selectMLSPublicKeysByUser (params LocalQuorum (Identity u)))
+  let keyMap = Map.fromListWith (<>) keys
+  clients <- retry x1 (query selectClients (params LocalQuorum (Identity u)))
+  pure $
+    fmap
+      (\(tupleToPair -> (cid, d)) -> toClient (Map.findWithDefault [] cid keyMap) cid d)
+      clients
+  where
+    tupleToPair (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
+      (cid, (cty, tme, lbl, cls, cok, lat, lon, mdl, cps))
 
 lookupClientIds :: MonadClient m => UserId -> m [ClientId]
 lookupClientIds u =
@@ -405,8 +415,8 @@ selectMLSPublicKey = "SELECT key from mls_public_keys where user = ? and client 
 selectMLSPublicKeys :: PrepQuery R (UserId, ClientId) (SignatureSchemeTag, Blob)
 selectMLSPublicKeys = "SELECT sig_scheme, key from mls_public_keys where user = ? and client = ?"
 
-selectMLSPublicKeysByUser :: PrepQuery R (Identity UserId) (SignatureSchemeTag, Blob)
-selectMLSPublicKeysByUser = "SELECT sig_scheme, key from mls_public_keys where user = ?"
+selectMLSPublicKeysByUser :: PrepQuery R (Identity UserId) (ClientId, SignatureSchemeTag, Blob)
+selectMLSPublicKeysByUser = "SELECT client, sig_scheme, key from mls_public_keys where user = ?"
 
 insertMLSPublicKeys :: PrepQuery W (UserId, ClientId, SignatureSchemeTag, Blob) Row
 insertMLSPublicKeys =
@@ -417,6 +427,34 @@ insertMLSPublicKeys =
 -- Conversions
 
 toClient ::
+  [(SignatureSchemeTag, Blob)] ->
+  ClientId ->
+  ( ClientType,
+    UTCTimeMillis,
+    Maybe Text,
+    Maybe ClientClass,
+    Maybe CookieLabel,
+    Maybe Latitude,
+    Maybe Longitude,
+    Maybe Text,
+    Maybe (C.Set ClientCapability)
+  ) ->
+  Client
+toClient keys cid (cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
+  Client
+    { clientId = cid,
+      clientType = cty,
+      clientTime = tme,
+      clientClass = cls,
+      clientLabel = lbl,
+      clientCookie = cok,
+      clientLocation = location <$> lat <*> lon,
+      clientModel = mdl,
+      clientCapabilities = ClientCapabilityList $ maybe Set.empty (Set.fromList . C.fromSet) cps,
+      clientMLSPublicKeys = fmap (LBS.toStrict . fromBlob) (Map.fromList keys)
+    }
+
+toClientTuple ::
   [(SignatureSchemeTag, Blob)] ->
   ( ClientId,
     ClientType,
@@ -430,19 +468,8 @@ toClient ::
     Maybe (C.Set ClientCapability)
   ) ->
   Client
-toClient keys (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
-  Client
-    { clientId = cid,
-      clientType = cty,
-      clientTime = tme,
-      clientClass = cls,
-      clientLabel = lbl,
-      clientCookie = cok,
-      clientLocation = location <$> lat <*> lon,
-      clientModel = mdl,
-      clientCapabilities = ClientCapabilityList $ maybe Set.empty (Set.fromList . C.fromSet) cps,
-      clientMLSPublicKeys = fmap (LBS.toStrict . fromBlob) (Map.fromList keys)
-    }
+toClientTuple keys (cid, cty, tme, lbl, cls, cok, lat, lon, mdl, cps) =
+  toClient keys cid (cty, tme, lbl, cls, cok, lat, lon, mdl, cps)
 
 toPubClient :: (ClientId, Maybe ClientClass) -> PubClient
 toPubClient = uncurry PubClient
