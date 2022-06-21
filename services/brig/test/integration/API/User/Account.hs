@@ -877,7 +877,7 @@ testEmailUpdate brig aws = do
   flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
 
   -- adding a clean-up step seems to avoid the subsequent failures.
-  -- If subsequent runs start failint, it's possible that the aggressive setting
+  -- If subsequent runs start failing, it's possible that the aggressive setting
   -- for `setSuspendInactiveUsers` is triggering before we can clean that user up.
   -- In that case, you might need to manually delete the user from the test DB. @elland
   deleteUserInternal uid brig !!! const 202 === statusCode
