@@ -94,22 +94,35 @@ data MessagingSetup = MessagingSetup
   }
   deriving (Show)
 
-data Participant = Participant
-  { pUserId :: Qualified UserId,
-    pClients :: NonEmpty (String, ClientId)
-  }
-  deriving (Show)
-
 cli :: String -> FilePath -> [String] -> CreateProcess
 cli store tmp args =
   proc "mls-test-cli" $
     ["--store", tmp </> (store <> ".db")] <> args
 
+data Participant = Participant
+  { pUserId :: Qualified UserId,
+    pClientIds :: NonEmpty ClientId
+  }
+  deriving (Show)
+
+userClientQid :: Qualified UserId -> ClientId -> String
+userClientQid usr c =
+  show (qUnqualified usr)
+    <> ":"
+    <> T.unpack (client c)
+    <> "@"
+    <> T.unpack (domainText (qDomain usr))
+
+pClients :: Participant -> NonEmpty (String, ClientId)
+pClients p =
+  pClientIds p <&> \c ->
+    (userClientQid (pUserId p) c, c)
+
 pClientQid :: Participant -> String
-pClientQid = fst . NonEmpty.head . pClients
+pClientQid p = userClientQid (pUserId p) (NonEmpty.head (pClientIds p))
 
 pClientId :: Participant -> ClientId
-pClientId = snd . NonEmpty.head . pClients
+pClientId = NonEmpty.head . pClientIds
 
 setupUserClient ::
   HasCallStack =>
@@ -118,7 +131,7 @@ setupUserClient ::
   -- | Whether to claim/map the key package
   Bool ->
   Qualified UserId ->
-  State.StateT [LastPrekey] TestM (String, ClientId)
+  State.StateT [LastPrekey] TestM ClientId
 setupUserClient tmp doCreateClients mapKeyPackage usr = do
   localDomain <- lift viewFederationDomain
   lpk <- takeLastPrekey
@@ -128,12 +141,7 @@ setupUserClient tmp doCreateClients mapKeyPackage usr = do
       DontCreateClients -> liftIO $ generate arbitrary
       _ -> randomClient (qUnqualified usr) lpk
 
-    let qcid =
-          show (qUnqualified usr)
-            <> ":"
-            <> T.unpack (client c)
-            <> "@"
-            <> T.unpack (domainText (qDomain usr))
+    let qcid = userClientQid usr c
 
     -- generate key package
     void . liftIO $ spawn (cli qcid tmp ["init", qcid]) Nothing
@@ -162,7 +170,7 @@ setupUserClient tmp doCreateClients mapKeyPackage usr = do
         when mapKeyPackage $ mapRemoteKeyPackageRef brig bundle
       _ -> pure ()
 
-    pure (qcid, c)
+    pure c
 
 setupParticipant ::
   HasCallStack =>

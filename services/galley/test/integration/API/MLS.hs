@@ -26,7 +26,6 @@ import Bilge.Assert
 import Cassandra
 import Control.Lens (view)
 import qualified Data.Aeson as Aeson
-import qualified Data.ByteString as BS
 import Data.Default
 import Data.Domain
 import Data.Id
@@ -339,8 +338,8 @@ testAddNewClient = do
 
     do
       -- then bob adds a new client
-      (qcid, c) <- setupUserClient tmp CreateWithKey True (pUserId bob)
-      let bobC = (qcid, c)
+      c <- setupUserClient tmp CreateWithKey True (pUserId bob)
+      let bobC = (userClientQid (pUserId bob) c, c)
       -- which gets added to the group
       (commit, welcome) <- liftIO $ setupCommit tmp creator "group" "group" [bobC]
       -- and the corresponding commit is sent
@@ -591,33 +590,43 @@ testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
 
 testAppMessageRemoteConv :: TestM ()
 testAppMessageRemoteConv = do
-  alice <- randomQualifiedUser
+  alice <- Participant <$> randomQualifiedUser <*> pure (pure (newClientId 0))
+  putStrLn $ "alice: " <> show (pUserId alice)
   let domain = Domain "faraway.example.com"
   qcnv <- randomQualifiedId domain
-  bob <- randomQualifiedId domain
-  let bobClientId =
-        show (qUnqualified bob)
-          <> ":0@"
-          <> T.unpack (domainText domain)
-  let groupId = "test_conv"
-  registerRemoteMLSConv qcnv groupId (qUnqualified bob)
+
+  bobId <- randomQualifiedId domain
+  registerRemoteMLSConv qcnv "test_group" (qUnqualified bobId)
+  putStrLn $ "bob: " <> show bobId
 
   -- create group and message
-  message <- liftIO $
-    withSystemTempDirectory "mls" $ \tmp -> do
-      groupJSON <-
-        spawn
-          ( cli
-              bobClientId
-              tmp
-              [ "group",
-                bobClientId,
-                T.unpack (toBase64Text (unGroupId groupId))
-              ]
-          )
-          Nothing
-      BS.writeFile (tmp <> "group.json") groupJSON
-      spawn (cli bobClientId tmp ["message", "--group", tmp <> "group.json", "hi"]) Nothing
+  message <- withSystemTempDirectory "mls" $ \tmp -> do
+    bob <-
+      withLastPrekeys $
+        setupParticipant tmp DontCreateClients 1 bobId
+    void $ setupGroup tmp DontCreateConv alice "groupA.json"
+    void . liftIO $
+      setupCommit tmp alice "groupA.json" "groupA1.json" (pClients bob)
+    void . liftIO $
+      spawn
+        ( cli
+            (pClientQid bob)
+            tmp
+            [ "group-from-welcome",
+              "--group-out",
+              tmp </> "groupB.json",
+              tmp </> "welcome"
+            ]
+        )
+        Nothing
+    liftIO $
+      spawn
+        ( cli
+            (pClientQid bob)
+            tmp
+            ["message", "--group", tmp </> "groupB.json", "hi"]
+        )
+        Nothing
 
   let mock req = case frRPC req of
         "send-mls-message" -> pure (Aeson.encode (MLSMessageResponseUpdates []))
@@ -628,7 +637,7 @@ testAppMessageRemoteConv = do
 
     post
       ( galley . paths ["mls", "messages"]
-          . zUser (qUnqualified alice)
+          . zUser (qUnqualified (pUserId alice))
           . zConn "conn"
           . content "message/mls"
           . bytes message
@@ -644,7 +653,7 @@ testAppMessageRemoteConv = do
       Right b -> pure b
       Left e -> assertFailure $ "Could not parse send-mls-message request body: " <> e
     msrConvId bdy @?= qUnqualified qcnv
-    msrSender bdy @?= qUnqualified alice
+    msrSender bdy @?= qUnqualified (pUserId alice)
     msrRawMessage bdy @?= Base64ByteString message
 
 testAppMessage :: TestM ()
