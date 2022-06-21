@@ -29,23 +29,14 @@ module Galley.Types.Bot
     removeBot,
     rmBotConv,
     rmBotId,
-
-    -- * re-exports
-    module Service,
-    BotConvView,
-    botConvView,
-    botConvId,
-    botConvName,
-    botConvMembers,
   )
 where
 
 import Control.Lens (makeLenses)
 import Data.Aeson
 import Data.Id
-import Galley.Types.Bot.Service as Service
 import Imports
-import Wire.API.Provider.Bot (BotConvView, botConvId, botConvMembers, botConvName, botConvView)
+import Wire.API.Provider.Service (ServiceRef)
 
 -- AddBot ----------------------------------------------------------------------
 
