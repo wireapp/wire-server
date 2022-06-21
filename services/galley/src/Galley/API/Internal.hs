@@ -130,18 +130,12 @@ type IFeatureAPI =
     -- SearchVisibilityAvailableConfig
     :<|> IFeatureStatusGet SearchVisibilityAvailableConfig
     :<|> IFeatureStatusPut '() SearchVisibilityAvailableConfig
-    :<|> IFeatureStatusDeprecatedGet "This endpoint is not used internally by wire-server, nor by stern. After verification that it is not used in ibis, this can be removed" SearchVisibilityAvailableConfig
-    :<|> IFeatureStatusDeprecatedPut "This endpoint is not used internally by wire-server, nor by stern. After verification that it is not used in ibis, this can be removed" SearchVisibilityAvailableConfig
     -- ValidateSAMLEmailsConfig
     :<|> IFeatureStatusGet ValidateSAMLEmailsConfig
     :<|> IFeatureStatusPut '() ValidateSAMLEmailsConfig
-    :<|> IFeatureStatusDeprecatedGet "This endpoint is not used internally by wire-server, nor by stern. After verification that it is not used in ibis, this can be removed" ValidateSAMLEmailsConfig
-    :<|> IFeatureStatusDeprecatedPut "This endpoint is not used internally by wire-server, nor by stern. After verification that it is not used in ibis, this can be removed" ValidateSAMLEmailsConfig
     -- DigitalSignaturesConfig
     :<|> IFeatureStatusGet DigitalSignaturesConfig
     :<|> IFeatureStatusPut '() DigitalSignaturesConfig
-    :<|> IFeatureStatusDeprecatedGet "This endpoint is not used internally by wire-server, nor by stern. After verification that it is not used in ibis, this can be removed" DigitalSignaturesConfig
-    :<|> IFeatureStatusDeprecatedPut "This endpoint is not used internally by wire-server, nor by stern. After verification that it is not used in ibis, this can be removed" DigitalSignaturesConfig
     -- AppLockConfig
     :<|> IFeatureStatusGet AppLockConfig
     :<|> IFeatureStatusPut '() AppLockConfig
@@ -367,10 +361,6 @@ type FeatureStatusBasePutInternal errs featureConfig =
     :> QueryParam "ttl" FeatureTTL
     :> Put '[Servant.JSON] (WithStatus featureConfig)
 
-type IFeatureStatusDeprecatedGet d f = Named '("iget-deprecated", f) (FeatureStatusBaseDeprecatedGet d f)
-
-type IFeatureStatusDeprecatedPut d f = Named '("iput-deprecated", f) (FeatureStatusBaseDeprecatedPut d f)
-
 type IFeatureStatusLockStatusPut featureName =
   Named
     '("lock", featureName)
@@ -457,15 +447,9 @@ featureAPI =
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra Nothing DontDoAuth)
-    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra Nothing DontDoAuth)
-    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
-    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (setFeatureStatus @Cassandra Nothing DontDoAuth)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
