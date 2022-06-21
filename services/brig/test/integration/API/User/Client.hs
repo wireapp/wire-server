@@ -344,7 +344,6 @@ testMLSClient brig = do
   -- client
   getClient brig uid (clientId c2) !!! do
     const 200 === statusCode
-    -- This is unfortunate, but fixing this breaks clients.
     const (Just c2) === responseJsonMaybe
 
 testListClientsBulk :: Opt.Opts -> Brig -> Http ()
