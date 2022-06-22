@@ -17,19 +17,9 @@
 
 module Brig.Types.Activation
   ( ActivationPair,
-
-    -- * re-exports
-    module C,
-    ActivationKey (..),
-    ActivationCode (..),
-    Activate (..),
-    ActivationTarget (..),
-    ActivationResponse (..),
-    SendActivationCode (..),
   )
 where
 
-import Brig.Types.Common as C
 import Wire.API.User.Activation
 
 -- | A pair of 'ActivationKey' and 'ActivationCode' as required for activation.

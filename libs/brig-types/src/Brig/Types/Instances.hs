@@ -17,17 +17,15 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Types.Instances
-  (
-  )
-where
+module Brig.Types.Instances () where
 
-import Brig.Types.Client.Prekey
-import Brig.Types.Provider
 import Brig.Types.Provider.Tag
 import Cassandra.CQL
 import Data.ByteString.Conversion
 import Imports
+import Wire.API.Provider
+import Wire.API.Provider.Service
+import Wire.API.User.Client.Prekey
 
 instance Cql PrekeyId where
   ctype = Tagged IntColumn

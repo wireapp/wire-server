@@ -30,8 +30,6 @@ module Brig.Types.Intra
   )
 where
 
-import Brig.Types.Connection
-import Brig.Types.User
 import Data.Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Code as Code
@@ -39,7 +37,7 @@ import Data.Id (TeamId, UserId)
 import Data.Misc (PlainTextPassword (..))
 import qualified Data.Text as Text
 import Imports
-import Wire.API.User (VerificationAction (..))
+import Wire.API.User
 
 -------------------------------------------------------------------------------
 -- AccountStatus
