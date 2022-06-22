@@ -52,6 +52,7 @@ import Text.RawString.QQ (r)
 import Util
 import Wire.API.Team.Feature (featureNameBS)
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Role
 import qualified Wire.API.User as Public
 
 -- | Tests for authentication and operations with provisioning tokens ('ScimToken's).
@@ -226,7 +227,7 @@ testCreateTokenAuthorizesOnlyAdmins = do
   env <- ask
   (_, teamId, _) <- registerTestIdP
 
-  let mkUser :: Galley.Role -> TestSpar UserId
+  let mkUser :: Role -> TestSpar UserId
       mkUser role = do
         runHttpT (env ^. teMgr) $
           createTeamMember
@@ -245,10 +246,10 @@ testCreateTokenAuthorizesOnlyAdmins = do
             }
           (env ^. teSpar)
 
-  (mkUser Galley.RoleMember >>= createToken')
+  (mkUser RoleMember >>= createToken')
     !!! checkErr 403 (Just "insufficient-permissions")
 
-  (mkUser Galley.RoleAdmin >>= createToken')
+  (mkUser RoleAdmin >>= createToken')
     !!! const 200 === statusCode
 
 -- @END

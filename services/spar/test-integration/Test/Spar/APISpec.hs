@@ -88,6 +88,9 @@ import qualified Util.Scim as ScimT
 import Util.Types
 import qualified Web.Cookie as Cky
 import qualified Web.Scim.Schema.User as Scim
+import Wire.API.Team.Member (newTeamMemberDeleteData)
+import Wire.API.Team.Permission hiding (self)
+import Wire.API.Team.Role
 import Wire.API.User.IdentityProvider
 import qualified Wire.API.User.Saml as WireAPI (saml)
 import Wire.API.User.Scim
@@ -360,7 +363,7 @@ specFinalizeLogin = do
                   . header "Z-User" (toByteString' ownerid)
                   . header "Z-Connection" "fake"
                   . paths ["teams", toByteString' teamid, "members", toByteString' newUserId]
-                  . Bilge.json (Galley.newTeamMemberDeleteData (Just defPassword))
+                  . Bilge.json (newTeamMemberDeleteData (Just defPassword))
                   . expect2xx
               )
             liftIO $ threadDelay 100000 -- make sure deletion is done.  if we don't want to take
@@ -558,7 +561,7 @@ testGetPutDelete whichone = do
       env <- ask
       (_, teamid, (^. idpId) -> idpid, (idpmeta, _)) <- registerTestIdPWithMeta
       newmember <-
-        let perms = Galley.noPermissions
+        let perms = noPermissions
          in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
       whichone (env ^. teSpar) (Just newmember) idpid idpmeta
         `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
@@ -606,7 +609,7 @@ specCRUDIdentityProvider = do
         (_owner :: UserId, teamid :: TeamId) <-
           call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         member :: UserId <-
-          let perms = Galley.noPermissions
+          let perms = noPermissions
            in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
         callIdpGetAll' (env ^. teSpar) (Just member)
           `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
@@ -647,12 +650,12 @@ specCRUDIdentityProvider = do
       it "responds 204 resp. 403" $ do
         env <- ask
         (_, tid, (^. idpId) -> idpid) <- registerTestIdP
-        let mkUser :: Galley.Role -> TestSpar UserId
+        let mkUser :: Role -> TestSpar UserId
             mkUser role = do
               let perms = Galley.rolePermissions role
               call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
-        admin <- mkUser Galley.RoleAdmin
-        member <- mkUser Galley.RoleMember
+        admin <- mkUser RoleAdmin
+        member <- mkUser RoleMember
         callIdpDelete' (env ^. teSpar) (Just member) idpid
           `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
         callIdpDelete' (env ^. teSpar) (Just admin) idpid
@@ -941,7 +944,7 @@ specCRUDIdentityProvider = do
         env <- ask
         (_owner, tid, idp) <- registerTestIdP
         newmember <-
-          let perms = Galley.noPermissions
+          let perms = noPermissions
            in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
         callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just newmember) (idp ^. idpMetadata)
           `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
@@ -1276,10 +1279,10 @@ specAux = do
                     )
               parsedResp <- either (error . show) pure $ selfUser <$> Intra.parseResponse @SelfProfile "brig" rawResp
               liftIO $ userTeam parsedResp `shouldSatisfy` isJust
-          permses :: [Galley.Permissions]
+          permses :: [Permissions]
           permses =
-            [ Galley.fullPermissions,
-              Galley.noPermissions
+            [ fullPermissions,
+              noPermissions
             ]
       sequence_ [check tryowner perms | tryowner <- [minBound ..], perms <- [0 .. (length permses - 1)]]
 
@@ -1386,7 +1389,7 @@ specSparUserMigration = do
         let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
         pure (issuer, subj)
 
-      memberUid <- call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid (Galley.rolePermissions Galley.RoleMember)
+      memberUid <- call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid (Galley.rolePermissions RoleMember)
 
       do
         -- insert to legacy tale
