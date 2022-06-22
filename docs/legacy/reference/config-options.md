@@ -238,6 +238,10 @@ sndFactorPasswordChallenge:
 
 ### MLS
 
+This feature specifies how should behave. It has no effect on the server's behaviour.
+
+If this feature is enabled then clients that support this feature will allowing its user to switch between Proteus and the MLS protocol provided the user is listed ini `protocolToggleUsers`. The default protocol that clients will create new conversations with is specified in `defaultProtocol`. The `defaultCipherSuite` and `allowedCipherSuites` contain the default ciphersuite and the allowed ciphersuites that clients should be using. The numerical values should correspond to the indices (starting at 1) specified here https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5
+
 If this feature is disabled then clients will use the Proteus protocol with this backend.
 
 The default configuration that applies to all teams that didn't explicitly change their feature configuration can be given in galley's `featureFlags` section in the config file:
@@ -257,7 +261,6 @@ mls:
 
 This default configuration can be overriden on a per-team basis through the [feature config API](./features.md)
 
-If this feature is enabled then clients that support this feature will allowing the users in `protocolToggleUsers` to switch between the Proteus and the MLS procotol. The default protocol can also be changed for that the whole team in `defaultProtocol`. The `defaultCipherSuite` and `allowedCipherSuites` contain the default ciphersuite and the allowed ciphersuites that clients should be using. The numerical values should correspond to the indices (starting at 1) specified here https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5
 
 ### Federation Domain
 
