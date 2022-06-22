@@ -195,14 +195,14 @@ setupParticipants ::
 setupParticipants tmp SetupOptions {..} ns = do
   creator <- do
     u <- lift $ createUserOrId creatorOrigin
-    let createCreatorClients = case creatorOrigin of
-          LocalUser -> createClients
-          RemoteUser _ -> DontCreateClients
+    let createCreatorClients = createClientsForUR creatorOrigin createClients
     c0 <- setupUserClient tmp createCreatorClients False u
     cs <- replicateM (numCreatorClients - 1) (setupUserClient tmp createCreatorClients True u)
     pure (Participant u (c0 :| cs))
-  others <- for ns $ \(n, ur) ->
-    lift (createUserOrId ur) >>= fmap (,ur) . setupParticipant tmp createClients n
+  others <- for ns $ \(n, ur) -> do
+    qusr <- lift (createUserOrId ur)
+    participant <- setupParticipant tmp (createClientsForUR ur createClients) n qusr
+    pure (participant, ur)
   lift . when makeConnections $ do
     for_ others $ \(o, ur) -> case (creatorOrigin, ur) of
       (LocalUser, LocalUser) ->
@@ -224,6 +224,9 @@ setupParticipants tmp SetupOptions {..} ns = do
     createUserOrId = \case
       LocalUser -> randomQualifiedUser
       RemoteUser d -> randomQualifiedId d
+
+    createClientsForUR LocalUser cc = cc
+    createClientsForUR (RemoteUser _) _ = DontCreateClients
 
 withLastPrekeys :: Monad m => State.StateT [LastPrekey] m a -> m a
 withLastPrekeys m = State.evalStateT m someLastPrekeys
@@ -294,7 +297,16 @@ takeLastPrekey = do
 -- Alice depending on the passed in creator origin. Return welcome and commit
 -- message.
 aliceInvitesBob :: HasCallStack => (Int, UserOrigin) -> SetupOptions -> TestM MessagingSetup
-aliceInvitesBob bobConf opts@SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
+aliceInvitesBob bobConf opts = withSystemTempDirectory "mls" $ \tmp ->
+  aliceInvitesBobWithTmp tmp bobConf opts
+
+aliceInvitesBobWithTmp ::
+  HasCallStack =>
+  FilePath ->
+  (Int, UserOrigin) ->
+  SetupOptions ->
+  TestM MessagingSetup
+aliceInvitesBobWithTmp tmp bobConf opts@SetupOptions {..} = do
   (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp opts [bobConf]
   -- create a group
   conversation <- setupGroup tmp createConv alice "group"

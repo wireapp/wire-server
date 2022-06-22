@@ -47,6 +47,8 @@ import Data.UUID.V4 (nextRandom)
 import Federator.MockServer (FederatedRequest (..))
 import Galley.Types.Conversations.Intra
 import Imports
+import System.FilePath
+import System.IO.Temp
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
@@ -93,7 +95,8 @@ tests s =
       test s "POST /federation/update-conversation : Update local conversation by a remote admin " updateConversationByRemoteAdmin,
       test s "POST /federation/mls-welcome : Post an MLS welcome message received from another backend" sendMLSWelcome,
       test s "POST /federation/mls-welcome : Post an MLS welcome message (key package ref not found)" sendMLSWelcomeKeyPackageNotFound,
-      test s "POST /federation/on-mls-message-sent" onMLSMessageSent
+      test s "POST /federation/on-mls-message-sent" onMLSMessageSent,
+      test s "POST /federation/send-mls-message" testSendMLSMessage
     ]
 
 getConversationsAllFound :: TestM ()
@@ -1245,6 +1248,72 @@ onMLSMessageSent = do
 
       -- eve should not receive the message
       WS.assertNoEvent (1 # Second) [wsE]
+
+testSendMLSMessage :: TestM ()
+testSendMLSMessage = do
+  -- alice is local, bob is remote
+  -- alice creates a local conversation and invites bob
+  -- bob then sends a message to the conversation
+
+  let bobDomain = Domain "faraway.example.com"
+
+  -- Simulate the whole MLS setup for both clients first. In reality,
+  -- backend calls would need to happen in order for bob to get ahold of a
+  -- welcome message, but that should not affect the correctness of the test.
+
+  (MessagingSetup {..}, message) <- withSystemTempDirectory "mls" $ \tmp -> do
+    setup <-
+      aliceInvitesBobWithTmp
+        tmp
+        (1, RemoteUser bobDomain)
+        def
+          { createConv = CreateConv
+          }
+    let bob = head (users setup)
+    void . liftIO $
+      spawn
+        ( cli
+            (pClientQid bob)
+            tmp
+            [ "group-from-welcome",
+              "--group-out",
+              tmp </> "groupB.json",
+              tmp </> "welcome"
+            ]
+        )
+        Nothing
+    message <-
+      liftIO $
+        spawn
+          ( cli
+              (pClientQid bob)
+              tmp
+              ["message", "--group", tmp </> "groupB.json", "hello from another backend"]
+          )
+          Nothing
+    pure (setup, message)
+
+  let bob = head users
+  let alice = creator
+
+  fedGalleyClient <- view tsFedGalleyClient
+  cannon <- view tsCannon
+
+  -- actual test
+
+  let msr =
+        FedGalley.MessageSendRequest
+          { msrConvId = qUnqualified conversation,
+            msrSender = qUnqualified (pUserId bob),
+            msrRawMessage = Base64ByteString message
+          }
+
+  WS.bracketR cannon (qUnqualified (pUserId alice)) $ \ws -> do
+    resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
+    liftIO $ do
+      resp @?= MLSMessageResponseUpdates []
+      WS.assertMatch_ (5 # Second) ws $
+        wsAssertMLSMessage conversation (pUserId bob) message
 
 getConvAction :: Sing tag -> SomeConversationAction -> Maybe (ConversationAction tag)
 getConvAction tquery (SomeConversationAction tag action) =
