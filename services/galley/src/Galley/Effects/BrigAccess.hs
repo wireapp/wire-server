@@ -58,10 +58,8 @@ module Galley.Effects.BrigAccess
   )
 where
 
-import Brig.Types.Client
 import Brig.Types.Connection
 import Brig.Types.Intra
-import Brig.Types.User
 import Data.Id
 import Data.Misc
 import Data.Qualified
@@ -70,6 +68,7 @@ import Imports
 import Network.HTTP.Types.Status
 import Polysemy
 import Polysemy.Error
+import Wire.API.Connection
 import Wire.API.Error.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
@@ -77,7 +76,9 @@ import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature
 import Wire.API.Team.Size
+import Wire.API.User
 import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
 import Wire.API.User.RichInfo
 
 data BrigAccess m a where

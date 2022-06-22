@@ -19,7 +19,6 @@
 
 module Galley.API.Util where
 
-import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
@@ -64,6 +63,7 @@ import qualified Network.Wai.Utilities as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Protocol

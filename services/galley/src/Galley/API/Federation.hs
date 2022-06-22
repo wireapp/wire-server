@@ -18,7 +18,6 @@
 
 module Galley.API.Federation where
 
-import Brig.Types.Connection (Relation (Accepted))
 import Control.Error
 import Control.Lens (itraversed, (<.>))
 import Data.Bifunctor
@@ -64,6 +63,7 @@ import qualified Polysemy.TinyLog as P
 import Servant (ServerT)
 import Servant.API
 import qualified System.Logger.Class as Log
+import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action

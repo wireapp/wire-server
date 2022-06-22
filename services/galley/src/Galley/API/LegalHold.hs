@@ -31,10 +31,8 @@ module Galley.API.LegalHold
   )
 where
 
-import Brig.Types.Client.Prekey
 import Brig.Types.Connection (UpdateConnectionsInternal (..))
-import Brig.Types.Provider
-import Brig.Types.Team.LegalHold hiding (userId)
+import Brig.Types.Team.LegalHold (legalHoldService, viewLegalHoldService)
 import Control.Exception (assert)
 import Control.Lens (view, (^.))
 import Data.ByteString.Conversion (toByteString, toByteString')
@@ -74,12 +72,15 @@ import Wire.API.Conversation (ConvType (..))
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Public.Galley (DisableLegalHoldForUserResponse (..), GrantConsentResult (..), RequestDeviceResult (..))
 import qualified Wire.API.Team.Feature as Public
-import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
+import Wire.API.Team.LegalHold
 import qualified Wire.API.Team.LegalHold as Public
+import Wire.API.Team.LegalHold.External hiding (userId)
 import Wire.API.Team.Member
+import Wire.API.User.Client.Prekey
 
 assertLegalHoldEnabledForTeam ::
   forall db r.

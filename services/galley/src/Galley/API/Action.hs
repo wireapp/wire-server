@@ -38,8 +38,7 @@ module Galley.API.Action
   )
 where
 
-import qualified Brig.Types.User as User
-import Control.Arrow
+import Control.Arrow ((&&&))
 import Control.Lens
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
@@ -89,6 +88,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
+import qualified Wire.API.User as User
 
 data NoChanges = NoChanges
 

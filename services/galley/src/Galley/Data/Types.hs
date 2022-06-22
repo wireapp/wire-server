@@ -29,9 +29,9 @@ module Galley.Data.Types
   )
 where
 
-import Brig.Types.Code
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
+import Data.Code
 import Data.Id
 import Data.Range
 import qualified Data.Text.Ascii as Ascii

@@ -22,10 +22,14 @@ import qualified API.SQS as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Bilge.TestSession
-import Brig.Types
+-- import Galley.Types
+-- import Galley.Types.Conversations.Intra
+-- import Galley.Types.Conversations.One2One (one2OneConvId)
+-- import Galley.Types.Conversations.Roles hiding (DeleteConversation)
+-- import Galley.Types.Teams hiding (Event, EventType (..), self)
+
+import Brig.Types.Connection
 import Brig.Types.Intra (UserAccount (..), UserSet (..))
-import Brig.Types.Team.Invitation
-import Brig.Types.User.Auth (CookieLabel (..))
 import Control.Concurrent.Async
 import Control.Exception (throw)
 import Control.Lens hiding (from, to, (#), (.=))
@@ -75,12 +79,6 @@ import GHC.TypeLits (KnownSymbol)
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
--- import Galley.Types
--- import Galley.Types.Conversations.Intra
--- import Galley.Types.Conversations.One2One (one2OneConvId)
--- import Galley.Types.Conversations.Roles hiding (DeleteConversation)
--- import Galley.Types.Teams hiding (Event, EventType (..), self)
-
 import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.One2One
 import qualified Galley.Types.Teams as Team
@@ -106,6 +104,7 @@ import TestSetup
 import UnliftIO.Timeout
 import Util.Options
 import Web.Cookie
+import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
@@ -136,13 +135,16 @@ import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Mul
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team
 import Wire.API.Team.Feature
-import Wire.API.Team.Member
+import Wire.API.Team.Invitation
+import Wire.API.Team.Member hiding (userId)
 import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role
 import Wire.API.User
+import Wire.API.User.Auth
 import Wire.API.User.Client
 import qualified Wire.API.User.Client as Client
+import Wire.API.User.Client.Prekey
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -165,12 +167,12 @@ symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
 
 createBindingTeam :: HasCallStack => TestM (UserId, TeamId)
 createBindingTeam = do
-  first Brig.Types.userId <$> createBindingTeam'
+  first userId <$> createBindingTeam'
 
 createBindingTeam' :: HasCallStack => TestM (User, TeamId)
 createBindingTeam' = do
   owner <- randomTeamCreator'
-  teams <- getTeams (Brig.Types.userId owner) []
+  teams <- getTeams (userId owner) []
   let [team] = view teamListTeams teams
   let tid = view teamId team
   SQS.assertQueue "create team" SQS.tActivate
@@ -406,7 +408,7 @@ addUserToTeamWithRole :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM
 addUserToTeamWithRole role inviter tid = do
   (inv, rsp2) <- addUserToTeamWithRole' role inviter tid
   let invitee :: User = responseJsonUnsafe rsp2
-      inviteeId = Brig.Types.userId invitee
+      inviteeId = userId invitee
   let invmeta = Just (inviter, inCreatedAt inv)
   mem <- getTeamMember inviter tid inviteeId
   liftIO $ assertEqual "Member has no/wrong invitation metadata" invmeta (mem ^. Team.invitation)
@@ -434,7 +436,7 @@ addUserToTeamWithSSO :: HasCallStack => Bool -> TeamId -> TestM TeamMember
 addUserToTeamWithSSO hasEmail tid = do
   let ssoid = UserSSOId mkSimpleSampleUref
   user <- responseJsonError =<< postSSOUser "SSO User" hasEmail ssoid tid
-  let uid = Brig.Types.userId user
+  let uid = userId user
   getTeamMember uid tid uid
 
 makeOwner :: HasCallStack => UserId -> TeamMember -> TeamId -> TestM ()
@@ -1999,7 +2001,7 @@ ephemeralUser = do
   let p = object ["name" .= name]
   r <- post (b . path "/register" . json p) <!! const 201 === statusCode
   user <- responseJsonError r
-  pure $ Brig.Types.userId user
+  pure $ userId user
 
 randomClient :: HasCallStack => UserId -> LastPrekey -> TestM ClientId
 randomClient uid lk = randomClientWithCaps uid lk Nothing

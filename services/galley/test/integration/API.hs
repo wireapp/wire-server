@@ -40,7 +40,6 @@ import qualified API.Util.TeamFeature as Util
 import Bilge hiding (head, timeout)
 import qualified Bilge
 import Bilge.Assert
-import Brig.Types
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (throw)
 import Control.Lens (at, ix, preview, view, (.~), (?~))
@@ -82,6 +81,7 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Util.Options (Endpoint (Endpoint))
+import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
@@ -99,6 +99,7 @@ import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Named
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Teams
+import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
 

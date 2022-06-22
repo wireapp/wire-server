@@ -30,7 +30,6 @@ where
 
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
-import Brig.Types.Client
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Auth (LegalHoldLogin (..))
@@ -60,7 +59,8 @@ import Wire.API.Error.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.Internal.Brig
-import Wire.API.User.Client (UserClients, UserClientsFull, filterClients, filterClientsFull)
+import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
 
 -- | Calls 'Brig.API.internalListClientsH'.
 lookupClients :: [UserId] -> App UserClients

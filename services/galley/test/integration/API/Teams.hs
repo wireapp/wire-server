@@ -28,7 +28,7 @@ import qualified API.Util as Util
 import qualified API.Util.TeamFeature as Util
 import Bilge hiding (head, timeout)
 import Bilge.Assert
-import qualified Brig.Types as Brig
+import Brig.Types.Intra (fromAccountStatusResp)
 import qualified Brig.Types.Intra as Brig
 import Control.Arrow ((>>>))
 import Control.Lens hiding ((#), (.=))
@@ -62,7 +62,7 @@ import qualified Galley.Env as Galley
 import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
-import Galley.Types.Teams.Intra
+import Galley.Types.Teams.Intra as TeamsIntra
 import Imports
 import Network.HTTP.Types.Status (status403)
 import qualified Network.Wai.Utilities.Error as Error
@@ -88,6 +88,7 @@ import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.Member
 import qualified Wire.API.Team.Member as Member
 import qualified Wire.API.Team.Member as TM
+import qualified Wire.API.Team.Member as Teams
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
@@ -283,7 +284,7 @@ testListTeamMembersDefaultLimit = do
     assertEqual
       "list members"
       (Set.fromList [owner, member1, member2])
-      (Set.fromList (map (^. userId) $ listFromServer ^. teamMembers))
+      (Set.fromList (map (^. Teams.userId) $ listFromServer ^. teamMembers))
   liftIO $
     assertBool
       "member list indicates that there are no more members"
@@ -1156,7 +1157,7 @@ testDeleteBindingTeamMoreThanOneMember = do
   let ensureDeleted :: UserId -> TestM ()
       ensureDeleted uid = do
         resp <- get (b . paths ["/i/users", toByteString' uid, "status"]) <!! const 200 === statusCode
-        let mbStatus = fmap Brig.fromAccountStatusResp . responseJsonUnsafe $ resp
+        let mbStatus = fmap fromAccountStatusResp . responseJsonUnsafe $ resp
         liftIO $ mbStatus @?= Just Brig.Deleted
 
   ensureDeleted alice
@@ -1548,7 +1549,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
       b <- view tsBrig
       WS.bracketRN c listeners $ \wsListeners -> do
         -- Do something
-        let u = Brig.UserUpdate (Just $ Brig.Name "name") Nothing Nothing Nothing
+        let u = U.UserUpdate (Just $ U.Name "name") Nothing Nothing Nothing
         put
           ( b
               . paths ["self"]
@@ -1632,7 +1633,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
       void $
         retryWhileN
           10
-          ((/= Galley.Types.Teams.Intra.Deleted) . Galley.Types.Teams.Intra.tdStatus)
+          ((/= TeamsIntra.Deleted) . TeamsIntra.tdStatus)
           (getTeamInternal tid)
 
 testBillingInLargeTeam :: TestM ()
@@ -1844,21 +1845,21 @@ testUpdateTeamStatus = do
   g <- view tsGalley
   (_, tid) <- Util.createBindingTeam
   -- Check for idempotency
-  Util.changeTeamStatus tid Active
+  Util.changeTeamStatus tid TeamsIntra.Active
   assertQueueEmpty
-  Util.changeTeamStatus tid Suspended
+  Util.changeTeamStatus tid TeamsIntra.Suspended
   assertQueue "suspend first time" tSuspend
-  Util.changeTeamStatus tid Suspended
+  Util.changeTeamStatus tid TeamsIntra.Suspended
   assertQueueEmpty
-  Util.changeTeamStatus tid Suspended
+  Util.changeTeamStatus tid TeamsIntra.Suspended
   assertQueueEmpty
-  Util.changeTeamStatus tid Active
+  Util.changeTeamStatus tid TeamsIntra.Active
   assertQueue "activate again" tActivate
   void $
     put
       ( g
           . paths ["i", "teams", toByteString' tid, "status"]
-          . json (TeamStatusUpdate Deleted Nothing)
+          . json (TeamStatusUpdate TeamsIntra.Deleted Nothing)
       )
       !!! do
         const 403 === statusCode
