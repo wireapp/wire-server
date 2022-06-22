@@ -269,6 +269,9 @@ setLockStatus tid lockStatus = do
   pure $ LockStatusResponse lockStatus
 
 -- | For individual users to get feature config for their account (personal or team).
+-- This looks supposedly redundant to the implementations of `getConfigForUser` but it's not.
+-- Here we explicitly return the team setting if the user is a team member.
+-- In `getConfigForUser` this is mostly also the case. But there are exceptions, e.g. `ConferenceCallingConfig`
 getFeatureStatusForUser ::
   forall (db :: *) cfg r.
   ( Members
@@ -284,7 +287,16 @@ getFeatureStatusForUser ::
   ) =>
   UserId ->
   Sem r (WithStatus cfg)
-getFeatureStatusForUser = getConfigForUser @db @cfg
+getFeatureStatusForUser zusr = do
+  mbTeam <- getOneUserTeam zusr
+  case mbTeam of
+    Nothing ->
+      getConfigForUser @db @cfg zusr
+    Just tid -> do
+      zusrMembership <- getTeamMember tid zusr
+      void $ maybe (throwS @'NotATeamMember) pure zusrMembership
+      assertTeamExists tid
+      getConfigForTeam @db @cfg tid
 
 getAllFeatureConfigsForUser ::
   forall db r.
