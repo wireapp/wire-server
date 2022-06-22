@@ -40,7 +40,6 @@ where
 import Bilge.Retry (httpHandlers)
 import Brig.App
 import Brig.Budget
-import Brig.Types
 import Cassandra (MonadClient)
 import Control.Lens (view)
 import Control.Monad.Catch
@@ -56,6 +55,7 @@ import Ropes.Twilio (LookupDetail (..))
 import qualified Ropes.Twilio as Twilio
 import qualified System.Logger.Class as Log
 import System.Logger.Message (field, msg, val, (~~))
+import Wire.API.User
 
 -------------------------------------------------------------------------------
 -- Sending SMS and Voice Calls

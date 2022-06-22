@@ -60,7 +60,6 @@ import Brig.Data.Instances ()
 import Brig.Index.Types (CreateIndexSettings (..))
 import Brig.Types.Intra
 import Brig.Types.Search (SearchVisibilityInbound, defaultSearchVisibilityInbound, searchVisibilityInboundFromFeatureStatus)
-import Brig.Types.User
 import Brig.User.Search.Index.Types as Types
 import qualified Cassandra as C
 import Control.Lens hiding ((#), (.=))
@@ -100,6 +99,7 @@ import URI.ByteString (URI, serializeURIRef)
 import Util.Options (Endpoint, epHost, epPort)
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature (SearchVisibilityInboundConfig, featureNameBS)
+import Wire.API.User
 import qualified Wire.API.User as User
 import Wire.API.User.Search (Sso (..))
 

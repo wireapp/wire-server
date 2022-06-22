@@ -20,7 +20,6 @@ module Brig.API.Error where
 import Brig.API.Types
 import Brig.Options (DomainsBlockedForRegistration)
 import Brig.Phone (PhoneException (..))
-import Brig.Types (DeletionCodeTimeout (..))
 import Brig.Types.Common (PhoneBudgetTimeout (..))
 import Control.Monad.Error.Class hiding (Error)
 import Data.Aeson
@@ -36,7 +35,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.Error
-import Wire.API.User (ChangeHandleError (..), UpdateProfileError (..))
+import Wire.API.User
 
 data Error where
   StdError :: !Wai.Error -> Error

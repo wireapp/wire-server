@@ -38,7 +38,6 @@ import Brig.Data.Instances ()
 import qualified Brig.Data.User as User
 import Brig.Email
 import Brig.Phone
-import Brig.Types
 import Cassandra
 import Control.Lens (view)
 import qualified Data.ByteString as B
@@ -48,6 +47,7 @@ import qualified Data.Multihash.Digest as MH
 import qualified Data.Text.Encoding as T
 import Imports
 import OpenSSL.EVP.Digest (digestBS)
+import Wire.API.User (fromEmail)
 
 -- | A natural identifier (i.e. unique key) of a user.
 data UserKey

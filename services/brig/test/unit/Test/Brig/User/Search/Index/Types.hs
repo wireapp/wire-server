@@ -19,7 +19,6 @@
 
 module Test.Brig.User.Search.Index.Types where
 
-import Brig.Types.Common
 import Brig.Types.Intra (AccountStatus (..))
 import Brig.User.Search.Index
 import Data.Aeson
@@ -34,6 +33,7 @@ import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Wire.API.Team.Role
+import Wire.API.User
 
 tests :: TestTree
 tests =

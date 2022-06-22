@@ -26,7 +26,6 @@ module Work
   )
 where
 
-import Brig.Types hiding (Client)
 import Cassandra
 import Data.Id
 import Data.List.Extra (nubOrd)

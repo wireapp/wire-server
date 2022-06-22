@@ -38,15 +38,20 @@ import Brig.Email
 import qualified Brig.Email as Email
 import Brig.Locale (formatDateTime, timeLocale)
 import Brig.Template
-import Brig.Types
-import qualified Brig.Types.Code as Code
+import Brig.Types.Activation (ActivationPair)
+import Brig.Types.User (PasswordResetPair)
 import Brig.User.Template
 import Control.Lens (view)
+import qualified Data.Code as Code
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.Range
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Lazy (toStrict)
 import Imports
+import Wire.API.User
+import Wire.API.User.Activation
+import Wire.API.User.Client
+import Wire.API.User.Password
 
 sendVerificationMail ::
   ( MonadIO m,

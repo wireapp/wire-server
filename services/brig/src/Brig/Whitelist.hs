@@ -28,7 +28,6 @@ import Bilge.IO
 import Bilge.Request
 import Bilge.Response
 import Bilge.Retry
-import Brig.Types
 import Control.Monad.Catch (MonadMask, throwM)
 import Control.Retry
 import Data.Aeson
@@ -36,6 +35,7 @@ import Data.Text
 import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Network.HTTP.Client (HttpExceptionContent (..))
+import Wire.API.User.Identity
 
 -- | A service providing a whitelist of allowed email addresses and phone numbers
 data Whitelist = Whitelist

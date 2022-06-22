@@ -36,15 +36,15 @@ import Brig.Data.Client (ClientDataError (..))
 import Brig.Data.Properties (PropertiesDataError (..))
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import Brig.Data.UserKey (UserKey, foldKey)
-import Brig.Types
-import Brig.Types.Code (Timeout)
 import Brig.Types.Intra
 import Brig.User.Auth.Cookie (RetryAfter (..))
+import Data.Code
 import Data.Id
 import Data.Qualified
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Wire.API.Federation.Error
+import Wire.API.User
 
 -------------------------------------------------------------------------------
 -- Successes

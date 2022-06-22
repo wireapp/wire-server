@@ -22,7 +22,6 @@ module Stern.API.Predicates
   )
 where
 
-import Brig.Types
 import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString.Conversion
 import qualified Data.Char as Char

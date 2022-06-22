@@ -40,13 +40,12 @@ import Brig.App
 import Brig.Phone
 import Brig.Template
 import Brig.Types.Activation
-import qualified Brig.Types.Code as Code
 import Brig.Types.User
-import Brig.Types.User.Auth (LoginCode (..))
 import Brig.User.Template
 import Cassandra (MonadClient)
 import Control.Lens (view)
 import Control.Monad.Catch
+import qualified Data.Code as Code
 import Data.Range
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
@@ -54,6 +53,10 @@ import Data.Text.Lazy (toStrict)
 import Imports
 import qualified Ropes.Nexmo as Nexmo
 import qualified System.Logger.Class as Log
+import Wire.API.User
+import Wire.API.User.Activation
+import Wire.API.User.Auth
+import Wire.API.User.Password
 
 sendActivationSms ::
   ( MonadClient m,

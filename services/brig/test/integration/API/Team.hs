@@ -29,10 +29,7 @@ import qualified Bilge
 import Bilge.Assert
 import qualified Brig.AWS as AWS
 import qualified Brig.Options as Opt
-import Brig.Types
 import Brig.Types.Intra
-import Brig.Types.Team.Invitation
-import Brig.Types.User.Auth
 import Control.Arrow ((&&&))
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
@@ -58,12 +55,16 @@ import Util
 import Util.AWS as Util
 import Web.Cookie (parseSetCookie, setCookieName)
 import Wire.API.Asset
+import Wire.API.Connection
 import Wire.API.Team hiding (newTeam)
+import Wire.API.Team.Invitation
 import Wire.API.Team.Member hiding (invitation, userId)
 import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
-import Wire.API.User.Identity (mkSimpleSampleUref)
+import Wire.API.Team.Size
+import Wire.API.User
+import Wire.API.User.Auth
 
 newtype TeamSizeLimit = TeamSizeLimit Word32
 

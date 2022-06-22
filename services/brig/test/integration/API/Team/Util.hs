@@ -22,10 +22,6 @@ module API.Team.Util where
 import API.User.Util
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
-import Brig.Types.Activation
-import Brig.Types.Connection
-import Brig.Types.Team.Invitation
-import Brig.Types.User
 import Control.Lens ((^?))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Data.Aeson hiding (json)
@@ -42,17 +38,21 @@ import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty.HUnit
 import Util
 import Web.Cookie (parseSetCookie, setCookieName)
+import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Feature (FeatureStatus (..))
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Invitation
 import qualified Wire.API.Team.Member as Member
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
+import Wire.API.User
 import qualified Wire.API.User as Public
+import Wire.API.User.Activation
 
 -- | FUTUREWORK: Remove 'createPopulatedBindingTeam', 'createPopulatedBindingTeamWithNames',
 -- and rename 'createPopulatedBindingTeamWithNamesAndHandles' to 'createPopulatedBindingTeam'.

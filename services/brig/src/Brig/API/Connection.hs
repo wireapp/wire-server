@@ -40,7 +40,7 @@ import qualified Brig.Data.Connection as Data
 import Brig.Data.Types (resultHasMore, resultList)
 import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
-import Brig.Types
+import Brig.Types.Connection
 import Brig.Types.User.Event
 import Control.Error
 import Control.Monad.Catch (throwM)
@@ -53,7 +53,7 @@ import qualified Data.UUID.V4 as UUID
 import Imports
 import qualified System.Logger.Class as Log
 import System.Logger.Message
-import Wire.API.Connection (RelationWithHistory (..))
+import Wire.API.Connection hiding (relationWithHistory)
 import Wire.API.Conversation
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E

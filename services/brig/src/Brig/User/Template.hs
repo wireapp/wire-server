@@ -41,8 +41,8 @@ where
 
 import qualified Brig.Options as Opt
 import Brig.Template
-import Brig.Types
 import Imports
+import Wire.API.User.Identity
 
 data UserTemplates = UserTemplates
   { activationSms :: !ActivationSmsTemplate,

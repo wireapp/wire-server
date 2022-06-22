@@ -26,13 +26,13 @@ import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import qualified Brig.Options as Opt
-import Brig.Types
-import Brig.Types.User.Auth hiding (user)
 import qualified Cassandra as DB
 import Data.Misc (PlainTextPassword (..))
 import Imports
 import Test.Tasty hiding (Timeout)
 import Util
+import Wire.API.User
+import Wire.API.User.Auth
 
 tests ::
   DB.ClientState ->

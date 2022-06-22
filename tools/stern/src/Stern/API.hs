@@ -26,7 +26,6 @@ module Stern.API
   )
 where
 
-import Brig.Types
 import Brig.Types.Intra
 import Control.Error
 import Control.Lens ((^.))

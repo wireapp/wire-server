@@ -37,7 +37,6 @@ import Brig.Data.UserKey
 import Brig.Options
 import qualified Brig.Sem.CodeStore as E
 import Brig.Sem.CodeStore.Cassandra
-import Brig.Types
 import Brig.Types.Intra
 import Cassandra
 import Control.Error
@@ -52,6 +51,7 @@ import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import Polysemy
 import Text.Printf (printf)
 import Wire.API.User
+import Wire.API.User.Activation
 
 --  | The information associated with the pending activation of a 'UserKey'.
 data Activation = Activation

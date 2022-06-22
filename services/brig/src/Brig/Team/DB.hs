@@ -40,9 +40,6 @@ where
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
 import Brig.Options
-import Brig.Types.Common
-import Brig.Types.Team.Invitation
-import Brig.Types.User
 import Cassandra as C
 import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.List as C
@@ -56,7 +53,9 @@ import Imports
 import OpenSSL.Random (randBytes)
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
+import Wire.API.Team.Invitation
 import Wire.API.Team.Role
+import Wire.API.User
 
 mkInvitationCode :: IO InvitationCode
 mkInvitationCode = InvitationCode . encodeBase64Url <$> randBytes 24

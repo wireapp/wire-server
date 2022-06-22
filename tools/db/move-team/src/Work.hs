@@ -25,7 +25,6 @@
 
 module Work where
 
-import Brig.Types hiding (Client)
 import Cassandra hiding (Set)
 import Common
 import Conduit (mapC)

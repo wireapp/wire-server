@@ -23,9 +23,6 @@
 module Brig.Federation.Client where
 
 import Brig.App
-import Brig.Types (PrekeyBundle)
-import Brig.Types.Client (PubClient)
-import Brig.Types.User
 import Control.Lens
 import Control.Monad
 import Control.Monad.Trans.Except (ExceptT (..), throwE)
@@ -42,10 +39,10 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig as FederatedBrig
 import Wire.API.Federation.Client
 import Wire.API.Federation.Error
-import Wire.API.Message (UserClients)
-import Wire.API.User.Client (UserClientPrekeyMap)
-import Wire.API.User.Client.Prekey (ClientPrekey)
-import Wire.API.UserMap (UserMap)
+import Wire.API.User
+import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
+import Wire.API.UserMap
 
 getUserHandleInfo ::
   ( MonadReader Env m,

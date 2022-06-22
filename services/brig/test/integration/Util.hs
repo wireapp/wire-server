@@ -32,10 +32,7 @@ import qualified Brig.Options as Opt
 import qualified Brig.Options as Opts
 import qualified Brig.Run as Run
 import Brig.Types.Activation
-import Brig.Types.Client hiding (Client)
-import Brig.Types.Connection
 import Brig.Types.Intra
-import Brig.Types.User
 import Brig.Types.User.Auth
 import qualified Brig.ZAuth as ZAuth
 import Control.Concurrent.Async
@@ -106,6 +103,7 @@ import Text.Printf (printf)
 import qualified UnliftIO.Async as Async
 import Util.AWS
 import Util.Options
+import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (roleNameWireAdmin)
@@ -114,6 +112,11 @@ import Wire.API.Federation.Domain
 import Wire.API.Internal.Notification
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Team.Member hiding (userId)
+import Wire.API.User
+import Wire.API.User.Activation
+import Wire.API.User.Auth
+import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
 import Wire.API.VersionInfo
 
 type Brig = Request -> Request

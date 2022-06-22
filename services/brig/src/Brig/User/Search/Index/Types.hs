@@ -22,7 +22,6 @@ module Brig.User.Search.Index.Types where
 
 import Brig.Types.Intra (AccountStatus)
 import Brig.Types.Search
-import Brig.Types.User
 import Control.Lens (makeLenses)
 import Control.Monad.Catch
 import Data.Aeson
@@ -36,6 +35,7 @@ import Database.Bloodhound hiding (key)
 import Database.Bloodhound.Internal.Client (DocVersion (DocVersion))
 import Imports
 import Wire.API.Team.Role (Role)
+import Wire.API.User
 import Wire.API.User.Search (Sso (..))
 
 data IndexDocUpdateType

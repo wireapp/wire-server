@@ -28,7 +28,6 @@ import Bilge.Assert
 import Brig.Data.User (lookupFeatureConferenceCalling, lookupStatus, userExists)
 import qualified Brig.Options as Opt
 import Brig.Types.Intra
-import Brig.Types.User (User (userQualifiedId), userId)
 import qualified Cassandra as Cass
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens ((^.), (^?!))
@@ -56,6 +55,7 @@ import Wire.API.Routes.Internal.Brig
 import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as ApiFt
 import qualified Wire.API.Team.Member as Team
+import Wire.API.User
 
 tests :: Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Gundeck -> Galley -> IO TestTree
 tests opts mgr db brig brigep gundeck galley = do

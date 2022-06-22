@@ -51,7 +51,6 @@ where
 import Brig.App
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
-import Brig.Types
 import Cassandra
 import Control.Monad.Morph
 import Control.Monad.Trans.Maybe

@@ -41,7 +41,6 @@ module Brig.Template
 where
 
 import Brig.Options
-import Brig.Types (Locale (..), locToText, parseLocale)
 import Control.Exception (catchJust)
 import qualified Data.ByteString as BS
 import qualified Data.Map.Strict as Map
@@ -53,6 +52,7 @@ import qualified Data.Text.Template as Template
 import qualified HTMLEntities.Text as HTML
 import Imports hiding (readFile)
 import System.IO.Error (isDoesNotExistError)
+import Wire.API.User
 
 -- | See 'genTemplateBranding'.
 type TemplateBranding = Text -> Text

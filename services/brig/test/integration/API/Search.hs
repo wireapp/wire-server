@@ -34,7 +34,6 @@ import Bilge
 import Bilge.Assert
 import qualified Brig.Options as Opt
 import qualified Brig.Options as Opts
-import Brig.Types
 import Control.Lens ((.~), (?~), (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Retry
@@ -70,7 +69,8 @@ import Util
 import Wire.API.Federation.API.Brig (SearchResponse (SearchResponse))
 import Wire.API.Team.Feature
 import Wire.API.Team.SearchVisibility
-import Wire.API.User.Search (FederatedUserSearchPolicy (ExactHandleSearch, FullSearch))
+import Wire.API.User
+import Wire.API.User.Search
 import qualified Wire.API.User.Search as Search
 
 tests :: Opt.Opts -> Manager -> Galley -> Brig -> IO TestTree

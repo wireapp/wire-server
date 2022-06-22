@@ -28,11 +28,7 @@ import qualified API.Team.Util as Team
 import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
 import qualified Brig.Code as Code
-import Brig.Types hiding (CompletePasswordReset (..), EmailUpdate (..), NewPasswordReset (..), PasswordChange (..), PasswordReset (..))
 import qualified Brig.Types.Intra as Intra
-import Brig.Types.Provider
-import qualified Brig.Types.Provider.External as Ext
-import Brig.Types.Provider.Tag
 import qualified Cassandra as DB
 import Control.Arrow ((&&&))
 import qualified Control.Concurrent.Async as Async
@@ -82,15 +78,24 @@ import Test.Tasty.HUnit
 import Util
 import Web.Cookie (SetCookie (..), parseSetCookie)
 import Wire.API.Asset hiding (Asset)
+import Wire.API.Connection
 import Wire.API.Conversation
+import Wire.API.Conversation.Bot
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
 import Wire.API.Internal.Notification
+import Wire.API.Provider
+import qualified Wire.API.Provider.Bot as Ext
+import qualified Wire.API.Provider.External as Ext
 import Wire.API.Provider.Service
+import Wire.API.Provider.Service.Tag
 import Wire.API.Team.Feature (featureNameBS)
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.Permission
+import Wire.API.User hiding (EmailUpdate, PasswordChange, mkName)
+import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
 
 tests :: Domain -> Config -> Manager -> DB.ClientState -> Brig -> Cannon -> Galley -> IO TestTree
 tests dom conf p db b c g = do

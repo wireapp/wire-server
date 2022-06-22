@@ -27,7 +27,6 @@ import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Data.Connection (remoteConnectionInsert)
 import qualified Brig.Options as Opt
-import Brig.Types
 import qualified Cassandra as DB
 import Control.Arrow ((&&&))
 import Data.ByteString.Conversion
@@ -49,6 +48,7 @@ import Wire.API.Federation.API.Galley (GetConversationsRequest (..), GetConversa
 import Wire.API.Federation.Component
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.User
 
 tests ::
   ConnectionLimit ->

@@ -63,7 +63,6 @@ where
 
 import Bilge hiding (head, options, requestId)
 import Bilge.RPC
-import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User.Auth
 import Control.Error

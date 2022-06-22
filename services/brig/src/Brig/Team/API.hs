@@ -39,8 +39,6 @@ import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
 import Brig.Types.Intra (AccountStatus (..), NewUserScimInvitation (..), UserAccount (..))
 import Brig.Types.Team (TeamSize)
-import Brig.Types.Team.Invitation
-import Brig.Types.User (Email, InvitationCode, emailIdentity)
 import qualified Brig.User.Search.TeamSize as TeamSize
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except (mapExceptT)
@@ -67,12 +65,15 @@ import Util.Logging (logFunction, logTeam)
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Team
+import Wire.API.Team.Invitation
 import qualified Wire.API.Team.Invitation as Public
-import Wire.API.Team.Member (teamMembers, userId)
+import Wire.API.Team.Member (teamMembers)
+import qualified Wire.API.Team.Member as Teams
 import Wire.API.Team.Permission (Perm (AddTeamMember))
 import Wire.API.Team.Role
 import qualified Wire.API.Team.Role as Public
 import qualified Wire.API.Team.Size as Public
+import Wire.API.User hiding (fromEmail)
 import qualified Wire.API.User as Public
 
 routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
@@ -459,7 +460,7 @@ changeTeamAccountStatuses tid s = do
   team <- Team.tdTeam <$> lift (wrapHttp $ Intra.getTeam tid)
   unless (team ^. teamBinding == Binding) $
     throwStd noBindingTeam
-  uids <- toList1 =<< lift (fmap (view userId) . view teamMembers <$> wrapHttp (Intra.getTeamMembers tid))
+  uids <- toList1 =<< lift (fmap (view Teams.userId) . view teamMembers <$> wrapHttp (Intra.getTeamMembers tid))
   wrapHttpClientE (API.changeAccountStatus uids s) !>> accountStatusError
   where
     toList1 (x : xs) = pure $ List1.list1 x xs

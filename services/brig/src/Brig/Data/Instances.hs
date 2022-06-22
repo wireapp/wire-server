@@ -23,9 +23,9 @@ module Brig.Data.Instances
   )
 where
 
-import Brig.Types
+import Brig.Types.Common
 import Brig.Types.Intra
-import Brig.Types.Provider ()
+import Brig.Types.Search
 import Cassandra.CQL
 import Control.Error (note)
 import Data.Aeson (eitherDecode, encode)
@@ -46,6 +46,10 @@ import Wire.API.Connection (RelationWithHistory (..))
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.Properties
+import Wire.API.User
+import Wire.API.User.Activation
+import Wire.API.User.Client
+import Wire.API.User.Password
 import Wire.API.User.RichInfo
 
 deriving instance Cql Name

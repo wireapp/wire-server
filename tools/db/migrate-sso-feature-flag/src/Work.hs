@@ -23,7 +23,6 @@
 
 module Work where
 
-import Brig.Types hiding (Client)
 import Cassandra
 import Data.Conduit
 import Data.Conduit.Internal (zipSources)

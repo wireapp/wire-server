@@ -52,7 +52,7 @@ import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
-import Brig.Types.User (HavePendingInvitations (..), User (userId))
+import Brig.Types.User (HavePendingInvitations (..))
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Handle as Handle
 import qualified Brig.User.API.Search as Search

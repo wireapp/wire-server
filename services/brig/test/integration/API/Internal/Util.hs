@@ -28,7 +28,6 @@ where
 
 import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
 import Bilge
-import Brig.Types
 import Control.Lens (view, (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow, throwM)
 import qualified Data.ByteString.Base16 as B16
@@ -46,10 +45,12 @@ import qualified Servant.Client as Client
 import System.Random (randomIO)
 import Util
 import Util.Options (Endpoint, epHost, epPort)
+import Wire.API.Connection
 import qualified Wire.API.Push.V2.Token as PushToken
 import Wire.API.Routes.Internal.Brig as IAPI
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Team
+import Wire.API.User
 
 type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
 
