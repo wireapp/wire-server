@@ -391,17 +391,31 @@ claimKeyPackage brig claimant target =
     )
 
 postCommit :: HasCallStack => MessagingSetup -> TestM [Event]
-postCommit MessagingSetup {..} = do
-  galley <- viewGalley
+postCommit MessagingSetup {..} =
   responseJsonError
-    =<< post
-      ( galley . paths ["mls", "messages"]
-          . zUser (qUnqualified (pUserId creator))
-          . zConn "conn"
-          . content "message/mls"
-          . bytes commit
-      )
-    <!! const 201 === statusCode
+    =<< postMessage (qUnqualified (pUserId creator)) commit
+      <!! const 201 === statusCode
+
+postMessage ::
+  ( HasCallStack,
+    MonadIO m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadHttp m,
+    HasGalley m
+  ) =>
+  UserId ->
+  ByteString ->
+  m ResponseLBS
+postMessage sender msg = do
+  galley <- viewGalley
+  post
+    ( galley . paths ["mls", "messages"]
+        . zUser sender
+        . zConn "conn"
+        . content "message/mls"
+        . bytes msg
+    )
 
 postWelcome :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> ByteString -> m ResponseLBS
 postWelcome uid welcome = do
