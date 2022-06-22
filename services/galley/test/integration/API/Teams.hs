@@ -477,12 +477,12 @@ testEnableTeamSearchVisibilityPerTeam = do
           const 200 === statusCode
           const (Just (TeamSearchVisibilityView vis)) === responseJsonUnsafe
 
-  Util.withCustomSearchFeature FeatureTeamSearchVisibilityEnabledByDefault $ do
+  Util.withCustomSearchFeature FeatureTeamSearchVisibilityAvailableByDefault $ do
     g <- view tsGalley
     check "Teams should start with Custom Search Visibility enabled" Public.FeatureStatusEnabled
     putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam !!! const 204 === statusCode
     putSearchVisibility g owner tid SearchVisibilityStandard !!! const 204 === statusCode
-  Util.withCustomSearchFeature FeatureTeamSearchVisibilityDisabledByDefault $ do
+  Util.withCustomSearchFeature FeatureTeamSearchVisibilityUnavailableByDefault $ do
     check "Teams should start with Custom Search Visibility disabled" Public.FeatureStatusDisabled
     putSearchVisibilityCheckNotAllowed
 

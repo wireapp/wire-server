@@ -45,7 +45,7 @@ module Galley.Types.Teams
     unDefaults,
     FeatureSSO (..),
     FeatureLegalHold (..),
-    FeatureTeamSearchVisibility (..),
+    FeatureTeamSearchVisibilityAvailability (..),
     notTeamMember,
     findTeamMember,
     isTeamMember,
@@ -140,7 +140,7 @@ newtype TeamCreationTime = TeamCreationTime
 data FeatureFlags = FeatureFlags
   { _flagSSO :: !FeatureSSO,
     _flagLegalHold :: !FeatureLegalHold,
-    _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility,
+    _flagTeamSearchVisibility :: !FeatureTeamSearchVisibilityAvailability,
     _flagAppLockDefaults :: !(Defaults (ImplicitLockStatus AppLockConfig)),
     _flagClassifiedDomains :: !(ImplicitLockStatus ClassifiedDomainsConfig),
     _flagFileSharing :: !(Defaults (WithStatus FileSharingConfig)),
@@ -180,9 +180,9 @@ data FeatureLegalHold
 -- | Default value for all teams that have not enabled or disabled this feature explicitly.
 -- See also 'Wire.API.Team.SearchVisibility.TeamSearchVisibilityEnabled',
 -- 'Wire.API.Team.SearchVisibility.TeamSearchVisibility'.
-data FeatureTeamSearchVisibility
-  = FeatureTeamSearchVisibilityEnabledByDefault
-  | FeatureTeamSearchVisibilityDisabledByDefault
+data FeatureTeamSearchVisibilityAvailability
+  = FeatureTeamSearchVisibilityAvailableByDefault
+  | FeatureTeamSearchVisibilityUnavailableByDefault
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
 -- NOTE: This is used only in the config and thus YAML... camelcase
@@ -259,14 +259,14 @@ instance ToJSON FeatureLegalHold where
   toJSON FeatureLegalHoldDisabledByDefault = String "disabled-by-default"
   toJSON FeatureLegalHoldWhitelistTeamsAndImplicitConsent = String "whitelist-teams-and-implicit-consent"
 
-instance FromJSON FeatureTeamSearchVisibility where
-  parseJSON (String "enabled-by-default") = pure FeatureTeamSearchVisibilityEnabledByDefault
-  parseJSON (String "disabled-by-default") = pure FeatureTeamSearchVisibilityDisabledByDefault
+instance FromJSON FeatureTeamSearchVisibilityAvailability where
+  parseJSON (String "enabled-by-default") = pure FeatureTeamSearchVisibilityAvailableByDefault
+  parseJSON (String "disabled-by-default") = pure FeatureTeamSearchVisibilityUnavailableByDefault
   parseJSON bad = fail $ "FeatureSearchVisibility: " <> cs (encode bad)
 
-instance ToJSON FeatureTeamSearchVisibility where
-  toJSON FeatureTeamSearchVisibilityEnabledByDefault = String "enabled-by-default"
-  toJSON FeatureTeamSearchVisibilityDisabledByDefault = String "disabled-by-default"
+instance ToJSON FeatureTeamSearchVisibilityAvailability where
+  toJSON FeatureTeamSearchVisibilityAvailableByDefault = String "enabled-by-default"
+  toJSON FeatureTeamSearchVisibilityUnavailableByDefault = String "disabled-by-default"
 
 makeLenses ''TeamCreationTime
 makeLenses ''FeatureFlags

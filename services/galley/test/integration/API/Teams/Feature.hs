@@ -223,7 +223,7 @@ testSearchVisibility = do
   Util.connectUsers owner (list1 team2member [])
   Util.addTeamMember owner tid2 team2member (rolePermissions RoleMember) Nothing
 
-  Util.withCustomSearchFeature FeatureTeamSearchVisibilityDisabledByDefault $ do
+  Util.withCustomSearchFeature FeatureTeamSearchVisibilityUnavailableByDefault $ do
     getTeamSearchVisibility tid2 Public.FeatureStatusDisabled
     getTeamSearchVisibilityInternal tid2 Public.FeatureStatusDisabled
     getTeamSearchVisibilityFeatureConfig team2member Public.FeatureStatusDisabled
@@ -243,7 +243,7 @@ testSearchVisibility = do
   Util.connectUsers owner (list1 team3member [])
   Util.addTeamMember owner tid3 team3member (rolePermissions RoleMember) Nothing
 
-  Util.withCustomSearchFeature FeatureTeamSearchVisibilityEnabledByDefault $ do
+  Util.withCustomSearchFeature FeatureTeamSearchVisibilityAvailableByDefault $ do
     getTeamSearchVisibility tid3 Public.FeatureStatusEnabled
     getTeamSearchVisibilityInternal tid3 Public.FeatureStatusEnabled
     getTeamSearchVisibilityFeatureConfig team3member Public.FeatureStatusEnabled
@@ -833,7 +833,8 @@ testAllFeatures = do
           toS @Public.ValidateSAMLEmailsConfig .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
           toS @Public.GuestLinksConfig .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
           toS @Public.SndFactorPasswordChallengeConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusLocked Public.SndFactorPasswordChallengeConfig,
-          toS @Public.MLSConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked (Public.MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
+          toS @Public.MLSConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked (Public.MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519),
+          toS @Public.SearchVisibilityInboundConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SearchVisibilityInboundConfig
         ]
 
     toS :: forall cfg. (Public.IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg)) => Aeson.Key

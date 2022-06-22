@@ -33,7 +33,7 @@ import TestSetup
 import Wire.API.Team.Feature (IsFeatureConfig)
 import qualified Wire.API.Team.Feature as Public
 
-withCustomSearchFeature :: FeatureTeamSearchVisibility -> TestM () -> TestM ()
+withCustomSearchFeature :: FeatureTeamSearchVisibilityAvailability -> TestM () -> TestM ()
 withCustomSearchFeature flag action = do
   Util.withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamSearchVisibility .~ flag) action
 
