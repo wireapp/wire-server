@@ -30,6 +30,7 @@ module Galley.API.Teams.Features
     SetFeatureConfig,
     guardSecondFactorDisabled,
     DoAuth (..),
+    featureEnabledForTeam,
   )
 where
 
@@ -814,3 +815,19 @@ guardSecondFactorDisabled uid cid action = do
   case wsStatus tf of
     FeatureStatusDisabled -> action
     FeatureStatusEnabled -> throwS @'AccessDenied
+
+featureEnabledForTeam ::
+  forall db cfg r.
+  ( GetFeatureConfig db cfg,
+    GetConfigForTeamConstraints db cfg r,
+    Members
+      '[ ErrorS OperationDenied,
+         ErrorS 'NotATeamMember,
+         ErrorS 'TeamNotFound,
+         TeamStore
+       ]
+      r
+  ) =>
+  TeamId ->
+  Sem r Bool
+featureEnabledForTeam tid = (==) FeatureStatusEnabled . wsStatus <$> getFeatureStatus @db @cfg DontDoAuth tid

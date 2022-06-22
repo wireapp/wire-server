@@ -337,6 +337,9 @@ type ITeamsAPIBase =
              :<|> Named
                     "set-search-visibility-internal"
                     ( CanThrow 'TeamSearchVisibilityNotEnabled
+                        :> CanThrow OperationDenied
+                        :> CanThrow 'NotATeamMember
+                        :> CanThrow 'TeamNotFound
                         :> ReqBody '[Servant.JSON] TeamSearchVisibilityView
                         :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 204 "OK")
                     )
@@ -434,7 +437,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
         <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwner tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
-              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal @Cassandra tid)
+              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal @Cassandra (featureEnabledForTeam @Cassandra @SearchVisibilityAvailableConfig) tid)
           )
 
 featureAPI :: API IFeatureAPI GalleyEffects

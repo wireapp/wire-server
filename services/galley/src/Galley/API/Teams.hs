@@ -103,7 +103,6 @@ import qualified Galley.Effects.Queue as E
 import qualified Galley.Effects.SearchVisibilityStore as SearchVisibilityData
 import qualified Galley.Effects.SparAccess as Spar
 import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
-import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
 import qualified Galley.Effects.TeamMemberStore as E
 import qualified Galley.Effects.TeamStore as E
 import qualified Galley.Intra.Journal as Journal
@@ -141,7 +140,6 @@ import Wire.API.Team.Conversation
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
 import Wire.API.Team.Feature
-import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.Member (HardTruncationLimit, ListType (ListComplete, ListTruncated), NewTeamMember, TeamMember, TeamMemberList, TeamMemberListOptPerms, TeamMemberOptPerms, hardTruncationLimit, invitation, nPermissions, nUserId, newTeamMemberList, ntmNewTeamMember, permissions, setOptionalPerms, setOptionalPermsMany, teamMemberListType, teamMembers, tmdAuthPassword, userId)
 import qualified Wire.API.Team.Member as Public
 import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, fullPermissions, self)
@@ -1101,14 +1099,15 @@ setSearchVisibility ::
       r,
     FeaturePersistentConstraint db SearchVisibilityAvailableConfig
   ) =>
+  (TeamId -> Sem r Bool) ->
   Local UserId ->
   TeamId ->
   Public.TeamSearchVisibilityView ->
   Sem r ()
-setSearchVisibility luid tid req = do
+setSearchVisibility availableForTeam luid tid req = do
   zusrMembership <- E.getTeamMember tid (tUnqualified luid)
   void $ permissionCheck ChangeTeamSearchVisibility zusrMembership
-  setSearchVisibilityInternal @db tid req
+  setSearchVisibilityInternal @db availableForTeam tid req
 
 -- Internal -----------------------------------------------------------------
 
@@ -1380,22 +1379,6 @@ canUserJoinTeam tid = do
     (TeamSize sizeBeforeJoin) <- E.getSize tid
     ensureNotTooLargeForLegalHold @db tid (fromIntegral sizeBeforeJoin + 1)
 
-getTeamSearchVisibilityAvailableInternal ::
-  forall db r.
-  (Members '[Input Opts, TeamFeatureStore db] r, FeaturePersistentConstraint db SearchVisibilityAvailableConfig) =>
-  TeamId ->
-  Sem r (WithStatus Public.SearchVisibilityAvailableConfig)
-getTeamSearchVisibilityAvailableInternal tid = do
-  defConfig <- do
-    featureTeamSearchVisibility <- view (optSettings . setFeatureFlags . flagTeamSearchVisibility) <$> input
-    let status = case featureTeamSearchVisibility of
-          FeatureTeamSearchVisibilityEnabledByDefault -> Public.FeatureStatusEnabled
-          FeatureTeamSearchVisibilityDisabledByDefault -> Public.FeatureStatusDisabled
-    pure $ (defFeatureStatus @Public.SearchVisibilityAvailableConfig) {wsStatus = status}
-  mbConfig <- TeamFeatures.getFeatureConfig @db (Proxy @Public.SearchVisibilityAvailableConfig) tid
-  mbLockStatus <- TeamFeatures.getFeatureLockStatus @db (Proxy @Public.SearchVisibilityAvailableConfig) tid
-  pure $ computeFeatureConfigForTeamUser mbConfig mbLockStatus defConfig
-
 -- | Modify and get visibility type for a team (internal, no user permission checks)
 getSearchVisibilityInternal ::
   Member SearchVisibilityStore r =>
@@ -1416,12 +1399,12 @@ setSearchVisibilityInternal ::
       r,
     FeaturePersistentConstraint db SearchVisibilityAvailableConfig
   ) =>
+  (TeamId -> Sem r Bool) ->
   TeamId ->
   TeamSearchVisibilityView ->
   Sem r ()
-setSearchVisibilityInternal tid (TeamSearchVisibilityView searchVisibility) = do
-  fs <- getTeamSearchVisibilityAvailableInternal @db tid
-  unless (Public.wsStatus fs == Public.FeatureStatusEnabled) $
+setSearchVisibilityInternal availableForTeam tid (TeamSearchVisibilityView searchVisibility) = do
+  unlessM (availableForTeam tid) $
     throwS @'TeamSearchVisibilityNotEnabled
   SearchVisibilityData.setSearchVisibility tid searchVisibility
 
