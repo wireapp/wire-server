@@ -43,7 +43,6 @@ module Spar.App
 where
 
 import Bilge
-import Brig.Types (ManagedBy (..), User, userId, userTeam)
 import qualified Cassandra as Cas
 import Control.Exception (assert)
 import Control.Lens hiding ((.=))
@@ -97,7 +96,7 @@ import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
-import Wire.API.User.Identity (Email (..))
+import Wire.API.User hiding (validateEmail)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))

@@ -24,9 +24,7 @@ module Test.Spar.APISpec
 where
 
 import Bilge
-import Brig.Types.Client
 import Brig.Types.Intra (AccountStatus (Deleted))
-import Brig.Types.User
 import Cassandra hiding (Value)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadThrow)
@@ -91,6 +89,9 @@ import qualified Web.Scim.Schema.User as Scim
 import Wire.API.Team.Member (newTeamMemberDeleteData)
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.Team.Role
+import Wire.API.User
+import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
 import Wire.API.User.IdentityProvider
 import qualified Wire.API.User.Saml as WireAPI (saml)
 import Wire.API.User.Scim

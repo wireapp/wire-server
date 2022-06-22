@@ -28,7 +28,6 @@ where
 
 import Bilge
 import Bilge.Assert
-import qualified Brig.Types.User as Brig
 import Cassandra as Cas
 import Control.Lens
 import Data.Aeson (encode)
@@ -53,7 +52,9 @@ import Util
 import Wire.API.Team.Feature (featureNameBS)
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.Role
+import Wire.API.User (userEmail)
 import qualified Wire.API.User as Public
+import Wire.API.User.Identity
 
 -- | Tests for authentication and operations with provisioning tokens ('ScimToken's).
 spec :: SpecWith TestEnv
@@ -115,7 +116,7 @@ testCreateTokenWithVerificationCode = do
   unlockFeature (env ^. teGalley) teamId
   setSndFactorPasswordChallengeStatus (env ^. teGalley) teamId Public.FeatureStatusEnabled
   user <- getUserBrig owner
-  let email = fromMaybe undefined (Brig.userEmail =<< user)
+  let email = fromMaybe undefined (userEmail =<< user)
 
   let reqMissingCode = CreateScimToken "testCreateToken" (Just defPassword) Nothing
   createTokenFailsWith owner reqMissingCode 403 "code-authentication-required"
@@ -148,7 +149,7 @@ setSndFactorPasswordChallengeStatus galley tid status = do
     put (galley . paths ["i", "teams", toByteString' tid, "features", featureNameBS @Public.SndFactorPasswordChallengeConfig] . contentJson . body js)
       !!! const 200 === statusCode
 
-requestVerificationCode :: BrigReq -> Brig.Email -> Public.VerificationAction -> TestSpar ()
+requestVerificationCode :: BrigReq -> Email -> Public.VerificationAction -> TestSpar ()
 requestVerificationCode brig email action = do
   call $
     post (brig . paths ["verification-code", "send"] . contentJson . json (Public.SendVerificationCode action email))

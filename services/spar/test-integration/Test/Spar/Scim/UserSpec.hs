@@ -81,7 +81,7 @@ import qualified Wire.API.Team.Export as CsvExport
 import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.Team.Role (Role (RoleMember))
-import Wire.API.User.Identity (emailToSAMLNameID)
+import Wire.API.User hiding (scimExternalId)
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.IdentityProvider as User
 import Wire.API.User.RichInfo

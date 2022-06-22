@@ -20,12 +20,12 @@ module Spar.Sem.ScimExternalIdStore.Cassandra
   )
 where
 
-import Brig.Types.Common (Email, fromEmail)
 import Cassandra
 import Data.Id
 import Imports
 import Polysemy
 import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore (..))
+import Wire.API.User.Identity
 
 scimExternalIdStoreToCassandra ::
   forall m r a.
