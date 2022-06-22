@@ -47,7 +47,6 @@ import qualified Data.Text as T
 import Data.Text.Encoding (decodeLatin1)
 import GHC.TypeLits (KnownSymbol)
 import qualified Galley.Types.Teams.Intra as Team
-import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports hiding (head)
 import Network.HTTP.Types
 import Network.Wai
@@ -68,6 +67,7 @@ import System.Logger.Class hiding (Error, name, trace, (.=))
 import Util.Options
 import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.SearchVisibility
 import qualified Wire.API.Team.SearchVisibility as Public
 import qualified Wire.Swagger as Doc
 
@@ -408,7 +408,7 @@ routes = do
   put "/teams/:tid/search-visibility" (continue setSearchVisibility) $
     contentType "application" "json"
       .&. capture "tid"
-      .&. jsonRequest @Team.TeamSearchVisibility
+      .&. jsonRequest @TeamSearchVisibility
   document "PUT" "setSearchVisibility" $ do
     summary "Set specific search visibility for the team"
     Doc.parameter Doc.Path "tid" Doc.bytes' $
@@ -632,9 +632,9 @@ getTeamInfo = fmap json . Intra.getTeamInfo
 getTeamAdminInfo :: TeamId -> Handler Response
 getTeamAdminInfo = fmap (json . toAdminInfo) . Intra.getTeamInfo
 
-setSearchVisibility :: JSON ::: TeamId ::: JsonRequest Team.TeamSearchVisibility -> Handler Response
+setSearchVisibility :: JSON ::: TeamId ::: JsonRequest TeamSearchVisibility -> Handler Response
 setSearchVisibility (_ ::: tid ::: req) = do
-  status :: Team.TeamSearchVisibility <- parseBody req !>> mkError status400 "client-error"
+  status :: TeamSearchVisibility <- parseBody req !>> mkError status400 "client-error"
   json <$> Intra.setSearchVisibility tid status
 
 getTeamBillingInfo :: TeamId -> Handler Response

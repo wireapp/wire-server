@@ -85,11 +85,8 @@ import Data.Text (strip)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (pack)
 import GHC.TypeLits (KnownSymbol)
-import Galley.Types
-import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import qualified Galley.Types.Teams.Intra as Team
-import Galley.Types.Teams.SearchVisibility
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
@@ -99,11 +96,15 @@ import Stern.Types
 import System.Logger.Class hiding (Error, name, (.=))
 import qualified System.Logger.Class as Log
 import UnliftIO.Exception hiding (Handler)
+import Wire.API.Conversation
 import Wire.API.Internal.Notification
 import Wire.API.Properties
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
+import Wire.API.Team
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Member
+import Wire.API.Team.SearchVisibility
 
 -------------------------------------------------------------------------------
 
