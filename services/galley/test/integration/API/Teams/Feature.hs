@@ -26,7 +26,7 @@ import Bilge.Assert
 import Cassandra as Cql
 import Control.Lens (over, to, view)
 import Control.Monad.Catch (MonadCatch)
-import Data.Aeson (FromJSON, ToJSON, object, (.=))
+import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -814,31 +814,22 @@ testAllFeatures = do
     responseJsonMaybe === const (Just (expected FeatureStatusEnabled defLockStatus {- determined by 'getAfcConferenceCallingDefNew' in brig -}))
   where
     expected confCalling lockStateSelfDeleting =
-      object
-        [ toS @Public.LegalholdConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.LegalholdConfig,
-          toS @Public.SSOConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SSOConfig,
-          toS @Public.SearchVisibilityAvailableConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SearchVisibilityAvailableConfig,
-          toS @Public.ValidateSAMLEmailsConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.ValidateSAMLEmailsConfig,
-          toS @Public.DigitalSignaturesConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.DigitalSignaturesConfig,
-          toS @Public.AppLockConfig
-            .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked (Public.AppLockConfig (Public.EnforceAppLock False) (60 :: Int32)),
-          toS @Public.FileSharingConfig .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.FileSharingConfig,
-          toS @Public.ClassifiedDomainsConfig
-            .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked (Public.ClassifiedDomainsConfig [Domain "example.com"]),
-          toS @Public.ConferenceCallingConfig
-            .= Public.WithStatus confCalling Public.LockStatusUnlocked Public.ConferenceCallingConfig,
-          toS @Public.SelfDeletingMessagesConfig
-            .= Public.WithStatus FeatureStatusEnabled lockStateSelfDeleting (Public.SelfDeletingMessagesConfig 0),
-          toS @Public.GuestLinksConfig .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
-          toS @Public.ValidateSAMLEmailsConfig .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
-          toS @Public.GuestLinksConfig .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
-          toS @Public.SndFactorPasswordChallengeConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusLocked Public.SndFactorPasswordChallengeConfig,
-          toS @Public.MLSConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked (Public.MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519),
-          toS @Public.SearchVisibilityInboundConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SearchVisibilityInboundConfig
-        ]
-
-    toS :: forall cfg. (Public.IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg)) => Aeson.Key
-    toS = AesonKey.fromText (Public.featureName @cfg)
+      Public.AllFeatureConfigs
+        { Public.afcLegalholdStatus = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.LegalholdConfig,
+          Public.afcSSOStatus = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SSOConfig,
+          Public.afcTeamSearchVisibilityAvailable = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SearchVisibilityAvailableConfig,
+          Public.afcValidateSAMLEmails = Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.ValidateSAMLEmailsConfig,
+          Public.afcDigitalSignatures = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.DigitalSignaturesConfig,
+          Public.afcAppLock = Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked (Public.AppLockConfig (Public.EnforceAppLock False) (60 :: Int32)),
+          Public.afcFileSharing = Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.FileSharingConfig,
+          Public.afcClassifiedDomains = Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked (Public.ClassifiedDomainsConfig [Domain "example.com"]),
+          Public.afcConferenceCalling = Public.WithStatus confCalling Public.LockStatusUnlocked Public.ConferenceCallingConfig,
+          Public.afcSelfDeletingMessages = Public.WithStatus FeatureStatusEnabled lockStateSelfDeleting (Public.SelfDeletingMessagesConfig 0),
+          Public.afcGuestLink = Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
+          Public.afcSndFactorPasswordChallenge = Public.WithStatus FeatureStatusDisabled Public.LockStatusLocked Public.SndFactorPasswordChallengeConfig,
+          Public.afcMLS = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked (Public.MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519),
+          Public.afcSearchVisibilityInboundConfig = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SearchVisibilityInboundConfig
+        }
 
 testFeatureConfigConsistency :: TestM ()
 testFeatureConfigConsistency = do
