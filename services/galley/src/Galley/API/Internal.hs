@@ -170,6 +170,9 @@ type IFeatureAPI =
     :<|> IFeatureNoConfigMultiGet SearchVisibilityInboundConfig
     -- ClassifiedDomainsConfig
     :<|> IFeatureStatusGet ClassifiedDomainsConfig
+    -- MLSConfig
+    :<|> IFeatureStatusGet MLSConfig
+    :<|> IFeatureStatusPut '() MLSConfig
 
 type InternalAPI = "i" :> InternalAPIBase
 
@@ -483,6 +486,8 @@ featureAPI =
     <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (getFeatureStatusMulti @Cassandra @SearchVisibilityInboundConfig)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()
 internalSitemap = do

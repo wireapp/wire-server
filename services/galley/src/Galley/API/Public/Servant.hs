@@ -136,6 +136,8 @@ servantSitemap =
         <@> mkNamedAPI @'("put", GuestLinksConfig) (setFeatureStatus @Cassandra Nothing . DoAuth)
         <@> mkNamedAPI @'("get", SndFactorPasswordChallengeConfig) (getFeatureStatus @Cassandra . DoAuth)
         <@> mkNamedAPI @'("put", SndFactorPasswordChallengeConfig) (setFeatureStatus @Cassandra Nothing . DoAuth)
+        <@> mkNamedAPI @'("get", MLSConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("put", MLSConfig) (setFeatureStatus @Cassandra Nothing . DoAuth)
         <@> mkNamedAPI @"get-all-feature-configs-for-user" (getAllFeatureConfigsForUser @Cassandra)
         <@> mkNamedAPI @"get-all-feature-configs-for-team" (getAllFeatureConfigsForTeam @Cassandra)
         <@> mkNamedAPI @'("get-config", LegalholdConfig) (getFeatureStatusForUser @Cassandra)
@@ -150,6 +152,7 @@ servantSitemap =
         <@> mkNamedAPI @'("get-config", SelfDeletingMessagesConfig) (getFeatureStatusForUser @Cassandra)
         <@> mkNamedAPI @'("get-config", GuestLinksConfig) (getFeatureStatusForUser @Cassandra)
         <@> mkNamedAPI @'("get-config", SndFactorPasswordChallengeConfig) (getFeatureStatusForUser @Cassandra)
+        <@> mkNamedAPI @'("get-config", MLSConfig) (getFeatureStatusForUser @Cassandra)
 
     mls :: API MLSAPI GalleyEffects
     mls =

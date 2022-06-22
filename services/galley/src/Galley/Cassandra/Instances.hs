@@ -37,6 +37,7 @@ import Galley.Types.Teams.SearchVisibility
 import Imports
 import Wire.API.Asset (AssetKey, assetKeyToText)
 import Wire.API.Conversation.Protocol
+import Wire.API.MLS.CipherSuite (CipherSuite (CipherSuite, cipherSuiteNumber), CipherSuiteTag, cipherSuiteTag, tagCipherSuite)
 import Wire.API.Team
 import qualified Wire.API.Team.Feature as Public
 
@@ -212,3 +213,13 @@ instance Cql Epoch where
   toCql = CqlBigInt . fromIntegral . epochNumber
   fromCql (CqlBigInt n) = pure (Epoch (fromIntegral n))
   fromCql _ = Left "epoch: bigint expected"
+
+instance Cql CipherSuiteTag where
+  ctype = Tagged IntColumn
+  toCql = CqlInt . fromIntegral . cipherSuiteNumber . tagCipherSuite
+
+  fromCql (CqlInt index) =
+    case cipherSuiteTag (CipherSuite (fromIntegral index)) of
+      Just tag -> Right tag
+      Nothing -> Left "CipherSuiteTag: unexpected index"
+  fromCql _ = Left "CipherSuiteTag: int expected"

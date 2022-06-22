@@ -141,6 +141,9 @@ class GetFeatureConfig (db :: *) cfg => SetFeatureConfig (db :: *) cfg where
   type SetConfigForTeamConstraints db cfg (r :: EffectRow) :: Constraint
   type SetConfigForTeamConstraints db cfg (r :: EffectRow) = ()
 
+  -- | This method should generate the side-effects of changing the feature and
+  -- also (depending on the feature) persist the new setting to the database and
+  -- push a event to clients (see 'persistAndPushEvent').
   setConfigForTeam ::
     ( SetConfigForTeamConstraints db cfg r,
       GetConfigForTeamConstraints db cfg r,
@@ -157,6 +160,22 @@ class GetFeatureConfig (db :: *) cfg => SetFeatureConfig (db :: *) cfg where
     WithStatusNoLock cfg ->
     Maybe FeatureTTL ->
     Sem r (WithStatus cfg)
+
+type FeaturePersistentAllFeatures db =
+  ( FeaturePersistentConstraint db LegalholdConfig,
+    FeaturePersistentConstraint db SSOConfig,
+    FeaturePersistentConstraint db SearchVisibilityAvailableConfig,
+    FeaturePersistentConstraint db ValidateSAMLEmailsConfig,
+    FeaturePersistentConstraint db DigitalSignaturesConfig,
+    FeaturePersistentConstraint db AppLockConfig,
+    FeaturePersistentConstraint db FileSharingConfig,
+    FeaturePersistentConstraint db ClassifiedDomainsConfig,
+    FeaturePersistentConstraint db ConferenceCallingConfig,
+    FeaturePersistentConstraint db SelfDeletingMessagesConfig,
+    FeaturePersistentConstraint db GuestLinksConfig,
+    FeaturePersistentConstraint db SndFactorPasswordChallengeConfig,
+    FeaturePersistentConstraint db MLSConfig
+  )
 
 getFeatureStatusNoPermissionCheck ::
   forall db cfg r.
@@ -319,19 +338,7 @@ getAllFeatureConfigsForUser ::
        TeamStore
      ]
     r =>
-  ( FeaturePersistentConstraint db LegalholdConfig,
-    FeaturePersistentConstraint db SSOConfig,
-    FeaturePersistentConstraint db SearchVisibilityAvailableConfig,
-    FeaturePersistentConstraint db ValidateSAMLEmailsConfig,
-    FeaturePersistentConstraint db DigitalSignaturesConfig,
-    FeaturePersistentConstraint db AppLockConfig,
-    FeaturePersistentConstraint db FileSharingConfig,
-    FeaturePersistentConstraint db ClassifiedDomainsConfig,
-    FeaturePersistentConstraint db ConferenceCallingConfig,
-    FeaturePersistentConstraint db SelfDeletingMessagesConfig,
-    FeaturePersistentConstraint db GuestLinksConfig,
-    FeaturePersistentConstraint db SndFactorPasswordChallengeConfig
-  ) =>
+  FeaturePersistentAllFeatures db =>
   UserId ->
   Sem r AllFeatureConfigs
 getAllFeatureConfigsForUser zusr = do
@@ -357,19 +364,7 @@ getAllFeatureConfigsForTeam ::
        TeamStore
      ]
     r =>
-  ( FeaturePersistentConstraint db LegalholdConfig,
-    FeaturePersistentConstraint db SSOConfig,
-    FeaturePersistentConstraint db SearchVisibilityAvailableConfig,
-    FeaturePersistentConstraint db ValidateSAMLEmailsConfig,
-    FeaturePersistentConstraint db DigitalSignaturesConfig,
-    FeaturePersistentConstraint db AppLockConfig,
-    FeaturePersistentConstraint db FileSharingConfig,
-    FeaturePersistentConstraint db ClassifiedDomainsConfig,
-    FeaturePersistentConstraint db ConferenceCallingConfig,
-    FeaturePersistentConstraint db SelfDeletingMessagesConfig,
-    FeaturePersistentConstraint db GuestLinksConfig,
-    FeaturePersistentConstraint db SndFactorPasswordChallengeConfig
-  ) =>
+  FeaturePersistentAllFeatures db =>
   Local UserId ->
   TeamId ->
   Sem r AllFeatureConfigs
@@ -391,19 +386,7 @@ getAllFeatureConfigsUser ::
        TeamStore
      ]
     r =>
-  ( FeaturePersistentConstraint db LegalholdConfig,
-    FeaturePersistentConstraint db SSOConfig,
-    FeaturePersistentConstraint db SearchVisibilityAvailableConfig,
-    FeaturePersistentConstraint db ValidateSAMLEmailsConfig,
-    FeaturePersistentConstraint db DigitalSignaturesConfig,
-    FeaturePersistentConstraint db AppLockConfig,
-    FeaturePersistentConstraint db FileSharingConfig,
-    FeaturePersistentConstraint db ClassifiedDomainsConfig,
-    FeaturePersistentConstraint db ConferenceCallingConfig,
-    FeaturePersistentConstraint db SelfDeletingMessagesConfig,
-    FeaturePersistentConstraint db GuestLinksConfig,
-    FeaturePersistentConstraint db SndFactorPasswordChallengeConfig
-  ) =>
+  FeaturePersistentAllFeatures db =>
   UserId ->
   Sem r AllFeatureConfigs
 getAllFeatureConfigsUser uid =
@@ -420,6 +403,7 @@ getAllFeatureConfigsUser uid =
     <*> getConfigForUser @db @SelfDeletingMessagesConfig uid
     <*> getConfigForUser @db @GuestLinksConfig uid
     <*> getConfigForUser @db @SndFactorPasswordChallengeConfig uid
+    <*> getConfigForUser @db @MLSConfig uid
 
 getAllFeatureConfigsTeam ::
   forall db r.
@@ -433,19 +417,7 @@ getAllFeatureConfigsTeam ::
        TeamStore
      ]
     r =>
-  ( FeaturePersistentConstraint db LegalholdConfig,
-    FeaturePersistentConstraint db SSOConfig,
-    FeaturePersistentConstraint db SearchVisibilityAvailableConfig,
-    FeaturePersistentConstraint db ValidateSAMLEmailsConfig,
-    FeaturePersistentConstraint db DigitalSignaturesConfig,
-    FeaturePersistentConstraint db AppLockConfig,
-    FeaturePersistentConstraint db FileSharingConfig,
-    FeaturePersistentConstraint db ClassifiedDomainsConfig,
-    FeaturePersistentConstraint db ConferenceCallingConfig,
-    FeaturePersistentConstraint db SelfDeletingMessagesConfig,
-    FeaturePersistentConstraint db GuestLinksConfig,
-    FeaturePersistentConstraint db SndFactorPasswordChallengeConfig
-  ) =>
+  FeaturePersistentAllFeatures db =>
   TeamId ->
   Sem r AllFeatureConfigs
 getAllFeatureConfigsTeam tid =
@@ -462,6 +434,7 @@ getAllFeatureConfigsTeam tid =
     <*> getConfigForTeam @db @SelfDeletingMessagesConfig tid
     <*> getConfigForTeam @db @GuestLinksConfig tid
     <*> getConfigForTeam @db @SndFactorPasswordChallengeConfig tid
+    <*> getConfigForTeam @db @MLSConfig tid
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
 genericGetConfigForTeam ::
@@ -807,6 +780,14 @@ instance SetFeatureConfig db SearchVisibilityInboundConfig where
 instance GetFeatureConfig db SearchVisibilityInboundConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagTeamFeatureSearchVisibilityInbound . unDefaults . unImplicitLockStatus)
+
+instance GetFeatureConfig db MLSConfig where
+  getConfigForServer =
+    input <&> view (optSettings . setFeatureFlags . flagMLS . unDefaults . unImplicitLockStatus)
+
+instance SetFeatureConfig db MLSConfig where
+  setConfigForTeam tid wsnl _ = do
+    persistAndPushEvent @db tid wsnl Nothing
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --

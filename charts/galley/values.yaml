@@ -52,6 +52,14 @@ config:
           lockStatus: unlocked
           status: enabled
       legalhold: disabled-by-default
+      mls:
+        defaults:
+          status: disabled
+          config:
+            protocolToggleUsers: []
+            defaultProtocol: proteus
+            allowedCipherSuites: [1]
+            defaultCipherSuite: 1
       searchVisibilityInbound:
         defaults:
           status: disabled

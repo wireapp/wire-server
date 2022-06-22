@@ -103,5 +103,9 @@ data:
         searchVisibilityInbound:
           {{- toYaml .settings.featureFlags.searchVisibilityInbound | nindent 10 }}
         {{- end }}
+        {{- if .settings.featureFlags.mls }}
+        mls:
+          {{- toYaml .settings.featureFlags.mls | nindent 10 }}
+        {{- end }}
       {{- end }}
   {{- end }}

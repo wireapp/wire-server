@@ -48,10 +48,12 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit (assertFailure, (@?=))
 import TestHelpers (test)
 import TestSetup
+import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolMLSTag, ProtocolProteusTag))
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 import Wire.API.Internal.Notification (Notification)
+import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
-import Wire.API.Team.Feature (FeatureStatus (..), FeatureTTL (..))
+import Wire.API.Team.Feature (FeatureStatus (..), FeatureTTL (..), LockStatus (LockStatusUnlocked), MLSConfig (MLSConfig))
 import qualified Wire.API.Team.Feature as Public
 
 tests :: IO TestSetup -> TestTree
@@ -89,7 +91,8 @@ tests s =
           test s "reduce from unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled FeatureTTLUnlimited (FeatureTTLSeconds 1),
           test s "reduce" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 5) (FeatureTTLSeconds 1),
           test s "Unlimited to unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled FeatureTTLUnlimited FeatureTTLUnlimited
-        ]
+        ],
+      test s "MLS feature config" testMLS
     ]
 
 testSSO :: TestM ()
@@ -445,7 +448,6 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
   setFlagInternal defaultValue FeatureTTLUnlimited
   getFlag defaultValue
 
--- TODO: remove a, add cfg
 testSimpleFlagTTL ::
   forall cfg.
   ( HasCallStack,
@@ -505,7 +507,7 @@ testSimpleFlagTTL defaultValue ttl = do
     setFlagInternal otherValue ttl
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
-        wsAssertFeatureConfigUpdate @cfg otherValue
+        wsAssertFeatureTrivialConfigUpdate @cfg otherValue
   getFlag otherValue
   getFeatureConfig otherValue
   getFlagInternal otherValue
@@ -829,7 +831,8 @@ testAllFeatures = do
           toS @Public.GuestLinksConfig .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
           toS @Public.ValidateSAMLEmailsConfig .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
           toS @Public.GuestLinksConfig .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
-          toS @Public.SndFactorPasswordChallengeConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusLocked Public.SndFactorPasswordChallengeConfig
+          toS @Public.SndFactorPasswordChallengeConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusLocked Public.SndFactorPasswordChallengeConfig,
+          toS @Public.MLSConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked (Public.MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
         ]
 
     toS :: forall cfg. (Public.IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg)) => Aeson.Key
@@ -911,6 +914,65 @@ testFeatureNoConfigMultiSearchVisibilityInbound = do
     Multi.TeamStatus _ team2Status <- Util.assertOne (filter ((== team2) . Multi.team) teamsStatuses)
     team2Status @?= Public.FeatureStatusEnabled
 
+testMLS :: TestM ()
+testMLS = do
+  owner <- Util.randomUser
+  member <- Util.randomUser
+  tid <- Util.createNonBindingTeam "foo" owner []
+  Util.connectUsers owner (list1 member [])
+  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
+
+  galley <- view tsGalley
+  cannon <- view tsCannon
+
+  let getForTeam :: HasCallStack => Public.WithStatusNoLock MLSConfig -> TestM ()
+      getForTeam expected =
+        flip assertFlagWithConfig expected $ Util.getTeamFeatureFlag @MLSConfig member tid
+
+      getForTeamInternal :: HasCallStack => Public.WithStatusNoLock MLSConfig -> TestM ()
+      getForTeamInternal expected =
+        flip assertFlagWithConfig expected $ Util.getTeamFeatureFlagInternal @Public.MLSConfig tid
+
+      getForUser :: HasCallStack => Public.WithStatusNoLock MLSConfig -> TestM ()
+      getForUser expected =
+        flip assertFlagWithConfig expected $ Util.getFeatureConfig @MLSConfig member
+
+      getViaEndpoints :: HasCallStack => Public.WithStatusNoLock MLSConfig -> TestM ()
+      getViaEndpoints expected = do
+        getForTeam expected
+        getForTeamInternal expected
+        getForUser expected
+
+      setForTeam :: HasCallStack => Public.WithStatusNoLock MLSConfig -> TestM ()
+      setForTeam wsnl =
+        Util.putTeamFeatureFlagWithGalley @MLSConfig galley owner tid wsnl
+          !!! statusCode === const 200
+
+      setForTeamInternal :: HasCallStack => Public.WithStatusNoLock MLSConfig -> TestM ()
+      setForTeamInternal wsnl =
+        void $ Util.putTeamFeatureFlagInternal @Public.MLSConfig expect2xx tid wsnl
+
+  let cipherSuite = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+  let defaultConfig = Public.WithStatusNoLock FeatureStatusDisabled (MLSConfig [] ProtocolProteusTag [cipherSuite] cipherSuite)
+  let config2 = Public.WithStatusNoLock FeatureStatusEnabled (MLSConfig [member] ProtocolMLSTag [] cipherSuite)
+  let config3 = Public.WithStatusNoLock FeatureStatusDisabled (MLSConfig [] ProtocolMLSTag [cipherSuite] cipherSuite)
+
+  getViaEndpoints defaultConfig
+
+  WS.bracketR cannon member $ \ws -> do
+    setForTeam config2
+    void . liftIO $
+      WS.assertMatch (5 # Second) ws $
+        wsAssertFeatureConfigUpdate @MLSConfig config2 LockStatusUnlocked
+  getViaEndpoints config2
+
+  WS.bracketR cannon member $ \ws -> do
+    setForTeamInternal config3
+    void . liftIO $
+      WS.assertMatch (5 # Second) ws $
+        wsAssertFeatureConfigUpdate @MLSConfig config3 LockStatusUnlocked
+  getViaEndpoints config3
+
 assertFlagForbidden :: HasCallStack => TestM ResponseLBS -> TestM ()
 assertFlagForbidden res = do
   res !!! do
@@ -978,7 +1040,7 @@ assertFlagWithConfig response expected = do
     fmap Public.wssStatus rJson @?= (Right . Public.wssStatus $ expected)
     fmap Public.wssConfig rJson @?= (Right . Public.wssConfig $ expected)
 
-wsAssertFeatureConfigUpdate ::
+wsAssertFeatureTrivialConfigUpdate ::
   forall cfg.
   ( Public.IsFeatureConfig cfg,
     KnownSymbol (Public.FeatureSymbol cfg),
@@ -989,7 +1051,7 @@ wsAssertFeatureConfigUpdate ::
   Public.FeatureStatus ->
   Notification ->
   IO ()
-wsAssertFeatureConfigUpdate status notification = do
+wsAssertFeatureTrivialConfigUpdate status notification = do
   let e :: FeatureConfig.Event = List1.head (WS.unpackPayload notification)
   FeatureConfig._eventType e @?= FeatureConfig.Update
   FeatureConfig._eventFeatureName e @?= Public.featureName @cfg
@@ -1012,3 +1074,20 @@ wsAssertFeatureConfigWithLockStatusUpdate status lockStatus notification = do
   FeatureConfig._eventType e @?= FeatureConfig.Update
   FeatureConfig._eventFeatureName e @?= (Public.featureName @cfg)
   FeatureConfig._eventData e @?= Aeson.toJSON (Public.WithStatus status lockStatus (Public.trivialConfig @cfg))
+
+wsAssertFeatureConfigUpdate ::
+  forall cfg.
+  ( Public.IsFeatureConfig cfg,
+    KnownSymbol (Public.FeatureSymbol cfg),
+    ToJSON (Public.WithStatus cfg),
+    ToSchema cfg
+  ) =>
+  Public.WithStatusNoLock cfg ->
+  Public.LockStatus ->
+  Notification ->
+  IO ()
+wsAssertFeatureConfigUpdate config lockStatus notification = do
+  let e :: FeatureConfig.Event = List1.head (WS.unpackPayload notification)
+  FeatureConfig._eventType e @?= FeatureConfig.Update
+  FeatureConfig._eventFeatureName e @?= Public.featureName @cfg
+  FeatureConfig._eventData e @?= Aeson.toJSON (Public.withLockStatus lockStatus config)

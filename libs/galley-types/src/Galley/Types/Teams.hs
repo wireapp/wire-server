@@ -38,6 +38,7 @@ module Galley.Types.Teams
     flagsTeamFeatureValidateSAMLEmailsStatus,
     flagTeamFeatureSndFactorPasswordChallengeStatus,
     flagTeamFeatureSearchVisibilityInbound,
+    flagMLS,
     Defaults (..),
     ImplicitLockStatus (..),
     unImplicitLockStatus,
@@ -235,7 +236,8 @@ data FeatureFlags = FeatureFlags
     _flagConversationGuestLinks :: !(Defaults (WithStatus GuestLinksConfig)),
     _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (ImplicitLockStatus ValidateSAMLEmailsConfig)),
     _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (WithStatus SndFactorPasswordChallengeConfig)),
-    _flagTeamFeatureSearchVisibilityInbound :: !(Defaults (ImplicitLockStatus SearchVisibilityInboundConfig))
+    _flagTeamFeatureSearchVisibilityInbound :: !(Defaults (ImplicitLockStatus SearchVisibilityInboundConfig)),
+    _flagMLS :: !(Defaults (ImplicitLockStatus MLSConfig))
   }
   deriving (Eq, Show, Generic)
 
@@ -286,6 +288,7 @@ instance FromJSON FeatureFlags where
       <*> withImplicitLockStatusOrDefault obj "validateSAMLEmails"
       <*> (fromMaybe (Defaults (defFeatureStatus @SndFactorPasswordChallengeConfig)) <$> (obj .:? "sndFactorPasswordChallenge"))
       <*> withImplicitLockStatusOrDefault obj "searchVisibilityInbound"
+      <*> withImplicitLockStatusOrDefault obj "mls"
     where
       withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg, Schema.ToSchema cfg) => Object -> Key -> A.Parser (Defaults (ImplicitLockStatus cfg))
       withImplicitLockStatusOrDefault obj fieldName = fromMaybe (Defaults (ImplicitLockStatus (defFeatureStatus @cfg))) <$> obj .:? fieldName
@@ -305,6 +308,7 @@ instance ToJSON FeatureFlags where
         validateSAMLEmails
         sndFactorPasswordChallenge
         searchVisibilityInbound
+        mls
       ) =
       object
         [ "sso" .= sso,
@@ -318,7 +322,8 @@ instance ToJSON FeatureFlags where
           "conversationGuestLinks" .= guestLinks,
           "validateSAMLEmails" .= validateSAMLEmails,
           "sndFactorPasswordChallenge" .= sndFactorPasswordChallenge,
-          "searchVisibilityInbound" .= searchVisibilityInbound
+          "searchVisibilityInbound" .= searchVisibilityInbound,
+          "mls" .= mls
         ]
 
 instance FromJSON FeatureSSO where

@@ -54,6 +54,7 @@ module Wire.API.Team.Feature
     ClassifiedDomainsConfig (..),
     AppLockConfig (..),
     FileSharingConfig (..),
+    MLSConfig (..),
     AllFeatureConfigs (..),
     typeFeatureTTL,
     withStatusModel,
@@ -66,13 +67,14 @@ module Wire.API.Team.Feature
 where
 
 import qualified Cassandra.CQL as Cass
-import Control.Lens (makeLenses)
+import Control.Lens (makeLenses, (?~))
 import qualified Data.Aeson as A
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Conversion
 import qualified Data.ByteString.UTF8 as UTF8
 import Data.Domain (Domain)
 import Data.Either.Extra (maybeToEither)
+import Data.Id
 import Data.Proxy
 import Data.Schema
 import Data.String.Conversions (cs)
@@ -87,64 +89,62 @@ import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
+import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519))
 
 ----------------------------------------------------------------------
 -- FeatureTag
 
--- | If you add a constructor here, you need extend multiple definitions, which
---   aren't checked by GHC.
+-- | Checklist for adding a new feature
 --
---   Follow this Checklist:
+-- 1. Add a data type for your feature's "config" part, naming convention:
+-- **<NameOfFeature>Config**. If your feature doesn't have a config besides
+-- being enabled/disabled, locked/unlocked, then the config should be a unit
+-- type, e.g. **data MyFeatureConfig = MyFeatureConfig**. Implement type clases
+-- 'ToSchema', 'IsFeatureConfig' and 'Arbitrary'. If your feature doesn't have a
+-- config implement 'FeatureTrivialConfig'.
 --
--- * FUTUREWORK: Update this checklist when a new feature is added
+-- 2. Add the config to to 'AllFeatureConfigs'. Add your feature to 'allFeatureModels'.
 --
--- * libs/wire-api/test/unit/Test/Wire/API/Roundtrip/Aeson.hs
---   * add call to 'testRoundTrip'
--- * libs/wire-api/src/Wire/API/Routes/Public/Galley.hs
---   * add a FeatureStatusGet (and maybe FeatureStatusPut) route to the FeatureAPI
---   * maybe add a FeatureConfigGet route to FeatureAPI
--- * services/galley/src/Galley/API/Internal.hs
---   * add IFeatureStatus to IFeatureAPI
--- * libs/galley-types/src/Galley/Types/Teams.hs
---   * FeatureFlags for server config file
---   * Update the Arbitrary instance of FeatureFlags
---       in libs/galley-types/test/unit/Test/Galley/Types.hs
---   * roleHiddenPermissions ChangeTeamFeature and ViewTeamFeature
--- * add the feature status to `AllFeatureConfigs` (see below)
---   * follow the type errors and fix them (e.g. in services/galley/src/Galley/API/Teams/Features.hs)
--- * services/galley/schema/src/
---   * add a migration like the one in "V43_TeamFeatureDigitalSignatures.hs"
--- * services/galley/test/integration/API/Teams/Feature.hs
---   * add an integration test for the feature
---   * extend testAllFeatures
--- * consider personal-account configurability (like for `conferenceCalling`, see
---     eg. https://github.com/wireapp/wire-server/pull/1811,
---     https://github.com/wireapp/wire-server/pull/1818)
+-- 2. If your feature is configurable on a per-team basis, add a schema
+-- migration in galley and add 'FeatureStatusCassandra' instance in
+-- Galley.Cassandra.TreamFeatures together with a schema migration
 --
--- An example of all the places to change (including compiler errors and failing tests) can be found
--- in eg. https://github.com/wireapp/wire-server/pull/1652.  (applock and conference calling also
--- add interesting aspects, though.)
+-- 3. Add the feature to the config schema of galley in Galley.Types.Teams.
+-- and extend the Arbitrary instance of FeatureConfigs in the unit tests Test.Galley.Types
 --
--- Using something like '[minBound..]' on those expressions would require dependent types.  We
--- could generate exhaustive lists of those calls using TH, along the lines of:
+-- 4. Implement 'GetFeatureConfig' and 'SetFeatureConfig' in
+-- Galley.API.Teams.Features which defines the main business logic for getting
+-- and setting (with side-effects).
 --
--- @
--- forAllFeatureTags ::
---   ExpQ {- [forall (a :: FeatureTag). b] -} ->
---   ExpQ {- [b] -}
--- forAllFeatureTags =
---   error
---     "...  and then somehow turn the values from '[minBound..]' into \
---     \type applications in the syntax tree"
--- @
+-- 5. Add public routes to Routes.Public.Galley: 'FeatureStatusGet',
+-- 'FeatureStatusPut' (optional) and by by user: 'FeatureConfigGet'. Then
+-- implement them in Galley.API.Public.
 --
--- But that seems excessive.  Let's wait for dependent types to be ready in ghc!
+-- 6. Add internal routes in Galley.API.Internal
+--
+-- 7. If the feature should be configurable via Stern add routes to Stern.API.
+-- Manually check that the swagger looks okay.
+--
+-- 8. If the feature is configured on a per-user level, see the
+-- 'ConferenceCallingConfig' as an example.
+-- (https://github.com/wireapp/wire-server/pull/1811,
+-- https://github.com/wireapp/wire-server/pull/1818)
+--
+-- 9. Extend the integration tests with cases
 class IsFeatureConfig cfg where
   type FeatureSymbol cfg :: Symbol
   defFeatureStatus :: WithStatus cfg
+
+  -- | Swagger 1.2 model for stern and wai routes
   configModel :: Maybe Doc.Model
   configModel = Nothing
-  objectSchema :: ObjectSchema SwaggerDoc cfg
+
+  objectSchema ::
+    -- | Should be "pure MyFeatureConfig" if the feature doesn't have config,
+    -- which results in a trivial empty schema and the "config" field being
+    -- omitted/ignored in the JSON encoder / parser.
+    ObjectSchema SwaggerDoc cfg
 
 class FeatureTrivialConfig cfg where
   trivialConfig :: cfg
@@ -404,6 +404,7 @@ allFeatureModels =
     withStatusNoLockModel @GuestLinksConfig,
     withStatusNoLockModel @SndFactorPasswordChallengeConfig,
     withStatusNoLockModel @SearchVisibilityInboundConfig,
+    withStatusNoLockModel @MLSConfig,
     withStatusModel @LegalholdConfig,
     withStatusModel @SSOConfig,
     withStatusModel @SearchVisibilityAvailableConfig,
@@ -416,7 +417,8 @@ allFeatureModels =
     withStatusModel @SelfDeletingMessagesConfig,
     withStatusModel @GuestLinksConfig,
     withStatusModel @SndFactorPasswordChallengeConfig,
-    withStatusModel @SearchVisibilityInboundConfig
+    withStatusModel @SearchVisibilityInboundConfig,
+    withStatusModel @MLSConfig
   ]
     <> catMaybes
       [ configModel @LegalholdConfig,
@@ -431,7 +433,8 @@ allFeatureModels =
         configModel @SelfDeletingMessagesConfig,
         configModel @GuestLinksConfig,
         configModel @SndFactorPasswordChallengeConfig,
-        configModel @SearchVisibilityInboundConfig
+        configModel @SearchVisibilityInboundConfig,
+        configModel @MLSConfig
       ]
 
 --------------------------------------------------------------------------------
@@ -722,6 +725,40 @@ instance IsFeatureConfig SelfDeletingMessagesConfig where
   objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
+-- MLSConfig
+
+data MLSConfig = MLSConfig
+  { mlsProtocolToggleUsers :: [UserId],
+    mlsDefaultProtocol :: ProtocolTag,
+    mlsAllowedCipherSuites :: [CipherSuiteTag],
+    mlsDefaultCipherSuite :: CipherSuiteTag
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform MLSConfig)
+
+instance ToSchema MLSConfig where
+  schema =
+    object "MLSConfig" $
+      MLSConfig
+        <$> mlsProtocolToggleUsers .= fieldWithDocModifier "protocolToggleUsers" (S.description ?~ "allowlist of users that may change protocols") (array schema)
+        <*> mlsDefaultProtocol .= field "defaultProtocol" schema
+        <*> mlsAllowedCipherSuites .= field "allowedCipherSuites" (array schema)
+        <*> mlsDefaultCipherSuite .= field "defaultCipherSuite" schema
+
+instance IsFeatureConfig MLSConfig where
+  type FeatureSymbol MLSConfig = "mls"
+  defFeatureStatus =
+    let config = MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+     in WithStatus FeatureStatusDisabled LockStatusUnlocked config
+  objectSchema = field "config" schema
+  configModel = Just $
+    Doc.defineModel "MLSConfig" $ do
+      Doc.property "protocolToggleUsers" (Doc.array Doc.string') $ Doc.description "allowlist of users that may change protocols"
+      Doc.property "defaultProtocol" Doc.string' $ Doc.description "default protocol, either \"proteus\" or \"mls\""
+      Doc.property "allowedCipherSuites" (Doc.array Doc.int32') $ Doc.description "cipher suite numbers,  See https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5"
+      Doc.property "defaultCipherSuite" Doc.int32' $ Doc.description "cipher suite number. See https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5"
+
+----------------------------------------------------------------------
 -- FeatureStatus
 
 data FeatureStatus
@@ -787,7 +824,8 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcConferenceCalling :: WithStatus ConferenceCallingConfig,
     afcSelfDeletingMessages :: WithStatus SelfDeletingMessagesConfig,
     afcGuestLink :: WithStatus GuestLinksConfig,
-    afcSndFactorPasswordChallenge :: WithStatus SndFactorPasswordChallengeConfig
+    afcSndFactorPasswordChallenge :: WithStatus SndFactorPasswordChallengeConfig,
+    afcMLS :: WithStatus MLSConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -808,6 +846,7 @@ instance ToSchema AllFeatureConfigs where
         <*> afcSelfDeletingMessages .= featureField
         <*> afcGuestLink .= featureField
         <*> afcSndFactorPasswordChallenge .= featureField
+        <*> afcMLS .= featureField
     where
       featureField ::
         forall cfg.
@@ -819,6 +858,7 @@ instance Arbitrary AllFeatureConfigs where
   arbitrary =
     AllFeatureConfigs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
