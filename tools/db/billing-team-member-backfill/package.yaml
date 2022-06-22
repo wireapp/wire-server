@@ -18,7 +18,6 @@ dependencies:
 - base
 - cassandra-util
 - containers
-- galley-types
 - imports
 - optparse-applicative
 - text
@@ -26,6 +25,7 @@ dependencies:
 - tinylog
 - types-common
 - conduit
+- wire-api
 executables:
   billing-team-member-backfill:
     main: Main.hs
