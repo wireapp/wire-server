@@ -46,6 +46,7 @@ import qualified System.IO as IO
 import qualified System.Logger as Log
 import System.Process (system)
 import Types
+import Wire.API.User
 
 deriving instance Cql Name
 
