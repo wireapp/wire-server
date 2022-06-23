@@ -19,7 +19,7 @@ RUN cd /tmp && \
   cargo build --release
 
 # compile mls-test-cli tool
-RUN cd /tmp &&
+RUN cd /tmp && \
   git clone https://github.com/wireapp/mls-test-cli && \
   cd mls-test-cli && \
   cargo build --release
