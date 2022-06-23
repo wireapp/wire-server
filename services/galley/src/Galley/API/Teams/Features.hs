@@ -379,6 +379,7 @@ getAllFeatureConfigsForServer =
     <*> getConfigForServer @db @GuestLinksConfig
     <*> getConfigForServer @db @SndFactorPasswordChallengeConfig
     <*> getConfigForServer @db @MLSConfig
+    <*> getConfigForServer @db @SearchVisibilityInboundConfig
 
 getAllFeatureConfigsUser ::
   forall db r.

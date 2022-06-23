@@ -138,6 +138,8 @@ servantSitemap =
         <@> mkNamedAPI @'("put", SndFactorPasswordChallengeConfig) (setFeatureStatus @Cassandra Nothing . DoAuth)
         <@> mkNamedAPI @'("get", MLSConfig) (getFeatureStatus @Cassandra . DoAuth)
         <@> mkNamedAPI @'("put", MLSConfig) (setFeatureStatus @Cassandra Nothing . DoAuth)
+        <@> mkNamedAPI @'("get", SearchVisibilityInboundConfig) (getFeatureStatus @Cassandra . DoAuth)
+        <@> mkNamedAPI @'("put", SearchVisibilityInboundConfig) (setFeatureStatus @Cassandra Nothing . DoAuth)
         <@> mkNamedAPI @"get-all-feature-configs-for-user" (getAllFeatureConfigsForUser @Cassandra)
         <@> mkNamedAPI @"get-all-feature-configs-for-team" (getAllFeatureConfigsForTeam @Cassandra)
         <@> mkNamedAPI @'("get-config", LegalholdConfig) (getFeatureStatusForUser @Cassandra)

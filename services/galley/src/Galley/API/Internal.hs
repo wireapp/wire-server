@@ -171,6 +171,9 @@ type IFeatureAPI =
     -- MLSConfig
     :<|> IFeatureStatusGet MLSConfig
     :<|> IFeatureStatusPut '() MLSConfig
+    -- SearchVisibilityInboundConfig
+    :<|> IFeatureStatusGet SearchVisibilityInboundConfig
+    :<|> IFeatureStatusPut '() SearchVisibilityInboundConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -472,6 +475,8 @@ featureAPI =
     <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (getFeatureStatusMulti @Cassandra @SearchVisibilityInboundConfig)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (maybe (getAllFeatureConfigsForServer @Cassandra) (getAllFeatureConfigsForUser @Cassandra))
