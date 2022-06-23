@@ -240,6 +240,12 @@ On instances with restricted user creation, the site operator with access to the
 .. note::
     Once the creation of new users and teams has been disabled, it will still be possible to use the `team creation process <https://support.wire.com/hc/en-us/articles/115003858905-Create-a-team>`__ (enter the new team name, email, password, etc), but it will fail/refuse creation late in the creation process (after the «Create team» button is clicked).
 
+Another way of disabling user registration is by this webapp setting, in `values.yaml`, changing this value from `true` to `false`:
+
+.. code:: yaml
+
+   FEATURE_ENABLE_ACCOUNT_REGISTRATION: "false"
+
 You may want
 --------------
 
