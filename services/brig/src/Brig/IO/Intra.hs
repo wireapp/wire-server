@@ -57,8 +57,8 @@ module Brig.IO.Intra
     getTeamLegalHoldStatus,
     changeTeamStatus,
     getTeamSearchVisibility,
+    getAllFeatureConfigsForUser,
     getVerificationCodeEnabled,
-    getTeamFeatureStatusSndFactorPasswordChallenge,
 
     -- * Legalhold
     guardLegalhold,
@@ -1397,7 +1397,7 @@ getVerificationCodeEnabled tid = do
       paths ["i", "teams", toByteString' tid, "features", featureNameBS @SndFactorPasswordChallengeConfig]
         . expect2xx
 
-getTeamFeatureStatusSndFactorPasswordChallenge ::
+getAllFeatureConfigsForUser ::
   ( MonadReader Env m,
     MonadIO m,
     MonadMask m,
@@ -1405,12 +1405,12 @@ getTeamFeatureStatusSndFactorPasswordChallenge ::
     HasRequestId m
   ) =>
   Maybe UserId ->
-  m (WithStatus SndFactorPasswordChallengeConfig)
-getTeamFeatureStatusSndFactorPasswordChallenge mbUserId =
+  m AllFeatureConfigs
+getAllFeatureConfigsForUser mbUserId =
   responseJsonUnsafe
     <$> galleyRequest
       GET
-      ( paths ["i", "feature-configs", featureNameBS @SndFactorPasswordChallengeConfig]
+      ( paths ["i", "feature-configs"]
           . maybe id (queryItem "user_id" . toByteString') mbUserId
       )
 

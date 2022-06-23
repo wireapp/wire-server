@@ -1087,7 +1087,7 @@ guardSecondFactorDisabled ::
   Maybe UserId ->
   ExceptT Error m ()
 guardSecondFactorDisabled mbUserId = do
-  enabled <- lift $ (==) Feature.FeatureStatusEnabled . Feature.wsStatus <$> RPC.getTeamFeatureStatusSndFactorPasswordChallenge mbUserId
+  enabled <- lift $ (==) Feature.FeatureStatusEnabled . Feature.wsStatus . Feature.afcSndFactorPasswordChallenge <$> RPC.getAllFeatureConfigsForUser mbUserId
   when enabled $ throwStd accessDenied
 
 minRsaKeySize :: Int

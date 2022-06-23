@@ -24,8 +24,6 @@ module Wire.API.Team.Feature
   ( FeatureStatus (..),
     featureName,
     featureNameBS,
-    deprecatedFeatureName,
-    deprecatedFeatureNameBS,
     LockStatus (..),
     WithStatus (..),
     WithStatusNoLock (..),
@@ -106,32 +104,32 @@ import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_S
 --
 -- 2. Add the config to to 'AllFeatureConfigs'. Add your feature to 'allFeatureModels'.
 --
--- 2. If your feature is configurable on a per-team basis, add a schema
+-- 3. If your feature is configurable on a per-team basis, add a schema
 -- migration in galley and add 'FeatureStatusCassandra' instance in
--- Galley.Cassandra.TreamFeatures together with a schema migration
+-- Galley.Cassandra.TeamFeatures together with a schema migration
 --
--- 3. Add the feature to the config schema of galley in Galley.Types.Teams.
+-- 4. Add the feature to the config schema of galley in Galley.Types.Teams.
 -- and extend the Arbitrary instance of FeatureConfigs in the unit tests Test.Galley.Types
 --
--- 4. Implement 'GetFeatureConfig' and 'SetFeatureConfig' in
+-- 5. Implement 'GetFeatureConfig' and 'SetFeatureConfig' in
 -- Galley.API.Teams.Features which defines the main business logic for getting
 -- and setting (with side-effects).
 --
--- 5. Add public routes to Routes.Public.Galley: 'FeatureStatusGet',
+-- 6. Add public routes to Routes.Public.Galley: 'FeatureStatusGet',
 -- 'FeatureStatusPut' (optional) and by by user: 'FeatureConfigGet'. Then
 -- implement them in Galley.API.Public.
 --
--- 6. Add internal routes in Galley.API.Internal
+-- 7. Add internal routes in Galley.API.Internal
 --
--- 7. If the feature should be configurable via Stern add routes to Stern.API.
+-- 8. If the feature should be configurable via Stern add routes to Stern.API.
 -- Manually check that the swagger looks okay.
 --
--- 8. If the feature is configured on a per-user level, see the
+-- 9. If the feature is configured on a per-user level, see the
 -- 'ConferenceCallingConfig' as an example.
 -- (https://github.com/wireapp/wire-server/pull/1811,
 -- https://github.com/wireapp/wire-server/pull/1818)
 --
--- 9. Extend the integration tests with cases
+-- 10. Extend the integration tests with cases
 class IsFeatureConfig cfg where
   type FeatureSymbol cfg :: Symbol
   defFeatureStatus :: WithStatus cfg
@@ -157,12 +155,6 @@ featureName = T.pack $ symbolVal (Proxy @(FeatureSymbol cfg))
 
 featureNameBS :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => ByteString
 featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
-
-deprecatedFeatureName :: forall cfg. (HasDeprecatedFeatureName cfg, KnownSymbol (DeprecatedFeatureName cfg)) => Text
-deprecatedFeatureName = T.pack $ symbolVal (Proxy @(DeprecatedFeatureName cfg))
-
-deprecatedFeatureNameBS :: forall cfg. (HasDeprecatedFeatureName cfg, KnownSymbol (DeprecatedFeatureName cfg)) => ByteString
-deprecatedFeatureNameBS = UTF8.fromString $ symbolVal (Proxy @(DeprecatedFeatureName cfg))
 
 ----------------------------------------------------------------------
 -- WithStatus

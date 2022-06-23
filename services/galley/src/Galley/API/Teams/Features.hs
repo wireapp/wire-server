@@ -17,11 +17,10 @@
 
 module Galley.API.Teams.Features
   ( getFeatureStatus,
-    getFeatureStatusNoPermissionCheck,
     getFeatureStatusMulti,
     setFeatureStatus,
-    -- setFeatureStatusNoTTL,
     getFeatureStatusForUser,
+    getAllFeatureConfigsForServer,
     getAllFeatureConfigsForTeam,
     getAllFeatureConfigsForUser,
     setLockStatus,
@@ -178,34 +177,6 @@ type FeaturePersistentAllFeatures db =
     FeaturePersistentConstraint db MLSConfig
   )
 
-getFeatureStatusNoPermissionCheck ::
-  forall db cfg r.
-  ( GetFeatureConfig db cfg,
-    GetConfigForTeamConstraints db cfg r,
-    GetConfigForUserConstraints db cfg r,
-    Members
-      '[ ErrorS OperationDenied,
-         ErrorS 'NotATeamMember,
-         ErrorS 'TeamNotFound,
-         TeamStore,
-         Input Opts
-       ]
-      r
-  ) =>
-  Maybe UserId ->
-  Sem r (WithStatus cfg)
-getFeatureStatusNoPermissionCheck = \case
-  Just uid -> do
-    mbTeam <- getOneUserTeam uid
-    case mbTeam of
-      Nothing -> getConfigForUser @db @cfg uid
-      Just tid -> do
-        teamExists <- isJust <$> getTeam tid
-        if teamExists
-          then getConfigForTeam @db @cfg tid
-          else getConfigForUser @db @cfg uid
-  Nothing -> getConfigForServer @db @cfg
-
 getFeatureStatus ::
   forall db cfg r.
   ( GetFeatureConfig db cfg,
@@ -223,9 +194,8 @@ getFeatureStatus ::
   Sem r (WithStatus cfg)
 getFeatureStatus doauth tid = do
   case doauth of
-    DoAuth uid -> do
-      zusrMembership <- getTeamMember tid uid
-      void $ permissionCheck ViewTeamFeature zusrMembership
+    DoAuth uid ->
+      getTeamMember tid uid >>= maybe (throwS @'NotATeamMember) (const $ pure ())
     DontDoAuth ->
       assertTeamExists tid
   getConfigForTeam @db @cfg tid
@@ -300,6 +270,9 @@ setLockStatus tid lockStatus = do
   pure $ LockStatusResponse lockStatus
 
 -- | For individual users to get feature config for their account (personal or team).
+-- This looks supposedly redundant to the implementations of `getConfigForUser` but it's not.
+-- Here we explicitly return the team setting if the user is a team member.
+-- In `getConfigForUser` this is mostly also the case. But there are exceptions, e.g. `ConferenceCallingConfig`
 getFeatureStatusForUser ::
   forall (db :: *) cfg r.
   ( Members
@@ -322,7 +295,7 @@ getFeatureStatusForUser zusr = do
       getConfigForUser @db @cfg zusr
     Just tid -> do
       zusrMembership <- getTeamMember tid zusr
-      void $ permissionCheck ViewTeamFeature zusrMembership
+      void $ maybe (throwS @'NotATeamMember) pure zusrMembership
       assertTeamExists tid
       getConfigForTeam @db @cfg tid
 
@@ -346,7 +319,7 @@ getAllFeatureConfigsForUser zusr = do
   mbTeam <- getOneUserTeam zusr
   when (isJust mbTeam) $ do
     zusrMembership <- maybe (pure Nothing) (`getTeamMember` zusr) mbTeam
-    void $ permissionCheck ViewTeamFeature zusrMembership
+    maybe (throwS @'NotATeamMember) (const $ pure ()) zusrMembership
   case mbTeam of
     Just tid ->
       getAllFeatureConfigsTeam @db tid
@@ -371,8 +344,39 @@ getAllFeatureConfigsForTeam ::
   Sem r AllFeatureConfigs
 getAllFeatureConfigsForTeam luid tid = do
   zusrMembership <- getTeamMember tid (tUnqualified luid)
-  void $ permissionCheck ViewTeamFeature zusrMembership
+  maybe (throwS @'NotATeamMember) (const $ pure ()) zusrMembership
   getAllFeatureConfigsTeam @db tid
+
+getAllFeatureConfigsForServer ::
+  forall db r.
+  Members
+    '[ BrigAccess,
+       ErrorS 'NotATeamMember,
+       ErrorS 'TeamNotFound,
+       ErrorS OperationDenied,
+       Input Opts,
+       LegalHoldStore,
+       TeamFeatureStore db,
+       TeamStore
+     ]
+    r =>
+  FeaturePersistentAllFeatures db =>
+  Sem r AllFeatureConfigs
+getAllFeatureConfigsForServer =
+  AllFeatureConfigs
+    <$> getConfigForServer @db @LegalholdConfig
+    <*> getConfigForServer @db @SSOConfig
+    <*> getConfigForServer @db @SearchVisibilityAvailableConfig
+    <*> getConfigForServer @db @ValidateSAMLEmailsConfig
+    <*> getConfigForServer @db @DigitalSignaturesConfig
+    <*> getConfigForServer @db @AppLockConfig
+    <*> getConfigForServer @db @FileSharingConfig
+    <*> getConfigForServer @db @ClassifiedDomainsConfig
+    <*> getConfigForServer @db @ConferenceCallingConfig
+    <*> getConfigForServer @db @SelfDeletingMessagesConfig
+    <*> getConfigForServer @db @GuestLinksConfig
+    <*> getConfigForServer @db @SndFactorPasswordChallengeConfig
+    <*> getConfigForServer @db @MLSConfig
 
 getAllFeatureConfigsUser ::
   forall db r.
@@ -493,7 +497,7 @@ genericGetConfigForUser uid = do
       getConfigForServer @db
     Just tid -> do
       zusrMembership <- getTeamMember tid uid
-      void $ permissionCheck ViewTeamFeature zusrMembership
+      maybe (throwS @'NotATeamMember) (const $ pure ()) zusrMembership
       assertTeamExists tid
       genericGetConfigForTeam @db tid
 
@@ -633,17 +637,6 @@ instance GetFeatureConfig db LegalholdConfig where
         True -> FeatureStatusEnabled
         False -> FeatureStatusDisabled
     pure $ defFeatureStatus {wsStatus = status}
-
-  getConfigForUser uid = do
-    mbTeam <- getOneUserTeam uid
-    case mbTeam of
-      Nothing -> do
-        getConfigForServer @db
-      Just tid -> do
-        zusrMembership <- getTeamMember tid uid
-        void $ permissionCheck ViewTeamFeature zusrMembership
-        assertTeamExists tid
-        getConfigForTeam @db tid
 
 instance SetFeatureConfig db LegalholdConfig where
   type
