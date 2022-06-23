@@ -26,6 +26,7 @@ import Bilge.Assert
 import Cassandra
 import Control.Lens (view)
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString as BS
 import Data.Default
 import Data.Domain
 import Data.Id
@@ -85,7 +86,11 @@ tests s =
           test s "add new client of an already-present user to a conversation" testAddNewClient,
           test s "send a stale commit" testStaleCommit,
           test s "add remote user to a conversation" testAddRemoteUser,
-          test s "return error when commit is locked" testCommitLock
+          test s "return error when commit is locked" testCommitLock,
+          test s "add remote user to a conversation" testAddRemoteUser
+          -- TODO(md): have a test with a commit that references a proposal,
+          -- which then gets applied. Also have a failing test that references a
+          -- non-existing proposal.
         ],
       testGroup
         "Application Message"
@@ -107,6 +112,14 @@ tests s =
             "Remote Sender/Remote Conversation"
             [ test s "POST /federation/on-mls-message-sent" testRemoteToRemote
             ] -- all is mocked
+        ],
+      testGroup
+        "Proposal"
+        [ test s "add a new client to a non-existing conversation" propNonExistingConv,
+          test s "add a new client to an existing conversation" propExistingConv,
+          test s "add a new client in an invalid epoch" (pure ()),
+          test s "add a new client with a non-matching cipher suite" (pure ()),
+          test s "add a new client of a non-member" (pure ())
         ],
       testGroup
         "Protocol mismatch"
@@ -937,3 +950,35 @@ testRemoteToLocal = do
       resp @?= MLSMessageResponseUpdates []
       WS.assertMatch_ (5 # Second) ws $
         wsAssertMLSMessage conversation (pUserId bob) message
+
+-- | The group exists in mls-test-cli's store, but not in wire-server's database.
+propNonExistingConv :: TestM ()
+propNonExistingConv = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
+
+  let groupId = toBase64Text "test_group"
+  groupJSON <-
+    liftIO $
+      spawn (cli (pClientQid creator) tmp ["group", "create", T.unpack groupId]) Nothing
+  liftIO $ BS.writeFile (tmp </> cs groupId) groupJSON
+
+  prop <-
+    liftIO $
+      spawn
+        ( cli
+            (pClientQid creator)
+            tmp
+            [ "proposal",
+              "--group-in",
+              tmp </> cs groupId,
+              "add",
+              tmp </> pClientQid bob
+            ]
+        )
+        Nothing
+  postMessage (qUnqualified (pUserId creator)) prop !!! do
+    const 404 === statusCode
+    const (Just "no-conversation") === fmap Wai.label . responseJsonError
+
+propExistingConv :: TestM ()
+propExistingConv = error "not implemented" -- TODO implement
