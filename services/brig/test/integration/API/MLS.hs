@@ -56,8 +56,8 @@ testKeyPackageUpload :: Brig -> Http ()
 testKeyPackageUpload brig = do
   u <- userQualifiedId <$> randomUser brig
   c <- createClient brig u 0
-  withSystemTempFile "store.db" $ \store _ ->
-    uploadKeyPackages brig store SetKey u c 5
+  withSystemTempDirectory "mls" $ \tmp ->
+    uploadKeyPackages brig tmp SetKey u c 5
 
   count <- getKeyPackageCount brig u c
   liftIO $ count @?= 5
@@ -66,8 +66,8 @@ testKeyPackageUploadNoKey :: Brig -> Http ()
 testKeyPackageUploadNoKey brig = do
   u <- userQualifiedId <$> randomUser brig
   c <- createClient brig u 0
-  withSystemTempFile "store.db" $ \store _ ->
-    uploadKeyPackages brig store DontSetKey u c 5
+  withSystemTempDirectory "mls" $ \tmp ->
+    uploadKeyPackages brig tmp DontSetKey u c 5
 
   count <- getKeyPackageCount brig u c
   liftIO $ count @?= 0
@@ -86,8 +86,8 @@ testKeyPackageClaim brig = do
   [c1, c2] <- for [0, 1] $ \i -> do
     c <- createClient brig u i
     -- upload 3 key packages for each client
-    withSystemTempFile "store.db" $ \store _ ->
-      uploadKeyPackages brig store SetKey u c 3
+    withSystemTempDirectory "mls" $ \tmp ->
+      uploadKeyPackages brig tmp SetKey u c 3
     pure c
 
   -- claim packages for both clients of u
@@ -116,8 +116,8 @@ testKeyPackageSelfClaim brig = do
   [c1, c2] <- for [0, 1] $ \i -> do
     c <- createClient brig u i
     -- upload 3 key packages for each client
-    withSystemTempFile "store.db" $ \store _ ->
-      uploadKeyPackages brig store SetKey u c 3
+    withSystemTempDirectory "mls" $ \tmp ->
+      uploadKeyPackages brig tmp SetKey u c 3
     pure c
 
   -- claim own packages but skip the first

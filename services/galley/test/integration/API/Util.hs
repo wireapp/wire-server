@@ -75,12 +75,6 @@ import GHC.TypeLits (KnownSymbol)
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
--- import Galley.Types
--- import Galley.Types.Conversations.Intra
--- import Galley.Types.Conversations.One2One (one2OneConvId)
--- import Galley.Types.Conversations.Roles hiding (DeleteConversation)
--- import Galley.Types.Teams hiding (Event, EventType (..), self)
-
 import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.One2One
 import qualified Galley.Types.Teams as Team
