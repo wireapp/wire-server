@@ -287,7 +287,6 @@ takeLastPrekey = do
 -- message.
 aliceInvitesBob :: HasCallStack => (Int, UserOrigin) -> SetupOptions -> TestM MessagingSetup
 aliceInvitesBob bobConf opts@SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
-  -- let tmp = "/tmp/mls"
   (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp opts [bobConf]
   -- create a group
   conversation <- setupGroup tmp createConv alice "group"
