@@ -73,9 +73,9 @@ IMPORTANT: If you switch this back to `disabled-permanently` from
 that have created them while it was allowed.  This may change in the
 future.
 
-### Team Feature teamSearchVisibility
+### Team searchVisibility
 
-The feature flag `teamSearchVisibility` affects the outbound search of user
+The team flag `searchVisibility` affects the outbound search of user
 searches. If it is set to `no-name-outside-team` for a team then all users of
 that team will no longer be able to find users that are not part of their team
 when searching. This also includes finding other users by by providing their
@@ -96,6 +96,9 @@ pull-down-menu "body":
   "no-name-outside-team"
 ```
 
+The team feature flag `teamSearchVisibility` determines whether it is allowed to change the `searchVisibility` setting or not.
+The default is `disabled-by-default`. Note that whenever this feature setting is disabled the `searchVisibility` will be reset to `standard`.
+
 The default setting that applies to all teams on the instance can be defined at configuration
 
 ```yaml
@@ -103,10 +106,6 @@ settings:
   featureFlags:
     teamSearchVisibility: disabled-by-default # or enabled-by-default
 ```
-
-where disabled is equivalent to `standard` and enabled is equivalent to `no-name-outside-team`. Individual teams may ovewrite the default setting.
-
-On wire cloud the default setting is `standard`.
 
 ### TeamFeature searchVisibilityInbound
 
