@@ -37,6 +37,7 @@ import qualified Gundeck.Env as Env
 import Gundeck.Monad
 import Gundeck.Options
 import Gundeck.React
+import qualified Gundeck.Redis as Redis
 import Gundeck.ThreadBudget
 import Imports hiding (head)
 import Network.Wai as Wai
@@ -66,7 +67,8 @@ run o = do
     Async.cancel lst
     Async.cancel wCollectAuth
     forM_ wtbs Async.cancel
-    Redis.disconnect (e ^. rstate)
+    Redis.disconnect . (^. Redis.rrConnection) =<< takeMVar (e ^. rstate)
+    maybe (pure ()) ((=<<) (Redis.disconnect . (^. Redis.rrConnection)) . takeMVar) (e ^. rstateAdditionalWrite)
     Log.close (e ^. applog)
   where
     middleware :: Env -> Wai.Middleware
