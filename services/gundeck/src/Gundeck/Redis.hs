@@ -108,15 +108,15 @@ connectRobust l retryStrategy connectLowLevel = do
 -- Without externally enforcing timeouts, this may lead to leaking threads.
 runRobust :: RobustConnection -> Redis a -> IO a
 runRobust mvar action = do
-  reconnectingRedis <- readMVar mvar
+  robustConnection <- readMVar mvar
   catches
-    (runRedis (_rrConnection reconnectingRedis) action)
-    [ Handler (\(_ :: ConnectionLostException) -> reconnectRetry reconnectingRedis), -- Redis connection lost during request
-      Handler (\(_ :: IOException) -> reconnectRetry reconnectingRedis) -- Redis unreachable
+    (runRedis (_rrConnection robustConnection) action)
+    [ Handler (\(_ :: ConnectionLostException) -> reconnectRetry robustConnection), -- Redis connection lost during request
+      Handler (\(_ :: IOException) -> reconnectRetry robustConnection) -- Redis unreachable
     ]
   where
-    reconnectRetry reconnectingRedis = do
-      _rrReconnect reconnectingRedis
+    reconnectRetry robustConnection = do
+      _rrReconnect robustConnection
       runRobust mvar action
 
 logEx :: Show e => ((Msg -> Msg) -> IO ()) -> e -> ByteString -> IO ()
