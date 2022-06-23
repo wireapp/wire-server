@@ -22,19 +22,6 @@
 module Galley.Types.Conversations.Roles
   ( isActionAllowed,
     roleNameToActions,
-
-    -- * re-exports
-    ConversationRole,
-    convRoleWireAdmin,
-    convRoleWireMember,
-    wireConvRoles,
-    RoleName,
-    roleNameWireAdmin,
-    roleNameWireMember,
-    wireConvRoleNames,
-    Action (..),
-    Actions (..),
-    ConversationRolesList (..),
   )
 where
 

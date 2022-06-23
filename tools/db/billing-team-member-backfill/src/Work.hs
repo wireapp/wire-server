@@ -27,10 +27,10 @@ import Data.Conduit.Internal (zipSources)
 import qualified Data.Conduit.List as C
 import Data.Id
 import qualified Data.Set as Set
-import Galley.Types.Teams
 import Imports
 import System.Logger (Logger)
 import qualified System.Logger as Log
+import Wire.API.Team.Permission
 
 runCommand :: Logger -> ClientState -> IO ()
 runCommand l galley =

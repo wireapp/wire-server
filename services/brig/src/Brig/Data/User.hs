@@ -94,8 +94,8 @@ import Data.Qualified
 import Data.Range (fromRange)
 import Data.Time (addUTCTime)
 import Data.UUID.V4
-import Galley.Types.Bot
 import Imports
+import Wire.API.Provider.Service
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User.RichInfo
 

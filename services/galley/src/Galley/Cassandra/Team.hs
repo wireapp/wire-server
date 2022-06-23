@@ -51,19 +51,16 @@ import Galley.Effects.TeamStore (TeamStore (..))
 import Galley.Env
 import Galley.Monad
 import Galley.Options
-import Galley.Types.Teams hiding
-  ( DeleteTeam,
-    GetTeamConversations,
-    SetTeamData,
-  )
-import qualified Galley.Types.Teams as Teams
+import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Imports hiding (Set, max)
 import Polysemy
 import Polysemy.Input
 import qualified UnliftIO
-import Wire.API.Team (Icon (..))
+import Wire.API.Team
+import Wire.API.Team.Conversation
 import Wire.API.Team.Member
+import Wire.API.Team.Permission (Perm (SetBilling), Permissions, self)
 
 interpretTeamStoreToCassandra ::
   Members '[Embed IO, Input Env, Input ClientState] r =>
@@ -233,7 +230,7 @@ updateTeamMember oldPerms tid uid newPerms = do
     when (SetBilling `Set.member` lostPerms) $
       addPrepQuery Cql.deleteBillingTeamMember (tid, uid)
   where
-    permDiff = Set.difference `on` view Teams.self
+    permDiff = Set.difference `on` view self
     acquiredPerms = newPerms `permDiff` oldPerms
     lostPerms = oldPerms `permDiff` newPerms
 

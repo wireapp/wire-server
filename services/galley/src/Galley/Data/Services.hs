@@ -25,9 +25,9 @@ module Galley.Data.Services
 where
 
 import Data.Id
-import Galley.Types hiding (Conversation)
-import Galley.Types.Bot
+import Galley.Types.Conversations.Members
 import Imports
+import Wire.API.Provider.Service
 
 -- BotMember ------------------------------------------------------------------
 

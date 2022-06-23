@@ -31,11 +31,11 @@ import Brig.Types
 import qualified Data.CaseInsensitive as CI
 import qualified Data.List1 as List1
 import qualified Data.Text as Text
-import qualified Galley.Types.Teams as Team
 import Imports
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util
+import Wire.API.Team.Permission
 import Wire.API.User.RichInfo
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
@@ -56,8 +56,8 @@ testDefaultRichInfo :: Brig -> Galley -> Http ()
 testDefaultRichInfo brig galley = do
   -- Create a team with two users
   (owner, tid) <- createUserWithTeam brig
-  member1 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
-  member2 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
+  member1 <- userId <$> createTeamMember brig galley owner tid noPermissions
+  member2 <- userId <$> createTeamMember brig galley owner tid noPermissions
   -- The first user should see the second user's rich info and it should be empty
   richInfo <- getRichInfo brig member1 member2
   liftIO $
@@ -69,8 +69,8 @@ testDefaultRichInfo brig galley = do
 testDeleteMissingFieldsInUpdates :: Brig -> Galley -> Http ()
 testDeleteMissingFieldsInUpdates brig galley = do
   (owner, tid) <- createUserWithTeam brig
-  member1 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
-  member2 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
+  member1 <- userId <$> createTeamMember brig galley owner tid noPermissions
+  member2 <- userId <$> createTeamMember brig galley owner tid noPermissions
   let superset =
         mkRichInfoAssocList
           [ RichField "department" "blue",
@@ -88,8 +88,8 @@ testDeleteMissingFieldsInUpdates brig galley = do
 testDeleteEmptyFields :: Brig -> Galley -> Http ()
 testDeleteEmptyFields brig galley = do
   (owner, tid) <- createUserWithTeam brig
-  member1 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
-  member2 <- userId <$> createTeamMember brig galley owner tid Team.noPermissions
+  member1 <- userId <$> createTeamMember brig galley owner tid noPermissions
+  member2 <- userId <$> createTeamMember brig galley owner tid noPermissions
   let withEmpty =
         mkRichInfoAssocList
           [ RichField "department" ""

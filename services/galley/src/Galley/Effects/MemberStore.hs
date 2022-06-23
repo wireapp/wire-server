@@ -47,13 +47,13 @@ where
 import Data.Id
 import Data.Qualified
 import Galley.Data.Services
-import Galley.Types.Bot
 import Galley.Types.Conversations.Members
 import Galley.Types.ToUserRole
 import Galley.Types.UserList
 import Imports
 import Polysemy
 import Wire.API.Conversation.Member hiding (Member)
+import Wire.API.Provider.Service
 
 data MemberStore m a where
   CreateMembers :: ToUserRole u => ConvId -> UserList u -> MemberStore m ([LocalMember], [RemoteMember])

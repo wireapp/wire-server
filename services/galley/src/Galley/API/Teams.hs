@@ -109,11 +109,9 @@ import qualified Galley.Effects.TeamStore as E
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
 import Galley.Options
-import qualified Galley.Types as Conv
-import Galley.Types.Conversations.Roles as Roles
-import Galley.Types.Teams hiding (newTeam)
+import qualified Galley.Types.Conversations.Members as Conv
+import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SearchVisibility
 import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Network.Wai
@@ -127,19 +125,28 @@ import Polysemy.Output
 import qualified Polysemy.TinyLog as P
 import qualified SAML2.WebSSO as SAML
 import qualified System.Logger.Class as Log
+import Wire.API.Conversation.Role (Action (DeleteConversation), wireConvRoles)
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
+import qualified Wire.API.Event.Conversation as Conv
+import Wire.API.Event.Team
 import Wire.API.Federation.Error
+import qualified Wire.API.Message as Conv
 import qualified Wire.API.Notification as Public
 import Wire.API.Routes.Public.Galley
+import Wire.API.Team
 import qualified Wire.API.Team as Public
+import Wire.API.Team.Conversation
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
 import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
-import Wire.API.Team.Member (TeamMemberOptPerms, ntmNewTeamMember, setOptionalPerms, setOptionalPermsMany)
+import Wire.API.Team.Member (HardTruncationLimit, ListType (ListComplete, ListTruncated), NewTeamMember, TeamMember, TeamMemberList, TeamMemberListOptPerms, TeamMemberOptPerms, hardTruncationLimit, invitation, nPermissions, nUserId, newTeamMemberList, ntmNewTeamMember, permissions, setOptionalPerms, setOptionalPermsMany, teamMemberListType, teamMembers, tmdAuthPassword, userId)
 import qualified Wire.API.Team.Member as Public
+import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, fullPermissions, self)
+import Wire.API.Team.Role
+import Wire.API.Team.SearchVisibility
 import qualified Wire.API.Team.SearchVisibility as Public
 import Wire.API.User (User, UserIdList, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
 import qualified Wire.API.User as U

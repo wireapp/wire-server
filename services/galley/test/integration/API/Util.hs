@@ -75,12 +75,14 @@ import GHC.TypeLits (KnownSymbol)
 import Galley.Intra.User (chunkify)
 import qualified Galley.Options as Opts
 import qualified Galley.Run as Run
-import Galley.Types
-import qualified Galley.Types as Conv
+-- import Galley.Types
+-- import Galley.Types.Conversations.Intra
+-- import Galley.Types.Conversations.One2One (one2OneConvId)
+-- import Galley.Types.Conversations.Roles hiding (DeleteConversation)
+-- import Galley.Types.Teams hiding (Event, EventType (..), self)
+
 import Galley.Types.Conversations.Intra
-import Galley.Types.Conversations.One2One (one2OneConvId)
-import Galley.Types.Conversations.Roles hiding (DeleteConversation)
-import Galley.Types.Teams hiding (Event, EventType (..), self)
+import Galley.Types.Conversations.One2One
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra
 import Galley.Types.UserList
@@ -106,7 +108,11 @@ import Util.Options
 import Web.Cookie
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
+import qualified Wire.API.Event.Conversation as Conv
+import Wire.API.Event.Team
 import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
@@ -128,12 +134,15 @@ import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.MultiTablePaging
-import Wire.API.Team (Icon (..))
+import Wire.API.Team
 import Wire.API.Team.Feature
-import Wire.API.Team.Member (mkNewTeamMember)
+import Wire.API.Team.Member
+import qualified Wire.API.Team.Member as Team
+import Wire.API.Team.Permission hiding (self)
+import Wire.API.Team.Role
+import Wire.API.User
 import Wire.API.User.Client
 import qualified Wire.API.User.Client as Client
-import Wire.API.User.Identity (mkSimpleSampleUref)
 
 -------------------------------------------------------------------------------
 -- API Operations
@@ -178,7 +187,7 @@ createBindingTeamWithMembers numUsers = do
     -- refreshing the index once at the end would be that the hard member limit wouldn't hold
     -- any more.
     refreshIndex
-    pure $ view Galley.Types.Teams.userId mem
+    pure $ view Team.userId mem
 
   pure (tid, owner, members)
 
@@ -212,7 +221,7 @@ createBindingTeamWithNMembersWithHandles withHandles n = do
   setHandle owner
   mems <- replicateM n $ do
     member1 <- randomUser
-    addTeamMemberInternal tid member1 (rolePermissions RoleMember) Nothing
+    addTeamMemberInternal tid member1 (Team.rolePermissions RoleMember) Nothing
     setHandle member1
     pure member1
   SQS.ensureQueueEmpty
@@ -1611,7 +1620,7 @@ assertMLSMessageEvent ::
   Qualified ConvId ->
   Qualified UserId ->
   ByteString ->
-  Event ->
+  Conv.Event ->
   IO ()
 assertMLSMessageEvent conv u message e = do
   evtConv e @?= conv
@@ -1629,7 +1638,7 @@ wsAssertMemberJoinWithRole conv usr new role n = do
   ntfTransient n @?= False
   assertJoinEvent conv usr new role e
 
-assertJoinEvent :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> RoleName -> Event -> IO ()
+assertJoinEvent :: Qualified ConvId -> Qualified UserId -> [Qualified UserId] -> RoleName -> Conv.Event -> IO ()
 assertJoinEvent conv usr new role e = do
   evtConv e @?= conv
   evtType e @?= Conv.MemberJoin
@@ -1657,7 +1666,7 @@ assertLeaveEvent ::
   Qualified ConvId ->
   Qualified UserId ->
   [Qualified UserId] ->
-  Event ->
+  Conv.Event ->
   IO ()
 assertLeaveEvent conv usr leaving e = do
   evtConv e @?= conv
@@ -1980,7 +1989,7 @@ randomUserProfile' isCreator hasPassword hasEmail = do
           ["name" .= fromEmail e]
             <> ["password" .= defPassword | hasPassword]
             <> ["email" .= fromEmail e | hasEmail]
-            <> ["team" .= Team.BindingNewTeam (Team.newNewTeam (unsafeRange "teamName") DefaultIcon) | isCreator]
+            <> ["team" .= BindingNewTeam (newNewTeam (unsafeRange "teamName") DefaultIcon) | isCreator]
   responseJsonUnsafe <$> (post (b . path "/i/users" . json p) <!! const 201 === statusCode)
 
 ephemeralUser :: HasCallStack => TestM UserId

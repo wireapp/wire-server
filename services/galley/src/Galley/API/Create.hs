@@ -53,7 +53,7 @@ import qualified Galley.Effects.TeamStore as E
 import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
-import Galley.Types.Teams (ListType (..), Perm (..), TeamBinding (Binding), notTeamMember)
+import Galley.Types.Teams (notTeamMember)
 import Galley.Types.ToUserRole
 import Galley.Types.UserList
 import Galley.Validation
@@ -70,7 +70,10 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.Error
 import Wire.API.Routes.Public.Galley (ConversationResponse)
 import Wire.API.Routes.Public.Util
+import Wire.API.Team
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
+import Wire.API.Team.Member
+import Wire.API.Team.Permission hiding (self)
 
 ----------------------------------------------------------------------------
 -- Group conversations

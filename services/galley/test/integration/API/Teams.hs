@@ -60,11 +60,9 @@ import qualified Data.Vector as V
 import GHC.TypeLits (KnownSymbol)
 import qualified Galley.Env as Galley
 import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
-import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SearchVisibility
 import Imports
 import Network.HTTP.Types.Status (status403)
 import qualified Network.Wai.Utilities.Error as Error
@@ -79,13 +77,20 @@ import Test.Tasty.HUnit
 import TestHelpers (test, viewFederationDomain)
 import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
+import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role
+import Wire.API.Event.Team
 import Wire.API.Internal.Notification hiding (target)
-import Wire.API.Team (Icon (..))
+import Wire.API.Team
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Member
 import qualified Wire.API.Team.Member as Member
 import qualified Wire.API.Team.Member as TM
+import Wire.API.Team.Permission
+import Wire.API.Team.Role
+import Wire.API.Team.SearchVisibility
 import qualified Wire.API.User as Public
 import qualified Wire.API.User as U
 import qualified Wire.API.User.Client as C

@@ -68,11 +68,8 @@ import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer (FederatedRequest (..), MockException (..))
 import Galley.API.Mapping
 import Galley.Options (optFederator)
-import Galley.Types hiding (LocalMember (..))
 import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.Members
-import Galley.Types.Conversations.Roles
-import qualified Galley.Types.Teams as Teams
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Network.Wai.Utilities.Error
@@ -87,16 +84,21 @@ import TestSetup
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role
+import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Internal.Notification
+import Wire.API.Message
 import qualified Wire.API.Message as Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Named
 import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.Team.Member as Teams
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
 

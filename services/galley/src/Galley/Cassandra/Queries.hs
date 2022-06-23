@@ -29,16 +29,16 @@ import Data.LegalHold
 import Data.Misc
 import qualified Data.Text.Lazy as LT
 import Galley.Data.Scope
-import Galley.Types hiding (Conversation)
-import Galley.Types.Conversations.Roles
-import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SearchVisibility
 import Imports
 import Text.RawString.QQ
 import Wire.API.Asset (AssetKey)
+import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role
 import Wire.API.Team
+import Wire.API.Team.Permission
+import Wire.API.Team.SearchVisibility
 
 -- Teams --------------------------------------------------------------------
 

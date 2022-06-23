@@ -30,6 +30,7 @@ import Network.HTTP.Types.Method
 import Spar.Error
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature
+import Wire.API.Team.Member
 
 ----------------------------------------------------------------------
 

@@ -20,82 +20,14 @@
 module Galley.Types
   ( foldrOtrRecipients,
     Accept (..),
-
-    -- * re-exports
-    ConversationMetadata (..),
-    Conversation (..),
-    cnvType,
-    cnvCreator,
-    cnvAccess,
-    cnvAccessRoles,
-    cnvName,
-    cnvTeam,
-    cnvMessageTimer,
-    cnvReceiptMode,
-    RemoteMember (..),
-    LocalMember (..),
-    ConvMembers (..),
-    OtherMember (..),
-    Connect (..),
-    NewOtrMessage (..),
-    ClientMismatch (..),
-    OtrRecipients (..),
-    OtrFilterMissing (..),
-    ConvTeamInfo (..),
-    ConversationCode (..),
-    mkConversationCode,
-    Event (..),
-    EventType (..),
-    EventData (..),
-    UserIdList (..),
-    QualifiedUserIdList (..),
-    SimpleMember (..),
-    SimpleMembers (..),
-    MemberUpdateData (..),
-    TypingData (..),
-    OtrMessage (..),
-    Access (..),
-    AccessRoleV2 (..),
-    AccessRoleLegacy (..),
-    ConversationList (..),
-    ConversationRename (..),
-    ConversationAccessData (..),
-    ConversationReceiptModeUpdate (..),
-    ConversationMessageTimerUpdate (..),
-    ConvType (..),
-    CustomBackend (..),
-    Invite (..),
-    NewConv (..),
-    MemberUpdate (..),
-    OtherMemberUpdate (..),
-    MutedStatus (..),
-    ReceiptMode (..),
-    Protocol (..),
-    ProtocolTag (..),
-    GroupId (..),
-    TypingStatus (..),
-    UserClientMap (..),
-    UserClients (..),
-    filterClients,
-    newInvite,
-    memberUpdate,
   )
 where
 
 import Data.Aeson
 import Data.Id (ClientId, UserId)
 import qualified Data.Map.Strict as Map
-import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..))
 import Imports
-import Wire.API.Conversation hiding (Member (..))
-import Wire.API.Conversation.Code
-import Wire.API.Conversation.Protocol
-import Wire.API.Conversation.Typing
-import Wire.API.CustomBackend
-import Wire.API.Event.Conversation
 import Wire.API.Message
-import Wire.API.User (UserIdList (..))
-import Wire.API.User.Client
 
 --------------------------------------------------------------------------------
 -- Accept

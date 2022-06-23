@@ -46,7 +46,6 @@ import qualified Database.Bloodhound as ES
 import qualified Federator.MockServer as Mock
 import Foreign.C.Error (Errno (..), eCONNREFUSED)
 import GHC.IO.Exception (IOException (ioe_errno))
-import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Media

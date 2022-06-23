@@ -51,7 +51,6 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Database.Bloodhound as ES
 import Federation.Util
-import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.ReverseProxy (waiProxyTo)
@@ -70,6 +69,7 @@ import UnliftIO (Concurrently (..), async, bracket, cancel, runConcurrently)
 import Util
 import Wire.API.Federation.API.Brig (SearchResponse (SearchResponse))
 import Wire.API.Team.Feature
+import Wire.API.Team.SearchVisibility
 import Wire.API.User.Search (FederatedUserSearchPolicy (ExactHandleSearch, FullSearch))
 import qualified Wire.API.User.Search as Search
 
@@ -142,7 +142,7 @@ tests opts mgr galley brig = do
     prepareUsersForSearchVisibilityNoNameOutsideTeamTests = do
       (tidA, ownerA, (memberA : _)) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
       setTeamTeamSearchVisibilityAvailable galley tidA FeatureStatusEnabled
-      setTeamSearchVisibility galley tidA Team.SearchVisibilityNoNameOutsideTeam
+      setTeamSearchVisibility galley tidA SearchVisibilityNoNameOutsideTeam
       (tidB, ownerB, (memberB : _)) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
       regularUser <- randomUserWithHandle brig
       refreshIndex brig
@@ -726,7 +726,7 @@ optsForOldIndex opts = do
 
 createIndexWithMapping :: MonadIO m => Opt.Opts -> Text -> Value -> m ()
 createIndexWithMapping opts name val = do
-  let indexName = (ES.IndexName name)
+  let indexName = ES.IndexName name
   createReply <- runBH opts $ ES.createIndexWith [ES.AnalysisSetting analysisSettings] 1 indexName
   unless (ES.isCreated createReply || ES.isSuccess createReply) $ do
     liftIO $ assertFailure $ "failed to create index: " <> show name <> " with error: " <> show createReply

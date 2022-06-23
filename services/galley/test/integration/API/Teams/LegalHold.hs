@@ -91,6 +91,9 @@ import Wire.API.Internal.Notification (ntfPayload)
 import qualified Wire.API.Message as Msg
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Member
+import Wire.API.Team.Permission
+import Wire.API.Team.Role
 import Wire.API.User (UserProfile (..))
 import Wire.API.User.Client (UserClients (..), UserClientsFull (userClientsFull))
 import qualified Wire.API.User.Client as Client

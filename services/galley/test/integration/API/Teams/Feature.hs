@@ -55,6 +55,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature (FeatureStatus (..), FeatureTTL (..), LockStatus (LockStatusUnlocked), MLSConfig (MLSConfig))
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Role
 
 tests :: IO TestSetup -> TestTree
 tests s =

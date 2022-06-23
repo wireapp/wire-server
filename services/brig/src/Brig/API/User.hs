@@ -163,8 +163,10 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
+import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Feature (forgetLock)
-import Wire.API.Team.Member (legalHoldStatus)
+import Wire.API.Team.Member (TeamMember, legalHoldStatus)
+import Wire.API.Team.Role
 import Wire.API.User
 
 data AllowSCIMUpdates
@@ -364,7 +366,7 @@ createUser new = do
       ok <- lift . wrapClient $ Data.claimKey uk uid
       unless ok $
         throwE RegisterErrorUserKeyExists
-      let minvmeta :: (Maybe (UserId, UTCTimeMillis), Team.Role)
+      let minvmeta :: (Maybe (UserId, UTCTimeMillis), Role)
           minvmeta = ((,inCreatedAt inv) <$> inCreatedBy inv, Team.inRole inv)
       added <- lift $ wrapHttp $ Intra.addTeamMember uid (Team.iiTeam ii) minvmeta
       unless added $
@@ -383,7 +385,7 @@ createUser new = do
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
     addUserToTeamSSO account tid ident = do
       let uid = userId (accountUser account)
-      added <- lift $ wrapHttp $ Intra.addTeamMember uid tid (Nothing, Team.defaultRole)
+      added <- lift $ wrapHttp $ Intra.addTeamMember uid tid (Nothing, defaultRole)
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
@@ -930,8 +932,8 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
         -- user has 'userTeam' set, it must be binding.
         case mbTeam of
           Just team
-            | team ^. Team.teamCreator == uid ->
-              sendTeamActivationMail em name p loc' (team ^. Team.teamName)
+            | team ^. teamCreator == uid ->
+              sendTeamActivationMail em name p loc' (team ^. teamName)
           _otherwise ->
             sendActivationMail em name p loc' ident
 
@@ -1350,7 +1352,7 @@ lookupLocalProfiles requestingUser others = do
     toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
 
-    getSelfInfo :: UserId -> m (Maybe (TeamId, Team.TeamMember))
+    getSelfInfo :: UserId -> m (Maybe (TeamId, TeamMember))
     getSelfInfo selfId = do
       -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
       -- to return 'Nothing'.  we could throw errors here if that happens, rather than just
@@ -1401,7 +1403,7 @@ getLegalHoldStatus' user =
 
 data EmailVisibility'
   = EmailVisibleIfOnTeam'
-  | EmailVisibleIfOnSameTeam' (Maybe (TeamId, Team.TeamMember))
+  | EmailVisibleIfOnSameTeam' (Maybe (TeamId, TeamMember))
   | EmailVisibleToSelf'
 
 -- | Gets the email if it's visible to the requester according to configured settings

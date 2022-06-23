@@ -62,8 +62,7 @@ import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
 import Galley.Effects.TeamStore (getLegalHoldFlag, getOneUserTeam, getTeam, getTeamMember)
 import Galley.Intra.Push (PushEvent (FeatureConfigEvent), newPush)
 import Galley.Options
-import Galley.Types.Conversations.Roles (Action (RemoveConversationMember))
-import Galley.Types.Teams hiding (newTeam)
+import Galley.Types.Teams
 import Imports
 import Polysemy
 import Polysemy.Error
@@ -71,11 +70,13 @@ import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Log
 import Wire.API.Conversation (cnvmTeam)
+import Wire.API.Conversation.Role (Action (RemoveConversationMember))
 import Wire.API.Error (ErrorS, throwS)
 import Wire.API.Error.Galley
 import qualified Wire.API.Event.FeatureConfig as Event
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature
+import Wire.API.Team.Member
 
 data DoAuth = DoAuth UserId | DontDoAuth
 

@@ -163,7 +163,7 @@ import Data.UUID as UUID hiding (fromByteString, null)
 import Data.UUID.V4 as UUID (nextRandom)
 import qualified Data.Yaml as Yaml
 import GHC.TypeLits
-import qualified Galley.Types.Teams as Galley
+import Galley.Types.Teams (rolePermissions)
 import qualified Galley.Types.Teams as Teams
 import Imports hiding (head)
 import Network.HTTP.Client.MultipartFormData
@@ -196,9 +196,14 @@ import Util.Options
 import Util.Types
 import qualified Web.Cookie as Web
 import Wire.API.Team (Icon (..))
+import qualified Wire.API.Team as Galley
 import Wire.API.Team.Feature (FeatureStatus (..), FeatureTrivialConfig (trivialConfig), SSOConfig, WithStatusNoLock (WithStatusNoLock))
 import qualified Wire.API.Team.Invitation as TeamInvitation
+import Wire.API.Team.Member (NewTeamMember, TeamMemberList)
 import qualified Wire.API.Team.Member as Member
+import qualified Wire.API.Team.Member as Team
+import Wire.API.Team.Permission
+import Wire.API.Team.Role
 import qualified Wire.API.Team.Role as Role
 import Wire.API.User (HandleUpdate (HandleUpdate), UserUpdate)
 import qualified Wire.API.User as User
@@ -462,7 +467,7 @@ createTeamMember ::
   BrigReq ->
   GalleyReq ->
   TeamId ->
-  Galley.Permissions ->
+  Permissions ->
   m UserId
 createTeamMember brigreq galleyreq teamid perms = do
   let randomtxt = liftIO $ UUID.toText <$> UUID.nextRandom
@@ -484,7 +489,7 @@ addTeamMember ::
   (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) =>
   GalleyReq ->
   TeamId ->
-  Galley.NewTeamMember ->
+  NewTeamMember ->
   m ()
 addTeamMember galleyreq tid mem =
   void $
@@ -585,7 +590,7 @@ getTeams u gly = do
   pure $ responseJsonUnsafe r
 
 getTeamMemberIds :: HasCallStack => UserId -> TeamId -> TestSpar [UserId]
-getTeamMemberIds usr tid = (^. Galley.userId) <$$> getTeamMembers usr tid
+getTeamMemberIds usr tid = (^. Team.userId) <$$> getTeamMembers usr tid
 
 getTeamMembers :: HasCallStack => UserId -> TeamId -> TestSpar [Member.TeamMember]
 getTeamMembers usr tid = do
@@ -594,15 +599,15 @@ getTeamMembers usr tid = do
     call $
       get (gly . paths ["teams", toByteString' tid, "members"] . zUser usr)
         <!! const 200 === statusCode
-  let mems :: Galley.TeamMemberList
+  let mems :: TeamMemberList
       Right mems = responseJsonEither resp
-  pure $ mems ^. Galley.teamMembers
+  pure $ mems ^. Team.teamMembers
 
 promoteTeamMember :: HasCallStack => UserId -> TeamId -> UserId -> TestSpar ()
 promoteTeamMember usr tid memid = do
   gly <- view teGalley
-  let bdy :: Galley.NewTeamMember
-      bdy = Member.mkNewTeamMember memid Galley.fullPermissions Nothing
+  let bdy :: NewTeamMember
+      bdy = Member.mkNewTeamMember memid fullPermissions Nothing
   call $
     put (gly . paths ["teams", toByteString' tid, "members"] . zAuthAccess usr "conn" . json bdy)
       !!! const 200 === statusCode
@@ -1228,7 +1233,7 @@ stdInvitationRequest :: User.Email -> TeamInvitation.InvitationRequest
 stdInvitationRequest = stdInvitationRequest' Nothing Nothing
 
 -- | copied from brig integration tests
-stdInvitationRequest' :: Maybe User.Locale -> Maybe Galley.Role -> User.Email -> TeamInvitation.InvitationRequest
+stdInvitationRequest' :: Maybe User.Locale -> Maybe Role -> User.Email -> TeamInvitation.InvitationRequest
 stdInvitationRequest' loc role email =
   TeamInvitation.InvitationRequest loc role Nothing email Nothing
 
@@ -1272,7 +1277,7 @@ updateTeamMemberRole tid adminUid targetUid role = do
       . zUser adminUid
       . zConn "user"
       . paths ["teams", toByteString' tid, "members"]
-      . json (Member.mkNewTeamMember targetUid (Galley.rolePermissions role) Nothing)
+      . json (Member.mkNewTeamMember targetUid (rolePermissions role) Nothing)
       . expect2xx
 
 -- https://wearezeta.atlassian.net/browse/SQSERVICES-1279: change role after successful creation/activation.

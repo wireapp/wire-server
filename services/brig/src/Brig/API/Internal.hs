@@ -66,7 +66,6 @@ import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Qualified
 import qualified Data.Set as Set
-import Galley.Types (UserClients (..))
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
@@ -84,6 +83,7 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.Message (UserClients (UserClients))
 import Wire.API.Routes.Internal.Brig (NewKeyPackageRef)
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
