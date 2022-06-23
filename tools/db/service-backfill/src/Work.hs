@@ -32,6 +32,7 @@ import Imports
 import System.Logger (Logger)
 import qualified System.Logger as Log
 import UnliftIO.Async (pooledMapConcurrentlyN)
+import Wire.API.User
 
 deriving instance Cql Name
 
