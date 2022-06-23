@@ -10,11 +10,18 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     export SODIUM_USE_PKG_CONFIG=1 && \
     cargo build --release
 
-# compile core-crypto cli tool
+# FUTUREWORK: remove core-crypto once #2508 is merged
+# compile legacy core-crypto cli tool
 RUN cd /tmp && \
   apt-get install -y libssl-dev && \
   git clone -b cli https://github.com/wireapp/core-crypto && \
   cd core-crypto/cli && \
+  cargo build --release
+
+# compile mls-test-cli tool
+RUN cd /tmp &&
+  git clone https://github.com/wireapp/mls-test-cli && \
+  cd mls-test-cli && \
   cargo build --release
 
 # Minimal dependencies for ubuntu-compiled, dynamically linked wire-server Haskell services
@@ -22,8 +29,10 @@ FROM ubuntu:20.04
 
 COPY --from=cryptobox-builder /tmp/cryptobox-c/target/release/libcryptobox.so /usr/lib
 
-# FUTUREWORK: only copy crypto-cli executable if we are building an integration test image
+# FUTUREWORK: only copy crypto-cli and mls-test-cli executables if we are building an
+# integration test image
 COPY --from=cryptobox-builder /tmp/core-crypto/cli/target/release/crypto-cli /usr/bin
+COPY --from=cryptobox-builder /tmp/mls-test-cli/target/release/mls-test-cli /usr/bin
 
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update && \
