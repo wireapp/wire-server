@@ -15,9 +15,17 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V68_MLSCommitLock where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 68
+migration :: Migration
+migration =
+  Migration 68 "Add lock table for MLS commits" $
+    schema'
+      [r| CREATE TABLE mls_commit_locks ADD (
+          conv uuid
+        )
+     |]

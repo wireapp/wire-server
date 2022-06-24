@@ -625,6 +625,7 @@ executable galley-schema
       V65_MLSRemoteClients
       V66_AddSplashScreen
       V67_MLSFeature
+      V68_MLSCommitLock
       Paths_galley
   hs-source-dirs:
       schema/src
