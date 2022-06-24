@@ -817,7 +817,8 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcSelfDeletingMessages :: WithStatus SelfDeletingMessagesConfig,
     afcGuestLink :: WithStatus GuestLinksConfig,
     afcSndFactorPasswordChallenge :: WithStatus SndFactorPasswordChallengeConfig,
-    afcMLS :: WithStatus MLSConfig
+    afcMLS :: WithStatus MLSConfig,
+    afcSearchVisibilityInboundConfig :: WithStatus SearchVisibilityInboundConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -839,6 +840,7 @@ instance ToSchema AllFeatureConfigs where
         <*> afcGuestLink .= featureField
         <*> afcSndFactorPasswordChallenge .= featureField
         <*> afcMLS .= featureField
+        <*> afcSearchVisibilityInboundConfig .= featureField
     where
       featureField ::
         forall cfg.
@@ -850,6 +852,7 @@ instance Arbitrary AllFeatureConfigs where
   arbitrary =
     AllFeatureConfigs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

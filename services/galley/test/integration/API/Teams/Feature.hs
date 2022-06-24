@@ -26,7 +26,7 @@ import Bilge.Assert
 import Cassandra as Cql
 import Control.Lens (over, to, view)
 import Control.Monad.Catch (MonadCatch)
-import Data.Aeson (FromJSON, ToJSON, object, (.=))
+import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
@@ -42,7 +42,7 @@ import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
 import Imports
 import Network.Wai.Utilities (label)
-import Test.Hspec (expectationFailure, shouldBe)
+import Test.Hspec (expectationFailure)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit (assertFailure, (@?=))
@@ -93,7 +93,8 @@ tests s =
           test s "reduce" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 5) (FeatureTTLSeconds 1),
           test s "Unlimited to unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled FeatureTTLUnlimited FeatureTTLUnlimited
         ],
-      test s "MLS feature config" testMLS
+      test s "MLS feature config" testMLS,
+      test s "SearchVisibilityInbound" $ testSimpleFlag @Public.SearchVisibilityInboundConfig Public.FeatureStatusDisabled
     ]
 
 testSSO :: TestM ()
@@ -108,7 +109,9 @@ testSSO = do
   let getSSO :: HasCallStack => Public.FeatureStatus -> TestM ()
       getSSO = assertFlagNoConfig @Public.SSOConfig $ Util.getTeamFeatureFlag @Public.SSOConfig member tid
       getSSOFeatureConfig :: HasCallStack => Public.FeatureStatus -> TestM ()
-      getSSOFeatureConfig = assertFlagNoConfig @Public.SSOConfig $ Util.getFeatureConfig @Public.SSOConfig member
+      getSSOFeatureConfig expectedStatus = do
+        actual <- Util.getFeatureConfig @Public.SSOConfig member
+        liftIO $ Public.wsStatus actual @?= expectedStatus
       getSSOInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
       getSSOInternal = assertFlagNoConfig @Public.SSOConfig $ Util.getTeamFeatureFlagInternal @Public.SSOConfig tid
       setSSOInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
@@ -149,7 +152,9 @@ testLegalHold = do
       getLegalHold = assertFlagNoConfig @Public.LegalholdConfig $ Util.getTeamFeatureFlag @Public.LegalholdConfig member tid
       getLegalHoldInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
       getLegalHoldInternal = assertFlagNoConfig @Public.LegalholdConfig $ Util.getTeamFeatureFlagInternal @Public.LegalholdConfig tid
-      getLegalHoldFeatureConfig = assertFlagNoConfig @Public.LegalholdConfig $ Util.getFeatureConfig @Public.LegalholdConfig member
+      getLegalHoldFeatureConfig expectedStatus = do
+        actual <- Util.getFeatureConfig @Public.LegalholdConfig member
+        liftIO $ Public.wsStatus actual @?= expectedStatus
 
       setLegalHoldInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
       setLegalHoldInternal = void . Util.putTeamFeatureFlagInternal @Public.LegalholdConfig expect2xx tid . (`Public.WithStatusNoLock` Public.LegalholdConfig)
@@ -206,10 +211,8 @@ testSearchVisibility = do
 
   let getTeamSearchVisibilityFeatureConfig :: UserId -> Public.FeatureStatus -> TestM ()
       getTeamSearchVisibilityFeatureConfig uid expected = do
-        g <- view tsGalley
-        Util.getFeatureConfigWithGalley @Public.SearchVisibilityAvailableConfig g uid !!! do
-          statusCode === const 200
-          responseJsonEither === const (Right (Public.WithStatusNoLock expected Public.SearchVisibilityAvailableConfig))
+        actual <- Util.getFeatureConfig @Public.SearchVisibilityAvailableConfig uid
+        liftIO $ Public.wsStatus actual @?= expected
 
   let setTeamSearchVisibilityInternal :: TeamId -> Public.FeatureStatus -> TestM ()
       setTeamSearchVisibilityInternal teamid val = do
@@ -223,7 +226,7 @@ testSearchVisibility = do
   Util.connectUsers owner (list1 team2member [])
   Util.addTeamMember owner tid2 team2member (rolePermissions RoleMember) Nothing
 
-  Util.withCustomSearchFeature FeatureTeamSearchVisibilityDisabledByDefault $ do
+  Util.withCustomSearchFeature FeatureTeamSearchVisibilityUnavailableByDefault $ do
     getTeamSearchVisibility tid2 Public.FeatureStatusDisabled
     getTeamSearchVisibilityInternal tid2 Public.FeatureStatusDisabled
     getTeamSearchVisibilityFeatureConfig team2member Public.FeatureStatusDisabled
@@ -243,7 +246,7 @@ testSearchVisibility = do
   Util.connectUsers owner (list1 team3member [])
   Util.addTeamMember owner tid3 team3member (rolePermissions RoleMember) Nothing
 
-  Util.withCustomSearchFeature FeatureTeamSearchVisibilityEnabledByDefault $ do
+  Util.withCustomSearchFeature FeatureTeamSearchVisibilityAvailableByDefault $ do
     getTeamSearchVisibility tid3 Public.FeatureStatusEnabled
     getTeamSearchVisibilityInternal tid3 Public.FeatureStatusEnabled
     getTeamSearchVisibilityFeatureConfig team3member Public.FeatureStatusEnabled
@@ -288,9 +291,10 @@ testClassifiedDomainsEnabled = do
         UserId ->
         Public.WithStatusNoLock Public.ClassifiedDomainsConfig ->
         m ()
-      getClassifiedDomainsFeatureConfig uid = do
-        assertFlagWithConfig @Public.ClassifiedDomainsConfig $
-          Util.getFeatureConfig @Public.ClassifiedDomainsConfig uid
+      getClassifiedDomainsFeatureConfig uid expected' = do
+        result <- Util.getFeatureConfig @Public.ClassifiedDomainsConfig uid
+        liftIO $ Public.wsStatus result @?= Public.wssStatus expected'
+        liftIO $ Public.wsConfig result @?= Public.wssConfig expected'
 
   getClassifiedDomains member tid expected
   getClassifiedDomainsInternal tid expected
@@ -307,9 +311,10 @@ testClassifiedDomainsDisabled = do
         UserId ->
         Public.WithStatusNoLock Public.ClassifiedDomainsConfig ->
         m ()
-      getClassifiedDomainsFeatureConfig uid = do
-        assertFlagWithConfig @Public.ClassifiedDomainsConfig $
-          Util.getFeatureConfig @Public.ClassifiedDomainsConfig uid
+      getClassifiedDomainsFeatureConfig uid expected' = do
+        result <- Util.getFeatureConfig @Public.ClassifiedDomainsConfig uid
+        liftIO $ Public.wsStatus result @?= Public.wssStatus expected'
+        liftIO $ Public.wsConfig result @?= Public.wssConfig expected'
 
   let classifiedDomainsDisabled = \opts ->
         opts
@@ -364,8 +369,9 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
         flip (assertFlagNoConfig @cfg) expected $ Util.getTeamFeatureFlag @cfg member tid
 
       getFeatureConfig :: HasCallStack => Public.FeatureStatus -> TestM ()
-      getFeatureConfig expected =
-        flip (assertFlagNoConfig @cfg) expected $ Util.getFeatureConfig @cfg member
+      getFeatureConfig expected = do
+        actual <- Util.getFeatureConfig @cfg member
+        liftIO $ Public.wsStatus actual @?= expected
 
       getFlagInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
       getFlagInternal expected =
@@ -383,7 +389,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
         cassState <- view tsCass
         liftIO $ do
           storedTTL <- maybe Nothing runIdentity <$> Cql.runClient cassState (Cql.query1 select $ params LocalQuorum (Identity tid))
-          storedTTL `shouldBe` Nothing
+          storedTTL @?= Nothing
 
       half = 500000
       seconds = 1000000
@@ -476,8 +482,9 @@ testSimpleFlagTTL defaultValue ttl = do
         flip (assertFlagNoConfig @cfg) expected $ Util.getTeamFeatureFlag @cfg member tid
 
       getFeatureConfig :: HasCallStack => Public.FeatureStatus -> TestM ()
-      getFeatureConfig expected =
-        flip (assertFlagNoConfig @cfg) expected $ Util.getFeatureConfig @cfg member
+      getFeatureConfig expected = do
+        actual <- Util.getFeatureConfig @cfg member
+        liftIO $ Public.wsStatus actual @?= expected
 
       getFlagInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
       getFlagInternal expected =
@@ -523,7 +530,7 @@ testSimpleFlagTTL defaultValue ttl = do
       cassState <- view tsCass
       liftIO $ do
         storedTTL <- Cql.runClient cassState $ Cql.query1 select $ params LocalQuorum (Identity tid)
-        runIdentity <$> storedTTL `shouldBe` Just Nothing
+        runIdentity <$> storedTTL @?= Just Nothing
 
   -- Clean up
   setFlagInternal defaultValue FeatureTTLUnlimited
@@ -561,8 +568,9 @@ testSimpleFlagWithLockStatus defaultStatus defaultLockStatus = do
 
       getFeatureConfig :: HasCallStack => Public.FeatureStatus -> Public.LockStatus -> TestM ()
       getFeatureConfig expectedStatus expectedLockStatus = do
-        let flag = Util.getFeatureConfig @cfg member
-        assertFlagNoConfigWithLockStatus @cfg flag expectedStatus expectedLockStatus
+        actual <- Util.getFeatureConfig @cfg member
+        liftIO $ Public.wsStatus actual @?= expectedStatus
+        liftIO $ Public.wsLockStatus actual @?= expectedLockStatus
 
       getFlagInternal :: HasCallStack => Public.FeatureStatus -> Public.LockStatus -> TestM ()
       getFlagInternal expectedStatus expectedLockStatus = do
@@ -653,8 +661,9 @@ testSelfDeletingMessages = do
           (Public.SelfDeletingMessagesConfig tout)
 
   personalUser <- Util.randomUser
-  Util.getFeatureConfig @Public.SelfDeletingMessagesConfig personalUser
-    !!! responseJsonEither === const (Right $ settingWithLockStatus FeatureStatusEnabled 0 defLockStatus)
+  do
+    result <- Util.getFeatureConfig @Public.SelfDeletingMessagesConfig personalUser
+    liftIO $ result @?= settingWithLockStatus FeatureStatusEnabled 0 defLockStatus
 
   -- team users
   galley <- view tsGalley
@@ -675,10 +684,11 @@ testSelfDeletingMessages = do
         let expected = settingWithLockStatus stat tout lockStatus
         forM_
           [ Util.getTeamFeatureFlagInternal @Public.SelfDeletingMessagesConfig tid,
-            Util.getTeamFeatureFlagWithGalley @Public.SelfDeletingMessagesConfig galley owner tid,
-            Util.getFeatureConfig @Public.SelfDeletingMessagesConfig owner
+            Util.getTeamFeatureFlagWithGalley @Public.SelfDeletingMessagesConfig galley owner tid
           ]
           (!!! responseJsonEither === const (Right expected))
+        result <- Util.getFeatureConfig @Public.SelfDeletingMessagesConfig owner
+        liftIO $ result @?= expected
 
       checkSetLockStatus :: HasCallStack => Public.LockStatus -> TestM ()
       checkSetLockStatus status =
@@ -814,30 +824,22 @@ testAllFeatures = do
     responseJsonMaybe === const (Just (expected FeatureStatusEnabled defLockStatus {- determined by 'getAfcConferenceCallingDefNew' in brig -}))
   where
     expected confCalling lockStateSelfDeleting =
-      object
-        [ toS @Public.LegalholdConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.LegalholdConfig,
-          toS @Public.SSOConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SSOConfig,
-          toS @Public.SearchVisibilityAvailableConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SearchVisibilityAvailableConfig,
-          toS @Public.ValidateSAMLEmailsConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.ValidateSAMLEmailsConfig,
-          toS @Public.DigitalSignaturesConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.DigitalSignaturesConfig,
-          toS @Public.AppLockConfig
-            .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked (Public.AppLockConfig (Public.EnforceAppLock False) (60 :: Int32)),
-          toS @Public.FileSharingConfig .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.FileSharingConfig,
-          toS @Public.ClassifiedDomainsConfig
-            .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked (Public.ClassifiedDomainsConfig [Domain "example.com"]),
-          toS @Public.ConferenceCallingConfig
-            .= Public.WithStatus confCalling Public.LockStatusUnlocked Public.ConferenceCallingConfig,
-          toS @Public.SelfDeletingMessagesConfig
-            .= Public.WithStatus FeatureStatusEnabled lockStateSelfDeleting (Public.SelfDeletingMessagesConfig 0),
-          toS @Public.GuestLinksConfig .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
-          toS @Public.ValidateSAMLEmailsConfig .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
-          toS @Public.GuestLinksConfig .= Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
-          toS @Public.SndFactorPasswordChallengeConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusLocked Public.SndFactorPasswordChallengeConfig,
-          toS @Public.MLSConfig .= Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked (Public.MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
-        ]
-
-    toS :: forall cfg. (Public.IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg)) => Aeson.Key
-    toS = AesonKey.fromText (Public.featureName @cfg)
+      Public.AllFeatureConfigs
+        { Public.afcLegalholdStatus = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.LegalholdConfig,
+          Public.afcSSOStatus = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SSOConfig,
+          Public.afcTeamSearchVisibilityAvailable = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SearchVisibilityAvailableConfig,
+          Public.afcValidateSAMLEmails = Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.ValidateSAMLEmailsConfig,
+          Public.afcDigitalSignatures = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.DigitalSignaturesConfig,
+          Public.afcAppLock = Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked (Public.AppLockConfig (Public.EnforceAppLock False) (60 :: Int32)),
+          Public.afcFileSharing = Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.FileSharingConfig,
+          Public.afcClassifiedDomains = Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked (Public.ClassifiedDomainsConfig [Domain "example.com"]),
+          Public.afcConferenceCalling = Public.WithStatus confCalling Public.LockStatusUnlocked Public.ConferenceCallingConfig,
+          Public.afcSelfDeletingMessages = Public.WithStatus FeatureStatusEnabled lockStateSelfDeleting (Public.SelfDeletingMessagesConfig 0),
+          Public.afcGuestLink = Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
+          Public.afcSndFactorPasswordChallenge = Public.WithStatus FeatureStatusDisabled Public.LockStatusLocked Public.SndFactorPasswordChallengeConfig,
+          Public.afcMLS = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked (Public.MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519),
+          Public.afcSearchVisibilityInboundConfig = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SearchVisibilityInboundConfig
+        }
 
 testFeatureConfigConsistency :: TestM ()
 testFeatureConfigConsistency = do
@@ -935,8 +937,10 @@ testMLS = do
         flip assertFlagWithConfig expected $ Util.getTeamFeatureFlagInternal @Public.MLSConfig tid
 
       getForUser :: HasCallStack => Public.WithStatusNoLock MLSConfig -> TestM ()
-      getForUser expected =
-        flip assertFlagWithConfig expected $ Util.getFeatureConfig @MLSConfig member
+      getForUser expected = do
+        result <- Util.getFeatureConfig @MLSConfig member
+        liftIO $ Public.wsStatus result @?= Public.wssStatus expected
+        liftIO $ Public.wsConfig result @?= Public.wssConfig expected
 
       getViaEndpoints :: HasCallStack => Public.WithStatusNoLock MLSConfig -> TestM ()
       getViaEndpoints expected = do

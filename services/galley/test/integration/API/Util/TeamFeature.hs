@@ -20,8 +20,10 @@ module API.Util.TeamFeature where
 import API.Util (HasGalley (viewGalley), zUser)
 import qualified API.Util as Util
 import Bilge
-import Control.Lens (view, (.~))
-import Data.Aeson (ToJSON)
+import Control.Lens (view, (.~), (^?))
+import Control.Monad.Catch (MonadThrow)
+import Data.Aeson (FromJSON, Result (Success), ToJSON, Value, fromJSON)
+import Data.Aeson.Lens
 import Data.ByteString.Conversion (toByteString')
 import Data.Id (ConvId, TeamId, UserId)
 import Data.Schema
@@ -33,7 +35,7 @@ import TestSetup
 import Wire.API.Team.Feature (IsFeatureConfig)
 import qualified Wire.API.Team.Feature as Public
 
-withCustomSearchFeature :: FeatureTeamSearchVisibility -> TestM () -> TestM ()
+withCustomSearchFeature :: FeatureTeamSearchVisibilityAvailability -> TestM () -> TestM ()
 withCustomSearchFeature flag action = do
   Util.withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamSearchVisibility .~ flag) action
 
@@ -126,17 +128,16 @@ getTeamFeatureFlagWithGalley galley uid tid = do
       . paths ["teams", toByteString' tid, "features", Public.featureNameBS @cfg]
       . zUser uid
 
-getFeatureConfig :: forall cfg m. (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg)) => UserId -> m ResponseLBS
+getFeatureConfig :: forall cfg m. (HasCallStack, MonadThrow m, HasGalley m, MonadIO m, MonadHttp m, IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg), FromJSON (Public.WithStatus cfg)) => UserId -> m (Public.WithStatus cfg)
 getFeatureConfig uid = do
-  g <- viewGalley
-  getFeatureConfigWithGalley @cfg g uid
-
-getFeatureConfigWithGalley :: forall cfg m. (MonadIO m, MonadHttp m, HasCallStack, IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg)) => (Request -> Request) -> UserId -> m ResponseLBS
-getFeatureConfigWithGalley galley uid = do
-  get $
-    galley
-      . paths ["feature-configs", toByteString' (Public.featureNameBS @cfg)]
-      . zUser uid
+  galley <- viewGalley
+  response :: Value <- responseJsonError =<< getAllFeatureConfigsWithGalley galley uid
+  let status = response ^? key (Public.featureName @cfg)
+  maybe (error "getting all features failed") pure (status >>= fromResult . fromJSON)
+  where
+    fromResult :: Result a -> Maybe a
+    fromResult (Success b) = Just b
+    fromResult _ = Nothing
 
 getAllFeatureConfigs :: HasCallStack => UserId -> TestM ResponseLBS
 getAllFeatureConfigs uid = do

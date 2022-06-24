@@ -30,6 +30,7 @@ module Galley.API.Teams.Features
     SetFeatureConfig,
     guardSecondFactorDisabled,
     DoAuth (..),
+    featureEnabledForTeam,
   )
 where
 
@@ -174,7 +175,8 @@ type FeaturePersistentAllFeatures db =
     FeaturePersistentConstraint db SelfDeletingMessagesConfig,
     FeaturePersistentConstraint db GuestLinksConfig,
     FeaturePersistentConstraint db SndFactorPasswordChallengeConfig,
-    FeaturePersistentConstraint db MLSConfig
+    FeaturePersistentConstraint db MLSConfig,
+    FeaturePersistentConstraint db SearchVisibilityInboundConfig
   )
 
 getFeatureStatus ::
@@ -377,6 +379,7 @@ getAllFeatureConfigsForServer =
     <*> getConfigForServer @db @GuestLinksConfig
     <*> getConfigForServer @db @SndFactorPasswordChallengeConfig
     <*> getConfigForServer @db @MLSConfig
+    <*> getConfigForServer @db @SearchVisibilityInboundConfig
 
 getAllFeatureConfigsUser ::
   forall db r.
@@ -409,6 +412,7 @@ getAllFeatureConfigsUser uid =
     <*> getConfigForUser @db @GuestLinksConfig uid
     <*> getConfigForUser @db @SndFactorPasswordChallengeConfig uid
     <*> getConfigForUser @db @MLSConfig uid
+    <*> getConfigForUser @db @SearchVisibilityInboundConfig uid
 
 getAllFeatureConfigsTeam ::
   forall db r.
@@ -440,6 +444,7 @@ getAllFeatureConfigsTeam tid =
     <*> getConfigForTeam @db @GuestLinksConfig tid
     <*> getConfigForTeam @db @SndFactorPasswordChallengeConfig tid
     <*> getConfigForTeam @db @MLSConfig tid
+    <*> getConfigForTeam @db @SearchVisibilityInboundConfig tid
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
 genericGetConfigForTeam ::
@@ -580,8 +585,8 @@ instance GetFeatureConfig db SearchVisibilityAvailableConfig where
   getConfigForServer = do
     status <-
       inputs (view (optSettings . setFeatureFlags . flagTeamSearchVisibility)) <&> \case
-        FeatureTeamSearchVisibilityEnabledByDefault -> FeatureStatusEnabled
-        FeatureTeamSearchVisibilityDisabledByDefault -> FeatureStatusDisabled
+        FeatureTeamSearchVisibilityAvailableByDefault -> FeatureStatusEnabled
+        FeatureTeamSearchVisibilityUnavailableByDefault -> FeatureStatusDisabled
     pure $ defFeatureStatus {wsStatus = status}
 
 instance SetFeatureConfig db SearchVisibilityAvailableConfig where
@@ -814,3 +819,19 @@ guardSecondFactorDisabled uid cid action = do
   case wsStatus tf of
     FeatureStatusDisabled -> action
     FeatureStatusEnabled -> throwS @'AccessDenied
+
+featureEnabledForTeam ::
+  forall db cfg r.
+  ( GetFeatureConfig db cfg,
+    GetConfigForTeamConstraints db cfg r,
+    Members
+      '[ ErrorS OperationDenied,
+         ErrorS 'NotATeamMember,
+         ErrorS 'TeamNotFound,
+         TeamStore
+       ]
+      r
+  ) =>
+  TeamId ->
+  Sem r Bool
+featureEnabledForTeam tid = (==) FeatureStatusEnabled . wsStatus <$> getFeatureStatus @db @cfg DontDoAuth tid

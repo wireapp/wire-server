@@ -171,6 +171,9 @@ type IFeatureAPI =
     -- MLSConfig
     :<|> IFeatureStatusGet MLSConfig
     :<|> IFeatureStatusPut '() MLSConfig
+    -- SearchVisibilityInboundConfig
+    :<|> IFeatureStatusGet SearchVisibilityInboundConfig
+    :<|> IFeatureStatusPut '() SearchVisibilityInboundConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -337,6 +340,9 @@ type ITeamsAPIBase =
              :<|> Named
                     "set-search-visibility-internal"
                     ( CanThrow 'TeamSearchVisibilityNotEnabled
+                        :> CanThrow OperationDenied
+                        :> CanThrow 'NotATeamMember
+                        :> CanThrow 'TeamNotFound
                         :> ReqBody '[Servant.JSON] TeamSearchVisibilityView
                         :> MultiVerb1 'PUT '[Servant.JSON] (RespondEmpty 204 "OK")
                     )
@@ -434,7 +440,7 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
         <@> mkNamedAPI @"user-is-team-owner" (Teams.userIsTeamOwner tid)
         <@> hoistAPISegment
           ( mkNamedAPI @"get-search-visibility-internal" (Teams.getSearchVisibilityInternal tid)
-              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal @Cassandra tid)
+              <@> mkNamedAPI @"set-search-visibility-internal" (Teams.setSearchVisibilityInternal @Cassandra (featureEnabledForTeam @Cassandra @SearchVisibilityAvailableConfig) tid)
           )
 
 featureAPI :: API IFeatureAPI GalleyEffects
@@ -469,6 +475,8 @@ featureAPI =
     <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (getFeatureStatusMulti @Cassandra @SearchVisibilityInboundConfig)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
     <@> mkNamedAPI (maybe (getAllFeatureConfigsForServer @Cassandra) (getAllFeatureConfigsForUser @Cassandra))
