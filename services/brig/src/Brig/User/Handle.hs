@@ -41,10 +41,12 @@ claimHandle uid oldHandle newHandle =
     -- but it wasn't before this PR)?  why do we have to do a lookup on the handle before
     -- that?
     owner <- lookupHandle newHandle
-    wasStale <- cleanupStaleHandles uid newHandle
-    case owner of
-      Just uid' | uid /= uid' && not wasStale -> pure False
-      _ -> claimHandle' uid oldHandle newHandle
+    wasSelfOwnedOrStale <- if owner == Just uid
+      then pure True
+      else cleanupStaleHandles uid newHandle
+    if wasSelfOwnedOrStale
+      then pure False
+      else claimHandle' uid oldHandle newHandle
 
 claimHandle' :: (MonadClient m, MonadReader Env m) => UserId -> Maybe Handle -> Handle -> m Bool
 claimHandle' uid oldHandle newHandle = do
