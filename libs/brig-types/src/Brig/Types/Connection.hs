@@ -24,13 +24,6 @@ module Brig.Types.Connection
   ( module C,
     UserIds (..),
     UpdateConnectionsInternal (..),
-
-    -- * re-exports
-    Relation (..),
-    UserConnection (..),
-    ConnectionRequest (..),
-    ConnectionUpdate (..),
-    UserConnectionList (..),
   )
 where
 
@@ -40,7 +33,6 @@ import Data.Id (UserId)
 import Data.Qualified
 import Imports
 import Wire.API.Arbitrary
-import Wire.API.Connection
 
 -- | Response type for endpoints returning lists of users with a specific connection state.
 -- E.g. 'getContactList' returns a 'UserIds' containing the list of connections in an

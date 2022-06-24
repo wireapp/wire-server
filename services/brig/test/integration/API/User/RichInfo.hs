@@ -27,7 +27,6 @@ import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Options
 import qualified Brig.Options as Opt
-import Brig.Types
 import qualified Data.CaseInsensitive as CI
 import qualified Data.List1 as List1
 import qualified Data.Text as Text
@@ -36,6 +35,7 @@ import Test.Tasty hiding (Timeout)
 import Test.Tasty.HUnit
 import Util
 import Wire.API.Team.Permission
+import Wire.API.User
 import Wire.API.User.RichInfo
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree

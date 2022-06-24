@@ -34,7 +34,6 @@ import Brig.Types.Search as Search
 import qualified Brig.User.API.Handle as HandleAPI
 import Brig.User.Search.Index
 import qualified Brig.User.Search.SearchIndex as Q
-import Brig.User.Search.TeamUserSearch (RoleFilter (..), TeamUserSearchSortBy (..), TeamUserSearchSortOrder (..))
 import qualified Brig.User.Search.TeamUserSearch as Q
 import Control.Lens (view)
 import Data.Domain (Domain)
@@ -57,7 +56,7 @@ import qualified Wire.API.Federation.API.Brig as FedBrig
 import qualified Wire.API.Federation.API.Brig as S
 import qualified Wire.API.Team.Permission as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility (..))
-import Wire.API.User.Search (FederatedUserSearchPolicy (FullSearch))
+import Wire.API.User.Search
 import qualified Wire.API.User.Search as Public
 
 routesPublic :: Routes Doc.ApiBuilder (Handler r) ()

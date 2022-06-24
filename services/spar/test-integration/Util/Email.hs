@@ -20,7 +20,7 @@ module Util.Email where
 
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import Brig.Types
+import Brig.Types.Activation
 import Control.Lens (view, (^?))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson.Lens
@@ -35,6 +35,8 @@ import Test.Tasty.HUnit
 import Util.Core
 import Util.Types
 import qualified Wire.API.Team.Feature as Feature
+import Wire.API.User
+import Wire.API.User.Activation
 import qualified Wire.API.User.Auth as Auth
 
 changeEmailBrig ::

@@ -34,8 +34,6 @@ import Bilge.Retry (httpHandlers)
 import Brig.App
 import Brig.Provider.DB (ServiceConn (..))
 import Brig.RPC
-import Brig.Types.Provider (HttpsUrl (..))
-import Brig.Types.Provider.External
 import Control.Error
 import Control.Lens (set, view, (^.))
 import Control.Monad.Catch
@@ -56,6 +54,8 @@ import System.Logger.Class (MonadLogger, field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import URI.ByteString
 import qualified Wire.API.Event.Conversation as Conv
+import Wire.API.Provider (httpsUrl)
+import Wire.API.Provider.External
 import qualified Wire.API.Provider.Service as Galley
 
 --------------------------------------------------------------------------------

@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 
 module API.User.Handles
   ( tests,
@@ -26,7 +27,6 @@ import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import qualified Brig.Options as Opt
-import Brig.Types
 import Control.Lens hiding (from, (#))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson
@@ -49,6 +49,8 @@ import Util
 import Wire.API.Internal.Notification hiding (target)
 import Wire.API.Team.Feature (FeatureStatus (..))
 import Wire.API.Team.SearchVisibility
+import Wire.API.User
+import Wire.API.User.Handle
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at conf p b c g =

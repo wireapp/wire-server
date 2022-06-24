@@ -135,11 +135,7 @@ where
 import Bilge hiding (getCookie) -- we use Web.Cookie instead of the http-client type
 import qualified Bilge
 import Bilge.Assert (Assertions, (!!!), (<!!), (===))
-import qualified Brig.Types.Activation as Brig
-import Brig.Types.Common (UserIdentity (..), UserSSOId (..))
-import Brig.Types.User (Email, User (..), selfUser, userIdentity)
-import qualified Brig.Types.User as Brig
-import qualified Brig.Types.User.Auth as Brig
+import Brig.Types.Activation
 import Cassandra as Cas
 import Control.Exception
 import Control.Lens hiding ((.=))
@@ -205,9 +201,10 @@ import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import qualified Wire.API.Team.Role as Role
-import Wire.API.User (HandleUpdate (HandleUpdate), UserUpdate)
+import Wire.API.User
 import qualified Wire.API.User as User
-import Wire.API.User.Identity (mkSampleUref)
+import Wire.API.User.Activation
+import Wire.API.User.Auth hiding (Cookie)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (runValidExternalIdEither)
@@ -325,7 +322,7 @@ aFewTimesRecover action = do
       (exponentialBackoff 1000 <> limitRetries 10)
       (\_ -> action `runReaderT` env)
 
--- | Duplicate of 'Spar.Intra.Brig.getBrigUser'.
+-- | Duplicate of 'Spar.Intra.getBrigUser'.
 getUserBrig :: HasCallStack => UserId -> TestSpar (Maybe User)
 getUserBrig uid = do
   env <- ask
@@ -357,17 +354,17 @@ createUserWithTeamDisableSSO brg gly = do
         RequestBodyLBS . Aeson.encode $
           object
             [ "name" .= n,
-              "email" .= Brig.fromEmail e,
+              "email" .= fromEmail e,
               "password" .= defPassword,
               "team" .= newTeam
             ]
   bdy <- selfUser . responseJsonUnsafe <$> post (brg . path "/i/users" . contentJson . body p)
-  let (uid, Just tid) = (Brig.userId bdy, Brig.userTeam bdy)
+  let (uid, Just tid) = (userId bdy, userTeam bdy)
   (team : _) <- (^. Galley.teamListTeams) <$> getTeams uid gly
   () <-
     Control.Exception.assert {- "Team ID in registration and team table do not match" -} (tid == team ^. Galley.teamId) $
       pure ()
-  selfTeam <- Brig.userTeam . Brig.selfUser <$> getSelfProfile brg uid
+  selfTeam <- userTeam . selfUser <$> getSelfProfile brg uid
   () <-
     Control.Exception.assert {- "Team ID in self profile and team table do not match" -} (selfTeam == Just tid) $
       pure ()
@@ -471,14 +468,14 @@ createTeamMember ::
   m UserId
 createTeamMember brigreq galleyreq teamid perms = do
   let randomtxt = liftIO $ UUID.toText <$> UUID.nextRandom
-      randomssoid = liftIO $ Brig.UserSSOId <$> (mkSampleUref <$> rnd <*> rnd)
+      randomssoid = liftIO $ UserSSOId <$> (mkSampleUref <$> rnd <*> rnd)
       rnd = cs . show <$> randomRIO (0 :: Integer, 10000000)
   name <- randomtxt
   ssoid <- randomssoid
   resp :: ResponseLBS <-
     postUser name False (Just ssoid) (Just teamid) brigreq
       <!! const 201 === statusCode
-  let nobody :: UserId = Brig.userId (responseJsonUnsafe @Brig.User resp)
+  let nobody :: UserId = userId (responseJsonUnsafe @User resp)
   addTeamMember galleyreq teamid (Member.mkNewTeamMember nobody perms Nothing)
   pure nobody
 
@@ -511,7 +508,7 @@ deleteUserOnBrig brigreq uid = do
   deleteUserNoWait brigreq uid
   recoverAll (exponentialBackoff 500000 <> limitRetries 5) $ \_ -> do
     profile <- getSelfProfile brigreq uid
-    liftIO $ selfUser profile `shouldSatisfy` Brig.userDeleted
+    liftIO $ selfUser profile `shouldSatisfy` userDeleted
 
 -- | Delete a user from Brig but don't wait.
 deleteUserNoWait ::
@@ -546,7 +543,7 @@ nextSubject :: (HasCallStack, MonadIO m) => m NameID
 nextSubject = liftIO $ do
   unameId <-
     randomRIO (0, 1 :: Int) >>= \case
-      0 -> either (error . show) id . SAML.mkUNameIDEmail . Brig.fromEmail <$> randomEmail
+      0 -> either (error . show) id . SAML.mkUNameIDEmail . fromEmail <$> randomEmail
       1 -> SAML.mkUNameIDUnspecified . UUID.toText <$> UUID.nextRandom
       _ -> error "nextSubject: impossible"
   either (error . show) pure $ SAML.mkNameID unameId Nothing Nothing Nothing
@@ -558,13 +555,13 @@ nextUserRef = liftIO $ do
     (SAML.Issuer $ SAML.unsafeParseURI ("http://" <> tenant))
     <$> nextSubject
 
-createRandomPhoneUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m (UserId, Brig.Phone)
+createRandomPhoneUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m (UserId, Phone)
 createRandomPhoneUser brig_ = do
   usr <- randomUser brig_
-  let uid = Brig.userId usr
+  let uid = userId usr
   phn <- liftIO randomPhone
   -- update phone
-  let phoneUpdate = RequestBodyLBS . Aeson.encode $ Brig.PhoneUpdate phn
+  let phoneUpdate = RequestBodyLBS . Aeson.encode $ PhoneUpdate phn
   put (brig_ . path "/self/phone" . contentJson . zUser uid . zConn "c" . body phoneUpdate)
     !!! (const 202 === statusCode)
   -- activate
@@ -575,7 +572,7 @@ createRandomPhoneUser brig_ = do
   -- check new phone
   get (brig_ . path "/self" . zUser uid) !!! do
     const 200 === statusCode
-    const (Right (Just phn)) === (fmap Brig.userPhone . responseJsonEither)
+    const (Right (Just phn)) === (fmap userPhone . responseJsonEither)
   pure (uid, phn)
 
 getTeams :: (HasCallStack, MonadHttp m, MonadIO m) => UserId -> GalleyReq -> m Galley.TeamList
@@ -612,7 +609,7 @@ promoteTeamMember usr tid memid = do
     put (gly . paths ["teams", toByteString' tid, "members"] . zAuthAccess usr "conn" . json bdy)
       !!! const 200 === statusCode
 
-getSelfProfile :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> UserId -> m Brig.SelfProfile
+getSelfProfile :: (HasCallStack, MonadHttp m, MonadIO m) => BrigReq -> UserId -> m SelfProfile
 getSelfProfile brg usr = do
   rsp <- get $ brg . path "/self" . zUser usr
   pure $ responseJsonUnsafe rsp
@@ -623,18 +620,18 @@ zAuthAccess u c = header "Z-Type" "access" . zUser u . zConn c
 newTeam :: Galley.BindingNewTeam
 newTeam = Galley.BindingNewTeam $ Galley.newNewTeam (unsafeRange "teamName") DefaultIcon
 
-randomEmail :: MonadIO m => m Brig.Email
+randomEmail :: MonadIO m => m Email
 randomEmail = do
   uid <- liftIO nextRandom
-  pure $ Brig.Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
+  pure $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
 
-randomPhone :: MonadIO m => m Brig.Phone
+randomPhone :: MonadIO m => m Phone
 randomPhone = liftIO $ do
   nrs <- map show <$> replicateM 14 (randomRIO (0, 9) :: IO Int)
-  let phone = Brig.parsePhone . cs $ "+0" ++ concat nrs
+  let phone = parsePhone . cs $ "+0" ++ concat nrs
   pure $ fromMaybe (error "Invalid random phone#") phone
 
-randomUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m Brig.User
+randomUser :: (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) => BrigReq -> m User
 randomUser brig_ = do
   n <- cs . UUID.toString <$> liftIO UUID.nextRandom
   createUser n brig_
@@ -643,7 +640,7 @@ createUser ::
   (HasCallStack, MonadCatch m, MonadIO m, MonadHttp m) =>
   ST ->
   BrigReq ->
-  m Brig.User
+  m User
 createUser name brig_ = do
   r <- postUser name True Nothing Nothing brig_ <!! const 201 === statusCode
   pure $ responseJsonUnsafe r
@@ -654,7 +651,7 @@ postUser ::
   (HasCallStack, MonadIO m, MonadHttp m) =>
   ST ->
   Bool ->
-  Maybe Brig.UserSSOId ->
+  Maybe UserSSOId ->
   Maybe TeamId ->
   BrigReq ->
   m ResponseLBS
@@ -675,26 +672,26 @@ postUser name haveEmail ssoid teamid brig_ = do
 defPassword :: PlainTextPassword
 defPassword = PlainTextPassword "secret"
 
-defCookieLabel :: Brig.CookieLabel
-defCookieLabel = Brig.CookieLabel "auth"
+defCookieLabel :: CookieLabel
+defCookieLabel = CookieLabel "auth"
 
 getActivationCode ::
   (HasCallStack, MonadIO m, MonadHttp m) =>
   BrigReq ->
-  Either Brig.Email Brig.Phone ->
-  m (Maybe (Brig.ActivationKey, Brig.ActivationCode))
+  Either Email Phone ->
+  m (Maybe (ActivationKey, ActivationCode))
 getActivationCode brig_ ep = do
   let qry = either (queryItem "email" . toByteString') (queryItem "phone" . toByteString') ep
   r <- get $ brig_ . path "/i/users/activation-code" . qry
   let lbs = fromMaybe "" $ responseBody r
-  let akey = Brig.ActivationKey . Ascii.unsafeFromText <$> (lbs ^? Aeson.key "key" . Aeson._String)
-  let acode = Brig.ActivationCode . Ascii.unsafeFromText <$> (lbs ^? Aeson.key "code" . Aeson._String)
+  let akey = ActivationKey . Ascii.unsafeFromText <$> (lbs ^? Aeson.key "key" . Aeson._String)
+  let acode = ActivationCode . Ascii.unsafeFromText <$> (lbs ^? Aeson.key "code" . Aeson._String)
   pure $ (,) <$> akey <*> acode
 
 activate ::
   (HasCallStack, MonadIO m, MonadHttp m) =>
   BrigReq ->
-  Brig.ActivationPair ->
+  ActivationPair ->
   m ResponseLBS
 activate brig_ (k, c) =
   get $
@@ -1171,7 +1168,7 @@ callDeleteDefaultSsoCode sparreq_ = do
 -- helpers talking to spar's cassandra directly
 
 -- | Look up 'UserId' under 'UserSSOId' on spar's cassandra directly.
-ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => TeamId -> Brig.UserSSOId -> m (Maybe UserId)
+ssoToUidSpar :: (HasCallStack, MonadIO m, MonadReader TestEnv m) => TeamId -> UserSSOId -> m (Maybe UserId)
 ssoToUidSpar tid ssoid = do
   veid <- either (error . ("could not parse brig sso_id: " <>)) pure $ Intra.veidFromUserSSOId ssoid
   runSpar $

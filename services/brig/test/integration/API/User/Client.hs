@@ -29,8 +29,6 @@ import Bilge hiding (accept, head, timeout)
 import Bilge.Assert
 import qualified Brig.Code as Code
 import qualified Brig.Options as Opt
-import Brig.Types
-import Brig.Types.User.Auth hiding (user)
 import qualified Cassandra as DB
 import Control.Lens (at, preview, (.~), (^.), (^?))
 import Data.Aeson hiding (json)
@@ -57,9 +55,11 @@ import Util
 import Wire.API.Internal.Notification
 import Wire.API.MLS.Credential
 import qualified Wire.API.Team.Feature as Public
-import Wire.API.User (LimitedQualifiedUserIdList (LimitedQualifiedUserIdList))
+import Wire.API.User
 import qualified Wire.API.User as Public
+import Wire.API.User.Auth
 import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
 

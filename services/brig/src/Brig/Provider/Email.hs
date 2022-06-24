@@ -29,17 +29,17 @@ import Brig.App
 import Brig.Email
 import Brig.Provider.Template
 import Brig.Template
-import qualified Brig.Types.Code as Code
-import Brig.Types.Common
-import Brig.Types.Provider
 import Control.Lens (view)
 import Data.ByteString.Conversion
+import qualified Data.Code as Code
 import Data.Range
 import Data.Text (pack)
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as Text
 import qualified Data.Text.Lazy as LT
 import Imports
+import Wire.API.Provider
+import Wire.API.User
 
 -------------------------------------------------------------------------------
 -- Activation Email

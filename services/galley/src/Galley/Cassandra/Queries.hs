@@ -17,9 +17,6 @@
 
 module Galley.Cassandra.Queries where
 
-import Brig.Types.Client.Prekey
-import Brig.Types.Code
-import Brig.Types.Provider
 import Cassandra as C hiding (Value)
 import Cassandra.Util (Writetime)
 import Data.Domain (Domain)
@@ -34,11 +31,15 @@ import Imports
 import Text.RawString.QQ
 import Wire.API.Asset (AssetKey)
 import Wire.API.Conversation
+import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.Provider
+import Wire.API.Provider.Service
 import Wire.API.Team
 import Wire.API.Team.Permission
 import Wire.API.Team.SearchVisibility
+import Wire.API.User.Client.Prekey
 
 -- Teams --------------------------------------------------------------------
 

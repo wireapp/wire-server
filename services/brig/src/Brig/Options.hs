@@ -23,7 +23,6 @@ module Brig.Options where
 
 import Brig.Queue.Types (Queue (..))
 import Brig.SMTP (SMTPConnType (..))
-import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist (..))
 import qualified Brig.ZAuth as ZAuth
@@ -54,6 +53,7 @@ import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Wire.API.Arbitrary (Arbitrary, arbitrary)
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy)
 
 newtype Timeout = Timeout

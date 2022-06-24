@@ -28,7 +28,6 @@ module Brig.User.Search.TeamUserSearch
 where
 
 import Brig.Data.Instances ()
-import Brig.Types.Search
 import Brig.User.Search.Index
 import Control.Monad.Catch (MonadThrow (throwM))
 import Data.Id (TeamId, idToText)

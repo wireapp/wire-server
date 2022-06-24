@@ -28,17 +28,17 @@ where
 
 import Brig.App (Env, currentTime)
 import Brig.Data.Instances ()
-import Brig.Types.Code (Timeout (..))
-import Brig.Types.User.Auth
 import Brig.User.Auth.DB.Instances ()
 import Cassandra
 import Control.Lens (view)
+import Data.Code
 import Data.Id
 import qualified Data.Text as T
 import Data.Time.Clock
 import Imports
 import OpenSSL.BN (randIntegerZeroToNMinusOne)
 import Text.Printf (printf)
+import Wire.API.User.Auth
 
 -- | Max. number of verification attempts per code.
 maxAttempts :: Int32

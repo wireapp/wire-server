@@ -25,9 +25,7 @@ import qualified Brig.Code as Code
 import Brig.Options (Opts)
 import Brig.Sem.CodeStore
 import Brig.Sem.CodeStore.Cassandra
-import Brig.Types
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
-import Brig.Types.User.Auth hiding (user)
 import qualified Brig.ZAuth
 import qualified Cassandra as DB
 import qualified Codec.MIME.Type as MIME
@@ -57,6 +55,7 @@ import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import Util
 import Wire.API.Asset
+import Wire.API.Connection
 import qualified Wire.API.Event.Conversation as Conv
 import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.Component
@@ -65,8 +64,14 @@ import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging (LocalOrRemoteTable, MultiTablePagingState)
 import Wire.API.Team.Feature (featureNameBS)
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.User
 import qualified Wire.API.User as Public
-import Wire.API.User.Client hiding (UpdateClient)
+import Wire.API.User.Activation
+import Wire.API.User.Auth
+import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
+import Wire.API.User.Handle
+import Wire.API.User.Password
 
 newtype ConnectionLimit = ConnectionLimit Int64
 

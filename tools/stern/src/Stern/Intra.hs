@@ -63,9 +63,7 @@ where
 
 import Bilge hiding (head, options, requestId)
 import Bilge.RPC
-import Brig.Types
 import Brig.Types.Intra
-import Brig.Types.User.Auth
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Reader
@@ -96,6 +94,7 @@ import Stern.Types
 import System.Logger.Class hiding (Error, name, (.=))
 import qualified System.Logger.Class as Log
 import UnliftIO.Exception hiding (Handler)
+import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Internal.Notification
 import Wire.API.Properties
@@ -105,6 +104,10 @@ import Wire.API.Team
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
+import Wire.API.User
+import Wire.API.User.Auth
+import Wire.API.User.Client
+import Wire.API.User.Search
 
 -------------------------------------------------------------------------------
 

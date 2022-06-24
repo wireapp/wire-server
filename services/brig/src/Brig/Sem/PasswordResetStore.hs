@@ -18,10 +18,12 @@
 
 module Brig.Sem.PasswordResetStore where
 
-import Brig.Types
+import Brig.Types.User (PasswordResetPair)
 import Data.Id
 import Imports
 import Polysemy
+import Wire.API.User.Identity
+import Wire.API.User.Password
 
 data PasswordResetStore m a where
   CreatePasswordResetCode ::

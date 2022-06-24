@@ -38,7 +38,7 @@ import Data.Qualified (Qualified (Qualified))
 import qualified Database.Bloodhound as ES
 import Imports hiding (log, searchable)
 import Wire.API.User (ColourId (..), Name (fromName))
-import Wire.API.User.Search (FederatedUserSearchPolicy (FullSearch))
+import Wire.API.User.Search
 
 -- | User that is performing the search
 -- Team of user that is performing the search

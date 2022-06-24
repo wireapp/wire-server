@@ -23,10 +23,6 @@ module Brig.Types.Search
     SearchVisibilityInbound (..),
     defaultSearchVisibilityInbound,
     searchVisibilityInboundFromFeatureStatus,
-
-    -- * re-exports
-    SearchResult (..),
-    Contact (..),
   )
 where
 
@@ -40,7 +36,6 @@ import Data.Text.Encoding
 import Imports
 import Test.QuickCheck
 import Wire.API.Team.Feature
-import Wire.API.User.Search
 
 -- | Outbound search restrictions configured by team admin of the searcher. This
 -- value restricts the set of user that are searched.

@@ -25,7 +25,6 @@
 
 module Work where
 
-import Brig.Types hiding (Client)
 import Cassandra hiding (Set)
 import Common
 import Conduit (mapC)
@@ -47,6 +46,7 @@ import qualified System.IO as IO
 import qualified System.Logger as Log
 import System.Process (system)
 import Types
+import Wire.API.User
 
 deriving instance Cql Name
 

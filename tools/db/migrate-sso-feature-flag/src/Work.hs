@@ -23,7 +23,6 @@
 
 module Work where
 
-import Brig.Types hiding (Client)
 import Cassandra
 import Data.Conduit
 import Data.Conduit.Internal (zipSources)
@@ -36,6 +35,7 @@ import System.Logger (Logger)
 import qualified System.Logger as Log
 import UnliftIO.Async (pooledMapConcurrentlyN)
 import Wire.API.Team.Feature
+import Wire.API.User
 
 deriving instance Cql Name
 

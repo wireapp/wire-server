@@ -62,10 +62,9 @@ where
 import Brig.Data.Instances ()
 import Brig.Email (emailKeyUniq, mkEmailKey)
 import Brig.Phone (mkPhoneKey, phoneKeyUniq)
-import Brig.Types (Email, Phone)
-import Brig.Types.Code (Key (..), KeyValuePair (..), Timeout (..), Value (..))
 import Cassandra hiding (Value)
 import qualified Data.ByteString as BS
+import Data.Code
 import Data.Range
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
@@ -77,6 +76,7 @@ import OpenSSL.EVP.Digest (Digest, digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
 import Text.Printf (printf)
 import qualified Wire.API.User as User
+import Wire.API.User.Identity
 
 --------------------------------------------------------------------------------
 -- Code

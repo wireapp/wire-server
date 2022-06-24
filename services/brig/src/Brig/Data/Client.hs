@@ -58,7 +58,6 @@ import Brig.Data.Instances ()
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import qualified Brig.Data.User as User
 import Brig.Types.Instances ()
-import Brig.Types.User.Auth (CookieLabel)
 import Brig.User.Auth.DB.Instances ()
 import Cassandra as C hiding (Client)
 import Cassandra.Settings as C hiding (Client)
@@ -87,6 +86,7 @@ import System.Logger.Class (field, msg, val)
 import qualified System.Logger.Class as Log
 import UnliftIO (pooledMapConcurrentlyN)
 import Wire.API.MLS.Credential
+import Wire.API.User.Auth
 import Wire.API.User.Client hiding (UpdateClient (..))
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (UserMap (..))

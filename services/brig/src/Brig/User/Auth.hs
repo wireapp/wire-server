@@ -52,10 +52,8 @@ import Brig.Email
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opt
 import Brig.Phone
-import Brig.Types.Common
 import Brig.Types.Intra
-import Brig.Types.User
-import Brig.Types.User.Auth hiding (user)
+import Brig.Types.User.Auth
 import Brig.User.Auth.Cookie
 import Brig.User.Handle
 import Brig.User.Phone
@@ -79,7 +77,8 @@ import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
-import Wire.API.User (VerificationAction (..))
+import Wire.API.User
+import Wire.API.User.Auth
 
 data Access u = Access
   { accessToken :: !AccessToken,

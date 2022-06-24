@@ -43,10 +43,7 @@ import API.SQS
 import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
-import Brig.Types.Client
 import Brig.Types.Intra (UserSet (..))
-import Brig.Types.Provider
-import Brig.Types.Team.LegalHold hiding (userId)
 import Brig.Types.Test.Arbitrary ()
 import qualified Brig.Types.User.Event as Ev
 import qualified Cassandra.Exec as Cql
@@ -98,12 +95,16 @@ import TestHelpers
 import TestSetup
 import Wire.API.Internal.Notification (ntfPayload)
 import qualified Wire.API.Message as Msg
+import Wire.API.Provider.Service
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.LegalHold
+import Wire.API.Team.LegalHold.External
 import Wire.API.Team.Member
+import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
 import Wire.API.User (UserProfile (..))
-import Wire.API.User.Client (UserClients (..), UserClientsFull (userClientsFull))
+import Wire.API.User.Client
 import qualified Wire.API.User.Client as Client
 
 onlyIfLhEnabled :: TestM () -> TestM ()
@@ -655,7 +656,7 @@ testGetTeamMembersIncludesLHStatus = do
 
   let findMemberStatus :: [TeamMember] -> Maybe UserLegalHoldStatus
       findMemberStatus ms =
-        ms ^? traversed . filtered (has $ userId . only member) . legalHoldStatus
+        ms ^? traversed . filtered (has $ Team.userId . only member) . legalHoldStatus
 
   let check :: HasCallStack => UserLegalHoldStatus -> String -> TestM ()
       check status msg = do
@@ -691,7 +692,7 @@ testOldClientsBlockDeviceHandshake = do
   -- tracked here: https://wearezeta.atlassian.net/browse/SQSERVICES-454
 
   (legalholder, tid) <- createBindingTeam
-  legalholder2 <- view userId <$> addUserToTeam legalholder tid
+  legalholder2 <- view Team.userId <$> addUserToTeam legalholder tid
   ensureQueueEmpty
   (peer, tid2) <-
     -- has to be a team member, granting LH consent for personal users is not supported.
@@ -1162,11 +1163,11 @@ publicKeyNotMatchingService =
 testGetLegalholdStatus :: TestM ()
 testGetLegalholdStatus = do
   (owner1, tid1) <- createBindingTeam
-  member1 <- view userId <$> addUserToTeam owner1 tid1
+  member1 <- view Team.userId <$> addUserToTeam owner1 tid1
   ensureQueueEmpty
 
   (owner2, tid2) <- createBindingTeam
-  member2 <- view userId <$> addUserToTeam owner2 tid2
+  member2 <- view Team.userId <$> addUserToTeam owner2 tid2
   ensureQueueEmpty
 
   personal <- randomUser

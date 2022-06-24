@@ -47,9 +47,10 @@ import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Brig.Team.API as Team
 import Brig.Team.DB (lookupInvitationByEmail)
-import Brig.Types
+import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
+import Brig.Types.User
 import Brig.Types.User.Event (UserEvent (UserUpdated), UserUpdatedData (eupSSOId, eupSSOIdRemoved), emptyUserUpdatedData)
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
@@ -79,18 +80,20 @@ import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import UnliftIO.Async
+import Wire.API.Connection
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
-import Wire.API.Message (UserClients (UserClients))
 import Wire.API.Routes.Internal.Brig (NewKeyPackageRef)
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User
-import Wire.API.User.Client (UserClientsFull (..))
+import Wire.API.User.Activation
+import Wire.API.User.Client
+import Wire.API.User.Password
 import Wire.API.User.RichInfo
 
 ---------------------------------------------------------------------------

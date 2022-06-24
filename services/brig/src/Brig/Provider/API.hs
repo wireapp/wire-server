@@ -35,7 +35,7 @@ import Brig.App
 import qualified Brig.Code as Code
 import qualified Brig.Data.Client as User
 import qualified Brig.Data.User as User
-import Brig.Email (mkEmailKey, validateEmail)
+import Brig.Email (mkEmailKey)
 import qualified Brig.IO.Intra as RPC
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options (Settings (..))
@@ -47,11 +47,8 @@ import Brig.Provider.Email
 import qualified Brig.Provider.RPC as RPC
 import qualified Brig.Queue as Queue
 import Brig.Team.Util
-import Brig.Types.Client (Client (..), ClientType (..), newClient, newClientPrekeys)
 import Brig.Types.Intra (AccountStatus (..), UserAccount (..))
-import Brig.Types.Provider (AddBot (..), DeleteProvider (..), PasswordChange (..), Provider (..), ProviderLogin (..), UpdateBotPrekeys (..), UpdateProvider (..))
-import qualified Brig.Types.Provider.External as Ext
-import Brig.Types.User (HavePendingInvitations (..), ManagedBy (..), Name (..), Pict (..), User (..), defaultAccentId)
+import Brig.Types.User
 import qualified Brig.ZAuth as ZAuth
 import Cassandra (MonadClient)
 import Control.Error (throwE)
@@ -98,20 +95,27 @@ import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import qualified Web.Cookie as Cookie
 import Wire.API.Conversation
+import Wire.API.Conversation.Bot
 import qualified Wire.API.Conversation.Bot as Public
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Brig
 import qualified Wire.API.Event.Conversation as Public (Event)
+import Wire.API.Provider
 import qualified Wire.API.Provider as Public
+import qualified Wire.API.Provider.Bot as Ext
 import qualified Wire.API.Provider.Bot as Public (BotUserView)
+import Wire.API.Provider.External
+import qualified Wire.API.Provider.External as Ext
 import Wire.API.Provider.Service
 import qualified Wire.API.Provider.Service as Public
 import qualified Wire.API.Provider.Service.Tag as Public
 import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee (UnprotectedBot))
 import Wire.API.Team.Permission
+import Wire.API.User hiding (cpNewPassword, cpOldPassword)
 import qualified Wire.API.User as Public (UserProfile, publicProfile)
+import Wire.API.User.Client
 import qualified Wire.API.User.Client as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
 import qualified Wire.API.User.Client.Prekey as Public (PrekeyId)
 import qualified Wire.API.User.Identity as Public (Email)
@@ -921,7 +925,7 @@ addBot zuid zcon cid add = do
   let bcnv = Ext.botConvView (qUnqualified . cnvQualifiedId $ cnv) (cnvName cnv) members
   let busr = mkBotUserView zusr
   let bloc = fromMaybe (userLocale zusr) (addBotLocale add)
-  let botReq = Ext.NewBotRequest bid bcl busr bcnv btk bloc
+  let botReq = NewBotRequest bid bcl busr bcnv btk bloc
   rs <- RPC.createBot scon botReq !>> StdError . serviceError
   -- Insert the bot user and client
   locale <- Opt.setDefaultUserLocale <$> view settings

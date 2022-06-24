@@ -21,7 +21,6 @@ module Util.Scim where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.User
 import Control.Lens
 import Control.Monad.Random
 import Data.ByteString.Conversion
@@ -56,6 +55,7 @@ import qualified Web.Scim.Schema.PatchOp as Scim.PatchOp
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
+import Wire.API.User
 import Wire.API.User.IdentityProvider
 import Wire.API.User.RichInfo
 import Wire.API.User.Scim

@@ -26,7 +26,6 @@ module Stern.API
   )
 where
 
-import Brig.Types
 import Brig.Types.Intra
 import Control.Error
 import Control.Lens ((^.))
@@ -65,10 +64,12 @@ import qualified Stern.Swagger as Doc
 import Stern.Types
 import System.Logger.Class hiding (Error, name, trace, (.=))
 import Util.Options
+import Wire.API.Connection
 import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.SearchVisibility
 import qualified Wire.API.Team.SearchVisibility as Public
+import Wire.API.User
 import qualified Wire.Swagger as Doc
 
 default (ByteString)

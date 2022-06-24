@@ -41,10 +41,7 @@ module Spar.Scim.User
   )
 where
 
-import Brig.Types.Common (parseEmail)
 import Brig.Types.Intra (AccountStatus, UserAccount (accountStatus, accountUser))
-import Brig.Types.User (Locale (..), ManagedBy (..), Name (..), User (..))
-import qualified Brig.Types.User as BT
 import qualified Control.Applicative as Applicative (empty)
 import Control.Lens (view, (^.))
 import Control.Monad.Error.Class (MonadError)
@@ -95,7 +92,7 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.ResourceType as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User (schemas)
-import Wire.API.User (Email, parseLanguage)
+import Wire.API.User
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.RichInfo as RI
 import Wire.API.User.Saml (Opts, derivedOpts, derivedOptsScimBaseURI, richInfoLimit)
@@ -613,7 +610,7 @@ updateVsuUref ::
   Sem r ()
 updateVsuUref team uid old new = do
   case (veidEmail old, veidEmail new) of
-    (mo, mn@(Just email)) | mo /= mn -> validateEmail (Just team) uid email
+    (mo, mn@(Just email)) | mo /= mn -> Spar.App.validateEmail (Just team) uid email
     _ -> pure ()
 
   old & ST.runValidExternalIdBoth (>>) (SAMLUserStore.delete uid) (ScimExternalIdStore.delete team)
@@ -950,15 +947,15 @@ getUserById midp stiTeam uid = do
       pure storedUser
     _ -> Applicative.empty
   where
-    veidChanged :: BT.User -> ST.ValidExternalId -> Bool
-    veidChanged usr veid = case BT.userIdentity usr of
+    veidChanged :: User -> ST.ValidExternalId -> Bool
+    veidChanged usr veid = case userIdentity usr of
       Nothing -> True
-      Just (BT.FullIdentity _ _) -> True
-      Just (BT.EmailIdentity _) -> True
-      Just (BT.PhoneIdentity _) -> True
-      Just (BT.SSOIdentity ssoid _ _) -> Brig.veidToUserSSOId veid /= ssoid
+      Just (FullIdentity _ _) -> True
+      Just (EmailIdentity _) -> True
+      Just (PhoneIdentity _) -> True
+      Just (SSOIdentity ssoid _ _) -> Brig.veidToUserSSOId veid /= ssoid
 
-    managedByChanged :: BT.User -> Bool
+    managedByChanged :: User -> Bool
     managedByChanged usr = userManagedBy usr /= ManagedByScim
 
 scimFindUserByHandle ::
@@ -1018,7 +1015,7 @@ scimFindUserByEmail mIdpConfig stiTeam email = do
         Nothing -> maybe (pure Nothing) withEmailOnly $ Brig.urefToEmail uref
         Just uid -> pure (Just uid)
 
-    withEmailOnly :: BT.Email -> Sem r (Maybe UserId)
+    withEmailOnly :: Email -> Sem r (Maybe UserId)
     withEmailOnly eml = maybe inbrig (pure . Just) =<< inspar
       where
         -- FUTUREWORK: we could also always lookup brig, that's simpler and possibly faster,

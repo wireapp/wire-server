@@ -22,33 +22,18 @@ module Brig.Types.Team.LegalHold
     legalHoldService,
     viewLegalHoldService,
     LegalHoldClientRequest (..),
-
-    -- * Other (re-export)
-    NewLegalHoldService (..),
-    ViewLegalHoldService (..),
-    ViewLegalHoldServiceInfo (..),
-    UserLegalHoldStatusResponse (..),
-    RemoveLegalHoldSettingsRequest (..),
-    DisableLegalHoldForUserRequest (..),
-    ApproveLegalHoldForUserRequest (..),
-
-    -- * external (re-export)
-    RequestNewLegalHoldClient (..),
-    NewLegalHoldClient (..),
-    LegalHoldServiceConfirm (..),
-    LegalHoldServiceRemove (..),
   )
 where
 
-import Brig.Types.Client.Prekey
-import Brig.Types.Provider
 import Data.Aeson
 import Data.Id
 import Data.Json.Util
 import Data.Misc
 import Imports
+import Wire.API.Provider
+import Wire.API.Provider.Service
 import Wire.API.Team.LegalHold
-import Wire.API.Team.LegalHold.External (LegalHoldServiceConfirm (..), LegalHoldServiceRemove (..), NewLegalHoldClient (..), RequestNewLegalHoldClient (..))
+import Wire.API.User.Client.Prekey
 
 data LegalHoldService = LegalHoldService
   { legalHoldServiceTeam :: !TeamId,

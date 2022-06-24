@@ -22,7 +22,6 @@ import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Options (Opts)
 import qualified Brig.Options as Opt
-import Brig.Types (Email (..), User (..), userEmail)
 import Control.Arrow ((&&&))
 import Control.Lens
 import Data.Aeson
@@ -38,6 +37,7 @@ import Test.Tasty.HUnit
 import Util
 import Wire.API.Team.Permission
 import Wire.API.Team.Role
+import Wire.API.User
 
 tests :: Opts -> Manager -> Brig -> Galley -> IO TestTree
 tests defOpts manager brig galley = pure $ do

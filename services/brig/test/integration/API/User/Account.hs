@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -30,10 +31,9 @@ import Bilge.Assert
 import qualified Brig.AWS as AWS
 import Brig.AWS.Types
 import qualified Brig.Options as Opt
-import Brig.Types
+import Brig.Types.Activation
+import Brig.Types.Common
 import Brig.Types.Intra
-import Brig.Types.User.Auth hiding (user)
-import qualified Brig.Types.User.Auth as Auth
 import Control.Arrow ((&&&))
 import Control.Exception (throw)
 import Control.Lens (ix, preview, (^.), (^?))
@@ -82,14 +82,18 @@ import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
 import Wire.API.Asset hiding (Asset)
 import qualified Wire.API.Asset as Asset
+import Wire.API.Connection
 import Wire.API.Federation.API.Brig (UserDeletedConnectionsNotification (..))
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Federation.API.Common (EmptyResponse (EmptyResponse))
 import Wire.API.Internal.Notification
 import Wire.API.Team.Invitation (Invitation (inInvitation))
 import Wire.API.Team.Permission hiding (self)
-import Wire.API.User (ListUsersQuery (..))
-import Wire.API.User.Identity (mkSampleUref, mkSimpleSampleUref)
+import Wire.API.User
+import Wire.API.User.Activation
+import Wire.API.User.Auth
+import qualified Wire.API.User.Auth as Auth
+import Wire.API.User.Client
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> TestTree
 tests _ at opts p b c ch g aws =

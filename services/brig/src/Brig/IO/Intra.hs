@@ -80,7 +80,6 @@ import qualified Brig.Data.Connection as Data
 import Brig.Federation.Client (notifyUserDeleted)
 import qualified Brig.IO.Journal as Journal
 import Brig.RPC
-import Brig.Types
 import Brig.Types.User.Event
 import Brig.User.Search.Index (MonadIndexIO)
 import qualified Brig.User.Search.Index as Search
@@ -122,11 +121,11 @@ import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding (name, (.=))
 import qualified System.Logger.Extended as ExLog
+import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Event.Conversation (Connect (Connect))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
-import Wire.API.Message (UserClients)
 import Wire.API.Properties
 import Wire.API.Team
 import qualified Wire.API.Team.Conversation as Conv
@@ -136,6 +135,8 @@ import qualified Wire.API.Team.Member as Member
 import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
+import Wire.API.User
+import Wire.API.User.Client
 
 -----------------------------------------------------------------------------
 -- Event Handlers

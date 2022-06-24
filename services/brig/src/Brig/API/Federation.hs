@@ -33,7 +33,6 @@ import Brig.App
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import Brig.IO.Intra (notify)
-import Brig.Types (PrekeyBundle, Relation (Accepted))
 import Brig.Types.User.Event
 import Brig.User.API.Handle
 import Brig.User.Search.Index
@@ -56,6 +55,7 @@ import Servant (ServerT)
 import Servant.API
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledForConcurrentlyN_)
+import Wire.API.Connection
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Version
@@ -66,7 +66,7 @@ import Wire.API.Routes.Named
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.User (UserProfile)
 import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
-import Wire.API.User.Client.Prekey (ClientPrekey)
+import Wire.API.User.Client.Prekey
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
 

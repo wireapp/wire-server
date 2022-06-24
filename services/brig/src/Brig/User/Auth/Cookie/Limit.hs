@@ -17,13 +17,13 @@
 
 module Brig.User.Auth.Cookie.Limit where
 
-import Brig.Types.User.Auth
 import Data.Aeson
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import qualified Data.Vector as Vector
 import Imports
 import qualified Statistics.Sample as Stats
+import Wire.API.User.Auth
 
 --------------------------------------------------------------------------------
 -- Quantitive Limiting
