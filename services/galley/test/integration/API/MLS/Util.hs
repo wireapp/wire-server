@@ -102,8 +102,8 @@ data Participant = Participant
 
 cli :: String -> FilePath -> [String] -> CreateProcess
 cli store tmp args =
-  proc "crypto-cli" $
-    ["--store", tmp </> (store <> ".db"), "--enc-key", "test"] <> args
+  proc "mls-test-cli" $
+    ["--store", tmp </> (store <> ".db")] <> args
 
 pClientQid :: Participant -> String
 pClientQid = fst . NonEmpty.head . pClients
@@ -136,10 +136,11 @@ setupUserClient tmp doCreateClients mapKeyPackage usr = do
             <> T.unpack (domainText (qDomain usr))
 
     -- generate key package
+    void . liftIO $ spawn (cli qcid tmp ["init", qcid]) Nothing
     kp <-
       liftIO $
         decodeMLSError
-          =<< spawn (cli qcid tmp ["key-package", qcid]) Nothing
+          =<< spawn (cli qcid tmp ["key-package", "create"]) Nothing
     liftIO $ BS.writeFile (tmp </> qcid) (rmRaw kp)
 
     -- Set Bob's private key and upload key package if required. If a client
@@ -233,7 +234,7 @@ setupGroup tmp createConv creator name = do
   let groupId = toBase64Text (maybe "test_group" unGroupId mGroupId)
   groupJSON <-
     liftIO $
-      spawn (cli (pClientQid creator) tmp ["group", pClientQid creator, T.unpack groupId]) Nothing
+      spawn (cli (pClientQid creator) tmp ["group", "create", T.unpack groupId]) Nothing
   liftIO $ BS.writeFile (tmp </> name) groupJSON
 
   pure conversation

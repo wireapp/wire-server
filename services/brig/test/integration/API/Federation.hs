@@ -411,9 +411,9 @@ testClaimKeyPackages brig fedBrigClient = do
     let new = defNewClient PermanentClientType [] lpk
     fmap clientId $ responseJsonError =<< addClient brig (qUnqualified bob) new
 
-  withSystemTempFile "store.db" $ \store _ ->
+  withSystemTempDirectory "mls" $ \tmp ->
     for_ bobClients $ \c ->
-      uploadKeyPackages brig store SetKey bob c 2
+      uploadKeyPackages brig tmp SetKey bob c 2
 
   Just bundle <-
     runFedClient @"claim-key-packages" fedBrigClient (qDomain alice) $

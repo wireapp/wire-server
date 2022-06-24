@@ -672,9 +672,9 @@ claimRemoteKeyPackages brig1 brig2 = do
     let new = defNewClient PermanentClientType [] lpk
     fmap clientId $ responseJsonError =<< addClient brig2 (qUnqualified bob) new
 
-  withSystemTempFile "store.db" $ \store _ ->
+  withSystemTempDirectory "mls" $ \tmp ->
     for_ bobClients $ \c ->
-      uploadKeyPackages brig2 store SetKey bob c 5
+      uploadKeyPackages brig2 tmp SetKey bob c 5
 
   bundle <-
     responseJsonError
@@ -693,10 +693,10 @@ claimRemoteKeyPackages brig1 brig2 = do
 -- message to alice
 testSendMLSMessage :: Brig -> Brig -> Galley -> Cannon -> Http ()
 testSendMLSMessage brig1 brig2 galley2 cannon1 = do
-  let cli :: String -> [String] -> CreateProcess
-      cli tmp args =
-        proc "crypto-cli" $
-          ["--store", tmp </> "store.db", "--enc-key", "test"] <> args
+  let cli :: String -> FilePath -> [String] -> CreateProcess
+      cli store tmp args =
+        proc "mls-test-cli" $
+          ["--store", tmp </> (store <> ".db")] <> args
 
   -- create alice user and client on domain 1
   alice <- randomUser brig1
@@ -713,39 +713,39 @@ testSendMLSMessage brig1 brig2 galley2 cannon1 = do
           <> "@"
           <> T.unpack (domainText (qDomain (userQualifiedId alice)))
 
-  aliceKP <- withSystemTempDirectory "mls" $ \tmp -> do
+  withSystemTempDirectory "mls" $ \tmp -> do
     -- create alice's key package
-    kpMLS <- liftIO $ spawn (cli tmp ["key-package", aliceClientId]) Nothing
-    liftIO $ case decodeMLS' kpMLS of
+    void . liftIO $ spawn (cli aliceClientId tmp ["init", aliceClientId]) Nothing
+    kpMLS <- liftIO $ spawn (cli aliceClientId tmp ["key-package", "create"]) Nothing
+    aliceKP <- liftIO $ case decodeMLS' kpMLS of
       Right kp -> pure kp
       Left e -> assertFailure $ "Could not decode alice Key Package: " <> T.unpack e
 
-  -- set public key
-  let update =
-        defUpdateClient
-          { updateClientMLSPublicKeys =
-              Map.singleton
-                Ed25519
-                (bcSignatureKey (kpCredential (rmValue aliceKP)))
-          }
-  put
-    ( brig1
-        . paths ["clients", toByteString' aliceClient]
-        . zUser (qUnqualified (userQualifiedId alice))
-        . json update
-    )
-    !!! const 200 === statusCode
+    -- set public key
+    let update =
+          defUpdateClient
+            { updateClientMLSPublicKeys =
+                Map.singleton
+                  Ed25519
+                  (bcSignatureKey (kpCredential (rmValue aliceKP)))
+            }
+    put
+      ( brig1
+          . paths ["clients", toByteString' aliceClient]
+          . zUser (qUnqualified (userQualifiedId alice))
+          . json update
+      )
+      !!! const 200 === statusCode
 
-  -- upload key package
-  post
-    ( brig1
-        . paths ["mls", "key-packages", "self", toByteString' aliceClient]
-        . zUser (qUnqualified (userQualifiedId alice))
-        . json (KeyPackageUpload [aliceKP])
-    )
-    !!! const 201 === statusCode
+    -- upload key package
+    post
+      ( brig1
+          . paths ["mls", "key-packages", "self", toByteString' aliceClient]
+          . zUser (qUnqualified (userQualifiedId alice))
+          . json (KeyPackageUpload [aliceKP])
+      )
+      !!! const 201 === statusCode
 
-  withSystemTempDirectory "mls" $ \tmp -> do
     -- create bob user and client on domain 2
     bob <- randomUser brig2
     bobClient <-
@@ -760,6 +760,7 @@ testSendMLSMessage brig1 brig2 galley2 cannon1 = do
             <> T.unpack (client bobClient)
             <> "@"
             <> T.unpack (domainText (qDomain (userQualifiedId bob)))
+    void . liftIO $ spawn (cli bobClientId tmp ["init", bobClientId]) Nothing
 
     connectUsersEnd2End brig1 brig2 (userQualifiedId alice) (userQualifiedId bob)
 
@@ -794,9 +795,10 @@ testSendMLSMessage brig1 brig2 galley2 cannon1 = do
       liftIO $
         spawn
           ( cli
+              bobClientId
               tmp
               [ "group",
-                bobClientId,
+                "create",
                 T.unpack (toBase64Text groupId)
               ]
           )
@@ -809,6 +811,7 @@ testSendMLSMessage brig1 brig2 galley2 cannon1 = do
       liftIO $
         spawn
           ( cli
+              bobClientId
               tmp
               [ "member",
                 "add",
@@ -827,7 +830,7 @@ testSendMLSMessage brig1 brig2 galley2 cannon1 = do
     dove <-
       liftIO $
         spawn
-          (cli tmp ["message", "--group", tmp </> "group.json", "dove"])
+          (cli bobClientId tmp ["message", "--group", tmp </> "group.json", "dove"])
           Nothing
     WS.bracketR cannon1 (userId alice) $ \wsAlice -> do
       post

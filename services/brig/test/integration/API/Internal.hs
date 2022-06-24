@@ -45,7 +45,7 @@ import Servant.API (ToHttpApiData (toUrlPiece))
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
 import Test.Tasty.HUnit
-import UnliftIO (withSystemTempFile)
+import UnliftIO (withSystemTempDirectory)
 import Util
 import Util.Options (Endpoint)
 import qualified Wire.API.Connection as Conn
@@ -225,8 +225,8 @@ keyPackageCreate :: HasCallStack => Brig -> Http KeyPackageRef
 keyPackageCreate brig = do
   uid <- userQualifiedId <$> randomUser brig
   clid <- createClient brig uid 0
-  withSystemTempFile "api.internal.kpc" $ \store _ ->
-    uploadKeyPackages brig store SetKey uid clid 2
+  withSystemTempDirectory "mls" $ \tmp ->
+    uploadKeyPackages brig tmp SetKey uid clid 2
 
   uid2 <- userQualifiedId <$> randomUser brig
   claimResp <-
