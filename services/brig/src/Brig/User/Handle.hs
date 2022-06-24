@@ -37,11 +37,13 @@ import Imports
 claimHandle :: (MonadClient m, MonadReader Env m) => UserId -> Maybe Handle -> Handle -> m Bool
 claimHandle uid oldHandle newHandle =
   do
-    -- TODO: why isn't `claimHandle'` enough?  why do we have to do a lookup on the handle
-    -- before that?
+    -- TODO: why wasn't `claimHandle'` enough (now it's also calling `cleanupStaleHandles`,
+    -- but it wasn't before this PR)?  why do we have to do a lookup on the handle before
+    -- that?
     owner <- lookupHandle newHandle
+    wasStale <- cleanupStaleHandles uid newHandle
     case owner of
-      Just uid' | uid /= uid' -> pure False
+      Just uid' | uid /= uid' && not wasStale -> pure False
       _ -> claimHandle' uid oldHandle newHandle
 
 claimHandle' :: (MonadClient m, MonadReader Env m) => UserId -> Maybe Handle -> Handle -> m Bool
@@ -59,6 +61,12 @@ claimHandle' uid oldHandle newHandle = do
               for_ (mfilter (/= newHandle) oldHandle) $
                 wrapClient . freeHandle uid
               pure result
+
+-- | Check if a given 'UserId' referenced in the handle index actually exists, or if the
+-- handle entry is stale.  If it is not stale, return False; if it is stale, remove it and
+-- return True.
+cleanupStaleHandles :: (MonadClient m, MonadReader Env m) => UserId -> Handle -> m Bool
+cleanupStaleHandles = undefined
 
 -- | Free a 'Handle', making it available to be claimed again.
 freeHandle :: MonadClient m => UserId -> Handle -> m ()
