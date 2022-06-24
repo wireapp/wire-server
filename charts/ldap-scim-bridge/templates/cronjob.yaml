@@ -1,7 +1,7 @@
 apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
-  name: ldap-scim-bridge
+  name: {{ .Release.Name }}
   labels:
     app: ldap-scim-bridge
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
@@ -26,7 +26,7 @@ spec:
           volumes:
             - name: "ldap-scim-bridge-config"
               secret:
-                secretName: "ldap-scim-bridge"
+                secretName: {{ .Release.Name }}
           containers:
             - name: ldap-scim-bridge
               image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
