@@ -37,10 +37,15 @@ import Imports
 claimHandle :: (MonadClient m, MonadReader Env m) => UserId -> Maybe Handle -> Handle -> m Bool
 claimHandle uid oldHandle newHandle =
   do
+    -- TODO: why isn't `claimHandle'` enough?  why do we have to do a lookup on the handle
+    -- before that?
     owner <- lookupHandle newHandle
     case owner of
       Just uid' | uid /= uid' -> pure False
-      _ -> do
+      _ -> claimHandle' uid oldHandle newHandle
+
+claimHandle' :: (MonadClient m, MonadReader Env m) => UserId -> Maybe Handle -> Handle -> m Bool
+claimHandle' uid oldHandle newHandle = do
         env <- ask
         let key = "@" <> fromHandle newHandle
         isJust <$$> withClaim uid key (30 # Minute) $
