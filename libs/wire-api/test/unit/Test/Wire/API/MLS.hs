@@ -96,7 +96,7 @@ testParseCommit = do
     _ -> assertFailure "Unexpected message type"
 
   case cProposals commit of
-    [Inline (AddProposal _)] -> pure ()
+    [Inline (RawMLS _ (AddProposal _))] -> pure ()
     _ -> assertFailure "Unexpected proposals"
 
 testParseApplication :: IO ()

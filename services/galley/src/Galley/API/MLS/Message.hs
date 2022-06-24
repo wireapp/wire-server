@@ -61,6 +61,7 @@ import Polysemy.Internal
 import Polysemy.Resource (Resource, bracket)
 import Polysemy.TinyLog
 import qualified System.Logger.Class as Logger
+import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -73,7 +74,6 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
@@ -296,6 +296,7 @@ processCommit qusr con lconv epoch sender commit = do
 
   let ttlSeconds :: Int = 600 -- 10 minutes
   withCommitLock groupId epoch (fromIntegral ttlSeconds) $ do
+    checkEpoch epoch (tUnqualified lconv)
     when (epoch == Epoch 0) $ do
       -- this is a newly created conversation, and it should contain exactly one
       -- client (the creator)
@@ -316,7 +317,7 @@ processCommit qusr con lconv epoch sender commit = do
         _ -> throw (mlsProtocolError "Unexpected sender")
 
     -- process and execute proposals
-    action <- foldMap applyProposalRef (cProposals commit)
+    action <- foldMap (applyProposalRef (tUnqualified lconv)) (cProposals commit)
     updates <- executeProposalAction qusr con lconv action
 
     -- increment epoch number
@@ -327,17 +328,37 @@ processCommit qusr con lconv epoch sender commit = do
 applyProposalRef ::
   ( HasProposalEffects r,
     Members
-      '[ ErrorS 'MLSProposalNotFound,
+      '[ ErrorS 'ConvNotFound,
+         ErrorS 'MLSProposalNotFound,
+         ErrorS 'MLSStaleMessage,
          ProposalStore
        ]
       r
   ) =>
+  Data.Conversation ->
   ProposalOrRef ->
   Sem r ProposalAction
-applyProposalRef (Ref ref) = do
-  (p, _gid, _epoch) <- getProposal ref >>= noteS @'MLSProposalNotFound
+applyProposalRef conv (Ref ref) = do
+  (p, gid, epoch) <- getProposal ref >>= noteS @'MLSProposalNotFound
+  checkEpoch epoch conv
+  checkGroup gid conv
   applyProposal (rmValue p)
-applyProposalRef (Inline p) = applyProposal p
+applyProposalRef conv (Inline p) = do
+  suite <-
+    preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) conv
+      & noteS @'ConvNotFound
+  suiteTag <-
+    cipherSuiteTag suite
+      & note
+        ( mlsProtocolError
+            . T.pack
+            . ("An unknown cipher suite associated with a conversation: " <>)
+            . show
+            . cipherSuiteNumber
+            $ suite
+        )
+  checkProposal suite (rmValue p) (proposalRef suiteTag p)
+  applyProposal (rmValue p)
 
 applyProposal :: HasProposalEffects r => Proposal -> Sem r ProposalAction
 applyProposal (AddProposal kp) = do
@@ -392,16 +413,8 @@ processProposal ::
   RawMLS Proposal ->
   Sem r ()
 processProposal qusr conv msg prop = do
-  -- check epoch number
-  curEpoch <-
-    preview (to convProtocol . _ProtocolMLS . to cnvmlsEpoch) conv
-      & noteS @'ConvNotFound
-  unless (msgEpoch msg == curEpoch) $ throwS @'MLSStaleMessage
-  -- check group ID
-  groupId <-
-    preview (to convProtocol . _ProtocolMLS . to cnvmlsGroupId) conv
-      & noteS @'ConvNotFound
-  unless (msgGroupId msg == groupId) $ throwS @'ConvNotFound
+  checkEpoch (msgEpoch msg) conv
+  checkGroup (msgGroupId msg) conv
 
   suite <-
     preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) conv
@@ -604,6 +617,34 @@ getRemoteMLSClients rusr ss = do
         { mcrUserId = tUnqualified rusr,
           mcrSignatureScheme = ss
         }
+
+-- | Check if the epoch number matches that of a conversation
+checkEpoch ::
+  Members
+    '[ ErrorS 'ConvNotFound,
+       ErrorS 'MLSStaleMessage
+     ]
+    r =>
+  Epoch ->
+  Data.Conversation ->
+  Sem r ()
+checkEpoch epoch conv = do
+  curEpoch <-
+    preview (to convProtocol . _ProtocolMLS . to cnvmlsEpoch) conv
+      & noteS @'ConvNotFound
+  unless (epoch == curEpoch) $ throwS @'MLSStaleMessage
+
+-- | Check if the group ID matches that of a conversation
+checkGroup ::
+  Member (ErrorS 'ConvNotFound) r =>
+  GroupId ->
+  Data.Conversation ->
+  Sem r ()
+checkGroup gId conv = do
+  groupId <-
+    preview (to convProtocol . _ProtocolMLS . to cnvmlsGroupId) conv
+      & noteS @'ConvNotFound
+  unless (gId == groupId) $ throwS @'ConvNotFound
 
 --------------------------------------------------------------------------------
 -- Error handling of proposal execution
