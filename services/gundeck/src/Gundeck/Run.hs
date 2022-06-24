@@ -24,6 +24,7 @@ import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
 import Control.Exception (finally)
 import Control.Lens hiding (enum)
+import Control.Monad.Extra
 import Data.Metrics (Metrics)
 import Data.Metrics.AWS (gaugeTokenRemaing)
 import Data.Metrics.Middleware (metrics)
@@ -68,7 +69,7 @@ run o = do
     Async.cancel wCollectAuth
     forM_ wtbs Async.cancel
     Redis.disconnect . (^. Redis.rrConnection) =<< takeMVar (e ^. rstate)
-    maybe (pure ()) ((=<<) (Redis.disconnect . (^. Redis.rrConnection)) . takeMVar) (e ^. rstateAdditionalWrite)
+    whenJust (e ^. rstateAdditionalWrite) $ (=<<) (Redis.disconnect . (^. Redis.rrConnection)) . takeMVar
     Log.close (e ^. applog)
   where
     middleware :: Env -> Wai.Middleware
