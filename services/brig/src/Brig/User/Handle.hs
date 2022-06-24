@@ -36,14 +36,14 @@ import Imports
 -- | Claim a new handle for an existing 'User'.
 claimHandle :: (MonadClient m, MonadReader Env m) => UserId -> Maybe Handle -> Handle -> m Bool
 claimHandle uid oldHandle newHandle =
-  isJust <$> do
+  do
     owner <- lookupHandle newHandle
     case owner of
-      Just uid' | uid /= uid' -> pure Nothing
+      Just uid' | uid /= uid' -> pure False
       _ -> do
         env <- ask
         let key = "@" <> fromHandle newHandle
-        withClaim uid key (30 # Minute) $
+        isJust <$$> withClaim uid key (30 # Minute) $
           runAppT env $
             do
               -- Record ownership
