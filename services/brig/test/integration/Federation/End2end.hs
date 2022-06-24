@@ -672,9 +672,9 @@ claimRemoteKeyPackages brig1 brig2 = do
     let new = defNewClient PermanentClientType [] lpk
     fmap clientId $ responseJsonError =<< addClient brig2 (qUnqualified bob) new
 
-  withSystemTempFile "store.db" $ \store _ ->
+  withSystemTempDirectory "mls" $ \tmp ->
     for_ bobClients $ \c ->
-      uploadKeyPackages brig2 store SetKey bob c 5
+      uploadKeyPackages brig2 tmp SetKey bob c 5
 
   bundle <-
     responseJsonError
