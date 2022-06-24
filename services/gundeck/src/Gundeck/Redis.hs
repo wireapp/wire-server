@@ -97,10 +97,8 @@ connectRobust l retryStrategy connectLowLevel = do
             $ const $
               reconnectRedis robustConnection
       let newReConnection = ReConnection {_rrConnection = conn, _rrReconnect = reconnectOnce}
-      tryPutMVar robustConnection newReConnection >>= \success ->
-        if success
-          then pure ()
-          else void $ swapMVar robustConnection newReConnection
+      unlessM (tryPutMVar robustConnection newReConnection) $
+        void $ swapMVar robustConnection newReConnection
 
 -- | Run a 'Redis' action through a 'RobustConnection'.
 --
