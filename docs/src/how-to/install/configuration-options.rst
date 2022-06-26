@@ -424,7 +424,7 @@ Other cloud providers
 
 This information is not yet available. If you'd like to contribute by
 adding this information for your cloud provider, feel free to read the
-`contributing guidelines <../CONTRIBUTING.md>`__ and open a PR.
+`contributing guidelines <https://github.com/wireapp/wire-server-deploy/blob/master/CONTRIBUTING.md>`__ and open a PR.
 
 Real AWS services
 -----------------
