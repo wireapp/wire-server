@@ -545,3 +545,33 @@ namespace, say ``integrations``. But it still needs to get traffic via
      nginx_conf:
        upstream_namespace:
          ibis: integrations
+
+Marking an installation as self-hosted
+--------------------------------------
+
+In case your wire installation is self-hosted (on-premise, demo installs), it needs to be made aware that it is through a configuration option.
+
+If that option is not set, team-settings will prompt users about "wire for free" and associated functions.
+
+With that option set, all payment related functionality is disabled.
+
+The option is `IS_SELF_HOSTED`, and you set it in your `values.yaml` file (originally a copy of `prod-values.example.yaml` found in `wire-server-deploy/values/wire-server/`).
+
+In case of a demo install, replace `prod` with `demo`.
+
+First set the option under the `team-settings` section:
+
+.. code:: yaml
+
+   # NOTE: Only relevant if you want team-settings
+   team-settings:
+       IS_SELF_HOSTED: "true"
+
+Second, also set the option under the `account-pages` section:
+
+.. code:: yaml
+
+   # NOTE: Only relevant if you want account-pages
+   account-pages:
+       IS_SELF_HOSTED: "true"
+
