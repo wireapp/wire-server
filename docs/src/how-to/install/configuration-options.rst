@@ -559,12 +559,13 @@ The option is `IS_SELF_HOSTED`, and you set it in your `values.yaml` file (origi
 
 In case of a demo install, replace `prod` with `demo`.
 
-First set the option under the `team-settings` section:
+First set the option under the `team-settings` section, `envVars` sub-section:
 
 .. code:: yaml
 
    # NOTE: Only relevant if you want team-settings
    team-settings:
+     envVars:
        IS_SELF_HOSTED: "true"
 
 Second, also set the option under the `account-pages` section:
@@ -573,5 +574,6 @@ Second, also set the option under the `account-pages` section:
 
    # NOTE: Only relevant if you want account-pages
    account-pages:
+     envVars:
        IS_SELF_HOSTED: "true"
 
