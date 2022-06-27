@@ -45,6 +45,7 @@ library
       Gundeck.Push.Native.Types
       Gundeck.Push.Websocket
       Gundeck.React
+      Gundeck.Redis
       Gundeck.Run
       Gundeck.ThreadBudget
       Gundeck.ThreadBudget.Internal

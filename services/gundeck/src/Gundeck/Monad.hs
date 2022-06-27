@@ -54,6 +54,7 @@ import Data.Default (def)
 import Data.Misc (Milliseconds (..))
 import qualified Database.Redis as Redis
 import Gundeck.Env
+import qualified Gundeck.Redis as Redis
 import Imports
 import Network.HTTP.Types
 import Network.Wai
@@ -101,7 +102,7 @@ newtype WithDefaultRedis a = WithDefaultRedis {runWithDefaultRedis :: Gundeck a}
 instance Redis.MonadRedis WithDefaultRedis where
   liftRedis action = do
     defaultConn <- view rstate
-    liftIO $ Redis.runRedis defaultConn action
+    liftIO $ Redis.runRobust defaultConn action
 
 instance Redis.RedisCtx WithDefaultRedis (Either Redis.Reply) where
   returnDecode :: Redis.RedisResult a => Redis.Reply -> WithDefaultRedis (Either Redis.Reply a)
@@ -130,13 +131,13 @@ newtype WithAdditionalRedis a = WithAdditionalRedis {runWithAdditionalRedis :: G
 instance Redis.MonadRedis WithAdditionalRedis where
   liftRedis action = do
     defaultConn <- view rstate
-    ret <- liftIO $ Redis.runRedis defaultConn action
+    ret <- liftIO $ Redis.runRobust defaultConn action
 
     mAdditionalRedisConn <- view rstateAdditionalWrite
     liftIO . for_ mAdditionalRedisConn $ \additionalRedisConn ->
       -- We just fire and forget this call, as there is not much we can do if
       -- this fails.
-      async $ Redis.runRedis additionalRedisConn action
+      async $ Redis.runRobust additionalRedisConn action
 
     pure ret
 
