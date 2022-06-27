@@ -44,8 +44,10 @@ import UnliftIO.Exception
 type RobustConnection = MVar ReConnection
 
 data ReConnection = ReConnection
-  { _rrConnection :: Connection, -- established (and potentially breaking) connection to Redis
-    _rrReconnect :: IO () -- action which can be called to reconnect to Redis
+  { -- | established (and potentially breaking) connection to Redis
+    _rrConnection :: Connection,
+    -- | action which can be called to reconnect to Redis
+    _rrReconnect :: IO ()
   }
 
 makeLenses ''ReConnection
@@ -74,9 +76,9 @@ connectRobust l retryStrategy connectLowLevel = do
       conn <- connectLowLevel
 
       Log.info l $ Log.msg (Log.val "lazy connection established, running ping...")
-      -- TODO With ping, we only verify that a single node is running as opposed
-      -- to verifying that all nodes of the cluster are up and running. It
-      -- remains unclear how cluster health can be verified in hedis.
+      -- FUTUREWORK: With ping, we only verify that a single node is running as
+      -- opposed to verifying that all nodes of the cluster are up and running.
+      -- It remains unclear how cluster health can be verified in hedis.
       void . runRedis conn $ do
         res <- ping
         case res of

@@ -25,7 +25,7 @@ import qualified Cassandra as C
 import qualified Cassandra.Settings as C
 import Control.AutoUpdate
 import Control.Lens (makeLenses, (^.))
-import Control.Retry (exponentialBackoff)
+import Control.Retry (capDelay, exponentialBackoff)
 import Data.Default (def)
 import qualified Data.List.NonEmpty as NE
 import Data.Metrics.Middleware (Metrics)
@@ -129,7 +129,7 @@ createRedisPool l endpoint identifier = do
     Log.msg (Log.val $ "starting connection to " <> identifier <> "...")
       . Log.field "connectionMode" (show $ endpoint ^. rConnectionMode)
       . Log.field "connInfo" (show redisConnInfo)
-  let connectWithRetry = Redis.connectRobust l (exponentialBackoff 50000)
+  let connectWithRetry = Redis.connectRobust l (capDelay 1000000 (exponentialBackoff 50000))
   r <- case endpoint ^. rConnectionMode of
     Master -> connectWithRetry $ Redis.connect redisConnInfo
     Cluster -> connectWithRetry $ Redis.connectCluster redisConnInfo
