@@ -981,4 +981,27 @@ propNonExistingConv = withSystemTempDirectory "mls" $ \tmp -> do
     const (Just "no-conversation") === fmap Wai.label . responseJsonError
 
 propExistingConv :: TestM ()
-propExistingConv = error "not implemented" -- TODO implement
+propExistingConv = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
+  -- setupGroup :: HasCallStack => FilePath -> CreateConv -> Participant -> String -> TestM (Qualified ConvId)
+  void $ setupGroup tmp CreateConv creator "group.json"
+
+  prop <-
+    liftIO $
+      spawn
+        ( cli
+            (pClientQid creator)
+            tmp
+            [ "proposal",
+              "--group",
+              tmp </> "group.json",
+              "add",
+              tmp </> pClientQid bob
+            ]
+        )
+        Nothing
+  events <-
+    responseJsonError
+      =<< postMessage (qUnqualified (pUserId creator)) prop
+      <!! const 201 === statusCode
+  liftIO $ events @?= ([] :: [Event])

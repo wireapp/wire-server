@@ -31,12 +31,11 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 
-newtype TTL = TTL Integer
-  deriving newtype (Cql)
+type TTL = Integer
 
 -- | Proposals in the database expire after this timeout in seconds
-ttl :: TTL
-ttl = TTL $ 30 * 24 * 60 * 60
+defaultTTL :: TTL
+defaultTTL = 30 * 24 * 60 * 60
 
 interpretProposalStoreToCassandra ::
   Members '[Embed IO, Input ClientState] r =>
@@ -47,12 +46,16 @@ interpretProposalStoreToCassandra =
     embedClient . \case
       StoreProposal ref raw gid epoch ->
         retry x5 $
-          write storeQuery (params LocalQuorum (ref, raw, gid, epoch, ttl))
+          write (storeQuery defaultTTL) (params LocalQuorum (ref, raw, gid, epoch))
       GetProposal ref ->
         retry x1 (query1 getQuery (params LocalQuorum (Identity ref)))
 
-storeQuery :: PrepQuery W (ProposalRef, RawMLS Proposal, GroupId, Epoch, TTL) ()
-storeQuery = "insert into mls_proposal_refs (ref, proposal, group_id, epoch) values (?, ?, ?, ?) using ttl ?"
+storeQuery :: TTL -> PrepQuery W (ProposalRef, RawMLS Proposal, GroupId, Epoch) ()
+storeQuery ttl =
+  fromString $
+    "insert into mls_proposal_refs (ref, proposal, group_id, epoch)\
+    \ values (?, ?, ?, ?) using ttl "
+      <> show ttl
 
 getQuery :: PrepQuery R (Identity ProposalRef) (RawMLS Proposal, GroupId, Epoch)
 getQuery = "select proposal, group_id, epoch from mls_proposal_refs where ref = ?"
