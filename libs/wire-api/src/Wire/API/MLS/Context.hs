@@ -29,5 +29,5 @@ context :: ByteString
 context = "MLS 1.0 ref"
 
 proposalContext, keyPackageContext :: ByteString
-proposalContext = context -- TODO: see if this is how it is defined in openmls
+proposalContext = context
 keyPackageContext = context

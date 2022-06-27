@@ -140,7 +140,7 @@ data ProposalOrRefTag = InlineTag | RefTag
 instance ParseMLS ProposalOrRefTag where
   parseMLS = parseMLSEnum @Word8 "ProposalOrRef type"
 
-data ProposalOrRef = Inline (RawMLS Proposal) | Ref ProposalRef
+data ProposalOrRef = Inline Proposal | Ref ProposalRef
   deriving stock (Eq, Show)
 
 instance ParseMLS ProposalOrRef where
