@@ -840,7 +840,8 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
         ( cli
             aliceClientId
             tmp
-            [ "group-from-welcome",
+            [ "group",
+              "from-welcome",
               "--group-out",
               tmp </> "groupA.json",
               tmp </> "welcome"

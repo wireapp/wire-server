@@ -612,7 +612,8 @@ testAppMessageRemoteConv = do
         ( cli
             (pClientQid bob)
             tmp
-            [ "group-from-welcome",
+            [ "group",
+              "from-welcome",
               "--group-out",
               tmp </> "groupB.json",
               tmp </> "welcome"
