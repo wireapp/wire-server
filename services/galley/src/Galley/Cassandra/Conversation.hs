@@ -35,6 +35,7 @@ import Data.Range
 import qualified Data.Set as Set
 import Data.UUID.V4 (nextRandom)
 import Galley.Cassandra.Access
+import Galley.Cassandra.Conversation.MLS
 import Galley.Cassandra.Conversation.Members
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store
@@ -296,3 +297,5 @@ interpretConversationStoreToCassandra = interpret $ \case
   SetConversationEpoch cid epoch -> embedClient $ updateConvEpoch cid epoch
   DeleteConversation cid -> embedClient $ deleteConversation cid
   SetGroupId gId cid -> embedClient $ mapGroupId gId cid
+  AcquireCommitLock cid ttl -> embedClient $ acquireCommitLock cid ttl
+  ReleaseCommitLock cid -> embedClient $ releaseCommitLock cid
