@@ -87,8 +87,8 @@ data ConversationStore m a where
   SetConversationMessageTimer :: ConvId -> Maybe Milliseconds -> ConversationStore m ()
   SetConversationEpoch :: ConvId -> Epoch -> ConversationStore m ()
   SetGroupId :: GroupId -> Qualified ConvId -> ConversationStore m ()
-  AcquireCommitLock :: ConvId -> NominalDiffTime -> ConversationStore m LockAcquired
-  ReleaseCommitLock :: ConvId -> ConversationStore m ()
+  AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
+  ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
 
 makeSem ''ConversationStore
 

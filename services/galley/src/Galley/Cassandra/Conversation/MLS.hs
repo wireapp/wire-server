@@ -18,33 +18,34 @@
 module Galley.Cassandra.Conversation.MLS where
 
 import Cassandra
-import Data.Id
 import Data.Time
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Data.Types
+import Galley.Types
 import Imports
+import Wire.API.MLS.Message
 
-acquireCommitLock :: ConvId -> NominalDiffTime -> Client LockAcquired
-acquireCommitLock convId ttl = do
+acquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> Client LockAcquired
+acquireCommitLock groupId epoch ttl = do
   rows <-
     retry x5 $
       trans
         Cql.acquireCommitLock
         ( params
             LocalQuorum
-            (convId, round ttl)
+            (groupId, epoch, round ttl)
         )
   pure $
     if null rows
       then NotAcquired
       else Acquired
 
-releaseCommitLock :: ConvId -> Client ()
-releaseCommitLock convId =
+releaseCommitLock :: GroupId -> Epoch -> Client ()
+releaseCommitLock groupId epoch =
   retry x5 $
     write
       Cql.releaseCommitLock
       ( params
           LocalQuorum
-          (Identity convId)
+          (groupId, epoch)
       )

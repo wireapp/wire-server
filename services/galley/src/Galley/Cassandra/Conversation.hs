@@ -297,5 +297,5 @@ interpretConversationStoreToCassandra = interpret $ \case
   SetConversationEpoch cid epoch -> embedClient $ updateConvEpoch cid epoch
   DeleteConversation cid -> embedClient $ deleteConversation cid
   SetGroupId gId cid -> embedClient $ mapGroupId gId cid
-  AcquireCommitLock cid ttl -> embedClient $ acquireCommitLock cid ttl
-  ReleaseCommitLock cid -> embedClient $ releaseCommitLock cid
+  AcquireCommitLock gId epoch ttl -> embedClient $ acquireCommitLock gId epoch ttl
+  ReleaseCommitLock gId epoch -> embedClient $ releaseCommitLock gId epoch

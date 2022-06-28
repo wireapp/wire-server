@@ -26,6 +26,8 @@ migration =
   Migration 68 "Add lock table for MLS commits" $
     schema'
       [r| CREATE TABLE mls_commit_locks (
-          conv uuid PRIMARY KEY
+          group_id blob,
+          epoch bigint,
+          PRIMARY KEY (group_id, epoch)
         )
      |]
