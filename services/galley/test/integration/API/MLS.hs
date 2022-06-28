@@ -596,11 +596,18 @@ testAppMessageRemoteConv = do
   qcnv <- randomQualifiedId domain
 
   bobId <- randomQualifiedId domain
-  registerRemoteMLSConv qcnv "test_group" (qUnqualified bobId)
   putStrLn $ "bob: " <> show bobId
 
   -- create group and message
   message <- withSystemTempDirectory "mls" $ \tmp -> do
+    void . liftIO $
+      spawn
+        ( cli
+            (pClientQid alice)
+            tmp
+            ["init", pClientQid alice]
+        )
+        Nothing
     bob <-
       withLastPrekeys $
         setupParticipant tmp DontCreateClients 1 bobId
