@@ -94,6 +94,7 @@ data SparCustomError
   | SparNewIdPWantHttps LT
   | SparIdPHasBoundUsers
   | SparIdPIssuerInUse
+  | SparIdPCannotDeleteOwnIdp
   | SparProvisioningMoreThanOneIdP LT
   | SparProvisioningTokenLimitReached
   | -- | FUTUREWORK(fisx): This constructor is used in exactly one place (see
@@ -172,6 +173,7 @@ renderSparError (SAML.CustomError (SparNewIdPAlreadyInUse msg)) = Right $ Wai.mk
 renderSparError (SAML.CustomError (SparNewIdPWantHttps msg)) = Right $ Wai.mkError status400 "idp-must-be-https" ("an idp request uri must be https, not http or other: " <> msg)
 renderSparError (SAML.CustomError SparIdPHasBoundUsers) = Right $ Wai.mkError status412 "idp-has-bound-users" "an idp can only be deleted if it is empty"
 renderSparError (SAML.CustomError SparIdPIssuerInUse) = Right $ Wai.mkError status400 "idp-issuer-in-use" "The issuer of your IdP is already in use.  Remove the entry in the team that uses it, or construct a new IdP issuer."
+renderSparError (SAML.CustomError SparIdPCannotDeleteOwnIdp) = Right $ Wai.mkError status409 "cannot-delete-own-idp" "You cannot delete your own IdP."
 -- Errors related to provisioning
 renderSparError (SAML.CustomError (SparProvisioningMoreThanOneIdP msg)) = Right $ Wai.mkError status400 "more-than-one-idp" ("Team can have at most one IdP configured: " <> msg)
 renderSparError (SAML.CustomError SparProvisioningTokenLimitReached) = Right $ Wai.mkError status403 "token-limit-reached" "The limit of provisioning tokens per team has been reached"

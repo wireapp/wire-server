@@ -675,17 +675,17 @@ specCRUDIdentityProvider = do
       it "responds with 412 and does not remove IdP" $ do
         env <- ask
         (firstOwner, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
-        ssoOwner <- mkSsoOwner firstOwner tid idp privcreds
-        callIdpDelete' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
+        _ <- mkSsoOwner firstOwner tid idp privcreds
+        callIdpDelete' (env ^. teSpar) (Just firstOwner) (idp ^. idpId)
           `shouldRespondWith` checkErrHspec 412 "idp-has-bound-users"
-        callIdpGet' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
+        callIdpGet' (env ^. teSpar) (Just firstOwner) (idp ^. idpId)
           `shouldRespondWith` \resp -> statusCode resp < 300
     context "with email, idp non-empty, purge=true" $ do
       it "responds with 2xx and removes IdP and users *synchronously*" $ do
         env <- ask
         (firstOwner, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
         ssoOwner <- mkSsoOwner firstOwner tid idp privcreds
-        callIdpDeletePurge' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
+        callIdpDeletePurge' (env ^. teSpar) (Just firstOwner) (idp ^. idpId)
           `shouldRespondWith` \resp -> statusCode resp < 300
         _ <- aFewTimes (getUserBrig ssoOwner) isNothing
         ssoOwner' <- userId <$$> getUserBrig ssoOwner
@@ -695,6 +695,13 @@ specCRUDIdentityProvider = do
           firstOwner' `shouldBe` Just firstOwner
         callIdpGet' (env ^. teSpar) (Just firstOwner) (idp ^. idpId)
           `shouldRespondWith` checkErrHspec 404 "not-found"
+    context "with email, user who tries to delete is authenticated by the IdP, purge=true" $ do
+      it "responds with 409 'cannot-delete-own-idp'" $ do
+        env <- ask
+        (firstOwner, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+        ssoOwner <- mkSsoOwner firstOwner tid idp privcreds
+        callIdpDeletePurge' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
+          `shouldRespondWith` checkErrHspec 409 "cannot-delete-own-idp"
   describe "PUT /identity-providers/:idp" $ do
     testGetPutDelete callIdpUpdate'
     context "known IdP, client is team owner" $ do
