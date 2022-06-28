@@ -155,7 +155,7 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO
 
 schemaVersion :: Int32
-schemaVersion = 70
+schemaVersion = 71
 
 -------------------------------------------------------------------------------
 -- Environment

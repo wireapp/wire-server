@@ -621,6 +621,7 @@ executable brig-schema
       V68_AddMLSPublicKeys
       V69_MLSKeyPackageRefMapping
       V70_UserEmailUnvalidated
+      V71_AddTableVCodesThrottle
       V9
       Paths_brig
   hs-source-dirs:
