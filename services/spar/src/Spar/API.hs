@@ -463,7 +463,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     idpDoesAuthSelf idp uid = do
       let idpIssuer = idp ^. SAML.idpMetadata . SAML.edIssuer
       mUserIssuer <- (>>= userIssuer) <$> Brig.getBrigUser NoPendingInvitations uid
-      pure $ mUserIssuer == Just idpIssuer 
+      pure $ mUserIssuer == Just idpIssuer
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
