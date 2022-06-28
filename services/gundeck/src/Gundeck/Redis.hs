@@ -37,6 +37,8 @@ import Control.Retry
 import Database.Redis
 import Imports
 import qualified System.Logger as Log
+import System.Logger.Class (MonadLogger)
+import qualified System.Logger.Class as LogClass
 import System.Logger.Extended
 import UnliftIO.Exception
 
@@ -102,25 +104,30 @@ connectRobust l retryStrategy connectLowLevel = do
       unlessM (tryPutMVar robustConnection newReConnection) $
         void $ swapMVar robustConnection newReConnection
 
+    logEx :: Show e => ((Msg -> Msg) -> IO ()) -> e -> ByteString -> IO ()
+    logEx lLevel e description = lLevel $ Log.msg (Log.val description) . Log.field "error" (show e)
+
 -- | Run a 'Redis' action through a 'RobustConnection'.
 --
 -- Blocks on connection errors as long as the connection is not reestablished.
 -- Without externally enforcing timeouts, this may lead to leaking threads.
-runRobust :: RobustConnection -> Redis a -> IO a
+runRobust :: (MonadIO m, MonadUnliftIO m, MonadLogger m) => RobustConnection -> Redis a -> m a
 runRobust mvar action = do
   robustConnection <- readMVar mvar
   catches
-    (runRedis (_rrConnection robustConnection) action)
-    [ Handler (\(_ :: ConnectionLostException) -> reconnectRetry robustConnection), -- Redis connection lost during request
-      Handler (\(_ :: IOException) -> reconnectRetry robustConnection) -- Redis unreachable
+    (liftIO $ runRedis (_rrConnection robustConnection) action)
+    [ logAndHandle $ Handler (\(_ :: ConnectionLostException) -> reconnectRetry robustConnection), -- Redis connection lost during request
+      logAndHandle $ Handler (\(_ :: IOException) -> reconnectRetry robustConnection) -- Redis unreachable
     ]
   where
     reconnectRetry robustConnection = do
-      _rrReconnect robustConnection
+      liftIO $ _rrReconnect robustConnection
       runRobust mvar action
 
-logEx :: Show e => ((Msg -> Msg) -> IO ()) -> e -> ByteString -> IO ()
-logEx lLevel e description = lLevel $ Log.msg $ Log.val $ description <> ": " <> fromString (show e)
+    logAndHandle (Handler handler) =
+      Handler $ \e -> do
+        LogClass.err $ Log.msg (Log.val "Redis connection failed") . Log.field "error" (show e)
+        handler e
 
 data PingException = PingException Reply deriving (Show)
 
