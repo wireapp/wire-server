@@ -396,7 +396,7 @@ data ServiceConn = ServiceConn
     sconService :: !ServiceId,
     sconBaseUrl :: !HttpsUrl,
     sconAuthTokens :: !(List1 ServiceToken),
-    sconFingerprints :: !(List1 (Fingerprint Rsa)),
+    sconFingerprints :: !(Maybe (List1 (Fingerprint Rsa))),
     sconEnabled :: !Bool
   }
 

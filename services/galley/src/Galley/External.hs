@@ -148,7 +148,13 @@ urlPort (HttpsUrl u) = do
 
 sendMessage :: [Fingerprint Rsa] -> (Request -> Request) -> App ()
 sendMessage fprs reqBuilder = do
+  -- TODO: what's the behavior if `null fprs`?
   (man, verifyFingerprints) <- view (extEnv . extGetManager)
+  -- TODO: when (isNothing fpts) $ do one of
+  --         (1) plain http;
+  --         (2) https with system CA certs;
+  --         (3) https without cert  verification.
+  -- option (3) is the most likely.
   liftIO . withVerifiedSslConnection (verifyFingerprints fprs) man reqBuilder $ \req ->
     Http.withResponse req man (const $ pure ())
 

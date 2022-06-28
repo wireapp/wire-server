@@ -625,6 +625,10 @@ updateServiceConnH (pid ::: sid ::: req) = do
 
 updateServiceConn :: ProviderId -> ServiceId -> Public.UpdateServiceConn -> (Handler r) ()
 updateServiceConn pid sid upd = do
+  -- TODO: 'Public.UpdateServiceConn' allows for empty `public_keys`, but in this handler we
+  -- need to double-check how this is handled: if there is none, and there is none in the
+  -- database either, just make sure galley doesn't store a fingerprint either.  (to be
+  -- precise: if brig doesn't have a pub key, *clear* existing fingerprints in galley if /a.)
   pass <- wrapClientE (DB.lookupPassword pid) >>= maybeBadCredentials
   unless (verifyPassword (updateServiceConnPassword upd) pass) $
     throwStd (errorToWai @'BadCredentials)

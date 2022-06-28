@@ -586,8 +586,13 @@ data Settings = Settings
     setSftListAllServers :: Maybe ListAllSFTServers,
     setKeyPackageMaximumLifetime :: Maybe NominalDiffTime,
     -- | When set, development API versions are advertised to clients.
-    setEnableDevelopmentVersions :: Maybe Bool
-  }
+    setEnableDevelopmentVersions :: Maybe Bool,
+    -- | Only talk to bots that present certificates pinned earlier by the provider.  (Default
+    -- behavior, but if you run all bots inside your on-prem wire site, you may want to turn
+    -- it off.)
+    setPinPubkeysOfServices :: Maybe Bool
+    -- TODO (setPinPubkeysOfServices): make default True
+    -- TODO (setPinPubkeysOfServices): add to helm charts and docs for overriding on-prem (default should still be the safer "true").
   deriving (Show, Generic)
 
 defaultTemplateLocale :: Locale
