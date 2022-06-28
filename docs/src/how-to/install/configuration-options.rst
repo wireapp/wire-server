@@ -549,7 +549,7 @@ namespace, say ``integrations``. But it still needs to get traffic via
 Marking an installation as self-hosted
 --------------------------------------
 
-In case your wire installation is self-hosted (on-premise, demo installs), it needs to be made aware that it is through a configuration option.
+In case your wire installation is self-hosted (on-premise, demo installs), it needs to be aware that it is through a configuration option.  As of release chart 4.15.0, `"true"` is the default behavior, and nothing needs to be done.
 
 If that option is not set, team-settings will prompt users about "wire for free" and associated functions.
 
@@ -576,4 +576,3 @@ Second, also set the option under the `account-pages` section:
    account-pages:
      envVars:
        IS_SELF_HOSTED: "true"
-
