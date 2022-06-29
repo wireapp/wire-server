@@ -582,3 +582,56 @@ Configuring searchability
 
 You can configure how search is limited or not based on user membership in a given team.
 
+There are two types of searches based on the direction of search:
+
+* **Inbound** searches mean that somebody is searching for you. Configuring the inbound search visibility means that you (or some admin) can configure whether others can find you or not.
+* **Outbound** searches mean that you are searching for somebody. Configuring the outbound search visibility means that some admin can configure whether you can find other users or not.
+
+There are different types of matches: 
+
+* **Exact handle** search means that the user is found only if the search query is exactly the user handle (e.g. searching for `mc` will find `@mc` but not `@mccaine`). This search returns zero or one results.
+* **Full text** search means that the user is found if the search query contains some subset of the user display name and handle. (e.g. the query `mar` will find `Marco C`, `Omar`, `@amaro`)
+
+Searching users on the same backend
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Search visibility is controlled by three parameters on the backend:
+
+* A team outbound configuration flag, `TeamSearchVisibility` with possible values `SearchVisibilityStandard`, `SearchVisibilityNoNameOutsideTeam`
+  * `SearchVisibilityStandard` means that the user can find other people outside of the team, if the searched-person inbound search allows it
+  * `SearchVisibilityNoNameOutsideTeam` means that the user can not find any user outside the team by full text search (but exact handle search still works)
+* A team inbound configuration flag, `SearchVisibilityInbound` with possible values `SearchableByOwnTeam`, `SearchableByAllTeams`
+  * `SearchableByOwnTeam` means that the user can be found only by users in their own team.
+  * `SearchableByAllTeams` means that the user can be found by users in any/all teams.
+* A server configuration flag `searchSameTeamOnly` with possible values true, false. 
+  * ``Note``: For the same backend, this affects inbound and outbound searches (simply because all teams will be subject to this behavior)
+  * Setting this to `true` means that the all teams on that backend can only find users that belong to their team
+
+These flag are set on the backend and the clients do not need to be aware of them. 
+
+The flags will influence the behavior of the search API endpoint; clients will only need to parse the results, that are already filtered for them by the backend.
+
+Table of possible outcomes
+..........................
+
++------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+---+---+---+
+| Is search-er (`uA`) in team (tA)?  | Is search-ed (`uB`) in a team?  | Backend flag `searchSameTeamOnly`  | Team `tA`'s flag `TeamSearchVisibility`  | Team tB's flag `SearchVisibilityInbound`  | Result of exact search for `uB`  | Result of full-text search for `uB`  |   |   |   |
++====================================+=================================+====================================+==========================================+===========================================+==================================+======================================+===+===+===+
+| **Search within the same team**                                                                                                                                                                                                                                            |   |   |   |
++------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+---+---+---+
+| Yes, `tA`                          | Yes, the same team `tA`         | Irrelevant                         | Irrelevant                               | Irrelevant                                | Found                            | Found                                |   |   |   |
++------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+---+---+---+
+| **Outbound search unrestricted**                                                                                                                                                                                                                                           |   |   |   |
++------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+---+---+---+
+| Yes, `tA`                          | Yes, another team tB            | false                              | `SearchVisibilityStandard`               | `SearchableByAllTeams`                    | Found                            | Found                                |   |   |   |
++------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+---+---+---+
+| Yes, `tA`                          | Yes, another team tB            | false                              | `SearchVisibilityStandard`               | `SearchableByOwnTeam`                     | Found                            | Not found                            |   |   |   |
++------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+---+---+---+
+| **Outbound search restricted**                                                                                                                                                                                                                                             |   |   |   |
++------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+---+---+---+
+| Yes, `tA`                          | Yes, another team tB            | true                               | Irrelevant                               | Irrelevant                                | Not found                        | Not found                            |   |   |   |
++------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+---+---+---+
+| Yes, `tA`                          | Yes, another team tB            | false                              | `SearchVisibilityNoNameOutsideTeam`      | Irrelevant                                | Found                            | Not found                            |   |   |   |
++------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+---+---+---+
+| Yes, `tA`                          | No                              | false                              | `SearchVisibilityNoNameOutsideTeam`      | There’s no team B                         | Found                            | Not found                            |   |   |   |
++------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+---+---+---+
