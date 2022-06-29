@@ -661,3 +661,41 @@ Another way to express this is with the pseudocode:
     // else: searcher.team.TeamSearchVisibility == SearchVisibilityStandard
     return exactSearchResult + fullTextResults.filter { foundUser => foundUser.team == null || (foundUser.team.SearchVisibilityInbound == SearchableByAllTeams || foundUser.team == searcher.team) }
   }
+
+Searching users on another (federated) backend
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For federated search the table above does not apply, see following table.
+
+.. note::
+	
+	Incoming federated searches (i.e. searches from one backend to another) are considered always as being performed from a team user, even if they are performed from a personal user. 
+
+	This is because the incoming search request does not carry the information whether the user performing the search was in a team or not. 
+	
+	So we have to make one assumption, and we assume that they were in a team.
+
+Allowing search is done at the backend configuration level by the sysadmin:
+
+* Outbound search restrictions (`searchSameTeamOnly`, `TeamSearchVisibility`) do not apply to federated searches
+* A configuration setting `FederatedUserSearchPolicy` per federating domain with these possible values:
+  * `no_search` The federating backend is not allowed to search any users (either by exact handle or full-text).  
+  * `exact_handle_search` The federating backend may only search by exact handle
+  * `full_search` The federating backend may search users by full text search on display name and handle. The search search results are additionally affected by `SearchVisibilityInbound` setting of each team on the backend.
+* The `SearchVisibilityInbound` setting applies. Since the default value for teams is `SearchableByOwnTeam` this means that for a team to be full-text searchable by users on a federating backend both
+  * `FederatedUserSearchPolicy` needs to be set to to full_search for the federating backend
+  * Any team that wants to be full-text searchable needs to be set to `SearchableByAllTeams`
+
+The configuration value `FederatedUserSearchPolicy` is per federated domain, e.g. in the values of the wire-server chart:
+
+.. code:: yaml 
+
+  brig:
+    config:
+      optSettings:
+        setFederationDomainConfigs:
+          - domain: a.example.com
+            search_policy: no_search
+          - domain: a.example.com
+            search_policy: full_search
+
