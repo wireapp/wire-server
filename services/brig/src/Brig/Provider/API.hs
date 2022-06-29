@@ -30,7 +30,7 @@ import Bilge.RPC (HasRequestId)
 import qualified Brig.API.Client as Client
 import Brig.API.Error
 import Brig.API.Handler
-import Brig.API.Types (PasswordResetError (..))
+import Brig.API.Types (PasswordResetError (..), VerificationCodeThrottledError (..))
 import Brig.App
 import qualified Brig.Code as Code
 import qualified Brig.Data.Client as User
@@ -38,7 +38,7 @@ import qualified Brig.Data.User as User
 import Brig.Email (mkEmailKey)
 import qualified Brig.IO.Intra as RPC
 import qualified Brig.InternalEvent.Types as Internal
-import Brig.Options (Settings (..))
+import Brig.Options (Settings (..), setCodeGenerationDelaySecs)
 import qualified Brig.Options as Opt
 import Brig.Password
 import Brig.Provider.DB (ServiceConn (..))
@@ -359,7 +359,9 @@ newAccount new = do
       (Code.Retries 3)
       (Code.Timeout (3600 * 24)) -- 24h
       (Just (toUUID pid))
-  wrapClientE $ Code.insert code
+  ttl <- setCodeGenerationDelaySecs <$> view settings
+  mRetryAfter <- wrapClientE $ Code.insert code ttl
+  maybe (pure ()) (throwE . verificationCodeThrottledError . VerificationCodeThrottled) mRetryAfter
   let key = Code.codeKey code
   let val = Code.codeValue code
   lift $ sendActivationMail name email key val False
@@ -461,7 +463,9 @@ beginPasswordReset (Public.PasswordReset target) = do
         (Code.Retries 3)
         (Code.Timeout 3600) -- 1h
         (Just (toUUID pid))
-  wrapClientE $ Code.insert code
+  ttl <- setCodeGenerationDelaySecs <$> view settings
+  mRetryAfter <- wrapClientE $ Code.insert code ttl
+  maybe (pure ()) (throwE . verificationCodeThrottledError . VerificationCodeThrottled) mRetryAfter
   lift $ sendPasswordResetMail target (Code.codeKey code) (Code.codeValue code)
 
 completePasswordResetH :: JsonRequest Public.CompletePasswordReset -> (Handler r) Response
@@ -530,7 +534,9 @@ updateAccountEmail pid (Public.EmailUpdate new) = do
       (Code.Retries 3)
       (Code.Timeout (3600 * 24)) -- 24h
       (Just (toUUID pid))
-  wrapClientE $ Code.insert code
+  ttl <- setCodeGenerationDelaySecs <$> view settings
+  mRetryAfter <- wrapClientE $ Code.insert code ttl
+  maybe (pure ()) (throwE . verificationCodeThrottledError . VerificationCodeThrottled) mRetryAfter
   lift $ sendActivationMail (Name "name") email (Code.codeKey code) (Code.codeValue code) True
 
 updateAccountPasswordH :: ProviderId ::: JsonRequest Public.PasswordChange -> (Handler r) Response

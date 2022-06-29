@@ -225,6 +225,7 @@ testUpdateProvider db brig = do
     assertEqual "url" newUrl (providerUrl prv')
     assertEqual "description" newDescr (providerDescr prv')
 
+-- todo(leif): fix test to work with code generation throttling
 testDeleteProvider :: DB.ClientState -> Brig -> Http ()
 testDeleteProvider db brig = do
   prv <- randomProvider db brig

@@ -388,8 +388,9 @@ testLoginVerify6DigitEmailCodeSuccess brig galley db = do
   Just vcode <- Util.lookupCode db key Code.AccountLogin
   checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue vcode)
 
+-- todo(leif): fix test to work with code generation throttling
 testLoginVerify6DigitResendCodeSuccess :: Brig -> Galley -> DB.ClientState -> Http ()
-testLoginVerify6DigitResendCodeSuccess brig galley db = do
+testLoginVerify6DigitResendCodeSuccess brig galley db = withSettingsOverrides _ $ do
   (u, tid) <- createUserWithTeam' brig
   let Just email = userEmail u
   let checkLoginSucceeds body = login brig body PersistentCookie !!! const 200 === statusCode
@@ -408,6 +409,7 @@ testLoginVerify6DigitResendCodeSuccess brig galley db = do
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   fstCode <- getCodeFromDb
 
+  -- todo(leif): conflict with rate limiting
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   mostRecentCode <- getCodeFromDb

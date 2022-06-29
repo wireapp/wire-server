@@ -1,5 +1,3 @@
-{-# LANGUAGE QuasiQuotes #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,24 +15,10 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V71_AddTableVCodesThrottle
-  ( migration,
-  )
-where
+module Data.RetryAfter where
 
-import Cassandra.Schema
 import Imports
-import Text.RawString.QQ
 
-migration :: Migration
-migration =
-  Migration 71 "Add table vcodes_throttle" $ do
-    schema'
-      [r|
-        CREATE TABLE IF NOT EXISTS vcodes_throttle
-          ( key ascii
-          , scope int
-          , initial_delay int,
-          , PRIMARY KEY (key, scope)
-          )
-     |]
+newtype RetryAfter = RetryAfter
+  {retryAfterSeconds :: Int64}
+  deriving (Eq, Show)

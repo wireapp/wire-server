@@ -1217,6 +1217,7 @@ CREATE TABLE brig_test.user (
 CREATE TABLE brig_test.vcodes_throttle (
     key ascii,
     scope int,
+    initial_delay int,
     PRIMARY KEY (key, scope)
 ) WITH CLUSTERING ORDER BY (scope ASC)
     AND bloom_filter_fp_chance = 0.01
