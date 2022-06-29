@@ -734,7 +734,7 @@ If it is set to `no-name-outside-team` for a team then all users of that team wi
 
 This also includes finding other users by by providing their exact handle. By default it is set to `standard`, which doesn't put any additional restrictions to outbound searches.
 
-The setting can be changed via endpoint:
+The setting can be changed via endpoint (for more details on how to make the API calls with `curl`, read further):
 
 .. code::
 
@@ -779,7 +779,7 @@ If it is set to `searchable-by-all-teams` then users of this team may be include
   
   If the handle is provdided then any user on the instance can find users.
 
-This team feature flag can only by toggled by site-administrators with direct access to the galley instance:
+This team feature flag can only by toggled by site-administrators with direct access to the galley instance (for more details on how to make the API calls with `curl`, read further):
 
 .. code::
 
@@ -808,3 +808,63 @@ The default setting that applies to all teams on the instance can be defined at 
       status: enabled # OR disabled
 
 Individual teams can overwrite the default setting with API calls as per above.
+
+Making the API calls
+....................
+
+To make API calls to set an explicit configuration for` TeamSearchVisibilityInbound` per team, you first need to know the Team ID, which can be found in the team settings app.
+
+It is an `UUID<https://en.wikipedia.org/wiki/Universally_unique_identifier>` which has format like this  `dcbedf9a-af2a-4f43-9fd5-525953a919e1`. 
+
+In the following we will be using this Team ID as an example, please replace it with your own team id.
+
+Next find the name of a `galley` pod by looking at the output of running this command:
+
+.. code:: sh
+
+  kubectl -n wire get pods
+
+The output will look something like this:
+
+.. code::
+
+  ...
+  galley-5f4787fdc7-9l64n   ...
+  galley-migrate-data-lzz5j ...
+  ...
+
+Select any of the galley pods, for example we will use `galley-5f4787fdc7-9l64n`.
+
+Next, set up a port-forwarding from your local machine's port `9000` to the galley's port `8080` by running:
+
+.. code:: sh
+
+	kubectl port-forward -n wire galley-5f4787fdc7-9l64n 9000:8080
+
+Keep this command running until the end of these instuctions. 
+
+Please run the following commands in a seperate terminal while keeping the terminal which establishes the port-forwarding open.
+
+To see team's current setting run:
+
+.. code:: sh
+
+  curl -XGET http://localhost:9000/i/teams/dcbedf9a-af2a-4f43-9fd5-525953a919e1/features/searchVisibilityInbound
+  
+  # {"lockStatus":"unlocked","status":"disabled"}
+
+Where `disabled` corresponds to `SearchableByOwnTeam` and enabled corresponds to `SearchableByAllTeams`.
+
+To change the `TeamSearchVisibilityInbound` to `SearchableByAllTeams` for the team run:
+
+.. code:: sh
+
+  curl -XPUT -H 'Content-Type: application/json' -d "{\"status\": \"enabled\"}" http://localhost:9000/i/teams/dcbedf9a-af2a-4f43-9fd5-525953a919e1/features/searchVisibilityInbound
+
+To change the TeamSearchVisibilityInbound to SearchableByOwnTeam for the team run:
+
+.. code:: sh
+
+  curl -XPUT -H 'Content-Type: application/json' -d "{\"status\": \"disabled\"}" http://localhost:9000/i/teams/dcbedf9a-af2a-4f43-9fd5-525953a919e1/features/searchVisibilityInbound
+
+ 
