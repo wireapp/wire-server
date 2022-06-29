@@ -18,6 +18,7 @@
 module Galley.Cassandra.Conversation.MLS where
 
 import Cassandra
+import Cassandra.Settings (fromRow)
 import Data.Time
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Data.Types
@@ -36,9 +37,9 @@ acquireCommitLock groupId epoch ttl = do
             (groupId, epoch, round ttl)
         )
   pure $
-    if null rows
-      then NotAcquired
-      else Acquired
+    if checkTransSuccess rows
+      then Acquired
+      else NotAcquired
 
 releaseCommitLock :: GroupId -> Epoch -> Client ()
 releaseCommitLock groupId epoch =
@@ -49,3 +50,7 @@ releaseCommitLock groupId epoch =
           LocalQuorum
           (groupId, epoch)
       )
+
+checkTransSuccess :: [Row] -> Bool
+checkTransSuccess [] = False
+checkTransSuccess (row : _) = either (const False) (fromMaybe False) $ fromRow 0 row

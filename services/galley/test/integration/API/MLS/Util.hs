@@ -353,6 +353,7 @@ claimKeyPackage brig claimant target =
         . zUser claimant
     )
 
+-- TODO(SB) generalise such that two prepared commits can be sent
 postCommit :: HasCallStack => MessagingSetup -> TestM [Event]
 postCommit MessagingSetup {..} = do
   galley <- viewGalley

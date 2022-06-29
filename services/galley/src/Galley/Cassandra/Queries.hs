@@ -371,10 +371,10 @@ addRemoteMLSClients :: PrepQuery W (C.Set ClientId, ConvId, Domain, UserId) ()
 addRemoteMLSClients = "update member_remote_user set mls_clients = mls_clients + ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
 
 acquireCommitLock :: PrepQuery W (GroupId, Epoch, Int32) Row
-acquireCommitLock = "insert into mls_commit_locks (group_id, epoch) values (?, ?) using ttl ? if not exists"
+acquireCommitLock = "insert into mls_commit_locks (group_id, epoch) values (?, ?) if not exists using ttl ?"
 
 releaseCommitLock :: PrepQuery W (GroupId, Epoch) ()
-releaseCommitLock = "delete mls_commit_locks where group_id = ? and epoch = ?"
+releaseCommitLock = "delete from mls_commit_locks where group_id = ? and epoch = ?"
 
 -- Services -----------------------------------------------------------------
 
