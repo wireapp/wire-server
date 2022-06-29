@@ -576,3 +576,9 @@ Second, also set the option under the `account-pages` section:
    account-pages:
      envVars:
        IS_SELF_HOSTED: "true"
+
+Configuring searchability
+-------------------------
+
+You can configure how search is limited or not based on user membership in a given team.
+
