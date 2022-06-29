@@ -795,7 +795,7 @@ or
 
 .. code:: json
   
-  {"status": disabled}
+  {"status": "disabled"}
 
 Where `enabled` is equivalent to `searchable-by-all-teams` and `disabled` is equivalent to `searchable-by-own-team`.
 
