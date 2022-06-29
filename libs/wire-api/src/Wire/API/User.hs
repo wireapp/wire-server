@@ -31,6 +31,7 @@ module Wire.API.User
     userEmail,
     userPhone,
     userSSOId,
+    userIssuer,
     userSCIMExternalId,
     scimExternalId,
     ssoIssuerAndNameId,
@@ -395,6 +396,13 @@ ssoIssuerAndNameId (UserSSOId (SAML.UserRef (SAML.Issuer uri) nameIdXML)) = Just
     fromUri = cs . toLazyByteString . serializeURIRef
     fromNameId = CI.original . SAML.unsafeShowNameID
 ssoIssuerAndNameId (UserScimExternalId _) = Nothing
+
+userIssuer :: User -> Maybe SAML.Issuer
+userIssuer user = userSSOId user >>= fromSSOId
+  where
+    fromSSOId :: UserSSOId -> Maybe SAML.Issuer
+    fromSSOId (UserSSOId (SAML.UserRef issuer _)) = Just issuer
+    fromSSOId _ = Nothing
 
 connectedProfile :: User -> UserLegalHoldStatus -> UserProfile
 connectedProfile u legalHoldStatus =

@@ -44,6 +44,7 @@ module Spar.API
   )
 where
 
+import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
 import Control.Lens
 import Control.Monad.Except
 import qualified Data.ByteString as SBS
@@ -94,6 +95,7 @@ import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
 import qualified URI.ByteString as URI
 import Wire.API.Routes.Public.Spar
+import Wire.API.User (userIssuer)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.Sem.Logger (Logger)
@@ -412,7 +414,6 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
   let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
       team = idp ^. SAML.idpExtraInfo . wiTeam
   -- if idp is not empty: fail or purge
-  idpIsEmpty <- isNothing <$> SAMLUserStore.getAnyByIssuer issuer
   let doPurge :: Sem r ()
       doPurge = do
         some <- SAMLUserStore.getSomeByIssuer issuer
@@ -420,6 +421,8 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
           BrigAccess.delete uid
           SAMLUserStore.delete uid uref
         unless (null some) doPurge
+  idpIsEmpty <- isNothing <$> SAMLUserStore.getAnyByIssuer issuer
+  whenM (maybe (pure False) (idpDoesAuthSelf idp) zusr) $ throwSparSem SparIdPCannotDeleteOwnIdp
   unless idpIsEmpty $
     if purge
       then doPurge
@@ -444,7 +447,7 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
     -- to be deleted in its old issuers list, but it's tricky to avoid race conditions, and
     -- there is little to be gained here: we only use old issuers to find users that have not
     -- been migrated yet, and if an old user points to a deleted idp, it just means that we
-    -- won't find any users to migrate.  still, doesn't hurt mucht to look either.  so we
+    -- won't find any users to migrate.  still, doesn't hurt much to look either.  so we
     -- leave old issuers dangling for now.
 
     updateReplacingIdP :: IdP -> Sem r ()
@@ -455,6 +458,12 @@ idpDelete zusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (cons
         GetIdPDanglingId _ -> pure ()
         GetIdPNonUnique _ -> pure ()
         GetIdPWrongTeam _ -> pure ()
+
+    idpDoesAuthSelf :: IdP -> UserId -> Sem r Bool
+    idpDoesAuthSelf idp uid = do
+      let idpIssuer = idp ^. SAML.idpMetadata . SAML.edIssuer
+      mUserIssuer <- (>>= userIssuer) <$> Brig.getBrigUser NoPendingInvitations uid
+      pure $ mUserIssuer == Just idpIssuer
 
 -- | This handler only does the json parsing, and leaves all authorization checks and
 -- application logic to 'idpCreateXML'.
