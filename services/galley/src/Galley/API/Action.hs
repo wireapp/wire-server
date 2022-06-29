@@ -254,32 +254,33 @@ performAction ::
   (HasConversationActionEffects tag r) =>
   Sing tag ->
   Qualified UserId ->
-  Local ConvId ->
-  Conversation ->
+  Local Conversation ->
   ConversationAction tag ->
   Sem r (BotsAndMembers, ConversationAction tag)
-performAction tag origUser lcnv cnv action =
+performAction tag origUser lconv action = do
+  let lcnv = fmap convId lconv
+      conv = tUnqualified lconv
   case tag of
     SConversationJoinTag -> do
-      performConversationJoin origUser lcnv cnv action
+      performConversationJoin origUser lconv action
     SConversationLeaveTag -> do
-      let presentVictims = filter (isConvMember lcnv cnv) (toList action)
+      let presentVictims = filter (isConvMemberL lconv) (toList action)
       when (null presentVictims) noChanges
-      E.deleteMembers (convId cnv) (toUserList lcnv presentVictims)
+      E.deleteMembers (tUnqualified lcnv) (toUserList lconv presentVictims)
       pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?
     SConversationRemoveMembersTag -> do
-      let presentVictims = filter (isConvMember lcnv cnv) (toList action)
+      let presentVictims = filter (isConvMemberL lconv) (toList action)
       when (null presentVictims) noChanges
-      E.deleteMembers (convId cnv) (toUserList lcnv presentVictims)
+      E.deleteMembers (tUnqualified lcnv) (toUserList lconv presentVictims)
       pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?
     SConversationMemberUpdateTag -> do
-      void $ ensureOtherMember lcnv (cmuTarget action) cnv
+      void $ ensureOtherMember lconv (cmuTarget action) conv
       E.setOtherMember lcnv (cmuTarget action) (cmuUpdate action)
       pure (mempty, action)
     SConversationDeleteTag -> do
       key <- E.makeKey (tUnqualified lcnv)
       E.deleteCode key ReusableCode
-      case convTeam cnv of
+      case convTeam conv of
         Nothing -> E.deleteConversation (tUnqualified lcnv)
         Just tid -> E.deleteTeamConversation tid (tUnqualified lcnv)
       pure (mempty, action)
@@ -288,28 +289,27 @@ performAction tag origUser lcnv cnv action =
       E.setConversationName (tUnqualified lcnv) cn
       pure (mempty, action)
     SConversationMessageTimerUpdateTag -> do
-      when (Data.convMessageTimer cnv == cupMessageTimer action) noChanges
+      when (Data.convMessageTimer conv == cupMessageTimer action) noChanges
       E.setConversationMessageTimer (tUnqualified lcnv) (cupMessageTimer action)
       pure (mempty, action)
     SConversationReceiptModeUpdateTag -> do
-      when (Data.convReceiptMode cnv == Just (cruReceiptMode action)) noChanges
+      when (Data.convReceiptMode conv == Just (cruReceiptMode action)) noChanges
       E.setConversationReceiptMode (tUnqualified lcnv) (cruReceiptMode action)
       pure (mempty, action)
     SConversationAccessDataTag -> do
-      (bm, act) <- performConversationAccessData origUser lcnv cnv action
+      (bm, act) <- performConversationAccessData origUser lconv action
       pure (bm, act)
 
 performConversationJoin ::
   (HasConversationActionEffects 'ConversationJoinTag r) =>
   Qualified UserId ->
-  Local ConvId ->
-  Conversation ->
+  Local Conversation ->
   ConversationJoin ->
   Sem r (BotsAndMembers, ConversationJoin)
-performConversationJoin qusr lcnv conv (ConversationJoin invited role) = do
-  let newMembers = ulNewMembers lcnv conv . toUserList lcnv $ invited
+performConversationJoin qusr lconv (ConversationJoin invited role) = do
+  let newMembers = ulNewMembers lconv conv . toUserList lconv $ invited
 
-  lusr <- ensureLocal lcnv qusr
+  lusr <- ensureLocal lconv qusr
   ensureMemberLimit (toList (convLocalMembers conv)) newMembers
   ensureAccess conv InviteAccess
   checkLocals lusr (convTeam conv) (ulLocals newMembers)
@@ -317,8 +317,11 @@ performConversationJoin qusr lcnv conv (ConversationJoin invited role) = do
   checkLHPolicyConflictsLocal (ulLocals newMembers)
   checkLHPolicyConflictsRemote (FutureWork (ulRemotes newMembers))
 
-  addMembersToLocalConversation lcnv newMembers role
+  addMembersToLocalConversation (fmap convId lconv) newMembers role
   where
+    conv :: Data.Conversation
+    conv = tUnqualified lconv
+
     checkLocals ::
       Members
         '[ BrigAccess,
@@ -407,10 +410,14 @@ performConversationJoin qusr lcnv conv (ConversationJoin invited role) = do
           then do
             for_ convUsersLHStatus $ \(mem, status) ->
               when (consentGiven status == ConsentNotGiven) $ do
-                let lvictim = qualifyAs lcnv (lmId mem)
+                let lvictim = qualifyAs lconv (lmId mem)
                 void . runError @NoChanges $
-                  updateLocalConversation @'ConversationLeaveTag lcnv (qUntagged lvictim) Nothing $
-                    pure (qUntagged lvictim)
+                  updateLocalConversation
+                    @'ConversationLeaveTag
+                    (fmap convId lconv)
+                    (qUntagged lvictim)
+                    Nothing
+                    $ pure (qUntagged lvictim)
           else throwS @'MissingLegalholdConsent
 
     checkLHPolicyConflictsRemote ::
@@ -421,11 +428,10 @@ performConversationJoin qusr lcnv conv (ConversationJoin invited role) = do
 performConversationAccessData ::
   (HasConversationActionEffects 'ConversationAccessDataTag r) =>
   Qualified UserId ->
-  Local ConvId ->
-  Conversation ->
+  Local Conversation ->
   ConversationAccessData ->
   Sem r (BotsAndMembers, ConversationAccessData)
-performConversationAccessData qusr lcnv conv action = do
+performConversationAccessData qusr lconv action = do
   when (convAccessData conv == action) noChanges
   -- Remove conversation codes if CodeAccess is revoked
   when
@@ -455,10 +461,13 @@ performConversationAccessData qusr lcnv conv action = do
 
     -- Remove users and notify everyone
     void . for_ (nonEmpty (bmQualifiedMembers lcnv toRemove)) $ \usersToRemove -> do
-      void . runError @NoChanges $ performAction SConversationLeaveTag qusr lcnv conv usersToRemove
-      notifyConversationAction (sing @'ConversationLeaveTag) qusr Nothing lcnv bmToNotify usersToRemove
+      void . runError @NoChanges $ performAction SConversationLeaveTag qusr lconv usersToRemove
+      notifyConversationAction (sing @'ConversationLeaveTag) qusr Nothing lconv bmToNotify usersToRemove
   pure (mempty, action)
   where
+    lcnv = fmap convId lconv
+    conv = tUnqualified lconv
+
     maybeRemoveBots :: Member BrigAccess r => BotsAndMembers -> Sem r BotsAndMembers
     maybeRemoveBots bm =
       if Set.member ServiceAccessRole (cupAccessRoles action)
@@ -570,13 +579,13 @@ updateLocalConversationUnchecked lconv qusr con action = do
   ensureConversationActionAllowed (sing @tag) lcnv action conv self
 
   -- perform action
-  (extraTargets, action') <- performAction tag qusr lcnv conv action
+  (extraTargets, action') <- performAction tag qusr lconv action
 
   notifyConversationAction
     (sing @tag)
     qusr
     con
-    lcnv
+    lconv
     (convBotsAndMembers conv <> extraTargets)
     action'
 
@@ -630,12 +639,13 @@ notifyConversationAction ::
   Sing tag ->
   Qualified UserId ->
   Maybe ConnId ->
-  Local ConvId ->
+  Local Conversation ->
   BotsAndMembers ->
   ConversationAction (tag :: ConversationActionTag) ->
   Sem r LocalConversationUpdate
-notifyConversationAction tag quid con lcnv targets action = do
+notifyConversationAction tag quid con lconv targets action = do
   now <- input
+  let lcnv = fmap convId lconv
   let e = conversationActionToEvent tag now quid (qUntagged lcnv) action
 
   let mkUpdate uids =

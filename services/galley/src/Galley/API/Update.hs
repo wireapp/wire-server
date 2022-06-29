@@ -766,7 +766,7 @@ joinConversation lusr zcon conv access = do
         (sing @'ConversationJoinTag)
         (qUntagged lusr)
         (Just zcon)
-        lcnv
+        (qualifyAs lusr conv)
         (convBotsAndMembers conv <> extraTargets)
         action
 

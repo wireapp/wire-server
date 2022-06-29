@@ -337,6 +337,9 @@ class IsConvMember mem => IsConvMemberId uid mem | uid -> mem where
   notIsConvMember :: Local x -> Data.Conversation -> uid -> Bool
   notIsConvMember loc conv = not . isConvMember loc conv
 
+isConvMemberL :: IsConvMemberId uid mem => Local Data.Conversation -> uid -> Bool
+isConvMemberL lconv = isConvMember lconv (tUnqualified lconv)
+
 instance IsConvMemberId UserId LocalMember where
   getConvMember _ conv u = find ((u ==) . lmId) (Data.convLocalMembers conv)
 

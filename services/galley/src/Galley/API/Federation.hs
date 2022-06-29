@@ -320,7 +320,14 @@ leaveConversation requestingDomain lc = do
 
       let remotes = filter ((== tDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
-      _ <- notifyConversationAction SConversationLeaveTag (qUntagged leaver) Nothing lcnv botsAndMembers action
+      _ <-
+        notifyConversationAction
+          SConversationLeaveTag
+          (qUntagged leaver)
+          Nothing
+          (qualifyAs lcnv conv)
+          botsAndMembers
+          action
 
       pure $ F.LeaveConversationResponse (Right ())
 
@@ -436,7 +443,14 @@ onUserDeleted origDomain udcn = do
             Public.RegularConv -> do
               let action = pure untaggedDeletedUser
                   botsAndMembers = convBotsAndMembers conv
-              void $ notifyConversationAction (sing @'ConversationLeaveTag) untaggedDeletedUser Nothing lc botsAndMembers action
+              void $
+                notifyConversationAction
+                  (sing @'ConversationLeaveTag)
+                  untaggedDeletedUser
+                  Nothing
+                  (qualifyAs lc conv)
+                  botsAndMembers
+                  action
   pure EmptyResponse
 
 updateConversation ::
