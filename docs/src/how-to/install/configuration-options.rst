@@ -720,3 +720,91 @@ It’s worth nothing that if two users are on two separate backend, they are als
 | user `uA` on backend A  | `full_search`                               | SearchableByAllTeams                        | Found                            | Found                                |
 +-------------------------+---------------------------------------------+---------------------------------------------+----------------------------------+--------------------------------------+
 
+Changing the settings for a given team
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you need to change searchabilility for a specific team (rather than the entire backend, as above), you need to make specific calls to the API.
+
+Team searchVisibility
+.....................
+
+The team flag `searchVisibility` affects the outbound search of user searches. 
+
+If it is set to `no-name-outside-team` for a team then all users of that team will no longer be able to find users that are not part of their team when searching. 
+
+This also includes finding other users by by providing their exact handle. By default it is set to `standard`, which doesn't put any additional restrictions to outbound searches.
+
+The setting can be changed via endpoint:
+
+.. code::
+
+  GET /teams/{tid}/search-visibility
+    -- Shows the current TeamSearchVisibility value for the given team
+
+  PUT /teams/{tid}/search-visibility
+    -- Set specific search visibility for the team
+
+  pull-down-menu "body":
+    "standard"
+    "no-name-outside-team"
+
+The team feature flag `teamSearchVisibility` determines whether it is allowed to change the `searchVisibility` setting or not.
+
+The default is `disabled-by-default`. 
+
+.. note::
+
+  Whenever this feature setting is disabled the `searchVisibility` will be reset to standard.
+
+The default setting that applies to all teams on the instance can be defined at configuration
+
+.. code:: yaml 
+
+  settings:
+    featureFlags:
+      teamSearchVisibility: disabled-by-default # or enabled-by-default
+
+TeamFeature searchVisibilityInbound
+...................................
+
+The team feature flag `searchVisibilityInbound` affects if the team's users are searchable by users from other teams. 
+
+The default setting is `searchable-by-own-team` which hides users from search results by users from other teams. 
+
+If it is set to `searchable-by-all-teams` then users of this team may be included in the results of search queries by other users.
+
+.. note::
+
+  The configuration of this flag does not affect search results when the search query matches the handle exactly. 
+  
+  If the handle is provdided then any user on the instance can find users.
+
+This team feature flag can only by toggled by site-administrators with direct access to the galley instance:
+
+.. code::
+
+  PUT /i/teams/{tid}/features/search-visibility-inbound
+
+With JSON body:
+
+.. code:: json
+  
+  {"status": "enabled"} 
+  
+or
+
+.. code:: json
+  
+  {"status": disabled}
+
+Where `enabled` is equivalent to `searchable-by-all-teams` and `disabled` is equivalent to `searchable-by-own-team`.
+
+The default setting that applies to all teams on the instance can be defined at configuration.
+
+.. code:: yaml 
+
+  searchVisibilityInbound:
+    defaults:
+      status: enabled # OR disabled
+
+Individual teams can overwrite the default setting with API calls as per above.
