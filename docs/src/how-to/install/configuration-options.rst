@@ -662,6 +662,44 @@ Another way to express this is with the pseudocode:
     return exactSearchResult + fullTextResults.filter { foundUser => foundUser.team == null || (foundUser.team.SearchVisibilityInbound == SearchableByAllTeams || foundUser.team == searcher.team) }
   }
 
+Changing the configuration on the server
+........................................
+
+To change the `searchSameTeamOnly` setting on the backend, edit the `values.yaml.gotmpl` file for the wire-server chart at this nested level of the configuration:
+
+.. code:: yaml
+
+  brig:
+    # ...
+    config:
+      # ...
+      optSettings:
+        # ...
+        setSearchSameTeamOnly: true
+
+If `setSearchSameTeamOnly` is set to `true` then `TeamSearchVisibility` is forced be in the `SearchVisibilityNoNameOutsideTeam` setting for all teams.
+
+Changing the default configuration for all teams
+................................................
+
+If `setSearchSameTeamOnly` is set to `false`  (or missing from the configuration) then the default value `TeamSearchVisibility` can be configured at this level of the configuration of the `value.yaml.gotmpl` file of the wire-server chart:
+
+
+.. code:: yaml
+
+  galley:
+    #...
+    config:
+      #...
+      settings:
+        #...
+        featureFlags:
+          #...
+          teamSearchVisibility: enabled-by-default
+
+This default value applies to all teams for which no explicit configuration of the `TeamSearchVisibility` has been set.
+
+
 Searching users on another (federated) backend
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
