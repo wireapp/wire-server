@@ -119,8 +119,8 @@ tests s =
         [ test s "add a new client to a non-existing conversation" propNonExistingConv,
           test s "add a new client to an existing conversation" propExistingConv,
           test s "add a new client in an invalid epoch" propInvalidEpoch,
-          test s "add a new client with a non-matching cipher suite" (pure ()),
-          test s "add a new client of a non-member" (pure ())
+          test s "add a new client with a non-matching cipher suite" (error "TODO: remove this test. if the handler throws this error it is irrespective of the request."),
+          test s "add a new client of a non-member" propNonMember
         ],
       testGroup
         "Protocol mismatch"
@@ -1032,3 +1032,26 @@ propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
     prop <- liftIO $ bareAddProposal tmp creator dee "group.1.json"
     postMessage (qUnqualified (pUserId creator)) prop
       !!! const 201 === statusCode
+
+propNonMember :: TestM ()
+propNonMember = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, [bob, charlie]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser), (1, LocalUser)]
+
+  -- create a group
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group.json"
+
+  -- add only clients of creator and bob
+  (commit, welcome) <-
+    liftIO $
+      setupCommit tmp creator "group.json" "group.json" $
+        NonEmpty.tail (pClients creator) <> NonEmpty.tail (pClients bob)
+
+  let users = []
+  void $ postCommit MessagingSetup {..}
+
+  prop <- liftIO $ bareAddProposal tmp creator charlie "group.json"
+  err <-
+    responseJsonError
+      =<< postMessage (qUnqualified (pUserId creator)) prop
+        <!! const 409 === statusCode
+  liftIO $ Wai.label err @?= "no-conversation"
