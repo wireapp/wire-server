@@ -317,6 +317,7 @@ bareAddProposal tmp creator participantToAdd groupName =
     Nothing
 
 createMessage ::
+  HasCallStack =>
   String ->
   Participant ->
   String ->
