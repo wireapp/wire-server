@@ -295,6 +295,27 @@ setupCommit tmp admin groupName newGroupName clients =
       Nothing
       <*> BS.readFile (tmp </> "welcome")
 
+bareAddProposal ::
+  HasCallStack =>
+  String ->
+  Participant ->
+  Participant ->
+  String ->
+  IO ByteString
+bareAddProposal tmp creator participantToAdd groupName =
+  spawn
+    ( cli
+        (pClientQid creator)
+        tmp
+        $ [ "proposal",
+            "--group",
+            tmp </> groupName,
+            "add",
+            tmp </> pClientQid participantToAdd
+          ]
+    )
+    Nothing
+
 createMessage ::
   String ->
   Participant ->

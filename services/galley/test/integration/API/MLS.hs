@@ -1,4 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,7 +17,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module API.MLS (tests) where
 
@@ -117,7 +118,7 @@ tests s =
         "Proposal"
         [ test s "add a new client to a non-existing conversation" propNonExistingConv,
           test s "add a new client to an existing conversation" propExistingConv,
-          test s "add a new client in an invalid epoch" (pure ()),
+          test s "add a new client in an invalid epoch" propInvalidEpoch,
           test s "add a new client with a non-matching cipher suite" (pure ()),
           test s "add a new client of a non-member" (pure ())
         ],
@@ -799,7 +800,7 @@ testAppMessage2 = do
         createMessage tmp bob "group" "some text"
     pure (setup, message)
 
-  let [bob, charlie] = users
+  let (bob, charlie) = assertTwo users
   galley <- viewGalley
   cannon <- view tsCannon
 
@@ -986,22 +987,47 @@ propExistingConv = withSystemTempDirectory "mls" $ \tmp -> do
   -- setupGroup :: HasCallStack => FilePath -> CreateConv -> Participant -> String -> TestM (Qualified ConvId)
   void $ setupGroup tmp CreateConv creator "group.json"
 
-  prop <-
-    liftIO $
-      spawn
-        ( cli
-            (pClientQid creator)
-            tmp
-            [ "proposal",
-              "--group",
-              tmp </> "group.json",
-              "add",
-              tmp </> pClientQid bob
-            ]
-        )
-        Nothing
+  prop <- liftIO $ bareAddProposal tmp creator bob "group.json"
+
   events <-
     responseJsonError
       =<< postMessage (qUnqualified (pUserId creator)) prop
       <!! const 201 === statusCode
   liftIO $ events @?= ([] :: [Event])
+
+propInvalidEpoch :: TestM ()
+propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, users) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser), (1, LocalUser), (1, LocalUser)]
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group.0.json"
+
+  let (bob, charlie, dee) = assertThree users
+
+  -- Add bob -> epoch 1
+  do
+    (commit, welcome) <-
+      liftIO $
+        setupCommit tmp creator "group.0.json" "group.1.json" $
+          toList (pClients bob)
+    testSuccessfulCommit MessagingSetup {users = [bob], ..}
+
+  -- try to request a proposal that with too old epoch (0)
+  do
+    prop <- liftIO $ bareAddProposal tmp creator charlie "group.0.json"
+    postMessage (qUnqualified (pUserId creator)) prop
+      !!! const 409 === statusCode
+
+  -- try to request a proposal that is too new epoch (2)
+  do
+    void $
+      liftIO $
+        setupCommit tmp creator "group.1.json" "group.2.json" $
+          toList (pClients charlie)
+    prop <- liftIO $ bareAddProposal tmp creator dee "group.2.json"
+    postMessage (qUnqualified (pUserId creator)) prop
+      !!! const 409 === statusCode
+
+  -- same proposal with correct epoch (1)
+  do
+    prop <- liftIO $ bareAddProposal tmp creator dee "group.1.json"
+    postMessage (qUnqualified (pUserId creator)) prop
+      !!! const 201 === statusCode
