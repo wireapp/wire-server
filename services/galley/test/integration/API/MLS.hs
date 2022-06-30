@@ -995,6 +995,7 @@ propExistingConv = withSystemTempDirectory "mls" $ \tmp -> do
       <!! const 201 === statusCode
   liftIO $ events @?= ([] :: [Event])
 
+-- TODO: assert on error label
 propInvalidEpoch :: TestM ()
 propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
   (creator, users) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser), (1, LocalUser), (1, LocalUser)]
