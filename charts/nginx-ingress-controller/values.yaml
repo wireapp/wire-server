@@ -8,7 +8,7 @@ nginx-ingress:
       # As a Wire employee, for Wire-internal discussions and context see
       # * https://wearezeta.atlassian.net/browse/FS-33
       # * https://wearezeta.atlassian.net/browse/FS-444
-      ssl-ciphers: "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
+      ssl-ciphers: "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"
       http2-max-field-size: 16k
       http2-max-header-size: 32k
       proxy-buffer-size: 16k

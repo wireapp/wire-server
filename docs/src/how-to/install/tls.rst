@@ -9,8 +9,6 @@ The following table lists recommended ciphers for TLS server setups, which shoul
 ============================= ======= ================= ========================
 Cipher                        Version `BSI TR-02102-2`_ `Mozilla TLS Guideline`_
 ============================= ======= ================= ========================
-ECDHE-ECDSA-AES128-GCM-SHA256 TLSv1.2 **yes**           intermediate
-ECDHE-RSA-AES128-GCM-SHA256   TLSv1.2 **yes**           intermediate
 ECDHE-ECDSA-AES256-GCM-SHA384 TLSv1.2 **yes**           intermediate
 ECDHE-RSA-AES256-GCM-SHA384   TLSv1.2 **yes**           intermediate
 ECDHE-ECDSA-CHACHA20-POLY1305 TLSv1.2 no                intermediate
