@@ -22,8 +22,8 @@ import Cassandra.Settings (fromRow)
 import Data.Time
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Data.Types
-import Galley.Types
 import Imports
+import Wire.API.MLS.Group
 import Wire.API.MLS.Message
 
 acquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> Client LockAcquired
