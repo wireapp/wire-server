@@ -636,31 +636,6 @@ Table of possible outcomes
 | Yes, `tA`                          | No                              | false                              | `SearchVisibilityNoNameOutsideTeam`      | There’s no team B                         | Found                            | Not found                            |
 +------------------------------------+---------------------------------+------------------------------------+------------------------------------------+-------------------------------------------+----------------------------------+--------------------------------------+
 
-Another way to express this is with the pseudocode:
-
-.. code:: js
-
-  def search(searcher: User, query: String) {
-    val fullTextResults = searchFullText(query)
-    val exactResults = findExactHandle(query)
-  
-    if(searcher.team == null) {
-      return exactResults + fullTextResults.filter { foundUser => foundUser.team == null }
-    } 
-  
-    // else: searcher team is NOT null
-    if (backend.searchSameTeamOnly) {
-      return exactResults.filter { foundUser => foundUser.team == searcher.team } + fullTextResults.filter { foundUser => foundUser.team == searcher.team}
-    }
-  
-    // else: backend config is NOT searchSameTeamOnly
-    if (searcher.team.TeamSearchVisibility == SearchVisibilityNoNameOutsideTeam) {
-      return exactSearchResults + fullTextResults.filter { foundUser => foundUser.team == searcher.team }  
-    }
-  
-    // else: searcher.team.TeamSearchVisibility == SearchVisibilityStandard
-    return exactSearchResult + fullTextResults.filter { foundUser => foundUser.team == null || (foundUser.team.SearchVisibilityInbound == SearchableByAllTeams || foundUser.team == searcher.team) }
-  }
 
 Changing the configuration on the server
 ........................................
