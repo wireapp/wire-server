@@ -440,11 +440,11 @@ withCommitLock ::
   NominalDiffTime ->
   Sem r a ->
   Sem r a
-withCommitLock gid epoch ttl action = do
-  lockAcquired <- acquireCommitLock gid epoch ttl
-  when (lockAcquired == NotAcquired) $
-    throwS @'MLSStaleMessage
+withCommitLock gid epoch ttl action =
   bracket
-    (pure ())
-    (\_ -> releaseCommitLock gid epoch)
+    ( acquireCommitLock gid epoch ttl >>= \lockAcquired ->
+        when (lockAcquired == NotAcquired) $
+          throwS @'MLSStaleMessage
+    )
+    (const $ releaseCommitLock gid epoch)
     (const action)
