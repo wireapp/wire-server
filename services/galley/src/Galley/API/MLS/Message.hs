@@ -181,7 +181,7 @@ processCommit lusr con conv epoch sender commit = do
 
   when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
 
-  let ttlSeconds :: Int = 10
+  let ttlSeconds :: Int = 600 -- 10 minutes
   withCommitLock groupId epoch (fromIntegral ttlSeconds) $ do
     when (epoch == Epoch 0) $ do
       -- this is a newly created conversation, and it should contain exactly one
