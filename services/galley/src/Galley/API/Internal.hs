@@ -657,7 +657,8 @@ rmUser lusr conn = do
                 cuOrigUserId = qUser,
                 cuConvId = cid,
                 cuAlreadyPresentUsers = tUnqualified remotes,
-                cuAction = SomeConversationAction (sing @'ConversationLeaveTag) (pure qUser)
+                cuAction = SomeConversationAction (sing @'ConversationLeaveTag) (pure qUser),
+                cuMetadata = Nothing
               }
       let rpc = fedClient @'Galley @"on-conversation-updated" convUpdate
       runFederatedEither remotes rpc

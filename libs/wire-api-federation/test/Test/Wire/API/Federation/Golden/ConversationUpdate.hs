@@ -24,6 +24,7 @@ where
 import Data.Domain (Domain (Domain))
 import Data.Id (Id (Id), UserId)
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.Misc
 import Data.Qualified (Qualified (Qualified))
 import Data.Singletons (sing)
 import qualified Data.UUID as UUID
@@ -58,7 +59,8 @@ testObject_ConversationUpdate1 =
       cuConvId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       cuAlreadyPresentUsers = [],
-      cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qAlice :| [qBob]) roleNameWireAdmin)
+      cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qAlice :| [qBob]) roleNameWireAdmin),
+      cuMetadata = Nothing
     }
 
 testObject_ConversationUpdate2 :: ConversationUpdate
@@ -72,5 +74,17 @@ testObject_ConversationUpdate2 =
       cuConvId =
         Id (fromJust (UUID.fromString "00000000-0000-0000-0000-000100000006")),
       cuAlreadyPresentUsers = [chad, dee],
-      cuAction = SomeConversationAction (sing @'ConversationLeaveTag) (pure qAlice)
+      cuAction = SomeConversationAction (sing @'ConversationLeaveTag) (pure qAlice),
+      cuMetadata =
+        Just
+          ConversationMetadata
+            { cnvmType = RegularConv,
+              cnvmCreator = Id (fromJust (UUID.fromString "2f790acc-2315-4b56-8ef3-d06b9f1c683d")),
+              cnvmAccess = [],
+              cnvmAccessRoles = mempty,
+              cnvmName = Just "",
+              cnvmTeam = Just (Id (fromJust (UUID.fromString "8a83e11f-8d50-46c3-b51c-8270cd34b989"))),
+              cnvmMessageTimer = Just (Ms {ms = 4760386328981119}),
+              cnvmReceiptMode = Just (ReceiptMode {unReceiptMode = 0})
+            }
     }
