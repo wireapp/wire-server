@@ -526,20 +526,6 @@ isNewUserTeamMember u = case newUserTeam u of
 instance Arbitrary NewUserPublic where
   arbitrary = arbitrary `QC.suchThatMap` (rightMay . validateNewUserPublic)
 
---   ChangeHandleErrorResponses -- .++ RegisterErrorResponses
-
--- type CreateUserSparResponses =
---   CreateUserSparErrorResponses
---     .++ '[ WithHeaders
---              '[DescHeader "Location" "UserId" UserId]
---              SelfProfile
---              (Respond 201 "User created and pending activation" SelfProfile)
---          ]
-
--- instance (res ~ CreateUserSparResponses) => AsUnion res (Either CreateUserSparError SelfProfile) where
---   toUnion = eitherToUnion (toUnion @CreateUserSparErrorResponses) (Z . I)
---   fromUnion = eitherFromUnion (fromUnion @CreateUserSparErrorResponses) (unI . unZ)
-
 data RegisterError
   = RegisterErrorWhitelistError
   | RegisterErrorInvalidInvitationCode

@@ -312,9 +312,6 @@ instance ToSchema RichField where
         <$> richFieldType Schema..= field "type" (CI.original Schema..= (CI.mk <$> schema))
         <*> richFieldValue Schema..= field "value" schema
 
--- where
---   ciSchema :: _
-
 instance Arbitrary RichField where
   arbitrary =
     RichField

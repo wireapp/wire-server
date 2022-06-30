@@ -438,21 +438,6 @@ createUserNoVerifySafe uData =
        in API.activate key code (Just uid) !>> activationErrorToRegisterError
     pure . SelfProfile $ usr
 
--- case usr of
---   Right usr' -> do
---     let uid = userId usr'
---     case HandleUpdate . fromHandle <$> newUserHandle uData of
---       Just handle -> do
---         e <- D.trace "\n+++++++++++++++++++++++++++++++++++++ update handle failed" updateHandle uid handle
---         pure . Left . CreateUserSparHandleError $ e
---       Nothing -> do
---         D.trace "\n++++++++++++++ no handle\n" pure ()
---         pure . Right . SelfProfile $ usr'
---     -- _ <- D.trace "\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% update rich info failed " updateRichInfo uid undefined
---     pure . Right $ SelfProfile usr'
---   Left e -> do
---     pure . Left . CreateUserSparRegisterError $ RegisterErrorBlacklistedEmail
-
 deleteUserNoVerifyH :: UserId -> (Handler r) Response
 deleteUserNoVerifyH uid = do
   setStatus status202 empty <$ deleteUserNoVerify uid

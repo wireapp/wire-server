@@ -268,33 +268,6 @@ createUserSpar new = do
       Team.TeamName nm <- lift $ wrapHttp $ Intra.getTeamName tid
       pure $ CreateUserTeam tid nm
 
--- ensureMemberCanJoin :: TeamId -> ExceptT RegisterError (AppT r) ()
--- ensureMemberCanJoin tid = do
---   maxSize <- fromIntegral . setMaxTeamSize <$> view settings
---   (TeamSize teamSize) <- TeamSize.teamSize tid
---   when (teamSize >= maxSize) $
---     throwE RegisterErrorTooManyTeamMembers
---   -- FUTUREWORK: The above can easily be done/tested in the intra call.
---   --             Remove after the next release.
---   canAdd <- lift $ wrapHttp $ Intra.checkUserCanJoinTeam tid
---   case canAdd of
---     Just e -> throwM $ API.UserNotAllowedToJoinTeam e
---     Nothing -> pure ()
-
--- findTeamInvitation :: Maybe UserKey -> InvitationCode -> ExceptT RegisterError (AppT r) (Maybe (Team.Invitation, Team.InvitationInfo, TeamId))
--- findTeamInvitation Nothing _ = throwE RegisterErrorMissingIdentity
--- findTeamInvitation (Just e) c =
---   lift (wrapClient $ Team.lookupInvitationInfo c) >>= \case
---     Just ii -> do
---       inv <- lift . wrapClient $ Team.lookupInvitation (Team.iiTeam ii) (Team.iiInvId ii)
---       case (inv, Team.inInviteeEmail <$> inv) of
---         (Just invite, Just em)
---           | e == userEmailKey em -> do
---             _ <- ensureMemberCanJoin (Team.iiTeam ii)
---             pure $ Just (invite, ii, Team.iiTeam ii)
---         _ -> throwE RegisterErrorInvalidInvitationCode
---     Nothing -> throwE RegisterErrorInvalidInvitationCode
-
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser :: forall r. Member BlacklistStore r => NewUser -> ExceptT RegisterError (AppT r) CreateUserResult
 createUser new = do
