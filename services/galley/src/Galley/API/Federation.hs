@@ -116,17 +116,17 @@ onConversationCreated ::
      ]
     r =>
   Domain ->
-  F.NewRemoteConversation ConvId ->
+  F.ConversationCreated ConvId ->
   Sem r ()
 onConversationCreated domain rc = do
   let qrc = fmap (toRemoteUnsafe domain) rc
   loc <- qualifyLocal ()
-  let (localUserIds, _) = partitionQualified loc (map omQualifiedId (toList (F.rcNonCreatorMembers rc)))
+  let (localUserIds, _) = partitionQualified loc (map omQualifiedId (toList (F.ccNonCreatorMembers rc)))
 
   addedUserIds <-
     addLocalUsersToRemoteConv
-      (F.rcCnvId qrc)
-      (qUntagged (F.rcRemoteOrigUserId qrc))
+      (F.ccCnvId qrc)
+      (qUntagged (F.ccRemoteOrigUserId qrc))
       localUserIds
 
   let connectedMembers =
@@ -137,20 +137,20 @@ onConversationCreated domain rc = do
               (const True)
               . omQualifiedId
           )
-          (F.rcNonCreatorMembers rc)
+          (F.ccNonCreatorMembers rc)
   -- Make sure to notify only about local users connected to the adder
-  let qrcConnected = qrc {F.rcNonCreatorMembers = connectedMembers}
+  let qrcConnected = qrc {F.ccNonCreatorMembers = connectedMembers}
 
   -- update group_id -> conv_id mapping
-  for_ (preview (to F.rcProtocol . _ProtocolMLS) rc) $ \mls -> do
-    E.setGroupId (cnvmlsGroupId mls) (qUntagged (F.rcCnvId qrc))
+  for_ (preview (to F.ccProtocol . _ProtocolMLS) rc) $ \mls -> do
+    E.setGroupId (cnvmlsGroupId mls) (qUntagged (F.ccCnvId qrc))
 
-  for_ (fromNewRemoteConversation loc qrcConnected) $ \(mem, c) -> do
+  for_ (fromConversationCreated loc qrcConnected) $ \(mem, c) -> do
     let event =
           Event
-            (qUntagged (F.rcCnvId qrcConnected))
-            (qUntagged (F.rcRemoteOrigUserId qrcConnected))
-            (F.rcTime qrcConnected)
+            (qUntagged (F.ccCnvId qrcConnected))
+            (qUntagged (F.ccRemoteOrigUserId qrcConnected))
+            (F.ccTime qrcConnected)
             (EdConversation c)
     pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
 

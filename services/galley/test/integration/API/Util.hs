@@ -1409,18 +1409,18 @@ registerRemoteConv convId originUser name othMembers = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
   runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
-    NewRemoteConversation
-      { rcTime = now,
-        rcOrigUserId = originUser,
-        rcCnvId = qUnqualified convId,
-        rcCnvType = RegularConv,
-        rcCnvAccess = [],
-        rcCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
-        rcCnvName = name,
-        rcNonCreatorMembers = othMembers,
-        rcMessageTimer = Nothing,
-        rcReceiptMode = Nothing,
-        rcProtocol = ProtocolProteus
+    ConversationCreated
+      { ccTime = now,
+        ccOrigUserId = originUser,
+        ccCnvId = qUnqualified convId,
+        ccCnvType = RegularConv,
+        ccCnvAccess = [],
+        ccCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
+        ccCnvName = name,
+        ccNonCreatorMembers = othMembers,
+        ccMessageTimer = Nothing,
+        ccReceiptMode = Nothing,
+        ccProtocol = ProtocolProteus
       }
 
 getFeatureStatusMulti :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => Multi.TeamFeatureNoConfigMultiRequest -> TestM ResponseLBS

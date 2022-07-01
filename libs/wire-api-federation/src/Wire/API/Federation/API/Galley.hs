@@ -45,8 +45,11 @@ import Wire.API.Util.Aeson (CustomEncoded (..))
 
 -- | For conventions see /docs/developer/federation-api-conventions.md
 type GalleyApi =
-  -- | Register a new conversation
-  FedEndpoint "on-conversation-created" (NewRemoteConversation ConvId) ()
+  -- | Register a new conversation. This is only called on backends of users
+  -- that are part of a conversation at creation time. Since MLS conversations
+  -- are always created empty (i.e. they only contain the creator), this RPC is
+  -- never invoked for such conversations.
+  FedEndpoint "on-conversation-created" (ConversationCreated ConvId) ()
     :<|> FedEndpoint "get-conversations" GetConversationsRequest GetConversationsResponse
     -- used by the backend that owns a conversation to inform this backend of
     -- changes to the conversation
@@ -107,32 +110,32 @@ newtype GetConversationsResponse = GetConversationsResponse
 --
 -- FUTUREWORK: Think about extracting common conversation metadata into a
 -- separarate data type that can be reused in several data types in this module.
-data NewRemoteConversation conv = NewRemoteConversation
+data ConversationCreated conv = ConversationCreated
   { -- | The time when the conversation was created
-    rcTime :: UTCTime,
+    ccTime :: UTCTime,
     -- | The user that created the conversation. This is implicitly qualified
     -- by the requesting domain, since it is impossible to create a regular/group
     -- conversation on a remote backend.
-    rcOrigUserId :: UserId,
+    ccOrigUserId :: UserId,
     -- | The conversation ID, local to the backend invoking the RPC
-    rcCnvId :: conv,
+    ccCnvId :: conv,
     -- | The conversation type
-    rcCnvType :: ConvType,
-    rcCnvAccess :: [Access],
-    rcCnvAccessRoles :: Set AccessRoleV2,
+    ccCnvType :: ConvType,
+    ccCnvAccess :: [Access],
+    ccCnvAccessRoles :: Set AccessRoleV2,
     -- | The conversation name,
-    rcCnvName :: Maybe Text,
+    ccCnvName :: Maybe Text,
     -- | Members of the conversation apart from the creator
-    rcNonCreatorMembers :: Set OtherMember,
-    rcMessageTimer :: Maybe Milliseconds,
-    rcReceiptMode :: Maybe ReceiptMode,
-    rcProtocol :: Protocol
+    ccNonCreatorMembers :: Set OtherMember,
+    ccMessageTimer :: Maybe Milliseconds,
+    ccReceiptMode :: Maybe ReceiptMode,
+    ccProtocol :: Protocol
   }
   deriving stock (Eq, Show, Generic, Functor)
-  deriving (ToJSON, FromJSON) via (CustomEncoded (NewRemoteConversation conv))
+  deriving (ToJSON, FromJSON) via (CustomEncoded (ConversationCreated conv))
 
-rcRemoteOrigUserId :: NewRemoteConversation (Remote ConvId) -> Remote UserId
-rcRemoteOrigUserId rc = qualifyAs (rcCnvId rc) (rcOrigUserId rc)
+ccRemoteOrigUserId :: ConversationCreated (Remote ConvId) -> Remote UserId
+ccRemoteOrigUserId cc = qualifyAs (ccCnvId cc) (ccOrigUserId cc)
 
 data ConversationUpdate = ConversationUpdate
   { cuTime :: UTCTime,

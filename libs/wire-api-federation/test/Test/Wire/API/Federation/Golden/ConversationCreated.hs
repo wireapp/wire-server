@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Test.Wire.API.Federation.Golden.NewRemoteConversation where
+module Test.Wire.API.Federation.Golden.ConversationCreated where
 
 import Data.Domain
 import Data.Id
@@ -30,17 +30,17 @@ import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
 import Wire.API.Provider.Service
 
-testObject_NewRemoteConversation1 :: NewRemoteConversation ConvId
-testObject_NewRemoteConversation1 =
-  NewRemoteConversation
-    { rcTime = read "1864-04-12 12:22:43.673 UTC",
-      rcOrigUserId = Id (fromJust (UUID.fromString "eed9dea3-5468-45f8-b562-7ad5de2587d0")),
-      rcCnvId = Id (fromJust (UUID.fromString "d13dbe58-d4e3-450f-9c0c-1e632f548740")),
-      rcCnvType = RegularConv,
-      rcCnvAccess = [InviteAccess, CodeAccess],
-      rcCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
-      rcCnvName = Just "gossip",
-      rcNonCreatorMembers =
+testObject_ConversationCreated1 :: ConversationCreated ConvId
+testObject_ConversationCreated1 =
+  ConversationCreated
+    { ccTime = read "1864-04-12 12:22:43.673 UTC",
+      ccOrigUserId = Id (fromJust (UUID.fromString "eed9dea3-5468-45f8-b562-7ad5de2587d0")),
+      ccCnvId = Id (fromJust (UUID.fromString "d13dbe58-d4e3-450f-9c0c-1e632f548740")),
+      ccCnvType = RegularConv,
+      ccCnvAccess = [InviteAccess, CodeAccess],
+      ccCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
+      ccCnvName = Just "gossip",
+      ccNonCreatorMembers =
         Set.fromList
           [ OtherMember
               { omQualifiedId =
@@ -65,23 +65,23 @@ testObject_NewRemoteConversation1 =
                 omConvRoleName = roleNameWireMember
               }
           ],
-      rcMessageTimer = Just (Ms 1000),
-      rcReceiptMode = Just (ReceiptMode 42),
-      rcProtocol = ProtocolProteus
+      ccMessageTimer = Just (Ms 1000),
+      ccReceiptMode = Just (ReceiptMode 42),
+      ccProtocol = ProtocolProteus
     }
 
-testObject_NewRemoteConversation2 :: NewRemoteConversation ConvId
-testObject_NewRemoteConversation2 =
-  NewRemoteConversation
-    { rcTime = read "1864-04-12 12:22:43.673 UTC",
-      rcOrigUserId = Id (fromJust (UUID.fromString "eed9dea3-5468-45f8-b562-7ad5de2587d0")),
-      rcCnvId = Id (fromJust (UUID.fromString "d13dbe58-d4e3-450f-9c0c-1e632f548740")),
-      rcCnvType = One2OneConv,
-      rcCnvAccess = [],
-      rcCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
-      rcCnvName = Nothing,
-      rcNonCreatorMembers = Set.fromList [],
-      rcMessageTimer = Nothing,
-      rcReceiptMode = Nothing,
-      rcProtocol = ProtocolMLS (ConversationMLSData (GroupId "group") (Epoch 3))
+testObject_ConversationCreated2 :: ConversationCreated ConvId
+testObject_ConversationCreated2 =
+  ConversationCreated
+    { ccTime = read "1864-04-12 12:22:43.673 UTC",
+      ccOrigUserId = Id (fromJust (UUID.fromString "eed9dea3-5468-45f8-b562-7ad5de2587d0")),
+      ccCnvId = Id (fromJust (UUID.fromString "d13dbe58-d4e3-450f-9c0c-1e632f548740")),
+      ccCnvType = One2OneConv,
+      ccCnvAccess = [],
+      ccCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
+      ccCnvName = Nothing,
+      ccNonCreatorMembers = Set.fromList [],
+      ccMessageTimer = Nothing,
+      ccReceiptMode = Nothing,
+      ccProtocol = ProtocolMLS (ConversationMLSData (GroupId "group") (Epoch 3))
     }
