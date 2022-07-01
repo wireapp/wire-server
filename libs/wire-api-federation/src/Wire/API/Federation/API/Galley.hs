@@ -147,11 +147,7 @@ data ConversationUpdate = ConversationUpdate
     -- conversation to users.
     cuAlreadyPresentUsers :: [UserId],
     -- | Information on the specific action that caused the update.
-    cuAction :: SomeConversationAction,
-    -- Conversation metadata. This is only present the first time
-    -- `on-conversation-updated` is invoked for a given conversation and
-    -- backend.
-    cuMetadata :: Maybe ConversationMetadata
+    cuAction :: SomeConversationAction
   }
   deriving (Eq, Show, Generic)
 

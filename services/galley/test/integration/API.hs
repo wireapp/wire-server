@@ -1773,17 +1773,6 @@ paginateConvListIds = do
   let chadDomain = Domain "chad.example.com"
       qChad = Qualified remoteChad chadDomain
   connectWithRemoteUser alice qChad
-  let meta =
-        ConversationMetadata
-          { cnvmType = RegularConv,
-            cnvmCreator = alice,
-            cnvmAccess = mempty,
-            cnvmAccessRoles = mempty,
-            cnvmName = Just "conv",
-            cnvmTeam = Nothing,
-            cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Nothing
-          }
   replicateM_ 25 $ do
     conv <- randomId
     let cu =
@@ -1792,8 +1781,7 @@ paginateConvListIds = do
               F.cuOrigUserId = qChad,
               F.cuConvId = conv,
               F.cuAlreadyPresentUsers = [],
-              F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember),
-              F.cuMetadata = Just meta
+              F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
     runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
@@ -1809,8 +1797,7 @@ paginateConvListIds = do
               F.cuOrigUserId = qDee,
               F.cuConvId = conv,
               F.cuAlreadyPresentUsers = [],
-              F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember),
-              F.cuMetadata = Just meta
+              F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
     runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
@@ -1845,17 +1832,6 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
   let chadDomain = Domain "chad.example.com"
       qChad = Qualified remoteChad chadDomain
   connectWithRemoteUser alice qChad
-  let meta =
-        ConversationMetadata
-          { cnvmType = RegularConv,
-            cnvmCreator = alice,
-            cnvmAccess = mempty,
-            cnvmAccessRoles = mempty,
-            cnvmName = Just "conv",
-            cnvmTeam = Nothing,
-            cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Nothing
-          }
 
   -- The 3rd page will end with this domain
   replicateM_ 16 $ do
@@ -1866,8 +1842,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               F.cuOrigUserId = qChad,
               F.cuConvId = conv,
               F.cuAlreadyPresentUsers = [],
-              F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember),
-              F.cuMetadata = Just meta
+              F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
     runFedClient @"on-conversation-updated" fedGalleyClient chadDomain cu
 
@@ -1885,8 +1860,7 @@ paginateConvListIdsPageEndingAtLocalsAndDomain = do
               F.cuOrigUserId = qDee,
               F.cuConvId = conv,
               F.cuAlreadyPresentUsers = [],
-              F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember),
-              F.cuMetadata = Just meta
+              F.cuAction = SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
             }
     runFedClient @"on-conversation-updated" fedGalleyClient deeDomain cu
 
@@ -3346,26 +3320,14 @@ putRemoteConvMemberOk update = do
 
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
-  let meta =
-        ConversationMetadata
-          { cnvmType = RegularConv,
-            cnvmCreator = alice,
-            cnvmAccess = mempty,
-            cnvmAccessRoles = mempty,
-            cnvmName = Just "conv",
-            cnvmTeam = Nothing,
-            cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Nothing
-          }
-      cu =
+  let cu =
         F.ConversationUpdate
           { cuTime = now,
             cuOrigUserId = qbob,
             cuConvId = qUnqualified qconv,
             cuAlreadyPresentUsers = [],
             cuAction =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember),
-            cuMetadata = Just meta
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
           }
   runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
 
@@ -3504,17 +3466,6 @@ putRemoteReceiptModeOk = do
   connectWithRemoteUser alice qbob
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
-  let meta =
-        ConversationMetadata
-          { cnvmType = RegularConv,
-            cnvmCreator = alice,
-            cnvmAccess = mempty,
-            cnvmAccessRoles = mempty,
-            cnvmName = Just "conv",
-            cnvmTeam = Nothing,
-            cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Nothing
-          }
   let cuAddAlice =
         F.ConversationUpdate
           { cuTime = now,
@@ -3522,8 +3473,7 @@ putRemoteReceiptModeOk = do
             cuConvId = qUnqualified qconv,
             cuAlreadyPresentUsers = [],
             cuAction =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireAdmin),
-            cuMetadata = Just meta
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireAdmin)
           }
   runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAlice
 
@@ -3538,8 +3488,7 @@ putRemoteReceiptModeOk = do
             cuConvId = qUnqualified qconv,
             cuAlreadyPresentUsers = [],
             cuAction =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qadam) roleNameWireMember),
-            cuMetadata = Just meta
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qadam) roleNameWireMember)
           }
   runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cuAddAdam
 
@@ -3552,8 +3501,7 @@ putRemoteReceiptModeOk = do
             cuConvId = qUnqualified qconv,
             cuAlreadyPresentUsers = [adam],
             cuAction =
-              SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) action,
-            cuMetadata = Nothing
+              SomeConversationAction (sing @'ConversationReceiptModeUpdateTag) action
           }
   let mockResponse = const (ConversationUpdateResponseUpdate responseConvUpdate)
 

@@ -246,8 +246,7 @@ addLocalUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [charlie],
             FedGalley.cuAction =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qalice :| [qdee]) roleNameWireMember),
-            FedGalley.cuMetadata = Nothing
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qalice :| [qdee]) roleNameWireMember)
           }
   WS.bracketRN c [alice, charlie, dee] $ \[wsA, wsC, wsD] -> do
     runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
@@ -301,8 +300,7 @@ addUnconnectedUsersOnly = do
               FedGalley.cuConvId = conv,
               FedGalley.cuAlreadyPresentUsers = [alice],
               FedGalley.cuAction =
-                SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qCharlie :| []) roleNameWireMember),
-              FedGalley.cuMetadata = Nothing
+                SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qCharlie :| []) roleNameWireMember)
             }
     -- Alice receives no notifications from this
     runFedClient @"on-conversation-updated" fedGalleyClient remoteDomain cu
@@ -329,17 +327,6 @@ removeLocalUser = do
   let qconv = Qualified conv remoteDomain
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
-  let meta =
-        ConversationMetadata
-          { cnvmType = RegularConv,
-            cnvmCreator = bob,
-            cnvmAccess = mempty,
-            cnvmAccessRoles = mempty,
-            cnvmName = Just "conv",
-            cnvmTeam = Nothing,
-            cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Nothing
-          }
   let cuAdd =
         FedGalley.ConversationUpdate
           { FedGalley.cuTime = now,
@@ -347,8 +334,7 @@ removeLocalUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [],
             FedGalley.cuAction =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember),
-            FedGalley.cuMetadata = Just meta
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qAlice) roleNameWireMember)
           }
       cuRemove =
         FedGalley.ConversationUpdate
@@ -357,8 +343,7 @@ removeLocalUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [alice],
             FedGalley.cuAction =
-              SomeConversationAction (sing @'ConversationLeaveTag) (pure qAlice),
-            FedGalley.cuMetadata = Nothing
+              SomeConversationAction (sing @'ConversationLeaveTag) (pure qAlice)
           }
 
   connectWithRemoteUser alice qBob
@@ -422,8 +407,7 @@ removeRemoteUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [alice, charlie, dee],
             FedGalley.cuAction =
-              SomeConversationAction (sing @'ConversationLeaveTag) (pure user),
-            FedGalley.cuMetadata = Nothing
+              SomeConversationAction (sing @'ConversationLeaveTag) (pure user)
           }
 
   WS.bracketRN c [alice, charlie, dee, flo] $ \[wsA, wsC, wsD, wsF] -> do
@@ -475,8 +459,7 @@ notifyUpdate extras action etype edata = do
             FedGalley.cuOrigUserId = qbob,
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [alice, charlie],
-            FedGalley.cuAction = action,
-            FedGalley.cuMetadata = Nothing
+            FedGalley.cuAction = action
           }
   WS.bracketR2 c alice charlie $ \(wsA, wsC) -> do
     runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
@@ -577,8 +560,7 @@ notifyDeletedConversation = do
               FedGalley.cuOrigUserId = qbob,
               FedGalley.cuConvId = qUnqualified qconv,
               FedGalley.cuAlreadyPresentUsers = [alice],
-              FedGalley.cuAction = SomeConversationAction (sing @'ConversationDeleteTag) (),
-              FedGalley.cuMetadata = Nothing
+              FedGalley.cuAction = SomeConversationAction (sing @'ConversationDeleteTag) ()
             }
     runFedClient @"on-conversation-updated" fedGalleyClient bobDomain cu
 
@@ -635,8 +617,7 @@ addRemoteUser = do
             FedGalley.cuConvId = qUnqualified qconv,
             FedGalley.cuAlreadyPresentUsers = map qUnqualified [qalice, qcharlie],
             FedGalley.cuAction =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qdee :| [qeve, qflo]) roleNameWireMember),
-            FedGalley.cuMetadata = Nothing
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (qdee :| [qeve, qflo]) roleNameWireMember)
           }
   WS.bracketRN c (map qUnqualified [qalice, qcharlie, qdee, qflo]) $ \[wsA, wsC, wsD, wsF] -> do
     runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
@@ -778,17 +759,6 @@ onMessageSent = do
 
   -- only add alice to the remote conversation
   connectWithRemoteUser alice qbob
-  let meta =
-        ConversationMetadata
-          { cnvmType = RegularConv,
-            cnvmCreator = alice,
-            cnvmAccess = mempty,
-            cnvmAccessRoles = mempty,
-            cnvmName = Just "conv",
-            cnvmTeam = Nothing,
-            cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Nothing
-          }
   let cu =
         FedGalley.ConversationUpdate
           { FedGalley.cuTime = now,
@@ -796,8 +766,7 @@ onMessageSent = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [],
             FedGalley.cuAction =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember),
-            FedGalley.cuMetadata = Just meta
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
           }
   runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
 
@@ -1246,17 +1215,6 @@ onMLSMessageSent = do
 
   -- only add alice to the remote conversation
   connectWithRemoteUser alice qbob
-  let meta =
-        ConversationMetadata
-          { cnvmType = RegularConv,
-            cnvmCreator = alice,
-            cnvmAccess = mempty,
-            cnvmAccessRoles = mempty,
-            cnvmName = Just "conv",
-            cnvmTeam = Nothing,
-            cnvmMessageTimer = Nothing,
-            cnvmReceiptMode = Nothing
-          }
   let cu =
         FedGalley.ConversationUpdate
           { FedGalley.cuTime = now,
@@ -1264,8 +1222,7 @@ onMLSMessageSent = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [],
             FedGalley.cuAction =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember),
-            FedGalley.cuMetadata = Just meta
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
           }
   runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
 

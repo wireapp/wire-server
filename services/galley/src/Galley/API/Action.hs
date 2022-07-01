@@ -646,31 +646,19 @@ notifyConversationAction ::
 notifyConversationAction tag quid con lconv targets action = do
   now <- input
   let lcnv = fmap convId lconv
-      conv = tUnqualified lconv
-      e = conversationActionToEvent tag now quid (qUntagged lcnv) action
-      mkUpdate uids =
+  let e = conversationActionToEvent tag now quid (qUntagged lcnv) action
+
+  let mkUpdate uids =
         ConversationUpdate
           now
           quid
           (tUnqualified lcnv)
           uids
           (SomeConversationAction tag action)
-
-  -- call `on-conversation-created` for backends that are seeing this conversation
-  -- for the first time, and `on-conversation-updated` otherwise
-  let newDomains =
-        Set.difference
-          (Set.map tDomain (bmRemotes targets))
-          (Set.fromList (map (tDomain . rmId) (convRemoteMembers conv)))
-
-  update <- fmap (fromMaybe (mkUpdate [] Nothing) . asum . map tUnqualified)
+  update <- fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified)
     . E.runFederatedConcurrently (toList (bmRemotes targets))
     $ \ruids -> do
-      let update = mkUpdate (tUnqualified ruids) $ do
-            -- set metadata field for new domains only
-            guard (Set.member (tDomain ruids) newDomains)
-            pure (convMetadata conv)
-
+      let update = mkUpdate (tUnqualified ruids)
       -- filter out user from quid's domain, because quid's backend will update
       -- local state and notify its users itself using the ConversationUpdate
       -- returned by this function
