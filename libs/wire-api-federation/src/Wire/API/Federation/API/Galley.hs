@@ -50,6 +50,9 @@ type GalleyApi =
   -- are always created empty (i.e. they only contain the creator), this RPC is
   -- never invoked for such conversations.
   FedEndpoint "on-conversation-created" (ConversationCreated ConvId) ()
+    -- This endpoint is called the first time a user from this backend is
+    -- added to a remote conversation.
+    :<|> FedEndpoint "on-new-remote-conversation" NewRemoteConversation EmptyResponse
     :<|> FedEndpoint "get-conversations" GetConversationsRequest GetConversationsResponse
     -- used by the backend that owns a conversation to inform this backend of
     -- changes to the conversation
@@ -136,6 +139,12 @@ data ConversationCreated conv = ConversationCreated
 
 ccRemoteOrigUserId :: ConversationCreated (Remote ConvId) -> Remote UserId
 ccRemoteOrigUserId cc = qualifyAs (ccCnvId cc) (ccOrigUserId cc)
+
+data NewRemoteConversation = NewRemoteConversation
+  { nrcProtocol :: Protocol
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded NewRemoteConversation)
 
 data ConversationUpdate = ConversationUpdate
   { cuTime :: UTCTime,

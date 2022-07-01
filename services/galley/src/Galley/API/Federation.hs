@@ -93,6 +93,7 @@ type FederationAPI = "federation" :> FedApi 'Galley
 federationSitemap :: ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =
   Named @"on-conversation-created" onConversationCreated
+    :<|> Named @"on-new-remote-conversation" onNewRemoteConversation
     :<|> Named @"get-conversations" getConversations
     :<|> Named @"on-conversation-updated" onConversationUpdated
     :<|> Named @"leave-conversation" leaveConversation
@@ -153,6 +154,12 @@ onConversationCreated domain rc = do
             (F.ccTime qrcConnected)
             (EdConversation c)
     pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
+
+onNewRemoteConversation ::
+  Domain ->
+  F.NewRemoteConversation ->
+  Sem r EmptyResponse
+onNewRemoteConversation _domain _nrc = pure EmptyResponse
 
 getConversations ::
   Members '[ConversationStore, Input (Local ())] r =>
