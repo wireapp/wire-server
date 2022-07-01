@@ -646,7 +646,8 @@ notifyConversationAction ::
 notifyConversationAction tag quid con lconv targets action = do
   now <- input
   let lcnv = fmap convId lconv
-  let e = conversationActionToEvent tag now quid (qUntagged lcnv) action
+      conv = tUnqualified lconv
+      e = conversationActionToEvent tag now quid (qUntagged lcnv) action
 
   let mkUpdate uids =
         ConversationUpdate
@@ -655,6 +656,21 @@ notifyConversationAction tag quid con lconv targets action = do
           (tUnqualified lcnv)
           uids
           (SomeConversationAction tag action)
+
+  -- call `on-new-remote-conversation` on backends that are seeing this
+  -- conversation for the first time
+  let newDomains =
+        Set.difference
+          (Set.map void (bmRemotes targets))
+          (Set.fromList (map (void . rmId) (convRemoteMembers conv)))
+  let nrc =
+        NewRemoteConversation
+          { nrcConvId = convId conv,
+            nrcProtocol = convProtocol conv
+          }
+  E.runFederatedConcurrently_ (toList newDomains) $ \_ -> do
+    void $ fedClient @'Galley @"on-new-remote-conversation" nrc
+
   update <- fmap (fromMaybe (mkUpdate []) . asum . map tUnqualified)
     . E.runFederatedConcurrently (toList (bmRemotes targets))
     $ \ruids -> do

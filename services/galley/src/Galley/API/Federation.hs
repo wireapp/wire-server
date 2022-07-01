@@ -142,10 +142,6 @@ onConversationCreated domain rc = do
   -- Make sure to notify only about local users connected to the adder
   let qrcConnected = qrc {F.ccNonCreatorMembers = connectedMembers}
 
-  -- update group_id -> conv_id mapping
-  for_ (preview (to F.ccProtocol . _ProtocolMLS) rc) $ \mls -> do
-    E.setGroupId (cnvmlsGroupId mls) (qUntagged (F.ccCnvId qrc))
-
   for_ (fromConversationCreated loc qrcConnected) $ \(mem, c) -> do
     let event =
           Event
@@ -156,10 +152,16 @@ onConversationCreated domain rc = do
     pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
 
 onNewRemoteConversation ::
+  Member ConversationStore r =>
   Domain ->
   F.NewRemoteConversation ->
   Sem r EmptyResponse
-onNewRemoteConversation _domain _nrc = pure EmptyResponse
+onNewRemoteConversation domain nrc = do
+  -- update group_id -> conv_id mapping
+  for_ (preview (to F.nrcProtocol . _ProtocolMLS) nrc) $ \mls ->
+    E.setGroupId (cnvmlsGroupId mls) (Qualified (F.nrcConvId nrc) domain)
+
+  pure EmptyResponse
 
 getConversations ::
   Members '[ConversationStore, Input (Local ())] r =>

@@ -429,6 +429,7 @@ testAddRemoteUser = do
   bob <- assertOne (users setup)
   let mock req = case frRPC req of
         "on-conversation-updated" -> pure (Aeson.encode ())
+        "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
         "get-mls-clients" ->
           pure
             . Aeson.encode
@@ -550,6 +551,7 @@ testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
 
   let mock req = case frRPC req of
         "on-conversation-updated" -> pure (Aeson.encode ())
+        "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
         "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
         "get-mls-clients" ->
           pure

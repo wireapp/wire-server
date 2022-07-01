@@ -141,7 +141,10 @@ ccRemoteOrigUserId :: ConversationCreated (Remote ConvId) -> Remote UserId
 ccRemoteOrigUserId cc = qualifyAs (ccCnvId cc) (ccOrigUserId cc)
 
 data NewRemoteConversation = NewRemoteConversation
-  { nrcProtocol :: Protocol
+  { -- | The conversation ID, local to the backend invoking the RPC.
+    nrcConvId :: ConvId,
+    -- | The conversation protocol.
+    nrcProtocol :: Protocol
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON) via (CustomEncoded NewRemoteConversation)
