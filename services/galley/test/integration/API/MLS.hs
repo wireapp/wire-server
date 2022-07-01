@@ -23,6 +23,7 @@ import API.MLS.Util
 import API.Util
 import Bilge hiding (head)
 import Bilge.Assert
+import Cassandra
 import Control.Lens (view)
 import qualified Data.Aeson as Aeson
 import Data.Default
@@ -53,6 +54,8 @@ import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
+import Wire.API.MLS.Group (convToGroupId)
+import Wire.API.MLS.Message
 import Wire.API.Message
 
 tests :: IO TestSetup -> TestTree
@@ -78,7 +81,8 @@ tests s =
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
           test s "add new client of an already-present user to a conversation" testAddNewClient,
           test s "send a stale commit" testStaleCommit,
-          test s "add remote user to a conversation" testAddRemoteUser
+          test s "add remote user to a conversation" testAddRemoteUser,
+          test s "return error when commit is locked" testCommitLock
         ],
       testGroup
         "Application Message"
@@ -461,6 +465,71 @@ testAddRemoteUser = do
       [pUserId bob]
       roleNameWireMember
       event
+
+testCommitLock :: TestM ()
+testCommitLock = withSystemTempDirectory "mls" $ \tmp -> do
+  -- create MLS conversation
+  (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [2, 2, 2])
+  conversation <- setupGroup tmp CreateConv creator "group"
+  let (users1, usersX) = splitAt 1 users
+  let (users2, users3) = splitAt 1 usersX
+  void $ assertOne users1
+  void $ assertOne users2
+  void $ assertOne users3
+
+  -- initial user can be added
+  do
+    (commit, welcome) <-
+      liftIO $
+        setupCommit tmp creator "group" "group" $
+          users1 >>= toList . pClients
+    testSuccessfulCommit MessagingSetup {users = users1, ..}
+
+  -- can commit without blocking
+  do
+    (commit, welcome) <-
+      liftIO $
+        setupCommit tmp creator "group" "group" $
+          users2 >>= toList . pClients
+    testSuccessfulCommit MessagingSetup {users = users2, ..}
+
+  -- block epoch
+  casClient <- view tsCass
+  runClient casClient $ insertLock (convToGroupId (qTagUnsafe conversation)) (Epoch 2)
+
+  -- commit fails due to competing lock
+  do
+    (commit, welcome) <-
+      liftIO $
+        setupCommit tmp creator "group" "group" $
+          users3 >>= toList . pClients
+    -- assert HTTP 409 on next attempt to commit
+    err <- testFailedCommit MessagingSetup {..} 409
+    liftIO $ Wai.label err @?= "mls-stale-message"
+
+  -- unblock epoch
+  runClient casClient $ deleteLock (convToGroupId (qTagUnsafe conversation)) (Epoch 2)
+  where
+    lock :: PrepQuery W (GroupId, Epoch) ()
+    lock = "insert into mls_commit_locks (group_id, epoch) values (?, ?)"
+    insertLock groupId epoch =
+      retry x5 $
+        write
+          lock
+          ( params
+              LocalQuorum
+              (groupId, epoch)
+          )
+    unlock :: PrepQuery W (GroupId, Epoch) ()
+    unlock = "delete from mls_commit_locks where group_id = ? and epoch = ?"
+    deleteLock groupId epoch =
+      retry x5 $
+        write
+          unlock
+          ( params
+              LocalQuorum
+              (groupId, epoch)
+          )
 
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do

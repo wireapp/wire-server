@@ -36,6 +36,7 @@ import Galley.API.Util
 import Galley.Data.Conversation.Types hiding (Conversation)
 import qualified Galley.Data.Conversation.Types as Data
 import Galley.Data.Services
+import Galley.Data.Types
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.ConversationStore
@@ -49,6 +50,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
+import Polysemy.Resource (Resource, bracket)
 import Polysemy.TinyLog
 import qualified System.Logger.Class as Logger
 import Wire.API.Conversation.Protocol
@@ -63,6 +65,7 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
@@ -72,7 +75,8 @@ import Wire.API.Message
 postMLSMessage ::
   ( HasProposalEffects r,
     Members
-      '[ Error FederationError,
+      '[ Resource,
+         Error FederationError,
          ErrorS 'ConvNotFound,
          Error InternalError,
          ErrorS 'MLSUnsupportedMessage,
@@ -154,7 +158,8 @@ processCommit ::
     Member (ErrorS 'MLSProposalNotFound) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (ErrorS 'MissingLegalholdConsent) r
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member Resource r
   ) =>
   Local UserId ->
   ConnId ->
@@ -167,34 +172,40 @@ processCommit lusr con conv epoch sender commit = do
   self <- noteS @'ConvNotFound $ getConvMember lusr conv lusr
 
   -- check epoch number
-  curEpoch <-
-    preview (to convProtocol . _ProtocolMLS . to cnvmlsEpoch) conv
+  convMeta <-
+    preview (to convProtocol . _ProtocolMLS) conv
       & noteS @'ConvNotFound
+
+  let curEpoch = cnvmlsEpoch convMeta
+      groupId = cnvmlsGroupId convMeta
+
   when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
 
-  when (epoch == Epoch 0) $ do
-    -- this is a newly created conversation, and it should contain exactly one
-    -- client (the creator)
-    case (sender, toList (lmMLSClients self)) of
-      (MemberSender ref, [creatorClient]) -> do
-        -- register the creator client
-        addKeyPackageRef
-          ref
-          (qUntagged lusr)
-          creatorClient
-          (qUntagged (qualifyAs lusr (Data.convId conv)))
-      (MemberSender _, _) ->
-        throw (InternalErrorWithDescription "Unexpected creator client set")
-      _ -> throw (mlsProtocolError "Unexpected sender")
+  let ttlSeconds :: Int = 600 -- 10 minutes
+  withCommitLock groupId epoch (fromIntegral ttlSeconds) $ do
+    when (epoch == Epoch 0) $ do
+      -- this is a newly created conversation, and it should contain exactly one
+      -- client (the creator)
+      case (sender, toList (lmMLSClients self)) of
+        (MemberSender ref, [creatorClient]) -> do
+          -- register the creator client
+          addKeyPackageRef
+            ref
+            (qUntagged lusr)
+            creatorClient
+            (qUntagged (qualifyAs lusr (Data.convId conv)))
+        (MemberSender _, _) ->
+          throw (InternalErrorWithDescription "Unexpected creator client set")
+        _ -> throw (mlsProtocolError "Unexpected sender")
 
-  -- process and execute proposals
-  action <- foldMap applyProposalRef (cProposals commit)
-  events <- executeProposalAction lusr con conv action
+    -- process and execute proposals
+    action <- foldMap applyProposalRef (cProposals commit)
+    events <- executeProposalAction lusr con conv action
 
-  -- increment epoch number
-  setConversationEpoch (Data.convId conv) (succ epoch)
+    -- increment epoch number
+    setConversationEpoch (Data.convId conv) (succ epoch)
 
-  pure events
+    pure events
 
 applyProposalRef ::
   ( HasProposalEffects r,
@@ -414,3 +425,26 @@ instance
   HandleMLSProposalFailure (Error e) r
   where
   handleMLSProposalFailure = mapError (MLSProposalFailure . toWai)
+
+withCommitLock ::
+  forall r a.
+  ( Members
+      '[ Resource,
+         ConversationStore,
+         ErrorS 'MLSStaleMessage
+       ]
+      r
+  ) =>
+  GroupId ->
+  Epoch ->
+  NominalDiffTime ->
+  Sem r a ->
+  Sem r a
+withCommitLock gid epoch ttl action =
+  bracket
+    ( acquireCommitLock gid epoch ttl >>= \lockAcquired ->
+        when (lockAcquired == NotAcquired) $
+          throwS @'MLSStaleMessage
+    )
+    (const $ releaseCommitLock gid epoch)
+    (const action)
