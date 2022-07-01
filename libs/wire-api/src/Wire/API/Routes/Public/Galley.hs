@@ -1317,6 +1317,7 @@ type MLSMessagingAPI =
            ( Summary "Post an MLS message"
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvMemberNotFound
                :> CanThrow 'MLSKeyPackageRefNotFound
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSProtocolErrorTag

@@ -99,6 +99,7 @@ postMLSMessageFromLocalUser ::
          Error FederationError,
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvNotFound,
+         ErrorS 'ConvMemberNotFound,
          Error InternalError,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MLSUnsupportedMessage,
@@ -176,6 +177,11 @@ postMLSMessageToLocalConv ::
 postMLSMessageToLocalConv qusr con smsg lcnv = case rmValue smsg of
   SomeMessage tag msg -> do
     conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
+
+    -- check that sender is part of conversation
+    loc <- qualifyLocal ()
+    isMember' <- foldQualified loc (fmap isJust . getLocalMember (convId conv) . tUnqualified) (fmap isJust . getRemoteMember (convId conv)) qusr
+    unless isMember' $ throwS @'ConvNotFound
 
     -- validate message
     events <- case tag of
