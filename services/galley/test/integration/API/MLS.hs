@@ -1014,7 +1014,6 @@ propExistingConv = withSystemTempDirectory "mls" $ \tmp -> do
       <!! const 201 === statusCode
   liftIO $ events @?= ([] :: [Event])
 
--- TODO: assert on error label
 propInvalidEpoch :: TestM ()
 propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
   (creator, users) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser), (1, LocalUser), (1, LocalUser)]
@@ -1033,8 +1032,11 @@ propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
   -- try to request a proposal that with too old epoch (0)
   do
     prop <- liftIO $ bareAddProposal tmp creator charlie "group.0.json"
-    postMessage (qUnqualified (pUserId creator)) prop
-      !!! const 409 === statusCode
+    err <-
+      responseJsonError
+        =<< postMessage (qUnqualified (pUserId creator)) prop
+        <!! const 409 === statusCode
+    liftIO $ Wai.label err @?= "mls-stale-message"
 
   -- try to request a proposal that is too new epoch (2)
   do
@@ -1043,8 +1045,11 @@ propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
         setupCommit tmp creator "group.1.json" "group.2.json" $
           toList (pClients charlie)
     prop <- liftIO $ bareAddProposal tmp creator dee "group.2.json"
-    postMessage (qUnqualified (pUserId creator)) prop
-      !!! const 409 === statusCode
+    err <-
+      responseJsonError
+        =<< postMessage (qUnqualified (pUserId creator)) prop
+        <!! const 409 === statusCode
+    liftIO $ Wai.label err @?= "mls-stale-message"
 
   -- same proposal with correct epoch (1)
   do
