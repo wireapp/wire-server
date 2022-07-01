@@ -371,17 +371,17 @@ checkProposal ::
        ProposalStore
      ]
     r =>
-  CipherSuite ->
+  CipherSuiteTag ->
   Proposal ->
   Sem r ()
 checkProposal suite (AddProposal kpRaw) = do
   let kp = rmValue kpRaw
-  unless (kpCipherSuite kp == suite)
+  unless (kpCipherSuite kp == tagCipherSuite suite)
     . throw
     . mlsProtocolError
     . T.pack
     $ "The group's cipher suite "
-      <> show (cipherSuiteNumber suite)
+      <> show (cipherSuiteNumber (tagCipherSuite suite))
       <> " and the cipher suite of the proposal's key package "
       <> show (cipherSuiteNumber (kpCipherSuite kp))
       <> " do not match."
@@ -405,20 +405,9 @@ processProposal ::
 processProposal qusr conv msg prop = do
   checkEpoch (msgEpoch msg) conv
   checkGroup (msgGroupId msg) conv
-
-  suite <-
+  suiteTag <-
     preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) conv
       & noteS @'ConvNotFound
-  suiteTag <-
-    cipherSuiteTag suite
-      & note
-        ( mlsProtocolError
-            . T.pack
-            . ("An unknown cipher suite associated with a conversation: " <>)
-            . show
-            . cipherSuiteNumber
-            $ suite
-        )
 
   -- validate the proposal
   --
@@ -429,7 +418,7 @@ processProposal qusr conv msg prop = do
 
   -- FUTUREWORK: validate the member's conversation role
   let propRef = proposalRef suiteTag prop
-  checkProposal suite (rmValue prop)
+  checkProposal suiteTag (rmValue prop)
   storeProposal propRef prop (msgGroupId msg) (msgEpoch msg)
 
 executeProposalAction ::
@@ -458,19 +447,7 @@ executeProposalAction ::
   ProposalAction ->
   Sem r [LocalConversationUpdate]
 executeProposalAction qusr con lconv action = do
-  suite <-
-    preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) (tUnqualified lconv)
-      & noteS @'ConvNotFound
-  cs <-
-    cipherSuiteTag suite
-      & note
-        ( mlsProtocolError
-            . T.pack
-            . ("An unknown cipher suite associated with a conversation: " <>)
-            . show
-            . cipherSuiteNumber
-            $ suite
-        )
+  cs <- preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) (tUnqualified lconv) & noteS @'ConvNotFound
   let ss = csSignatureScheme cs
       cm = convClientMap lconv
       newUserClients = Map.assocs (paAdd action)

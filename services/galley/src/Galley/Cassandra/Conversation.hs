@@ -63,7 +63,7 @@ createConversation lcnv nc = do
         ProtocolMLSTag ->
           let gid = convToGroupId lcnv
               ep = Epoch 0
-              cs = CipherSuite 1
+              cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
            in ( ProtocolMLS
                   ConversationMLSData
                     { cnvmlsGroupId = gid,
@@ -245,7 +245,7 @@ toProtocol ::
   Maybe ProtocolTag ->
   Maybe GroupId ->
   Maybe Epoch ->
-  Maybe CipherSuite ->
+  Maybe CipherSuiteTag ->
   Maybe Protocol
 toProtocol Nothing _ _ _ = Just ProtocolProteus
 toProtocol (Just ProtocolProteusTag) _ _ _ = Just ProtocolProteus
@@ -256,7 +256,7 @@ toConv ::
   ConvId ->
   [LocalMember] ->
   [RemoteMember] ->
-  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuite) ->
+  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag) ->
   Maybe Conversation
 toConv cid ms remoteMems mconv = do
   (cty, uid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mcs) <- mconv

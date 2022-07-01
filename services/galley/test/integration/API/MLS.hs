@@ -121,8 +121,7 @@ tests s =
         "Proposal"
         [ test s "add a new client to a non-existing conversation" propNonExistingConv,
           test s "add a new client to an existing conversation" propExistingConv,
-          test s "add a new client in an invalid epoch" propInvalidEpoch,
-          test s "add a new client with a non-matching cipher suite" (error "TODO: remove this test. if the handler throws this error it is irrespective of the request.")
+          test s "add a new client in an invalid epoch" propInvalidEpoch
         ],
       testGroup
         "Protocol mismatch"

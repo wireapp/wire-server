@@ -53,7 +53,7 @@ data ConversationMLSData = ConversationMLSData
     -- | The current epoch number of the corresponding MLS group.
     cnvmlsEpoch :: Epoch,
     -- | The cipher suite to be used in the MLS group.
-    cnvmlsCipherSuite :: CipherSuite
+    cnvmlsCipherSuite :: CipherSuiteTag
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform ConversationMLSData

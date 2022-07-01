@@ -196,7 +196,7 @@ updateTeamSplashScreen = "update team set splash_screen = ? where team = ?"
 
 -- Conversations ------------------------------------------------------------
 
-selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (C.Set Access), Maybe AccessRoleLegacy, Maybe (C.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuite)
+selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (C.Set Access), Maybe AccessRoleLegacy, Maybe (C.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag)
 selectConv = "select type, creator, access, access_role, access_roles_v2, name, team, deleted, message_timer, receipt_mode, protocol, group_id, epoch, cipher_suite from conversation where conv = ?"
 
 selectReceiptMode :: PrepQuery R (Identity ConvId) (Identity (Maybe ReceiptMode))
@@ -205,7 +205,7 @@ selectReceiptMode = "select receipt_mode from conversation where conv = ?"
 isConvDeleted :: PrepQuery R (Identity ConvId) (Identity (Maybe Bool))
 isConvDeleted = "select deleted from conversation where conv = ?"
 
-insertConv :: PrepQuery W (ConvId, ConvType, UserId, C.Set Access, C.Set AccessRoleV2, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuite) ()
+insertConv :: PrepQuery W (ConvId, ConvType, UserId, C.Set Access, C.Set AccessRoleV2, Maybe Text, Maybe TeamId, Maybe Milliseconds, Maybe ReceiptMode, ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag) ()
 insertConv = "insert into conversation (conv, type, creator, access, access_roles_v2, name, team, message_timer, receipt_mode, protocol, group_id, epoch, cipher_suite) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 updateConvAccess :: PrepQuery W (C.Set Access, C.Set AccessRoleV2, ConvId) ()
