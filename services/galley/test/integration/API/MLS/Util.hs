@@ -89,6 +89,7 @@ data MessagingSetup = MessagingSetup
   { creator :: Participant,
     users :: [Participant],
     conversation :: Qualified ConvId,
+    groupId :: GroupId,
     welcome :: ByteString,
     commit :: ByteString
   }
@@ -231,7 +232,13 @@ setupParticipants tmp SetupOptions {..} ns = do
 withLastPrekeys :: Monad m => State.StateT [LastPrekey] m a -> m a
 withLastPrekeys m = State.evalStateT m someLastPrekeys
 
-setupGroup :: HasCallStack => FilePath -> CreateConv -> Participant -> String -> TestM (Qualified ConvId)
+setupGroup ::
+  HasCallStack =>
+  FilePath ->
+  CreateConv ->
+  Participant ->
+  String ->
+  TestM (GroupId, Qualified ConvId)
 setupGroup tmp createConv creator name = do
   (mGroupId, conversation) <- case createNewConv (pClientId creator) createConv of
     Nothing -> pure (Nothing, error "No conversation created")
@@ -242,13 +249,23 @@ setupGroup tmp createConv creator name = do
 
       pure (preview (to cnvProtocol . _ProtocolMLS . to cnvmlsGroupId) conv, cnvQualifiedId conv)
 
-  let groupId = toBase64Text (maybe "test_group" unGroupId mGroupId)
+  groupId <- case mGroupId of
+    Just gid -> pure gid
+    -- generate a random group id
+    Nothing -> liftIO $ fmap (GroupId . BS.pack) (replicateM 32 (generate arbitrary))
+
   groupJSON <-
     liftIO $
-      spawn (cli (pClientQid creator) tmp ["group", "create", T.unpack groupId]) Nothing
+      spawn
+        ( cli
+            (pClientQid creator)
+            tmp
+            ["group", "create", T.unpack (toBase64Text (unGroupId groupId))]
+        )
+        Nothing
   liftIO $ BS.writeFile (tmp </> name) groupJSON
 
-  pure conversation
+  pure (groupId, conversation)
 
 setupCommit ::
   (HasCallStack, Foldable f) =>
@@ -309,7 +326,7 @@ aliceInvitesBobWithTmp ::
 aliceInvitesBobWithTmp tmp bobConf opts@SetupOptions {..} = do
   (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp opts [bobConf]
   -- create a group
-  conversation <- setupGroup tmp createConv alice "group"
+  (groupId, conversation) <- setupGroup tmp createConv alice "group"
 
   -- add clients to it and get welcome message
   (commit, welcome) <-
