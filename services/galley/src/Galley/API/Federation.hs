@@ -198,8 +198,8 @@ onConversationUpdated requestingDomain cu = do
   -- Perform action, and determine extra notification targets.
   --
   -- When new users are being added to the conversation, we consider them as
-  -- notification targets. Once we start checking connections before letting
-  -- people being added, this will be safe against spam. However, if users that
+  -- notification targets. Since we check connections before letting
+  -- people being added, this is safe against spam. However, if users that
   -- are not in the conversations are being removed or have their membership state
   -- updated, we do **not** add them to the list of targets, because we have no
   -- way to make sure that they are actually supposed to receive that notification.
