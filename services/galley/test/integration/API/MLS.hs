@@ -91,10 +91,9 @@ tests s =
           test s "send a stale commit" testStaleCommit,
           test s "add remote user to a conversation" testAddRemoteUser,
           test s "return error when commit is locked" testCommitLock,
-          test s "add remote user to a conversation" testAddRemoteUser
-          -- TODO(md): have a test with a commit that references a proposal,
-          -- which then gets applied. Also have a failing test that references a
-          -- non-existing proposal.
+          test s "add remote user to a conversation" testAddRemoteUser,
+          test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
+          test s "post commit referencing missing proposal" testAddUserBareProposal
         ],
       testGroup
         "Application Message"
@@ -582,6 +581,33 @@ testCommitLock = withSystemTempDirectory "mls" $ \tmp -> do
               LocalQuorum
               (groupId, epoch)
           )
+
+testAddUserBareProposalCommit :: TestM ()
+testAddUserBareProposalCommit = withSystemTempDirectory "mls" $ \tmp -> do
+  (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
+
+  conversation <- setupGroup tmp CreateConv alice "group"
+
+  prop <- liftIO $ bareAddProposal tmp alice bob "group" "group"
+  postMessage (qUnqualified (pUserId alice)) prop
+    !!! const 201 === statusCode
+
+  (commit, mbWelcome) <-
+    liftIO $
+      pendingProposalsCommit tmp alice "group"
+
+  welcome <- assertJust mbWelcome
+
+  testSuccessfulCommit MessagingSetup {creator = alice, users = [bob], ..}
+
+  -- check that bob can now see the conversation
+  convs <-
+    responseJsonError =<< getConvs (qUnqualified (pUserId bob)) Nothing Nothing
+      <!! const 200 === statusCode
+  liftIO $
+    assertBool
+      "Users added to an MLS group should find it when listing conversations"
+      (conversation `elem` map cnvQualifiedId (convList convs))
 
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
