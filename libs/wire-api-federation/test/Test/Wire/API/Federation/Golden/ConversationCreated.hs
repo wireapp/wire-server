@@ -28,7 +28,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Federation.API.Galley
-import Wire.API.MLS.CipherSuite (CipherSuite (CipherSuite))
+import Wire.API.MLS.CipherSuite
 import Wire.API.Provider.Service
 
 testObject_ConversationCreated1 :: ConversationCreated ConvId
@@ -84,5 +84,5 @@ testObject_ConversationCreated2 =
       ccNonCreatorMembers = Set.fromList [],
       ccMessageTimer = Nothing,
       ccReceiptMode = Nothing,
-      ccProtocol = ProtocolMLS (ConversationMLSData (GroupId "group") (Epoch 3) (CipherSuite 1))
+      ccProtocol = ProtocolMLS (ConversationMLSData (GroupId "group") (Epoch 3) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
     }

@@ -128,5 +128,5 @@ conv2 =
                 },
             cmOthers = []
           },
-      cnvProtocol = ProtocolMLS (ConversationMLSData (GroupId "test_group") (Epoch 42) (CipherSuite 1))
+      cnvProtocol = ProtocolMLS (ConversationMLSData (GroupId "test_group") (Epoch 42) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
     }

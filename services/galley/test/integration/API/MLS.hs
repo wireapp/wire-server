@@ -93,7 +93,7 @@ tests s =
           test s "return error when commit is locked" testCommitLock,
           test s "add remote user to a conversation" testAddRemoteUser,
           test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
-          test s "post commit referencing missing proposal" testAddUserBareProposal
+          test s "post commit that references a unknown proposal" testUnknownProposalRefCommit
         ],
       testGroup
         "Application Message"
@@ -586,7 +586,7 @@ testAddUserBareProposalCommit :: TestM ()
 testAddUserBareProposalCommit = withSystemTempDirectory "mls" $ \tmp -> do
   (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
 
-  conversation <- setupGroup tmp CreateConv alice "group"
+  (groupId, conversation) <- setupGroup tmp CreateConv alice "group"
 
   prop <- liftIO $ bareAddProposal tmp alice bob "group" "group"
   postMessage (qUnqualified (pUserId alice)) prop
@@ -608,6 +608,24 @@ testAddUserBareProposalCommit = withSystemTempDirectory "mls" $ \tmp -> do
     assertBool
       "Users added to an MLS group should find it when listing conversations"
       (conversation `elem` map cnvQualifiedId (convList convs))
+
+testUnknownProposalRefCommit :: TestM ()
+testUnknownProposalRefCommit = withSystemTempDirectory "mls" $ \tmp -> do
+  (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
+
+  (groupId, conversation) <- setupGroup tmp CreateConv alice "group"
+
+  -- create proposal, but don't send it to group
+  void $ liftIO $ bareAddProposal tmp alice bob "group" "group"
+
+  (commit, mbWelcome) <-
+    liftIO $
+      pendingProposalsCommit tmp alice "group"
+
+  welcome <- assertJust mbWelcome
+
+  err <- testFailedCommit (MessagingSetup {creator = alice, users = [bob], ..}) 404
+  liftIO $ Wai.label err @?= "mls-proposal-not-found"
 
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
@@ -738,7 +756,7 @@ testLocalToRemote = withSystemTempDirectory "mls" $ \tmp -> do
   qcnv <- randomQualifiedId (qDomain (pUserId alice))
   let nrc =
         NewRemoteConversation (qUnqualified qcnv) $
-          ProtocolMLS (ConversationMLSData groupId (Epoch 1) (CipherSuite 1))
+          ProtocolMLS (ConversationMLSData groupId (Epoch 1) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
   void $
     runFedClient
       @"on-new-remote-conversation"
