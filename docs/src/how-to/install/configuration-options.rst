@@ -598,12 +598,17 @@ Searching users on the same backend
 Search visibility is controlled by three parameters on the backend:
 
 * A team outbound configuration flag, `TeamSearchVisibility` with possible values `SearchVisibilityStandard`, `SearchVisibilityNoNameOutsideTeam`
+
   * `SearchVisibilityStandard` means that the user can find other people outside of the team, if the searched-person inbound search allows it
   * `SearchVisibilityNoNameOutsideTeam` means that the user can not find any user outside the team by full text search (but exact handle search still works)
+
 * A team inbound configuration flag, `SearchVisibilityInbound` with possible values `SearchableByOwnTeam`, `SearchableByAllTeams`
+
   * `SearchableByOwnTeam` means that the user can be found only by users in their own team.
   * `SearchableByAllTeams` means that the user can be found by users in any/all teams.
+
 * A server configuration flag `searchSameTeamOnly` with possible values true, false. 
+
   * ``Note``: For the same backend, this affects inbound and outbound searches (simply because all teams will be subject to this behavior)
   * Setting this to `true` means that the all teams on that backend can only find users that belong to their team
 
@@ -692,10 +697,12 @@ Allowing search is done at the backend configuration level by the sysadmin:
 
 * Outbound search restrictions (`searchSameTeamOnly`, `TeamSearchVisibility`) do not apply to federated searches
 * A configuration setting `FederatedUserSearchPolicy` per federating domain with these possible values:
+
   * `no_search` The federating backend is not allowed to search any users (either by exact handle or full-text).  
   * `exact_handle_search` The federating backend may only search by exact handle
   * `full_search` The federating backend may search users by full text search on display name and handle. The search search results are additionally affected by `SearchVisibilityInbound` setting of each team on the backend.
 * The `SearchVisibilityInbound` setting applies. Since the default value for teams is `SearchableByOwnTeam` this means that for a team to be full-text searchable by users on a federating backend both
+
   * `FederatedUserSearchPolicy` needs to be set to to full_search for the federating backend
   * Any team that wants to be full-text searchable needs to be set to `SearchableByAllTeams`
 
