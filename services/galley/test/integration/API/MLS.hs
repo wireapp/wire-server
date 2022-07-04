@@ -58,7 +58,6 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.Group (convToGroupId)
-import Wire.API.MLS.Message
 import Wire.API.Message
 
 tests :: IO TestSetup -> TestTree
@@ -489,7 +488,7 @@ testCommitLock :: TestM ()
 testCommitLock = withSystemTempDirectory "mls" $ \tmp -> do
   -- create MLS conversation
   (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [2, 2, 2])
-  conversation <- setupGroup tmp CreateConv creator "group"
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
   let (users1, usersX) = splitAt 1 users
   let (users2, users3) = splitAt 1 usersX
   void $ assertOne users1

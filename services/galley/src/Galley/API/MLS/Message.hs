@@ -95,6 +95,7 @@ postMLSMessageFromLocalUser ::
     Members
       '[ Resource,
          Error FederationError,
+         ErrorS 'ConvAccessDenied,
          ErrorS 'ConvNotFound,
          Error InternalError,
          ErrorS 'MLSUnsupportedMessage,
@@ -154,6 +155,7 @@ postMLSMessageToLocalConv ::
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MissingLegalholdConsent,
+         Resource,
          TinyLog
        ]
       r
