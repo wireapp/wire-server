@@ -19,13 +19,13 @@ module Test.Wire.API.Federation.Golden.GoldenSpec where
 
 import Imports
 import Test.Hspec
+import qualified Test.Wire.API.Federation.Golden.ConversationCreated as ConversationCreated
 import qualified Test.Wire.API.Federation.Golden.ConversationUpdate as ConversationUpdate
 import qualified Test.Wire.API.Federation.Golden.LeaveConversationRequest as LeaveConversationRequest
 import qualified Test.Wire.API.Federation.Golden.LeaveConversationResponse as LeaveConversationResponse
 import qualified Test.Wire.API.Federation.Golden.MessageSendResponse as MessageSendResponse
 import qualified Test.Wire.API.Federation.Golden.NewConnectionRequest as NewConnectionRequest
 import qualified Test.Wire.API.Federation.Golden.NewConnectionResponse as NewConnectionResponse
-import qualified Test.Wire.API.Federation.Golden.ConversationCreated as ConversationCreated
 import Test.Wire.API.Federation.Golden.Runner (testObjects)
 
 spec :: Spec
