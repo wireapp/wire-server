@@ -31,7 +31,7 @@ on a single type parameter).
 Although schemas cannot be composed as functions (i.e. they do not
 form a `Category`), they still admit a number of important and
 useful instances, such as `Profunctor` (and specifically `Choice`),
-which makes it possible to use prism quite effectively to build
+which makes it possible to use prisms quite effectively to build
 schema values.
 
 Using type variables to represent JSON types might seem like
@@ -462,6 +462,59 @@ circumstances, it is better to define the above schema using the dedicated
 ```haskell
 optField "name" schema
 ```
+
+### Asymmetric types
+
+There might be a case where an asymmetry between the haskell type
+and the serialised type exists. In those cases, the following example might
+clarify usage.
+
+```haskell
+data AssocList
+  = AssocList { unList :: [Text] }
+
+instance ToSchema AssocList where
+  schema =
+    object "AssocList" $
+      AssocList
+        <$> unList .= field "elements" (array schema)
+        <* const (1 :: Int) .= field "version" schema
+```
+
+As you can see, we use a different name for our field between the two domains,
+but we also have a field that only exists in the serialised structure.
+
+For these cases we can take advantage of Applicative and use the
+left-side `<*` or right-side `*>` biased operators, depending in which direction
+we want the value to be added.
+
+### Transformations on intermediate values
+
+Sometimes a type on the Haskell side doesn't neatly translate to a type
+in the serialised side. For those cases, some transformations need apply.
+
+Transformations can be applied on either or both sides of the Schema.
+
+``` haskell
+
+data RecordField
+  = RecordField
+      { rfType :: SomeTypeOf Text
+      , rfValue :: Text
+      }
+
+instance ToSchema RecordField where
+  schema =
+    object "RecordField" $
+      RichField
+        <$> rfType .= field "type" (SomeTypeOf.unwrap .= (SomeTypeOf.wrap <$> schema))
+        <*> rfValue .= field "value" schema
+```
+
+Here a transformation is applied on the left side, `SomeTypeOf.unwrap` and on the
+right side as well, `SomeTimeOf.wrap`. If we remember that Schema is a profuctor,
+and as such, is contravariant on the first term but covariant on the second, by
+using `fmap` on one, and `lmap` (`.=`) on the other, we can compose it.
 
 ### Redundant fields
 
