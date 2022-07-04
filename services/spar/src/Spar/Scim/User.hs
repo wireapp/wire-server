@@ -448,20 +448,16 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
                     uid <- Id <$> Random.uuid
                     BrigAccess.createSAMLSafe uref uid stiTeam name ManagedByScim (Just handl) (Just richInfo)
               )
-              ( \email ->
-                  BrigAccess.createNoSAML email stiTeam name language
+              ( \email -> do
+                  buid <- BrigAccess.createNoSAML email stiTeam name language
+                  BrigAccess.setHandle buid handl -- TODO: possibly do the same one req as we do for saml?
+                  pure buid
               )
               veid
 
           Logger.debug ("createValidScimUser: brig says " <> show buid)
 
-          -- {If we crash now, we have an active user that cannot login. And can not
-          -- be bound this will be a zombie user that needs to be manually cleaned
-          -- up.  We should consider making setUserHandle part of createUser and
-          -- making it transactional.  If the user redoes the POST A new standalone
-          -- user will be created.}
-          -- BrigAccess.setHandle buid handl
-          -- BrigAccess.setRichInfo buid richInfo
+          BrigAccess.setRichInfo buid richInfo
           pure buid
 
       -- {If we crash now,  a POST retry will fail with 409 user already exists.

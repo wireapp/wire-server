@@ -126,24 +126,19 @@ createBrigUserSAML ::
   Name ->
   -- | Who should have control over the user
   ManagedBy ->
-  Maybe Handle ->
-  Maybe RichInfo ->
   m UserId
-createBrigUserSAML uref (Id buid) teamid name managedBy handle richInfo = do
+createBrigUserSAML uref (Id buid) teamid name managedBy = do
   let newUser =
-        NewUserSpar
-          { newUserSparUUID = buid,
-            newUserSparDisplayName = name,
-            newUserSparSSOId = UserSSOId uref,
-            newUserSparTeamId = teamid,
-            newUserSparManagedBy = managedBy,
-            newUserSparHandle = handle,
-            newUserSparRichInfo = richInfo
+        (emptyNewUser name)
+          { newUserUUID = Just buid,
+            newUserIdentity = Just (SSOIdentity (UserSSOId uref) Nothing Nothing),
+            newUserOrigin = Just (NewUserOriginTeamUser . NewTeamMemberSSO $ teamid),
+            newUserManagedBy = Just managedBy
           }
   resp :: ResponseLBS <-
     call $
       method POST
-        . path "/i/users/"
+        . path "/i/users"
         . json newUser
   if statusCode resp `elem` [200, 201]
     then userId . selfUser <$> parseResponse @SelfProfile "brig" resp
