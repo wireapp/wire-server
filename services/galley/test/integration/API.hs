@@ -90,6 +90,7 @@ import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Brig as F
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Internal.Notification
@@ -2304,8 +2305,8 @@ testAddRemoteMember = do
       postQualifiedMembers alice (remoteBob :| []) convId
         <!! const 200 === statusCode
   liftIO $ do
-    map frTargetDomain reqs @?= [remoteDomain]
-    map frRPC reqs @?= ["on-conversation-updated"]
+    map frTargetDomain reqs @?= [remoteDomain, remoteDomain]
+    map frRPC reqs @?= ["on-new-remote-conversation", "on-conversation-updated"]
 
   let e = responseJsonUnsafe resp
   let bobMember = SimpleMember remoteBob roleNameWireAdmin
@@ -2324,6 +2325,8 @@ testAddRemoteMember = do
     respond bob req
       | frComponent req == Brig =
         toJSON [mkProfile bob (Name "bob")]
+      | frRPC req == "on-new-remote-conversation" =
+        toJSON EmptyResponse
       | otherwise = toJSON ()
 
 testDeleteTeamConversationWithRemoteMembers :: TestM ()
