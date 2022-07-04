@@ -236,7 +236,11 @@ in your wire team:
    must consist of 1-128 unicode characters, and does not need to be
    unique.
 
-3. SCIM's `externalId`:
+3. SCIM's `preferredLanguage` is mapped to wire's user locale settings
+   when a locale is not defined for that user. It must consist of an
+   ISO 639-1 language code. 
+
+4. SCIM's `externalId`:
 
    a. If SAML SSO is used, it is mapped on the SAML `NameID`.  If it
       parses as an email, it will have format `email`, and you can
