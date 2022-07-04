@@ -301,20 +301,50 @@ bareAddProposal ::
   Participant ->
   Participant ->
   String ->
+  String ->
   IO ByteString
-bareAddProposal tmp creator participantToAdd groupName =
+bareAddProposal tmp creator participantToAdd groupIn groupOut =
   spawn
     ( cli
         (pClientQid creator)
         tmp
         $ [ "proposal",
-            "--group",
-            tmp </> groupName,
+            "--group-in",
+            tmp </> groupIn,
+            "--group-out",
+            tmp </> groupOut,
             "add",
             tmp </> pClientQid participantToAdd
           ]
     )
     Nothing
+
+pendingProposalsCommit ::
+  HasCallStack =>
+  String ->
+  Participant ->
+  String ->
+  IO (ByteString, Maybe ByteString)
+pendingProposalsCommit tmp creator groupName = do
+  let welcomeFile = tmp </> "welcome"
+  commit <-
+    spawn
+      ( cli
+          (pClientQid creator)
+          tmp
+          $ [ "commit",
+              "--group",
+              tmp </> groupName,
+              "--welcome-out",
+              welcomeFile
+            ]
+      )
+      Nothing
+  welcome <-
+    doesFileExist welcomeFile >>= \case
+      False -> pure Nothing
+      True -> Just <$> BS.readFile welcomeFile
+  pure (commit, welcome)
 
 createMessage ::
   HasCallStack =>

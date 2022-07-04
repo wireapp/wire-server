@@ -991,6 +991,7 @@ propNonExistingConv = withSystemTempDirectory "mls" $ \tmp -> do
             [ "proposal",
               "--group-in",
               tmp </> cs groupId,
+              "--in-place",
               "add",
               tmp </> pClientQid bob
             ]
@@ -1006,7 +1007,7 @@ propExistingConv = withSystemTempDirectory "mls" $ \tmp -> do
   -- setupGroup :: HasCallStack => FilePath -> CreateConv -> Participant -> String -> TestM (Qualified ConvId)
   void $ setupGroup tmp CreateConv creator "group.json"
 
-  prop <- liftIO $ bareAddProposal tmp creator bob "group.json"
+  prop <- liftIO $ bareAddProposal tmp creator bob "group.json" "group.json"
 
   events <-
     responseJsonError
@@ -1031,7 +1032,7 @@ propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
 
   -- try to request a proposal that with too old epoch (0)
   do
-    prop <- liftIO $ bareAddProposal tmp creator charlie "group.0.json"
+    prop <- liftIO $ bareAddProposal tmp creator charlie "group.0.json" "group.0.json"
     err <-
       responseJsonError
         =<< postMessage (qUnqualified (pUserId creator)) prop
@@ -1044,7 +1045,7 @@ propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
       liftIO $
         setupCommit tmp creator "group.1.json" "group.2.json" $
           toList (pClients charlie)
-    prop <- liftIO $ bareAddProposal tmp creator dee "group.2.json"
+    prop <- liftIO $ bareAddProposal tmp creator dee "group.2.json" "group.2.json"
     err <-
       responseJsonError
         =<< postMessage (qUnqualified (pUserId creator)) prop
@@ -1053,6 +1054,6 @@ propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
 
   -- same proposal with correct epoch (1)
   do
-    prop <- liftIO $ bareAddProposal tmp creator dee "group.1.json"
+    prop <- liftIO $ bareAddProposal tmp creator dee "group.1.json" "group.1.json"
     postMessage (qUnqualified (pUserId creator)) prop
       !!! const 201 === statusCode
