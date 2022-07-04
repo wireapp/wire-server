@@ -37,11 +37,10 @@ module Galley.App
 
     -- * Running Galley effects
     GalleyEffects,
-    evalGalley,
+    evalGalleyToIO,
     ask,
     DeleteItem (..),
     toServantHandler,
-    interpretWaiErrorToException,
   )
 where
 
@@ -87,6 +86,7 @@ import qualified Galley.Types.Teams as Teams
 import Imports hiding (forkIO)
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.OpenSSL
+import qualified Network.Wai.Utilities.Error as Wai
 import OpenSSL.Session as Ssl
 import qualified OpenSSL.X509.SystemStore as Ssl
 import Polysemy
@@ -117,6 +117,7 @@ type GalleyEffects0 =
      Error FederationError,
      Resource,
      Embed IO,
+     Error Wai.Error,
      Final IO
    ]
 
@@ -201,41 +202,38 @@ interpretTinyLog ::
 interpretTinyLog e = interpret $ \case
   P.Log l m -> Logger.log (e ^. applog) (Wire.Sem.Logger.toLevel l) (reqIdMsg (e ^. reqId) . m)
 
-toServantHandler :: Env -> Sem GalleyEffects a -> Servant.Handler a
-toServantHandler env action =
-  liftIO $
-    evalGalley env action `UnliftIO.catch` \(e :: SomeException) -> do
+evalGalleyToIO :: Env -> Sem GalleyEffects a -> IO a
+evalGalleyToIO env action = do
+  r <-
+    -- log IO exceptions
+    runExceptT (evalGalley env action) `UnliftIO.catch` \(e :: SomeException) -> do
       Log.err (env ^. applog) $
         Log.msg ("IO Exception occurred" :: ByteString)
           . Log.field "message" (displayException e)
           . Log.field "request" (unRequestId (env ^. reqId))
       UnliftIO.throwIO e
+  case r of
+    -- throw any errors as IO exceptions without logging them
+    Left e -> UnliftIO.throwIO e
+    Right a -> pure a
 
-interpretErrorToException ::
-  (Exception exc, Member (Embed IO) r) =>
-  (err -> exc) ->
-  Sem (Error err ': r) a ->
-  Sem r a
-interpretErrorToException f = either (embed @IO . UnliftIO.throwIO . f) pure <=< runError
+toServantHandler :: Env -> Sem GalleyEffects a -> Servant.Handler a
+toServantHandler env = liftIO . evalGalleyToIO env
 
-interpretWaiErrorToException ::
-  (APIError e, Member (Embed IO) r) =>
-  Sem (Error e ': r) a ->
-  Sem r a
-interpretWaiErrorToException = interpretErrorToException toWai
-
-evalGalley :: Env -> Sem GalleyEffects a -> IO a
+evalGalley :: Env -> Sem GalleyEffects a -> ExceptT Wai.Error IO a
 evalGalley e =
-  runFinal @IO
+  ExceptT
+    . runFinal @IO
+    . runError
     . embedToFinal @IO
     . runResource
-    . interpretWaiErrorToException
-    . interpretWaiErrorToException
-    . interpretWaiErrorToException
+    . mapError toWai
+    . mapError toWai
+    . mapError toWai
     . runInputConst e
     . runInputConst (e ^. cstate)
-    . interpretWaiErrorToException -- Wai.Error
-    . interpretWaiErrorToException -- DynError
+    . mapError toWai -- Wai.Error
+    . mapError toWai -- DynError
     . interpretTinyLog e
     . interpretQueue (e ^. deleteQueue)
     . runInputSem (embed getCurrentTime) -- FUTUREWORK: could we take the time only once instead?

@@ -105,7 +105,7 @@ mkApp opts =
     pure (middlewares $ servantApp env, env)
   where
     rtree = compile API.sitemap
-    runGalley e r k = evalGalley e (route rtree r k)
+    runGalley e r k = evalGalleyToIO e (route rtree r k)
     -- the servant API wraps the one defined using wai-routing
     servantApp e0 r =
       let e = reqId .~ lookupReqId r $ e0
