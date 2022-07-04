@@ -51,7 +51,6 @@ library
       Spar.Sem.IdPConfigStore
       Spar.Sem.IdPConfigStore.Cassandra
       Spar.Sem.IdPConfigStore.Mem
-      Spar.Sem.IdPConfigStore.Spec
       Spar.Sem.IdPRawMetadataStore
       Spar.Sem.IdPRawMetadataStore.Cassandra
       Spar.Sem.IdPRawMetadataStore.Mem
@@ -716,7 +715,6 @@ test-suite spec
       Test.Spar.Roundtrip.ByteString
       Test.Spar.ScimSpec
       Test.Spar.Sem.DefaultSsoCodeSpec
-      Test.Spar.Sem.IdPConfigStoreSpec
       Test.Spar.Sem.IdPRawMetadataStoreSpec
       Test.Spar.Sem.NowSpec
       Test.Spar.Sem.ScimExternalIdStoreSpec

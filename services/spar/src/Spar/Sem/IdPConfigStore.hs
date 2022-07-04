@@ -21,11 +21,12 @@ module Spar.Sem.IdPConfigStore
   ( IdPConfigStore (..),
     Replacing (..),
     Replaced (..),
-    GetIdPResult (..),
-    storeConfig,
+    insertConfig,
     getConfig,
-    getIdByIssuerWithoutTeam,
-    getIdByIssuerWithTeam,
+    getIdPByIssuerV1,
+    getIdPByIssuerV1Maybe,
+    getIdPByIssuerV2,
+    getIdPByIssuerV2Maybe,
     getConfigsByTeam,
     deleteConfig,
     setReplacedBy,
@@ -41,20 +42,6 @@ import Polysemy.Check (deriveGenericK)
 import qualified SAML2.WebSSO as SAML
 import qualified Wire.API.User.IdentityProvider as IP
 
-data GetIdPResult a
-  = GetIdPFound a
-  | GetIdPNotFound
-  | -- | IdPId has been found, but no IdPConfig matching that Id.  (Database
-    --   inconsistency or race condition.)
-    GetIdPDanglingId SAML.IdPId
-  | -- | You were looking for an idp by just providing issuer, not teamid, and `issuer_idp_v2`
-    --   has more than one entry (for different teams).
-    GetIdPNonUnique [SAML.IdPId]
-  | -- | An IdP was found, but it lives in another team than the one you were looking for.
-    --   This should be handled similarly to NotFound in most cases.
-    GetIdPWrongTeam SAML.IdPId
-  deriving (Eq, Show, Generic)
-
 newtype Replaced = Replaced SAML.IdPId
   deriving (Eq, Ord, Show)
 
@@ -62,16 +49,18 @@ newtype Replacing = Replacing SAML.IdPId
   deriving (Eq, Ord, Show)
 
 data IdPConfigStore m a where
-  StoreConfig :: IP.IdP -> IdPConfigStore m ()
-  GetConfig :: SAML.IdPId -> IdPConfigStore m (Maybe IP.IdP)
-  GetIdByIssuerWithoutTeam :: SAML.Issuer -> IdPConfigStore m (GetIdPResult SAML.IdPId)
-  GetIdByIssuerWithTeam :: SAML.Issuer -> TeamId -> IdPConfigStore m (Maybe SAML.IdPId)
+  InsertConfig :: IP.IdP -> IdPConfigStore m ()
+  GetConfig :: SAML.IdPId -> IdPConfigStore m IP.IdP
+  GetIdPByIssuerV1Maybe :: SAML.Issuer -> IdPConfigStore m (Maybe IP.IdP)
+  GetIdPByIssuerV1 :: SAML.Issuer -> IdPConfigStore m IP.IdP
+  GetIdPByIssuerV2Maybe :: SAML.Issuer -> TeamId -> IdPConfigStore m (Maybe IP.IdP)
+  GetIdPByIssuerV2 :: SAML.Issuer -> TeamId -> IdPConfigStore m IP.IdP
   GetConfigsByTeam :: TeamId -> IdPConfigStore m [IP.IdP]
   DeleteConfig :: IP.IdP -> IdPConfigStore m ()
   -- affects _wiReplacedBy in GetConfig
   SetReplacedBy :: Replaced -> Replacing -> IdPConfigStore m ()
   ClearReplacedBy :: Replaced -> IdPConfigStore m ()
-  DeleteIssuer :: SAML.Issuer -> IdPConfigStore m ()
+  DeleteIssuer :: SAML.Issuer -> Maybe TeamId -> IdPConfigStore m ()
 
 deriving stock instance Show (IdPConfigStore m a)
 

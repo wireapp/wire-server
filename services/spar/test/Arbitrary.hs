@@ -92,8 +92,6 @@ instance Arbitrary E.Replacing where
 instance Arbitrary E.Replaced where
   arbitrary = E.Replaced <$> arbitrary
 
-instance CoArbitrary a => CoArbitrary (E.GetIdPResult a)
-
 -- TODO(sandy): IdPIds are unlikely to collide. Does the size parameter
 -- affect them?
 instance CoArbitrary IdPId

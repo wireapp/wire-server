@@ -23,7 +23,6 @@ module Spar.Sem.SAMLUserStore.Mem
 where
 
 import Control.Lens (view)
-import Data.Coerce (coerce)
 import Data.Id
 import qualified Data.Map as M
 import Imports
@@ -45,10 +44,12 @@ samlUserStoreToMem = (runState @(Map UserRefOrd UserId) mempty .) $
   reinterpret $ \case
     Insert ur uid -> modify $ M.insert (UserRefOrd ur) uid
     Get ur -> gets $ M.lookup $ UserRefOrd ur
-    GetAnyByIssuer is -> gets $ fmap snd . find (eqIssuer is . fst) . M.toList
-    GetSomeByIssuer is -> gets $ coerce . filter (eqIssuer is . fst) . M.toList
     DeleteByIssuer is -> modify $ M.filterWithKey (\ref _ -> not $ eqIssuer is ref)
     Delete _uid ur -> modify $ M.delete $ UserRefOrd ur
+    -- 'GetAllByIssuerPaginated' and 'NextPage' are workarounds, please also see docs at
+    -- 'Spar.Sem.SAMLUserStore.Cassandra.getAllSAMLUsersByIssuerPaginated'
+    GetAllByIssuerPaginated _is -> error "not implemented as this has a dependency to Cassandra"
+    NextPage _ -> error "not implemented as this has a dependency to Cassandra"
   where
     eqIssuer :: SAML.Issuer -> UserRefOrd -> Bool
     eqIssuer is = (== is) . view uidTenant . unUserRefOrd

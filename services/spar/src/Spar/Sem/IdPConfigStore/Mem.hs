@@ -26,8 +26,9 @@ import Imports
 import Polysemy
 import Polysemy.State
 import qualified SAML2.WebSSO.Types as SAML
-import Spar.Sem.IdPConfigStore (GetIdPResult (..), IdPConfigStore (..), Replaced (..), Replacing (..))
+import Spar.Sem.IdPConfigStore (IdPConfigStore (..), Replaced (..), Replacing (..))
 import qualified Wire.API.User.IdentityProvider as IP
+import qualified Wire.API.User.IdentityProvider as SAML
 
 type TypedState = Map SAML.IdPId IP.IdP
 
@@ -42,14 +43,18 @@ idPToMem = evState . evEff
 
     evEff :: Sem (IdPConfigStore ': r) a -> Sem (State TypedState ': r) a
     evEff = reinterpret @_ @(State TypedState) $ \case
-      StoreConfig iw ->
-        modify' (storeConfig iw)
+      InsertConfig iw ->
+        modify' (insertConfig iw)
       GetConfig i ->
         gets (getConfig i)
-      GetIdByIssuerWithoutTeam iss ->
-        gets (getIdByIssuerWithoutTeam iss)
-      GetIdByIssuerWithTeam iss team ->
-        gets (getIdByIssuerWithTeam iss team)
+      GetIdPByIssuerV1Maybe issuer ->
+        gets (getIdByIssuerWithoutTeamMaybe issuer)
+      GetIdPByIssuerV1 issuer ->
+        gets (getIdByIssuerWithoutTeam issuer)
+      GetIdPByIssuerV2Maybe issuer tid ->
+        gets (getIdByIssuerWithTeamMaybe issuer tid)
+      GetIdPByIssuerV2 issuer tid ->
+        gets (getIdByIssuerWithTeam issuer tid)
       GetConfigsByTeam team ->
         gets (getConfigsByTeam team)
       DeleteConfig idp ->
@@ -58,10 +63,10 @@ idPToMem = evState . evEff
         modify' (updateReplacedBy (Just replacing) replaced <$>)
       ClearReplacedBy (Replaced replaced) ->
         modify' (updateReplacedBy Nothing replaced <$>)
-      DeleteIssuer issuer -> modify' (deleteIssuer issuer)
+      DeleteIssuer issuer _tid -> modify' (deleteIssuer issuer)
 
-storeConfig :: IP.IdP -> TypedState -> TypedState
-storeConfig iw =
+insertConfig :: IP.IdP -> TypedState -> TypedState
+insertConfig iw =
   M.insert (iw ^. SAML.idpId) iw
     . M.filter
       ( \iw' ->
@@ -69,21 +74,27 @@ storeConfig iw =
             || (iw' ^. SAML.idpExtraInfo . IP.wiTeam /= iw ^. SAML.idpExtraInfo . IP.wiTeam)
       )
 
-getConfig :: SAML.IdPId -> TypedState -> Maybe IP.IdP
-getConfig = M.lookup
+getConfig :: SAML.IdPId -> TypedState -> IP.IdP
+getConfig idpId mp = fromMaybe (error "idp not found") $ M.lookup idpId mp
 
-getIdByIssuerWithoutTeam :: SAML.Issuer -> TypedState -> GetIdPResult SAML.IdPId
-getIdByIssuerWithoutTeam iss mp =
+getIdByIssuerWithoutTeam :: SAML.Issuer -> TypedState -> SAML.IdP
+getIdByIssuerWithoutTeam issuer mp = fromMaybe (error "idp not found") $ getIdByIssuerWithoutTeamMaybe issuer mp
+
+getIdByIssuerWithoutTeamMaybe :: SAML.Issuer -> TypedState -> Maybe SAML.IdP
+getIdByIssuerWithoutTeamMaybe iss mp =
   case filter (\idp -> idp ^. SAML.idpMetadata . SAML.edIssuer == iss) $ M.elems mp of
-    [] -> GetIdPNotFound
-    [a] -> GetIdPFound (a ^. SAML.idpId)
-    as@(_ : _ : _) -> GetIdPNonUnique ((^. SAML.idpId) <$> as)
+    [] -> Nothing
+    [a] -> Just a
+    _ : _ : _ -> error "impossible"
 
-getIdByIssuerWithTeam :: SAML.Issuer -> TeamId -> TypedState -> Maybe SAML.IdPId
-getIdByIssuerWithTeam iss team mp =
+getIdByIssuerWithTeam :: SAML.Issuer -> TeamId -> TypedState -> SAML.IdP
+getIdByIssuerWithTeam issuer tid mp = fromMaybe (error "idp not found") $ getIdByIssuerWithTeamMaybe issuer tid mp
+
+getIdByIssuerWithTeamMaybe :: SAML.Issuer -> TeamId -> TypedState -> Maybe SAML.IdP
+getIdByIssuerWithTeamMaybe iss team mp =
   case filter fl $ M.elems mp of
     [] -> Nothing
-    [a] -> Just (a ^. SAML.idpId)
+    [a] -> Just a
     (_ : _ : _) ->
       -- (StoreConfig doesn't let this happen)
       error "GetIdByIssuerWithTeam: impossible"

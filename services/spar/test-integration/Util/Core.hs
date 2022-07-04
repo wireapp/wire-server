@@ -116,6 +116,7 @@ module Util.Core
     ssoToUidSpar,
     runSimpleSP,
     runSpar,
+    runSparE,
     type CanonicalEffs,
     getSsoidViaSelf,
     getSsoidViaSelf',
@@ -129,6 +130,7 @@ module Util.Core
     updateTeamMemberRole,
     checkChangeRoleOfTeamMember,
     eventually,
+    getIdPByIssuer,
   )
 where
 
@@ -172,11 +174,14 @@ import qualified SAML2.WebSSO.API.Example as SAML
 import SAML2.WebSSO.Test.Lenses (userRefL)
 import SAML2.WebSSO.Test.MockResponse
 import SAML2.WebSSO.Test.Util (SampleIdP (..), makeSampleIdPMetadata)
+import qualified Spar.App as IdpConfigStire
 import qualified Spar.App as Spar
 import Spar.CanonicalInterpreter
+import Spar.Error (SparError)
 import qualified Spar.Intra.BrigApp as Intra
 import qualified Spar.Options
 import Spar.Run
+import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import qualified System.Logger.Extended as Log
@@ -1190,10 +1195,16 @@ runSpar ::
   Sem CanonicalEffs a ->
   m a
 runSpar action = do
+  result <- runSparE action
+  liftIO $ either (throwIO . ErrorCall . show) pure result
+
+runSparE ::
+  (MonadReader TestEnv m, MonadIO m) =>
+  Sem CanonicalEffs a ->
+  m (Either SparError a)
+runSparE action = do
   ctx <- (^. teSparEnv) <$> ask
-  liftIO $ do
-    result <- runSparToIO ctx action
-    either (throwIO . ErrorCall . show) pure result
+  liftIO $ runSparToIO ctx action
 
 getSsoidViaSelf :: HasCallStack => UserId -> TestSpar UserSSOId
 getSsoidViaSelf uid = maybe (error "not found") pure =<< getSsoidViaSelf' uid
@@ -1286,3 +1297,10 @@ checkChangeRoleOfTeamMember tid adminId targetId = forM_ [minBound ..] $ \role -
 
 eventually :: HasCallStack => TestSpar a -> TestSpar a
 eventually = recovering (limitRetries 3 <> exponentialBackoff 100000) [] . const
+
+getIdPByIssuer :: HasCallStack => Issuer -> TeamId -> TestSpar (Maybe IdP)
+getIdPByIssuer issuer tid = do
+  idpApiVersion <- view teWireIdPAPIVersion
+  runSpar $ case idpApiVersion of
+    WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1Maybe issuer
+    WireIdPAPIV2 -> IdPConfigStore.getIdPByIssuerV2Maybe issuer tid
