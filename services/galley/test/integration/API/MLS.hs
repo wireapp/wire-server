@@ -168,9 +168,26 @@ testSenderNotInConversation = do
     (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
     _ <- setupGroup tmp CreateConv alice "group"
 
-    -- FUTUREWORK: create the message with bob as sender, when mls-test-cli
-    -- supports this
-    message <- liftIO $ createMessage tmp alice "group" "some text"
+    (_commit, _welcome) <-
+      liftIO $
+        setupCommit tmp alice "group" "group" $
+          toList (pClients bob)
+
+    void . liftIO $
+      spawn
+        ( cli
+            (pClientQid bob)
+            tmp
+            [ "group",
+              "from-welcome",
+              "--group-out",
+              tmp </> "group",
+              tmp </> "welcome"
+            ]
+        )
+        Nothing
+
+    message <- liftIO $ createMessage tmp bob "group" "some text"
 
     -- send the message as bob, who is not in the conversation
     err <-
