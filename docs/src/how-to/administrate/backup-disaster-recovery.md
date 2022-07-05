@@ -229,7 +229,7 @@ Then, you can add this to your cron file (by running `crontab -e`) to make sure 
 
 Your backup should now happen every hour automatically, ensuring you always have a backup at least an hour fresh in case of an emergency.
 
-There are ways to have incremental backups and to do more complex/refined backup procedure, but those are beyond the scope of this document. You should check out [Borg](https://borgbackup.readthedocs.io/en/stable/)
+There are ways to have incremental backups and to do more complex/refined backup procedure, but those are beyond the scope of this document. You should check out [Borg](https://borgbackup.readthedocs.io/en/stable/).
 
 You should also set up your monitoring software (for example [Nagios](https://www.nagios.org/)) to check whether your backup file is [older than an hour](https://support.nagios.com/kb/article/file-and-folder-checks-783.html#file_modified), and if it is (meaning something went wrong), warn you immediately.
 
