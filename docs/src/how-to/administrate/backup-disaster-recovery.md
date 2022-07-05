@@ -158,7 +158,7 @@ If your specific installation is using the actual Amazon file storage (and not a
 
 Similarly to Cassandra, to create a backup you need to SSH into the Virtual Machine running MinIO in your installation:
 
-You can read general information about your MinIO node on [this page](/how-to/administrate/minio)
+You can read general information about your MinIO node on [this page](/how-to/administrate/minio).
 
 SSH into the MinIO Virtual Machine with:
 
