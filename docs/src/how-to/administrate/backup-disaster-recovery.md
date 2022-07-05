@@ -182,7 +182,7 @@ Where:
 
 ### Automated regular backups
 
-It is important to back up as often as possible. You can use `cron` to automaticall run your backup commands on a regular basis.
+It is important to back up as often as possible. You can use `cron` to automatically run your backup commands on a regular basis.
 
 For example, you can create the following shell script, and write it to `/home/myuser/backup/wire-backup.sh`:
 
