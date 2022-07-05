@@ -1,3 +1,179 @@
+# [2022-07-05] (Chart Release 4.18.0)
+
+## Release notes
+
+
+* For users of the (currently alpha) coturn Helm chart:
+  **manual intervention may be required** when upgrading to
+  this version of the chart from a prior version, due to [a bug in
+  Kubernetes](https://github.com/kubernetes/kubernetes/issues/39188) which
+  may interfere with applying changes to pod and service port configuration
+  correctly.
+
+  If, after updating this chart, the coturn pods do not have both a `coturn-udp`
+  port and a `coturn-tcp` port, then the coturn `StatefulSet` must be manually
+  deleted from the cluster, and then recreated by re-running Helm. Similarly, if
+  the coturn `Service` does not have both a `coturn-udp` port and a `coturn-tcp`
+  port, this `Service` must also be deleted and recreated. (#2500)
+
+* The `nginz{-tcp,-http}` services have been unified into a `nginz` service, and
+  moved into the nginz chart.
+
+  The nginz-ingress-services chart simply targets the `nginz` service, so there's
+  no need to set matching `service.nginz.external{Http,Tcp}Port` inside the
+  `nginx-ingress-services` chart anymore.
+
+  The `config.http.httpPort` and `config.ws.wsPort` values in the `nginz` chart
+  still configure the ports the `nginz` service is listening on.
+
+  Metrics were moved from `config.http.httpPort` to a new `http-metrics` port.
+
+  The `nginz` chart also gained support for `metrics.serviceMonitor.enabled`,
+  creating a `ServiceMonitor` resource to scrape metrics, like for other wire
+  services.
+
+  (#2476)
+
+* Upgrade webapp version to 2022-06-30-production.0-v0.30.5-0-3e2aaf6 (#2302)
+
+* In the helm charts, the `wireService` label has been removed.
+
+  In some cases, we were already setting the `app` label too.
+
+  Now we consistently use the `app` label to label different wire services.
+
+  The `wireService` label was also used in the `spec.selector.matchLabels` field
+  on existing `Deployment` / `StatefulSet` resources.
+  As these fields being immutable, changing them isn't possible without recreation.
+
+  If you encounter an issue like
+
+  > field is immutable && cannot patch "*" with kind *
+
+  you need to manually delete these StatefulSet and Deployment resources, and apply helm again, which will recreate them.
+
+  This means downtime, so plan a maintenance window for it.
+
+  The `wire-server-metrics` chart was previously running some custom
+  configuration to automatically add all payloads with a `wireService` label into
+  metrics scraping.
+
+  With the removal of the `wireService` label, this custom configuration has been
+  removed.
+
+  Instead, all services that expose metrics will now create `ServiceMonitor`
+  resources, if their helm chart is applied with `metrics.serviceMonitor.enable`
+  set to true.
+
+  This prevents scraping agents from querying services that don't expose metrics
+  at /i/metrics unnecessarily.
+
+  Additionally, makes it easier to run other metric scraping operators, like
+  `grafana-agent-operator`, without the need to also create some custom
+  `wireService` label config there.
+
+  Generally, if you have any monitoring solution installed in your cluster that
+  uses the Prometheus CRDs, set `metrics.serviceMonitor.enable` for the following charts:
+
+   - brig
+   - cannon
+   - cargohold
+   - galley
+   - gundeck
+   - proxy
+   - spar (#2413)
+
+
+## API changes
+
+
+* The request body of `POST /conversations` endpoint can now contain an optional `creator_client` field. The `creator_client` field is only relevant for MLS conversations, in which case it must be set to the ID of the client making the request. (#2486)
+
+* Retire deprecated feature config API endpoints for API version V2 (#2492)
+
+
+## Features
+
+
+* Prevent race conditions in concurrent MLS commit requests. (#2525)
+
+* charts/wire-server: Optionally include backoffice (#2490)
+
+* The coturn chart has new functionality to enable graceful pod termination, by
+  waiting for all active allocations on a coturn instance to drain first. When
+  combined with a suitable external service discovery mechanism which can steer
+  client traffic away from terminating coturn pods, this can be used to implement
+  graceful rolling restarts of clusters of coturn instances. (#2456)
+
+* `./deploy/services-demo/create_team_members.sh` creates users with given roles now (#2137)
+
+* MLS implementation progress:
+   - Remote users can be added to MLS conversations
+   - MLS messages (both handshake and application) are now propagates to remote
+     conversation participants. (#2415)
+
+* charts/nginz: Serve swagger-ui for viewing swagger-1.2 docs (#2466)
+
+* `GET teams/:tid` response now contains an optional field `splash_screen` which contains the asset key of the team's splash screen. `PUT teams/:tid` now supports updating the splash screen asset key. (#2474)
+
+* Missing feature config mapping added (#2494)
+
+* Add MLS team feature configuration (#2499)
+
+* Team feature API now includes endpoints to get and set the `searchVisibilityInbound` feature (#2503)
+
+
+## Bug fixes and other updates
+
+
+* charts/backoffice: Fix version of frontend and auto-bump version of stern on every release (#2490)
+
+* The service definitions in the coturn Helm chart were missing the control plane
+  UDP port used by coturn. (#2500)
+
+* In nginx-ingress-services chart, when enabling useCertManager, now correctly creates the required issuer by default. (#2532)
+
+* Fix handling of creator client in MLS conversations (#2486)
+
+* Fix all clients having the same MLS public key (#2501)
+
+* A user now cannot delete an identity provider that they are authenticated with any more (#2519)
+
+
+## Internal changes
+
+
+* brig-types: remove all re-exports (#2505)
+
+* Fixed flakiness of email update test, related to the test user account being suspended, causing subsequent runs of the test to fail. (#PR_NOT_FOUND)
+
+* Do not log polysemy errors in Galley (#2531)
+
+* galley-types: remove all re-exports (#2504)
+
+* Enforce some IdP invariants (#2533)
+
+* Switch to new MLS test CLI (https://github.com/wireapp/mls-test-cli) (#2508)
+
+* Forward /i/users/:uid/features/:feature to brig (#2468)
+
+* charts/nginz: Forward `/i/legalhold/whitelisted-teams` to galley instead of brig (#2460)
+
+* make the ldap-scim-bridge chart deployable once per team, and improve docs. (#1843)
+
+* Refactored and simplified the feature config API (#2435)
+
+* Removed deprecated internal feature config API endpoints (#2496)
+
+* Deactivated gundeck's integration tests for local steps (`make ci`). (#2510)
+
+* retry gundeck's Redis connection in case of network errors such as IP changes or network outages (#2512)
+
+* Remove old crypto-cli tool from the ubuntu image (#2538)
+
+* Add AWS security token metrics to all services (#2473)
+
+
 # [2022-06-14] (Chart Release 4.14.0)
 
 ## Release notes

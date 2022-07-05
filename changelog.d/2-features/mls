@@ -1,4 +1,0 @@
-MLS implementation progress:
- - Remote users can be added to MLS conversations
- - MLS messages (both handshake and application) are now propagates to remote
-   conversation participants.
