@@ -97,7 +97,7 @@ After editing the file, make sure you restart cassandra with:
 
     sudo service cassandra restart
 
-You can find a list of all keyspaces by doing: building
+You can find a list of all keyspaces by doing:
 
     ls /mnt/cassandra/data/
 
