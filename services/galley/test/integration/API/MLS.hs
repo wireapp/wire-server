@@ -95,7 +95,8 @@ tests s =
           test s "add remote user to a conversation" testAddRemoteUser,
           test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
           test s "post commit that references a unknown proposal" testUnknownProposalRefCommit,
-          test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals
+          test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
+          test s "admin removes user / all their clients from a conversation" testRemoveUserAllClients
         ],
       testGroup
         "Application Message"
@@ -288,6 +289,30 @@ testSuccessfulCommitWithNewUsers setup@MessagingSetup {..} newUsers = do
     for_ alreadyPresent $ \ws -> do
       WS.assertMatch_ (5 # WS.Second) ws $
         wsAssertMLSMessage conversation (pUserId creator) commit
+
+testSuccessfulRemovalCommit ::
+  HasCallStack =>
+  Participant ->
+  [Participant] ->
+  Qualified ConvId ->
+  ByteString ->
+  [Participant] ->
+  TestM ()
+testSuccessfulRemovalCommit admin users conv commit participantsToRemove = do
+  cannon <- view tsCannon
+
+  WS.bracketRN cannon (map (qUnqualified . pUserId) users) $ \wss -> do
+    events :: [Event] <-
+      responseJsonError
+        =<< postMessage (qUnqualified (pUserId admin)) commit
+        <!! statusCode === const 201
+
+    e <- assertOne events
+    liftIO $ assertLeaveEvent conv (pUserId admin) (map pUserId participantsToRemove) e
+
+    for_ wss $ \ws ->
+      WS.assertMatch_ (5 # WS.Second) ws $
+        wsAssertMembersLeave conv (pUserId admin) (map pUserId participantsToRemove)
 
 testFailedCommit :: HasCallStack => MessagingSetup -> Int -> TestM Wai.Error
 testFailedCommit MessagingSetup {..} status = do
@@ -669,6 +694,25 @@ testCommitNotReferencingAllProposals = withSystemTempDirectory "mls" $ \tmp -> d
 
   err <- testFailedCommit (MessagingSetup {creator = alice, users = [bob, dee], ..}) 409
   liftIO $ Wai.label err @?= "mls-commit-missing-references"
+
+testRemoveUserAllClients :: TestM ()
+testRemoveUserAllClients = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(2, LocalUser)]
+
+  -- create a group
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
+
+  -- add clients to it and get welcome message
+  (addCommit, welcome) <-
+    liftIO $
+      setupCommit tmp creator "group" "group" $
+        NonEmpty.tail (pClients creator) <> toList (pClients bob)
+
+  testSuccessfulCommit MessagingSetup {users = [bob], commit = addCommit, ..}
+
+  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" (pClients bob)
+
+  testSuccessfulRemovalCommit creator [bob] conversation removalCommit [bob]
 
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do

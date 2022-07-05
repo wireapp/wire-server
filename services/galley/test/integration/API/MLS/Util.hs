@@ -295,6 +295,39 @@ setupCommit tmp admin groupName newGroupName clients =
       Nothing
       <*> BS.readFile (tmp </> "welcome")
 
+setupRemoveCommit ::
+  (HasCallStack, Foldable f) =>
+  String ->
+  Participant ->
+  String ->
+  String ->
+  f (String, ClientId) ->
+  IO (ByteString, Maybe ByteString)
+setupRemoveCommit tmp admin groupName newGroupName clients = do
+  let welcomeFile = tmp </> "welcome"
+  commit <-
+    spawn
+      ( cli
+          (pClientQid admin)
+          tmp
+          $ [ "member",
+              "remove",
+              "--group",
+              tmp </> groupName,
+              "--group-out",
+              tmp </> newGroupName,
+              "--welcome-out",
+              welcomeFile
+            ]
+            <> map ((tmp </>) . fst) (toList clients)
+      )
+      Nothing
+  welcome <-
+    doesFileExist welcomeFile >>= \case
+      False -> pure Nothing
+      True -> Just <$> BS.readFile welcomeFile
+  pure (commit, welcome)
+
 bareAddProposal ::
   HasCallStack =>
   String ->
