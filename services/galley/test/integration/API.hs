@@ -2345,7 +2345,10 @@ testDeleteTeamConversationWithRemoteMembers = do
   connectWithRemoteUser alice remoteBob
 
   let brigApi _ = mkHandler @(FedApi 'Brig) EmptyAPI
-      galleyApi _ = mkHandler @(FedApi 'Galley) $ Named @"on-conversation-updated" $ \_ _ -> pure ()
+      galleyApi _ =
+        mkHandler @(FedApi 'Galley) $
+          (Named @"on-new-remote-conversation" $ \_ _ -> pure EmptyResponse)
+            :<|> (Named @"on-conversation-updated" $ \_ _ -> pure ())
 
   (_, received) <- withTempServantMockFederator brigApi galleyApi localDomain $ do
     postQualifiedMembers alice (remoteBob :| []) convId

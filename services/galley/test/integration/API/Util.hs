@@ -2496,7 +2496,7 @@ withTempMockFederator' resp action = do
     $ \mockPort -> do
       withSettingsOverrides (\opts -> opts & Opts.optFederator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action
 
--- Start a mock federator. Use proveded Servant handler for the mocking mocking function.
+-- Start a mock federator. Use provided Servant handler for the mocking function.
 withTempServantMockFederator ::
   (Domain -> ServerT (FedApi 'Brig) Handler) ->
   (Domain -> ServerT (FedApi 'Galley) Handler) ->
