@@ -64,8 +64,8 @@ registerUser u = clientRequest req rsc readBody
 
 activateKey :: (MonadClient m, MonadUnliftIO m, MonadMask m) => ActivationKey -> ActivationCode -> m Bool
 activateKey (ActivationKey key) (ActivationCode code) = do
-  status <- clientRequest req rsc (return . statusCode)
-  return $ status /= 404
+  status <- clientRequest req rsc (pure . statusCode)
+  pure $ status /= 404
   where
     req =
       method GET
@@ -124,7 +124,7 @@ getConnection u = do
   rs <- sessionRequest req rsc consumeBody
   case statusCode rs of
     200 -> responseJsonThrow (ParseError . pack) rs
-    404 -> return Nothing
+    404 -> pure Nothing
     _ -> unexpected rs "getConnection: status code"
   where
     req =

@@ -20,7 +20,7 @@
 
 module Gundeck.Aws
   ( -- * Monad
-    Env,
+    Env (..),
     mkEnv,
     Amazon,
     execute,

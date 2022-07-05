@@ -13,7 +13,7 @@ kind: Service
 metadata:
   name: {{ .Values.service.nginz.name }}
   labels:
-    wireService: cannon
+    app: cannon
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
@@ -35,6 +35,6 @@ spec:
       targetPort: {{ .Values.service.nginz.internalPort }}
       protocol: TCP
   selector:
-    wireService: cannon
+    app: cannon
     release: {{ .Release.Name }}
 {{- end }}

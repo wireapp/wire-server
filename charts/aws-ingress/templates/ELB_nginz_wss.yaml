@@ -14,7 +14,7 @@ metadata:
 spec:
   type: LoadBalancer
   selector:
-    wireService: nginz
+    app: nginz
   ports:
   - name: wss
     protocol: TCP

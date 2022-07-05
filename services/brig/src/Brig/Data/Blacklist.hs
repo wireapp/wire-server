@@ -33,6 +33,7 @@ import Brig.Data.UserKey
 import Brig.Types.Common
 import Cassandra
 import Imports
+import Wire.API.User.Identity
 
 --------------------------------------------------------------------------------
 -- UserKey blacklisting

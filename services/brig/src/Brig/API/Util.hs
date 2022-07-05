@@ -36,7 +36,6 @@ import Brig.App
 import qualified Brig.Data.User as Data
 import Brig.Options (FederationDomainConfig, federationDomainConfigs)
 import qualified Brig.Options as Opts
-import Brig.Types
 import Brig.Types.Intra (accountUser)
 import Control.Lens (view)
 import Control.Monad.Catch (throwM)
@@ -57,6 +56,7 @@ import Util.Logging (sha256String)
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Federation.Error
+import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy (NoSearch))
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]

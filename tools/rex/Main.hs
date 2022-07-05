@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
@@ -32,6 +31,7 @@ import Data.Bitraversable
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as ByteString
 import Data.Foldable
+import Data.Functor (($>))
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.IP
@@ -53,8 +53,7 @@ import Options.Applicative
 import System.Clock
 import qualified System.Logger as Log
 import System.Logger.Message (msg, val)
--- this library sucks
-import System.Metrics.Prometheus.Concurrent.RegistryT
+import System.Metrics.Prometheus.Concurrent.RegistryT -- this library sucks
 import System.Metrics.Prometheus.Encode.Text
 import qualified System.Metrics.Prometheus.Metric.Counter as Counter
 import System.Metrics.Prometheus.Metric.Gauge (Gauge)
@@ -225,9 +224,8 @@ data SocketStats = SocketStats
 getSocketStats :: Word16 -> IO (Maybe SocketStats)
 getSocketStats port = do
   pnu <- Text.readFile "/proc/net/udp"
-  return
-    . listToMaybe
-    . filter ((== port) . lPort)
+  pure
+    . find ((== port) . lPort)
     . map (mk . Text.words)
     . drop 1
     $ Text.lines pnu
@@ -247,7 +245,7 @@ getAppStats lgr addr sock = fmap mconcat . for cmds $ \cmd -> do
   sendAllTo sock cmd addr
   (reply, _) <- recvFrom sock 1024
   Log.trace lgr $ msg (ByteString.intercalate "\n" (ByteString.lines reply))
-  return $
+  pure $
     parseAppStats reply
   where
     cmds = ["stat", "turnstats", "turnreply", "tcpstats", "authstats"]
@@ -337,7 +335,7 @@ getPeerConnectivityStats lgr seed dom = do
           )
 
     shakehands (addr, port) =
-      handleIOError (\e -> logUnreachable addr port e *> pure Nothing)
+      handleIOError (\e -> logUnreachable addr port e $> Nothing)
         . timeout (5 * 1000000)
         $ bracket
           (socket AF_INET Stream defaultProtocol)

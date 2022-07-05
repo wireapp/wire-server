@@ -153,17 +153,15 @@ expectStatus :: (Int -> Bool) -> Request -> Request
 expectStatus property r = r {Rq.checkResponse = check}
   where
     check _ res
-      | property (HTTP.statusCode (Rq.responseStatus res)) = return ()
+      | property (HTTP.statusCode (Rq.responseStatus res)) = pure ()
       | otherwise = do
         some <- Lazy.toStrict <$> brReadSome (Rq.responseBody res) 1024
-        throwHttp $ Rq.StatusCodeException (const () <$> res) some
+        throwHttp $ Rq.StatusCodeException (() <$ res) some
 
 checkStatus :: (Status -> ResponseHeaders -> CookieJar -> Maybe SomeException) -> Request -> Request
 checkStatus f r = r {Rq.checkResponse = check}
   where
-    check _ res = case mayThrow res of
-      Nothing -> return ()
-      Just ex -> throwIO ex
+    check _ res = forM_ (mayThrow res) throwIO
     mayThrow res =
       f
         (Rq.responseStatus res)
@@ -244,4 +242,4 @@ extPort :: URI.URI -> Maybe Word16
 extPort u = do
   a <- u ^. URI.authorityL
   p <- a ^. URI.authorityPortL
-  return (fromIntegral (p ^. URI.portNumberL))
+  pure (fromIntegral (p ^. URI.portNumberL))

@@ -58,4 +58,4 @@ instance FromByteString URI where
   parser = takeByteString >>= parse . Bytes.unpack
 
 parse :: (Monad m, MonadFail m) => String -> m URI
-parse = maybe (fail "Invalid URI") (return . URI) . Net.parseURI
+parse = maybe (fail "Invalid URI") (pure . URI) . Net.parseURI

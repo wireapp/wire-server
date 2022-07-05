@@ -23,12 +23,12 @@ module Brig.Locale
   )
 where
 
-import Brig.Types (Language (..), Locale (..))
 import Data.LanguageCodes (ISO639_1 (DE, FR))
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format
 import Data.Time.LocalTime (TimeZone (..), utc)
 import Imports
+import Wire.API.User
 
 timeLocale :: Locale -> TimeLocale
 timeLocale (Locale (Language DE) _) = deDe

@@ -28,7 +28,7 @@ foldFiles f !a !d = do
   case c of
     (True, True, False) -> f a d
     (True, False, True) -> foldDir
-    _ -> return a
+    _ -> pure a
   where
     foldDir = do
       xs <- map (d </>) . filter dots <$> liftIO (getDirectoryContents d)

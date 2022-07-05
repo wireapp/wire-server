@@ -1,0 +1,5 @@
+The coturn chart has new functionality to enable graceful pod termination, by
+waiting for all active allocations on a coturn instance to drain first. When
+combined with a suitable external service discovery mechanism which can steer
+client traffic away from terminating coturn pods, this can be used to implement
+graceful rolling restarts of clusters of coturn instances.

@@ -40,7 +40,7 @@ And on the server (X.X.X.X), run:
 
     echo 'wire ALL=(ALL) NOPASSWD:ALL' | sudo tee -a /etc/sudoers
 
-Then:
+Then on the client:
 
 .. code:: shell
 

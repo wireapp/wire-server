@@ -40,7 +40,6 @@ import qualified API.Util.TeamFeature as Util
 import Bilge hiding (head, timeout)
 import qualified Bilge
 import Bilge.Assert
-import Brig.Types
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (throw)
 import Control.Lens (at, ix, preview, view, (.~), (?~))
@@ -68,11 +67,8 @@ import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer (FederatedRequest (..), MockException (..))
 import Galley.API.Mapping
 import Galley.Options (optFederator)
-import Galley.Types hiding (LocalMember (..))
 import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.Members
-import Galley.Types.Conversations.Roles
-import qualified Galley.Types.Teams as Teams
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Network.Wai.Utilities.Error
@@ -85,18 +81,25 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Util.Options (Endpoint (Endpoint))
+import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role
+import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Internal.Notification
+import Wire.API.Message
 import qualified Wire.API.Message as Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Named
 import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.Team.Member as Teams
+import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
 
@@ -1220,13 +1223,13 @@ testGetCodeRejectedIfGuestLinksDisabled = do
   convId <- createConvWithGuestLink
   let checkGetCode expectedStatus = getConvCode owner convId !!! const expectedStatus === statusCode
   let setStatus tfStatus =
-        TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId (Public.TeamFeatureStatusNoConfig tfStatus) !!! do
+        TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId (Public.WithStatusNoLock tfStatus Public.GuestLinksConfig) !!! do
           const 200 === statusCode
 
   checkGetCode 200
-  setStatus Public.TeamFeatureDisabled
+  setStatus Public.FeatureStatusDisabled
   checkGetCode 409
-  setStatus Public.TeamFeatureEnabled
+  setStatus Public.FeatureStatusEnabled
   checkGetCode 200
 
 testPostCodeRejectedIfGuestLinksDisabled :: TestM ()
@@ -1237,13 +1240,13 @@ testPostCodeRejectedIfGuestLinksDisabled = do
   convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just noGuestsAccess) Nothing
   let checkPostCode expectedStatus = postConvCode owner convId !!! statusCode === const expectedStatus
   let setStatus tfStatus =
-        TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId (Public.TeamFeatureStatusNoConfig tfStatus) !!! do
+        TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId (Public.WithStatusNoLock tfStatus Public.GuestLinksConfig) !!! do
           const 200 === statusCode
 
   checkPostCode 201
-  setStatus Public.TeamFeatureDisabled
+  setStatus Public.FeatureStatusDisabled
   checkPostCode 409
-  setStatus Public.TeamFeatureEnabled
+  setStatus Public.FeatureStatusEnabled
   checkPostCode 200
 
 -- @SF.Separation @TSFI.RESTfulAPI @S2
@@ -1260,12 +1263,12 @@ testJoinTeamConvGuestLinksDisabled = do
   cCode <- decodeConvCodeEvent <$> postConvCode owner convId
 
   let checkFeatureStatus fstatus =
-        Util.getTeamFeatureFlagWithGalley Public.TeamFeatureGuestLinks galley owner teamId !!! do
+        Util.getTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId !!! do
           const 200 === statusCode
-          const (Right (Public.TeamFeatureStatusNoConfigAndLockStatus fstatus Public.Unlocked)) === responseJsonEither
+          const (Right (Public.WithStatus fstatus Public.LockStatusUnlocked Public.GuestLinksConfig)) === responseJsonEither
 
   -- guest can join if guest link feature is enabled
-  checkFeatureStatus Public.TeamFeatureEnabled
+  checkFeatureStatus Public.FeatureStatusEnabled
   getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
     const 200 === statusCode
@@ -1275,8 +1278,8 @@ testJoinTeamConvGuestLinksDisabled = do
   postJoinCodeConv bob cCode !!! const 200 === statusCode
 
   -- disabled guest links feature
-  let disabled = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
-  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId disabled !!! do
+  let disabled = Public.WithStatusNoLock Public.FeatureStatusDisabled Public.GuestLinksConfig
+  TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId disabled !!! do
     const 200 === statusCode
 
   -- guest can't join if guest link feature is disabled
@@ -1291,11 +1294,11 @@ testJoinTeamConvGuestLinksDisabled = do
   -- team members can't join either
   postJoinCodeConv alice cCode !!! const 409 === statusCode
   -- check feature status is still disabled
-  checkFeatureStatus Public.TeamFeatureDisabled
+  checkFeatureStatus Public.FeatureStatusDisabled
 
   -- after re-enabling, the old link is still valid
-  let enabled = Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled
-  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId enabled !!! do
+  let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled Public.GuestLinksConfig
+  TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId enabled !!! do
     const 200 === statusCode
   getJoinCodeConv eve' (conversationKey cCode) (conversationCode cCode) !!! do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
@@ -1303,7 +1306,7 @@ testJoinTeamConvGuestLinksDisabled = do
   postConvCodeCheck cCode !!! const 200 === statusCode
   postJoinCodeConv eve' cCode !!! const 200 === statusCode
   postJoinCodeConv bob' cCode !!! const 200 === statusCode
-  checkFeatureStatus Public.TeamFeatureEnabled
+  checkFeatureStatus Public.FeatureStatusEnabled
 
 -- @END
 
@@ -1323,8 +1326,8 @@ testJoinNonTeamConvGuestLinksDisabled = do
     const 200 === statusCode
 
   -- for non-team conversations it still works if status is disabled for the team but not server wide
-  let tfStatus = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
-  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus !!! do
+  let tfStatus = Public.WithStatusNoLock Public.FeatureStatusDisabled Public.GuestLinksConfig
+  TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId tfStatus !!! do
     const 200 === statusCode
 
   getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
@@ -1573,23 +1576,23 @@ getGuestLinksStatusFromForeignTeamConv :: TestM ()
 getGuestLinksStatusFromForeignTeamConv = do
   galley <- view tsGalley
   let setTeamStatus u tid tfStatus =
-        TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley u tid (Public.TeamFeatureStatusNoConfig tfStatus) !!! do
+        TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley u tid (Public.WithStatusNoLock tfStatus Public.GuestLinksConfig) !!! do
           const 200 === statusCode
   let checkGuestLinksStatus u c s =
         getGuestLinkStatus galley u c !!! do
           const 200 === statusCode
-          const s === (Public.tfwoStatus . responseJsonUnsafe)
+          const s === (Public.wsStatus . (responseJsonUnsafe @(Public.WithStatus Public.GuestLinksConfig)))
   let checkGetGuestLinksStatus s u c =
         getGuestLinkStatus galley u c !!! do
           const s === statusCode
 
   -- given alice is in team A with guest links allowed
   (alice, teamA, [alex]) <- createBindingTeamWithNMembers 1
-  setTeamStatus alice teamA Public.TeamFeatureEnabled
+  setTeamStatus alice teamA Public.FeatureStatusEnabled
 
   -- and given bob is in team B with guest links disallowed
   (bob, teamB, [bert]) <- createBindingTeamWithNMembers 1
-  setTeamStatus bob teamB Public.TeamFeatureDisabled
+  setTeamStatus bob teamB Public.FeatureStatusDisabled
 
   -- and given alice and bob are connected
   connectUsers alice (singleton bob)
@@ -1601,31 +1604,31 @@ getGuestLinksStatusFromForeignTeamConv = do
 
   -- when alice gets the guest link status for the conversation
   -- then the status should be disabled
-  checkGuestLinksStatus alice conv Public.TeamFeatureDisabled
+  checkGuestLinksStatus alice conv Public.FeatureStatusDisabled
 
   -- when bob gets the guest link status for the conversation
   -- then the status should be disabled
-  checkGuestLinksStatus bob conv Public.TeamFeatureDisabled
+  checkGuestLinksStatus bob conv Public.FeatureStatusDisabled
 
   -- when bob enables guest links for his team and gets the guest link status for the conversation
-  setTeamStatus bob teamB Public.TeamFeatureEnabled
+  setTeamStatus bob teamB Public.FeatureStatusEnabled
 
   -- then the status should be enabled
-  checkGuestLinksStatus bob conv Public.TeamFeatureEnabled
+  checkGuestLinksStatus bob conv Public.FeatureStatusEnabled
 
   -- when alice gets the guest link status for the conversation
   -- then the status should be enabled
-  checkGuestLinksStatus alice conv Public.TeamFeatureEnabled
+  checkGuestLinksStatus alice conv Public.FeatureStatusEnabled
 
   -- when alice disables guest links for her team and gets the guest link status for the conversation
-  setTeamStatus alice teamA Public.TeamFeatureDisabled
+  setTeamStatus alice teamA Public.FeatureStatusDisabled
 
   -- then the guest link status for the conversation should still be enabled (note that in the UI she can't create guest links because her own team settings do not allow this)
-  checkGuestLinksStatus alice conv Public.TeamFeatureEnabled
+  checkGuestLinksStatus alice conv Public.FeatureStatusEnabled
 
   -- when bob gets the guest link status for the conversation
   -- then the status should be enabled
-  checkGuestLinksStatus bob conv Public.TeamFeatureEnabled
+  checkGuestLinksStatus bob conv Public.FeatureStatusEnabled
 
   -- when a user that is not in the conversation tries to get the guest link status
   -- then the result should be not found
@@ -2035,7 +2038,7 @@ postConvQualifiedFederationNotEnabled = do
 -- FUTUREWORK: figure out how to use functions in the TestM monad inside withSettingsOverrides and remove this duplication
 postConvHelper :: (MonadIO m, MonadHttp m) => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
 postConvHelper g zusr newUsers = do
-  let conv = NewConv [] newUsers (checked "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+  let conv = NewConv [] newUsers (checked "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
   post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv
 
 postSelfConvOk :: TestM ()
@@ -2064,7 +2067,7 @@ postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
   g <- view tsGalley
   alice <- randomUser
-  let inv = NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+  let inv = NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
   post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe

@@ -24,10 +24,10 @@ import Brig.AWS.Types
 import Brig.App
 import qualified Brig.Data.Blacklist as Blacklist
 import Brig.Data.UserKey (userEmailKey)
-import Brig.Types (Email, fromEmail)
 import Imports
 import System.Logger.Class (field, msg, (~~))
 import qualified System.Logger.Class as Log
+import Wire.API.User.Identity
 
 onEvent :: SESNotification -> (AppT r) ()
 onEvent (MailBounce BouncePermanent es) = onPermanentBounce es

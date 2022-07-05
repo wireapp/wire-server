@@ -80,7 +80,7 @@ clientRequest rq expected f = do
       [ const $
           Handler
             ( \(e :: ClientException) -> case e of
-                ErrorResponse c _ _ -> return (canRetry c)
+                ErrorResponse c _ _ -> pure (canRetry c)
                 x -> throwIO x
             ),
         const $ Handler (\(e :: SomeException) -> throwIO e)
@@ -123,6 +123,6 @@ mkErrorResponse rs = do
                 (eitherDecode bdy)
           )
           (responseBody r)
-  return $ case re of
+  pure $ case re of
     Left m -> ErrorResponse (statusCode rs) "N/A" m
     Right e -> ErrorResponse (code e) (label e) (message e)

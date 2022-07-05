@@ -60,7 +60,7 @@ type HandleMap = Map UserId [Handle]
 readHandleMap :: Env -> IO HandleMap
 readHandleMap Env {..} =
   runConduit $
-    (transPipe (runClient envBrig) $ paginateC selectUserHandle (paramsP LocalQuorum () envPageSize) x1)
+    transPipe (runClient envBrig) (paginateC selectUserHandle (paramsP LocalQuorum () envPageSize) x1)
       .| (C.foldM insertAndLog (Map.empty, 0) <&> fst)
   where
     selectUserHandle :: PrepQuery R () (Maybe UserId, Maybe Handle)
@@ -120,10 +120,11 @@ decideAction uid (Just currentHandle) handles =
 
 sourceActions :: Env -> HandleMap -> ConduitM () ActionResult IO ()
 sourceActions Env {..} hmap =
-  ( transPipe (runClient envGalley) $
-      paginateC selectTeam (paramsP LocalQuorum (pure envTeam) envPageSize) x5
+  transPipe
+    (runClient envGalley)
+    ( paginateC selectTeam (paramsP LocalQuorum (pure envTeam) envPageSize) x5
         .| C.map (fmap runIdentity)
-  )
+    )
     .| C.mapM readUsersPage
     .| C.concat
     .| C.map

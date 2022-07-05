@@ -98,12 +98,13 @@ import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.ServiceStore as E
+import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import Galley.Effects.WaiRoutes
 import Galley.Intra.Push
 import Galley.Options
-import Galley.Types
 import Galley.Types.Bot hiding (addBot)
-import Galley.Types.Teams hiding (Event, EventData (..), EventType (..), self)
+import Galley.Types.Bot.Service (Service)
+import Galley.Types.Conversations.Members (LocalMember (..))
 import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Network.HTTP.Types
@@ -116,6 +117,7 @@ import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Code
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -124,9 +126,12 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import Wire.API.Message
+import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.Public.Galley
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
+import Wire.API.Team.Feature
+import Wire.API.Team.Member
 import Wire.API.User.Client
 
 acceptConvH ::
@@ -489,7 +494,7 @@ getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
 getUpdateResult = fmap (either (const Unchanged) Updated) . runError
 
 addCodeUnqualified ::
-  forall r.
+  forall db r.
   ( Member CodeStore r,
     Member ConversationStore r,
     Member (ErrorS 'ConvAccessDenied) r,
@@ -500,7 +505,8 @@ addCodeUnqualified ::
     Member (Input (Local ())) r,
     Member (Input UTCTime) r,
     Member (Input Opts) r,
-    Member TeamFeatureStore r
+    Member (TeamFeatureStore db) r,
+    FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   UserId ->
   ConnId ->
@@ -509,10 +515,10 @@ addCodeUnqualified ::
 addCodeUnqualified usr zcon cnv = do
   lusr <- qualifyLocal usr
   lcnv <- qualifyLocal cnv
-  addCode lusr zcon lcnv
+  addCode @db lusr zcon lcnv
 
 addCode ::
-  forall r.
+  forall db r.
   ( Member CodeStore r,
     Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
@@ -522,7 +528,8 @@ addCode ::
     Member GundeckAccess r,
     Member (Input UTCTime) r,
     Member (Input Opts) r,
-    Member TeamFeatureStore r
+    Member (TeamFeatureStore db) r,
+    FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   Local UserId ->
   ConnId ->
@@ -530,7 +537,7 @@ addCode ::
   Sem r AddCodeResult
 addCode lusr zcon lcnv = do
   conv <- E.getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
-  Query.ensureGuestLinksEnabled (Data.convTeam conv)
+  Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
   Query.ensureConvAdmin (Data.convLocalMembers conv) (tUnqualified lusr)
   ensureAccess conv CodeAccess
   ensureGuestsOrNonTeamMembersAllowed conv
@@ -610,7 +617,7 @@ rmCode lusr zcon lcnv = do
   pure event
 
 getCode ::
-  forall r.
+  forall db r.
   ( Member CodeStore r,
     Member ConversationStore r,
     Member (ErrorS 'CodeNotFound) r,
@@ -618,7 +625,8 @@ getCode ::
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'GuestLinksDisabled) r,
     Member (Input Opts) r,
-    Member TeamFeatureStore r
+    Member (TeamFeatureStore db) r,
+    FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   Local UserId ->
   ConvId ->
@@ -626,7 +634,7 @@ getCode ::
 getCode lusr cnv = do
   conv <-
     E.getConversation cnv >>= noteS @'ConvNotFound
-  Query.ensureGuestLinksEnabled (Data.convTeam conv)
+  Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
   ensureAccess conv CodeAccess
   ensureConvMember (Data.convLocalMembers conv) (tUnqualified lusr)
   key <- E.makeKey cnv
@@ -638,45 +646,51 @@ returnCode c = do
   mkConversationCode (codeKey c) (codeValue c) <$> E.getConversationCodeURI
 
 checkReusableCode ::
-  Members
-    '[ CodeStore,
-       ConversationStore,
-       TeamFeatureStore,
-       ErrorS 'CodeNotFound,
-       ErrorS 'ConvNotFound,
-       Input Opts
-     ]
-    r =>
+  forall db r.
+  ( Members
+      '[ CodeStore,
+         ConversationStore,
+         TeamFeatureStore db,
+         ErrorS 'CodeNotFound,
+         ErrorS 'ConvNotFound,
+         Input Opts
+       ]
+      r,
+    FeaturePersistentConstraint db GuestLinksConfig
+  ) =>
   ConversationCode ->
   Sem r ()
 checkReusableCode convCode = do
   code <- verifyReusableCode convCode
   conv <- E.getConversation (codeConversation code) >>= noteS @'ConvNotFound
   mapErrorS @'GuestLinksDisabled @'CodeNotFound $
-    Query.ensureGuestLinksEnabled (Data.convTeam conv)
+    Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
 
 joinConversationByReusableCode ::
-  Members
-    '[ BrigAccess,
-       CodeStore,
-       ConversationStore,
-       ErrorS 'CodeNotFound,
-       ErrorS 'ConvAccessDenied,
-       ErrorS 'ConvNotFound,
-       ErrorS 'GuestLinksDisabled,
-       ErrorS 'InvalidOperation,
-       ErrorS 'NotATeamMember,
-       ErrorS 'TooManyMembers,
-       FederatorAccess,
-       ExternalAccess,
-       GundeckAccess,
-       Input Opts,
-       Input UTCTime,
-       MemberStore,
-       TeamStore,
-       TeamFeatureStore
-     ]
-    r =>
+  forall db r.
+  ( Members
+      '[ BrigAccess,
+         CodeStore,
+         ConversationStore,
+         ErrorS 'CodeNotFound,
+         ErrorS 'ConvAccessDenied,
+         ErrorS 'ConvNotFound,
+         ErrorS 'GuestLinksDisabled,
+         ErrorS 'InvalidOperation,
+         ErrorS 'NotATeamMember,
+         ErrorS 'TooManyMembers,
+         FederatorAccess,
+         ExternalAccess,
+         GundeckAccess,
+         Input Opts,
+         Input UTCTime,
+         MemberStore,
+         TeamStore,
+         TeamFeatureStore db
+       ]
+      r,
+    FeaturePersistentConstraint db GuestLinksConfig
+  ) =>
   Local UserId ->
   ConnId ->
   ConversationCode ->
@@ -684,35 +698,37 @@ joinConversationByReusableCode ::
 joinConversationByReusableCode lusr zcon convCode = do
   c <- verifyReusableCode convCode
   conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
-  Query.ensureGuestLinksEnabled (Data.convTeam conv)
-  joinConversation lusr zcon conv CodeAccess
+  Query.ensureGuestLinksEnabled @db (Data.convTeam conv)
+  joinConversation @db lusr zcon conv CodeAccess
 
 joinConversationById ::
-  Members
-    '[ BrigAccess,
-       FederatorAccess,
-       ConversationStore,
-       ErrorS 'ConvAccessDenied,
-       ErrorS 'ConvNotFound,
-       ErrorS 'InvalidOperation,
-       ErrorS 'NotATeamMember,
-       ErrorS 'TooManyMembers,
-       ExternalAccess,
-       GundeckAccess,
-       Input Opts,
-       Input UTCTime,
-       MemberStore,
-       TeamStore,
-       TeamFeatureStore
-     ]
-    r =>
+  forall db r.
+  ( Members
+      '[ BrigAccess,
+         FederatorAccess,
+         ConversationStore,
+         ErrorS 'ConvAccessDenied,
+         ErrorS 'ConvNotFound,
+         ErrorS 'InvalidOperation,
+         ErrorS 'NotATeamMember,
+         ErrorS 'TooManyMembers,
+         ExternalAccess,
+         GundeckAccess,
+         Input Opts,
+         Input UTCTime,
+         MemberStore,
+         TeamStore,
+         TeamFeatureStore db
+       ]
+      r
+  ) =>
   Local UserId ->
   ConnId ->
   ConvId ->
   Sem r (UpdateResult Event)
 joinConversationById lusr zcon cnv = do
   conv <- E.getConversation cnv >>= noteS @'ConvNotFound
-  joinConversation lusr zcon conv LinkAccess
+  joinConversation @db lusr zcon conv LinkAccess
 
 joinConversation ::
   Members
@@ -729,7 +745,7 @@ joinConversation ::
        Input UTCTime,
        MemberStore,
        TeamStore,
-       TeamFeatureStore
+       TeamFeatureStore db
      ]
     r =>
   Local UserId ->

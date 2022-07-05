@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 94e1bf0c93057c9abbeafa85bd4d465c71e20c3bda5a8962cfaad8431861ddd5
+-- hash: ecdf5dcfd0edfbffa2ff3490ea07fc1a5fac46874617b280fe981ac942852ff2
 
 name:           metrics-core
 version:        0.3.2
@@ -20,6 +20,7 @@ build-type:     Simple
 library
   exposed-modules:
       Data.Metrics
+      Data.Metrics.AWS
       Data.Metrics.GC
   other-modules:
       Paths_metrics_core
@@ -73,5 +74,6 @@ library
     , imports
     , prometheus-client
     , text >=0.11
+    , time
     , unordered-containers >=0.2
   default-language: Haskell2010

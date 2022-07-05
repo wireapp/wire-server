@@ -25,6 +25,7 @@ import qualified Cassandra as C
 import qualified Cassandra.Settings as C
 import Control.AutoUpdate
 import Control.Lens (makeLenses, (^.))
+import Control.Retry (capDelay, exponentialBackoff)
 import Data.Default (def)
 import qualified Data.List.NonEmpty as NE
 import Data.Metrics.Middleware (Metrics)
@@ -35,6 +36,7 @@ import Data.Time.Clock.POSIX
 import qualified Database.Redis as Redis
 import qualified Gundeck.Aws as Aws
 import Gundeck.Options as Opt
+import qualified Gundeck.Redis as Redis
 import Gundeck.ThreadBudget
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -50,8 +52,8 @@ data Env = Env
     _applog :: !Logger.Logger,
     _manager :: !Manager,
     _cstate :: !ClientState,
-    _rstate :: !Redis.Connection,
-    _rstateAdditionalWrite :: !(Maybe Redis.Connection),
+    _rstate :: !Redis.RobustConnection,
+    _rstateAdditionalWrite :: !(Maybe Redis.RobustConnection),
     _awsEnv :: !Aws.Env,
     _time :: !(IO Milliseconds),
     _threadBudgetState :: !(Maybe ThreadBudgetState)
@@ -113,7 +115,7 @@ reqIdMsg :: RequestId -> Logger.Msg -> Logger.Msg
 reqIdMsg = ("request" Logger..=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
-createRedisPool :: Logger.Logger -> RedisEndpoint -> ByteString -> IO Redis.Connection
+createRedisPool :: Logger.Logger -> RedisEndpoint -> ByteString -> IO Redis.RobustConnection
 createRedisPool l endpoint identifier = do
   let redisConnInfo =
         Redis.defaultConnectInfo
@@ -127,28 +129,9 @@ createRedisPool l endpoint identifier = do
     Log.msg (Log.val $ "starting connection to " <> identifier <> "...")
       . Log.field "connectionMode" (show $ endpoint ^. rConnectionMode)
       . Log.field "connInfo" (show redisConnInfo)
+  let connectWithRetry = Redis.connectRobust l (capDelay 1000000 (exponentialBackoff 50000))
   r <- case endpoint ^. rConnectionMode of
-    Master -> Redis.checkedConnect redisConnInfo
-    Cluster -> checkedConnectCluster l redisConnInfo
+    Master -> connectWithRetry $ Redis.connect redisConnInfo
+    Cluster -> connectWithRetry $ Redis.connectCluster redisConnInfo
   Log.info l $ Log.msg (Log.val $ "Established connection to " <> identifier <> ".")
   pure r
-
--- | Similar to 'checkedConnect' but for redis cluster:
--- Constructs a 'Connection' pool to a Redis server designated by the
--- given 'ConnectInfo', then tests if the server is actually there.
--- Throws an exception if the connection to the Redis server can't be
--- established.
---
--- Throws 'gundeck: ClusterConnectError (Error "ERR This instance has cluster support disabled")' when the redis server doesn't support cluster mode.
-checkedConnectCluster :: Logger.Logger -> Redis.ConnectInfo -> IO Redis.Connection
-checkedConnectCluster l connInfo = do
-  Log.info l $ Log.msg (Log.val "starting connection to redis in cluster mode ...")
-  conn <- Redis.connectCluster connInfo
-  Log.info l $ Log.msg (Log.val "lazy connection established, running ping...")
-  void . Redis.runRedis conn $ do
-    ping <- Redis.ping
-    case ping of
-      Left r -> error ("could not ping redis cluster: " <> show r)
-      Right _ -> pure ()
-  Log.info l $ Log.msg (Log.val "ping went through")
-  pure conn

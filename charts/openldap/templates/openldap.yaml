@@ -3,7 +3,7 @@ kind: Pod
 metadata:
   name: "openldap"
   labels:
-    wireService: openldap
+    app: openldap
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}

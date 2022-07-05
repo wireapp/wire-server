@@ -15,6 +15,13 @@ dependencies:
 ########################
 ## wire-servers/services
 ########################
+- name: backoffice
+  version: "0.0.42"
+  repository: "file://../backoffice"
+  tags:
+    - backoffice
+    - haskellServices
+    - services
 - name: cannon
   version: "0.0.42"
   repository: "file://../cannon"

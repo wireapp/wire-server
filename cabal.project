@@ -157,7 +157,7 @@ source-repository-package
 allow-older: *
 allow-newer: *
 
--- Changes by ./tools/convert-to-cabal/generate.sh 
+-- Changes by ./tools/convert-to-cabal/generate.sh
 
 tests: True
 benchmarks: True

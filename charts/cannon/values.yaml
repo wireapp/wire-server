@@ -20,6 +20,10 @@ config:
     millisecondsBetweenBatches: 50
     minBatchSize: 20
 
+metrics:
+  serviceMonitor:
+    enable: false
+
 nginx_conf:
   user: nginx
   group: nginx

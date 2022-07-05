@@ -29,7 +29,6 @@ where
 
 import qualified Bilge
 import Bilge.Response
-import Brig.Types.Provider
 import Brig.Types.Team.LegalHold
 import Data.Aeson
 import Data.ByteString.Conversion.To
@@ -46,6 +45,7 @@ import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Log
 import Wire.API.Error (ErrorS, throwS)
 import Wire.API.Error.Galley
+import Wire.API.Team.LegalHold.External
 
 ----------------------------------------------------------------------
 -- api

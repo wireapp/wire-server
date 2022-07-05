@@ -70,13 +70,13 @@ jsonParser = do
   js <- AB.skipSpace *> json' <* AB.skipSpace
   case fromJSON js of
     Error e -> fail e
-    Success a -> return a
+    Success a -> pure a
 
 stream :: Monad m => Parser -> ConduitT ByteString LogEvent m ()
 stream (MkParser p) = next
   where
     next = Conduit.await >>= go
-    go Nothing = return ()
+    go Nothing = pure ()
     go (Just b)
       | BC.null b = next
       | otherwise = run b >>= finish b

@@ -3,7 +3,6 @@ kind: Job
 metadata:
   name: elasticsearch-index-create
   labels:
-    wireService: elasticsearch-index-create
     app: elasticsearch-index-create
     heritage: {{.Release.Service | quote }}
     release: {{.Release.Name | quote }}
@@ -16,7 +15,6 @@ spec:
     metadata:
       name: "{{.Release.Name}}"
       labels:
-        wireService: elasticsearch-index-create
         app: elasticsearch-index-create
         heritage: {{.Release.Service | quote }}
         release: {{.Release.Name | quote }}

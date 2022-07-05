@@ -118,7 +118,7 @@ awaitNotifications f = do
               putMVar latch () >> consume l c
           `onException` tryPutMVar latch ()
     takeMVar latch
-    return worker
+    pure worker
   where
     params h p = ConnectionParams h p Nothing Nothing
     consume l c = forever (WS.receiveData c >>= forward l) `finally` close c
@@ -130,7 +130,7 @@ awaitNotifications f = do
         Right event -> f event
         Left e -> Log.err l $ Log.msg ("parse-event: " ++ e)
     readChunk c = (\x -> if C.null x then Nothing else Just x) <$> connectionGetChunk c
-    writeChunk c = maybe (return ()) (connectionPut c . L.toStrict)
+    writeChunk c = maybe (pure ()) (connectionPut c . L.toStrict)
 
 fetchNotifications ::
   (MonadSession m, MonadThrow m) =>
@@ -156,7 +156,7 @@ lastNotification = do
   rs <- sessionRequest req rsc consumeBody
   case statusCode rs of
     200 -> Just <$> responseJsonThrow (ParseError . pack) rs
-    404 -> return Nothing
+    404 -> pure Nothing
     _ -> unexpected rs "last: status code"
   where
     req =
@@ -279,7 +279,7 @@ instance FromJSON Event where
 instance FromJSON NotifId where
   parseJSON =
     withText "notification-id" $
-      maybe (fail "invalid uuid") (return . NotifId) . fromString . T.unpack
+      maybe (fail "invalid uuid") (pure . NotifId) . fromString . T.unpack
 
 instance FromJSON Notification where
   parseJSON = withObject "notification" $ \o ->
@@ -293,7 +293,7 @@ instance FromJSON a => FromJSON (ConvEvent a) where
       <*> o .: "data"
 
 instance FromJSON NoData where
-  parseJSON Null = return NoData
+  parseJSON Null = pure NoData
   parseJSON _ = fail "Unexpected event data. Expecting nothing/null."
 
 instance FromJSON UserInfo where

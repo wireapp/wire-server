@@ -2,7 +2,6 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -62,7 +61,7 @@ readAndDeleteAllUntilEmpty url = do
   firstBatch <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> sendEnv (receive 1 url)
   readUntilEmpty firstBatch firstBatch
   where
-    readUntilEmpty acc [] = return acc
+    readUntilEmpty acc [] = pure acc
     readUntilEmpty acc msgs = do
       forM_ msgs $ deleteMessage url
       newMsgs <- fromMaybe [] . view SQS.receiveMessageResponse_messages <$> sendEnv (receive 1 url)
@@ -101,13 +100,14 @@ fetchMessage url label callback = do
 
 parseDeleteMessage :: (Monad m, Message a, MonadIO m, MonadReader AWS.Env m, MonadResource m) => Text -> SQS.Message -> m (Maybe a)
 parseDeleteMessage url m = do
-  evt <- case (>>= decodeMessage) . B64.decode . Text.encodeUtf8 <$> (m ^. SQS.message_body) of
-    Just (Right e) -> return (Just e)
+  let decodedMessage = decodeMessage <=< (B64.decode . Text.encodeUtf8)
+  evt <- case decodedMessage <$> (m ^. SQS.message_body) of
+    Just (Right e) -> pure (Just e)
     _ -> do
       liftIO $ print ("Failed to parse SQS message or event" :: String)
-      return Nothing
+      pure Nothing
   deleteMessage url m
-  return evt
+  pure evt
 
 queueMessage :: (MonadReader AWS.Env m, Message a, MonadResource m) => Text -> a -> m ()
 queueMessage url e = do
@@ -143,10 +143,10 @@ tryMatch label tries url callback = go tries
     check e =
       do
         liftIO $ callback label e
-        return (Right $ show e)
+        pure (Right $ show e)
         `catchAll` \ex -> case asyncExceptionFromException ex of
           Just x -> throwM (x :: SomeAsyncException)
-          Nothing -> return . Left $ MatchFailure (e, ex)
+          Nothing -> pure . Left $ MatchFailure (e, ex)
 
 sendEnv :: (MonadReader AWS.Env m, MonadResource m, AWS.AWSRequest a) => a -> m (AWS.AWSResponse a)
 sendEnv x = flip AWS.send x =<< ask

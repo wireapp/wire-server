@@ -130,7 +130,7 @@ versionCheck v = do
       "Schema Version too old! Expecting at least: "
         <> show v
         <> ", but got: "
-        <> fromMaybe "" (show <$> v')
+        <> maybe "" show v'
 
 createKeyspace :: Keyspace -> ReplicationStrategy -> Client ()
 createKeyspace (Keyspace k) rs = void $ schema (cql rs) (params All ())
@@ -231,7 +231,7 @@ waitForSchemaConsistency = do
       mbLocalVersion <- systemLocalVersion
       peers <- systemPeerVersions
       case mbLocalVersion of
-        Just localVersion -> return $ (localVersion, peers)
+        Just localVersion -> pure $ (localVersion, peers)
         Nothing -> error "No system_version in system.local (should never happen)"
     inDisagreement :: (UUID, [UUID]) -> Bool
     inDisagreement (localVersion, peers) = not $ all (== localVersion) peers
@@ -252,43 +252,44 @@ retryWhileN :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
 retryWhileN n f m =
   retrying
     (constantDelay 1000000 <> limitRetries n)
-    (const (return . f))
+    (const (pure . f))
     (const m)
 
 -- | The migrationPolicy selects only one and always the same host
 migrationPolicy :: IO Policy
 migrationPolicy = do
   h <- newIORef Nothing
-  return $
+  pure $
     Policy
       { setup = setHost h,
-        onEvent = const $ return (),
+        onEvent = const $ pure (),
         select = readIORef h,
-        acceptable = const $ return True,
+        acceptable = const $ pure True,
         hostCount = fromIntegral . length . maybeToList <$> readIORef h,
         display = ("migrationPolicy: " ++) . show <$> readIORef h,
         current = maybeToList <$> readIORef h
       }
   where
     setHost h (a : _) _ = writeIORef h (Just a)
-    setHost _ _ _ = return ()
+    setHost _ _ _ = pure ()
 
 migrationOptsParser :: Parser MigrationOpts
 migrationOptsParser =
   MigrationOpts
-    <$> ( strOption $
-            long "host"
-              <> metavar "HOST"
-              <> value "localhost"
-              <> help "Cassandra host"
-        )
-    <*> ( option auto $
-            long "port"
-              <> metavar "PORT"
-              <> value 9042
-              <> help "Cassandra port"
-        )
-    <*> ( (fmap pack) . strOption $
+    <$> strOption
+      ( long "host"
+          <> metavar "HOST"
+          <> value "localhost"
+          <> help "Cassandra host"
+      )
+    <*> option
+      auto
+      ( long "port"
+          <> metavar "PORT"
+          <> value 9042
+          <> help "Cassandra port"
+      )
+    <*> ( fmap pack . strOption $
             long "keyspace"
               <> metavar "STRING"
               <> help "Cassandra Keyspace"
@@ -304,7 +305,7 @@ migrationOptsParser =
                       <> help "Replication Map (i.e. \"eu-west:3,us-east:3\")"
                 )
         )
-    <*> ( switch $
-            long "reset"
-              <> help "Reset the keyspace before running migrations"
-        )
+    <*> switch
+      ( long "reset"
+          <> help "Reset the keyspace before running migrations"
+      )

@@ -16,7 +16,6 @@ ghc-options:
 - -rtsopts
 dependencies:
 - base
-- brig-types
 - cassandra-util
 - extra
 - imports
@@ -25,6 +24,7 @@ dependencies:
 - tinylog
 - types-common
 - unliftio
+- wire-api
 executables:
   auto-whitelist:
     main: Main.hs

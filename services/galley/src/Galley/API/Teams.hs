@@ -102,17 +102,15 @@ import qualified Galley.Effects.Paging as E
 import qualified Galley.Effects.Queue as E
 import qualified Galley.Effects.SearchVisibilityStore as SearchVisibilityData
 import qualified Galley.Effects.SparAccess as Spar
-import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
+import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import qualified Galley.Effects.TeamMemberStore as E
 import qualified Galley.Effects.TeamStore as E
 import qualified Galley.Intra.Journal as Journal
 import Galley.Intra.Push
 import Galley.Options
-import qualified Galley.Types as Conv
-import Galley.Types.Conversations.Roles as Roles
-import Galley.Types.Teams hiding (newTeam)
+import qualified Galley.Types.Conversations.Members as Conv
+import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SearchVisibility
 import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Network.Wai
@@ -126,18 +124,27 @@ import Polysemy.Output
 import qualified Polysemy.TinyLog as P
 import qualified SAML2.WebSSO as SAML
 import qualified System.Logger.Class as Log
+import Wire.API.Conversation.Role (Action (DeleteConversation), wireConvRoles)
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
+import qualified Wire.API.Event.Conversation as Conv
+import Wire.API.Event.Team
 import Wire.API.Federation.Error
+import qualified Wire.API.Message as Conv
 import qualified Wire.API.Notification as Public
 import Wire.API.Routes.Public.Galley
+import Wire.API.Team
 import qualified Wire.API.Team as Public
+import Wire.API.Team.Conversation
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
-import qualified Wire.API.Team.Feature as Public
-import Wire.API.Team.Member (TeamMemberOptPerms, ntmNewTeamMember, setOptionalPerms, setOptionalPermsMany)
+import Wire.API.Team.Feature
+import Wire.API.Team.Member (HardTruncationLimit, ListType (ListComplete, ListTruncated), NewTeamMember, TeamMember, TeamMemberList, TeamMemberListOptPerms, TeamMemberOptPerms, hardTruncationLimit, invitation, nPermissions, nUserId, newTeamMemberList, ntmNewTeamMember, permissions, setOptionalPerms, setOptionalPermsMany, teamMemberListType, teamMembers, tmdAuthPassword, userId)
 import qualified Wire.API.Team.Member as Public
+import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, fullPermissions, self)
+import Wire.API.Team.Role
+import Wire.API.Team.SearchVisibility
 import qualified Wire.API.Team.SearchVisibility as Public
 import Wire.API.User (User, UserIdList, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
 import qualified Wire.API.User as U
@@ -656,29 +663,32 @@ uncheckedGetTeamMembers ::
 uncheckedGetTeamMembers = E.getTeamMembersWithLimit
 
 addTeamMember ::
-  Members
-    '[ BrigAccess,
-       GundeckAccess,
-       ErrorS 'InvalidPermissions,
-       ErrorS 'NoAddToBinding,
-       ErrorS 'NotATeamMember,
-       ErrorS 'NotConnected,
-       ErrorS OperationDenied,
-       ErrorS 'TeamNotFound,
-       ErrorS 'TooManyTeamMembers,
-       ErrorS 'UserBindingExists,
-       ErrorS 'TooManyTeamMembersOnTeamWithLegalhold,
-       Input (Local ()),
-       Input Opts,
-       Input UTCTime,
-       LegalHoldStore,
-       MemberStore,
-       TeamFeatureStore,
-       TeamNotificationStore,
-       TeamStore,
-       P.TinyLog
-     ]
-    r =>
+  forall db r.
+  ( Members
+      '[ BrigAccess,
+         GundeckAccess,
+         ErrorS 'InvalidPermissions,
+         ErrorS 'NoAddToBinding,
+         ErrorS 'NotATeamMember,
+         ErrorS 'NotConnected,
+         ErrorS OperationDenied,
+         ErrorS 'TeamNotFound,
+         ErrorS 'TooManyTeamMembers,
+         ErrorS 'UserBindingExists,
+         ErrorS 'TooManyTeamMembersOnTeamWithLegalhold,
+         Input (Local ()),
+         Input Opts,
+         Input UTCTime,
+         LegalHoldStore,
+         MemberStore,
+         TeamFeatureStore db,
+         TeamNotificationStore,
+         TeamStore,
+         P.TinyLog
+       ]
+      r,
+    FeaturePersistentConstraint db LegalholdConfig
+  ) =>
   Local UserId ->
   ConnId ->
   TeamId ->
@@ -700,35 +710,38 @@ addTeamMember lzusr zcon tid nmem = do
   ensureUnboundUsers [uid]
   ensureConnectedToLocals zusr [uid]
   (TeamSize sizeBeforeJoin) <- E.getSize tid
-  ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
+  ensureNotTooLargeForLegalHold @db tid (fromIntegral sizeBeforeJoin + 1)
   memList <- getTeamMembersForFanout tid
   void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
 
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMember ::
-  Members
-    '[ BrigAccess,
-       GundeckAccess,
-       ErrorS 'TooManyTeamMembers,
-       Input (Local ()),
-       ErrorS 'TooManyTeamMembersOnTeamWithLegalhold,
-       Input Opts,
-       Input UTCTime,
-       MemberStore,
-       LegalHoldStore,
-       P.TinyLog,
-       TeamFeatureStore,
-       TeamNotificationStore,
-       TeamStore
-     ]
-    r =>
+  forall db r.
+  ( Members
+      '[ BrigAccess,
+         GundeckAccess,
+         ErrorS 'TooManyTeamMembers,
+         Input (Local ()),
+         ErrorS 'TooManyTeamMembersOnTeamWithLegalhold,
+         Input Opts,
+         Input UTCTime,
+         MemberStore,
+         LegalHoldStore,
+         P.TinyLog,
+         TeamFeatureStore db,
+         TeamNotificationStore,
+         TeamStore
+       ]
+      r,
+    FeaturePersistentConstraint db LegalholdConfig
+  ) =>
   TeamId ->
   NewTeamMember ->
   Sem r ()
 uncheckedAddTeamMember tid nmem = do
   mems <- getTeamMembersForFanout tid
   (TeamSize sizeBeforeJoin) <- E.getSize tid
-  ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
+  ensureNotTooLargeForLegalHold @db tid (fromIntegral sizeBeforeJoin + 1)
   (TeamSize sizeBeforeAdd) <- addTeamMemberInternal tid Nothing Nothing nmem mems
   billingUserIds <- Journal.getBillingUserIds tid $ Just $ newTeamMemberList (ntmNewTeamMember nmem : mems ^. teamMembers) (mems ^. teamMemberListType)
   Journal.teamUpdate tid (sizeBeforeAdd + 1) billingUserIds
@@ -1072,25 +1085,29 @@ getSearchVisibility luid tid = do
   getSearchVisibilityInternal tid
 
 setSearchVisibility ::
-  Members
-    '[ ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       ErrorS 'TeamSearchVisibilityNotEnabled,
-       Input Opts,
-       SearchVisibilityStore,
-       TeamStore,
-       TeamFeatureStore,
-       WaiRoutes
-     ]
-    r =>
+  forall db r.
+  ( Members
+      '[ ErrorS 'NotATeamMember,
+         ErrorS OperationDenied,
+         ErrorS 'TeamSearchVisibilityNotEnabled,
+         Input Opts,
+         SearchVisibilityStore,
+         TeamStore,
+         TeamFeatureStore db,
+         WaiRoutes
+       ]
+      r,
+    FeaturePersistentConstraint db SearchVisibilityAvailableConfig
+  ) =>
+  (TeamId -> Sem r Bool) ->
   Local UserId ->
   TeamId ->
   Public.TeamSearchVisibilityView ->
   Sem r ()
-setSearchVisibility luid tid req = do
+setSearchVisibility availableForTeam luid tid req = do
   zusrMembership <- E.getTeamMember tid (tUnqualified luid)
   void $ permissionCheck ChangeTeamSearchVisibility zusrMembership
-  setSearchVisibilityInternal tid req
+  setSearchVisibilityInternal @db availableForTeam tid req
 
 -- Internal -----------------------------------------------------------------
 
@@ -1174,18 +1191,21 @@ ensureNotTooLarge tid = do
 -- LegalHold off after activation.
 --  FUTUREWORK: Find a way around the fanout limit.
 ensureNotTooLargeForLegalHold ::
-  Members
-    '[ LegalHoldStore,
-       TeamStore,
-       TeamFeatureStore,
-       ErrorS 'TooManyTeamMembersOnTeamWithLegalhold
-     ]
-    r =>
+  forall db r.
+  ( Members
+      '[ LegalHoldStore,
+         TeamStore,
+         TeamFeatureStore db,
+         ErrorS 'TooManyTeamMembersOnTeamWithLegalhold
+       ]
+      r,
+    FeaturePersistentConstraint db LegalholdConfig
+  ) =>
   TeamId ->
   Int ->
   Sem r ()
 ensureNotTooLargeForLegalHold tid teamSize =
-  whenM (isLegalHoldEnabledForTeam tid) $
+  whenM (isLegalHoldEnabledForTeam @db tid) $
     unlessM (teamSizeBelowLimit teamSize) $
       throwS @'TooManyTeamMembersOnTeamWithLegalhold
 
@@ -1340,36 +1360,24 @@ getBindingTeamMembers zusr = do
 -- thrown in IO, we could then refactor that to be thrown in `ExceptT
 -- RegisterError`.
 canUserJoinTeam ::
-  Members
-    '[ BrigAccess,
-       LegalHoldStore,
-       TeamStore,
-       TeamFeatureStore,
-       ErrorS 'TooManyTeamMembersOnTeamWithLegalhold
-     ]
-    r =>
+  forall db r.
+  ( Members
+      '[ BrigAccess,
+         LegalHoldStore,
+         TeamStore,
+         TeamFeatureStore db,
+         ErrorS 'TooManyTeamMembersOnTeamWithLegalhold
+       ]
+      r,
+    FeaturePersistentConstraint db LegalholdConfig
+  ) =>
   TeamId ->
   Sem r ()
 canUserJoinTeam tid = do
-  lhEnabled <- isLegalHoldEnabledForTeam tid
+  lhEnabled <- isLegalHoldEnabledForTeam @db tid
   when lhEnabled $ do
     (TeamSize sizeBeforeJoin) <- E.getSize tid
-    ensureNotTooLargeForLegalHold tid (fromIntegral sizeBeforeJoin + 1)
-
-getTeamSearchVisibilityAvailableInternal ::
-  Members '[Input Opts, TeamFeatureStore] r =>
-  TeamId ->
-  Sem r (Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibility)
-getTeamSearchVisibilityAvailableInternal tid = do
-  -- TODO: This is just redundant given there is a decent default
-  defConfig <- do
-    featureTeamSearchVisibility <- view (optSettings . setFeatureFlags . flagTeamSearchVisibility) <$> input
-    pure . Public.TeamFeatureStatusNoConfig $ case featureTeamSearchVisibility of
-      FeatureTeamSearchVisibilityEnabledByDefault -> Public.TeamFeatureEnabled
-      FeatureTeamSearchVisibilityDisabledByDefault -> Public.TeamFeatureDisabled
-
-  fromMaybe defConfig
-    <$> TeamFeatures.getFeatureStatusNoConfig @'Public.TeamFeatureSearchVisibility tid
+    ensureNotTooLargeForLegalHold @db tid (fromIntegral sizeBeforeJoin + 1)
 
 -- | Modify and get visibility type for a team (internal, no user permission checks)
 getSearchVisibilityInternal ::
@@ -1381,19 +1389,22 @@ getSearchVisibilityInternal =
     . SearchVisibilityData.getSearchVisibility
 
 setSearchVisibilityInternal ::
-  Members
-    '[ ErrorS 'TeamSearchVisibilityNotEnabled,
-       Input Opts,
-       SearchVisibilityStore,
-       TeamFeatureStore
-     ]
-    r =>
+  forall db r.
+  ( Members
+      '[ ErrorS 'TeamSearchVisibilityNotEnabled,
+         Input Opts,
+         SearchVisibilityStore,
+         TeamFeatureStore db
+       ]
+      r,
+    FeaturePersistentConstraint db SearchVisibilityAvailableConfig
+  ) =>
+  (TeamId -> Sem r Bool) ->
   TeamId ->
   TeamSearchVisibilityView ->
   Sem r ()
-setSearchVisibilityInternal tid (TeamSearchVisibilityView searchVisibility) = do
-  status <- getTeamSearchVisibilityAvailableInternal tid
-  unless (Public.tfwoStatus status == Public.TeamFeatureEnabled) $
+setSearchVisibilityInternal availableForTeam tid (TeamSearchVisibilityView searchVisibility) = do
+  unlessM (availableForTeam tid) $
     throwS @'TeamSearchVisibilityNotEnabled
   SearchVisibilityData.setSearchVisibility tid searchVisibility
 

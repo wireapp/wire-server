@@ -57,11 +57,12 @@ import Data.Aeson.TH (deriveFromJSON)
 import Data.Domain (Domain)
 import Data.Misc
 import Data.Range
-import Galley.Types.Teams (FeatureFlags (..), HardTruncationLimit, hardTruncationLimit)
+import Galley.Types.Teams
 import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.Options.Common
+import Wire.API.Team.Member
 
 data Settings = Settings
   { -- | Number of connections for the HTTP client pool

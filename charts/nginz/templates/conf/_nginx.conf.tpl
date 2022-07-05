@@ -199,29 +199,6 @@ http {
         return 200;
     }
 
-    location /vts {
-        zauth off;
-        access_log off;
-        allow 10.0.0.0/8;
-        allow 127.0.0.1;
-        deny all;
-
-        # Requests with an X-Forwarded-For header will have the real client
-        # source IP address set correctly, due to the real_ip_header directive
-        # in the top-level configuration. However, this will not set the client
-        # IP correctly for clients which are connected via a load balancer which
-        # uses the PROXY protocol.
-        #
-        # Hence, for safety, we deny access to the vts metrics endpoints to
-        # clients which are connected via PROXY protocol.
-        if ($proxy_protocol_addr != "") {
-            return 403;
-        }
-
-        vhost_traffic_status_display;
-        vhost_traffic_status_display_format html;
-    }
-
     # Block "Franz" -- http://meetfranz.com
     if ($http_user_agent ~* Franz) {
         return 403;
@@ -352,6 +329,7 @@ http {
     #
 
     location /api-docs {
+        zauth off;
         default_type application/json;
         root {{ $.Values.nginx_conf.swagger_root }};
         index resources.json;
@@ -399,5 +377,23 @@ http {
     }
     {{- end }}
   }
+
+  server {
+    # even though we don't use zauth for this server block,
+    # we need to specify zauth_keystore etc.
+    zauth_keystore {{ .Values.nginx_conf.zauth_keystore }};
+    zauth_acl      {{ .Values.nginx_conf.zauth_acl }};
+
+    listen {{ .Values.config.http.metricsPort }};
+
+    location /vts {
+        access_log off;
+        zauth off;
+
+        vhost_traffic_status_display;
+        vhost_traffic_status_display_format html;
+    }
+  }
+
 }
 {{- end }}

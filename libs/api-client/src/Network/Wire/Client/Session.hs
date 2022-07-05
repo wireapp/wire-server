@@ -75,7 +75,7 @@ sessionRequest ::
   (Response BodyReader -> IO a) ->
   m a
 sessionRequest rq expected f =
-  either retry return
+  either retry pure
     =<< exec
       ( \rs ->
           if Bilge.statusCode rs == 401

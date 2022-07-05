@@ -80,7 +80,7 @@ parseFederationStrategy =
     let allowA = toStrict $ Aeson.encode AllowAll
     assertParsesAs AllowAll $ allowA
     -- manual roundtrip example AllowList
-    let allowWire = (withAllowList ["wire.com"])
+    let allowWire = withAllowList ["wire.com"]
     let allowedDom = toStrict $ Aeson.encode allowWire
     assertParsesAs allowWire $ allowedDom
   where

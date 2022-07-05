@@ -29,15 +29,16 @@ import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain, domainText, mkDomain)
 import qualified Data.Text.Encoding as T
-import Galley.Types
 import Galley.Types.Bot ()
-import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SearchVisibility
 import Imports
+import Wire.API.Asset (AssetKey, assetKeyToText)
+import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
+import Wire.API.MLS.CipherSuite (CipherSuite (CipherSuite, cipherSuiteNumber), CipherSuiteTag, cipherSuiteTag, tagCipherSuite)
 import Wire.API.Team
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.SearchVisibility
 
 deriving instance Cql MutedStatus
 
@@ -200,8 +201,24 @@ instance Cql Icon where
   fromCql (CqlText txt) = pure . fromRight DefaultIcon . runParser parser . T.encodeUtf8 $ txt
   fromCql _ = Left "Icon: Text expected"
 
+instance Cql AssetKey where
+  ctype = Tagged TextColumn
+  toCql = CqlText . assetKeyToText
+  fromCql (CqlText txt) = runParser parser . T.encodeUtf8 $ txt
+  fromCql _ = Left "AssetKey: Text expected"
+
 instance Cql Epoch where
   ctype = Tagged BigIntColumn
   toCql = CqlBigInt . fromIntegral . epochNumber
   fromCql (CqlBigInt n) = pure (Epoch (fromIntegral n))
   fromCql _ = Left "epoch: bigint expected"
+
+instance Cql CipherSuiteTag where
+  ctype = Tagged IntColumn
+  toCql = CqlInt . fromIntegral . cipherSuiteNumber . tagCipherSuite
+
+  fromCql (CqlInt index) =
+    case cipherSuiteTag (CipherSuite (fromIntegral index)) of
+      Just tag -> Right tag
+      Nothing -> Left "CipherSuiteTag: unexpected index"
+  fromCql _ = Left "CipherSuiteTag: int expected"

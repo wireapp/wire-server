@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: webapp
   labels:
-    wireService: webapp
+    app: webapp
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
@@ -16,12 +16,10 @@ spec:
       maxSurge: {{ .Values.replicaCount | mul 2 }}
   selector:
     matchLabels:
-      wireService: webapp
       app: webapp
   template:
     metadata:
       labels:
-        wireService: webapp
         app: webapp
         release: {{ .Release.Name }}
     spec:

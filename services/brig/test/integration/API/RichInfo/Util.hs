@@ -18,7 +18,7 @@
 module API.RichInfo.Util where
 
 import Bilge
-import Brig.Types
+import Brig.Types.User (RichInfoUpdate (RichInfoUpdate))
 import Data.ByteString.Conversion
 import Data.Id
 import Imports

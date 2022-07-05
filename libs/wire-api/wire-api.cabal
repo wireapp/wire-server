@@ -245,6 +245,7 @@ library
     , types-common >=0.16
     , unordered-containers >=0.2
     , uri-bytestring >=0.2
+    , utf8-string
     , uuid >=1.3
     , vector >=0.12
     , wai
@@ -328,6 +329,7 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.Event_user
       Test.Wire.API.Golden.Generated.EventType_team
       Test.Wire.API.Golden.Generated.EventType_user
+      Test.Wire.API.Golden.Generated.FeatureStatus_team
       Test.Wire.API.Golden.Generated.HandleUpdate_user
       Test.Wire.API.Golden.Generated.Invitation_team
       Test.Wire.API.Golden.Generated.InvitationCode_user
@@ -438,9 +440,6 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.TeamConversation_team
       Test.Wire.API.Golden.Generated.TeamConversationList_team
       Test.Wire.API.Golden.Generated.TeamDeleteData_team
-      Test.Wire.API.Golden.Generated.TeamFeatureStatusNoConfig_team
-      Test.Wire.API.Golden.Generated.TeamFeatureStatusValue_team
-      Test.Wire.API.Golden.Generated.TeamFeatureStatusWithConfig_20TeamFeatureAppLockConfig_team
       Test.Wire.API.Golden.Generated.TeamList_team
       Test.Wire.API.Golden.Generated.TeamMember_team
       Test.Wire.API.Golden.Generated.TeamMemberDeleteData_team
@@ -477,6 +476,8 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.VerifyDeleteUser_user
       Test.Wire.API.Golden.Generated.ViewLegalHoldService_team
       Test.Wire.API.Golden.Generated.ViewLegalHoldServiceInfo_team
+      Test.Wire.API.Golden.Generated.WithStatus_team
+      Test.Wire.API.Golden.Generated.WithStatusNoLock_team
       Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
       Test.Wire.API.Golden.Manual
       Test.Wire.API.Golden.Manual.ClientCapability

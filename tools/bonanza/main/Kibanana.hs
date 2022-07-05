@@ -131,12 +131,12 @@ main =
       chunk <-
         atomically $
           readTVar s >>= \case
-            Stop -> return Seq.empty
+            Stop -> pure Seq.empty
             Go -> do
               (now, later) <- Seq.splitAt i <$> readTVar b
               if Seq.null now
                 then retry
-                else writeTVar b later >> return now
+                else writeTVar b later >> pure now
       unless (Seq.null chunk) $ do
         let body = requestBodySourceChunked (mapM_ yield chunk)
         let req = r {requestBody = body}

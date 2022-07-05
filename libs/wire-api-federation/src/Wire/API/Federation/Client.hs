@@ -38,6 +38,7 @@ import Control.Monad.Codensity
 import Control.Monad.Except
 import Control.Monad.Trans.Maybe
 import qualified Data.Aeson as Aeson
+import Data.Bifunctor (first)
 import qualified Data.ByteString as BS
 import Data.ByteString.Builder
 import Data.ByteString.Conversion (toByteString')
@@ -112,8 +113,7 @@ liftCodensity :: Codensity IO a -> FederatorClient c a
 liftCodensity = FederatorClient . lift . lift . lift
 
 headersFromTable :: HTTP2.HeaderTable -> [HTTP.Header]
-headersFromTable (headerList, _) = flip map headerList $ \(token, headerValue) ->
-  (HTTP2.tokenKey token, headerValue)
+headersFromTable (headerList, _) = flip map headerList $ first HTTP2.tokenKey
 
 connectSocket :: ByteString -> Int -> IO NS.Socket
 connectSocket hostname port =
@@ -130,7 +130,7 @@ performHTTP2Request ::
 performHTTP2Request mtlsConfig req hostname port = try $ do
   withHTTP2Request mtlsConfig req hostname port $ \resp -> do
     b <-
-      fmap (either (const mempty) id)
+      fmap (fromRight mempty)
         . runExceptT
         . runSourceT
         . responseBody
@@ -199,12 +199,11 @@ instance KnownComponent c => RunStreamingClient (FederatorClient c) where
   withStreamingRequest = withHTTP2StreamingRequest HTTP.statusIsSuccessful
 
 streamingResponseStrictBody :: StreamingResponse -> IO Builder
-streamingResponseStrictBody resp =
+streamingResponseStrictBody =
   fmap (either stringUtf8 (foldMap byteString))
     . runExceptT
     . runSourceT
     . responseBody
-    $ resp
 
 -- Perform a streaming request to the local federator.
 withHTTP2StreamingRequest ::
@@ -225,13 +224,11 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
   let path = baseUrlPath <> requestPath req
 
   body <- do
-    body <- case requestBody req of
+    case requestBody req of
       Just (RequestBodyLBS lbs, _) -> pure lbs
       Just (RequestBodyBS bs, _) -> pure (LBS.fromStrict bs)
-      Just (RequestBodySource _, _) ->
-        throwError FederatorClientStreamingNotSupported
+      Just (RequestBodySource _, _) -> throwError FederatorClientStreamingNotSupported
       Nothing -> pure mempty
-    pure body
   let req' =
         HTTP2.requestBuilder
           (requestMethod req)
@@ -240,7 +237,7 @@ withHTTP2StreamingRequest successfulStatus req handleResponse = do
           (lazyByteString body)
   let Endpoint (Text.encodeUtf8 -> hostname) (fromIntegral -> port) = ceFederator env
   resp <-
-    (either throwError pure =<<) . liftCodensity $
+    either throwError pure <=< liftCodensity $
       Codensity $ \k ->
         E.catch
           (withHTTP2Request Nothing req' hostname port (k . Right))
@@ -326,9 +323,11 @@ runVersionedFederatorClientToCodensity ::
   ExceptT FederatorClientError (Codensity IO) a
 runVersionedFederatorClientToCodensity env =
   flip runReaderT env
-    . (maybe (E.throw FederatorClientVersionMismatch) pure =<<)
+    . unmaybe
     . runMaybeT
     . unFederatorClient
+  where
+    unmaybe = (maybe (E.throw FederatorClientVersionMismatch) pure =<<)
 
 versionNegotiation :: FederatorClient 'Brig Version
 versionNegotiation =

@@ -20,9 +20,9 @@ module Galley.Cassandra.Code
   )
 where
 
-import Brig.Types.Code
 import Cassandra
 import Control.Lens
+import Data.Code
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store
 import Galley.Data.Types

@@ -20,7 +20,6 @@
 module Test.Spar.Intra.BrigSpec where
 
 import Arbitrary ()
-import Brig.Types.User (UserSSOId (UserSSOId))
 import Control.Lens ((^.))
 import Data.String.Conversions (ST, cs)
 import Imports
@@ -29,6 +28,7 @@ import Spar.Intra.BrigApp
 import Test.Hspec
 import Test.QuickCheck
 import URI.ByteString (URI, laxURIParserOptions, parseURI)
+import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.Scim
 
 mkuri :: ST -> URI

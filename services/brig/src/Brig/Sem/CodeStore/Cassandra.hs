@@ -24,7 +24,6 @@ where
 
 import Brig.Data.Instances ()
 import Brig.Sem.CodeStore
-import Brig.Types
 import Cassandra
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
@@ -37,6 +36,7 @@ import OpenSSL.EVP.Digest (digestBS, getDigestByName)
 import OpenSSL.Random (randBytes)
 import Polysemy
 import Text.Printf
+import Wire.API.User.Password
 
 codeStoreToCassandra ::
   forall m r a.

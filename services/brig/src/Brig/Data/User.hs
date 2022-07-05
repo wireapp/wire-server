@@ -78,8 +78,8 @@ import Brig.App (Env, currentTime, settings, viewFederationDomain, zauthEnv)
 import Brig.Data.Instances ()
 import Brig.Options
 import Brig.Password
-import Brig.Types
 import Brig.Types.Intra
+import Brig.Types.User (HavePendingInvitations (NoPendingInvitations, WithPendingInvitations))
 import qualified Brig.ZAuth as ZAuth
 import Cassandra
 import Control.Error
@@ -94,9 +94,10 @@ import Data.Qualified
 import Data.Range (fromRange)
 import Data.Time (addUTCTime)
 import Data.UUID.V4
-import Galley.Types.Bot
 import Imports
+import Wire.API.Provider.Service
 import qualified Wire.API.Team.Feature as ApiFt
+import Wire.API.User
 import Wire.API.User.RichInfo
 
 -- | Authentication errors.
@@ -320,13 +321,13 @@ updatePassword u t = do
 updateRichInfo :: MonadClient m => UserId -> RichInfoAssocList -> m ()
 updateRichInfo u ri = retry x5 $ write userRichInfoUpdate (params LocalQuorum (ri, u))
 
-updateFeatureConferenceCalling :: MonadClient m => UserId -> Maybe ApiFt.TeamFeatureStatusNoConfig -> m (Maybe ApiFt.TeamFeatureStatusNoConfig)
+updateFeatureConferenceCalling :: MonadClient m => UserId -> Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig) -> m (Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig))
 updateFeatureConferenceCalling uid mbStatus = do
-  let flag = ApiFt.tfwoStatus <$> mbStatus
+  let flag = ApiFt.wssStatus <$> mbStatus
   retry x5 $ write update (params LocalQuorum (flag, uid))
   pure mbStatus
   where
-    update :: PrepQuery W (Maybe ApiFt.TeamFeatureStatusValue, UserId) ()
+    update :: PrepQuery W (Maybe ApiFt.FeatureStatus, UserId) ()
     update = fromString "update user set feature_conference_calling = ? where id = ?"
 
 deleteEmail :: MonadClient m => UserId -> m ()
@@ -492,13 +493,15 @@ lookupServiceUsersForTeam pid sid tid =
       "SELECT user, conv FROM service_team \
       \WHERE provider = ? AND service = ? AND team = ?"
 
-lookupFeatureConferenceCalling :: MonadClient m => UserId -> m (Maybe ApiFt.TeamFeatureStatusNoConfig)
+lookupFeatureConferenceCalling :: MonadClient m => UserId -> m (Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig))
 lookupFeatureConferenceCalling uid = do
   let q = query1 select (params LocalQuorum (Identity uid))
   mStatusValue <- (>>= runIdentity) <$> retry x1 q
-  pure $ ApiFt.TeamFeatureStatusNoConfig <$> mStatusValue
+  case mStatusValue of
+    Nothing -> pure Nothing
+    Just status -> pure $ Just $ ApiFt.defFeatureStatusNoLock {ApiFt.wssStatus = status}
   where
-    select :: PrepQuery R (Identity UserId) (Identity (Maybe ApiFt.TeamFeatureStatusValue))
+    select :: PrepQuery R (Identity UserId) (Identity (Maybe ApiFt.FeatureStatus))
     select = fromString "select feature_conference_calling from user where id = ?"
 
 -------------------------------------------------------------------------------

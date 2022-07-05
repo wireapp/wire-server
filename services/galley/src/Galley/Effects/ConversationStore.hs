@@ -46,6 +46,10 @@ module Galley.Effects.ConversationStore
 
     -- * Delete conversation
     deleteConversation,
+
+    -- * MLS commit lock management
+    acquireCommitLock,
+    releaseCommitLock,
   )
 where
 
@@ -53,7 +57,9 @@ import Data.Id
 import Data.Misc
 import Data.Qualified
 import Data.Range
+import Data.Time (NominalDiffTime)
 import Galley.Data.Conversation
+import Galley.Data.Types
 import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
@@ -81,6 +87,8 @@ data ConversationStore m a where
   SetConversationMessageTimer :: ConvId -> Maybe Milliseconds -> ConversationStore m ()
   SetConversationEpoch :: ConvId -> Epoch -> ConversationStore m ()
   SetGroupId :: GroupId -> Qualified ConvId -> ConversationStore m ()
+  AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
+  ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
 
 makeSem ''ConversationStore
 

@@ -25,9 +25,9 @@ import qualified Data.Conduit.List as C
 import Data.Id
 import qualified Data.Set as Set
 import Galley.DataMigration.Types
-import Galley.Types.Teams
 import Imports
 import qualified System.Logger.Class as Log
+import Wire.API.Team.Permission
 
 migration :: Migration
 migration =

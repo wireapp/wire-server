@@ -1,9 +1,9 @@
 apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
-  name: ldap-scim-bridge
+  name: {{ .Release.Name }}
   labels:
-    wireService: ldap-scim-bridge
+    app: ldap-scim-bridge
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
@@ -13,7 +13,7 @@ spec:
   jobTemplate:
     metadata:
       labels:
-        wireService: ldap-scim-bridge
+        app: ldap-scim-bridge
         release: {{ .Release.Name }}
       annotations:
         # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
@@ -26,7 +26,7 @@ spec:
           volumes:
             - name: "ldap-scim-bridge-config"
               secret:
-                secretName: "ldap-scim-bridge"
+                secretName: {{ .Release.Name }}
           containers:
             - name: ldap-scim-bridge
               image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

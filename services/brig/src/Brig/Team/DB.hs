@@ -40,9 +40,6 @@ where
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
 import Brig.Options
-import Brig.Types.Common
-import Brig.Types.Team.Invitation
-import Brig.Types.User
 import Cassandra as C
 import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.List as C
@@ -52,12 +49,13 @@ import Data.Range
 import Data.Text.Ascii (encodeBase64Url)
 import Data.Time.Clock
 import Data.UUID.V4
-import Galley.Types.Teams (Role)
-import qualified Galley.Types.Teams as Team
 import Imports
 import OpenSSL.Random (randBytes)
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledMapConcurrentlyN_)
+import Wire.API.Team.Invitation
+import Wire.API.Team.Role
+import Wire.API.User
 
 mkInvitationCode :: IO InvitationCode
 mkInvitationCode = InvitationCode . encodeBase64Url <$> randBytes 24
@@ -243,4 +241,4 @@ toInvitation ::
   ) ->
   Invitation
 toInvitation (t, r, i, tm, minviter, e, inviteeName, p) =
-  Invitation t (fromMaybe Team.defaultRole r) i tm minviter e inviteeName p
+  Invitation t (fromMaybe defaultRole r) i tm minviter e inviteeName p

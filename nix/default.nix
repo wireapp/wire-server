@@ -75,7 +75,7 @@ let
   devPackages = [
     (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
     pkgs.cfssl
-    pkgs.crypto_cli
+    pkgs.mls_test_cli
     pkgs.ghcid
     pkgs.gnumake
     pkgs.gnused

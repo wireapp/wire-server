@@ -27,7 +27,6 @@ where
 
 import qualified Brig.AWS as AWS
 import Brig.App
-import Brig.Types
 import Control.Lens
 import qualified Data.ByteString.Base64 as B64
 import Data.ByteString.Char8 (pack)
@@ -42,6 +41,7 @@ import Data.UUID.V4 (nextRandom)
 import Imports
 import Proto.UserEvents (UserEvent, UserEvent'EventType (..))
 import qualified Proto.UserEvents_Fields as U
+import Wire.API.User
 
 -- [Note: journaling]
 -- User journal operations to SQS are a no-op when the service is started

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
@@ -30,10 +31,9 @@ import Bilge.Assert
 import qualified Brig.AWS as AWS
 import Brig.AWS.Types
 import qualified Brig.Options as Opt
-import Brig.Types
+import Brig.Types.Activation
+import Brig.Types.Common
 import Brig.Types.Intra
-import Brig.Types.User.Auth hiding (user)
-import qualified Brig.Types.User.Auth as Auth
 import Control.Arrow ((&&&))
 import Control.Exception (throw)
 import Control.Lens (ix, preview, (^.), (^?))
@@ -65,7 +65,6 @@ import qualified Data.UUID.V4 as UUID
 import Data.Vector (Vector)
 import qualified Data.Vector as Vec
 import Federator.MockServer (FederatedRequest (..), MockException (..))
-import Galley.Types.Teams (noPermissions)
 import Imports hiding (head)
 import qualified Imports
 import qualified Network.HTTP.Types as HTTP
@@ -83,13 +82,18 @@ import Util.AWS as Util
 import Web.Cookie (parseSetCookie)
 import Wire.API.Asset hiding (Asset)
 import qualified Wire.API.Asset as Asset
+import Wire.API.Connection
 import Wire.API.Federation.API.Brig (UserDeletedConnectionsNotification (..))
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Federation.API.Common (EmptyResponse (EmptyResponse))
 import Wire.API.Internal.Notification
 import Wire.API.Team.Invitation (Invitation (inInvitation))
-import Wire.API.User (ListUsersQuery (..))
-import Wire.API.User.Identity (mkSampleUref, mkSimpleSampleUref)
+import Wire.API.Team.Permission hiding (self)
+import Wire.API.User
+import Wire.API.User.Activation
+import Wire.API.User.Auth
+import qualified Wire.API.User.Auth as Auth
+import Wire.API.User.Client
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> CargoHold -> Galley -> AWS.Env -> TestTree
 tests _ at opts p b c ch g aws =
@@ -875,6 +879,12 @@ testEmailUpdate brig aws = do
   -- we want to use a non-trusted domain in order to verify profile changes
   flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
   flip initiateUpdateAndActivate uid =<< mkEmailRandomLocalSuffix "test@example.com"
+
+  -- adding a clean-up step seems to avoid the subsequent failures.
+  -- If subsequent runs start failing, it's possible that the aggressive setting
+  -- for `setSuspendInactiveUsers` is triggering before we can clean that user up.
+  -- In that case, you might need to manually delete the user from the test DB. @elland
+  deleteUserInternal uid brig !!! const 202 === statusCode
   where
     ensureNoOtherUserWithEmail :: Email -> Http ()
     ensureNoOtherUserWithEmail eml = do

@@ -142,9 +142,9 @@ instance FromJSON CarrierInfo where
 instance FromJSON PhoneType where
   parseJSON = withText "PhoneType" $ \t ->
     case t of
-      "mobile" -> return Mobile
-      "landline" -> return Landline
-      "voip" -> return VoIp
+      "mobile" -> pure Mobile
+      "landline" -> pure Landline
+      "voip" -> pure VoIp
       x -> fail $ "Unexpected phone type: " ++ show x
 
 -- * Functions
@@ -161,7 +161,7 @@ sendMessages cr mgr msgs = forM msgs $ \m -> do
   rsp <- httpLbs req mgr
   if responseStatus rsp == status201
     then case eitherDecode (responseBody rsp) of
-      Right r -> return $ msgId r
+      Right r -> pure $ msgId r
       Left e -> throwIO $ ParseError e
     else case eitherDecode (responseBody rsp) of
       Right e -> throwIO (e :: ErrorResponse)
@@ -194,7 +194,7 @@ lookupPhone cr mgr phone detail country = do
   rsp <- httpLbs req mgr
   if responseStatus rsp == status200
     then case eitherDecode (responseBody rsp) of
-      Right r -> return r
+      Right r -> pure r
       Left e -> throwIO $ ParseError e
     else case eitherDecode (responseBody rsp) of
       Right e -> throwIO (e :: ErrorResponse)

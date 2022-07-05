@@ -48,6 +48,7 @@ module Data.Schema
     objectWithDocModifier,
     objectOver,
     jsonObject,
+    jsonValue,
     FieldFunctor,
     field,
     fieldWithDocModifier,
@@ -612,6 +613,10 @@ jsonObject :: ValueSchema SwaggerDoc A.Object
 jsonObject =
   unnamed . object "Object" $
     mkSchema mempty pure (pure . (^.. ifolded . withIndex))
+
+-- | A schema for an arbitrary JSON value.
+jsonValue :: ValueSchema SwaggerDoc A.Value
+jsonValue = mkSchema mempty pure Just
 
 -- | A schema for a null value.
 null_ :: Monoid d => ValueSchemaP d () ()

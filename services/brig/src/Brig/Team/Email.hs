@@ -32,12 +32,12 @@ import Brig.Email
 import qualified Brig.Email as Email
 import Brig.Team.Template
 import Brig.Template
-import Brig.Types
 import Control.Lens (view)
 import Data.Id (TeamId, idToText)
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Lazy (toStrict)
 import Imports
+import Wire.API.User
 
 -------------------------------------------------------------------------------
 -- Invitation Email

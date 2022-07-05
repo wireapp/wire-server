@@ -57,8 +57,8 @@ module Brig.IO.Intra
     getTeamLegalHoldStatus,
     changeTeamStatus,
     getTeamSearchVisibility,
+    getAllFeatureConfigsForUser,
     getVerificationCodeEnabled,
-    getTeamFeatureStatusSndFactorPasswordChallenge,
 
     -- * Legalhold
     guardLegalhold,
@@ -80,7 +80,6 @@ import qualified Brig.Data.Connection as Data
 import Brig.Federation.Client (notifyUserDeleted)
 import qualified Brig.IO.Journal as Journal
 import Brig.RPC
-import Brig.Types
 import Brig.Types.User.Event
 import Brig.User.Search.Index (MonadIndexIO)
 import qualified Brig.User.Search.Index as Search
@@ -110,12 +109,10 @@ import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
 import GHC.TypeLits
-import Galley.Types (Connect (..), Conversation)
 import Galley.Types.Conversations.Intra (UpsertOne2OneConversationRequest, UpsertOne2OneConversationResponse)
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra (GuardLegalholdPolicyConflicts (GuardLegalholdPolicyConflicts))
 import qualified Galley.Types.Teams.Intra as Team
-import qualified Galley.Types.Teams.SearchVisibility as Team
 import Gundeck.Types.Push.V2
 import qualified Gundeck.Types.Push.V2 as Push
 import Imports
@@ -124,13 +121,22 @@ import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
 import System.Logger.Class as Log hiding (name, (.=))
 import qualified System.Logger.Extended as ExLog
+import Wire.API.Connection
+import Wire.API.Conversation
+import Wire.API.Event.Conversation (Connect (Connect))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
-import Wire.API.Message (UserClients)
 import Wire.API.Properties
+import Wire.API.Team
+import qualified Wire.API.Team.Conversation as Conv
 import Wire.API.Team.Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 import qualified Wire.API.Team.Member as Member
+import qualified Wire.API.Team.Member as Team
+import Wire.API.Team.Role
+import Wire.API.Team.SearchVisibility
+import Wire.API.User
+import Wire.API.User.Client
 
 -----------------------------------------------------------------------------
 -- Event Handlers
@@ -951,7 +957,7 @@ getTeamConv ::
   UserId ->
   TeamId ->
   ConvId ->
-  m (Maybe Team.TeamConversation)
+  m (Maybe Conv.TeamConversation)
 getTeamConv usr tid cnv = do
   debug $
     remote "galley"
@@ -1131,7 +1137,7 @@ addTeamMember ::
   ) =>
   UserId ->
   TeamId ->
-  (Maybe (UserId, UTCTimeMillis), Team.Role) ->
+  (Maybe (UserId, UTCTimeMillis), Role) ->
   m Bool
 addTeamMember u tid (minvmeta, role) = do
   debug $
@@ -1161,10 +1167,10 @@ createTeam ::
     MonadLogger m
   ) =>
   UserId ->
-  Team.BindingNewTeam ->
+  BindingNewTeam ->
   TeamId ->
   m CreateUserTeam
-createTeam u t@(Team.BindingNewTeam bt) teamid = do
+createTeam u t@(BindingNewTeam bt) teamid = do
   debug $
     remote "galley"
       . msg (val "Creating Team")
@@ -1173,7 +1179,7 @@ createTeam u t@(Team.BindingNewTeam bt) teamid = do
     maybe (error "invalid team id") pure $
       fromByteString $
         getHeader' "Location" r
-  pure (CreateUserTeam tid $ fromRange (bt ^. Team.newTeamName))
+  pure (CreateUserTeam tid $ fromRange (bt ^. newTeamName))
   where
     req tid =
       paths ["i", "teams", toByteString' tid]
@@ -1341,13 +1347,13 @@ getTeamLegalHoldStatus ::
     MonadLogger m
   ) =>
   TeamId ->
-  m (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold)
+  m (WithStatus LegalholdConfig)
 getTeamLegalHoldStatus tid = do
   debug $ remote "galley" . msg (val "Get legalhold settings")
   galleyRequest GET req >>= decodeBody "galley"
   where
     req =
-      paths ["i", "teams", toByteString' tid, "features", toByteString' TeamFeatureLegalHold]
+      paths ["i", "teams", toByteString' tid, "features", featureNameBS @LegalholdConfig]
         . expect2xx
 
 -- | Calls 'Galley.API.getSearchVisibilityInternalH'.
@@ -1360,9 +1366,9 @@ getTeamSearchVisibility ::
     HasRequestId m
   ) =>
   TeamId ->
-  m Team.TeamSearchVisibility
+  m TeamSearchVisibility
 getTeamSearchVisibility tid =
-  coerce @Team.TeamSearchVisibilityView @Team.TeamSearchVisibility <$> do
+  coerce @TeamSearchVisibilityView @TeamSearchVisibility <$> do
     debug $ remote "galley" . msg (val "Get search visibility settings")
     galleyRequest GET req >>= decodeBody "galley"
   where
@@ -1383,16 +1389,16 @@ getVerificationCodeEnabled ::
 getVerificationCodeEnabled tid = do
   debug $ remote "galley" . msg (val "Get snd factor password challenge settings")
   response <- galleyRequest GET req
-  status <- tfwoStatus <$> decodeBody "galley" response
+  status <- wsStatus <$> decodeBody @(WithStatus SndFactorPasswordChallengeConfig) "galley" response
   case status of
-    TeamFeatureEnabled -> pure True
-    TeamFeatureDisabled -> pure False
+    FeatureStatusEnabled -> pure True
+    FeatureStatusDisabled -> pure False
   where
     req =
-      paths ["i", "teams", toByteString' tid, "features", toByteString' TeamFeatureSndFactorPasswordChallenge]
+      paths ["i", "teams", toByteString' tid, "features", featureNameBS @SndFactorPasswordChallengeConfig]
         . expect2xx
 
-getTeamFeatureStatusSndFactorPasswordChallenge ::
+getAllFeatureConfigsForUser ::
   ( MonadReader Env m,
     MonadIO m,
     MonadMask m,
@@ -1400,12 +1406,12 @@ getTeamFeatureStatusSndFactorPasswordChallenge ::
     HasRequestId m
   ) =>
   Maybe UserId ->
-  m TeamFeatureStatusNoConfig
-getTeamFeatureStatusSndFactorPasswordChallenge mbUserId =
+  m AllFeatureConfigs
+getAllFeatureConfigsForUser mbUserId =
   responseJsonUnsafe
     <$> galleyRequest
       GET
-      ( paths ["i", "feature-configs", toByteString' (knownTeamFeatureName @'TeamFeatureSndFactorPasswordChallenge)]
+      ( paths ["i", "feature-configs"]
           . maybe id (queryItem "user_id" . toByteString') mbUserId
       )
 

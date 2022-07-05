@@ -6,6 +6,9 @@ resources:
   limits:
     memory: "1024Mi"
     cpu: "2"
+metrics:
+  serviceMonitor:
+    enabled: false
 images:
   nginzDisco:
     repository: quay.io/wire/nginz_disco
@@ -16,6 +19,7 @@ images:
 config:
   http:
     httpPort: 8080
+    metricsPort: 8082
   ws:
     wsPort: 8081
     useProxyProtocol: true
@@ -120,6 +124,10 @@ nginx_conf:
       - all
       disable_zauth: true
       unlimited_requests_endpoint: true
+    - path: /users/api-docs$
+      envs:
+      - staging
+      disable_zauth: true
     - path: /users
       envs:
       - all
@@ -270,6 +278,12 @@ nginx_conf:
       disable_zauth: true
       basic_auth: true
       versioned: false
+    - path: /i/users/([^/]*)/features/([^/])*
+      envs:
+      - staging
+      disable_zauth: true
+      basic_auth: true
+      versioned: false
     - path: /i/teams/([^/]*)/suspend
       envs:
       - staging
@@ -285,12 +299,6 @@ nginx_conf:
     - path: /i/provider/activation-code
       envs:
       - staging
-      disable_zauth: true
-      basic_auth: true
-      versioned: false
-    - path: /i/legalhold/whitelisted-teams(.*)
-      envs:
-        - staging
       disable_zauth: true
       basic_auth: true
       versioned: false
@@ -354,6 +362,10 @@ nginx_conf:
       disable_zauth: true
       envs:
       - all
+    - path: /conversations/api-docs$
+      envs:
+      - staging
+      disable_zauth: true
     - path: /conversations/([^/]*)/otr/messages
       envs:
       - all
@@ -418,6 +430,12 @@ nginx_conf:
       envs:
       - staging
       versioned: false
+    - path: /i/legalhold/whitelisted-teams(.*)
+      envs:
+        - staging
+      disable_zauth: true
+      basic_auth: true
+      versioned: false
     - path: /teams/api-docs
       envs:
       - all
@@ -454,6 +472,10 @@ nginx_conf:
       envs:
       - all
     gundeck:
+    - path: /push/api-docs$
+      envs:
+      - staging
+      disable_zauth: true
     - path: /push
       envs:
       - all

@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -195,14 +194,12 @@ runBonanza =
         .| runDecompress decomp
         .| Conduit.mapM
           ( \bs ->
-              modifyIORef' bytes_in (+ fromIntegral (BS.length bs))
-                *> pure bs
+              modifyIORef' bytes_in (+ fromIntegral (BS.length bs)) $> bs
           )
         .| readWith parser
         .| Conduit.mapM
           ( \evt ->
-              modifyIORef' events_in (+ 1)
-                *> pure evt
+              modifyIORef' events_in (+ 1) $> evt
           )
         .| runGeo geo geoDB
         .| runAnonymise anon
@@ -210,8 +207,7 @@ runBonanza =
         .| runCompress comp
         .| Conduit.mapM
           ( \bs ->
-              modifyIORef' bytes_out (+ fromIntegral (BS.length bs))
-                *> pure bs
+              modifyIORef' bytes_out (+ fromIntegral (BS.length bs)) $> bs
           )
         .| sinkHandle stdout
     completed <- getCurrentTime

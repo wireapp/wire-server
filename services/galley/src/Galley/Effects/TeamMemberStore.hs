@@ -28,9 +28,9 @@ where
 
 import Data.Id
 import Galley.Effects.Paging
-import Galley.Types.Teams
 import Imports
 import Polysemy
+import Wire.API.Team.Member
 
 data TeamMemberStore p m a where
   ListTeamMembers ::

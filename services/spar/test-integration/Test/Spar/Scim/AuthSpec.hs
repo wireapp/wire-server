@@ -28,7 +28,6 @@ where
 
 import Bilge
 import Bilge.Assert
-import qualified Brig.Types.User as Brig
 import Cassandra as Cas
 import Control.Lens
 import Data.Aeson (encode)
@@ -50,8 +49,12 @@ import qualified SAML2.WebSSO.Test.Util as SAML
 import Spar.Scim
 import Text.RawString.QQ (r)
 import Util
+import Wire.API.Team.Feature (featureNameBS)
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Role
+import Wire.API.User (userEmail)
 import qualified Wire.API.User as Public
+import Wire.API.User.Identity
 
 -- | Tests for authentication and operations with provisioning tokens ('ScimToken's).
 spec :: SpecWith TestEnv
@@ -111,9 +114,9 @@ testCreateTokenWithVerificationCode = do
   env <- ask
   (owner, teamId, _) <- registerTestIdP
   unlockFeature (env ^. teGalley) teamId
-  setSndFactorPasswordChallengeStatus (env ^. teGalley) teamId Public.TeamFeatureEnabled
+  setSndFactorPasswordChallengeStatus (env ^. teGalley) teamId Public.FeatureStatusEnabled
   user <- getUserBrig owner
-  let email = fromMaybe undefined (Brig.userEmail =<< user)
+  let email = fromMaybe undefined (userEmail =<< user)
 
   let reqMissingCode = CreateScimToken "testCreateToken" (Just defPassword) Nothing
   createTokenFailsWith owner reqMissingCode 403 "code-authentication-required"
@@ -137,16 +140,16 @@ testCreateTokenWithVerificationCode = do
 
 unlockFeature :: GalleyReq -> TeamId -> TestSpar ()
 unlockFeature galley tid =
-  call $ put (galley . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge, toByteString' Public.Unlocked]) !!! const 200 === statusCode
+  call $ put (galley . paths ["i", "teams", toByteString' tid, "features", featureNameBS @Public.SndFactorPasswordChallengeConfig, toByteString' Public.LockStatusUnlocked]) !!! const 200 === statusCode
 
-setSndFactorPasswordChallengeStatus :: GalleyReq -> TeamId -> Public.TeamFeatureStatusValue -> TestSpar ()
+setSndFactorPasswordChallengeStatus :: GalleyReq -> TeamId -> Public.FeatureStatus -> TestSpar ()
 setSndFactorPasswordChallengeStatus galley tid status = do
-  let js = RequestBodyLBS $ encode $ Public.TeamFeatureStatusNoConfig status
+  let js = RequestBodyLBS $ encode $ Public.WithStatusNoLock @Public.SndFactorPasswordChallengeConfig status Public.trivialConfig
   call $
-    put (galley . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge] . contentJson . body js)
+    put (galley . paths ["i", "teams", toByteString' tid, "features", featureNameBS @Public.SndFactorPasswordChallengeConfig] . contentJson . body js)
       !!! const 200 === statusCode
 
-requestVerificationCode :: BrigReq -> Brig.Email -> Public.VerificationAction -> TestSpar ()
+requestVerificationCode :: BrigReq -> Email -> Public.VerificationAction -> TestSpar ()
 requestVerificationCode brig email action = do
   call $
     post (brig . paths ["verification-code", "send"] . contentJson . json (Public.SendVerificationCode action email))
@@ -225,7 +228,7 @@ testCreateTokenAuthorizesOnlyAdmins = do
   env <- ask
   (_, teamId, _) <- registerTestIdP
 
-  let mkUser :: Galley.Role -> TestSpar UserId
+  let mkUser :: Role -> TestSpar UserId
       mkUser role = do
         runHttpT (env ^. teMgr) $
           createTeamMember
@@ -244,10 +247,10 @@ testCreateTokenAuthorizesOnlyAdmins = do
             }
           (env ^. teSpar)
 
-  (mkUser Galley.RoleMember >>= createToken')
+  (mkUser RoleMember >>= createToken')
     !!! checkErr 403 (Just "insufficient-permissions")
 
-  (mkUser Galley.RoleAdmin >>= createToken')
+  (mkUser RoleAdmin >>= createToken')
     !!! const 200 === statusCode
 
 -- @END

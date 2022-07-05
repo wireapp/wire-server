@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -93,7 +92,7 @@ instance ToJSON KibanaEvent where
 fromLogEvent :: LogEvent -> IO KibanaEvent
 fromLogEvent evt = do
   ts <- utcToZonedTime utc <$> maybe getCurrentTime pure (evt ^. logTime)
-  return
+  pure
     KibanaEvent
       { esTimestamp = ts,
         esOrigin = fromMaybe thisHost (evt ^. logOrigin),
@@ -160,7 +159,7 @@ thisHost = unsafePerformIO $ do
       (Just defaultHints {addrFlags = [AI_CANONNAME]})
       (Just localhost)
       Nothing
-  return . Host . pack
+  pure . Host . pack
     . fromMaybe localhost
     . head'
     . mapMaybe addrCanonName

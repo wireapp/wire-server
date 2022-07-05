@@ -26,7 +26,6 @@ where
 
 import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
-import Brig.Types.User as Brig
 import Control.Lens
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Lens (key, _String)
@@ -36,6 +35,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Util
 import Wire.API.Team.Invitation (Invitation (..))
+import Wire.API.User
 
 headInvitation404 :: HasCallStack => BrigReq -> Email -> Http ()
 headInvitation404 brig email = do

@@ -21,6 +21,7 @@ module Brig.API.Internal
     swaggerDocsAPI,
     BrigIRoutes.API,
     BrigIRoutes.SwaggerDocsAPI,
+    getMLSClients,
   )
 where
 
@@ -46,9 +47,10 @@ import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Brig.Team.API as Team
 import Brig.Team.DB (lookupInvitationByEmail)
-import Brig.Types
+import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
+import Brig.Types.User
 import Brig.Types.User.Event (UserEvent (UserUpdated), UserUpdatedData (eupSSOId, eupSSOIdRemoved), emptyUserUpdatedData)
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
@@ -65,7 +67,6 @@ import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Qualified
 import qualified Data.Set as Set
-import Galley.Types (UserClients (..))
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
@@ -79,17 +80,20 @@ import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import UnliftIO.Async
+import Wire.API.Connection
 import Wire.API.Error
-import Wire.API.Error.Brig
 import qualified Wire.API.Error.Brig as E
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.Routes.Internal.Brig (NewKeyPackageRef)
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User
-import Wire.API.User.Client (UserClientsFull (..))
+import Wire.API.User.Activation
+import Wire.API.User.Client
+import Wire.API.User.Password
 import Wire.API.User.RichInfo
 
 ---------------------------------------------------------------------------
@@ -101,9 +105,9 @@ servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<
 ejpdAPI :: ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
   Brig.User.EJPD.ejpdRequest
-    :<|> Named @"get-account-feature-config" getAccountFeatureConfig
-    :<|> putAccountFeatureConfig
-    :<|> deleteAccountFeatureConfig
+    :<|> Named @"get-account-conference-calling-config" getAccountConferenceCallingConfig
+    :<|> putAccountConferenceCallingConfig
+    :<|> deleteAccountConferenceCallingConfig
     :<|> getConnectionsStatusUnqualified
     :<|> getConnectionsStatus
 
@@ -111,8 +115,10 @@ mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
 mlsAPI =
   ( \ref ->
       Named @"get-client-by-key-package-ref" (getClientByKeyPackageRef ref)
-        :<|> Named @"put-conversation-by-key-package-ref" (putConvIdByKeyPackageRef ref)
-        :<|> Named @"get-conversation-by-key-package-ref" (getConvIdByKeyPackageRef ref)
+        :<|> ( Named @"put-conversation-by-key-package-ref" (putConvIdByKeyPackageRef ref)
+                 :<|> Named @"get-conversation-by-key-package-ref" (getConvIdByKeyPackageRef ref)
+             )
+        :<|> Named @"put-key-package-ref" (putKeyPackageRef ref)
   )
     :<|> getMLSClients
     :<|> mapKeyPackageRefsInternal
@@ -124,17 +130,17 @@ teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
-getAccountFeatureConfig :: UserId -> (Handler r) ApiFt.TeamFeatureStatusNoConfig
-getAccountFeatureConfig uid =
+getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
+getAccountConferenceCallingConfig uid =
   lift (wrapClient $ Data.lookupFeatureConferenceCalling uid)
-    >>= maybe (view (settings . getAfcConferenceCallingDefNull)) pure
+    >>= maybe (ApiFt.forgetLock <$> view (settings . getAfcConferenceCallingDefNull)) pure
 
-putAccountFeatureConfig :: UserId -> ApiFt.TeamFeatureStatusNoConfig -> (Handler r) NoContent
-putAccountFeatureConfig uid status =
+putAccountConferenceCallingConfig :: UserId -> ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig -> (Handler r) NoContent
+putAccountConferenceCallingConfig uid status =
   lift $ wrapClient $ Data.updateFeatureConferenceCalling uid (Just status) $> NoContent
 
-deleteAccountFeatureConfig :: UserId -> (Handler r) NoContent
-deleteAccountFeatureConfig uid =
+deleteAccountConferenceCallingConfig :: UserId -> (Handler r) NoContent
+deleteAccountConferenceCallingConfig uid =
   lift $ wrapClient $ Data.updateFeatureConferenceCalling uid Nothing $> NoContent
 
 getClientByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe ClientIdentity)
@@ -144,24 +150,27 @@ getClientByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.derefKeyPack
 putConvIdByKeyPackageRef :: KeyPackageRef -> Qualified ConvId -> Handler r Bool
 putConvIdByKeyPackageRef ref = lift . wrapClient . Data.keyPackageRefSetConvId ref
 
+-- Used by galley to create a new record in mls_key_package_ref
+putKeyPackageRef :: KeyPackageRef -> NewKeyPackageRef -> Handler r ()
+putKeyPackageRef ref = lift . wrapClient . Data.addKeyPackageRef ref
+
 -- Used by galley to retrieve conversation id from mls_key_package_ref
 getConvIdByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe (Qualified ConvId))
 getConvIdByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.keyPackageRefConvId
 
-getMLSClients :: Qualified UserId -> SignatureSchemeTag -> Handler r (Set ClientId)
-getMLSClients qusr ss = do
-  usr <- lift $ tUnqualified <$> ensureLocal qusr
-  results <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult usr
+getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientId)
+getMLSClients usr ss = do
+  results <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult
   keys <- lift . wrapClient $ pooledMapConcurrentlyN 16 getKey (toList results)
   pure . Set.fromList . map fst . filter (isJust . snd) $ keys
   where
-    getResult _ [] = throwStd (errorToWai @'UserNotFound)
-    getResult usr ((u, cs) : rs)
+    getResult [] = pure mempty
+    getResult ((u, cs) : rs)
       | u == usr = pure cs
-      | otherwise = getResult usr rs
+      | otherwise = getResult rs
 
     getKey :: MonadClient m => ClientId -> m (ClientId, Maybe LByteString)
-    getKey cid = (cid,) <$> Data.lookupMLSPublicKey (qUnqualified qusr) cid ss
+    getKey cid = (cid,) <$> Data.lookupMLSPublicKey usr cid ss
 
 mapKeyPackageRefsInternal :: KeyPackageBundle -> Handler r ()
 mapKeyPackageRefsInternal bundle = do

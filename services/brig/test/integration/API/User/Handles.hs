@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 
 module API.User.Handles
   ( tests,
@@ -26,7 +27,6 @@ import API.User.Util
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import qualified Brig.Options as Opt
-import Brig.Types
 import Control.Lens hiding (from, (#))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson
@@ -37,7 +37,6 @@ import Data.Id hiding (client)
 import qualified Data.List1 as List1
 import Data.Qualified (Qualified (..))
 import qualified Data.UUID as UUID
-import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Network.Wai.Utilities.Error as Wai
@@ -48,7 +47,10 @@ import Test.Tasty.HUnit
 import UnliftIO (mapConcurrently)
 import Util
 import Wire.API.Internal.Notification hiding (target)
-import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
+import Wire.API.Team.Feature (FeatureStatus (..))
+import Wire.API.Team.SearchVisibility
+import Wire.API.User
+import Wire.API.User.Handle
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at conf p b c g =
@@ -219,8 +221,8 @@ testHandleQuerySearchVisibilityNoNameOutsideTeam _opts brig galley = do
   (tid1, owner1, [member1]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
   (_, owner2, [member2]) <- createPopulatedBindingTeamWithNamesAndHandles brig 1
   extern <- randomUserWithHandle brig
-  setTeamTeamSearchVisibilityAvailable galley tid1 TeamFeatureEnabled
-  setTeamSearchVisibility galley tid1 Team.SearchVisibilityNoNameOutsideTeam
+  setTeamTeamSearchVisibilityAvailable galley tid1 FeatureStatusEnabled
+  setTeamSearchVisibility galley tid1 SearchVisibilityNoNameOutsideTeam
   -- this is the same as in 'testHandleQuerySearchVisibilityStandard' above, because we search
   -- for handles, not names.
   assertCanFind brig owner1 owner2

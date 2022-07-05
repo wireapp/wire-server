@@ -20,15 +20,14 @@ module API.Internal.Util
     MkUsr,
     scaffolding,
     ejpdRequestClient,
-    getAccountFeatureConfigClient,
-    putAccountFeatureConfigClient,
-    deleteAccountFeatureConfigClient,
+    getAccountConferenceCallingConfigClient,
+    putAccountConferenceCallingConfigClient,
+    deleteAccountConferenceCallingConfigClient,
   )
 where
 
 import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
 import Bilge
-import Brig.Types
 import Control.Lens (view, (^.))
 import Control.Monad.Catch (MonadCatch, MonadThrow, throwM)
 import qualified Data.ByteString.Base16 as B16
@@ -46,10 +45,12 @@ import qualified Servant.Client as Client
 import System.Random (randomIO)
 import Util
 import Util.Options (Endpoint, epHost, epPort)
+import Wire.API.Connection
 import qualified Wire.API.Push.V2.Token as PushToken
 import Wire.API.Routes.Internal.Brig as IAPI
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Team
+import Wire.API.User
 
 type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
 
@@ -119,26 +120,26 @@ scaffolding brig gundeck = do
 ejpdRequestClientM :: Maybe Bool -> EJPDRequestBody -> Client.ClientM EJPDResponseBody
 ejpdRequestClientM = Client.client (Proxy @("i" :> IAPI.EJPDRequest))
 
-getAccountFeatureConfigClientM :: UserId -> Client.ClientM Public.TeamFeatureStatusNoConfig
-getAccountFeatureConfigClientM = Client.client (Proxy @("i" :> IAPI.GetAccountFeatureConfig))
+getAccountConferenceCallingConfigClientM :: UserId -> Client.ClientM (Public.WithStatusNoLock Public.ConferenceCallingConfig)
+getAccountConferenceCallingConfigClientM = Client.client (Proxy @("i" :> IAPI.GetAccountConferenceCallingConfig))
 
-putAccountFeatureConfigClientM :: UserId -> Public.TeamFeatureStatusNoConfig -> Client.ClientM NoContent
-putAccountFeatureConfigClientM = Client.client (Proxy @("i" :> IAPI.PutAccountFeatureConfig))
+putAccountConferenceCallingConfigClientM :: UserId -> Public.WithStatusNoLock Public.ConferenceCallingConfig -> Client.ClientM NoContent
+putAccountConferenceCallingConfigClientM = Client.client (Proxy @("i" :> IAPI.PutAccountConferenceCallingConfig))
 
-deleteAccountFeatureConfigClientM :: UserId -> Client.ClientM NoContent
-deleteAccountFeatureConfigClientM = Client.client (Proxy @("i" :> IAPI.DeleteAccountFeatureConfig))
+deleteAccountConferenceCallingConfigClientM :: UserId -> Client.ClientM NoContent
+deleteAccountConferenceCallingConfigClientM = Client.client (Proxy @("i" :> IAPI.DeleteAccountConferenceCallingConfig))
 
 ejpdRequestClient :: (HasCallStack, MonadThrow m, MonadIO m, MonadHttp m) => Endpoint -> Manager -> Maybe Bool -> EJPDRequestBody -> m EJPDResponseBody
 ejpdRequestClient brigep mgr includeContacts ejpdReqBody = runHereClientM brigep mgr (ejpdRequestClientM includeContacts ejpdReqBody) >>= either throwM pure
 
-getAccountFeatureConfigClient :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> UserId -> m (Either Client.ClientError Public.TeamFeatureStatusNoConfig)
-getAccountFeatureConfigClient brigep mgr uid = runHereClientM brigep mgr (getAccountFeatureConfigClientM uid)
+getAccountConferenceCallingConfigClient :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> UserId -> m (Either Client.ClientError (Public.WithStatusNoLock Public.ConferenceCallingConfig))
+getAccountConferenceCallingConfigClient brigep mgr uid = runHereClientM brigep mgr (getAccountConferenceCallingConfigClientM uid)
 
-putAccountFeatureConfigClient :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> UserId -> Public.TeamFeatureStatusNoConfig -> m (Either Client.ClientError NoContent)
-putAccountFeatureConfigClient brigep mgr uid cfg = runHereClientM brigep mgr (putAccountFeatureConfigClientM uid cfg)
+putAccountConferenceCallingConfigClient :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> UserId -> Public.WithStatusNoLock Public.ConferenceCallingConfig -> m (Either Client.ClientError NoContent)
+putAccountConferenceCallingConfigClient brigep mgr uid cfg = runHereClientM brigep mgr (putAccountConferenceCallingConfigClientM uid cfg)
 
-deleteAccountFeatureConfigClient :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> UserId -> m (Either Client.ClientError NoContent)
-deleteAccountFeatureConfigClient brigep mgr uid = runHereClientM brigep mgr (deleteAccountFeatureConfigClientM uid)
+deleteAccountConferenceCallingConfigClient :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> UserId -> m (Either Client.ClientError NoContent)
+deleteAccountConferenceCallingConfigClient brigep mgr uid = runHereClientM brigep mgr (deleteAccountConferenceCallingConfigClientM uid)
 
 runHereClientM :: (HasCallStack, MonadIO m, MonadHttp m) => Endpoint -> Manager -> Client.ClientM a -> m (Either Client.ClientError a)
 runHereClientM brigep mgr action = do

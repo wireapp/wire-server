@@ -60,6 +60,7 @@ type GalleyApi =
     :<|> FedEndpoint "on-user-deleted-conversations" UserDeletedConversationsNotification EmptyResponse
     :<|> FedEndpoint "update-conversation" ConversationUpdateRequest ConversationUpdateResponse
     :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest EmptyResponse
+    :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage EmptyResponse
 
 data GetConversationsRequest = GetConversationsRequest
   { gcrUserId :: UserId,
@@ -190,6 +191,18 @@ data RemoteMessage conv = RemoteMessage
   deriving stock (Eq, Show, Generic, Functor)
   deriving (Arbitrary) via (GenericUniform (RemoteMessage conv))
   deriving (ToJSON, FromJSON) via (CustomEncoded (RemoteMessage conv))
+
+data RemoteMLSMessage = RemoteMLSMessage
+  { rmmTime :: UTCTime,
+    rmmMetadata :: MessageMetadata,
+    rmmSender :: Qualified UserId,
+    rmmConversation :: ConvId,
+    rmmRecipients :: [(UserId, ClientId)],
+    rmmMessage :: Base64ByteString
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform RemoteMLSMessage)
+  deriving (ToJSON, FromJSON) via (CustomEncoded RemoteMLSMessage)
 
 data MessageSendRequest = MessageSendRequest
   { -- | Conversation is assumed to be owned by the target domain, this allows

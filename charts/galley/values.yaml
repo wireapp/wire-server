@@ -6,6 +6,9 @@ image:
 service:
   externalPort: 8080
   internalPort: 8080
+metrics:
+  serviceMonitor:
+    enable: false
 resources:
   requests:
     memory: "256Mi"
@@ -27,50 +30,54 @@ config:
     # refer to notes here: https://github.com/wireapp/wire-server-deploy/releases/tag/v2020-05-15
     indexedBillingTeamMember: false
     featureFlags:  # see #RefConfigOptions in `/docs/reference` (https://github.com/wireapp/wire-server/)
-      sso: disabled-by-default
-      legalhold: disabled-by-default
-      teamSearchVisibility: disabled-by-default
-      classifiedDomains:
-        status: disabled
-        config:
-          domains: []
-      # optional
-      fileSharing:
-        defaults:
-          status: enabled
-          lockStatus: unlocked
-      # optional
-      sndFactorPasswordChallenge:
-        defaults:
-          status: disabled
-          lockStatus: locked
-      # optional
-      validateSAMLemails:
-        defaults:
-          status: enabled
-      # optional
       appLock:
         defaults:
-          status: enabled
           config:
             enforceAppLock: false
             inactivityTimeoutSecs: 60
-      # optional
+          status: enabled
+      classifiedDomains:
+        config:
+          domains: []
+        status: disabled
       conferenceCalling:
         defaults:
           status: enabled
-      # optional
-      selfDeletingMessages:
-        defaults:
-          status: enabled
-          lockStatus: unlocked
-          config:
-            enforcedTimeoutSeconds: 0
-      # optional
       conversationGuestLinks:
         defaults:
-          status: enabled
           lockStatus: unlocked
+          status: enabled
+      fileSharing:
+        defaults:
+          lockStatus: unlocked
+          status: enabled
+      legalhold: disabled-by-default
+      mls:
+        defaults:
+          status: disabled
+          config:
+            protocolToggleUsers: []
+            defaultProtocol: proteus
+            allowedCipherSuites: [1]
+            defaultCipherSuite: 1
+      searchVisibilityInbound:
+        defaults:
+          status: disabled
+      selfDeletingMessages:
+        defaults:
+          config:
+            enforcedTimeoutSeconds: 0
+          lockStatus: unlocked
+          status: enabled
+      sndFactorPasswordChallenge:
+        defaults:
+          lockStatus: locked
+          status: disabled
+      sso: disabled-by-default
+      teamSearchVisibility: disabled-by-default
+      validateSAMLemails:
+        defaults:
+          status: enabled
  
   aws:
     region: "eu-west-1"

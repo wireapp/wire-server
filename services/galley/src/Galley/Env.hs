@@ -29,7 +29,6 @@ import Data.Range
 import qualified Galley.Aws as Aws
 import Galley.Options
 import qualified Galley.Queue as Q
-import qualified Galley.Types.Teams as Teams
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
@@ -39,6 +38,7 @@ import qualified OpenSSL.X509.SystemStore as Ssl
 import Ssl.Util
 import System.Logger
 import Util.Options
+import Wire.API.Team.Member
 
 data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)
   deriving (Eq, Ord, Show)
@@ -95,7 +95,7 @@ reqIdMsg :: RequestId -> Msg -> Msg
 reqIdMsg = ("request" .=) . unRequestId
 {-# INLINE reqIdMsg #-}
 
-currentFanoutLimit :: Opts -> Range 1 Teams.HardTruncationLimit Int32
+currentFanoutLimit :: Opts -> Range 1 HardTruncationLimit Int32
 currentFanoutLimit o = do
   let optFanoutLimit = fromIntegral . fromRange $ fromMaybe defFanoutLimit (o ^. (optSettings . setMaxFanoutSize))
   let maxTeamSize = fromIntegral (o ^. (optSettings . setMaxTeamSize))

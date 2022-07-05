@@ -33,6 +33,7 @@ data:
     ## prometheus metrics
     prometheus-ip=__COTURN_POD_IP__
     prometheus-port={{ .Values.coturnMetricsListenPort }}
+    prometheus-no-username-labels
 
     ## logs
     log-file=stdout

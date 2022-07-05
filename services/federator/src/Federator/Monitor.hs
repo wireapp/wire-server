@@ -32,11 +32,9 @@ import qualified Polysemy.Error as Polysemy
 import System.Logger (Logger)
 
 mkTLSSettingsOrThrow :: RunSettings -> IO TLSSettings
-mkTLSSettingsOrThrow =
-  Polysemy.runM
-    . (either (Polysemy.embed @IO . throw) pure =<<)
-    . Polysemy.runError @FederationSetupError
-    . mkTLSSettings
+mkTLSSettingsOrThrow = Polysemy.runM . runEither . Polysemy.runError @FederationSetupError . mkTLSSettings
+  where
+    runEither = (either (Polysemy.embed @IO . throw) pure =<<)
 
 withMonitor :: Logger -> IORef TLSSettings -> RunSettings -> IO a -> IO a
 withMonitor logger tlsVar rs action =

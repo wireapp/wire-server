@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: "brig-integration"
   labels:
-    wireService: brig-integration
+    app: brig-integration
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
@@ -13,7 +13,7 @@ spec:
     - port: 9000
       targetPort: 9000
   selector:
-    wireService: brig-integration
+    app: brig-integration
     release: {{ .Release.Name }}
 ---
 apiVersion: v1
@@ -23,7 +23,7 @@ metadata:
   annotations:
     "helm.sh/hook": test-success
   labels:
-    wireService: brig-integration
+    app: brig-integration
     release: {{ .Release.Name }}
 spec:
   volumes:
