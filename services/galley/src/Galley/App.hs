@@ -232,7 +232,6 @@ evalGalley e =
     . mapError toWai
     . runInputConst e
     . runInputConst (e ^. cstate)
-    . mapError toWai -- Wai.Error
     . mapError toWai -- DynError
     . interpretTinyLog e
     . interpretQueue (e ^. deleteQueue)
