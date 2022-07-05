@@ -71,7 +71,6 @@ Make sure (while connected via ssh) your Cassandra installation is doing well wi
 
     nodetool status
 
-You should see something like:
 
 You should see a list of nodes like this:
 
