@@ -235,8 +235,8 @@ testDeleteProvider db brig = do
   getProvider brig pid !!! const 404 === statusCode
   -- The email address must be available again
   let new = defNewProvider (providerEmail prv)
-  registerProvider brig new
-    !!! const 201 === statusCode
+  response <- retryWhileN 10 ((==) 429 . statusCode) $ registerProvider brig new
+  liftIO $ statusCode response @?= 201
 
 testPasswordResetProvider :: DB.ClientState -> Brig -> Http ()
 testPasswordResetProvider db brig = do
