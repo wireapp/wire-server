@@ -5,7 +5,7 @@ Release notes of helm charts
 ****************************
 
 Also read `understand release tags
-<operations.html#understand-release-tags>`__.
+<how-to/administrate/operations.html#understand-release-tags>`__.
 
 We have recently migrated all the helm charts from
 https://github.com/wireapp/wire-server-deploy to the
@@ -28,6 +28,372 @@ releases. Please read them carefully as some require you to perform
 specific operations.
 
 The following helm chart versions have been published since then:
+
+Chart Release 4.14.0 (2022-06-14)
+===================================
+
+Release notes
+-------------
+
+-  Upgrade team-settings version to 4.10.0-v0.29.7-0-3be8ca3 (#2180)
+
+-  Upgrade webapp version to 2022-06-13-production.0-v0.29.7-0-2819b90
+   (#2302)
+
+Documentation
+-------------
+
+-  Docs for guest links server and team feature settings added (#2480)
+
+Internal changes
+----------------
+
+-  All feature configs like guest links e.g. can now be overridden in
+   the helm configuration, so that they can be disabled/enabled and
+   configured server wide (#2479)
+
+Chart Release 4.13.0 (2022-06-08)
+===================================
+
+Release notes
+-------------
+
+-  The ``.cannon.drainTimeout`` setting on the wire-server helm chart
+   has been removed and replaced with ``.cannon.config.drainOpts``.
+   (#2416)
+
+-  Note for wire.com operators: deploy nginz (#2439)
+
+API changes
+-----------
+
+-  The back-office (aka stern) team feature API now accenpts an optional
+   TTL parameter (in days), so features can be activated for a limited
+   period. (#2417)
+
+-  Disable rate limiting for /api-version (#2439)
+
+Features
+--------
+
+-  Drain websockets in a controlled fashion when cannon receives a
+   SIGTERM or SIGINT. Instead of waiting for connections to close on
+   their own, the websockets are now severed at a controlled pace. This
+   allows for quicker rollouts of new versions. (#2416)
+
+-  Optionally allow to run cannon with its own nginz inside the same
+   pod; and connect to a load balancer directly. This allows the
+   cannon-slow-drain behaviour implemented in #2416 to take effect by
+   not having other intermediate network hops which could break
+   websocket connections all at once. Some (internal) context:
+   https://wearezeta.atlassian.net/wiki/spaces/PS/pages/585564424/How+to+gracefully+drain+cannon+but+not+so+slowly
+   For details on how to configure this, see
+   docs/src/how-to/install/configuration-options.rst (#2421)
+
+-  Support running brig with GeoIP database when using helm charts
+   (#2406)
+
+-  charts/nginz: Add upstream configuration for galeb (#2444)
+
+-  charts/nginz: Allow upstreams to be in other namespaces (#2444)
+
+-  CSV export in team management now includes the number of devices per
+   user (#2407)
+
+Bug fixes and other updates
+---------------------------
+
+-  charts/nginz: Resolve collision between brig and galeb endpoints.
+   Ensure /self/consent and /signatures endpoints are configured in all
+   environments (#2457)
+
+-  When an IdP issuer (aka entity ID) is updated, the old issuer was
+   still marked as “in use”. (#2400)
+
+-  On actions that require re-authentication a password is not required
+   if the user has SAML credentials (#2430, #2434, #2437)
+
+-  Use SCIM’s preferred language as a fallback when privisioning users
+   without a locale. (#2445)
+
+Documentation
+-------------
+
+-  Feature configs should have different swagger schema names (#2425)
+
+Internal changes
+----------------
+
+-  ``AllFeatureConfigs`` is now typed (#2403)
+
+-  Type class for default team feature status (#2404)
+
+-  charts/{redis-ephemeral,legalhold}: Use old index for bitnami repo as
+   the new index doesn’t have old versions of postgresql and redis helm
+   charts (#2448)
+
+-  Bump haskell/zlib version to 0.6.3.0 (#2431)
+
+-  New internal brig endpoints for MLS KeyPackage -> Conversation
+   association query/update (#2375)
+
+-  galley: refactor withSettingsOverrides (#2381)
+
+-  charts/{nginz,cannon}: Increase map_hash_bucket_size for nginx to 128
+   (#2443)
+
+-  charts/{cannon,nginz}: values listed in
+   ``nginx_conf.randomport_allowlisted_origins`` must be full hostnames.
+   Hostnames listed here will be allowlisted with and without TLS.
+   (#2438)
+
+-  Remove binding of users to saml idps using saml (this has never been
+   picked up by clients; use scim instead) (#2441)
+
+-  Remove golden test case generator
+
+   (#2442)
+
+-  Convert Team CSV endpoint to Servant (#2419)
+
+Federation changes
+------------------
+
+-  Send only the raw welcome message in the Galley “mls-welcome”
+   federation endpoint (#2412)
+
+Chart Release 4.12.0 (2022-05-18)
+===================================
+
+Release notes
+-------------
+
+-  If using
+   `cert-manager <https://github.com/cert-manager/cert-manager>`__, you
+   need to have least version 1.0.0 (1.8.0 works at the time of writing)
+   installed. Older cert-manager 0.15.X will no longer work. (#2401)
+
+-  Upgrade team-settings version to 4.9.0-v0.29.7-0-142a76f (#2180)
+
+API changes
+-----------
+
+-  Start version 2 of the public API. Main changes:
+
+   -  Asset endpoints have lost their ``v3`` and ``v4`` suffixes. So for
+      example ``/assets/v3`` has been replaced by ``/assets``.
+   -  ``GET /conversations/:conv/assets/:id`` and
+      ``GET    /conversations/:conv/otr/assets/:id`` have been removed.
+   -  ``GET /assets/:key/v3`` has been removed. Use the qualified
+      endpoint ``GET    /assets/:domain/:key`` instead.
+   -  ``DELETE /assets/:key/v3`` has been removed. Use the qualified
+      endpoint ``DELETE /assets/:domain/:key`` instead.
+   -  ``GET /connections`` has been removed. Use
+      ``POST /list-connections`` instead.
+   -  ``POST /connections`` has been removed. Use
+      ``POST /connections/:domain/:user`` instead.
+   -  ``PUT /connections/:domain/:user`` has been removed: use ``POST``
+      instead.
+   -  ``GET /conversations`` has been removed. Use
+      ``POST /conversations/list-ids`` followed by
+      ``POST /conversations/list`` instead.
+   -  ``POST /conversations/list/v2`` has been replaced by
+      ``POST    /conversations/list``.
+   -  ``POST /conversations/:domain/:conv/members/v2`` has lost its
+      ``v2`` suffix, so it is now
+      ``POST /conversations/:domain/:conv/members``.
+   -  ``GET /users``, ``GET /users/by-handle`` and
+      ``GET /users/handles`` have been removed. Use
+      ``POST /search/contacts`` instead.
+   -  ``GET /users/:id`` has been removed. Use the qualified endpoint
+      ``GET    /users/:domain/:id`` instead.
+   -  ``GET /users/:id/clients`` has been removed. Use the qualified
+      endpoint ``GET    /users/:domain/:id/clients`` instead.
+   -  ``GET /users/:id/clients/:client`` has been removed. Use the
+      qualified endpoint ``GET /users/:domain/:id/clients/:client``
+      instead.
+
+   Swagger documentation for the previous version of the API can be
+   accessed at ``/v1/api/swagger-ui``. (#2297)
+
+-  A new field ``development`` has been added to the object returned by
+   ``GET   /api-version``. Versions listed there are considered in flux,
+   meaning that the corresponding API contracts can change arbitrarily
+   over time. Clients are free to use development versions, as long as
+   they are also listed in ``supported``, and failures due to
+   incompatibilities are acceptable (e.g. in testing environments).
+   Backends are the authoritative source on whether a development
+   version can be used at all. If a development version should not be
+   used, the backend will not list it among the supported versions at
+   all. (#2297)
+
+Features
+--------
+
+-  charts: Various new values can now be configured and some got changed
+
+   Allow new configurations in the brig chart:
+
+   -  ``config.emailSMS.user.invitationUrl``
+   -  ``config.emailSMS.team.tInvitationUrl``
+   -  ``config.emailSMS.team.tActivationUrl``
+   -  ``config.emailSMS.team.tCreatorWelcomeUrl``
+   -  ``config.emailSMS.team.tMemberWelcomeUrl``
+   -  ``config.setProviderSearchFilter``
+   -  ``config.setWhitelist``
+   -  ``config.setFeatureFlags``
+   -  ``config.setCustomerExtensions``
+
+   If any values in config.emailSMS.team are specified, all must be
+   specified.
+
+   Allow new configurations in the gundeck chart:
+
+   -  ``config.perNativePushConcurrency``
+   -  ``config.maxConcurrentNativePushes.soft``
+   -  ``config.maxConcurrentNativePushes.hard``
+
+   Other changes:
+
+   -  Default ``maxTeamSize`` changed to 10000 from 500. (#2347)
+
+-  charts/nginx-ingress-services: Allow more fine-grained control over
+   what services are installed. Upgrade Certificate/Issuer resources to
+   ‘cert-manager.io/v1’ (#2401)
+
+-  MLS implementation progress:
+
+   -  remote key package claim is now supported (#2353)
+
+-  charts/{brig,cargohold,galley,gundeck}: Allow not configuring AWS
+   credentials and allow using a special service account. This way, when
+   operating wire in AWS cloud either instance profiles or IAM role
+   attached to a service account can be used to communicate with AWS.
+   (#2347)
+
+-  Implement TURN service discovery using SRV records (#2389)
+
+Bug fixes and other updates
+---------------------------
+
+-  When ``config.enablePayment`` and ``FEATURE_ENABLE_PAYMENT``
+   (``envVars``) were set, the team-settings feature flag
+   ``FEATURE_ENABLE_PAYMENT`` was rendered two times. The new behavior
+   is to give the ``envVars`` entry priority. I.e. when it’s set, it’s
+   used instead of the ``config.enablePayment`` value. (#2332)
+
+-  Modify the nginz access control configuration to prevent clients
+   connecting to listeners with PROXY protocol enabled (such as the
+   websocket listener) from accessing a private metrics endpoint.
+   (#2307)
+
+-  Verification email is sent when external id is updated via SCIM
+   (#2374)
+
+Documentation
+-------------
+
+-  Move old /docs to /docs/legacy (leaving references). (#2328)
+
+-  Fixup for #2321 (#2323)
+
+-  Add pagination docs to ``POST /list-connections`` (#2369)
+
+-  Documentation for the 2nd factor password challenge feature (#2329)
+
+-  Documentation on how to enforce desktop application only for web app
+   (#2334)
+
+-  Documentation on how to enforce constant bit rate for all calls
+   (#2336)
+
+-  Documentation on how to disable media plugins for the web app (#2337)
+
+-  Documentation on how to extra entropy in the web app (#2338)
+
+-  Documentation on how to set the instance connection parameters and
+   proxy settings (#2340)
+
+-  Merged SAML/SCIM docs with its main documentation (#2356)
+
+Internal changes
+----------------
+
+-  View and change team feature permissions apply to all features now
+   (#2402)
+
+-  Add sed to direnv (#2319)
+
+-  Add python3 to nix development environment. It’s needed by
+   hack/bin/serve-charts.sh . (#2333)
+
+-  Add a target to the Makefile to run ShellCheck. I.e. to run a linter
+   on shell scripts. This will be used in the CI. For now, all scripts
+   with linter issues are excluded from this check. (#2361)
+
+-  Drop snappy support from bonanza (#2350)
+
+-  Use cabal in buildah-based builds (#2341)
+
+-  Fix flakyness of path traversal test (#2387)
+
+-  Github Actions: disable mac builds (#2355)
+
+-  Apply ``versionMiddleware`` last. This makes sure that every other
+   middleware sees the rewritten (unversioned) path. In particular, the
+   prometheus middleware will now only see paths it knows about, which
+   prevents it from reporting “N/A” as the path. (#2316)
+
+-  Upgrade version of libzauth dependencies, notably sodiumoxide
+   bindings to libsodium, and fix resulting errors and warnings. (#2327)
+
+-  libzauth: Update sha256 for source in nix expression (#2354)
+
+-  Log IO exceptions in Galley and Brig (#2385)
+
+-  Generalise and move the Logger effect (#2306)
+
+-  Fix a comment in a Makefile target (#2330)
+
+-  Fix flaky MLS conversation creation test (#2386)
+
+-  Fix flaky key package test (#2384)
+
+-  Fix locale variables in Nix and .envrc (#2393)
+
+-  Team Member API has been migrated to Servant (#2309)
+
+-  Integration test for edge case: change external id before account
+   registration (#2396)
+
+-  Allow specifying ‘redisAdditionalWrite’ for a secondary redis to
+   which gundeck will write in the context of a redis migration without
+   downtime. (#2304)
+
+-  Start TURN discovery only when the app starts and not when the Env is
+   created (#2376)
+
+-  Avoid using IN queries for fetching multiple conversations (#2397)
+
+-  Remove oromolu GH action (has been moved to concourse
+   https://github.com/zinfra/cailleach/pull/1033) (#2320)
+
+-  Remove unused data type AllowedUserSearch (#2373)
+
+-  docs: add latex to docs and publish pdf if exists (#2321)
+
+Federation changes
+------------------
+
+-  We now fetch version information from other backends and negotiate a
+   version to use. (#2297)
+
+-  Fix assertion in testWelcomeNoKey (#2372)
+
+-  Support remote welcome messages (#2368)
+
+-  Implement remote admin action: Update receipt mode (#2141)
+
 
 Chart Release 4.11.0 (2022-05-04)
 =================================

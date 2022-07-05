@@ -52,6 +52,8 @@ import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Web.Cookie
 import Wire.API.User (VerificationAction)
+import Wire.API.User.Identity
+import Wire.API.User.Profile
 import Wire.API.User.RichInfo as RichInfo
 import Wire.API.User.Scim (ValidExternalId (..))
 

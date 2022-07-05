@@ -28,7 +28,6 @@ import Bilge.Assert
 import Brig.Data.User (lookupFeatureConferenceCalling, lookupStatus, userExists)
 import qualified Brig.Options as Opt
 import Brig.Types.Intra
-import Brig.Types.User (User (userQualifiedId), userId)
 import qualified Cassandra as Cass
 import Control.Exception (ErrorCall (ErrorCall), throwIO)
 import Control.Lens ((^.), (^?!))
@@ -40,19 +39,23 @@ import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Qualified (Qualified (qDomain, qUnqualified))
 import qualified Data.Set as Set
+import GHC.TypeLits (KnownSymbol)
 import Imports
 import Servant.API (ToHttpApiData (toUrlPiece))
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
 import Test.Tasty.HUnit
-import UnliftIO (withSystemTempFile)
+import UnliftIO (withSystemTempDirectory)
 import Util
 import Util.Options (Endpoint)
 import qualified Wire.API.Connection as Conn
+import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
-import Wire.API.Routes.Internal.Brig.EJPD as EJPD
+import Wire.API.Routes.Internal.Brig
+import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as ApiFt
 import qualified Wire.API.Team.Member as Team
+import Wire.API.User
 
 tests :: Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Gundeck -> Galley -> IO TestTree
 tests opts mgr db brig brigep gundeck galley = do
@@ -68,7 +71,8 @@ tests opts mgr db brig brigep gundeck galley = do
           [ test mgr "fresh get" $ testKpcFreshGet brig,
             test mgr "put,get" $ testKpcPutGet brig,
             test mgr "get,get" $ testKpcGetGet brig,
-            test mgr "put,put" $ testKpcPutPut brig
+            test mgr "put,put" $ testKpcPutPut brig,
+            test mgr "add key package ref" $ testAddKeyPackageRef brig
           ]
       ]
 
@@ -149,80 +153,80 @@ testEJPDRequest mgr brig brigep gundeck = do
 
 testFeatureConferenceCallingByAccount :: forall m. TestConstraints m => Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Galley -> m ()
 testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig brigep galley = do
-  let check :: HasCallStack => ApiFt.TeamFeatureStatusNoConfig -> m ()
+  let check :: HasCallStack => ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig -> m ()
       check status = do
         uid <- userId <$> createUser "joe" brig
         _ <-
-          aFewTimes 12 (putAccountFeatureConfigClient brigep mgr uid status) isRight
-            >>= either (liftIO . throwIO . ErrorCall . ("putAccountFeatureConfigClient: " <>) . show) pure
+          aFewTimes 12 (putAccountConferenceCallingConfigClient brigep mgr uid status) isRight
+            >>= either (liftIO . throwIO . ErrorCall . ("putAccountConferenceCallingConfigClient: " <>) . show) pure
 
-        mbStatus' <- getAccountFeatureConfigClient brigep mgr uid
+        mbStatus' <- getAccountConferenceCallingConfigClient brigep mgr uid
         liftIO $ assertEqual "GET /i/users/:uid/features/conferenceCalling" (Right status) mbStatus'
 
         featureConfigs <- getAllFeatureConfigs galley uid
-        liftIO $ assertEqual "GET /feature-configs" status (readFeatureConfigs featureConfigs)
+        liftIO $ assertEqual "GET /feature-configs" status (ApiFt.forgetLock $ readFeatureConfigs featureConfigs)
 
-        featureConfigsConfCalling <- getFeatureConfig ApiFt.TeamFeatureConferenceCalling galley uid
+        featureConfigsConfCalling <- getFeatureConfig @ApiFt.ConferenceCallingConfig galley uid
         liftIO $ assertEqual "GET /feature-configs/conferenceCalling" status (responseJsonUnsafe featureConfigsConfCalling)
 
       check' :: m ()
       check' = do
         uid <- userId <$> createUser "joe" brig
-        let defaultIfNull :: ApiFt.TeamFeatureStatusNoConfig
+        let defaultIfNull :: ApiFt.WithStatus ApiFt.ConferenceCallingConfig
             defaultIfNull = settings ^. Opt.getAfcConferenceCallingDefNull
 
-            defaultIfNewRaw :: Maybe ApiFt.TeamFeatureStatusNoConfig
+            defaultIfNewRaw :: Maybe (ApiFt.WithStatus ApiFt.ConferenceCallingConfig)
             defaultIfNewRaw =
               -- tested manually: whether we remove `defaultForNew` from `brig.yaml` or set it
               -- to `enabled` or `disabled`, this test always passes.
               settings ^. Opt.getAfcConferenceCallingDefNewMaybe
 
         do
-          cassandraResp :: Maybe ApiFt.TeamFeatureStatusNoConfig <-
+          cassandraResp :: Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig) <-
             aFewTimes
               12
               (Cass.runClient db (lookupFeatureConferenceCalling uid))
               isJust
-          liftIO $ assertEqual mempty defaultIfNewRaw cassandraResp
+          liftIO $ assertEqual mempty (ApiFt.forgetLock <$> defaultIfNewRaw) cassandraResp
 
         _ <-
-          aFewTimes 12 (deleteAccountFeatureConfigClient brigep mgr uid) isRight
-            >>= either (liftIO . throwIO . ErrorCall . ("deleteAccountFeatureConfigClient: " <>) . show) pure
+          aFewTimes 12 (deleteAccountConferenceCallingConfigClient brigep mgr uid) isRight
+            >>= either (liftIO . throwIO . ErrorCall . ("deleteAccountConferenceCallingConfigClient: " <>) . show) pure
 
         do
-          cassandraResp :: Maybe ApiFt.TeamFeatureStatusNoConfig <-
+          cassandraResp :: Maybe (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig) <-
             aFewTimes
               12
               (Cass.runClient db (lookupFeatureConferenceCalling uid))
               isJust
           liftIO $ assertEqual mempty Nothing cassandraResp
 
-        mbStatus' <- getAccountFeatureConfigClient brigep mgr uid
-        liftIO $ assertEqual "GET /i/users/:uid/features/conferenceCalling" (Right defaultIfNull) mbStatus'
+        mbStatus' <- getAccountConferenceCallingConfigClient brigep mgr uid
+        liftIO $ assertEqual "GET /i/users/:uid/features/conferenceCalling" (Right (ApiFt.forgetLock defaultIfNull)) mbStatus'
 
         featureConfigs <- getAllFeatureConfigs galley uid
         liftIO $ assertEqual "GET /feature-configs" defaultIfNull (readFeatureConfigs featureConfigs)
 
-        featureConfigsConfCalling <- getFeatureConfig ApiFt.TeamFeatureConferenceCalling galley uid
+        featureConfigsConfCalling <- getFeatureConfig @ApiFt.ConferenceCallingConfig galley uid
         liftIO $ assertEqual "GET /feature-configs/conferenceCalling" defaultIfNull (responseJsonUnsafe featureConfigsConfCalling)
 
-      readFeatureConfigs :: HasCallStack => ResponseLBS -> ApiFt.TeamFeatureStatusNoConfig
+      readFeatureConfigs :: HasCallStack => ResponseLBS -> ApiFt.WithStatus ApiFt.ConferenceCallingConfig
       readFeatureConfigs =
         either (error . show) id
           . Aeson.parseEither Aeson.parseJSON
           . (^?! Aeson.key "conferenceCalling")
           . responseJsonUnsafe @Aeson.Value
 
-  check $ ApiFt.TeamFeatureStatusNoConfig ApiFt.TeamFeatureEnabled
-  check $ ApiFt.TeamFeatureStatusNoConfig ApiFt.TeamFeatureDisabled
+  check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusEnabled ApiFt.ConferenceCallingConfig
+  check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusDisabled ApiFt.ConferenceCallingConfig
   check'
 
 keyPackageCreate :: HasCallStack => Brig -> Http KeyPackageRef
 keyPackageCreate brig = do
   uid <- userQualifiedId <$> randomUser brig
   clid <- createClient brig uid 0
-  withSystemTempFile "api.internal.kpc" $ \store _ ->
-    uploadKeyPackages brig store SetKey uid clid 2
+  withSystemTempDirectory "mls" $ \tmp ->
+    uploadKeyPackages brig tmp SetKey uid clid 2
 
   uid2 <- userQualifiedId <$> randomUser brig
   claimResp <-
@@ -298,9 +302,39 @@ testKpcPutPut brig = do
   mqConv <- kpcGet brig ref
   liftIO $ assertEqual "Put x; Put y ~= Put y" (Just qConv2) mqConv
 
-getFeatureConfig :: (MonadIO m, MonadHttp m, HasCallStack) => ApiFt.TeamFeatureName -> (Request -> Request) -> UserId -> m ResponseLBS
-getFeatureConfig feature galley uid = do
-  get $ galley . paths ["feature-configs", toByteString' feature] . zUser uid
+testAddKeyPackageRef :: Brig -> Http ()
+testAddKeyPackageRef brig = do
+  ref <- keyPackageCreate brig
+  qcnv <- liftIO $ generate arbitrary
+  qusr <- liftIO $ generate arbitrary
+  c <- liftIO $ generate arbitrary
+  put
+    ( brig . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref]
+        . json
+          NewKeyPackageRef
+            { nkprUserId = qusr,
+              nkprClientId = c,
+              nkprConversation = qcnv
+            }
+    )
+    !!! const 201 === statusCode
+  ci <-
+    responseJsonError
+      =<< get (brig . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref])
+      <!! const 200 === statusCode
+  liftIO $ do
+    fmap ciDomain ci @?= Just (qDomain qusr)
+    fmap ciUser ci @?= Just (qUnqualified qusr)
+    fmap ciClient ci @?= Just c
+  mqcnv <-
+    responseJsonError
+      =<< get (brig . paths ["i", "mls", "key-packages", toByteString' $ toUrlPiece ref, "conversation"])
+      <!! const 200 === statusCode
+  liftIO $ mqcnv @?= Just qcnv
+
+getFeatureConfig :: forall cfg m. (MonadIO m, MonadHttp m, HasCallStack, ApiFt.IsFeatureConfig cfg, KnownSymbol (ApiFt.FeatureSymbol cfg)) => (Request -> Request) -> UserId -> m ResponseLBS
+getFeatureConfig galley uid = do
+  get $ galley . paths ["feature-configs", featureNameBS @cfg] . zUser uid
 
 getAllFeatureConfigs :: (MonadIO m, MonadHttp m, HasCallStack) => (Request -> Request) -> UserId -> m ResponseLBS
 getAllFeatureConfigs galley uid = do

@@ -58,4 +58,4 @@ rktLogRecord = do
   srv <- (toText <$> takeTill (== '[')) <* char '[' <* scientific <* char ']' <* char ':' <* skipSpace
   tags <- option [] (try svTags')
   msg <- strip . toText <$> takeTill (== '\n')
-  return $ RktLogRecord up srv tags msg
+  pure $ RktLogRecord up srv tags msg

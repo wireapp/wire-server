@@ -174,17 +174,19 @@ newRemoteMemberWithRole :: Remote (UserId, RoleName) -> RemoteMember
 newRemoteMemberWithRole ur@(qUntagged -> (Qualified (u, r) _)) =
   RemoteMember
     { rmId = qualifyAs ur u,
-      rmConvRoleName = r
+      rmConvRoleName = r,
+      rmMLSClients = mempty
     }
 
 lookupRemoteMembers :: ConvId -> Client [RemoteMember]
 lookupRemoteMembers conv = do
   fmap (map mkMem) . retry x1 $ query Cql.selectRemoteMembers (params LocalQuorum (Identity conv))
   where
-    mkMem (domain, usr, role) =
+    mkMem (domain, usr, role, clients) =
       RemoteMember
         { rmId = toRemoteUnsafe domain usr,
-          rmConvRoleName = role
+          rmConvRoleName = role,
+          rmMLSClients = Set.fromList (fromSet clients)
         }
 
 member ::
@@ -320,10 +322,32 @@ removeLocalMembersFromRemoteConv (qUntagged -> Qualified conv convDomain) victim
     setConsistency LocalQuorum
     for_ victims $ \u -> addPrepQuery Cql.deleteUserRemoteConv (u, convDomain, conv)
 
-addMLSClients :: ConvId -> UserId -> Set.Set ClientId -> Client ()
-addMLSClients cid uid cs =
+addMLSClients :: Local ConvId -> Qualified UserId -> Set.Set ClientId -> Client ()
+addMLSClients lcnv =
+  foldQualified
+    lcnv
+    (addLocalMLSClients (tUnqualified lcnv))
+    (addRemoteMLSClients (tUnqualified lcnv))
+
+addRemoteMLSClients :: ConvId -> Remote UserId -> Set.Set ClientId -> Client ()
+addRemoteMLSClients cid ruid cs =
   retry x5 $
-    write Cql.addMLSClients (params LocalQuorum (Cassandra.Set (toList cs), cid, uid))
+    write
+      Cql.addRemoteMLSClients
+      ( params
+          LocalQuorum
+          (Cassandra.Set (toList cs), cid, tDomain ruid, tUnqualified ruid)
+      )
+
+addLocalMLSClients :: ConvId -> Local UserId -> Set.Set ClientId -> Client ()
+addLocalMLSClients cid lusr cs =
+  retry x5 $
+    write
+      Cql.addLocalMLSClients
+      ( params
+          LocalQuorum
+          (Cassandra.Set (toList cs), cid, tUnqualified lusr)
+      )
 
 interpretMemberStoreToCassandra ::
   Members '[Embed IO, Input ClientState] r =>
@@ -345,4 +369,4 @@ interpretMemberStoreToCassandra = interpret $ \case
   DeleteMembersInRemoteConversation rcnv uids ->
     embedClient $
       removeLocalMembersFromRemoteConv rcnv uids
-  AddMLSClients cid uid cs -> embedClient $ addMLSClients cid uid cs
+  AddMLSClients lcnv quid cs -> embedClient $ addMLSClients lcnv quid cs

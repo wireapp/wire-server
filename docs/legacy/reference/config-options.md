@@ -73,9 +73,9 @@ IMPORTANT: If you switch this back to `disabled-permanently` from
 that have created them while it was allowed.  This may change in the
 future.
 
-### Team Feature teamSearchVisibility
+### Team searchVisibility
 
-The feature flag `teamSearchVisibility` affects the outbound search of user
+The team flag `searchVisibility` affects the outbound search of user
 searches. If it is set to `no-name-outside-team` for a team then all users of
 that team will no longer be able to find users that are not part of their team
 when searching. This also includes finding other users by by providing their
@@ -96,6 +96,9 @@ pull-down-menu "body":
   "no-name-outside-team"
 ```
 
+The team feature flag `teamSearchVisibility` determines whether it is allowed to change the `searchVisibility` setting or not.
+The default is `disabled-by-default`. Note that whenever this feature setting is disabled the `searchVisibility` will be reset to `standard`.
+
 The default setting that applies to all teams on the instance can be defined at configuration
 
 ```yaml
@@ -103,10 +106,6 @@ settings:
   featureFlags:
     teamSearchVisibility: disabled-by-default # or enabled-by-default
 ```
-
-where disabled is equivalent to `standard` and enabled is equivalent to `no-name-outside-team`. Individual teams may ovewrite the default setting.
-
-On wire cloud the default setting is `standard`.
 
 ### TeamFeature searchVisibilityInbound
 
@@ -235,6 +234,32 @@ sndFactorPasswordChallenge:
     status: disabled|enabled
     lockStatus: locked|unlocked
 ```
+
+### MLS
+
+This feature specifies how should behave. It has no effect on the server's behaviour.
+
+If this feature is enabled then clients that support this feature will allowing its user to switch between Proteus and the MLS protocol provided the user is listed ini `protocolToggleUsers`. The default protocol that clients will create new conversations with is specified in `defaultProtocol`. The `defaultCipherSuite` and `allowedCipherSuites` contain the default ciphersuite and the allowed ciphersuites that clients should be using. The numerical values should correspond to the indices (starting at 1) specified here https://messaginglayersecurity.rocks/mls-protocol/draft-ietf-mls-protocol.html#table-5
+
+If this feature is disabled then clients will use the Proteus protocol with this backend.
+
+The default configuration that applies to all teams that didn't explicitly change their feature configuration can be given in galley's `featureFlags` section in the config file:
+
+```
+# galley.yaml
+mls:
+  defaults:
+    status: disabled
+    config:
+      protocolToggleUsers: []
+      defaultProtocol: proteus
+      allowedCipherSuites: [1]
+      defaultCipherSuite: 1
+
+```
+
+This default configuration can be overriden on a per-team basis through the [feature config API](./features.md)
+
 
 ### Federation Domain
 

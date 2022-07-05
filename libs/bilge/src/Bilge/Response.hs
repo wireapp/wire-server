@@ -140,7 +140,7 @@ responseJsonUnsafeWithMsg ::
 responseJsonUnsafeWithMsg userErr = either err id . responseJsonEither
   where
     err parserErr =
-      error . intercalate " " $
+      error . unwords $
         ["responseJsonUnsafeWithMsg:"]
           <> [userErr | not $ null userErr]
           <> [parserErr]

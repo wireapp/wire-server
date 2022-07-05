@@ -82,7 +82,7 @@ jsonRequest ::
   Predicate r Error (JsonRequest body)
 jsonRequest =
   contentType "application" "json"
-    .&> (return . JsonRequest . getRequest)
+    .&> (pure . JsonRequest . getRequest)
 
 newtype OptionalJsonRequest body = OptionalJsonRequest {fromOptionalJsonRequest :: Request}
 
@@ -92,7 +92,7 @@ optionalJsonRequest ::
   Predicate r Error (OptionalJsonRequest body)
 optionalJsonRequest =
   opt (contentType "application" "json")
-    .&> (return . OptionalJsonRequest . getRequest)
+    .&> (pure . OptionalJsonRequest . getRequest)
 
 ----------------------------------------------------------------------------
 -- Instances

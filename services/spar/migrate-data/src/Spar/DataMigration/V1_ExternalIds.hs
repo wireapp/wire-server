@@ -186,11 +186,14 @@ sink = go
                 logDebug ("No team for user " <> show uid <> " from extid " <> show extid)
           NewExternalId (tid, extid, uid) ->
             lift $
-              dryRun <$> askMigEnv >>= \case
-                DryRun -> pure ()
-                NoDryRun ->
-                  runSpar $
-                    write insert (params LocalQuorum (tid, extid, uid))
+              askMigEnv
+                >>= ( \case
+                        DryRun -> pure ()
+                        NoDryRun ->
+                          runSpar $
+                            write insert (params LocalQuorum (tid, extid, uid))
+                    )
+                  . dryRun
         go
     insert :: PrepQuery W (TeamId, Text, UserId) ()
     insert = "INSERT INTO scim_external (team, external_id, user) VALUES (?, ?, ?)"

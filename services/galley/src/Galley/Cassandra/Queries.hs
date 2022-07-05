@@ -17,9 +17,6 @@
 
 module Galley.Cassandra.Queries where
 
-import Brig.Types.Client.Prekey
-import Brig.Types.Code
-import Brig.Types.Provider
 import Cassandra as C hiding (Value)
 import Cassandra.Util (Writetime)
 import Data.Domain (Domain)
@@ -29,20 +26,25 @@ import Data.LegalHold
 import Data.Misc
 import qualified Data.Text.Lazy as LT
 import Galley.Data.Scope
-import Galley.Types hiding (Conversation)
-import Galley.Types.Conversations.Roles
-import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SearchVisibility
 import Imports
 import Text.RawString.QQ
+import Wire.API.Asset (AssetKey)
+import Wire.API.Conversation
+import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role
+import Wire.API.Provider
+import Wire.API.Provider.Service
 import Wire.API.Team
+import Wire.API.Team.Permission
+import Wire.API.Team.SearchVisibility
+import Wire.API.User.Client.Prekey
 
 -- Teams --------------------------------------------------------------------
 
-selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Icon, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe TeamBinding)
-selectTeam = "select creator, name, icon, icon_key, deleted, status, writetime(status), binding from team where team = ?"
+selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Icon, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe TeamBinding, Maybe AssetKey)
+selectTeam = "select creator, name, icon, icon_key, deleted, status, writetime(status), binding, splash_screen from team where team = ?"
 
 selectTeamName :: PrepQuery R (Identity TeamId) (Identity Text)
 selectTeamName = "select name from team where team = ?"
@@ -188,6 +190,9 @@ updateTeamIconKey = "update team set icon_key = ? where team = ?"
 updateTeamStatus :: PrepQuery W (TeamStatus, TeamId) ()
 updateTeamStatus = "update team set status = ? where team = ?"
 
+updateTeamSplashScreen :: PrepQuery W (AssetKey, TeamId) ()
+updateTeamSplashScreen = "update team set splash_screen = ? where team = ?"
+
 -- Conversations ------------------------------------------------------------
 
 selectConv :: PrepQuery R (Identity ConvId) (ConvType, UserId, Maybe (C.Set Access), Maybe AccessRoleLegacy, Maybe (C.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch)
@@ -302,8 +307,8 @@ insertRemoteMember = "insert into member_remote_user (conv, user_remote_domain, 
 removeRemoteMember :: PrepQuery W (ConvId, Domain, UserId) ()
 removeRemoteMember = "delete from member_remote_user where conv = ? and user_remote_domain = ? and user_remote_id = ?"
 
-selectRemoteMembers :: PrepQuery R (Identity ConvId) (Domain, UserId, RoleName)
-selectRemoteMembers = "select user_remote_domain, user_remote_id, conversation_role from member_remote_user where conv = ?"
+selectRemoteMembers :: PrepQuery R (Identity ConvId) (Domain, UserId, RoleName, C.Set ClientId)
+selectRemoteMembers = "select user_remote_domain, user_remote_id, conversation_role, mls_clients from member_remote_user where conv = ?"
 
 updateRemoteMemberConvRoleName :: PrepQuery W (RoleName, ConvId, Domain, UserId) ()
 updateRemoteMemberConvRoleName = "update member_remote_user set conversation_role = ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
@@ -359,8 +364,17 @@ rmMemberClient c =
 
 -- MLS Clients --------------------------------------------------------------
 
-addMLSClients :: PrepQuery W (C.Set ClientId, ConvId, UserId) ()
-addMLSClients = "update member set mls_clients = mls_clients + ? where conv = ? and user = ?"
+addLocalMLSClients :: PrepQuery W (C.Set ClientId, ConvId, UserId) ()
+addLocalMLSClients = "update member set mls_clients = mls_clients + ? where conv = ? and user = ?"
+
+addRemoteMLSClients :: PrepQuery W (C.Set ClientId, ConvId, Domain, UserId) ()
+addRemoteMLSClients = "update member_remote_user set mls_clients = mls_clients + ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
+
+acquireCommitLock :: PrepQuery W (GroupId, Epoch, Int32) Row
+acquireCommitLock = "insert into mls_commit_locks (group_id, epoch) values (?, ?) if not exists using ttl ?"
+
+releaseCommitLock :: PrepQuery W (GroupId, Epoch) ()
+releaseCommitLock = "delete from mls_commit_locks where group_id = ? and epoch = ?"
 
 -- Services -----------------------------------------------------------------
 

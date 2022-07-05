@@ -59,7 +59,7 @@ initialContactsDisco (pack -> srv) url = liftIO $ do
             . _String
           & map unpack
   case ip of
-    i : ii -> return (i :| ii)
+    i : ii -> pure (i :| ii)
     _ -> error "initial-contacts: no IP addresses found."
 
 -- | Puts the address into a list using the same signature as the other initialContacts

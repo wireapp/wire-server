@@ -22,7 +22,6 @@ module Stern.API.Predicates
   )
 where
 
-import Brig.Types
 import qualified Data.ByteString.Char8 as Char8
 import Data.ByteString.Conversion
 import qualified Data.Char as Char
@@ -31,6 +30,7 @@ import Network.Wai.Predicate
 import Network.Wai.Predicate.Request
 import Network.Wai.Routing (param)
 import Network.Wai.Routing.Request
+import Wire.API.User.Identity
 
 phoneParam :: (HasCaptures r, HasQuery r) => Predicate r Error Phone
 phoneParam = (>>= maybe (Fail invalidPhone) pure . fromByteString) <$> trimParam "phone"

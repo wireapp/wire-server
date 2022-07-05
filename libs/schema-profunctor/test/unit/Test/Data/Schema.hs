@@ -351,7 +351,7 @@ testNullable =
             A.parse (schemaIn sch) A.Null @?= Success Nothing,
           testCase "Nullable schemas should produce either a value or null" $ do
             schemaOut sch (Just 5) @?= Just (A.Number 5)
-            schemaOut sch Nothing @?= Just (A.Null),
+            schemaOut sch Nothing @?= Just A.Null,
           testCase "Nullable schemas should return an error when parsing invalid non-null values" $ do
             case A.parse (schemaIn sch) (A.String "foo") of
               Success _ -> assertFailure "fromJSON should fail"

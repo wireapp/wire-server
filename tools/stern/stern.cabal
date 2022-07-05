@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5287c14ec315c7bd7ae56515e9b34de87068021daadd44a2b122056bb62c9bc3
+-- hash: 129165c61095a4d635f1bb041acc5559fefa677ebd26decb9abff15484cf1d7b
 
 name:           stern
 version:        1.7.2
@@ -95,6 +95,7 @@ library
     , lens >=4.4
     , metrics-wai >=0.3
     , mtl >=2.1
+    , schema-profunctor
     , split >=0.2
     , string-conversions
     , swagger >=0.3

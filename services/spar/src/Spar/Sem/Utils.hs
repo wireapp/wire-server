@@ -17,7 +17,14 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Spar.Sem.Utils (viaRunHttp, RunHttpEnv (..), interpretClientToIO, ttlErrorToSparError) where
+module Spar.Sem.Utils
+  ( viaRunHttp,
+    RunHttpEnv (..),
+    interpretClientToIO,
+    ttlErrorToSparError,
+    idpDbErrorToSparError,
+  )
+where
 
 import Bilge
 import Cassandra as Cas
@@ -54,6 +61,9 @@ interpretClientToIO ctx = interpret $ \case
 
 ttlErrorToSparError :: Member (Error SparError) r => Sem (Error TTLError ': r) a -> Sem r a
 ttlErrorToSparError = mapError (SAML.CustomError . SparCassandraTTLError)
+
+idpDbErrorToSparError :: Member (Error SparError) r => Sem (Error IdpDbError ': r) a -> Sem r a
+idpDbErrorToSparError = mapError (SAML.CustomError . IdpDbError)
 
 data RunHttpEnv r = RunHttpEnv
   { rheManager :: Bilge.Manager,

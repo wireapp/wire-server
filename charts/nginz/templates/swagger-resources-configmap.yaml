@@ -1,0 +1,27 @@
+# Swagger-1.0 JSON to combine swagger-1.0 documents from different services
+apiVersion: v1
+data:
+  resources.json: |2
+    {
+        "apiVersion": "1.0",
+        "swaggerVersion": "1.2",
+        "apis": [
+            {
+            "path": "/users",
+            "description": "Users, Connections and Onboarding"
+        },
+            {
+            "path": "/push",
+            "description": "Push Notifications"
+        },
+            {
+            "path": "/conversations",
+            "description": "Conversations and Messaging"
+        }
+        ]
+    }
+
+kind: ConfigMap
+metadata:
+  name: nginz-swagger-resources
+

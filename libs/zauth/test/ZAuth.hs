@@ -42,7 +42,7 @@ tests = do
   (p3, s3) <- newKeyPair
   z <- C.mkEnv s1 [s2, s3]
   let v = V.mkEnv p1 [p2, p3]
-  return $
+  pure $
     testGroup
       "ZAuth"
       [ testGroup
@@ -69,10 +69,10 @@ defDuration :: Integer
 defDuration = 1
 
 testUserIsNotLegalHoldUser :: Token LegalHoldUser -> Bool
-testUserIsNotLegalHoldUser t = fromByteString @(Token User) (toByteString' t) == Nothing
+testUserIsNotLegalHoldUser t = isNothing (fromByteString @(Token User) (toByteString' t))
 
 testUserIsNotLegalHoldUser' :: Token User -> Bool
-testUserIsNotLegalHoldUser' t = fromByteString @(Token LegalHoldUser) (toByteString' t) == Nothing
+testUserIsNotLegalHoldUser' t = isNothing (fromByteString @(Token LegalHoldUser) (toByteString' t))
 
 testDecEncAccessToken :: Token Access -> Bool
 testDecEncAccessToken t = fromByteString (toByteString' t) == Just t
@@ -117,8 +117,8 @@ testSignAndVerify p = do
 testRandDevIds :: Create ()
 testRandDevIds = do
   u <- liftIO nextRandom
-  t1 <- (view body) <$> accessToken1 defDuration u
-  t2 <- (view body) <$> accessToken1 defDuration u
+  t1 <- view body <$> accessToken1 defDuration u
+  t2 <- view body <$> accessToken1 defDuration u
   liftIO $ assertBool "unexpected: Same device ID." (t1 ^. connection /= t2 ^. connection)
 
 -- Helpers:

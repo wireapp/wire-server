@@ -29,7 +29,6 @@ import Brig.App
 import qualified Brig.Data.Connection as Data
 import Brig.Federation.Client (sendConnectionAction)
 import qualified Brig.IO.Intra as Intra
-import Brig.Types
 import Brig.Types.User.Event
 import Control.Comonad
 import Control.Error.Util ((??))
@@ -39,7 +38,7 @@ import Data.Qualified
 import Galley.Types.Conversations.Intra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (uuorConvId))
 import Imports
 import Network.Wai.Utilities.Error
-import Wire.API.Connection (relationWithHistory)
+import Wire.API.Connection
 import Wire.API.Federation.API.Brig
   ( NewConnectionResponse (..),
     RemoteConnectionAction (..),

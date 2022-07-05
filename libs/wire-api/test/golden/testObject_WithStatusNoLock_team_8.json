@@ -1,0 +1,9 @@
+{
+    "config": {
+        "domains": [
+            "example.com",
+            "test.foobar"
+        ]
+    },
+    "status": "enabled"
+}

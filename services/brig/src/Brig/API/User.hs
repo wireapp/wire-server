@@ -119,11 +119,10 @@ import qualified Brig.Sem.CodeStore as E
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Brig.Sem.PasswordResetStore as E
 import qualified Brig.Team.DB as Team
-import Brig.Types
-import Brig.Types.Code (Timeout (..))
+import Brig.Types.Activation (ActivationPair)
+import Brig.Types.Connection
 import Brig.Types.Intra
-import Brig.Types.Team.Invitation (inCreatedAt, inCreatedBy)
-import qualified Brig.Types.Team.Invitation as Team
+import Brig.Types.User (HavePendingInvitations (..), ManagedByUpdate (..), PasswordResetPair)
 import Brig.Types.User.Event
 import Brig.User.Auth.Cookie (revokeAllCookies)
 import Brig.User.Email
@@ -138,6 +137,7 @@ import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion
+import Data.Code
 import qualified Data.Currency as Currency
 import Data.Handle (Handle)
 import Data.Id as Id
@@ -159,12 +159,22 @@ import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import UnliftIO.Async
+import Wire.API.Connection
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
-import Wire.API.Team.Member (legalHoldStatus)
+import Wire.API.Team hiding (newTeam)
+import Wire.API.Team.Feature (forgetLock)
+import Wire.API.Team.Invitation
+import qualified Wire.API.Team.Invitation as Team
+import Wire.API.Team.Member (TeamMember, legalHoldStatus)
+import Wire.API.Team.Role
+import Wire.API.Team.Size
 import Wire.API.User
+import Wire.API.User.Activation
+import Wire.API.User.Client
+import Wire.API.User.Password
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -363,7 +373,7 @@ createUser new = do
       ok <- lift . wrapClient $ Data.claimKey uk uid
       unless ok $
         throwE RegisterErrorUserKeyExists
-      let minvmeta :: (Maybe (UserId, UTCTimeMillis), Team.Role)
+      let minvmeta :: (Maybe (UserId, UTCTimeMillis), Role)
           minvmeta = ((,inCreatedAt inv) <$> inCreatedBy inv, Team.inRole inv)
       added <- lift $ wrapHttp $ Intra.addTeamMember uid (Team.iiTeam ii) minvmeta
       unless added $
@@ -382,7 +392,7 @@ createUser new = do
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
     addUserToTeamSSO account tid ident = do
       let uid = userId (accountUser account)
-      added <- lift $ wrapHttp $ Intra.addTeamMember uid tid (Nothing, Team.defaultRole)
+      added <- lift $ wrapHttp $ Intra.addTeamMember uid tid (Nothing, defaultRole)
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
@@ -434,7 +444,7 @@ createUser new = do
 initAccountFeatureConfig :: UserId -> (AppT r) ()
 initAccountFeatureConfig uid = do
   mbCciDefNew <- view (settings . getAfcConferenceCallingDefNewMaybe)
-  forM_ mbCciDefNew $ wrapClient . Data.updateFeatureConferenceCalling uid . Just
+  forM_ (forgetLock <$> mbCciDefNew) $ wrapClient . Data.updateFeatureConferenceCalling uid . Just
 
 -- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where
@@ -929,8 +939,8 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
         -- user has 'userTeam' set, it must be binding.
         case mbTeam of
           Just team
-            | team ^. Team.teamCreator == uid ->
-              sendTeamActivationMail em name p loc' (team ^. Team.teamName)
+            | team ^. teamCreator == uid ->
+              sendTeamActivationMail em name p loc' (team ^. teamName)
           _otherwise ->
             sendActivationMail em name p loc' ident
 
@@ -1349,7 +1359,7 @@ lookupLocalProfiles requestingUser others = do
     toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
 
-    getSelfInfo :: UserId -> m (Maybe (TeamId, Team.TeamMember))
+    getSelfInfo :: UserId -> m (Maybe (TeamId, TeamMember))
     getSelfInfo selfId = do
       -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
       -- to return 'Nothing'.  we could throw errors here if that happens, rather than just
@@ -1400,7 +1410,7 @@ getLegalHoldStatus' user =
 
 data EmailVisibility'
   = EmailVisibleIfOnTeam'
-  | EmailVisibleIfOnSameTeam' (Maybe (TeamId, Team.TeamMember))
+  | EmailVisibleIfOnSameTeam' (Maybe (TeamId, TeamMember))
   | EmailVisibleToSelf'
 
 -- | Gets the email if it's visible to the requester according to configured settings

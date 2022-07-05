@@ -5,7 +5,7 @@ metadata:
   annotations:
     "helm.sh/hook": test-success
   labels:
-    wireService: spar-integration
+    app: spar-integration
     release: {{ .Release.Name }}
 spec:
   volumes:

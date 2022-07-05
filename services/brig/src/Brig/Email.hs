@@ -42,11 +42,11 @@ where
 import qualified Brig.AWS as AWS
 import Brig.App (Env, awsEnv, smtpEnv)
 import qualified Brig.SMTP as SMTP
-import Brig.Types
 import Control.Lens (view)
 import qualified Data.Text as Text
 import Imports
 import Network.Mail.Mime
+import Wire.API.User
 
 -------------------------------------------------------------------------------
 sendMail :: (MonadIO m, MonadReader Env m) => Mail -> m ()

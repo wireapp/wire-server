@@ -25,7 +25,6 @@ import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import Brig.Options
 import qualified Brig.Options as Opt
-import Brig.Types
 import Data.Aeson
 import qualified Data.ByteString.Char8 as C
 import Data.String.Conversions (cs)
@@ -34,6 +33,7 @@ import Imports
 import qualified Network.Wai.Utilities.Error as Error
 import Test.Tasty hiding (Timeout)
 import Util
+import Wire.API.User
 
 tests :: ConnectionLimit -> Opt.Timeout -> Opt.Opts -> Manager -> Brig -> Cannon -> Galley -> TestTree
 tests _cl _at opts p b _c _g =

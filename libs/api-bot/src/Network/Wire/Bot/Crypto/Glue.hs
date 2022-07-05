@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -67,7 +65,7 @@ randomBytes :: MonadIO m => Box -> Word32 -> m ByteString
 randomBytes b n = liftIO $ CBox.randomBytes b n >>= unwrap >>= CBox.copyBytes
 
 unwrap :: (Show a, MonadThrow m) => CBox.Result a -> m a
-unwrap (CBox.Success a) = return a
+unwrap (CBox.Success a) = pure a
 unwrap other = throwM $ userError (show other)
 
 getBoxDir :: UserId -> Maybe Text -> IO FilePath
@@ -75,4 +73,4 @@ getBoxDir uid label = do
   tmp <- getTemporaryDirectory
   let usrDir = show (toUUID uid)
   let cltDir = maybe "" Text.unpack label
-  return $ tmp </> "wire-bot" </> usrDir </> cltDir
+  pure $ tmp </> "wire-bot" </> usrDir </> cltDir

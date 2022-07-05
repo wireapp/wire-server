@@ -22,9 +22,9 @@ module Brig.AWS.Types
   )
 where
 
-import Brig.Types (Email (..))
 import Data.Aeson
 import Imports
+import Wire.API.User.Identity
 
 -------------------------------------------------------------------------------
 -- Notifications

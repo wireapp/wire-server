@@ -19,7 +19,6 @@
 
 module Galley.API.Util where
 
-import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
@@ -52,10 +51,9 @@ import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
 import Galley.Intra.Push
 import Galley.Options
-import Galley.Types
-import Galley.Types.Conversations.Members (localMemberToOther, remoteMemberToOther)
+import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..), localMemberToOther, remoteMemberToOther)
 import Galley.Types.Conversations.Roles
-import Galley.Types.Teams hiding (Event, MemberJoin, self)
+import Galley.Types.Teams
 import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Network.HTTP.Types
@@ -65,12 +63,19 @@ import qualified Network.Wai.Utilities as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Wire.API.Connection
+import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.Team.Member
+import Wire.API.Team.Role
 import Wire.API.User (VerificationAction)
 import qualified Wire.API.User as User
 

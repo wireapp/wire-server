@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: proxy
   labels:
-    wireService: proxy
+    app: proxy
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
@@ -16,11 +16,11 @@ spec:
       maxSurge: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      wireService: proxy
+      app: proxy
   template:
     metadata:
       labels:
-        wireService: proxy
+        app: proxy
         release: {{ .Release.Name }}
       annotations:
         # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`

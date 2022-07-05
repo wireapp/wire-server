@@ -19,14 +19,17 @@
 
 module Brig.Types.User.Event where
 
-import Brig.Types
 import Data.ByteString.Conversion
 import Data.Handle (Handle)
 import Data.Id
 import Data.Qualified
 import Imports
 import System.Logger.Class
+import Wire.API.Connection
 import Wire.API.Properties
+import Wire.API.User
+import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
 
 data Event
   = UserEvent !UserEvent

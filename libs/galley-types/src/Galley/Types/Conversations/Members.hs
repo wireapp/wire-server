@@ -20,6 +20,7 @@
 module Galley.Types.Conversations.Members
   ( RemoteMember (..),
     remoteMemberToOther,
+    remoteMemberQualify,
     LocalMember (..),
     localMemberToOther,
     newMember,
@@ -41,7 +42,8 @@ import Wire.API.Provider.Service (ServiceRef)
 -- | Internal (cassandra) representation of a remote conversation member.
 data RemoteMember = RemoteMember
   { rmId :: Remote UserId,
-    rmConvRoleName :: RoleName
+    rmConvRoleName :: RoleName,
+    rmMLSClients :: Set ClientId
   }
   deriving stock (Show)
 
@@ -52,6 +54,9 @@ remoteMemberToOther x =
       omService = Nothing,
       omConvRoleName = rmConvRoleName x
     }
+
+remoteMemberQualify :: RemoteMember -> Remote RemoteMember
+remoteMemberQualify m = qualifyAs (rmId m) m
 
 -- | Internal (cassandra) representation of a local conversation member.
 data LocalMember = LocalMember

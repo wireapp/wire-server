@@ -1,6 +1,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+
+{-# HLINT ignore "Use mapM" #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -274,7 +277,7 @@ instance Arbitrary (ParseInput TinyLogRecord) where
                 map (\(k, v) -> alnum k <> "=" <> fieldValue v) fields
                   ++ [message]
             ]
-    return $ ParseInput (rec, inp)
+    pure $ ParseInput (rec, inp)
     where
       stripQuotes t = case T.strip t of
         t'
@@ -294,7 +297,7 @@ instance Arbitrary (ParseInput (SvLogRecord Text)) where
               svMessage = T.strip message
             }
         inp = mkSvInput df rec (encodeUtf8 message)
-    return $ ParseInput (rec, inp)
+    pure $ ParseInput (rec, inp)
 
 instance Arbitrary (ParseInput (SvLogRecord TinyLogRecord)) where
   arbitrary = do
@@ -310,7 +313,7 @@ instance Arbitrary (ParseInput (SvLogRecord TinyLogRecord)) where
 
     let rec = sv {svMessage = tiny}
         inp = mkSvInput df rec tinyIn
-    return $ ParseInput (rec, inp)
+    pure $ ParseInput (rec, inp)
 
 mkSvInput :: DateFormat -> SvLogRecord a -> ByteString -> ByteString
 mkSvInput df rec msg =
@@ -328,7 +331,7 @@ mkSvInput df rec msg =
       msg
     ]
 
-instance Arbitrary (ParseInput (NginzLogRecord)) where
+instance Arbitrary (ParseInput NginzLogRecord) where
   arbitrary = do
     raddr <- genIPv4Field
     ruser <- genStringField
@@ -361,10 +364,12 @@ instance Arbitrary (ParseInput (NginzLogRecord)) where
                 ]
             ]
               ++ map (unField . snd) fields
-    return $ ParseInput (NginzLogRecord rec, inp)
+    pure $ ParseInput (NginzLogRecord rec, inp)
     where
       genFields :: Gen [(Text, CommonLogField)]
       genFields =
+        -- we're disabling the linter rule here to avoid an issue from GHC
+        -- https://gitlab.haskell.org/ghc/ghc/-/issues/18730
         sequence $
           map
             (\(f, g) -> (f,) <$> g)
@@ -442,7 +447,7 @@ instance Arbitrary (ParseInput (SockLogRecord (SvLogRecord Text))) where
               sockMessage = sv
             }
         inp = mkSockInput df rec svIn
-    return $ ParseInput (rec, inp)
+    pure $ ParseInput (rec, inp)
 
 instance Arbitrary (ParseInput (SockLogRecord (SvLogRecord TinyLogRecord))) where
   arbitrary = do
@@ -464,7 +469,7 @@ instance Arbitrary (ParseInput (SockLogRecord (SvLogRecord TinyLogRecord))) wher
               sockMessage = sv
             }
         inp = mkSockInput df rec svIn
-    return $ ParseInput (rec, inp)
+    pure $ ParseInput (rec, inp)
 
 mkSockInput :: DateFormat -> SockLogRecord a -> ByteString -> ByteString
 mkSockInput df rec msg =
@@ -478,8 +483,7 @@ mkSockInput df rec msg =
           mconcat
             [ "|",
               BC.intercalate ","
-                . map (\(k, v) -> BC.intercalate "=" [k, v])
-                . map (encodeUtf8 *** encodeUtf8)
+                . map ((\(k, v) -> BC.intercalate "=" [k, v]) . (encodeUtf8 *** encodeUtf8))
                 $ sockTags rec,
               "|"
             ],
@@ -507,7 +511,7 @@ instance Arbitrary (ParseInput TaggedNetstring) where
   arbitrary = do
     tns <- arbitrary
     let inp = B.concat . map netstr' . taggedNetstring $ tns
-    return $ ParseInput (tns, inp)
+    pure $ ParseInput (tns, inp)
     where
       netstr' (Nothing, v) = netstr . taggedValue $ v
       netstr' (Just k, v) =
@@ -563,7 +567,7 @@ instance Arbitrary (ParseInput TinylogNetstr) where
         f = flip map fields $ \(k, v) -> case k of
           Just k' -> mconcat . map netstr $ [taggedValue k', "=", taggedValue v]
           Nothing -> netstr (taggedValue v)
-    return $ ParseInput (rec, inp)
+    pure $ ParseInput (rec, inp)
 
 instance Arbitrary (ParseInput (SvLogRecord TinylogNetstr)) where
   arbitrary = do
@@ -574,7 +578,7 @@ instance Arbitrary (ParseInput (SvLogRecord TinylogNetstr)) where
         `suchThat` (isJust . svTime . fst . parseInput)
     let rec = sv {svMessage = tiny}
         inp = mkSvInput df rec tinyIn
-    return $ ParseInput (rec, inp)
+    pure $ ParseInput (rec, inp)
 
 instance Arbitrary (ParseInput (SockLogRecord (SvLogRecord TinylogNetstr))) where
   arbitrary = do
@@ -596,7 +600,7 @@ instance Arbitrary (ParseInput (SockLogRecord (SvLogRecord TinylogNetstr))) wher
               sockMessage = sv
             }
         inp = mkSockInput df rec svIn
-    return $ ParseInput (rec, inp)
+    pure $ ParseInput (rec, inp)
 
 --------------------------------------------------------------------------------
 -- Reduce timestamp precision

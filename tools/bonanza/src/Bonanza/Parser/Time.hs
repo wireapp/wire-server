@@ -28,6 +28,7 @@ where
 
 import Control.Applicative (optional)
 import Data.Attoparsec.ByteString.Char8
+import Data.Bifunctor (first)
 import qualified Data.List as List
 import Data.Time
 import Data.Time.Clock.POSIX
@@ -36,17 +37,17 @@ import Imports hiding (take)
 
 tai64N :: Parser UTCTime
 tai64N = do
-  secs <- take 16 >>= int >>= return . subtract taiBase
+  secs <- (take 16 >>= int) <&> subtract taiBase
   nano <- take 8 >>= int
   let t = posixSecondsToUTCTime $ posix secs nano
       l = (-1) * fromIntegral (leapSeconds t)
-  return $ addUTCTime l t
+  pure $ addUTCTime l t
   where
     int :: ByteString -> Parser Integer
     int bs =
       either
         (const $ fail "not a hexadecimal number")
-        (return . id)
+        pure
         (parseOnly hexadecimal bs)
     posix :: Integer -> Integer -> POSIXTime
     posix secs nano =
@@ -68,7 +69,7 @@ isoTime = do
   s <- decimal
   u <- option 0 (char '.' *> decimal)
   _ <- optional (string "Z" <|> string "+0000")
-  return . picosecondsToDiffTime $
+  pure . picosecondsToDiffTime $
     toPico h fHour
       + toPico m fMinute
       + toPico s fSecond
@@ -88,20 +89,20 @@ commonLogDate = do
   let ld = fromGregorian y m d
       lt = TimeOfDay h m' (fromInteger s)
       tz = hoursToTimeZone z
-   in return $ localTimeToUTC tz (LocalTime ld lt)
+   in pure $ localTimeToUTC tz (LocalTime ld lt)
   where
-    month "Jan" = return 1
-    month "Feb" = return 2
-    month "Mar" = return 3
-    month "Apr" = return 4
-    month "May" = return 5
-    month "Jun" = return 6
-    month "Jul" = return 7
-    month "Aug" = return 8
-    month "Sep" = return 9
-    month "Oct" = return 10
-    month "Nov" = return 11
-    month "Dec" = return 12
+    month "Jan" = pure 1
+    month "Feb" = pure 2
+    month "Mar" = pure 3
+    month "Apr" = pure 4
+    month "May" = pure 5
+    month "Jun" = pure 6
+    month "Jul" = pure 7
+    month "Aug" = pure 8
+    month "Sep" = pure 9
+    month "Oct" = pure 10
+    month "Nov" = pure 11
+    month "Dec" = pure 12
     month x = fail $ "not a valid month name: " ++ show x
 
 --------------------------------------------------------------------------------
@@ -132,7 +133,7 @@ leapSeconds = fromMaybe def . leapSecondsMap . utctDay
 
 -- Source: https://www.ietf.org/timezones/data/leap-seconds.list
 leapSecondsMap :: LeapSecondMap
-leapSecondsMap v = List.lookup v $ map (\(x, y) -> (read x, y)) leap
+leapSecondsMap v = List.lookup v $ map (first read) leap
   where
     leap =
       [ ("1972-01-01", 10),

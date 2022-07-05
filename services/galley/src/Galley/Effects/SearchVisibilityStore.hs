@@ -26,8 +26,8 @@ module Galley.Effects.SearchVisibilityStore
 where
 
 import Data.Id
-import Galley.Types.Teams.SearchVisibility
 import Polysemy
+import Wire.API.Team.SearchVisibility
 
 data SearchVisibilityStore m a where
   GetSearchVisibility :: TeamId -> SearchVisibilityStore m TeamSearchVisibility

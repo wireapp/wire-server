@@ -26,13 +26,6 @@ module Galley.Types.Bot.Service
     serviceToken,
     serviceFingerprints,
     serviceEnabled,
-
-    -- * re-exports
-    ServiceToken (..),
-    ServiceRef (..),
-    newServiceRef,
-    serviceRefId,
-    serviceRefProvider,
   )
 where
 

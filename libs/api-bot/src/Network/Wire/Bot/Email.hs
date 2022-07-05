@@ -78,7 +78,7 @@ instance Exception MailException
 loadMailboxConfig :: FilePath -> IO [Mailbox]
 loadMailboxConfig p = do
   cfg <- LB.readFile p
-  mbs <- either error return (eitherDecode' cfg) :: IO [MailboxSettings]
+  mbs <- either error pure (eitherDecode' cfg) :: IO [MailboxSettings]
   mapM newMailbox mbs
 
 newMailbox :: MailboxSettings -> IO Mailbox
@@ -88,7 +88,7 @@ newMailbox s@(MailboxSettings host usr pwd conns) =
     connect = do
       c <- connectIMAPSSLWithSettings host defaultSettingsIMAPSSL
       login c (show usr) pwd
-      return c
+      pure c
 
 -- | Awaits activation e-mail to arrive at a mailbox with
 -- the designated recipient address.
@@ -109,7 +109,7 @@ awaitActivationMail mbox folders from to = do
     let codeHdr = find ((== "x-zeta-code") . paramName) hdrs
     case liftM2 (,) keyHdr codeHdr of
       Just (k, c) ->
-        return $
+        pure $
           ( ActivationKey $ Ascii.unsafeFromText $ paramValue k,
             ActivationCode $ Ascii.unsafeFromText $ paramValue c
           )
@@ -132,7 +132,7 @@ awaitPasswordResetMail mbox folders from to = do
     let codeHdr = find ((== "x-zeta-code") . paramName) hdrs
     case liftM2 (,) keyHdr codeHdr of
       Just (k, c) ->
-        return $
+        pure $
           ( PasswordResetKey $ Ascii.unsafeFromText $ paramValue k,
             PasswordResetCode $ Ascii.unsafeFromText $ paramValue c
           )
@@ -153,7 +153,7 @@ awaitInvitationMail mbox folders from to = do
     let hdrs = mime_val_headers msg
     let invHdr = find ((== "x-zeta-code") . paramName) hdrs
     case invHdr of
-      Just i -> return . read . T.unpack $ paramValue i
+      Just i -> pure . read . T.unpack $ paramValue i
       Nothing -> throwIO MissingEmailHeaders
 
 awaitMail ::
@@ -176,7 +176,7 @@ awaitMail mbox folders from to purpose = go 0
       case msgs of
         [] | t >= timeout -> throwIO EmailTimeout
         [] -> threadDelay sleep >> go (t + sleep)
-        (m : ms) -> return (m :| ms)
+        (m : ms) -> pure (m :| ms)
 
 fetchMail ::
   Mailbox ->
@@ -192,7 +192,7 @@ fetchMail ::
 fetchMail mbox folders from to purpose = withResource (mailboxPool mbox) $ \c -> do
   msgIds <- concat <$> forM folders (searchMail c)
   msgs <- mapM (fetch c) msgIds
-  return $ map (parseMIMEMessage . T.decodeLatin1) msgs
+  pure $ map (parseMIMEMessage . T.decodeLatin1) msgs
   where
     searchMail c folder = do
       select c folder

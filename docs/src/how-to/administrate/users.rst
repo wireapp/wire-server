@@ -283,7 +283,75 @@ Metric values are sets of data points about services, such as status and other m
 
 Sometimes, you will want to manually obtain this data that is normally automatically grabbed by Prometheus.
 
-This command allows you to obtain the data, for example for gundeck:
+Some of the pods allow you to grab metrics by accessing their ``/i/metrics`` endpoint, in particular:
+
+* ``brig``: User management API
+* ``cannon``: WebSockets API
+* ``cargohold``: Assets storage API
+* ``galley``: Conversations and Teams API
+* ``gundeck``: Push Notifications API
+* ``spar``: Single-Sign-ON and SCIM
+
+For more details on the various services/pods, you can check out `this link <../../understand/overview.html?highlight=gundeck#focus-on-pods>`.
+
+Before you can grab metrics from a pod, you need to find its IP address. You do this by running the following command:
+
+.. code:: sh
+
+   d kubectl get pods -owide
+
+(this presumes you are already in your normal Wire environment, which you obtain by running ``source ./bin/offline-env.sh``)
+
+Which will give you an output that looks something like this:
+
+.. code::
+
+   demo@Ubuntu-1804-bionic-64-minimal:~/Wire-Server$ d kubectl get pods -owide
+   NAME                               READY   STATUS      RESTARTS   AGE     IP              NODE        NOMINATED NODE   READINESS GATES
+   account-pages-784f9b547c-cp444     1/1     Running     0          6d23h   10.233.113.5    kubenode3   <none>           <none>
+   brig-746ddc55fd-6pltz              1/1     Running     0          6d23h   10.233.110.11   kubenode2   <none>           <none>
+   brig-746ddc55fd-d59dw              1/1     Running     0          6d4h    10.233.110.23   kubenode2   <none>           <none>
+   brig-746ddc55fd-zp7jl              1/1     Running     0          6d23h   10.233.113.10   kubenode3   <none>           <none>
+   brig-index-migrate-data-45rm7      0/1     Completed   0          6d23h   10.233.110.9    kubenode2   <none>           <none>
+   cannon-0                           1/1     Running     0          3h1m    10.233.119.41   kubenode1   <none>           <none>
+   cannon-1                           1/1     Running     0          3h1m    10.233.113.47   kubenode3   <none>           <none>
+   cannon-2                           1/1     Running     0          3h1m    10.233.110.51   kubenode2   <none>           <none>
+   cargohold-65bff97fc6-8b9ls         1/1     Running     0          6d4h    10.233.113.20   kubenode3   <none>           <none>
+   cargohold-65bff97fc6-bkx6x         1/1     Running     0          6d23h   10.233.113.4    kubenode3   <none>           <none>
+   cargohold-65bff97fc6-tz8fh         1/1     Running     0          6d23h   10.233.110.5    kubenode2   <none>           <none>
+   cassandra-migrations-bjsdz         0/1     Completed   0          6d23h   10.233.110.3    kubenode2   <none>           <none>
+   demo-smtp-784ddf6989-vmj7t         1/1     Running     0          6d23h   10.233.113.2    kubenode3   <none>           <none>
+   elasticsearch-index-create-7r8g4   0/1     Completed   0          6d23h   10.233.110.4    kubenode2   <none>           <none>
+   fake-aws-sns-6c7c4b7479-wfp82      2/2     Running     0          6d4h    10.233.110.27   kubenode2   <none>           <none>
+   fake-aws-sqs-59fbfbcbd4-n4c5z      2/2     Running     0          6d23h   10.233.110.2    kubenode2   <none>           <none>
+   galley-7c89c44f7b-nm2rr            1/1     Running     0          6d23h   10.233.110.8    kubenode2   <none>           <none>
+   galley-7c89c44f7b-tdxz4            1/1     Running     0          6d23h   10.233.113.6    kubenode3   <none>           <none>
+   galley-7c89c44f7b-tr8pm            1/1     Running     0          6d4h    10.233.110.29   kubenode2   <none>           <none>
+   galley-migrate-data-g66rz          0/1     Completed   0          6d23h   10.233.110.13   kubenode2   <none>           <none>
+   gundeck-7fd75c7c5f-jb8xq           1/1     Running     0          6d23h   10.233.110.6    kubenode2   <none>           <none>
+   gundeck-7fd75c7c5f-lbth9           1/1     Running     0          6d23h   10.233.113.8    kubenode3   <none>           <none>
+   gundeck-7fd75c7c5f-wvcw6           1/1     Running     0          6d4h    10.233.113.23   kubenode3   <none>           <none>
+   nginz-5cdd8b588b-dbn86             2/2     Running     16         6d23h   10.233.113.11   kubenode3   <none>           <none>
+   nginz-5cdd8b588b-gk6rw             2/2     Running     14         6d23h   10.233.110.12   kubenode2   <none>           <none>
+   nginz-5cdd8b588b-jvznt             2/2     Running     11         6d4h    10.233.113.21   kubenode3   <none>           <none>
+   reaper-6957694667-s5vz5            1/1     Running     0          6d4h    10.233.110.26   kubenode2   <none>           <none>
+   redis-ephemeral-master-0           1/1     Running     0          6d23h   10.233.113.3    kubenode3   <none>           <none>
+   spar-56d77f85f6-bw55q              1/1     Running     0          6d23h   10.233.113.9    kubenode3   <none>           <none>
+   spar-56d77f85f6-mczzd              1/1     Running     0          6d4h    10.233.110.28   kubenode2   <none>           <none>
+   spar-56d77f85f6-vvvfq              1/1     Running     0          6d23h   10.233.110.7    kubenode2   <none>           <none>
+   spar-migrate-data-ts4sx            0/1     Completed   0          6d23h   10.233.110.14   kubenode2   <none>           <none>
+   team-settings-fbbb899c-qxx7m       1/1     Running     0          6d4h    10.233.110.24   kubenode2   <none>           <none>
+   webapp-d97869795-grnft             1/1     Running     0          6d4h    10.233.110.25   kubenode2   <none>           <none>
+
+Here presuming we need to get metrics from ``gundeck``, we can see the IP of one of the gundeck pods is ``10.233.110.6``.
+
+We can therefore connect to node ``kubenode2`` on which this pod runs with ``ssh kubenode2.your-domain.com``, and run the following:
+
+.. code:: sh
+
+   curl 10.233.110.6:8080/i/metrics
+
+Alternatively, if you don't want to, or can't for some reason, connect to kubenode2, you can use port redirect instead:
 
 .. code:: sh
 

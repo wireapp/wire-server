@@ -30,19 +30,6 @@ module Brig.Types.Provider.Tag
     nonEmptyTags,
     tagToInt,
     intToTag,
-
-    -- * ServiceTag (re-export)
-    ServiceTag (..),
-    ServiceTagList (..),
-
-    -- * ServiceTag Matchers (re-export)
-    MatchAny (..),
-    MatchAll (..),
-    (.||.),
-    (.&&.),
-    matchAll,
-    match1,
-    match,
   )
 where
 

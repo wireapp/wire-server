@@ -54,6 +54,7 @@ import Galley.API.LegalHold.Conflicts
 import Galley.API.Push
 import Galley.API.Util
 import Galley.Data.Conversation
+import Galley.Data.Services
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
@@ -387,12 +388,16 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
         throwS @'InvalidOperation
 
       let localMemberIds = lmId <$> convLocalMembers conv
-          localMemberMap :: Map UserId LocalMember
-          localMemberMap = Map.fromList (map (\mem -> (lmId mem, mem)) (convLocalMembers conv))
+          botMap :: BotMap
+          botMap = Map.fromList $ do
+            mem <- convLocalMembers conv
+            b <- maybeToList $ newBotMember mem
+            pure (lmId mem, b)
           members :: Set (Qualified UserId)
           members =
-            Set.map (`Qualified` localDomain) (Map.keysSet localMemberMap)
-              <> Set.fromList (map (qUntagged . rmId) (convRemoteMembers conv))
+            Set.fromList $
+              map (qUntagged . qualifyAs lcnv) localMemberIds
+                <> map (qUntagged . rmId) (convRemoteMembers conv)
       isInternal <- view (optSettings . setIntraListing) <$> input
 
       -- check if the sender is part of the conversation
@@ -448,7 +453,7 @@ postQualifiedOtrMessage senderType sender mconn lcnv msg =
           senderClient
           mconn
           lcnv
-          localMemberMap
+          botMap
           (qualifiedNewOtrMetadata msg)
           validMessages
       pure otrResult {mssFailedToSend = failedToSend}
@@ -468,16 +473,16 @@ sendMessages ::
   ClientId ->
   Maybe ConnId ->
   Local ConvId ->
-  LocalMemberMap t ->
+  BotMap ->
   MessageMetadata ->
   Map (Domain, UserId, ClientId) ByteString ->
   Sem r QualifiedUserClients
-sendMessages now sender senderClient mconn lcnv localMemberMap metadata messages = do
+sendMessages now sender senderClient mconn lcnv botMap metadata messages = do
   let messageMap = byDomain $ fmap toBase64Text messages
   let send dom =
         foldQualified
           lcnv
-          (\l -> sendLocalMessages l now sender senderClient mconn (Just (qUntagged lcnv)) localMemberMap metadata)
+          (\l -> sendLocalMessages @t l now sender senderClient mconn (Just (qUntagged lcnv)) botMap metadata)
           (\r -> sendRemoteMessages r now sender senderClient lcnv metadata)
           (Qualified () dom)
   mkQualifiedUserClientsByDomain <$> Map.traverseWithKey send messageMap
@@ -495,7 +500,7 @@ sendBroadcastMessages ::
 sendBroadcastMessages loc now sender senderClient mconn metadata messages = do
   let messageMap = byDomain $ fmap toBase64Text messages
       localMessages = Map.findWithDefault mempty (tDomain loc) messageMap
-  failed <- sendLocalMessages loc now sender senderClient mconn Nothing () metadata localMessages
+  failed <- sendLocalMessages @'Broadcast loc now sender senderClient mconn Nothing mempty metadata localMessages
   pure . mkQualifiedUserClientsByDomain $ Map.singleton (tDomain loc) failed
 
 byDomain :: Map (Domain, UserId, ClientId) a -> Map Domain (Map (UserId, ClientId) a)
@@ -516,11 +521,11 @@ sendLocalMessages ::
   ClientId ->
   Maybe ConnId ->
   Maybe (Qualified ConvId) ->
-  LocalMemberMap t ->
+  BotMap ->
   MessageMetadata ->
   Map (UserId, ClientId) Text ->
   Sem r (Set (UserId, ClientId))
-sendLocalMessages loc now sender senderClient mconn qcnv localMemberMap metadata localMessages = do
+sendLocalMessages loc now sender senderClient mconn qcnv botMap metadata localMessages = do
   let events =
         localMessages & reindexed (first (qualifyAs loc)) itraversed
           %@~ newMessageEvent
@@ -531,7 +536,7 @@ sendLocalMessages loc now sender senderClient mconn qcnv localMemberMap metadata
             now
       pushes =
         events & itraversed
-          %@~ newMessagePush loc localMemberMap mconn metadata
+          %@~ newMessagePush loc botMap mconn metadata
   runMessagePush @t loc qcnv (pushes ^. traversed)
   pure mempty
 
@@ -599,15 +604,6 @@ newMessageEvent mconvId sender senderClient dat time (receiver, receiverClient) 
             otrCiphertext = cipherText,
             otrData = dat
           }
-
-qualifiedNewOtrMetadata :: QualifiedNewOtrMessage -> MessageMetadata
-qualifiedNewOtrMetadata msg =
-  MessageMetadata
-    { mmNativePush = qualifiedNewOtrNativePush msg,
-      mmTransient = qualifiedNewOtrTransient msg,
-      mmNativePriority = qualifiedNewOtrNativePriority msg,
-      mmData = Just . toBase64Text $ qualifiedNewOtrData msg
-    }
 
 -- unqualified
 

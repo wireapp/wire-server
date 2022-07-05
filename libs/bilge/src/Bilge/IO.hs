@@ -128,7 +128,7 @@ instance MonadIO m => MonadHttp (HttpT m) where
 trivialBodyReader :: ByteString -> IO BodyReader
 trivialBodyReader bodyBytes = do
   bodyVar <- newTVarIO bodyBytes
-  return $ mkBodyReader bodyVar
+  pure $ mkBodyReader bodyVar
   where
     mkBodyReader :: TVar ByteString -> BodyReader
     mkBodyReader bodyVar = do
@@ -270,7 +270,7 @@ http ::
   (Request -> Request) ->
   (Response BodyReader -> IO a) ->
   m a
-http r f h = handleRequestWithCont (f r) h
+http r f = handleRequestWithCont (f r)
 
 httpDebug ::
   (MonadIO m, MonadHttp m) =>
@@ -289,7 +289,7 @@ httpDebug debug r f h = do
     consumeBody >=> \rsp -> do
       if debug > Head
         then putStrLn (showResponse rsp)
-        else putStrLn (showResponse $ rsp {responseBody = ("" :: String)})
+        else putStrLn (showResponse $ rsp {responseBody = "" :: String})
       putStrLn "--"
       h rsp
 
@@ -300,4 +300,4 @@ consumeBody r = do
         if null chunks
           then Nothing
           else Just (LBS.fromChunks chunks)
-  return $ r {responseBody = bdy}
+  pure $ r {responseBody = bdy}

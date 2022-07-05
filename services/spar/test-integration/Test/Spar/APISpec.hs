@@ -24,10 +24,8 @@ module Test.Spar.APISpec
 where
 
 import Bilge
-import Brig.Types.Client
 import Brig.Types.Intra (AccountStatus (Deleted))
-import Brig.Types.User
-import Cassandra hiding (Value)
+import Cassandra as Cas hiding (Value)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Random.Class (getRandomR)
@@ -88,6 +86,12 @@ import qualified Util.Scim as ScimT
 import Util.Types
 import qualified Web.Cookie as Cky
 import qualified Web.Scim.Schema.User as Scim
+import Wire.API.Team.Member (newTeamMemberDeleteData)
+import Wire.API.Team.Permission hiding (self)
+import Wire.API.Team.Role
+import Wire.API.User
+import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
 import Wire.API.User.IdentityProvider
 import qualified Wire.API.User.Saml as WireAPI (saml)
 import Wire.API.User.Scim
@@ -360,7 +364,7 @@ specFinalizeLogin = do
                   . header "Z-User" (toByteString' ownerid)
                   . header "Z-Connection" "fake"
                   . paths ["teams", toByteString' teamid, "members", toByteString' newUserId]
-                  . Bilge.json (Galley.newTeamMemberDeleteData (Just defPassword))
+                  . Bilge.json (newTeamMemberDeleteData (Just defPassword))
                   . expect2xx
               )
             liftIO $ threadDelay 100000 -- make sure deletion is done.  if we don't want to take
@@ -438,7 +442,7 @@ specFinalizeLogin = do
               statusCode sparresp `shouldBe` 404
               -- body should contain the error label in the title, the verbatim haskell error, and the request:
               (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:not-found</title>"
-              (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "CustomError (SparIdPNotFound"
+              (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "(CustomError (IdpDbError IdpNotFound)"
               (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "Input {iName = \"SAMLResponse\""
         check mkareq mkaresp submitaresp checkresp
 
@@ -558,7 +562,7 @@ testGetPutDelete whichone = do
       env <- ask
       (_, teamid, (^. idpId) -> idpid, (idpmeta, _)) <- registerTestIdPWithMeta
       newmember <-
-        let perms = Galley.noPermissions
+        let perms = noPermissions
          in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
       whichone (env ^. teSpar) (Just newmember) idpid idpmeta
         `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
@@ -606,7 +610,7 @@ specCRUDIdentityProvider = do
         (_owner :: UserId, teamid :: TeamId) <-
           call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
         member :: UserId <-
-          let perms = Galley.noPermissions
+          let perms = noPermissions
            in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) teamid perms
         callIdpGetAll' (env ^. teSpar) (Just member)
           `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
@@ -647,12 +651,12 @@ specCRUDIdentityProvider = do
       it "responds 204 resp. 403" $ do
         env <- ask
         (_, tid, (^. idpId) -> idpid) <- registerTestIdP
-        let mkUser :: Galley.Role -> TestSpar UserId
+        let mkUser :: Role -> TestSpar UserId
             mkUser role = do
               let perms = Galley.rolePermissions role
               call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
-        admin <- mkUser Galley.RoleAdmin
-        member <- mkUser Galley.RoleMember
+        admin <- mkUser RoleAdmin
+        member <- mkUser RoleMember
         callIdpDelete' (env ^. teSpar) (Just member) idpid
           `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
         callIdpDelete' (env ^. teSpar) (Just admin) idpid
@@ -671,17 +675,17 @@ specCRUDIdentityProvider = do
       it "responds with 412 and does not remove IdP" $ do
         env <- ask
         (firstOwner, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
-        ssoOwner <- mkSsoOwner firstOwner tid idp privcreds
-        callIdpDelete' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
+        _ <- mkSsoOwner firstOwner tid idp privcreds
+        callIdpDelete' (env ^. teSpar) (Just firstOwner) (idp ^. idpId)
           `shouldRespondWith` checkErrHspec 412 "idp-has-bound-users"
-        callIdpGet' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
+        callIdpGet' (env ^. teSpar) (Just firstOwner) (idp ^. idpId)
           `shouldRespondWith` \resp -> statusCode resp < 300
     context "with email, idp non-empty, purge=true" $ do
       it "responds with 2xx and removes IdP and users *synchronously*" $ do
         env <- ask
         (firstOwner, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
         ssoOwner <- mkSsoOwner firstOwner tid idp privcreds
-        callIdpDeletePurge' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
+        callIdpDeletePurge' (env ^. teSpar) (Just firstOwner) (idp ^. idpId)
           `shouldRespondWith` \resp -> statusCode resp < 300
         _ <- aFewTimes (getUserBrig ssoOwner) isNothing
         ssoOwner' <- userId <$$> getUserBrig ssoOwner
@@ -691,6 +695,14 @@ specCRUDIdentityProvider = do
           firstOwner' `shouldBe` Just firstOwner
         callIdpGet' (env ^. teSpar) (Just firstOwner) (idp ^. idpId)
           `shouldRespondWith` checkErrHspec 404 "not-found"
+    context "with email, user who tries to delete is authenticated by the IdP, purge=true" $ do
+      it "responds with 409 'cannot-delete-own-idp'" $ do
+        env <- ask
+        (firstOwner, tid, idp, (_, privcreds)) <- registerTestIdPWithMeta
+        ssoOwner <- mkSsoOwner firstOwner tid idp privcreds
+        callIdpDeletePurge' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
+          `shouldRespondWith` checkErrHspec 409 "cannot-delete-own-idp"
+
   describe "PUT /identity-providers/:idp" $ do
     testGetPutDelete callIdpUpdate'
     context "known IdP, client is team owner" $ do
@@ -725,12 +737,15 @@ specCRUDIdentityProvider = do
           callIdpUpdate' (env ^. teSpar) (Just owner) idpid (IdPMetadataValue "<NotSAML>bloo</NotSAML>" undefined)
             `shouldRespondWith` checkErrHspec 400 "invalid-metadata"
     describe "issuer changed to one that already exists in *another* team" $ do
-      it "rejects" $ do
+      it "rejects if V1, succeeds if V2" $ do
         env <- ask
         (owner1, _, (^. idpId) -> idpid1) <- registerTestIdP
         (_, _, _, (IdPMetadataValue _ idpmeta2, _)) <- registerTestIdPWithMeta
         callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined)
-          `shouldRespondWith` checkErrHspec 400 "idp-issuer-in-use"
+          `shouldRespondWith` ( case env ^. teWireIdPAPIVersion of
+                                  WireIdPAPIV1 -> checkErrHspec 400 "idp-issuer-in-use"
+                                  WireIdPAPIV2 -> (== 200) . statusCode
+                              )
     describe "issuer changed to one that already exists in *the same* team" $ do
       it "rejects" $ do
         env <- ask
@@ -738,6 +753,9 @@ specCRUDIdentityProvider = do
         (SampleIdP idpmeta2 _ _ _) <- makeSampleIdPMetadata
         _ <- call $ callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2
         let idpmeta1' = idpmeta1 & edIssuer .~ (idpmeta2 ^. edIssuer)
+
+        -- An IdP is unambiguously identified by teamid plus issuer, so a team cannot have
+        -- multiple IdPs with the same issuer, regardless of the API version.
         callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta1') undefined)
           `shouldRespondWith` checkErrHspec 400 "idp-issuer-in-use"
     describe "issuer changed to one that already existed in the same team in the past (but has been updated away)" $ do
@@ -752,11 +770,11 @@ specCRUDIdentityProvider = do
           pure $ idpmeta1 & edIssuer .~ (idpmeta3 ^. edIssuer)
 
         do
-          midp <- runSpar $ IdPEffect.getConfig idpid1
+          idp <- runSpar $ IdPEffect.getConfig idpid1
           liftIO $ do
-            (midp ^? _Just . idpMetadata . edIssuer) `shouldBe` Just (idpmeta1 ^. edIssuer)
-            (midp ^? _Just . idpExtraInfo . wiOldIssuers) `shouldBe` Just []
-            (midp ^? _Just . idpExtraInfo . wiReplacedBy) `shouldBe` Just Nothing
+            (idp ^. idpMetadata . edIssuer) `shouldBe` (idpmeta1 ^. edIssuer)
+            (idp ^. idpExtraInfo . wiOldIssuers) `shouldBe` []
+            (idp ^. idpExtraInfo . wiReplacedBy) `shouldBe` Nothing
 
         let -- change idp metadata (only issuer, to be precise), and look at new issuer and
             -- old issuers.
@@ -765,11 +783,11 @@ specCRUDIdentityProvider = do
               resp <- call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode new) undefined)
               liftIO $ statusCode resp `shouldBe` 200
 
-              midp <- runSpar $ IdPEffect.getConfig idpid1
+              idp <- runSpar $ IdPEffect.getConfig idpid1
               liftIO $ do
-                (midp ^? _Just . idpMetadata . edIssuer) `shouldBe` Just (new ^. edIssuer)
-                sort <$> (midp ^? _Just . idpExtraInfo . wiOldIssuers) `shouldBe` Just (sort $ olds <&> (^. edIssuer))
-                (midp ^? _Just . idpExtraInfo . wiReplacedBy) `shouldBe` Just Nothing
+                (idp ^. idpMetadata . edIssuer) `shouldBe` (new ^. edIssuer)
+                sort (idp ^. idpExtraInfo . wiOldIssuers) `shouldBe` sort (olds <&> (^. edIssuer))
+                (idp ^. idpExtraInfo . wiReplacedBy) `shouldBe` Nothing
 
         -- update the name a few times, ending up with the original one.
         change idpmeta1' [idpmeta1]
@@ -941,7 +959,7 @@ specCRUDIdentityProvider = do
         env <- ask
         (_owner, tid, idp) <- registerTestIdP
         newmember <-
-          let perms = Galley.noPermissions
+          let perms = noPermissions
            in call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid perms
         callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just newmember) (idp ^. idpMetadata)
           `shouldRespondWith` checkErrHspec 403 "insufficient-permissions"
@@ -1276,10 +1294,10 @@ specAux = do
                     )
               parsedResp <- either (error . show) pure $ selfUser <$> Intra.parseResponse @SelfProfile "brig" rawResp
               liftIO $ userTeam parsedResp `shouldSatisfy` isJust
-          permses :: [Galley.Permissions]
+          permses :: [Permissions]
           permses =
-            [ Galley.fullPermissions,
-              Galley.noPermissions
+            [ fullPermissions,
+              noPermissions
             ]
       sequence_ [check tryowner perms | tryowner <- [minBound ..], perms <- [0 .. (length permses - 1)]]
 
@@ -1386,7 +1404,7 @@ specSparUserMigration = do
         let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
         pure (issuer, subj)
 
-      memberUid <- call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid (Galley.rolePermissions Galley.RoleMember)
+      memberUid <- call $ createTeamMember (env ^. teBrig) (env ^. teGalley) tid (Galley.rolePermissions RoleMember)
 
       do
         -- insert to legacy tale

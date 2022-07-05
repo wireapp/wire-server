@@ -52,10 +52,8 @@ import Brig.Email
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opt
 import Brig.Phone
-import Brig.Types.Common
 import Brig.Types.Intra
-import Brig.Types.User
-import Brig.Types.User.Auth hiding (user)
+import Brig.Types.User.Auth
 import Brig.User.Auth.Cookie
 import Brig.User.Handle
 import Brig.User.Phone
@@ -77,9 +75,10 @@ import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
-import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
+import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
-import Wire.API.User (VerificationAction (..))
+import Wire.API.User
+import Wire.API.User.Auth
 
 data Access u = Access
   { accessToken :: !AccessToken,
@@ -196,7 +195,7 @@ verifyCode mbCode action uid = do
   (mbEmail, mbTeamId) <- getEmailAndTeamId uid
   featureEnabled <- lift $ do
     mbFeatureEnabled <- Intra.getVerificationCodeEnabled `traverse` mbTeamId
-    pure $ fromMaybe (Public.tfwoapsStatus (Public.defTeamFeatureStatus @'Public.TeamFeatureSndFactorPasswordChallenge) == Public.TeamFeatureEnabled) mbFeatureEnabled
+    pure $ fromMaybe (Public.wsStatus (Public.defFeatureStatus @Public.SndFactorPasswordChallengeConfig) == Public.FeatureStatusEnabled) mbFeatureEnabled
   when featureEnabled $ do
     case (mbCode, mbEmail) of
       (Just code, Just email) -> do
@@ -515,6 +514,6 @@ assertLegalHoldEnabled ::
   ExceptT LegalHoldLoginError m ()
 assertLegalHoldEnabled tid = do
   stat <- lift $ Intra.getTeamLegalHoldStatus tid
-  case tfwoStatus stat of
-    TeamFeatureDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
-    TeamFeatureEnabled -> pure ()
+  case wsStatus stat of
+    FeatureStatusDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
+    FeatureStatusEnabled -> pure ()

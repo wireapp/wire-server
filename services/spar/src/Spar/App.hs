@@ -26,24 +26,16 @@ module Spar.App
     GetUserResult (..),
     getUserIdByUref,
     getUserIdByScimExternalId,
-    insertUser,
     validateEmailIfExists,
     validateEmail,
     errorPage,
-    getIdPIdByIssuer,
-    getIdPConfigByIssuer,
-    getIdPConfigByIssuerAllowOld,
     deleteTeam,
-    getIdPConfig,
-    storeIdPConfig,
-    getIdPConfigByIssuerOptionalSPId,
     sparToServerErrorWithLogging,
     renderSparErrorWithLogging,
   )
 where
 
 import Bilge
-import Brig.Types (ManagedBy (..), User, userId, userTeam)
 import qualified Cassandra as Cas
 import Control.Exception (assert)
 import Control.Lens hiding ((.=))
@@ -63,8 +55,7 @@ import Polysemy
 import Polysemy.Error
 import SAML2.Util (renderURI)
 import SAML2.WebSSO
-  ( IdPId (..),
-    Issuer (..),
+  ( Issuer (..),
     UnqualifiedNameID (..),
     explainDeniedReason,
     idpExtraInfo,
@@ -82,7 +73,7 @@ import Spar.Sem.BrigAccess (BrigAccess)
 import qualified Spar.Sem.BrigAccess as BrigAccess
 import Spar.Sem.GalleyAccess (GalleyAccess)
 import qualified Spar.Sem.GalleyAccess as GalleyAccess
-import Spar.Sem.IdPConfigStore (GetIdPResult (..), IdPConfigStore)
+import Spar.Sem.IdPConfigStore (IdPConfigStore)
 import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.Reporter (Reporter)
 import qualified Spar.Sem.Reporter as Reporter
@@ -97,7 +88,7 @@ import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import qualified System.Logger as TinyLog
 import URI.ByteString as URI
 import Web.Cookie (SetCookie, renderSetCookie)
-import Wire.API.User.Identity (Email (..))
+import Wire.API.User hiding (validateEmail)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim (ValidExternalId (..))
@@ -118,31 +109,6 @@ data Env = Env
     sparCtxHttpGalley :: Bilge.Request,
     sparCtxRequestId :: RequestId
   }
-
-getIdPConfig ::
-  Members
-    '[ IdPConfigStore,
-       Error SparError
-     ]
-    r =>
-  IdPId ->
-  Sem r IdP
-getIdPConfig = maybe (throwSparSem (SparIdPNotFound mempty)) pure <=< IdPConfigStore.getConfig
-
-storeIdPConfig :: Member IdPConfigStore r => IdP -> Sem r ()
-storeIdPConfig = IdPConfigStore.storeConfig
-
-getIdPConfigByIssuerOptionalSPId :: Members '[IdPConfigStore, Error SparError] r => Issuer -> Maybe TeamId -> Sem r IdP
-getIdPConfigByIssuerOptionalSPId issuer mbteam = do
-  getIdPConfigByIssuerAllowOld issuer mbteam >>= \case
-    GetIdPFound idp -> pure idp
-    GetIdPNotFound -> throwSparSem $ SparIdPNotFound mempty
-    res@(GetIdPDanglingId _) -> throwSparSem $ SparIdPNotFound (cs $ show res)
-    res@(GetIdPNonUnique _) -> throwSparSem $ SparIdPNotFound (cs $ show res)
-    res@(GetIdPWrongTeam _) -> throwSparSem $ SparIdPNotFound (cs $ show res)
-
-insertUser :: Member SAMLUserStore r => SAML.UserRef -> UserId -> Sem r ()
-insertUser = SAMLUserStore.insert
 
 -- | Look up user locally in table @spar.user@ or @spar.scim_user@ (depending on the
 -- argument), then in brig, then return the 'UserId'.  If either lookup fails, or user is not
@@ -233,7 +199,7 @@ createSamlUserWithId teamid buid suid = do
   uname <- either (throwSparSem . SparBadUserName . cs) pure $ Intra.mkUserName Nothing (UrefOnly suid)
   buid' <- BrigAccess.createSAML suid buid teamid uname ManagedByWire
   assert (buid == buid') $ pure ()
-  insertUser suid buid
+  SAMLUserStore.insert suid buid
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
 -- credentials".
@@ -273,7 +239,9 @@ autoprovisionSamlUserWithId ::
   SAML.UserRef ->
   Sem r ()
 autoprovisionSamlUserWithId mbteam buid suid = do
-  idp <- getIdPConfigByIssuerOptionalSPId (suid ^. uidTenant) mbteam
+  idp <- case mbteam of
+    Just team -> IdPConfigStore.getIdPByIssuerV2 (suid ^. uidTenant) team
+    Nothing -> IdPConfigStore.getIdPByIssuerV1 (suid ^. uidTenant)
   guardReplacedIdP idp
   guardScimTokens idp
   createSamlUserWithId (idp ^. idpExtraInfo . wiTeam) buid suid
@@ -418,7 +386,9 @@ findUserIdWithOldIssuer ::
   SAML.UserRef ->
   Sem r (GetUserResult (SAML.UserRef, UserId))
 findUserIdWithOldIssuer mbteam (SAML.UserRef issuer subject) = do
-  idp <- getIdPConfigByIssuerOptionalSPId issuer mbteam
+  idp <- case mbteam of
+    Just team -> IdPConfigStore.getIdPByIssuerV2 issuer team
+    Nothing -> IdPConfigStore.getIdPByIssuerV1 issuer
   let tryFind :: GetUserResult (SAML.UserRef, UserId) -> Issuer -> Sem r (GetUserResult (SAML.UserRef, UserId))
       tryFind found@(GetUserFound _) _ = pure found
       tryFind _ oldIssuer = (uref,) <$$> getUserIdByUref mbteam uref
@@ -623,65 +593,6 @@ errorPage err mpInputs =
         "  <pre>" <> (cs . toText . encodeBase64 . cs . show $ (err, mpInputs)) <> "</pre>",
         "</body>"
       ]
-
--- | Like 'getIdPIdByIssuer', but do not require a 'TeamId'.  If none is provided, see if a
--- single solution can be found without.
-getIdPIdByIssuerAllowOld ::
-  HasCallStack =>
-  Member IdPConfigStore r =>
-  SAML.Issuer ->
-  Maybe TeamId ->
-  Sem r (GetIdPResult SAML.IdPId)
-getIdPIdByIssuerAllowOld issuer mbteam = do
-  mbv2 <- maybe (pure Nothing) (IdPConfigStore.getIdByIssuerWithTeam issuer) mbteam
-  mbv1v2 <- maybe (IdPConfigStore.getIdByIssuerWithoutTeam issuer) (pure . GetIdPFound) mbv2
-  case (mbv1v2, mbteam) of
-    (GetIdPFound idpid, Just team) -> do
-      IdPConfigStore.getConfig idpid >>= \case
-        Nothing -> do
-          pure $ GetIdPDanglingId idpid
-        Just idp ->
-          pure $
-            if idp ^. SAML.idpExtraInfo . wiTeam /= team
-              then GetIdPWrongTeam idpid
-              else mbv1v2
-    _ -> pure mbv1v2
-
--- | See 'getIdPIdByIssuer'.
-getIdPConfigByIssuer ::
-  (HasCallStack, Member IdPConfigStore r) =>
-  SAML.Issuer ->
-  TeamId ->
-  Sem r (GetIdPResult IdP)
-getIdPConfigByIssuer issuer =
-  getIdPIdByIssuer issuer >=> mapGetIdPResult
-
--- | See 'getIdPIdByIssuerAllowOld'.
-getIdPConfigByIssuerAllowOld ::
-  (HasCallStack, Member IdPConfigStore r) =>
-  SAML.Issuer ->
-  Maybe TeamId ->
-  Sem r (GetIdPResult IdP)
-getIdPConfigByIssuerAllowOld issuer = do
-  getIdPIdByIssuerAllowOld issuer >=> mapGetIdPResult
-
--- | Lookup idp in table `issuer_idp_v2` (using both issuer entityID and teamid); if nothing
--- is found there or if teamid is 'Nothing', lookup under issuer in `issuer_idp`.
-getIdPIdByIssuer ::
-  (HasCallStack, Member IdPConfigStore r) =>
-  SAML.Issuer ->
-  TeamId ->
-  Sem r (GetIdPResult SAML.IdPId)
-getIdPIdByIssuer issuer = getIdPIdByIssuerAllowOld issuer . Just
-
--- | (There are probably category theoretical models for what we're doing here, but it's more
--- straight-forward to just handle the one instance we need.)
-mapGetIdPResult :: (HasCallStack, Member IdPConfigStore r) => GetIdPResult SAML.IdPId -> Sem r (GetIdPResult IdP)
-mapGetIdPResult (GetIdPFound i) = IdPConfigStore.getConfig i <&> maybe (GetIdPDanglingId i) GetIdPFound
-mapGetIdPResult GetIdPNotFound = pure GetIdPNotFound
-mapGetIdPResult (GetIdPDanglingId i) = pure (GetIdPDanglingId i)
-mapGetIdPResult (GetIdPNonUnique is) = pure (GetIdPNonUnique is)
-mapGetIdPResult (GetIdPWrongTeam i) = pure (GetIdPWrongTeam i)
 
 -- | Delete all tokens belonging to a team.
 deleteTeam ::

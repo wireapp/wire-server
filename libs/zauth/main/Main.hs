@@ -102,14 +102,14 @@ go CreateAccess o = do
 go CreateBot o = do
   when (length (o ^. dat) /= 3) $
     error "invalid --data, must have 3 elements"
-  let p = uuid $ (o ^. dat) !! 0
+  let p = uuid $ head (o ^. dat)
       b = uuid $ (o ^. dat) !! 1
       c = uuid $ (o ^. dat) !! 2
   runCreate' o $ toByteString <$> botToken p b c
 go CreateProvider o = do
   when (length (o ^. dat) /= 1) $
     error "missing --data"
-  let p = uuid $ (o ^. dat) !! 0
+  let p = uuid $ head (o ^. dat)
   runCreate' o $ toByteString <$> providerToken (o ^. dur) p
 go GenKeyPair _ = do
   (p, s) <- newKeyPair
@@ -123,7 +123,7 @@ uuid :: ByteString -> UUID
 uuid s = fromMaybe (error $ "Invalid UUID: " ++ show s) $ fromASCIIBytes s
 
 check' :: ToByteString a => ByteString -> Token a -> IO ()
-check' k t = exceptT (\e -> putStrLn e >> exitFailure) (const $ return ()) $ do
+check' k t = exceptT (\e -> putStrLn e >> exitFailure) (const $ pure ()) $ do
   p <- hoistEither $ PublicKey <$> decode k
   e <- liftIO $ runValidate (V.mkEnv p (replicate (t ^. header . key) p)) (check t)
   hoistEither $ fmapL show e
@@ -181,14 +181,14 @@ options =
           <> help "token data"
     toMode =
       readerAsk >>= \s -> case s of
-        "create-user" -> return CreateUser
-        "create-session" -> return CreateSession
-        "create-access" -> return CreateAccess
-        "create-bot" -> return CreateBot
-        "create-provider" -> return CreateProvider
-        "verify-user" -> return VerifyUser
-        "verify-access" -> return VerifyAccess
-        "verify-bot" -> return VerifyBot
-        "verify-provider" -> return VerifyProvider
-        "gen-keypair" -> return GenKeyPair
+        "create-user" -> pure CreateUser
+        "create-session" -> pure CreateSession
+        "create-access" -> pure CreateAccess
+        "create-bot" -> pure CreateBot
+        "create-provider" -> pure CreateProvider
+        "verify-user" -> pure VerifyUser
+        "verify-access" -> pure VerifyAccess
+        "verify-bot" -> pure VerifyBot
+        "verify-provider" -> pure VerifyProvider
+        "gen-keypair" -> pure GenKeyPair
         other -> readerError $ "invalid mode: " <> other

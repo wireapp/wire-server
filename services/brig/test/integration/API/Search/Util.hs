@@ -19,7 +19,6 @@ module API.Search.Util where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types
 import Control.Monad.Catch (MonadCatch)
 import Data.ByteString.Conversion (toByteString')
 import Data.ByteString.Conversion.To (toByteString)
@@ -31,7 +30,8 @@ import Data.Text.Encoding (encodeUtf8)
 import Imports
 import Test.Tasty.HUnit
 import Util
-import Wire.API.User.Search (RoleFilter (..), TeamContact (..), TeamUserSearchSortBy, TeamUserSearchSortOrder)
+import Wire.API.User
+import Wire.API.User.Search
 
 executeSearch :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> UserId -> Text -> m (SearchResult Contact)
 executeSearch brig self term = executeSearch' brig self term Nothing Nothing

@@ -150,7 +150,7 @@ toInfo (Path p) =
 getOrCreate :: (MonadIO m, Eq k, Hashable k) => IORef (HashMap k v) -> k -> IO v -> m v
 getOrCreate mapRef key initializer = liftIO $ do
   hMap <- readIORef mapRef
-  maybe initialize return (HM.lookup key hMap)
+  maybe initialize pure (HM.lookup key hMap)
   where
     initialize = do
       val <- initializer

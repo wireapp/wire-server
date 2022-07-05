@@ -87,7 +87,10 @@ import Polysemy
 import qualified Proto.TeamEvents as E
 import Wire.API.Error
 import Wire.API.Error.Galley
-import Wire.API.Team (Icon)
+import Wire.API.Team
+import Wire.API.Team.Conversation
+import Wire.API.Team.Member (HardTruncationLimit, TeamMember, TeamMemberList)
+import Wire.API.Team.Permission
 
 data TeamStore m a where
   CreateTeamMember :: TeamId -> TeamMember -> TeamStore m ()

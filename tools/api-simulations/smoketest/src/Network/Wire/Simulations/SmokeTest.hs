@@ -77,7 +77,7 @@ mainBotNet n = do
     -- number of un-accepted connections a user can have; in this case
     -- the test would have to be rewritten slightly
     a2goons <- mapM allyConnectTo goons
-    return (a2b, a2c, a2goons)
+    pure (a2b, a2c, a2goons)
   -- Accept a connection request from Ally
   let allyAccept :: Bot -> BotNet ()
       allyAccept user = runBotSession user $ do
@@ -91,7 +91,7 @@ mainBotNet n = do
     conv <- qUnqualified . cnvQualifiedId <$> createConv (map botId others) (Just "Meetup")
     lconv <- qualifyLocal conv
     assertConvCreated lconv ally others
-    return conv
+    pure conv
   info $ msg "Bill updates his member state"
   localDomain <- viewFederationDomain
   runBotSession bill $ do
@@ -110,7 +110,7 @@ mainBotNet n = do
     c <- getConv meetup
     assertEqual
       (Just True)
-      ((memOtrArchived . cmSelf . cnvMembers) <$> c)
+      (memOtrArchived . cmSelf . cnvMembers <$> c)
       "Archived update failed"
   info $ msg "Bill kicks and then re-adds Ally"
   runBotSession bill $ do

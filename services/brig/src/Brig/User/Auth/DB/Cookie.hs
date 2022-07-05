@@ -19,12 +19,12 @@
 
 module Brig.User.Auth.DB.Cookie where
 
-import Brig.Types.User.Auth
 import Brig.User.Auth.DB.Instances ()
 import Cassandra
 import Data.Id
 import Data.Time.Clock
 import Imports
+import Wire.API.User.Auth
 
 newtype TTL = TTL {ttlSeconds :: Int32}
   deriving (Cql)

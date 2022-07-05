@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -24,7 +23,6 @@
 
 module Work where
 
-import Brig.Types hiding (Client)
 import Cassandra
 import Data.Conduit
 import Data.Conduit.Internal (zipSources)
@@ -34,6 +32,7 @@ import Imports
 import System.Logger (Logger)
 import qualified System.Logger as Log
 import UnliftIO.Async (pooledMapConcurrentlyN)
+import Wire.API.User
 
 deriving instance Cql Name
 
@@ -73,7 +72,7 @@ resolveBot ::
   Client (Maybe (ProviderId, ServiceId, BotId, ConvId, Maybe TeamId))
 resolveBot (Just pid, Just sid, bid, cid) = do
   tid <- retry x5 $ query1 teamSelect (params LocalQuorum (Identity cid))
-  pure (Just (pid, sid, bid, cid, join (fmap runIdentity tid)))
+  pure (Just (pid, sid, bid, cid, runIdentity =<< tid))
   where
     teamSelect :: PrepQuery R (Identity ConvId) (Identity (Maybe TeamId))
     teamSelect = "SELECT team FROM conversation WHERE conv = ?"

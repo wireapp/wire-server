@@ -106,7 +106,7 @@ html_css_files = [
 ]
 
 html_favicon = '_static/favicon/favicon.ico'
-html_logo = '_static/image/wire_logo.svg'
+html_logo = '_static/image/Wire_logo.svg'
 
 smv_tag_whitelist = ''
 smv_branch_whitelist = r'^(install-with-poetry)$'

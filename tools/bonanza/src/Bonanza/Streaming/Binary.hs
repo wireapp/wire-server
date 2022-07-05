@@ -40,7 +40,7 @@ decode g = start
     start = do
       mx <- await
       case mx of
-        Nothing -> return ()
+        Nothing -> pure ()
         Just x -> go (runGetIncremental g `pushChunk` x)
     go (Fail u o e) = throwM $ ParseError u o e
     go (Partial n) = await >>= go . n

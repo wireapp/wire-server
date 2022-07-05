@@ -36,6 +36,13 @@ package=${1:-all}
 run_integration_tests() {
   package=${1}
 
+  if [[ "$package" = "gundeck" ]]
+  then if [[ -z "${TASTY_PATTERN-}" ]]
+       then export TASTY_PATTERN="!/RealAWS/"
+       else export TASTY_PATTERN="!/RealAWS/ && $TASTY_PATTERN"
+       fi
+  fi
+
   service_dir="$TOP_LEVEL/services/$package"
 
   cd "$service_dir"

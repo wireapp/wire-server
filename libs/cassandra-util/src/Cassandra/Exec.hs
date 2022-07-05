@@ -84,9 +84,9 @@ syncCassandra :: (Functor m, MonadIO m, MonadCatch m) => m a -> m (Either Cassan
 syncCassandra m =
   catches
     (Right <$> m)
-    [ Handler $ \(e :: Error) -> return . Left . Cassandra $ e,
-      Handler $ \(e :: IOException) -> return . Left . Comm $ e,
-      Handler $ \(e :: SomeException) -> return . Left . Other $ e
+    [ Handler $ \(e :: Error) -> pure . Left . Cassandra $ e,
+      Handler $ \(e :: IOException) -> pure . Left . Comm $ e,
+      Handler $ \(e :: SomeException) -> pure . Left . Other $ e
     ]
 
 -- | Stream results of a query.
@@ -122,7 +122,7 @@ paginateWithState q p = do
   r <- runQ q p'
   getResult r >>= \case
     Protocol.RowsResult m b ->
-      return $ PageWithState b (pagingState m)
+      pure $ PageWithState b (pagingState m)
     _ -> throwM $ UnexpectedResponse (hrHost r) (hrResponse r)
 
 paramsPagingState :: Consistency -> a -> Int32 -> Maybe Protocol.PagingState -> QueryParams a

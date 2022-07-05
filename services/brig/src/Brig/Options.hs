@@ -23,7 +23,6 @@ module Brig.Options where
 
 import Brig.Queue.Types (Queue (..))
 import Brig.SMTP (SMTPConnType (..))
-import Brig.Types
 import Brig.User.Auth.Cookie.Limit
 import Brig.Whitelist (Whitelist (..))
 import qualified Brig.ZAuth as ZAuth
@@ -47,12 +46,14 @@ import qualified Data.Text.Encoding as Text
 import Data.Time.Clock (DiffTime, NominalDiffTime, secondsToDiffTime)
 import Data.Yaml (FromJSON (..), ToJSON (..), (.:), (.:?))
 import qualified Data.Yaml as Y
+import Galley.Types.Teams (unImplicitLockStatus)
 import Imports
 import qualified Network.DNS as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
-import qualified Wire.API.Team.Feature as ApiFT
+import Wire.API.Arbitrary (Arbitrary, arbitrary)
+import qualified Wire.API.Team.Feature as Public
+import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy)
 
 newtype Timeout = Timeout
@@ -616,11 +617,19 @@ setDefaultTemplateLocale = fromMaybe defaultTemplateLocale . setDefaultTemplateL
 -- they are grandfathered), and feature-specific extra data (eg., TLL for self-deleting
 -- messages).  For now, we have something quick & simple.
 data AccountFeatureConfigs = AccountFeatureConfigs
-  { afcConferenceCallingDefNew :: !(ApiFT.TeamFeatureStatus 'ApiFT.WithoutLockStatus 'ApiFT.TeamFeatureConferenceCalling),
-    afcConferenceCallingDefNull :: !(ApiFT.TeamFeatureStatus 'ApiFT.WithoutLockStatus 'ApiFT.TeamFeatureConferenceCalling)
+  { afcConferenceCallingDefNew :: !(Public.ImplicitLockStatus Public.ConferenceCallingConfig),
+    afcConferenceCallingDefNull :: !(Public.ImplicitLockStatus Public.ConferenceCallingConfig)
   }
   deriving (Show, Eq, Generic)
-  deriving (Arbitrary) via (GenericUniform AccountFeatureConfigs)
+
+instance Arbitrary AccountFeatureConfigs where
+  arbitrary = AccountFeatureConfigs <$> fmap unlocked arbitrary <*> fmap unlocked arbitrary
+    where
+      unlocked :: Public.ImplicitLockStatus a -> Public.ImplicitLockStatus a
+      unlocked = Public.ImplicitLockStatus . setUnlocked . Public._unImplicitLockStatus
+
+      setUnlocked :: Public.WithStatus a -> Public.WithStatus a
+      setUnlocked ws = ws {Public.wsLockStatus = Public.LockStatusUnlocked}
 
 instance FromJSON AccountFeatureConfigs where
   parseJSON =
@@ -652,23 +661,23 @@ instance ToJSON AccountFeatureConfigs where
               ]
         ]
 
-getAfcConferenceCallingDefNewMaybe :: Lens.Getter Settings (Maybe ApiFT.TeamFeatureStatusNoConfig)
-getAfcConferenceCallingDefNewMaybe = Lens.to (Lens.^? (Lens.to setFeatureFlags . Lens._Just . Lens.to afcConferenceCallingDefNew))
+getAfcConferenceCallingDefNewMaybe :: Lens.Getter Settings (Maybe (Public.WithStatus Public.ConferenceCallingConfig))
+getAfcConferenceCallingDefNewMaybe = Lens.to (Lens.^? (Lens.to setFeatureFlags . Lens._Just . Lens.to afcConferenceCallingDefNew . unImplicitLockStatus))
 
-getAfcConferenceCallingDefNullMaybe :: Lens.Getter Settings (Maybe ApiFT.TeamFeatureStatusNoConfig)
-getAfcConferenceCallingDefNullMaybe = Lens.to (Lens.^? (Lens.to setFeatureFlags . Lens._Just . Lens.to afcConferenceCallingDefNull))
+getAfcConferenceCallingDefNullMaybe :: Lens.Getter Settings (Maybe (Public.WithStatus Public.ConferenceCallingConfig))
+getAfcConferenceCallingDefNullMaybe = Lens.to (Lens.^? (Lens.to setFeatureFlags . Lens._Just . Lens.to afcConferenceCallingDefNull . unImplicitLockStatus))
 
-getAfcConferenceCallingDefNew :: Lens.Getter Settings ApiFT.TeamFeatureStatusNoConfig
-getAfcConferenceCallingDefNew = Lens.to (afcConferenceCallingDefNew . fromMaybe defAccountFeatureConfigs . setFeatureFlags)
+getAfcConferenceCallingDefNew :: Lens.Getter Settings (Public.WithStatus Public.ConferenceCallingConfig)
+getAfcConferenceCallingDefNew = Lens.to (Public._unImplicitLockStatus . afcConferenceCallingDefNew . fromMaybe defAccountFeatureConfigs . setFeatureFlags)
 
-getAfcConferenceCallingDefNull :: Lens.Getter Settings ApiFT.TeamFeatureStatusNoConfig
-getAfcConferenceCallingDefNull = Lens.to (afcConferenceCallingDefNull . fromMaybe defAccountFeatureConfigs . setFeatureFlags)
+getAfcConferenceCallingDefNull :: Lens.Getter Settings (Public.WithStatus Public.ConferenceCallingConfig)
+getAfcConferenceCallingDefNull = Lens.to (Public._unImplicitLockStatus . afcConferenceCallingDefNull . fromMaybe defAccountFeatureConfigs . setFeatureFlags)
 
 defAccountFeatureConfigs :: AccountFeatureConfigs
 defAccountFeatureConfigs =
   AccountFeatureConfigs
-    { afcConferenceCallingDefNew = ApiFT.TeamFeatureStatusNoConfig ApiFT.TeamFeatureEnabled,
-      afcConferenceCallingDefNull = ApiFT.TeamFeatureStatusNoConfig ApiFT.TeamFeatureEnabled
+    { afcConferenceCallingDefNew = Public.ImplicitLockStatus Public.defFeatureStatus,
+      afcConferenceCallingDefNull = Public.ImplicitLockStatus Public.defFeatureStatus
     }
 
 -- | Customer extensions naturally are covered by the AGPL like everything else, but use them

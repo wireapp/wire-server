@@ -37,8 +37,8 @@ tls:
   useCertManager: false
   # the validation depth between a federator client certificate and tlsClientCA
   verify_depth: 1
+  createIssuer: true
   issuer:
-    create: true
     name: letsencrypt-http01
     kind: Issuer # Issuer | ClusterIssuer
 
@@ -80,9 +80,6 @@ certManager:
   customSolvers:
 
 service:
-  nginz:
-    externalHttpPort: 8080
-    externalTcpPort: 8081
   webapp:
     externalPort: 8080
   s3:

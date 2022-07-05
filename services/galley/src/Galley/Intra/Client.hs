@@ -23,13 +23,13 @@ module Galley.Intra.Client
     removeLegalHoldClientFromUser,
     getLegalHoldAuthToken,
     getClientByKeyPackageRef,
-    getMLSClients,
+    getLocalMLSClients,
+    addKeyPackageRef,
   )
 where
 
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
-import Brig.Types.Client
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Auth (LegalHoldLogin (..))
@@ -58,7 +58,9 @@ import qualified System.Logger.Class as Logger
 import Wire.API.Error.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
-import Wire.API.User.Client (UserClients, UserClientsFull, filterClients, filterClientsFull)
+import Wire.API.Routes.Internal.Brig
+import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
 
 -- | Calls 'Brig.API.internalListClientsH'.
 lookupClients :: [UserId] -> App UserClients
@@ -182,8 +184,8 @@ getClientByKeyPackageRef ref = do
     else pure Nothing
 
 -- | Calls 'Brig.API.Internal.getMLSClients'.
-getMLSClients :: Qualified UserId -> SignatureSchemeTag -> App (Set ClientId)
-getMLSClients qusr ss =
+getLocalMLSClients :: Local UserId -> SignatureSchemeTag -> App (Set ClientId)
+getLocalMLSClients lusr ss =
   call
     Brig
     ( method GET
@@ -191,10 +193,20 @@ getMLSClients qusr ss =
           [ "i",
             "mls",
             "clients",
-            toByteString' (qDomain qusr),
-            toByteString' (qUnqualified qusr)
+            toByteString' (tUnqualified lusr)
           ]
         . queryItem "sig_scheme" (toByteString' (signatureSchemeName ss))
         . expect2xx
     )
     >>= parseResponse (mkError status502 "server-error")
+
+addKeyPackageRef :: KeyPackageRef -> Qualified UserId -> ClientId -> Qualified ConvId -> App ()
+addKeyPackageRef ref qusr cl qcnv =
+  void $
+    call
+      Brig
+      ( method PUT
+          . paths ["i", "mls", "key-packages", toHeader ref]
+          . json (NewKeyPackageRef qusr cl qcnv)
+          . expect2xx
+      )

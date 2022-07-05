@@ -66,7 +66,7 @@ createEnv m o = do
         }
   let ac = AutoConfig 60 (reloadError g)
   (c, t) <- autoReload ac [Required $ o ^. secretsConfig]
-  return $! Env def m o g n c t
+  pure $! Env def m o g n c t
   where
     reloadError g x =
       Logger.err g (Logger.msg $ Logger.val "Failed reloading config: " Logger.+++ show x)

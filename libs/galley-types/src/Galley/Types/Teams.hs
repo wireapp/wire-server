@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneKindSignatures #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TemplateHaskell #-}
@@ -37,11 +38,14 @@ module Galley.Types.Teams
     flagsTeamFeatureValidateSAMLEmailsStatus,
     flagTeamFeatureSndFactorPasswordChallengeStatus,
     flagTeamFeatureSearchVisibilityInbound,
+    flagMLS,
     Defaults (..),
+    ImplicitLockStatus (..),
+    unImplicitLockStatus,
     unDefaults,
     FeatureSSO (..),
     FeatureLegalHold (..),
-    FeatureTeamSearchVisibility (..),
+    FeatureTeamSearchVisibilityAvailability (..),
     notTeamMember,
     findTeamMember,
     isTeamMember,
@@ -52,103 +56,20 @@ module Galley.Types.Teams
     permissionsRole,
     HiddenPerm (..),
     IsPerm (..),
-
-    -- * re-exports
-    Team,
-    TeamBinding (..),
-    newTeam,
-    teamId,
-    teamCreator,
-    teamName,
-    teamIcon,
-    teamIconKey,
-    teamBinding,
-    TeamList,
-    newTeamList,
-    teamListTeams,
-    teamListHasMore,
-    TeamMember,
-    userId,
-    nUserId,
-    permissions,
-    nPermissions,
-    invitation,
-    nInvitation,
-    legalHoldStatus,
-    TeamMemberList,
-    TeamMemberListOptPerms,
-    ListType (..),
-    newTeamMemberList,
-    teamMembers,
-    teamMemberListType,
-    TeamConversation,
-    newTeamConversation,
-    conversationId,
-    TeamConversationList,
-    newTeamConversationList,
-    teamConversations,
-    Permissions,
-    newPermissions,
-    fullPermissions,
-    noPermissions,
-    serviceWhitelistPermissions,
-    self,
-    copy,
-    Perm (..),
-    SPerm (..),
-    permToInt,
-    permsToInt,
-    intToPerm,
-    intToPerms,
-    Role (..),
-    defaultRole,
-    BindingNewTeam (..),
-    NonBindingNewTeam (..),
-    NewTeam,
-    newNewTeam,
-    newTeamName,
-    newTeamIcon,
-    newTeamIconKey,
-    newTeamMembers,
-    NewTeamMember,
-    Event,
-    newEvent,
-    eventType,
-    eventTime,
-    eventTeam,
-    eventData,
-    EventType (..),
-    EventData (..),
-    TeamUpdateData,
-    newTeamUpdateData,
-    newTeamDeleteDataWithCode,
-    nameUpdate,
-    iconUpdate,
-    iconKeyUpdate,
-    TeamMemberDeleteData,
-    tmdAuthPassword,
-    newTeamMemberDeleteData,
-    TeamDeleteData,
-    tdAuthPassword,
-    tdVerificationCode,
-    newTeamDeleteData,
-    HardTruncationLimit,
-    hardTruncationLimit,
   )
 where
 
 import Control.Lens (makeLenses, view, (^.))
 import Data.Aeson
+import qualified Data.Aeson.Types as A
 import Data.Id (UserId)
 import qualified Data.Maybe as Maybe
+import qualified Data.Schema as Schema
 import qualified Data.Set as Set
 import Data.String.Conversions (cs)
 import Imports
 import Test.QuickCheck (Arbitrary)
 import Wire.API.Error.Galley
-import Wire.API.Event.Team
-import Wire.API.Team
-import Wire.API.Team.Conversation
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
@@ -219,21 +140,22 @@ newtype TeamCreationTime = TeamCreationTime
 data FeatureFlags = FeatureFlags
   { _flagSSO :: !FeatureSSO,
     _flagLegalHold :: !FeatureLegalHold,
-    _flagTeamSearchVisibility :: !FeatureTeamSearchVisibility,
-    _flagAppLockDefaults :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureAppLock)),
-    _flagClassifiedDomains :: !(TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureClassifiedDomains),
-    _flagFileSharing :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureFileSharing)),
-    _flagConferenceCalling :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureConferenceCalling)),
-    _flagSelfDeletingMessages :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureSelfDeletingMessages)),
-    _flagConversationGuestLinks :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureGuestLinks)),
-    _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureValidateSAMLEmails)),
-    _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (TeamFeatureStatus 'WithLockStatus 'TeamFeatureSndFactorPasswordChallenge)),
-    _flagTeamFeatureSearchVisibilityInbound :: !(Defaults (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureSearchVisibilityInbound))
+    _flagTeamSearchVisibility :: !FeatureTeamSearchVisibilityAvailability,
+    _flagAppLockDefaults :: !(Defaults (ImplicitLockStatus AppLockConfig)),
+    _flagClassifiedDomains :: !(ImplicitLockStatus ClassifiedDomainsConfig),
+    _flagFileSharing :: !(Defaults (WithStatus FileSharingConfig)),
+    _flagConferenceCalling :: !(Defaults (ImplicitLockStatus ConferenceCallingConfig)),
+    _flagSelfDeletingMessages :: !(Defaults (WithStatus SelfDeletingMessagesConfig)),
+    _flagConversationGuestLinks :: !(Defaults (WithStatus GuestLinksConfig)),
+    _flagsTeamFeatureValidateSAMLEmailsStatus :: !(Defaults (ImplicitLockStatus ValidateSAMLEmailsConfig)),
+    _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (WithStatus SndFactorPasswordChallengeConfig)),
+    _flagTeamFeatureSearchVisibilityInbound :: !(Defaults (ImplicitLockStatus SearchVisibilityInboundConfig)),
+    _flagMLS :: !(Defaults (ImplicitLockStatus MLSConfig))
   }
   deriving (Eq, Show, Generic)
 
 newtype Defaults a = Defaults {_unDefaults :: a}
-  deriving (Eq, Ord, Show, Enum, Bounded, Generic)
+  deriving (Eq, Ord, Show, Enum, Bounded, Generic, Functor)
   deriving newtype (Arbitrary)
 
 instance FromJSON a => FromJSON (Defaults a) where
@@ -258,9 +180,9 @@ data FeatureLegalHold
 -- | Default value for all teams that have not enabled or disabled this feature explicitly.
 -- See also 'Wire.API.Team.SearchVisibility.TeamSearchVisibilityEnabled',
 -- 'Wire.API.Team.SearchVisibility.TeamSearchVisibility'.
-data FeatureTeamSearchVisibility
-  = FeatureTeamSearchVisibilityEnabledByDefault
-  | FeatureTeamSearchVisibilityDisabledByDefault
+data FeatureTeamSearchVisibilityAvailability
+  = FeatureTeamSearchVisibilityAvailableByDefault
+  | FeatureTeamSearchVisibilityUnavailableByDefault
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
 -- NOTE: This is used only in the config and thus YAML... camelcase
@@ -270,15 +192,19 @@ instance FromJSON FeatureFlags where
       <$> obj .: "sso"
       <*> obj .: "legalhold"
       <*> obj .: "teamSearchVisibility"
-      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureAppLock)) <$> (obj .:? "appLock"))
-      <*> (fromMaybe (defTeamFeatureStatus @'TeamFeatureClassifiedDomains) <$> (obj .:? "classifiedDomains"))
-      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureFileSharing)) <$> (obj .:? "fileSharing"))
-      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureConferenceCalling)) <$> (obj .:? "conferenceCalling"))
-      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureSelfDeletingMessages)) <$> (obj .:? "selfDeletingMessages"))
-      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureGuestLinks)) <$> (obj .:? "conversationGuestLinks"))
-      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureValidateSAMLEmails)) <$> (obj .:? "validateSAMLEmails"))
-      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureSndFactorPasswordChallenge)) <$> (obj .:? "sndFactorPasswordChallenge"))
-      <*> (fromMaybe (Defaults (defTeamFeatureStatus @'TeamFeatureSearchVisibilityInbound)) <$> (obj .:? "searchVisibilityInbound"))
+      <*> withImplicitLockStatusOrDefault obj "appLock"
+      <*> (fromMaybe (ImplicitLockStatus (defFeatureStatus @ClassifiedDomainsConfig)) <$> (obj .:? "classifiedDomains"))
+      <*> (fromMaybe (Defaults (defFeatureStatus @FileSharingConfig)) <$> (obj .:? "fileSharing"))
+      <*> withImplicitLockStatusOrDefault obj "conferenceCalling"
+      <*> (fromMaybe (Defaults (defFeatureStatus @SelfDeletingMessagesConfig)) <$> (obj .:? "selfDeletingMessages"))
+      <*> (fromMaybe (Defaults (defFeatureStatus @GuestLinksConfig)) <$> (obj .:? "conversationGuestLinks"))
+      <*> withImplicitLockStatusOrDefault obj "validateSAMLEmails"
+      <*> (fromMaybe (Defaults (defFeatureStatus @SndFactorPasswordChallengeConfig)) <$> (obj .:? "sndFactorPasswordChallenge"))
+      <*> withImplicitLockStatusOrDefault obj "searchVisibilityInbound"
+      <*> withImplicitLockStatusOrDefault obj "mls"
+    where
+      withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg, Schema.ToSchema cfg) => Object -> Key -> A.Parser (Defaults (ImplicitLockStatus cfg))
+      withImplicitLockStatusOrDefault obj fieldName = fromMaybe (Defaults (ImplicitLockStatus (defFeatureStatus @cfg))) <$> obj .:? fieldName
 
 instance ToJSON FeatureFlags where
   toJSON
@@ -295,6 +221,7 @@ instance ToJSON FeatureFlags where
         validateSAMLEmails
         sndFactorPasswordChallenge
         searchVisibilityInbound
+        mls
       ) =
       object
         [ "sso" .= sso,
@@ -308,7 +235,8 @@ instance ToJSON FeatureFlags where
           "conversationGuestLinks" .= guestLinks,
           "validateSAMLEmails" .= validateSAMLEmails,
           "sndFactorPasswordChallenge" .= sndFactorPasswordChallenge,
-          "searchVisibilityInbound" .= searchVisibilityInbound
+          "searchVisibilityInbound" .= searchVisibilityInbound,
+          "mls" .= mls
         ]
 
 instance FromJSON FeatureSSO where
@@ -331,14 +259,14 @@ instance ToJSON FeatureLegalHold where
   toJSON FeatureLegalHoldDisabledByDefault = String "disabled-by-default"
   toJSON FeatureLegalHoldWhitelistTeamsAndImplicitConsent = String "whitelist-teams-and-implicit-consent"
 
-instance FromJSON FeatureTeamSearchVisibility where
-  parseJSON (String "enabled-by-default") = pure FeatureTeamSearchVisibilityEnabledByDefault
-  parseJSON (String "disabled-by-default") = pure FeatureTeamSearchVisibilityDisabledByDefault
+instance FromJSON FeatureTeamSearchVisibilityAvailability where
+  parseJSON (String "enabled-by-default") = pure FeatureTeamSearchVisibilityAvailableByDefault
+  parseJSON (String "disabled-by-default") = pure FeatureTeamSearchVisibilityUnavailableByDefault
   parseJSON bad = fail $ "FeatureSearchVisibility: " <> cs (encode bad)
 
-instance ToJSON FeatureTeamSearchVisibility where
-  toJSON FeatureTeamSearchVisibilityEnabledByDefault = String "enabled-by-default"
-  toJSON FeatureTeamSearchVisibilityDisabledByDefault = String "disabled-by-default"
+instance ToJSON FeatureTeamSearchVisibilityAvailability where
+  toJSON FeatureTeamSearchVisibilityAvailableByDefault = String "enabled-by-default"
+  toJSON FeatureTeamSearchVisibilityUnavailableByDefault = String "disabled-by-default"
 
 makeLenses ''TeamCreationTime
 makeLenses ''FeatureFlags
@@ -362,7 +290,6 @@ data HiddenPerm
   = ChangeLegalHoldTeamSettings
   | ChangeLegalHoldUserSettings
   | ViewLegalHoldUserSettings
-  | ViewTeamFeature
   | ChangeTeamFeature
   | ChangeTeamSearchVisibility
   | ViewTeamSearchVisibility
@@ -410,8 +337,7 @@ roleHiddenPermissions role = HiddenPermissions p p
         Set.fromList [ViewSameTeamEmails]
     roleHiddenPerms RoleExternalPartner =
       Set.fromList
-        [ ViewTeamFeature,
-          ViewLegalHoldUserSettings,
+        [ ViewLegalHoldUserSettings,
           ViewTeamSearchVisibility
         ]
 

@@ -26,12 +26,13 @@ module Galley.Data.Types
     toCode,
     generate,
     mkKey,
+    LockAcquired (..),
   )
 where
 
-import Brig.Types.Code
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
+import Data.Code
 import Data.Id
 import Data.Range
 import qualified Data.Text.Ascii as Ascii
@@ -87,3 +88,8 @@ mkKey :: MonadIO m => ConvId -> m Key
 mkKey cnv = do
   sha256 <- liftIO $ fromJust <$> getDigestByName "SHA256"
   pure $ Key . unsafeRange . Ascii.encodeBase64Url . BS.take 15 $ digestBS sha256 (toByteString' cnv)
+
+data LockAcquired
+  = Acquired
+  | NotAcquired
+  deriving (Show, Eq)

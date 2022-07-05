@@ -12,6 +12,9 @@ resources:
   limits:
     memory: "512Mi"
     cpu: "500m"
+metrics:
+  serviceMonitor:
+    enable: false
 config:
   logLevel: Info
   logFormat: JSON

@@ -1,42 +1,44 @@
 image:
   repository: quay.io/wire/ldap-scim-bridge
-  tag: 0.2
+  tag: 0.4
 resources:
   requests:
     memory: "256Mi"
     cpu: "100m"
   limits:
-    memory: "512Mi"
+    # based on observation - 20211004 - JEL
+    memory: "1750Mi"
     cpu: "500m"
 # https://v1-19.docs.kubernetes.io/docs/tasks/job/automated-tasks-with-cron-jobs/#schedule
-# schedule: "@hourly"
-schedule: "*/1 * * * *"
+# based on observation - 20211004 - JEL
+schedule: "*/5 * * * *"
 # https://github.com/wireapp/ldap-scim-bridge
-config:
-  logLevel: "Debug"  # one of Trace,Debug,Info,Warn,Error,Fatal; `Fatal` is least noisy, `Trace` most.
-  ldapSource:
-    tls: false
-    host: "openldap"
-    port: 389
-    dn: "cn=admin,dc=nodomain"
-    password: "admin"
-    search:
-      base: "ou=People,dc=nodomain"
-      objectClass: "account"
-    codec: "utf8"
-    deleteOnAttribute:  # optional, related to `delete-from-directory`.
-      key: "deleted"
-      value: "true"
-    deleteFromDirectory:  # optional; ok to use together with `delete-on-attribute` if you use both.
-      base: "ou=DeletedPeople,dc=nodomain"
-      objectClass: "account"
-  scimTarget:
-    tls: false
-    host: "spar"
-    port: 8080
-    path: "/scim/v2"
-    token: "Bearer U6DRfAcwsvCg9eBStJWtiHu/XqTB1iVDcvNcsuftvqk="
-  mapping:
-    userName: "uidNumber"
-    externalId: "uid"
-    email: "email"
+#config:
+#  logLevel: "Debug"  # one of Trace,Debug,Info,Warn,Error,Fatal; `Fatal` is least noisy, `Trace` most.
+#  ldapSource:
+#    tls: false
+#    host: "openldap"
+#    port: 389
+#    dn: "cn=admin,dc=nodomain"
+#    password: "admin"
+#    search:
+#      base: "ou=People,dc=nodomain"
+#      objectClass: "account"
+#    codec: "utf8"
+#    deleteOnAttribute:  # optional, related to `delete-from-directory`.
+#      key: "deleted"
+#      value: "true"
+#    deleteFromDirectory:  # optional; ok to use together with `delete-on-attribute` if you use both.
+#      base: "ou=DeletedPeople,dc=nodomain"
+#      objectClass: "account"
+#  scimTarget:
+#    tls: false
+#    host: "spar"
+#    port: 8080
+#    path: "/scim/v2"
+#    token: "Bearer U6DRfAcwsvCg9eBStJWtiHu/XqTB1iVDcvNcsuftvqk="
+#  mapping:
+#   displayName: "displayName"
+#    userName: "uidNumber"
+#    externalId: "uid"
+#    email: "email"

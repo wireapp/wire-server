@@ -19,6 +19,7 @@
 
 module Spar.Sem.SAMLUserStore.Cassandra
   ( samlUserStoreToCassandra,
+    getAllByIssuerPaginated,
   )
 where
 
@@ -43,10 +44,26 @@ samlUserStoreToCassandra =
     embed . \case
       Insert ur uid -> insertSAMLUser ur uid
       Get ur -> getSAMLUser ur
-      GetAnyByIssuer is -> getSAMLAnyUserByIssuer is
-      GetSomeByIssuer is -> getSAMLSomeUsersByIssuer is
       DeleteByIssuer is -> deleteSAMLUsersByIssuer is
       Delete uid ur -> deleteSAMLUser uid ur
+      GetAllByIssuerPaginated is -> getAllSAMLUsersByIssuerPaginated is
+      NextPage page -> nextPage' page
+
+nextPage' :: (HasCallStack, MonadClient m) => Cas.Page a -> m (Cas.Page a)
+nextPage' = Cas.liftClient . Cas.nextPage
+
+-- | Replaces `getSAML{Some,Any}UsersByIssuer`.
+-- Since we currently do not have a team id stored together with the SAML user in user_v2
+-- we must get all and filter manually by asking brig for the team id when deleting an IdP.
+-- FUTUREWORK: to migrate to a new table that contains the team id.
+getAllSAMLUsersByIssuerPaginated :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Cas.Page (SAML.UserRef, UserId))
+getAllSAMLUsersByIssuerPaginated issuer = do
+  (_1 %~ SAML.UserRef issuer) <$$> retry x1 (paginate getAllByIssuer (paramsP LocalQuorum (Identity issuer) (size + 1)))
+  where
+    size = 200
+
+    getAllByIssuer :: PrepQuery R (Identity SAML.Issuer) (SAML.NameID, UserId)
+    getAllByIssuer = "SELECT sso_id, uid FROM user_v2 WHERE issuer = ?"
 
 -- | Add new user.  If user with this 'SAML.UserId' exists, overwrite it.
 insertSAMLUser :: (HasCallStack, MonadClient m) => SAML.UserRef -> UserId -> m ()
@@ -54,25 +71,6 @@ insertSAMLUser (SAML.UserRef tenant subject) uid = retry x5 . write ins $ params
   where
     ins :: PrepQuery W (SAML.Issuer, Data.NormalizedUNameID, SAML.NameID, UserId) ()
     ins = "INSERT INTO user_v2 (issuer, normalized_uname_id, sso_id, uid) VALUES (?, ?, ?, ?)"
-
--- | Sometimes we only need to know if it's none or more, so this function returns the first one.
-getSAMLAnyUserByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m (Maybe UserId)
-getSAMLAnyUserByIssuer issuer =
-  runIdentity
-    <$$> (retry x1 . query1 sel $ params LocalQuorum (Identity issuer))
-  where
-    sel :: PrepQuery R (Identity SAML.Issuer) (Identity UserId)
-    sel = "SELECT uid FROM user_v2 WHERE issuer = ? LIMIT 1"
-
--- | Sometimes (eg., for IdP deletion), we can start anywhere with deleting all users in an
--- IdP, and if we don't get all users we just try again when we're done with these.
-getSAMLSomeUsersByIssuer :: (HasCallStack, MonadClient m) => SAML.Issuer -> m [(SAML.UserRef, UserId)]
-getSAMLSomeUsersByIssuer issuer =
-  (_1 %~ SAML.UserRef issuer)
-    <$$> (retry x1 . query sel $ params LocalQuorum (Identity issuer))
-  where
-    sel :: PrepQuery R (Identity SAML.Issuer) (SAML.NameID, UserId)
-    sel = "SELECT sso_id, uid FROM user_v2 WHERE issuer = ? LIMIT 2000"
 
 -- | Lookup a brig 'UserId' by IdP issuer and NameID.
 --

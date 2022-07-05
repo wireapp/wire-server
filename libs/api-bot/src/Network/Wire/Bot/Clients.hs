@@ -57,7 +57,7 @@ addMembers self c uu =
 -- TODO: Move / inline to Network.Wire.Bot.Crypto and remove this module
 foldSessions :: MonadIO m => Clients -> ConvId -> a -> (UserId -> ClientId -> Session -> a -> m a) -> m a
 foldSessions self c a f =
-  foldrM fun a =<< Map.findWithDefault Set.empty c <$> liftIO (readTVarIO (members self))
+  foldrM fun a . Map.findWithDefault Set.empty c =<< liftIO (readTVarIO (members self))
   where
     fun u acc1 = do
       cm <- Map.findWithDefault Map.empty u . clients <$> liftIO (readTVarIO (sessions self))
@@ -66,4 +66,4 @@ foldSessions self c a f =
 lookupSession :: MonadIO m => Clients -> UserId -> ClientId -> m (Maybe Session)
 lookupSession self u d = do
   s <- liftIO $ readTVarIO (sessions self)
-  return $ Map.lookup u (clients s) >>= Map.lookup d
+  pure $ Map.lookup u (clients s) >>= Map.lookup d

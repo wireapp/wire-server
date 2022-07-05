@@ -283,9 +283,9 @@ randomNameWithMaxLen :: MonadIO m => Word -> m Name
 randomNameWithMaxLen maxLen = liftIO $ do
   len <- randomRIO (2, maxLen)
   chars <- fill len []
-  return $ Name (Text.pack chars)
+  pure $ Name (Text.pack chars)
   where
-    fill 0 characters = return characters
+    fill 0 characters = pure characters
     fill 1 characters = (: characters) <$> randLetter
     fill n characters = do
       c <- randChar
@@ -296,14 +296,14 @@ randomNameWithMaxLen maxLen = liftIO $ do
     randLetter = do
       c <- randChar
       if isLetter c
-        then return c
+        then pure c
         else randLetter
 
 randomPhone :: MonadIO m => m Phone
 randomPhone = liftIO $ do
   nrs <- map show <$> replicateM 14 (randomRIO (0, 9) :: IO Int)
   let phone = parsePhone . Text.pack $ "+0" ++ concat nrs
-  return $ fromMaybe (error "Invalid random phone#") phone
+  pure $ fromMaybe (error "Invalid random phone#") phone
 
 defPassword :: PlainTextPassword
 defPassword = PlainTextPassword "secret"
@@ -323,7 +323,7 @@ mkEmailRandomLocalSuffix :: MonadIO m => Text -> m Email
 mkEmailRandomLocalSuffix e = do
   uid <- liftIO UUID.nextRandom
   case parseEmail e of
-    Just (Email loc dom) -> return $ Email (loc <> "+" <> UUID.toText uid) dom
+    Just (Email loc dom) -> pure $ Email (loc <> "+" <> UUID.toText uid) dom
     Nothing -> error $ "Invalid email address: " ++ Text.unpack e
 
 zUser :: UserId -> Bilge.Request -> Bilge.Request
@@ -335,7 +335,7 @@ zConn = header "Z-Connection"
 randomHandle :: MonadIO m => m Text
 randomHandle = liftIO $ do
   nrs <- replicateM 21 (randomRIO (97, 122)) -- a-z
-  return (Text.pack (map chr nrs))
+  pure (Text.pack (map chr nrs))
 
 assertNoError :: (Show e, Member (Embed IO) r) => Sem (Error e ': r) x -> Sem r x
 assertNoError =

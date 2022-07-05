@@ -18,9 +18,9 @@
 
 module Galley.API.Federation where
 
-import Brig.Types.Connection (Relation (Accepted))
 import Control.Error
 import Control.Lens (itraversed, (<.>))
+import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
 import Data.Domain (Domain)
@@ -42,6 +42,7 @@ import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
+import Galley.API.Push
 import Galley.API.Util
 import Galley.App
 import qualified Galley.Data.Conversation as Data
@@ -62,11 +63,11 @@ import qualified Polysemy.TinyLog as P
 import Servant (ServerT)
 import Servant.API
 import qualified System.Logger.Class as Log
+import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
-import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
@@ -78,10 +79,10 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
+import Wire.API.Message
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.ServantProto
-import Wire.API.User.Client (userClientMap)
 
 type FederationAPI = "federation" :> FedApi 'Galley
 
@@ -97,6 +98,7 @@ federationSitemap =
     :<|> Named @"on-user-deleted-conversations" onUserDeleted
     :<|> Named @"update-conversation" updateConversation
     :<|> Named @"mls-welcome" mlsSendWelcome
+    :<|> Named @"on-mls-message-sent" onMLSMessageSent
 
 onConversationCreated ::
   Members
@@ -308,6 +310,7 @@ leaveConversation requestingDomain lc = do
 
 -- FUTUREWORK: report errors to the originating backend
 -- FUTUREWORK: error handling for missing / mismatched clients
+-- FUTUREWORK: support bots
 onMessageSent ::
   Members '[GundeckAccess, ExternalAccess, MemberStore, Input (Local ()), P.TinyLog] r =>
   Domain ->
@@ -326,7 +329,8 @@ onMessageSent domain rmUnqualified = do
       recipientMap = userClientMap $ F.rmRecipients rm
       msgs = toMapOf (itraversed <.> itraversed) recipientMap
   (members, allMembers) <-
-    E.selectRemoteMembers (Map.keys recipientMap) (F.rmConversation rm)
+    first Set.fromList
+      <$> E.selectRemoteMembers (Map.keys recipientMap) (F.rmConversation rm)
   unless allMembers $
     P.warn $
       Log.field "conversation" (toByteString' (qUnqualified convId))
@@ -336,31 +340,18 @@ onMessageSent domain rmUnqualified = do
             \ users not in the conversation" ::
               ByteString
           )
-  localMembers <- sequence $ Map.fromSet mkLocalMember (Set.fromList members)
   loc <- qualifyLocal ()
   void $
-    sendLocalMessages
+    sendLocalMessages @'NormalMessage
       loc
       (F.rmTime rm)
       (F.rmSender rm)
       (F.rmSenderClient rm)
       Nothing
       (Just convId)
-      localMembers
+      mempty
       msgMetadata
-      msgs
-  where
-    -- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQCORE-875
-    mkLocalMember :: UserId -> Sem r LocalMember
-    mkLocalMember m =
-      pure $
-        LocalMember
-          { lmId = m,
-            lmService = Nothing,
-            lmStatus = defMemberStatus,
-            lmConvRoleName = Public.roleNameWireMember,
-            lmMLSClients = Set.empty
-          }
+      (Map.filterWithKey (\(uid, _) _ -> Set.member uid members) msgs)
 
 sendMessage ::
   Members
@@ -455,9 +446,9 @@ updateConversation ::
        ]
       r
   ) =>
-  -- |
+  --
   Domain ->
-  -- |
+  --
   F.ConversationUpdateRequest ->
   Sem r ConversationUpdateResponse
 updateConversation origDomain updateRequest = do
@@ -559,7 +550,45 @@ mlsSendWelcome _origDomain (fromBase64ByteString . F.unMLSWelcomeRequest -> rawW
         )
         $ welSecrets welcome
   let lrcpts = qualifyAs loc $ fst $ partitionQualified loc rcpts
-
   sendLocalWelcomes Nothing now rawWelcome lrcpts
+  pure EmptyResponse
 
+onMLSMessageSent ::
+  Members
+    '[ ExternalAccess,
+       GundeckAccess,
+       Input (Local ()),
+       MemberStore,
+       P.TinyLog
+     ]
+    r =>
+  Domain ->
+  F.RemoteMLSMessage ->
+  Sem r EmptyResponse
+onMLSMessageSent domain rmm = do
+  loc <- qualifyLocal ()
+  let rcnv = toRemoteUnsafe domain (F.rmmConversation rmm)
+  let users = Set.fromList (map fst (F.rmmRecipients rmm))
+  (members, allMembers) <-
+    first Set.fromList
+      <$> E.selectRemoteMembers (toList users) rcnv
+  unless allMembers $
+    P.warn $
+      Log.field "conversation" (toByteString' (tUnqualified rcnv))
+        Log.~~ Log.field "domain" (toByteString' (tDomain rcnv))
+        Log.~~ Log.msg
+          ( "Attempt to send remote message to local\
+            \ users not in the conversation" ::
+              ByteString
+          )
+  let recipients = filter (\(u, _) -> Set.member u members) (F.rmmRecipients rmm)
+  -- FUTUREWORK: support local bots
+  let e =
+        Event (qUntagged rcnv) (F.rmmSender rmm) (F.rmmTime rmm) $
+          EdMLSMessage (fromBase64ByteString (F.rmmMessage rmm))
+  let mkPush :: (UserId, ClientId) -> MessagePush 'NormalMessage
+      mkPush uc = newMessagePush loc mempty Nothing (F.rmmMetadata rmm) uc e
+
+  runMessagePush loc (Just (qUntagged rcnv)) $
+    foldMap mkPush recipients
   pure EmptyResponse

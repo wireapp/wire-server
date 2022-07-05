@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9468b34d92756358ec15e112490166749eeb8aa4c15ec1db90adf33e41c11e7d
+-- hash: 26d987cec9407756eea729c29352c63730c0bb4e5b469b0aeb02ed79e8bd99b3
 
 name:           galley-types
 version:        0.81.0
@@ -28,7 +28,6 @@ library
       Galley.Types.Conversations.Roles
       Galley.Types.Teams
       Galley.Types.Teams.Intra
-      Galley.Types.Teams.SearchVisibility
   other-modules:
       Paths_galley_types
   hs-source-dirs:

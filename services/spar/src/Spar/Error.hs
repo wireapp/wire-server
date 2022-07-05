@@ -27,6 +27,7 @@
 module Spar.Error
   ( SparError,
     SparCustomError (..),
+    IdpDbError (..),
     throwSpar,
     sparToServerErrorWithLogging,
     rethrow,
@@ -94,6 +95,8 @@ data SparCustomError
   | SparNewIdPWantHttps LT
   | SparIdPHasBoundUsers
   | SparIdPIssuerInUse
+  | SparIdPCannotDeleteOwnIdp
+  | IdpDbError IdpDbError
   | SparProvisioningMoreThanOneIdP LT
   | SparProvisioningTokenLimitReached
   | -- | FUTUREWORK(fisx): This constructor is used in exactly one place (see
@@ -104,6 +107,15 @@ data SparCustomError
     SparInternalError LT
   | -- | All errors returned from SCIM handlers are wrapped into 'SparScimError'
     SparScimError Scim.ScimError
+  deriving (Eq, Show)
+
+data IdpDbError
+  = InsertIdPConfigCannotMixApiVersions
+  | AttemptToGetV1IssuerViaV2API
+  | AttemptToGetV2IssuerViaV1API
+  | IdpNonUnique
+  | IdpWrongTeam
+  | IdpNotFound -- like 'SparIdPNotFound', but a database consistency error.  (should we consolidate something anyway?)
   deriving (Eq, Show)
 
 sparToServerErrorWithLogging :: MonadIO m => Log.Logger -> SparError -> m ServerError
@@ -172,6 +184,13 @@ renderSparError (SAML.CustomError (SparNewIdPAlreadyInUse msg)) = Right $ Wai.mk
 renderSparError (SAML.CustomError (SparNewIdPWantHttps msg)) = Right $ Wai.mkError status400 "idp-must-be-https" ("an idp request uri must be https, not http or other: " <> msg)
 renderSparError (SAML.CustomError SparIdPHasBoundUsers) = Right $ Wai.mkError status412 "idp-has-bound-users" "an idp can only be deleted if it is empty"
 renderSparError (SAML.CustomError SparIdPIssuerInUse) = Right $ Wai.mkError status400 "idp-issuer-in-use" "The issuer of your IdP is already in use.  Remove the entry in the team that uses it, or construct a new IdP issuer."
+renderSparError (SAML.CustomError SparIdPCannotDeleteOwnIdp) = Right $ Wai.mkError status409 "cannot-delete-own-idp" "You cannot delete the IdP used to login with your own account."
+renderSparError (SAML.CustomError (IdpDbError InsertIdPConfigCannotMixApiVersions)) = Right $ Wai.mkError status409 "cannot-mix-idp-api-verions" "You cannot have two IdPs with the same issuerwhere one of them is using API V1 and one API V2."
+renderSparError (SAML.CustomError (IdpDbError AttemptToGetV1IssuerViaV2API)) = Right $ Wai.mkError status409 "cannot-mix-idp-api-verions" "You cannot retrieve an API V1 IdP via API V2."
+renderSparError (SAML.CustomError (IdpDbError AttemptToGetV2IssuerViaV1API)) = Right $ Wai.mkError status409 "cannot-mix-idp-api-verions" "You cannot retrieve an API V2 IdP via API V1."
+renderSparError (SAML.CustomError (IdpDbError IdpNonUnique)) = Right $ Wai.mkError status409 "idp-non-unique" "We have found multiple IdPs with the same issuer. Please contact customer support."
+renderSparError (SAML.CustomError (IdpDbError IdpWrongTeam)) = Right $ Wai.mkError status409 "idp-wrong-team" "The IdP is not part of this team."
+renderSparError (SAML.CustomError (IdpDbError IdpNotFound)) = renderSparError (SAML.CustomError (SparIdPNotFound ""))
 -- Errors related to provisioning
 renderSparError (SAML.CustomError (SparProvisioningMoreThanOneIdP msg)) = Right $ Wai.mkError status400 "more-than-one-idp" ("Team can have at most one IdP configured: " <> msg)
 renderSparError (SAML.CustomError SparProvisioningTokenLimitReached) = Right $ Wai.mkError status403 "token-limit-reached" "The limit of provisioning tokens per team has been reached"

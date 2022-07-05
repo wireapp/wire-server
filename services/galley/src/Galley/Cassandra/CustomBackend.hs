@@ -25,10 +25,10 @@ import Galley.Cassandra.Instances ()
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store
 import Galley.Effects.CustomBackendStore (CustomBackendStore (..))
-import Galley.Types
 import Imports
 import Polysemy
 import Polysemy.Input
+import Wire.API.CustomBackend
 
 interpretCustomBackendStoreToCassandra ::
   Members '[Embed IO, Input ClientState] r =>

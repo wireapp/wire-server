@@ -28,6 +28,7 @@ import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Text as T
 import Imports
+import System.FilePath
 import System.Process
 import Util
 import Wire.API.MLS.Credential
@@ -46,22 +47,24 @@ uploadKeyPackages ::
   ClientId ->
   Int ->
   Http ()
-uploadKeyPackages brig store sk u c n = do
-  let cmd0 = ["crypto-cli", "--store", store, "--enc-key", "test"]
+uploadKeyPackages brig tmp sk u c n = do
+  let cmd0 = ["mls-test-cli", "--store", tmp </> (clientId <> ".db")]
       clientId =
         show (qUnqualified u)
           <> ":"
           <> T.unpack (client c)
           <> "@"
           <> T.unpack (domainText (qDomain u))
+  void . liftIO . flip spawn Nothing . shell . unwords $
+    cmd0 <> ["init", clientId]
   kps <-
-    replicateM n . liftIO . spawn . shell . unwords $
-      cmd0 <> ["key-package", clientId]
+    replicateM n . liftIO . flip spawn Nothing . shell . unwords $
+      cmd0 <> ["key-package", "create"]
   when (sk == SetKey) $
     do
       pk <-
-        liftIO . spawn . shell . unwords $
-          cmd0 <> ["public-key", clientId]
+        liftIO . flip spawn Nothing . shell . unwords $
+          cmd0 <> ["public-key"]
       put
         ( brig
             . paths ["clients", toByteString' c]

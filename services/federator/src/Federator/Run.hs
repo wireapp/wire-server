@@ -98,7 +98,7 @@ newEnv o _dnsResolver = do
       _service Cargohold = Opt.cargohold o
   _httpManager <- initHttpManager
   _tls <- mkTLSSettingsOrThrow _runSettings >>= newIORef
-  return Env {..}
+  pure Env {..}
 
 closeEnv :: Env -> IO ()
 closeEnv e = do

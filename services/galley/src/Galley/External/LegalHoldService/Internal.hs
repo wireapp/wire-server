@@ -23,7 +23,6 @@ where
 
 import qualified Bilge
 import Bilge.Retry
-import Brig.Types.Provider
 import Control.Lens (view)
 import Control.Monad.Catch
 import Control.Retry
