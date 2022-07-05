@@ -698,7 +698,6 @@ type ConnectionAPI =
     Named
       "update-connection"
       ( Summary "Update a connection to another user"
-          :> Until 'V2
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached
