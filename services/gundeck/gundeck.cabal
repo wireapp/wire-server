@@ -46,6 +46,7 @@ library
       Gundeck.Push.Websocket
       Gundeck.React
       Gundeck.Redis
+      Gundeck.Redis.HedisExtensions
       Gundeck.Run
       Gundeck.ThreadBudget
       Gundeck.ThreadBudget.Internal

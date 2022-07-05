@@ -37,6 +37,7 @@ import qualified Database.Redis as Redis
 import qualified Gundeck.Aws as Aws
 import Gundeck.Options as Opt
 import qualified Gundeck.Redis as Redis
+import qualified Gundeck.Redis.HedisExtensions as Redis
 import Gundeck.ThreadBudget
 import Imports
 import Network.HTTP.Client (responseTimeoutMicro)
@@ -131,7 +132,7 @@ createRedisPool l endpoint identifier = do
       . Log.field "connInfo" (show redisConnInfo)
   let connectWithRetry = Redis.connectRobust l (capDelay 1000000 (exponentialBackoff 50000))
   r <- case endpoint ^. rConnectionMode of
-    Master -> connectWithRetry $ Redis.connect redisConnInfo
-    Cluster -> connectWithRetry $ Redis.connectCluster redisConnInfo
+    Master -> connectWithRetry $ Redis.checkedConnect redisConnInfo
+    Cluster -> connectWithRetry $ Redis.checkedConnectCluster redisConnInfo
   Log.info l $ Log.msg (Log.val $ "Established connection to " <> identifier <> ".")
   pure r

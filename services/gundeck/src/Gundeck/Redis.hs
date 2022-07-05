@@ -66,7 +66,7 @@ connectRobust ::
   Logger ->
   -- | e. g., @exponentialBackoff 50000@
   RetryPolicy ->
-  -- | action returning a fresh initial 'Connection', e. g., @(connect connInfo)@ or @(connectCluster connInfo)@
+  -- | action returning a fresh initial 'Connection', e. g., @(checkedConnect connInfo)@ or @(checkedConnectCluster connInfo)@
   IO Connection ->
   IO RobustConnection
 connectRobust l retryStrategy connectLowLevel = do
@@ -75,18 +75,9 @@ connectRobust l retryStrategy connectLowLevel = do
   pure robustConnection
   where
     reconnectRedis robustConnection = do
+      Log.info l $ Log.msg (Log.val "connecting to Redis")
       conn <- connectLowLevel
-
-      Log.info l $ Log.msg (Log.val "lazy connection established, running ping...")
-      -- FUTUREWORK: With ping, we only verify that a single node is running as
-      -- opposed to verifying that all nodes of the cluster are up and running.
-      -- It remains unclear how cluster health can be verified in hedis.
-      void . runRedis conn $ do
-        res <- ping
-        case res of
-          Left r -> throwIO $ PingException r
-          Right _ -> pure ()
-      Log.info l $ Log.msg (Log.val "ping went through")
+      Log.info l $ Log.msg (Log.val "successfully connected to Redis")
 
       reconnectOnce <-
         once $ -- avoid concurrent attempts to reconnect
