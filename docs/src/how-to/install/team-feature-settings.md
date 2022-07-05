@@ -10,6 +10,8 @@ By default Wire enforces a 2nd factor authentication for certain user operations
 
 If the `sndFactorPasswordChallenge` feature is enabled, a 6 digit verification code will be send per email to authenticate for additional user operations like e.g. for login, adding a new client, generating SCIM tokens, or deleting a team.
 
+Note the number of attempts to verify with a code is limited to 3 and requests for generating verification codes are rate limited. The default delay between consecutive requests is 5 minutes.
+
 Usually the default is what you want. If you explicitly want to enable additional password challenges, add the following to your Helm overrides in `values/wire-server/values.yaml`:
 
 ```yaml
@@ -28,6 +30,20 @@ galley:
 ```
 
 Note that the lock status is required but has no effect, as it is currently not supported for team admins to enable or disable `sndFactorPasswordChallenge`. We recommend to set the lock status to `locked`.
+
+### Rate limiting of code generation requests
+
+The default delay between code generation requests is 5 minutes. This setting can be overridden in the Helm charts:
+
+```yaml
+brig:
+  # ...
+  config:
+    # ...
+    optSettings:
+      # ...
+      setCodeGenerationDelaySecs: 300 # 5 minutes
+```
 
 ## Guest links
 

@@ -84,6 +84,7 @@ config:
     # setCustomerExtensions:
     #   domainsBlockedForRegistration:
     #   - example.com
+    setCodeGenerationDelaySecs: 300 # 5 minutes
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}
