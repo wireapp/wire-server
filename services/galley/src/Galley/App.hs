@@ -224,7 +224,7 @@ evalGalley :: Env -> Sem GalleyEffects a -> ExceptT Wai.Error IO a
 evalGalley e =
   ExceptT
     . runFinal @IO
-    . runResource
+    . resourceToIOFinal
     . runError
     . embedToFinal @IO
     . mapError toWai
