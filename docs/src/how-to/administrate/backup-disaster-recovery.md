@@ -259,7 +259,7 @@ Where :
 * `user` is the user you used to install Wire on this server, typically `wire` or `root`
 * `/path/to/my/folder/for/wire-server/` is the (absolute) path, on the server, where your wire-server folder is located
 
-Now all files should be in their proper place, with the proper values, and you should be able to run the required ansible/helm commands that will result in a full installation of Wire
+Now all files should be in their proper place, with the proper values, and you should be able to run the required ansible/helm commands that will result in a full installation of Wire.
 
 ### Restoring Cassandra from a backup
 
