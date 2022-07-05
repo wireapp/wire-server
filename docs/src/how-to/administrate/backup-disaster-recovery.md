@@ -242,7 +242,7 @@ If the worse has happened, and you need to recover/restore your Wire installatio
 3. Restore your Cassandra backup files over your new Cassandra installation.
 4. Restore your MinIO backup files over your new MinIO installation.
 5. Restart all services.
-6. Ensure all services are functionning correctly
+6. Ensure all services are functioning correctly
 
 ### Restoring Wire-Server from a backup
 
