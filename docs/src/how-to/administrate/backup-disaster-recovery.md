@@ -24,7 +24,7 @@ The exceptions to this rule, are what you want to back up. In particular:
 * Your Cassandra database
 * Your Minio data
 
-If you save these, you can then whenever needed create a fresh install of Wire, re-import/re-install them on top of it, and get back to a working state.
+If you save these, you can then whenever needed, create a fresh installation of Wire, re-import/re-install them on top of it, and get back to a working state.
 
 Here is how to back up each:
 
