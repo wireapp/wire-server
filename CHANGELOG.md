@@ -145,7 +145,7 @@
 
 * brig-types: remove all re-exports (#2505)
 
-* Fixed flakiness of email update test, related to the test user account being suspended, causing subsequent runs of the test to fail. (#PR_NOT_FOUND)
+* Fixed flakiness of email update test, related to the test user account being suspended, causing subsequent runs of the test to fail. (#2497)
 
 * galley-types: remove all re-exports (#2504)
 
