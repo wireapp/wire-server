@@ -254,7 +254,7 @@ You can extract this file to the remote machine with the following command:
 
 Where :
 
-* `wire-server-backup.tar.gz` is the name of the file in which your wire-server folder was be stored
+* `wire-server-backup.tar.gz` is the name of the file in which your wire-server folder has been stored
 * `my-wire-server.your-domain.com` is the domain name or IP address for the server with your Wire install
 * `user` is the user you used to install Wire on this server, typically `wire` or `root`
 * `/path/to/my/folder/for/wire-server/` is the (absolute) path, on the server, where your wire-server folder is located
