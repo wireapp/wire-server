@@ -129,7 +129,7 @@ tests conf m z db b g n =
               test m "test-login-verify6-digit-wrong-code-fails" $ testLoginVerify6DigitWrongCodeFails b g,
               test m "test-login-verify6-digit-missing-code-fails" $ testLoginVerify6DigitMissingCodeFails b g,
               test m "test-login-verify6-digit-expired-code-fails" $ testLoginVerify6DigitExpiredCodeFails b g db,
-              test m "test-login-verify6-digit-resend-code-success" $ testLoginVerify6DigitResendCodeSuccess b g db
+              test m "test-login-verify6-digit-resend-code-success-and-rate-limiting" $ testLoginVerify6DigitResendCodeSuccessAndRateLimiting b g conf db
             ]
         ],
       testGroup
@@ -388,9 +388,8 @@ testLoginVerify6DigitEmailCodeSuccess brig galley db = do
   Just vcode <- Util.lookupCode db key Code.AccountLogin
   checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue vcode)
 
--- todo(leif): fix test to work with code generation throttling
-testLoginVerify6DigitResendCodeSuccess :: Brig -> Galley -> DB.ClientState -> Http ()
-testLoginVerify6DigitResendCodeSuccess brig galley db = withSettingsOverrides _ $ do
+testLoginVerify6DigitResendCodeSuccessAndRateLimiting :: Brig -> Galley -> Opts.Opts -> DB.ClientState -> Http ()
+testLoginVerify6DigitResendCodeSuccessAndRateLimiting brig galley _opts db = do
   (u, tid) <- createUserWithTeam' brig
   let Just email = userEmail u
   let checkLoginSucceeds body = login brig body PersistentCookie !!! const 200 === statusCode
@@ -409,9 +408,10 @@ testLoginVerify6DigitResendCodeSuccess brig galley db = withSettingsOverrides _ 
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   fstCode <- getCodeFromDb
 
-  -- todo(leif): conflict with rate limiting
-  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
+  let tooManyRequests = 429
+  Util.generateVerificationCodeExpect tooManyRequests brig (Public.SendVerificationCode Public.Login email)
+
+  void $ retryWhileN 10 ((==) 429 . statusCode) $ Util.generateVerificationCode' brig (Public.SendVerificationCode Public.Login email)
   mostRecentCode <- getCodeFromDb
 
   checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue fstCode)

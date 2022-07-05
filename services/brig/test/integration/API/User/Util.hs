@@ -517,9 +517,16 @@ matchConvLeaveNotification conv remover removeds n = do
     sorted x = x
 
 generateVerificationCode :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> Public.SendVerificationCode -> m ()
-generateVerificationCode brig req = do
+generateVerificationCode = generateVerificationCodeExpect 200
+
+generateVerificationCodeExpect :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Int -> Brig -> Public.SendVerificationCode -> m ()
+generateVerificationCodeExpect expectedStatus brig req = do
+  generateVerificationCode' brig req !!! const expectedStatus === statusCode
+
+generateVerificationCode' :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> Public.SendVerificationCode -> m ResponseLBS
+generateVerificationCode' brig req = do
   let js = RequestBodyLBS $ encode req
-  post (brig . paths ["verification-code", "send"] . contentJson . body js) !!! const 200 === statusCode
+  post (brig . paths ["verification-code", "send"] . contentJson . body js)
 
 setTeamSndFactorPasswordChallenge :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Galley -> TeamId -> Public.FeatureStatus -> m ()
 setTeamSndFactorPasswordChallenge galley tid status = do
