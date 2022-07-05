@@ -152,7 +152,7 @@ This will (over ssh) find all `snapshot` folders in the `cassandra` folder, pack
 
 ### Backing up MinIO
 
-MinIO emulates an Amazon-S3-compatible file-storage setup, and is used by Wire to store things such as file attachements, images etc.
+MinIO emulates an Amazon-S3-compatible file-storage setup, and is used by Wire to store things such as file attachments, images etc.
 
 If your specific installation is using the actual Amazon file storage (and not a local emulated alternative), you should skip this section (but still actually backup whatever you are using).
 
