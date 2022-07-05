@@ -93,7 +93,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal (Append)
-import Polysemy.Resource (Resource, runResource)
+import Polysemy.Resource
 import qualified Polysemy.TinyLog as P
 import qualified Servant
 import Ssl.Util
@@ -115,9 +115,9 @@ type GalleyEffects0 =
      -- federation errors can be thrown by almost every endpoint, so we avoid
      -- having to declare it every single time, and simply handle it here
      Error FederationError,
-     Resource,
      Embed IO,
      Error Wai.Error,
+     Resource,
      Final IO
    ]
 
@@ -224,9 +224,9 @@ evalGalley :: Env -> Sem GalleyEffects a -> ExceptT Wai.Error IO a
 evalGalley e =
   ExceptT
     . runFinal @IO
+    . runResource
     . runError
     . embedToFinal @IO
-    . runResource
     . mapError toWai
     . mapError toWai
     . mapError toWai
