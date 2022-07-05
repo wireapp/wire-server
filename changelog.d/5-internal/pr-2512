@@ -1,1 +1,0 @@
-retry gundeck's Redis connection in case of network errors such as IP changes or network outages
