@@ -694,7 +694,7 @@ deleteLoop = do
   safeForever "deleteLoop" $ do
     i@(TeamItem tid usr con) <- Q.pop q
     env <- ask
-    liftIO (evalGalley env (doDelete usr con tid))
+    liftIO (evalGalleyToIO env (doDelete usr con tid))
       `catchAny` someError q i
   where
     someError q i x = do

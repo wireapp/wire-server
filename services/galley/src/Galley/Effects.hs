@@ -88,7 +88,6 @@ import Galley.Effects.TeamStore
 import Galley.Effects.WaiRoutes
 import Galley.Env
 import Galley.Options
-import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -127,6 +126,5 @@ type GalleyEffects1 =
      Input UTCTime,
      Queue DeleteItem,
      TinyLog,
-     Error Wai.Error,
      Error DynError
    ]
