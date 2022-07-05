@@ -62,7 +62,7 @@ import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import Spar.Sem.ScimTokenStore.Cassandra (scimTokenStoreToCassandra)
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
 import Spar.Sem.ScimUserTimesStore.Cassandra (scimUserTimesStoreToCassandra)
-import Spar.Sem.Utils (interpretClientToIO, ttlErrorToSparError)
+import Spar.Sem.Utils (idpDbErrorToSparError, interpretClientToIO, ttlErrorToSparError)
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import Spar.Sem.VerdictFormatStore.Cassandra (verdictFormatStoreToCassandra)
 import qualified System.Logger as TinyLog
@@ -90,6 +90,7 @@ type CanonicalEffs =
      Embed Cas.Client,
      BrigAccess,
      GalleyAccess,
+     Error IdpDbError,
      Error TTLError,
      Error SparError,
      Reporter,
@@ -117,6 +118,7 @@ runSparToIO ctx action =
     . reporterToTinyLogWai
     . runError @SparError
     . ttlErrorToSparError
+    . idpDbErrorToSparError
     . galleyAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpGalley ctx)
     . brigAccessToHttp (sparCtxHttpManager ctx) (sparCtxHttpBrig ctx)
     . interpretClientToIO (sparCtxCas ctx)

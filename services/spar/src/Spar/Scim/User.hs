@@ -139,7 +139,7 @@ instance
       )
       logScimUserIds
       $ do
-        mIdpConfig <- maybe (pure Nothing) (lift . IdPConfigStore.getConfig) stiIdP
+        mIdpConfig <- mapM (lift . IdPConfigStore.getConfig) stiIdP
         case filter' of
           Scim.FilterAttrCompare (Scim.AttrPath schema attrName _subAttr) Scim.OpEq (Scim.ValString val)
             | Scim.isUserSchema schema -> do
@@ -163,7 +163,7 @@ instance
       )
       logScimUserId
       $ do
-        mIdpConfig <- maybe (pure Nothing) (lift . IdPConfigStore.getConfig) stiIdP
+        mIdpConfig <- mapM (lift . IdPConfigStore.getConfig) stiIdP
         let notfound = Scim.notFound "User" (idToText uid)
         runMaybeT (getUserById mIdpConfig stiTeam uid) >>= maybe (throwError notfound) pure
 
@@ -206,7 +206,7 @@ validateScimUser errloc tokinfo user = do
 
 tokenInfoToIdP :: Member IdPConfigStore r => ScimTokenInfo -> Scim.ScimHandler (Sem r) (Maybe IdP)
 tokenInfoToIdP ScimTokenInfo {stiIdP} =
-  maybe (pure Nothing) (lift . IdPConfigStore.getConfig) stiIdP
+  mapM (lift . IdPConfigStore.getConfig) stiIdP
 
 -- | Validate a handle (@userName@).
 validateHandle :: MonadError Scim.ScimError m => Text -> m Handle
@@ -707,7 +707,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
             throwError $
               Scim.notFound "user" (idToText uid)
 
-          mIdpConfig <- maybe (pure Nothing) (lift . IdPConfigStore.getConfig) stiIdP
+          mIdpConfig <- mapM (lift . IdPConfigStore.getConfig) stiIdP
 
           case Brig.veidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
             Left _ -> pure ()

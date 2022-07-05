@@ -25,7 +25,7 @@ where
 
 import Bilge
 import Brig.Types.Intra (AccountStatus (Deleted))
-import Cassandra hiding (Value)
+import Cassandra as Cas hiding (Value)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Random.Class (getRandomR)
@@ -442,7 +442,7 @@ specFinalizeLogin = do
               statusCode sparresp `shouldBe` 404
               -- body should contain the error label in the title, the verbatim haskell error, and the request:
               (cs . fromJust . responseBody $ sparresp) `shouldContain` "<title>wire:sso:error:not-found</title>"
-              (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "CustomError (SparIdPNotFound"
+              (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "(CustomError (IdpDbError IdpNotFound)"
               (cs . fromJust . responseBody $ sparresp) `shouldContainInBase64` "Input {iName = \"SAMLResponse\""
         check mkareq mkaresp submitaresp checkresp
 
@@ -702,6 +702,7 @@ specCRUDIdentityProvider = do
         ssoOwner <- mkSsoOwner firstOwner tid idp privcreds
         callIdpDeletePurge' (env ^. teSpar) (Just ssoOwner) (idp ^. idpId)
           `shouldRespondWith` checkErrHspec 409 "cannot-delete-own-idp"
+
   describe "PUT /identity-providers/:idp" $ do
     testGetPutDelete callIdpUpdate'
     context "known IdP, client is team owner" $ do
@@ -736,12 +737,15 @@ specCRUDIdentityProvider = do
           callIdpUpdate' (env ^. teSpar) (Just owner) idpid (IdPMetadataValue "<NotSAML>bloo</NotSAML>" undefined)
             `shouldRespondWith` checkErrHspec 400 "invalid-metadata"
     describe "issuer changed to one that already exists in *another* team" $ do
-      it "rejects" $ do
+      it "rejects if V1, succeeds if V2" $ do
         env <- ask
         (owner1, _, (^. idpId) -> idpid1) <- registerTestIdP
         (_, _, _, (IdPMetadataValue _ idpmeta2, _)) <- registerTestIdPWithMeta
         callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined)
-          `shouldRespondWith` checkErrHspec 400 "idp-issuer-in-use"
+          `shouldRespondWith` ( case env ^. teWireIdPAPIVersion of
+                                  WireIdPAPIV1 -> checkErrHspec 400 "idp-issuer-in-use"
+                                  WireIdPAPIV2 -> (== 200) . statusCode
+                              )
     describe "issuer changed to one that already exists in *the same* team" $ do
       it "rejects" $ do
         env <- ask
@@ -749,6 +753,9 @@ specCRUDIdentityProvider = do
         (SampleIdP idpmeta2 _ _ _) <- makeSampleIdPMetadata
         _ <- call $ callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner1) idpmeta2
         let idpmeta1' = idpmeta1 & edIssuer .~ (idpmeta2 ^. edIssuer)
+
+        -- An IdP is unambiguously identified by teamid plus issuer, so a team cannot have
+        -- multiple IdPs with the same issuer, regardless of the API version.
         callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta1') undefined)
           `shouldRespondWith` checkErrHspec 400 "idp-issuer-in-use"
     describe "issuer changed to one that already existed in the same team in the past (but has been updated away)" $ do
@@ -763,11 +770,11 @@ specCRUDIdentityProvider = do
           pure $ idpmeta1 & edIssuer .~ (idpmeta3 ^. edIssuer)
 
         do
-          midp <- runSpar $ IdPEffect.getConfig idpid1
+          idp <- runSpar $ IdPEffect.getConfig idpid1
           liftIO $ do
-            (midp ^? _Just . idpMetadata . edIssuer) `shouldBe` Just (idpmeta1 ^. edIssuer)
-            (midp ^? _Just . idpExtraInfo . wiOldIssuers) `shouldBe` Just []
-            (midp ^? _Just . idpExtraInfo . wiReplacedBy) `shouldBe` Just Nothing
+            (idp ^. idpMetadata . edIssuer) `shouldBe` (idpmeta1 ^. edIssuer)
+            (idp ^. idpExtraInfo . wiOldIssuers) `shouldBe` []
+            (idp ^. idpExtraInfo . wiReplacedBy) `shouldBe` Nothing
 
         let -- change idp metadata (only issuer, to be precise), and look at new issuer and
             -- old issuers.
@@ -776,11 +783,11 @@ specCRUDIdentityProvider = do
               resp <- call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode new) undefined)
               liftIO $ statusCode resp `shouldBe` 200
 
-              midp <- runSpar $ IdPEffect.getConfig idpid1
+              idp <- runSpar $ IdPEffect.getConfig idpid1
               liftIO $ do
-                (midp ^? _Just . idpMetadata . edIssuer) `shouldBe` Just (new ^. edIssuer)
-                sort <$> (midp ^? _Just . idpExtraInfo . wiOldIssuers) `shouldBe` Just (sort $ olds <&> (^. edIssuer))
-                (midp ^? _Just . idpExtraInfo . wiReplacedBy) `shouldBe` Just Nothing
+                (idp ^. idpMetadata . edIssuer) `shouldBe` (new ^. edIssuer)
+                sort (idp ^. idpExtraInfo . wiOldIssuers) `shouldBe` sort (olds <&> (^. edIssuer))
+                (idp ^. idpExtraInfo . wiReplacedBy) `shouldBe` Nothing
 
         -- update the name a few times, ending up with the original one.
         change idpmeta1' [idpmeta1]
