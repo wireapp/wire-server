@@ -1,2 +1,0 @@
-The service definitions in the coturn Helm chart were missing the control plane
-UDP port used by coturn.

@@ -1,1 +1,0 @@
-In nginx-ingress-services chart, when enabling useCertManager, now correctly creates the required issuer by default.
