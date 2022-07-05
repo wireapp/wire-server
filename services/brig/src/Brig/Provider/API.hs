@@ -361,7 +361,7 @@ newAccount new = do
       (Just (toUUID pid))
   ttl <- setCodeGenerationDelaySecs <$> view settings
   mRetryAfter <- wrapClientE $ Code.insert code ttl
-  maybe (pure ()) (throwE . verificationCodeThrottledError . VerificationCodeThrottled) mRetryAfter
+  mapM_ (throwE . verificationCodeThrottledError . VerificationCodeThrottled) mRetryAfter
   let key = Code.codeKey code
   let val = Code.codeValue code
   lift $ sendActivationMail name email key val False
@@ -465,7 +465,7 @@ beginPasswordReset (Public.PasswordReset target) = do
         (Just (toUUID pid))
   ttl <- setCodeGenerationDelaySecs <$> view settings
   mRetryAfter <- wrapClientE $ Code.insert code ttl
-  maybe (pure ()) (throwE . verificationCodeThrottledError . VerificationCodeThrottled) mRetryAfter
+  mapM_ (throwE . verificationCodeThrottledError . VerificationCodeThrottled) mRetryAfter
   lift $ sendPasswordResetMail target (Code.codeKey code) (Code.codeValue code)
 
 completePasswordResetH :: JsonRequest Public.CompletePasswordReset -> (Handler r) Response
@@ -536,7 +536,7 @@ updateAccountEmail pid (Public.EmailUpdate new) = do
       (Just (toUUID pid))
   ttl <- setCodeGenerationDelaySecs <$> view settings
   mRetryAfter <- wrapClientE $ Code.insert code ttl
-  maybe (pure ()) (throwE . verificationCodeThrottledError . VerificationCodeThrottled) mRetryAfter
+  mapM_ (throwE . verificationCodeThrottledError . VerificationCodeThrottled) mRetryAfter
   lift $ sendActivationMail (Name "name") email (Code.codeKey code) (Code.codeValue code) True
 
 updateAccountPasswordH :: ProviderId ::: JsonRequest Public.PasswordChange -> (Handler r) Response
