@@ -260,19 +260,24 @@ type HasProposalEffects r =
 type ClientMap = Map (Qualified UserId) (Set ClientId)
 
 data ProposalAction = ProposalAction
-  { paAdd :: ClientMap
+  { paAdd :: ClientMap,
+    paRemove :: ClientMap
   }
 
 instance Semigroup ProposalAction where
-  ProposalAction add1 <> ProposalAction add2 =
-    ProposalAction $
-      Map.unionWith mappend add1 add2
+  ProposalAction add1 rem1 <> ProposalAction add2 rem2 =
+    ProposalAction
+      (Map.unionWith mappend add1 add2)
+      (Map.unionWith mappend rem1 rem2)
 
 instance Monoid ProposalAction where
-  mempty = ProposalAction mempty
+  mempty = ProposalAction mempty mempty
 
-paClient :: Qualified (UserId, ClientId) -> ProposalAction
-paClient quc = mempty {paAdd = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
+paAddClient :: Qualified (UserId, ClientId) -> ProposalAction
+paAddClient quc = mempty {paAdd = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
+
+paRemoveClient :: Qualified (UserId, ClientId) -> ProposalAction
+paRemoveClient quc = mempty {paRemove = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
 
 processCommit ::
   ( HasProposalEffects r,
@@ -376,7 +381,10 @@ applyProposal (AddProposal kp) = do
     kpRef' kp
       & note (mlsProtocolError "Could not compute ref of a key package in an Add proposal")
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
-  pure (paClient qclient)
+  pure (paAddClient qclient)
+applyProposal (RemoveProposal ref) = do
+  qclient <- cidQualifiedClient <$> derefKeyPackage ref
+  pure (paRemoveClient qclient)
 applyProposal _ = throwS @'MLSUnsupportedProposal
 
 checkProposal ::
@@ -465,20 +473,25 @@ executeProposalAction qusr con lconv action = do
   let ss = csSignatureScheme cs
       cm = convClientMap lconv
       newUserClients = Map.assocs (paAdd action)
+      removeUserClients = Map.assocs (paRemove action)
   -- check that all clients of each user are added to the conversation, and
   -- update the database accordingly
-  traverse_ (uncurry (addUserClients ss cm)) newUserClients
+  traverse_ (uncurry (assertAllClients ss cm)) (newUserClients <> removeUserClients)
   -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
   foldQualified lconv (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
   -- add users to the conversation and send events
-  result <- foldMap addMembers . nonEmpty . map fst $ newUserClients
+  addEvents <- foldMap addMembers . nonEmpty . map fst $ newUserClients
   -- add clients to the database
   for_ newUserClients $ \(qtarget, newClients) -> do
     addMLSClients (fmap convId lconv) qtarget newClients
-  pure result
+
+  -- remove users from the conversation and send events
+  removeEvents <- foldMap removeMembers . nonEmpty . map fst $ removeUserClients
+
+  pure (addEvents <> removeEvents)
   where
-    addUserClients :: SignatureSchemeTag -> ClientMap -> Qualified UserId -> Set ClientId -> Sem r ()
-    addUserClients ss cm qtarget newClients = do
+    assertAllClients :: SignatureSchemeTag -> ClientMap -> Qualified UserId -> Set ClientId -> Sem r ()
+    assertAllClients ss cm qtarget newClients = do
       -- compute final set of clients in the conversation
       let cs = newClients <> Map.findWithDefault mempty qtarget cm
       -- get list of mls clients from brig
@@ -493,13 +506,25 @@ executeProposalAction qusr con lconv action = do
       -- FUTUREWORK: update key package ref mapping to reflect conversation membership
       handleNoChanges
         . handleMLSProposalFailures @ProposalErrors
-        . fmap (pure)
+        . fmap pure
         . updateLocalConversationUnchecked
           @'ConversationJoinTag
           lconv
           qusr
           con
         $ ConversationJoin users roleNameWireMember
+
+    removeMembers :: NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
+    removeMembers users =
+      handleNoChanges
+        . handleMLSProposalFailures @ProposalErrors
+        . fmap pure
+        . updateLocalConversationUnchecked
+          @'ConversationRemoveMembersTag
+          lconv
+          qusr
+          con
+        $ users
 
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError
@@ -637,6 +662,7 @@ type ProposalErrors =
      Error InvalidInput,
      ErrorS ('ActionDenied 'AddConversationMember),
      ErrorS ('ActionDenied 'LeaveConversation),
+     ErrorS ('ActionDenied 'RemoveConversationMember),
      ErrorS 'ConvAccessDenied,
      ErrorS 'InvalidOperation,
      ErrorS 'NotATeamMember,
