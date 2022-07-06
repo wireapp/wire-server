@@ -474,11 +474,19 @@ executeProposalAction qusr con lconv action = do
       cm = convClientMap lconv
       newUserClients = Map.assocs (paAdd action)
       removeUserClients = Map.assocs (paRemove action)
-  -- check that all clients of each user are added to the conversation, and
-  -- update the database accordingly
-  traverse_ (uncurry (assertAllClients ss cm)) (newUserClients <> removeUserClients)
+
   -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
   foldQualified lconv (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
+
+  -- check that all clients of each user are added to the conversation
+  for_ newUserClients $ \(qtarget, newclients) -> do
+    -- final set of clients in the conversation
+    let clients = newclients <> Map.findWithDefault mempty qtarget cm
+    assertAllClients ss qtarget clients
+
+  for_ removeUserClients $ \(qtarget, removedClients) -> do
+    assertAllClients ss qtarget removedClients
+
   -- add users to the conversation and send events
   addEvents <- foldMap addMembers . nonEmpty . map fst $ newUserClients
   -- add clients to the database
@@ -490,14 +498,12 @@ executeProposalAction qusr con lconv action = do
 
   pure (addEvents <> removeEvents)
   where
-    assertAllClients :: SignatureSchemeTag -> ClientMap -> Qualified UserId -> Set ClientId -> Sem r ()
-    assertAllClients ss cm qtarget newClients = do
-      -- compute final set of clients in the conversation
-      let cs = newClients <> Map.findWithDefault mempty qtarget cm
+    assertAllClients :: SignatureSchemeTag -> Qualified UserId -> Set ClientId -> Sem r ()
+    assertAllClients ss qtarget clients = do
       -- get list of mls clients from brig
       allClients <- getMLSClients lconv qtarget ss
       -- if not all clients have been added to the conversation, return an error
-      when (cs /= allClients) $ do
+      when (clients /= allClients) $ do
         -- FUTUREWORK: turn this error into a proper response
         throwS @'MLSClientMismatch
 
