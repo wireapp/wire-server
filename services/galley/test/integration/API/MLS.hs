@@ -96,7 +96,10 @@ tests s =
           test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
           test s "post commit that references a unknown proposal" testUnknownProposalRefCommit,
           test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
-          test s "admin removes user / all their clients from a conversation" testAdminRemovesUserFromConv
+          test s "admin removes user from a conversation" testAdminRemovesUserFromConv,
+          test s "admin removes user from a conversation but doesn't list all clients" (error "TODO"),
+          test s "user deletes a client and anyone removes the keypackage from the group" (error "TODO"),
+          test s "user removes a single client from group without deleting it first" (error "TODO")
         ],
       testGroup
         "Application Message"
