@@ -28,6 +28,7 @@ import Database.Redis
 import Imports hiding (Down)
 import UnliftIO
 
+-- https://redis.io/commands/cluster-info/
 data ClusterInfoResponse = ClusterInfoResponse
   { clusterInfoResponseState :: ClusterInfoResponseState,
     clusterInfoResponseSlotsAssigned :: Integer,
@@ -35,16 +36,34 @@ data ClusterInfoResponse = ClusterInfoResponse
     clusterInfoResponseSlotsPfail :: Integer,
     clusterInfoResponseSlotsFail :: Integer,
     clusterInfoResponseKnownNodes :: Integer,
-    clusterInfoResponseClusterSize :: Integer,
-    clusterInfoResponseClusterCurrentEpoch :: Integer,
-    clusterInfoResponseClusterMyEpoch :: Integer,
-    clusterInfoResponseClusterStatsMessagesPingSent :: Integer,
-    clusterInfoResponseClusterStatsMessagesPongSent :: Integer,
-    clusterInfoResponseClusterStatsMessagesSent :: Integer,
-    clusterInfoResponseClusterStatsMessagesPingReceived :: Integer,
-    clusterInfoResponseClusterStatsMessagesPongReceived :: Integer,
-    clusterInfoResponseClusterStatsMessagesMeetReceived :: Integer,
-    clusterInfoResponseClusterStatsMessagesReceived :: Integer
+    clusterInfoResponseSize :: Integer,
+    clusterInfoResponseCurrentEpoch :: Integer,
+    clusterInfoResponseMyEpoch :: Integer,
+    clusterInfoResponseStatsMessagesSent :: Integer,
+    clusterInfoResponseStatsMessagesReceived :: Integer,
+    clusterInfoResponseTotalLinksBufferLimitExceeded :: Integer,
+    clusterInfoResponseStatsMessagesPingSent :: Maybe Integer,
+    clusterInfoResponseStatsMessagesPingReceived :: Maybe Integer,
+    clusterInfoResponseStatsMessagesPongSent :: Maybe Integer,
+    clusterInfoResponseStatsMessagesPongReceived :: Maybe Integer,
+    clusterInfoResponseStatsMessagesMeetSent :: Maybe Integer,
+    clusterInfoResponseStatsMessagesMeetReceived :: Maybe Integer,
+    clusterInfoResponseStatsMessagesFailSent :: Maybe Integer,
+    clusterInfoResponseStatsMessagesFailReceived :: Maybe Integer,
+    clusterInfoResponseStatsMessagesPublishSent :: Maybe Integer,
+    clusterInfoResponseStatsMessagesPublishReceived :: Maybe Integer,
+    clusterInfoResponseStatsMessagesAuthReqSent :: Maybe Integer,
+    clusterInfoResponseStatsMessagesAuthReqReceived :: Maybe Integer,
+    clusterInfoResponseStatsMessagesAuthAckSent :: Maybe Integer,
+    clusterInfoResponseStatsMessagesAuthAckReceived :: Maybe Integer,
+    clusterInfoResponseStatsMessagesUpdateSent :: Maybe Integer,
+    clusterInfoResponseStatsMessagesUpdateReceived :: Maybe Integer,
+    clusterInfoResponseStatsMessagesMfstartSent :: Maybe Integer,
+    clusterInfoResponseStatsMessagesMfstartReceived :: Maybe Integer,
+    clusterInfoResponseStatsMessagesModuleSent :: Maybe Integer,
+    clusterInfoResponseStatsMessagesModuleReceived :: Maybe Integer,
+    clusterInfoResponseStatsMessagesPublishshardSent :: Maybe Integer,
+    clusterInfoResponseStatsMessagesPublishshardReceived :: Maybe Integer
   }
   deriving (Show, Eq)
 
@@ -53,51 +72,96 @@ data ClusterInfoResponseState
   | Down
   deriving (Show, Eq)
 
-instance RedisResult ClusterInfoResponse where
-  decode r@(Bulk (Just bulkData)) = maybe (Left r) Right $
-    case map (Char8.split ':' . Char8.takeWhile (/= '\r')) $ Char8.lines bulkData of
-      ( ["cluster_state", state]
-          : ["cluster_slots_assigned", slotsAssigned]
-          : ["cluster_slots_ok", slotsOK]
-          : ["cluster_slots_pfail", slotsPfail]
-          : ["cluster_slots_fail", slotsFail]
-          : ["cluster_known_nodes", knownNodes]
-          : ["cluster_size", clusterSize]
-          : ["cluster_current_epoch", clusterCurrentEpoch]
-          : ["cluster_my_epoch", clusterMyEpoch]
-          : ["cluster_stats_messages_ping_sent", clusterStatsMessagesPingSent]
-          : ["cluster_stats_messages_pong_sent", clusterStatsMessagesPongSent]
-          : ["cluster_stats_messages_sent", clusterStatsMessagesSent]
-          : ["cluster_stats_messages_ping_received", clusterStatsMessagesPingReceived]
-          : ["cluster_stats_messages_pong_received", clusterStatsMessagesPongReceived]
-          : ["cluster_stats_messages_meet_received", clusterStatsMessagesMeetReceived]
-          : ["cluster_stats_messages_received", clusterStatsMessagesReceived]
-          : _
-        ) ->
-          ClusterInfoResponse
-            <$> parseState state
-            <*> parseInteger slotsAssigned
-            <*> parseInteger slotsOK
-            <*> parseInteger slotsPfail
-            <*> parseInteger slotsFail
-            <*> parseInteger knownNodes
-            <*> parseInteger clusterSize
-            <*> parseInteger clusterCurrentEpoch
-            <*> parseInteger clusterMyEpoch
-            <*> parseInteger clusterStatsMessagesPingSent
-            <*> parseInteger clusterStatsMessagesPongSent
-            <*> parseInteger clusterStatsMessagesSent
-            <*> parseInteger clusterStatsMessagesPingReceived
-            <*> parseInteger clusterStatsMessagesPongReceived
-            <*> parseInteger clusterStatsMessagesMeetReceived
-            <*> parseInteger clusterStatsMessagesReceived
-          where
-            parseState bs = case bs of
-              "ok" -> Just OK
-              "fail" -> Just Down
-              _ -> Nothing
-            parseInteger = fmap fst . Char8.readInteger
+defClusterInfoResponse :: ClusterInfoResponse
+defClusterInfoResponse =
+  ClusterInfoResponse
+    { clusterInfoResponseState = Down,
+      clusterInfoResponseSlotsAssigned = 0,
+      clusterInfoResponseSlotsOK = 0,
+      clusterInfoResponseSlotsPfail = 0,
+      clusterInfoResponseSlotsFail = 0,
+      clusterInfoResponseKnownNodes = 0,
+      clusterInfoResponseSize = 0,
+      clusterInfoResponseCurrentEpoch = 0,
+      clusterInfoResponseMyEpoch = 0,
+      clusterInfoResponseStatsMessagesSent = 0,
+      clusterInfoResponseStatsMessagesReceived = 0,
+      clusterInfoResponseTotalLinksBufferLimitExceeded = 0,
+      clusterInfoResponseStatsMessagesPingSent = Nothing,
+      clusterInfoResponseStatsMessagesPingReceived = Nothing,
+      clusterInfoResponseStatsMessagesPongSent = Nothing,
+      clusterInfoResponseStatsMessagesPongReceived = Nothing,
+      clusterInfoResponseStatsMessagesMeetSent = Nothing,
+      clusterInfoResponseStatsMessagesMeetReceived = Nothing,
+      clusterInfoResponseStatsMessagesFailSent = Nothing,
+      clusterInfoResponseStatsMessagesFailReceived = Nothing,
+      clusterInfoResponseStatsMessagesPublishSent = Nothing,
+      clusterInfoResponseStatsMessagesPublishReceived = Nothing,
+      clusterInfoResponseStatsMessagesAuthReqSent = Nothing,
+      clusterInfoResponseStatsMessagesAuthReqReceived = Nothing,
+      clusterInfoResponseStatsMessagesAuthAckSent = Nothing,
+      clusterInfoResponseStatsMessagesAuthAckReceived = Nothing,
+      clusterInfoResponseStatsMessagesUpdateSent = Nothing,
+      clusterInfoResponseStatsMessagesUpdateReceived = Nothing,
+      clusterInfoResponseStatsMessagesMfstartSent = Nothing,
+      clusterInfoResponseStatsMessagesMfstartReceived = Nothing,
+      clusterInfoResponseStatsMessagesModuleSent = Nothing,
+      clusterInfoResponseStatsMessagesModuleReceived = Nothing,
+      clusterInfoResponseStatsMessagesPublishshardSent = Nothing,
+      clusterInfoResponseStatsMessagesPublishshardReceived = Nothing
+    }
+
+parseClusterInfoResponse :: [[ByteString]] -> ClusterInfoResponse -> Maybe ClusterInfoResponse
+parseClusterInfoResponse fields resp = case fields of
+  [] -> pure resp
+  (["cluster_state", state] : fs) -> parseState state >>= \s -> parseClusterInfoResponse fs $ resp {clusterInfoResponseState = s}
+  (["cluster_slots_assigned", value] : fs) -> parseInteger value >>= \v -> parseClusterInfoResponse fs $ resp {clusterInfoResponseSlotsAssigned = v}
+  (["cluster_slots_ok", value] : fs) -> parseInteger value >>= \v -> parseClusterInfoResponse fs $ resp {clusterInfoResponseSlotsOK = v}
+  (["cluster_slots_pfail", value] : fs) -> parseInteger value >>= \v -> parseClusterInfoResponse fs $ resp {clusterInfoResponseSlotsPfail = v}
+  (["cluster_slots_fail", value] : fs) -> parseInteger value >>= \v -> parseClusterInfoResponse fs $ resp {clusterInfoResponseSlotsFail = v}
+  (["cluster_known_nodes", value] : fs) -> parseInteger value >>= \v -> parseClusterInfoResponse fs $ resp {clusterInfoResponseKnownNodes = v}
+  (["cluster_size", value] : fs) -> parseInteger value >>= \v -> parseClusterInfoResponse fs $ resp {clusterInfoResponseSize = v}
+  (["cluster_current_epoch", value] : fs) -> parseInteger value >>= \v -> parseClusterInfoResponse fs $ resp {clusterInfoResponseCurrentEpoch = v}
+  (["cluster_my_epoch", value] : fs) -> parseInteger value >>= \v -> parseClusterInfoResponse fs $ resp {clusterInfoResponseMyEpoch = v}
+  (["cluster_stats_messages_sent", value] : fs) -> parseInteger value >>= \v -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesSent = v}
+  (["cluster_stats_messages_received", value] : fs) -> parseInteger value >>= \v -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesReceived = v}
+  (["total_cluster_links_buffer_limit_exceeded", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseTotalLinksBufferLimitExceeded = fromMaybe 0 $ parseInteger value} -- this value should be mandatory according to the spec, but isn't necessarily set in Redis 6
+  (["cluster_stats_messages_ping_sent", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesPingSent = parseInteger value}
+  (["cluster_stats_messages_ping_received", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesPingReceived = parseInteger value}
+  (["cluster_stats_messages_pong_sent", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesPongSent = parseInteger value}
+  (["cluster_stats_messages_pong_received", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesPongReceived = parseInteger value}
+  (["cluster_stats_messages_meet_sent", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesMeetSent = parseInteger value}
+  (["cluster_stats_messages_meet_received", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesMeetReceived = parseInteger value}
+  (["cluster_stats_messages_fail_sent", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesFailSent = parseInteger value}
+  (["cluster_stats_messages_fail_received", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesFailReceived = parseInteger value}
+  (["cluster_stats_messages_publish_sent", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesPublishSent = parseInteger value}
+  (["cluster_stats_messages_publish_received", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesPublishReceived = parseInteger value}
+  (["cluster_stats_messages_auth_req_sent", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesAuthReqSent = parseInteger value}
+  (["cluster_stats_messages_auth_req_received", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesAuthReqReceived = parseInteger value}
+  (["cluster_stats_messages_auth_ack_sent", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesAuthAckSent = parseInteger value}
+  (["cluster_stats_messages_auth_ack_received", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesAuthAckReceived = parseInteger value}
+  (["cluster_stats_messages_update_sent", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesUpdateSent = parseInteger value}
+  (["cluster_stats_messages_update_received", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesUpdateReceived = parseInteger value}
+  (["cluster_stats_messages_mfstart_sent", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesMfstartSent = parseInteger value}
+  (["cluster_stats_messages_mfstart_received", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesMfstartReceived = parseInteger value}
+  (["cluster_stats_messages_module_sent", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesModuleSent = parseInteger value}
+  (["cluster_stats_messages_module_received", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesModuleReceived = parseInteger value}
+  (["cluster_stats_messages_publishshard_sent", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesPublishshardSent = parseInteger value}
+  (["cluster_stats_messages_publishshard_received", value] : fs) -> parseClusterInfoResponse fs $ resp {clusterInfoResponseStatsMessagesPublishshardReceived = parseInteger value}
+  (_ : fs) -> parseClusterInfoResponse fs resp
+  where
+    parseState bs = case bs of
+      "ok" -> Just OK
+      "fail" -> Just Down
       _ -> Nothing
+    parseInteger = fmap fst . Char8.readInteger
+
+instance RedisResult ClusterInfoResponse where
+  decode r@(Bulk (Just bulkData)) =
+    maybe (Left r) Right
+      . flip parseClusterInfoResponse defClusterInfoResponse
+      . map (Char8.split ':' . Char8.takeWhile (/= '\r'))
+      $ Char8.lines bulkData
   decode r = Left r
 
 clusterInfo :: RedisCtx m f => m (f ClusterInfoResponse)
