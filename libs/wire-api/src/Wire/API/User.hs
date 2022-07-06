@@ -23,6 +23,9 @@ module Wire.API.User
   ( UserIdList (..),
     QualifiedUserIdList (..),
     LimitedQualifiedUserIdList (..),
+    ScimUserInfo (..),
+    ScimUserInfos (..),
+    UserSet (..),
     -- Profiles
     UserProfile (..),
     SelfProfile (..),
@@ -891,6 +894,53 @@ instance ToSchema BindingNewTeamUser where
       BindingNewTeamUser
         <$> bnuTeam .= bindingNewTeamObjectSchema
         <*> bnuCurrency .= maybe_ (optField "currency" genericToSchema)
+
+--------------------------------------------------------------------------------
+-- SCIM User Info
+
+data ScimUserInfo = ScimUserInfo
+  { suiUserId :: UserId,
+    suiCreatedOn :: Maybe UTCTimeMillis
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ScimUserInfo)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ScimUserInfo)
+
+instance ToSchema ScimUserInfo where
+  schema =
+    object "ScimUserInfo" $
+      ScimUserInfo
+        <$> suiUserId .= field "id" schema
+        <*> suiCreatedOn .= maybe_ (optField "created_on" schema)
+
+newtype ScimUserInfos = ScimUserInfos {scimUserInfos :: [ScimUserInfo]}
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ScimUserInfos)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ScimUserInfos)
+
+instance ToSchema ScimUserInfos where
+  schema =
+    object "ScimUserInfos" $
+      ScimUserInfos
+        <$> scimUserInfos .= field "scim_user_infos" (array schema)
+
+-------------------------------------------------------------------------------
+-- UserSet
+
+-- | Set of user ids, can be used for different purposes (e.g., used on the internal
+-- APIs for listing user's clients)
+newtype UserSet = UserSet
+  { usUsrs :: Set UserId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UserSet)
+
+instance ToSchema UserSet where
+  schema =
+    object "UserSet" $
+      UserSet
+        <$> usUsrs .= field "users" (set schema)
 
 --------------------------------------------------------------------------------
 -- Profile Updates

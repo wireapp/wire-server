@@ -146,7 +146,7 @@ import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, 
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
 import qualified Wire.API.Team.SearchVisibility as Public
-import Wire.API.User (User, UserIdList, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
+import Wire.API.User (ScimUserInfo (..), User, UserIdList, UserSSOId (UserScimExternalId), userSCIMExternalId, userSSOId)
 import qualified Wire.API.User as U
 import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
@@ -505,7 +505,7 @@ outputToStreamingBody action = withWeavingToFinal @IO $ \state weave _inspect ->
     void . weave . (<$ state) $ runOutputSem writeChunk action
 
 getTeamMembersCSV ::
-  (Members '[BrigAccess, ErrorS 'AccessDenied, TeamMemberStore InternalPaging, TeamStore, Final IO] r) =>
+  (Members '[BrigAccess, ErrorS 'AccessDenied, TeamMemberStore InternalPaging, TeamStore, Final IO, SparAccess] r) =>
   Local UserId ->
   TeamId ->
   Sem r StreamingBody
@@ -522,16 +522,18 @@ getTeamMembersCSV lusr tid = do
     output headerLine
     E.withChunks (\mps -> E.listTeamMembers @InternalPaging tid mps maxBound) $
       \members -> do
-        inviters <- lookupInviterHandle members
-        users <-
-          lookupUser <$> E.lookupActivatedUsers (fmap (view userId) members)
-        richInfos <-
-          lookupRichInfo <$> E.getRichInfoMultiUser (fmap (view userId) members)
-        numUserClients <- lookupClients <$> E.lookupClients (fmap (view userId) members)
+        let uids = fmap (view userId) members
+        teamExportUser <-
+          mkTeamExportUser
+            <$> (lookupUser <$> E.lookupActivatedUsers uids)
+            <*> lookupInviterHandle members
+            <*> (lookupRichInfo <$> E.getRichInfoMultiUser uids)
+            <*> (lookupClients <$> E.lookupClients uids)
+            <*> (lookupScimUserInfo <$> Spar.lookupScimUserInfos uids)
         output @LByteString
           ( encodeDefaultOrderedByNameWith
               defaultEncodeOptions
-              (mapMaybe (teamExportUser users inviters richInfos numUserClients) members)
+              (mapMaybe teamExportUser members)
           )
   where
     headerLine :: LByteString
@@ -546,14 +548,15 @@ getTeamMembersCSV lusr tid = do
           encQuoting = QuoteAll
         }
 
-    teamExportUser ::
+    mkTeamExportUser ::
       (UserId -> Maybe User) ->
       (UserId -> Maybe Handle.Handle) ->
       (UserId -> Maybe RichInfo) ->
       (UserId -> Int) ->
+      (UserId -> Maybe ScimUserInfo) ->
       TeamMember ->
       Maybe TeamExportUser
-    teamExportUser users inviters richInfos numClients member = do
+    mkTeamExportUser users inviters richInfos numClients scimUserInfo member = do
       let uid = member ^. userId
       user <- users uid
       pure $
@@ -562,7 +565,7 @@ getTeamMembersCSV lusr tid = do
             tExportHandle = U.userHandle user,
             tExportEmail = U.userIdentity user >>= U.emailIdentity,
             tExportRole = permissionsRole . view permissions $ member,
-            tExportCreatedOn = fmap snd . view invitation $ member,
+            tExportCreatedOn = maybe (scimUserInfo uid >>= suiCreatedOn) (Just . snd) (view invitation member),
             tExportInvitedBy = inviters . fst =<< member ^. invitation,
             tExportIdpIssuer = userToIdPIssuer user,
             tExportManagedBy = U.userManagedBy user,
@@ -592,6 +595,9 @@ getTeamMembersCSV lusr tid = do
       Just (U.UserSSOId (SAML.UserRef issuer _)) -> either (const Nothing) Just . mkHttpsUrl $ issuer ^. SAML.fromIssuer
       Just _ -> Nothing
       Nothing -> Nothing
+
+    lookupScimUserInfo :: [ScimUserInfo] -> (UserId -> Maybe ScimUserInfo)
+    lookupScimUserInfo infos = (`M.lookup` M.fromList (infos <&> (\sui -> (suiUserId sui, sui))))
 
     lookupUser :: [U.User] -> (UserId -> Maybe U.User)
     lookupUser users = (`M.lookup` M.fromList (users <&> \user -> (U.userId user, user)))

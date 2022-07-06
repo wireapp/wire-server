@@ -21,8 +21,10 @@ module Galley.Effects.SparAccess where
 
 import Data.Id
 import Polysemy
+import Wire.API.User (ScimUserInfo)
 
 data SparAccess m a where
   DeleteTeam :: TeamId -> SparAccess m ()
+  LookupScimUserInfos :: [UserId] -> SparAccess m [ScimUserInfo]
 
 makeSem ''SparAccess

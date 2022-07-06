@@ -29,7 +29,7 @@ import Bilge.TestSession
 -- import Galley.Types.Teams hiding (Event, EventType (..), self)
 
 import Brig.Types.Connection
-import Brig.Types.Intra (UserAccount (..), UserSet (..))
+import Brig.Types.Intra (UserAccount (..))
 import Control.Concurrent.Async
 import Control.Exception (throw)
 import Control.Lens hiding (from, to, (#), (.=))

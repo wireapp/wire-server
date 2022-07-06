@@ -91,6 +91,7 @@ interpretSparAccess ::
   Sem r a
 interpretSparAccess = interpret $ \case
   DeleteTeam tid -> embedApp $ deleteTeam tid
+  LookupScimUserInfos uids -> embedApp $ lookupScimUserInfos uids
 
 interpretBotAccess ::
   Members '[Embed IO, Input Env] r =>
