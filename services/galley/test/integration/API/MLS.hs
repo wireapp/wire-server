@@ -33,6 +33,7 @@ import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
+import qualified Data.List.NonEmpty as NE
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 hiding (head)
 import Data.Qualified
@@ -99,7 +100,7 @@ tests s =
           test s "post commit that references a unknown proposal" testUnknownProposalRefCommit,
           test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
           test s "admin removes user from a conversation" testAdminRemovesUserFromConv,
-          test s "admin removes user from a conversation but doesn't list all clients" (error "TODO"),
+          test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete,
           test s "user deletes a client and anyone removes the keypackage from the group" (error "TODO"),
           test s "user removes a single client from group without deleting it first" (error "TODO")
         ],
@@ -741,6 +742,31 @@ testAdminRemovesUserFromConv = withSystemTempDirectory "mls" $ \tmp -> do
       assertBool
         "bob is not longer part of conversation after the commit"
         (conversation `notElem` map cnvQualifiedId (convList convs))
+
+testRemoveClientsIncomplete :: TestM ()
+testRemoveClientsIncomplete = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(2, LocalUser)]
+
+  -- create a group
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
+
+  -- add clients to it and get welcome message
+  (addCommit, welcome) <-
+    liftIO $
+      setupCommit tmp creator "group" "group" $
+        NonEmpty.tail (pClients creator) <> toList (pClients bob)
+
+  testSuccessfulCommit MessagingSetup {users = [bob], commit = addCommit, ..}
+
+  -- remove only first client of bob
+  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" [(NE.head (pClients bob))]
+
+  err <-
+    responseJsonError
+      =<< postMessage (qUnqualified (pUserId creator)) removalCommit
+        <!! statusCode === const 409
+
+  liftIO $ Wai.label err @?= "mls-client-mismatch"
 
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
