@@ -67,6 +67,7 @@ import qualified Spar.Sem.BrigAccess as BrigAccess
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
+import Test.Tasty.HUnit ((@?=))
 import qualified Text.XML.DSig as SAML
 import Util
 import Util.Invitation
@@ -2112,6 +2113,27 @@ specSCIMManaged = do
           updateProfileBrig brig uid uupd !!! do
             (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "managed-by-scim")
             statusCode === const 403
+    it "created_on should be filled in CSV export" $ do
+      g <- view teGalley
+      user <- randomScimUser
+      (tok, (owner, tid, _idp)) <- registerIdPAndScimToken
+      scimStoredUser <- createUser tok user
+      let _userid = scimUserId scimStoredUser
+      putStrLn $ "userid: " <> show _userid
+      resp <-
+        call $
+          get (g . accept "text/csv" . paths ["teams", toByteString' tid, "members/csv"] . zUser owner) <!! do
+            const 200 === statusCode
+            const (Just "chunked") === lookup "Transfer-Encoding" . responseHeaders
+      let rbody = fromMaybe (error "no body") . responseBody $ resp
+
+      liftIO $ do
+        let csvtyped = decodeCSV @CsvExport.TeamExportUser rbody
+        length csvtyped @?= 2
+
+        let [member] = filter ((== ManagedByScim) . CsvExport.tExportManagedBy) csvtyped
+        CsvExport.tExportManagedBy member @?= ManagedByScim
+        CsvExport.tExportCreatedOn member `shouldSatisfy` isJust
   where
     randomAlphaNum :: MonadIO m => m Text
     randomAlphaNum = liftIO $ do
