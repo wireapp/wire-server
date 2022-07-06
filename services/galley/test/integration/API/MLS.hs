@@ -99,8 +99,8 @@ tests s =
           test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
           test s "admin removes user from a conversation" testAdminRemovesUserFromConv,
           test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete,
-          test s "user deletes a client and anyone removes the client from the group" testRemoveDeletedClient,
-          test s "user removes a single client from group without deleting it first" (error "TODO")
+          test s "anyone removes a non-existing client from a group" testRemoveDeletedClient,
+          test s "anyone removes an existing client from group, but the user has other clients" (error "TODO")
         ],
       testGroup
         "Application Message"
