@@ -19,6 +19,7 @@ module Gundeck.Redis.HedisExtensions
     ClusterInfoResponseState (..),
     clusterInfo,
     checkedConnectCluster,
+    ClusterDownError,
   )
 where
 

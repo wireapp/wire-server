@@ -35,6 +35,7 @@ import Control.Lens
 import qualified Control.Monad.Catch as Catch
 import Control.Retry
 import Database.Redis
+import Gundeck.Redis.HedisExtensions
 import Imports
 import qualified System.Logger as Log
 import System.Logger.Class (MonadLogger)
@@ -83,7 +84,8 @@ connectRobust l retryStrategy connectLowLevel = do
         once $ -- avoid concurrent attempts to reconnect
           recovering -- retry connecting, e. g., with exponential back-off
             retryStrategy
-            [ const $ Catch.Handler (\(e :: ConnectError) -> logEx (Log.err l) e "Redis not in cluster mode" >> pure True),
+            [ const $ Catch.Handler (\(e :: ClusterDownError) -> logEx (Log.err l) e "Redis cluster down" >> pure True),
+              const $ Catch.Handler (\(e :: ConnectError) -> logEx (Log.err l) e "Redis not in cluster mode" >> pure True),
               const $ Catch.Handler (\(e :: ConnectTimeout) -> logEx (Log.err l) e "timeout when connecting to Redis" >> pure True),
               const $ Catch.Handler (\(e :: ConnectionLostException) -> logEx (Log.err l) e "Redis connection lost during request" >> pure True),
               const $ Catch.Handler (\(e :: PingException) -> logEx (Log.err l) e "pinging Redis failed" >> pure True),
