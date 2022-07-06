@@ -23,8 +23,7 @@ module Spar.App
   ( Env (..),
     throwSparSem,
     verdictHandler,
-    GetUserResult (..),
-    getUserIdByUref,
+    getUserByUrefUnsafe,
     getUserIdByScimExternalId,
     validateEmailIfExists,
     validateEmail,
@@ -60,7 +59,6 @@ import SAML2.WebSSO
     explainDeniedReason,
     idpExtraInfo,
     idpId,
-    uidTenant,
   )
 import qualified SAML2.WebSSO as SAML
 import Servant
@@ -110,52 +108,27 @@ data Env = Env
     sparCtxRequestId :: RequestId
   }
 
--- | Look up user locally in table @spar.user@ or @spar.scim_user@ (depending on the
--- argument), then in brig, then return the 'UserId'.  If either lookup fails, or user is not
+-- | Get a user by UserRef, no matter what the team.
+--
+-- Look up user locally in table @spar.user@ or @spar.scim_user@ (depending on the
+-- argument), then in brig, then return the 'User'.  If either lookup fails, or user is not
 -- in a team, return 'Nothing'.
 --
--- It makes sense to require that users are required to be team members: both IdPs and SCIM
--- tokens are created in the context of teams, and the only way for users to be created is as
--- team members.  If a user is not a team member, it cannot have been created using SAML or
--- SCIM.
---
 -- If a user has been created via scim invite (ie., no IdP present), and has status
--- 'PendingInvitation', its 'UserId' will be returned here, since for SCIM purposes it is an
+-- 'PendingInvitation', it will be returned here, since for SCIM purposes it is an
 -- existing (if inactive) user.  If 'getUser' is called during SAML authentication, this may
 -- cause an inactive user to log in, but that's ok: `PendingActivation` means that email and
 -- password handshake have not been completed; it's still ok for the user to gain access to
 -- the team with valid SAML credentials.
 --
--- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR.  (in https://github.com/wireapp/wire-server/pull/1410, undo https://github.com/wireapp/wire-server/pull/1418)
-getUserIdByUref :: Members '[BrigAccess, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Sem r (GetUserResult UserId)
-getUserIdByUref mbteam uref = userId <$$> getUserByUref mbteam uref
-
-getUserByUref :: Members '[BrigAccess, SAMLUserStore] r => Maybe TeamId -> SAML.UserRef -> Sem r (GetUserResult User)
-getUserByUref mbteam uref = do
-  muid <- SAMLUserStore.get uref
-  case muid of
-    Nothing -> pure GetUserNotFound
-    Just uid -> do
-      let withpending = Intra.WithPendingInvitations -- see haddocks above
-      Intra.getBrigUser withpending uid >>= \case
-        Nothing -> pure GetUserNotFound
-        Just user
-          | isNothing (userTeam user) -> pure GetUserNoTeam
-          | isJust mbteam && mbteam /= userTeam user -> pure GetUserWrongTeam
-          | otherwise -> pure $ GetUserFound user
-
-data GetUserResult usr
-  = GetUserFound usr
-  | GetUserNotFound
-  | GetUserNoTeam
-  | GetUserWrongTeam
-  deriving (Eq, Show)
-
-instance Functor GetUserResult where
-  fmap f (GetUserFound usr) = GetUserFound (f usr)
-  fmap _ GetUserNotFound = GetUserNotFound
-  fmap _ GetUserNoTeam = GetUserNoTeam
-  fmap _ GetUserWrongTeam = GetUserWrongTeam
+-- FUTUREWORK: Remove and reinstate getUser, in AuthID refactoring PR.  (in
+-- https://github.com/wireapp/wire-server/pull/1410, undo
+-- https://github.com/wireapp/wire-server/pull/1418)
+--
+-- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQSERVICES-1655
+getUserByUrefUnsafe :: Members '[BrigAccess, SAMLUserStore] r => SAML.UserRef -> Sem r (Maybe User)
+getUserByUrefUnsafe uref = do
+  maybe (pure Nothing) (Intra.getBrigUser Intra.WithPendingInvitations) =<< SAMLUserStore.get uref
 
 -- FUTUREWORK: Remove and reinstatate getUser, in AuthID refactoring PR
 getUserIdByScimExternalId :: Members '[BrigAccess, ScimExternalIdStore] r => TeamId -> Email -> Sem r (Maybe UserId)
@@ -202,28 +175,9 @@ createSamlUserWithId teamid buid suid = do
   SAMLUserStore.insert suid buid
 
 -- | If the team has no scim token, call 'createSamlUser'.  Otherwise, raise "invalid
--- credentials".
+-- credentials".  (FUTUREWORK: Assumes that `UserRef` is still available globally.  See
+-- https://wearezeta.atlassian.net/browse/SQSERVICES-1655)
 autoprovisionSamlUser ::
-  Members
-    '[ Random,
-       GalleyAccess,
-       BrigAccess,
-       ScimTokenStore,
-       IdPConfigStore,
-       Error SparError,
-       SAMLUserStore
-     ]
-    r =>
-  Maybe TeamId ->
-  SAML.UserRef ->
-  Sem r UserId
-autoprovisionSamlUser mbteam suid = do
-  buid <- Id <$> Random.uuid
-  autoprovisionSamlUserWithId mbteam buid suid
-  pure buid
-
--- | Like 'autoprovisionSamlUser', but for an already existing 'UserId'.
-autoprovisionSamlUserWithId ::
   forall r.
   Members
     '[ GalleyAccess,
@@ -234,28 +188,25 @@ autoprovisionSamlUserWithId ::
        SAMLUserStore
      ]
     r =>
-  Maybe TeamId ->
+  IdP ->
   UserId ->
   SAML.UserRef ->
   Sem r ()
-autoprovisionSamlUserWithId mbteam buid suid = do
-  idp <- case mbteam of
-    Just team -> IdPConfigStore.getIdPByIssuerV2 (suid ^. uidTenant) team
-    Nothing -> IdPConfigStore.getIdPByIssuerV1 (suid ^. uidTenant)
-  guardReplacedIdP idp
-  guardScimTokens idp
+autoprovisionSamlUser idp buid suid = do
+  guardReplacedIdP
+  guardScimTokens
   createSamlUserWithId (idp ^. idpExtraInfo . wiTeam) buid suid
   validateEmailIfExists buid suid
   where
     -- Replaced IdPs are not allowed to create new wire accounts.
-    guardReplacedIdP :: IdP -> Sem r ()
-    guardReplacedIdP idp = do
+    guardReplacedIdP :: Sem r ()
+    guardReplacedIdP = do
       unless (isNothing $ idp ^. idpExtraInfo . wiReplacedBy) $ do
         throwSparSem $ SparCannotCreateUsersOnReplacedIdP (cs . SAML.idPIdToST $ idp ^. idpId)
 
     -- IdPs in teams with scim tokens are not allowed to auto-provision.
-    guardScimTokens :: IdP -> Sem r ()
-    guardScimTokens idp = do
+    guardScimTokens :: Sem r ()
+    guardScimTokens = do
       let teamid = idp ^. idpExtraInfo . wiTeam
       scimtoks <- ScimTokenStore.lookupByTeam teamid
       unless (null scimtoks) $ do
@@ -301,11 +252,11 @@ verdictHandler ::
        SAMLUserStore
      ]
     r =>
-  Maybe TeamId ->
   SAML.AuthnResponse ->
   SAML.AccessVerdict ->
+  IdP ->
   Sem r SAML.ResponseVerdict
-verdictHandler mbteam aresp verdict = do
+verdictHandler aresp verdict idp = do
   -- [3/4.1.4.2]
   -- <SubjectConfirmation> [...] If the containing message is in response to an <AuthnRequest>, then
   -- the InResponseTo attribute MUST match the request's ID.
@@ -314,9 +265,9 @@ verdictHandler mbteam aresp verdict = do
   format :: Maybe VerdictFormat <- VerdictFormatStore.get reqid
   resp <- case format of
     Just VerdictFormatWeb ->
-      verdictHandlerResult mbteam verdict >>= verdictHandlerWeb
+      verdictHandlerResult verdict idp >>= verdictHandlerWeb
     Just (VerdictFormatMobile granted denied) ->
-      verdictHandlerResult mbteam verdict >>= verdictHandlerMobile granted denied
+      verdictHandlerResult verdict idp >>= verdictHandlerMobile granted denied
     Nothing ->
       -- (this shouldn't happen too often, see 'storeVerdictFormat')
       throwSparSem SparNoSuchRequest
@@ -343,12 +294,12 @@ verdictHandlerResult ::
        SAMLUserStore
      ]
     r =>
-  Maybe TeamId ->
   SAML.AccessVerdict ->
+  IdP ->
   Sem r VerdictHandlerResult
-verdictHandlerResult mbteam verdict = do
+verdictHandlerResult verdict idp = do
   Logger.log Logger.Debug $ "entering verdictHandlerResult"
-  result <- catchVerdictErrors $ verdictHandlerResultCore mbteam verdict
+  result <- catchVerdictErrors $ verdictHandlerResultCore idp verdict
   Logger.log Logger.Debug $ "leaving verdictHandlerResult" <> show result
   pure result
 
@@ -372,8 +323,10 @@ catchVerdictErrors = (`catch` hndlr)
 
 -- | If a user attempts to login presenting a new IdP issuer, but there is no entry in
 -- @"spar.user"@ for her: lookup @"old_issuers"@ from @"spar.idp"@ for the new IdP, and
--- traverse the old IdPs in search for the old entry.  Return that old entry.
-findUserIdWithOldIssuer ::
+-- traverse the old issuers in search for the old entry.
+--
+-- FUTUREWORK: https://wearezeta.atlassian.net/browse/SQSERVICES-1655
+getUserByUrefViaOldIssuerUnsafe ::
   forall r.
   Members
     '[ BrigAccess,
@@ -382,19 +335,17 @@ findUserIdWithOldIssuer ::
        Error SparError
      ]
     r =>
-  Maybe TeamId ->
+  IdP ->
   SAML.UserRef ->
-  Sem r (GetUserResult (SAML.UserRef, UserId))
-findUserIdWithOldIssuer mbteam (SAML.UserRef issuer subject) = do
-  idp <- case mbteam of
-    Just team -> IdPConfigStore.getIdPByIssuerV2 issuer team
-    Nothing -> IdPConfigStore.getIdPByIssuerV1 issuer
-  let tryFind :: GetUserResult (SAML.UserRef, UserId) -> Issuer -> Sem r (GetUserResult (SAML.UserRef, UserId))
-      tryFind found@(GetUserFound _) _ = pure found
-      tryFind _ oldIssuer = (uref,) <$$> getUserIdByUref mbteam uref
+  Sem r (Maybe (SAML.UserRef, User))
+getUserByUrefViaOldIssuerUnsafe idp (SAML.UserRef _ subject) = do
+  let tryFind :: Maybe (SAML.UserRef, User) -> Issuer -> Sem r (Maybe (SAML.UserRef, User))
+      tryFind found@(Just _) _ = pure found
+      tryFind Nothing oldIssuer = (uref,) <$$> getUserByUrefUnsafe uref
         where
           uref = SAML.UserRef oldIssuer subject
-  foldM tryFind GetUserNotFound (idp ^. idpExtraInfo . wiOldIssuers)
+
+  foldM tryFind Nothing (idp ^. idpExtraInfo . wiOldIssuers)
 
 -- | After a user has been found using 'findUserWithOldIssuer', update it everywhere so that
 -- the old IdP is not needed any more next time.
@@ -417,38 +368,33 @@ verdictHandlerResultCore ::
        SAMLUserStore
      ]
     r =>
-  Maybe TeamId ->
+  IdP ->
   SAML.AccessVerdict ->
   Sem r VerdictHandlerResult
-verdictHandlerResultCore mbteam = \case
+verdictHandlerResultCore idp = \case
   SAML.AccessDenied reasons -> do
     pure $ VerifyHandlerDenied reasons
-  SAML.AccessGranted userref -> do
+  SAML.AccessGranted uref -> do
     uid :: UserId <- do
-      viaSparCassandra <- getUserIdByUref mbteam userref
-      -- race conditions: if the user has been created on spar, but not on brig, 'getUser'
-      -- returns 'Nothing'.  this is ok assuming 'createUser' (called below) is
-      -- idempotent.
-      viaSparCassandraOldIssuer <-
-        case viaSparCassandra of
-          GetUserFound _ -> pure GetUserNotFound
-          _ -> findUserIdWithOldIssuer mbteam userref
-      let err =
-            SparUserRefInNoOrMultipleTeams . cs $
-              show (userref, viaSparCassandra, viaSparCassandraOldIssuer)
-      case (viaSparCassandra, viaSparCassandraOldIssuer) of
-        (GetUserNoTeam, _) -> throwSparSem err
-        (GetUserWrongTeam, _) -> throwSparSem err
-        (_, GetUserNoTeam) -> throwSparSem err
-        (_, GetUserWrongTeam) -> throwSparSem err
-        -- This is the first SSO authentication, so we auto-create a user. We know the user
-        -- has not been created via SCIM because then we would've ended up in the
-        -- "reauthentication" branch.
-        (GetUserNotFound, GetUserNotFound) -> autoprovisionSamlUser mbteam userref
-        -- If the user is only found under an old (previous) issuer, move it here.
-        (GetUserNotFound, GetUserFound (oldUserRef, uid)) -> moveUserToNewIssuer oldUserRef userref uid >> pure uid
-        -- SSO re-authentication (the most common case).
-        (GetUserFound uid, _) -> pure uid
+      let team = idp ^. idpExtraInfo . wiTeam
+          err = SparUserRefInNoOrMultipleTeams . cs . show $ uref
+      getUserByUrefUnsafe uref >>= \case
+        Just usr -> do
+          if userTeam usr == Just team
+            then pure (userId usr)
+            else throwSparSem err
+        Nothing -> do
+          getUserByUrefViaOldIssuerUnsafe idp uref >>= \case
+            Just (olduref, usr) -> do
+              let uid = userId usr
+              if userTeam usr == Just team
+                then moveUserToNewIssuer olduref uref uid >> pure uid
+                else throwSparSem err
+            Nothing -> do
+              buid <- Id <$> Random.uuid
+              autoprovisionSamlUser idp buid uref
+              pure buid
+
     Logger.log Logger.Debug ("granting sso login for " <> show uid)
     cky <- BrigAccess.ssoLogin uid
     pure $ VerifyHandlerGranted cky uid

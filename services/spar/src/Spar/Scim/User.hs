@@ -62,7 +62,7 @@ import Network.URI (URI, parseURI)
 import Polysemy
 import Polysemy.Input
 import qualified SAML2.WebSSO as SAML
-import Spar.App (GetUserResult (..), getUserIdByScimExternalId, getUserIdByUref, validateEmail, validateEmailIfExists)
+import Spar.App (getUserByUrefUnsafe, getUserIdByScimExternalId, validateEmail, validateEmailIfExists)
 import qualified Spar.Intra.BrigApp as Brig
 import Spar.Scim.Auth ()
 import Spar.Scim.Types (normalizeLikeStored)
@@ -760,9 +760,7 @@ assertExternalIdUnused =
     [Nothing]
     "externalId is already taken"
 
--- |
--- Check that the UserRef is not taken any user other than the passed 'UserId'
--- (it is also acceptable if it is not taken by anybody).
+-- | `UserRef` must map to the given `UserId` or to `Nothing`.
 --
 -- ASSUMPTION: every scim user has a 'SAML.UserRef', and the `SAML.NameID` in it corresponds
 -- to a single `externalId`.
@@ -780,13 +778,7 @@ assertExternalIdInAllowedValues allowedValues errmsg tid veid = do
     lift $
       ST.runValidExternalIdBoth
         (\ma mb -> (&&) <$> ma <*> mb)
-        ( \uref ->
-            getUserIdByUref (Just tid) uref <&> \case
-              (Spar.App.GetUserFound uid) -> Just uid `elem` allowedValues
-              Spar.App.GetUserNotFound -> Nothing `elem` allowedValues
-              Spar.App.GetUserNoTeam -> False -- this is never allowed (and also hopefully impossible)
-              Spar.App.GetUserWrongTeam -> False -- this can happen, but it's violating all our assertions
-        )
+        (\uref -> getUserByUrefUnsafe uref <&> (`elem` allowedValues) . fmap userId)
         (fmap (`elem` allowedValues) . getUserIdByScimExternalId tid)
         veid
   unless isGood $

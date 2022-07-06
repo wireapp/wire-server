@@ -21,7 +21,7 @@ dependencies:
 - wire-api-federation
 - tagged
 - servant-client
-- saml2-web-sso >=0.18
+- saml2-web-sso >=0.19
 - transformers
 
 library:

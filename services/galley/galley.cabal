@@ -228,7 +228,7 @@ library
     , retry >=0.5
     , safe >=0.3
     , safe-exceptions >=0.1
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , schema-profunctor
     , semigroups
     , servant
@@ -325,7 +325,7 @@ executable galley
     , imports
     , raw-strings-qq >=1.0
     , safe >=0.3
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , servant-client
     , ssl-util
     , tagged
@@ -456,7 +456,7 @@ executable galley-integration
     , raw-strings-qq >=1.0
     , retry
     , safe >=0.3
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , schema-profunctor
     , servant
     , servant-client
@@ -559,7 +559,7 @@ executable galley-migrate-data
     , optparse-applicative
     , raw-strings-qq >=1.0
     , safe >=0.3
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , servant-client
     , ssl-util
     , tagged
@@ -680,7 +680,7 @@ executable galley-schema
     , optparse-applicative
     , raw-strings-qq >=1.0
     , safe >=0.3
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , servant-client
     , ssl-util
     , tagged
@@ -759,7 +759,7 @@ test-suite galley-tests
     , lens
     , raw-strings-qq >=1.0
     , safe >=0.3
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , servant-client
     , servant-swagger
     , ssl-util

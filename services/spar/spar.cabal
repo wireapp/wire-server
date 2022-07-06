@@ -166,7 +166,7 @@ library
     , polysemy-wire-zoo
     , raw-strings-qq
     , retry
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , servant
     , servant-multipart
     , servant-server
@@ -281,7 +281,7 @@ executable spar
     , polysemy-wire-zoo
     , raw-strings-qq
     , retry
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , servant
     , servant-multipart
     , servant-server
@@ -418,7 +418,7 @@ executable spar-integration
     , random
     , raw-strings-qq
     , retry
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , servant
     , servant-multipart
     , servant-server
@@ -546,7 +546,7 @@ executable spar-migrate-data
     , polysemy-wire-zoo
     , raw-strings-qq
     , retry
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , servant
     , servant-multipart
     , servant-server
@@ -678,7 +678,7 @@ executable spar-schema
     , polysemy-wire-zoo
     , raw-strings-qq
     , retry
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , servant
     , servant-multipart
     , servant-server
@@ -809,7 +809,7 @@ test-suite spec
     , polysemy-wire-zoo
     , raw-strings-qq
     , retry
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , servant
     , servant-multipart
     , servant-server
