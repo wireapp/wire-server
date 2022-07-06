@@ -1,0 +1,1 @@
+The team member CSV export now fills `created_on` for SCIM users
