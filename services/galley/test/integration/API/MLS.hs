@@ -99,8 +99,8 @@ tests s =
           test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
           test s "admin removes user from a conversation" testAdminRemovesUserFromConv,
           test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete,
-          test s "anyone removes a non-existing client from a group" testRemoveDeletedClient,
-          test s "anyone removes an existing client from group, but the user has other clients" (error "TODO")
+          test s "anyone removes a non-existing client from a group" (testRemoveDeletedClient True),
+          test s "anyone removes an existing client from group, but the user has other clients" (testRemoveDeletedClient False)
         ],
       testGroup
         "Application Message"
@@ -766,12 +766,12 @@ testRemoveClientsIncomplete = withSystemTempDirectory "mls" $ \tmp -> do
 
   liftIO $ Wai.label err @?= "mls-client-mismatch"
 
-testRemoveDeletedClient :: TestM ()
-testRemoveDeletedClient = withSystemTempDirectory "mls" $ \tmp -> do
+testRemoveDeletedClient :: Bool -> TestM ()
+testRemoveDeletedClient deleteClientBefore = withSystemTempDirectory "mls" $ \tmp -> do
   (creator, [bob, dee]) <- withLastPrekeys $ setupParticipants tmp def [(2, LocalUser), (1, LocalUser)]
 
   -- create a group
-  conversation <- setupGroup tmp CreateConv creator "group"
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
 
   -- add clients to it and get welcome message
   (addCommit, welcome) <-
@@ -783,18 +783,28 @@ testRemoveDeletedClient = withSystemTempDirectory "mls" $ \tmp -> do
 
   let (_bobClient1, bobClient2) = assertTwo (toList (pClients bob))
 
-  deleteClientInternal (qUnqualified (pUserId bob)) (snd bobClient2)
-    !!! statusCode === const 200
+  when deleteClientBefore $
+    deleteClient (qUnqualified (pUserId bob)) (snd bobClient2) (Just defPassword)
+      !!! statusCode === const 200
 
   (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" [bobClient2]
 
   -- dee (which is not an admin) commits removal of bob's deleted client
-  events :: [Event] <-
-    responseJsonError
-      =<< postMessage (qUnqualified (pUserId dee)) removalCommit
-        <!! statusCode === const 200
+  let doCommitRemoval = postMessage (qUnqualified (pUserId dee)) removalCommit
 
-  liftIO $ assertEqual "no conversation events from removing client" [] events
+  if deleteClientBefore
+    then do
+      events :: [Event] <-
+        responseJsonError
+          =<< doCommitRemoval
+            <!! statusCode === const 201
+      liftIO $ assertEqual "no conversation events from removing client" [] events
+    else do
+      err <-
+        responseJsonError
+          =<< doCommitRemoval
+            <!! statusCode === const 409
+      liftIO $ Wai.label err @?= "mls-client-mismatch"
 
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
