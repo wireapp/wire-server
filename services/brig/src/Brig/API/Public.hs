@@ -1042,9 +1042,7 @@ sendVerificationCode req = do
           (Code.Retries 3)
           timeout
           (Just $ toUUID $ Public.userId $ accountUser account)
-      ttl <- setCodeGenerationDelaySecs <$> view settings
-      mRetryAfter <- wrapClientE $ Code.insert code ttl
-      mapM_ (throwE . verificationCodeThrottledError . VerificationCodeThrottled) mRetryAfter
+      tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
       sendMail email (Code.codeValue code) (Just $ Public.userLocale $ accountUser account) action
     _ -> pure ()
   where

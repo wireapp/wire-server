@@ -1110,9 +1110,7 @@ deleteSelfUser uid pwd = do
               (Code.Retries 3)
               (Code.Timeout 600)
               (Just (toUUID uid))
-          ttl <- setCodeGenerationDelaySecs <$> view settings
-          mRetryAfter <- wrapClientE $ Code.insert c ttl
-          mapM_ (throwE . DeleteUserVerificationCodeThrottled) mRetryAfter
+          tryInsertVerificationCode c DeleteUserVerificationCodeThrottled
           let k = Code.codeKey c
           let v = Code.codeValue c
           let l = userLocale (accountUser a)
