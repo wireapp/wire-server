@@ -1329,15 +1329,6 @@ deleteConvCode u c = do
       . zConn "conn"
       . zType "access"
 
-deleteClientInternal :: UserId -> ClientId -> TestM ResponseLBS
-deleteClientInternal u c = do
-  g <- view tsGalley
-  delete $
-    g
-      . zUser u
-      . zConn "conn"
-      . paths ["i", "clients", toByteString' c]
-
 deleteUser :: (MonadIO m, MonadCatch m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> m ResponseLBS
 deleteUser u = do
   g <- viewGalley
