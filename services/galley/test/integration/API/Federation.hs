@@ -1027,7 +1027,7 @@ onUserDeleted = do
       -- There should be only 1 RPC call made to eve's domain for groupConvId.
       -- Bob's domain does not get a notification, because it's the one making
       -- the request.
-      assertEqual ("Expected 2 RPC calls, got: " <> show rpcCalls) 1 (length rpcCalls)
+      assertEqual ("Expected 1 RPC calls, got: " <> show rpcCalls) 1 (length rpcCalls)
 
       -- Assertions about RPC to 'cDomain'
       cDomainRPC <- assertOne $ filter (\c -> frTargetDomain c == cDomain) rpcCalls
