@@ -127,13 +127,13 @@ type APIINTERNAL =
     :<|> "sso" :> "settings" :> ReqBody '[JSON] SsoSettings :> Put '[JSON] NoContent
     :<|> "scim" :> "userinfos" :> ReqBody '[JSON] UserSet :> Post '[JSON] ScimUserInfos
 
-sparSPIssuer :: SAML.HasConfig m => Maybe TeamId -> m SAML.Issuer
+sparSPIssuer :: (Functor m, SAML.HasConfig m) => Maybe TeamId -> m SAML.Issuer
 sparSPIssuer Nothing =
   SAML.Issuer <$> SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthRespLegacy)
 sparSPIssuer (Just tid) =
   SAML.Issuer <$> SAML.getSsoURI' (Proxy @APISSO) (Proxy @APIAuthResp) tid
 
-sparResponseURI :: SAML.HasConfig m => Maybe TeamId -> m URI.URI
+sparResponseURI :: (Functor m, SAML.HasConfig m) => Maybe TeamId -> m URI.URI
 sparResponseURI Nothing =
   SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthRespLegacy)
 sparResponseURI (Just tid) =
