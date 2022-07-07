@@ -2067,6 +2067,8 @@ testDeletedUsersFreeExternalIdNoIdp = do
       (runSpar $ ScimExternalIdStore.lookup tid email)
       (== Nothing)
 
+-- | CSV download of team members is mainly tested here: 'API.Teams.testListTeamMembersCsv'.
+-- the additional CSV download test here is specifically focused on SCIM users
 specSCIMManaged :: SpecWith TestEnv
 specSCIMManaged = do
   describe "SCIM-managed users" $ do

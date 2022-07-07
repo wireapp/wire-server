@@ -292,6 +292,7 @@ testListTeamMembersDefaultLimit = do
 
 -- | for ad-hoc load-testing, set @numMembers@ to, say, 10k and see what
 -- happens.  but please don't give that number to our ci!  :)
+-- for additional tests of the CSV download particularly with SCIM users, please refer to 'Test.Spar.Scim.UserSpec'
 testListTeamMembersCsv :: HasCallStack => Int -> TestM ()
 testListTeamMembersCsv numMembers = do
   let teamSize = numMembers + 1
