@@ -53,6 +53,7 @@ import qualified Data.ByteString as SBS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.Id
 import Data.Proxy
+import qualified Data.Set as Set
 import Data.String.Conversions
 import Data.Time
 import Galley.Types.Teams (HiddenPerm (CreateUpdateDeleteIdp, ReadIdp))
@@ -92,6 +93,7 @@ import Spar.Sem.ScimExternalIdStore (ScimExternalIdStore)
 import Spar.Sem.ScimTokenStore (ScimTokenStore)
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
 import Spar.Sem.ScimUserTimesStore (ScimUserTimesStore)
+import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
 import Spar.Sem.VerdictFormatStore (VerdictFormatStore)
 import qualified Spar.Sem.VerdictFormatStore as VerdictFormatStore
 import System.Logger (Msg)
@@ -205,7 +207,8 @@ apiINTERNAL ::
        DefaultSsoCode,
        IdPConfigStore,
        Error SparError,
-       SAMLUserStore
+       SAMLUserStore,
+       ScimUserTimesStore
      ]
     r =>
   ServerT APIINTERNAL (Sem r)
@@ -213,6 +216,7 @@ apiINTERNAL =
   internalStatus
     :<|> internalDeleteTeam
     :<|> internalPutSsoSettings
+    :<|> internalGetScimUserInfo
 
 appName :: ST
 appName = "spar"
@@ -766,3 +770,9 @@ internalPutSsoSettings SsoSettings {defaultSsoCode = Just code} =
   IdPConfigStore.getConfig code
     *> DefaultSsoCode.store code
     $> NoContent
+
+internalGetScimUserInfo :: Members '[ScimUserTimesStore] r => UserSet -> Sem r ScimUserInfos
+internalGetScimUserInfo (UserSet uids) = do
+  results <- ScimUserTimesStore.readMulti (Set.toList uids)
+  let scimUserInfos = results <&> (\(uid, t, _) -> ScimUserInfo uid (Just t))
+  pure $ ScimUserInfos scimUserInfos

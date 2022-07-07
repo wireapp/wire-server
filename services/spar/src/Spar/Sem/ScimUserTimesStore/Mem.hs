@@ -39,4 +39,5 @@ scimUserTimesStoreToMem = (runState mempty .) $
   reinterpret $ \case
     Write (WithMeta meta (WithId uid _)) -> modify $ M.insert uid (toUTCTimeMillis $ created meta, toUTCTimeMillis $ lastModified meta)
     Read uid -> gets $ M.lookup uid
+    ReadMulti uids -> gets $ map (\(u, (a, b)) -> (u, a, b)) . filter ((`elem` uids) . fst) . M.toList
     Delete uid -> modify $ M.delete uid
