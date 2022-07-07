@@ -60,7 +60,7 @@ dependencies:
   - QuickCheck
   - raw-strings-qq
   - retry
-  - saml2-web-sso >= 0.18
+  - saml2-web-sso >= 0.19
   - servant
   - servant-multipart
   - servant-server

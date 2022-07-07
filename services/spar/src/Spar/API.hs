@@ -309,9 +309,9 @@ authresp ::
   Sem r Void
 authresp mbtid arbody = logErrors $ SAML2.authResp mbtid (SamlProtocolSettings.spIssuer mbtid) (SamlProtocolSettings.responseURI mbtid) go arbody
   where
-    go :: SAML.AuthnResponse -> SAML.AccessVerdict -> Sem r Void
-    go resp verdict = do
-      result :: SAML.ResponseVerdict <- verdictHandler mbtid resp verdict
+    go :: SAML.AuthnResponse -> IdP -> SAML.AccessVerdict -> Sem r Void
+    go resp verdict idp = do
+      result :: SAML.ResponseVerdict <- verdictHandler resp idp verdict
       throw @SparError $ SAML.CustomServant result
 
     logErrors :: Sem r Void -> Sem r Void

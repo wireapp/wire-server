@@ -87,7 +87,7 @@ extra-deps:
   # a version > 1.0.0 of wai-middleware-prometheus is available
   # (required: https://github.com/fimad/prometheus-haskell/pull/45)
 - git: https://github.com/wireapp/saml2-web-sso
-  commit: 4227e38be5c0810012dc472fc6931f6087fbce68  # master (Dec 07, 2021)
+  commit: 30747970da6e024b53707605d138524de6fa53b0  # master (Jul 07, 2022)
 
 - git: https://github.com/kim/hs-collectd
   commit: 885da222be2375f78c7be36127620ed772b677c9
