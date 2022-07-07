@@ -72,27 +72,26 @@ connectRobust ::
   IO RobustConnection
 connectRobust l retryStrategy connectLowLevel = do
   robustConnection <- newEmptyMVar @IO @ReConnection
-  reconnectRedis robustConnection
+  retry $ reconnectRedis robustConnection
   pure robustConnection
   where
+    retry =
+      recovering -- retry connecting, e. g., with exponential back-off
+        retryStrategy
+        [ const $ Catch.Handler (\(e :: ClusterDownError) -> logEx (Log.err l) e "Redis cluster down" >> pure True),
+          const $ Catch.Handler (\(e :: ConnectError) -> logEx (Log.err l) e "Redis not in cluster mode" >> pure True),
+          const $ Catch.Handler (\(e :: ConnectTimeout) -> logEx (Log.err l) e "timeout when connecting to Redis" >> pure True),
+          const $ Catch.Handler (\(e :: ConnectionLostException) -> logEx (Log.err l) e "Redis connection lost during request" >> pure True),
+          const $ Catch.Handler (\(e :: PingException) -> logEx (Log.err l) e "pinging Redis failed" >> pure True),
+          const $ Catch.Handler (\(e :: IOException) -> logEx (Log.err l) e "network error when connecting to Redis" >> pure True)
+        ]
+        . const -- ignore RetryStatus
     reconnectRedis robustConnection = do
       Log.info l $ Log.msg (Log.val "connecting to Redis")
       conn <- connectLowLevel
       Log.info l $ Log.msg (Log.val "successfully connected to Redis")
 
-      reconnectOnce <-
-        once $ -- avoid concurrent attempts to reconnect
-          recovering -- retry connecting, e. g., with exponential back-off
-            retryStrategy
-            [ const $ Catch.Handler (\(e :: ClusterDownError) -> logEx (Log.err l) e "Redis cluster down" >> pure True),
-              const $ Catch.Handler (\(e :: ConnectError) -> logEx (Log.err l) e "Redis not in cluster mode" >> pure True),
-              const $ Catch.Handler (\(e :: ConnectTimeout) -> logEx (Log.err l) e "timeout when connecting to Redis" >> pure True),
-              const $ Catch.Handler (\(e :: ConnectionLostException) -> logEx (Log.err l) e "Redis connection lost during request" >> pure True),
-              const $ Catch.Handler (\(e :: PingException) -> logEx (Log.err l) e "pinging Redis failed" >> pure True),
-              const $ Catch.Handler (\(e :: IOException) -> logEx (Log.err l) e "network error when connecting to Redis" >> pure True)
-            ]
-            $ const $
-              reconnectRedis robustConnection
+      reconnectOnce <- once . retry $ reconnectRedis robustConnection -- avoid concurrent attempts to reconnect
       let newReConnection = ReConnection {_rrConnection = conn, _rrReconnect = reconnectOnce}
       unlessM (tryPutMVar robustConnection newReConnection) $
         void $ swapMVar robustConnection newReConnection
