@@ -319,7 +319,8 @@ processCommit ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
     Member Resource r,
-    Member ProposalStore r
+    Member ProposalStore r,
+    Member (Input (Local ())) r
   ) =>
   Qualified UserId ->
   Maybe ConnId ->
@@ -491,7 +492,8 @@ executeProposalAction ::
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member MemberStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input (Local ())) r
   ) =>
   Qualified UserId ->
   Maybe ConnId ->
@@ -499,6 +501,7 @@ executeProposalAction ::
   ProposalAction ->
   Sem r [LocalConversationUpdate]
 executeProposalAction qusr con lconv action = do
+  loc <- qualifyLocal ()
   cs <- preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) (tUnqualified lconv) & noteS @'ConvNotFound
   let ss = csSignatureScheme cs
       cm = convClientMap lconv
@@ -512,10 +515,16 @@ executeProposalAction qusr con lconv action = do
   for_ newUserClients $ \(qtarget, newclients) -> do
     -- final set of clients in the conversation
     let clients = newclients <> Map.findWithDefault mempty qtarget cm
-    assertAllClients ss qtarget clients
+    -- get list of mls clients from brig
+    allClients <- getMLSClients loc qtarget ss
+    -- if not all clients have been added to the conversation, return an error
+    when (clients /= allClients) $ do
+      -- FUTUREWORK: turn this error into a proper response
+      throwS @'MLSClientMismatch
 
-  for_ removeUserClients $ \(qtarget, removedClients) -> do
-    assertAllClients ss qtarget removedClients
+  -- This also filters out client removals for clients that don't exist anymore
+  -- For these clients there is nothing to update in the backend
+  membersToRemove <- catMaybes <$> for removeUserClients (uncurry (checkRemoval loc ss))
 
   -- add users to the conversation and send events
   addEvents <- foldMap addMembers . nonEmpty . map fst $ newUserClients
@@ -523,19 +532,22 @@ executeProposalAction qusr con lconv action = do
   for_ newUserClients $ \(qtarget, newClients) -> do
     addMLSClients (fmap convId lconv) qtarget newClients
 
-  -- remove users from the conversation and send events
-  removeEvents <- foldMap removeMembers . nonEmpty . map fst $ removeUserClients
+  -- remove users from the conversation and send evnets
+  removeEvents <- foldMap removeMembers (nonEmpty membersToRemove)
 
   pure (addEvents <> removeEvents)
   where
-    assertAllClients :: SignatureSchemeTag -> Qualified UserId -> Set ClientId -> Sem r ()
-    assertAllClients ss qtarget clients = do
-      -- get list of mls clients from brig
-      allClients <- getMLSClients lconv qtarget ss
-      -- if not all clients have been added to the conversation, return an error
-      when (clients /= allClients) $ do
-        -- FUTUREWORK: turn this error into a proper response
-        throwS @'MLSClientMismatch
+    checkRemoval :: Local () -> SignatureSchemeTag -> Qualified UserId -> Set ClientId -> Sem r (Maybe (Qualified UserId))
+    checkRemoval loc ss qtarget clients = do
+      allClients <- getMLSClients loc qtarget ss
+      let allClientsDontExist = Set.null (clients `Set.intersection` allClients)
+      if allClientsDontExist
+        then pure Nothing
+        else do
+          when (clients /= allClients) $ do
+            -- FUTUREWORK: turn this error into a proper response
+            throwS @'MLSClientMismatch
+          pure (Just qtarget)
 
     addMembers :: NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
     addMembers users =
