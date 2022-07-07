@@ -36,7 +36,7 @@ import Brig.API.Types
 import Brig.App
 import qualified Brig.Code as Code
 import qualified Brig.Data.User as Data
-import Brig.Options (FederationDomainConfig, federationDomainConfigs, setCodeGenerationDelaySecs)
+import Brig.Options (FederationDomainConfig, federationDomainConfigs, set2FACodeGenerationDelaySecs)
 import qualified Brig.Options as Opts
 import Brig.Types.Intra (accountUser)
 import Control.Lens (view)
@@ -123,6 +123,6 @@ ensureLocal x = do
 
 tryInsertVerificationCode :: Code.Code -> (RetryAfter -> e) -> ExceptT e (AppT r) ()
 tryInsertVerificationCode code e = do
-  ttl <- setCodeGenerationDelaySecs <$> view settings
+  ttl <- set2FACodeGenerationDelaySecs <$> view settings
   mRetryAfter <- wrapClientE $ Code.insert code ttl
   mapM_ (throwE . e) mRetryAfter

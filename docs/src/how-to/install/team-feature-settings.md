@@ -42,7 +42,7 @@ brig:
     # ...
     optSettings:
       # ...
-      setCodeGenerationDelaySecs: 300 # 5 minutes
+      set2FACodeGenerationDelaySecs: 300 # 5 minutes
 ```
 
 ## Guest links

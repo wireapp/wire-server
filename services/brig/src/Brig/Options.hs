@@ -588,8 +588,8 @@ data Settings = Settings
     -- | When set, development API versions are advertised to clients.
     setEnableDevelopmentVersions :: Maybe Bool,
     -- | Minimum delay in seconds between consecutive attempts to generate a new verification code.
-    -- use `setCodeGenerationDelaySecs` as the getter function which always provides a default value
-    setCodeGenerationDelaySecsInternal :: !(Maybe Int)
+    -- use `set2FACodeGenerationDelaySecs` as the getter function which always provides a default value
+    set2FACodeGenerationDelaySecsInternal :: !(Maybe Int)
   }
   deriving (Show, Generic)
 
@@ -611,11 +611,11 @@ setVerificationTimeout = fromMaybe defVerificationTimeout . setVerificationCodeT
 setDefaultTemplateLocale :: Settings -> Locale
 setDefaultTemplateLocale = fromMaybe defaultTemplateLocale . setDefaultTemplateLocaleInternal
 
-defCodeGenerationDelaySecs :: Int
-defCodeGenerationDelaySecs = 5 * 60 -- 5 minutes
+def2FACodeGenerationDelaySecs :: Int
+def2FACodeGenerationDelaySecs = 5 * 60 -- 5 minutes
 
-setCodeGenerationDelaySecs :: Settings -> Int
-setCodeGenerationDelaySecs = fromMaybe defCodeGenerationDelaySecs . setCodeGenerationDelaySecsInternal
+set2FACodeGenerationDelaySecs :: Settings -> Int
+set2FACodeGenerationDelaySecs = fromMaybe def2FACodeGenerationDelaySecs . set2FACodeGenerationDelaySecsInternal
 
 -- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
 -- express our current cloud business logic.
@@ -799,7 +799,7 @@ instance FromJSON Settings where
               "setDefaultUserLocaleInternal" -> "setDefaultUserLocale"
               "setDefaultTemplateLocaleInternal" -> "setDefaultTemplateLocale"
               "setVerificationCodeTimeoutInternal" -> "setVerificationTimeout"
-              "setCodeGenerationDelaySecsInternal" -> "setCodeGenerationDelaySecs"
+              "set2FACodeGenerationDelaySecsInternal" -> "set2FACodeGenerationDelaySecs"
               other -> other
           }
 
