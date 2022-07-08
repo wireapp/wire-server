@@ -121,12 +121,12 @@ testCreateTokenWithVerificationCode = do
   let reqMissingCode = CreateScimToken "testCreateToken" (Just defPassword) Nothing
   createTokenFailsWith owner reqMissingCode 403 "code-authentication-required"
 
-  requestVerificationCode (env ^. teBrig) email Public.CreateScimToken
+  void $ requestVerificationCode (env ^. teBrig) email Public.CreateScimToken
   let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
   let reqWrongCode = CreateScimToken "testCreateToken" (Just defPassword) (Just wrongCode)
   createTokenFailsWith owner reqWrongCode 403 "code-authentication-failed"
 
-  requestVerificationCode (env ^. teBrig) email Public.CreateScimToken
+  void $ retryNUntil 6 ((==) 200 . statusCode) $ requestVerificationCode (env ^. teBrig) email Public.CreateScimToken
   code <- getVerificationCode (env ^. teBrig) owner Public.CreateScimToken
   let reqWithCode = CreateScimToken "testCreateToken" (Just defPassword) (Just code)
   CreateScimTokenResponse token _ <- createToken owner reqWithCode
@@ -135,6 +135,11 @@ testCreateTokenWithVerificationCode = do
   let fltr = filterBy "externalId" "67c196a0-cd0e-11ea-93c7-ef550ee48502"
   listUsers_ (Just token) (Just fltr) (env ^. teSpar)
     !!! const 200 === statusCode
+  where
+    requestVerificationCode :: BrigReq -> Email -> Public.VerificationAction -> TestSpar ResponseLBS
+    requestVerificationCode brig email action = do
+      call $
+        post (brig . paths ["verification-code", "send"] . contentJson . json (Public.SendVerificationCode action email))
 
 -- @END
 
@@ -147,12 +152,6 @@ setSndFactorPasswordChallengeStatus galley tid status = do
   let js = RequestBodyLBS $ encode $ Public.WithStatusNoLock @Public.SndFactorPasswordChallengeConfig status Public.trivialConfig
   call $
     put (galley . paths ["i", "teams", toByteString' tid, "features", featureNameBS @Public.SndFactorPasswordChallengeConfig] . contentJson . body js)
-      !!! const 200 === statusCode
-
-requestVerificationCode :: BrigReq -> Email -> Public.VerificationAction -> TestSpar ()
-requestVerificationCode brig email action = do
-  call $
-    post (brig . paths ["verification-code", "send"] . contentJson . json (Public.SendVerificationCode action email))
       !!! const 200 === statusCode
 
 getVerificationCode :: BrigReq -> UserId -> Public.VerificationAction -> TestSpar Code.Value

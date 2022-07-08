@@ -82,15 +82,14 @@ tests s =
       testGroup
         "Conference calling"
         [ test s "ConferenceCalling unlimited TTL" $ testSimpleFlagTTL @Public.ConferenceCallingConfig Public.FeatureStatusEnabled FeatureTTLUnlimited,
-          test s "ConferenceCalling 1s TTL" $ testSimpleFlagTTL @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 1),
           test s "ConferenceCalling 2s TTL" $ testSimpleFlagTTL @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 2)
         ],
       testGroup
         "Overrides"
-        [ test s "increase to unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 1) FeatureTTLUnlimited,
-          test s "increase" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 1) (FeatureTTLSeconds 2),
-          test s "reduce from unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled FeatureTTLUnlimited (FeatureTTLSeconds 1),
-          test s "reduce" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 5) (FeatureTTLSeconds 1),
+        [ test s "increase to unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 2) FeatureTTLUnlimited,
+          test s "increase" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 2) (FeatureTTLSeconds 4),
+          test s "reduce from unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled FeatureTTLUnlimited (FeatureTTLSeconds 2),
+          test s "reduce" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 5) (FeatureTTLSeconds 2),
           test s "Unlimited to unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled FeatureTTLUnlimited FeatureTTLUnlimited
         ],
       test s "MLS feature config" testMLS,
@@ -391,8 +390,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
           storedTTL <- maybe Nothing runIdentity <$> Cql.runClient cassState (Cql.query1 select $ params LocalQuorum (Identity tid))
           storedTTL @?= Nothing
 
-      half = 500000
-      seconds = 1000000
+      toMicros secs = fromIntegral secs * 1000000
 
   assertFlagForbidden $ Util.getTeamFeatureFlag @cfg nonMember tid
 
@@ -414,17 +412,17 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
   case (ttl, ttlAfter) of
     (FeatureTTLSeconds d, FeatureTTLSeconds d') -> do
       -- wait less than expiration, override and recheck.
-      liftIO $ threadDelay (fromIntegral d * half) -- waiting half of TTL
+      liftIO $ threadDelay (toMicros d `div` 2) -- waiting half of TTL
       setFlagInternal otherValue ttlAfter
       -- value is still correct
       getFlag otherValue
 
-      liftIO $ threadDelay (fromIntegral d' * seconds) -- waiting for new TTL
+      liftIO $ threadDelay (toMicros d') -- waiting for new TTL
       getFlag defaultValue
       assertUnlimited -- TTL should be NULL after expiration.
     (FeatureTTLSeconds d, FeatureTTLUnlimited) -> do
       -- wait less than expiration, override and recheck.
-      liftIO $ threadDelay (fromIntegral d * half) -- waiting half of TTL
+      liftIO $ threadDelay (fromIntegral d `div` 2) -- waiting half of TTL
       setFlagInternal otherValue ttlAfter
       -- value is still correct
       getFlag otherValue
@@ -445,7 +443,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
       getFeatureConfig otherValue
       getFlagInternal otherValue
 
-      liftIO $ threadDelay (fromIntegral d * seconds) -- waiting it out
+      liftIO $ threadDelay (toMicros d) -- waiting it out
       -- value reverts back
       getFlag defaultValue
       -- TTL should be NULL inside cassandra

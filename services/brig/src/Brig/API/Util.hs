@@ -26,6 +26,7 @@ module Brig.API.Util
     exceptTToMaybe,
     lookupSearchPolicy,
     ensureLocal,
+    tryInsertVerificationCode,
   )
 where
 
@@ -33,8 +34,9 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
 import Brig.App
+import qualified Brig.Code as Code
 import qualified Brig.Data.User as Data
-import Brig.Options (FederationDomainConfig, federationDomainConfigs)
+import Brig.Options (FederationDomainConfig, federationDomainConfigs, set2FACodeGenerationDelaySecs)
 import qualified Brig.Options as Opts
 import Brig.Types.Intra (accountUser)
 import Control.Lens (view)
@@ -118,3 +120,9 @@ ensureLocal :: Qualified a -> AppT r (Local a)
 ensureLocal x = do
   loc <- qualifyLocal ()
   foldQualified loc pure (\_ -> throwM federationNotImplemented) x
+
+tryInsertVerificationCode :: Code.Code -> (RetryAfter -> e) -> ExceptT e (AppT r) ()
+tryInsertVerificationCode code e = do
+  ttl <- set2FACodeGenerationDelaySecs <$> view settings
+  mRetryAfter <- wrapClientE $ Code.insert code ttl
+  mapM_ (throwE . e) mRetryAfter

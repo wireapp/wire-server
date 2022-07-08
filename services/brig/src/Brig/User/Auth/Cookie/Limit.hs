@@ -18,6 +18,7 @@
 module Brig.User.Auth.Cookie.Limit where
 
 import Data.Aeson
+import Data.RetryAfter
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 import qualified Data.Vector as Vector
@@ -70,10 +71,6 @@ data CookieThrottle
 
 newtype StdDev = StdDev Double
   deriving (Eq, Ord, Show, Generic)
-
-newtype RetryAfter = RetryAfter
-  {retryAfterSeconds :: Int64}
-  deriving (Eq, Show)
 
 instance FromJSON StdDev
 

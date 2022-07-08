@@ -282,5 +282,8 @@ data:
       {{- if .setCustomerExtensions }}
       setCustomerExtensions: {{ toYaml .setCustomerExtensions | nindent 8 }}
       {{- end }}
+      {{- if .set2FACodeGenerationDelaySecs }}
+      set2FACodeGenerationDelaySecs: {{ .set2FACodeGenerationDelaySecs }}
+      {{- end }}
     {{- end }}
   {{- end }}

@@ -1042,7 +1042,7 @@ sendVerificationCode req = do
           (Code.Retries 3)
           timeout
           (Just $ toUUID $ Public.userId $ accountUser account)
-      wrapClientE $ Code.insert code
+      tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
       sendMail email (Code.codeValue code) (Just $ Public.userLocale $ accountUser account) action
     _ -> pure ()
   where

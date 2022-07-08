@@ -37,10 +37,10 @@ import Brig.Data.Properties (PropertiesDataError (..))
 import Brig.Data.User (AuthError (..), ReAuthError (..))
 import Brig.Data.UserKey (UserKey, foldKey)
 import Brig.Types.Intra
-import Brig.User.Auth.Cookie (RetryAfter (..))
 import Data.Code
 import Data.Id
 import Data.Qualified
+import Data.RetryAfter
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Wire.API.Federation.Error
@@ -193,10 +193,14 @@ data DeleteUserError
   | DeleteUserMissingPassword
   | DeleteUserPendingCode Timeout
   | DeleteUserOwnerDeletingSelf
+  | DeleteUserVerificationCodeThrottled RetryAfter
 
 data AccountStatusError
   = InvalidAccountStatus
   | AccountNotFound
+
+data VerificationCodeThrottledError
+  = VerificationCodeThrottled RetryAfter
 
 -------------------------------------------------------------------------------
 -- Exceptions
