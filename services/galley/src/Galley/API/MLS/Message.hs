@@ -341,6 +341,7 @@ executeProposalAction ::
     Member (ErrorS 'MLSClientMismatch) r,
     Member (Error MLSProposalFailure) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'MLSUnsupportedProposal) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -365,6 +366,8 @@ executeProposalAction qusr con lconv action = do
   -- check that all clients of each user are added to the conversation, and
   -- update the database accordingly
   traverse_ (uncurry (addUserClients ss cm)) newUserClients
+  -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
+  foldQualified lconv (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
   -- add users to the conversation and send events
   result <- foldMap addMembers . nonEmpty . map fst $ newUserClients
   -- add clients to the database
