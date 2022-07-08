@@ -10,7 +10,7 @@ metadata:
     helm.sh/chart: {{ include "inbucket.chart" . }}
 spec:
   rules:
-    - host: {{ .Values.host | quote }}
+    - host: {{ required "must specify host" .Values.host | quote }}
       http:
         paths:
           - path: /
