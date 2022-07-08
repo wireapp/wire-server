@@ -101,6 +101,7 @@ tests s =
           test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
           test s "admin removes user from a conversation" testAdminRemovesUserFromConv,
           test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete,
+          test s "user tries to remove themselves from conversation" testUserRemovesThemselvesFromConv,
           test s "anyone removes a non-existing client from a group" (testRemoveDeletedClient True),
           test s "anyone removes an existing client from group, but the user has other clients" (testRemoveDeletedClient False)
         ],
@@ -767,6 +768,45 @@ testRemoveClientsIncomplete = withSystemTempDirectory "mls" $ \tmp -> do
         <!! statusCode === const 409
 
   liftIO $ Wai.label err @?= "mls-client-mismatch"
+
+testUserRemovesThemselvesFromConv :: TestM ()
+testUserRemovesThemselvesFromConv = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(2, LocalUser)]
+
+  -- create a group
+  conversation <- setupGroup tmp CreateConv creator "group"
+
+  -- add clients to it and get welcome message
+  (addCommit, welcome) <-
+    liftIO $
+      setupCommit tmp creator "group" "group" $
+        NonEmpty.tail (pClients creator) <> toList (pClients bob)
+
+  testSuccessfulCommit MessagingSetup {users = [bob], commit = addCommit, ..}
+
+  -- bob tries to leave the conversation by removng all its clients
+  do
+    void . liftIO $
+      spawn
+        ( cli
+            (pClientQid bob)
+            tmp
+            [ "group",
+              "from-welcome",
+              "--group-out",
+              tmp </> "group",
+              tmp </> "welcome"
+            ]
+        )
+        Nothing
+    (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp bob "group" "group" (pClients bob)
+
+    err <-
+      responseJsonError
+        =<< postMessage (qUnqualified (pUserId bob)) removalCommit
+          <!! statusCode === const 409
+
+    liftIO $ Wai.label err @?= "mls-client-mismatch"
 
 testRemoveDeletedClient :: Bool -> TestM ()
 testRemoveDeletedClient deleteClientBefore = withSystemTempDirectory "mls" $ \tmp -> do
