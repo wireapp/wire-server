@@ -19,6 +19,7 @@ module Galley.API.Teams.Features
   ( getFeatureStatus,
     getFeatureStatusMulti,
     setFeatureStatus,
+    setFeatureStatusInternal,
     getFeatureStatusForUser,
     getAllFeatureConfigsForServer,
     getAllFeatureConfigsForTeam,
@@ -222,6 +223,33 @@ getFeatureStatusMulti (Multi.TeamFeatureNoConfigMultiRequest tids) = do
 
 toTeamStatus :: TeamId -> WithStatusNoLock cfg -> Multi.TeamStatus cfg
 toTeamStatus tid ws = Multi.TeamStatus tid (wssStatus ws)
+
+setFeatureStatusInternal ::
+  forall db cfg r.
+  ( SetFeatureConfig db cfg,
+    GetConfigForTeamConstraints db cfg r,
+    SetConfigForTeamConstraints db cfg r,
+    FeaturePersistentConstraint db cfg,
+    Members
+      '[ ErrorS 'NotATeamMember,
+         ErrorS OperationDenied,
+         ErrorS 'TeamNotFound,
+         Error TeamFeatureError,
+         TeamStore,
+         TeamFeatureStore db,
+         P.Logger (Log.Msg -> Log.Msg),
+         GundeckAccess
+       ]
+      r
+  ) =>
+  TeamId ->
+  WithStatus () ->
+  Maybe FeatureTTL ->
+  Sem r (WithStatus cfg)
+setFeatureStatusInternal tid ws mTtl = do
+  void $ setLockStatus @db @cfg @r tid (wsLockStatus ws)
+  ws' <- getFeatureStatus @db @cfg @r DontDoAuth tid
+  setFeatureStatus @db @cfg @r mTtl DontDoAuth tid (forgetLock ws)
 
 setFeatureStatus ::
   forall db cfg r.
