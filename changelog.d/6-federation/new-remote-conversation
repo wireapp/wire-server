@@ -1,0 +1,1 @@
+Added new-remote-conversation RPC, used to notify a backend of a remote conversation the first time any user from that backend is added to it.

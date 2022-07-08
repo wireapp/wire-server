@@ -22,12 +22,6 @@ import qualified API.SQS as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Bilge.TestSession
--- import Galley.Types
--- import Galley.Types.Conversations.Intra
--- import Galley.Types.Conversations.One2One (one2OneConvId)
--- import Galley.Types.Conversations.Roles hiding (DeleteConversation)
--- import Galley.Types.Teams hiding (Event, EventType (..), self)
-
 import Brig.Types.Connection
 import Brig.Types.Intra (UserAccount (..))
 import Control.Concurrent.Async
@@ -116,17 +110,7 @@ import qualified Wire.API.Event.Team as TE
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Domain (originDomainHeaderName)
-import Wire.API.Internal.Notification
-  ( Notification (..),
-    NotificationId,
-    QueuedNotification,
-    QueuedNotificationList,
-    queuedHasMore,
-    queuedNotificationId,
-    queuedNotificationPayload,
-    queuedNotifications,
-    queuedTime,
-  )
+import Wire.API.Internal.Notification hiding (target)
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
@@ -1409,17 +1393,18 @@ registerRemoteConv convId originUser name othMembers = do
   fedGalleyClient <- view tsFedGalleyClient
   now <- liftIO getCurrentTime
   runFedClient @"on-conversation-created" fedGalleyClient (qDomain convId) $
-    NewRemoteConversation
-      { rcTime = now,
-        rcOrigUserId = originUser,
-        rcCnvId = qUnqualified convId,
-        rcCnvType = RegularConv,
-        rcCnvAccess = [],
-        rcCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
-        rcCnvName = name,
-        rcNonCreatorMembers = othMembers,
-        rcMessageTimer = Nothing,
-        rcReceiptMode = Nothing
+    ConversationCreated
+      { ccTime = now,
+        ccOrigUserId = originUser,
+        ccCnvId = qUnqualified convId,
+        ccCnvType = RegularConv,
+        ccCnvAccess = [],
+        ccCnvAccessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole],
+        ccCnvName = name,
+        ccNonCreatorMembers = othMembers,
+        ccMessageTimer = Nothing,
+        ccReceiptMode = Nothing,
+        ccProtocol = ProtocolProteus
       }
 
 getFeatureStatusMulti :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => Multi.TeamFeatureNoConfigMultiRequest -> TestM ResponseLBS
@@ -2511,7 +2496,7 @@ withTempMockFederator' resp action = do
     $ \mockPort -> do
       withSettingsOverrides (\opts -> opts & Opts.optFederator ?~ Endpoint "127.0.0.1" (fromIntegral mockPort)) action
 
--- Start a mock federator. Use proveded Servant handler for the mocking mocking function.
+-- Start a mock federator. Use provided Servant handler for the mocking function.
 withTempServantMockFederator ::
   (Domain -> ServerT (FedApi 'Brig) Handler) ->
   (Domain -> ServerT (FedApi 'Galley) Handler) ->

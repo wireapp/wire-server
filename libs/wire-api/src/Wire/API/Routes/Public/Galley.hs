@@ -1315,6 +1315,7 @@ type MLSMessagingAPI =
     :<|> Named
            "mls-message"
            ( Summary "Post an MLS message"
+               :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
                :> CanThrow 'MLSKeyPackageRefNotFound
                :> CanThrow 'MLSClientMismatch

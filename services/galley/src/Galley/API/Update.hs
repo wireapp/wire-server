@@ -77,7 +77,6 @@ import qualified Data.Map.Strict as Map
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Singletons
-import qualified Data.Text as T
 import Data.Time
 import Galley.API.Action
 import Galley.API.Error
@@ -291,8 +290,8 @@ updateConversationAccess ::
   Sem r (UpdateResult Event)
 updateConversationAccess lusr con qcnv update = do
   lcnv <- ensureLocal lusr qcnv
-  getUpdateResult $
-    updateLocalConversationWithLocalUser @'ConversationAccessDataTag lcnv lusr (Just con) update
+  getUpdateResult . fmap lcuEvent $
+    updateLocalConversation @'ConversationAccessDataTag lcnv (qUntagged lusr) (Just con) update
 
 updateConversationAccessUnqualified ::
   Members UpdateConversationAccessEffects r =>
@@ -302,10 +301,10 @@ updateConversationAccessUnqualified ::
   ConversationAccessData ->
   Sem r (UpdateResult Event)
 updateConversationAccessUnqualified lusr con cnv update =
-  getUpdateResult $
-    updateLocalConversationWithLocalUser @'ConversationAccessDataTag
+  getUpdateResult . fmap lcuEvent $
+    updateLocalConversation @'ConversationAccessDataTag
       (qualifyAs lusr cnv)
-      lusr
+      (qUntagged lusr)
       (Just con)
       update
 
@@ -334,7 +333,15 @@ updateConversationReceiptMode ::
 updateConversationReceiptMode lusr zcon qcnv update =
   foldQualified
     lusr
-    (\lcnv -> getUpdateResult $ updateLocalConversationWithLocalUser @'ConversationReceiptModeUpdateTag lcnv lusr (Just zcon) update)
+    ( \lcnv ->
+        getUpdateResult . fmap lcuEvent $
+          updateLocalConversation
+            @'ConversationReceiptModeUpdateTag
+            lcnv
+            (qUntagged lusr)
+            (Just zcon)
+            update
+    )
     (\rcnv -> updateRemoteConversation @'ConversationReceiptModeUpdateTag rcnv lusr zcon update)
     qcnv
 
@@ -374,27 +381,7 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
     ConversationUpdateResponseUpdate convUpdate -> pure convUpdate
 
   onConversationUpdated (tDomain rcnv) convUpdate
-  notifyRemoteConversationAction (qualifyAs rcnv convUpdate) conn
-
-class RethrowErrors (effs :: EffectRow) r where
-  rethrowErrors :: GalleyError -> Sem r a
-
-instance (Member (Error FederationError) r) => RethrowErrors '[] r where
-  rethrowErrors :: GalleyError -> Sem r a
-  rethrowErrors err' = throw (FederationUnexpectedError (T.pack . show $ err'))
-
-instance
-  ( SingI (e :: GalleyError),
-    Member (ErrorS e) r,
-    RethrowErrors effs r
-  ) =>
-  RethrowErrors (ErrorS e ': effs) r
-  where
-  rethrowErrors :: GalleyError -> Sem r a
-  rethrowErrors err' =
-    if err' == demote @e
-      then throwS @e
-      else rethrowErrors @effs @r err'
+  notifyRemoteConversationAction lusr (qualifyAs rcnv convUpdate) (Just conn)
 
 updateConversationReceiptModeUnqualified ::
   Members
@@ -442,7 +429,15 @@ updateConversationMessageTimer lusr zcon qcnv update =
   getUpdateResult $
     foldQualified
       lusr
-      (\lcnv -> updateLocalConversationWithLocalUser @'ConversationMessageTimerUpdateTag lcnv lusr (Just zcon) update)
+      ( \lcnv ->
+          lcuEvent
+            <$> updateLocalConversation
+              @'ConversationMessageTimerUpdateTag
+              lcnv
+              (qUntagged lusr)
+              (Just zcon)
+              update
+      )
       (\_ -> throw FederationNotImplemented)
       qcnv
 
@@ -487,8 +482,8 @@ deleteLocalConversation ::
   Local ConvId ->
   Sem r (UpdateResult Event)
 deleteLocalConversation lusr con lcnv =
-  getUpdateResult $
-    updateLocalConversationWithLocalUser @'ConversationDeleteTag lcnv lusr (Just con) ()
+  getUpdateResult . fmap lcuEvent $
+    updateLocalConversation @'ConversationDeleteTag lcnv (qUntagged lusr) (Just con) ()
 
 getUpdateResult :: Sem (Error NoChanges ': r) a -> Sem r (UpdateResult a)
 getUpdateResult = fmap (either (const Unchanged) Updated) . runError
@@ -766,13 +761,14 @@ joinConversation lusr zcon conv access = do
     let users = filter (notIsConvMember lusr conv) [tUnqualified lusr]
     (extraTargets, action) <-
       addMembersToLocalConversation lcnv (UserList users []) roleNameWireMember
-    notifyConversationAction
-      (sing @'ConversationJoinTag)
-      (qUntagged lusr)
-      (Just zcon)
-      lcnv
-      (convBotsAndMembers conv <> extraTargets)
-      action
+    lcuEvent
+      <$> notifyConversationAction
+        (sing @'ConversationJoinTag)
+        (qUntagged lusr)
+        (Just zcon)
+        (qualifyAs lusr conv)
+        (convBotsAndMembers conv <> extraTargets)
+        action
 
 addMembers ::
   Members
@@ -805,8 +801,8 @@ addMembers ::
   Sem r (UpdateResult Event)
 addMembers lusr zcon qcnv (InviteQualified users role) = do
   lcnv <- ensureLocal lusr qcnv
-  getUpdateResult $
-    updateLocalConversationWithLocalUser @'ConversationJoinTag lcnv lusr (Just zcon) $
+  getUpdateResult . fmap lcuEvent $
+    updateLocalConversation @'ConversationJoinTag lcnv (qUntagged lusr) (Just zcon) $
       ConversationJoin users role
 
 addMembersUnqualifiedV2 ::
@@ -840,8 +836,8 @@ addMembersUnqualifiedV2 ::
   Sem r (UpdateResult Event)
 addMembersUnqualifiedV2 lusr zcon cnv (InviteQualified users role) = do
   let lcnv = qualifyAs lusr cnv
-  getUpdateResult $
-    updateLocalConversationWithLocalUser @'ConversationJoinTag lcnv lusr (Just zcon) $
+  getUpdateResult . fmap lcuEvent $
+    updateLocalConversation @'ConversationJoinTag lcnv (qUntagged lusr) (Just zcon) $
       ConversationJoin users role
 
 addMembersUnqualified ::
@@ -966,10 +962,10 @@ updateOtherMemberLocalConv ::
   Qualified UserId ->
   OtherMemberUpdate ->
   Sem r ()
-updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult $ do
+updateOtherMemberLocalConv lcnv lusr con qvictim update = void . getUpdateResult . fmap lcuEvent $ do
   when (qUntagged lusr == qvictim) $
     throwS @'InvalidTarget
-  updateLocalConversationWithLocalUser @'ConversationMemberUpdateTag lcnv lusr (Just con) $
+  updateLocalConversation @'ConversationMemberUpdateTag lcnv (qUntagged lusr) (Just con) $
     ConversationMemberUpdate qvictim update
 
 updateOtherMemberUnqualified ::
@@ -1142,17 +1138,15 @@ removeMemberFromLocalConv ::
   Sem r (Maybe Event)
 removeMemberFromLocalConv lcnv lusr con victim
   | qUntagged lusr == victim =
-    do
-      fmap hush
+    fmap (fmap lcuEvent . hush)
       . runError @NoChanges
-      . updateLocalConversationWithLocalUser @'ConversationLeaveTag lcnv lusr con
+      . updateLocalConversation @'ConversationLeaveTag lcnv (qUntagged lusr) con
       . pure
       $ victim
   | otherwise =
-    do
-      fmap hush
+    fmap (fmap lcuEvent . hush)
       . runError @NoChanges
-      . updateLocalConversationWithLocalUser @'ConversationRemoveMembersTag lcnv lusr con
+      . updateLocalConversation @'ConversationRemoveMembersTag lcnv (qUntagged lusr) con
       . pure
       $ victim
 
@@ -1398,8 +1392,8 @@ updateLocalConversationName ::
   ConversationRename ->
   Sem r (UpdateResult Event)
 updateLocalConversationName lusr zcon lcnv rename =
-  getUpdateResult $
-    updateLocalConversationWithLocalUser @'ConversationRenameTag lcnv lusr (Just zcon) rename
+  getUpdateResult . fmap lcuEvent $
+    updateLocalConversation @'ConversationRenameTag lcnv (qUntagged lusr) (Just zcon) rename
 
 isTypingUnqualified ::
   Members

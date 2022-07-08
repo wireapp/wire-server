@@ -93,8 +93,9 @@ spec ::
   Brig ->
   Galley ->
   CargoHold ->
+  Cannon ->
   IO TestTree
-spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo cargoholdTwo =
+spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo cargoholdTwo cannonTwo =
   pure $
     testGroup
       "federation-end2end-user"
@@ -116,7 +117,7 @@ spec _brigOpts mg brig galley cargohold cannon _federator brigTwo galleyTwo carg
         test mg "download remote asset" $ testRemoteAsset brig brigTwo cargohold cargoholdTwo,
         test mg "claim remote key packages" $ claimRemoteKeyPackages brig brigTwo,
         test mg "send an MLS message to a remote user" $
-          testSendMLSMessage brig brigTwo galleyTwo cannon
+          testSendMLSMessage brig brigTwo galley galleyTwo cannon cannonTwo
       ]
 
 -- | Path covered by this test:
@@ -691,8 +692,8 @@ claimRemoteKeyPackages brig1 brig2 = do
 
 -- bob creates an MLS conversation on domain 2 with alice on domain 1, then sends a
 -- message to alice
-testSendMLSMessage :: Brig -> Brig -> Galley -> Cannon -> Http ()
-testSendMLSMessage brig1 brig2 galley2 cannon1 = do
+testSendMLSMessage :: Brig -> Brig -> Galley -> Galley -> Cannon -> Cannon -> Http ()
+testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
   let cli :: String -> FilePath -> [String] -> CreateProcess
       cli store tmp args =
         proc "mls-test-cli" $
@@ -832,6 +833,32 @@ testSendMLSMessage brig1 brig2 galley2 cannon1 = do
         spawn
           (cli bobClientId tmp ["message", "--group", tmp </> "group.json", "dove"])
           Nothing
+
+    -- alice creates the group and replies
+    void . liftIO $
+      spawn
+        ( cli
+            aliceClientId
+            tmp
+            [ "group",
+              "from-welcome",
+              "--group-out",
+              tmp </> "groupA.json",
+              tmp </> "welcome"
+            ]
+        )
+        Nothing
+    reply <-
+      liftIO $
+        spawn
+          ( cli
+              aliceClientId
+              tmp
+              ["message", "--group", tmp </> "groupA.json", "raven"]
+          )
+          Nothing
+
+    -- send welcome, commit and dove
     WS.bracketR cannon1 (userId alice) $ \wsAlice -> do
       post
         ( galley2
@@ -894,3 +921,26 @@ testSendMLSMessage brig1 brig2 galley2 cannon1 = do
         evtType e @?= MLSMessageAdd
         evtFrom e @?= userQualifiedId bob
         evtData e @?= EdMLSMessage dove
+
+    -- send the reply and assert reception
+    WS.bracketR cannon2 (userId bob) $ \wsBob -> do
+      post
+        ( galley1
+            . paths
+              ["mls", "messages"]
+            . zUser (userId alice)
+            . zConn "conn"
+            . header "Z-Type" "access"
+            . content "message/mls"
+            . bytes reply
+        )
+        !!! const 201 === statusCode
+
+      -- verify that bob receives the reply
+      WS.assertMatch_ (5 # Second) wsBob $ \n -> do
+        let e = List1.head (WS.unpackPayload n)
+        ntfTransient n @?= False
+        evtConv e @?= qconvId
+        evtType e @?= MLSMessageAdd
+        evtFrom e @?= userQualifiedId alice
+        evtData e @?= EdMLSMessage reply

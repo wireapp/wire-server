@@ -15,7 +15,12 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS (postMLSWelcome, postMLSMessage) where
+module Galley.API.MLS
+  ( postMLSWelcome,
+    postMLSMessage,
+    postMLSMessageFromLocalUser,
+  )
+where
 
 import Galley.API.MLS.Message
 import Galley.API.MLS.Welcome

@@ -16,10 +16,16 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE RecordWildCards #-}
 
-module Galley.API.MLS.Message (postMLSMessage) where
+module Galley.API.MLS.Message
+  ( postMLSMessageFromLocalUser,
+    postMLSMessage,
+    MLSMessageStaticErrors,
+  )
+where
 
 import Control.Comonad
 import Control.Lens (preview, to)
+import Data.Bifunctor
 import Data.Domain
 import Data.Id
 import Data.Json.Util
@@ -72,11 +78,24 @@ import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
 
-postMLSMessage ::
+type MLSMessageStaticErrors =
+  '[ ErrorS 'ConvAccessDenied,
+     ErrorS 'ConvNotFound,
+     ErrorS 'MLSUnsupportedMessage,
+     ErrorS 'MLSStaleMessage,
+     ErrorS 'MLSProposalNotFound,
+     ErrorS 'MissingLegalholdConsent,
+     ErrorS 'MLSKeyPackageRefNotFound,
+     ErrorS 'MLSClientMismatch,
+     ErrorS 'MLSUnsupportedProposal
+   ]
+
+postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
     Members
       '[ Resource,
          Error FederationError,
+         ErrorS 'ConvAccessDenied,
          ErrorS 'ConvNotFound,
          Error InternalError,
          ErrorS 'MLSUnsupportedMessage,
@@ -91,18 +110,70 @@ postMLSMessage ::
   ConnId ->
   RawMLS SomeMessage ->
   Sem r [Event]
-postMLSMessage lusr con smsg = case rmValue smsg of
-  SomeMessage tag msg -> do
-    -- fetch conversation
+postMLSMessageFromLocalUser lusr conn msg =
+  map lcuEvent
+    <$> postMLSMessage lusr (qUntagged lusr) (Just conn) msg
+
+postMLSMessage ::
+  ( HasProposalEffects r,
+    Members
+      '[ Error FederationError,
+         Error InternalError,
+         ErrorS 'ConvAccessDenied,
+         ErrorS 'ConvNotFound,
+         ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSProposalNotFound,
+         ErrorS 'MissingLegalholdConsent,
+         Resource,
+         TinyLog
+       ]
+      r
+  ) =>
+  Local x ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  RawMLS SomeMessage ->
+  Sem r [LocalConversationUpdate]
+postMLSMessage loc qusr con smsg = case rmValue smsg of
+  SomeMessage _ msg -> do
+    -- fetch conversation ID
     qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-    lcnv <- ensureLocal lusr qcnv -- FUTUREWORK: allow remote conversations
+    foldQualified
+      loc
+      (postMLSMessageToLocalConv qusr con smsg)
+      (postMLSMessageToRemoteConv loc qusr con smsg)
+      qcnv
+
+postMLSMessageToLocalConv ::
+  ( HasProposalEffects r,
+    Members
+      '[ Error FederationError,
+         Error InternalError,
+         ErrorS 'ConvNotFound,
+         ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSProposalNotFound,
+         ErrorS 'MissingLegalholdConsent,
+         Resource,
+         TinyLog
+       ]
+      r
+  ) =>
+  Qualified UserId ->
+  Maybe ConnId ->
+  RawMLS SomeMessage ->
+  Local ConvId ->
+  Sem r [LocalConversationUpdate]
+postMLSMessageToLocalConv qusr con smsg lcnv = case rmValue smsg of
+  SomeMessage tag msg -> do
     conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
 
     -- validate message
     events <- case tag of
       SMLSPlainText -> case msgTBS (msgPayload msg) of
         CommitMessage c ->
-          processCommit lusr con conv (msgEpoch msg) (msgSender msg) c
+          processCommit qusr con (qualifyAs lcnv conv) (msgEpoch msg) (msgSender msg) c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
         ProposalMessage _ -> pure mempty -- FUTUREWORK: handle proposals
       SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
@@ -112,15 +183,47 @@ postMLSMessage lusr con smsg = case rmValue smsg of
         Left _ -> throwS @'MLSUnsupportedMessage
 
     -- forward message
-    propagateMessage lusr conv con (rmRaw smsg)
+    propagateMessage lcnv qusr conv con (rmRaw smsg)
 
     pure events
+
+postMLSMessageToRemoteConv ::
+  ( Members MLSMessageStaticErrors r,
+    Members '[Error FederationError, TinyLog] r,
+    HasProposalEffects r
+  ) =>
+  Local x ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  RawMLS SomeMessage ->
+  Remote ConvId ->
+  Sem r [LocalConversationUpdate]
+postMLSMessageToRemoteConv loc qusr con smsg rcnv = do
+  -- only local users can send messages to remote conversations
+  lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
+  resp <-
+    runFederated rcnv $
+      fedClient @'Galley @"send-mls-message" $
+        MessageSendRequest
+          { msrConvId = tUnqualified rcnv,
+            msrSender = tUnqualified lusr,
+            msrRawMessage = Base64ByteString (rmRaw smsg)
+          }
+  updates <- case resp of
+    MLSMessageResponseError e -> rethrowErrors @MLSMessageStaticErrors e
+    MLSMessageResponseProtocolError e -> throw (mlsProtocolError e)
+    MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
+    MLSMessageResponseUpdates updates -> pure updates
+
+  for updates $ \update -> do
+    e <- notifyRemoteConversationAction loc (qualifyAs rcnv update) con
+    pure (LocalConversationUpdate e update)
 
 type HasProposalEffects r =
   ( Member BrigAccess r,
     Member ConversationStore r,
-    Member (Error MLSProtocolError) r,
     Member (Error MLSProposalFailure) r,
+    Member (Error MLSProtocolError) r,
     Member (ErrorS 'MLSKeyPackageRefNotFound) r,
     Member (ErrorS 'MLSClientMismatch) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
@@ -161,19 +264,19 @@ processCommit ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member Resource r
   ) =>
-  Local UserId ->
-  ConnId ->
-  Data.Conversation ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  Local Data.Conversation ->
   Epoch ->
   Sender 'MLSPlainText ->
   Commit ->
-  Sem r [Event]
-processCommit lusr con conv epoch sender commit = do
-  self <- noteS @'ConvNotFound $ getConvMember lusr conv lusr
+  Sem r [LocalConversationUpdate]
+processCommit qusr con lconv epoch sender commit = do
+  self <- noteS @'ConvNotFound $ getConvMember lconv (tUnqualified lconv) qusr
 
   -- check epoch number
   convMeta <-
-    preview (to convProtocol . _ProtocolMLS) conv
+    preview (to convProtocol . _ProtocolMLS) (tUnqualified lconv)
       & noteS @'ConvNotFound
 
   let curEpoch = cnvmlsEpoch convMeta
@@ -186,26 +289,30 @@ processCommit lusr con conv epoch sender commit = do
     when (epoch == Epoch 0) $ do
       -- this is a newly created conversation, and it should contain exactly one
       -- client (the creator)
-      case (sender, toList (lmMLSClients self)) of
-        (MemberSender ref, [creatorClient]) -> do
+      case (sender, first (toList . lmMLSClients) self) of
+        (MemberSender ref, Left [creatorClient]) -> do
           -- register the creator client
           addKeyPackageRef
             ref
-            (qUntagged lusr)
+            qusr
             creatorClient
-            (qUntagged (qualifyAs lusr (Data.convId conv)))
+            (qUntagged (fmap Data.convId lconv))
+        -- remote clients cannot send the first commit
+        (_, Right _) -> throwS @'MLSStaleMessage
+        -- uninitialised conversations should contain exactly one client
         (MemberSender _, _) ->
           throw (InternalErrorWithDescription "Unexpected creator client set")
+        -- the sender of the first commit must be a member
         _ -> throw (mlsProtocolError "Unexpected sender")
 
     -- process and execute proposals
     action <- foldMap applyProposalRef (cProposals commit)
-    events <- executeProposalAction lusr con conv action
+    updates <- executeProposalAction qusr con lconv action
 
     -- increment epoch number
-    setConversationEpoch (Data.convId conv) (succ epoch)
+    setConversationEpoch (Data.convId (tUnqualified lconv)) (succ epoch)
 
-    pure events
+    pure updates
 
 applyProposalRef ::
   ( HasProposalEffects r,
@@ -234,6 +341,7 @@ executeProposalAction ::
     Member (ErrorS 'MLSClientMismatch) r,
     Member (Error MLSProposalFailure) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'MLSUnsupportedProposal) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -243,26 +351,28 @@ executeProposalAction ::
     Member MemberStore r,
     Member TeamStore r
   ) =>
-  Local UserId ->
-  ConnId ->
-  Data.Conversation ->
+  Qualified UserId ->
+  Maybe ConnId ->
+  Local Data.Conversation ->
   ProposalAction ->
-  Sem r [Event]
-executeProposalAction lusr con conv action = do
+  Sem r [LocalConversationUpdate]
+executeProposalAction qusr con lconv action = do
   -- For the moment, assume a fixed ciphersuite.
   -- FUTUREWORK: store ciphersuite with the conversation
   let cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
       ss = csSignatureScheme cs
-      cm = convClientMap lusr conv
+      cm = convClientMap lconv
       newUserClients = Map.assocs (paAdd action)
   -- check that all clients of each user are added to the conversation, and
   -- update the database accordingly
   traverse_ (uncurry (addUserClients ss cm)) newUserClients
+  -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
+  foldQualified lconv (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
   -- add users to the conversation and send events
   result <- foldMap addMembers . nonEmpty . map fst $ newUserClients
   -- add clients to the database
   for_ newUserClients $ \(qtarget, newClients) -> do
-    addMLSClients (qualifyAs lusr (convId conv)) qtarget newClients
+    addMLSClients (fmap convId lconv) qtarget newClients
   pure result
   where
     addUserClients :: SignatureSchemeTag -> ClientMap -> Qualified UserId -> Set ClientId -> Sem r ()
@@ -270,36 +380,37 @@ executeProposalAction lusr con conv action = do
       -- compute final set of clients in the conversation
       let cs = newClients <> Map.findWithDefault mempty qtarget cm
       -- get list of mls clients from brig
-      allClients <- getMLSClients lusr qtarget ss
+      allClients <- getMLSClients lconv qtarget ss
       -- if not all clients have been added to the conversation, return an error
       when (cs /= allClients) $ do
         -- FUTUREWORK: turn this error into a proper response
         throwS @'MLSClientMismatch
 
-    addMembers :: NonEmpty (Qualified UserId) -> Sem r [Event]
+    addMembers :: NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
     addMembers users =
       -- FUTUREWORK: update key package ref mapping to reflect conversation membership
       handleNoChanges
         . handleMLSProposalFailures @ProposalErrors
-        . fmap pure
-        . updateLocalConversationWithLocalUserUnchecked
+        . fmap (pure)
+        . updateLocalConversationUnchecked
           @'ConversationJoinTag
-          conv
-          lusr
-          (Just con)
+          lconv
+          qusr
+          con
         $ ConversationJoin users roleNameWireMember
 
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError
 
-convClientMap :: Local x -> Data.Conversation -> ClientMap
-convClientMap loc =
+convClientMap :: Local Data.Conversation -> ClientMap
+convClientMap lconv =
   mconcat
     [ foldMap localMember . convLocalMembers,
       foldMap remoteMember . convRemoteMembers
     ]
+    (tUnqualified lconv)
   where
-    localMember lm = Map.singleton (qUntagged (qualifyAs loc (lmId lm))) (lmMLSClients lm)
+    localMember lm = Map.singleton (qUntagged (qualifyAs lconv (lmId lm))) (lmMLSClients lm)
     remoteMember rm = Map.singleton (qUntagged (rmId rm)) (rmMLSClients rm)
 
 -- | Propagate a message.
@@ -310,12 +421,13 @@ propagateMessage ::
     Member (Input UTCTime) r,
     Member TinyLog r
   ) =>
-  Local UserId ->
+  Local x ->
+  Qualified UserId ->
   Data.Conversation ->
-  ConnId ->
+  Maybe ConnId ->
   ByteString ->
   Sem r ()
-propagateMessage lusr conv con raw = do
+propagateMessage loc qusr conv con raw = do
   -- FUTUREWORK: check the epoch
   let lmems = Data.convLocalMembers conv
       botMap = Map.fromList $ do
@@ -324,15 +436,13 @@ propagateMessage lusr conv con raw = do
         pure (lmId m, b)
       mm = defMessageMetadata
   now <- input @UTCTime
-  let lcnv = qualifyAs lusr (Data.convId conv)
+  let lcnv = qualifyAs loc (Data.convId conv)
       qcnv = qUntagged lcnv
-      e = Event qcnv (qUntagged lusr) now $ EdMLSMessage raw
-      lclients = tUnqualified . clients lusr <$> lmems
+      e = Event qcnv qusr now $ EdMLSMessage raw
+      lclients = tUnqualified . clients <$> lmems
       mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
-      mkPush u c = newMessagePush lcnv botMap (Just con) mm (u, c) e
-
-  -- send to locals
-  runMessagePush lusr (Just qcnv) $
+      mkPush u c = newMessagePush lcnv botMap con mm (u, c) e
+  runMessagePush loc (Just qcnv) $
     foldMap (uncurry mkPush) (cToList =<< lclients)
 
   -- send to remotes
@@ -342,7 +452,7 @@ propagateMessage lusr conv con raw = do
       fedClient @'Galley @"on-mls-message-sent" $
         RemoteMLSMessage
           { rmmTime = now,
-            rmmSender = qUntagged lusr,
+            rmmSender = qusr,
             rmmMetadata = mm,
             rmmConversation = tUnqualified lcnv,
             rmmRecipients = rs >>= remoteMemberMLSClients,
@@ -351,8 +461,9 @@ propagateMessage lusr conv con raw = do
   where
     cToList :: (UserId, Set ClientId) -> [(UserId, ClientId)]
     cToList (u, s) = (u,) <$> Set.toList s
-    clients :: Local x -> LocalMember -> Local (UserId, Set ClientId)
-    clients loc LocalMember {..} = qualifyAs loc (lmId, lmMLSClients)
+
+    clients :: LocalMember -> Local (UserId, Set ClientId)
+    clients LocalMember {..} = qualifyAs loc (lmId, lmMLSClients)
 
     remoteMemberMLSClients :: RemoteMember -> [(UserId, ClientId)]
     remoteMemberMLSClients rm =
