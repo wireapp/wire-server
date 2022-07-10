@@ -323,8 +323,7 @@ type SelfAPI =
 type UserHandleAPI =
   Named
     "check-user-handles"
-    ( Summary ""
-        :> Description ""
+    ( Summary "Check availability of user handles"
         :> ZUser
         :> "users"
         :> "handles"
@@ -337,7 +336,7 @@ type UserHandleAPI =
     )
     :<|> Named
            "check-user-handle"
-           ( Summary ""
+           ( Summary "Check whether a user handle can be taken"
                :> CanThrow 'InvalidHandle
                :> CanThrow 'HandleNotFound
                :> ZUser
