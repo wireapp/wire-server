@@ -892,3 +892,19 @@ To change the TeamSearchVisibilityInbound to SearchableByOwnTeam for the team ru
 Configuring classified domains
 ------------------------------
 
+
+
+.. code:: yaml 
+
+    galley:
+      replicaCount: 1
+      config:
+      ...
+        featureFlags:
+        ...
+          classifiedDomains: 
+            status: enabled
+            config:
+              domains: ["domain-that-is-classified.link"]
+              ...
+
