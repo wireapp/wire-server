@@ -474,3 +474,182 @@ Close the session and proceed locally to generate the list of all users from tea
 
 .. note::
    Don't forget to dellete the created csv files after you have downloaded/processed them.
+
+Create a team using the SCIM API
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you need to create a team manually, maybe because team creation was blocked in the "teams" interface, follow this procedure:
+
+First download or locate this bash script: `wire-server/deploy/services-demo/create_test_team_scim.sh <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_test_team_scim.sh>`
+
+Then, run it the following way:
+
+.. code:: sh
+
+   ./create_test_team_scim.sh -h <brig host> -s <spar host>
+
+Where:
+
+* In `-h <brig host>`, replace `<brig host>` with the base URL for your brig host (for example: `https://brig-host.your-domain.com`, defaults to `http://localhost:8082`)
+* In `-s <spar host>`, replace `<spar host>` with the base URL for your spar host (for example: `https://spar-host.your-domain.com`, defaults to `http://localhost:8088`)
+
+You might also need to edit the admin email and admin passwords at lines `48` and `49` of the script.
+
+To learn more about the different pods and how to identify them, see `this page<https://docs.wire.com/understand/overview.html#focus-on-pods>`.
+
+You can list your pods with `kubectl get pods --namespace wire`.
+
+Alternatively, you can run the series of commands manually with `curl`, like this:
+
+.. code:: sh
+
+   curl -i -s --show-error \
+    -XPOST "$BRIG_HOST/i/users" \
+    -H'Content-type: application/json' \
+    -d'{"email":"$ADMIN_EMAIL","password":"$ADMIN_PASSWORD","name":"$NAME_OF_TEAM","team":{"name":"$NAME_OF_TEAM","icon":"default"}}'
+
+Where:
+
+* `$BRIG_HOST` is the base URL for your brig host
+* `$ADMIN_EMAIL` is the email for the admin account for the new team
+* `$ADMIN_PASSWORD` is the password for the admin account for the new team
+* `$NAME_OF_TEAM` is the name of the team newly created
+
+Out of the result of this command, you will be able to extract an `Admin UUID`, and a `Team UUID`, which you will need later.
+
+Then run:
+
+.. code:: sh
+
+        curl -X POST \
+              --header 'Content-Type: application/json' \
+              --header 'Accept: application/json' \
+              -d '{"email":"$ADMIN_EMAIL","password":"$ADMIN_PASSWORD"}' \
+              $BRIG_HOST/login'?persist=false' | jq -r .access_token
+
+Where the values to replace are the same as the command above.
+
+This command should output an access token, take note of it.
+
+Then run:
+
+.. code:: sh
+
+       curl -X POST \
+                       --header "Authorization: Bearer $ACCESS_TOKEN" \
+                       --header 'Content-Type: application/json;charset=utf-8' \
+                       --header 'Z-User: '"$ADMIN_UUID" \
+                       -d '{ "description": "test '"`date`"'", "password": "'"$ADMIN_PASSWORD"'" }' \
+                       $SPAR_HOST/scim/auth-tokens
+
+Where the values to replace are the same as the first command, plus `$ACCESS_TOKEN` is access token you just took note of in the previous command. 
+
+Out of the JSON  output of this command, you should be able to extract: 
+
+* A SCIM token (`token` value in the JSON).
+* A SCIM token ID (`id` value in the `info` value in the JSON)
+
+Equiped with those tokens, we move on to the next script, `wire-server/deploy/services-demo/create_team.sh <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_team.sh>`
+
+This script can be run the following way:
+
+.. code:: sh
+
+    ./create_team.sh -h <host> -o <owner name> -e <owner email> -p <owner password> -v <email code> -t <team name> -c <team currency>    
+
+Where:
+
+*    -h <host>: Base URI of brig. default: `http://localhost:8080`
+*    -o <owner_name>: user display name of the owner of the team to be created.  default: "owner name n/a"
+*    -e <owner_email>: email address of the owner of the team to be created.  default: "owner email n/a"
+*    -p <owner_password>: owner password.  default: "owner pass n/a"
+*    -v <email_code>: validation code received by email after running the previous script/commands.  default: "email code n/a"
+*    -t <team_name>: default: "team name n/a"
+*    -c <team_currency>: default: "USD"
+
+Alternatively, you can manually run the command:
+
+.. code:: sh
+
+   curl -i -s --show-error \
+     -XPOST "$BRIG_HOST/register" \
+        -H'Content-type: application/json' \
+        -d'{"name":"$OWNER_NAME","email":"$OWNER_EMAIL","password":"$OWNER_PASSWORD","email_code":"$EMAIL_CODE","team":{"currency":"$TEAM_CURRENCY","icon":"default","name":"$TEAM_NAME"}}'
+
+Where:
+
+* `$BRIG_HOST` is the base URL for your brig service
+* `$OWNER_NAME` is the name of the of the team to be created
+* `$OWNER_PASSWORD` is the password of the owner of the team to be created
+* `$EMAIL_CODE` is the validation code received by email after running the previous script/command
+* `$TEAM_CURRENCY` is the currency of the team
+* `$TEAM_NAME` is the name of the team
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+####################TODO: THIS PROBABLY NEEDS ERASING##################################
+
+Now we create a new regular user via team invitation:
+
+.. code:: sh
+
+        curl -i -s --show-error \
+                            -XPOST "$BRIG_HOST/teams/$TEAM_UUID/invitations" \
+                            -H'Content-type: application/json' \
+                            -H'Z-User: '$ADMIN_UUID'' \
+                            -d'{"email":"$REGULAR_USER_EMAIL","name":"Replace with name","inviter_name":"Team admin"}'
+
+Where the only new parameter is `$REGULAR_USER_EMAIL`, the email for this new user
+
+Out of the output of this command, we get an Invitation ID.
+
+Then run:
+
+.. code:: shell
+
+   curl -i -s --show-error -XGET "$BRIG_HOST/i/teams/invitation-code?team=$TEAM_UUID&invitation_id=$INVITATION_ID"
+
+Where:
+
+* `$TEAM_UUID` is the `Team UUID` we got several commands back, and
+* `$INVITATION_ID` is the `Invitation ID` we just got in the previous command
+
+Out of this command, we get an invitation code.
+
+Then we create the user using this invitation code:
+
+.. code:: sh
+
+   curl -i -s --show-error \
+                -XPOST "$BRIG_HOST/i/users" \
+                -H'Content-type: application/json' \
+                -d'{"email":"'"$REGULAR_USER_EMAIL"'","password":"'"$REGULAR_USER_PASSWORD"'","name":"demo","team_code":"'"$INVITATION_CODE"'"}'
+
+Where the only new parameter is `$INVITATION_CODE`, which is the invitation code we just got in the previous command.
+
+Out of this command, we get the Team Member UUID for this regular user.
+
+We then move on to creating a user via SCIM invitation:
+
+
+
+
