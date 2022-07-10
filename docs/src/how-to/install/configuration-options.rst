@@ -888,3 +888,7 @@ To change the TeamSearchVisibilityInbound to SearchableByOwnTeam for the team ru
   curl -XPUT -H 'Content-Type: application/json' -d "{\"status\": \"disabled\"}" http://localhost:9000/i/teams/dcbedf9a-af2a-4f43-9fd5-525953a919e1/features/searchVisibilityInbound
 
  
+
+Configuring classified domains
+------------------------------
+
