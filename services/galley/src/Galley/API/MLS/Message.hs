@@ -105,7 +105,8 @@ postMLSMessageFromLocalUser ::
          ErrorS 'MLSStaleMessage,
          ErrorS 'MissingLegalholdConsent,
          ProposalStore,
-         TinyLog
+         TinyLog,
+         Input (Local ())
        ]
       r
   ) =>
@@ -130,7 +131,8 @@ postMLSMessage ::
          ErrorS 'MissingLegalholdConsent,
          Resource,
          TinyLog,
-         ProposalStore
+         ProposalStore,
+         Input (Local ())
        ]
       r
   ) =>
@@ -161,7 +163,8 @@ postMLSMessageToLocalConv ::
          ErrorS 'MissingLegalholdConsent,
          Resource,
          TinyLog,
-         ProposalStore
+         ProposalStore,
+         Input (Local ())
        ]
       r
   ) =>
@@ -181,7 +184,7 @@ postMLSMessageToLocalConv qusr con smsg lcnv = case rmValue smsg of
           processCommit qusr con (qualifyAs lcnv conv) (msgEpoch msg) (msgSender msg) c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
         ProposalMessage prop ->
-          processProposal lusr conv msg prop $> mempty
+          processProposal qusr conv msg prop $> mempty
       SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
         Right CommitMessageTag -> throwS @'MLSUnsupportedMessage
         Right ProposalMessageTag -> throwS @'MLSUnsupportedMessage
@@ -372,15 +375,16 @@ processProposal ::
     '[ Error MLSProtocolError,
        ErrorS 'ConvNotFound,
        ErrorS 'MLSStaleMessage,
-       ProposalStore
+       ProposalStore,
+       Input (Local ())
      ]
     r =>
-  Local UserId ->
+  Qualified UserId ->
   Data.Conversation ->
   Message 'MLSPlainText ->
   RawMLS Proposal ->
   Sem r ()
-processProposal lusr conv msg prop = do
+processProposal qusr conv msg prop = do
   -- check epoch number
   curEpoch <-
     preview (to convProtocol . _ProtocolMLS . to cnvmlsEpoch) conv
@@ -410,9 +414,10 @@ processProposal lusr conv msg prop = do
   -- validate the proposal
   --
   -- is the user a member of the conversation?
-  void $
-    getLocalMember (convId conv) (tUnqualified lusr)
-      >>= noteS @'ConvNotFound
+  loc <- qualifyLocal ()
+  isMember' <- foldQualified loc (fmap isJust . getLocalMember (convId conv) . tUnqualified) (fmap isJust . getRemoteMember (convId conv)) qusr
+  unless isMember' $ throwS @'ConvNotFound
+
   -- FUTUREWORK: validate the member's conversation role
   checkProposal suite (rmValue prop) propRef
 

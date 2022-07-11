@@ -308,6 +308,9 @@ insertRemoteMember = "insert into member_remote_user (conv, user_remote_domain, 
 removeRemoteMember :: PrepQuery W (ConvId, Domain, UserId) ()
 removeRemoteMember = "delete from member_remote_user where conv = ? and user_remote_domain = ? and user_remote_id = ?"
 
+selectRemoteMember :: PrepQuery R (ConvId, Domain, UserId) (RoleName, C.Set ClientId)
+selectRemoteMember = "select conversation_role, mls_clients from member_remote_user where conv = ? and user_remote_domain = ? and user_remote_id = ?"
+
 selectRemoteMembers :: PrepQuery R (Identity ConvId) (Domain, UserId, RoleName, C.Set ClientId)
 selectRemoteMembers = "select user_remote_domain, user_remote_id, conversation_role, mls_clients from member_remote_user where conv = ?"
 
