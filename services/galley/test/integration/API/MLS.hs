@@ -57,6 +57,7 @@ import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group (convToGroupId)
 import Wire.API.Message
 
@@ -678,7 +679,7 @@ testLocalToRemote = withSystemTempDirectory "mls" $ \tmp -> do
   qcnv <- randomQualifiedId (qDomain (pUserId alice))
   let nrc =
         NewRemoteConversation (qUnqualified qcnv) $
-          ProtocolMLS (ConversationMLSData groupId (Epoch 1))
+          ProtocolMLS (ConversationMLSData groupId (Epoch 1) (CipherSuite 1))
   void $
     runFedClient
       @"on-new-remote-conversation"
