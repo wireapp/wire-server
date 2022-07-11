@@ -129,7 +129,8 @@ postMLSMessage ::
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MissingLegalholdConsent,
          Resource,
-         TinyLog
+         TinyLog,
+         ProposalStore
        ]
       r
   ) =>
@@ -159,7 +160,8 @@ postMLSMessageToLocalConv ::
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MissingLegalholdConsent,
          Resource,
-         TinyLog
+         TinyLog,
+         ProposalStore
        ]
       r
   ) =>
@@ -345,7 +347,7 @@ processProposal ::
   Data.Conversation ->
   Message 'MLSPlainText ->
   RawMLS Proposal ->
-  Sem r [Event]
+  Sem r [LocalConversationUpdate]
 processProposal conv msg prop = do
   suite <-
     preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) conv

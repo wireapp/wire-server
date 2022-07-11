@@ -52,6 +52,7 @@ import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
+import Galley.Effects.ProposalStore (ProposalStore)
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList (UserList (UserList))
@@ -561,7 +562,8 @@ sendMLSMessage ::
         MemberStore,
         Resource,
         TeamStore,
-        P.TinyLog
+        P.TinyLog,
+        ProposalStore
       ]
       r
   ) =>
