@@ -772,7 +772,7 @@ testUserRemovesThemselvesFromConv = withSystemTempDirectory "mls" $ \tmp -> do
   (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(2, LocalUser)]
 
   -- create a group
-  conversation <- setupGroup tmp CreateConv creator "group"
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
 
   -- add clients to it and get welcome message
   (addCommit, welcome) <-

@@ -1329,6 +1329,7 @@ type MLSMessagingAPI =
                :> CanThrow 'LegalHoldNotEnabled
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow 'MLSCommitMissingReferences
+               :> CanThrow 'MLSSelfRemovalNotAllowed
                :> "messages"
                :> ZConn
                :> ReqBody '[MLS] (RawMLS SomeMessage)
