@@ -1328,6 +1328,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSUnsupportedProposal
                :> CanThrow 'LegalHoldNotEnabled
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'MLSCommitMissingReferences
                :> "messages"
                :> ZConn
                :> ReqBody '[MLS] (RawMLS SomeMessage)

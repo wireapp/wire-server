@@ -93,7 +93,8 @@ tests s =
           test s "return error when commit is locked" testCommitLock,
           test s "add remote user to a conversation" testAddRemoteUser,
           test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
-          test s "post commit that references a unknown proposal" testUnknownProposalRefCommit
+          test s "post commit that references a unknown proposal" testUnknownProposalRefCommit,
+          test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals
         ],
       testGroup
         "Application Message"
@@ -643,6 +644,29 @@ testUnknownProposalRefCommit = withSystemTempDirectory "mls" $ \tmp -> do
 
   err <- testFailedCommit (MessagingSetup {creator = alice, users = [bob], ..}) 404
   liftIO $ Wai.label err @?= "mls-proposal-not-found"
+
+testCommitNotReferencingAllProposals :: TestM ()
+testCommitNotReferencingAllProposals = withSystemTempDirectory "mls" $ \tmp -> do
+  (alice, [bob, dee]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser), (1, LocalUser)]
+
+  (groupId, conversation) <- setupGroup tmp CreateConv alice "group"
+
+  propBob <- liftIO $ bareAddProposal tmp alice bob "group" "group"
+  postMessage (qUnqualified (pUserId alice)) propBob
+    !!! const 201 === statusCode
+
+  propDee <- liftIO $ bareAddProposal tmp alice dee "group" "group2"
+  postMessage (qUnqualified (pUserId alice)) propDee
+    !!! const 201 === statusCode
+
+  (commit, mbWelcome) <-
+    liftIO $
+      pendingProposalsCommit tmp alice "group"
+
+  welcome <- assertJust mbWelcome
+
+  err <- testFailedCommit (MessagingSetup {creator = alice, users = [bob, dee], ..}) 409
+  liftIO $ Wai.label err @?= "mls-commit-missing-references"
 
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do

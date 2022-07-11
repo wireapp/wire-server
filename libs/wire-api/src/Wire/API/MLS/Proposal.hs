@@ -14,9 +14,11 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE TemplateHaskell #-}
 
 module Wire.API.MLS.Proposal where
 
+import Control.Lens (makePrisms)
 import Data.Binary
 import Data.Binary.Get
 import Imports
@@ -150,7 +152,9 @@ instance ParseMLS ProposalOrRef where
       RefTag -> Ref <$> parseMLS
 
 newtype ProposalRef = ProposalRef {unProposalRef :: ByteString}
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Ord)
 
 instance ParseMLS ProposalRef where
   parseMLS = ProposalRef <$> getByteString 16
+
+makePrisms ''ProposalOrRef

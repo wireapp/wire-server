@@ -29,9 +29,10 @@ migration =
   Migration 69 "Introduce an MLS proposals table" $
     schema'
       [r| CREATE TABLE mls_proposal_refs (
-            ref blob PRIMARY KEY,
-            proposal blob,
             group_id blob,
-            epoch bigint
+            epoch bigint,
+            ref blob,
+            proposal blob,
+            PRIMARY KEY (group_id, epoch, ref)
           )
         |]

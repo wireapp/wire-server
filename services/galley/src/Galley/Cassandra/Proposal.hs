@@ -44,18 +44,23 @@ interpretProposalStoreToCassandra ::
 interpretProposalStoreToCassandra =
   interpret $
     embedClient . \case
-      StoreProposal ref raw gid epoch ->
+      StoreProposal groupId epoch ref raw ->
         retry x5 $
-          write (storeQuery defaultTTL) (params LocalQuorum (ref, raw, gid, epoch))
-      GetProposal ref ->
-        retry x1 (query1 getQuery (params LocalQuorum (Identity ref)))
+          write (storeQuery defaultTTL) (params LocalQuorum (groupId, epoch, ref, raw))
+      GetProposal groupId epoch ref ->
+        runIdentity <$$> retry x1 (query1 getQuery (params LocalQuorum (groupId, epoch, ref)))
+      GetAllPendingProposals groupId epoch ->
+        runIdentity <$$> retry x1 (query getAllPending (params LocalQuorum (groupId, epoch)))
 
-storeQuery :: TTL -> PrepQuery W (ProposalRef, RawMLS Proposal, GroupId, Epoch) ()
+storeQuery :: TTL -> PrepQuery W (GroupId, Epoch, ProposalRef, RawMLS Proposal) ()
 storeQuery ttl =
   fromString $
-    "insert into mls_proposal_refs (ref, proposal, group_id, epoch)\
+    "insert into mls_proposal_refs (group_id, epoch, ref, proposal)\
     \ values (?, ?, ?, ?) using ttl "
       <> show ttl
 
-getQuery :: PrepQuery R (Identity ProposalRef) (RawMLS Proposal, GroupId, Epoch)
-getQuery = "select proposal, group_id, epoch from mls_proposal_refs where ref = ?"
+getQuery :: PrepQuery R (GroupId, Epoch, ProposalRef) (Identity (RawMLS Proposal))
+getQuery = "select proposal from mls_proposal_refs where group_id = ? and epoch = ? and ref = ?"
+
+getAllPending :: PrepQuery R (GroupId, Epoch) (Identity ProposalRef)
+getAllPending = "select ref from mls_proposal_refs where group_id = ? and epoch = ?"

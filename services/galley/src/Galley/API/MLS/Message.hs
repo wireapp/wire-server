@@ -77,6 +77,7 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
+import qualified Wire.API.MLS.Proposal as Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
 
@@ -89,7 +90,8 @@ type MLSMessageStaticErrors =
      ErrorS 'MissingLegalholdConsent,
      ErrorS 'MLSKeyPackageRefNotFound,
      ErrorS 'MLSClientMismatch,
-     ErrorS 'MLSUnsupportedProposal
+     ErrorS 'MLSUnsupportedProposal,
+     ErrorS 'MLSCommitMissingReferences
    ]
 
 postMLSMessageFromLocalUser ::
@@ -105,6 +107,7 @@ postMLSMessageFromLocalUser ::
          ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MissingLegalholdConsent,
+         ErrorS 'MLSCommitMissingReferences,
          ProposalStore,
          TinyLog,
          Input (Local ())
@@ -130,6 +133,7 @@ postMLSMessage ::
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MissingLegalholdConsent,
+         ErrorS 'MLSCommitMissingReferences,
          Resource,
          TinyLog,
          ProposalStore,
@@ -162,6 +166,7 @@ postMLSMessageToLocalConv ::
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MissingLegalholdConsent,
+         ErrorS 'MLSCommitMissingReferences,
          Resource,
          TinyLog,
          ProposalStore,
@@ -277,6 +282,7 @@ processCommit ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'MLSCommitMissingReferences) r,
     Member Resource r,
     Member ProposalStore r
   ) =>
@@ -322,8 +328,14 @@ processCommit qusr con lconv epoch sender commit = do
         -- the sender of the first commit must be a member
         _ -> throw (mlsProtocolError "Unexpected sender")
 
+    -- check all pending proposals are referenced in the commit
+    allPendingProposals <- getAllPendingProposals groupId epoch
+    let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) (cProposals commit)
+    unless (all (`Set.member` referencedProposals) allPendingProposals) $
+      throwS @'MLSCommitMissingReferences
+
     -- process and execute proposals
-    action <- foldMap (applyProposalRef (tUnqualified lconv)) (cProposals commit)
+    action <- foldMap (applyProposalRef (tUnqualified lconv) groupId epoch) (cProposals commit)
     updates <- executeProposalAction qusr con lconv action
 
     -- increment epoch number
@@ -342,14 +354,16 @@ applyProposalRef ::
       r
   ) =>
   Data.Conversation ->
+  GroupId ->
+  Epoch ->
   ProposalOrRef ->
   Sem r ProposalAction
-applyProposalRef conv (Ref ref) = do
-  (p, gid, epoch) <- getProposal ref >>= noteS @'MLSProposalNotFound
+applyProposalRef conv groupId epoch (Ref ref) = do
+  p <- getProposal groupId epoch ref >>= noteS @'MLSProposalNotFound
   checkEpoch epoch conv
-  checkGroup gid conv
+  checkGroup groupId conv
   applyProposal (rmValue p)
-applyProposalRef conv (Inline p) = do
+applyProposalRef conv _groupId _epoch (Inline p) = do
   suite <-
     preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) conv
       & noteS @'ConvNotFound
@@ -419,7 +433,7 @@ processProposal qusr conv msg prop = do
   -- FUTUREWORK: validate the member's conversation role
   let propRef = proposalRef suiteTag prop
   checkProposal suiteTag (rmValue prop)
-  storeProposal propRef prop (msgGroupId msg) (msgEpoch msg)
+  storeProposal (msgGroupId msg) (msgEpoch msg) propRef prop
 
 executeProposalAction ::
   forall r.

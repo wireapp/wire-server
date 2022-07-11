@@ -28,13 +28,19 @@ import Wire.API.MLS.Serialisation
 
 data ProposalStore m a where
   StoreProposal ::
-    ProposalRef ->
-    RawMLS Proposal ->
     GroupId ->
     Epoch ->
+    ProposalRef ->
+    RawMLS Proposal ->
     ProposalStore m ()
   GetProposal ::
+    GroupId ->
+    Epoch ->
     ProposalRef ->
-    ProposalStore m (Maybe (RawMLS Proposal, GroupId, Epoch))
+    ProposalStore m (Maybe (RawMLS Proposal))
+  GetAllPendingProposals ::
+    GroupId ->
+    Epoch ->
+    ProposalStore m [ProposalRef]
 
 makeSem ''ProposalStore
