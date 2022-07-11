@@ -19,7 +19,7 @@ module Galley.API.Teams.Features
   ( getFeatureStatus,
     getFeatureStatusMulti,
     setFeatureStatus,
-    setFeatureStatusInternal,
+    patchFeatureStatusInternal,
     getFeatureStatusForUser,
     getAllFeatureConfigsForServer,
     getAllFeatureConfigsForTeam,
@@ -224,7 +224,7 @@ getFeatureStatusMulti (Multi.TeamFeatureNoConfigMultiRequest tids) = do
 toTeamStatus :: TeamId -> WithStatusNoLock cfg -> Multi.TeamStatus cfg
 toTeamStatus tid ws = Multi.TeamStatus tid (wssStatus ws)
 
-setFeatureStatusInternal ::
+patchFeatureStatusInternal ::
   forall db cfg r.
   ( SetFeatureConfig db cfg,
     GetConfigForTeamConstraints db cfg r,
@@ -243,13 +243,10 @@ setFeatureStatusInternal ::
       r
   ) =>
   TeamId ->
-  WithStatus () ->
+  WithStatus' cfg ->
   Maybe FeatureTTL ->
   Sem r (WithStatus cfg)
-setFeatureStatusInternal tid ws mTtl = do
-  void $ setLockStatus @db @cfg @r tid (wsLockStatus ws)
-  ws' <- getFeatureStatus @db @cfg @r DontDoAuth tid
-  setFeatureStatus @db @cfg @r mTtl DontDoAuth tid (forgetLock ws)
+patchFeatureStatusInternal = _
 
 setFeatureStatus ::
   forall db cfg r.

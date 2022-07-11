@@ -26,6 +26,7 @@ module Wire.API.Team.Feature
     featureNameBS,
     LockStatus (..),
     WithStatus (..),
+    WithStatus' (..),
     WithStatusNoLock (..),
     forgetLock,
     withLockStatus,
@@ -142,7 +143,7 @@ class IsFeatureConfig cfg where
     -- | Should be "pure MyFeatureConfig" if the feature doesn't have config,
     -- which results in a trivial empty schema and the "config" field being
     -- omitted/ignored in the JSON encoder / parser.
-    ObjectSchema SwaggerDoc cfg
+    Maybe (ValueSchema NamedSwaggerDoc cfg)
 
 class FeatureTrivialConfig cfg where
   trivialConfig :: cfg
@@ -176,7 +177,9 @@ instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatus cfg) where
       WithStatus
         <$> wsStatus .= field "status" schema
         <*> wsLockStatus .= field "lockStatus" schema
-        <*> wsConfig .= objectSchema @cfg
+        <*> wsConfig .= case objectSchema @cfg of
+          Just vs -> field "config" vs
+          Nothing -> mempty
     where
       inner = schema @cfg
       name = fromMaybe "" (getName (schemaDoc inner)) <> ".WithStatus"
@@ -194,6 +197,33 @@ withStatusModel =
 
         Doc.property "status" typeFeatureStatus $ Doc.description "status"
         Doc.property "lockStatus" typeLockStatusValue $ Doc.description ""
+
+----------------------------------------------------------------------
+-- WithStatus'
+
+data WithStatus' (cfg :: *) = WithStatus'
+  { wsStatus' :: Maybe FeatureStatus,
+    wsLockStatus' :: Maybe LockStatus,
+    wsConfig' :: Maybe cfg
+  }
+  deriving stock (Eq, Show, Generic, Typeable, Functor)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (WithStatus' cfg))
+
+instance Arbitrary cfg => Arbitrary (WithStatus' cfg) where
+  arbitrary = WithStatus' <$> arbitrary <*> arbitrary <*> arbitrary
+
+instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatus' cfg) where
+  schema =
+    object name $
+      WithStatus'
+        <$> wsStatus' .= maybe_ (optField "status" schema)
+        <*> wsLockStatus' .= maybe_ (optField "lockStatus" schema)
+        <*> wsConfig' .= case objectSchema @cfg of
+          Just os -> maybe_ (optField "config" os)
+          Nothing -> mempty
+    where
+      inner = schema @cfg
+      name = fromMaybe "" (getName (schemaDoc inner)) <> ".WithStatus'"
 
 ----------------------------------------------------------------------
 -- WithStatusNoLock
@@ -225,7 +255,9 @@ instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatusNoLock cfg) 
     object name $
       WithStatusNoLock
         <$> wssStatus .= field "status" schema
-        <*> wssConfig .= objectSchema @cfg
+        <*> wssConfig .= case objectSchema @cfg of
+          Just vs -> field "config" vs
+          Nothing -> mempty
     where
       inner = schema @cfg
       name = fromMaybe "" (getName (schemaDoc inner)) <> ".WithStatusNoLock"
@@ -437,12 +469,12 @@ data GuestLinksConfig = GuestLinksConfig
   deriving (Arbitrary) via (GenericUniform GuestLinksConfig)
 
 instance ToSchema GuestLinksConfig where
-  schema = object "GuestLinksConfig" objectSchema
+  schema = named "GuestLinksConfig" mempty
 
 instance IsFeatureConfig GuestLinksConfig where
   type FeatureSymbol GuestLinksConfig = "conversationGuestLinks"
   defFeatureStatus = WithStatus FeatureStatusEnabled LockStatusUnlocked GuestLinksConfig
-  objectSchema = pure GuestLinksConfig
+  objectSchema = Nothing
 
 instance FeatureTrivialConfig GuestLinksConfig where
   trivialConfig = GuestLinksConfig
@@ -457,10 +489,10 @@ data LegalholdConfig = LegalholdConfig
 instance IsFeatureConfig LegalholdConfig where
   type FeatureSymbol LegalholdConfig = "legalhold"
   defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusUnlocked LegalholdConfig
-  objectSchema = pure LegalholdConfig
+  objectSchema = Nothing
 
 instance ToSchema LegalholdConfig where
-  schema = object "LegalholdConfig" objectSchema
+  schema = named "LegalholdConfig" mempty
 
 instance FeatureTrivialConfig LegalholdConfig where
   trivialConfig = LegalholdConfig
@@ -475,10 +507,10 @@ data SSOConfig = SSOConfig
 instance IsFeatureConfig SSOConfig where
   type FeatureSymbol SSOConfig = "sso"
   defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusUnlocked SSOConfig
-  objectSchema = pure SSOConfig
+  objectSchema = Nothing
 
 instance ToSchema SSOConfig where
-  schema = object "SSOConfig" objectSchema
+  schema = named "SSOConfig" mempty
 
 instance FeatureTrivialConfig SSOConfig where
   trivialConfig = SSOConfig
@@ -495,10 +527,10 @@ data SearchVisibilityAvailableConfig = SearchVisibilityAvailableConfig
 instance IsFeatureConfig SearchVisibilityAvailableConfig where
   type FeatureSymbol SearchVisibilityAvailableConfig = "searchVisibility"
   defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityAvailableConfig
-  objectSchema = pure SearchVisibilityAvailableConfig
+  objectSchema = Nothing
 
 instance ToSchema SearchVisibilityAvailableConfig where
-  schema = object "SearchVisibilityAvailableConfig" objectSchema
+  schema = named "SearchVisibilityAvailableConfig" mempty
 
 instance FeatureTrivialConfig SearchVisibilityAvailableConfig where
   trivialConfig = SearchVisibilityAvailableConfig
@@ -514,12 +546,12 @@ data ValidateSAMLEmailsConfig = ValidateSAMLEmailsConfig
   deriving (Arbitrary) via (GenericUniform ValidateSAMLEmailsConfig)
 
 instance ToSchema ValidateSAMLEmailsConfig where
-  schema = object "ValidateSAMLEmailsConfig" objectSchema
+  schema = named "ValidateSAMLEmailsConfig" mempty
 
 instance IsFeatureConfig ValidateSAMLEmailsConfig where
   type FeatureSymbol ValidateSAMLEmailsConfig = "validateSAMLemails"
   defFeatureStatus = WithStatus FeatureStatusEnabled LockStatusUnlocked ValidateSAMLEmailsConfig
-  objectSchema = pure ValidateSAMLEmailsConfig
+  objectSchema = Nothing
 
 instance HasDeprecatedFeatureName ValidateSAMLEmailsConfig where
   type DeprecatedFeatureName ValidateSAMLEmailsConfig = "validate-saml-emails"
@@ -537,13 +569,13 @@ data DigitalSignaturesConfig = DigitalSignaturesConfig
 instance IsFeatureConfig DigitalSignaturesConfig where
   type FeatureSymbol DigitalSignaturesConfig = "digitalSignatures"
   defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusUnlocked DigitalSignaturesConfig
-  objectSchema = pure DigitalSignaturesConfig
+  objectSchema = Nothing
 
 instance HasDeprecatedFeatureName DigitalSignaturesConfig where
   type DeprecatedFeatureName DigitalSignaturesConfig = "digital-signatures"
 
 instance ToSchema DigitalSignaturesConfig where
-  schema = object "DigitalSignaturesConfig" objectSchema
+  schema = named "DigitalSignaturesConfig" mempty
 
 instance FeatureTrivialConfig DigitalSignaturesConfig where
   trivialConfig = DigitalSignaturesConfig
@@ -558,10 +590,10 @@ data ConferenceCallingConfig = ConferenceCallingConfig
 instance IsFeatureConfig ConferenceCallingConfig where
   type FeatureSymbol ConferenceCallingConfig = "conferenceCalling"
   defFeatureStatus = WithStatus FeatureStatusEnabled LockStatusUnlocked ConferenceCallingConfig
-  objectSchema = pure ConferenceCallingConfig
+  objectSchema = Nothing
 
 instance ToSchema ConferenceCallingConfig where
-  schema = object "ConferenceCallingConfig" objectSchema
+  schema = named "ConferenceCallingConfig" mempty
 
 instance FeatureTrivialConfig ConferenceCallingConfig where
   trivialConfig = ConferenceCallingConfig
@@ -574,12 +606,12 @@ data SndFactorPasswordChallengeConfig = SndFactorPasswordChallengeConfig
   deriving (Arbitrary) via (GenericUniform SndFactorPasswordChallengeConfig)
 
 instance ToSchema SndFactorPasswordChallengeConfig where
-  schema = object "SndFactorPasswordChallengeConfig" objectSchema
+  schema = named "SndFactorPasswordChallengeConfig" mempty
 
 instance IsFeatureConfig SndFactorPasswordChallengeConfig where
   type FeatureSymbol SndFactorPasswordChallengeConfig = "sndFactorPasswordChallenge"
   defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusLocked SndFactorPasswordChallengeConfig
-  objectSchema = pure SndFactorPasswordChallengeConfig
+  objectSchema = Nothing
 
 instance FeatureTrivialConfig SndFactorPasswordChallengeConfig where
   trivialConfig = SndFactorPasswordChallengeConfig
@@ -594,10 +626,10 @@ data SearchVisibilityInboundConfig = SearchVisibilityInboundConfig
 instance IsFeatureConfig SearchVisibilityInboundConfig where
   type FeatureSymbol SearchVisibilityInboundConfig = "searchVisibilityInbound"
   defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityInboundConfig
-  objectSchema = pure SearchVisibilityInboundConfig
+  objectSchema = Nothing
 
 instance ToSchema SearchVisibilityInboundConfig where
-  schema = object "SearchVisibilityInboundConfig" objectSchema
+  schema = named "SearchVisibilityInboundConfig" mempty
 
 instance FeatureTrivialConfig SearchVisibilityInboundConfig where
   trivialConfig = SearchVisibilityInboundConfig
@@ -629,7 +661,7 @@ instance IsFeatureConfig ClassifiedDomainsConfig where
   configModel = Just $
     Doc.defineModel "ClassifiedDomainsConfig" $ do
       Doc.property "domains" (Doc.array Doc.string') $ Doc.description "domains"
-  objectSchema = field "config" schema
+  objectSchema = Just schema
 
 ----------------------------------------------------------------------
 -- AppLock feature
@@ -660,7 +692,7 @@ instance IsFeatureConfig AppLockConfig where
     Doc.defineModel "AppLockConfig" $ do
       Doc.property "enforceAppLock" Doc.bool' $ Doc.description "enforceAppLock"
       Doc.property "inactivityTimeoutSecs" Doc.int32' $ Doc.description ""
-  objectSchema = field "config" schema
+  objectSchema = Just schema
 
 newtype EnforceAppLock = EnforceAppLock Bool
   deriving stock (Eq, Show, Ord, Generic)
@@ -680,10 +712,10 @@ data FileSharingConfig = FileSharingConfig
 instance IsFeatureConfig FileSharingConfig where
   type FeatureSymbol FileSharingConfig = "fileSharing"
   defFeatureStatus = WithStatus FeatureStatusEnabled LockStatusUnlocked FileSharingConfig
-  objectSchema = pure FileSharingConfig
+  objectSchema = Nothing
 
 instance ToSchema FileSharingConfig where
-  schema = object "FileSharingConfig" objectSchema
+  schema = named "FileSharingConfig" mempty
 
 instance FeatureTrivialConfig FileSharingConfig where
   trivialConfig = FileSharingConfig
@@ -714,7 +746,7 @@ instance IsFeatureConfig SelfDeletingMessagesConfig where
   configModel = Just $
     Doc.defineModel "SelfDeletingMessagesConfig" $ do
       Doc.property "enforcedTimeoutSeconds" Doc.int32' $ Doc.description "optional; default: `0` (no enforcement)"
-  objectSchema = field "config" schema
+  objectSchema = Just schema
 
 ----------------------------------------------------------------------
 -- MLSConfig
@@ -742,7 +774,7 @@ instance IsFeatureConfig MLSConfig where
   defFeatureStatus =
     let config = MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
      in WithStatus FeatureStatusDisabled LockStatusUnlocked config
-  objectSchema = field "config" schema
+  objectSchema = Just schema
   configModel = Just $
     Doc.defineModel "MLSConfig" $ do
       Doc.property "protocolToggleUsers" (Doc.array Doc.string') $ Doc.description "allowlist of users that may change protocols"
