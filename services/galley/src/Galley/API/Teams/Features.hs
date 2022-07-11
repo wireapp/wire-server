@@ -19,6 +19,7 @@ module Galley.API.Teams.Features
   ( getFeatureStatus,
     getFeatureStatusMulti,
     setFeatureStatus,
+    setFeatureStatusInternal,
     patchFeatureStatusInternal,
     getFeatureStatusForUser,
     getAllFeatureConfigsForServer,
@@ -246,7 +247,7 @@ patchFeatureStatusInternal ::
   WithStatus' cfg ->
   Maybe FeatureTTL ->
   Sem r (WithStatus cfg)
-patchFeatureStatusInternal = _
+patchFeatureStatusInternal = undefined
 
 setFeatureStatus ::
   forall db cfg r.
@@ -280,6 +281,30 @@ setFeatureStatus mTtl doauth tid wsnl = do
       assertTeamExists tid
   guardLockStatus . wsLockStatus =<< getConfigForTeam @db @cfg tid
   setConfigForTeam @db @cfg tid wsnl mTtl
+
+setFeatureStatusInternal ::
+  forall db cfg r.
+  ( SetFeatureConfig db cfg,
+    GetConfigForTeamConstraints db cfg r,
+    SetConfigForTeamConstraints db cfg r,
+    FeaturePersistentConstraint db cfg,
+    Members
+      '[ ErrorS 'NotATeamMember,
+         ErrorS OperationDenied,
+         ErrorS 'TeamNotFound,
+         Error TeamFeatureError,
+         TeamStore,
+         TeamFeatureStore db,
+         P.Logger (Log.Msg -> Log.Msg),
+         GundeckAccess
+       ]
+      r
+  ) =>
+  TeamId ->
+  WithStatusNoLock cfg ->
+  Maybe FeatureTTL ->
+  Sem r (WithStatus cfg)
+setFeatureStatusInternal tid wsnl mTtl = setFeatureStatus @db @cfg mTtl DontDoAuth tid wsnl
 
 setLockStatus ::
   forall db cfg r.
