@@ -92,24 +92,28 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSKeyPackageRefNotFound,
      ErrorS 'MLSClientMismatch,
      ErrorS 'MLSUnsupportedProposal,
-     ErrorS 'MLSCommitMissingReferences
+     ErrorS 'MLSCommitMissingReferences,
+     ErrorS 'MLSSelfRemovalNotAllowed
    ]
 
 postMLSMessageFromLocalUserV1 ::
   ( HasProposalEffects r,
     Members
-      '[ Resource,
-         Error FederationError,
+      '[ Error FederationError,
+         Error InternalError,
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvNotFound,
-         Error InternalError,
+         ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSProposalNotFound,
-         ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
+         ProposalStore,
+         Resource,
          TinyLog
        ]
       r
@@ -125,18 +129,19 @@ postMLSMessageFromLocalUserV1 lusr conn msg =
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
     Members
-      '[ Resource,
-         Error FederationError,
+      '[ Error FederationError,
+         Error InternalError,
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvNotFound,
-         Error InternalError,
          ErrorS 'MLSCommitMissingReferences,
-         ErrorS 'MLSUnsupportedMessage,
-         ErrorS 'MLSStaleMessage,
          ErrorS 'MLSProposalNotFound,
+         ErrorS 'MLSSelfRemovalNotAllowed,
+         ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
+         Resource,
          TinyLog
        ]
       r
@@ -164,6 +169,7 @@ postMLSMessage ::
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSCommitMissingReferences,
+         ErrorS 'MLSSelfRemovalNotAllowed,
          Resource,
          TinyLog,
          ProposalStore,
@@ -197,6 +203,7 @@ postMLSMessageToLocalConv ::
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSCommitMissingReferences,
+         ErrorS 'MLSSelfRemovalNotAllowed,
          Resource,
          TinyLog,
          ProposalStore,
@@ -318,6 +325,7 @@ processCommit ::
     Member (Error InternalError) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
+    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member Resource r,
     Member ProposalStore r,
     Member (Input (Local ())) r
@@ -485,6 +493,7 @@ executeProposalAction ::
     Member (Error MLSProposalFailure) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -522,8 +531,6 @@ executeProposalAction qusr con lconv action = do
       -- FUTUREWORK: turn this error into a proper response
       throwS @'MLSClientMismatch
 
-  -- This also filters out client removals for clients that don't exist anymore
-  -- For these clients there is nothing to update in the backend
   membersToRemove <- catMaybes <$> for removeUserClients (uncurry (checkRemoval loc ss))
 
   -- add users to the conversation and send events
@@ -537,6 +544,8 @@ executeProposalAction qusr con lconv action = do
 
   pure (addEvents <> removeEvents)
   where
+    -- This also filters out client removals for clients that don't exist anymore
+    -- For these clients there is nothing left to do
     checkRemoval :: Local () -> SignatureSchemeTag -> Qualified UserId -> Set ClientId -> Sem r (Maybe (Qualified UserId))
     checkRemoval loc ss qtarget clients = do
       allClients <- getMLSClients loc qtarget ss
@@ -547,6 +556,8 @@ executeProposalAction qusr con lconv action = do
           when (clients /= allClients) $ do
             -- FUTUREWORK: turn this error into a proper response
             throwS @'MLSClientMismatch
+          when (qusr == qtarget) $
+            throwS @'MLSSelfRemovalNotAllowed
           pure (Just qtarget)
 
     addMembers :: NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
