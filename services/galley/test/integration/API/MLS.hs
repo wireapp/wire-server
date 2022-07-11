@@ -782,29 +782,16 @@ testUserRemovesThemselvesFromConv = withSystemTempDirectory "mls" $ \tmp -> do
 
   testSuccessfulCommit MessagingSetup {users = [bob], commit = addCommit, ..}
 
+  -- FUTUREWORK: create commit as bob, when the openmls library supports removing own clients
+  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" (pClients bob)
+
   -- bob tries to leave the conversation by removng all its clients
-  do
-    void . liftIO $
-      spawn
-        ( cli
-            (pClientQid bob)
-            tmp
-            [ "group",
-              "from-welcome",
-              "--group-out",
-              tmp </> "group",
-              tmp </> "welcome"
-            ]
-        )
-        Nothing
-    (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp bob "group" "group" (pClients bob)
+  err <-
+    responseJsonError
+      =<< postMessage (qUnqualified (pUserId bob)) removalCommit
+        <!! statusCode === const 409
 
-    err <-
-      responseJsonError
-        =<< postMessage (qUnqualified (pUserId bob)) removalCommit
-          <!! statusCode === const 409
-
-    liftIO $ Wai.label err @?= "mls-client-mismatch"
+  liftIO $ Wai.label err @?= "mls-self-removal-not-allowed"
 
 testRemoveDeletedClient :: Bool -> TestM ()
 testRemoveDeletedClient deleteClientBefore = withSystemTempDirectory "mls" $ \tmp -> do
