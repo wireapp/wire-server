@@ -33,7 +33,7 @@ where
 import Data.Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Code as Code
-import Data.Id (TeamId, UserId)
+import Data.Id (TeamId)
 import Data.Misc (PlainTextPassword (..))
 import qualified Data.Text as Text
 import Imports
@@ -142,26 +142,6 @@ instance ToJSON NewUserScimInvitation where
         "locale" .= loc,
         "name" .= name,
         "email" .= email
-      ]
-
--------------------------------------------------------------------------------
--- UserList
-
--- | Set of user ids, can be used for different purposes (e.g., used on the internal
--- APIs for listing user's clients)
-data UserSet = UserSet
-  { usUsrs :: !(Set UserId)
-  }
-  deriving (Eq, Show, Generic)
-
-instance FromJSON UserSet where
-  parseJSON = withObject "user-set" $ \o ->
-    UserSet <$> o .: "users"
-
-instance ToJSON UserSet where
-  toJSON ac =
-    object
-      [ "users" .= usUsrs ac
       ]
 
 -------------------------------------------------------------------------------

@@ -34,6 +34,7 @@ import Imports (Maybe)
 import Polysemy
 import SAML2.WebSSO hiding (meta, toggleCookie)
 import URI.ByteString (URI)
+import Wire.API.User.IdentityProvider (IdP)
 
 data SAML2 m a where
   AuthReq ::
@@ -45,7 +46,7 @@ data SAML2 m a where
     Maybe TeamId ->
     m Issuer ->
     m URI ->
-    (AuthnResponse -> AccessVerdict -> m resp) ->
+    (AuthnResponse -> IdP -> AccessVerdict -> m resp) ->
     AuthnResponseBody ->
     SAML2 m resp
   Meta :: ST -> m Issuer -> m URI -> SAML2 m SPMetadata

@@ -1110,7 +1110,7 @@ deleteSelfUser uid pwd = do
               (Code.Retries 3)
               (Code.Timeout 600)
               (Just (toUUID uid))
-          wrapClientE $ Code.insert c
+          tryInsertVerificationCode c DeleteUserVerificationCodeThrottled
           let k = Code.codeKey c
           let v = Code.codeValue c
           let l = userLocale (accountUser a)

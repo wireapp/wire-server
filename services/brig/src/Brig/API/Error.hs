@@ -191,6 +191,11 @@ deleteUserError DeleteUserInvalidPassword = StdError (errorToWai @'E.BadCredenti
 deleteUserError DeleteUserMissingPassword = StdError (errorToWai @'E.MissingAuth)
 deleteUserError (DeleteUserPendingCode t) = RichError deletionCodePending (DeletionCodeTimeout t) []
 deleteUserError DeleteUserOwnerDeletingSelf = StdError (errorToWai @'E.OwnerDeletingSelf)
+deleteUserError (DeleteUserVerificationCodeThrottled t) =
+  RichError
+    verificationCodeThrottled
+    ()
+    [("Retry-After", toByteString' (retryAfterSeconds t))]
 
 accountStatusError :: AccountStatusError -> Error
 accountStatusError InvalidAccountStatus = StdError invalidAccountStatus
@@ -204,6 +209,13 @@ phoneError (PhoneBudgetExhausted t) = RichError phoneBudgetExhausted (PhoneBudge
 updateProfileError :: UpdateProfileError -> Error
 updateProfileError DisplayNameManagedByScim = StdError (propertyManagedByScim "name")
 updateProfileError ProfileNotFound = StdError (errorToWai @'E.UserNotFound)
+
+verificationCodeThrottledError :: VerificationCodeThrottledError -> Error
+verificationCodeThrottledError (VerificationCodeThrottled t) =
+  RichError
+    verificationCodeThrottled
+    ()
+    [("Retry-After", toByteString' (retryAfterSeconds t))]
 
 -- WAI Errors -----------------------------------------------------------------
 
@@ -369,6 +381,9 @@ loginsTooFrequent = Wai.mkError status429 "client-error" "Logins too frequent"
 
 tooManyFailedLogins :: Wai.Error
 tooManyFailedLogins = Wai.mkError status403 "client-error" "Too many failed logins"
+
+verificationCodeThrottled :: Wai.Error
+verificationCodeThrottled = Wai.mkError status429 "too-many-requests" "Too many request to generate a verification code."
 
 tooLargeRichInfo :: Wai.Error
 tooLargeRichInfo = Wai.mkError status413 "too-large-rich-info" "Rich info has exceeded the limit"

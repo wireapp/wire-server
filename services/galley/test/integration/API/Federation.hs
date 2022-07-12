@@ -92,8 +92,7 @@ tests s =
       test s "POST /federation/on-user-deleted-conversations : Remove deleted remote user from local conversations" onUserDeleted,
       test s "POST /federation/update-conversation : Update local conversation by a remote admin " updateConversationByRemoteAdmin,
       test s "POST /federation/mls-welcome : Post an MLS welcome message received from another backend" sendMLSWelcome,
-      test s "POST /federation/mls-welcome : Post an MLS welcome message (key package ref not found)" sendMLSWelcomeKeyPackageNotFound,
-      test s "POST /federation/on-mls-message-sent" onMLSMessageSent
+      test s "POST /federation/mls-welcome : Post an MLS welcome message (key package ref not found)" sendMLSWelcomeKeyPackageNotFound
     ]
 
 getConversationsAllFound :: TestM ()
@@ -685,9 +684,8 @@ leaveConversationSuccess = do
           void . WS.assertMatch (3 # Second) wsBob $
             wsAssertMembersLeave qconvId qChad [qChad]
 
-  let [remote1GalleyFederatedRequest] = fedRequestsForDomain remoteDomain1 Galley federatedRequests
-      [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 Galley federatedRequests
-  assertLeaveUpdate remote1GalleyFederatedRequest qconvId qChad [qUnqualified qChad, qUnqualified qDee] qChad
+  liftIO $ fedRequestsForDomain remoteDomain1 Galley federatedRequests @?= []
+  let [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 Galley federatedRequests
   assertLeaveUpdate remote2GalleyFederatedRequest qconvId qChad [qUnqualified qEve] qChad
 
 leaveConversationNonExistent :: TestM ()
@@ -1026,17 +1024,10 @@ onUserDeleted = do
       -- not part of any other conversations with bob.
       WS.assertNoEvent (1 # Second) [wsAlice, wsAlex]
 
-      -- There should be only 2 RPC calls made only for groupConvId: 1 for bob's
-      -- domain and 1 for eve's domain
-      assertEqual ("Expected 2 RPC calls, got: " <> show rpcCalls) 2 (length rpcCalls)
-
-      -- Assertions about RPC to bDomain
-      bobDomainRPC <- assertOne $ filter (\c -> frTargetDomain c == bDomain) rpcCalls
-      bobDomainRPCReq <- assertRight $ parseFedRequest bobDomainRPC
-      FedGalley.cuOrigUserId bobDomainRPCReq @?= qUntagged bob
-      FedGalley.cuConvId bobDomainRPCReq @?= qUnqualified groupConvId
-      sort (FedGalley.cuAlreadyPresentUsers bobDomainRPCReq) @?= sort [tUnqualified bob, qUnqualified bart]
-      FedGalley.cuAction bobDomainRPCReq @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure $ qUntagged bob)
+      -- There should be only 1 RPC call made to eve's domain for groupConvId.
+      -- Bob's domain does not get a notification, because it's the one making
+      -- the request.
+      assertEqual ("Expected 1 RPC calls, got: " <> show rpcCalls) 1 (length rpcCalls)
 
       -- Assertions about RPC to 'cDomain'
       cDomainRPC <- assertOne $ filter (\c -> frTargetDomain c == cDomain) rpcCalls
@@ -1191,60 +1182,6 @@ sendMLSWelcomeKeyPackageNotFound = do
     liftIO $ do
       -- check that no event is received
       WS.assertNoEvent (1 # Second) [wsB]
-
-onMLSMessageSent :: TestM ()
-onMLSMessageSent = do
-  localDomain <- viewFederationDomain
-  c <- view tsCannon
-  alice <- randomUser
-  eve <- randomUser
-  bob <- randomId
-  conv <- randomId
-  let aliceC1 = newClientId 0
-      aliceC2 = newClientId 1
-      eveC = newClientId 0
-      bdom = Domain "bob.example.com"
-      qconv = Qualified conv bdom
-      qbob = Qualified bob bdom
-      qalice = Qualified alice localDomain
-  now <- liftIO getCurrentTime
-  fedGalleyClient <- view tsFedGalleyClient
-
-  -- only add alice to the remote conversation
-  connectWithRemoteUser alice qbob
-  let cu =
-        FedGalley.ConversationUpdate
-          { FedGalley.cuTime = now,
-            FedGalley.cuOrigUserId = qbob,
-            FedGalley.cuConvId = conv,
-            FedGalley.cuAlreadyPresentUsers = [],
-            FedGalley.cuAction =
-              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
-          }
-  runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
-
-  let txt = "Hello from another backend"
-      rcpts = [(alice, aliceC1), (alice, aliceC2), (eve, eveC)]
-      rm =
-        FedGalley.RemoteMLSMessage
-          { FedGalley.rmmTime = now,
-            FedGalley.rmmMetadata = defMessageMetadata,
-            FedGalley.rmmSender = qbob,
-            FedGalley.rmmConversation = conv,
-            FedGalley.rmmRecipients = rcpts,
-            FedGalley.rmmMessage = Base64ByteString txt
-          }
-
-  -- send message to alice and check reception
-  WS.bracketAsClientRN c [(alice, aliceC1), (alice, aliceC2), (eve, eveC)] $ \[wsA1, wsA2, wsE] -> do
-    void $ runFedClient @"on-mls-message-sent" fedGalleyClient bdom rm
-    liftIO $ do
-      -- alice should receive the message on her first client
-      WS.assertMatch_ (5 # Second) wsA1 $ \n -> wsAssertMLSMessage qconv qbob txt n
-      WS.assertMatch_ (5 # Second) wsA2 $ \n -> wsAssertMLSMessage qconv qbob txt n
-
-      -- eve should not receive the message
-      WS.assertNoEvent (1 # Second) [wsE]
 
 getConvAction :: Sing tag -> SomeConversationAction -> Maybe (ConversationAction tag)
 getConvAction tquery (SomeConversationAction tag action) =

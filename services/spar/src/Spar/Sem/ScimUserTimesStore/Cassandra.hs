@@ -35,6 +35,7 @@ scimUserTimesStoreToCassandra =
     embed @m . \case
       Write wm -> writeScimUserTimes wm
       Read uid -> readScimUserTimes uid
+      ReadMulti uids -> readScimUserTimesMulti uids
       Delete uid -> deleteScimUserTimes uid
 
 ----------------------------------------------------------------------
@@ -63,6 +64,13 @@ readScimUserTimes uid = do
   where
     sel :: PrepQuery R (Identity UserId) (UTCTimeMillis, UTCTimeMillis)
     sel = "SELECT created_at, last_updated_at FROM scim_user_times WHERE uid = ?"
+
+readScimUserTimesMulti :: (HasCallStack, MonadClient m) => [UserId] -> m [(UserId, UTCTimeMillis, UTCTimeMillis)]
+readScimUserTimesMulti uid = do
+  retry x1 . query sel $ params LocalQuorum (Identity uid)
+  where
+    sel :: PrepQuery R (Identity [UserId]) (UserId, UTCTimeMillis, UTCTimeMillis)
+    sel = "SELECT uid, created_at, last_updated_at FROM scim_user_times WHERE uid IN ?"
 
 -- | Delete a SCIM user's access times by id.
 -- You'll also want to ensure they are deleted in Brig and in the SAML Users table.

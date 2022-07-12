@@ -120,6 +120,7 @@ test-suite spec
   main-is: Spec.hs
   other-modules:
       Test.Wire.API.Federation.API.BrigSpec
+      Test.Wire.API.Federation.Golden.ConversationCreated
       Test.Wire.API.Federation.Golden.ConversationUpdate
       Test.Wire.API.Federation.Golden.GoldenSpec
       Test.Wire.API.Federation.Golden.LeaveConversationRequest
@@ -127,7 +128,6 @@ test-suite spec
       Test.Wire.API.Federation.Golden.MessageSendResponse
       Test.Wire.API.Federation.Golden.NewConnectionRequest
       Test.Wire.API.Federation.Golden.NewConnectionResponse
-      Test.Wire.API.Federation.Golden.NewRemoteConversation
       Test.Wire.API.Federation.Golden.Runner
       Paths_wire_api_federation
   hs-source-dirs:

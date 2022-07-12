@@ -1,0 +1,19 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: "inbucket"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "inbucket.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    helm.sh/chart: {{ include "inbucket.chart" . }}
+spec:
+  rules:
+    - host: {{ required "must specify host" .Values.host | quote }}
+      http:
+        paths:
+          - path: /
+            backend:
+                serviceName: {{ include "inbucket.fullname" . }}
+                servicePort: http

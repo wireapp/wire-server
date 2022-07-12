@@ -225,6 +225,7 @@ tests =
       testRoundTrip @(User.LimitedQualifiedUserIdList 20),
       testRoundTrip @User.UserProfile,
       testRoundTrip @User.User,
+      testRoundTrip @User.UserSet,
       testRoundTrip @User.SelfProfile,
       testRoundTrip @User.InvitationCode,
       testRoundTrip @User.BindingNewTeamUser,

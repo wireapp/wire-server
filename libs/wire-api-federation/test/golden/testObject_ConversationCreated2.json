@@ -10,6 +10,11 @@
     "message_timer": null,
     "non_creator_members": [],
     "orig_user_id": "eed9dea3-5468-45f8-b562-7ad5de2587d0",
+    "protocol": {
+        "epoch": 3,
+        "group_id": "Z3JvdXA=",
+        "protocol": "mls"
+    },
     "receipt_mode": null,
     "time": "1864-04-12T12:22:43.673Z"
 }

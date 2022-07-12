@@ -131,6 +131,7 @@ module Util.Core
     checkChangeRoleOfTeamMember,
     eventually,
     getIdPByIssuer,
+    retryNUntil,
   )
 where
 
@@ -313,6 +314,13 @@ aFewTimes action good = do
       (exponentialBackoff 1000 <> limitRetries 11)
       (\_ -> pure . not . good)
       (\_ -> action `runReaderT` env)
+
+retryNUntil :: (MonadIO m) => Int -> (a -> Bool) -> m a -> m a
+retryNUntil n good m =
+  retrying
+    (constantDelay 1000000 <> limitRetries n)
+    (const (pure . not . good))
+    (const m)
 
 aFewTimesAssert :: HasCallStack => TestSpar a -> (a -> Bool) -> TestSpar ()
 aFewTimesAssert action good = do

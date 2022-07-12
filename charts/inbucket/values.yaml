@@ -1,0 +1,13 @@
+# Fully qualified domain name (FQDN) of the domain where to serve inbucket.
+# E.g. 'inbucket.my-test-env.wire.link'
+host:
+
+# Configure the inbucket "parent" chart
+inbucket:
+  image:
+    tag: 3.0.2
+
+  extraEnv:
+    INBUCKET_WEB_GREETINGFILE: "/config/greeting.html"
+    INBUCKET_MAILBOXNAMING: full
+    INBUCKET_STORAGE_RETENTIONPERIOD: "72h"

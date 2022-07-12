@@ -19,7 +19,7 @@
 module Galley.API.Federation where
 
 import Control.Error
-import Control.Lens (itraversed, (<.>))
+import Control.Lens (itraversed, preview, to, (<.>))
 import Data.Bifunctor
 import Data.ByteString.Conversion (toByteString')
 import Data.Containers.ListUtils (nubOrd)
@@ -39,6 +39,7 @@ import Data.Time.Clock
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.KeyPackage
+import Galley.API.MLS.Message
 import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
@@ -59,6 +60,7 @@ import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal.Kind (Append)
+import Polysemy.Resource
 import qualified Polysemy.TinyLog as P
 import Servant (ServerT)
 import Servant.API
@@ -67,6 +69,7 @@ import Wire.API.Connection
 import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -90,6 +93,7 @@ type FederationAPI = "federation" :> FedApi 'Galley
 federationSitemap :: ServerT FederationAPI (Sem GalleyEffects)
 federationSitemap =
   Named @"on-conversation-created" onConversationCreated
+    :<|> Named @"on-new-remote-conversation" onNewRemoteConversation
     :<|> Named @"get-conversations" getConversations
     :<|> Named @"on-conversation-updated" onConversationUpdated
     :<|> Named @"leave-conversation" leaveConversation
@@ -99,10 +103,12 @@ federationSitemap =
     :<|> Named @"update-conversation" updateConversation
     :<|> Named @"mls-welcome" mlsSendWelcome
     :<|> Named @"on-mls-message-sent" onMLSMessageSent
+    :<|> Named @"send-mls-message" sendMLSMessage
 
 onConversationCreated ::
   Members
     '[ BrigAccess,
+       ConversationStore,
        GundeckAccess,
        ExternalAccess,
        Input (Local ()),
@@ -111,17 +117,17 @@ onConversationCreated ::
      ]
     r =>
   Domain ->
-  F.NewRemoteConversation ConvId ->
+  F.ConversationCreated ConvId ->
   Sem r ()
 onConversationCreated domain rc = do
   let qrc = fmap (toRemoteUnsafe domain) rc
   loc <- qualifyLocal ()
-  let (localUserIds, _) = partitionQualified loc (map omQualifiedId (toList (F.rcNonCreatorMembers rc)))
+  let (localUserIds, _) = partitionQualified loc (map omQualifiedId (toList (F.ccNonCreatorMembers rc)))
 
   addedUserIds <-
     addLocalUsersToRemoteConv
-      (F.rcCnvId qrc)
-      (qUntagged (F.rcRemoteOrigUserId qrc))
+      (F.ccCnvId qrc)
+      (qUntagged (F.ccRemoteOrigUserId qrc))
       localUserIds
 
   let connectedMembers =
@@ -132,18 +138,30 @@ onConversationCreated domain rc = do
               (const True)
               . omQualifiedId
           )
-          (F.rcNonCreatorMembers rc)
+          (F.ccNonCreatorMembers rc)
   -- Make sure to notify only about local users connected to the adder
-  let qrcConnected = qrc {F.rcNonCreatorMembers = connectedMembers}
+  let qrcConnected = qrc {F.ccNonCreatorMembers = connectedMembers}
 
-  forM_ (fromNewRemoteConversation loc qrcConnected) $ \(mem, c) -> do
+  for_ (fromConversationCreated loc qrcConnected) $ \(mem, c) -> do
     let event =
           Event
-            (qUntagged (F.rcCnvId qrcConnected))
-            (qUntagged (F.rcRemoteOrigUserId qrcConnected))
-            (F.rcTime qrcConnected)
+            (qUntagged (F.ccCnvId qrcConnected))
+            (qUntagged (F.ccRemoteOrigUserId qrcConnected))
+            (F.ccTime qrcConnected)
             (EdConversation c)
     pushConversationEvent Nothing event (qualifyAs loc [qUnqualified . Public.memId $ mem]) []
+
+onNewRemoteConversation ::
+  Member ConversationStore r =>
+  Domain ->
+  F.NewRemoteConversation ->
+  Sem r EmptyResponse
+onNewRemoteConversation domain nrc = do
+  -- update group_id -> conv_id mapping
+  for_ (preview (to F.nrcProtocol . _ProtocolMLS) nrc) $ \mls ->
+    E.setGroupId (cnvmlsGroupId mls) (Qualified (F.nrcConvId nrc) domain)
+
+  pure EmptyResponse
 
 getConversations ::
   Members '[ConversationStore, Input (Local ())] r =>
@@ -189,8 +207,8 @@ onConversationUpdated requestingDomain cu = do
   -- Perform action, and determine extra notification targets.
   --
   -- When new users are being added to the conversation, we consider them as
-  -- notification targets. Once we start checking connections before letting
-  -- people being added, this will be safe against spam. However, if users that
+  -- notification targets. Since we check connections before letting
+  -- people being added, this is safe against spam. However, if users that
   -- are not in the conversations are being removed or have their membership state
   -- updated, we do **not** add them to the list of targets, because we have no
   -- way to make sure that they are actually supposed to receive that notification.
@@ -294,7 +312,14 @@ leaveConversation requestingDomain lc = do
       . mapError @NoChanges (const F.RemoveFromConversationErrorUnchanged)
       $ do
         (conv, _self) <- getConversationAndMemberWithError @'ConvNotFound (qUntagged leaver) lcnv
-        update <- updateLocalConversationWithRemoteUser SConversationLeaveTag lcnv leaver (pure (qUntagged leaver))
+        update <-
+          lcuUpdate
+            <$> updateLocalConversation
+              @'ConversationLeaveTag
+              lcnv
+              (qUntagged leaver)
+              Nothing
+              (pure (qUntagged leaver))
         pure (update, conv)
 
   case res of
@@ -304,7 +329,14 @@ leaveConversation requestingDomain lc = do
 
       let remotes = filter ((== tDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
-      _event <- notifyConversationAction SConversationLeaveTag (qUntagged leaver) Nothing lcnv botsAndMembers action
+      _ <-
+        notifyConversationAction
+          SConversationLeaveTag
+          (qUntagged leaver)
+          Nothing
+          (qualifyAs lcnv conv)
+          botsAndMembers
+          action
 
       pure $ F.LeaveConversationResponse (Right ())
 
@@ -420,7 +452,14 @@ onUserDeleted origDomain udcn = do
             Public.RegularConv -> do
               let action = pure untaggedDeletedUser
                   botsAndMembers = convBotsAndMembers conv
-              void $ notifyConversationAction (sing @'ConversationLeaveTag) untaggedDeletedUser Nothing lc botsAndMembers action
+              void $
+                notifyConversationAction
+                  (sing @'ConversationLeaveTag)
+                  untaggedDeletedUser
+                  Nothing
+                  (qualifyAs lc conv)
+                  botsAndMembers
+                  action
   pure EmptyResponse
 
 updateConversation ::
@@ -446,9 +485,7 @@ updateConversation ::
        ]
       r
   ) =>
-  --
   Domain ->
-  --
   F.ConversationUpdateRequest ->
   Sem r ConversationUpdateResponse
 updateConversation origDomain updateRequest = do
@@ -457,48 +494,94 @@ updateConversation origDomain updateRequest = do
       lcnv = qualifyAs loc (F.curConvId updateRequest)
 
   mkResponse $ case F.curAction updateRequest of
-    SomeConversationAction tag action ->
-      case tag of
-        SConversationJoinTag ->
-          mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationJoinTag) $
-            updateLocalConversationWithRemoteUser tag lcnv rusr action
-        SConversationLeaveTag ->
-          mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationLeaveTag)
-            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
-        SConversationRemoveMembersTag ->
-          mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationRemoveMembersTag)
-            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
-        SConversationMemberUpdateTag ->
-          mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationMemberUpdateTag)
-            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
-        SConversationDeleteTag ->
-          mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationDeleteTag)
-            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
-        SConversationRenameTag ->
-          mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationRenameTag)
-            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
-        SConversationMessageTimerUpdateTag ->
-          mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationMessageTimerUpdateTag)
-            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
-        SConversationReceiptModeUpdateTag ->
-          mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag) $
-            updateLocalConversationWithRemoteUser tag lcnv rusr action
-        SConversationAccessDataTag ->
-          mapToGalleyError
-            @(HasConversationActionGalleyErrors 'ConversationAccessDataTag)
-            $ updateLocalConversationWithRemoteUser tag lcnv rusr action
+    SomeConversationAction tag action -> case tag of
+      SConversationJoinTag ->
+        mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationJoinTag)
+          . fmap lcuUpdate
+          $ updateLocalConversation @'ConversationJoinTag lcnv (qUntagged rusr) Nothing action
+      SConversationLeaveTag ->
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationLeaveTag)
+          . fmap lcuUpdate
+          $ updateLocalConversation @'ConversationLeaveTag lcnv (qUntagged rusr) Nothing action
+      SConversationRemoveMembersTag ->
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationRemoveMembersTag)
+          . fmap lcuUpdate
+          $ updateLocalConversation @'ConversationRemoveMembersTag lcnv (qUntagged rusr) Nothing action
+      SConversationMemberUpdateTag ->
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationMemberUpdateTag)
+          . fmap lcuUpdate
+          $ updateLocalConversation @'ConversationMemberUpdateTag lcnv (qUntagged rusr) Nothing action
+      SConversationDeleteTag ->
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationDeleteTag)
+          . fmap lcuUpdate
+          $ updateLocalConversation @'ConversationDeleteTag lcnv (qUntagged rusr) Nothing action
+      SConversationRenameTag ->
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationRenameTag)
+          . fmap lcuUpdate
+          $ updateLocalConversation @'ConversationRenameTag lcnv (qUntagged rusr) Nothing action
+      SConversationMessageTimerUpdateTag ->
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationMessageTimerUpdateTag)
+          . fmap lcuUpdate
+          $ updateLocalConversation @'ConversationMessageTimerUpdateTag lcnv (qUntagged rusr) Nothing action
+      SConversationReceiptModeUpdateTag ->
+        mapToGalleyError @(HasConversationActionGalleyErrors 'ConversationReceiptModeUpdateTag)
+          . fmap lcuUpdate
+          $ updateLocalConversation @'ConversationReceiptModeUpdateTag lcnv (qUntagged rusr) Nothing action
+      SConversationAccessDataTag ->
+        mapToGalleyError
+          @(HasConversationActionGalleyErrors 'ConversationAccessDataTag)
+          . fmap lcuUpdate
+          $ updateLocalConversation @'ConversationAccessDataTag lcnv (qUntagged rusr) Nothing action
   where
     mkResponse = fmap toResponse . runError @GalleyError . runError @NoChanges
 
     toResponse (Left galleyErr) = F.ConversationUpdateResponseError galleyErr
     toResponse (Right (Left NoChanges)) = F.ConversationUpdateResponseNoChanges
     toResponse (Right (Right update)) = F.ConversationUpdateResponseUpdate update
+
+sendMLSMessage ::
+  ( Members
+      [ BrigAccess,
+        ConversationStore,
+        ExternalAccess,
+        Error FederationError,
+        Error InternalError,
+        FederatorAccess,
+        GundeckAccess,
+        Input (Local ()),
+        Input Opts,
+        Input UTCTime,
+        LegalHoldStore,
+        MemberStore,
+        Resource,
+        TeamStore,
+        P.TinyLog
+      ]
+      r
+  ) =>
+  Domain ->
+  F.MessageSendRequest ->
+  Sem r F.MLSMessageResponse
+sendMLSMessage remoteDomain msr =
+  fmap (either (F.MLSMessageResponseProtocolError . unTagged) id)
+    . runError @MLSProtocolError
+    . fmap (either F.MLSMessageResponseError id)
+    . runError
+    . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
+    . runError
+    $ do
+      loc <- qualifyLocal ()
+      let sender = toRemoteUnsafe remoteDomain (F.msrSender msr)
+      raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.msrRawMessage msr))
+      mapToGalleyError @MLSMessageStaticErrors $
+        F.MLSMessageResponseUpdates . map lcuUpdate
+          <$> postMLSMessage loc (qUntagged sender) Nothing raw
 
 class ToGalleyRuntimeError (effs :: EffectRow) r where
   mapToGalleyError ::

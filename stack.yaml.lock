@@ -26,15 +26,15 @@ packages:
     commit: 2e3282e5fb27ba8d989c271a0a989823fad7ec43
 - completed:
     name: saml2-web-sso
-    version: '0.18'
+    version: '0.19'
     git: https://github.com/wireapp/saml2-web-sso
     pantry-tree:
       size: 4887
-      sha256: 9d6d175cc7bbdb57558f25557e4d0d698c4aecc250f6ca03296a3d94671bf657
-    commit: 4227e38be5c0810012dc472fc6931f6087fbce68
+      sha256: bb082762abbd48527788941f8555706eb5af6c03761834f255dada3e962d5f5e
+    commit: 74371cd775cb98d6cf85f6e182244a3c4fd48702
   original:
     git: https://github.com/wireapp/saml2-web-sso
-    commit: 4227e38be5c0810012dc472fc6931f6087fbce68
+    commit: 74371cd775cb98d6cf85f6e182244a3c4fd48702
 - completed:
     name: collectd
     version: 0.0.0.2

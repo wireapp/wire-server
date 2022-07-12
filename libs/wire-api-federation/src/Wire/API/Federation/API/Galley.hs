@@ -25,6 +25,7 @@ import Data.Qualified
 import Data.Range
 import Data.Time.Clock (UTCTime)
 import Imports
+import qualified Network.Wai.Utilities.Error as Wai
 import Servant.API
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation
@@ -44,8 +45,14 @@ import Wire.API.Util.Aeson (CustomEncoded (..))
 
 -- | For conventions see /docs/developer/federation-api-conventions.md
 type GalleyApi =
-  -- | Register a new conversation
-  FedEndpoint "on-conversation-created" (NewRemoteConversation ConvId) ()
+  -- | Register a new conversation. This is only called on backends of users
+  -- that are part of a conversation at creation time. Since MLS conversations
+  -- are always created empty (i.e. they only contain the creator), this RPC is
+  -- never invoked for such conversations.
+  FedEndpoint "on-conversation-created" (ConversationCreated ConvId) ()
+    -- This endpoint is called the first time a user from this backend is
+    -- added to a remote conversation.
+    :<|> FedEndpoint "on-new-remote-conversation" NewRemoteConversation EmptyResponse
     :<|> FedEndpoint "get-conversations" GetConversationsRequest GetConversationsResponse
     -- used by the backend that owns a conversation to inform this backend of
     -- changes to the conversation
@@ -61,6 +68,7 @@ type GalleyApi =
     :<|> FedEndpoint "update-conversation" ConversationUpdateRequest ConversationUpdateResponse
     :<|> FedEndpoint "mls-welcome" MLSWelcomeRequest EmptyResponse
     :<|> FedEndpoint "on-mls-message-sent" RemoteMLSMessage EmptyResponse
+    :<|> FedEndpoint "send-mls-message" MessageSendRequest MLSMessageResponse
 
 data GetConversationsRequest = GetConversationsRequest
   { gcrUserId :: UserId,
@@ -105,31 +113,41 @@ newtype GetConversationsResponse = GetConversationsResponse
 --
 -- FUTUREWORK: Think about extracting common conversation metadata into a
 -- separarate data type that can be reused in several data types in this module.
-data NewRemoteConversation conv = NewRemoteConversation
+data ConversationCreated conv = ConversationCreated
   { -- | The time when the conversation was created
-    rcTime :: UTCTime,
+    ccTime :: UTCTime,
     -- | The user that created the conversation. This is implicitly qualified
     -- by the requesting domain, since it is impossible to create a regular/group
     -- conversation on a remote backend.
-    rcOrigUserId :: UserId,
+    ccOrigUserId :: UserId,
     -- | The conversation ID, local to the backend invoking the RPC
-    rcCnvId :: conv,
+    ccCnvId :: conv,
     -- | The conversation type
-    rcCnvType :: ConvType,
-    rcCnvAccess :: [Access],
-    rcCnvAccessRoles :: Set AccessRoleV2,
+    ccCnvType :: ConvType,
+    ccCnvAccess :: [Access],
+    ccCnvAccessRoles :: Set AccessRoleV2,
     -- | The conversation name,
-    rcCnvName :: Maybe Text,
+    ccCnvName :: Maybe Text,
     -- | Members of the conversation apart from the creator
-    rcNonCreatorMembers :: Set OtherMember,
-    rcMessageTimer :: Maybe Milliseconds,
-    rcReceiptMode :: Maybe ReceiptMode
+    ccNonCreatorMembers :: Set OtherMember,
+    ccMessageTimer :: Maybe Milliseconds,
+    ccReceiptMode :: Maybe ReceiptMode,
+    ccProtocol :: Protocol
   }
   deriving stock (Eq, Show, Generic, Functor)
-  deriving (ToJSON, FromJSON) via (CustomEncoded (NewRemoteConversation conv))
+  deriving (ToJSON, FromJSON) via (CustomEncoded (ConversationCreated conv))
 
-rcRemoteOrigUserId :: NewRemoteConversation (Remote ConvId) -> Remote UserId
-rcRemoteOrigUserId rc = qualifyAs (rcCnvId rc) (rcOrigUserId rc)
+ccRemoteOrigUserId :: ConversationCreated (Remote ConvId) -> Remote UserId
+ccRemoteOrigUserId cc = qualifyAs (ccCnvId cc) (ccOrigUserId cc)
+
+data NewRemoteConversation = NewRemoteConversation
+  { -- | The conversation ID, local to the backend invoking the RPC.
+    nrcConvId :: ConvId,
+    -- | The conversation protocol.
+    nrcProtocol :: Protocol
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded NewRemoteConversation)
 
 data ConversationUpdate = ConversationUpdate
   { cuTime :: UTCTime,
@@ -275,3 +293,11 @@ newtype MLSWelcomeRequest = MLSWelcomeRequest
   deriving stock (Eq, Generic, Show)
   deriving (Arbitrary) via (GenericUniform MLSWelcomeRequest)
   deriving (FromJSON, ToJSON) via (CustomEncoded MLSWelcomeRequest)
+
+data MLSMessageResponse
+  = MLSMessageResponseError GalleyError
+  | MLSMessageResponseProtocolError Text
+  | MLSMessageResponseProposalFailure Wai.Error
+  | MLSMessageResponseUpdates [ConversationUpdate]
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON) via (CustomEncoded MLSMessageResponse)

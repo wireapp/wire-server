@@ -142,7 +142,7 @@ source-repository-package
 source-repository-package
     type: git
     location: https://github.com/wireapp/saml2-web-sso
-    tag: 4227e38be5c0810012dc472fc6931f6087fbce68
+    tag: 74371cd775cb98d6cf85f6e182244a3c4fd48702
 
 source-repository-package
     type: git

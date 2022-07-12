@@ -66,6 +66,7 @@ import Cassandra hiding (Value)
 import qualified Data.ByteString as BS
 import Data.Code
 import Data.Range
+import Data.RetryAfter (RetryAfter (RetryAfter))
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as Text
@@ -268,8 +269,29 @@ generate gen scope retries ttl account = do
 --------------------------------------------------------------------------------
 -- Storage
 
-insert :: MonadClient m => Code -> m ()
-insert c = do
+insert :: MonadClient m => Code -> Int -> m (Maybe RetryAfter)
+insert code ttl = do
+  mRetryAfter <- lookupThrottle (codeKey code) (codeScope code)
+  case mRetryAfter of
+    Just ra -> pure (Just ra)
+    Nothing -> do
+      insertThrottle code ttl
+      insertInternal code
+      pure Nothing
+  where
+    insertThrottle :: MonadClient m => Code -> Int -> m ()
+    insertThrottle c t = do
+      let k = codeKey c
+      let s = codeScope c
+      retry x5 (write cql (params LocalQuorum (k, s, fromIntegral t, fromIntegral t)))
+      where
+        cql :: PrepQuery W (Key, Scope, Int32, Int32) ()
+        cql =
+          "INSERT INTO vcodes_throttle (key, scope, initial_delay) \
+          \VALUES (?, ?, ?) USING TTL ?"
+
+insertInternal :: MonadClient m => Code -> m ()
+insertInternal c = do
   let k = codeKey c
   let s = codeScope c
   let v = codeValue c
@@ -284,6 +306,16 @@ insert c = do
     cql =
       "INSERT INTO vcodes (key, scope, value, retries, email, phone, account) \
       \VALUES (?, ?, ?, ?, ?, ?, ?) USING TTL ?"
+
+-- | Check if code generation should be throttled.
+lookupThrottle :: MonadClient m => Key -> Scope -> m (Maybe RetryAfter)
+lookupThrottle k s = do
+  fmap (RetryAfter . fromIntegral . runIdentity) <$> retry x1 (query1 cql (params LocalQuorum (k, s)))
+  where
+    cql :: PrepQuery R (Key, Scope) (Identity Int32)
+    cql =
+      "SELECT ttl(initial_delay) \
+      \FROM vcodes_throttle WHERE key = ? AND scope = ?"
 
 -- | Lookup a pending code.
 lookup :: MonadClient m => Key -> Scope -> m (Maybe Code)
@@ -302,7 +334,7 @@ verify k s v = lookup k s >>= maybe (pure Nothing) continue
     continue c
       | codeValue c == v = pure (Just c)
       | codeRetries c > 0 = do
-        insert (c {codeRetries = codeRetries c - 1})
+        insertInternal (c {codeRetries = codeRetries c - 1})
         pure Nothing
       | otherwise = pure Nothing
 

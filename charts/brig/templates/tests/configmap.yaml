@@ -69,6 +69,10 @@ data:
         host: cargohold.{{ .Release.Namespace }}-fed2.svc.cluster.local
         port: 8080
 
+      cannon:
+        host: cannon.{{ .Release.Namespace }}-fed2.svc.cluster.local
+        port: 8080
+
       # TODO remove this
       federator:
         host: federator.{{ .Release.Namespace }}-fed2.svc.cluster.local

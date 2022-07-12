@@ -30,6 +30,7 @@ library
       Data.Misc
       Data.Qualified
       Data.Range
+      Data.RetryAfter
       Data.SizedHashMap
       Data.Text.Ascii
       Data.UUID.Tagged

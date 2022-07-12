@@ -90,6 +90,7 @@ import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Brig as F
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Internal.Notification
@@ -322,15 +323,15 @@ postConvWithRemoteUsersOk = do
     liftIO $ do
       length federatedRequests @?= 2
 
-      F.rcOrigUserId cFedReqBody @?= alice
-      F.rcCnvId cFedReqBody @?= cid
-      F.rcCnvType cFedReqBody @?= RegularConv
-      F.rcCnvAccess cFedReqBody @?= [InviteAccess]
-      F.rcCnvAccessRoles cFedReqBody @?= Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole]
-      F.rcCnvName cFedReqBody @?= Just nameMaxSize
-      F.rcNonCreatorMembers cFedReqBody @?= Set.fromList (toOtherMember <$> [qAlex, qAmy, qChad, qCharlie, qDee])
-      F.rcMessageTimer cFedReqBody @?= Nothing
-      F.rcReceiptMode cFedReqBody @?= Nothing
+      F.ccOrigUserId cFedReqBody @?= alice
+      F.ccCnvId cFedReqBody @?= cid
+      F.ccCnvType cFedReqBody @?= RegularConv
+      F.ccCnvAccess cFedReqBody @?= [InviteAccess]
+      F.ccCnvAccessRoles cFedReqBody @?= Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole]
+      F.ccCnvName cFedReqBody @?= Just nameMaxSize
+      F.ccNonCreatorMembers cFedReqBody @?= Set.fromList (toOtherMember <$> [qAlex, qAmy, qChad, qCharlie, qDee])
+      F.ccMessageTimer cFedReqBody @?= Nothing
+      F.ccReceiptMode cFedReqBody @?= Nothing
 
       dFedReqBody @?= cFedReqBody
   where
@@ -2304,8 +2305,8 @@ testAddRemoteMember = do
       postQualifiedMembers alice (remoteBob :| []) convId
         <!! const 200 === statusCode
   liftIO $ do
-    map frTargetDomain reqs @?= [remoteDomain]
-    map frRPC reqs @?= ["on-conversation-updated"]
+    map frTargetDomain reqs @?= [remoteDomain, remoteDomain]
+    map frRPC reqs @?= ["on-new-remote-conversation", "on-conversation-updated"]
 
   let e = responseJsonUnsafe resp
   let bobMember = SimpleMember remoteBob roleNameWireAdmin
@@ -2324,6 +2325,8 @@ testAddRemoteMember = do
     respond bob req
       | frComponent req == Brig =
         toJSON [mkProfile bob (Name "bob")]
+      | frRPC req == "on-new-remote-conversation" =
+        toJSON EmptyResponse
       | otherwise = toJSON ()
 
 testDeleteTeamConversationWithRemoteMembers :: TestM ()
@@ -2342,7 +2345,10 @@ testDeleteTeamConversationWithRemoteMembers = do
   connectWithRemoteUser alice remoteBob
 
   let brigApi _ = mkHandler @(FedApi 'Brig) EmptyAPI
-      galleyApi _ = mkHandler @(FedApi 'Galley) $ Named @"on-conversation-updated" $ \_ _ -> pure ()
+      galleyApi _ =
+        mkHandler @(FedApi 'Galley) $
+          (Named @"on-new-remote-conversation" $ \_ _ -> pure EmptyResponse)
+            :<|> (Named @"on-conversation-updated" $ \_ _ -> pure ())
 
   (_, received) <- withTempServantMockFederator brigApi galleyApi localDomain $ do
     postQualifiedMembers alice (remoteBob :| []) convId
@@ -3667,17 +3673,18 @@ removeUser = do
   now <- liftIO getCurrentTime
   fedGalleyClient <- view tsFedGalleyClient
   let nc cid creator quids =
-        F.NewRemoteConversation
-          { F.rcTime = now,
-            F.rcOrigUserId = qUnqualified creator,
-            F.rcCnvId = cid,
-            F.rcCnvType = RegularConv,
-            F.rcCnvAccess = [],
-            F.rcCnvAccessRoles = Set.fromList [],
-            F.rcCnvName = Just "gossip4",
-            F.rcNonCreatorMembers = Set.fromList $ createOtherMember <$> quids,
-            F.rcMessageTimer = Nothing,
-            F.rcReceiptMode = Nothing
+        F.ConversationCreated
+          { F.ccTime = now,
+            F.ccOrigUserId = qUnqualified creator,
+            F.ccCnvId = cid,
+            F.ccCnvType = RegularConv,
+            F.ccCnvAccess = [],
+            F.ccCnvAccessRoles = Set.fromList [],
+            F.ccCnvName = Just "gossip4",
+            F.ccNonCreatorMembers = Set.fromList $ createOtherMember <$> quids,
+            F.ccMessageTimer = Nothing,
+            F.ccReceiptMode = Nothing,
+            F.ccProtocol = ProtocolProteus
           }
   runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB1 bart [alice, alexDel]
   runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB2 bart [alexDel]
