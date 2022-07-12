@@ -20,9 +20,11 @@ module API.Teams.Feature (tests) where
 
 import API.Util (HasGalley, getFeatureStatusMulti, withSettingsOverrides)
 import qualified API.Util as Util
+import API.Util.TeamFeature (patchFeatureStatusInternal)
 import qualified API.Util.TeamFeature as Util
 import Bilge
 import Bilge.Assert
+import Brig.Types.Test.Arbitrary (Arbitrary (arbitrary))
 import Cassandra as Cql
 import Control.Lens (over, to, view)
 import Control.Monad.Catch (MonadCatch)
@@ -30,6 +32,7 @@ import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as KeyMap
+import Data.ByteString.Char8 (unpack)
 import Data.Domain (Domain (..))
 import Data.Id
 import Data.List1 (list1)
@@ -43,6 +46,7 @@ import Galley.Types.Teams
 import Imports
 import Network.Wai.Utilities (label)
 import Test.Hspec (expectationFailure)
+import Test.QuickCheck (generate)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit (assertFailure, (@?=))
@@ -94,8 +98,49 @@ tests s =
           test s "Unlimited to unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled FeatureTTLUnlimited FeatureTTLUnlimited
         ],
       test s "MLS feature config" testMLS,
-      test s "SearchVisibilityInbound" $ testSimpleFlag @Public.SearchVisibilityInboundConfig Public.FeatureStatusDisabled
+      test s "SearchVisibilityInbound" $ testSimpleFlag @Public.SearchVisibilityInboundConfig Public.FeatureStatusDisabled,
+      testGroup
+        "Patch"
+        [ test s (unpack $ Public.featureNameBS @Public.FileSharingConfig) $
+            testPatch @Public.FileSharingConfig Public.FeatureStatusEnabled Public.FileSharingConfig,
+          test s (unpack $ Public.featureNameBS @Public.GuestLinksConfig) $
+            testPatch @Public.GuestLinksConfig Public.FeatureStatusEnabled Public.GuestLinksConfig,
+          test s (unpack $ Public.featureNameBS @Public.SndFactorPasswordChallengeConfig) $
+            testPatch @Public.SndFactorPasswordChallengeConfig Public.FeatureStatusDisabled Public.SndFactorPasswordChallengeConfig,
+          test s (unpack $ Public.featureNameBS @Public.SelfDeletingMessagesConfig) $
+            testPatch @Public.SelfDeletingMessagesConfig Public.FeatureStatusEnabled (Public.SelfDeletingMessagesConfig 0)
+        ]
     ]
+
+testPatch ::
+  forall cfg.
+  ( HasCallStack,
+    Public.IsFeatureConfig cfg,
+    Typeable cfg,
+    ToSchema cfg,
+    Eq cfg,
+    Show cfg,
+    KnownSymbol (Public.FeatureSymbol cfg),
+    Arbitrary (Public.WithStatus cfg),
+    Arbitrary (Public.WithStatus' cfg)
+  ) =>
+  Public.FeatureStatus ->
+  cfg ->
+  TestM ()
+testPatch defStatus defConfig = do
+  (_, tid) <- Util.createBindingTeam
+  rndFeatureConfig :: Public.WithStatus' cfg <- liftIO (generate arbitrary)
+  patchFeatureStatusInternal tid rndFeatureConfig !!! statusCode === const 200
+  Just actual <- responseJsonMaybe <$> Util.getFeatureStatusInternal @cfg tid
+  liftIO $
+    if Public.wsLockStatus actual == Public.LockStatusLocked
+      then do
+        Public.wsStatus actual @?= defStatus
+        Public.wsConfig actual @?= defConfig
+      else do
+        Public.wsStatus actual @?= fromMaybe (Public.wsStatus actual) (Public.wsStatus' rndFeatureConfig)
+        Public.wsLockStatus actual @?= fromMaybe (Public.wsLockStatus actual) (Public.wsLockStatus' rndFeatureConfig)
+        Public.wsConfig actual @?= fromMaybe (Public.wsConfig actual) (Public.wsConfig' rndFeatureConfig)
 
 testSSO :: TestM ()
 testSSO = do

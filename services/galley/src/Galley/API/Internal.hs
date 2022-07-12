@@ -147,6 +147,7 @@ type IFeatureAPI =
     :<|> IFeatureStatusGet FileSharingConfig
     :<|> IFeatureStatusPut '() FileSharingConfig
     :<|> IFeatureStatusLockStatusPut FileSharingConfig
+    :<|> IFeatureStatusPatch '() FileSharingConfig
     -- ConferenceCallingConfig
     :<|> IFeatureStatusGet ConferenceCallingConfig
     :<|> IFeatureStatusPut '() ConferenceCallingConfig
@@ -159,10 +160,12 @@ type IFeatureAPI =
     :<|> IFeatureStatusGet GuestLinksConfig
     :<|> IFeatureStatusPut '() GuestLinksConfig
     :<|> IFeatureStatusLockStatusPut GuestLinksConfig
+    :<|> IFeatureStatusPatch '() GuestLinksConfig
     --  SndFactorPasswordChallengeConfig
     :<|> IFeatureStatusGet SndFactorPasswordChallengeConfig
     :<|> IFeatureStatusPut '() SndFactorPasswordChallengeConfig
     :<|> IFeatureStatusLockStatusPut SndFactorPasswordChallengeConfig
+    :<|> IFeatureStatusPatch '() SndFactorPasswordChallengeConfig
     -- SearchVisibilityInboundConfig
     :<|> IFeatureStatusGet SearchVisibilityInboundConfig
     :<|> IFeatureStatusPut '() SearchVisibilityInboundConfig
@@ -356,22 +359,26 @@ type IFeatureStatusPut errs f = Named '("iput", f) (FeatureStatusBasePutInternal
 type IFeatureStatusPatch errs f = Named '("ipatch", f) (FeatureStatusBasePatchInternal errs f)
 
 type FeatureStatusBasePutInternal errs featureConfig =
-  Summary (AppendSymbol "Put config for " (FeatureSymbol featureConfig))
-    :> CanThrow OperationDenied
-    :> CanThrow 'NotATeamMember
-    :> CanThrow 'TeamNotFound
-    :> CanThrow TeamFeatureError
-    :> CanThrowMany errs
-    :> "teams"
-    :> Capture "tid" TeamId
-    :> "features"
-    :> FeatureSymbol featureConfig
-    :> ReqBody '[Servant.JSON] (WithStatusNoLock featureConfig)
-    :> QueryParam "ttl" FeatureTTL
-    :> Put '[Servant.JSON] (WithStatus featureConfig)
+  FeatureStatusBaseInternal
+    (AppendSymbol "Put config for " (FeatureSymbol featureConfig))
+    errs
+    featureConfig
+    ( ReqBody '[Servant.JSON] (WithStatusNoLock featureConfig)
+        :> QueryParam "ttl" FeatureTTL
+        :> Put '[Servant.JSON] (WithStatus featureConfig)
+    )
 
 type FeatureStatusBasePatchInternal errs featureConfig =
-  Summary (AppendSymbol "Patch config for " (FeatureSymbol featureConfig))
+  FeatureStatusBaseInternal
+    (AppendSymbol "Patch config for " (FeatureSymbol featureConfig))
+    errs
+    featureConfig
+    ( ReqBody '[Servant.JSON] (WithStatus' featureConfig)
+        :> Patch '[Servant.JSON] (WithStatus featureConfig)
+    )
+
+type FeatureStatusBaseInternal desc errs featureConfig a =
+  Summary desc
     :> CanThrow OperationDenied
     :> CanThrow 'NotATeamMember
     :> CanThrow 'TeamNotFound
@@ -381,9 +388,7 @@ type FeatureStatusBasePatchInternal errs featureConfig =
     :> Capture "tid" TeamId
     :> "features"
     :> FeatureSymbol featureConfig
-    :> ReqBody '[Servant.JSON] (WithStatus' featureConfig)
-    :> QueryParam "ttl" FeatureTTL
-    :> Patch '[Servant.JSON] (WithStatus featureConfig)
+    :> a
 
 type IFeatureStatusLockStatusPut featureName =
   Named
@@ -478,6 +483,7 @@ featureAPI =
     <@> mkNamedAPI @'("iget", FileSharingConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", FileSharingConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ilock", FileSharingConfig) (setLockStatus @Cassandra @FileSharingConfig)
+    <@> mkNamedAPI @'("ipatch", FileSharingConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", ConferenceCallingConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", ConferenceCallingConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", SelfDeletingMessagesConfig) (getFeatureStatus @Cassandra DontDoAuth)
@@ -487,9 +493,11 @@ featureAPI =
     <@> mkNamedAPI @'("iget", GuestLinksConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", GuestLinksConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ilock", GuestLinksConfig) (setLockStatus @Cassandra @GuestLinksConfig)
+    <@> mkNamedAPI @'("ipatch", GuestLinksConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", SndFactorPasswordChallengeConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", SndFactorPasswordChallengeConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ilock", SndFactorPasswordChallengeConfig) (setLockStatus @Cassandra @SndFactorPasswordChallengeConfig)
+    <@> mkNamedAPI @'("ipatch", SndFactorPasswordChallengeConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", SearchVisibilityInboundConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("igetmulti", SearchVisibilityInboundConfig) (getFeatureStatusMulti @Cassandra)

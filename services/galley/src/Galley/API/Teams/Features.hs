@@ -245,9 +245,20 @@ patchFeatureStatusInternal ::
   ) =>
   TeamId ->
   WithStatus' cfg ->
-  Maybe FeatureTTL ->
   Sem r (WithStatus cfg)
-patchFeatureStatusInternal = undefined
+patchFeatureStatusInternal tid patch = do
+  currentFeatureStatus <- getFeatureStatus @db @cfg DontDoAuth tid
+  let newFeatureStatus = applyPatch currentFeatureStatus
+  when (isJust $ wsLockStatus' patch) $ void $ setLockStatus @db @cfg tid (wsLockStatus newFeatureStatus)
+  setConfigForTeam @db @cfg tid (forgetLock newFeatureStatus) Nothing
+  where
+    applyPatch :: WithStatus cfg -> WithStatus cfg
+    applyPatch current =
+      current
+        { wsStatus = fromMaybe (wsStatus current) (wsStatus' patch),
+          wsLockStatus = fromMaybe (wsLockStatus current) (wsLockStatus' patch),
+          wsConfig = fromMaybe (wsConfig current) (wsConfig' patch)
+        }
 
 setFeatureStatus ::
   forall db cfg r.

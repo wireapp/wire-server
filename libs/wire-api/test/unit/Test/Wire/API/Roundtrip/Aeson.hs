@@ -189,6 +189,8 @@ tests =
       testRoundTrip @Team.Conversation.TeamConversation,
       testRoundTrip @Team.Conversation.TeamConversationList,
       testRoundTrip @(Team.Feature.WithStatus Team.Feature.LegalholdConfig),
+      testRoundTrip @(Team.Feature.WithStatus' Team.Feature.LegalholdConfig),
+      testRoundTrip @(Team.Feature.WithStatus' Team.Feature.SelfDeletingMessagesConfig),
       testRoundTrip @(Team.Feature.WithStatusNoLock Team.Feature.LegalholdConfig),
       testRoundTrip @Team.Feature.AllFeatureConfigs,
       testRoundTrip @Team.Feature.FeatureStatus,
