@@ -446,7 +446,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
                     -- `createValidScimUser` into a function `createValidScimUserBrig` similar
                     -- to `createValidScimUserSpar`?
                     uid <- Id <$> Random.uuid
-                    BrigAccess.createSAMLSafe uref uid stiTeam name ManagedByScim (Just handl) (Just richInfo)
+                    BrigAccess.createSAML uref uid stiTeam name ManagedByScim (Just handl) (Just richInfo)
               )
               ( \email -> do
                   buid <- BrigAccess.createNoSAML email stiTeam name language

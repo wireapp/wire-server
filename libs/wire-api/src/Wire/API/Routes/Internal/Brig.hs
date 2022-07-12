@@ -147,8 +147,8 @@ type AccountAPI =
         :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
     )
     :<|> Named
-           "createUserNoVerifySafe"
-           ( "users" :> "safe" -- TODO: temporary name
+           "createUserNoVerifySpar"
+           ( "users" :> "spar" -- TODO: temporary name
                :> ReqBody '[Servant.JSON] NewUserSpar
                :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
            )

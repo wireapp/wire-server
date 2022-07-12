@@ -30,7 +30,6 @@ module Spar.Intra.Brig
     checkHandleAvailable,
     deleteBrigUser,
     createBrigUserSAML,
-    createBrigUserSAMLSafe,
     createBrigUserNoSAML,
     updateEmail,
     ensureReAuthorised,
@@ -85,7 +84,7 @@ respToCookie resp = do
 class (Log.MonadLogger m, MonadError SparError m) => MonadSparToBrig m where
   call :: (Request -> Request) -> m ResponseLBS
 
-createBrigUserSAMLSafe ::
+createBrigUserSAML ::
   (HasCallStack, MonadSparToBrig m) =>
   SAML.UserRef ->
   UserId ->
@@ -97,7 +96,7 @@ createBrigUserSAMLSafe ::
   Maybe Handle ->
   Maybe RichInfo ->
   m UserId
-createBrigUserSAMLSafe uref (Id buid) teamid name managedBy handle richInfo = do
+createBrigUserSAML uref (Id buid) teamid name managedBy handle richInfo = do
   let newUser =
         NewUserSpar
           { newUserSparUUID = buid,
@@ -111,34 +110,7 @@ createBrigUserSAMLSafe uref (Id buid) teamid name managedBy handle richInfo = do
   resp :: ResponseLBS <-
     call $
       method POST
-        . path "/i/users/safe"
-        . json newUser
-  if statusCode resp `elem` [200, 201]
-    then userId . selfUser <$> parseResponse @SelfProfile "brig" resp
-    else rethrow "brig" resp
-
-createBrigUserSAML ::
-  (HasCallStack, MonadSparToBrig m) =>
-  SAML.UserRef ->
-  UserId ->
-  TeamId ->
-  -- | User name
-  Name ->
-  -- | Who should have control over the user
-  ManagedBy ->
-  m UserId
-createBrigUserSAML uref (Id buid) teamid name managedBy = do
-  let newUser =
-        (emptyNewUser name)
-          { newUserUUID = Just buid,
-            newUserIdentity = Just (SSOIdentity (UserSSOId uref) Nothing Nothing),
-            newUserOrigin = Just (NewUserOriginTeamUser . NewTeamMemberSSO $ teamid),
-            newUserManagedBy = Just managedBy
-          }
-  resp :: ResponseLBS <-
-    call $
-      method POST
-        . path "/i/users"
+        . path "/i/users/spar"
         . json newUser
   if statusCode resp `elem` [200, 201]
     then userId . selfUser <$> parseResponse @SelfProfile "brig" resp

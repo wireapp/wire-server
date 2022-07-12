@@ -127,7 +127,7 @@ mlsAPI =
 accountAPI :: Member BlacklistStore r => ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
   Named @"createUserNoVerify" createUserNoVerify
-    :<|> Named @"createUserNoVerifySafe" createUserNoVerifySafe
+  :<|> Named @"createUserNoVerifySpar" createUserNoVerifySpar
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
@@ -423,8 +423,8 @@ createUserNoVerify uData = lift . runExceptT $ do
      in API.activate key code (Just uid) !>> activationErrorToRegisterError
   pure . SelfProfile $ usr
 
-createUserNoVerifySafe :: NewUserSpar -> (Handler r) (Either CreateUserSparError SelfProfile)
-createUserNoVerifySafe uData =
+createUserNoVerifySpar :: NewUserSpar -> (Handler r) (Either CreateUserSparError SelfProfile)
+createUserNoVerifySpar uData =
   lift . runExceptT $ do
     result <- API.createUserSpar uData
     let acc = createdAccount result
