@@ -26,7 +26,10 @@ module Wire.API.Team.Feature
     featureNameBS,
     LockStatus (..),
     WithStatus (..),
-    WithStatus' (..),
+    WithStatus',
+    wsStatus',
+    wsLockStatus',
+    wsConfig',
     WithStatusNoLock (..),
     forgetLock,
     withLockStatus,
@@ -158,7 +161,43 @@ featureNameBS :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cf
 featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
 
 ----------------------------------------------------------------------
+-- WithStatusBase
+
+data WithStatusBase (m :: * -> *) (cfg :: *) = WithStatusBase
+  { wsbStatus :: m FeatureStatus,
+    wsbLockStatus :: m LockStatus,
+    wsbConfig :: m cfg
+  }
+  deriving stock (Generic, Typeable, Functor)
+
+----------------------------------------------------------------------
 -- WithStatus
+
+type WithStatusId (cfg :: *) = WithStatusBase Identity cfg
+
+deriving instance (Eq cfg) => Eq (WithStatusId cfg)
+
+deriving instance (Show cfg) => Show (WithStatusId cfg)
+
+deriving via (Schema (WithStatusId cfg)) instance (ToSchema (WithStatusId cfg)) => ToJSON (WithStatusId cfg)
+
+deriving via (Schema (WithStatusId cfg)) instance (ToSchema (WithStatusId cfg)) => FromJSON (WithStatusId cfg)
+
+deriving via (Schema (WithStatusId cfg)) instance (ToSchema (WithStatusId cfg)) => S.ToSchema (WithStatusId cfg)
+
+instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatusId cfg) where
+  schema =
+    object name $
+      WithStatusBase
+        <$> (runIdentity . wsbStatus) .= (Identity <$> field "status" schema)
+        <*> (runIdentity . wsbLockStatus) .= (Identity <$> field "lockStatus" schema)
+        <*> (runIdentity . wsbConfig) .= (Identity <$> objectSchema @cfg)
+    where
+      inner = schema @cfg
+      name = fromMaybe "" (getName (schemaDoc inner)) <> ".WithStatus"
+
+instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatusId cfg) where
+  arbitrary = WithStatusBase <$> arbitrary <*> arbitrary <*> arbitrary
 
 data WithStatus (cfg :: *) = WithStatus
   { wsStatus :: FeatureStatus,
@@ -199,29 +238,64 @@ withStatusModel =
 ----------------------------------------------------------------------
 -- WithStatus'
 
--- todo(leif): abstract over Maybe and reuse the WithStatus type
-data WithStatus' (cfg :: *) = WithStatus'
-  { wsStatus' :: Maybe FeatureStatus,
-    wsLockStatus' :: Maybe LockStatus,
-    wsConfig' :: Maybe cfg
-  }
-  deriving stock (Eq, Show, Generic, Typeable, Functor)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (WithStatus' cfg))
+type WithStatus' (cfg :: *) = WithStatusBase Maybe cfg
 
-instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatus' cfg) where
-  arbitrary = WithStatus' <$> arbitrary <*> arbitrary <*> arbitrary
+deriving instance (Eq cfg) => Eq (WithStatus' cfg)
 
--- | The ToJSON implementation of WithStatus' will encode the trivial config as `"config": {}`.
+deriving instance (Show cfg) => Show (WithStatus' cfg)
+
+deriving via (Schema (WithStatus' cfg)) instance (ToSchema (WithStatus' cfg)) => ToJSON (WithStatus' cfg)
+
+deriving via (Schema (WithStatus' cfg)) instance (ToSchema (WithStatus' cfg)) => FromJSON (WithStatus' cfg)
+
+deriving via (Schema (WithStatus' cfg)) instance (ToSchema (WithStatus' cfg)) => S.ToSchema (WithStatus' cfg)
+
+wsStatus' :: WithStatus' cfg -> Maybe FeatureStatus
+wsStatus' = wsbStatus
+
+wsLockStatus' :: WithStatus' cfg -> Maybe LockStatus
+wsLockStatus' = wsbLockStatus
+
+wsConfig' :: WithStatus' cfg -> Maybe cfg
+wsConfig' = wsbConfig
+
 instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatus' cfg) where
   schema =
     object name $
-      WithStatus'
-        <$> wsStatus' .= maybe_ (optField "status" schema)
-        <*> wsLockStatus' .= maybe_ (optField "lockStatus" schema)
-        <*> wsConfig' .= maybe_ (optField "config" schema)
+      WithStatusBase
+        <$> wsbStatus .= maybe_ (optField "status" schema)
+        <*> wsbLockStatus .= maybe_ (optField "lockStatus" schema)
+        <*> wsbConfig .= maybe_ (optField "config" schema)
     where
       inner = schema @cfg
-      name = fromMaybe "" (getName (schemaDoc inner)) <> ".WithStatus'"
+      name = fromMaybe "" (getName (schemaDoc inner)) <> ".WithStatus''"
+
+instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatus' cfg) where
+  arbitrary = WithStatusBase <$> arbitrary <*> arbitrary <*> arbitrary
+
+-- -- todo(leif): abstract over Maybe and reuse the WithStatus type
+-- data WithStatus' (cfg :: *) = WithStatus'
+--   { wsStatus' :: Maybe FeatureStatus,
+--     wsLockStatus' :: Maybe LockStatus,
+--     wsConfig' :: Maybe cfg
+--   }
+--   deriving stock (Eq, Show, Generic, Typeable, Functor)
+--   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (WithStatus' cfg))
+
+-- instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatus' cfg) where
+--   arbitrary = WithStatus' <$> arbitrary <*> arbitrary <*> arbitrary
+
+-- -- | The ToJSON implementation of WithStatus' will encode the trivial config as `"config": {}`.
+-- instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatus' cfg) where
+--   schema =
+--     object name $
+--       WithStatus'
+--         <$> wsStatus' .= maybe_ (optField "status" schema)
+--         <*> wsLockStatus' .= maybe_ (optField "lockStatus" schema)
+--         <*> wsConfig' .= maybe_ (optField "config" schema)
+--     where
+--       inner = schema @cfg
+--       name = fromMaybe "" (getName (schemaDoc inner)) <> ".WithStatus'"
 
 ----------------------------------------------------------------------
 -- WithStatusNoLock
