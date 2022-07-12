@@ -255,9 +255,9 @@ patchFeatureStatusInternal tid patch = do
     applyPatch :: WithStatus cfg -> WithStatus cfg
     applyPatch current =
       current
-        { wsStatus = fromMaybe (wsStatus current) (wsStatus' patch),
-          wsLockStatus = fromMaybe (wsLockStatus current) (wsLockStatus' patch),
-          wsConfig = fromMaybe (wsConfig current) (wsConfig' patch)
+        { wsbStatus = Identity $ fromMaybe (wsStatus current) (wsStatus' patch),
+          wsbLockStatus = Identity $ fromMaybe (wsLockStatus current) (wsLockStatus' patch),
+          wsbConfig = Identity $ fromMaybe (wsConfig current) (wsConfig' patch)
         }
 
 setFeatureStatus ::
@@ -629,7 +629,7 @@ instance GetFeatureConfig db SSOConfig where
       inputs (view (optSettings . setFeatureFlags . flagSSO)) <&> \case
         FeatureSSOEnabledByDefault -> FeatureStatusEnabled
         FeatureSSODisabledByDefault -> FeatureStatusDisabled
-    pure $ defFeatureStatus {wsStatus = status}
+    pure $ setStatus status defFeatureStatus
 
   getConfigForUser = genericGetConfigForUser @db
 
@@ -648,7 +648,7 @@ instance GetFeatureConfig db SearchVisibilityAvailableConfig where
       inputs (view (optSettings . setFeatureFlags . flagTeamSearchVisibility)) <&> \case
         FeatureTeamSearchVisibilityAvailableByDefault -> FeatureStatusEnabled
         FeatureTeamSearchVisibilityUnavailableByDefault -> FeatureStatusDisabled
-    pure $ defFeatureStatus {wsStatus = status}
+    pure $ setStatus status defFeatureStatus
 
 instance SetFeatureConfig db SearchVisibilityAvailableConfig where
   type SetConfigForTeamConstraints db SearchVisibilityAvailableConfig (r :: EffectRow) = (Members '[SearchVisibilityStore] r)
@@ -702,7 +702,7 @@ instance GetFeatureConfig db LegalholdConfig where
       isLegalHoldEnabledForTeam @db tid <&> \case
         True -> FeatureStatusEnabled
         False -> FeatureStatusDisabled
-    pure $ defFeatureStatus {wsStatus = status}
+    pure $ setStatus status defFeatureStatus
 
 instance SetFeatureConfig db LegalholdConfig where
   type

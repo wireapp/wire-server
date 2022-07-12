@@ -104,7 +104,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
-import Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature as Public hiding (setStatus)
 
 getBotConversationH ::
   Members '[ConversationStore, ErrorS 'ConvNotFound, Input (Local ())] r =>

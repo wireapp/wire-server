@@ -25,7 +25,13 @@ module Wire.API.Team.Feature
     featureName,
     featureNameBS,
     LockStatus (..),
-    WithStatus (..),
+    WithStatusBase (..),
+    WithStatus,
+    withStatus,
+    wsStatus,
+    wsLockStatus,
+    wsConfig,
+    setStatus,
     WithStatus',
     wsStatus',
     wsLockStatus',
@@ -173,6 +179,23 @@ data WithStatusBase (m :: * -> *) (cfg :: *) = WithStatusBase
 ----------------------------------------------------------------------
 -- WithStatus
 
+type WithStatus cfg = WithStatusId cfg
+
+wsStatus :: WithStatus cfg -> FeatureStatus
+wsStatus = runIdentity . wsbStatus
+
+wsLockStatus :: WithStatus cfg -> LockStatus
+wsLockStatus = runIdentity . wsbLockStatus
+
+wsConfig :: WithStatus cfg -> cfg
+wsConfig = runIdentity . wsbConfig
+
+withStatus :: FeatureStatus -> LockStatus -> cfg -> WithStatus cfg
+withStatus s ls c = WithStatusBase (Identity s) (Identity ls) (Identity c)
+
+setStatus :: FeatureStatus -> WithStatus cfg -> WithStatus cfg
+setStatus s (WithStatusBase _ ls c) = WithStatusBase (Identity s) ls c
+
 type WithStatusId (cfg :: *) = WithStatusBase Identity cfg
 
 deriving instance (Eq cfg) => Eq (WithStatusId cfg)
@@ -198,28 +221,6 @@ instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatusId cfg) wher
 
 instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatusId cfg) where
   arbitrary = WithStatusBase <$> arbitrary <*> arbitrary <*> arbitrary
-
-data WithStatus (cfg :: *) = WithStatus
-  { wsStatus :: FeatureStatus,
-    wsLockStatus :: LockStatus,
-    wsConfig :: cfg
-  }
-  deriving stock (Eq, Show, Generic, Typeable, Functor)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (WithStatus cfg))
-
-instance Arbitrary cfg => Arbitrary (WithStatus cfg) where
-  arbitrary = WithStatus <$> arbitrary <*> arbitrary <*> arbitrary
-
-instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatus cfg) where
-  schema =
-    object name $
-      WithStatus
-        <$> wsStatus .= field "status" schema
-        <*> wsLockStatus .= field "lockStatus" schema
-        <*> wsConfig .= objectSchema @cfg
-    where
-      inner = schema @cfg
-      name = fromMaybe "" (getName (schemaDoc inner)) <> ".WithStatus"
 
 withStatusModel :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => Doc.Model
 withStatusModel =
@@ -273,30 +274,6 @@ instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatus' cfg) where
 instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatus' cfg) where
   arbitrary = WithStatusBase <$> arbitrary <*> arbitrary <*> arbitrary
 
--- -- todo(leif): abstract over Maybe and reuse the WithStatus type
--- data WithStatus' (cfg :: *) = WithStatus'
---   { wsStatus' :: Maybe FeatureStatus,
---     wsLockStatus' :: Maybe LockStatus,
---     wsConfig' :: Maybe cfg
---   }
---   deriving stock (Eq, Show, Generic, Typeable, Functor)
---   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (WithStatus' cfg))
-
--- instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatus' cfg) where
---   arbitrary = WithStatus' <$> arbitrary <*> arbitrary <*> arbitrary
-
--- -- | The ToJSON implementation of WithStatus' will encode the trivial config as `"config": {}`.
--- instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatus' cfg) where
---   schema =
---     object name $
---       WithStatus'
---         <$> wsStatus' .= maybe_ (optField "status" schema)
---         <*> wsLockStatus' .= maybe_ (optField "lockStatus" schema)
---         <*> wsConfig' .= maybe_ (optField "config" schema)
---     where
---       inner = schema @cfg
---       name = fromMaybe "" (getName (schemaDoc inner)) <> ".WithStatus'"
-
 ----------------------------------------------------------------------
 -- WithStatusNoLock
 
@@ -311,10 +288,10 @@ instance Arbitrary cfg => Arbitrary (WithStatusNoLock cfg) where
   arbitrary = WithStatusNoLock <$> arbitrary <*> arbitrary
 
 forgetLock :: WithStatus a -> WithStatusNoLock a
-forgetLock WithStatus {..} = WithStatusNoLock wsStatus wsConfig
+forgetLock ws = WithStatusNoLock (wsStatus ws) (wsConfig ws)
 
 withLockStatus :: LockStatus -> WithStatusNoLock a -> WithStatus a
-withLockStatus ls (WithStatusNoLock s c) = WithStatus s ls c
+withLockStatus ls (WithStatusNoLock s c) = withStatus s ls c
 
 withUnlocked :: WithStatusNoLock a -> WithStatus a
 withUnlocked = withLockStatus LockStatusUnlocked
@@ -543,7 +520,7 @@ instance ToSchema GuestLinksConfig where
 
 instance IsFeatureConfig GuestLinksConfig where
   type FeatureSymbol GuestLinksConfig = "conversationGuestLinks"
-  defFeatureStatus = WithStatus FeatureStatusEnabled LockStatusUnlocked GuestLinksConfig
+  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked GuestLinksConfig
 
   objectSchema = pure GuestLinksConfig
 
@@ -559,7 +536,7 @@ data LegalholdConfig = LegalholdConfig
 
 instance IsFeatureConfig LegalholdConfig where
   type FeatureSymbol LegalholdConfig = "legalhold"
-  defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusUnlocked LegalholdConfig
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked LegalholdConfig
 
   objectSchema = pure LegalholdConfig
 
@@ -578,7 +555,7 @@ data SSOConfig = SSOConfig
 
 instance IsFeatureConfig SSOConfig where
   type FeatureSymbol SSOConfig = "sso"
-  defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusUnlocked SSOConfig
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked SSOConfig
 
   objectSchema = pure SSOConfig
 
@@ -599,7 +576,7 @@ data SearchVisibilityAvailableConfig = SearchVisibilityAvailableConfig
 
 instance IsFeatureConfig SearchVisibilityAvailableConfig where
   type FeatureSymbol SearchVisibilityAvailableConfig = "searchVisibility"
-  defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityAvailableConfig
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityAvailableConfig
 
   objectSchema = pure SearchVisibilityAvailableConfig
 
@@ -624,7 +601,7 @@ instance ToSchema ValidateSAMLEmailsConfig where
 
 instance IsFeatureConfig ValidateSAMLEmailsConfig where
   type FeatureSymbol ValidateSAMLEmailsConfig = "validateSAMLemails"
-  defFeatureStatus = WithStatus FeatureStatusEnabled LockStatusUnlocked ValidateSAMLEmailsConfig
+  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked ValidateSAMLEmailsConfig
 
   objectSchema = pure ValidateSAMLEmailsConfig
 
@@ -643,7 +620,7 @@ data DigitalSignaturesConfig = DigitalSignaturesConfig
 
 instance IsFeatureConfig DigitalSignaturesConfig where
   type FeatureSymbol DigitalSignaturesConfig = "digitalSignatures"
-  defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusUnlocked DigitalSignaturesConfig
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked DigitalSignaturesConfig
 
   objectSchema = pure DigitalSignaturesConfig
 
@@ -665,7 +642,7 @@ data ConferenceCallingConfig = ConferenceCallingConfig
 
 instance IsFeatureConfig ConferenceCallingConfig where
   type FeatureSymbol ConferenceCallingConfig = "conferenceCalling"
-  defFeatureStatus = WithStatus FeatureStatusEnabled LockStatusUnlocked ConferenceCallingConfig
+  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked ConferenceCallingConfig
 
   objectSchema = pure ConferenceCallingConfig
 
@@ -687,7 +664,7 @@ instance ToSchema SndFactorPasswordChallengeConfig where
 
 instance IsFeatureConfig SndFactorPasswordChallengeConfig where
   type FeatureSymbol SndFactorPasswordChallengeConfig = "sndFactorPasswordChallenge"
-  defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusLocked SndFactorPasswordChallengeConfig
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked SndFactorPasswordChallengeConfig
 
   objectSchema = pure SndFactorPasswordChallengeConfig
 
@@ -703,7 +680,7 @@ data SearchVisibilityInboundConfig = SearchVisibilityInboundConfig
 
 instance IsFeatureConfig SearchVisibilityInboundConfig where
   type FeatureSymbol SearchVisibilityInboundConfig = "searchVisibilityInbound"
-  defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityInboundConfig
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityInboundConfig
 
   objectSchema = pure SearchVisibilityInboundConfig
 
@@ -734,7 +711,7 @@ instance IsFeatureConfig ClassifiedDomainsConfig where
   type FeatureSymbol ClassifiedDomainsConfig = "classifiedDomains"
 
   defFeatureStatus =
-    WithStatus
+    withStatus
       FeatureStatusDisabled
       LockStatusUnlocked
       (ClassifiedDomainsConfig [])
@@ -765,7 +742,7 @@ instance IsFeatureConfig AppLockConfig where
   type FeatureSymbol AppLockConfig = "appLock"
 
   defFeatureStatus =
-    WithStatus
+    withStatus
       FeatureStatusEnabled
       LockStatusUnlocked
       (AppLockConfig (EnforceAppLock False) 60)
@@ -792,7 +769,7 @@ data FileSharingConfig = FileSharingConfig
 
 instance IsFeatureConfig FileSharingConfig where
   type FeatureSymbol FileSharingConfig = "fileSharing"
-  defFeatureStatus = WithStatus FeatureStatusEnabled LockStatusUnlocked FileSharingConfig
+  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked FileSharingConfig
 
   objectSchema = pure FileSharingConfig
 
@@ -821,7 +798,7 @@ instance ToSchema SelfDeletingMessagesConfig where
 instance IsFeatureConfig SelfDeletingMessagesConfig where
   type FeatureSymbol SelfDeletingMessagesConfig = "selfDeletingMessages"
   defFeatureStatus =
-    WithStatus
+    withStatus
       FeatureStatusEnabled
       LockStatusUnlocked
       (SelfDeletingMessagesConfig 0)
@@ -856,7 +833,7 @@ instance IsFeatureConfig MLSConfig where
   type FeatureSymbol MLSConfig = "mls"
   defFeatureStatus =
     let config = MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-     in WithStatus FeatureStatusDisabled LockStatusUnlocked config
+     in withStatus FeatureStatusDisabled LockStatusUnlocked config
   objectSchema = field "config" schema
 
   configModel = Just $

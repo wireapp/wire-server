@@ -75,7 +75,7 @@ getTrivialConfigC statusCol tid = do
   mFeatureStatus <- (>>= runIdentity) <$> retry x1 q
   pure $ case mFeatureStatus of
     Nothing -> Nothing
-    Just status -> Just . forgetLock $ defFeatureStatus {wsStatus = status}
+    Just status -> Just . forgetLock $ setStatus status defFeatureStatus
   where
     select :: PrepQuery R (Identity TeamId) (Identity (Maybe FeatureStatus))
     select =
