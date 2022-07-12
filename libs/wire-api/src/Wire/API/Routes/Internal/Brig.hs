@@ -150,7 +150,7 @@ type AccountAPI =
            "createUserNoVerifySafe"
            ( "users" :> "safe" -- TODO: temporary name
                :> ReqBody '[Servant.JSON] NewUserSpar
-               :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
+               :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
            )
 
 data NewKeyPackageRef = NewKeyPackageRef

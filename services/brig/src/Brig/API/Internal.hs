@@ -423,7 +423,7 @@ createUserNoVerify uData = lift . runExceptT $ do
      in API.activate key code (Just uid) !>> activationErrorToRegisterError
   pure . SelfProfile $ usr
 
-createUserNoVerifySafe :: NewUserSpar -> (Handler r) (Either RegisterError SelfProfile)
+createUserNoVerifySafe :: NewUserSpar -> (Handler r) (Either CreateUserSparError SelfProfile)
 createUserNoVerifySafe uData =
   lift . runExceptT $ do
     result <- API.createUserSpar uData
@@ -435,7 +435,7 @@ createUserNoVerifySafe uData =
     for_ (catMaybes [eac, pac]) $ \adata ->
       let key = ActivateKey $ activationKey adata
           code = activationCode adata
-       in API.activate key code (Just uid) !>> activationErrorToRegisterError
+       in API.activate key code (Just uid) !>> CreateUserSparRegistrationError . activationErrorToRegisterError
     pure . SelfProfile $ usr
 
 deleteUserNoVerifyH :: UserId -> (Handler r) Response

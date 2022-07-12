@@ -51,6 +51,8 @@ module Wire.API.User
     NewUser (..),
     emptyNewUser,
     NewUserSpar (..),
+    CreateUserSparError (..),
+    CreateUserSparInternalResponses,
     newUserFromSpar,
     urefToExternalId,
     urefToEmail,
@@ -602,6 +604,52 @@ urefToEmail :: SAML.UserRef -> Maybe Email
 urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
   SAML.UNameIDEmail email -> parseEmail . SAMLEmail.render . CI.original $ email
   _ -> Nothing
+
+data CreateUserSparError
+  = CreateUserSparHandleError ChangeHandleError
+  | CreateUserSparRegistrationError RegisterError
+  deriving (Show, Generic)
+
+type CreateUserSparErrorResponses =
+  RegisterErrorResponses .++ ChangeHandleErrorResponses
+
+type CreateUserSparResponses =
+  CreateUserSparErrorResponses
+    .++ '[ WithHeaders
+             '[ DescHeader "Set-Cookie" "Cookie" Web.SetCookie,
+                DescHeader "Location" "UserId" UserId
+              ]
+             RegisterSuccess
+             (Respond 201 "User created and pending activation" SelfProfile)
+         ]
+
+type CreateUserSparInternalResponses =
+  CreateUserSparErrorResponses
+    .++ '[ WithHeaders
+             '[DescHeader "Location" "UserId" UserId]
+             SelfProfile
+             (Respond 201 "User created and pending activation" SelfProfile)
+         ]
+
+instance (res ~ CreateUserSparErrorResponses) => AsUnion res CreateUserSparError where
+  toUnion = eitherToUnion (toUnion @ChangeHandleErrorResponses) (toUnion @RegisterErrorResponses) . errToEither
+  fromUnion = errFromEither . eitherFromUnion (fromUnion @ChangeHandleErrorResponses) (fromUnion @RegisterErrorResponses)
+
+instance (res ~ CreateUserSparResponses) => AsUnion res (Either CreateUserSparError RegisterSuccess) where
+  toUnion = eitherToUnion (toUnion @CreateUserSparErrorResponses) (Z . I)
+  fromUnion = eitherFromUnion (fromUnion @CreateUserSparErrorResponses) (unI . unZ)
+
+instance (res ~ CreateUserSparInternalResponses) => AsUnion res (Either CreateUserSparError SelfProfile) where
+  toUnion = eitherToUnion (toUnion @CreateUserSparErrorResponses) (Z . I)
+  fromUnion = eitherFromUnion (fromUnion @CreateUserSparErrorResponses) (unI . unZ)
+
+errToEither :: CreateUserSparError -> Either ChangeHandleError RegisterError
+errToEither (CreateUserSparHandleError e) = Left e
+errToEither (CreateUserSparRegistrationError e) = Right e
+
+errFromEither :: Either ChangeHandleError RegisterError -> CreateUserSparError
+errFromEither (Left e) = CreateUserSparHandleError e
+errFromEither (Right e) = CreateUserSparRegistrationError e
 
 data NewUserSpar = NewUserSpar
   { newUserSparUUID :: UUID,
@@ -1194,11 +1242,11 @@ data ChangeHandleError
 instance GSOP.Generic ChangeHandleError
 
 type ChangeHandleErrorResponses =
-  [ ErrorResponse 'E.NoIdentity,
-    ErrorResponse 'E.HandleExists,
-    ErrorResponse 'E.InvalidHandle,
-    ErrorResponse 'E.HandleManagedByScim
-  ]
+  '[ ErrorResponse 'E.NoIdentity,
+     ErrorResponse 'E.HandleExists,
+     ErrorResponse 'E.InvalidHandle,
+     ErrorResponse 'E.HandleManagedByScim
+   ]
 
 type ChangeHandleResponses =
   ChangeHandleErrorResponses .++ '[RespondEmpty 200 "Handle Changed"]

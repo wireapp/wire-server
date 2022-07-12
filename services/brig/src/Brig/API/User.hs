@@ -143,7 +143,7 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Code
 import qualified Data.Currency as Currency
-import Data.Handle (Handle)
+import Data.Handle (Handle (fromHandle), parseHandle)
 import Data.Id as Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
@@ -218,7 +218,7 @@ verifyUniquenessAndCheckBlacklist uk = do
       unless av $
         throwE IdentityErrorUserKeyExists
 
-createUserSpar :: NewUserSpar -> ExceptT RegisterError (AppT r) CreateUserResult
+createUserSpar :: NewUserSpar -> ExceptT CreateUserSparError (AppT r) CreateUserResult
 createUserSpar new = do
   let handle' = newUserSparHandle new
       new' = newUserFromSpar new -- TODO: make it obsolete once we add rich info?
@@ -236,22 +236,39 @@ createUserSpar new = do
     case unRichInfo <$> newUserSparRichInfo new of
       Just richInfo -> wrapClient $ Data.updateRichInfo uid richInfo
       Nothing -> pure () -- Nothing to do
-
     wrapHttp $ Intra.createSelfConv uid
     wrapHttpClient $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
 
     pure account
 
-
   -- Add to team
-  userTeam <- addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing)
+  userTeam <- lmap CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing)
 
   -- Set up feature flags
   let uid = userId (accountUser account)
   lift $ initAccountFeatureConfig uid
 
+  -- Set handle
+  updateHandle' uid handle'
+
   pure $! CreateUserResult account Nothing Nothing (Just userTeam)
   where
+    lmap f =
+      let h = \case
+            Left x ->
+              Left (f x)
+            Right a ->
+              Right a
+          {-# INLINE h #-}
+       in ExceptT . fmap h . runExceptT
+
+    updateHandle' :: UserId -> Maybe Handle -> ExceptT CreateUserSparError (AppT r) ()
+    updateHandle' _ Nothing = pure ()
+    updateHandle' uid (Just h) = do
+      case parseHandle . fromHandle $ h of
+        Just handl -> lmap CreateUserSparHandleError $ changeHandle uid Nothing handl AllowSCIMUpdates
+        Nothing -> throwE $ CreateUserSparHandleError ChangeHandleInvalid
+
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
     addUserToTeamSSO account tid ident = do
       let uid = userId (accountUser account)
