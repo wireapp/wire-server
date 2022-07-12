@@ -22,76 +22,60 @@ module Test.Wire.API.Golden.Generated.WithStatus'_team where
 import Data.Domain
 import Imports
 import Wire.API.Team.Feature
-  ( AppLockConfig (AppLockConfig),
-    ClassifiedDomainsConfig (ClassifiedDomainsConfig),
-    ConferenceCallingConfig (..),
-    DigitalSignaturesConfig (..),
-    EnforceAppLock (EnforceAppLock),
-    FeatureStatus (FeatureStatusDisabled, FeatureStatusEnabled),
-    GuestLinksConfig (..),
-    LockStatus (LockStatusLocked, LockStatusUnlocked),
-    SSOConfig (..),
-    SearchVisibilityAvailableConfig (..),
-    SearchVisibilityInboundConfig (..),
-    SelfDeletingMessagesConfig (SelfDeletingMessagesConfig),
-    SndFactorPasswordChallengeConfig (..),
-    ValidateSAMLEmailsConfig (..),
-    WithStatus' (WithStatus'),
-  )
 
 testObject_WithStatus'_team_1 :: WithStatus' AppLockConfig
-testObject_WithStatus'_team_1 = WithStatus' (Just FeatureStatusEnabled) (Just LockStatusUnlocked) (Just (AppLockConfig (EnforceAppLock False) (-98)))
+testObject_WithStatus'_team_1 = withStatus' (Just FeatureStatusEnabled) (Just LockStatusUnlocked) (Just (AppLockConfig (EnforceAppLock False) (-98)))
 
 testObject_WithStatus'_team_2 :: WithStatus' AppLockConfig
-testObject_WithStatus'_team_2 = WithStatus' Nothing Nothing (Just (AppLockConfig (EnforceAppLock True) 0))
+testObject_WithStatus'_team_2 = withStatus' Nothing Nothing (Just (AppLockConfig (EnforceAppLock True) 0))
 
 testObject_WithStatus'_team_3 :: WithStatus' AppLockConfig
-testObject_WithStatus'_team_3 = WithStatus' (Just FeatureStatusEnabled) (Just LockStatusLocked) (Just (AppLockConfig (EnforceAppLock True) 111))
+testObject_WithStatus'_team_3 = withStatus' (Just FeatureStatusEnabled) (Just LockStatusLocked) (Just (AppLockConfig (EnforceAppLock True) 111))
 
 testObject_WithStatus'_team_4 :: WithStatus' SelfDeletingMessagesConfig
-testObject_WithStatus'_team_4 = WithStatus' (Just FeatureStatusEnabled) Nothing (Just (SelfDeletingMessagesConfig (-97)))
+testObject_WithStatus'_team_4 = withStatus' (Just FeatureStatusEnabled) Nothing (Just (SelfDeletingMessagesConfig (-97)))
 
 testObject_WithStatus'_team_5 :: WithStatus' SelfDeletingMessagesConfig
-testObject_WithStatus'_team_5 = WithStatus' (Just FeatureStatusEnabled) (Just LockStatusUnlocked) (Just (SelfDeletingMessagesConfig 0))
+testObject_WithStatus'_team_5 = withStatus' (Just FeatureStatusEnabled) (Just LockStatusUnlocked) (Just (SelfDeletingMessagesConfig 0))
 
 testObject_WithStatus'_team_6 :: WithStatus' SelfDeletingMessagesConfig
-testObject_WithStatus'_team_6 = WithStatus' (Just FeatureStatusEnabled) Nothing (Just (SelfDeletingMessagesConfig 77))
+testObject_WithStatus'_team_6 = withStatus' (Just FeatureStatusEnabled) Nothing (Just (SelfDeletingMessagesConfig 77))
 
 testObject_WithStatus'_team_7 :: WithStatus' ClassifiedDomainsConfig
-testObject_WithStatus'_team_7 = WithStatus' (Just FeatureStatusEnabled) (Just LockStatusLocked) (Just (ClassifiedDomainsConfig []))
+testObject_WithStatus'_team_7 = withStatus' (Just FeatureStatusEnabled) (Just LockStatusLocked) (Just (ClassifiedDomainsConfig []))
 
 testObject_WithStatus'_team_8 :: WithStatus' ClassifiedDomainsConfig
-testObject_WithStatus'_team_8 = WithStatus' Nothing (Just LockStatusLocked) (Just (ClassifiedDomainsConfig [Domain "example.com", Domain "test.foobar"]))
+testObject_WithStatus'_team_8 = withStatus' Nothing (Just LockStatusLocked) (Just (ClassifiedDomainsConfig [Domain "example.com", Domain "test.foobar"]))
 
 testObject_WithStatus'_team_9 :: WithStatus' ClassifiedDomainsConfig
-testObject_WithStatus'_team_9 = WithStatus' (Just FeatureStatusEnabled) (Just LockStatusUnlocked) (Just (ClassifiedDomainsConfig [Domain "test.foobar"]))
+testObject_WithStatus'_team_9 = withStatus' (Just FeatureStatusEnabled) (Just LockStatusUnlocked) (Just (ClassifiedDomainsConfig [Domain "test.foobar"]))
 
 testObject_WithStatus'_team_10 :: WithStatus' SSOConfig
-testObject_WithStatus'_team_10 = WithStatus' (Just FeatureStatusDisabled) (Just LockStatusLocked) (Just SSOConfig)
+testObject_WithStatus'_team_10 = withStatus' (Just FeatureStatusDisabled) (Just LockStatusLocked) (Just SSOConfig)
 
 testObject_WithStatus'_team_11 :: WithStatus' SearchVisibilityAvailableConfig
-testObject_WithStatus'_team_11 = WithStatus' (Just FeatureStatusEnabled) (Just LockStatusLocked) (Just SearchVisibilityAvailableConfig)
+testObject_WithStatus'_team_11 = withStatus' (Just FeatureStatusEnabled) (Just LockStatusLocked) (Just SearchVisibilityAvailableConfig)
 
 testObject_WithStatus'_team_12 :: WithStatus' ValidateSAMLEmailsConfig
-testObject_WithStatus'_team_12 = WithStatus' (Just FeatureStatusDisabled) Nothing (Just ValidateSAMLEmailsConfig)
+testObject_WithStatus'_team_12 = withStatus' (Just FeatureStatusDisabled) Nothing (Just ValidateSAMLEmailsConfig)
 
 testObject_WithStatus'_team_13 :: WithStatus' DigitalSignaturesConfig
-testObject_WithStatus'_team_13 = WithStatus' (Just FeatureStatusEnabled) (Just LockStatusLocked) (Just DigitalSignaturesConfig)
+testObject_WithStatus'_team_13 = withStatus' (Just FeatureStatusEnabled) (Just LockStatusLocked) (Just DigitalSignaturesConfig)
 
 testObject_WithStatus'_team_14 :: WithStatus' ConferenceCallingConfig
-testObject_WithStatus'_team_14 = WithStatus' Nothing (Just LockStatusUnlocked) (Just ConferenceCallingConfig)
+testObject_WithStatus'_team_14 = withStatus' Nothing (Just LockStatusUnlocked) (Just ConferenceCallingConfig)
 
 testObject_WithStatus'_team_15 :: WithStatus' GuestLinksConfig
-testObject_WithStatus'_team_15 = WithStatus' (Just FeatureStatusEnabled) (Just LockStatusUnlocked) (Just GuestLinksConfig)
+testObject_WithStatus'_team_15 = withStatus' (Just FeatureStatusEnabled) (Just LockStatusUnlocked) (Just GuestLinksConfig)
 
 testObject_WithStatus'_team_16 :: WithStatus' SndFactorPasswordChallengeConfig
-testObject_WithStatus'_team_16 = WithStatus' (Just FeatureStatusDisabled) (Just LockStatusUnlocked) (Just SndFactorPasswordChallengeConfig)
+testObject_WithStatus'_team_16 = withStatus' (Just FeatureStatusDisabled) (Just LockStatusUnlocked) (Just SndFactorPasswordChallengeConfig)
 
 testObject_WithStatus'_team_17 :: WithStatus' SearchVisibilityInboundConfig
-testObject_WithStatus'_team_17 = WithStatus' (Just FeatureStatusEnabled) Nothing (Just SearchVisibilityInboundConfig)
+testObject_WithStatus'_team_17 = withStatus' (Just FeatureStatusEnabled) Nothing (Just SearchVisibilityInboundConfig)
 
 testObject_WithStatus'_team_18 :: WithStatus' GuestLinksConfig
-testObject_WithStatus'_team_18 = WithStatus' (Just FeatureStatusEnabled) Nothing Nothing
+testObject_WithStatus'_team_18 = withStatus' (Just FeatureStatusEnabled) Nothing Nothing
 
 testObject_WithStatus'_team_19 :: WithStatus' SelfDeletingMessagesConfig
-testObject_WithStatus'_team_19 = WithStatus' Nothing (Just LockStatusUnlocked) Nothing
+testObject_WithStatus'_team_19 = withStatus' Nothing (Just LockStatusUnlocked) Nothing

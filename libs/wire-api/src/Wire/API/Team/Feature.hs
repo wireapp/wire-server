@@ -28,6 +28,7 @@ module Wire.API.Team.Feature
     WithStatusBase (..),
     WithStatus,
     withStatus,
+    withStatus',
     wsStatus,
     wsLockStatus,
     wsConfig,
@@ -259,6 +260,9 @@ wsLockStatus' = wsbLockStatus
 
 wsConfig' :: WithStatus' cfg -> Maybe cfg
 wsConfig' = wsbConfig
+
+withStatus' :: Maybe FeatureStatus -> Maybe LockStatus -> Maybe cfg -> WithStatus' cfg
+withStatus' = WithStatusBase
 
 instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatus' cfg) where
   schema =
