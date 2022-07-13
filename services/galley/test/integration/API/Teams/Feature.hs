@@ -139,9 +139,9 @@ testPatch defStatus defConfig = do
         Public.wsStatus actual @?= defStatus
         Public.wsConfig actual @?= defConfig
       else do
-        Public.wsStatus actual @?= fromMaybe (Public.wsStatus original) (Public.wsStatus' rndFeatureConfig)
-        Public.wsLockStatus actual @?= fromMaybe (Public.wsLockStatus original) (Public.wsLockStatus' rndFeatureConfig)
-        Public.wsConfig actual @?= fromMaybe (Public.wsConfig original) (Public.wsConfig' rndFeatureConfig)
+        Public.wsStatus actual @?= fromMaybe (Public.wsStatus original) (Public.wspStatus rndFeatureConfig)
+        Public.wsLockStatus actual @?= fromMaybe (Public.wsLockStatus original) (Public.wspLockStatus rndFeatureConfig)
+        Public.wsConfig actual @?= fromMaybe (Public.wsConfig original) (Public.wspConfig rndFeatureConfig)
 
 testSSO :: TestM ()
 testSSO = do

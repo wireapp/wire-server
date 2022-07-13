@@ -249,15 +249,15 @@ patchFeatureStatusInternal ::
 patchFeatureStatusInternal tid patch = do
   currentFeatureStatus <- getFeatureStatus @db @cfg DontDoAuth tid
   let newFeatureStatus = applyPatch currentFeatureStatus
-  when (isJust $ wsLockStatus' patch) $ void $ updateLockStatus @db @cfg tid (wsLockStatus newFeatureStatus)
+  when (isJust $ wspLockStatus patch) $ void $ updateLockStatus @db @cfg tid (wsLockStatus newFeatureStatus)
   setConfigForTeam @db @cfg tid (forgetLock newFeatureStatus) Nothing
   where
     applyPatch :: WithStatus cfg -> WithStatus cfg
     applyPatch current =
       current
-        & setStatus (fromMaybe (wsStatus current) (wsStatus' patch))
-        & setLockStatus (fromMaybe (wsLockStatus current) (wsLockStatus' patch))
-        & setConfig (fromMaybe (wsConfig current) (wsConfig' patch))
+        & setStatus (fromMaybe (wsStatus current) (wspStatus patch))
+        & setLockStatus (fromMaybe (wsLockStatus current) (wspLockStatus patch))
+        & setConfig (fromMaybe (wsConfig current) (wspConfig patch))
 
 setFeatureStatus ::
   forall db cfg r.

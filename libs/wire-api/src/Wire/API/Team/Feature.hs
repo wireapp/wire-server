@@ -35,9 +35,9 @@ module Wire.API.Team.Feature
     setLockStatus,
     setConfig,
     WithStatusPatch,
-    wsStatus',
-    wsLockStatus',
-    wsConfig',
+    wspStatus,
+    wspLockStatus,
+    wspConfig,
     WithStatusNoLock (..),
     forgetLock,
     withLockStatus,
@@ -181,8 +181,6 @@ data WithStatusBase (m :: * -> *) (cfg :: *) = WithStatusBase
 ----------------------------------------------------------------------
 -- WithStatus
 
-type WithStatus cfg = WithStatusId cfg
-
 -- FUTUREWORK: use lenses, maybe?
 wsStatus :: WithStatus cfg -> FeatureStatus
 wsStatus = runIdentity . wsbStatus
@@ -205,19 +203,19 @@ setLockStatus ls (WithStatusBase s _ c) = WithStatusBase s (Identity ls) c
 setConfig :: cfg -> WithStatus cfg -> WithStatus cfg
 setConfig c (WithStatusBase s ls _) = WithStatusBase s ls (Identity c)
 
-type WithStatusId (cfg :: *) = WithStatusBase Identity cfg
+type WithStatus (cfg :: *) = WithStatusBase Identity cfg
 
-deriving instance (Eq cfg) => Eq (WithStatusId cfg)
+deriving instance (Eq cfg) => Eq (WithStatus cfg)
 
-deriving instance (Show cfg) => Show (WithStatusId cfg)
+deriving instance (Show cfg) => Show (WithStatus cfg)
 
-deriving via (Schema (WithStatusId cfg)) instance (ToSchema (WithStatusId cfg)) => ToJSON (WithStatusId cfg)
+deriving via (Schema (WithStatus cfg)) instance (ToSchema (WithStatus cfg)) => ToJSON (WithStatus cfg)
 
-deriving via (Schema (WithStatusId cfg)) instance (ToSchema (WithStatusId cfg)) => FromJSON (WithStatusId cfg)
+deriving via (Schema (WithStatus cfg)) instance (ToSchema (WithStatus cfg)) => FromJSON (WithStatus cfg)
 
-deriving via (Schema (WithStatusId cfg)) instance (ToSchema (WithStatusId cfg)) => S.ToSchema (WithStatusId cfg)
+deriving via (Schema (WithStatus cfg)) instance (ToSchema (WithStatus cfg)) => S.ToSchema (WithStatus cfg)
 
-instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatusId cfg) where
+instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatus cfg) where
   schema =
     object name $
       WithStatusBase
@@ -228,7 +226,7 @@ instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatusId cfg) wher
       inner = schema @cfg
       name = fromMaybe "" (getName (schemaDoc inner)) <> ".WithStatus"
 
-instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatusId cfg) where
+instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatus cfg) where
   arbitrary = WithStatusBase <$> arbitrary <*> arbitrary <*> arbitrary
 
 withStatusModel :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => Doc.Model
@@ -260,14 +258,14 @@ deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch 
 
 deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch cfg)) => S.ToSchema (WithStatusPatch cfg)
 
-wsStatus' :: WithStatusPatch cfg -> Maybe FeatureStatus
-wsStatus' = wsbStatus
+wspStatus :: WithStatusPatch cfg -> Maybe FeatureStatus
+wspStatus = wsbStatus
 
-wsLockStatus' :: WithStatusPatch cfg -> Maybe LockStatus
-wsLockStatus' = wsbLockStatus
+wspLockStatus :: WithStatusPatch cfg -> Maybe LockStatus
+wspLockStatus = wsbLockStatus
 
-wsConfig' :: WithStatusPatch cfg -> Maybe cfg
-wsConfig' = wsbConfig
+wspConfig :: WithStatusPatch cfg -> Maybe cfg
+wspConfig = wsbConfig
 
 withStatus' :: Maybe FeatureStatus -> Maybe LockStatus -> Maybe cfg -> WithStatusPatch cfg
 withStatus' = WithStatusBase
