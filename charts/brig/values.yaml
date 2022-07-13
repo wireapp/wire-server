@@ -17,7 +17,8 @@ metrics:
     enable: false
 config:
   logLevel: Info
-  logFormat: JSON
+  logFormat: StructuredJSON
+  logNetStrings: false
   cassandra:
     host: aws-cassandra
   elasticsearch:

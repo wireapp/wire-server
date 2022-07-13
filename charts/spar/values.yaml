@@ -21,6 +21,8 @@ config:
   richInfoLimit: 5000
   maxScimTokens: 0
   logLevel: Info
+  logFormat: StructuredJSON
+  logNetStrings: false
   maxttlAuthreq: 7200
   maxttlAuthresp: 7200
   proxy: {}

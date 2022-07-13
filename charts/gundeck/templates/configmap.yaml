@@ -5,8 +5,9 @@ metadata:
 data:
   {{- with .Values.config }}
   gundeck.yaml: |
-    logNetStrings: True # log using netstrings encoding: http://cr.yp.to/proto/netstrings.txt
+    logFormat: {{ .logFormat }}
     logLevel: {{ .logLevel }}
+    logNetStrings: {{ .logNetStrings }}
 
     gundeck:
       host: 0.0.0.0

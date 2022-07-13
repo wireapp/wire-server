@@ -17,6 +17,8 @@ resources:
     cpu: "500m"
 config:
   logLevel: Info
+  logFormat: StructuredJSON
+  logNetStrings: false
   enableFederator: false # keep enableFederator default in sync with brig and galley chart's config.enableFederator as well as wire-server chart's tag.federator
   aws:
     region: "eu-west-1"

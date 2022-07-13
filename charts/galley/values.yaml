@@ -18,7 +18,8 @@ resources:
     cpu: "500m"
 config:
   logLevel: Info
-  logFormat: JSON
+  logFormat: StructuredJSON
+  logNetStrings: false
   cassandra:
     host: aws-cassandra
     replicaCount: 3

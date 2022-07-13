@@ -5,10 +5,9 @@ metadata:
 data:
   {{- with .Values.config }}
   galley.yaml: |
-    logNetStrings: True # log using netstrings encoding:
-                        # http://cr.yp.to/proto/netstrings.txt
-    logLevel: {{ .logLevel }}
     logFormat: {{ .logFormat }}
+    logLevel: {{ .logLevel }}
+    logNetStrings: {{ .logNetStrings }}
 
     galley:
       host: 0.0.0.0

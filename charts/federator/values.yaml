@@ -24,7 +24,8 @@ resources:
     cpu: "500m"
 config:
   logLevel: Info
-  logFormat: JSON
+  logFormat: StructuredJSON
+  logNetStrings: false
   optSettings:
     # Defaults to using system CA store in the federator image for making
     # connections to remote federators.
