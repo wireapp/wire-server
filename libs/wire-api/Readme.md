@@ -10,6 +10,8 @@ packaged into an `AsUnion` instance.
 When using flat sum types, you can use Generics to automatically derive this instance, 
 and for nested types, the following example code should help clarify usage.
 
+It assumes some understanding of [Data.SOP](https://hackage.haskell.org/package/sop-core-0.5.0.2/docs/Data-SOP.html)
+
 ```haskell
 data Success = Success
 
@@ -57,6 +59,7 @@ invalidEntry = dynError @(MapError 'InvalidEntry)
 failToError :: Failure -> NS I (DynError : DynError : xs)
 failToError = \case
   -- Z . I wraps the first value in the error list.
+  -- They come from Data.SOP
   InvalidEntry -> Z . I $ accessDenied
   -- we wrap the value using I (identity), Z (zero) and S (successor) to indicate second item in the response list
   AccessDenied -> S . Z . I $ invalidEntry
