@@ -195,7 +195,7 @@ testSenderNotInConversation = do
         =<< postMessage (qUnqualified (pUserId bob)) message
         <!! const 404 === statusCode
 
-    liftIO $ Wai.label err @?= "no-conversation-member"
+    liftIO $ Wai.label err @?= "no-conversation"
 
 testLocalWelcome :: TestM ()
 testLocalWelcome = do
@@ -985,7 +985,25 @@ testRemoteToLocal = do
         def
           { createConv = CreateConv
           }
-    let bob = head (users setup)
+    bob <- assertOne (users setup)
+    let mockedResponse fedReq =
+          case frRPC fedReq of
+            "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+            "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+            "on-conversation-updated" -> pure (Aeson.encode ())
+            "get-mls-clients" ->
+              pure
+                . Aeson.encode
+                . Set.fromList
+                . map snd
+                . toList
+                . pClients
+                $ bob
+            ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+    _ <-
+      withTempMockFederator' mockedResponse $
+        postCommit setup
     void . liftIO $
       spawn
         ( cli
