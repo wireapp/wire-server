@@ -270,6 +270,8 @@ wspConfig = wsbConfig
 withStatus' :: Maybe FeatureStatus -> Maybe LockStatus -> Maybe cfg -> WithStatusPatch cfg
 withStatus' = WithStatusBase
 
+-- | The ToJSON implementation of `WithStatusPatch` will encode the trivial config as `"config": {}`
+-- when the value is a `Just`, if it's `Nothing` it will be omitted, which is the important part.
 instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatusPatch cfg) where
   schema =
     object name $
