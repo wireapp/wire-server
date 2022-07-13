@@ -64,7 +64,7 @@ import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
-import Wire.API.MLS.Message
+import Wire.API.MLS.Epoch
 
 data ConversationStore m a where
   CreateConversationId :: ConversationStore m ConvId
