@@ -147,21 +147,21 @@ instance ToJSON Transport where
 
 instance FromJSON Transport where
   parseJSON = withText "transport" $ \case
-    "GCM" -> return GCM
-    "APNS" -> return APNS
-    "APNS_SANDBOX" -> return APNSSandbox
-    "APNS_VOIP" -> return APNSVoIP
-    "APNS_VOIP_SANDBOX" -> return APNSVoIPSandbox
+    "GCM" -> pure GCM
+    "APNS" -> pure APNS
+    "APNS_SANDBOX" -> pure APNSSandbox
+    "APNS_VOIP" -> pure APNSVoIP
+    "APNS_VOIP_SANDBOX" -> pure APNSVoIPSandbox
     x -> fail $ "Invalid push transport: " ++ show x
 
 instance FromByteString Transport where
   parser =
     takeByteString >>= \case
-      "GCM" -> return GCM
-      "APNS" -> return APNS
-      "APNS_SANDBOX" -> return APNSSandbox
-      "APNS_VOIP" -> return APNSVoIP
-      "APNS_VOIP_SANDBOX" -> return APNSVoIPSandbox
+      "GCM" -> pure GCM
+      "APNS" -> pure APNS
+      "APNS_SANDBOX" -> pure APNSSandbox
+      "APNS_VOIP" -> pure APNSVoIP
+      "APNS_VOIP_SANDBOX" -> pure APNSVoIPSandbox
       x -> fail $ "Invalid push transport: " <> show x
 
 newtype Token = Token

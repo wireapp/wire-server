@@ -811,10 +811,10 @@ instance
 getResponseContentType :: RunClient m => Response -> m M.MediaType
 getResponseContentType response =
   case lookup "Content-Type" (toList (responseHeaders response)) of
-    Nothing -> return $ "application" M.// "octet-stream"
+    Nothing -> pure $ "application" M.// "octet-stream"
     Just t -> case M.parseAccept t of
       Nothing -> throwClientError $ InvalidContentTypeHeader response
-      Just t' -> return t'
+      Just t' -> pure t'
 
 -- FUTUREWORK: add tests for client support
 instance

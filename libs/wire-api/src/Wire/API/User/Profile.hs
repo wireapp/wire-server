@@ -316,4 +316,4 @@ checkAndConvert f t =
 codeParser :: String -> (String -> Maybe a) -> Parser a
 codeParser err conv = do
   code <- count 2 anyChar
-  maybe (fail err) return (conv code)
+  maybe (fail err) pure (conv code)

@@ -181,7 +181,7 @@ instance ToByteString Email where
   builder = builder . fromEmail
 
 instance FromByteString Email where
-  parser = parser >>= maybe (fail "Invalid email") return . parseEmail
+  parser = parser >>= maybe (fail "Invalid email") pure . parseEmail
 
 instance Arbitrary Email where
   arbitrary = do
@@ -254,7 +254,7 @@ instance ToByteString Phone where
   builder = builder . fromPhone
 
 instance FromByteString Phone where
-  parser = parser >>= maybe (fail "Invalid phone") return . parsePhone
+  parser = parser >>= maybe (fail "Invalid phone") pure . parsePhone
 
 instance Arbitrary Phone where
   arbitrary =
@@ -304,7 +304,7 @@ instance S.ToSchema UserSSOId where
     tenantSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'Issuer'
     subjectSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'NameID'
     scimSchema <- S.declareSchemaRef (Proxy @Text)
-    return $
+    pure $
       S.NamedSchema (Just "UserSSOId") $
         mempty
           & S.type_ ?~ S.SwaggerObject
