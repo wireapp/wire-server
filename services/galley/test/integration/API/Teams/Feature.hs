@@ -366,7 +366,7 @@ testClassifiedDomainsDisabled = do
         opts
           & over
             (optSettings . setFeatureFlags . flagClassifiedDomains)
-            (\(ImplicitLockStatus s) -> ImplicitLockStatus $ s {Public.wsStatus = Public.FeatureStatusDisabled, Public.wsConfig = Public.ClassifiedDomainsConfig []})
+            (\(ImplicitLockStatus s) -> ImplicitLockStatus (s & Public.setStatus Public.FeatureStatusDisabled & Public.setConfig (Public.ClassifiedDomainsConfig [])))
   withSettingsOverrides classifiedDomainsDisabled $ do
     getClassifiedDomains member tid expected
     getClassifiedDomainsInternal tid expected
@@ -701,7 +701,7 @@ testSelfDeletingMessages = do
           (Public.SelfDeletingMessagesConfig tout)
       settingWithLockStatus :: FeatureStatus -> Int32 -> Public.LockStatus -> Public.WithStatus Public.SelfDeletingMessagesConfig
       settingWithLockStatus stat tout lockStatus =
-        Public.WithStatus
+        Public.withStatus
           stat
           lockStatus
           (Public.SelfDeletingMessagesConfig tout)
@@ -804,7 +804,7 @@ testGuestLinks getStatus putStatus setLockStatusInternal = do
       checkGet status lock =
         getStatus owner tid !!! do
           statusCode === const 200
-          responseJsonEither === const (Right (Public.WithStatus status lock Public.GuestLinksConfig))
+          responseJsonEither === const (Right (Public.withStatus status lock Public.GuestLinksConfig))
 
       checkSet :: HasCallStack => Public.FeatureStatus -> Int -> TestM ()
       checkSet status expectedStatusCode =
@@ -871,20 +871,20 @@ testAllFeatures = do
   where
     expected confCalling lockStateSelfDeleting =
       Public.AllFeatureConfigs
-        { Public.afcLegalholdStatus = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.LegalholdConfig,
-          Public.afcSSOStatus = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SSOConfig,
-          Public.afcTeamSearchVisibilityAvailable = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SearchVisibilityAvailableConfig,
-          Public.afcValidateSAMLEmails = Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.ValidateSAMLEmailsConfig,
-          Public.afcDigitalSignatures = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.DigitalSignaturesConfig,
-          Public.afcAppLock = Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked (Public.AppLockConfig (Public.EnforceAppLock False) (60 :: Int32)),
-          Public.afcFileSharing = Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.FileSharingConfig,
-          Public.afcClassifiedDomains = Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked (Public.ClassifiedDomainsConfig [Domain "example.com"]),
-          Public.afcConferenceCalling = Public.WithStatus confCalling Public.LockStatusUnlocked Public.ConferenceCallingConfig,
-          Public.afcSelfDeletingMessages = Public.WithStatus FeatureStatusEnabled lockStateSelfDeleting (Public.SelfDeletingMessagesConfig 0),
-          Public.afcGuestLink = Public.WithStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
-          Public.afcSndFactorPasswordChallenge = Public.WithStatus FeatureStatusDisabled Public.LockStatusLocked Public.SndFactorPasswordChallengeConfig,
-          Public.afcMLS = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked (Public.MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519),
-          Public.afcSearchVisibilityInboundConfig = Public.WithStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SearchVisibilityInboundConfig
+        { Public.afcLegalholdStatus = Public.withStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.LegalholdConfig,
+          Public.afcSSOStatus = Public.withStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SSOConfig,
+          Public.afcTeamSearchVisibilityAvailable = Public.withStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SearchVisibilityAvailableConfig,
+          Public.afcValidateSAMLEmails = Public.withStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.ValidateSAMLEmailsConfig,
+          Public.afcDigitalSignatures = Public.withStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.DigitalSignaturesConfig,
+          Public.afcAppLock = Public.withStatus FeatureStatusEnabled Public.LockStatusUnlocked (Public.AppLockConfig (Public.EnforceAppLock False) (60 :: Int32)),
+          Public.afcFileSharing = Public.withStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.FileSharingConfig,
+          Public.afcClassifiedDomains = Public.withStatus FeatureStatusEnabled Public.LockStatusUnlocked (Public.ClassifiedDomainsConfig [Domain "example.com"]),
+          Public.afcConferenceCalling = Public.withStatus confCalling Public.LockStatusUnlocked Public.ConferenceCallingConfig,
+          Public.afcSelfDeletingMessages = Public.withStatus FeatureStatusEnabled lockStateSelfDeleting (Public.SelfDeletingMessagesConfig 0),
+          Public.afcGuestLink = Public.withStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig,
+          Public.afcSndFactorPasswordChallenge = Public.withStatus FeatureStatusDisabled Public.LockStatusLocked Public.SndFactorPasswordChallengeConfig,
+          Public.afcMLS = Public.withStatus FeatureStatusDisabled Public.LockStatusUnlocked (Public.MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519),
+          Public.afcSearchVisibilityInboundConfig = Public.withStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SearchVisibilityInboundConfig
         }
 
 testFeatureConfigConsistency :: TestM ()
@@ -1067,7 +1067,7 @@ assertFlagNoConfigWithLockStatus res expectedStatus expectedLockStatus = do
   res !!! do
     statusCode === const 200
     responseJsonEither @(Public.WithStatus cfg)
-      === const (Right (Public.WithStatus expectedStatus expectedLockStatus (Public.trivialConfig @cfg)))
+      === const (Right (Public.withStatus expectedStatus expectedLockStatus (Public.trivialConfig @cfg)))
 
 assertFlagWithConfig ::
   forall cfg m.
@@ -1106,7 +1106,7 @@ wsAssertFeatureTrivialConfigUpdate status notification = do
   let e :: FeatureConfig.Event = List1.head (WS.unpackPayload notification)
   FeatureConfig._eventType e @?= FeatureConfig.Update
   FeatureConfig._eventFeatureName e @?= Public.featureName @cfg
-  FeatureConfig._eventData e @?= Aeson.toJSON (Public.WithStatus status (Public.wsLockStatus (Public.defFeatureStatus @cfg)) (Public.trivialConfig @cfg))
+  FeatureConfig._eventData e @?= Aeson.toJSON (Public.withStatus status (Public.wsLockStatus (Public.defFeatureStatus @cfg)) (Public.trivialConfig @cfg))
 
 wsAssertFeatureConfigWithLockStatusUpdate ::
   forall cfg.
@@ -1124,7 +1124,7 @@ wsAssertFeatureConfigWithLockStatusUpdate status lockStatus notification = do
   let e :: FeatureConfig.Event = List1.head (WS.unpackPayload notification)
   FeatureConfig._eventType e @?= FeatureConfig.Update
   FeatureConfig._eventFeatureName e @?= (Public.featureName @cfg)
-  FeatureConfig._eventData e @?= Aeson.toJSON (Public.WithStatus status lockStatus (Public.trivialConfig @cfg))
+  FeatureConfig._eventData e @?= Aeson.toJSON (Public.withStatus status lockStatus (Public.trivialConfig @cfg))
 
 wsAssertFeatureConfigUpdate ::
   forall cfg.

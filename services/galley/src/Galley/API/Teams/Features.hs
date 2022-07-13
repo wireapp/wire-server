@@ -25,7 +25,7 @@ module Galley.API.Teams.Features
     getAllFeatureConfigsForServer,
     getAllFeatureConfigsForTeam,
     getAllFeatureConfigsForUser,
-    setLockStatus,
+    updateLockStatus,
     -- Don't export methods of this typeclass
     GetFeatureConfig,
     -- Don't export methods of this typeclass
@@ -249,16 +249,15 @@ patchFeatureStatusInternal ::
 patchFeatureStatusInternal tid patch = do
   currentFeatureStatus <- getFeatureStatus @db @cfg DontDoAuth tid
   let newFeatureStatus = applyPatch currentFeatureStatus
-  when (isJust $ wsLockStatus' patch) $ void $ setLockStatus @db @cfg tid (wsLockStatus newFeatureStatus)
+  when (isJust $ wsLockStatus' patch) $ void $ updateLockStatus @db @cfg tid (wsLockStatus newFeatureStatus)
   setConfigForTeam @db @cfg tid (forgetLock newFeatureStatus) Nothing
   where
     applyPatch :: WithStatus cfg -> WithStatus cfg
     applyPatch current =
       current
-        { wsbStatus = Identity $ fromMaybe (wsStatus current) (wsStatus' patch),
-          wsbLockStatus = Identity $ fromMaybe (wsLockStatus current) (wsLockStatus' patch),
-          wsbConfig = Identity $ fromMaybe (wsConfig current) (wsConfig' patch)
-        }
+        & setStatus (fromMaybe (wsStatus current) (wsStatus' patch))
+        & setLockStatus (fromMaybe (wsLockStatus current) (wsLockStatus' patch))
+        & setConfig (fromMaybe (wsConfig current) (wsConfig' patch))
 
 setFeatureStatus ::
   forall db cfg r.
@@ -317,7 +316,7 @@ setFeatureStatusInternal ::
   Sem r (WithStatus cfg)
 setFeatureStatusInternal tid wsnl mTtl = setFeatureStatus @db @cfg mTtl DontDoAuth tid wsnl
 
-setLockStatus ::
+updateLockStatus ::
   forall db cfg r.
   ( FeaturePersistentConstraint db cfg,
     Member (TeamFeatureStore db) r,
@@ -327,7 +326,7 @@ setLockStatus ::
   TeamId ->
   LockStatus ->
   Sem r LockStatusResponse
-setLockStatus tid lockStatus = do
+updateLockStatus tid lockStatus = do
   assertTeamExists tid
   TeamFeatures.setFeatureLockStatus @db (Proxy @cfg) tid lockStatus
   pure $ LockStatusResponse lockStatus

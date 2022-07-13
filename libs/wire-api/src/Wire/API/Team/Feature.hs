@@ -25,7 +25,6 @@ module Wire.API.Team.Feature
     featureName,
     featureNameBS,
     LockStatus (..),
-    WithStatusBase (..),
     WithStatus,
     withStatus,
     withStatus',
@@ -33,6 +32,8 @@ module Wire.API.Team.Feature
     wsLockStatus,
     wsConfig,
     setStatus,
+    setLockStatus,
+    setConfig,
     WithStatusPatch,
     wsStatus',
     wsLockStatus',
@@ -182,6 +183,7 @@ data WithStatusBase (m :: * -> *) (cfg :: *) = WithStatusBase
 
 type WithStatus cfg = WithStatusId cfg
 
+-- FUTUREWORK: use lenses, maybe?
 wsStatus :: WithStatus cfg -> FeatureStatus
 wsStatus = runIdentity . wsbStatus
 
@@ -196,6 +198,12 @@ withStatus s ls c = WithStatusBase (Identity s) (Identity ls) (Identity c)
 
 setStatus :: FeatureStatus -> WithStatus cfg -> WithStatus cfg
 setStatus s (WithStatusBase _ ls c) = WithStatusBase (Identity s) ls c
+
+setLockStatus :: LockStatus -> WithStatus cfg -> WithStatus cfg
+setLockStatus ls (WithStatusBase s _ c) = WithStatusBase s (Identity ls) c
+
+setConfig :: cfg -> WithStatus cfg -> WithStatus cfg
+setConfig c (WithStatusBase s ls _) = WithStatusBase s ls (Identity c)
 
 type WithStatusId (cfg :: *) = WithStatusBase Identity cfg
 
