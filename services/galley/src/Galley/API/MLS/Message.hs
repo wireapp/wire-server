@@ -18,6 +18,7 @@
 
 module Galley.API.MLS.Message
   ( postMLSMessageFromLocalUser,
+    postMLSMessageFromLocalUserV1,
     postMLSMessage,
     MLSMessageStaticErrors,
   )
@@ -90,7 +91,7 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSUnsupportedProposal
    ]
 
-postMLSMessageFromLocalUser ::
+postMLSMessageFromLocalUserV1 ::
   ( HasProposalEffects r,
     Members
       '[ Resource,
@@ -110,9 +111,36 @@ postMLSMessageFromLocalUser ::
   ConnId ->
   RawMLS SomeMessage ->
   Sem r [Event]
-postMLSMessageFromLocalUser lusr conn msg =
+postMLSMessageFromLocalUserV1 lusr conn msg =
   map lcuEvent
     <$> postMLSMessage lusr (qUntagged lusr) (Just conn) msg
+
+postMLSMessageFromLocalUser ::
+  ( HasProposalEffects r,
+    Members
+      '[ Resource,
+         Error FederationError,
+         ErrorS 'ConvAccessDenied,
+         ErrorS 'ConvNotFound,
+         Error InternalError,
+         ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSProposalNotFound,
+         ErrorS 'MissingLegalholdConsent,
+         TinyLog
+       ]
+      r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  RawMLS SomeMessage ->
+  Sem r MLSMessageSendingStatus
+postMLSMessageFromLocalUser lusr conn msg = do
+  -- FUTUREWORK: Inline the body of 'postMLSMessageFromLocalUserV1' once version
+  -- V1 is dropped
+  events <- postMLSMessageFromLocalUserV1 lusr conn msg
+  t <- toUTCTimeMillis <$> input
+  pure $ MLSMessageSendingStatus events t
 
 postMLSMessage ::
   ( HasProposalEffects r,

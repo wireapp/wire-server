@@ -50,6 +50,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Event.Conversation
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -393,9 +394,9 @@ claimKeyPackage brig claimant target =
 postCommit :: HasCallStack => MessagingSetup -> TestM [Event]
 postCommit MessagingSetup {..} = do
   galley <- viewGalley
-  responseJsonError
+  fmap mmssEvents . responseJsonError
     =<< post
-      ( galley . paths ["mls", "messages"]
+      ( galley . paths ["v2", "mls", "messages"]
           . zUser (qUnqualified (pUserId creator))
           . zConn "conn"
           . content "message/mls"
