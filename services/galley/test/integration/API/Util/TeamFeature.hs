@@ -269,7 +269,7 @@ patchFeatureStatusInternal ::
     ToSchema cfg
   ) =>
   TeamId ->
-  Public.WithStatus' cfg ->
+  Public.WithStatusPatch cfg ->
   TestM ResponseLBS
 patchFeatureStatusInternal tid reqBody = do
   galley <- view tsGalley

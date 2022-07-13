@@ -244,7 +244,7 @@ patchFeatureStatusInternal ::
       r
   ) =>
   TeamId ->
-  WithStatus' cfg ->
+  WithStatusPatch cfg ->
   Sem r (WithStatus cfg)
 patchFeatureStatusInternal tid patch = do
   currentFeatureStatus <- getFeatureStatus @db @cfg DontDoAuth tid

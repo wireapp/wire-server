@@ -373,7 +373,7 @@ type FeatureStatusBasePatchInternal errs featureConfig =
     (AppendSymbol "Patch config for " (FeatureSymbol featureConfig))
     errs
     featureConfig
-    ( ReqBody '[Servant.JSON] (WithStatus' featureConfig)
+    ( ReqBody '[Servant.JSON] (WithStatusPatch featureConfig)
         :> Patch '[Servant.JSON] (WithStatus featureConfig)
     )
 

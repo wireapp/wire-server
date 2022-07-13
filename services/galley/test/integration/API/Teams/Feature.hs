@@ -122,14 +122,15 @@ testPatch ::
     Show cfg,
     KnownSymbol (Public.FeatureSymbol cfg),
     Arbitrary (Public.WithStatus cfg),
-    Arbitrary (Public.WithStatus' cfg)
+    Arbitrary (Public.WithStatusPatch cfg)
   ) =>
   Public.FeatureStatus ->
   cfg ->
   TestM ()
 testPatch defStatus defConfig = do
   (_, tid) <- Util.createBindingTeam
-  rndFeatureConfig :: Public.WithStatus' cfg <- liftIO (generate arbitrary)
+  Just original <- responseJsonMaybe <$> Util.getFeatureStatusInternal @cfg tid
+  rndFeatureConfig :: Public.WithStatusPatch cfg <- liftIO (generate arbitrary)
   patchFeatureStatusInternal tid rndFeatureConfig !!! statusCode === const 200
   Just actual <- responseJsonMaybe <$> Util.getFeatureStatusInternal @cfg tid
   liftIO $
@@ -138,9 +139,9 @@ testPatch defStatus defConfig = do
         Public.wsStatus actual @?= defStatus
         Public.wsConfig actual @?= defConfig
       else do
-        Public.wsStatus actual @?= fromMaybe (Public.wsStatus actual) (Public.wsStatus' rndFeatureConfig)
-        Public.wsLockStatus actual @?= fromMaybe (Public.wsLockStatus actual) (Public.wsLockStatus' rndFeatureConfig)
-        Public.wsConfig actual @?= fromMaybe (Public.wsConfig actual) (Public.wsConfig' rndFeatureConfig)
+        Public.wsStatus actual @?= fromMaybe (Public.wsStatus original) (Public.wsStatus' rndFeatureConfig)
+        Public.wsLockStatus actual @?= fromMaybe (Public.wsLockStatus original) (Public.wsLockStatus' rndFeatureConfig)
+        Public.wsConfig actual @?= fromMaybe (Public.wsConfig original) (Public.wsConfig' rndFeatureConfig)
 
 testSSO :: TestM ()
 testSSO = do

@@ -230,8 +230,8 @@ import qualified Test.Wire.API.Golden.Generated.VerificationAction_user
 import qualified Test.Wire.API.Golden.Generated.VerifyDeleteUser_user
 import qualified Test.Wire.API.Golden.Generated.ViewLegalHoldServiceInfo_team
 import qualified Test.Wire.API.Golden.Generated.ViewLegalHoldService_team
-import qualified Test.Wire.API.Golden.Generated.WithStatus'_team
 import qualified Test.Wire.API.Golden.Generated.WithStatusNoLock_team
+import qualified Test.Wire.API.Golden.Generated.WithStatusPatch_team
 import qualified Test.Wire.API.Golden.Generated.WithStatus_team
 import qualified Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
 import Test.Wire.API.Golden.Runner
@@ -1301,79 +1301,79 @@ tests =
             (Test.Wire.API.Golden.Generated.VerificationAction_user.testObject_VerificationAction_user_3, "testObject_VerificationAction_user_3")
           ],
       testGroup
-        "Golden: WithStatus'_team 1"
+        "Golden: WithStatusPatch_team 1"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_1, "testObject_WithStatus'_team_1.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_1, "testObject_WithStatusPatch_team_1.json")],
       testGroup
-        "Golden: WithStatus'_team 2"
+        "Golden: WithStatusPatch_team 2"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_2, "testObject_WithStatus'_team_2.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_2, "testObject_WithStatusPatch_team_2.json")],
       testGroup
-        "Golden: WithStatus'_team 3"
+        "Golden: WithStatusPatch_team 3"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_3, "testObject_WithStatus'_team_3.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_3, "testObject_WithStatusPatch_team_3.json")],
       testGroup
-        "Golden: WithStatus'_team 4"
+        "Golden: WithStatusPatch_team 4"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_4, "testObject_WithStatus'_team_4.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_4, "testObject_WithStatusPatch_team_4.json")],
       testGroup
-        "Golden: WithStatus'_team 5"
+        "Golden: WithStatusPatch_team 5"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_5, "testObject_WithStatus'_team_5.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_5, "testObject_WithStatusPatch_team_5.json")],
       testGroup
-        "Golden: WithStatus'_team 6"
+        "Golden: WithStatusPatch_team 6"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_6, "testObject_WithStatus'_team_6.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_6, "testObject_WithStatusPatch_team_6.json")],
       testGroup
-        "Golden: WithStatus'_team 7"
+        "Golden: WithStatusPatch_team 7"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_7, "testObject_WithStatus'_team_7.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_7, "testObject_WithStatusPatch_team_7.json")],
       testGroup
-        "Golden: WithStatus'_team 8"
+        "Golden: WithStatusPatch_team 8"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_8, "testObject_WithStatus'_team_8.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_8, "testObject_WithStatusPatch_team_8.json")],
       testGroup
-        "Golden: WithStatus'_team 9"
+        "Golden: WithStatusPatch_team 9"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_9, "testObject_WithStatus'_team_9.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_9, "testObject_WithStatusPatch_team_9.json")],
       testGroup
-        "Golden: WithStatus'_team 10"
+        "Golden: WithStatusPatch_team 10"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_10, "testObject_WithStatus'_team_10.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_10, "testObject_WithStatusPatch_team_10.json")],
       testGroup
-        "Golden: WithStatus'_team 11"
+        "Golden: WithStatusPatch_team 11"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_11, "testObject_WithStatus'_team_11.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_11, "testObject_WithStatusPatch_team_11.json")],
       testGroup
-        "Golden: WithStatus'_team 12"
+        "Golden: WithStatusPatch_team 12"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_12, "testObject_WithStatus'_team_12.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_12, "testObject_WithStatusPatch_team_12.json")],
       testGroup
-        "Golden: WithStatus'_team 13"
+        "Golden: WithStatusPatch_team 13"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_13, "testObject_WithStatus'_team_13.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_13, "testObject_WithStatusPatch_team_13.json")],
       testGroup
-        "Golden: WithStatus'_team 14"
+        "Golden: WithStatusPatch_team 14"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_14, "testObject_WithStatus'_team_14.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_14, "testObject_WithStatusPatch_team_14.json")],
       testGroup
-        "Golden: WithStatus'_team 15"
+        "Golden: WithStatusPatch_team 15"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_15, "testObject_WithStatus'_team_15.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_15, "testObject_WithStatusPatch_team_15.json")],
       testGroup
-        "Golden: WithStatus'_team 16"
+        "Golden: WithStatusPatch_team 16"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_16, "testObject_WithStatus'_team_16.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_16, "testObject_WithStatusPatch_team_16.json")],
       testGroup
-        "Golden: WithStatus'_team 17"
+        "Golden: WithStatusPatch_team 17"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_17, "testObject_WithStatus'_team_17.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_17, "testObject_WithStatusPatch_team_17.json")],
       testGroup
-        "Golden: WithStatus'_team 18"
+        "Golden: WithStatusPatch_team 18"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_18, "testObject_WithStatus'_team_18.json")],
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_18, "testObject_WithStatusPatch_team_18.json")],
       testGroup
-        "Golden: WithStatus'_team 19"
+        "Golden: WithStatusPatch_team 19"
         $ testObjects
-          [(Test.Wire.API.Golden.Generated.WithStatus'_team.testObject_WithStatus'_team_19, "testObject_WithStatus'_team_19.json")]
+          [(Test.Wire.API.Golden.Generated.WithStatusPatch_team.testObject_WithStatusPatch_team_19, "testObject_WithStatusPatch_team_19.json")]
     ]
