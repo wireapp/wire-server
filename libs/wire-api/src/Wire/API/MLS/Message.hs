@@ -72,8 +72,7 @@ instance ParseMLS (Message 'MLSPlainText) where
     e <- parseMLS
     s <- parseMLS
     d <- parseMLSBytes @Word32
-    p <- parseMLS
-    pure (Message g e d s p)
+    Message g e d s <$> parseMLS
 
 instance ParseMLS (Message 'MLSCipherText) where
   parseMLS = do

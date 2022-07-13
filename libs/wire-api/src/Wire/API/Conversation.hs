@@ -732,11 +732,10 @@ instance ToSchema ConvTeamInfo where
       $ ConvTeamInfo
         <$> cnvTeamId .= field "teamid" schema
         <* const ()
-          .= ( fieldWithDocModifier
-                 "managed"
-                 (description ?~ "(Not parsed any more) Whether this is a managed team conversation")
-                 (c (False :: Bool))
-             )
+          .= fieldWithDocModifier
+            "managed"
+            (description ?~ "(Not parsed any more) Whether this is a managed team conversation")
+            (c (False :: Bool))
     where
       c :: ToJSON a => a -> ValueSchema SwaggerDoc ()
       c val = mkSchema mempty (const (pure ())) (const (pure (toJSON val)))
