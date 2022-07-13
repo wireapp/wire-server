@@ -1,3 +1,49 @@
+# [2022-07-12] (Chart Release 4.19.0)
+
+## Release notes
+
+
+* Deploy spar before galley (#2543)
+
+* Upgrade team-settings version to 4.11.0-v0.31.1-0-9e64150 (#2180)
+
+
+## API changes
+
+
+* Restore PUT /v2/connections endpoint (#2539)
+
+
+## Features
+
+
+* 2nd factor authentication code generation is rate limited now (#2522)
+
+* The team member CSV export now fills `created_on` for SCIM users (#2543)
+
+
+## Internal changes
+
+
+* Add Helm chart for inbucket. Inbucket is a SMTP server that does not relay, but instead display received mail in a webapp and make them accessible via an API. (#2544)
+
+* Bump saml2-web-sso (#2545, #2546)
+
+* use checkedConnectCluster to avoid dropping requests to Redis when Gundeck reconnects to the Redis cluster (#2542)
+
+* Do not log polysemy errors in Galley (#2531)
+
+* Remove old crypto-cli tool from the ubuntu image (#2538)
+
+
+## Federation changes
+
+
+* Added new-remote-conversation RPC, used to notify a backend of a remote conversation the first time any user from that backend is added to it. (#2378)
+
+* Added federation endpoint `send-mls-message` used to send messages to remote converesations (#2378)
+
+
 # [2022-07-05] (Chart Release 4.18.0)
 
 ## Release notes

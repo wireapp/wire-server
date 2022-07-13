@@ -1,1 +1,0 @@
-use checkedConnectCluster to avoid dropping requests to Redis when Gundeck reconnects to the Redis cluster

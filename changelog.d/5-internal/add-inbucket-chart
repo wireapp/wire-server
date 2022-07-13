@@ -1,1 +1,0 @@
-Add Helm chart for inbucket. Inbucket is a SMTP server that does not relay, but instead display received mail in a webapp and make them accessible via an API.
