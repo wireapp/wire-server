@@ -56,6 +56,7 @@ import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
@@ -110,7 +111,8 @@ tests s =
             ],
           testGroup
             "Remote Sender/Local Conversation"
-            [ test s "POST /federation/send-mls-message" testRemoteToLocal
+            [ test s "POST /federation/send-mls-message" testRemoteToLocal,
+              test s "POST /federation/send-mls-message, remote user is not a conversation member" testRemoteNonMemberToLocal
             ],
           testGroup
             "Remote Sender/Remote Conversation"
@@ -1025,9 +1027,8 @@ testRemoteToLocal = do
                 $ bob
             ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
 
-    _ <-
-      withTempMockFederator' mockedResponse $
-        postCommit setup
+    void . withTempMockFederator' mockedResponse $
+      postCommit setup
     void . liftIO $
       spawn
         ( cli
@@ -1073,6 +1074,67 @@ testRemoteToLocal = do
       resp @?= MLSMessageResponseUpdates []
       WS.assertMatch_ (5 # Second) ws $
         wsAssertMLSMessage conversation (pUserId bob) message
+
+testRemoteNonMemberToLocal :: TestM ()
+testRemoteNonMemberToLocal = do
+  -- alice is local, bob is remote
+  -- alice creates a local conversation and invites bob
+  -- bob then sends a message to the conversation
+
+  let bobDomain = Domain "faraway.example.com"
+
+  -- Simulate the whole MLS setup for both clients first. In reality,
+  -- backend calls would need to happen in order for bob to get ahold of a
+  -- welcome message, but that should not affect the correctness of the test.
+
+  (MessagingSetup {..}, message) <- withSystemTempDirectory "mls" $ \tmp -> do
+    setup <-
+      aliceInvitesBobWithTmp
+        tmp
+        (1, RemoteUser bobDomain)
+        def
+          { createConv = CreateConv
+          }
+    bob <- assertOne (users setup)
+    void . liftIO $
+      spawn
+        ( cli
+            (pClientQid bob)
+            tmp
+            [ "group",
+              "from-welcome",
+              "--group-out",
+              tmp </> "groupB.json",
+              tmp </> "welcome"
+            ]
+        )
+        Nothing
+    message <-
+      liftIO $
+        spawn
+          ( cli
+              (pClientQid bob)
+              tmp
+              ["message", "--group", tmp </> "groupB.json", "hello from another backend"]
+          )
+          Nothing
+    pure (setup, message)
+
+  let bob = head users
+  fedGalleyClient <- view tsFedGalleyClient
+
+  -- actual test
+
+  let msr =
+        MessageSendRequest
+          { msrConvId = qUnqualified conversation,
+            msrSender = qUnqualified (pUserId bob),
+            msrRawMessage = Base64ByteString message
+          }
+
+  resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
+  liftIO $ do
+    resp @?= MLSMessageResponseError ConvNotFound
 
 -- | The group exists in mls-test-cli's store, but not in wire-server's database.
 propNonExistingConv :: TestM ()
