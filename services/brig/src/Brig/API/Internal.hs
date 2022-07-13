@@ -127,7 +127,7 @@ mlsAPI =
 accountAPI :: Member BlacklistStore r => ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
   Named @"createUserNoVerify" createUserNoVerify
-  :<|> Named @"createUserNoVerifySpar" createUserNoVerifySpar
+    :<|> Named @"createUserNoVerifySpar" createUserNoVerifySpar
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound

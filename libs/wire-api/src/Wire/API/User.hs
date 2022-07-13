@@ -44,7 +44,6 @@ module Wire.API.User
     -- * NewUser
     NewUserPublic (..),
     RegisterError (..),
-    -- CreateUserSparError (..),
     RegisterSuccess (..),
     RegisterResponses,
     RegisterInternalResponses,

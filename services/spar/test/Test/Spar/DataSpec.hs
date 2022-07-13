@@ -44,11 +44,11 @@ check testnumber env (parsetm -> endOfLife) expectttl =
 parsetm :: HasCallStack => String -> UTCTime
 parsetm = fromJust . parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ"
 
-{-# HLINT ignore "Eta reduce" #-} -- For clarity
+{-# HLINT ignore "Eta reduce" #-}
+-- For clarity
 mkDataEnv :: HasCallStack => String -> TTL "authresp" -> Env
 mkDataEnv now maxttl =
   Env
     (parsetm now)
     0 -- will not be looked at
     maxttl -- this one will
-
