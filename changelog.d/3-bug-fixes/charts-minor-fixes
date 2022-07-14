@@ -1,0 +1,5 @@
+Minor fixes in helmcharts:
+- charts/galley: Honour .setttings.httpPoolSize
+- charts/galley: Fix typo in settings.featureFlags.validateSAMLEmails
+- charts/gundeck: Remove aws.connectionLimit
+- charts/brig: Fix default brandLabelUrl and remove brandLabel
