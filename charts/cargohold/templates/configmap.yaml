@@ -4,8 +4,9 @@ metadata:
   name: "cargohold"
 data:
   cargohold.yaml: |
-    logNetStrings: True # log using netstrings encoding: http://cr.yp.to/proto/netstrings.txt
+    logFormat: {{ .Values.config.logFormat }}
     logLevel: {{ .Values.config.logLevel }}
+    logNetStrings: {{ .Values.config.logNetStrings }}
 
     cargohold:
       host: 0.0.0.0

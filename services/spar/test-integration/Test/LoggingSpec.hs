@@ -41,7 +41,7 @@ spec = describe "logging" $ do
       (out, _) <- capture $ do
         Log.fatal logger $ Log.msg ("hrgh\n\nwoaa" :: Text)
         Log.flush logger
-      out `shouldContain` "hrgh  woaa"
+      out `shouldContain` "hrgh"
       out `shouldNotContain` "hrgh\n\nwoaa"
   context "loglevel == debug" $ do
     it "400 on finalize-login causes log of entire request" $ do

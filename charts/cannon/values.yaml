@@ -9,6 +9,8 @@ nginzImage:
   pullPolicy: IfNotPresent
 config:
   logLevel: Info
+  logFormat: StructuredJSON
+  logNetStrings: false
 
   # See also the section 'Controlling the speed of websocket draining during
   # cannon pod replacement' in docs/how-to/install/configuration-options.rst

@@ -1,0 +1,1 @@
+charts/wire-server: default log format everywhere to StructuredJSON format (introduced in #1951 and #1959)
