@@ -1317,6 +1317,7 @@ type MLSMessagingAPI =
            ( Summary "Post an MLS message"
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
+               :> CanThrow 'ConvMemberNotFound
                :> CanThrow 'MLSKeyPackageRefNotFound
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSProtocolErrorTag
@@ -1327,6 +1328,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSUnsupportedProposal
                :> CanThrow 'LegalHoldNotEnabled
                :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'MLSCommitMissingReferences
                :> "messages"
                :> ZConn
                :> ReqBody '[MLS] (RawMLS SomeMessage)

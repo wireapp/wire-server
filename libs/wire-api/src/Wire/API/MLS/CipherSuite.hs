@@ -40,6 +40,11 @@ newtype CipherSuite = CipherSuite {cipherSuiteNumber :: Word16}
   deriving stock (Eq, Show)
   deriving newtype (ParseMLS, Arbitrary)
 
+instance ToSchema CipherSuite where
+  schema =
+    named "CipherSuite" $
+      cipherSuiteNumber .= fmap CipherSuite (unnamed schema)
+
 data CipherSuiteTag = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
   deriving stock (Bounded, Enum, Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CipherSuiteTag)

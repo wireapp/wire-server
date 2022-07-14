@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,9 +17,30 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module Galley.Effects.ProposalStore where
 
 import Imports
+import Polysemy
+import Wire.API.MLS.Group
+import Wire.API.MLS.Message
+import Wire.API.MLS.Proposal
+import Wire.API.MLS.Serialisation
 
-schemaVersion :: Int32
-schemaVersion = 70
+data ProposalStore m a where
+  StoreProposal ::
+    GroupId ->
+    Epoch ->
+    ProposalRef ->
+    RawMLS Proposal ->
+    ProposalStore m ()
+  GetProposal ::
+    GroupId ->
+    Epoch ->
+    ProposalRef ->
+    ProposalStore m (Maybe (RawMLS Proposal))
+  GetAllPendingProposals ::
+    GroupId ->
+    Epoch ->
+    ProposalStore m [ProposalRef]
+
+makeSem ''ProposalStore
