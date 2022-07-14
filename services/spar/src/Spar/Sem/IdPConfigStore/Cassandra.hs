@@ -27,6 +27,7 @@ import Control.Lens ((^.))
 import Control.Monad.Except
 import Data.Id
 import qualified Data.List.NonEmpty as NL
+import Data.Text (pack)
 import Data.X509 (SignedCertificate)
 import Imports
 import Polysemy
@@ -47,6 +48,7 @@ idPToCassandra =
   interpret $
     \case
       InsertConfig iw -> embed @m (runExceptT $ insertIdPConfig iw) >>= either throw pure
+      NewHandle tid -> embed @m (runExceptT $ newIdPHandleForTeam tid) >>= either throw pure
       GetConfig i -> embed @m (runExceptT $ getIdPConfig i) >>= either throw pure
       GetIdPByIssuerV1 i -> embed @m (runExceptT $ getIdPByIssuerV1 i) >>= either throw pure
       GetIdPByIssuerV1Maybe i -> embed @m (runExceptT $ getIdPByIssuerV1May i) >>= either throw pure
@@ -62,7 +64,7 @@ idPToCassandra =
       ClearReplacedBy r -> embed @m $ clearReplacedBy r
       DeleteIssuer i t -> embed @m $ deleteIssuer i t
 
-type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId, Maybe WireIdPAPIVersion, [SAML.Issuer], Maybe SAML.IdPId)
+type IdPConfigRow = (SAML.IdPId, SAML.Issuer, URI, SignedCertificate, [SignedCertificate], TeamId, Maybe WireIdPAPIVersion, [SAML.Issuer], Maybe SAML.IdPId, Maybe Text)
 
 insertIdPConfig ::
   forall m.
@@ -85,7 +87,8 @@ insertIdPConfig idp = do
         idp ^. SAML.idpExtraInfo . wiTeam,
         idp ^. SAML.idpExtraInfo . wiApiVersion,
         idp ^. SAML.idpExtraInfo . wiOldIssuers,
-        idp ^. SAML.idpExtraInfo . wiReplacedBy
+        idp ^. SAML.idpExtraInfo . wiReplacedBy,
+        Just (unIdPHandle $ idp ^. SAML.idpExtraInfo . wiHandle)
       )
     addPrepQuery
       byIssuer
@@ -122,6 +125,26 @@ insertIdPConfig idp = do
     byTeam :: PrepQuery W (SAML.IdPId, TeamId) ()
     byTeam = "INSERT INTO team_idp (idp, team) VALUES (?, ?)"
 
+newIdPHandleForTeam ::
+  forall m.
+  (HasCallStack, MonadClient m, MonadError IdpDbError m) =>
+  TeamId ->
+  m IdPHandle
+newIdPHandleForTeam tid = do
+  idpIds <- getIdPIdsByTeam tid
+  handles <- mapMaybe runIdentity <$> retry x1 (query sel (params LocalQuorum (Identity idpIds)))
+  pure $ IdPHandle $ newUniqueHandle 1 handles
+  where
+    sel :: PrepQuery R (Identity [SAML.IdPId]) (Identity (Maybe Text))
+    sel = "SELECT handle FROM idp WHERE idp IN ?"
+
+newUniqueHandle :: Int -> [Text] -> Text
+newUniqueHandle n handles =
+  let handle = "IdP " <> pack (show n)
+   in if handle `elem` handles
+        then newUniqueHandle (n + 1) handles
+        else handle
+
 getIdPConfig ::
   forall m.
   (HasCallStack, MonadClient m, MonadError IdpDbError m) =>
@@ -131,6 +154,9 @@ getIdPConfig idpid = do
   mbidp <- traverse toIdp =<< retry x1 (query1 sel $ params LocalQuorum (Identity idpid))
   maybe (throwError IdpNotFound) pure mbidp
   where
+    mkHandle :: SAML.IdPId -> Maybe Text -> IdPHandle
+    mkHandle idpid' = maybe (IdPHandle (pack (take 6 (show idpid')))) IdPHandle
+
     toIdp :: IdPConfigRow -> m IdP
     toIdp
       ( _idpId,
@@ -143,14 +169,16 @@ getIdPConfig idpid = do
         teamId,
         apiVersion,
         oldIssuers,
-        replacedBy
+        replacedBy,
+        mHandle
         ) = do
         let _edCertAuthnResponse = certsHead NL.:| certsTail
             _idpMetadata = SAML.IdPMetadata {..}
-            _idpExtraInfo = WireIdP teamId apiVersion oldIssuers replacedBy
+            _idpExtraInfo = WireIdP teamId apiVersion oldIssuers replacedBy (mkHandle _idpId mHandle)
         pure $ SAML.IdPConfig {..}
+
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
-    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by FROM idp WHERE idp = ?"
+    sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by, handle FROM idp WHERE idp = ?"
 
 -- | Get all idps with a given issuer, no matter what team or what idp version.
 getAllIdPsByIssuerUnsafe ::
@@ -261,9 +289,15 @@ getIdPConfigsByTeam ::
   (HasCallStack, MonadClient m, MonadError IdpDbError m) =>
   TeamId ->
   m [IdP]
-getIdPConfigsByTeam team = do
-  idpids <- runIdentity <$$> retry x1 (query sel $ params LocalQuorum (Identity team))
-  mapM getIdPConfig idpids
+getIdPConfigsByTeam team =
+  getIdPIdsByTeam team >>= mapM getIdPConfig
+
+getIdPIdsByTeam ::
+  (HasCallStack, MonadClient m, MonadError IdpDbError m) =>
+  TeamId ->
+  m [SAML.IdPId]
+getIdPIdsByTeam team = do
+  runIdentity <$$> retry x1 (query sel $ params LocalQuorum (Identity team))
   where
     sel :: PrepQuery R (Identity TeamId) (Identity SAML.IdPId)
     sel = "SELECT idp FROM team_idp WHERE team = ?"

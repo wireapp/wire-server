@@ -53,6 +53,7 @@ import qualified Data.ByteString as SBS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.Id
 import Data.Proxy
+import Data.Range
 import qualified Data.Set as Set
 import Data.String.Conversions
 import Data.Time
@@ -490,6 +491,7 @@ idpCreate ::
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
+  Maybe (Range 1 32 Text) ->
   Sem r IdP
 idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
 
@@ -511,12 +513,14 @@ idpCreateXML ::
   SAML.IdPMetadata ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
+  Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
+idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   GalleyAccess.assertSSOEnabled teamid
   assertNoScimOrNoIdP teamid
-  idp <- validateNewIdP apiversion idpmeta teamid mReplaces
+  handle <- maybe (IdPConfigStore.newHandle teamid) pure mHandle
+  idp <- validateNewIdP apiversion idpmeta teamid mReplaces handle
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   IdPConfigStore.insertConfig idp
   forM_ mReplaces $ \replaces ->
@@ -578,8 +582,9 @@ validateNewIdP ::
   SAML.IdPMetadata ->
   TeamId ->
   Maybe SAML.IdPId ->
+  IdPHandle ->
   m IdP
-validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validateNewIdP" (Just . show . (^. SAML.idpId)) $ do
+validateNewIdP apiversion _idpMetadata teamId mReplaces handle = withDebugLog "validateNewIdP" (Just . show . (^. SAML.idpId)) $ do
   _idpId <- SAML.IdPId <$> Random.uuid
   oldIssuers :: [SAML.Issuer] <- case mReplaces of
     Nothing -> pure []
@@ -587,7 +592,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
       idp <- IdPConfigStore.getConfig replaces
       pure $ (idp ^. SAML.idpMetadata . SAML.edIssuer) : (idp ^. SAML.idpExtraInfo . wiOldIssuers)
   let requri = _idpMetadata ^. SAML.edRequestURI
-      _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing
+      _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing handle
   enforceHttps requri
   mbIdp <- case apiversion of
     WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1Maybe (_idpMetadata ^. SAML.edIssuer)
