@@ -2029,7 +2029,7 @@ Bug fixes and other updates
 Documentation
 -------------
 
--  [SCIM] Document ``validateSAMLemails`` feature in
+-  [SCIM] Document ``validateSAMLEmails`` feature in
    docs/reference/spar-braindump.md (#1299)
 
 Internal changes

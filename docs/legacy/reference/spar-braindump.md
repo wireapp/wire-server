@@ -258,7 +258,7 @@ work fine.
 When users are SAML-authenticated with an email address under NameID,
 that email address is used by wire as an opaque identifier, not to
 send actual emails.  In order to *also* assign the user that email
-address, you can enable the feature flag `validateSAMLemails`.  This
+address, you can enable the feature flag `validateSAMLEmails`.  This
 will trigger the regular email validation flow that is also triggered
 when the user changes their email themselves.
 

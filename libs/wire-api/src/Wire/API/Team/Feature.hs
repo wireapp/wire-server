@@ -517,7 +517,7 @@ instance ToSchema ValidateSAMLEmailsConfig where
   schema = object "ValidateSAMLEmailsConfig" objectSchema
 
 instance IsFeatureConfig ValidateSAMLEmailsConfig where
-  type FeatureSymbol ValidateSAMLEmailsConfig = "validateSAMLemails"
+  type FeatureSymbol ValidateSAMLEmailsConfig = "validateSAMLEmails"
   defFeatureStatus = WithStatus FeatureStatusEnabled LockStatusUnlocked ValidateSAMLEmailsConfig
   objectSchema = pure ValidateSAMLEmailsConfig
 
