@@ -1,4 +1,5 @@
 Minor fixes in helmcharts:
+- charts/nginz: Ensure rate limiting isn't commented out
 - charts/galley: Honour .setttings.httpPoolSize
 - charts/galley: Fix typo in settings.featureFlags.validateSAMLEmails
 - charts/gundeck: Remove aws.connectionLimit

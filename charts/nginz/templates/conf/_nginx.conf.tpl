@@ -246,7 +246,7 @@ http {
             {{- if ($location.basic_auth) }}
         auth_basic "Restricted";
         auth_basic_user_file {{ $.Values.nginx_conf.basic_auth_file }};
-            {{- end -}}
+            {{- end }}
 
             {{- if ($location.disable_zauth) }}
         zauth off;
@@ -254,10 +254,10 @@ http {
         # If zauth is off, limit by remote address if not part of limit exemptions
               {{- if ($location.unlimited_requests_endpoint) }}
         # Note that this endpoint has no rate limit
-              {{- else -}}
+              {{- else }}
         limit_req zone=reqs_per_addr burst=5 nodelay;
         limit_conn conns_per_addr 20;
-              {{- end -}}
+              {{- end }}
             {{- else }}
 
               {{- if hasKey $location "specific_user_rate_limit" }}
