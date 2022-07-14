@@ -1718,6 +1718,7 @@ CREATE TABLE spar_test.idp (
     idp uuid PRIMARY KEY,
     api_version int,
     extra_public_keys list<blob>,
+    handle text,
     issuer text,
     old_issuers list<text>,
     public_key blob,
