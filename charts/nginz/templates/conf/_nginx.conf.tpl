@@ -255,14 +255,15 @@ http {
               {{- if ($location.unlimited_requests_endpoint) }}
         # Note that this endpoint has no rate limit
               {{- else }}
+                {{- if not (hasKey $location "specific_user_rate_limit") }}
         limit_req zone=reqs_per_addr burst=5 nodelay;
         limit_conn conns_per_addr 20;
+                {{- end }}
               {{- end }}
-            {{- else }}
+            {{- end }}
 
-              {{- if hasKey $location "specific_user_rate_limit" }}
-        limit_req zone={{ $location.specific_user_rate_limit }} nodelay;
-              {{- end }}
+            {{- if hasKey $location "specific_user_rate_limit" }}
+        limit_req zone={{ $location.specific_user_rate_limit }}{{ if hasKey $location "specific_user_rate_limit_burst" }} burst={{ $location.specific_user_rate_limit_burst }}{{ end }} nodelay;
             {{- end }}
 
         if ($request_method = 'OPTIONS') {
