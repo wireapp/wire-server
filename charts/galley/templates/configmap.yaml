@@ -79,9 +79,9 @@ data:
         searchVisibilityInbound:
           {{- toYaml .settings.featureFlags.searchVisibilityInbound | nindent 10 }}
         {{- end }}
-        {{- if .settings.featureFlags.validateSAMLemails }}
-        validateSAMLemails:
-          {{- toYaml .settings.featureFlags.validateSAMLemails | nindent 10 }}
+        {{- if .settings.featureFlags.validateSAMLEmails }}
+        validateSAMLEmails:
+          {{- toYaml .settings.featureFlags.validateSAMLEmails | nindent 10 }}
         {{- end }}
         {{- if .settings.featureFlags.appLock }}
         appLock:
