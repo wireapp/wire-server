@@ -3,5 +3,6 @@
         "enforceAppLock": true,
         "inactivityTimeoutSecs": 111
     },
-    "status": "enabled"
+    "status": "enabled",
+    "ttl": "unlimited"
 }

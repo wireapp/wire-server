@@ -202,7 +202,7 @@ import Util.Types
 import qualified Web.Cookie as Web
 import Wire.API.Team (Icon (..))
 import qualified Wire.API.Team as Galley
-import Wire.API.Team.Feature (FeatureStatus (..), FeatureTrivialConfig (trivialConfig), SSOConfig, WithStatusNoLock (WithStatusNoLock))
+import Wire.API.Team.Feature (FeatureStatus (..), FeatureTTL (..), FeatureTrivialConfig (trivialConfig), SSOConfig, WithStatusNoLock (WithStatusNoLock))
 import qualified Wire.API.Team.Invitation as TeamInvitation
 import Wire.API.Team.Member (NewTeamMember, TeamMemberList)
 import qualified Wire.API.Team.Member as Member
@@ -397,7 +397,7 @@ putSSOEnabledInternal gly tid enabled = do
   void . put $
     gly
       . paths ["i", "teams", toByteString' tid, "features", "sso"]
-      . json (WithStatusNoLock @SSOConfig enabled trivialConfig)
+      . json (WithStatusNoLock @SSOConfig enabled trivialConfig FeatureTTLUnlimited)
       . expect2xx
 
 -- | cloned from `/services/brig/test/integration/API/Team/Util.hs`.

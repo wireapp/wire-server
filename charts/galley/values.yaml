@@ -38,6 +38,7 @@ config:
             enforceAppLock: false
             inactivityTimeoutSecs: 60
           status: enabled
+          ttl: unlimited
       classifiedDomains:
         config:
           domains: []
@@ -45,14 +46,17 @@ config:
       conferenceCalling:
         defaults:
           status: enabled
+          ttl: unlimited
       conversationGuestLinks:
         defaults:
           lockStatus: unlocked
           status: enabled
+          ttl: unlimited
       fileSharing:
         defaults:
           lockStatus: unlocked
           status: enabled
+          ttl: unlimited
       legalhold: disabled-by-default
       mls:
         defaults:
@@ -71,10 +75,12 @@ config:
             enforcedTimeoutSeconds: 0
           lockStatus: unlocked
           status: enabled
+          ttl: unlimited
       sndFactorPasswordChallenge:
         defaults:
           lockStatus: locked
           status: disabled
+          ttl: unlimited
       sso: disabled-by-default
       teamSearchVisibility: disabled-by-default
       validateSAMLemails:

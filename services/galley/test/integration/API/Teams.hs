@@ -443,7 +443,7 @@ testEnableSSOPerTeam = do
             <$> put
               ( g
                   . paths ["i", "teams", toByteString' tid, "features", "sso"]
-                  . json (Public.WithStatusNoLock Public.FeatureStatusDisabled Public.SSOConfig)
+                  . json (Public.WithStatusNoLock Public.FeatureStatusDisabled Public.SSOConfig Public.FeatureTTLUnlimited)
               )
         liftIO $ do
           assertEqual "bad status" status403 status
@@ -1283,7 +1283,7 @@ generateVerificationCode req = do
 setTeamSndFactorPasswordChallenge :: TeamId -> Public.FeatureStatus -> TestM ()
 setTeamSndFactorPasswordChallenge tid status = do
   g <- view tsGalley
-  let js = RequestBodyLBS $ encode $ Public.WithStatusNoLock status Public.SndFactorPasswordChallengeConfig
+  let js = RequestBodyLBS $ encode $ Public.WithStatusNoLock status Public.SndFactorPasswordChallengeConfig Public.FeatureTTLUnlimited
   put (g . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @Public.SndFactorPasswordChallengeConfig] . contentJson . body js) !!! const 200 === statusCode
 
 getVerificationCode :: UserId -> Public.VerificationAction -> TestM Code.Value
@@ -2135,7 +2135,8 @@ getSSOEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
 getSSOEnabledInternal = Util.getTeamFeatureFlagInternal @Public.SSOConfig
 
 putSSOEnabledInternal :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
-putSSOEnabledInternal tid statusValue = void $ Util.putTeamFeatureFlagInternal @Public.SSOConfig expect2xx tid (Public.WithStatusNoLock statusValue Public.SSOConfig)
+putSSOEnabledInternal tid statusValue =
+  void $ Util.putTeamFeatureFlagInternal @Public.SSOConfig expect2xx tid (Public.WithStatusNoLock statusValue Public.SSOConfig Public.FeatureTTLUnlimited)
 
 getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getSearchVisibility g uid tid = do

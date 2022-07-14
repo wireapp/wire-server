@@ -101,6 +101,7 @@ import Wire.API.Properties
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
 import Wire.API.Team
+import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
@@ -520,9 +521,8 @@ setTeamFeatureFlag ::
   ) =>
   TeamId ->
   Public.WithStatusNoLock cfg ->
-  Public.FeatureTTL ->
   Handler ()
-setTeamFeatureFlag tid status ttl = do
+setTeamFeatureFlag tid status = do
   info $ msg "Setting team feature status"
   gly <- view galley
   let req =
@@ -537,7 +537,7 @@ setTeamFeatureFlag tid status ttl = do
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
   where
-    ttlAPI = case ttl of
+    ttlAPI = case wssTTL status of
       Public.FeatureTTLSeconds days -> Public.FeatureTTLSeconds (60 * 60 * 24 * days)
       Public.FeatureTTLUnlimited -> Public.FeatureTTLUnlimited
 

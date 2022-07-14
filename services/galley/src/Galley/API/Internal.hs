@@ -364,7 +364,6 @@ type FeatureStatusBasePutInternal errs featureConfig =
     errs
     featureConfig
     ( ReqBody '[Servant.JSON] (WithStatusNoLock featureConfig)
-        :> QueryParam "ttl" FeatureTTL
         :> Put '[Servant.JSON] (WithStatus featureConfig)
     )
 

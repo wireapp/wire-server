@@ -54,7 +54,6 @@ data TeamFeatureStore db m a where
     Proxy cfg ->
     TeamId ->
     WithStatusNoLock cfg ->
-    Maybe FeatureTTL ->
     TeamFeatureStore db m ()
   GetFeatureLockStatus ::
     FeaturePersistentConstraint db cfg =>

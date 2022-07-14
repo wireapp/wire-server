@@ -228,6 +228,7 @@ library
     , resourcet
     , saml2-web-sso
     , schema-profunctor
+    , scientific
     , servant
     , servant-client
     , servant-client-core

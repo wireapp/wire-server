@@ -530,7 +530,7 @@ generateVerificationCode' brig req = do
 
 setTeamSndFactorPasswordChallenge :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Galley -> TeamId -> Public.FeatureStatus -> m ()
 setTeamSndFactorPasswordChallenge galley tid status = do
-  let js = RequestBodyLBS $ encode $ Public.WithStatusNoLock status Public.SndFactorPasswordChallengeConfig
+  let js = RequestBodyLBS $ encode $ Public.WithStatusNoLock status Public.SndFactorPasswordChallengeConfig Public.FeatureTTLUnlimited
   put (galley . paths ["i", "teams", toByteString' tid, "features", featureNameBS @Public.SndFactorPasswordChallengeConfig] . contentJson . body js) !!! const 200 === statusCode
 
 setTeamFeatureLockStatus ::

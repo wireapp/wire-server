@@ -2,5 +2,6 @@
     "config": {
         "domains": []
     },
-    "status": "enabled"
+    "status": "enabled",
+    "ttl": "unlimited"
 }

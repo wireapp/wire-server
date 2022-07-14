@@ -161,7 +161,6 @@ class GetFeatureConfig (db :: *) cfg => SetFeatureConfig (db :: *) cfg where
     ) =>
     TeamId ->
     WithStatusNoLock cfg ->
-    Maybe FeatureTTL ->
     Sem r (WithStatus cfg)
 
 type FeaturePersistentAllFeatures db =
@@ -250,7 +249,7 @@ patchFeatureStatusInternal tid patch = do
   currentFeatureStatus <- getFeatureStatus @db @cfg DontDoAuth tid
   let newFeatureStatus = applyPatch currentFeatureStatus
   when (isJust $ wspLockStatus patch) $ void $ updateLockStatus @db @cfg tid (wsLockStatus newFeatureStatus)
-  setConfigForTeam @db @cfg tid (forgetLock newFeatureStatus) Nothing
+  setConfigForTeam @db @cfg tid (forgetLock newFeatureStatus)
   where
     applyPatch :: WithStatus cfg -> WithStatus cfg
     applyPatch current =
@@ -277,12 +276,11 @@ setFeatureStatus ::
        ]
       r
   ) =>
-  Maybe FeatureTTL ->
   DoAuth ->
   TeamId ->
   WithStatusNoLock cfg ->
   Sem r (WithStatus cfg)
-setFeatureStatus mTtl doauth tid wsnl = do
+setFeatureStatus doauth tid wsnl = do
   case doauth of
     DoAuth uid -> do
       zusrMembership <- getTeamMember tid uid
@@ -290,7 +288,7 @@ setFeatureStatus mTtl doauth tid wsnl = do
     DontDoAuth ->
       assertTeamExists tid
   guardLockStatus . wsLockStatus =<< getConfigForTeam @db @cfg tid
-  setConfigForTeam @db @cfg tid wsnl mTtl
+  setConfigForTeam @db @cfg tid wsnl
 
 setFeatureStatusInternal ::
   forall db cfg r.
@@ -312,9 +310,8 @@ setFeatureStatusInternal ::
   ) =>
   TeamId ->
   WithStatusNoLock cfg ->
-  Maybe FeatureTTL ->
   Sem r (WithStatus cfg)
-setFeatureStatusInternal tid wsnl mTtl = setFeatureStatus @db @cfg mTtl DontDoAuth tid wsnl
+setFeatureStatusInternal tid wsnl = setFeatureStatus @db @cfg DontDoAuth tid wsnl
 
 updateLockStatus ::
   forall db cfg r.
@@ -584,10 +581,9 @@ persistAndPushEvent ::
   ) =>
   TeamId ->
   WithStatusNoLock cfg ->
-  Maybe FeatureTTL ->
   Sem r (WithStatus cfg)
-persistAndPushEvent tid wsnl mTtl = do
-  setFeatureConfig @db (Proxy @cfg) tid wsnl mTtl
+persistAndPushEvent tid wsnl = do
+  setFeatureConfig @db (Proxy @cfg) tid wsnl
   fs <- getConfigForTeam @db @cfg tid
   pushFeatureConfigEvent tid (Event.mkUpdateEvent fs)
   pure fs
@@ -635,11 +631,11 @@ instance GetFeatureConfig db SSOConfig where
 instance SetFeatureConfig db SSOConfig where
   type SetConfigForTeamConstraints db SSOConfig (r :: EffectRow) = (Members '[Error TeamFeatureError] r)
 
-  setConfigForTeam tid wsnl _ = do
+  setConfigForTeam tid wsnl = do
     case wssStatus wsnl of
       FeatureStatusEnabled -> pure ()
       FeatureStatusDisabled -> throw DisableSsoNotImplemented
-    persistAndPushEvent @db tid wsnl Nothing
+    persistAndPushEvent @db tid wsnl
 
 instance GetFeatureConfig db SearchVisibilityAvailableConfig where
   getConfigForServer = do
@@ -652,18 +648,18 @@ instance GetFeatureConfig db SearchVisibilityAvailableConfig where
 instance SetFeatureConfig db SearchVisibilityAvailableConfig where
   type SetConfigForTeamConstraints db SearchVisibilityAvailableConfig (r :: EffectRow) = (Members '[SearchVisibilityStore] r)
 
-  setConfigForTeam tid wsnl _ = do
+  setConfigForTeam tid wsnl = do
     case wssStatus wsnl of
       FeatureStatusEnabled -> pure ()
       FeatureStatusDisabled -> SearchVisibilityData.resetSearchVisibility tid
-    persistAndPushEvent @db tid wsnl Nothing
+    persistAndPushEvent @db tid wsnl
 
 instance GetFeatureConfig db ValidateSAMLEmailsConfig where
   getConfigForServer =
     inputs (view (optSettings . setFeatureFlags . flagsTeamFeatureValidateSAMLEmailsStatus . unDefaults . unImplicitLockStatus))
 
 instance SetFeatureConfig db ValidateSAMLEmailsConfig where
-  setConfigForTeam tid wsnl _ = persistAndPushEvent @db tid wsnl Nothing
+  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
 
 instance GetFeatureConfig db DigitalSignaturesConfig where
   -- FUTUREWORK: we may also want to get a default from the server config file here, like for
@@ -671,7 +667,7 @@ instance GetFeatureConfig db DigitalSignaturesConfig where
   getConfigForServer = pure defFeatureStatus
 
 instance SetFeatureConfig db DigitalSignaturesConfig where
-  setConfigForTeam tid wsnl _ = persistAndPushEvent @db tid wsnl Nothing
+  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
 
 instance GetFeatureConfig db LegalholdConfig where
   type
@@ -742,7 +738,7 @@ instance SetFeatureConfig db LegalholdConfig where
       )
 
   -- we're good to update the status now.
-  setConfigForTeam tid wsnl _ = do
+  setConfigForTeam tid wsnl = do
     -- this extra do is to encapsulate the assertions running before the actual operation.
     -- enabling LH for teams is only allowed in normal operation; disabled-permanently and
     -- whitelist-teams have no or their own way to do that, resp.
@@ -758,14 +754,14 @@ instance SetFeatureConfig db LegalholdConfig where
     case wssStatus wsnl of
       FeatureStatusDisabled -> LegalHold.removeSettings' @InternalPaging tid
       FeatureStatusEnabled -> ensureNotTooLargeToActivateLegalHold tid
-    persistAndPushEvent @db tid wsnl Nothing
+    persistAndPushEvent @db tid wsnl
 
 instance GetFeatureConfig db FileSharingConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagFileSharing . unDefaults)
 
 instance SetFeatureConfig db FileSharingConfig where
-  setConfigForTeam tid wsnl _ = persistAndPushEvent @db tid wsnl Nothing
+  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
 
 instance GetFeatureConfig db AppLockConfig where
   getConfigForServer =
@@ -774,10 +770,10 @@ instance GetFeatureConfig db AppLockConfig where
 instance SetFeatureConfig db AppLockConfig where
   type SetConfigForTeamConstraints db AppLockConfig r = Members '[Error TeamFeatureError] r
 
-  setConfigForTeam tid wsnl _ = do
+  setConfigForTeam tid wsnl = do
     when ((applockInactivityTimeoutSecs . wssConfig $ wsnl) < 30) $
       throw AppLockInactivityTimeoutTooLow
-    persistAndPushEvent @db tid wsnl Nothing
+    persistAndPushEvent @db tid wsnl
 
 instance GetFeatureConfig db ClassifiedDomainsConfig where
   getConfigForServer =
@@ -807,24 +803,24 @@ instance GetFeatureConfig db ConferenceCallingConfig where
     pure $ withLockStatus (wsLockStatus (defFeatureStatus @ConferenceCallingConfig)) wsnl
 
 instance SetFeatureConfig db ConferenceCallingConfig where
-  setConfigForTeam tid wsnl mTtl = persistAndPushEvent @db tid wsnl mTtl
+  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
 
 instance GetFeatureConfig db SelfDeletingMessagesConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagSelfDeletingMessages . unDefaults)
 
 instance SetFeatureConfig db SelfDeletingMessagesConfig where
-  setConfigForTeam tid wsnl _ = persistAndPushEvent @db tid wsnl Nothing
+  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
 
 instance SetFeatureConfig db GuestLinksConfig where
-  setConfigForTeam tid wsnl _ = persistAndPushEvent @db tid wsnl Nothing
+  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
 
 instance GetFeatureConfig db GuestLinksConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
 
 instance SetFeatureConfig db SndFactorPasswordChallengeConfig where
-  setConfigForTeam tid wsnl _ = persistAndPushEvent @db tid wsnl Nothing
+  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
 
 instance GetFeatureConfig db SndFactorPasswordChallengeConfig where
   getConfigForServer =
@@ -832,9 +828,9 @@ instance GetFeatureConfig db SndFactorPasswordChallengeConfig where
 
 instance SetFeatureConfig db SearchVisibilityInboundConfig where
   type SetConfigForTeamConstraints db SearchVisibilityInboundConfig (r :: EffectRow) = (Members '[BrigAccess] r)
-  setConfigForTeam tid wsnl _ = do
+  setConfigForTeam tid wsnl = do
     updateSearchVisibilityInbound $ toTeamStatus tid wsnl
-    persistAndPushEvent @db tid wsnl Nothing
+    persistAndPushEvent @db tid wsnl
 
 instance GetFeatureConfig db SearchVisibilityInboundConfig where
   getConfigForServer =
@@ -845,8 +841,8 @@ instance GetFeatureConfig db MLSConfig where
     input <&> view (optSettings . setFeatureFlags . flagMLS . unDefaults . unImplicitLockStatus)
 
 instance SetFeatureConfig db MLSConfig where
-  setConfigForTeam tid wsnl _ = do
-    persistAndPushEvent @db tid wsnl Nothing
+  setConfigForTeam tid wsnl = do
+    persistAndPushEvent @db tid wsnl
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --
