@@ -245,6 +245,39 @@ setLockStatusInternal reqmod tid lockStatus = do
       . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg, toByteString' lockStatus]
       . reqmod
 
+getFeatureStatusInternal ::
+  forall cfg.
+  ( HasCallStack,
+    Public.IsFeatureConfig cfg,
+    KnownSymbol (Public.FeatureSymbol cfg),
+    ToJSON Public.LockStatus
+  ) =>
+  TeamId ->
+  TestM ResponseLBS
+getFeatureStatusInternal tid = do
+  galley <- view tsGalley
+  get $
+    galley
+      . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
+
+patchFeatureStatusInternal ::
+  forall cfg.
+  ( HasCallStack,
+    Public.IsFeatureConfig cfg,
+    KnownSymbol (Public.FeatureSymbol cfg),
+    ToJSON Public.LockStatus,
+    ToSchema cfg
+  ) =>
+  TeamId ->
+  Public.WithStatusPatch cfg ->
+  TestM ResponseLBS
+patchFeatureStatusInternal tid reqBody = do
+  galley <- view tsGalley
+  patch $
+    galley
+      . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
+      . json reqBody
+
 getGuestLinkStatus ::
   HasCallStack =>
   (Request -> Request) ->

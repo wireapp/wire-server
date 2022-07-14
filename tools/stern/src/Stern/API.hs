@@ -65,7 +65,7 @@ import Stern.Types
 import System.Logger.Class hiding (Error, name, trace, (.=))
 import Util.Options
 import Wire.API.Connection
-import Wire.API.Team.Feature
+import Wire.API.Team.Feature hiding (setStatus)
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.SearchVisibility
 import qualified Wire.API.Team.SearchVisibility as Public

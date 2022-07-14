@@ -19,11 +19,13 @@ module Galley.API.Teams.Features
   ( getFeatureStatus,
     getFeatureStatusMulti,
     setFeatureStatus,
+    setFeatureStatusInternal,
+    patchFeatureStatusInternal,
     getFeatureStatusForUser,
     getAllFeatureConfigsForServer,
     getAllFeatureConfigsForTeam,
     getAllFeatureConfigsForUser,
-    setLockStatus,
+    updateLockStatus,
     -- Don't export methods of this typeclass
     GetFeatureConfig,
     -- Don't export methods of this typeclass
@@ -223,6 +225,40 @@ getFeatureStatusMulti (Multi.TeamFeatureNoConfigMultiRequest tids) = do
 toTeamStatus :: TeamId -> WithStatusNoLock cfg -> Multi.TeamStatus cfg
 toTeamStatus tid ws = Multi.TeamStatus tid (wssStatus ws)
 
+patchFeatureStatusInternal ::
+  forall db cfg r.
+  ( SetFeatureConfig db cfg,
+    GetConfigForTeamConstraints db cfg r,
+    SetConfigForTeamConstraints db cfg r,
+    FeaturePersistentConstraint db cfg,
+    Members
+      '[ ErrorS 'NotATeamMember,
+         ErrorS OperationDenied,
+         ErrorS 'TeamNotFound,
+         Error TeamFeatureError,
+         TeamStore,
+         TeamFeatureStore db,
+         P.Logger (Log.Msg -> Log.Msg),
+         GundeckAccess
+       ]
+      r
+  ) =>
+  TeamId ->
+  WithStatusPatch cfg ->
+  Sem r (WithStatus cfg)
+patchFeatureStatusInternal tid patch = do
+  currentFeatureStatus <- getFeatureStatus @db @cfg DontDoAuth tid
+  let newFeatureStatus = applyPatch currentFeatureStatus
+  when (isJust $ wspLockStatus patch) $ void $ updateLockStatus @db @cfg tid (wsLockStatus newFeatureStatus)
+  setConfigForTeam @db @cfg tid (forgetLock newFeatureStatus) Nothing
+  where
+    applyPatch :: WithStatus cfg -> WithStatus cfg
+    applyPatch current =
+      current
+        & setStatus (fromMaybe (wsStatus current) (wspStatus patch))
+        & setLockStatus (fromMaybe (wsLockStatus current) (wspLockStatus patch))
+        & setConfig (fromMaybe (wsConfig current) (wspConfig patch))
+
 setFeatureStatus ::
   forall db cfg r.
   ( SetFeatureConfig db cfg,
@@ -256,7 +292,31 @@ setFeatureStatus mTtl doauth tid wsnl = do
   guardLockStatus . wsLockStatus =<< getConfigForTeam @db @cfg tid
   setConfigForTeam @db @cfg tid wsnl mTtl
 
-setLockStatus ::
+setFeatureStatusInternal ::
+  forall db cfg r.
+  ( SetFeatureConfig db cfg,
+    GetConfigForTeamConstraints db cfg r,
+    SetConfigForTeamConstraints db cfg r,
+    FeaturePersistentConstraint db cfg,
+    Members
+      '[ ErrorS 'NotATeamMember,
+         ErrorS OperationDenied,
+         ErrorS 'TeamNotFound,
+         Error TeamFeatureError,
+         TeamStore,
+         TeamFeatureStore db,
+         P.Logger (Log.Msg -> Log.Msg),
+         GundeckAccess
+       ]
+      r
+  ) =>
+  TeamId ->
+  WithStatusNoLock cfg ->
+  Maybe FeatureTTL ->
+  Sem r (WithStatus cfg)
+setFeatureStatusInternal tid wsnl mTtl = setFeatureStatus @db @cfg mTtl DontDoAuth tid wsnl
+
+updateLockStatus ::
   forall db cfg r.
   ( FeaturePersistentConstraint db cfg,
     Member (TeamFeatureStore db) r,
@@ -266,7 +326,7 @@ setLockStatus ::
   TeamId ->
   LockStatus ->
   Sem r LockStatusResponse
-setLockStatus tid lockStatus = do
+updateLockStatus tid lockStatus = do
   assertTeamExists tid
   TeamFeatures.setFeatureLockStatus @db (Proxy @cfg) tid lockStatus
   pure $ LockStatusResponse lockStatus
@@ -568,7 +628,7 @@ instance GetFeatureConfig db SSOConfig where
       inputs (view (optSettings . setFeatureFlags . flagSSO)) <&> \case
         FeatureSSOEnabledByDefault -> FeatureStatusEnabled
         FeatureSSODisabledByDefault -> FeatureStatusDisabled
-    pure $ defFeatureStatus {wsStatus = status}
+    pure $ setStatus status defFeatureStatus
 
   getConfigForUser = genericGetConfigForUser @db
 
@@ -587,7 +647,7 @@ instance GetFeatureConfig db SearchVisibilityAvailableConfig where
       inputs (view (optSettings . setFeatureFlags . flagTeamSearchVisibility)) <&> \case
         FeatureTeamSearchVisibilityAvailableByDefault -> FeatureStatusEnabled
         FeatureTeamSearchVisibilityUnavailableByDefault -> FeatureStatusDisabled
-    pure $ defFeatureStatus {wsStatus = status}
+    pure $ setStatus status defFeatureStatus
 
 instance SetFeatureConfig db SearchVisibilityAvailableConfig where
   type SetConfigForTeamConstraints db SearchVisibilityAvailableConfig (r :: EffectRow) = (Members '[SearchVisibilityStore] r)
@@ -641,7 +701,7 @@ instance GetFeatureConfig db LegalholdConfig where
       isLegalHoldEnabledForTeam @db tid <&> \case
         True -> FeatureStatusEnabled
         False -> FeatureStatusDisabled
-    pure $ defFeatureStatus {wsStatus = status}
+    pure $ setStatus status defFeatureStatus
 
 instance SetFeatureConfig db LegalholdConfig where
   type
