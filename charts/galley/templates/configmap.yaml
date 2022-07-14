@@ -48,7 +48,7 @@ data:
     {{- end }}
 
     settings:
-      httpPoolSize: 128
+      httpPoolSize: {{ .settings.httpPoolSize }}
       intraListing: false
       maxTeamSize: {{ .settings.maxTeamSize }}
       maxConvSize: {{ .settings.maxConvSize }}
