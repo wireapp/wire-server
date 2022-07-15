@@ -40,8 +40,8 @@ import Imports
 import Wire.API.Arbitrary
 import Wire.API.Conversation.Action.Tag
 import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
-import Wire.API.MLS.Message
 
 data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag
   deriving stock (Eq, Show, Enum, Bounded, Generic)

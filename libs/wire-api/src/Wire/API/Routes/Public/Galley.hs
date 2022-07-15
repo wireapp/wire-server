@@ -1313,13 +1313,15 @@ type MLSMessagingAPI =
         :> MultiVerb1 'POST '[JSON] (RespondEmpty 201 "Welcome message sent")
     )
     :<|> Named
-           "mls-message"
+           "mls-message-v1"
            ( Summary "Post an MLS message"
+               :> Until 'V2
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
-               :> CanThrow 'ConvMemberNotFound
-               :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MissingLegalholdConsent
                :> CanThrow 'MLSClientMismatch
+               :> CanThrow 'MLSCommitMissingReferences
+               :> CanThrow 'MLSKeyPackageRefNotFound
                :> CanThrow 'MLSProtocolErrorTag
                :> CanThrow 'MLSStaleMessage
                :> CanThrow MLSProposalFailure
@@ -1327,12 +1329,32 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSUnsupportedMessage
                :> CanThrow 'MLSUnsupportedProposal
                :> CanThrow 'LegalHoldNotEnabled
-               :> CanThrow 'MissingLegalholdConsent
-               :> CanThrow 'MLSCommitMissingReferences
                :> "messages"
                :> ZConn
                :> ReqBody '[MLS] (RawMLS SomeMessage)
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" [Event])
+           )
+    :<|> Named
+           "mls-message"
+           ( Summary "Post an MLS message"
+               :> From 'V2
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'MLSClientMismatch
+               :> CanThrow 'MLSCommitMissingReferences
+               :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MLSProtocolErrorTag
+               :> CanThrow 'MLSStaleMessage
+               :> CanThrow MLSProposalFailure
+               :> CanThrow 'MLSProposalNotFound
+               :> CanThrow 'MLSUnsupportedMessage
+               :> CanThrow 'MLSUnsupportedProposal
+               :> CanThrow 'LegalHoldNotEnabled
+               :> "messages"
+               :> ZConn
+               :> ReqBody '[MLS] (RawMLS SomeMessage)
+               :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" MLSMessageSendingStatus)
            )
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSMessagingAPI)

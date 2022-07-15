@@ -25,6 +25,7 @@ import API.Util
 import Bilge hiding (head)
 import Bilge.Assert
 import Cassandra
+import Control.Arrow
 import Control.Lens (view)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
@@ -62,6 +63,7 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group (convToGroupId)
+import Wire.API.MLS.Message
 import Wire.API.Message
 
 tests :: IO TestSetup -> TestTree
@@ -699,12 +701,12 @@ testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
             . pClients
             $ bob
         ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
-  (events :: [Event], reqs) <- withTempMockFederator' mock $ do
+  (events :: [Event], reqs) <- fmap (first mmssEvents) . withTempMockFederator' mock $ do
     galley <- viewGalley
     void $ postCommit MessagingSetup {creator = alice, users = [bob], ..}
     responseJsonError
       =<< post
-        ( galley . paths ["mls", "messages"]
+        ( galley . paths ["v2", "mls", "messages"]
             . zUser (qUnqualified (pUserId alice))
             . zConn "conn"
             . content "message/mls"
@@ -1175,7 +1177,7 @@ propExistingConv = withSystemTempDirectory "mls" $ \tmp -> do
   prop <- liftIO $ bareAddProposal tmp creator bob "group.json" "group.json"
 
   events <-
-    responseJsonError
+    fmap mmssEvents . responseJsonError
       =<< postMessage (qUnqualified (pUserId creator)) prop
       <!! const 201 === statusCode
   liftIO $ events @?= ([] :: [Event])

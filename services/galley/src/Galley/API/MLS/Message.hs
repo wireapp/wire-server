@@ -18,6 +18,7 @@
 
 module Galley.API.MLS.Message
   ( postMLSMessageFromLocalUser,
+    postMLSMessageFromLocalUserV1,
     postMLSMessage,
     MLSMessageStaticErrors,
   )
@@ -94,23 +95,22 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSCommitMissingReferences
    ]
 
-postMLSMessageFromLocalUser ::
+postMLSMessageFromLocalUserV1 ::
   ( HasProposalEffects r,
     Members
       '[ Resource,
          Error FederationError,
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvNotFound,
-         ErrorS 'ConvMemberNotFound,
          Error InternalError,
+         ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MissingLegalholdConsent,
-         ErrorS 'MLSCommitMissingReferences,
+         Input (Local ()),
          ProposalStore,
-         TinyLog,
-         Input (Local ())
+         TinyLog
        ]
       r
   ) =>
@@ -118,9 +118,39 @@ postMLSMessageFromLocalUser ::
   ConnId ->
   RawMLS SomeMessage ->
   Sem r [Event]
-postMLSMessageFromLocalUser lusr conn msg =
+postMLSMessageFromLocalUserV1 lusr conn msg =
   map lcuEvent
     <$> postMLSMessage lusr (qUntagged lusr) (Just conn) msg
+
+postMLSMessageFromLocalUser ::
+  ( HasProposalEffects r,
+    Members
+      '[ Resource,
+         Error FederationError,
+         ErrorS 'ConvAccessDenied,
+         ErrorS 'ConvNotFound,
+         Error InternalError,
+         ErrorS 'MLSCommitMissingReferences,
+         ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSProposalNotFound,
+         ErrorS 'MissingLegalholdConsent,
+         Input (Local ()),
+         ProposalStore,
+         TinyLog
+       ]
+      r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  RawMLS SomeMessage ->
+  Sem r MLSMessageSendingStatus
+postMLSMessageFromLocalUser lusr conn msg = do
+  -- FUTUREWORK: Inline the body of 'postMLSMessageFromLocalUserV1' once version
+  -- V1 is dropped
+  events <- postMLSMessageFromLocalUserV1 lusr conn msg
+  t <- toUTCTimeMillis <$> input
+  pure $ MLSMessageSendingStatus events t
 
 postMLSMessage ::
   ( HasProposalEffects r,

@@ -26,8 +26,8 @@ import Galley.Effects.ProposalStore
 import Imports
 import Polysemy
 import Polysemy.Input
+import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
-import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 

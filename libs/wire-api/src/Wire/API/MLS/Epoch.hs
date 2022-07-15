@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -15,13 +17,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS
-  ( postMLSWelcome,
-    postMLSMessage,
-    postMLSMessageFromLocalUser,
-    postMLSMessageFromLocalUserV1,
-  )
-where
+module Wire.API.MLS.Epoch where
 
-import Galley.API.MLS.Message
-import Galley.API.MLS.Welcome
+import Data.Schema
+import Imports
+import Wire.API.Arbitrary
+import Wire.API.MLS.Serialisation
+
+newtype Epoch = Epoch {epochNumber :: Word64}
+  deriving stock (Eq, Show)
+  deriving newtype (Arbitrary, Enum, ToSchema)
+
+instance ParseMLS Epoch where
+  parseMLS = Epoch <$> parseMLS

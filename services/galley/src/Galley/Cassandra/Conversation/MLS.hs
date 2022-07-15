@@ -23,8 +23,8 @@ import Data.Time
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Data.Types
 import Imports
+import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
-import Wire.API.MLS.Message
 
 acquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> Client LockAcquired
 acquireCommitLock groupId epoch ttl = do
