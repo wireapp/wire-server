@@ -116,7 +116,7 @@ insertIdPConfig idp = do
       getAllIdPsByIssuerUnsafe issuer >>= mapM_ (failIfNot thisVersion)
 
     ins :: PrepQuery W IdPConfigRow ()
-    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ins = "INSERT INTO idp (idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by, handle) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
     -- FUTUREWORK: migrate `spar.issuer_idp` away, `spar.issuer_idp_v2` is enough.
     byIssuer :: PrepQuery W (SAML.Issuer, TeamId, SAML.IdPId) ()

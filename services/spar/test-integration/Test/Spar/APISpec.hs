@@ -1047,6 +1047,7 @@ specCRUDIdentityProvider = do
                   . (idpMetadata . edIssuer .~ (idp1 ^. idpMetadata . edIssuer))
                   . (idpExtraInfo . wiOldIssuers .~ (idp1 ^. idpExtraInfo . wiOldIssuers))
                   . (idpExtraInfo . wiReplacedBy .~ (idp1 ^. idpExtraInfo . wiReplacedBy))
+                  . (idpExtraInfo . wiHandle .~ (idp1 ^. idpExtraInfo . wiHandle))
           erase idp1 `shouldBe` erase idp2
       it "users can still login on old idp as before" $ do
         env <- ask
