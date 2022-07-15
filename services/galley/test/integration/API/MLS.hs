@@ -1420,6 +1420,6 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
       Nothing
 
   externalProposal <- liftIO $ createExternalProposal tmp bob (snd bobClient2) "group" "group"
-  print externalProposal
+  postMessage (qUnqualified (pUserId bob)) externalProposal !!! const 201 === statusCode
 
   pure ()
