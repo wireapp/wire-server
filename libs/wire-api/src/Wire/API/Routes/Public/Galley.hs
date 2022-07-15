@@ -1318,8 +1318,10 @@ type MLSMessagingAPI =
                :> Until 'V2
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
-               :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MissingLegalholdConsent
                :> CanThrow 'MLSClientMismatch
+               :> CanThrow 'MLSCommitMissingReferences
+               :> CanThrow 'MLSKeyPackageRefNotFound
                :> CanThrow 'MLSProtocolErrorTag
                :> CanThrow 'MLSStaleMessage
                :> CanThrow MLSProposalFailure
@@ -1327,7 +1329,6 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSUnsupportedMessage
                :> CanThrow 'MLSUnsupportedProposal
                :> CanThrow 'LegalHoldNotEnabled
-               :> CanThrow 'MissingLegalholdConsent
                :> "messages"
                :> ZConn
                :> ReqBody '[MLS] (RawMLS SomeMessage)
@@ -1339,8 +1340,10 @@ type MLSMessagingAPI =
                :> From 'V2
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'ConvNotFound
-               :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MissingLegalholdConsent
                :> CanThrow 'MLSClientMismatch
+               :> CanThrow 'MLSCommitMissingReferences
+               :> CanThrow 'MLSKeyPackageRefNotFound
                :> CanThrow 'MLSProtocolErrorTag
                :> CanThrow 'MLSStaleMessage
                :> CanThrow MLSProposalFailure
@@ -1348,7 +1351,6 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSUnsupportedMessage
                :> CanThrow 'MLSUnsupportedProposal
                :> CanThrow 'LegalHoldNotEnabled
-               :> CanThrow 'MissingLegalholdConsent
                :> "messages"
                :> ZConn
                :> ReqBody '[MLS] (RawMLS SomeMessage)

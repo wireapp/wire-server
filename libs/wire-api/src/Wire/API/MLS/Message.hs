@@ -146,7 +146,7 @@ instance ParseMLS (MessagePayload 'MLSPlainText) where
 
 data MessagePayloadTBS
   = ApplicationMessage ByteString
-  | ProposalMessage Proposal
+  | ProposalMessage (RawMLS Proposal)
   | CommitMessage Commit
 
 data ContentType

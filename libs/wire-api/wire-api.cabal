@@ -46,6 +46,7 @@ library
       Wire.API.Message.Proto
       Wire.API.MLS.CipherSuite
       Wire.API.MLS.Commit
+      Wire.API.MLS.Context
       Wire.API.MLS.Credential
       Wire.API.MLS.Epoch
       Wire.API.MLS.Extension
@@ -477,6 +478,7 @@ test-suite wire-api-golden-tests
       Test.Wire.API.Golden.Generated.VerifyDeleteUser_user
       Test.Wire.API.Golden.Generated.ViewLegalHoldService_team
       Test.Wire.API.Golden.Generated.ViewLegalHoldServiceInfo_team
+      Test.Wire.API.Golden.Generated.WithStatusPatch_team
       Test.Wire.API.Golden.Generated.WithStatus_team
       Test.Wire.API.Golden.Generated.WithStatusNoLock_team
       Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user

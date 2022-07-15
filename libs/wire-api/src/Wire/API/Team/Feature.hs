@@ -25,7 +25,19 @@ module Wire.API.Team.Feature
     featureName,
     featureNameBS,
     LockStatus (..),
-    WithStatus (..),
+    WithStatus,
+    withStatus,
+    withStatus',
+    wsStatus,
+    wsLockStatus,
+    wsConfig,
+    setStatus,
+    setLockStatus,
+    setConfig,
+    WithStatusPatch,
+    wspStatus,
+    wspLockStatus,
+    wspConfig,
     WithStatusNoLock (..),
     forgetLock,
     withLockStatus,
@@ -157,29 +169,65 @@ featureNameBS :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cf
 featureNameBS = UTF8.fromString $ symbolVal (Proxy @(FeatureSymbol cfg))
 
 ----------------------------------------------------------------------
+-- WithStatusBase
+
+data WithStatusBase (m :: * -> *) (cfg :: *) = WithStatusBase
+  { wsbStatus :: m FeatureStatus,
+    wsbLockStatus :: m LockStatus,
+    wsbConfig :: m cfg
+  }
+  deriving stock (Generic, Typeable, Functor)
+
+----------------------------------------------------------------------
 -- WithStatus
 
-data WithStatus (cfg :: *) = WithStatus
-  { wsStatus :: FeatureStatus,
-    wsLockStatus :: LockStatus,
-    wsConfig :: cfg
-  }
-  deriving stock (Eq, Show, Generic, Typeable, Functor)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema (WithStatus cfg))
+-- FUTUREWORK: use lenses, maybe?
+wsStatus :: WithStatus cfg -> FeatureStatus
+wsStatus = runIdentity . wsbStatus
 
-instance Arbitrary cfg => Arbitrary (WithStatus cfg) where
-  arbitrary = WithStatus <$> arbitrary <*> arbitrary <*> arbitrary
+wsLockStatus :: WithStatus cfg -> LockStatus
+wsLockStatus = runIdentity . wsbLockStatus
+
+wsConfig :: WithStatus cfg -> cfg
+wsConfig = runIdentity . wsbConfig
+
+withStatus :: FeatureStatus -> LockStatus -> cfg -> WithStatus cfg
+withStatus s ls c = WithStatusBase (Identity s) (Identity ls) (Identity c)
+
+setStatus :: FeatureStatus -> WithStatus cfg -> WithStatus cfg
+setStatus s (WithStatusBase _ ls c) = WithStatusBase (Identity s) ls c
+
+setLockStatus :: LockStatus -> WithStatus cfg -> WithStatus cfg
+setLockStatus ls (WithStatusBase s _ c) = WithStatusBase s (Identity ls) c
+
+setConfig :: cfg -> WithStatus cfg -> WithStatus cfg
+setConfig c (WithStatusBase s ls _) = WithStatusBase s ls (Identity c)
+
+type WithStatus (cfg :: *) = WithStatusBase Identity cfg
+
+deriving instance (Eq cfg) => Eq (WithStatus cfg)
+
+deriving instance (Show cfg) => Show (WithStatus cfg)
+
+deriving via (Schema (WithStatus cfg)) instance (ToSchema (WithStatus cfg)) => ToJSON (WithStatus cfg)
+
+deriving via (Schema (WithStatus cfg)) instance (ToSchema (WithStatus cfg)) => FromJSON (WithStatus cfg)
+
+deriving via (Schema (WithStatus cfg)) instance (ToSchema (WithStatus cfg)) => S.ToSchema (WithStatus cfg)
 
 instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatus cfg) where
   schema =
     object name $
-      WithStatus
-        <$> wsStatus .= field "status" schema
-        <*> wsLockStatus .= field "lockStatus" schema
-        <*> wsConfig .= objectSchema @cfg
+      WithStatusBase
+        <$> (runIdentity . wsbStatus) .= (Identity <$> field "status" schema)
+        <*> (runIdentity . wsbLockStatus) .= (Identity <$> field "lockStatus" schema)
+        <*> (runIdentity . wsbConfig) .= (Identity <$> objectSchema @cfg)
     where
       inner = schema @cfg
       name = fromMaybe "" (getName (schemaDoc inner)) <> ".WithStatus"
+
+instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatus cfg) where
+  arbitrary = WithStatusBase <$> arbitrary <*> arbitrary <*> arbitrary
 
 withStatusModel :: forall cfg. (IsFeatureConfig cfg, KnownSymbol (FeatureSymbol cfg)) => Doc.Model
 withStatusModel =
@@ -196,6 +244,49 @@ withStatusModel =
         Doc.property "lockStatus" typeLockStatusValue $ Doc.description ""
 
 ----------------------------------------------------------------------
+-- WithStatusPatch
+
+type WithStatusPatch (cfg :: *) = WithStatusBase Maybe cfg
+
+deriving instance (Eq cfg) => Eq (WithStatusPatch cfg)
+
+deriving instance (Show cfg) => Show (WithStatusPatch cfg)
+
+deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch cfg)) => ToJSON (WithStatusPatch cfg)
+
+deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch cfg)) => FromJSON (WithStatusPatch cfg)
+
+deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch cfg)) => S.ToSchema (WithStatusPatch cfg)
+
+wspStatus :: WithStatusPatch cfg -> Maybe FeatureStatus
+wspStatus = wsbStatus
+
+wspLockStatus :: WithStatusPatch cfg -> Maybe LockStatus
+wspLockStatus = wsbLockStatus
+
+wspConfig :: WithStatusPatch cfg -> Maybe cfg
+wspConfig = wsbConfig
+
+withStatus' :: Maybe FeatureStatus -> Maybe LockStatus -> Maybe cfg -> WithStatusPatch cfg
+withStatus' = WithStatusBase
+
+-- | The ToJSON implementation of `WithStatusPatch` will encode the trivial config as `"config": {}`
+-- when the value is a `Just`, if it's `Nothing` it will be omitted, which is the important part.
+instance (ToSchema cfg, IsFeatureConfig cfg) => ToSchema (WithStatusPatch cfg) where
+  schema =
+    object name $
+      WithStatusBase
+        <$> wsbStatus .= maybe_ (optField "status" schema)
+        <*> wsbLockStatus .= maybe_ (optField "lockStatus" schema)
+        <*> wsbConfig .= maybe_ (optField "config" schema)
+    where
+      inner = schema @cfg
+      name = fromMaybe "" (getName (schemaDoc inner)) <> ".WithStatusPatch"
+
+instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatusPatch cfg) where
+  arbitrary = WithStatusBase <$> arbitrary <*> arbitrary <*> arbitrary
+
+----------------------------------------------------------------------
 -- WithStatusNoLock
 
 data WithStatusNoLock (cfg :: *) = WithStatusNoLock
@@ -209,10 +300,10 @@ instance Arbitrary cfg => Arbitrary (WithStatusNoLock cfg) where
   arbitrary = WithStatusNoLock <$> arbitrary <*> arbitrary
 
 forgetLock :: WithStatus a -> WithStatusNoLock a
-forgetLock WithStatus {..} = WithStatusNoLock wsStatus wsConfig
+forgetLock ws = WithStatusNoLock (wsStatus ws) (wsConfig ws)
 
 withLockStatus :: LockStatus -> WithStatusNoLock a -> WithStatus a
-withLockStatus ls (WithStatusNoLock s c) = WithStatus s ls c
+withLockStatus ls (WithStatusNoLock s c) = withStatus s ls c
 
 withUnlocked :: WithStatusNoLock a -> WithStatus a
 withUnlocked = withLockStatus LockStatusUnlocked
@@ -441,7 +532,8 @@ instance ToSchema GuestLinksConfig where
 
 instance IsFeatureConfig GuestLinksConfig where
   type FeatureSymbol GuestLinksConfig = "conversationGuestLinks"
-  defFeatureStatus = WithStatus FeatureStatusEnabled LockStatusUnlocked GuestLinksConfig
+  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked GuestLinksConfig
+
   objectSchema = pure GuestLinksConfig
 
 instance FeatureTrivialConfig GuestLinksConfig where
@@ -456,7 +548,8 @@ data LegalholdConfig = LegalholdConfig
 
 instance IsFeatureConfig LegalholdConfig where
   type FeatureSymbol LegalholdConfig = "legalhold"
-  defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusUnlocked LegalholdConfig
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked LegalholdConfig
+
   objectSchema = pure LegalholdConfig
 
 instance ToSchema LegalholdConfig where
@@ -474,7 +567,8 @@ data SSOConfig = SSOConfig
 
 instance IsFeatureConfig SSOConfig where
   type FeatureSymbol SSOConfig = "sso"
-  defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusUnlocked SSOConfig
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked SSOConfig
+
   objectSchema = pure SSOConfig
 
 instance ToSchema SSOConfig where
@@ -494,7 +588,8 @@ data SearchVisibilityAvailableConfig = SearchVisibilityAvailableConfig
 
 instance IsFeatureConfig SearchVisibilityAvailableConfig where
   type FeatureSymbol SearchVisibilityAvailableConfig = "searchVisibility"
-  defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityAvailableConfig
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityAvailableConfig
+
   objectSchema = pure SearchVisibilityAvailableConfig
 
 instance ToSchema SearchVisibilityAvailableConfig where
@@ -518,7 +613,8 @@ instance ToSchema ValidateSAMLEmailsConfig where
 
 instance IsFeatureConfig ValidateSAMLEmailsConfig where
   type FeatureSymbol ValidateSAMLEmailsConfig = "validateSAMLemails"
-  defFeatureStatus = WithStatus FeatureStatusEnabled LockStatusUnlocked ValidateSAMLEmailsConfig
+  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked ValidateSAMLEmailsConfig
+
   objectSchema = pure ValidateSAMLEmailsConfig
 
 instance HasDeprecatedFeatureName ValidateSAMLEmailsConfig where
@@ -536,7 +632,8 @@ data DigitalSignaturesConfig = DigitalSignaturesConfig
 
 instance IsFeatureConfig DigitalSignaturesConfig where
   type FeatureSymbol DigitalSignaturesConfig = "digitalSignatures"
-  defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusUnlocked DigitalSignaturesConfig
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked DigitalSignaturesConfig
+
   objectSchema = pure DigitalSignaturesConfig
 
 instance HasDeprecatedFeatureName DigitalSignaturesConfig where
@@ -557,7 +654,8 @@ data ConferenceCallingConfig = ConferenceCallingConfig
 
 instance IsFeatureConfig ConferenceCallingConfig where
   type FeatureSymbol ConferenceCallingConfig = "conferenceCalling"
-  defFeatureStatus = WithStatus FeatureStatusEnabled LockStatusUnlocked ConferenceCallingConfig
+  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked ConferenceCallingConfig
+
   objectSchema = pure ConferenceCallingConfig
 
 instance ToSchema ConferenceCallingConfig where
@@ -578,7 +676,8 @@ instance ToSchema SndFactorPasswordChallengeConfig where
 
 instance IsFeatureConfig SndFactorPasswordChallengeConfig where
   type FeatureSymbol SndFactorPasswordChallengeConfig = "sndFactorPasswordChallenge"
-  defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusLocked SndFactorPasswordChallengeConfig
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked SndFactorPasswordChallengeConfig
+
   objectSchema = pure SndFactorPasswordChallengeConfig
 
 instance FeatureTrivialConfig SndFactorPasswordChallengeConfig where
@@ -593,7 +692,8 @@ data SearchVisibilityInboundConfig = SearchVisibilityInboundConfig
 
 instance IsFeatureConfig SearchVisibilityInboundConfig where
   type FeatureSymbol SearchVisibilityInboundConfig = "searchVisibilityInbound"
-  defFeatureStatus = WithStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityInboundConfig
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked SearchVisibilityInboundConfig
+
   objectSchema = pure SearchVisibilityInboundConfig
 
 instance ToSchema SearchVisibilityInboundConfig where
@@ -621,8 +721,9 @@ instance ToSchema ClassifiedDomainsConfig where
 
 instance IsFeatureConfig ClassifiedDomainsConfig where
   type FeatureSymbol ClassifiedDomainsConfig = "classifiedDomains"
+
   defFeatureStatus =
-    WithStatus
+    withStatus
       FeatureStatusDisabled
       LockStatusUnlocked
       (ClassifiedDomainsConfig [])
@@ -651,8 +752,9 @@ instance ToSchema AppLockConfig where
 
 instance IsFeatureConfig AppLockConfig where
   type FeatureSymbol AppLockConfig = "appLock"
+
   defFeatureStatus =
-    WithStatus
+    withStatus
       FeatureStatusEnabled
       LockStatusUnlocked
       (AppLockConfig (EnforceAppLock False) 60)
@@ -679,7 +781,8 @@ data FileSharingConfig = FileSharingConfig
 
 instance IsFeatureConfig FileSharingConfig where
   type FeatureSymbol FileSharingConfig = "fileSharing"
-  defFeatureStatus = WithStatus FeatureStatusEnabled LockStatusUnlocked FileSharingConfig
+  defFeatureStatus = withStatus FeatureStatusEnabled LockStatusUnlocked FileSharingConfig
+
   objectSchema = pure FileSharingConfig
 
 instance ToSchema FileSharingConfig where
@@ -707,10 +810,11 @@ instance ToSchema SelfDeletingMessagesConfig where
 instance IsFeatureConfig SelfDeletingMessagesConfig where
   type FeatureSymbol SelfDeletingMessagesConfig = "selfDeletingMessages"
   defFeatureStatus =
-    WithStatus
+    withStatus
       FeatureStatusEnabled
       LockStatusUnlocked
       (SelfDeletingMessagesConfig 0)
+
   configModel = Just $
     Doc.defineModel "SelfDeletingMessagesConfig" $ do
       Doc.property "enforcedTimeoutSeconds" Doc.int32' $ Doc.description "optional; default: `0` (no enforcement)"
@@ -741,8 +845,9 @@ instance IsFeatureConfig MLSConfig where
   type FeatureSymbol MLSConfig = "mls"
   defFeatureStatus =
     let config = MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-     in WithStatus FeatureStatusDisabled LockStatusUnlocked config
+     in withStatus FeatureStatusDisabled LockStatusUnlocked config
   objectSchema = field "config" schema
+
   configModel = Just $
     Doc.defineModel "MLSConfig" $ do
       Doc.property "protocolToggleUsers" (Doc.array Doc.string') $ Doc.description "allowlist of users that may change protocols"

@@ -35,22 +35,13 @@ CREATE TABLE galley_test.meta (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
-CREATE TABLE galley_test.conversation (
-    conv uuid PRIMARY KEY,
-    access set<int>,
-    access_role int,
-    access_roles_v2 set<int>,
-    creator uuid,
-    deleted boolean,
-    epoch bigint,
-    group_id blob,
-    message_timer bigint,
-    name text,
-    protocol int,
-    receipt_mode int,
+CREATE TABLE galley_test.team_conv (
     team uuid,
-    type int
-) WITH bloom_filter_fp_chance = 0.1
+    conv uuid,
+    managed boolean,
+    PRIMARY KEY (team, conv)
+) WITH CLUSTERING ORDER BY (conv ASC)
+    AND bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
@@ -456,13 +447,23 @@ CREATE TABLE galley_test.clients (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
-CREATE TABLE galley_test.team_conv (
+CREATE TABLE galley_test.conversation (
+    conv uuid PRIMARY KEY,
+    access set<int>,
+    access_role int,
+    access_roles_v2 set<int>,
+    cipher_suite int,
+    creator uuid,
+    deleted boolean,
+    epoch bigint,
+    group_id blob,
+    message_timer bigint,
+    name text,
+    protocol int,
+    receipt_mode int,
     team uuid,
-    conv uuid,
-    managed boolean,
-    PRIMARY KEY (team, conv)
-) WITH CLUSTERING ORDER BY (conv ASC)
-    AND bloom_filter_fp_chance = 0.1
+    type int
+) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
@@ -528,6 +529,28 @@ CREATE TABLE galley_test.billing_team_member (
     user uuid,
     PRIMARY KEY (team, user)
 ) WITH CLUSTERING ORDER BY (user ASC)
+    AND bloom_filter_fp_chance = 0.01
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE galley_test.mls_proposal_refs (
+    group_id blob,
+    epoch bigint,
+    ref blob,
+    proposal blob,
+    PRIMARY KEY (group_id, epoch, ref)
+) WITH CLUSTERING ORDER BY (epoch ASC, ref ASC)
     AND bloom_filter_fp_chance = 0.01
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''

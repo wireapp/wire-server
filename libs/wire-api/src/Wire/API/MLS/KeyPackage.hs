@@ -50,6 +50,7 @@ import Imports
 import Web.HttpApiData
 import Wire.API.Arbitrary
 import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Context
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Extension
 import Wire.API.MLS.Serialisation
@@ -124,11 +125,7 @@ instance ParseMLS KeyPackageRef where
 kpRef :: CipherSuiteTag -> KeyPackageData -> KeyPackageRef
 kpRef cs =
   KeyPackageRef
-    -- Warning: the "context" string here is different from the one mandated by
-    -- the spec, but it is the one that happens to be used by openmls. Until
-    -- openmls is patched and we switch to a fixed version, we will have to use
-    -- the "wrong" string here as well.
-    . csHash cs "MLS 1.0 ref"
+    . csHash cs keyPackageContext
     . kpData
 
 -- | Compute ref of a key package. Return 'Nothing' if the key package cipher

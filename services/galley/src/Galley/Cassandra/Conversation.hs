@@ -52,22 +52,32 @@ import qualified System.Logger as Log
 import qualified UnliftIO
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Protocol
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group
 
 createConversation :: Local ConvId -> NewConversation -> Client Conversation
 createConversation lcnv nc = do
   let meta = ncMetadata nc
-      (proto, mgid, mep) = case ncProtocol nc of
-        ProtocolProteusTag -> (ProtocolProteus, Nothing, Nothing)
+      (proto, mgid, mep, mcs) = case ncProtocol nc of
+        ProtocolProteusTag -> (ProtocolProteus, Nothing, Nothing, Nothing)
         ProtocolMLSTag ->
           let gid = convToGroupId lcnv
+              ep = Epoch 0
+              cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
            in ( ProtocolMLS
                   ConversationMLSData
                     { cnvmlsGroupId = gid,
-                      cnvmlsEpoch = Epoch 0
+                      cnvmlsEpoch = ep,
+                      cnvmlsCipherSuite = cs
                     },
                 Just gid,
-                Just (Epoch 0)
+                Just ep,
+                -- FUTUREWORK: Make the cipher suite be a record field in
+                -- 'NewConversation' instead of hard-coding it here.
+                --
+                -- 'CipherSuite 1' corresponds to
+                -- 'MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519'.
+                Just cs
               )
   retry x5 . batch $ do
     setType BatchLogged
@@ -85,7 +95,8 @@ createConversation lcnv nc = do
         cnvmReceiptMode meta,
         ncProtocol nc,
         mgid,
-        mep
+        mep,
+        mcs
       )
     for_ (cnvmTeam meta) $ \tid -> addPrepQuery Cql.insertTeamConv (tid, tUnqualified lcnv)
     for_ mgid $ \gid -> addPrepQuery Cql.insertGroupId (gid, tUnqualified lcnv, tDomain lcnv)
@@ -117,7 +128,7 @@ conversationMeta conv =
   (toConvMeta =<<)
     <$> retry x1 (query1 Cql.selectConv (params LocalQuorum (Identity conv)))
   where
-    toConvMeta (t, c, a, r, r', n, i, _, mt, rm, _, _, _) = do
+    toConvMeta (t, c, a, r, r', n, i, _, mt, rm, _, _, _, _) = do
       let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> r'
           accessRoles = maybeRole t $ parseAccessRoles r mbAccessRolesV2
       pure $ ConversationMetadata t c (defAccess t a) accessRoles n i mt rm
@@ -230,23 +241,28 @@ remoteConversationStatusOnDomain uid rconvs =
         toMemberStatus (omus, omur, oar, oarr, hid, hidr)
       )
 
-toProtocol :: Maybe ProtocolTag -> Maybe GroupId -> Maybe Epoch -> Maybe Protocol
-toProtocol Nothing _ _ = Just ProtocolProteus
-toProtocol (Just ProtocolProteusTag) _ _ = Just ProtocolProteus
-toProtocol (Just ProtocolMLSTag) mgid mepoch =
-  ProtocolMLS <$> (ConversationMLSData <$> mgid <*> mepoch)
+toProtocol ::
+  Maybe ProtocolTag ->
+  Maybe GroupId ->
+  Maybe Epoch ->
+  Maybe CipherSuiteTag ->
+  Maybe Protocol
+toProtocol Nothing _ _ _ = Just ProtocolProteus
+toProtocol (Just ProtocolProteusTag) _ _ _ = Just ProtocolProteus
+toProtocol (Just ProtocolMLSTag) mgid mepoch mcs =
+  ProtocolMLS <$> (ConversationMLSData <$> mgid <*> mepoch <*> mcs)
 
 toConv ::
   ConvId ->
   [LocalMember] ->
   [RemoteMember] ->
-  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch) ->
+  Maybe (ConvType, UserId, Maybe (Cql.Set Access), Maybe AccessRoleLegacy, Maybe (Cql.Set AccessRoleV2), Maybe Text, Maybe TeamId, Maybe Bool, Maybe Milliseconds, Maybe ReceiptMode, Maybe ProtocolTag, Maybe GroupId, Maybe Epoch, Maybe CipherSuiteTag) ->
   Maybe Conversation
 toConv cid ms remoteMems mconv = do
-  (cty, uid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep) <- mconv
+  (cty, uid, acc, role, roleV2, nme, ti, del, timer, rm, ptag, mgid, mep, mcs) <- mconv
   let mbAccessRolesV2 = Set.fromList . Cql.fromSet <$> roleV2
       accessRoles = maybeRole cty $ parseAccessRoles role mbAccessRolesV2
-  proto <- toProtocol ptag mgid mep
+  proto <- toProtocol ptag mgid mep mcs
   pure
     Conversation
       { convId = cid,
