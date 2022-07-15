@@ -704,7 +704,7 @@ specCRUDIdentityProvider = do
           `shouldRespondWith` checkErrHspec 409 "cannot-delete-own-idp"
 
   describe "PUT /identity-providers/:idp" $ do
-    testGetPutDelete callIdpUpdate'
+    testGetPutDelete callIdpUpdate
     context "known IdP, client is team owner" $ do
       it "responds with 2xx and updates IdP" $ do
         env <- ask
@@ -712,10 +712,22 @@ specCRUDIdentityProvider = do
         (_, _, cert1) <- liftIO $ mkSignCredsWithCert Nothing 96
         (_, _, cert2) <- liftIO $ mkSignCredsWithCert Nothing 96
         let idpmeta' = idpmeta & edCertAuthnResponse .~ (cert1 :| [cert2])
-        callIdpUpdate' (env ^. teSpar) (Just owner) idpid (IdPMetadataValue (cs $ SAML.encode idpmeta') undefined)
+        callIdpUpdate (env ^. teSpar) (Just owner) idpid (IdPMetadataValue (cs $ SAML.encode idpmeta') undefined)
           `shouldRespondWith` ((== 200) . statusCode)
         callIdpGet (env ^. teSpar) (Just owner) idpid
           `shouldRespondWith` ((== idpmeta') . view idpMetadata)
+      it "updates the handle" $ do
+        env <- ask
+        (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+        (SampleIdP metadata _ _ _) <- makeSampleIdPMetadata
+        idp <- call $ callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata
+        callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
+          `shouldRespondWith` ((== IdPHandle "IdP 1") . (\idp' -> idp' ^. (SAML.idpExtraInfo . wiHandle)))
+        let expected = IdPHandle "kukku mukku"
+        callIdpUpdateWithHandle (env ^. teSpar) (Just owner) (idp ^. idpId) (IdPMetadataValue (cs $ SAML.encode metadata) undefined) expected
+          `shouldRespondWith` ((== 200) . statusCode)
+        callIdpGet (env ^. teSpar) (Just owner) (idp ^. idpId)
+          `shouldRespondWith` ((== expected) . (\idp' -> idp' ^. (SAML.idpExtraInfo . wiHandle)))
       it "updates IdP metadata and creates a new IdP with the first metadata" $ do
         env <- ask
         (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
@@ -724,7 +736,7 @@ specCRUDIdentityProvider = do
         idp1 <- call $ callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata1
         -- update the idp metadata
         (SampleIdP metadata2 _ _ _) <- makeSampleIdPMetadata
-        callIdpUpdate' (env ^. teSpar) (Just owner) (idp1 ^. idpId) (IdPMetadataValue (cs $ SAML.encode metadata2) undefined)
+        callIdpUpdate (env ^. teSpar) (Just owner) (idp1 ^. idpId) (IdPMetadataValue (cs $ SAML.encode metadata2) undefined)
           `shouldRespondWith` ((== 200) . statusCode)
         -- create a new idp with the first metadata (should succeed)
         callIdpCreate' (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata1
@@ -734,14 +746,14 @@ specCRUDIdentityProvider = do
         it "rejects" $ do
           env <- ask
           (owner, _, (^. idpId) -> idpid) <- registerTestIdP
-          callIdpUpdate' (env ^. teSpar) (Just owner) idpid (IdPMetadataValue "<NotSAML>bloo</NotSAML>" undefined)
+          callIdpUpdate (env ^. teSpar) (Just owner) idpid (IdPMetadataValue "<NotSAML>bloo</NotSAML>" undefined)
             `shouldRespondWith` checkErrHspec 400 "invalid-metadata"
     describe "issuer changed to one that already exists in *another* team" $ do
       it "rejects if V1, succeeds if V2" $ do
         env <- ask
         (owner1, _, (^. idpId) -> idpid1) <- registerTestIdP
         (_, _, _, (IdPMetadataValue _ idpmeta2, _)) <- registerTestIdPWithMeta
-        callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined)
+        callIdpUpdate (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined)
           `shouldRespondWith` ( case env ^. teWireIdPAPIVersion of
                                   WireIdPAPIV1 -> checkErrHspec 400 "idp-issuer-in-use"
                                   WireIdPAPIV2 -> (== 200) . statusCode
@@ -756,7 +768,7 @@ specCRUDIdentityProvider = do
 
         -- An IdP is unambiguously identified by teamid plus issuer, so a team cannot have
         -- multiple IdPs with the same issuer, regardless of the API version.
-        callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta1') undefined)
+        callIdpUpdate (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode idpmeta1') undefined)
           `shouldRespondWith` checkErrHspec 400 "idp-issuer-in-use"
     describe "issuer changed to one that already existed in the same team in the past (but has been updated away)" $ do
       it "changes back to the old one and keeps the new in the `old_issuers` list." $ do
@@ -780,7 +792,7 @@ specCRUDIdentityProvider = do
             -- old issuers.
             change :: SAML.IdPMetadata -> [SAML.IdPMetadata] -> TestSpar ()
             change new olds = do
-              resp <- call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode new) undefined)
+              resp <- call $ callIdpUpdate (env ^. teSpar) (Just owner1) idpid1 (IdPMetadataValue (cs $ SAML.encode new) undefined)
               liftIO $ statusCode resp `shouldBe` 200
 
               idp <- runSpar $ IdPEffect.getConfig idpid1
@@ -802,7 +814,7 @@ specCRUDIdentityProvider = do
         resp <-
           let idpmeta2 = idpmeta1 & edIssuer .~ issuer2
               metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
-           in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 metadata2
+           in call $ callIdpUpdate (env ^. teSpar) (Just owner1) idpid1 metadata2
         let idp :: IdP = responseJsonUnsafe resp
         liftIO $ do
           statusCode resp `shouldBe` 200
@@ -820,7 +832,7 @@ specCRUDIdentityProvider = do
         getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldSatisfy` isJust
         _ <-
           let metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
-           in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 metadata2
+           in call $ callIdpUpdate (env ^. teSpar) (Just owner1) idpid1 metadata2
         getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldSatisfy` isJust
         newuref <- tryLogin privkey2 idp2 userSubject
         getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldBe` Nothing
@@ -846,7 +858,7 @@ specCRUDIdentityProvider = do
         getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldSatisfy` isJust
         _ <-
           let metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
-           in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 metadata2
+           in call $ callIdpUpdate (env ^. teSpar) (Just owner1) idpid1 metadata2
         getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldSatisfy` isJust
         newuref <- tryLogin privkey2 idp2 userSubject
         getUserIdViaRef' olduref >>= \es -> liftIO $ es `shouldBe` Nothing
@@ -861,7 +873,7 @@ specCRUDIdentityProvider = do
             idp2 = idp1 & SAML.idpMetadata .~ idpmeta2
         _ <-
           let metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
-           in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 metadata2
+           in call $ callIdpUpdate (env ^. teSpar) (Just owner1) idpid1 metadata2
         userSubject <- SAML.unspecifiedNameID . UUID.toText <$> liftIO UUID.nextRandom
         newuref <- tryLogin privkey2 idp2 userSubject
         getUserIdViaRef' newuref >>= \es -> liftIO $ es `shouldSatisfy` isJust
@@ -874,7 +886,7 @@ specCRUDIdentityProvider = do
             idp2 = idp1 & SAML.idpMetadata .~ idpmeta2
         _ <-
           let metadata2 = IdPMetadataValue (cs $ SAML.encode idpmeta2) undefined
-           in call $ callIdpUpdate' (env ^. teSpar) (Just owner1) idpid1 metadata2
+           in call $ callIdpUpdate (env ^. teSpar) (Just owner1) idpid1 metadata2
         let userSubject = SAML.unspecifiedNameID "bloob"
         newuref <- tryLogin privkey2 idp2 userSubject
         newuref' <- tryLogin privkey2 idp2 userSubject
@@ -884,7 +896,7 @@ specCRUDIdentityProvider = do
         env <- ask
         (owner, _, (^. idpId) -> idpid, (IdPMetadataValue _ idpmeta, _)) <- registerTestIdPWithMeta
         let idpmeta' = idpmeta & edRequestURI .~ [uri|https://www.example.com|]
-        callIdpUpdate' (env ^. teSpar) (Just owner) idpid (IdPMetadataValue (cs $ SAML.encode idpmeta') undefined)
+        callIdpUpdate (env ^. teSpar) (Just owner) idpid (IdPMetadataValue (cs $ SAML.encode idpmeta') undefined)
           `shouldRespondWith` ((== 200) . statusCode)
         (requri, _) <- call $ callAuthnReq (env ^. teSpar) idpid
         liftIO $ requri `shouldBe` idpmeta' ^. edRequestURI
@@ -896,7 +908,7 @@ specCRUDIdentityProvider = do
             (owner, _, idp, (IdPMetadataValue _ idpmeta, oldPrivKey)) <- registerTestIdPWithMeta
             (SampleIdP _ newPrivKey _ sampleIdPCert2) <- makeSampleIdPMetadata
             let idpmeta' = idpmeta & edCertAuthnResponse .~ (sampleIdPCert2 :| [])
-            callIdpUpdate' (env ^. teSpar) (Just owner) (idp ^. idpId) (IdPMetadataValue (cs $ SAML.encode idpmeta') undefined)
+            callIdpUpdate (env ^. teSpar) (Just owner) (idp ^. idpId) (IdPMetadataValue (cs $ SAML.encode idpmeta') undefined)
               `shouldRespondWith` ((== 200) . statusCode)
             pure (idp, oldPrivKey, newPrivKey)
           -- Sign authn response with a given private key (which may be the one matching
@@ -1000,6 +1012,27 @@ specCRUDIdentityProvider = do
           idp `shouldBe` idp'
           let prefix = "<EntityDescriptor xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" xmlns:samla=\"urn:oasis:names"
           ST.take (ST.length prefix) rawmeta `shouldBe` prefix
+      it "first IdP gets handle 'IdP 1', second gets 'IdP 2'" $ do
+        env <- ask
+        (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+        (SampleIdP metadata1 _ _ _) <- makeSampleIdPMetadata
+        (SampleIdP metadata2 _ _ _) <- makeSampleIdPMetadata
+        idp1 <- call $ callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata1
+        idp2 <- call $ callIdpCreate (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata2
+        idp1' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp1 ^. idpId)
+        idp2' <- call $ callIdpGet (env ^. teSpar) (Just owner) (idp2 ^. idpId)
+        liftIO $ do
+          idp1 `shouldBe` idp1'
+          idp2 `shouldBe` idp2'
+          (idp1 ^. (SAML.idpExtraInfo . wiHandle)) `shouldBe` IdPHandle "IdP 1"
+          (idp2 ^. (SAML.idpExtraInfo . wiHandle)) `shouldBe` IdPHandle "IdP 2"
+      it "explicitly set handle on IdP create" $ do
+        env <- ask
+        (owner, _) <- call $ createUserWithTeam (env ^. teBrig) (env ^. teGalley)
+        (SampleIdP metadata _ _ _) <- makeSampleIdPMetadata
+        let expected = IdPHandle "kukku mukku"
+        actual <- (\idp -> idp ^. (SAML.idpExtraInfo . wiHandle)) <$> call (callIdpCreateWithHandle (env ^. teWireIdPAPIVersion) (env ^. teSpar) (Just owner) metadata expected)
+        liftIO $ actual `shouldBe` expected
     context "client is owner without email" $ do
       it "responds with 2xx; makes IdP available for GET /identity-providers/" $ do
         pending
