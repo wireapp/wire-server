@@ -137,6 +137,10 @@ tests s =
           test s "add a new client in an invalid epoch" propInvalidEpoch
         ],
       testGroup
+        "External Proposal"
+        [ test s "member adds new client" testExternalAddProposal
+        ],
+      testGroup
         "Protocol mismatch"
         [ test s "send a commit to a proteus conversation" testAddUsersToProteus,
           test s "add users bypassing MLS" testAddUsersDirectly,
@@ -1384,3 +1388,37 @@ propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
     prop <- liftIO $ bareAddProposal tmp creator dee "group.1.json" "group.1.json"
     postMessage (qUnqualified (pUserId creator)) prop
       !!! const 201 === statusCode
+
+testExternalAddProposal :: TestM ()
+testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(2, LocalUser)]
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
+
+  let (_bobClient1, bobClient2) = assertTwo (toList (pClients bob))
+
+  (commit, welcome) <-
+    liftIO $
+      setupCommit tmp creator "group" "group" $
+        -- NonEmpty.tail (pClients creator) <> [bobClient1]
+        NonEmpty.tail (pClients creator) <> toList (pClients bob)
+
+  testSuccessfulCommit MessagingSetup {users = [bob], ..}
+
+  void . liftIO $
+    spawn
+      ( cli
+          (pClientQid bob)
+          tmp
+          [ "group",
+            "from-welcome",
+            "--group-out",
+            tmp </> "group",
+            tmp </> "welcome"
+          ]
+      )
+      Nothing
+
+  externalProposal <- liftIO $ createExternalProposal tmp bob (snd bobClient2) "group" "group"
+  print externalProposal
+
+  pure ()

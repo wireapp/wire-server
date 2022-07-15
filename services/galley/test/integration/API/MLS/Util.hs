@@ -380,6 +380,33 @@ pendingProposalsCommit tmp creator groupName = do
       True -> Just <$> BS.readFile welcomeFile
   pure (commit, welcome)
 
+createExternalProposal ::
+  HasCallStack =>
+  String ->
+  Participant ->
+  ClientId ->
+  String ->
+  String ->
+  IO ByteString
+createExternalProposal tmp creator clientId groupIn groupOut = do
+  let newClientQid = userClientQid (pUserId creator) clientId
+  external_proposal <-
+    spawn
+      ( cli
+          (pClientQid creator)
+          tmp
+          $ [ "external-proposal",
+              "--group-in",
+              tmp </> groupIn,
+              "--group-out",
+              tmp </> groupOut,
+              "add",
+              tmp </> newClientQid
+            ]
+      )
+      Nothing
+  pure external_proposal
+
 createMessage ::
   HasCallStack =>
   String ->
