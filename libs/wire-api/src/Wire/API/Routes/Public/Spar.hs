@@ -113,6 +113,7 @@ type IdpCreate =
 type IdpUpdate =
   ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo
     :> Capture "id" SAML.IdPId
+    :> QueryParam' '[Optional, Strict] "handle" (Range 1 32 Text) -- todo(leif): check length limitation
     :> Put '[JSON] IdP
 
 type IdpDelete =
