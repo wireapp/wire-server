@@ -158,14 +158,14 @@ spec = do
       it "getIdPConfigsByTeam works" $ do
         skipIdPAPIVersions [WireIdPAPIV1]
         teamid <- nextWireId
-        idp <- makeTestIdP <&> idpExtraInfo .~ WireIdP teamid Nothing [] Nothing
+        idp <- makeTestIdP <&> idpExtraInfo .~ WireIdP teamid Nothing [] Nothing (IdPHandle "IdP 1")
         () <- runSpar $ IdPEffect.insertConfig idp
         idps <- runSpar $ IdPEffect.getConfigsByTeam teamid
         liftIO $ idps `shouldBe` [idp]
       it "deleteIdPConfig works" $ do
         teamid <- nextWireId
         idpApiVersion <- asks (^. teWireIdPAPIVersion)
-        idp <- makeTestIdP <&> idpExtraInfo .~ WireIdP teamid (Just idpApiVersion) [] Nothing
+        idp <- makeTestIdP <&> idpExtraInfo .~ WireIdP teamid (Just idpApiVersion) [] Nothing (IdPHandle "IdP 1")
         () <- runSpar $ IdPEffect.insertConfig idp
         do
           midp <- runSpar $ IdPEffect.getConfig (idp ^. idpId)

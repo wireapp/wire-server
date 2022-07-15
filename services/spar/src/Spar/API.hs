@@ -519,7 +519,7 @@ idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apive
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   GalleyAccess.assertSSOEnabled teamid
   assertNoScimOrNoIdP teamid
-  handle <- maybe (IdPConfigStore.newHandle teamid) pure mHandle
+  handle <- maybe (IdPConfigStore.newHandle teamid) pure (IdPHandle . fromRange <$> mHandle)
   idp <- validateNewIdP apiversion idpmeta teamid mReplaces handle
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   IdPConfigStore.insertConfig idp

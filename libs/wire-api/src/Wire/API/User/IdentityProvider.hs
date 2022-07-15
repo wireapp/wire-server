@@ -46,7 +46,7 @@ import Wire.API.User.Orphans (samlSchemaOptions)
 type IdP = IdPConfig WireIdP
 
 newtype IdPHandle = IdPHandle {unIdPHandle :: Text}
-  deriving (Eq, Ord, Show, FromJSON, ToJSON, ToSchema)
+  deriving (Eq, Ord, Show, FromJSON, ToJSON, ToSchema, Arbitrary, Generic)
 
 data WireIdP = WireIdP
   { _wiTeam :: TeamId,

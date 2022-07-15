@@ -156,6 +156,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import Data.Range
 import Data.String.Conversions
+import Data.Text (pack)
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID as UUID hiding (fromByteString, null)
@@ -543,7 +544,10 @@ nextWireId :: MonadIO m => m (Id a)
 nextWireId = Id <$> liftIO UUID.nextRandom
 
 nextWireIdP :: MonadIO m => WireIdPAPIVersion -> m WireIdP
-nextWireIdP version = WireIdP <$> (Id <$> liftIO UUID.nextRandom) <*> pure (Just version) <*> pure [] <*> pure Nothing
+nextWireIdP version = WireIdP <$> iid <*> pure (Just version) <*> pure [] <*> pure Nothing <*> idpHandle
+  where
+    iid = Id <$> liftIO UUID.nextRandom
+    idpHandle = iid <&> IdPHandle . pack . show
 
 nextSAMLID :: MonadIO m => m (ID a)
 nextSAMLID = mkID . UUID.toText <$> liftIO UUID.nextRandom
