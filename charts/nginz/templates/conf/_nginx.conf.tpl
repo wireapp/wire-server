@@ -256,7 +256,7 @@ http {
         # Note that this endpoint has no rate limit
               {{- else }}
                 {{- if not (hasKey $location "specific_user_rate_limit") }}
-        limit_req zone=reqs_per_addr burst=5 nodelay;
+        limit_req zone=reqs_per_addr burst=10 nodelay;
         limit_conn conns_per_addr 20;
                 {{- end }}
               {{- end }}
