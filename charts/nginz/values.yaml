@@ -56,6 +56,9 @@ nginx_conf:
   - /search/top
   - /search/common
 
+  rate_limit_reqs_per_user: "10r/s"
+  rate_limit_reqs_per_addr: "5r/m"
+
   # This value must be a list of strings. Each string is copied verbatim into
   # the nginx.conf after the default 'limit_req_zone' directives. This should be
   # used to create request zones which can then be specified in

@@ -33,6 +33,8 @@ nginx_conf:
   worker_rlimit_nofile: 131072
   worker_connections: 65536
   disabled_paths: []
+  rate_limit_reqs_per_user: "10r/s"
+  rate_limit_reqs_per_addr: "5r/m"
   user_rate_limit_request_zones: []
 
   tls:
