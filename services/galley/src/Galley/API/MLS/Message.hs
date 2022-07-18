@@ -599,8 +599,8 @@ propagateMessage loc qusr conv con raw = do
     foldMap (uncurry mkPush) (cToList =<< lclients)
 
   -- send to remotes
-  (traverse_ handleError =<<)
-    . runFederatedConcurrentlyEither (map remoteMemberQualify (Data.convRemoteMembers conv))
+  traverse_ handleError
+    <=< runFederatedConcurrentlyEither (map remoteMemberQualify (Data.convRemoteMembers conv))
     $ \(tUnqualified -> rs) ->
       fedClient @'Galley @"on-mls-message-sent" $
         RemoteMLSMessage

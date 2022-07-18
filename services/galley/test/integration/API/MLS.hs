@@ -762,7 +762,7 @@ testRemoveClientsIncomplete = withSystemTempDirectory "mls" $ \tmp -> do
   testSuccessfulCommit MessagingSetup {users = [bob], commit = addCommit, ..}
 
   -- remove only first client of bob
-  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" [(NE.head (pClients bob))]
+  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" [NE.head (pClients bob)]
 
   err <-
     responseJsonError
