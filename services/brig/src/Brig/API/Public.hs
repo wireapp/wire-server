@@ -180,7 +180,7 @@ swaggerDocsAPI (Just V1) =
 swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
 
 servantSitemap :: ServerT BrigAPI (Handler r)
-servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> propertiesAPI :<|> mlsAPI
+servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> propertiesAPI :<|> mlsAPI :<|> userHandleAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -266,6 +266,11 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"mls-key-packages-claim" claimKeyPackages
         :<|> Named @"mls-key-packages-count" countKeyPackages
 
+    userHandleAPI :: ServerT UserHandleAPI (Handler r)
+    userHandleAPI =
+      Named @"check-user-handles" checkHandles
+        :<|> Named @"check-user-handle" checkHandle
+
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
 -- CheckUserExists[Un]Qualified, see 'Brig.API.User.userGC'.
@@ -277,33 +282,6 @@ sitemap ::
   Members '[CodeStore, PasswordResetStore] r =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
-  -- User Handle API ----------------------------------------------------
-
-  post "/users/handles" (continue checkHandlesH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. jsonRequest @Public.CheckHandles
-  document "POST" "checkUserHandles" $ do
-    Doc.summary "Check availability of user handles"
-    Doc.body (Doc.ref Public.modelCheckHandles) $
-      Doc.description "JSON body"
-    Doc.returns (Doc.array Doc.string')
-    Doc.response 200 "List of free handles" Doc.end
-
-  head "/users/handles/:handle" (continue checkHandleH) $
-    zauthUserId
-      .&. capture "handle"
-  document "HEAD" "checkUserHandle" $ do
-    Doc.summary "Check whether a user handle can be taken"
-    Doc.parameter Doc.Path "handle" Doc.bytes' $
-      Doc.description "Handle to check"
-    Doc.response 200 "Handle is taken" Doc.end
-    Doc.errorResponse (errorToWai @'E.InvalidHandle)
-    Doc.errorResponse (errorToWai @'E.HandleNotFound)
-
-  -- some APIs moved to servant
-  -- end User Handle API
-
   get "/users/:uid/rich-info" (continue getRichInfoH) $
     zauthUserId
       .&. capture "uid"
@@ -786,19 +764,19 @@ changeLocale u conn l = lift $ API.changeLocale u conn l
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
-checkHandleH :: UserId ::: Text -> (Handler r) Response
-checkHandleH (_uid ::: hndl) =
+checkHandle :: UserId -> Text -> Handler r ()
+checkHandle _uid hndl =
   API.checkHandle hndl >>= \case
-    API.CheckHandleInvalid -> throwE (StdError (errorToWai @'E.InvalidHandle))
-    API.CheckHandleFound -> pure $ setStatus status200 empty
-    API.CheckHandleNotFound -> pure $ setStatus status404 empty
+    API.CheckHandleInvalid -> throwStd (errorToWai @'E.InvalidHandle)
+    API.CheckHandleFound -> pure ()
+    API.CheckHandleNotFound -> throwStd (errorToWai @'E.HandleNotFound)
 
-checkHandlesH :: JSON ::: UserId ::: JsonRequest Public.CheckHandles -> (Handler r) Response
-checkHandlesH (_ ::: _ ::: req) = do
-  Public.CheckHandles hs num <- parseJsonBody req
+-- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
+-- *any* account.)
+checkHandles :: UserId -> Public.CheckHandles -> Handler r [Handle]
+checkHandles _ (Public.CheckHandles hs num) = do
   let handles = mapMaybe parseHandle (fromRange hs)
-  free <- lift . wrapClient $ API.checkHandles handles (fromRange num)
-  pure $ json (free :: [Handle])
+  lift $ wrapHttpClient $ API.checkHandles handles (fromRange num)
 
 -- | This endpoint returns UserHandleInfo instead of UserProfile for backwards
 -- compatibility, whereas the corresponding qualified endpoint (implemented by

@@ -320,6 +320,36 @@ type SelfAPI =
                :> MultiVerb 'PUT '[JSON] ChangeHandleResponses (Maybe ChangeHandleError)
            )
 
+type UserHandleAPI =
+  Named
+    "check-user-handles"
+    ( Summary "Check availability of user handles"
+        :> ZUser
+        :> "users"
+        :> "handles"
+        :> ReqBody '[JSON] CheckHandles
+        :> MultiVerb
+             'POST
+             '[JSON]
+             '[Respond 200 "List of free handles" [Handle]]
+             [Handle]
+    )
+    :<|> Named
+           "check-user-handle"
+           ( Summary "Check whether a user handle can be taken"
+               :> CanThrow 'InvalidHandle
+               :> CanThrow 'HandleNotFound
+               :> ZUser
+               :> "users"
+               :> "handles"
+               :> Capture "handle" Text
+               :> MultiVerb
+                    'HEAD
+                    '[JSON]
+                    '[Respond 200 "Handle is taken" ()]
+                    ()
+           )
+
 type AccountAPI =
   -- docs/reference/user/registration.md {#RefRegistration}
   --
@@ -838,6 +868,7 @@ type BrigAPI =
     :<|> ConnectionAPI
     :<|> PropertiesAPI
     :<|> MLSAPI
+    :<|> UserHandleAPI
 
 brigSwagger :: Swagger
 brigSwagger = toSwagger (Proxy @BrigAPI)
