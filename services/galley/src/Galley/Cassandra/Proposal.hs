@@ -35,7 +35,7 @@ type TTL = Integer
 
 -- | Proposals in the database expire after this timeout in seconds
 defaultTTL :: TTL
-defaultTTL = 30 * 24 * 60 * 60
+defaultTTL = 28 * 24 * 60 * 60
 
 interpretProposalStoreToCassandra ::
   Members '[Embed IO, Input ClientState] r =>
