@@ -441,13 +441,67 @@ processProposal qusr conv msg prop = do
   --
   -- is the user a member of the conversation?
   loc <- qualifyLocal ()
-  isMember' <- foldQualified loc (fmap isJust . getLocalMember (convId conv) . tUnqualified) (fmap isJust . getRemoteMember (convId conv)) qusr
+  isMember' <-
+    foldQualified
+      loc
+      ( fmap isJust
+          . getLocalMember (convId conv)
+          . tUnqualified
+      )
+      ( fmap isJust
+          . getRemoteMember (convId conv)
+      )
+      qusr
   unless isMember' $ throwS @'ConvNotFound
 
   -- FUTUREWORK: validate the member's conversation role
+  let propValue = rmValue prop
+  checkProposalCipherSuite suiteTag propValue
+  when (isExternalProposal msg) $ checkExternalProposalUser qusr propValue
   let propRef = proposalRef suiteTag prop
-  checkProposal suiteTag (rmValue prop)
   storeProposal (msgGroupId msg) (msgEpoch msg) propRef prop
+
+isExternalProposal :: Message 'MLSPlainText -> Bool
+isExternalProposal msg = case msgSender msg of
+  NewMemberSender -> True
+  PreconfiguredSender _ -> True
+  _ -> False
+
+-- check owner/subject of the key package exists and belongs to the user
+checkExternalProposalUser ::
+  Members
+    '[ BrigAccess,
+       ErrorS 'MLSUnsupportedProposal,
+       Input (Local ())
+     ]
+    r =>
+  Qualified UserId ->
+  Proposal ->
+  Sem r ()
+checkExternalProposalUser qusr prop = do
+  loc <- qualifyLocal ()
+  foldQualified
+    loc
+    ( \lusr -> case prop of
+        AddProposal keyPackage -> do
+          ClientIdentity {ciUser, ciClient} <-
+            either
+              (const $ throwS @'MLSUnsupportedProposal)
+              pure
+              $ decodeMLS' @ClientIdentity (bcIdentity . kpCredential . rmValue $ keyPackage)
+          -- requesting user must match key package owner
+          when (tUnqualified lusr /= ciUser) $ throwS @'MLSUnsupportedProposal
+          -- client referenced in key package must be one of the user's clients
+          UserClients {userClients} <- lookupClients [ciUser]
+          maybe
+            (throwS @'MLSUnsupportedProposal)
+            (flip when (throwS @'MLSUnsupportedProposal) . Set.null . Set.filter (== ciClient))
+            $ userClients Map.!? ciUser
+        RemoveProposal _ -> pure () -- pass remove proposals
+        _ -> throwS @'MLSUnsupportedProposal
+    )
+    (const $ pure ()) -- FUTUREWORK: check external proposals from remote backends
+    qusr
 
 executeProposalAction ::
   forall r.
