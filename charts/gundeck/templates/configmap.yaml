@@ -44,7 +44,6 @@ data:
       arnEnv: {{ .arnEnv }}
       sqsEndpoint: {{ .sqsEndpoint | quote }}
       snsEndpoint: {{ .snsEndpoint | quote }}
-      connectionLimit: 256
     {{- end }}
 
     settings:

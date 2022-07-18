@@ -1,0 +1,7 @@
+Minor fixes in helmcharts:
+- charts/nginz: Rate limit SSO endpoints less
+- charts/nginz: Ensure rate limiting isn't commented out
+- charts/galley: Honour .setttings.httpPoolSize
+- charts/galley: Fix typo in settings.featureFlags.validateSAMLEmails
+- charts/gundeck: Remove aws.connectionLimit
+- charts/brig: Fix default brandLabelUrl and remove brandLabel

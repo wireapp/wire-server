@@ -142,8 +142,8 @@ http {
   # Rate Limiting
   #
 
-  limit_req_zone $rate_limited_by_zuser zone=reqs_per_user:12m rate=10r/s;
-  limit_req_zone $rate_limited_by_addr zone=reqs_per_addr:12m rate=5r/m;
+  limit_req_zone $rate_limited_by_zuser zone=reqs_per_user:12m rate={{ .Values.nginx_conf.rate_limit_reqs_per_user }};
+  limit_req_zone $rate_limited_by_addr zone=reqs_per_addr:12m rate={{ .Values.nginx_conf.rate_limit_reqs_per_addr }};
 
 {{- range $limit := .Values.nginx_conf.user_rate_limit_request_zones }}
   {{ $limit }}
@@ -246,7 +246,7 @@ http {
             {{- if ($location.basic_auth) }}
         auth_basic "Restricted";
         auth_basic_user_file {{ $.Values.nginx_conf.basic_auth_file }};
-            {{- end -}}
+            {{- end }}
 
             {{- if ($location.disable_zauth) }}
         zauth off;
@@ -254,15 +254,16 @@ http {
         # If zauth is off, limit by remote address if not part of limit exemptions
               {{- if ($location.unlimited_requests_endpoint) }}
         # Note that this endpoint has no rate limit
-              {{- else -}}
-        limit_req zone=reqs_per_addr burst=5 nodelay;
+              {{- else }}
+                {{- if not (hasKey $location "specific_user_rate_limit") }}
+        limit_req zone=reqs_per_addr burst=10 nodelay;
         limit_conn conns_per_addr 20;
-              {{- end -}}
-            {{- else }}
-
-              {{- if hasKey $location "specific_user_rate_limit" }}
-        limit_req zone={{ $location.specific_user_rate_limit }} nodelay;
+                {{- end }}
               {{- end }}
+            {{- end }}
+
+            {{- if hasKey $location "specific_user_rate_limit" }}
+        limit_req zone={{ $location.specific_user_rate_limit }}{{ if hasKey $location "specific_user_rate_limit_burst" }} burst={{ $location.specific_user_rate_limit_burst }}{{ end }} nodelay;
             {{- end }}
 
         if ($request_method = 'OPTIONS') {

@@ -39,8 +39,7 @@ config:
       templateBranding:
         brand: Wire
         brandUrl: https://wire.com
-        brandLabel: wire.com
-        brandLabelUrl: https://wire.com
+        brandLabelUrl: wire.com
         brandLogoUrl: https://wire.com/p/img/email/logo-email-black.png
         brandService: Wire Service Provider
         copyright: © WIRE SWISS GmbH
