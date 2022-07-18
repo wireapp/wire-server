@@ -437,7 +437,7 @@ applyProposalRef conv _groupId _epoch (Inline p) = do
   suite <-
     preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) conv
       & noteS @'ConvNotFound
-  checkProposal suite p
+  checkProposalCipherSuite suite p
   applyProposal p
 
 applyProposal :: HasProposalEffects r => Proposal -> Sem r ProposalAction
@@ -452,7 +452,7 @@ applyProposal (RemoveProposal ref) = do
   pure (paRemoveClient qclient)
 applyProposal _ = throwS @'MLSUnsupportedProposal
 
-checkProposal ::
+checkProposalCipherSuite ::
   Members
     '[ Error MLSProtocolError,
        ProposalStore
@@ -461,7 +461,7 @@ checkProposal ::
   CipherSuiteTag ->
   Proposal ->
   Sem r ()
-checkProposal suite (AddProposal kpRaw) = do
+checkProposalCipherSuite suite (AddProposal kpRaw) = do
   let kp = rmValue kpRaw
   unless (kpCipherSuite kp == tagCipherSuite suite)
     . throw
@@ -472,7 +472,7 @@ checkProposal suite (AddProposal kpRaw) = do
       <> " and the cipher suite of the proposal's key package "
       <> show (cipherSuiteNumber (kpCipherSuite kp))
       <> " do not match."
-checkProposal _suite _prop = pure ()
+checkProposalCipherSuite _suite _prop = pure ()
 
 processProposal ::
   HasProposalEffects r =>
@@ -505,7 +505,7 @@ processProposal qusr conv msg prop = do
 
   -- FUTUREWORK: validate the member's conversation role
   let propRef = proposalRef suiteTag prop
-  checkProposal suiteTag (rmValue prop)
+  checkProposalCipherSuite suiteTag (rmValue prop)
   storeProposal (msgGroupId msg) (msgEpoch msg) propRef prop
 
 executeProposalAction ::
