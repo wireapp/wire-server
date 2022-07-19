@@ -584,3 +584,21 @@ Where:
 * `$EMAIL_CODE` is the validation code received by email after running the previous script/command
 * `$TEAM_CURRENCY` is the currency of the team
 * `$TEAM_NAME` is the name of the team
+
+Deleting a team using the API
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you want to delete a team using the `API<https://staging-nginz-https.zinfra.io/api/swagger-ui/>`, you need to use `curl` to call the `DELETE /teams/{tid}<https://staging-nginz-https.zinfra.io/api/swagger-ui/#/default/delete_teams__tid>` endpoint.
+
+You do this by running:
+
+.. code:: sh
+
+   curl -i -s --show-error -XDELETE "$BRIG_HOST/teams/$TEAM_ID" -H'Content-type: application/json' -d'{"password":"$PASSWORD","verification_code":"$VERIFICATION_CODE"}}'
+
+Where:
+
+* `$BRIG_HOST` is the base URL for your brig service
+* `$TEAM_ID` is the id of the team you want to delete
+* `$PASSWORD` is <something>
+* `$VERIFICATION_CODE` is <something>
