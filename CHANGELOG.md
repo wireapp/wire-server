@@ -1,3 +1,62 @@
+# [2022-07-19] (Chart Release 4.21.0)
+
+## Release notes
+
+
+* Users of the (currently alpha) coturn Helm chart must **manually update
+  their configuration** due to changes in how the chart handles authentication
+  secrets. Please see below for further details. (#2553)
+
+
+## API changes
+
+
+* The response to POST /mls/messages adds a timestamp (#2560)
+
+
+## Features
+
+
+* charts/wire-server: default log format everywhere to StructuredJSON format (introduced in #1951 and #1959) (#2559)
+
+* The coturn chart now supports multiple authentication secrets, which permits
+  multiple backend instances to use the same TURN servers without needing to
+  share authentication secrets between the backend instances.
+
+  Correspondingly, the `.Values.secrets.zrestSecret` configuration option, which
+  took a single authentication secret as its argument, has been replaced with the
+  option `.Values.secrets.zrestSecrets` (note spelling!), which instead takes a
+  *list* of authentication secrets as its argument. (#2553)
+
+* Add support for bare MLS proposals (#2436)
+
+
+## Bug fixes and other updates
+
+
+* Fix a bug in charts/cannon. It's now possible to use a custom TLS certificate when enabling cannon's nginz sidecar container. (Previously only letsencrypt certificates worked, and were tested) (#2558)
+
+* Minor fixes in helmcharts:
+  - charts/nginz: Rate limit SSO endpoints less
+  - charts/nginz: Ensure rate limiting isn't commented out
+  - charts/galley: Honour .setttings.httpPoolSize
+  - charts/galley: Fix typo in settings.featureFlags.validateSAMLEmails
+  - charts/gundeck: Remove aws.connectionLimit
+  - charts/brig: Fix default brandLabelUrl and remove brandLabel (#2563)
+
+
+## Internal changes
+
+
+* Port brig UserHandle API to servant (#2556)
+
+* Bump timeout for integration tests to 15 minutes (from 10 minutes), as 10 minutes is no longer enough. (#2570)
+
+* Internal endpoints to `PATCH` feature status (#2555)
+
+*  Change the proposal hold time to 28 days (#2568)
+
+
 # [2022-07-12] (Chart Release 4.19.0)
 
 ## Release notes
