@@ -480,7 +480,7 @@ Create a team using the SCIM API
 
 If you need to create a team manually, maybe because team creation was blocked in the "teams" interface, follow this procedure:
 
-First download or locate this bash script: `wire-server/deploy/services-demo/create_test_team_scim.sh <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_test_team_scim.sh>`
+First download or locate this bash script: `wire-server/deploy/services-demo/create_test_team_scim.sh<https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_test_team_scim.sh>`
 
 Then, run it the following way:
 
