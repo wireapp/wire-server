@@ -1,1 +1,0 @@
-Fix a bug in charts/cannon. It's now possible to use a custom TLS certificate when enabling cannon's nginz sidecar container. (Previously only letsencrypt certificates worked, and were tested)
