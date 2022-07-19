@@ -26,6 +26,7 @@ module Galley.Cassandra.Conversation.Members
 where
 
 import Cassandra
+import Data.Domain
 import Data.Id
 import qualified Data.List.Extra as List
 import Data.Monoid
@@ -177,6 +178,17 @@ newRemoteMemberWithRole ur@(qUntagged -> (Qualified (u, r) _)) =
       rmConvRoleName = r,
       rmMLSClients = mempty
     }
+
+lookupRemoteMember :: ConvId -> Domain -> UserId -> Client (Maybe RemoteMember)
+lookupRemoteMember conv domain usr = do
+  mkMem <$$> retry x1 (query1 Cql.selectRemoteMember (params LocalQuorum (conv, domain, usr)))
+  where
+    mkMem (role, clients) =
+      RemoteMember
+        { rmId = toRemoteUnsafe domain usr,
+          rmConvRoleName = role,
+          rmMLSClients = Set.fromList (fromSet clients)
+        }
 
 lookupRemoteMembers :: ConvId -> Client [RemoteMember]
 lookupRemoteMembers conv = do
@@ -360,6 +372,7 @@ interpretMemberStoreToCassandra = interpret $ \case
   CreateBotMember sr bid cid -> embedClient $ addBotMember sr bid cid
   GetLocalMember cid uid -> embedClient $ member cid uid
   GetLocalMembers cid -> embedClient $ members cid
+  GetRemoteMember cid uid -> embedClient $ lookupRemoteMember cid (tDomain uid) (tUnqualified uid)
   GetRemoteMembers rcid -> embedClient $ lookupRemoteMembers rcid
   SelectRemoteMembers uids rcnv -> embedClient $ filterRemoteConvMembers uids rcnv
   SetSelfMember qcid luid upd -> embedClient $ updateSelfMember qcid luid upd

@@ -50,6 +50,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Event.Conversation
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -295,7 +296,59 @@ setupCommit tmp admin groupName newGroupName clients =
       Nothing
       <*> BS.readFile (tmp </> "welcome")
 
+bareAddProposal ::
+  HasCallStack =>
+  String ->
+  Participant ->
+  Participant ->
+  String ->
+  String ->
+  IO ByteString
+bareAddProposal tmp creator participantToAdd groupIn groupOut =
+  spawn
+    ( cli
+        (pClientQid creator)
+        tmp
+        $ [ "proposal",
+            "--group-in",
+            tmp </> groupIn,
+            "--group-out",
+            tmp </> groupOut,
+            "add",
+            tmp </> pClientQid participantToAdd
+          ]
+    )
+    Nothing
+
+pendingProposalsCommit ::
+  HasCallStack =>
+  String ->
+  Participant ->
+  String ->
+  IO (ByteString, Maybe ByteString)
+pendingProposalsCommit tmp creator groupName = do
+  let welcomeFile = tmp </> "welcome"
+  commit <-
+    spawn
+      ( cli
+          (pClientQid creator)
+          tmp
+          $ [ "commit",
+              "--group",
+              tmp </> groupName,
+              "--welcome-out",
+              welcomeFile
+            ]
+      )
+      Nothing
+  welcome <-
+    doesFileExist welcomeFile >>= \case
+      False -> pure Nothing
+      True -> Just <$> BS.readFile welcomeFile
+  pure (commit, welcome)
+
 createMessage ::
+  HasCallStack =>
   String ->
   Participant ->
   String ->
@@ -391,17 +444,31 @@ claimKeyPackage brig claimant target =
     )
 
 postCommit :: HasCallStack => MessagingSetup -> TestM [Event]
-postCommit MessagingSetup {..} = do
+postCommit MessagingSetup {..} =
+  fmap mmssEvents . responseJsonError
+    =<< postMessage (qUnqualified (pUserId creator)) commit
+      <!! const 201 === statusCode
+
+postMessage ::
+  ( HasCallStack,
+    MonadIO m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadHttp m,
+    HasGalley m
+  ) =>
+  UserId ->
+  ByteString ->
+  m ResponseLBS
+postMessage sender msg = do
   galley <- viewGalley
-  responseJsonError
-    =<< post
-      ( galley . paths ["mls", "messages"]
-          . zUser (qUnqualified (pUserId creator))
-          . zConn "conn"
-          . content "message/mls"
-          . bytes commit
-      )
-    <!! const 201 === statusCode
+  post
+    ( galley . paths ["v2", "mls", "messages"]
+        . zUser sender
+        . zConn "conn"
+        . content "message/mls"
+        . bytes msg
+    )
 
 postWelcome :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> ByteString -> m ResponseLBS
 postWelcome uid welcome = do

@@ -142,8 +142,8 @@ http {
   # Rate Limiting
   #
 
-  limit_req_zone $rate_limited_by_zuser zone=reqs_per_user:12m rate=10r/s;
-  limit_req_zone $rate_limited_by_addr zone=reqs_per_addr:12m rate=5r/m;
+  limit_req_zone $rate_limited_by_zuser zone=reqs_per_user:12m rate={{ .Values.nginx_conf.rate_limit_reqs_per_user }};
+  limit_req_zone $rate_limited_by_addr zone=reqs_per_addr:12m rate={{ .Values.nginx_conf.rate_limit_reqs_per_addr }};
 
 {{- range $limit := .Values.nginx_conf.user_rate_limit_request_zones }}
   {{ $limit }}

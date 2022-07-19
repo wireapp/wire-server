@@ -129,7 +129,7 @@ import Wire.API.Provider.Service (ServiceRef)
 import Wire.API.Routes.Public.Galley
 import Wire.API.Routes.Public.Util (UpdateResult (..))
 import Wire.API.ServantProto (RawProto (..))
-import Wire.API.Team.Feature
+import Wire.API.Team.Feature hiding (setStatus)
 import Wire.API.Team.Member
 import Wire.API.User.Client
 

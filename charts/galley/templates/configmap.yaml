@@ -5,10 +5,9 @@ metadata:
 data:
   {{- with .Values.config }}
   galley.yaml: |
-    logNetStrings: True # log using netstrings encoding:
-                        # http://cr.yp.to/proto/netstrings.txt
-    logLevel: {{ .logLevel }}
     logFormat: {{ .logFormat }}
+    logLevel: {{ .logLevel }}
+    logNetStrings: {{ .logNetStrings }}
 
     galley:
       host: 0.0.0.0
@@ -48,7 +47,7 @@ data:
     {{- end }}
 
     settings:
-      httpPoolSize: 128
+      httpPoolSize: {{ .settings.httpPoolSize }}
       intraListing: false
       maxTeamSize: {{ .settings.maxTeamSize }}
       maxConvSize: {{ .settings.maxConvSize }}
@@ -79,9 +78,9 @@ data:
         searchVisibilityInbound:
           {{- toYaml .settings.featureFlags.searchVisibilityInbound | nindent 10 }}
         {{- end }}
-        {{- if .settings.featureFlags.validateSAMLemails }}
-        validateSAMLemails:
-          {{- toYaml .settings.featureFlags.validateSAMLemails | nindent 10 }}
+        {{- if .settings.featureFlags.validateSAMLEmails }}
+        validateSAMLEmails:
+          {{- toYaml .settings.featureFlags.validateSAMLEmails | nindent 10 }}
         {{- end }}
         {{- if .settings.featureFlags.appLock }}
         appLock:

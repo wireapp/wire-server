@@ -5,8 +5,9 @@ metadata:
 data:
 {{- with .Values.config }}
   spar.yaml: |
-    logNetStrings: True # log using netstrings encoding (see http://cr.yp.to/proto/netstrings.txt)
+    logFormat: {{ .logFormat }}
     logLevel: {{ .logLevel }}
+    logNetStrings: {{ .logNetStrings }}
 
     brig:
       host: brig

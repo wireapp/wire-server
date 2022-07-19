@@ -2705,15 +2705,23 @@ parseFedRequest fr = eitherDecode (frBody fr)
 
 assertOne :: (HasCallStack, MonadIO m, Show a) => [a] -> m a
 assertOne [a] = pure a
-assertOne xs = liftIO . assertFailure $ "Expected exactly one element, found " <> show xs
+assertOne xs = liftIO . error $ "Expected exactly one element, found " <> show xs
+
+assertTwo :: (HasCallStack, Show a) => [a] -> (a, a)
+assertTwo [a, b] = (a, b)
+assertTwo xs = error $ "Expected two elements, found " <> show xs
+
+assertThree :: (HasCallStack, Show a) => [a] -> (a, a, a)
+assertThree [a1, a2, a3] = (a1, a2, a3)
+assertThree xs = error $ "Expected three elements, found " <> show xs
 
 assertNone :: (HasCallStack, MonadIO m, Show a) => [a] -> m ()
 assertNone [] = pure ()
-assertNone xs = liftIO . assertFailure $ "Expected exactly no elements, found " <> show xs
+assertNone xs = liftIO . error $ "Expected exactly no elements, found " <> show xs
 
 assertJust :: (HasCallStack, MonadIO m) => Maybe a -> m a
 assertJust (Just a) = pure a
-assertJust Nothing = liftIO $ assertFailure "Expected Just, got Nothing"
+assertJust Nothing = liftIO $ error "Expected Just, got Nothing"
 
 iUpsertOne2OneConversation :: UpsertOne2OneConversationRequest -> TestM ResponseLBS
 iUpsertOne2OneConversation req = do

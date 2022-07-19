@@ -20,8 +20,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Wire.API.MLS.Message
-  ( Epoch (..),
-    Message (..),
+  ( Message (..),
     WireFormatTag (..),
     SWireFormatTag (..),
     SomeMessage (..),
@@ -31,27 +30,25 @@ module Wire.API.MLS.Message
     Sender (..),
     MLSPlainTextSym0,
     MLSCipherTextSym0,
+    MLSMessageSendingStatus (..),
   )
 where
 
+import Control.Lens ((?~))
+import qualified Data.Aeson as A
 import Data.Binary
+import Data.Json.Util
 import Data.Schema
 import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Imports
-import Wire.API.Arbitrary
+import Wire.API.Event.Conversation
 import Wire.API.MLS.Commit
+import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
-
-newtype Epoch = Epoch {epochNumber :: Word64}
-  deriving stock (Eq, Show)
-  deriving newtype (Arbitrary, Enum, ToSchema)
-
-instance ParseMLS Epoch where
-  parseMLS = Epoch <$> parseMLS
 
 data WireFormatTag = MLSPlainText | MLSCipherText
   deriving (Bounded, Enum, Eq, Show)
@@ -149,7 +146,7 @@ instance ParseMLS (MessagePayload 'MLSPlainText) where
 
 data MessagePayloadTBS
   = ApplicationMessage ByteString
-  | ProposalMessage Proposal
+  | ProposalMessage (RawMLS Proposal)
   | CommitMessage Commit
 
 data ContentType
@@ -167,3 +164,24 @@ instance ParseMLS MessagePayloadTBS where
       ApplicationMessageTag -> ApplicationMessage <$> parseMLSBytes @Word32
       ProposalMessageTag -> ProposalMessage <$> parseMLS
       CommitMessageTag -> CommitMessage <$> parseMLS
+
+data MLSMessageSendingStatus = MLSMessageSendingStatus
+  { mmssEvents :: [Event],
+    mmssTime :: UTCTimeMillis
+  }
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via Schema MLSMessageSendingStatus
+
+instance ToSchema MLSMessageSendingStatus where
+  schema =
+    object "MLSMessageSendingStatus" $
+      MLSMessageSendingStatus
+        <$> mmssEvents
+          .= fieldWithDocModifier
+            "events"
+            (description ?~ "A list of events caused by sending the message.")
+            (array schema)
+        <*> mmssTime
+          .= fieldWithDocModifier
+            "time"
+            (description ?~ "The time of sending the message.")
+            schema

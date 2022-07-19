@@ -19,6 +19,7 @@ module Galley.API.MLS
   ( postMLSWelcome,
     postMLSMessage,
     postMLSMessageFromLocalUser,
+    postMLSMessageFromLocalUserV1,
   )
 where
 

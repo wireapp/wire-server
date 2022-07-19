@@ -635,10 +635,7 @@ instance Arbitrary AccountFeatureConfigs where
   arbitrary = AccountFeatureConfigs <$> fmap unlocked arbitrary <*> fmap unlocked arbitrary
     where
       unlocked :: Public.ImplicitLockStatus a -> Public.ImplicitLockStatus a
-      unlocked = Public.ImplicitLockStatus . setUnlocked . Public._unImplicitLockStatus
-
-      setUnlocked :: Public.WithStatus a -> Public.WithStatus a
-      setUnlocked ws = ws {Public.wsLockStatus = Public.LockStatusUnlocked}
+      unlocked = Public.ImplicitLockStatus . Public.setLockStatus Public.LockStatusUnlocked . Public._unImplicitLockStatus
 
 instance FromJSON AccountFeatureConfigs where
   parseJSON =

@@ -18,6 +18,7 @@
 
 module Galley.API.MLS.Message
   ( postMLSMessageFromLocalUser,
+    postMLSMessageFromLocalUserV1,
     postMLSMessage,
     MLSMessageStaticErrors,
   )
@@ -33,6 +34,7 @@ import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
+import qualified Data.Text as T
 import Data.Time
 import Galley.API.Action
 import Galley.API.Error
@@ -48,6 +50,7 @@ import Galley.Effects.BrigAccess
 import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore
+import Galley.Effects.ProposalStore
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Imports
@@ -59,6 +62,7 @@ import Polysemy.Internal
 import Polysemy.Resource (Resource, bracket)
 import Polysemy.TinyLog
 import qualified System.Logger.Class as Logger
+import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error
@@ -71,10 +75,10 @@ import Wire.API.Federation.Error
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
+import qualified Wire.API.MLS.Proposal as Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
 
@@ -87,8 +91,36 @@ type MLSMessageStaticErrors =
      ErrorS 'MissingLegalholdConsent,
      ErrorS 'MLSKeyPackageRefNotFound,
      ErrorS 'MLSClientMismatch,
-     ErrorS 'MLSUnsupportedProposal
+     ErrorS 'MLSUnsupportedProposal,
+     ErrorS 'MLSCommitMissingReferences
    ]
+
+postMLSMessageFromLocalUserV1 ::
+  ( HasProposalEffects r,
+    Members
+      '[ Resource,
+         Error FederationError,
+         ErrorS 'ConvAccessDenied,
+         ErrorS 'ConvNotFound,
+         Error InternalError,
+         ErrorS 'MLSCommitMissingReferences,
+         ErrorS 'MLSProposalNotFound,
+         ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSStaleMessage,
+         ErrorS 'MissingLegalholdConsent,
+         Input (Local ()),
+         ProposalStore,
+         TinyLog
+       ]
+      r
+  ) =>
+  Local UserId ->
+  ConnId ->
+  RawMLS SomeMessage ->
+  Sem r [Event]
+postMLSMessageFromLocalUserV1 lusr conn msg =
+  map lcuEvent
+    <$> postMLSMessage lusr (qUntagged lusr) (Just conn) msg
 
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
@@ -98,10 +130,13 @@ postMLSMessageFromLocalUser ::
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvNotFound,
          Error InternalError,
+         ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MissingLegalholdConsent,
+         Input (Local ()),
+         ProposalStore,
          TinyLog
        ]
       r
@@ -109,10 +144,13 @@ postMLSMessageFromLocalUser ::
   Local UserId ->
   ConnId ->
   RawMLS SomeMessage ->
-  Sem r [Event]
-postMLSMessageFromLocalUser lusr conn msg =
-  map lcuEvent
-    <$> postMLSMessage lusr (qUntagged lusr) (Just conn) msg
+  Sem r MLSMessageSendingStatus
+postMLSMessageFromLocalUser lusr conn msg = do
+  -- FUTUREWORK: Inline the body of 'postMLSMessageFromLocalUserV1' once version
+  -- V1 is dropped
+  events <- postMLSMessageFromLocalUserV1 lusr conn msg
+  t <- toUTCTimeMillis <$> input
+  pure $ MLSMessageSendingStatus events t
 
 postMLSMessage ::
   ( HasProposalEffects r,
@@ -125,8 +163,11 @@ postMLSMessage ::
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MissingLegalholdConsent,
+         ErrorS 'MLSCommitMissingReferences,
          Resource,
-         TinyLog
+         TinyLog,
+         ProposalStore,
+         Input (Local ())
        ]
       r
   ) =>
@@ -155,8 +196,11 @@ postMLSMessageToLocalConv ::
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MissingLegalholdConsent,
+         ErrorS 'MLSCommitMissingReferences,
          Resource,
-         TinyLog
+         TinyLog,
+         ProposalStore,
+         Input (Local ())
        ]
       r
   ) =>
@@ -169,13 +213,19 @@ postMLSMessageToLocalConv qusr con smsg lcnv = case rmValue smsg of
   SomeMessage tag msg -> do
     conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
 
+    -- check that sender is part of conversation
+    loc <- qualifyLocal ()
+    isMember' <- foldQualified loc (fmap isJust . getLocalMember (convId conv) . tUnqualified) (fmap isJust . getRemoteMember (convId conv)) qusr
+    unless isMember' $ throwS @'ConvNotFound
+
     -- validate message
     events <- case tag of
       SMLSPlainText -> case msgTBS (msgPayload msg) of
         CommitMessage c ->
           processCommit qusr con (qualifyAs lcnv conv) (msgEpoch msg) (msgSender msg) c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
-        ProposalMessage _ -> pure mempty -- FUTUREWORK: handle proposals
+        ProposalMessage prop ->
+          processProposal qusr conv msg prop $> mempty
       SMLSCipherText -> case toMLSEnum' (msgContentType (msgPayload msg)) of
         Right CommitMessageTag -> throwS @'MLSUnsupportedMessage
         Right ProposalMessageTag -> throwS @'MLSUnsupportedMessage
@@ -262,7 +312,9 @@ processCommit ::
     Member (Error FederationError) r,
     Member (Error InternalError) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
-    Member Resource r
+    Member (ErrorS 'MLSCommitMissingReferences) r,
+    Member Resource r,
+    Member ProposalStore r
   ) =>
   Qualified UserId ->
   Maybe ConnId ->
@@ -286,6 +338,7 @@ processCommit qusr con lconv epoch sender commit = do
 
   let ttlSeconds :: Int = 600 -- 10 minutes
   withCommitLock groupId epoch (fromIntegral ttlSeconds) $ do
+    checkEpoch epoch (tUnqualified lconv)
     when (epoch == Epoch 0) $ do
       -- this is a newly created conversation, and it should contain exactly one
       -- client (the creator)
@@ -305,8 +358,14 @@ processCommit qusr con lconv epoch sender commit = do
         -- the sender of the first commit must be a member
         _ -> throw (mlsProtocolError "Unexpected sender")
 
+    -- check all pending proposals are referenced in the commit
+    allPendingProposals <- getAllPendingProposals groupId epoch
+    let referencedProposals = Set.fromList $ mapMaybe (\x -> preview Proposal._Ref x) (cProposals commit)
+    unless (all (`Set.member` referencedProposals) allPendingProposals) $
+      throwS @'MLSCommitMissingReferences
+
     -- process and execute proposals
-    action <- foldMap applyProposalRef (cProposals commit)
+    action <- foldMap (applyProposalRef (tUnqualified lconv) groupId epoch) (cProposals commit)
     updates <- executeProposalAction qusr con lconv action
 
     -- increment epoch number
@@ -316,12 +375,30 @@ processCommit qusr con lconv epoch sender commit = do
 
 applyProposalRef ::
   ( HasProposalEffects r,
-    Member (ErrorS 'MLSProposalNotFound) r
+    Members
+      '[ ErrorS 'ConvNotFound,
+         ErrorS 'MLSProposalNotFound,
+         ErrorS 'MLSStaleMessage,
+         ProposalStore
+       ]
+      r
   ) =>
+  Data.Conversation ->
+  GroupId ->
+  Epoch ->
   ProposalOrRef ->
   Sem r ProposalAction
-applyProposalRef (Ref _) = throwS @'MLSProposalNotFound
-applyProposalRef (Inline p) = applyProposal p
+applyProposalRef conv groupId epoch (Ref ref) = do
+  p <- getProposal groupId epoch ref >>= noteS @'MLSProposalNotFound
+  checkEpoch epoch conv
+  checkGroup groupId conv
+  applyProposal (rmValue p)
+applyProposalRef conv _groupId _epoch (Inline p) = do
+  suite <-
+    preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) conv
+      & noteS @'ConvNotFound
+  checkProposal suite p
+  applyProposal p
 
 applyProposal :: HasProposalEffects r => Proposal -> Sem r ProposalAction
 applyProposal (AddProposal kp) = do
@@ -332,6 +409,62 @@ applyProposal (AddProposal kp) = do
   pure (paClient qclient)
 applyProposal _ = throwS @'MLSUnsupportedProposal
 
+checkProposal ::
+  Members
+    '[ Error MLSProtocolError,
+       ProposalStore
+     ]
+    r =>
+  CipherSuiteTag ->
+  Proposal ->
+  Sem r ()
+checkProposal suite (AddProposal kpRaw) = do
+  let kp = rmValue kpRaw
+  unless (kpCipherSuite kp == tagCipherSuite suite)
+    . throw
+    . mlsProtocolError
+    . T.pack
+    $ "The group's cipher suite "
+      <> show (cipherSuiteNumber (tagCipherSuite suite))
+      <> " and the cipher suite of the proposal's key package "
+      <> show (cipherSuiteNumber (kpCipherSuite kp))
+      <> " do not match."
+checkProposal _suite _prop = pure ()
+
+processProposal ::
+  HasProposalEffects r =>
+  Members
+    '[ Error MLSProtocolError,
+       ErrorS 'ConvNotFound,
+       ErrorS 'MLSStaleMessage,
+       ProposalStore,
+       Input (Local ())
+     ]
+    r =>
+  Qualified UserId ->
+  Data.Conversation ->
+  Message 'MLSPlainText ->
+  RawMLS Proposal ->
+  Sem r ()
+processProposal qusr conv msg prop = do
+  checkEpoch (msgEpoch msg) conv
+  checkGroup (msgGroupId msg) conv
+  suiteTag <-
+    preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) conv
+      & noteS @'ConvNotFound
+
+  -- validate the proposal
+  --
+  -- is the user a member of the conversation?
+  loc <- qualifyLocal ()
+  isMember' <- foldQualified loc (fmap isJust . getLocalMember (convId conv) . tUnqualified) (fmap isJust . getRemoteMember (convId conv)) qusr
+  unless isMember' $ throwS @'ConvNotFound
+
+  -- FUTUREWORK: validate the member's conversation role
+  let propRef = proposalRef suiteTag prop
+  checkProposal suiteTag (rmValue prop)
+  storeProposal (msgGroupId msg) (msgEpoch msg) propRef prop
+
 executeProposalAction ::
   forall r.
   ( Member BrigAccess r,
@@ -339,6 +472,7 @@ executeProposalAction ::
     Member (ErrorS 'ConvNotFound) r,
     Member (Error FederationError) r,
     Member (ErrorS 'MLSClientMismatch) r,
+    Member (Error MLSProtocolError) r,
     Member (Error MLSProposalFailure) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
@@ -357,10 +491,8 @@ executeProposalAction ::
   ProposalAction ->
   Sem r [LocalConversationUpdate]
 executeProposalAction qusr con lconv action = do
-  -- For the moment, assume a fixed ciphersuite.
-  -- FUTUREWORK: store ciphersuite with the conversation
-  let cs = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-      ss = csSignatureScheme cs
+  cs <- preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) (tUnqualified lconv) & noteS @'ConvNotFound
+  let ss = csSignatureScheme cs
       cm = convClientMap lconv
       newUserClients = Map.assocs (paAdd action)
   -- check that all clients of each user are added to the conversation, and
@@ -495,6 +627,34 @@ getRemoteMLSClients rusr ss = do
         { mcrUserId = tUnqualified rusr,
           mcrSignatureScheme = ss
         }
+
+-- | Check if the epoch number matches that of a conversation
+checkEpoch ::
+  Members
+    '[ ErrorS 'ConvNotFound,
+       ErrorS 'MLSStaleMessage
+     ]
+    r =>
+  Epoch ->
+  Data.Conversation ->
+  Sem r ()
+checkEpoch epoch conv = do
+  curEpoch <-
+    preview (to convProtocol . _ProtocolMLS . to cnvmlsEpoch) conv
+      & noteS @'ConvNotFound
+  unless (epoch == curEpoch) $ throwS @'MLSStaleMessage
+
+-- | Check if the group ID matches that of a conversation
+checkGroup ::
+  Member (ErrorS 'ConvNotFound) r =>
+  GroupId ->
+  Data.Conversation ->
+  Sem r ()
+checkGroup gId conv = do
+  groupId <-
+    preview (to convProtocol . _ProtocolMLS . to cnvmlsGroupId) conv
+      & noteS @'ConvNotFound
+  unless (gId == groupId) $ throwS @'ConvNotFound
 
 --------------------------------------------------------------------------------
 -- Error handling of proposal execution

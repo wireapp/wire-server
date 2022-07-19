@@ -18,12 +18,14 @@ resources:
     cpu: "500m"
 config:
   logLevel: Info
-  logFormat: JSON
+  logFormat: StructuredJSON
+  logNetStrings: false
   cassandra:
     host: aws-cassandra
     replicaCount: 3
   enableFederator: false # keep enableFederator default in sync with brig and cargohold chart's config.enableFederator as well as wire-server chart's tag.federator
   settings:
+    httpPoolSize: 128
     maxTeamSize: 10000
     maxConvSize: 500
     # Before making indexedBillingTeamMember true while upgrading, please

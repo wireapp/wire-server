@@ -77,6 +77,7 @@ import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore
 import Galley.Effects.ListItems
 import Galley.Effects.MemberStore
+import Galley.Effects.ProposalStore
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
 import Galley.Effects.ServiceStore
@@ -105,6 +106,7 @@ type GalleyEffects1 =
      FireAndForget,
      ClientStore,
      CodeStore,
+     ProposalStore,
      ConversationStore,
      CustomBackendStore,
      LegalHoldStore,

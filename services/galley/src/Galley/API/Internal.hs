@@ -147,6 +147,7 @@ type IFeatureAPI =
     :<|> IFeatureStatusGet FileSharingConfig
     :<|> IFeatureStatusPut '() FileSharingConfig
     :<|> IFeatureStatusLockStatusPut FileSharingConfig
+    :<|> IFeatureStatusPatch '() FileSharingConfig
     -- ConferenceCallingConfig
     :<|> IFeatureStatusGet ConferenceCallingConfig
     :<|> IFeatureStatusPut '() ConferenceCallingConfig
@@ -154,14 +155,17 @@ type IFeatureAPI =
     :<|> IFeatureStatusGet SelfDeletingMessagesConfig
     :<|> IFeatureStatusPut '() SelfDeletingMessagesConfig
     :<|> IFeatureStatusLockStatusPut SelfDeletingMessagesConfig
+    :<|> IFeatureStatusPatch '() SelfDeletingMessagesConfig
     -- GuestLinksConfig
     :<|> IFeatureStatusGet GuestLinksConfig
     :<|> IFeatureStatusPut '() GuestLinksConfig
     :<|> IFeatureStatusLockStatusPut GuestLinksConfig
+    :<|> IFeatureStatusPatch '() GuestLinksConfig
     --  SndFactorPasswordChallengeConfig
     :<|> IFeatureStatusGet SndFactorPasswordChallengeConfig
     :<|> IFeatureStatusPut '() SndFactorPasswordChallengeConfig
     :<|> IFeatureStatusLockStatusPut SndFactorPasswordChallengeConfig
+    :<|> IFeatureStatusPatch '() SndFactorPasswordChallengeConfig
     -- SearchVisibilityInboundConfig
     :<|> IFeatureStatusGet SearchVisibilityInboundConfig
     :<|> IFeatureStatusPut '() SearchVisibilityInboundConfig
@@ -352,8 +356,29 @@ type IFeatureStatusGet f = Named '("iget", f) (FeatureStatusBaseGet f)
 
 type IFeatureStatusPut errs f = Named '("iput", f) (FeatureStatusBasePutInternal errs f)
 
+type IFeatureStatusPatch errs f = Named '("ipatch", f) (FeatureStatusBasePatchInternal errs f)
+
 type FeatureStatusBasePutInternal errs featureConfig =
-  Summary (AppendSymbol "Put config for " (FeatureSymbol featureConfig))
+  FeatureStatusBaseInternal
+    (AppendSymbol "Put config for " (FeatureSymbol featureConfig))
+    errs
+    featureConfig
+    ( ReqBody '[Servant.JSON] (WithStatusNoLock featureConfig)
+        :> QueryParam "ttl" FeatureTTL
+        :> Put '[Servant.JSON] (WithStatus featureConfig)
+    )
+
+type FeatureStatusBasePatchInternal errs featureConfig =
+  FeatureStatusBaseInternal
+    (AppendSymbol "Patch config for " (FeatureSymbol featureConfig))
+    errs
+    featureConfig
+    ( ReqBody '[Servant.JSON] (WithStatusPatch featureConfig)
+        :> Patch '[Servant.JSON] (WithStatus featureConfig)
+    )
+
+type FeatureStatusBaseInternal desc errs featureConfig a =
+  Summary desc
     :> CanThrow OperationDenied
     :> CanThrow 'NotATeamMember
     :> CanThrow 'TeamNotFound
@@ -363,13 +388,11 @@ type FeatureStatusBasePutInternal errs featureConfig =
     :> Capture "tid" TeamId
     :> "features"
     :> FeatureSymbol featureConfig
-    :> ReqBody '[Servant.JSON] (WithStatusNoLock featureConfig)
-    :> QueryParam "ttl" FeatureTTL
-    :> Put '[Servant.JSON] (WithStatus featureConfig)
+    :> a
 
 type IFeatureStatusLockStatusPut featureName =
   Named
-    '("lock", featureName)
+    '("ilock", featureName)
     ( Summary (AppendSymbol "(Un-)lock " (FeatureSymbol featureName))
         :> CanThrow 'NotATeamMember
         :> CanThrow 'TeamNotFound
@@ -445,41 +468,45 @@ iTeamsAPI = mkAPI $ \tid -> hoistAPIHandler id (base tid)
 
 featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
-  mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
-    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
-    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
-    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
-    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
-    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
-    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
-    <@> mkNamedAPI (setLockStatus @Cassandra @FileSharingConfig)
-    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
-    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
-    <@> mkNamedAPI (setLockStatus @Cassandra @SelfDeletingMessagesConfig)
-    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
-    <@> mkNamedAPI (setLockStatus @Cassandra @GuestLinksConfig)
-    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
-    <@> mkNamedAPI (setLockStatus @Cassandra @SndFactorPasswordChallengeConfig)
-    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
-    <@> mkNamedAPI (getFeatureStatusMulti @Cassandra @SearchVisibilityInboundConfig)
-    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
-    <@> mkNamedAPI (getFeatureStatus @Cassandra DontDoAuth)
-    <@> mkNamedAPI (\tid ws ttl -> setFeatureStatus @Cassandra ttl DontDoAuth tid ws)
-    <@> mkNamedAPI (maybe (getAllFeatureConfigsForServer @Cassandra) (getAllFeatureConfigsForUser @Cassandra))
+  mkNamedAPI @'("iget", SSOConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", SSOConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("iget", LegalholdConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", LegalholdConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("iget", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", SearchVisibilityAvailableConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("iget", ValidateSAMLEmailsConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", ValidateSAMLEmailsConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("iget", DigitalSignaturesConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", DigitalSignaturesConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("iget", AppLockConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", AppLockConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("iget", FileSharingConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", FileSharingConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ilock", FileSharingConfig) (updateLockStatus @Cassandra @FileSharingConfig)
+    <@> mkNamedAPI @'("ipatch", FileSharingConfig) (patchFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("iget", ConferenceCallingConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", ConferenceCallingConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("iget", SelfDeletingMessagesConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", SelfDeletingMessagesConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ilock", SelfDeletingMessagesConfig) (updateLockStatus @Cassandra @SelfDeletingMessagesConfig)
+    <@> mkNamedAPI @'("ipatch", SelfDeletingMessagesConfig) (patchFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("iget", GuestLinksConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", GuestLinksConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ilock", GuestLinksConfig) (updateLockStatus @Cassandra @GuestLinksConfig)
+    <@> mkNamedAPI @'("ipatch", GuestLinksConfig) (patchFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("iget", SndFactorPasswordChallengeConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", SndFactorPasswordChallengeConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ilock", SndFactorPasswordChallengeConfig) (updateLockStatus @Cassandra @SndFactorPasswordChallengeConfig)
+    <@> mkNamedAPI @'("ipatch", SndFactorPasswordChallengeConfig) (patchFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("iget", SearchVisibilityInboundConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("igetmulti", SearchVisibilityInboundConfig) (getFeatureStatusMulti @Cassandra)
+    <@> mkNamedAPI @'("iget", ClassifiedDomainsConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iget", MLSConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", MLSConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("iget", SearchVisibilityInboundConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @"feature-configs-internal" (maybe (getAllFeatureConfigsForServer @Cassandra) (getAllFeatureConfigsForUser @Cassandra))
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()
 internalSitemap = do

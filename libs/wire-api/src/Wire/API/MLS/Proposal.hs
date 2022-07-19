@@ -14,14 +14,17 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE TemplateHaskell #-}
 
 module Wire.API.MLS.Proposal where
 
+import Control.Lens (makePrisms)
 import Data.Binary
 import Data.Binary.Get
 import Imports
 import Wire.API.Arbitrary
 import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Context
 import Wire.API.MLS.Extension
 import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
@@ -65,6 +68,13 @@ instance ParseMLS Proposal where
       AppAckProposalTag -> AppAckProposal <$> parseMLSVector @Word32 parseMLS
       GroupContextExtensionsProposalTag ->
         GroupContextExtensionsProposal <$> parseMLSVector @Word32 parseMLS
+
+-- | Compute the proposal ref given a ciphersuite and the raw proposal data.
+proposalRef :: CipherSuiteTag -> RawMLS Proposal -> ProposalRef
+proposalRef cs =
+  ProposalRef
+    . csHash cs proposalContext
+    . rmRaw
 
 data PreSharedKeyTag = ExternalKeyTag | ResumptionKeyTag
   deriving (Bounded, Enum, Eq, Show)
@@ -142,7 +152,9 @@ instance ParseMLS ProposalOrRef where
       RefTag -> Ref <$> parseMLS
 
 newtype ProposalRef = ProposalRef {unProposalRef :: ByteString}
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Ord)
 
 instance ParseMLS ProposalRef where
   parseMLS = ProposalRef <$> getByteString 16
+
+makePrisms ''ProposalOrRef

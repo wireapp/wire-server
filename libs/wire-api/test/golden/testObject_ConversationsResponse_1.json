@@ -71,6 +71,7 @@
                 "guest",
                 "service"
             ],
+            "cipher_suite": 1,
             "creator": "00000000-0000-0000-0000-000200000001",
             "epoch": 42,
             "group_id": "dGVzdF9ncm91cA==",

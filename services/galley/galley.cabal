@@ -62,6 +62,7 @@ library
       Galley.Cassandra.Instances
       Galley.Cassandra.LegalHold
       Galley.Cassandra.Paging
+      Galley.Cassandra.Proposal
       Galley.Cassandra.Queries
       Galley.Cassandra.ResultSet
       Galley.Cassandra.SearchVisibility
@@ -91,6 +92,7 @@ library
       Galley.Effects.ListItems
       Galley.Effects.MemberStore
       Galley.Effects.Paging
+      Galley.Effects.ProposalStore
       Galley.Effects.Queue
       Galley.Effects.RemoteConversationListStore
       Galley.Effects.SearchVisibilityStore
@@ -627,6 +629,8 @@ executable galley-schema
       V66_AddSplashScreen
       V67_MLSFeature
       V68_MLSCommitLock
+      V69_MLSProposal
+      V70_MLSCipherSuite
       Paths_galley
   hs-source-dirs:
       schema/src

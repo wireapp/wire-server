@@ -10,8 +10,7 @@ metadata:
 data:
   {{- with .Values.config }}
   brig.yaml: |
-    logNetStrings: True # log using netstrings encoding:
-                        # http://cr.yp.to/proto/netstrings.txt
+    logNetStrings: {{ .logNetStrings }}
     logFormat: {{ .logFormat }}
     logLevel: {{ .logLevel }}
 
