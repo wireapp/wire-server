@@ -556,7 +556,6 @@ checkExternalProposalUser qusr prop = do
             (throwS @'MLSUnsupportedProposal)
             (flip when (throwS @'MLSUnsupportedProposal) . Set.null . Set.filter (== ciClient))
             $ userClients Map.!? ciUser
-        RemoveProposal _ -> pure () -- pass remove proposals
         _ -> throwS @'MLSUnsupportedProposal
     )
     (const $ pure ()) -- FUTUREWORK: check external proposals from remote backends
