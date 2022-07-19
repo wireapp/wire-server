@@ -600,5 +600,5 @@ Where:
 
 * `$BRIG_HOST` is the base URL for your brig service
 * `$TEAM_ID` is the id of the team you want to delete
-* `$PASSWORD` is <something>
-* `$VERIFICATION_CODE` is <something>
+* `$PASSWORD` is the password for that team
+* `$VERIFICATION_CODE` is required only if you have 2FA enabled
