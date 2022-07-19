@@ -186,11 +186,37 @@ postMLSMessage loc qusr con smsg = case rmValue smsg of
   SomeMessage _ msg -> do
     -- fetch conversation ID
     qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+    unless (msgEpoch msg == Epoch 0) $
+      flip unless (throwS @'MLSUnsupportedMessage) =<< isUserSender qusr smsg
     foldQualified
       loc
       (postMLSMessageToLocalConv qusr con smsg)
       (postMLSMessageToRemoteConv loc qusr con smsg)
       qcnv
+
+isUserSender ::
+  ( Members
+      '[ ErrorS 'MLSKeyPackageRefNotFound,
+         BrigAccess
+       ]
+      r
+  ) =>
+  Qualified UserId ->
+  RawMLS SomeMessage ->
+  Sem r Bool
+isUserSender qusr smsg = case rmValue smsg of
+  SomeMessage tag msg -> case tag of
+    SMLSCipherText -> pure True
+    SMLSPlainText -> case msgSender msg of
+      PreconfiguredSender _ -> pure True
+      NewMemberSender -> pure True
+      MemberSender ref ->
+        getClientByKeyPackageRef ref >>= \case
+          Nothing -> throwS @'MLSKeyPackageRefNotFound
+          Just ClientIdentity {ciUser, ciDomain} ->
+            pure $
+              ciUser == qUnqualified qusr
+                && ciDomain == qDomain qusr
 
 postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
