@@ -480,7 +480,7 @@ Create a team using the SCIM API
 
 If you need to create a team manually, maybe because team creation was blocked in the "teams" interface, follow this procedure:
 
-First download or locate this bash script: `wire-server/deploy/services-demo/create_test_team_scim.sh<https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_test_team_scim.sh>`__
+First download or locate this bash script: `wire-server/deploy/services-demo/create_test_team_scim.sh <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_test_team_scim.sh>`__
 
 Then, run it the following way:
 
@@ -495,7 +495,7 @@ Where:
 
 You might also need to edit the admin email and admin passwords at lines `48` and `49` of the script.
 
-To learn more about the different pods and how to identify them, see `this page<https://docs.wire.com/understand/overview.html#focus-on-pods>`__.
+To learn more about the different pods and how to identify them, see `this page <https://docs.wire.com/understand/overview.html#focus-on-pods>`__.
 
 You can list your pods with `kubectl get pods --namespace wire`.
 
@@ -588,7 +588,7 @@ Where:
 Deleting a team using the API
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-If you want to delete a team using the `API<https://staging-nginz-https.zinfra.io/api/swagger-ui/>`__, you need to use `curl` to call the `DELETE /teams/{tid}<https://staging-nginz-https.zinfra.io/api/swagger-ui/#/default/delete_teams__tid>`__ endpoint.
+If you want to delete a team using the `API <https://staging-nginz-https.zinfra.io/api/swagger-ui/>`__, you need to use `curl` to call the `DELETE /teams/{tid} <https://staging-nginz-https.zinfra.io/api/swagger-ui/#/default/delete_teams__tid>`__ endpoint.
 
 You do this by running:
 
