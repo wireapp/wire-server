@@ -709,18 +709,10 @@ testCommitNotReferencingAllProposals = withSystemTempDirectory "mls" $ \tmp -> d
 
 testAdminRemovesUserFromConv :: TestM ()
 testAdminRemovesUserFromConv = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(2, LocalUser)]
+  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
+  let [bob] = users
 
-  -- create a group
-  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
-
-  -- add clients to it and get welcome message
-  (addCommit, welcome) <-
-    liftIO $
-      setupCommit tmp creator "group" "group" $
-        NonEmpty.tail (pClients creator) <> toList (pClients bob)
-
-  testSuccessfulCommit MessagingSetup {users = [bob], commit = addCommit, ..}
+  testSuccessfulCommit MessagingSetup {users = [bob], ..}
 
   (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" (pClients bob)
 
@@ -746,21 +738,13 @@ testAdminRemovesUserFromConv = withSystemTempDirectory "mls" $ \tmp -> do
 
 testRemoveClientsIncomplete :: TestM ()
 testRemoveClientsIncomplete = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(2, LocalUser)]
+  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
+  let [bob] = users
 
-  -- create a group
-  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
-
-  -- add clients to it and get welcome message
-  (addCommit, welcome) <-
-    liftIO $
-      setupCommit tmp creator "group" "group" $
-        NonEmpty.tail (pClients creator) <> toList (pClients bob)
-
-  testSuccessfulCommit MessagingSetup {users = [bob], commit = addCommit, ..}
+  testSuccessfulCommit MessagingSetup {users = [bob], ..}
 
   -- remove only first client of bob
-  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" [(NE.head (pClients bob))]
+  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" [NE.head (pClients bob)]
 
   err <-
     responseJsonError
@@ -771,23 +755,15 @@ testRemoveClientsIncomplete = withSystemTempDirectory "mls" $ \tmp -> do
 
 testUserRemovesThemselvesFromConv :: TestM ()
 testUserRemovesThemselvesFromConv = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(2, LocalUser)]
+  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
+  let [bob] = users
 
-  -- create a group
-  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
-
-  -- add clients to it and get welcome message
-  (addCommit, welcome) <-
-    liftIO $
-      setupCommit tmp creator "group" "group" $
-        NonEmpty.tail (pClients creator) <> toList (pClients bob)
-
-  testSuccessfulCommit MessagingSetup {users = [bob], commit = addCommit, ..}
+  testSuccessfulCommit MessagingSetup {users = [bob], ..}
 
   -- FUTUREWORK: create commit as bob, when the openmls library supports removing own clients
   (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" (pClients bob)
 
-  -- bob tries to leave the conversation by removng all its clients
+  -- bob tries to leave the conversation by removing all its clients
   err <-
     responseJsonError
       =<< postMessage (qUnqualified (pUserId bob)) removalCommit
@@ -827,7 +803,7 @@ testRemoveDeletedClient deleteClientBefore = withSystemTempDirectory "mls" $ \tm
         fmap mmssEvents . responseJsonError
           =<< doCommitRemoval
             <!! statusCode === const 201
-      liftIO $ assertEqual "no conversation events from removing client" [] events
+      liftIO $ assertEqual "a non-admin received conversation events when removing a client" [] events
     else do
       err <-
         responseJsonError

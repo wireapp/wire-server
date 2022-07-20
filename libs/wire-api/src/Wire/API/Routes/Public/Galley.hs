@@ -1317,19 +1317,20 @@ type MLSMessagingAPI =
            ( Summary "Post an MLS message"
                :> Until 'V2
                :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvMemberNotFound
                :> CanThrow 'ConvNotFound
-               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'LegalHoldNotEnabled
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSCommitMissingReferences
                :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MLSProposalNotFound
                :> CanThrow 'MLSProtocolErrorTag
                :> CanThrow 'MLSSelfRemovalNotAllowed
                :> CanThrow 'MLSStaleMessage
-               :> CanThrow MLSProposalFailure
-               :> CanThrow 'MLSProposalNotFound
                :> CanThrow 'MLSUnsupportedMessage
                :> CanThrow 'MLSUnsupportedProposal
-               :> CanThrow 'LegalHoldNotEnabled
+               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow MLSProposalFailure
                :> "messages"
                :> ZConn
                :> ReqBody '[MLS] (RawMLS SomeMessage)
@@ -1340,6 +1341,7 @@ type MLSMessagingAPI =
            ( Summary "Post an MLS message"
                :> From 'V2
                :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvMemberNotFound
                :> CanThrow 'ConvNotFound
                :> CanThrow 'LegalHoldNotEnabled
                :> CanThrow 'MLSClientMismatch
