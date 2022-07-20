@@ -92,24 +92,27 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSKeyPackageRefNotFound,
      ErrorS 'MLSClientMismatch,
      ErrorS 'MLSUnsupportedProposal,
-     ErrorS 'MLSCommitMissingReferences
+     ErrorS 'MLSCommitMissingReferences,
+     ErrorS 'MLSSelfRemovalNotAllowed
    ]
 
 postMLSMessageFromLocalUserV1 ::
   ( HasProposalEffects r,
     Members
-      '[ Resource,
-         Error FederationError,
-         ErrorS 'ConvAccessDenied,
-         ErrorS 'ConvNotFound,
+      '[ Error FederationError,
          Error InternalError,
+         ErrorS 'ConvAccessDenied,
+         ErrorS 'ConvMemberNotFound,
+         ErrorS 'ConvNotFound,
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSProposalNotFound,
-         ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
+         Resource,
          TinyLog
        ]
       r
@@ -125,18 +128,20 @@ postMLSMessageFromLocalUserV1 lusr conn msg =
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
     Members
-      '[ Resource,
-         Error FederationError,
-         ErrorS 'ConvAccessDenied,
-         ErrorS 'ConvNotFound,
+      '[ Error FederationError,
          Error InternalError,
+         ErrorS 'ConvAccessDenied,
+         ErrorS 'ConvMemberNotFound,
+         ErrorS 'ConvNotFound,
          ErrorS 'MLSCommitMissingReferences,
-         ErrorS 'MLSUnsupportedMessage,
-         ErrorS 'MLSStaleMessage,
          ErrorS 'MLSProposalNotFound,
+         ErrorS 'MLSSelfRemovalNotAllowed,
+         ErrorS 'MLSStaleMessage,
+         ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
+         Resource,
          TinyLog
        ]
       r
@@ -164,6 +169,7 @@ postMLSMessage ::
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSCommitMissingReferences,
+         ErrorS 'MLSSelfRemovalNotAllowed,
          Resource,
          TinyLog,
          ProposalStore,
@@ -197,6 +203,7 @@ postMLSMessageToLocalConv ::
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSCommitMissingReferences,
+         ErrorS 'MLSSelfRemovalNotAllowed,
          Resource,
          TinyLog,
          ProposalStore,
@@ -290,31 +297,38 @@ type HasProposalEffects r =
 type ClientMap = Map (Qualified UserId) (Set ClientId)
 
 data ProposalAction = ProposalAction
-  { paAdd :: ClientMap
+  { paAdd :: ClientMap,
+    paRemove :: ClientMap
   }
 
 instance Semigroup ProposalAction where
-  ProposalAction add1 <> ProposalAction add2 =
-    ProposalAction $
-      Map.unionWith mappend add1 add2
+  ProposalAction add1 rem1 <> ProposalAction add2 rem2 =
+    ProposalAction
+      (Map.unionWith mappend add1 add2)
+      (Map.unionWith mappend rem1 rem2)
 
 instance Monoid ProposalAction where
-  mempty = ProposalAction mempty
+  mempty = ProposalAction mempty mempty
 
-paClient :: Qualified (UserId, ClientId) -> ProposalAction
-paClient quc = mempty {paAdd = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
+paAddClient :: Qualified (UserId, ClientId) -> ProposalAction
+paAddClient quc = mempty {paAdd = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
+
+paRemoveClient :: Qualified (UserId, ClientId) -> ProposalAction
+paRemoveClient quc = mempty {paRemove = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
 
 processCommit ::
   ( HasProposalEffects r,
-    Member (ErrorS 'ConvNotFound) r,
-    Member (ErrorS 'MLSStaleMessage) r,
-    Member (ErrorS 'MLSProposalNotFound) r,
     Member (Error FederationError) r,
     Member (Error InternalError) r,
-    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'MLSCommitMissingReferences) r,
-    Member Resource r,
-    Member ProposalStore r
+    Member (ErrorS 'MLSProposalNotFound) r,
+    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Input (Local ())) r,
+    Member ProposalStore r,
+    Member Resource r
   ) =>
   Qualified UserId ->
   Maybe ConnId ->
@@ -406,7 +420,10 @@ applyProposal (AddProposal kp) = do
     kpRef' kp
       & note (mlsProtocolError "Could not compute ref of a key package in an Add proposal")
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
-  pure (paClient qclient)
+  pure (paAddClient qclient)
+applyProposal (RemoveProposal ref) = do
+  qclient <- cidQualifiedClient <$> derefKeyPackage ref
+  pure (paRemoveClient qclient)
 applyProposal _ = throwS @'MLSUnsupportedProposal
 
 checkProposal ::
@@ -476,6 +493,7 @@ executeProposalAction ::
     Member (Error MLSProposalFailure) r,
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
+    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
@@ -495,41 +513,77 @@ executeProposalAction qusr con lconv action = do
   let ss = csSignatureScheme cs
       cm = convClientMap lconv
       newUserClients = Map.assocs (paAdd action)
-  -- check that all clients of each user are added to the conversation, and
-  -- update the database accordingly
-  traverse_ (uncurry (addUserClients ss cm)) newUserClients
+      removeUserClients = Map.assocs (paRemove action)
+
   -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
   foldQualified lconv (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
+
+  -- check that all clients of each user are added to the conversation
+  for_ newUserClients $ \(qtarget, newclients) -> do
+    -- final set of clients in the conversation
+    let clients = newclients <> Map.findWithDefault mempty qtarget cm
+    -- get list of mls clients from brig
+    allClients <- getMLSClients lconv qtarget ss
+    -- if not all clients have been added to the conversation, return an error
+    when (clients /= allClients) $ do
+      -- FUTUREWORK: turn this error into a proper response
+      throwS @'MLSClientMismatch
+
+  membersToRemove <- catMaybes <$> for removeUserClients (uncurry (checkRemoval lconv ss))
+
   -- add users to the conversation and send events
-  result <- foldMap addMembers . nonEmpty . map fst $ newUserClients
+  addEvents <- foldMap addMembers . nonEmpty . map fst $ newUserClients
   -- add clients to the database
   for_ newUserClients $ \(qtarget, newClients) -> do
     addMLSClients (fmap convId lconv) qtarget newClients
-  pure result
+
+  -- remove users from the conversation and send events
+  removeEvents <- foldMap removeMembers (nonEmpty membersToRemove)
+
+  pure (addEvents <> removeEvents)
   where
-    addUserClients :: SignatureSchemeTag -> ClientMap -> Qualified UserId -> Set ClientId -> Sem r ()
-    addUserClients ss cm qtarget newClients = do
-      -- compute final set of clients in the conversation
-      let cs = newClients <> Map.findWithDefault mempty qtarget cm
-      -- get list of mls clients from brig
-      allClients <- getMLSClients lconv qtarget ss
-      -- if not all clients have been added to the conversation, return an error
-      when (cs /= allClients) $ do
-        -- FUTUREWORK: turn this error into a proper response
-        throwS @'MLSClientMismatch
+    -- This also filters out client removals for clients that don't exist anymore
+    -- For these clients there is nothing left to do
+    checkRemoval :: Local x -> SignatureSchemeTag -> Qualified UserId -> Set ClientId -> Sem r (Maybe (Qualified UserId))
+    checkRemoval loc ss qtarget clients = do
+      allClients <- getMLSClients loc qtarget ss
+      let allClientsDontExist = Set.null (clients `Set.intersection` allClients)
+      if allClientsDontExist
+        then pure Nothing
+        else do
+          -- We only support removal of client for user. This is likely to change in the future.
+          -- See discussions here https://wearezeta.atlassian.net/wiki/spaces/CL/pages/612106259/Relax+constraint+between+users+and+clients+in+MLS+groups
+          when (clients /= allClients) $ do
+            -- FUTUREWORK: turn this error into a proper response
+            throwS @'MLSClientMismatch
+          when (qusr == qtarget) $
+            throwS @'MLSSelfRemovalNotAllowed
+          pure (Just qtarget)
 
     addMembers :: NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
     addMembers users =
       -- FUTUREWORK: update key package ref mapping to reflect conversation membership
       handleNoChanges
         . handleMLSProposalFailures @ProposalErrors
-        . fmap (pure)
+        . fmap pure
         . updateLocalConversationUnchecked
           @'ConversationJoinTag
           lconv
           qusr
           con
         $ ConversationJoin users roleNameWireMember
+
+    removeMembers :: NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
+    removeMembers users =
+      handleNoChanges
+        . handleMLSProposalFailures @ProposalErrors
+        . fmap pure
+        . updateLocalConversationUnchecked
+          @'ConversationRemoveMembersTag
+          lconv
+          qusr
+          con
+        $ users
 
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError
@@ -667,6 +721,7 @@ type ProposalErrors =
      Error InvalidInput,
      ErrorS ('ActionDenied 'AddConversationMember),
      ErrorS ('ActionDenied 'LeaveConversation),
+     ErrorS ('ActionDenied 'RemoveConversationMember),
      ErrorS 'ConvAccessDenied,
      ErrorS 'InvalidOperation,
      ErrorS 'NotATeamMember,
