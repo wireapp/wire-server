@@ -103,7 +103,8 @@ tests s =
           test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete,
           test s "user tries to remove themselves from conversation" testUserRemovesThemselvesFromConv,
           test s "anyone removes a non-existing client from a group" (testRemoveDeletedClient True),
-          test s "anyone removes an existing client from group, but the user has other clients" (testRemoveDeletedClient False)
+          test s "anyone removes an existing client from group, but the user has other clients" (testRemoveDeletedClient False),
+          test s "admin removes only strict subset of clients from a user" testRemoveSubset
         ],
       testGroup
         "Application Message"
@@ -810,6 +811,23 @@ testRemoveDeletedClient deleteClientBefore = withSystemTempDirectory "mls" $ \tm
           =<< doCommitRemoval
             <!! statusCode === const 409
       liftIO $ Wai.label err @?= "mls-client-mismatch"
+
+testRemoveSubset :: TestM ()
+testRemoveSubset = withSystemTempDirectory "mls" $ \tmp -> do
+  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
+  let [bob] = users
+
+  testSuccessfulCommit MessagingSetup {users = [bob], ..}
+
+  -- attempt to remove only first client of bob
+  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" [NonEmpty.head (pClients bob)]
+
+  err <-
+    responseJsonError
+      =<< postMessage (qUnqualified (pUserId creator)) removalCommit
+        <!! statusCode === const 409
+
+  liftIO $ Wai.label err @?= "mls-client-mismatch"
 
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
