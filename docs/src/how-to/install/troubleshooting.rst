@@ -193,4 +193,63 @@ You will get log entries for various different types of events that happen, for 
 
     {"invitation_code":"hJuh1C1PzMkgtesAYZZ4SZrP5xO-xM_m","email_sha256":"eef48a690436699c653110387455a4afe93ce29febc348acd20f6605787956e6","team":"6ef03a2b-34b5-4b65-8d72-1e4fc7697553","module":"Brig.Team.API","fn":"Brig.Team.API.createInvitationPublic","request":"c43440074629d802a199464dd892cd92","msgs":["I","Succesfully created invitation"]} 
 
+Diagnosing and addressing bad network/disconnect issues
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Diagnosis
+=========
+
+If you are experiencing bad network/disconnection issues, here is how to obtain the cause from the client log files:
+
+In the Web client, the connection state handler logs the disconnected state as reported by WebRTC as:
+
+.. code::
+
+    flow(...): connection_handler: disconnected, starting disconnect timer
+
+On mobile, the output in the log is slightly different:
+
+.. code::
+
+    pf(...): ice connection state: Disconnected
+
+And when the timer expires and the connection is not re-established:
+
+.. code::
+    
+    ecall(...): mf_restart_handler: triggering restart due to network drop
+
+If the attempt to reconnect then fails you will likely see the following:
+
+.. code::
+
+    ecall(...): connection timeout after 10000 milliseconds
+
+If the connection to the SFT (:ref:`understand-sft`) server is considered lost due to missing ping messages from a non-functionning or delayed data channel or a failure to receive/decrypt media you will see:
+
+.. code::
+
+    ccall(...): reconnect
+
+Then followed by these values:
+
+.. code::
+
+    cp: received CONFPART message YES/NO
+    da: decrypt attempted YES/NO
+    ds: decrypt successful YES/NO
+    att: number of reconnect attempts
+    p: the expected ping (how many pings have not returned)
+
+Configuration
+=============
+
+Question: Are the connection values for bad networks/disconnect configurable on on-prem?
+
+Answer: The values are not currently configurable, they are built into the clients at compile time, we do have a mechanism for sending calling configs to the clients but these values are not currently there.
+
+
+
+
+
 
