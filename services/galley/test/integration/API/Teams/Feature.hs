@@ -98,7 +98,10 @@ tests s =
       test s "SearchVisibilityInbound" $ testSimpleFlag @Public.SearchVisibilityInboundConfig Public.FeatureStatusDisabled,
       testGroup
         "Patch"
-        [ test s (unpack $ Public.featureNameBS @Public.FileSharingConfig) $
+        [ -- Note: SSOConfig, SearchVisibilityAvailableConfig,
+          -- ValidateSAMLEmailsConfig, DigitalSignaturesConfig cannot be tested
+          -- here, because their state can only be set once.
+          test s (unpack $ Public.featureNameBS @Public.FileSharingConfig) $
             testPatch @Public.FileSharingConfig Public.FeatureStatusEnabled Public.FileSharingConfig,
           test s (unpack $ Public.featureNameBS @Public.GuestLinksConfig) $
             testPatch @Public.GuestLinksConfig Public.FeatureStatusEnabled Public.GuestLinksConfig,
