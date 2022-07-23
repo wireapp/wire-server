@@ -51,7 +51,7 @@ import Wire.API.User hiding (NoIdentity)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
-import Wire.API.User.Search (Contact, SearchResult)
+import Wire.API.User.Search (Contact, SearchResult, RoleFilter, TeamUserSearchSortBy, TeamUserSearchSortOrder, TeamContact)
 import Wire.API.UserMap
 import Wire.API.User.RichInfo (RichInfoAssocList)
 
@@ -872,6 +872,58 @@ type MLSKeyPackageAPI =
                   )
        )
 
+-- Search API -----------------------------------------------------
+
+type SearchAPI =
+  Named
+    "browse-team"
+    ( Summary "Browse team for members (requires add-user permission)"
+        :> ZUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "search"
+        :> QueryParam'
+            [ Optional,
+              Strict,
+              Description "Search expression"
+            ]
+            "q"
+            Text
+        :> QueryParam'
+            [ Optional,
+              Strict,
+              Description "Role filter, eg. `member,external-partner`.  Empty list means do not filter."
+            ]
+            "frole"
+            RoleFilter
+        :> QueryParam'
+            [ Optional,
+              Strict,
+              Description "Can be one of name, handle, email, saml_idp, managed_by, role, created_at."
+            ]
+            "sortby"
+            TeamUserSearchSortBy
+        :> QueryParam'
+            [ Optional,
+              Strict,
+              Description "Can be one of asc, desc."
+            ]
+            "sortorder"
+            TeamUserSearchSortOrder
+        :> QueryParam'
+            [ Optional,
+              Strict,
+              Description "Number of results to return (min: 1, max: 500, default: 15)"
+            ]
+            "size"
+            (Range 1 500 Int32)
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[]
+             (SearchResult TeamContact)
+    )
+
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)
 
 type BrigAPI =
@@ -885,6 +937,7 @@ type BrigAPI =
     :<|> PropertiesAPI
     :<|> MLSAPI
     :<|> UserHandleAPI
+    :<|> SearchAPI
 
 brigSwagger :: Swagger
 brigSwagger = toSwagger (Proxy @BrigAPI)

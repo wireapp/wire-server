@@ -131,6 +131,7 @@ import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
+import Brig.User.API.Search (teamUserSearch)
 
 -- User API -----------------------------------------------------------
 
@@ -180,7 +181,7 @@ swaggerDocsAPI (Just V1) =
 swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
 
 servantSitemap :: ServerT BrigAPI (Handler r)
-servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> propertiesAPI :<|> mlsAPI :<|> userHandleAPI
+servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> propertiesAPI :<|> mlsAPI :<|> userHandleAPI :<|> searchAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -271,6 +272,10 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
     userHandleAPI =
       Named @"check-user-handles" checkHandles
         :<|> Named @"check-user-handle" checkHandle
+
+    searchAPI :: ServerT SearchAPI (Handler r)
+    searchAPI =
+      Named @"browse-team" teamUserSearch
 
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
@@ -399,7 +404,6 @@ sitemap = do
 
   Provider.routesPublic
   Auth.routesPublic
-  Search.routesPublic
   Team.routesPublic
   Calling.routesPublic
 

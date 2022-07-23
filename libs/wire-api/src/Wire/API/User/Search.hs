@@ -53,6 +53,7 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Team.Role (Role)
 import Wire.API.User (ManagedBy)
 import Wire.API.User.Identity (Email (..))
+import Data.Proxy
 
 --------------------------------------------------------------------------------
 -- SearchResult
@@ -290,6 +291,11 @@ data TeamUserSearchSortBy
   deriving (Show, Eq, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform TeamUserSearchSortBy)
 
+instance S.ToParamSchema TeamUserSearchSortBy where
+  toParamSchema _ = mempty
+    & S.type_ ?~ S.SwaggerString
+    & S.enum_ ?~ ["name", "handle", "email", "saml_idp", "managed_by", "role", "created_at"]
+
 instance ToByteString TeamUserSearchSortBy where
   builder SortByName = "name"
   builder SortByHandle = "handle"
@@ -315,6 +321,11 @@ data TeamUserSearchSortOrder
   deriving (Show, Eq, Ord, Generic)
   deriving (Arbitrary) via (GenericUniform TeamUserSearchSortOrder)
 
+instance S.ToParamSchema TeamUserSearchSortOrder where
+  toParamSchema _ = mempty
+    & S.type_ ?~ S.SwaggerString
+    & S.enum_ ?~ ["asc", "desc"]
+
 instance ToByteString TeamUserSearchSortOrder where
   builder SortOrderAsc = "asc"
   builder SortOrderDesc = "desc"
@@ -327,6 +338,9 @@ instance FromByteString TeamUserSearchSortOrder where
 newtype RoleFilter = RoleFilter [Role]
   deriving (Show, Eq, Generic)
   deriving (Arbitrary) via (GenericUniform RoleFilter)
+
+instance S.ToParamSchema RoleFilter where
+  toParamSchema _ = S.toParamSchema (Proxy @[Role])
 
 instance ToByteString RoleFilter where
   builder (RoleFilter roles) = mconcat $ intersperse "," (fmap builder roles)

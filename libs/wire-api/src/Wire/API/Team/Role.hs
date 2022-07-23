@@ -36,6 +36,8 @@ import Data.String.Conversions (cs)
 import qualified Data.Swagger.Model.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import qualified Data.Swagger as S
+import Control.Lens ((?~))
 
 -- Note [team roles]
 -- ~~~~~~~~~~~~
@@ -78,6 +80,11 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 data Role = RoleOwner | RoleAdmin | RoleMember | RoleExternalPartner
   deriving stock (Eq, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform Role)
+
+instance S.ToParamSchema Role where
+  toParamSchema _ = mempty
+    & S.type_ ?~ S.SwaggerString
+    & S.enum_ ?~ ["RoleOwner", "RoleAdmin", "RoleMember", "RoleExternalPartner"]
 
 typeRole :: Doc.DataType
 typeRole =
