@@ -51,9 +51,9 @@ import Wire.API.User hiding (NoIdentity)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
-import Wire.API.User.Search (Contact, SearchResult, RoleFilter, TeamUserSearchSortBy, TeamUserSearchSortOrder, TeamContact)
-import Wire.API.UserMap
 import Wire.API.User.RichInfo (RichInfoAssocList)
+import Wire.API.User.Search (Contact, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
+import Wire.API.UserMap
 
 type MaxUsersForListClientsBulk = 500
 
@@ -192,20 +192,20 @@ type UserAPI =
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Verification code sent."] ()
            )
     :<|> Named
-          "get-rich-info"
-          ( Summary "Get a user's rich info"
-              :> ZUser
-              :> "users"
-              :> CaptureUserId "uid"
-              :> "rich-info"
-              :> MultiVerb
-                  'GET
-                  '[JSON]
-                  '[ ErrorResponse 'UserNotFound,
-                    Respond 200 "User found" RichInfoAssocList
-                  ]
-                  (Maybe RichInfoAssocList)
-          )
+           "get-rich-info"
+           ( Summary "Get a user's rich info"
+               :> ZUser
+               :> "users"
+               :> CaptureUserId "uid"
+               :> "rich-info"
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[ ErrorResponse 'UserNotFound,
+                       Respond 200 "User found" RichInfoAssocList
+                     ]
+                    (Maybe RichInfoAssocList)
+           )
 
 type SelfAPI =
   Named
@@ -883,40 +883,40 @@ type SearchAPI =
         :> Capture "tid" TeamId
         :> "search"
         :> QueryParam'
-            [ Optional,
-              Strict,
-              Description "Search expression"
-            ]
-            "q"
-            Text
+             [ Optional,
+               Strict,
+               Description "Search expression"
+             ]
+             "q"
+             Text
         :> QueryParam'
-            [ Optional,
-              Strict,
-              Description "Role filter, eg. `member,external-partner`.  Empty list means do not filter."
-            ]
-            "frole"
-            RoleFilter
+             [ Optional,
+               Strict,
+               Description "Role filter, eg. `member,external-partner`.  Empty list means do not filter."
+             ]
+             "frole"
+             RoleFilter
         :> QueryParam'
-            [ Optional,
-              Strict,
-              Description "Can be one of name, handle, email, saml_idp, managed_by, role, created_at."
-            ]
-            "sortby"
-            TeamUserSearchSortBy
+             [ Optional,
+               Strict,
+               Description "Can be one of name, handle, email, saml_idp, managed_by, role, created_at."
+             ]
+             "sortby"
+             TeamUserSearchSortBy
         :> QueryParam'
-            [ Optional,
-              Strict,
-              Description "Can be one of asc, desc."
-            ]
-            "sortorder"
-            TeamUserSearchSortOrder
+             [ Optional,
+               Strict,
+               Description "Can be one of asc, desc."
+             ]
+             "sortorder"
+             TeamUserSearchSortOrder
         :> QueryParam'
-            [ Optional,
-              Strict,
-              Description "Number of results to return (min: 1, max: 500, default: 15)"
-            ]
-            "size"
-            (Range 1 500 Int32)
+             [ Optional,
+               Strict,
+               Description "Number of results to return (min: 1, max: 500, default: 15)"
+             ]
+             "size"
+             (Range 1 500 Int32)
         :> MultiVerb
              'GET
              '[JSON]

@@ -44,6 +44,7 @@ import Data.Attoparsec.ByteString.Char8 (char, string)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import Data.Id (TeamId, UserId)
 import Data.Json.Util (UTCTimeMillis)
+import Data.Proxy
 import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
@@ -53,7 +54,6 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Team.Role (Role)
 import Wire.API.User (ManagedBy)
 import Wire.API.User.Identity (Email (..))
-import Data.Proxy
 
 --------------------------------------------------------------------------------
 -- SearchResult
@@ -292,9 +292,10 @@ data TeamUserSearchSortBy
   deriving (Arbitrary) via (GenericUniform TeamUserSearchSortBy)
 
 instance S.ToParamSchema TeamUserSearchSortBy where
-  toParamSchema _ = mempty
-    & S.type_ ?~ S.SwaggerString
-    & S.enum_ ?~ ["name", "handle", "email", "saml_idp", "managed_by", "role", "created_at"]
+  toParamSchema _ =
+    mempty
+      & S.type_ ?~ S.SwaggerString
+      & S.enum_ ?~ ["name", "handle", "email", "saml_idp", "managed_by", "role", "created_at"]
 
 instance ToByteString TeamUserSearchSortBy where
   builder SortByName = "name"
@@ -322,9 +323,10 @@ data TeamUserSearchSortOrder
   deriving (Arbitrary) via (GenericUniform TeamUserSearchSortOrder)
 
 instance S.ToParamSchema TeamUserSearchSortOrder where
-  toParamSchema _ = mempty
-    & S.type_ ?~ S.SwaggerString
-    & S.enum_ ?~ ["asc", "desc"]
+  toParamSchema _ =
+    mempty
+      & S.type_ ?~ S.SwaggerString
+      & S.enum_ ?~ ["asc", "desc"]
 
 instance ToByteString TeamUserSearchSortOrder where
   builder SortOrderAsc = "asc"

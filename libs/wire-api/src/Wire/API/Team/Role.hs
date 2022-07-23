@@ -27,17 +27,17 @@ module Wire.API.Team.Role
 where
 
 import qualified Cassandra as Cql
+import Control.Lens ((?~))
 import Data.Aeson
 import Data.Attoparsec.ByteString.Char8 (string)
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import Data.ByteString.Conversion.From (runParser)
 import Data.String.Conversions (cs)
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Model.Api as Doc
 import Imports
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
-import qualified Data.Swagger as S
-import Control.Lens ((?~))
 
 -- Note [team roles]
 -- ~~~~~~~~~~~~
@@ -82,9 +82,10 @@ data Role = RoleOwner | RoleAdmin | RoleMember | RoleExternalPartner
   deriving (Arbitrary) via (GenericUniform Role)
 
 instance S.ToParamSchema Role where
-  toParamSchema _ = mempty
-    & S.type_ ?~ S.SwaggerString
-    & S.enum_ ?~ ["RoleOwner", "RoleAdmin", "RoleMember", "RoleExternalPartner"]
+  toParamSchema _ =
+    mempty
+      & S.type_ ?~ S.SwaggerString
+      & S.enum_ ?~ ["RoleOwner", "RoleAdmin", "RoleMember", "RoleExternalPartner"]
 
 typeRole :: Doc.DataType
 typeRole =

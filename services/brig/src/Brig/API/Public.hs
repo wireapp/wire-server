@@ -55,6 +55,7 @@ import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, ac
 import Brig.Types.User (HavePendingInvitations (..))
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Handle as Handle
+import Brig.User.API.Search (teamUserSearch)
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
@@ -131,7 +132,6 @@ import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
-import Brig.User.API.Search (teamUserSearch)
 
 -- User API -----------------------------------------------------------
 

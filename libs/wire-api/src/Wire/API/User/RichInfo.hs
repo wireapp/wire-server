@@ -55,14 +55,14 @@ import Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
 import Data.List.Extra (nubOrdOn)
 import qualified Data.Map as Map
+import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger.Build.Api as Doc
+import qualified Data.Swagger.Internal.Schema as S
 import qualified Data.Text as Text
 import Imports
 import qualified Test.QuickCheck as QC
 import Wire.API.Arbitrary (Arbitrary (arbitrary))
-import Data.Schema
-import qualified Data.Swagger.Internal.Schema as S
 
 --------------------------------------------------------------------------------
 -- RichInfo
@@ -249,10 +249,11 @@ instance ToSchema RichInfoAssocList where
   schema =
     object "RichInfoAssocList" $
       withParser
-        ((,)
-          <$> const (0 :: Int) .= field  "version" schema
-          <*> unRichInfoAssocList .= field "fields" (array schema)
-        ) $ \(version, fields) ->
+        ( (,)
+            <$> const (0 :: Int) .= field "version" schema
+            <*> unRichInfoAssocList .= field "fields" (array schema)
+        )
+        $ \(version, fields) ->
           mkRichInfoAssocList <$> validateRichInfoAssocList version fields
 
 richInfoAssocListFromObject :: A.Object -> Aeson.Parser [RichField]
