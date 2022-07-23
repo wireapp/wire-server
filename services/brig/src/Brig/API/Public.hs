@@ -192,6 +192,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"list-users-by-unqualified-ids-or-handles" listUsersByUnqualifiedIdsOrHandles
         :<|> Named @"list-users-by-ids-or-handles" listUsersByIdsOrHandles
         :<|> Named @"send-verification-code" sendVerificationCode
+        :<|> Named @"get-rich-info" getRichInfo
 
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
@@ -282,18 +283,6 @@ sitemap ::
   Members '[CodeStore, PasswordResetStore] r =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
-  get "/users/:uid/rich-info" (continue getRichInfoH) $
-    zauthUserId
-      .&. capture "uid"
-      .&. accept "application" "json"
-  document "GET" "getRichInfo" $ do
-    Doc.summary "Get user's rich info"
-    Doc.parameter Doc.Path "uid" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.returns (Doc.ref Public.modelRichInfo)
-    Doc.response 200 "RichInfo" Doc.end
-    Doc.errorResponse insufficientTeamPermissions
-
   -- This endpoint can lead to the following events being sent:
   -- UserDeleted event to contacts of deleted user
   -- MemberLeave event to members for all conversations the user was in (via galley)
@@ -580,11 +569,7 @@ getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
   maybe (throwStd (errorToWai @'E.ClientNotFound)) (pure . Public.clientCapabilities) mclient
 
-getRichInfoH :: UserId ::: UserId ::: JSON -> (Handler r) Response
-getRichInfoH (self ::: user ::: _) =
-  json <$> getRichInfo self user
-
-getRichInfo :: UserId -> UserId -> (Handler r) Public.RichInfoAssocList
+getRichInfo :: UserId -> UserId -> Handler r (Maybe Public.RichInfoAssocList)
 getRichInfo self user = do
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
@@ -598,7 +583,7 @@ getRichInfo self user = do
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
   -- Query rich info
-  fromMaybe mempty <$> lift (wrapClient $ API.lookupRichInfo user)
+  wrapClientE $ API.lookupRichInfo user
 
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)

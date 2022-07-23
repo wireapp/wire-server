@@ -53,6 +53,7 @@ import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
 import Wire.API.User.Search (Contact, SearchResult)
 import Wire.API.UserMap
+import Wire.API.User.RichInfo (RichInfoAssocList)
 
 type MaxUsersForListClientsBulk = 500
 
@@ -190,6 +191,21 @@ type UserAPI =
                :> ReqBody '[JSON] SendVerificationCode
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Verification code sent."] ()
            )
+    :<|> Named
+          "get-rich-info"
+          ( Summary "Get a user's rich info"
+              :> ZUser
+              :> "users"
+              :> CaptureUserId "uid"
+              :> "rich-info"
+              :> MultiVerb
+                  'GET
+                  '[JSON]
+                  '[ ErrorResponse 'UserNotFound,
+                    Respond 200 "User found" RichInfoAssocList
+                  ]
+                  (Maybe RichInfoAssocList)
+          )
 
 type SelfAPI =
   Named
