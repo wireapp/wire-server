@@ -108,6 +108,8 @@ import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
 import Brig.Data.UserPendingActivation
 import qualified Brig.Data.UserPendingActivation as Data
+import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
+import qualified Brig.Effects.BlacklistPhonePrefixStore as BlacklistPhonePrefixStore
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.Effects.BlacklistStore as BlacklistStore
 import qualified Brig.Federation.Client as Federation
@@ -649,7 +651,15 @@ changeEmail u email allowScim = do
 -------------------------------------------------------------------------------
 -- Change Phone
 
-changePhone :: Member BlacklistStore r => UserId -> Phone -> ExceptT ChangePhoneError (AppT r) (Activation, Phone)
+changePhone ::
+  Members
+    '[ BlacklistStore,
+       BlacklistPhonePrefixStore
+     ]
+    r =>
+  UserId ->
+  Phone ->
+  ExceptT ChangePhoneError (AppT r) (Activation, Phone)
 changePhone u phone = do
   canonical <-
     maybe
@@ -665,7 +675,7 @@ changePhone u phone = do
   when blacklisted $
     throwE BlacklistedNewPhone
   -- check if any prefixes of this phone number are blocked
-  prefixExcluded <- lift . wrapClient $ Blacklist.existsAnyPrefix canonical
+  prefixExcluded <- lift . liftSem $ BlacklistPhonePrefixStore.existsAny canonical
   when prefixExcluded $
     throwE BlacklistedNewPhone
   act <- lift . wrapClient $ Data.newActivation pk timeout (Just u)
@@ -864,7 +874,16 @@ onActivated (PhoneActivated uid phone) = do
   pure (uid, Just (PhoneIdentity phone), False)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
-sendActivationCode :: Member BlacklistStore r => Either Email Phone -> Maybe Locale -> Bool -> ExceptT SendActivationCodeError (AppT r) ()
+sendActivationCode ::
+  Members
+    '[ BlacklistStore,
+       BlacklistPhonePrefixStore
+     ]
+    r =>
+  Either Email Phone ->
+  Maybe Locale ->
+  Bool ->
+  ExceptT SendActivationCodeError (AppT r) ()
 sendActivationCode emailOrPhone loc call = case emailOrPhone of
   Left email -> do
     ek <-
@@ -900,7 +919,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
     when blacklisted $
       throwE (ActivationBlacklistedUserKey pk)
     -- check if any prefixes of this phone number are blocked
-    prefixExcluded <- lift . wrapClient $ Blacklist.existsAnyPrefix canonical
+    prefixExcluded <- lift . liftSem $ BlacklistPhonePrefixStore.existsAny canonical
     when prefixExcluded $
       throwE (ActivationBlacklistedUserKey pk)
     c <- lift . wrapClient $ fmap snd <$> Data.lookupActivationCode pk
@@ -1459,11 +1478,11 @@ blacklistDelete emailOrPhone = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
   liftSem $ BlacklistStore.delete uk
 
-phonePrefixGet :: PhonePrefix -> (AppT r) [ExcludedPrefix]
-phonePrefixGet = wrapClient . Blacklist.getAllPrefixes
+phonePrefixGet :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (AppT r) [ExcludedPrefix]
+phonePrefixGet = liftSem . BlacklistPhonePrefixStore.getAll
 
-phonePrefixDelete :: PhonePrefix -> (AppT r) ()
-phonePrefixDelete = wrapClient . Blacklist.deletePrefix
+phonePrefixDelete :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (AppT r) ()
+phonePrefixDelete = liftSem . BlacklistPhonePrefixStore.delete
 
-phonePrefixInsert :: ExcludedPrefix -> (AppT r) ()
-phonePrefixInsert = wrapClient . Blacklist.insertPrefix
+phonePrefixInsert :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (AppT r) ()
+phonePrefixInsert = liftSem . BlacklistPhonePrefixStore.insert

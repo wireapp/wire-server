@@ -43,6 +43,7 @@ import qualified Brig.Code as Code
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import qualified Brig.Data.UserKey as UserKey
+import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -180,7 +181,14 @@ swaggerDocsAPI (Just V1) =
     $ $(embedLazyByteString =<< makeRelativeToProject "docs/swagger-v1.json")
 swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
 
-servantSitemap :: forall r. Members '[BlacklistStore] r => ServerT BrigAPI (Handler r)
+servantSitemap ::
+  forall r.
+  Members
+    '[ BlacklistStore,
+       BlacklistPhonePrefixStore
+     ]
+    r =>
+  ServerT BrigAPI (Handler r)
 servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> propertiesAPI :<|> mlsAPI :<|> userHandleAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
@@ -280,7 +288,13 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
 sitemap ::
-  Members '[CodeStore, PasswordResetStore, BlacklistStore] r =>
+  Members
+    '[ CodeStore,
+       PasswordResetStore,
+       BlacklistStore,
+       BlacklistPhonePrefixStore
+     ]
+    r =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   get "/users/:uid/rich-info" (continue getRichInfoH) $
@@ -417,7 +431,13 @@ sitemap = do
 
 apiDocs ::
   forall r.
-  Members '[CodeStore, PasswordResetStore, BlacklistStore] r =>
+  Members
+    '[ CodeStore,
+       PasswordResetStore,
+       BlacklistStore,
+       BlacklistPhonePrefixStore
+     ]
+    r =>
   Routes Doc.ApiBuilder (Handler r) ()
 apiDocs =
   get
@@ -739,7 +759,16 @@ updateUser uid conn uu = do
   eithErr <- lift $ runExceptT $ API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates
   pure $ either Just (const Nothing) eithErr
 
-changePhone :: Member BlacklistStore r => UserId -> ConnId -> Public.PhoneUpdate -> (Handler r) (Maybe Public.ChangePhoneError)
+changePhone ::
+  Members
+    '[ BlacklistStore,
+       BlacklistPhonePrefixStore
+     ]
+    r =>
+  UserId ->
+  ConnId ->
+  Public.PhoneUpdate ->
+  (Handler r) (Maybe Public.ChangePhoneError)
 changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
   (adata, pn) <- API.changePhone u phone
   loc <- lift $ wrapClient $ API.lookupLocale u
@@ -822,13 +851,27 @@ completePasswordResetH (_ ::: req) = do
   API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
   pure empty
 
-sendActivationCodeH :: Member BlacklistStore r => JsonRequest Public.SendActivationCode -> (Handler r) Response
+sendActivationCodeH ::
+  Members
+    '[ BlacklistStore,
+       BlacklistPhonePrefixStore
+     ]
+    r =>
+  JsonRequest Public.SendActivationCode ->
+  (Handler r) Response
 sendActivationCodeH req =
   empty <$ (sendActivationCode =<< parseJsonBody req)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
-sendActivationCode :: Member BlacklistStore r => Public.SendActivationCode -> (Handler r) ()
+sendActivationCode ::
+  Members
+    '[ BlacklistStore,
+       BlacklistPhonePrefixStore
+     ]
+    r =>
+  Public.SendActivationCode ->
+  (Handler r) ()
 sendActivationCode Public.SendActivationCode {..} = do
   either customerExtensionCheckBlockedDomains (const $ pure ()) saUserKey
   checkWhitelist saUserKey

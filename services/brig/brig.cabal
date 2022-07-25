@@ -59,6 +59,8 @@ library
       Brig.Data.User
       Brig.Data.UserKey
       Brig.Data.UserPendingActivation
+      Brig.Effects.BlacklistPhonePrefixStore
+      Brig.Effects.BlacklistPhonePrefixStore.Cassandra
       Brig.Effects.BlacklistStore
       Brig.Effects.BlacklistStore.Cassandra
       Brig.Effects.Delay

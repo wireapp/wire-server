@@ -30,6 +30,7 @@ import Brig.App
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
 import Brig.Effects.BlacklistStore (BlacklistStore)
+import qualified Brig.Effects.BlacklistStore as BlacklistStore
 import qualified Brig.Email as Email
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
@@ -76,7 +77,6 @@ import qualified Wire.API.Team.Role as Public
 import qualified Wire.API.Team.Size as Public
 import Wire.API.User hiding (fromEmail)
 import qualified Wire.API.User as Public
-import qualified Brig.Effects.BlacklistStore as BlacklistStore
 
 routesPublic :: Member BlacklistStore r => Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do

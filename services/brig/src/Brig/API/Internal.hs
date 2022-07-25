@@ -40,6 +40,7 @@ import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.MLS.KeyPackage as Data
 import qualified Brig.Data.User as Data
+import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -197,7 +198,13 @@ swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
 -- Sitemap (wai-route)
 
 sitemap ::
-  Members '[CodeStore, PasswordResetStore, BlacklistStore] r =>
+  Members
+    '[ CodeStore,
+       PasswordResetStore,
+       BlacklistStore,
+       BlacklistPhonePrefixStore
+     ]
+    r =>
   Routes a (Handler r) ()
 sitemap = do
   get "/i/status" (continue $ const $ pure empty) true
@@ -582,7 +589,7 @@ addBlacklistH emailOrPhone = do
 
 -- | Get any matching prefixes. Also try for shorter prefix matches,
 -- i.e. checking for +123456 also checks for +12345, +1234, ...
-getPhonePrefixesH :: PhonePrefix -> (Handler r) Response
+getPhonePrefixesH :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (Handler r) Response
 getPhonePrefixesH prefix = do
   results <- lift $ API.phonePrefixGet prefix
   pure $ case results of
@@ -590,12 +597,12 @@ getPhonePrefixesH prefix = do
     _ -> json results
 
 -- | Delete a phone prefix entry (must be an exact match)
-deleteFromPhonePrefixH :: PhonePrefix -> (Handler r) Response
+deleteFromPhonePrefixH :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (Handler r) Response
 deleteFromPhonePrefixH prefix = do
   void . lift $ API.phonePrefixDelete prefix
   pure empty
 
-addPhonePrefixH :: JSON ::: JsonRequest ExcludedPrefix -> (Handler r) Response
+addPhonePrefixH :: Member BlacklistPhonePrefixStore r => JSON ::: JsonRequest ExcludedPrefix -> (Handler r) Response
 addPhonePrefixH (_ ::: req) = do
   prefix :: ExcludedPrefix <- parseJsonBody req
   void . lift $ API.phonePrefixInsert prefix

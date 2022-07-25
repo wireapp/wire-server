@@ -1,6 +1,8 @@
 module Brig.CanonicalInterpreter where
 
 import Brig.App
+import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
+import Brig.Effects.BlacklistPhonePrefixStore.Cassandra (interpretBlacklistPhonePrefixStoreToCassandra)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.BlacklistStore.Cassandra (interpretBlacklistStoreToCassandra)
 import Brig.Sem.CodeStore (CodeStore)
@@ -15,7 +17,8 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
 
 type BrigCanonicalEffects =
-  '[ BlacklistStore,
+  '[ BlacklistPhonePrefixStore,
+     BlacklistStore,
      PasswordResetStore,
      Now,
      CodeStore,
@@ -33,4 +36,5 @@ runBrigToIO e (AppT ma) =
     . nowToIOAction (e ^. currentTime)
     . passwordResetStoreToCodeStore
     . interpretBlacklistStoreToCassandra @Cas.Client
+    . interpretBlacklistPhonePrefixStoreToCassandra @Cas.Client
     $ runReaderT ma e
