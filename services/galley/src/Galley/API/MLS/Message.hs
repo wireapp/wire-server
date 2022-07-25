@@ -516,9 +516,25 @@ processProposal qusr conv msg prop = do
   -- FUTUREWORK: validate the member's conversation role
   let propValue = rmValue prop
   checkProposalCipherSuite suiteTag propValue
-  when (isExternalProposal msg) $ checkExternalProposalUser qusr propValue
+  when (isExternalProposal msg) $ do
+    checkExternalProposalSignature suiteTag msg prop
+    checkExternalProposalUser qusr propValue
   let propRef = proposalRef suiteTag prop
   storeProposal (msgGroupId msg) (msgEpoch msg) propRef prop
+
+checkExternalProposalSignature ::
+  Members
+    '[ ErrorS 'MLSUnsupportedProposal
+    ] r =>
+  CipherSuiteTag ->
+  Message 'MLSPlainText ->
+  RawMLS Proposal ->
+  Sem r ()
+checkExternalProposalSignature csTag msg prop = case rmValue prop of
+  AddProposal kp -> do
+    let pubKey = bcSignatureKey . kpCredential $ rmValue kp
+    unless (verifyMessageSignature csTag msg pubKey) $ throwS @'MLSUnsupportedProposal
+  _ -> pure () -- FUTUREWORK: check signature of other proposals as well
 
 isExternalProposal :: Message 'MLSPlainText -> Bool
 isExternalProposal msg = case msgSender msg of
