@@ -45,6 +45,7 @@ library
       Brig.Calling
       Brig.Calling.API
       Brig.Calling.Internal
+      Brig.CanonicalInterpreter
       Brig.Code
       Brig.Data.Activation
       Brig.Data.Blacklist
@@ -58,6 +59,8 @@ library
       Brig.Data.User
       Brig.Data.UserKey
       Brig.Data.UserPendingActivation
+      Brig.Effects.BlacklistStore
+      Brig.Effects.BlacklistStore.Cassandra
       Brig.Effects.Delay
       Brig.Effects.SFT
       Brig.Email

@@ -23,6 +23,7 @@ where
 import Brig.API.Handler (Handler)
 import qualified Brig.API.Internal as Internal
 import qualified Brig.API.Public as Public
+import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Sem.CodeStore
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Data.Swagger.Build.Api as Doc
@@ -30,7 +31,7 @@ import Network.Wai.Routing (Routes)
 import Polysemy
 
 sitemap ::
-  Members '[CodeStore, PasswordResetStore] r =>
+  Members '[CodeStore, PasswordResetStore, BlacklistStore] r =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   Public.sitemap

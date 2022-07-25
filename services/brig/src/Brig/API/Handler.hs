@@ -35,6 +35,7 @@ import Bilge (MonadHttp, RequestId (..))
 import Brig.API.Error
 import qualified Brig.AWS as AWS
 import Brig.App
+import Brig.CanonicalInterpreter (BrigCanonicalEffects, runBrigToIO)
 import Brig.Email (Email)
 import Brig.Options (setWhitelist)
 import Brig.Phone (Phone, PhoneException (..))
@@ -81,7 +82,7 @@ runHandler ::
 runHandler e r h k = do
   let e' = set requestId (maybe def RequestId (lookupRequestId r)) e
   a <-
-    runAppT e' (runExceptT h)
+    runBrigToIO e' (runExceptT h)
       `catches` brigErrorHandlers (view applog e) (unRequestId (view requestId e))
   either (onError (view applog e') r k) pure a
 
@@ -91,7 +92,7 @@ toServantHandler env action = do
       reqId = unRequestId $ view requestId env
   a <-
     liftIO $
-      runAppT env (runExceptT action)
+      runBrigToIO env (runExceptT action)
         `catches` brigErrorHandlers logger reqId
   case a of
     Left werr -> handleWaiErrors logger reqId werr

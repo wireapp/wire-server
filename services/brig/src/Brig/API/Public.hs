@@ -43,6 +43,7 @@ import qualified Brig.Code as Code
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import qualified Brig.Data.UserKey as UserKey
+import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
@@ -179,7 +180,7 @@ swaggerDocsAPI (Just V1) =
     $ $(embedLazyByteString =<< makeRelativeToProject "docs/swagger-v1.json")
 swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
 
-servantSitemap :: ServerT BrigAPI (Handler r)
+servantSitemap :: forall r. Members '[BlacklistStore] r => ServerT BrigAPI (Handler r)
 servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekeyAPI :<|> userClientAPI :<|> connectionAPI :<|> propertiesAPI :<|> mlsAPI :<|> userHandleAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
@@ -279,7 +280,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
 -- - MemberLeave event to members for all conversations the user was in (via galley)
 
 sitemap ::
-  Members '[CodeStore, PasswordResetStore] r =>
+  Members '[CodeStore, PasswordResetStore, BlacklistStore] r =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
   get "/users/:uid/rich-info" (continue getRichInfoH) $
@@ -416,7 +417,7 @@ sitemap = do
 
 apiDocs ::
   forall r.
-  Members '[CodeStore, PasswordResetStore] r =>
+  Members '[CodeStore, PasswordResetStore, BlacklistStore] r =>
   Routes Doc.ApiBuilder (Handler r) ()
 apiDocs =
   get
@@ -604,7 +605,7 @@ getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
 -- | docs/reference/user/registration.md {#RefRegistration}
-createUser :: Public.NewUserPublic -> (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
+createUser :: Member BlacklistStore r => Public.NewUserPublic -> (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
 createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
   for_ (Public.newUserEmail new) $ mapExceptT wrapHttp . checkWhitelistWithError RegisterErrorWhitelistError . Left
@@ -738,7 +739,7 @@ updateUser uid conn uu = do
   eithErr <- lift $ runExceptT $ API.updateUser uid (Just conn) uu API.ForbidSCIMUpdates
   pure $ either Just (const Nothing) eithErr
 
-changePhone :: UserId -> ConnId -> Public.PhoneUpdate -> (Handler r) (Maybe Public.ChangePhoneError)
+changePhone :: Member BlacklistStore r => UserId -> ConnId -> Public.PhoneUpdate -> (Handler r) (Maybe Public.ChangePhoneError)
 changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
   (adata, pn) <- API.changePhone u phone
   loc <- lift $ wrapClient $ API.lookupLocale u
@@ -821,13 +822,13 @@ completePasswordResetH (_ ::: req) = do
   API.completePasswordReset cpwrIdent cpwrCode cpwrPassword !>> pwResetError
   pure empty
 
-sendActivationCodeH :: JsonRequest Public.SendActivationCode -> (Handler r) Response
+sendActivationCodeH :: Member BlacklistStore r => JsonRequest Public.SendActivationCode -> (Handler r) Response
 sendActivationCodeH req =
   empty <$ (sendActivationCode =<< parseJsonBody req)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
 -- docs/reference/user/registration.md {#RefRegistration}
-sendActivationCode :: Public.SendActivationCode -> (Handler r) ()
+sendActivationCode :: Member BlacklistStore r => Public.SendActivationCode -> (Handler r) ()
 sendActivationCode Public.SendActivationCode {..} = do
   either customerExtensionCheckBlockedDomains (const $ pure ()) saUserKey
   checkWhitelist saUserKey
@@ -942,7 +943,7 @@ verifyDeleteUserH (r ::: _) = do
   API.verifyDeleteUser body !>> deleteUserError
   pure (setStatus status200 empty)
 
-updateUserEmail :: UserId -> UserId -> Public.EmailUpdate -> (Handler r) ()
+updateUserEmail :: Member BlacklistStore r => UserId -> UserId -> Public.EmailUpdate -> (Handler r) ()
 updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   maybeZuserTeamId <- lift $ wrapClient $ Data.lookupUserTeam zuserId
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions

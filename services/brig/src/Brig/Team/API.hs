@@ -30,6 +30,7 @@ import Brig.App
 import qualified Brig.Data.Blacklist as Blacklist
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
+import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.Email as Email
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
@@ -59,6 +60,7 @@ import Network.Wai.Routing
 import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
+import Polysemy (Member)
 import System.Logger (Msg)
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
@@ -186,7 +188,7 @@ routesPublic = do
     Doc.response 200 "Invitation successful." Doc.end
     Doc.response 403 "No permission (not admin or owner of this team)." Doc.end
 
-routesInternal :: Routes a (Handler r) ()
+routesInternal :: Member BlacklistStore r => Routes a (Handler r) ()
 routesInternal = do
   get "/i/teams/invitations/by-email" (continue getInvitationByEmailH) $
     accept "application" "json"
@@ -278,12 +280,12 @@ createInvitationPublic uid tid body = do
       context
       (createInvitation' tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body)
 
-createInvitationViaScimH :: JSON ::: JsonRequest NewUserScimInvitation -> (Handler r) Response
+createInvitationViaScimH :: Member BlacklistStore r => JSON ::: JsonRequest NewUserScimInvitation -> (Handler r) Response
 createInvitationViaScimH (_ ::: req) = do
   body <- parseJsonBody req
   setStatus status201 . json <$> createInvitationViaScim body
 
-createInvitationViaScim :: NewUserScimInvitation -> (Handler r) UserAccount
+createInvitationViaScim :: Member BlacklistStore r => NewUserScimInvitation -> (Handler r) UserAccount
 createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
   env <- ask
   let inviteeRole = defaultRole
