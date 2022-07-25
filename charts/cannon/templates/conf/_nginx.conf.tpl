@@ -206,6 +206,8 @@ http {
     zauth_keystore {{ .Values.nginx_conf.zauth_keystore }};
     zauth_acl      {{ .Values.nginx_conf.zauth_acl }};
 
+    add_header Strict-Transport-Security 'max-age=31536000; includeSubdomains; preload' always;
+
     location /status {
         zauth off;
         access_log off;
@@ -338,7 +340,7 @@ http {
 
         more_set_headers 'Access-Control-Expose-Headers: Request-Id, Location';
         more_set_headers 'Request-Id: $request_id';
-        more_set_headers 'Strict-Transport-Security: max-age=31536000; preload';
+        more_set_headers 'Strict-Transport-Security: max-age=31536000; includeSubdomains; preload';
     }
 
           {{- end -}}
