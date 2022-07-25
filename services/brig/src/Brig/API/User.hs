@@ -98,7 +98,6 @@ import Brig.App
 import qualified Brig.Code as Code
 import Brig.Data.Activation (ActivationEvent (..), activationErrorToRegisterError)
 import qualified Brig.Data.Activation as Data
-import qualified Brig.Data.Blacklist as Blacklist
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.Properties as Data

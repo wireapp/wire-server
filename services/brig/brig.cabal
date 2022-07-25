@@ -48,7 +48,6 @@ library
       Brig.CanonicalInterpreter
       Brig.Code
       Brig.Data.Activation
-      Brig.Data.Blacklist
       Brig.Data.Client
       Brig.Data.Connection
       Brig.Data.Instances
