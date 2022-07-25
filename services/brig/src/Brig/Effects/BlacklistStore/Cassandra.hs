@@ -1,6 +1,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Brig.Effects.BlacklistStore.Cassandra where
+module Brig.Effects.BlacklistStore.Cassandra
+  ( interpretBlacklistStoreToCassandra,
+  )
+where
 
 import Brig.Data.UserKey
 import Brig.Effects.BlacklistStore (BlacklistStore (..))
