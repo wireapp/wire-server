@@ -492,7 +492,6 @@ nginx_conf:
       - all
     spar:
     - path: /identity-providers
-      max_body_size: 256k
       envs:
       - all
     - path: /i/sso

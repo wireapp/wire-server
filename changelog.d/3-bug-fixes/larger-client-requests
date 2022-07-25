@@ -1,0 +1,1 @@
+Fix an issue for larger client requests on e.g. /list-users and /list-conversations, which were giving 413 errors for some users. See https://wearezeta.atlassian.net/browse/SQPIT-1044 Allow client requests of 256k by default (was 64k).
