@@ -24,9 +24,11 @@ import Brig.Options
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
+import Data.Default
 import Data.Id
 import Data.Qualified
 import qualified Data.Set as Set
+import Data.Timeout
 import Federation.Util
 import Imports
 import Test.QuickCheck hiding ((===))
@@ -57,7 +59,7 @@ testKeyPackageUpload brig = do
   u <- userQualifiedId <$> randomUser brig
   c <- createClient brig u 0
   withSystemTempDirectory "mls" $ \tmp ->
-    uploadKeyPackages brig tmp SetKey u c 5
+    uploadKeyPackages brig tmp def u c 5
 
   count <- getKeyPackageCount brig u c
   liftIO $ count @?= 5
@@ -67,7 +69,7 @@ testKeyPackageUploadNoKey brig = do
   u <- userQualifiedId <$> randomUser brig
   c <- createClient brig u 0
   withSystemTempDirectory "mls" $ \tmp ->
-    uploadKeyPackages brig tmp DontSetKey u c 5
+    uploadKeyPackages brig tmp def {kiSetKey = DontSetKey} u c 5
 
   count <- getKeyPackageCount brig u c
   liftIO $ count @?= 0
@@ -87,7 +89,7 @@ testKeyPackageClaim brig = do
     c <- createClient brig u i
     -- upload 3 key packages for each client
     withSystemTempDirectory "mls" $ \tmp ->
-      uploadKeyPackages brig tmp SetKey u c 3
+      uploadKeyPackages brig tmp def u c 3
     pure c
 
   -- claim packages for both clients of u
@@ -117,7 +119,7 @@ testKeyPackageSelfClaim brig = do
     c <- createClient brig u i
     -- upload 3 key packages for each client
     withSystemTempDirectory "mls" $ \tmp ->
-      uploadKeyPackages brig tmp SetKey u c 3
+      uploadKeyPackages brig tmp def u c 3
     pure c
 
   -- claim own packages but skip the first
