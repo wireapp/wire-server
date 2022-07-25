@@ -283,7 +283,7 @@ http {
             {{- if (hasKey $location "body_buffer_size") }}
         client_body_buffer_size {{ $location.body_buffer_size -}};
             {{- end }}
-        client_max_body_size {{ $location.max_body_size | default "256k" }};
+        client_max_body_size {{ $location.max_body_size | default $.Values.nginx_conf.default_client_max_body_size }};
 
             {{ if ($location.use_websockets) }}
         proxy_set_header   Upgrade        $http_upgrade;
