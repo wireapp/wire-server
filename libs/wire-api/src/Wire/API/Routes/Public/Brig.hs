@@ -920,7 +920,7 @@ type SearchAPI =
         :> MultiVerb
              'GET
              '[JSON]
-             '[]
+             '[Respond 200 "Search results" (SearchResult TeamContact)]
              (SearchResult TeamContact)
     )
 

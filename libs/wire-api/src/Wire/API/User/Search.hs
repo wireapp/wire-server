@@ -36,6 +36,7 @@ module Wire.API.User.Search
   )
 where
 
+import Control.Error
 import Control.Lens (makePrisms, (?~))
 import Data.Aeson hiding (object, (.=))
 import qualified Data.Aeson as Aeson
@@ -49,7 +50,10 @@ import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
+import qualified Data.Text as T
 import Imports
+import Servant.API (FromHttpApiData)
+import Web.Internal.HttpApiData (parseQueryParam)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Team.Role (Role)
 import Wire.API.User (ManagedBy)
@@ -88,9 +92,15 @@ instance ToSchema a => ToSchema (SearchResult a) where
 
 deriving via (Schema (SearchResult Contact)) instance ToJSON (SearchResult Contact)
 
+deriving via (Schema (SearchResult TeamContact)) instance ToJSON (SearchResult TeamContact)
+
 deriving via (Schema (SearchResult Contact)) instance FromJSON (SearchResult Contact)
 
+deriving via (Schema (SearchResult TeamContact)) instance FromJSON (SearchResult TeamContact)
+
 deriving via (Schema (SearchResult Contact)) instance S.ToSchema (SearchResult Contact)
+
+deriving via (Schema (SearchResult TeamContact)) instance S.ToSchema (SearchResult TeamContact)
 
 modelSearchResult :: Doc.Model -> Doc.Model
 modelSearchResult modelContact = Doc.defineModel "SearchResult" $ do
@@ -103,25 +113,6 @@ modelSearchResult modelContact = Doc.defineModel "SearchResult" $ do
     Doc.description "Search time in ms"
   Doc.property "documents" (Doc.array (Doc.ref modelContact)) $
     Doc.description "List of contacts found"
-
-instance ToJSON (SearchResult TeamContact) where
-  toJSON r =
-    Aeson.object
-      [ "found" Aeson..= searchFound r,
-        "returned" Aeson..= searchReturned r,
-        "took" Aeson..= searchTook r,
-        "documents" Aeson..= searchResults r,
-        "search_policy" Aeson..= searchPolicy r
-      ]
-
-instance FromJSON (SearchResult TeamContact) where
-  parseJSON = withObject "SearchResult" $ \o ->
-    SearchResult
-      <$> o .: "found"
-      <*> o .: "returned"
-      <*> o .: "took"
-      <*> o .: "documents"
-      <*> o .: "search_policy"
 
 --------------------------------------------------------------------------------
 -- Contact
@@ -176,19 +167,14 @@ data Sso = Sso
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Sso)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Sso)
 
-instance ToJSON Sso where
-  toJSON c =
-    Aeson.object
-      [ "issuer" Aeson..= ssoIssuer c,
-        "nameid" Aeson..= ssoNameId c
-      ]
-
-instance FromJSON Sso where
-  parseJSON = withObject "Sso" $ \o ->
-    Sso
-      <$> o .: "issuer"
-      <*> o .: "nameid"
+instance ToSchema Sso where
+  schema =
+    object "Sso" $
+      Sso
+        <$> ssoIssuer .= field "issuer" schema
+        <*> ssoNameId .= field "nameid" schema
 
 -- | Returned by 'browseTeam' under @/teams/:tid/search@.
 data TeamContact = TeamContact
@@ -208,6 +194,7 @@ data TeamContact = TeamContact
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform TeamContact)
+  deriving (ToJSON, FromJSON) via (Schema TeamContact)
 
 modelSso :: Doc.Model
 modelSso = Doc.defineModel "Sso" $ do
@@ -244,41 +231,23 @@ modelTeamContact = Doc.defineModel "TeamContact" $ do
     Doc.description "Unvalidated email address"
     Doc.optional
 
-instance ToJSON TeamContact where
-  toJSON c =
-    Aeson.object
-      [ "id" Aeson..= teamContactUserId c,
-        "name" Aeson..= teamContactName c,
-        "accent_id" Aeson..= teamContactColorId c,
-        "handle" Aeson..= teamContactHandle c,
-        "team" Aeson..= teamContactTeam c,
-        "email" Aeson..= teamContactEmail c,
-        "created_at" Aeson..= teamContactCreatedAt c,
-        "managed_by" Aeson..= teamContactManagedBy c,
-        "saml_idp" Aeson..= teamContactSAMLIdp c,
-        "role" Aeson..= teamContactRole c,
-        "scim_external_id" Aeson..= teamContactScimExternalId c,
-        "sso" Aeson..= teamContactSso c,
-        "email_unvalidated" Aeson..= teamContactEmailUnvalidated c
-      ]
-
-instance FromJSON TeamContact where
-  parseJSON =
-    withObject "Contact" $ \o ->
+instance ToSchema TeamContact where
+  schema =
+    object "TeamContact" $
       TeamContact
-        <$> o .: "id"
-        <*> o .: "name"
-        <*> o .:? "accent_id"
-        <*> o .:? "handle"
-        <*> o .:? "team"
-        <*> o .:? "email"
-        <*> o .:? "created_at"
-        <*> o .:? "managed_by"
-        <*> o .:? "saml_idp"
-        <*> o .:? "role"
-        <*> o .:? "scim_external_id"
-        <*> o .:? "sso"
-        <*> o .:? "email_unvalidated"
+        <$> teamContactUserId .= field "id" schema
+        <*> teamContactName .= field "name" schema
+        <*> teamContactColorId .= optField "accent_id" (maybeWithDefault Aeson.Null schema)
+        <*> teamContactHandle .= optField "handle" (maybeWithDefault Aeson.Null schema)
+        <*> teamContactTeam .= optField "team" (maybeWithDefault Aeson.Null schema)
+        <*> teamContactEmail .= optField "email" (maybeWithDefault Aeson.Null schema)
+        <*> teamContactCreatedAt .= optField "created_at" (maybeWithDefault Aeson.Null schema)
+        <*> teamContactManagedBy .= optField "managed_by" (maybeWithDefault Aeson.Null schema)
+        <*> teamContactSAMLIdp .= optField "saml_idp" (maybeWithDefault Aeson.Null schema)
+        <*> teamContactRole .= optField "role" (maybeWithDefault Aeson.Null schema)
+        <*> teamContactScimExternalId .= optField "scim_external_id" (maybeWithDefault Aeson.Null schema)
+        <*> teamContactSso .= optField "sso" (maybeWithDefault Aeson.Null schema)
+        <*> teamContactEmailUnvalidated .= optField "email_unvalidated" (maybeWithDefault Aeson.Null schema)
 
 data TeamUserSearchSortBy
   = SortByName
@@ -288,54 +257,69 @@ data TeamUserSearchSortBy
   | SortByManagedBy
   | SortByRole
   | SortByCreatedAt
-  deriving (Show, Eq, Ord, Generic)
+  deriving (Show, Eq, Ord, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform TeamUserSearchSortBy)
 
 instance S.ToParamSchema TeamUserSearchSortBy where
   toParamSchema _ =
     mempty
       & S.type_ ?~ S.SwaggerString
-      & S.enum_ ?~ ["name", "handle", "email", "saml_idp", "managed_by", "role", "created_at"]
+      & S.enum_ ?~ fmap teamUserSearchSortByName [minBound .. maxBound]
 
 instance ToByteString TeamUserSearchSortBy where
-  builder SortByName = "name"
-  builder SortByHandle = "handle"
-  builder SortByEmail = "email"
-  builder SortBySAMLIdp = "saml_idp"
-  builder SortByManagedBy = "managed_by"
-  builder SortByRole = "role"
-  builder SortByCreatedAt = "created_at"
+  builder = teamUserSearchSortByName
 
 instance FromByteString TeamUserSearchSortBy where
   parser =
-    SortByName <$ string "name"
-      <|> SortByHandle <$ string "handle"
-      <|> SortByEmail <$ string "email"
-      <|> SortBySAMLIdp <$ string "saml_idp"
-      <|> SortByManagedBy <$ string "managed_by"
-      <|> SortByRole <$ string "role"
-      <|> SortByCreatedAt <$ string "created_at"
+    asum $
+      [minBound .. maxBound] <&> \ctor ->
+        ctor <$ string (teamUserSearchSortByName ctor)
+
+instance FromHttpApiData TeamUserSearchSortBy where
+  parseQueryParam name = note ("Unknown search sort: " <> name) $
+    getAlt $
+      flip foldMap [minBound .. maxBound] $ \s ->
+        guard (teamUserSearchSortByName s == name) $> s
+
+teamUserSearchSortByName :: IsString a => TeamUserSearchSortBy -> a
+teamUserSearchSortByName SortByName = "name"
+teamUserSearchSortByName SortByHandle = "handle"
+teamUserSearchSortByName SortByEmail = "email"
+teamUserSearchSortByName SortBySAMLIdp = "saml_idp"
+teamUserSearchSortByName SortByManagedBy = "managed_by"
+teamUserSearchSortByName SortByRole = "role"
+teamUserSearchSortByName SortByCreatedAt = "created_at"
 
 data TeamUserSearchSortOrder
   = SortOrderAsc
   | SortOrderDesc
-  deriving (Show, Eq, Ord, Generic)
+  deriving (Show, Eq, Ord, Generic, Enum, Bounded)
   deriving (Arbitrary) via (GenericUniform TeamUserSearchSortOrder)
 
 instance S.ToParamSchema TeamUserSearchSortOrder where
   toParamSchema _ =
     mempty
       & S.type_ ?~ S.SwaggerString
-      & S.enum_ ?~ ["asc", "desc"]
+      & S.enum_ ?~ fmap teamUserSearchSortOrderName [minBound .. maxBound]
 
 instance ToByteString TeamUserSearchSortOrder where
-  builder SortOrderAsc = "asc"
-  builder SortOrderDesc = "desc"
+  builder = teamUserSearchSortOrderName
 
 instance FromByteString TeamUserSearchSortOrder where
   parser =
-    SortOrderAsc <$ string "asc"
-      <|> SortOrderDesc <$ string "desc"
+    asum $
+      [minBound .. maxBound] <&> \ctor ->
+        ctor <$ string (teamUserSearchSortOrderName ctor)
+
+instance FromHttpApiData TeamUserSearchSortOrder where
+  parseQueryParam name = note ("Unknown search order: " <> name) $
+    getAlt $
+      flip foldMap [minBound .. maxBound] $ \s ->
+        guard (teamUserSearchSortOrderName s == name) $> s
+
+teamUserSearchSortOrderName :: IsString a => TeamUserSearchSortOrder -> a
+teamUserSearchSortOrderName SortOrderAsc = "asc"
+teamUserSearchSortOrderName SortOrderDesc = "desc"
 
 newtype RoleFilter = RoleFilter [Role]
   deriving (Show, Eq, Generic)
@@ -349,6 +333,9 @@ instance ToByteString RoleFilter where
 
 instance FromByteString RoleFilter where
   parser = RoleFilter <$> parser `sepBy` char ','
+
+instance FromHttpApiData RoleFilter where
+  parseQueryParam = fmap RoleFilter . traverse parseQueryParam . T.split (== ',')
 
 data FederatedUserSearchPolicy
   = NoSearch

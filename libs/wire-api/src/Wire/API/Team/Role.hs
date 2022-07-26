@@ -27,16 +27,20 @@ module Wire.API.Team.Role
 where
 
 import qualified Cassandra as Cql
+import Control.Error (note)
 import Control.Lens ((?~))
 import Data.Aeson
 import Data.Attoparsec.ByteString.Char8 (string)
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
 import Data.ByteString.Conversion.From (runParser)
+import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Model.Api as Doc
+import qualified Data.Text as T
 import Imports
+import Servant.API (FromHttpApiData, parseQueryParam)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 
 -- Note [team roles]
@@ -80,12 +84,25 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 data Role = RoleOwner | RoleAdmin | RoleMember | RoleExternalPartner
   deriving stock (Eq, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform Role)
+  deriving (ToJSON, FromJSON, S.ToSchema) via Schema Role
+
+instance ToSchema Role where
+  schema =
+    enum @Text "Role" $
+      flip foldMap [minBound .. maxBound] $ \r ->
+        element (roleName r) r
 
 instance S.ToParamSchema Role where
   toParamSchema _ =
     mempty
       & S.type_ ?~ S.SwaggerString
-      & S.enum_ ?~ ["RoleOwner", "RoleAdmin", "RoleMember", "RoleExternalPartner"]
+      & S.enum_ ?~ fmap roleName [minBound .. maxBound]
+
+instance FromHttpApiData Role where
+  parseQueryParam name = note ("Unknown role: " <> name) $
+    getAlt $
+      flip foldMap [minBound .. maxBound] $ \s ->
+        guard (T.pack (show s) == name) $> s
 
 typeRole :: Doc.DataType
 typeRole =
@@ -98,27 +115,20 @@ typeRole =
         Doc.maxVal = Just maxBound
       }
 
-instance ToJSON Role where
-  toJSON = String . cs . toLazyByteString . builder
-
-instance FromJSON Role where
-  parseJSON = withText "Role" $ \str ->
-    case runParser (parser @Role) (cs str) of
-      Left err -> fail err
-      Right result -> pure result
+roleName :: IsString a => Role -> a
+roleName RoleOwner = "owner"
+roleName RoleAdmin = "admin"
+roleName RoleMember = "member"
+roleName RoleExternalPartner = "partner"
 
 instance ToByteString Role where
-  builder RoleOwner = "owner"
-  builder RoleAdmin = "admin"
-  builder RoleMember = "member"
-  builder RoleExternalPartner = "partner"
+  builder = roleName
 
 instance FromByteString Role where
   parser =
-    RoleOwner <$ string "owner"
-      <|> RoleAdmin <$ string "admin"
-      <|> RoleMember <$ string "member"
-      <|> RoleExternalPartner <$ string "partner"
+    asum $
+      [minBound .. maxBound] <&> \ctor ->
+        ctor <$ string (roleName ctor)
 
 defaultRole :: Role
 defaultRole = RoleMember
