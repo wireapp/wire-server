@@ -194,6 +194,7 @@ type UserAPI =
     :<|> Named
            "get-rich-info"
            ( Summary "Get a user's rich info"
+               :> CanThrow 'InsufficientTeamPermissions
                :> ZUser
                :> "users"
                :> CaptureUserId "uid"

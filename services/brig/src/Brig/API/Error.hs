@@ -364,7 +364,7 @@ authTokenUnsupported = Wai.mkError status403 "invalid-credentials" "Unsupported 
 --
 -- * Requested action can't be performed if the user is the only team owner left in the team.
 insufficientTeamPermissions :: Wai.Error
-insufficientTeamPermissions = Wai.mkError status403 "insufficient-permissions" "Insufficient team permissions"
+insufficientTeamPermissions = errorToWai @'E.TooManyClients
 
 noBindingTeam :: Wai.Error
 noBindingTeam = Wai.mkError status403 "no-binding-team" "Operation allowed only on binding teams"
