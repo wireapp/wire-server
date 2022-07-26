@@ -24,6 +24,22 @@ securityContext:
 
 coturnTurnListenPort: 3478
 coturnMetricsListenPort: 9641
+coturnTurnTlsListenPort: 5349
+
+tls:
+  enabled: false
+  certManager:
+    enabled: false
+    dnsNames: []
+    issuer:
+      create: false
+      kind:
+      certmasterEmail:
+      solverConfiguration:
+  reloaderImage:
+    repository: quay.io/wire/config-reloader-sidecar
+    pullPolicy: IfNotPresent
+    tag: 1aa6cbbf2ce3a5182ec47e3579bbcb8f47e22fdc
 
 # This chart optionally supports waiting for traffic to drain from coturn
 # before pods are terminated. Warning: coturn does not have any way to steer
