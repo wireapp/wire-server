@@ -93,7 +93,7 @@ http {
   # Rate Limiting Exemptions
   #
 
-  geo $rate_limit {
+  geo $proxy_protocol_addr $rate_limit {
       default 1;
 
   # IPs to exempt can be added in the .Values.nginx_conf.rate_limit and .Values.nginx_conf.simulators helm values
