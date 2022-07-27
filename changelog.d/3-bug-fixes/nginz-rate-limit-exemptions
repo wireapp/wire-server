@@ -1,1 +1,0 @@
-charts/nginz: rate limit exemptions should be by comparing with proxy_protocol_addr
