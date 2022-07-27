@@ -21,6 +21,7 @@ import API.MLS.Util
 import Bilge
 import Bilge.Assert
 import Brig.Options
+import Control.Timeout
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
@@ -49,6 +50,7 @@ tests m b opts =
     [ test m "POST /mls/key-packages/self/:client" (testKeyPackageUpload b),
       test m "POST /mls/key-packages/self/:client (no public keys)" (testKeyPackageUploadNoKey b),
       test m "GET /mls/key-packages/self/:client/count" (testKeyPackageZeroCount b),
+      test m "GET /mls/key-packages/self/:client/count (expired package)" (testKeyPackageExpired b),
       test m "GET /mls/key-packages/claim/local/:user" (testKeyPackageClaim b),
       test m "GET /mls/key-packages/claim/local/:user - self claim" (testKeyPackageSelfClaim b),
       test m "GET /mls/key-packages/claim/remote/:user" (testKeyPackageRemoteClaim opts b)
@@ -80,6 +82,25 @@ testKeyPackageZeroCount brig = do
   c <- randomClient
   count <- getKeyPackageCount brig u c
   liftIO $ count @?= 0
+
+testKeyPackageExpired :: Brig -> Http ()
+testKeyPackageExpired brig = do
+  u <- userQualifiedId <$> randomUser brig
+  [c1, c2] <- for [(0, Just $ 2 # Second), (1, Nothing)] $ \(i, lt) -> do
+    c <- createClient brig u i
+    -- upload 1 key package for each client
+    withSystemTempDirectory "mls" $ \tmp ->
+      uploadKeyPackages brig tmp def {kiLifetime = lt} u c 1
+    pure c
+  for_ [(c1, 1), (c2, 1)] $ \(cid, expectedCount) -> do
+    count <- getKeyPackageCount brig u cid
+    liftIO $ count @?= expectedCount
+  -- wait for one key package to expire
+  sleep 3
+  -- c1's key package has expired by now
+  for_ [(c1, 0), (c2, 1)] $ \(cid, expectedCount) -> do
+    count <- getKeyPackageCount brig u cid
+    liftIO $ count @?= expectedCount
 
 testKeyPackageClaim :: Brig -> Http ()
 testKeyPackageClaim brig = do

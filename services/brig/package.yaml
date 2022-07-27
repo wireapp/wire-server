@@ -261,6 +261,7 @@ executables:
     - temporary >=1.2.1
     - text
     - time >=1.5
+    - timeout
     - tinylog
     - transformers
     - types-common >=0.3
