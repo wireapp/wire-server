@@ -28,7 +28,6 @@ import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
-import Data.Tagged (Tagged)
 import Data.Time
 import Data.Tuple.Extra (uncurry3)
 import Galley.API.MLS.KeyPackage
@@ -40,7 +39,6 @@ import Galley.Effects.GundeckAccess
 import Imports
 import Network.Wai.Utilities.Server
 import Polysemy
-import Polysemy.Error (runError, throw)
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Logger
@@ -106,12 +104,15 @@ welcomeRecipients ::
   Welcome ->
   Sem r [(Qualified (UserId, ClientId), Qualified ConvId)]
 welcomeRecipients =
-  traverse (either throw pure <=< resolveMember . gsNewMember) . welSecrets
+  traverse (resolveMember . gsNewMember) . welSecrets
 
-resolveMember :: Member BrigAccess r => KeyPackageRef -> Sem r (Either (Tagged 'MLSKeyPackageRefNotFound ()) (Qualified (UserId, ClientId), Qualified ConvId))
-resolveMember kpref = runError $ do
+resolveMember ::
+  Members '[BrigAccess, ErrorS 'MLSKeyPackageRefNotFound] r =>
+  KeyPackageRef ->
+  Sem r (Qualified (UserId, ClientId), Qualified ConvId)
+resolveMember kpref = do
   clientIdentity <- derefKeyPackage kpref
-  -- TODO Generate new + Put conversaion id?
+  -- Q: should there even be a default?  Or fail when kpref has no conversation?
   let defConv = Qualified (selfConv (ciUser clientIdentity)) (ciDomain clientIdentity)
   convId <- fromMaybe defConv <$> getConvIdByKeyPackageRef kpref
   pure (cidQualifiedClient clientIdentity, convId)

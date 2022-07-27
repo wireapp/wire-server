@@ -929,7 +929,7 @@ sendMessage = do
 -- - Group conv with all users (groupConvId)
 --
 -- When bob gets deleted, backend A gets an RPC from bDomain stating that bob is
--- deleted and they would like bob to leave these converstaions:
+-- deleted and they would like bob to leave these conversations:
 -- - ooConvId -> Causes Alice to be notified
 -- - groupConvId -> Causes Alice and Alex to be notified
 -- - extraConvId -> Ignored

@@ -1587,7 +1587,7 @@ wsAssertMLSWelcome ::
 wsAssertMLSWelcome u c welcome n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
-  evtConv e @?= c
+  evtConv e `elem` [c, fmap selfConv u] @? "Incorrect conversation id"
   evtType e @?= MLSWelcome
   evtFrom e @?= u
   evtData e @?= EdMLSWelcome welcome

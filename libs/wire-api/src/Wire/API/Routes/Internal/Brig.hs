@@ -265,7 +265,7 @@ type PutConversationByKeyPackageRef =
              'PUT
              '[Servant.JSON]
              [ RespondEmpty 404 "No key package found by reference",
-               RespondEmpty 204 "Converstaion associated"
+               RespondEmpty 204 "Conversation associated"
              ]
              Bool
     )

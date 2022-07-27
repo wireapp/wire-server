@@ -640,7 +640,7 @@ postMessageQualifiedLocalOwningBackendSuccess = do
   let t = 5 # Second
   -- Cannon for local users
   cannon <- view tsCannon
-  -- Domain which owns the converstaion
+  -- Domain which owns the conversation
   owningDomain <- viewFederationDomain
 
   (alice, aliceClient) <- randomUserWithClientQualified (head someLastPrekeys)
@@ -767,7 +767,7 @@ postMessageQualifiedLocalOwningBackendMissingClients :: TestM ()
 postMessageQualifiedLocalOwningBackendMissingClients = do
   -- Cannon for local users
   cannon <- view tsCannon
-  -- Domain which owns the converstaion
+  -- Domain which owns the conversation
   owningDomain <- viewFederationDomain
 
   (aliceOwningDomain, aliceClient) <- randomUserWithClientQualified (head someLastPrekeys)
@@ -835,7 +835,7 @@ postMessageQualifiedLocalOwningBackendRedundantAndDeletedClients = do
   let t = 5 # Second
   -- Cannon for local users
   cannon <- view tsCannon
-  -- Domain which owns the converstaion
+  -- Domain which owns the conversation
   owningDomain <- viewFederationDomain
   let remoteDomain = Domain "far-away.example.com"
 
@@ -928,7 +928,7 @@ postMessageQualifiedLocalOwningBackendIgnoreMissingClients = do
   let t = 5 # Second
   -- Cannon for local users
   cannon <- view tsCannon
-  -- Domain which owns the converstaion
+  -- Domain which owns the conversation
   owningDomain <- viewFederationDomain
 
   (aliceOwningDomain, aliceClient) <- randomUserWithClientQualified (head someLastPrekeys)
@@ -1056,7 +1056,7 @@ postMessageQualifiedLocalOwningBackendFailedToSendClients = do
   let t = 5 # Second
   -- Cannon for local users
   cannon <- view tsCannon
-  -- Domain which owns the converstaion
+  -- Domain which owns the conversation
   owningDomain <- viewFederationDomain
 
   (aliceOwningDomain, aliceClient) <- randomUserWithClientQualified (head someLastPrekeys)
