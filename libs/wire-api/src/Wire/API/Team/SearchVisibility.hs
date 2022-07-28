@@ -60,7 +60,7 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 --     Name: can be found by same team only
 -- @
 --
--- See also: 'FeatureTeamSearchVisibility', 'TeamSearchVisibilityEnabled'.
+-- See also: 'FeatureTeamSearchVisibilityAvailability'.
 data TeamSearchVisibility
   = SearchVisibilityStandard
   | SearchVisibilityNoNameOutsideTeam
