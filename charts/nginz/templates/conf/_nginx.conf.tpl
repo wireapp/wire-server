@@ -93,6 +93,8 @@ http {
   # Rate Limiting Exemptions
   #
 
+  # geo $proxy_protocol_addr $rate_limit { <-- known to break staging's rate limit exemptions as I guess on staging the real IP is NOT inside the proxy_protocol_addr variable
+  # geo $some_other_variable_containing_real_client_ip $rate_limit {
   geo $rate_limit {
       default 1;
 

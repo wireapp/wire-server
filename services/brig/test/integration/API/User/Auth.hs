@@ -202,6 +202,8 @@ testNginz b n = do
   -- ensure regular user tokens can fetch notifications
   get (n . path "/notifications" . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 200 === statusCode
 
+-- testNginzRateLimiting -- set a header X-Forwarded-For?
+
 testNginzLegalHold :: Brig -> Galley -> Nginz -> Http ()
 testNginzLegalHold b g n = do
   -- create team user Alice

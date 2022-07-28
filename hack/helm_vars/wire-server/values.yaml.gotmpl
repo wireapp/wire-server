@@ -206,7 +206,9 @@ nginz:
     allowlisted_origins: []
     randomport_allowlisted_origins: [] # default is empty by intention
     rate_limit_reqs_per_user: "10r/s"
-    rate_limit_reqs_per_addr: "100r/s"
+    rate_limit_reqs_per_addr: "100r/s" # may need adjusting
+    # rate_limit_exemptions:
+    #   - some-ip-as-set-in-some-http-header-or-source-address in the tests
   secrets:
     basicAuth: "whatever"
     zAuth:
