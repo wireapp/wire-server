@@ -122,4 +122,4 @@ countKeyPackages :: Local UserId -> ClientId -> Handler r KeyPackageCount
 countKeyPackages lusr c =
   lift $
     KeyPackageCount . fromIntegral
-      <$> wrapClient (Data.countKeyPackages (tUnqualified lusr) c)
+      <$> wrapClient (Data.countKeyPackages lusr c)

@@ -28,6 +28,7 @@ import qualified Brig.Options as Opt
 import Control.Arrow (Arrow (first), (&&&))
 import Control.Lens ((?~))
 import Data.Aeson
+import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Handle (Handle (..))
 import Data.Id
@@ -413,7 +414,7 @@ testClaimKeyPackages brig fedBrigClient = do
 
   withSystemTempDirectory "mls" $ \tmp ->
     for_ bobClients $ \c ->
-      uploadKeyPackages brig tmp SetKey bob c 2
+      uploadKeyPackages brig tmp def bob c 2
 
   Just bundle <-
     runFedClient @"claim-key-packages" fedBrigClient (qDomain alice) $

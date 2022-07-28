@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE RecordWildCards #-}
 
 module API.MLS.Util where
 
@@ -21,12 +22,14 @@ import Bilge
 import Bilge.Assert
 import Data.Aeson (object, toJSON, (.=))
 import Data.ByteString.Conversion
+import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Json.Util
 import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Text as T
+import Data.Timeout
 import Imports
 import System.FilePath
 import System.Process
@@ -38,16 +41,24 @@ import Wire.API.User.Client
 data SetKey = SetKey | DontSetKey
   deriving (Eq)
 
+data KeyingInfo = KeyingInfo
+  { kiSetKey :: SetKey,
+    kiLifetime :: Maybe Timeout
+  }
+
+instance Default KeyingInfo where
+  def = KeyingInfo SetKey Nothing
+
 uploadKeyPackages ::
   HasCallStack =>
   Brig ->
   FilePath ->
-  SetKey ->
+  KeyingInfo ->
   Qualified UserId ->
   ClientId ->
   Int ->
   Http ()
-uploadKeyPackages brig tmp sk u c n = do
+uploadKeyPackages brig tmp KeyingInfo {..} u c n = do
   let cmd0 = ["mls-test-cli", "--store", tmp </> (clientId <> ".db")]
       clientId =
         show (qUnqualified u)
@@ -59,8 +70,10 @@ uploadKeyPackages brig tmp sk u c n = do
     cmd0 <> ["init", clientId]
   kps <-
     replicateM n . liftIO . flip spawn Nothing . shell . unwords $
-      cmd0 <> ["key-package", "create"]
-  when (sk == SetKey) $
+      cmd0
+        <> ["key-package", "create"]
+        <> (("--lifetime " <>) . show . (#> Second) <$> maybeToList kiLifetime)
+  when (kiSetKey == SetKey) $
     do
       pk <-
         liftIO . flip spawn Nothing . shell . unwords $
@@ -79,7 +92,7 @@ uploadKeyPackages brig tmp sk u c n = do
         . zUser (qUnqualified u)
         . json upload
     )
-    !!! const (case sk of SetKey -> 201; DontSetKey -> 400) === statusCode
+    !!! const (case kiSetKey of SetKey -> 201; DontSetKey -> 400) === statusCode
 
 getKeyPackageCount :: HasCallStack => Brig -> Qualified UserId -> ClientId -> Http KeyPackageCount
 getKeyPackageCount brig u c =
