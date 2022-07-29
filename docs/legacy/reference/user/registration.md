@@ -192,7 +192,7 @@ The rest of the unauthorized end-points is safe:
 - `~* ^/teams/invitations/info$`: only `GET`; requires invitation code.
 - `~* ^/teams/invitations/by-email$`: only `HEAD`.
 - `/invitations/info`: discontinued feature, can be removed from nginz config.
-- `/conversations/code-check`: link validatoin for ephemeral/guest users.
+- `/conversations/code-check`: link validation for ephemeral/guest users.
 - `/provider/*`: bots need to be registered to a team before becoming active.  so if an attacker does not get access to a team, they cannot deploy a bot.
 - `~* ^/custom-backend/by-domain/([^/]*)$`: only `GET`; only exposes a list of domains that has is maintained through an internal end-point.  used to redirect stock clients from the cloud instance to on-prem instances.
 - `~* ^/teams/api-docs`: only `GET`; swagger for part of the rest API.  safe: it is trivial to identify the software that is running on the instance, and from there it is trivial to get to the source on github, where this can be obtained easily, and more.
