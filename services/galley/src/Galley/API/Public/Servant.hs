@@ -106,6 +106,7 @@ servantSitemap =
     team =
       mkNamedAPI @"create-non-binding-team" createNonBindingTeamH
         <@> mkNamedAPI @"update-team" updateTeamH
+        <@> mkNamedAPI @"update-team-delete-splash-screen" updateTeamDeleteSplashScreenH
         <@> mkNamedAPI @"get-teams" getManyTeams
         <@> mkNamedAPI @"get-team" getTeamH
         <@> mkNamedAPI @"delete-team" deleteTeam

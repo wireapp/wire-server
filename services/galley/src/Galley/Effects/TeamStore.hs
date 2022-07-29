@@ -44,6 +44,7 @@ module Galley.Effects.TeamStore
     -- ** Update teams
     deleteTeamConversation,
     setTeamData,
+    deleteTeamSplashScreen,
     setTeamStatus,
 
     -- ** Delete teams
@@ -123,6 +124,7 @@ data TeamStore m a where
   DeleteTeam :: TeamId -> TeamStore m ()
   DeleteTeamConversation :: TeamId -> ConvId -> TeamStore m ()
   SetTeamData :: TeamId -> TeamUpdateData -> TeamStore m ()
+  DeleteTeamSplashScreen :: TeamId -> TeamStore m ()
   SetTeamStatus :: TeamId -> TeamStatus -> TeamStore m ()
   FanoutLimit :: TeamStore m (Range 1 HardTruncationLimit Int32)
   GetLegalHoldFlag :: TeamStore m FeatureLegalHold
