@@ -1458,16 +1458,23 @@ testUpdateTeam = do
   g <- view tsGalley
   c <- view tsCannon
   (tid, owner, [member]) <- Util.createBindingTeamWithMembers 2
+
+  let doPut :: LByteString -> Int -> TestM ()
+      doPut payload code =
+        put
+          ( g
+              . paths ["teams", toByteString' tid]
+              . zUser owner
+              . zConn "conn"
+              . contentJson
+              . body (RequestBodyLBS payload)
+          )
+          !!! const code
+          === statusCode
+
   let bad = object ["name" .= T.replicate 100 "too large"]
-  put
-    ( g
-        . paths ["teams", toByteString' tid]
-        . zUser owner
-        . zConn "conn"
-        . json bad
-    )
-    !!! const 400
-    === statusCode
+  doPut (encode bad) 400
+
   let u =
         newTeamUpdateData
           & nameUpdate .~ (Just $ unsafeRange "bar")
@@ -1475,15 +1482,7 @@ testUpdateTeam = do
           & iconKeyUpdate .~ (Just $ unsafeRange "yyy")
           & splashScreenUpdate .~ fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a"
   WS.bracketR2 c owner member $ \(wsOwner, wsMember) -> do
-    put
-      ( g
-          . paths ["teams", toByteString' tid]
-          . zUser owner
-          . zConn "conn"
-          . json u
-      )
-      !!! const 200
-      === statusCode
+    doPut (encode u) 200
     checkTeamUpdateEvent tid u wsOwner
     checkTeamUpdateEvent tid u wsMember
     WS.assertNoEvent timeout [wsOwner, wsMember]
