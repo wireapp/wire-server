@@ -259,6 +259,8 @@ extra-deps:
 - proto-lens-setup-0.4.0.5
 - tracing-0.0.7.2
 - zlib-0.6.3.0
+- timeout-0.1.1
+
 
 ############################################################
 # Development tools
