@@ -1489,6 +1489,30 @@ testUpdateTeam = do
   t <- Util.getTeam owner tid
   liftIO $ assertEqual "teamSplashScreen" (t ^. teamSplashScreen) (fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a")
 
+  do
+    -- setting fields to `null` is the same as omitting the them from the update json record.
+    -- ("name" is set because a completely empty update object is rejected.)
+    doPut "{\"name\": \"new team name\", \"splash_screen\": null}" 200
+    t' <- Util.getTeam owner tid
+    liftIO $ assertEqual "teamSplashScreen" (t' ^. teamSplashScreen) (fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a")
+
+  do
+    -- setting splash screen to `"default"` won't parse as an Id.
+    doPut "{\"splash_screen\": \"default\"}" 400
+
+  do
+    -- use the `delete` end-point!
+    delete
+      ( g
+          . paths ["teams", toByteString' tid, "splash_screen"]
+          . zUser owner
+          . zConn "conn"
+      )
+      !!! const 200
+      === statusCode
+    t' <- Util.getTeam owner tid
+    liftIO $ assertEqual "teamSplashScreen" (t' ^. teamSplashScreen) Nothing
+
 testTeamAddRemoveMemberAboveThresholdNoEvents :: HasCallStack => TestM ()
 testTeamAddRemoveMemberAboveThresholdNoEvents = do
   localDomain <- viewFederationDomain
