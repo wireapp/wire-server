@@ -113,7 +113,7 @@ instance FromJSON SomeConversationAction where
         case toSing tag of
           SomeSing sb -> do
             action <- schemaIn (conversationActionSchema sb) actionValue
-            return $ SomeConversationAction sb action
+            pure $ SomeConversationAction sb action
 
 instance Arbitrary SomeConversationAction where
   arbitrary = do

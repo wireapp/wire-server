@@ -112,8 +112,8 @@ instance Cql.Cql WireIdPAPIVersion where
   toCql WireIdPAPIV2 = Cql.CqlInt 2
 
   fromCql (Cql.CqlInt i) = case i of
-    1 -> return WireIdPAPIV1
-    2 -> return WireIdPAPIV2
+    1 -> pure WireIdPAPIV1
+    2 -> pure WireIdPAPIV2
     n -> Left $ "Unexpected ClientCapability value: " ++ show n
   fromCql _ = Left "ClientCapability value: int expected"
 

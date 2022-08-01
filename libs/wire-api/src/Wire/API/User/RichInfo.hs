@@ -207,7 +207,7 @@ instance FromJSON RichInfoMapAndList where
       lookupOrFail :: (MonadFail m, Show k, Eq k, Ord k) => k -> Map k v -> m v
       lookupOrFail key theMap = case Map.lookup key theMap of
         Nothing -> fail $ "key '" ++ show key ++ "' not found"
-        Just v -> return v
+        Just v -> pure v
 
 instance Arbitrary RichInfoMapAndList where
   arbitrary = mkRichInfoMapAndList <$> arbitrary

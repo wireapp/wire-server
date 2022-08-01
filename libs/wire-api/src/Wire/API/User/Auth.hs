@@ -372,8 +372,8 @@ instance ToJSON CookieType where
   toJSON PersistentCookie = "persistent"
 
 instance FromJSON CookieType where
-  parseJSON (String "session") = return SessionCookie
-  parseJSON (String "persistent") = return PersistentCookie
+  parseJSON (String "session") = pure SessionCookie
+  parseJSON (String "persistent") = pure PersistentCookie
   parseJSON _ = fail "Invalid cookie type"
 
 --------------------------------------------------------------------------------
@@ -474,5 +474,5 @@ instance ToJSON TokenType where
   toJSON Bearer = toJSON ("Bearer" :: Text)
 
 instance FromJSON TokenType where
-  parseJSON (String "Bearer") = return Bearer
+  parseJSON (String "Bearer") = pure Bearer
   parseJSON _ = fail "Invalid token type"

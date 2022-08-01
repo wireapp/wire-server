@@ -1275,7 +1275,7 @@ instance S.ToSchema ListUsersQuery where
   declareNamedSchema _ = do
     uids <- S.declareSchemaRef (Proxy @[Qualified UserId])
     handles <- S.declareSchemaRef (Proxy @(Range 1 4 [Qualified Handle]))
-    return $
+    pure $
       S.NamedSchema (Just "ListUsersQuery") $
         mempty
           & S.type_ ?~ S.SwaggerObject

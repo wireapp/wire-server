@@ -124,9 +124,9 @@ instance Cql.Cql Role where
   toCql RoleExternalPartner = Cql.CqlInt 4
 
   fromCql (Cql.CqlInt i) = case i of
-    1 -> return RoleOwner
-    2 -> return RoleAdmin
-    3 -> return RoleMember
-    4 -> return RoleExternalPartner
+    1 -> pure RoleOwner
+    2 -> pure RoleAdmin
+    3 -> pure RoleMember
+    4 -> pure RoleExternalPartner
     n -> Left $ "Unexpected Role value: " ++ show n
   fromCql _ = Left "Role value: int expected"
