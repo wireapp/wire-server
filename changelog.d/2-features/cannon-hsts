@@ -1,0 +1,1 @@
+charts/cannon: Ensure HSTS headers are set for all endpoints

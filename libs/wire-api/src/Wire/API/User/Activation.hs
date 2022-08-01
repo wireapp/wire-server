@@ -238,5 +238,5 @@ instance FromJSON SendActivationCode where
     where
       key (Just _) (Just _) = fail "Only one of 'email' or 'phone' allowed."
       key Nothing Nothing = fail "One of 'email' or 'phone' required."
-      key (Just e) Nothing = return $ Left e
-      key Nothing (Just p) = return $ Right p
+      key (Just e) Nothing = pure $ Left e
+      key Nothing (Just p) = pure $ Right p

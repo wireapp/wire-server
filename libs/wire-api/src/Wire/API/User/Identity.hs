@@ -58,7 +58,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Types as A
 import Data.Attoparsec.Text
-import Data.Bifunctor (first, second)
+import Data.Bifunctor (first)
 import Data.ByteString.Conversion
 import qualified Data.CaseInsensitive as CI
 import Data.Proxy (Proxy (..))
@@ -181,7 +181,7 @@ instance ToByteString Email where
   builder = builder . fromEmail
 
 instance FromByteString Email where
-  parser = parser >>= maybe (fail "Invalid email") return . parseEmail
+  parser = parser >>= maybe (fail "Invalid email") pure . parseEmail
 
 instance Arbitrary Email where
   arbitrary = do
@@ -232,7 +232,7 @@ validateEmail =
     --      systems) don't support that (yet?) either.
     validateDomain (l, d) = parseOnly domain d
       where
-        domain = label *> many1 (char '.' *> label) *> endOfInput *> pure (l, d)
+        domain = (label *> many1 (char '.' *> label) *> endOfInput) $> (l, d)
         label =
           satisfy (inClass "a-zA-Z0-9")
             *> count 61 (optional (satisfy (inClass "-a-zA-Z0-9")))
@@ -254,7 +254,7 @@ instance ToByteString Phone where
   builder = builder . fromPhone
 
 instance FromByteString Phone where
-  parser = parser >>= maybe (fail "Invalid phone") return . parsePhone
+  parser = parser >>= maybe (fail "Invalid phone") pure . parsePhone
 
 instance Arbitrary Phone where
   arbitrary =
@@ -304,7 +304,7 @@ instance S.ToSchema UserSSOId where
     tenantSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'Issuer'
     subjectSchema <- S.declareSchemaRef (Proxy @Text) -- FUTUREWORK: 'NameID'
     scimSchema <- S.declareSchemaRef (Proxy @Text)
-    return $
+    pure $
       S.NamedSchema (Just "UserSSOId") $
         mempty
           & S.type_ ?~ S.SwaggerObject
@@ -351,9 +351,8 @@ lenientlyParseSAMLIssuer mbtxt = forM mbtxt $ \txt -> do
 
       asurl :: Either String SAML.Issuer
       asurl =
-        first show
-          . second SAML.Issuer
-          $ URI.parseURI URI.laxURIParserOptions (cs txt)
+        bimap show SAML.Issuer $
+          URI.parseURI URI.laxURIParserOptions (cs txt)
 
       err :: String
       err = "lenientlyParseSAMLIssuer: " <> show (asxml, asurl, mbtxt)

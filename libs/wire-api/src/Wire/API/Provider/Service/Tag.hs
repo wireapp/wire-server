@@ -204,7 +204,7 @@ instance LTE m n => FromByteString (QueryAnyTags m n) where
     bs <- C8.split ',' <$> parser
     ts <- mapM (either fail pure . runParser parser) bs
     rs <- either fail pure (Range.checkedEither (Set.fromList ts))
-    return $! QueryAnyTags rs
+    pure $! QueryAnyTags rs
 
 -- | Bounded logical conjunction of 'm' to 'n' 'ServiceTag's to match.
 newtype QueryAllTags (m :: Nat) (n :: Nat) = QueryAllTags
@@ -233,7 +233,7 @@ instance LTE m n => FromByteString (QueryAllTags m n) where
     bs <- C8.split '.' <$> parser
     ts <- mapM (either fail pure . runParser parser) bs
     rs <- either fail pure (Range.checkedEither (Set.fromList ts))
-    return $! QueryAllTags rs
+    pure $! QueryAllTags rs
 
 --------------------------------------------------------------------------------
 -- ServiceTag Matchers

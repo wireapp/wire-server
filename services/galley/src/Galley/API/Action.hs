@@ -678,7 +678,7 @@ notifyConversationAction tag quid con lconv targets action = do
       -- filter out user from quid's domain, because quid's backend will update
       -- local state and notify its users itself using the ConversationUpdate
       -- returned by this function
-      if (tDomain ruids == qDomain quid)
+      if tDomain ruids == qDomain quid
         then pure (Just update)
         else fedClient @'Galley @"on-conversation-updated" update $> Nothing
 

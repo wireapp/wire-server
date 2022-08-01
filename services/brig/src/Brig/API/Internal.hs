@@ -40,6 +40,8 @@ import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.MLS.KeyPackage as Data
 import qualified Brig.Data.User as Data
+import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
+import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
@@ -99,7 +101,7 @@ import Wire.API.User.RichInfo
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
 
-servantSitemap :: ServerT BrigIRoutes.API (Handler r)
+servantSitemap :: Members '[BlacklistStore] r => ServerT BrigIRoutes.API (Handler r)
 servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI
 
 ejpdAPI :: ServerT BrigIRoutes.EJPD_API (Handler r)
@@ -123,7 +125,7 @@ mlsAPI =
     :<|> getMLSClients
     :<|> mapKeyPackageRefsInternal
 
-accountAPI :: ServerT BrigIRoutes.AccountAPI (Handler r)
+accountAPI :: Member BlacklistStore r => ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI = Named @"createUserNoVerify" createUserNoVerify
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
@@ -196,7 +198,13 @@ swaggerDocsAPI = swaggerSchemaUIServer BrigIRoutes.swaggerDoc
 -- Sitemap (wai-route)
 
 sitemap ::
-  Members '[CodeStore, PasswordResetStore] r =>
+  Members
+    '[ CodeStore,
+       PasswordResetStore,
+       BlacklistStore,
+       BlacklistPhonePrefixStore
+     ]
+    r =>
   Routes a (Handler r) ()
 sitemap = do
   get "/i/status" (continue $ const $ pure empty) true
@@ -400,7 +408,7 @@ internalListFullClients :: UserSet -> (AppT r) UserClientsFull
 internalListFullClients (UserSet usrs) =
   UserClientsFull <$> wrapClient (Data.lookupClientsBulk (Set.toList usrs))
 
-createUserNoVerify :: NewUser -> (Handler r) (Either RegisterError SelfProfile)
+createUserNoVerify :: Member BlacklistStore r => NewUser -> (Handler r) (Either RegisterError SelfProfile)
 createUserNoVerify uData = lift . runExceptT $ do
   result <- API.createUser uData
   let acc = createdAccount result
@@ -425,7 +433,7 @@ deleteUserNoVerify uid = do
       >>= ifNothing (errorToWai @'E.UserNotFound)
   lift $ API.deleteUserNoVerify uid
 
-changeSelfEmailMaybeSendH :: UserId ::: Bool ::: JsonRequest EmailUpdate -> (Handler r) Response
+changeSelfEmailMaybeSendH :: Member BlacklistStore r => UserId ::: Bool ::: JsonRequest EmailUpdate -> (Handler r) Response
 changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
   email <- euEmail <$> parseJsonBody req
   changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email API.AllowSCIMUpdates >>= \case
@@ -434,7 +442,7 @@ changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
 
 data MaybeSendEmail = ActuallySendEmail | DoNotSendEmail
 
-changeSelfEmailMaybeSend :: UserId -> MaybeSendEmail -> Email -> API.AllowSCIMUpdates -> (Handler r) ChangeEmailResponse
+changeSelfEmailMaybeSend :: Member BlacklistStore r => UserId -> MaybeSendEmail -> Email -> API.AllowSCIMUpdates -> (Handler r) ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   API.changeSelfEmail u email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
@@ -564,24 +572,24 @@ updateConnectionInternalH (_ ::: req) = do
   API.updateConnectionInternal updateConn !>> connError
   pure $ setStatus status200 empty
 
-checkBlacklistH :: Either Email Phone -> (Handler r) Response
+checkBlacklistH :: Member BlacklistStore r => Either Email Phone -> (Handler r) Response
 checkBlacklistH emailOrPhone = do
   bl <- lift $ API.isBlacklisted emailOrPhone
   pure $ setStatus (bool status404 status200 bl) empty
 
-deleteFromBlacklistH :: Either Email Phone -> (Handler r) Response
+deleteFromBlacklistH :: Member BlacklistStore r => Either Email Phone -> (Handler r) Response
 deleteFromBlacklistH emailOrPhone = do
   void . lift $ API.blacklistDelete emailOrPhone
   pure empty
 
-addBlacklistH :: Either Email Phone -> (Handler r) Response
+addBlacklistH :: Member BlacklistStore r => Either Email Phone -> (Handler r) Response
 addBlacklistH emailOrPhone = do
   void . lift $ API.blacklistInsert emailOrPhone
   pure empty
 
 -- | Get any matching prefixes. Also try for shorter prefix matches,
 -- i.e. checking for +123456 also checks for +12345, +1234, ...
-getPhonePrefixesH :: PhonePrefix -> (Handler r) Response
+getPhonePrefixesH :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (Handler r) Response
 getPhonePrefixesH prefix = do
   results <- lift $ API.phonePrefixGet prefix
   pure $ case results of
@@ -589,12 +597,12 @@ getPhonePrefixesH prefix = do
     _ -> json results
 
 -- | Delete a phone prefix entry (must be an exact match)
-deleteFromPhonePrefixH :: PhonePrefix -> (Handler r) Response
+deleteFromPhonePrefixH :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (Handler r) Response
 deleteFromPhonePrefixH prefix = do
   void . lift $ API.phonePrefixDelete prefix
   pure empty
 
-addPhonePrefixH :: JSON ::: JsonRequest ExcludedPrefix -> (Handler r) Response
+addPhonePrefixH :: Member BlacklistPhonePrefixStore r => JSON ::: JsonRequest ExcludedPrefix -> (Handler r) Response
 addPhonePrefixH (_ ::: req) = do
   prefix :: ExcludedPrefix <- parseJsonBody req
   void . lift $ API.phonePrefixInsert prefix

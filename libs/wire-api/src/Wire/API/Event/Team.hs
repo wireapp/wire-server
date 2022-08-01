@@ -235,7 +235,7 @@ eventDataType (EdMemberUpdate _ _) = MemberUpdate
 eventDataType (EdConvCreate _) = ConvCreate
 eventDataType (EdConvDelete _) = ConvDelete
 
-parseEventData :: EventType -> Maybe Value -> Parser (EventData)
+parseEventData :: EventType -> Maybe Value -> Parser EventData
 parseEventData MemberJoin Nothing = fail "missing event data for type 'team.member-join'"
 parseEventData MemberJoin (Just j) = do
   let f o = EdMemberJoin <$> o .: "user"
@@ -263,7 +263,7 @@ parseEventData TeamUpdate (Just j) = EdTeamUpdate <$> parseJSON j
 parseEventData _ Nothing = pure EdTeamDelete
 parseEventData t (Just _) = fail $ "unexpected event data for type " <> show t
 
-genEventData :: EventType -> QC.Gen (EventData)
+genEventData :: EventType -> QC.Gen EventData
 genEventData = \case
   TeamCreate -> EdTeamCreate <$> arbitrary
   TeamDelete -> pure EdTeamDelete

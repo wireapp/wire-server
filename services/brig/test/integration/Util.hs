@@ -1275,7 +1275,7 @@ spawn cp minput = do
       let writeInput = for_ ((,) <$> minput <*> minh) $ \(input, inh) ->
             BS.hPutStr inh input >> hClose inh
           readOutput = (,) <$> traverse BS.hGetContents mouth <*> waitForProcess ph
-       in fmap snd $ concurrently writeInput readOutput
+       in snd <$> concurrently writeInput readOutput
   case (mout, ex) of
     (Just out, ExitSuccess) -> pure out
     _ -> assertFailure "Failed spawning process"

@@ -197,6 +197,7 @@ library
     , cryptonite
     , currency-codes >=2.0
     , data-default >=0.5
+    , data-timeout
     , either
     , enclosed-exceptions >=1.0
     , errors >=2.0

@@ -274,7 +274,7 @@ parseTurnURI = parseOnly (parser <* endOfInput)
     parseTransport = parse "parseTransport"
     parse :: (BC.FromByteString b, Monad m, MonadFail m) => String -> Text -> m b
     parse err x = case BC.fromByteString (TE.encodeUtf8 x) of
-      Just ok -> return ok
+      Just ok -> pure ok
       Nothing -> fail (err ++ " failed when parsing: " ++ show x)
 
 instance ToJSON TurnURI where
@@ -322,7 +322,7 @@ data TurnHost
   deriving anyclass (ToJSON, FromJSON)
 
 instance BC.FromByteString TurnHost where
-  parser = BC.parser >>= maybe (fail "Invalid turn host") return . parseTurnHost
+  parser = BC.parser >>= maybe (fail "Invalid turn host") pure . parseTurnHost
 
 instance BC.ToByteString TurnHost where
   builder (TurnHostIp ip) = BC.builder ip

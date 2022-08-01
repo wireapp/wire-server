@@ -27,9 +27,10 @@ import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
 import qualified Brig.API.User as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App
-import qualified Brig.Data.Blacklist as Blacklist
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
+import Brig.Effects.BlacklistStore (BlacklistStore)
+import qualified Brig.Effects.BlacklistStore as BlacklistStore
 import qualified Brig.Email as Email
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
@@ -59,6 +60,7 @@ import Network.Wai.Routing
 import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
+import Polysemy (Member)
 import System.Logger (Msg)
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
@@ -76,7 +78,7 @@ import qualified Wire.API.Team.Size as Public
 import Wire.API.User hiding (fromEmail)
 import qualified Wire.API.User as Public
 
-routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
+routesPublic :: Member BlacklistStore r => Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   post "/teams/:tid/invitations" (continue createInvitationPublicH) $
     accept "application" "json"
@@ -186,7 +188,7 @@ routesPublic = do
     Doc.response 200 "Invitation successful." Doc.end
     Doc.response 403 "No permission (not admin or owner of this team)." Doc.end
 
-routesInternal :: Routes a (Handler r) ()
+routesInternal :: Member BlacklistStore r => Routes a (Handler r) ()
 routesInternal = do
   get "/i/teams/invitations/by-email" (continue getInvitationByEmailH) $
     accept "application" "json"
@@ -242,7 +244,7 @@ newtype FoundInvitationCode = FoundInvitationCode InvitationCode
 instance ToJSON FoundInvitationCode where
   toJSON (FoundInvitationCode c) = object ["code" .= c]
 
-createInvitationPublicH :: JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest -> (Handler r) Response
+createInvitationPublicH :: Member BlacklistStore r => JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest -> (Handler r) Response
 createInvitationPublicH (_ ::: uid ::: tid ::: req) = do
   body <- parseJsonBody req
   newInv <- createInvitationPublic uid tid body
@@ -258,7 +260,7 @@ data CreateInvitationInviter = CreateInvitationInviter
   }
   deriving (Eq, Show)
 
-createInvitationPublic :: UserId -> TeamId -> Public.InvitationRequest -> (Handler r) Public.Invitation
+createInvitationPublic :: Member BlacklistStore r => UserId -> TeamId -> Public.InvitationRequest -> Handler r Public.Invitation
 createInvitationPublic uid tid body = do
   let inviteeRole = fromMaybe defaultRole . irRole $ body
   inviter <- do
@@ -278,12 +280,12 @@ createInvitationPublic uid tid body = do
       context
       (createInvitation' tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body)
 
-createInvitationViaScimH :: JSON ::: JsonRequest NewUserScimInvitation -> (Handler r) Response
+createInvitationViaScimH :: Member BlacklistStore r => JSON ::: JsonRequest NewUserScimInvitation -> (Handler r) Response
 createInvitationViaScimH (_ ::: req) = do
   body <- parseJsonBody req
   setStatus status201 . json <$> createInvitationViaScim body
 
-createInvitationViaScim :: NewUserScimInvitation -> (Handler r) UserAccount
+createInvitationViaScim :: Member BlacklistStore r => NewUserScimInvitation -> (Handler r) UserAccount
 createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
   env <- ask
   let inviteeRole = defaultRole
@@ -321,7 +323,7 @@ logInvitationRequest context action =
         Log.info $ (context . logInvitationCode code) . Log.msg @Text "Successfully created invitation"
         pure (Right result)
 
-createInvitation' :: TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> (Handler r) (Public.Invitation, Public.InvitationCode)
+createInvitation' :: Member BlacklistStore r => TeamId -> Public.Role -> Maybe UserId -> Email -> Public.InvitationRequest -> Handler r (Public.Invitation, Public.InvitationCode)
 createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   -- FUTUREWORK: These validations are nearly copy+paste from accountCreation and
   --             sendActivationCode. Refactor this to a single place
@@ -329,7 +331,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   -- Validate e-mail
   inviteeEmail <- either (const $ throwStd (errorToWai @'E.InvalidEmail)) pure (Email.validateEmail (irInviteeEmail body))
   let uke = userEmailKey inviteeEmail
-  blacklistedEm <- lift $ wrapClient $ Blacklist.exists uke
+  blacklistedEm <- lift $ liftSem $ BlacklistStore.exists uke
   when blacklistedEm $
     throwStd blacklistedEmail
   emailTaken <- lift $ isJust <$> wrapClient (Data.lookupKey uke)
@@ -340,7 +342,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   inviteePhone <- for (irInviteePhone body) $ \p -> do
     validatedPhone <- maybe (throwStd (errorToWai @'E.InvalidPhone)) pure =<< lift (wrapClient $ Phone.validatePhone p)
     let ukp = userPhoneKey validatedPhone
-    blacklistedPh <- lift $ wrapClient $ Blacklist.exists ukp
+    blacklistedPh <- lift $ liftSem $ BlacklistStore.exists ukp
     when blacklistedPh $
       throwStd (errorToWai @'E.BlacklistedPhone)
     phoneTaken <- lift $ isJust <$> wrapClient (Data.lookupKey ukp)

@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneKindSignatures #-}
 
 -- This file is part of the Wire Server implementation.
 --

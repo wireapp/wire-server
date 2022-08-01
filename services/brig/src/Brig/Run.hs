@@ -35,6 +35,7 @@ import qualified Brig.AWS as AWS
 import qualified Brig.AWS.SesNotification as SesNotification
 import Brig.App
 import qualified Brig.Calling as Calling
+import Brig.CanonicalInterpreter
 import Brig.Data.UserPendingActivation (UserPendingActivation (..), usersPendingActivationList, usersPendingActivationRemoveMultiple)
 import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -86,18 +87,18 @@ run o = do
   s <- Server.newSettings (server e)
   internalEventListener <-
     Async.async $
-      runAppT e $
+      runBrigToIO e $
         wrapHttpClient $
           Queue.listen (e ^. internalEvents) Internal.onEvent
   let throttleMillis = fromMaybe defSqsThrottleMillis $ setSqsThrottleMillis (optSettings o)
   emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
     Async.async $
       AWS.execute (e ^. awsEnv) $
-        AWS.listen throttleMillis q (runAppT e . SesNotification.onEvent)
+        AWS.listen throttleMillis q (runBrigToIO e . SesNotification.onEvent)
   sftDiscovery <- forM (e ^. sftEnv) $ Async.async . Calling.startSFTServiceDiscovery (e ^. applog)
   turnDiscovery <- Calling.startTurnDiscovery (e ^. applog) (e ^. fsWatcher) (e ^. turnEnv)
-  authMetrics <- Async.async (runAppT e collectAuthMetrics)
-  pendingActivationCleanupAsync <- Async.async (runAppT e pendingActivationCleanup)
+  authMetrics <- Async.async (runBrigToIO e collectAuthMetrics)
+  pendingActivationCleanupAsync <- Async.async (runBrigToIO e pendingActivationCleanup)
 
   runSettingsWithShutdown s app 5 `finally` do
     mapM_ Async.cancel emailListener
