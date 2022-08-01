@@ -148,7 +148,7 @@ type AccountAPI =
     )
     :<|> Named
            "createUserNoVerifySpar"
-           ( "users" :> "spar" -- TODO: temporary name
+           ( "users" :> "spar"
                :> ReqBody '[Servant.JSON] NewUserSpar
                :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
            )

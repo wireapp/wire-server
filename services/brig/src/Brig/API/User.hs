@@ -143,6 +143,7 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Code
 import qualified Data.Currency as Currency
+import Data.Either.Combinators (mapLeft)
 import Data.Handle (Handle (fromHandle), parseHandle)
 import Data.Id as Id
 import Data.Json.Util
@@ -221,7 +222,7 @@ verifyUniquenessAndCheckBlacklist uk = do
 createUserSpar :: NewUserSpar -> ExceptT CreateUserSparError (AppT r) CreateUserResult
 createUserSpar new = do
   let handle' = newUserSparHandle new
-      new' = newUserFromSpar new -- TODO: make it obsolete once we add rich info?
+      new' = newUserFromSpar new
       ident = newUserSparSSOId new
       tid = newUserSparTeamId new
 
@@ -231,7 +232,7 @@ createUserSpar new = do
 
     let uid = userId (accountUser account)
 
-    -- TODO: make this transactional?
+    -- FUTUREWORK: make this transactional if possible
     wrapClient $ Data.insertAccount account Nothing pw False
     case unRichInfo <$> newUserSparRichInfo new of
       Just richInfo -> wrapClient $ Data.updateRichInfo uid richInfo
@@ -253,14 +254,8 @@ createUserSpar new = do
 
   pure $! CreateUserResult account Nothing Nothing (Just userTeam)
   where
-    lmap f =
-      let h = \case
-            Left x ->
-              Left (f x)
-            Right a ->
-              Right a
-          {-# INLINE h #-}
-       in ExceptT . fmap h . runExceptT
+    lmap :: Functor m => (a -> b) -> ExceptT a m v -> ExceptT b m v
+    lmap f = ExceptT . fmap (mapLeft f) . runExceptT
 
     updateHandle' :: UserId -> Maybe Handle -> ExceptT CreateUserSparError (AppT r) ()
     updateHandle' _ Nothing = pure ()
