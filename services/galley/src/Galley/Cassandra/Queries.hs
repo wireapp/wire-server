@@ -29,7 +29,6 @@ import Galley.Data.Scope
 import Galley.Types.Teams.Intra
 import Imports
 import Text.RawString.QQ
-import Wire.API.Asset (AssetKey)
 import Wire.API.Conversation
 import Wire.API.Conversation.Code
 import Wire.API.Conversation.Protocol
@@ -44,7 +43,7 @@ import Wire.API.User.Client.Prekey
 
 -- Teams --------------------------------------------------------------------
 
-selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Icon, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe TeamBinding, Maybe AssetKey)
+selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Icon, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe TeamBinding, Icon)
 selectTeam = "select creator, name, icon, icon_key, deleted, status, writetime(status), binding, splash_screen from team where team = ?"
 
 selectTeamName :: PrepQuery R (Identity TeamId) (Identity Text)
@@ -191,7 +190,7 @@ updateTeamIconKey = "update team set icon_key = ? where team = ?"
 updateTeamStatus :: PrepQuery W (TeamStatus, TeamId) ()
 updateTeamStatus = "update team set status = ? where team = ?"
 
-updateTeamSplashScreen :: PrepQuery W (AssetKey, TeamId) ()
+updateTeamSplashScreen :: PrepQuery W (Text, TeamId) ()
 updateTeamSplashScreen = "update team set splash_screen = ? where team = ?"
 
 -- Conversations ------------------------------------------------------------

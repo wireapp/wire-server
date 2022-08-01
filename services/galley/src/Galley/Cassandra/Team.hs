@@ -379,7 +379,7 @@ updateTeam tid u = retry x5 . batch $ do
   for_ (u ^. iconKeyUpdate) $ \k ->
     addPrepQuery Cql.updateTeamIconKey (fromRange k, tid)
   for_ (u ^. splashScreenUpdate) $ \ss ->
-    addPrepQuery Cql.updateTeamSplashScreen (ss, tid)
+    addPrepQuery Cql.updateTeamSplashScreen (decodeUtf8 . toByteString' $ ss, tid)
 
 -- | Construct 'TeamMember' from database tuple.
 -- If FeatureLegalHoldWhitelistTeamsAndImplicitConsent is enabled set UserLegalHoldDisabled

@@ -1487,20 +1487,20 @@ testUpdateTeam = do
     checkTeamUpdateEvent tid u wsMember
     WS.assertNoEvent timeout [wsOwner, wsMember]
   t <- Util.getTeam owner tid
-  liftIO $ assertEqual "teamSplashScreen" (t ^. teamSplashScreen) (fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a")
+  liftIO $ assertEqual "teamSplashScreen" (t ^. teamSplashScreen) (fromJust $ fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a")
 
   do
     -- setting fields to `null` is the same as omitting the them from the update json record.
     -- ("name" is set because a completely empty update object is rejected.)
     doPut "{\"name\": \"new team name\", \"splash_screen\": null}" 200
     t' <- Util.getTeam owner tid
-    liftIO $ assertEqual "teamSplashScreen" (t' ^. teamSplashScreen) (fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a")
+    liftIO $ assertEqual "teamSplashScreen" (t' ^. teamSplashScreen) (fromJust $ fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a")
 
   do
     -- setting splash screen to `"default"` will delete the splash screen.
     doPut "{\"splash_screen\": \"default\"}" 200
     t' <- Util.getTeam owner tid
-    liftIO $ assertEqual "teamSplashScreen" (t' ^. teamSplashScreen) Nothing
+    liftIO $ assertEqual "teamSplashScreen" (t' ^. teamSplashScreen) DefaultIcon
 
 testTeamAddRemoveMemberAboveThresholdNoEvents :: HasCallStack => TestM ()
 testTeamAddRemoveMemberAboveThresholdNoEvents = do
