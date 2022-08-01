@@ -128,6 +128,9 @@ modelTeam = Doc.defineModel "Team" $ do
     Doc.optional
   Doc.property "binding" Doc.bool' $
     Doc.description "user binding team"
+  Doc.property "splash_screen" Doc.string' $ do
+    Doc.description "new splash screen asset key"
+    Doc.optional
 
 instance ToSchema Team where
   schema =
@@ -292,6 +295,9 @@ modelUpdateData = Doc.defineModel "TeamUpdateData" $ do
     Doc.optional
   Doc.property "icon_key" Doc.string' $ do
     Doc.description "new icon asset key"
+    Doc.optional
+  Doc.property "splash_screen" Doc.string' $ do
+    Doc.description "new splash screen asset key"
     Doc.optional
 
 newTeamUpdateData :: TeamUpdateData
