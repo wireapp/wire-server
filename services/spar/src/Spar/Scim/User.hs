@@ -450,7 +450,7 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
               )
               ( \email -> do
                   buid <- BrigAccess.createNoSAML email stiTeam name language
-                  BrigAccess.setHandle buid handl -- TODO: possibly do the same one req as we do for saml?
+                  BrigAccess.setHandle buid handl -- FUTUREWORK: possibly do the same one req as we do for saml?
                   pure buid
               )
               veid

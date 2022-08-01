@@ -143,7 +143,6 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Code
 import qualified Data.Currency as Currency
-import Data.Either.Combinators (mapLeft)
 import Data.Handle (Handle (fromHandle), parseHandle)
 import Data.Id as Id
 import Data.Json.Util
@@ -243,7 +242,7 @@ createUserSpar new = do
     pure account
 
   -- Add to team
-  userTeam <- lmap CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing)
+  userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing)
 
   -- Set up feature flags
   let uid = userId (accountUser account)
@@ -254,14 +253,11 @@ createUserSpar new = do
 
   pure $! CreateUserResult account Nothing Nothing (Just userTeam)
   where
-    lmap :: Functor m => (a -> b) -> ExceptT a m v -> ExceptT b m v
-    lmap f = ExceptT . fmap (mapLeft f) . runExceptT
-
     updateHandle' :: UserId -> Maybe Handle -> ExceptT CreateUserSparError (AppT r) ()
     updateHandle' _ Nothing = pure ()
     updateHandle' uid (Just h) = do
       case parseHandle . fromHandle $ h of
-        Just handl -> lmap CreateUserSparHandleError $ changeHandle uid Nothing handl AllowSCIMUpdates
+        Just handl -> withExceptT CreateUserSparHandleError $ changeHandle uid Nothing handl AllowSCIMUpdates
         Nothing -> throwE $ CreateUserSparHandleError ChangeHandleInvalid
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
