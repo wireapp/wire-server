@@ -92,7 +92,6 @@ interpretTeamStoreToCassandra lh = interpret $ \case
   DeleteTeam tid -> embedClient $ deleteTeam tid
   DeleteTeamConversation tid cid -> embedClient $ removeTeamConv tid cid
   SetTeamData tid upd -> embedClient $ updateTeam tid upd
-  DeleteTeamSplashScreen tid -> embedClient $ deleteTeamSplashScreen tid
   SetTeamStatus tid st -> embedClient $ updateTeamStatus tid st
   FanoutLimit -> embedApp $ currentFanoutLimit <$> view options
   GetLegalHoldFlag ->
@@ -381,10 +380,6 @@ updateTeam tid u = retry x5 . batch $ do
     addPrepQuery Cql.updateTeamIconKey (fromRange k, tid)
   for_ (u ^. splashScreenUpdate) $ \ss ->
     addPrepQuery Cql.updateTeamSplashScreen (ss, tid)
-
-deleteTeamSplashScreen :: TeamId -> Client ()
-deleteTeamSplashScreen tid = retry x5 . batch $ do
-  addPrepQuery Cql.deleteTeamSplashScreen (Identity tid)
 
 -- | Construct 'TeamMember' from database tuple.
 -- If FeatureLegalHoldWhitelistTeamsAndImplicitConsent is enabled set UserLegalHoldDisabled

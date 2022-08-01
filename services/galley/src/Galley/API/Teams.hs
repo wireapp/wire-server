@@ -21,7 +21,6 @@ module Galley.API.Teams
     createNonBindingTeamH,
     updateTeamH,
     updateTeamStatus,
-    updateTeamDeleteSplashScreenH,
     getTeamH,
     getTeamInternalH,
     getTeamNameInternalH,
@@ -334,29 +333,6 @@ updateTeamH zusr zcon tid updateData = do
   now <- input
   memList <- getTeamMembersForFanout tid
   let e = newEvent tid now (EdTeamUpdate updateData)
-  let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
-  E.push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn ?~ zcon
-
-updateTeamDeleteSplashScreenH ::
-  Members
-    '[ ErrorS 'NotATeamMember,
-       ErrorS ('MissingPermission ('Just 'SetTeamData)),
-       GundeckAccess,
-       Input UTCTime,
-       TeamStore
-     ]
-    r =>
-  UserId ->
-  ConnId ->
-  TeamId ->
-  Sem r ()
-updateTeamDeleteSplashScreenH zusr zcon tid = do
-  zusrMembership <- E.getTeamMember tid zusr
-  void $ permissionCheckS SSetTeamData zusrMembership
-  E.deleteTeamSplashScreen tid
-  now <- input
-  memList <- getTeamMembersForFanout tid
-  let e = newEvent tid now (EdTeamUpdate newTeamUpdateData)
   let r = list1 (userRecipient zusr) (membersToRecipients (Just zusr) (memList ^. teamMembers))
   E.push1 $ newPushLocal1 (memList ^. teamMemberListType) zusr (TeamEvent e) r & pushConn ?~ zcon
 

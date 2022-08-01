@@ -948,22 +948,6 @@ type TeamAPI =
                     ()
            )
     :<|> Named
-           "update-team-delete-splash-screen"
-           ( Summary "Update team properties: delete splash screen"
-               :> ZUser
-               :> ZConn
-               :> CanThrow 'NotATeamMember
-               :> CanThrow ('MissingPermission ('Just 'SetTeamData))
-               :> "teams"
-               :> Capture "tid" TeamId
-               :> "splash_screen"
-               :> MultiVerb
-                    'DELETE
-                    '[JSON]
-                    '[RespondEmpty 200 "Team updated"]
-                    ()
-           )
-    :<|> Named
            "get-teams"
            ( Summary "Get teams (deprecated); use `GET /teams/:tid`"
                :> ZUser
