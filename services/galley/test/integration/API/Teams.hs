@@ -1497,19 +1497,8 @@ testUpdateTeam = do
     liftIO $ assertEqual "teamSplashScreen" (t' ^. teamSplashScreen) (fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a")
 
   do
-    -- setting splash screen to `"default"` won't parse as an Id.
-    doPut "{\"splash_screen\": \"default\"}" 400
-
-  do
-    -- use the `delete` end-point!
-    delete
-      ( g
-          . paths ["teams", toByteString' tid, "splash_screen"]
-          . zUser owner
-          . zConn "conn"
-      )
-      !!! const 200
-      === statusCode
+    -- setting splash screen to `"default"` will delete the splash screen.
+    doPut "{\"splash_screen\": \"default\"}" 200
     t' <- Util.getTeam owner tid
     liftIO $ assertEqual "teamSplashScreen" (t' ^. teamSplashScreen) Nothing
 
