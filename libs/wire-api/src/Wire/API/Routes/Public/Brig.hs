@@ -893,7 +893,7 @@ type SearchAPI =
         :> QueryParam'
              [ Optional,
                Strict,
-               Description "Role filter, eg. `member,external-partner`.  Empty list means do not filter."
+               Description "Role filter, eg. `member,partner`.  Empty list means do not filter."
              ]
              "frole"
              RoleFilter
