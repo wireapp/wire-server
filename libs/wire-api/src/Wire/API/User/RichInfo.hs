@@ -1,4 +1,5 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -57,8 +58,8 @@ import Data.List.Extra (nubOrdOn)
 import qualified Data.Map as Map
 import Data.Schema
 import Data.String.Conversions (cs)
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
-import qualified Data.Swagger.Internal.Schema as S
 import qualified Data.Text as Text
 import Imports
 import qualified Test.QuickCheck as QC
@@ -70,6 +71,7 @@ import Wire.API.Arbitrary (Arbitrary (arbitrary))
 -- | A 'RichInfoAssocList' that parses and renders as 'RichInfoMapAndList'.
 newtype RichInfo = RichInfo {unRichInfo :: RichInfoAssocList}
   deriving stock (Eq, Show, Generic)
+  deriving newtype (ToSchema)
 
 instance A.ToJSON RichInfo where
   toJSON = A.toJSON . fromRichInfoAssocList . unRichInfo
@@ -286,7 +288,7 @@ data RichField = RichField
     richFieldValue :: Text
   }
   deriving stock (Eq, Show, Generic)
-  deriving (A.ToJSON, A.FromJSON) via (Schema RichField)
+  deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema RichField)
 
 modelRichField :: Doc.Model
 modelRichField = Doc.defineModel "RichField" $ do
@@ -304,7 +306,7 @@ instance ToSchema RichField where
   schema =
     object "RichField" $
       RichField
-        <$> richFieldType .= field "type" (CI.original .= fmap CI.mk schema)
+        <$> richFieldType .= field "type" (CI.original .= (CI.mk <$> schema))
         <*> richFieldValue .= field "value" schema
 
 instance Arbitrary RichField where

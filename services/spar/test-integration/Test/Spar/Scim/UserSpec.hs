@@ -678,8 +678,8 @@ testCreateUserWithSamlIdP :: TestSpar ()
 testCreateUserWithSamlIdP = do
   env <- ask
   -- Create a user via SCIM
-  user <- randomScimUser
   (tok, (owner, tid, _idp)) <- registerIdPAndScimToken
+  user <- randomScimUser
   scimStoredUser <- createUser tok user
   let userid = scimUserId scimStoredUser
   -- Check that this user is present in Brig and that Brig's view of the user
