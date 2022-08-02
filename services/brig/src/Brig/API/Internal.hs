@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Brig.API.Internal
   ( sitemap,
     servantSitemap,
@@ -64,7 +63,7 @@ import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Conversion as List
-import Data.Handle (Handle)
+import Data.Handle
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Qualified
@@ -126,7 +125,9 @@ mlsAPI =
     :<|> mapKeyPackageRefsInternal
 
 accountAPI :: Member BlacklistStore r => ServerT BrigIRoutes.AccountAPI (Handler r)
-accountAPI = Named @"createUserNoVerify" createUserNoVerify
+accountAPI =
+  Named @"createUserNoVerify" createUserNoVerify
+    :<|> Named @"createUserNoVerifySpar" createUserNoVerifySpar
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
@@ -420,7 +421,22 @@ createUserNoVerify uData = lift . runExceptT $ do
     let key = ActivateKey $ activationKey adata
         code = activationCode adata
      in API.activate key code (Just uid) !>> activationErrorToRegisterError
-  pure (SelfProfile usr)
+  pure . SelfProfile $ usr
+
+createUserNoVerifySpar :: NewUserSpar -> (Handler r) (Either CreateUserSparError SelfProfile)
+createUserNoVerifySpar uData =
+  lift . runExceptT $ do
+    result <- API.createUserSpar uData
+    let acc = createdAccount result
+    let usr = accountUser acc
+    let uid = userId usr
+    let eac = createdEmailActivation result
+    let pac = createdPhoneActivation result
+    for_ (catMaybes [eac, pac]) $ \adata ->
+      let key = ActivateKey $ activationKey adata
+          code = activationCode adata
+       in API.activate key code (Just uid) !>> CreateUserSparRegistrationError . activationErrorToRegisterError
+    pure . SelfProfile $ usr
 
 deleteUserNoVerifyH :: UserId -> (Handler r) Response
 deleteUserNoVerifyH uid = do

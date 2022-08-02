@@ -707,7 +707,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
       <$> addClient
         brig1
         (userId alice)
-        (defNewClient PermanentClientType [] (someLastPrekeys !! 0))
+        (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
   let aliceClientId =
         show (userId alice)
           <> ":"

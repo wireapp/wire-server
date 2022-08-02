@@ -19,6 +19,7 @@
 module Brig.API.User
   ( -- * User Accounts / Profiles
     createUser,
+    createUserSpar,
     createUserInviteViaScim,
     checkRestrictedUserCreation,
     Brig.API.User.updateUser,
@@ -142,7 +143,7 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Code
 import qualified Data.Currency as Currency
-import Data.Handle (Handle)
+import Data.Handle (Handle (fromHandle), parseHandle)
 import Data.Id as Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
@@ -178,6 +179,7 @@ import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
+import Wire.API.User.RichInfo
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -215,6 +217,64 @@ verifyUniquenessAndCheckBlacklist uk = do
       av <- lift $ Data.keyAvailable k u
       unless av $
         throwE IdentityErrorUserKeyExists
+
+createUserSpar :: NewUserSpar -> ExceptT CreateUserSparError (AppT r) CreateUserResult
+createUserSpar new = do
+  let handle' = newUserSparHandle new
+      new' = newUserFromSpar new
+      ident = newUserSparSSOId new
+      tid = newUserSparTeamId new
+
+  -- Create account
+  account <- lift $ do
+    (account, pw) <- wrapClient $ newAccount new' Nothing (Just tid) handle'
+
+    let uid = userId (accountUser account)
+
+    -- FUTUREWORK: make this transactional if possible
+    wrapClient $ Data.insertAccount account Nothing pw False
+    case unRichInfo <$> newUserSparRichInfo new of
+      Just richInfo -> wrapClient $ Data.updateRichInfo uid richInfo
+      Nothing -> pure () -- Nothing to do
+    wrapHttp $ Intra.createSelfConv uid
+    wrapHttpClient $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
+
+    pure account
+
+  -- Add to team
+  userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing)
+
+  -- Set up feature flags
+  let uid = userId (accountUser account)
+  lift $ initAccountFeatureConfig uid
+
+  -- Set handle
+  updateHandle' uid handle'
+
+  pure $! CreateUserResult account Nothing Nothing (Just userTeam)
+  where
+    updateHandle' :: UserId -> Maybe Handle -> ExceptT CreateUserSparError (AppT r) ()
+    updateHandle' _ Nothing = pure ()
+    updateHandle' uid (Just h) = do
+      case parseHandle . fromHandle $ h of
+        Just handl -> withExceptT CreateUserSparHandleError $ changeHandle uid Nothing handl AllowSCIMUpdates
+        Nothing -> throwE $ CreateUserSparHandleError ChangeHandleInvalid
+
+    addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
+    addUserToTeamSSO account tid ident = do
+      let uid = userId (accountUser account)
+      added <- lift $ wrapHttp $ Intra.addTeamMember uid tid (Nothing, defaultRole)
+      unless added $
+        throwE RegisterErrorTooManyTeamMembers
+      lift $ do
+        wrapClient $ activateUser uid ident
+        void $ onActivated (AccountActivated account)
+        Log.info $
+          field "user" (toByteString uid)
+            . field "team" (toByteString tid)
+            . msg (val "Added via SSO")
+      Team.TeamName nm <- lift $ wrapHttp $ Intra.getTeamName tid
+      pure $ CreateUserTeam tid nm
 
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser :: forall r. Member BlacklistStore r => NewUser -> ExceptT RegisterError (AppT r) CreateUserResult

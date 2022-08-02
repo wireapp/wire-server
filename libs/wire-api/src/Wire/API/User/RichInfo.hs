@@ -1,4 +1,5 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData #-}
 
 -- This file is part of the Wire Server implementation.
@@ -55,7 +56,10 @@ import Data.CaseInsensitive (CI)
 import qualified Data.CaseInsensitive as CI
 import Data.List.Extra (nubOrdOn)
 import qualified Data.Map as Map
+import Data.Schema (Schema (..), ToSchema (..), array, field)
+import qualified Data.Schema as Schema
 import Data.String.Conversions (cs)
+import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Imports
@@ -68,6 +72,7 @@ import Wire.API.Arbitrary (Arbitrary (arbitrary))
 -- | A 'RichInfoAssocList' that parses and renders as 'RichInfoMapAndList'.
 newtype RichInfo = RichInfo {unRichInfo :: RichInfoAssocList}
   deriving stock (Eq, Show, Generic)
+  deriving newtype (ToSchema)
 
 instance ToJSON RichInfo where
   toJSON = toJSON . fromRichInfoAssocList . unRichInfo
@@ -223,6 +228,13 @@ richInfoAssocListURN = "urn:wire:scim:schemas:profile:1.0"
 newtype RichInfoAssocList = RichInfoAssocList {unRichInfoAssocList :: [RichField]}
   deriving stock (Eq, Show, Generic)
 
+instance ToSchema RichInfoAssocList where
+  schema =
+    Schema.object "RichInfo" $
+      RichInfoAssocList
+        <$> unRichInfoAssocList Schema..= field "fields" (array schema)
+        <* const (0 :: Int) Schema..= field "version" schema
+
 -- | Uses 'normalizeRichInfoAssocList'.
 mkRichInfoAssocList :: [RichField] -> RichInfoAssocList
 mkRichInfoAssocList = RichInfoAssocList . normalizeRichInfoAssocListInt
@@ -279,6 +291,7 @@ data RichField = RichField
     richFieldValue :: Text
   }
   deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema RichField)
 
 modelRichField :: Doc.Model
 modelRichField = Doc.defineModel "RichField" $ do
@@ -288,22 +301,16 @@ modelRichField = Doc.defineModel "RichField" $ do
   Doc.property "value" Doc.string' $
     Doc.description "Field value"
 
-instance ToJSON RichField where
-  -- NB: "name" would be a better name for 'richFieldType', but "type" is used because we
-  -- also have "type" in SCIM; and the reason we use "type" for SCIM is that @{"type": ...,
-  -- "value": ...}@ is how all other SCIM payloads are formatted, so it's quite possible
-  -- that some provisioning agent would support "type" but not "name".
-  toJSON u =
-    object
-      [ "type" .= CI.original (richFieldType u),
-        "value" .= richFieldValue u
-      ]
-
-instance FromJSON RichField where
-  parseJSON = withObject "RichField" $ \o -> do
-    RichField
-      <$> (CI.mk <$> o .: "type")
-      <*> o .: "value"
+--   -- NB: "name" would be a better name for 'richFieldType', but "type" is used because we
+--   -- also have "type" in SCIM; and the reason we use "type" for SCIM is that @{"type": ...,
+--   -- "value": ...}@ is how all other SCIM payloads are formatted, so it's quite possible
+--   -- that some provisioning agent would support "type" but not "name".
+instance ToSchema RichField where
+  schema =
+    Schema.object "RichField" $
+      RichField
+        <$> richFieldType Schema..= field "type" (CI.original Schema..= (CI.mk <$> schema))
+        <*> richFieldValue Schema..= field "value" schema
 
 instance Arbitrary RichField where
   arbitrary =
