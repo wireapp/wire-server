@@ -117,6 +117,7 @@ import qualified Wire.API.Message.Proto as Proto
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.Routes.Version
 import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Invitation
@@ -1021,29 +1022,28 @@ postQualifiedMembers zusr invitees conv = do
       . zType "access"
       . json invite
 
-postMembers :: UserId -> List1 UserId -> ConvId -> TestM ResponseLBS
-postMembers u us c = do
-  g <- view tsGalley
-  let i = newInvite us
-  post $
-    g
-      . paths ["conversations", toByteString' c, "members"]
-      . zUser u
-      . zConn "conn"
-      . zType "access"
-      . json i
+postMembers :: UserId -> NonEmpty (Qualified UserId) -> Qualified ConvId -> TestM ResponseLBS
+postMembers u us c = postMembersWithRole u us c roleNameWireAdmin
 
-postMembersWithRole :: UserId -> List1 UserId -> ConvId -> RoleName -> TestM ResponseLBS
+postMembersWithRole :: UserId -> NonEmpty (Qualified UserId) -> Qualified ConvId -> RoleName -> TestM ResponseLBS
 postMembersWithRole u us c r = do
   g <- view tsGalley
-  let i = (newInvite us) {invRoleName = r}
+  let i = InviteQualified us r
   post $
     g
-      . paths ["conversations", toByteString' c, "members"]
+      . paths
+        [ v2,
+          "conversations",
+          toByteString' (qDomain c),
+          toByteString' (qUnqualified c),
+          "members"
+        ]
       . zUser u
       . zConn "conn"
       . zType "access"
       . json i
+  where
+    v2 = toByteString' (toLower <$> show V2)
 
 deleteMemberUnqualified :: HasCallStack => UserId -> UserId -> ConvId -> TestM ResponseLBS
 deleteMemberUnqualified u1 u2 c = do

@@ -81,14 +81,11 @@ handleConversationRoleAdmin :: TestM ()
 handleConversationRoleAdmin = do
   localDomain <- viewFederationDomain
   c <- view tsCannon
-  alice <- randomUser
+  (alice, qalice) <- randomUserTuple
   bob <- randomUser
   chuck <- randomUser
-  eve <- randomUser
-  jack <- randomUser
-  let qalice = Qualified alice localDomain
-      qeve = Qualified eve localDomain
-      qjack = Qualified jack localDomain
+  (eve, qeve) <- randomUserTuple
+  (jack, qjack) <- randomUserTuple
   connectUsers alice (list1 bob [chuck, eve, jack])
   connectUsers eve (singleton bob)
   connectUsers bob (singleton jack)
@@ -99,12 +96,12 @@ handleConversationRoleAdmin = do
     let cid = decodeConvId rsp
         qcid = Qualified cid localDomain
     -- Make sure everyone gets the correct event
-    postMembersWithRole alice (singleton eve) cid role !!! const 200 === statusCode
+    postMembersWithRole alice (pure qeve) qcid role !!! const 200 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
         wsAssertMemberJoinWithRole qcid qalice [qeve] role
     -- Add a member to help out with testing
-    postMembersWithRole alice (singleton jack) cid roleNameWireMember !!! const 200 === statusCode
+    postMembersWithRole alice (pure qjack) qcid roleNameWireMember !!! const 200 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
         wsAssertMemberJoinWithRole qcid qalice [qjack] roleNameWireMember
@@ -141,7 +138,7 @@ handleConversationRoleMember = do
     let cid = decodeConvId rsp
         qcid = Qualified cid localDomain
     -- Make sure everyone gets the correct event
-    postMembersWithRole alice (singleton eve) cid role !!! const 200 === statusCode
+    postMembersWithRole alice (pure qeve) qcid role !!! const 200 === statusCode
     void . liftIO $
       WS.assertMatchN (5 # Second) [wsA, wsB, wsC] $
         wsAssertMemberJoinWithRole qcid qalice [qeve] role
@@ -336,18 +333,22 @@ wireAdminChecks ::
   UserId ->
   TestM ()
 wireAdminChecks cid admin otherAdmin mem = do
+  localDomain <- viewFederationDomain
   let role = roleNameWireAdmin
-  qcid <- Qualified cid <$> viewFederationDomain
-  other <- randomUser
+  let qcid = Qualified cid localDomain
+      qadmin = Qualified admin localDomain
+      qotherAdmin = Qualified otherAdmin localDomain
+      qmem = Qualified mem localDomain
+  (other, qother) <- randomUserTuple
   connectUsers admin (singleton other)
   -- Admins can perform all operations on the conversation; creator is not relevant
 
   -- Add members
-  postMembers admin (singleton other) cid !!! assertActionSucceeded
+  postMembers admin (pure qother) qcid !!! assertActionSucceeded
   -- Remove members, regardless of who they are
-  forM_ [otherAdmin, mem] $ \victim -> do
-    deleteMemberUnqualified admin victim cid !!! assertActionSucceeded
-    postMembersWithRole admin (singleton victim) cid role !!! assertActionSucceeded
+  forM_ [qotherAdmin, qmem] $ \victim -> do
+    deleteMemberUnqualified admin (qUnqualified victim) cid !!! assertActionSucceeded
+    postMembersWithRole admin (pure victim) qcid role !!! assertActionSucceeded
   -- Modify the conversation name
   void $ putConversationName admin cid "gossip++" !!! assertActionSucceeded
   -- Modify other members roles
@@ -371,7 +372,7 @@ wireAdminChecks cid admin otherAdmin mem = do
   -- You can also leave a conversation
   deleteMemberUnqualified admin admin cid !!! assertActionSucceeded
   -- Readding the user
-  postMembersWithRole otherAdmin (singleton admin) cid role !!! const 200 === statusCode
+  postMembersWithRole otherAdmin (pure qadmin) qcid role !!! const 200 === statusCode
 
 -- | Given a member, admin and otherMem, run all the necessary checks
 --   targeting mem
@@ -384,12 +385,13 @@ wireMemberChecks ::
 wireMemberChecks cid mem admin otherMem = do
   let role = roleNameWireMember
   qcid <- Qualified cid <$> viewFederationDomain
-  other <- randomUser
+  (other, qother) <- randomUserTuple
+  qmem <- Qualified mem <$> viewFederationDomain
   connectUsers mem (singleton other)
   -- Members cannot perform pretty much any action on the conversation
 
   -- Cannot add members, regardless of their role
-  postMembers mem (singleton other) cid !!! assertActionDenied
+  postMembers mem (pure qother) qcid !!! assertActionDenied
   -- Cannot remove members, regardless of who they are
   forM_ [admin, otherMem] $ \victim -> deleteMemberUnqualified mem victim cid !!! assertActionDenied
   -- Cannot modify the conversation name
@@ -416,7 +418,7 @@ wireMemberChecks cid mem admin otherMem = do
   -- Last option is to leave a conversation
   deleteMemberUnqualified mem mem cid !!! assertActionSucceeded
   -- Let's readd the user to make tests easier
-  postMembersWithRole admin (singleton mem) cid role !!! const 200 === statusCode
+  postMembersWithRole admin (pure qmem) qcid role !!! const 200 === statusCode
 
 assertActionSucceeded :: HasCallStack => Assertions ()
 assertActionSucceeded = const 200 === statusCode

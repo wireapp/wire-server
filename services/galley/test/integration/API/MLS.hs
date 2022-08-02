@@ -462,13 +462,13 @@ testAddUsersDirectly :: TestM ()
 testAddUsersDirectly = do
   setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
   void $ postCommit setup
-  charlie <- randomUser
+  charlie <- randomQualifiedUser
   e <-
     responseJsonError
       =<< postMembers
         (qUnqualified (pUserId creator))
         (pure charlie)
-        (qUnqualified conversation)
+        conversation
       <!! const 403 === statusCode
   liftIO $ Wai.label e @?= "invalid-op"
 
