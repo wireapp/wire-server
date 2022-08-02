@@ -31,11 +31,8 @@ import Control.Error (note)
 import Control.Lens ((?~))
 import Data.Aeson
 import Data.Attoparsec.ByteString.Char8 (string)
-import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion (FromByteString (..), ToByteString (..))
-import Data.ByteString.Conversion.From (runParser)
 import Data.Schema
-import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Model.Api as Doc
 import qualified Data.Text as T
