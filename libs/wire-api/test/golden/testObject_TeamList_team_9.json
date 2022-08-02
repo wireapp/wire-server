@@ -7,7 +7,8 @@
             "icon": "3-1-55b9ad19-315c-4bda-8c0f-5d7b0e143008",
             "icon_key": "",
             "id": "00000000-0000-0001-0000-000000000000",
-            "name": ""
+            "name": "",
+            "splash_screen": "default"
         },
         {
             "binding": false,
@@ -15,14 +16,16 @@
             "icon": "3-1-55b9ad19-315c-4bda-8c0f-5d7b0e143008",
             "icon_key": "",
             "id": "00000000-0000-0001-0000-000100000000",
-            "name": ""
+            "name": "",
+            "splash_screen": "default"
         },
         {
             "binding": false,
             "creator": "00000001-0000-0000-0000-000000000001",
             "icon": "3-1-55b9ad19-315c-4bda-8c0f-5d7b0e143008",
             "id": "00000000-0000-0000-0000-000100000000",
-            "name": ""
+            "name": "",
+            "splash_screen": "default"
         },
         {
             "binding": true,
@@ -30,7 +33,8 @@
             "icon": "3-1-55b9ad19-315c-4bda-8c0f-5d7b0e143008",
             "icon_key": "",
             "id": "00000000-0000-0000-0000-000100000000",
-            "name": ""
+            "name": "",
+            "splash_screen": "default"
         },
         {
             "binding": false,
@@ -38,7 +42,8 @@
             "icon": "3-1-55b9ad19-315c-4bda-8c0f-5d7b0e143008",
             "icon_key": "",
             "id": "00000001-0000-0000-0000-000000000000",
-            "name": ""
+            "name": "",
+            "splash_screen": "default"
         },
         {
             "binding": false,
@@ -46,7 +51,8 @@
             "icon": "3-1-55b9ad19-315c-4bda-8c0f-5d7b0e143008",
             "icon_key": "",
             "id": "00000000-0000-0001-0000-000100000001",
-            "name": ""
+            "name": "",
+            "splash_screen": "default"
         }
     ]
 }

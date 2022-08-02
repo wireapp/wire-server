@@ -24,7 +24,7 @@ import Data.Id (Id (Id))
 import qualified Data.UUID as UUID (fromString)
 import Imports (Maybe (Just, Nothing), fromJust, (&))
 import Wire.API.Asset
-import Wire.API.Team (Icon (..), Team, TeamBinding (Binding, NonBinding), newTeam, teamIconKey)
+import Wire.API.Team (Icon (..), Team, TeamBinding (Binding, NonBinding), newTeam, teamIconKey, teamSplashScreen)
 
 testObject_Team_team_1 :: Team
 testObject_Team_team_1 =
@@ -46,6 +46,7 @@ testObject_Team_team_2 =
       (Icon (AssetKeyV3 (Id (fromJust (UUID.fromString "55b9ad19-315c-4bda-8c0f-5d7b0e143008"))) AssetEternal))
       (NonBinding)
       & teamIconKey .~ (Just "\34417R3q")
+      & teamSplashScreen .~ (Icon (AssetKeyV3 (Id (fromJust (UUID.fromString "55b9ad19-315c-4bda-8c0f-5d7b0e143008"))) AssetEternal))
   )
 
 testObject_Team_team_3 :: Team

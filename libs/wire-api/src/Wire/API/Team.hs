@@ -103,14 +103,14 @@ data Team = Team
     _teamIcon :: Icon,
     _teamIconKey :: Maybe Text,
     _teamBinding :: TeamBinding,
-    _teamSplashScreen :: Maybe AssetKey
+    _teamSplashScreen :: Icon
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Team)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema Team)
 
 newTeam :: TeamId -> UserId -> Text -> Icon -> TeamBinding -> Team
-newTeam tid uid nme ico tb = Team tid uid nme ico Nothing tb Nothing
+newTeam tid uid nme ico tb = Team tid uid nme ico Nothing tb DefaultIcon
 
 modelTeam :: Doc.Model
 modelTeam = Doc.defineModel "Team" $ do
@@ -128,6 +128,9 @@ modelTeam = Doc.defineModel "Team" $ do
     Doc.optional
   Doc.property "binding" Doc.bool' $
     Doc.description "user binding team"
+  Doc.property "splash_screen" Doc.string' $ do
+    Doc.description "new splash screen asset key"
+    Doc.optional
 
 instance ToSchema Team where
   schema =
@@ -139,7 +142,7 @@ instance ToSchema Team where
         <*> _teamIcon .= field "icon" schema
         <*> _teamIconKey .= maybe_ (optField "icon_key" schema)
         <*> _teamBinding .= (fromMaybe Binding <$> optField "binding" schema)
-        <*> _teamSplashScreen .= maybe_ (optField "splash_screen" schema)
+        <*> _teamSplashScreen .= (fromMaybe DefaultIcon <$> optField "splash_screen" schema)
 
 data TeamBinding
   = Binding
@@ -269,7 +272,7 @@ data TeamUpdateData = TeamUpdateData
   { _nameUpdate :: Maybe (Range 1 256 Text),
     _iconUpdate :: Maybe Icon,
     _iconKeyUpdate :: Maybe (Range 1 256 Text),
-    _splashScreenUpdate :: Maybe AssetKey
+    _splashScreenUpdate :: Maybe Icon
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamUpdateData)
@@ -292,6 +295,9 @@ modelUpdateData = Doc.defineModel "TeamUpdateData" $ do
     Doc.optional
   Doc.property "icon_key" Doc.string' $ do
     Doc.description "new icon asset key"
+    Doc.optional
+  Doc.property "splash_screen" Doc.string' $ do
+    Doc.description "new splash screen asset key"
     Doc.optional
 
 newTeamUpdateData :: TeamUpdateData

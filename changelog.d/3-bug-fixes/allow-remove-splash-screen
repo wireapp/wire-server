@@ -1,0 +1,1 @@
+Allow deleting existing splash screens in `PUT /teams/:tid (see also PR#2474 in Release 4.18.0)
