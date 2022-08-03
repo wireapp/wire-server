@@ -594,7 +594,7 @@ getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
   maybe (throwStd (errorToWai @'E.ClientNotFound)) (pure . Public.clientCapabilities) mclient
 
-getRichInfo :: UserId -> UserId -> Handler r (Maybe Public.RichInfoAssocList)
+getRichInfo :: UserId -> UserId -> Handler r Public.RichInfoAssocList
 getRichInfo self user = do
   -- Check that both users exist and the requesting user is allowed to see rich info of the
   -- other user
@@ -608,7 +608,7 @@ getRichInfo self user = do
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
   -- Query rich info
-  wrapClientE $ API.lookupRichInfo user
+  wrapClientE $ fromMaybe mempty <$> API.lookupRichInfo user
 
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)

@@ -202,10 +202,8 @@ type UserAPI =
                :> MultiVerb
                     'GET
                     '[JSON]
-                    '[ ErrorResponse 'UserNotFound,
-                       Respond 200 "User found" RichInfoAssocList
-                     ]
-                    (Maybe RichInfoAssocList)
+                    '[Respond 200 "Rich info about the user" RichInfoAssocList]
+                    RichInfoAssocList
            )
 
 type SelfAPI =
