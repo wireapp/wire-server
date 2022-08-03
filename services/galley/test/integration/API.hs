@@ -180,9 +180,8 @@ tests s =
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
           test s "add remote members when federation isn't enabled" testAddRemoteMemberFederationDisabled,
           test s "add remote members when federator is unavailable" testAddRemoteMemberFederationUnavailable,
-          test s "delete conversations/:cnv/members/:usr - success" deleteMembersUnqualifiedOk,
-          test s "delete conversations/:cnv/members/:usr - fail, self conv" deleteMembersUnqualifiedFailSelf,
-          test s "delete conversations/:cnv/members/:usr - fail, 1:1 conv" deleteMembersUnqualifiedFailO2O,
+          test s "delete conversations/:domain/:cnv/members/:domain/:usr - fail, self conv" deleteMembersQualifiedFailSelf,
+          test s "delete conversations/:domain:/cnv/members/:domain/:usr - fail, 1:1 conv" deleteMembersQualifiedFailO2O,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with all locals" deleteMembersConvLocalQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete local" deleteLocalMemberConvLocalQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete remote" deleteRemoteMemberConvLocalQualifiedOk,
@@ -2281,11 +2280,12 @@ accessConvMeta = do
 
 leaveConnectConversation :: TestM ()
 leaveConnectConversation = do
-  alice <- randomUser
+  (alice, qalice) <- randomUserTuple
   bob <- randomUser
   bdy <- postConnectConv alice bob "alice" "ni" Nothing <!! const 201 === statusCode
   let c = maybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId) (responseJsonUnsafe bdy)
-  deleteMemberUnqualified alice alice c !!! const 403 === statusCode
+  qc <- Qualified c <$> viewFederationDomain
+  deleteMemberQualified alice qalice qc !!! const 403 === statusCode
 
 testAddRemoteMember :: TestM ()
 testAddRemoteMember = do
@@ -2678,7 +2678,7 @@ postMembersOk3 = do
   conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
   qconv <- Qualified conv <$> viewFederationDomain
   -- Bob leaves
-  deleteMemberUnqualified bob bob conv !!! const 200 === statusCode
+  deleteMemberQualified bob qbob qconv !!! const 200 === statusCode
   -- Fetch bob
   getSelfMember bob conv !!! const 200 === statusCode
   -- Alice re-adds Bob to the conversation
@@ -2743,22 +2743,6 @@ postTooManyMembersFail = do
   postMembers chuck (x :| xs) qconv !!! do
     const 403 === statusCode
     const (Just "too-many-members") === fmap label . responseJsonUnsafe
-
-deleteMembersUnqualifiedOk :: TestM ()
-deleteMembersUnqualifiedOk = do
-  alice <- randomUser
-  bob <- randomUser
-  eve <- randomUser
-  connectUsers alice (list1 bob [eve])
-  conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
-  deleteMemberUnqualified bob bob conv !!! const 200 === statusCode
-  deleteMemberUnqualified bob bob conv !!! const 404 === statusCode
-  -- if conversation still exists, don't respond with 404, but with 403.
-  getConv bob conv !!! const 403 === statusCode
-  deleteMemberUnqualified alice eve conv !!! const 200 === statusCode
-  deleteMemberUnqualified alice eve conv !!! const 204 === statusCode
-  deleteMemberUnqualified alice alice conv !!! const 200 === statusCode
-  deleteMemberUnqualified alice alice conv !!! const 404 === statusCode
 
 -- Creates a conversation with three users from the same domain. Then it uses a
 -- qualified endpoint for deleting a conversation member:
@@ -3012,19 +2996,21 @@ removeRemoteMemberConvQualifiedFail = do
     const 403 === statusCode
     const (Just "action-denied") === fmap label . responseJsonUnsafe
 
-deleteMembersUnqualifiedFailSelf :: TestM ()
-deleteMembersUnqualifiedFailSelf = do
-  alice <- randomUser
+deleteMembersQualifiedFailSelf :: TestM ()
+deleteMembersQualifiedFailSelf = do
+  (alice, qalice) <- randomUserTuple
   self <- decodeConvId <$> postSelfConv alice
-  deleteMemberUnqualified alice alice self !!! const 403 === statusCode
+  qself <- Qualified self <$> viewFederationDomain
+  deleteMemberQualified alice qalice qself !!! const 403 === statusCode
 
-deleteMembersUnqualifiedFailO2O :: TestM ()
-deleteMembersUnqualifiedFailO2O = do
+deleteMembersQualifiedFailO2O :: TestM ()
+deleteMembersQualifiedFailO2O = do
   alice <- randomUser
-  bob <- randomUser
+  (bob, qbob) <- randomUserTuple
   connectUsers alice (singleton bob)
   o2o <- decodeConvId <$> postO2OConv alice bob (Just "foo")
-  deleteMemberUnqualified alice bob o2o !!! const 403 === statusCode
+  qo2o <- Qualified o2o <$> viewFederationDomain
+  deleteMemberQualified alice qbob qo2o !!! const 403 === statusCode
 
 putQualifiedConvRenameFailure :: TestM ()
 putQualifiedConvRenameFailure = do

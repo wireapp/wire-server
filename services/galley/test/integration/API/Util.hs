@@ -1045,16 +1045,6 @@ postMembersWithRole u us c r = do
   where
     v2 = toByteString' (toLower <$> show V2)
 
-deleteMemberUnqualified :: HasCallStack => UserId -> UserId -> ConvId -> TestM ResponseLBS
-deleteMemberUnqualified u1 u2 c = do
-  g <- view tsGalley
-  delete $
-    g
-      . zUser u1
-      . paths ["conversations", toByteString' c, "members", toByteString' u2]
-      . zConn "conn"
-      . zType "access"
-
 deleteMemberQualified ::
   (HasCallStack, MonadIO m, MonadHttp m, HasGalley m) =>
   UserId ->

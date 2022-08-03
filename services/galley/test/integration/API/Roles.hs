@@ -347,7 +347,7 @@ wireAdminChecks cid admin otherAdmin mem = do
   postMembers admin (pure qother) qcid !!! assertActionSucceeded
   -- Remove members, regardless of who they are
   forM_ [qotherAdmin, qmem] $ \victim -> do
-    deleteMemberUnqualified admin (qUnqualified victim) cid !!! assertActionSucceeded
+    deleteMemberQualified admin victim qcid !!! assertActionSucceeded
     postMembersWithRole admin (pure victim) qcid role !!! assertActionSucceeded
   -- Modify the conversation name
   void $ putConversationName admin cid "gossip++" !!! assertActionSucceeded
@@ -370,7 +370,7 @@ wireAdminChecks cid admin otherAdmin mem = do
   let memUpdate = memberUpdate {mupOtrArchive = Just True}
   putMember admin memUpdate qcid !!! assertActionSucceeded
   -- You can also leave a conversation
-  deleteMemberUnqualified admin admin cid !!! assertActionSucceeded
+  deleteMemberQualified admin qadmin qcid !!! assertActionSucceeded
   -- Readding the user
   postMembersWithRole otherAdmin (pure qadmin) qcid role !!! const 200 === statusCode
 
@@ -383,17 +383,19 @@ wireMemberChecks ::
   UserId ->
   TestM ()
 wireMemberChecks cid mem admin otherMem = do
+  localDomain <- viewFederationDomain
   let role = roleNameWireMember
-  qcid <- Qualified cid <$> viewFederationDomain
+      qcid = Qualified cid localDomain
   (other, qother) <- randomUserTuple
-  qmem <- Qualified mem <$> viewFederationDomain
+  let qmem = Qualified mem localDomain
   connectUsers mem (singleton other)
   -- Members cannot perform pretty much any action on the conversation
 
   -- Cannot add members, regardless of their role
   postMembers mem (pure qother) qcid !!! assertActionDenied
   -- Cannot remove members, regardless of who they are
-  forM_ [admin, otherMem] $ \victim -> deleteMemberUnqualified mem victim cid !!! assertActionDenied
+  forM_ ((`Qualified` localDomain) <$> [admin, otherMem]) $ \victim ->
+    deleteMemberQualified mem victim qcid !!! assertActionDenied
   -- Cannot modify the conversation name
   void $ putConversationName mem cid "gossip++" !!! assertActionDenied
   -- Cannot modify other members roles
@@ -416,7 +418,7 @@ wireMemberChecks cid mem admin otherMem = do
   let memUpdate = memberUpdate {mupOtrArchive = Just True}
   putMember mem memUpdate qcid !!! assertActionSucceeded
   -- Last option is to leave a conversation
-  deleteMemberUnqualified mem mem cid !!! assertActionSucceeded
+  deleteMemberQualified mem qmem qcid !!! assertActionSucceeded
   -- Let's readd the user to make tests easier
   postMembersWithRole admin (pure qmem) qcid role !!! const 200 === statusCode
 
