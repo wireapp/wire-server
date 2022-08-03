@@ -180,9 +180,8 @@ tests s =
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
           test s "add remote members when federation isn't enabled" testAddRemoteMemberFederationDisabled,
           test s "add remote members when federator is unavailable" testAddRemoteMemberFederationUnavailable,
-          test s "delete conversations/:cnv/members/:usr - success" deleteMembersUnqualifiedOk,
-          test s "delete conversations/:cnv/members/:usr - fail, self conv" deleteMembersUnqualifiedFailSelf,
-          test s "delete conversations/:cnv/members/:usr - fail, 1:1 conv" deleteMembersUnqualifiedFailO2O,
+          test s "delete conversations/:domain/:cnv/members/:domain/:usr - fail, self conv" deleteMembersQualifiedFailSelf,
+          test s "delete conversations/:domain:/cnv/members/:domain/:usr - fail, 1:1 conv" deleteMembersQualifiedFailO2O,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with all locals" deleteMembersConvLocalQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete local" deleteLocalMemberConvLocalQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete remote" deleteRemoteMemberConvLocalQualifiedOk,
@@ -1575,6 +1574,7 @@ testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved = do
 
 getGuestLinksStatusFromForeignTeamConv :: TestM ()
 getGuestLinksStatusFromForeignTeamConv = do
+  localDomain <- viewFederationDomain
   galley <- view tsGalley
   let setTeamStatus u tid tfStatus =
         TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley u tid (Public.WithStatusNoLock tfStatus Public.GuestLinksConfig) !!! do
@@ -1589,10 +1589,12 @@ getGuestLinksStatusFromForeignTeamConv = do
 
   -- given alice is in team A with guest links allowed
   (alice, teamA, [alex]) <- createBindingTeamWithNMembers 1
+  let qalice = Qualified alice localDomain
   setTeamStatus alice teamA Public.FeatureStatusEnabled
 
   -- and given bob is in team B with guest links disallowed
   (bob, teamB, [bert]) <- createBindingTeamWithNMembers 1
+  let qbert = Qualified bert localDomain
   setTeamStatus bob teamB Public.FeatureStatusDisabled
 
   -- and given alice and bob are connected
@@ -1601,7 +1603,8 @@ getGuestLinksStatusFromForeignTeamConv = do
   -- and given bob creates a conversation, invites alice, and makes her group admin
   let accessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole]
   conv <- decodeConvId <$> postTeamConv teamB bob [] (Just "teams b's conversation") [InviteAccess] (Just accessRoles) Nothing
-  postMembersWithRole bob (singleton alice) conv roleNameWireAdmin !!! const 200 === statusCode
+  let qconv = Qualified conv localDomain
+  postMembersWithRole bob (pure qalice) qconv roleNameWireAdmin !!! const 200 === statusCode
 
   -- when alice gets the guest link status for the conversation
   -- then the status should be disabled
@@ -1638,7 +1641,7 @@ getGuestLinksStatusFromForeignTeamConv = do
 
   -- when a conversation member that is not an admin tries to get the guest link status
   -- then the result should be forbidden
-  postMembersWithRole bob (singleton bert) conv roleNameWireMember !!! const 200 === statusCode
+  postMembersWithRole bob (pure qbert) qconv roleNameWireMember !!! const 200 === statusCode
   checkGetGuestLinksStatus 403 bert conv
 
 postJoinConvFail :: TestM ()
@@ -2277,11 +2280,12 @@ accessConvMeta = do
 
 leaveConnectConversation :: TestM ()
 leaveConnectConversation = do
-  alice <- randomUser
+  (alice, qalice) <- randomUserTuple
   bob <- randomUser
   bdy <- postConnectConv alice bob "alice" "ni" Nothing <!! const 201 === statusCode
   let c = maybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId) (responseJsonUnsafe bdy)
-  deleteMemberUnqualified alice alice c !!! const 403 === statusCode
+  qc <- Qualified c <$> viewFederationDomain
+  deleteMemberQualified alice qalice qc !!! const 403 === statusCode
 
 testAddRemoteMember :: TestM ()
 testAddRemoteMember = do
@@ -2638,7 +2642,7 @@ postMembersOk = do
   connectUsers eve (singleton bob)
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
   let qconv = Qualified conv (qDomain qalice)
-  e <- responseJsonError =<< postMembers alice (singleton eve) conv <!! const 200 === statusCode
+  e <- responseJsonError =<< postMembers alice (pure qeve) qconv <!! const 200 === statusCode
   liftIO $ do
     evtConv e @?= qconv
     evtType e @?= MemberJoin
@@ -2657,7 +2661,8 @@ postMembersOk2 = do
   connectUsers alice (list1 bob [qUnqualified chuck])
   connectUsers bob (singleton . qUnqualified $ chuck)
   conv <- decodeConvId <$> postConv alice [bob, qUnqualified chuck] Nothing [] Nothing Nothing
-  postMembers bob (singleton . qUnqualified $ chuck) conv !!! do
+  qconv <- Qualified conv <$> viewFederationDomain
+  postMembers bob (pure chuck) qconv !!! do
     const 204 === statusCode
     const Nothing === responseBody
   chuck' <- responseJsonUnsafe <$> (getSelfMember (qUnqualified chuck) conv <!! const 200 === statusCode)
@@ -2667,16 +2672,17 @@ postMembersOk2 = do
 postMembersOk3 :: TestM ()
 postMembersOk3 = do
   alice <- randomUser
-  bob <- randomUser
+  (bob, qbob) <- randomUserTuple
   eve <- randomUser
   connectUsers alice (list1 bob [eve])
   conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
+  qconv <- Qualified conv <$> viewFederationDomain
   -- Bob leaves
-  deleteMemberUnqualified bob bob conv !!! const 200 === statusCode
+  deleteMemberQualified bob qbob qconv !!! const 200 === statusCode
   -- Fetch bob
   getSelfMember bob conv !!! const 200 === statusCode
   -- Alice re-adds Bob to the conversation
-  postMembers alice (singleton bob) conv !!! const 200 === statusCode
+  postMembers alice (pure qbob) qconv !!! const 200 === statusCode
   -- Fetch bob again
   getSelfMember bob conv !!! const 200 === statusCode
 
@@ -2686,10 +2692,12 @@ postMembersFailNoGuestAccess = do
   bob <- randomUser
   peter <- randomUser
   eve <- ephemeralUser
+  qeve <- Qualified eve <$> viewFederationDomain
   connectUsers alice (list1 bob [peter])
   Right noGuestsAccess <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole] [GuestAccessRole]
   conv <- decodeConvId <$> postConv alice [bob, peter] (Just "gossip") [] (Just noGuestsAccess) Nothing
-  postMembers alice (singleton eve) conv !!! const 403 === statusCode
+  qconv <- Qualified conv <$> viewFederationDomain
+  postMembers alice (pure qeve) qconv !!! const 403 === statusCode
 
 generateGuestLinkFailIfNoNonTeamMemberOrNoGuestAccess :: TestM ()
 generateGuestLinkFailIfNoNonTeamMemberOrNoGuestAccess = do
@@ -2703,23 +2711,24 @@ generateGuestLinkFailIfNoNonTeamMemberOrNoGuestAccess = do
 postMembersFail :: TestM ()
 postMembersFail = do
   alice <- randomUser
-  bob <- randomUser
+  (bob, qbob) <- randomUserTuple
   chuck <- randomUser
-  dave <- randomUser
-  eve <- randomUser
+  (dave, qdave) <- randomUserTuple
+  (eve, qeve) <- randomUserTuple
   connectUsers alice (list1 bob [chuck, eve])
   connectUsers eve (singleton bob)
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
-  postMembers eve (singleton bob) conv !!! const 404 === statusCode
-  postMembers alice (singleton eve) conv !!! const 200 === statusCode
+  qconv <- Qualified conv <$> viewFederationDomain
+  postMembers eve (pure qbob) qconv !!! const 404 === statusCode
+  postMembers alice (pure qeve) qconv !!! const 200 === statusCode
   -- Not connected but already there
-  postMembers chuck (singleton eve) conv !!! const 204 === statusCode
-  postMembers chuck (singleton dave) conv !!! do
+  postMembers chuck (pure qeve) qconv !!! const 204 === statusCode
+  postMembers chuck (pure qdave) qconv !!! do
     const 403 === statusCode
     const (Just "not-connected") === fmap label . responseJsonUnsafe
   void $ connectUsers chuck (singleton dave)
-  postMembers chuck (singleton dave) conv !!! const 200 === statusCode
-  postMembers chuck (singleton dave) conv !!! const 204 === statusCode
+  postMembers chuck (pure qdave) qconv !!! const 200 === statusCode
+  postMembers chuck (pure qdave) qconv !!! const 204 === statusCode
 
 postTooManyMembersFail :: TestM ()
 postTooManyMembersFail = do
@@ -2729,26 +2738,11 @@ postTooManyMembersFail = do
   chuck <- randomUser
   connectUsers alice (list1 bob [chuck])
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
-  x : xs <- randomUsers (n - 2)
-  postMembers chuck (list1 x xs) conv !!! do
+  qconv <- Qualified conv <$> viewFederationDomain
+  x : xs <- replicateM (n - 2) randomQualifiedUser
+  postMembers chuck (x :| xs) qconv !!! do
     const 403 === statusCode
     const (Just "too-many-members") === fmap label . responseJsonUnsafe
-
-deleteMembersUnqualifiedOk :: TestM ()
-deleteMembersUnqualifiedOk = do
-  alice <- randomUser
-  bob <- randomUser
-  eve <- randomUser
-  connectUsers alice (list1 bob [eve])
-  conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
-  deleteMemberUnqualified bob bob conv !!! const 200 === statusCode
-  deleteMemberUnqualified bob bob conv !!! const 404 === statusCode
-  -- if conversation still exists, don't respond with 404, but with 403.
-  getConv bob conv !!! const 403 === statusCode
-  deleteMemberUnqualified alice eve conv !!! const 200 === statusCode
-  deleteMemberUnqualified alice eve conv !!! const 204 === statusCode
-  deleteMemberUnqualified alice alice conv !!! const 200 === statusCode
-  deleteMemberUnqualified alice alice conv !!! const 404 === statusCode
 
 -- Creates a conversation with three users from the same domain. Then it uses a
 -- qualified endpoint for deleting a conversation member:
@@ -3002,19 +2996,21 @@ removeRemoteMemberConvQualifiedFail = do
     const 403 === statusCode
     const (Just "action-denied") === fmap label . responseJsonUnsafe
 
-deleteMembersUnqualifiedFailSelf :: TestM ()
-deleteMembersUnqualifiedFailSelf = do
-  alice <- randomUser
+deleteMembersQualifiedFailSelf :: TestM ()
+deleteMembersQualifiedFailSelf = do
+  (alice, qalice) <- randomUserTuple
   self <- decodeConvId <$> postSelfConv alice
-  deleteMemberUnqualified alice alice self !!! const 403 === statusCode
+  qself <- Qualified self <$> viewFederationDomain
+  deleteMemberQualified alice qalice qself !!! const 403 === statusCode
 
-deleteMembersUnqualifiedFailO2O :: TestM ()
-deleteMembersUnqualifiedFailO2O = do
+deleteMembersQualifiedFailO2O :: TestM ()
+deleteMembersQualifiedFailO2O = do
   alice <- randomUser
-  bob <- randomUser
+  (bob, qbob) <- randomUserTuple
   connectUsers alice (singleton bob)
   o2o <- decodeConvId <$> postO2OConv alice bob (Just "foo")
-  deleteMemberUnqualified alice bob o2o !!! const 403 === statusCode
+  qo2o <- Qualified o2o <$> viewFederationDomain
+  deleteMemberQualified alice qbob qo2o !!! const 403 === statusCode
 
 putQualifiedConvRenameFailure :: TestM ()
 putQualifiedConvRenameFailure = do

@@ -557,6 +557,7 @@ type ConversationAPI =
     :<|> Named
            "remove-member-unqualified"
            ( Summary "Remove a member from a conversation (deprecated)"
+               :> Until 'V2
                :> ZLocalUser
                :> ZConn
                :> CanThrow ('ActionDenied 'RemoveConversationMember)

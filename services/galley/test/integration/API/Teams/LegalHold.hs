@@ -1017,19 +1017,21 @@ data GroupConvInvCase = InviteOnlyConsenters | InviteAlsoNonConsenters
 
 testGroupConvInvitationHandlesLHConflicts :: HasCallStack => GroupConvInvCase -> TestM ()
 testGroupConvInvitationHandlesLHConflicts inviteCase = do
+  localDomain <- viewFederationDomain
   -- team that is legalhold whitelisted
   (legalholder :: UserId, tid) <- createBindingTeam
-  qLegalHolder <- Qualified legalholder <$> viewFederationDomain
+  let qLegalHolder = Qualified legalholder localDomain
   userWithConsent <- (^. Team.userId) <$> addUserToTeam legalholder tid
   userWithConsent2 <- do
     uid <- (^. Team.userId) <$> addUserToTeam legalholder tid
-    Qualified uid <$> viewFederationDomain
+    pure $ Qualified uid localDomain
   ensureQueueEmpty
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
   -- team without legalhold
   (peer :: UserId, teamPeer) <- createBindingTeam
   peer2 <- (^. Team.userId) <$> addUserToTeam peer teamPeer
+  let qpeer2 = Qualified peer2 localDomain
   ensureQueueEmpty
 
   do
@@ -1042,6 +1044,7 @@ testGroupConvInvitationHandlesLHConflicts inviteCase = do
   withDummyTestServiceForTeam legalholder tid $ \_chan -> do
     -- conversation with 1) userWithConsent and 2) peer
     convId <- createTeamConvWithRole userWithConsent tid [peer] (Just "corp + us") Nothing Nothing roleNameWireAdmin
+    let qconvId = Qualified convId localDomain
 
     -- activate legalhold for legalholder
     do
@@ -1053,18 +1056,19 @@ testGroupConvInvitationHandlesLHConflicts inviteCase = do
 
     case inviteCase of
       InviteOnlyConsenters -> do
-        API.Util.postMembers userWithConsent (List1.list1 legalholder [qUnqualified userWithConsent2]) convId
+        API.Util.postMembers userWithConsent (qLegalHolder :| [userWithConsent2]) qconvId
           !!! const 200 === statusCode
 
         assertConvMember qLegalHolder convId
         assertConvMember userWithConsent2 convId
         assertNotConvMember peer convId
       InviteAlsoNonConsenters -> do
-        API.Util.postMembers userWithConsent (List1.list1 legalholder [peer2]) convId
+        API.Util.postMembers userWithConsent (qLegalHolder :| [qpeer2]) qconvId
           >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
 testNoConsentCannotBeInvited :: HasCallStack => TestM ()
 testNoConsentCannotBeInvited = do
+  localDomain <- viewFederationDomain
   -- team that is legalhold whitelisted
   (legalholder :: UserId, tid) <- createBindingTeam
   userLHNotActivated <- (^. Team.userId) <$> addUserToTeam legalholder tid
@@ -1073,7 +1077,9 @@ testNoConsentCannotBeInvited = do
 
   -- team without legalhold
   (peer :: UserId, teamPeer) <- createBindingTeam
+  let qpeer = Qualified peer localDomain
   peer2 <- (^. Team.userId) <$> addUserToTeam peer teamPeer
+  let qpeer2 = Qualified peer2 localDomain
   ensureQueueEmpty
 
   do
@@ -1085,8 +1091,9 @@ testNoConsentCannotBeInvited = do
 
   withDummyTestServiceForTeam legalholder tid $ \_chan -> do
     convId <- createTeamConvWithRole userLHNotActivated tid [legalholder] (Just "corp + us") Nothing Nothing roleNameWireAdmin
+    let qconvId = Qualified convId localDomain
 
-    API.Util.postMembers userLHNotActivated (List1.list1 peer []) convId
+    API.Util.postMembers userLHNotActivated (pure qpeer) qconvId
       !!! const 200 === statusCode
 
     -- activate legalhold for legalholder
@@ -1097,7 +1104,7 @@ testNoConsentCannotBeInvited = do
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped' galley legalholder tid
       liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
 
-    API.Util.postMembers userLHNotActivated (List1.list1 peer2 []) convId
+    API.Util.postMembers userLHNotActivated (pure qpeer2) qconvId
       >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
     localdomain <- viewFederationDomain

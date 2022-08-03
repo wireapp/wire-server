@@ -29,6 +29,7 @@ import Control.Arrow
 import Control.Lens (view)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
+import Data.ByteString.Conversion
 import Data.Default
 import Data.Domain
 import Data.Id
@@ -66,6 +67,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group (convToGroupId)
 import Wire.API.MLS.Message
 import Wire.API.Message
+import Wire.API.Routes.Version
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -462,13 +464,13 @@ testAddUsersDirectly :: TestM ()
 testAddUsersDirectly = do
   setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
   void $ postCommit setup
-  charlie <- randomUser
+  charlie <- randomQualifiedUser
   e <-
     responseJsonError
       =<< postMembers
         (qUnqualified (pUserId creator))
         (pure charlie)
-        (qUnqualified conversation)
+        conversation
       <!! const 403 === statusCode
   liftIO $ Wai.label e @?= "invalid-op"
 
@@ -861,9 +863,10 @@ testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
   (events :: [Event], reqs) <- fmap (first mmssEvents) . withTempMockFederator' mock $ do
     galley <- viewGalley
     void $ postCommit MessagingSetup {creator = alice, users = [bob], ..}
+    let v2 = toByteString' (toLower <$> show V2)
     responseJsonError
       =<< post
-        ( galley . paths ["v2", "mls", "messages"]
+        ( galley . paths [v2, "mls", "messages"]
             . zUser (qUnqualified (pUserId alice))
             . zConn "conn"
             . content "message/mls"
