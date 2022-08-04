@@ -22,6 +22,7 @@ module Wire.API.MLS.Serialisation
     parseMLSBytes,
     serialiseMLSBytes,
     parseMLSOptional,
+    serialiseMLSOptional,
     parseMLSEnum,
     serialiseMLSEnum,
     BinaryMLS (..),
@@ -93,6 +94,9 @@ parseMLSOptional :: Get a -> Get (Maybe a)
 parseMLSOptional g = do
   b <- getWord8
   sequenceA $ guard (b /= 0) $> g
+
+serialiseMLSOptional :: (a -> Put) -> Maybe a -> Put
+serialiseMLSOptional p = maybe (putWord8 0) p
 
 -- | Parse a positive tag for an enumeration. The value 0 is considered
 -- "reserved", and all other values are shifted down by 1 to get the

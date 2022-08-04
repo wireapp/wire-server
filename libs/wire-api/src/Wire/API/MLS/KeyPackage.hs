@@ -43,12 +43,14 @@ import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
+import qualified Data.ByteString as B
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
 import Imports
+import Test.QuickCheck
 import Web.HttpApiData
 import Wire.API.Arbitrary
 import Wire.API.MLS.CipherSuite
@@ -117,6 +119,9 @@ newtype KeyPackageRef = KeyPackageRef {unKeyPackageRef :: ByteString}
   deriving stock (Eq, Ord, Show)
   deriving (FromHttpApiData, ToHttpApiData, S.ToParamSchema) via Base64ByteString
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema KeyPackageRef)
+
+instance Arbitrary KeyPackageRef where
+  arbitrary = KeyPackageRef . B.pack <$> vectorOf 16 arbitrary
 
 instance ToSchema KeyPackageRef where
   schema = named "KeyPackageRef" $ unKeyPackageRef .= fmap KeyPackageRef base64Schema

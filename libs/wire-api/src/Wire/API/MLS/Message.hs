@@ -36,6 +36,7 @@ module Wire.API.MLS.Message
     MLSPlainTextSym0,
     MLSCipherTextSym0,
     MLSMessageSendingStatus (..),
+    KnownFormatTag (..),
     verifyMessageSignature,
   )
 where
@@ -85,26 +86,37 @@ instance ParseMLS (MessageExtraFields 'MLSPlainText) where
 instance SerialiseMLS (MessageExtraFields 'MLSPlainText) where
   serialiseMLS (MessageExtraFields sig mconf mmemb) = do
     serialiseMLSBytes @Word16 sig
-    for_ mconf (serialiseMLSBytes @Word8)
-    for_ mmemb (serialiseMLSBytes @Word8)
+    serialiseMLSOptional (serialiseMLSBytes @Word8) mconf
+    serialiseMLSOptional (serialiseMLSBytes @Word8) mmemb
 
 data instance MessageExtraFields 'MLSCipherText = NoExtraFields
 
 instance ParseMLS (MessageExtraFields 'MLSCipherText) where
   parseMLS = pure NoExtraFields
 
+deriving instance Eq (MessageExtraFields 'MLSPlainText)
+
+deriving instance Eq (MessageExtraFields 'MLSCipherText)
+
+deriving instance Show (MessageExtraFields 'MLSPlainText)
+
+deriving instance Show (MessageExtraFields 'MLSCipherText)
+
 data Message (tag :: WireFormatTag) = Message
   { msgTBS :: RawMLS (MessageTBS tag),
     msgExtraFields :: MessageExtraFields tag
   }
 
-instance SerialiseMLS (Message 'MLSPlainText) where
-  serialiseMLS (Message tbs extra) = do
-    putByteString (rmRaw tbs)
-    serialiseMLS extra
+deriving instance Eq (Message 'MLSPlainText)
+
+deriving instance Eq (Message 'MLSCipherText)
+
+deriving instance Show (Message 'MLSPlainText)
+
+deriving instance Show (Message 'MLSCipherText)
 
 instance ParseMLS (Message 'MLSPlainText) where
-  parseMLS = Message <$> parseMLS <*> parseMLS
+  parseMLS = Message <$> label "tbs" parseMLS <*> label "MessageExtraFields" parseMLS
 
 instance ParseMLS (Message 'MLSCipherText) where
   parseMLS = Message <$> parseMLS <*> parseMLS
@@ -122,6 +134,14 @@ instance SerialiseMLS (KnownFormatTag 'MLSPlainText) where
 
 instance SerialiseMLS (KnownFormatTag 'MLSCipherText) where
   serialiseMLS _ = put (fromMLSEnum @Word8 MLSCipherText)
+
+deriving instance Eq (KnownFormatTag 'MLSPlainText)
+
+deriving instance Eq (KnownFormatTag 'MLSCipherText)
+
+deriving instance Show (KnownFormatTag 'MLSPlainText)
+
+deriving instance Show (KnownFormatTag 'MLSCipherText)
 
 data MessageTBS (tag :: WireFormatTag) = MessageTBS
   { tbsMsgFormat :: KnownFormatTag tag,
@@ -173,6 +193,14 @@ instance SerialiseMLS (MessageTBS 'MLSPlainText) where
     serialiseMLSBytes @Word32 d
     serialiseMLS p
 
+deriving instance Eq (MessageTBS 'MLSPlainText)
+
+deriving instance Eq (MessageTBS 'MLSCipherText)
+
+deriving instance Show (MessageTBS 'MLSPlainText)
+
+deriving instance Show (MessageTBS 'MLSCipherText)
+
 data SomeMessage where
   SomeMessage :: Sing tag -> Message tag -> SomeMessage
 
@@ -188,6 +216,7 @@ instance ParseMLS SomeMessage where
 data family Sender (tag :: WireFormatTag) :: *
 
 data instance Sender 'MLSCipherText = EncryptedSender {esData :: ByteString}
+  deriving (Eq, Show)
 
 instance ParseMLS (Sender 'MLSCipherText) where
   parseMLS = EncryptedSender <$> parseMLSBytes @Word8
@@ -205,6 +234,7 @@ data instance Sender 'MLSPlainText
   = MemberSender KeyPackageRef
   | PreconfiguredSender ByteString
   | NewMemberSender
+  deriving (Eq, Show, Generic)
 
 instance ParseMLS (Sender 'MLSPlainText) where
   parseMLS =
@@ -223,6 +253,14 @@ instance SerialiseMLS (Sender 'MLSPlainText) where
   serialiseMLS NewMemberSender = serialiseMLS NewMemberSender
 
 data family MessagePayload (tag :: WireFormatTag) :: *
+
+deriving instance Eq (MessagePayload 'MLSPlainText)
+
+deriving instance Eq (MessagePayload 'MLSCipherText)
+
+deriving instance Show (MessagePayload 'MLSPlainText)
+
+deriving instance Show (MessagePayload 'MLSCipherText)
 
 data instance MessagePayload 'MLSCipherText = CipherText
   { msgContentType :: Word8,
@@ -250,11 +288,16 @@ instance ParseMLS (MessagePayload 'MLSPlainText) where
       ProposalMessageTag -> ProposalMessage <$> parseMLS
       CommitMessageTag -> CommitMessage <$> parseMLS
 
+instance SerialiseMLS ContentType where
+  serialiseMLS = serialiseMLSEnum @Word8
+
 instance SerialiseMLS (MessagePayload 'MLSPlainText) where
-  serialiseMLS (ApplicationMessage msg) = serialiseMLSBytes @Word32 msg
-  serialiseMLS (ProposalMessage raw) = putByteString (rmRaw raw)
-  -- We do not need to serialise Commit messages, so the next case is left as a stub
-  serialiseMLS (CommitMessage _) = pure ()
+  serialiseMLS (ProposalMessage raw) = do
+    serialiseMLS ProposalMessageTag
+    putByteString (rmRaw raw)
+  -- We do not need to serialise Commit and Application messages,
+  -- so the next case is left as a stub
+  serialiseMLS _ = pure ()
 
 data MLSMessageSendingStatus = MLSMessageSendingStatus
   { mmssEvents :: [Event],

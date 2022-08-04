@@ -612,6 +612,7 @@ test-suite wire-api-tests
     Test.Wire.API.Roundtrip.Aeson
     Test.Wire.API.Roundtrip.ByteString
     Test.Wire.API.Roundtrip.CSV
+    Test.Wire.API.Roundtrip.MLS
     Test.Wire.API.Routes
     Test.Wire.API.Swagger
     Test.Wire.API.Team.Export
@@ -671,6 +672,7 @@ test-suite wire-api-tests
     , aeson-pretty
     , aeson-qq
     , base
+    , binary
     , bytestring
     , bytestring-arbitrary     >=0.1.3
     , bytestring-conversion
