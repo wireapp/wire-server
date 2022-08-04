@@ -14,7 +14,7 @@ Overriding helm configuration settings
 Default values
 ^^^^^^^^^^^^^^
 
-Default values are under a specific chart's ``values.yaml`` file, e.g. for the chart named ``cassandra-ephemeral``, this file: `charts/cassandra-ephemeral/values.yaml <https://github.com/wireapp/wire-server-deploy/blob/develop/charts/cassandra-ephemeral/values.yaml>`__. When you install or upgrade a chart, with e.g.::
+Default values are under a specific chart's ``values.yaml`` file, e.g. for the chart named ``cassandra-ephemeral``, this file: `charts/cassandra-ephemeral/values.yaml <https://github.com/wireapp/wire-server/blob/develop/charts/cassandra-ephemeral/values.yaml>`__. When you install or upgrade a chart, with e.g.::
 
     helm upgrade --install my-cassandra wire/cassandra-ephemeral
 
