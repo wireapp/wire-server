@@ -133,17 +133,20 @@ newIdPHandleForTeam ::
 newIdPHandleForTeam tid = do
   idpIds <- getIdPIdsByTeam tid
   handles <- mapMaybe runIdentity <$> retry x1 (query sel (params LocalQuorum (Identity idpIds)))
-  pure $ IdPHandle $ newUniqueHandle 1 handles
+  pure $ IdPHandle $ newUniqueHandle handles
   where
     sel :: PrepQuery R (Identity [SAML.IdPId]) (Identity (Maybe Text))
     sel = "SELECT handle FROM idp WHERE idp IN ?"
 
-newUniqueHandle :: Int -> [Text] -> Text
-newUniqueHandle n handles =
-  let handle = "IdP " <> pack (show n)
-   in if handle `elem` handles
-        then newUniqueHandle (n + 1) handles
-        else handle
+newUniqueHandle :: [Text] -> Text
+newUniqueHandle = newUniqueHandle' 1
+  where
+    newUniqueHandle' :: Int -> [Text] -> Text
+    newUniqueHandle' n handles =
+      let handle = "IdP " <> pack (show n)
+       in if handle `elem` handles
+            then newUniqueHandle' (n + 1) handles
+            else handle
 
 getIdPConfig ::
   forall m.
@@ -151,34 +154,44 @@ getIdPConfig ::
   SAML.IdPId ->
   m IdP
 getIdPConfig idpid = do
+  tid <- retry x1 (query1 selTid $ params LocalQuorum (Identity idpid))
+  idpIds <- maybe (pure []) getIdPIdsByTeam (runIdentity =<< tid)
+  handles <- mapMaybe runIdentity <$> retry x1 (query selHandles (params LocalQuorum (Identity idpIds)))
+
+  let mkHandle :: Maybe Text -> IdPHandle
+      mkHandle = maybe (IdPHandle . newUniqueHandle $ handles) IdPHandle
+
+      toIdp :: IdPConfigRow -> m IdP
+      toIdp
+        ( _idpId,
+          -- metadata
+          _edIssuer,
+          _edRequestURI,
+          certsHead,
+          certsTail,
+          -- extras
+          teamId,
+          apiVersion,
+          oldIssuers,
+          replacedBy,
+          mHandle
+          ) = do
+          let _edCertAuthnResponse = certsHead NL.:| certsTail
+              _idpMetadata = SAML.IdPMetadata {..}
+              _idpExtraInfo = WireIdP teamId apiVersion oldIssuers replacedBy (mkHandle mHandle)
+          pure $ SAML.IdPConfig {..}
+
   mbidp <- traverse toIdp =<< retry x1 (query1 sel $ params LocalQuorum (Identity idpid))
   maybe (throwError IdpNotFound) pure mbidp
   where
-    mkHandle :: SAML.IdPId -> Maybe Text -> IdPHandle
-    mkHandle idpid' = maybe (IdPHandle (pack (take 6 (show idpid')))) IdPHandle
-
-    toIdp :: IdPConfigRow -> m IdP
-    toIdp
-      ( _idpId,
-        -- metadata
-        _edIssuer,
-        _edRequestURI,
-        certsHead,
-        certsTail,
-        -- extras
-        teamId,
-        apiVersion,
-        oldIssuers,
-        replacedBy,
-        mHandle
-        ) = do
-        let _edCertAuthnResponse = certsHead NL.:| certsTail
-            _idpMetadata = SAML.IdPMetadata {..}
-            _idpExtraInfo = WireIdP teamId apiVersion oldIssuers replacedBy (mkHandle _idpId mHandle)
-        pure $ SAML.IdPConfig {..}
-
     sel :: PrepQuery R (Identity SAML.IdPId) IdPConfigRow
     sel = "SELECT idp, issuer, request_uri, public_key, extra_public_keys, team, api_version, old_issuers, replaced_by, handle FROM idp WHERE idp = ?"
+
+    selTid :: PrepQuery R (Identity SAML.IdPId) (Identity (Maybe TeamId))
+    selTid = "SELECT team FROM idp WHERE idp = ?"
+
+    selHandles :: PrepQuery R (Identity [SAML.IdPId]) (Identity (Maybe Text))
+    selHandles = "SELECT handle FROM idp WHERE idp IN ?"
 
 -- | Get all idps with a given issuer, no matter what team or what idp version.
 getAllIdPsByIssuerUnsafe ::
