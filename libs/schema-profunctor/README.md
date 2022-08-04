@@ -237,7 +237,7 @@ instance ToSchema FeatureTTL where
       parseSeconds :: A.Value -> A.Parser FeatureTTL
       parseSeconds = A.withScientific "FeatureTTL" $
         \s -> case toBoundedInteger s of
-          Just 0 -> pure FeatureTTLUnlimited
+          Just 0 -> pure FeatureTTLUnlimited  -- this makes `decode . encode /= id`, but you get the idea.  you could also fail here if you choose to.
           Just i -> pure . FeatureTTLSeconds $ i
           Nothing -> A.parseFail "Expected an integer."
 
