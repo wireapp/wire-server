@@ -244,7 +244,7 @@ instance ToSchema FeatureTTL where
       fromTTL :: FeatureTTL -> Maybe A.Value
       fromTTL FeatureTTLUnlimited = Just "unlimited"
       fromTTL (FeatureTTLSeconds 0) = Just "unlimited"
-      fromTTL (FeatureTTLSeconds s) = A.decode . toByteString $ s
+      fromTTL (FeatureTTLSeconds s) = Just $ A.toJSON s
 ```
 
 ### Enumerations
