@@ -26,16 +26,7 @@ For dealing with RST, here are some resources:
 * And [another one](https://sublime-and-sphinx-guide.readthedocs.io/en/latest/references.html).
 
 At the popular request, there is now also some support for markdown files (`.md` file
-extension). Note that this is [commonmark](https://spec.commonmark.org/0.30/) which is
-different to e.g.  github-flavoured markdown. See
-[recommonmark](https://recommonmark.readthedocs.io/en/latest/) for the
-currently-supported markdown.
-
-At this point, a documentation contributor creating a new file can choose to use
-commonmark markdown as the file format. Please hold off converting any existing files to
-a different format until better markdown support (`myst_parser` support, see
-[MyST](https://myst-parser.readthedocs.io/en/latest/)) has been added to wire-docs and
-pros and cons of the formats have been internally evaluated.
+extension), provided by [myst-parser](https://myst-parser.readthedocs.io).
 
 ### Conventions
 

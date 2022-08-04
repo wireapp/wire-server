@@ -139,29 +139,43 @@ let
   # packages necessary to build wire-server docs
   docsPkgs = [
     pkgsDocs.texlive.combined.scheme-full
-    (pkgsDocs.python3.withPackages (ps: with ps; [ sphinx recommonmark rst2pdf sphinx-autobuild sphinxcontrib-fulltoc sphinxcontrib-kroki sphinx-multiversion sphinx_rtd_theme ]))
+    (pkgsDocs.python3.withPackages
+      (ps: with ps; [
+        myst-parser
+        rst2pdf
+        sphinx
+        sphinx-autobuild
+        sphinx-multiversion
+        sphinx_rtd_theme
+        sphinxcontrib-fulltoc
+        sphinxcontrib-kroki
+      ]))
   ];
 
-  docs = pkgs.runCommandNoCC "wire-docs"
-    {
-      nativeBuildInputs = docsPkgs ++ [ pkgs.gnumake ];
-    } ''
-    cp -r ${pkgs.nix-gitignore.gitignoreSource [] ../docs}/* .
-    make docs-all
-    mkdir $out
-    cp -r build/* $out/
-  '';
+  docs =
+    pkgs.runCommandNoCC
+      "wire-docs"
+      {
+        nativeBuildInputs = docsPkgs ++ [ pkgs.gnumake ];
+      }
+      ''
+        cp -r ${pkgs.nix-gitignore.gitignoreSource [] ../docs}/* .
+        make docs-all
+        mkdir $out
+        cp -r build/* $out/
+      '';
 
-  docsEnv = pkgs.buildEnv {
-    name = "wire-server-docs-env";
-    paths = [
-      pkgsDocs.awscli
-      pkgsDocs.jq
-      pkgsDocs.niv
-      pkgsDocs.zip
-      pkgsDocs.entr
-    ] ++ docsPkgs;
-  };
+  docsEnv = pkgs.buildEnv
+    {
+      name = "wire-server-docs-env";
+      paths = [
+        pkgsDocs.awscli
+        pkgsDocs.jq
+        pkgsDocs.niv
+        pkgsDocs.zip
+        pkgsDocs.entr
+      ] ++ docsPkgs;
+    };
 in
 {
   inherit pkgs devPackages devEnv docs docsEnv compile-deps;
