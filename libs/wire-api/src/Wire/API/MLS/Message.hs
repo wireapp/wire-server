@@ -44,6 +44,7 @@ import Control.Lens ((?~))
 import qualified Data.Aeson as A
 import Data.Binary
 import Data.Binary.Get
+import Data.Binary.Put
 import Data.Json.Util
 import Data.Schema
 import Data.Singletons.TH
@@ -81,6 +82,12 @@ instance ParseMLS (MessageExtraFields 'MLSPlainText) where
       <*> parseMLSOptional (parseMLSBytes @Word8)
       <*> parseMLSOptional (parseMLSBytes @Word8)
 
+instance SerialiseMLS (MessageExtraFields 'MLSPlainText) where
+  serialiseMLS (MessageExtraFields sig mconf mmemb) = do
+    serialiseMLSBytes @Word16 sig
+    for_ mconf (serialiseMLSBytes @Word8)
+    for_ mmemb (serialiseMLSBytes @Word8)
+
 data instance MessageExtraFields 'MLSCipherText = NoExtraFields
 
 instance ParseMLS (MessageExtraFields 'MLSCipherText) where
@@ -90,6 +97,11 @@ data Message (tag :: WireFormatTag) = Message
   { msgTBS :: RawMLS (MessageTBS tag),
     msgExtraFields :: MessageExtraFields tag
   }
+
+instance SerialiseMLS (Message 'MLSPlainText) where
+  serialiseMLS (Message tbs extra) = do
+    putByteString (rmRaw tbs)
+    serialiseMLS extra
 
 instance ParseMLS (Message 'MLSPlainText) where
   parseMLS = Message <$> parseMLS <*> parseMLS
@@ -104,6 +116,12 @@ data KnownFormatTag (tag :: WireFormatTag) = KnownFormatTag
 
 instance ParseMLS (KnownFormatTag tag) where
   parseMLS = parseMLS @WireFormatTag $> KnownFormatTag
+
+instance SerialiseMLS (KnownFormatTag 'MLSPlainText) where
+  serialiseMLS _ = put (fromMLSEnum @Word8 MLSPlainText)
+
+instance SerialiseMLS (KnownFormatTag 'MLSCipherText) where
+  serialiseMLS _ = put (fromMLSEnum @Word8 MLSCipherText)
 
 data MessageTBS (tag :: WireFormatTag) = MessageTBS
   { tbsMsgFormat :: KnownFormatTag tag,
@@ -146,6 +164,15 @@ instance ParseMLS (MessageTBS 'MLSCipherText) where
     p <- parseMLSBytes @Word32
     pure $ MessageTBS f g e d s (CipherText ct p)
 
+instance SerialiseMLS (MessageTBS 'MLSPlainText) where
+  serialiseMLS (MessageTBS f g e d s p) = do
+    serialiseMLS f
+    serialiseMLS g
+    serialiseMLS e
+    serialiseMLS s
+    serialiseMLSBytes @Word32 d
+    serialiseMLS p
+
 data SomeMessage where
   SomeMessage :: Sing tag -> Message tag -> SomeMessage
 
@@ -171,6 +198,9 @@ data SenderTag = MemberSenderTag | PreconfiguredSenderTag | NewMemberSenderTag
 instance ParseMLS SenderTag where
   parseMLS = parseMLSEnum @Word8 "sender type"
 
+instance SerialiseMLS SenderTag where
+  serialiseMLS = serialiseMLSEnum @Word8
+
 data instance Sender 'MLSPlainText
   = MemberSender KeyPackageRef
   | PreconfiguredSender ByteString
@@ -182,6 +212,15 @@ instance ParseMLS (Sender 'MLSPlainText) where
       MemberSenderTag -> MemberSender <$> parseMLS
       PreconfiguredSenderTag -> PreconfiguredSender <$> parseMLSBytes @Word8
       NewMemberSenderTag -> pure NewMemberSender
+
+instance SerialiseMLS (Sender 'MLSPlainText) where
+  serialiseMLS (MemberSender r) = do
+    serialiseMLS MemberSenderTag
+    serialiseMLS r
+  serialiseMLS (PreconfiguredSender x) = do
+    serialiseMLS PreconfiguredSenderTag
+    serialiseMLSBytes @Word8 x
+  serialiseMLS NewMemberSender = serialiseMLS NewMemberSender
 
 data family MessagePayload (tag :: WireFormatTag) :: *
 
@@ -210,6 +249,12 @@ instance ParseMLS (MessagePayload 'MLSPlainText) where
       ApplicationMessageTag -> ApplicationMessage <$> parseMLSBytes @Word32
       ProposalMessageTag -> ProposalMessage <$> parseMLS
       CommitMessageTag -> CommitMessage <$> parseMLS
+
+instance SerialiseMLS (MessagePayload 'MLSPlainText) where
+  serialiseMLS (ApplicationMessage msg) = serialiseMLSBytes @Word32 msg
+  serialiseMLS (ProposalMessage raw) = putByteString (rmRaw raw)
+  -- We do not need to serialise Commit messages, so the next case is left as a stub
+  serialiseMLS (CommitMessage _) = pure ()
 
 data MLSMessageSendingStatus = MLSMessageSendingStatus
   { mmssEvents :: [Event],

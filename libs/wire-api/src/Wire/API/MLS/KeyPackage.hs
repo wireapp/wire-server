@@ -42,6 +42,7 @@ import Control.Lens hiding (set, (.=))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Binary
 import Data.Binary.Get
+import Data.Binary.Put
 import Data.Id
 import Data.Json.Util
 import Data.Qualified
@@ -122,6 +123,9 @@ instance ToSchema KeyPackageRef where
 
 instance ParseMLS KeyPackageRef where
   parseMLS = KeyPackageRef <$> getByteString 16
+
+instance SerialiseMLS KeyPackageRef where
+  serialiseMLS = putByteString . unKeyPackageRef
 
 -- | Compute key package ref given a ciphersuite and the raw key package data.
 kpRef :: CipherSuiteTag -> KeyPackageData -> KeyPackageRef
