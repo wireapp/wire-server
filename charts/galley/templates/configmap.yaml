@@ -59,6 +59,7 @@ data:
       enableIndexedBillingTeamMembers: {{ .settings.enableIndexedBillingTeamMembers }}
       {{- end }}
       federationDomain: {{ .settings.federationDomain }}
+      mlsPrivateKeyPath: "/etc/wire/galley/secrets/mls.key"
       {{- if .settings.featureFlags }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}
