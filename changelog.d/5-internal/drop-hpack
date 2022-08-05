@@ -1,0 +1,1 @@
+No more package.yaml / hpack, and stick with cabal files as the single (and only) source of truth
