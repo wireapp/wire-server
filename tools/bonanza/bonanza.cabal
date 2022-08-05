@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: 69f8e076592d4a3cea6af611bba2106000127e011bce90b73813a629885867bf
 
 name:           bonanza
 version:        3.6.0

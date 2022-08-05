@@ -45,9 +45,9 @@ Backend components startup
 
 The Wire server backend is designed to run on a kubernetes cluster. From a high level perspective the startup sequence from machine power-on to the Wire server being ready to receive requests is as follow:
 
-1. *Kubernetes node power on*. Systemd starts the kubelet service which makes the worker node available to kubernetes. For more details about kubernetes startup refer to `the official kubernetes documentation <https://kubernetes.io/docs/reference/setup-tools/kubeadm/implementation-details/>`__. For details about the installation and configuration of kubernetes and worker nodes for Wire server see :ref:`Installing kubernetes and databases on VMs with ansible <ansible_vms>`  
+1. *Kubernetes node power on*. Systemd starts the kubelet service which makes the worker node available to kubernetes. For more details about kubernetes startup refer to `the official kubernetes documentation <https://kubernetes.io/docs/reference/setup-tools/kubeadm/implementation-details/>`__. For details about the installation and configuration of kubernetes and worker nodes for Wire server see :ref:`Installing kubernetes and databases on VMs with ansible <ansible_vms>`
 2. *Kubernetes workload startup*. Kubernetes will ensure that Wire server workloads installed via helm are scheduled on available worker nodes. For more details about workload scheduling refer to `the official kubernetes documentation <https://kubernetes.io/docs/concepts/scheduling-eviction/kube-scheduler/>`__. For details about how to install Wire server with helm refer to :ref:`Installing wire-server (production) components using Helm <helm_prod>`.
-3. *Stateful workload startup*. Systemd starts the stateful services (cassandra, elasticsearch and minio). See for instance `ansible-cassandra role <https://github.com/wireapp/ansible-cassandra/blob/master/tasks/systemd.yml#L10>`__ and other database installation instructions in :ref:`Installing kubernetes and databases on VMs with ansible <ansible_vms>`  
+3. *Stateful workload startup*. Systemd starts the stateful services (cassandra, elasticsearch and minio). See for instance `ansible-cassandra role <https://github.com/wireapp/ansible-cassandra/blob/master/tasks/systemd.yml#L10>`__ and other database installation instructions in :ref:`Installing kubernetes and databases on VMs with ansible <ansible_vms>`
 4. *Other services*. Systemd starts the restund docker container. See `ansible-restund role <https://github.com/wireapp/ansible-restund/blob/9807313a7c72ffa40e74f69d239404fd87db65ab/templates/restund.service.j2#L12-L19>`__. For details about docker container startup `consult the official documentation <https://docs.docker.com/get-started/overview/#docker-architecture>`__
 
 .. note::
@@ -60,7 +60,7 @@ The Wire server backend is designed to run on a kubernetes cluster. From a high 
 Focus on pods
 ~~~~~~~~~~~~~
 
-The Wire backend runs in `a kubernetes cluster <https://kubernetes.io/>`__, with different components running in different `pods <https://kubernetes.io/docs/concepts/workloads/pods/>`__. 
+The Wire backend runs in `a kubernetes cluster <https://kubernetes.io/>`__, with different components running in different `pods <https://kubernetes.io/docs/concepts/workloads/pods/>`__.
 
 This is a list of those pods as found in a typical installation.
 
@@ -78,7 +78,7 @@ Frontend pods:
 Pods with an HTTP API:
 
 * ``brig``: `The user management API service <https://github.com/wireapp/wire-server/tree/develop/services/brig>`__. Connects to ``cassandra`` and ``elastisearch`` for user data storage, sends emails and SMS for account validation.
-* ``cannon``: `WebSockets API Service <https://github.com/wireapp/wire-server/blob/develop/services/cannon/package.yaml#L6>`__. Holds WebSocket connections. 
+* ``cannon``: `WebSockets API Service <https://github.com/wireapp/wire-server/blob/develop/services/cannon/>`__. Holds WebSocket connections.
 * ``cargohold``: `Asset Storage API Service <https://docs.wire.com/how-to/install/aws-prod.html>`__. Amazon-AWS-S3-style services are used by ``cargohold`` to store encrypted files that users are sharing amongst each other, such as images, files, and other static content, which we call assets. All assets except profile pictures are symmetrically encrypted before storage (and the keys are only known to the participants of the conversation in which an assets was shared - servers have no knowledge of the keys).
 * ``galley``: `Conversations and Teams API Service <https://docs.wire.com/understand/api-client-perspective/index.html>`__. Data is stored in cassandra. Uses ``gundeck`` to send notifications to users.
 * ``nginz``: Public API Reverse Proxy (Nginx with custom libzauth module). A modified copy of nginx, compiled with a specific set of upstream extra modules, and one important additional module zauth_nginx_module. Responsible for user authentication validation. Forwards traffic to all other API services (except federator)
@@ -88,16 +88,16 @@ Pods with an HTTP API:
 
 Supporting pods and data storage:
 
-* ``cassandra-ephemeral`` (or ``cassandra-external``): `NoSQL Database management system  <https://github.com/wireapp/wire-server/tree/develop/charts/cassandra-ephemeral>`__ (https://en.wikipedia.org/wiki/Apache_Cassandra). Everything stateful in wire-server (cassandra is used by ``brig``, ``galley``, ``gundeck`` and ``spar``) is stored in cassandra. 
-  * ``cassandra-ephemeral`` is for test clusters where persisting the data (i.e. loose users, conversations,...) does not matter, but this shouldn't be used in production environments. 
+* ``cassandra-ephemeral`` (or ``cassandra-external``): `NoSQL Database management system  <https://github.com/wireapp/wire-server/tree/develop/charts/cassandra-ephemeral>`__ (https://en.wikipedia.org/wiki/Apache_Cassandra). Everything stateful in wire-server (cassandra is used by ``brig``, ``galley``, ``gundeck`` and ``spar``) is stored in cassandra.
+  * ``cassandra-ephemeral`` is for test clusters where persisting the data (i.e. loose users, conversations,...) does not matter, but this shouldn't be used in production environments.
   * ``cassandra-external`` is used to point to an external cassandra cluster which is installed outside of Kubernetes.
 * ``demo-smtp``: In "demo" installations, used to replace a proper external SMTP server for the sending of emails (for example verification codes). In production environments, an actual SMTP server is used directly instead of this pod. (https://github.com/namshi/docker-smtp)
 * ``fluent-bit``: A log processor and forwarder, allowing collection of data such as metrics and logs from different sources. Not typically deployed. (https://fluentbit.io/)
-* ``elastisearch-ephemeral`` (or ``elastisearch-external``): `Distributed search and analytics engines, stores some user information (name, handle, userid, teamid) <https://github.com/wireapp/wire-server/tree/develop/charts/elastisearch-external>`__. Information is duplicated here from cassandra to allow searching for users. Information here can be re-populated from data in cassandra (albeit with some downtime for search functionality) (https://www.elastic.co/what-is/elasticsearch). 
-  * ``elastisearch-ephemeral`` is for test clusters where persisting the data doesn't matter. 
+* ``elastisearch-ephemeral`` (or ``elastisearch-external``): `Distributed search and analytics engines, stores some user information (name, handle, userid, teamid) <https://github.com/wireapp/wire-server/tree/develop/charts/elastisearch-external>`__. Information is duplicated here from cassandra to allow searching for users. Information here can be re-populated from data in cassandra (albeit with some downtime for search functionality) (https://www.elastic.co/what-is/elasticsearch).
+  * ``elastisearch-ephemeral`` is for test clusters where persisting the data doesn't matter.
   * ``elastisearch-external`` refers to elasticsearch IPs located outside kubernetes by specifying IPs manually.
 * ``fake-aws-s3``: Amazon-AWS-S3-compatible object storage using MinIO (https://min.io/), used by cargohold to store (encrypted) assets such as files, posted images, profile pics, etc.
-* ``fake-aws-s3-reaper``: Creates the default S3 bucket inside fake-aws-s3. 
+* ``fake-aws-s3-reaper``: Creates the default S3 bucket inside fake-aws-s3.
 * ``fake-aws-sns``. `Amazon Simple Notification Service (Amazon SNS) <https://docs.aws.amazon.com/AmazonS3/latest/userguide/NotificationHowTo.html>`__, used to push messages to mobile devices or distributed services. SNS can publish a message once, and deliver it one or more times.
 * ``fake-aws-sqs``: `Amazon Simple Queue Service (Amazon SQS) queue <https://docs.aws.amazon.com/AmazonS3/latest/userguide/NotificationHowTo.html>`__, used to transmit any volume of data without requiring other services to be always available.
 * ``redis-ephemeral``: Stores websocket connection assignments (part of the ``gundeck`` / ``cannon`` architecture).
@@ -146,8 +146,3 @@ As an example, this is the result of running the ``kubectl get pods --namespace 
 .. note::
 
   This list is not exhaustive, and your installation may have additional pods running depending on your configuration.
-
-
-
-
-

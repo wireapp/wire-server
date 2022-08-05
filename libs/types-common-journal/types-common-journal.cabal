@@ -1,10 +1,5 @@
 cabal-version: 2.0
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
---
--- see: https://github.com/sol/hpack
---
--- hash: 00a76393f405b068d1b0ffe0c3d0f59370b3ad9ac10a9c0bc08f5abe721bc351
 
 name:           types-common-journal
 version:        0.1.0

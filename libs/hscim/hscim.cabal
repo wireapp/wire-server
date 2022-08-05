@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: 492b6e29bec45fc722bb0c706c9bc29c4b8e86fa0bc88cc74e390c09026d2ea8
 
 name:           hscim
 version:        0.3.6

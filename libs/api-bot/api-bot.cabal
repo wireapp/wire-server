@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: 4010a19af0b65ce213a7afb528aa57a5ae3dba5fd870c09d28781afae11d2c4b
 
 name:           api-bot
 version:        0.4.2

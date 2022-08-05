@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: 727df0d926b5aa3f82005a16adac9fe9099398b9a6e997936897d6252201f249
 
 name:           metrics-wai
 version:        0.5.7

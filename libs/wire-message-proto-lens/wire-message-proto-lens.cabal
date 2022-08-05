@@ -1,10 +1,5 @@
 cabal-version: 2.0
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
---
--- see: https://github.com/sol/hpack
---
--- hash: 6340f0411146156e837457d65bb4936309fac1b9b2706bc99013fbc7b146c821
 
 name:           wire-message-proto-lens
 version:        0.1.0

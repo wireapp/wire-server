@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: ecdf5dcfd0edfbffa2ff3490ea07fc1a5fac46874617b280fe981ac942852ff2
 
 name:           metrics-core
 version:        0.3.2

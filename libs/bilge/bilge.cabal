@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: 02dbb0433605f5282d44accf8028da425b93c7e326c70ac8d2a092abab8db504
 
 name:           bilge
 version:        0.22.0
