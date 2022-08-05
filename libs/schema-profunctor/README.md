@@ -211,6 +211,12 @@ a highly customised instance.
 Here's an example of such a type. We can have either Seconds or Unlimited,
 with a caveat: 0 ~ Unlimited.
 
+(This examples has problems: it (a) breaks the law that `decode
+. encode == Just . id`, and (b) allows you to construct a value
+`FeatureTTLSeconds 0` to mean unlimited, which will probably break
+your application code.  So consider this a suggestion what
+schema-profunctor *allows* you to do, not what you *should* be doing.)
+
 ``` haskell
 data FeatureTTL
   = FeatureTTLSeconds Word
@@ -230,15 +236,15 @@ instance ToSchema FeatureTTL where
       parseUnlimited =
         A.withText "FeatureTTL" $
           \t ->
-            if t == "unlimited" || t == "0"
+            if t == "unlimited"
               then pure FeatureTTLUnlimited
               else A.parseFail "Expected ''unlimited' or '0'."
 
       parseSeconds :: A.Value -> A.Parser FeatureTTL
       parseSeconds = A.withScientific "FeatureTTL" $
         \s -> case toBoundedInteger s of
-          Just 0 -> pure FeatureTTLUnlimited  -- this makes `decode . encode /= id`, but you get the idea.  you could also fail here if you choose to.
-          Just i -> pure . FeatureTTLSeconds $ i
+          Just 0 -> pure FeatureTTLUnlimited
+          Just i -> pure $ FeatureTTLSeconds i
           Nothing -> A.parseFail "Expected an integer."
 
       fromTTL :: FeatureTTL -> Maybe A.Value
