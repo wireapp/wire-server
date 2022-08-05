@@ -9,6 +9,14 @@ let
     ];
   };
 
+  # a different pin for building wire-server docs.
+  # should eventually be moved to use the same pin.
+  pkgsDocs = import sources.nixpkgsDocs {
+    overlays = [
+      (import ./overlay-docs.nix)
+    ];
+  };
+
   c-lib-out-deps = [
     pkgs.cryptobox
     pkgs.icu.out
@@ -127,7 +135,48 @@ let
     name = "wire-server-direnv";
     paths = devPackages ++ [ profileEnv ];
   };
+
+  # packages necessary to build wire-server docs
+  docsPkgs = [
+    pkgsDocs.texlive.combined.scheme-full
+    (pkgsDocs.python3.withPackages
+      (ps: with ps; [
+        myst-parser
+        rst2pdf
+        sphinx
+        sphinx-autobuild
+        sphinx-multiversion
+        sphinx_rtd_theme
+        sphinxcontrib-fulltoc
+        sphinxcontrib-kroki
+      ]))
+  ];
+
+  docs =
+    pkgs.runCommandNoCC
+      "wire-docs"
+      {
+        nativeBuildInputs = docsPkgs ++ [ pkgs.gnumake ];
+      }
+      ''
+        cp -r ${pkgs.nix-gitignore.gitignoreSource [] ../docs}/* .
+        make docs-all
+        mkdir $out
+        cp -r build/* $out/
+      '';
+
+  docsEnv = pkgs.buildEnv
+    {
+      name = "wire-server-docs-env";
+      paths = [
+        pkgsDocs.awscli
+        pkgsDocs.jq
+        pkgsDocs.niv
+        pkgsDocs.zip
+        pkgsDocs.entr
+      ] ++ docsPkgs;
+    };
 in
 {
-  inherit pkgs devPackages devEnv compile-deps;
+  inherit pkgs devPackages devEnv docs docsEnv compile-deps;
 }

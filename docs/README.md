@@ -26,16 +26,7 @@ For dealing with RST, here are some resources:
 * And [another one](https://sublime-and-sphinx-guide.readthedocs.io/en/latest/references.html).
 
 At the popular request, there is now also some support for markdown files (`.md` file
-extension). Note that this is [commonmark](https://spec.commonmark.org/0.30/) which is
-different to e.g.  github-flavoured markdown. See
-[recommonmark](https://recommonmark.readthedocs.io/en/latest/) for the
-currently-supported markdown.
-
-At this point, a documentation contributor creating a new file can choose to use
-commonmark markdown as the file format. Please hold off converting any existing files to
-a different format until better markdown support (`myst_parser` support, see
-[MyST](https://myst-parser.readthedocs.io/en/latest/)) has been added to wire-docs and
-pros and cons of the formats have been internally evaluated.
+extension), provided by [myst-parser](https://myst-parser.readthedocs.io).
 
 ### Conventions
 
@@ -72,26 +63,11 @@ If another level is needed, please add the chosen symbol here.
 
 ## Building the docs
 
-### Dependencies
+Assuming you're set up for wire-server development, you should already have Nix
+and Direnv installed.
 
-Install the dependencies locally:
-
-1. Install [Nix](https://nixos.org/download.html)
-   * MacOS users with a recent Mac might need to follow [these
-   instructions](https://nixos.org/nix/manual/#sect-macos-installation)
-   * Debian users can use their distro's `nix` package, and should remember
-   to add their user to the `nix-users` group in /etc/group, and re-start
-   their login session.
-2. Install [Direnv](https://direnv.net/).
-   * On debian, you can install the `direnv` package. On MacOS use `brew install direnv`.
-   * On NixOS with home-manager, you can set `programs.direnv.enable = true;`.
-   * Make sure direnv is hooked into your shell via it's appripriate `rc` file.
-     Add `eval "$(direnv hook bash|zsh|fish)"` to your ~/.(bash|zsh|fish)rc .
-   * When successfully installed and hooked, direnv should ask you to `direnv allow`
-     the current `.envrc` when you cd to this repository.
-     See the [Installation documentation](https://direnv.net/docs/installation.html) for further details.
-
-Now, whenever you cd to wire-docs, you will have the relevant binaries (make, sphinx, rst2pdf, ...) in your PATH.
+This folder contains another `.envrc` file that adds all the binaries needed to
+build the docs to `$PATH`.
 
 ### Generating html output (one-off)
 
@@ -107,7 +83,7 @@ Enter a *development mode* by running
 make dev-run
 ```
 
-to start a local server and file watcher. Then, point your browser at `http://localhost:3000`. (or, alternatively, look at results by opening `build/html/index.html`) which will auto-update whenever files under `./src` change.
+to start a local server and file watcher. Then, point your browser at `http://localhost:3000`.
 
 ### Generating a PDF file
 
@@ -115,46 +91,7 @@ NOTE: support is experimental and resulting pdf may not have great formatting. S
 
 Run `make pdf` and look at files in `./build/pdf/`.
 
-You can use the `make dev-pdf` target to get auto-refreshing PDF files as you save source files. (requires a PDF viewer installed globally)
-
-<details>
-
-<summary> Alternative ways to build the documentation for preview without nix+direnv </summary>
-
-*Note: when switching from a docker-based building to a local building, you might encounter permission issues due to the build directory being owned by root. These can be solved by cleaning the build directory: `sudo rm -rf ./build/*`
-
-## Building the docs with docker
-
-You need `docker` available on your system.
-The docker image that is used is defined in the `Makefile`. To build the docker image locally (e.g. after updating dependencies) run `make docker`.
-
-### html
-
-Generate docs using docker (so you don't need to install python dependencies yourself)
-
-```
-make docs
-```
-
-See build/html/index.html
-
-### pdf
-
-```
-make docs-pdf
-```
-
-Then see build/pdf/
-
-</details>
-
-## For maintainers (Wire employees)
-
-### CI/CD configuration
-
-On a Pull request, the script inside [pr.yml](ci/pr.yml) will run. On a commit to master, the script inside [compile-and-upload.yml](ci/compile-and-upload.yml) will run.
-
-The actual concourse pipeline doing so is configured in [this private repository only available for Wire employees](https://github.com/zinfra/cailleach/blob/master/wire-server-private/ci/pipelines/wire_docs.yml)
+You can use the `make dev-pdf` target to get auto-refreshing PDF files as you save source files. This is also acessible at `http://localhost:3000/wire_federation.pdf`.
 
 ### Upload to S3
 
