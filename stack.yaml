@@ -54,7 +54,6 @@ packages:
 - services/proxy
 - services/spar
 - tools/api-simulations
-- tools/bonanza
 - tools/db/assets
 - tools/db/auto-whitelist
 - tools/db/migrate-sso-feature-flag

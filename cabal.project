@@ -41,7 +41,6 @@ packages:
   , services/proxy/
   , services/spar/
   , tools/api-simulations/
-  , tools/bonanza/
   , tools/db/assets/
   , tools/db/auto-whitelist/
   , tools/db/migrate-sso-feature-flag/
@@ -175,8 +174,6 @@ package auto-whitelist
 package bilge
     ghc-options: -Werror
 package billing-team-member-backfill
-    ghc-options: -Werror
-package bonanza
     ghc-options: -Werror
 package brig
     ghc-options: -Werror

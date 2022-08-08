@@ -541,16 +541,6 @@ kind-restart-%: .local/kind-kubeconfig
 helm-template-%: clean-charts charts-integration
 	./hack/bin/helm-template.sh $(*)
 
-# make bonanza-deb version=$VERSION
-.PHONY: bonanza-deb
-bonanza-deb:
-	makedeb --name=bonanza \
-            --version=$(version) \
-            --debian-dir=tools/bonanza/deb \
-            --build=0 \
-            --architecture=amd64 \
-            --output-dir=dist
-
 # make makedeb-deb version=$VERSION
 .PHONY: makedeb-deb
 makedeb-deb:
