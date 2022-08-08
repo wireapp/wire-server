@@ -92,7 +92,7 @@ testParseCommit = do
     _ -> assertFailure "Unexpected sender type"
 
   let payload = msgPayload msg
-  commit <- case msgTBS payload of
+  commit <- case payload of
     CommitMessage c -> pure c
     _ -> assertFailure "Unexpected message type"
 
