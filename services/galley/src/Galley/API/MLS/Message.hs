@@ -227,7 +227,7 @@ postMLSMessageToLocalConv qusr con smsg lcnv = case rmValue smsg of
 
     -- validate message
     events <- case tag of
-      SMLSPlainText -> case msgTBS (msgPayload msg) of
+      SMLSPlainText -> case msgPayload msg of
         CommitMessage c ->
           processCommit qusr con (qualifyAs lcnv conv) (msgEpoch msg) (msgSender msg) c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
