@@ -4,11 +4,9 @@ NAME           := nginz
 NGINX_VERSION   = 1.20.2
 NGINZ_VERSION  ?=
 SWAGGER_VERSION:= 2.2.10
-ARCH         := $(shell if [ -f "`which dpkg-architecture`" ]; then dpkg-architecture -qDEB_HOST_ARCH; else [ -f "`which dpkg`" ] && dpkg --print-architecture; fi )
 SHELL          := /usr/bin/env bash
 DIST           := build
 BIN            := src/objs/nginx
-DEB            := $(NAME)_$(NGINZ_VERSION)_$(ARCH).deb
 ifeq ($(DEBUG), 1)
 WITH_DEBUG      = --with-debug
 endif
@@ -74,9 +72,6 @@ clean:
 compile: $(BIN)
 	mkdir -p ../../dist
 	cp src/objs/nginx ../../dist/
-
-.PHONY: dist
-dist: guard-NGINZ_VERSION $(DIST)/$(DEB)
 
 $(BIN): src zwagger-ui/swagger-ui integration-test/conf/nginz/zwagger-ui
 	PKG_CONFIG_PATH=$(EXTRA_PKG_PATH) pkg-config --exists libzauth || { echo -e "\n\033[0;31m    The 'libzauth' library was not found\033[0m\n    pkg-config path = $(EXTRA_PKG_PATH)\n\n    Attempting to install it...\n" && $(MAKE) libzauth; }
