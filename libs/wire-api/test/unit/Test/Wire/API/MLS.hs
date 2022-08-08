@@ -17,6 +17,8 @@
 
 module Test.Wire.API.MLS where
 
+import Data.Binary
+import Data.Binary.Put
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain
@@ -47,7 +49,9 @@ tests =
       testCase "parse application message" testParseApplication,
       testCase "parse welcome message" testParseWelcome,
       testCase "key package ref" testKeyPackageRef,
-      testCase "validate message signature" testVerifyMLSPlainTextWithKey
+      testCase "validate message signature" testVerifyMLSPlainTextWithKey,
+      testCase "parse non-default proposal tag" testParseNonDefaultProposalTag,
+      testCase "parse non-default proposal" testParseNonDefaultProposal
     ]
 
 testParseKeyPackage :: IO ()
@@ -154,3 +158,27 @@ testVerifyMLSPlainTextWithKey = do
     assertBool
       "message signature verification failed"
       $ verifyMessageSignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 msg pubkey
+
+testParseNonDefaultProposalTag :: Assertion
+testParseNonDefaultProposalTag = do
+  let inputL = runPut . put @Word16 $ 0xff00 -- lower bound
+  decodeMLS inputL @?= Right NonDefaultProposalTag
+
+  let inputU = runPut . put @Word16 $ 0xffff -- upper bound
+  decodeMLS inputU @?= Right NonDefaultProposalTag
+
+  let inputOOB = runPut . put @Word16 $ 1000
+  decodeMLS @ProposalTag inputOOB @?= Left "Unknown proposal type"
+
+  let input = runPut . put @Word16 . fromMLSEnum $ maxBound @ProposalTag
+  decodeMLS @ProposalTag input @?= Left "Unknown proposal type"
+
+testParseNonDefaultProposal :: Assertion
+testParseNonDefaultProposal = do
+  let unknown = "unknown"
+  let serialised = runPut $ do
+        put @Word16 0xff00
+        put @Word16 . fromIntegral . BS.length $ unknown
+        putByteString unknown
+
+  decodeMLS serialised @?= Right (NonDefaultProposal unknown)

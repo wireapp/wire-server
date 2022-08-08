@@ -21,6 +21,7 @@ module Wire.API.MLS.Serialisation
     parseMLSBytes,
     parseMLSOptional,
     parseMLSEnum,
+    parseMLSEnumWithUnknown,
     BinaryMLS (..),
     MLSEnumError (..),
     fromMLSEnum,
@@ -51,6 +52,7 @@ import Data.Proxy
 import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
+import GHC.TypeLits
 import Imports
 
 -- | Parse a value encoded using the "TLS presentation" format.
@@ -91,6 +93,13 @@ parseMLSEnum ::
   Get a
 parseMLSEnum name = toMLSEnum name =<< get @w
 
+parseMLSEnumWithUnknown ::
+  forall (w :: *) lo hi a.
+  (Bounded a, Enum a, Integral w, Binary w, KnownNat lo, KnownNat hi) =>
+  String ->
+  Get a
+parseMLSEnumWithUnknown name = toMLSEnumWithUnknown @a @w @lo @hi name =<< get @w
+
 data MLSEnumError = MLSEnumUnknown | MLSEnumInvalid
 
 toMLSEnum' :: forall a w. (Bounded a, Enum a, Integral w) => w -> Either MLSEnumError a
@@ -105,6 +114,33 @@ toMLSEnum name = either err pure . toMLSEnum'
   where
     err MLSEnumUnknown = fail $ "Unknown " <> name
     err MLSEnumInvalid = fail $ "Invalid " <> name
+
+toMLSEnumWithUnknown' ::
+  forall a lo hi w.
+  (Bounded a, Enum a, Integral w, KnownNat lo, KnownNat hi) =>
+  w ->
+  Either MLSEnumError a
+toMLSEnumWithUnknown' w = case fromIntegral w - 1 of
+  n
+    | n >= fromEnum @a minBound && n < fromEnum @a maxBound -> Right (toEnum n)
+    | n < 0 -> Left MLSEnumInvalid
+    | n + 1 >= fromIntegral (natVal (Proxy @lo))
+        && n + 1 <= fromIntegral (natVal (Proxy @hi)) ->
+      Right maxBound -- should be the last data construtor of the @a enumeration
+    | otherwise -> Left MLSEnumUnknown
+
+toMLSEnumWithUnknown ::
+  forall a w lo hi f.
+  (Bounded a, Enum a, MonadFail f, Integral w, KnownNat lo, KnownNat hi) =>
+  String ->
+  w ->
+  f a
+toMLSEnumWithUnknown name = either err pure . toMLSEnumWithUnknown' @a @lo @hi
+  where
+    err MLSEnumUnknown = fail $ "Unknown " <> name
+    err MLSEnumInvalid = fail $ "Invalid " <> name
+
+-- maybe (fail $ "Invalid " <> name) pure . toMLSEnumWithUnknown' @a @w @u
 
 fromMLSEnum :: (Integral w, Enum a) => a -> w
 fromMLSEnum = fromIntegral . succ . fromEnum

@@ -39,11 +39,14 @@ data ProposalTag
   | ExternalInitProposalTag
   | AppAckProposalTag
   | GroupContextExtensionsProposalTag
+  | NonDefaultProposalTag
   deriving stock (Bounded, Enum, Eq, Generic, Show)
   deriving (Arbitrary) via GenericUniform ProposalTag
 
 instance ParseMLS ProposalTag where
-  parseMLS = parseMLSEnum @Word16 "proposal type"
+  -- from the specification, the range is 0xff00 -- 0xffff. Our linter
+  -- automatically converts this to the decimal format.
+  parseMLS = parseMLSEnumWithUnknown @Word16 @65280 @65535 "proposal type"
 
 data Proposal
   = AddProposal (RawMLS KeyPackage)
@@ -54,6 +57,7 @@ data Proposal
   | ExternalInitProposal ByteString
   | AppAckProposal [MessageRange]
   | GroupContextExtensionsProposal [Extension]
+  | NonDefaultProposal ByteString
   deriving stock (Eq, Show)
 
 instance ParseMLS Proposal where
@@ -68,6 +72,7 @@ instance ParseMLS Proposal where
       AppAckProposalTag -> AppAckProposal <$> parseMLSVector @Word32 parseMLS
       GroupContextExtensionsProposalTag ->
         GroupContextExtensionsProposal <$> parseMLSVector @Word32 parseMLS
+      NonDefaultProposalTag -> NonDefaultProposal <$> parseMLSBytes @Word16
 
 -- | Compute the proposal ref given a ciphersuite and the raw proposal data.
 proposalRef :: CipherSuiteTag -> RawMLS Proposal -> ProposalRef
