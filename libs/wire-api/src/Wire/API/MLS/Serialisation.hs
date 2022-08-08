@@ -38,6 +38,7 @@ module Wire.API.MLS.Serialisation
     rawMLSSchema,
     mlsSwagger,
     parseRawMLS,
+    mkRawMLS,
   )
 where
 
@@ -226,3 +227,9 @@ parseRawMLS p = do
 
 instance ParseMLS a => ParseMLS (RawMLS a) where
   parseMLS = parseRawMLS parseMLS
+
+instance SerialiseMLS (RawMLS a) where
+  serialiseMLS = putByteString . rmRaw
+
+mkRawMLS :: SerialiseMLS a => a -> RawMLS a
+mkRawMLS x = RawMLS (LBS.toStrict (runPut (serialiseMLS x))) x

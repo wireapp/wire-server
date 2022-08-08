@@ -38,14 +38,18 @@ module Wire.API.MLS.Message
     MLSMessageSendingStatus (..),
     KnownFormatTag (..),
     verifyMessageSignature,
+    mkRemoveProposalMessage,
   )
 where
 
 import Control.Lens ((?~))
+import Crypto.Error
+import Crypto.PubKey.Ed25519
 import qualified Data.Aeson as A
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
+import qualified Data.ByteArray as BA
 import Data.Json.Util
 import Data.Schema
 import Data.Singletons.TH
@@ -323,3 +327,24 @@ instance ToSchema MLSMessageSendingStatus where
 verifyMessageSignature :: CipherSuiteTag -> Message 'MLSPlainText -> ByteString -> Bool
 verifyMessageSignature cs msg pubkey =
   csVerifySignature cs pubkey (rmRaw (msgTBS msg)) (msgSignature (msgExtraFields msg))
+
+mkRemoveProposalMessage ::
+  SecretKey ->
+  PublicKey ->
+  GroupId ->
+  Epoch ->
+  KeyPackageRef ->
+  Maybe (Message 'MLSPlainText)
+mkRemoveProposalMessage priv pub gid epoch ref = maybeCryptoError $ do
+  let tbs =
+        mkRawMLS $
+          MessageTBS
+            { tbsMsgFormat = KnownFormatTag,
+              tbsMsgGroupId = gid,
+              tbsMsgEpoch = epoch,
+              tbsMsgAuthData = mempty,
+              tbsMsgSender = PreconfiguredSender mempty,
+              tbsMsgPayload = ProposalMessage (mkRemoveProposal ref)
+            }
+  let sig = BA.convert $ sign priv pub (rmRaw tbs)
+  pure (Message tbs (MessageExtraFields sig Nothing Nothing))
