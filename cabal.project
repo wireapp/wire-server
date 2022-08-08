@@ -49,7 +49,6 @@ packages:
   , tools/db/find-undead/
   , tools/db/move-team/
   , tools/db/repair-handles/
-  , tools/makedeb/
   , tools/rex/
   , tools/stern/
 
@@ -208,8 +207,6 @@ package gundeck-types
 package hscim
     ghc-options: -Werror
 package imports
-    ghc-options: -Werror
-package makedeb
     ghc-options: -Werror
 package metrics-core
     ghc-options: -Werror

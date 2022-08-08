@@ -84,13 +84,6 @@ $(BIN): src zwagger-ui/swagger-ui integration-test/conf/nginz/zwagger-ui
 	(cd src; PKG_CONFIG_PATH=$(EXTRA_PKG_PATH) ./configure $(CONFIG_OPTIONS) $(ADDITIONAL_MODULES))
 	make -C src
 
-%.deb: $(BIN) $(DIST) guard-ARCH
-	makedeb --name=$(NAME) \
-	 --version=$(NGINZ_VERSION) \
-	 --debian-dir=deb \
-	 --architecture=$(ARCH) \
-	 --output-dir=$(DIST)
-
 $(DIST):
 	mkdir -p $(DIST)
 

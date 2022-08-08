@@ -62,7 +62,6 @@ packages:
 - tools/db/find-undead
 - tools/db/move-team
 - tools/db/repair-handles
-- tools/makedeb
 - tools/rex
 - tools/stern
 

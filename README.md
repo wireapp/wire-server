@@ -51,7 +51,6 @@ This repository contains the following source code:
 
 - **tools**
    - **api-simulations**: Run automated smoke and load tests
-   - **makedeb**: Create Debian packages
    - **db/**: Migration tools (e.g. when new tables are added)
    - **stern/**: Backoffice tool (basic [Swagger](https://swagger.io/) based interface)
 
