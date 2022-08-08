@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -44,6 +45,9 @@ import Wire.API.User.Orphans (samlSchemaOptions)
 -- | The identity provider type used in Spar.
 type IdP = IdPConfig WireIdP
 
+newtype IdPHandle = IdPHandle {unIdPHandle :: Text}
+  deriving (Eq, Ord, Show, FromJSON, ToJSON, ToSchema, Arbitrary, Generic)
+
 data WireIdP = WireIdP
   { _wiTeam :: TeamId,
     -- | list of issuer names that this idp has replaced, most recent first.  this is used
@@ -54,7 +58,8 @@ data WireIdP = WireIdP
     -- | the issuer that has replaced this one.  this is set iff a new issuer is created
     -- with the @"replaces"@ query parameter, and it is used to decide whether users not
     -- existing on this IdP can be auto-provisioned (if 'isJust', they can't).
-    _wiReplacedBy :: Maybe SAML.IdPId
+    _wiReplacedBy :: Maybe SAML.IdPId,
+    _wiHandle :: IdPHandle
   }
   deriving (Eq, Show, Generic)
 

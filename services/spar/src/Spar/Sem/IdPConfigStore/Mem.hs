@@ -27,6 +27,7 @@ import Polysemy
 import Polysemy.State
 import qualified SAML2.WebSSO.Types as SAML
 import Spar.Sem.IdPConfigStore (IdPConfigStore (..), Replaced (..), Replacing (..))
+import Wire.API.User.IdentityProvider (IdPHandle (IdPHandle))
 import qualified Wire.API.User.IdentityProvider as IP
 import qualified Wire.API.User.IdentityProvider as SAML
 
@@ -45,6 +46,7 @@ idPToMem = evState . evEff
     evEff = reinterpret @_ @(State TypedState) $ \case
       InsertConfig iw ->
         modify' (insertConfig iw)
+      NewHandle _tid -> pure $ IdPHandle "IdP 1" --todo(leif): generate a new handle
       GetConfig i ->
         gets (getConfig i)
       GetIdPByIssuerV1Maybe issuer ->

@@ -19,6 +19,7 @@ module Wire.API.Routes.Public.Spar where
 
 import Data.Id
 import Data.Proxy
+import Data.Range
 import Data.Swagger (Swagger)
 import Imports
 import qualified SAML2.WebSSO as SAML
@@ -106,11 +107,13 @@ type IdpCreate =
   ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo
     :> QueryParam' '[Optional, Strict] "replaces" SAML.IdPId
     :> QueryParam' '[Optional, Strict] "api_version" WireIdPAPIVersion
+    :> QueryParam' '[Optional, Strict] "handle" (Range 1 32 Text) -- todo(leif): check length limitation
     :> PostCreated '[JSON] IdP
 
 type IdpUpdate =
   ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo
     :> Capture "id" SAML.IdPId
+    :> QueryParam' '[Optional, Strict] "handle" (Range 1 32 Text) -- todo(leif): check length limitation
     :> Put '[JSON] IdP
 
 type IdpDelete =

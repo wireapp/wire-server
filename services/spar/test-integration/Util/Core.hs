@@ -108,7 +108,9 @@ module Util.Core
     callIdpCreateRaw',
     callIdpCreateReplace,
     callIdpCreateReplace',
-    callIdpUpdate',
+    callIdpCreateWithHandle,
+    callIdpUpdate,
+    callIdpUpdateWithHandle,
     callIdpDelete,
     callIdpDelete',
     callIdpDeletePurge',
@@ -156,6 +158,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
 import Data.Range
 import Data.String.Conversions
+import Data.Text (pack)
 import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID as UUID hiding (fromByteString, null)
@@ -543,7 +546,10 @@ nextWireId :: MonadIO m => m (Id a)
 nextWireId = Id <$> liftIO UUID.nextRandom
 
 nextWireIdP :: MonadIO m => WireIdPAPIVersion -> m WireIdP
-nextWireIdP version = WireIdP <$> (Id <$> liftIO UUID.nextRandom) <*> pure (Just version) <*> pure [] <*> pure Nothing
+nextWireIdP version = WireIdP <$> iid <*> pure (Just version) <*> pure [] <*> pure Nothing <*> idpHandle
+  where
+    iid = Id <$> liftIO UUID.nextRandom
+    idpHandle = iid <&> IdPHandle . pack . show
 
 nextSAMLID :: MonadIO m => m (ID a)
 nextSAMLID = mkID . UUID.toText <$> liftIO UUID.nextRandom
@@ -1090,6 +1096,33 @@ callIdpCreateRaw' sparreq_ muid ctyp metadata = do
       . body (RequestBodyLBS metadata)
       . header "Content-Type" ctyp
 
+callIdpCreateWithHandle :: (MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> SAML.IdPMetadata -> IdPHandle -> m IdP
+callIdpCreateWithHandle apiversion sparreq_ muid metadata idpHandle = do
+  resp <- callIdpCreateWithHandle' apiversion (sparreq_ . expect2xx) muid metadata idpHandle
+  either (liftIO . throwIO . ErrorCall . show) pure $
+    responseJsonEither @IdP resp
+
+callIdpCreateWithHandle' :: (HasCallStack, MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> IdPMetadata -> IdPHandle -> m ResponseLBS
+callIdpCreateWithHandle' apiversion sparreq_ muid metadata idpHandle = do
+  explicitQueryParam <- do
+    -- `&api_version=v1` is implicit and can be omitted from the query, but we want to test
+    -- both, and not spend extra time on it.
+    liftIO $ randomRIO (True, False)
+  let versionParam =
+        case apiversion of
+          WireIdPAPIV1 -> if explicitQueryParam then Just "v1" else Nothing
+          WireIdPAPIV2 -> Just "v2"
+  post $
+    sparreq_
+      . maybe id zUser muid
+      . path "/identity-providers/"
+      . Bilge.query
+        [ ("api_version", versionParam),
+          ("handle", Just . cs . unIdPHandle $ idpHandle)
+        ]
+      . body (RequestBodyLBS . cs $ SAML.encode metadata)
+      . header "Content-Type" "application/xml"
+
 callIdpCreateReplace :: (MonadIO m, MonadHttp m) => WireIdPAPIVersion -> SparReq -> Maybe UserId -> IdPMetadata -> IdPId -> m IdP
 callIdpCreateReplace apiversion sparreq_ muid metadata idpid = do
   resp <- callIdpCreateReplace' apiversion (sparreq_ . expect2xx) muid metadata idpid
@@ -1119,12 +1152,22 @@ callIdpCreateReplace' apiversion sparreq_ muid metadata idpid = do
       . body (RequestBodyLBS . cs $ SAML.encode metadata)
       . header "Content-Type" "application/xml"
 
-callIdpUpdate' :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> m ResponseLBS
-callIdpUpdate' sparreq_ muid idpid (IdPMetadataValue metadata _) = do
+callIdpUpdate :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> m ResponseLBS
+callIdpUpdate sparreq_ muid idpid (IdPMetadataValue metadata _) = do
   put $
     sparreq_
       . maybe id zUser muid
       . paths ["identity-providers", toByteString' $ idPIdToST idpid]
+      . body (RequestBodyLBS $ cs metadata)
+      . header "Content-Type" "application/xml"
+
+callIdpUpdateWithHandle :: (MonadIO m, MonadHttp m) => SparReq -> Maybe UserId -> IdPId -> IdPMetadataInfo -> IdPHandle -> m ResponseLBS
+callIdpUpdateWithHandle sparreq_ muid idpid (IdPMetadataValue metadata _) idpHandle = do
+  put $
+    sparreq_
+      . maybe id zUser muid
+      . paths ["identity-providers", toByteString' $ idPIdToST idpid]
+      . Bilge.query [("handle", Just . cs . unIdPHandle $ idpHandle)]
       . body (RequestBodyLBS $ cs metadata)
       . header "Content-Type" "application/xml"
 
