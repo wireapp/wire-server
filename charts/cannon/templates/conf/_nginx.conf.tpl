@@ -196,8 +196,8 @@ http {
     ssl_certificate_key /etc/wire/nginz/tls/tls.key;
 
     ssl_protocols {{ .Values.nginx_conf.tls.protocols }};
-    ssl_ciphers {{ .Values.nginx_conf.tls.ciphers }}; # redundant/unused due to the line below, but needed to keep nginx/openssl config parsing happy.
-    ssl_conf_command Ciphersuites {{ .Values.nginx_conf.tls.ciphers }}; # needed to override TLS 1.3 ciphers.
+    ssl_ciphers {{ .Values.nginx_conf.tls.ciphers_tls12 }}; # this only sets TLS 1.2 ciphers (and has no effect if TLS 1.2 is not enabled)
+    ssl_conf_command Ciphersuites {{ .Values.nginx_conf.tls.ciphers_tls13 }}; # needed to override TLS 1.3 ciphers.
 
     # Disable session resumption. See comments in SQPIT-226 for more context and
     # discussion.
