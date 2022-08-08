@@ -26,6 +26,16 @@ Even when the flag is `disabled`, galley will keep writing to the
 been added in order to deploy new code and backfill data in
 production.
 
+### MLS private key paths
+
+The `mlsPrivateKeyPaths` field should contain a mapping from signature schemes
+to file paths of corresponding private keys. For example:
+
+```
+  mlsPrivateKeyPaths:
+    ed25519: /etc/secrets/ed25519.key
+```
+
 ## Feature flags
 
 > Also see [Wire docs](https://docs.wire.com/how-to/install/team-feature-settings.html) where some of the feature flags are documented from an operations point of view.
