@@ -25,6 +25,7 @@ module Galley.Intra.Client
     getClientByKeyPackageRef,
     getLocalMLSClients,
     addKeyPackageRef,
+    updateKeyPackageRef,
   )
 where
 
@@ -208,5 +209,16 @@ addKeyPackageRef ref qusr cl qcnv =
       ( method PUT
           . paths ["i", "mls", "key-packages", toHeader ref]
           . json (NewKeyPackageRef qusr cl qcnv)
+          . expect2xx
+      )
+
+updateKeyPackageRef :: KeyPackageRef -> KeyPackageRef -> App ()
+updateKeyPackageRef previousRef newRef =
+  void $
+    call
+      Brig
+      ( method POST
+          . paths ["i", "mls", "key-packages", toHeader previousRef]
+          . json newRef
           . expect2xx
       )

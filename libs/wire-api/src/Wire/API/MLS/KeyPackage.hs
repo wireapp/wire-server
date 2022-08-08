@@ -114,6 +114,7 @@ instance ToSchema KeyPackageCount where
 newtype KeyPackageRef = KeyPackageRef {unKeyPackageRef :: ByteString}
   deriving stock (Eq, Ord, Show)
   deriving (FromHttpApiData, ToHttpApiData, S.ToParamSchema) via Base64ByteString
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema KeyPackageRef)
 
 instance ToSchema KeyPackageRef where
   schema = named "KeyPackageRef" $ unKeyPackageRef .= fmap KeyPackageRef base64Schema

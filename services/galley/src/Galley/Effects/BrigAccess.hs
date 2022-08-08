@@ -51,6 +51,7 @@ module Galley.Effects.BrigAccess
     getClientByKeyPackageRef,
     getLocalMLSClients,
     addKeyPackageRef,
+    updateKeyPackageRef,
 
     -- * Features
     getAccountConferenceCallingConfigClient,
@@ -128,6 +129,7 @@ data BrigAccess m a where
   GetClientByKeyPackageRef :: KeyPackageRef -> BrigAccess m (Maybe ClientIdentity)
   GetLocalMLSClients :: Local UserId -> SignatureSchemeTag -> BrigAccess m (Set ClientId)
   AddKeyPackageRef :: KeyPackageRef -> Qualified UserId -> ClientId -> Qualified ConvId -> BrigAccess m ()
+  UpdateKeyPackageRef :: KeyPackageRef -> KeyPackageRef -> BrigAccess m ()
   UpdateSearchVisibilityInbound ::
     Multi.TeamStatus SearchVisibilityInboundConfig ->
     BrigAccess m ()

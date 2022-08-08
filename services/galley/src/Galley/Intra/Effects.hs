@@ -82,6 +82,9 @@ interpretBrigAccess = interpret $ \case
   AddKeyPackageRef ref qusr cl qcnv ->
     embedApp $
       addKeyPackageRef ref qusr cl qcnv
+  UpdateKeyPackageRef previousRef newRef ->
+    embedApp $
+      updateKeyPackageRef previousRef newRef
   UpdateSearchVisibilityInbound status ->
     embedApp $ updateSearchVisibilityInbound status
 
