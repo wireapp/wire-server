@@ -70,7 +70,6 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.Error
 import Wire.API.Routes.Public.Galley (ConversationResponse)
 import Wire.API.Routes.Public.Util
-import Wire.API.Team
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.Team.Member
 import Wire.API.Team.Permission hiding (self)
@@ -212,8 +211,6 @@ createOne2OneConversation ::
        Error InvalidInput,
        ErrorS 'ConvAccessDenied,
        ErrorS 'NotATeamMember,
-       ErrorS 'NonBindingTeam,
-       ErrorS 'NoBindingTeamMembers,
        ErrorS OperationDenied,
        ErrorS 'TeamNotFound,
        ErrorS 'InvalidOperation,
@@ -253,7 +250,7 @@ createOne2OneConversation lusr zcon j = do
     verifyMembership tid u = do
       membership <- E.getTeamMember tid u
       when (isNothing membership) $
-        throwS @'NoBindingTeamMembers
+        throwS @'NotATeamMember
     checkBindingTeamPermissions ::
       Local UserId ->
       TeamId ->
@@ -261,13 +258,10 @@ createOne2OneConversation lusr zcon j = do
     checkBindingTeamPermissions lother tid = do
       zusrMembership <- E.getTeamMember tid (tUnqualified lusr)
       void $ permissionCheck CreateConversation zusrMembership
-      E.getTeamBinding tid >>= \case
-        Just Binding -> do
-          verifyMembership tid (tUnqualified lusr)
-          verifyMembership tid (tUnqualified lother)
-          pure (Just tid)
-        Just _ -> throwS @'NonBindingTeam
-        Nothing -> throwS @'TeamNotFound
+      assertTeamExists tid
+      verifyMembership tid (tUnqualified lusr)
+      verifyMembership tid (tUnqualified lother)
+      pure (Just tid)
 
 createLegacyOne2OneConversationUnchecked ::
   Members

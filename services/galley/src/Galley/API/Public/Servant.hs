@@ -104,8 +104,7 @@ servantSitemap =
     bot = mkNamedAPI @"post-bot-message-unqualified" postBotMessageUnqualified
 
     team =
-      mkNamedAPI @"create-non-binding-team" createNonBindingTeamH
-        <@> mkNamedAPI @"update-team" updateTeamH
+      mkNamedAPI @"update-team" updateTeamH
         <@> mkNamedAPI @"get-teams" getManyTeams
         <@> mkNamedAPI @"get-team" getTeamH
         <@> mkNamedAPI @"delete-team" deleteTeam
@@ -181,8 +180,6 @@ servantSitemap =
       mkNamedAPI @"get-team-members" getTeamMembers
         <@> mkNamedAPI @"get-team-member" getTeamMember
         <@> mkNamedAPI @"get-team-members-by-ids" bulkGetTeamMembers
-        <@> mkNamedAPI @"add-team-member" (addTeamMember @Cassandra)
         <@> mkNamedAPI @"delete-team-member" deleteTeamMember
-        <@> mkNamedAPI @"delete-non-binding-team-member" deleteNonBindingTeamMember
         <@> mkNamedAPI @"update-team-member" updateTeamMember
         <@> mkNamedAPI @"get-team-members-csv" getTeamMembersCSV

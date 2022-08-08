@@ -496,7 +496,7 @@ legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
   -- and the team has legalhold enabled
   mteam <- lift $ Intra.getTeamId uid
   case mteam of
-    Nothing -> throwE LegalHoldLoginNoBindingTeam
+    Nothing -> throwE LegalHoldLoginTeamNotFound
     Just tid -> assertLegalHoldEnabled tid
   -- create access token and cookie
   newAccess @ZAuth.LegalHoldUser @ZAuth.LegalHoldAccess uid typ label

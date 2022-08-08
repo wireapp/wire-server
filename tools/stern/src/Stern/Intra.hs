@@ -404,8 +404,7 @@ getUserBindingTeam u = do
   pure $
     listToMaybe $
       fmap (view teamId) $
-        filter ((== Binding) . view teamBinding) $
-          teams ^. teamListTeams
+        teams ^. teamListTeams
 
 getInvoiceUrl :: TeamId -> InvoiceId -> Handler ByteString
 getInvoiceUrl tid iid = do

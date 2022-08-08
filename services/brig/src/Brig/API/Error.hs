@@ -116,7 +116,7 @@ changeHandleError ChangeHandleInvalid = StdError (errorToWai @'E.InvalidHandle)
 changeHandleError ChangeHandleManagedByScim = StdError (errorToWai @'E.HandleManagedByScim)
 
 legalHoldLoginError :: LegalHoldLoginError -> Error
-legalHoldLoginError LegalHoldLoginNoBindingTeam = StdError noBindingTeam
+legalHoldLoginError LegalHoldLoginTeamNotFound = StdError teamNotFound
 legalHoldLoginError LegalHoldLoginLegalHoldNotEnabled = StdError legalHoldNotEnabled
 legalHoldLoginError (LegalHoldLoginError e) = loginError e
 legalHoldLoginError (LegalHoldReAuthError e) = reauthError e
@@ -366,8 +366,9 @@ authTokenUnsupported = Wai.mkError status403 "invalid-credentials" "Unsupported 
 insufficientTeamPermissions :: Wai.Error
 insufficientTeamPermissions = errorToWai @'E.InsufficientTeamPermissions
 
-noBindingTeam :: Wai.Error
-noBindingTeam = Wai.mkError status403 "no-binding-team" "Operation allowed only on binding teams"
+-- FUTUREWORK: should this status be 404?
+teamNotFound :: Wai.Error
+teamNotFound = Wai.mkError status403 "no-binding-team" "Operation allowed only on binding teams"
 
 propertyManagedByScim :: LText -> Wai.Error
 propertyManagedByScim prop = Wai.mkError status403 "managed-by-scim" $ "Updating \"" <> prop <> "\" is not allowed, because it is managed by SCIM"

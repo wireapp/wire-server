@@ -2,7 +2,6 @@
     "has_more": false,
     "teams": [
         {
-            "binding": false,
             "creator": "00000000-0000-0001-0000-000100000000",
             "icon": "3-1-55b9ad19-315c-4bda-8c0f-5d7b0e143008",
             "icon_key": "",
@@ -11,7 +10,6 @@
             "splash_screen": "default"
         },
         {
-            "binding": false,
             "creator": "00000001-0000-0001-0000-000100000000",
             "icon": "3-1-55b9ad19-315c-4bda-8c0f-5d7b0e143008",
             "icon_key": "",

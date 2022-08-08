@@ -1,0 +1,3 @@
+-p '/Teams API/&&/add team conversation with role/'
+-p '/Teams API/&&/add team member to conversation without connection/'
+-p '/Teams API/&&/delete team conversation/'

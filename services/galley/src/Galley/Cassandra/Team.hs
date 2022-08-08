@@ -71,7 +71,7 @@ interpretTeamStoreToCassandra lh = interpret $ \case
   CreateTeamMember tid mem -> embedClient $ addTeamMember tid mem
   SetTeamMemberPermissions perm0 tid uid perm1 ->
     embedClient $ updateTeamMember perm0 tid uid perm1
-  CreateTeam t uid n i k b -> embedClient $ createTeam t uid n i k b
+  CreateTeam t uid n i k -> embedClient $ createTeam t uid n i k
   DeleteTeamMember tid uid -> embedClient $ removeTeamMember tid uid
   GetBillingTeamMembers tid -> embedClient $ listBillingTeamMembers tid
   GetTeam tid -> embedClient $ team tid
@@ -86,8 +86,6 @@ interpretTeamStoreToCassandra lh = interpret $ \case
   GetUserTeams uid -> embedClient $ userTeams uid
   GetUsersTeams uids -> embedClient $ usersTeams uids
   GetOneUserTeam uid -> embedClient $ oneUserTeam uid
-  GetTeamsBindings tid -> embedClient $ getTeamsBindings tid
-  GetTeamBinding tid -> embedClient $ getTeamBinding tid
   GetTeamCreationTime tid -> embedClient $ teamCreationTime tid
   DeleteTeam tid -> embedClient $ deleteTeam tid
   DeleteTeamConversation tid cid -> embedClient $ removeTeamConv tid cid
@@ -137,15 +135,11 @@ createTeam ::
   Range 1 256 Text ->
   Icon ->
   Maybe (Range 1 256 Text) ->
-  TeamBinding ->
   Client Team
-createTeam t uid (fromRange -> n) i k b = do
+createTeam t uid (fromRange -> n) i k = do
   tid <- maybe (Id <$> liftIO nextRandom) pure t
-  retry x5 $ write Cql.insertTeam (params LocalQuorum (tid, uid, n, i, fromRange <$> k, initialStatus b, b))
-  pure (newTeam tid uid n i b & teamIconKey .~ (fromRange <$> k))
-  where
-    initialStatus Binding = PendingActive -- Team becomes Active after User account activation
-    initialStatus NonBinding = Active
+  retry x5 $ write Cql.insertTeam (params LocalQuorum (tid, uid, n, i, fromRange <$> k, PendingActive))
+  pure (newTeam tid uid n i & teamIconKey .~ (fromRange <$> k))
 
 listBillingTeamMembers :: TeamId -> Client [UserId]
 listBillingTeamMembers tid =
@@ -247,8 +241,8 @@ team :: TeamId -> Client (Maybe TeamData)
 team tid =
   fmap toTeam <$> retry x1 (query1 Cql.selectTeam (params LocalQuorum (Identity tid)))
   where
-    toTeam (u, n, i, k, d, s, st, b, ss) =
-      let t = newTeam tid u n i (fromMaybe NonBinding b) & teamIconKey .~ k & teamSplashScreen .~ fromMaybe DefaultIcon ss
+    toTeam (u, n, i, k, d, s, st, ss) =
+      let t = newTeam tid u n i & teamIconKey .~ k & teamSplashScreen .~ fromMaybe DefaultIcon ss
           status = if d then PendingDelete else fromMaybe Active s
        in TeamData t status (writeTimeToUTC <$> st)
 
@@ -315,16 +309,6 @@ teamCreationTime t =
   where
     checkCreation (Just (Just ts)) = Just $ TeamCreationTime ts
     checkCreation _ = Nothing
-
-getTeamBinding :: TeamId -> Client (Maybe TeamBinding)
-getTeamBinding t =
-  fmap (fromMaybe NonBinding . runIdentity)
-    <$> retry x1 (query1 Cql.selectTeamBinding (params LocalQuorum (Identity t)))
-
-getTeamsBindings :: [TeamId] -> Client [TeamBinding]
-getTeamsBindings =
-  fmap catMaybes
-    . UnliftIO.pooledMapConcurrentlyN 8 getTeamBinding
 
 deleteTeam :: TeamId -> Client ()
 deleteTeam tid = do

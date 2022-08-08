@@ -43,14 +43,11 @@ import Wire.API.User.Client.Prekey
 
 -- Teams --------------------------------------------------------------------
 
-selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Icon, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe TeamBinding, Maybe Icon)
-selectTeam = "select creator, name, icon, icon_key, deleted, status, writetime(status), binding, splash_screen from team where team = ?"
+selectTeam :: PrepQuery R (Identity TeamId) (UserId, Text, Icon, Maybe Text, Bool, Maybe TeamStatus, Maybe (Writetime TeamStatus), Maybe Icon)
+selectTeam = "select creator, name, icon, icon_key, deleted, status, writetime(status), splash_screen from team where team = ?"
 
 selectTeamName :: PrepQuery R (Identity TeamId) (Identity Text)
 selectTeamName = "select name from team where team = ?"
-
-selectTeamBinding :: PrepQuery R (Identity TeamId) (Identity (Maybe TeamBinding))
-selectTeamBinding = "select binding from team where team = ?"
 
 selectTeamBindingWritetime :: PrepQuery R (Identity TeamId) (Identity (Maybe Int64))
 selectTeamBindingWritetime = "select writetime(binding) from team where team = ?"
@@ -139,8 +136,8 @@ selectUserTeamsIn = "select team from user_team where user = ? and team in ? ord
 selectUserTeamsFrom :: PrepQuery R (UserId, TeamId) (Identity TeamId)
 selectUserTeamsFrom = "select team from user_team where user = ? and team > ? order by team"
 
-insertTeam :: PrepQuery W (TeamId, UserId, Text, Icon, Maybe Text, TeamStatus, TeamBinding) ()
-insertTeam = "insert into team (team, creator, name, icon, icon_key, deleted, status, binding) values (?, ?, ?, ?, ?, false, ?, ?)"
+insertTeam :: PrepQuery W (TeamId, UserId, Text, Icon, Maybe Text, TeamStatus) ()
+insertTeam = "insert into team (team, creator, name, icon, icon_key, deleted, status) values (?, ?, ?, ?, ?, false, ?)"
 
 insertTeamConv :: PrepQuery W (TeamId, ConvId) ()
 insertTeamConv = "insert into team_conv (team, conv) values (?, ?)"
