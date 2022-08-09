@@ -61,7 +61,7 @@ endif
 
 # Usage: make c package=brig test=1
 .PHONY: c
-c:
+c: cabal-fmt
 	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package)
 ifeq ($(test), 1)
 	./hack/bin/cabal-run-tests.sh $(package) $(testargs)
