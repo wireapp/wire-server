@@ -328,6 +328,7 @@ processCommit ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Input (Local ())) r,
     Member ProposalStore r,
+    Member BrigAccess r,
     Member Resource r
   ) =>
   Qualified UserId ->
@@ -353,24 +354,31 @@ processCommit qusr con lconv epoch sender commit = do
   let ttlSeconds :: Int = 600 -- 10 minutes
   withCommitLock groupId epoch (fromIntegral ttlSeconds) $ do
     checkEpoch epoch (tUnqualified lconv)
-    when (epoch == Epoch 0) $ do
-      -- this is a newly created conversation, and it should contain exactly one
-      -- client (the creator)
-      case (sender, first (toList . lmMLSClients) self) of
-        (MemberSender ref, Left [creatorClient]) -> do
-          -- register the creator client
-          addKeyPackageRef
-            ref
-            qusr
-            creatorClient
-            (qUntagged (fmap Data.convId lconv))
-        -- remote clients cannot send the first commit
-        (_, Right _) -> throwS @'MLSStaleMessage
-        -- uninitialised conversations should contain exactly one client
-        (MemberSender _, _) ->
-          throw (InternalErrorWithDescription "Unexpected creator client set")
-        -- the sender of the first commit must be a member
-        _ -> throw (mlsProtocolError "Unexpected sender")
+    if epoch == Epoch 0
+      then
+        -- this is a newly created conversation, and it should contain exactly one
+        -- client (the creator)
+        case (sender, first (toList . lmMLSClients) self) of
+          (MemberSender ref, Left [creatorClient]) -> do
+            -- register the creator client
+            addKeyPackageRef
+              ref
+              qusr
+              creatorClient
+              (qUntagged (fmap Data.convId lconv))
+          -- remote clients cannot send the first commit
+          (_, Right _) -> throwS @'MLSStaleMessage
+          -- uninitialised conversations should contain exactly one client
+          (MemberSender _, _) ->
+            throw (InternalErrorWithDescription "Unexpected creator client set")
+          -- the sender of the first commit must be a member
+          _ -> throw (mlsProtocolError "Unexpected sender")
+      else
+        case (sender, kpRef' . upLeaf =<< cPath commit) of
+          (MemberSender senderRef, Just updatedRef) -> do
+            updateKeyPackageRef senderRef updatedRef
+          (_, Nothing) -> pure () -- ignore commits without update path
+          _ -> throw (mlsProtocolError "Unexpected sender")
 
     -- check all pending proposals are referenced in the commit
     allPendingProposals <- getAllPendingProposals groupId epoch
