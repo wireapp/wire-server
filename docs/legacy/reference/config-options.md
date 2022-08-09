@@ -29,11 +29,20 @@ production.
 ### MLS private key paths
 
 The `mlsPrivateKeyPaths` field should contain a mapping from signature schemes
-to file paths of corresponding private keys. For example:
+to file paths of corresponding x509 private keys in PEM format.
+
+For example:
 
 ```
   mlsPrivateKeyPaths:
-    ed25519: /etc/secrets/ed25519.key
+    ed25519: /etc/secrets/ed25519.pem
+```
+
+A simple way to generate an ed25519 private key, discarding the corresponding
+certificate, is to run the following command:
+
+```
+openssl req -nodes -newkey ed25519 -keyout ed25519.pem -out /dev/null -subj /
 ```
 
 ## Feature flags

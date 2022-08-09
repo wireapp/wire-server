@@ -105,7 +105,7 @@ data Settings = Settings
     -- the owners.
     -- Defaults to false.
     _setEnableIndexedBillingTeamMembers :: !(Maybe Bool),
-    _setMlsPrivateKeyPaths :: !(Map SignatureSchemeTag FilePath),
+    _setMlsPrivateKeyPaths :: !(Maybe (Map SignatureSchemeTag FilePath)),
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _setFeatureFlags :: !FeatureFlags
   }
