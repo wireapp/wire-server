@@ -360,9 +360,11 @@ processCommit qusr con lconv epoch sender commit = do
         -- client (the creator)
         case (sender, first (toList . lmMLSClients) self) of
           (MemberSender ref, Left [creatorClient]) -> do
+            -- use update path as sender reference and if not existing fall back to sender
+            let senderRef = maybe ref (fromMaybe ref . kpRef' . upLeaf) $ cPath commit
             -- register the creator client
             addKeyPackageRef
-              ref
+              senderRef
               qusr
               creatorClient
               (qUntagged (fmap Data.convId lconv))
