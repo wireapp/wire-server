@@ -127,8 +127,14 @@ data:
         ssl_session_timeout 5m;
         ssl_prefer_server_ciphers on;
         ssl_protocols TLSv1.2 TLSv1.3;
-        ssl_ciphers 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384';
-
+        # NOTE: These are some sane defaults (compliant to TR-02102-2), you may want to overrride them on your own installation
+        # For TR-02102-2 see https://www.bsi.bund.de/SharedDocs/Downloads/EN/BSI/Publications/TechGuidelines/TG02102/BSI-TR-02102-2.html
+        # As a Wire employee, for Wire-internal discussions and context see
+        # * https://wearezeta.atlassian.net/browse/FS-33
+        # * https://wearezeta.atlassian.net/browse/FS-444
+        ssl_ciphers 'ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384'; # for TLS 1.2
+        # FUTUREWORK: upgrade nginx used for the backoffice to support ssl_conf_command (i.e. build a new backoffice-frontend), then uncomment below
+        # ssl_conf_command Ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384; # for TLS 1.3
         server {
           listen {{ .Values.service.internalPort }};
 

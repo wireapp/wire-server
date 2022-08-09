@@ -177,7 +177,5 @@ blessedCiphers =
     TLS.cipher_TLS13_AES256GCM_SHA384,
     -- For TLS 1.2 (copied from default nginx ingress config):
     TLS.cipher_ECDHE_ECDSA_AES256GCM_SHA384,
-    TLS.cipher_ECDHE_RSA_AES256GCM_SHA384,
-    TLS.cipher_ECDHE_ECDSA_AES128GCM_SHA256,
-    TLS.cipher_ECDHE_RSA_AES128GCM_SHA256
+    TLS.cipher_ECDHE_RSA_AES256GCM_SHA384
   ]
