@@ -13,7 +13,7 @@ if [ -z "$cabal_file" ]; then
     exit
 fi
 
-cabal_file=$(realpath "$TOP_LEVEL"/$cabal_file --relative-to="$(pwd)")
+cabal_file=$(realpath "$TOP_LEVEL"/"$cabal_file" --relative-to="$(pwd)")
 
 set -x
 cabal-fmt -i "$cabal_file"
