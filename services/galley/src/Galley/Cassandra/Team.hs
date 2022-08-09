@@ -239,12 +239,30 @@ removeTeamMember t m =
 
 team :: TeamId -> Client (Maybe TeamData)
 team tid =
-  fmap toTeam <$> retry x1 (query1 Cql.selectTeam (params LocalQuorum (Identity tid)))
+  (>>= toTeam) <$> retry x1 (query1 Cql.selectTeam (params LocalQuorum (Identity tid)))
   where
-    toTeam (u, n, i, k, d, s, st, ss) =
+    toTeam ::
+      ( UserId,
+        Text,
+        Icon,
+        Maybe Text,
+        Bool,
+        Maybe TeamStatus,
+        Maybe (Writetime a),
+        Maybe Bool,
+        Maybe Icon
+      ) ->
+      Maybe TeamData
+    toTeam (_, _, _, _, _, _, _, Just False, _) =
+      -- non-binding teams are no longer supported as of
+      -- https://github.com/wireapp/wire-server/pull/2514 if you have created binding teams in
+      -- the past (which was only possible via the rest api, not with any of the supported
+      -- clients), they will no longer be visible.
+      Nothing
+    toTeam (u, n, i, k, d, s, st, _, ss) =
       let t = newTeam tid u n i & teamIconKey .~ k & teamSplashScreen .~ fromMaybe DefaultIcon ss
           status = if d then PendingDelete else fromMaybe Active s
-       in TeamData t status (writeTimeToUTC <$> st)
+       in Just $ TeamData t status (writeTimeToUTC <$> st)
 
 teamIdsOf :: UserId -> [TeamId] -> Client [TeamId]
 teamIdsOf usr tids =
