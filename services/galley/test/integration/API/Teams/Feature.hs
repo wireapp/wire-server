@@ -246,7 +246,7 @@ testSearchVisibility = do
         g <- view tsGalley
         Util.putTeamSearchVisibilityAvailableInternal g teamid val
 
-  (owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
+  (owner, tid, [member]) <- Util.createBindingTeamWithNMembers 1
   nonMember <- Util.randomUser
 
   assertFlagForbidden $ Util.getTeamFeatureFlag @Public.SearchVisibilityAvailableConfig nonMember tid
