@@ -185,7 +185,7 @@ messageTimerChangeWithRemotes = do
 messageTimerChangeWithoutAllowedAction :: TestM ()
 messageTimerChangeWithoutAllowedAction = do
   -- Create a team and a guest user
-  (tid, owner, member : _) <- createBindingTeamWithMembers 1
+  (tid, owner, member : _) <- createBindingTeamWithMembers 2
   guest <- randomUser
   connectUsers owner (list1 guest [])
   -- Create a conversation

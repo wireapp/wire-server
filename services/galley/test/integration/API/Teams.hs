@@ -52,7 +52,7 @@ import Data.Misc (HttpsUrl, PlainTextPassword (..), mkHttpsUrl)
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
--- import qualified Data.Text as T
+import qualified Data.Text as T
 import Data.Text.Ascii (AsciiChars (validate))
 import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
@@ -1299,58 +1299,53 @@ testUpdateTeamIconValidation = do
   update payloadSetIconToDefault 200
 
 testUpdateTeam :: TestM ()
-testUpdateTeam = error "todo(leif)"
+testUpdateTeam = do
+  g <- view tsGalley
+  c <- view tsCannon
+  (tid, owner, [member]) <- Util.createBindingTeamWithMembers 2
 
---   g <- view tsGalley
---   c <- view tsCannon
--- <<<<<<< HEAD
---   (tid, owner, [member]) <- Util.createBindingTeamWithMembers 2
+  let doPut :: LByteString -> Int -> TestM ()
+      doPut payload code =
+        put
+          ( g
+              . paths ["teams", toByteString' tid]
+              . zUser owner
+              . zConn "conn"
+              . contentJson
+              . body (RequestBodyLBS payload)
+          )
+          !!! const code
+          === statusCode
 
---   let doPut :: LByteString -> Int -> TestM ()
---       doPut payload code =
---         put
---           ( g
---               . paths ["teams", toByteString' tid]
---               . zUser owner
---               . zConn "conn"
---               . contentJson
---               . body (RequestBodyLBS payload)
---           )
---           !!! const code
---           === statusCode
+  let bad = object ["name" .= T.replicate 100 "too large"]
+  doPut (encode bad) 400
 
--- =======
---   (tid, owner, member : _) <- Util.createBindingTeamWithMembers 2
--- >>>>>>> wip
---   let bad = object ["name" .= T.replicate 100 "too large"]
---   doPut (encode bad) 400
+  let u =
+        newTeamUpdateData
+          & nameUpdate .~ (Just $ unsafeRange "bar")
+          & iconUpdate .~ fromByteString "3-1-47de4580-ae51-4650-acbb-d10c028cb0ac"
+          & iconKeyUpdate .~ (Just $ unsafeRange "yyy")
+          & splashScreenUpdate .~ fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a"
+  WS.bracketR2 c owner member $ \(wsOwner, wsMember) -> do
+    doPut (encode u) 200
+    checkTeamUpdateEvent tid u wsOwner
+    checkTeamUpdateEvent tid u wsMember
+    WS.assertNoEvent timeout [wsOwner, wsMember]
+  t <- Util.getTeam owner tid
+  liftIO $ assertEqual "teamSplashScreen" (t ^. teamSplashScreen) (fromJust $ fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a")
 
---   let u =
---         newTeamUpdateData
---           & nameUpdate .~ (Just $ unsafeRange "bar")
---           & iconUpdate .~ fromByteString "3-1-47de4580-ae51-4650-acbb-d10c028cb0ac"
---           & iconKeyUpdate .~ (Just $ unsafeRange "yyy")
---           & splashScreenUpdate .~ fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a"
---   WS.bracketR2 c owner member $ \(wsOwner, wsMember) -> do
---     doPut (encode u) 200
---     checkTeamUpdateEvent tid u wsOwner
---     checkTeamUpdateEvent tid u wsMember
---     WS.assertNoEvent timeout [wsOwner, wsMember]
---   t <- Util.getTeam owner tid
---   liftIO $ assertEqual "teamSplashScreen" (t ^. teamSplashScreen) (fromJust $ fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a")
+  do
+    -- setting fields to `null` is the same as omitting the them from the update json record.
+    -- ("name" is set because a completely empty update object is rejected.)
+    doPut "{\"name\": \"new team name\", \"splash_screen\": null}" 200
+    t' <- Util.getTeam owner tid
+    liftIO $ assertEqual "teamSplashScreen" (t' ^. teamSplashScreen) (fromJust $ fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a")
 
---   do
---     -- setting fields to `null` is the same as omitting the them from the update json record.
---     -- ("name" is set because a completely empty update object is rejected.)
---     doPut "{\"name\": \"new team name\", \"splash_screen\": null}" 200
---     t' <- Util.getTeam owner tid
---     liftIO $ assertEqual "teamSplashScreen" (t' ^. teamSplashScreen) (fromJust $ fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a")
-
---   do
---     -- setting splash screen to `"default"` will delete the splash screen.
---     doPut "{\"splash_screen\": \"default\"}" 200
---     t' <- Util.getTeam owner tid
---     liftIO $ assertEqual "teamSplashScreen" (t' ^. teamSplashScreen) DefaultIcon
+  do
+    -- setting splash screen to `"default"` will delete the splash screen.
+    doPut "{\"splash_screen\": \"default\"}" 200
+    t' <- Util.getTeam owner tid
+    liftIO $ assertEqual "teamSplashScreen" (t' ^. teamSplashScreen) DefaultIcon
 
 testTeamAddRemoveMemberAboveThresholdNoEvents :: HasCallStack => TestM ()
 testTeamAddRemoveMemberAboveThresholdNoEvents = do
