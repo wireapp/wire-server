@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: 738b7369cd6cbbf07382a5645aa9c475292f016888ee76c40569aa56d24d9cae
 
 name:           gundeck-types
 version:        1.45.0

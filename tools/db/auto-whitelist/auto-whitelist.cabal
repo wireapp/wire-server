@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: 561dfb8c435cc015a570a0c4200e1644e0ff4e057450b6360db05466c5b947a7
 
 name:           auto-whitelist
 version:        1.0.0

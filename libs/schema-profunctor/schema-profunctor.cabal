@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: 7bd983abb154f5addeacc46487c7b2d05ab07a6fcc4aa1012c25f028e2f90d13
 
 name:           schema-profunctor
 version:        0.1.0

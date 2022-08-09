@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: 0204c1b2ab38844b968c4c7d7eaa789d6a585ce3d7b9f347de6b9f18792b1055
 
 name:           polysemy-wire-zoo
 version:        0.1.0

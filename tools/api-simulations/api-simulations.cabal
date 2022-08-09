@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: 6fadbcf542408132b2419f8f1b77897b9b1810d44ade8606c2572d6adf445ccd
 
 name:           api-simulations
 version:        0.4.2

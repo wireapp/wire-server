@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: b2b29448c5c69da6fab48930b3ddbb84107bd66b81e718bc334f6a8d60c03b51
 
 name:           migrate-sso-feature-flag
 version:        1.0.0

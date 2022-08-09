@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: 4dc14749b24ff2e418dca953beb2c1fa2903c5c3b99832c11ec99ddc401476c6
 
 name:           ropes
 version:        0.4.20

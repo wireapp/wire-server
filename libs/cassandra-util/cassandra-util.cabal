@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: 23fae7c145e7caafdaf90ad2186c54ceffc973065e99ac6032b0241e9cb8c243
 
 name:           cassandra-util
 version:        0.16.5

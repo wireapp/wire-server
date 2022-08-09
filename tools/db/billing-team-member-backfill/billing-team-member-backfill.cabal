@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: c58131b47e82c5c350d69739a326a16c5d5cef209995eddd9dd96c62128c28da
 
 name:           billing-team-member-backfill
 version:        1.0.0

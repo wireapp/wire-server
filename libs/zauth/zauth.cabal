@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: e57665a219e79f60ac611473191a4fadac25f8dcca93aad3bb1ca7c9ab06604e
 
 name:           zauth
 version:        0.10.3

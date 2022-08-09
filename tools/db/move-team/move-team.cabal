@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: a58bc40fc81a030528f9e4fbae86ecbbf74587d181f2c057c8576a04ad0e1f5c
 
 name:           move-team
 version:        1.0.0

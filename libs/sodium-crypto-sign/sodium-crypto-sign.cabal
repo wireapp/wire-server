@@ -1,10 +1,5 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: 188b33e448d43772b1e4a01c070e1148acb30cf546bc088c21c3838d16a645cb
 
 name:           sodium-crypto-sign
 version:        0.1.2
