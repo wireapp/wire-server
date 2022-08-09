@@ -750,8 +750,9 @@ testAddTeamConvWithRole = do
     checkTeamMemberJoin tid (mem1 ^. userId) wsOwner
     checkTeamMemberJoin tid (mem1 ^. userId) wsMem2
     -- ... but not to regular ones.
-    -- something still wrong here!
     Util.assertNotConvMember (mem1 ^. userId) cid2
+    -- there is another team update event in the queue, so we clean it up
+    ensureQueueEmpty
 
 testCreateTeamMLSConv :: TestM ()
 testCreateTeamMLSConv = do
@@ -804,140 +805,96 @@ testAddTeamConvAsExternalPartner = do
       const "operation-denied" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
 testAddTeamMemberToConv :: TestM ()
-testAddTeamMemberToConv = error "todo(leif)"
+testAddTeamMemberToConv = do
+  personalUser <- Util.randomUser
+  (ownerT1, qOwnerT1) <- Util.randomUserTuple
+  let p = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
+  mem1T1 <- Util.randomUser
+  qMem1T1 <- Qualified mem1T1 <$> viewFederationDomain
+  mem2T1 <- Util.randomUser
+  qMem2T1 <- Qualified mem2T1 <$> viewFederationDomain
 
---   personalUser <- Util.randomUser
--- <<<<<<< HEAD
---   (ownerT1, qOwnerT1) <- Util.randomUserTuple
---   let p = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
---   mem1T1 <- newTeamMember' p <$> Util.randomUser
---   qMem1T1 <- Qualified (mem1T1 ^. userId) <$> viewFederationDomain
---   mem2T1 <- newTeamMember' p <$> Util.randomUser
---   qMem2T1 <- Qualified (mem2T1 ^. userId) <$> viewFederationDomain
---   mem3T1 <- newTeamMember' (Util.symmPermissions []) <$> Util.randomUser
---   qMem3T1 <- Qualified (mem3T1 ^. userId) <$> viewFederationDomain
---   mem4T1 <- newTeamMember' (Util.symmPermissions []) <$> Util.randomUser
---   qMem4T1 <- Qualified (mem4T1 ^. userId) <$> viewFederationDomain
---   (ownerT2, qOwnerT2) <- Util.randomUserTuple
---   mem1T2 <- newTeamMember' p <$> Util.randomUser
---   qMem1T2 <- Qualified (mem1T2 ^. userId) <$> viewFederationDomain
---   Util.connectUsers ownerT1 (list1 (mem1T1 ^. userId) [mem2T1 ^. userId, mem3T1 ^. userId, ownerT2, personalUser])
---   tidT1 <- Util.createNonBindingTeam "foo" ownerT1 [mem1T1, mem2T1, mem3T1]
---   tidT2 <- Util.createBindingTeamInternal "foo" ownerT2
---   _ <- Util.addTeamMemberInternal tidT2 (mem1T2 ^. userId) (mem1T2 ^. permissions) (mem1T2 ^. invitation)
--- =======
---   (tidT1, ownerT1, mem1T1 : mem2T1 : mem3T1 : mem4T1 : _) <- Util.createBindingTeamWithMembers 5
---   qOwnerT1 <- Qualified ownerT1 <$> viewFederationDomain
---   qMem1T1 <- Qualified (mem1T1) <$> viewFederationDomain
---   qMem2T1 <- Qualified (mem2T1) <$> viewFederationDomain
+  let pEmpty = Util.symmPermissions []
+  mem3T1 <- Util.randomUser
+  qMem3T1 <- Qualified mem3T1 <$> viewFederationDomain
 
---   (tidT2, ownerT2, mem1T2 : _) <- Util.createBindingTeamWithMembers 2
---   qOwnerT2 <- Qualified ownerT2 <$> viewFederationDomain
---   qMem1T2 <- Qualified mem1T2 <$> viewFederationDomain
+  mem4T1 <- newTeamMember' pEmpty <$> Util.randomUser
+  qMem4T1 <- Qualified (mem4T1 ^. userId) <$> viewFederationDomain
+  (ownerT2, qOwnerT2) <- Util.randomUserTuple
+  mem1T2 <- newTeamMember' p <$> Util.randomUser
+  qMem1T2 <- Qualified (mem1T2 ^. userId) <$> viewFederationDomain
+  Util.connectUsers ownerT1 (list1 mem1T1 [mem2T1, mem3T1, ownerT2, personalUser])
+  tidT1 <- createBindingTeamInternal "foo" ownerT1
+  do
+    Util.addTeamMemberInternal tidT1 mem1T1 p Nothing
+    Util.addTeamMemberInternal tidT1 mem2T1 p Nothing
+    Util.addTeamMemberInternal tidT1 mem3T1 pEmpty Nothing
+  tidT2 <- Util.createBindingTeamInternal "foo" ownerT2
+  Util.addTeamMemberInternal tidT2 (mem1T2 ^. userId) (mem1T2 ^. permissions) (mem1T2 ^. invitation)
+  -- Team owners create new regular team conversation:
+  cidT1 <- Util.createTeamConv ownerT1 tidT1 [] (Just "blaa") Nothing Nothing
+  qcidT1 <- Qualified cidT1 <$> viewFederationDomain
+  cidT2 <- Util.createTeamConv ownerT2 tidT2 [] (Just "blaa") Nothing Nothing
+  qcidT2 <- Qualified cidT2 <$> viewFederationDomain
+  cidPersonal <- decodeConvId <$> Util.postConv personalUser [] (Just "blaa") [] Nothing Nothing
+  qcidPersonal <- Qualified cidPersonal <$> viewFederationDomain
+  -- NOTE: This functionality was _changed_ as there was no need for it...
+  -- mem1T1 (who is *not* a member of the new conversation) can *not* add other team members
+  -- despite being a team member and having the permission `DoNotUseDeprecatedAddRemoveConvMember`.
+  Util.assertNotConvMember mem1T1 cidT1
+  Util.postMembers mem1T1 (pure qMem2T1) qcidT1 !!! const 404 === statusCode
+  Util.assertNotConvMember mem2T1 cidT1
+  -- OTOH, mem3T1 _can_ add another team member despite lacking the required team permission
+  -- since conversation roles trump any team roles. Note that all users are admins by default
+  Util.assertConvMember qOwnerT1 cidT1
+  Util.postMembers ownerT1 (pure qMem2T1) qcidT1 !!! const 200 === statusCode
+  Util.assertConvMember qMem2T1 cidT1
+  -- The following tests check the logic: users can add other users to a conversation
+  -- iff:
+  --    - *the adding user is connected to the users being added*
+  --    OR
+  --    - *the adding user is part of the team of the users being added*
 
---   Util.connectUsers ownerT1 (list1 (mem1T1) [mem2T1, mem3T1, ownerT2, personalUser])
--- >>>>>>> wip
---   -- Team owners create new regular team conversation:
---   cidT1 <- Util.createTeamConv ownerT1 tidT1 [] (Just "blaa") Nothing Nothing
---   qcidT1 <- Qualified cidT1 <$> viewFederationDomain
---   cidT2 <- Util.createTeamConv ownerT2 tidT2 [] (Just "blaa") Nothing Nothing
---   qcidT2 <- Qualified cidT2 <$> viewFederationDomain
---   cidPersonal <- decodeConvId <$> Util.postConv personalUser [] (Just "blaa") [] Nothing Nothing
---   qcidPersonal <- Qualified cidPersonal <$> viewFederationDomain
---   -- NOTE: This functionality was _changed_ as there was no need for it...
---   -- mem1T1 (who is *not* a member of the new conversation) can *not* add other team members
---   -- despite being a team member and having the permission `DoNotUseDeprecatedAddRemoveConvMember`.
--- <<<<<<< HEAD
---   Util.assertNotConvMember (mem1T1 ^. userId) cidT1
---   Util.postMembers (mem1T1 ^. userId) (pure qMem2T1) qcidT1 !!! const 404 === statusCode
---   Util.assertNotConvMember (mem2T1 ^. userId) cidT1
---   -- OTOH, mem3T1 _can_ add another team member despite lacking the required team permission
---   -- since conversation roles trump any team roles. Note that all users are admins by default
---   Util.assertConvMember qOwnerT1 cidT1
---   Util.postMembers ownerT1 (pure qMem2T1) qcidT1 !!! const 200 === statusCode
--- =======
---   Util.assertNotConvMember mem1T1 cidT1
---   Util.postMembers mem1T1 (list1 (mem2T1) []) cidT1 !!! const 404 === statusCode
---   Util.assertNotConvMember (mem2T1) cidT1
---   -- OTOH, mem3T1 _can_ add another team member despite lacking the required team permission
---   -- since conversation roles trump any team roles. Note that all users are admins by default
---   Util.assertConvMember qOwnerT1 cidT1
---   Util.postMembers ownerT1 (list1 (mem2T1) []) cidT1 !!! const 200 === statusCode
--- >>>>>>> wip
---   Util.assertConvMember qMem2T1 cidT1
---   -- The following tests check the logic: users can add other users to a conversation
---   -- iff:
---   --    - *the adding user is connected to the users being added*
---   --    OR
---   --    - *the adding user is part of the team of the users being added*
+  -- Now we add someone from T2 that we are connected to
+  Util.postMembers ownerT1 (pure qOwnerT2) qcidT1 !!! const 200 === statusCode
+  Util.assertConvMember qOwnerT2 cidT1
+  -- And they can add their own team members
+  Util.postMembers ownerT2 (pure qMem1T2) qcidT1 !!! const 200 === statusCode
+  Util.assertConvMember qMem1T2 cidT1
+  -- Still, they cannot add random members without a connection from T1, despite the conversation being "hosted" there
+  Util.postMembers ownerT2 (pure qMem4T1) qcidT1 !!! const 403 === statusCode
+  Util.assertNotConvMember (mem4T1 ^. userId) cidT1
+  -- Now let's look at convs hosted on team2
+  -- ownerT2 *is* connected to ownerT1
+  Util.postMembers ownerT2 (pure qOwnerT1) qcidT2 !!! const 200 === statusCode
+  Util.assertConvMember qOwnerT1 cidT2
+  -- and mem1T2 is on the same team, but mem1T1 is *not*
+  Util.postMembers ownerT2 (qMem1T2 :| [qMem1T1]) qcidT2 !!! const 403 === statusCode
+  Util.assertNotConvMember mem1T1 cidT2
+  Util.assertNotConvMember (mem1T2 ^. userId) cidT2
+  -- mem1T2 is on the same team, so that is fine too
+  Util.postMembers ownerT2 (pure qMem1T2) qcidT2 !!! const 200 === statusCode
+  Util.assertConvMember qMem1T2 cidT2
+  -- ownerT2 is *NOT* connected to mem3T1 and not on the same team, so should not be allowed to add
+  Util.postMembers ownerT2 (pure qMem3T1) qcidT2 !!! const 403 === statusCode
+  Util.assertNotConvMember mem3T1 cidT2
+  -- For personal conversations, same logic applies
 
---   -- Now we add someone from T2 that we are connected to
---   Util.postMembers ownerT1 (pure qOwnerT2) qcidT1 !!! const 200 === statusCode
---   Util.assertConvMember qOwnerT2 cidT1
---   -- And they can add their own team members
--- <<<<<<< HEAD
---   Util.postMembers ownerT2 (pure qMem1T2) qcidT1 !!! const 200 === statusCode
---   Util.assertConvMember qMem1T2 cidT1
---   -- Still, they cannot add random members without a connection from T1, despite the conversation being "hosted" there
---   Util.postMembers ownerT2 (pure qMem4T1) qcidT1 !!! const 403 === statusCode
---   Util.assertNotConvMember (mem4T1 ^. userId) cidT1
--- =======
---   Util.postMembers ownerT2 (list1 (mem1T2) []) cidT1 !!! const 200 === statusCode
---   Util.assertConvMember qMem1T2 cidT1
---   -- Still, they cannot add random members without a connection from T1, despite the conversation being "hosted" there
---   Util.postMembers ownerT2 (list1 (mem4T1) []) cidT1 !!! const 403 === statusCode
---   Util.assertNotConvMember (mem4T1) cidT1
--- >>>>>>> wip
---   -- Now let's look at convs hosted on team2
---   -- ownerT2 *is* connected to ownerT1
---   Util.postMembers ownerT2 (pure qOwnerT1) qcidT2 !!! const 200 === statusCode
---   Util.assertConvMember qOwnerT1 cidT2
---   -- and mem1T2 is on the same team, but mem1T1 is *not*
--- <<<<<<< HEAD
---   Util.postMembers ownerT2 (qMem1T2 :| [qMem1T1]) qcidT2 !!! const 403 === statusCode
---   Util.assertNotConvMember (mem1T1 ^. userId) cidT2
---   Util.assertNotConvMember (mem1T2 ^. userId) cidT2
---   -- mem1T2 is on the same team, so that is fine too
---   Util.postMembers ownerT2 (pure qMem1T2) qcidT2 !!! const 200 === statusCode
---   Util.assertConvMember qMem1T2 cidT2
---   -- ownerT2 is *NOT* connected to mem3T1 and not on the same team, so should not be allowed to add
---   Util.postMembers ownerT2 (pure qMem3T1) qcidT2 !!! const 403 === statusCode
---   Util.assertNotConvMember (mem3T1 ^. userId) cidT2
--- =======
---   Util.postMembers ownerT2 (list1 (mem1T2) [mem1T1]) cidT2 !!! const 403 === statusCode
---   Util.assertNotConvMember (mem1T1) cidT2
---   Util.assertNotConvMember (mem1T2) cidT2
---   -- mem1T2 is on the same team, so that is fine too
---   Util.postMembers ownerT2 (list1 (mem1T2) []) cidT2 !!! const 200 === statusCode
---   Util.assertConvMember qMem1T2 cidT2
---   -- ownerT2 is *NOT* connected to mem3T1 and not on the same team, so should not be allowed to add
---   Util.postMembers ownerT2 (list1 (mem3T1) []) cidT2 !!! const 403 === statusCode
---   Util.assertNotConvMember (mem3T1) cidT2
--- >>>>>>> wip
---   -- For personal conversations, same logic applies
-
---   -- Can add connected users
---   Util.postMembers personalUser (pure qOwnerT1) qcidPersonal !!! const 200 === statusCode
---   Util.assertConvMember qOwnerT1 cidPersonal
---   -- Can *not* add users that are *not* connected
---   Util.postMembers personalUser (pure qOwnerT2) qcidPersonal !!! const 403 === statusCode
---   Util.assertNotConvMember ownerT2 cidPersonal
---   -- Users of the same team can add one another
--- <<<<<<< HEAD
---   Util.postMembers ownerT1 (pure qMem1T1) qcidPersonal !!! const 200 === statusCode
---   Util.assertConvMember qMem1T1 cidPersonal
---   -- Users can not add across teams if *not* connected
---   Util.postMembers (mem1T1 ^. userId) (pure qOwnerT2) qcidPersonal !!! const 403 === statusCode
--- =======
---   Util.postMembers ownerT1 (list1 (mem1T1) []) cidPersonal !!! const 200 === statusCode
---   Util.assertConvMember qMem1T1 cidPersonal
---   -- Users can not add across teams if *not* connected
---   Util.postMembers (mem1T1) (list1 ownerT2 []) cidPersonal !!! const 403 === statusCode
--- >>>>>>> wip
---   Util.assertNotConvMember ownerT2 cidPersonal
---   -- Users *can* add across teams if *connected*
---   Util.postMembers ownerT1 (pure qOwnerT2) qcidPersonal !!! const 200 === statusCode
---   Util.assertConvMember qOwnerT2 cidPersonal
+  -- Can add connected users
+  Util.postMembers personalUser (pure qOwnerT1) qcidPersonal !!! const 200 === statusCode
+  Util.assertConvMember qOwnerT1 cidPersonal
+  -- Can *not* add users that are *not* connected
+  Util.postMembers personalUser (pure qOwnerT2) qcidPersonal !!! const 403 === statusCode
+  Util.assertNotConvMember ownerT2 cidPersonal
+  -- Users of the same team can add one another
+  Util.postMembers ownerT1 (pure qMem1T1) qcidPersonal !!! const 200 === statusCode
+  Util.assertConvMember qMem1T1 cidPersonal
+  -- Users can not add across teams if *not* connected
+  Util.postMembers mem1T1 (pure qOwnerT2) qcidPersonal !!! const 403 === statusCode
+  Util.assertNotConvMember ownerT2 cidPersonal
+  -- Users *can* add across teams if *connected*
+  Util.postMembers ownerT1 (pure qOwnerT2) qcidPersonal !!! const 200 === statusCode
+  Util.assertConvMember qOwnerT2 cidPersonal
 
 testUpdateTeamConv ::
   -- | Team role of the user who creates the conversation
@@ -1271,10 +1228,13 @@ testDeleteTeamConv = do
   let p = Util.symmPermissions [DoNotUseDeprecatedDeleteConversation]
   member <- newTeamMember' p <$> Util.randomUser
   qMember <- Qualified (member ^. userId) <$> viewFederationDomain
+  Util.addTeamMemberInternal tid (member ^. userId) (member ^. permissions) Nothing
+  -- get rid of team update event
+  ensureQueueEmpty
   let members = [qOwner, qMember]
   extern <- Util.randomUser
   qExtern <- Qualified extern <$> viewFederationDomain
-  Util.connectUsers owner (list1 (member ^. userId) [extern])
+  for_ members $ \m -> Util.connectUsers (m & qUnqualified) (list1 extern [])
   cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
   qcid1 <- Qualified cid1 <$> viewFederationDomain
   let access = ConversationAccessData (Set.fromList [InviteAccess, CodeAccess]) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
