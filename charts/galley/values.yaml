@@ -92,4 +92,4 @@ serviceAccount:
   annotations: {}
   automountServiceAccountToken: true
 
-secrets: {}
+secrets:

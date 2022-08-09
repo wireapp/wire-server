@@ -29,7 +29,7 @@ settings:
   concurrentDeletionEvents: 1024
   deleteConvThrottleMillis: 0
   mlsPrivateKeyPaths:
-    ed25519: conf/ed25519.key
+    ed25519: conf/ed25519.pem
 
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default
