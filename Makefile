@@ -75,6 +75,10 @@ endif
 ci: c
 	./hack/bin/cabal-run-integration.sh $(package)
 
+.PHONY: cabal-fmt
+cabal-fmt:
+	./hack/bin/cabal-fmt.sh $(package)
+
 # Use ghcid to watch a particular package.
 # pass target=package:name to specify which target is watched.
 .PHONY: ghcid
