@@ -1,55 +1,96 @@
-cabal-version: 2.0
-
-
-name:           types-common-journal
-version:        0.1.0
-synopsis:       Shared protobuf type definitions.
-description:    Shared protobuf type definitions for journaling.
-category:       System
-author:         Wire Swiss GmbH
-maintainer:     Wire Swiss GmbH <backend@wire.com>
-copyright:      (c) 2017 Wire Swiss GmbH
-license:        AGPL-3
-license-file:   LICENSE
-build-type:     Custom
+cabal-version:      2.0
+name:               types-common-journal
+version:            0.1.0
+synopsis:           Shared protobuf type definitions.
+description:        Shared protobuf type definitions for journaling.
+category:           System
+author:             Wire Swiss GmbH
+maintainer:         Wire Swiss GmbH <backend@wire.com>
+copyright:          (c) 2017 Wire Swiss GmbH
+license:            AGPL-3
+license-file:       LICENSE
+build-type:         Custom
 extra-source-files:
-    proto/TeamEvents.proto
-    proto/UserEvents.proto
+  proto/TeamEvents.proto
+  proto/UserEvents.proto
 
 custom-setup
   setup-depends:
-      Cabal
-    , base
+      base
+    , Cabal
     , proto-lens-setup
 
 library
   exposed-modules:
-      Data.Proto
-      Data.Proto.Id
-      Proto.TeamEvents
-      Proto.TeamEvents_Fields
-      Proto.UserEvents
-      Proto.UserEvents_Fields
-  other-modules:
-      Paths_types_common_journal
-  hs-source-dirs:
-      src
-  default-extensions: AllowAmbiguousTypes BangPatterns ConstraintKinds DataKinds DefaultSignatures DerivingStrategies DerivingVia DeriveFunctor DeriveGeneric DeriveLift DeriveTraversable EmptyCase FlexibleContexts FlexibleInstances FunctionalDependencies GADTs InstanceSigs KindSignatures LambdaCase MultiParamTypeClasses MultiWayIf NamedFieldPuns NoImplicitPrelude OverloadedStrings PackageImports PatternSynonyms PolyKinds QuasiQuotes RankNTypes ScopedTypeVariables StandaloneDeriving TemplateHaskell TupleSections TypeApplications TypeFamilies TypeFamilyDependencies TypeOperators UndecidableInstances ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -fno-warn-redundant-constraints
-  ghc-prof-options: -fprof-auto-exported
-  build-tool-depends:
-      proto-lens-protoc:proto-lens-protoc
+    Data.Proto
+    Data.Proto.Id
+    Proto.TeamEvents
+    Proto.TeamEvents_Fields
+    Proto.UserEvents
+    Proto.UserEvents_Fields
+
+  other-modules:      Paths_types_common_journal
+  hs-source-dirs:     src
+  default-extensions:
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TemplateHaskell
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -fno-warn-redundant-constraints
+
+  ghc-prof-options:   -fprof-auto-exported
+  build-tool-depends: proto-lens-protoc:proto-lens-protoc -any
   build-depends:
-      base ==4.*
+      base                >=4 && <5
     , bytestring
     , imports
     , proto-lens-runtime
     , time
     , types-common
     , uuid
-  default-language: Haskell2010
+
+  default-language:   Haskell2010
   autogen-modules:
-      Proto.TeamEvents
-      Proto.TeamEvents_Fields
-      Proto.UserEvents
-      Proto.UserEvents_Fields
+    Proto.TeamEvents
+    Proto.TeamEvents_Fields
+    Proto.UserEvents
+    Proto.UserEvents_Fields

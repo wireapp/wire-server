@@ -1,192 +1,199 @@
 cabal-version: 1.12
-
-
-name:           types-common
-version:        0.16.0
-synopsis:       Shared type definitions.
-description:    Types shared with many other projects.
-category:       System
-author:         Wire Swiss GmbH
-maintainer:     Wire Swiss GmbH <backend@wire.com>
-copyright:      (c) 2017 Wire Swiss GmbH
-license:        AGPL-3
-license-file:   LICENSE
-build-type:     Simple
+name:          types-common
+version:       0.16.0
+synopsis:      Shared type definitions.
+description:   Types shared with many other projects.
+category:      System
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2017 Wire Swiss GmbH
+license:       AGPL-3
+license-file:  LICENSE
+build-type:    Simple
 
 library
   exposed-modules:
-      Data.Code
-      Data.CommaSeparatedList
-      Data.Domain
-      Data.ETag
-      Data.Handle
-      Data.Id
-      Data.Json.Util
-      Data.LegalHold
-      Data.List1
-      Data.Misc
-      Data.Qualified
-      Data.Range
-      Data.RetryAfter
-      Data.SizedHashMap
-      Data.Text.Ascii
-      Data.UUID.Tagged
-      Util.Attoparsec
-      Util.Logging
-      Util.Options
-      Util.Options.Common
-      Util.Test
-      Wire.Swagger
-  other-modules:
-      Paths_types_common
-  hs-source-dirs:
-      src
+    Data.Code
+    Data.CommaSeparatedList
+    Data.Domain
+    Data.ETag
+    Data.Handle
+    Data.Id
+    Data.Json.Util
+    Data.LegalHold
+    Data.List1
+    Data.Misc
+    Data.Qualified
+    Data.Range
+    Data.RetryAfter
+    Data.SizedHashMap
+    Data.Text.Ascii
+    Data.UUID.Tagged
+    Util.Attoparsec
+    Util.Logging
+    Util.Options
+    Util.Options.Common
+    Util.Test
+    Wire.Swagger
+
+  other-modules:      Paths_types_common
+  hs-source-dirs:     src
   default-extensions:
-      AllowAmbiguousTypes
-      BangPatterns
-      ConstraintKinds
-      DataKinds
-      DefaultSignatures
-      DerivingStrategies
-      DerivingVia
-      DeriveFunctor
-      DeriveGeneric
-      DeriveLift
-      DeriveTraversable
-      EmptyCase
-      FlexibleContexts
-      FlexibleInstances
-      FunctionalDependencies
-      GADTs
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NoImplicitPrelude
-      OverloadedStrings
-      PackageImports
-      PatternSynonyms
-      PolyKinds
-      QuasiQuotes
-      RankNTypes
-      ScopedTypeVariables
-      StandaloneDeriving
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-  ghc-prof-options: -fprof-auto-exported
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+
+  ghc-prof-options:   -fprof-auto-exported
   build-depends:
-      QuickCheck >=2.9
-    , aeson >=2.0.1.0
-    , attoparsec >=0.11
+      aeson                  >=2.0.1.0
+    , attoparsec             >=0.11
     , attoparsec-iso8601
-    , base ==4.*
-    , base16-bytestring >=0.1
-    , base64-bytestring >=1.0
+    , base                   >=4        && <5
+    , base16-bytestring      >=0.1
+    , base64-bytestring      >=1.0
     , binary
-    , bytestring >=0.10
-    , bytestring-conversion >=0.2
+    , bytestring             >=0.10
+    , bytestring-conversion  >=0.2
     , cassandra-util
-    , containers >=0.5
-    , cryptohash-md5 >=0.11.7.2
-    , cryptohash-sha1 >=0.11.7.2
-    , cryptonite >=0.26
-    , data-default >=0.5
-    , hashable >=1.2
+    , containers             >=0.5
+    , cryptohash-md5         >=0.11.7.2
+    , cryptohash-sha1        >=0.11.7.2
+    , cryptonite             >=0.26
+    , data-default           >=0.5
+    , hashable               >=1.2
     , http-api-data
     , imports
-    , iproute >=1.5
-    , lens >=4.10
-    , lens-datetime >=0.3
-    , optparse-applicative >=0.10
-    , protobuf >=0.2
-    , quickcheck-instances >=0.3.16
-    , random >=1.1
+    , iproute                >=1.5
+    , lens                   >=4.10
+    , lens-datetime          >=0.3
+    , optparse-applicative   >=0.10
+    , protobuf               >=0.2
+    , QuickCheck             >=2.9
+    , quickcheck-instances   >=0.3.16
+    , random                 >=1.1
     , schema-profunctor
-    , scientific >=0.3.4
+    , scientific             >=0.3.4
     , servant-server
-    , singletons >=2.0
+    , singletons             >=2.0
     , string-conversions
-    , swagger >=0.3
+    , swagger                >=0.3
     , swagger2
-    , tagged >=0.8
-    , tasty >=0.11
-    , text >=0.11
-    , time >=1.6
-    , time-locale-compat >=0.1
-    , tinylog >=0.14
+    , tagged                 >=0.8
+    , tasty                  >=0.11
+    , text                   >=0.11
+    , time                   >=1.6
+    , time-locale-compat     >=0.1
+    , tinylog                >=0.14
     , unix
-    , unordered-containers >=0.2
-    , uri-bytestring >=0.2
-    , uuid >=1.3.11
-    , vector >=0.11
-    , yaml >=0.8.22
+    , unordered-containers   >=0.2
+    , uri-bytestring         >=0.2
+    , uuid                   >=1.3.11
+    , vector                 >=0.11
+    , yaml                   >=0.8.22
+
   if impl(ghc >=8)
     ghc-options: -fno-warn-redundant-constraints
-  default-language: Haskell2010
+
+  default-language:   Haskell2010
 
 test-suite tests
-  type: exitcode-stdio-1.0
-  main-is: Main.hs
+  type:               exitcode-stdio-1.0
+  main-is:            Main.hs
   other-modules:
-      Test.Domain
-      Test.Handle
-      Test.Properties
-      Test.Qualified
-      Test.SizedHashMap
-      Paths_types_common
-  hs-source-dirs:
-      test
+    Paths_types_common
+    Test.Domain
+    Test.Handle
+    Test.Properties
+    Test.Qualified
+    Test.SizedHashMap
+
+  hs-source-dirs:     test
   default-extensions:
-      AllowAmbiguousTypes
-      BangPatterns
-      ConstraintKinds
-      DataKinds
-      DefaultSignatures
-      DerivingStrategies
-      DerivingVia
-      DeriveFunctor
-      DeriveGeneric
-      DeriveLift
-      DeriveTraversable
-      EmptyCase
-      FlexibleContexts
-      FlexibleInstances
-      FunctionalDependencies
-      GADTs
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NoImplicitPrelude
-      OverloadedStrings
-      PackageImports
-      PatternSynonyms
-      PolyKinds
-      QuasiQuotes
-      RankNTypes
-      ScopedTypeVariables
-      StandaloneDeriving
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -threaded
+
   build-depends:
-      QuickCheck
-    , aeson
+      aeson
     , base
     , base16-bytestring
     , base64-bytestring
@@ -195,6 +202,7 @@ test-suite tests
     , cereal
     , imports
     , protobuf
+    , QuickCheck
     , string-conversions
     , tasty
     , tasty-hunit
@@ -204,4 +212,5 @@ test-suite tests
     , types-common
     , unordered-containers
     , uuid
-  default-language: Haskell2010
+
+  default-language:   Haskell2010
