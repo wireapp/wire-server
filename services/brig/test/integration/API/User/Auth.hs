@@ -586,7 +586,7 @@ testRegularUserLegalHoldLogin brig = do
   uid <- userId <$> randomUser brig
   -- fail if user is not a team user
   legalHoldLogin brig (LegalHoldLogin uid (Just defPassword) Nothing) PersistentCookie !!! do
-    const 403 === statusCode
+    const 404 === statusCode
 
 testTeamUserLegalHoldLogin :: HasCallStack => Brig -> Galley -> Http ()
 testTeamUserLegalHoldLogin brig galley = do
