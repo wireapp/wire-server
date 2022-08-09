@@ -30,6 +30,8 @@ library:
   - aeson >=2.0.1.0
   - amazonka >=1.4.5
   - amazonka-sqs >=1.4.5
+  - asn1-encoding
+  - asn1-types
   - async >=2.0
   - base >=4.6 && <5
   - base64-bytestring >=1.0
@@ -113,6 +115,7 @@ library:
   - wai-routing >=0.12
   - wai-utilities >=0.16
   - warp >=3.0
+  - x509
 
 tests:
   galley-tests:

@@ -27,6 +27,7 @@ import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, Rsa)
 import Data.Range
 import qualified Galley.Aws as Aws
+import Galley.Keys
 import Galley.Options
 import qualified Galley.Queue as Q
 import Imports
@@ -55,7 +56,8 @@ data Env = Env
     _cstate :: ClientState,
     _deleteQueue :: Q.Queue DeleteItem,
     _extEnv :: ExtEnv,
-    _aEnv :: Maybe Aws.Env
+    _aEnv :: Maybe Aws.Env,
+    _mlsKeys :: MLSKeys
   }
 
 -- | Environment specific to the communication with external
