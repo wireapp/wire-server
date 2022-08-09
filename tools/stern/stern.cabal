@@ -1,160 +1,167 @@
 cabal-version: 1.12
-
-
-name:           stern
-version:        1.7.2
-description:    Backoffice facade
-category:       Network
-author:         Wire Swiss GmbH
-maintainer:     Wire Swiss GmbH <backend@wire.com>
-copyright:      (c) 2017 Wire Swiss GmbH
-license:        AGPL-3
-build-type:     Simple
+name:          stern
+version:       1.7.2
+description:   Backoffice facade
+category:      Network
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2017 Wire Swiss GmbH
+license:       AGPL-3
+build-type:    Simple
 
 flag static
   description: Enable static linking
-  manual: True
-  default: False
+  manual:      True
+  default:     False
 
 library
   exposed-modules:
-      Main
-      Stern.API
-      Stern.API.Predicates
-      Stern.App
-      Stern.Intra
-      Stern.Options
-      Stern.Swagger
-      Stern.Types
-  other-modules:
-      Paths_stern
-  hs-source-dirs:
-      src
+    Main
+    Stern.API
+    Stern.API.Predicates
+    Stern.App
+    Stern.Intra
+    Stern.Options
+    Stern.Swagger
+    Stern.Types
+
+  other-modules:      Paths_stern
+  hs-source-dirs:     src
   default-extensions:
-      AllowAmbiguousTypes
-      BangPatterns
-      ConstraintKinds
-      DataKinds
-      DefaultSignatures
-      DerivingStrategies
-      DerivingVia
-      DeriveFunctor
-      DeriveGeneric
-      DeriveLift
-      DeriveTraversable
-      EmptyCase
-      FlexibleContexts
-      FlexibleInstances
-      FunctionalDependencies
-      GADTs
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NoImplicitPrelude
-      OverloadedStrings
-      PackageImports
-      PatternSynonyms
-      PolyKinds
-      QuasiQuotes
-      RankNTypes
-      ScopedTypeVariables
-      StandaloneDeriving
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields
+
   build-depends:
-      aeson >=2.0.1.0 && <2.1
-    , base >=4.5 && <5
-    , bilge >=0.12
-    , brig-types >=0.9.6
-    , bytestring >=0.10
-    , bytestring-conversion >=0.2
+      aeson                  >=2.0.1.0 && <2.1
+    , base                   >=4.5     && <5
+    , bilge                  >=0.12
+    , brig-types             >=0.9.6
+    , bytestring             >=0.10
+    , bytestring-conversion  >=0.2
     , containers
-    , data-default >=0.5
-    , errors >=1.4
-    , exceptions >=0.6
+    , data-default           >=0.5
+    , errors                 >=1.4
+    , exceptions             >=0.6
     , extended
-    , galley-types >=0.81.0
-    , gundeck-types >=0.1
-    , http-client >=0.4
-    , http-types >=0.8
+    , galley-types           >=0.81.0
+    , gundeck-types          >=0.1
+    , http-client            >=0.4
+    , http-types             >=0.8
     , imports
-    , lens >=4.4
-    , metrics-wai >=0.3
-    , mtl >=2.1
+    , lens                   >=4.4
+    , metrics-wai            >=0.3
+    , mtl                    >=2.1
     , schema-profunctor
-    , split >=0.2
+    , split                  >=0.2
     , string-conversions
-    , swagger >=0.3
-    , text >=1.1
-    , tinylog >=0.10
-    , transformers >=0.3
-    , types-common >=0.4.13
+    , swagger                >=0.3
+    , text                   >=1.1
+    , tinylog                >=0.10
+    , transformers           >=0.3
+    , types-common           >=0.4.13
     , unliftio
-    , unordered-containers >=0.2
-    , uuid >=1.3
-    , wai >=3.0
-    , wai-extra >=3.0
-    , wai-predicates >=0.8
-    , wai-routing >=0.10
-    , wai-utilities >=0.9
-    , warp >=3.0
-    , wire-api >=0.1
+    , unordered-containers   >=0.2
+    , uuid                   >=1.3
+    , wai                    >=3.0
+    , wai-extra              >=3.0
+    , wai-predicates         >=0.8
+    , wai-routing            >=0.10
+    , wai-utilities          >=0.9
+    , warp                   >=3.0
+    , wire-api               >=0.1
     , yaml
-  default-language: Haskell2010
+
+  default-language:   Haskell2010
 
 executable stern
-  main-is: src/Main.hs
-  other-modules:
-      Paths_stern
+  main-is:            src/Main.hs
+  other-modules:      Paths_stern
   default-extensions:
-      AllowAmbiguousTypes
-      BangPatterns
-      ConstraintKinds
-      DataKinds
-      DefaultSignatures
-      DerivingStrategies
-      DerivingVia
-      DeriveFunctor
-      DeriveGeneric
-      DeriveLift
-      DeriveTraversable
-      EmptyCase
-      FlexibleContexts
-      FlexibleInstances
-      FunctionalDependencies
-      GADTs
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NoImplicitPrelude
-      OverloadedStrings
-      PackageImports
-      PatternSynonyms
-      PolyKinds
-      QuasiQuotes
-      RankNTypes
-      ScopedTypeVariables
-      StandaloneDeriving
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -rtsopts -with-rtsopts=-T
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -threaded -rtsopts -with-rtsopts=-T
+
   build-depends:
       base
     , extended
@@ -162,6 +169,8 @@ executable stern
     , stern
     , types-common
     , unliftio
+
   if flag(static)
     ld-options: -static
-  default-language: Haskell2010
+
+  default-language:   Haskell2010

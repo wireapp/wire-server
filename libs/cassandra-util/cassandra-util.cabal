@@ -1,87 +1,89 @@
 cabal-version: 1.12
-
-
-name:           cassandra-util
-version:        0.16.5
-synopsis:       Cassandra Utilities
-category:       Database
-author:         Wire Swiss GmbH
-maintainer:     Wire Swiss GmbH <backend@wire.com>
-copyright:      (c) 2017 Wire Swiss GmbH
-license:        AGPL-3
-license-file:   LICENSE
-build-type:     Simple
+name:          cassandra-util
+version:       0.16.5
+synopsis:      Cassandra Utilities
+category:      Database
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2017 Wire Swiss GmbH
+license:       AGPL-3
+license-file:  LICENSE
+build-type:    Simple
 
 library
   exposed-modules:
-      Cassandra
-      Cassandra.CQL
-      Cassandra.Exec
-      Cassandra.Schema
-      Cassandra.Settings
-      Cassandra.Util
-  other-modules:
-      Paths_cassandra_util
-  hs-source-dirs:
-      src
+    Cassandra
+    Cassandra.CQL
+    Cassandra.Exec
+    Cassandra.Schema
+    Cassandra.Settings
+    Cassandra.Util
+
+  other-modules:      Paths_cassandra_util
+  hs-source-dirs:     src
   default-extensions:
-      AllowAmbiguousTypes
-      BangPatterns
-      ConstraintKinds
-      DataKinds
-      DefaultSignatures
-      DerivingStrategies
-      DerivingVia
-      DeriveFunctor
-      DeriveGeneric
-      DeriveLift
-      DeriveTraversable
-      EmptyCase
-      FlexibleContexts
-      FlexibleInstances
-      FunctionalDependencies
-      GADTs
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NoImplicitPrelude
-      OverloadedStrings
-      PackageImports
-      PatternSynonyms
-      PolyKinds
-      QuasiQuotes
-      RankNTypes
-      ScopedTypeVariables
-      StandaloneDeriving
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+
   build-depends:
-      aeson >=2.0.1.0
-    , base >=4.6 && <5.0
+      aeson                 >=2.0.1.0
+    , base                  >=4.6     && <5.0
     , conduit
     , containers
-    , cql >=3.0.0
-    , cql-io >=0.14
+    , cql                   >=3.0.0
+    , cql-io                >=0.14
     , cql-io-tinylog
-    , exceptions >=0.6
+    , exceptions            >=0.6
     , imports
-    , lens >=4.4
-    , lens-aeson >=1.0
-    , optparse-applicative >=0.10
+    , lens                  >=4.4
+    , lens-aeson            >=1.0
+    , optparse-applicative  >=0.10
     , retry
-    , split >=0.2
-    , text >=0.11
-    , time >=1.4
-    , tinylog >=0.7
+    , split                 >=0.2
+    , text                  >=0.11
+    , time                  >=1.4
+    , tinylog               >=0.7
     , uuid
-    , wreq >=0.2
-  default-language: Haskell2010
+    , wreq                  >=0.2
+
+  default-language:   Haskell2010

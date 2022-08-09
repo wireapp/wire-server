@@ -1,101 +1,104 @@
 cabal-version: 1.12
-
-
-name:           types-common-aws
-version:        0.16.0
-synopsis:       Shared AWS type definitions.
-description:    AWS Types shared with many other projects.
-category:       System
-author:         Wire Swiss GmbH
-maintainer:     Wire Swiss GmbH <backend@wire.com>
-copyright:      (c) 2017 Wire Swiss GmbH
-license:        AGPL-3
-license-file:   LICENSE
-build-type:     Simple
+name:          types-common-aws
+version:       0.16.0
+synopsis:      Shared AWS type definitions.
+description:   AWS Types shared with many other projects.
+category:      System
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2017 Wire Swiss GmbH
+license:       AGPL-3
+license-file:  LICENSE
+build-type:    Simple
 
 flag arbitrary
   description: Enable quickcheck's arbitrary instances
-  manual: True
-  default: False
+  manual:      True
+  default:     False
 
 flag protobuf
   description: Enable protocol buffers instances
-  manual: True
-  default: False
+  manual:      True
+  default:     False
 
 library
   exposed-modules:
-      AWS.Util
-      Util.Test.SQS
-  other-modules:
-      Paths_types_common_aws
-  hs-source-dirs:
-      src
+    AWS.Util
+    Util.Test.SQS
+
+  other-modules:      Paths_types_common_aws
+  hs-source-dirs:     src
   default-extensions:
-      AllowAmbiguousTypes
-      BangPatterns
-      ConstraintKinds
-      DataKinds
-      DefaultSignatures
-      DerivingStrategies
-      DerivingVia
-      DeriveFunctor
-      DeriveGeneric
-      DeriveLift
-      DeriveTraversable
-      EmptyCase
-      FlexibleContexts
-      FlexibleInstances
-      FunctionalDependencies
-      GADTs
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NoImplicitPrelude
-      OverloadedStrings
-      PackageImports
-      PatternSynonyms
-      PolyKinds
-      QuasiQuotes
-      RankNTypes
-      ScopedTypeVariables
-      StandaloneDeriving
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-  ghc-prof-options: -fprof-auto-exported
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+
+  ghc-prof-options:   -fprof-auto-exported
   build-depends:
       amazonka
     , amazonka-sqs
-    , base ==4.*
-    , base64-bytestring >=1.0
+    , base               >=4    && <5
+    , base64-bytestring  >=1.0
     , exceptions
     , imports
-    , lens >=4.10
+    , lens               >=4.10
     , monad-control
     , proto-lens
     , resourcet
-    , safe >=0.3
+    , safe               >=0.3
     , tasty
     , tasty-hunit
-    , text >=0.11
+    , text               >=0.11
     , time
+
   if impl(ghc >=8)
     ghc-options: -fno-warn-redundant-constraints
+
   if flag(protobuf)
-    cpp-options: -DWITH_PROTOBUF
-    build-depends:
-        protobuf >=0.2
+    cpp-options:   -DWITH_PROTOBUF
+    build-depends: protobuf >=0.2
+
   if flag(arbitrary)
-    cpp-options: -DWITH_ARBITRARY
-    build-depends:
-        QuickCheck >=2.9
-  default-language: Haskell2010
+    cpp-options:   -DWITH_ARBITRARY
+    build-depends: QuickCheck >=2.9
+
+  default-language:   Haskell2010

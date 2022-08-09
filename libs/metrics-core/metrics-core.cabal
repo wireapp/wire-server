@@ -1,74 +1,76 @@
 cabal-version: 1.12
-
-
-name:           metrics-core
-version:        0.3.2
-synopsis:       Metrics core
-category:       Data
-author:         Wire Swiss GmbH
-maintainer:     Wire Swiss GmbH <backend@wire.com>
-copyright:      (c) 2017 Wire Swiss GmbH
-license:        AGPL-3
-license-file:   LICENSE
-build-type:     Simple
+name:          metrics-core
+version:       0.3.2
+synopsis:      Metrics core
+category:      Data
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2017 Wire Swiss GmbH
+license:       AGPL-3
+license-file:  LICENSE
+build-type:    Simple
 
 library
   exposed-modules:
-      Data.Metrics
-      Data.Metrics.AWS
-      Data.Metrics.GC
-  other-modules:
-      Paths_metrics_core
-  hs-source-dirs:
-      src
+    Data.Metrics
+    Data.Metrics.AWS
+    Data.Metrics.GC
+
+  other-modules:      Paths_metrics_core
+  hs-source-dirs:     src
   default-extensions:
-      AllowAmbiguousTypes
-      BangPatterns
-      ConstraintKinds
-      DataKinds
-      DefaultSignatures
-      DerivingStrategies
-      DerivingVia
-      DeriveFunctor
-      DeriveGeneric
-      DeriveLift
-      DeriveTraversable
-      EmptyCase
-      FlexibleContexts
-      FlexibleInstances
-      FunctionalDependencies
-      GADTs
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NoImplicitPrelude
-      OverloadedStrings
-      PackageImports
-      PatternSynonyms
-      PolyKinds
-      QuasiQuotes
-      RankNTypes
-      ScopedTypeVariables
-      StandaloneDeriving
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+
   build-depends:
-      base >=4.9
+      base                  >=4.9
     , containers
-    , hashable >=1.2
+    , hashable              >=1.2
     , immortal
     , imports
     , prometheus-client
-    , text >=0.11
+    , text                  >=0.11
     , time
-    , unordered-containers >=0.2
-  default-language: Haskell2010
+    , unordered-containers  >=0.2
+
+  default-language:   Haskell2010
