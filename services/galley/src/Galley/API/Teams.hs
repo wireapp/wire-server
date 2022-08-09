@@ -174,6 +174,7 @@ getTeamNameInternal :: Member TeamStore r => TeamId -> Sem r (Maybe TeamName)
 getTeamNameInternal = fmap (fmap TeamName) . E.getTeamName
 
 -- | DEPRECATED.
+-- Removed in API version 2
 --
 -- The endpoint was designed to query non-binding teams. However, non-binding teams is a feature
 -- that has never been adopted by clients, but the endpoint also returns the binding team of a user and it is

@@ -930,6 +930,7 @@ type TeamAPI =
     :<|> Named
            "get-teams"
            ( Summary "Get teams (deprecated); use `GET /teams/:tid`"
+               :> Until 'V2
                :> ZUser
                :> "teams"
                :> Get '[JSON] TeamList
