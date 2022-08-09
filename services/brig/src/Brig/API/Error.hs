@@ -366,9 +366,8 @@ authTokenUnsupported = Wai.mkError status403 "invalid-credentials" "Unsupported 
 insufficientTeamPermissions :: Wai.Error
 insufficientTeamPermissions = errorToWai @'E.InsufficientTeamPermissions
 
--- FUTUREWORK: should this status be 404?
 teamNotFound :: Wai.Error
-teamNotFound = Wai.mkError status403 "no-binding-team" "Operation allowed only on binding teams"
+teamNotFound = notFound "Team not found."
 
 propertyManagedByScim :: LText -> Wai.Error
 propertyManagedByScim prop = Wai.mkError status403 "managed-by-scim" $ "Updating \"" <> prop <> "\" is not allowed, because it is managed by SCIM"
