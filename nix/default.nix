@@ -105,7 +105,6 @@ let
     cabal-wrapper
     stack-wrapper
 
-    # For cabal-migration
     pkgs.haskellPackages.cabal-plan
     pkgs.haskellPackages.cabal-fmt
 
