@@ -115,6 +115,8 @@ tests s =
             testPatchIgnoreLockStatusChange @Public.ConferenceCallingConfig Public.FeatureStatusEnabled Public.ConferenceCallingConfig,
           test s (unpack $ Public.featureNameBS @Public.SearchVisibilityAvailableConfig) $
             testPatchIgnoreLockStatusChange @Public.SearchVisibilityAvailableConfig Public.FeatureStatusEnabled Public.SearchVisibilityAvailableConfig,
+          test s (unpack $ Public.featureNameBS @Public.MLSConfig) $
+            testPatchValidMLSConfig Public.FeatureStatusEnabled (Public.MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519),
           test s (unpack $ Public.featureNameBS @Public.FileSharingConfig) $
             testPatch @Public.FileSharingConfig Public.FeatureStatusEnabled Public.FileSharingConfig,
           test s (unpack $ Public.featureNameBS @Public.GuestLinksConfig) $
@@ -125,6 +127,24 @@ tests s =
             testPatch @Public.SelfDeletingMessagesConfig Public.FeatureStatusEnabled (Public.SelfDeletingMessagesConfig 0)
         ]
     ]
+
+validMLSConfigArbitrary :: Gen (Public.WithStatusPatch MLSConfig)
+validMLSConfigArbitrary =
+  arbitrary
+    `suchThat` ( \cfg -> case Public.wspConfig cfg of
+                   Just (Public.MLSConfig us _ cTags ctag) -> sortedAndNoDuplicates us && sortedAndNoDuplicates cTags && elem ctag cTags
+                   _ -> True
+               )
+    where
+      sortedAndNoDuplicates xs = (sort . nub) xs == xs
+
+testPatchValidMLSConfig ::
+  Public.FeatureStatus ->
+  Public.MLSConfig ->
+  TestM ()
+testPatchValidMLSConfig s cfg = do
+  c <- liftIO (generate validMLSConfigArbitrary)
+  testPatch' False c s cfg
 
 validAppLockConfigArbitrary :: Gen (Public.WithStatusPatch Public.AppLockConfig)
 validAppLockConfigArbitrary =
