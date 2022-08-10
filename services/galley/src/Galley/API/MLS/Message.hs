@@ -450,6 +450,7 @@ applyProposal (AddProposal kp) = do
 applyProposal (RemoveProposal ref) = do
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
   pure (paRemoveClient qclient)
+applyProposal (NonDefaultProposal _) = pure mempty -- do nothing for unknown proposals
 applyProposal _ = throwS @'MLSUnsupportedProposal
 
 checkProposal ::
