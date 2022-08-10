@@ -137,6 +137,8 @@ instance ToSchema Team where
         <*> _teamIcon .= field "icon" schema
         <*> _teamIconKey .= maybe_ (optField "icon_key" schema)
         <*> _teamSplashScreen .= (fromMaybe DefaultIcon <$> optField "splash_screen" schema)
+        -- FUTUREWORK: remove this from the schema in the next API version
+        -- refer to https://github.com/wireapp/wire-server/pull/2560 as an example on how to do this best
         <* const Binding .= field "binding" schema
 
 data TeamBinding
