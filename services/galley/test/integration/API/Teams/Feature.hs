@@ -65,7 +65,8 @@ tests s =
     "Feature Config API and Team Features API"
     [ test s "SSO - set with HTTP PUT" (testSSO putSSOInternal),
       test s "SSO - set with HTTP PATCH" (testSSO patchSSOInternal),
-      test s "LegalHold" testLegalHold,
+      test s "LegalHold - set with HTTP PUT" (testLegalHold putLegalHoldInternal),
+      test s "LegalHold - set with HTTP PATCH" (testLegalHold patchLegalHoldInternal),
       test s "SearchVisibility" testSearchVisibility,
       test s "DigitalSignatures" $ testSimpleFlag @Public.DigitalSignaturesConfig Public.FeatureStatusDisabled,
       test s "ValidateSAMLEmails" $ testSimpleFlag @Public.ValidateSAMLEmailsConfig Public.FeatureStatusEnabled,
@@ -186,8 +187,8 @@ putSSOInternal tid = void . Util.putTeamFeatureFlagInternal @Public.SSOConfig ex
 patchSSOInternal :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
 patchSSOInternal tid status = Util.patchFeatureStatusInternal @Public.SSOConfig tid (Public.withStatus' (Just status) Nothing Nothing) !!! statusCode === const 200
 
-testLegalHold :: TestM ()
-testLegalHold = do
+testLegalHold :: ((Request -> Request) -> TeamId -> Public.FeatureStatus -> TestM ()) -> TestM ()
+testLegalHold setLegalHoldInternal = do
   (_owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
   nonMember <- Util.randomUser
   let getLegalHold :: HasCallStack => Public.FeatureStatus -> TestM ()
@@ -198,8 +199,6 @@ testLegalHold = do
         actual <- Util.getFeatureConfig @Public.LegalholdConfig member
         liftIO $ Public.wsStatus actual @?= expectedStatus
 
-      setLegalHoldInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
-      setLegalHoldInternal = void . Util.putTeamFeatureFlagInternal @Public.LegalholdConfig expect2xx tid . (`Public.WithStatusNoLock` Public.LegalholdConfig)
   getLegalHold Public.FeatureStatusDisabled
   getLegalHoldInternal Public.FeatureStatusDisabled
 
@@ -215,18 +214,24 @@ testLegalHold = do
       getLegalHoldFeatureConfig Public.FeatureStatusDisabled
 
       -- Test override
-      setLegalHoldInternal Public.FeatureStatusEnabled
+      setLegalHoldInternal expect2xx tid Public.FeatureStatusEnabled
       getLegalHold Public.FeatureStatusEnabled
       getLegalHoldInternal Public.FeatureStatusEnabled
       getLegalHoldFeatureConfig Public.FeatureStatusEnabled
 
     -- turned off for instance
     FeatureLegalHoldDisabledPermanently -> do
-      Util.putLegalHoldEnabledInternal' expect4xx tid Public.FeatureStatusEnabled
+      setLegalHoldInternal expect4xx tid Public.FeatureStatusEnabled
 
     -- turned off but for whitelisted teams with implicit consent
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-      Util.putLegalHoldEnabledInternal' expect4xx tid Public.FeatureStatusEnabled
+      setLegalHoldInternal expect4xx tid Public.FeatureStatusEnabled
+
+putLegalHoldInternal :: HasCallStack => (Request -> Request) -> TeamId -> Public.FeatureStatus -> TestM ()
+putLegalHoldInternal expectation tid = void . Util.putTeamFeatureFlagInternal @Public.LegalholdConfig expectation tid . (`Public.WithStatusNoLock` Public.LegalholdConfig)
+
+patchLegalHoldInternal :: HasCallStack => (Request -> Request) -> TeamId -> Public.FeatureStatus -> TestM ()
+patchLegalHoldInternal expectation tid status = void $ Util.patchFeatureStatusInternalWithMod @Public.LegalholdConfig expectation tid (Public.withStatus' (Just status) Nothing Nothing)
 
 testSearchVisibility :: TestM ()
 testSearchVisibility = do
