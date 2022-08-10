@@ -54,6 +54,7 @@ data GalleyError
   | TeamNotFound
   | TeamMemberNotFound
   | NotATeamMember
+  | NonBindingTeam
   | BroadcastLimitExceeded
   | UserBindingExists
   | NoAddToBinding
@@ -79,7 +80,9 @@ data GalleyError
   | MLSCommitMissingReferences
   | MLSSelfRemovalNotAllowed
   | --
-    NotAOneMemberTeam
+    NoBindingTeamMembers
+  | NoBindingTeam
+  | NotAOneMemberTeam
   | TooManyMembers
   | ConvMemberNotFound
   | GuestLinksDisabled
@@ -141,6 +144,8 @@ type instance MapError 'InvalidTargetAccess = 'StaticError 403 "invalid-op" "Inv
 
 type instance MapError 'TeamNotFound = 'StaticError 404 "no-team" "Team not found"
 
+type instance MapError 'NonBindingTeam = 'StaticError 404 "non-binding-team" "Not a member of a binding team"
+
 type instance MapError 'BroadcastLimitExceeded = 'StaticError 400 "too-many-users-to-broadcast" "Too many users to fan out the broadcast event to"
 
 type instance MapError 'TeamMemberNotFound = 'StaticError 404 "no-team-member" "Team member not found"
@@ -188,6 +193,10 @@ type instance MapError 'MLSStaleMessage = 'StaticError 409 "mls-stale-message" "
 type instance MapError 'MLSCommitMissingReferences = 'StaticError 409 "mls-commit-missing-references" "The commit is not refrencing all pending proposals"
 
 type instance MapError 'MLSSelfRemovalNotAllowed = 'StaticError 409 "mls-self-removal-not-allowed" "Self removal from group is not allowed"
+
+type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
+
+type instance MapError 'NoBindingTeam = 'StaticError 403 "no-binding-team" "Operation allowed only on binding teams"
 
 type instance MapError 'NotAOneMemberTeam = 'StaticError 403 "not-one-member-team" "Can only delete teams with a single member"
 

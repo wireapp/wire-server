@@ -121,7 +121,7 @@ tests s =
         [test s "the list should be truncated" testUncheckedListTeamMembers],
       test s "enable/disable SSO" testEnableSSOPerTeam,
       test s "enable/disable Custom Search Visibility" testEnableTeamSearchVisibilityPerTeam,
-      test s "create 1-1 conversation between non-team-members (fail)" testCreateOne2OneFailForNonTeamMembers,
+      test s "create 1-1 conversation between non-binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers,
       test s "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers RoleMember),
       test s "create 1-1 conversation between binding team members as partner" (testCreateOne2OneWithMembers RoleExternalPartner),
       test s "poll team-level event queue" testTeamQueue,
@@ -466,7 +466,7 @@ testCreateOne2OneFailForNonTeamMembers = do
   assertQueue "create another team" tActivate
   Util.createOne2OneTeamConv owner1 owner2 Nothing tid1 !!! do
     const 403 === statusCode
-    const "no-team-member" === (Error.label . responseJsonUnsafeWithMsg "error label")
+    const "non-binding-team-members" === (Error.label . responseJsonUnsafeWithMsg "error label")
 
 testCreateOne2OneWithMembers ::
   HasCallStack =>
@@ -593,7 +593,7 @@ testRemoveBindingTeamMember ownerHasPassword = do
           . zUser owner
           . zConn "conn"
       )
-      !!! const 404
+      !!! const 400
       === statusCode
     -- Deleting from a binding team without a password is forbidden
     delete

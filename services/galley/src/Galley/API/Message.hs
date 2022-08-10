@@ -248,6 +248,7 @@ postBroadcast ::
     '[ BrigAccess,
        ClientStore,
        ErrorS 'TeamNotFound,
+       ErrorS 'NonBindingTeam,
        ErrorS 'BroadcastLimitExceeded,
        GundeckAccess,
        Input Opts,

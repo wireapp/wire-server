@@ -292,7 +292,8 @@ type ITeamsAPIBase =
            )
     :<|> Named
            "delete-binding-team"
-           ( CanThrow 'NotAOneMemberTeam
+           ( CanThrow 'NoBindingTeam
+               :> CanThrow 'NotAOneMemberTeam
                :> CanThrow 'DeleteQueueFull
                :> CanThrow 'TeamNotFound
                :> QueryFlag "force"
