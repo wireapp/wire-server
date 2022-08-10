@@ -109,6 +109,8 @@ tests s =
             testPatchIgnoreLockStatusChange @Public.ValidateSAMLEmailsConfig Public.FeatureStatusEnabled Public.ValidateSAMLEmailsConfig,
           test s (unpack $ Public.featureNameBS @Public.DigitalSignaturesConfig) $
             testPatchIgnoreLockStatusChange @Public.DigitalSignaturesConfig Public.FeatureStatusEnabled Public.DigitalSignaturesConfig,
+          test s (unpack $ Public.featureNameBS @Public.AppLockConfig) $
+            testPatchIgnoreLockStatusChange @Public.AppLockConfig Public.FeatureStatusEnabled (Public.AppLockConfig (Public.EnforceAppLock False) 42),
           test s (unpack $ Public.featureNameBS @Public.FileSharingConfig) $
             testPatch @Public.FileSharingConfig Public.FeatureStatusEnabled Public.FileSharingConfig,
           test s (unpack $ Public.featureNameBS @Public.GuestLinksConfig) $
@@ -154,6 +156,8 @@ testPatchIgnoreLockStatusChange ::
   TestM ()
 testPatchIgnoreLockStatusChange = testPatch' False
 
+-- TODO: It's surprising that `defStatus` and `defConfig` are ignored when the
+-- status is unlocked. (Are more separate functions hiddin in this one?)
 testPatch' ::
   forall cfg.
   ( HasCallStack,
