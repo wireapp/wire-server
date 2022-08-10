@@ -212,16 +212,17 @@ updateKeyPackageRef prevRef newRef =
 --------------------------------------------------------------------------------
 -- Utilities
 
-backupKeyPackageMeta :: MonadClient m => KeyPackageRef -> MaybeT m (ClientId, ConvId, Domain, Domain, UserId)
+backupKeyPackageMeta :: MonadClient m => KeyPackageRef -> MaybeT m (ClientId, Qualified ConvId, Qualified UserId)
 backupKeyPackageMeta ref = do
-  MaybeT . retry x1 $ query1 q (params LocalQuorum (Identity ref))
+  (clientId, convId, convDomain, userDomain, userId) <- MaybeT . retry x1 $ query1 q (params LocalQuorum (Identity ref))
+  pure (clientId, Qualified convId convDomain, Qualified userId userDomain)
   where
     q :: PrepQuery R (Identity KeyPackageRef) (ClientId, ConvId, Domain, Domain, UserId)
     q = "SELECT client, conv, conv_domain, domain, user FROM mls_key_package_refs WHERE ref = ?"
 
-restoreKeyPackageMeta :: MonadClient m => KeyPackageRef -> (ClientId, ConvId, Domain, Domain, UserId) -> m ()
-restoreKeyPackageMeta ref (client, conv, convDomain, domain, user) = do
-  write q (params LocalQuorum (ref, client, conv, convDomain, domain, user))
+restoreKeyPackageMeta :: MonadClient m => KeyPackageRef -> (ClientId, Qualified ConvId, Qualified UserId) -> m ()
+restoreKeyPackageMeta ref (clientId, convId, userId) = do
+  write q (params LocalQuorum (ref, clientId, qUnqualified convId, qDomain convId, qDomain userId, qUnqualified userId))
   where
     q :: PrepQuery W (KeyPackageRef, ClientId, ConvId, Domain, Domain, UserId) ()
     q = "INSERT INTO mls_key_package_refs (ref, client, conv, conv_domain, domain, user) VALUES (?, ?, ?, ?, ?, ?)"
