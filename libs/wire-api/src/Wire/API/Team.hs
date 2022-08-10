@@ -121,6 +121,8 @@ modelTeam = Doc.defineModel "Team" $ do
   Doc.property "icon_key" Doc.string' $ do
     Doc.description "team icon asset key"
     Doc.optional
+  Doc.property "binding" Doc.bool' $
+    Doc.description "user binding team"
   Doc.property "splash_screen" Doc.string' $ do
     Doc.description "new splash screen asset key"
     Doc.optional
@@ -135,6 +137,19 @@ instance ToSchema Team where
         <*> _teamIcon .= field "icon" schema
         <*> _teamIconKey .= maybe_ (optField "icon_key" schema)
         <*> _teamSplashScreen .= (fromMaybe DefaultIcon <$> optField "splash_screen" schema)
+        <* const Binding .= field "binding" schema
+
+data TeamBinding
+  = Binding
+  | NonBinding
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform TeamBinding)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema TeamBinding)
+
+instance ToSchema TeamBinding where
+  schema =
+    enum @Bool "TeamBinding" $
+      mconcat [element True Binding, element False NonBinding]
 
 --------------------------------------------------------------------------------
 -- TeamList
