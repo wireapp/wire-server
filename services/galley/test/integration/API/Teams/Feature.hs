@@ -105,6 +105,8 @@ tests s =
           -- here, because their state can only be set once.
           test s (unpack $ Public.featureNameBS @Public.SearchVisibilityAvailableConfig) $
             testPatchIgnoreLockStatusChange @Public.SearchVisibilityAvailableConfig Public.FeatureStatusEnabled Public.SearchVisibilityAvailableConfig,
+          test s (unpack $ Public.featureNameBS @Public.ValidateSAMLEmailsConfig) $
+            testPatchIgnoreLockStatusChange @Public.ValidateSAMLEmailsConfig Public.FeatureStatusEnabled Public.ValidateSAMLEmailsConfig,
           test s (unpack $ Public.featureNameBS @Public.FileSharingConfig) $
             testPatch @Public.FileSharingConfig Public.FeatureStatusEnabled Public.FileSharingConfig,
           test s (unpack $ Public.featureNameBS @Public.GuestLinksConfig) $
