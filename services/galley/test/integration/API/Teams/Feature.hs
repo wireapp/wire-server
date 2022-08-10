@@ -45,7 +45,7 @@ import Galley.Types.Teams
 import Imports
 import Network.Wai.Utilities (label)
 import Test.Hspec (expectationFailure)
-import Test.QuickCheck (generate)
+import Test.QuickCheck (Gen, generate, suchThat)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit (assertFailure, (@?=))
@@ -110,7 +110,7 @@ tests s =
           test s (unpack $ Public.featureNameBS @Public.DigitalSignaturesConfig) $
             testPatchIgnoreLockStatusChange @Public.DigitalSignaturesConfig Public.FeatureStatusEnabled Public.DigitalSignaturesConfig,
           test s (unpack $ Public.featureNameBS @Public.AppLockConfig) $
-            testPatchIgnoreLockStatusChange @Public.AppLockConfig Public.FeatureStatusEnabled (Public.AppLockConfig (Public.EnforceAppLock False) 42),
+            testPatchValidAppLockConfig Public.FeatureStatusEnabled (Public.AppLockConfig (Public.EnforceAppLock False) 42),
           test s (unpack $ Public.featureNameBS @Public.FileSharingConfig) $
             testPatch @Public.FileSharingConfig Public.FeatureStatusEnabled Public.FileSharingConfig,
           test s (unpack $ Public.featureNameBS @Public.GuestLinksConfig) $
@@ -121,6 +121,22 @@ tests s =
             testPatch @Public.SelfDeletingMessagesConfig Public.FeatureStatusEnabled (Public.SelfDeletingMessagesConfig 0)
         ]
     ]
+
+validAppLockConfigArbitrary :: Gen (Public.WithStatusPatch Public.AppLockConfig)
+validAppLockConfigArbitrary =
+  arbitrary
+    `suchThat` ( \cfg -> case Public.wspConfig cfg of
+                   Just (Public.AppLockConfig _ secs) -> secs >= 30
+                   Nothing -> True
+               )
+
+testPatchValidAppLockConfig ::
+  Public.FeatureStatus ->
+  Public.AppLockConfig ->
+  TestM ()
+testPatchValidAppLockConfig s cfg = do
+  c <- liftIO (generate validAppLockConfigArbitrary)
+  testPatch' False c s cfg
 
 testPatch ::
   forall cfg.
@@ -137,7 +153,9 @@ testPatch ::
   Public.FeatureStatus ->
   cfg ->
   TestM ()
-testPatch = testPatch' True
+testPatch s cfg = do
+  c <- liftIO (generate arbitrary)
+  testPatch' True c s cfg
 
 testPatchIgnoreLockStatusChange ::
   forall cfg.
@@ -154,7 +172,9 @@ testPatchIgnoreLockStatusChange ::
   Public.FeatureStatus ->
   cfg ->
   TestM ()
-testPatchIgnoreLockStatusChange = testPatch' False
+testPatchIgnoreLockStatusChange s cfg = do
+  c <- liftIO (generate arbitrary)
+  testPatch' False c s cfg
 
 -- TODO: It's surprising that `defStatus` and `defConfig` are ignored when the
 -- status is unlocked. (Are more separate functions hiddin in this one?)
@@ -166,18 +186,16 @@ testPatch' ::
     ToSchema cfg,
     Eq cfg,
     Show cfg,
-    KnownSymbol (Public.FeatureSymbol cfg),
-    Arbitrary (Public.WithStatus cfg),
-    Arbitrary (Public.WithStatusPatch cfg)
+    KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   Bool ->
+  Public.WithStatusPatch cfg ->
   Public.FeatureStatus ->
   cfg ->
   TestM ()
-testPatch' testLockStatusChange defStatus defConfig = do
+testPatch' testLockStatusChange rndFeatureConfig defStatus defConfig = do
   (_, tid) <- Util.createBindingTeam
   Just original <- responseJsonMaybe <$> Util.getFeatureStatusInternal @cfg tid
-  rndFeatureConfig :: Public.WithStatusPatch cfg <- liftIO (generate arbitrary)
   patchFeatureStatusInternal tid rndFeatureConfig !!! statusCode === const 200
   Just actual <- responseJsonMaybe <$> Util.getFeatureStatusInternal @cfg tid
   liftIO $
