@@ -354,7 +354,7 @@ processCommit qusr con lconv epoch sender commit = do
   let ttlSeconds :: Int = 600 -- 10 minutes
   withCommitLock groupId epoch (fromIntegral ttlSeconds) $ do
     checkEpoch epoch (tUnqualified lconv)
-    if epoch == Epoch 0
+    postponedKeyPackageRefUpdate <- if epoch == Epoch 0
       then do
         -- this is a newly created conversation, and it should contain exactly one
         -- client (the creator)
@@ -382,11 +382,13 @@ processCommit qusr con lconv epoch sender commit = do
             throw (InternalErrorWithDescription "Unexpected creator client set")
           -- the sender of the first commit must be a member
           _ -> throw (mlsProtocolError "Unexpected sender")
+        pure $ pure () -- no key package ref update necessary
       else case (sender, upLeaf <$> cPath commit) of
         (MemberSender senderRef, Just updatedKeyPackage) -> do
           updatedRef <- kpRef' updatedKeyPackage & note (mlsProtocolError "Could not compute key package ref")
-          updateKeyPackageRef senderRef updatedRef
-        (_, Nothing) -> pure () -- ignore commits without update path
+          -- postpone key package ref update until other checks/processing passed
+          pure $ updateKeyPackageRef senderRef updatedRef
+        (_, Nothing) -> pure $ pure () -- ignore commits without update path
         _ -> throw (mlsProtocolError "Unexpected sender")
 
     -- check all pending proposals are referenced in the commit
@@ -399,6 +401,8 @@ processCommit qusr con lconv epoch sender commit = do
     action <- foldMap (applyProposalRef (tUnqualified lconv) groupId epoch) (cProposals commit)
     updates <- executeProposalAction qusr con lconv action
 
+    -- update key package ref if necessary
+    postponedKeyPackageRefUpdate
     -- increment epoch number
     setConversationEpoch (Data.convId (tUnqualified lconv)) (succ epoch)
 
