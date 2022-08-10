@@ -63,7 +63,8 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "SSO" testSSO,
+    [ test s "SSO - set with HTTP PUT" (testSSO putSSOInternal),
+      test s "SSO - set with HTTP PATCH" (testSSO patchSSOInternal),
       test s "LegalHold" testLegalHold,
       test s "SearchVisibility" testSearchVisibility,
       test s "DigitalSignatures" $ testSimpleFlag @Public.DigitalSignaturesConfig Public.FeatureStatusDisabled,
@@ -143,8 +144,8 @@ testPatch defStatus defConfig = do
         Public.wsLockStatus actual @?= fromMaybe (Public.wsLockStatus original) (Public.wspLockStatus rndFeatureConfig)
         Public.wsConfig actual @?= fromMaybe (Public.wsConfig original) (Public.wspConfig rndFeatureConfig)
 
-testSSO :: TestM ()
-testSSO = do
+testSSO :: (TeamId -> Public.FeatureStatus -> TestM ()) -> TestM ()
+testSSO setSSOFeature = do
   (_owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
   nonMember <- Util.randomUser
 
@@ -156,8 +157,6 @@ testSSO = do
         liftIO $ Public.wsStatus actual @?= expectedStatus
       getSSOInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
       getSSOInternal = assertFlagNoConfig @Public.SSOConfig $ Util.getTeamFeatureFlagInternal @Public.SSOConfig tid
-      setSSOInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
-      setSSOInternal = void . Util.putTeamFeatureFlagInternal @Public.SSOConfig expect2xx tid . (`Public.WithStatusNoLock` Public.SSOConfig)
 
   assertFlagForbidden $ Util.getTeamFeatureFlag @Public.SSOConfig nonMember tid
 
@@ -170,7 +169,7 @@ testSSO = do
       getSSOFeatureConfig Public.FeatureStatusDisabled
 
       -- Test override
-      setSSOInternal Public.FeatureStatusEnabled
+      setSSOFeature tid Public.FeatureStatusEnabled
       getSSO Public.FeatureStatusEnabled
       getSSOInternal Public.FeatureStatusEnabled
       getSSOFeatureConfig Public.FeatureStatusEnabled
@@ -180,6 +179,12 @@ testSSO = do
       getSSO Public.FeatureStatusEnabled
       getSSOInternal Public.FeatureStatusEnabled
       getSSOFeatureConfig Public.FeatureStatusEnabled
+
+putSSOInternal :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
+putSSOInternal tid = void . Util.putTeamFeatureFlagInternal @Public.SSOConfig expect2xx tid . (`Public.WithStatusNoLock` Public.SSOConfig)
+
+patchSSOInternal :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
+patchSSOInternal tid status = Util.patchFeatureStatusInternal @Public.SSOConfig tid (Public.withStatus' (Just status) Nothing Nothing) !!! statusCode === const 200
 
 testLegalHold :: TestM ()
 testLegalHold = do
