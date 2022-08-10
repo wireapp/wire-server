@@ -27,7 +27,6 @@ import Data.Metrics.Middleware
 import Data.Misc (Fingerprint, Rsa)
 import Data.Range
 import qualified Galley.Aws as Aws
-import Galley.Keys
 import Galley.Options
 import qualified Galley.Queue as Q
 import Imports
@@ -39,6 +38,7 @@ import qualified OpenSSL.X509.SystemStore as Ssl
 import Ssl.Util
 import System.Logger
 import Util.Options
+import Wire.API.MLS.Keys
 import Wire.API.Team.Member
 
 data DeleteItem = TeamItem TeamId UserId (Maybe ConnId)

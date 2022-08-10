@@ -32,6 +32,7 @@ library
     Galley.API.Message
     Galley.API.MLS
     Galley.API.MLS.KeyPackage
+    Galley.API.MLS.Keys
     Galley.API.MLS.Message
     Galley.API.MLS.Welcome
     Galley.API.One2One

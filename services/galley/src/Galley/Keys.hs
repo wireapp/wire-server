@@ -17,8 +17,7 @@
 
 -- | Handling of MLS private keys used for signing external proposals.
 module Galley.Keys
-  ( MLSKeys,
-    mlsKeyPair_ed25519,
+  ( mlsKeyPair_ed25519,
     loadMLSKeys,
   )
 where
@@ -35,10 +34,7 @@ import Data.PEM
 import Data.X509
 import Imports
 import Wire.API.MLS.Credential
-
-data MLSKeys = MLSKeys
-  { mlsKeyPair_ed25519 :: Maybe (SecretKey, PublicKey)
-  }
+import Wire.API.MLS.Keys
 
 data MLSPrivateKeyException = MLSPrivateKeyException
   { mpkePath :: FilePath,

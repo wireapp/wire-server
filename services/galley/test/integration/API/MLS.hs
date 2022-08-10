@@ -37,6 +37,7 @@ import Data.Json.Util hiding ((#))
 import qualified Data.List.NonEmpty as NE
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 hiding (head)
+import qualified Data.Map as Map
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
@@ -64,7 +65,9 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Credential
 import Wire.API.MLS.Group (convToGroupId)
+import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.Message
 import Wire.API.Routes.Version
@@ -148,7 +151,8 @@ tests s =
           test s "add users bypassing MLS" testAddUsersDirectly,
           test s "remove users bypassing MLS" testRemoveUsersDirectly,
           test s "send proteus message to an MLS conversation" testProteusMessage
-        ]
+        ],
+      test s "public keys" testPublicKeys
     ]
 
 postMLSConvFail :: TestM ()
@@ -1396,3 +1400,17 @@ testExternalAddProposalWrongClient = withSystemTempDirectory "mls" $ \tmp -> do
     const (Just "mls-unsupported-proposal") === fmap Wai.label . responseJsonError
 
 -- FUTUREWORK: test processing a commit containing the external proposal
+testPublicKeys :: TestM ()
+testPublicKeys = do
+  u <- randomId
+  g <- viewGalley
+  keys <-
+    responseJsonError
+      =<< get
+        ( g
+            . paths ["mls", "public-keys"]
+            . zUser u
+        )
+      <!! const 200 === statusCode
+
+  liftIO $ Map.keys (unMLSPublicKeys keys) @?= [Ed25519]

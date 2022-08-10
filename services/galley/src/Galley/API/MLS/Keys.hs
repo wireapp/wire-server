@@ -15,15 +15,21 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS
-  ( postMLSWelcome,
-    postMLSMessage,
-    postMLSMessageFromLocalUser,
-    postMLSMessageFromLocalUserV1,
-    getMLSPublicKeys,
-  )
-where
+module Galley.API.MLS.Keys where
 
-import Galley.API.MLS.Keys
-import Galley.API.MLS.Message
-import Galley.API.MLS.Welcome
+import Control.Lens (view)
+import Data.Id
+import Data.Qualified
+import Galley.Env
+import Imports
+import Polysemy
+import Polysemy.Input
+import Wire.API.MLS.Keys
+
+getMLSPublicKeys ::
+  Member (Input Env) r =>
+  Local UserId ->
+  Sem r MLSPublicKeys
+getMLSPublicKeys _ = do
+  keys <- inputs (view mlsKeys)
+  pure $ mlsKeysToPublic keys
