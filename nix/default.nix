@@ -33,6 +33,8 @@ let
   compile-deps = pkgs.buildEnv {
     name = "wire-server-compile-deps";
     paths = [
+      pkgs.stdenv.cc.cc.lib
+
       pkgs.bash
       pkgs.coreutils
       pkgs.gnused
