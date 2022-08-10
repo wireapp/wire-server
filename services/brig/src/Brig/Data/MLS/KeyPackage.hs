@@ -205,9 +205,9 @@ addKeyPackageRef ref nkpr = do
 -- external delete proposals.
 updateKeyPackageRef :: MonadClient m => KeyPackageRef -> KeyPackageRef -> m ()
 updateKeyPackageRef prevRef newRef =
-  void . runMaybeT $
-    backupKeyPackageMeta prevRef
-      >>= ($) lift . ((>> deleteKeyPackage prevRef) . restoreKeyPackageMeta newRef)
+  void . runMaybeT $ do
+    backup <- backupKeyPackageMeta prevRef
+    lift $ restoreKeyPackageMeta newRef backup >> deleteKeyPackage prevRef
 
 --------------------------------------------------------------------------------
 -- Utilities
