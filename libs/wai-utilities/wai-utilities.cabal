@@ -1,102 +1,99 @@
 cabal-version: 1.12
-
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: 3aa2434fe6abab51a3be2ffd8f4f18d39c76a71453c3ffbabe1bbc609cec096a
-
-name:           wai-utilities
-version:        0.16.1
-synopsis:       Various helpers for WAI
-description:    Small helper functions useful when working with WAI.
-category:       Web
-author:         Wire Swiss GmbH
-maintainer:     Wire Swiss GmbH <backend@wire.com>
-copyright:      (c) 2017 Wire Swiss GmbH
-license:        AGPL-3
-license-file:   LICENSE
-build-type:     Simple
+name:          wai-utilities
+version:       0.16.1
+synopsis:      Various helpers for WAI
+description:   Small helper functions useful when working with WAI.
+category:      Web
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2017 Wire Swiss GmbH
+license:       AGPL-3
+license-file:  LICENSE
+build-type:    Simple
 
 library
   exposed-modules:
-      Network.Wai.Utilities
-      Network.Wai.Utilities.Error
-      Network.Wai.Utilities.MockServer
-      Network.Wai.Utilities.Request
-      Network.Wai.Utilities.Response
-      Network.Wai.Utilities.Server
-      Network.Wai.Utilities.Swagger
-      Network.Wai.Utilities.ZAuth
-  other-modules:
-      Paths_wai_utilities
-  hs-source-dirs:
-      src
+    Network.Wai.Utilities
+    Network.Wai.Utilities.Error
+    Network.Wai.Utilities.MockServer
+    Network.Wai.Utilities.Request
+    Network.Wai.Utilities.Response
+    Network.Wai.Utilities.Server
+    Network.Wai.Utilities.Swagger
+    Network.Wai.Utilities.ZAuth
+
+  other-modules:      Paths_wai_utilities
+  hs-source-dirs:     src
   default-extensions:
-      AllowAmbiguousTypes
-      BangPatterns
-      ConstraintKinds
-      DataKinds
-      DefaultSignatures
-      DerivingStrategies
-      DerivingVia
-      DeriveFunctor
-      DeriveGeneric
-      DeriveLift
-      DeriveTraversable
-      EmptyCase
-      FlexibleContexts
-      FlexibleInstances
-      FunctionalDependencies
-      GADTs
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NoImplicitPrelude
-      OverloadedStrings
-      PackageImports
-      PatternSynonyms
-      PolyKinds
-      QuasiQuotes
-      RankNTypes
-      ScopedTypeVariables
-      StandaloneDeriving
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+
   build-depends:
-      aeson >=2.0.1.0
-    , async >=2.0
-    , base >=4.6 && <5.0
-    , bytestring >=0.10
-    , bytestring-conversion >=0.3
-    , errors >=2.0
-    , exceptions >=0.6
-    , http-types >=0.8
+      aeson                  >=2.0.1.0
+    , async                  >=2.0
+    , base                   >=4.6     && <5.0
+    , bytestring             >=0.10
+    , bytestring-conversion  >=0.3
+    , errors                 >=2.0
+    , exceptions             >=0.6
+    , http-types             >=0.8
     , imports
     , kan-extensions
-    , metrics-core >=0.1
-    , metrics-wai >=0.5.7
-    , pipes >=4.1
+    , metrics-core           >=0.1
+    , metrics-wai            >=0.5.7
+    , pipes                  >=4.1
     , prometheus-client
-    , streaming-commons >=0.1
+    , streaming-commons      >=0.1
     , string-conversions
-    , swagger >=0.1
-    , text >=0.11
-    , tinylog >=0.8
-    , types-common >=0.12
-    , unix >=2.7
-    , wai >=3.0
-    , wai-predicates >=0.8
-    , wai-routing >=0.12
-    , warp >=3.0
+    , swagger                >=0.1
+    , text                   >=0.11
+    , tinylog                >=0.8
+    , types-common           >=0.12
+    , unix                   >=2.7
+    , wai                    >=3.0
+    , wai-predicates         >=0.8
+    , wai-routing            >=0.12
+    , warp                   >=3.0
     , warp-tls
-  default-language: Haskell2010
+
+  default-language:   Haskell2010

@@ -1,237 +1,236 @@
 cabal-version: 1.12
-
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
-
-name:           galley
-version:        0.83.0
-synopsis:       Conversations
-category:       Network
-author:         Wire Swiss GmbH
-maintainer:     Wire Swiss GmbH <backend@wire.com>
-copyright:      (c) 2017 Wire Swiss GmbH
-license:        AGPL-3
-license-file:   LICENSE
-build-type:     Simple
+name:          galley
+version:       0.83.0
+synopsis:      Conversations
+category:      Network
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2017 Wire Swiss GmbH
+license:       AGPL-3
+license-file:  LICENSE
+build-type:    Simple
 
 flag static
   description: Enable static linking
-  manual: True
-  default: False
+  manual:      True
+  default:     False
 
 library
+  -- cabal-fmt: expand src
   exposed-modules:
-      Galley.API
-      Galley.API.Action
-      Galley.API.Clients
-      Galley.API.Create
-      Galley.API.CustomBackend
-      Galley.API.Error
-      Galley.API.Federation
-      Galley.API.Internal
-      Galley.API.LegalHold
-      Galley.API.LegalHold.Conflicts
-      Galley.API.Mapping
-      Galley.API.Message
-      Galley.API.MLS
-      Galley.API.MLS.KeyPackage
-      Galley.API.MLS.Message
-      Galley.API.MLS.Welcome
-      Galley.API.One2One
-      Galley.API.Public
-      Galley.API.Public.Servant
-      Galley.API.Push
-      Galley.API.Query
-      Galley.API.Teams
-      Galley.API.Teams.Features
-      Galley.API.Teams.Notifications
-      Galley.API.Update
-      Galley.API.Util
-      Galley.App
-      Galley.Aws
-      Galley.Cassandra
-      Galley.Cassandra.Access
-      Galley.Cassandra.Client
-      Galley.Cassandra.Code
-      Galley.Cassandra.Conversation
-      Galley.Cassandra.Conversation.Members
-      Galley.Cassandra.Conversation.MLS
-      Galley.Cassandra.ConversationList
-      Galley.Cassandra.CustomBackend
-      Galley.Cassandra.Instances
-      Galley.Cassandra.LegalHold
-      Galley.Cassandra.Paging
-      Galley.Cassandra.Proposal
-      Galley.Cassandra.Queries
-      Galley.Cassandra.ResultSet
-      Galley.Cassandra.SearchVisibility
-      Galley.Cassandra.Services
-      Galley.Cassandra.Store
-      Galley.Cassandra.Team
-      Galley.Cassandra.TeamFeatures
-      Galley.Cassandra.TeamNotifications
-      Galley.Data.Conversation
-      Galley.Data.Conversation.Types
-      Galley.Data.Scope
-      Galley.Data.Services
-      Galley.Data.TeamNotifications
-      Galley.Data.Types
-      Galley.Effects
-      Galley.Effects.BotAccess
-      Galley.Effects.BrigAccess
-      Galley.Effects.ClientStore
-      Galley.Effects.CodeStore
-      Galley.Effects.ConversationStore
-      Galley.Effects.CustomBackendStore
-      Galley.Effects.ExternalAccess
-      Galley.Effects.FederatorAccess
-      Galley.Effects.FireAndForget
-      Galley.Effects.GundeckAccess
-      Galley.Effects.LegalHoldStore
-      Galley.Effects.ListItems
-      Galley.Effects.MemberStore
-      Galley.Effects.Paging
-      Galley.Effects.ProposalStore
-      Galley.Effects.Queue
-      Galley.Effects.RemoteConversationListStore
-      Galley.Effects.SearchVisibilityStore
-      Galley.Effects.ServiceStore
-      Galley.Effects.SparAccess
-      Galley.Effects.TeamFeatureStore
-      Galley.Effects.TeamMemberStore
-      Galley.Effects.TeamNotificationStore
-      Galley.Effects.TeamStore
-      Galley.Effects.WaiRoutes
-      Galley.Effects.WaiRoutes.IO
-      Galley.Env
-      Galley.External
-      Galley.External.LegalHoldService
-      Galley.External.LegalHoldService.Internal
-      Galley.External.LegalHoldService.Types
-      Galley.Intra.Client
-      Galley.Intra.Effects
-      Galley.Intra.Federator
-      Galley.Intra.Journal
-      Galley.Intra.Push
-      Galley.Intra.Push.Internal
-      Galley.Intra.Spar
-      Galley.Intra.Team
-      Galley.Intra.User
-      Galley.Intra.Util
-      Galley.Monad
-      Galley.Options
-      Galley.Queue
-      Galley.Run
-      Galley.Types.Clients
-      Galley.Types.ToUserRole
-      Galley.Types.UserList
-      Galley.Validation
-      Main
-  other-modules:
-      Paths_galley
-  hs-source-dirs:
-      src
+    Galley.API
+    Galley.API.Action
+    Galley.API.Clients
+    Galley.API.Create
+    Galley.API.CustomBackend
+    Galley.API.Error
+    Galley.API.Federation
+    Galley.API.Internal
+    Galley.API.LegalHold
+    Galley.API.LegalHold.Conflicts
+    Galley.API.Mapping
+    Galley.API.Message
+    Galley.API.MLS
+    Galley.API.MLS.KeyPackage
+    Galley.API.MLS.Message
+    Galley.API.MLS.Welcome
+    Galley.API.One2One
+    Galley.API.Public
+    Galley.API.Public.Servant
+    Galley.API.Push
+    Galley.API.Query
+    Galley.API.Teams
+    Galley.API.Teams.Features
+    Galley.API.Teams.Notifications
+    Galley.API.Update
+    Galley.API.Util
+    Galley.App
+    Galley.Aws
+    Galley.Cassandra
+    Galley.Cassandra.Access
+    Galley.Cassandra.Client
+    Galley.Cassandra.Code
+    Galley.Cassandra.Conversation
+    Galley.Cassandra.Conversation.Members
+    Galley.Cassandra.Conversation.MLS
+    Galley.Cassandra.ConversationList
+    Galley.Cassandra.CustomBackend
+    Galley.Cassandra.Instances
+    Galley.Cassandra.LegalHold
+    Galley.Cassandra.Paging
+    Galley.Cassandra.Proposal
+    Galley.Cassandra.Queries
+    Galley.Cassandra.ResultSet
+    Galley.Cassandra.SearchVisibility
+    Galley.Cassandra.Services
+    Galley.Cassandra.Store
+    Galley.Cassandra.Team
+    Galley.Cassandra.TeamFeatures
+    Galley.Cassandra.TeamNotifications
+    Galley.Data.Conversation
+    Galley.Data.Conversation.Types
+    Galley.Data.Scope
+    Galley.Data.Services
+    Galley.Data.TeamNotifications
+    Galley.Data.Types
+    Galley.Effects
+    Galley.Effects.BotAccess
+    Galley.Effects.BrigAccess
+    Galley.Effects.ClientStore
+    Galley.Effects.CodeStore
+    Galley.Effects.ConversationStore
+    Galley.Effects.CustomBackendStore
+    Galley.Effects.ExternalAccess
+    Galley.Effects.FederatorAccess
+    Galley.Effects.FireAndForget
+    Galley.Effects.GundeckAccess
+    Galley.Effects.LegalHoldStore
+    Galley.Effects.ListItems
+    Galley.Effects.MemberStore
+    Galley.Effects.Paging
+    Galley.Effects.ProposalStore
+    Galley.Effects.Queue
+    Galley.Effects.RemoteConversationListStore
+    Galley.Effects.SearchVisibilityStore
+    Galley.Effects.ServiceStore
+    Galley.Effects.SparAccess
+    Galley.Effects.TeamFeatureStore
+    Galley.Effects.TeamMemberStore
+    Galley.Effects.TeamNotificationStore
+    Galley.Effects.TeamStore
+    Galley.Effects.WaiRoutes
+    Galley.Effects.WaiRoutes.IO
+    Galley.Env
+    Galley.External
+    Galley.External.LegalHoldService
+    Galley.External.LegalHoldService.Internal
+    Galley.External.LegalHoldService.Types
+    Galley.Intra.Client
+    Galley.Intra.Effects
+    Galley.Intra.Federator
+    Galley.Intra.Journal
+    Galley.Intra.Push
+    Galley.Intra.Push.Internal
+    Galley.Intra.Spar
+    Galley.Intra.Team
+    Galley.Intra.User
+    Galley.Intra.Util
+    Galley.Monad
+    Galley.Options
+    Galley.Queue
+    Galley.Run
+    Galley.Types.Clients
+    Galley.Types.ToUserRole
+    Galley.Types.UserList
+    Galley.Validation
+    Main
+
+  other-modules:      Paths_galley
+  hs-source-dirs:     src
   default-extensions:
-      AllowAmbiguousTypes
-      BangPatterns
-      ConstraintKinds
-      DataKinds
-      DefaultSignatures
-      DerivingStrategies
-      DerivingVia
-      DeriveFunctor
-      DeriveGeneric
-      DeriveLift
-      DeriveTraversable
-      EmptyCase
-      FlexibleContexts
-      FlexibleInstances
-      FunctionalDependencies
-      GADTs
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NoImplicitPrelude
-      OverloadedStrings
-      PackageImports
-      PatternSynonyms
-      PolyKinds
-      QuasiQuotes
-      RankNTypes
-      ScopedTypeVariables
-      StandaloneDeriving
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+
   build-depends:
-      HsOpenSSL >=0.11
-    , HsOpenSSL-x509-system >=0.1
-    , QuickCheck >=2.14
-    , aeson >=2.0.1.0
-    , amazonka >=1.4.5
-    , amazonka-sqs >=1.4.5
-    , async >=2.0
-    , base >=4.6 && <5
-    , base64-bytestring >=1.0
-    , bilge >=0.21.1
+      aeson                      >=2.0.1.0
+    , amazonka                   >=1.4.5
+    , amazonka-sqs               >=1.4.5
+    , async                      >=2.0
+    , base                       >=4.6     && <5
+    , base64-bytestring          >=1.0
+    , bilge                      >=0.21.1
     , binary
     , blake2
-    , brig-types >=0.73.1
-    , bytestring >=0.9
-    , bytestring-conversion >=0.2
+    , brig-types                 >=0.73.1
+    , bytestring                 >=0.9
+    , bytestring-conversion      >=0.2
     , case-insensitive
-    , cassandra-util >=0.16.2
-    , cassava >=0.5.2
-    , cereal >=0.4
+    , cassandra-util             >=0.16.2
+    , cassava                    >=0.5.2
+    , cereal                     >=0.4
     , comonad
-    , containers >=0.5
+    , containers                 >=0.5
     , cryptonite
-    , currency-codes >=2.0
-    , data-default >=0.5
+    , currency-codes             >=2.0
+    , data-default               >=0.5
     , data-timeout
     , either
-    , enclosed-exceptions >=1.0
-    , errors >=2.0
-    , exceptions >=0.4
+    , enclosed-exceptions        >=1.0
+    , errors                     >=2.0
+    , exceptions                 >=0.4
     , extended
-    , extra >=1.3
-    , galley-types >=0.65.0
-    , gundeck-types >=1.35.2
-    , http-client >=0.4
-    , http-client-openssl >=0.2
-    , http-client-tls >=0.2.2
+    , extra                      >=1.3
+    , galley-types               >=0.65.0
+    , gundeck-types              >=1.35.2
+    , HsOpenSSL                  >=0.11
+    , HsOpenSSL-x509-system      >=0.1
+    , http-client                >=0.4
+    , http-client-openssl        >=0.2
+    , http-client-tls            >=0.2.2
     , http-media
-    , http-types >=0.8
+    , http-types                 >=0.8
     , imports
     , insert-ordered-containers
     , kan-extensions
-    , lens >=4.4
+    , lens                       >=4.4
     , memory
     , metrics-core
-    , metrics-wai >=0.4
-    , mtl >=2.2
-    , optparse-applicative >=0.10
+    , metrics-wai                >=0.4
+    , mtl                        >=2.2
+    , optparse-applicative       >=0.10
     , pem
     , polysemy
     , polysemy-wire-zoo
-    , proto-lens >=0.2
-    , protobuf >=0.2
+    , proto-lens                 >=0.2
+    , protobuf                   >=0.2
+    , QuickCheck                 >=2.14
     , random
-    , raw-strings-qq >=1.0
-    , resourcet >=1.1
-    , retry >=0.5
-    , safe >=0.3
-    , safe-exceptions >=0.1
-    , saml2-web-sso >=0.19
+    , raw-strings-qq             >=1.0
+    , resourcet                  >=1.1
+    , retry                      >=0.5
+    , safe                       >=0.3
+    , safe-exceptions            >=0.1
+    , saml2-web-sso              >=0.19
     , schema-profunctor
     , semigroups
     , servant
@@ -242,93 +241,98 @@ library
     , servant-swagger-ui
     , singletons
     , sop-core
-    , split >=0.2
-    , ssl-util >=0.1
-    , stm >=2.4
+    , split                      >=0.2
+    , ssl-util                   >=0.1
+    , stm                        >=2.4
     , string-conversions
-    , swagger >=0.1
+    , swagger                    >=0.1
     , swagger2
     , tagged
-    , text >=0.11
-    , time >=1.4
-    , tinylog >=0.10
-    , tls >=1.3.10
+    , text                       >=0.11
+    , time                       >=1.4
+    , tinylog                    >=0.10
+    , tls                        >=1.3.10
     , transformers
-    , types-common >=0.16
+    , types-common               >=0.16
     , types-common-aws
-    , types-common-journal >=0.1
-    , unliftio >=0.2
-    , unordered-containers >=0.2
-    , uri-bytestring >=0.2
-    , uuid >=1.3
-    , vector >=0.10
-    , wai >=3.0
-    , wai-extra >=3.0
-    , wai-middleware-gunzip >=0.0.2
-    , wai-predicates >=0.8
-    , wai-routing >=0.12
-    , wai-utilities >=0.16
-    , warp >=3.0
+    , types-common-journal       >=0.1
+    , unliftio                   >=0.2
+    , unordered-containers       >=0.2
+    , uri-bytestring             >=0.2
+    , uuid                       >=1.3
+    , vector                     >=0.10
+    , wai                        >=3.0
+    , wai-extra                  >=3.0
+    , wai-middleware-gunzip      >=0.0.2
+    , wai-predicates             >=0.8
+    , wai-routing                >=0.12
+    , wai-utilities              >=0.16
+    , warp                       >=3.0
     , wire-api
     , wire-api-federation
-  default-language: Haskell2010
+
+  default-language:   Haskell2010
 
 executable galley
-  main-is: src/Main.hs
-  other-modules:
-      Paths_galley
+  main-is:            src/Main.hs
+  other-modules:      Paths_galley
   default-extensions:
-      AllowAmbiguousTypes
-      BangPatterns
-      ConstraintKinds
-      DataKinds
-      DefaultSignatures
-      DerivingStrategies
-      DerivingVia
-      DeriveFunctor
-      DeriveGeneric
-      DeriveLift
-      DeriveTraversable
-      EmptyCase
-      FlexibleContexts
-      FlexibleInstances
-      FunctionalDependencies
-      GADTs
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NoImplicitPrelude
-      OverloadedStrings
-      PackageImports
-      PatternSynonyms
-      PolyKinds
-      QuasiQuotes
-      RankNTypes
-      ScopedTypeVariables
-      StandaloneDeriving
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-T -rtsopts
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -threaded -with-rtsopts=-T -rtsopts
+
   build-depends:
-      HsOpenSSL
-    , base
+      base
     , case-insensitive
     , extended
-    , extra >=1.3
+    , extra                >=1.3
     , galley
     , galley-types
+    , HsOpenSSL
     , imports
-    , raw-strings-qq >=1.0
-    , safe >=0.3
-    , saml2-web-sso >=0.19
+    , raw-strings-qq       >=1.0
+    , safe                 >=0.3
+    , saml2-web-sso        >=0.19
     , servant-client
     , ssl-util
     , tagged
@@ -336,78 +340,84 @@ executable galley
     , types-common
     , wire-api
     , wire-api-federation
+
   if flag(static)
     ld-options: -static
-  default-language: Haskell2010
+
+  default-language:   Haskell2010
 
 executable galley-integration
-  main-is: Main.hs
+  main-is:            Main.hs
+
+  -- cabal-fmt: expand test/integration
   other-modules:
-      API
-      API.CustomBackend
-      API.Federation
-      API.Federation.Util
-      API.MessageTimer
-      API.MLS
-      API.MLS.Util
-      API.Roles
-      API.SQS
-      API.Teams
-      API.Teams.Feature
-      API.Teams.LegalHold
-      API.Teams.LegalHold.DisabledByDefault
-      API.Util
-      API.Util.TeamFeature
-      TestHelpers
-      TestSetup
-      Paths_galley
-  hs-source-dirs:
-      test/integration
+    API
+    API.CustomBackend
+    API.Federation
+    API.Federation.Util
+    API.MessageTimer
+    API.MLS
+    API.MLS.Util
+    API.Roles
+    API.SQS
+    API.Teams
+    API.Teams.Feature
+    API.Teams.LegalHold
+    API.Teams.LegalHold.DisabledByDefault
+    API.Util
+    API.Util.TeamFeature
+    Main
+    TestHelpers
+    TestSetup
+
+  hs-source-dirs:     test/integration
   default-extensions:
-      AllowAmbiguousTypes
-      BangPatterns
-      ConstraintKinds
-      DataKinds
-      DefaultSignatures
-      DerivingStrategies
-      DerivingVia
-      DeriveFunctor
-      DeriveGeneric
-      DeriveLift
-      DeriveTraversable
-      EmptyCase
-      FlexibleContexts
-      FlexibleInstances
-      FunctionalDependencies
-      GADTs
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NoImplicitPrelude
-      OverloadedStrings
-      PackageImports
-      PatternSynonyms
-      PolyKinds
-      QuasiQuotes
-      RankNTypes
-      ScopedTypeVariables
-      StandaloneDeriving
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -threaded
+
   build-depends:
-      HsOpenSSL
-    , HsOpenSSL-x509-system
-    , QuickCheck
-    , aeson
+      aeson
     , aeson-qq
     , amazonka
     , amazonka-sqs
@@ -431,12 +441,14 @@ executable galley-integration
     , errors
     , exceptions
     , extended
-    , extra >=1.3
+    , extra                    >=1.3
     , federator
     , filepath
     , galley
     , galley-types
     , gundeck-types
+    , HsOpenSSL
+    , HsOpenSSL-x509-system
     , hspec
     , http-client
     , http-client-openssl
@@ -454,12 +466,13 @@ executable galley-integration
     , process
     , proto-lens
     , protobuf
+    , QuickCheck
     , quickcheck-instances
     , random
-    , raw-strings-qq >=1.0
+    , raw-strings-qq           >=1.0
     , retry
-    , safe >=0.3
-    , saml2-web-sso >=0.19
+    , safe                     >=0.3
+    , saml2-web-sso            >=0.19
     , schema-profunctor
     , servant
     , servant-client
@@ -471,14 +484,14 @@ executable galley-integration
     , ssl-util
     , string-conversions
     , tagged
-    , tasty >=0.8
-    , tasty-cannon >=0.3.2
-    , tasty-hunit >=0.9
+    , tasty                    >=0.8
+    , tasty-cannon             >=0.3.2
+    , tasty-hunit              >=0.9
     , temporary
     , text
     , time
     , tinylog
-    , tls >=1.3.8
+    , tls                      >=1.3.8
     , transformers
     , types-common
     , types-common-journal
@@ -491,62 +504,67 @@ executable galley-integration
     , wai-extra
     , wai-utilities
     , warp
-    , warp-tls >=3.2
+    , warp-tls                 >=3.2
     , wire-api
     , wire-api-federation
     , wire-message-proto-lens
     , yaml
-  default-language: Haskell2010
+
+  default-language:   Haskell2010
 
 executable galley-migrate-data
-  main-is: Main.hs
+  main-is:            Main.hs
   other-modules:
-      Galley.DataMigration
-      Galley.DataMigration.Types
-      V1_BackfillBillingTeamMembers
-      Paths_galley
-  hs-source-dirs:
-      migrate-data/src
+    Galley.DataMigration
+    Galley.DataMigration.Types
+    Paths_galley
+    V1_BackfillBillingTeamMembers
+
+  hs-source-dirs:     migrate-data/src
   default-extensions:
-      AllowAmbiguousTypes
-      BangPatterns
-      ConstraintKinds
-      DataKinds
-      DefaultSignatures
-      DerivingStrategies
-      DerivingVia
-      DeriveFunctor
-      DeriveGeneric
-      DeriveLift
-      DeriveTraversable
-      EmptyCase
-      FlexibleContexts
-      FlexibleInstances
-      FunctionalDependencies
-      GADTs
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NoImplicitPrelude
-      OverloadedStrings
-      PackageImports
-      PatternSynonyms
-      PolyKinds
-      QuasiQuotes
-      RankNTypes
-      ScopedTypeVariables
-      StandaloneDeriving
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+
   build-depends:
       base
     , case-insensitive
@@ -555,14 +573,14 @@ executable galley-migrate-data
     , containers
     , exceptions
     , extended
-    , extra >=1.3
+    , extra                 >=1.3
     , galley-types
     , imports
     , lens
     , optparse-applicative
-    , raw-strings-qq >=1.0
-    , safe >=0.3
-    , saml2-web-sso >=0.19
+    , raw-strings-qq        >=1.0
+    , safe                  >=0.3
+    , saml2-web-sso         >=0.19
     , servant-client
     , ssl-util
     , tagged
@@ -574,118 +592,126 @@ executable galley-migrate-data
     , unliftio
     , wire-api
     , wire-api-federation
+
   if flag(static)
     ld-options: -static
-  default-language: Haskell2010
+
+  default-language:   Haskell2010
 
 executable galley-schema
-  main-is: Main.hs
+  main-is:            Main.hs
+
+  -- cabal-fmt: expand schema/src
   other-modules:
-      V20
-      V21
-      V22
-      V23
-      V24
-      V25
-      V26
-      V27
-      V28
-      V29
-      V30
-      V31
-      V32
-      V33
-      V34
-      V35
-      V36
-      V37
-      V38_CreateTableBillingTeamMember
-      V39
-      V40_CreateTableDataMigration
-      V41_TeamNotificationQueue
-      V42_TeamFeatureValidateSamlEmails
-      V43_TeamFeatureDigitalSignatures
-      V44_AddRemoteIdentifiers
-      V45_AddFederationIdMapping
-      V46_TeamFeatureAppLock
-      V47_RemoveFederationIdMapping
-      V48_DeleteRemoteIdentifiers
-      V49_ReAddRemoteIdentifiers
-      V50_AddLegalholdWhitelisted
-      V51_FeatureFileSharing
-      V52_FeatureConferenceCalling
-      V53_AddRemoteConvStatus
-      V54_TeamFeatureSelfDeletingMessages
-      V55_SelfDeletingMessagesLockStatus
-      V56_GuestLinksTeamFeatureStatus
-      V57_GuestLinksLockStatus
-      V58_ConversationAccessRoleV2
-      V59_FileSharingLockStatus
-      V60_TeamFeatureSndFactorPasswordChallenge
-      V61_MLSConversation
-      V62_TeamFeatureSearchVisibilityInbound
-      V63_MLSConversationClients
-      V64_Epoch
-      V65_MLSRemoteClients
-      V66_AddSplashScreen
-      V67_MLSFeature
-      V68_MLSCommitLock
-      V69_MLSProposal
-      V70_MLSCipherSuite
-      Paths_galley
-  hs-source-dirs:
-      schema/src
+    Main
+    V20
+    V21
+    V22
+    V23
+    V24
+    V25
+    V26
+    V27
+    V28
+    V29
+    V30
+    V31
+    V32
+    V33
+    V34
+    V35
+    V36
+    V37
+    V38_CreateTableBillingTeamMember
+    V39
+    V40_CreateTableDataMigration
+    V41_TeamNotificationQueue
+    V42_TeamFeatureValidateSamlEmails
+    V43_TeamFeatureDigitalSignatures
+    V44_AddRemoteIdentifiers
+    V45_AddFederationIdMapping
+    V46_TeamFeatureAppLock
+    V47_RemoveFederationIdMapping
+    V48_DeleteRemoteIdentifiers
+    V49_ReAddRemoteIdentifiers
+    V50_AddLegalholdWhitelisted
+    V51_FeatureFileSharing
+    V52_FeatureConferenceCalling
+    V53_AddRemoteConvStatus
+    V54_TeamFeatureSelfDeletingMessages
+    V55_SelfDeletingMessagesLockStatus
+    V56_GuestLinksTeamFeatureStatus
+    V57_GuestLinksLockStatus
+    V58_ConversationAccessRoleV2
+    V59_FileSharingLockStatus
+    V60_TeamFeatureSndFactorPasswordChallenge
+    V61_MLSConversation
+    V62_TeamFeatureSearchVisibilityInbound
+    V63_MLSConversationClients
+    V64_Epoch
+    V65_MLSRemoteClients
+    V66_AddSplashScreen
+    V67_MLSFeature
+    V68_MLSCommitLock
+    V69_MLSProposal
+    V70_MLSCipherSuite
+
+  hs-source-dirs:     schema/src
   default-extensions:
-      AllowAmbiguousTypes
-      BangPatterns
-      ConstraintKinds
-      DataKinds
-      DefaultSignatures
-      DerivingStrategies
-      DerivingVia
-      DeriveFunctor
-      DeriveGeneric
-      DeriveLift
-      DeriveTraversable
-      EmptyCase
-      FlexibleContexts
-      FlexibleInstances
-      FunctionalDependencies
-      GADTs
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NoImplicitPrelude
-      OverloadedStrings
-      PackageImports
-      PatternSynonyms
-      PolyKinds
-      QuasiQuotes
-      RankNTypes
-      ScopedTypeVariables
-      StandaloneDeriving
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+
   build-depends:
       base
     , case-insensitive
     , cassandra-util
     , extended
-    , extra >=1.3
+    , extra                 >=1.3
     , imports
     , optparse-applicative
-    , raw-strings-qq >=1.0
-    , safe >=0.3
-    , saml2-web-sso >=0.19
+    , raw-strings-qq        >=1.0
+    , safe                  >=0.3
+    , saml2-web-sso         >=0.19
     , servant-client
     , ssl-util
     , tagged
@@ -694,77 +720,84 @@ executable galley-schema
     , transformers
     , wire-api
     , wire-api-federation
+
   if flag(static)
     ld-options: -static
-  default-language: Haskell2010
+
+  default-language:   Haskell2010
 
 test-suite galley-tests
-  type: exitcode-stdio-1.0
-  main-is: Main.hs
+  type:               exitcode-stdio-1.0
+  main-is:            Main.hs
   other-modules:
-      Test.Galley.API
-      Test.Galley.API.Message
-      Test.Galley.API.One2One
-      Test.Galley.Intra.User
-      Test.Galley.Mapping
-      Paths_galley
-  hs-source-dirs:
-      test/unit
+    Paths_galley
+    Test.Galley.API
+    Test.Galley.API.Message
+    Test.Galley.API.One2One
+    Test.Galley.Intra.User
+    Test.Galley.Mapping
+
+  hs-source-dirs:     test/unit
   default-extensions:
-      AllowAmbiguousTypes
-      BangPatterns
-      ConstraintKinds
-      DataKinds
-      DefaultSignatures
-      DerivingStrategies
-      DerivingVia
-      DeriveFunctor
-      DeriveGeneric
-      DeriveLift
-      DeriveTraversable
-      EmptyCase
-      FlexibleContexts
-      FlexibleInstances
-      FunctionalDependencies
-      GADTs
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NoImplicitPrelude
-      OverloadedStrings
-      PackageImports
-      PatternSynonyms
-      PolyKinds
-      QuasiQuotes
-      RankNTypes
-      ScopedTypeVariables
-      StandaloneDeriving
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -threaded -with-rtsopts=-N
+
   build-depends:
-      QuickCheck
-    , base
+      base
     , case-insensitive
     , containers
     , extended
-    , extra >=1.3
+    , extra                >=1.3
     , galley
     , galley-types
     , http-types
     , imports
     , lens
-    , raw-strings-qq >=1.0
-    , safe >=0.3
-    , saml2-web-sso >=0.19
+    , QuickCheck
+    , raw-strings-qq       >=1.0
+    , safe                 >=0.3
+    , saml2-web-sso        >=0.19
     , servant-client
     , servant-swagger
     , ssl-util
@@ -779,4 +812,5 @@ test-suite galley-tests
     , wai-predicates
     , wire-api
     , wire-api-federation
-  default-language: Haskell2010
+
+  default-language:   Haskell2010

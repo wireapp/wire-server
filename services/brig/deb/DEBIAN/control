@@ -1,6 +1,0 @@
-Package: brig
-Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
-Maintainer: Wire Swiss GmbH <backend@wire.com>
-Architecture: amd64
-Depends: runit,libsodium23 (>= 1.0.16)
-Description: Brig - User Service

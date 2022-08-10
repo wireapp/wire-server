@@ -105,8 +105,8 @@ let
     cabal-wrapper
     stack-wrapper
 
-    # For cabal-migration
     pkgs.haskellPackages.cabal-plan
+    pkgs.haskellPackages.cabal-fmt
 
     # We don't use pkgs.cabal-install here, as we invoke it with a wrapper
     # which sets LD_LIBRARY_PATH and others correctly.

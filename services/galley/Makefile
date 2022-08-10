@@ -8,10 +8,6 @@ BUILD            := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo ""
 EXE_IT           := ../../dist/$(NAME)-integration
 EXE_SCHEMA       := ../../dist/$(NAME)-schema
 EXE_MIGRATE_DATA := ../../dist/$(NAME)-migrate-data
-DEB              := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
-DEB_IT           := $(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
-DEB_SCHEMA       := $(NAME)-schema_$(VERSION)+$(BUILD)_amd64.deb
-DEB_MIGRATE_DATA := $(NAME)-migrate-data_$(VERSION)+$(BUILD)_amd64.deb
 EXECUTABLES      := $(NAME) $(NAME)-integration $(NAME)-schema $(NAME)-migrate-data
 DOCKER_USER      ?= quay.io/wire
 DOCKER_TAG       ?= local

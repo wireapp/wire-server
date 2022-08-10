@@ -55,12 +55,3 @@ dist: test build-release
 		-e "s~<<PREFIX>>~$(PREFIX_PACKAGE)~" \
 		src/libzauth.pc > deb$(PREFIX_PACKAGE)/lib/pkgconfig/libzauth.pc
 	cp target/release/libzauth.$(LIB_TYPE) deb$(PREFIX_PACKAGE)/lib/
-ifeq ($(OS), linux)
-	makedeb --name=libzauth        \
-			--version=$(VERSION)   \
-			--debian-dir=deb       \
-			--build=$(BUILD)       \
-			--architecture=$(ARCH) \
-			--output-dir=target/release
-endif
-
