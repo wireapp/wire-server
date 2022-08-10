@@ -113,6 +113,8 @@ tests s =
             testPatchValidAppLockConfig Public.FeatureStatusEnabled (Public.AppLockConfig (Public.EnforceAppLock False) 42),
           test s (unpack $ Public.featureNameBS @Public.ConferenceCallingConfig) $
             testPatchIgnoreLockStatusChange @Public.ConferenceCallingConfig Public.FeatureStatusEnabled Public.ConferenceCallingConfig,
+          test s (unpack $ Public.featureNameBS @Public.SearchVisibilityAvailableConfig) $
+            testPatchIgnoreLockStatusChange @Public.SearchVisibilityAvailableConfig Public.FeatureStatusEnabled Public.SearchVisibilityAvailableConfig,
           test s (unpack $ Public.featureNameBS @Public.FileSharingConfig) $
             testPatch @Public.FileSharingConfig Public.FeatureStatusEnabled Public.FileSharingConfig,
           test s (unpack $ Public.featureNameBS @Public.GuestLinksConfig) $
