@@ -107,6 +107,8 @@ tests s =
             testPatchIgnoreLockStatusChange @Public.SearchVisibilityAvailableConfig Public.FeatureStatusEnabled Public.SearchVisibilityAvailableConfig,
           test s (unpack $ Public.featureNameBS @Public.ValidateSAMLEmailsConfig) $
             testPatchIgnoreLockStatusChange @Public.ValidateSAMLEmailsConfig Public.FeatureStatusEnabled Public.ValidateSAMLEmailsConfig,
+          test s (unpack $ Public.featureNameBS @Public.DigitalSignaturesConfig) $
+            testPatchIgnoreLockStatusChange @Public.DigitalSignaturesConfig Public.FeatureStatusEnabled Public.DigitalSignaturesConfig,
           test s (unpack $ Public.featureNameBS @Public.FileSharingConfig) $
             testPatch @Public.FileSharingConfig Public.FeatureStatusEnabled Public.FileSharingConfig,
           test s (unpack $ Public.featureNameBS @Public.GuestLinksConfig) $
