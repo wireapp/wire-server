@@ -141,7 +141,7 @@ data PasswordResetError
   | ResetPasswordMustDiffer
 
 data LegalHoldLoginError
-  = LegalHoldLoginTeamNotFound
+  = LegalHoldLoginNoBindingTeam
   | LegalHoldLoginLegalHoldNotEnabled
   | LegalHoldLoginError LoginError
   | LegalHoldReAuthError ReAuthError

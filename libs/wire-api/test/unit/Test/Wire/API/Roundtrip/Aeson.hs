@@ -181,6 +181,7 @@ tests =
       testRoundTrip @Push.Token.PushTokenList,
       testRoundTrip @Scim.CreateScimToken,
       testRoundTrip @Team.BindingNewTeam,
+      testRoundTrip @Team.TeamBinding,
       testRoundTrip @Team.Team,
       testRoundTrip @Team.TeamList,
       testRoundTrip @Team.TeamUpdateData,

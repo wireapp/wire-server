@@ -18,6 +18,7 @@
 
 module Galley.API.Teams
   ( createBindingTeam,
+    createNonBindingTeamH,
     updateTeamH,
     updateTeamStatus,
     getTeamH,
@@ -28,6 +29,7 @@ module Galley.API.Teams
     getManyTeams,
     deleteTeam,
     uncheckedDeleteTeam,
+    addTeamMember,
     getTeamNotificationsH,
     getTeamConversationRoles,
     getTeamMembers,
@@ -35,6 +37,7 @@ module Galley.API.Teams
     bulkGetTeamMembers,
     getTeamMember,
     deleteTeamMember,
+    deleteNonBindingTeamMember,
     updateTeamMember,
     getTeamConversations,
     getTeamConversation,
@@ -68,6 +71,7 @@ import Data.Id
 import qualified Data.LegalHold as LH
 import qualified Data.List.Extra as List
 import Data.List1 (list1)
+import qualified Data.Map as Map
 import qualified Data.Map.Strict as M
 import Data.Misc (HttpsUrl, mkHttpsUrl)
 import Data.Proxy
@@ -136,7 +140,7 @@ import Wire.API.Team.Conversation
 import qualified Wire.API.Team.Conversation as Public
 import Wire.API.Team.Export (TeamExportUser (..))
 import Wire.API.Team.Feature
-import Wire.API.Team.Member (HardTruncationLimit, ListType (ListComplete, ListTruncated), NewTeamMember, TeamMember, TeamMemberList, TeamMemberListOptPerms, TeamMemberOptPerms, hardTruncationLimit, invitation, newTeamMemberList, ntmNewTeamMember, permissions, setOptionalPerms, setOptionalPermsMany, teamMemberListType, teamMembers, tmdAuthPassword, userId)
+import Wire.API.Team.Member (HardTruncationLimit, ListType (ListComplete, ListTruncated), NewTeamMember, TeamMember, TeamMemberList, TeamMemberListOptPerms, TeamMemberOptPerms, hardTruncationLimit, invitation, nPermissions, nUserId, newTeamMemberList, ntmNewTeamMember, permissions, setOptionalPerms, setOptionalPermsMany, teamMemberListType, teamMembers, tmdAuthPassword, userId)
 import qualified Wire.API.Team.Member as Public
 import Wire.API.Team.Permission (Perm (..), Permissions (..), SPerm (..), copy, fullPermissions, self)
 import Wire.API.Team.Role
@@ -174,7 +178,6 @@ getTeamNameInternal :: Member TeamStore r => TeamId -> Sem r (Maybe TeamName)
 getTeamNameInternal = fmap (fmap TeamName) . E.getTeamName
 
 -- | DEPRECATED.
--- Removed in API version 2
 --
 -- The endpoint was designed to query non-binding teams. However, non-binding teams is a feature
 -- that has never been adopted by clients, but the endpoint also returns the binding team of a user and it is
@@ -211,6 +214,44 @@ lookupTeam zusr tid = do
       pure (tdTeam <$> t)
     else pure Nothing
 
+createNonBindingTeamH ::
+  forall r.
+  ( Member BrigAccess r,
+    Member (ErrorS 'UserBindingExists) r,
+    Member (ErrorS 'NotConnected) r,
+    Member GundeckAccess r,
+    Member (Input UTCTime) r,
+    Member P.TinyLog r,
+    Member TeamStore r,
+    Member WaiRoutes r
+  ) =>
+  UserId ->
+  ConnId ->
+  Public.NonBindingNewTeam ->
+  Sem r TeamId
+createNonBindingTeamH zusr zcon (Public.NonBindingNewTeam body) = do
+  let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
+  let others =
+        filter ((zusr /=) . view userId)
+          . maybe [] fromRange
+          $ body ^. newTeamMembers
+  let zothers = map (view userId) others
+  ensureUnboundUsers (zusr : zothers)
+  ensureConnectedToLocals zusr zothers
+  P.debug $
+    Log.field "targets" (toByteString . show $ toByteString <$> zothers)
+      . Log.field "action" (Log.val "Teams.createNonBindingTeam")
+  team <-
+    E.createTeam
+      Nothing
+      zusr
+      (body ^. newTeamName)
+      (body ^. newTeamIcon)
+      (body ^. newTeamIconKey)
+      NonBinding
+  finishCreateTeam team owner others (Just zcon)
+  pure (team ^. teamId)
+
 createBindingTeam ::
   Members '[GundeckAccess, Input UTCTime, TeamStore] r =>
   TeamId ->
@@ -220,7 +261,7 @@ createBindingTeam ::
 createBindingTeam tid zusr (BindingNewTeam body) = do
   let owner = Public.mkTeamMember zusr fullPermissions Nothing LH.defUserLegalHoldStatus
   team <-
-    E.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey)
+    E.createTeam (Just tid) zusr (body ^. newTeamName) (body ^. newTeamIcon) (body ^. newTeamIconKey) Binding
   finishCreateTeam team owner [] Nothing
   pure tid
 
@@ -319,17 +360,19 @@ deleteTeam zusr zcon tid body = do
     PendingDelete ->
       queueTeamDeletion tid zusr (Just zcon)
     _ -> do
-      checkPermissions
+      checkPermissions team
       queueTeamDeletion tid zusr (Just zcon)
   where
-    checkPermissions = do
+    checkPermissions team = do
       void $ permissionCheck DeleteTeam =<< E.getTeamMember tid zusr
-      ensureReAuthorised zusr (body ^. tdAuthPassword) (body ^. tdVerificationCode) (Just U.DeleteTeam)
+      when (tdTeam team ^. teamBinding == Binding) $ do
+        ensureReAuthorised zusr (body ^. tdAuthPassword) (body ^. tdVerificationCode) (Just U.DeleteTeam)
 
 -- This can be called by stern
 internalDeleteBindingTeam ::
   Members
-    '[ ErrorS 'TeamNotFound,
+    '[ ErrorS 'NoBindingTeam,
+       ErrorS 'TeamNotFound,
        ErrorS 'NotAOneMemberTeam,
        ErrorS 'DeleteQueueFull,
        Queue DeleteItem,
@@ -343,6 +386,7 @@ internalDeleteBindingTeam tid force = do
   mbTeamData <- E.getTeam tid
   case tdTeam <$> mbTeamData of
     Nothing -> throwS @'TeamNotFound
+    Just team | team ^. teamBinding /= Binding -> throwS @'NoBindingTeam
     Just team -> do
       mems <- E.getTeamMembersWithLimit tid (unsafeRange 2)
       case mems ^. teamMembers of
@@ -389,8 +433,9 @@ uncheckedDeleteTeam lusr zcon tid = do
     -- TODO: we don't delete bots here, but we should do that, since
     -- every bot user can only be in a single conversation. Just
     -- deleting conversations from the database is not enough.
-    mapM_ (E.deleteUser . view userId) membs
-    Journal.teamDelete tid
+    when ((view teamBinding . tdTeam <$> team) == Just Binding) $ do
+      mapM_ (E.deleteUser . view userId) membs
+      Journal.teamDelete tid
     Data.unsetTeamLegalholdWhitelisted tid
     E.deleteTeam tid
   where
@@ -623,6 +668,58 @@ uncheckedGetTeamMembers ::
   Sem r TeamMemberList
 uncheckedGetTeamMembers = E.getTeamMembersWithLimit
 
+addTeamMember ::
+  forall db r.
+  ( Members
+      '[ BrigAccess,
+         GundeckAccess,
+         ErrorS 'InvalidPermissions,
+         ErrorS 'NoAddToBinding,
+         ErrorS 'NotATeamMember,
+         ErrorS 'NotConnected,
+         ErrorS OperationDenied,
+         ErrorS 'TeamNotFound,
+         ErrorS 'TooManyTeamMembers,
+         ErrorS 'UserBindingExists,
+         ErrorS 'TooManyTeamMembersOnTeamWithLegalhold,
+         Input (Local ()),
+         Input Opts,
+         Input UTCTime,
+         LegalHoldStore,
+         MemberStore,
+         TeamFeatureStore db,
+         TeamNotificationStore,
+         TeamStore,
+         P.TinyLog
+       ]
+      r,
+    FeaturePersistentConstraint db LegalholdConfig
+  ) =>
+  Local UserId ->
+  ConnId ->
+  TeamId ->
+  Public.NewTeamMember ->
+  Sem r ()
+addTeamMember lzusr zcon tid nmem = do
+  let zusr = tUnqualified lzusr
+  let uid = nmem ^. nUserId
+  P.debug $
+    Log.field "targets" (toByteString uid)
+      . Log.field "action" (Log.val "Teams.addTeamMember")
+  -- verify permissions
+  zusrMembership <-
+    E.getTeamMember tid zusr
+      >>= permissionCheck AddTeamMember
+  let targetPermissions = nmem ^. nPermissions
+  targetPermissions `ensureNotElevated` zusrMembership
+  ensureNonBindingTeam tid
+  ensureUnboundUsers [uid]
+  ensureConnectedToLocals zusr [uid]
+  (TeamSize sizeBeforeJoin) <- E.getSize tid
+  ensureNotTooLargeForLegalHold @db tid (fromIntegral sizeBeforeJoin + 1)
+  memList <- getTeamMembersForFanout tid
+  void $ addTeamMemberInternal tid (Just zusr) (Just zcon) nmem memList
+
 -- This function is "unchecked" because there is no need to check for user binding (invite only).
 uncheckedAddTeamMember ::
   forall db r.
@@ -687,7 +784,7 @@ updateTeamMember lzusr zcon tid newMember = do
       . Log.field "action" (Log.val "Teams.updateTeamMember")
 
   -- get the team and verify permissions
-  assertTeamExists tid
+  team <- fmap tdTeam $ E.getTeam tid >>= noteS @'TeamNotFound
   user <-
     E.getTeamMember tid zusr
       >>= permissionCheck SetMemberPermissions
@@ -706,7 +803,7 @@ updateTeamMember lzusr zcon tid newMember = do
   E.setTeamMemberPermissions (previousMember ^. permissions) tid targetId targetPermissions
 
   updatedMembers <- getTeamMembersForFanout tid
-  updateJournal updatedMembers
+  updateJournal team updatedMembers
   updatePeers zusr targetId targetMember targetPermissions updatedMembers
   where
     canDowngradeOwner = canDeleteMember
@@ -716,11 +813,12 @@ updateTeamMember lzusr zcon tid newMember = do
       permissionsRole (previousMember ^. permissions) == Just RoleOwner
         && permissionsRole targetPermissions /= Just RoleOwner
 
-    updateJournal :: TeamMemberList -> Sem r ()
-    updateJournal mems = do
-      (TeamSize size) <- E.getSize tid
-      billingUserIds <- Journal.getBillingUserIds tid $ Just mems
-      Journal.teamUpdate tid size billingUserIds
+    updateJournal :: Team -> TeamMemberList -> Sem r ()
+    updateJournal team mems = do
+      when (team ^. teamBinding == Binding) $ do
+        (TeamSize size) <- E.getSize tid
+        billingUserIds <- Journal.getBillingUserIds tid $ Just mems
+        Journal.teamUpdate tid size billingUserIds
 
     updatePeers :: UserId -> UserId -> TeamMember -> Permissions -> TeamMemberList -> Sem r ()
     updatePeers zusr targetId targetMember targetPermissions updatedMembers = do
@@ -764,6 +862,33 @@ deleteTeamMember ::
   Sem r TeamMemberDeleteResult
 deleteTeamMember lusr zcon tid remove body = deleteTeamMember' lusr zcon tid remove (Just body)
 
+deleteNonBindingTeamMember ::
+  Members
+    '[ BrigAccess,
+       ConversationStore,
+       Error AuthenticationError,
+       Error InvalidInput,
+       ErrorS 'AccessDenied,
+       ErrorS 'TeamMemberNotFound,
+       ErrorS 'TeamNotFound,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       ExternalAccess,
+       Input Opts,
+       Input UTCTime,
+       GundeckAccess,
+       MemberStore,
+       TeamStore,
+       P.TinyLog
+     ]
+    r =>
+  Local UserId ->
+  ConnId ->
+  TeamId ->
+  UserId ->
+  Sem r TeamMemberDeleteResult
+deleteNonBindingTeamMember lusr zcon tid remove = deleteTeamMember' lusr zcon tid remove Nothing
+
 -- | 'TeamMemberDeleteData' is only required for binding teams
 deleteTeamMember' ::
   Members
@@ -802,9 +927,9 @@ deleteTeamMember' lusr zcon tid remove mBody = do
     dm <- noteS @'NotATeamMember zusrMember
     tm <- noteS @'TeamMemberNotFound targetMember
     unless (canDeleteMember dm tm) $ throwS @'AccessDenied
-  assertTeamExists tid
+  team <- fmap tdTeam $ E.getTeam tid >>= noteS @'TeamNotFound
   mems <- getTeamMembersForFanout tid
-  if isJust targetMember
+  if team ^. teamBinding == Binding && isJust targetMember
     then do
       body <- mBody & note (InvalidPayload "missing request body")
       ensureReAuthorised (tUnqualified lusr) (body ^. tmdAuthPassword) Nothing Nothing
@@ -1023,6 +1148,24 @@ withTeamIds usr range size k = case range of
     k False ids
 {-# INLINE withTeamIds #-}
 
+ensureUnboundUsers :: Members '[ErrorS 'UserBindingExists, TeamStore] r => [UserId] -> Sem r ()
+ensureUnboundUsers uids = do
+  -- We check only 1 team because, by definition, users in binding teams
+  -- can only be part of one team.
+  teams <- Map.elems <$> E.getUsersTeams uids
+  binds <- E.getTeamsBindings teams
+  when (Binding `elem` binds) $
+    throwS @'UserBindingExists
+
+ensureNonBindingTeam ::
+  Members '[ErrorS 'TeamNotFound, ErrorS 'NoAddToBinding, TeamStore] r =>
+  TeamId ->
+  Sem r ()
+ensureNonBindingTeam tid = do
+  team <- noteS @'TeamNotFound =<< E.getTeam tid
+  when (tdTeam team ^. teamBinding == Binding) $
+    throwS @'NoAddToBinding
+
 -- ensure that the permissions are not "greater" than the user's copy permissions
 -- this is used to ensure users cannot "elevate" permissions
 ensureNotElevated :: Member (ErrorS 'InvalidPermissions) r => Permissions -> TeamMember -> Sem r ()
@@ -1185,13 +1328,13 @@ finishCreateTeam team owner others zcon = do
   E.push1 $ newPushLocal1 ListComplete zusr (TeamEvent e) (list1 (userRecipient zusr) r) & pushConn .~ zcon
 
 getBindingTeamIdH ::
-  Members '[ErrorS 'TeamNotFound, TeamStore] r =>
+  Members '[ErrorS 'TeamNotFound, ErrorS 'NonBindingTeam, TeamStore] r =>
   UserId ->
   Sem r Response
 getBindingTeamIdH = fmap json . E.lookupBindingTeam
 
 getBindingTeamMembersH ::
-  Members '[ErrorS 'TeamNotFound, TeamStore] r =>
+  Members '[ErrorS 'TeamNotFound, ErrorS 'NonBindingTeam, TeamStore] r =>
   UserId ->
   Sem r Response
 getBindingTeamMembersH = fmap json . getBindingTeamMembers
@@ -1199,6 +1342,7 @@ getBindingTeamMembersH = fmap json . getBindingTeamMembers
 getBindingTeamMembers ::
   Members
     '[ ErrorS 'TeamNotFound,
+       ErrorS 'NonBindingTeam,
        TeamStore
      ]
     r =>

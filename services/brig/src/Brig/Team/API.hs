@@ -66,8 +66,10 @@ import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
+import Wire.API.Team
 import Wire.API.Team.Invitation
 import qualified Wire.API.Team.Invitation as Public
+import Wire.API.Team.Member (teamMembers)
 import qualified Wire.API.Team.Member as Teams
 import Wire.API.Team.Permission (Perm (AddTeamMember))
 import Wire.API.Team.Role
@@ -457,9 +459,10 @@ unsuspendTeam tid = do
 
 changeTeamAccountStatuses :: TeamId -> AccountStatus -> (Handler r) ()
 changeTeamAccountStatuses tid s = do
-  -- check that the team exists
-  void $ lift (wrapHttp $ Intra.getTeam tid)
-  uids <- toList1 =<< lift (fmap (view Teams.userId) . view Teams.teamMembers <$> wrapHttp (Intra.getTeamMembers tid))
+  team <- Team.tdTeam <$> lift (wrapHttp $ Intra.getTeam tid)
+  unless (team ^. teamBinding == Binding) $
+    throwStd noBindingTeam
+  uids <- toList1 =<< lift (fmap (view Teams.userId) . view teamMembers <$> wrapHttp (Intra.getTeamMembers tid))
   wrapHttpClientE (API.changeAccountStatus uids s) !>> accountStatusError
   where
     toList1 (x : xs) = pure $ List1.list1 x xs
