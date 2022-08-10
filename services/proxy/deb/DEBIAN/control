@@ -1,7 +1,0 @@
-Package: proxy
-Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
-Maintainer: Wire Swiss GmbH <backend@wire.com>
-Architecture: amd64
-Depends: runit
-Description: 3rd party proxy
- This services proxies network traffic to external systems.

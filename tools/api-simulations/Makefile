@@ -5,7 +5,6 @@ VERSION      ?=
 BUILD_NUMBER ?= 0
 BUILD_LABEL  ?= local
 BUILD        := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
-DEB          := $(NAME)_$(VERSION)+$(BUILD)_amd64.deb
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \

@@ -1,5 +1,0 @@
-Package: gundeck-schema
-Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
-Maintainer: Wire Swiss GmbH <backend@wire.com>
-Architecture: amd64
-Description: Schema Definition / Migration for Gundeck
