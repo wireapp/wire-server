@@ -100,9 +100,11 @@ tests s =
       test s "SearchVisibilityInbound" $ testSimpleFlag @Public.SearchVisibilityInboundConfig Public.FeatureStatusDisabled,
       testGroup
         "Patch"
-        [ -- Note: SSOConfig, SearchVisibilityAvailableConfig,
+        [ -- Note:
           -- ValidateSAMLEmailsConfig, DigitalSignaturesConfig cannot be tested
           -- here, because their state can only be set once.
+          test s (unpack $ Public.featureNameBS @Public.SearchVisibilityAvailableConfig) $
+            testPatchIgnoreLockStatusChange @Public.SearchVisibilityAvailableConfig Public.FeatureStatusEnabled Public.SearchVisibilityAvailableConfig,
           test s (unpack $ Public.featureNameBS @Public.FileSharingConfig) $
             testPatch @Public.FileSharingConfig Public.FeatureStatusEnabled Public.FileSharingConfig,
           test s (unpack $ Public.featureNameBS @Public.GuestLinksConfig) $
@@ -129,7 +131,42 @@ testPatch ::
   Public.FeatureStatus ->
   cfg ->
   TestM ()
-testPatch defStatus defConfig = do
+testPatch = testPatch' True
+
+testPatchIgnoreLockStatusChange ::
+  forall cfg.
+  ( HasCallStack,
+    Public.IsFeatureConfig cfg,
+    Typeable cfg,
+    ToSchema cfg,
+    Eq cfg,
+    Show cfg,
+    KnownSymbol (Public.FeatureSymbol cfg),
+    Arbitrary (Public.WithStatus cfg),
+    Arbitrary (Public.WithStatusPatch cfg)
+  ) =>
+  Public.FeatureStatus ->
+  cfg ->
+  TestM ()
+testPatchIgnoreLockStatusChange = testPatch' False
+
+testPatch' ::
+  forall cfg.
+  ( HasCallStack,
+    Public.IsFeatureConfig cfg,
+    Typeable cfg,
+    ToSchema cfg,
+    Eq cfg,
+    Show cfg,
+    KnownSymbol (Public.FeatureSymbol cfg),
+    Arbitrary (Public.WithStatus cfg),
+    Arbitrary (Public.WithStatusPatch cfg)
+  ) =>
+  Bool ->
+  Public.FeatureStatus ->
+  cfg ->
+  TestM ()
+testPatch' testLockStatusChange defStatus defConfig = do
   (_, tid) <- Util.createBindingTeam
   Just original <- responseJsonMaybe <$> Util.getFeatureStatusInternal @cfg tid
   rndFeatureConfig :: Public.WithStatusPatch cfg <- liftIO (generate arbitrary)
@@ -142,7 +179,8 @@ testPatch defStatus defConfig = do
         Public.wsConfig actual @?= defConfig
       else do
         Public.wsStatus actual @?= fromMaybe (Public.wsStatus original) (Public.wspStatus rndFeatureConfig)
-        Public.wsLockStatus actual @?= fromMaybe (Public.wsLockStatus original) (Public.wspLockStatus rndFeatureConfig)
+        when testLockStatusChange $
+          Public.wsLockStatus actual @?= fromMaybe (Public.wsLockStatus original) (Public.wspLockStatus rndFeatureConfig)
         Public.wsConfig actual @?= fromMaybe (Public.wsConfig original) (Public.wspConfig rndFeatureConfig)
 
 testSSO :: (TeamId -> Public.FeatureStatus -> TestM ()) -> TestM ()
