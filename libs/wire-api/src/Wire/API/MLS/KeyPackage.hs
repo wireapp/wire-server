@@ -33,6 +33,7 @@ module Wire.API.MLS.KeyPackage
     kpRef',
     KeyPackageTBS (..),
     KeyPackageRef (..),
+    KeyPackageUpdate (..),
   )
 where
 
@@ -192,3 +193,10 @@ instance ParseMLS KeyPackage where
     KeyPackage
       <$> parseRawMLS parseMLS
       <*> parseMLSBytes @Word16
+
+--------------------------------------------------------------------------------
+
+data KeyPackageUpdate = KeyPackageUpdate
+  { kpupPrevious :: KeyPackageRef,
+    kpupNext :: KeyPackageRef
+  }

@@ -388,7 +388,11 @@ processCommit qusr con lconv epoch sender commit = do
           (MemberSender senderRef, Just updatedKeyPackage) -> do
             updatedRef <- kpRef' updatedKeyPackage & note (mlsProtocolError "Could not compute key package ref")
             -- postpone key package ref update until other checks/processing passed
-            pure $ updateKeyPackageRef senderRef updatedRef
+            pure . updateKeyPackageRef $
+              KeyPackageUpdate
+                { kpupPrevious = senderRef,
+                  kpupNext = updatedRef
+                }
           (_, Nothing) -> pure $ pure () -- ignore commits without update path
           _ -> throw (mlsProtocolError "Unexpected sender")
 

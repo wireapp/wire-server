@@ -212,13 +212,13 @@ addKeyPackageRef ref qusr cl qcnv =
           . expect2xx
       )
 
-updateKeyPackageRef :: KeyPackageRef -> KeyPackageRef -> App ()
-updateKeyPackageRef previousRef newRef =
+updateKeyPackageRef :: KeyPackageUpdate -> App ()
+updateKeyPackageRef keyPackageRef =
   void $
     call
       Brig
       ( method POST
-          . paths ["i", "mls", "key-packages", toHeader previousRef]
-          . json newRef
+          . paths ["i", "mls", "key-packages", toHeader $ kpupPrevious keyPackageRef]
+          . json (kpupNext keyPackageRef)
           . expect2xx
       )
