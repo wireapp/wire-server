@@ -46,6 +46,7 @@ library
     Spar.Sem.DefaultSsoCode.Spec
     Spar.Sem.GalleyAccess
     Spar.Sem.GalleyAccess.Http
+    Spar.Sem.IdP
     Spar.Sem.IdPConfigStore
     Spar.Sem.IdPConfigStore.Cassandra
     Spar.Sem.IdPConfigStore.Mem
@@ -53,6 +54,9 @@ library
     Spar.Sem.IdPRawMetadataStore.Cassandra
     Spar.Sem.IdPRawMetadataStore.Mem
     Spar.Sem.IdPRawMetadataStore.Spec
+    Spar.Sem.Logger
+    Spar.Sem.Now
+    Spar.Sem.Random
     Spar.Sem.Reporter
     Spar.Sem.Reporter.Wai
     Spar.Sem.SAML2
@@ -329,6 +333,7 @@ executable spar-integration
     Test.Spar.Intra.BrigSpec
     Test.Spar.Scim.AuthSpec
     Test.Spar.Scim.UserSpec
+    Test.Spar.STMSpec
     Util
     Util.Core
     Util.Email
