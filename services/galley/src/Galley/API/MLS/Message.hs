@@ -355,13 +355,20 @@ processCommit qusr con lconv epoch sender commit = do
   withCommitLock groupId epoch (fromIntegral ttlSeconds) $ do
     checkEpoch epoch (tUnqualified lconv)
     if epoch == Epoch 0
-      then
+      then do
         -- this is a newly created conversation, and it should contain exactly one
         -- client (the creator)
         case (sender, first (toList . lmMLSClients) self) of
-          (MemberSender ref, Left [creatorClient]) -> do
+          (MemberSender currentRef, Left [creatorClient]) -> do
             -- use update path as sender reference and if not existing fall back to sender
-            let senderRef = maybe ref (fromMaybe ref . kpRef' . upLeaf) $ cPath commit
+            senderRef <-
+              maybe
+                (pure currentRef)
+                ( (& note (mlsProtocolError "Could not compute key package ref"))
+                    . kpRef'
+                    . upLeaf
+                )
+                $ cPath commit
             -- register the creator client
             addKeyPackageRef
               senderRef
@@ -375,12 +382,12 @@ processCommit qusr con lconv epoch sender commit = do
             throw (InternalErrorWithDescription "Unexpected creator client set")
           -- the sender of the first commit must be a member
           _ -> throw (mlsProtocolError "Unexpected sender")
-      else
-        case (sender, kpRef' . upLeaf =<< cPath commit) of
-          (MemberSender senderRef, Just updatedRef) -> do
-            updateKeyPackageRef senderRef updatedRef
-          (_, Nothing) -> pure () -- ignore commits without update path
-          _ -> throw (mlsProtocolError "Unexpected sender")
+      else case (sender, upLeaf <$> cPath commit) of
+        (MemberSender senderRef, Just updatedKeyPackage) -> do
+          updatedRef <- kpRef' updatedKeyPackage & note (mlsProtocolError "Could not compute key package ref")
+          updateKeyPackageRef senderRef updatedRef
+        (_, Nothing) -> pure () -- ignore commits without update path
+        _ -> throw (mlsProtocolError "Unexpected sender")
 
     -- check all pending proposals are referenced in the commit
     allPendingProposals <- getAllPendingProposals groupId epoch
