@@ -18,6 +18,7 @@
 -- | Handling of MLS private keys used for signing external proposals.
 module Galley.Keys
   ( MLSKeys,
+    mlsKeyPair_ed25519,
     loadMLSKeys,
   )
 where
@@ -35,7 +36,9 @@ import Data.X509
 import Imports
 import Wire.API.MLS.Credential
 
-type MLSKeys = Map SignatureSchemeTag (SecretKey, PublicKey)
+data MLSKeys = MLSKeys
+  { mlsKeyPair_ed25519 :: Maybe (SecretKey, PublicKey)
+  }
 
 data MLSPrivateKeyException = MLSPrivateKeyException
   { mpkePath :: FilePath,
@@ -47,30 +50,31 @@ instance Exception MLSPrivateKeyException where
   displayException e = mpkePath e <> ": " <> mpkeMsg e
 
 loadMLSKeys :: Map SignatureSchemeTag FilePath -> IO MLSKeys
-loadMLSKeys = Map.traverseWithKey loadPrivateKeyPair
+loadMLSKeys m =
+  MLSKeys
+    <$> traverse loadEd25519KeyPair (Map.lookup Ed25519 m)
 
-loadPrivateKeyPair ::
-  SignatureSchemeTag ->
-  FilePath ->
-  IO (SecretKey, PublicKey)
-loadPrivateKeyPair ss path = do
+loadEd25519KeyPair :: FilePath -> IO (SecretKey, PublicKey)
+loadEd25519KeyPair path = do
   bytes <- LBS.readFile path
   priv <-
     either (throwIO . MLSPrivateKeyException path) pure $
-      decodePrivateKey ss bytes
+      decodeEd25519PrivateKey bytes
   pure (priv, toPublic priv)
 
-decodePrivateKey :: SignatureSchemeTag -> LByteString -> Either String SecretKey
-decodePrivateKey ss bytes = do
+decodeEd25519PrivateKey ::
+  LByteString ->
+  Either String SecretKey
+decodeEd25519PrivateKey bytes = do
   pems <- pemParseLBS bytes
   pem <- expectOne "private key" pems
   let content = pemContent pem
   asn1 <- first displayException (decodeASN1' BER content)
   (priv, remainder) <- fromASN1 asn1
   expectEmpty remainder
-  case (ss, priv) of
-    (Ed25519, PrivKeyEd25519 sec) -> pure sec
-    _ -> Left $ "invalid signature scheme (expected " <> show ss <> ")"
+  case priv of
+    PrivKeyEd25519 sec -> pure sec
+    _ -> Left $ "invalid signature scheme (expected ed25519)"
   where
     expectOne :: String -> [a] -> Either String a
     expectOne label [] = Left $ "no " <> label <> " found"
