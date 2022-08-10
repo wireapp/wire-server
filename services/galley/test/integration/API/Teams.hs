@@ -121,7 +121,7 @@ tests s =
         [test s "the list should be truncated" testUncheckedListTeamMembers],
       test s "enable/disable SSO" testEnableSSOPerTeam,
       test s "enable/disable Custom Search Visibility" testEnableTeamSearchVisibilityPerTeam,
-      test s "create 1-1 conversation between non-binding team members (fail)" testCreateOne2OneFailNonBindingTeamMembers,
+      test s "create 1-1 conversation between non-team members (fail)" testCreateOne2OneFailForNonTeamMembers,
       test s "create 1-1 conversation between binding team members" (testCreateOne2OneWithMembers RoleMember),
       test s "create 1-1 conversation between binding team members as partner" (testCreateOne2OneWithMembers RoleExternalPartner),
       test s "poll team-level event queue" testTeamQueue,
