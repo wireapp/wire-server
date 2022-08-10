@@ -340,8 +340,6 @@ type ConversationAPI =
            ( Summary "Create a 1:1 conversation"
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'InvalidOperation
-               :> CanThrow 'NoBindingTeamMembers
-               :> CanThrow 'NonBindingTeam
                :> CanThrow 'NotATeamMember
                :> CanThrow 'NotConnected
                :> CanThrow OperationDenied
@@ -914,43 +912,25 @@ type TeamConversationAPI =
 
 type TeamAPI =
   Named
-    "create-non-binding-team"
-    ( Summary "Create a new non binding team"
+    "update-team"
+    ( Summary "Update team properties"
         :> ZUser
         :> ZConn
-        :> CanThrow 'NotConnected
-        :> CanThrow 'UserBindingExists
+        :> CanThrow 'NotATeamMember
+        :> CanThrow ('MissingPermission ('Just 'SetTeamData))
         :> "teams"
-        :> ReqBody '[Servant.JSON] NonBindingNewTeam
+        :> Capture "tid" TeamId
+        :> ReqBody '[JSON] TeamUpdateData
         :> MultiVerb
-             'POST
+             'PUT
              '[JSON]
-             '[ WithHeaders
-                  '[DescHeader "Location" "Team ID" TeamId]
-                  TeamId
-                  (RespondEmpty 201 "Team ID as `Location` header value")
-              ]
-             TeamId
+             '[RespondEmpty 200 "Team updated"]
+             ()
     )
-    :<|> Named
-           "update-team"
-           ( Summary "Update team properties"
-               :> ZUser
-               :> ZConn
-               :> CanThrow 'NotATeamMember
-               :> CanThrow ('MissingPermission ('Just 'SetTeamData))
-               :> "teams"
-               :> Capture "tid" TeamId
-               :> ReqBody '[JSON] TeamUpdateData
-               :> MultiVerb
-                    'PUT
-                    '[JSON]
-                    '[RespondEmpty 200 "Team updated"]
-                    ()
-           )
     :<|> Named
            "get-teams"
            ( Summary "Get teams (deprecated); use `GET /teams/:tid`"
+               :> Until 'V2
                :> ZUser
                :> "teams"
                :> Get '[JSON] TeamList
@@ -1009,7 +989,6 @@ type MessagingAPI =
                :> ZConn
                :> CanThrow 'TeamNotFound
                :> CanThrow 'BroadcastLimitExceeded
-               :> CanThrow 'NonBindingTeam
                :> "broadcast"
                :> "otr"
                :> "messages"
@@ -1047,7 +1026,6 @@ type MessagingAPI =
                :> ZConn
                :> CanThrow 'TeamNotFound
                :> CanThrow 'BroadcastLimitExceeded
-               :> CanThrow 'NonBindingTeam
                :> "broadcast"
                :> "proteus"
                :> "messages"
@@ -1629,29 +1607,6 @@ type TeamMemberAPI =
                :> Post '[JSON] TeamMemberListOptPerms
            )
     :<|> Named
-           "add-team-member"
-           ( Summary "Add a new team member"
-               :> CanThrow 'InvalidPermissions
-               :> CanThrow 'NoAddToBinding
-               :> CanThrow 'NotATeamMember
-               :> CanThrow 'NotConnected
-               :> CanThrow OperationDenied
-               :> CanThrow 'TeamNotFound
-               :> CanThrow 'TooManyTeamMembers
-               :> CanThrow 'UserBindingExists
-               :> CanThrow 'TooManyTeamMembersOnTeamWithLegalhold
-               :> ZLocalUser
-               :> ZConn
-               :> "teams"
-               :> Capture "tid" TeamId
-               :> "members"
-               :> ReqBody '[JSON] NewTeamMember
-               :> MultiVerb1
-                    'POST
-                    '[JSON]
-                    (RespondEmpty 200 "")
-           )
-    :<|> Named
            "delete-team-member"
            ( Summary "Remove an existing team member"
                :> CanThrow AuthenticationError
@@ -1667,27 +1622,6 @@ type TeamMemberAPI =
                :> "members"
                :> Capture "uid" UserId
                :> ReqBody '[JSON] TeamMemberDeleteData
-               :> MultiVerb
-                    'DELETE
-                    '[JSON]
-                    TeamMemberDeleteResultResponseType
-                    TeamMemberDeleteResult
-           )
-    :<|> Named
-           "delete-non-binding-team-member"
-           ( Summary "Remove an existing team member"
-               :> CanThrow AuthenticationError
-               :> CanThrow 'AccessDenied
-               :> CanThrow 'TeamMemberNotFound
-               :> CanThrow 'TeamNotFound
-               :> CanThrow 'NotATeamMember
-               :> CanThrow OperationDenied
-               :> ZLocalUser
-               :> ZConn
-               :> "teams"
-               :> Capture "tid" TeamId
-               :> "members"
-               :> Capture "uid" UserId
                :> MultiVerb
                     'DELETE
                     '[JSON]

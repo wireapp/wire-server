@@ -29,8 +29,6 @@ module Galley.Effects.TeamStore
     -- ** Read teams
     getTeam,
     getTeamName,
-    getTeamBinding,
-    getTeamsBindings,
     getTeamConversation,
     getTeamConversations,
     getTeamCreationTime,
@@ -101,7 +99,6 @@ data TeamStore m a where
     Range 1 256 Text ->
     Icon ->
     Maybe (Range 1 256 Text) ->
-    TeamBinding ->
     TeamStore m Team
   DeleteTeamMember :: TeamId -> UserId -> TeamStore m ()
   GetBillingTeamMembers :: TeamId -> TeamStore m [UserId]
@@ -117,8 +114,6 @@ data TeamStore m a where
   GetUserTeams :: UserId -> TeamStore m [TeamId]
   GetUsersTeams :: [UserId] -> TeamStore m (Map UserId TeamId)
   GetOneUserTeam :: UserId -> TeamStore m (Maybe TeamId)
-  GetTeamsBindings :: [TeamId] -> TeamStore m [TeamBinding]
-  GetTeamBinding :: TeamId -> TeamStore m (Maybe TeamBinding)
   GetTeamCreationTime :: TeamId -> TeamStore m (Maybe TeamCreationTime)
   DeleteTeam :: TeamId -> TeamStore m ()
   DeleteTeamConversation :: TeamId -> ConvId -> TeamStore m ()
@@ -141,15 +136,10 @@ listTeams = listItems
 lookupBindingTeam ::
   Members
     '[ ErrorS 'TeamNotFound,
-       ErrorS 'NonBindingTeam,
        TeamStore
      ]
     r =>
   UserId ->
   Sem r TeamId
-lookupBindingTeam zusr = do
-  tid <- getOneUserTeam zusr >>= noteS @'TeamNotFound
-  binding <- getTeamBinding tid >>= noteS @'TeamNotFound
-  case binding of
-    Binding -> pure tid
-    NonBinding -> throwS @'NonBindingTeam
+lookupBindingTeam zusr =
+  getOneUserTeam zusr >>= noteS @'TeamNotFound

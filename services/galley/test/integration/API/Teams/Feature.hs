@@ -35,7 +35,6 @@ import qualified Data.Aeson.KeyMap as KeyMap
 import Data.ByteString.Char8 (unpack)
 import Data.Domain (Domain (..))
 import Data.Id
-import Data.List1 (list1)
 import qualified Data.List1 as List1
 import Data.Schema (ToSchema)
 import qualified Data.Set as Set
@@ -59,7 +58,6 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Team.Feature (FeatureStatus (..), FeatureTTL (..), LockStatus (LockStatusUnlocked), MLSConfig (MLSConfig))
 import qualified Wire.API.Team.Feature as Public
-import Wire.API.Team.Role
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -144,12 +142,8 @@ testPatch defStatus defConfig = do
 
 testSSO :: TestM ()
 testSSO = do
-  owner <- Util.randomUser
-  member <- Util.randomUser
+  (_owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
   nonMember <- Util.randomUser
-  tid <- Util.createNonBindingTeam "foo" owner []
-  Util.connectUsers owner (list1 member [])
-  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
   let getSSO :: HasCallStack => Public.FeatureStatus -> TestM ()
       getSSO = assertFlagNoConfig @Public.SSOConfig $ Util.getTeamFeatureFlag @Public.SSOConfig member tid
@@ -186,13 +180,8 @@ testSSO = do
 
 testLegalHold :: TestM ()
 testLegalHold = do
-  owner <- Util.randomUser
-  member <- Util.randomUser
+  (_owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
   nonMember <- Util.randomUser
-  tid <- Util.createNonBindingTeam "foo" owner []
-  Util.connectUsers owner (list1 member [])
-  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
-
   let getLegalHold :: HasCallStack => Public.FeatureStatus -> TestM ()
       getLegalHold = assertFlagNoConfig @Public.LegalholdConfig $ Util.getTeamFeatureFlag @Public.LegalholdConfig member tid
       getLegalHoldInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
@@ -233,17 +222,10 @@ testLegalHold = do
 
 testSearchVisibility :: TestM ()
 testSearchVisibility = do
-  owner <- Util.randomUser
-  member <- Util.randomUser
-  nonMember <- Util.randomUser
-  tid <- Util.createNonBindingTeam "foo" owner []
-  Util.connectUsers owner (list1 member [])
-  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
-
-  let getTeamSearchVisibility :: TeamId -> Public.FeatureStatus -> TestM ()
-      getTeamSearchVisibility teamid expected = do
+  let getTeamSearchVisibility :: TeamId -> UserId -> Public.FeatureStatus -> TestM ()
+      getTeamSearchVisibility teamid uid expected = do
         g <- view tsGalley
-        Util.getTeamSearchVisibilityAvailable g owner teamid !!! do
+        Util.getTeamSearchVisibilityAvailable g uid teamid !!! do
           statusCode === const 200
           responseJsonEither === const (Right (Public.WithStatusNoLock expected Public.SearchVisibilityAvailableConfig))
 
@@ -264,47 +246,42 @@ testSearchVisibility = do
         g <- view tsGalley
         Util.putTeamSearchVisibilityAvailableInternal g teamid val
 
+  (owner, tid, [member]) <- Util.createBindingTeamWithNMembers 1
+  nonMember <- Util.randomUser
+
   assertFlagForbidden $ Util.getTeamFeatureFlag @Public.SearchVisibilityAvailableConfig nonMember tid
 
-  tid2 <- Util.createNonBindingTeam "foo" owner []
-  team2member <- Util.randomUser
-  Util.connectUsers owner (list1 team2member [])
-  Util.addTeamMember owner tid2 team2member (rolePermissions RoleMember) Nothing
-
   Util.withCustomSearchFeature FeatureTeamSearchVisibilityUnavailableByDefault $ do
-    getTeamSearchVisibility tid2 Public.FeatureStatusDisabled
-    getTeamSearchVisibilityInternal tid2 Public.FeatureStatusDisabled
-    getTeamSearchVisibilityFeatureConfig team2member Public.FeatureStatusDisabled
+    getTeamSearchVisibility tid owner Public.FeatureStatusDisabled
+    getTeamSearchVisibilityInternal tid Public.FeatureStatusDisabled
+    getTeamSearchVisibilityFeatureConfig member Public.FeatureStatusDisabled
 
-    setTeamSearchVisibilityInternal tid2 Public.FeatureStatusEnabled
-    getTeamSearchVisibility tid2 Public.FeatureStatusEnabled
+    setTeamSearchVisibilityInternal tid Public.FeatureStatusEnabled
+    getTeamSearchVisibility tid owner Public.FeatureStatusEnabled
+    getTeamSearchVisibilityInternal tid Public.FeatureStatusEnabled
+    getTeamSearchVisibilityFeatureConfig member Public.FeatureStatusEnabled
+
+    setTeamSearchVisibilityInternal tid Public.FeatureStatusDisabled
+    getTeamSearchVisibility tid owner Public.FeatureStatusDisabled
+    getTeamSearchVisibilityInternal tid Public.FeatureStatusDisabled
+    getTeamSearchVisibilityFeatureConfig member Public.FeatureStatusDisabled
+
+  (owner2, tid2, team2member : _) <- Util.createBindingTeamWithNMembers 1
+
+  Util.withCustomSearchFeature FeatureTeamSearchVisibilityAvailableByDefault $ do
+    getTeamSearchVisibility tid2 owner2 Public.FeatureStatusEnabled
     getTeamSearchVisibilityInternal tid2 Public.FeatureStatusEnabled
     getTeamSearchVisibilityFeatureConfig team2member Public.FeatureStatusEnabled
 
     setTeamSearchVisibilityInternal tid2 Public.FeatureStatusDisabled
-    getTeamSearchVisibility tid2 Public.FeatureStatusDisabled
+    getTeamSearchVisibility tid2 owner2 Public.FeatureStatusDisabled
     getTeamSearchVisibilityInternal tid2 Public.FeatureStatusDisabled
     getTeamSearchVisibilityFeatureConfig team2member Public.FeatureStatusDisabled
 
-  tid3 <- Util.createNonBindingTeam "foo" owner []
-  team3member <- Util.randomUser
-  Util.connectUsers owner (list1 team3member [])
-  Util.addTeamMember owner tid3 team3member (rolePermissions RoleMember) Nothing
-
-  Util.withCustomSearchFeature FeatureTeamSearchVisibilityAvailableByDefault $ do
-    getTeamSearchVisibility tid3 Public.FeatureStatusEnabled
-    getTeamSearchVisibilityInternal tid3 Public.FeatureStatusEnabled
-    getTeamSearchVisibilityFeatureConfig team3member Public.FeatureStatusEnabled
-
-    setTeamSearchVisibilityInternal tid3 Public.FeatureStatusDisabled
-    getTeamSearchVisibility tid3 Public.FeatureStatusDisabled
-    getTeamSearchVisibilityInternal tid3 Public.FeatureStatusDisabled
-    getTeamSearchVisibilityFeatureConfig team3member Public.FeatureStatusDisabled
-
-    setTeamSearchVisibilityInternal tid3 Public.FeatureStatusEnabled
-    getTeamSearchVisibility tid3 Public.FeatureStatusEnabled
-    getTeamSearchVisibilityInternal tid3 Public.FeatureStatusEnabled
-    getTeamSearchVisibilityFeatureConfig team3member Public.FeatureStatusEnabled
+    setTeamSearchVisibilityInternal tid2 Public.FeatureStatusEnabled
+    getTeamSearchVisibility tid2 owner2 Public.FeatureStatusEnabled
+    getTeamSearchVisibilityInternal tid2 Public.FeatureStatusEnabled
+    getTeamSearchVisibilityFeatureConfig team2member Public.FeatureStatusEnabled
 
 getClassifiedDomains ::
   (HasCallStack, HasGalley m, MonadIO m, MonadHttp m, MonadCatch m) =>
@@ -402,12 +379,8 @@ testSimpleFlagTTLOverride ::
   FeatureTTL ->
   TestM ()
 testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
-  owner <- Util.randomUser
-  member <- Util.randomUser
+  (_owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
   nonMember <- Util.randomUser
-  tid <- Util.createNonBindingTeam "foo" owner []
-  Util.connectUsers owner (list1 member [])
-  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
   let getFlag :: HasCallStack => Public.FeatureStatus -> TestM ()
       getFlag expected =
@@ -514,12 +487,8 @@ testSimpleFlagTTL ::
   FeatureTTL ->
   TestM ()
 testSimpleFlagTTL defaultValue ttl = do
-  owner <- Util.randomUser
-  member <- Util.randomUser
+  (_owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
   nonMember <- Util.randomUser
-  tid <- Util.createNonBindingTeam "foo" owner []
-  Util.connectUsers owner (list1 member [])
-  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
 
   let getFlag :: HasCallStack => Public.FeatureStatus -> TestM ()
       getFlag expected =
@@ -598,13 +567,9 @@ testSimpleFlagWithLockStatus ::
   TestM ()
 testSimpleFlagWithLockStatus defaultStatus defaultLockStatus = do
   galley <- view tsGalley
-  -- let feature = Public.knownTeamFeatureName @a
-  owner <- Util.randomUser
-  member <- Util.randomUser
+  (owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
   nonMember <- Util.randomUser
-  tid <- Util.createNonBindingTeam "foo" owner []
-  Util.connectUsers owner (list1 member [])
-  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
+
   let getFlag :: HasCallStack => Public.FeatureStatus -> Public.LockStatus -> TestM ()
       getFlag expectedStatus expectedLockStatus = do
         let flag = Util.getTeamFeatureFlag @cfg member tid
@@ -887,11 +852,7 @@ testAllFeatures = do
 
 testFeatureConfigConsistency :: TestM ()
 testFeatureConfigConsistency = do
-  owner <- Util.randomUser
-  member <- Util.randomUser
-  tid <- Util.createNonBindingTeam "foo" owner []
-  Util.connectUsers owner (list1 member [])
-  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
+  (_owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
 
   allFeaturesRes <- Util.getAllFeatureConfigs member >>= parseObjectKeys
 
@@ -912,8 +873,7 @@ testFeatureConfigConsistency = do
 testSearchVisibilityInbound :: TestM ()
 testSearchVisibilityInbound = do
   let defaultValue = FeatureStatusDisabled
-  owner <- Util.randomUser
-  tid <- Util.createNonBindingTeam "foo" owner []
+  (_owner, tid, _) <- Util.createBindingTeamWithNMembers 1
 
   let getFlagInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
       getFlagInternal expected =
@@ -934,11 +894,8 @@ testSearchVisibilityInbound = do
 
 testFeatureNoConfigMultiSearchVisibilityInbound :: TestM ()
 testFeatureNoConfigMultiSearchVisibilityInbound = do
-  owner1 <- Util.randomUser
-  team1 <- Util.createNonBindingTeam "team1" owner1 []
-
-  owner2 <- Util.randomUser
-  team2 <- Util.createNonBindingTeam "team2" owner2 []
+  (_owner1, team1, _) <- Util.createBindingTeamWithNMembers 0
+  (_owner2, team2, _) <- Util.createBindingTeamWithNMembers 0
 
   let setFlagInternal :: TeamId -> Public.FeatureStatus -> TestM ()
       setFlagInternal tid statusValue =
@@ -963,11 +920,7 @@ testFeatureNoConfigMultiSearchVisibilityInbound = do
 
 testMLS :: TestM ()
 testMLS = do
-  owner <- Util.randomUser
-  member <- Util.randomUser
-  tid <- Util.createNonBindingTeam "foo" owner []
-  Util.connectUsers owner (list1 member [])
-  Util.addTeamMember owner tid member (rolePermissions RoleMember) Nothing
+  (owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
 
   galley <- view tsGalley
   cannon <- view tsCannon

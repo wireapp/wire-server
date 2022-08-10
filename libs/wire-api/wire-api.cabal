@@ -441,7 +441,6 @@ test-suite wire-api-golden-tests
     Test.Wire.API.Golden.Generated.SimpleMember_user
     Test.Wire.API.Golden.Generated.SimpleMembers_user
     Test.Wire.API.Golden.Generated.Team_team
-    Test.Wire.API.Golden.Generated.TeamBinding_team
     Test.Wire.API.Golden.Generated.TeamContact_user
     Test.Wire.API.Golden.Generated.TeamConversation_team
     Test.Wire.API.Golden.Generated.TeamConversationList_team

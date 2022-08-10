@@ -123,16 +123,6 @@ instance Cql ConvTeamInfo where
     pure (ConvTeamInfo t)
   fromCql _ = Left "teaminfo: udt expected"
 
-instance Cql TeamBinding where
-  ctype = Tagged BooleanColumn
-
-  toCql Binding = CqlBoolean True
-  toCql NonBinding = CqlBoolean False
-
-  fromCql (CqlBoolean True) = pure Binding
-  fromCql (CqlBoolean False) = pure NonBinding
-  fromCql _ = Left "teambinding: boolean expected"
-
 instance Cql TeamStatus where
   ctype = Tagged IntColumn
 
