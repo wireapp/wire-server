@@ -111,6 +111,8 @@ tests s =
             testPatchIgnoreLockStatusChange @Public.DigitalSignaturesConfig Public.FeatureStatusEnabled Public.DigitalSignaturesConfig,
           test s (unpack $ Public.featureNameBS @Public.AppLockConfig) $
             testPatchValidAppLockConfig Public.FeatureStatusEnabled (Public.AppLockConfig (Public.EnforceAppLock False) 42),
+          test s (unpack $ Public.featureNameBS @Public.ConferenceCallingConfig) $
+            testPatchIgnoreLockStatusChange @Public.ConferenceCallingConfig Public.FeatureStatusEnabled Public.ConferenceCallingConfig,
           test s (unpack $ Public.featureNameBS @Public.FileSharingConfig) $
             testPatch @Public.FileSharingConfig Public.FeatureStatusEnabled Public.FileSharingConfig,
           test s (unpack $ Public.featureNameBS @Public.GuestLinksConfig) $
