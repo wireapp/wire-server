@@ -354,42 +354,43 @@ processCommit qusr con lconv epoch sender commit = do
   let ttlSeconds :: Int = 600 -- 10 minutes
   withCommitLock groupId epoch (fromIntegral ttlSeconds) $ do
     checkEpoch epoch (tUnqualified lconv)
-    postponedKeyPackageRefUpdate <- if epoch == Epoch 0
-      then do
-        -- this is a newly created conversation, and it should contain exactly one
-        -- client (the creator)
-        case (sender, first (toList . lmMLSClients) self) of
-          (MemberSender currentRef, Left [creatorClient]) -> do
-            -- use update path as sender reference and if not existing fall back to sender
-            senderRef <-
-              maybe
-                (pure currentRef)
-                ( (& note (mlsProtocolError "Could not compute key package ref"))
-                    . kpRef'
-                    . upLeaf
-                )
-                $ cPath commit
-            -- register the creator client
-            addKeyPackageRef
-              senderRef
-              qusr
-              creatorClient
-              (qUntagged (fmap Data.convId lconv))
-          -- remote clients cannot send the first commit
-          (_, Right _) -> throwS @'MLSStaleMessage
-          -- uninitialised conversations should contain exactly one client
-          (MemberSender _, _) ->
-            throw (InternalErrorWithDescription "Unexpected creator client set")
-          -- the sender of the first commit must be a member
+    postponedKeyPackageRefUpdate <-
+      if epoch == Epoch 0
+        then do
+          -- this is a newly created conversation, and it should contain exactly one
+          -- client (the creator)
+          case (sender, first (toList . lmMLSClients) self) of
+            (MemberSender currentRef, Left [creatorClient]) -> do
+              -- use update path as sender reference and if not existing fall back to sender
+              senderRef <-
+                maybe
+                  (pure currentRef)
+                  ( (& note (mlsProtocolError "Could not compute key package ref"))
+                      . kpRef'
+                      . upLeaf
+                  )
+                  $ cPath commit
+              -- register the creator client
+              addKeyPackageRef
+                senderRef
+                qusr
+                creatorClient
+                (qUntagged (fmap Data.convId lconv))
+            -- remote clients cannot send the first commit
+            (_, Right _) -> throwS @'MLSStaleMessage
+            -- uninitialised conversations should contain exactly one client
+            (MemberSender _, _) ->
+              throw (InternalErrorWithDescription "Unexpected creator client set")
+            -- the sender of the first commit must be a member
+            _ -> throw (mlsProtocolError "Unexpected sender")
+          pure $ pure () -- no key package ref update necessary
+        else case (sender, upLeaf <$> cPath commit) of
+          (MemberSender senderRef, Just updatedKeyPackage) -> do
+            updatedRef <- kpRef' updatedKeyPackage & note (mlsProtocolError "Could not compute key package ref")
+            -- postpone key package ref update until other checks/processing passed
+            pure $ updateKeyPackageRef senderRef updatedRef
+          (_, Nothing) -> pure $ pure () -- ignore commits without update path
           _ -> throw (mlsProtocolError "Unexpected sender")
-        pure $ pure () -- no key package ref update necessary
-      else case (sender, upLeaf <$> cPath commit) of
-        (MemberSender senderRef, Just updatedKeyPackage) -> do
-          updatedRef <- kpRef' updatedKeyPackage & note (mlsProtocolError "Could not compute key package ref")
-          -- postpone key package ref update until other checks/processing passed
-          pure $ updateKeyPackageRef senderRef updatedRef
-        (_, Nothing) -> pure $ pure () -- ignore commits without update path
-        _ -> throw (mlsProtocolError "Unexpected sender")
 
     -- check all pending proposals are referenced in the commit
     allPendingProposals <- getAllPendingProposals groupId epoch
