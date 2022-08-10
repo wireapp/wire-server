@@ -691,6 +691,8 @@ testCreateUserWithSamlIdP = do
           . path "/self"
           . expect2xx
       )
+  putStrLn $ "Scim user locale: " <> show (scimPreferredLanguage scimStoredUser)
+  putStrLn $ "Brig user locale: " <> show (userLocale brigUser)
   brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
   accStatus <- aFewTimes (runSpar $ BrigAccess.getStatus (userId brigUser)) (== Active)
   liftIO $ accStatus `shouldBe` Active
