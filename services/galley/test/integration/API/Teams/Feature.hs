@@ -82,7 +82,7 @@ tests s =
       test s "SearchVisibilityInbound - internal API" testSearchVisibilityInbound,
       test s "SearchVisibilityInbound - internal multi team API" testFeatureNoConfigMultiSearchVisibilityInbound,
       testGroup
-        "Conference calling"
+        "TTL / Conference calling"
         [ test s "ConferenceCalling unlimited TTL" $ testSimpleFlagTTL @Public.ConferenceCallingConfig Public.FeatureStatusEnabled FeatureTTLUnlimited,
           test s "ConferenceCalling 2s TTL" $ testSimpleFlagTTL @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 2)
         ],
@@ -408,12 +408,25 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
       select :: PrepQuery R (Identity TeamId) (Identity (Maybe FeatureTTL))
       select = fromString "select ttl(conference_calling) from team_features where team_id = ?"
 
+      assertUnlimited :: TestM ()
       assertUnlimited = do
         -- TTL should be NULL inside cassandra
         cassState <- view tsCass
         liftIO $ do
           storedTTL <- maybe Nothing runIdentity <$> Cql.runClient cassState (Cql.query1 select $ params LocalQuorum (Identity tid))
           storedTTL @?= Nothing
+
+      assertLimited :: Word -> TestM ()
+      assertLimited upper = do
+        -- TTL should NOT be NULL inside cassandra
+        cassState <- view tsCass
+        liftIO $ do
+          storedTTL <- maybe Nothing runIdentity <$> Cql.runClient cassState (Cql.query1 select $ params LocalQuorum (Identity tid))
+          let check = case storedTTL of
+                Nothing -> False
+                Just FeatureTTLUnlimited -> False
+                Just (FeatureTTLSeconds i) -> i <= upper
+          unless check $ error ("expected ttl <= " <> show upper <> ", got " <> show storedTTL)
 
       toMicros secs = fromIntegral secs * 1000000
 
@@ -436,6 +449,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
 
   case (ttl, ttlAfter) of
     (FeatureTTLSeconds d, FeatureTTLSeconds d') -> do
+      assertLimited d -- TTL should be NULL after expiration.
       -- wait less than expiration, override and recheck.
       liftIO $ threadDelay (toMicros d `div` 2) -- waiting half of TTL
       setFlagInternal otherValue ttlAfter
@@ -446,6 +460,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
       getFlag defaultValue
       assertUnlimited -- TTL should be NULL after expiration.
     (FeatureTTLSeconds d, FeatureTTLUnlimited) -> do
+      assertLimited d -- TTL should be NULL after expiration.
       -- wait less than expiration, override and recheck.
       liftIO $ threadDelay (fromIntegral d `div` 2) -- waiting half of TTL
       setFlagInternal otherValue ttlAfter
@@ -453,6 +468,8 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
       getFlag otherValue
       assertUnlimited
     (FeatureTTLUnlimited, FeatureTTLUnlimited) -> do
+      assertUnlimited
+
       -- overriding in this case should have no effect.
       setFlagInternal otherValue ttl
       getFlag otherValue
@@ -476,6 +493,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
 
   -- Clean up
   setFlagInternal defaultValue FeatureTTLUnlimited
+  assertUnlimited
   getFlag defaultValue
 
 testSimpleFlagTTL ::
@@ -516,6 +534,26 @@ testSimpleFlagTTL defaultValue ttl = do
       select :: PrepQuery R (Identity TeamId) (Identity (Maybe FeatureTTL))
       select = fromString "select ttl(conference_calling) from team_features where team_id = ?"
 
+      assertUnlimited :: TestM ()
+      assertUnlimited = do
+        -- TTL should be NULL inside cassandra
+        cassState <- view tsCass
+        liftIO $ do
+          storedTTL <- maybe Nothing runIdentity <$> Cql.runClient cassState (Cql.query1 select $ params LocalQuorum (Identity tid))
+          storedTTL @?= Nothing
+
+      assertLimited :: Word -> TestM ()
+      assertLimited upper = do
+        -- TTL should NOT be NULL inside cassandra
+        cassState <- view tsCass
+        liftIO $ do
+          storedTTL <- maybe Nothing runIdentity <$> Cql.runClient cassState (Cql.query1 select $ params LocalQuorum (Identity tid))
+          let check = case storedTTL of
+                Nothing -> False
+                Just FeatureTTLUnlimited -> False
+                Just (FeatureTTLSeconds i) -> i <= upper
+          unless check $ error ("expected ttl <= " <> show upper <> ", got " <> show storedTTL)
+
   assertFlagForbidden $ Util.getTeamFeatureFlag @cfg nonMember tid
 
   let otherValue = case defaultValue of
@@ -542,14 +580,13 @@ testSimpleFlagTTL defaultValue ttl = do
   case ttl of
     FeatureTTLSeconds d -> do
       -- should revert back after TTL expires
+      assertLimited d
       liftIO $ threadDelay (fromIntegral d * 1000000)
+      assertUnlimited
       getFlag defaultValue
     FeatureTTLUnlimited -> do
       -- TTL should be NULL inside cassandra
-      cassState <- view tsCass
-      liftIO $ do
-        storedTTL <- Cql.runClient cassState $ Cql.query1 select $ params LocalQuorum (Identity tid)
-        runIdentity <$> storedTTL @?= Just Nothing
+      assertUnlimited
 
   -- Clean up
   setFlagInternal defaultValue FeatureTTLUnlimited

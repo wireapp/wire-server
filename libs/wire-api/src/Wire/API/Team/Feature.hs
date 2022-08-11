@@ -31,6 +31,7 @@ module Wire.API.Team.Feature
     wsStatus,
     wsLockStatus,
     wsConfig,
+    wsTTL,
     setStatus,
     setLockStatus,
     setConfig,
