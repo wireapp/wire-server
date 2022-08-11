@@ -33,6 +33,8 @@ let
   compile-deps = pkgs.buildEnv {
     name = "wire-server-compile-deps";
     paths = [
+      pkgs.stdenv.cc.cc.lib
+
       pkgs.bash
       pkgs.coreutils
       pkgs.gnused
@@ -96,6 +98,7 @@ let
     pkgs.netcat
     pkgs.niv
     pkgs.ormolu
+    pkgs.shellcheck
     pkgs.python3
     pkgs.rsync
     pkgs.shellcheck
