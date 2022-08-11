@@ -23,10 +23,10 @@ data:
     # Both ibis and galeb should be made optional for
     # installations where these services are not available
     galeb:
-      host: galeb
+      host: {{ .Values.config.galebHost }}
       port: 8080
     ibis:
-      host: ibis
+      host: {{ .Values.config.ibisHost }}
       port: 8080
   nginx.conf: |
     worker_processes 1;
