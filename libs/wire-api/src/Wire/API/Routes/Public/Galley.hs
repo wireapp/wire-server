@@ -916,6 +916,7 @@ type TeamAPI =
   Named
     "create-non-binding-team"
     ( Summary "Create a new non binding team"
+        -- FUTUREWORK: deprecated in https://github.com/wireapp/wire-server/pull/2607
         :> ZUser
         :> ZConn
         :> CanThrow 'NotConnected
@@ -951,6 +952,7 @@ type TeamAPI =
     :<|> Named
            "get-teams"
            ( Summary "Get teams (deprecated); use `GET /teams/:tid`"
+               -- FUTUREWORK: deprecated in https://github.com/wireapp/wire-server/pull/2607
                :> ZUser
                :> "teams"
                :> Get '[JSON] TeamList
@@ -1631,6 +1633,7 @@ type TeamMemberAPI =
     :<|> Named
            "add-team-member"
            ( Summary "Add a new team member"
+               -- FUTUREWORK: deprecated in https://github.com/wireapp/wire-server/pull/2607
                :> CanThrow 'InvalidPermissions
                :> CanThrow 'NoAddToBinding
                :> CanThrow 'NotATeamMember
@@ -1676,6 +1679,7 @@ type TeamMemberAPI =
     :<|> Named
            "delete-non-binding-team-member"
            ( Summary "Remove an existing team member"
+               -- FUTUREWORK: deprecated in https://github.com/wireapp/wire-server/pull/2607
                :> CanThrow AuthenticationError
                :> CanThrow 'AccessDenied
                :> CanThrow 'TeamMemberNotFound
