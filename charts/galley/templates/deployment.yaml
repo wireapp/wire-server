@@ -25,8 +25,8 @@ spec:
       annotations:
         # An annotation of the configmap checksum ensures changes to the configmap cause a redeployment upon `helm upgrade`
         checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
-        checksum/secret: {{ include (print .Template.BasePath "/aws-secret.yaml") . | sha256sum }}
-        checksum/secret: {{ include (print .Template.BasePath "/mls-secret.yaml") . | sha256sum }}
+        checksum/aws-secret: {{ include (print .Template.BasePath "/aws-secret.yaml") . | sha256sum }}
+        checksum/mls-secret: {{ include (print .Template.BasePath "/mls-secret.yaml") . | sha256sum }}
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
       volumes:
