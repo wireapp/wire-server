@@ -329,7 +329,6 @@ executable spar-integration
     Test.Spar.Intra.BrigSpec
     Test.Spar.Scim.AuthSpec
     Test.Spar.Scim.UserSpec
-    Test.Spar.STMSpec
     Util
     Util.Core
     Util.Email
