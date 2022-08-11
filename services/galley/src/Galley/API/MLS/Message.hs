@@ -328,6 +328,7 @@ processCommit ::
     Member (ErrorS 'MissingLegalholdConsent) r,
     Member (Input (Local ())) r,
     Member ProposalStore r,
+    Member BrigAccess r,
     Member Resource r
   ) =>
   Qualified UserId ->
@@ -353,24 +354,47 @@ processCommit qusr con lconv epoch sender commit = do
   let ttlSeconds :: Int = 600 -- 10 minutes
   withCommitLock groupId epoch (fromIntegral ttlSeconds) $ do
     checkEpoch epoch (tUnqualified lconv)
-    when (epoch == Epoch 0) $ do
-      -- this is a newly created conversation, and it should contain exactly one
-      -- client (the creator)
-      case (sender, first (toList . lmMLSClients) self) of
-        (MemberSender ref, Left [creatorClient]) -> do
-          -- register the creator client
-          addKeyPackageRef
-            ref
-            qusr
-            creatorClient
-            (qUntagged (fmap Data.convId lconv))
-        -- remote clients cannot send the first commit
-        (_, Right _) -> throwS @'MLSStaleMessage
-        -- uninitialised conversations should contain exactly one client
-        (MemberSender _, _) ->
-          throw (InternalErrorWithDescription "Unexpected creator client set")
-        -- the sender of the first commit must be a member
-        _ -> throw (mlsProtocolError "Unexpected sender")
+    postponedKeyPackageRefUpdate <-
+      if epoch == Epoch 0
+        then do
+          -- this is a newly created conversation, and it should contain exactly one
+          -- client (the creator)
+          case (sender, first (toList . lmMLSClients) self) of
+            (MemberSender currentRef, Left [creatorClient]) -> do
+              -- use update path as sender reference and if not existing fall back to sender
+              senderRef <-
+                maybe
+                  (pure currentRef)
+                  ( (& note (mlsProtocolError "Could not compute key package ref"))
+                      . kpRef'
+                      . upLeaf
+                  )
+                  $ cPath commit
+              -- register the creator client
+              addKeyPackageRef
+                senderRef
+                qusr
+                creatorClient
+                (qUntagged (fmap Data.convId lconv))
+            -- remote clients cannot send the first commit
+            (_, Right _) -> throwS @'MLSStaleMessage
+            -- uninitialised conversations should contain exactly one client
+            (MemberSender _, _) ->
+              throw (InternalErrorWithDescription "Unexpected creator client set")
+            -- the sender of the first commit must be a member
+            _ -> throw (mlsProtocolError "Unexpected sender")
+          pure $ pure () -- no key package ref update necessary
+        else case (sender, upLeaf <$> cPath commit) of
+          (MemberSender senderRef, Just updatedKeyPackage) -> do
+            updatedRef <- kpRef' updatedKeyPackage & note (mlsProtocolError "Could not compute key package ref")
+            -- postpone key package ref update until other checks/processing passed
+            pure . updateKeyPackageRef $
+              KeyPackageUpdate
+                { kpupPrevious = senderRef,
+                  kpupNext = updatedRef
+                }
+          (_, Nothing) -> pure $ pure () -- ignore commits without update path
+          _ -> throw (mlsProtocolError "Unexpected sender")
 
     -- check all pending proposals are referenced in the commit
     allPendingProposals <- getAllPendingProposals groupId epoch
@@ -382,6 +406,8 @@ processCommit qusr con lconv epoch sender commit = do
     action <- foldMap (applyProposalRef (tUnqualified lconv) groupId epoch) (cProposals commit)
     updates <- executeProposalAction qusr con lconv action
 
+    -- update key package ref if necessary
+    postponedKeyPackageRefUpdate
     -- increment epoch number
     setConversationEpoch (Data.convId (tUnqualified lconv)) (succ epoch)
 

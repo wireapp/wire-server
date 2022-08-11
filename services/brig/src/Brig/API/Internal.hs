@@ -120,6 +120,7 @@ mlsAPI =
                  :<|> Named @"get-conversation-by-key-package-ref" (getConvIdByKeyPackageRef ref)
              )
         :<|> Named @"put-key-package-ref" (putKeyPackageRef ref)
+        :<|> Named @"post-key-package-ref" (postKeyPackageRef ref)
   )
     :<|> getMLSClients
     :<|> mapKeyPackageRefsInternal
@@ -160,6 +161,10 @@ putKeyPackageRef ref = lift . wrapClient . Data.addKeyPackageRef ref
 -- Used by galley to retrieve conversation id from mls_key_package_ref
 getConvIdByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe (Qualified ConvId))
 getConvIdByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.keyPackageRefConvId
+
+-- Used by galley to update key packages in mls_key_package_ref on commits with update_path
+postKeyPackageRef :: KeyPackageRef -> KeyPackageRef -> Handler r ()
+postKeyPackageRef ref = lift . wrapClient . Data.updateKeyPackageRef ref
 
 getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientId)
 getMLSClients usr ss = do
