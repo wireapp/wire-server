@@ -523,6 +523,7 @@ setTeamFeatureFlag ::
   Handler ()
 setTeamFeatureFlag tid status = do
   info $ msg "Setting team feature status"
+  checkDaysLimit (wssTTL status)
   gly <- view galley
   let req =
         method PUT
@@ -535,6 +536,14 @@ setTeamFeatureFlag tid status = do
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
   where
+    checkDaysLimit :: FeatureTTL -> Handler ()
+    checkDaysLimit = \case
+      FeatureTTLUnlimited -> pure ()
+      FeatureTTLSeconds ((`div` (60 * 60 * 24)) -> days) -> do
+        unless (days <= daysLimit) $ do
+          throwE (mkError status400 "bad-data" (cs $ "ttl limit is " <> show daysLimit <> " days; I got " <> show days <> "."))
+      where
+        daysLimit = 2000
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do
