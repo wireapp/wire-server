@@ -100,8 +100,7 @@ tests s =
       test s "SearchVisibilityInbound" $ testSimpleFlag @Public.SearchVisibilityInboundConfig Public.FeatureStatusDisabled,
       testGroup
         "Patch"
-        [
-          -- Note: `SSOConfig` and `LegalHoldConfig` may not be able to be reset
+        [ -- Note: `SSOConfig` and `LegalHoldConfig` may not be able to be reset
           -- (depending on prior state). Thus, they cannot be tested here
           -- (setting random values), but are tested with separate tests.
           test s (unpack $ Public.featureNameBS @Public.SearchVisibilityAvailableConfig) $
@@ -274,7 +273,7 @@ putSSOInternal :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
 putSSOInternal tid = void . Util.putTeamFeatureFlagInternal @Public.SSOConfig expect2xx tid . (`Public.WithStatusNoLock` Public.SSOConfig)
 
 patchSSOInternal :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
-patchSSOInternal tid status = Util.patchFeatureStatusInternal @Public.SSOConfig tid (Public.withStatus' (Just status) Nothing Nothing) !!! statusCode === const 200
+patchSSOInternal tid status = void $ Util.patchFeatureStatusInternalWithMod @Public.SSOConfig expect2xx tid (Public.withStatus' (Just status) Nothing Nothing)
 
 testLegalHold :: ((Request -> Request) -> TeamId -> Public.FeatureStatus -> TestM ()) -> TestM ()
 testLegalHold setLegalHoldInternal = do
