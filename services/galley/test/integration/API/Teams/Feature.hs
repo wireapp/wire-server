@@ -101,36 +101,46 @@ tests s =
       testGroup
         "Patch"
         [ -- Note: `SSOConfig` and `LegalHoldConfig` may not be able to be reset
-          -- (depending on prior state). Thus, they cannot be tested here
-          -- (setting random values), but are tested with separate tests.
+          -- (depending on prior state or configuration). Thus, they cannot be
+          -- tested here (setting random values), but are tested with separate
+          -- tests.
           test s (unpack $ Public.featureNameBS @Public.SearchVisibilityAvailableConfig) $
-            testPatchIgnoreLockStatusChange @Public.SearchVisibilityAvailableConfig Public.FeatureStatusEnabled Public.SearchVisibilityAvailableConfig,
+            testPatch IgnoreLockStatusChange Public.FeatureStatusEnabled Public.SearchVisibilityAvailableConfig,
           test s (unpack $ Public.featureNameBS @Public.ValidateSAMLEmailsConfig) $
-            testPatchIgnoreLockStatusChange @Public.ValidateSAMLEmailsConfig Public.FeatureStatusEnabled Public.ValidateSAMLEmailsConfig,
+            testPatch IgnoreLockStatusChange Public.FeatureStatusEnabled Public.ValidateSAMLEmailsConfig,
           test s (unpack $ Public.featureNameBS @Public.DigitalSignaturesConfig) $
-            testPatchIgnoreLockStatusChange @Public.DigitalSignaturesConfig Public.FeatureStatusEnabled Public.DigitalSignaturesConfig,
+            testPatch IgnoreLockStatusChange Public.FeatureStatusEnabled Public.DigitalSignaturesConfig,
           test s (unpack $ Public.featureNameBS @Public.AppLockConfig) $
-            testPatchValidAppLockConfig Public.FeatureStatusEnabled (Public.AppLockConfig (Public.EnforceAppLock False) 42),
+            testPatchWithCustomGen IgnoreLockStatusChange Public.FeatureStatusEnabled (Public.AppLockConfig (Public.EnforceAppLock False) 42) validAppLockConfigGen,
           test s (unpack $ Public.featureNameBS @Public.ConferenceCallingConfig) $
-            testPatchIgnoreLockStatusChange @Public.ConferenceCallingConfig Public.FeatureStatusEnabled Public.ConferenceCallingConfig,
+            testPatch IgnoreLockStatusChange Public.FeatureStatusEnabled Public.ConferenceCallingConfig,
           test s (unpack $ Public.featureNameBS @Public.SearchVisibilityAvailableConfig) $
-            testPatchIgnoreLockStatusChange @Public.SearchVisibilityAvailableConfig Public.FeatureStatusEnabled Public.SearchVisibilityAvailableConfig,
+            testPatch IgnoreLockStatusChange Public.FeatureStatusEnabled Public.SearchVisibilityAvailableConfig,
           test s (unpack $ Public.featureNameBS @Public.MLSConfig) $
-            testPatchValidMLSConfig Public.FeatureStatusEnabled (Public.MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519),
+            testPatchWithCustomGen
+              IgnoreLockStatusChange
+              Public.FeatureStatusEnabled
+              ( Public.MLSConfig
+                  []
+                  ProtocolProteusTag
+                  [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519]
+                  MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+              )
+              validMLSConfigGen,
           test s (unpack $ Public.featureNameBS @Public.FileSharingConfig) $
-            testPatch @Public.FileSharingConfig Public.FeatureStatusEnabled Public.FileSharingConfig,
+            testPatch AssertLockStatusChange Public.FeatureStatusEnabled Public.FileSharingConfig,
           test s (unpack $ Public.featureNameBS @Public.GuestLinksConfig) $
-            testPatch @Public.GuestLinksConfig Public.FeatureStatusEnabled Public.GuestLinksConfig,
+            testPatch AssertLockStatusChange Public.FeatureStatusEnabled Public.GuestLinksConfig,
           test s (unpack $ Public.featureNameBS @Public.SndFactorPasswordChallengeConfig) $
-            testPatch @Public.SndFactorPasswordChallengeConfig Public.FeatureStatusDisabled Public.SndFactorPasswordChallengeConfig,
+            testPatch AssertLockStatusChange Public.FeatureStatusDisabled Public.SndFactorPasswordChallengeConfig,
           test s (unpack $ Public.featureNameBS @Public.SelfDeletingMessagesConfig) $
-            testPatch @Public.SelfDeletingMessagesConfig Public.FeatureStatusEnabled (Public.SelfDeletingMessagesConfig 0)
+            testPatch AssertLockStatusChange Public.FeatureStatusEnabled (Public.SelfDeletingMessagesConfig 0)
         ]
     ]
 
 -- | Provides a `Gen` with test objects that are realistic and can easily be asserted
-validMLSConfigArbitrary :: Gen (Public.WithStatusPatch MLSConfig)
-validMLSConfigArbitrary =
+validMLSConfigGen :: Gen (Public.WithStatusPatch MLSConfig)
+validMLSConfigGen =
   arbitrary
     `suchThat` ( \cfg -> case Public.wspConfig cfg of
                    Just (Public.MLSConfig us _ cTags ctag) ->
@@ -142,30 +152,36 @@ validMLSConfigArbitrary =
   where
     sortedAndNoDuplicates xs = (sort . nub) xs == xs
 
-testPatchValidMLSConfig ::
-  Public.FeatureStatus ->
-  Public.MLSConfig ->
-  TestM ()
-testPatchValidMLSConfig s cfg = do
-  c <- liftIO (generate validMLSConfigArbitrary)
-  testPatch' IgnoreLockStatusChange c s cfg
-
--- | Provides a `Gen` with test objects that can be set (are "valid")
-validAppLockConfigArbitrary :: Gen (Public.WithStatusPatch Public.AppLockConfig)
-validAppLockConfigArbitrary =
+validAppLockConfigGen :: Gen (Public.WithStatusPatch Public.AppLockConfig)
+validAppLockConfigGen =
   arbitrary
     `suchThat` ( \cfg -> case Public.wspConfig cfg of
                    Just (Public.AppLockConfig _ secs) -> secs >= 30
                    Nothing -> True
                )
 
-testPatchValidAppLockConfig ::
+-- | Binary type to prevent "boolean blindness"
+data AssertLockStatusChange = AssertLockStatusChange | IgnoreLockStatusChange
+  deriving (Eq)
+
+testPatchWithCustomGen ::
+  forall cfg.
+  ( HasCallStack,
+    Public.IsFeatureConfig cfg,
+    Typeable cfg,
+    ToSchema cfg,
+    Eq cfg,
+    Show cfg,
+    KnownSymbol (Public.FeatureSymbol cfg)
+  ) =>
+  AssertLockStatusChange ->
   Public.FeatureStatus ->
-  Public.AppLockConfig ->
+  cfg ->
+  Gen (Public.WithStatusPatch cfg) ->
   TestM ()
-testPatchValidAppLockConfig s cfg = do
-  c <- liftIO (generate validAppLockConfigArbitrary)
-  testPatch' IgnoreLockStatusChange c s cfg
+testPatchWithCustomGen assertLockStatusChange featureStatus cfg gen = do
+  generatedConfig <- liftIO $ generate gen
+  testPatch' assertLockStatusChange generatedConfig featureStatus cfg
 
 testPatch ::
   forall cfg.
@@ -179,38 +195,14 @@ testPatch ::
     Arbitrary (Public.WithStatus cfg),
     Arbitrary (Public.WithStatusPatch cfg)
   ) =>
+  AssertLockStatusChange ->
   Public.FeatureStatus ->
   cfg ->
   TestM ()
-testPatch s cfg = do
+testPatch assertLockStatusChange status cfg = do
   c <- liftIO (generate arbitrary)
-  testPatch' AssertLockStatusChange c s cfg
+  testPatch' assertLockStatusChange c status cfg
 
-testPatchIgnoreLockStatusChange ::
-  forall cfg.
-  ( HasCallStack,
-    Public.IsFeatureConfig cfg,
-    Typeable cfg,
-    ToSchema cfg,
-    Eq cfg,
-    Show cfg,
-    KnownSymbol (Public.FeatureSymbol cfg),
-    Arbitrary (Public.WithStatus cfg),
-    Arbitrary (Public.WithStatusPatch cfg)
-  ) =>
-  Public.FeatureStatus ->
-  cfg ->
-  TestM ()
-testPatchIgnoreLockStatusChange s cfg = do
-  c <- liftIO (generate arbitrary)
-  testPatch' IgnoreLockStatusChange c s cfg
-
--- | Binary type to prevent "boolean blindness"
-data AssertLockStatusChange = AssertLockStatusChange | IgnoreLockStatusChange
-  deriving (Eq)
-
--- TODO: It's surprising that `defStatus` and `defConfig` are ignored when the
--- status is unlocked. (Are more separate functions hiddin in this one?)
 testPatch' ::
   forall cfg.
   ( HasCallStack,
