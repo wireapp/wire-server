@@ -525,7 +525,8 @@ processProposal qusr conv msg prop = do
 checkExternalProposalSignature ::
   Members
     '[ ErrorS 'MLSUnsupportedProposal
-    ] r =>
+     ]
+    r =>
   CipherSuiteTag ->
   Message 'MLSPlainText ->
   RawMLS Proposal ->
