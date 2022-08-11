@@ -199,9 +199,7 @@ testPatch ::
   Public.FeatureStatus ->
   cfg ->
   TestM ()
-testPatch assertLockStatusChange status cfg = do
-  c <- liftIO (generate arbitrary)
-  testPatch' assertLockStatusChange c status cfg
+testPatch assertLockStatusChange status cfg = testPatchWithCustomGen assertLockStatusChange status cfg arbitrary
 
 testPatch' ::
   forall cfg.
