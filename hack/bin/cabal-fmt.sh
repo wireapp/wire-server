@@ -27,6 +27,22 @@ format_single() {
     cabal-fmt -i "$cabal_file"
 }
 
+handle_emacs_autosave() {
+    hs_autosave_files="$(cd "$TOP_LEVEL"; find . -not \( -path ./dist-newstyle -prune \) -not \( -path ./charts -prune \) -name "*.hs~")"
+
+    if [ -n "${hs_autosave_files}" ]; then
+        if [ "${WIRE_FORCE_RM_EMACS_AUTOSAVE_FILES-}" == "1" ]; then
+            # shellcheck disable=SC2086
+            rm ${hs_autosave_files}
+        else
+            echo -e "\nautosave files are breaking cabal-fmt:\n\n${hs_autosave_files}\n\nto remove, run with 'WIRE_FORCE_RM_EMACS_AUTOSAVE_FILES=1'.\n"
+            exit 1
+        fi
+    fi
+}
+
+handle_emacs_autosave
+
 if [ "$1" = "all" ]; then
     format_all
 else

@@ -24,6 +24,7 @@ module Brig.Data.MLS.KeyPackage
     keyPackageRefConvId,
     keyPackageRefSetConvId,
     addKeyPackageRef,
+    updateKeyPackageRef,
   )
 where
 
@@ -194,8 +195,47 @@ addKeyPackageRef ref nkpr = do
     q :: PrepQuery W (ClientId, ConvId, Domain, Domain, UserId, KeyPackageRef) x
     q = "UPDATE mls_key_package_refs SET client = ?, conv = ?, conv_domain = ?, domain = ?, user = ? WHERE ref = ?"
 
+-- | Update key package ref, used in Galley when commit reveals key package ref update for the sender.
+-- Nothing is changed if the previous key package ref is not found in the table.
+-- Updating amounts to INSERT the new key package ref, followed by DELETE the
+-- previous one.
+--
+-- FUTUREWORK: this function has to be extended if a table mapping (client,
+-- conversation) to key package ref is added, for instance, when implementing
+-- external delete proposals.
+updateKeyPackageRef :: MonadClient m => KeyPackageRef -> KeyPackageRef -> m ()
+updateKeyPackageRef prevRef newRef =
+  void . runMaybeT $ do
+    backup <- backupKeyPackageMeta prevRef
+    lift $ restoreKeyPackageMeta newRef backup >> deleteKeyPackage prevRef
+
 --------------------------------------------------------------------------------
 -- Utilities
+
+backupKeyPackageMeta :: MonadClient m => KeyPackageRef -> MaybeT m (ClientId, Qualified ConvId, Qualified UserId)
+backupKeyPackageMeta ref = do
+  (clientId, convId, convDomain, userDomain, userId) <- MaybeT . retry x1 $ query1 q (params LocalQuorum (Identity ref))
+  pure (clientId, Qualified convId convDomain, Qualified userId userDomain)
+  where
+    q :: PrepQuery R (Identity KeyPackageRef) (ClientId, ConvId, Domain, Domain, UserId)
+    q = "SELECT client, conv, conv_domain, domain, user FROM mls_key_package_refs WHERE ref = ?"
+
+restoreKeyPackageMeta :: MonadClient m => KeyPackageRef -> (ClientId, Qualified ConvId, Qualified UserId) -> m ()
+restoreKeyPackageMeta ref (clientId, convId, userId) = do
+  write q (params LocalQuorum (ref, clientId, qUnqualified convId, qDomain convId, qDomain userId, qUnqualified userId))
+  where
+    q :: PrepQuery W (KeyPackageRef, ClientId, ConvId, Domain, Domain, UserId) ()
+    q = "INSERT INTO mls_key_package_refs (ref, client, conv, conv_domain, domain, user) VALUES (?, ?, ?, ?, ?, ?)"
+
+deleteKeyPackage :: MonadClient m => KeyPackageRef -> m ()
+deleteKeyPackage ref =
+  retry x5 $
+    write
+      q
+      (params LocalQuorum (Identity ref))
+  where
+    q :: PrepQuery W (Identity KeyPackageRef) x
+    q = "DELETE FROM mls_key_package_refs WHERE ref = ?"
 
 pick :: [a] -> IO (Maybe a)
 pick [] = pure Nothing

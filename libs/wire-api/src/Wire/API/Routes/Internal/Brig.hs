@@ -198,6 +198,16 @@ type MLSAPI =
                                     '[RespondEmpty 201 "Key package ref mapping created"]
                                     ()
                            )
+                    :<|> Named
+                           "post-key-package-ref"
+                           ( Summary "Update a KeyPackageRef in mapping"
+                               :> ReqBody '[Servant.JSON] KeyPackageRef
+                               :> MultiVerb
+                                    'POST
+                                    '[Servant.JSON]
+                                    '[RespondEmpty 201 "Key package ref mapping updated"]
+                                    ()
+                           )
                 )
          )
            :<|> GetMLSClients
