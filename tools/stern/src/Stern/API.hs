@@ -89,8 +89,6 @@ sitemap = do
   routes
   apiDocs
 
-data SupportsTtl = TtlEnabled | TtlDisabled
-
 routes :: Routes Doc.ApiBuilder Handler ()
 routes = do
   -- Begin Internal
@@ -391,7 +389,7 @@ routes = do
   mkFeatureGetRoute @ClassifiedDomainsConfig
 
   mkFeatureGetRoute @ConferenceCallingConfig
-  mkFeaturePutRouteTrivialConfig' @ConferenceCallingConfig TtlEnabled
+  mkFeaturePutRouteTrivialConfig @ConferenceCallingConfig
 
   mkFeatureGetRoute @AppLockConfig
   mkFeaturePutRoute @AppLockConfig
@@ -843,21 +841,7 @@ mkFeaturePutRouteTrivialConfig ::
     Typeable cfg
   ) =>
   Routes Doc.ApiBuilder Handler ()
-mkFeaturePutRouteTrivialConfig = mkFeaturePutRouteTrivialConfig' @cfg TtlDisabled
-
-mkFeaturePutRouteTrivialConfig' ::
-  forall cfg.
-  ( IsFeatureConfig cfg,
-    FeatureTrivialConfig cfg,
-    KnownSymbol (FeatureSymbol cfg),
-    S.ToSchema cfg,
-    FromJSON (WithStatusNoLock cfg),
-    ToJSON (WithStatusNoLock cfg),
-    Typeable cfg
-  ) =>
-  SupportsTtl ->
-  Routes Doc.ApiBuilder Handler ()
-mkFeaturePutRouteTrivialConfig' ttlSupport = do
+mkFeaturePutRouteTrivialConfig = do
   handler
   document "PUT" "setTeamFeatureFlag" $ do
     summary "Disable / enable feature flag for a given team"
@@ -865,38 +849,15 @@ mkFeaturePutRouteTrivialConfig' ttlSupport = do
       description "Team ID"
     Doc.parameter Doc.Query "status" typeFeatureStatus $ do
       Doc.description "team feature status (enabled or disabled)"
-    case ttlSupport of
-      TtlEnabled -> Doc.parameter Doc.Query "ttl" Public.typeFeatureTTL $ do
-        Doc.description "team feature time to live, given in days, or 'unlimited' (default). Only applies to conference calling. It's ignored by other features."
-      TtlDisabled -> pure ()
+    Doc.parameter Doc.Query "ttl" Public.typeFeatureTTL $ do
+      Doc.description "team feature time to live, given in days, or 'unlimited' (default)."
     Doc.response 200 "Team feature flag status" Doc.end
   where
-    handler = case ttlSupport of
-      TtlEnabled ->
-        put ("/teams/:tid/features/" <> featureNameBS @cfg) (continue (setTeamFeatureFlagTrivialConfigH @cfg)) $
-          capture "tid"
-            .&. param "status"
-            .&. def Public.FeatureTTLUnlimited (query "ttl")
-      TtlDisabled ->
-        put ("/teams/:tid/features/" <> featureNameBS @cfg) (continue (setTeamFeatureFlagTrivialConfigHNoTtl @cfg)) $
-          capture "tid"
-            .&. param "status"
-
-setTeamFeatureFlagTrivialConfigHNoTtl ::
-  forall cfg.
-  ( IsFeatureConfig cfg,
-    FeatureTrivialConfig cfg,
-    KnownSymbol (FeatureSymbol cfg),
-    S.ToSchema cfg,
-    FromJSON (WithStatusNoLock cfg),
-    ToJSON (WithStatusNoLock cfg),
-    Typeable cfg
-  ) =>
-  TeamId ::: FeatureStatus ->
-  Handler Response
-setTeamFeatureFlagTrivialConfigHNoTtl (tid ::: featureStatus) = do
-  let status = WithStatusNoLock featureStatus trivialConfig FeatureTTLUnlimited
-  empty <$ Intra.setTeamFeatureFlag @cfg tid status
+    handler =
+      put ("/teams/:tid/features/" <> featureNameBS @cfg) (continue (setTeamFeatureFlagTrivialConfigH @cfg)) $
+        capture "tid"
+          .&. param "status"
+          .&. def Public.FeatureTTLUnlimited (query "ttl")
 
 setTeamFeatureFlagTrivialConfigH ::
   forall cfg.
