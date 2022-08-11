@@ -512,7 +512,6 @@ getTeamFeatureFlag tid = do
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
 
--- TODO: add ttl here
 setTeamFeatureFlag ::
   forall cfg.
   ( ToJSON (Public.WithStatusNoLock cfg),
@@ -528,8 +527,7 @@ setTeamFeatureFlag tid status = do
   let req =
         method PUT
           . paths ["/i/teams", toByteString' tid, "features", Public.featureNameBS @cfg]
-          . Bilge.json status
-          . Bilge.query [("ttl", Just $ toByteString' ttlAPI)]
+          . Bilge.json status'
           . contentJson
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
@@ -537,7 +535,8 @@ setTeamFeatureFlag tid status = do
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
   where
-    ttlAPI = case wssTTL status of
+    status' = status {wssTTL = ttl'}
+    ttl' = case wssTTL status of
       Public.FeatureTTLSeconds days -> Public.FeatureTTLSeconds (60 * 60 * 24 * days)
       Public.FeatureTTLUnlimited -> Public.FeatureTTLUnlimited
 

@@ -867,7 +867,7 @@ mkFeaturePutRouteTrivialConfig' ttlSupport = do
       Doc.description "team feature status (enabled or disabled)"
     case ttlSupport of
       TtlEnabled -> Doc.parameter Doc.Query "ttl" Public.typeFeatureTTL $ do
-        Doc.description "team feature time to live, given in days or 'unlimited' (default). Only applies to conference calling. It's ignored by other features."
+        Doc.description "team feature time to live, given in days, or 'unlimited' (default). Only applies to conference calling. It's ignored by other features."
       TtlDisabled -> pure ()
     Doc.response 200 "Team feature flag status" Doc.end
   where
