@@ -98,6 +98,7 @@ let
     pkgs.netcat
     pkgs.niv
     pkgs.ormolu
+    pkgs.shellcheck
     pkgs.python3
     pkgs.rsync
     pkgs.shellcheck
