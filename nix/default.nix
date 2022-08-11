@@ -175,5 +175,5 @@ let
   mls_test_cli = pkgs.mls_test_cli;
 in
 {
-  inherit pkgs devPackages devEnv docs docsEnv compile-deps;
+  inherit pkgs devPackages devEnv docs docsEnv compile-deps mls_test_cli;
 }
