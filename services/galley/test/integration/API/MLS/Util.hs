@@ -400,7 +400,7 @@ createExternalProposal tmp creator clientId groupIn groupOut = do
             "--group-out",
             tmp </> groupOut,
             "add",
-            tmp </> newClientQid
+            newClientQid
           ]
     )
     Nothing
