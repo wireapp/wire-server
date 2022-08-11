@@ -43,7 +43,11 @@ module Wire.API.Team.Feature
     forgetLock,
     withLockStatus,
     withUnlocked,
-    FeatureTTL (..),
+    FeatureTTL,
+    FeatureTTL' (..),
+    FeatureTTLUnit (..),
+    convertFeatureTTLDaysToSeconds,
+    convertFeatureTTLSecondsToDays,
     EnforceAppLock (..),
     defFeatureStatusNoLock,
     computeFeatureConfigForTeamUser,
@@ -351,10 +355,25 @@ withStatusNoLockModel =
 -- Using Word to avoid dealing with negative numbers.
 -- Ideally we would also not support zero.
 -- Currently a TTL=0 is ignored on the cassandra side.
-data FeatureTTL
-  = FeatureTTLSeconds Word
+data FeatureTTL' (u :: FeatureTTLUnit)
+  = -- | actually, unit depends on phantom type.
+    FeatureTTLSeconds Word
   | FeatureTTLUnlimited
   deriving stock (Eq, Show, Generic)
+
+data FeatureTTLUnit = FeatureTTLUnitSeconds | FeatureTTLUnitDays
+
+type FeatureTTL = FeatureTTL' 'FeatureTTLUnitSeconds
+
+type FeatureTTLDays = FeatureTTL' 'FeatureTTLUnitDays
+
+convertFeatureTTLDaysToSeconds :: FeatureTTLDays -> FeatureTTL
+convertFeatureTTLDaysToSeconds FeatureTTLUnlimited = FeatureTTLUnlimited
+convertFeatureTTLDaysToSeconds (FeatureTTLSeconds d) = FeatureTTLSeconds (d * (60 * 60 * 24))
+
+convertFeatureTTLSecondsToDays :: FeatureTTL -> FeatureTTLDays
+convertFeatureTTLSecondsToDays FeatureTTLUnlimited = FeatureTTLUnlimited
+convertFeatureTTLSecondsToDays (FeatureTTLSeconds d) = FeatureTTLSeconds (d `div` (60 * 60 * 24))
 
 instance Arbitrary FeatureTTL where
   arbitrary = nonZero <$> arbitrary
@@ -391,20 +410,20 @@ instance ToSchema FeatureTTL where
       fromTTL (FeatureTTLSeconds 0) = Nothing -- Should be unlimited
       fromTTL (FeatureTTLSeconds s) = Just $ A.toJSON s
 
-instance ToHttpApiData FeatureTTL where
+instance ToHttpApiData (FeatureTTL' u) where
   toQueryParam = T.decodeUtf8 . toByteString'
 
-instance FromHttpApiData FeatureTTL where
+instance FromHttpApiData (FeatureTTL' u) where
   parseQueryParam = maybeToEither invalidTTLErrorString . fromByteString . T.encodeUtf8
 
-instance S.ToParamSchema FeatureTTL where
+instance S.ToParamSchema (FeatureTTL' u) where
   toParamSchema _ = S.toParamSchema (Proxy @Int)
 
-instance ToByteString FeatureTTL where
+instance ToByteString (FeatureTTL' u) where
   builder FeatureTTLUnlimited = "unlimited"
   builder (FeatureTTLSeconds d) = (builder . TL.pack . show) d
 
-instance FromByteString FeatureTTL where
+instance FromByteString (FeatureTTL' u) where
   parser =
     Parser.takeByteString >>= \b ->
       case T.decodeUtf8' b of

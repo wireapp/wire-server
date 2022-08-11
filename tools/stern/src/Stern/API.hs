@@ -908,8 +908,8 @@ setTeamFeatureFlagTrivialConfigH ::
     ToJSON (WithStatusNoLock cfg),
     Typeable cfg
   ) =>
-  TeamId ::: FeatureStatus ::: FeatureTTL ->
+  TeamId ::: FeatureStatus ::: FeatureTTL' 'FeatureTTLUnitDays ->
   Handler Response
 setTeamFeatureFlagTrivialConfigH (tid ::: featureStatus ::: ttl) = do
-  let status = WithStatusNoLock featureStatus trivialConfig ttl
+  let status = WithStatusNoLock featureStatus trivialConfig (convertFeatureTTLDaysToSeconds ttl)
   empty <$ Intra.setTeamFeatureFlag @cfg tid status

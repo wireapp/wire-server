@@ -56,7 +56,7 @@ import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 import Wire.API.Internal.Notification (Notification)
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
-import Wire.API.Team.Feature (FeatureStatus (..), FeatureTTL (..), LockStatus (LockStatusUnlocked), MLSConfig (MLSConfig))
+import Wire.API.Team.Feature (FeatureStatus (..), FeatureTTL, FeatureTTL' (..), LockStatus (LockStatusUnlocked), MLSConfig (MLSConfig))
 import qualified Wire.API.Team.Feature as Public
 
 tests :: IO TestSetup -> TestTree
