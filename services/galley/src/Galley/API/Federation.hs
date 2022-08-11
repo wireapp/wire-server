@@ -705,7 +705,6 @@ mlsSendWelcome ::
   Members
     '[ BrigAccess,
        Error InternalError,
-       ErrorS 'MLSKeyPackageRefNotFound,
        GundeckAccess,
        Input (Local ()),
        Input UTCTime
@@ -720,10 +719,13 @@ mlsSendWelcome _origDomain (fromBase64ByteString . F.unMLSWelcomeRequest -> rawW
   welcome <- either (throw . InternalErrorWithDescription . LT.fromStrict) pure $ decodeMLS' rawWelcome
   -- Extract only recipients local to this backend
   rcpts <-
-    traverse
-      ( resolveMember
-          . gsNewMember
-      )
+    fmap catMaybes
+      . traverse
+        ( fmap hush
+            . runError @(Tagged 'MLSKeyPackageRefNotFound ())
+            . resolveMember
+            . gsNewMember
+        )
       $ welSecrets welcome
   let lrcpts = qualifyAs loc $ fst $ partitionQualified loc $ map (uncurry qTrip) rcpts
   sendLocalWelcomes Nothing now rawWelcome lrcpts
