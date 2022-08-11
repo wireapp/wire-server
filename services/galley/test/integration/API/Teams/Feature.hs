@@ -100,9 +100,10 @@ tests s =
       test s "SearchVisibilityInbound" $ testSimpleFlag @Public.SearchVisibilityInboundConfig Public.FeatureStatusDisabled,
       testGroup
         "Patch"
-        [ -- Note:
-          -- ValidateSAMLEmailsConfig, DigitalSignaturesConfig cannot be tested
-          -- here, because their state can only be set once.
+        [
+          -- Note: `SSOConfig` and `LegalHoldConfig` may not be able to be reset
+          -- (depending on prior state). Thus, they cannot be tested here
+          -- (setting random values), but are tested with separate tests.
           test s (unpack $ Public.featureNameBS @Public.SearchVisibilityAvailableConfig) $
             testPatchIgnoreLockStatusChange @Public.SearchVisibilityAvailableConfig Public.FeatureStatusEnabled Public.SearchVisibilityAvailableConfig,
           test s (unpack $ Public.featureNameBS @Public.ValidateSAMLEmailsConfig) $
@@ -135,8 +136,8 @@ validMLSConfigArbitrary =
                    Just (Public.MLSConfig us _ cTags ctag) -> sortedAndNoDuplicates us && sortedAndNoDuplicates cTags && elem ctag cTags
                    _ -> True
                )
-    where
-      sortedAndNoDuplicates xs = (sort . nub) xs == xs
+  where
+    sortedAndNoDuplicates xs = (sort . nub) xs == xs
 
 testPatchValidMLSConfig ::
   Public.FeatureStatus ->
