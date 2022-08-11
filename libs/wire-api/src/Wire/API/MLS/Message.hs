@@ -29,10 +29,12 @@ module Wire.API.MLS.Message
     MessageExtraFields (..),
     WireFormatTag (..),
     SWireFormatTag (..),
+    KnownFormatTag (..),
     SomeMessage (..),
     ContentType (..),
     MessagePayload (..),
     Sender (..),
+    SenderTag (..),
     MLSPlainTextSym0,
     MLSCipherTextSym0,
     MLSMessageSendingStatus (..),
@@ -73,6 +75,7 @@ data instance MessageExtraFields 'MLSPlainText = MessageExtraFields
     msgConfirmation :: Maybe ByteString,
     msgMembership :: Maybe ByteString
   }
+  deriving (Eq, Show)
 
 instance ParseMLS (MessageExtraFields 'MLSPlainText) where
   parseMLS =
@@ -101,6 +104,7 @@ instance ParseMLS (Message 'MLSCipherText) where
 -- It does not convey any information, but it needs to be present in
 -- order for signature verification to work.
 data KnownFormatTag (tag :: WireFormatTag) = KnownFormatTag
+  deriving (Eq, Show)
 
 instance ParseMLS (KnownFormatTag tag) where
   parseMLS = parseMLS @WireFormatTag $> KnownFormatTag
@@ -161,6 +165,7 @@ instance ParseMLS SomeMessage where
 data family Sender (tag :: WireFormatTag) :: *
 
 data instance Sender 'MLSCipherText = EncryptedSender {esData :: ByteString}
+  deriving (Eq, Show)
 
 instance ParseMLS (Sender 'MLSCipherText) where
   parseMLS = EncryptedSender <$> parseMLSBytes @Word8
@@ -175,6 +180,7 @@ data instance Sender 'MLSPlainText
   = MemberSender KeyPackageRef
   | PreconfiguredSender ByteString
   | NewMemberSender
+  deriving (Eq, Show)
 
 instance ParseMLS (Sender 'MLSPlainText) where
   parseMLS =

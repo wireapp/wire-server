@@ -22,14 +22,17 @@ module API.MLS (tests) where
 
 import API.MLS.Util
 import API.Util
-import Bilge hiding (head)
+import Bilge hiding (head, put)
 import Bilge.Assert
 import Cassandra
 import Control.Arrow
 import Control.Lens (view)
 import qualified Data.Aeson as Aeson
+import Data.Binary
+import Data.Binary.Put
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
+import qualified Data.ByteString.Lazy as LBS
 import Data.Default
 import Data.Domain
 import Data.Id
@@ -65,7 +68,10 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group (convToGroupId)
+import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
+import Wire.API.MLS.Proposal
+import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import Wire.API.Routes.Version
 
@@ -134,7 +140,8 @@ tests s =
         "Proposal"
         [ test s "add a new client to a non-existing conversation" propNonExistingConv,
           test s "add a new client to an existing conversation" propExistingConv,
-          test s "add a new client in an invalid epoch" propInvalidEpoch
+          test s "add a new client in an invalid epoch" propInvalidEpoch,
+          test s "make a non-default proposal" propNonDefault
         ],
       testGroup
         "Protocol mismatch"
@@ -1384,3 +1391,123 @@ propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
     prop <- liftIO $ bareAddProposal tmp creator dee "group.1.json" "group.1.json"
     postMessage (qUnqualified (pUserId creator)) prop
       !!! const 201 === statusCode
+
+newtype ProposalPayload = ProposalPayload (MessageTBS 'MLSPlainText)
+
+instance Eq ProposalPayload where
+  ProposalPayload tbs1 == ProposalPayload tbs2 = do
+    let sender1 = tbsMsgSender tbs1
+        sender2 = tbsMsgSender tbs2
+        ProposalMessage p1 = tbsMsgPayload tbs1
+        ProposalMessage p2 = tbsMsgPayload tbs2
+    tbsMsgFormat tbs1 == tbsMsgFormat tbs2
+      && tbsMsgGroupId tbs1 == tbsMsgGroupId tbs2
+      && tbsMsgEpoch tbs1 == tbsMsgEpoch tbs2
+      && tbsMsgAuthData tbs1 == tbsMsgAuthData tbs2
+      && sender1 == sender2
+      && p1 == p2
+
+instance Show ProposalPayload where
+  show _ = "MessageTBS 'MLSPlainText <not-shown>"
+
+newtype MLSProposalMessage = MLSProposalMessage (Message 'MLSPlainText)
+
+instance Eq MLSProposalMessage where
+  MLSProposalMessage m1 == MLSProposalMessage m2 = do
+    let tbs1 = rmValue . msgTBS $ m1
+        tbs2 = rmValue . msgTBS $ m2
+    rmRaw (msgTBS m1) == rmRaw (msgTBS m2)
+      && ProposalPayload tbs1 == ProposalPayload tbs2
+      && msgExtraFields m1 == msgExtraFields m2
+
+instance Show MLSProposalMessage where
+  show (MLSProposalMessage m) = show . rmRaw . msgTBS $ m
+
+propNonDefault :: TestM ()
+propNonDefault = withSystemTempDirectory "mls" $ \tmp -> do
+  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (1, LocalUser) def
+  let _bob = head users
+
+  -- send welcome message
+  postWelcome (qUnqualified $ pUserId creator) welcome
+    !!! const 201 === statusCode
+
+  aliceKPRaw <- liftIO $ BS.readFile (tmp </> pClientQid creator)
+  let Right rawMLSKPAlice = decodeMLS' @(RawMLS KeyPackage) aliceKPRaw
+  let Just kpref = kpRef' rawMLSKPAlice
+  -- by Alice
+  let propPayload = "non-default payload"
+  let ndProp = NonDefaultProposal propPayload
+      ndPropPut = do
+        put @Word16 0xff00
+        put @Word16 . fromIntegral . BS.length $ propPayload
+        putByteString propPayload
+  liftIO $ decodeMLS (runPut ndPropPut) @?= Right ndProp
+  let rawMlsProposal = RawMLS (LBS.toStrict . runPut $ ndPropPut) ndProp
+
+  let epoch = Epoch 1
+      authData = "scrambled"
+      sender = MemberSender kpref
+      senderPut = do
+        put (fromMLSEnum @Word8 MemberSenderTag)
+        putByteString . unKeyPackageRef $ kpref
+  liftIO $ decodeMLS (runPut senderPut) @?= Right sender
+
+  let msgTbs =
+        MessageTBS
+          { tbsMsgFormat = KnownFormatTag @'MLSPlainText,
+            tbsMsgGroupId = groupId,
+            tbsMsgEpoch = epoch,
+            tbsMsgAuthData = authData,
+            tbsMsgSender = sender,
+            tbsMsgPayload = ProposalMessage rawMlsProposal
+          }
+  let msgTbsPut = do
+        -- KnownFormatTag 'MLSPlainText
+        put (fromMLSEnum @Word8 MLSPlainText)
+        -- groupId
+        putWord8 . fromIntegral . BS.length . unGroupId $ groupId
+        putByteString . unGroupId $ groupId
+        -- epoch
+        put . epochNumber $ epoch
+        -- sender
+        senderPut
+        -- auth data
+        put @Word32 . fromIntegral . BS.length $ authData
+        putByteString authData
+        -- payload
+        put (fromMLSEnum @Word8 ProposalMessageTag)
+        ndPropPut
+
+  liftIO $
+    fmap ProposalPayload (decodeMLS (runPut msgTbsPut))
+      @?= Right (ProposalPayload msgTbs)
+
+  let fakeSignature = "something fake"
+  -- craft a proposal message with a non-default proposal type
+  let propMsg = Message rawMLSmsgTbs extraFields
+      rawMLSmsgTbs =
+        RawMLS
+          (LBS.toStrict . runPut $ msgTbsPut)
+          msgTbs
+      extraFields =
+        MessageExtraFields
+          { msgSignature = fakeSignature,
+            msgConfirmation = Nothing,
+            msgMembership = Nothing
+          }
+      extraFieldsPut = do
+        -- msgSignature
+        put @Word16 . fromIntegral . BS.length $ fakeSignature
+        putByteString fakeSignature
+        -- msgConfirmation
+        putWord8 0
+        -- msgMembership
+        putWord8 0
+      propMsgPut = do
+        msgTbsPut
+        extraFieldsPut
+
+  liftIO $
+    fmap MLSProposalMessage (decodeMLS (runPut propMsgPut))
+      @?= Right (MLSProposalMessage propMsg)
