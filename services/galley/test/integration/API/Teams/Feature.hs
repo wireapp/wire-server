@@ -128,11 +128,15 @@ tests s =
         ]
     ]
 
+-- | Provides a `Gen` with test objects that are realistic and can easily be asserted
 validMLSConfigArbitrary :: Gen (Public.WithStatusPatch MLSConfig)
 validMLSConfigArbitrary =
   arbitrary
     `suchThat` ( \cfg -> case Public.wspConfig cfg of
-                   Just (Public.MLSConfig us _ cTags ctag) -> sortedAndNoDuplicates us && sortedAndNoDuplicates cTags && elem ctag cTags
+                   Just (Public.MLSConfig us _ cTags ctag) ->
+                     sortedAndNoDuplicates us
+                       && sortedAndNoDuplicates cTags
+                       && elem ctag cTags
                    _ -> True
                )
   where
@@ -144,8 +148,9 @@ testPatchValidMLSConfig ::
   TestM ()
 testPatchValidMLSConfig s cfg = do
   c <- liftIO (generate validMLSConfigArbitrary)
-  testPatch' False c s cfg
+  testPatch' IgnoreLockStatusChange c s cfg
 
+-- | Provides a `Gen` with test objects that can be set (are "valid")
 validAppLockConfigArbitrary :: Gen (Public.WithStatusPatch Public.AppLockConfig)
 validAppLockConfigArbitrary =
   arbitrary
@@ -160,7 +165,7 @@ testPatchValidAppLockConfig ::
   TestM ()
 testPatchValidAppLockConfig s cfg = do
   c <- liftIO (generate validAppLockConfigArbitrary)
-  testPatch' False c s cfg
+  testPatch' IgnoreLockStatusChange c s cfg
 
 testPatch ::
   forall cfg.
@@ -179,7 +184,7 @@ testPatch ::
   TestM ()
 testPatch s cfg = do
   c <- liftIO (generate arbitrary)
-  testPatch' True c s cfg
+  testPatch' AssertLockStatusChange c s cfg
 
 testPatchIgnoreLockStatusChange ::
   forall cfg.
@@ -198,7 +203,11 @@ testPatchIgnoreLockStatusChange ::
   TestM ()
 testPatchIgnoreLockStatusChange s cfg = do
   c <- liftIO (generate arbitrary)
-  testPatch' False c s cfg
+  testPatch' IgnoreLockStatusChange c s cfg
+
+-- | Binary type to prevent "boolean blindness"
+data AssertLockStatusChange = AssertLockStatusChange | IgnoreLockStatusChange
+  deriving (Eq)
 
 -- TODO: It's surprising that `defStatus` and `defConfig` are ignored when the
 -- status is unlocked. (Are more separate functions hiddin in this one?)
@@ -212,7 +221,7 @@ testPatch' ::
     Show cfg,
     KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
-  Bool ->
+  AssertLockStatusChange ->
   Public.WithStatusPatch cfg ->
   Public.FeatureStatus ->
   cfg ->
@@ -229,7 +238,7 @@ testPatch' testLockStatusChange rndFeatureConfig defStatus defConfig = do
         Public.wsConfig actual @?= defConfig
       else do
         Public.wsStatus actual @?= fromMaybe (Public.wsStatus original) (Public.wspStatus rndFeatureConfig)
-        when testLockStatusChange $
+        when (testLockStatusChange == AssertLockStatusChange) $
           Public.wsLockStatus actual @?= fromMaybe (Public.wsLockStatus original) (Public.wspLockStatus rndFeatureConfig)
         Public.wsConfig actual @?= fromMaybe (Public.wsConfig original) (Public.wspConfig rndFeatureConfig)
 
