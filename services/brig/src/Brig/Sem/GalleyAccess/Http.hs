@@ -21,15 +21,12 @@ import qualified Bilge as RPC
 import Bilge.IO
 import Bilge.RPC
 import Bilge.Request
-import Bilge.Retry
 import qualified Brig.RPC.Decode as RPC
+import Brig.Sem.Common
 import Brig.Sem.GalleyAccess
 import Control.Monad.Catch
-import Control.Retry
 import Data.ByteString.Conversion.To
-import qualified Data.ByteString.Lazy as LBS
 import Imports
-import Network.HTTP.Client (Response)
 import Network.HTTP.Types.Method
 import Polysemy
 import Wire.API.Team.Feature
@@ -61,17 +58,3 @@ galleyAccessToHttp g =
         response <- makeReq g GET req
         wsStatus @SndFactorPasswordChallengeConfig
           <$> RPC.decodeBody "galley" response
-
-makeReq ::
-  (MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
-  RPC.Request ->
-  StdMethod ->
-  (Request -> Request) ->
-  m (Response (Maybe LBS.ByteString))
-makeReq galley m r =
-  recovering x3 rpcHandlers $
-    const $
-      rpc' "galley" galley (method m . r)
-
-x3 :: RetryPolicy
-x3 = limitRetries 3 <> exponentialBackoff 100000
