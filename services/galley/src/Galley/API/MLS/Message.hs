@@ -450,7 +450,7 @@ applyProposal (AddProposal kp) = do
 applyProposal (RemoveProposal ref) = do
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
   pure (paRemoveClient qclient)
-applyProposal _ = throwS @'MLSUnsupportedProposal
+applyProposal _ = pure mempty
 
 checkProposalCipherSuite ::
   Members
