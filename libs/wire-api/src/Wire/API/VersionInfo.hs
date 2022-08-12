@@ -99,7 +99,7 @@ instance
               toEnum $
                 maybe
                   0
-                  (either (const 0) id . parseHeader)
+                  (fromRight 0 . parseHeader)
                   (lookup versionHeader (Wai.requestHeaders req))
         when (v >= demote @n) $
           delayedFail err404
@@ -153,7 +153,7 @@ instance
               toEnum $
                 maybe
                   0
-                  (either (const 0) id . parseHeader)
+                  (fromRight 0 . parseHeader)
                   (lookup versionHeader (Wai.requestHeaders req))
         when (v < demote @n) $
           delayedFail err404

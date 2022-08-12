@@ -23,11 +23,13 @@ where
 import Brig.Sem.CodeStore
 import Brig.Sem.PasswordResetStore
 import Brig.Sem.PasswordResetSupply
-import Brig.Types
+import Brig.Types.User (PasswordResetPair)
 import Data.Id
 import Data.Time
 import Imports hiding (lookup)
 import Polysemy
+import Wire.API.User.Identity
+import Wire.API.User.Password
 import Wire.Sem.Now
 import qualified Wire.Sem.Now as Now
 

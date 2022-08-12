@@ -25,7 +25,6 @@ module Federation.Util where
 import Bilge
 import Bilge.Assert ((!!!), (<!!), (===))
 import qualified Brig.Options as Opt
-import Brig.Types
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (finally, throwIO)
 import Control.Lens ((.~), (?~), (^.))
@@ -46,7 +45,6 @@ import qualified Database.Bloodhound as ES
 import qualified Federator.MockServer as Mock
 import Foreign.C.Error (Errno (..), eCONNREFUSED)
 import GHC.IO.Exception (IOException (ioe_errno))
-import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
 import qualified Network.HTTP.Client as HTTP
 import Network.HTTP.Media
@@ -61,10 +59,14 @@ import Text.RawString.QQ (r)
 import UnliftIO (Concurrently (..), runConcurrently)
 import Util
 import Util.Options (Endpoint (Endpoint))
+import Wire.API.Connection
 import Wire.API.Conversation (Conversation (cnvMembers))
 import Wire.API.Conversation.Member (OtherMember (OtherMember), cmOthers)
 import Wire.API.Conversation.Role (roleNameWireAdmin)
-import Wire.API.Team.Feature (TeamFeatureStatusValue (..))
+import Wire.API.Team.Feature (FeatureStatus (..))
+import Wire.API.User
+import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
 
 -- | Starts a server which will return the bytestring passed to this
 -- function, and makes the action passed to this function run in a modified brig

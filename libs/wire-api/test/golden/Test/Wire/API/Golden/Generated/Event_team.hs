@@ -35,7 +35,8 @@ import Wire.API.Team
       ( TeamUpdateData,
         _iconKeyUpdate,
         _iconUpdate,
-        _nameUpdate
+        _nameUpdate,
+        _splashScreenUpdate
       ),
     newTeam,
     teamIconKey,
@@ -73,7 +74,8 @@ testObject_Event_team_2 =
                     ),
                 _iconUpdate = fromByteString' "3-1-f595b8ed-6dcf-41f2-8a2f-f662a9c0fce4",
                 _iconKeyUpdate =
-                  Just (unsafeRange ("\131355Pp\1067299\987603\ENQS\22773S\ACK\NAKmM\19084\&0\19257\31361$rL,XvJ"))
+                  Just (unsafeRange ("\131355Pp\1067299\987603\ENQS\22773S\ACK\NAKmM\19084\&0\19257\31361$rL,XvJ")),
+                _splashScreenUpdate = fromByteString' "3-1-6fcf77a2-f58f-464c-a0bd-20fc4aa686ac"
               }
           )
       )
@@ -104,7 +106,8 @@ testObject_Event_team_4 =
                   Just
                     ( unsafeRange
                         ("\SIL\SYN~\DC1'](W\CAN\45506\EOTx\1092062Z\SOH\48440\"\FS=\164314%\25471x$\1011017\1065117Y@\1062986\3941\42139\&7\1057737\1017489|rI\1010932\165452[\RS\tz\DC3r1g\97610~\23897\1065053\&1\r\99706p\14666\191125i3$\1036879#\1001325f'\"\15248TK\ETBJ\ETXo\171892\1079312\67176\1015160\SOpij\189451\1032788?`\182403oR\1086731~vi\27413\&3Mc|\a^\"\14396kK\189875c\1088348\135445oiL\1086249~\ESC*\156657\SI{*,\58564=\173470\131357g\DC3G=\EM|\SYNA~\1057264qZ!\159271\ETBM.kZBV\1031669\DC4\139088\vI{\99861q\RS7\142485B[e\128249x<98{\1006760I?\1035850\135028\145811A\ETB,")
-                    )
+                    ),
+                _splashScreenUpdate = Nothing
               }
           )
       )
@@ -147,7 +150,8 @@ testObject_Event_team_8 =
                   Just
                     ( unsafeRange
                         ("t\NUL{1w{\\;\1048307\&6\77982t?H\DC2\50270+,\166489\1020286\1090873\11657p'S\1053650Hv_Q\DC3\FS\138390W\SYN\SOr\NAK3:\ETB\1104464X\142962\65208\ENQy\22451l\SI\1072578\&1Lnu\1109309M\135887,j\a-\6363\DC1D\FSL\ETB\69663{I\DEL,#\t\RS\r\171350\5377iN\DC1\GSV\1012890\NUL\177724\1090396\1075299\v[N\FS\SUB")
-                    )
+                    ),
+                _splashScreenUpdate = Nothing
               }
           )
       )

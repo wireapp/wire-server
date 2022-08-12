@@ -23,10 +23,10 @@ import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Queries
 import Galley.Cassandra.Store
 import Galley.Effects.SearchVisibilityStore (SearchVisibilityStore (..))
-import Galley.Types.Teams.SearchVisibility
 import Imports
 import Polysemy
 import Polysemy.Input
+import Wire.API.Team.SearchVisibility
 
 interpretSearchVisibilityStoreToCassandra ::
   Members '[Embed IO, Input ClientState] r =>

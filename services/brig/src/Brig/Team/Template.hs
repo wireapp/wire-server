@@ -31,8 +31,8 @@ where
 
 import Brig.Options
 import Brig.Template
-import Brig.Types
 import Imports
+import Wire.API.User.Identity
 
 data InvitationEmailTemplate = InvitationEmailTemplate
   { invitationEmailUrl :: !Template,

@@ -33,13 +33,13 @@ import Polysemy.Input
 import Polysemy.Internal.Tactics
 import SAML2.WebSSO hiding (Error)
 import qualified SAML2.WebSSO as SAML hiding (Error)
-import qualified Spar.App as App
 import Spar.Error (SparCustomError (..), SparError)
 import Spar.Sem.AReqIDStore (AReqIDStore)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import Spar.Sem.AssIDStore (AssIDStore)
 import qualified Spar.Sem.AssIDStore as AssIDStore
 import Spar.Sem.IdPConfigStore (IdPConfigStore)
+import qualified Spar.Sem.IdPConfigStore as IdPConfigStore
 import Spar.Sem.SAML2
 import Wire.API.User.IdentityProvider (WireIdP)
 import Wire.API.User.Saml
@@ -92,9 +92,11 @@ instance Members '[Error SparError, IdPConfigStore, Final IO] r => SPStoreIdP Sp
   type IdPConfigExtra (SPImpl r) = WireIdP
   type IdPConfigSPId (SPImpl r) = TeamId
 
-  storeIdPConfig = SPImpl . App.storeIdPConfig
-  getIdPConfig = SPImpl . App.getIdPConfig
-  getIdPConfigByIssuerOptionalSPId a = SPImpl . App.getIdPConfigByIssuerOptionalSPId a
+  storeIdPConfig = SPImpl . IdPConfigStore.insertConfig
+  getIdPConfig = SPImpl . IdPConfigStore.getConfig
+  getIdPConfigByIssuerOptionalSPId issuer mbteam = SPImpl $ case mbteam of
+    Nothing -> IdPConfigStore.getIdPByIssuerV1 issuer
+    Just team -> IdPConfigStore.getIdPByIssuerV2 issuer team
 
 instance Member (Error SparError) r => MonadError SparError (SPImpl r) where
   throwError = SPImpl . throw
@@ -129,10 +131,10 @@ saml2ToSaml2WebSso =
     AuthResp mitlt ma mb mc ab -> do
       get_a <- runT ma
       get_b <- runT mb
-      get_c <- bindT $ uncurry mc
+      get_c <- bindT $ \(a, (b, c)) -> mc a b c
       ins <- getInspectorT
       s <- getInitialStateT
-      x <- raise $ unSPImpl $ SAML.authresp mitlt (inspectOrBomb ins get_a) (inspectOrBomb ins get_b) (\x y -> inspectOrBomb ins $ get_c $ (x, y) <$ s) ab
+      x <- raise $ unSPImpl $ SAML.authresp mitlt (inspectOrBomb ins get_a) (inspectOrBomb ins get_b) (\x y z -> inspectOrBomb ins $ get_c $ (x, (y, z)) <$ s) ab
       pure $ x <$ s
     Meta t ma mb -> do
       get_a <- runT ma

@@ -2,6 +2,9 @@ replicaCount: 3
 image:
   repository: quay.io/wire/spar
   tag: do-not-use
+metrics:
+  serviceMonitor:
+    enable: false
 resources:
   requests:
     memory: "128Mi"
@@ -18,6 +21,8 @@ config:
   richInfoLimit: 5000
   maxScimTokens: 0
   logLevel: Info
+  logFormat: StructuredJSON
+  logNetStrings: false
   maxttlAuthreq: 7200
   maxttlAuthresp: 7200
   proxy: {}

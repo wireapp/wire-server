@@ -9,7 +9,7 @@ kind: StatefulSet
 metadata:
   name: cannon
   labels:
-    wireService: cannon
+    app: cannon
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
@@ -17,7 +17,7 @@ spec:
   serviceName: {{ .Values.service.name }}
   selector:
     matchLabels:
-      wireService: cannon
+      app: cannon
   replicas: {{ .Values.replicaCount }}
   updateStrategy:
     type: RollingUpdate
@@ -25,7 +25,7 @@ spec:
   template:
     metadata:
       labels:
-        wireService: cannon
+        app: cannon
         release: {{ .Release.Name }}
       annotations:
         checksum/configmap: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}

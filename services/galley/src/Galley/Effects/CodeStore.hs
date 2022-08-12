@@ -39,7 +39,7 @@ module Galley.Effects.CodeStore
   )
 where
 
-import Brig.Types.Code
+import Data.Code
 import Data.Id
 import Data.Misc
 import Galley.Data.Types

@@ -3,15 +3,14 @@ kind: ConfigMap
 metadata:
   name: "brig"
   labels:
-    wireService: brig
+    app: brig
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
 data:
   {{- with .Values.config }}
   brig.yaml: |
-    logNetStrings: True # log using netstrings encoding:
-                        # http://cr.yp.to/proto/netstrings.txt
+    logNetStrings: {{ .logNetStrings }}
     logFormat: {{ .logFormat }}
     logLevel: {{ .logLevel }}
 
@@ -281,6 +280,9 @@ data:
       # Details: https://github.com/wireapp/wire-server/blob/3a21a82a1781f0d128f503df6a705b0b5f733d7b/services/brig/src/Brig/Options.hs#L465-L503
       {{- if .setCustomerExtensions }}
       setCustomerExtensions: {{ toYaml .setCustomerExtensions | nindent 8 }}
+      {{- end }}
+      {{- if .set2FACodeGenerationDelaySecs }}
+      set2FACodeGenerationDelaySecs: {{ .set2FACodeGenerationDelaySecs }}
       {{- end }}
     {{- end }}
   {{- end }}

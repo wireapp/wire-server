@@ -40,7 +40,6 @@ module Galley.API.Teams.Notifications
 where
 
 import Brig.Types.Intra (accountUser)
-import Brig.Types.User (userTeam)
 import Data.Id
 import Data.Json.Util (toJSONObject)
 import qualified Data.List1 as List1
@@ -49,12 +48,13 @@ import qualified Galley.Data.TeamNotifications as DataTeamQueue
 import Galley.Effects
 import Galley.Effects.BrigAccess as Intra
 import qualified Galley.Effects.TeamNotificationStore as E
-import Galley.Types.Teams hiding (newTeam)
 import Imports
 import Polysemy
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Event.Team (Event)
 import Wire.API.Internal.Notification
+import Wire.API.User
 
 getTeamNotifications ::
   Members '[BrigAccess, ErrorS 'TeamNotFound, TeamNotificationStore] r =>

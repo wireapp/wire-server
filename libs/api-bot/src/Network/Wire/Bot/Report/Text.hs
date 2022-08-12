@@ -60,8 +60,8 @@ formatReport pretty r =
       pp bold <> fromText (sectionName s) <> "\n" <> pp clear
         <> foldMap metric (sectionMetrics s)
         <> "\n"
-    metric (Counter l p) = single l . fromString . show $ (reportCounter r p)
-    metric (Gauge l p) = single l . fromString . show $ (reportGauge r p)
+    metric (Counter l p) = single l . fromString . show $ reportCounter r p
+    metric (Gauge l p) = single l . fromString . show $ reportGauge r p
     metric (Histogram l p _) = multi l $ sort $ Map.toList (reportBucket r p)
     single k v = "\t" <> fromText k <> ": " <> value v <> "\n"
     multi k v = "\t" <> subsection k <> "\n" <> foldMap pair v

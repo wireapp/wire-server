@@ -123,6 +123,7 @@ library:
   - tinylog >=0.10
   - transformers >=0.3
   - types-common >=0.16
+  - types-common-aws
   - types-common-journal >=0.1
   - unliftio >=0.2
   - unordered-containers >=0.2
@@ -263,6 +264,7 @@ executables:
     - temporary >=1.2.1
     - text
     - time >=1.5
+    - timeout
     - tinylog
     - transformers
     - types-common >=0.3

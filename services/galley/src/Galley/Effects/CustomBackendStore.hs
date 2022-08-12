@@ -26,9 +26,9 @@ module Galley.Effects.CustomBackendStore
 where
 
 import Data.Domain (Domain)
-import Galley.Types
 import Imports
 import Polysemy
+import Wire.API.CustomBackend
 
 data CustomBackendStore m a where
   GetCustomBackend :: Domain -> CustomBackendStore m (Maybe CustomBackend)

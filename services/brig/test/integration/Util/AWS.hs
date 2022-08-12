@@ -18,7 +18,6 @@
 module Util.AWS where
 
 import qualified Brig.AWS as AWS
-import Brig.Types
 import Control.Lens
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
@@ -32,6 +31,7 @@ import qualified Proto.UserEvents as PU
 import qualified Proto.UserEvents_Fields as PU
 import Test.Tasty.HUnit
 import qualified Util.Test.SQS as SQS
+import Wire.API.User
 
 isRealSESEnv :: AWS.Env -> Bool
 isRealSESEnv env = case view AWS.userJournalQueue env of

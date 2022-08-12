@@ -32,11 +32,11 @@ import Data.Aeson.TH
 import qualified Data.Currency as Currency
 import Data.Json.Util
 import Data.Time (UTCTime)
-import Galley.Types.Teams (Team)
 import Imports
 import Test.QuickCheck.Arbitrary (Arbitrary)
 import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Message (UserClients)
+import Wire.API.Team (Team)
 import Wire.API.Team.LegalHold (LegalholdProtectee)
 
 data TeamStatus

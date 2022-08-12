@@ -3,7 +3,6 @@ kind: Job
 metadata:
   name: brig-index-migrate-data
   labels:
-    wireService: elasticsearch-index-migrate-data
     app: elasticsearch-index-migrate-data
     heritage: {{.Release.Service | quote }}
     release: {{.Release.Name | quote }}
@@ -16,7 +15,6 @@ spec:
     metadata:
       name: "{{.Release.Name}}"
       labels:
-        wireService: elasticsearch-index-migrate-data
         app: elasticsearch-index-migrate-data
         heritage: {{.Release.Service | quote }}
         release: {{.Release.Name | quote }}

@@ -28,7 +28,7 @@ import qualified Brig.IO.Intra as Intra
 import Brig.Options (setDefaultUserLocale)
 import Brig.Sem.UserHandleStore
 import Brig.Sem.UserQuery (UserQuery)
-import Brig.Types.User (HavePendingInvitations (NoPendingInvitations), Locale)
+import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
 import Data.Handle (Handle)
@@ -42,7 +42,7 @@ import Wire.API.Connection (Relation, RelationWithHistory (..), relationDropHist
 import qualified Wire.API.Push.Token as PushTok
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDRequestBody (EJPDRequestBody), EJPDResponseBody (EJPDResponseBody), EJPDResponseItem (EJPDResponseItem))
 import qualified Wire.API.Team.Member as Team
-import Wire.API.User (User, userDisplayName, userEmail, userHandle, userId, userPhone, userTeam)
+import Wire.API.User (Locale, User, userDisplayName, userEmail, userHandle, userId, userPhone, userTeam)
 
 ejpdRequest ::
   forall r.

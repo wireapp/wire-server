@@ -19,6 +19,7 @@
 module Brig.API.User
   ( -- * User Accounts / Profiles
     createUser,
+    createUserSpar,
     createUserInviteViaScim,
     checkRestrictedUserCreation,
     Brig.API.User.updateUser,
@@ -98,7 +99,6 @@ import Brig.App
 import qualified Brig.Code as Code
 import Brig.Data.Activation (ActivationEvent (..), activationErrorToRegisterError)
 import qualified Brig.Data.Activation as Data
-import qualified Brig.Data.Blacklist as Blacklist
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.Properties as Data
@@ -108,6 +108,10 @@ import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
 import Brig.Data.UserPendingActivation
 import qualified Brig.Data.UserPendingActivation as Data
+import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
+import qualified Brig.Effects.BlacklistPhonePrefixStore as BlacklistPhonePrefixStore
+import Brig.Effects.BlacklistStore (BlacklistStore)
+import qualified Brig.Effects.BlacklistStore as BlacklistStore
 import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
@@ -128,11 +132,10 @@ import Brig.Sem.UserQuery (UserQuery)
 import Brig.Sem.UserQuery.Cassandra
 import Brig.Sem.VerificationCodeStore
 import qualified Brig.Team.DB as Team
-import Brig.Types
-import Brig.Types.Code (Timeout (..))
+import Brig.Types.Activation (ActivationPair)
+import Brig.Types.Connection
 import Brig.Types.Intra
-import Brig.Types.Team.Invitation (inCreatedAt, inCreatedBy)
-import qualified Brig.Types.Team.Invitation as Team
+import Brig.Types.User (HavePendingInvitations (..), ManagedByUpdate (..), PasswordResetPair)
 import Brig.Types.User.Event
 import Brig.User.Auth.Cookie (revokeAllCookies)
 import Brig.User.Email
@@ -147,8 +150,9 @@ import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
 import Data.ByteString.Conversion
+import Data.Code
 import qualified Data.Currency as Currency
-import Data.Handle (Handle)
+import Data.Handle (Handle (fromHandle), parseHandle)
 import Data.Id as Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
@@ -175,12 +179,23 @@ import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import UnliftIO.Async hiding (Async)
+import Wire.API.Connection
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.Error
 import Wire.API.Routes.Internal.Brig.Connection
-import Wire.API.Team.Member (legalHoldStatus)
+import Wire.API.Team hiding (newTeam)
+import Wire.API.Team.Feature (forgetLock)
+import Wire.API.Team.Invitation
+import qualified Wire.API.Team.Invitation as Team
+import Wire.API.Team.Member (TeamMember, legalHoldStatus)
+import Wire.API.Team.Role
+import Wire.API.Team.Size
 import Wire.API.User
+import Wire.API.User.Activation
+import Wire.API.User.Client
+import Wire.API.User.Password
+import Wire.API.User.RichInfo
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -208,12 +223,17 @@ identityErrorToBrigError = \case
   IdentityErrorUserKeyExists -> Error.StdError $ errorToWai @'E.UserKeyExists
 
 verifyUniquenessAndCheckBlacklist ::
-  Members '[UserKeyStore, UserQuery] r =>
+  Members
+    '[ BlacklistStore,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   UserKey ->
   ExceptT IdentityError (AppT r) ()
 verifyUniquenessAndCheckBlacklist uk = do
   liftSemE $ checkKey Nothing uk
-  blacklisted <- lift $ wrapClient $ Blacklist.exists uk
+  blacklisted <- lift $ liftSem $ BlacklistStore.exists uk
   when blacklisted $
     throwE (foldKey (const IdentityErrorBlacklistedEmail) (const IdentityErrorBlacklistedPhone) uk)
   where
@@ -222,12 +242,83 @@ verifyUniquenessAndCheckBlacklist uk = do
       unless av $
         throwE IdentityErrorUserKeyExists
 
+createUserSpar ::
+  forall r.
+  Members
+    '[ Async,
+       Race,
+       Resource,
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserQuery
+     ]
+    r =>
+  NewUserSpar ->
+  ExceptT CreateUserSparError (AppT r) CreateUserResult
+createUserSpar new = do
+  let handle' = newUserSparHandle new
+      new' = newUserFromSpar new
+      ident = newUserSparSSOId new
+      tid = newUserSparTeamId new
+
+  -- Create account
+  account <- lift $ do
+    (account, pw) <- wrapClient $ newAccount new' Nothing (Just tid) handle'
+
+    let uid = userId (accountUser account)
+
+    -- FUTUREWORK: make this transactional if possible
+    liftSem $ Data.insertAccount account Nothing pw False
+    case unRichInfo <$> newUserSparRichInfo new of
+      Just richInfo -> wrapClient $ Data.updateRichInfo uid richInfo
+      Nothing -> pure () -- Nothing to do
+    wrapHttp $ Intra.createSelfConv uid
+    wrapHttpClient $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
+
+    pure account
+
+  -- Add to team
+  userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing)
+
+  -- Set up feature flags
+  let uid = userId (accountUser account)
+  lift $ initAccountFeatureConfig uid
+
+  -- Set handle
+  updateHandle' uid handle'
+
+  pure $! CreateUserResult account Nothing Nothing (Just userTeam)
+  where
+    updateHandle' :: UserId -> Maybe Handle -> ExceptT CreateUserSparError (AppT r) ()
+    updateHandle' _ Nothing = pure ()
+    updateHandle' uid (Just h) = do
+      case parseHandle . fromHandle $ h of
+        Just handl -> withExceptT CreateUserSparHandleError $ changeHandle uid Nothing handl AllowSCIMUpdates
+        Nothing -> throwE $ CreateUserSparHandleError ChangeHandleInvalid
+
+    addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
+    addUserToTeamSSO account tid ident = do
+      let uid = userId (accountUser account)
+      added <- lift $ wrapHttp $ Intra.addTeamMember uid tid (Nothing, defaultRole)
+      unless added $
+        throwE RegisterErrorTooManyTeamMembers
+      lift $ do
+        liftSem $ activateUser uid ident
+        void $ onActivated (AccountActivated account)
+        Log.info $
+          field "user" (toByteString uid)
+            . field "team" (toByteString tid)
+            . msg (val "Added via SSO")
+      Team.TeamName nm <- lift $ wrapHttp $ Intra.getTeamName tid
+      pure $ CreateUserTeam tid nm
+
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser ::
   forall r.
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       BlacklistStore,
        P.Error Twilio.ErrorResponse,
        Input (Local ()),
        PasswordResetSupply,
@@ -403,7 +494,7 @@ createUser new = do
       ok <- lift . liftSem $ Data.claimKey d uk uid
       unless ok $
         throwE RegisterErrorUserKeyExists
-      let minvmeta :: (Maybe (UserId, UTCTimeMillis), Team.Role)
+      let minvmeta :: (Maybe (UserId, UTCTimeMillis), Role)
           minvmeta = ((,inCreatedAt inv) <$> inCreatedBy inv, Team.inRole inv)
       added <- lift $ wrapHttp $ Intra.addTeamMember uid (Team.iiTeam ii) minvmeta
       unless added $
@@ -422,7 +513,7 @@ createUser new = do
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
     addUserToTeamSSO account tid ident = do
       let uid = userId (accountUser account)
-      added <- lift $ wrapHttp $ Intra.addTeamMember uid tid (Nothing, Team.defaultRole)
+      added <- lift $ wrapHttp $ Intra.addTeamMember uid tid (Nothing, defaultRole)
       unless added $
         throwE RegisterErrorTooManyTeamMembers
       lift $ do
@@ -474,13 +565,18 @@ createUser new = do
 initAccountFeatureConfig :: UserId -> (AppT r) ()
 initAccountFeatureConfig uid = do
   mbCciDefNew <- view (settings . getAfcConferenceCallingDefNewMaybe)
-  forM_ mbCciDefNew $ wrapClient . Data.updateFeatureConferenceCalling uid . Just
+  forM_ (forgetLock <$> mbCciDefNew) $ wrapClient . Data.updateFeatureConferenceCalling uid . Just
 
 -- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where
 -- users are invited to the team via scim.
 createUserInviteViaScim ::
-  Members '[UserKeyStore, UserQuery] r =>
+  Members
+    '[ BlacklistStore,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   NewUserScimInvitation ->
   ExceptT Error.Error (AppT r) UserAccount
@@ -664,6 +760,7 @@ changeSelfEmail ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       BlacklistStore,
        UserKeyStore,
        UserQuery
      ]
@@ -695,6 +792,7 @@ changeEmail ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       BlacklistStore,
        UserKeyStore,
        UserQuery
      ]
@@ -710,7 +808,7 @@ changeEmail u email allowScim = do
       pure
       (validateEmail email)
   let ek = userEmailKey em
-  blacklisted <- lift . wrapClient $ Blacklist.exists ek
+  blacklisted <- lift . liftSem $ BlacklistStore.exists ek
   when blacklisted $
     throwE (ChangeBlacklistedEmail email)
   available <- lift . liftSem $ Data.keyAvailable ek (Just u)
@@ -742,6 +840,8 @@ changePhone ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       BlacklistStore,
+       BlacklistPhonePrefixStore,
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
@@ -764,11 +864,11 @@ changePhone u phone = do
   unless available $
     throwE PhoneExists
   timeout <- setActivationTimeout <$> view settings
-  blacklisted <- lift . wrapClient $ Blacklist.exists pk
+  blacklisted <- lift . liftSem $ BlacklistStore.exists pk
   when blacklisted $
     throwE BlacklistedNewPhone
   -- check if any prefixes of this phone number are blocked
-  prefixExcluded <- lift . wrapClient $ Blacklist.existsAnyPrefix canonical
+  prefixExcluded <- lift . liftSem $ BlacklistPhonePrefixStore.existsAny canonical
   when prefixExcluded $
     throwE BlacklistedNewPhone
   act <- lift . liftSem $ Data.newActivation pk timeout (Just u)
@@ -1013,6 +1113,8 @@ sendActivationCode ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       BlacklistStore,
+       BlacklistPhonePrefixStore,
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
@@ -1036,7 +1138,7 @@ sendActivationCode emailOrPhone loc call = do
       when exists $
         throwE $
           UserKeyInUse ek
-      blacklisted <- lift . wrapClient $ Blacklist.exists ek
+      blacklisted <- lift . liftSem $ BlacklistStore.exists ek
       when blacklisted $
         throwE (ActivationBlacklistedUserKey ek)
       uc <- lift . wrapClient $ Data.lookupActivationCode ek
@@ -1058,11 +1160,11 @@ sendActivationCode emailOrPhone loc call = do
       when exists $
         throwE $
           UserKeyInUse pk
-      blacklisted <- lift . wrapClient $ Blacklist.exists pk
+      blacklisted <- lift . liftSem $ BlacklistStore.exists pk
       when blacklisted $
         throwE (ActivationBlacklistedUserKey pk)
       -- check if any prefixes of this phone number are blocked
-      prefixExcluded <- lift . wrapClient $ Blacklist.existsAnyPrefix canonical
+      prefixExcluded <- lift . liftSem $ BlacklistPhonePrefixStore.existsAny canonical
       when prefixExcluded $
         throwE (ActivationBlacklistedUserKey pk)
       c <- lift . wrapClient $ fmap snd <$> Data.lookupActivationCode pk
@@ -1106,8 +1208,8 @@ sendActivationCode emailOrPhone loc call = do
         -- user has 'userTeam' set, it must be binding.
         case mbTeam of
           Just team
-            | team ^. Team.teamCreator == uid ->
-              sendTeamActivationMail em name p loc' (team ^. Team.teamName)
+            | team ^. teamCreator == uid ->
+              sendTeamActivationMail em name p loc' (team ^. teamName)
           _otherwise ->
             sendActivationMail em name p loc' ident
 
@@ -1300,7 +1402,8 @@ deleteSelfUser uid pwd = do
               (Code.Retries 3)
               (Code.Timeout 600)
               (Just (toUUID uid))
-          lift . liftSem $ Code.insertCode c
+          -- lift . liftSem $ Code.insertCode c
+          tryInsertVerificationCode c DeleteUserVerificationCodeThrottled
           let k = Code.codeKey c
           let v = Code.codeValue c
           let l = userLocale (accountUser a)
@@ -1581,7 +1684,7 @@ lookupLocalProfiles requestingUser others = do
     toMap :: [ConnectionStatus] -> Map UserId Relation
     toMap = Map.fromList . map (csFrom &&& csStatus)
 
-    getSelfInfo :: Local x -> Locale -> UserId -> m (Maybe (TeamId, Team.TeamMember))
+    getSelfInfo :: Local x -> Locale -> UserId -> m (Maybe (TeamId, TeamMember))
     getSelfInfo loc locale selfId = do
       -- FUTUREWORK: it is an internal error for the two lookups (for 'User' and 'TeamMember')
       -- to return 'Nothing'.  we could throw errors here if that happens, rather than just
@@ -1641,7 +1744,7 @@ getLegalHoldStatus' user =
 
 data EmailVisibility'
   = EmailVisibleIfOnTeam'
-  | EmailVisibleIfOnSameTeam' (Maybe (TeamId, Team.TeamMember))
+  | EmailVisibleIfOnSameTeam' (Maybe (TeamId, TeamMember))
   | EmailVisibleToSelf'
 
 -- | Gets the email if it's visible to the requester according to configured settings
@@ -1678,26 +1781,26 @@ lookupAccountsByIdentity emailOrPhone includePendingInvitations = do
     then pure result
     else pure $ filter ((/= PendingInvitation) . accountStatus) result
 
-isBlacklisted :: Either Email Phone -> (AppT r) Bool
+isBlacklisted :: Member BlacklistStore r => Either Email Phone -> AppT r Bool
 isBlacklisted emailOrPhone = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
-  wrapClient $ Blacklist.exists uk
+  liftSem $ BlacklistStore.exists uk
 
-blacklistInsert :: Either Email Phone -> (AppT r) ()
+blacklistInsert :: Member BlacklistStore r => Either Email Phone -> AppT r ()
 blacklistInsert emailOrPhone = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
-  wrapClient $ Blacklist.insert uk
+  liftSem $ BlacklistStore.insert uk
 
-blacklistDelete :: Either Email Phone -> (AppT r) ()
+blacklistDelete :: Member BlacklistStore r => Either Email Phone -> AppT r ()
 blacklistDelete emailOrPhone = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
-  wrapClient $ Blacklist.delete uk
+  liftSem $ BlacklistStore.delete uk
 
-phonePrefixGet :: PhonePrefix -> (AppT r) [ExcludedPrefix]
-phonePrefixGet = wrapClient . Blacklist.getAllPrefixes
+phonePrefixGet :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (AppT r) [ExcludedPrefix]
+phonePrefixGet = liftSem . BlacklistPhonePrefixStore.getAll
 
-phonePrefixDelete :: PhonePrefix -> (AppT r) ()
-phonePrefixDelete = wrapClient . Blacklist.deletePrefix
+phonePrefixDelete :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (AppT r) ()
+phonePrefixDelete = liftSem . BlacklistPhonePrefixStore.delete
 
-phonePrefixInsert :: ExcludedPrefix -> (AppT r) ()
-phonePrefixInsert = wrapClient . Blacklist.insertPrefix
+phonePrefixInsert :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (AppT r) ()
+phonePrefixInsert = liftSem . BlacklistPhonePrefixStore.insert

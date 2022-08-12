@@ -22,22 +22,26 @@ module Wire.API.Routes.Internal.Brig
     MLSAPI,
     TeamsAPI,
     EJPDRequest,
-    GetAccountFeatureConfig,
-    PutAccountFeatureConfig,
-    DeleteAccountFeatureConfig,
+    GetAccountConferenceCallingConfig,
+    PutAccountConferenceCallingConfig,
+    DeleteAccountConferenceCallingConfig,
     SwaggerDocsAPI,
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
+    NewKeyPackageRef (..),
   )
 where
 
 import Control.Lens ((.~))
+import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.Code as Code
 import Data.Id as Id
 import Data.Qualified (Qualified)
+import Data.Schema hiding (swaggerDoc)
 import Data.Swagger (HasInfo (info), HasTitle (title), Swagger)
+import qualified Data.Swagger as S
 import Imports hiding (head)
-import Servant hiding (Handler, JSON, addHeader, respond)
+import Servant hiding (Handler, JSON, WithStatus, addHeader, respond)
 import qualified Servant
 import Servant.Swagger (HasSwagger (toSwagger))
 import Servant.Swagger.Internal.Orphans ()
@@ -52,9 +56,7 @@ import Wire.API.Routes.Internal.Brig.EJPD
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
-import Wire.API.Routes.QualifiedCapture
-import Wire.API.Team.Feature (TeamFeatureName (TeamFeatureSearchVisibilityInbound))
-import qualified Wire.API.Team.Feature as ApiFt
+import Wire.API.Team.Feature
 import Wire.API.User
 
 type EJPDRequest =
@@ -75,26 +77,26 @@ type EJPDRequest =
     :> Servant.ReqBody '[Servant.JSON] EJPDRequestBody
     :> Post '[Servant.JSON] EJPDResponseBody
 
-type GetAccountFeatureConfig =
+type GetAccountConferenceCallingConfig =
   Summary
     "Read cassandra field 'brig.user.feature_conference_calling'"
     :> "users"
     :> Capture "uid" UserId
     :> "features"
     :> "conferenceCalling"
-    :> Get '[Servant.JSON] (ApiFt.TeamFeatureStatus 'ApiFt.WithoutLockStatus 'ApiFt.TeamFeatureConferenceCalling)
+    :> Get '[Servant.JSON] (WithStatusNoLock ConferenceCallingConfig)
 
-type PutAccountFeatureConfig =
+type PutAccountConferenceCallingConfig =
   Summary
     "Write to cassandra field 'brig.user.feature_conference_calling'"
     :> "users"
     :> Capture "uid" UserId
     :> "features"
     :> "conferenceCalling"
-    :> Servant.ReqBody '[Servant.JSON] (ApiFt.TeamFeatureStatus 'ApiFt.WithoutLockStatus 'ApiFt.TeamFeatureConferenceCalling)
+    :> Servant.ReqBody '[Servant.JSON] (WithStatusNoLock ConferenceCallingConfig)
     :> Put '[Servant.JSON] NoContent
 
-type DeleteAccountFeatureConfig =
+type DeleteAccountConferenceCallingConfig =
   Summary
     "Reset cassandra field 'brig.user.feature_conference_calling' to 'null'"
     :> "users"
@@ -127,9 +129,9 @@ type GetAllConnections =
 
 type EJPD_API =
   ( EJPDRequest
-      :<|> Named "get-account-feature-config" GetAccountFeatureConfig
-      :<|> PutAccountFeatureConfig
-      :<|> DeleteAccountFeatureConfig
+      :<|> Named "get-account-conference-calling-config" GetAccountConferenceCallingConfig
+      :<|> PutAccountConferenceCallingConfig
+      :<|> DeleteAccountConferenceCallingConfig
       :<|> GetAllConnectionsUnqualified
       :<|> GetAllConnections
   )
@@ -144,6 +146,28 @@ type AccountAPI =
         :> ReqBody '[Servant.JSON] NewUser
         :> MultiVerb 'POST '[Servant.JSON] RegisterInternalResponses (Either RegisterError SelfProfile)
     )
+    :<|> Named
+           "createUserNoVerifySpar"
+           ( "users" :> "spar"
+               :> ReqBody '[Servant.JSON] NewUserSpar
+               :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
+           )
+
+data NewKeyPackageRef = NewKeyPackageRef
+  { nkprUserId :: Qualified UserId,
+    nkprClientId :: ClientId,
+    nkprConversation :: Qualified ConvId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewKeyPackageRef)
+
+instance ToSchema NewKeyPackageRef where
+  schema =
+    object "NewKeyPackageRef" $
+      NewKeyPackageRef
+        <$> nkprUserId .= field "user_id" schema
+          <*> nkprClientId .= field "client_id" schema
+          <*> nkprConversation .= field "conversation" schema
 
 type MLSAPI =
   "mls"
@@ -164,6 +188,16 @@ type MLSAPI =
                                     :<|> GetConversationByKeyPackageRef
                                 )
                          )
+                    :<|> Named
+                           "put-key-package-ref"
+                           ( Summary "Create a new KeyPackageRef mapping"
+                               :> ReqBody '[Servant.JSON] NewKeyPackageRef
+                               :> MultiVerb
+                                    'PUT
+                                    '[Servant.JSON]
+                                    '[RespondEmpty 201 "Key package ref mapping created"]
+                                    ()
+                           )
                 )
          )
            :<|> GetMLSClients
@@ -202,7 +236,7 @@ type GetMLSClients =
   Summary "Return all MLS-enabled clients of a user"
     :> "clients"
     :> CanThrow 'UserNotFound
-    :> QualifiedCapture "user" UserId
+    :> Capture "user" UserId
     :> QueryParam' '[Required, Strict] "sig_scheme" SignatureSchemeTag
     :> MultiVerb1
          'GET
@@ -231,7 +265,7 @@ type TeamsAPI =
   Named
     "updateSearchVisibilityInbound"
     ( "teams"
-        :> ReqBody '[Servant.JSON] (Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound)
+        :> ReqBody '[Servant.JSON] (Multi.TeamStatus SearchVisibilityInboundConfig)
         :> Post '[Servant.JSON] ()
     )
 

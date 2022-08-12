@@ -20,7 +20,8 @@
 
 module Brig.Sem.VerificationCodeStore where
 
-import Brig.Types.Code
+import Brig.API.Types
+import Data.Code
 import Data.UUID
 import Imports
 import Polysemy
@@ -59,7 +60,8 @@ newtype Retries = Retries {numRetries :: Word8}
 
 data VerificationCodeStore m a where
   GetPendingCode :: Key -> Scope -> VerificationCodeStore m (Maybe Code) -- 'lookup' in 'Brig.Code'
-  InsertCode :: Code -> VerificationCodeStore m () -- 'insert' in 'Brig.Code'
+  InsertCode :: Code -> Int -> VerificationCodeStore m (Maybe RetryAfter) -- 'insert' in 'Brig.Code'
+  InsertCodeInternal :: Code -> VerificationCodeStore m () -- 'insertInternal' in 'Brig.Code'
 
 makeSem ''VerificationCodeStore
 
@@ -76,7 +78,7 @@ verifyCode k s v = getPendingCode k s >>= maybe (pure Nothing) continue
     continue c
       | codeValue c == v = pure (Just c)
       | codeRetries c > 0 = do
-        insertCode (c {codeRetries = codeRetries c - 1})
+        insertCodeInternal (c {codeRetries = codeRetries c - 1})
         pure Nothing
       | otherwise = pure Nothing
 

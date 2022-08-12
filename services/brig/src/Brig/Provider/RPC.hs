@@ -34,8 +34,6 @@ import Bilge.Retry (httpHandlers)
 import Brig.App
 import Brig.Provider.DB (ServiceConn (..))
 import Brig.RPC
-import Brig.Types.Provider (HttpsUrl (..))
-import Brig.Types.Provider.External
 import Control.Error
 import Control.Lens (set, view, (^.))
 import Control.Monad.Catch
@@ -44,8 +42,9 @@ import Data.Aeson
 import Data.ByteString.Conversion
 import Data.Id
 import qualified Data.List1 as List1
-import Galley.Types (Event)
 import qualified Galley.Types.Bot as Galley
+import Galley.Types.Bot.Service (serviceEnabled)
+import qualified Galley.Types.Bot.Service as Galley
 import Imports
 import qualified Network.HTTP.Client as Http
 import Network.HTTP.Types.Method
@@ -54,6 +53,10 @@ import Ssl.Util (withVerifiedSslConnection)
 import System.Logger.Class (MonadLogger, field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import URI.ByteString
+import qualified Wire.API.Event.Conversation as Conv
+import Wire.API.Provider (httpsUrl)
+import Wire.API.Provider.External
+import qualified Wire.API.Provider.Service as Galley
 
 --------------------------------------------------------------------------------
 -- External RPC
@@ -154,7 +157,7 @@ setServiceConn scon = do
         . expect2xx
     svc =
       Galley.newService ref url tok fps
-        & set Galley.serviceEnabled (sconEnabled scon)
+        & set serviceEnabled (sconEnabled scon)
 
 -- | Remove service connection information from galley.
 removeServiceConn ::
@@ -191,7 +194,7 @@ addBotMember ::
   ClientId ->
   ProviderId ->
   ServiceId ->
-  (AppT r) Event
+  (AppT r) Conv.Event
 addBotMember zusr zcon conv bot clt pid sid = do
   Log.debug $
     remote "galley"
@@ -224,7 +227,7 @@ removeBotMember ::
   Maybe ConnId ->
   ConvId ->
   BotId ->
-  m (Maybe Event)
+  m (Maybe Conv.Event)
 removeBotMember zusr zcon conv bot = do
   Log.debug $
     remote "galley"

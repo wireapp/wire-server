@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -72,7 +71,7 @@ addMembers cnv mems = do
   rs <- sessionRequest req rsc consumeBody
   case statusCode rs of
     200 -> Just <$> responseJsonThrow (ParseError . pack) rs
-    204 -> return Nothing
+    204 -> pure Nothing
     _ -> unexpected rs "addMembers: status code"
   where
     req =
@@ -90,7 +89,7 @@ removeMember cnv mem = do
   rs <- sessionRequest req rsc consumeBody
   case statusCode rs of
     200 -> Just <$> responseJsonThrow (ParseError . pack) rs
-    204 -> return Nothing
+    204 -> pure Nothing
     _ -> unexpected rs "removeMember: status code"
   where
     req =
@@ -102,7 +101,7 @@ removeMember cnv mem = do
 
 -- FUTUREWORK: probably should be 'Wire.API.Conversation.Member.MemberUpdate'.
 memberUpdate :: MonadSession m => ConvId -> MemberUpdateData -> m ()
-memberUpdate cnv updt = sessionRequest req rsc (const $ return ())
+memberUpdate cnv updt = sessionRequest req rsc (const $ pure ())
   where
     req =
       method PUT
@@ -117,7 +116,7 @@ getConv cnv = do
   rs <- sessionRequest req rsc consumeBody
   case statusCode rs of
     200 -> responseJsonThrow (ParseError . pack) rs
-    404 -> return Nothing
+    404 -> pure Nothing
     _ -> unexpected rs "getConv: status code"
   where
     req =
@@ -142,6 +141,6 @@ createConv users name = sessionRequest req rsc readBody
       method POST
         . path "conversations"
         . acceptJson
-        . json (NewConv users [] (name >>= checked) mempty Nothing Nothing Nothing Nothing roleNameWireAdmin M.ProtocolProteusTag)
+        . json (NewConv users [] (name >>= checked) mempty Nothing Nothing Nothing Nothing roleNameWireAdmin M.ProtocolProteusTag Nothing)
         $ empty
     rsc = status201 :| []

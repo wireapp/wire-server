@@ -20,7 +20,6 @@ module Brig.API.Error where
 import Brig.API.Types
 import Brig.Options (DomainsBlockedForRegistration)
 import Brig.Phone (PhoneException (..))
-import Brig.Types (DeletionCodeTimeout (..))
 import Brig.Types.Common (PhoneBudgetTimeout (..))
 import Control.Monad.Error.Class hiding (Error)
 import Data.Aeson
@@ -36,7 +35,7 @@ import qualified Network.Wai.Utilities.Error as Wai
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.Error
-import Wire.API.User (ChangeHandleError (..), UpdateProfileError (..))
+import Wire.API.User
 
 data Error where
   StdError :: !Wai.Error -> Error
@@ -192,6 +191,11 @@ deleteUserError DeleteUserInvalidPassword = StdError (errorToWai @'E.BadCredenti
 deleteUserError DeleteUserMissingPassword = StdError (errorToWai @'E.MissingAuth)
 deleteUserError (DeleteUserPendingCode t) = RichError deletionCodePending (DeletionCodeTimeout t) []
 deleteUserError DeleteUserOwnerDeletingSelf = StdError (errorToWai @'E.OwnerDeletingSelf)
+deleteUserError (DeleteUserVerificationCodeThrottled t) =
+  RichError
+    verificationCodeThrottled
+    ()
+    [("Retry-After", toByteString' (retryAfterSeconds t))]
 
 accountStatusError :: AccountStatusError -> Error
 accountStatusError InvalidAccountStatus = StdError invalidAccountStatus
@@ -205,6 +209,13 @@ phoneError (PhoneBudgetExhausted t) = RichError phoneBudgetExhausted (PhoneBudge
 updateProfileError :: UpdateProfileError -> Error
 updateProfileError DisplayNameManagedByScim = StdError (propertyManagedByScim "name")
 updateProfileError ProfileNotFound = StdError (errorToWai @'E.UserNotFound)
+
+verificationCodeThrottledError :: VerificationCodeThrottledError -> Error
+verificationCodeThrottledError (VerificationCodeThrottled t) =
+  RichError
+    verificationCodeThrottled
+    ()
+    [("Retry-After", toByteString' (retryAfterSeconds t))]
 
 -- WAI Errors -----------------------------------------------------------------
 
@@ -353,7 +364,7 @@ authTokenUnsupported = Wai.mkError status403 "invalid-credentials" "Unsupported 
 --
 -- * Requested action can't be performed if the user is the only team owner left in the team.
 insufficientTeamPermissions :: Wai.Error
-insufficientTeamPermissions = Wai.mkError status403 "insufficient-permissions" "Insufficient team permissions"
+insufficientTeamPermissions = errorToWai @'E.InsufficientTeamPermissions
 
 noBindingTeam :: Wai.Error
 noBindingTeam = Wai.mkError status403 "no-binding-team" "Operation allowed only on binding teams"
@@ -370,6 +381,9 @@ loginsTooFrequent = Wai.mkError status429 "client-error" "Logins too frequent"
 
 tooManyFailedLogins :: Wai.Error
 tooManyFailedLogins = Wai.mkError status403 "client-error" "Too many failed logins"
+
+verificationCodeThrottled :: Wai.Error
+verificationCodeThrottled = Wai.mkError status429 "too-many-requests" "Too many request to generate a verification code."
 
 tooLargeRichInfo :: Wai.Error
 tooLargeRichInfo = Wai.mkError status413 "too-large-rich-info" "Rich info has exceeded the limit"

@@ -27,13 +27,13 @@ import Data.Domain (Domain)
 import Galley.API.Util
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.WaiRoutes
-import Galley.Types
 import Imports hiding ((\\))
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Predicate hiding (Error, setStatus)
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
+import Wire.API.CustomBackend
 import qualified Wire.API.CustomBackend as Public
 import Wire.API.Error
 import Wire.API.Error.Galley

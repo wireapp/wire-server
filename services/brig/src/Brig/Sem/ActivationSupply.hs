@@ -19,8 +19,9 @@
 
 module Brig.Sem.ActivationSupply where
 
-import Brig.Types
+import Brig.Types.Common
 import Polysemy
+import Wire.API.User.Activation
 
 data ActivationSupply m a where
   MakeActivationKey :: UserKey -> ActivationSupply m ActivationKey

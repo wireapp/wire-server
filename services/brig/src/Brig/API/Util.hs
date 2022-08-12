@@ -26,6 +26,7 @@ module Brig.API.Util
     exceptTToMaybe,
     lookupSearchPolicy,
     ensureLocal,
+    tryInsertVerificationCode,
   )
 where
 
@@ -33,11 +34,12 @@ import Brig.API.Error
 import Brig.API.Handler
 import Brig.API.Types
 import Brig.App
+import qualified Brig.Code as Code
 import qualified Brig.Data.User as Data
-import Brig.Options (FederationDomainConfig, federationDomainConfigs)
+import Brig.Options (FederationDomainConfig, federationDomainConfigs, set2FACodeGenerationDelaySecs)
 import qualified Brig.Options as Opts
 import Brig.Sem.UserQuery (UserQuery)
-import Brig.Types
+import Brig.Sem.VerificationCodeStore (VerificationCodeStore)
 import Brig.Types.Intra (accountUser)
 import Control.Lens (view)
 import Control.Monad.Catch (throwM)
@@ -60,6 +62,7 @@ import Util.Logging (sha256String)
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Federation.Error
+import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy (NoSearch))
 
 lookupProfilesMaybeFilterSameTeamOnly :: UserId -> [UserProfile] -> (Handler r) [UserProfile]
@@ -137,3 +140,13 @@ ensureLocal :: Qualified a -> AppT r (Local a)
 ensureLocal x = do
   loc <- qualifyLocal ()
   foldQualified loc pure (\_ -> throwM federationNotImplemented) x
+
+tryInsertVerificationCode ::
+  Member VerificationCodeStore r =>
+  Code.Code ->
+  (RetryAfter -> e) ->
+  ExceptT e (AppT r) ()
+tryInsertVerificationCode code e = do
+  ttl <- set2FACodeGenerationDelaySecs <$> view settings
+  mRetryAfter <- lift . liftSem $ Code.insertCode code ttl
+  mapM_ (throwE . e) mRetryAfter

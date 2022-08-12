@@ -74,6 +74,7 @@ data CheckHandles = CheckHandles
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform CheckHandles)
+  deriving (S.ToSchema) via Schema CheckHandles
 
 modelCheckHandles :: Doc.Model
 modelCheckHandles = Doc.defineModel "CheckHandles" $ do
@@ -96,3 +97,10 @@ instance FromJSON CheckHandles where
     CheckHandles
       <$> o A..: "handles"
       <*> o A..:? "return" A..!= unsafeRange 1
+
+instance ToSchema CheckHandles where
+  schema =
+    object "CheckHandles" $
+      CheckHandles
+        <$> checkHandlesList .= field "handles" (fromRange .= rangedSchema (array schema))
+        <*> checkHandlesNum .= field "return" schema

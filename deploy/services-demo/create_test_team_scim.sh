@@ -6,7 +6,7 @@ BRIG_HOST="http://localhost:8082"
 SPAR_HOST="http://localhost:8088"
 
 USAGE="
-This bash script craates
+This bash script creates
 1) team
 2) team admin
 3) scim token

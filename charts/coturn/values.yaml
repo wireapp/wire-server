@@ -24,3 +24,15 @@ securityContext:
 
 coturnTurnListenPort: 3478
 coturnMetricsListenPort: 9641
+
+# This chart optionally supports waiting for traffic to drain from coturn
+# before pods are terminated. Warning: coturn does not have any way to steer
+# incoming client traffic away from itself on its own, so this functionality
+# relies on external traffic management (e.g. service discovery for active coturn
+# instances) to prevent clients from sending new requests to pods which are in a
+# terminating state.
+coturnGracefulTermination: false
+# Grace period for terminating coturn pods, after which they will be forcibly
+# terminated. This setting is only effective when coturnGracefulTermination is
+# set to true.
+coturnGracePeriodSeconds: 86400 # one day

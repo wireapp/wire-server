@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -44,6 +45,9 @@ import Wire.API.User.Orphans (samlSchemaOptions)
 -- | The identity provider type used in Spar.
 type IdP = IdPConfig WireIdP
 
+newtype IdPHandle = IdPHandle {unIdPHandle :: Text}
+  deriving (Eq, Ord, Show, FromJSON, ToJSON, ToSchema, Arbitrary, Generic)
+
 data WireIdP = WireIdP
   { _wiTeam :: TeamId,
     -- | list of issuer names that this idp has replaced, most recent first.  this is used
@@ -54,7 +58,8 @@ data WireIdP = WireIdP
     -- | the issuer that has replaced this one.  this is set iff a new issuer is created
     -- with the @"replaces"@ query parameter, and it is used to decide whether users not
     -- existing on this IdP can be auto-provisioned (if 'isJust', they can't).
-    _wiReplacedBy :: Maybe SAML.IdPId
+    _wiReplacedBy :: Maybe SAML.IdPId,
+    _wiHandle :: IdPHandle
   }
   deriving (Eq, Show, Generic)
 
@@ -66,7 +71,10 @@ data WireIdPAPIVersion
   deriving stock (Eq, Show, Enum, Bounded, Generic)
   deriving (Arbitrary) via (GenericUniform WireIdPAPIVersion)
 
--- | (Internal issue for making v2 the default: https://wearezeta.atlassian.net/browse/SQSERVICES-781)
+-- | (Internal issue for making v2 the default:
+-- https://wearezeta.atlassian.net/browse/SQSERVICES-781.  BEWARE: We probably shouldn't ever
+-- do this, but remove V1 entirely instead.  which requires migrating away from the old table
+-- on all on-prem installations.  which takes time.)
 defWireIdPAPIVersion :: WireIdPAPIVersion
 defWireIdPAPIVersion = WireIdPAPIV1
 
@@ -109,8 +117,8 @@ instance Cql.Cql WireIdPAPIVersion where
   toCql WireIdPAPIV2 = Cql.CqlInt 2
 
   fromCql (Cql.CqlInt i) = case i of
-    1 -> return WireIdPAPIV1
-    2 -> return WireIdPAPIV2
+    1 -> pure WireIdPAPIV1
+    2 -> pure WireIdPAPIV2
     n -> Left $ "Unexpected ClientCapability value: " ++ show n
   fromCql _ = Left "ClientCapability value: int expected"
 

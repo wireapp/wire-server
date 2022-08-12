@@ -63,6 +63,7 @@ import Data.Id
 import Data.Qualified
 import Data.Time.Clock
 import Galley.Cassandra.Paging
+import Galley.Cassandra.TeamFeatures (Cassandra)
 import Galley.Effects.BotAccess
 import Galley.Effects.BrigAccess
 import Galley.Effects.ClientStore
@@ -76,6 +77,7 @@ import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore
 import Galley.Effects.ListItems
 import Galley.Effects.MemberStore
+import Galley.Effects.ProposalStore
 import Galley.Effects.Queue
 import Galley.Effects.SearchVisibilityStore
 import Galley.Effects.ServiceStore
@@ -87,7 +89,6 @@ import Galley.Effects.TeamStore
 import Galley.Effects.WaiRoutes
 import Galley.Env
 import Galley.Options
-import qualified Network.Wai.Utilities.Error as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
@@ -105,13 +106,14 @@ type GalleyEffects1 =
      FireAndForget,
      ClientStore,
      CodeStore,
+     ProposalStore,
      ConversationStore,
      CustomBackendStore,
      LegalHoldStore,
      MemberStore,
      SearchVisibilityStore,
      ServiceStore,
-     TeamFeatureStore,
+     TeamFeatureStore Cassandra,
      TeamNotificationStore,
      TeamStore,
      TeamMemberStore InternalPaging,
@@ -126,6 +128,5 @@ type GalleyEffects1 =
      Input UTCTime,
      Queue DeleteItem,
      TinyLog,
-     Error Wai.Error,
      Error DynError
    ]

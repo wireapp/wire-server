@@ -31,7 +31,7 @@ import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Json.Util
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
 import Data.Qualified
@@ -50,6 +50,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Event.Conversation
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -62,16 +63,17 @@ data CreateConv = CreateConv | CreateProteusConv | DontCreateConv
 
 data UserOrigin = LocalUser | RemoteUser Domain
 
-createNewConv :: CreateConv -> Maybe NewConv
-createNewConv CreateConv = Just defNewMLSConv
-createNewConv CreateProteusConv = Just defNewProteusConv
-createNewConv DontCreateConv = Nothing
+createNewConv :: ClientId -> CreateConv -> Maybe NewConv
+createNewConv c CreateConv = Just (defNewMLSConv c)
+createNewConv _ CreateProteusConv = Just defNewProteusConv
+createNewConv _ DontCreateConv = Nothing
 
 data SetupOptions = SetupOptions
   { createClients :: CreateClients,
     creatorOrigin :: UserOrigin,
     createConv :: CreateConv,
-    makeConnections :: Bool
+    makeConnections :: Bool,
+    numCreatorClients :: Int
   }
 
 instance Default SetupOptions where
@@ -80,38 +82,59 @@ instance Default SetupOptions where
       { createClients = CreateWithKey,
         creatorOrigin = LocalUser,
         createConv = DontCreateConv,
-        makeConnections = True
+        makeConnections = True,
+        numCreatorClients = 1
       }
 
 data MessagingSetup = MessagingSetup
   { creator :: Participant,
     users :: [Participant],
     conversation :: Qualified ConvId,
+    groupId :: GroupId,
     welcome :: ByteString,
     commit :: ByteString
   }
+  deriving (Show)
+
+cli :: String -> FilePath -> [String] -> CreateProcess
+cli store tmp args =
+  proc "mls-test-cli" $
+    ["--store", tmp </> (store <> ".db")] <> args
 
 data Participant = Participant
   { pUserId :: Qualified UserId,
-    pClients :: NonEmpty (String, ClientId)
+    pClientIds :: NonEmpty ClientId
   }
   deriving (Show)
 
-cli :: FilePath -> [String] -> CreateProcess
-cli tmp args =
-  proc "crypto-cli" $
-    ["--store", tmp </> "store.db", "--enc-key", "test"] <> args
+userClientQid :: Qualified UserId -> ClientId -> String
+userClientQid usr c =
+  show (qUnqualified usr)
+    <> ":"
+    <> T.unpack (client c)
+    <> "@"
+    <> T.unpack (domainText (qDomain usr))
+
+pClients :: Participant -> NonEmpty (String, ClientId)
+pClients p =
+  pClientIds p <&> \c ->
+    (userClientQid (pUserId p) c, c)
 
 pClientQid :: Participant -> String
-pClientQid = fst . NonEmpty.head . pClients
+pClientQid p = userClientQid (pUserId p) (NonEmpty.head (pClientIds p))
+
+pClientId :: Participant -> ClientId
+pClientId = NonEmpty.head . pClientIds
 
 setupUserClient ::
   HasCallStack =>
   FilePath ->
   CreateClients ->
+  -- | Whether to claim/map the key package
+  Bool ->
   Qualified UserId ->
-  State.StateT [LastPrekey] TestM (String, ClientId)
-setupUserClient tmp doCreateClients usr = do
+  State.StateT [LastPrekey] TestM ClientId
+setupUserClient tmp doCreateClients mapKeyPackage usr = do
   localDomain <- lift viewFederationDomain
   lpk <- takeLastPrekey
   lift $ do
@@ -120,25 +143,21 @@ setupUserClient tmp doCreateClients usr = do
       DontCreateClients -> liftIO $ generate arbitrary
       _ -> randomClient (qUnqualified usr) lpk
 
-    let qcid =
-          show (qUnqualified usr)
-            <> ":"
-            <> T.unpack (client c)
-            <> "@"
-            <> T.unpack (domainText (qDomain usr))
+    let qcid = userClientQid usr c
 
     -- generate key package
+    void . liftIO $ spawn (cli qcid tmp ["init", qcid]) Nothing
     kp <-
       liftIO $
         decodeMLSError
-          =<< spawn (cli tmp ["key-package", qcid]) Nothing
+          =<< spawn (cli qcid tmp ["key-package", "create"]) Nothing
     liftIO $ BS.writeFile (tmp </> qcid) (rmRaw kp)
 
     -- Set Bob's private key and upload key package if required. If a client
     -- does not have to be created and it is remote, pretend to have claimed its
     -- key package.
     case doCreateClients of
-      CreateWithKey -> addKeyPackage usr c kp
+      CreateWithKey -> addKeyPackage mapKeyPackage usr c kp
       DontCreateClients | localDomain /= qDomain usr -> do
         brig <- view tsBrig
         let bundle =
@@ -150,10 +169,10 @@ setupUserClient tmp doCreateClients usr = do
                       kpbeRef = fromJust $ kpRef' kp,
                       kpbeKeyPackage = KeyPackageData $ rmRaw kp
                     }
-        mapRemoteKeyPackageRef brig bundle
+        when mapKeyPackage $ mapRemoteKeyPackageRef brig bundle
       _ -> pure ()
 
-    pure (qcid, c)
+    pure c
 
 setupParticipant ::
   HasCallStack =>
@@ -164,7 +183,7 @@ setupParticipant ::
   State.StateT [LastPrekey] TestM Participant
 setupParticipant tmp doCreateClients numClients usr =
   Participant usr . NonEmpty.fromList
-    <$> replicateM numClients (setupUserClient tmp doCreateClients usr)
+    <$> replicateM numClients (setupUserClient tmp doCreateClients True usr)
 
 setupParticipants ::
   HasCallStack =>
@@ -176,9 +195,16 @@ setupParticipants ::
   [(Int, UserOrigin)] ->
   State.StateT [LastPrekey] TestM (Participant, [Participant])
 setupParticipants tmp SetupOptions {..} ns = do
-  creator <- lift (createUserOrId creatorOrigin) >>= setupParticipant tmp DontCreateClients 1
-  others <- for ns $ \(n, ur) ->
-    lift (createUserOrId ur) >>= fmap (,ur) . setupParticipant tmp createClients n
+  creator <- do
+    u <- lift $ createUserOrId creatorOrigin
+    let createCreatorClients = createClientsForUR creatorOrigin createClients
+    c0 <- setupUserClient tmp createCreatorClients False u
+    cs <- replicateM (numCreatorClients - 1) (setupUserClient tmp createCreatorClients True u)
+    pure (Participant u (c0 :| cs))
+  others <- for ns $ \(n, ur) -> do
+    qusr <- lift (createUserOrId ur)
+    participant <- setupParticipant tmp (createClientsForUR ur createClients) n qusr
+    pure (participant, ur)
   lift . when makeConnections $ do
     for_ others $ \(o, ur) -> case (creatorOrigin, ur) of
       (LocalUser, LocalUser) ->
@@ -201,12 +227,21 @@ setupParticipants tmp SetupOptions {..} ns = do
       LocalUser -> randomQualifiedUser
       RemoteUser d -> randomQualifiedId d
 
+    createClientsForUR LocalUser cc = cc
+    createClientsForUR (RemoteUser _) _ = DontCreateClients
+
 withLastPrekeys :: Monad m => State.StateT [LastPrekey] m a -> m a
 withLastPrekeys m = State.evalStateT m someLastPrekeys
 
-setupGroup :: HasCallStack => FilePath -> CreateConv -> Participant -> String -> TestM (Qualified ConvId)
+setupGroup ::
+  HasCallStack =>
+  FilePath ->
+  CreateConv ->
+  Participant ->
+  String ->
+  TestM (GroupId, Qualified ConvId)
 setupGroup tmp createConv creator name = do
-  (mGroupId, conversation) <- case createNewConv createConv of
+  (mGroupId, conversation) <- case createNewConv (pClientId creator) createConv of
     Nothing -> pure (Nothing, error "No conversation created")
     Just nc -> do
       conv <-
@@ -215,25 +250,37 @@ setupGroup tmp createConv creator name = do
 
       pure (preview (to cnvProtocol . _ProtocolMLS . to cnvmlsGroupId) conv, cnvQualifiedId conv)
 
-  let groupId = toBase64Text (maybe "test_group" unGroupId mGroupId)
+  groupId <- case mGroupId of
+    Just gid -> pure gid
+    -- generate a random group id
+    Nothing -> liftIO $ fmap (GroupId . BS.pack) (replicateM 32 (generate arbitrary))
+
   groupJSON <-
     liftIO $
-      spawn (cli tmp ["group", pClientQid creator, T.unpack groupId]) Nothing
+      spawn
+        ( cli
+            (pClientQid creator)
+            tmp
+            ["group", "create", T.unpack (toBase64Text (unGroupId groupId))]
+        )
+        Nothing
   liftIO $ BS.writeFile (tmp </> name) groupJSON
 
-  pure conversation
+  pure (groupId, conversation)
 
 setupCommit ::
   (HasCallStack, Foldable f) =>
   String ->
+  Participant ->
   String ->
   String ->
   f (String, ClientId) ->
   IO (ByteString, ByteString)
-setupCommit tmp groupName newGroupName clients =
+setupCommit tmp admin groupName newGroupName clients =
   (,)
     <$> spawn
       ( cli
+          (pClientQid admin)
           tmp
           $ [ "member",
               "add",
@@ -249,6 +296,100 @@ setupCommit tmp groupName newGroupName clients =
       Nothing
       <*> BS.readFile (tmp </> "welcome")
 
+setupRemoveCommit ::
+  (HasCallStack, Foldable f) =>
+  String ->
+  Participant ->
+  String ->
+  String ->
+  f (String, ClientId) ->
+  IO (ByteString, Maybe ByteString)
+setupRemoveCommit tmp admin groupName newGroupName clients = do
+  let welcomeFile = tmp </> "welcome"
+  commit <-
+    spawn
+      ( cli
+          (pClientQid admin)
+          tmp
+          $ [ "member",
+              "remove",
+              "--group",
+              tmp </> groupName,
+              "--group-out",
+              tmp </> newGroupName,
+              "--welcome-out",
+              welcomeFile
+            ]
+            <> map ((tmp </>) . fst) (toList clients)
+      )
+      Nothing
+  welcome <-
+    doesFileExist welcomeFile >>= \case
+      False -> pure Nothing
+      True -> Just <$> BS.readFile welcomeFile
+  pure (commit, welcome)
+
+bareAddProposal ::
+  HasCallStack =>
+  String ->
+  Participant ->
+  Participant ->
+  String ->
+  String ->
+  IO ByteString
+bareAddProposal tmp creator participantToAdd groupIn groupOut =
+  spawn
+    ( cli
+        (pClientQid creator)
+        tmp
+        $ [ "proposal",
+            "--group-in",
+            tmp </> groupIn,
+            "--group-out",
+            tmp </> groupOut,
+            "add",
+            tmp </> pClientQid participantToAdd
+          ]
+    )
+    Nothing
+
+pendingProposalsCommit ::
+  HasCallStack =>
+  String ->
+  Participant ->
+  String ->
+  IO (ByteString, Maybe ByteString)
+pendingProposalsCommit tmp creator groupName = do
+  let welcomeFile = tmp </> "welcome"
+  commit <-
+    spawn
+      ( cli
+          (pClientQid creator)
+          tmp
+          $ [ "commit",
+              "--group",
+              tmp </> groupName,
+              "--welcome-out",
+              welcomeFile
+            ]
+      )
+      Nothing
+  welcome <-
+    doesFileExist welcomeFile >>= \case
+      False -> pure Nothing
+      True -> Just <$> BS.readFile welcomeFile
+  pure (commit, welcome)
+
+createMessage ::
+  HasCallStack =>
+  String ->
+  Participant ->
+  String ->
+  String ->
+  IO ByteString
+createMessage tmp sender groupName msgText =
+  spawn (cli (pClientQid sender) tmp ["message", "--group", tmp </> groupName, msgText]) Nothing
+
 takeLastPrekey :: MonadFail m => State.StateT [LastPrekey] m LastPrekey
 takeLastPrekey = do
   (lpk : lpks) <- State.get
@@ -259,13 +400,25 @@ takeLastPrekey = do
 -- Alice depending on the passed in creator origin. Return welcome and commit
 -- message.
 aliceInvitesBob :: HasCallStack => (Int, UserOrigin) -> SetupOptions -> TestM MessagingSetup
-aliceInvitesBob bobConf opts@SetupOptions {..} = withSystemTempDirectory "mls" $ \tmp -> do
+aliceInvitesBob bobConf opts = withSystemTempDirectory "mls" $ \tmp ->
+  aliceInvitesBobWithTmp tmp bobConf opts
+
+aliceInvitesBobWithTmp ::
+  HasCallStack =>
+  FilePath ->
+  (Int, UserOrigin) ->
+  SetupOptions ->
+  TestM MessagingSetup
+aliceInvitesBobWithTmp tmp bobConf opts@SetupOptions {..} = do
   (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp opts [bobConf]
   -- create a group
-  conversation <- setupGroup tmp createConv alice "group"
+  (groupId, conversation) <- setupGroup tmp createConv alice "group"
 
-  -- add bob to it and get welcome message
-  (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" (pClients bob)
+  -- add clients to it and get welcome message
+  (commit, welcome) <-
+    liftIO $
+      setupCommit tmp alice "group" "group" $
+        NonEmpty.tail (pClients alice) <> toList (pClients bob)
 
   pure $
     MessagingSetup
@@ -274,8 +427,8 @@ aliceInvitesBob bobConf opts@SetupOptions {..} = withSystemTempDirectory "mls" $
         ..
       }
 
-addKeyPackage :: HasCallStack => Qualified UserId -> ClientId -> RawMLS KeyPackage -> TestM ()
-addKeyPackage u c kp = do
+addKeyPackage :: HasCallStack => Bool -> Qualified UserId -> ClientId -> RawMLS KeyPackage -> TestM ()
+addKeyPackage mapKeyPackage u c kp = do
   let update = defUpdateClient {updateClientMLSPublicKeys = Map.singleton Ed25519 (bcSignatureKey (kpCredential (rmValue kp)))}
   -- set public key
   brig <- view tsBrig
@@ -296,16 +449,14 @@ addKeyPackage u c kp = do
     )
     !!! const 201 === statusCode
 
-  -- claim key package (technically, some other user should claim them, but it doesn't really make a difference)
-  bundle <-
-    responseJsonError
-      =<< post
-        ( brig
-            . paths ["mls", "key-packages", "claim", toByteString' (qDomain u), toByteString' (qUnqualified u)]
-            . zUser (qUnqualified u)
-        )
-      <!! const 200 === statusCode
-  liftIO $ map (Just . kpbeRef) (toList (kpbEntries bundle)) @?= [kpRef' kp]
+  when mapKeyPackage $
+    -- claim key package (technically, some other user should claim them, but it doesn't really make a difference)
+    post
+      ( brig
+          . paths ["mls", "key-packages", "claim", toByteString' (qDomain u), toByteString' (qUnqualified u)]
+          . zUser (qUnqualified u)
+      )
+      !!! const 200 === statusCode
 
 mapRemoteKeyPackageRef :: (MonadIO m, MonadHttp m, MonadCatch m) => (Request -> Request) -> KeyPackageBundle -> m ()
 mapRemoteKeyPackageRef brig bundle =
@@ -325,18 +476,32 @@ claimKeyPackage brig claimant target =
         . zUser claimant
     )
 
-postCommit :: MessagingSetup -> TestM [Event]
-postCommit MessagingSetup {..} = do
+postCommit :: HasCallStack => MessagingSetup -> TestM [Event]
+postCommit MessagingSetup {..} =
+  fmap mmssEvents . responseJsonError
+    =<< postMessage (qUnqualified (pUserId creator)) commit
+      <!! const 201 === statusCode
+
+postMessage ::
+  ( HasCallStack,
+    MonadIO m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadHttp m,
+    HasGalley m
+  ) =>
+  UserId ->
+  ByteString ->
+  m ResponseLBS
+postMessage sender msg = do
   galley <- viewGalley
-  responseJsonError
-    =<< post
-      ( galley . paths ["mls", "messages"]
-          . zUser (qUnqualified (pUserId creator))
-          . zConn "conn"
-          . content "message/mls"
-          . bytes commit
-      )
-    <!! const 201 === statusCode
+  post
+    ( galley . paths ["v2", "mls", "messages"]
+        . zUser sender
+        . zConn "conn"
+        . content "message/mls"
+        . bytes msg
+    )
 
 postWelcome :: (MonadIO m, MonadHttp m, HasGalley m, HasCallStack) => UserId -> ByteString -> m ResponseLBS
 postWelcome uid welcome = do

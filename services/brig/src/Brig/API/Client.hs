@@ -60,7 +60,6 @@ import qualified Brig.Options as Opt
 import Brig.Sem.GalleyAccess
 import Brig.Sem.UserQuery (UserQuery)
 import Brig.Sem.VerificationCodeStore
-import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Event
@@ -94,8 +93,10 @@ import Wire.API.Federation.API.Brig (GetUserClients (GetUserClients))
 import Wire.API.Federation.Error
 import qualified Wire.API.Message as Message
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
+import Wire.API.User
 import qualified Wire.API.User as Code
 import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 
 lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)

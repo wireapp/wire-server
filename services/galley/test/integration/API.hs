@@ -40,7 +40,6 @@ import qualified API.Util.TeamFeature as Util
 import Bilge hiding (head, timeout)
 import qualified Bilge
 import Bilge.Assert
-import Brig.Types
 import qualified Control.Concurrent.Async as Async
 import Control.Exception (throw)
 import Control.Lens (at, ix, preview, view, (.~), (?~))
@@ -68,11 +67,8 @@ import Federator.Discovery (DiscoveryFailure (..))
 import Federator.MockServer (FederatedRequest (..), MockException (..))
 import Galley.API.Mapping
 import Galley.Options (optFederator)
-import Galley.Types hiding (LocalMember (..))
 import Galley.Types.Conversations.Intra
 import Galley.Types.Conversations.Members
-import Galley.Types.Conversations.Roles
-import qualified Galley.Types.Teams as Teams
 import Imports
 import qualified Network.HTTP.Types as HTTP
 import Network.Wai.Utilities.Error
@@ -85,18 +81,26 @@ import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Util.Options (Endpoint (Endpoint))
+import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
+import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role
+import Wire.API.Conversation.Typing
 import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import qualified Wire.API.Federation.API.Brig as F
+import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Internal.Notification
+import Wire.API.Message
 import qualified Wire.API.Message as Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Named
 import qualified Wire.API.Team.Feature as Public
+import qualified Wire.API.Team.Member as Teams
+import Wire.API.User
 import Wire.API.User.Client
 import Wire.API.UserMap (UserMap (..))
 
@@ -176,9 +180,8 @@ tests s =
           test s "add remote members on invalid domain" testAddRemoteMemberInvalidDomain,
           test s "add remote members when federation isn't enabled" testAddRemoteMemberFederationDisabled,
           test s "add remote members when federator is unavailable" testAddRemoteMemberFederationUnavailable,
-          test s "delete conversations/:cnv/members/:usr - success" deleteMembersUnqualifiedOk,
-          test s "delete conversations/:cnv/members/:usr - fail, self conv" deleteMembersUnqualifiedFailSelf,
-          test s "delete conversations/:cnv/members/:usr - fail, 1:1 conv" deleteMembersUnqualifiedFailO2O,
+          test s "delete conversations/:domain/:cnv/members/:domain/:usr - fail, self conv" deleteMembersQualifiedFailSelf,
+          test s "delete conversations/:domain:/cnv/members/:domain/:usr - fail, 1:1 conv" deleteMembersQualifiedFailO2O,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with all locals" deleteMembersConvLocalQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete local" deleteLocalMemberConvLocalQualifiedOk,
           test s "delete conversations/:domain/:cnv/members/:domain/:usr - local conv with locals and remote, delete remote" deleteRemoteMemberConvLocalQualifiedOk,
@@ -319,15 +322,15 @@ postConvWithRemoteUsersOk = do
     liftIO $ do
       length federatedRequests @?= 2
 
-      F.rcOrigUserId cFedReqBody @?= alice
-      F.rcCnvId cFedReqBody @?= cid
-      F.rcCnvType cFedReqBody @?= RegularConv
-      F.rcCnvAccess cFedReqBody @?= [InviteAccess]
-      F.rcCnvAccessRoles cFedReqBody @?= Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole]
-      F.rcCnvName cFedReqBody @?= Just nameMaxSize
-      F.rcNonCreatorMembers cFedReqBody @?= Set.fromList (toOtherMember <$> [qAlex, qAmy, qChad, qCharlie, qDee])
-      F.rcMessageTimer cFedReqBody @?= Nothing
-      F.rcReceiptMode cFedReqBody @?= Nothing
+      F.ccOrigUserId cFedReqBody @?= alice
+      F.ccCnvId cFedReqBody @?= cid
+      F.ccCnvType cFedReqBody @?= RegularConv
+      F.ccCnvAccess cFedReqBody @?= [InviteAccess]
+      F.ccCnvAccessRoles cFedReqBody @?= Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole, ServiceAccessRole]
+      F.ccCnvName cFedReqBody @?= Just nameMaxSize
+      F.ccNonCreatorMembers cFedReqBody @?= Set.fromList (toOtherMember <$> [qAlex, qAmy, qChad, qCharlie, qDee])
+      F.ccMessageTimer cFedReqBody @?= Nothing
+      F.ccReceiptMode cFedReqBody @?= Nothing
 
       dFedReqBody @?= cFedReqBody
   where
@@ -1220,13 +1223,13 @@ testGetCodeRejectedIfGuestLinksDisabled = do
   convId <- createConvWithGuestLink
   let checkGetCode expectedStatus = getConvCode owner convId !!! const expectedStatus === statusCode
   let setStatus tfStatus =
-        TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId (Public.TeamFeatureStatusNoConfig tfStatus) !!! do
+        TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId (Public.WithStatusNoLock tfStatus Public.GuestLinksConfig) !!! do
           const 200 === statusCode
 
   checkGetCode 200
-  setStatus Public.TeamFeatureDisabled
+  setStatus Public.FeatureStatusDisabled
   checkGetCode 409
-  setStatus Public.TeamFeatureEnabled
+  setStatus Public.FeatureStatusEnabled
   checkGetCode 200
 
 testPostCodeRejectedIfGuestLinksDisabled :: TestM ()
@@ -1237,13 +1240,13 @@ testPostCodeRejectedIfGuestLinksDisabled = do
   convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just noGuestsAccess) Nothing
   let checkPostCode expectedStatus = postConvCode owner convId !!! statusCode === const expectedStatus
   let setStatus tfStatus =
-        TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId (Public.TeamFeatureStatusNoConfig tfStatus) !!! do
+        TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId (Public.WithStatusNoLock tfStatus Public.GuestLinksConfig) !!! do
           const 200 === statusCode
 
   checkPostCode 201
-  setStatus Public.TeamFeatureDisabled
+  setStatus Public.FeatureStatusDisabled
   checkPostCode 409
-  setStatus Public.TeamFeatureEnabled
+  setStatus Public.FeatureStatusEnabled
   checkPostCode 200
 
 -- @SF.Separation @TSFI.RESTfulAPI @S2
@@ -1260,12 +1263,12 @@ testJoinTeamConvGuestLinksDisabled = do
   cCode <- decodeConvCodeEvent <$> postConvCode owner convId
 
   let checkFeatureStatus fstatus =
-        Util.getTeamFeatureFlagWithGalley Public.TeamFeatureGuestLinks galley owner teamId !!! do
+        Util.getTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId !!! do
           const 200 === statusCode
-          const (Right (Public.TeamFeatureStatusNoConfigAndLockStatus fstatus Public.Unlocked)) === responseJsonEither
+          const (Right (Public.withStatus fstatus Public.LockStatusUnlocked Public.GuestLinksConfig)) === responseJsonEither
 
   -- guest can join if guest link feature is enabled
-  checkFeatureStatus Public.TeamFeatureEnabled
+  checkFeatureStatus Public.FeatureStatusEnabled
   getJoinCodeConv eve (conversationKey cCode) (conversationCode cCode) !!! do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
     const 200 === statusCode
@@ -1275,8 +1278,8 @@ testJoinTeamConvGuestLinksDisabled = do
   postJoinCodeConv bob cCode !!! const 200 === statusCode
 
   -- disabled guest links feature
-  let disabled = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
-  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId disabled !!! do
+  let disabled = Public.WithStatusNoLock Public.FeatureStatusDisabled Public.GuestLinksConfig
+  TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId disabled !!! do
     const 200 === statusCode
 
   -- guest can't join if guest link feature is disabled
@@ -1291,11 +1294,11 @@ testJoinTeamConvGuestLinksDisabled = do
   -- team members can't join either
   postJoinCodeConv alice cCode !!! const 409 === statusCode
   -- check feature status is still disabled
-  checkFeatureStatus Public.TeamFeatureDisabled
+  checkFeatureStatus Public.FeatureStatusDisabled
 
   -- after re-enabling, the old link is still valid
-  let enabled = Public.TeamFeatureStatusNoConfig Public.TeamFeatureEnabled
-  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId enabled !!! do
+  let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled Public.GuestLinksConfig
+  TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId enabled !!! do
     const 200 === statusCode
   getJoinCodeConv eve' (conversationKey cCode) (conversationCode cCode) !!! do
     const (Right (ConversationCoverView convId (Just convName))) === responseJsonEither
@@ -1303,7 +1306,7 @@ testJoinTeamConvGuestLinksDisabled = do
   postConvCodeCheck cCode !!! const 200 === statusCode
   postJoinCodeConv eve' cCode !!! const 200 === statusCode
   postJoinCodeConv bob' cCode !!! const 200 === statusCode
-  checkFeatureStatus Public.TeamFeatureEnabled
+  checkFeatureStatus Public.FeatureStatusEnabled
 
 -- @END
 
@@ -1323,8 +1326,8 @@ testJoinNonTeamConvGuestLinksDisabled = do
     const 200 === statusCode
 
   -- for non-team conversations it still works if status is disabled for the team but not server wide
-  let tfStatus = Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled
-  TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley owner teamId tfStatus !!! do
+  let tfStatus = Public.WithStatusNoLock Public.FeatureStatusDisabled Public.GuestLinksConfig
+  TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId tfStatus !!! do
     const 200 === statusCode
 
   getJoinCodeConv userNotInTeam (conversationKey cCode) (conversationCode cCode) !!! do
@@ -1571,25 +1574,28 @@ testTeamMemberCantJoinViaGuestLinkIfAccessRoleRemoved = do
 
 getGuestLinksStatusFromForeignTeamConv :: TestM ()
 getGuestLinksStatusFromForeignTeamConv = do
+  localDomain <- viewFederationDomain
   galley <- view tsGalley
   let setTeamStatus u tid tfStatus =
-        TeamFeatures.putTeamFeatureFlagWithGalley @'Public.TeamFeatureGuestLinks galley u tid (Public.TeamFeatureStatusNoConfig tfStatus) !!! do
+        TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley u tid (Public.WithStatusNoLock tfStatus Public.GuestLinksConfig) !!! do
           const 200 === statusCode
   let checkGuestLinksStatus u c s =
         getGuestLinkStatus galley u c !!! do
           const 200 === statusCode
-          const s === (Public.tfwoStatus . responseJsonUnsafe)
+          const s === (Public.wsStatus . (responseJsonUnsafe @(Public.WithStatus Public.GuestLinksConfig)))
   let checkGetGuestLinksStatus s u c =
         getGuestLinkStatus galley u c !!! do
           const s === statusCode
 
   -- given alice is in team A with guest links allowed
   (alice, teamA, [alex]) <- createBindingTeamWithNMembers 1
-  setTeamStatus alice teamA Public.TeamFeatureEnabled
+  let qalice = Qualified alice localDomain
+  setTeamStatus alice teamA Public.FeatureStatusEnabled
 
   -- and given bob is in team B with guest links disallowed
   (bob, teamB, [bert]) <- createBindingTeamWithNMembers 1
-  setTeamStatus bob teamB Public.TeamFeatureDisabled
+  let qbert = Qualified bert localDomain
+  setTeamStatus bob teamB Public.FeatureStatusDisabled
 
   -- and given alice and bob are connected
   connectUsers alice (singleton bob)
@@ -1597,35 +1603,36 @@ getGuestLinksStatusFromForeignTeamConv = do
   -- and given bob creates a conversation, invites alice, and makes her group admin
   let accessRoles = Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole]
   conv <- decodeConvId <$> postTeamConv teamB bob [] (Just "teams b's conversation") [InviteAccess] (Just accessRoles) Nothing
-  postMembersWithRole bob (singleton alice) conv roleNameWireAdmin !!! const 200 === statusCode
+  let qconv = Qualified conv localDomain
+  postMembersWithRole bob (pure qalice) qconv roleNameWireAdmin !!! const 200 === statusCode
 
   -- when alice gets the guest link status for the conversation
   -- then the status should be disabled
-  checkGuestLinksStatus alice conv Public.TeamFeatureDisabled
+  checkGuestLinksStatus alice conv Public.FeatureStatusDisabled
 
   -- when bob gets the guest link status for the conversation
   -- then the status should be disabled
-  checkGuestLinksStatus bob conv Public.TeamFeatureDisabled
+  checkGuestLinksStatus bob conv Public.FeatureStatusDisabled
 
   -- when bob enables guest links for his team and gets the guest link status for the conversation
-  setTeamStatus bob teamB Public.TeamFeatureEnabled
+  setTeamStatus bob teamB Public.FeatureStatusEnabled
 
   -- then the status should be enabled
-  checkGuestLinksStatus bob conv Public.TeamFeatureEnabled
+  checkGuestLinksStatus bob conv Public.FeatureStatusEnabled
 
   -- when alice gets the guest link status for the conversation
   -- then the status should be enabled
-  checkGuestLinksStatus alice conv Public.TeamFeatureEnabled
+  checkGuestLinksStatus alice conv Public.FeatureStatusEnabled
 
   -- when alice disables guest links for her team and gets the guest link status for the conversation
-  setTeamStatus alice teamA Public.TeamFeatureDisabled
+  setTeamStatus alice teamA Public.FeatureStatusDisabled
 
   -- then the guest link status for the conversation should still be enabled (note that in the UI she can't create guest links because her own team settings do not allow this)
-  checkGuestLinksStatus alice conv Public.TeamFeatureEnabled
+  checkGuestLinksStatus alice conv Public.FeatureStatusEnabled
 
   -- when bob gets the guest link status for the conversation
   -- then the status should be enabled
-  checkGuestLinksStatus bob conv Public.TeamFeatureEnabled
+  checkGuestLinksStatus bob conv Public.FeatureStatusEnabled
 
   -- when a user that is not in the conversation tries to get the guest link status
   -- then the result should be not found
@@ -1634,7 +1641,7 @@ getGuestLinksStatusFromForeignTeamConv = do
 
   -- when a conversation member that is not an admin tries to get the guest link status
   -- then the result should be forbidden
-  postMembersWithRole bob (singleton bert) conv roleNameWireMember !!! const 200 === statusCode
+  postMembersWithRole bob (pure qbert) qconv roleNameWireMember !!! const 200 === statusCode
   checkGetGuestLinksStatus 403 bert conv
 
 postJoinConvFail :: TestM ()
@@ -2035,7 +2042,7 @@ postConvQualifiedFederationNotEnabled = do
 -- FUTUREWORK: figure out how to use functions in the TestM monad inside withSettingsOverrides and remove this duplication
 postConvHelper :: (MonadIO m, MonadHttp m) => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
 postConvHelper g zusr newUsers = do
-  let conv = NewConv [] newUsers (checked "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+  let conv = NewConv [] newUsers (checked "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
   post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv
 
 postSelfConvOk :: TestM ()
@@ -2064,7 +2071,7 @@ postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
   g <- view tsGalley
   alice <- randomUser
-  let inv = NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag
+  let inv = NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
   post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe
@@ -2273,11 +2280,12 @@ accessConvMeta = do
 
 leaveConnectConversation :: TestM ()
 leaveConnectConversation = do
-  alice <- randomUser
+  (alice, qalice) <- randomUserTuple
   bob <- randomUser
   bdy <- postConnectConv alice bob "alice" "ni" Nothing <!! const 201 === statusCode
   let c = maybe (error "invalid connect conversation") (qUnqualified . cnvQualifiedId) (responseJsonUnsafe bdy)
-  deleteMemberUnqualified alice alice c !!! const 403 === statusCode
+  qc <- Qualified c <$> viewFederationDomain
+  deleteMemberQualified alice qalice qc !!! const 403 === statusCode
 
 testAddRemoteMember :: TestM ()
 testAddRemoteMember = do
@@ -2301,8 +2309,8 @@ testAddRemoteMember = do
       postQualifiedMembers alice (remoteBob :| []) convId
         <!! const 200 === statusCode
   liftIO $ do
-    map frTargetDomain reqs @?= [remoteDomain]
-    map frRPC reqs @?= ["on-conversation-updated"]
+    map frTargetDomain reqs @?= [remoteDomain, remoteDomain]
+    map frRPC reqs @?= ["on-new-remote-conversation", "on-conversation-updated"]
 
   let e = responseJsonUnsafe resp
   let bobMember = SimpleMember remoteBob roleNameWireAdmin
@@ -2321,6 +2329,8 @@ testAddRemoteMember = do
     respond bob req
       | frComponent req == Brig =
         toJSON [mkProfile bob (Name "bob")]
+      | frRPC req == "on-new-remote-conversation" =
+        toJSON EmptyResponse
       | otherwise = toJSON ()
 
 testDeleteTeamConversationWithRemoteMembers :: TestM ()
@@ -2339,7 +2349,10 @@ testDeleteTeamConversationWithRemoteMembers = do
   connectWithRemoteUser alice remoteBob
 
   let brigApi _ = mkHandler @(FedApi 'Brig) EmptyAPI
-      galleyApi _ = mkHandler @(FedApi 'Galley) $ Named @"on-conversation-updated" $ \_ _ -> pure ()
+      galleyApi _ =
+        mkHandler @(FedApi 'Galley) $
+          (Named @"on-new-remote-conversation" $ \_ _ -> pure EmptyResponse)
+            :<|> (Named @"on-conversation-updated" $ \_ _ -> pure ())
 
   (_, received) <- withTempServantMockFederator brigApi galleyApi localDomain $ do
     postQualifiedMembers alice (remoteBob :| []) convId
@@ -2629,7 +2642,7 @@ postMembersOk = do
   connectUsers eve (singleton bob)
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
   let qconv = Qualified conv (qDomain qalice)
-  e <- responseJsonError =<< postMembers alice (singleton eve) conv <!! const 200 === statusCode
+  e <- responseJsonError =<< postMembers alice (pure qeve) qconv <!! const 200 === statusCode
   liftIO $ do
     evtConv e @?= qconv
     evtType e @?= MemberJoin
@@ -2648,7 +2661,8 @@ postMembersOk2 = do
   connectUsers alice (list1 bob [qUnqualified chuck])
   connectUsers bob (singleton . qUnqualified $ chuck)
   conv <- decodeConvId <$> postConv alice [bob, qUnqualified chuck] Nothing [] Nothing Nothing
-  postMembers bob (singleton . qUnqualified $ chuck) conv !!! do
+  qconv <- Qualified conv <$> viewFederationDomain
+  postMembers bob (pure chuck) qconv !!! do
     const 204 === statusCode
     const Nothing === responseBody
   chuck' <- responseJsonUnsafe <$> (getSelfMember (qUnqualified chuck) conv <!! const 200 === statusCode)
@@ -2658,16 +2672,17 @@ postMembersOk2 = do
 postMembersOk3 :: TestM ()
 postMembersOk3 = do
   alice <- randomUser
-  bob <- randomUser
+  (bob, qbob) <- randomUserTuple
   eve <- randomUser
   connectUsers alice (list1 bob [eve])
   conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
+  qconv <- Qualified conv <$> viewFederationDomain
   -- Bob leaves
-  deleteMemberUnqualified bob bob conv !!! const 200 === statusCode
+  deleteMemberQualified bob qbob qconv !!! const 200 === statusCode
   -- Fetch bob
   getSelfMember bob conv !!! const 200 === statusCode
   -- Alice re-adds Bob to the conversation
-  postMembers alice (singleton bob) conv !!! const 200 === statusCode
+  postMembers alice (pure qbob) qconv !!! const 200 === statusCode
   -- Fetch bob again
   getSelfMember bob conv !!! const 200 === statusCode
 
@@ -2677,10 +2692,12 @@ postMembersFailNoGuestAccess = do
   bob <- randomUser
   peter <- randomUser
   eve <- ephemeralUser
+  qeve <- Qualified eve <$> viewFederationDomain
   connectUsers alice (list1 bob [peter])
   Right noGuestsAccess <- liftIO $ genAccessRolesV2 [TeamMemberAccessRole, NonTeamMemberAccessRole] [GuestAccessRole]
   conv <- decodeConvId <$> postConv alice [bob, peter] (Just "gossip") [] (Just noGuestsAccess) Nothing
-  postMembers alice (singleton eve) conv !!! const 403 === statusCode
+  qconv <- Qualified conv <$> viewFederationDomain
+  postMembers alice (pure qeve) qconv !!! const 403 === statusCode
 
 generateGuestLinkFailIfNoNonTeamMemberOrNoGuestAccess :: TestM ()
 generateGuestLinkFailIfNoNonTeamMemberOrNoGuestAccess = do
@@ -2694,23 +2711,24 @@ generateGuestLinkFailIfNoNonTeamMemberOrNoGuestAccess = do
 postMembersFail :: TestM ()
 postMembersFail = do
   alice <- randomUser
-  bob <- randomUser
+  (bob, qbob) <- randomUserTuple
   chuck <- randomUser
-  dave <- randomUser
-  eve <- randomUser
+  (dave, qdave) <- randomUserTuple
+  (eve, qeve) <- randomUserTuple
   connectUsers alice (list1 bob [chuck, eve])
   connectUsers eve (singleton bob)
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
-  postMembers eve (singleton bob) conv !!! const 404 === statusCode
-  postMembers alice (singleton eve) conv !!! const 200 === statusCode
+  qconv <- Qualified conv <$> viewFederationDomain
+  postMembers eve (pure qbob) qconv !!! const 404 === statusCode
+  postMembers alice (pure qeve) qconv !!! const 200 === statusCode
   -- Not connected but already there
-  postMembers chuck (singleton eve) conv !!! const 204 === statusCode
-  postMembers chuck (singleton dave) conv !!! do
+  postMembers chuck (pure qeve) qconv !!! const 204 === statusCode
+  postMembers chuck (pure qdave) qconv !!! do
     const 403 === statusCode
     const (Just "not-connected") === fmap label . responseJsonUnsafe
   void $ connectUsers chuck (singleton dave)
-  postMembers chuck (singleton dave) conv !!! const 200 === statusCode
-  postMembers chuck (singleton dave) conv !!! const 204 === statusCode
+  postMembers chuck (pure qdave) qconv !!! const 200 === statusCode
+  postMembers chuck (pure qdave) qconv !!! const 204 === statusCode
 
 postTooManyMembersFail :: TestM ()
 postTooManyMembersFail = do
@@ -2720,26 +2738,11 @@ postTooManyMembersFail = do
   chuck <- randomUser
   connectUsers alice (list1 bob [chuck])
   conv <- decodeConvId <$> postConv alice [bob, chuck] (Just "gossip") [] Nothing Nothing
-  x : xs <- randomUsers (n - 2)
-  postMembers chuck (list1 x xs) conv !!! do
+  qconv <- Qualified conv <$> viewFederationDomain
+  x : xs <- replicateM (n - 2) randomQualifiedUser
+  postMembers chuck (x :| xs) qconv !!! do
     const 403 === statusCode
     const (Just "too-many-members") === fmap label . responseJsonUnsafe
-
-deleteMembersUnqualifiedOk :: TestM ()
-deleteMembersUnqualifiedOk = do
-  alice <- randomUser
-  bob <- randomUser
-  eve <- randomUser
-  connectUsers alice (list1 bob [eve])
-  conv <- decodeConvId <$> postConv alice [bob, eve] (Just "gossip") [] Nothing Nothing
-  deleteMemberUnqualified bob bob conv !!! const 200 === statusCode
-  deleteMemberUnqualified bob bob conv !!! const 404 === statusCode
-  -- if conversation still exists, don't respond with 404, but with 403.
-  getConv bob conv !!! const 403 === statusCode
-  deleteMemberUnqualified alice eve conv !!! const 200 === statusCode
-  deleteMemberUnqualified alice eve conv !!! const 204 === statusCode
-  deleteMemberUnqualified alice alice conv !!! const 200 === statusCode
-  deleteMemberUnqualified alice alice conv !!! const 404 === statusCode
 
 -- Creates a conversation with three users from the same domain. Then it uses a
 -- qualified endpoint for deleting a conversation member:
@@ -2993,19 +2996,21 @@ removeRemoteMemberConvQualifiedFail = do
     const 403 === statusCode
     const (Just "action-denied") === fmap label . responseJsonUnsafe
 
-deleteMembersUnqualifiedFailSelf :: TestM ()
-deleteMembersUnqualifiedFailSelf = do
-  alice <- randomUser
+deleteMembersQualifiedFailSelf :: TestM ()
+deleteMembersQualifiedFailSelf = do
+  (alice, qalice) <- randomUserTuple
   self <- decodeConvId <$> postSelfConv alice
-  deleteMemberUnqualified alice alice self !!! const 403 === statusCode
+  qself <- Qualified self <$> viewFederationDomain
+  deleteMemberQualified alice qalice qself !!! const 403 === statusCode
 
-deleteMembersUnqualifiedFailO2O :: TestM ()
-deleteMembersUnqualifiedFailO2O = do
+deleteMembersQualifiedFailO2O :: TestM ()
+deleteMembersQualifiedFailO2O = do
   alice <- randomUser
-  bob <- randomUser
+  (bob, qbob) <- randomUserTuple
   connectUsers alice (singleton bob)
   o2o <- decodeConvId <$> postO2OConv alice bob (Just "foo")
-  deleteMemberUnqualified alice bob o2o !!! const 403 === statusCode
+  qo2o <- Qualified o2o <$> viewFederationDomain
+  deleteMemberQualified alice qbob qo2o !!! const 403 === statusCode
 
 putQualifiedConvRenameFailure :: TestM ()
 putQualifiedConvRenameFailure = do
@@ -3664,17 +3669,18 @@ removeUser = do
   now <- liftIO getCurrentTime
   fedGalleyClient <- view tsFedGalleyClient
   let nc cid creator quids =
-        F.NewRemoteConversation
-          { F.rcTime = now,
-            F.rcOrigUserId = qUnqualified creator,
-            F.rcCnvId = cid,
-            F.rcCnvType = RegularConv,
-            F.rcCnvAccess = [],
-            F.rcCnvAccessRoles = Set.fromList [],
-            F.rcCnvName = Just "gossip4",
-            F.rcNonCreatorMembers = Set.fromList $ createOtherMember <$> quids,
-            F.rcMessageTimer = Nothing,
-            F.rcReceiptMode = Nothing
+        F.ConversationCreated
+          { F.ccTime = now,
+            F.ccOrigUserId = qUnqualified creator,
+            F.ccCnvId = cid,
+            F.ccCnvType = RegularConv,
+            F.ccCnvAccess = [],
+            F.ccCnvAccessRoles = Set.fromList [],
+            F.ccCnvName = Just "gossip4",
+            F.ccNonCreatorMembers = Set.fromList $ createOtherMember <$> quids,
+            F.ccMessageTimer = Nothing,
+            F.ccReceiptMode = Nothing,
+            F.ccProtocol = ProtocolProteus
           }
   runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB1 bart [alice, alexDel]
   runFedClient @"on-conversation-created" fedGalleyClient bDomain $ nc convB2 bart [alexDel]

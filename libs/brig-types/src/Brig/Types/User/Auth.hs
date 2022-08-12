@@ -20,24 +20,6 @@
 module Brig.Types.User.Auth
   ( SsoLogin (..),
     LegalHoldLogin (..),
-
-    -- * re-exports
-    PendingLoginCode (..),
-    LoginCode (..),
-    LoginId (..),
-    SendLoginCode (..),
-    LoginCodeTimeout (..),
-    Login (..),
-    loginLabel,
-    AccessToken (..),
-    TokenType (..),
-    bearerToken,
-    RemoveCookies (..),
-    CookieLabel (..),
-    CookieId (..),
-    Cookie (..),
-    CookieList (..),
-    CookieType (..),
   )
 where
 

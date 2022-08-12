@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -23,40 +24,59 @@ import API.MLS.Util
 import API.Util
 import Bilge hiding (head)
 import Bilge.Assert
+import Cassandra
+import Control.Arrow
 import Control.Lens (view)
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString as BS
+import Data.ByteString.Conversion
 import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
+import qualified Data.List.NonEmpty as NE
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 hiding (head)
 import Data.Qualified
 import Data.Range
+import qualified Data.Set as Set
+import Data.Singletons
 import Data.String.Conversions
 import qualified Data.Text as T
-import Federator.MockServer
+import Data.Time
+import Federator.MockServer hiding (withTempMockFederator)
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import System.FilePath
 import System.IO.Temp
 import Test.Tasty
-import Test.Tasty.Cannon ((#))
+import Test.Tasty.Cannon (TimeoutUnit (Second), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
 import Wire.API.Conversation
+import Wire.API.Conversation.Action
+import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
+import Wire.API.Error.Galley
+import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
+import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Group (convToGroupId)
+import Wire.API.MLS.Message
 import Wire.API.Message
+import Wire.API.Routes.Version
 
 tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "MLS"
     [ testGroup
+        "Message"
+        [test s "sender must be part of conversation" testSenderNotInConversation],
+      testGroup
         "Welcome"
         [ test s "local welcome" testLocalWelcome,
           test s "local welcome (client with no public key)" testWelcomeNoKey,
@@ -74,11 +94,48 @@ tests s =
           test s "add user (partial client list)" testAddUserPartial,
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
           test s "add new client of an already-present user to a conversation" testAddNewClient,
-          test s "send a stale commit" testStaleCommit
+          test s "send a stale commit" testStaleCommit,
+          test s "add remote user to a conversation" testAddRemoteUser,
+          test s "return error when commit is locked" testCommitLock,
+          test s "add remote user to a conversation" testAddRemoteUser,
+          test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
+          test s "post commit that references a unknown proposal" testUnknownProposalRefCommit,
+          test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
+          test s "admin removes user from a conversation" testAdminRemovesUserFromConv,
+          test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete,
+          test s "user tries to remove themselves from conversation" testUserRemovesThemselvesFromConv,
+          test s "anyone removes a non-existing client from a group" (testRemoveDeletedClient True),
+          test s "anyone removes an existing client from group, but the user has other clients" (testRemoveDeletedClient False),
+          test s "admin removes only strict subset of clients from a user" testRemoveSubset
         ],
       testGroup
         "Application Message"
-        [test s "send application message" testAppMessage],
+        [ testGroup
+            "Local Sender/Local Conversation"
+            [ test s "send application message" testAppMessage,
+              test s "send remote application message" testRemoteAppMessage,
+              test s "another participant sends an application message" testAppMessage2
+            ],
+          testGroup
+            "Local Sender/Remote Conversation"
+            [ test s "send application message" testLocalToRemote
+            ],
+          testGroup
+            "Remote Sender/Local Conversation"
+            [ test s "POST /federation/send-mls-message" testRemoteToLocal,
+              test s "POST /federation/send-mls-message, remote user is not a conversation member" testRemoteNonMemberToLocal
+            ],
+          testGroup
+            "Remote Sender/Remote Conversation"
+            [ test s "POST /federation/on-mls-message-sent" testRemoteToRemote
+            ] -- all is mocked
+        ],
+      testGroup
+        "Proposal"
+        [ test s "add a new client to a non-existing conversation" propNonExistingConv,
+          test s "add a new client to an existing conversation" propExistingConv,
+          test s "add a new client in an invalid epoch" propInvalidEpoch
+        ],
       testGroup
         "Protocol mismatch"
         [ test s "send a commit to a proteus conversation" testAddUsersToProteus,
@@ -92,9 +149,14 @@ postMLSConvFail :: TestM ()
 postMLSConvFail = do
   qalice <- randomQualifiedUser
   let alice = qUnqualified qalice
+  let aliceClient = newClientId 0
   bob <- randomUser
   connectUsers alice (list1 bob [])
-  postConvQualified alice defNewMLSConv {newConvQualifiedUsers = [Qualified bob (qDomain qalice)]}
+  postConvQualified
+    alice
+    (defNewMLSConv aliceClient)
+      { newConvQualifiedUsers = [Qualified bob (qDomain qalice)]
+      }
     !!! do
       const 400 === statusCode
       const (Just "non-empty-member-list") === fmap Wai.label . responseJsonError
@@ -104,14 +166,50 @@ postMLSConvOk = do
   c <- view tsCannon
   qalice <- randomQualifiedUser
   let alice = qUnqualified qalice
+  let aliceClient = newClientId 0
   let nameMaxSize = T.replicate 256 "a"
   WS.bracketR c alice $ \wsA -> do
-    rsp <- postConvQualified alice defNewMLSConv {newConvName = checked nameMaxSize}
+    rsp <- postConvQualified alice (defNewMLSConv aliceClient) {newConvName = checked nameMaxSize}
     pure rsp !!! do
       const 201 === statusCode
       const Nothing === fmap Wai.label . responseJsonError
     cid <- assertConv rsp RegularConv alice qalice [] (Just nameMaxSize) Nothing
     checkConvCreateEvent cid wsA
+
+testSenderNotInConversation :: TestM ()
+testSenderNotInConversation = do
+  withSystemTempDirectory "mls" $ \tmp -> do
+    (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
+    _ <- setupGroup tmp CreateConv alice "group"
+
+    (_commit, _welcome) <-
+      liftIO $
+        setupCommit tmp alice "group" "group" $
+          toList (pClients bob)
+
+    void . liftIO $
+      spawn
+        ( cli
+            (pClientQid bob)
+            tmp
+            [ "group",
+              "from-welcome",
+              "--group-out",
+              tmp </> "group",
+              tmp </> "welcome"
+            ]
+        )
+        Nothing
+
+    message <- liftIO $ createMessage tmp bob "group" "some text"
+
+    -- send the message as bob, who is not in the conversation
+    err <-
+      responseJsonError
+        =<< postMessage (qUnqualified (pUserId bob)) message
+        <!! const 404 === statusCode
+
+    liftIO $ Wai.label err @?= "no-conversation"
 
 testLocalWelcome :: TestM ()
 testLocalWelcome = do
@@ -202,6 +300,35 @@ testSuccessfulCommitWithNewUsers setup@MessagingSetup {..} newUsers = do
       WS.assertMatch_ (5 # WS.Second) ws $
         wsAssertMLSMessage conversation (pUserId creator) commit
 
+testSuccessfulRemoveMemberFromConvCommit ::
+  HasCallStack =>
+  Participant ->
+  [Participant] ->
+  Qualified ConvId ->
+  ByteString ->
+  [Participant] ->
+  TestM ()
+testSuccessfulRemoveMemberFromConvCommit admin users conv commit participantsToRemove = do
+  cannon <- view tsCannon
+
+  WS.bracketRN cannon (map (qUnqualified . pUserId) users) $ \wss -> do
+    events :: [Event] <-
+      fmap mmssEvents . responseJsonError
+        =<< postMessage (qUnqualified (pUserId admin)) commit
+        <!! statusCode === const 201
+
+    e <- assertOne events
+    liftIO $ assertLeaveEvent conv (pUserId admin) (map pUserId participantsToRemove) e
+
+    for_ wss $ \ws ->
+      WS.assertMatch_ (5 # WS.Second) ws $
+        wsAssertMembersLeave conv (pUserId admin) (map pUserId participantsToRemove)
+
+    -- all users (including the removed ones) receive the commit
+    for_ wss $ \ws -> do
+      WS.assertMatch_ (5 # WS.Second) ws $
+        wsAssertMLSMessage conv (pUserId admin) commit
+
 testFailedCommit :: HasCallStack => MessagingSetup -> Int -> TestM Wai.Error
 testFailedCommit MessagingSetup {..} status = do
   cannon <- view tsCannon
@@ -228,7 +355,13 @@ testSuccessfulCommit setup = testSuccessfulCommitWithNewUsers setup (map pUserId
 
 testAddUser :: TestM ()
 testAddUser = do
-  setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
+  setup@MessagingSetup {..} <-
+    aliceInvitesBob
+      (1, LocalUser)
+      def
+        { createConv = CreateConv,
+          numCreatorClients = 3
+        }
   testSuccessfulCommit setup
 
   -- check that bob can now see the conversation
@@ -267,8 +400,8 @@ testAddUserWithProteusClients = do
       pure participants
 
     -- alice creates a conversation and adds Bob's MLS clients
-    conversation <- setupGroup tmp CreateConv alice "group"
-    (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" (pClients bob)
+    (groupId, conversation) <- setupGroup tmp CreateConv alice "group"
+    (commit, welcome) <- liftIO $ setupCommit tmp alice "group" "group" (pClients bob)
 
     pure MessagingSetup {creator = alice, ..}
 
@@ -281,7 +414,7 @@ testAddUserPartial = do
     (alice, [bob, charlie]) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [3, 2])
     void $ setupGroup tmp CreateConv alice "group"
     (commit, _) <-
-      liftIO . setupCommit tmp "group" "group" $
+      liftIO . setupCommit tmp alice "group" "group" $
         -- only 2 out of the 3 clients of Bob's are added to the conversation
         NonEmpty.take 2 (pClients bob) <> toList (pClients charlie)
     pure (alice, commit)
@@ -305,19 +438,19 @@ testAddNewClient = do
   withSystemTempDirectory "mls" $ \tmp -> withLastPrekeys $ do
     -- bob starts with a single client
     (creator, users@[bob]) <- setupParticipants tmp def [(1, LocalUser)]
-    conversation <- lift $ setupGroup tmp CreateConv creator "group"
+    (groupId, conversation) <- lift $ setupGroup tmp CreateConv creator "group"
 
     -- creator sends first commit message
     do
-      (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" (pClients bob)
+      (commit, welcome) <- liftIO $ setupCommit tmp creator "group" "group" (pClients bob)
       lift $ testSuccessfulCommit MessagingSetup {..}
 
     do
       -- then bob adds a new client
-      (qcid, c) <- setupUserClient tmp CreateWithKey (pUserId bob)
-      let bobC = (qcid, c)
+      c <- setupUserClient tmp CreateWithKey True (pUserId bob)
+      let bobC = (userClientQid (pUserId bob) c, c)
       -- which gets added to the group
-      (commit, welcome) <- liftIO $ setupCommit tmp "group" "group" [bobC]
+      (commit, welcome) <- liftIO $ setupCommit tmp creator "group" "group" [bobC]
       -- and the corresponding commit is sent
       lift $ testSuccessfulCommitWithNewUsers MessagingSetup {..} []
 
@@ -331,13 +464,13 @@ testAddUsersDirectly :: TestM ()
 testAddUsersDirectly = do
   setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
   void $ postCommit setup
-  charlie <- randomUser
+  charlie <- randomQualifiedUser
   e <-
     responseJsonError
       =<< postMembers
         (qUnqualified (pUserId creator))
         (pure charlie)
-        (qUnqualified conversation)
+        conversation
       <!! const 403 === statusCode
   liftIO $ Wai.label e @?= "invalid-op"
 
@@ -373,14 +506,14 @@ testProteusMessage = do
 testStaleCommit :: TestM ()
 testStaleCommit = withSystemTempDirectory "mls" $ \tmp -> do
   (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [2, 3])
-  conversation <- setupGroup tmp CreateConv creator "group.0"
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group.0"
   let (users1, users2) = splitAt 1 users
 
   -- add the first batch of users to the conversation, but do not overwrite group
   do
     (commit, welcome) <-
       liftIO $
-        setupCommit tmp "group.0" "group.1" $
+        setupCommit tmp creator "group.0" "group.1" $
           users1 >>= toList . pClients
     testSuccessfulCommit MessagingSetup {users = users1, ..}
 
@@ -388,34 +521,465 @@ testStaleCommit = withSystemTempDirectory "mls" $ \tmp -> do
   do
     (commit, welcome) <-
       liftIO $
-        setupCommit tmp "group.0" "group.2" $
+        setupCommit tmp creator "group.0" "group.2" $
           users2 >>= toList . pClients
     err <- testFailedCommit MessagingSetup {..} 409
     liftIO $ Wai.label err @?= "mls-stale-message"
 
-testAppMessage :: TestM ()
-testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [1, 2, 3])
-  conversation <- setupGroup tmp CreateConv creator "group"
+testAddRemoteUser :: TestM ()
+testAddRemoteUser = do
+  setup <-
+    aliceInvitesBob
+      (1, RemoteUser (Domain "faraway.example.com"))
+      def
+        { createClients = DontCreateClients,
+          createConv = CreateConv
+        }
+  bob <- assertOne (users setup)
+  let mock req = case frRPC req of
+        "on-conversation-updated" -> pure (Aeson.encode ())
+        "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+        "get-mls-clients" ->
+          pure
+            . Aeson.encode
+            . Set.fromList
+            . map snd
+            . toList
+            . pClients
+            $ bob
+        ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+  (events, reqs) <- withTempMockFederator' mock $ do
+    postCommit setup
 
-  (commit, welcome) <-
+  liftIO $ do
+    req <- assertOne $ filter ((== "on-conversation-updated") . frRPC) reqs
+    frTargetDomain req @?= qDomain (pUserId bob)
+    bdy <- case Aeson.eitherDecode (frBody req) of
+      Right b -> pure b
+      Left e -> assertFailure $ "Could not parse on-conversation-updated request body: " <> e
+    cuOrigUserId bdy @?= pUserId (creator setup)
+    cuConvId bdy @?= qUnqualified (conversation setup)
+    cuAlreadyPresentUsers bdy @?= [qUnqualified (pUserId bob)]
+    cuAction bdy
+      @?= SomeConversationAction
+        SConversationJoinTag
+        ConversationJoin
+          { cjUsers = pure (pUserId bob),
+            cjRole = roleNameWireMember
+          }
+
+  liftIO $ do
+    event <- assertOne events
+    assertJoinEvent
+      (conversation setup)
+      (pUserId (creator setup))
+      [pUserId bob]
+      roleNameWireMember
+      event
+
+testCommitLock :: TestM ()
+testCommitLock = withSystemTempDirectory "mls" $ \tmp -> do
+  -- create MLS conversation
+  (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [2, 2, 2])
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
+  let (users1, usersX) = splitAt 1 users
+  let (users2, users3) = splitAt 1 usersX
+  void $ assertOne users1
+  void $ assertOne users2
+  void $ assertOne users3
+
+  -- initial user can be added
+  do
+    (commit, welcome) <-
+      liftIO $
+        setupCommit tmp creator "group" "group" $
+          users1 >>= toList . pClients
+    testSuccessfulCommit MessagingSetup {users = users1, ..}
+
+  -- can commit without blocking
+  do
+    (commit, welcome) <-
+      liftIO $
+        setupCommit tmp creator "group" "group" $
+          users2 >>= toList . pClients
+    testSuccessfulCommit MessagingSetup {users = users2, ..}
+
+  -- block epoch
+  casClient <- view tsCass
+  runClient casClient $ insertLock (convToGroupId (qTagUnsafe conversation)) (Epoch 2)
+
+  -- commit fails due to competing lock
+  do
+    (commit, welcome) <-
+      liftIO $
+        setupCommit tmp creator "group" "group" $
+          users3 >>= toList . pClients
+    -- assert HTTP 409 on next attempt to commit
+    err <- testFailedCommit MessagingSetup {..} 409
+    liftIO $ Wai.label err @?= "mls-stale-message"
+
+  -- unblock epoch
+  runClient casClient $ deleteLock (convToGroupId (qTagUnsafe conversation)) (Epoch 2)
+  where
+    lock :: PrepQuery W (GroupId, Epoch) ()
+    lock = "insert into mls_commit_locks (group_id, epoch) values (?, ?)"
+    insertLock groupId epoch =
+      retry x5 $
+        write
+          lock
+          ( params
+              LocalQuorum
+              (groupId, epoch)
+          )
+    unlock :: PrepQuery W (GroupId, Epoch) ()
+    unlock = "delete from mls_commit_locks where group_id = ? and epoch = ?"
+    deleteLock groupId epoch =
+      retry x5 $
+        write
+          unlock
+          ( params
+              LocalQuorum
+              (groupId, epoch)
+          )
+
+testAddUserBareProposalCommit :: TestM ()
+testAddUserBareProposalCommit = withSystemTempDirectory "mls" $ \tmp -> do
+  (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
+
+  (groupId, conversation) <- setupGroup tmp CreateConv alice "group"
+
+  prop <- liftIO $ bareAddProposal tmp alice bob "group" "group"
+  postMessage (qUnqualified (pUserId alice)) prop
+    !!! const 201 === statusCode
+
+  (commit, mbWelcome) <-
     liftIO $
-      setupCommit tmp "group" "group" $
-        users >>= toList . pClients
+      pendingProposalsCommit tmp alice "group"
 
-  void $ postCommit MessagingSetup {..}
+  welcome <- assertJust mbWelcome
 
+  testSuccessfulCommit MessagingSetup {creator = alice, users = [bob], ..}
+
+  -- check that bob can now see the conversation
+  convs <-
+    responseJsonError =<< getConvs (qUnqualified (pUserId bob)) Nothing Nothing
+      <!! const 200 === statusCode
+  liftIO $
+    assertBool
+      "Users added to an MLS group should find it when listing conversations"
+      (conversation `elem` map cnvQualifiedId (convList convs))
+
+testUnknownProposalRefCommit :: TestM ()
+testUnknownProposalRefCommit = withSystemTempDirectory "mls" $ \tmp -> do
+  (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
+
+  (groupId, conversation) <- setupGroup tmp CreateConv alice "group"
+
+  -- create proposal, but don't send it to group
+  void $ liftIO $ bareAddProposal tmp alice bob "group" "group"
+
+  (commit, mbWelcome) <-
+    liftIO $
+      pendingProposalsCommit tmp alice "group"
+
+  welcome <- assertJust mbWelcome
+
+  err <- testFailedCommit (MessagingSetup {creator = alice, users = [bob], ..}) 404
+  liftIO $ Wai.label err @?= "mls-proposal-not-found"
+
+testCommitNotReferencingAllProposals :: TestM ()
+testCommitNotReferencingAllProposals = withSystemTempDirectory "mls" $ \tmp -> do
+  (alice, [bob, dee]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser), (1, LocalUser)]
+
+  (groupId, conversation) <- setupGroup tmp CreateConv alice "group"
+
+  propBob <- liftIO $ bareAddProposal tmp alice bob "group" "group"
+  postMessage (qUnqualified (pUserId alice)) propBob
+    !!! const 201 === statusCode
+
+  propDee <- liftIO $ bareAddProposal tmp alice dee "group" "group2"
+  postMessage (qUnqualified (pUserId alice)) propDee
+    !!! const 201 === statusCode
+
+  (commit, mbWelcome) <-
+    liftIO $
+      pendingProposalsCommit tmp alice "group"
+
+  welcome <- assertJust mbWelcome
+
+  err <- testFailedCommit (MessagingSetup {creator = alice, users = [bob, dee], ..}) 409
+  liftIO $ Wai.label err @?= "mls-commit-missing-references"
+
+testAdminRemovesUserFromConv :: TestM ()
+testAdminRemovesUserFromConv = withSystemTempDirectory "mls" $ \tmp -> do
+  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
+  let [bob] = users
+
+  testSuccessfulCommit MessagingSetup {users = [bob], ..}
+
+  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" (pClients bob)
+
+  do
+    convs <-
+      responseJsonError =<< getConvs (qUnqualified (pUserId bob)) Nothing Nothing
+        <!! const 200 === statusCode
+    liftIO $
+      assertBool
+        "bob is in conversation before he gets removed"
+        (conversation `elem` map cnvQualifiedId (convList convs))
+
+  testSuccessfulRemoveMemberFromConvCommit creator [bob] conversation removalCommit [bob]
+
+  do
+    convs <-
+      responseJsonError =<< getConvs (qUnqualified (pUserId bob)) Nothing Nothing
+        <!! const 200 === statusCode
+    liftIO $
+      assertBool
+        "bob is not longer part of conversation after the commit"
+        (conversation `notElem` map cnvQualifiedId (convList convs))
+
+testRemoveClientsIncomplete :: TestM ()
+testRemoveClientsIncomplete = withSystemTempDirectory "mls" $ \tmp -> do
+  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
+  let [bob] = users
+
+  testSuccessfulCommit MessagingSetup {users = [bob], ..}
+
+  -- remove only first client of bob
+  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" [NE.head (pClients bob)]
+
+  err <-
+    responseJsonError
+      =<< postMessage (qUnqualified (pUserId creator)) removalCommit
+        <!! statusCode === const 409
+
+  liftIO $ Wai.label err @?= "mls-client-mismatch"
+
+testUserRemovesThemselvesFromConv :: TestM ()
+testUserRemovesThemselvesFromConv = withSystemTempDirectory "mls" $ \tmp -> do
+  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
+  let [bob] = users
+
+  testSuccessfulCommit MessagingSetup {users = [bob], ..}
+
+  -- FUTUREWORK: create commit as bob, when the openmls library supports removing own clients
+  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" (pClients bob)
+
+  -- bob tries to leave the conversation by removing all its clients
+  err <-
+    responseJsonError
+      =<< postMessage (qUnqualified (pUserId bob)) removalCommit
+        <!! statusCode === const 409
+
+  liftIO $ Wai.label err @?= "mls-self-removal-not-allowed"
+
+testRemoveDeletedClient :: Bool -> TestM ()
+testRemoveDeletedClient deleteClientBefore = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, [bob, dee]) <- withLastPrekeys $ setupParticipants tmp def [(2, LocalUser), (1, LocalUser)]
+
+  -- create a group
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
+
+  -- add clients to it and get welcome message
+  (addCommit, welcome) <-
+    liftIO $
+      setupCommit tmp creator "group" "group" $
+        NonEmpty.tail (pClients creator) <> toList (pClients bob) <> toList (pClients dee)
+
+  testSuccessfulCommit MessagingSetup {users = [bob, dee], commit = addCommit, ..}
+
+  let (_bobClient1, bobClient2) = assertTwo (toList (pClients bob))
+
+  when deleteClientBefore $
+    deleteClient (qUnqualified (pUserId bob)) (snd bobClient2) (Just defPassword)
+      !!! statusCode === const 200
+
+  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" [bobClient2]
+
+  -- dee (which is not an admin) commits removal of bob's deleted client
+  let doCommitRemoval = postMessage (qUnqualified (pUserId dee)) removalCommit
+
+  if deleteClientBefore
+    then do
+      events :: [Event] <-
+        fmap mmssEvents . responseJsonError
+          =<< doCommitRemoval
+            <!! statusCode === const 201
+      liftIO $ assertEqual "a non-admin received conversation events when removing a client" [] events
+    else do
+      err <-
+        responseJsonError
+          =<< doCommitRemoval
+            <!! statusCode === const 409
+      liftIO $ Wai.label err @?= "mls-client-mismatch"
+
+testRemoveSubset :: TestM ()
+testRemoveSubset = withSystemTempDirectory "mls" $ \tmp -> do
+  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
+  let [bob] = users
+
+  testSuccessfulCommit MessagingSetup {users = [bob], ..}
+
+  -- attempt to remove only first client of bob
+  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" [NonEmpty.head (pClients bob)]
+
+  err <-
+    responseJsonError
+      =<< postMessage (qUnqualified (pUserId creator)) removalCommit
+        <!! statusCode === const 409
+
+  liftIO $ Wai.label err @?= "mls-client-mismatch"
+
+testRemoteAppMessage :: TestM ()
+testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
+  let opts =
+        def
+          { createClients = DontCreateClients,
+            createConv = CreateConv
+          }
+  (alice, [bob]) <-
+    withLastPrekeys $
+      setupParticipants tmp opts [(1, RemoteUser (Domain "faraway.example.com"))]
+  (groupId, conversation) <- setupGroup tmp CreateConv alice "group"
+  (commit, welcome) <- liftIO $ setupCommit tmp alice "group" "group" (pClients bob)
   message <-
     liftIO $
-      spawn (cli tmp ["message", "--group", tmp </> "group", "some text"]) Nothing
+      spawn (cli (pClientQid alice) tmp ["message", "--group", tmp </> "group", "some text"]) Nothing
 
-  galley <- viewGalley
-  cannon <- view tsCannon
+  let mock req = case frRPC req of
+        "on-conversation-updated" -> pure (Aeson.encode ())
+        "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+        "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
+        "get-mls-clients" ->
+          pure
+            . Aeson.encode
+            . Set.fromList
+            . map snd
+            . toList
+            . pClients
+            $ bob
+        ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+  (events :: [Event], reqs) <- fmap (first mmssEvents) . withTempMockFederator' mock $ do
+    galley <- viewGalley
+    void $ postCommit MessagingSetup {creator = alice, users = [bob], ..}
+    let v2 = toByteString' (toLower <$> show V2)
+    responseJsonError
+      =<< post
+        ( galley . paths [v2, "mls", "messages"]
+            . zUser (qUnqualified (pUserId alice))
+            . zConn "conn"
+            . content "message/mls"
+            . bytes message
+        )
+      <!! const 201
+      === statusCode
 
-  WS.bracketRN cannon (qUnqualified . pUserId <$> users) $ \wss -> do
+  liftIO $ do
+    req <- assertOne $ filter ((== "on-mls-message-sent") . frRPC) reqs
+    frTargetDomain req @?= qDomain (pUserId bob)
+    bdy <- case Aeson.eitherDecode (frBody req) of
+      Right b -> pure b
+      Left e -> assertFailure $ "Could not parse on-mls-message-sent request body: " <> e
+    rmmSender bdy @?= pUserId alice
+    rmmConversation bdy @?= qUnqualified conversation
+    rmmRecipients bdy
+      @?= [(qUnqualified (pUserId bob), c) | (_, c) <- toList (pClients bob)]
+    rmmMessage bdy @?= Base64ByteString message
+
+  liftIO $ assertBool "Unexpected events returned" (null events)
+
+-- The following test happens within backend B
+-- Alice@A is remote and Bob@B is local
+-- Alice creates a remote conversation and invites Bob
+-- Bob sends a message to the conversion
+--
+-- In reality, the following steps would happen:
+--
+-- 1) alice creates a new conversation @A -> convId, groupID
+-- 2) alice creates an MLS group (locally) with bob in it -> commit, welcome
+-- 3) alice sends commit
+-- 4) A notifies B about the new conversation
+-- 5) A notifies B about bob being in the conversation (Join event)
+-- 6) B notifies bob about join event
+-- 7) alice sends welcome @A
+-- 8) A forwards welcome to B
+-- 9) B forwards welcome to bob
+-- 10) bob creates his view on the group (locally) using the welcome message
+--
+-- 11) bob crafts a message (locally)
+-- 12) bob sends the message @B
+-- 13) B forwards the message to A
+-- 14) A forwards the message to alice
+--
+-- In the test:
+--
+-- setup: 2 10 11
+-- skipped: 1 3 5 6 7 8 9 13
+-- faked: 4
+-- actual test step: 12 14
+testLocalToRemote :: TestM ()
+testLocalToRemote = withSystemTempDirectory "mls" $ \tmp -> do
+  let domain = Domain "faraway.example.com"
+  -- step 2
+  MessagingSetup {creator = alice, users = [bob], ..} <-
+    aliceInvitesBobWithTmp
+      tmp
+      (1, LocalUser)
+      def
+        { creatorOrigin = RemoteUser domain
+        }
+
+  -- step 10
+  void . liftIO $
+    spawn
+      ( cli
+          (pClientQid bob)
+          tmp
+          [ "group",
+            "from-welcome",
+            "--group-out",
+            tmp </> "groupB.json",
+            tmp </> "welcome"
+          ]
+      )
+      Nothing
+  -- step 11
+  message <-
+    liftIO $
+      spawn
+        ( cli
+            (pClientQid bob)
+            tmp
+            ["message", "--group", tmp </> "groupB.json", "hi"]
+        )
+        Nothing
+
+  fedGalleyClient <- view tsFedGalleyClient
+
+  -- register remote conversation: step 4
+  qcnv <- randomQualifiedId (qDomain (pUserId alice))
+  let nrc =
+        NewRemoteConversation (qUnqualified qcnv) $
+          ProtocolMLS (ConversationMLSData groupId (Epoch 1) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
+  void $
+    runFedClient
+      @"on-new-remote-conversation"
+      fedGalleyClient
+      (qDomain (pUserId alice))
+      nrc
+
+  let mock req = case frRPC req of
+        "send-mls-message" -> pure (Aeson.encode (MLSMessageResponseUpdates []))
+        rpc -> assertFailure $ "unmocked RPC called: " <> T.unpack rpc
+
+  (_, reqs) <- withTempMockFederator' mock $ do
+    galley <- viewGalley
+
+    -- bob sends a message: step 12
     post
       ( galley . paths ["mls", "messages"]
-          . zUser (qUnqualified (pUserId creator))
+          . zUser (qUnqualified (pUserId bob))
           . zConn "conn"
           . content "message/mls"
           . bytes message
@@ -423,8 +987,400 @@ testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
       !!! const 201
       === statusCode
 
-    -- check that the corresponding event is received
+  -- check requests to mock federator: step 14
+  liftIO $ do
+    req <- assertOne reqs
+    frRPC req @?= "send-mls-message"
+    frTargetDomain req @?= qDomain qcnv
+    bdy <- case Aeson.eitherDecode (frBody req) of
+      Right b -> pure b
+      Left e -> assertFailure $ "Could not parse send-mls-message request body: " <> e
+    msrConvId bdy @?= qUnqualified qcnv
+    msrSender bdy @?= qUnqualified (pUserId bob)
+    msrRawMessage bdy @?= Base64ByteString message
 
+testAppMessage :: TestM ()
+testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [1, 2, 3])
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
+
+  (commit, welcome) <-
     liftIO $
-      WS.assertMatchN_ (5 # WS.Second) wss $
-        wsAssertMLSMessage conversation (pUserId creator) message
+      setupCommit tmp creator "group" "group" $
+        users >>= toList . pClients
+
+  void $ postCommit MessagingSetup {..}
+  message <- liftIO $ createMessage tmp creator "group" "some text"
+
+  galley <- viewGalley
+  cannon <- view tsCannon
+
+  WS.bracketRN
+    cannon
+    (map (qUnqualified . pUserId) (creator : users))
+    $ \wss -> do
+      post
+        ( galley . paths ["mls", "messages"]
+            . zUser (qUnqualified (pUserId creator))
+            . zConn "conn"
+            . content "message/mls"
+            . bytes message
+        )
+        !!! const 201
+        === statusCode
+
+      -- check that the corresponding event is received
+
+      liftIO $
+        WS.assertMatchN_ (5 # WS.Second) wss $
+          wsAssertMLSMessage conversation (pUserId creator) message
+
+testAppMessage2 :: TestM ()
+testAppMessage2 = do
+  (MessagingSetup {..}, message) <- withSystemTempDirectory "mls" $ \tmp -> do
+    (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [2, 1])
+    (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
+
+    (commit, welcome) <-
+      liftIO $
+        setupCommit tmp creator "group" "group" $
+          users >>= toList . pClients
+
+    let setup = MessagingSetup {..}
+    void $ postCommit setup
+
+    let bob = head users
+    void . liftIO $
+      spawn
+        ( cli
+            (pClientQid bob)
+            tmp
+            [ "group",
+              "from-welcome",
+              "--group-out",
+              tmp </> "group",
+              tmp </> "welcome"
+            ]
+        )
+        Nothing
+    message <-
+      liftIO $
+        createMessage tmp bob "group" "some text"
+    pure (setup, message)
+
+  let (bob, charlie) = assertTwo users
+  galley <- viewGalley
+  cannon <- view tsCannon
+
+  let mkClients p = do
+        c <- pClients p
+        pure (qUnqualified (pUserId p), snd c)
+
+  WS.bracketAsClientRN
+    cannon
+    ( toList (mkClients creator)
+        <> NonEmpty.tail (mkClients bob)
+        <> toList (mkClients charlie)
+    )
+    $ \wss -> do
+      post
+        ( galley . paths ["mls", "messages"]
+            . zUser (qUnqualified (pUserId bob))
+            . zConn "conn"
+            . content "message/mls"
+            . bytes message
+        )
+        !!! const 201
+        === statusCode
+
+      -- check that the corresponding event is received
+
+      liftIO $
+        WS.assertMatchN_ (5 # WS.Second) wss $
+          wsAssertMLSMessage conversation (pUserId bob) message
+
+testRemoteToRemote :: TestM ()
+testRemoteToRemote = do
+  localDomain <- viewFederationDomain
+  c <- view tsCannon
+  alice <- randomUser
+  eve <- randomUser
+  bob <- randomId
+  conv <- randomId
+  let aliceC1 = newClientId 0
+      aliceC2 = newClientId 1
+      eveC = newClientId 0
+      bdom = Domain "bob.example.com"
+      qconv = Qualified conv bdom
+      qbob = Qualified bob bdom
+      qalice = Qualified alice localDomain
+  now <- liftIO getCurrentTime
+  fedGalleyClient <- view tsFedGalleyClient
+
+  -- only add alice to the remote conversation
+  connectWithRemoteUser alice qbob
+  let cu =
+        ConversationUpdate
+          { cuTime = now,
+            cuOrigUserId = qbob,
+            cuConvId = conv,
+            cuAlreadyPresentUsers = [],
+            cuAction =
+              SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (pure qalice) roleNameWireMember)
+          }
+  runFedClient @"on-conversation-updated" fedGalleyClient bdom cu
+
+  let txt = "Hello from another backend"
+      rcpts = [(alice, aliceC1), (alice, aliceC2), (eve, eveC)]
+      rm =
+        RemoteMLSMessage
+          { rmmTime = now,
+            rmmMetadata = defMessageMetadata,
+            rmmSender = qbob,
+            rmmConversation = conv,
+            rmmRecipients = rcpts,
+            rmmMessage = Base64ByteString txt
+          }
+
+  -- send message to alice and check reception
+  WS.bracketAsClientRN c [(alice, aliceC1), (alice, aliceC2), (eve, eveC)] $ \[wsA1, wsA2, wsE] -> do
+    void $ runFedClient @"on-mls-message-sent" fedGalleyClient bdom rm
+    liftIO $ do
+      -- alice should receive the message on her first client
+      WS.assertMatch_ (5 # Second) wsA1 $ \n -> wsAssertMLSMessage qconv qbob txt n
+      WS.assertMatch_ (5 # Second) wsA2 $ \n -> wsAssertMLSMessage qconv qbob txt n
+
+      -- eve should not receive the message
+      WS.assertNoEvent (1 # Second) [wsE]
+
+testRemoteToLocal :: TestM ()
+testRemoteToLocal = do
+  -- alice is local, bob is remote
+  -- alice creates a local conversation and invites bob
+  -- bob then sends a message to the conversation
+
+  let bobDomain = Domain "faraway.example.com"
+
+  -- Simulate the whole MLS setup for both clients first. In reality,
+  -- backend calls would need to happen in order for bob to get ahold of a
+  -- welcome message, but that should not affect the correctness of the test.
+
+  (MessagingSetup {..}, message) <- withSystemTempDirectory "mls" $ \tmp -> do
+    setup <-
+      aliceInvitesBobWithTmp
+        tmp
+        (1, RemoteUser bobDomain)
+        def
+          { createConv = CreateConv
+          }
+    bob <- assertOne (users setup)
+    let mockedResponse fedReq =
+          case frRPC fedReq of
+            "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+            "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+            "on-conversation-updated" -> pure (Aeson.encode ())
+            "get-mls-clients" ->
+              pure
+                . Aeson.encode
+                . Set.fromList
+                . map snd
+                . toList
+                . pClients
+                $ bob
+            ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+    void . withTempMockFederator' mockedResponse $
+      postCommit setup
+    void . liftIO $
+      spawn
+        ( cli
+            (pClientQid bob)
+            tmp
+            [ "group",
+              "from-welcome",
+              "--group-out",
+              tmp </> "groupB.json",
+              tmp </> "welcome"
+            ]
+        )
+        Nothing
+    message <-
+      liftIO $
+        spawn
+          ( cli
+              (pClientQid bob)
+              tmp
+              ["message", "--group", tmp </> "groupB.json", "hello from another backend"]
+          )
+          Nothing
+    pure (setup, message)
+
+  let bob = head users
+  let alice = creator
+
+  fedGalleyClient <- view tsFedGalleyClient
+  cannon <- view tsCannon
+
+  -- actual test
+
+  let msr =
+        MessageSendRequest
+          { msrConvId = qUnqualified conversation,
+            msrSender = qUnqualified (pUserId bob),
+            msrRawMessage = Base64ByteString message
+          }
+
+  WS.bracketR cannon (qUnqualified (pUserId alice)) $ \ws -> do
+    resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
+    liftIO $ do
+      resp @?= MLSMessageResponseUpdates []
+      WS.assertMatch_ (5 # Second) ws $
+        wsAssertMLSMessage conversation (pUserId bob) message
+
+testRemoteNonMemberToLocal :: TestM ()
+testRemoteNonMemberToLocal = do
+  -- alice is local, bob is remote
+  -- alice creates a local conversation and invites bob
+  -- bob then sends a message to the conversation
+
+  let bobDomain = Domain "faraway.example.com"
+
+  -- Simulate the whole MLS setup for both clients first. In reality,
+  -- backend calls would need to happen in order for bob to get ahold of a
+  -- welcome message, but that should not affect the correctness of the test.
+
+  (MessagingSetup {..}, message) <- withSystemTempDirectory "mls" $ \tmp -> do
+    setup <-
+      aliceInvitesBobWithTmp
+        tmp
+        (1, RemoteUser bobDomain)
+        def
+          { createConv = CreateConv
+          }
+    bob <- assertOne (users setup)
+    void . liftIO $
+      spawn
+        ( cli
+            (pClientQid bob)
+            tmp
+            [ "group",
+              "from-welcome",
+              "--group-out",
+              tmp </> "groupB.json",
+              tmp </> "welcome"
+            ]
+        )
+        Nothing
+    message <-
+      liftIO $
+        spawn
+          ( cli
+              (pClientQid bob)
+              tmp
+              ["message", "--group", tmp </> "groupB.json", "hello from another backend"]
+          )
+          Nothing
+    pure (setup, message)
+
+  let bob = head users
+  fedGalleyClient <- view tsFedGalleyClient
+
+  -- actual test
+
+  let msr =
+        MessageSendRequest
+          { msrConvId = qUnqualified conversation,
+            msrSender = qUnqualified (pUserId bob),
+            msrRawMessage = Base64ByteString message
+          }
+
+  resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
+  liftIO $ do
+    resp @?= MLSMessageResponseError ConvNotFound
+
+-- | The group exists in mls-test-cli's store, but not in wire-server's database.
+propNonExistingConv :: TestM ()
+propNonExistingConv = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
+
+  let groupId = toBase64Text "test_group"
+  groupJSON <-
+    liftIO $
+      spawn (cli (pClientQid creator) tmp ["group", "create", T.unpack groupId]) Nothing
+  liftIO $ BS.writeFile (tmp </> cs groupId) groupJSON
+
+  prop <-
+    liftIO $
+      spawn
+        ( cli
+            (pClientQid creator)
+            tmp
+            [ "proposal",
+              "--group-in",
+              tmp </> cs groupId,
+              "--in-place",
+              "add",
+              tmp </> pClientQid bob
+            ]
+        )
+        Nothing
+  postMessage (qUnqualified (pUserId creator)) prop !!! do
+    const 404 === statusCode
+    const (Just "no-conversation") === fmap Wai.label . responseJsonError
+
+propExistingConv :: TestM ()
+propExistingConv = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
+  -- setupGroup :: HasCallStack => FilePath -> CreateConv -> Participant -> String -> TestM (Qualified ConvId)
+  void $ setupGroup tmp CreateConv creator "group.json"
+
+  prop <- liftIO $ bareAddProposal tmp creator bob "group.json" "group.json"
+
+  events <-
+    fmap mmssEvents . responseJsonError
+      =<< postMessage (qUnqualified (pUserId creator)) prop
+      <!! const 201 === statusCode
+  liftIO $ events @?= ([] :: [Event])
+
+propInvalidEpoch :: TestM ()
+propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, users) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser), (1, LocalUser), (1, LocalUser)]
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group.0.json"
+
+  let (bob, charlie, dee) = assertThree users
+
+  -- Add bob -> epoch 1
+  do
+    (commit, welcome) <-
+      liftIO $
+        setupCommit tmp creator "group.0.json" "group.1.json" $
+          toList (pClients bob)
+    testSuccessfulCommit MessagingSetup {users = [bob], ..}
+
+  -- try to request a proposal that with too old epoch (0)
+  do
+    prop <- liftIO $ bareAddProposal tmp creator charlie "group.0.json" "group.0.json"
+    err <-
+      responseJsonError
+        =<< postMessage (qUnqualified (pUserId creator)) prop
+        <!! const 409 === statusCode
+    liftIO $ Wai.label err @?= "mls-stale-message"
+
+  -- try to request a proposal that is too new epoch (2)
+  do
+    void $
+      liftIO $
+        setupCommit tmp creator "group.1.json" "group.2.json" $
+          toList (pClients charlie)
+    prop <- liftIO $ bareAddProposal tmp creator dee "group.2.json" "group.2.json"
+    err <-
+      responseJsonError
+        =<< postMessage (qUnqualified (pUserId creator)) prop
+        <!! const 409 === statusCode
+    liftIO $ Wai.label err @?= "mls-stale-message"
+
+  -- same proposal with correct epoch (1)
+  do
+    prop <- liftIO $ bareAddProposal tmp creator dee "group.1.json" "group.1.json"
+    postMessage (qUnqualified (pUserId creator)) prop
+      !!! const 201 === statusCode

@@ -45,7 +45,6 @@ where
 import Bilge hiding (Request, header, options, statusCode)
 import Bilge.RPC
 import Cassandra
-import Control.Concurrent.Async (async)
 import Control.Error hiding (err)
 import Control.Lens hiding ((.=))
 import Control.Monad.Catch hiding (tryJust)
@@ -54,12 +53,14 @@ import Data.Default (def)
 import Data.Misc (Milliseconds (..))
 import qualified Database.Redis as Redis
 import Gundeck.Env
+import qualified Gundeck.Redis as Redis
 import Imports
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Utilities
 import qualified System.Logger as Logger
 import System.Logger.Class hiding (Error, info)
+import UnliftIO (async)
 
 -- | TODO: 'Client' already has an 'Env'.  Why do we need two?  How does this even work?  We should
 -- probably explain this here.
@@ -95,13 +96,14 @@ newtype WithDefaultRedis a = WithDefaultRedis {runWithDefaultRedis :: Gundeck a}
       MonadMask,
       MonadReader Env,
       MonadClient,
-      MonadUnliftIO
+      MonadUnliftIO,
+      MonadLogger
     )
 
 instance Redis.MonadRedis WithDefaultRedis where
   liftRedis action = do
     defaultConn <- view rstate
-    liftIO $ Redis.runRedis defaultConn action
+    Redis.runRobust defaultConn action
 
 instance Redis.RedisCtx WithDefaultRedis (Either Redis.Reply) where
   returnDecode :: Redis.RedisResult a => Redis.Reply -> WithDefaultRedis (Either Redis.Reply a)
@@ -130,13 +132,13 @@ newtype WithAdditionalRedis a = WithAdditionalRedis {runWithAdditionalRedis :: G
 instance Redis.MonadRedis WithAdditionalRedis where
   liftRedis action = do
     defaultConn <- view rstate
-    ret <- liftIO $ Redis.runRedis defaultConn action
+    ret <- Redis.runRobust defaultConn action
 
     mAdditionalRedisConn <- view rstateAdditionalWrite
-    liftIO . for_ mAdditionalRedisConn $ \additionalRedisConn ->
+    for_ mAdditionalRedisConn $ \additionalRedisConn ->
       -- We just fire and forget this call, as there is not much we can do if
       -- this fails.
-      async $ Redis.runRedis additionalRedisConn action
+      async $ Redis.runRobust additionalRedisConn action
 
     pure ret
 

@@ -1,12 +1,8 @@
 SHELL = bash
 
-.DEFAULT_GOAL := html
+.DEFAULT_GOAL := docs-all
 
 MKFILE_DIR = $(abspath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
-
-DOCKER_USER   ?= quay.io/wire
-DOCKER_IMAGE  = alpine-sphinx
-DOCKER_TAG    ?= 0.0.111
 
 # You can set these variables (with a ?=) from the command line, and also
 # from the environment.
@@ -15,29 +11,19 @@ SPHINXBUILD   ?= sphinx-build
 SOURCEDIR     = $(MKFILE_DIR)/src
 BUILDDIR      = $(MKFILE_DIR)/build
 
-ifeq ($(OS), darwin)
-OPEN := open
-else
-OPEN := xdg-open
-endif
-
 .PHONY: Makefile
 
 .PHONY: docs
-docs:
-	docker run --rm -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) make clean html
+docs: clean html
 
 .PHONY: docs-pdf
-docs-pdf:
-	docker run --rm -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) make clean pdf
+docs-pdf: clean pdf
 
 .PHONY: docs-latex
-docs-latex:
-	docker run --rm -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) make clean latex
+docs-latex: clean latex
 
 .PHONY: docs-all
-docs-all:
-	docker run --rm -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) make clean html pdf
+docs-all: clean html pdf
 
 .PHONY: clean
 clean:
@@ -46,20 +32,7 @@ clean:
 # Only build part of the documentation
 # See 'exclude_patterns' in source/conf.py
 docs-administrate:
-	docker run --rm -e SPHINXOPTS='-t administrate' -v $$(pwd):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) make clean html
-	cd build && zip -r administration-wire-$$(date +"%Y-%m-%d").zip html
-
-.PHONY: exec
-exec:
-	docker run -it -v $(MKFILE_DIR):/mnt $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG)
-
-.PHONY: docker
-docker:
-	docker build -t $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG) $(MKFILE_DIR)
-
-.PHONY: docker-push
-docker-push:
-	docker push $(DOCKER_USER)/$(DOCKER_IMAGE):$(DOCKER_TAG)
+	SPHINXOPTS='-t administrate' make clean html
 
 .PHONY: push
 push:
@@ -76,17 +49,13 @@ dev-run: clean
 		"$(SOURCEDIR)" "$(BUILDDIR)"
 
 .PHONY: dev-pdf
-dev-pdf: pdf
-	$(OPEN) build/pdf/wire_federation.pdf 2>&1 > /dev/null &
-	find src/ | entr make pdf
-
-.PHONY: latex-pdf
-latex-pdf: latex
-	make -C build/latex all && echo "" && echo "Resulting PDF can be found in ./build/latex/main.pdf"
-
-.PHONY: help
-help:
-	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS)
+dev-pdf: clean
+	sphinx-autobuild \
+		--port 3000 \
+		--host 127.0.0.1 \
+		-b pdf \
+		$(SPHINXOPTS) \
+		"$(SOURCEDIR)" "$(BUILDDIR)"
 
 # Catch-all target: route all unknown targets to Sphinx. This "converts" unknown targets into sub-commands (or more precicly
 # into `buildername`) of the $(SPHINXBUILD) CLI (see https://www.gnu.org/software/make/manual/html_node/Last-Resort.html).

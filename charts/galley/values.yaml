@@ -6,6 +6,9 @@ image:
 service:
   externalPort: 8080
   internalPort: 8080
+metrics:
+  serviceMonitor:
+    enable: false
 resources:
   requests:
     memory: "256Mi"
@@ -15,36 +18,69 @@ resources:
     cpu: "500m"
 config:
   logLevel: Info
-  logFormat: JSON
+  logFormat: StructuredJSON
+  logNetStrings: false
   cassandra:
     host: aws-cassandra
     replicaCount: 3
   enableFederator: false # keep enableFederator default in sync with brig and cargohold chart's config.enableFederator as well as wire-server chart's tag.federator
   settings:
+    httpPoolSize: 128
     maxTeamSize: 10000
     maxConvSize: 500
     # Before making indexedBillingTeamMember true while upgrading, please
     # refer to notes here: https://github.com/wireapp/wire-server-deploy/releases/tag/v2020-05-15
     indexedBillingTeamMember: false
     featureFlags:  # see #RefConfigOptions in `/docs/reference` (https://github.com/wireapp/wire-server/)
-      sso: disabled-by-default
-      legalhold: disabled-by-default
-      teamSearchVisibility: disabled-by-default
+      appLock:
+        defaults:
+          config:
+            enforceAppLock: false
+            inactivityTimeoutSecs: 60
+          status: enabled
       classifiedDomains:
-        status: disabled
         config:
           domains: []
-      # fileSharing setting is optional
-      # if not set the default feature status is enabled and the default lock status is unlocked
-      # fileSharing:
-      #   defaults:
-      #     status: enabled
-      #     lockStatus: unlocked
-      # sndFactorPasswordChallenge setting is optional
-      # sndFactorPasswordChallenge:
-      #   defaults:
-      #     status: disabled
-      #     lockStatus: locked
+        status: disabled
+      conferenceCalling:
+        defaults:
+          status: enabled
+      conversationGuestLinks:
+        defaults:
+          lockStatus: unlocked
+          status: enabled
+      fileSharing:
+        defaults:
+          lockStatus: unlocked
+          status: enabled
+      legalhold: disabled-by-default
+      mls:
+        defaults:
+          status: disabled
+          config:
+            protocolToggleUsers: []
+            defaultProtocol: proteus
+            allowedCipherSuites: [1]
+            defaultCipherSuite: 1
+      searchVisibilityInbound:
+        defaults:
+          status: disabled
+      selfDeletingMessages:
+        defaults:
+          config:
+            enforcedTimeoutSeconds: 0
+          lockStatus: unlocked
+          status: enabled
+      sndFactorPasswordChallenge:
+        defaults:
+          lockStatus: locked
+          status: disabled
+      sso: disabled-by-default
+      teamSearchVisibility: disabled-by-default
+      validateSAMLemails:
+        defaults:
+          status: enabled
+ 
   aws:
     region: "eu-west-1"
   proxy: {}

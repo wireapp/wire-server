@@ -151,7 +151,7 @@ instance FromJSON ConversationRole where
     role <- o A..: "conversation_role"
     actions <- o A..: "actions"
     case toConvRole role (Just $ Actions actions) of
-      Just cr -> return cr
+      Just cr -> pure cr
       Nothing -> fail ("Failed to parse: " ++ show o)
 
 toConvRole :: RoleName -> Maybe Actions -> Maybe ConversationRole
@@ -215,7 +215,7 @@ instance ToSchema RoleName where
         \custom roles can have the same prefix)"
 
 instance FromByteString RoleName where
-  parser = parser >>= maybe (fail "Invalid RoleName") return . parseRoleName
+  parser = parser >>= maybe (fail "Invalid RoleName") pure . parseRoleName
 
 deriving instance Cql RoleName
 

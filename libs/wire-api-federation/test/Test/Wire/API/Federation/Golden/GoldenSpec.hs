@@ -19,13 +19,13 @@ module Test.Wire.API.Federation.Golden.GoldenSpec where
 
 import Imports
 import Test.Hspec
+import qualified Test.Wire.API.Federation.Golden.ConversationCreated as ConversationCreated
 import qualified Test.Wire.API.Federation.Golden.ConversationUpdate as ConversationUpdate
 import qualified Test.Wire.API.Federation.Golden.LeaveConversationRequest as LeaveConversationRequest
 import qualified Test.Wire.API.Federation.Golden.LeaveConversationResponse as LeaveConversationResponse
 import qualified Test.Wire.API.Federation.Golden.MessageSendResponse as MessageSendResponse
 import qualified Test.Wire.API.Federation.Golden.NewConnectionRequest as NewConnectionRequest
 import qualified Test.Wire.API.Federation.Golden.NewConnectionResponse as NewConnectionResponse
-import qualified Test.Wire.API.Federation.Golden.NewRemoteConversation as NewRemoteConversation
 import Test.Wire.API.Federation.Golden.Runner (testObjects)
 
 spec :: Spec
@@ -60,6 +60,6 @@ spec =
         (NewConnectionResponse.testObject_NewConnectionResponse4, "testObject_NewConnectionResponse4.json")
       ]
     testObjects
-      [ (NewRemoteConversation.testObject_NewRemoteConversation1, "testObject_NewRemoteConversation1.json"),
-        (NewRemoteConversation.testObject_NewRemoteConversation2, "testObject_NewRemoteConversation2.json")
+      [ (ConversationCreated.testObject_ConversationCreated1, "testObject_ConversationCreated1.json"),
+        (ConversationCreated.testObject_ConversationCreated2, "testObject_ConversationCreated2.json")
       ]

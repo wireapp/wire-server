@@ -520,6 +520,7 @@ Email address (and/or SAML NameID, if /a):
 Wire handle: same request, just replace the query part with
 
 .. code-block:: bash
+
     '?filter=userName%20eq%20%22me%22'
 
 **Update a specific user**

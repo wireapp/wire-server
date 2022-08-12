@@ -18,12 +18,12 @@
 module Wire.API.Routes.Internal.LegalHold where
 
 import Data.Id
-import Servant.API hiding (Header)
+import Servant.API hiding (Header, WithStatus)
 import Wire.API.Team.Feature
 
 type InternalLegalHoldAPI =
   "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-    :> Get '[JSON] (TeamFeatureStatus 'WithLockStatus 'TeamFeatureLegalHold)
+    :> Get '[JSON] (WithStatus LegalholdConfig)
     :<|> "i" :> "teams" :> Capture "tid" TeamId :> "legalhold"
-      :> ReqBody '[JSON] (TeamFeatureStatus 'WithoutLockStatus 'TeamFeatureLegalHold)
+      :> ReqBody '[JSON] (WithStatusNoLock LegalholdConfig)
       :> Put '[] NoContent

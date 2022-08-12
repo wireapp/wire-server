@@ -19,6 +19,7 @@ module Wire.API.Routes.Public.Spar where
 
 import Data.Id
 import Data.Proxy
+import Data.Range
 import Data.Swagger (Swagger)
 import Imports
 import qualified SAML2.WebSSO as SAML
@@ -34,6 +35,7 @@ import Web.Scim.Class.User as Scim.User
 import Wire.API.Error
 import Wire.API.Error.Brig
 import Wire.API.Routes.Public
+import Wire.API.User (ScimUserInfos, UserSet)
 import Wire.API.User.IdentityProvider
 import Wire.API.User.Saml
 import Wire.API.User.Scim
@@ -105,11 +107,13 @@ type IdpCreate =
   ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo
     :> QueryParam' '[Optional, Strict] "replaces" SAML.IdPId
     :> QueryParam' '[Optional, Strict] "api_version" WireIdPAPIVersion
+    :> QueryParam' '[Optional, Strict] "handle" (Range 1 32 Text) -- todo(leif): check length limitation
     :> PostCreated '[JSON] IdP
 
 type IdpUpdate =
   ReqBodyCustomError '[RawXML, JSON] "wai-error" IdPMetadataInfo
     :> Capture "id" SAML.IdPId
+    :> QueryParam' '[Optional, Strict] "handle" (Range 1 32 Text) -- todo(leif): check length limitation
     :> Put '[JSON] IdP
 
 type IdpDelete =
@@ -124,14 +128,15 @@ type APIINTERNAL =
   "status" :> Get '[JSON] NoContent
     :<|> "teams" :> Capture "team" TeamId :> DeleteNoContent
     :<|> "sso" :> "settings" :> ReqBody '[JSON] SsoSettings :> Put '[JSON] NoContent
+    :<|> "scim" :> "userinfos" :> ReqBody '[JSON] UserSet :> Post '[JSON] ScimUserInfos
 
-sparSPIssuer :: SAML.HasConfig m => Maybe TeamId -> m SAML.Issuer
+sparSPIssuer :: (Functor m, SAML.HasConfig m) => Maybe TeamId -> m SAML.Issuer
 sparSPIssuer Nothing =
   SAML.Issuer <$> SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthRespLegacy)
 sparSPIssuer (Just tid) =
   SAML.Issuer <$> SAML.getSsoURI' (Proxy @APISSO) (Proxy @APIAuthResp) tid
 
-sparResponseURI :: SAML.HasConfig m => Maybe TeamId -> m URI.URI
+sparResponseURI :: (Functor m, SAML.HasConfig m) => Maybe TeamId -> m URI.URI
 sparResponseURI Nothing =
   SAML.getSsoURI (Proxy @APISSO) (Proxy @APIAuthRespLegacy)
 sparResponseURI (Just tid) =

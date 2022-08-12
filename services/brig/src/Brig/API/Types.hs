@@ -35,15 +35,16 @@ import Brig.Data.Activation (Activation (..), ActivationError (..))
 import Brig.Data.Client (ClientDataError (..))
 import Brig.Data.Properties (PropertiesDataError (..))
 import Brig.Data.User (AuthError (..), ReAuthError (..))
-import Brig.Types
-import Brig.Types.Code (Timeout)
+import Brig.Types.Common
 import Brig.Types.Intra
-import Brig.User.Auth.Cookie (RetryAfter (..))
+import Data.Code
 import Data.Id
 import Data.Qualified
+import Data.RetryAfter
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Wire.API.Federation.Error
+import Wire.API.User
 
 -------------------------------------------------------------------------------
 -- Successes
@@ -58,11 +59,13 @@ data CreateUserResult = CreateUserResult
     -- | Info of a team just created/joined
     createdUserTeam :: !(Maybe CreateUserTeam)
   }
+  deriving (Show)
 
 data CreateUserTeam = CreateUserTeam
   { createdTeamId :: !TeamId,
     createdTeamName :: !Text
   }
+  deriving (Show)
 
 data ActivationResult
   = -- | The key/code was valid and successfully activated.
@@ -192,10 +195,14 @@ data DeleteUserError
   | DeleteUserMissingPassword
   | DeleteUserPendingCode Timeout
   | DeleteUserOwnerDeletingSelf
+  | DeleteUserVerificationCodeThrottled RetryAfter
 
 data AccountStatusError
   = InvalidAccountStatus
   | AccountNotFound
+
+data VerificationCodeThrottledError
+  = VerificationCodeThrottled RetryAfter
 
 -------------------------------------------------------------------------------
 -- Exceptions

@@ -35,14 +35,16 @@ import Galley.Env
 import Galley.Intra.Util
 import Galley.Monad
 import Galley.Options
-import Galley.Types
-import qualified Galley.Types.Teams as Teams
+import Galley.Types.Conversations.Members
 import Gundeck.Types.Push.V2 (RecipientClients (..))
 import qualified Gundeck.Types.Push.V2 as Gundeck
 import Imports hiding (forkIO)
 import Safe (headDef, tailDef)
 import UnliftIO.Async (mapConcurrently)
+import Wire.API.Event.Conversation (Event (evtFrom))
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
+import qualified Wire.API.Event.Team as Teams
+import Wire.API.Team.Member
 
 data PushEvent
   = ConvEvent Event
@@ -58,7 +60,7 @@ data RecipientBy user = Recipient
   { _recipientUserId :: user,
     _recipientClients :: RecipientClients
   }
-  deriving stock (Functor, Foldable, Traversable)
+  deriving stock (Functor, Foldable, Traversable, Show)
 
 makeLenses ''RecipientBy
 
@@ -73,9 +75,9 @@ data PushTo user = Push
     pushOrigin :: Maybe UserId,
     _pushRecipients :: List1 (RecipientBy user),
     pushJson :: Object,
-    pushRecipientListType :: Teams.ListType
+    pushRecipientListType :: ListType
   }
-  deriving stock (Functor, Foldable, Traversable)
+  deriving stock (Functor, Foldable, Traversable, Show)
 
 makeLenses ''PushTo
 
@@ -130,7 +132,7 @@ pushLocal ps = do
     removeIfLargeFanout limit =
       filter
         ( \p ->
-            (pushRecipientListType p == Teams.ListComplete)
+            (pushRecipientListType p == ListComplete)
               && (length (_pushRecipients p) <= fromIntegral (fromRange limit))
         )
 
@@ -140,7 +142,7 @@ recipient = userRecipient . lmId
 userRecipient :: user -> RecipientBy user
 userRecipient u = Recipient u RecipientClientsAll
 
-newPush1 :: Teams.ListType -> Maybe UserId -> PushEvent -> List1 Recipient -> Push
+newPush1 :: ListType -> Maybe UserId -> PushEvent -> List1 Recipient -> Push
 newPush1 recipientListType from e rr =
   Push
     { _pushConn = Nothing,
@@ -154,20 +156,20 @@ newPush1 recipientListType from e rr =
       _pushRecipients = rr
     }
 
-newPushLocal1 :: Teams.ListType -> UserId -> PushEvent -> List1 Recipient -> Push
+newPushLocal1 :: ListType -> UserId -> PushEvent -> List1 Recipient -> Push
 newPushLocal1 lt uid = newPush1 lt (Just uid)
 
-newPush :: Teams.ListType -> Maybe UserId -> PushEvent -> [Recipient] -> Maybe Push
+newPush :: ListType -> Maybe UserId -> PushEvent -> [Recipient] -> Maybe Push
 newPush _ _ _ [] = Nothing
 newPush t u e (r : rr) = Just $ newPush1 t u e (list1 r rr)
 
-newPushLocal :: Teams.ListType -> UserId -> PushEvent -> [Recipient] -> Maybe Push
+newPushLocal :: ListType -> UserId -> PushEvent -> [Recipient] -> Maybe Push
 newPushLocal lt uid = newPush lt (Just uid)
 
 newConversationEventPush :: Event -> Local [UserId] -> Maybe Push
 newConversationEventPush e users =
   let musr = guard (tDomain users == qDomain (evtFrom e)) $> qUnqualified (evtFrom e)
-   in newPush Teams.ListComplete musr (ConvEvent e) (map userRecipient (tUnqualified users))
+   in newPush ListComplete musr (ConvEvent e) (map userRecipient (tUnqualified users))
 
 pushSlowly :: Foldable f => f Push -> App ()
 pushSlowly ps = do

@@ -44,7 +44,7 @@ pathsConsistencyCheck :: Paths -> [SiteConsistencyError]
 pathsConsistencyCheck (Paths forest) = mconcat $ go [] <$> forest
   where
     go :: [PathSegment] -> Tree.Tree PathSegment -> [SiteConsistencyError]
-    go prefix (Tree.Node root trees) = maybeToList here <> (mconcat $ go (root : prefix) <$> trees)
+    go prefix (Tree.Node root trees) = maybeToList here <> mconcat (go (root : prefix) <$> trees)
       where
         here = findSiteConsistencyError (reverse $ root : prefix) trees
     findSiteConsistencyError :: [PathSegment] -> Tree.Forest PathSegment -> Maybe SiteConsistencyError

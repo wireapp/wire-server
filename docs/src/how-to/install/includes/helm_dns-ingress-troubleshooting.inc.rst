@@ -16,7 +16,7 @@ You need
 * (optional) one DNS name for the federator, usually called `federator.<domain>`.
 * (optional) one DNS name for SFTD (conference calling), usually called `sftd.<domain>`.
 
-If you are on the most recent charts from wire-server-deploy, these are your names:
+If you are on the most recent charts, these are your names:
 
 * nginz-https.<domain>
 * nginz-ssl.<domain>

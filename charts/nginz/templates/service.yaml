@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginz
+  labels:
+    app: nginz
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.config.http.httpPort }}
+      targetPort: 8080
+    - name: ws
+      port: {{ .Values.config.ws.wsPort }}
+      targetPort: 8081
+    - name: http-metrics
+      port: {{ .Values.config.http.metricsPort }}
+      targetPort: 8082
+  selector:
+    app: nginz

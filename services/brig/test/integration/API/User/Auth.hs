@@ -31,10 +31,8 @@ import qualified Bilge as Http
 import Bilge.Assert hiding (assert)
 import qualified Brig.Code as Code
 import qualified Brig.Options as Opts
-import Brig.Types
 import Brig.Types.Intra
 import Brig.Types.User.Auth
-import qualified Brig.Types.User.Auth as Auth
 import Brig.ZAuth (ZAuth, runZAuth)
 import qualified Brig.ZAuth as ZAuth
 import qualified Cassandra as DB
@@ -65,7 +63,10 @@ import qualified Test.Tasty.HUnit as HUnit
 import UnliftIO.Async hiding (wait)
 import Util
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.User
 import qualified Wire.API.User as Public
+import Wire.API.User.Auth
+import qualified Wire.API.User.Auth as Auth
 
 -- | FUTUREWORK: Implement this function. This wrapper should make sure that
 -- wrapped tests run only when the feature flag 'legalhold' is set to
@@ -128,7 +129,7 @@ tests conf m z db b g n =
               test m "test-login-verify6-digit-wrong-code-fails" $ testLoginVerify6DigitWrongCodeFails b g,
               test m "test-login-verify6-digit-missing-code-fails" $ testLoginVerify6DigitMissingCodeFails b g,
               test m "test-login-verify6-digit-expired-code-fails" $ testLoginVerify6DigitExpiredCodeFails b g db,
-              test m "test-login-verify6-digit-resend-code-success" $ testLoginVerify6DigitResendCodeSuccess b g db
+              test m "test-login-verify6-digit-resend-code-success-and-rate-limiting" $ testLoginVerify6DigitResendCodeSuccessAndRateLimiting b g conf db
             ]
         ],
       testGroup
@@ -380,15 +381,15 @@ testLoginVerify6DigitEmailCodeSuccess brig galley db = do
   (u, tid) <- createUserWithTeam' brig
   let Just email = userEmail u
   let checkLoginSucceeds body = login brig body PersistentCookie !!! const 200 === statusCode
-  Util.setTeamFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge galley tid Public.Unlocked
-  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   key <- Code.mkKey (Code.ForEmail email)
   Just vcode <- Util.lookupCode db key Code.AccountLogin
   checkLoginSucceeds $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue vcode)
 
-testLoginVerify6DigitResendCodeSuccess :: Brig -> Galley -> DB.ClientState -> Http ()
-testLoginVerify6DigitResendCodeSuccess brig galley db = do
+testLoginVerify6DigitResendCodeSuccessAndRateLimiting :: Brig -> Galley -> Opts.Opts -> DB.ClientState -> Http ()
+testLoginVerify6DigitResendCodeSuccessAndRateLimiting brig galley _opts db = do
   (u, tid) <- createUserWithTeam' brig
   let Just email = userEmail u
   let checkLoginSucceeds body = login brig body PersistentCookie !!! const 200 === statusCode
@@ -401,14 +402,16 @@ testLoginVerify6DigitResendCodeSuccess brig galley db = do
         Just c <- Util.lookupCode db key Code.AccountLogin
         pure c
 
-  Util.setTeamFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge galley tid Public.Unlocked
-  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
 
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   fstCode <- getCodeFromDb
 
-  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
-  Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
+  let tooManyRequests = 429
+  Util.generateVerificationCodeExpect tooManyRequests brig (Public.SendVerificationCode Public.Login email)
+
+  void $ retryWhileN 10 ((==) 429 . statusCode) $ Util.generateVerificationCode' brig (Public.SendVerificationCode Public.Login email)
   mostRecentCode <- getCodeFromDb
 
   checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just $ Code.codeValue fstCode)
@@ -426,8 +429,8 @@ testLoginVerify6DigitWrongCodeFails brig galley = do
           const 403 === statusCode
           const (Just "code-authentication-failed") === errorLabel
 
-  Util.setTeamFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge galley tid Public.Unlocked
-  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
   checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) (Just wrongCode)
@@ -446,8 +449,8 @@ testLoginVerify6DigitMissingCodeFails brig galley = do
           const 403 === statusCode
           const (Just "code-authentication-required") === errorLabel
 
-  Util.setTeamFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge galley tid Public.Unlocked
-  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   checkLoginFails $ PasswordLogin (LoginByEmail email) defPassword (Just defCookieLabel) Nothing
 
@@ -465,8 +468,8 @@ testLoginVerify6DigitExpiredCodeFails brig galley db = do
           const 403 === statusCode
           const (Just "code-authentication-failed") === errorLabel
 
-  Util.setTeamFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge galley tid Public.Unlocked
-  Util.setTeamSndFactorPasswordChallenge galley tid Public.TeamFeatureEnabled
+  Util.setTeamFeatureLockStatus @Public.SndFactorPasswordChallengeConfig galley tid Public.LockStatusUnlocked
+  Util.setTeamSndFactorPasswordChallenge galley tid Public.FeatureStatusEnabled
   Util.generateVerificationCode brig (Public.SendVerificationCode Public.Login email)
   key <- Code.mkKey (Code.ForEmail email)
   Just vcode <- Util.lookupCode db key Code.AccountLogin

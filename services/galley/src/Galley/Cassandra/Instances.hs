@@ -28,16 +28,21 @@ import Control.Error (note)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
 import Data.Domain (Domain, domainText, mkDomain)
+import Data.Either.Combinators hiding (fromRight)
+import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
-import Galley.Types
 import Galley.Types.Bot ()
-import Galley.Types.Teams
 import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SearchVisibility
 import Imports
+import Wire.API.Asset (AssetKey, assetKeyToText)
+import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
+import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Proposal
+import Wire.API.MLS.Serialisation
 import Wire.API.Team
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.SearchVisibility
 
 deriving instance Cql MutedStatus
 
@@ -200,8 +205,45 @@ instance Cql Icon where
   fromCql (CqlText txt) = pure . fromRight DefaultIcon . runParser parser . T.encodeUtf8 $ txt
   fromCql _ = Left "Icon: Text expected"
 
+instance Cql AssetKey where
+  ctype = Tagged TextColumn
+  toCql = CqlText . assetKeyToText
+  fromCql (CqlText txt) = runParser parser . T.encodeUtf8 $ txt
+  fromCql _ = Left "AssetKey: Text expected"
+
 instance Cql Epoch where
   ctype = Tagged BigIntColumn
   toCql = CqlBigInt . fromIntegral . epochNumber
   fromCql (CqlBigInt n) = pure (Epoch (fromIntegral n))
   fromCql _ = Left "epoch: bigint expected"
+
+instance Cql CipherSuiteTag where
+  ctype = Tagged IntColumn
+  toCql = CqlInt . fromIntegral . cipherSuiteNumber . tagCipherSuite
+
+  fromCql (CqlInt index) =
+    case cipherSuiteTag (CipherSuite (fromIntegral index)) of
+      Just tag -> Right tag
+      Nothing -> Left "CipherSuiteTag: unexpected index"
+  fromCql _ = Left "CipherSuiteTag: int expected"
+
+instance Cql ProposalRef where
+  ctype = Tagged BlobColumn
+  toCql = CqlBlob . LBS.fromStrict . unProposalRef
+  fromCql (CqlBlob b) = Right . ProposalRef . LBS.toStrict $ b
+  fromCql _ = Left "ProposalRef: blob expected"
+
+instance Cql (RawMLS Proposal) where
+  ctype = Tagged BlobColumn
+  toCql = CqlBlob . LBS.fromStrict . rmRaw
+  fromCql (CqlBlob b) = mapLeft T.unpack $ decodeMLS b
+  fromCql _ = Left "Proposal: blob expected"
+
+instance Cql CipherSuite where
+  ctype = Tagged IntColumn
+  toCql = CqlInt . fromIntegral . cipherSuiteNumber
+  fromCql (CqlInt i) =
+    if i < 2 ^ (16 :: Integer)
+      then Right . CipherSuite . fromIntegral $ i
+      else Left "CipherSuite: an out of bounds value for Word16"
+  fromCql _ = Left "CipherSuite: int expected"

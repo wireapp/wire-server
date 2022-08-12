@@ -25,16 +25,16 @@ module Galley.Data.Services
 where
 
 import Data.Id
-import Galley.Types hiding (Conversation)
-import Galley.Types.Bot
+import Galley.Types.Conversations.Members
 import Imports
+import Wire.API.Provider.Service
 
 -- BotMember ------------------------------------------------------------------
 
 -- | For now we assume bots to always be local
 --
 -- FUTUREWORK(federation): allow remote bots
-newtype BotMember = BotMember {fromBotMember :: LocalMember}
+newtype BotMember = BotMember {fromBotMember :: LocalMember} deriving (Show)
 
 instance Eq BotMember where
   (==) = (==) `on` botMemId

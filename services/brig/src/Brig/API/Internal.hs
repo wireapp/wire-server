@@ -14,13 +14,13 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-
 module Brig.API.Internal
   ( sitemap,
     servantSitemap,
     swaggerDocsAPI,
     BrigIRoutes.API,
     BrigIRoutes.SwaggerDocsAPI,
+    getMLSClients,
   )
 where
 
@@ -39,11 +39,14 @@ import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.MLS.KeyPackage as Data
 import qualified Brig.Data.User as Data
+import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
+import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import Brig.Sem.ActivationKeyStore
 import Brig.Sem.ActivationSupply
+import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.GalleyAccess
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
@@ -55,9 +58,10 @@ import Brig.Sem.UserQuery (UserQuery)
 import Brig.Sem.VerificationCodeStore
 import qualified Brig.Team.API as Team
 import Brig.Team.DB (lookupInvitationByEmail)
-import Brig.Types
+import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
+import Brig.Types.User
 import Brig.Types.User.Event (UserEvent (UserUpdated), UserUpdatedData (eupSSOId, eupSSOIdRemoved), emptyUserUpdatedData)
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
@@ -69,12 +73,11 @@ import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Conversion as List
-import Data.Handle (Handle)
+import Data.Handle
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Qualified
 import qualified Data.Set as Set
-import Galley.Types (UserClients (..))
 import Imports hiding (head)
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
@@ -95,17 +98,20 @@ import Servant.Swagger.Internal.Orphans ()
 import Servant.Swagger.UI
 import qualified System.Logger.Class as Log
 import UnliftIO.Async hiding (Async)
+import Wire.API.Connection
 import Wire.API.Error
-import Wire.API.Error.Brig
 import qualified Wire.API.Error.Brig as E
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.Routes.Internal.Brig (NewKeyPackageRef)
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import qualified Wire.API.Team.Feature as ApiFt
 import Wire.API.User
-import Wire.API.User.Client (UserClientsFull (..))
+import Wire.API.User.Activation
+import Wire.API.User.Client
+import Wire.API.User.Password
 import Wire.API.User.RichInfo
 
 ---------------------------------------------------------------------------
@@ -115,11 +121,16 @@ servantSitemap ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       Async,
+       BlacklistStore,
        Input (Local ()),
        P.Error Twilio.ErrorResponse,
        PasswordResetStore,
        PasswordResetSupply,
+       Race,
+       Resource,
        Twilio,
+       UniqueClaimsStore,
        UserHandleStore,
        UserKeyStore,
        UserQuery,
@@ -134,9 +145,9 @@ ejpdAPI ::
   ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
   Brig.User.EJPD.ejpdRequest
-    :<|> Named @"get-account-feature-config" getAccountFeatureConfig
-    :<|> putAccountFeatureConfig
-    :<|> deleteAccountFeatureConfig
+    :<|> Named @"get-account-conference-calling-config" getAccountConferenceCallingConfig
+    :<|> putAccountConferenceCallingConfig
+    :<|> deleteAccountConferenceCallingConfig
     :<|> getConnectionsStatusUnqualified
     :<|> getConnectionsStatus
 
@@ -144,8 +155,10 @@ mlsAPI :: ServerT BrigIRoutes.MLSAPI (Handler r)
 mlsAPI =
   ( \ref ->
       Named @"get-client-by-key-package-ref" (getClientByKeyPackageRef ref)
-        :<|> Named @"put-conversation-by-key-package-ref" (putConvIdByKeyPackageRef ref)
-        :<|> Named @"get-conversation-by-key-package-ref" (getConvIdByKeyPackageRef ref)
+        :<|> ( Named @"put-conversation-by-key-package-ref" (putConvIdByKeyPackageRef ref)
+                 :<|> Named @"get-conversation-by-key-package-ref" (getConvIdByKeyPackageRef ref)
+             )
+        :<|> Named @"put-key-package-ref" (putKeyPackageRef ref)
   )
     :<|> getMLSClients
     :<|> mapKeyPackageRefsInternal
@@ -154,33 +167,41 @@ accountAPI ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       Async,
+       BlacklistStore,
        Input (Local ()),
        P.Error Twilio.ErrorResponse,
        PasswordResetSupply,
        PasswordResetStore,
+       Race,
+       Resource,
        Twilio,
+       UniqueClaimsStore,
+       UserHandleStore,
        UserKeyStore,
        UserQuery
      ]
     r =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
-accountAPI = Named @"createUserNoVerify" createUserNoVerify
+accountAPI =
+  Named @"createUserNoVerify" createUserNoVerify
+    :<|> Named @"createUserNoVerifySpar" createUserNoVerifySpar
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
-getAccountFeatureConfig :: UserId -> (Handler r) ApiFt.TeamFeatureStatusNoConfig
-getAccountFeatureConfig uid =
+getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
+getAccountConferenceCallingConfig uid =
   lift (wrapClient $ Data.lookupFeatureConferenceCalling uid)
-    >>= maybe (view (settings . getAfcConferenceCallingDefNull)) pure
+    >>= maybe (ApiFt.forgetLock <$> view (settings . getAfcConferenceCallingDefNull)) pure
 
-putAccountFeatureConfig :: UserId -> ApiFt.TeamFeatureStatusNoConfig -> (Handler r) NoContent
-putAccountFeatureConfig uid status =
+putAccountConferenceCallingConfig :: UserId -> ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig -> (Handler r) NoContent
+putAccountConferenceCallingConfig uid status =
   lift $ wrapClient $ Data.updateFeatureConferenceCalling uid (Just status) $> NoContent
 
-deleteAccountFeatureConfig :: UserId -> (Handler r) NoContent
-deleteAccountFeatureConfig uid =
+deleteAccountConferenceCallingConfig :: UserId -> (Handler r) NoContent
+deleteAccountConferenceCallingConfig uid =
   lift $ wrapClient $ Data.updateFeatureConferenceCalling uid Nothing $> NoContent
 
 getClientByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe ClientIdentity)
@@ -190,24 +211,27 @@ getClientByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.derefKeyPack
 putConvIdByKeyPackageRef :: KeyPackageRef -> Qualified ConvId -> Handler r Bool
 putConvIdByKeyPackageRef ref = lift . wrapClient . Data.keyPackageRefSetConvId ref
 
+-- Used by galley to create a new record in mls_key_package_ref
+putKeyPackageRef :: KeyPackageRef -> NewKeyPackageRef -> Handler r ()
+putKeyPackageRef ref = lift . wrapClient . Data.addKeyPackageRef ref
+
 -- Used by galley to retrieve conversation id from mls_key_package_ref
 getConvIdByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe (Qualified ConvId))
 getConvIdByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.keyPackageRefConvId
 
-getMLSClients :: Qualified UserId -> SignatureSchemeTag -> Handler r (Set ClientId)
-getMLSClients qusr ss = do
-  usr <- lift $ tUnqualified <$> ensureLocal qusr
-  results <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult usr
-  keys <- lift . wrapClient $ pooledMapConcurrentlyN 16 getMLSKey (toList results)
+getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientId)
+getMLSClients usr ss = do
+  results <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult
+  keys <- lift . wrapClient $ pooledMapConcurrentlyN 16 getKey' (toList results)
   pure . Set.fromList . map fst . filter (isJust . snd) $ keys
   where
-    getResult _ [] = throwStd (errorToWai @'UserNotFound)
-    getResult usr ((u, cs) : rs)
+    getResult [] = pure mempty
+    getResult ((u, cs) : rs)
       | u == usr = pure cs
-      | otherwise = getResult usr rs
+      | otherwise = getResult rs
 
-    getMLSKey :: MonadClient m => ClientId -> m (ClientId, Maybe LByteString)
-    getMLSKey cid = (cid,) <$> Data.lookupMLSPublicKey (qUnqualified qusr) cid ss
+    getKey' :: MonadClient m => ClientId -> m (ClientId, Maybe LByteString)
+    getKey' cid = (cid,) <$> Data.lookupMLSPublicKey usr cid ss
 
 mapKeyPackageRefsInternal :: KeyPackageBundle -> Handler r ()
 mapKeyPackageRefsInternal bundle = do
@@ -244,6 +268,9 @@ sitemap ::
     '[ ActivationKeyStore,
        ActivationSupply,
        Async,
+       BlacklistPhonePrefixStore,
+       BlacklistStore,
+       CodeStore,
        GalleyAccess,
        Input (Local ()),
        P.Error ReAuthError,
@@ -489,8 +516,9 @@ createUserNoVerify ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
-       P.Error Twilio.ErrorResponse,
+       BlacklistStore,
        Input (Local ()),
+       P.Error Twilio.ErrorResponse,
        PasswordResetSupply,
        PasswordResetStore,
        Twilio,
@@ -511,7 +539,39 @@ createUserNoVerify uData = lift . runExceptT $ do
     let key = ActivateKey $ activationKey adata
         code = activationCode adata
      in API.activate key code (Just uid) !>> activationErrorToRegisterError
-  pure (SelfProfile usr)
+  pure . SelfProfile $ usr
+
+createUserNoVerifySpar ::
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       Async,
+       Input (Local ()),
+       PasswordResetStore,
+       PasswordResetSupply,
+       Race,
+       Resource,
+       UniqueClaimsStore,
+       UserHandleStore,
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
+  NewUserSpar ->
+  Handler r (Either CreateUserSparError SelfProfile)
+createUserNoVerifySpar uData =
+  lift . runExceptT $ do
+    result <- API.createUserSpar uData
+    let acc = createdAccount result
+    let usr = accountUser acc
+    let uid = userId usr
+    let eac = createdEmailActivation result
+    let pac = createdPhoneActivation result
+    for_ (catMaybes [eac, pac]) $ \adata ->
+      let key = ActivateKey $ activationKey adata
+          code = activationCode adata
+       in API.activate key code (Just uid) !>> CreateUserSparRegistrationError . activationErrorToRegisterError
+    pure . SelfProfile $ usr
 
 deleteUserNoVerifyH ::
   Members '[Input (Local ()), UserQuery] r =>
@@ -535,12 +595,13 @@ changeSelfEmailMaybeSendH ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       BlacklistStore,
        UserKeyStore,
        UserQuery
      ]
     r =>
   UserId ::: Bool ::: JsonRequest EmailUpdate ->
-  (Handler r) Response
+  Handler r Response
 changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
   email <- euEmail <$> parseJsonBody req
   changeSelfEmailMaybeSend u (if validate then ActuallySendEmail else DoNotSendEmail) email API.AllowSCIMUpdates >>= \case
@@ -553,6 +614,7 @@ changeSelfEmailMaybeSend ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       BlacklistStore,
        UserKeyStore,
        UserQuery
      ]
@@ -561,7 +623,7 @@ changeSelfEmailMaybeSend ::
   MaybeSendEmail ->
   Email ->
   API.AllowSCIMUpdates ->
-  (Handler r) ChangeEmailResponse
+  Handler r ChangeEmailResponse
 changeSelfEmailMaybeSend u ActuallySendEmail email allowScim = do
   API.changeSelfEmail u email allowScim
 changeSelfEmailMaybeSend u DoNotSendEmail email allowScim = do
@@ -730,24 +792,24 @@ updateConnectionInternalH (_ ::: req) = do
   API.updateConnectionInternal updateConn !>> connError
   pure $ setStatus status200 empty
 
-checkBlacklistH :: Either Email Phone -> (Handler r) Response
+checkBlacklistH :: Member BlacklistStore r => Either Email Phone -> (Handler r) Response
 checkBlacklistH emailOrPhone = do
   bl <- lift $ API.isBlacklisted emailOrPhone
   pure $ setStatus (bool status404 status200 bl) empty
 
-deleteFromBlacklistH :: Either Email Phone -> (Handler r) Response
+deleteFromBlacklistH :: Member BlacklistStore r => Either Email Phone -> (Handler r) Response
 deleteFromBlacklistH emailOrPhone = do
   void . lift $ API.blacklistDelete emailOrPhone
   pure empty
 
-addBlacklistH :: Either Email Phone -> (Handler r) Response
+addBlacklistH :: Member BlacklistStore r => Either Email Phone -> (Handler r) Response
 addBlacklistH emailOrPhone = do
   void . lift $ API.blacklistInsert emailOrPhone
   pure empty
 
 -- | Get any matching prefixes. Also try for shorter prefix matches,
 -- i.e. checking for +123456 also checks for +12345, +1234, ...
-getPhonePrefixesH :: PhonePrefix -> (Handler r) Response
+getPhonePrefixesH :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (Handler r) Response
 getPhonePrefixesH prefix = do
   results <- lift $ API.phonePrefixGet prefix
   pure $ case results of
@@ -755,12 +817,12 @@ getPhonePrefixesH prefix = do
     _ -> json results
 
 -- | Delete a phone prefix entry (must be an exact match)
-deleteFromPhonePrefixH :: PhonePrefix -> (Handler r) Response
+deleteFromPhonePrefixH :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (Handler r) Response
 deleteFromPhonePrefixH prefix = do
   void . lift $ API.phonePrefixDelete prefix
   pure empty
 
-addPhonePrefixH :: JSON ::: JsonRequest ExcludedPrefix -> (Handler r) Response
+addPhonePrefixH :: Member BlacklistPhonePrefixStore r => JSON ::: JsonRequest ExcludedPrefix -> (Handler r) Response
 addPhonePrefixH (_ ::: req) = do
   prefix :: ExcludedPrefix <- parseJsonBody req
   void . lift $ API.phonePrefixInsert prefix

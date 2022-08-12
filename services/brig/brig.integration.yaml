@@ -187,6 +187,7 @@ optSettings:
   setFederationDomainConfigs:
     - domain: example.com
       search_policy: full_search
+  set2FACodeGenerationDelaySecs: 5
 
 logLevel: Warn
 # ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests

@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: proxy
   labels:
-    wireService: proxy
+    app: proxy
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
     release: {{ .Release.Name }}
     heritage: {{ .Release.Service }}
@@ -14,5 +14,5 @@ spec:
       port: {{ .Values.service.externalPort }}
       targetPort: {{ .Values.service.internalPort }}
   selector:
-    wireService: proxy
+    app: proxy
     release: {{ .Release.Name }}

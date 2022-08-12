@@ -27,16 +27,15 @@ module Galley.Intra.User
     getContactList,
     chunkify,
     getRichInfoMultiUser,
-    getAccountFeatureConfigClient,
+    getAccountConferenceCallingConfigClient,
     updateSearchVisibilityInbound,
   )
 where
 
 import Bilge hiding (getHeader, options, statusCode)
 import Bilge.RPC
-import Brig.Types.Connection (Relation (..), UpdateConnectionsInternal (..), UserIds (..))
+import Brig.Types.Connection (UpdateConnectionsInternal, cUsers)
 import qualified Brig.Types.Intra as Brig
-import Brig.Types.User (User)
 import Control.Error hiding (bool, isRight)
 import Control.Lens (view, (^.))
 import Control.Monad.Catch
@@ -60,12 +59,14 @@ import Network.Wai.Utilities.Error
 import qualified Network.Wai.Utilities.Error as Wai
 import qualified Servant.Client as Client
 import Util.Options
+import Wire.API.Connection
 import Wire.API.Error.Galley
 import qualified Wire.API.Routes.Internal.Brig as IAPI
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
 import Wire.API.Routes.Named
 import Wire.API.Team.Feature
+import Wire.API.User
 import Wire.API.User.RichInfo (RichInfo)
 
 -- | Get statuses of all connections between two groups of users (the usual
@@ -234,12 +235,12 @@ getRichInfoMultiUser = chunkify $ \uids -> do
         . expect2xx
   parseResponse (mkError status502 "server-error") resp
 
-getAccountFeatureConfigClient :: HasCallStack => UserId -> App TeamFeatureStatusNoConfig
-getAccountFeatureConfigClient uid =
-  runHereClientM (namedClient @IAPI.API @"get-account-feature-config" uid)
+getAccountConferenceCallingConfigClient :: HasCallStack => UserId -> App (WithStatusNoLock ConferenceCallingConfig)
+getAccountConferenceCallingConfigClient uid =
+  runHereClientM (namedClient @IAPI.API @"get-account-conference-calling-config" uid)
     >>= handleServantResp
 
-updateSearchVisibilityInbound :: Multi.TeamStatusUpdate 'TeamFeatureSearchVisibilityInbound -> App ()
+updateSearchVisibilityInbound :: Multi.TeamStatus SearchVisibilityInboundConfig -> App ()
 updateSearchVisibilityInbound =
   handleServantResp
     <=< runHereClientM

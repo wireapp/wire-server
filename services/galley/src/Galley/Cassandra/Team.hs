@@ -51,19 +51,16 @@ import Galley.Effects.TeamStore (TeamStore (..))
 import Galley.Env
 import Galley.Monad
 import Galley.Options
-import Galley.Types.Teams hiding
-  ( DeleteTeam,
-    GetTeamConversations,
-    SetTeamData,
-  )
-import qualified Galley.Types.Teams as Teams
+import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Imports hiding (Set, max)
 import Polysemy
 import Polysemy.Input
 import qualified UnliftIO
-import Wire.API.Team (Icon (..))
+import Wire.API.Team
+import Wire.API.Team.Conversation
 import Wire.API.Team.Member
+import Wire.API.Team.Permission (Perm (SetBilling), Permissions, self)
 
 interpretTeamStoreToCassandra ::
   Members '[Embed IO, Input Env, Input ClientState] r =>
@@ -233,7 +230,7 @@ updateTeamMember oldPerms tid uid newPerms = do
     when (SetBilling `Set.member` lostPerms) $
       addPrepQuery Cql.deleteBillingTeamMember (tid, uid)
   where
-    permDiff = Set.difference `on` view Teams.self
+    permDiff = Set.difference `on` view self
     acquiredPerms = newPerms `permDiff` oldPerms
     lostPerms = oldPerms `permDiff` newPerms
 
@@ -250,8 +247,8 @@ team :: TeamId -> Client (Maybe TeamData)
 team tid =
   fmap toTeam <$> retry x1 (query1 Cql.selectTeam (params LocalQuorum (Identity tid)))
   where
-    toTeam (u, n, i, k, d, s, st, b) =
-      let t = newTeam tid u n i (fromMaybe NonBinding b) & teamIconKey .~ k
+    toTeam (u, n, i, k, d, s, st, b, ss) =
+      let t = newTeam tid u n i (fromMaybe NonBinding b) & teamIconKey .~ k & teamSplashScreen .~ fromMaybe DefaultIcon ss
           status = if d then PendingDelete else fromMaybe Active s
        in TeamData t status (writeTimeToUTC <$> st)
 
@@ -381,6 +378,8 @@ updateTeam tid u = retry x5 . batch $ do
     addPrepQuery Cql.updateTeamIcon (decodeUtf8 . toByteString' $ i, tid)
   for_ (u ^. iconKeyUpdate) $ \k ->
     addPrepQuery Cql.updateTeamIconKey (fromRange k, tid)
+  for_ (u ^. splashScreenUpdate) $ \ss ->
+    addPrepQuery Cql.updateTeamSplashScreen (decodeUtf8 . toByteString' $ ss, tid)
 
 -- | Construct 'TeamMember' from database tuple.
 -- If FeatureLegalHoldWhitelistTeamsAndImplicitConsent is enabled set UserLegalHoldDisabled

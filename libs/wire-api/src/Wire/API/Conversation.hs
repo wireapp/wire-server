@@ -647,7 +647,10 @@ data NewConv = NewConv
     -- | Every member except for the creator will have this role
     newConvUsersRole :: RoleName,
     -- | The protocol of the conversation. It can be Proteus or MLS (1.0).
-    newConvProtocol :: ProtocolTag
+    newConvProtocol :: ProtocolTag,
+    -- | ID of the client creating the conversation. Only needed for MLS
+    -- conversations.
+    newConvCreatorClient :: Maybe ClientId
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform NewConv)
@@ -697,6 +700,7 @@ instance ToSchema NewConv where
                  <|> pure roleNameWireAdmin
              )
         <*> newConvProtocol .= protocolTagSchema
+        <*> newConvCreatorClient .= maybe_ (optField "creator_client" schema)
     where
       usersDesc =
         "List of user IDs (excluding the requestor) to be \
@@ -728,11 +732,10 @@ instance ToSchema ConvTeamInfo where
       $ ConvTeamInfo
         <$> cnvTeamId .= field "teamid" schema
         <* const ()
-          .= ( fieldWithDocModifier
-                 "managed"
-                 (description ?~ "(Not parsed any more) Whether this is a managed team conversation")
-                 (c (False :: Bool))
-             )
+          .= fieldWithDocModifier
+            "managed"
+            (description ?~ "(Not parsed any more) Whether this is a managed team conversation")
+            (c (False :: Bool))
     where
       c :: ToJSON a => a -> ValueSchema SwaggerDoc ()
       c val = mkSchema mempty (const (pure ())) (const (pure (toJSON val)))

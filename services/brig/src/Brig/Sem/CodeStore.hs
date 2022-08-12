@@ -18,11 +18,11 @@
 
 module Brig.Sem.CodeStore where
 
-import Brig.Types
 import Data.Id
 import Data.Time.Clock
 import Imports
 import Polysemy
+import Wire.API.User.Password
 
 -- | Parameters used in password reset queries. The f type constructor is used
 -- either as 'Identity' or 'Maybe'.

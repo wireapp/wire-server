@@ -17,6 +17,7 @@
 
 module Brig.Sem.UserKeyStore.Cassandra (userKeyStoreToCassandra) where
 
+import Brig.Email
 import Brig.Sem.UserKeyStore
 import Brig.Types.Common
 import Cassandra
@@ -27,6 +28,7 @@ import qualified Data.Text.Encoding as T
 import Imports
 import OpenSSL.EVP.Digest
 import Polysemy
+import Wire.API.User.Identity
 
 userKeyStoreToCassandra ::
   forall m r a.

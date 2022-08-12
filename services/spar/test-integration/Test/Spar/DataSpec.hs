@@ -31,10 +31,10 @@ import Imports
 import Polysemy
 import SAML2.WebSSO as SAML
 import Spar.App as App
+import Spar.Error (IdpDbError (IdpNotFound), SparCustomError (IdpDbError))
 import Spar.Intra.BrigApp (veidFromUserSSOId)
 import qualified Spar.Sem.AReqIDStore as AReqIDStore
 import qualified Spar.Sem.AssIDStore as AssIDStore
-import Spar.Sem.IdPConfigStore (GetIdPResult (..), Replaced (..), Replacing (..))
 import qualified Spar.Sem.IdPConfigStore as IdPEffect
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimTokenStore as ScimTokenStore
@@ -145,60 +145,44 @@ spec = do
     describe "Team" $ do
       testDeleteTeam
     describe "IdPConfig" $ do
-      it "storeIdPConfig, getIdPConfig are \"inverses\"" $ do
+      it "insertIdPConfig, getIdPConfig are \"inverses\"" $ do
         idp <- makeTestIdP
-        () <- runSpar $ IdPEffect.storeConfig idp
+        () <- runSpar $ IdPEffect.insertConfig idp
         midp <- runSpar $ IdPEffect.getConfig (idp ^. idpId)
+        liftIO $ midp `shouldBe` idp
+      it "getIdPByIssuer works" $ do
+        idp <- makeTestIdP
+        () <- runSpar $ IdPEffect.insertConfig idp
+        midp <- getIdPByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
         liftIO $ midp `shouldBe` Just idp
-      it "getIdPConfigByIssuer works" $ do
-        idp <- makeTestIdP
-        () <- runSpar $ IdPEffect.storeConfig idp
-        midp <- runSpar $ App.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
-        liftIO $ midp `shouldBe` GetIdPFound idp
-      it "getIdPIdByIssuer works" $ do
-        idp <- makeTestIdP
-        () <- runSpar $ IdPEffect.storeConfig idp
-        midp <- runSpar $ App.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
-        liftIO $ midp `shouldBe` GetIdPFound (idp ^. idpId)
       it "getIdPConfigsByTeam works" $ do
         skipIdPAPIVersions [WireIdPAPIV1]
         teamid <- nextWireId
-        idp <- makeTestIdP <&> idpExtraInfo .~ WireIdP teamid Nothing [] Nothing
-        () <- runSpar $ IdPEffect.storeConfig idp
+        idp <- makeTestIdP <&> idpExtraInfo .~ WireIdP teamid Nothing [] Nothing (IdPHandle "IdP 1")
+        () <- runSpar $ IdPEffect.insertConfig idp
         idps <- runSpar $ IdPEffect.getConfigsByTeam teamid
         liftIO $ idps `shouldBe` [idp]
       it "deleteIdPConfig works" $ do
         teamid <- nextWireId
         idpApiVersion <- asks (^. teWireIdPAPIVersion)
-        idp <- makeTestIdP <&> idpExtraInfo .~ WireIdP teamid (Just idpApiVersion) [] Nothing
-        () <- runSpar $ IdPEffect.storeConfig idp
+        idp <- makeTestIdP <&> idpExtraInfo .~ WireIdP teamid (Just idpApiVersion) [] Nothing (IdPHandle "IdP 1")
+        () <- runSpar $ IdPEffect.insertConfig idp
         do
           midp <- runSpar $ IdPEffect.getConfig (idp ^. idpId)
-          liftIO $ midp `shouldBe` Just idp
+          liftIO $ midp `shouldBe` idp
         () <- runSpar $ IdPEffect.deleteConfig idp
         do
-          midp <- runSpar $ IdPEffect.getConfig (idp ^. idpId)
+          idpOrError <- runSparE $ IdPEffect.getConfig (idp ^. idpId)
+          liftIO $ idpOrError `shouldBe` Left (SAML.CustomError $ IdpDbError IdpNotFound)
+        do
+          midp <- getIdPByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
           liftIO $ midp `shouldBe` Nothing
         do
-          midp <- runSpar $ App.getIdPConfigByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
-          liftIO $ midp `shouldBe` GetIdPNotFound
-        do
-          midp <- runSpar $ App.getIdPIdByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
-          liftIO $ midp `shouldBe` GetIdPNotFound
+          midp <- getIdPByIssuer (idp ^. idpMetadata . edIssuer) (idp ^. SAML.idpExtraInfo . wiTeam)
+          liftIO $ midp `shouldBe` Nothing
         do
           idps <- runSpar $ IdPEffect.getConfigsByTeam teamid
           liftIO $ idps `shouldBe` []
-      describe "{set,clear}ReplacedBy" $ do
-        it "handle non-existent idps gradefully" $ do
-          pendingWith "this requires a cql{,-io} upgrade.  https://gitlab.com/twittner/cql-io/-/issues/7"
-          idp1 <- makeTestIdP
-          idp2 <- makeTestIdP
-          runSpar $ IdPEffect.setReplacedBy (Replaced (idp1 ^. idpId)) (Replacing (idp2 ^. idpId))
-          idp1' <- runSpar $ IdPEffect.getConfig (idp1 ^. idpId)
-          liftIO $ idp1' `shouldBe` Nothing
-          runSpar $ IdPEffect.clearReplacedBy (Replaced (idp1 ^. idpId))
-          idp2' <- runSpar $ IdPEffect.getConfig (idp1 ^. idpId)
-          liftIO $ idp2' `shouldBe` Nothing
 
 -- TODO(sandy): This function should be more polymorphic over it's polysemy
 -- constraints than using 'RealInterpretation' in full anger.
@@ -284,13 +268,13 @@ testDeleteTeam = it "cleans up all the right tables after deletion" $ do
     liftIO $ mbUser2 `shouldBe` Nothing
   -- The config from 'idp':
   do
-    mbIdp <- runSpar $ IdPEffect.getConfig (idp ^. SAML.idpId)
-    liftIO $ mbIdp `shouldBe` Nothing
+    idpOrError <- runSparE $ IdPEffect.getConfig (idp ^. SAML.idpId)
+    liftIO $ idpOrError `shouldBe` Left (SAML.CustomError $ IdpDbError IdpNotFound)
   -- The config from 'issuer_idp':
   do
     let issuer = idp ^. SAML.idpMetadata . SAML.edIssuer
-    mbIdp <- runSpar $ App.getIdPIdByIssuer issuer (idp ^. SAML.idpExtraInfo . wiTeam)
-    liftIO $ mbIdp `shouldBe` GetIdPNotFound
+    mbIdp <- getIdPByIssuer issuer (idp ^. SAML.idpExtraInfo . wiTeam)
+    liftIO $ mbIdp `shouldBe` Nothing
   -- The config from 'team_idp':
   do
     idps <- runSpar $ IdPEffect.getConfigsByTeam tid

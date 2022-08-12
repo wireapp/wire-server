@@ -43,12 +43,15 @@ import qualified Brig.Code as Code
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import qualified Brig.Data.UserKey as UserKey
+import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
+import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import Brig.Sem.ActivationKeyStore
 import Brig.Sem.ActivationSupply
 import Brig.Sem.BudgetStore
+import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.GalleyAccess
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
@@ -62,9 +65,10 @@ import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Intra (AccountStatus (Ephemeral), UserAccount (UserAccount, accountUser))
-import Brig.Types.User (HavePendingInvitations (..), User (userId))
+import Brig.Types.User (HavePendingInvitations (..))
 import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Handle as Handle
+import Brig.User.API.Search (teamUserSearch)
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.Auth.Cookie as Auth
 import Brig.User.Email
@@ -202,6 +206,8 @@ servantSitemap ::
     '[ ActivationKeyStore,
        ActivationSupply,
        Async,
+       BlacklistStore,
+       BlacklistPhonePrefixStore,
        GalleyAccess,
        Input (Local ()),
        P.Error ReAuthError,
@@ -229,6 +235,8 @@ servantSitemap =
     :<|> connectionAPI
     :<|> propertiesAPI
     :<|> mlsAPI
+    :<|> userHandleAPI
+    :<|> searchAPI
   where
     userAPI :: ServerT UserAPI (Handler r)
     userAPI =
@@ -240,6 +248,7 @@ servantSitemap =
         :<|> Named @"list-users-by-unqualified-ids-or-handles" listUsersByUnqualifiedIdsOrHandles
         :<|> Named @"list-users-by-ids-or-handles" listUsersByIdsOrHandles
         :<|> Named @"send-verification-code" sendVerificationCode
+        :<|> Named @"get-rich-info" getRichInfo
 
     selfAPI :: ServerT SelfAPI (Handler r)
     selfAPI =
@@ -314,6 +323,15 @@ servantSitemap =
         :<|> Named @"mls-key-packages-claim" claimKeyPackages
         :<|> Named @"mls-key-packages-count" countKeyPackages
 
+    userHandleAPI :: ServerT UserHandleAPI (Handler r)
+    userHandleAPI =
+      Named @"check-user-handles" checkHandles
+        :<|> Named @"check-user-handle" checkHandle
+
+    searchAPI :: ServerT SearchAPI (Handler r)
+    searchAPI =
+      Named @"browse-team" teamUserSearch
+
 -- Note [ephemeral user sideeffect]
 -- If the user is ephemeral and expired, it will be removed upon calling
 -- CheckUserExists[Un]Qualified, see 'Brig.API.User.userGC'.
@@ -325,7 +343,10 @@ sitemap ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       BlacklistStore,
+       BlacklistPhonePrefixStore,
        BudgetStore,
+       CodeStore,
        GalleyAccess,
        Input (Local ()),
        P.Error Twilio.ErrorResponse,
@@ -342,45 +363,6 @@ sitemap ::
     r =>
   Routes Doc.ApiBuilder (Handler r) ()
 sitemap = do
-  -- User Handle API ----------------------------------------------------
-
-  post "/users/handles" (continue checkHandlesH) $
-    accept "application" "json"
-      .&. zauthUserId
-      .&. jsonRequest @Public.CheckHandles
-  document "POST" "checkUserHandles" $ do
-    Doc.summary "Check availability of user handles"
-    Doc.body (Doc.ref Public.modelCheckHandles) $
-      Doc.description "JSON body"
-    Doc.returns (Doc.array Doc.string')
-    Doc.response 200 "List of free handles" Doc.end
-
-  head "/users/handles/:handle" (continue checkHandleH) $
-    zauthUserId
-      .&. capture "handle"
-  document "HEAD" "checkUserHandle" $ do
-    Doc.summary "Check whether a user handle can be taken"
-    Doc.parameter Doc.Path "handle" Doc.bytes' $
-      Doc.description "Handle to check"
-    Doc.response 200 "Handle is taken" Doc.end
-    Doc.errorResponse (errorToWai @'E.InvalidHandle)
-    Doc.errorResponse (errorToWai @'E.HandleNotFound)
-
-  -- some APIs moved to servant
-  -- end User Handle API
-
-  get "/users/:uid/rich-info" (continue getRichInfoH) $
-    zauthUserId
-      .&. capture "uid"
-      .&. accept "application" "json"
-  document "GET" "getRichInfo" $ do
-    Doc.summary "Get user's rich info"
-    Doc.parameter Doc.Path "uid" Doc.bytes' $
-      Doc.description "User ID"
-    Doc.returns (Doc.ref Public.modelRichInfo)
-    Doc.response 200 "RichInfo" Doc.end
-    Doc.errorResponse insufficientTeamPermissions
-
   -- This endpoint can lead to the following events being sent:
   -- UserDeleted event to contacts of deleted user
   -- MemberLeave event to members for all conversations the user was in (via galley)
@@ -497,7 +479,6 @@ sitemap = do
 
   Provider.routesPublic
   Auth.routesPublic
-  Search.routesPublic
   Team.routesPublic
   Calling.routesPublic
 
@@ -506,7 +487,10 @@ apiDocs ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       BlacklistStore,
+       BlacklistPhonePrefixStore,
        BudgetStore,
+       CodeStore,
        GalleyAccess,
        Input (Local ()),
        P.Error Twilio.ErrorResponse,
@@ -702,18 +686,11 @@ getClientCapabilities uid cid = do
   mclient <- lift (API.lookupLocalClient uid cid)
   maybe (throwStd (errorToWai @'E.ClientNotFound)) (pure . Public.clientCapabilities) mclient
 
-getRichInfoH ::
-  Member UserQuery r =>
-  UserId ::: UserId ::: JSON ->
-  (Handler r) Response
-getRichInfoH (self ::: user ::: _) =
-  json <$> getRichInfo self user
-
 getRichInfo ::
   Member UserQuery r =>
   UserId ->
   UserId ->
-  (Handler r) Public.RichInfoAssocList
+  Handler r Public.RichInfoAssocList
 getRichInfo self user = do
   loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
   locale <- setDefaultUserLocale <$> view settings
@@ -729,7 +706,7 @@ getRichInfo self user = do
     (Just t1, Just t2) | t1 == t2 -> pure ()
     _ -> throwStd insufficientTeamPermissions
   -- Query rich info
-  fromMaybe mempty <$> lift (wrapClient $ API.lookupRichInfo user)
+  wrapClientE $ fromMaybe mempty <$> API.lookupRichInfo user
 
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
@@ -739,6 +716,7 @@ createUser ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       BlacklistStore,
        Input (Local ()),
        P.Error Twilio.ErrorResponse,
        PasswordResetStore,
@@ -905,6 +883,8 @@ changePhone ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       BlacklistStore,
+       BlacklistPhonePrefixStore,
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
@@ -953,25 +933,27 @@ changeLocale u conn l = lift $ API.changeLocale u conn l
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
 -- *any* account.)
-checkHandleH ::
+checkHandle ::
   Members '[UserHandleStore] r =>
-  UserId ::: Text ->
-  Handler r Response
-checkHandleH (_uid ::: hndl) =
+  UserId ->
+  Text ->
+  Handler r ()
+checkHandle _uid hndl =
   API.checkHandle hndl >>= \case
-    API.CheckHandleInvalid -> throwE (StdError (errorToWai @'E.InvalidHandle))
-    API.CheckHandleFound -> pure $ setStatus status200 empty
-    API.CheckHandleNotFound -> pure $ setStatus status404 empty
+    API.CheckHandleInvalid -> throwStd (errorToWai @'E.InvalidHandle)
+    API.CheckHandleFound -> pure ()
+    API.CheckHandleNotFound -> throwStd (errorToWai @'E.HandleNotFound)
 
-checkHandlesH ::
+-- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
+-- *any* account.)
+checkHandles ::
   Members '[UserHandleStore] r =>
-  JSON ::: UserId ::: JsonRequest Public.CheckHandles ->
-  Handler r Response
-checkHandlesH (_ ::: _ ::: req) = do
-  Public.CheckHandles hs num <- parseJsonBody req
+  UserId ->
+  Public.CheckHandles ->
+  Handler r [Handle]
+checkHandles _ (Public.CheckHandles hs num) = do
   let handles = mapMaybe parseHandle (fromRange hs)
-  free <- lift . liftSem $ API.checkHandles handles (fromRange num)
-  pure $ json (free :: [Handle])
+  lift . liftSem $ API.checkHandles handles (fromRange num)
 
 -- | This endpoint returns UserHandleInfo instead of UserProfile for backwards
 -- compatibility, whereas the corresponding qualified endpoint (implemented by
@@ -1055,6 +1037,8 @@ sendActivationCodeH ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       BlacklistStore,
+       BlacklistPhonePrefixStore,
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
@@ -1072,6 +1056,8 @@ sendActivationCode ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       BlacklistStore,
+       BlacklistPhonePrefixStore,
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
@@ -1238,6 +1224,7 @@ updateUserEmail ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       BlacklistStore,
        UserKeyStore,
        UserQuery
      ]
@@ -1245,7 +1232,7 @@ updateUserEmail ::
   UserId ->
   UserId ->
   Public.EmailUpdate ->
-  (Handler r) ()
+  Handler r ()
 updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   maybeZuserTeamId <- lift $ wrapClient $ Data.lookupUserTeam zuserId
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
@@ -1369,7 +1356,8 @@ sendVerificationCode req = do
           (Code.Retries 3)
           tout
           (Just $ toUUID $ Public.userId $ accountUser account)
-      lift . liftSem $ Code.insertCode code
+      -- lift . liftSem $ Code.insertCode code
+      tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
       sendMail email (Code.codeValue code) (Just $ Public.userLocale $ accountUser account) action
     _ -> pure ()
   where

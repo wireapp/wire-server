@@ -16,9 +16,9 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.User.API.Search
-  ( routesPublic,
-    routesInternal,
+  ( routesInternal,
     search,
+    teamUserSearch,
   )
 where
 
@@ -35,7 +35,6 @@ import Brig.Types.Search as Search
 import qualified Brig.User.API.Handle as HandleAPI
 import Brig.User.Search.Index
 import qualified Brig.User.Search.SearchIndex as Q
-import Brig.User.Search.TeamUserSearch (RoleFilter (..), TeamUserSearchSortBy (..), TeamUserSearchSortOrder (..))
 import qualified Brig.User.Search.TeamUserSearch as Q
 import Control.Lens (view)
 import Data.Domain (Domain)
@@ -43,15 +42,10 @@ import Data.Handle (parseHandle)
 import Data.Id
 import Data.Predicate
 import Data.Range
-import qualified Data.Swagger.Build.Api as Doc
-import qualified Galley.Types.Teams.SearchVisibility as Team
 import Imports
-import Network.Wai (Response)
-import Network.Wai.Predicate hiding (setStatus)
 import Network.Wai.Routing
 import Network.Wai.Utilities ((!>>))
-import Network.Wai.Utilities.Response (empty, json)
-import Network.Wai.Utilities.Swagger (document)
+import Network.Wai.Utilities.Response (empty)
 import Polysemy
 import System.Logger (field, msg)
 import System.Logger.Class (val, (~~))
@@ -59,43 +53,9 @@ import qualified System.Logger.Class as Log
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import qualified Wire.API.Federation.API.Brig as S
 import qualified Wire.API.Team.Permission as Public
-import Wire.API.Team.SearchVisibility (TeamSearchVisibility)
-import Wire.API.User.Search (FederatedUserSearchPolicy (FullSearch))
+import Wire.API.Team.SearchVisibility (TeamSearchVisibility (..))
+import Wire.API.User.Search
 import qualified Wire.API.User.Search as Public
-
-routesPublic :: Routes Doc.ApiBuilder (Handler r) ()
-routesPublic = do
-  get "/teams/:tid/search" (continue teamUserSearchH) $
-    accept "application" "json"
-      .&. header "Z-User"
-      .&. capture "tid"
-      .&. opt (query "q")
-      .&. opt (query "frole")
-      .&. opt (query "sortby")
-      .&. opt (query "sortorder")
-      .&. def (unsafeRange 15) (query "size")
-
-  document "GET" "browse team" $ do
-    Doc.summary "Browse team for members (requires add-user permission)"
-    Doc.parameter Doc.Path "tid" Doc.bytes' $
-      Doc.description "ID of the team to be browsed"
-    Doc.parameter Doc.Query "q" Doc.string' $ do
-      Doc.description "Search expression"
-      Doc.optional
-    Doc.parameter Doc.Query "frole" Doc.string' $ do
-      Doc.description "Role filter, eg. `member,external-partner`.  Empty list means do not filter."
-      Doc.optional
-    Doc.parameter Doc.Query "sortby" Doc.string' $ do
-      Doc.description "Can be one of name, handle, email, saml_idp, managed_by, role, created_at."
-      Doc.optional
-    Doc.parameter Doc.Query "sortorder" Doc.string' $ do
-      Doc.description "Can be one of asc, desc."
-      Doc.optional
-    Doc.parameter Doc.Query "size" Doc.int32' $ do
-      Doc.description "Number of results to return (min: 1, max: 500, default: 15)"
-      Doc.optional
-    Doc.returns (Doc.ref $ Public.modelSearchResult Public.modelTeamContact)
-    Doc.response 200 "The list of hits." Doc.end
 
 routesInternal :: Routes a (Handler r) ()
 routesInternal = do
@@ -187,8 +147,8 @@ searchLocally searcherId searchTerm maybeMaxResults = do
       }
   where
     handleTeamVisibility :: TeamId -> TeamSearchVisibility -> Search.TeamSearchInfo
-    handleTeamVisibility _ Team.SearchVisibilityStandard = Search.AllUsers
-    handleTeamVisibility t Team.SearchVisibilityNoNameOutsideTeam = Search.TeamOnly t
+    handleTeamVisibility _ SearchVisibilityStandard = Search.AllUsers
+    handleTeamVisibility t SearchVisibilityNoNameOutsideTeam = Search.TeamOnly t
 
     mkTeamSearchInfo :: Maybe TeamId -> (Handler r) TeamSearchInfo
     mkTeamSearchInfo searcherTeamId = lift $ do
@@ -212,20 +172,6 @@ searchLocally searcherId searchTerm maybeMaxResults = do
           HandleAPI.contactFromProfile
             <$$> HandleAPI.getLocalHandleInfo lsearcherId handle
 
-teamUserSearchH ::
-  ( JSON
-      ::: UserId
-      ::: TeamId
-      ::: Maybe Text
-      ::: Maybe RoleFilter
-      ::: Maybe TeamUserSearchSortBy
-      ::: Maybe TeamUserSearchSortOrder
-      ::: Range 1 500 Int32
-  ) ->
-  (Handler r) Response
-teamUserSearchH (_ ::: uid ::: tid ::: mQuery ::: mRoleFilter ::: mSortBy ::: mSortOrder ::: size) = do
-  json <$> teamUserSearch uid tid mQuery mRoleFilter mSortBy mSortOrder size
-
 teamUserSearch ::
   UserId ->
   TeamId ->
@@ -233,8 +179,8 @@ teamUserSearch ::
   Maybe RoleFilter ->
   Maybe TeamUserSearchSortBy ->
   Maybe TeamUserSearchSortOrder ->
-  Range 1 500 Int32 ->
+  Maybe (Range 1 500 Int32) ->
   (Handler r) (Public.SearchResult Public.TeamContact)
 teamUserSearch uid tid mQuery mRoleFilter mSortBy mSortOrder size = do
   ensurePermissions uid tid [Public.AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks.  (also, this way we don't need to worry about revealing confidential user data to other team members.)
-  Q.teamUserSearch tid mQuery mRoleFilter mSortBy mSortOrder size
+  Q.teamUserSearch tid mQuery mRoleFilter mSortBy mSortOrder $ fromMaybe (unsafeRange 15) size

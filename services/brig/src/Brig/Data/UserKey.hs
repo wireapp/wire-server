@@ -17,8 +17,7 @@
 
 -- | Natural, addressable external identifiers of users.
 module Brig.Data.UserKey
-  ( UserKey,
-    userEmailKey,
+  ( userEmailKey,
     userPhoneKey,
     forEmailKey,
     forPhoneKey,
@@ -39,7 +38,7 @@ import Brig.Email
 import Brig.Phone
 import Brig.Sem.UserKeyStore
 import Brig.Sem.UserQuery (UserQuery)
-import Brig.Types
+import Brig.Types.Common
 import Cassandra
 import qualified Data.ByteString as B
 import Data.Id
@@ -47,6 +46,7 @@ import qualified Data.Multihash.Digest as MH
 import Imports
 import OpenSSL.EVP.Digest (Digest)
 import Polysemy
+import Wire.API.User (fromEmail)
 
 userEmailKey :: Email -> UserKey
 userEmailKey = UserEmailKey . mkEmailKey

@@ -21,6 +21,7 @@ module Spar.Sem.ScimUserTimesStore
   ( ScimUserTimesStore (..),
     write,
     read,
+    readMulti,
     delete,
   )
 where
@@ -35,6 +36,7 @@ import Web.Scim.Schema.Meta (WithMeta)
 data ScimUserTimesStore m a where
   Write :: WithMeta (WithId UserId t) -> ScimUserTimesStore m ()
   Read :: UserId -> ScimUserTimesStore m (Maybe (UTCTimeMillis, UTCTimeMillis))
+  ReadMulti :: [UserId] -> ScimUserTimesStore m [(UserId, UTCTimeMillis, UTCTimeMillis)]
   Delete :: UserId -> ScimUserTimesStore m ()
 
 makeSem ''ScimUserTimesStore

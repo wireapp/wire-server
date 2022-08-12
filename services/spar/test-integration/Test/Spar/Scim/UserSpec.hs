@@ -67,6 +67,7 @@ import qualified Spar.Sem.BrigAccess as BrigAccess
 import qualified Spar.Sem.SAMLUserStore as SAMLUserStore
 import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import qualified Spar.Sem.ScimUserTimesStore as ScimUserTimesStore
+import Test.Tasty.HUnit ((@?=))
 import qualified Text.XML.DSig as SAML
 import Util
 import Util.Invitation
@@ -81,7 +82,7 @@ import qualified Wire.API.Team.Export as CsvExport
 import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.Invitation (Invitation (..))
 import Wire.API.Team.Role (Role (RoleMember))
-import Wire.API.User.Identity (emailToSAMLNameID)
+import Wire.API.User hiding (scimExternalId)
 import Wire.API.User.IdentityProvider (IdP)
 import qualified Wire.API.User.IdentityProvider as User
 import Wire.API.User.RichInfo
@@ -117,7 +118,7 @@ specImportToScimFromSAML =
   describe "Create with SAML autoprovisioning; then re-provision with SCIM" $ do
     forM_ ((,,) <$> [minBound ..] <*> [minBound ..] <*> [minBound ..]) $ \(x, y, z) -> check x y z
   where
-    check :: Bool -> Bool -> Feature.TeamFeatureStatusValue -> SpecWith TestEnv
+    check :: Bool -> Bool -> Feature.FeatureStatus -> SpecWith TestEnv
     check sameHandle sameDisplayName valemail = it (show (sameHandle, sameDisplayName, valemail)) $ do
       (_ownerid, teamid, idp, (_, privCreds)) <- registerTestIdPWithMeta
       setSamlEmailValidation teamid valemail
@@ -148,10 +149,10 @@ specImportToScimFromSAML =
 
       -- activate email
       case valemail of
-        Feature.TeamFeatureEnabled -> do
+        Feature.FeatureStatusEnabled -> do
           asks (view teBrig) >>= \brig -> call (activateEmail brig email)
           assertBrigCassandra uid uref usr (valemail, True) ManagedByWire
-        Feature.TeamFeatureDisabled -> do
+        Feature.FeatureStatusDisabled -> do
           pure ()
 
       -- now import to scim
@@ -340,7 +341,7 @@ assertBrigCassandra ::
   UserId ->
   SAML.UserRef ->
   Scim.User.User SparTag ->
-  (Feature.TeamFeatureStatusValue, Bool) ->
+  (Feature.FeatureStatus, Bool) ->
   ManagedBy ->
   TestSpar ()
 assertBrigCassandra uid uref usr (valemail, emailValidated) managedBy = do
@@ -352,7 +353,7 @@ assertBrigCassandra uid uref usr (valemail, emailValidated) managedBy = do
         name = Name . fromMaybe (error "name") $ Scim.User.displayName usr
 
         email = case (valemail, emailValidated) of
-          (Feature.TeamFeatureEnabled, True) ->
+          (Feature.FeatureStatusEnabled, True) ->
             Just . fromJust . parseEmail . fromJust . Scim.User.externalId $ usr
           _ ->
             Nothing
@@ -677,8 +678,8 @@ testCreateUserWithSamlIdP :: TestSpar ()
 testCreateUserWithSamlIdP = do
   env <- ask
   -- Create a user via SCIM
-  user <- randomScimUser
   (tok, (owner, tid, _idp)) <- registerIdPAndScimToken
+  user <- randomScimUser
   scimStoredUser <- createUser tok user
   let userid = scimUserId scimStoredUser
   -- Check that this user is present in Brig and that Brig's view of the user
@@ -2010,8 +2011,8 @@ specEmailValidation = do
         setup enabled = do
           (tok, (_ownerid, teamid, idp)) <- registerIdPAndScimToken
           if enabled
-            then setSamlEmailValidation teamid Feature.TeamFeatureEnabled
-            else setSamlEmailValidation teamid Feature.TeamFeatureDisabled
+            then setSamlEmailValidation teamid Feature.FeatureStatusEnabled
+            else setSamlEmailValidation teamid Feature.FeatureStatusDisabled
           (user, email) <- randomScimUserWithEmail
           scimStoredUser <- createUser tok user
           uref :: SAML.UserRef <-
@@ -2066,6 +2067,8 @@ testDeletedUsersFreeExternalIdNoIdp = do
       (runSpar $ ScimExternalIdStore.lookup tid email)
       (== Nothing)
 
+-- | CSV download of team members is mainly tested here: 'API.Teams.testListTeamMembersCsv'.
+-- the additional CSV download test here is specifically focused on SCIM users
 specSCIMManaged :: SpecWith TestEnv
 specSCIMManaged = do
   describe "SCIM-managed users" $ do
@@ -2074,7 +2077,7 @@ specSCIMManaged = do
       let brig = env ^. teBrig
 
       (tok, (_ownerid, teamid, idp, (_, privCreds))) <- registerIdPAndScimTokenWithMeta
-      setSamlEmailValidation teamid Feature.TeamFeatureEnabled
+      setSamlEmailValidation teamid Feature.FeatureStatusEnabled
       (user, oldEmail) <- randomScimUserWithEmail
       storedUser <- createUser tok user
       let uid :: UserId = Scim.id . Scim.thing $ storedUser
@@ -2112,6 +2115,27 @@ specSCIMManaged = do
           updateProfileBrig brig uid uupd !!! do
             (fmap Wai.label . responseJsonEither @Wai.Error) === const (Right "managed-by-scim")
             statusCode === const 403
+    it "created_on should be filled in CSV export" $ do
+      g <- view teGalley
+      user <- randomScimUser
+      (tok, (owner, tid, _idp)) <- registerIdPAndScimToken
+      scimStoredUser <- createUser tok user
+      let _userid = scimUserId scimStoredUser
+      putStrLn $ "userid: " <> show _userid
+      resp <-
+        call $
+          get (g . accept "text/csv" . paths ["teams", toByteString' tid, "members/csv"] . zUser owner) <!! do
+            const 200 === statusCode
+            const (Just "chunked") === lookup "Transfer-Encoding" . responseHeaders
+      let rbody = fromMaybe (error "no body") . responseBody $ resp
+
+      liftIO $ do
+        let csvtyped = decodeCSV @CsvExport.TeamExportUser rbody
+        length csvtyped @?= 2
+
+        let [member] = filter ((== ManagedByScim) . CsvExport.tExportManagedBy) csvtyped
+        CsvExport.tExportManagedBy member @?= ManagedByScim
+        CsvExport.tExportCreatedOn member `shouldSatisfy` isJust
   where
     randomAlphaNum :: MonadIO m => m Text
     randomAlphaNum = liftIO $ do

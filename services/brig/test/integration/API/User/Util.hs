@@ -27,21 +27,19 @@ import Brig.Sem.PasswordResetSupply
 import Brig.Sem.PasswordResetSupply.IO
 import qualified Brig.Sem.VerificationCodeStore as Code
 import Brig.Sem.VerificationCodeStore.Cassandra
-import Brig.Types
-import Brig.Types.Code hiding (Value)
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
-import Brig.Types.User.Auth hiding (user)
 import qualified Brig.ZAuth
 import qualified Cassandra as DB
 import qualified Codec.MIME.Type as MIME
 import Control.Lens (preview, (^?))
 import Control.Monad.Catch (MonadCatch)
-import Data.Aeson hiding (Key)
+import Data.Aeson hiding (Key, json)
 import Data.Aeson.Lens
 import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LB
+import Data.Code hiding (Value)
 import Data.Domain
 import Data.Handle (Handle (Handle))
 import Data.Id hiding (client)
@@ -53,20 +51,30 @@ import qualified Data.Text.Ascii as Ascii
 import qualified Data.Vector as Vec
 import Federation.Util (withTempMockFederator)
 import Federator.MockServer (FederatedRequest (..))
+import GHC.TypeLits (KnownSymbol)
 import Imports
 import Polysemy
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import Util
 import Wire.API.Asset
+import Wire.API.Connection
 import qualified Wire.API.Event.Conversation as Conv
 import qualified Wire.API.Federation.API.Brig as F
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification (Notification (..))
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.MultiTablePaging (LocalOrRemoteTable, MultiTablePagingState)
+import Wire.API.Team.Feature (featureNameBS)
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.User
 import qualified Wire.API.User as Public
+import Wire.API.User.Activation
+import Wire.API.User.Auth
+import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
+import Wire.API.User.Handle
+import Wire.API.User.Password
 
 newtype ConnectionLimit = ConnectionLimit Int64
 
@@ -230,6 +238,20 @@ getClient brig u c =
     brig
       . paths ["clients", toByteString' c]
       . zUser u
+
+putClient ::
+  (MonadIO m, MonadHttp m, HasCallStack) =>
+  Brig ->
+  UserId ->
+  ClientId ->
+  MLSPublicKeys ->
+  m ResponseLBS
+putClient brig uid c keys =
+  put $
+    brig
+      . paths ["clients", toByteString' c]
+      . zUser uid
+      . json (UpdateClient [] Nothing Nothing Nothing keys)
 
 getClientCapabilities :: Brig -> UserId -> ClientId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getClientCapabilities brig u c =
@@ -497,29 +519,37 @@ matchConvLeaveNotification conv remover removeds n = do
     sorted x = x
 
 generateVerificationCode :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> Public.SendVerificationCode -> m ()
-generateVerificationCode brig req = do
-  let js = RequestBodyLBS $ encode req
-  post (brig . paths ["verification-code", "send"] . contentJson . body js) !!! const 200 === statusCode
+generateVerificationCode = generateVerificationCodeExpect 200
 
-setTeamSndFactorPasswordChallenge :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Galley -> TeamId -> Public.TeamFeatureStatusValue -> m ()
+generateVerificationCodeExpect :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Int -> Brig -> Public.SendVerificationCode -> m ()
+generateVerificationCodeExpect expectedStatus brig req = do
+  generateVerificationCode' brig req !!! const expectedStatus === statusCode
+
+generateVerificationCode' :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Brig -> Public.SendVerificationCode -> m ResponseLBS
+generateVerificationCode' brig req = do
+  let js = RequestBodyLBS $ encode req
+  post (brig . paths ["verification-code", "send"] . contentJson . body js)
+
+setTeamSndFactorPasswordChallenge :: (MonadCatch m, MonadIO m, MonadHttp m, HasCallStack) => Galley -> TeamId -> Public.FeatureStatus -> m ()
 setTeamSndFactorPasswordChallenge galley tid status = do
-  let js = RequestBodyLBS $ encode $ Public.TeamFeatureStatusNoConfig status
-  put (galley . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge] . contentJson . body js) !!! const 200 === statusCode
+  let js = RequestBodyLBS $ encode $ Public.WithStatusNoLock status Public.SndFactorPasswordChallengeConfig
+  put (galley . paths ["i", "teams", toByteString' tid, "features", featureNameBS @Public.SndFactorPasswordChallengeConfig] . contentJson . body js) !!! const 200 === statusCode
 
 setTeamFeatureLockStatus ::
-  forall (a :: Public.TeamFeatureName) m.
+  forall (cfg :: *) m.
   ( MonadCatch m,
     MonadIO m,
     MonadHttp m,
     HasCallStack,
-    Public.KnownTeamFeatureName a
+    Public.IsFeatureConfig cfg,
+    KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   Galley ->
   TeamId ->
-  Public.LockStatusValue ->
+  Public.LockStatus ->
   m ()
 setTeamFeatureLockStatus galley tid status =
-  put (galley . paths ["i", "teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a), toByteString' status]) !!! const 200 === statusCode
+  put (galley . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg, toByteString' status]) !!! const 200 === statusCode
 
 lookupCode :: MonadIO m => DB.ClientState -> Key -> Code.Scope -> m (Maybe Code.Code)
 lookupCode db k =

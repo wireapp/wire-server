@@ -53,7 +53,7 @@ import qualified Galley.Effects.TeamStore as E
 import Galley.Intra.Push
 import Galley.Options
 import Galley.Types.Conversations.Members
-import Galley.Types.Teams (ListType (..), Perm (..), TeamBinding (Binding), notTeamMember)
+import Galley.Types.Teams (notTeamMember)
 import Galley.Types.ToUserRole
 import Galley.Types.UserList
 import Galley.Validation
@@ -70,7 +70,10 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.Error
 import Wire.API.Routes.Public.Galley (ConversationResponse)
 import Wire.API.Routes.Public.Util
+import Wire.API.Team
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
+import Wire.API.Team.Member
+import Wire.API.Team.Permission hiding (self)
 
 ----------------------------------------------------------------------------
 -- Group conversations
@@ -78,8 +81,9 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotIm
 -- | The public-facing endpoint for creating group conversations.
 createGroupConversation ::
   Members
-    '[ ConversationStore,
-       BrigAccess,
+    '[ BrigAccess,
+       ConversationStore,
+       MemberStore,
        ErrorS 'ConvAccessDenied,
        Error InternalError,
        Error InvalidInput,
@@ -108,6 +112,15 @@ createGroupConversation lusr conn newConv = do
   ensureNoLegalholdConflicts allUsers
   lcnv <- traverse (const E.createConversationId) lusr
   conv <- E.createConversation lcnv nc
+
+  -- set creator client for MLS conversations
+  case (newConvProtocol newConv, newConvCreatorClient newConv) of
+    (ProtocolProteusTag, _) -> pure ()
+    (ProtocolMLSTag, Just c) ->
+      E.addMLSClients lcnv (qUntagged lusr) (Set.singleton c)
+    (ProtocolMLSTag, Nothing) ->
+      throw (InvalidPayload "Missing creator_client field when creating an MLS conversation")
+
   now <- input
   -- NOTE: We only send (conversation) events to members of the conversation
   notifyCreatedConversation (Just now) lusr (Just conn) conv

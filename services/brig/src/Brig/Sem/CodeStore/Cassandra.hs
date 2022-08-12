@@ -23,12 +23,12 @@ where
 
 import Brig.Data.Instances ()
 import Brig.Sem.CodeStore
-import Brig.Types
 import Cassandra
 import Data.Id
 import Data.Time.Clock
 import Imports
 import Polysemy
+import Wire.API.User.Password
 
 codeStoreToCassandra ::
   forall m r a.

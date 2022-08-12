@@ -22,60 +22,12 @@ module Brig.Types.User
     RichInfoUpdate (..),
     PasswordResetPair,
     HavePendingInvitations (..),
-
-    -- * re-exports
-    Pict (..),
-    noPict,
-    UserHandleInfo (..),
-    CheckHandles (..),
-    SelfProfile (..),
-    connectedProfile,
-    publicProfile,
-    User (..),
-    userEmail,
-    userPhone,
-    userSSOId,
-    UserProfile (..),
-    NewUser (..),
-    ExpiresIn,
-    NewUserOrigin (..),
-    newUserInvitationCode,
-    newUserTeam,
-    newUserEmail,
-    newUserPhone,
-    newUserSSOId,
-    isNewUserEphemeral,
-    isNewUserTeamMember,
-    InvitationCode (..),
-    BindingNewTeamUser (..),
-    NewTeamUser (..),
-    NewUserPublic (..),
-    UserUpdate (..),
-    LocaleUpdate (..),
-    EmailUpdate (..),
-    PhoneUpdate (..),
-    HandleUpdate (..),
-    DeleteUser (..),
-    mkDeleteUser,
-    VerifyDeleteUser (..),
-    mkVerifyDeleteUser,
-    DeletionCodeTimeout (..),
-    NewPasswordReset (..),
-    PasswordResetKey (..),
-    PasswordResetCode (..),
-    PasswordResetIdentity (..),
-    CompletePasswordReset (..),
-    PasswordChange (..),
-    PasswordReset (..),
-    module C,
   )
 where
 
-import Brig.Types.Common as C
 import Data.Aeson
 import Imports
 import Wire.API.User
-import Wire.API.User.Handle
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
 

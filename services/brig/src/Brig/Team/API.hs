@@ -27,9 +27,10 @@ import Brig.API.User (createUserInviteViaScim, fetchUserIdentity)
 import qualified Brig.API.User as API
 import Brig.API.Util (logEmail, logInvitationCode)
 import Brig.App
-import qualified Brig.Data.Blacklist as Blacklist
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
+import Brig.Effects.BlacklistStore (BlacklistStore)
+import qualified Brig.Effects.BlacklistStore as BlacklistStore
 import qualified Brig.Email as Email
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
@@ -42,8 +43,6 @@ import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
 import Brig.Types.Intra (AccountStatus (..), NewUserScimInvitation (..), UserAccount (..))
 import Brig.Types.Team (TeamSize)
-import Brig.Types.Team.Invitation
-import Brig.Types.User (Email, InvitationCode, emailIdentity)
 import qualified Brig.User.Search.TeamSize as TeamSize
 import Control.Lens (view, (^.))
 import Control.Monad.Trans.Except (mapExceptT)
@@ -74,14 +73,22 @@ import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
+import Wire.API.Team
+import Wire.API.Team.Invitation
 import qualified Wire.API.Team.Invitation as Public
+import Wire.API.Team.Member (teamMembers)
+import qualified Wire.API.Team.Member as Teams
+import Wire.API.Team.Permission (Perm (AddTeamMember))
+import Wire.API.Team.Role
 import qualified Wire.API.Team.Role as Public
 import qualified Wire.API.Team.Size as Public
+import Wire.API.User hiding (fromEmail)
 import qualified Wire.API.User as Public
 
 routesPublic ::
   Members
-    '[ Input (Local ()),
+    '[ BlacklistStore,
+       Input (Local ()),
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
@@ -200,7 +207,8 @@ routesPublic = do
 
 routesInternal ::
   Members
-    '[ P.Error Twilio.ErrorResponse,
+    '[ BlacklistStore,
+       P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
        UserQuery
@@ -238,7 +246,7 @@ teamSizePublicH (_ ::: uid ::: tid) = json <$> teamSizePublic uid tid
 
 teamSizePublic :: UserId -> TeamId -> (Handler r) TeamSize
 teamSizePublic uid tid = do
-  ensurePermissions uid tid [Team.AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks
+  ensurePermissions uid tid [AddTeamMember] -- limit this to team admins to reduce risk of involuntary DOS attacks
   teamSize tid
 
 teamSizeH :: JSON ::: TeamId -> (Handler r) Response
@@ -264,7 +272,8 @@ instance ToJSON FoundInvitationCode where
 
 createInvitationPublicH ::
   Members
-    '[ Input (Local ()),
+    '[ BlacklistStore,
+       Input (Local ()),
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
@@ -290,7 +299,8 @@ data CreateInvitationInviter = CreateInvitationInviter
 
 createInvitationPublic ::
   Members
-    '[ Input (Local ()),
+    '[ BlacklistStore,
+       Input (Local ()),
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
@@ -302,7 +312,7 @@ createInvitationPublic ::
   Public.InvitationRequest ->
   Handler r Public.Invitation
 createInvitationPublic uid tid body = do
-  let inviteeRole = fromMaybe Team.defaultRole . irRole $ body
+  let inviteeRole = fromMaybe defaultRole . irRole $ body
   inviter <- do
     let inviteePerms = Team.rolePermissions inviteeRole
     idt <- maybe (throwStd (errorToWai @'E.NoIdentity)) pure =<< lift (fetchUserIdentity uid)
@@ -322,7 +332,8 @@ createInvitationPublic uid tid body = do
 
 createInvitationViaScimH ::
   Members
-    '[ P.Error Twilio.ErrorResponse,
+    '[ BlacklistStore,
+       P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
        UserQuery
@@ -336,7 +347,8 @@ createInvitationViaScimH (_ ::: req) = do
 
 createInvitationViaScim ::
   Members
-    '[ P.Error Twilio.ErrorResponse,
+    '[ BlacklistStore,
+       P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
        UserQuery
@@ -346,7 +358,7 @@ createInvitationViaScim ::
   Handler r UserAccount
 createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
   env <- ask
-  let inviteeRole = Team.defaultRole
+  let inviteeRole = defaultRole
       fromEmail = env ^. emailSender
       invreq =
         InvitationRequest
@@ -383,7 +395,8 @@ logInvitationRequest context action =
 
 createInvitation' ::
   Members
-    '[ P.Error Twilio.ErrorResponse,
+    '[ BlacklistStore,
+       P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore
      ]
@@ -401,7 +414,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
   -- Validate e-mail
   inviteeEmail <- either (const $ throwStd (errorToWai @'E.InvalidEmail)) pure (Email.validateEmail (irInviteeEmail body))
   let uke = userEmailKey inviteeEmail
-  blacklistedEm <- lift $ wrapClient $ Blacklist.exists uke
+  blacklistedEm <- lift $ liftSem $ BlacklistStore.exists uke
   when blacklistedEm $
     throwStd blacklistedEmail
   emailTaken <- lift $ isJust <$> liftSem (Data.getKey uke)
@@ -415,7 +428,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
     validatedPhone <-
       maybe (throwStd (errorToWai @'E.InvalidPhone)) pure =<< lift (liftSem $ Phone.validatePhone c m p)
     let ukp = userPhoneKey validatedPhone
-    blacklistedPh <- lift $ wrapClient $ Blacklist.exists ukp
+    blacklistedPh <- lift $ liftSem $ BlacklistStore.exists ukp
     when blacklistedPh $
       throwStd (errorToWai @'E.BlacklistedPhone)
     phoneTaken <- lift $ isJust <$> liftSem (Data.getKey ukp)
@@ -454,7 +467,7 @@ deleteInvitationH (_ ::: uid ::: tid ::: iid) = do
 
 deleteInvitation :: UserId -> TeamId -> InvitationId -> (Handler r) ()
 deleteInvitation uid tid iid = do
-  ensurePermissions uid tid [Team.AddTeamMember]
+  ensurePermissions uid tid [AddTeamMember]
   lift $ wrapClient $ DB.deleteInvitation tid iid
 
 listInvitationsH :: JSON ::: UserId ::: TeamId ::: Maybe InvitationId ::: Range 1 500 Int32 -> (Handler r) Response
@@ -463,7 +476,7 @@ listInvitationsH (_ ::: uid ::: tid ::: start ::: size) = do
 
 listInvitations :: UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> (Handler r) Public.InvitationList
 listInvitations uid tid start size = do
-  ensurePermissions uid tid [Team.AddTeamMember]
+  ensurePermissions uid tid [AddTeamMember]
   rs <- lift $ wrapClient $ DB.lookupInvitations tid start size
   pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
@@ -476,7 +489,7 @@ getInvitationH (_ ::: uid ::: tid ::: iid) = do
 
 getInvitation :: UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
 getInvitation uid tid iid = do
-  ensurePermissions uid tid [Team.AddTeamMember]
+  ensurePermissions uid tid [AddTeamMember]
   lift $ wrapClient $ DB.lookupInvitation tid iid
 
 getInvitationByCodeH :: JSON ::: Public.InvitationCode -> (Handler r) Response
@@ -533,9 +546,9 @@ unsuspendTeam tid = do
 changeTeamAccountStatuses :: TeamId -> AccountStatus -> (Handler r) ()
 changeTeamAccountStatuses tid s = do
   team <- Team.tdTeam <$> lift (wrapHttp $ Intra.getTeam tid)
-  unless (team ^. Team.teamBinding == Team.Binding) $
+  unless (team ^. teamBinding == Binding) $
     throwStd noBindingTeam
-  uids <- toList1 =<< lift (fmap (view Team.userId) . view Team.teamMembers <$> wrapHttp (Intra.getTeamMembers tid))
+  uids <- toList1 =<< lift (fmap (view Teams.userId) . view teamMembers <$> wrapHttp (Intra.getTeamMembers tid))
   wrapHttpClientE (API.changeAccountStatus uids s) !>> accountStatusError
   where
     toList1 (x : xs) = pure $ List1.list1 x xs

@@ -87,6 +87,9 @@ backendTwo:
   cargohold:
     host: 127.0.0.1
     port: 9084
+  cannon:
+    host: 127.0.0.1
+    port: 9086
 
 redis2:
   host: 127.0.0.1

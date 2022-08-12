@@ -30,6 +30,7 @@ module Galley.Effects.MemberStore
     -- * Read members
     getLocalMember,
     getLocalMembers,
+    getRemoteMember,
     getRemoteMembers,
     selectRemoteMembers,
 
@@ -47,13 +48,13 @@ where
 import Data.Id
 import Data.Qualified
 import Galley.Data.Services
-import Galley.Types.Bot
 import Galley.Types.Conversations.Members
 import Galley.Types.ToUserRole
 import Galley.Types.UserList
 import Imports
 import Polysemy
 import Wire.API.Conversation.Member hiding (Member)
+import Wire.API.Provider.Service
 
 data MemberStore m a where
   CreateMembers :: ToUserRole u => ConvId -> UserList u -> MemberStore m ([LocalMember], [RemoteMember])
@@ -61,13 +62,14 @@ data MemberStore m a where
   CreateBotMember :: ServiceRef -> BotId -> ConvId -> MemberStore m BotMember
   GetLocalMember :: ConvId -> UserId -> MemberStore m (Maybe LocalMember)
   GetLocalMembers :: ConvId -> MemberStore m [LocalMember]
+  GetRemoteMember :: ConvId -> Remote UserId -> MemberStore m (Maybe RemoteMember)
   GetRemoteMembers :: ConvId -> MemberStore m [RemoteMember]
   SelectRemoteMembers :: [UserId] -> Remote ConvId -> MemberStore m ([UserId], Bool)
   SetSelfMember :: Qualified ConvId -> Local UserId -> MemberUpdate -> MemberStore m ()
   SetOtherMember :: Local ConvId -> Qualified UserId -> OtherMemberUpdate -> MemberStore m ()
   DeleteMembers :: ConvId -> UserList UserId -> MemberStore m ()
   DeleteMembersInRemoteConversation :: Remote ConvId -> [UserId] -> MemberStore m ()
-  AddMLSClients :: ConvId -> UserId -> Set ClientId -> MemberStore m ()
+  AddMLSClients :: Local ConvId -> Qualified UserId -> Set ClientId -> MemberStore m ()
 
 makeSem ''MemberStore
 

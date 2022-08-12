@@ -1,0 +1,19 @@
+{{- if .Values.metrics.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: nginz
+  labels:
+    app: nginz
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  endpoints:
+    - port: http-metrics
+      path: /vts/status/format/prometheus
+  selector:
+    matchLabels:
+      app: nginz
+      release: {{ .Release.Name }}
+{{- end }}

@@ -45,7 +45,6 @@ import Data.Time.Clock
 import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
 import Federator.MockServer (FederatedRequest (..))
-import Galley.Types
 import Galley.Types.Conversations.Intra
 import Imports
 import Test.QuickCheck (arbitrary, generate)
@@ -63,7 +62,7 @@ import Wire.API.Federation.API.Galley
 import qualified Wire.API.Federation.API.Galley as FedGalley
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification
-import Wire.API.Message (ClientMismatchStrategy (..), MessageSendingStatus (mssDeletedClients, mssFailedToSend, mssRedundantClients), mkQualifiedOtrPayload, mssMissingClients)
+import Wire.API.Message
 import Wire.API.User.Client (PubClient (..))
 import Wire.API.User.Profile
 
@@ -685,9 +684,8 @@ leaveConversationSuccess = do
           void . WS.assertMatch (3 # Second) wsBob $
             wsAssertMembersLeave qconvId qChad [qChad]
 
-  let [remote1GalleyFederatedRequest] = fedRequestsForDomain remoteDomain1 Galley federatedRequests
-      [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 Galley federatedRequests
-  assertLeaveUpdate remote1GalleyFederatedRequest qconvId qChad [qUnqualified qChad, qUnqualified qDee] qChad
+  liftIO $ fedRequestsForDomain remoteDomain1 Galley federatedRequests @?= []
+  let [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 Galley federatedRequests
   assertLeaveUpdate remote2GalleyFederatedRequest qconvId qChad [qUnqualified qEve] qChad
 
 leaveConversationNonExistent :: TestM ()
@@ -1026,17 +1024,10 @@ onUserDeleted = do
       -- not part of any other conversations with bob.
       WS.assertNoEvent (1 # Second) [wsAlice, wsAlex]
 
-      -- There should be only 2 RPC calls made only for groupConvId: 1 for bob's
-      -- domain and 1 for eve's domain
-      assertEqual ("Expected 2 RPC calls, got: " <> show rpcCalls) 2 (length rpcCalls)
-
-      -- Assertions about RPC to bDomain
-      bobDomainRPC <- assertOne $ filter (\c -> frTargetDomain c == bDomain) rpcCalls
-      bobDomainRPCReq <- assertRight $ parseFedRequest bobDomainRPC
-      FedGalley.cuOrigUserId bobDomainRPCReq @?= qUntagged bob
-      FedGalley.cuConvId bobDomainRPCReq @?= qUnqualified groupConvId
-      sort (FedGalley.cuAlreadyPresentUsers bobDomainRPCReq) @?= sort [tUnqualified bob, qUnqualified bart]
-      FedGalley.cuAction bobDomainRPCReq @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure $ qUntagged bob)
+      -- There should be only 1 RPC call made to eve's domain for groupConvId.
+      -- Bob's domain does not get a notification, because it's the one making
+      -- the request.
+      assertEqual ("Expected 1 RPC calls, got: " <> show rpcCalls) 1 (length rpcCalls)
 
       -- Assertions about RPC to 'cDomain'
       cDomainRPC <- assertOne $ filter (\c -> frTargetDomain c == cDomain) rpcCalls
@@ -1191,9 +1182,6 @@ sendMLSWelcomeKeyPackageNotFound = do
     liftIO $ do
       -- check that no event is received
       WS.assertNoEvent (1 # Second) [wsB]
-
--- success is reported, even though no client receives the welcome
--- message due to missing key package references
 
 getConvAction :: Sing tag -> SomeConversationAction -> Maybe (ConversationAction tag)
 getConvAction tquery (SomeConversationAction tag action) =

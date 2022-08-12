@@ -95,7 +95,7 @@ rpc' sys r f = do
   res <- try $ httpLbs rq id
   case res of
     Left x -> throwM $ RPCException sys rq x
-    Right x -> return x
+    Right x -> pure x
 
 rpcExceptionMsg :: RPCException -> Msg -> Msg
 rpcExceptionMsg (RPCException sys req ex) =
@@ -120,6 +120,6 @@ parseResponse ::
   (LText -> e) ->
   Response (Maybe LByteString) ->
   m a
-parseResponse f r = either throwM return $ do
+parseResponse f r = either throwM pure $ do
   b <- note (f "no response body") (responseBody r)
   fmapL (f . pack) (eitherDecode' b)

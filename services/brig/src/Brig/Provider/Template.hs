@@ -33,11 +33,11 @@ where
 
 import Brig.Options
 import Brig.Template
-import Brig.Types
 import Data.ByteString.Conversion (fromByteString)
 import Data.Misc (HttpsUrl)
 import Data.Text.Encoding (encodeUtf8)
 import Imports
+import Wire.API.User.Identity
 
 data ProviderTemplates = ProviderTemplates
   { activationEmail :: !ActivationEmailTemplate,

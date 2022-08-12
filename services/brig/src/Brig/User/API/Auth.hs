@@ -27,6 +27,7 @@ import Brig.API.Types
 import qualified Brig.API.User as User
 import Brig.App
 -- import Brig.Options (setDefaultUserLocale)
+import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Phone
 import Brig.Sem.ActivationKeyStore
 import Brig.Sem.ActivationSupply
@@ -85,6 +86,7 @@ routesPublic ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       BlacklistStore,
        BudgetStore,
        Error Twilio.ErrorResponse,
        GalleyAccess,
@@ -417,6 +419,7 @@ changeSelfEmailH ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       BlacklistStore,
        UserKeyStore,
        UserQuery
      ]

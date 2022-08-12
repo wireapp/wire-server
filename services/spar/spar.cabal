@@ -51,7 +51,6 @@ library
       Spar.Sem.IdPConfigStore
       Spar.Sem.IdPConfigStore.Cassandra
       Spar.Sem.IdPConfigStore.Mem
-      Spar.Sem.IdPConfigStore.Spec
       Spar.Sem.IdPRawMetadataStore
       Spar.Sem.IdPRawMetadataStore.Cassandra
       Spar.Sem.IdPRawMetadataStore.Mem
@@ -167,7 +166,7 @@ library
     , polysemy-wire-zoo
     , raw-strings-qq
     , retry
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , servant
     , servant-multipart
     , servant-server
@@ -282,7 +281,7 @@ executable spar
     , polysemy-wire-zoo
     , raw-strings-qq
     , retry
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , servant
     , servant-multipart
     , servant-server
@@ -419,7 +418,7 @@ executable spar-integration
     , random
     , raw-strings-qq
     , retry
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , servant
     , servant-multipart
     , servant-server
@@ -547,7 +546,7 @@ executable spar-migrate-data
     , polysemy-wire-zoo
     , raw-strings-qq
     , retry
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , servant
     , servant-multipart
     , servant-server
@@ -584,6 +583,7 @@ executable spar-schema
       V13
       V14
       V15
+      V16
       V2
       V3
       V4
@@ -679,7 +679,7 @@ executable spar-schema
     , polysemy-wire-zoo
     , raw-strings-qq
     , retry
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , servant
     , servant-multipart
     , servant-server
@@ -716,7 +716,6 @@ test-suite spec
       Test.Spar.Roundtrip.ByteString
       Test.Spar.ScimSpec
       Test.Spar.Sem.DefaultSsoCodeSpec
-      Test.Spar.Sem.IdPConfigStoreSpec
       Test.Spar.Sem.IdPRawMetadataStoreSpec
       Test.Spar.Sem.NowSpec
       Test.Spar.Sem.ScimExternalIdStoreSpec
@@ -811,7 +810,7 @@ test-suite spec
     , polysemy-wire-zoo
     , raw-strings-qq
     , retry
-    , saml2-web-sso >=0.18
+    , saml2-web-sso >=0.19
     , servant
     , servant-multipart
     , servant-server

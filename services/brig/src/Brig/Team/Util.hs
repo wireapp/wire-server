@@ -26,6 +26,8 @@ import Data.Id
 import qualified Data.Set as Set
 import Galley.Types.Teams
 import Imports
+import Wire.API.Team.Member
+import Wire.API.Team.Permission
 
 ensurePermissions :: UserId -> TeamId -> [Perm] -> ExceptT Error (AppT r) ()
 ensurePermissions u t perms = do

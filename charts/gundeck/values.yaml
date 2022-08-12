@@ -5,6 +5,9 @@ image:
 service:
   externalPort: 8080
   internalPort: 8080
+metrics:
+  serviceMonitor:
+    enable: false
 resources:
   requests:
     memory: "256Mi"
@@ -14,6 +17,8 @@ resources:
     cpu: "500m"
 config:
   logLevel: Info
+  logFormat: StructuredJSON
+  logNetStrings: false
   cassandra:
     host: aws-cassandra
   redis:

@@ -24,6 +24,6 @@ import Polysemy
 import Wire.API.Team.Feature
 
 data GalleyAccess m a where
-  GetTeamSndFactorPasswordChallenge :: TeamId -> GalleyAccess m TeamFeatureStatusValue
+  GetTeamSndFactorPasswordChallenge :: TeamId -> GalleyAccess m FeatureStatus
 
 makeSem ''GalleyAccess

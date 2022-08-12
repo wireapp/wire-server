@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 69b89f4d76894f5121e8fbff700727500dc0f48747dda5b75f74d7ce16ad4f84
+-- hash: c58131b47e82c5c350d69739a326a16c5d5cef209995eddd9dd96c62128c28da
 
 name:           billing-team-member-backfill
 version:        1.0.0
@@ -69,11 +69,11 @@ executable billing-team-member-backfill
     , cassandra-util
     , conduit
     , containers
-    , galley-types
     , imports
     , lens
     , optparse-applicative
     , text
     , tinylog
     , types-common
+    , wire-api
   default-language: Haskell2010

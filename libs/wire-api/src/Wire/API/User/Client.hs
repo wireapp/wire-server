@@ -44,6 +44,7 @@ module Wire.API.User.Client
     PubClient (..),
     ClientType (..),
     ClientClass (..),
+    MLSPublicKeys,
 
     -- * New/Update/Remove Client
     NewClient (..),
@@ -171,7 +172,7 @@ instance Cql.Cql ClientCapability where
   toCql ClientSupportsLegalholdImplicitConsent = Cql.CqlInt 1
 
   fromCql (Cql.CqlInt i) = case i of
-    1 -> return ClientSupportsLegalholdImplicitConsent
+    1 -> pure ClientSupportsLegalholdImplicitConsent
     n -> Left $ "Unexpected ClientCapability value: " ++ show n
   fromCql _ = Left "ClientCapability value: int expected"
 

@@ -5,10 +5,9 @@ metadata:
 data:
   {{- with .Values.config }}
   galley.yaml: |
-    logNetStrings: True # log using netstrings encoding:
-                        # http://cr.yp.to/proto/netstrings.txt
-    logLevel: {{ .logLevel }}
     logFormat: {{ .logFormat }}
+    logLevel: {{ .logLevel }}
+    logNetStrings: {{ .logNetStrings }}
 
     galley:
       host: 0.0.0.0
@@ -48,7 +47,7 @@ data:
     {{- end }}
 
     settings:
-      httpPoolSize: 128
+      httpPoolSize: {{ .settings.httpPoolSize }}
       intraListing: false
       maxTeamSize: {{ .settings.maxTeamSize }}
       maxConvSize: {{ .settings.maxConvSize }}
@@ -78,6 +77,34 @@ data:
         {{- if .settings.featureFlags.searchVisibilityInbound }}
         searchVisibilityInbound:
           {{- toYaml .settings.featureFlags.searchVisibilityInbound | nindent 10 }}
+        {{- end }}
+        {{- if .settings.featureFlags.validateSAMLEmails }}
+        validateSAMLEmails:
+          {{- toYaml .settings.featureFlags.validateSAMLEmails | nindent 10 }}
+        {{- end }}
+        {{- if .settings.featureFlags.appLock }}
+        appLock:
+          {{- toYaml .settings.featureFlags.appLock | nindent 10 }}
+        {{- end }}        
+        {{- if .settings.featureFlags.conferenceCalling }}
+        conferenceCalling:
+          {{- toYaml .settings.featureFlags.conferenceCalling | nindent 10 }}
+        {{- end }}        
+        {{- if .settings.featureFlags.selfDeletingMessages }}
+        selfDeletingMessages:
+          {{- toYaml .settings.featureFlags.selfDeletingMessages | nindent 10 }}
+        {{- end }}        
+        {{- if .settings.featureFlags.conversationGuestLinks }}
+        conversationGuestLinks:
+          {{- toYaml .settings.featureFlags.conversationGuestLinks | nindent 10 }}
+        {{- end }}
+        {{- if .settings.featureFlags.searchVisibilityInbound }}
+        searchVisibilityInbound:
+          {{- toYaml .settings.featureFlags.searchVisibilityInbound | nindent 10 }}
+        {{- end }}
+        {{- if .settings.featureFlags.mls }}
+        mls:
+          {{- toYaml .settings.featureFlags.mls | nindent 10 }}
         {{- end }}
       {{- end }}
   {{- end }}

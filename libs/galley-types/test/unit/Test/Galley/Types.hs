@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-orphans -Wno-incomplete-uni-patterns #-}
 
@@ -32,6 +31,9 @@ import qualified Test.QuickCheck as QC
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
+import Wire.API.Team.Feature as Public
+import Wire.API.Team.Permission
+import Wire.API.Team.Role
 
 tests :: TestTree
 tests =
@@ -84,12 +86,18 @@ instance Arbitrary FeatureFlags where
       <$> QC.elements [minBound ..]
       <*> QC.elements [minBound ..]
       <*> QC.elements [minBound ..]
+      -- the default lock status is implicitly added on deserialization and ignored on serialization, therefore we need to fix it to the default here
+      -- we will be able to remove this once the lock status is explicitly included in the config
+      <*> fmap (fmap unlocked) arbitrary
+      <*> fmap unlocked arbitrary
+      <*> arbitrary
+      <*> fmap (fmap unlocked) arbitrary
       <*> arbitrary
       <*> arbitrary
+      <*> fmap (fmap unlocked) arbitrary
       <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
-      <*> arbitrary
+      <*> fmap (fmap unlocked) arbitrary
+      <*> fmap (fmap unlocked) arbitrary
+    where
+      unlocked :: ImplicitLockStatus a -> ImplicitLockStatus a
+      unlocked = ImplicitLockStatus . Public.setLockStatus Public.LockStatusUnlocked . _unImplicitLockStatus

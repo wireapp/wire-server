@@ -249,13 +249,13 @@ instance ToSchema Relation where
 
 instance FromHttpApiData Relation where
   parseQueryParam = \case
-    "accepted" -> return Accepted
-    "blocked" -> return Blocked
-    "pending" -> return Pending
-    "ignored" -> return Ignored
-    "sent" -> return Sent
-    "cancelled" -> return Cancelled
-    "missing-legalhold-consent" -> return MissingLegalholdConsent
+    "accepted" -> pure Accepted
+    "blocked" -> pure Blocked
+    "pending" -> pure Pending
+    "ignored" -> pure Ignored
+    "sent" -> pure Sent
+    "cancelled" -> pure Cancelled
+    "missing-legalhold-consent" -> pure MissingLegalholdConsent
     x -> Left $ "Invalid relation-type " <> x
 
 instance ToHttpApiData Relation where

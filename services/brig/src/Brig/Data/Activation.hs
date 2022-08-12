@@ -44,7 +44,7 @@ import qualified Brig.Sem.PasswordResetStore as E
 import qualified Brig.Sem.PasswordResetSupply as E
 import Brig.Sem.UserKeyStore (UserKeyStore)
 import Brig.Sem.UserQuery (UserQuery)
-import Brig.Types
+import Brig.Types.Common
 import Brig.Types.Intra
 import Cassandra
 import Control.Error
@@ -58,6 +58,7 @@ import OpenSSL.EVP.Digest (Digest, digestBS, getDigestByName)
 import Polysemy
 import Polysemy.Input
 import Wire.API.User
+import Wire.API.User.Activation
 
 --  | The information associated with the pending activation of a 'UserKey'.
 data Activation = Activation
@@ -66,7 +67,7 @@ data Activation = Activation
     -- | The confidential activation code.
     activationCode :: !ActivationCode
   }
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data ActivationError
   = UserKeyExists !LT.Text

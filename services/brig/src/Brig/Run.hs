@@ -23,17 +23,19 @@ module Brig.Run
   )
 where
 
+import AWS.Util (readAuthExpiration)
 import Brig.API (sitemap)
 import Brig.API.Federation
 import Brig.API.Handler
 import qualified Brig.API.Internal as IAPI
 import Brig.API.Public (SwaggerDocsAPI, servantSitemap, swaggerDocsAPI)
 import qualified Brig.API.User as API
-import Brig.AWS (sesQueue)
+import Brig.AWS (amazonkaEnv, sesQueue)
 import qualified Brig.AWS as AWS
 import qualified Brig.AWS.SesNotification as SesNotification
 import Brig.App
 import qualified Brig.Calling as Calling
+import Brig.CanonicalInterpreter
 import Brig.Data.UserPendingActivation (UserPendingActivation (..), usersPendingActivationList, usersPendingActivationRemoveMultiple)
 -- import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -49,6 +51,7 @@ import Control.Monad.Random (randomRIO)
 import qualified Data.Aeson as Aeson
 import Data.Default (Default (def))
 import Data.Id (RequestId (..))
+import Data.Metrics.AWS (gaugeTokenRemaing)
 import qualified Data.Metrics.Servant as Metrics
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
@@ -85,16 +88,17 @@ run o = do
   -- TODO(md): Find or implement a Polysemy equivalent
   internalEventListener :: Async.Async () <- undefined
       -- Async.async
-      -- $ runAppT e $
+      -- $ runBrigToIO e $
       --   Queue.listen (e ^. internalEvents) Internal.onEvent
   let throttleMillis = fromMaybe defSqsThrottleMillis $ setSqsThrottleMillis (optSettings o)
   emailListener <- for (e ^. awsEnv . sesQueue) $ \q ->
     Async.async $
       AWS.execute (e ^. awsEnv) $
-        AWS.listen throttleMillis q (runAppT e . SesNotification.onEvent)
+        AWS.listen throttleMillis q (runBrigToIO e . SesNotification.onEvent)
   sftDiscovery <- forM (e ^. sftEnv) $ Async.async . Calling.startSFTServiceDiscovery (e ^. applog)
   turnDiscovery <- Calling.startTurnDiscovery (e ^. applog) (e ^. fsWatcher) (e ^. turnEnv)
-  pendingActivationCleanupAsync <- Async.async (runAppT e pendingActivationCleanup)
+  authMetrics <- Async.async (runBrigToIO e collectAuthMetrics)
+  pendingActivationCleanupAsync <- Async.async (runBrigToIO e pendingActivationCleanup)
 
   runSettingsWithShutdown s app 5 `finally` do
     mapM_ Async.cancel emailListener
@@ -102,6 +106,7 @@ run o = do
     mapM_ Async.cancel sftDiscovery
     Async.cancel pendingActivationCleanupAsync
     mapM_ Async.cancel turnDiscovery
+    Async.cancel authMetrics
     closeEnv e
   where
     endpoint = brig o
@@ -230,3 +235,13 @@ pendingActivationCleanup = do
 
     hours :: Double -> Timeout
     hours n = realToFrac (n * 60 * 60)
+
+collectAuthMetrics :: forall r. AppT r ()
+collectAuthMetrics = do
+  m <- view metrics
+  env <- view (awsEnv . amazonkaEnv)
+  liftIO $
+    forever $ do
+      mbRemaining <- readAuthExpiration env
+      gaugeTokenRemaing m mbRemaining
+      threadDelay 1_000_000

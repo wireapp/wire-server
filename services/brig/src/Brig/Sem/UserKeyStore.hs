@@ -19,7 +19,7 @@
 
 module Brig.Sem.UserKeyStore where
 
-import Brig.Types
+import Brig.Types.Common
 import Cassandra
 import Data.ByteString.Lazy
 import Data.Id

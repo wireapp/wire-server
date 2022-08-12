@@ -30,49 +30,14 @@ module Brig.Types.Common
     allPrefixes,
     ExcludedPrefix (..),
 
-    -- * Unique Keys
-    EmailKey,
-    mkEmailKey,
-    emailKeyUniq,
-    emailKeyOrig,
-    PhoneKey,
-    mkPhoneKey,
-    phoneKeyUniq,
-    phoneKeyOrig,
-    UserKey (..),
-    keyText,
+    -- * misc
     foldKey,
-
-    -- * re-exports
-    Name (..),
-    ColourId (..),
-    defaultAccentId,
-    Email (..),
-    fromEmail,
-    parseEmail,
-    validateEmail,
-    Phone (..),
-    parsePhone,
-    isValidPhone,
-    UserIdentity (..),
-    newIdentity,
-    emailIdentity,
-    phoneIdentity,
-    ssoIdentity,
-    UserSSOId (..),
-    Asset (..),
-    AssetSize (..),
-    Language (..),
-    lan2Text,
-    parseLanguage,
-    Country (..),
-    con2Text,
-    parseCountry,
-    Locale (..),
-    locToText,
-    parseLocale,
-    ManagedBy (..),
-    defaultManagedBy,
+    keyText,
+    mkPhoneKey,
+    mkEmailKey,
+    EmailKey (..),
+    PhoneKey (..),
+    UserKey (..),
   )
 where
 
@@ -84,7 +49,6 @@ import qualified Data.Text as Text
 import Data.Time.Clock (NominalDiffTime)
 import Imports
 import Wire.API.User.Identity
-import Wire.API.User.Profile
 
 ------------------------------------------------------------------------------
 --- PhoneBudgetTimeout
@@ -131,14 +95,14 @@ allPrefixes t = catMaybes $ parsePhonePrefix <$> Text.inits t
 instance FromJSON PhonePrefix where
   parseJSON = withText "PhonePrefix" $ \s ->
     case parsePhonePrefix s of
-      Just p -> return p
+      Just p -> pure p
       Nothing ->
         fail $
           "Invalid phone number prefix: [" ++ show s
             ++ "]. Expected format similar to E.164 (with 1-15 digits after the +)."
 
 instance FromByteString PhonePrefix where
-  parser = parser >>= maybe (fail "Invalid phone") return . parsePhonePrefix
+  parser = parser >>= maybe (fail "Invalid phone") pure . parsePhonePrefix
 
 instance ToByteString PhonePrefix where
   builder = builder . fromPhonePrefix

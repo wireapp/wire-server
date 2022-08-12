@@ -71,8 +71,8 @@ You should see output looking like this:
 
 Here, the ``green`` denotes good node health, and the ``3 3`` denotes 3 running nodes.
 
-Check cluster health and list cluster nodes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Check cluster health
+~~~~~~~~~~~~~~~~~~~~
 
 This is the command to check the health of the entire cluster:
 
@@ -80,7 +80,11 @@ This is the command to check the health of the entire cluster:
 
    ssh <ip of elasticsearch node> curl 'http://localhost:9200/_cluster/health?pretty'
 
-And this is the command to list the nodes in the cluster:
+
+List cluster nodes
+~~~~~~~~~~~~~~~~~~
+
+This is the command to list the nodes in the cluster:
 
 .. code:: sh
 

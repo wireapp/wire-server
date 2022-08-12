@@ -142,8 +142,8 @@ http {
   # Rate Limiting
   #
 
-  limit_req_zone $rate_limited_by_zuser zone=reqs_per_user:12m rate=10r/s;
-  limit_req_zone $rate_limited_by_addr zone=reqs_per_addr:12m rate=5r/m;
+  limit_req_zone $rate_limited_by_zuser zone=reqs_per_user:12m rate={{ .Values.nginx_conf.rate_limit_reqs_per_user }};
+  limit_req_zone $rate_limited_by_addr zone=reqs_per_addr:12m rate={{ .Values.nginx_conf.rate_limit_reqs_per_addr }};
 
 {{- range $limit := .Values.nginx_conf.user_rate_limit_request_zones }}
   {{ $limit }}
@@ -199,29 +199,6 @@ http {
         return 200;
     }
 
-    location /vts {
-        zauth off;
-        access_log off;
-        allow 10.0.0.0/8;
-        allow 127.0.0.1;
-        deny all;
-
-        # Requests with an X-Forwarded-For header will have the real client
-        # source IP address set correctly, due to the real_ip_header directive
-        # in the top-level configuration. However, this will not set the client
-        # IP correctly for clients which are connected via a load balancer which
-        # uses the PROXY protocol.
-        #
-        # Hence, for safety, we deny access to the vts metrics endpoints to
-        # clients which are connected via PROXY protocol.
-        if ($proxy_protocol_addr != "") {
-            return 403;
-        }
-
-        vhost_traffic_status_display;
-        vhost_traffic_status_display_format html;
-    }
-
     # Block "Franz" -- http://meetfranz.com
     if ($http_user_agent ~* Franz) {
         return 403;
@@ -269,7 +246,7 @@ http {
             {{- if ($location.basic_auth) }}
         auth_basic "Restricted";
         auth_basic_user_file {{ $.Values.nginx_conf.basic_auth_file }};
-            {{- end -}}
+            {{- end }}
 
             {{- if ($location.disable_zauth) }}
         zauth off;
@@ -277,15 +254,16 @@ http {
         # If zauth is off, limit by remote address if not part of limit exemptions
               {{- if ($location.unlimited_requests_endpoint) }}
         # Note that this endpoint has no rate limit
-              {{- else -}}
-        limit_req zone=reqs_per_addr burst=5 nodelay;
+              {{- else }}
+                {{- if not (hasKey $location "specific_user_rate_limit") }}
+        limit_req zone=reqs_per_addr burst=10 nodelay;
         limit_conn conns_per_addr 20;
-              {{- end -}}
-            {{- else }}
-
-              {{- if hasKey $location "specific_user_rate_limit" }}
-        limit_req zone={{ $location.specific_user_rate_limit }} nodelay;
+                {{- end }}
               {{- end }}
+            {{- end }}
+
+            {{- if hasKey $location "specific_user_rate_limit" }}
+        limit_req zone={{ $location.specific_user_rate_limit }}{{ if hasKey $location "specific_user_rate_limit_burst" }} burst={{ $location.specific_user_rate_limit_burst }}{{ end }} nodelay;
             {{- end }}
 
         if ($request_method = 'OPTIONS') {
@@ -305,7 +283,7 @@ http {
             {{- if (hasKey $location "body_buffer_size") }}
         client_body_buffer_size {{ $location.body_buffer_size -}};
             {{- end }}
-        client_max_body_size {{ $location.max_body_size | default "64k" }};
+        client_max_body_size {{ $location.max_body_size | default $.Values.nginx_conf.default_client_max_body_size }};
 
             {{ if ($location.use_websockets) }}
         proxy_set_header   Upgrade        $http_upgrade;
@@ -352,6 +330,7 @@ http {
     #
 
     location /api-docs {
+        zauth off;
         default_type application/json;
         root {{ $.Values.nginx_conf.swagger_root }};
         index resources.json;
@@ -399,5 +378,23 @@ http {
     }
     {{- end }}
   }
+
+  server {
+    # even though we don't use zauth for this server block,
+    # we need to specify zauth_keystore etc.
+    zauth_keystore {{ .Values.nginx_conf.zauth_keystore }};
+    zauth_acl      {{ .Values.nginx_conf.zauth_acl }};
+
+    listen {{ .Values.config.http.metricsPort }};
+
+    location /vts {
+        access_log off;
+        zauth off;
+
+        vhost_traffic_status_display;
+        vhost_traffic_status_display_format html;
+    }
+  }
+
 }
 {{- end }}

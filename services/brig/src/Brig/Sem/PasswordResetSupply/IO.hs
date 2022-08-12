@@ -18,7 +18,6 @@
 module Brig.Sem.PasswordResetSupply.IO (passwordResetSupplyToIO) where
 
 import Brig.Sem.PasswordResetSupply
-import Brig.Types
 import Data.ByteString.Conversion
 import Data.Id
 import Data.Text
@@ -29,6 +28,7 @@ import OpenSSL.EVP.Digest
 import OpenSSL.Random
 import Polysemy
 import Text.Printf
+import Wire.API.User.Password
 
 passwordResetSupplyToIO ::
   forall r a.
@@ -52,5 +52,5 @@ genPhoneCode =
 
 mkPwdResetKey :: MonadIO m => UserId -> m PasswordResetKey
 mkPwdResetKey u = do
-  d <- liftIO $ getDigestByName "SHA256" >>= maybe (error "SHA256 not found") return
-  return . PasswordResetKey . encodeBase64Url . digestBS d $ toByteString' u
+  d <- liftIO $ getDigestByName "SHA256" >>= maybe (error "SHA256 not found") pure
+  pure . PasswordResetKey . encodeBase64Url . digestBS d $ toByteString' u

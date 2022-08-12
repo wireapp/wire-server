@@ -459,7 +459,7 @@ instance ToSchema ScimTokenInfo where
     createdAtSchema <- declareSchemaRef (Proxy @UTCTime)
     idpSchema <- declareSchemaRef (Proxy @SAML.IdPId)
     descrSchema <- declareSchemaRef (Proxy @Text)
-    return $
+    pure $
       NamedSchema (Just "ScimTokenInfo") $
         mempty
           & type_ .~ Just SwaggerObject
@@ -475,7 +475,7 @@ instance ToSchema ScimTokenInfo where
 instance ToSchema CreateScimToken where
   declareNamedSchema _ = do
     textSchema <- declareSchemaRef (Proxy @Text)
-    return $
+    pure $
       NamedSchema (Just "CreateScimToken") $
         mempty
           & type_ .~ Just SwaggerObject
@@ -490,7 +490,7 @@ instance ToSchema CreateScimTokenResponse where
   declareNamedSchema _ = do
     tokenSchema <- declareSchemaRef (Proxy @ScimToken)
     infoSchema <- declareSchemaRef (Proxy @ScimTokenInfo)
-    return $
+    pure $
       NamedSchema (Just "CreateScimTokenResponse") $
         mempty
           & type_ .~ Just SwaggerObject
@@ -503,7 +503,7 @@ instance ToSchema CreateScimTokenResponse where
 instance ToSchema ScimTokenList where
   declareNamedSchema _ = do
     infoListSchema <- declareSchemaRef (Proxy @[ScimTokenInfo])
-    return $
+    pure $
       NamedSchema (Just "ScimTokenList") $
         mempty
           & type_ .~ Just SwaggerObject

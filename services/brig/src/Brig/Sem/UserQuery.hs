@@ -55,7 +55,6 @@ module Brig.Sem.UserQuery
 where
 
 import Brig.Password
-import Brig.Types
 import Brig.Types.Intra
 import Data.Domain
 import Data.Handle
@@ -70,6 +69,7 @@ import Polysemy.Input
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Provider.Service
+import Wire.API.User
 
 type Activated = Bool
 

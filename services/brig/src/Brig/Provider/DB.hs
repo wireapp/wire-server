@@ -18,11 +18,9 @@
 module Brig.Provider.DB where
 
 import Brig.Data.Instances ()
--- import Brig.Provider.DB.Instances ()
+import Brig.Email
 import Brig.Password
-import Brig.Types.Common
 import Brig.Types.Instances ()
-import Brig.Types.Provider hiding (updateServiceTags)
 import Brig.Types.Provider.Tag
 import Cassandra as C
 import Control.Arrow ((&&&))
@@ -34,6 +32,10 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Imports
 import UnliftIO (mapConcurrently)
+import Wire.API.Provider
+import Wire.API.Provider.Service hiding (updateServiceTags)
+import Wire.API.Provider.Service.Tag
+import Wire.API.User
 
 type RangedServiceTags = Range 0 3 (Set.Set ServiceTag)
 

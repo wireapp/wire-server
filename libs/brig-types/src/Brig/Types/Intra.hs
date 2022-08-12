@@ -30,16 +30,14 @@ module Brig.Types.Intra
   )
 where
 
-import Brig.Types.Connection
-import Brig.Types.User
 import Data.Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import Data.Code as Code
-import Data.Id (TeamId, UserId)
+import Data.Id (TeamId)
 import Data.Misc (PlainTextPassword (..))
 import qualified Data.Text as Text
 import Imports
-import Wire.API.User (VerificationAction (..))
+import Wire.API.User
 
 -------------------------------------------------------------------------------
 -- AccountStatus
@@ -107,7 +105,7 @@ instance FromJSON UserAccount where
   parseJSON j@(Object o) = do
     u <- parseJSON j
     s <- o .: "status"
-    return $ UserAccount u s
+    pure $ UserAccount u s
   parseJSON _ = mzero
 
 instance ToJSON UserAccount where
@@ -144,26 +142,6 @@ instance ToJSON NewUserScimInvitation where
         "locale" .= loc,
         "name" .= name,
         "email" .= email
-      ]
-
--------------------------------------------------------------------------------
--- UserList
-
--- | Set of user ids, can be used for different purposes (e.g., used on the internal
--- APIs for listing user's clients)
-data UserSet = UserSet
-  { usUsrs :: !(Set UserId)
-  }
-  deriving (Eq, Show, Generic)
-
-instance FromJSON UserSet where
-  parseJSON = withObject "user-set" $ \o ->
-    UserSet <$> o .: "users"
-
-instance ToJSON UserSet where
-  toJSON ac =
-    object
-      [ "users" .= usUsrs ac
       ]
 
 -------------------------------------------------------------------------------

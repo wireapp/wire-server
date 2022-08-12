@@ -52,7 +52,7 @@ registerClient a = sessionRequest req rsc readBody
     rsc = status201 :| []
 
 removeClient :: MonadSession m => ClientId -> RmClient -> m ()
-removeClient cid r = sessionRequest req rsc (const $ return ())
+removeClient cid r = sessionRequest req rsc (const $ pure ())
   where
     req =
       method DELETE
@@ -73,7 +73,7 @@ getClients = sessionRequest req rsc readBody
     rsc = status200 :| []
 
 updateClient :: MonadSession m => ClientId -> UpdateClient -> m ()
-updateClient cid r = sessionRequest req rsc (const $ return ())
+updateClient cid r = sessionRequest req rsc (const $ pure ())
   where
     req =
       method PUT

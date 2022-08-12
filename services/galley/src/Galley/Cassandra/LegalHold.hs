@@ -25,7 +25,6 @@ module Galley.Cassandra.LegalHold
   )
 where
 
-import Brig.Types.Client.Prekey
 import Brig.Types.Instances ()
 import Brig.Types.Team.LegalHold
 import Cassandra
@@ -53,6 +52,7 @@ import Polysemy
 import Polysemy.Input
 import qualified Ssl.Util as SSL
 import Wire.API.Provider.Service
+import Wire.API.User.Client.Prekey
 
 interpretLegalHoldStoreToCassandra ::
   Members '[Embed IO, Input ClientState, Input Env] r =>

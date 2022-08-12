@@ -142,8 +142,8 @@ http {
   # Rate Limiting
   #
 
-  limit_req_zone $rate_limited_by_zuser zone=reqs_per_user:12m rate=10r/s;
-  limit_req_zone $rate_limited_by_addr zone=reqs_per_addr:12m rate=5r/m;
+  limit_req_zone $rate_limited_by_zuser zone=reqs_per_user:12m rate={{ .Values.nginx_conf.rate_limit_reqs_per_user }};
+  limit_req_zone $rate_limited_by_addr zone=reqs_per_addr:12m rate={{ .Values.nginx_conf.rate_limit_reqs_per_addr }};
 
 {{- range $limit := .Values.nginx_conf.user_rate_limit_request_zones }}
   {{ $limit }}
@@ -196,7 +196,8 @@ http {
     ssl_certificate_key /etc/wire/nginz/tls/tls.key;
 
     ssl_protocols {{ .Values.nginx_conf.tls.protocols }};
-    ssl_ciphers {{ .Values.nginx_conf.tls.ciphers }};
+    ssl_ciphers {{ .Values.nginx_conf.tls.ciphers_tls12 }}; # this only sets TLS 1.2 ciphers (and has no effect if TLS 1.2 is not enabled)
+    ssl_conf_command Ciphersuites {{ .Values.nginx_conf.tls.ciphers_tls13 }}; # needed to override TLS 1.3 ciphers.
 
     # Disable session resumption. See comments in SQPIT-226 for more context and
     # discussion.
@@ -205,6 +206,8 @@ http {
 
     zauth_keystore {{ .Values.nginx_conf.zauth_keystore }};
     zauth_acl      {{ .Values.nginx_conf.zauth_acl }};
+
+    add_header Strict-Transport-Security 'max-age=31536000; includeSubdomains; preload' always;
 
     location /status {
         zauth off;
@@ -338,7 +341,7 @@ http {
 
         more_set_headers 'Access-Control-Expose-Headers: Request-Id, Location';
         more_set_headers 'Request-Id: $request_id';
-        more_set_headers 'Strict-Transport-Security: max-age=31536000; preload';
+        more_set_headers 'Strict-Transport-Security: max-age=31536000; includeSubdomains; preload';
     }
 
           {{- end -}}

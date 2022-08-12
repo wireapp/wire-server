@@ -76,11 +76,10 @@ import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
+import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
 import Galley.Options
-import Galley.Types
 import Galley.Types.Conversations.Members
-import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Imports
 import Network.HTTP.Types
@@ -92,8 +91,11 @@ import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger.Class as Logger
-import Wire.API.Conversation (ConversationCoverView (..))
+import Wire.API.Conversation (Access (CodeAccess), Conversation, ConversationCoverView (..), ConversationList (ConversationList), ConversationMetadata, convHasMore, convList)
 import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation.Code
+import Wire.API.Conversation.Member hiding (Member)
+import Wire.API.Conversation.Role
 import qualified Wire.API.Conversation.Role as Public
 import Wire.API.Error
 import Wire.API.Error.Galley
@@ -102,7 +104,7 @@ import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
-import Wire.API.Team.Feature as Public
+import Wire.API.Team.Feature as Public hiding (setStatus)
 
 getBotConversationH ::
   Members '[ConversationStore, ErrorS 'ConvNotFound, Input (Local ())] r =>
@@ -524,7 +526,7 @@ getConversationMeta cnv = do
       pure Nothing
 
 getConversationByReusableCode ::
-  forall r.
+  forall db r.
   ( Member BrigAccess r,
     Member CodeStore r,
     Member ConversationStore r,
@@ -534,8 +536,9 @@ getConversationByReusableCode ::
     Member (ErrorS 'GuestLinksDisabled) r,
     Member (ErrorS 'NotATeamMember) r,
     Member TeamStore r,
-    Member TeamFeatureStore r,
-    Member (Input Opts) r
+    Member (TeamFeatureStore db) r,
+    Member (Input Opts) r,
+    FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   Local UserId ->
   Key ->
@@ -545,7 +548,7 @@ getConversationByReusableCode lusr key value = do
   c <- verifyReusableCode (ConversationCode key value Nothing)
   conv <- E.getConversation (codeConversation c) >>= noteS @'ConvNotFound
   ensureConversationAccess (tUnqualified lusr) conv CodeAccess
-  ensureGuestLinksEnabled (Data.convTeam conv)
+  ensureGuestLinksEnabled @db (Data.convTeam conv)
   pure $ coverView conv
   where
     coverView :: Data.Conversation -> ConversationCoverView
@@ -556,44 +559,52 @@ getConversationByReusableCode lusr key value = do
         }
 
 ensureGuestLinksEnabled ::
-  forall r.
+  forall db r.
   ( Member (ErrorS 'GuestLinksDisabled) r,
-    Member TeamFeatureStore r,
-    Member (Input Opts) r
+    Member (TeamFeatureStore db) r,
+    Member (Input Opts) r,
+    FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   Maybe TeamId ->
   Sem r ()
 ensureGuestLinksEnabled mbTid =
-  getConversationGuestLinksStatusValue mbTid >>= \case
-    TeamFeatureEnabled -> pure ()
-    TeamFeatureDisabled -> throwS @'GuestLinksDisabled
+  getConversationGuestLinksFeatureStatus @db mbTid >>= \ws -> case wsStatus ws of
+    FeatureStatusEnabled -> pure ()
+    FeatureStatusDisabled -> throwS @'GuestLinksDisabled
 
 getConversationGuestLinksStatus ::
-  forall r.
+  forall db r.
   ( Member ConversationStore r,
     Member (ErrorS 'ConvNotFound) r,
     Member (ErrorS 'ConvAccessDenied) r,
     Member (Input Opts) r,
-    Member TeamFeatureStore r
+    Member (TeamFeatureStore db) r,
+    FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   UserId ->
   ConvId ->
-  Sem r TeamFeatureStatusNoConfig
+  Sem r (WithStatus GuestLinksConfig)
 getConversationGuestLinksStatus uid convId = do
   conv <- E.getConversation convId >>= noteS @'ConvNotFound
   ensureConvAdmin (Data.convLocalMembers conv) uid
-  TeamFeatureStatusNoConfig <$> getConversationGuestLinksStatusValue (Data.convTeam conv)
+  getConversationGuestLinksFeatureStatus @db (Data.convTeam conv)
 
-getConversationGuestLinksStatusValue ::
-  forall r.
-  ( Member TeamFeatureStore r,
-    Member (Input Opts) r
+getConversationGuestLinksFeatureStatus ::
+  forall db r.
+  ( Member (TeamFeatureStore db) r,
+    Member (Input Opts) r,
+    FeaturePersistentConstraint db GuestLinksConfig
   ) =>
   Maybe TeamId ->
-  Sem r TeamFeatureStatusValue
-getConversationGuestLinksStatusValue mbTid = do
-  defaultStatus <- tfwoapsStatus <$> (input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults))
-  maybe defaultStatus tfwoStatus . join <$> TeamFeatures.getFeatureStatusNoConfig @'TeamFeatureGuestLinks `traverse` mbTid
+  Sem r (WithStatus GuestLinksConfig)
+getConversationGuestLinksFeatureStatus mbTid = do
+  defaultStatus :: WithStatus GuestLinksConfig <- input <&> view (optSettings . setFeatureFlags . flagConversationGuestLinks . unDefaults)
+  case mbTid of
+    Nothing -> pure defaultStatus
+    Just tid -> do
+      mbConfigNoLock <- TeamFeatures.getFeatureConfig @db (Proxy @GuestLinksConfig) tid
+      mbLockStatus <- TeamFeatures.getFeatureLockStatus @db (Proxy @GuestLinksConfig) tid
+      pure $ computeFeatureConfigForTeamUser mbConfigNoLock mbLockStatus defaultStatus
 
 -------------------------------------------------------------------------------
 -- Helpers

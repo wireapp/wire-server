@@ -39,8 +39,9 @@ import Data.Schema
 import Imports
 import Wire.API.Arbitrary
 import Wire.API.Conversation.Action.Tag
+import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
-import Wire.API.MLS.Message
 
 data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag
   deriving stock (Eq, Show, Enum, Bounded, Generic)
@@ -50,7 +51,9 @@ data ConversationMLSData = ConversationMLSData
   { -- | The MLS group ID associated to the conversation.
     cnvmlsGroupId :: GroupId,
     -- | The current epoch number of the corresponding MLS group.
-    cnvmlsEpoch :: Epoch
+    cnvmlsEpoch :: Epoch,
+    -- | The cipher suite to be used in the MLS group.
+    cnvmlsCipherSuite :: CipherSuiteTag
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform ConversationMLSData
@@ -121,4 +124,9 @@ mlsDataSchema =
     .= fieldWithDocModifier
       "epoch"
       (description ?~ "The epoch number of the corresponding MLS group")
+      schema
+    <*> cnvmlsCipherSuite
+    .= fieldWithDocModifier
+      "cipher_suite"
+      (description ?~ "The cipher suite of the corresponding MLS group")
       schema

@@ -26,13 +26,13 @@ where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.User
 import Data.Attoparsec.Text
 import Data.ByteString.Conversion
 import Imports
 import Test.Tasty
 import Test.Tasty.HUnit
 import Util
+import Wire.API.User
 
 tests :: Manager -> Brig -> IO TestTree
 tests manager brig = do

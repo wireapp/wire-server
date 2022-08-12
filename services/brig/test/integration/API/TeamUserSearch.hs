@@ -24,7 +24,6 @@ import API.Team.Util (createPopulatedBindingTeamWithNamesAndHandles)
 import API.User.Util (activateEmail, initiateEmailUpdateNoSend)
 import Bilge (Manager, MonadHttp)
 import qualified Brig.Options as Opt
-import Brig.Types (SearchResult (searchResults), User (userId), fromEmail)
 import Brig.User.Search.TeamUserSearch (TeamUserSearchSortBy (..), TeamUserSearchSortOrder (..))
 import Control.Monad.Catch (MonadCatch)
 import Control.Retry ()
@@ -40,7 +39,8 @@ import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, assertEqual)
 import Util (Brig, Galley, randomEmail, test, withSettingsOverrides)
 import Wire.API.User (User (..), userEmail)
-import Wire.API.User.Search (TeamContact (teamContactCreatedAt, teamContactUserId))
+import Wire.API.User.Identity
+import Wire.API.User.Search
 
 type TestConstraints m = (MonadFail m, MonadCatch m, MonadIO m, MonadHttp m)
 

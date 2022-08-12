@@ -9,6 +9,8 @@ nginzImage:
   pullPolicy: IfNotPresent
 config:
   logLevel: Info
+  logFormat: StructuredJSON
+  logNetStrings: false
 
   # See also the section 'Controlling the speed of websocket draining during
   # cannon pod replacement' in docs/how-to/install/configuration-options.rst
@@ -20,6 +22,10 @@ config:
     millisecondsBetweenBatches: 50
     minBatchSize: 20
 
+metrics:
+  serviceMonitor:
+    enable: false
+
 nginx_conf:
   user: nginx
   group: nginx
@@ -29,6 +35,8 @@ nginx_conf:
   worker_rlimit_nofile: 131072
   worker_connections: 65536
   disabled_paths: []
+  rate_limit_reqs_per_user: "10r/s"
+  rate_limit_reqs_per_addr: "5r/m"
   user_rate_limit_request_zones: []
 
   tls:
@@ -38,7 +46,8 @@ nginx_conf:
     # As a Wire employee, for Wire-internal discussions and context see
     # * https://wearezeta.atlassian.net/browse/FS-33
     # * https://wearezeta.atlassian.net/browse/FS-444
-    ciphers: "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256"
+    ciphers_tls12: "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384"
+    ciphers_tls13: "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384"
 
   # The origins from which we allow CORS requests. These are combined with
   # 'external_env_domain' to form a full url

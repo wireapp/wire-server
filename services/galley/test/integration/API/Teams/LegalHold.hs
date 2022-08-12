@@ -28,10 +28,7 @@ import qualified API.SQS as SQS
 import API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
-import Brig.Types.Client
 import Brig.Types.Intra (UserSet (..))
-import Brig.Types.Provider
-import Brig.Types.Team.LegalHold hiding (userId)
 import Brig.Types.Test.Arbitrary ()
 import qualified Brig.Types.User.Event as Ev
 import qualified Cassandra.Exec as Cql
@@ -89,10 +86,17 @@ import qualified Wire.API.Connection as Conn
 import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)
 import Wire.API.Internal.Notification (ntfPayload)
 import qualified Wire.API.Message as Msg
+import Wire.API.Provider.Service
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.LegalHold
+import Wire.API.Team.LegalHold.External
+import Wire.API.Team.Member
+import qualified Wire.API.Team.Member as Team
+import Wire.API.Team.Permission
+import Wire.API.Team.Role
 import Wire.API.User (UserProfile (..))
-import Wire.API.User.Client (UserClients (..), UserClientsFull (userClientsFull))
+import Wire.API.User.Client
 import qualified Wire.API.User.Client as Client
 
 onlyIfLhWhitelisted :: TestM () -> TestM ()
@@ -564,16 +568,16 @@ testEnablePerTeam = withTeam $ \owner tid -> do
   addTeamMemberInternal tid member (rolePermissions RoleMember) Nothing
   ensureQueueEmpty
   do
-    status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-    let statusValue = Public.tfwoStatus status
-    liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.TeamFeatureDisabled
+    status :: Public.WithStatusNoLock Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+    let statusValue = Public.wssStatus status
+    liftIO $ assertEqual "Teams should start with LegalHold disabled" statusValue Public.FeatureStatusDisabled
 
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
   do
-    status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-    let statusValue = Public.tfwoStatus status
-    liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" statusValue Public.TeamFeatureEnabled
+    status :: Public.WithStatusNoLock Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+    let statusValue = Public.wssStatus status
+    liftIO $ assertEqual "Calling 'putEnabled True' should enable LegalHold" statusValue Public.FeatureStatusEnabled
   withDummyTestServiceForTeam owner tid $ \_chan -> do
     putLHWhitelistTeam tid !!! const 200 === statusCode
     requestLegalHoldDevice owner member tid !!! const 201 === statusCode
@@ -582,10 +586,10 @@ testEnablePerTeam = withTeam $ \owner tid -> do
       UserLegalHoldStatusResponse status _ _ <- getUserStatusTyped member tid
       liftIO $ assertEqual "User legal hold status should be enabled" UserLegalHoldEnabled status
     do
-      putEnabled' id tid Public.TeamFeatureDisabled !!! testResponse 403 (Just "legalhold-whitelisted-only")
-      status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureLegalHold <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
-      let statusValue = Public.tfwoStatus status
-      liftIO $ assertEqual "Calling 'putEnabled False' should have no effect." statusValue Public.TeamFeatureEnabled
+      putEnabled' id tid Public.FeatureStatusDisabled !!! testResponse 403 (Just "legalhold-whitelisted-only")
+      status :: Public.WithStatusNoLock Public.LegalholdConfig <- responseJsonUnsafe <$> (getEnabled tid <!! testResponse 200 Nothing)
+      let statusValue = Public.wssStatus status
+      liftIO $ assertEqual "Calling 'putEnabled False' should have no effect." statusValue Public.FeatureStatusEnabled
 
 testAddTeamUserTooLargeWithLegalholdWhitelisted :: HasCallStack => TestM ()
 testAddTeamUserTooLargeWithLegalholdWhitelisted = withTeam $ \owner tid -> do
@@ -636,7 +640,7 @@ testGetTeamMembersIncludesLHStatus = do
 
   let findMemberStatus :: [TeamMember] -> Maybe UserLegalHoldStatus
       findMemberStatus ms =
-        ms ^? traversed . filtered (has $ userId . only member) . legalHoldStatus
+        ms ^? traversed . filtered (has $ Team.userId . only member) . legalHoldStatus
 
   let check :: HasCallStack => UserLegalHoldStatus -> String -> TestM ()
       check status msg = do
@@ -738,7 +742,7 @@ testOldClientsBlockDeviceHandshake = do
   -- tracked here: https://wearezeta.atlassian.net/browse/SQSERVICES-454
 
   (legalholder, tid) <- createBindingTeam
-  legalholder2 <- view userId <$> addUserToTeam legalholder tid
+  legalholder2 <- view Team.userId <$> addUserToTeam legalholder tid
   ensureQueueEmpty
   (peer, tid2) <-
     -- has to be a team member, granting LH consent for personal users is not supported.
@@ -1013,19 +1017,21 @@ data GroupConvInvCase = InviteOnlyConsenters | InviteAlsoNonConsenters
 
 testGroupConvInvitationHandlesLHConflicts :: HasCallStack => GroupConvInvCase -> TestM ()
 testGroupConvInvitationHandlesLHConflicts inviteCase = do
+  localDomain <- viewFederationDomain
   -- team that is legalhold whitelisted
   (legalholder :: UserId, tid) <- createBindingTeam
-  qLegalHolder <- Qualified legalholder <$> viewFederationDomain
-  userWithConsent <- (^. userId) <$> addUserToTeam legalholder tid
+  let qLegalHolder = Qualified legalholder localDomain
+  userWithConsent <- (^. Team.userId) <$> addUserToTeam legalholder tid
   userWithConsent2 <- do
-    uid <- (^. userId) <$> addUserToTeam legalholder tid
-    Qualified uid <$> viewFederationDomain
+    uid <- (^. Team.userId) <$> addUserToTeam legalholder tid
+    pure $ Qualified uid localDomain
   ensureQueueEmpty
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
   -- team without legalhold
   (peer :: UserId, teamPeer) <- createBindingTeam
-  peer2 <- (^. userId) <$> addUserToTeam peer teamPeer
+  peer2 <- (^. Team.userId) <$> addUserToTeam peer teamPeer
+  let qpeer2 = Qualified peer2 localDomain
   ensureQueueEmpty
 
   do
@@ -1038,6 +1044,7 @@ testGroupConvInvitationHandlesLHConflicts inviteCase = do
   withDummyTestServiceForTeam legalholder tid $ \_chan -> do
     -- conversation with 1) userWithConsent and 2) peer
     convId <- createTeamConvWithRole userWithConsent tid [peer] (Just "corp + us") Nothing Nothing roleNameWireAdmin
+    let qconvId = Qualified convId localDomain
 
     -- activate legalhold for legalholder
     do
@@ -1049,27 +1056,30 @@ testGroupConvInvitationHandlesLHConflicts inviteCase = do
 
     case inviteCase of
       InviteOnlyConsenters -> do
-        API.Util.postMembers userWithConsent (List1.list1 legalholder [qUnqualified userWithConsent2]) convId
+        API.Util.postMembers userWithConsent (qLegalHolder :| [userWithConsent2]) qconvId
           !!! const 200 === statusCode
 
         assertConvMember qLegalHolder convId
         assertConvMember userWithConsent2 convId
         assertNotConvMember peer convId
       InviteAlsoNonConsenters -> do
-        API.Util.postMembers userWithConsent (List1.list1 legalholder [peer2]) convId
+        API.Util.postMembers userWithConsent (qLegalHolder :| [qpeer2]) qconvId
           >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
 testNoConsentCannotBeInvited :: HasCallStack => TestM ()
 testNoConsentCannotBeInvited = do
+  localDomain <- viewFederationDomain
   -- team that is legalhold whitelisted
   (legalholder :: UserId, tid) <- createBindingTeam
-  userLHNotActivated <- (^. userId) <$> addUserToTeam legalholder tid
+  userLHNotActivated <- (^. Team.userId) <$> addUserToTeam legalholder tid
   ensureQueueEmpty
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
   -- team without legalhold
   (peer :: UserId, teamPeer) <- createBindingTeam
-  peer2 <- (^. userId) <$> addUserToTeam peer teamPeer
+  let qpeer = Qualified peer localDomain
+  peer2 <- (^. Team.userId) <$> addUserToTeam peer teamPeer
+  let qpeer2 = Qualified peer2 localDomain
   ensureQueueEmpty
 
   do
@@ -1081,8 +1091,9 @@ testNoConsentCannotBeInvited = do
 
   withDummyTestServiceForTeam legalholder tid $ \_chan -> do
     convId <- createTeamConvWithRole userLHNotActivated tid [legalholder] (Just "corp + us") Nothing Nothing roleNameWireAdmin
+    let qconvId = Qualified convId localDomain
 
-    API.Util.postMembers userLHNotActivated (List1.list1 peer []) convId
+    API.Util.postMembers userLHNotActivated (pure qpeer) qconvId
       !!! const 200 === statusCode
 
     -- activate legalhold for legalholder
@@ -1093,7 +1104,7 @@ testNoConsentCannotBeInvited = do
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped' galley legalholder tid
       liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
 
-    API.Util.postMembers userLHNotActivated (List1.list1 peer2 []) convId
+    API.Util.postMembers userLHNotActivated (pure qpeer2) qconvId
       >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
     localdomain <- viewFederationDomain
@@ -1104,13 +1115,13 @@ testCannotCreateGroupWithUsersInConflict :: HasCallStack => TestM ()
 testCannotCreateGroupWithUsersInConflict = do
   -- team that is legalhold whitelisted
   (legalholder :: UserId, tid) <- createBindingTeam
-  userLHNotActivated <- (^. userId) <$> addUserToTeam legalholder tid
+  userLHNotActivated <- (^. Team.userId) <$> addUserToTeam legalholder tid
   ensureQueueEmpty
   putLHWhitelistTeam tid !!! const 200 === statusCode
 
   -- team without legalhold
   (peer :: UserId, teamPeer) <- createBindingTeam
-  peer2 <- (^. userId) <$> addUserToTeam peer teamPeer
+  peer2 <- (^. Team.userId) <$> addUserToTeam peer teamPeer
   ensureQueueEmpty
 
   do
@@ -1298,25 +1309,25 @@ renewToken tok = do
       . cookieRaw "zuid" (toByteString' tok)
       . expect2xx
 
-_putEnabled :: HasCallStack => TeamId -> Public.TeamFeatureStatusValue -> TestM ()
+_putEnabled :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
 _putEnabled tid enabled = do
   g <- view tsGalley
   putEnabledM g tid enabled
 
-putEnabledM :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> Public.TeamFeatureStatusValue -> m ()
+putEnabledM :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> TeamId -> Public.FeatureStatus -> m ()
 putEnabledM g tid enabled = void $ putEnabledM' g expect2xx tid enabled
 
-putEnabled' :: HasCallStack => (Bilge.Request -> Bilge.Request) -> TeamId -> Public.TeamFeatureStatusValue -> TestM ResponseLBS
+putEnabled' :: HasCallStack => (Bilge.Request -> Bilge.Request) -> TeamId -> Public.FeatureStatus -> TestM ResponseLBS
 putEnabled' extra tid enabled = do
   g <- view tsGalley
   putEnabledM' g extra tid enabled
 
-putEnabledM' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> (Bilge.Request -> Bilge.Request) -> TeamId -> Public.TeamFeatureStatusValue -> m ResponseLBS
+putEnabledM' :: (HasCallStack, MonadHttp m, MonadIO m) => GalleyR -> (Bilge.Request -> Bilge.Request) -> TeamId -> Public.FeatureStatus -> m ResponseLBS
 putEnabledM' g extra tid enabled = do
   put $
     g
       . paths ["i", "teams", toByteString' tid, "features", "legalhold"]
-      . json (Public.TeamFeatureStatusNoConfig enabled)
+      . json (Public.WithStatusNoLock enabled Public.LegalholdConfig)
       . extra
 
 postSettings :: HasCallStack => UserId -> TeamId -> NewLegalHoldService -> TestM ResponseLBS
@@ -1625,11 +1636,11 @@ publicKeyNotMatchingService =
 testGetLegalholdStatus :: TestM ()
 testGetLegalholdStatus = do
   (owner1, tid1) <- createBindingTeam
-  member1 <- view userId <$> addUserToTeam owner1 tid1
+  member1 <- view Team.userId <$> addUserToTeam owner1 tid1
   ensureQueueEmpty
 
   (owner2, tid2) <- createBindingTeam
-  member2 <- view userId <$> addUserToTeam owner2 tid2
+  member2 <- view Team.userId <$> addUserToTeam owner2 tid2
   ensureQueueEmpty
 
   personal <- randomUser

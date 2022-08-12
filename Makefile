@@ -13,7 +13,7 @@ CHARTS_INTEGRATION    := wire-server databases-ephemeral redis-cluster fake-aws 
 # (e.g. move charts/brig to charts/wire-server/brig)
 # this list could be generated from the folder names under ./charts/ like so:
 # CHARTS_RELEASE := $(shell find charts/ -maxdepth 1 -type d | xargs -n 1 basename | grep -v charts)
-CHARTS_RELEASE        := wire-server redis-ephemeral redis-cluster databases-ephemeral fake-aws fake-aws-s3 fake-aws-sqs aws-ingress  fluent-bit kibana backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external elasticsearch-ephemeral minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd restund coturn
+CHARTS_RELEASE        := wire-server redis-ephemeral redis-cluster databases-ephemeral fake-aws fake-aws-s3 fake-aws-sqs aws-ingress  fluent-bit kibana backoffice calling-test demo-smtp elasticsearch-curator elasticsearch-external elasticsearch-ephemeral minio-external cassandra-external nginx-ingress-controller nginx-ingress-services reaper wire-server-metrics sftd restund coturn inbucket
 BUILDAH_PUSH          ?= 0
 KIND_CLUSTER_NAME     := wire-server
 BUILDAH_KIND_LOAD     ?= 1
@@ -360,8 +360,8 @@ kube-integration-teardown-sans-federation:
 
 .PHONY: kube-restart-%
 kube-restart-%:
-	kubectl delete pod -n $(NAMESPACE) -l wireService=$(*)
-	kubectl delete pod -n $(NAMESPACE)-fed2 -l wireService=$(*)
+	kubectl delete pod -n $(NAMESPACE) -l app=$(*)
+	kubectl delete pod -n $(NAMESPACE)-fed2 -l app=$(*)
 
 .PHONY: latest-tag
 latest-tag:
@@ -408,6 +408,10 @@ charts-integration: $(foreach chartName,$(CHARTS_INTEGRATION),chart-$(chartName)
 .PHONY: charts-serve
 charts-serve: charts-integration
 	./hack/bin/serve-charts.sh $(CHARTS_INTEGRATION)
+
+.PHONY: charts-serve-all
+charts-serve-all: $(foreach chartName,$(CHARTS_RELEASE),chart-$(chartName))
+	./hack/bin/serve-charts.sh $(CHARTS_RELEASE)
 
 # Usecase for this make target:
 # 1. for releases of helm charts
@@ -522,8 +526,8 @@ kind-restart-nginx-ingress: .local/kind-kubeconfig
 
 kind-restart-%: .local/kind-kubeconfig
 	export KUBECONFIG=$(CURDIR)/.local/kind-kubeconfig && \
-	kubectl delete pod -n $(NAMESPACE) -l wireService=$(*) && \
-	kubectl delete pod -n $(NAMESPACE)-fed2 -l wireService=$(*)
+	kubectl delete pod -n $(NAMESPACE) -l app=$(*) && \
+	kubectl delete pod -n $(NAMESPACE)-fed2 -l app=$(*)
 
 # This target can be used to template a helm chart with values filled in from
 # hack/helm_vars (what CI uses) as overrrides, if available. This allows debugging helm

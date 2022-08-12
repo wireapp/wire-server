@@ -1,0 +1,1 @@
+For TLS1.2, by default, remove ECDHE-ECDSA-AES128-GCM-SHA256 and ECDHE-RSA-AES128-GCM-SHA256 ciphers for ingress traffic.

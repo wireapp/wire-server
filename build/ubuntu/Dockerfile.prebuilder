@@ -70,4 +70,4 @@ ENV PATH=/root/.ghcup/bin:/root/.cabal/bin:${PATH} \
 
 ARG CABAL_VERSION=3.6.2.0
 RUN ghcup install cabal ${CABAL_VERSION} && \
-    cabal install cabal-plan
+    cabal install cabal-plan -fexe

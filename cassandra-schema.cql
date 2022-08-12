@@ -35,22 +35,13 @@ CREATE TABLE galley_test.meta (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
-CREATE TABLE galley_test.conversation (
-    conv uuid PRIMARY KEY,
-    access set<int>,
-    access_role int,
-    access_roles_v2 set<int>,
-    creator uuid,
-    deleted boolean,
-    epoch bigint,
-    group_id blob,
-    message_timer bigint,
-    name text,
-    protocol int,
-    receipt_mode int,
+CREATE TABLE galley_test.team_conv (
     team uuid,
-    type int
-) WITH bloom_filter_fp_chance = 0.1
+    conv uuid,
+    managed boolean,
+    PRIMARY KEY (team, conv)
+) WITH CLUSTERING ORDER BY (conv ASC)
+    AND bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
@@ -143,6 +134,11 @@ CREATE TABLE galley_test.team_features (
     guest_links_lock_status int,
     guest_links_status int,
     legalhold_status int,
+    mls_allowed_ciphersuites set<int>,
+    mls_default_ciphersuite int,
+    mls_default_protocol int,
+    mls_protocol_toggle_users set<uuid>,
+    mls_status int,
     search_visibility_inbound_status int,
     search_visibility_status int,
     self_deleting_messages_lock_status int,
@@ -267,6 +263,7 @@ CREATE TABLE galley_test.member_remote_user (
     user_remote_domain text,
     user_remote_id uuid,
     conversation_role text,
+    mls_clients set<text>,
     PRIMARY KEY (conv, user_remote_domain, user_remote_id)
 ) WITH CLUSTERING ORDER BY (user_remote_domain ASC, user_remote_id ASC)
     AND bloom_filter_fp_chance = 0.1
@@ -450,16 +447,46 @@ CREATE TABLE galley_test.clients (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
-CREATE TABLE galley_test.team_conv (
+CREATE TABLE galley_test.conversation (
+    conv uuid PRIMARY KEY,
+    access set<int>,
+    access_role int,
+    access_roles_v2 set<int>,
+    cipher_suite int,
+    creator uuid,
+    deleted boolean,
+    epoch bigint,
+    group_id blob,
+    message_timer bigint,
+    name text,
+    protocol int,
+    receipt_mode int,
     team uuid,
-    conv uuid,
-    managed boolean,
-    PRIMARY KEY (team, conv)
-) WITH CLUSTERING ORDER BY (conv ASC)
-    AND bloom_filter_fp_chance = 0.1
+    type int
+) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE galley_test.mls_commit_locks (
+    group_id blob,
+    epoch bigint,
+    PRIMARY KEY (group_id, epoch)
+) WITH CLUSTERING ORDER BY (epoch ASC)
+    AND bloom_filter_fp_chance = 0.01
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
     AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1
@@ -480,6 +507,7 @@ CREATE TABLE galley_test.team (
     icon_key text,
     name text,
     search_visibility int,
+    splash_screen text,
     status int
 ) WITH bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
@@ -501,6 +529,28 @@ CREATE TABLE galley_test.billing_team_member (
     user uuid,
     PRIMARY KEY (team, user)
 ) WITH CLUSTERING ORDER BY (user ASC)
+    AND bloom_filter_fp_chance = 0.01
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE galley_test.mls_proposal_refs (
+    group_id blob,
+    epoch bigint,
+    ref blob,
+    proposal blob,
+    PRIMARY KEY (group_id, epoch, ref)
+) WITH CLUSTERING ORDER BY (epoch ASC, ref ASC)
     AND bloom_filter_fp_chance = 0.01
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
@@ -1187,6 +1237,27 @@ CREATE TABLE brig_test.user (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
+CREATE TABLE brig_test.vcodes_throttle (
+    key ascii,
+    scope int,
+    initial_delay int,
+    PRIMARY KEY (key, scope)
+) WITH CLUSTERING ORDER BY (scope ASC)
+    AND bloom_filter_fp_chance = 0.01
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
 CREATE TABLE brig_test.properties (
     user uuid,
     key ascii,
@@ -1647,6 +1718,7 @@ CREATE TABLE spar_test.idp (
     idp uuid PRIMARY KEY,
     api_version int,
     extra_public_keys list<blob>,
+    handle text,
     issuer text,
     old_issuers list<text>,
     public_key blob,

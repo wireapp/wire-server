@@ -26,12 +26,12 @@ import Network.HTTP.Client (HttpException (..), HttpExceptionContent (..), respo
 import Network.HTTP.Types
 
 httpHandlers :: Monad m => [a -> Handler m Bool]
-httpHandlers = [const . Handler $ return . canRetry]
+httpHandlers = [const . Handler $ pure . canRetry]
 
 rpcHandlers :: Monad m => [a -> Handler m Bool]
 rpcHandlers =
   [ const . Handler $ \(RPCException _ _ cause) ->
-      return $ maybe False canRetry (fromException cause)
+      pure $ maybe False canRetry (fromException cause)
   ]
 
 canRetry :: HttpException -> Bool

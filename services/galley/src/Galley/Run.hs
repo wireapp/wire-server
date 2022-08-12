@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE NumericUnderscores #-}
 
 module Galley.Run
   ( run,
@@ -21,6 +22,8 @@ module Galley.Run
   )
 where
 
+import AWS.Util (readAuthExpiration)
+import qualified Amazonka as AWS
 import Bilge.Request (requestIdName)
 import Cassandra (runClient, shutdown)
 import Cassandra.Schema (versionCheck)
@@ -31,6 +34,8 @@ import Control.Monad.Codensity
 import qualified Data.Aeson as Aeson
 import Data.Default
 import Data.Id
+import Data.Metrics (Metrics)
+import Data.Metrics.AWS (gaugeTokenRemaing)
 import qualified Data.Metrics.Middleware as M
 import Data.Metrics.Servant (servantPlusWAIPrometheusMiddleware)
 import Data.Misc (portNumber)
@@ -41,6 +46,7 @@ import Galley.API.Federation (FederationAPI, federationSitemap)
 import Galley.API.Internal
 import Galley.App
 import qualified Galley.App as App
+import Galley.Aws (awsEnv)
 import Galley.Cassandra
 import Galley.Monad
 import Galley.Options
@@ -71,6 +77,8 @@ run opts = lowerCodensity $ do
           (env ^. App.applog)
           (env ^. monitor)
 
+  forM_ (env ^. aEnv) $ \aws ->
+    void $ Codensity $ Async.withAsync $ collectAuthMetrics (env ^. monitor) (aws ^. awsEnv)
   void $ Codensity $ Async.withAsync $ runApp env deleteLoop
   void $ Codensity $ Async.withAsync $ runApp env refreshMetrics
   lift $ finally (runSettingsWithShutdown settings app 5) (shutdown (env ^. cstate))
@@ -97,7 +105,7 @@ mkApp opts =
     pure (middlewares $ servantApp env, env)
   where
     rtree = compile API.sitemap
-    runGalley e r k = evalGalley e (route rtree r k)
+    runGalley e r k = evalGalleyToIO e (route rtree r k)
     -- the servant API wraps the one defined using wai-routing
     servantApp e0 r =
       let e = reqId .~ lookupReqId r $ e0
@@ -152,3 +160,11 @@ refreshMetrics = do
     n <- Q.len q
     M.gaugeSet (fromIntegral n) (M.path "galley.deletequeue.len") m
     threadDelay 1000000
+
+collectAuthMetrics :: MonadIO m => Metrics -> AWS.Env -> m ()
+collectAuthMetrics m env = do
+  liftIO $
+    forever $ do
+      mbRemaining <- readAuthExpiration env
+      gaugeTokenRemaing m mbRemaining
+      threadDelay 1_000_000

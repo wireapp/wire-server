@@ -67,7 +67,7 @@ instance ParseMLS Credential where
           <*> parseMLSBytes @Word16
 
 credentialTag :: Credential -> CredentialTag
-credentialTag (BasicCredential _ _ _) = BasicCredentialTag
+credentialTag BasicCredential {} = BasicCredentialTag
 
 -- | A TLS signature scheme.
 --
@@ -146,15 +146,13 @@ instance ToSchema ClientIdentity where
 instance ParseMLS ClientIdentity where
   parseMLS = do
     uid <-
-      maybe (fail "Invalid UUID") (pure . Id)
-        =<< fmap fromASCIIBytes (getByteString 36)
+      maybe (fail "Invalid UUID") (pure . Id) . fromASCIIBytes =<< getByteString 36
     char ':'
     cid <- newClientId <$> hexadecimal
     char '@'
     dom <-
-      either fail pure
-        =<< fmap (mkDomain . T.pack) (many' anyChar)
+      either fail pure . (mkDomain . T.pack) =<< many' anyChar
     pure $ ClientIdentity dom uid cid
 
 mkClientIdentity :: Qualified UserId -> ClientId -> ClientIdentity
-mkClientIdentity (Qualified uid domain) cid = ClientIdentity domain uid cid
+mkClientIdentity (Qualified uid domain) = ClientIdentity domain uid

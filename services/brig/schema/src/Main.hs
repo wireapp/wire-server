@@ -80,6 +80,7 @@ import qualified V67_MLSKeyPackages
 import qualified V68_AddMLSPublicKeys
 import qualified V69_MLSKeyPackageRefMapping
 import qualified V70_UserEmailUnvalidated
+import qualified V71_AddTableVCodesThrottle
 import qualified V9
 
 main :: IO ()
@@ -149,7 +150,8 @@ main = do
       V67_MLSKeyPackages.migration,
       V68_AddMLSPublicKeys.migration,
       V69_MLSKeyPackageRefMapping.migration,
-      V70_UserEmailUnvalidated.migration
+      V70_UserEmailUnvalidated.migration,
+      V71_AddTableVCodesThrottle.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Brig.App
 

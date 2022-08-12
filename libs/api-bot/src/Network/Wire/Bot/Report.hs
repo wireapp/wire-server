@@ -71,19 +71,19 @@ createReport :: MonadIO m => Text -> Metrics -> SectionS -> m Report
 createReport t m (SectionS (Endo f)) = do
   d <- liftIO getCurrentTime
   v <- liftIO $ foldM go mempty (concatMap sectionMetrics s)
-  return $! Report t d s v
+  pure $! Report t d s v
   where
     s = f []
     go (Data cs ls bs gs) metric = case metric of
       Counter _ p -> do
         v <- counterValue =<< counterGet p m
-        return $! Data (HashMap.insert p v cs) ls bs gs
+        pure $! Data (HashMap.insert p v cs) ls bs gs
       Gauge _ p -> do
         v <- gaugeValue =<< gaugeGet p m
-        return $! Data cs ls bs (HashMap.insert p v gs)
+        pure $! Data cs ls bs (HashMap.insert p v gs)
       Histogram _ p hi -> do
         v <- histoGet hi m >>= histoValue
-        return $! Data cs ls (HashMap.insert p v bs) gs
+        pure $! Data cs ls (HashMap.insert p v bs) gs
 
 -------------------------------------------------------------------------------
 

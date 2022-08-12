@@ -19,17 +19,13 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Galley.API.Push
-  ( -- * Message metadata
-    MessageMetadata (..),
-    defMessageMetadata,
-
-    -- * Message pushes
+  ( -- * Message pushes
     MessagePush (..),
     MessageType (..),
     newBotPush,
 
     -- * Executing message pushes
-    LocalMemberMap,
+    BotMap,
     MessagePushEffects,
     newMessagePush,
     runMessagePush,
@@ -57,23 +53,7 @@ import Polysemy
 import Polysemy.TinyLog
 import qualified System.Logger.Class as Log
 import Wire.API.Event.Conversation
-
-data MessageMetadata = MessageMetadata
-  { mmNativePush :: Bool,
-    mmTransient :: Bool,
-    mmNativePriority :: Maybe Priority,
-    mmData :: Maybe Text
-  }
-  deriving (Eq, Ord, Show)
-
-defMessageMetadata :: MessageMetadata
-defMessageMetadata =
-  MessageMetadata
-    { mmNativePush = True,
-      mmTransient = False,
-      mmNativePriority = Nothing,
-      mmData = Nothing
-    }
+import Wire.API.Message
 
 data MessageType = NormalMessage | Broadcast
 
@@ -85,12 +65,12 @@ data instance MessagePush 'NormalMessage = NormalMessagePush
   { userPushes :: [Push],
     botPushes :: [(BotMember, Event)]
   }
-  deriving stock (Generic)
+  deriving stock (Generic, Show)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid (MessagePush 'NormalMessage)
 
 data instance MessagePush 'Broadcast = BroadcastPush
   {broadcastPushes :: [Push]}
-  deriving stock (Generic)
+  deriving stock (Generic, Show)
   deriving (Semigroup, Monoid) via GenericSemigroupMonoid (MessagePush 'Broadcast)
 
 newUserPush :: forall t. SingI t => Push -> MessagePush t
@@ -100,6 +80,8 @@ newUserPush p = withSing @t $ \case
 
 newBotPush :: BotMember -> Event -> MessagePush 'NormalMessage
 newBotPush b e = NormalMessagePush {userPushes = mempty, botPushes = pure (b, e)}
+
+type BotMap = Map UserId BotMember
 
 type family LocalMemberMap (t :: MessageType) = (m :: *) | m -> t where
   LocalMemberMap 'NormalMessage = Map UserId LocalMember
@@ -115,19 +97,16 @@ newMessagePush ::
   forall t x.
   SingI t =>
   Local x ->
-  LocalMemberMap t ->
+  BotMap ->
   Maybe ConnId ->
   MessageMetadata ->
   (UserId, ClientId) ->
   Event ->
   MessagePush t
-newMessagePush loc members mconn mm (user, client) e = withSing @t $ \case
-  SNormalMessage -> fold $ do
-    member <- Map.lookup user members
-    newBotMessagePush member <|> newUserMessagePush loc mconn mm (lmId member) client e
-    where
-      newBotMessagePush :: LocalMember -> Maybe (MessagePush 'NormalMessage)
-      newBotMessagePush member = newBotPush <$> newBotMember member <*> pure e
+newMessagePush loc bots mconn mm (user, client) e = withSing @t $ \case
+  SNormalMessage -> case Map.lookup user bots of
+    Just bm -> newBotPush bm e
+    Nothing -> fold $ newUserMessagePush loc mconn mm user client e
   SBroadcast -> fold $ newUserMessagePush loc mconn mm user client e
 
 runMessagePush ::

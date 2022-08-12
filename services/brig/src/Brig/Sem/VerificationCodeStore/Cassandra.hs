@@ -18,6 +18,7 @@
 
 module Brig.Sem.VerificationCodeStore.Cassandra (verificationCodeStoreToCassandra) where
 
+import Brig.API.Types
 import Brig.Data.Instances ()
 import Brig.Sem.VerificationCodeStore
 import Cassandra hiding (Value)
@@ -63,7 +64,8 @@ verificationCodeStoreToCassandra =
     embed @m . \case
       x -> case x of
         GetPendingCode key scope -> lookupCode key scope
-        InsertCode code -> insert code
+        InsertCode code ttl -> insert code ttl
+        InsertCodeInternal code -> insertInternal code
 
 -- | Lookup a pending code.
 lookupCode :: MonadClient m => Key -> Scope -> m (Maybe Code)
@@ -74,8 +76,29 @@ lookupCode k s = fmap (toCode k s) <$> retry x1 (query1 cql (params LocalQuorum 
       "SELECT value, ttl(value), retries, email, phone, account \
       \FROM vcodes WHERE key = ? AND scope = ?"
 
-insert :: MonadClient m => Code -> m ()
-insert c = do
+insert :: MonadClient m => Code -> Int -> m (Maybe RetryAfter)
+insert code ttl = do
+  mRetryAfter <- lookupThrottle (codeKey code) (codeScope code)
+  case mRetryAfter of
+    Just ra -> pure (Just ra)
+    Nothing -> do
+      insertThrottle code ttl
+      insertInternal code
+      pure Nothing
+  where
+    insertThrottle :: MonadClient m => Code -> Int -> m ()
+    insertThrottle c t = do
+      let k = codeKey c
+      let s = codeScope c
+      retry x5 (write cql (params LocalQuorum (k, s, fromIntegral t, fromIntegral t)))
+      where
+        cql :: PrepQuery W (Key, Scope, Int32, Int32) ()
+        cql =
+          "INSERT INTO vcodes_throttle (key, scope, initial_delay) \
+          \VALUES (?, ?, ?) USING TTL ?"
+
+insertInternal :: MonadClient m => Code -> m ()
+insertInternal c = do
   let k = codeKey c
   let s = codeScope c
   let v = codeValue c
@@ -90,6 +113,16 @@ insert c = do
     cql =
       "INSERT INTO vcodes (key, scope, value, retries, email, phone, account) \
       \VALUES (?, ?, ?, ?, ?, ?, ?) USING TTL ?"
+
+-- | Check if code generation should be throttled.
+lookupThrottle :: MonadClient m => Key -> Scope -> m (Maybe RetryAfter)
+lookupThrottle k s = do
+  fmap (RetryAfter . fromIntegral . runIdentity) <$> retry x1 (query1 cql (params LocalQuorum (k, s)))
+  where
+    cql :: PrepQuery R (Key, Scope) (Identity Int32)
+    cql =
+      "SELECT ttl(initial_delay) \
+      \FROM vcodes_throttle WHERE key = ? AND scope = ?"
 
 toCode :: Key -> Scope -> (Value, Int32, Retries, Maybe Email, Maybe Phone, Maybe UUID) -> Code
 toCode k s (val, ttl, retries, email, phone, account) =

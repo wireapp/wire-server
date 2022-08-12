@@ -30,12 +30,13 @@ import Bilge.RPC (HasRequestId)
 import qualified Brig.API.Client as Client
 import Brig.API.Error
 import Brig.API.Handler
-import Brig.API.Types (PasswordResetError (..))
+import Brig.API.Types (PasswordResetError (..), VerificationCodeThrottledError (VerificationCodeThrottled))
+import Brig.API.Util
 import Brig.App
 import qualified Brig.Code as Code
 import qualified Brig.Data.Client as User
 import qualified Brig.Data.User as User
-import Brig.Email (mkEmailKey, validateEmail)
+import Brig.Email (mkEmailKey)
 import qualified Brig.IO.Intra as RPC
 import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options (Settings (..), setDefaultUserLocale)
@@ -50,11 +51,8 @@ import Brig.Sem.UserQuery (UserQuery)
 import Brig.Sem.UserQuery.Cassandra
 import Brig.Sem.VerificationCodeStore
 import Brig.Team.Util
-import Brig.Types.Client (Client (..), ClientType (..), newClient, newClientPrekeys)
 import Brig.Types.Intra (AccountStatus (..), UserAccount (..))
-import Brig.Types.Provider (AddBot (..), DeleteProvider (..), DeleteService (..), NewService (..), PasswordChange (..), Provider (..), ProviderLogin (..), Service (..), ServiceProfile (..), ServiceToken (..), UpdateBotPrekeys (..), UpdateProvider (..), UpdateService (..), UpdateServiceConn (..), UpdateServiceWhitelist (..))
-import qualified Brig.Types.Provider.External as Ext
-import Brig.Types.User (HavePendingInvitations (..), ManagedBy (..), Name (..), Pict (..), User (..), defaultAccentId)
+import Brig.Types.User
 import qualified Brig.ZAuth as ZAuth
 import Cassandra (MonadClient)
 import Control.Error (throwE)
@@ -81,10 +79,6 @@ import qualified Data.Set as Set
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Ascii as Ascii
 import qualified Data.Text.Encoding as Text
-import Galley.Types
-import Galley.Types.Bot (newServiceRef, serviceRefId, serviceRefProvider)
-import Galley.Types.Conversations.Roles (roleNameWireAdmin)
-import qualified Galley.Types.Teams as Teams
 import Imports
 import Network.HTTP.Types.Status
 import Network.Wai (Response)
@@ -106,17 +100,28 @@ import qualified Ssl.Util as SSL
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import qualified Web.Cookie as Cookie
+import Wire.API.Conversation hiding (Member)
+import Wire.API.Conversation.Bot
 import qualified Wire.API.Conversation.Bot as Public
+import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Brig
 import qualified Wire.API.Event.Conversation as Public (Event)
+import Wire.API.Provider
 import qualified Wire.API.Provider as Public
+import qualified Wire.API.Provider.Bot as Ext
 import qualified Wire.API.Provider.Bot as Public (BotUserView)
+import Wire.API.Provider.External
+import qualified Wire.API.Provider.External as Ext
+import Wire.API.Provider.Service
 import qualified Wire.API.Provider.Service as Public
 import qualified Wire.API.Provider.Service.Tag as Public
 import qualified Wire.API.Team.Feature as Feature
 import Wire.API.Team.LegalHold (LegalholdProtectee (UnprotectedBot))
+import Wire.API.Team.Permission
+import Wire.API.User hiding (cpNewPassword, cpOldPassword)
 import qualified Wire.API.User as Public (UserProfile, publicProfile)
+import Wire.API.User.Client
 import qualified Wire.API.User.Client as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
 import qualified Wire.API.User.Client.Prekey as Public (PrekeyId)
 import qualified Wire.API.User.Identity as Public (Email)
@@ -375,7 +380,8 @@ newAccount new = do
       (Code.Retries 3)
       (Code.Timeout (3600 * 24)) -- 24h
       (Just (toUUID pid))
-  lift . liftSem $ Code.insertCode code
+  -- lift . liftSem $ Code.insertCode code
+  tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
   let key = Code.codeKey code
   let val = Code.codeValue code
   lift $ sendActivationMail name email key val False
@@ -503,7 +509,8 @@ beginPasswordReset (Public.PasswordReset target) = do
         (Code.Retries 3)
         (Code.Timeout 3600) -- 1h
         (Just (toUUID pid))
-  lift . liftSem $ Code.insertCode code
+  -- lift . liftSem $ Code.insertCode code
+  tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
   lift $ sendPasswordResetMail target (Code.codeKey code) (Code.codeValue code)
 
 completePasswordResetH ::
@@ -585,7 +592,8 @@ updateAccountEmail pid (Public.EmailUpdate new) = do
       (Code.Retries 3)
       (Code.Timeout (3600 * 24)) -- 24h
       (Just (toUUID pid))
-  lift . liftSem $ Code.insertCode code
+  -- lift . liftSem $ Code.insertCode code
+  tryInsertVerificationCode code $ verificationCodeThrottledError . VerificationCodeThrottled
   lift $ sendActivationMail (Name "name") email (Code.codeKey code) (Code.codeValue code) True
 
 updateAccountPasswordH :: ProviderId ::: JsonRequest Public.PasswordChange -> (Handler r) Response
@@ -910,7 +918,7 @@ updateServiceWhitelist uid con tid upd = do
       sid = updateServiceWhitelistService upd
       newWhitelisted = updateServiceWhitelistStatus upd
   -- Preconditions
-  ensurePermissions uid tid (Set.toList Teams.serviceWhitelistPermissions)
+  ensurePermissions uid tid (Set.toList serviceWhitelistPermissions)
   _ <- wrapClientE (DB.lookupService pid sid) >>= maybeServiceNotFound
   -- Add to various tables
   whitelisted <- wrapClientE $ DB.getServiceWhitelistStatus tid pid sid
@@ -999,7 +1007,7 @@ addBot zuid zcon cid add = do
   let bcnv = Ext.botConvView (qUnqualified . cnvQualifiedId $ cnv) (cnvName cnv) members
   let busr = mkBotUserView zusr
   let bloc = fromMaybe (userLocale zusr) (addBotLocale add)
-  let botReq = Ext.NewBotRequest bid bcl busr bcnv btk bloc
+  let botReq = NewBotRequest bid bcl busr bcnv btk bloc
   rs <- RPC.createBot scon botReq !>> StdError . serviceError
   -- Insert the bot user and client
   let name = fromMaybe (serviceProfileName svp) (Ext.rsNewBotName rs)
@@ -1189,7 +1197,7 @@ guardSecondFactorDisabled ::
   Maybe UserId ->
   ExceptT Error m ()
 guardSecondFactorDisabled mbUserId = do
-  enabled <- lift $ (==) Feature.TeamFeatureEnabled . Feature.tfwoStatus <$> RPC.getTeamFeatureStatusSndFactorPasswordChallenge mbUserId
+  enabled <- lift $ (==) Feature.FeatureStatusEnabled . Feature.wsStatus . Feature.afcSndFactorPasswordChallenge <$> RPC.getAllFeatureConfigsForUser mbUserId
   when enabled $ throwStd accessDenied
 
 minRsaKeySize :: Int

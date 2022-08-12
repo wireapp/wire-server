@@ -55,11 +55,12 @@ galleyAccessToHttp g =
                   "teams",
                   toByteString' tid,
                   "features",
-                  toByteString' TeamFeatureSndFactorPasswordChallenge
+                  featureNameBS @SndFactorPasswordChallengeConfig
                 ]
                 . expect2xx
         response <- makeReq g GET req
-        tfwoStatus <$> RPC.decodeBody "galley" response
+        wsStatus @SndFactorPasswordChallengeConfig
+          <$> RPC.decodeBody "galley" response
 
 makeReq ::
   (MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>

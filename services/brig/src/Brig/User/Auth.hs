@@ -61,8 +61,7 @@ import Brig.Sem.UserQuery.Cassandra
 import Brig.Sem.VerificationCodeStore (VerificationCodeStore)
 import Brig.Types.Common
 import Brig.Types.Intra
-import Brig.Types.User
-import Brig.Types.User.Auth hiding (user)
+import Brig.Types.User.Auth
 import Brig.User.Auth.Cookie
 import Brig.User.Phone
 import Brig.User.Search.Index
@@ -92,9 +91,10 @@ import qualified Polysemy.TinyLog as P
 import qualified Ropes.Twilio as Twilio
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
-import Wire.API.Team.Feature (TeamFeatureStatusNoConfig (..), TeamFeatureStatusValue (..))
+import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
-import Wire.API.User (VerificationAction (..))
+import Wire.API.User
+import Wire.API.User.Auth
 
 data Access u = Access
   { accessToken :: !AccessToken,
@@ -234,13 +234,14 @@ verifyCode ::
   ExceptT VerificationCodeError (AppT r) ()
 verifyCode mbCode action uid = do
   (mbEmail, mbTeamId) <- getEmailAndTeamId uid
-  featureEnabled <- lift . liftSem $ do
-    mbFeatureEnabled <- getTeamSndFactorPasswordChallenge `traverse` mbTeamId
-    pure $
-      maybe
-        (Public.tfwoapsStatus (Public.defTeamFeatureStatus @'Public.TeamFeatureSndFactorPasswordChallenge) == Public.TeamFeatureEnabled)
-        (== TeamFeatureEnabled)
-        mbFeatureEnabled
+  featureEnabled <- lift $ do
+    mbFeatureEnabled <- wrapHttpClient $ Intra.getVerificationCodeEnabled `traverse` mbTeamId
+    -- pure $
+    --   maybe
+    --     (Public.tfwoapsStatus (Public.defTeamFeatureStatus @'Public.TeamFeatureSndFactorPasswordChallenge) == Public.TeamFeatureEnabled)
+    --     (== TeamFeatureEnabled)
+    --     mbFeatureEnabled
+    pure $ fromMaybe (Public.wsStatus (Public.defFeatureStatus @Public.SndFactorPasswordChallengeConfig) == Public.FeatureStatusEnabled) mbFeatureEnabled
   when featureEnabled $ do
     case (mbCode, mbEmail) of
       (Just code, Just email) -> do
@@ -617,9 +618,9 @@ assertLegalHoldEnabled ::
   ExceptT LegalHoldLoginError m ()
 assertLegalHoldEnabled tid = do
   stat <- lift $ Intra.getTeamLegalHoldStatus tid
-  case tfwoStatus stat of
-    TeamFeatureDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
-    TeamFeatureEnabled -> pure ()
+  case wsStatus stat of
+    FeatureStatusDisabled -> throwE LegalHoldLoginLegalHoldNotEnabled
+    FeatureStatusEnabled -> pure ()
 
 --------------------------------------------------------------------------------
 -- Polysemy crutches

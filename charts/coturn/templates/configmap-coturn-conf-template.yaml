@@ -15,11 +15,6 @@ data:
     ## don't turn on coturn's cli.
     no-cli
 
-    ## authentication setup
-    # FUTUREWORK: enable support for multiple secrets?
-    zrest
-    static-auth-secret=__COTURN_SECRET__
-
     ## turn, stun.
     listening-ip=__COTURN_EXT_IP__
     listening-port={{ .Values.coturnTurnListenPort }}
@@ -33,6 +28,7 @@ data:
     ## prometheus metrics
     prometheus-ip=__COTURN_POD_IP__
     prometheus-port={{ .Values.coturnMetricsListenPort }}
+    prometheus-no-username-labels
 
     ## logs
     log-file=stdout
@@ -72,3 +68,8 @@ data:
     denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff
 
     # FUTUREWORK: expose customisable access control settings.
+
+    ## authentication setup
+    zrest
+    ## static authentication secrets will be added below this line when the
+    ## runtime configuration is generated.

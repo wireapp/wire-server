@@ -283,7 +283,75 @@ Metric values are sets of data points about services, such as status and other m
 
 Sometimes, you will want to manually obtain this data that is normally automatically grabbed by Prometheus.
 
-This command allows you to obtain the data, for example for gundeck:
+Some of the pods allow you to grab metrics by accessing their ``/i/metrics`` endpoint, in particular:
+
+* ``brig``: User management API
+* ``cannon``: WebSockets API
+* ``cargohold``: Assets storage API
+* ``galley``: Conversations and Teams API
+* ``gundeck``: Push Notifications API
+* ``spar``: Single-Sign-ON and SCIM
+
+For more details on the various services/pods, you can check out `this link <../../understand/overview.html?highlight=gundeck#focus-on-pods>`.
+
+Before you can grab metrics from a pod, you need to find its IP address. You do this by running the following command:
+
+.. code:: sh
+
+   d kubectl get pods -owide
+
+(this presumes you are already in your normal Wire environment, which you obtain by running ``source ./bin/offline-env.sh``)
+
+Which will give you an output that looks something like this:
+
+.. code::
+
+   demo@Ubuntu-1804-bionic-64-minimal:~/Wire-Server$ d kubectl get pods -owide
+   NAME                               READY   STATUS      RESTARTS   AGE     IP              NODE        NOMINATED NODE   READINESS GATES
+   account-pages-784f9b547c-cp444     1/1     Running     0          6d23h   10.233.113.5    kubenode3   <none>           <none>
+   brig-746ddc55fd-6pltz              1/1     Running     0          6d23h   10.233.110.11   kubenode2   <none>           <none>
+   brig-746ddc55fd-d59dw              1/1     Running     0          6d4h    10.233.110.23   kubenode2   <none>           <none>
+   brig-746ddc55fd-zp7jl              1/1     Running     0          6d23h   10.233.113.10   kubenode3   <none>           <none>
+   brig-index-migrate-data-45rm7      0/1     Completed   0          6d23h   10.233.110.9    kubenode2   <none>           <none>
+   cannon-0                           1/1     Running     0          3h1m    10.233.119.41   kubenode1   <none>           <none>
+   cannon-1                           1/1     Running     0          3h1m    10.233.113.47   kubenode3   <none>           <none>
+   cannon-2                           1/1     Running     0          3h1m    10.233.110.51   kubenode2   <none>           <none>
+   cargohold-65bff97fc6-8b9ls         1/1     Running     0          6d4h    10.233.113.20   kubenode3   <none>           <none>
+   cargohold-65bff97fc6-bkx6x         1/1     Running     0          6d23h   10.233.113.4    kubenode3   <none>           <none>
+   cargohold-65bff97fc6-tz8fh         1/1     Running     0          6d23h   10.233.110.5    kubenode2   <none>           <none>
+   cassandra-migrations-bjsdz         0/1     Completed   0          6d23h   10.233.110.3    kubenode2   <none>           <none>
+   demo-smtp-784ddf6989-vmj7t         1/1     Running     0          6d23h   10.233.113.2    kubenode3   <none>           <none>
+   elasticsearch-index-create-7r8g4   0/1     Completed   0          6d23h   10.233.110.4    kubenode2   <none>           <none>
+   fake-aws-sns-6c7c4b7479-wfp82      2/2     Running     0          6d4h    10.233.110.27   kubenode2   <none>           <none>
+   fake-aws-sqs-59fbfbcbd4-n4c5z      2/2     Running     0          6d23h   10.233.110.2    kubenode2   <none>           <none>
+   galley-7c89c44f7b-nm2rr            1/1     Running     0          6d23h   10.233.110.8    kubenode2   <none>           <none>
+   galley-7c89c44f7b-tdxz4            1/1     Running     0          6d23h   10.233.113.6    kubenode3   <none>           <none>
+   galley-7c89c44f7b-tr8pm            1/1     Running     0          6d4h    10.233.110.29   kubenode2   <none>           <none>
+   galley-migrate-data-g66rz          0/1     Completed   0          6d23h   10.233.110.13   kubenode2   <none>           <none>
+   gundeck-7fd75c7c5f-jb8xq           1/1     Running     0          6d23h   10.233.110.6    kubenode2   <none>           <none>
+   gundeck-7fd75c7c5f-lbth9           1/1     Running     0          6d23h   10.233.113.8    kubenode3   <none>           <none>
+   gundeck-7fd75c7c5f-wvcw6           1/1     Running     0          6d4h    10.233.113.23   kubenode3   <none>           <none>
+   nginz-5cdd8b588b-dbn86             2/2     Running     16         6d23h   10.233.113.11   kubenode3   <none>           <none>
+   nginz-5cdd8b588b-gk6rw             2/2     Running     14         6d23h   10.233.110.12   kubenode2   <none>           <none>
+   nginz-5cdd8b588b-jvznt             2/2     Running     11         6d4h    10.233.113.21   kubenode3   <none>           <none>
+   reaper-6957694667-s5vz5            1/1     Running     0          6d4h    10.233.110.26   kubenode2   <none>           <none>
+   redis-ephemeral-master-0           1/1     Running     0          6d23h   10.233.113.3    kubenode3   <none>           <none>
+   spar-56d77f85f6-bw55q              1/1     Running     0          6d23h   10.233.113.9    kubenode3   <none>           <none>
+   spar-56d77f85f6-mczzd              1/1     Running     0          6d4h    10.233.110.28   kubenode2   <none>           <none>
+   spar-56d77f85f6-vvvfq              1/1     Running     0          6d23h   10.233.110.7    kubenode2   <none>           <none>
+   spar-migrate-data-ts4sx            0/1     Completed   0          6d23h   10.233.110.14   kubenode2   <none>           <none>
+   team-settings-fbbb899c-qxx7m       1/1     Running     0          6d4h    10.233.110.24   kubenode2   <none>           <none>
+   webapp-d97869795-grnft             1/1     Running     0          6d4h    10.233.110.25   kubenode2   <none>           <none>
+
+Here presuming we need to get metrics from ``gundeck``, we can see the IP of one of the gundeck pods is ``10.233.110.6``.
+
+We can therefore connect to node ``kubenode2`` on which this pod runs with ``ssh kubenode2.your-domain.com``, and run the following:
+
+.. code:: sh
+
+   curl 10.233.110.6:8080/i/metrics
+
+Alternatively, if you don't want to, or can't for some reason, connect to kubenode2, you can use port redirect instead:
 
 .. code:: sh
 
@@ -406,3 +474,113 @@ Close the session and proceed locally to generate the list of all users from tea
 
 .. note::
    Don't forget to dellete the created csv files after you have downloaded/processed them.
+
+Create a team using the SCIM API
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you need to create a team manually, maybe because team creation was blocked in the "teams" interface, follow this procedure:
+
+First download or locate this bash script: `wire-server/deploy/services-demo/create_test_team_scim.sh <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_test_team_scim.sh>`
+
+Then, run it the following way:
+
+.. code:: sh
+
+   ./create_test_team_scim.sh -h <brig host> -s <spar host>
+
+Where:
+
+* In `-h <brig host>`, replace `<brig host>` with the base URL for your brig host (for example: `https://brig-host.your-domain.com`, defaults to `http://localhost:8082`)
+* In `-s <spar host>`, replace `<spar host>` with the base URL for your spar host (for example: `https://spar-host.your-domain.com`, defaults to `http://localhost:8088`)
+
+You might also need to edit the admin email and admin passwords at lines `48` and `49` of the script.
+
+To learn more about the different pods and how to identify them, see `this page<https://docs.wire.com/understand/overview.html#focus-on-pods>`.
+
+You can list your pods with `kubectl get pods --namespace wire`.
+
+Alternatively, you can run the series of commands manually with `curl`, like this:
+
+.. code:: sh
+
+   curl -i -s --show-error \
+    -XPOST "$BRIG_HOST/i/users" \
+    -H'Content-type: application/json' \
+    -d'{"email":"$ADMIN_EMAIL","password":"$ADMIN_PASSWORD","name":"$NAME_OF_TEAM","team":{"name":"$NAME_OF_TEAM","icon":"default"}}'
+
+Where:
+
+* `$BRIG_HOST` is the base URL for your brig host
+* `$ADMIN_EMAIL` is the email for the admin account for the new team
+* `$ADMIN_PASSWORD` is the password for the admin account for the new team
+* `$NAME_OF_TEAM` is the name of the team newly created
+
+Out of the result of this command, you will be able to extract an `Admin UUID`, and a `Team UUID`, which you will need later.
+
+Then run:
+
+.. code:: sh
+
+        curl -X POST \
+              --header 'Content-Type: application/json' \
+              --header 'Accept: application/json' \
+              -d '{"email":"$ADMIN_EMAIL","password":"$ADMIN_PASSWORD"}' \
+              $BRIG_HOST/login'?persist=false' | jq -r .access_token
+
+Where the values to replace are the same as the command above.
+
+This command should output an access token, take note of it.
+
+Then run:
+
+.. code:: sh
+
+       curl -X POST \
+                       --header "Authorization: Bearer $ACCESS_TOKEN" \
+                       --header 'Content-Type: application/json;charset=utf-8' \
+                       --header 'Z-User: '"$ADMIN_UUID" \
+                       -d '{ "description": "test '"`date`"'", "password": "'"$ADMIN_PASSWORD"'" }' \
+                       $SPAR_HOST/scim/auth-tokens
+
+Where the values to replace are the same as the first command, plus `$ACCESS_TOKEN` is access token you just took note of in the previous command. 
+
+Out of the JSON  output of this command, you should be able to extract: 
+
+* A SCIM token (`token` value in the JSON).
+* A SCIM token ID (`id` value in the `info` value in the JSON)
+
+Equiped with those tokens, we move on to the next script, `wire-server/deploy/services-demo/create_team.sh <https://github.com/wireapp/wire-server/blob/develop/deploy/services-demo/create_team.sh>`
+
+This script can be run the following way:
+
+.. code:: sh
+
+    ./create_team.sh -h <host> -o <owner name> -e <owner email> -p <owner password> -v <email code> -t <team name> -c <team currency>    
+
+Where:
+
+*    -h <host>: Base URI of brig. default: `http://localhost:8080`
+*    -o <owner_name>: user display name of the owner of the team to be created.  default: "owner name n/a"
+*    -e <owner_email>: email address of the owner of the team to be created.  default: "owner email n/a"
+*    -p <owner_password>: owner password.  default: "owner pass n/a"
+*    -v <email_code>: validation code received by email after running the previous script/commands.  default: "email code n/a"
+*    -t <team_name>: default: "team name n/a"
+*    -c <team_currency>: default: "USD"
+
+Alternatively, you can manually run the command:
+
+.. code:: sh
+
+   curl -i -s --show-error \
+     -XPOST "$BRIG_HOST/register" \
+        -H'Content-type: application/json' \
+        -d'{"name":"$OWNER_NAME","email":"$OWNER_EMAIL","password":"$OWNER_PASSWORD","email_code":"$EMAIL_CODE","team":{"currency":"$TEAM_CURRENCY","icon":"default","name":"$TEAM_NAME"}}'
+
+Where:
+
+* `$BRIG_HOST` is the base URL for your brig service
+* `$OWNER_NAME` is the name of the of the team to be created
+* `$OWNER_PASSWORD` is the password of the owner of the team to be created
+* `$EMAIL_CODE` is the validation code received by email after running the previous script/command
+* `$TEAM_CURRENCY` is the currency of the team
+* `$TEAM_NAME` is the name of the team

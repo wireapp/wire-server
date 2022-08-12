@@ -19,7 +19,6 @@
 
 module Galley.API.Util where
 
-import Brig.Types (Relation (..))
 import Brig.Types.Intra (ReAuthUser (..))
 import Control.Lens (set, view, (.~), (^.))
 import Control.Monad.Extra (allM, anyM)
@@ -35,6 +34,7 @@ import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
 import qualified Data.Set as Set
 import Data.Singletons
+import qualified Data.Text as T
 import Data.Time
 import Galley.API.Error
 import qualified Galley.Data.Conversation as Data
@@ -52,10 +52,9 @@ import Galley.Effects.MemberStore
 import Galley.Effects.TeamStore
 import Galley.Intra.Push
 import Galley.Options
-import Galley.Types
-import Galley.Types.Conversations.Members (localMemberToOther, remoteMemberToOther)
+import Galley.Types.Conversations.Members (LocalMember (..), RemoteMember (..), localMemberToOther, remoteMemberToOther)
 import Galley.Types.Conversations.Roles
-import Galley.Types.Teams hiding (Event, MemberJoin, self)
+import Galley.Types.Teams
 import Galley.Types.UserList
 import Imports hiding (forkIO)
 import Network.HTTP.Types
@@ -65,12 +64,19 @@ import qualified Network.Wai.Utilities as Wai
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Wire.API.Connection
+import Wire.API.Conversation hiding (Member)
 import qualified Wire.API.Conversation as Public
+import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role
 import Wire.API.Error
 import Wire.API.Error.Galley
+import Wire.API.Event.Conversation
 import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Error
+import Wire.API.Team.Member
+import Wire.API.Team.Role
 import Wire.API.User (VerificationAction)
 import qualified Wire.API.User as User
 
@@ -330,6 +336,9 @@ class IsConvMember mem => IsConvMemberId uid mem | uid -> mem where
 
   notIsConvMember :: Local x -> Data.Conversation -> uid -> Bool
   notIsConvMember loc conv = not . isConvMember loc conv
+
+isConvMemberL :: IsConvMemberId uid mem => Local Data.Conversation -> uid -> Bool
+isConvMemberL lconv = isConvMember lconv (tUnqualified lconv)
 
 instance IsConvMemberId UserId LocalMember where
   getConvMember _ conv u = find ((u ==) . lmId) (Data.convLocalMembers conv)
@@ -601,13 +610,13 @@ runLocalInput :: Local x -> Sem (Input (Local ()) ': r) a -> Sem r a
 runLocalInput = runInputConst . void
 
 -- | Convert an internal conversation representation 'Data.Conversation' to
--- 'NewRemoteConversation' to be sent over the wire to a remote backend that will
+-- 'ConversationCreated' to be sent over the wire to a remote backend that will
 -- reconstruct this into multiple public-facing
 -- 'Wire.API.Conversation.Conversation' values, one per user from that remote
 -- backend.
 --
 -- FUTUREWORK: Include the team ID as well once it becomes qualified.
-toNewRemoteConversation ::
+toConversationCreated ::
   -- | The time stamp the conversation was created at
   UTCTime ->
   -- | The domain of the user that created the conversation
@@ -615,19 +624,20 @@ toNewRemoteConversation ::
   -- | The conversation to convert for sending to a remote Galley
   Data.Conversation ->
   -- | The resulting information to be sent to a remote Galley
-  NewRemoteConversation ConvId
-toNewRemoteConversation now localDomain Data.Conversation {convMetadata = ConversationMetadata {..}, ..} =
-  NewRemoteConversation
-    { rcTime = now,
-      rcOrigUserId = cnvmCreator,
-      rcCnvId = convId,
-      rcCnvType = cnvmType,
-      rcCnvAccess = cnvmAccess,
-      rcCnvAccessRoles = cnvmAccessRoles,
-      rcCnvName = cnvmName,
-      rcNonCreatorMembers = toMembers (filter (\lm -> lmId lm /= cnvmCreator) convLocalMembers) convRemoteMembers,
-      rcMessageTimer = cnvmMessageTimer,
-      rcReceiptMode = cnvmReceiptMode
+  ConversationCreated ConvId
+toConversationCreated now localDomain Data.Conversation {convMetadata = ConversationMetadata {..}, ..} =
+  ConversationCreated
+    { ccTime = now,
+      ccOrigUserId = cnvmCreator,
+      ccCnvId = convId,
+      ccCnvType = cnvmType,
+      ccCnvAccess = cnvmAccess,
+      ccCnvAccessRoles = cnvmAccessRoles,
+      ccCnvName = cnvmName,
+      ccNonCreatorMembers = toMembers (filter (\lm -> lmId lm /= cnvmCreator) convLocalMembers) convRemoteMembers,
+      ccMessageTimer = cnvmMessageTimer,
+      ccReceiptMode = cnvmReceiptMode,
+      ccProtocol = convProtocol
     }
   where
     toMembers ::
@@ -639,20 +649,20 @@ toNewRemoteConversation now localDomain Data.Conversation {convMetadata = Conver
         map (localMemberToOther localDomain) ls
           <> map remoteMemberToOther rs
 
--- | The function converts a 'NewRemoteConversation' value to a
+-- | The function converts a 'ConversationCreated' value to a
 -- 'Wire.API.Conversation.Conversation' value for each user that is on the given
 -- domain/backend. The obtained value can be used in e.g. creating an 'Event' to
 -- be sent out to users informing them that they were added to a new
 -- conversation.
-fromNewRemoteConversation ::
+fromConversationCreated ::
   Local x ->
-  NewRemoteConversation (Remote ConvId) ->
+  ConversationCreated (Remote ConvId) ->
   [(Public.Member, Public.Conversation)]
-fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
-  let membersView = fmap (second Set.toList) . setHoles $ rcNonCreatorMembers
+fromConversationCreated loc rc@ConversationCreated {..} =
+  let membersView = fmap (second Set.toList) . setHoles $ ccNonCreatorMembers
       creatorOther =
         OtherMember
-          (qUntagged (rcRemoteOrigUserId rc))
+          (qUntagged (ccRemoteOrigUserId rc))
           Nothing
           roleNameWireAdmin
    in foldMap
@@ -683,20 +693,20 @@ fromNewRemoteConversation loc rc@NewRemoteConversation {..} =
     conv :: Public.Member -> [OtherMember] -> Public.Conversation
     conv this others =
       Public.Conversation
-        (qUntagged rcCnvId)
+        (qUntagged ccCnvId)
         ConversationMetadata
-          { cnvmType = rcCnvType,
+          { cnvmType = ccCnvType,
             -- FUTUREWORK: Document this is the same domain as the conversation
             -- domain
-            cnvmCreator = rcOrigUserId,
-            cnvmAccess = rcCnvAccess,
-            cnvmAccessRoles = rcCnvAccessRoles,
-            cnvmName = rcCnvName,
+            cnvmCreator = ccOrigUserId,
+            cnvmAccess = ccCnvAccess,
+            cnvmAccessRoles = ccCnvAccessRoles,
+            cnvmName = ccCnvName,
             -- FUTUREWORK: Document this is the same domain as the conversation
             -- domain.
             cnvmTeam = Nothing,
-            cnvmMessageTimer = rcMessageTimer,
-            cnvmReceiptMode = rcReceiptMode
+            cnvmMessageTimer = ccMessageTimer,
+            cnvmReceiptMode = ccReceiptMode
           }
         (ConvMembers this others)
         ProtocolProteus
@@ -712,7 +722,7 @@ registerRemoteConversationMemberships ::
   Sem r ()
 registerRemoteConversationMemberships now localDomain c = do
   let allRemoteMembers = nubOrd (map rmId (Data.convRemoteMembers c))
-      rc = toNewRemoteConversation now localDomain c
+      rc = toConversationCreated now localDomain c
   runFederatedConcurrently_ allRemoteMembers $ \_ ->
     fedClient @'Galley @"on-conversation-created" rc
 
@@ -824,3 +834,26 @@ ensureMemberLimit old new = do
   let maxSize = fromIntegral (o ^. optSettings . setMaxConvSize)
   when (length old + length new > maxSize) $
     throwS @'TooManyMembers
+
+--------------------------------------------------------------------------------
+-- Handling remote errors
+
+class RethrowErrors (effs :: EffectRow) r where
+  rethrowErrors :: GalleyError -> Sem r a
+
+instance (Member (Error FederationError) r) => RethrowErrors '[] r where
+  rethrowErrors :: GalleyError -> Sem r a
+  rethrowErrors err' = throw (FederationUnexpectedError (T.pack . show $ err'))
+
+instance
+  ( SingI (e :: GalleyError),
+    Member (ErrorS e) r,
+    RethrowErrors effs r
+  ) =>
+  RethrowErrors (ErrorS e ': effs) r
+  where
+  rethrowErrors :: GalleyError -> Sem r a
+  rethrowErrors err' =
+    if err' == demote @e
+      then throwS @e
+      else rethrowErrors @effs @r err'

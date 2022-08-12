@@ -41,7 +41,7 @@ data Error = Error
     message :: !LText,
     errorData :: Maybe ErrorData
   }
-  deriving (Show, Typeable)
+  deriving (Eq, Show, Typeable)
 
 mkError :: Status -> LText -> LText -> Error
 mkError c l m = Error c l m Nothing
@@ -52,7 +52,7 @@ data ErrorData = FederationErrorData
   { federrDomain :: !Domain,
     federrPath :: !Text
   }
-  deriving (Show, Typeable)
+  deriving (Eq, Show, Typeable)
 
 instance ToJSON ErrorData where
   toJSON (FederationErrorData d p) =
@@ -79,7 +79,7 @@ instance ToJSON Error where
         "label" .= l,
         "message" .= m
       ]
-        ++ fromMaybe [] (fmap dataFields md)
+        ++ maybe [] dataFields md
     where
       dataFields :: ErrorData -> [Pair]
       dataFields d = ["data" .= d]

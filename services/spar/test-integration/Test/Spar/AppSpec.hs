@@ -167,11 +167,7 @@ requestAccessVerdict idp isGranted mkAuthnReq = do
           then SAML.AccessGranted uref
           else SAML.AccessDenied [DeniedNoBearerConfSubj, DeniedNoAuthnStatement]
   outcome :: ResponseVerdict <- do
-    mbteam <-
-      asks (^. teWireIdPAPIVersion) <&> \case
-        User.WireIdPAPIV1 -> Nothing
-        User.WireIdPAPIV2 -> Just (idp ^. SAML.idpExtraInfo . User.wiTeam)
-    runSpar $ Spar.verdictHandler mbteam authnresp verdict
+    runSpar $ Spar.verdictHandler authnresp verdict idp
   let loc :: URI.URI
       loc =
         maybe (error "no location") (either error id . SAML.parseURI' . cs)

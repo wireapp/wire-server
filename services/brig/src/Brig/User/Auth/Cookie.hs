@@ -43,7 +43,6 @@ where
 
 import Brig.App
 import Brig.Options hiding (user)
-import Brig.Types.User.Auth hiding (user)
 import Brig.User.Auth.Cookie.Limit
 import qualified Brig.User.Auth.DB.Cookie as DB
 import qualified Brig.ZAuth as ZAuth
@@ -55,6 +54,7 @@ import Data.Id
 import qualified Data.List as List
 import qualified Data.Metrics as Metrics
 import Data.Proxy
+import Data.RetryAfter
 import Data.Time.Clock
 import Imports
 import Network.Wai (Response)
@@ -62,6 +62,7 @@ import Network.Wai.Utilities.Response (addHeader)
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import qualified Web.Cookie as WebCookie
+import Wire.API.User.Auth
 
 --------------------------------------------------------------------------------
 -- Basic Cookie Management

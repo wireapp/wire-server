@@ -1,7 +1,7 @@
 on:
  pull_request:
  push:
-   branches: [master]
+   branches: [master, develop]
 
 jobs:
   build-dev-env:
@@ -28,3 +28,34 @@ jobs:
        run: nix-build --no-out-link ./nix -A devEnv
      - name: Install the wire-server-direnv
        run: nix-env -if ./nix -A devEnv
+  build-docs:
+    name: Build docs
+    environment: cachix
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+     - uses: actions/checkout@v2
+       with:
+         submodules: true
+     - uses: cachix/install-nix-action@v14.1
+     - uses: cachix/cachix-action@v10
+       with:
+         name: wire-server
+         signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
+         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+     - name: Build docs
+       run: nix-build --no-out-link ./nix -A docs
+     - name: Configure AWS credentials
+       if: ${{ github.ref == 'refs/heads/develop' }}
+       uses: aws-actions/configure-aws-credentials@v1
+       with:
+         role-to-assume: arn:aws:iam::093205192929:role/gh-actions-wire-server
+         aws-region: eu-west-1
+     - name: Deploy docs
+       if: ${{ github.ref == 'refs/heads/develop' }}
+       run: |
+         docs=$(nix-build --no-out-link ./nix -A docs)
+         aws s3 sync $docs/html s3://origin-docs.wire.com/
+         aws s3 cp $docs/pdf/wire_federation.pdf s3://origin-docs.wire.com/main.pdf

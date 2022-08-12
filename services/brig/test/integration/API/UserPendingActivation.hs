@@ -26,10 +26,7 @@ import API.Team.Util (getTeams)
 import Bilge hiding (query)
 import Bilge.Assert ((<!!), (===))
 import Brig.Options (Opts (..), setTeamInvitationTimeout)
-import Brig.Types hiding (User)
-import qualified Brig.Types as Brig
 import Brig.Types.Intra (AccountStatus (Deleted))
-import Brig.Types.Team.Invitation (Invitation (inInvitation))
 import Cassandra
 import Control.Exception (assert)
 import Control.Lens ((^.), (^?))
@@ -45,7 +42,6 @@ import Data.String.Conversions (cs)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
-import qualified Galley.Types.Teams as Galley
 import Imports
 import qualified SAML2.WebSSO as SAML
 import Spar.Scim (CreateScimTokenResponse (..), SparTag, userSchemas)
@@ -64,7 +60,9 @@ import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
-import Wire.API.Team (Icon (..))
+import Wire.API.Team hiding (newTeam)
+import Wire.API.Team.Invitation
+import Wire.API.User hiding (CreateScimToken)
 import Wire.API.User.RichInfo (RichInfo)
 import Wire.API.User.Scim (CreateScimToken (..), ScimToken, ScimUserExtra (ScimUserExtra))
 
@@ -151,8 +149,8 @@ getInvitationByEmail brig email =
             <!! const 200 === statusCode
         )
 
-newTeam :: Galley.BindingNewTeam
-newTeam = Galley.BindingNewTeam $ Galley.newNewTeam (unsafeRange "teamName") DefaultIcon
+newTeam :: BindingNewTeam
+newTeam = BindingNewTeam $ newNewTeam (unsafeRange "teamName") DefaultIcon
 
 createUserWithTeamDisableSSO :: (HasCallStack, MonadCatch m, MonadHttp m, MonadIO m, MonadFail m) => Brig -> Galley -> m (UserId, TeamId)
 createUserWithTeamDisableSSO brg gly = do
@@ -162,17 +160,17 @@ createUserWithTeamDisableSSO brg gly = do
         RequestBodyLBS . Aeson.encode $
           object
             [ "name" .= n,
-              "email" .= Brig.fromEmail e,
+              "email" .= fromEmail e,
               "password" .= defPassword,
               "team" .= newTeam
             ]
   bdy <- selfUser . responseJsonUnsafe <$> post (brg . path "/i/users" . contentJson . body p)
-  let (uid, Just tid) = (Brig.userId bdy, Brig.userTeam bdy)
-  (team : _) <- (^. Galley.teamListTeams) <$> getTeams uid gly
+  let (uid, Just tid) = (userId bdy, userTeam bdy)
+  (team : _) <- (^. teamListTeams) <$> getTeams uid gly
   () <-
-    Control.Exception.assert {- "Team ID in registration and team table do not match" -} (tid == team ^. Galley.teamId) $
+    Control.Exception.assert {- "Team ID in registration and team table do not match" -} (tid == team ^. teamId) $
       pure ()
-  selfTeam <- Brig.userTeam . Brig.selfUser <$> getSelfProfile brg uid
+  selfTeam <- userTeam . selfUser <$> getSelfProfile brg uid
   () <-
     Control.Exception.assert {- "Team ID in self profile and team table do not match" -} (selfTeam == Just tid) $
       pure ()

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-deferred-out-of-scope-variables #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -24,10 +25,10 @@ import API.User.Util
 import Bilge hiding (head)
 import Bilge.Assert
 import qualified Brig.Options as Opt
-import Brig.Types
 import Control.Arrow (Arrow (first), (&&&))
 import Control.Lens ((?~))
 import Data.Aeson
+import Data.Default
 import Data.Domain (Domain (Domain))
 import Data.Handle (Handle (..))
 import Data.Id
@@ -46,6 +47,7 @@ import Test.Tasty.HUnit
 import UnliftIO.Temporary
 import Util
 import Web.HttpApiData
+import Wire.API.Connection
 import Wire.API.Federation.API.Brig
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import qualified Wire.API.Federation.API.Brig as S
@@ -53,9 +55,10 @@ import Wire.API.Federation.Component
 import Wire.API.Federation.Version
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
-import Wire.API.Message (UserClients (..))
-import Wire.API.User.Client (mkUserClientPrekeyMap)
-import Wire.API.User.Search (FederatedUserSearchPolicy (..))
+import Wire.API.User
+import Wire.API.User.Client
+import Wire.API.User.Client.Prekey
+import Wire.API.User.Search
 import Wire.API.UserMap (UserMap (UserMap))
 
 -- Note: POST /federation/send-connection-action is implicitly tested in API.User.Connection
@@ -409,9 +412,9 @@ testClaimKeyPackages brig fedBrigClient = do
     let new = defNewClient PermanentClientType [] lpk
     fmap clientId $ responseJsonError =<< addClient brig (qUnqualified bob) new
 
-  withSystemTempFile "store.db" $ \store _ ->
+  withSystemTempDirectory "mls" $ \tmp ->
     for_ bobClients $ \c ->
-      uploadKeyPackages brig store SetKey bob c 2
+      uploadKeyPackages brig tmp def bob c 2
 
   Just bundle <-
     runFedClient @"claim-key-packages" fedBrigClient (qDomain alice) $

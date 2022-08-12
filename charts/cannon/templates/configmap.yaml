@@ -1,8 +1,9 @@
 apiVersion: v1
 data:
   cannon.yaml: |
-    logFormat: StructuredJSON
+    logFormat: {{ .Values.config.logFormat }}
     logLevel: {{ .Values.config.logLevel }}
+    logNetStrings: {{ .Values.config.logNetStrings }}
 
     cannon:
       host: 0.0.0.0

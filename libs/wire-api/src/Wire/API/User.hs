@@ -23,6 +23,9 @@ module Wire.API.User
   ( UserIdList (..),
     QualifiedUserIdList (..),
     LimitedQualifiedUserIdList (..),
+    ScimUserInfo (..),
+    ScimUserInfos (..),
+    UserSet (..),
     -- Profiles
     UserProfile (..),
     SelfProfile (..),
@@ -31,6 +34,7 @@ module Wire.API.User
     userEmail,
     userPhone,
     userSSOId,
+    userIssuer,
     userSCIMExternalId,
     scimExternalId,
     ssoIssuerAndNameId,
@@ -45,6 +49,12 @@ module Wire.API.User
     RegisterInternalResponses,
     NewUser (..),
     emptyNewUser,
+    NewUserSpar (..),
+    CreateUserSparError (..),
+    CreateUserSparInternalResponses,
+    newUserFromSpar,
+    urefToExternalId,
+    urefToEmail,
     ExpiresIn,
     newUserInvitationCode,
     newUserTeam,
@@ -108,7 +118,7 @@ where
 
 import Control.Applicative
 import Control.Error.Safe (rightMay)
-import Control.Lens (over, (.~), (?~))
+import Control.Lens (over, view, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson.Types as A
 import qualified Data.Attoparsec.ByteString as Parser
@@ -133,7 +143,7 @@ import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as T
-import Data.Text.Ascii
+import Data.Text.Ascii (AsciiBase64Url)
 import qualified Data.Text.Encoding as T
 import Data.UUID (UUID, nil)
 import qualified Data.UUID as UUID
@@ -142,6 +152,7 @@ import GHC.TypeLits (KnownNat, Nat)
 import qualified Generics.SOP as GSOP
 import Imports
 import qualified SAML2.WebSSO as SAML
+import qualified SAML2.WebSSO.Types.Email as SAMLEmail
 import Servant (FromHttpApiData (..), ToHttpApiData (..), type (.++))
 import qualified Test.QuickCheck as QC
 import URI.ByteString (serializeURIRef)
@@ -157,6 +168,7 @@ import Wire.API.User.Activation (ActivationCode)
 import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
+import Wire.API.User.RichInfo
 
 --------------------------------------------------------------------------------
 -- UserIdList
@@ -396,6 +408,13 @@ ssoIssuerAndNameId (UserSSOId (SAML.UserRef (SAML.Issuer uri) nameIdXML)) = Just
     fromNameId = CI.original . SAML.unsafeShowNameID
 ssoIssuerAndNameId (UserScimExternalId _) = Nothing
 
+userIssuer :: User -> Maybe SAML.Issuer
+userIssuer user = userSSOId user >>= fromSSOId
+  where
+    fromSSOId :: UserSSOId -> Maybe SAML.Issuer
+    fromSSOId (UserSSOId (SAML.UserRef issuer _)) = Just issuer
+    fromSSOId _ = Nothing
+
 connectedProfile :: User -> UserLegalHoldStatus -> UserProfile
 connectedProfile u legalHoldStatus =
   UserProfile
@@ -521,7 +540,7 @@ data RegisterError
   | RegisterErrorBlacklistedEmail
   | RegisterErrorTooManyTeamMembers
   | RegisterErrorUserCreationRestricted
-  deriving (Generic)
+  deriving (Show, Generic)
   deriving (AsUnion RegisterErrorResponses) via GenericAsUnion RegisterErrorResponses RegisterError
 
 instance GSOP.Generic RegisterError
@@ -576,6 +595,103 @@ instance AsHeaders '[UserId] SelfProfile SelfProfile where
 instance (res ~ RegisterInternalResponses) => AsUnion res (Either RegisterError SelfProfile) where
   toUnion = eitherToUnion (toUnion @RegisterErrorResponses) (Z . I)
   fromUnion = eitherFromUnion (fromUnion @RegisterErrorResponses) (unI . unZ)
+
+urefToExternalId :: SAML.UserRef -> Maybe Text
+urefToExternalId = fmap CI.original . SAML.shortShowNameID . view SAML.uidSubject
+
+urefToEmail :: SAML.UserRef -> Maybe Email
+urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
+  SAML.UNameIDEmail email -> parseEmail . SAMLEmail.render . CI.original $ email
+  _ -> Nothing
+
+data CreateUserSparError
+  = CreateUserSparHandleError ChangeHandleError
+  | CreateUserSparRegistrationError RegisterError
+  deriving (Show, Generic)
+
+type CreateUserSparErrorResponses =
+  RegisterErrorResponses .++ ChangeHandleErrorResponses
+
+type CreateUserSparResponses =
+  CreateUserSparErrorResponses
+    .++ '[ WithHeaders
+             '[ DescHeader "Set-Cookie" "Cookie" Web.SetCookie,
+                DescHeader "Location" "UserId" UserId
+              ]
+             RegisterSuccess
+             (Respond 201 "User created and pending activation" SelfProfile)
+         ]
+
+type CreateUserSparInternalResponses =
+  CreateUserSparErrorResponses
+    .++ '[ WithHeaders
+             '[DescHeader "Location" "UserId" UserId]
+             SelfProfile
+             (Respond 201 "User created and pending activation" SelfProfile)
+         ]
+
+instance (res ~ CreateUserSparErrorResponses) => AsUnion res CreateUserSparError where
+  toUnion = eitherToUnion (toUnion @ChangeHandleErrorResponses) (toUnion @RegisterErrorResponses) . errToEither
+  fromUnion = errFromEither . eitherFromUnion (fromUnion @ChangeHandleErrorResponses) (fromUnion @RegisterErrorResponses)
+
+instance (res ~ CreateUserSparResponses) => AsUnion res (Either CreateUserSparError RegisterSuccess) where
+  toUnion = eitherToUnion (toUnion @CreateUserSparErrorResponses) (Z . I)
+  fromUnion = eitherFromUnion (fromUnion @CreateUserSparErrorResponses) (unI . unZ)
+
+instance (res ~ CreateUserSparInternalResponses) => AsUnion res (Either CreateUserSparError SelfProfile) where
+  toUnion = eitherToUnion (toUnion @CreateUserSparErrorResponses) (Z . I)
+  fromUnion = eitherFromUnion (fromUnion @CreateUserSparErrorResponses) (unI . unZ)
+
+errToEither :: CreateUserSparError -> Either ChangeHandleError RegisterError
+errToEither (CreateUserSparHandleError e) = Left e
+errToEither (CreateUserSparRegistrationError e) = Right e
+
+errFromEither :: Either ChangeHandleError RegisterError -> CreateUserSparError
+errFromEither (Left e) = CreateUserSparHandleError e
+errFromEither (Right e) = CreateUserSparRegistrationError e
+
+data NewUserSpar = NewUserSpar
+  { newUserSparUUID :: UUID,
+    newUserSparSSOId :: UserSSOId,
+    newUserSparDisplayName :: Name,
+    newUserSparTeamId :: TeamId,
+    newUserSparManagedBy :: ManagedBy,
+    newUserSparHandle :: Maybe Handle,
+    newUserSparRichInfo :: Maybe RichInfo
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewUserSpar)
+
+instance ToSchema NewUserSpar where
+  schema =
+    object "NewUserSpar" $
+      NewUserSpar
+        <$> newUserSparUUID .= field "newUserSparUUID" genericToSchema
+        <*> newUserSparSSOId .= field "newUserSparSSOId" genericToSchema
+        <*> newUserSparDisplayName .= field "newUserSparDisplayName" schema
+        <*> newUserSparTeamId .= field "newUserSparTeamId" schema
+        <*> newUserSparManagedBy .= field "newUserSparManagedBy" schema
+        <*> newUserSparHandle .= maybe_ (optField "newUserSparHandle" schema)
+        <*> newUserSparRichInfo .= maybe_ (optField "newUserSparRichInfo" schema)
+
+newUserFromSpar :: NewUserSpar -> NewUser
+newUserFromSpar new =
+  NewUser
+    { newUserDisplayName = newUserSparDisplayName new,
+      newUserUUID = Just $ newUserSparUUID new,
+      newUserIdentity = Just $ SSOIdentity (newUserSparSSOId new) Nothing Nothing,
+      newUserPict = Nothing,
+      newUserAssets = [],
+      newUserAccentId = Nothing,
+      newUserEmailCode = Nothing,
+      newUserPhoneCode = Nothing,
+      newUserOrigin = Just . NewUserOriginTeamUser . NewTeamMemberSSO $ newUserSparTeamId new,
+      newUserLabel = Nothing,
+      newUserLocale = Nothing,
+      newUserPassword = Nothing,
+      newUserExpiresIn = Nothing,
+      newUserManagedBy = Just $ newUserSparManagedBy new
+    }
 
 data NewUser = NewUser
   { newUserDisplayName :: Name,
@@ -885,6 +1001,53 @@ instance ToSchema BindingNewTeamUser where
         <*> bnuCurrency .= maybe_ (optField "currency" genericToSchema)
 
 --------------------------------------------------------------------------------
+-- SCIM User Info
+
+data ScimUserInfo = ScimUserInfo
+  { suiUserId :: UserId,
+    suiCreatedOn :: Maybe UTCTimeMillis
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ScimUserInfo)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ScimUserInfo)
+
+instance ToSchema ScimUserInfo where
+  schema =
+    object "ScimUserInfo" $
+      ScimUserInfo
+        <$> suiUserId .= field "id" schema
+        <*> suiCreatedOn .= maybe_ (optField "created_on" schema)
+
+newtype ScimUserInfos = ScimUserInfos {scimUserInfos :: [ScimUserInfo]}
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform ScimUserInfos)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ScimUserInfos)
+
+instance ToSchema ScimUserInfos where
+  schema =
+    object "ScimUserInfos" $
+      ScimUserInfos
+        <$> scimUserInfos .= field "scim_user_infos" (array schema)
+
+-------------------------------------------------------------------------------
+-- UserSet
+
+-- | Set of user ids, can be used for different purposes (e.g., used on the internal
+-- APIs for listing user's clients)
+newtype UserSet = UserSet
+  { usUsrs :: Set UserId
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving newtype (Arbitrary)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema UserSet)
+
+instance ToSchema UserSet where
+  schema =
+    object "UserSet" $
+      UserSet
+        <$> usUsrs .= field "users" (set schema)
+
+--------------------------------------------------------------------------------
 -- Profile Updates
 
 data UserUpdate = UserUpdate
@@ -1072,17 +1235,17 @@ data ChangeHandleError
   | ChangeHandleExists
   | ChangeHandleInvalid
   | ChangeHandleManagedByScim
-  deriving (Generic)
+  deriving (Show, Generic)
   deriving (AsUnion ChangeHandleErrorResponses) via GenericAsUnion ChangeHandleErrorResponses ChangeHandleError
 
 instance GSOP.Generic ChangeHandleError
 
 type ChangeHandleErrorResponses =
-  [ ErrorResponse 'E.NoIdentity,
-    ErrorResponse 'E.HandleExists,
-    ErrorResponse 'E.InvalidHandle,
-    ErrorResponse 'E.HandleManagedByScim
-  ]
+  '[ ErrorResponse 'E.NoIdentity,
+     ErrorResponse 'E.HandleExists,
+     ErrorResponse 'E.InvalidHandle,
+     ErrorResponse 'E.HandleManagedByScim
+   ]
 
 type ChangeHandleResponses =
   ChangeHandleErrorResponses .++ '[RespondEmpty 200 "Handle Changed"]
@@ -1217,7 +1380,7 @@ instance S.ToSchema ListUsersQuery where
   declareNamedSchema _ = do
     uids <- S.declareSchemaRef (Proxy @[Qualified UserId])
     handles <- S.declareSchemaRef (Proxy @(Range 1 4 [Qualified Handle]))
-    return $
+    pure $
       S.NamedSchema (Just "ListUsersQuery") $
         mempty
           & S.type_ ?~ S.SwaggerObject

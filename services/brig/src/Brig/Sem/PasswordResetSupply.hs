@@ -18,9 +18,9 @@
 
 module Brig.Sem.PasswordResetSupply where
 
-import Brig.Types
 import Data.Id
 import Polysemy
+import Wire.API.User.Password
 
 data PasswordResetSupply m a where
   MkPasswordResetKey :: UserId -> PasswordResetSupply m PasswordResetKey

@@ -32,10 +32,11 @@ import Data.ByteString.Conversion
 import Data.Json.Util
 import Data.Range
 import Galley.Types.Teams
-import Galley.Types.Teams.Intra
+import Galley.Types.Teams.Intra (TeamData)
 import Imports
 import Wire.API.Properties
-import Wire.API.Team.Member (teamMemberJson)
+import Wire.API.Team.Member
+import Wire.API.Team.Permission
 
 newtype TeamMemberInfo = TeamMemberInfo {tm :: TeamMember}
 

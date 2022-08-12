@@ -73,7 +73,7 @@ zauthType = zheader "Z-Type"
 zauth :: HasHeaders r => ZAuthType -> Predicate r Error ()
 zauth t = do
   r <- zauthType
-  return $ case r of
+  pure $ case r of
     Okay _ z | z == t -> Okay 0 ()
     _ -> Fail accessDenied
 

@@ -58,8 +58,7 @@ module Brig.Code
 where
 
 import Brig.Data.Instances ()
-import Brig.Email (emailKeyUniq, mkEmailKey)
-import Brig.Phone (mkPhoneKey, phoneKeyUniq)
+import Brig.Email
 import Brig.Sem.VerificationCodeStore
   ( Code (..),
     CodeFor (..),
@@ -72,10 +71,10 @@ import Brig.Sem.VerificationCodeStore
     verifyCode,
   )
 import Brig.Sem.VerificationCodeStore.Cassandra ()
-import Brig.Types (Email)
-import Brig.Types.Code (Key (..), KeyValuePair (..), Timeout (..), Value (..))
+import Brig.Types.Common
 import Cassandra hiding (Value)
 import qualified Data.ByteString as BS
+import Data.Code
 import Data.Range
 import qualified Data.Text as Text
 import qualified Data.Text.Ascii as Ascii
@@ -211,8 +210,10 @@ generate gen scope retries ttl account = do
 --------------------------------------------------------------------------------
 -- Storage
 
--- insert :: MonadClient m => Code -> m ()
--- insert c = do
+-- 'insert' is available in Brig.Sem.VerificationCodeStore.Cassandra only
+
+-- insertInternal :: MonadClient m => Code -> m ()
+-- insertInternal c = do
 --   let k = codeKey c
 --   let s = codeScope c
 --   let v = codeValue c
@@ -245,7 +246,7 @@ generate gen scope retries ttl account = do
 --     continue c
 --       | codeValue c == v = pure (Just c)
 --       | codeRetries c > 0 = do
---         insert (c {codeRetries = codeRetries c - 1})
+--         insertInternal (c {codeRetries = codeRetries c - 1})
 --         pure Nothing
 --       | otherwise = pure Nothing
 

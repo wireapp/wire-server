@@ -51,7 +51,8 @@ import Wire.API.User hiding (NoIdentity)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
-import Wire.API.User.Search (Contact, SearchResult)
+import Wire.API.User.RichInfo (RichInfoAssocList)
+import Wire.API.User.Search (Contact, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
 import Wire.API.UserMap
 
 type MaxUsersForListClientsBulk = 500
@@ -190,6 +191,20 @@ type UserAPI =
                :> ReqBody '[JSON] SendVerificationCode
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Verification code sent."] ()
            )
+    :<|> Named
+           "get-rich-info"
+           ( Summary "Get a user's rich info"
+               :> CanThrow 'InsufficientTeamPermissions
+               :> ZUser
+               :> "users"
+               :> CaptureUserId "uid"
+               :> "rich-info"
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[Respond 200 "Rich info about the user" RichInfoAssocList]
+                    RichInfoAssocList
+           )
 
 type SelfAPI =
   Named
@@ -318,6 +333,36 @@ type SelfAPI =
                :> "handle"
                :> ReqBody '[JSON] HandleUpdate
                :> MultiVerb 'PUT '[JSON] ChangeHandleResponses (Maybe ChangeHandleError)
+           )
+
+type UserHandleAPI =
+  Named
+    "check-user-handles"
+    ( Summary "Check availability of user handles"
+        :> ZUser
+        :> "users"
+        :> "handles"
+        :> ReqBody '[JSON] CheckHandles
+        :> MultiVerb
+             'POST
+             '[JSON]
+             '[Respond 200 "List of free handles" [Handle]]
+             [Handle]
+    )
+    :<|> Named
+           "check-user-handle"
+           ( Summary "Check whether a user handle can be taken"
+               :> CanThrow 'InvalidHandle
+               :> CanThrow 'HandleNotFound
+               :> ZUser
+               :> "users"
+               :> "handles"
+               :> Capture "handle" Text
+               :> MultiVerb
+                    'HEAD
+                    '[JSON]
+                    '[Respond 200 "Handle is taken" ()]
+                    ()
            )
 
 type AccountAPI =
@@ -698,7 +743,6 @@ type ConnectionAPI =
     Named
       "update-connection"
       ( Summary "Update a connection to another user"
-          :> Until 'V2
           :> CanThrow 'MissingLegalholdConsent
           :> CanThrow 'InvalidUser
           :> CanThrow 'ConnectionLimitReached
@@ -803,31 +847,81 @@ type MLSKeyPackageAPI =
                :> ReqBody '[JSON] KeyPackageUpload
                :> MultiVerb 'POST '[JSON, MLS] '[RespondEmpty 201 "Key packages uploaded"] ()
            )
-           :<|> ( Named
-                    "mls-key-packages-claim"
-                    ( "claim"
-                        :> Summary "Claim one key package for each client of the given user"
-                        :> QualifiedCaptureUserId "user"
-                        :> QueryParam'
-                             [ Optional,
-                               Strict,
-                               Description "Do not claim a key package for the given own client"
-                             ]
-                             "skip_own"
-                             ClientId
-                        :> MultiVerb1 'POST '[JSON] (Respond 200 "Claimed key packages" KeyPackageBundle)
-                    )
-                )
-           :<|> ( Named
-                    "mls-key-packages-count"
-                    ( "self"
-                        :> CaptureClientId "client"
-                        :> "count"
-                        :> Summary "Return the number of unused key packages for the given client"
-                        :> MultiVerb1 'GET '[JSON] (Respond 200 "Number of key packages" KeyPackageCount)
-                    )
-                )
+           :<|> Named
+                  "mls-key-packages-claim"
+                  ( "claim"
+                      :> Summary "Claim one key package for each client of the given user"
+                      :> QualifiedCaptureUserId "user"
+                      :> QueryParam'
+                           [ Optional,
+                             Strict,
+                             Description "Do not claim a key package for the given own client"
+                           ]
+                           "skip_own"
+                           ClientId
+                      :> MultiVerb1 'POST '[JSON] (Respond 200 "Claimed key packages" KeyPackageBundle)
+                  )
+           :<|> Named
+                  "mls-key-packages-count"
+                  ( "self"
+                      :> CaptureClientId "client"
+                      :> "count"
+                      :> Summary "Return the number of unused key packages for the given client"
+                      :> MultiVerb1 'GET '[JSON] (Respond 200 "Number of key packages" KeyPackageCount)
+                  )
        )
+
+-- Search API -----------------------------------------------------
+
+type SearchAPI =
+  Named
+    "browse-team"
+    ( Summary "Browse team for members (requires add-user permission)"
+        :> ZUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "search"
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Search expression"
+             ]
+             "q"
+             Text
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Role filter, eg. `member,partner`.  Empty list means do not filter."
+             ]
+             "frole"
+             RoleFilter
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Can be one of name, handle, email, saml_idp, managed_by, role, created_at."
+             ]
+             "sortby"
+             TeamUserSearchSortBy
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Can be one of asc, desc."
+             ]
+             "sortorder"
+             TeamUserSearchSortOrder
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Number of results to return (min: 1, max: 500, default: 15)"
+             ]
+             "size"
+             (Range 1 500 Int32)
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[Respond 200 "Search results" (SearchResult TeamContact)]
+             (SearchResult TeamContact)
+    )
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)
 
@@ -841,6 +935,8 @@ type BrigAPI =
     :<|> ConnectionAPI
     :<|> PropertiesAPI
     :<|> MLSAPI
+    :<|> UserHandleAPI
+    :<|> SearchAPI
 
 brigSwagger :: Swagger
 brigSwagger = toSwagger (Proxy @BrigAPI)

@@ -12,9 +12,13 @@ resources:
   limits:
     memory: "512Mi"
     cpu: "500m"
+metrics:
+  serviceMonitor:
+    enable: false
 config:
   logLevel: Info
-  logFormat: JSON
+  logFormat: StructuredJSON
+  logNetStrings: false
   cassandra:
     host: aws-cassandra
   elasticsearch:
@@ -35,8 +39,7 @@ config:
       templateBranding:
         brand: Wire
         brandUrl: https://wire.com
-        brandLabel: wire.com
-        brandLabelUrl: https://wire.com
+        brandLabelUrl: wire.com
         brandLogoUrl: https://wire.com/p/img/email/logo-email-black.png
         brandService: Wire Service Provider
         copyright: © WIRE SWISS GmbH
@@ -81,6 +84,7 @@ config:
     # setCustomerExtensions:
     #   domainsBlockedForRegistration:
     #   - example.com
+    set2FACodeGenerationDelaySecs: 300 # 5 minutes
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}

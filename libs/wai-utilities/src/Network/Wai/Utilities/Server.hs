@@ -103,11 +103,11 @@ newSettings (Server h p l m t) = do
   -- (Atomically) initialise the standard metrics, to avoid races.
   void $ gaugeGet (path "net.connections") m
   void $ counterGet (path "net.errors") m
-  return $
+  pure $
     setHost (fromString h)
       . setPort (fromIntegral p)
       . setBeforeMainLoop logStart
-      . setOnOpen (const $ connStart >> return True)
+      . setOnOpen (const $ connStart >> pure True)
       . setOnClose (const connEnd)
       . setTimeout (fromMaybe 300 t)
       $ defaultSettings
@@ -148,7 +148,7 @@ runSettingsWithShutdown s app secs = do
 compile :: Monad m => Routes a m b -> Tree (App m)
 compile routes = Route.prepare (Route.renderer predicateError >> routes)
   where
-    predicateError e = return (encode $ Wai.mkError (P.status e) "client-error" (format e), [jsonContent])
+    predicateError e = pure (encode $ Wai.mkError (P.status e) "client-error" (format e), [jsonContent])
     -- [label] 'source' reason: message
     format e =
       let l = labelStr $ labels e
@@ -277,14 +277,14 @@ emitLByteString :: LByteString -> IO (IO ByteString)
 emitLByteString lbs = do
   tvar <- newTVarIO (cs lbs)
   -- Emit the bytestring on the first read, then always return "" on subsequent reads
-  return . atomically $ swapTVar tvar mempty
+  pure . atomically $ swapTVar tvar mempty
 
 -- | Run the 'Application'; check the response status; if >=500, throw a 'Wai.Error' with
 -- label @"server-error"@ and the body as the error message.
 rethrow5xx :: Logger -> Middleware
 rethrow5xx logger app req k = app req k'
   where
-    k' resp@(WaiInt.ResponseRaw {}) = do
+    k' resp@WaiInt.ResponseRaw {} = do
       -- See Note [Raw Response]
       let logMsg =
             field "canoncalpath" (show $ pathInfo req)
@@ -362,7 +362,7 @@ logErrorMsg :: Wai.Error -> Msg -> Msg
 logErrorMsg (Wai.Error c l m md) =
   field "code" (statusCode c)
     . field "label" l
-    . fromMaybe id (fmap logErrorData md)
+    . maybe id logErrorData md
     . msg (val "\"" +++ m +++ val "\"")
   where
     logErrorData (Wai.FederationErrorData d p) =

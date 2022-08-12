@@ -20,7 +20,7 @@ module Util.Email where
 
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
-import Brig.Types
+import Brig.Types.Activation
 import Control.Lens (view, (^?))
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson.Lens
@@ -35,6 +35,8 @@ import Test.Tasty.HUnit
 import Util.Core
 import Util.Types
 import qualified Wire.API.Team.Feature as Feature
+import Wire.API.User
+import Wire.API.User.Activation
 import qualified Wire.API.User.Auth as Auth
 
 changeEmailBrig ::
@@ -155,9 +157,9 @@ getActivationCode brig ep = do
   let acode = ActivationCode . Ascii.unsafeFromText <$> (lbs ^? key "code" . _String)
   pure $ (,) <$> akey <*> acode
 
-setSamlEmailValidation :: HasCallStack => TeamId -> Feature.TeamFeatureStatusValue -> TestSpar ()
+setSamlEmailValidation :: HasCallStack => TeamId -> Feature.FeatureStatus -> TestSpar ()
 setSamlEmailValidation tid status = do
   galley <- view teGalley
-  let req = put $ galley . paths p . json (Feature.TeamFeatureStatusNoConfig status)
-      p = ["/i/teams", toByteString' tid, "features", "validate-saml-emails"]
+  let req = put $ galley . paths p . json (Feature.WithStatusNoLock @Feature.ValidateSAMLEmailsConfig status Feature.trivialConfig)
+      p = ["/i/teams", toByteString' tid, "features", Feature.featureNameBS @Feature.ValidateSAMLEmailsConfig]
   call req !!! const 200 === statusCode

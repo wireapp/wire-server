@@ -24,9 +24,12 @@ import Brig.API.Handler (Handler)
 import qualified Brig.API.Internal as Internal
 import qualified Brig.API.Public as Public
 import Brig.API.Types
+import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
+import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Sem.ActivationKeyStore
 import Brig.Sem.ActivationSupply
 import Brig.Sem.BudgetStore
+import Brig.Sem.CodeStore
 import Brig.Sem.GalleyAccess
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
@@ -53,7 +56,10 @@ sitemap ::
     '[ ActivationKeyStore,
        ActivationSupply,
        Async,
+       BlacklistStore,
+       BlacklistPhonePrefixStore,
        BudgetStore,
+       CodeStore,
        Error ReAuthError,
        Error Twilio.ErrorResponse,
        GalleyAccess,

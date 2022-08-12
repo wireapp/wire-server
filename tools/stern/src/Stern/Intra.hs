@@ -44,8 +44,6 @@ module Stern.Intra
     isBlacklisted,
     setBlacklistStatus,
     getTeamFeatureFlag,
-    getTeamFeatureFlagNoConfig,
-    setTeamFeatureFlagNoConfig,
     setTeamFeatureFlag,
     getTeamData,
     getSearchVisibility,
@@ -65,9 +63,7 @@ where
 
 import Bilge hiding (head, options, requestId)
 import Bilge.RPC
-import Brig.Types
 import Brig.Types.Intra
-import Brig.Types.User.Auth
 import Control.Error
 import Control.Lens (view, (^.))
 import Control.Monad.Reader
@@ -86,11 +82,9 @@ import Data.String.Conversions (cs)
 import Data.Text (strip)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Text.Lazy (pack)
-import Galley.Types
-import Galley.Types.Teams
+import GHC.TypeLits (KnownSymbol)
 import Galley.Types.Teams.Intra
 import qualified Galley.Types.Teams.Intra as Team
-import Galley.Types.Teams.SearchVisibility
 import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status hiding (statusCode)
@@ -100,11 +94,20 @@ import Stern.Types
 import System.Logger.Class hiding (Error, name, (.=))
 import qualified System.Logger.Class as Log
 import UnliftIO.Exception hiding (Handler)
+import Wire.API.Connection
+import Wire.API.Conversation
 import Wire.API.Internal.Notification
 import Wire.API.Properties
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
+import Wire.API.Team
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Member
+import Wire.API.Team.SearchVisibility
+import Wire.API.User
+import Wire.API.User.Auth
+import Wire.API.User.Client
+import Wire.API.User.Search
 
 -------------------------------------------------------------------------------
 
@@ -488,92 +491,55 @@ setBlacklistStatus status emailOrPhone = do
     statusToMethod True = POST
 
 getTeamFeatureFlag ::
-  forall (ps :: Public.IncludeLockStatus) (a :: Public.TeamFeatureName).
-  ( Public.KnownTeamFeatureName a,
-    Typeable (Public.TeamFeatureStatus ps a),
-    FromJSON (Public.TeamFeatureStatus ps a)
+  forall cfg.
+  ( Typeable (Public.WithStatus cfg),
+    FromJSON (Public.WithStatus cfg),
+    Public.IsFeatureConfig cfg,
+    KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->
-  Handler (Public.TeamFeatureStatus ps a)
+  Handler (Public.WithStatus cfg)
 getTeamFeatureFlag tid = do
   info $ msg "Getting team feature status"
   gly <- view galley
   let req =
         method GET
-          . paths ["/i/teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a)]
+          . paths ["/i/teams", toByteString' tid, "features", Public.featureNameBS @cfg]
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case Bilge.statusCode resp of
-    200 -> pure $ responseJsonUnsafe @(Public.TeamFeatureStatus ps a) resp
+    200 -> pure $ responseJsonUnsafe @(Public.WithStatus cfg) resp
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
 
+-- TODO: add ttl here
 setTeamFeatureFlag ::
-  forall (a :: Public.TeamFeatureName).
-  ( Public.KnownTeamFeatureName a,
-    ToJSON (Public.TeamFeatureStatus 'Public.WithoutLockStatus a)
+  forall cfg.
+  ( ToJSON (Public.WithStatusNoLock cfg),
+    Public.IsFeatureConfig cfg,
+    KnownSymbol (Public.FeatureSymbol cfg)
   ) =>
   TeamId ->
-  Public.TeamFeatureStatus 'Public.WithoutLockStatus a ->
+  Public.WithStatusNoLock cfg ->
+  Public.FeatureTTL ->
   Handler ()
-setTeamFeatureFlag tid status = do
+setTeamFeatureFlag tid status ttl = do
   info $ msg "Setting team feature status"
   gly <- view galley
   let req =
         method PUT
-          . paths ["/i/teams", toByteString' tid, "features", toByteString' (Public.knownTeamFeatureName @a)]
+          . paths ["/i/teams", toByteString' tid, "features", Public.featureNameBS @cfg]
           . Bilge.json status
+          . Bilge.query [("ttl", Just $ toByteString' ttlAPI)]
           . contentJson
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
     200 -> pure ()
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
-
-getTeamFeatureFlagNoConfig ::
-  TeamId ->
-  Public.TeamFeatureName ->
-  Handler Public.TeamFeatureStatusNoConfig
-getTeamFeatureFlagNoConfig tid featureName = do
-  info $ msg "Getting team feature status"
-  gly <- view galley
-  let req =
-        method GET
-          . paths ["/i/teams", toByteString' tid, "features", toByteString' featureName]
-          . expect2xx
-
-  resp <- catchRpcErrors (rpc' "galley" gly req)
-  case statusCode resp of
-    200 -> pure $ responseJsonUnsafe @Public.TeamFeatureStatusNoConfig resp
-    404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
-    _ -> throwE (mkError status502 "bad-upstream" "bad response")
-
-setTeamFeatureFlagNoConfig ::
-  TeamId ->
-  Public.TeamFeatureName ->
-  Public.TeamFeatureStatusValue ->
-  Public.TeamFeatureTTLValue ->
-  Handler ()
-setTeamFeatureFlagNoConfig tid featureName statusValue ttlValue = do
-  info $ msg "Setting team feature status for feature without config"
-  gly <- view galley
-  let req =
-        method PUT
-          . paths ["/i/teams", toByteString' tid, "features", toByteString' featureName]
-          . Bilge.json (Public.TeamFeatureStatusNoConfig statusValue)
-          . Bilge.query [("ttl", convert ttlValue)]
-          . contentJson
-  resp <- catchRpcErrors $ rpc' "galley" gly req
-  case statusCode resp of
-    200 -> pure ()
-    404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
-    _ -> throwE $ responseJsonUnsafe resp
   where
-    convert = Just . toByteString' . fromDays
-    fromMinutes = (* 60)
-    fromHours = fromMinutes . (* 60)
-    fromDays = \case
-      Public.TeamFeatureTTLSeconds s -> Public.TeamFeatureTTLSeconds . fromHours . (* 24) $ s
-      Public.TeamFeatureTTLUnlimited -> Public.TeamFeatureTTLUnlimited
+    ttlAPI = case ttl of
+      Public.FeatureTTLSeconds days -> Public.FeatureTTLSeconds (60 * 60 * 24 * days)
+      Public.FeatureTTLUnlimited -> Public.FeatureTTLUnlimited
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do

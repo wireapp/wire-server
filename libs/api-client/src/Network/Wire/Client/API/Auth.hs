@@ -110,17 +110,17 @@ tokenResponse ::
   IO (Maybe Auth)
 tokenResponse rq rs ck
   | statusCode rs == 200 = mkAuth
-  | statusCode rs == 403 = return Nothing
+  | statusCode rs == 403 = pure Nothing
   | otherwise = unexpected rs "tokenResponse: status code"
   where
     mkAuth = do
       cok <- mkCookie $ parseSetCookie <$> getHeader "Set-Cookie" rs
       tok <- responseJsonThrow (ParseError . pack) rs
-      return . Just $ Auth cok tok
-    mkCookie Nothing = maybe (unexpected rs "missing set-cookie") return ck
+      pure . Just $ Auth cok tok
+    mkCookie Nothing = maybe (unexpected rs "missing set-cookie") pure ck
     mkCookie (Just hdr) = do
       now <- getCurrentTime
       case generateCookie hdr rq now True of
-        Just cok | cookie_name cok == "zuid" -> return $ AuthCookie cok
+        Just cok | cookie_name cok == "zuid" -> pure $ AuthCookie cok
         Just (cookie_name -> cok) -> unexpected rs $ "unknown cookie: " <> T.decodeLatin1 cok
         Nothing -> unexpected rs "invalid cookie"

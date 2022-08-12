@@ -1,0 +1,10 @@
+apiVersion: v1
+name: inbucket
+version: 0.0.42
+description: Inbucket is an email testing application; it will accept messages for any email address and make them available to view via a web interface.
+home: https://www.inbucket.org/
+sources:
+  - https://github.com/inbucket/inbucket
+  - https://artifacthub.io/packages/helm/inbucket/inbucket
+  - https://hub.docker.com/r/inbucket/inbucket
+appVersion: 3.0.0

@@ -28,7 +28,7 @@ import qualified API.Util as Util
 import qualified API.Util.TeamFeature as Util
 import Bilge hiding (head, timeout)
 import Bilge.Assert
-import qualified Brig.Types as Brig
+import Brig.Types.Intra (fromAccountStatusResp)
 import qualified Brig.Types.Intra as Brig
 import Control.Arrow ((>>>))
 import Control.Lens hiding ((#), (.=))
@@ -44,6 +44,7 @@ import Data.Default
 import Data.Id
 import Data.Json.Util hiding ((#))
 import qualified Data.LegalHold as LH
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.List1 hiding (head)
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
@@ -57,13 +58,12 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.Util as UUID
 import qualified Data.UUID.V1 as UUID
 import qualified Data.Vector as V
+import GHC.TypeLits (KnownSymbol)
 import qualified Galley.Env as Galley
 import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatureFlags, setMaxConvSize, setMaxFanoutSize)
-import Galley.Types hiding (EventData (..), EventType (..), MemberUpdate (..))
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
-import Galley.Types.Teams.Intra
-import Galley.Types.Teams.SearchVisibility
+import Galley.Types.Teams.Intra as TeamsIntra
 import Imports
 import Network.HTTP.Types.Status (status403)
 import qualified Network.Wai.Utilities.Error as Error
@@ -78,13 +78,21 @@ import Test.Tasty.HUnit
 import TestHelpers (test, viewFederationDomain)
 import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently, mapConcurrently_)
+import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
+import Wire.API.Conversation.Role
+import Wire.API.Event.Team
 import Wire.API.Internal.Notification hiding (target)
-import Wire.API.Team (Icon (..))
+import Wire.API.Team
 import Wire.API.Team.Export (TeamExportUser (..))
 import qualified Wire.API.Team.Feature as Public
+import Wire.API.Team.Member
 import qualified Wire.API.Team.Member as Member
 import qualified Wire.API.Team.Member as TM
+import qualified Wire.API.Team.Member as Teams
+import Wire.API.Team.Permission
+import Wire.API.Team.Role
+import Wire.API.Team.SearchVisibility
 import qualified Wire.API.User as Public
 import qualified Wire.API.User as U
 import qualified Wire.API.User.Client as C
@@ -277,7 +285,7 @@ testListTeamMembersDefaultLimit = do
     assertEqual
       "list members"
       (Set.fromList [owner, member1, member2])
-      (Set.fromList (map (^. userId) $ listFromServer ^. teamMembers))
+      (Set.fromList (map (^. Teams.userId) $ listFromServer ^. teamMembers))
   liftIO $
     assertBool
       "member list indicates that there are no more members"
@@ -285,6 +293,7 @@ testListTeamMembersDefaultLimit = do
 
 -- | for ad-hoc load-testing, set @numMembers@ to, say, 10k and see what
 -- happens.  but please don't give that number to our ci!  :)
+-- for additional tests of the CSV download particularly with SCIM users, please refer to 'Test.Spar.Scim.UserSpec'
 testListTeamMembersCsv :: HasCallStack => Int -> TestM ()
 testListTeamMembersCsv numMembers = do
   let teamSize = numMembers + 1
@@ -345,7 +354,7 @@ testListTeamMembersCsv numMembers = do
     addClients xs = forM_ (Map.toList xs) addClientForUser
 
     addClientForUser :: (UserId, Int) -> TestM ()
-    addClientForUser (uid, n) = forM_ [0 .. (n -1)] (addClient uid)
+    addClientForUser (uid, n) = forM_ [0 .. (n - 1)] (addClient uid)
 
     addClient :: UserId -> Int -> TestM ()
     addClient uid i = do
@@ -421,10 +430,10 @@ testEnableSSOPerTeam = do
   owner <- Util.randomUser
   tid <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
-  let check :: HasCallStack => String -> Public.TeamFeatureStatusValue -> TestM ()
+  let check :: HasCallStack => String -> Public.FeatureStatus -> TestM ()
       check msg enabledness = do
-        status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSSO <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
-        let statusValue = Public.tfwoStatus status
+        status :: Public.WithStatusNoLock Public.SSOConfig <- responseJsonUnsafe <$> (getSSOEnabledInternal tid <!! testResponse 200 Nothing)
+        let statusValue = Public.wssStatus status
         liftIO $ assertEqual msg enabledness statusValue
   let putSSOEnabledInternalCheckNotImplemented :: HasCallStack => TestM ()
       putSSOEnabledInternalCheckNotImplemented = do
@@ -434,27 +443,27 @@ testEnableSSOPerTeam = do
             <$> put
               ( g
                   . paths ["i", "teams", toByteString' tid, "features", "sso"]
-                  . json (Public.TeamFeatureStatusNoConfig Public.TeamFeatureDisabled)
+                  . json (Public.WithStatusNoLock Public.FeatureStatusDisabled Public.SSOConfig)
               )
         liftIO $ do
           assertEqual "bad status" status403 status
           assertEqual "bad label" "not-implemented" label
   featureSSO <- view (tsGConf . optSettings . setFeatureFlags . flagSSO)
   case featureSSO of
-    FeatureSSOEnabledByDefault -> check "Teams should start with SSO enabled" Public.TeamFeatureEnabled
-    FeatureSSODisabledByDefault -> check "Teams should start with SSO disabled" Public.TeamFeatureDisabled
-  putSSOEnabledInternal tid Public.TeamFeatureEnabled
-  check "Calling 'putEnabled True' should enable SSO" Public.TeamFeatureEnabled
+    FeatureSSOEnabledByDefault -> check "Teams should start with SSO enabled" Public.FeatureStatusEnabled
+    FeatureSSODisabledByDefault -> check "Teams should start with SSO disabled" Public.FeatureStatusDisabled
+  putSSOEnabledInternal tid Public.FeatureStatusEnabled
+  check "Calling 'putEnabled True' should enable SSO" Public.FeatureStatusEnabled
   putSSOEnabledInternalCheckNotImplemented
 
 testEnableTeamSearchVisibilityPerTeam :: TestM ()
 testEnableTeamSearchVisibilityPerTeam = do
   (tid, owner, member : _) <- Util.createBindingTeamWithMembers 2
-  let check :: String -> Public.TeamFeatureStatusValue -> TestM ()
+  let check :: String -> Public.FeatureStatus -> TestM ()
       check msg enabledness = do
         g <- view tsGalley
-        status :: Public.TeamFeatureStatus 'Public.WithoutLockStatus 'Public.TeamFeatureSearchVisibility <- responseJsonUnsafe <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
-        let statusValue = Public.tfwoStatus status
+        status :: Public.WithStatusNoLock Public.SearchVisibilityAvailableConfig <- responseJsonUnsafe <$> (Util.getTeamSearchVisibilityAvailableInternal g tid <!! testResponse 200 Nothing)
+        let statusValue = Public.wssStatus status
 
         liftIO $ assertEqual msg enabledness statusValue
   let putSearchVisibilityCheckNotAllowed :: TestM ()
@@ -471,17 +480,17 @@ testEnableTeamSearchVisibilityPerTeam = do
           const 200 === statusCode
           const (Just (TeamSearchVisibilityView vis)) === responseJsonUnsafe
 
-  Util.withCustomSearchFeature FeatureTeamSearchVisibilityEnabledByDefault $ do
+  Util.withCustomSearchFeature FeatureTeamSearchVisibilityAvailableByDefault $ do
     g <- view tsGalley
-    check "Teams should start with Custom Search Visibility enabled" Public.TeamFeatureEnabled
+    check "Teams should start with Custom Search Visibility enabled" Public.FeatureStatusEnabled
     putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam !!! const 204 === statusCode
     putSearchVisibility g owner tid SearchVisibilityStandard !!! const 204 === statusCode
-  Util.withCustomSearchFeature FeatureTeamSearchVisibilityDisabledByDefault $ do
-    check "Teams should start with Custom Search Visibility disabled" Public.TeamFeatureDisabled
+  Util.withCustomSearchFeature FeatureTeamSearchVisibilityUnavailableByDefault $ do
+    check "Teams should start with Custom Search Visibility disabled" Public.FeatureStatusDisabled
     putSearchVisibilityCheckNotAllowed
 
   g <- view tsGalley
-  Util.putTeamSearchVisibilityAvailableInternal g tid Public.TeamFeatureEnabled
+  Util.putTeamSearchVisibilityAvailableInternal g tid Public.FeatureStatusEnabled
   -- Nothing was set, default value
   getSearchVisibilityCheck SearchVisibilityStandard
   putSearchVisibility g owner tid SearchVisibilityNoNameOutsideTeam !!! testResponse 204 Nothing
@@ -492,7 +501,7 @@ testEnableTeamSearchVisibilityPerTeam = do
   -- Members can also see it?
   getSearchVisibility g member tid !!! testResponse 200 Nothing
   -- Once we disable the feature, team setting is back to the default value
-  Util.putTeamSearchVisibilityAvailableInternal g tid Public.TeamFeatureDisabled
+  Util.putTeamSearchVisibilityAvailableInternal g tid Public.FeatureStatusDisabled
   getSearchVisibilityCheck SearchVisibilityStandard
 
 testCreateOne2OneFailNonBindingTeamMembers :: TestM ()
@@ -916,6 +925,7 @@ testCreateTeamMLSConv = do
     lConvId <-
       Util.createMLSTeamConv
         lOwner
+        (newClientId 0)
         tid
         mempty
         (Just "Team MLS conversation")
@@ -958,17 +968,17 @@ testAddTeamConvAsExternalPartner = do
 testAddTeamMemberToConv :: TestM ()
 testAddTeamMemberToConv = do
   personalUser <- Util.randomUser
-  ownerT1 <- Util.randomUser
-  qOwnerT1 <- Qualified ownerT1 <$> viewFederationDomain
+  (ownerT1, qOwnerT1) <- Util.randomUserTuple
   let p = Util.symmPermissions [DoNotUseDeprecatedAddRemoveConvMember]
   mem1T1 <- newTeamMember' p <$> Util.randomUser
   qMem1T1 <- Qualified (mem1T1 ^. userId) <$> viewFederationDomain
   mem2T1 <- newTeamMember' p <$> Util.randomUser
   qMem2T1 <- Qualified (mem2T1 ^. userId) <$> viewFederationDomain
   mem3T1 <- newTeamMember' (Util.symmPermissions []) <$> Util.randomUser
+  qMem3T1 <- Qualified (mem3T1 ^. userId) <$> viewFederationDomain
   mem4T1 <- newTeamMember' (Util.symmPermissions []) <$> Util.randomUser
-  ownerT2 <- Util.randomUser
-  qOwnerT2 <- Qualified ownerT2 <$> viewFederationDomain
+  qMem4T1 <- Qualified (mem4T1 ^. userId) <$> viewFederationDomain
+  (ownerT2, qOwnerT2) <- Util.randomUserTuple
   mem1T2 <- newTeamMember' p <$> Util.randomUser
   qMem1T2 <- Qualified (mem1T2 ^. userId) <$> viewFederationDomain
   Util.connectUsers ownerT1 (list1 (mem1T1 ^. userId) [mem2T1 ^. userId, mem3T1 ^. userId, ownerT2, personalUser])
@@ -977,18 +987,21 @@ testAddTeamMemberToConv = do
   _ <- Util.addTeamMemberInternal tidT2 (mem1T2 ^. userId) (mem1T2 ^. permissions) (mem1T2 ^. invitation)
   -- Team owners create new regular team conversation:
   cidT1 <- Util.createTeamConv ownerT1 tidT1 [] (Just "blaa") Nothing Nothing
+  qcidT1 <- Qualified cidT1 <$> viewFederationDomain
   cidT2 <- Util.createTeamConv ownerT2 tidT2 [] (Just "blaa") Nothing Nothing
+  qcidT2 <- Qualified cidT2 <$> viewFederationDomain
   cidPersonal <- decodeConvId <$> Util.postConv personalUser [] (Just "blaa") [] Nothing Nothing
+  qcidPersonal <- Qualified cidPersonal <$> viewFederationDomain
   -- NOTE: This functionality was _changed_ as there was no need for it...
   -- mem1T1 (who is *not* a member of the new conversation) can *not* add other team members
   -- despite being a team member and having the permission `DoNotUseDeprecatedAddRemoveConvMember`.
   Util.assertNotConvMember (mem1T1 ^. userId) cidT1
-  Util.postMembers (mem1T1 ^. userId) (list1 (mem2T1 ^. userId) []) cidT1 !!! const 404 === statusCode
+  Util.postMembers (mem1T1 ^. userId) (pure qMem2T1) qcidT1 !!! const 404 === statusCode
   Util.assertNotConvMember (mem2T1 ^. userId) cidT1
   -- OTOH, mem3T1 _can_ add another team member despite lacking the required team permission
   -- since conversation roles trump any team roles. Note that all users are admins by default
   Util.assertConvMember qOwnerT1 cidT1
-  Util.postMembers ownerT1 (list1 (mem2T1 ^. userId) []) cidT1 !!! const 200 === statusCode
+  Util.postMembers ownerT1 (pure qMem2T1) qcidT1 !!! const 200 === statusCode
   Util.assertConvMember qMem2T1 cidT1
   -- The following tests check the logic: users can add other users to a conversation
   -- iff:
@@ -997,44 +1010,44 @@ testAddTeamMemberToConv = do
   --    - *the adding user is part of the team of the users being added*
 
   -- Now we add someone from T2 that we are connected to
-  Util.postMembers ownerT1 (list1 ownerT2 []) cidT1 !!! const 200 === statusCode
+  Util.postMembers ownerT1 (pure qOwnerT2) qcidT1 !!! const 200 === statusCode
   Util.assertConvMember qOwnerT2 cidT1
   -- And they can add their own team members
-  Util.postMembers ownerT2 (list1 (mem1T2 ^. userId) []) cidT1 !!! const 200 === statusCode
+  Util.postMembers ownerT2 (pure qMem1T2) qcidT1 !!! const 200 === statusCode
   Util.assertConvMember qMem1T2 cidT1
   -- Still, they cannot add random members without a connection from T1, despite the conversation being "hosted" there
-  Util.postMembers ownerT2 (list1 (mem4T1 ^. userId) []) cidT1 !!! const 403 === statusCode
+  Util.postMembers ownerT2 (pure qMem4T1) qcidT1 !!! const 403 === statusCode
   Util.assertNotConvMember (mem4T1 ^. userId) cidT1
   -- Now let's look at convs hosted on team2
   -- ownerT2 *is* connected to ownerT1
-  Util.postMembers ownerT2 (list1 ownerT1 []) cidT2 !!! const 200 === statusCode
+  Util.postMembers ownerT2 (pure qOwnerT1) qcidT2 !!! const 200 === statusCode
   Util.assertConvMember qOwnerT1 cidT2
   -- and mem1T2 is on the same team, but mem1T1 is *not*
-  Util.postMembers ownerT2 (list1 (mem1T2 ^. userId) [mem1T1 ^. userId]) cidT2 !!! const 403 === statusCode
+  Util.postMembers ownerT2 (qMem1T2 :| [qMem1T1]) qcidT2 !!! const 403 === statusCode
   Util.assertNotConvMember (mem1T1 ^. userId) cidT2
   Util.assertNotConvMember (mem1T2 ^. userId) cidT2
   -- mem1T2 is on the same team, so that is fine too
-  Util.postMembers ownerT2 (list1 (mem1T2 ^. userId) []) cidT2 !!! const 200 === statusCode
+  Util.postMembers ownerT2 (pure qMem1T2) qcidT2 !!! const 200 === statusCode
   Util.assertConvMember qMem1T2 cidT2
   -- ownerT2 is *NOT* connected to mem3T1 and not on the same team, so should not be allowed to add
-  Util.postMembers ownerT2 (list1 (mem3T1 ^. userId) []) cidT2 !!! const 403 === statusCode
+  Util.postMembers ownerT2 (pure qMem3T1) qcidT2 !!! const 403 === statusCode
   Util.assertNotConvMember (mem3T1 ^. userId) cidT2
   -- For personal conversations, same logic applies
 
   -- Can add connected users
-  Util.postMembers personalUser (list1 ownerT1 []) cidPersonal !!! const 200 === statusCode
+  Util.postMembers personalUser (pure qOwnerT1) qcidPersonal !!! const 200 === statusCode
   Util.assertConvMember qOwnerT1 cidPersonal
   -- Can *not* add users that are *not* connected
-  Util.postMembers personalUser (list1 ownerT2 []) cidPersonal !!! const 403 === statusCode
+  Util.postMembers personalUser (pure qOwnerT2) qcidPersonal !!! const 403 === statusCode
   Util.assertNotConvMember ownerT2 cidPersonal
   -- Users of the same team can add one another
-  Util.postMembers ownerT1 (list1 (mem1T1 ^. userId) []) cidPersonal !!! const 200 === statusCode
+  Util.postMembers ownerT1 (pure qMem1T1) qcidPersonal !!! const 200 === statusCode
   Util.assertConvMember qMem1T1 cidPersonal
   -- Users can not add across teams if *not* connected
-  Util.postMembers (mem1T1 ^. userId) (list1 ownerT2 []) cidPersonal !!! const 403 === statusCode
+  Util.postMembers (mem1T1 ^. userId) (pure qOwnerT2) qcidPersonal !!! const 403 === statusCode
   Util.assertNotConvMember ownerT2 cidPersonal
   -- Users *can* add across teams if *connected*
-  Util.postMembers ownerT1 (list1 ownerT2 []) cidPersonal !!! const 200 === statusCode
+  Util.postMembers ownerT1 (pure qOwnerT2) qcidPersonal !!! const 200 === statusCode
   Util.assertConvMember qOwnerT2 cidPersonal
 
 testUpdateTeamConv ::
@@ -1149,7 +1162,7 @@ testDeleteBindingTeamMoreThanOneMember = do
   let ensureDeleted :: UserId -> TestM ()
       ensureDeleted uid = do
         resp <- get (b . paths ["/i/users", toByteString' uid, "status"]) <!! const 200 === statusCode
-        let mbStatus = fmap Brig.fromAccountStatusResp . responseJsonUnsafe $ resp
+        let mbStatus = fmap fromAccountStatusResp . responseJsonUnsafe $ resp
         liftIO $ mbStatus @?= Just Brig.Deleted
 
   ensureDeleted alice
@@ -1161,8 +1174,8 @@ testDeleteTeamVerificationCodeSuccess = do
   g <- view tsGalley
   (owner, tid) <- Util.createBindingTeam'
   let Just email = U.userEmail owner
-  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
-  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  setFeatureLockStatus @Public.SndFactorPasswordChallengeConfig tid Public.LockStatusUnlocked
+  setTeamSndFactorPasswordChallenge tid Public.FeatureStatusEnabled
   generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
   code <- getVerificationCode (U.userId owner) Public.DeleteTeam
   delete
@@ -1184,8 +1197,8 @@ testDeleteTeamVerificationCodeMissingCode :: TestM ()
 testDeleteTeamVerificationCodeMissingCode = do
   g <- view tsGalley
   (owner, tid) <- Util.createBindingTeam'
-  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
-  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  setFeatureLockStatus @Public.SndFactorPasswordChallengeConfig tid Public.LockStatusUnlocked
+  setTeamSndFactorPasswordChallenge tid Public.FeatureStatusEnabled
   let Just email = U.userEmail owner
   generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
   delete
@@ -1209,8 +1222,8 @@ testDeleteTeamVerificationCodeExpiredCode :: TestM ()
 testDeleteTeamVerificationCodeExpiredCode = do
   g <- view tsGalley
   (owner, tid) <- Util.createBindingTeam'
-  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
-  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  setFeatureLockStatus @Public.SndFactorPasswordChallengeConfig tid Public.LockStatusUnlocked
+  setTeamSndFactorPasswordChallenge tid Public.FeatureStatusEnabled
   let Just email = U.userEmail owner
   generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
   code <- getVerificationCode (U.userId owner) Public.DeleteTeam
@@ -1237,8 +1250,8 @@ testDeleteTeamVerificationCodeWrongCode :: TestM ()
 testDeleteTeamVerificationCodeWrongCode = do
   g <- view tsGalley
   (owner, tid) <- Util.createBindingTeam'
-  setFeatureLockStatus @'Public.TeamFeatureSndFactorPasswordChallenge tid Public.Unlocked
-  setTeamSndFactorPasswordChallenge tid Public.TeamFeatureEnabled
+  setFeatureLockStatus @Public.SndFactorPasswordChallengeConfig tid Public.LockStatusUnlocked
+  setTeamSndFactorPasswordChallenge tid Public.FeatureStatusEnabled
   let Just email = U.userEmail owner
   generateVerificationCode $ Public.SendVerificationCode Public.DeleteTeam email
   let wrongCode = Code.Value $ unsafeRange (fromRight undefined (validate "123456"))
@@ -1256,10 +1269,10 @@ testDeleteTeamVerificationCodeWrongCode = do
 
 -- @END
 
-setFeatureLockStatus :: forall (a :: Public.TeamFeatureName). (Public.KnownTeamFeatureName a) => TeamId -> Public.LockStatusValue -> TestM ()
+setFeatureLockStatus :: forall cfg. (Public.IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg)) => TeamId -> Public.LockStatus -> TestM ()
 setFeatureLockStatus tid status = do
   g <- view tsGalley
-  put (g . paths ["i", "teams", toByteString' tid, "features", toByteString' $ Public.knownTeamFeatureName @a, toByteString' status]) !!! const 200 === statusCode
+  put (g . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg, toByteString' status]) !!! const 200 === statusCode
 
 generateVerificationCode :: Public.SendVerificationCode -> TestM ()
 generateVerificationCode req = do
@@ -1267,11 +1280,11 @@ generateVerificationCode req = do
   let js = RequestBodyLBS $ encode req
   post (brig . paths ["verification-code", "send"] . contentJson . body js) !!! const 200 === statusCode
 
-setTeamSndFactorPasswordChallenge :: TeamId -> Public.TeamFeatureStatusValue -> TestM ()
+setTeamSndFactorPasswordChallenge :: TeamId -> Public.FeatureStatus -> TestM ()
 setTeamSndFactorPasswordChallenge tid status = do
   g <- view tsGalley
-  let js = RequestBodyLBS $ encode $ Public.TeamFeatureStatusNoConfig status
-  put (g . paths ["i", "teams", toByteString' tid, "features", toByteString' Public.TeamFeatureSndFactorPasswordChallenge] . contentJson . body js) !!! const 200 === statusCode
+  let js = RequestBodyLBS $ encode $ Public.WithStatusNoLock status Public.SndFactorPasswordChallengeConfig
+  put (g . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @Public.SndFactorPasswordChallengeConfig] . contentJson . body js) !!! const 200 === statusCode
 
 getVerificationCode :: UserId -> Public.VerificationAction -> TestM Code.Value
 getVerificationCode uid action = do
@@ -1378,11 +1391,12 @@ testDeleteTeamConv = do
   Util.connectUsers owner (list1 (member ^. userId) [extern])
   tid <- Util.createNonBindingTeam "foo" owner [member]
   cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
+  qcid1 <- Qualified cid1 <$> viewFederationDomain
   let access = ConversationAccessData (Set.fromList [InviteAccess, CodeAccess]) (Set.fromList [TeamMemberAccessRole, NonTeamMemberAccessRole])
   putAccessUpdate owner cid1 access !!! const 200 === statusCode
   code <- decodeConvCodeEvent <$> (postConvCode owner cid1 <!! const 201 === statusCode)
   cid2 <- Util.createTeamConv owner tid (qUnqualified <$> members) (Just "blup") Nothing Nothing
-  Util.postMembers owner (list1 extern [member ^. userId]) cid1 !!! const 200 === statusCode
+  Util.postMembers owner (qExtern :| [qMember]) qcid1 !!! const 200 === statusCode
   for_ (qExtern : members) $ \u -> Util.assertConvMember u cid1
   for_ members $ flip Util.assertConvMember cid2
   WS.bracketR3 c owner extern (member ^. userId) $ \(wsOwner, wsExtern, wsMember) -> do
@@ -1404,7 +1418,6 @@ testDeleteTeamConv = do
     -- i.e., as both a regular "conversation.delete" to all
     -- conversation members and as "team.conversation-delete"
     -- to all team members not part of the conversation
-    let qcid1 = Qualified cid1 localDomain
     checkConvDeleteEvent qcid1 wsOwner
     checkConvDeleteEvent qcid1 wsMember
     checkConvDeleteEvent qcid1 wsExtern
@@ -1448,39 +1461,50 @@ testUpdateTeam :: TestM ()
 testUpdateTeam = do
   g <- view tsGalley
   c <- view tsCannon
-  owner <- Util.randomUser
-  let p = Util.symmPermissions [DoNotUseDeprecatedDeleteConversation]
-  member <- newTeamMember' p <$> Util.randomUser
-  Util.connectUsers owner (list1 (member ^. userId) [])
-  tid <- Util.createNonBindingTeam "foo" owner [member]
+  (tid, owner, [member]) <- Util.createBindingTeamWithMembers 2
+
+  let doPut :: LByteString -> Int -> TestM ()
+      doPut payload code =
+        put
+          ( g
+              . paths ["teams", toByteString' tid]
+              . zUser owner
+              . zConn "conn"
+              . contentJson
+              . body (RequestBodyLBS payload)
+          )
+          !!! const code
+          === statusCode
+
   let bad = object ["name" .= T.replicate 100 "too large"]
-  put
-    ( g
-        . paths ["teams", toByteString' tid]
-        . zUser owner
-        . zConn "conn"
-        . json bad
-    )
-    !!! const 400
-    === statusCode
+  doPut (encode bad) 400
+
   let u =
         newTeamUpdateData
           & nameUpdate .~ (Just $ unsafeRange "bar")
           & iconUpdate .~ fromByteString "3-1-47de4580-ae51-4650-acbb-d10c028cb0ac"
           & iconKeyUpdate .~ (Just $ unsafeRange "yyy")
-  WS.bracketR2 c owner (member ^. userId) $ \(wsOwner, wsMember) -> do
-    put
-      ( g
-          . paths ["teams", toByteString' tid]
-          . zUser owner
-          . zConn "conn"
-          . json u
-      )
-      !!! const 200
-      === statusCode
+          & splashScreenUpdate .~ fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a"
+  WS.bracketR2 c owner member $ \(wsOwner, wsMember) -> do
+    doPut (encode u) 200
     checkTeamUpdateEvent tid u wsOwner
     checkTeamUpdateEvent tid u wsMember
     WS.assertNoEvent timeout [wsOwner, wsMember]
+  t <- Util.getTeam owner tid
+  liftIO $ assertEqual "teamSplashScreen" (t ^. teamSplashScreen) (fromJust $ fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a")
+
+  do
+    -- setting fields to `null` is the same as omitting the them from the update json record.
+    -- ("name" is set because a completely empty update object is rejected.)
+    doPut "{\"name\": \"new team name\", \"splash_screen\": null}" 200
+    t' <- Util.getTeam owner tid
+    liftIO $ assertEqual "teamSplashScreen" (t' ^. teamSplashScreen) (fromJust $ fromByteString "3-1-e1c89a56-882e-4694-bab3-c4f57803c57a")
+
+  do
+    -- setting splash screen to `"default"` will delete the splash screen.
+    doPut "{\"splash_screen\": \"default\"}" 200
+    t' <- Util.getTeam owner tid
+    liftIO $ assertEqual "teamSplashScreen" (t' ^. teamSplashScreen) DefaultIcon
 
 testTeamAddRemoveMemberAboveThresholdNoEvents :: HasCallStack => TestM ()
 testTeamAddRemoveMemberAboveThresholdNoEvents = do
@@ -1493,7 +1517,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
   -- Now last fill the team until truncationSize - 2
 
   replicateM_ (fanoutLimit - 4) $ Util.addUserToTeam owner tid
-  extern <- Util.randomUser
+  (extern, qextern) <- Util.randomUserTuple
   modifyTeamDataAndExpectEvent True tid owner
   -- Let's create and remove a member
   member2 <- do
@@ -1531,7 +1555,8 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
   _memWithoutFanout <- addTeamMemberAndExpectEvent False tid owner
   -- Add extern to a team conversation
   cid1 <- Util.createTeamConv owner tid [] (Just "blaa") Nothing Nothing
-  Util.postMembers owner (list1 extern []) cid1 !!! const 200 === statusCode
+  qcid1 <- Qualified cid1 <$> viewFederationDomain
+  Util.postMembers owner (pure qextern) qcid1 !!! const 200 === statusCode
   -- Test team deletion (should contain only conv. removal and user.deletion for _non_ team members)
   deleteTeam tid owner [] [Qualified cid1 localDomain] extern
   ensureQueueEmpty
@@ -1542,7 +1567,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
       b <- view tsBrig
       WS.bracketRN c listeners $ \wsListeners -> do
         -- Do something
-        let u = Brig.UserUpdate (Just $ Brig.Name "name") Nothing Nothing Nothing
+        let u = U.UserUpdate (Just $ U.Name "name") Nothing Nothing Nothing
         put
           ( b
               . paths ["self"]
@@ -1626,7 +1651,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
       void $
         retryWhileN
           10
-          ((/= Galley.Types.Teams.Intra.Deleted) . Galley.Types.Teams.Intra.tdStatus)
+          ((/= TeamsIntra.Deleted) . TeamsIntra.tdStatus)
           (getTeamInternal tid)
 
 testBillingInLargeTeam :: TestM ()
@@ -1838,21 +1863,21 @@ testUpdateTeamStatus = do
   g <- view tsGalley
   (_, tid) <- Util.createBindingTeam
   -- Check for idempotency
-  Util.changeTeamStatus tid Active
+  Util.changeTeamStatus tid TeamsIntra.Active
   assertQueueEmpty
-  Util.changeTeamStatus tid Suspended
+  Util.changeTeamStatus tid TeamsIntra.Suspended
   assertQueue "suspend first time" tSuspend
-  Util.changeTeamStatus tid Suspended
+  Util.changeTeamStatus tid TeamsIntra.Suspended
   assertQueueEmpty
-  Util.changeTeamStatus tid Suspended
+  Util.changeTeamStatus tid TeamsIntra.Suspended
   assertQueueEmpty
-  Util.changeTeamStatus tid Active
+  Util.changeTeamStatus tid TeamsIntra.Active
   assertQueue "activate again" tActivate
   void $
     put
       ( g
           . paths ["i", "teams", toByteString' tid, "status"]
-          . json (TeamStatusUpdate Deleted Nothing)
+          . json (TeamStatusUpdate TeamsIntra.Deleted Nothing)
       )
       !!! do
         const 403 === statusCode
@@ -2093,7 +2118,7 @@ postCryptoBroadcastMessage100OrMaxConns bcast = do
       case (statusCode r1, statusCode r2, remaining, acc) of
         (201, 200, 0, []) -> error "Need to connect with at least 1 user"
         (201, 200, 0, x : xs) -> pure (x, xs)
-        (201, 200, _, _) -> createAndConnectUserWhileLimitNotReached alice (remaining -1) ((uid, cid) : acc) pk
+        (201, 200, _, _) -> createAndConnectUserWhileLimitNotReached alice (remaining - 1) ((uid, cid) : acc) pk
         (403, 403, _, []) -> error "Need to connect with at least 1 user"
         (403, 403, _, x : xs) -> pure (x, xs)
         (xxx, yyy, _, _) -> error ("Unexpected while connecting users: " ++ show xxx ++ " and " ++ show yyy)
@@ -2107,10 +2132,10 @@ newTeamMember' perms uid = Member.mkTeamMember uid perms Nothing LH.defUserLegal
 -- and with different kinds of internal checks, it's quite tedious to do so.
 
 getSSOEnabledInternal :: HasCallStack => TeamId -> TestM ResponseLBS
-getSSOEnabledInternal = Util.getTeamFeatureFlagInternal Public.TeamFeatureSSO
+getSSOEnabledInternal = Util.getTeamFeatureFlagInternal @Public.SSOConfig
 
-putSSOEnabledInternal :: HasCallStack => TeamId -> Public.TeamFeatureStatusValue -> TestM ()
-putSSOEnabledInternal tid statusValue = void $ Util.putTeamFeatureFlagInternal @'Public.TeamFeatureSSO expect2xx tid (Public.TeamFeatureStatusNoConfig statusValue)
+putSSOEnabledInternal :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
+putSSOEnabledInternal tid statusValue = void $ Util.putTeamFeatureFlagInternal @Public.SSOConfig expect2xx tid (Public.WithStatusNoLock statusValue Public.SSOConfig)
 
 getSearchVisibility :: HasCallStack => (Request -> Request) -> UserId -> TeamId -> (MonadIO m, MonadHttp m) => m ResponseLBS
 getSearchVisibility g uid tid = do

@@ -21,7 +21,6 @@ module Brig.Sem.UserQuery.Cassandra (userQueryToCassandra) where
 import Brig.Data.Instances ()
 import Brig.Password
 import Brig.Sem.UserQuery
-import Brig.Types
 import Brig.Types.Intra
 import Cassandra
 import Control.Lens (view, (^.))
@@ -30,6 +29,7 @@ import Data.Id
 import Imports
 import Polysemy
 import Wire.API.Provider.Service
+import Wire.API.User
 
 userQueryToCassandra ::
   forall m r a.
