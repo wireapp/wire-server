@@ -6,13 +6,6 @@ let
     overlays = [
       # All wire-server specific packages
       (import ./overlay.nix)
-    ];
-  };
-
-  # a different pin for building wire-server docs.
-  # should eventually be moved to use the same pin.
-  pkgsDocs = import sources.nixpkgsDocs {
-    overlays = [
       (import ./overlay-docs.nix)
     ];
   };
@@ -141,8 +134,8 @@ let
 
   # packages necessary to build wire-server docs
   docsPkgs = [
-    pkgsDocs.texlive.combined.scheme-full
-    (pkgsDocs.python3.withPackages
+    pkgs.texlive.combined.scheme-full
+    (pkgs.python3.withPackages
       (ps: with ps; [
         myst-parser
         rst2pdf
@@ -172,13 +165,14 @@ let
     {
       name = "wire-server-docs-env";
       paths = [
-        pkgsDocs.awscli
-        pkgsDocs.jq
-        pkgsDocs.niv
-        pkgsDocs.zip
-        pkgsDocs.entr
+        pkgs.awscli
+        pkgs.jq
+        pkgs.niv
+        pkgs.zip
+        pkgs.entr
       ] ++ docsPkgs;
     };
+  mls_test_cli = pkgs.mls_test_cli;
 in
 {
   inherit pkgs devPackages devEnv docs docsEnv compile-deps;
