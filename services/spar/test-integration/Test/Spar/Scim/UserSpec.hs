@@ -716,30 +716,29 @@ testCreateUserWithSamlIdP = do
 
 testCreateUserWithSamlIdPWithPreferredLanguage :: Maybe Locale -> Maybe Locale -> TestSpar ()
 testCreateUserWithSamlIdPWithPreferredLanguage mLocale mLocaleUpdate = do
-  env <- ask
-  -- Create a user via SCIM
+  defLocale <- getDefaultUserLocale
   (tok, (_, _, _idp)) <- registerIdPAndScimToken
   user <- do
     u <- randomScimUser
-    case mLocale of
-      Nothing -> pure u
-      Just locale -> pure $ u {Scim.User.preferredLanguage = Just (lan2Text $ lLanguage locale)}
-  scimStoredUser <- createUser tok user
-  let userid = scimUserId scimStoredUser
-  defLocale <- getDefaultUserLocale
-  let getBrigUser =
-        fmap responseJsonUnsafe . call . get $
-          ( (env ^. teBrig)
-              . header "Z-User" (toByteString' userid)
-              . path "/self"
-              . expect2xx
-          )
-  brigUser <- getBrigUser
+    pure $ u {Scim.User.preferredLanguage = lan2Text . lLanguage <$> mLocale}
+  -- create
+  userid <- scimUserId <$> createUser tok user
+  brigUser <- getBrigUser userid
   lift $ userLocale brigUser `shouldBe` fromMaybe defLocale mLocale
   -- update
   void $ updateUser tok userid user {Scim.User.preferredLanguage = lan2Text . lLanguage <$> mLocaleUpdate}
-  updatedBrigUser <- getBrigUser
+  updatedBrigUser <- getBrigUser userid
   lift $ userLocale updatedBrigUser `shouldBe` fromMaybe defLocale mLocaleUpdate
+  where
+    getBrigUser :: UserId -> TestSpar User
+    getBrigUser userid = do
+      env <- ask
+      fmap responseJsonUnsafe . call . get $
+        ( (env ^. teBrig)
+            . header "Z-User" (toByteString' userid)
+            . path "/self"
+            . expect2xx
+        )
 
 -- | Test that Wire-specific schemas are added to the SCIM user record, even if the schemas
 -- were not present in the original record during creation.
