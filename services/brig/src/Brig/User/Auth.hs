@@ -558,10 +558,9 @@ ssoLogin ::
   CookieType ->
   ExceptT LoginError m (Access ZAuth.User)
 ssoLogin (SsoLogin uid label) typ = do
-  -- locale <- Opt.setDefaultUserLocale <$> view settings
-  -- locDomain <- qualifyLocal ()
-  o <- undefined
-  -- o <- runUserQueryAction $ runInputConst locDomain $ Data.reauthenticate locale uid Nothing
+  locale <- Opt.setDefaultUserLocale <$> view settings
+  locDomain <- qualifyLocal ()
+  o <- runUserQueryAction $ runInputConst locDomain $ Data.reauthenticate locale uid Nothing
   whenLeft o $ \case
     ReAuthMissingPassword -> pure ()
     ReAuthCodeVerificationRequired -> pure ()
