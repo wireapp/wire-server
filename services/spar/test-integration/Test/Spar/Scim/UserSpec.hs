@@ -30,7 +30,7 @@ where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.Intra (AccountStatus (Active, PendingInvitation, Suspended), UserAccount (..), accountStatus, accountUser)
+import Brig.Types.Intra (AccountStatus (Active, PendingInvitation, Suspended), LocaleRsp (LocaleRsp), UserAccount (..), accountStatus, accountUser)
 import Brig.Types.User as Brig
 import qualified Control.Exception
 import Control.Lens
@@ -48,6 +48,7 @@ import qualified Data.Csv as Csv
 import Data.Handle (Handle (Handle), fromHandle, parseHandleEither)
 import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
+import Data.LanguageCodes (ISO639_1 (..))
 import Data.Misc (HttpsUrl, mkHttpsUrl)
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -473,6 +474,10 @@ specCreateUser = describe "POST /Users" $ do
     it "creates a user in an existing team" $ do
       testCreateUserWithSamlIdP
     it "adds a Wire scheme to the user record" $ testSchemaIsAdded
+    it "set locale to default and update to de" $ testCreateUserWithSamlIdPWithPreferredLanguage Nothing (Just (Locale (Language DE) Nothing))
+    it "set locale to fr and update to de" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language FR) Nothing)) (Just (Locale (Language DE) Nothing))
+    it "set locale to hr and update to de" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language HR) Nothing)) (Just (Locale (Language DE) Nothing))
+    it "set locale to default and update to default" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language HR) Nothing)) Nothing
   it "requires externalId to be present" $ testExternalIdIsRequired
   it "rejects invalid handle" $ testCreateRejectsInvalidHandle
   it "rejects occupied handle" $ testCreateRejectsTakenHandle
@@ -691,8 +696,6 @@ testCreateUserWithSamlIdP = do
           . path "/self"
           . expect2xx
       )
-  putStrLn $ "Scim user locale: " <> show (scimPreferredLanguage scimStoredUser)
-  putStrLn $ "Brig user locale: " <> show (userLocale brigUser)
   brigUser `userShouldMatch` WrappedScimStoredUser scimStoredUser
   accStatus <- aFewTimes (runSpar $ BrigAccess.getStatus (userId brigUser)) (== Active)
   liftIO $ accStatus `shouldBe` Active
@@ -710,6 +713,52 @@ testCreateUserWithSamlIdP = do
   liftIO $ members `shouldContain` [userid]
 
   checkChangeRoleOfTeamMember tid owner userid
+
+testCreateUserWithSamlIdPWithPreferredLanguage :: Maybe Locale -> Maybe Locale -> TestSpar ()
+testCreateUserWithSamlIdPWithPreferredLanguage mLocale mLocaleUpdate = do
+  env <- ask
+  -- Create a user via SCIM
+  (tok, (_, _, _idp)) <- registerIdPAndScimToken
+  user <- do
+    u <- randomScimUser
+    case mLocale of
+      Nothing -> pure u
+      Just locale -> pure $ u {Scim.User.preferredLanguage = Just (lan2Text $ lLanguage locale)}
+  scimStoredUser <- createUser tok user
+  let userid = scimUserId scimStoredUser
+  LocaleRsp defLocale <-
+    fmap responseJsonUnsafe . call . get $
+      ( (env ^. teBrig)
+          . path "/i/users/locale"
+          . expect2xx
+      )
+  let getBrigUser =
+        fmap responseJsonUnsafe . call . get $
+          ( (env ^. teBrig)
+              . header "Z-User" (toByteString' userid)
+              . path "/self"
+              . expect2xx
+          )
+  brigUser <- getBrigUser
+  let checkUpdate =
+        case mLocaleUpdate of
+          Just locale -> do
+            _ <- updateUser tok userid user {Scim.User.preferredLanguage = Just (lan2Text $ lLanguage locale)}
+            updatedBrigUser <- getBrigUser
+            lift $ userLocale updatedBrigUser `shouldBe` locale
+          Nothing -> do
+            _ <- updateUser tok userid user {Scim.User.preferredLanguage = Nothing}
+            updatedBrigUser <- getBrigUser
+            lift $ userLocale updatedBrigUser `shouldBe` defLocale
+  case mLocale of
+    Nothing -> do
+      lift $ userLocale brigUser `shouldBe` defLocale
+      -- update
+      checkUpdate
+    Just l -> do
+      lift $ userLocale brigUser `shouldBe` l
+      -- update
+      checkUpdate
 
 -- | Test that Wire-specific schemas are added to the SCIM user record, even if the schemas
 -- were not present in the original record during creation.
@@ -1075,12 +1124,19 @@ testListProvisionedUsers = do
 
 testFindProvisionedUser :: TestSpar ()
 testFindProvisionedUser = do
+  env <- ask
+  LocaleRsp defLocale <-
+    fmap responseJsonUnsafe . call . get $
+      ( (env ^. teBrig)
+          . path "/i/users/locale"
+          . expect2xx
+      )
   user <- randomScimUser
   (tok, (_, _, _)) <- registerIdPAndScimToken
   storedUser <- createUser tok user
   [storedUser'] <- listUsers tok (Just (filterBy "userName" (Scim.User.userName user)))
   liftIO $ storedUser' `shouldBe` storedUser
-  liftIO $ Scim.value (Scim.thing storedUser') `shouldBe` normalizeLikeStored user {Scim.User.emails = [] {- only after validation -}}
+  liftIO $ Scim.value (Scim.thing storedUser') `shouldBe` normalizeLikeStored (withBrigDefaultLocaleAlt defLocale user {Scim.User.emails = [] {- only after validation -}})
   let Just externalId = Scim.User.externalId user
   users' <- listUsers tok (Just (filterBy "externalId" externalId))
   liftIO $ users' `shouldBe` [storedUser]
@@ -1437,6 +1493,7 @@ testSameUpdateNoChange = do
   storedUser <- createUser tok user
   let userid = scimUserId storedUser
   storedUser' <- updateUser tok userid user
+  putStrLn $ "updated user = " <> show storedUser'
   liftIO $ storedUser `shouldBe` storedUser'
 
 -- | Test that @PUT /Users@ returns 4xx when called without the @:id@ part.
@@ -1466,6 +1523,13 @@ testUserUpdateFailsWithNotFoundIfOutsideTeam = do
 -- | Test that @PUT@-ting the user and then @GET@-ting it returns the right thing.
 testScimSideIsUpdated :: TestSpar ()
 testScimSideIsUpdated = do
+  env <- ask
+  LocaleRsp defLocale <-
+    fmap responseJsonUnsafe . call . get $
+      ( (env ^. teBrig)
+          . path "/i/users/locale"
+          . expect2xx
+      )
   -- Create a user via SCIM
   user <- randomScimUser
   (tok, (_, _, idp)) <- registerIdPAndScimToken
@@ -1482,7 +1546,7 @@ testScimSideIsUpdated = do
   -- 'updateUser'
   richInfoLimit <- view (teOpts . to Spar.Types.richInfoLimit)
   liftIO $ do
-    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit user'
+    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit (withBrigDefaultLocaleAlt defLocale user')
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
     let meta = Scim.meta storedUser
         meta' = Scim.meta storedUser'
@@ -1517,6 +1581,13 @@ testUpdateToExistingExternalIdFails = do
 -- tries to set the name and handle, it might fail because the handle is "already claimed".
 testUpdateSameHandle :: TestSpar ()
 testUpdateSameHandle = do
+  env <- ask
+  LocaleRsp defLocale <-
+    fmap responseJsonUnsafe . call . get $
+      ( (env ^. teBrig)
+          . path "/i/users/locale"
+          . expect2xx
+      )
   -- Create a user via SCIM
   user <- randomScimUser
   (tok, (_, _, idp)) <- registerIdPAndScimToken
@@ -1537,7 +1608,7 @@ testUpdateSameHandle = do
   -- Check that the updated user also matches the data that we sent with 'updateUser'
   richInfoLimit <- view (teOpts . to Spar.Types.richInfoLimit)
   liftIO $ do
-    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit user'
+    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit (withBrigDefaultLocaleAlt defLocale user')
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
     let meta = Scim.meta storedUser
         meta' = Scim.meta storedUser'
@@ -1668,7 +1739,8 @@ testBrigSideIsUpdated = do
   _ <- updateUser tok userid user'
   validScimUser <- either (error . show) pure $ validateScimUser' "testBrigSideIsUpdated" (Just idp) 999999 user'
   brigUser <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser Intra.WithPendingInvitations userid)
-  brigUser `userShouldMatch` validScimUser
+  let scimUserWithDefLocale = (validScimUser {Spar.Types._vsuLocale = Spar.Types._vsuLocale validScimUser <|> Just (Locale (Language EN) Nothing)})
+  brigUser `userShouldMatch` scimUserWithDefLocale
 
 ----------------------------------------------------------------------------
 -- Patching users

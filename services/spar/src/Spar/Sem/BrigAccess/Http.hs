@@ -51,6 +51,7 @@ brigAccessToHttp mgr req =
       SetManagedBy itlu m -> Intra.setBrigUserManagedBy itlu m
       SetVeid itlu v -> Intra.setBrigUserVeid itlu v
       SetRichInfo itlu r -> Intra.setBrigUserRichInfo itlu r
+      SetLocale itlu l -> Intra.setBrigUserLocale itlu l
       GetRichInfo itlu -> Intra.getBrigUserRichInfo itlu
       CheckHandleAvailable h -> Intra.checkHandleAvailable h
       Delete itlu -> Intra.deleteBrigUser itlu
@@ -59,3 +60,4 @@ brigAccessToHttp mgr req =
       GetStatus itlu -> Intra.getStatus itlu
       GetStatusMaybe itlu -> Intra.getStatusMaybe itlu
       SetStatus itlu a -> Intra.setStatus itlu a
+      GetDefaultUserLocale -> Intra.getDefaultUserLocale

@@ -30,6 +30,7 @@ module Spar.Sem.BrigAccess
     setManagedBy,
     setVeid,
     setRichInfo,
+    setLocale,
     getRichInfo,
     checkHandleAvailable,
     delete,
@@ -38,6 +39,7 @@ module Spar.Sem.BrigAccess
     getStatus,
     getStatusMaybe,
     setStatus,
+    getDefaultUserLocale,
   )
 where
 
@@ -69,6 +71,7 @@ data BrigAccess m a where
   SetManagedBy :: UserId -> ManagedBy -> BrigAccess m ()
   SetVeid :: UserId -> ValidExternalId -> BrigAccess m ()
   SetRichInfo :: UserId -> RichInfo -> BrigAccess m ()
+  SetLocale :: UserId -> Maybe Locale -> BrigAccess m ()
   GetRichInfo :: UserId -> BrigAccess m RichInfo
   CheckHandleAvailable :: Handle -> BrigAccess m Bool
   Delete :: UserId -> BrigAccess m ()
@@ -77,5 +80,6 @@ data BrigAccess m a where
   GetStatus :: UserId -> BrigAccess m AccountStatus
   GetStatusMaybe :: UserId -> BrigAccess m (Maybe AccountStatus)
   SetStatus :: UserId -> AccountStatus -> BrigAccess m ()
+  GetDefaultUserLocale :: BrigAccess m Locale
 
 makeSem ''BrigAccess

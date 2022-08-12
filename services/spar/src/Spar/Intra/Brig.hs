@@ -27,6 +27,7 @@ module Spar.Intra.Brig
     setBrigUserManagedBy,
     setBrigUserVeid,
     setBrigUserRichInfo,
+    setBrigUserLocale,
     checkHandleAvailable,
     deleteBrigUser,
     createBrigUserSAML,
@@ -37,6 +38,7 @@ module Spar.Intra.Brig
     getStatus,
     getStatusMaybe,
     setStatus,
+    getDefaultUserLocale,
   )
 where
 
@@ -284,6 +286,24 @@ setBrigUserRichInfo buid richInfo = do
   unless (statusCode resp == 200) $
     rethrow "brig" resp
 
+setBrigUserLocale :: (HasCallStack, MonadSparToBrig m) => UserId -> Maybe Locale -> m ()
+setBrigUserLocale buid = \case
+  Just locale -> do
+    resp <-
+      call $
+        method PUT
+          . paths ["i", "users", toByteString' buid, "locale"]
+          . json (LocaleUpdate locale)
+    unless (statusCode resp == 200) $
+      rethrow "brig" resp
+  Nothing -> do
+    resp <-
+      call $
+        method DELETE
+          . paths ["i", "users", toByteString' buid, "locale"]
+    unless (statusCode resp == 200) $
+      rethrow "brig" resp
+
 getBrigUserRichInfo :: (HasCallStack, MonadSparToBrig m) => UserId -> m RichInfo
 getBrigUserRichInfo buid = do
   resp <-
@@ -391,4 +411,11 @@ setStatus uid status = do
         . json (AccountStatusUpdate status)
   case statusCode resp of
     200 -> pure ()
+    _ -> rethrow "brig" resp
+
+getDefaultUserLocale :: (HasCallStack, MonadSparToBrig m) => m Locale
+getDefaultUserLocale = do
+  resp <- call $ method GET . paths ["/i/users/locale"]
+  case statusCode resp of
+    200 -> fromLocaleRsp <$> parseResponse @LocaleRsp "brig" resp
     _ -> rethrow "brig" resp

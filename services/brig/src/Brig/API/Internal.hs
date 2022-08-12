@@ -308,6 +308,17 @@ sitemap = do
       .&. accept "application" "json"
       .&. jsonRequest @RichInfoUpdate
 
+  put "/i/users/:uid/locale" (continue updateLocaleH) $
+    capture "uid"
+      .&. accept "application" "json"
+      .&. jsonRequest @LocaleUpdate
+
+  delete "/i/users/:uid/locale" (continue deleteLocaleH) $
+    capture "uid"
+      .&. accept "application" "json"
+
+  get "/i/users/locale" (continue getDefaultUserLocaleH) true
+
   put "/i/users/:uid/handle" (continue updateHandleH) $
     capture "uid"
       .&. accept "application" "json"
@@ -661,6 +672,23 @@ updateRichInfo uid rup = do
   -- FUTUREWORK: send an event
   -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
   lift $ wrapClient $ Data.updateRichInfo uid (mkRichInfoAssocList richInfo)
+
+updateLocaleH :: UserId ::: JSON ::: JsonRequest LocaleUpdate -> (Handler r) Response
+updateLocaleH (uid ::: _ ::: req) = do
+  LocaleUpdate locale <- parseJsonBody req
+  lift $ wrapClient $ Data.updateLocale uid locale
+  pure empty
+
+deleteLocaleH :: UserId ::: JSON -> (Handler r) Response
+deleteLocaleH (uid ::: _) = do
+  defLoc <- setDefaultUserLocale <$> view settings
+  lift $ wrapClient $ Data.updateLocale uid defLoc
+  pure empty
+
+getDefaultUserLocaleH :: () -> (Handler r) Response
+getDefaultUserLocaleH _ = do
+  defLocale <- setDefaultUserLocale <$> view settings
+  pure $ json $ LocaleRsp defLocale
 
 getRichInfoH :: UserId -> (Handler r) Response
 getRichInfoH uid = json <$> getRichInfo uid

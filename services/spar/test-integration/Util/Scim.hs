@@ -140,8 +140,7 @@ randomScimUserWithSubjectAndRichInfo richInfo = do
         { Scim.User.displayName = Just ("ScimUser" <> suffix),
           Scim.User.externalId = Just externalId,
           Scim.User.emails = emails,
-          Scim.User.phoneNumbers = phones,
-          Scim.User.preferredLanguage = Just "de"
+          Scim.User.phoneNumbers = phones
         },
       subj
     )
@@ -665,6 +664,10 @@ whatSparReturnsFor :: HasCallStack => IdP -> Int -> Scim.User.User SparTag -> Ei
 whatSparReturnsFor idp richInfoSizeLimit =
   either (Left . show) (Right . synthesizeScimUser)
     . validateScimUser' "whatSparReturnsFor" (Just idp) richInfoSizeLimit
+
+withBrigDefaultLocaleAlt :: Locale -> Scim.User.User SparTag -> Scim.User.User SparTag
+withBrigDefaultLocaleAlt locale u =
+  u {Scim.preferredLanguage = Scim.preferredLanguage u <|> Just (lan2Text $ lLanguage locale)}
 
 -- this is not always correct, but hopefully for the tests that we're using it in it'll do.
 scimifyBrigUserHack :: User -> Email -> User
