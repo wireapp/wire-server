@@ -45,7 +45,7 @@ import Galley.Types.Teams
 import Imports
 import Network.Wai.Utilities (label)
 import Test.Hspec (expectationFailure)
-import Test.QuickCheck (generate)
+import Test.QuickCheck (Gen, generate, suchThat)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit (assertFailure, (@?=))
@@ -63,8 +63,10 @@ tests :: IO TestSetup -> TestTree
 tests s =
   testGroup
     "Feature Config API and Team Features API"
-    [ test s "SSO" testSSO,
-      test s "LegalHold" testLegalHold,
+    [ test s "SSO - set with HTTP PUT" (testSSO putSSOInternal),
+      test s "SSO - set with HTTP PATCH" (testSSO patchSSOInternal),
+      test s "LegalHold - set with HTTP PUT" (testLegalHold putLegalHoldInternal),
+      test s "LegalHold - set with HTTP PATCH" (testLegalHold patchLegalHoldInternal),
       test s "SearchVisibility" testSearchVisibility,
       test s "DigitalSignatures" $ testSimpleFlag @Public.DigitalSignaturesConfig Public.FeatureStatusDisabled,
       test s "ValidateSAMLEmails" $ testSimpleFlag @Public.ValidateSAMLEmailsConfig Public.FeatureStatusEnabled,
@@ -98,16 +100,88 @@ tests s =
       test s "SearchVisibilityInbound" $ testSimpleFlag @Public.SearchVisibilityInboundConfig Public.FeatureStatusDisabled,
       testGroup
         "Patch"
-        [ test s (unpack $ Public.featureNameBS @Public.FileSharingConfig) $
-            testPatch @Public.FileSharingConfig Public.FeatureStatusEnabled Public.FileSharingConfig,
+        [ -- Note: `SSOConfig` and `LegalHoldConfig` may not be able to be reset
+          -- (depending on prior state or configuration). Thus, they cannot be
+          -- tested here (setting random values), but are tested with separate
+          -- tests.
+          test s (unpack $ Public.featureNameBS @Public.SearchVisibilityAvailableConfig) $
+            testPatch IgnoreLockStatusChange Public.FeatureStatusEnabled Public.SearchVisibilityAvailableConfig,
+          test s (unpack $ Public.featureNameBS @Public.ValidateSAMLEmailsConfig) $
+            testPatch IgnoreLockStatusChange Public.FeatureStatusEnabled Public.ValidateSAMLEmailsConfig,
+          test s (unpack $ Public.featureNameBS @Public.DigitalSignaturesConfig) $
+            testPatch IgnoreLockStatusChange Public.FeatureStatusEnabled Public.DigitalSignaturesConfig,
+          test s (unpack $ Public.featureNameBS @Public.AppLockConfig) $
+            testPatchWithCustomGen IgnoreLockStatusChange Public.FeatureStatusEnabled (Public.AppLockConfig (Public.EnforceAppLock False) 42) validAppLockConfigGen,
+          test s (unpack $ Public.featureNameBS @Public.ConferenceCallingConfig) $
+            testPatch IgnoreLockStatusChange Public.FeatureStatusEnabled Public.ConferenceCallingConfig,
+          test s (unpack $ Public.featureNameBS @Public.SearchVisibilityAvailableConfig) $
+            testPatch IgnoreLockStatusChange Public.FeatureStatusEnabled Public.SearchVisibilityAvailableConfig,
+          test s (unpack $ Public.featureNameBS @Public.MLSConfig) $
+            testPatchWithCustomGen
+              IgnoreLockStatusChange
+              Public.FeatureStatusEnabled
+              ( Public.MLSConfig
+                  []
+                  ProtocolProteusTag
+                  [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519]
+                  MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+              )
+              validMLSConfigGen,
+          test s (unpack $ Public.featureNameBS @Public.FileSharingConfig) $
+            testPatch AssertLockStatusChange Public.FeatureStatusEnabled Public.FileSharingConfig,
           test s (unpack $ Public.featureNameBS @Public.GuestLinksConfig) $
-            testPatch @Public.GuestLinksConfig Public.FeatureStatusEnabled Public.GuestLinksConfig,
+            testPatch AssertLockStatusChange Public.FeatureStatusEnabled Public.GuestLinksConfig,
           test s (unpack $ Public.featureNameBS @Public.SndFactorPasswordChallengeConfig) $
-            testPatch @Public.SndFactorPasswordChallengeConfig Public.FeatureStatusDisabled Public.SndFactorPasswordChallengeConfig,
+            testPatch AssertLockStatusChange Public.FeatureStatusDisabled Public.SndFactorPasswordChallengeConfig,
           test s (unpack $ Public.featureNameBS @Public.SelfDeletingMessagesConfig) $
-            testPatch @Public.SelfDeletingMessagesConfig Public.FeatureStatusEnabled (Public.SelfDeletingMessagesConfig 0)
+            testPatch AssertLockStatusChange Public.FeatureStatusEnabled (Public.SelfDeletingMessagesConfig 0)
         ]
     ]
+
+-- | Provides a `Gen` with test objects that are realistic and can easily be asserted
+validMLSConfigGen :: Gen (Public.WithStatusPatch MLSConfig)
+validMLSConfigGen =
+  arbitrary
+    `suchThat` ( \cfg -> case Public.wspConfig cfg of
+                   Just (Public.MLSConfig us _ cTags ctag) ->
+                     sortedAndNoDuplicates us
+                       && sortedAndNoDuplicates cTags
+                       && elem ctag cTags
+                   _ -> True
+               )
+  where
+    sortedAndNoDuplicates xs = (sort . nub) xs == xs
+
+validAppLockConfigGen :: Gen (Public.WithStatusPatch Public.AppLockConfig)
+validAppLockConfigGen =
+  arbitrary
+    `suchThat` ( \cfg -> case Public.wspConfig cfg of
+                   Just (Public.AppLockConfig _ secs) -> secs >= 30
+                   Nothing -> True
+               )
+
+-- | Binary type to prevent "boolean blindness"
+data AssertLockStatusChange = AssertLockStatusChange | IgnoreLockStatusChange
+  deriving (Eq)
+
+testPatchWithCustomGen ::
+  forall cfg.
+  ( HasCallStack,
+    Public.IsFeatureConfig cfg,
+    Typeable cfg,
+    ToSchema cfg,
+    Eq cfg,
+    Show cfg,
+    KnownSymbol (Public.FeatureSymbol cfg)
+  ) =>
+  AssertLockStatusChange ->
+  Public.FeatureStatus ->
+  cfg ->
+  Gen (Public.WithStatusPatch cfg) ->
+  TestM ()
+testPatchWithCustomGen assertLockStatusChange featureStatus cfg gen = do
+  generatedConfig <- liftIO $ generate gen
+  testPatch' assertLockStatusChange generatedConfig featureStatus cfg
 
 testPatch ::
   forall cfg.
@@ -121,13 +195,30 @@ testPatch ::
     Arbitrary (Public.WithStatus cfg),
     Arbitrary (Public.WithStatusPatch cfg)
   ) =>
+  AssertLockStatusChange ->
   Public.FeatureStatus ->
   cfg ->
   TestM ()
-testPatch defStatus defConfig = do
+testPatch assertLockStatusChange status cfg = testPatchWithCustomGen assertLockStatusChange status cfg arbitrary
+
+testPatch' ::
+  forall cfg.
+  ( HasCallStack,
+    Public.IsFeatureConfig cfg,
+    Typeable cfg,
+    ToSchema cfg,
+    Eq cfg,
+    Show cfg,
+    KnownSymbol (Public.FeatureSymbol cfg)
+  ) =>
+  AssertLockStatusChange ->
+  Public.WithStatusPatch cfg ->
+  Public.FeatureStatus ->
+  cfg ->
+  TestM ()
+testPatch' testLockStatusChange rndFeatureConfig defStatus defConfig = do
   (_, tid) <- Util.createBindingTeam
   Just original <- responseJsonMaybe <$> Util.getFeatureStatusInternal @cfg tid
-  rndFeatureConfig :: Public.WithStatusPatch cfg <- liftIO (generate arbitrary)
   patchFeatureStatusInternal tid rndFeatureConfig !!! statusCode === const 200
   Just actual <- responseJsonMaybe <$> Util.getFeatureStatusInternal @cfg tid
   liftIO $
@@ -137,11 +228,12 @@ testPatch defStatus defConfig = do
         Public.wsConfig actual @?= defConfig
       else do
         Public.wsStatus actual @?= fromMaybe (Public.wsStatus original) (Public.wspStatus rndFeatureConfig)
-        Public.wsLockStatus actual @?= fromMaybe (Public.wsLockStatus original) (Public.wspLockStatus rndFeatureConfig)
+        when (testLockStatusChange == AssertLockStatusChange) $
+          Public.wsLockStatus actual @?= fromMaybe (Public.wsLockStatus original) (Public.wspLockStatus rndFeatureConfig)
         Public.wsConfig actual @?= fromMaybe (Public.wsConfig original) (Public.wspConfig rndFeatureConfig)
 
-testSSO :: TestM ()
-testSSO = do
+testSSO :: (TeamId -> Public.FeatureStatus -> TestM ()) -> TestM ()
+testSSO setSSOFeature = do
   (_owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
   nonMember <- Util.randomUser
 
@@ -153,8 +245,6 @@ testSSO = do
         liftIO $ Public.wsStatus actual @?= expectedStatus
       getSSOInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
       getSSOInternal = assertFlagNoConfig @Public.SSOConfig $ Util.getTeamFeatureFlagInternal @Public.SSOConfig tid
-      setSSOInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
-      setSSOInternal = void . Util.putTeamFeatureFlagInternal @Public.SSOConfig expect2xx tid . (`Public.WithStatusNoLock` Public.SSOConfig)
 
   assertFlagForbidden $ Util.getTeamFeatureFlag @Public.SSOConfig nonMember tid
 
@@ -167,7 +257,7 @@ testSSO = do
       getSSOFeatureConfig Public.FeatureStatusDisabled
 
       -- Test override
-      setSSOInternal Public.FeatureStatusEnabled
+      setSSOFeature tid Public.FeatureStatusEnabled
       getSSO Public.FeatureStatusEnabled
       getSSOInternal Public.FeatureStatusEnabled
       getSSOFeatureConfig Public.FeatureStatusEnabled
@@ -178,8 +268,14 @@ testSSO = do
       getSSOInternal Public.FeatureStatusEnabled
       getSSOFeatureConfig Public.FeatureStatusEnabled
 
-testLegalHold :: TestM ()
-testLegalHold = do
+putSSOInternal :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
+putSSOInternal tid = void . Util.putTeamFeatureFlagInternal @Public.SSOConfig expect2xx tid . (`Public.WithStatusNoLock` Public.SSOConfig)
+
+patchSSOInternal :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
+patchSSOInternal tid status = void $ Util.patchFeatureStatusInternalWithMod @Public.SSOConfig expect2xx tid (Public.withStatus' (Just status) Nothing Nothing)
+
+testLegalHold :: ((Request -> Request) -> TeamId -> Public.FeatureStatus -> TestM ()) -> TestM ()
+testLegalHold setLegalHoldInternal = do
   (_owner, tid, member : _) <- Util.createBindingTeamWithNMembers 1
   nonMember <- Util.randomUser
   let getLegalHold :: HasCallStack => Public.FeatureStatus -> TestM ()
@@ -190,8 +286,6 @@ testLegalHold = do
         actual <- Util.getFeatureConfig @Public.LegalholdConfig member
         liftIO $ Public.wsStatus actual @?= expectedStatus
 
-      setLegalHoldInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
-      setLegalHoldInternal = void . Util.putTeamFeatureFlagInternal @Public.LegalholdConfig expect2xx tid . (`Public.WithStatusNoLock` Public.LegalholdConfig)
   getLegalHold Public.FeatureStatusDisabled
   getLegalHoldInternal Public.FeatureStatusDisabled
 
@@ -207,18 +301,24 @@ testLegalHold = do
       getLegalHoldFeatureConfig Public.FeatureStatusDisabled
 
       -- Test override
-      setLegalHoldInternal Public.FeatureStatusEnabled
+      setLegalHoldInternal expect2xx tid Public.FeatureStatusEnabled
       getLegalHold Public.FeatureStatusEnabled
       getLegalHoldInternal Public.FeatureStatusEnabled
       getLegalHoldFeatureConfig Public.FeatureStatusEnabled
 
     -- turned off for instance
     FeatureLegalHoldDisabledPermanently -> do
-      Util.putLegalHoldEnabledInternal' expect4xx tid Public.FeatureStatusEnabled
+      setLegalHoldInternal expect4xx tid Public.FeatureStatusEnabled
 
     -- turned off but for whitelisted teams with implicit consent
     FeatureLegalHoldWhitelistTeamsAndImplicitConsent -> do
-      Util.putLegalHoldEnabledInternal' expect4xx tid Public.FeatureStatusEnabled
+      setLegalHoldInternal expect4xx tid Public.FeatureStatusEnabled
+
+putLegalHoldInternal :: HasCallStack => (Request -> Request) -> TeamId -> Public.FeatureStatus -> TestM ()
+putLegalHoldInternal expectation tid = void . Util.putTeamFeatureFlagInternal @Public.LegalholdConfig expectation tid . (`Public.WithStatusNoLock` Public.LegalholdConfig)
+
+patchLegalHoldInternal :: HasCallStack => (Request -> Request) -> TeamId -> Public.FeatureStatus -> TestM ()
+patchLegalHoldInternal expectation tid status = void $ Util.patchFeatureStatusInternalWithMod @Public.LegalholdConfig expectation tid (Public.withStatus' (Just status) Nothing Nothing)
 
 testSearchVisibility :: TestM ()
 testSearchVisibility = do

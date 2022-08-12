@@ -1,0 +1,4 @@
+Allow features to be set with HTTP method PATCH. This reflects a prior behavior
+that is used by Ibis. Additionally, it's more consistent when all setters can be
+called with PUT and PATCH. As this will fix calls by Ibis, the deployment order
+doesn't matter.
