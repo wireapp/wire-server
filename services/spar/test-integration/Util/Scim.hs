@@ -21,6 +21,7 @@ module Util.Scim where
 
 import Bilge
 import Bilge.Assert
+import Brig.Types.Intra (LocaleRsp (LocaleRsp))
 import Control.Lens
 import Control.Monad.Random
 import Data.ByteString.Conversion
@@ -676,3 +677,14 @@ scimifyBrigUserHack usr email =
     { userManagedBy = ManagedByScim,
       userIdentity = Just (SSOIdentity (UserScimExternalId (fromEmail email)) (Just email) Nothing)
     }
+
+getDefaultUserLocale :: TestSpar Locale
+getDefaultUserLocale = do
+  env <- ask
+  LocaleRsp defLocale <-
+    fmap responseJsonUnsafe . call . get $
+      ( (env ^. teBrig)
+          . path "/i/users/locale"
+          . expect2xx
+      )
+  pure defLocale

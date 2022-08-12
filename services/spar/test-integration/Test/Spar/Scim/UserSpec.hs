@@ -30,7 +30,7 @@ where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.Intra (AccountStatus (Active, PendingInvitation, Suspended), LocaleRsp (LocaleRsp), UserAccount (..), accountStatus, accountUser)
+import Brig.Types.Intra (AccountStatus (Active, PendingInvitation, Suspended), UserAccount (..), accountStatus, accountUser)
 import Brig.Types.User as Brig
 import qualified Control.Exception
 import Control.Lens
@@ -726,12 +726,7 @@ testCreateUserWithSamlIdPWithPreferredLanguage mLocale mLocaleUpdate = do
       Just locale -> pure $ u {Scim.User.preferredLanguage = Just (lan2Text $ lLanguage locale)}
   scimStoredUser <- createUser tok user
   let userid = scimUserId scimStoredUser
-  LocaleRsp defLocale <-
-    fmap responseJsonUnsafe . call . get $
-      ( (env ^. teBrig)
-          . path "/i/users/locale"
-          . expect2xx
-      )
+  defLocale <- getDefaultUserLocale
   let getBrigUser =
         fmap responseJsonUnsafe . call . get $
           ( (env ^. teBrig)
@@ -740,25 +735,11 @@ testCreateUserWithSamlIdPWithPreferredLanguage mLocale mLocaleUpdate = do
               . expect2xx
           )
   brigUser <- getBrigUser
-  let checkUpdate =
-        case mLocaleUpdate of
-          Just locale -> do
-            _ <- updateUser tok userid user {Scim.User.preferredLanguage = Just (lan2Text $ lLanguage locale)}
-            updatedBrigUser <- getBrigUser
-            lift $ userLocale updatedBrigUser `shouldBe` locale
-          Nothing -> do
-            _ <- updateUser tok userid user {Scim.User.preferredLanguage = Nothing}
-            updatedBrigUser <- getBrigUser
-            lift $ userLocale updatedBrigUser `shouldBe` defLocale
-  case mLocale of
-    Nothing -> do
-      lift $ userLocale brigUser `shouldBe` defLocale
-      -- update
-      checkUpdate
-    Just l -> do
-      lift $ userLocale brigUser `shouldBe` l
-      -- update
-      checkUpdate
+  lift $ userLocale brigUser `shouldBe` fromMaybe defLocale mLocale
+  -- update
+  void $ updateUser tok userid user {Scim.User.preferredLanguage = lan2Text . lLanguage <$> mLocaleUpdate}
+  updatedBrigUser <- getBrigUser
+  lift $ userLocale updatedBrigUser `shouldBe` fromMaybe defLocale mLocaleUpdate
 
 -- | Test that Wire-specific schemas are added to the SCIM user record, even if the schemas
 -- were not present in the original record during creation.
@@ -1124,13 +1105,7 @@ testListProvisionedUsers = do
 
 testFindProvisionedUser :: TestSpar ()
 testFindProvisionedUser = do
-  env <- ask
-  LocaleRsp defLocale <-
-    fmap responseJsonUnsafe . call . get $
-      ( (env ^. teBrig)
-          . path "/i/users/locale"
-          . expect2xx
-      )
+  defLocale <- getDefaultUserLocale
   user <- randomScimUser
   (tok, (_, _, _)) <- registerIdPAndScimToken
   storedUser <- createUser tok user
@@ -1523,13 +1498,7 @@ testUserUpdateFailsWithNotFoundIfOutsideTeam = do
 -- | Test that @PUT@-ting the user and then @GET@-ting it returns the right thing.
 testScimSideIsUpdated :: TestSpar ()
 testScimSideIsUpdated = do
-  env <- ask
-  LocaleRsp defLocale <-
-    fmap responseJsonUnsafe . call . get $
-      ( (env ^. teBrig)
-          . path "/i/users/locale"
-          . expect2xx
-      )
+  defLocale <- getDefaultUserLocale
   -- Create a user via SCIM
   user <- randomScimUser
   (tok, (_, _, idp)) <- registerIdPAndScimToken
@@ -1581,13 +1550,7 @@ testUpdateToExistingExternalIdFails = do
 -- tries to set the name and handle, it might fail because the handle is "already claimed".
 testUpdateSameHandle :: TestSpar ()
 testUpdateSameHandle = do
-  env <- ask
-  LocaleRsp defLocale <-
-    fmap responseJsonUnsafe . call . get $
-      ( (env ^. teBrig)
-          . path "/i/users/locale"
-          . expect2xx
-      )
+  defLocale <- getDefaultUserLocale
   -- Create a user via SCIM
   user <- randomScimUser
   (tok, (_, _, idp)) <- registerIdPAndScimToken
