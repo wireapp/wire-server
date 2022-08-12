@@ -589,11 +589,11 @@ legalHoldLogin ::
   LegalHoldLogin ->
   CookieType ->
   ExceptT LegalHoldLoginError m (Access ZAuth.LegalHoldUser)
-legalHoldLogin (LegalHoldLogin uid _plainTextPassword label) typ = do
-  -- locale <- Opt.setDefaultUserLocale <$> view settings
-  -- locDomain <- qualifyLocal ()
-  -- o <- runUserQueryAction $ runInputConst locDomain $ Data.reauthenticate locale uid plainTextPassword
-  -- except o !>> LegalHoldReAuthError
+legalHoldLogin (LegalHoldLogin uid plainTextPassword label) typ = do
+  locale <- Opt.setDefaultUserLocale <$> view settings
+  locDomain <- qualifyLocal ()
+  o <- runUserQueryAction $ runInputConst locDomain $ Data.reauthenticate locale uid plainTextPassword
+  except o !>> LegalHoldReAuthError
   -- legalhold login is only possible if
   -- the user is a team user
   -- and the team has legalhold enabled
