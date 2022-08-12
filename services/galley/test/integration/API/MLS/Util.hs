@@ -383,14 +383,14 @@ pendingProposalsCommit tmp creator groupName = do
 createExternalProposal ::
   HasCallStack =>
   String ->
-  Participant ->
+  String ->
   String ->
   String ->
   IO ByteString
-createExternalProposal tmp creator groupIn groupOut = do
+createExternalProposal tmp creatorClientQid groupIn groupOut = do
   spawn
     ( cli
-        (pClientQid creator)
+        creatorClientQid
         tmp
         $ [ "external-proposal",
             "--group-in",

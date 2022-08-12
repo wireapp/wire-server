@@ -1391,23 +1391,20 @@ propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
 
 testExternalAddProposal :: TestM ()
 testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(2, LocalUser)]
+  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
   (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
 
-  let (_bobClient1, _bobClient2) = assertTwo (toList (pClients bob))
-
+  bobClient1 <- assertOne . toList $ pClients bob
   (commit, welcome) <-
     liftIO $
       setupCommit tmp creator "group" "group" $
-        -- NonEmpty.tail (pClients creator) <> [bobClient1]
-        NonEmpty.tail (pClients creator) <> toList (pClients bob)
-
+        NonEmpty.tail (pClients creator) <> [bobClient1]
   testSuccessfulCommit MessagingSetup {users = [bob], ..}
 
   void . liftIO $
     spawn
       ( cli
-          (pClientQid bob)
+          (fst bobClient1)
           tmp
           [ "group",
             "from-welcome",
@@ -1418,7 +1415,10 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
       )
       Nothing
 
-  externalProposal <- liftIO $ createExternalProposal tmp bob "group" "group"
+  bobClient2Qid <-
+    userClientQid (pUserId bob)
+      <$> withLastPrekeys (setupUserClient tmp CreateWithKey True (pUserId bob))
+  externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "group"
   postMessage (qUnqualified (pUserId bob)) externalProposal !!! const 201 === statusCode
 
   pure ()
