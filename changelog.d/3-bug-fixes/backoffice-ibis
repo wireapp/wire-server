@@ -1,0 +1,1 @@
+Backoffice: Fix an issue where in some deployments ibis/galeb (Wire Cloud internal services) are unreachable from backoffice if deployed in a different namespace.

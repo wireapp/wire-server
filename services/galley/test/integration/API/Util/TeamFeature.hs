@@ -61,17 +61,6 @@ putTeamSearchVisibilityAvailableInternal g tid statusValue =
       tid
       (Public.WithStatusNoLock statusValue Public.SearchVisibilityAvailableConfig Public.FeatureTTLUnlimited)
 
-putLegalHoldEnabledInternal' ::
-  HasCallStack =>
-  (Request -> Request) ->
-  TeamId ->
-  Public.FeatureStatus ->
-  TestM ()
-putLegalHoldEnabledInternal' g tid statusValue =
-  void $ putTeamFeatureFlagInternal @Public.LegalholdConfig g tid (Public.WithStatusNoLock statusValue Public.LegalholdConfig Public.FeatureTTLUnlimited)
-
---------------------------------------------------------------------------------
-
 getTeamFeatureFlagInternal ::
   forall cfg m.
   (HasGalley m, MonadIO m, MonadHttp m, IsFeatureConfig cfg, KnownSymbol (Public.FeatureSymbol cfg)) =>
@@ -271,6 +260,26 @@ patchFeatureStatusInternal tid reqBody = do
     galley
       . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
       . json reqBody
+
+patchFeatureStatusInternalWithMod ::
+  forall cfg.
+  ( HasCallStack,
+    Public.IsFeatureConfig cfg,
+    KnownSymbol (Public.FeatureSymbol cfg),
+    ToJSON Public.LockStatus,
+    ToSchema cfg
+  ) =>
+  (Request -> Request) ->
+  TeamId ->
+  Public.WithStatusPatch cfg ->
+  TestM ResponseLBS
+patchFeatureStatusInternalWithMod reqmod tid reqBody = do
+  galley <- view tsGalley
+  patch $
+    galley
+      . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
+      . json reqBody
+      . reqmod
 
 getGuestLinkStatus ::
   HasCallStack =>

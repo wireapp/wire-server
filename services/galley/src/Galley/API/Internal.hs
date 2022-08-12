@@ -108,41 +108,52 @@ import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
 
-type IFeatureAPI =
-  -- SSOConfig
-  IFeatureStatusGet SSOConfig
-    :<|> IFeatureStatusPut '() SSOConfig
-    -- LegalholdConfig
-    :<|> IFeatureStatusGet LegalholdConfig
-    :<|> IFeatureStatusPut
-           '( 'ActionDenied 'RemoveConversationMember,
-              '( AuthenticationError,
-                 '( 'CannotEnableLegalHoldServiceLargeTeam,
-                    '( 'LegalHoldNotEnabled,
-                       '( 'LegalHoldDisableUnimplemented,
-                          '( 'LegalHoldServiceNotRegistered,
-                             '( 'UserLegalHoldIllegalOperation,
-                                '( 'LegalHoldCouldNotBlockConnections, '())
-                              )
-                           )
-                        )
+type LegalHoldFeatureStatusChangeErrors =
+  '( 'ActionDenied 'RemoveConversationMember,
+     '( AuthenticationError,
+        '( 'CannotEnableLegalHoldServiceLargeTeam,
+           '( 'LegalHoldNotEnabled,
+              '( 'LegalHoldDisableUnimplemented,
+                 '( 'LegalHoldServiceNotRegistered,
+                    '( 'UserLegalHoldIllegalOperation,
+                       '( 'LegalHoldCouldNotBlockConnections, '())
                      )
                   )
                )
             )
+         )
+      )
+   )
+
+type IFeatureAPI =
+  -- SSOConfig
+  IFeatureStatusGet SSOConfig
+    :<|> IFeatureStatusPut '() SSOConfig
+    :<|> IFeatureStatusPatch '() SSOConfig
+    -- LegalholdConfig
+    :<|> IFeatureStatusGet LegalholdConfig
+    :<|> IFeatureStatusPut
+           LegalHoldFeatureStatusChangeErrors
+           LegalholdConfig
+    :<|> IFeatureStatusPatch
+           LegalHoldFeatureStatusChangeErrors
            LegalholdConfig
     -- SearchVisibilityAvailableConfig
     :<|> IFeatureStatusGet SearchVisibilityAvailableConfig
     :<|> IFeatureStatusPut '() SearchVisibilityAvailableConfig
+    :<|> IFeatureStatusPatch '() SearchVisibilityAvailableConfig
     -- ValidateSAMLEmailsConfig
     :<|> IFeatureStatusGet ValidateSAMLEmailsConfig
     :<|> IFeatureStatusPut '() ValidateSAMLEmailsConfig
+    :<|> IFeatureStatusPatch '() ValidateSAMLEmailsConfig
     -- DigitalSignaturesConfig
     :<|> IFeatureStatusGet DigitalSignaturesConfig
     :<|> IFeatureStatusPut '() DigitalSignaturesConfig
+    :<|> IFeatureStatusPatch '() DigitalSignaturesConfig
     -- AppLockConfig
     :<|> IFeatureStatusGet AppLockConfig
     :<|> IFeatureStatusPut '() AppLockConfig
+    :<|> IFeatureStatusPatch '() AppLockConfig
     -- FileSharingConfig
     :<|> IFeatureStatusGet FileSharingConfig
     :<|> IFeatureStatusPut '() FileSharingConfig
@@ -151,6 +162,7 @@ type IFeatureAPI =
     -- ConferenceCallingConfig
     :<|> IFeatureStatusGet ConferenceCallingConfig
     :<|> IFeatureStatusPut '() ConferenceCallingConfig
+    :<|> IFeatureStatusPatch '() ConferenceCallingConfig
     -- SelfDeletingMessagesConfig
     :<|> IFeatureStatusGet SelfDeletingMessagesConfig
     :<|> IFeatureStatusPut '() SelfDeletingMessagesConfig
@@ -169,15 +181,18 @@ type IFeatureAPI =
     -- SearchVisibilityInboundConfig
     :<|> IFeatureStatusGet SearchVisibilityInboundConfig
     :<|> IFeatureStatusPut '() SearchVisibilityInboundConfig
+    :<|> IFeatureStatusPatch '() SearchVisibilityInboundConfig
     :<|> IFeatureNoConfigMultiGet SearchVisibilityInboundConfig
     -- ClassifiedDomainsConfig
     :<|> IFeatureStatusGet ClassifiedDomainsConfig
     -- MLSConfig
     :<|> IFeatureStatusGet MLSConfig
     :<|> IFeatureStatusPut '() MLSConfig
+    :<|> IFeatureStatusPatch '() MLSConfig
     -- SearchVisibilityInboundConfig
     :<|> IFeatureStatusGet SearchVisibilityInboundConfig
     :<|> IFeatureStatusPut '() SearchVisibilityInboundConfig
+    :<|> IFeatureStatusPatch '() SearchVisibilityInboundConfig
     -- all feature configs
     :<|> Named
            "feature-configs-internal"
@@ -469,22 +484,29 @@ featureAPI :: API IFeatureAPI GalleyEffects
 featureAPI =
   mkNamedAPI @'("iget", SSOConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", SSOConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ipatch", SSOConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", LegalholdConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", LegalholdConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ipatch", LegalholdConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", SearchVisibilityAvailableConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", SearchVisibilityAvailableConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ipatch", SearchVisibilityAvailableConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", ValidateSAMLEmailsConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", ValidateSAMLEmailsConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ipatch", ValidateSAMLEmailsConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", DigitalSignaturesConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", DigitalSignaturesConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ipatch", DigitalSignaturesConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", AppLockConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", AppLockConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ipatch", AppLockConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", FileSharingConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", FileSharingConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ilock", FileSharingConfig) (updateLockStatus @Cassandra @FileSharingConfig)
     <@> mkNamedAPI @'("ipatch", FileSharingConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", ConferenceCallingConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", ConferenceCallingConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ipatch", ConferenceCallingConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", SelfDeletingMessagesConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", SelfDeletingMessagesConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ilock", SelfDeletingMessagesConfig) (updateLockStatus @Cassandra @SelfDeletingMessagesConfig)
@@ -499,12 +521,15 @@ featureAPI =
     <@> mkNamedAPI @'("ipatch", SndFactorPasswordChallengeConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", SearchVisibilityInboundConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ipatch", SearchVisibilityInboundConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("igetmulti", SearchVisibilityInboundConfig) (getFeatureStatusMulti @Cassandra)
     <@> mkNamedAPI @'("iget", ClassifiedDomainsConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iget", MLSConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", MLSConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ipatch", MLSConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", SearchVisibilityInboundConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ipatch", SearchVisibilityInboundConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @"feature-configs-internal" (maybe (getAllFeatureConfigsForServer @Cassandra) (getAllFeatureConfigsForUser @Cassandra))
 
 internalSitemap :: Routes a (Sem GalleyEffects) ()

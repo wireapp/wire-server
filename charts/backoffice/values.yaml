@@ -20,4 +20,6 @@ resources:
     cpu: 500m
 config:
   logLevel: Info
+  galebHost: galeb.integrations
+  ibisHost: ibis.integrations
 baseUrl: http://localhost:8080
