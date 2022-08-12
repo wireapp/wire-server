@@ -1,23 +1,24 @@
+FROM rust:1.63 as mls-test-cli-builder
+
+# compile mls-test-cli tool
+RUN cd /tmp && \
+    git clone https://github.com/wireapp/mls-test-cli && \
+    cd mls-test-cli && \
+    cargo build --release
+
+
 FROM ubuntu:20.04 as cryptobox-builder
 
 # compile cryptobox-c
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update && \
-    apt-get install -y cargo file libsodium-dev git pkg-config make curl && \
+    apt-get install -y cargo file libsodium-dev git pkg-config make && \
     cd /tmp && \
     git clone https://github.com/wireapp/cryptobox-c.git && \
     cd cryptobox-c && \
     export SODIUM_USE_PKG_CONFIG=1 && \
     cargo build --release
 
-# compile mls-test-cli tool
-# note: to make use of rustup's toolchain you need to prefix commands by . "$HOME/.cargo/env"
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-RUN cd /tmp && \
-  git clone https://github.com/wireapp/mls-test-cli && \
-  cd mls-test-cli && \
-  . "$HOME/.cargo/env" && \
-  cargo build --release
 
 # Minimal dependencies for ubuntu-compiled, dynamically linked wire-server Haskell services
 FROM ubuntu:20.04
@@ -26,7 +27,7 @@ COPY --from=cryptobox-builder /tmp/cryptobox-c/target/release/libcryptobox.so /u
 
 # FUTUREWORK: only copy mls-test-cli executables if we are building an
 # integration test image
-COPY --from=cryptobox-builder /tmp/mls-test-cli/target/release/mls-test-cli /usr/bin
+COPY --from=mls-test-cli-builder /tmp/mls-test-cli/target/release/mls-test-cli /usr/bin
 
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update && \
