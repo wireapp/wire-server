@@ -1421,4 +1421,4 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
   externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "group"
   postMessage (qUnqualified (pUserId bob)) externalProposal !!! const 201 === statusCode
 
-  pure ()
+-- FUTUREWORK: test processing a commit containing the external proposal
