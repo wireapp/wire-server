@@ -1274,8 +1274,10 @@ activateKeyH ::
     '[ ActivationKeyStore,
        ActivationSupply,
        Input (Local ()),
+       P.Error Twilio.ErrorResponse,
        PasswordResetSupply,
        PasswordResetStore,
+       Twilio,
        UserKeyStore,
        UserQuery
      ]
@@ -1291,8 +1293,10 @@ activateH ::
     '[ ActivationKeyStore,
        ActivationSupply,
        Input (Local ()),
+       P.Error Twilio.ErrorResponse,
        PasswordResetSupply,
        PasswordResetStore,
+       Twilio,
        UserKeyStore,
        UserQuery
      ]
@@ -1308,8 +1312,10 @@ activate ::
     '[ ActivationKeyStore,
        ActivationSupply,
        Input (Local ()),
+       P.Error Twilio.ErrorResponse,
        PasswordResetSupply,
        PasswordResetStore,
+       Twilio,
        UserKeyStore,
        UserQuery
      ]
@@ -1318,7 +1324,9 @@ activate ::
   Handler r ActivationRespWithStatus
 activate (Public.Activate tgt code dryrun)
   | dryrun = do
-    liftSemE (API.preverify tgt code) !>> actError
+    tc <- view twilioCreds
+    m <- view httpManager
+    liftSemE (API.preverify tgt code tc m) !>> actError
     pure ActivationRespDryRun
   | otherwise = do
     result <- API.activate tgt code Nothing !>> actError

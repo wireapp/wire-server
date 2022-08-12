@@ -89,7 +89,7 @@ module Brig.API.User
   )
 where
 
-import Bilge.IO (MonadHttp)
+import Bilge.IO (Manager, MonadHttp)
 import Bilge.RPC (HasRequestId)
 import qualified Brig.API.Error as Error
 import qualified Brig.API.Handler as API (Handler, UserNotAllowedToJoinTeam (..))
@@ -1027,8 +1027,10 @@ activate ::
     '[ ActivationKeyStore,
        ActivationSupply,
        Input (Local ()),
+       P.Error Twilio.ErrorResponse,
        PasswordResetSupply,
        PasswordResetStore,
+       Twilio,
        UserKeyStore,
        UserQuery
      ]
@@ -1045,8 +1047,10 @@ activateWithCurrency ::
     '[ ActivationKeyStore,
        ActivationSupply,
        Input (Local ()),
+       P.Error Twilio.ErrorResponse,
        PasswordResetSupply,
        PasswordResetStore,
+       Twilio,
        UserKeyStore,
        UserQuery
      ]
@@ -1060,7 +1064,9 @@ activateWithCurrency ::
   Maybe Currency.Alpha ->
   ExceptT ActivationError (AppT r) ActivationResult
 activateWithCurrency tgt code usr cur = do
-  key <- liftSemE $ mkActivationKey tgt
+  tc <- view twilioCreds
+  m <- view httpManager
+  key <- liftSemE $ mkActivationKey tgt tc m
   lift . Log.info $
     field "activation.key" (toByteString key)
       . field "activation.code" (toByteString code)
@@ -1082,12 +1088,20 @@ activateWithCurrency tgt code usr cur = do
       for_ tid $ \t -> wrapHttp $ Intra.changeTeamStatus t Team.Active cur
 
 preverify ::
-  Members '[ActivationKeyStore, ActivationSupply] r =>
+  Members
+    '[ ActivationKeyStore,
+       ActivationSupply,
+       P.Error Twilio.ErrorResponse,
+       Twilio
+     ]
+    r =>
   ActivationTarget ->
   ActivationCode ->
+  Twilio.Credentials ->
+  Manager ->
   ExceptT ActivationError (Sem r) ()
-preverify tgt code = do
-  key <- mkActivationKey tgt
+preverify tgt code creds m = do
+  key <- mkActivationKey tgt creds m
   void $ Data.verifyCode key code
 
 onActivated ::
@@ -1213,27 +1227,31 @@ sendActivationCode emailOrPhone loc call = do
           _otherwise ->
             sendActivationMail em name p loc' ident
 
--- TODO(md): polysemize this, it is straightforward given that everything
--- underneath should be in Polysemy
 mkActivationKey ::
-  Member ActivationSupply r =>
+  Members
+    '[ ActivationSupply,
+       P.Error Twilio.ErrorResponse,
+       Twilio
+     ]
+    r =>
   ActivationTarget ->
+  Twilio.Credentials ->
+  Manager ->
   ExceptT ActivationError (Sem r) ActivationKey
-mkActivationKey (ActivateKey k) = pure k
-mkActivationKey (ActivateEmail e) = do
+mkActivationKey (ActivateKey k) _c _m = pure k
+mkActivationKey (ActivateEmail e) _c _m = do
   ek <-
     either
       (throwE . InvalidActivationEmail e)
       (pure . userEmailKey)
       (validateEmail e)
   lift $ Data.makeActivationKey ek
-mkActivationKey (ActivatePhone p) = do
+mkActivationKey (ActivatePhone p) c m = do
   pk <-
     maybe
       (throwE $ InvalidActivationPhone p)
       (pure . userPhoneKey)
-      =<< undefined
-  -- =<< lift (validatePhone p)
+      =<< lift (validatePhone c m p)
   lift $ Data.makeActivationKey pk
 
 -------------------------------------------------------------------------------
