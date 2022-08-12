@@ -55,6 +55,6 @@ galleyAccessToHttp g =
                   featureNameBS @SndFactorPasswordChallengeConfig
                 ]
                 . expect2xx
-        response <- makeReq g GET req
+        response <- makeReq "galley" g GET req
         wsStatus @SndFactorPasswordChallengeConfig
           <$> RPC.decodeBody "galley" response

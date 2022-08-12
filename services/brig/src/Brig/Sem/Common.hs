@@ -40,15 +40,20 @@ interpretClientToIO ctx = interpret $ \case
   Embed action -> embedFinal @IO $ runClient ctx action
 
 makeReq ::
-  (MonadIO m, MonadMask m, MonadHttp m, HasRequestId m) =>
+  ( MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  LText ->
   RPC.Request ->
   StdMethod ->
   (Request -> Request) ->
   m (Response (Maybe LBS.ByteString))
-makeReq galley m r =
+makeReq component cReq m r =
   recovering x3 rpcHandlers $
     const $
-      rpc' "galley" galley (method m . r)
+      rpc' component cReq (method m . r)
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000

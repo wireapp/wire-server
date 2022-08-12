@@ -100,6 +100,8 @@ library
       Brig.Sem.Common
       Brig.Sem.GalleyAccess
       Brig.Sem.GalleyAccess.Http
+      Brig.Sem.GundeckAccess
+      Brig.Sem.GundeckAccess.Http
       Brig.Sem.PasswordResetStore
       Brig.Sem.PasswordResetStore.CodeStore
       Brig.Sem.PasswordResetSupply
