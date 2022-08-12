@@ -384,12 +384,10 @@ createExternalProposal ::
   HasCallStack =>
   String ->
   Participant ->
-  ClientId ->
   String ->
   String ->
   IO ByteString
-createExternalProposal tmp creator clientId groupIn groupOut = do
-  let newClientQid = userClientQid (pUserId creator) clientId
+createExternalProposal tmp creator groupIn groupOut = do
   spawn
     ( cli
         (pClientQid creator)
@@ -399,8 +397,7 @@ createExternalProposal tmp creator clientId groupIn groupOut = do
             tmp </> groupIn,
             "--group-out",
             tmp </> groupOut,
-            "add",
-            newClientQid
+            "add"
           ]
     )
     Nothing

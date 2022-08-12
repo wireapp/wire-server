@@ -1394,7 +1394,7 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
   (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(2, LocalUser)]
   (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
 
-  let (_bobClient1, bobClient2) = assertTwo (toList (pClients bob))
+  let (_bobClient1, _bobClient2) = assertTwo (toList (pClients bob))
 
   (commit, welcome) <-
     liftIO $
@@ -1418,7 +1418,7 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
       )
       Nothing
 
-  externalProposal <- liftIO $ createExternalProposal tmp bob (snd bobClient2) "group" "group"
+  externalProposal <- liftIO $ createExternalProposal tmp bob "group" "group"
   postMessage (qUnqualified (pUserId bob)) externalProposal !!! const 201 === statusCode
 
   pure ()
