@@ -35,6 +35,7 @@ module Wire.API.Team.Feature
     setStatus,
     setLockStatus,
     setConfig,
+    setWsTTL,
     WithStatusPatch,
     wspStatus,
     wspLockStatus,
@@ -213,6 +214,9 @@ setLockStatus ls (WithStatusBase s _ c ttl) = WithStatusBase s (Identity ls) c t
 
 setConfig :: cfg -> WithStatus cfg -> WithStatus cfg
 setConfig c (WithStatusBase s ls _ ttl) = WithStatusBase s ls (Identity c) ttl
+
+setWsTTL :: FeatureTTL -> WithStatus cfg -> WithStatus cfg
+setWsTTL ttl (WithStatusBase s ls c _) = WithStatusBase s ls c (Identity ttl)
 
 type WithStatus (cfg :: *) = WithStatusBase Identity cfg
 

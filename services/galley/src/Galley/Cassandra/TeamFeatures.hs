@@ -72,16 +72,17 @@ getTrivialConfigC ::
   m (Maybe (WithStatusNoLock cfg))
 getTrivialConfigC statusCol tid = do
   let q = query1 select (params LocalQuorum (Identity tid))
-  mFeatureStatus <- (>>= runIdentity) <$> retry x1 q
-  pure $ case mFeatureStatus of
-    Nothing -> Nothing
-    Just status -> Just . forgetLock $ setStatus status defFeatureStatus
+  row <- retry x1 q
+  pure $ row <&> \(status, ttl) -> forgetLock . setStatus status . setWsTTL ttl $ defFeatureStatus
   where
-    select :: PrepQuery R (Identity TeamId) (Identity (Maybe FeatureStatus))
+    select :: PrepQuery R (Identity TeamId) (FeatureStatus, FeatureTTL)
     select =
       fromString $
         "select "
           <> statusCol
+          <> ", ttl("
+          <> statusCol
+          <> ")"
           <> " from team_features where team_id = ?"
 
 setFeatureStatusC ::
