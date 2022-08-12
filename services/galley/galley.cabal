@@ -430,6 +430,7 @@ executable galley-integration
     , base
     , base64-bytestring
     , bilge
+    , binary
     , brig-types
     , bytestring
     , bytestring-conversion
@@ -440,6 +441,7 @@ executable galley-integration
     , comonad
     , containers
     , cookie
+    , cryptonite
     , currency-codes
     , data-default
     , data-timeout
