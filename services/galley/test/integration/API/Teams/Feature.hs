@@ -274,7 +274,7 @@ putSSOInternal tid =
     . (\st -> Public.WithStatusNoLock st Public.SSOConfig Public.FeatureTTLUnlimited)
 
 patchSSOInternal :: HasCallStack => TeamId -> Public.FeatureStatus -> TestM ()
-patchSSOInternal tid status = void $ Util.patchFeatureStatusInternalWithMod @Public.SSOConfig expect2xx tid (Public.withStatus' (Just status) Nothing Nothing)
+patchSSOInternal tid status = void $ Util.patchFeatureStatusInternalWithMod @Public.SSOConfig expect2xx tid (Public.withStatus' (Just status) Nothing Nothing (Just Public.FeatureTTLUnlimited))
 
 testLegalHold :: ((Request -> Request) -> TeamId -> Public.FeatureStatus -> TestM ()) -> TestM ()
 testLegalHold setLegalHoldInternal = do
@@ -322,7 +322,7 @@ putLegalHoldInternal expectation tid =
     . (\st -> Public.WithStatusNoLock st Public.LegalholdConfig Public.FeatureTTLUnlimited)
 
 patchLegalHoldInternal :: HasCallStack => (Request -> Request) -> TeamId -> Public.FeatureStatus -> TestM ()
-patchLegalHoldInternal expectation tid status = void $ Util.patchFeatureStatusInternalWithMod @Public.LegalholdConfig expectation tid (Public.withStatus' (Just status) Nothing Nothing)
+patchLegalHoldInternal expectation tid status = void $ Util.patchFeatureStatusInternalWithMod @Public.LegalholdConfig expectation tid (Public.withStatus' (Just status) Nothing Nothing (Just Public.FeatureTTLUnlimited))
 
 testSearchVisibility :: TestM ()
 testSearchVisibility = do
