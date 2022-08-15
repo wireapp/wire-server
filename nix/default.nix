@@ -83,7 +83,10 @@ let
   '';
 
   devPackages = [
-    (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
+    (pkgs.haskell-language-server.override {
+      dynamic = true;
+      supportedGhcVersions = [ "8107" ];
+    })
     pkgs.cfssl
     pkgs.mls_test_cli
     pkgs.ghcid

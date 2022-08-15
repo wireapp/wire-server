@@ -67,6 +67,11 @@ be put in the root directory of the project:
                   )))
 ```
 
+To be compatible with *Template Haskell* we're using a dynamically linked binary
+of HLS (please see
+https://haskell-language-server.readthedocs.io/en/latest/troubleshooting.html#static-binaries
+for details).
+
 ### Ormolu integration
 
 There are make targets `format`, `formatf`, `formatc` to re-format
