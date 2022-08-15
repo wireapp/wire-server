@@ -1468,7 +1468,6 @@ testSameUpdateNoChange = do
   storedUser <- createUser tok user
   let userid = scimUserId storedUser
   storedUser' <- updateUser tok userid user
-  putStrLn $ "updated user = " <> show storedUser'
   liftIO $ storedUser `shouldBe` storedUser'
 
 -- | Test that @PUT /Users@ returns 4xx when called without the @:id@ part.
@@ -2158,7 +2157,6 @@ specSCIMManaged = do
       (tok, (owner, tid, _idp)) <- registerIdPAndScimToken
       scimStoredUser <- createUser tok user
       let _userid = scimUserId scimStoredUser
-      putStrLn $ "userid: " <> show _userid
       resp <-
         call $
           get (g . accept "text/csv" . paths ["teams", toByteString' tid, "members/csv"] . zUser owner) <!! do
