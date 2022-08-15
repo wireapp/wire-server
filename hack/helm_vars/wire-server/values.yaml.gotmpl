@@ -167,10 +167,12 @@ galley:
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
-    mlsPrivateKey_ed25519: |
-      -----BEGIN PRIVATE KEY-----
-      MC4CAQAwBQYDK2VwBCIEIAocCDXsKIAjb65gOUn5vEF0RIKnVJkKR4ebQzuZ709c
-      -----END PRIVATE KEY-----
+    mlsPrivateKeys:
+      removal:
+        ed25519:
+          -----BEGIN PRIVATE KEY-----
+          MC4CAQAwBQYDK2VwBCIEIAocCDXsKIAjb65gOUn5vEF0RIKnVJkKR4ebQzuZ709c
+          -----END PRIVATE KEY-----
 
 gundeck:
   replicaCount: 1

@@ -1413,4 +1413,11 @@ testPublicKeys = do
         )
       <!! const 200 === statusCode
 
-  liftIO $ Map.keys (unMLSPublicKeys keys) @?= [Ed25519]
+  liftIO $
+    Map.keys
+      ( Map.findWithDefault
+          mempty
+          RemovalPurpose
+          (unMLSPublicKeys keys)
+      )
+      @?= [Ed25519]

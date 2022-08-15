@@ -60,8 +60,8 @@ data:
       {{- end }}
       federationDomain: {{ .settings.federationDomain }}
       mlsPrivateKeyPaths:
-        {{- if $.Values.secrets.mlsPrivateKey_ed25519 }}
-        ed25519: "/etc/wire/galley/secrets/ed25519.pem"
+        {{- if $.Values.secrets.mlsPrivateKeys.removal.ed25519 }}
+        ed25519: "/etc/wire/galley/secrets/removal/ed25519.pem"
         {{- end }}
       {{- if .settings.featureFlags }}
       featureFlags:

@@ -17,8 +17,8 @@
 
 -- | Handling of MLS private keys used for signing external proposals.
 module Galley.Keys
-  ( mlsKeyPair_ed25519,
-    loadMLSKeys,
+  ( MLSPrivateKeyPaths,
+    loadAllMLSKeys,
   )
 where
 
@@ -36,6 +36,8 @@ import Imports
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
 
+type MLSPrivateKeyPaths = Map SignaturePurpose (Map SignatureSchemeTag FilePath)
+
 data MLSPrivateKeyException = MLSPrivateKeyException
   { mpkePath :: FilePath,
     mpkeMsg :: String
@@ -44,6 +46,12 @@ data MLSPrivateKeyException = MLSPrivateKeyException
 
 instance Exception MLSPrivateKeyException where
   displayException e = mpkePath e <> ": " <> mpkeMsg e
+
+mapToFunction :: (Ord k, Monoid m) => Map k m -> k -> m
+mapToFunction m x = Map.findWithDefault mempty x m
+
+loadAllMLSKeys :: MLSPrivateKeyPaths -> IO (SignaturePurpose -> MLSKeys)
+loadAllMLSKeys = fmap mapToFunction . traverse loadMLSKeys
 
 loadMLSKeys :: Map SignatureSchemeTag FilePath -> IO MLSKeys
 loadMLSKeys m =

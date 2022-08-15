@@ -158,7 +158,7 @@ createEnv m o = do
     <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
-    <*> loadMLSKeys (fold (o ^. optSettings . setMlsPrivateKeyPaths))
+    <*> loadAllMLSKeys (fold (o ^. optSettings . setMlsPrivateKeyPaths))
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do

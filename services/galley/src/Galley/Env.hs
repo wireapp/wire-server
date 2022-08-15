@@ -38,6 +38,7 @@ import qualified OpenSSL.X509.SystemStore as Ssl
 import Ssl.Util
 import System.Logger
 import Util.Options
+import Wire.API.MLS.Credential
 import Wire.API.MLS.Keys
 import Wire.API.Team.Member
 
@@ -57,7 +58,7 @@ data Env = Env
     _deleteQueue :: Q.Queue DeleteItem,
     _extEnv :: ExtEnv,
     _aEnv :: Maybe Aws.Env,
-    _mlsKeys :: MLSKeys
+    _mlsKeys :: SignaturePurpose -> MLSKeys
   }
 
 -- | Environment specific to the communication with external

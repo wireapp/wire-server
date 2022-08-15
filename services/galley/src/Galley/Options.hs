@@ -58,12 +58,12 @@ import Data.Aeson.TH (deriveFromJSON)
 import Data.Domain (Domain)
 import Data.Misc
 import Data.Range
+import Galley.Keys
 import Galley.Types.Teams
 import Imports
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
 import Util.Options.Common
-import Wire.API.MLS.Credential
 import Wire.API.Team.Member
 
 data Settings = Settings
@@ -105,7 +105,7 @@ data Settings = Settings
     -- the owners.
     -- Defaults to false.
     _setEnableIndexedBillingTeamMembers :: !(Maybe Bool),
-    _setMlsPrivateKeyPaths :: !(Maybe (Map SignatureSchemeTag FilePath)),
+    _setMlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _setFeatureFlags :: !FeatureFlags
   }
