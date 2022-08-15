@@ -37,9 +37,11 @@ module Wire.API.Team.Feature
     setConfig,
     setWsTTL,
     WithStatusPatch,
+    wsPatch,
     wspStatus,
     wspLockStatus,
     wspConfig,
+    wspTTL,
     WithStatusNoLock (..),
     forgetLock,
     withLockStatus,
@@ -106,6 +108,7 @@ import GHC.TypeLits
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck.Arbitrary (arbitrary)
+import Test.QuickCheck.Gen (suchThat)
 import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
 import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519))
@@ -274,6 +277,9 @@ deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch 
 
 deriving via (Schema (WithStatusPatch cfg)) instance (ToSchema (WithStatusPatch cfg)) => S.ToSchema (WithStatusPatch cfg)
 
+wsPatch :: Maybe FeatureStatus -> Maybe LockStatus -> Maybe cfg -> Maybe FeatureTTL -> WithStatusPatch cfg
+wsPatch = WithStatusBase
+
 wspStatus :: WithStatusPatch cfg -> Maybe FeatureStatus
 wspStatus = wsbStatus
 
@@ -282,6 +288,9 @@ wspLockStatus = wsbLockStatus
 
 wspConfig :: WithStatusPatch cfg -> Maybe cfg
 wspConfig = wsbConfig
+
+wspTTL :: WithStatusPatch cfg -> Maybe FeatureTTL
+wspTTL = wsbTTL
 
 withStatus' :: Maybe FeatureStatus -> Maybe LockStatus -> Maybe cfg -> Maybe FeatureTTL -> WithStatusPatch cfg
 withStatus' = WithStatusBase
@@ -388,7 +397,13 @@ convertFeatureTTLSecondsToDays FeatureTTLUnlimited = FeatureTTLUnlimited
 convertFeatureTTLSecondsToDays (FeatureTTLSeconds d) = FeatureTTLSeconds (d `div` (60 * 60 * 24))
 
 instance Arbitrary FeatureTTL where
-  arbitrary = nonZero <$> arbitrary
+  arbitrary =
+    (nonZero <$> arbitrary)
+      `suchThat` ( \case
+                     -- A very short TTL (<= 2) can cause race conditions in the integration tests
+                     FeatureTTLSeconds n -> n > 2
+                     _ -> True
+                 )
     where
       nonZero 0 = FeatureTTLUnlimited
       nonZero n = FeatureTTLSeconds n

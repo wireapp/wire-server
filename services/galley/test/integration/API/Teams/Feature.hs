@@ -111,7 +111,7 @@ tests s =
           test s (unpack $ Public.featureNameBS @Public.DigitalSignaturesConfig) $
             testPatch IgnoreLockStatusChange Public.FeatureStatusEnabled Public.DigitalSignaturesConfig,
           test s (unpack $ Public.featureNameBS @Public.AppLockConfig) $
-            testPatchWithCustomGen IgnoreLockStatusChange Public.FeatureStatusEnabled (Public.AppLockConfig (Public.EnforceAppLock False) 42) validAppLockConfigGen,
+            testPatchWithCustomGen IgnoreLockStatusChange Public.FeatureStatusEnabled (Public.AppLockConfig (Public.EnforceAppLock False) 60) validAppLockConfigGen,
           test s (unpack $ Public.featureNameBS @Public.ConferenceCallingConfig) $
             testPatch IgnoreLockStatusChange Public.FeatureStatusEnabled Public.ConferenceCallingConfig,
           test s (unpack $ Public.featureNameBS @Public.SearchVisibilityAvailableConfig) $
@@ -671,7 +671,7 @@ testSimpleFlagTTL defaultValue ttl = do
     setFlagInternal otherValue ttl
     void . liftIO $
       WS.assertMatch (5 # Second) ws $
-        wsAssertFeatureTrivialConfigUpdate @cfg otherValue
+        wsAssertFeatureTrivialConfigUpdate @cfg otherValue ttl
   getFlag otherValue
   getFeatureConfig otherValue
   getFlagInternal otherValue
@@ -1207,13 +1207,16 @@ wsAssertFeatureTrivialConfigUpdate ::
     ToSchema cfg
   ) =>
   Public.FeatureStatus ->
+  Public.FeatureTTL ->
   Notification ->
   IO ()
-wsAssertFeatureTrivialConfigUpdate status notification = do
+wsAssertFeatureTrivialConfigUpdate status ttl notification = do
   let e :: FeatureConfig.Event = List1.head (WS.unpackPayload notification)
   FeatureConfig._eventType e @?= FeatureConfig.Update
   FeatureConfig._eventFeatureName e @?= Public.featureName @cfg
-  FeatureConfig._eventData e @?= Aeson.toJSON (Public.withStatus status (Public.wsLockStatus (Public.defFeatureStatus @cfg)) (Public.trivialConfig @cfg) Public.FeatureTTLUnlimited)
+  FeatureConfig._eventData e
+    @?= Aeson.toJSON
+      (Public.withStatus status (Public.wsLockStatus (Public.defFeatureStatus @cfg)) (Public.trivialConfig @cfg) ttl)
 
 wsAssertFeatureConfigWithLockStatusUpdate ::
   forall cfg.

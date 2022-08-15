@@ -257,6 +257,7 @@ patchFeatureStatusInternal tid patch = do
         & setStatus (fromMaybe (wsStatus current) (wspStatus patch))
         & setLockStatus (fromMaybe (wsLockStatus current) (wspLockStatus patch))
         & setConfig (fromMaybe (wsConfig current) (wspConfig patch))
+        & setWsTTL (fromMaybe (wsTTL current) (wspTTL patch))
 
 setFeatureStatus ::
   forall db cfg r.
@@ -311,7 +312,7 @@ setFeatureStatusInternal ::
   TeamId ->
   WithStatusNoLock cfg ->
   Sem r (WithStatus cfg)
-setFeatureStatusInternal tid wsnl = setFeatureStatus @db @cfg DontDoAuth tid wsnl
+setFeatureStatusInternal = setFeatureStatus @db @cfg DontDoAuth
 
 updateLockStatus ::
   forall db cfg r.
@@ -571,6 +572,7 @@ persistAndPushEvent ::
     GetFeatureConfig db cfg,
     FeaturePersistentConstraint db cfg,
     GetConfigForTeamConstraints db cfg r,
+    Show cfg,
     Members
       '[ TeamFeatureStore db,
          P.Logger (Log.Msg -> Log.Msg),
