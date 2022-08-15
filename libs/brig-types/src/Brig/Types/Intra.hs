@@ -27,7 +27,6 @@ module Brig.Types.Intra
     NewUserScimInvitation (..),
     UserSet (..),
     ReAuthUser (..),
-    LocaleRsp (..),
   )
 where
 
@@ -116,16 +115,6 @@ instance ToJSON UserAccount where
         Object $ KeyMap.insert "status" (toJSON s) o
       other ->
         error $ "toJSON UserAccount: not an object: " <> show (encode other)
-
-newtype LocaleRsp = LocaleRsp {fromLocaleRsp :: Locale}
-  deriving (Eq, Show, Generic)
-
-instance ToJSON LocaleRsp where
-  toJSON (LocaleRsp s) = object ["locale" .= s]
-
-instance FromJSON LocaleRsp where
-  parseJSON = withObject "locale" $ \o ->
-    LocaleRsp <$> o .: "locale"
 
 -------------------------------------------------------------------------------
 -- NewUserScimInvitation

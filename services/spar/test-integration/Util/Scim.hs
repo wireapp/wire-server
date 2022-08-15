@@ -21,7 +21,6 @@ module Util.Scim where
 
 import Bilge
 import Bilge.Assert
-import Brig.Types.Intra (LocaleRsp (LocaleRsp))
 import Control.Lens
 import Control.Monad.Random
 import Data.ByteString.Conversion
@@ -666,9 +665,9 @@ whatSparReturnsFor idp richInfoSizeLimit =
   either (Left . show) (Right . synthesizeScimUser)
     . validateScimUser' "whatSparReturnsFor" (Just idp) richInfoSizeLimit
 
-withBrigDefaultLocaleAlt :: Locale -> Scim.User.User SparTag -> Scim.User.User SparTag
-withBrigDefaultLocaleAlt locale u =
-  u {Scim.preferredLanguage = Scim.preferredLanguage u <|> Just (lan2Text $ lLanguage locale)}
+setPreferredLanguage :: Language -> Scim.User.User SparTag -> Scim.User.User SparTag
+setPreferredLanguage lang u =
+  u {Scim.preferredLanguage = Scim.preferredLanguage u <|> Just (lan2Text lang)}
 
 -- this is not always correct, but hopefully for the tests that we're using it in it'll do.
 scimifyBrigUserHack :: User -> Email -> User
@@ -681,7 +680,7 @@ scimifyBrigUserHack usr email =
 getDefaultUserLocale :: TestSpar Locale
 getDefaultUserLocale = do
   env <- ask
-  LocaleRsp defLocale <-
+  LocaleUpdate defLocale <-
     fmap responseJsonUnsafe . call . get $
       ( (env ^. teBrig)
           . path "/i/users/locale"

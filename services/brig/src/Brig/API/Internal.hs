@@ -101,7 +101,7 @@ import Wire.API.User.RichInfo
 -- Sitemap (servant)
 
 servantSitemap :: Members '[BlacklistStore] r => ServerT BrigIRoutes.API (Handler r)
-servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI
+servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI :<|> userAPI
 
 ejpdAPI :: ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
@@ -131,6 +131,12 @@ accountAPI =
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
+
+userAPI :: ServerT BrigIRoutes.UserAPI (Handler r)
+userAPI =
+  updateLocale
+    :<|> deleteLocale
+    :<|> getDefaultUserLocale
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
@@ -307,17 +313,6 @@ sitemap = do
     capture "uid"
       .&. accept "application" "json"
       .&. jsonRequest @RichInfoUpdate
-
-  put "/i/users/:uid/locale" (continue updateLocaleH) $
-    capture "uid"
-      .&. accept "application" "json"
-      .&. jsonRequest @LocaleUpdate
-
-  delete "/i/users/:uid/locale" (continue deleteLocaleH) $
-    capture "uid"
-      .&. accept "application" "json"
-
-  get "/i/users/locale" (continue getDefaultUserLocaleH) true
 
   put "/i/users/:uid/handle" (continue updateHandleH) $
     capture "uid"
@@ -673,22 +668,20 @@ updateRichInfo uid rup = do
   -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
   lift $ wrapClient $ Data.updateRichInfo uid (mkRichInfoAssocList richInfo)
 
-updateLocaleH :: UserId ::: JSON ::: JsonRequest LocaleUpdate -> (Handler r) Response
-updateLocaleH (uid ::: _ ::: req) = do
-  LocaleUpdate locale <- parseJsonBody req
-  lift $ wrapClient $ Data.updateLocale uid locale
-  pure empty
+updateLocale :: UserId -> LocaleUpdate -> (Handler r) LocaleUpdate
+updateLocale uid locale = do
+  lift $ wrapClient $ Data.updateLocale uid (luLocale locale)
+  pure locale
 
-deleteLocaleH :: UserId ::: JSON -> (Handler r) Response
-deleteLocaleH (uid ::: _) = do
+deleteLocale :: UserId -> (Handler r) NoContent
+deleteLocale uid = do
   defLoc <- setDefaultUserLocale <$> view settings
-  lift $ wrapClient $ Data.updateLocale uid defLoc
-  pure empty
+  lift $ wrapClient $ Data.updateLocale uid defLoc $> NoContent
 
-getDefaultUserLocaleH :: () -> (Handler r) Response
-getDefaultUserLocaleH _ = do
+getDefaultUserLocale :: (Handler r) LocaleUpdate
+getDefaultUserLocale = do
   defLocale <- setDefaultUserLocale <$> view settings
-  pure $ json $ LocaleRsp defLocale
+  pure $ LocaleUpdate defLocale
 
 getRichInfoH :: UserId -> (Handler r) Response
 getRichInfoH uid = json <$> getRichInfo uid

@@ -1104,13 +1104,13 @@ testListProvisionedUsers = do
 
 testFindProvisionedUser :: TestSpar ()
 testFindProvisionedUser = do
-  defLocale <- getDefaultUserLocale
+  defLang <- lLanguage <$> getDefaultUserLocale
   user <- randomScimUser
   (tok, (_, _, _)) <- registerIdPAndScimToken
   storedUser <- createUser tok user
   [storedUser'] <- listUsers tok (Just (filterBy "userName" (Scim.User.userName user)))
   liftIO $ storedUser' `shouldBe` storedUser
-  liftIO $ Scim.value (Scim.thing storedUser') `shouldBe` normalizeLikeStored (withBrigDefaultLocaleAlt defLocale user {Scim.User.emails = [] {- only after validation -}})
+  liftIO $ Scim.value (Scim.thing storedUser') `shouldBe` normalizeLikeStored (setPreferredLanguage defLang user {Scim.User.emails = [] {- only after validation -}})
   let Just externalId = Scim.User.externalId user
   users' <- listUsers tok (Just (filterBy "externalId" externalId))
   liftIO $ users' `shouldBe` [storedUser]
@@ -1497,7 +1497,7 @@ testUserUpdateFailsWithNotFoundIfOutsideTeam = do
 -- | Test that @PUT@-ting the user and then @GET@-ting it returns the right thing.
 testScimSideIsUpdated :: TestSpar ()
 testScimSideIsUpdated = do
-  defLocale <- getDefaultUserLocale
+  defLang <- lLanguage <$> getDefaultUserLocale
   -- Create a user via SCIM
   user <- randomScimUser
   (tok, (_, _, idp)) <- registerIdPAndScimToken
@@ -1514,7 +1514,7 @@ testScimSideIsUpdated = do
   -- 'updateUser'
   richInfoLimit <- view (teOpts . to Spar.Types.richInfoLimit)
   liftIO $ do
-    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit (withBrigDefaultLocaleAlt defLocale user')
+    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit (setPreferredLanguage defLang user')
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
     let meta = Scim.meta storedUser
         meta' = Scim.meta storedUser'
@@ -1549,7 +1549,7 @@ testUpdateToExistingExternalIdFails = do
 -- tries to set the name and handle, it might fail because the handle is "already claimed".
 testUpdateSameHandle :: TestSpar ()
 testUpdateSameHandle = do
-  defLocale <- getDefaultUserLocale
+  defLang <- lLanguage <$> getDefaultUserLocale
   -- Create a user via SCIM
   user <- randomScimUser
   (tok, (_, _, idp)) <- registerIdPAndScimToken
@@ -1570,7 +1570,7 @@ testUpdateSameHandle = do
   -- Check that the updated user also matches the data that we sent with 'updateUser'
   richInfoLimit <- view (teOpts . to Spar.Types.richInfoLimit)
   liftIO $ do
-    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit (withBrigDefaultLocaleAlt defLocale user')
+    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit (setPreferredLanguage defLang user')
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
     let meta = Scim.meta storedUser
         meta' = Scim.meta storedUser'

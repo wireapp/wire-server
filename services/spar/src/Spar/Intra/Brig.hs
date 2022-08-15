@@ -417,5 +417,5 @@ getDefaultUserLocale :: (HasCallStack, MonadSparToBrig m) => m Locale
 getDefaultUserLocale = do
   resp <- call $ method GET . paths ["/i/users/locale"]
   case statusCode resp of
-    200 -> fromLocaleRsp <$> parseResponse @LocaleRsp "brig" resp
+    200 -> luLocale <$> parseResponse @LocaleUpdate "brig" resp
     _ -> rethrow "brig" resp
