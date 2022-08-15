@@ -478,7 +478,7 @@ specCreateUser = describe "POST /Users" $ do
     it "set locale to fr and update to de" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language FR) Nothing)) (Just (Locale (Language DE) Nothing))
     it "set locale to hr and update to de" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language HR) Nothing)) (Just (Locale (Language DE) Nothing))
     it "set locale to hr and update to default" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language HR) Nothing)) Nothing
-    it "set locale to default and update to default" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language HR) Nothing)) Nothing
+    it "set locale to default and update to default" $ testCreateUserWithSamlIdPWithPreferredLanguage Nothing Nothing
   it "requires externalId to be present" $ testExternalIdIsRequired
   it "rejects invalid handle" $ testCreateRejectsInvalidHandle
   it "rejects occupied handle" $ testCreateRejectsTakenHandle
