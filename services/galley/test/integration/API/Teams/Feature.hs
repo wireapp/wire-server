@@ -89,7 +89,7 @@ tests s =
           test s "ConferenceCalling 2s TTL" $ testSimpleFlagTTL @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 2)
         ],
       testGroup
-        "Overrides"
+        "TTL / Overrides"
         [ test s "increase to unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 2) FeatureTTLUnlimited,
           test s "increase" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled (FeatureTTLSeconds 2) (FeatureTTLSeconds 4),
           test s "reduce from unlimited" $ testSimpleFlagTTLOverride @Public.ConferenceCallingConfig Public.FeatureStatusEnabled FeatureTTLUnlimited (FeatureTTLSeconds 2),
@@ -490,10 +490,11 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
       getFlag expected =
         flip (assertFlagNoConfig @cfg) expected $ Util.getTeamFeatureFlag @cfg member tid
 
-      getFeatureConfig :: HasCallStack => Public.FeatureStatus -> TestM ()
-      getFeatureConfig expected = do
+      getFeatureConfig :: HasCallStack => Public.FeatureStatus -> FeatureTTL -> TestM ()
+      getFeatureConfig expectedStatus expectedTtl = do
         actual <- Util.getFeatureConfig @cfg member
-        liftIO $ Public.wsStatus actual @?= expected
+        liftIO $ Public.wsStatus actual @?= expectedStatus
+        liftIO $ Public.wsTTL actual @?= expectedTtl
 
       getFlagInternal :: HasCallStack => Public.FeatureStatus -> TestM ()
       getFlagInternal expected =
@@ -537,12 +538,12 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
   -- Initial value should be the default value
   getFlag defaultValue
   getFlagInternal defaultValue
-  getFeatureConfig defaultValue
+  getFeatureConfig defaultValue FeatureTTLUnlimited
 
   -- Setting should work
   setFlagInternal otherValue ttl
   getFlag otherValue
-  getFeatureConfig otherValue
+  getFeatureConfig otherValue ttl
   getFlagInternal otherValue
 
   case (ttl, ttlAfter) of
@@ -571,7 +572,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
       -- overriding in this case should have no effect.
       setFlagInternal otherValue ttl
       getFlag otherValue
-      getFeatureConfig otherValue
+      getFeatureConfig otherValue ttl
       getFlagInternal otherValue
 
       assertUnlimited
@@ -580,7 +581,7 @@ testSimpleFlagTTLOverride defaultValue ttl ttlAfter = do
 
       setFlagInternal otherValue ttlAfter
       getFlag otherValue
-      getFeatureConfig otherValue
+      getFeatureConfig otherValue ttlAfter
       getFlagInternal otherValue
 
       liftIO $ threadDelay (toMicros d) -- waiting it out

@@ -306,6 +306,14 @@ instance (Arbitrary cfg, IsFeatureConfig cfg) => Arbitrary (WithStatusPatch cfg)
 ----------------------------------------------------------------------
 -- WithStatusNoLock
 
+-- FUTUREWORK(fisx): remove this type.  we want all features to have fields `lockStatus` and
+-- `status`, and we want them to have the same semantics everywhere.  currently we have
+-- eg. conf calling, which was introduced before `lockStatus`, and where `status` means
+-- `lockStatus`.  TTL always refers to `lockStatus`, not `status`.  In order to keep current
+-- (desired) behavior, consider eg. conf calling: let's only allow setting `lockStatus`, but
+-- if we switch to `unlocked`, we auto-enable the feature, and if we switch to locked, we
+-- auto-disable it.  But we need to change the API to force clients to use `lockStatus`
+-- instead of `status`, current behavior is just wrong.
 data WithStatusNoLock (cfg :: *) = WithStatusNoLock
   { wssStatus :: FeatureStatus,
     wssConfig :: cfg,
