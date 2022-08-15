@@ -830,7 +830,7 @@ setTeamFeatureFlagH ::
   Handler Response
 setTeamFeatureFlagH (tid ::: req ::: _) = do
   status :: WithStatusNoLock cfg <- parseBody req !>> mkError status400 "client-error"
-  empty <$ Intra.setTeamFeatureFlag @cfg tid status Public.FeatureTTLUnlimited
+  empty <$ Intra.setTeamFeatureFlag @cfg tid status
 
 mkFeaturePutRouteTrivialConfig ::
   forall cfg.
@@ -867,7 +867,7 @@ mkFeaturePutRouteTrivialConfig' ttlSupport = do
       Doc.description "team feature status (enabled or disabled)"
     case ttlSupport of
       TtlEnabled -> Doc.parameter Doc.Query "ttl" Public.typeFeatureTTL $ do
-        Doc.description "team feature time to live, given in days or 'unlimited' (default). Only applies to conference calling. It's ignored by other features."
+        Doc.description "team feature time to live, given in days, or 'unlimited' (default). Only applies to conference calling. It's ignored by other features."
       TtlDisabled -> pure ()
     Doc.response 200 "Team feature flag status" Doc.end
   where
@@ -895,8 +895,8 @@ setTeamFeatureFlagTrivialConfigHNoTtl ::
   TeamId ::: FeatureStatus ->
   Handler Response
 setTeamFeatureFlagTrivialConfigHNoTtl (tid ::: featureStatus) = do
-  let status = WithStatusNoLock featureStatus trivialConfig
-  empty <$ Intra.setTeamFeatureFlag @cfg tid status FeatureTTLUnlimited
+  let status = WithStatusNoLock featureStatus trivialConfig FeatureTTLUnlimited
+  empty <$ Intra.setTeamFeatureFlag @cfg tid status
 
 setTeamFeatureFlagTrivialConfigH ::
   forall cfg.
@@ -908,8 +908,8 @@ setTeamFeatureFlagTrivialConfigH ::
     ToJSON (WithStatusNoLock cfg),
     Typeable cfg
   ) =>
-  TeamId ::: FeatureStatus ::: FeatureTTL ->
+  TeamId ::: FeatureStatus ::: FeatureTTL' 'FeatureTTLUnitDays ->
   Handler Response
 setTeamFeatureFlagTrivialConfigH (tid ::: featureStatus ::: ttl) = do
-  let status = WithStatusNoLock featureStatus trivialConfig
-  empty <$ Intra.setTeamFeatureFlag @cfg tid status ttl
+  let status = WithStatusNoLock featureStatus trivialConfig (convertFeatureTTLDaysToSeconds ttl)
+  empty <$ Intra.setTeamFeatureFlag @cfg tid status

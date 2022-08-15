@@ -1223,7 +1223,7 @@ testGetCodeRejectedIfGuestLinksDisabled = do
   convId <- createConvWithGuestLink
   let checkGetCode expectedStatus = getConvCode owner convId !!! const expectedStatus === statusCode
   let setStatus tfStatus =
-        TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId (Public.WithStatusNoLock tfStatus Public.GuestLinksConfig) !!! do
+        TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId (Public.WithStatusNoLock tfStatus Public.GuestLinksConfig Public.FeatureTTLUnlimited) !!! do
           const 200 === statusCode
 
   checkGetCode 200
@@ -1240,7 +1240,7 @@ testPostCodeRejectedIfGuestLinksDisabled = do
   convId <- decodeConvId <$> postTeamConv teamId owner [] (Just "testConversation") [CodeAccess] (Just noGuestsAccess) Nothing
   let checkPostCode expectedStatus = postConvCode owner convId !!! statusCode === const expectedStatus
   let setStatus tfStatus =
-        TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId (Public.WithStatusNoLock tfStatus Public.GuestLinksConfig) !!! do
+        TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId (Public.WithStatusNoLock tfStatus Public.GuestLinksConfig Public.FeatureTTLUnlimited) !!! do
           const 200 === statusCode
 
   checkPostCode 201
@@ -1265,7 +1265,7 @@ testJoinTeamConvGuestLinksDisabled = do
   let checkFeatureStatus fstatus =
         Util.getTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId !!! do
           const 200 === statusCode
-          const (Right (Public.withStatus fstatus Public.LockStatusUnlocked Public.GuestLinksConfig)) === responseJsonEither
+          const (Right (Public.withStatus fstatus Public.LockStatusUnlocked Public.GuestLinksConfig Public.FeatureTTLUnlimited)) === responseJsonEither
 
   -- guest can join if guest link feature is enabled
   checkFeatureStatus Public.FeatureStatusEnabled
@@ -1278,7 +1278,7 @@ testJoinTeamConvGuestLinksDisabled = do
   postJoinCodeConv bob cCode !!! const 200 === statusCode
 
   -- disabled guest links feature
-  let disabled = Public.WithStatusNoLock Public.FeatureStatusDisabled Public.GuestLinksConfig
+  let disabled = Public.WithStatusNoLock Public.FeatureStatusDisabled Public.GuestLinksConfig Public.FeatureTTLUnlimited
   TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId disabled !!! do
     const 200 === statusCode
 
@@ -1297,7 +1297,7 @@ testJoinTeamConvGuestLinksDisabled = do
   checkFeatureStatus Public.FeatureStatusDisabled
 
   -- after re-enabling, the old link is still valid
-  let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled Public.GuestLinksConfig
+  let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled Public.GuestLinksConfig Public.FeatureTTLUnlimited
   TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId enabled !!! do
     const 200 === statusCode
   getJoinCodeConv eve' (conversationKey cCode) (conversationCode cCode) !!! do
@@ -1326,7 +1326,7 @@ testJoinNonTeamConvGuestLinksDisabled = do
     const 200 === statusCode
 
   -- for non-team conversations it still works if status is disabled for the team but not server wide
-  let tfStatus = Public.WithStatusNoLock Public.FeatureStatusDisabled Public.GuestLinksConfig
+  let tfStatus = Public.WithStatusNoLock Public.FeatureStatusDisabled Public.GuestLinksConfig Public.FeatureTTLUnlimited
   TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley owner teamId tfStatus !!! do
     const 200 === statusCode
 
@@ -1577,7 +1577,7 @@ getGuestLinksStatusFromForeignTeamConv = do
   localDomain <- viewFederationDomain
   galley <- view tsGalley
   let setTeamStatus u tid tfStatus =
-        TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley u tid (Public.WithStatusNoLock tfStatus Public.GuestLinksConfig) !!! do
+        TeamFeatures.putTeamFeatureFlagWithGalley @Public.GuestLinksConfig galley u tid (Public.WithStatusNoLock tfStatus Public.GuestLinksConfig Public.FeatureTTLUnlimited) !!! do
           const 200 === statusCode
   let checkGuestLinksStatus u c s =
         getGuestLinkStatus galley u c !!! do

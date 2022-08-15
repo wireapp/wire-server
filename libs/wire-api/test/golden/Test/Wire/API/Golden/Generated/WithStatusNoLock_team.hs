@@ -24,52 +24,52 @@ import Imports
 import Wire.API.Team.Feature
 
 testObject_WithStatusNoLock_team_1 :: WithStatusNoLock AppLockConfig
-testObject_WithStatusNoLock_team_1 = WithStatusNoLock FeatureStatusEnabled (AppLockConfig (EnforceAppLock False) (-98))
+testObject_WithStatusNoLock_team_1 = WithStatusNoLock FeatureStatusEnabled (AppLockConfig (EnforceAppLock False) (-98)) FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_2 :: WithStatusNoLock AppLockConfig
-testObject_WithStatusNoLock_team_2 = WithStatusNoLock FeatureStatusEnabled (AppLockConfig (EnforceAppLock True) 0)
+testObject_WithStatusNoLock_team_2 = WithStatusNoLock FeatureStatusEnabled (AppLockConfig (EnforceAppLock True) 0) FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_3 :: WithStatusNoLock AppLockConfig
-testObject_WithStatusNoLock_team_3 = WithStatusNoLock FeatureStatusEnabled (AppLockConfig (EnforceAppLock True) 111)
+testObject_WithStatusNoLock_team_3 = WithStatusNoLock FeatureStatusEnabled (AppLockConfig (EnforceAppLock True) 111) FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_4 :: WithStatusNoLock SelfDeletingMessagesConfig
-testObject_WithStatusNoLock_team_4 = WithStatusNoLock FeatureStatusEnabled (SelfDeletingMessagesConfig (-97))
+testObject_WithStatusNoLock_team_4 = WithStatusNoLock FeatureStatusEnabled (SelfDeletingMessagesConfig (-97)) FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_5 :: WithStatusNoLock SelfDeletingMessagesConfig
-testObject_WithStatusNoLock_team_5 = WithStatusNoLock FeatureStatusEnabled (SelfDeletingMessagesConfig 0)
+testObject_WithStatusNoLock_team_5 = WithStatusNoLock FeatureStatusEnabled (SelfDeletingMessagesConfig 0) FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_6 :: WithStatusNoLock SelfDeletingMessagesConfig
-testObject_WithStatusNoLock_team_6 = WithStatusNoLock FeatureStatusEnabled (SelfDeletingMessagesConfig 77)
+testObject_WithStatusNoLock_team_6 = WithStatusNoLock FeatureStatusEnabled (SelfDeletingMessagesConfig 77) FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_7 :: WithStatusNoLock ClassifiedDomainsConfig
-testObject_WithStatusNoLock_team_7 = WithStatusNoLock FeatureStatusEnabled (ClassifiedDomainsConfig [])
+testObject_WithStatusNoLock_team_7 = WithStatusNoLock FeatureStatusEnabled (ClassifiedDomainsConfig []) FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_8 :: WithStatusNoLock ClassifiedDomainsConfig
-testObject_WithStatusNoLock_team_8 = WithStatusNoLock FeatureStatusEnabled (ClassifiedDomainsConfig [Domain "example.com", Domain "test.foobar"])
+testObject_WithStatusNoLock_team_8 = WithStatusNoLock FeatureStatusEnabled (ClassifiedDomainsConfig [Domain "example.com", Domain "test.foobar"]) FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_9 :: WithStatusNoLock ClassifiedDomainsConfig
-testObject_WithStatusNoLock_team_9 = WithStatusNoLock FeatureStatusEnabled (ClassifiedDomainsConfig [Domain "test.foobar"])
+testObject_WithStatusNoLock_team_9 = WithStatusNoLock FeatureStatusEnabled (ClassifiedDomainsConfig [Domain "test.foobar"]) FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_10 :: WithStatusNoLock SSOConfig
-testObject_WithStatusNoLock_team_10 = WithStatusNoLock FeatureStatusDisabled SSOConfig
+testObject_WithStatusNoLock_team_10 = WithStatusNoLock FeatureStatusDisabled SSOConfig FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_11 :: WithStatusNoLock SearchVisibilityAvailableConfig
-testObject_WithStatusNoLock_team_11 = WithStatusNoLock FeatureStatusEnabled SearchVisibilityAvailableConfig
+testObject_WithStatusNoLock_team_11 = WithStatusNoLock FeatureStatusEnabled SearchVisibilityAvailableConfig FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_12 :: WithStatusNoLock ValidateSAMLEmailsConfig
-testObject_WithStatusNoLock_team_12 = WithStatusNoLock FeatureStatusDisabled ValidateSAMLEmailsConfig
+testObject_WithStatusNoLock_team_12 = WithStatusNoLock FeatureStatusDisabled ValidateSAMLEmailsConfig FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_13 :: WithStatusNoLock DigitalSignaturesConfig
-testObject_WithStatusNoLock_team_13 = WithStatusNoLock FeatureStatusEnabled DigitalSignaturesConfig
+testObject_WithStatusNoLock_team_13 = WithStatusNoLock FeatureStatusEnabled DigitalSignaturesConfig FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_14 :: WithStatusNoLock ConferenceCallingConfig
-testObject_WithStatusNoLock_team_14 = WithStatusNoLock FeatureStatusDisabled ConferenceCallingConfig
+testObject_WithStatusNoLock_team_14 = WithStatusNoLock FeatureStatusDisabled ConferenceCallingConfig FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_15 :: WithStatusNoLock GuestLinksConfig
-testObject_WithStatusNoLock_team_15 = WithStatusNoLock FeatureStatusEnabled GuestLinksConfig
+testObject_WithStatusNoLock_team_15 = WithStatusNoLock FeatureStatusEnabled GuestLinksConfig FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_16 :: WithStatusNoLock SndFactorPasswordChallengeConfig
-testObject_WithStatusNoLock_team_16 = WithStatusNoLock FeatureStatusDisabled SndFactorPasswordChallengeConfig
+testObject_WithStatusNoLock_team_16 = WithStatusNoLock FeatureStatusDisabled SndFactorPasswordChallengeConfig FeatureTTLUnlimited
 
 testObject_WithStatusNoLock_team_17 :: WithStatusNoLock SearchVisibilityInboundConfig
-testObject_WithStatusNoLock_team_17 = WithStatusNoLock FeatureStatusEnabled SearchVisibilityInboundConfig
+testObject_WithStatusNoLock_team_17 = WithStatusNoLock FeatureStatusEnabled SearchVisibilityInboundConfig FeatureTTLUnlimited

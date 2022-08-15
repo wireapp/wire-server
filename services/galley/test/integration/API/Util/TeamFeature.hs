@@ -59,10 +59,7 @@ putTeamSearchVisibilityAvailableInternal g tid statusValue =
       g
       expect2xx
       tid
-      (Public.WithStatusNoLock statusValue Public.SearchVisibilityAvailableConfig)
-      Public.FeatureTTLUnlimited
-
---------------------------------------------------------------------------------
+      (Public.WithStatusNoLock statusValue Public.SearchVisibilityAvailableConfig Public.FeatureTTLUnlimited)
 
 getTeamFeatureFlagInternal ::
   forall cfg m.
@@ -172,11 +169,10 @@ putTeamFeatureFlagInternalTTL ::
   (Request -> Request) ->
   TeamId ->
   Public.WithStatusNoLock cfg ->
-  Public.FeatureTTL ->
   TestM ResponseLBS
-putTeamFeatureFlagInternalTTL reqmod tid status ttl = do
+putTeamFeatureFlagInternalTTL reqmod tid status = do
   g <- view tsGalley
-  putTeamFeatureFlagInternalWithGalleyAndMod @cfg g reqmod tid status ttl
+  putTeamFeatureFlagInternalWithGalleyAndMod @cfg g reqmod tid status
 
 putTeamFeatureFlagInternal ::
   forall cfg.
@@ -191,7 +187,7 @@ putTeamFeatureFlagInternal ::
   TestM ResponseLBS
 putTeamFeatureFlagInternal reqmod tid status = do
   g <- view tsGalley
-  putTeamFeatureFlagInternalWithGalleyAndMod @cfg g reqmod tid status Public.FeatureTTLUnlimited
+  putTeamFeatureFlagInternalWithGalleyAndMod @cfg g reqmod tid status
 
 putTeamFeatureFlagInternalWithGalleyAndMod ::
   forall cfg m.
@@ -206,17 +202,13 @@ putTeamFeatureFlagInternalWithGalleyAndMod ::
   (Request -> Request) ->
   TeamId ->
   Public.WithStatusNoLock cfg ->
-  Public.FeatureTTL ->
   m ResponseLBS
-putTeamFeatureFlagInternalWithGalleyAndMod galley reqmod tid status ttl =
+putTeamFeatureFlagInternalWithGalleyAndMod galley reqmod tid status =
   put $
     galley
       . paths ["i", "teams", toByteString' tid, "features", Public.featureNameBS @cfg]
       . json status
-      . query [("ttl", justBS ttl)]
       . reqmod
-  where
-    justBS = Just . toByteString'
 
 setLockStatusInternal ::
   forall cfg.

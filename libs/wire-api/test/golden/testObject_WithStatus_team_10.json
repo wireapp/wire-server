@@ -1,4 +1,5 @@
 {
     "lockStatus": "locked",
-    "status": "disabled"
+    "status": "disabled",
+    "ttl": "unlimited"
 }

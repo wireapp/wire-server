@@ -101,6 +101,7 @@ import Wire.API.Properties
 import Wire.API.Routes.Internal.Brig.Connection
 import qualified Wire.API.Routes.Internal.Brig.EJPD as EJPD
 import Wire.API.Team
+import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
@@ -511,7 +512,6 @@ getTeamFeatureFlag tid = do
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
 
--- TODO: add ttl here
 setTeamFeatureFlag ::
   forall cfg.
   ( ToJSON (Public.WithStatusNoLock cfg),
@@ -520,16 +520,15 @@ setTeamFeatureFlag ::
   ) =>
   TeamId ->
   Public.WithStatusNoLock cfg ->
-  Public.FeatureTTL ->
   Handler ()
-setTeamFeatureFlag tid status ttl = do
+setTeamFeatureFlag tid status = do
   info $ msg "Setting team feature status"
+  checkDaysLimit (wssTTL status)
   gly <- view galley
   let req =
         method PUT
           . paths ["/i/teams", toByteString' tid, "features", Public.featureNameBS @cfg]
           . Bilge.json status
-          . Bilge.query [("ttl", Just $ toByteString' ttlAPI)]
           . contentJson
   resp <- catchRpcErrors $ rpc' "galley" gly req
   case statusCode resp of
@@ -537,9 +536,14 @@ setTeamFeatureFlag tid status ttl = do
     404 -> throwE (mkError status404 "bad-upstream" "team doesnt exist")
     _ -> throwE (mkError status502 "bad-upstream" "bad response")
   where
-    ttlAPI = case ttl of
-      Public.FeatureTTLSeconds days -> Public.FeatureTTLSeconds (60 * 60 * 24 * days)
-      Public.FeatureTTLUnlimited -> Public.FeatureTTLUnlimited
+    checkDaysLimit :: FeatureTTL -> Handler ()
+    checkDaysLimit = \case
+      FeatureTTLUnlimited -> pure ()
+      FeatureTTLSeconds ((`div` (60 * 60 * 24)) -> days) -> do
+        unless (days <= daysLimit) $ do
+          throwE (mkError status400 "bad-data" (cs $ "ttl limit is " <> show daysLimit <> " days; I got " <> show days <> "."))
+      where
+        daysLimit = 2000
 
 getSearchVisibility :: TeamId -> Handler TeamSearchVisibilityView
 getSearchVisibility tid = do
