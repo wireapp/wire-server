@@ -671,6 +671,7 @@ test-suite wire-api-tests
       aeson                    >=2.0.1.0
     , aeson-pretty
     , aeson-qq
+    , async
     , base
     , binary
     , bytestring
@@ -679,6 +680,7 @@ test-suite wire-api-tests
     , case-insensitive
     , cassava
     , containers               >=0.5
+    , cryptonite
     , currency-codes
     , directory
     , either
@@ -689,10 +691,12 @@ test-suite wire-api-tests
     , iso3166-country-codes
     , iso639
     , lens
+    , memory
     , metrics-wai
     , mime
     , pem
     , pretty
+    , process
     , proto-lens
     , QuickCheck
     , saml2-web-sso
@@ -708,6 +712,7 @@ test-suite wire-api-tests
     , text
     , time
     , types-common             >=0.16
+    , unliftio
     , unordered-containers
     , uri-bytestring
     , uuid
