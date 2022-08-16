@@ -18,22 +18,6 @@ For documentation on how to self host your own Wire-Server see [this section](#h
 
 See more in "[Open sourcing Wire server code](https://medium.com/@wireapp/open-sourcing-wire-server-code-ef7866a731d5)".
 
-## Table of contents
-
-<!-- vim-markdown-toc GFM -->
-
-* [Contents of this repository](#contents-of-this-repository)
-* [Architecture Overview](#architecture-overview)
-* [Development setup](#development-setup)
-    * [How to build `wire-server` binaries](#how-to-build-wire-server-binaries)
-        * [1. Compile sources natively.](#1-compile-sources-natively)
-        * [2. Use docker](#2-use-docker)
-    * [How to run integration tests](#how-to-run-integration-tests)
-    * [when you need more fine-grained control over your build-test loops](#when-you-need-more-fine-grained-control-over-your-build-test-loops)
-* [How to install and run `wire-server`](#how-to-install-and-run-wire-server)
-
-<!-- vim-markdown-toc -->
-
 ## Contents of this repository
 
 This repository contains the following source code:
@@ -82,29 +66,7 @@ private network.
 
 There are two options:
 
-#### 1. Compile sources natively.
-
-This requires a range of dependencies that depend on your platform/OS, such as:
-
-- Haskell & Rust compiler and package managers
-- Some package dependencies (libsodium, openssl, protobuf, icu, geoip, snappy, [cryptobox-c](https://github.com/wireapp/cryptobox-c), ...) that depend on your platform/OS
-
-See [docs/developer/dependencies.md](docs/legacy/developer/dependencies.md) for details.
-
-Once all dependencies are set up, the following should succeed:
-
-```bash
-# build all haskell services
-make
-# build one haskell service, e.g. brig:
-cd services/brig && make
-```
-
-The default make target (`fast`) compiles unoptimized (faster compilation time, slower binaries), which should be fine for development purposes. Use `make install` to get optimized binaries.
-
-For building nginz, see [services/nginz/README.md](services/nginz/README.md)
-
-#### 2. Use docker
+#### 1. Use docker
 
 *If you don't wish to build all docker images from scratch (e.g. the `ubuntu20-builder` takes a very long time), ready-built images can be downloaded from [here](https://quay.io/organization/wire).*
 
@@ -123,54 +85,9 @@ will, eventually, have built a range of docker images. Make sure to [give Docker
 
 See the `Makefile`s and `Dockerfile`s, as well as [build/ubuntu/README.md](build/ubuntu/README.md) for details.
 
-### How to run integration tests
+#### 2. Use nix-provided build environment 
 
-Integration tests require all of the haskell services (brig, galley, cannon, gundeck, proxy, cargohold, spar) to be correctly configured and running, before being able to execute e.g. the `brig-integration` binary. The test for brig also starts nginz, so make sure it has been built before.
-These services require most of the deployment dependencies as seen in the architecture diagram to also be available:
-
-- Required internal dependencies:
-    - cassandra (with the correct schema)
-    - elasticsearch (with the correct schema)
-    - redis
-- Required external dependencies are the following configured AWS services (or "fake" replacements providing the same API):
-    - SES
-    - SQS
-    - SNS
-    - S3
-    - DynamoDB
-- Required additional software:
-    - netcat (in order to allow the services being tested to talk to the dependencies above)
-
-Setting up these real, but in-memory internal and "fake" external dependencies is done easiest using [`docker-compose`](https://docs.docker.com/compose/install/). Run the following in a separate terminal (it will block that terminal, C-c to shut all these docker images down again):
-
-```
-deploy/dockerephemeral/run.sh
-```
-
-Then, to run all integration tests:
-
-```bash
-make integration
-```
-
-Or, alternatively, `make` on the top-level directory (to produce all the service's binaries) followed by e.g `cd services/brig && make integration` to run one service's integration tests only.
-
-### when you need more fine-grained control over your build-test loops
-
-You can use `$WIRE_STACK_OPTIONS` to pass arguments to stack through the `Makefile`s.  This is useful to e.g. pass arguments to a unit test suite or temporarily disable `-Werror` without the risk of accidentally committing anything, like this:
-
-```bash
-WIRE_STACK_OPTIONS='--ghc-options=-Wwarn --test-arguments="--quickcheck-tests=19919 --quickcheck-replay=651712"' make -C services/gundeck
-```
-
-Integration tests are run via `/services/integration.sh`, which does not know about stack or `$WIRE_STACK_OPTIONS`.  Here you can use `$WIRE_INTEGRATION_TEST_OPTIONS`:
-
-```bash
-cd services/spar
-WIRE_INTEGRATION_TEST_OPTIONS="--match='POST /identity-providers'" make i
-```
-
-Alternatively, you can use [tasty's support for passing arguments vie shell variables directly](https://github.com/feuerbach/tasty#runtime).  Or, in the case of spar, the [hspec equivalent](https://hspec.github.io/options.html#specifying-options-through-an-environment-variable), which [is less helpful at times](https://github.com/hspec/hspec/issues/335).
+This is suitable only for local development and testing. See [build instructions](./docs/developer/building.md) in the developer documentation.
 
 ## How to install and run `wire-server`
 
