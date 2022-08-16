@@ -39,11 +39,11 @@ make c package=galley test=1
 
 ### Linker errors while compiling
 
-Linker errors can occur if the nix-provided build environment (see `nix/` directory) changes. Since cabal is not aware of the change environments the artefacts in `./dist-newstyle` and `~/.cabal/store/` from previous builds may be invalid causing the linker errors.
+Linker errors can occur if the nix-provided build environment (see `nix/` directory) changes. Since cabal is not aware of the changed environment the cached build artifacts in `./dist-newstyle` and `~/.cabal/store/` from previous builds may be invalid causing the linker errors.
 
-Haskell Language Server stores its build artefacts in `~/.cache/hie-bios` (equivalent to the `./dist-newstyle` directory) which become invalid for the same reason.
+Haskell Language Server stores its build artifacts in `~/.cache/hie-bios` (equivalent to the `./dist-newstyle` directory) which become invalid for the same reason.
 
-The easiest course of action is to to remove these directories: 
+The easiest course of action is to to remove these directories via: 
 
 ```
 make delete-cache-on-linker-errors
