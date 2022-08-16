@@ -1,1 +1,0 @@
-Add shellcheck, libstdc++ to nix env; handle emacs auto-save files better

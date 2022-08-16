@@ -1,2 +1,0 @@
-Add internal endpoint in Brig to update clients' key package refs in DB upon committing.
-Brig should be deployed before Galley.

@@ -1,1 +1,0 @@
-The `preferredLanguage` field from SCIM now maps to the user locale in BRIG and will be set and updated on post SCIM user and on update SCIM user using SAML.
