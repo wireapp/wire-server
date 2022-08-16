@@ -16,7 +16,7 @@ A backend advertises a set of *supported* API versions, divided into a set of
 be discovered via the `GET /api-version` endpoint, which returns a JSON object
 of the form:
 
-```json
+```
 { "supported": [0, 1, 2, 3, 4],
   "development": [4],
   ...
