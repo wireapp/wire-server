@@ -106,9 +106,9 @@ tests s =
           test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
           test s "admin removes user from a conversation" testAdminRemovesUserFromConv,
           test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete,
-          test s "user tries to remove themselves from conversation" testUserRemovesThemselvesFromConv,
-          test s "anyone removes a non-existing client from a group" (testRemoveDeletedClient True),
-          test s "anyone removes an existing client from group, but the user has other clients" (testRemoveDeletedClient False),
+          -- test s "user tries to remove themselves from conversation" _testUserRemovesThemselvesFromConv,
+          -- test s "anyone removes a non-existing client from a group" (_testRemoveDeletedClient True),
+          -- test s "anyone removes an existing client from group, but the user has other clients" (_testRemoveDeletedClient False),
           test s "admin removes only strict subset of clients from a user" testRemoveSubset
         ],
       testGroup
@@ -752,8 +752,8 @@ testRemoveClientsIncomplete = withSystemTempDirectory "mls" $ \tmp -> do
 
   liftIO $ Wai.label err @?= "mls-client-mismatch"
 
-testUserRemovesThemselvesFromConv :: TestM ()
-testUserRemovesThemselvesFromConv = withSystemTempDirectory "mls" $ \tmp -> do
+_testUserRemovesThemselvesFromConv :: TestM ()
+_testUserRemovesThemselvesFromConv = withSystemTempDirectory "mls" $ \tmp -> do
   MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
   let [bob] = users
 
@@ -770,8 +770,8 @@ testUserRemovesThemselvesFromConv = withSystemTempDirectory "mls" $ \tmp -> do
 
   liftIO $ Wai.label err @?= "mls-self-removal-not-allowed"
 
-testRemoveDeletedClient :: Bool -> TestM ()
-testRemoveDeletedClient deleteClientBefore = withSystemTempDirectory "mls" $ \tmp -> do
+_testRemoveDeletedClient :: Bool -> TestM ()
+_testRemoveDeletedClient deleteClientBefore = withSystemTempDirectory "mls" $ \tmp -> do
   (creator, [bob, dee]) <- withLastPrekeys $ setupParticipants tmp def [(2, LocalUser), (1, LocalUser)]
 
   -- create a group
@@ -1324,8 +1324,8 @@ propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
     err <-
       responseJsonError
         =<< postMessage (qUnqualified (pUserId creator)) prop
-        <!! const 409 === statusCode
-    liftIO $ Wai.label err @?= "mls-stale-message"
+        <!! const 404 === statusCode
+    liftIO $ Wai.label err @?= "mls-key-package-ref-not-found"
 
   -- same proposal with correct epoch (1)
   do
