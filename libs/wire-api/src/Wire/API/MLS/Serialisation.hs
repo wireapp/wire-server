@@ -19,6 +19,7 @@ module Wire.API.MLS.Serialisation
   ( ParseMLS (..),
     SerialiseMLS (..),
     parseMLSVector,
+    serialiseMLSVector,
     parseMLSBytes,
     serialiseMLSBytes,
     parseMLSOptional,
@@ -80,6 +81,16 @@ parseMLSVector getItem = do
       x <- getItem
       pos <- bytesRead
       (:) x <$> (if pos < endPos then go endPos else pure [])
+
+serialiseMLSVector ::
+  forall w a.
+  (Binary w, Integral w) =>
+  (a -> Put) ->
+  [a] ->
+  Put
+serialiseMLSVector p as = do
+  put @w . fromIntegral . length $ as
+  traverse_ p as
 
 parseMLSBytes :: forall w. (Binary w, Integral w) => Get ByteString
 parseMLSBytes = do
@@ -145,6 +156,8 @@ instance ParseMLS Word16 where parseMLS = get
 instance ParseMLS Word32 where parseMLS = get
 
 instance ParseMLS Word64 where parseMLS = get
+
+instance SerialiseMLS Word32 where serialiseMLS = put
 
 -- | A wrapper to generate a 'ParseMLS' instance given a 'Binary' instance.
 newtype BinaryMLS a = BinaryMLS a

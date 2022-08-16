@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -81,6 +82,13 @@ mkRemoveProposal ref = RawMLS bytes (RemoveProposal ref)
       serialiseMLS RemoveProposalTag
       serialiseMLS ref
 
+mkAppAckProposal :: [MessageRange] -> RawMLS Proposal
+mkAppAckProposal mrs = RawMLS bytes (AppAckProposal mrs)
+  where
+    bytes = LBS.toStrict . runPut $ do
+      serialiseMLS AppAckProposalTag
+      serialiseMLSVector @Word32 serialiseMLS mrs
+
 -- | Compute the proposal ref given a ciphersuite and the raw proposal data.
 proposalRef :: CipherSuiteTag -> RawMLS Proposal -> ProposalRef
 proposalRef cs =
@@ -137,7 +145,7 @@ instance ParseMLS ReInit where
 data MessageRange = MessageRange
   { mrSender :: KeyPackageRef,
     mrFirstGeneration :: Word32,
-    mrLastGenereation :: Word32
+    mrLastGeneration :: Word32
   }
   deriving stock (Eq, Show)
 
@@ -147,6 +155,12 @@ instance ParseMLS MessageRange where
       <$> parseMLS
       <*> parseMLS
       <*> parseMLS
+
+instance SerialiseMLS MessageRange where
+  serialiseMLS MessageRange {..} = do
+    serialiseMLS mrSender
+    serialiseMLS mrFirstGeneration
+    serialiseMLS mrLastGeneration
 
 data ProposalOrRefTag = InlineTag | RefTag
   deriving stock (Bounded, Enum, Eq, Show)

@@ -39,6 +39,8 @@ module Wire.API.MLS.Message
     KnownFormatTag (..),
     verifyMessageSignature,
     mkRemoveProposalMessage,
+    mkAppAckProposalMessageFailable,
+    mkAppAckProposalMessage,
   )
 where
 
@@ -358,6 +360,39 @@ mkRemoveProposalMessage priv pub gid epoch ref = maybeCryptoError $ do
               tbsMsgAuthData = mempty,
               tbsMsgSender = PreconfiguredSender 0,
               tbsMsgPayload = ProposalMessage (mkRemoveProposal ref)
+            }
+  let sig = BA.convert $ sign priv pub (rmRaw tbs)
+  pure (Message tbs (MessageExtraFields sig Nothing Nothing))
+
+mkAppAckProposalMessage ::
+  SecretKey ->
+  PublicKey ->
+  GroupId ->
+  Epoch ->
+  KeyPackageRef ->
+  [MessageRange] ->
+  Maybe (Message 'MLSPlainText)
+mkAppAckProposalMessage priv pub gid epoch ref mrs =
+  maybeCryptoError $ mkAppAckProposalMessageFailable priv pub gid epoch ref mrs
+
+mkAppAckProposalMessageFailable ::
+  SecretKey ->
+  PublicKey ->
+  GroupId ->
+  Epoch ->
+  KeyPackageRef ->
+  [MessageRange] ->
+  CryptoFailable (Message 'MLSPlainText)
+mkAppAckProposalMessageFailable priv pub gid epoch ref mrs = do
+  let tbs =
+        mkRawMLS $
+          MessageTBS
+            { tbsMsgFormat = KnownFormatTag,
+              tbsMsgGroupId = gid,
+              tbsMsgEpoch = epoch,
+              tbsMsgAuthData = mempty,
+              tbsMsgSender = MemberSender ref,
+              tbsMsgPayload = ProposalMessage (mkAppAckProposal mrs)
             }
   let sig = BA.convert $ sign priv pub (rmRaw tbs)
   pure (Message tbs (MessageExtraFields sig Nothing Nothing))
