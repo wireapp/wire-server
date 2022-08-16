@@ -20,7 +20,7 @@ All following commands expect that you've entered the nix-provided build-environ
    make cabal.project.local
    ```
 
-   This should be re-run after a new local cabal project is added to the repostory.
+   This should be re-run whenver new local cabal package is added to the cabal project.
 
 Then the following Makefile targets can be used to compile and test wire-server locally:
 
