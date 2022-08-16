@@ -170,7 +170,8 @@ setupUserClient tmp doCreateClients mapKeyPackage usr = do
                       kpbeKeyPackage = KeyPackageData $ rmRaw kp
                     }
         when mapKeyPackage $ mapRemoteKeyPackageRef brig bundle
-      _ -> pure ()
+      DontCreateClients -> pure ()
+      CreateWithoutKey -> pure ()
 
     pure c
 

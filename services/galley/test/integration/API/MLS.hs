@@ -138,7 +138,9 @@ tests s =
         ],
       testGroup
         "External Proposal"
-        [ test s "member adds new client" testExternalAddProposal
+        [ test s "member adds new client" testExternalAddProposal,
+          test s "non-member adds new client" testExternalAddProposalWrongUser,
+          test s "member adds unknown new client" testExternalAddProposalWrongClient
         ],
       testGroup
         "Protocol mismatch"
@@ -1420,5 +1422,75 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
       <$> withLastPrekeys (setupUserClient tmp CreateWithKey True (pUserId bob))
   externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "group"
   postMessage (qUnqualified (pUserId bob)) externalProposal !!! const 201 === statusCode
+
+testExternalAddProposalWrongUser :: TestM ()
+testExternalAddProposalWrongUser = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, [bob, charly]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser), (1, LocalUser)]
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
+
+  bobClient1 <- assertOne . toList $ pClients bob
+  charlyClient1 <- assertOne . toList $ pClients charly
+  (commit, welcome) <-
+    liftIO $
+      setupCommit tmp creator "group" "group" $
+        NonEmpty.tail (pClients creator) <> [bobClient1, charlyClient1]
+  testSuccessfulCommit MessagingSetup {users = [bob, charly], ..}
+
+  void . liftIO $
+    spawn
+      ( cli
+          (fst bobClient1)
+          tmp
+          [ "group",
+            "from-welcome",
+            "--group-out",
+            tmp </> "group",
+            tmp </> "welcome"
+          ]
+      )
+      Nothing
+
+  bobClient2Qid <-
+    userClientQid (pUserId bob)
+      <$> withLastPrekeys (setupUserClient tmp CreateWithKey True (pUserId bob))
+  externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "group"
+  postMessage (qUnqualified (pUserId charly)) externalProposal !!! do
+    const 422 === statusCode
+    const (Just "mls-unsupported-proposal") === fmap Wai.label . responseJsonError
+
+testExternalAddProposalWrongClient :: TestM ()
+testExternalAddProposalWrongClient = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, [bob, charly]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser), (1, LocalUser)]
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
+
+  bobClient1 <- assertOne . toList $ pClients bob
+  charlyClient1 <- assertOne . toList $ pClients charly
+  (commit, welcome) <-
+    liftIO $
+      setupCommit tmp creator "group" "group" $
+        NonEmpty.tail (pClients creator) <> [bobClient1, charlyClient1]
+  testSuccessfulCommit MessagingSetup {users = [bob, charly], ..}
+
+  void . liftIO $
+    spawn
+      ( cli
+          (fst bobClient1)
+          tmp
+          [ "group",
+            "from-welcome",
+            "--group-out",
+            tmp </> "group",
+            tmp </> "welcome"
+          ]
+      )
+      Nothing
+
+  bobClient2Qid <-
+    userClientQid (pUserId bob)
+      <$> withLastPrekeys (setupUserClient tmp CreateWithoutKey True (pUserId bob))
+  externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "group"
+  postMessage (qUnqualified (pUserId charly)) externalProposal !!! do
+    const 422 === statusCode
+    const (Just "mls-unsupported-proposal") === fmap Wai.label . responseJsonError
 
 -- FUTUREWORK: test processing a commit containing the external proposal
