@@ -101,7 +101,7 @@ import Wire.API.User.RichInfo
 -- Sitemap (servant)
 
 servantSitemap :: Members '[BlacklistStore] r => ServerT BrigIRoutes.API (Handler r)
-servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI
+servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI :<|> userAPI
 
 ejpdAPI :: ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
@@ -132,6 +132,12 @@ accountAPI =
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
+
+userAPI :: ServerT BrigIRoutes.UserAPI (Handler r)
+userAPI =
+  updateLocale
+    :<|> deleteLocale
+    :<|> getDefaultUserLocale
 
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
@@ -666,6 +672,21 @@ updateRichInfo uid rup = do
   -- FUTUREWORK: send an event
   -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
   lift $ wrapClient $ Data.updateRichInfo uid (mkRichInfoAssocList richInfo)
+
+updateLocale :: UserId -> LocaleUpdate -> (Handler r) LocaleUpdate
+updateLocale uid locale = do
+  lift $ wrapClient $ Data.updateLocale uid (luLocale locale)
+  pure locale
+
+deleteLocale :: UserId -> (Handler r) NoContent
+deleteLocale uid = do
+  defLoc <- setDefaultUserLocale <$> view settings
+  lift $ wrapClient $ Data.updateLocale uid defLoc $> NoContent
+
+getDefaultUserLocale :: (Handler r) LocaleUpdate
+getDefaultUserLocale = do
+  defLocale <- setDefaultUserLocale <$> view settings
+  pure $ LocaleUpdate defLocale
 
 getRichInfoH :: UserId -> (Handler r) Response
 getRichInfoH uid = json <$> getRichInfo uid

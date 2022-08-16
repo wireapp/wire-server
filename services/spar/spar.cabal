@@ -417,6 +417,7 @@ executable spar-integration
     , http-types
     , imports
     , insert-ordered-containers
+    , iso639                     >=0.1
     , lens
     , lens-aeson
     , memory

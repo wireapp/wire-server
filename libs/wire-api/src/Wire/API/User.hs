@@ -657,7 +657,8 @@ data NewUserSpar = NewUserSpar
     newUserSparTeamId :: TeamId,
     newUserSparManagedBy :: ManagedBy,
     newUserSparHandle :: Maybe Handle,
-    newUserSparRichInfo :: Maybe RichInfo
+    newUserSparRichInfo :: Maybe RichInfo,
+    newUserSparLocale :: Maybe Locale
   }
   deriving stock (Eq, Show, Generic)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewUserSpar)
@@ -673,6 +674,7 @@ instance ToSchema NewUserSpar where
         <*> newUserSparManagedBy .= field "newUserSparManagedBy" schema
         <*> newUserSparHandle .= maybe_ (optField "newUserSparHandle" schema)
         <*> newUserSparRichInfo .= maybe_ (optField "newUserSparRichInfo" schema)
+        <*> newUserSparLocale .= maybe_ (optField "newUserSparLocale" schema)
 
 newUserFromSpar :: NewUserSpar -> NewUser
 newUserFromSpar new =
@@ -687,10 +689,10 @@ newUserFromSpar new =
       newUserPhoneCode = Nothing,
       newUserOrigin = Just . NewUserOriginTeamUser . NewTeamMemberSSO $ newUserSparTeamId new,
       newUserLabel = Nothing,
-      newUserLocale = Nothing,
       newUserPassword = Nothing,
       newUserExpiresIn = Nothing,
-      newUserManagedBy = Just $ newUserSparManagedBy new
+      newUserManagedBy = Just $ newUserSparManagedBy new,
+      newUserLocale = newUserSparLocale new
     }
 
 data NewUser = NewUser
