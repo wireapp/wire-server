@@ -122,6 +122,11 @@ deriving instance Show (Message 'MLSCipherText)
 instance ParseMLS (Message 'MLSPlainText) where
   parseMLS = Message <$> label "tbs" parseMLS <*> label "MessageExtraFields" parseMLS
 
+instance SerialiseMLS (Message 'MLSPlainText) where
+  serialiseMLS (Message msgTBS msgExtraFields) = do
+    putByteString (rmRaw msgTBS)
+    serialiseMLS msgExtraFields
+
 instance ParseMLS (Message 'MLSCipherText) where
   parseMLS = Message <$> parseMLS <*> parseMLS
 
