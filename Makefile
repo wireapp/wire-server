@@ -50,6 +50,12 @@ else
 	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 endif
 
+.PHONY: delete-cache-on-linker-errors
+delete-cache-on-linker-errors:
+	rm -rf ~/.cache/hie-bios
+	rm -rf ~/.cabal
+	rm -rf ./dist-newstyle
+
 # Build all Haskell services and executables with -O0, run unit tests
 .PHONY: fast
 fast: init
