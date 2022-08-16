@@ -46,7 +46,8 @@ tests =
       testCase "parse commit message" testParseCommit,
       testCase "parse application message" testParseApplication,
       testCase "parse welcome message" testParseWelcome,
-      testCase "key package ref" testKeyPackageRef
+      testCase "key package ref" testKeyPackageRef,
+      testCase "validate message signature" testVerifyMLSPlainTextWithKey
     ]
 
 testParseKeyPackage :: IO ()
@@ -92,7 +93,7 @@ testParseCommit = do
     _ -> assertFailure "Unexpected sender type"
 
   let payload = msgPayload msg
-  commit <- case msgTBS payload of
+  commit <- case payload of
     CommitMessage c -> pure c
     _ -> assertFailure "Unexpected message type"
 
@@ -128,3 +129,28 @@ testKeyPackageRef = do
   kpData <- BS.readFile "test/resources/key_package1.mls"
   ref <- KeyPackageRef <$> BS.readFile "test/resources/key_package_ref1"
   kpRef MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 (KeyPackageData kpData) @?= ref
+
+testVerifyMLSPlainTextWithKey :: IO ()
+testVerifyMLSPlainTextWithKey = do
+  -- this file was created with openmls from the client that is in the add proposal
+  msgData <- BS.readFile "test/resources/external_proposal.mls"
+
+  msg :: Message 'MLSPlainText <- case decodeMLS' @SomeMessage msgData of
+    Left err -> assertFailure (T.unpack err)
+    Right (SomeMessage SMLSCipherText _) ->
+      assertFailure "Expected SomeMessage SMLSCipherText"
+    Right (SomeMessage SMLSPlainText msg) ->
+      pure msg
+
+  kp <- case msgPayload msg of
+    ProposalMessage prop ->
+      case rmValue prop of
+        AddProposal kp -> pure kp
+        _ -> error "Expected AddProposal"
+    _ -> error "Expected ProposalMessage"
+
+  let pubkey = bcSignatureKey . kpCredential . rmValue $ kp
+  liftIO $
+    assertBool
+      "message signature verification failed"
+      $ verifyMessageSignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 msg pubkey

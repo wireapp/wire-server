@@ -105,7 +105,7 @@ instance
 
   fromUnion (Z (I c)) = CodeAlreadyExisted c
   fromUnion (S (Z (I e))) = CodeAdded e
-  fromUnion (S (S x)) = case x of
+  fromUnion (S (S x)) = case x of {}
 
 type ConvUpdateResponses = UpdateResponses "Conversation unchanged" "Conversation updated" Event
 
@@ -557,6 +557,7 @@ type ConversationAPI =
     :<|> Named
            "remove-member-unqualified"
            ( Summary "Remove a member from a conversation (deprecated)"
+               :> Until 'V2
                :> ZLocalUser
                :> ZConn
                :> CanThrow ('ActionDenied 'RemoveConversationMember)
@@ -915,6 +916,7 @@ type TeamAPI =
   Named
     "create-non-binding-team"
     ( Summary "Create a new non binding team"
+        -- FUTUREWORK: deprecated in https://github.com/wireapp/wire-server/pull/2607
         :> ZUser
         :> ZConn
         :> CanThrow 'NotConnected
@@ -950,6 +952,7 @@ type TeamAPI =
     :<|> Named
            "get-teams"
            ( Summary "Get teams (deprecated); use `GET /teams/:tid`"
+               -- FUTUREWORK: deprecated in https://github.com/wireapp/wire-server/pull/2607
                :> ZUser
                :> "teams"
                :> Get '[JSON] TeamList
@@ -1317,18 +1320,20 @@ type MLSMessagingAPI =
            ( Summary "Post an MLS message"
                :> Until 'V2
                :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvMemberNotFound
                :> CanThrow 'ConvNotFound
-               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'LegalHoldNotEnabled
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSCommitMissingReferences
                :> CanThrow 'MLSKeyPackageRefNotFound
-               :> CanThrow 'MLSProtocolErrorTag
-               :> CanThrow 'MLSStaleMessage
-               :> CanThrow MLSProposalFailure
                :> CanThrow 'MLSProposalNotFound
+               :> CanThrow 'MLSProtocolErrorTag
+               :> CanThrow 'MLSSelfRemovalNotAllowed
+               :> CanThrow 'MLSStaleMessage
                :> CanThrow 'MLSUnsupportedMessage
                :> CanThrow 'MLSUnsupportedProposal
-               :> CanThrow 'LegalHoldNotEnabled
+               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow MLSProposalFailure
                :> "messages"
                :> ZConn
                :> ReqBody '[MLS] (RawMLS SomeMessage)
@@ -1339,18 +1344,20 @@ type MLSMessagingAPI =
            ( Summary "Post an MLS message"
                :> From 'V2
                :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvMemberNotFound
                :> CanThrow 'ConvNotFound
-               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow 'LegalHoldNotEnabled
                :> CanThrow 'MLSClientMismatch
                :> CanThrow 'MLSCommitMissingReferences
                :> CanThrow 'MLSKeyPackageRefNotFound
-               :> CanThrow 'MLSProtocolErrorTag
-               :> CanThrow 'MLSStaleMessage
-               :> CanThrow MLSProposalFailure
                :> CanThrow 'MLSProposalNotFound
+               :> CanThrow 'MLSProtocolErrorTag
+               :> CanThrow 'MLSSelfRemovalNotAllowed
+               :> CanThrow 'MLSStaleMessage
                :> CanThrow 'MLSUnsupportedMessage
                :> CanThrow 'MLSUnsupportedProposal
-               :> CanThrow 'LegalHoldNotEnabled
+               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow MLSProposalFailure
                :> "messages"
                :> ZConn
                :> ReqBody '[MLS] (RawMLS SomeMessage)
@@ -1626,6 +1633,7 @@ type TeamMemberAPI =
     :<|> Named
            "add-team-member"
            ( Summary "Add a new team member"
+               -- FUTUREWORK: deprecated in https://github.com/wireapp/wire-server/pull/2607
                :> CanThrow 'InvalidPermissions
                :> CanThrow 'NoAddToBinding
                :> CanThrow 'NotATeamMember
@@ -1671,6 +1679,7 @@ type TeamMemberAPI =
     :<|> Named
            "delete-non-binding-team-member"
            ( Summary "Remove an existing team member"
+               -- FUTUREWORK: deprecated in https://github.com/wireapp/wire-server/pull/2607
                :> CanThrow AuthenticationError
                :> CanThrow 'AccessDenied
                :> CanThrow 'TeamMemberNotFound

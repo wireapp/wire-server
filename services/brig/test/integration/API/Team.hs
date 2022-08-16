@@ -392,7 +392,6 @@ testCreateTeam brig galley aws = do
   teams <- view teamListTeams <$> getTeams uid galley
   liftIO $ assertBool "User not part of exactly one team" (length teams == 1)
   let team = fromMaybe (error "No team??") $ listToMaybe teams
-  liftIO $ assertBool "Team not binding" (team ^. teamBinding == Binding)
   mem <- getTeamMember uid (team ^. teamId) galley
   liftIO $ assertBool "Member not part of the team" (uid == mem ^. Member.userId)
   -- Verify that the user cannot send invitations before activating their account
@@ -426,7 +425,6 @@ testCreateTeamPreverified brig galley aws = do
       teams <- view teamListTeams <$> getTeams uid galley
       liftIO $ assertBool "User not part of exactly one team" (length teams == 1)
       let team = fromMaybe (error "No team??") $ listToMaybe teams
-      liftIO $ assertBool "Team not binding" (team ^. teamBinding == Binding)
       mem <- getTeamMember uid (team ^. teamId) galley
       liftIO $ assertBool "Member not part of the team" (uid == mem ^. Member.userId)
       team2 <- getTeam galley (team ^. teamId)
@@ -560,7 +558,7 @@ testInvitationMutuallyExclusive brig = do
 testInvitationTooManyMembers :: Brig -> Galley -> TeamSizeLimit -> Http ()
 testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
   (creator, tid) <- createUserWithTeam brig
-  pooledForConcurrentlyN_ 16 [1 .. limit -1] $ \_ -> do
+  pooledForConcurrentlyN_ 16 [1 .. limit - 1] $ \_ -> do
     void $ createTeamMember brig galley creator tid fullPermissions
   SearchUtil.refreshIndex brig
   let invite email = stdInvitationRequest email
@@ -653,7 +651,7 @@ testInvitationInfoExpired brig timeout = do
       liftIO $ threadDelay 1000000
       r <- getCode t i
       when (statusCode r == 200 && n > 0) $
-        awaitExpiry (n -1) t i
+        awaitExpiry (n - 1) t i
 
 testSuspendTeam :: Brig -> Http ()
 testSuspendTeam brig = do

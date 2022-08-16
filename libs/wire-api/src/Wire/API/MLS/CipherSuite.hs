@@ -1,5 +1,4 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StandaloneKindSignatures #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -46,7 +45,7 @@ instance ToSchema CipherSuite where
       cipherSuiteNumber .= fmap CipherSuite (unnamed schema)
 
 data CipherSuiteTag = MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-  deriving stock (Bounded, Enum, Eq, Show, Generic)
+  deriving stock (Bounded, Enum, Eq, Show, Generic, Ord)
   deriving (Arbitrary) via (GenericUniform CipherSuiteTag)
 
 instance S.ToSchema CipherSuiteTag where

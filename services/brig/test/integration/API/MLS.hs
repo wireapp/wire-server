@@ -21,12 +21,15 @@ import API.MLS.Util
 import Bilge
 import Bilge.Assert
 import Brig.Options
+import Control.Timeout
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
+import Data.Default
 import Data.Id
 import Data.Qualified
 import qualified Data.Set as Set
+import Data.Timeout
 import Federation.Util
 import Imports
 import Test.QuickCheck hiding ((===))
@@ -47,6 +50,7 @@ tests m b opts =
     [ test m "POST /mls/key-packages/self/:client" (testKeyPackageUpload b),
       test m "POST /mls/key-packages/self/:client (no public keys)" (testKeyPackageUploadNoKey b),
       test m "GET /mls/key-packages/self/:client/count" (testKeyPackageZeroCount b),
+      test m "GET /mls/key-packages/self/:client/count (expired package)" (testKeyPackageExpired b),
       test m "GET /mls/key-packages/claim/local/:user" (testKeyPackageClaim b),
       test m "GET /mls/key-packages/claim/local/:user - self claim" (testKeyPackageSelfClaim b),
       test m "GET /mls/key-packages/claim/remote/:user" (testKeyPackageRemoteClaim opts b)
@@ -57,7 +61,7 @@ testKeyPackageUpload brig = do
   u <- userQualifiedId <$> randomUser brig
   c <- createClient brig u 0
   withSystemTempDirectory "mls" $ \tmp ->
-    uploadKeyPackages brig tmp SetKey u c 5
+    uploadKeyPackages brig tmp def u c 5
 
   count <- getKeyPackageCount brig u c
   liftIO $ count @?= 5
@@ -67,7 +71,7 @@ testKeyPackageUploadNoKey brig = do
   u <- userQualifiedId <$> randomUser brig
   c <- createClient brig u 0
   withSystemTempDirectory "mls" $ \tmp ->
-    uploadKeyPackages brig tmp DontSetKey u c 5
+    uploadKeyPackages brig tmp def {kiSetKey = DontSetKey} u c 5
 
   count <- getKeyPackageCount brig u c
   liftIO $ count @?= 0
@@ -79,6 +83,26 @@ testKeyPackageZeroCount brig = do
   count <- getKeyPackageCount brig u c
   liftIO $ count @?= 0
 
+testKeyPackageExpired :: Brig -> Http ()
+testKeyPackageExpired brig = do
+  u <- userQualifiedId <$> randomUser brig
+  let lifetime = 2 # Second
+  [c1, c2] <- for [(0, Just lifetime), (1, Nothing)] $ \(i, lt) -> do
+    c <- createClient brig u i
+    -- upload 1 key package for each client
+    withSystemTempDirectory "mls" $ \tmp ->
+      uploadKeyPackages brig tmp def {kiLifetime = lt} u c 1
+    pure c
+  for_ [(c1, 1), (c2, 1)] $ \(cid, expectedCount) -> do
+    count <- getKeyPackageCount brig u cid
+    liftIO $ count @?= expectedCount
+  -- wait for c1's key package to expire
+  sleep . fromIntegral $ (lifetime + 3 # Second) #> Second
+  -- c1's key package has expired by now
+  for_ [(c1, 0), (c2, 1)] $ \(cid, expectedCount) -> do
+    count <- getKeyPackageCount brig u cid
+    liftIO $ count @?= expectedCount
+
 testKeyPackageClaim :: Brig -> Http ()
 testKeyPackageClaim brig = do
   -- setup a user u with two clients c1 and c2
@@ -87,7 +111,7 @@ testKeyPackageClaim brig = do
     c <- createClient brig u i
     -- upload 3 key packages for each client
     withSystemTempDirectory "mls" $ \tmp ->
-      uploadKeyPackages brig tmp SetKey u c 3
+      uploadKeyPackages brig tmp def u c 3
     pure c
 
   -- claim packages for both clients of u
@@ -117,7 +141,7 @@ testKeyPackageSelfClaim brig = do
     c <- createClient brig u i
     -- upload 3 key packages for each client
     withSystemTempDirectory "mls" $ \tmp ->
-      uploadKeyPackages brig tmp SetKey u c 3
+      uploadKeyPackages brig tmp def u c 3
     pure c
 
   -- claim own packages but skip the first

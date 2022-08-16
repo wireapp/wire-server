@@ -48,6 +48,7 @@ import qualified Data.Csv as Csv
 import Data.Handle (Handle (Handle), fromHandle, parseHandleEither)
 import Data.Id (TeamId, UserId, randomId)
 import Data.Ix (inRange)
+import Data.LanguageCodes (ISO639_1 (..))
 import Data.Misc (HttpsUrl, mkHttpsUrl)
 import Data.String.Conversions (cs)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -473,6 +474,11 @@ specCreateUser = describe "POST /Users" $ do
     it "creates a user in an existing team" $ do
       testCreateUserWithSamlIdP
     it "adds a Wire scheme to the user record" $ testSchemaIsAdded
+    it "set locale to default and update to de" $ testCreateUserWithSamlIdPWithPreferredLanguage Nothing (Just (Locale (Language DE) Nothing))
+    it "set locale to fr and update to de" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language FR) Nothing)) (Just (Locale (Language DE) Nothing))
+    it "set locale to hr and update to de" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language HR) Nothing)) (Just (Locale (Language DE) Nothing))
+    it "set locale to hr and update to default" $ testCreateUserWithSamlIdPWithPreferredLanguage (Just (Locale (Language HR) Nothing)) Nothing
+    it "set locale to default and update to default" $ testCreateUserWithSamlIdPWithPreferredLanguage Nothing Nothing
   it "requires externalId to be present" $ testExternalIdIsRequired
   it "rejects invalid handle" $ testCreateRejectsInvalidHandle
   it "rejects occupied handle" $ testCreateRejectsTakenHandle
@@ -678,8 +684,8 @@ testCreateUserWithSamlIdP :: TestSpar ()
 testCreateUserWithSamlIdP = do
   env <- ask
   -- Create a user via SCIM
-  user <- randomScimUser
   (tok, (owner, tid, _idp)) <- registerIdPAndScimToken
+  user <- randomScimUser
   scimStoredUser <- createUser tok user
   let userid = scimUserId scimStoredUser
   -- Check that this user is present in Brig and that Brig's view of the user
@@ -708,6 +714,32 @@ testCreateUserWithSamlIdP = do
   liftIO $ members `shouldContain` [userid]
 
   checkChangeRoleOfTeamMember tid owner userid
+
+testCreateUserWithSamlIdPWithPreferredLanguage :: Maybe Locale -> Maybe Locale -> TestSpar ()
+testCreateUserWithSamlIdPWithPreferredLanguage mLocale mLocaleUpdate = do
+  defLocale <- getDefaultUserLocale
+  (tok, (_, _, _idp)) <- registerIdPAndScimToken
+  user <- do
+    u <- randomScimUser
+    pure $ u {Scim.User.preferredLanguage = lan2Text . lLanguage <$> mLocale}
+  -- create
+  userid <- scimUserId <$> createUser tok user
+  brigUser <- getBrigUser userid
+  lift $ userLocale brigUser `shouldBe` fromMaybe defLocale mLocale
+  -- update
+  void $ updateUser tok userid user {Scim.User.preferredLanguage = lan2Text . lLanguage <$> mLocaleUpdate}
+  updatedBrigUser <- getBrigUser userid
+  lift $ userLocale updatedBrigUser `shouldBe` fromMaybe defLocale mLocaleUpdate
+  where
+    getBrigUser :: UserId -> TestSpar User
+    getBrigUser userid = do
+      env <- ask
+      fmap responseJsonUnsafe . call . get $
+        ( (env ^. teBrig)
+            . header "Z-User" (toByteString' userid)
+            . path "/self"
+            . expect2xx
+        )
 
 -- | Test that Wire-specific schemas are added to the SCIM user record, even if the schemas
 -- were not present in the original record during creation.
@@ -1073,12 +1105,13 @@ testListProvisionedUsers = do
 
 testFindProvisionedUser :: TestSpar ()
 testFindProvisionedUser = do
+  defLang <- lLanguage <$> getDefaultUserLocale
   user <- randomScimUser
   (tok, (_, _, _)) <- registerIdPAndScimToken
   storedUser <- createUser tok user
   [storedUser'] <- listUsers tok (Just (filterBy "userName" (Scim.User.userName user)))
   liftIO $ storedUser' `shouldBe` storedUser
-  liftIO $ Scim.value (Scim.thing storedUser') `shouldBe` normalizeLikeStored user {Scim.User.emails = [] {- only after validation -}}
+  liftIO $ Scim.value (Scim.thing storedUser') `shouldBe` normalizeLikeStored (setPreferredLanguage defLang user {Scim.User.emails = [] {- only after validation -}})
   let Just externalId = Scim.User.externalId user
   users' <- listUsers tok (Just (filterBy "externalId" externalId))
   liftIO $ users' `shouldBe` [storedUser]
@@ -1464,6 +1497,7 @@ testUserUpdateFailsWithNotFoundIfOutsideTeam = do
 -- | Test that @PUT@-ting the user and then @GET@-ting it returns the right thing.
 testScimSideIsUpdated :: TestSpar ()
 testScimSideIsUpdated = do
+  defLang <- lLanguage <$> getDefaultUserLocale
   -- Create a user via SCIM
   user <- randomScimUser
   (tok, (_, _, idp)) <- registerIdPAndScimToken
@@ -1480,7 +1514,7 @@ testScimSideIsUpdated = do
   -- 'updateUser'
   richInfoLimit <- view (teOpts . to Spar.Types.richInfoLimit)
   liftIO $ do
-    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit user'
+    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit (setPreferredLanguage defLang user')
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
     let meta = Scim.meta storedUser
         meta' = Scim.meta storedUser'
@@ -1515,6 +1549,7 @@ testUpdateToExistingExternalIdFails = do
 -- tries to set the name and handle, it might fail because the handle is "already claimed".
 testUpdateSameHandle :: TestSpar ()
 testUpdateSameHandle = do
+  defLang <- lLanguage <$> getDefaultUserLocale
   -- Create a user via SCIM
   user <- randomScimUser
   (tok, (_, _, idp)) <- registerIdPAndScimToken
@@ -1535,7 +1570,7 @@ testUpdateSameHandle = do
   -- Check that the updated user also matches the data that we sent with 'updateUser'
   richInfoLimit <- view (teOpts . to Spar.Types.richInfoLimit)
   liftIO $ do
-    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit user'
+    Right (Scim.value (Scim.thing storedUser')) `shouldBe` whatSparReturnsFor idp richInfoLimit (setPreferredLanguage defLang user')
     Scim.id (Scim.thing storedUser') `shouldBe` Scim.id (Scim.thing storedUser)
     let meta = Scim.meta storedUser
         meta' = Scim.meta storedUser'
@@ -1666,7 +1701,8 @@ testBrigSideIsUpdated = do
   _ <- updateUser tok userid user'
   validScimUser <- either (error . show) pure $ validateScimUser' "testBrigSideIsUpdated" (Just idp) 999999 user'
   brigUser <- maybe (error "no brig user") pure =<< runSpar (Intra.getBrigUser Intra.WithPendingInvitations userid)
-  brigUser `userShouldMatch` validScimUser
+  let scimUserWithDefLocale = (validScimUser {Spar.Types._vsuLocale = Spar.Types._vsuLocale validScimUser <|> Just (Locale (Language EN) Nothing)})
+  brigUser `userShouldMatch` scimUserWithDefLocale
 
 ----------------------------------------------------------------------------
 -- Patching users
@@ -2121,7 +2157,6 @@ specSCIMManaged = do
       (tok, (owner, tid, _idp)) <- registerIdPAndScimToken
       scimStoredUser <- createUser tok user
       let _userid = scimUserId scimStoredUser
-      putStrLn $ "userid: " <> show _userid
       resp <-
         call $
           get (g . accept "text/csv" . paths ["teams", toByteString' tid, "members/csv"] . zUser owner) <!! do

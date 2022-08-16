@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-set -e
-
-APP=api-simulations
-
-# Create empty config directory
-mkdir -p /etc/$APP
-chown -R api-simulations:api-simulations /etc/$APP

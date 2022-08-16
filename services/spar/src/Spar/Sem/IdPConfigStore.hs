@@ -32,6 +32,7 @@ module Spar.Sem.IdPConfigStore
     setReplacedBy,
     clearReplacedBy,
     deleteIssuer,
+    newHandle,
   )
 where
 
@@ -50,6 +51,7 @@ newtype Replacing = Replacing SAML.IdPId
 
 data IdPConfigStore m a where
   InsertConfig :: IP.IdP -> IdPConfigStore m ()
+  NewHandle :: TeamId -> IdPConfigStore m IP.IdPHandle
   GetConfig :: SAML.IdPId -> IdPConfigStore m IP.IdP
   GetIdPByIssuerV1Maybe :: SAML.Issuer -> IdPConfigStore m (Maybe IP.IdP)
   GetIdPByIssuerV1 :: SAML.Issuer -> IdPConfigStore m IP.IdP

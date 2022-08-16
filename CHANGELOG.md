@@ -1,3 +1,75 @@
+# [2022-08-16] (Chart Release 4.22.0)
+
+## API changes
+
+
+* Drop the deprecated member removal endpoint (#2593)
+
+
+## Features
+
+
+* charts/cannon: Ensure HSTS headers are set for all endpoints (#2574)
+
+* Expired MLS key packages are deleted from the database (#2582)
+
+* Add support for MLS Remove proposals (#2561)
+
+* Human readable names for SAML IdPs (#2565)
+
+* The `preferredLanguage` field from SCIM now maps to the user locale in BRIG and will be set and updated on post SCIM user and on update SCIM user using SAML. (#2605)
+
+* For TLS1.2, by default, remove ECDHE-ECDSA-AES128-GCM-SHA256 and ECDHE-RSA-AES128-GCM-SHA256 ciphers for ingress traffic. (#2528)
+
+
+## Bug fixes and other updates
+
+
+* Allow deleting existing splash screens in `PUT /teams/:tid (see also PR#2474 in Release 4.18.0) (#2588)
+
+* Backoffice: Fix an issue where in some deployments ibis/galeb (Wire Cloud internal services) are unreachable from backoffice if deployed in a different namespace. (#2610)
+
+* Fix an issue for larger client requests on e.g. /list-users and /list-conversations, which were giving 413 errors for some users. Allow client requests of 256k by default (was 64k). (#2579)
+
+
+## Internal changes
+
+
+* Add shellcheck, libstdc++ to nix env; handle emacs auto-save files better (#2609)
+
+* Allow features to be set with HTTP method PATCH. This reflects a prior behavior
+  that is used by Ibis. Additionally, it's more consistent when all setters can be
+  called with PUT and PATCH. As this will fix calls by Ibis, the deployment order
+  doesn't matter. (#2575)
+
+* Brig Polysemization: introduce BlacklistStore and BlacklistPhonePrefixStore effects (#2590)
+
+* Add cabal-fmt development tool (#2601)
+
+* Reformat all cabal files with cabal-fmt (#2603)
+
+* Delete tools: bonanza and makedeb (#2600)
+
+* No more package.yaml / hpack, and stick with cabal files as the single (and only) source of truth (#2596)
+
+* Port Brig SearchAPI and UserRichInfo endpoints to Servant (#2580)
+
+* Added TTL data to stern feature flag GET endpoint. (#2564)
+
+* Prepare removing deprecated non-binding teams (no more used in integration tests) (#2514, #2607)
+
+* Add internal endpoint in Brig to update clients' key package refs in DB upon committing.
+  Brig should be deployed before Galley. (#2604)
+
+* Improved the resilience of provisioning new users via SAML by combining two persistence calls into one, preventing a creation failure from locking a user handle with no corresponding user. (#2526)
+
+
+## Federation changes
+
+
+* Fix TBS field in MLS Message type (#2599)
+
+
 # [2022-07-19] (Chart Release 4.21.0)
 
 ## Release notes

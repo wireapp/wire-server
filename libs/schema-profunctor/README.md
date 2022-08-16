@@ -203,6 +203,56 @@ Finally, we add a name to the schema using the `named`
 combinator. This does nothing to the JSON encoding-decoding part of
 the schema, and only affects the documentation.
 
+### Bespoke instances (Untagged sum type with overlapping values)
+
+Sometimes we have specific types handled in very specific ways, requiring
+a highly customised instance.
+
+Here's an example of such a type. We can have either Seconds or Unlimited,
+with a caveat: 0 ~ Unlimited.
+
+(This examples has problems: it (a) breaks the law that `decode
+. encode == Just . id`, and (b) allows you to construct a value
+`FeatureTTLSeconds 0` to mean unlimited, which will probably break
+your application code.  So consider this a suggestion what
+schema-profunctor *allows* you to do, not what you *should* be doing.)
+
+``` haskell
+data FeatureTTL
+  = FeatureTTLSeconds Word
+  | FeatureTTLUnlimited
+  deriving stock (Eq, Show)
+
+instance ToSchema FeatureTTL where
+  schema = mkSchema ttlDoc toTTL fromTTL
+    where
+      ttlDoc :: NamedSwaggerDoc
+      ttlDoc = swaggerDoc @Word & S.schema . S.example ?~ "unlimited"
+
+      toTTL :: A.Value -> A.Parser FeatureTTL
+      toTTL v = parseUnlimited v <|> parseSeconds v
+
+      parseUnlimited :: A.Value -> A.Parser FeatureTTL
+      parseUnlimited =
+        A.withText "FeatureTTL" $
+          \t ->
+            if t == "unlimited"
+              then pure FeatureTTLUnlimited
+              else A.parseFail "Expected ''unlimited' or '0'."
+
+      parseSeconds :: A.Value -> A.Parser FeatureTTL
+      parseSeconds = A.withScientific "FeatureTTL" $
+        \s -> case toBoundedInteger s of
+          Just 0 -> pure FeatureTTLUnlimited
+          Just i -> pure $ FeatureTTLSeconds i
+          Nothing -> A.parseFail "Expected an integer."
+
+      fromTTL :: FeatureTTL -> Maybe A.Value
+      fromTTL FeatureTTLUnlimited = Just "unlimited"
+      fromTTL (FeatureTTLSeconds 0) = Just "unlimited"
+      fromTTL (FeatureTTLSeconds s) = Just $ A.toJSON s
+```
+
 ### Enumerations
 
 As a special case of sum types, we have *enumerations*, where every

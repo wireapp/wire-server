@@ -21,7 +21,8 @@ module Test.Wire.API.Golden.Generated.WithStatus_team where
 
 import Data.Domain
 import Imports
-import Wire.API.Team.Feature
+import Wire.API.Team.Feature hiding (withStatus)
+import qualified Wire.API.Team.Feature as F
 
 testObject_WithStatus_team_1 :: WithStatus AppLockConfig
 testObject_WithStatus_team_1 = withStatus FeatureStatusEnabled LockStatusUnlocked (AppLockConfig (EnforceAppLock False) (-98))
@@ -73,3 +74,6 @@ testObject_WithStatus_team_16 = withStatus FeatureStatusDisabled LockStatusUnloc
 
 testObject_WithStatus_team_17 :: WithStatus SearchVisibilityInboundConfig
 testObject_WithStatus_team_17 = withStatus FeatureStatusEnabled LockStatusUnlocked SearchVisibilityInboundConfig
+
+withStatus :: FeatureStatus -> LockStatus -> cfg -> WithStatus cfg
+withStatus fs ls cfg = F.withStatus fs ls cfg FeatureTTLUnlimited

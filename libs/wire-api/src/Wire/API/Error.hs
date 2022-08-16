@@ -305,4 +305,4 @@ instance
   toUnion (Just x) = S (Z (I x))
   fromUnion (Z (I _)) = Nothing
   fromUnion (S (Z (I x))) = Just x
-  fromUnion (S (S x)) = case x of
+  fromUnion (S (S x)) = case x of {}

@@ -20,6 +20,7 @@
 module Galley.Cassandra.Proposal (interpretProposalStoreToCassandra) where
 
 import Cassandra
+import Data.Timeout
 import Galley.Cassandra.Instances ()
 import Galley.Cassandra.Store
 import Galley.Effects.ProposalStore
@@ -31,11 +32,9 @@ import Wire.API.MLS.Group
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 
-type TTL = Integer
-
--- | Proposals in the database expire after this timeout in seconds
-defaultTTL :: TTL
-defaultTTL = 28 * 24 * 60 * 60
+-- | Proposals in the database expire after this timeout
+defaultTTL :: Timeout
+defaultTTL = 28 # Day
 
 interpretProposalStoreToCassandra ::
   Members '[Embed IO, Input ClientState] r =>
@@ -52,12 +51,12 @@ interpretProposalStoreToCassandra =
       GetAllPendingProposals groupId epoch ->
         runIdentity <$$> retry x1 (query getAllPending (params LocalQuorum (groupId, epoch)))
 
-storeQuery :: TTL -> PrepQuery W (GroupId, Epoch, ProposalRef, RawMLS Proposal) ()
+storeQuery :: Timeout -> PrepQuery W (GroupId, Epoch, ProposalRef, RawMLS Proposal) ()
 storeQuery ttl =
   fromString $
     "insert into mls_proposal_refs (group_id, epoch, ref, proposal)\
     \ values (?, ?, ?, ?) using ttl "
-      <> show ttl
+      <> show (ttl #> Second)
 
 getQuery :: PrepQuery R (GroupId, Epoch, ProposalRef) (Identity (RawMLS Proposal))
 getQuery = "select proposal from mls_proposal_refs where group_id = ? and epoch = ? and ref = ?"

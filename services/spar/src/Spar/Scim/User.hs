@@ -446,21 +446,17 @@ createValidScimUser tokeninfo@ScimTokenInfo {stiTeam} vsu@(ST.ValidScimUser veid
                     -- `createValidScimUser` into a function `createValidScimUserBrig` similar
                     -- to `createValidScimUserSpar`?
                     uid <- Id <$> Random.uuid
-                    BrigAccess.createSAML uref uid stiTeam name ManagedByScim
+                    BrigAccess.createSAML uref uid stiTeam name ManagedByScim (Just handl) (Just richInfo) language
               )
-              ( \email ->
-                  BrigAccess.createNoSAML email stiTeam name language
+              ( \email -> do
+                  buid <- BrigAccess.createNoSAML email stiTeam name language
+                  BrigAccess.setHandle buid handl -- FUTUREWORK: possibly do the same one req as we do for saml?
+                  pure buid
               )
               veid
 
           Logger.debug ("createValidScimUser: brig says " <> show buid)
 
-          -- {If we crash now, we have an active user that cannot login. And can not
-          -- be bound this will be a zombie user that needs to be manually cleaned
-          -- up.  We should consider making setUserHandle part of createUser and
-          -- making it transactional.  If the user redoes the POST A new standalone
-          -- user will be created.}
-          BrigAccess.setHandle buid handl
           BrigAccess.setRichInfo buid richInfo
           pure buid
 
@@ -546,10 +542,10 @@ updateValidScimUser ::
   UserId ->
   ST.ValidScimUser ->
   m (Scim.StoredUser ST.SparTag)
-updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newValidScimUser =
+updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid nvsu =
   logScim
     ( logFunction "Spar.Scim.User.updateValidScimUser"
-        . logVSU newValidScimUser
+        . logVSU nvsu
         . logUser uid
         . logTokenInfo tokinfo
     )
@@ -560,6 +556,11 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newValidScimUser =
       oldValidScimUser :: ST.ValidScimUser <-
         validateScimUser "recover-old-value" tokinfo . Scim.value . Scim.thing $ oldScimStoredUser
 
+      -- if the locale of the new valid SCIM user is not set,
+      -- we set it to default value from brig
+      defLocale <- lift BrigAccess.getDefaultUserLocale
+      let newValidScimUser = nvsu {ST._vsuLocale = ST._vsuLocale nvsu <|> Just defLocale}
+
       -- assertions about new valid scim user that cannot be checked in 'validateScimUser' because
       -- they differ from the ones in 'createValidScimUser'.
       assertExternalIdNotUsedElsewhere stiTeam (newValidScimUser ^. ST.vsuExternalId) uid
@@ -567,33 +568,37 @@ updateValidScimUser tokinfo@ScimTokenInfo {stiTeam} uid newValidScimUser =
 
       if oldValidScimUser == newValidScimUser
         then pure oldScimStoredUser
-        else lift $ do
-          newScimStoredUser :: Scim.StoredUser ST.SparTag <-
-            updScimStoredUser (synthesizeScimUser newValidScimUser) oldScimStoredUser
+        else do
+          lift $ do
+            newScimStoredUser :: Scim.StoredUser ST.SparTag <-
+              updScimStoredUser (synthesizeScimUser newValidScimUser) oldScimStoredUser
 
-          do
-            let old = oldValidScimUser ^. ST.vsuExternalId
-                new = newValidScimUser ^. ST.vsuExternalId
-            when (old /= new) $
-              updateVsuUref stiTeam uid old new
+            do
+              let old = oldValidScimUser ^. ST.vsuExternalId
+                  new = newValidScimUser ^. ST.vsuExternalId
+              when (old /= new) $
+                updateVsuUref stiTeam uid old new
 
-          when (newValidScimUser ^. ST.vsuName /= oldValidScimUser ^. ST.vsuName) $
-            BrigAccess.setName uid (newValidScimUser ^. ST.vsuName)
+            when (newValidScimUser ^. ST.vsuName /= oldValidScimUser ^. ST.vsuName) $
+              BrigAccess.setName uid (newValidScimUser ^. ST.vsuName)
 
-          when (oldValidScimUser ^. ST.vsuHandle /= newValidScimUser ^. ST.vsuHandle) $
-            BrigAccess.setHandle uid (newValidScimUser ^. ST.vsuHandle)
+            when (oldValidScimUser ^. ST.vsuHandle /= newValidScimUser ^. ST.vsuHandle) $
+              BrigAccess.setHandle uid (newValidScimUser ^. ST.vsuHandle)
 
-          when (oldValidScimUser ^. ST.vsuRichInfo /= newValidScimUser ^. ST.vsuRichInfo) $
-            BrigAccess.setRichInfo uid (newValidScimUser ^. ST.vsuRichInfo)
+            when (oldValidScimUser ^. ST.vsuRichInfo /= newValidScimUser ^. ST.vsuRichInfo) $
+              BrigAccess.setRichInfo uid (newValidScimUser ^. ST.vsuRichInfo)
 
-          BrigAccess.getStatusMaybe uid >>= \case
-            Nothing -> pure ()
-            Just old -> do
-              let new = ST.scimActiveFlagToAccountStatus old (Just $ newValidScimUser ^. ST.vsuActive)
-              when (new /= old) $ BrigAccess.setStatus uid new
+            when (oldValidScimUser ^. ST.vsuLocale /= newValidScimUser ^. ST.vsuLocale) $ do
+              BrigAccess.setLocale uid (newValidScimUser ^. ST.vsuLocale)
 
-          ScimUserTimesStore.write newScimStoredUser
-          pure newScimStoredUser
+            BrigAccess.getStatusMaybe uid >>= \case
+              Nothing -> pure ()
+              Just old -> do
+                let new = ST.scimActiveFlagToAccountStatus old (Just $ newValidScimUser ^. ST.vsuActive)
+                when (new /= old) $ BrigAccess.setStatus uid new
+
+            ScimUserTimesStore.write newScimStoredUser
+          Scim.getUser tokinfo uid
 
 updateVsuUref ::
   Members
@@ -901,7 +906,8 @@ synthesizeScimUser info =
    in (Scim.empty ST.userSchemas userName (ST.ScimUserExtra (info ^. ST.vsuRichInfo)))
         { Scim.externalId = Brig.renderValidExternalId $ info ^. ST.vsuExternalId,
           Scim.displayName = Just $ fromName (info ^. ST.vsuName),
-          Scim.active = Just . Scim.ScimBool $ info ^. ST.vsuActive
+          Scim.active = Just . Scim.ScimBool $ info ^. ST.vsuActive,
+          Scim.preferredLanguage = lan2Text . lLanguage <$> info ^. ST.vsuLocale
         }
 
 getUserById ::

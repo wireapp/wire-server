@@ -160,7 +160,7 @@ instance FromByteString AssetKey where
         _ <- char '-'
         b <- takeByteString
         case UUID.fromASCIIBytes b of
-          Just i -> return $! AssetKeyV3 (Id i) r
+          Just i -> pure $! AssetKeyV3 (Id i) r
           Nothing -> fail "Invalid asset ID"
 
 instance ToByteString AssetKey where
@@ -346,11 +346,11 @@ instance ToByteString AssetRetention where
 instance FromByteString AssetRetention where
   parser =
     decimal >>= \d -> case (d :: Word) of
-      1 -> return AssetEternal
-      2 -> return AssetPersistent
-      3 -> return AssetVolatile
-      4 -> return AssetEternalInfrequentAccess
-      5 -> return AssetExpiring
+      1 -> pure AssetEternal
+      2 -> pure AssetPersistent
+      3 -> pure AssetVolatile
+      4 -> pure AssetEternalInfrequentAccess
+      5 -> pure AssetExpiring
       _ -> fail $ "Invalid asset retention: " ++ show d
 
 retentionToTextRep :: AssetRetention -> Text
@@ -420,7 +420,7 @@ instance
   fromUnion (Z (I _)) = Nothing
   fromUnion (S (Z (I loc))) = Just (LocalAsset loc)
   fromUnion (S (S (Z (I asset)))) = Just (RemoteAsset asset)
-  fromUnion (S (S (S x))) = case x of
+  fromUnion (S (S (S x))) = case x of {}
 
 makeLenses ''Asset'
 makeLenses ''AssetSettings

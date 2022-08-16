@@ -53,6 +53,7 @@ import qualified Data.ByteString as SBS
 import Data.ByteString.Builder (toLazyByteString)
 import Data.Id
 import Data.Proxy
+import Data.Range
 import qualified Data.Set as Set
 import Data.String.Conversions
 import Data.Time
@@ -490,6 +491,7 @@ idpCreate ::
   IdPMetadataInfo ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
+  Maybe (Range 1 32 Text) ->
   Sem r IdP
 idpCreate zusr (IdPMetadataValue raw xml) = idpCreateXML zusr raw xml
 
@@ -511,12 +513,14 @@ idpCreateXML ::
   SAML.IdPMetadata ->
   Maybe SAML.IdPId ->
   Maybe WireIdPAPIVersion ->
+  Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
+idpCreateXML zusr raw idpmeta mReplaces (fromMaybe defWireIdPAPIVersion -> apiversion) mHandle = withDebugLog "idpCreateXML" (Just . show . (^. SAML.idpId)) $ do
   teamid <- Brig.getZUsrCheckPerm zusr CreateUpdateDeleteIdp
   GalleyAccess.assertSSOEnabled teamid
   assertNoScimOrNoIdP teamid
-  idp <- validateNewIdP apiversion idpmeta teamid mReplaces
+  handle <- maybe (IdPConfigStore.newHandle teamid) pure (IdPHandle . fromRange <$> mHandle)
+  idp <- validateNewIdP apiversion idpmeta teamid mReplaces handle
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
   IdPConfigStore.insertConfig idp
   forM_ mReplaces $ \replaces ->
@@ -578,8 +582,9 @@ validateNewIdP ::
   SAML.IdPMetadata ->
   TeamId ->
   Maybe SAML.IdPId ->
+  IdPHandle ->
   m IdP
-validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validateNewIdP" (Just . show . (^. SAML.idpId)) $ do
+validateNewIdP apiversion _idpMetadata teamId mReplaces handle = withDebugLog "validateNewIdP" (Just . show . (^. SAML.idpId)) $ do
   _idpId <- SAML.IdPId <$> Random.uuid
   oldIssuers :: [SAML.Issuer] <- case mReplaces of
     Nothing -> pure []
@@ -587,7 +592,7 @@ validateNewIdP apiversion _idpMetadata teamId mReplaces = withDebugLog "validate
       idp <- IdPConfigStore.getConfig replaces
       pure $ (idp ^. SAML.idpMetadata . SAML.edIssuer) : (idp ^. SAML.idpExtraInfo . wiOldIssuers)
   let requri = _idpMetadata ^. SAML.edRequestURI
-      _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing
+      _idpExtraInfo = WireIdP teamId (Just apiversion) oldIssuers Nothing handle
   enforceHttps requri
   mbIdp <- case apiversion of
     WireIdPAPIV1 -> IdPConfigStore.getIdPByIssuerV1Maybe (_idpMetadata ^. SAML.edIssuer)
@@ -624,6 +629,7 @@ idpUpdate ::
   Maybe UserId ->
   IdPMetadataInfo ->
   SAML.IdPId ->
+  Maybe (Range 1 32 Text) ->
   Sem r IdP
 idpUpdate zusr (IdPMetadataValue raw xml) = idpUpdateXML zusr raw xml
 
@@ -642,22 +648,26 @@ idpUpdateXML ::
   Text ->
   SAML.IdPMetadata ->
   SAML.IdPId ->
+  Maybe (Range 1 32 Text) ->
   Sem r IdP
-idpUpdateXML zusr raw idpmeta idpid = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
+idpUpdateXML zusr raw idpmeta idpid mHandle = withDebugLog "idpUpdateXML" (Just . show . (^. SAML.idpId)) $ do
   (teamid, idp) <- validateIdPUpdate zusr idpmeta idpid
   GalleyAccess.assertSSOEnabled teamid
   IdPRawMetadataStore.store (idp ^. SAML.idpId) raw
+  let idp' :: IdP = case mHandle of
+        Just idpHandle -> idp & (SAML.idpExtraInfo . wiHandle) .~ IdPHandle (fromRange idpHandle)
+        Nothing -> idp
   -- (if raw metadata is stored and then spar goes out, raw metadata won't match the
   -- structured idp config.  since this will lead to a 5xx response, the client is expected to
   -- try again, which would clean up cassandra state.)
-  IdPConfigStore.insertConfig idp
+  IdPConfigStore.insertConfig idp'
   -- if the IdP issuer is updated, the old issuer must be removed explicitly.
   -- if this step is ommitted (due to a crash) resending the update request should fix the inconsistent state.
-  let mbteamid = case fromMaybe defWireIdPAPIVersion $ idp ^. SAML.idpExtraInfo . wiApiVersion of
+  let mbteamid = case fromMaybe defWireIdPAPIVersion $ idp' ^. SAML.idpExtraInfo . wiApiVersion of
         WireIdPAPIV1 -> Nothing
         WireIdPAPIV2 -> Just teamid
-  forM_ (idp ^. SAML.idpExtraInfo . wiOldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
-  pure idp
+  forM_ (idp' ^. SAML.idpExtraInfo . wiOldIssuers) (flip IdPConfigStore.deleteIssuer mbteamid)
+  pure idp'
 
 -- | Check that: idp id is valid; calling user is admin in that idp's home team; team id in
 -- new metainfo doesn't change; new issuer (if changed) is not in use anywhere else (except as

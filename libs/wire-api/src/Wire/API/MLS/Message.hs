@@ -21,28 +21,36 @@
 
 module Wire.API.MLS.Message
   ( Message (..),
+    msgGroupId,
+    msgEpoch,
+    msgSender,
+    msgPayload,
+    MessageTBS (..),
+    MessageExtraFields (..),
     WireFormatTag (..),
     SWireFormatTag (..),
     SomeMessage (..),
     ContentType (..),
     MessagePayload (..),
-    MessagePayloadTBS (..),
     Sender (..),
     MLSPlainTextSym0,
     MLSCipherTextSym0,
     MLSMessageSendingStatus (..),
+    verifyMessageSignature,
   )
 where
 
 import Control.Lens ((?~))
 import qualified Data.Aeson as A
 import Data.Binary
+import Data.Binary.Get
 import Data.Json.Util
 import Data.Schema
 import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Imports
 import Wire.API.Event.Conversation
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
@@ -58,32 +66,85 @@ $(genSingletons [''WireFormatTag])
 instance ParseMLS WireFormatTag where
   parseMLS = parseMLSEnum @Word8 "wire format"
 
+data family MessageExtraFields (tag :: WireFormatTag) :: *
+
+data instance MessageExtraFields 'MLSPlainText = MessageExtraFields
+  { msgSignature :: ByteString,
+    msgConfirmation :: Maybe ByteString,
+    msgMembership :: Maybe ByteString
+  }
+
+instance ParseMLS (MessageExtraFields 'MLSPlainText) where
+  parseMLS =
+    MessageExtraFields
+      <$> parseMLSBytes @Word16
+      <*> parseMLSOptional (parseMLSBytes @Word8)
+      <*> parseMLSOptional (parseMLSBytes @Word8)
+
+data instance MessageExtraFields 'MLSCipherText = NoExtraFields
+
+instance ParseMLS (MessageExtraFields 'MLSCipherText) where
+  parseMLS = pure NoExtraFields
+
 data Message (tag :: WireFormatTag) = Message
-  { msgGroupId :: GroupId,
-    msgEpoch :: Epoch,
-    msgAuthData :: ByteString,
-    msgSender :: Sender tag,
-    msgPayload :: MessagePayload tag
+  { msgTBS :: RawMLS (MessageTBS tag),
+    msgExtraFields :: MessageExtraFields tag
   }
 
 instance ParseMLS (Message 'MLSPlainText) where
+  parseMLS = Message <$> parseMLS <*> parseMLS
+
+instance ParseMLS (Message 'MLSCipherText) where
+  parseMLS = Message <$> parseMLS <*> parseMLS
+
+-- | This corresponds to the format byte at the beginning of a message.
+-- It does not convey any information, but it needs to be present in
+-- order for signature verification to work.
+data KnownFormatTag (tag :: WireFormatTag) = KnownFormatTag
+
+instance ParseMLS (KnownFormatTag tag) where
+  parseMLS = parseMLS @WireFormatTag $> KnownFormatTag
+
+data MessageTBS (tag :: WireFormatTag) = MessageTBS
+  { tbsMsgFormat :: KnownFormatTag tag,
+    tbsMsgGroupId :: GroupId,
+    tbsMsgEpoch :: Epoch,
+    tbsMsgAuthData :: ByteString,
+    tbsMsgSender :: Sender tag,
+    tbsMsgPayload :: MessagePayload tag
+  }
+
+msgGroupId :: Message tag -> GroupId
+msgGroupId = tbsMsgGroupId . rmValue . msgTBS
+
+msgEpoch :: Message tag -> Epoch
+msgEpoch = tbsMsgEpoch . rmValue . msgTBS
+
+msgSender :: Message tag -> Sender tag
+msgSender = tbsMsgSender . rmValue . msgTBS
+
+msgPayload :: Message tag -> MessagePayload tag
+msgPayload = tbsMsgPayload . rmValue . msgTBS
+
+instance ParseMLS (MessageTBS 'MLSPlainText) where
   parseMLS = do
+    f <- parseMLS
     g <- parseMLS
     e <- parseMLS
     s <- parseMLS
     d <- parseMLSBytes @Word32
-    p <- parseMLS
-    pure (Message g e d s p)
+    MessageTBS f g e d s <$> parseMLS
 
-instance ParseMLS (Message 'MLSCipherText) where
+instance ParseMLS (MessageTBS 'MLSCipherText) where
   parseMLS = do
+    f <- parseMLS
     g <- parseMLS
     e <- parseMLS
     ct <- parseMLS
     d <- parseMLSBytes @Word32
     s <- parseMLS
     p <- parseMLSBytes @Word32
-    pure $ Message g e d s (CipherText ct p)
+    pure $ MessageTBS f g e d s (CipherText ct p)
 
 data SomeMessage where
   SomeMessage :: Sing tag -> Message tag -> SomeMessage
@@ -93,7 +154,7 @@ instance S.ToSchema SomeMessage where
 
 instance ParseMLS SomeMessage where
   parseMLS =
-    parseMLS >>= \case
+    lookAhead parseMLS >>= \case
       MLSPlainText -> SomeMessage SMLSPlainText <$> parseMLS
       MLSCipherText -> SomeMessage SMLSCipherText <$> parseMLS
 
@@ -129,26 +190,6 @@ data instance MessagePayload 'MLSCipherText = CipherText
     msgCipherText :: ByteString
   }
 
-data instance MessagePayload 'MLSPlainText = MessagePayload
-  { msgTBS :: MessagePayloadTBS,
-    msgSignature :: ByteString,
-    msgConfirmation :: Maybe ByteString,
-    msgMembership :: Maybe ByteString
-  }
-
-instance ParseMLS (MessagePayload 'MLSPlainText) where
-  parseMLS =
-    MessagePayload
-      <$> parseMLS
-        <*> parseMLSBytes @Word16
-        <*> parseMLSOptional (parseMLSBytes @Word8)
-        <*> parseMLSOptional (parseMLSBytes @Word8)
-
-data MessagePayloadTBS
-  = ApplicationMessage ByteString
-  | ProposalMessage (RawMLS Proposal)
-  | CommitMessage Commit
-
 data ContentType
   = ApplicationMessageTag
   | ProposalMessageTag
@@ -158,7 +199,12 @@ data ContentType
 instance ParseMLS ContentType where
   parseMLS = parseMLSEnum @Word8 "content type"
 
-instance ParseMLS MessagePayloadTBS where
+data instance MessagePayload 'MLSPlainText
+  = ApplicationMessage ByteString
+  | ProposalMessage (RawMLS Proposal)
+  | CommitMessage Commit
+
+instance ParseMLS (MessagePayload 'MLSPlainText) where
   parseMLS =
     parseMLS >>= \case
       ApplicationMessageTag -> ApplicationMessage <$> parseMLSBytes @Word32
@@ -185,3 +231,7 @@ instance ToSchema MLSMessageSendingStatus where
             "time"
             (description ?~ "The time of sending the message.")
             schema
+
+verifyMessageSignature :: CipherSuiteTag -> Message 'MLSPlainText -> ByteString -> Bool
+verifyMessageSignature cs msg pubkey =
+  csVerifySignature cs pubkey (rmRaw (msgTBS msg)) (msgSignature (msgExtraFields msg))

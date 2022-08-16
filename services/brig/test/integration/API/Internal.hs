@@ -22,7 +22,7 @@ where
 
 import API.Internal.Util
 import API.MLS (createClient)
-import API.MLS.Util (SetKey (SetKey), uploadKeyPackages)
+import API.MLS.Util
 import Bilge
 import Bilge.Assert
 import Brig.Data.User (lookupFeatureConferenceCalling, lookupStatus, userExists)
@@ -36,6 +36,7 @@ import Data.Aeson (decode)
 import qualified Data.Aeson.Lens as Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion (toByteString')
+import Data.Default
 import Data.Id
 import Data.Qualified (Qualified (qDomain, qUnqualified))
 import qualified Data.Set as Set
@@ -217,8 +218,8 @@ testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig 
           . (^?! Aeson.key "conferenceCalling")
           . responseJsonUnsafe @Aeson.Value
 
-  check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusEnabled ApiFt.ConferenceCallingConfig
-  check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusDisabled ApiFt.ConferenceCallingConfig
+  check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusEnabled ApiFt.ConferenceCallingConfig ApiFt.FeatureTTLUnlimited
+  check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusDisabled ApiFt.ConferenceCallingConfig ApiFt.FeatureTTLUnlimited
   check'
 
 keyPackageCreate :: HasCallStack => Brig -> Http KeyPackageRef
@@ -226,7 +227,7 @@ keyPackageCreate brig = do
   uid <- userQualifiedId <$> randomUser brig
   clid <- createClient brig uid 0
   withSystemTempDirectory "mls" $ \tmp ->
-    uploadKeyPackages brig tmp SetKey uid clid 2
+    uploadKeyPackages brig tmp def uid clid 2
 
   uid2 <- userQualifiedId <$> randomUser brig
   claimResp <-

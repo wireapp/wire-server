@@ -25,6 +25,7 @@ module Brig.User.Handle
 where
 
 import Brig.App
+import Brig.CanonicalInterpreter (runBrigToIO)
 import Brig.Data.Instances ()
 import qualified Brig.Data.User as User
 import Brig.Unique
@@ -44,7 +45,7 @@ claimHandle uid oldHandle newHandle =
         env <- ask
         let key = "@" <> fromHandle newHandle
         withClaim uid key (30 # Minute) $
-          runAppT env $
+          runBrigToIO env $
             do
               -- Record ownership
               wrapClient $ retry x5 $ write handleInsert (params LocalQuorum (newHandle, uid))

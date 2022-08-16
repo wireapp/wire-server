@@ -68,7 +68,7 @@ parseMLSVector getItem = do
     go endPos = do
       x <- getItem
       pos <- bytesRead
-      (:) <$> pure x <*> if pos < endPos then go endPos else pure []
+      (:) x <$> (if pos < endPos then go endPos else pure [])
 
 parseMLSBytes :: forall w. (Binary w, Integral w) => Get ByteString
 parseMLSBytes = do

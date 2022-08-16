@@ -50,13 +50,13 @@ interpretTeamFeatureStoreToCassandra ::
 interpretTeamFeatureStoreToCassandra = interpret $ \case
   TFS.GetFeatureConfig proxy tid -> embedClient $ getFeatureConfig proxy tid
   TFS.GetFeatureConfigMulti proxy tids -> embedClient $ getFeatureConfigMulti proxy tids
-  TFS.SetFeatureConfig proxy tid wsnl mTtl -> embedClient $ setFeatureConfig proxy tid wsnl mTtl
+  TFS.SetFeatureConfig proxy tid wsnl -> embedClient $ setFeatureConfig proxy tid wsnl
   TFS.GetFeatureLockStatus proxy tid -> embedClient $ getFeatureLockStatus proxy tid
   TFS.SetFeatureLockStatus proxy tid ls -> embedClient $ setFeatureLockStatus proxy tid ls
 
 class FeatureStatusCassandra cfg where
   getFeatureConfig :: MonadClient m => Proxy cfg -> TeamId -> m (Maybe (WithStatusNoLock cfg))
-  setFeatureConfig :: MonadClient m => Proxy cfg -> TeamId -> WithStatusNoLock cfg -> Maybe FeatureTTL -> m ()
+  setFeatureConfig :: MonadClient m => Proxy cfg -> TeamId -> WithStatusNoLock cfg -> m ()
 
   -- default implementation: no lock status
   getFeatureLockStatus :: MonadClient m => Proxy cfg -> TeamId -> m (Maybe LockStatus)
@@ -90,18 +90,14 @@ setFeatureStatusC ::
   String ->
   TeamId ->
   FeatureStatus ->
-  Maybe FeatureTTL ->
   m ()
-setFeatureStatusC statusCol tid status mTtl = do
+setFeatureStatusC statusCol tid status = do
   retry x5 $ write insert (params LocalQuorum (tid, status))
   where
     insert :: PrepQuery W (TeamId, FeatureStatus) ()
     insert =
       fromString $
         "insert into team_features (team_id, " <> statusCol <> ") values (?, ?)"
-          <> case mTtl of
-            Just (FeatureTTLSeconds d) | d > 0 -> " using ttl " <> show d
-            _ -> " using ttl 0"
 
 getLockStatusC ::
   forall m.
@@ -145,27 +141,27 @@ getFeatureConfigMulti proxy =
 
 instance FeatureStatusCassandra LegalholdConfig where
   getFeatureConfig _ = getTrivialConfigC "legalhold_status"
-  setFeatureConfig _ tid statusNoLock _mTtl = setFeatureStatusC "legalhold_status" tid (wssStatus statusNoLock) Nothing
+  setFeatureConfig _ tid statusNoLock = setFeatureStatusC "legalhold_status" tid (wssStatus statusNoLock)
 
 instance FeatureStatusCassandra SSOConfig where
   getFeatureConfig _ = getTrivialConfigC "sso_status"
-  setFeatureConfig _ tid statusNoLock _mTtl = setFeatureStatusC "sso_status" tid (wssStatus statusNoLock) Nothing
+  setFeatureConfig _ tid statusNoLock = setFeatureStatusC "sso_status" tid (wssStatus statusNoLock)
 
 instance FeatureStatusCassandra SearchVisibilityAvailableConfig where
   getFeatureConfig _ = getTrivialConfigC "search_visibility_status"
-  setFeatureConfig _ tid statusNoLock _mTtl = setFeatureStatusC "search_visibility_status" tid (wssStatus statusNoLock) Nothing
+  setFeatureConfig _ tid statusNoLock = setFeatureStatusC "search_visibility_status" tid (wssStatus statusNoLock)
 
 instance FeatureStatusCassandra ValidateSAMLEmailsConfig where
   getFeatureConfig _ = getTrivialConfigC "validate_saml_emails"
-  setFeatureConfig _ tid statusNoLock _mTtl = setFeatureStatusC "validate_saml_emails" tid (wssStatus statusNoLock) Nothing
+  setFeatureConfig _ tid statusNoLock = setFeatureStatusC "validate_saml_emails" tid (wssStatus statusNoLock)
 
 instance FeatureStatusCassandra ClassifiedDomainsConfig where
-  getFeatureConfig _ _tid = pure Nothing
-  setFeatureConfig _ _tid _statusNoLock _mTtl = pure ()
+  getFeatureConfig _ _tid = pure Nothing -- TODO(fisx): what's this about?
+  setFeatureConfig _ _tid _statusNoLock = pure ()
 
 instance FeatureStatusCassandra DigitalSignaturesConfig where
   getFeatureConfig _ = getTrivialConfigC "digital_signatures"
-  setFeatureConfig _ tid statusNoLock _mTtl = setFeatureStatusC "digital_signatures" tid (wssStatus statusNoLock) Nothing
+  setFeatureConfig _ tid statusNoLock = setFeatureStatusC "digital_signatures" tid (wssStatus statusNoLock)
 
 instance FeatureStatusCassandra AppLockConfig where
   getFeatureConfig _ tid = runMaybeT $ do
@@ -176,26 +172,28 @@ instance FeatureStatusCassandra AppLockConfig where
       WithStatusNoLock
         <$> mStatus
         <*> (AppLockConfig <$> mEnforce <*> mTimeout)
+        <*> Just FeatureTTLUnlimited
     where
       select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe EnforceAppLock, Maybe Int32)
       select =
-        "select app_lock_status, app_lock_enforce, app_lock_inactivity_timeout_secs\
+        "select app_lock_status, app_lock_enforce, app_lock_inactivity_timeout_secs \
         \ from team_features where team_id = ?"
 
-  setFeatureConfig _ tid status _mTtl = do
-    let enabled = wssStatus status
-        enforce = applockEnforceAppLock (wssConfig status)
+  setFeatureConfig _ tid status = do
+    let enforce = applockEnforceAppLock (wssConfig status)
         timeout = applockInactivityTimeoutSecs (wssConfig status)
-    retry x5 $ write insert (params LocalQuorum (tid, enabled, enforce, timeout))
+
+    retry x5 $ write insert (params LocalQuorum (tid, wssStatus status, enforce, timeout))
     where
       insert :: PrepQuery W (TeamId, FeatureStatus, EnforceAppLock, Int32) ()
       insert =
-        "insert into team_features (team_id, app_lock_status, app_lock_enforce,\
-        \ app_lock_inactivity_timeout_secs) values (?, ?, ?, ?)"
+        fromString $
+          "insert into team_features (team_id, app_lock_status, app_lock_enforce,\
+          \ app_lock_inactivity_timeout_secs) values (?, ?, ?, ?)"
 
 instance FeatureStatusCassandra FileSharingConfig where
   getFeatureConfig _ = getTrivialConfigC "file_sharing"
-  setFeatureConfig _ tid statusNoLock _mTtl = setFeatureStatusC "file_sharing" tid (wssStatus statusNoLock) Nothing
+  setFeatureConfig _ tid statusNoLock = setFeatureStatusC "file_sharing" tid (wssStatus statusNoLock)
   getFeatureLockStatus _ = getLockStatusC "file_sharing_lock_status"
   setFeatureLockStatus _ = setLockStatusC "file_sharing_lock_status"
 
@@ -208,13 +206,14 @@ instance FeatureStatusCassandra SelfDeletingMessagesConfig where
       WithStatusNoLock
         <$> mEnabled
         <*> fmap SelfDeletingMessagesConfig mTimeout
+        <*> Just FeatureTTLUnlimited
     where
       select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe Int32)
       select =
         "select self_deleting_messages_status, self_deleting_messages_ttl\
         \ from team_features where team_id = ?"
 
-  setFeatureConfig _ tid status _mTtl = do
+  setFeatureConfig _ tid status = do
     let statusValue = wssStatus status
         timeout = sdmEnforcedTimeoutSeconds . wssConfig $ status
     retry x5 $ write insert (params LocalQuorum (tid, statusValue, timeout))
@@ -228,12 +227,34 @@ instance FeatureStatusCassandra SelfDeletingMessagesConfig where
   setFeatureLockStatus _ = setLockStatusC "self_deleting_messages_lock_status"
 
 instance FeatureStatusCassandra ConferenceCallingConfig where
-  getFeatureConfig _ = getTrivialConfigC "conference_calling"
-  setFeatureConfig _ tid statusNoLock = setFeatureStatusC "conference_calling" tid (wssStatus statusNoLock)
+  getFeatureConfig _ tid = do
+    let q = query1 select (params LocalQuorum (Identity tid))
+    retry x1 q <&> \case
+      Nothing -> Nothing
+      Just (Nothing, _) -> Nothing
+      Just (Just status, mTtl) -> Just . forgetLock . setStatus status . setWsTTL (fromMaybe FeatureTTLUnlimited mTtl) $ defFeatureStatus
+    where
+      select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe FeatureTTL)
+      select =
+        fromString $
+          "select conference_calling, ttl(conference_calling) from team_features where team_id = ?"
+
+  setFeatureConfig _ tid statusNoLock =
+    retry x5 $ write insert (params LocalQuorum (tid, wssStatus statusNoLock))
+    where
+      renderFeatureTtl :: FeatureTTL -> String
+      renderFeatureTtl = \case
+        FeatureTTLSeconds d | d > 0 -> " using ttl " <> show d
+        _ -> " using ttl 0" -- 0 or unlimited (delete a column's existing TTL by setting its value to zero)
+      insert :: PrepQuery W (TeamId, FeatureStatus) ()
+      insert =
+        fromString $
+          "insert into team_features (team_id,conference_calling) values (?, ?)"
+            <> renderFeatureTtl (wssTTL statusNoLock)
 
 instance FeatureStatusCassandra GuestLinksConfig where
   getFeatureConfig _ = getTrivialConfigC "guest_links_status"
-  setFeatureConfig _ tid statusNoLock _mTtl = setFeatureStatusC "guest_links_status" tid (wssStatus statusNoLock) Nothing
+  setFeatureConfig _ tid statusNoLock = setFeatureStatusC "guest_links_status" tid (wssStatus statusNoLock)
 
   getFeatureLockStatus _ = getLockStatusC "guest_links_lock_status"
   setFeatureLockStatus _ = setLockStatusC "guest_links_lock_status"
@@ -248,7 +269,7 @@ instance FeatureStatusCassandra SndFactorPasswordChallengeConfig where
 
 instance FeatureStatusCassandra SearchVisibilityInboundConfig where
   getFeatureConfig _ = getTrivialConfigC "search_visibility_status"
-  setFeatureConfig _ tid statusNoLock _mTtl = setFeatureStatusC "search_visibility_status" tid (wssStatus statusNoLock) Nothing
+  setFeatureConfig _ tid statusNoLock = setFeatureStatusC "search_visibility_status" tid (wssStatus statusNoLock)
 
 instance FeatureStatusCassandra MLSConfig where
   getFeatureConfig _ tid = do
@@ -264,13 +285,14 @@ instance FeatureStatusCassandra MLSConfig where
                   <*> maybe (Just []) (Just . C.fromSet) allowedCipherSuites
                   <*> defaultCipherSuite
               )
+          <*> Just FeatureTTLUnlimited
     where
       select :: PrepQuery R (Identity TeamId) (Maybe FeatureStatus, Maybe ProtocolTag, Maybe (C.Set UserId), Maybe (C.Set CipherSuiteTag), Maybe CipherSuiteTag)
       select =
         "select mls_status, mls_default_protocol, mls_protocol_toggle_users, mls_allowed_ciphersuites, \
         \mls_default_ciphersuite from team_features where team_id = ?"
 
-  setFeatureConfig _ tid statusNoLock _mTtl = do
+  setFeatureConfig _ tid statusNoLock = do
     let status = wssStatus statusNoLock
     let MLSConfig protocolToggleUsers defaultProtocol allowedCipherSuites defaultCipherSuite = wssConfig statusNoLock
     retry x5 $

@@ -82,14 +82,6 @@ veidFromUserSSOId = \case
       (pure . EmailOnly)
       (parseEmail email)
 
-urefToExternalId :: SAML.UserRef -> Maybe Text
-urefToExternalId = fmap CI.original . SAML.shortShowNameID . view SAML.uidSubject
-
-urefToEmail :: SAML.UserRef -> Maybe Email
-urefToEmail uref = case uref ^. SAML.uidSubject . SAML.nameID of
-  SAML.UNameIDEmail email -> Just . emailFromSAML . CI.original $ email
-  _ -> Nothing
-
 -- | If the brig user has a 'UserSSOId', transform that into a 'ValidExternalId' (this is a
 -- total function as long as brig obeys the api).  Otherwise, if the user has an email, we can
 -- construct a return value from that (and an optional saml issuer).  If a user only has a

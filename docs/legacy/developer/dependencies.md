@@ -157,19 +157,6 @@ You need [`ormolu`](https://github.com/tweag/ormolu) on your PATH, get it with `
 
 We use [`headroom`](https://github.com/vaclavsvejcar/headroom), get it with `stack install headroom`
 
-## makedeb
-
-This is a tool to create debian-style binary packages. It is optional, and is only used if you want to install debian-style packages on your debian or ubuntu system.
-
-_Note_: If you want to build debian-style packages of cryptobox-c and other wire utilities, execute this step. otherwise, make sure to execute the 'Generic' version of the cryptobox-c step.
-
-```bash
-git clone https://github.com/wireapp/wire-server && cd wire-server/tools/makedeb
-export VERSION=0
-make dist
-dpkg -i ../../dist/makedeb*.deb
-```
-
 ## cryptobox-c
 
 ### Ubuntu / Debian

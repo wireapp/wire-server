@@ -19,6 +19,7 @@
 module Brig.API.User
   ( -- * User Accounts / Profiles
     createUser,
+    createUserSpar,
     createUserInviteViaScim,
     checkRestrictedUserCreation,
     Brig.API.User.updateUser,
@@ -98,7 +99,6 @@ import Brig.App
 import qualified Brig.Code as Code
 import Brig.Data.Activation (ActivationEvent (..), activationErrorToRegisterError)
 import qualified Brig.Data.Activation as Data
-import qualified Brig.Data.Blacklist as Blacklist
 import qualified Brig.Data.Client as Data
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.Properties as Data
@@ -108,6 +108,10 @@ import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
 import Brig.Data.UserPendingActivation
 import qualified Brig.Data.UserPendingActivation as Data
+import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
+import qualified Brig.Effects.BlacklistPhonePrefixStore as BlacklistPhonePrefixStore
+import Brig.Effects.BlacklistStore (BlacklistStore)
+import qualified Brig.Effects.BlacklistStore as BlacklistStore
 import qualified Brig.Federation.Client as Federation
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
@@ -139,7 +143,7 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Code
 import qualified Data.Currency as Currency
-import Data.Handle (Handle)
+import Data.Handle (Handle (fromHandle), parseHandle)
 import Data.Id as Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
@@ -175,6 +179,7 @@ import Wire.API.User
 import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
+import Wire.API.User.RichInfo
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -201,10 +206,10 @@ identityErrorToBrigError = \case
   IdentityErrorBlacklistedPhone -> Error.StdError $ errorToWai @'E.BlacklistedPhone
   IdentityErrorUserKeyExists -> Error.StdError $ errorToWai @'E.UserKeyExists
 
-verifyUniquenessAndCheckBlacklist :: UserKey -> ExceptT IdentityError (AppT r) ()
+verifyUniquenessAndCheckBlacklist :: Member BlacklistStore r => UserKey -> ExceptT IdentityError (AppT r) ()
 verifyUniquenessAndCheckBlacklist uk = do
   wrapClientE $ checkKey Nothing uk
-  blacklisted <- lift $ wrapClient $ Blacklist.exists uk
+  blacklisted <- lift $ liftSem $ BlacklistStore.exists uk
   when blacklisted $
     throwE (foldKey (const IdentityErrorBlacklistedEmail) (const IdentityErrorBlacklistedPhone) uk)
   where
@@ -213,8 +218,66 @@ verifyUniquenessAndCheckBlacklist uk = do
       unless av $
         throwE IdentityErrorUserKeyExists
 
+createUserSpar :: NewUserSpar -> ExceptT CreateUserSparError (AppT r) CreateUserResult
+createUserSpar new = do
+  let handle' = newUserSparHandle new
+      new' = newUserFromSpar new
+      ident = newUserSparSSOId new
+      tid = newUserSparTeamId new
+
+  -- Create account
+  account <- lift $ do
+    (account, pw) <- wrapClient $ newAccount new' Nothing (Just tid) handle'
+
+    let uid = userId (accountUser account)
+
+    -- FUTUREWORK: make this transactional if possible
+    wrapClient $ Data.insertAccount account Nothing pw False
+    case unRichInfo <$> newUserSparRichInfo new of
+      Just richInfo -> wrapClient $ Data.updateRichInfo uid richInfo
+      Nothing -> pure () -- Nothing to do
+    wrapHttp $ Intra.createSelfConv uid
+    wrapHttpClient $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
+
+    pure account
+
+  -- Add to team
+  userTeam <- withExceptT CreateUserSparRegistrationError $ addUserToTeamSSO account tid (SSOIdentity ident Nothing Nothing)
+
+  -- Set up feature flags
+  let uid = userId (accountUser account)
+  lift $ initAccountFeatureConfig uid
+
+  -- Set handle
+  updateHandle' uid handle'
+
+  pure $! CreateUserResult account Nothing Nothing (Just userTeam)
+  where
+    updateHandle' :: UserId -> Maybe Handle -> ExceptT CreateUserSparError (AppT r) ()
+    updateHandle' _ Nothing = pure ()
+    updateHandle' uid (Just h) = do
+      case parseHandle . fromHandle $ h of
+        Just handl -> withExceptT CreateUserSparHandleError $ changeHandle uid Nothing handl AllowSCIMUpdates
+        Nothing -> throwE $ CreateUserSparHandleError ChangeHandleInvalid
+
+    addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
+    addUserToTeamSSO account tid ident = do
+      let uid = userId (accountUser account)
+      added <- lift $ wrapHttp $ Intra.addTeamMember uid tid (Nothing, defaultRole)
+      unless added $
+        throwE RegisterErrorTooManyTeamMembers
+      lift $ do
+        wrapClient $ activateUser uid ident
+        void $ onActivated (AccountActivated account)
+        Log.info $
+          field "user" (toByteString uid)
+            . field "team" (toByteString tid)
+            . msg (val "Added via SSO")
+      Team.TeamName nm <- lift $ wrapHttp $ Intra.getTeamName tid
+      pure $ CreateUserTeam tid nm
+
 -- docs/reference/user/registration.md {#RefRegistration}
-createUser :: NewUser -> ExceptT RegisterError (AppT r) CreateUserResult
+createUser :: forall r. Member BlacklistStore r => NewUser -> ExceptT RegisterError (AppT r) CreateUserResult
 createUser new = do
   (email, phone) <- validateEmailAndPhone new
 
@@ -449,7 +512,7 @@ initAccountFeatureConfig uid = do
 -- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where
 -- users are invited to the team via scim.
-createUserInviteViaScim :: UserId -> NewUserScimInvitation -> ExceptT Error.Error (AppT r) UserAccount
+createUserInviteViaScim :: Member BlacklistStore r => UserId -> NewUserScimInvitation -> ExceptT Error.Error (AppT r) UserAccount
 createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = do
   email <- either (const . throwE . Error.StdError $ errorToWai @'E.InvalidEmail) pure (validateEmail rawEmail)
   let emKey = userEmailKey email
@@ -595,7 +658,7 @@ checkHandles check num = reverse <$> collectFree [] check num
 
 -- | Call 'changeEmail' and process result: if email changes to itself, succeed, if not, send
 -- validation email.
-changeSelfEmail :: UserId -> Email -> AllowSCIMUpdates -> ExceptT Error.Error (AppT r) ChangeEmailResponse
+changeSelfEmail :: Member BlacklistStore r => UserId -> Email -> AllowSCIMUpdates -> ExceptT Error.Error (AppT r) ChangeEmailResponse
 changeSelfEmail u email allowScim = do
   changeEmail u email allowScim !>> Error.changeEmailError >>= \case
     ChangeEmailIdempotent ->
@@ -615,7 +678,7 @@ changeSelfEmail u email allowScim = do
         (userIdentity usr)
 
 -- | Prepare changing the email (checking a number of invariants).
-changeEmail :: UserId -> Email -> AllowSCIMUpdates -> ExceptT ChangeEmailError (AppT r) ChangeEmailResult
+changeEmail :: Member BlacklistStore r => UserId -> Email -> AllowSCIMUpdates -> ExceptT ChangeEmailError (AppT r) ChangeEmailResult
 changeEmail u email allowScim = do
   em <-
     either
@@ -623,7 +686,7 @@ changeEmail u email allowScim = do
       pure
       (validateEmail email)
   let ek = userEmailKey em
-  blacklisted <- lift . wrapClient $ Blacklist.exists ek
+  blacklisted <- lift . liftSem $ BlacklistStore.exists ek
   when blacklisted $
     throwE (ChangeBlacklistedEmail email)
   available <- lift . wrapClient $ Data.keyAvailable ek (Just u)
@@ -647,7 +710,15 @@ changeEmail u email allowScim = do
 -------------------------------------------------------------------------------
 -- Change Phone
 
-changePhone :: UserId -> Phone -> ExceptT ChangePhoneError (AppT r) (Activation, Phone)
+changePhone ::
+  Members
+    '[ BlacklistStore,
+       BlacklistPhonePrefixStore
+     ]
+    r =>
+  UserId ->
+  Phone ->
+  ExceptT ChangePhoneError (AppT r) (Activation, Phone)
 changePhone u phone = do
   canonical <-
     maybe
@@ -659,11 +730,11 @@ changePhone u phone = do
   unless available $
     throwE PhoneExists
   timeout <- setActivationTimeout <$> view settings
-  blacklisted <- lift . wrapClient $ Blacklist.exists pk
+  blacklisted <- lift . liftSem $ BlacklistStore.exists pk
   when blacklisted $
     throwE BlacklistedNewPhone
   -- check if any prefixes of this phone number are blocked
-  prefixExcluded <- lift . wrapClient $ Blacklist.existsAnyPrefix canonical
+  prefixExcluded <- lift . liftSem $ BlacklistPhonePrefixStore.existsAny canonical
   when prefixExcluded $
     throwE BlacklistedNewPhone
   act <- lift . wrapClient $ Data.newActivation pk timeout (Just u)
@@ -862,7 +933,16 @@ onActivated (PhoneActivated uid phone) = do
   pure (uid, Just (PhoneIdentity phone), False)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
-sendActivationCode :: Either Email Phone -> Maybe Locale -> Bool -> ExceptT SendActivationCodeError (AppT r) ()
+sendActivationCode ::
+  Members
+    '[ BlacklistStore,
+       BlacklistPhonePrefixStore
+     ]
+    r =>
+  Either Email Phone ->
+  Maybe Locale ->
+  Bool ->
+  ExceptT SendActivationCodeError (AppT r) ()
 sendActivationCode emailOrPhone loc call = case emailOrPhone of
   Left email -> do
     ek <-
@@ -874,7 +954,7 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
     when exists $
       throwE $
         UserKeyInUse ek
-    blacklisted <- lift . wrapClient $ Blacklist.exists ek
+    blacklisted <- lift . liftSem $ BlacklistStore.exists ek
     when blacklisted $
       throwE (ActivationBlacklistedUserKey ek)
     uc <- lift . wrapClient $ Data.lookupActivationCode ek
@@ -894,11 +974,11 @@ sendActivationCode emailOrPhone loc call = case emailOrPhone of
     when exists $
       throwE $
         UserKeyInUse pk
-    blacklisted <- lift . wrapClient $ Blacklist.exists pk
+    blacklisted <- lift . liftSem $ BlacklistStore.exists pk
     when blacklisted $
       throwE (ActivationBlacklistedUserKey pk)
     -- check if any prefixes of this phone number are blocked
-    prefixExcluded <- lift . wrapClient $ Blacklist.existsAnyPrefix canonical
+    prefixExcluded <- lift . liftSem $ BlacklistPhonePrefixStore.existsAny canonical
     when prefixExcluded $
       throwE (ActivationBlacklistedUserKey pk)
     c <- lift . wrapClient $ fmap snd <$> Data.lookupActivationCode pk
@@ -1442,26 +1522,26 @@ lookupAccountsByIdentity emailOrPhone includePendingInvitations = do
     then pure result
     else pure $ filter ((/= PendingInvitation) . accountStatus) result
 
-isBlacklisted :: Either Email Phone -> (AppT r) Bool
+isBlacklisted :: Member BlacklistStore r => Either Email Phone -> AppT r Bool
 isBlacklisted emailOrPhone = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
-  wrapClient $ Blacklist.exists uk
+  liftSem $ BlacklistStore.exists uk
 
-blacklistInsert :: Either Email Phone -> (AppT r) ()
+blacklistInsert :: Member BlacklistStore r => Either Email Phone -> AppT r ()
 blacklistInsert emailOrPhone = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
-  wrapClient $ Blacklist.insert uk
+  liftSem $ BlacklistStore.insert uk
 
-blacklistDelete :: Either Email Phone -> (AppT r) ()
+blacklistDelete :: Member BlacklistStore r => Either Email Phone -> AppT r ()
 blacklistDelete emailOrPhone = do
   let uk = either userEmailKey userPhoneKey emailOrPhone
-  wrapClient $ Blacklist.delete uk
+  liftSem $ BlacklistStore.delete uk
 
-phonePrefixGet :: PhonePrefix -> (AppT r) [ExcludedPrefix]
-phonePrefixGet = wrapClient . Blacklist.getAllPrefixes
+phonePrefixGet :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (AppT r) [ExcludedPrefix]
+phonePrefixGet = liftSem . BlacklistPhonePrefixStore.getAll
 
-phonePrefixDelete :: PhonePrefix -> (AppT r) ()
-phonePrefixDelete = wrapClient . Blacklist.deletePrefix
+phonePrefixDelete :: Member BlacklistPhonePrefixStore r => PhonePrefix -> (AppT r) ()
+phonePrefixDelete = liftSem . BlacklistPhonePrefixStore.delete
 
-phonePrefixInsert :: ExcludedPrefix -> (AppT r) ()
-phonePrefixInsert = wrapClient . Blacklist.insertPrefix
+phonePrefixInsert :: Member BlacklistPhonePrefixStore r => ExcludedPrefix -> (AppT r) ()
+phonePrefixInsert = liftSem . BlacklistPhonePrefixStore.insert

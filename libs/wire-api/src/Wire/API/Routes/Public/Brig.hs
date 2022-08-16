@@ -51,7 +51,8 @@ import Wire.API.User hiding (NoIdentity)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
-import Wire.API.User.Search (Contact, SearchResult)
+import Wire.API.User.RichInfo (RichInfoAssocList)
+import Wire.API.User.Search (Contact, RoleFilter, SearchResult, TeamContact, TeamUserSearchSortBy, TeamUserSearchSortOrder)
 import Wire.API.UserMap
 
 type MaxUsersForListClientsBulk = 500
@@ -90,7 +91,7 @@ instance AsUnion DeleteSelfResponses (Maybe Timeout) where
   toUnion Nothing = Z (I ())
   fromUnion (Z (I ())) = Nothing
   fromUnion (S (Z (I (DeletionCodeTimeout t)))) = Just t
-  fromUnion (S (S x)) = case x of
+  fromUnion (S (S x)) = case x of {}
 
 type ConnectionUpdateResponses = UpdateResponses "Connection unchanged" "Connection updated" UserConnection
 
@@ -189,6 +190,20 @@ type UserAPI =
                :> "send"
                :> ReqBody '[JSON] SendVerificationCode
                :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Verification code sent."] ()
+           )
+    :<|> Named
+           "get-rich-info"
+           ( Summary "Get a user's rich info"
+               :> CanThrow 'InsufficientTeamPermissions
+               :> ZUser
+               :> "users"
+               :> CaptureUserId "uid"
+               :> "rich-info"
+               :> MultiVerb
+                    'GET
+                    '[JSON]
+                    '[Respond 200 "Rich info about the user" RichInfoAssocList]
+                    RichInfoAssocList
            )
 
 type SelfAPI =
@@ -856,6 +871,58 @@ type MLSKeyPackageAPI =
                   )
        )
 
+-- Search API -----------------------------------------------------
+
+type SearchAPI =
+  Named
+    "browse-team"
+    ( Summary "Browse team for members (requires add-user permission)"
+        :> ZUser
+        :> "teams"
+        :> Capture "tid" TeamId
+        :> "search"
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Search expression"
+             ]
+             "q"
+             Text
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Role filter, eg. `member,partner`.  Empty list means do not filter."
+             ]
+             "frole"
+             RoleFilter
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Can be one of name, handle, email, saml_idp, managed_by, role, created_at."
+             ]
+             "sortby"
+             TeamUserSearchSortBy
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Can be one of asc, desc."
+             ]
+             "sortorder"
+             TeamUserSearchSortOrder
+        :> QueryParam'
+             [ Optional,
+               Strict,
+               Description "Number of results to return (min: 1, max: 500, default: 15)"
+             ]
+             "size"
+             (Range 1 500 Int32)
+        :> MultiVerb
+             'GET
+             '[JSON]
+             '[Respond 200 "Search results" (SearchResult TeamContact)]
+             (SearchResult TeamContact)
+    )
+
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSKeyPackageAPI)
 
 type BrigAPI =
@@ -869,6 +936,7 @@ type BrigAPI =
     :<|> PropertiesAPI
     :<|> MLSAPI
     :<|> UserHandleAPI
+    :<|> SearchAPI
 
 brigSwagger :: Swagger
 brigSwagger = toSwagger (Proxy @BrigAPI)

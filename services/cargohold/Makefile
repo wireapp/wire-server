@@ -6,8 +6,6 @@ BUILD_NUMBER  ?= 0
 BUILD_LABEL   ?= local
 BUILD         := $(BUILD_NUMBER)$(shell [ "${BUILD_LABEL}" == "" ] && echo "" || echo ".${BUILD_LABEL}")
 EXE_IT        := ../../dist/$(NAME)-integration
-DEB           := dist/$(NAME)_$(VERSION)+$(BUILD)_amd64.deb
-DEB_IT        := dist/$(NAME)-integration_$(VERSION)+$(BUILD)_amd64.deb
 SDIST         := dist/$(NAME)-$(VERSION).tar.gz
 EXECUTABLES   := $(NAME) $(NAME)-integration
 DOCKER_USER    ?= quay.io/wire

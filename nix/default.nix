@@ -6,6 +6,7 @@ let
     overlays = [
       # All wire-server specific packages
       (import ./overlay.nix)
+      (import ./overlay-docs.nix)
     ];
   };
 
@@ -25,6 +26,8 @@ let
   compile-deps = pkgs.buildEnv {
     name = "wire-server-compile-deps";
     paths = [
+      pkgs.stdenv.cc.cc.lib
+
       pkgs.bash
       pkgs.coreutils
       pkgs.gnused
@@ -88,6 +91,7 @@ let
     pkgs.netcat
     pkgs.niv
     pkgs.ormolu
+    pkgs.shellcheck
     pkgs.python3
     pkgs.rsync
     pkgs.shellcheck
@@ -97,8 +101,8 @@ let
     cabal-wrapper
     stack-wrapper
 
-    # For cabal-migration
     pkgs.haskellPackages.cabal-plan
+    pkgs.haskellPackages.cabal-fmt
 
     # We don't use pkgs.cabal-install here, as we invoke it with a wrapper
     # which sets LD_LIBRARY_PATH and others correctly.
@@ -127,7 +131,49 @@ let
     name = "wire-server-direnv";
     paths = devPackages ++ [ profileEnv ];
   };
+
+  # packages necessary to build wire-server docs
+  docsPkgs = [
+    pkgs.texlive.combined.scheme-full
+    (pkgs.python3.withPackages
+      (ps: with ps; [
+        myst-parser
+        rst2pdf
+        sphinx
+        sphinx-autobuild
+        sphinx-multiversion
+        sphinx_rtd_theme
+        sphinxcontrib-fulltoc
+        sphinxcontrib-kroki
+      ]))
+  ];
+
+  docs =
+    pkgs.runCommandNoCC
+      "wire-docs"
+      {
+        nativeBuildInputs = docsPkgs ++ [ pkgs.gnumake ];
+      }
+      ''
+        cp -r ${pkgs.nix-gitignore.gitignoreSource [] ../docs}/* .
+        make docs-all
+        mkdir $out
+        cp -r build/* $out/
+      '';
+
+  docsEnv = pkgs.buildEnv
+    {
+      name = "wire-server-docs-env";
+      paths = [
+        pkgs.awscli
+        pkgs.jq
+        pkgs.niv
+        pkgs.zip
+        pkgs.entr
+      ] ++ docsPkgs;
+    };
+  mls_test_cli = pkgs.mls_test_cli;
 in
 {
-  inherit pkgs devPackages devEnv compile-deps;
+  inherit pkgs devPackages devEnv docs docsEnv compile-deps mls_test_cli;
 }

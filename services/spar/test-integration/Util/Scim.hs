@@ -27,6 +27,7 @@ import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as Lazy
 import Data.Handle (Handle (Handle))
 import Data.Id
+import Data.LanguageCodes (ISO639_1 (EN))
 import Data.String.Conversions (cs)
 import qualified Data.Text.Lazy as Lazy
 import Data.Time
@@ -52,6 +53,7 @@ import qualified Web.Scim.Schema.Common as Scim
 import qualified Web.Scim.Schema.ListResponse as Scim
 import qualified Web.Scim.Schema.Meta as Scim
 import qualified Web.Scim.Schema.PatchOp as Scim.PatchOp
+import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
 import qualified Web.Scim.Schema.User.Email as Email
 import qualified Web.Scim.Schema.User.Phone as Phone
@@ -535,6 +537,9 @@ acceptScim = accept "application/scim+json"
 scimUserId :: Scim.StoredUser SparTag -> UserId
 scimUserId = Scim.id . Scim.thing
 
+scimPreferredLanguage :: Scim.StoredUser SparTag -> Maybe Text
+scimPreferredLanguage = Scim.preferredLanguage . Scim.value . Scim.thing
+
 -- | There are a number of user types that all partially map on each other. This class
 -- provides a uniform interface to data stored in those types.
 --
@@ -558,6 +563,7 @@ class IsUser u where
   maybeTenant :: Maybe (u -> Maybe SAML.Issuer)
   maybeSubject :: Maybe (u -> Maybe SAML.NameID)
   maybeScimExternalId :: Maybe (u -> Maybe Text)
+  maybeLocale :: Maybe (u -> Maybe Locale)
 
 -- | 'ValidScimUser' is tested in ScimSpec.hs exhaustively with literal inputs, so here we assume it
 -- is correct and don't aim to verify that name, handle, etc correspond to ones in 'vsuUser'.
@@ -568,6 +574,7 @@ instance IsUser ValidScimUser where
   maybeTenant = Just (^? (vsuExternalId . veidUref . SAML.uidTenant))
   maybeSubject = Just (^? (vsuExternalId . veidUref . SAML.uidSubject))
   maybeScimExternalId = Just (runValidExternalIdEither Intra.urefToExternalId (Just . fromEmail) . view vsuExternalId)
+  maybeLocale = Just (view vsuLocale)
 
 instance IsUser (WrappedScimStoredUser SparTag) where
   maybeUserId = Just $ scimUserId . fromWrappedScimStoredUser
@@ -576,6 +583,7 @@ instance IsUser (WrappedScimStoredUser SparTag) where
   maybeTenant = maybeTenant <&> _wrappedStoredUserToWrappedUser
   maybeSubject = maybeSubject <&> _wrappedStoredUserToWrappedUser
   maybeScimExternalId = maybeScimExternalId <&> _wrappedStoredUserToWrappedUser
+  maybeLocale = maybeLocale <&> _wrappedStoredUserToWrappedUser
 
 _wrappedStoredUserToWrappedUser :: (WrappedScimUser tag -> a) -> (WrappedScimStoredUser tag -> a)
 _wrappedStoredUserToWrappedUser f = f . WrappedScimUser . Scim.value . Scim.thing . fromWrappedScimStoredUser
@@ -587,6 +595,14 @@ instance IsUser (WrappedScimUser SparTag) where
   maybeTenant = Nothing
   maybeSubject = Nothing
   maybeScimExternalId = Just $ Scim.User.externalId . fromWrappedScimUser
+  maybeLocale =
+    Just
+      ( \u ->
+          case Scim.User.preferredLanguage (fromWrappedScimUser u) >>= (\l -> parseLanguage l <&> flip Locale Nothing) of
+            -- this should match the default user locale in brig options
+            Nothing -> Just (Locale (Language EN) Nothing)
+            Just l -> Just l
+      )
 
 instance IsUser User where
   maybeUserId = Just userId
@@ -607,6 +623,7 @@ instance IsUser User where
       & either
         (const Nothing)
         (runValidExternalIdEither Intra.urefToExternalId (Just . fromEmail))
+  maybeLocale = Just $ Just . userLocale
 
 -- | For all properties that are present in both @u1@ and @u2@, check that they match.
 --
@@ -628,6 +645,7 @@ userShouldMatch u1 u2 = liftIO $ do
   check "tenant" maybeTenant
   check "subject" maybeSubject
   check "scim externalId" maybeScimExternalId
+  check "preferred language maps to locale" maybeLocale
   where
     check ::
       (Eq a, Show a) =>
@@ -647,6 +665,10 @@ whatSparReturnsFor idp richInfoSizeLimit =
   either (Left . show) (Right . synthesizeScimUser)
     . validateScimUser' "whatSparReturnsFor" (Just idp) richInfoSizeLimit
 
+setPreferredLanguage :: Language -> Scim.User.User SparTag -> Scim.User.User SparTag
+setPreferredLanguage lang u =
+  u {Scim.preferredLanguage = Scim.preferredLanguage u <|> Just (lan2Text lang)}
+
 -- this is not always correct, but hopefully for the tests that we're using it in it'll do.
 scimifyBrigUserHack :: User -> Email -> User
 scimifyBrigUserHack usr email =
@@ -654,3 +676,14 @@ scimifyBrigUserHack usr email =
     { userManagedBy = ManagedByScim,
       userIdentity = Just (SSOIdentity (UserScimExternalId (fromEmail email)) (Just email) Nothing)
     }
+
+getDefaultUserLocale :: TestSpar Locale
+getDefaultUserLocale = do
+  env <- ask
+  LocaleUpdate defLocale <-
+    fmap responseJsonUnsafe . call . get $
+      ( (env ^. teBrig)
+          . path "/i/users/locale"
+          . expect2xx
+      )
+  pure defLocale

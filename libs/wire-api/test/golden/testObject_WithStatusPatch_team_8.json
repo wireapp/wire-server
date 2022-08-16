@@ -5,5 +5,6 @@
             "test.foobar"
         ]
     },
-    "lockStatus": "locked"
+    "lockStatus": "locked",
+    "ttl" : "unlimited"
 }

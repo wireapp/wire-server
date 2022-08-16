@@ -876,6 +876,13 @@ packages:
   original:
     hackage: zlib-0.6.3.0
 - completed:
+    hackage: timeout-0.1.1@sha256:56c1d3321d7139d1f7ebf04d46c95d3a3f1c8c9e0f15666ae3ccd6bae6204b6e,1427
+    pantry-tree:
+      size: 437
+      sha256: e571503d7e609c3fe496de7e858613360bfa6c06e20ac57d9659bd32d0645889
+  original:
+    hackage: timeout-0.1.1
+- completed:
     hackage: ormolu-0.1.4.1@sha256:ed404eac6e4eb64da1ca5fb749e0f99907431a9633e6ba34e44d260e7d7728ba,6499
     pantry-tree:
       size: 74141

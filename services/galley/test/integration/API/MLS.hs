@@ -29,10 +29,12 @@ import Control.Arrow
 import Control.Lens (view)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
+import Data.ByteString.Conversion
 import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
+import qualified Data.List.NonEmpty as NE
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 hiding (head)
 import Data.Qualified
@@ -65,6 +67,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group (convToGroupId)
 import Wire.API.MLS.Message
 import Wire.API.Message
+import Wire.API.Routes.Version
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -97,7 +100,13 @@ tests s =
           test s "add remote user to a conversation" testAddRemoteUser,
           test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
           test s "post commit that references a unknown proposal" testUnknownProposalRefCommit,
-          test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals
+          test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
+          test s "admin removes user from a conversation" testAdminRemovesUserFromConv,
+          test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete,
+          test s "user tries to remove themselves from conversation" testUserRemovesThemselvesFromConv,
+          test s "anyone removes a non-existing client from a group" (testRemoveDeletedClient True),
+          test s "anyone removes an existing client from group, but the user has other clients" (testRemoveDeletedClient False),
+          test s "admin removes only strict subset of clients from a user" testRemoveSubset
         ],
       testGroup
         "Application Message"
@@ -291,6 +300,35 @@ testSuccessfulCommitWithNewUsers setup@MessagingSetup {..} newUsers = do
       WS.assertMatch_ (5 # WS.Second) ws $
         wsAssertMLSMessage conversation (pUserId creator) commit
 
+testSuccessfulRemoveMemberFromConvCommit ::
+  HasCallStack =>
+  Participant ->
+  [Participant] ->
+  Qualified ConvId ->
+  ByteString ->
+  [Participant] ->
+  TestM ()
+testSuccessfulRemoveMemberFromConvCommit admin users conv commit participantsToRemove = do
+  cannon <- view tsCannon
+
+  WS.bracketRN cannon (map (qUnqualified . pUserId) users) $ \wss -> do
+    events :: [Event] <-
+      fmap mmssEvents . responseJsonError
+        =<< postMessage (qUnqualified (pUserId admin)) commit
+        <!! statusCode === const 201
+
+    e <- assertOne events
+    liftIO $ assertLeaveEvent conv (pUserId admin) (map pUserId participantsToRemove) e
+
+    for_ wss $ \ws ->
+      WS.assertMatch_ (5 # WS.Second) ws $
+        wsAssertMembersLeave conv (pUserId admin) (map pUserId participantsToRemove)
+
+    -- all users (including the removed ones) receive the commit
+    for_ wss $ \ws -> do
+      WS.assertMatch_ (5 # WS.Second) ws $
+        wsAssertMLSMessage conv (pUserId admin) commit
+
 testFailedCommit :: HasCallStack => MessagingSetup -> Int -> TestM Wai.Error
 testFailedCommit MessagingSetup {..} status = do
   cannon <- view tsCannon
@@ -426,13 +464,13 @@ testAddUsersDirectly :: TestM ()
 testAddUsersDirectly = do
   setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
   void $ postCommit setup
-  charlie <- randomUser
+  charlie <- randomQualifiedUser
   e <-
     responseJsonError
       =<< postMembers
         (qUnqualified (pUserId creator))
         (pure charlie)
-        (qUnqualified conversation)
+        conversation
       <!! const 403 === statusCode
   liftIO $ Wai.label e @?= "invalid-op"
 
@@ -672,6 +710,127 @@ testCommitNotReferencingAllProposals = withSystemTempDirectory "mls" $ \tmp -> d
   err <- testFailedCommit (MessagingSetup {creator = alice, users = [bob, dee], ..}) 409
   liftIO $ Wai.label err @?= "mls-commit-missing-references"
 
+testAdminRemovesUserFromConv :: TestM ()
+testAdminRemovesUserFromConv = withSystemTempDirectory "mls" $ \tmp -> do
+  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
+  let [bob] = users
+
+  testSuccessfulCommit MessagingSetup {users = [bob], ..}
+
+  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" (pClients bob)
+
+  do
+    convs <-
+      responseJsonError =<< getConvs (qUnqualified (pUserId bob)) Nothing Nothing
+        <!! const 200 === statusCode
+    liftIO $
+      assertBool
+        "bob is in conversation before he gets removed"
+        (conversation `elem` map cnvQualifiedId (convList convs))
+
+  testSuccessfulRemoveMemberFromConvCommit creator [bob] conversation removalCommit [bob]
+
+  do
+    convs <-
+      responseJsonError =<< getConvs (qUnqualified (pUserId bob)) Nothing Nothing
+        <!! const 200 === statusCode
+    liftIO $
+      assertBool
+        "bob is not longer part of conversation after the commit"
+        (conversation `notElem` map cnvQualifiedId (convList convs))
+
+testRemoveClientsIncomplete :: TestM ()
+testRemoveClientsIncomplete = withSystemTempDirectory "mls" $ \tmp -> do
+  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
+  let [bob] = users
+
+  testSuccessfulCommit MessagingSetup {users = [bob], ..}
+
+  -- remove only first client of bob
+  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" [NE.head (pClients bob)]
+
+  err <-
+    responseJsonError
+      =<< postMessage (qUnqualified (pUserId creator)) removalCommit
+        <!! statusCode === const 409
+
+  liftIO $ Wai.label err @?= "mls-client-mismatch"
+
+testUserRemovesThemselvesFromConv :: TestM ()
+testUserRemovesThemselvesFromConv = withSystemTempDirectory "mls" $ \tmp -> do
+  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
+  let [bob] = users
+
+  testSuccessfulCommit MessagingSetup {users = [bob], ..}
+
+  -- FUTUREWORK: create commit as bob, when the openmls library supports removing own clients
+  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" (pClients bob)
+
+  -- bob tries to leave the conversation by removing all its clients
+  err <-
+    responseJsonError
+      =<< postMessage (qUnqualified (pUserId bob)) removalCommit
+        <!! statusCode === const 409
+
+  liftIO $ Wai.label err @?= "mls-self-removal-not-allowed"
+
+testRemoveDeletedClient :: Bool -> TestM ()
+testRemoveDeletedClient deleteClientBefore = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, [bob, dee]) <- withLastPrekeys $ setupParticipants tmp def [(2, LocalUser), (1, LocalUser)]
+
+  -- create a group
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
+
+  -- add clients to it and get welcome message
+  (addCommit, welcome) <-
+    liftIO $
+      setupCommit tmp creator "group" "group" $
+        NonEmpty.tail (pClients creator) <> toList (pClients bob) <> toList (pClients dee)
+
+  testSuccessfulCommit MessagingSetup {users = [bob, dee], commit = addCommit, ..}
+
+  let (_bobClient1, bobClient2) = assertTwo (toList (pClients bob))
+
+  when deleteClientBefore $
+    deleteClient (qUnqualified (pUserId bob)) (snd bobClient2) (Just defPassword)
+      !!! statusCode === const 200
+
+  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" [bobClient2]
+
+  -- dee (which is not an admin) commits removal of bob's deleted client
+  let doCommitRemoval = postMessage (qUnqualified (pUserId dee)) removalCommit
+
+  if deleteClientBefore
+    then do
+      events :: [Event] <-
+        fmap mmssEvents . responseJsonError
+          =<< doCommitRemoval
+            <!! statusCode === const 201
+      liftIO $ assertEqual "a non-admin received conversation events when removing a client" [] events
+    else do
+      err <-
+        responseJsonError
+          =<< doCommitRemoval
+            <!! statusCode === const 409
+      liftIO $ Wai.label err @?= "mls-client-mismatch"
+
+testRemoveSubset :: TestM ()
+testRemoveSubset = withSystemTempDirectory "mls" $ \tmp -> do
+  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
+  let [bob] = users
+
+  testSuccessfulCommit MessagingSetup {users = [bob], ..}
+
+  -- attempt to remove only first client of bob
+  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" [NonEmpty.head (pClients bob)]
+
+  err <-
+    responseJsonError
+      =<< postMessage (qUnqualified (pUserId creator)) removalCommit
+        <!! statusCode === const 409
+
+  liftIO $ Wai.label err @?= "mls-client-mismatch"
+
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
   let opts =
@@ -704,9 +863,10 @@ testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
   (events :: [Event], reqs) <- fmap (first mmssEvents) . withTempMockFederator' mock $ do
     galley <- viewGalley
     void $ postCommit MessagingSetup {creator = alice, users = [bob], ..}
+    let v2 = toByteString' (toLower <$> show V2)
     responseJsonError
       =<< post
-        ( galley . paths ["v2", "mls", "messages"]
+        ( galley . paths [v2, "mls", "messages"]
             . zUser (qUnqualified (pUserId alice))
             . zConn "conn"
             . content "message/mls"

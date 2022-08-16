@@ -29,6 +29,7 @@ import Control.Lens hiding ((#))
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion (toByteString')
+import Data.Default
 import Data.Domain
 import Data.Handle
 import Data.Id
@@ -675,7 +676,7 @@ claimRemoteKeyPackages brig1 brig2 = do
 
   withSystemTempDirectory "mls" $ \tmp ->
     for_ bobClients $ \c ->
-      uploadKeyPackages brig2 tmp SetKey bob c 5
+      uploadKeyPackages brig2 tmp def bob c 5
 
   bundle <-
     responseJsonError
@@ -706,7 +707,7 @@ testSendMLSMessage brig1 brig2 galley1 galley2 cannon1 cannon2 = do
       <$> addClient
         brig1
         (userId alice)
-        (defNewClient PermanentClientType [] (someLastPrekeys !! 0))
+        (defNewClient PermanentClientType [] (Imports.head someLastPrekeys))
   let aliceClientId =
         show (userId alice)
           <> ":"

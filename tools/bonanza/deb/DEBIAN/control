@@ -1,6 +1,0 @@
-Package: bonanza
-Maintainer: Wire Swiss GmbH <backend@wire.com>
-Version: <<VERSION_NUMBER>>+<<BUILD_NUMBER>>
-Architecture: <<ARCHITECTURE>>
-Depends: libgeoip1, zlib1g, libsnappy1
-Description: Log Massager

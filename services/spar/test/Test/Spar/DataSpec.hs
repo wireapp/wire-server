@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module Test.Spar.DataSpec where
 
@@ -40,12 +41,14 @@ check :: HasCallStack => Int -> Env -> String -> Either TTLError (TTL "authresp"
 check testnumber env (parsetm -> endOfLife) expectttl =
   it (show testnumber) $ mkTTLAssertions env endOfLife `shouldBe` expectttl
 
+parsetm :: HasCallStack => String -> UTCTime
+parsetm = fromJust . parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ"
+
+{-# HLINT ignore "Eta reduce" #-}
+-- For clarity
 mkDataEnv :: HasCallStack => String -> TTL "authresp" -> Env
 mkDataEnv now maxttl =
   Env
     (parsetm now)
     0 -- will not be looked at
     maxttl -- this one will
-
-parsetm :: HasCallStack => String -> UTCTime
-parsetm = fromJust . parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%QZ"
