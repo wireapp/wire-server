@@ -558,7 +558,7 @@ testInvitationMutuallyExclusive brig = do
 testInvitationTooManyMembers :: Brig -> Galley -> TeamSizeLimit -> Http ()
 testInvitationTooManyMembers brig galley (TeamSizeLimit limit) = do
   (creator, tid) <- createUserWithTeam brig
-  pooledForConcurrentlyN_ 16 [1 .. limit -1] $ \_ -> do
+  pooledForConcurrentlyN_ 16 [1 .. limit - 1] $ \_ -> do
     void $ createTeamMember brig galley creator tid fullPermissions
   SearchUtil.refreshIndex brig
   let invite email = stdInvitationRequest email
@@ -651,7 +651,7 @@ testInvitationInfoExpired brig timeout = do
       liftIO $ threadDelay 1000000
       r <- getCode t i
       when (statusCode r == 200 && n > 0) $
-        awaitExpiry (n -1) t i
+        awaitExpiry (n - 1) t i
 
 testSuspendTeam :: Brig -> Http ()
 testSuspendTeam brig = do

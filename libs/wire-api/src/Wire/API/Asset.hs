@@ -420,7 +420,7 @@ instance
   fromUnion (Z (I _)) = Nothing
   fromUnion (S (Z (I loc))) = Just (LocalAsset loc)
   fromUnion (S (S (Z (I asset)))) = Just (RemoteAsset asset)
-  fromUnion (S (S (S x))) = case x of
+  fromUnion (S (S (S x))) = case x of {}
 
 makeLenses ''Asset'
 makeLenses ''AssetSettings
