@@ -51,6 +51,8 @@ packages:
   , tools/db/repair-handles/
   , tools/rex/
   , tools/stern/
+  , tools/cass-conn
+  , cloned/cql-io
 
 source-repository-package
     type: git
