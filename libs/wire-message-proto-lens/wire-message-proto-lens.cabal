@@ -75,7 +75,7 @@ library
       base
     , proto-lens-runtime
 
-  build-tool-depends: proto-lens-protoc:proto-lens-protoc -any
+  build-tool-depends: proto-lens-protoc:proto-lens-protoc
   default-language:   Haskell2010
   autogen-modules:
     Proto.Otr

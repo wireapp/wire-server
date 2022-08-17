@@ -383,7 +383,7 @@ executable spar-integration
     -Wno-redundant-constraints -Werror -threaded -rtsopts
     -with-rtsopts=-N
 
-  build-tool-depends: hspec-discover:hspec-discover -any
+  build-tool-depends: hspec-discover:hspec-discover
   build-depends:
       aeson
     , aeson-qq
@@ -802,7 +802,7 @@ test-suite spec
     -Wno-redundant-constraints -Werror -threaded -rtsopts
     -with-rtsopts=-N
 
-  build-tool-depends: hspec-discover:hspec-discover -any
+  build-tool-depends: hspec-discover:hspec-discover
   build-depends:
       aeson
     , aeson-qq
