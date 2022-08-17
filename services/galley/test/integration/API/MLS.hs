@@ -106,9 +106,8 @@ tests s =
           test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
           test s "admin removes user from a conversation" testAdminRemovesUserFromConv,
           test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete,
-          -- test s "user tries to remove themselves from conversation" _testUserRemovesThemselvesFromConv,
           -- test s "anyone removes a non-existing client from a group" (_testRemoveDeletedClient True),
-          -- test s "anyone removes an existing client from group, but the user has other clients" (_testRemoveDeletedClient False),
+          test s "anyone removes an existing client from group, but the user has other clients" (testRemoveDeletedClient False),
           test s "admin removes only strict subset of clients from a user" testRemoveSubset
         ],
       testGroup
@@ -752,26 +751,8 @@ testRemoveClientsIncomplete = withSystemTempDirectory "mls" $ \tmp -> do
 
   liftIO $ Wai.label err @?= "mls-client-mismatch"
 
-_testUserRemovesThemselvesFromConv :: TestM ()
-_testUserRemovesThemselvesFromConv = withSystemTempDirectory "mls" $ \tmp -> do
-  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
-  let [bob] = users
-
-  testSuccessfulCommit MessagingSetup {users = [bob], ..}
-
-  -- FUTUREWORK: create commit as bob, when the openmls library supports removing own clients
-  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" (pClients bob)
-
-  -- bob tries to leave the conversation by removing all its clients
-  err <-
-    responseJsonError
-      =<< postMessage (qUnqualified (pUserId bob)) removalCommit
-        <!! statusCode === const 409
-
-  liftIO $ Wai.label err @?= "mls-self-removal-not-allowed"
-
-_testRemoveDeletedClient :: Bool -> TestM ()
-_testRemoveDeletedClient deleteClientBefore = withSystemTempDirectory "mls" $ \tmp -> do
+testRemoveDeletedClient :: Bool -> TestM ()
+testRemoveDeletedClient deleteClientBefore = withSystemTempDirectory "mls" $ \tmp -> do
   (creator, [bob, dee]) <- withLastPrekeys $ setupParticipants tmp def [(2, LocalUser), (1, LocalUser)]
 
   -- create a group
@@ -791,7 +772,35 @@ _testRemoveDeletedClient deleteClientBefore = withSystemTempDirectory "mls" $ \t
     deleteClient (qUnqualified (pUserId bob)) (snd bobClient2) (Just defPassword)
       !!! statusCode === const 200
 
-  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" [bobClient2]
+  void . liftIO $
+    spawn
+      ( cli
+          (pClientQid bob)
+          tmp
+          [ "group",
+            "from-welcome",
+            "--group-out",
+            tmp </> "group",
+            tmp </> "welcome"
+          ]
+      )
+      Nothing
+
+  void . liftIO $
+    spawn
+      ( cli
+          (pClientQid dee)
+          tmp
+          [ "group",
+            "from-welcome",
+            "--group-out",
+            tmp </> "group",
+            tmp </> "welcome"
+          ]
+      )
+      Nothing
+
+  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp dee "group" "group" [bobClient2]
 
   -- dee (which is not an admin) commits removal of bob's deleted client
   let doCommitRemoval = postMessage (qUnqualified (pUserId dee)) removalCommit
