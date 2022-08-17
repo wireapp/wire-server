@@ -1,3 +1,6 @@
+Some python code
+
+```
 #!/usr/bin/env python3
 #
 # This file is part of the Wire Server implementation.
@@ -105,3 +108,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+```
