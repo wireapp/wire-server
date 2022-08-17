@@ -60,6 +60,11 @@ else
 endif
 	cabal clean
 
+.PHONY: cabal.project.local
+cabal.project.local:
+	echo "optimization: False" > ./cabal.project.local
+	./hack/bin/cabal-project-local-template.sh "ghc-options: -O0" >> ./cabal.project.local
+
 # Build all Haskell services and executables with -O0, run unit tests
 .PHONY: fast
 fast: init
