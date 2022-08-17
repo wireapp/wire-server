@@ -246,7 +246,7 @@ instance SerialiseMLS SenderTag where
 
 data instance Sender 'MLSPlainText
   = MemberSender KeyPackageRef
-  | PreconfiguredSender ByteString
+  | PreconfiguredSender Word32 -- TODO: fix openmls patch: should be length-encoded bytestring
   | NewMemberSender
   deriving (Eq, Show, Generic)
 
@@ -254,7 +254,7 @@ instance ParseMLS (Sender 'MLSPlainText) where
   parseMLS =
     parseMLS >>= \case
       MemberSenderTag -> MemberSender <$> parseMLS
-      PreconfiguredSenderTag -> PreconfiguredSender <$> parseMLSBytes @Word8
+      PreconfiguredSenderTag -> PreconfiguredSender <$> get
       NewMemberSenderTag -> pure NewMemberSender
 
 instance SerialiseMLS (Sender 'MLSPlainText) where
@@ -263,7 +263,7 @@ instance SerialiseMLS (Sender 'MLSPlainText) where
     serialiseMLS r
   serialiseMLS (PreconfiguredSender x) = do
     serialiseMLS PreconfiguredSenderTag
-    serialiseMLSBytes @Word8 x
+    put x
   serialiseMLS NewMemberSender = serialiseMLS NewMemberSender
 
 data family MessagePayload (tag :: WireFormatTag) :: *
@@ -353,7 +353,7 @@ mkRemoveProposalMessage priv pub gid epoch ref = maybeCryptoError $ do
               tbsMsgGroupId = gid,
               tbsMsgEpoch = epoch,
               tbsMsgAuthData = mempty,
-              tbsMsgSender = PreconfiguredSender mempty,
+              tbsMsgSender = PreconfiguredSender 0,
               tbsMsgPayload = ProposalMessage (mkRemoveProposal ref)
             }
   let sig = BA.convert $ sign priv pub (rmRaw tbs)
