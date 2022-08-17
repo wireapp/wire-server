@@ -53,8 +53,8 @@ endif
 .PHONY: delete-cache-on-linker-errors
 delete-cache-on-linker-errors:
 	rm -rf ~/.cache/hie-bios
-	rm -rf ~/.cabal
-	rm -rf ./dist-newstyle
+	rm -rf ~/.cabal/store
+	cabal clean
 
 # Build all Haskell services and executables with -O0, run unit tests
 .PHONY: fast
