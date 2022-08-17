@@ -46,6 +46,7 @@ ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
 	cabal build all
 	./hack/bin/cabal-run-all-tests.sh
 	./hack/bin/cabal-install-artefacts.sh all
+	./hack/bin/check_ldd.sh
 else
 	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 endif
