@@ -50,13 +50,14 @@ import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteArray as BA
-import qualified Data.ByteString as BS
+-- import qualified Data.ByteString as BS
 import Data.Json.Util
 import Data.Schema
 import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Imports
 import Test.QuickCheck hiding (label)
+import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Event.Conversation
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
@@ -82,20 +83,14 @@ data instance MessageExtraFields 'MLSPlainText = MessageExtraFields
     msgMembership :: Maybe ByteString
   }
   deriving (Generic)
-
-instance Arbitrary (MessageExtraFields 'MLSPlainText) where
-  arbitrary =
-    MessageExtraFields <$> arbitrary <*> mbNonEmpty <*> mbNonEmpty
-    where
-      mbNonEmpty = oneof [pure Nothing, Just <$> nonEmpty]
-      nonEmpty = (<>) <$> (BS.singleton <$> arbitrary) <*> arbitrary
+  deriving (Arbitrary) via (GenericUniform (MessageExtraFields 'MLSPlainText))
 
 instance ParseMLS (MessageExtraFields 'MLSPlainText) where
   parseMLS =
     MessageExtraFields
-      <$> parseMLSBytes @Word16
-      <*> parseMLSOptional (parseMLSBytes @Word8)
-      <*> parseMLSOptional (parseMLSBytes @Word8)
+      <$> label "msgSignature" (parseMLSBytes @Word16)
+      <*> label "msgConfirmation" (parseMLSOptional (parseMLSBytes @Word8))
+      <*> label "msgMembership" (parseMLSOptional (parseMLSBytes @Word8))
 
 instance SerialiseMLS (MessageExtraFields 'MLSPlainText) where
   serialiseMLS (MessageExtraFields sig mconf mmemb) = do

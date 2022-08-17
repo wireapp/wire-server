@@ -97,7 +97,10 @@ parseMLSOptional g = do
   sequenceA $ guard (b /= 0) $> g
 
 serialiseMLSOptional :: (a -> Put) -> Maybe a -> Put
-serialiseMLSOptional p = maybe (putWord8 0) p
+serialiseMLSOptional _p Nothing = putWord8 0
+serialiseMLSOptional p (Just x) = do
+  putWord8 1
+  p x
 
 -- | Parse a positive tag for an enumeration. The value 0 is considered
 -- "reserved", and all other values are shifted down by 1 to get the
