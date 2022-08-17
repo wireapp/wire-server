@@ -50,11 +50,13 @@ import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteArray as BA
+import qualified Data.ByteString as BS
 import Data.Json.Util
 import Data.Schema
 import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Imports
+import Test.QuickCheck hiding (label)
 import Wire.API.Event.Conversation
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
@@ -79,6 +81,14 @@ data instance MessageExtraFields 'MLSPlainText = MessageExtraFields
     msgConfirmation :: Maybe ByteString,
     msgMembership :: Maybe ByteString
   }
+  deriving (Generic)
+
+instance Arbitrary (MessageExtraFields 'MLSPlainText) where
+  arbitrary =
+    MessageExtraFields <$> arbitrary <*> mbNonEmpty <*> mbNonEmpty
+    where
+      mbNonEmpty = oneof [pure Nothing, Just <$> nonEmpty]
+      nonEmpty = (<>) <$> (BS.singleton <$> arbitrary) <*> arbitrary
 
 instance ParseMLS (MessageExtraFields 'MLSPlainText) where
   parseMLS =

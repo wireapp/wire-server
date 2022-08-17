@@ -52,18 +52,27 @@ testRoundTrip = testProperty msg trip
 --------------------------------------------------------------------------------
 -- auxiliary types
 
-newtype RemoveProposalMessage = RemoveProposalMessage (MessageTBS 'MLSPlainText)
+newtype RemoveProposalMessage = RemoveProposalMessage (Message 'MLSPlainText)
   deriving newtype (ParseMLS, SerialiseMLS, Eq, Show)
 
-instance Arbitrary RemoveProposalMessage where
+newtype RemoveProposalTBS = RemoveProposalTBS (MessageTBS 'MLSPlainText)
+  deriving newtype (ParseMLS, SerialiseMLS, Eq, Show)
+
+instance Arbitrary RemoveProposalTBS where
   arbitrary =
-    fmap RemoveProposalMessage $
+    fmap RemoveProposalTBS $
       MessageTBS KnownFormatTag
         <$> arbitrary
         <*> arbitrary
         <*> arbitrary
         <*> (unRemoveProposalSender <$> arbitrary)
         <*> (unRemoveProposalPayload <$> arbitrary)
+
+instance Arbitrary RemoveProposalMessage where
+  arbitrary = do
+    RemoveProposalTBS tbs <- arbitrary
+    RemoveProposalMessage
+      <$> (Message (mkRawMLS tbs) <$> arbitrary)
 
 newtype RemoveProposalPayload = RemoveProposalPayload {unRemoveProposalPayload :: MessagePayload 'MLSPlainText}
   deriving newtype (ParseMLS, SerialiseMLS, Eq, Show)
