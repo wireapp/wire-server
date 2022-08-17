@@ -1,14 +1,14 @@
 {
     "nixpkgs": {
-        "branch": "nixpkgs-unstable",
+        "branch": "haskell-updates",
         "description": "A read-only mirror of NixOS/nixpkgs tracking the released channels. Send issues and PRs to",
         "homepage": "https://github.com/NixOS/nixpkgs",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "964d60ff2e6bc76c0618962da52859603784fa78",
-        "sha256": "1qvs9a59araglrrbzp5zdx81nmjgaxpfp36yl708il0lyqdjawvd",
+        "rev": "8df3a34451a12375d8f015363c38bcae76e79f7f",
+        "sha256": "1jls4jjkjc2l2xfcg3pr4sw1zn99bzkn4cmyvwn7csqbsd86547c",
         "type": "tarball",
-        "url": "https://github.com/NixOS/nixpkgs/archive/964d60ff2e6bc76c0618962da52859603784fa78.tar.gz",
+        "url": "https://github.com/NixOS/nixpkgs/archive/8df3a34451a12375d8f015363c38bcae76e79f7f.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }
