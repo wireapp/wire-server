@@ -1,4 +1,4 @@
-# Reference documentation
+# Notes for developers
 
 What you need to know as a user of the Wire backend: concepts,
 features, and API. We want to keep these up to date.  They could
@@ -56,20 +56,6 @@ User profiles and metadata:
 * [Connections between users](reference/user/connection.md) `{#RefConnection}`
 * [Rich info](reference/user/rich-info.md) `{#RefRichInfo}`
 
-TODO.
-
-## Teams
-
-TODO.
-
-## Messaging
-
-TODO.
-
-## Single sign-on
-
-TODO.
-
 ## SCIM provisioning
 
 We have support for provisioning users via SCIM ([RFC 7664][], [RFC 7643][]). It's in the beta stage.
@@ -80,7 +66,7 @@ We have support for provisioning users via SCIM ([RFC 7664][], [RFC 7643][]). It
 * [Using the SCIM API with curl](reference/provisioning/scim-via-curl.md) `{#RefScimViaCurl}`
 * [Authentication via SCIM tokens](reference/provisioning/scim-token.md) `{#RefScimToken}`
 
-# Developer documentation
+## Hints
 
 Internal documentation detailing what you need to know as a Wire backend developer. All of these documents can and should be referenced in the code.
 
@@ -89,7 +75,6 @@ If you're not a member of the Wire backend team, you might still find these docu
 * [Development setup](developer/dependencies.md) `{#DevDeps}`
 * [Editor setup](developer/editor-setup.md) `{#DevEditor}`
 * [Storing SCIM-related data](developer/scim/storage.md) `{#DevScimStorage}`
-* TODO
 
 ## Cassandra
 
