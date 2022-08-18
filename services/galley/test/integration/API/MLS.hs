@@ -106,7 +106,7 @@ tests s =
           test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
           test s "admin removes user from a conversation" testAdminRemovesUserFromConv,
           test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete,
-          -- test s "anyone removes a non-existing client from a group" (_testRemoveDeletedClient True),
+          test s "anyone removes a non-existing client from a group" (testRemoveDeletedClient True),
           test s "anyone removes an existing client from group, but the user has other clients" (testRemoveDeletedClient False),
           test s "admin removes only strict subset of clients from a user" testRemoveSubset
         ],
