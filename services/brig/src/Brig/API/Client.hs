@@ -58,6 +58,7 @@ import Brig.IO.Intra (guardLegalhold)
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opt
 import Brig.Sem.GalleyAccess
+import Brig.Sem.GundeckAccess (GundeckAccess)
 import Brig.Sem.UserQuery (UserQuery)
 import Brig.Sem.VerificationCodeStore
 import Brig.Types.Intra
@@ -84,6 +85,7 @@ import qualified Data.Set as Set
 import Imports
 import Network.Wai.Utilities hiding (Error)
 import Polysemy
+import Polysemy.Async
 import Polysemy.Error
 import Polysemy.Input
 import System.Logger.Class (field, msg, val, (~~))
@@ -135,7 +137,15 @@ lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppT r) (UserMap (
 lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 
 addClient ::
-  Members '[GalleyAccess, Input (Local ()), UserQuery, VerificationCodeStore] r =>
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
   UserId ->
   Maybe ConnId ->
   Maybe IP ->
@@ -147,7 +157,15 @@ addClient = addClientWithReAuthPolicy Data.reAuthForNewClients
 -- a superset of the clients known to galley.
 addClientWithReAuthPolicy ::
   forall r.
-  Members '[GalleyAccess, Input (Local ()), UserQuery, VerificationCodeStore] r =>
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
+       UserQuery,
+       VerificationCodeStore
+     ]
+    r =>
   Data.ReAuthPolicy ->
   UserId ->
   Maybe ConnId ->
@@ -177,7 +195,8 @@ addClientWithReAuthPolicy policy u con ip new = do
     for_ old $ execDelete u con
     wrapHttp $ Intra.newClient u (clientId clt)
     Intra.onClientEvent u con (ClientAdded u clt)
-    when (clientType clt == LegalHoldClientType) $ wrapHttpClient $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
+    when (clientType clt == LegalHoldClientType) $
+      Intra.onUserEvent u con (UserLegalHoldEnabled u)
     when (count > 1) $
       for_ (userEmail usr) $
         \email ->
@@ -214,7 +233,13 @@ updateClient u c r = do
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
 rmClient ::
-  Members '[Error ReAuthError, Input (Local ()), UserQuery] r =>
+  Members
+    '[ Error ReAuthError,
+       GundeckAccess,
+       Input (Local ()),
+       UserQuery
+     ]
+    r =>
   UserId ->
   ConnId ->
   ClientId ->
@@ -388,7 +413,12 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 -- Utilities
 
 -- | Perform an orderly deletion of an existing client.
-execDelete :: UserId -> Maybe ConnId -> Client -> AppT r ()
+execDelete ::
+  Members '[GundeckAccess] r =>
+  UserId ->
+  Maybe ConnId ->
+  Client ->
+  AppT r ()
 execDelete u con c = do
   wrapHttp $ Intra.rmClient u (clientId c)
   for_ (clientCookie c) $ \l -> wrapClient $ Auth.revokeCookies u [] [l]
@@ -432,9 +462,13 @@ pubClient c =
       pubClientClass = clientClass c
     }
 
-legalHoldClientRequested :: UserId -> LegalHoldClientRequest -> (AppT r) ()
+legalHoldClientRequested ::
+  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  UserId ->
+  LegalHoldClientRequest ->
+  AppT r ()
 legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPrekey') =
-  wrapHttpClient $ Intra.onUserEvent targetUser Nothing lhClientEvent
+  Intra.onUserEvent targetUser Nothing lhClientEvent
   where
     clientId :: ClientId
     clientId = clientIdFromPrekey $ unpackLastPrekey lastPrekey'
@@ -443,11 +477,14 @@ legalHoldClientRequested targetUser (LegalHoldClientRequest _requester lastPreke
     lhClientEvent :: UserEvent
     lhClientEvent = LegalHoldClientRequested eventData
 
-removeLegalHoldClient :: UserId -> (AppT r) ()
+removeLegalHoldClient ::
+  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  UserId ->
+  AppT r ()
 removeLegalHoldClient uid = do
   clients <- wrapClient $ Data.lookupClients uid
   -- Should only be one; but just in case we'll treat it as a list
   let legalHoldClients = filter ((== LegalHoldClientType) . clientType) clients
   -- maybe log if this isn't the case
   forM_ legalHoldClients (execDelete uid Nothing)
-  wrapHttpClient $ Intra.onUserEvent uid Nothing (UserLegalHoldDisabled uid)
+  Intra.onUserEvent uid Nothing (UserLegalHoldDisabled uid)

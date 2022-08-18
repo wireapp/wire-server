@@ -40,6 +40,7 @@ import qualified Brig.Data.Connection as Data
 import Brig.Data.Types (resultHasMore, resultList)
 import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
+import Brig.Sem.GundeckAccess (GundeckAccess)
 import Brig.Sem.UserQuery (UserQuery)
 import Brig.Types.Connection
 import Brig.Types.User.Event
@@ -53,6 +54,7 @@ import Data.Range
 import qualified Data.UUID.V4 as UUID
 import Imports
 import Polysemy
+import Polysemy.Async hiding (cancel)
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import Wire.API.Connection hiding (relationWithHistory)
@@ -77,7 +79,7 @@ ensureNotSameTeam self target = do
     throwE ConnectSameBindingTeamUsers
 
 createConnection ::
-  Member UserQuery r =>
+  Members '[Async, GundeckAccess, UserQuery] r =>
   Local UserId ->
   ConnId ->
   Qualified UserId ->
@@ -98,7 +100,7 @@ createConnection self con target = do
 
 createConnectionToLocalUser ::
   forall r.
-  Member UserQuery r =>
+  Members '[Async, GundeckAccess, UserQuery] r =>
   Local UserId ->
   ConnId ->
   Local UserId ->
@@ -209,7 +211,7 @@ checkLegalholdPolicyConflict uid1 uid2 = do
   oneway status2 status1
 
 updateConnection ::
-  Member UserQuery r =>
+  Members '[Async, GundeckAccess, UserQuery] r =>
   Local UserId ->
   Qualified UserId ->
   Relation ->
@@ -230,7 +232,7 @@ updateConnection self other newStatus conn =
 -- {#RefConnectionTeam}
 updateConnectionToLocalUser ::
   forall r.
-  Member UserQuery r =>
+  Members '[Async, GundeckAccess, UserQuery] r =>
   -- | From
   Local UserId ->
   -- | To
@@ -344,7 +346,10 @@ updateConnectionToLocalUser self other newStatus conn = do
         Intra.onConnectionEvent (tUnqualified self) conn e2o
       lift . wrapClient $ Just <$> Data.updateConnection s2o (mkRelationWithHistory (error "impossible") new)
 
-    cancel :: UserConnection -> UserConnection -> ExceptT ConnectionError (AppT r) (Maybe UserConnection)
+    cancel ::
+      UserConnection ->
+      UserConnection ->
+      ExceptT ConnectionError (AppT r) (Maybe UserConnection)
     cancel s2o o2s = do
       lift . Log.info $
         logLocalConnection (tUnqualified self) (qUnqualified (ucTo s2o))
@@ -389,7 +394,7 @@ mkRelationWithHistory oldRel = \case
 
 updateConnectionInternal ::
   forall r.
-  Member UserQuery r =>
+  Members '[Async, GundeckAccess, UserQuery] r =>
   UpdateConnectionsInternal ->
   ExceptT ConnectionError (AppT r) ()
 updateConnectionInternal = \case

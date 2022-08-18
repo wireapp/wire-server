@@ -20,10 +20,18 @@
 module Brig.Sem.GalleyAccess where
 
 import Data.Id
+import Imports
 import Polysemy
 import Wire.API.Team.Feature
+import Wire.API.Team.Member
 
 data GalleyAccess m a where
   GetTeamSndFactorPasswordChallenge :: TeamId -> GalleyAccess m FeatureStatus
+  -- | Only works on 'BindingTeam's! The lisetBindingTeamMembersH'.
+  GetTeamContacts :: UserId -> GalleyAccess m (Maybe TeamMemberList)
+  -- | Calls 'Galley.API.getBindingTeamIdH'.
+  GetTeamId :: UserId -> GalleyAccess m (Maybe TeamId)
+  -- | Calls 'Galley.API.getTeamFeatureStatusH'.
+  GetTeamLegalHoldStatus :: TeamId -> GalleyAccess m (WithStatus LegalholdConfig)
 
 makeSem ''GalleyAccess

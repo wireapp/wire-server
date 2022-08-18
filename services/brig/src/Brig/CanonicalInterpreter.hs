@@ -40,6 +40,8 @@ import Brig.Sem.CodeStore.Cassandra (codeStoreToCassandra)
 import Brig.Sem.Common
 import Brig.Sem.GalleyAccess (GalleyAccess)
 import Brig.Sem.GalleyAccess.Http
+import Brig.Sem.GundeckAccess (GundeckAccess)
+import Brig.Sem.GundeckAccess.Http (gundeckAccessToHttp)
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
@@ -90,6 +92,7 @@ type BrigCanonicalEffects =
      ActivationSupply,
      UniqueClaimsStore,
      GalleyAccess,
+     GundeckAccess,
      Embed HttpClientIO,
      UserQuery,
      PasswordResetStore,
@@ -128,6 +131,7 @@ runBrigToIO e (AppT ma) =
     . passwordResetStoreToCodeStore
     . userQueryToCassandra @Cas.Client
     . interpretHttpToIO e
+    . gundeckAccessToHttp @HttpClientIO (e ^. gundeck)
     . galleyAccessToHttp @HttpClientIO (e ^. galley)
     . uniqueClaimsStoreToCassandra @Cas.Client
     . activationSupplyToIO

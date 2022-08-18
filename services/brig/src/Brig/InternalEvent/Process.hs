@@ -25,6 +25,8 @@ import Brig.App
 import Brig.InternalEvent.Types
 import Brig.Options (defDeleteThrottleMillis, setDefaultUserLocale, setDeleteThrottleMillis)
 import qualified Brig.Provider.API as API
+import Brig.Sem.GalleyAccess (GalleyAccess)
+import Brig.Sem.GundeckAccess (GundeckAccess)
 import Brig.Sem.UniqueClaimsStore
 import Brig.Sem.UserHandleStore
 import Brig.Sem.UserQuery
@@ -34,6 +36,7 @@ import Data.ByteString.Conversion
 import Data.Qualified
 import Imports
 import Polysemy
+import Polysemy.Async
 import Polysemy.Conc.Effect.Race
 import Polysemy.Conc.Race
 import Polysemy.Input
@@ -47,7 +50,10 @@ import System.Logger.Class (field, msg, val, (~~))
 onEvent ::
   forall r.
   Members
-    '[ Input (Local ()),
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
        P.TinyLog,
        Race,
        UniqueClaimsStore,

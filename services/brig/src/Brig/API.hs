@@ -31,6 +31,7 @@ import Brig.Sem.ActivationSupply
 import Brig.Sem.BudgetStore
 import Brig.Sem.CodeStore
 import Brig.Sem.GalleyAccess
+import Brig.Sem.GundeckAccess (GundeckAccess)
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
 import Brig.Sem.Twilio
@@ -63,6 +64,7 @@ sitemap ::
        Error ReAuthError,
        Error Twilio.ErrorResponse,
        GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.TinyLog,
        PasswordResetStore,

@@ -53,6 +53,7 @@ import Brig.Sem.ActivationSupply
 import Brig.Sem.BudgetStore
 import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.GalleyAccess
+import Brig.Sem.GundeckAccess (GundeckAccess)
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
 import Brig.Sem.Twilio
@@ -209,6 +210,7 @@ servantSitemap ::
        BlacklistStore,
        BlacklistPhonePrefixStore,
        GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.Error ReAuthError,
        P.Error Twilio.ErrorResponse,
@@ -343,11 +345,13 @@ sitemap ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       Async,
        BlacklistStore,
        BlacklistPhonePrefixStore,
        BudgetStore,
        CodeStore,
        GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.Error Twilio.ErrorResponse,
        P.TinyLog,
@@ -487,11 +491,13 @@ apiDocs ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       Async,
        BlacklistStore,
        BlacklistPhonePrefixStore,
        BudgetStore,
        CodeStore,
        GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.Error Twilio.ErrorResponse,
        P.TinyLog,
@@ -519,7 +525,13 @@ apiDocs =
 ---------------------------------------------------------------------------
 -- Handlers
 
-setProperty :: UserId -> ConnId -> Public.PropertyKey -> Public.RawPropertyValue -> Handler r ()
+setProperty ::
+  Members '[Async, GundeckAccess] r =>
+  UserId ->
+  ConnId ->
+  Public.PropertyKey ->
+  Public.RawPropertyValue ->
+  Handler r ()
 setProperty u c key raw = do
   checkPropertyKey key
   val <- safeParsePropertyValue raw
@@ -558,10 +570,19 @@ parseStoredPropertyValue raw = case propertyValueFromRaw raw of
         . Log.field "parse_error" e
     throwStd internalServerError
 
-deleteProperty :: UserId -> ConnId -> Public.PropertyKey -> Handler r ()
+deleteProperty ::
+  Members '[Async, GundeckAccess] r =>
+  UserId ->
+  ConnId ->
+  Public.PropertyKey ->
+  Handler r ()
 deleteProperty u c k = lift (API.deleteProperty u c k)
 
-clearProperties :: UserId -> ConnId -> Handler r ()
+clearProperties ::
+  Members '[Async, GundeckAccess] r =>
+  UserId ->
+  ConnId ->
+  Handler r ()
 clearProperties u c = lift (API.clearProperties u c)
 
 getProperty :: UserId -> Public.PropertyKey -> Handler r (Maybe Public.RawPropertyValue)
@@ -614,7 +635,9 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
 
 addClient ::
   Members
-    '[ GalleyAccess,
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        UserQuery,
        VerificationCodeStore
@@ -636,7 +659,13 @@ addClient usr con ip new = do
     clientResponse client = Servant.addHeader (Public.clientId client) client
 
 deleteClient ::
-  Members '[Input (Local ()), P.Error ReAuthError, UserQuery] r =>
+  Members
+    '[ GundeckAccess,
+       Input (Local ()),
+       P.Error ReAuthError,
+       UserQuery
+     ]
+    r =>
   UserId ->
   ConnId ->
   ClientId ->
@@ -716,7 +745,10 @@ createUser ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       Async,
        BlacklistStore,
+       GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.Error Twilio.ErrorResponse,
        PasswordResetStore,
@@ -870,7 +902,13 @@ instance ToJSON GetActivationCodeResp where
   toJSON (GetActivationCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
 updateUser ::
-  Member UserQuery r =>
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       UserQuery
+     ]
+    r =>
   UserId ->
   ConnId ->
   Public.UserUpdate ->
@@ -903,7 +941,15 @@ changePhone u _ (Public.puPhone -> phone) = lift . exceptTToMaybe $ do
   lift . wrapClient $ sendActivationSms pn apair loc
 
 removePhone ::
-  Members '[Input (Local ()), UserKeyStore, UserQuery] r =>
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   ConnId ->
   Handler r (Maybe Public.RemoveIdentityError)
@@ -911,7 +957,15 @@ removePhone self conn =
   lift . exceptTToMaybe $ API.removePhone self conn
 
 removeEmail ::
-  Members '[Input (Local ()), UserKeyStore, UserQuery] r =>
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   ConnId ->
   Handler r (Maybe Public.RemoveIdentityError)
@@ -928,7 +982,12 @@ changePassword ::
   Handler r (Maybe Public.ChangePasswordError)
 changePassword u cp = lift . exceptTToMaybe $ API.changePassword u cp
 
-changeLocale :: UserId -> ConnId -> Public.LocaleUpdate -> (Handler r) ()
+changeLocale ::
+  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  UserId ->
+  ConnId ->
+  Public.LocaleUpdate ->
+  Handler r ()
 changeLocale u conn l = lift $ API.changeLocale u conn l
 
 -- | (zusr is ignored by this handler, ie. checking handles is allowed as long as you have
@@ -972,6 +1031,8 @@ getHandleInfoUnqualifiedH self handle = do
 changeHandle ::
   Members
     '[ Async,
+       GalleyAccess,
+       GundeckAccess,
        Race,
        Resource,
        UniqueClaimsStore,
@@ -1087,7 +1148,7 @@ customerExtensionCheckBlockedDomains email = do
           throwM $ customerExtensionBlockedDomain domain
 
 createConnectionUnqualified ::
-  Member UserQuery r =>
+  Members '[Async, GundeckAccess, UserQuery] r =>
   UserId ->
   ConnId ->
   Public.ConnectionRequest ->
@@ -1098,7 +1159,7 @@ createConnectionUnqualified self conn cr = do
   API.createConnection lself conn (qUntagged target) !>> connError
 
 createConnection ::
-  Member UserQuery r =>
+  Members '[Async, GundeckAccess, UserQuery] r =>
   UserId ->
   ConnId ->
   Qualified UserId ->
@@ -1108,7 +1169,7 @@ createConnection self conn target = do
   API.createConnection lself conn target !>> connError
 
 updateLocalConnection ::
-  Member UserQuery r =>
+  Members '[Async, GundeckAccess, UserQuery] r =>
   UserId ->
   ConnId ->
   UserId ->
@@ -1119,7 +1180,7 @@ updateLocalConnection self conn other update = do
   updateConnection self conn (qUntagged lother) update
 
 updateConnection ::
-  Member UserQuery r =>
+  Members '[Async, GundeckAccess, UserQuery] r =>
   UserId ->
   ConnId ->
   Qualified UserId ->
@@ -1191,7 +1252,10 @@ getConnection self other = do
 
 deleteSelfUser ::
   Members
-    '[ Input (Local ()),
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
        UniqueClaimsStore,
        UserHandleStore,
        UserQuery,
@@ -1206,7 +1270,10 @@ deleteSelfUser u body =
 
 verifyDeleteUserH ::
   Members
-    '[ Input (Local ()),
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
        UniqueClaimsStore,
        UserHandleStore,
        UserQuery,
@@ -1273,6 +1340,9 @@ activateKeyH ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       Async,
+       GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.Error Twilio.ErrorResponse,
        PasswordResetSupply,
@@ -1292,6 +1362,9 @@ activateH ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       Async,
+       GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.Error Twilio.ErrorResponse,
        PasswordResetSupply,
@@ -1311,6 +1384,9 @@ activate ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       Async,
+       GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.Error Twilio.ErrorResponse,
        PasswordResetSupply,

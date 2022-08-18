@@ -33,6 +33,7 @@ import Brig.App
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import Brig.IO.Intra (notify)
+import Brig.Sem.GundeckAccess (GundeckAccess)
 import Brig.Sem.UserHandleStore
 import Brig.Sem.UserQuery
 import Brig.Types.User.Event
@@ -46,17 +47,16 @@ import Data.Domain
 import Data.Handle (Handle (..), parseHandle)
 import Data.Id (ClientId, UserId)
 import Data.List.NonEmpty (nonEmpty)
-import Data.List1
 import Data.Qualified
 import Data.Range
 import qualified Gundeck.Types.Push as Push
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Polysemy
+import Polysemy.Async
 import Servant (ServerT)
 import Servant.API
 import qualified System.Logger.Class as Log
-import UnliftIO.Async (pooledForConcurrentlyN_)
 import Wire.API.Connection
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
@@ -75,7 +75,13 @@ import Wire.API.UserMap (UserMap)
 type FederationAPI = "federation" :> BrigApi
 
 federationSitemap ::
-  Members '[UserHandleStore, UserQuery] r =>
+  Members
+    '[ Async,
+       GundeckAccess,
+       UserHandleStore,
+       UserQuery
+     ]
+    r =>
   ServerT FederationAPI (Handler r)
 federationSitemap =
   Named @"api-version" (\_ _ -> pure versionInfo)
@@ -92,7 +98,7 @@ federationSitemap =
     :<|> Named @"claim-key-packages" fedClaimKeyPackages
 
 sendConnectionAction ::
-  Members '[UserQuery] r =>
+  Members '[Async, GundeckAccess, UserQuery] r =>
   Domain ->
   NewConnectionRequest ->
   Handler r NewConnectionResponse
@@ -212,7 +218,11 @@ getMLSClients :: Domain -> MLSClientsRequest -> Handler r (Set ClientId)
 getMLSClients _domain mcr = do
   Internal.getMLSClients (mcrUserId mcr) (mcrSignatureScheme mcr)
 
-onUserDeleted :: Domain -> UserDeletedConnectionsNotification -> (Handler r) EmptyResponse
+onUserDeleted ::
+  Members '[Async, GundeckAccess] r =>
+  Domain ->
+  UserDeletedConnectionsNotification ->
+  Handler r EmptyResponse
 onUserDeleted origDomain udcn = lift $ do
   let deletedUser = toRemoteUnsafe origDomain (udcnUser udcn)
       connections = udcnConnections udcn
@@ -221,8 +231,10 @@ onUserDeleted origDomain udcn = lift $ do
     map csv2From
       . filter (\x -> csv2Status x == Accepted)
       <$> wrapClient (Data.lookupRemoteConnectionStatuses (fromRange connections) (fmap pure deletedUser))
-  wrapHttp $
-    pooledForConcurrentlyN_ 16 (nonEmpty acceptedLocals) $ \(List1 -> recipients) ->
-      notify event (tUnqualified deletedUser) Push.RouteDirect Nothing (pure recipients)
+  -- wrapHttp $
+  --   pooledForConcurrentlyN_ 16 (nonEmpty acceptedLocals) $ \(List1 -> recipients) ->
+  -- TODO(md): run this in an effect interpreter because this is purely an optimisation
+  for_ (nonEmpty acceptedLocals) $ \recipients ->
+    notify event (tUnqualified deletedUser) Push.RouteDirect Nothing (pure recipients)
   wrapClient $ Data.deleteRemoteConnections deletedUser connections
   pure EmptyResponse

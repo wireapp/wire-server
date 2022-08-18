@@ -48,6 +48,7 @@ import Brig.Sem.ActivationKeyStore
 import Brig.Sem.ActivationSupply
 import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.GalleyAccess
+import Brig.Sem.GundeckAccess (GundeckAccess)
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
 import Brig.Sem.Twilio
@@ -123,6 +124,8 @@ servantSitemap ::
        ActivationSupply,
        Async,
        BlacklistStore,
+       GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.Error Twilio.ErrorResponse,
        PasswordResetStore,
@@ -170,6 +173,8 @@ accountAPI ::
        ActivationSupply,
        Async,
        BlacklistStore,
+       GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.Error Twilio.ErrorResponse,
        PasswordResetSupply,
@@ -283,6 +288,7 @@ sitemap ::
        BlacklistStore,
        CodeStore,
        GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.Error ReAuthError,
        P.Error Twilio.ErrorResponse,
@@ -464,7 +470,9 @@ sitemap = do
 -- | Add a client without authentication checks
 addClientInternalH ::
   Members
-    '[ GalleyAccess,
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        UserQuery,
        VerificationCodeStore
@@ -478,7 +486,9 @@ addClientInternalH (usr ::: mSkipReAuth ::: req ::: connId ::: _) = do
 
 addClientInternal ::
   Members
-    '[ GalleyAccess,
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        UserQuery,
        VerificationCodeStore
@@ -495,13 +505,19 @@ addClientInternal usr mSkipReAuth new connId = do
         | otherwise = Data.reAuthForNewClients
   API.addClientWithReAuthPolicy policy usr connId Nothing new !>> clientError
 
-legalHoldClientRequestedH :: UserId ::: JsonRequest LegalHoldClientRequest ::: JSON -> (Handler r) Response
+legalHoldClientRequestedH ::
+  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  UserId ::: JsonRequest LegalHoldClientRequest ::: JSON ->
+  Handler r Response
 legalHoldClientRequestedH (targetUser ::: req ::: _) = do
   clientRequest <- parseJsonBody req
   lift $ API.legalHoldClientRequested targetUser clientRequest
   pure $ setStatus status200 empty
 
-removeLegalHoldClientH :: UserId ::: JSON -> (Handler r) Response
+removeLegalHoldClientH ::
+  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  UserId ::: JSON ->
+  Handler r Response
 removeLegalHoldClientH (uid ::: _) = do
   lift $ API.removeLegalHoldClient uid
   pure $ setStatus status200 empty
@@ -527,7 +543,10 @@ createUserNoVerify ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       Async,
        BlacklistStore,
+       GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.Error Twilio.ErrorResponse,
        PasswordResetSupply,
@@ -557,6 +576,8 @@ createUserNoVerifySpar ::
     '[ ActivationKeyStore,
        ActivationSupply,
        Async,
+       GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.Error Twilio.ErrorResponse,
        PasswordResetStore,
@@ -751,10 +772,13 @@ newtype GetPasswordResetCodeResp = GetPasswordResetCodeResp (PasswordResetKey, P
 instance ToJSON GetPasswordResetCodeResp where
   toJSON (GetPasswordResetCodeResp (k, c)) = object ["key" .= k, "code" .= c]
 
-changeAccountStatusH :: UserId ::: JsonRequest AccountStatusUpdate -> (Handler r) Response
+changeAccountStatusH ::
+  Members '[Async, GalleyAccess, GundeckAccess, UserQuery] r =>
+  UserId ::: JsonRequest AccountStatusUpdate ->
+  Handler r Response
 changeAccountStatusH (usr ::: req) = do
   status <- suStatus <$> parseJsonBody req
-  wrapHttpClientE (API.changeSingleAccountStatus usr status) !>> accountStatusError
+  API.changeSingleAccountStatus usr status !>> accountStatusError
   pure empty
 
 getAccountStatusH :: JSON ::: UserId -> (Handler r) Response
@@ -789,7 +813,15 @@ getConnectionsStatus (ConnectionsStatusRequestV2 froms mtos mrel) = do
     filterByRelation l rel = filter ((== rel) . csv2Status) l
 
 revokeIdentityH ::
-  Members '[Input (Local ()), UserKeyStore, UserQuery] r =>
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   Either Email Phone ->
   Handler r Response
 revokeIdentityH emailOrPhone = do
@@ -797,7 +829,7 @@ revokeIdentityH emailOrPhone = do
   pure $ setStatus status200 empty
 
 updateConnectionInternalH ::
-  Member UserQuery r =>
+  Members '[Async, GundeckAccess, UserQuery] r =>
   JSON ::: JsonRequest UpdateConnectionsInternal ->
   (Handler r) Response
 updateConnectionInternalH (_ ::: req) = do
@@ -841,22 +873,28 @@ addPhonePrefixH (_ ::: req) = do
   void . lift $ API.phonePrefixInsert prefix
   pure empty
 
-updateSSOIdH :: UserId ::: JSON ::: JsonRequest UserSSOId -> (Handler r) Response
+updateSSOIdH ::
+  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  UserId ::: JSON ::: JsonRequest UserSSOId ->
+  Handler r Response
 updateSSOIdH (uid ::: _ ::: req) = do
   ssoid :: UserSSOId <- parseJsonBody req
   success <- lift $ wrapClient $ Data.updateSSOId uid (Just ssoid)
   if success
     then do
-      lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
+      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOId = Just ssoid}))
       pure empty
     else pure . setStatus status404 $ plain "User does not exist or has no team."
 
-deleteSSOIdH :: UserId ::: JSON -> (Handler r) Response
+deleteSSOIdH ::
+  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  UserId ::: JSON ->
+  Handler r Response
 deleteSSOIdH (uid ::: _) = do
   success <- lift $ wrapClient $ Data.updateSSOId uid Nothing
   if success
     then do
-      lift $ wrapHttpClient $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
+      lift $ Intra.onUserEvent uid Nothing (UserUpdated ((emptyUserUpdatedData uid) {eupSSOIdRemoved = True}))
       pure empty
     else pure . setStatus status404 $ plain "User does not exist or has no team."
 
@@ -911,6 +949,8 @@ updateHandleH ::
   Members
     '[ Async,
        Race,
+       GalleyAccess,
+       GundeckAccess,
        Resource,
        UniqueClaimsStore,
        UserHandleStore,
@@ -924,6 +964,8 @@ updateHandleH (uid ::: _ ::: body) = empty <$ (updateHandle uid =<< parseJsonBod
 updateHandle ::
   Members
     '[ Async,
+       GalleyAccess,
+       GundeckAccess,
        Race,
        Resource,
        UniqueClaimsStore,
@@ -939,13 +981,13 @@ updateHandle uid (HandleUpdate handleUpd) = do
   API.changeHandle uid Nothing handle API.AllowSCIMUpdates !>> changeHandleError
 
 updateUserNameH ::
-  Member UserQuery r =>
+  Members '[Async, GalleyAccess, GundeckAccess, UserQuery] r =>
   UserId ::: JSON ::: JsonRequest NameUpdate ->
   (Handler r) Response
 updateUserNameH (uid ::: _ ::: body) = empty <$ (updateUserName uid =<< parseJsonBody body)
 
 updateUserName ::
-  Member UserQuery r =>
+  Members '[Async, GalleyAccess, GundeckAccess, UserQuery] r =>
   UserId ->
   NameUpdate ->
   (Handler r) ()

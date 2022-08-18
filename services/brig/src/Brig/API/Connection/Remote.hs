@@ -29,6 +29,7 @@ import Brig.App
 import qualified Brig.Data.Connection as Data
 import Brig.Federation.Client (sendConnectionAction)
 import qualified Brig.IO.Intra as Intra
+import Brig.Sem.GundeckAccess
 import Brig.Types.User.Event
 import Control.Comonad
 import Control.Error.Util ((??))
@@ -38,6 +39,8 @@ import Data.Qualified
 import Galley.Types.Conversations.Intra (Actor (..), DesiredMembership (..), UpsertOne2OneConversationRequest (..), UpsertOne2OneConversationResponse (uuorConvId))
 import Imports
 import Network.Wai.Utilities.Error
+import Polysemy
+import Polysemy.Async
 import Wire.API.Connection
 import Wire.API.Federation.API.Brig
   ( NewConnectionResponse (..),
@@ -141,13 +144,14 @@ updateOne2OneConv lUsr _mbConn remoteUser mbConvId rel actor = do
 --
 -- Returns the connection, and whether it was updated or not.
 transitionTo ::
+  Members '[Async, GundeckAccess] r =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
   Maybe UserConnection ->
   Maybe Relation ->
   Actor ->
-  (ConnectionM r) (ResponseForExistedCreated UserConnection, Bool)
+  ConnectionM r (ResponseForExistedCreated UserConnection, Bool)
 transitionTo self _ _ Nothing Nothing _ =
   -- This can only happen if someone tries to ignore as a first action on a
   -- connection. This shouldn't be possible.
@@ -181,12 +185,18 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = lift $ do
   pure (Existed connection', True)
 
 -- | Send an event to the local user when the state of a connection changes.
-pushEvent :: Local UserId -> Maybe ConnId -> UserConnection -> (AppT r) ()
+pushEvent ::
+  Members '[Async, GundeckAccess] r =>
+  Local UserId ->
+  Maybe ConnId ->
+  UserConnection ->
+  AppT r ()
 pushEvent self mzcon connection = do
   let event = ConnectionUpdated connection Nothing Nothing
   Intra.onConnectionEvent (tUnqualified self) mzcon event
 
 performLocalAction ::
+  Members '[Async, GundeckAccess] r =>
   Local UserId ->
   Maybe ConnId ->
   Remote UserId ->
@@ -234,6 +244,7 @@ performLocalAction self mzcon other mconnection action = do
 -- B connects & A reacts:  Accepted  Accepted
 -- @
 performRemoteAction ::
+  Members '[Async, GundeckAccess] r =>
   Local UserId ->
   Remote UserId ->
   Maybe UserConnection ->
@@ -251,6 +262,7 @@ performRemoteAction self other mconnection action = do
     reaction _ = Nothing
 
 createConnectionToRemoteUser ::
+  Members '[Async, GundeckAccess] r =>
   Local UserId ->
   ConnId ->
   Remote UserId ->
@@ -260,6 +272,7 @@ createConnectionToRemoteUser self zcon other = do
   fst <$> performLocalAction self (Just zcon) other mconnection LocalConnect
 
 updateConnectionToRemoteUser ::
+  Members '[Async, GundeckAccess] r =>
   Local UserId ->
   Remote UserId ->
   Relation ->

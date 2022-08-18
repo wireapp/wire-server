@@ -120,6 +120,8 @@ import Brig.Password
 import qualified Brig.Queue as Queue
 import Brig.Sem.ActivationKeyStore (ActivationKeyStore)
 import Brig.Sem.ActivationSupply (ActivationSupply)
+import Brig.Sem.GalleyAccess
+import Brig.Sem.GundeckAccess
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Brig.Sem.PasswordResetStore as E
 import Brig.Sem.PasswordResetSupply (PasswordResetSupply)
@@ -142,7 +144,7 @@ import Brig.User.Email
 import Brig.User.Handle
 import Brig.User.Handle.Blacklist
 import Brig.User.Phone
-import Brig.User.Search.Index (MonadIndexIO, reindex)
+import Brig.User.Search.Index (reindex)
 import qualified Brig.User.Search.TeamSize as TeamSize
 import Cassandra
 import Control.Arrow ((&&&))
@@ -178,7 +180,6 @@ import qualified Ropes.Twilio as Twilio
 import System.Logger.Class (MonadLogger)
 import qualified System.Logger.Class as Log
 import System.Logger.Message
-import UnliftIO.Async hiding (Async)
 import Wire.API.Connection
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
@@ -246,6 +247,8 @@ createUserSpar ::
   forall r.
   Members
     '[ Async,
+       GalleyAccess,
+       GundeckAccess,
        Race,
        Resource,
        UniqueClaimsStore,
@@ -273,7 +276,7 @@ createUserSpar new = do
       Just richInfo -> wrapClient $ Data.updateRichInfo uid richInfo
       Nothing -> pure () -- Nothing to do
     wrapHttp $ Intra.createSelfConv uid
-    wrapHttpClient $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
+    Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
 
     pure account
 
@@ -318,9 +321,12 @@ createUser ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       Async,
        BlacklistStore,
-       P.Error Twilio.ErrorResponse,
+       GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
+       P.Error Twilio.ErrorResponse,
        PasswordResetSupply,
        PasswordResetStore,
        Twilio,
@@ -384,7 +390,7 @@ createUser new = do
 
     liftSem $ Data.insertAccount account Nothing pw False
     wrapHttp $ Intra.createSelfConv uid
-    wrapHttpClient $ Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
+    Intra.onUserEvent uid Nothing (UserCreated (accountUser account))
 
     pure account
 
@@ -619,7 +625,13 @@ checkRestrictedUserCreation new = do
 -- Update Profile
 
 updateUser ::
-  Member UserQuery r =>
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       UserQuery
+     ]
+    r =>
   UserId ->
   Maybe ConnId ->
   UserUpdate ->
@@ -639,23 +651,43 @@ updateUser uid mconn uu allowScim = do
       $ throwE DisplayNameManagedByScim
   lift $ do
     wrapClient $ Data.updateUser uid uu
-    wrapHttpClient $ Intra.onUserEvent uid mconn (profileUpdated uid uu)
+    Intra.onUserEvent uid mconn (profileUpdated uid uu)
 
 -------------------------------------------------------------------------------
 -- Update Locale
 
-changeLocale :: UserId -> ConnId -> LocaleUpdate -> (AppT r) ()
+changeLocale ::
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess
+     ]
+    r =>
+  UserId ->
+  ConnId ->
+  LocaleUpdate ->
+  AppT r ()
 changeLocale uid conn (LocaleUpdate loc) = do
   wrapClient $ Data.updateLocale uid loc
-  wrapHttpClient $ Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)
+  Intra.onUserEvent uid (Just conn) (localeUpdate uid loc)
 
 -------------------------------------------------------------------------------
 -- Update ManagedBy
 
-changeManagedBy :: UserId -> ConnId -> ManagedByUpdate -> (AppT r) ()
+changeManagedBy ::
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess
+     ]
+    r =>
+  UserId ->
+  ConnId ->
+  ManagedByUpdate ->
+  AppT r ()
 changeManagedBy uid conn (ManagedByUpdate mb) = do
   wrapClient $ Data.updateManagedBy uid mb
-  wrapHttpClient $ Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
+  Intra.onUserEvent uid (Just conn) (managedByUpdate uid mb)
 
 --------------------------------------------------------------------------------
 -- Change Handle
@@ -663,6 +695,8 @@ changeManagedBy uid conn (ManagedByUpdate mb) = do
 changeHandle ::
   Members
     '[ Async,
+       GalleyAccess,
+       GundeckAccess,
        Race,
        Resource,
        UniqueClaimsStore,
@@ -698,7 +732,7 @@ changeHandle uid mconn hdl allowScim = do
       claimed <- lift . liftSem $ claimHandle (userId u) (userHandle u) hdl
       unless claimed $
         throwE ChangeHandleExists
-      lift $ wrapHttpClient $ Intra.onUserEvent uid mconn (handleUpdated uid hdl)
+      lift $ Intra.onUserEvent uid mconn (handleUpdated uid hdl)
 
 --------------------------------------------------------------------------------
 -- Check Handle
@@ -878,7 +912,15 @@ changePhone u phone = do
 -- Remove Email
 
 removeEmail ::
-  Members '[Input (Local ()), UserKeyStore, UserQuery] r =>
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   ConnId ->
   ExceptT RemoveIdentityError (AppT r) ()
@@ -889,7 +931,7 @@ removeEmail uid conn = do
     Just (FullIdentity e _) -> lift $ do
       liftSem . deleteKey d $ userEmailKey e
       wrapClient $ Data.deleteEmail uid
-      wrapHttpClient $ Intra.onUserEvent uid (Just conn) (emailRemoved uid e)
+      Intra.onUserEvent uid (Just conn) (emailRemoved uid e)
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
 
@@ -897,7 +939,15 @@ removeEmail uid conn = do
 -- Remove Phone
 
 removePhone ::
-  Members '[Input (Local ()), UserKeyStore, UserQuery] r =>
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   UserId ->
   ConnId ->
   ExceptT RemoveIdentityError (AppT r) ()
@@ -912,7 +962,7 @@ removePhone uid conn = do
       lift $ do
         liftSem . deleteKey d $ userPhoneKey p
         wrapClient $ Data.deletePhone uid
-        wrapHttpClient $ Intra.onUserEvent uid (Just conn) (phoneRemoved uid p)
+        Intra.onUserEvent uid (Just conn) (phoneRemoved uid p)
     Just _ -> throwE LastIdentity
     Nothing -> throwE NoIdentity
 
@@ -921,7 +971,15 @@ removePhone uid conn = do
 
 revokeIdentity ::
   forall r.
-  Members '[Input (Local ()), UserKeyStore, UserQuery] r =>
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
+       UserKeyStore,
+       UserQuery
+     ]
+    r =>
   Either Email Phone ->
   AppT r ()
 revokeIdentity key = do
@@ -949,72 +1007,89 @@ revokeIdentity key = do
           (\(_ :: Email) -> Data.deleteEmail u)
           (\(_ :: Phone) -> Data.deletePhone u)
           uk
-      wrapHttpClient $
-        Intra.onUserEvent u Nothing $
-          foldKey
-            (emailRemoved u)
-            (phoneRemoved u)
-            uk
+      Intra.onUserEvent u Nothing $
+        foldKey
+          (emailRemoved u)
+          (phoneRemoved u)
+          uk
 
 -------------------------------------------------------------------------------
 -- Change Account Status
 
 changeAccountStatus ::
-  forall m.
-  ( MonadClient m,
-    MonadLogger m,
-    MonadIndexIO m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadUnliftIO m
-  ) =>
+  forall r.
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess
+     ]
+    r =>
+  -- ( MonadClient m,
+  --   MonadLogger m,
+  --   MonadIndexIO m,
+  --   MonadReader Env m,
+  --   MonadMask m,
+  --   MonadHttp m,
+  --   HasRequestId m,
+  --   MonadUnliftIO m
+  -- ) =>
   List1 UserId ->
   AccountStatus ->
-  ExceptT AccountStatusError m ()
+  ExceptT AccountStatusError (AppT r) ()
 changeAccountStatus usrs status = do
-  ev <- mkUserEvent usrs status
-  lift $ mapConcurrently_ (update ev) usrs
+  ev <- wrapClientE $ mkUserEvent usrs status
+  lift $ do
+    -- mapConcurrently_ (update ev) usrs
+    -- TODO(md): do this updating concurrently, perhaps in an effect
+    traverse_ (update ev) usrs
   where
     update ::
       (UserId -> UserEvent) ->
       UserId ->
-      m ()
+      AppT r ()
     update ev u = do
-      Data.updateStatus u status
+      wrapClient $ Data.updateStatus u status
       Intra.onUserEvent u Nothing (ev u)
 
 changeSingleAccountStatus ::
-  forall m.
-  ( MonadClient m,
-    MonadLogger m,
-    MonadIndexIO m,
-    MonadReader Env m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
-    MonadUnliftIO m
-  ) =>
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       UserQuery
+     ]
+    r =>
+  -- ( MonadClient m,
+  --   MonadLogger m,
+  --   MonadIndexIO m,
+  --   MonadReader Env m,
+  --   MonadMask m,
+  --   MonadHttp m,
+  --   HasRequestId m,
+  --   MonadUnliftIO m
+  -- ) =>
   UserId ->
   AccountStatus ->
-  ExceptT AccountStatusError m ()
+  ExceptT AccountStatusError (AppT r) ()
 changeSingleAccountStatus uid status = do
-  unlessM (lift $ runM $ userQueryToCassandra @m @'[Embed m] $ Data.userExists uid) $ throwE AccountNotFound
-  ev <- mkUserEvent (List1.singleton uid) status
-  lift $ do
-    Data.updateStatus uid status
-    Intra.onUserEvent uid Nothing (ev uid)
+  unlessM (lift . liftSem $ Data.userExists uid) $ throwE AccountNotFound
+  ev <- wrapClientE $ mkUserEvent (singleton uid) status
+  wrapClientE $ Data.updateStatus uid status
+  lift $ Intra.onUserEvent uid Nothing (ev uid)
 
 mkUserEvent ::
-  (MonadUnliftIO m, Traversable t, MonadClient m) =>
+  (Traversable t, MonadClient m) =>
   t UserId ->
   AccountStatus ->
   ExceptT AccountStatusError m (UserId -> UserEvent)
 mkUserEvent usrs status =
   case status of
     Active -> pure UserResumed
-    Suspended -> lift $ mapConcurrently revokeAllCookies usrs >> pure UserSuspended
+    Suspended ->
+      lift $
+        -- mapConcurrently revokeAllCookies usrs >> pure UserSuspended
+        -- TODO(md): implement concurrently traversing this as an effect
+        traverse revokeAllCookies usrs >> pure UserSuspended
     Deleted -> throwE InvalidAccountStatus
     Ephemeral -> throwE InvalidAccountStatus
     PendingInvitation -> throwE InvalidAccountStatus
@@ -1026,6 +1101,9 @@ activate ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       Async,
+       GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.Error Twilio.ErrorResponse,
        PasswordResetSupply,
@@ -1046,6 +1124,9 @@ activateWithCurrency ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       Async,
+       GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.Error Twilio.ErrorResponse,
        PasswordResetSupply,
@@ -1105,21 +1186,27 @@ preverify tgt code creds m = do
   void $ Data.verifyCode key code
 
 onActivated ::
-  Members '[UserQuery] r =>
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       UserQuery
+     ]
+    r =>
   ActivationEvent ->
   AppT r (UserId, Maybe UserIdentity, Bool)
 onActivated (AccountActivated account) = do
   let uid = userId (accountUser account)
   Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.onActivated")
   Log.info $ field "user" (toByteString uid) . msg (val "User activated")
-  wrapHttpClient $ Intra.onUserEvent uid Nothing $ UserActivated (accountUser account)
+  Intra.onUserEvent uid Nothing $ UserActivated (accountUser account)
   pure (uid, userIdentity (accountUser account), True)
 onActivated (EmailActivated uid email) = do
-  wrapHttpClient $ Intra.onUserEvent uid Nothing (emailUpdated uid email)
+  Intra.onUserEvent uid Nothing (emailUpdated uid email)
   liftSem $ Data.deleteEmailUnvalidated uid
   pure (uid, Just (EmailIdentity email), False)
 onActivated (PhoneActivated uid phone) = do
-  wrapHttpClient $ Intra.onUserEvent uid Nothing (phoneUpdated uid phone)
+  Intra.onUserEvent uid Nothing (phoneUpdated uid phone)
   pure (uid, Just (PhoneIdentity phone), False)
 
 -- docs/reference/user/activation.md {#RefActivationRequest}
@@ -1351,7 +1438,10 @@ mkPasswordResetKey ident = case ident of
 -- TODO: communicate deletions of SSO users to SSO service.
 deleteSelfUser ::
   Members
-    '[ Input (Local ()),
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
        UniqueClaimsStore,
        UserHandleStore,
        UserQuery,
@@ -1437,7 +1527,10 @@ deleteSelfUser uid pwd = do
 -- 'deleteUser'.  Called via @post /delete@.
 verifyDeleteUser ::
   Members
-    '[ Input (Local ()),
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
        UniqueClaimsStore,
        UserHandleStore,
        UserQuery,
@@ -1463,7 +1556,10 @@ verifyDeleteUser d = do
 deleteAccount ::
   forall r.
   Members
-    '[ UniqueClaimsStore,
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       UniqueClaimsStore,
        UserHandleStore,
        UserQuery
      ]
@@ -1498,7 +1594,7 @@ deleteAccount account@(accountUser -> user) = do
   wrapHttp $ Intra.rmUser uid (userAssets user)
   wrapClient (Data.lookupClients uid >>= mapM_ (Data.rmClient uid . clientId))
   luid <- qualifyLocal uid
-  wrapHttpClient $ Intra.onUserEvent uid Nothing (UserDeleted (qUntagged luid))
+  Intra.onUserEvent uid Nothing (UserDeleted (qUntagged luid))
   -- Note: Connections can only be deleted afterwards, since
   --       they need to be notified.
   wrapClient $ Data.deleteConnections uid

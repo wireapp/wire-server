@@ -32,20 +32,21 @@ import Brig.Phone
 import Brig.Sem.ActivationKeyStore
 import Brig.Sem.ActivationSupply
 import Brig.Sem.BudgetStore
+-- import Brig.Types.Intra (ReAuthUser, reAuthCode, reAuthCodeAction, reAuthPassword)
+-- import Control.Lens (view)
 import Brig.Sem.GalleyAccess
+import Brig.Sem.GundeckAccess (GundeckAccess)
 import Brig.Sem.Twilio
 import Brig.Sem.UserHandleStore
 import Brig.Sem.UserKeyStore
 import Brig.Sem.UserQuery (UserQuery)
 import Brig.Sem.VerificationCodeStore
 import Brig.Types.Intra (ReAuthUser, reAuthCode, reAuthCodeAction)
--- import Brig.Types.Intra (ReAuthUser, reAuthCode, reAuthCodeAction, reAuthPassword)
 import Brig.Types.User.Auth
 import qualified Brig.User.Auth as Auth
 import qualified Brig.User.Auth.Cookie as Auth
 import qualified Brig.ZAuth as ZAuth
 import Control.Error (catchE)
--- import Control.Lens (view)
 import Control.Monad.Except
 import Control.Monad.Trans.Except (throwE)
 import qualified Data.ByteString as BS
@@ -72,6 +73,7 @@ import qualified Network.Wai.Utilities.Response as WaiResp
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Polysemy
+import Polysemy.Async
 import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
@@ -86,10 +88,12 @@ routesPublic ::
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
+       Async,
        BlacklistStore,
        BudgetStore,
        Error Twilio.ErrorResponse,
        GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.TinyLog,
        Twilio,
@@ -227,8 +231,10 @@ routesPublic = do
 
 routesInternal ::
   Members
-    '[ Error ReAuthError,
+    '[ Async,
+       Error ReAuthError,
        GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.TinyLog,
        UserKeyStore,
@@ -343,9 +349,11 @@ reAuthUser uid body = do
 
 loginH ::
   Members
-    '[ BudgetStore,
+    '[ Async,
+       BudgetStore,
        Error Twilio.ErrorResponse,
        GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.TinyLog,
        Twilio,
@@ -362,9 +370,11 @@ loginH (req ::: persist ::: _) = do
 
 login ::
   Members
-    '[ BudgetStore,
+    '[ Async,
+       BudgetStore,
        Error Twilio.ErrorResponse,
        GalleyAccess,
+       GundeckAccess,
        Input (Local ()),
        P.TinyLog,
        Twilio,
@@ -376,28 +386,69 @@ login ::
     r =>
   Public.Login ->
   Bool ->
-  (Handler r) (Auth.Access ZAuth.User)
+  Handler r (Auth.Access ZAuth.User)
 login l persist = do
   let typ = if persist then PersistentCookie else SessionCookie
   Auth.login l typ !>> loginError
 
-ssoLoginH :: JsonRequest SsoLogin ::: Bool ::: JSON -> (Handler r) Response
+ssoLoginH ::
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
+       UserQuery
+     ]
+    r =>
+  JsonRequest SsoLogin ::: Bool ::: JSON ->
+  Handler r Response
 ssoLoginH (req ::: persist ::: _) = do
   lift . tokenResponse =<< flip ssoLogin persist =<< parseJsonBody req
 
-ssoLogin :: SsoLogin -> Bool -> (Handler r) (Auth.Access ZAuth.User)
+ssoLogin ::
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
+       UserQuery
+     ]
+    r =>
+  SsoLogin ->
+  Bool ->
+  Handler r (Auth.Access ZAuth.User)
 ssoLogin l persist = do
   let typ = if persist then PersistentCookie else SessionCookie
-  wrapHttpClientE (Auth.ssoLogin l typ) !>> loginError
+  Auth.ssoLogin l typ !>> loginError
 
-legalHoldLoginH :: JsonRequest LegalHoldLogin ::: JSON -> (Handler r) Response
+legalHoldLoginH ::
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
+       UserQuery
+     ]
+    r =>
+  JsonRequest LegalHoldLogin ::: JSON ->
+  Handler r Response
 legalHoldLoginH (req ::: _) = do
   lift . tokenResponse =<< legalHoldLogin =<< parseJsonBody req
 
-legalHoldLogin :: LegalHoldLogin -> (Handler r) (Auth.Access ZAuth.LegalHoldUser)
+legalHoldLogin ::
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       Input (Local ()),
+       UserQuery
+     ]
+    r =>
+  LegalHoldLogin ->
+  Handler r (Auth.Access ZAuth.LegalHoldUser)
 legalHoldLogin l = do
   let typ = PersistentCookie -- Session cookie isn't a supported use case here
-  wrapHttpClientE (Auth.legalHoldLogin l typ) !>> legalHoldLoginError
+  Auth.legalHoldLogin l typ !>> legalHoldLoginError
 
 logoutH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> (Handler r) Response
 logoutH (_ ::: ut ::: at) = empty <$ logout ut at
@@ -469,7 +520,16 @@ rmCookies :: UserId -> Public.RemoveCookies -> (Handler r) ()
 rmCookies uid (Public.RemoveCookies pw lls ids) =
   wrapClientE (Auth.revokeAccess uid pw ids lls) !>> authError
 
-renewH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> (Handler r) Response
+renewH ::
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       UserQuery
+     ]
+    r =>
+  JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
+  Handler r Response
 renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew ut at
 
 -- | renew access for either:
@@ -478,18 +538,25 @@ renewH (_ ::: ut ::: at) = lift . either tokenResponse tokenResponse =<< renew u
 --
 -- Other combinations of provided inputs will cause an error to be raised.
 renew ::
+  Members
+    '[ Async,
+       GalleyAccess,
+       GundeckAccess,
+       UserQuery
+     ]
+    r =>
   Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ->
   Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) ->
-  (Handler r) (Either (Auth.Access ZAuth.User) (Auth.Access ZAuth.LegalHoldUser))
+  Handler r (Either (Auth.Access ZAuth.User) (Auth.Access ZAuth.LegalHoldUser))
 renew = \case
   Nothing ->
     const $ throwStd authMissingCookie
   (Just (Left userTokens)) ->
     -- normal UserToken, so we want a normal AccessToken
-    fmap Left . wrapHttpClientE . renewAccess userTokens <=< matchingOrNone leftToMaybe
+    fmap Left . renewAccess userTokens <=< matchingOrNone leftToMaybe
   (Just (Right legalholdUserTokens)) ->
     -- LegalholdUserToken, so we want a LegalholdAccessToken
-    fmap Right . wrapHttpClientE . renewAccess legalholdUserTokens <=< matchingOrNone rightToMaybe
+    fmap Right . renewAccess legalholdUserTokens <=< matchingOrNone rightToMaybe
   where
     renewAccess uts mat =
       Auth.renewAccess uts mat !>> zauthError

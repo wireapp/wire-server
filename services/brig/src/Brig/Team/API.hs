@@ -35,6 +35,8 @@ import qualified Brig.Email as Email
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import qualified Brig.Phone as Phone
+import Brig.Sem.GalleyAccess
+import Brig.Sem.GundeckAccess
 import Brig.Sem.Twilio (Twilio)
 import Brig.Sem.UserKeyStore (UserKeyStore)
 import Brig.Sem.UserQuery (UserQuery)
@@ -65,6 +67,7 @@ import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
 import Polysemy
+import Polysemy.Async
 import qualified Polysemy.Error as P
 import Polysemy.Input
 import qualified Ropes.Twilio as Twilio
@@ -207,7 +210,10 @@ routesPublic = do
 
 routesInternal ::
   Members
-    '[ BlacklistStore,
+    '[ Async,
+       BlacklistStore,
+       GalleyAccess,
+       GundeckAccess,
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
@@ -521,21 +527,33 @@ getInvitationByEmail email = do
   inv <- lift $ wrapClient $ DB.lookupInvitationByEmail email
   maybe (throwStd (notFound "Invitation not found")) pure inv
 
-suspendTeamH :: JSON ::: TeamId -> (Handler r) Response
+suspendTeamH ::
+  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  JSON ::: TeamId ->
+  Handler r Response
 suspendTeamH (_ ::: tid) = do
   empty <$ suspendTeam tid
 
-suspendTeam :: TeamId -> (Handler r) ()
+suspendTeam ::
+  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  TeamId ->
+  Handler r ()
 suspendTeam tid = do
   changeTeamAccountStatuses tid Suspended
   lift $ wrapClient $ DB.deleteInvitations tid
   lift $ wrapHttp $ Intra.changeTeamStatus tid Team.Suspended Nothing
 
-unsuspendTeamH :: JSON ::: TeamId -> (Handler r) Response
+unsuspendTeamH ::
+  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  JSON ::: TeamId ->
+  Handler r Response
 unsuspendTeamH (_ ::: tid) = do
   empty <$ unsuspendTeam tid
 
-unsuspendTeam :: TeamId -> (Handler r) ()
+unsuspendTeam ::
+  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  TeamId ->
+  Handler r ()
 unsuspendTeam tid = do
   changeTeamAccountStatuses tid Active
   lift $ wrapHttp $ Intra.changeTeamStatus tid Team.Active Nothing
@@ -543,13 +561,17 @@ unsuspendTeam tid = do
 -------------------------------------------------------------------------------
 -- Internal
 
-changeTeamAccountStatuses :: TeamId -> AccountStatus -> (Handler r) ()
+changeTeamAccountStatuses ::
+  Members '[Async, GalleyAccess, GundeckAccess] r =>
+  TeamId ->
+  AccountStatus ->
+  Handler r ()
 changeTeamAccountStatuses tid s = do
   team <- Team.tdTeam <$> lift (wrapHttp $ Intra.getTeam tid)
   unless (team ^. teamBinding == Binding) $
     throwStd noBindingTeam
   uids <- toList1 =<< lift (fmap (view Teams.userId) . view teamMembers <$> wrapHttp (Intra.getTeamMembers tid))
-  wrapHttpClientE (API.changeAccountStatus uids s) !>> accountStatusError
+  API.changeAccountStatus uids s !>> accountStatusError
   where
     toList1 (x : xs) = pure $ List1.list1 x xs
     toList1 [] = throwStd (notFound "Team not found or no members")

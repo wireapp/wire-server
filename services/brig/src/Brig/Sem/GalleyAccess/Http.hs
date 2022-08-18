@@ -21,6 +21,7 @@ import qualified Bilge as RPC
 import Bilge.IO
 import Bilge.RPC
 import Bilge.Request
+import Brig.RPC
 import qualified Brig.RPC.Decode as RPC
 import Brig.Sem.Common
 import Brig.Sem.GalleyAccess
@@ -28,11 +29,15 @@ import Control.Monad.Catch
 import Data.ByteString.Conversion.To
 import Imports
 import Network.HTTP.Types.Method
+import Network.HTTP.Types.Status
 import Polysemy
+import Polysemy.TinyLog
+import System.Logger.Class hiding (debug)
 import Wire.API.Team.Feature
 
 galleyAccessToHttp ::
   forall m r a.
+  Member TinyLog r =>
   ( MonadIO m,
     MonadMask m,
     MonadHttp m,
@@ -43,18 +48,50 @@ galleyAccessToHttp ::
   Sem (GalleyAccess ': r) a ->
   Sem r a
 galleyAccessToHttp g =
-  interpret $
-    embed @m . \case
-      GetTeamSndFactorPasswordChallenge tid -> do
+  interpret $ \case
+    GetTeamSndFactorPasswordChallenge tid -> embed @m $ do
+      let req =
+            paths
+              [ "i",
+                "teams",
+                toByteString' tid,
+                "features",
+                featureNameBS @SndFactorPasswordChallengeConfig
+              ]
+              . expect2xx
+      response <- makeReq "galley" g GET req
+      wsStatus @SndFactorPasswordChallengeConfig
+        <$> RPC.decodeBody "galley" response
+    GetTeamContacts uid -> do
+      debug $ remote "galley" . msg (val "Get team contacts")
+      embed @m $ do
+        let req =
+              paths ["i", "users", toByteString' uid, "team", "members"]
+                . expect [status200, status404]
+        response <- makeReq "galley" g GET req
+        case RPC.statusCode response of
+          200 -> Just <$> decodeBody "galley" response
+          _ -> pure Nothing
+    GetTeamId uid -> do
+      debug $ remote "galley" . msg (val "Get team from user")
+      embed @m $ do
+        let req =
+              paths ["i", "users", toByteString' uid, "team"]
+                . expect [status200, status404]
+        response <- makeReq "galley" g GET req
+        case RPC.statusCode response of
+          200 -> Just <$> decodeBody "galley" response
+          _ -> pure Nothing
+    GetTeamLegalHoldStatus tid -> do
+      debug $ remote "galley" . msg (val "Get legalhold settings")
+      embed @m $ do
         let req =
               paths
                 [ "i",
                   "teams",
                   toByteString' tid,
                   "features",
-                  featureNameBS @SndFactorPasswordChallengeConfig
+                  featureNameBS @LegalholdConfig
                 ]
                 . expect2xx
-        response <- makeReq "galley" g GET req
-        wsStatus @SndFactorPasswordChallengeConfig
-          <$> RPC.decodeBody "galley" response
+        makeReq "galley" g GET req >>= decodeBody "galley"

@@ -24,12 +24,14 @@ import Bilge.Request
 import Bilge.Retry
 import Cassandra
 import Control.Monad.Catch
+import Control.Monad.Trans.Except
 import Control.Retry
 import qualified Data.ByteString.Lazy as LBS
 import Imports
 import Network.HTTP.Client (Response)
 import Network.HTTP.Types.Method
 import Polysemy
+import Polysemy.Error
 
 interpretClientToIO ::
   Member (Final IO) r =>
@@ -57,3 +59,11 @@ makeReq component cReq m r =
 
 x3 :: RetryPolicy
 x3 = limitRetries 3 <> exponentialBackoff 100000
+
+semErrToExceptT ::
+  Sem (Error e ': r) a ->
+  ExceptT e (Sem r) a
+semErrToExceptT act =
+  lift (runError act) >>= \case
+    Left p -> throwE p
+    Right v -> pure v

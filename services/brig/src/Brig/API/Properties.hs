@@ -30,23 +30,41 @@ import Brig.App
 import Brig.Data.Properties (PropertiesDataError)
 import qualified Brig.Data.Properties as Data
 import qualified Brig.IO.Intra as Intra
+import Brig.Sem.GundeckAccess (GundeckAccess)
 import Brig.Types.User.Event
 import Control.Error
 import Data.Id
 import Imports
+import Polysemy
+import Polysemy.Async
 import Wire.API.Properties
 
-setProperty :: UserId -> ConnId -> PropertyKey -> PropertyValue -> ExceptT PropertiesDataError (AppT r) ()
+setProperty ::
+  Members '[Async, GundeckAccess] r =>
+  UserId ->
+  ConnId ->
+  PropertyKey ->
+  PropertyValue ->
+  ExceptT PropertiesDataError (AppT r) ()
 setProperty u c k v = do
   wrapClientE $ Data.insertProperty u k (propertyRaw v)
   lift $ Intra.onPropertyEvent u c (PropertySet u k v)
 
-deleteProperty :: UserId -> ConnId -> PropertyKey -> AppT r ()
+deleteProperty ::
+  Members '[Async, GundeckAccess] r =>
+  UserId ->
+  ConnId ->
+  PropertyKey ->
+  AppT r ()
 deleteProperty u c k = do
   wrapClient $ Data.deleteProperty u k
   Intra.onPropertyEvent u c (PropertyDeleted u k)
 
-clearProperties :: UserId -> ConnId -> AppT r ()
+clearProperties ::
+  Members '[Async, GundeckAccess] r =>
+  UserId ->
+  ConnId ->
+  AppT r ()
 clearProperties u c = do
   wrapClient $ Data.clearProperties u
   Intra.onPropertyEvent u c (PropertiesCleared u)
