@@ -1,14 +1,14 @@
 {
     "nixpkgs": {
-        "branch": "nixpkgs-unstable",
-        "description": "A read-only mirror of NixOS/nixpkgs tracking the released channels. Send issues and PRs to",
-        "homepage": "https://github.com/NixOS/nixpkgs",
-        "owner": "NixOS",
+        "branch": "hls-hlint-plugin-workaround",
+        "description": "Wire's fork of NixOS/nixpkgs. Use until HLS > 1.7.0.0 is available in NixOS/nixpkgs",
+        "homepage": "https://github.com/wireapp/nixpkgs",
+        "owner": "wireapp",
         "repo": "nixpkgs",
-        "rev": "964d60ff2e6bc76c0618962da52859603784fa78",
-        "sha256": "1qvs9a59araglrrbzp5zdx81nmjgaxpfp36yl708il0lyqdjawvd",
+        "rev": "e76544a8e8c35eabc285379cff7168d8083879db",
+        "sha256": "1rsci29r6lwrhh52zpy4xkiyws2am2a7n90mvrd8apq54nkdkaj7",
         "type": "tarball",
-        "url": "https://github.com/NixOS/nixpkgs/archive/964d60ff2e6bc76c0618962da52859603784fa78.tar.gz",
+        "url": "https://github.com/wireapp/nixpkgs/archive/e76544a8e8c35eabc285379cff7168d8083879db.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }
