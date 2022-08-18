@@ -5,10 +5,10 @@
         "homepage": "https://github.com/wireapp/nixpkgs",
         "owner": "wireapp",
         "repo": "nixpkgs",
-        "rev": "e76544a8e8c35eabc285379cff7168d8083879db",
-        "sha256": "1rsci29r6lwrhh52zpy4xkiyws2am2a7n90mvrd8apq54nkdkaj7",
+        "rev": "c1f2214fb86c79f577460a3acd1b41ba284178c0",
+        "sha256": "0hdc53q8xmx6wgcyilxwy450dwhzwakdbbil1hg3vraprr1kpxcp",
         "type": "tarball",
-        "url": "https://github.com/wireapp/nixpkgs/archive/e76544a8e8c35eabc285379cff7168d8083879db.tar.gz",
+        "url": "https://github.com/wireapp/nixpkgs/archive/c1f2214fb86c79f577460a3acd1b41ba284178c0.tar.gz",
         "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
     }
 }
