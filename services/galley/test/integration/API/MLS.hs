@@ -192,21 +192,7 @@ testSenderNotInConversation = do
       liftIO $
         setupCommit tmp alice "group" "group" $
           toList (pClients bob)
-
-    void . liftIO $
-      spawn
-        ( cli
-            (pClientQid bob)
-            tmp
-            [ "group",
-              "from-welcome",
-              "--group-out",
-              tmp </> "group",
-              tmp </> "welcome"
-            ]
-        )
-        Nothing
-
+    liftIO $ mergeWelcome tmp (pClientQid bob) "group" "group" "welcome"
     message <- liftIO $ createMessage tmp bob "group" "some text"
 
     -- send the message as bob, who is not in the conversation
@@ -937,19 +923,7 @@ testLocalToRemote = withSystemTempDirectory "mls" $ \tmp -> do
         }
 
   -- step 10
-  void . liftIO $
-    spawn
-      ( cli
-          (pClientQid bob)
-          tmp
-          [ "group",
-            "from-welcome",
-            "--group-out",
-            tmp </> "groupB.json",
-            tmp </> "welcome"
-          ]
-      )
-      Nothing
+  liftIO $ mergeWelcome tmp (pClientQid bob) "group" "groupB.json" "welcome"
   -- step 11
   message <-
     liftIO $
@@ -1056,19 +1030,7 @@ testAppMessage2 = do
     void $ postCommit setup
 
     let bob = head users
-    void . liftIO $
-      spawn
-        ( cli
-            (pClientQid bob)
-            tmp
-            [ "group",
-              "from-welcome",
-              "--group-out",
-              tmp </> "group",
-              tmp </> "welcome"
-            ]
-        )
-        Nothing
+    liftIO $ mergeWelcome tmp (pClientQid bob) "group" "group" "welcome"
     message <-
       liftIO $
         createMessage tmp bob "group" "some text"
@@ -1197,19 +1159,7 @@ testRemoteToLocal = do
 
     void . withTempMockFederator' mockedResponse $
       postCommit setup
-    void . liftIO $
-      spawn
-        ( cli
-            (pClientQid bob)
-            tmp
-            [ "group",
-              "from-welcome",
-              "--group-out",
-              tmp </> "groupB.json",
-              tmp </> "welcome"
-            ]
-        )
-        Nothing
+    liftIO $ mergeWelcome tmp (pClientQid bob) "group" "groupB.json" "welcome"
     message <-
       liftIO $
         spawn
@@ -1264,19 +1214,7 @@ testRemoteNonMemberToLocal = do
           { createConv = CreateConv
           }
     bob <- assertOne (users setup)
-    void . liftIO $
-      spawn
-        ( cli
-            (pClientQid bob)
-            tmp
-            [ "group",
-              "from-welcome",
-              "--group-out",
-              tmp </> "groupB.json",
-              tmp </> "welcome"
-            ]
-        )
-        Nothing
+    liftIO $ mergeWelcome tmp (pClientQid bob) "group" "groupB.json" "welcome"
     message <-
       liftIO $
         spawn
@@ -1403,19 +1341,7 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
         NonEmpty.tail (pClients creator) <> [bobClient1]
   testSuccessfulCommit MessagingSetup {users = [bob], ..}
 
-  void . liftIO $
-    spawn
-      ( cli
-          (fst bobClient1)
-          tmp
-          [ "group",
-            "from-welcome",
-            "--group-out",
-            tmp </> "group",
-            tmp </> "welcome"
-          ]
-      )
-      Nothing
+  liftIO $ mergeWelcome tmp (fst bobClient1) "group" "group" "welcome"
 
   bobClient2Qid <-
     userClientQid (pUserId bob)
@@ -1436,19 +1362,7 @@ testExternalAddProposalWrongUser = withSystemTempDirectory "mls" $ \tmp -> do
         NonEmpty.tail (pClients creator) <> [bobClient1, charlyClient1]
   testSuccessfulCommit MessagingSetup {users = [bob, charly], ..}
 
-  void . liftIO $
-    spawn
-      ( cli
-          (fst bobClient1)
-          tmp
-          [ "group",
-            "from-welcome",
-            "--group-out",
-            tmp </> "group",
-            tmp </> "welcome"
-          ]
-      )
-      Nothing
+  liftIO $ mergeWelcome tmp (fst bobClient1) "group" "group" "welcome"
 
   bobClient2Qid <-
     userClientQid (pUserId bob)
@@ -1471,19 +1385,7 @@ testExternalAddProposalWrongClient = withSystemTempDirectory "mls" $ \tmp -> do
         NonEmpty.tail (pClients creator) <> [bobClient1, charlyClient1]
   testSuccessfulCommit MessagingSetup {users = [bob, charly], ..}
 
-  void . liftIO $
-    spawn
-      ( cli
-          (fst bobClient1)
-          tmp
-          [ "group",
-            "from-welcome",
-            "--group-out",
-            tmp </> "group",
-            tmp </> "welcome"
-          ]
-      )
-      Nothing
+  liftIO $ mergeWelcome tmp (fst bobClient1) "group" "group" "welcome"
 
   bobClient2Qid <-
     userClientQid (pUserId bob)

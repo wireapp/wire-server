@@ -330,6 +330,29 @@ setupRemoveCommit tmp admin groupName newGroupName clients = do
       True -> Just <$> BS.readFile welcomeFile
   pure (commit, welcome)
 
+mergeWelcome ::
+  (HasCallStack) =>
+  String ->
+  String ->
+  String ->
+  String ->
+  String ->
+  IO ()
+mergeWelcome tmp clientQid groupIn groupOut welcomeIn =
+  void $
+    spawn
+      ( cli
+          clientQid
+          tmp
+          [ groupIn,
+            "from-welcome",
+            "--group-out",
+            tmp </> groupOut,
+            tmp </> welcomeIn
+          ]
+      )
+      Nothing
+
 bareAddProposal ::
   HasCallStack =>
   String ->
