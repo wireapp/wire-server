@@ -7,7 +7,7 @@ kind: {{ .Values.tls.certManager.issuer.kind }}
 {{- end }}
 
 metadata:
-  name: coturn-letsencrypt-issuer
+  name: {{ .Values.tls.certManager.issuer.name }}
   {{- if eq .Values.tls.certManager.issuer.kind "Issuer" }}
   namespace: {{ .Release.Namespace }}
   {{- end }}
@@ -20,7 +20,7 @@ spec:
   acme:
     server: 'https://acme-v02.api.letsencrypt.org/directory'
     {{- if eq .Values.tls.certManager.issuer.certmasterEmail "" }}
-    {{- fail "LetsEncrypt account email address is empty" }}
+    {{- fail "Let's Encrypt account email address is empty" }}
     {{- else }}
     email: {{ .Values.tls.certManager.issuer.certmasterEmail | quote }}
     {{- end }}

@@ -3,7 +3,7 @@
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: coturn-letsencrypt-cert
+  name: coturn-auto-certificate
   namespace: {{ .Release.Namespace }}
   labels:
     chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
@@ -11,7 +11,7 @@ metadata:
     heritage: "{{ .Release.Service }}"
 spec:
   issuerRef:
-    name: coturn-letsencrypt-issuer
+    name: {{ .Values.tls.certManager.issuer.name }}
     kind: {{ .Values.tls.certManager.issuer.kind }}
   usages:
     - server auth
@@ -27,7 +27,7 @@ spec:
     rotationPolicy: Always
 
   {{- if eq (len .Values.tls.certManager.dnsNames) 0 }}
-  {{- fail "List of DNS names for LetsEncrypt certificate is empty" }}
+  {{- fail "List of DNS names for automatically provisioned certificate is empty" }}
   {{- else }}
   dnsNames:
   {{- with .Values.tls.certManager.dnsNames }}

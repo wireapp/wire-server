@@ -33,6 +33,7 @@ tls:
     dnsNames: []
     issuer:
       create: false
+      name:
       kind:
       certmasterEmail:
       solverConfiguration:
