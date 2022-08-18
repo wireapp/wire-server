@@ -137,7 +137,7 @@ test-suite unit
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -with-rtsopts=-N
 
-  build-tool-depends: hspec-discover:hspec-discover -any
+  build-tool-depends: hspec-discover:hspec-discover
   build-depends:
       base                       >=4    && <5
     , bytestring                 >=0.10
