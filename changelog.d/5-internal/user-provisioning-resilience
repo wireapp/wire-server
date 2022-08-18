@@ -1,1 +1,0 @@
-Improved the resilience of provisioning new users via SAML by combining two persistence calls into one, preventing a creation failure from locking a user handle with no corresponding user.

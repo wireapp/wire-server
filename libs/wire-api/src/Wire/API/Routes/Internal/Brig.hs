@@ -21,6 +21,7 @@ module Wire.API.Routes.Internal.Brig
     AccountAPI,
     MLSAPI,
     TeamsAPI,
+    UserAPI,
     EJPDRequest,
     GetAccountConferenceCallingConfig,
     PutAccountConferenceCallingConfig,
@@ -198,6 +199,16 @@ type MLSAPI =
                                     '[RespondEmpty 201 "Key package ref mapping created"]
                                     ()
                            )
+                    :<|> Named
+                           "post-key-package-ref"
+                           ( Summary "Update a KeyPackageRef in mapping"
+                               :> ReqBody '[Servant.JSON] KeyPackageRef
+                               :> MultiVerb
+                                    'POST
+                                    '[Servant.JSON]
+                                    '[RespondEmpty 201 "Key package ref mapping updated"]
+                                    ()
+                           )
                 )
          )
            :<|> GetMLSClients
@@ -259,7 +270,7 @@ type GetVerificationCode =
 
 type API =
   "i"
-    :> (EJPD_API :<|> AccountAPI :<|> MLSAPI :<|> GetVerificationCode :<|> TeamsAPI)
+    :> (EJPD_API :<|> AccountAPI :<|> MLSAPI :<|> GetVerificationCode :<|> TeamsAPI :<|> UserAPI)
 
 type TeamsAPI =
   Named
@@ -268,6 +279,34 @@ type TeamsAPI =
         :> ReqBody '[Servant.JSON] (Multi.TeamStatus SearchVisibilityInboundConfig)
         :> Post '[Servant.JSON] ()
     )
+
+type UserAPI =
+  UpdateUserLocale
+    :<|> DeleteUserLocale
+    :<|> GetDefaultLocale
+
+type UpdateUserLocale =
+  Summary
+    "Set the user's locale"
+    :> "users"
+    :> Capture "uid" UserId
+    :> "locale"
+    :> ReqBody '[Servant.JSON] LocaleUpdate
+    :> Put '[Servant.JSON] LocaleUpdate
+
+type DeleteUserLocale =
+  Summary
+    "Delete the user's locale"
+    :> "users"
+    :> Capture "uid" UserId
+    :> "locale"
+    :> Delete '[Servant.JSON] NoContent
+
+type GetDefaultLocale =
+  Summary "Get the default locale"
+    :> "users"
+    :> "locale"
+    :> Get '[Servant.JSON] LocaleUpdate
 
 type SwaggerDocsAPI = "api" :> "internal" :> SwaggerSchemaUI "swagger-ui" "swagger.json"
 

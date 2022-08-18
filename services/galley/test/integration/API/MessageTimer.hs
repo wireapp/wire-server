@@ -27,7 +27,6 @@ import Control.Lens (view)
 import Data.Aeson (eitherDecode)
 import Data.Domain
 import Data.Id
-import qualified Data.LegalHold as LH
 import Data.List1
 import qualified Data.List1 as List1
 import Data.Misc
@@ -49,8 +48,6 @@ import Wire.API.Event.Conversation
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Component
 import Wire.API.Internal.Notification (Notification (..))
-import qualified Wire.API.Team.Member as Member
-import Wire.API.Team.Permission
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -188,9 +185,9 @@ messageTimerChangeWithRemotes = do
 messageTimerChangeWithoutAllowedAction :: TestM ()
 messageTimerChangeWithoutAllowedAction = do
   -- Create a team and a guest user
-  [owner, member, guest] <- randomUsers 3
-  connectUsers owner (list1 member [guest])
-  tid <- createNonBindingTeam "team" owner [Member.mkTeamMember member fullPermissions Nothing LH.defUserLegalHoldStatus]
+  (tid, owner, member : _) <- createBindingTeamWithMembers 2
+  guest <- randomUser
+  connectUsers owner (list1 guest [])
   -- Create a conversation
   cid <- createTeamConvWithRole owner tid [member, guest] Nothing Nothing Nothing roleNameWireMember
   -- Try to change the timer (as a non admin, guest user) and observe failure

@@ -4,5 +4,6 @@
         "inactivityTimeoutSecs": 0
     },
     "lockStatus": "unlocked",
-    "status": "enabled"
+    "status": "enabled",
+    "ttl": "unlimited"
 }

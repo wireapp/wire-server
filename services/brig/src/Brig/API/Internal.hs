@@ -138,7 +138,7 @@ servantSitemap ::
      ]
     r =>
   ServerT BrigIRoutes.API (Handler r)
-servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI
+servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI :<|> userAPI
 
 ejpdAPI ::
   Members '[UserHandleStore, UserQuery] r =>
@@ -159,6 +159,7 @@ mlsAPI =
                  :<|> Named @"get-conversation-by-key-package-ref" (getConvIdByKeyPackageRef ref)
              )
         :<|> Named @"put-key-package-ref" (putKeyPackageRef ref)
+        :<|> Named @"post-key-package-ref" (postKeyPackageRef ref)
   )
     :<|> getMLSClients
     :<|> mapKeyPackageRefsInternal
@@ -190,6 +191,12 @@ accountAPI =
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
 
+userAPI :: ServerT BrigIRoutes.UserAPI (Handler r)
+userAPI =
+  updateLocale
+    :<|> deleteLocale
+    :<|> getDefaultUserLocale
+
 -- | Responds with 'Nothing' if field is NULL in existing user or user does not exist.
 getAccountConferenceCallingConfig :: UserId -> (Handler r) (ApiFt.WithStatusNoLock ApiFt.ConferenceCallingConfig)
 getAccountConferenceCallingConfig uid =
@@ -218,6 +225,10 @@ putKeyPackageRef ref = lift . wrapClient . Data.addKeyPackageRef ref
 -- Used by galley to retrieve conversation id from mls_key_package_ref
 getConvIdByKeyPackageRef :: KeyPackageRef -> Handler r (Maybe (Qualified ConvId))
 getConvIdByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.keyPackageRefConvId
+
+-- Used by galley to update key packages in mls_key_package_ref on commits with update_path
+postKeyPackageRef :: KeyPackageRef -> KeyPackageRef -> Handler r ()
+postKeyPackageRef ref = lift . wrapClient . Data.updateKeyPackageRef ref
 
 getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientId)
 getMLSClients usr ss = do
@@ -867,6 +878,21 @@ updateRichInfo uid rup = do
   -- FUTUREWORK: send an event
   -- Intra.onUserEvent uid (Just conn) (richInfoUpdate uid ri)
   lift $ wrapClient $ Data.updateRichInfo uid (mkRichInfoAssocList richInfo)
+
+updateLocale :: UserId -> LocaleUpdate -> (Handler r) LocaleUpdate
+updateLocale uid locale = do
+  lift $ wrapClient $ Data.updateLocale uid (luLocale locale)
+  pure locale
+
+deleteLocale :: UserId -> (Handler r) NoContent
+deleteLocale uid = do
+  defLoc <- setDefaultUserLocale <$> view settings
+  lift $ wrapClient $ Data.updateLocale uid defLoc $> NoContent
+
+getDefaultUserLocale :: (Handler r) LocaleUpdate
+getDefaultUserLocale = do
+  defLocale <- setDefaultUserLocale <$> view settings
+  pure $ LocaleUpdate defLocale
 
 getRichInfoH :: UserId -> (Handler r) Response
 getRichInfoH uid = json <$> getRichInfo uid

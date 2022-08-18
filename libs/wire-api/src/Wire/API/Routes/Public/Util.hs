@@ -35,7 +35,7 @@ instance
 
   fromUnion (Z (I x)) = Existed x
   fromUnion (S (Z (I x))) = Created x
-  fromUnion (S (S x)) = case x of
+  fromUnion (S (S x)) = case x of {}
 
 -- Note: order is important here; if you swap Existed with Created, the wrong
 -- status codes will be returned. Keep the Order in ResponseForExistedCreated
@@ -76,7 +76,7 @@ instance
 
   fromUnion (Z (I ())) = Unchanged
   fromUnion (S (Z (I a))) = Updated a
-  fromUnion (S (S x)) = case x of
+  fromUnion (S (S x)) = case x of {}
 
 type PaginationDocs =
   "The IDs returned by this endpoint are paginated. To get the first page, make\

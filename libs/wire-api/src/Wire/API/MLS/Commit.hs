@@ -31,7 +31,7 @@ instance ParseMLS Commit where
   parseMLS = Commit <$> parseMLSVector @Word32 parseMLS <*> parseMLSOptional parseMLS
 
 data UpdatePath = UpdatePath
-  { upLeaf :: KeyPackage,
+  { upLeaf :: RawMLS KeyPackage,
     upNodes :: [UpdatePathNode]
   }
 

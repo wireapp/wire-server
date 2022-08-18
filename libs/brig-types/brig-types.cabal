@@ -1,172 +1,176 @@
 cabal-version: 1.12
-
--- This file has been generated from package.yaml by hpack version 0.34.4.
---
--- see: https://github.com/sol/hpack
---
--- hash: 208f0e0b617d4b77a178515ad4feb886ef0dcef8997be2174e4ae72b78dccd7e
-
-name:           brig-types
-version:        1.35.0
-synopsis:       User Service
-category:       Network
-author:         Wire Swiss GmbH
-maintainer:     Wire Swiss GmbH <backend@wire.com>
-copyright:      (c) 2017 Wire Swiss GmbH
-license:        AGPL-3
-license-file:   LICENSE
-build-type:     Simple
+name:          brig-types
+version:       1.35.0
+synopsis:      User Service
+category:      Network
+author:        Wire Swiss GmbH
+maintainer:    Wire Swiss GmbH <backend@wire.com>
+copyright:     (c) 2017 Wire Swiss GmbH
+license:       AGPL-3
+license-file:  LICENSE
+build-type:    Simple
 
 library
   exposed-modules:
-      Brig.Types.Activation
-      Brig.Types.Common
-      Brig.Types.Connection
-      Brig.Types.Instances
-      Brig.Types.Intra
-      Brig.Types.Provider.Tag
-      Brig.Types.Search
-      Brig.Types.Team
-      Brig.Types.Team.LegalHold
-      Brig.Types.Test.Arbitrary
-      Brig.Types.User
-      Brig.Types.User.Auth
-      Brig.Types.User.Event
-  other-modules:
-      Paths_brig_types
-  hs-source-dirs:
-      src
+    Brig.Types.Activation
+    Brig.Types.Common
+    Brig.Types.Connection
+    Brig.Types.Instances
+    Brig.Types.Intra
+    Brig.Types.Provider.Tag
+    Brig.Types.Search
+    Brig.Types.Team
+    Brig.Types.Team.LegalHold
+    Brig.Types.Test.Arbitrary
+    Brig.Types.User
+    Brig.Types.User.Auth
+    Brig.Types.User.Event
+
+  other-modules:      Paths_brig_types
+  hs-source-dirs:     src
   default-extensions:
-      AllowAmbiguousTypes
-      BangPatterns
-      ConstraintKinds
-      DataKinds
-      DefaultSignatures
-      DerivingStrategies
-      DerivingVia
-      DeriveFunctor
-      DeriveGeneric
-      DeriveLift
-      DeriveTraversable
-      EmptyCase
-      FlexibleContexts
-      FlexibleInstances
-      FunctionalDependencies
-      GADTs
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NoImplicitPrelude
-      OverloadedStrings
-      PackageImports
-      PatternSynonyms
-      PolyKinds
-      QuasiQuotes
-      RankNTypes
-      ScopedTypeVariables
-      StandaloneDeriving
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -funbox-strict-fields
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -funbox-strict-fields
+
   build-depends:
-      QuickCheck >=2.9
-    , aeson >=2.0.1.0
-    , attoparsec >=0.10
-    , base ==4.*
+      aeson                  >=2.0.1.0
+    , attoparsec             >=0.10
+    , base                   >=4       && <5
     , bytestring
-    , bytestring-conversion >=0.2
+    , bytestring-conversion  >=0.2
     , cassandra-util
-    , containers >=0.5
-    , deriving-swagger2 >=0.1.0
+    , containers             >=0.5
+    , deriving-swagger2      >=0.1.0
     , imports
-    , servant-server >=0.18.2
-    , servant-swagger >=1.1.10
+    , QuickCheck             >=2.9
+    , servant-server         >=0.18.2
+    , servant-swagger        >=1.1.10
     , string-conversions
-    , swagger2 >=2.5
-    , text >=0.11
-    , time >=1.1
+    , swagger2               >=2.5
+    , text                   >=0.11
+    , time                   >=1.1
     , tinylog
-    , types-common >=0.16
-    , unordered-containers >=0.2
+    , types-common           >=0.16
+    , unordered-containers   >=0.2
     , wire-api
-  default-language: Haskell2010
+
+  default-language:   Haskell2010
 
 test-suite brig-types-tests
-  type: exitcode-stdio-1.0
-  main-is: Main.hs
+  type:               exitcode-stdio-1.0
+  main-is:            Main.hs
   other-modules:
-      Test.Brig.Roundtrip
-      Test.Brig.Types.Common
-      Test.Brig.Types.Team
-      Test.Brig.Types.User
-      Paths_brig_types
-  hs-source-dirs:
-      test/unit
+    Paths_brig_types
+    Test.Brig.Roundtrip
+    Test.Brig.Types.Common
+    Test.Brig.Types.Team
+    Test.Brig.Types.User
+
+  hs-source-dirs:     test/unit
   default-extensions:
-      AllowAmbiguousTypes
-      BangPatterns
-      ConstraintKinds
-      DataKinds
-      DefaultSignatures
-      DerivingStrategies
-      DerivingVia
-      DeriveFunctor
-      DeriveGeneric
-      DeriveLift
-      DeriveTraversable
-      EmptyCase
-      FlexibleContexts
-      FlexibleInstances
-      FunctionalDependencies
-      GADTs
-      InstanceSigs
-      KindSignatures
-      LambdaCase
-      MultiParamTypeClasses
-      MultiWayIf
-      NamedFieldPuns
-      NoImplicitPrelude
-      OverloadedStrings
-      PackageImports
-      PatternSynonyms
-      PolyKinds
-      QuasiQuotes
-      RankNTypes
-      ScopedTypeVariables
-      StandaloneDeriving
-      TupleSections
-      TypeApplications
-      TypeFamilies
-      TypeFamilyDependencies
-      TypeOperators
-      UndecidableInstances
-      ViewPatterns
-  ghc-options: -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path -threaded -with-rtsopts=-N
+    NoImplicitPrelude
+    AllowAmbiguousTypes
+    BangPatterns
+    ConstraintKinds
+    DataKinds
+    DefaultSignatures
+    DeriveFunctor
+    DeriveGeneric
+    DeriveLift
+    DeriveTraversable
+    DerivingStrategies
+    DerivingVia
+    EmptyCase
+    FlexibleContexts
+    FlexibleInstances
+    FunctionalDependencies
+    GADTs
+    InstanceSigs
+    KindSignatures
+    LambdaCase
+    MultiParamTypeClasses
+    MultiWayIf
+    NamedFieldPuns
+    OverloadedStrings
+    PackageImports
+    PatternSynonyms
+    PolyKinds
+    QuasiQuotes
+    RankNTypes
+    ScopedTypeVariables
+    StandaloneDeriving
+    TupleSections
+    TypeApplications
+    TypeFamilies
+    TypeFamilyDependencies
+    TypeOperators
+    UndecidableInstances
+    ViewPatterns
+
+  ghc-options:
+    -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
+    -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
+    -threaded -with-rtsopts=-N
+
   build-depends:
-      QuickCheck >=2.9
-    , aeson >=2.0.1.0
-    , attoparsec >=0.10
-    , base ==4.*
+      aeson                  >=2.0.1.0
+    , attoparsec             >=0.10
+    , base                   >=4       && <5
     , brig-types
     , bytestring
-    , bytestring-conversion >=0.3.1
-    , containers >=0.5
+    , bytestring-conversion  >=0.3.1
+    , containers             >=0.5
     , imports
-    , swagger2 >=2.5
+    , QuickCheck             >=2.9
+    , swagger2               >=2.5
     , tasty
     , tasty-quickcheck
-    , text >=0.11
-    , time >=1.1
+    , text                   >=0.11
+    , time                   >=1.1
     , tinylog
-    , types-common >=0.16
-    , unordered-containers >=0.2
+    , types-common           >=0.16
+    , unordered-containers   >=0.2
     , wire-api
-  default-language: Haskell2010
+
+  default-language:   Haskell2010

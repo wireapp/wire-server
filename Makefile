@@ -50,6 +50,17 @@ else
 	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 endif
 
+.PHONY: delete-cache-on-linker-errors
+delete-cache-on-linker-errors:
+	rm -rf ~/.cache/hie-bios
+	rm -rf ~/.cabal/store
+	rm -rf ./dist-newstyle
+
+.PHONY: cabal.project.local
+cabal.project.local:
+	echo "optimization: False" > ./cabal.project.local
+	./hack/bin/cabal-project-local-template.sh "ghc-options: -O0" >> ./cabal.project.local
+
 # Build all Haskell services and executables with -O0, run unit tests
 .PHONY: fast
 fast: init
@@ -61,7 +72,7 @@ endif
 
 # Usage: make c package=brig test=1
 .PHONY: c
-c:
+c: cabal-fmt
 	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package)
 ifeq ($(test), 1)
 	./hack/bin/cabal-run-tests.sh $(package) $(testargs)
@@ -74,6 +85,10 @@ endif
 .PHONY: ci
 ci: c
 	./hack/bin/cabal-run-integration.sh $(package)
+
+.PHONY: cabal-fmt
+cabal-fmt:
+	./hack/bin/cabal-fmt.sh $(package)
 
 # Use ghcid to watch a particular package.
 # pass target=package:name to specify which target is watched.
@@ -536,22 +551,3 @@ kind-restart-%: .local/kind-kubeconfig
 #   make helm-template-wire-server
 helm-template-%: clean-charts charts-integration
 	./hack/bin/helm-template.sh $(*)
-
-# make bonanza-deb version=$VERSION
-.PHONY: bonanza-deb
-bonanza-deb:
-	makedeb --name=bonanza \
-            --version=$(version) \
-            --debian-dir=tools/bonanza/deb \
-            --build=0 \
-            --architecture=amd64 \
-            --output-dir=dist
-
-# make makedeb-deb version=$VERSION
-.PHONY: makedeb-deb
-makedeb-deb:
-	$(eval $@_DIR := $(shell mktemp -d -t makedeb.XXXXXXXXXX))
-	cp -R -L tools/makedeb/deb $($@_DIR)
-	sed -i "s/<<VERSION_NUMBER>>/$(version)/g" $($@_DIR)/deb/DEBIAN/control
-	cat $($@_DIR)/deb/DEBIAN/control
-	dpkg-deb -b $($@_DIR)/deb ./dist/makedeb_$(version)+0_amd64.deb

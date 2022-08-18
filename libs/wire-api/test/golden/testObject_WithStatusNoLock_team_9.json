@@ -4,5 +4,6 @@
             "test.foobar"
         ]
     },
-    "status": "enabled"
+    "status": "enabled",
+    "ttl": "unlimited"
 }

@@ -129,7 +129,11 @@ getOptions desc pars defaultPath = do
     (True, _) -> do
       configFile <- decodeFileEither path
       case configFile of
-        Left e -> fail $ show e
+        Left e ->
+          fail $
+            show e
+              <> " while attempting to decode "
+              <> show path
         Right o -> pure o
     -- Config doesn't exist but at least we have a CLI options parser
     (False, Just p) -> do

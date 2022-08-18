@@ -231,18 +231,6 @@ createBindingTeamWithNMembersWithHandles withHandles n = do
         !!! do
           const 200 === statusCode
 
--- | FUTUREWORK: this is dead code (see 'NonBindingNewTeam').  remove!
-createNonBindingTeam :: HasCallStack => Text -> UserId -> [TeamMember] -> TestM TeamId
-createNonBindingTeam name owner mems = do
-  g <- view tsGalley
-  let mm = if null mems then Nothing else Just $ unsafeRange (take 127 mems)
-  let nt = NonBindingNewTeam $ newNewTeam (unsafeRange name) DefaultIcon & newTeamMembers .~ mm
-  resp <-
-    post (g . path "/teams" . zUser owner . zConn "conn" . zType "access" . json nt) <!! do
-      const 201 === statusCode
-      const True === isJust . getHeader "Location"
-  fromBS (getHeader' "Location" resp)
-
 changeTeamStatus :: HasCallStack => TeamId -> TeamStatus -> TestM ()
 changeTeamStatus tid s = do
   g <- view tsGalley

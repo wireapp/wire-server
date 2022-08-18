@@ -200,7 +200,7 @@ verifyCode key code = do
     Just (ttl, Ascii t, k, c, u, r) ->
       if
           | c == code -> mkScope t k u
-          | r >= 1 -> countdown (key, t, k, c, u, r -1, ttl) >> throwE invalidCode
+          | r >= 1 -> countdown (key, t, k, c, u, r - 1, ttl) >> throwE invalidCode
           | otherwise -> revoke >> throwE invalidCode
     Nothing -> throwE invalidCode
   where
