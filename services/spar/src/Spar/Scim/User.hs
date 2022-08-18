@@ -698,6 +698,9 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
     )
     (const id)
     $ do
+      -- SQPIT-1189: This function only returns non-deleted users; no tombstones
+      -- A special handling for deleted users might be useful: verifyDeleteUserH (brig)
+      -- SQPIT-1189: Shouldn't spar rely on it's own data?
       mbBrigUser <- lift (Brig.getBrigUser Brig.WithPendingInvitations uid)
       case mbBrigUser of
         Nothing ->
@@ -723,8 +726,8 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
                   (SAMLUserStore.delete uid)
                   (ScimExternalIdStore.delete stiTeam)
                   veid
-
           lift $ ScimUserTimesStore.delete uid
+          -- SQPIT-1189: N.B.: this emits a deletion event and then immediately returns
           lift $ BrigAccess.delete uid
           pure ()
 
