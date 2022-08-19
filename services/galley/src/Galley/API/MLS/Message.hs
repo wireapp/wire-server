@@ -666,15 +666,19 @@ executeProposalAction qusr con lconv action = do
   foldQualified lconv (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
 
   -- check that all clients of each user are added to the conversation
-  for_ newUserClients $ \(qtarget, newclients) -> do
-    -- final set of clients in the conversation
-    let clients = newclients <> Map.findWithDefault mempty qtarget cm
-    -- get list of mls clients from brig
-    allClients <- getMLSClients lconv qtarget ss
-    -- if not all clients have been added to the conversation, return an error
-    when (clients /= allClients) $ do
-      -- FUTUREWORK: turn this error into a proper response
-      throwS @'MLSClientMismatch
+  for_ newUserClients $ \(qtarget, newclients) -> case Map.lookup qtarget cm of
+    -- user is already present, skip check in this case
+    Just _ -> pure ()
+    -- new user
+    Nothing -> do
+      -- final set of clients in the conversation
+      let clients = newclients <> Map.findWithDefault mempty qtarget cm
+      -- get list of mls clients from brig
+      allClients <- getMLSClients lconv qtarget ss
+      -- if not all clients have been added to the conversation, return an error
+      when (clients /= allClients) $ do
+        -- FUTUREWORK: turn this error into a proper response
+        throwS @'MLSClientMismatch
 
   membersToRemove <- catMaybes <$> for removeUserClients (uncurry (checkRemoval lconv ss))
 

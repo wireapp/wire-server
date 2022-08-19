@@ -105,6 +105,7 @@ tests s =
         [ test s "add user to a conversation" testAddUser,
           test s "add user (not connected)" testAddUserNotConnected,
           test s "add user (partial client list)" testAddUserPartial,
+          test s "add client of existing user" testAddClientPartial,
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
           test s "add new client of an already-present user to a conversation" testAddNewClient,
           test s "send a stale commit" testStaleCommit,
@@ -439,6 +440,36 @@ testAddUserPartial = do
         )
       <!! const 409 === statusCode
   liftIO $ Wai.label err @?= "mls-client-mismatch"
+
+testAddClientPartial :: TestM ()
+testAddClientPartial = withSystemTempDirectory "mls" $ \tmp -> do
+  withLastPrekeys $ do
+    (alice, [bob]) <- setupParticipants tmp def ((,LocalUser) <$> [1])
+    (groupId, conversation) <- lift $ setupGroup tmp CreateConv alice "group"
+    (commit, welcome) <- liftIO . setupCommit tmp alice "group" "group" $ pClients bob
+    let setup =
+          MessagingSetup
+            { creator = alice,
+              users = [bob],
+              ..
+            }
+    lift $ testSuccessfulCommit setup
+
+    -- create more clients for Bob, only take the first one
+    newClient <- fmap head . replicateM 2 $ do
+      setupUserClient tmp CreateWithKey True (pUserId bob)
+
+    -- add new client
+    (commit', welcome') <-
+      liftIO $
+        setupCommit
+          tmp
+          alice
+          "group"
+          "group"
+          [(userClientQid (pUserId bob) newClient, newClient)]
+
+    lift $ testSuccessfulCommitWithNewUsers setup {commit = commit', welcome = welcome'} []
 
 testAddNewClient :: TestM ()
 testAddNewClient = do
