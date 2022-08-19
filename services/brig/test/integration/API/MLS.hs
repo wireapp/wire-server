@@ -21,7 +21,6 @@ import API.MLS.Util
 import Bilge
 import Bilge.Assert
 import Brig.Options
-import Control.Timeout
 import qualified Data.Aeson as Aeson
 import Data.ByteString.Conversion
 import Data.Default
@@ -96,7 +95,8 @@ testKeyPackageExpired brig = do
     count <- getKeyPackageCount brig u cid
     liftIO $ count @?= expectedCount
   -- wait for c1's key package to expire
-  sleep . fromIntegral $ (lifetime + 3 # Second) #> Second
+  threadDelay (fromIntegral ((lifetime + 3 # Second) #> MicroSecond))
+
   -- c1's key package has expired by now
   for_ [(c1, 0), (c2, 1)] $ \(cid, expectedCount) -> do
     count <- getKeyPackageCount brig u cid

@@ -23,12 +23,12 @@
 , split, ssl-util, statistics, stomp-queue, string-conversions
 , swagger, swagger2, tagged, tasty, tasty-cannon, tasty-hunit
 , tasty-quickcheck, template, temporary, text, text-icu-translit
-, time, timeout, tinylog, transformers, types-common
-, types-common-aws, types-common-journal, unliftio
-, unordered-containers, uri-bytestring, uuid, vector, wai
-, wai-extra, wai-middleware-gunzip, wai-predicates, wai-route
-, wai-routing, wai-utilities, warp, warp-tls, wire-api
-, wire-api-federation, yaml, zauth
+, time, tinylog, transformers, types-common, types-common-aws
+, types-common-journal, unliftio, unordered-containers
+, uri-bytestring, uuid, vector, wai, wai-extra
+, wai-middleware-gunzip, wai-predicates, wai-route, wai-routing
+, wai-utilities, warp, warp-tls, wire-api, wire-api-federation
+, yaml, zauth
 }:
 mkDerivation {
   pname = "brig";
@@ -74,7 +74,7 @@ mkDerivation {
     QuickCheck random random-shuffle raw-strings-qq retry safe
     saml2-web-sso servant servant-client servant-client-core spar
     string-conversions tasty tasty-cannon tasty-hunit temporary text
-    time timeout tinylog transformers types-common types-common-aws
+    time tinylog transformers types-common types-common-aws
     types-common-journal unliftio unordered-containers uri-bytestring
     uuid vector wai wai-extra wai-route wai-utilities warp warp-tls
     wire-api wire-api-federation yaml zauth
