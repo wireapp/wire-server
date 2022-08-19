@@ -4,7 +4,9 @@ FROM rust:1.63 as mls-test-cli-builder
 
 # compile mls-test-cli tool
 RUN cd /tmp && \
-    git clone https://github.com/wireapp/mls-test-cli
+    git clone https://github.com/wireapp/mls-test-cli && \
+    cd mls-test-cli && \
+    git rev-parse HEAD
 
 RUN cd /tmp/mls-test-cli && RUSTFLAGS='-C target-feature=+crt-static' cargo install --bins --target x86_64-unknown-linux-gnu --path .
 
