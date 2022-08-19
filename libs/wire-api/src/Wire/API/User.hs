@@ -95,6 +95,7 @@ module Wire.API.User
     VerifyDeleteUser (..),
     mkVerifyDeleteUser,
     DeletionCodeTimeout (..),
+    VerifyDeleteInternalResult (..),
 
     -- * List Users
     ListUsersQuery (..),
@@ -1355,6 +1356,19 @@ instance ToJSON DeletionCodeTimeout where
 instance FromJSON DeletionCodeTimeout where
   parseJSON = A.withObject "DeletionCodeTimeout" $ \o ->
     DeletionCodeTimeout <$> o A..: "expires_in"
+
+data VerifyDeleteInternalResult = NoUser | FullyDeletedUser | RanDeletionAgain
+  deriving (Eq)
+  deriving (S.ToSchema, ToJSON, FromJSON) via (Schema VerifyDeleteInternalResult)
+
+instance ToSchema VerifyDeleteInternalResult where
+  schema =
+    enum @Text "VerifyDeleteInternalResult" $
+      mconcat
+        [ element "no-user" NoUser,
+          element "fully-deleted-user" FullyDeletedUser,
+          element "had-to-run-deletion-again" RanDeletionAgain
+        ]
 
 data ListUsersQuery
   = ListUsersByIds [Qualified UserId]

@@ -144,6 +144,7 @@ accountAPI ::
 accountAPI =
   Named @"createUserNoVerify" createUserNoVerify
     :<|> Named @"createUserNoVerifySpar" createUserNoVerifySpar
+    :<|> Named @"verify-user-deleted" verifyUserDeleted
 
 teamsAPI :: ServerT BrigIRoutes.TeamsAPI (Handler r)
 teamsAPI = Named @"updateSearchVisibilityInbound" Index.updateSearchVisibilityInbound
@@ -518,6 +519,9 @@ deleteUserNoVerify uid = do
     lift (wrapClient $ API.lookupAccount uid)
       >>= ifNothing (errorToWai @'E.UserNotFound)
   lift $ API.deleteUserNoVerify uid
+
+verifyUserDeleted :: UserId -> (Handler r) VerifyDeleteInternalResult
+verifyUserDeleted uid = lift $ wrapHttp $ API.verifyDeleteUserInternal uid
 
 changeSelfEmailMaybeSendH :: Member BlacklistStore r => UserId ::: Bool ::: JsonRequest EmailUpdate -> (Handler r) Response
 changeSelfEmailMaybeSendH (u ::: validate ::: req) = do

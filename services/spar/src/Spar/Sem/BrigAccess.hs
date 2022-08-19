@@ -23,6 +23,7 @@ module Spar.Sem.BrigAccess
     createNoSAML,
     updateEmail,
     getAccount,
+    getAccountIncludeAll,
     getByHandle,
     getByEmail,
     setName,
@@ -34,6 +35,7 @@ module Spar.Sem.BrigAccess
     getRichInfo,
     checkHandleAvailable,
     delete,
+    verifyUserDeleted,
     ensureReAuthorised,
     ssoLogin,
     getStatus,
@@ -53,7 +55,7 @@ import Imports
 import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Web.Cookie
-import Wire.API.User (VerificationAction)
+import Wire.API.User (VerificationAction, VerifyDeleteInternalResult)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo as RichInfo
@@ -64,6 +66,8 @@ data BrigAccess m a where
   CreateNoSAML :: Email -> TeamId -> Name -> Maybe Locale -> BrigAccess m UserId
   UpdateEmail :: UserId -> Email -> BrigAccess m ()
   GetAccount :: HavePendingInvitations -> UserId -> BrigAccess m (Maybe UserAccount)
+  -- | Includes deleted accounts and those with pending invitation
+  GetAccountIncludeAll :: UserId -> BrigAccess m (Maybe UserAccount)
   GetByHandle :: Handle -> BrigAccess m (Maybe UserAccount)
   GetByEmail :: Email -> BrigAccess m (Maybe UserAccount)
   SetName :: UserId -> Name -> BrigAccess m ()
@@ -75,6 +79,7 @@ data BrigAccess m a where
   GetRichInfo :: UserId -> BrigAccess m RichInfo
   CheckHandleAvailable :: Handle -> BrigAccess m Bool
   Delete :: UserId -> BrigAccess m ()
+  VerifyUserDeleted :: UserId -> BrigAccess m VerifyDeleteInternalResult
   EnsureReAuthorised :: Maybe UserId -> Maybe PlainTextPassword -> Maybe Code.Value -> Maybe VerificationAction -> BrigAccess m ()
   SsoLogin :: UserId -> BrigAccess m SetCookie
   GetStatus :: UserId -> BrigAccess m AccountStatus

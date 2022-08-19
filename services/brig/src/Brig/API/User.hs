@@ -54,6 +54,7 @@ module Brig.API.User
     deleteUsersNoVerify,
     deleteSelfUser,
     verifyDeleteUser,
+    verifyDeleteUserInternal,
     deleteAccount,
     checkHandles,
     isBlacklistedHandle,
@@ -100,6 +101,7 @@ import qualified Brig.Code as Code
 import Brig.Data.Activation (ActivationEvent (..), activationErrorToRegisterError)
 import qualified Brig.Data.Activation as Data
 import qualified Brig.Data.Client as Data
+import Brig.Data.Connection (countConnections)
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.Properties as Data
 import Brig.Data.User
@@ -128,7 +130,7 @@ import Brig.Types.Connection
 import Brig.Types.Intra
 import Brig.Types.User (HavePendingInvitations (..), ManagedByUpdate (..), PasswordResetPair)
 import Brig.Types.User.Event
-import Brig.User.Auth.Cookie (revokeAllCookies)
+import Brig.User.Auth.Cookie (listCookies, revokeAllCookies)
 import Brig.User.Email
 import Brig.User.Handle
 import Brig.User.Handle.Blacklist
@@ -1229,6 +1231,51 @@ verifyDeleteUser d = do
   account <- lift . wrapClient $ Data.lookupAccount (Id a)
   for_ account $ lift . wrapHttpClient . deleteAccount
   lift . wrapClient $ Code.delete key Code.AccountDeletion
+
+-- | Check if `deleteAccount` succeeded and run it again if needed
+verifyDeleteUserInternal ::
+  ( MonadLogger m,
+    MonadCatch m,
+    MonadThrow m,
+    MonadIndexIO m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadUnliftIO m,
+    MonadClient m,
+    MonadReader Env m
+  ) =>
+  UserId ->
+  m VerifyDeleteInternalResult
+verifyDeleteUserInternal uid = do
+  acc <- lookupAccount uid
+  if isNothing acc
+    then pure NoUser
+    else do
+      -- TODO: `fromJust` is ugly
+      -- TODO: Is it still valid to check for email, phone and handle - can't they belong to other users?`
+      let user = accountUser (fromJust acc)
+      mbEmail <- for (userEmail user) $ lookupKey . userEmailKey
+      mbPhone <- for (userPhone user) $ lookupKey . userPhoneKey
+      mbHandle <- for (userHandle user) $ lookupHandle
+
+      probs <- Data.lookupPropertyKeysAndValues uid
+
+      let accIsDeleted = accountStatus (fromJust acc) == Deleted
+      clients <- Data.lookupClients uid
+
+      localUid <- qualifyLocal uid
+      conCount <- countConnections localUid [minBound .. maxBound]
+      cookies <- listCookies uid []
+
+      if isJust mbEmail || isJust mbPhone || isJust mbHandle || (not . null) probs || not accIsDeleted || (not . null) clients || conCount > 0 || (not . null) cookies
+        then do
+          -- TODO: Catch errors?
+          deleteAccount $ fromJust acc
+          pure RanDeletionAgain
+        else pure FullyDeletedUser
 
 -- | Internal deletion without validation.  Called via @delete /i/user/:uid@, or indirectly
 -- via deleting self.

@@ -26,6 +26,7 @@ import Polysemy
 import Polysemy.Error (Error)
 import Spar.Error (SparError)
 import qualified Spar.Intra.Brig as Intra
+import qualified Spar.Intra.Brig as Itra
 import Spar.Sem.BrigAccess
 import Spar.Sem.Utils (RunHttpEnv (..), viaRunHttp)
 import qualified System.Logger as TinyLog
@@ -44,6 +45,7 @@ brigAccessToHttp mgr req =
       CreateNoSAML e itlt n ml -> Intra.createBrigUserNoSAML e itlt n ml
       UpdateEmail itlu e -> Intra.updateEmail itlu e
       GetAccount h itlu -> Intra.getBrigUserAccount h itlu
+      GetAccountIncludeAll h -> Intra.getBrigUserAccountIncludeAll h
       GetByHandle h -> Intra.getBrigUserByHandle h
       GetByEmail e -> Intra.getBrigUserByEmail e
       SetName itlu n -> Intra.setBrigUserName itlu n
@@ -55,6 +57,7 @@ brigAccessToHttp mgr req =
       GetRichInfo itlu -> Intra.getBrigUserRichInfo itlu
       CheckHandleAvailable h -> Intra.checkHandleAvailable h
       Delete itlu -> Intra.deleteBrigUser itlu
+      VerifyUserDeleted itlu -> Itra.verifyDeletionBrigUser itlu
       EnsureReAuthorised mitlu mp mc ma -> Intra.ensureReAuthorised mitlu mp mc ma
       SsoLogin itlu -> Intra.ssoLogin itlu
       GetStatus itlu -> Intra.getStatus itlu

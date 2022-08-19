@@ -19,6 +19,7 @@
 module Spar.Intra.Brig
   ( MonadSparToBrig (..),
     getBrigUserAccount,
+    getBrigUserAccountIncludeAll,
     getBrigUserByHandle,
     getBrigUserByEmail,
     getBrigUserRichInfo,
@@ -30,6 +31,7 @@ module Spar.Intra.Brig
     setBrigUserLocale,
     checkHandleAvailable,
     deleteBrigUser,
+    verifyDeletionBrigUser,
     createBrigUserSAML,
     createBrigUserNoSAML,
     updateEmail,
@@ -179,6 +181,30 @@ getBrigUserAccount havePending buid = do
             if userDeleted $ accountUser account
               then Nothing
               else Just account
+        _ -> pure Nothing
+    404 -> pure Nothing
+    _ -> rethrow "brig" resp
+
+-- | Get a user; returns 'Nothing' if the user was not found.
+-- Includes users with deleted accounts and pending invitations.
+getBrigUserAccountIncludeAll :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe UserAccount)
+getBrigUserAccountIncludeAll buid = do
+  resp :: ResponseLBS <-
+    call $
+      method GET
+        . paths ["/i/users"]
+        . query
+          [ ("ids", Just $ toByteString' buid),
+            ( "includePendingInvitations",
+              Just $ toByteString' True
+            )
+          ]
+
+  case statusCode resp of
+    200 ->
+      parseResponse @[UserAccount] "brig" resp >>= \case
+        [account] ->
+          pure $ Just account
         _ -> pure Nothing
     404 -> pure Nothing
     _ -> rethrow "brig" resp
@@ -338,6 +364,18 @@ deleteBrigUser buid = do
         . paths ["/i/users", toByteString' buid]
   unless (statusCode resp == 202) $
     rethrow "brig" resp
+
+-- | Call brig to verify that a user has been completely deleted.
+-- Otherwise, do another deletion.
+verifyDeletionBrigUser :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m VerifyDeleteInternalResult
+verifyDeletionBrigUser buid = do
+  resp <-
+    call $
+      method POST
+        . paths ["/i/users", toByteString' buid, "verify-deleted"]
+  case statusCode resp of
+    200 -> parseResponse "brig" resp
+    _ -> rethrow "brig" resp
 
 -- | Verify user's password (needed for certain powerful operations).
 ensureReAuthorised ::

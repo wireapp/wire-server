@@ -698,14 +698,9 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
     )
     (const id)
     $ do
-      -- SQPIT-1189: This function only returns non-deleted users; no tombstones
-      -- A special handling for deleted users might be useful: verifyDeleteUserH (brig)
-      -- SQPIT-1189: Shouldn't spar rely on it's own data?
-      mbBrigUser <- lift (Brig.getBrigUser Brig.WithPendingInvitations uid)
+      mbBrigUser <- lift $ Brig.getBrigUserIncludeAll uid
       case mbBrigUser of
-        Nothing ->
-          -- double-deletion gets you a 404.
-          throwError $ Scim.notFound "user" (idToText uid)
+        Nothing -> throwError $ Scim.notFound "user" (idToText uid)
         Just brigUser -> do
           -- FUTUREWORK: currently it's impossible to delete the last available team owner via SCIM
           -- (because that owner won't be managed by SCIM in the first place), but if it ever becomes
@@ -715,21 +710,47 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
             throwError $
               Scim.notFound "user" (idToText uid)
 
-          mIdpConfig <- mapM (lift . IdPConfigStore.getConfig) stiIdP
+          if userDeleted brigUser
+            then do
+              deletionStatus <- lift $ Brig.verifyBrigUserDeletion uid
+              case deletionStatus of
+                NoUser ->
+                  throwError $
+                    Scim.notFound "user" (idToText uid)
+                FullyDeletedUser ->
+                  throwError $
+                    Scim.notFound "user" (idToText uid)
+                RanDeletionAgain ->
+                  deleteUserInSpar brigUser
+            else do
+              deleteUserInSpar brigUser
+              -- SQPIT-1189: N.B.: this emits a deletion event and then immediately returns
+              lift $ BrigAccess.delete uid
+              pure ()
+  where
+    deleteUserInSpar ::
+      Members
+        '[ IdPConfigStore,
+           SAMLUserStore,
+           ScimExternalIdStore,
+           ScimUserTimesStore
+         ]
+        r =>
+      User ->
+      Scim.ScimHandler (Sem r) ()
+    deleteUserInSpar brigUser = do
+      mIdpConfig <- mapM (lift . IdPConfigStore.getConfig) stiIdP
 
-          case Brig.veidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
-            Left _ -> pure ()
-            Right veid ->
-              lift $
-                ST.runValidExternalIdBoth
-                  (>>)
-                  (SAMLUserStore.delete uid)
-                  (ScimExternalIdStore.delete stiTeam)
-                  veid
-          lift $ ScimUserTimesStore.delete uid
-          -- SQPIT-1189: N.B.: this emits a deletion event and then immediately returns
-          lift $ BrigAccess.delete uid
-          pure ()
+      case Brig.veidFromBrigUser brigUser ((^. SAML.idpMetadata . SAML.edIssuer) <$> mIdpConfig) of
+        Left _ -> pure ()
+        Right veid ->
+          lift $
+            ST.runValidExternalIdBoth
+              (>>)
+              (SAMLUserStore.delete uid)
+              (ScimExternalIdStore.delete stiTeam)
+              veid
+      lift $ ScimUserTimesStore.delete uid
 
 ----------------------------------------------------------------------------
 -- Utilities

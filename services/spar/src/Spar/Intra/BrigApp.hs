@@ -28,11 +28,13 @@ module Spar.Intra.BrigApp
     renderValidExternalId,
     HavePendingInvitations (..),
     getBrigUser,
+    getBrigUserIncludeAll,
     getBrigUserTeam,
     getZUsrCheckPerm,
     authorizeScimTokenManagement,
     parseResponse,
     giveDefaultHandle,
+    verifyBrigUserDeletion,
 
     -- * re-exports, mostly for historical reasons and lazyness
     emailFromSAML,
@@ -115,6 +117,9 @@ renderValidExternalId = runValidExternalIdEither urefToExternalId (Just . fromEm
 getBrigUser :: (HasCallStack, Member BrigAccess r) => HavePendingInvitations -> UserId -> Sem r (Maybe User)
 getBrigUser ifpend = (accountUser <$$>) . BrigAccess.getAccount ifpend
 
+getBrigUserIncludeAll :: (HasCallStack, Member BrigAccess r) => UserId -> Sem r (Maybe User)
+getBrigUserIncludeAll = (accountUser <$$>) . BrigAccess.getAccountIncludeAll
+
 -- | Check that an id maps to an user on brig that is 'Active' (or optionally
 -- 'PendingInvitation') and has a team id.
 getBrigUserTeam :: (HasCallStack, Member BrigAccess r) => HavePendingInvitations -> UserId -> Sem r (Maybe TeamId)
@@ -169,3 +174,6 @@ giveDefaultHandle usr = case userHandle usr of
         uid = userId usr
     BrigAccess.setHandle uid handle
     pure handle
+
+verifyBrigUserDeletion :: (HasCallStack, Member BrigAccess r) => UserId -> Sem r VerifyDeleteInternalResult
+verifyBrigUserDeletion = BrigAccess.verifyUserDeleted
