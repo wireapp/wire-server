@@ -321,6 +321,15 @@ filterRemoteConvMembers users (qUntagged -> Qualified conv dom) =
         . retry x1
         $ query Cql.selectRemoteConvMembers (params LocalQuorum (user, dom, conv))
 
+lookupLocalMemberRemoteConv ::
+  UserId ->
+  Remote ConvId ->
+  Client [UserId]
+lookupLocalMemberRemoteConv userId (qUntagged -> Qualified conv dom) =
+  fmap (map runIdentity)
+    . retry x5
+    $ query Cql.selectRemoteConvMembers (params LocalQuorum (userId, dom, conv))
+
 removeLocalMembersFromRemoteConv ::
   -- | The conversation to remove members from
   Remote ConvId ->
@@ -374,6 +383,7 @@ interpretMemberStoreToCassandra = interpret $ \case
   GetLocalMembers cid -> embedClient $ members cid
   GetRemoteMember cid uid -> embedClient $ lookupRemoteMember cid (tDomain uid) (tUnqualified uid)
   GetRemoteMembers rcid -> embedClient $ lookupRemoteMembers rcid
+  CheckLocalMemberRemoteConv uid rcnv -> fmap null $ embedClient $ lookupLocalMemberRemoteConv uid rcnv
   SelectRemoteMembers uids rcnv -> embedClient $ filterRemoteConvMembers uids rcnv
   SetSelfMember qcid luid upd -> embedClient $ updateSelfMember qcid luid upd
   SetOtherMember lcid quid upd ->
