@@ -80,6 +80,7 @@ import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
+import Data.Nonce (Nonce (..))
 import Data.Qualified
 import Data.Range
 import qualified Data.Swagger as S
@@ -248,6 +249,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"get-client" getClient
         :<|> Named @"get-client-capabilities" getClientCapabilities
         :<|> Named @"get-client-prekeys" getClientPrekeys
+        :<|> Named @"get-nonce" getNonce
 
     connectionAPI :: ServerT ConnectionAPI (Handler r)
     connectionAPI =
@@ -612,6 +614,11 @@ getRichInfo self user = do
 
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
+
+getNonce :: UserId -> (Handler r) NonceResponse
+getNonce _ = do
+  let nonce :: Nonce = undefined
+  pure $ Servant.addHeader nonce $ Servant.addHeader "no-store" NoContent
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser :: Member BlacklistStore r => Public.NewUserPublic -> (Handler r) (Either Public.RegisterError Public.RegisterSuccess)

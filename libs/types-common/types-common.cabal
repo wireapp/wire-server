@@ -23,6 +23,7 @@ library
     Data.LegalHold
     Data.List1
     Data.Misc
+    Data.Nonce
     Data.Qualified
     Data.Range
     Data.RetryAfter

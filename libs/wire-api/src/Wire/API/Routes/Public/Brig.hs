@@ -25,6 +25,7 @@ import Data.Domain
 import Data.Handle
 import Data.Id as Id
 import Data.Misc (IpAddr)
+import Data.Nonce (Nonce)
 import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP (I (..), NS (..))
@@ -91,7 +92,7 @@ instance AsUnion DeleteSelfResponses (Maybe Timeout) where
   toUnion Nothing = Z (I ())
   fromUnion (Z (I ())) = Nothing
   fromUnion (S (Z (I (DeletionCodeTimeout t)))) = Just t
-  fromUnion (S (S x)) = case x of {}
+  fromUnion (S (S x)) = case x of
 
 type ConnectionUpdateResponses = UpdateResponses "Connection unchanged" "Connection updated" UserConnection
 
@@ -533,6 +534,16 @@ type UserClientAPI =
                :> "prekeys"
                :> Get '[JSON] [PrekeyId]
            )
+    :<|> Named
+           "get-nonce"
+           ( Summary "Get a nonce for a client"
+               :> ZUser
+               :> "clients"
+               :> "nonce"
+               :> Get '[JSON] NonceResponse
+           )
+
+type NonceResponse = Headers '[Header "Replay-Nonce" Nonce, Header "Cache-Control" Text] NoContent
 
 type ClientAPI =
   Named
