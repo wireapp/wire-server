@@ -28,6 +28,8 @@ import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import Data.Swagger.ParamSchema
 import Data.Text.Ascii
+import Data.UUID (toASCIIBytes)
+import Data.UUID.V4 (nextRandom)
 import Imports
 import Servant (ToHttpApiData (..))
 import Test.QuickCheck (Arbitrary)
@@ -41,3 +43,6 @@ instance ToParamSchema Nonce where
 
 instance ToHttpApiData Nonce where
   toQueryParam nonce = cs (toByteString' nonce)
+
+randomNonce :: (Functor m, MonadIO m) => m Nonce
+randomNonce = Nonce . encodeBase64Url . toASCIIBytes <$> liftIO nextRandom

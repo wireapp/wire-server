@@ -80,7 +80,7 @@ import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
-import Data.Nonce (Nonce (..))
+import Data.Nonce (randomNonce)
 import Data.Qualified
 import Data.Range
 import qualified Data.Swagger as S
@@ -617,7 +617,7 @@ getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
 getNonce :: UserId -> (Handler r) NonceResponse
 getNonce _ = do
-  let nonce :: Nonce = undefined
+  nonce <- randomNonce
   pure $ Servant.addHeader nonce $ Servant.addHeader "no-store" NoContent
 
 -- | docs/reference/user/registration.md {#RefRegistration}
