@@ -19,6 +19,8 @@
 
 module Wire.API.Routes.Public.Brig where
 
+import Data.Bifunctor (Bifunctor (first))
+import Data.ByteString.Conversion
 import Data.Code (Timeout)
 import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
@@ -28,8 +30,11 @@ import Data.Misc (IpAddr)
 import Data.Nonce (Nonce)
 import Data.Qualified (Qualified (..))
 import Data.Range
-import Data.SOP (I (..), NS (..))
+import Data.SOP
+import Data.String.Conversions (cs)
 import Data.Swagger hiding (Contact, Header)
+import Data.Text (pack)
+import Data.Text.Encoding (encodeUtf8)
 import Imports hiding (head)
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
@@ -540,10 +545,30 @@ type UserClientAPI =
                :> ZUser
                :> "clients"
                :> "nonce"
-               :> Get '[JSON] NonceResponse
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    (RespondEmpty 204 "No Content")
+                    -- (WithHeaders '[Header "Replay-Nonce" NonceHeader, Header "Cache-Control" Text] Nonce (RespondEmpty 204 "No Content"))
            )
 
-type NonceResponse = Headers '[Header "Replay-Nonce" Nonce, Header "Cache-Control" Text] NoContent
+newtype NonceHeader = NonceHeader Nonce
+  deriving (Eq, Show)
+  deriving newtype (FromByteString, ToByteString)
+
+instance ToParamSchema NonceHeader where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance ToHttpApiData NonceHeader where
+  toQueryParam nonce = cs (toByteString' nonce)
+
+instance FromHttpApiData NonceHeader where
+  parseQueryParam s =
+    first pack $ runParser parser (encodeUtf8 s)
+
+instance AsHeaders '[NonceHeader, Text] () Nonce where
+  fromHeaders (I (NonceHeader nonce) :* (_ :* Nil), _) = nonce
+  toHeaders nonce = (I (NonceHeader nonce) :* (I "no-store" :* Nil), ())
 
 type ClientAPI =
   Named

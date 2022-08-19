@@ -21,17 +21,20 @@
 module Data.Nonce where
 
 import qualified Data.Aeson as A
+import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString.Conversion
 import Data.Proxy (Proxy (Proxy))
 import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import Data.Swagger.ParamSchema
+import Data.Text (pack)
 import Data.Text.Ascii
+import Data.Text.Encoding (encodeUtf8)
 import Data.UUID (toASCIIBytes)
 import Data.UUID.V4 (nextRandom)
 import Imports
-import Servant (ToHttpApiData (..))
+import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck (Arbitrary)
 
 newtype Nonce = Nonce {unNonce :: AsciiBase64Url}
@@ -43,6 +46,10 @@ instance ToParamSchema Nonce where
 
 instance ToHttpApiData Nonce where
   toQueryParam nonce = cs (toByteString' nonce)
+
+instance FromHttpApiData Nonce where
+  parseQueryParam s =
+    first pack $ runParser parser (encodeUtf8 s)
 
 randomNonce :: (Functor m, MonadIO m) => m Nonce
 randomNonce = Nonce . encodeBase64Url . toASCIIBytes <$> liftIO nextRandom

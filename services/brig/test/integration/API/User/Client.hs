@@ -105,7 +105,8 @@ tests _cl _at opts p db b c g =
       test p "get /clients/:client - 404" $ testMissingClient b,
       test p "get /clients/:client - 200" $ testMLSClient b,
       test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g,
-      test p "client/prekeys/race" $ testPreKeyRace b
+      test p "client/prekeys/race" $ testPreKeyRace b,
+      test p "head clients/nonce" $ testNewNonce b
     ]
 
 testAddGetClientVerificationCode :: DB.ClientState -> Brig -> Galley -> Http ()
@@ -945,6 +946,16 @@ testPreKeyRace brig = do
   let regular = filter (/= lastPrekeyId) actual
   liftIO $ assertEqual "duplicate prekeys" (length regular) (length (nub regular))
   deleteClient brig uid (clientId c) (Just defPasswordText) !!! const 200 === statusCode
+
+testNewNonce :: Brig -> Http ()
+testNewNonce brig = do
+  response <- (randomUser brig >>= Util.getNonce brig . userId) <!! const 204 === statusCode
+  liftIO $ do
+    assertBool mempty $ all isValidBase64UrlEncodedUUID (getHeader "HeaderName" response)
+    Just "no-store" @=? getHeader "Cache-Control" response
+  where
+    isValidBase64UrlEncodedUUID :: ByteString -> Bool
+    isValidBase64UrlEncodedUUID = const False
 
 testCan'tDeleteLegalHoldClient :: Brig -> Http ()
 testCan'tDeleteLegalHoldClient brig = do
