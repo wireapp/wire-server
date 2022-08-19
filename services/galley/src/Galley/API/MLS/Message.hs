@@ -365,7 +365,7 @@ processCommit qusr con lconv epoch sender commit = do
               senderRef <-
                 maybe
                   (pure currentRef)
-                  ( (& note (mlsProtocolError "Could not compute key package ref"))
+                  ( note (mlsProtocolError "Could not compute key package ref")
                       . kpRef'
                       . upLeaf
                   )
@@ -670,7 +670,7 @@ executeProposalAction qusr con lconv action = do
         $ ConversationJoin users roleNameWireMember
 
     removeMembers :: NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
-    removeMembers users =
+    removeMembers =
       handleNoChanges
         . handleMLSProposalFailures @ProposalErrors
         . fmap pure
@@ -679,7 +679,6 @@ executeProposalAction qusr con lconv action = do
           lconv
           qusr
           con
-        $ users
 
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError
@@ -728,9 +727,8 @@ propagateMessage loc qusr conv con raw = do
     foldMap (uncurry mkPush) (cToList =<< lclients)
 
   -- send to remotes
-  (traverse_ handleError =<<)
-    . runFederatedConcurrentlyEither (map remoteMemberQualify (Data.convRemoteMembers conv))
-    $ \(tUnqualified -> rs) ->
+  traverse_ handleError <=< runFederatedConcurrentlyEither (map remoteMemberQualify (Data.convRemoteMembers conv)) $
+    \(tUnqualified -> rs) ->
       fedClient @'Galley @"on-mls-message-sent" $
         RemoteMLSMessage
           { rmmTime = now,
