@@ -35,6 +35,7 @@ import qualified Brig.Email as Email
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import qualified Brig.Phone as Phone
+import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
@@ -60,7 +61,7 @@ import Network.Wai.Routing
 import Network.Wai.Utilities hiding (code, message)
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
-import Polysemy (Member)
+import Polysemy (Member, Members)
 import System.Logger (Msg)
 import qualified System.Logger.Class as Log
 import Util.Logging (logFunction, logTeam)
@@ -188,7 +189,13 @@ routesPublic = do
     Doc.response 200 "Invitation successful." Doc.end
     Doc.response 403 "No permission (not admin or owner of this team)." Doc.end
 
-routesInternal :: Member BlacklistStore r => Routes a (Handler r) ()
+routesInternal ::
+  Members
+    '[ BlacklistStore,
+       UserPendingActivationStore
+     ]
+    r =>
+  Routes a (Handler r) ()
 routesInternal = do
   get "/i/teams/invitations/by-email" (continue getInvitationByEmailH) $
     accept "application" "json"
@@ -280,12 +287,26 @@ createInvitationPublic uid tid body = do
       context
       (createInvitation' tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body)
 
-createInvitationViaScimH :: Member BlacklistStore r => JSON ::: JsonRequest NewUserScimInvitation -> (Handler r) Response
+createInvitationViaScimH ::
+  Members
+    '[ BlacklistStore,
+       UserPendingActivationStore
+     ]
+    r =>
+  JSON ::: JsonRequest NewUserScimInvitation ->
+  (Handler r) Response
 createInvitationViaScimH (_ ::: req) = do
   body <- parseJsonBody req
   setStatus status201 . json <$> createInvitationViaScim body
 
-createInvitationViaScim :: Member BlacklistStore r => NewUserScimInvitation -> (Handler r) UserAccount
+createInvitationViaScim ::
+  Members
+    '[ BlacklistStore,
+       UserPendingActivationStore
+     ]
+    r =>
+  NewUserScimInvitation ->
+  (Handler r) UserAccount
 createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
   env <- ask
   let inviteeRole = defaultRole

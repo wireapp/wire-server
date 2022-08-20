@@ -36,10 +36,11 @@ import qualified Brig.AWS.SesNotification as SesNotification
 import Brig.App
 import qualified Brig.Calling as Calling
 import Brig.CanonicalInterpreter
-import Brig.Data.UserPendingActivation (UserPendingActivation (..), usersPendingActivationList, usersPendingActivationRemoveMultiple)
 import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
+import Brig.Sem.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
+import qualified Brig.Sem.UserPendingActivationStore as UsersPendingActivationStore
 import Brig.Types.Intra (AccountStatus (PendingInvitation))
 import Brig.Version
 import Cassandra (Page (Page))
@@ -67,6 +68,7 @@ import Network.Wai.Routing.Route (App)
 import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as Server
+import Polysemy (Members)
 import Servant (Context ((:.)), (:<|>) (..))
 import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
@@ -180,7 +182,7 @@ bodyParserErrorFormatter _ _ errMsg =
       Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
     }
 
-pendingActivationCleanup :: forall r. AppT r ()
+pendingActivationCleanup :: forall r. Members '[UserPendingActivationStore] r => AppT r ()
 pendingActivationCleanup = do
   safeForever "pendingActivationCleanup" $ do
     now <- liftIO =<< view currentTime
@@ -200,7 +202,7 @@ pendingActivationCleanup = do
               if isExpired && isPendingInvitation then Just uid else Nothing
           )
 
-      wrapClient . usersPendingActivationRemoveMultiple $
+      liftSem . UsersPendingActivationStore.removeMultiple $
         catMaybes
           ( uids <&> \(isExpired, _isPendingInvitation, uid) ->
               if isExpired then Just uid else Nothing
@@ -218,7 +220,7 @@ pendingActivationCleanup = do
 
     forExpirationsPaged :: ([UserPendingActivation] -> (AppT r) ()) -> (AppT r) ()
     forExpirationsPaged f = do
-      go =<< wrapClient usersPendingActivationList
+      go =<< liftSem UsersPendingActivationStore.list
       where
         go :: Page UserPendingActivation -> (AppT r) ()
         go (Page hasMore result nextPage) = do

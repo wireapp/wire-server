@@ -53,7 +53,6 @@ library
     Brig.Data.Types
     Brig.Data.User
     Brig.Data.UserKey
-    Brig.Data.UserPendingActivation
     Brig.Effects.BlacklistPhonePrefixStore
     Brig.Effects.BlacklistPhonePrefixStore.Cassandra
     Brig.Effects.BlacklistStore
@@ -89,6 +88,8 @@ library
     Brig.Sem.CodeStore.Cassandra
     Brig.Sem.PasswordResetStore
     Brig.Sem.PasswordResetStore.CodeStore
+    Brig.Sem.UserPendingActivationStore
+    Brig.Sem.UserPendingActivationStore.Cassandra
     Brig.SMTP
     Brig.Team.API
     Brig.Team.DB

@@ -9,6 +9,8 @@ import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.CodeStore.Cassandra (codeStoreToCassandra, interpretClientToIO)
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import Brig.Sem.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
+import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
+import Brig.Sem.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import qualified Cassandra as Cas
 import Control.Lens ((^.))
 import Imports
@@ -20,6 +22,7 @@ type BrigCanonicalEffects =
   '[ BlacklistPhonePrefixStore,
      BlacklistStore,
      PasswordResetStore,
+     UserPendingActivationStore,
      Now,
      CodeStore,
      Embed Cas.Client,
@@ -34,6 +37,7 @@ runBrigToIO e (AppT ma) =
     . interpretClientToIO (e ^. casClient)
     . codeStoreToCassandra @Cas.Client
     . nowToIOAction (e ^. currentTime)
+    . userPendingActivationStoreToCassandra @Cas.Client
     . passwordResetStoreToCodeStore
     . interpretBlacklistStoreToCassandra @Cas.Client
     . interpretBlacklistPhonePrefixStoreToCassandra @Cas.Client
