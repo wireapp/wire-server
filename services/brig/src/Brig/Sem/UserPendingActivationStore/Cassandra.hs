@@ -9,37 +9,18 @@ import Data.Id (UserId)
 import Data.Time (UTCTime)
 import Imports
 import Polysemy
-import Polysemy.Internal.Tactics (liftT)
-import Conduit
 
 userPendingActivationStoreToCassandra ::
-  forall r a.
-  (Member (Embed Client) r) =>
+  forall m r a.
+  (MonadClient m, Member (Embed m) r) =>
   Sem (UserPendingActivationStore ': r) a ->
   Sem r a
 userPendingActivationStoreToCassandra =
-  interpretH $
-    \case
-      Add upa -> liftT $ embed @Client $ usersPendingActivationAdd upa
-      List -> do
-        page <- liftT $ embed @Client $ usersPendingActivationList
-        cont <- bindT (pure . paginateToConduit @r)
-        z <- raise $ userPendingActivationStoreToCassandra $ cont page
-        pure $ fmap (hoistConduit _) z
-        -- pure $ fmap paginateToConduit page
-      RemoveMultiple uids -> do
-        liftT $ embed @Client $ usersPendingActivationRemoveMultiple uids
-
-
-hoistConduit :: (Monad m, Monad n) => (forall x. m x -> n x) -> ConduitT i o m a -> ConduitT i o n a
-hoistConduit f = undefined
-
-paginateToConduit :: forall r a. (Member (Embed Client) r) => Page a -> ConduitT () [a] (Sem r) ()
-paginateToConduit (Page False as _) = yield as
-paginateToConduit (Page True as more) = do
-  yield as
-  m <- lift $ embed more
-  paginateToConduit m
+  interpret $
+    embed @m . \case
+      Add upa -> usersPendingActivationAdd upa
+      List -> usersPendingActivationList
+      RemoveMultiple uids -> usersPendingActivationRemoveMultiple uids
 
 usersPendingActivationAdd :: MonadClient m => UserPendingActivation -> m ()
 usersPendingActivationAdd (UserPendingActivation uid expiresAt) = do

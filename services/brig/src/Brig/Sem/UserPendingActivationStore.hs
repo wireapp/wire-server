@@ -2,11 +2,11 @@
 
 module Brig.Sem.UserPendingActivationStore where
 
+import Cassandra
 import Data.Id
 import Data.Time.Clock
 import Imports
 import Polysemy
-import Conduit (ConduitT)
 
 data UserPendingActivation = UserPendingActivation
   { upaUserId :: !UserId,
@@ -16,7 +16,7 @@ data UserPendingActivation = UserPendingActivation
 
 data UserPendingActivationStore m a where
   Add :: UserPendingActivation -> UserPendingActivationStore m ()
-  List :: UserPendingActivationStore m (ConduitT () [UserPendingActivation] m ())
+  List :: UserPendingActivationStore m (Page UserPendingActivation)
   RemoveMultiple :: [UserId] -> UserPendingActivationStore m ()
 
 makeSem ''UserPendingActivationStore
