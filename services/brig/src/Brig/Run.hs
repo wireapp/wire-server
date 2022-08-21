@@ -40,10 +40,10 @@ import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
 import Brig.Sem.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
+import qualified Brig.Sem.UserPendingActivationStore as E
 import qualified Brig.Sem.UserPendingActivationStore as UsersPendingActivationStore
 import Brig.Types.Intra (AccountStatus (PendingInvitation))
 import Brig.Version
-import Cassandra (Page (Page))
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
 import Control.Lens (view, (.~), (^.))
@@ -222,11 +222,11 @@ pendingActivationCleanup = do
     forExpirationsPaged f = do
       go =<< liftSem UsersPendingActivationStore.list
       where
-        go :: Page UserPendingActivation -> (AppT r) ()
-        go (Page hasMore result nextPage) = do
+        -- go :: E.Page _ UserPendingActivation -> (AppT r) ()
+        go (E.Page result maybeNextPageKey) = do
           f result
-          when hasMore $
-            go =<< wrapClient (lift nextPage)
+          for_ maybeNextPageKey $ \key ->
+            go =<< liftSem (UsersPendingActivationStore.getNext key)
 
     threadDelayRandom :: (AppT r) ()
     threadDelayRandom = do

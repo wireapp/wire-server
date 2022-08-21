@@ -37,7 +37,7 @@ runBrigToIO e (AppT ma) =
     . interpretClientToIO (e ^. casClient)
     . codeStoreToCassandra @Cas.Client
     . nowToIOAction (e ^. currentTime)
-    . userPendingActivationStoreToCassandra @Cas.Client
+    . userPendingActivationStoreToCassandra
     . passwordResetStoreToCodeStore
     . interpretBlacklistStoreToCassandra @Cas.Client
     . interpretBlacklistPhonePrefixStoreToCassandra @Cas.Client

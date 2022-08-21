@@ -1,26 +1,45 @@
+-- See note on 'NextPageToken'
+{-# OPTIONS_GHC -fno-warn-deprecations #-}
+
 module Brig.Sem.UserPendingActivationStore.Cassandra
   ( userPendingActivationStoreToCassandra,
   )
 where
 
-import Brig.Sem.UserPendingActivationStore
+import Brig.Sem.UserPendingActivationStore hiding (Page)
+import qualified Brig.Sem.UserPendingActivationStore as E
 import Cassandra
 import Data.Id (UserId)
 import Data.Time (UTCTime)
 import Imports
 import Polysemy
+import Polysemy.Internal.Tactics
+import Unsafe.Coerce (unsafeCoerce)
 
 userPendingActivationStoreToCassandra ::
-  forall m r a.
-  (MonadClient m, Member (Embed m) r) =>
+  forall r a.
+  (Member (Embed Client) r) =>
   Sem (UserPendingActivationStore ': r) a ->
   Sem r a
 userPendingActivationStoreToCassandra =
-  interpret $
-    embed @m . \case
+  interpretH $
+    liftT . embed @Client . \case
       Add upa -> usersPendingActivationAdd upa
-      List -> usersPendingActivationList
+      List ->
+        fmap cassandraPageToEffectPage $ usersPendingActivationList
+      GetNext nkt ->
+        fmap cassandraPageToEffectPage $ unsafeFromNextKeyToken nkt
       RemoveMultiple uids -> usersPendingActivationRemoveMultiple uids
+
+cassandraPageToEffectPage :: Page a -> E.Page unique a
+cassandraPageToEffectPage (Page more results nextPage) =
+  E.Page results $ bool Nothing (Just $ unsafeToNextKeyToken nextPage) more
+
+unsafeToNextKeyToken :: Client (Page a) -> NextPageToken unique a
+unsafeToNextKeyToken = ExtremelyUnsafeNextPageToken . unsafeCoerce
+
+unsafeFromNextKeyToken :: NextPageToken unique a -> Client (Page a)
+unsafeFromNextKeyToken = unsafeCoerce . getNextPage
 
 usersPendingActivationAdd :: MonadClient m => UserPendingActivation -> m ()
 usersPendingActivationAdd (UserPendingActivation uid expiresAt) = do
