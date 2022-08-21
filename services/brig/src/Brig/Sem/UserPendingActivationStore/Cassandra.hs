@@ -1,7 +1,3 @@
-{-# LANGUAGE PartialTypeSignatures #-}
-
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
-
 module Brig.Sem.UserPendingActivationStore.Cassandra
   ( userPendingActivationStoreToCassandra,
   )
@@ -15,33 +11,21 @@ import Imports
 import Polysemy
 import Polysemy.Internal.Tactics (liftT)
 import Conduit
-import Polysemy.Final
 
 userPendingActivationStoreToCassandra ::
   forall r a.
-  ( Member (Embed Client) r
-  , Member (Final IO) r
-  ) =>
+  (Member (Embed Client) r) =>
   Sem (UserPendingActivationStore ': r) a ->
   Sem r a
 userPendingActivationStoreToCassandra =
   interpretH $
     \case
       Add upa -> liftT $ embed @Client $ usersPendingActivationAdd upa
-      (List :: UserPendingActivationStore (Sem r0) _)  -> do
-        st0 <- getInitialStateT
-        withWeavingToFinal @IO $ \st lower ins -> do
-          fconduit
-            <- fmap (fmap $ paginateToConduit @r0)
-             $ lower
-             $ embed @Client usersPendingActivationList <$ st
-          let Just conduit = ins fconduit
-
-          (z :: _ (ConduitT () [UserPendingActivation] (Sem r0) ())) <- _
-          pure $ fmap (<$ st0) z
-        -- cont <- bindT (pure . paginateToConduit @r)
-        -- z <- raise $ userPendingActivationStoreToCassandra $ cont page
-        -- pure $ fmap (hoistConduit _) z
+      List -> do
+        page <- liftT $ embed @Client $ usersPendingActivationList
+        cont <- bindT (pure . paginateToConduit @r)
+        z <- raise $ userPendingActivationStoreToCassandra $ cont page
+        pure $ fmap (hoistConduit _) z
         -- pure $ fmap paginateToConduit page
       RemoveMultiple uids -> do
         liftT $ embed @Client $ usersPendingActivationRemoveMultiple uids
