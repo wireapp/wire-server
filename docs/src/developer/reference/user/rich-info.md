@@ -86,7 +86,7 @@ PUT /scim/v2/Users/:id
 
 Here is an example for `PATCH`:
 
-```json
+```
 PATCH /scim/v2/Users/:id
 
 {

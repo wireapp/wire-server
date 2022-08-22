@@ -123,7 +123,7 @@ Now you can delete the old index.
 **NOTE**: There is a bug hidden when using this way. Sometimes a user won't get
 deleted from the index. Attempts at reproducing this issue in a simpler
 environment have failed. As a workaround, there is a tool in
-[tools/db/find-undead](../../tools/db/find-undead) which can be used to find the
+[tools/db/find-undead](https://github.com/wireapp/wire-server/tree/develop/tools/db/find-undead) which can be used to find the
 undead users right after the migration. If they exist, please run refill the ES
 documents from cassandra as described [above](#refill-es-documents-from-cassandra)
 

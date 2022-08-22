@@ -1,4 +1,5 @@
-# Registration {#RefRegistration}
+# Registration 
+(RefRegistration)=
 
 _Authors: Artyom Kazak, Matthias Fischmann_
 
@@ -6,15 +7,17 @@ _Authors: Artyom Kazak, Matthias Fischmann_
 
 This page describes the "normal" user registration flow. Autoprovisioning is covered separately.
 
-## Summary {#RefRegistrationSummary}
+## Summary 
+(RefRegistrationSummary)=
 
 The vast majority of our API is only available to Wire users. Unless a user is autoprovisioned, they have to register an account by calling the `POST /register` endpoint.
 
-Most users also go through [activation](activation.md) -- sharing and verifying an email address and/or phone number with Wire. This can happen either before or after registration. [Certain functionality](activation.md#RefActivationBenefits) is only available to activated users.
+Most users also go through [activation](activation.md) -- sharing and verifying an email address and/or phone number with Wire. This can happen either before or after registration. [Certain functionality](RefActivationBenefits) is only available to activated users.
 
-## Standard registration flow {#RefRegistrationStandard}
+## Standard registration flow 
+(RefRegistrationStandard)=
 
-During the standard registration flow, the user first calls [`POST /activate/send`](activation.md#RefActivationRequest) to pre-verify their email address or phone number. Phone numbers must be in [E.164][] format.
+During the standard registration flow, the user first calls [`POST /activate/send`](RefActivationRequest) to pre-verify their email address or phone number. Phone numbers must be in [E.164][] format.
 
 [E.164]: https://en.wikipedia.org/wiki/E.164
 
@@ -68,11 +71,12 @@ If the code is incorrect or if an incorrect code has been tried enough times, th
 }
 ```
 
-## Registration without pre-verification {#RefRegistrationNoPreverification}
+## Registration without pre-verification
+(RefRegistrationNoPreverification)=
 
 _NOTE: This flow is currently not used by any clients. At least this was the state on 2020-05-28_
 
-It is also possible to call `POST /register` without verifying the email address or phone number, in which case the account will have to be activated later by calling [`POST /activate`](activation.md#RefActivationSubmit). Sample API request and response:
+It is also possible to call `POST /register` without verifying the email address or phone number, in which case the account will have to be activated later by calling [`POST /activate`](RefActivationSubmit). Sample API request and response:
 
 ```
 POST /register
@@ -107,7 +111,9 @@ Set-Cookie: zuid=...
 
 A verification email will be sent to the email address (if provided), and a verification text message will be sent to the phone number (also, if provided).
 
-## Anonymous registration, aka "Wireless" {#RefRegistrationWireless}
+## Anonymous registration, aka "Wireless"  
+(RefRegistrationWireless)=
+
 
 A user can be created without either email or phone number, in which case only `"name"` is required. The `"name"` does not have to be unique. This feature is used for [guest rooms](https://wire.com/en/features/encrypted-guest-rooms/).
 

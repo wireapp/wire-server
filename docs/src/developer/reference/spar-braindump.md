@@ -169,7 +169,7 @@ Effects:
   and active IdPs.  (Internal details:
   https://github.com/wireapp/wire-team-settings/issues/3465).
 
-```shell
+```
 curl -v \
      -XPOST http://localhost:8080/identity-providers'?replaces='${IDP_ID} \
      -H"Z-User: ${ADMIN_ID}" \
@@ -183,7 +183,7 @@ curl -v \
 Read the beginning of the last section up to "Option 1".  You need
 `ADMIN_ID` (or `BEARER`) and `IDP_ID`, but not `METADATA_FILE`.
 
-```shell
+```
 curl -v
      -XDELETE http://localhost:8080/identity-providers/${IDP_ID} \
      -H"Z-User: ${ADMIN_ID}" \
@@ -195,7 +195,7 @@ with this IdP, you will get an error.  You can either move these users
 elsewhere, delete them manually, or purge them implicitly during
 deletion of the IdP:
 
-```shell
+```
 curl -v
      -XDELETE http://localhost:8080/identity-providers/${IDP_ID}?purge=true \
      -H"Z-User: ${ADMIN_ID}" \
