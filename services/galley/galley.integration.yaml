@@ -42,6 +42,9 @@ settings:
   #   Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
   #   Remember to keep it the same in Brig
   federationDomain: example.com
+  mlsPrivateKeyPaths:
+    removal:
+      ed25519: test/resources/ed25519.pem
 
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default

@@ -48,6 +48,7 @@ library
     Wire.API.MLS.Extension
     Wire.API.MLS.Group
     Wire.API.MLS.KeyPackage
+    Wire.API.MLS.Keys
     Wire.API.MLS.Message
     Wire.API.MLS.Proposal
     Wire.API.MLS.Serialisation
