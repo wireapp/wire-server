@@ -244,9 +244,12 @@ instance ParseMLS SenderTag where
 instance SerialiseMLS SenderTag where
   serialiseMLS = serialiseMLSEnum @Word8
 
+-- NOTE: according to the spec, the preconfigured sender case contains a
+-- bytestring, not a u32. However, as of 2022-08-02, the openmls fork used by
+-- the clients is using a u32 here.
 data instance Sender 'MLSPlainText
   = MemberSender KeyPackageRef
-  | PreconfiguredSender Word32 -- TODO: fix openmls patch: should be length-encoded bytestring
+  | PreconfiguredSender Word32
   | NewMemberSender
   deriving (Eq, Show, Generic)
 
