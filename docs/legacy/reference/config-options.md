@@ -28,14 +28,19 @@ production.
 
 ### MLS private key paths
 
-The `mlsPrivateKeyPaths` field should contain a mapping from signature schemes
-to file paths of corresponding x509 private keys in PEM format.
+The `mlsPrivateKeyPaths` field should contain a mapping from *purposes* and
+signature schemes to file paths of corresponding x509 private keys in PEM
+format.
+
+At the moment, the only purpose is `removal`, meaning that the key will be used
+to sign external remove proposals.
 
 For example:
 
 ```
   mlsPrivateKeyPaths:
-    ed25519: /etc/secrets/ed25519.pem
+    removal:
+      ed25519: /etc/secrets/ed25519.pem
 ```
 
 A simple way to generate an ed25519 private key, discarding the corresponding
