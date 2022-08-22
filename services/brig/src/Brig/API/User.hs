@@ -1248,7 +1248,7 @@ verifyDeleteUserInternal ::
     MonadReader Env m
   ) =>
   UserId ->
-  m VerifyDeleteInternalResult
+  m VerifyAccountDeletedResult
 verifyDeleteUserInternal uid = do
   mbAcc <- lookupAccount uid
   case mbAcc of

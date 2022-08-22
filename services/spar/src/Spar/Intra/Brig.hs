@@ -367,7 +367,7 @@ deleteBrigUser buid = do
 
 -- | Call brig to verify that a user has been completely deleted.
 -- Otherwise, do another deletion.
-verifyDeletionBrigUser :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m VerifyDeleteInternalResult
+verifyDeletionBrigUser :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m VerifyAccountDeletedResult
 verifyDeletionBrigUser buid = do
   resp <-
     call $

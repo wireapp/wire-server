@@ -161,7 +161,7 @@ type AccountAPI =
            ( "users"
                :> Capture "uid" UserId
                :> "verify-deleted"
-               :> Post '[Servant.JSON] VerifyDeleteInternalResult
+               :> Post '[Servant.JSON] VerifyAccountDeletedResult
            )
 
 -- | The missing ref is implicit by the capture

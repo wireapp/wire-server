@@ -95,7 +95,7 @@ module Wire.API.User
     VerifyDeleteUser (..),
     mkVerifyDeleteUser,
     DeletionCodeTimeout (..),
-    VerifyDeleteInternalResult (..),
+    VerifyAccountDeletedResult (..),
 
     -- * List Users
     ListUsersQuery (..),
@@ -121,6 +121,7 @@ import Control.Applicative
 import Control.Error.Safe (rightMay)
 import Control.Lens (over, view, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
+import Data.Aeson.Types (parseFail)
 import qualified Data.Aeson.Types as A
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Builder (toLazyByteString)
@@ -1357,18 +1358,40 @@ instance FromJSON DeletionCodeTimeout where
   parseJSON = A.withObject "DeletionCodeTimeout" $ \o ->
     DeletionCodeTimeout <$> o A..: "expires_in"
 
-data VerifyDeleteInternalResult = NoUser | FullyDeletedUser | RanDeletionAgain
-  deriving (Eq)
-  deriving (S.ToSchema, ToJSON, FromJSON) via (Schema VerifyDeleteInternalResult)
+data VerifyAccountDeletedResult = NoUser | FullyDeletedUser | RanDeletionAgain
+  deriving (Eq, Show)
+  deriving (S.ToSchema) via (Schema VerifyAccountDeletedResult)
 
-instance ToSchema VerifyDeleteInternalResult where
+instance ToSchema VerifyAccountDeletedResult where
   schema =
-    enum @Text "VerifyDeleteInternalResult" $
+    enum @Text "VerifyAccountDeletedResult" $
       mconcat
         [ element "no-user" NoUser,
           element "fully-deleted-user" FullyDeletedUser,
           element "had-to-run-deletion-again" RanDeletionAgain
         ]
+
+instance ToJSON VerifyAccountDeletedResult where
+  toJSON t = A.object ["tag" A..= toTag t]
+    where
+      toTag :: VerifyAccountDeletedResult -> A.Value
+      toTag NoUser = "no-user"
+      toTag FullyDeletedUser = "fully-deleted-user"
+      toTag RanDeletionAgain = "had-to-run-deletion-again"
+
+instance FromJSON VerifyAccountDeletedResult where
+  parseJSON (A.Object o) = do
+    tagString <- o A..: "tag"
+    case fromTag tagString of
+      Just t -> pure t
+      Nothing -> A.parseFail $ "Unknown tag: " ++ tagString
+    where
+      fromTag :: String -> Maybe VerifyAccountDeletedResult
+      fromTag "no-user" = Just NoUser
+      fromTag "fully-deleted-user" = Just FullyDeletedUser
+      fromTag "had-to-run-deletion-again" = Just RanDeletionAgain
+      fromTag _ = Nothing
+  parseJSON _ = parseFail "Invalid VerifyAccountDeletedResult"
 
 data ListUsersQuery
   = ListUsersByIds [Qualified UserId]

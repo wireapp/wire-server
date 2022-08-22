@@ -160,6 +160,10 @@ tests _ at opts p b c ch g aws =
       testGroup
         "update user email by team owner"
         [ test' aws p "put /users/:uid/email" $ testUpdateUserEmailByTeamOwner b
+        ],
+      testGroup
+        "/i/users/:uid/verify-deleted"
+        [ test' aws p "does nothing for completely deleted user" $ testVerifyAccountDeletedWithCompletelyDeletedUser b c aws
         ]
     ]
 
@@ -1591,7 +1595,7 @@ testRestrictedUserCreation opts brig = do
             ]
     postUserRegister' ssoUser brig !!! const 400 === statusCode
 
--- | FUTUREWORK: @setRestrictUserCreation@ perhaps needs to be tested in one place only, since it's the
+-- FUTUREWORK: @setRestrictUserCreation@ perhaps needs to be tested in one place only, since it's the
 -- first thing that we check on the /register endpoint. Other tests that make use of @setRestrictUserCreation@
 -- can probably be removed and simplified. It's probably a good candidate for Quickcheck.
 testTooManyMembersForLegalhold :: Opt.Opts -> Brig -> Http ()
@@ -1631,6 +1635,22 @@ testTooManyMembersForLegalhold opts brig = do
       !!! do
         const 403 === statusCode
         const (Right "too-many-members-for-legalhold") === fmap Wai.label . responseJsonEither
+
+testVerifyAccountDeletedWithCompletelyDeletedUser :: Brig -> Cannon -> AWS.Env -> Http ()
+testVerifyAccountDeletedWithCompletelyDeletedUser brig cannon aws = do
+  u <- randomUser brig
+  liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal1: " aws (userActivateJournaled u)
+  setHandleAndDeleteUser brig cannon u [] aws $
+    \uid -> delete (brig . paths ["/i/users", toByteString' uid]) !!! const 202 === statusCode
+  do
+    let uid = userId u
+    post
+      ( brig
+          . paths ["/i/users", toByteString' uid, "verify-deleted"]
+      )
+      !!! do
+        const 200 === statusCode
+        const (Right FullyDeletedUser) === responseJsonEither
 
 -- helpers
 

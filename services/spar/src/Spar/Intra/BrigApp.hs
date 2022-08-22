@@ -175,5 +175,5 @@ giveDefaultHandle usr = case userHandle usr of
     BrigAccess.setHandle uid handle
     pure handle
 
-verifyBrigUserDeletion :: (HasCallStack, Member BrigAccess r) => UserId -> Sem r VerifyDeleteInternalResult
+verifyBrigUserDeletion :: (HasCallStack, Member BrigAccess r) => UserId -> Sem r VerifyAccountDeletedResult
 verifyBrigUserDeletion = BrigAccess.verifyUserDeleted
