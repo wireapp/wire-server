@@ -383,7 +383,7 @@ interpretMemberStoreToCassandra = interpret $ \case
   GetLocalMembers cid -> embedClient $ members cid
   GetRemoteMember cid uid -> embedClient $ lookupRemoteMember cid (tDomain uid) (tUnqualified uid)
   GetRemoteMembers rcid -> embedClient $ lookupRemoteMembers rcid
-  CheckLocalMemberRemoteConv uid rcnv -> fmap null $ embedClient $ lookupLocalMemberRemoteConv uid rcnv
+  CheckLocalMemberRemoteConv uid rcnv -> fmap (not . null) $ embedClient $ lookupLocalMemberRemoteConv uid rcnv
   SelectRemoteMembers uids rcnv -> embedClient $ filterRemoteConvMembers uids rcnv
   SetSelfMember qcid luid upd -> embedClient $ updateSelfMember qcid luid upd
   SetOtherMember lcid quid upd ->
