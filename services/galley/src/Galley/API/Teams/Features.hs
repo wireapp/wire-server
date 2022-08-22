@@ -427,6 +427,7 @@ getAllFeatureConfigsForServer =
     <$> getConfigForServer @db @LegalholdConfig
     <*> getConfigForServer @db @SSOConfig
     <*> getConfigForServer @db @SearchVisibilityAvailableConfig
+    <*> getConfigForServer @db @SearchVisibilityInboundConfig
     <*> getConfigForServer @db @ValidateSAMLEmailsConfig
     <*> getConfigForServer @db @DigitalSignaturesConfig
     <*> getConfigForServer @db @AppLockConfig
@@ -437,7 +438,6 @@ getAllFeatureConfigsForServer =
     <*> getConfigForServer @db @GuestLinksConfig
     <*> getConfigForServer @db @SndFactorPasswordChallengeConfig
     <*> getConfigForServer @db @MLSConfig
-    <*> getConfigForServer @db @SearchVisibilityInboundConfig
 
 getAllFeatureConfigsUser ::
   forall db r.
@@ -460,6 +460,7 @@ getAllFeatureConfigsUser uid =
     <$> getConfigForUser @db @LegalholdConfig uid
     <*> getConfigForUser @db @SSOConfig uid
     <*> getConfigForUser @db @SearchVisibilityAvailableConfig uid
+    <*> getConfigForUser @db @SearchVisibilityInboundConfig uid
     <*> getConfigForUser @db @ValidateSAMLEmailsConfig uid
     <*> getConfigForUser @db @DigitalSignaturesConfig uid
     <*> getConfigForUser @db @AppLockConfig uid
@@ -470,7 +471,6 @@ getAllFeatureConfigsUser uid =
     <*> getConfigForUser @db @GuestLinksConfig uid
     <*> getConfigForUser @db @SndFactorPasswordChallengeConfig uid
     <*> getConfigForUser @db @MLSConfig uid
-    <*> getConfigForUser @db @SearchVisibilityInboundConfig uid
 
 getAllFeatureConfigsTeam ::
   forall db r.
@@ -492,6 +492,7 @@ getAllFeatureConfigsTeam tid =
     <$> getConfigForTeam @db @LegalholdConfig tid
     <*> getConfigForTeam @db @SSOConfig tid
     <*> getConfigForTeam @db @SearchVisibilityAvailableConfig tid
+    <*> getConfigForTeam @db @SearchVisibilityInboundConfig tid
     <*> getConfigForTeam @db @ValidateSAMLEmailsConfig tid
     <*> getConfigForTeam @db @DigitalSignaturesConfig tid
     <*> getConfigForTeam @db @AppLockConfig tid
@@ -502,7 +503,6 @@ getAllFeatureConfigsTeam tid =
     <*> getConfigForTeam @db @GuestLinksConfig tid
     <*> getConfigForTeam @db @SndFactorPasswordChallengeConfig tid
     <*> getConfigForTeam @db @MLSConfig tid
-    <*> getConfigForTeam @db @SearchVisibilityInboundConfig tid
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
 genericGetConfigForTeam ::

@@ -997,6 +997,7 @@ data AllFeatureConfigs = AllFeatureConfigs
   { afcLegalholdStatus :: WithStatus LegalholdConfig,
     afcSSOStatus :: WithStatus SSOConfig,
     afcTeamSearchVisibilityAvailable :: WithStatus SearchVisibilityAvailableConfig,
+    afcSearchVisibilityInboundConfig :: WithStatus SearchVisibilityInboundConfig,
     afcValidateSAMLEmails :: WithStatus ValidateSAMLEmailsConfig,
     afcDigitalSignatures :: WithStatus DigitalSignaturesConfig,
     afcAppLock :: WithStatus AppLockConfig,
@@ -1006,8 +1007,7 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcSelfDeletingMessages :: WithStatus SelfDeletingMessagesConfig,
     afcGuestLink :: WithStatus GuestLinksConfig,
     afcSndFactorPasswordChallenge :: WithStatus SndFactorPasswordChallengeConfig,
-    afcMLS :: WithStatus MLSConfig,
-    afcSearchVisibilityInboundConfig :: WithStatus SearchVisibilityInboundConfig
+    afcMLS :: WithStatus MLSConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -1019,6 +1019,7 @@ instance ToSchema AllFeatureConfigs where
         <$> afcLegalholdStatus .= featureField
         <*> afcSSOStatus .= featureField
         <*> afcTeamSearchVisibilityAvailable .= featureField
+        <*> afcSearchVisibilityInboundConfig .= featureField
         <*> afcValidateSAMLEmails .= featureField
         <*> afcDigitalSignatures .= featureField
         <*> afcAppLock .= featureField
@@ -1029,7 +1030,6 @@ instance ToSchema AllFeatureConfigs where
         <*> afcGuestLink .= featureField
         <*> afcSndFactorPasswordChallenge .= featureField
         <*> afcMLS .= featureField
-        <*> afcSearchVisibilityInboundConfig .= featureField
     where
       featureField ::
         forall cfg.

@@ -178,8 +178,6 @@ data FeatureLegalHold
   deriving (Eq, Ord, Show, Enum, Bounded, Generic)
 
 -- | Default value for all teams that have not enabled or disabled this feature explicitly.
--- See also 'Wire.API.Team.SearchVisibility.TeamSearchVisibilityEnabled',
--- 'Wire.API.Team.SearchVisibility.TeamSearchVisibility'.
 data FeatureTeamSearchVisibilityAvailability
   = FeatureTeamSearchVisibilityAvailableByDefault
   | FeatureTeamSearchVisibilityUnavailableByDefault
