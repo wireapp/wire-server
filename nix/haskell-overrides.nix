@@ -22,11 +22,13 @@ hsuper: hself: {
   http-conduit = hself.callPackage ./haskell-overrides/http-conduit.nix {};
   kind-generics = hself.callPackage ./haskell-overrides/kind-generics.nix {};
   multihash = hself.callPackage ./haskell-overrides/multihash.nix {};
+  partial-isomorphisms = hself.callPackage ./haskell-overrides/partial-isomorphisms.nix {};
   saml2-web-sso = hself.callPackage ./haskell-overrides/saml2-web-sso.nix {};
   servant-client-core = hself.callPackage ./haskell-overrides/servant-client-core.nix {};
   servant-client = hself.callPackage ./haskell-overrides/servant-client.nix {};
   servant = hself.callPackage ./haskell-overrides/servant.nix {};
   servant-server = hself.callPackage ./haskell-overrides/servant-server.nix {};
+  singletons = hself.callPackage ./haskell-overrides/singletons.nix {};
   snappy-framing = hself.callPackage ./haskell-overrides/snappy-framing.nix {};
   snappy = hself.callPackage ./haskell-overrides/snappy.nix {};
   swagger = hself.callPackage ./haskell-overrides/swagger.nix {};

@@ -88,3 +88,7 @@ hackagePins:
     version: 0.4.1.0
   - package: wai-route
     version: 0.4.0
+  - package: partial-isomorphisms
+    version: 0.2.2.1
+  - package: singletons
+    version: 2.7
