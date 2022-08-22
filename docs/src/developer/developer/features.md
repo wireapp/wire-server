@@ -1,4 +1,4 @@
-## Features
+# Features
 
 Wire has multiple features (or feature flags) that affect the behaviour of
 backend and clients, e.g. `sso`, `searchVisibility`, `digitalSignatures`,
