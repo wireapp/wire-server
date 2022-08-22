@@ -45,7 +45,7 @@ newtype Nonce = Nonce {unNonce :: UUIDBase64Url}
   deriving newtype (A.FromJSON, A.ToJSON, S.ToSchema, ToSchema, FromByteString, ToByteString, Arbitrary)
 
 instance ToParamSchema Nonce where
-  toParamSchema _ = toParamSchema (Proxy @UUID)
+  toParamSchema _ = toParamSchema (Proxy @Text)
 
 instance ToHttpApiData Nonce where
   toQueryParam nonce = cs (toByteString' nonce)
@@ -55,14 +55,10 @@ instance FromHttpApiData Nonce where
     first pack $ runParser parser (encodeUtf8 s)
 
 randomNonce :: (Functor m, MonadIO m) => m Nonce
-randomNonce = Nonce . encodeUUIDBase64Url <$> liftIO nextRandom
-
-fromBase64Url :: ByteString -> Maybe UUID
-fromBase64Url bs =
-  either (const Nothing) Just (Base64.decode bs) >>= fromASCIIBytes
+randomNonce = Nonce . toUUIDBase64Url <$> liftIO nextRandom
 
 isValidBase64UrlEncodedUUID :: ByteString -> Bool
-isValidBase64UrlEncodedUUID = isJust . fromBase64Url
+isValidBase64UrlEncodedUUID = isJust . decodeUUIDBase64Url
 
 instance Cql Nonce where
   ctype = Tagged UuidColumn

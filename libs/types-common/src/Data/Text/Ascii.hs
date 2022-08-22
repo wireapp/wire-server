@@ -57,6 +57,8 @@ module Data.Text.Ascii
     encodeBase64Url,
     decodeBase64Url,
     UUIDBase64Url,
+    toUUIDBase64Url,
+    decodeUUIDBase64Url,
     encodeUUIDBase64Url,
 
     -- * Base16 (Hex) Characters
@@ -337,20 +339,23 @@ newtype UUID' c = UUID' {toUUID :: UUID}
 
 type UUIDBase64Url = UUID' Base64Url
 
-instance ToByteString (UUID' Base64Url) where
-  builder (UUID' uuid) = builder (encodeBase64Url (toASCIIBytes uuid))
+instance ToByteString UUIDBase64Url where
+  builder = builder . encodeUUIDBase64Url
 
-instance FromByteString (UUID' Base64Url) where
-  parser = parser >>= maybe (fail "invalid base64url encoded uuidv4") pure . parseUUIDBase64Url
+instance FromByteString UUIDBase64Url where
+  parser = parser >>= maybe (fail "invalid base64url encoded uuidv4") pure . decodeUUIDBase64Url
 
-parseUUIDBase64Url :: ByteString -> Maybe (UUID' Base64Url)
-parseUUIDBase64Url t = UUID' <$> (either (const Nothing) pure (B64Url.decode t) >>= fromASCIIBytes)
+decodeUUIDBase64Url :: ByteString -> Maybe UUIDBase64Url
+decodeUUIDBase64Url t = UUID' <$> (either (const Nothing) pure (B64Url.decode t) >>= fromASCIIBytes)
+
+encodeUUIDBase64Url :: UUIDBase64Url -> ByteString
+encodeUUIDBase64Url (UUID' uuid) = B64Url.encode (toASCIIBytes uuid)
 
 instance ToSchema (UUID' Base64Url) where
-  schema = id .= schema
+  schema = schema
 
-encodeUUIDBase64Url :: UUID -> UUIDBase64Url
-encodeUUIDBase64Url = UUID'
+toUUIDBase64Url :: UUID -> UUIDBase64Url
+toUUIDBase64Url = UUID'
 
 --------------------------------------------------------------------------------
 -- Base16
