@@ -612,6 +612,7 @@ test-suite wire-api-tests
     Test.Wire.API.Roundtrip.Aeson
     Test.Wire.API.Roundtrip.ByteString
     Test.Wire.API.Roundtrip.CSV
+    Test.Wire.API.Roundtrip.MLS
     Test.Wire.API.Routes
     Test.Wire.API.Swagger
     Test.Wire.API.Team.Export
@@ -670,13 +671,16 @@ test-suite wire-api-tests
       aeson                    >=2.0.1.0
     , aeson-pretty
     , aeson-qq
+    , async
     , base
+    , binary
     , bytestring
     , bytestring-arbitrary     >=0.1.3
     , bytestring-conversion
     , case-insensitive
     , cassava
     , containers               >=0.5
+    , cryptonite
     , currency-codes
     , directory
     , either
@@ -687,10 +691,12 @@ test-suite wire-api-tests
     , iso3166-country-codes
     , iso639
     , lens
+    , memory
     , metrics-wai
     , mime
     , pem
     , pretty
+    , process
     , proto-lens
     , QuickCheck
     , saml2-web-sso
@@ -706,6 +712,7 @@ test-suite wire-api-tests
     , text
     , time
     , types-common             >=0.16
+    , unliftio
     , unordered-containers
     , uri-bytestring
     , uuid

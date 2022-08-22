@@ -28,6 +28,7 @@ import qualified Test.Wire.API.MLS as MLS
 import qualified Test.Wire.API.Roundtrip.Aeson as Roundtrip.Aeson
 import qualified Test.Wire.API.Roundtrip.ByteString as Roundtrip.ByteString
 import qualified Test.Wire.API.Roundtrip.CSV as Roundtrip.CSV
+import qualified Test.Wire.API.Roundtrip.MLS as Roundtrip.MLS
 import qualified Test.Wire.API.Routes as Routes
 import qualified Test.Wire.API.Swagger as Swagger
 import qualified Test.Wire.API.Team.Export as Team.Export
@@ -49,6 +50,7 @@ main =
         User.RichInfo.tests,
         Roundtrip.Aeson.tests,
         Roundtrip.ByteString.tests,
+        Roundtrip.MLS.tests,
         Swagger.tests,
         Roundtrip.CSV.tests,
         Routes.tests,
