@@ -1,7 +1,9 @@
 **Warning**: this chart is currently considered alpha. Use at your own risk!
 
-This chart deploys [coturn](https://github.com/wireapp/coturn), a STUN and TURN
-server.
+This chart deploys Wire's fork of [coturn](https://github.com/coturn/coturn),
+a STUN and TURN server, with some additional features developed by Wire (see
+[here](https://github.com/wireapp/coturn/tree/wireapp)) to support our calling
+services.
 
 You need to supply a list of one or more zrest secrets at the key
 `secrets.zrestSecrets`. The secret provided to the brig chart in
