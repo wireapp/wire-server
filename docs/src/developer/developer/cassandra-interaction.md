@@ -2,7 +2,7 @@
 
 <!-- vim-markdown-toc GFM -->
 
-* [Anti-patterns](anti-patterns)
+* [Anti-patterns](#anti-patterns)
     * [Anti-pattern: Using full table scans in production code](#anti-pattern-using-full-table-scans-in-production-code)
     * [Anti-pattern: Using IN queries on a field in the partition key](#anti-pattern-using-in-queries-on-a-field-in-the-partition-key)
     * [Anti-pattern: Designing for a lot of deletes or updates](#anti-pattern-designing-for-a-lot-of-deletes-or-updates)
