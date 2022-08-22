@@ -29,6 +29,7 @@ module Brig.Data.UserKey
     keyAvailable,
     lookupKey,
     deleteKey,
+    deleteKeyForUser,
     lookupPhoneHashes,
   )
 where
@@ -163,6 +164,13 @@ deleteKey k = do
   hk <- hashKey k
   retry x5 $ write deleteHashed (params LocalQuorum (Identity hk))
   retry x5 $ write keyDelete (params LocalQuorum (Identity $ keyText k))
+
+deleteKeyForUser :: (MonadClient m, MonadReader Env m) => UserId -> UserKey -> m ()
+deleteKeyForUser uid k = do
+  mbKeyUid <- lookupKey k
+  case mbKeyUid of
+    Just keyUid | keyUid == uid -> deleteKey k
+    _ -> pure ()
 
 hashKey :: MonadReader Env m => UserKey -> m UserKeyHash
 hashKey uk = do

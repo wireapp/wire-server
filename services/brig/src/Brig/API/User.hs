@@ -1257,9 +1257,9 @@ verifyDeleteUserInternal uid = do
       -- TODO: `fromJust` is ugly
       -- TODO: Is it still valid to check for email, phone and handle - can't they belong to other users?`
       let user = accountUser (fromJust acc)
-      mbEmail <- for (userEmail user) $ lookupKey . userEmailKey
-      mbPhone <- for (userPhone user) $ lookupKey . userPhoneKey
-      mbHandle <- for (userHandle user) $ lookupHandle
+      mbEmailUid <- fmap join $ for (userEmail user) $ lookupKey . userEmailKey
+      mbPhoneUid <- fmap join $ for (userPhone user) $ lookupKey . userPhoneKey
+      mbHandleUid <- fmap join $ for (userHandle user) $ lookupHandle
 
       probs <- Data.lookupPropertyKeysAndValues uid
 
@@ -1270,12 +1270,17 @@ verifyDeleteUserInternal uid = do
       conCount <- countConnections localUid [minBound .. maxBound]
       cookies <- listCookies uid []
 
-      if isJust mbEmail || isJust mbPhone || isJust mbHandle || (not . null) probs || not accIsDeleted || (not . null) clients || conCount > 0 || (not . null) cookies
+      if needsDeletion mbEmailUid || needsDeletion mbPhoneUid || needsDeletion mbHandleUid || (not . null) probs || not accIsDeleted || (not . null) clients || conCount > 0 || (not . null) cookies
         then do
           -- TODO: Catch errors?
           deleteAccount $ fromJust acc
           pure RanDeletionAgain
         else pure FullyDeletedUser
+  where
+    needsDeletion :: Maybe UserId -> Bool
+    needsDeletion foundUid = case foundUid of
+      Just uid' -> uid' == uid
+      Nothing -> False
 
 -- | Internal deletion without validation.  Called via @delete /i/user/:uid@, or indirectly
 -- via deleting self.
@@ -1297,8 +1302,8 @@ deleteAccount account@(accountUser -> user) = do
   let uid = userId user
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
   -- Free unique keys
-  for_ (userEmail user) $ deleteKey . userEmailKey
-  for_ (userPhone user) $ deleteKey . userPhoneKey
+  for_ (userEmail user) $ deleteKeyForUser uid . userEmailKey
+  for_ (userPhone user) $ deleteKeyForUser uid . userPhoneKey
   for_ (userHandle user) $ freeHandle (userId user)
   -- Wipe data
   Data.clearProperties uid
