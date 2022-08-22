@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# OPTIONS_GHC -fno-warn-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -28,22 +27,19 @@ import qualified Data.ByteString.Base64.URL as Base64
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Proxy (Proxy (Proxy))
-import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import Data.Swagger.ParamSchema
 import Data.Text (pack)
-import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
-import Data.UUID as UUID (UUID, fromASCIIBytes, fromByteString, toASCIIBytes, toByteString)
+import Data.UUID as UUID (UUID, fromByteString, toByteString)
 import Data.UUID.V4 (nextRandom)
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
-import Test.QuickCheck (Arbitrary)
 
 newtype Nonce = Nonce {unNonce :: UUID}
   deriving (Eq, Show)
-  deriving newtype (A.FromJSON, A.ToJSON, S.ToSchema, Arbitrary)
+  deriving newtype (A.FromJSON, A.ToJSON, S.ToSchema)
 
 instance ToByteString Nonce where
   builder = builder . Base64.encode . toStrict . UUID.toByteString . unNonce
