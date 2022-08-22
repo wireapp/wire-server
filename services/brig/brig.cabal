@@ -49,6 +49,7 @@ library
     Brig.Data.Instances
     Brig.Data.LoginCode
     Brig.Data.MLS.KeyPackage
+    Brig.Data.Nonce
     Brig.Data.Properties
     Brig.Data.Types
     Brig.Data.User

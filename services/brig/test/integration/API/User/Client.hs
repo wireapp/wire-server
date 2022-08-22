@@ -955,6 +955,7 @@ testNewNonce brig = do
   where
     check f status = do
       response <- (randomUser brig >>= f brig . userId) <!! const status === statusCode
+      print response
       liftIO $ do
         assertBool "Replay-Nonce header should contain a valid base64url encoded uuidv4" $ any isValidBase64UrlEncodedUUID (getHeader "Replay-Nonce" response)
         Just "no-store" @=? getHeader "Cache-Control" response

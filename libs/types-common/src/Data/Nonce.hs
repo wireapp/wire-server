@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# OPTIONS_GHC -fno-warn-unused-imports #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -20,6 +21,7 @@
 
 module Data.Nonce where
 
+import Cassandra hiding (Value)
 import qualified Data.Aeson as A
 import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteString.Base64.URL as Base64
@@ -38,12 +40,12 @@ import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck (Arbitrary)
 
-newtype Nonce = Nonce {unNonce :: AsciiBase64Url}
+newtype Nonce = Nonce {unNonce :: UUIDBase64Url}
   deriving (Eq, Show)
-  deriving newtype (A.FromJSON, A.ToJSON, ToSchema, S.ToSchema, FromByteString, ToByteString, Arbitrary)
+  deriving newtype (A.FromJSON, A.ToJSON, S.ToSchema, ToSchema, FromByteString, ToByteString, Arbitrary)
 
 instance ToParamSchema Nonce where
-  toParamSchema _ = toParamSchema (Proxy @Text)
+  toParamSchema _ = toParamSchema (Proxy @UUID)
 
 instance ToHttpApiData Nonce where
   toQueryParam nonce = cs (toByteString' nonce)
@@ -53,7 +55,7 @@ instance FromHttpApiData Nonce where
     first pack $ runParser parser (encodeUtf8 s)
 
 randomNonce :: (Functor m, MonadIO m) => m Nonce
-randomNonce = Nonce . encodeBase64Url . toASCIIBytes <$> liftIO nextRandom
+randomNonce = Nonce . encodeUUIDBase64Url <$> liftIO nextRandom
 
 fromBase64Url :: ByteString -> Maybe UUID
 fromBase64Url bs =
@@ -61,3 +63,8 @@ fromBase64Url bs =
 
 isValidBase64UrlEncodedUUID :: ByteString -> Bool
 isValidBase64UrlEncodedUUID = isJust . fromBase64Url
+
+instance Cql Nonce where
+  ctype = Tagged UuidColumn
+  toCql (Nonce _) = error "todo(leif)"
+  fromCql = error "todo(leif)"
