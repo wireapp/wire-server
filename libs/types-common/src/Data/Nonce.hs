@@ -70,7 +70,7 @@ randomNonce :: (Functor m, MonadIO m) => m Nonce
 randomNonce = Nonce <$> liftIO nextRandom
 
 isValidBase64UrlEncodedUUID :: ByteString -> Bool
-isValidBase64UrlEncodedUUID bs = either (const False) (const True) $ runParser (parser @Nonce) bs
+isValidBase64UrlEncodedUUID = isRight . runParser (parser @Nonce)
 
 instance Cql Nonce where
   ctype = Tagged UuidColumn
