@@ -107,7 +107,7 @@ tests _cl _at opts p db b c g =
       test p "get /clients/:client - 200" $ testMLSClient b,
       test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g,
       test p "client/prekeys/race" $ testPreKeyRace b,
-      test p "head nonce/clients" $ testNewNonce b
+      test p "get/head nonce/clients" $ testNewNonce b
     ]
 
 testAddGetClientVerificationCode :: DB.ClientState -> Brig -> Galley -> Http ()
@@ -950,10 +950,14 @@ testPreKeyRace brig = do
 
 testNewNonce :: Brig -> Http ()
 testNewNonce brig = do
-  response <- (randomUser brig >>= Util.getNonce brig . userId) <!! const 204 === statusCode
-  liftIO $ do
-    assertBool "Replay-Nonce header should contain a valid base64url encoded uuidv4" $ any isValidBase64UrlEncodedUUID (getHeader "Replay-Nonce" response)
-    Just "no-store" @=? getHeader "Cache-Control" response
+  check Util.getNonce 204
+  check Util.headNonce 200
+  where
+    check f status = do
+      response <- (randomUser brig >>= f brig . userId) <!! const status === statusCode
+      liftIO $ do
+        assertBool "Replay-Nonce header should contain a valid base64url encoded uuidv4" $ any isValidBase64UrlEncodedUUID (getHeader "Replay-Nonce" response)
+        Just "no-store" @=? getHeader "Cache-Control" response
 
 testCan'tDeleteLegalHoldClient :: Brig -> Http ()
 testCan'tDeleteLegalHoldClient brig = do

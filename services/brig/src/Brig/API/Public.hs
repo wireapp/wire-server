@@ -246,10 +246,11 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"update-client" updateClient
         :<|> Named @"delete-client" deleteClient
         :<|> Named @"list-clients" listClients
-        :<|> Named @"get-nonce" getNonce
         :<|> Named @"get-client" getClient
         :<|> Named @"get-client-capabilities" getClientCapabilities
         :<|> Named @"get-client-prekeys" getClientPrekeys
+        :<|> Named @"head-nonce" newNonce
+        :<|> Named @"get-nonce" newNonce
 
     connectionAPI :: ServerT ConnectionAPI (Handler r)
     connectionAPI =
@@ -615,8 +616,8 @@ getRichInfo self user = do
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
-getNonce :: UserId -> (Handler r) Nonce
-getNonce _ = randomNonce
+newNonce :: UserId -> (Handler r) Nonce
+newNonce _ = randomNonce
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser :: Member BlacklistStore r => Public.NewUserPublic -> (Handler r) (Either Public.RegisterError Public.RegisterSuccess)

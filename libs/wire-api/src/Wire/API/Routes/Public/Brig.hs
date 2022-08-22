@@ -508,17 +508,6 @@ type UserClientAPI =
                :> Get '[JSON] [Client]
            )
     :<|> Named
-           "get-nonce"
-           ( Summary "Get a new nonce for a client, specified in the response header `Replay-Nonce` as a uuidv4 in base64url encoding"
-               :> ZUser
-               :> "nonce"
-               :> "clients"
-               :> MultiVerb1
-                    'GET
-                    '[JSON]
-                    (WithHeaders '[Header "Replay-Nonce" NonceHeader, Header "Cache-Control" Text] Nonce (RespondEmpty 204 "No Content"))
-           )
-    :<|> Named
            "get-client"
            ( Summary "Get a registered client by ID"
                :> ZUser
@@ -550,6 +539,25 @@ type UserClientAPI =
                :> "prekeys"
                :> Get '[JSON] [PrekeyId]
            )
+    :<|> NonceAPI
+
+type NonceAPI =
+  -- be aware that the order matters, if get was first, then head requests would be routed to the get handler
+  NewNonce "head-nonce" 'HEAD 200
+    :<|> NewNonce "get-nonce" 'GET 204
+
+type NewNonce name method statusCode =
+  Named
+    name
+    ( Summary "Get a new nonce for a client, specified in the response header `Replay-Nonce` as a uuidv4 in base64url encoding"
+        :> ZUser
+        :> "nonce"
+        :> "clients"
+        :> MultiVerb1
+             method
+             '[JSON]
+             (WithHeaders '[Header "Replay-Nonce" NonceHeader, Header "Cache-Control" Text] Nonce (RespondEmpty statusCode "No Content"))
+    )
 
 newtype NonceHeader = NonceHeader Nonce
   deriving (Eq, Show)
