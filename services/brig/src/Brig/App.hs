@@ -148,7 +148,7 @@ import Util.Options
 import Wire.API.User
 
 schemaVersion :: Int32
-schemaVersion = 71
+schemaVersion = 72
 
 -------------------------------------------------------------------------------
 -- Environment
