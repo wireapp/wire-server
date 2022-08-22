@@ -22,6 +22,7 @@ module Data.Nonce where
 
 import qualified Data.Aeson as A
 import Data.Bifunctor (Bifunctor (first))
+import qualified Data.ByteString.Base64.URL as Base64
 import Data.ByteString.Conversion
 import Data.Proxy (Proxy (Proxy))
 import Data.Schema
@@ -31,7 +32,7 @@ import Data.Swagger.ParamSchema
 import Data.Text (pack)
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
-import Data.UUID (toASCIIBytes)
+import Data.UUID (UUID, fromASCIIBytes, toASCIIBytes)
 import Data.UUID.V4 (nextRandom)
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
@@ -53,3 +54,10 @@ instance FromHttpApiData Nonce where
 
 randomNonce :: (Functor m, MonadIO m) => m Nonce
 randomNonce = Nonce . encodeBase64Url . toASCIIBytes <$> liftIO nextRandom
+
+fromBase64Url :: ByteString -> Maybe UUID
+fromBase64Url bs =
+  either (const Nothing) Just (Base64.decode bs) >>= fromASCIIBytes
+
+isValidBase64UrlEncodedUUID :: ByteString -> Bool
+isValidBase64UrlEncodedUUID = isJust . fromBase64Url

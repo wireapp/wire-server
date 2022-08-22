@@ -509,15 +509,14 @@ type UserClientAPI =
            )
     :<|> Named
            "get-nonce"
-           ( Summary "Get a nonce for a client"
+           ( Summary "Get a new nonce for a client, specified in the response header `Replay-Nonce` as a uuidv4 in base64url encoding"
                :> ZUser
-               :> "clients"
                :> "nonce"
+               :> "clients"
                :> MultiVerb1
                     'GET
                     '[JSON]
-                    -- (WithHeaders '[Header "Replay-Nonce" NonceHeader, Header "Cache-Control" Text] Nonce (RespondEmpty 204 "No Content"))
-                    (RespondEmpty 204 "No Content")
+                    (WithHeaders '[Header "Replay-Nonce" NonceHeader, Header "Cache-Control" Text] Nonce (RespondEmpty 204 "No Content"))
            )
     :<|> Named
            "get-client"

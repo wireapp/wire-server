@@ -560,6 +560,6 @@ getNonce ::
 getNonce brig uid =
   Bilge.get
     ( brig
-        . paths ["clients", "nonce"]
+        . paths ["nonce", "clients"]
         . zUser uid
     )

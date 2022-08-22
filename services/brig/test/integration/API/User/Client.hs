@@ -38,6 +38,7 @@ import Data.Default
 import Data.Id hiding (client)
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
+import Data.Nonce (isValidBase64UrlEncodedUUID)
 import Data.Qualified (Qualified (..))
 import Data.Range (unsafeRange)
 import qualified Data.Set as Set
@@ -106,7 +107,7 @@ tests _cl _at opts p db b c g =
       test p "get /clients/:client - 200" $ testMLSClient b,
       test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g,
       test p "client/prekeys/race" $ testPreKeyRace b,
-      test p "head clients/nonce" $ testNewNonce b
+      test p "head nonce/clients" $ testNewNonce b
     ]
 
 testAddGetClientVerificationCode :: DB.ClientState -> Brig -> Galley -> Http ()
@@ -951,11 +952,8 @@ testNewNonce :: Brig -> Http ()
 testNewNonce brig = do
   response <- (randomUser brig >>= Util.getNonce brig . userId) <!! const 204 === statusCode
   liftIO $ do
-    assertBool mempty $ all isValidBase64UrlEncodedUUID (getHeader "HeaderName" response)
+    assertBool "Replay-Nonce header should contain a valid base64url encoded uuidv4" $ any isValidBase64UrlEncodedUUID (getHeader "Replay-Nonce" response)
     Just "no-store" @=? getHeader "Cache-Control" response
-  where
-    isValidBase64UrlEncodedUUID :: ByteString -> Bool
-    isValidBase64UrlEncodedUUID = const False
 
 testCan'tDeleteLegalHoldClient :: Brig -> Http ()
 testCan'tDeleteLegalHoldClient brig = do
