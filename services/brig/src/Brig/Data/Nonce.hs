@@ -37,4 +37,4 @@ addNonce nonce = retry x5 . write insertNonce $ params LocalQuorum (Identity non
 -- Queries
 
 insertNonce :: PrepQuery W (Identity Nonce) ()
-insertNonce = "INSERT INTO nonce (nonce) VALUES (?)"
+insertNonce = "INSERT INTO nonce (nonce) VALUES (?) using ttl 300"

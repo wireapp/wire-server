@@ -26,6 +26,7 @@ import qualified Data.Aeson as A
 import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteString.Base64.URL as Base64
 import Data.ByteString.Conversion
+import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Proxy (Proxy (Proxy))
 import Data.Schema
 import Data.String.Conversions (cs)
@@ -34,15 +35,26 @@ import Data.Swagger.ParamSchema
 import Data.Text (pack)
 import Data.Text.Ascii
 import Data.Text.Encoding (encodeUtf8)
-import Data.UUID (UUID, fromASCIIBytes, toASCIIBytes)
+import Data.UUID as UUID (UUID, fromASCIIBytes, fromByteString, toASCIIBytes, toByteString)
 import Data.UUID.V4 (nextRandom)
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck (Arbitrary)
 
-newtype Nonce = Nonce {unNonce :: UUIDBase64Url}
+newtype Nonce = Nonce {unNonce :: UUID}
   deriving (Eq, Show)
-  deriving newtype (A.FromJSON, A.ToJSON, S.ToSchema, ToSchema, FromByteString, ToByteString, Arbitrary)
+  deriving newtype (A.FromJSON, A.ToJSON, S.ToSchema, Arbitrary)
+
+instance ToByteString Nonce where
+  builder = builder . Base64.encode . toStrict . UUID.toByteString . unNonce
+
+instance FromByteString Nonce where
+  parser = do
+    a <- parser
+    maybe
+      (fail "invalid base64url encoded uuidv4")
+      (pure . Nonce)
+      (either (const Nothing) (UUID.fromByteString . fromStrict) (Base64.decode a))
 
 instance ToParamSchema Nonce where
   toParamSchema _ = toParamSchema (Proxy @Text)
@@ -55,12 +67,12 @@ instance FromHttpApiData Nonce where
     first pack $ runParser parser (encodeUtf8 s)
 
 randomNonce :: (Functor m, MonadIO m) => m Nonce
-randomNonce = Nonce . toUUIDBase64Url <$> liftIO nextRandom
+randomNonce = Nonce <$> liftIO nextRandom
 
 isValidBase64UrlEncodedUUID :: ByteString -> Bool
-isValidBase64UrlEncodedUUID = isJust . decodeUUIDBase64Url
+isValidBase64UrlEncodedUUID bs = either (const False) (const True) $ runParser (parser @Nonce) bs
 
 instance Cql Nonce where
   ctype = Tagged UuidColumn
-  toCql (Nonce _) = error "todo(leif)"
-  fromCql = error "todo(leif)"
+  toCql = toCql . unNonce
+  fromCql v = Nonce <$> fromCql v

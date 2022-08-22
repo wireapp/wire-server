@@ -56,10 +56,6 @@ module Data.Text.Ascii
     validateBase64Url,
     encodeBase64Url,
     decodeBase64Url,
-    UUIDBase64Url,
-    toUUIDBase64Url,
-    decodeUUIDBase64Url,
-    encodeUUIDBase64Url,
 
     -- * Base16 (Hex) Characters
     Base16 (..),
@@ -91,7 +87,6 @@ import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeLatin1, decodeUtf8')
-import Data.UUID (UUID, fromASCIIBytes, toASCIIBytes)
 import Imports
 import Test.QuickCheck (Arbitrary (arbitrary), listOf, suchThatMap)
 import Test.QuickCheck.Instances ()
@@ -318,44 +313,6 @@ encodeBase64Url = unsafeFromByteString . B64Url.encode
 -- a multiple of 4 bytes in length.
 decodeBase64Url :: AsciiBase64Url -> Maybe ByteString
 decodeBase64Url = either (const Nothing) Just . B64Url.decode . toByteString'
-
---------------------------------------------------------------------------------
--- UuidBase64Url
-
-newtype UUID' c = UUID' {toUUID :: UUID}
-  deriving stock (Eq, Ord, Show, Generic)
-  deriving newtype
-    ( NFData,
-      FromJSONKey,
-      ToJSONKey,
-      Hashable,
-      ToHttpApiData,
-      FromHttpApiData,
-      Arbitrary,
-      FromJSON,
-      ToJSON,
-      S.ToSchema
-    )
-
-type UUIDBase64Url = UUID' Base64Url
-
-instance ToByteString UUIDBase64Url where
-  builder = builder . encodeUUIDBase64Url
-
-instance FromByteString UUIDBase64Url where
-  parser = parser >>= maybe (fail "invalid base64url encoded uuidv4") pure . decodeUUIDBase64Url
-
-decodeUUIDBase64Url :: ByteString -> Maybe UUIDBase64Url
-decodeUUIDBase64Url t = UUID' <$> (either (const Nothing) pure (B64Url.decode t) >>= fromASCIIBytes)
-
-encodeUUIDBase64Url :: UUIDBase64Url -> ByteString
-encodeUUIDBase64Url (UUID' uuid) = B64Url.encode (toASCIIBytes uuid)
-
-instance ToSchema (UUID' Base64Url) where
-  schema = schema
-
-toUUIDBase64Url :: UUID -> UUIDBase64Url
-toUUIDBase64Url = UUID'
 
 --------------------------------------------------------------------------------
 -- Base16

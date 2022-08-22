@@ -41,6 +41,7 @@ import Brig.App
 import qualified Brig.Calling.API as Calling
 import qualified Brig.Code as Code
 import qualified Brig.Data.Connection as Data
+import Brig.Data.Nonce as Nonce
 import qualified Brig.Data.User as Data
 import qualified Brig.Data.UserKey as UserKey
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
@@ -617,7 +618,10 @@ getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
 newNonce :: UserId -> (Handler r) Nonce
-newNonce _ = randomNonce
+newNonce _ = do
+  nonce <- randomNonce
+  lift $ wrapClient $ Nonce.addNonce nonce
+  pure nonce
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser :: Member BlacklistStore r => Public.NewUserPublic -> (Handler r) (Either Public.RegisterError Public.RegisterSuccess)

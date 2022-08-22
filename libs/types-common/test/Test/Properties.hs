@@ -107,13 +107,6 @@ tests =
             \(c :: Char) -> Ascii.contains Ascii.Base64Url c ==> Ascii.contains Ascii.Standard c
         ],
       testGroup
-        "UUID (Base64Url)"
-        [ testProperty "roundtrip" $
-            \(a :: UUIDBase64Url) ->
-              let bs = encodeUUIDBase64Url a
-               in decodeUUIDBase64Url bs == Just a
-        ],
-      testGroup
         "Base64ByteStringL"
         [ testProperty "validate (Aeson.decode . Aeson.encode) == pure . id" $
             \(Util.Base64ByteStringL . L.pack -> s) ->
