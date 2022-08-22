@@ -112,7 +112,7 @@ sudo installer -pkg /Library/Developer/CommandLineTools/Packages/macOS_SDK_heade
 
 Please refer to [Stack's installation instructions](https://docs.haskellstack.org/en/stable/README/#how-to-install).
 
-When you're done, ensure `stack --version` is the same as `STACK_VERSION` in [`build/ubuntu/Dockerfile.prebuilder`](../../build/ubuntu/Dockerfile.prebuilder).
+When you're done, ensure `stack --version` is the same as `STACK_VERSION` in [`build/ubuntu/Dockerfile.prebuilder`](https://github.com/wireapp/wire-server/blob/develop/build/ubuntu/Dockerfile.prebuilder).
 
 If you have to, you can downgrade stack with this command:
 
