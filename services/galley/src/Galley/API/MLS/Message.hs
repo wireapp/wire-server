@@ -282,9 +282,6 @@ postMLSMessageToRemoteConv ::
 postMLSMessageToRemoteConv loc qusr con smsg rcnv = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
-  -- only members may send messages to the remote conversation
-  flip unless (throwS @'MLSUnsupportedMessage) =<< checkLocalMemberRemoteConv (tUnqualified lusr) rcnv
-
   resp <-
     runFederated rcnv $
       fedClient @'Galley @"send-mls-message" $
