@@ -58,7 +58,6 @@ import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.EJPD
 import qualified Brig.User.Search.Index as Index
-import Cassandra (MonadClient)
 import Control.Error hiding (bool)
 import Control.Lens (view)
 import Data.Aeson hiding (json)
@@ -186,18 +185,21 @@ postKeyPackageRef :: KeyPackageRef -> KeyPackageRef -> Handler r ()
 postKeyPackageRef ref = lift . wrapClient . Data.updateKeyPackageRef ref
 
 getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientId)
-getMLSClients usr ss = do
+getMLSClients usr _ss = do
+  -- FUTUREWORK: check existence of key packages with a given ciphersuite
+  lusr <- qualifyLocal usr
   results <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult
-  keys <- lift . wrapClient $ pooledMapConcurrentlyN 16 getKey (toList results)
-  pure . Set.fromList . map fst . filter (isJust . snd) $ keys
+  validClients <- lift . wrapClient $ pooledMapConcurrentlyN 16 (getValidity lusr) (toList results)
+  pure . Set.fromList . map fst . filter snd $ validClients
   where
     getResult [] = pure mempty
     getResult ((u, cs) : rs)
       | u == usr = pure cs
       | otherwise = getResult rs
 
-    getKey :: MonadClient m => ClientId -> m (ClientId, Maybe LByteString)
-    getKey cid = (cid,) <$> Data.lookupMLSPublicKey usr cid ss
+    getValidity lusr cid =
+      fmap ((cid,) . (> 0)) $
+        Data.countKeyPackages lusr cid
 
 mapKeyPackageRefsInternal :: KeyPackageBundle -> Handler r ()
 mapKeyPackageRefsInternal bundle = do
@@ -205,7 +207,7 @@ mapKeyPackageRefsInternal bundle = do
     for_ (kpbEntries bundle) $ \e ->
       Data.mapKeyPackageRef (kpbeRef e) (kpbeUser e) (kpbeClient e)
 
-getVerificationCode :: UserId -> VerificationAction -> (Handler r) (Maybe Code.Value)
+getVerificationCode :: UserId -> VerificationAction -> Handler r (Maybe Code.Value)
 getVerificationCode uid action = do
   user <- wrapClientE $ Api.lookupUser NoPendingInvitations uid
   maybe (pure Nothing) (lookupCode action) (userEmail =<< user)
