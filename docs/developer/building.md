@@ -43,7 +43,7 @@ Linker errors can occur if the nix-provided build environment (see `nix/` direct
 
 Haskell Language Server stores its build artifacts in `~/.cache/hie-bios` (equivalent to the `./dist-newstyle` directory) which become invalid for the same reason.
 
-The easiest course of action is to to remove these directories via: 
+The easiest course of action is to to remove these directories via:
 
 ```
 make clean
@@ -77,7 +77,7 @@ After all containers are up you can use these Makefile targets to run the tests 
 
 ```
 # build and run galley's integration tests
-make ci package=galley 
+make ci package=galley
 
 # run galley's integration tests that match a pattern
 TASTY_PATTERN="/MLS/" make ci package=galley
