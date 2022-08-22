@@ -1250,30 +1250,35 @@ verifyDeleteUserInternal ::
   UserId ->
   m VerifyDeleteInternalResult
 verifyDeleteUserInternal uid = do
-  acc <- lookupAccount uid
-  if isNothing acc
-    then pure NoUser
-    else do
-      -- TODO: `fromJust` is ugly
-      -- TODO: Is it still valid to check for email, phone and handle - can't they belong to other users?`
-      let user = accountUser (fromJust acc)
+  mbAcc <- lookupAccount uid
+  case mbAcc of
+    Nothing -> pure NoUser
+    Just acc -> do
+      let user = accountUser acc
       mbEmailUid <- fmap join $ for (userEmail user) $ lookupKey . userEmailKey
       mbPhoneUid <- fmap join $ for (userPhone user) $ lookupKey . userPhoneKey
       mbHandleUid <- fmap join $ for (userHandle user) $ lookupHandle
 
       probs <- Data.lookupPropertyKeysAndValues uid
 
-      let accIsDeleted = accountStatus (fromJust acc) == Deleted
+      let accIsDeleted = accountStatus acc == Deleted
       clients <- Data.lookupClients uid
 
       localUid <- qualifyLocal uid
       conCount <- countConnections localUid [minBound .. maxBound]
       cookies <- listCookies uid []
 
-      if needsDeletion mbEmailUid || needsDeletion mbPhoneUid || needsDeletion mbHandleUid || (not . null) probs || not accIsDeleted || (not . null) clients || conCount > 0 || (not . null) cookies
+      if needsDeletion mbEmailUid
+        || needsDeletion mbPhoneUid
+        || needsDeletion mbHandleUid
+        || (not . null) probs
+        || not accIsDeleted
+        || (not . null) clients
+        || conCount > 0
+        || (not . null) cookies
         then do
           -- TODO: Catch errors?
-          deleteAccount $ fromJust acc
+          deleteAccount acc
           pure RanDeletionAgain
         else pure FullyDeletedUser
   where
