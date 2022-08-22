@@ -52,7 +52,7 @@ endif
 
 # Clean
 .PHONY: clean
-clean: delete-cache-on-linker-errors
+clean:
 	rm -rf ~/.cache/hie-bios
 ifdef CABAL_DIR
 	rm -rf $(CABAL_DIR)/store
