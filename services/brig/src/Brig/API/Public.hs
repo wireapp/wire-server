@@ -245,10 +245,10 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"update-client" updateClient
         :<|> Named @"delete-client" deleteClient
         :<|> Named @"list-clients" listClients
+        :<|> Named @"get-nonce" getNonce
         :<|> Named @"get-client" getClient
         :<|> Named @"get-client-capabilities" getClientCapabilities
         :<|> Named @"get-client-prekeys" getClientPrekeys
-        :<|> Named @"get-nonce" getNonce
 
     connectionAPI :: ServerT ConnectionAPI (Handler r)
     connectionAPI =

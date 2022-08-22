@@ -508,6 +508,18 @@ type UserClientAPI =
                :> Get '[JSON] [Client]
            )
     :<|> Named
+           "get-nonce"
+           ( Summary "Get a nonce for a client"
+               :> ZUser
+               :> "clients"
+               :> "nonce"
+               :> MultiVerb1
+                    'GET
+                    '[JSON]
+                    -- (WithHeaders '[Header "Replay-Nonce" NonceHeader, Header "Cache-Control" Text] Nonce (RespondEmpty 204 "No Content"))
+                    (RespondEmpty 204 "No Content")
+           )
+    :<|> Named
            "get-client"
            ( Summary "Get a registered client by ID"
                :> ZUser
@@ -538,18 +550,6 @@ type UserClientAPI =
                :> CaptureClientId "client"
                :> "prekeys"
                :> Get '[JSON] [PrekeyId]
-           )
-    :<|> Named
-           "get-nonce"
-           ( Summary "Get a nonce for a client"
-               :> ZUser
-               :> "clients"
-               :> "nonce"
-               :> MultiVerb1
-                    'GET
-                    '[JSON]
-                    (RespondEmpty 204 "No Content")
-                    -- (WithHeaders '[Header "Replay-Nonce" NonceHeader, Header "Cache-Control" Text] Nonce (RespondEmpty 204 "No Content"))
            )
 
 newtype NonceHeader = NonceHeader Nonce
