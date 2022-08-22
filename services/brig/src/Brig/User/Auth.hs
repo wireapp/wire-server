@@ -137,7 +137,6 @@ login ::
   ( MonadReader Env m,
     MonadMask m,
     MonadHttp m,
-    MonadIO m,
     HasRequestId m,
     Log.MonadLogger m,
     MonadClient m,
@@ -182,7 +181,6 @@ verifyCode ::
   ( MonadReader Env m,
     MonadMask m,
     MonadHttp m,
-    MonadIO m,
     HasRequestId m,
     Log.MonadLogger m,
     MonadClient m
@@ -295,7 +293,6 @@ revokeAccess u pw cc ll = do
 
 catchSuspendInactiveUser ::
   ( MonadClient m,
-    Log.MonadLogger m,
     MonadIndexIO m,
     MonadReader Env m,
     MonadMask m,
@@ -448,7 +445,6 @@ validateToken ut at = do
 ssoLogin ::
   ( MonadClient m,
     MonadReader Env m,
-    ZAuth.MonadZAuth m,
     ZAuth.MonadZAuth m,
     Log.MonadLogger m,
     MonadIndexIO m,

@@ -434,7 +434,7 @@ lookupUserTeam u =
   (runIdentity =<<)
     <$> retry x1 (query1 teamSelect (params LocalQuorum (Identity u)))
 
-lookupAuth :: MonadClient m => (MonadClient m) => UserId -> m (Maybe (Maybe Password, AccountStatus))
+lookupAuth :: MonadClient m => UserId -> m (Maybe (Maybe Password, AccountStatus))
 lookupAuth u = fmap f <$> retry x1 (query1 authSelect (params LocalQuorum (Identity u)))
   where
     f (pw, st) = (pw, fromMaybe Active st)

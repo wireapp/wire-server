@@ -171,7 +171,7 @@ withAdditionalESUrl action = do
 --------------------------------------------------------------------------------
 -- Updates
 
-reindex :: (MonadLogger m, MonadCatch m, MonadThrow m, MonadIndexIO m, C.MonadClient m) => UserId -> m ()
+reindex :: (MonadLogger m, MonadCatch m, MonadIndexIO m, C.MonadClient m) => UserId -> m ()
 reindex u = do
   ixu <- lookupIndexUser u
   updateIndex (maybe (IndexDeleteUser u) (IndexUpdateUser IndexUpdateIfNewerVersion) ixu)
@@ -682,7 +682,7 @@ mappingName :: ES.MappingName
 mappingName = ES.MappingName "user"
 
 lookupIndexUser ::
-  (MonadCatch m, MonadThrow m, MonadLogger m, MonadIndexIO m, C.MonadClient m) =>
+  (MonadCatch m, MonadIndexIO m, C.MonadClient m) =>
   UserId ->
   m (Maybe IndexUser)
 lookupIndexUser = lookupForIndex
@@ -911,7 +911,7 @@ getTeamSearchVisibilityInboundMulti tids = do
 
     serviceRequest' ::
       forall m.
-      (MonadIO m, MonadMask m, MonadCatch m, MonadHttp m) =>
+      (MonadIO m, MonadMask m, MonadHttp m) =>
       LT.Text ->
       Endpoint ->
       StdMethod ->

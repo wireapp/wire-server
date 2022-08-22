@@ -174,7 +174,7 @@ deleteInvitation t i = do
     cqlInvitationEmail :: PrepQuery W (Email, TeamId) ()
     cqlInvitationEmail = "DELETE FROM team_invitation_email WHERE email = ? AND team = ?"
 
-deleteInvitations :: (MonadClient m, MonadUnliftIO m) => TeamId -> m ()
+deleteInvitations :: (MonadClient m) => TeamId -> m ()
 deleteInvitations t =
   liftClient $
     runConduit $
