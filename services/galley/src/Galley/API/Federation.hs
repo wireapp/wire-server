@@ -583,7 +583,7 @@ sendMLSMessage remoteDomain msr =
       raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.msrRawMessage msr))
       mapToGalleyError @MLSMessageStaticErrors $
         F.MLSMessageResponseUpdates . map lcuUpdate
-          <$> postMLSMessage loc (qUntagged sender) (Just $ F.msrConvId msr) Nothing raw
+          <$> postMLSMessage loc (qUntagged sender) Nothing raw
 
 class ToGalleyRuntimeError (effs :: EffectRow) r where
   mapToGalleyError ::

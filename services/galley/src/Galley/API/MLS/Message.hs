@@ -123,7 +123,7 @@ postMLSMessageFromLocalUserV1 ::
   Sem r [Event]
 postMLSMessageFromLocalUserV1 lusr conn msg =
   map lcuEvent
-    <$> postMLSMessage lusr (qUntagged lusr) Nothing (Just conn) msg
+    <$> postMLSMessage lusr (qUntagged lusr) (Just conn) msg
 
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
@@ -179,15 +179,13 @@ postMLSMessage ::
   ) =>
   Local x ->
   Qualified UserId ->
-  Maybe ConvId ->
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Sem r [LocalConversationUpdate]
-postMLSMessage loc qusr convId con smsg = case rmValue smsg of
+postMLSMessage loc qusr con smsg = case rmValue smsg of
   SomeMessage _ msg -> do
     -- fetch conversation ID
     qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-    when (maybe False (qUnqualified qcnv /=) convId) $ throwS @'MLSUnsupportedMessage
     unless (msgEpoch msg == Epoch 0) $
       flip unless (throwS @'MLSUnsupportedMessage) =<< isUserSender qusr smsg
     foldQualified
