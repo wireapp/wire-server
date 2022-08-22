@@ -38,6 +38,8 @@ tls:
       certmasterEmail:
       solverConfiguration:
   reloaderImage:
+    # container image containing https://github.com/Pluies/config-reloader-sidecar
+    # for handling runtime certificate reloads.
     repository: quay.io/wire/config-reloader-sidecar
     pullPolicy: IfNotPresent
     tag: 1aa6cbbf2ce3a5182ec47e3579bbcb8f47e22fdc
