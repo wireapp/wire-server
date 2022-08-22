@@ -163,7 +163,8 @@ tests _ at opts p b c ch g aws =
         ],
       testGroup
         "/i/users/:uid/verify-deleted"
-        [ test' aws p "does nothing for completely deleted user" $ testVerifyAccountDeletedWithCompletelyDeletedUser b c aws
+        [ test' aws p "does nothing for completely deleted user" $ testVerifyAccountDeletedWithCompletelyDeletedUser b c aws,
+          test' aws p "does nothing when the uses doesn't exist" $ testVerifyAccountDeletedWithNoUser b
         ]
     ]
 
@@ -1651,6 +1652,19 @@ testVerifyAccountDeletedWithCompletelyDeletedUser brig cannon aws = do
       !!! do
         const 200 === statusCode
         const (Right FullyDeletedUser) === responseJsonEither
+
+testVerifyAccountDeletedWithNoUser :: Brig -> Http ()
+testVerifyAccountDeletedWithNoUser brig =
+  case parseIdFromText "19166173-49eb-49bc-962f-72c95f27a428" of
+    Right nonExistingUid ->
+      post
+        ( brig
+            . paths ["/i/users", toByteString' nonExistingUid, "verify-deleted"]
+        )
+        !!! do
+          const 200 === statusCode
+          const (Right NoUser) === responseJsonEither
+    Left _ -> fail "Invalid test data! (This should never happen.)"
 
 -- helpers
 
