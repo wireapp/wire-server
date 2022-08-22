@@ -34,6 +34,7 @@ import qualified Test.Wire.API.Swagger as Swagger
 import qualified Test.Wire.API.Team.Export as Team.Export
 import qualified Test.Wire.API.Team.Member as Team.Member
 import qualified Test.Wire.API.User as User
+import qualified Test.Wire.API.User.Auth as User.Auth
 import qualified Test.Wire.API.User.RichInfo as User.RichInfo
 import qualified Test.Wire.API.User.Search as User.Search
 
@@ -48,6 +49,7 @@ main =
         User.tests,
         User.Search.tests,
         User.RichInfo.tests,
+        User.Auth.tests,
         Roundtrip.Aeson.tests,
         Roundtrip.ByteString.tests,
         Roundtrip.MLS.tests,
