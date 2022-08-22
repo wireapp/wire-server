@@ -258,7 +258,7 @@ mls:
 
 ```
 
-This default configuration can be overriden on a per-team basis through the [feature config API](./features.md)
+This default configuration can be overriden on a per-team basis through the [feature config API](../developer/features.md)
 
 
 ### Federation Domain
