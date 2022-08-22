@@ -242,8 +242,6 @@ spawn cp minput = do
     (Just out, ExitSuccess) -> pure out
     _ -> assertFailure "Failed spawning process"
 
--- void . liftIO $ spawn (cli qcid tmp ["init", qcid]) Nothing
-
 cli :: String -> FilePath -> [String] -> CreateProcess
 cli store tmp args =
   proc "mls-test-cli" $
