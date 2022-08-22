@@ -51,14 +51,17 @@ else
 endif
 
 # Clean
-.PHONY: clean
-clean:
+.PHONY: full-clean
+full-clean: clean
 	rm -rf ~/.cache/hie-bios
 ifdef CABAL_DIR
 	rm -rf $(CABAL_DIR)/store
 else
 	rm -rf ~/.cabal/store
 endif
+
+.PHONY: clean
+clean:
 ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
 	cabal clean
 else
@@ -71,7 +74,7 @@ endif
 .PHONY: clean-hint
 clean-hint:
 	@echo -e "\n\n\n>>> PSA: if you get errors that are hard to explain,"
-	@echo -e ">>> try 'make clean' and run your command again."
+	@echo -e ">>> try 'make full-clean' and run your command again."
 	@echo -e ">>> see https://github.com/wireapp/wire-server/blob/develop/docs/developer/building.md#linker-errors-while-compiling\n\n\n"
 
 .PHONY: cabal.project.local
