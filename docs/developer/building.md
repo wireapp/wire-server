@@ -46,7 +46,7 @@ Haskell Language Server stores its build artifacts in `~/.cache/hie-bios` (equiv
 The easiest course of action is to to remove these directories via: 
 
 ```
-make delete-cache-on-linker-errors
+make clean
 ```
 
 # How to run integration tests

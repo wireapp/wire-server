@@ -74,9 +74,6 @@ clean-hint:
 	@echo -e ">>> try 'make clean' and run your command again."
 	@echo -e ">>> see https://github.com/wireapp/wire-server/blob/develop/docs/developer/building.md#linker-errors-while-compiling\n\n\n"
 
-.PHONY: delete-cache-on-linker-errors
-delete-cache-on-linker-errors: clean
-
 .PHONY: cabal.project.local
 cabal.project.local:
 	echo "optimization: False" > ./cabal.project.local
