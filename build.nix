@@ -66,7 +66,9 @@ let pkgs = (import ./nix).pkgs;
               servant-multipart = hlib.doJailbreak hsuper.servant-multipart;
               hashtables = hsuper.hashtables_1_3;
               quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
-              stache = hsuper.stache_2_3_1;
+              amazonka-core = hlib.doJailbreak externalOverrides.amazonka-core;
+              amazonka = hlib.doJailbreak externalOverrides.amazonka;
+              wai-middleware-prometheus = hlib.doJailbreak externalOverrides.wai-middleware-prometheus;
 
               # Avoid infinite recursion
               snappy = hself.callPackage ./nix/haskell-overrides/snappy.nix { snappy = pkgs.snappy; };

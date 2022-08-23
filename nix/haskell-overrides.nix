@@ -22,6 +22,7 @@ hsuper: hself: {
   http-conduit = hself.callPackage ./haskell-overrides/http-conduit.nix {};
   kind-generics = hself.callPackage ./haskell-overrides/kind-generics.nix {};
   multihash = hself.callPackage ./haskell-overrides/multihash.nix {};
+  one-liner = hself.callPackage ./haskell-overrides/one-liner.nix {};
   partial-isomorphisms = hself.callPackage ./haskell-overrides/partial-isomorphisms.nix {};
   saml2-web-sso = hself.callPackage ./haskell-overrides/saml2-web-sso.nix {};
   servant-client-core = hself.callPackage ./haskell-overrides/servant-client-core.nix {};

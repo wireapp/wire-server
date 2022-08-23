@@ -94,3 +94,5 @@ hackagePins:
     version: 2.7
   - package: th-desugar
     version: 1.11
+  - package: one-liner
+    version: 1.0
