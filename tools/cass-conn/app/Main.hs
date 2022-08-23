@@ -3,13 +3,12 @@
 
 module Main where
 
-import Cassandra (ClientState, Keyspace (..), MonadClient, PrepQuery, R, W)
-import qualified Cassandra as C
-import qualified Cassandra.Settings as C
 import Control.Concurrent (threadDelay)
 import Control.Monad.Catch (MonadCatch, SomeException (SomeException), catch)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Random
+import Data.ByteString.Builder (toLazyByteString)
+import qualified Data.ByteString.Lazy.Char8 as LBSC8
 import Data.Int (Int32)
 import qualified Data.List.NonEmpty as NE
 import Data.Maybe (fromJust, mapMaybe)
@@ -19,21 +18,30 @@ import Data.UUID (UUID)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V1 as UUIDv1
 import qualified Data.UUID.V4 as UUIDv4
+import Database.CQL.IO (MonadClient, PrepQuery, R, S, W)
+import qualified Database.CQL.IO as C
+import qualified Database.CQL.Protocol as C
 import System.IO
-import qualified System.Logger.Extended as Logger
 import System.Posix (installHandler, sigUSR1)
 import qualified System.Posix as Signal
+
+logger :: C.Logger
+logger =
+  C.Logger
+    { C.logMessage = \lvl bs -> putStrLn $ show lvl <> ": " <> LBSC8.unpack (toLazyByteString bs),
+      C.logRequest = \_ -> putStrLn "Some request",
+      C.logResponse = \_ -> putStrLn "Some response"
+    }
 
 main :: IO ()
 main = do
   hSetBuffering stdout NoBuffering
-  l <- Logger.mkLogger Logger.Debug Nothing (Just (Last Logger.StructuredJSON))
   clientState <-
     C.init $
-      C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.gundeck") l))
+      C.setLogger logger
         . C.setContacts "gundeck-gundeck-eks-service.databases" []
         . C.setPortNumber 9042
-        . C.setKeyspace (Keyspace "gundeck")
+        . C.setKeyspace (C.Keyspace "gundeck")
         . C.setMaxConnections 1
         . C.setMaxStreams 1
         . C.setPoolStripes 1
@@ -43,7 +51,9 @@ main = do
         $ C.defSettings
 
   installHandler sigUSR1 (Signal.Catch $ C.runClient clientState printDebugInfo) Nothing
-  C.runClient clientState writeAndReadLoop
+  C.runClient clientState $ do
+    createTable
+    writeAndReadLoop
 
 printDebugInfo :: MonadClient m => m ()
 printDebugInfo = do
@@ -60,6 +70,26 @@ writeAndReadLoop = do
   liftIO $ threadDelay 10000
   writeAndReadLoop
 
+params :: C.Tuple a => C.Consistency -> a -> C.QueryParams a
+params c p = C.QueryParams c False p Nothing Nothing Nothing Nothing
+
+createTable :: MonadClient m => m ()
+createTable = do
+  let q =
+        "CREATE COLUMNFAMILY IF NOT EXISTS notifications\
+        \( user    uuid\
+        \, id      timeuuid\
+        \, payload blob\
+        \, primary key (user, id)\
+        \) with clustering order by (id asc)\
+        \   and compaction  = { 'class'               : 'LeveledCompactionStrategy'\
+        \                     , 'tombstone_threshold' : 0.1 }\
+        \   and compression = { 'sstable_compression' : 'LZ4Compressor' }\
+        \   and gc_grace_seconds = 0;" ::
+          PrepQuery S () ()
+      p = params C.All ()
+  void $ C.schema q p
+
 writeAndRead :: MonadClient m => m ()
 writeAndRead = do
   userId <- liftIO $ randomUser
@@ -67,10 +97,10 @@ writeAndRead = do
   let clients = C.Set ["client-1"]
       payload = C.Blob "{\"foo\": 123}"
       writeQuery = "INSERT INTO notifications (user, id, payload, clients) VALUES (?, ?, ?, ?) USING TTL ?" :: PrepQuery W (UUID, UUID, C.Blob, C.Set Text, Int32) ()
-      writeParams = C.params C.LocalQuorum (userId, timeId, payload, clients, 2419200)
+      writeParams = params C.LocalQuorum (userId, timeId, payload, clients, 2419200)
   C.write writeQuery writeParams
   let readQuery = "SELECT user, id, payload, clients FROM notifications where user = ? and id > ? limit 100" :: PrepQuery R (UUID, UUID) (UUID, C.TimeUuid, C.Blob, C.Set Text)
-      readParams = C.params C.LocalQuorum (userId, fromJust $ UUID.fromText "13814000-1dd2-11b2-8000-9f9fcbd62c6e") -- UUDv1 For epoch
+      readParams = params C.LocalQuorum (userId, fromJust $ UUID.fromText "13814000-1dd2-11b2-8000-9f9fcbd62c6e") -- UUDv1 For epoch
   readNotifs <- C.query readQuery readParams
   -- liftIO $ putStr "."
   pure ()
