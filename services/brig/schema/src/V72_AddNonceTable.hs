@@ -31,7 +31,7 @@ migration =
   Migration 72 "Add table nonce" $ do
     schema'
       [r|
-        CREATE TABLE IF NOT EXISTS nonce
+        CREATE TABLE IF NOT EXISTS client_nonce
           ( nonce uuid
           , PRIMARY KEY (nonce)
           )
