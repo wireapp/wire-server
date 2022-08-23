@@ -19,7 +19,6 @@
 
 module Wire.API.Routes.Public.Brig where
 
-import Data.Bifunctor (Bifunctor (first))
 import Data.ByteString.Conversion
 import Data.Code (Timeout)
 import Data.CommaSeparatedList (CommaSeparatedList)
@@ -31,10 +30,7 @@ import Data.Nonce (Nonce)
 import Data.Qualified (Qualified (..))
 import Data.Range
 import Data.SOP
-import Data.String.Conversions (cs)
 import Data.Swagger hiding (Contact, Header)
-import Data.Text (pack)
-import Data.Text.Encoding (encodeUtf8)
 import Imports hiding (head)
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
@@ -561,17 +557,7 @@ type NewNonce name method statusCode =
 
 newtype NonceHeader = NonceHeader Nonce
   deriving (Eq, Show)
-  deriving newtype (FromByteString, ToByteString)
-
-instance ToParamSchema NonceHeader where
-  toParamSchema _ = toParamSchema (Proxy @Text)
-
-instance ToHttpApiData NonceHeader where
-  toQueryParam nonce = cs (toByteString' nonce)
-
-instance FromHttpApiData NonceHeader where
-  parseQueryParam s =
-    first pack $ runParser parser (encodeUtf8 s)
+  deriving newtype (FromByteString, ToByteString, ToParamSchema, ToHttpApiData, FromHttpApiData)
 
 instance AsHeaders '[NonceHeader, Text] () Nonce where
   fromHeaders (I (NonceHeader nonce) :* (_ :* Nil), _) = nonce

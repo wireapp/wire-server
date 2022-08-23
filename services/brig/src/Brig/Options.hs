@@ -591,7 +591,7 @@ data Settings = Settings
     -- use `set2FACodeGenerationDelaySecs` as the getter function which always provides a default value
     set2FACodeGenerationDelaySecsInternal :: !(Maybe Int),
     -- | The time-to-live of a nonce in seconds.
-    -- use `set2FANonceTtlSecs` as the getter function which always provides a default value
+    -- use `setNonceTtlSecs` as the getter function which always provides a default value
     setNonceTtlSecsInternal :: !(Maybe Word64)
   }
   deriving (Show, Generic)

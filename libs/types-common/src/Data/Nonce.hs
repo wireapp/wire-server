@@ -22,16 +22,13 @@ module Data.Nonce where
 
 import Cassandra hiding (Value)
 import qualified Data.Aeson as A
-import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteString.Base64.URL as Base64
-import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import Data.Swagger.ParamSchema
-import Data.Text (pack)
 import Data.Text.Encoding (encodeUtf8)
 import Data.UUID as UUID (UUID, fromByteString, toByteString)
 import Data.UUID.V4 (nextRandom)
@@ -59,11 +56,11 @@ instance ToParamSchema Nonce where
   toParamSchema _ = toParamSchema (Proxy @Text)
 
 instance ToHttpApiData Nonce where
-  toQueryParam = cs . toLazyByteString . builder
+  toQueryParam = cs . toByteString'
 
 instance FromHttpApiData Nonce where
   parseQueryParam s =
-    first pack $ runParser parser (encodeUtf8 s)
+    maybe (Left "Invalid Nonce") Right $ fromByteString' (cs . encodeUtf8 $ s)
 
 randomNonce :: (Functor m, MonadIO m) => m Nonce
 randomNonce = Nonce <$> liftIO nextRandom
