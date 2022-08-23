@@ -27,6 +27,7 @@ import Text.RawString.QQ
 migration :: Migration
 migration = Migration 9 "Remove deprecated tables" $ do
   -- all data in notifications is written with a TTL, therefore should be a good fit for TWCS.
-  -- TTL is 28 days, so 28 windows of 1 day each fits well with the suggestion of 20-30 windows.
+  -- TTL is 28 days (see https://github.com/wireapp/wire-server/blob/434f7a874ce5e3f7e3e57aa98afb6441d4a53169/charts/gundeck/templates/configmap.yaml#L51)
+  -- so 28 windows of 1 day each fits well with the suggestion of 20-30 windows.
   -- https://cassandra.apache.org/doc/latest/cassandra/operating/compaction/twcs.html
   schema' [r| ALTER TABLE notifications WITH compaction = {'class': 'TimeWindowCompactionStrategy', 'compaction_window_unit': 'DAYS', 'compaction_window_size': 1}; |]
