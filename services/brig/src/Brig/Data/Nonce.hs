@@ -16,8 +16,8 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Data.Nonce
-  ( addNonce,
-    invalidateNonce,
+  ( insertNonce,
+    deleteNonce,
   )
 where
 
@@ -28,25 +28,25 @@ import Control.Lens hiding (from)
 import Data.Nonce (Nonce)
 import Imports
 
-addNonce ::
+insertNonce ::
   (MonadClient m, MonadReader Brig.App.Env m) =>
   Int ->
   Nonce ->
   m ()
-addNonce ttl nonce = retry x5 . write insertNonce $ params LocalQuorum (Identity nonce)
+insertNonce ttl nonce = retry x5 . write insert $ params LocalQuorum (Identity nonce)
   where
-    insertNonce :: PrepQuery W (Identity Nonce) ()
-    insertNonce = fromString $ "INSERT INTO client_nonce (nonce) VALUES (?)" <> renderTtl
+    insert :: PrepQuery W (Identity Nonce) ()
+    insert = fromString $ "INSERT INTO client_nonce (nonce) VALUES (?)" <> renderTtl
     renderTtl :: String
     renderTtl
       | ttl > 0 = " USING TTL " <> show ttl
       | otherwise = " USING TTL null"
 
-invalidateNonce ::
+deleteNonce ::
   (MonadClient m, MonadReader Env m) =>
   Nonce ->
   m ()
-invalidateNonce nonce = retry x5 . write delete $ params LocalQuorum (Identity nonce)
+deleteNonce nonce = retry x5 . write delete $ params LocalQuorum (Identity nonce)
   where
     delete :: PrepQuery W (Identity Nonce) ()
     delete = "DELETE FROM client_nonce WHERE nonce = ?"
