@@ -29,7 +29,6 @@ import Data.Proxy (Proxy (Proxy))
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import Data.Swagger.ParamSchema
-import Data.Text.Encoding (encodeUtf8)
 import Data.UUID as UUID (UUID, fromByteString, toByteString)
 import Data.UUID.V4 (nextRandom)
 import Imports
@@ -59,14 +58,13 @@ instance ToHttpApiData Nonce where
   toQueryParam = cs . toByteString'
 
 instance FromHttpApiData Nonce where
-  parseQueryParam s =
-    maybe (Left "Invalid Nonce") Right $ fromByteString' (cs . encodeUtf8 $ s)
+  parseQueryParam = maybe (Left "Invalid Nonce") Right . fromByteString' . cs
 
 randomNonce :: (Functor m, MonadIO m) => m Nonce
 randomNonce = Nonce <$> liftIO nextRandom
 
 isValidBase64UrlEncodedUUID :: ByteString -> Bool
-isValidBase64UrlEncodedUUID = isRight . runParser (parser @Nonce)
+isValidBase64UrlEncodedUUID = isJust . fromByteString' @Nonce . cs
 
 instance Cql Nonce where
   ctype = Tagged UuidColumn
