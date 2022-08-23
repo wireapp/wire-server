@@ -37,10 +37,12 @@ import Data.UUID as UUID (UUID, fromByteString, toByteString)
 import Data.UUID.V4 (nextRandom)
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
+import Test.QuickCheck (Arbitrary)
+import Test.QuickCheck.Instances.UUID ()
 
 newtype Nonce = Nonce {unNonce :: UUID}
   deriving (Eq, Show)
-  deriving newtype (A.FromJSON, A.ToJSON, S.ToSchema)
+  deriving newtype (A.FromJSON, A.ToJSON, S.ToSchema, Arbitrary)
 
 instance ToByteString Nonce where
   builder = builder . Base64.encode . toStrict . UUID.toByteString . unNonce
