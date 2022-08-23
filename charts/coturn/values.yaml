@@ -28,15 +28,7 @@ coturnTurnTlsListenPort: 5349
 
 tls:
   enabled: false
-  certManager:
-    enabled: false
-    dnsNames: []
-    issuer:
-      create: false
-      name:
-      kind:
-      certmasterEmail:
-      solverConfiguration:
+  secretRef:
   reloaderImage:
     # container image containing https://github.com/Pluies/config-reloader-sidecar
     # for handling runtime certificate reloads.

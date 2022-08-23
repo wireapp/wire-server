@@ -20,11 +20,6 @@ from the rest of the Wire services. Further details may be found in
 Wire's documentation for Restund, another TURN implementation, on
 [this](https://docs.wire.com/understand/restund.html#network) page.
 
-coturn can optionally be configured to expose a TLS control
-port. The TLS private key and certificate to use for this port can
-be supplied manually in `secrets.tls.cert` and `secrets.tls.key`, or
-[cert-manager](https://cert-manager.io) can be used to provision certificates
-automatically. If cert-manager is in use, and no Issuer or ClusterIssuer is
-provided in the cluster already, then this chart can create an issuer using
-Let's Encrypt, though the configuration of ACME challenge solvers must be
-provided by the operator manually.
+coturn can optionally be configured to expose a TLS control port. The TLS
+private key and certificates should be provided in a `Secret` whose name is
+given in `tls.secretRef`.

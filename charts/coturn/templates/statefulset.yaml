@@ -48,7 +48,7 @@ spec:
         {{- if .Values.tls.enabled }}
         - name: secrets-tls
           secret:
-            secretName: coturn-tls
+            secretName: {{ .Values.tls.secretRef }}
         {{- end }}
       initContainers:
         - name: get-external-ip
