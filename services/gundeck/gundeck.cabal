@@ -338,6 +338,7 @@ executable gundeck-schema
     V6
     V7
     V8
+    V9
 
   hs-source-dirs:     schema/src
   default-extensions:
