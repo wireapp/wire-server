@@ -32,6 +32,7 @@ hsuper: hself: {
   snappy-framing = hself.callPackage ./haskell-overrides/snappy-framing.nix {};
   snappy = hself.callPackage ./haskell-overrides/snappy.nix {};
   swagger = hself.callPackage ./haskell-overrides/swagger.nix {};
+  th-desugar = hself.callPackage ./haskell-overrides/th-desugar.nix {};
   wai-middleware-prometheus = hself.callPackage ./haskell-overrides/wai-middleware-prometheus.nix {};
   wai-route = hself.callPackage ./haskell-overrides/wai-route.nix {};
   wai-routing = hself.callPackage ./haskell-overrides/wai-routing.nix {};
