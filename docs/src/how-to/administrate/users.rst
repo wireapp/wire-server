@@ -88,6 +88,29 @@ Afterwards, the previous command (to search for a user in cassandra) should retu
 
 When done, on terminal 1, ctrl+c to cancel the port-forwarding.
 
+Searching and deleting users with no team
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you require users to be part of a team, or for some other reason you need to delete all users who are not part of a team, you need to first find all such users, and then delete them.
+
+To find users that are not part of a team, first you need to connect via SSH to the machine where cassandra is running, and then run the following command:
+
+.. code:: sh
+
+   cqlsh 9042 -e "select team, handle, id from brig.user" | grep -E "^\s+null"
+
+This will give you a list of handles and IDs with no team associated: 
+
+.. code:: sh
+
+   null |       null | bc22119f-ce11-4402-aa70-307a58fb22ec
+   null |        tom | 8ecee3d0-47a4-43ff-977b-40a4fc350fed
+   null |      alice | 2a4c3468-c1e6-422f-bc4d-4aeff47941ac
+   null |       null | 1b5ca44a-aeb4-4a68-861b-48612438c4cc
+   null |        bob | 701b4eab-6df2-476d-a818-90dc93e8446e
+
+You can then delete each user with the instructions found at `this link <./users.html#deleting-a-user-which-is-not-a-team-user>`__.
+
 Manual search on elasticsearch (via brig, recommended)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
