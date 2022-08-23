@@ -34,7 +34,7 @@ import Polysemy
 
 sitemap ::
   forall r p.
-    Members
+  Members
     '[ CodeStore,
        PasswordResetStore,
        BlacklistStore,

@@ -16,13 +16,12 @@ data UserPendingActivation = UserPendingActivation
 
 data UserPendingActivationStore p m a where
   Add :: UserPendingActivation -> UserPendingActivationStore p m ()
-  List
-    :: Maybe (PagingState p UserPendingActivation)
-    -> UserPendingActivationStore p m (Page p UserPendingActivation)
+  List ::
+    Maybe (PagingState p UserPendingActivation) ->
+    UserPendingActivationStore p m (Page p UserPendingActivation)
   RemoveMultiple :: [UserId] -> UserPendingActivationStore p m ()
 
 makeSem ''UserPendingActivationStore
 
 remove :: forall p r. Member (UserPendingActivationStore p) r => UserId -> Sem r ()
 remove uid = removeMultiple [uid]
-

@@ -40,7 +40,6 @@ import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
 import Brig.Sem.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
-import qualified Wire.Sem.Paging as P
 import qualified Brig.Sem.UserPendingActivationStore as UsersPendingActivationStore
 import Brig.Types.Intra (AccountStatus (PendingInvitation))
 import Brig.Version
@@ -78,6 +77,7 @@ import Wire.API.Routes.API
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
+import qualified Wire.Sem.Paging as P
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
 -- and brig could start misbehaving. We should ensure that brig dies whenever a
@@ -237,7 +237,6 @@ pendingActivationCleanup = do
 
     hours :: Double -> Timeout
     hours n = realToFrac (n * 60 * 60)
-
 
 collectAuthMetrics :: forall r. AppT r ()
 collectAuthMetrics = do
