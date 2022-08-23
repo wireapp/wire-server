@@ -34,5 +34,5 @@ migration =
         CREATE TABLE IF NOT EXISTS client_nonce
           ( nonce uuid
           , PRIMARY KEY (nonce)
-          )
+          ) WITH default_time_to_live = 300;
      |]
