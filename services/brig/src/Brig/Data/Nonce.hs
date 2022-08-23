@@ -17,6 +17,7 @@
 
 module Brig.Data.Nonce
   ( addNonce,
+    invalidateNonce,
   )
 where
 
@@ -32,9 +33,15 @@ addNonce ::
   Nonce ->
   m ()
 addNonce nonce = retry x5 . write insertNonce $ params LocalQuorum (Identity nonce)
+  where
+    insertNonce :: PrepQuery W (Identity Nonce) ()
+    insertNonce = "INSERT INTO nonce (nonce) VALUES (?) using ttl 300"
 
--------------------------------------------------------------------------------
--- Queries
-
-insertNonce :: PrepQuery W (Identity Nonce) ()
-insertNonce = "INSERT INTO nonce (nonce) VALUES (?) using ttl 300"
+invalidateNonce ::
+  (MonadClient m, MonadReader Env m) =>
+  Nonce ->
+  m ()
+invalidateNonce nonce = retry x5 . write delete $ params LocalQuorum (Identity nonce)
+  where
+    delete :: PrepQuery W (Identity Nonce) ()
+    delete = "DELETE FROM nonce WHERE nonce = ?"
