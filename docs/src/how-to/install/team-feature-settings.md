@@ -67,3 +67,17 @@ galley:
             status: disabled
             lockStatus: locked            
 ```
+
+### TTL for nonces
+
+Nonces that can be retrieved e.g. by calling `HEAD /nonce/clients` have a default time-to-live of 5 minutes. To change this setting add the following to your Helm overrides in `values/wire-server/values.yaml`:
+
+```yaml
+brig:
+  # ...
+  config:
+    # ...
+    optSettings:
+      # ...
+      setNonceTtlSecs: 360 # 6 minutes
+```
