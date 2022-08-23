@@ -28,7 +28,6 @@ where
 import Data.Aeson (FromJSON (parseJSON), FromJSONKey, ToJSON (toJSON), ToJSONKey)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
-import Data.ByteString.Builder (toLazyByteString)
 import qualified Data.ByteString.Char8 as C8
 import Data.ByteString.Conversion as BS
 import Data.ByteString.Lazy as L
@@ -220,7 +219,7 @@ tests =
     ]
 
 bsRoundtrip :: (Eq a, Show a, FromByteString a, ToByteString a) => a -> Property
-bsRoundtrip a = runParser parser (cs $ toLazyByteString $ builder a) === Right a
+bsRoundtrip a = fromByteString' (cs $ toByteString' a) === Just a
 
 roundtrip :: (EncodeWire a, DecodeWire a) => Tag' -> a -> Either String a
 roundtrip (Tag' t) = runGet (getWireField >>= decodeWire) . runPut . encodeWire t
