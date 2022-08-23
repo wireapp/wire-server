@@ -97,3 +97,6 @@ Remove them with the PR from wire-server `./charts` folder, as charts are linked
 Avoid doing this. If you must, see Removing/adding sections above. But please note that all people who have an installation of wire also may have overridden any of the configuration option you may wish to change the name of. As this is not type checked, it's very error prone and people may find themselves with default configuration values being used instead of their intended configuration settings. Guideline: only rename for good reasons, not for aesthetics; or be prepared to spend a significant
 amount on documenting and communication about this change.
 
+## Changes to developer workflow
+
+If a PR changes development workflow or dependencies, they should be automated and documented under `docs/developer/`. All efforts should be taken to minimize development setup breakage or slowdown for co-workers.
