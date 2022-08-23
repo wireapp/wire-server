@@ -1,1 +1,1 @@
-New endpoints `HEAD` and `GET /nonce/clients` to request new nonces for clients.
+New endpoints `HEAD` and `GET /nonce/clients` to request new nonces for client certificate requests (coming up soon).
