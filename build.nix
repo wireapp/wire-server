@@ -131,4 +131,5 @@ in {
     packages = p: builtins.map (e: p.${e}) (builtins.attrNames (import ./nix/local-overrides.nix {} {}));
     buildInputs = [pkgs.cabal-install];
   };
+  hPkgs = hPkgs;
 } // attrsets.genAttrs (builtins.attrNames executablesMap) (e: hPkgs.${e})
