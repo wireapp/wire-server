@@ -592,7 +592,7 @@ data Settings = Settings
     set2FACodeGenerationDelaySecsInternal :: !(Maybe Int),
     -- | The time-to-live of a nonce in seconds.
     -- use `set2FANonceTtlSecs` as the getter function which always provides a default value
-    setNonceTtlSecsInternal :: !(Maybe Int)
+    setNonceTtlSecsInternal :: !(Maybe Word64)
   }
   deriving (Show, Generic)
 
@@ -620,10 +620,10 @@ def2FACodeGenerationDelaySecs = 5 * 60 -- 5 minutes
 set2FACodeGenerationDelaySecs :: Settings -> Int
 set2FACodeGenerationDelaySecs = fromMaybe def2FACodeGenerationDelaySecs . set2FACodeGenerationDelaySecsInternal
 
-defaultNonceTtlSecs :: Int
+defaultNonceTtlSecs :: Word64
 defaultNonceTtlSecs = 5 * 60 -- 5 minutes
 
-setNonceTtlSecs :: Settings -> Int
+setNonceTtlSecs :: Settings -> Word64
 setNonceTtlSecs = fromMaybe defaultNonceTtlSecs . setNonceTtlSecsInternal
 
 -- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to

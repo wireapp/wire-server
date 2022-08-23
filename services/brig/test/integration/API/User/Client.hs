@@ -950,15 +950,17 @@ testPreKeyRace brig = do
 
 testNewNonce :: Brig -> Http ()
 testNewNonce brig = do
-  check Util.getNonce 204
-  check Util.headNonce 200
+  n1 <- check Util.getNonce 204
+  n2 <- check Util.headNonce 200
+  lift $ assertBool "nonces are should not be equal" (n1 /= n2)
   where
     check f status = do
       response <- (randomUser brig >>= f brig . userId) <!! const status === statusCode
-      print response
+      let nonceBs = getHeader "Replay-Nonce" response
       liftIO $ do
-        assertBool "Replay-Nonce header should contain a valid base64url encoded uuidv4" $ any isValidBase64UrlEncodedUUID (getHeader "Replay-Nonce" response)
+        assertBool "Replay-Nonce header should contain a valid base64url encoded uuidv4" $ any isValidBase64UrlEncodedUUID nonceBs
         Just "no-store" @=? getHeader "Cache-Control" response
+      pure nonceBs
 
 testCan'tDeleteLegalHoldClient :: Brig -> Http ()
 testCan'tDeleteLegalHoldClient brig = do
