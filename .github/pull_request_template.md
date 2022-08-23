@@ -1,5 +1,5 @@
 ## Checklist
 
- - [ ] Add a new entry in a appropriate subdirectory of `changelog.d`
+ - [ ] Add a new entry in an appropriate subdirectory of `changelog.d`
  - [ ] Read and follow the
-[pr-guidelines.md](https://github.com/wireapp/wire-server/blob/develop/docs/developer/pr-guidelines.md)
+[PR guidelines](https://github.com/wireapp/wire-server/blob/develop/docs/developer/pr-guidelines.md)
