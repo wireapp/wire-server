@@ -196,6 +196,18 @@ postMLSMessage loc qusr convId con smsg = case rmValue smsg of
       (postMLSMessageToRemoteConv loc qusr con smsg)
       qcnv
 
+-- | Check that the MLS client who created the message belongs to the user who
+-- is the sender of the REST request, identified by HTTP header.
+--
+-- This is only relevant in an ongoing conversation. The check should be skipped
+-- in case of
+-- * encrypted messages in which we don't have access to the sending client's
+--   key package,
+-- * messages sent by the backend, and
+-- * external add proposals which propose fresh key packages for new clients and
+--   thus the validity of the key package cannot be known at the time of this
+--   check.
+-- For these cases the function will return True.
 isUserSender ::
   ( Members
       '[ ErrorS 'MLSKeyPackageRefNotFound,
@@ -208,9 +220,12 @@ isUserSender ::
   Sem r Bool
 isUserSender qusr smsg = case rmValue smsg of
   SomeMessage tag msg -> case tag of
+    -- skip encrypted message
     SMLSCipherText -> pure True
     SMLSPlainText -> case msgSender msg of
+      -- skip message sent by backend
       PreconfiguredSender _ -> pure True
+      -- skip external add proposal
       NewMemberSender -> pure True
       MemberSender ref -> do
         ClientIdentity {ciUser, ciDomain} <- derefKeyPackage ref
