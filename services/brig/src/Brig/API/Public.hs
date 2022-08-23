@@ -619,8 +619,9 @@ getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
 newNonce :: UserId -> (Handler r) Nonce
 newNonce _ = do
+  ttl <- setNonceTtlSecs <$> view settings
   nonce <- randomNonce
-  lift $ wrapClient $ Nonce.addNonce nonce
+  lift $ wrapClient $ Nonce.addNonce ttl nonce
   pure nonce
 
 -- | docs/reference/user/registration.md {#RefRegistration}
