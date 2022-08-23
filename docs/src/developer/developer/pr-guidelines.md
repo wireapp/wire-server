@@ -1,6 +1,8 @@
-# PR Guidlines
+# PR Guidelines
 
-If applicable extend the PR checklist.
+This document outlines the steps that need to be taken before merging any PR. In most cases, the only required action is creating a changelog entry (see below). However, when a PR affects the database schema, or the API, or service configuration, extra steps are required, and those are detailed below.
+
+The recommended way to use this document is to copy the relevant checklists below into the PR description, when appropriate, and make sure they are all checked before the PR is merged.
 
 ## Changelog entries
 
@@ -16,11 +18,13 @@ See `docs/legacy/developer/changelog.md` for more information.
 
 If a cassandra schema migration has been added then
 
-- [ ] Run **`make git-add-cassandra-schema`** to update the cassandra schema documentation.
+ - [ ] Run **`make git-add-cassandra-schema`** to update the cassandra schema documentation
 
 ## Incompatible schema migrations and data migrations
 
-If the PR contains a cassandra *schema* migration which is backwards incompatible, a changelog entry should be added to the `0-release-notes` section, detailing measures to be taken by on-premise instance operators. See [notes on Cassandra](https://github.com/wireapp/wire-server/blob/develop/docs/developer/cassandra-interaction.md#cassandra-schema-migrations) for more details on how to implement such schema changes. A similar entry should be added if the PR contains a *data* migration.
+If the PR contains a cassandra *schema* migration which is backwards incompatible, a changelog entry should be added to the release notes. See [notes on Cassandra](https://github.com/wireapp/wire-server/blob/develop/docs/developer/cassandra-interaction.md#cassandra-schema-migrations) for more details on how to implement such schema changes. A similar entry should be added if the PR contains a *data* migration.
+
+ - [ ] Add a changelog entry in `0-release-notes` detailing measures to be taken by instance operators
 
 ## Adding new public endpoints
 
@@ -28,7 +32,7 @@ When adding new endpoints in the Haskell code in wire-server, correct routing ne
 
 NB: The nginz paths are interpreted as *prefixes*.  If you add a new end-point that is identical to an existing one except for the path of the latter being a proper prefix of the former, and if the nginz configuration of the two paths should be the same, nothing needs to be done.  Exception: if you see a path like `/self$`, you know it doesn't match `/self/sub/what`.
 
-The following needs to be done, as part of a PR adding endpoints or changing endpoint paths:
+The following needs to be done, as part of a PR adding endpoints or changing endpoint paths.
 
  - [ ] Update nginz config in helm: `charts/nginz/values.yaml`
  - [ ] Update nginz config in the demo: `deploy/services-demo/conf/nginz/nginx.conf`
@@ -69,18 +73,18 @@ Add to `charts/nginz/values.yaml`, under the `galley` section:
 
 If a PR adds new configuration options for say brig, the following files need to be edited:
 
-* [ ] the parser under `services/brig/src/Brig/Options.hs`
-* [ ] the integration test config: `services/brig/brig.integration.yaml`
-* [ ] the demo config: `deploy/services-demo/conf/brig.demo.yaml` and `deploy/services-demo/conf/brig.demo.yaml`
-* [ ] the charts: `charts/brig/templates/configmap.yaml`
-* [ ] the default values: `charts/brig/values.yaml`
-* [ ] the values files for CI: `hack/helm_vars/wire-server/values.yaml`
-* [ ] the configuration docs: `docs/legacy/reference/config-options.md`
+* [ ] The parser under `services/brig/src/Brig/Options.hs`
+* [ ] The integration test config: `services/brig/brig.integration.yaml`
+* [ ] The demo config: `deploy/services-demo/conf/brig.demo.yaml` and `deploy/services-demo/conf/brig.demo.yaml`
+* [ ] The charts: `charts/brig/templates/configmap.yaml`
+* [ ] The default values: `charts/brig/values.yaml`
+* [ ] The values files for CI: `hack/helm_vars/wire-server/values.yaml`
+* [ ] The configuration docs: `docs/legacy/reference/config-options.md`
 
 If any new configuration value is required and has no default, then:
 
-* [ ] advertise it in a changelog entry in `0-release-notes`
-* [ ] update all the relevant environments
+* [ ] Write a changelog entry in `0-release-notes` advertising the new configuration value
+* [ ] Update all the relevant environments
 
 For wire Cloud, look into all the relevant environments (look for `helm_vars/wire-server/values.yaml.gotmpl` files in cailleach). Ideally, these configuration updates should be merged **before** merging the corresponding wire-server PR.
 
