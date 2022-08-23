@@ -23,7 +23,6 @@ module Wire.Sem.Paging.Cassandra
     InternalPagingState (..),
     mkInternalPage,
     ipNext,
-
     ResultSet,
     mkResultSet,
     resultSetResult,
@@ -36,9 +35,9 @@ import Cassandra
 import Data.Id
 import Data.Qualified
 import Data.Range
-import qualified Wire.Sem.Paging as E
 import Imports
 import Wire.API.Team.Member (HardTruncationLimit, TeamMember)
+import qualified Wire.Sem.Paging as E
 
 -- | This paging system uses Cassandra's 'PagingState' to keep track of state,
 -- and does not rely on ordering. This is the preferred way of paging across
@@ -100,7 +99,6 @@ instance E.Paging InternalPaging where
   pageItems (InternalPage (_, _, items)) = items
   pageHasMore (InternalPage (p, _, _)) = hasMore p
   pageState (InternalPage (p, f, _)) = InternalPagingState (p, f)
-
 
 -- We use this newtype to highlight the fact that the 'Page' wrapped in here
 -- can not reliably used for paging.

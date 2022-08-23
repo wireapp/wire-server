@@ -79,7 +79,6 @@ where
 import Data.Id
 import Data.Range
 import Galley.Effects.ListItems
-import Wire.Sem.Paging
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Imports
@@ -91,6 +90,7 @@ import Wire.API.Team
 import Wire.API.Team.Conversation
 import Wire.API.Team.Member (HardTruncationLimit, TeamMember, TeamMemberList)
 import Wire.API.Team.Permission
+import Wire.Sem.Paging
 
 data TeamStore m a where
   CreateTeamMember :: TeamId -> TeamMember -> TeamStore m ()

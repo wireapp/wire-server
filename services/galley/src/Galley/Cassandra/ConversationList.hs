@@ -27,13 +27,13 @@ import Data.Id
 import Data.Qualified
 import Data.Range
 import Galley.Cassandra.Instances ()
-import Wire.Sem.Paging.Cassandra
 import qualified Galley.Cassandra.Queries as Cql
 import Galley.Cassandra.Store
 import Galley.Effects.ListItems
 import Imports hiding (max)
 import Polysemy
 import Polysemy.Input
+import Wire.Sem.Paging.Cassandra
 
 -- | Deprecated, use 'localConversationIdsPageFrom'
 conversationIdsFrom ::

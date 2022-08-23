@@ -87,7 +87,6 @@ import qualified Galley.API.Teams.Notifications as APITeamQueue
 import qualified Galley.API.Update as API
 import Galley.API.Util
 import Galley.App
-import Wire.Sem.Paging.Cassandra
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services (BotMember)
 import Galley.Effects
@@ -98,7 +97,6 @@ import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.LegalHoldStore as Data
 import qualified Galley.Effects.ListItems as E
 import qualified Galley.Effects.MemberStore as E
-import qualified Wire.Sem.Paging as E
 import qualified Galley.Effects.Queue as E
 import qualified Galley.Effects.SearchVisibilityStore as SearchVisibilityData
 import qualified Galley.Effects.SparAccess as Spar
@@ -150,6 +148,8 @@ import Wire.API.User (ScimUserInfo (..), User, UserIdList, UserSSOId (UserScimEx
 import qualified Wire.API.User as U
 import Wire.API.User.Identity (UserSSOId (UserSSOId))
 import Wire.API.User.RichInfo (RichInfo)
+import qualified Wire.Sem.Paging as E
+import Wire.Sem.Paging.Cassandra
 
 getTeamH ::
   forall r.

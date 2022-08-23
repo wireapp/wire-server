@@ -62,7 +62,6 @@ where
 import Data.Id
 import Data.Qualified
 import Data.Time.Clock
-import Wire.Sem.Paging.Cassandra
 import Galley.Cassandra.TeamFeatures (Cassandra)
 import Galley.Effects.BotAccess
 import Galley.Effects.BrigAccess
@@ -94,6 +93,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Error
+import Wire.Sem.Paging.Cassandra
 
 -- All the possible high-level effects.
 type GalleyEffects1 =
