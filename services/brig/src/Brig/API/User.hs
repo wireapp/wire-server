@@ -1254,11 +1254,6 @@ verifyDeleteUserInternal uid = do
   case mbAcc of
     Nothing -> pure NoUser
     Just acc -> do
-      let user = accountUser acc
-      mbEmailUid <- fmap join $ for (userEmail user) $ lookupKey . userEmailKey
-      mbPhoneUid <- fmap join $ for (userPhone user) $ lookupKey . userPhoneKey
-      mbHandleUid <- fmap join $ for (userHandle user) $ lookupHandle
-
       probs <- Data.lookupPropertyKeysAndValues uid
 
       let accIsDeleted = accountStatus acc == Deleted
@@ -1268,10 +1263,7 @@ verifyDeleteUserInternal uid = do
       conCount <- countConnections localUid [minBound .. maxBound]
       cookies <- listCookies uid []
 
-      if needsDeletion mbEmailUid
-        || needsDeletion mbPhoneUid
-        || needsDeletion mbHandleUid
-        || (not . null) probs
+      if (not . null) probs
         || not accIsDeleted
         || (not . null) clients
         || conCount > 0
@@ -1281,16 +1273,16 @@ verifyDeleteUserInternal uid = do
           deleteAccount acc
           pure RanDeletionAgain
         else pure FullyDeletedUser
-  where
-    needsDeletion :: Maybe UserId -> Bool
-    needsDeletion foundUid = case foundUid of
-      Just uid' -> uid' == uid
-      Nothing -> False
 
--- | Internal deletion without validation.  Called via @delete /i/user/:uid@, or indirectly
--- via deleting self.
--- Team owners can be deleted if the team is not orphaned, i.e. there is at least one
+-- | Internal deletion without validation.
+--
+-- Called via @delete /i/user/:uid@, or indirectly via deleting self. Team
+-- owners can be deleted if the team is not orphaned, i.e. there is at least one
 -- other owner left.
+--
+-- N.B.: As Cassandra doesn't support transactions, the order of database
+-- statements matters! Other functions reason upon some states to imply other
+-- states. Please change this order only with care!
 deleteAccount ::
   ( MonadLogger m,
     MonadIndexIO m,

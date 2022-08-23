@@ -46,6 +46,7 @@ import qualified Data.ByteString as C8
 import Data.ByteString.Char8 (pack)
 import Data.ByteString.Conversion
 import Data.Domain
+import Data.Handle
 import Data.Id hiding (client)
 import Data.Json.Util (fromUTCTimeMillis)
 import Data.List1 (singleton)
@@ -164,7 +165,9 @@ tests _ at opts p b c ch g aws =
       testGroup
         "/i/users/:uid/verify-deleted"
         [ test' aws p "does nothing for completely deleted user" $ testVerifyAccountDeletedWithCompletelyDeletedUser b c aws,
-          test' aws p "does nothing when the uses doesn't exist" $ testVerifyAccountDeletedWithNoUser b
+          test' aws p "does nothing when the uses doesn't exist" $ testVerifyAccountDeletedWithNoUser b,
+          test' aws p "deletes a not deleted user" $ testVerifyAccountDeletedWithNotDeletedUser b c aws,
+          test' aws p "delete again because of dangling property" $ testVerifyAccountDeletedWithDanglingProperty b c aws
         ]
     ]
 
@@ -1666,18 +1669,75 @@ testVerifyAccountDeletedWithNoUser brig =
           const (Right NoUser) === responseJsonEither
     Left _ -> fail "Invalid test data! (This should never happen.)"
 
--- helpers
+testVerifyAccountDeletedWithNotDeletedUser :: HasCallStack => Brig -> Cannon -> AWS.Env -> Http ()
+testVerifyAccountDeletedWithNotDeletedUser brig cannon aws = do
+  u <- randomUser brig
+  liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled u)
+  do
+    setHandleAndDeleteUser brig cannon u [] aws $
+      ( \uid' ->
+          verifyAccountDeleted brig uid' !!! do
+            const 200 === statusCode
+            const (Right RanDeletionAgain) === responseJsonEither
+      )
 
-setHandleAndDeleteUser :: Brig -> Cannon -> User -> [UserId] -> AWS.Env -> (UserId -> HttpT IO ()) -> Http ()
-setHandleAndDeleteUser brig cannon u others aws execDelete = do
+testVerifyAccountDeletedWithDanglingProperty :: Brig -> Cannon -> AWS.Env -> Http ()
+testVerifyAccountDeletedWithDanglingProperty brig cannon aws = do
+  u <- randomUser brig
+  liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal1: " aws (userActivateJournaled u)
+
   let uid = userId u
-      quid = userQualifiedId u
-      email = fromMaybe (error "Must have an email set") (userEmail u)
   -- First set a unique handle (to verify freeing of the handle)
   hdl <- randomHandle
   let update = RequestBodyLBS . encode $ HandleUpdate hdl
   put (brig . path "/self/handle" . contentJson . zUser uid . zConn "c" . body update)
     !!! const 200 === statusCode
+
+  deleteUserInternal uid brig !!! const 202 === statusCode
+
+  setProperty brig (userId u) "foo" objectProp
+    !!! const 200 === statusCode
+  getProperty brig (userId u) "foo" !!! do
+    const 200 === statusCode
+    const (Just objectProp) === responseJsonMaybe
+
+  execAndAssertUserDeletion brig cannon u (Handle hdl) [] aws $ \uid' -> do
+    post
+      ( brig
+          . paths ["/i/users", toByteString' uid', "verify-deleted"]
+      )
+      !!! do
+        const 200 === statusCode
+        const (Right RanDeletionAgain) === responseJsonEither
+
+  getProperty brig (userId u) "foo" !!! do
+    const 404 === statusCode
+  where
+    objectProp =
+      object
+        [ "key.1" .= ("val1" :: Text),
+          "key.2" .= ("val2" :: Text)
+        ]
+
+-- helpers
+
+setHandleAndDeleteUser :: Brig -> Cannon -> User -> [UserId] -> AWS.Env -> (UserId -> HttpT IO ()) -> Http ()
+setHandleAndDeleteUser brig cannon u others aws execDelete = do
+  let uid = userId u
+  -- First set a unique handle (to verify freeing of the handle)
+  hdl <- randomHandle
+  let update = RequestBodyLBS . encode $ HandleUpdate hdl
+  put (brig . path "/self/handle" . contentJson . zUser uid . zConn "c" . body update)
+    !!! const 200 === statusCode
+
+  execAndAssertUserDeletion brig cannon u (Handle hdl) others aws execDelete
+
+execAndAssertUserDeletion :: Brig -> Cannon -> User -> Handle -> [UserId] -> AWS.Env -> (UserId -> HttpT IO ()) -> Http ()
+execAndAssertUserDeletion brig cannon u hdl others aws execDelete = do
+  let uid = userId u
+      quid = userQualifiedId u
+      email = fromMaybe (error "Must have an email set") (userEmail u)
+
   -- Delete the user
   WS.bracketRN cannon (uid : others) $ \wss -> do
     execDelete uid
@@ -1701,7 +1761,7 @@ setHandleAndDeleteUser brig cannon u others aws execDelete = do
   forM_ others $ \usr -> do
     get (brig . paths ["users", toByteString' uid] . zUser usr) !!! assertDeletedProfilePublic
     Search.assertCan'tFind brig usr quid (fromName (userDisplayName u))
-    Search.assertCan'tFind brig usr quid hdl
+    Search.assertCan'tFind brig usr quid (fromHandle hdl)
   -- Email address is available again
   let Object o =
         object
