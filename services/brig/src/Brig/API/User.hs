@@ -278,10 +278,10 @@ createUserSpar new = do
 
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser ::
-  forall r.
+  forall r p.
   Members
     '[ BlacklistStore,
-       UserPendingActivationStore
+       UserPendingActivationStore p
      ]
     r =>
   NewUser ->
@@ -523,7 +523,7 @@ initAccountFeatureConfig uid = do
 createUserInviteViaScim ::
   Members
     '[ BlacklistStore,
-       UserPendingActivationStore
+       UserPendingActivationStore p
      ]
     r =>
   UserId ->

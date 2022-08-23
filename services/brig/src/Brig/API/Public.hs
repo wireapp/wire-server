@@ -184,11 +184,11 @@ swaggerDocsAPI (Just V1) =
 swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
 
 servantSitemap ::
-  forall r.
+  forall r p.
   Members
     '[ BlacklistStore,
        BlacklistPhonePrefixStore,
-       UserPendingActivationStore
+       UserPendingActivationStore p
      ]
     r =>
   ServerT BrigAPI (Handler r)
@@ -619,7 +619,7 @@ getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 createUser ::
   Members
     '[ BlacklistStore,
-       UserPendingActivationStore
+       UserPendingActivationStore p
      ]
     r =>
   Public.NewUserPublic ->

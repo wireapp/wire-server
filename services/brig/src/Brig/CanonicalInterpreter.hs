@@ -17,12 +17,13 @@ import Imports
 import Polysemy (Embed, Final, embedToFinal, runFinal)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 type BrigCanonicalEffects =
   '[ BlacklistPhonePrefixStore,
      BlacklistStore,
      PasswordResetStore,
-     UserPendingActivationStore,
+     UserPendingActivationStore InternalPaging,
      Now,
      CodeStore,
      Embed Cas.Client,

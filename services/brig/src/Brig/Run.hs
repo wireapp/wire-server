@@ -40,7 +40,7 @@ import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
 import Brig.Sem.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
-import qualified Brig.Sem.UserPendingActivationStore as E
+import qualified Wire.Sem.Paging as P
 import qualified Brig.Sem.UserPendingActivationStore as UsersPendingActivationStore
 import Brig.Types.Intra (AccountStatus (PendingInvitation))
 import Brig.Version
@@ -182,7 +182,7 @@ bodyParserErrorFormatter _ _ errMsg =
       Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
     }
 
-pendingActivationCleanup :: forall r. Members '[UserPendingActivationStore] r => AppT r ()
+pendingActivationCleanup :: forall r p. (P.Paging p, Members '[UserPendingActivationStore p] r) => AppT r ()
 pendingActivationCleanup = do
   safeForever "pendingActivationCleanup" $ do
     now <- liftIO =<< view currentTime
@@ -220,13 +220,13 @@ pendingActivationCleanup = do
 
     forExpirationsPaged :: ([UserPendingActivation] -> (AppT r) ()) -> (AppT r) ()
     forExpirationsPaged f = do
-      go =<< liftSem UsersPendingActivationStore.list
+      go =<< liftSem (UsersPendingActivationStore.list Nothing)
       where
-        -- go :: E.Page _ UserPendingActivation -> (AppT r) ()
-        go (E.Page result maybeNextPageKey) = do
-          f result
-          for_ maybeNextPageKey $ \key ->
-            go =<< liftSem (UsersPendingActivationStore.getNext key)
+        go :: P.Page p UserPendingActivation -> (AppT r) ()
+        go p = do
+          f (P.pageItems p)
+          when (P.pageHasMore p) $ do
+            go =<< liftSem (UsersPendingActivationStore.list $ Just $ P.pageState p)
 
     threadDelayRandom :: (AppT r) ()
     threadDelayRandom = do
@@ -237,6 +237,7 @@ pendingActivationCleanup = do
 
     hours :: Double -> Timeout
     hours n = realToFrac (n * 60 * 60)
+
 
 collectAuthMetrics :: forall r. AppT r ()
 collectAuthMetrics = do

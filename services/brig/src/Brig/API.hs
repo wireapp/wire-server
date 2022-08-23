@@ -33,12 +33,13 @@ import Network.Wai.Routing (Routes)
 import Polysemy
 
 sitemap ::
-  Members
+  forall r p.
+    Members
     '[ CodeStore,
        PasswordResetStore,
        BlacklistStore,
        BlacklistPhonePrefixStore,
-       UserPendingActivationStore
+       UserPendingActivationStore p
      ]
     r =>
   Routes Doc.ApiBuilder (Handler r) ()

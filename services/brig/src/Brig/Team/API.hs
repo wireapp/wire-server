@@ -192,7 +192,7 @@ routesPublic = do
 routesInternal ::
   Members
     '[ BlacklistStore,
-       UserPendingActivationStore
+       UserPendingActivationStore p
      ]
     r =>
   Routes a (Handler r) ()
@@ -290,7 +290,7 @@ createInvitationPublic uid tid body = do
 createInvitationViaScimH ::
   Members
     '[ BlacklistStore,
-       UserPendingActivationStore
+       UserPendingActivationStore p
      ]
     r =>
   JSON ::: JsonRequest NewUserScimInvitation ->
@@ -302,7 +302,7 @@ createInvitationViaScimH (_ ::: req) = do
 createInvitationViaScim ::
   Members
     '[ BlacklistStore,
-       UserPendingActivationStore
+       UserPendingActivationStore p
      ]
     r =>
   NewUserScimInvitation ->

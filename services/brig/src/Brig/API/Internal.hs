@@ -104,7 +104,7 @@ import Wire.API.User.RichInfo
 servantSitemap ::
   Members
     '[ BlacklistStore,
-       UserPendingActivationStore
+       UserPendingActivationStore p
      ]
     r =>
   ServerT BrigIRoutes.API (Handler r)
@@ -135,7 +135,7 @@ mlsAPI =
 accountAPI ::
   Members
     '[ BlacklistStore,
-       UserPendingActivationStore
+       UserPendingActivationStore p
      ]
     r =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
@@ -228,7 +228,7 @@ sitemap ::
        PasswordResetStore,
        BlacklistStore,
        BlacklistPhonePrefixStore,
-       UserPendingActivationStore
+       UserPendingActivationStore p
      ]
     r =>
   Routes a (Handler r) ()
@@ -437,7 +437,7 @@ internalListFullClients (UserSet usrs) =
 createUserNoVerify ::
   Members
     '[ BlacklistStore,
-       UserPendingActivationStore
+       UserPendingActivationStore p
      ]
     r =>
   NewUser ->
