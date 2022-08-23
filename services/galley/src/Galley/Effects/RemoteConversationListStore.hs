@@ -26,7 +26,7 @@ where
 
 import Data.Id
 import Data.Qualified
-import Galley.Effects.Paging
+import Wire.Sem.Paging
 import Galley.Types.Conversations.Members
 import Imports
 import Polysemy

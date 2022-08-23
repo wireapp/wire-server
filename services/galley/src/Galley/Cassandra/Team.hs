@@ -41,9 +41,8 @@ import Data.UUID.V4 (nextRandom)
 import qualified Galley.Aws as Aws
 import qualified Galley.Cassandra.Conversation as C
 import Galley.Cassandra.LegalHold (isTeamLegalholdWhitelisted)
-import Galley.Cassandra.Paging
+import Wire.Sem.Paging.Cassandra
 import qualified Galley.Cassandra.Queries as Cql
-import Galley.Cassandra.ResultSet
 import Galley.Cassandra.Store
 import Galley.Effects.ListItems
 import Galley.Effects.TeamMemberStore

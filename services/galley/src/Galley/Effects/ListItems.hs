@@ -24,7 +24,7 @@ module Galley.Effects.ListItems
 where
 
 import Data.Id
-import Galley.Effects.Paging
+import Wire.Sem.Paging
 import Imports
 import Polysemy
 

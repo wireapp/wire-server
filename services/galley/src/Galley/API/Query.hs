@@ -68,7 +68,7 @@ import qualified Data.Set as Set
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
-import Galley.Cassandra.Paging
+import Wire.Sem.Paging.Cassandra
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Types (Code (codeConversation))
 import Galley.Effects

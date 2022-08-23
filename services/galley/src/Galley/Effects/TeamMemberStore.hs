@@ -27,7 +27,7 @@ module Galley.Effects.TeamMemberStore
 where
 
 import Data.Id
-import Galley.Effects.Paging
+import Wire.Sem.Paging
 import Imports
 import Polysemy
 import Wire.API.Team.Member

@@ -62,7 +62,7 @@ where
 import Data.Id
 import Data.Qualified
 import Data.Time.Clock
-import Galley.Cassandra.Paging
+import Wire.Sem.Paging.Cassandra
 import Galley.Cassandra.TeamFeatures (Cassandra)
 import Galley.Effects.BotAccess
 import Galley.Effects.BrigAccess

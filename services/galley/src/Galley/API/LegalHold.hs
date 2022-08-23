@@ -48,13 +48,13 @@ import Galley.API.Error
 import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMemberFromLocalConv)
 import Galley.API.Util
-import Galley.Cassandra.Paging
+import Wire.Sem.Paging.Cassandra
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.FireAndForget
 import qualified Galley.Effects.LegalHoldStore as LegalHoldData
-import Galley.Effects.Paging
+import Wire.Sem.Paging
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore

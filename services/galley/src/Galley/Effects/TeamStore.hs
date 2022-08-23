@@ -79,7 +79,7 @@ where
 import Data.Id
 import Data.Range
 import Galley.Effects.ListItems
-import Galley.Effects.Paging
+import Wire.Sem.Paging
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra
 import Imports

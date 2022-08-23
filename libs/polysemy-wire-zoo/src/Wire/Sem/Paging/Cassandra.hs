@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra.Paging
+module Wire.Sem.Paging.Cassandra
   ( CassandraPaging,
     LegacyPaging,
     InternalPaging,
@@ -24,8 +24,8 @@ module Galley.Cassandra.Paging
     mkInternalPage,
     ipNext,
 
-    -- * Re-exports
     ResultSet,
+    mkResultSet,
     resultSetResult,
     resultSetType,
     ResultSetType (..),
@@ -36,8 +36,7 @@ import Cassandra
 import Data.Id
 import Data.Qualified
 import Data.Range
-import Galley.Cassandra.ResultSet
-import qualified Galley.Effects.Paging as E
+import qualified Wire.Sem.Paging as E
 import Imports
 import Wire.API.Team.Member (HardTruncationLimit, TeamMember)
 
@@ -101,3 +100,34 @@ instance E.Paging InternalPaging where
   pageItems (InternalPage (_, _, items)) = items
   pageHasMore (InternalPage (p, _, _)) = hasMore p
   pageState (InternalPage (p, f, _)) = InternalPagingState (p, f)
+
+
+-- We use this newtype to highlight the fact that the 'Page' wrapped in here
+-- can not reliably used for paging.
+--
+-- The reason for this is that Cassandra returns 'hasMore' as true if the
+-- page size requested is equal to result size. To work around this we
+-- actually request for one additional element and drop the last value if
+-- necessary. This means however that 'nextPage' does not work properly as
+-- we would miss a value on every page size.
+-- Thus, and since we don't want to expose the ResultSet constructor
+-- because it gives access to `nextPage`, we give accessors to the results
+-- and a more typed `hasMore` (ResultSetComplete | ResultSetTruncated)
+data ResultSet a = ResultSet
+  { resultSetResult :: [a],
+    resultSetType :: ResultSetType
+  }
+  deriving stock (Show, Functor, Foldable, Traversable)
+
+-- | A more descriptive type than using a simple bool to represent `hasMore`
+data ResultSetType
+  = ResultSetComplete
+  | ResultSetTruncated
+  deriving stock (Eq, Show)
+
+mkResultSet :: Page a -> ResultSet a
+mkResultSet page = ResultSet (result page) typ
+  where
+    typ
+      | hasMore page = ResultSetTruncated
+      | otherwise = ResultSetComplete

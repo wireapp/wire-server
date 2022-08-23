@@ -58,10 +58,8 @@ library
     Galley.Cassandra.CustomBackend
     Galley.Cassandra.Instances
     Galley.Cassandra.LegalHold
-    Galley.Cassandra.Paging
     Galley.Cassandra.Proposal
     Galley.Cassandra.Queries
-    Galley.Cassandra.ResultSet
     Galley.Cassandra.SearchVisibility
     Galley.Cassandra.Services
     Galley.Cassandra.Store
@@ -88,7 +86,6 @@ library
     Galley.Effects.LegalHoldStore
     Galley.Effects.ListItems
     Galley.Effects.MemberStore
-    Galley.Effects.Paging
     Galley.Effects.ProposalStore
     Galley.Effects.Queue
     Galley.Effects.RemoteConversationListStore

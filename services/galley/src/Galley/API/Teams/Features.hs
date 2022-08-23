@@ -52,12 +52,12 @@ import Galley.API.LegalHold (isLegalHoldEnabledForTeam)
 import qualified Galley.API.LegalHold as LegalHold
 import Galley.API.Teams (ensureNotTooLargeToActivateLegalHold)
 import Galley.API.Util (assertTeamExists, getTeamMembersForFanout, membersToRecipients, permissionCheck)
-import Galley.Cassandra.Paging
+import Wire.Sem.Paging.Cassandra
 import Galley.Effects
 import Galley.Effects.BrigAccess (getAccountConferenceCallingConfigClient, updateSearchVisibilityInbound)
 import Galley.Effects.ConversationStore as ConversationStore
 import Galley.Effects.GundeckAccess
-import Galley.Effects.Paging
+import Wire.Sem.Paging
 import qualified Galley.Effects.SearchVisibilityStore as SearchVisibilityData
 import Galley.Effects.TeamFeatureStore
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
