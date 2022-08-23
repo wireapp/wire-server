@@ -80,6 +80,7 @@ import Galley.Env
 import Galley.External
 import Galley.Intra.Effects
 import Galley.Intra.Federator
+import Galley.Keys
 import Galley.Options
 import Galley.Queue
 import qualified Galley.Queue as Q
@@ -157,6 +158,7 @@ createEnv m o = do
     <$> Q.new 16000
     <*> initExtEnv
     <*> maybe (pure Nothing) (fmap Just . Aws.mkEnv l mgr) (o ^. optJournal)
+    <*> loadAllMLSKeys (fold (o ^. optSettings . setMlsPrivateKeyPaths))
 
 initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do

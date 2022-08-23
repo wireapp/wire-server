@@ -21,6 +21,8 @@ module Wire.API.MLS.Proposal where
 import Control.Lens (makePrisms)
 import Data.Binary
 import Data.Binary.Get
+import Data.Binary.Put
+import qualified Data.ByteString.Lazy as LBS
 import Imports
 import Wire.API.Arbitrary
 import Wire.API.MLS.CipherSuite
@@ -45,6 +47,9 @@ data ProposalTag
 instance ParseMLS ProposalTag where
   parseMLS = parseMLSEnum @Word16 "proposal type"
 
+instance SerialiseMLS ProposalTag where
+  serialiseMLS = serialiseMLSEnum @Word16
+
 data Proposal
   = AddProposal (RawMLS KeyPackage)
   | UpdateProposal KeyPackage
@@ -68,6 +73,13 @@ instance ParseMLS Proposal where
       AppAckProposalTag -> AppAckProposal <$> parseMLSVector @Word32 parseMLS
       GroupContextExtensionsProposalTag ->
         GroupContextExtensionsProposal <$> parseMLSVector @Word32 parseMLS
+
+mkRemoveProposal :: KeyPackageRef -> RawMLS Proposal
+mkRemoveProposal ref = RawMLS bytes (RemoveProposal ref)
+  where
+    bytes = LBS.toStrict . runPut $ do
+      serialiseMLS RemoveProposalTag
+      serialiseMLS ref
 
 -- | Compute the proposal ref given a ciphersuite and the raw proposal data.
 proposalRef :: CipherSuiteTag -> RawMLS Proposal -> ProposalRef

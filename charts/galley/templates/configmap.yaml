@@ -59,6 +59,13 @@ data:
       enableIndexedBillingTeamMembers: {{ .settings.enableIndexedBillingTeamMembers }}
       {{- end }}
       federationDomain: {{ .settings.federationDomain }}
+      {{- if $.Values.secrets.mlsPrivateKeys }}
+      mlsPrivateKeyPaths:
+        {{- if $.Values.secrets.mlsPrivateKeys.removal.ed25519 }}
+        removal:
+          ed25519: "/etc/wire/galley/secrets/removal_ed25519.pem"
+        {{- end }}
+      {{- end -}}
       {{- if .settings.featureFlags }}
       featureFlags:
         sso: {{ .settings.featureFlags.sso }}

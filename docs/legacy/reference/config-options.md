@@ -26,6 +26,30 @@ Even when the flag is `disabled`, galley will keep writing to the
 been added in order to deploy new code and backfill data in
 production.
 
+### MLS private key paths
+
+The `mlsPrivateKeyPaths` field should contain a mapping from *purposes* and
+signature schemes to file paths of corresponding x509 private keys in PEM
+format.
+
+At the moment, the only purpose is `removal`, meaning that the key will be used
+to sign external remove proposals.
+
+For example:
+
+```
+  mlsPrivateKeyPaths:
+    removal:
+      ed25519: /etc/secrets/ed25519.pem
+```
+
+A simple way to generate an ed25519 private key, discarding the corresponding
+certificate, is to run the following command:
+
+```
+openssl req -nodes -newkey ed25519 -keyout ed25519.pem -out /dev/null -subj /
+```
+
 ## Feature flags
 
 > Also see [Wire docs](https://docs.wire.com/how-to/install/team-feature-settings.html) where some of the feature flags are documented from an operations point of view.

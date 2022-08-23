@@ -193,3 +193,128 @@ The output of a typical (successful) run looks like
     	Ignored: 0
     	Missed: 0
 
+
+## Load tests and configuration option examples
+
+(legacy usage; untested if this still works, provided as an example in case api-simulations will see more usage in the future)
+
+Using a `mailboxes.json` and `users.txt` (for wire employees: check `s3://z-config/simulator/` folder for an example), in the past the following ansible script was run to run a smoke or conversation load test. File snippet provided as an example of configuration options used.
+
+Adapt the actual run to a modern dockerized environment (i.e. without the use of ansible).
+
+```
+- name: run smoke test
+  hosts: simulator
+  vars:
+    log_level: Info
+    api_host: '{{ external_env_domain }}' # must match BRIG_COOKIE_DOMAIN
+    api_port: '{{ routing_table.nginz.web.local }}'
+    email_sender: # must match BRIG_EMAIL_SENDER
+      prod: 'accounts@wire.com'
+    internal: false
+  tasks:
+    # api-loadtest and api-smoketest now take a mandatory argument 'users-federation-domain'
+    # introduced as a side-effect in https://github.com/wireapp/wire-server/pull/1283
+    # which we parse here from brig's config
+    - name: parse federationDomain from brig
+      shell: "yq .config.setFederationDomain.{{ khan_env }} < roles/brig/vars/main.yml "
+      register: federationDomain
+      delegate_to: localhost
+
+    - name: update /etc/hosts
+      lineinfile: >
+        dest=/etc/hosts
+        regexp='.*{{ api_host }}$'
+        line="127.0.0.1 {{ api_host }}"
+        state=present
+      when: internal and simulation is defined and simulation == 'smoketest'
+
+    - shell: LOG_LEVEL={{ log_level }} LOG_BUFFER=0
+             /opt/api-simulations/bin/api-smoketest
+             {% if internal %}
+             --api-host='{{ api_host }}'
+             --api-port='{{ api_port }}'
+             {% else %}
+             --api-ssl
+             --api-host='{{ khan_env }}-nginz-https.{{ api_host }}'
+             --api-port=443
+             --api-websocket-host='{{ khan_env }}-nginz-ssl.{{ api_host }}'
+             --api-websocket-port=443
+             {% endif %}
+             --mailbox-config=/etc/api-simulations/mailboxes.json
+             --users-federation-domain='{{ federationDomain.stdout }}'
+             {% if email_sender[khan_env] is defined %}
+             --sender-email='{{ email_sender[khan_env] }}'
+             {% endif %}
+             --report-dir=/tmp/simulator
+             --enable-asserts
+             2>&1 | ./run
+      args:
+        chdir: /etc/sv/simulator/log
+      when: simulation is defined and simulation == 'smoketest'
+  tags:
+    - simulation
+    - remote
+
+- name: run conversation load test
+  hosts: simulator
+  vars:
+    log_level: Info
+    api_host: '{{ external_env_domain }}' # must match BRIG_COOKIE_DOMAIN
+    api_port: '{{ routing_table.nginz.web.local }}'
+    conversations_total: 1
+    conversation_bots_min: 2
+    conversation_bots_max: 5
+    bot_messages_min: 5
+    bot_messages_max: 10
+    bot_assets_min: 1
+    bot_assets_max: 1
+    message_length_min: 1
+    message_length_max: 100
+    asset_size_min: 10
+    asset_size_max: 1000
+    assets_noinline: false
+  tasks:
+    # api-loadtest and api-smoketest now take a mandatory argument 'users-federation-domain'
+    # introduced as a side-effect in https://github.com/wireapp/wire-server/pull/1283
+    # which we parse here from brig's config
+    - name: parse federationDomain from brig
+      shell: "yq .config.setFederationDomain.{{ khan_env }} < roles/brig/vars/main.yml "
+      register: federationDomain
+      delegate_to: localhost
+
+    - name: update /etc/hosts
+      lineinfile: >
+        dest=/etc/hosts
+        regexp='.*{{ api_host }}$'
+        line="127.0.0.1 {{ api_host }}"
+        state=present
+      when: simulation is defined and simulation == 'conversations'
+
+    - shell: LOG_LEVEL={{ log_level }} LOG_BUFFER=128
+             /opt/api-simulations/bin/api-loadtest
+             --api-host='{{ api_host }}'
+             --api-port='{{ api_port }}'
+             --users-file=/etc/api-simulations/users.txt
+             --users-federation-domain='{{ federationDomain.stdout }}'
+             --report-dir=/tmp/simulator
+             --enable-asserts
+             --conversations-total {{ conversations_total }}
+             --conversation-bots-min {{ conversation_bots_min }}
+             --conversation-bots-max {{ conversation_bots_max }}
+             --bot-messages-max {{ bot_messages_max }}
+             --bot-messages-min {{ bot_messages_min }}
+             --bot-assets-min {{ bot_assets_min }}
+             --bot-assets-max {{ bot_assets_max }}
+             --message-length-min {{ message_length_min }}
+             --message-length-max {{ message_length_max }}
+             --asset-size-min {{ asset_size_min }}
+             --asset-size-max {{ asset_size_max }}
+             {% if assets_noinline %}
+             --assets-noinline
+             {% endif %}
+             2>&1 | ./run
+      args:
+        chdir: /etc/sv/simulator/log
+      when: simulation is defined and simulation == 'conversations'
+```

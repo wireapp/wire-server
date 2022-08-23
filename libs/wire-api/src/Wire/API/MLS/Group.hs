@@ -41,6 +41,9 @@ instance IsString GroupId where
 instance ParseMLS GroupId where
   parseMLS = GroupId <$> parseMLSBytes @Word8
 
+instance SerialiseMLS GroupId where
+  serialiseMLS (GroupId gid) = serialiseMLSBytes @Word8 gid
+
 instance ToSchema GroupId where
   schema =
     GroupId

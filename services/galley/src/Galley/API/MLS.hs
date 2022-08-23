@@ -20,8 +20,10 @@ module Galley.API.MLS
     postMLSMessage,
     postMLSMessageFromLocalUser,
     postMLSMessageFromLocalUserV1,
+    getMLSPublicKeys,
   )
 where
 
+import Galley.API.MLS.Keys
 import Galley.API.MLS.Message
 import Galley.API.MLS.Welcome

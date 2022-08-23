@@ -120,8 +120,9 @@ version.
 
 #### Adding a new endpoint
 
-We add the new endpoint to the routing table, and set its version range to only
-include the development version. The supported version is unaffected.
+We add the new endpoint to the routing table. There is no need to set its
+version range to only include the development version, since the supported
+version is unaffected.
 
 #### Removing an endpoint
 

@@ -84,10 +84,11 @@ csHash MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 ctx value =
   HKDF.expand (HKDF.extract @SHA256 (mempty :: ByteString) value) ctx 16
 
 csVerifySignature :: CipherSuiteTag -> ByteString -> ByteString -> ByteString -> Bool
-csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 pub x sig = fromMaybe False . maybeCryptoError $ do
-  pub' <- Ed25519.publicKey pub
-  sig' <- Ed25519.signature sig
-  pure $ Ed25519.verify pub' x sig'
+csVerifySignature MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 pub x sig =
+  fromMaybe False . maybeCryptoError $ do
+    pub' <- Ed25519.publicKey pub
+    sig' <- Ed25519.signature sig
+    pure $ Ed25519.verify pub' x sig'
 
 csSignatureScheme :: CipherSuiteTag -> SignatureSchemeTag
 csSignatureScheme MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 = Ed25519
