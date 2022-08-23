@@ -549,7 +549,7 @@ type NonceAPI =
 type NewNonce name method statusCode =
   Named
     name
-    ( Summary "Get a new nonce for a client, specified in the response header `Replay-Nonce` as a uuidv4 in base64url encoding"
+    ( Summary "Get a new nonce for a client CSR, specified in the response header `Replay-Nonce` as a uuidv4 in base64url encoding"
         :> ZUser
         :> "nonce"
         :> "clients"
