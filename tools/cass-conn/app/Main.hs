@@ -29,8 +29,8 @@ logger :: C.Logger
 logger =
   C.Logger
     { C.logMessage = \lvl bs -> putStrLn $ show lvl <> ": " <> LBSC8.unpack (toLazyByteString bs),
-      C.logRequest = \_ -> putStrLn "Some request",
-      C.logResponse = \_ -> putStrLn "Some response"
+      C.logRequest = \_ -> pure (),
+      C.logResponse = \_ -> pure ()
     }
 
 main :: IO ()
