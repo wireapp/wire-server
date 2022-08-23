@@ -109,7 +109,7 @@ This will give you a list of handles and IDs with no team associated:
    null |       null | 1b5ca44a-aeb4-4a68-861b-48612438c4cc
    null |        bob | 701b4eab-6df2-476d-a818-90dc93e8446e
 
-You can then delete each user with the instructions found at `this link <./users.html#deleting-a-user-which-is-not-a-team-user>`__.
+You can then `delete each user with these instructions <./users.html#deleting-a-user-which-is-not-a-team-user>`__.
 
 Manual search on elasticsearch (via brig, recommended)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
