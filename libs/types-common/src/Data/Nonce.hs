@@ -24,6 +24,7 @@ import Cassandra hiding (Value)
 import qualified Data.Aeson as A
 import Data.Bifunctor (Bifunctor (first))
 import qualified Data.ByteString.Base64.URL as Base64
+import Data.ByteString.Builder (toLazyByteString)
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Proxy (Proxy (Proxy))
@@ -56,7 +57,7 @@ instance ToParamSchema Nonce where
   toParamSchema _ = toParamSchema (Proxy @Text)
 
 instance ToHttpApiData Nonce where
-  toQueryParam nonce = cs (toByteString' nonce)
+  toQueryParam = cs . toLazyByteString . builder
 
 instance FromHttpApiData Nonce where
   parseQueryParam s =
