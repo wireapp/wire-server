@@ -1,8 +1,9 @@
 let pkgs = (import ./nix).pkgs;
+    lib = pkgs.lib;
     hlib = pkgs.haskell.lib;
     withCleanedPath = drv:
       hlib.overrideCabal drv (old: {
-        src = pkgs.lib.cleanSourceWith {
+        src = lib.cleanSourceWith {
           src = old.src;
           filter = path: type:
             let baseName = baseNameOf (toString path);
@@ -28,56 +29,26 @@ let pkgs = (import ./nix).pkgs;
       zauth = ["zauth"];
     };
 
-    attrsets = pkgs.lib.attrsets;
-    hPkgs = pkgs.haskell.packages.ghc8107.override {
-      overrides = hself: hsuper:
-        let externalOverrides = import ./nix/haskell-overrides.nix hsuper hself;
-            localOverrides = import ./nix/local-overrides.nix hself hsuper;
-            manualOverrides = {
-              network-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.network-arbitrary);
-              cql = hlib.markUnbroken hsuper.cql;
-              cql-io =  hlib.markUnbroken (hlib.dontCheck hsuper.cql-io);
-              lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
-              wai-predicates = hlib.markUnbroken hsuper.wai-predicates;
-              bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
-              invertible = hlib.markUnbroken hsuper.invertible;
-              polysemy-check = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-check);
-              swagger = hlib.doJailbreak externalOverrides.swagger;
-              multihash = hlib.doJailbreak externalOverrides.multihash;
-              wire-message-proto-lens = hlib.addBuildTool localOverrides.wire-message-proto-lens pkgs.protobuf;
-              types-common-journal = hlib.addBuildTool localOverrides.types-common-journal pkgs.protobuf;
-              hashable = hsuper.hashable_1_4_0_2;
-              hashable-time = hsuper.hashable-time_0_3;
-              # time-compat = hsuper.time-compat_1_9_6_1;
-              # hself?
-              # quickcheck-instances = hself.quickcheck-instances_0_3_27;
-              text-short = pkgs.haskell.lib.dontCheck hsuper.text-short;
-              aeson = hsuper.aeson_2_1_0_0;
-              lens-aeson = hsuper.lens-aeson_1_2_1;
-              # OneTuple = hsuper.OneTuple_0_3_1;
-              # semialign = hsuper.semialign_1_2_0_1;
-              attoparsec = hsuper.attoparsec;
-              swagger2 = hlib.doJailbreak hsuper.swagger2;
-              servant-swagger-ui-core = hlib.doJailbreak hsuper.servant-swagger-ui-core;
-              servant-swagger-ui = hlib.doJailbreak hsuper.servant-swagger-ui;
-              sodium-crypto-sign = hlib.addPkgconfigDepend localOverrides.sodium-crypto-sign pkgs.libsodium.dev;
-              # lens = hsuper.lens_5_1;
-              servant-foreign = hlib.doJailbreak hsuper.servant-foreign;
-              servant-multipart = hlib.doJailbreak hsuper.servant-multipart;
-              hashtables = hsuper.hashtables_1_3;
-              quickcheck-state-machine = hlib.dontCheck hsuper.quickcheck-state-machine;
-              amazonka-core = hlib.doJailbreak externalOverrides.amazonka-core;
-              amazonka = hlib.doJailbreak externalOverrides.amazonka;
-              wai-middleware-prometheus = hlib.doJailbreak externalOverrides.wai-middleware-prometheus;
-
-              # Avoid infinite recursion
-              snappy = hself.callPackage ./nix/haskell-overrides/snappy.nix { snappy = pkgs.snappy; };
-            };
-            executableOverrides = attrsets.genAttrs (builtins.attrNames executablesMap) (e: withCleanedPath localOverrides.${e});
-            staticExecutableOverrides = attrsets.mapAttrs' (name: value:
-              attrsets.nameValuePair "${name}-static" (hlib.justStaticExecutables value)
-            ) executableOverrides;
-        in (externalOverrides // localOverrides // manualOverrides // executableOverrides // staticExecutableOverrides);
+    attrsets = lib.attrsets;
+    externalOverrides = import ./nix/haskell-overrides.nix;
+    localOverrides = import ./nix/local-overrides.nix;
+    manualOverrides = import ./nix/manual-overrides.nix (with pkgs; {
+      inherit hlib libsodium protobuf snappy;
+    });
+    executableOverrides = hself: hsuper:
+      attrsets.genAttrs (builtins.attrNames executablesMap) (e: withCleanedPath hsuper.${e});
+    staticExecutableOverrides = hself: hsuper:
+      attrsets.mapAttrs' (name: _:
+        attrsets.nameValuePair "${name}-static" (hlib.justStaticExecutables hsuper."${name}")
+      ) executablesMap;
+    hPkgs = pkgs.haskell.packages.ghc8107.override{
+      overrides = lib.composeManyExtensions [
+        externalOverrides
+        localOverrides
+        manualOverrides
+        executableOverrides
+        staticExecutableOverrides
+      ];
     };
 
     extractExec = hPkgName: execName:
@@ -95,7 +66,7 @@ let pkgs = (import ./nix).pkgs;
       let nested = attrsets.mapAttrs (hPkgName: execNames:
             attrsets.genAttrs execNames (extractExec hPkgName)
           ) executablesMap;
-          unnested = pkgs.lib.lists.foldr (x: y: x // y) {} (attrsets.attrValues nested);
+          unnested = lib.lists.foldr (x: y: x // y) {} (attrsets.attrValues nested);
       in unnested;
 
     images = attrsets.mapAttrs (execName: drv:
