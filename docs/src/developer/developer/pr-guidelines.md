@@ -1,3 +1,7 @@
+# PR Guidlines
+
+If applicable extend the PR checklist.
+
 ## Changelog entries
 
 Every PR should add a new file in the appropriate subdirectory of `changelog.d`, containing just the text of the corresponding changelog entry. There is no need to explicitly write a PR number, because the `mk-changelog.sh` script (used on release) will add it automatically at the end. The name of the file does not matter, but it should be unique to avoid unnecessary conflicts (e.g. use the branch name).
@@ -7,6 +11,12 @@ It is still possible to write the PR number manually if so desired, which is use
 Multiline entries are supported, and are handled correctly by the script. Again, the PR reference should either be omitted or put at the very end. If multiple entries for a single PR are desired, there should be a different file for each of them.
 
 See `docs/legacy/developer/changelog.md` for more information.
+
+## Schema migrations
+
+If a cassandra schema migration has been added then
+
+- [ ] Run **`make git-add-cassandra-schema`** to update the cassandra schema documentation.
 
 ## Incompatible schema migrations and data migrations
 
