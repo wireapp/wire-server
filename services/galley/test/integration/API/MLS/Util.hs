@@ -25,6 +25,8 @@ import Bilge.Assert
 import Control.Lens (preview, to, view)
 import Control.Monad.Catch
 import qualified Control.Monad.State as State
+import Crypto.PubKey.Ed25519
+import qualified Data.ByteArray as BA
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Default
@@ -51,6 +53,7 @@ import Wire.API.Event.Conversation
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
+import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -560,3 +563,25 @@ postWelcome uid welcome = do
         . content "message/mls"
         . bytes welcome
     )
+
+mkAppAckProposalMessage ::
+  GroupId ->
+  Epoch ->
+  KeyPackageRef ->
+  [MessageRange] ->
+  SecretKey ->
+  PublicKey ->
+  Message 'MLSPlainText
+mkAppAckProposalMessage gid epoch ref mrs priv pub = do
+  let tbs =
+        mkRawMLS $
+          MessageTBS
+            { tbsMsgFormat = KnownFormatTag,
+              tbsMsgGroupId = gid,
+              tbsMsgEpoch = epoch,
+              tbsMsgAuthData = mempty,
+              tbsMsgSender = MemberSender ref,
+              tbsMsgPayload = ProposalMessage (mkAppAckProposal mrs)
+            }
+      sig = BA.convert $ sign priv pub (rmRaw tbs)
+   in (Message tbs (MessageExtraFields sig Nothing Nothing))

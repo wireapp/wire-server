@@ -1431,6 +1431,10 @@ testPublicKeys = do
       )
       @?= [Ed25519]
 
+-- | The test manually reads from mls-test-cli's store and extracts a private
+-- key. The key is needed for signing an AppAck proposal, which as of August 24,
+-- 2022 only gets forwarded by the backend, i.e., there's no action taken by the
+-- backend.
 propUnsupported :: TestM ()
 propUnsupported = withSystemTempDirectory "mls" $ \tmp -> do
   MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (1, LocalUser) def {createConv = CreateConv}
@@ -1458,16 +1462,15 @@ propUnsupported = withSystemTempDirectory "mls" $ \tmp -> do
           . rmRaw
           . kpTBS
           $ aliceKP
-  let Just appAckMsg = maybeCryptoError $ do
-        alicePriv <- C.secretKey privKey
-        alicePub <- C.publicKey pubKey
-        mkAppAckProposalMessageFailable
-          alicePriv
-          alicePub
-          groupId
-          (Epoch 0)
-          aliceRef
-          []
+  let Just appAckMsg =
+        maybeCryptoError $
+          mkAppAckProposalMessage
+            groupId
+            (Epoch 0)
+            aliceRef
+            []
+            <$> C.secretKey privKey
+            <*> C.publicKey pubKey
       msgSerialised =
         LBS.toStrict . runPut . serialiseMLS $ appAckMsg
 

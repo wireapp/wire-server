@@ -466,6 +466,7 @@ executable galley-integration
     , kan-extensions
     , lens
     , lens-aeson
+    , memory
     , metrics-wai
     , mtl
     , optparse-applicative
