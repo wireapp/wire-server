@@ -551,3 +551,25 @@ setTeamFeatureLockStatus galley tid status =
 
 lookupCode :: MonadIO m => DB.ClientState -> Code.Key -> Code.Scope -> m (Maybe Code.Code)
 lookupCode db k = liftIO . DB.runClient db . Code.lookup k
+
+getNonce ::
+  (MonadIO m, MonadHttp m) =>
+  Brig ->
+  UserId ->
+  m ResponseLBS
+getNonce = nonce get
+
+headNonce ::
+  (MonadIO m, MonadHttp m) =>
+  Brig ->
+  UserId ->
+  m ResponseLBS
+headNonce = nonce Bilge.head
+
+nonce :: ((Request -> c) -> t) -> (Request -> c) -> UserId -> t
+nonce m brig uid =
+  m
+    ( brig
+        . paths ["nonce", "clients"]
+        . zUser uid
+    )
