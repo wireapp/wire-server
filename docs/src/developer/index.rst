@@ -12,6 +12,7 @@ help you.
    :glob:
 
    developer/api-versioning.md <./developer/api-versioning.md>
+   developer/building.md <./developer/building.md>
    developer/cassandra-interaction.md <./developer/cassandra-interaction.md>
    developer/changelog.md <./developer/changelog.md>
    developer/dependencies.md <./developer/dependencies.md>
