@@ -919,8 +919,8 @@ testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
 --
 -- In the test:
 --
--- setup: 2 10 11
--- skipped: 1 3 5 6 7 8 9 13
+-- setup: 2 5 10 11
+-- skipped: 1 3 6 7 8 9 13
 -- faked: 4
 -- actual test step: 12 14
 testLocalToRemote :: TestM ()
@@ -961,6 +961,29 @@ testLocalToRemote = withSystemTempDirectory "mls" $ \tmp -> do
       fedGalleyClient
       (qDomain (pUserId alice))
       nrc
+
+  -- A notifies B about bob being in the conversation (Join event): step 5
+  now <- liftIO getCurrentTime
+  let cu =
+        ConversationUpdate
+          { cuTime = now,
+            cuOrigUserId = pUserId alice,
+            cuConvId = qUnqualified qcnv,
+            cuAlreadyPresentUsers = [qUnqualified $ pUserId bob],
+            cuAction =
+              SomeConversationAction
+                SConversationJoinTag
+                ConversationJoin
+                  { cjUsers = pure (pUserId bob),
+                    cjRole = roleNameWireMember
+                  }
+          }
+  void $
+    runFedClient
+      @"on-conversation-updated"
+      fedGalleyClient
+      (qDomain (pUserId alice))
+      cu
 
   let mock req = case frRPC req of
         "send-mls-message" -> pure (Aeson.encode (MLSMessageResponseUpdates []))
