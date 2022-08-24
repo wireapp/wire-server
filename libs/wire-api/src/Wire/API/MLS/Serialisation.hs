@@ -89,7 +89,10 @@ serialiseMLSVector ::
   [a] ->
   Put
 serialiseMLSVector p as = do
-  put @w . fromIntegral . length $ as
+  -- every element is long the same number of bytes when serialised. If there is
+  -- no single element in the vector, the whole length is 0 anyways.
+  let elLen = maybe 0 (LBS.length . runPut . p) . listToMaybe $ as
+  put @w . fromIntegral $ elLen * fromIntegral (length as)
   traverse_ p as
 
 parseMLSBytes :: forall w. (Binary w, Integral w) => Get ByteString

@@ -35,7 +35,8 @@ tests =
     [ testRoundTrip @KeyPackageRef,
       testRoundTrip @RemoveProposalSender,
       testRoundTrip @RemoveProposalMessage,
-      testRoundTrip @RemoveProposalPayload
+      testRoundTrip @RemoveProposalPayload,
+      testRoundTrip @AppAckProposalTest
     ]
 
 testRoundTrip ::
@@ -86,3 +87,13 @@ newtype RemoveProposalSender = RemoveProposalSender
 
 instance Arbitrary RemoveProposalSender where
   arbitrary = RemoveProposalSender . PreconfiguredSender <$> arbitrary
+
+newtype AppAckProposalTest = AppAckProposalTest Proposal
+  deriving newtype (ParseMLS, Eq, Show)
+
+instance Arbitrary AppAckProposalTest where
+  arbitrary = AppAckProposalTest . AppAckProposal <$> arbitrary
+
+instance SerialiseMLS AppAckProposalTest where
+  serialiseMLS (AppAckProposalTest (AppAckProposal mrs)) = serialiseAppAckProposal mrs
+  serialiseMLS _ = serialiseAppAckProposal []
