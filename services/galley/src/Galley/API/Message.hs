@@ -333,6 +333,13 @@ postBroadcast lusr con msg = runError $ do
       validMessages
   pure otrResult {mssFailedToSend = failedToSend}
   where
+    maybeFetchLimitedTeamMemberList ::
+      Members '[ErrorS 'BroadcastLimitExceeded, TeamStore] r =>
+      Int ->
+      TeamId ->
+      [UserId] ->
+      Map UserId (Map ClientId ByteString) ->
+      Sem r [TeamMember]
     maybeFetchLimitedTeamMemberList limit tid localUserIdsInFilter rcps = do
       let localUserIdsInRcps = Map.keys rcps
       let localUserIdsToLookup = Set.toList $ Set.union (Set.fromList localUserIdsInFilter) (Set.fromList localUserIdsInRcps)

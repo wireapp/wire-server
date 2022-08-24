@@ -740,7 +740,7 @@ testMultipleUsersUnqualified brig = do
       Set.fromList
         . map (field "name" &&& field "email")
         <$> responseJsonMaybe r
-    field :: FromJSON a => Text -> Value -> Maybe a
+    field :: FromJSON a => Key -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
 
 testMultipleUsers :: Brig -> Http ()
@@ -771,7 +771,7 @@ testMultipleUsers brig = do
       Set.fromList
         . map (field "name" &&& field "email")
         <$> responseJsonMaybe r
-    field :: FromJSON a => Text -> Value -> Maybe a
+    field :: FromJSON a => Key -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
 
 testCreateUserAnonExpiry :: Brig -> Http ()
@@ -815,7 +815,7 @@ testCreateUserAnonExpiry b = do
     expire r = field "expires_at" =<< responseJsonMaybe r
     deleted :: ResponseLBS -> Maybe Bool
     deleted r = field "deleted" =<< responseJsonMaybe r
-    field :: FromJSON a => Text -> Value -> Maybe a
+    field :: FromJSON a => Key -> Value -> Maybe a
     field f u = u ^? key f >>= maybeFromJSON
 
 testUserUpdate :: Brig -> Cannon -> AWS.Env -> Http ()
