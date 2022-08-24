@@ -100,7 +100,6 @@ tests s =
           test s "send a stale commit" testStaleCommit,
           test s "add remote user to a conversation" testAddRemoteUser,
           test s "return error when commit is locked" testCommitLock,
-          test s "add remote user to a conversation" testAddRemoteUser,
           test s "add user to a conversation with proposal + commit" testAddUserBareProposalCommit,
           test s "post commit that references a unknown proposal" testUnknownProposalRefCommit,
           test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
