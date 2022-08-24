@@ -35,6 +35,7 @@ import Data.Domain (Domain)
 import Data.Handle (Handle)
 import Data.Id
 import qualified Data.Json.Util as Util
+import Data.Nonce (Nonce)
 import Data.ProtocolBuffers.Internal
 import Data.Serialize
 import Data.String.Conversions (cs)
@@ -209,8 +210,16 @@ tests =
         "Domain"
         [ jsonRoundtrip @Domain,
           jsonKeyRoundtrip @Domain
+        ],
+      testGroup
+        "Nonce"
+        [ testProperty "decode . encode = id" $
+            \(x :: Nonce) -> bsRoundtrip x
         ]
     ]
+
+bsRoundtrip :: (Eq a, Show a, FromByteString a, ToByteString a) => a -> Property
+bsRoundtrip a = fromByteString' (cs $ toByteString' a) === Just a
 
 roundtrip :: (EncodeWire a, DecodeWire a) => Tag' -> a -> Either String a
 roundtrip (Tag' t) = runGet (getWireField >>= decodeWire) . runPut . encodeWire t

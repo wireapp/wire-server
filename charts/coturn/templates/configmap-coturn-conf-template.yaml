@@ -7,10 +7,17 @@ metadata:
 
 data:
   coturn.conf.template: |
-    ## disable (d)tls control plane; don't permit relaying tcp connections.
-    no-tls
+    ## disable dtls control plane; don't permit relaying tcp connections.
     no-dtls
     no-tcp-relay
+
+    ## tls handling
+    {{- if .Values.tls.enabled }}
+    cert=/secrets-tls/tls.crt
+    pkey=/secrets-tls/tls.key
+    {{- else }}
+    no-tls
+    {{- end }}
 
     ## don't turn on coturn's cli.
     no-cli

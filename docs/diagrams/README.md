@@ -1,6 +1,6 @@
 # Diagrams with Kroki / Mermaid
 
-This is a "diagrams playground" folder and you don't have to use this. Instead, you can create diagrams in a .rst file inside wire-docs/src with this example kroki/mermaid syntax and use the normal development setup described in wire-docs/README.md to get live previews:
+This is a "diagrams playground" folder and you don't have to use this. Instead, you can create diagrams in a .rst file inside ..//src with this example kroki/mermaid syntax and use the normal development setup described in ../README.md to get live previews:
 
 ```rst
 .. kroki::

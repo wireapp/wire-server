@@ -138,7 +138,6 @@ notifyUserDeleted ::
   ( MonadReader Env m,
     MonadIO m,
     HasFedEndpoint 'Brig api "on-user-deleted-connections",
-    HasClient ClientM api,
     HasClient (FederatorClient 'Brig) api
   ) =>
   Local UserId ->

@@ -85,6 +85,7 @@ config:
     #   domainsBlockedForRegistration:
     #   - example.com
     set2FACodeGenerationDelaySecs: 300 # 5 minutes
+    setNonceTtlSecs: 300 # 5 minutes
   smtp:
     passwordFile: /etc/wire/brig/secrets/smtp-password.txt
   proxy: {}

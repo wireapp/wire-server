@@ -49,6 +49,7 @@ library
     Brig.Data.Instances
     Brig.Data.LoginCode
     Brig.Data.MLS.KeyPackage
+    Brig.Data.Nonce
     Brig.Data.Properties
     Brig.Data.Types
     Brig.Data.User
@@ -652,6 +653,7 @@ executable brig-schema
     V69_MLSKeyPackageRefMapping
     V70_UserEmailUnvalidated
     V71_AddTableVCodesThrottle
+    V72_AddNonceTable
     V9
 
   hs-source-dirs:     schema/src

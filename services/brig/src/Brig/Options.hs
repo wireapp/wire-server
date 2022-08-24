@@ -589,7 +589,10 @@ data Settings = Settings
     setEnableDevelopmentVersions :: Maybe Bool,
     -- | Minimum delay in seconds between consecutive attempts to generate a new verification code.
     -- use `set2FACodeGenerationDelaySecs` as the getter function which always provides a default value
-    set2FACodeGenerationDelaySecsInternal :: !(Maybe Int)
+    set2FACodeGenerationDelaySecsInternal :: !(Maybe Int),
+    -- | The time-to-live of a nonce in seconds.
+    -- use `setNonceTtlSecs` as the getter function which always provides a default value
+    setNonceTtlSecsInternal :: !(Maybe Word64)
   }
   deriving (Show, Generic)
 
@@ -616,6 +619,12 @@ def2FACodeGenerationDelaySecs = 5 * 60 -- 5 minutes
 
 set2FACodeGenerationDelaySecs :: Settings -> Int
 set2FACodeGenerationDelaySecs = fromMaybe def2FACodeGenerationDelaySecs . set2FACodeGenerationDelaySecsInternal
+
+defaultNonceTtlSecs :: Word64
+defaultNonceTtlSecs = 5 * 60 -- 5 minutes
+
+setNonceTtlSecs :: Settings -> Word64
+setNonceTtlSecs = fromMaybe defaultNonceTtlSecs . setNonceTtlSecsInternal
 
 -- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
 -- express our current cloud business logic.
@@ -797,6 +806,7 @@ instance FromJSON Settings where
               "setDefaultTemplateLocaleInternal" -> "setDefaultTemplateLocale"
               "setVerificationCodeTimeoutInternal" -> "setVerificationTimeout"
               "set2FACodeGenerationDelaySecsInternal" -> "set2FACodeGenerationDelaySecs"
+              "setNonceTtlSecsInternal" -> "setNonceTtlSecs"
               other -> other
           }
 

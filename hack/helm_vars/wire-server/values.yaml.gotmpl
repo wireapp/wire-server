@@ -82,6 +82,7 @@ brig:
         - domain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
           search_policy: full_search
       set2FACodeGenerationDelaySecs: 5
+      setNonceTtlSecs: 300
     aws:
       sesEndpoint: http://fake-aws-ses:4569
       sqsEndpoint: http://fake-aws-sqs:4568

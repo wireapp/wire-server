@@ -41,6 +41,7 @@ import Brig.App
 import qualified Brig.Calling.API as Calling
 import qualified Brig.Code as Code
 import qualified Brig.Data.Connection as Data
+import Brig.Data.Nonce as Nonce
 import qualified Brig.Data.User as Data
 import qualified Brig.Data.UserKey as UserKey
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
@@ -81,6 +82,7 @@ import Data.Handle (Handle, parseHandle)
 import Data.Id as Id
 import qualified Data.Map.Strict as Map
 import Data.Misc (IpAddr (..))
+import Data.Nonce (Nonce, randomNonce)
 import Data.Qualified
 import Data.Range
 import qualified Data.Swagger as S
@@ -250,6 +252,8 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"get-client" getClient
         :<|> Named @"get-client-capabilities" getClientCapabilities
         :<|> Named @"get-client-prekeys" getClientPrekeys
+        :<|> Named @"head-nonce" newNonce
+        :<|> Named @"get-nonce" newNonce
 
     connectionAPI :: ServerT ConnectionAPI (Handler r)
     connectionAPI =
@@ -615,6 +619,13 @@ getRichInfo self user = do
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
+newNonce :: UserId -> (Handler r) Nonce
+newNonce _ = do
+  ttl <- setNonceTtlSecs <$> view settings
+  nonce <- randomNonce
+  lift $ wrapClient $ Nonce.insertNonce ttl nonce
+  pure nonce
+
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser ::
   Members
@@ -879,7 +890,7 @@ sendActivationCode Public.SendActivationCode {..} = do
 --
 -- The tautological constraint in the type signature is added so that once we remove the
 -- feature, ghc will guide us here.
-customerExtensionCheckBlockedDomains :: (DomainsBlockedForRegistration ~ DomainsBlockedForRegistration) => Public.Email -> (Handler r) ()
+customerExtensionCheckBlockedDomains :: Public.Email -> (Handler r) ()
 customerExtensionCheckBlockedDomains email = do
   mBlockedDomains <- asks (fmap domainsBlockedForRegistration . setCustomerExtensions . view settings)
   for_ mBlockedDomains $ \(DomainsBlockedForRegistration blockedDomains) -> do

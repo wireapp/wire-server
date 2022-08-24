@@ -19,15 +19,17 @@
 
 module Wire.API.Routes.Public.Brig where
 
+import Data.ByteString.Conversion
 import Data.Code (Timeout)
 import Data.CommaSeparatedList (CommaSeparatedList)
 import Data.Domain
 import Data.Handle
 import Data.Id as Id
 import Data.Misc (IpAddr)
+import Data.Nonce (Nonce)
 import Data.Qualified (Qualified (..))
 import Data.Range
-import Data.SOP (I (..), NS (..))
+import Data.SOP
 import Data.Swagger hiding (Contact, Header)
 import Imports hiding (head)
 import Servant (JSON)
@@ -533,6 +535,33 @@ type UserClientAPI =
                :> "prekeys"
                :> Get '[JSON] [PrekeyId]
            )
+    :<|> NonceAPI
+
+type NonceAPI =
+  -- be aware that the order matters, if get was first, then head requests would be routed to the get handler
+  NewNonce "head-nonce" 'HEAD 200
+    :<|> NewNonce "get-nonce" 'GET 204
+
+type NewNonce name method statusCode =
+  Named
+    name
+    ( Summary "Get a new nonce for a client CSR, specified in the response header `Replay-Nonce` as a uuidv4 in base64url encoding"
+        :> ZUser
+        :> "nonce"
+        :> "clients"
+        :> MultiVerb1
+             method
+             '[JSON]
+             (WithHeaders '[Header "Replay-Nonce" NonceHeader, Header "Cache-Control" Text] Nonce (RespondEmpty statusCode "No Content"))
+    )
+
+newtype NonceHeader = NonceHeader Nonce
+  deriving (Eq, Show)
+  deriving newtype (FromByteString, ToByteString, ToParamSchema, ToHttpApiData, FromHttpApiData)
+
+instance AsHeaders '[NonceHeader, Text] () Nonce where
+  fromHeaders (I (NonceHeader nonce) :* (_ :* Nil), _) = nonce
+  toHeaders nonce = (I (NonceHeader nonce) :* (I "no-store" :* Nil), ())
 
 type ClientAPI =
   Named

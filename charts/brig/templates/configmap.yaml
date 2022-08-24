@@ -284,5 +284,8 @@ data:
       {{- if .set2FACodeGenerationDelaySecs }}
       set2FACodeGenerationDelaySecs: {{ .set2FACodeGenerationDelaySecs }}
       {{- end }}
+      {{- if .setNonceTtlSecs }}
+      setNonceTtlSecs: {{ .setNonceTtlSecs }}
+      {{- end }}
     {{- end }}
   {{- end }}
