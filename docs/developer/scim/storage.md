@@ -1,1 +1,1 @@
-file has moved [here](../legacy/developer/scim/storage.md)
+file has moved [here](https://docs.wire.com/developer/developer/scim/storage.html)

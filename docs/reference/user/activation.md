@@ -1,1 +1,1 @@
-file has moved [here](../legacy/reference/user/activation.md)
+file has moved [here](https://docs.wire.com/developer/reference/user/activation.html)

@@ -1,1 +1,1 @@
-file has moved [here](../legacy/developer/how-to.md)
+file has moved [here](https://docs.wire.com/developer/developer/how-to.html)

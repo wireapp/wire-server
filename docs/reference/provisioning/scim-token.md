@@ -1,1 +1,1 @@
-file has moved [here](../../legacy/reference/provisioning/scim-token.md)
+file has moved [here](https://docs.wire.com/developer/reference/provisioning/scim-token.html)

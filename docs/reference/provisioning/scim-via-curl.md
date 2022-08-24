@@ -1,1 +1,1 @@
-file has moved [here](../../legacy/reference/provisioning/scim-via-curl.md)
+file has moved [here](https://docs.wire.com/developer/reference/provisioning/scim-via-curl.html)

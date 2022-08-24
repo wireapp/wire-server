@@ -1,1 +1,1 @@
-file has moved [here](../legacy/developer/federation-api-conventions.md)
+file has moved [here](https://docs.wire.com/developer/developer/federation-api-conventions.html)

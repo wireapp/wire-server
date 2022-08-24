@@ -1,1 +1,1 @@
-file has moved [here](../legacy/developer/dependencies.md)
+file has moved [here](https://docs.wire.com/developer/developer/dependencies.html)

@@ -1,1 +1,1 @@
-file has moved [here](../legacy/developer/api-versioning.md)
+file has moved [here](https://docs.wire.com/developer/developer/api-versioning.html)

@@ -1,1 +1,1 @@
-file has moved [here](../legacy/developer/processes.md)
+file has moved [here](https://docs.wire.com/developer/developer/processes.html)

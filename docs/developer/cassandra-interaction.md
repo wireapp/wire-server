@@ -1,1 +1,1 @@
-file has moved [here](../legacy/developer/cassandra-interaction.md)
+file has moved [here](https://docs.wire.com/developer/developer/cassandra-interaction.html)

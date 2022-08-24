@@ -1,1 +1,1 @@
-file has moved [here](../legacy/reference/elastic-search.md)
+file has moved [here](https://docs.wire.com/developer/reference/elastic-search.html)
