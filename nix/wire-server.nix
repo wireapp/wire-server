@@ -1,5 +1,5 @@
-let pkgs = (import ./nix).pkgs;
-    lib = pkgs.lib;
+pkgs:
+let lib = pkgs.lib;
     hlib = pkgs.haskell.lib;
     withCleanedPath = drv:
       hlib.overrideCabal drv (old: {
@@ -29,9 +29,9 @@ let pkgs = (import ./nix).pkgs;
     };
 
     attrsets = lib.attrsets;
-    externalOverrides = import ./nix/haskell-overrides.nix;
-    localOverrides = import ./nix/local-overrides.nix;
-    manualOverrides = import ./nix/manual-overrides.nix (with pkgs; {
+    externalOverrides = import ./haskell-overrides.nix;
+    localOverrides = import ./local-overrides.nix;
+    manualOverrides = import ./manual-overrides.nix (with pkgs; {
       inherit hlib libsodium protobuf snappy;
     });
 
@@ -88,21 +88,55 @@ let pkgs = (import ./nix).pkgs;
       src = ./services/brig/deb/opt/brig/templates;
     };
 
-    imagesWithBrigTemplates = images // {brig = pkgs.dockerTools.buildImage {
-      name = "quay.io/wire/brig";
-      fromImage = images.brig;
-      runAsRoot = ''
-      #!${pkgs.runtimeShell}
-      mkdir -p /usr/share/wire/
-      ln -s ${brig-templates} /usr/share/wire/templates
-      '';
-    };};
+    imagesWithBrigTemplates = images // {
+      brig = pkgs.dockerTools.buildImage {
+        name = "quay.io/wire/brig";
+        fromImage = images.brig;
+        runAsRoot = ''
+          #!${pkgs.runtimeShell}
+          mkdir -p /usr/share/wire/
+          ln -s ${brig-templates} /usr/share/wire/templates
+          '';
+      };
+    };
 in {
   images = imagesWithBrigTemplates;
 
-  dev-shell = hPkgs.shellFor {
-    packages = p: builtins.map (e: p.${e}) (builtins.attrNames (import ./nix/local-overrides.nix {} {}));
-    buildInputs = [pkgs.cabal-install];
+  devShell = hPkgs.shellFor {
+    packages = p: builtins.map (e: p.${e}) (builtins.attrNames (import ./local-overrides.nix {} {}));
+    buildInputs = [
+      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
+      pkgs.cabal2nix
+      pkgs.cfssl
+      pkgs.mls_test_cli
+      pkgs.ghcid
+      pkgs.gnumake
+      pkgs.gnused
+      pkgs.helm
+      pkgs.helmfile
+      pkgs.hlint
+      pkgs.jq
+      pkgs.kind
+      pkgs.kubectl
+      pkgs.netcat
+      pkgs.niv
+      pkgs.ormolu
+      pkgs.shellcheck
+      pkgs.python3
+      pkgs.rsync
+      pkgs.shellcheck
+      pkgs.wget
+      pkgs.yq
+
+      pkgs.cabal-install
+      pkgs.haskellPackages.cabal-plan
+      pkgs.haskellPackages.cabal-fmt
+    ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+      # linux-only, not strictly required tools
+
+      pkgs.docker-compose
+      pkgs.telepresence
+    ];
   };
-  hPkgs = hPkgs;
+  haskellPackages = hPkgs;
 } // attrsets.genAttrs (builtins.attrNames executablesMap) (e: hPkgs.${e})
