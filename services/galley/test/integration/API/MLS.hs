@@ -78,7 +78,9 @@ tests s =
     "MLS"
     [ testGroup
         "Message"
-        [test s "sender must be part of conversation" testSenderNotInConversation],
+        [ test s "sender must be part of conversation" testSenderNotInConversation,
+          test s "send other user's commit" testSendAnotherUsersCommit
+        ],
       testGroup
         "Welcome"
         [ test s "local welcome" testLocalWelcome,
@@ -447,6 +449,28 @@ testAddNewClient = do
       (commit, welcome) <- liftIO $ setupCommit tmp creator "group" "group" [bobC]
       -- and the corresponding commit is sent
       lift $ testSuccessfulCommitWithNewUsers MessagingSetup {..} []
+
+testSendAnotherUsersCommit :: TestM ()
+testSendAnotherUsersCommit = do
+  withSystemTempDirectory "mls" $ \tmp -> withLastPrekeys $ do
+    -- bob starts with a single client
+    (creator, users@[bob]) <- setupParticipants tmp def [(1, LocalUser)]
+    (groupId, conversation) <- lift $ setupGroup tmp CreateConv creator "group"
+
+    -- creator sends first commit message
+    do
+      (commit, welcome) <- liftIO $ setupCommit tmp creator "group" "group" (pClients bob)
+      lift $ testSuccessfulCommit MessagingSetup {..}
+
+    do
+      -- then bob adds a new client
+      c <- setupUserClient tmp CreateWithKey True (pUserId bob)
+      let bobC = (userClientQid (pUserId bob) c, c)
+      -- which gets added to the group
+      (commit, _welcome) <- liftIO $ setupCommit tmp creator "group" "group" [bobC]
+      -- and the corresponding commit is sent from bob instead of the creator
+      err <- lift (responseJsonError =<< postMessage (qUnqualified (pUserId bob)) commit <!! const 409 === statusCode)
+      liftIO $ Wai.label err @?= "mls-client-sender-user-mismatch"
 
 testAddUsersToProteus :: TestM ()
 testAddUsersToProteus = do
