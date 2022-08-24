@@ -170,7 +170,8 @@ setupUserClient tmp doCreateClients mapKeyPackage usr = do
                       kpbeKeyPackage = KeyPackageData $ rmRaw kp
                     }
         when mapKeyPackage $ mapRemoteKeyPackageRef brig bundle
-      _ -> pure ()
+      DontCreateClients -> pure ()
+      CreateWithoutKey -> pure ()
 
     pure c
 
@@ -329,6 +330,29 @@ setupRemoveCommit tmp admin groupName newGroupName clients = do
       True -> Just <$> BS.readFile welcomeFile
   pure (commit, welcome)
 
+mergeWelcome ::
+  (HasCallStack) =>
+  String ->
+  String ->
+  String ->
+  String ->
+  String ->
+  IO ()
+mergeWelcome tmp clientQid groupIn groupOut welcomeIn =
+  void $
+    spawn
+      ( cli
+          clientQid
+          tmp
+          [ groupIn,
+            "from-welcome",
+            "--group-out",
+            tmp </> groupOut,
+            tmp </> welcomeIn
+          ]
+      )
+      Nothing
+
 bareAddProposal ::
   HasCallStack =>
   String ->
@@ -379,6 +403,28 @@ pendingProposalsCommit tmp creator groupName = do
       False -> pure Nothing
       True -> Just <$> BS.readFile welcomeFile
   pure (commit, welcome)
+
+createExternalProposal ::
+  HasCallStack =>
+  String ->
+  String ->
+  String ->
+  String ->
+  IO ByteString
+createExternalProposal tmp creatorClientQid groupIn groupOut = do
+  spawn
+    ( cli
+        creatorClientQid
+        tmp
+        $ [ "external-proposal",
+            "--group-in",
+            tmp </> groupIn,
+            "--group-out",
+            tmp </> groupOut,
+            "add"
+          ]
+    )
+    Nothing
 
 createMessage ::
   HasCallStack =>

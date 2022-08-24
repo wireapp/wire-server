@@ -1,0 +1,1 @@
+Fix cql-io bug where restarting whole cassandra cluster could cause downtime. Upstream changes in https://gitlab.com/twittner/cql-io/-/merge_requests/20

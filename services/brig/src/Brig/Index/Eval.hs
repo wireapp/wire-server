@@ -111,7 +111,7 @@ runCommand l = \case
           . C.setProtocolVersion C.V4
           $ C.defSettings
 
-waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadIO m, MonadThrow m, FromJSON a) => Int -> ES.TaskNodeId -> m ()
+waitForTaskToComplete :: forall a m. (ES.MonadBH m, MonadThrow m, FromJSON a) => Int -> ES.TaskNodeId -> m ()
 waitForTaskToComplete timeoutSeconds taskNodeId = do
   -- Delay is 0.1 seconds, so retries are limited to timeoutSeconds * 10
   let policy = constantDelay 100000 <> limitRetries (timeoutSeconds * 10)
@@ -130,7 +130,7 @@ waitForTaskToComplete timeoutSeconds taskNodeId = do
     isTaskComplete (Left e) = throwM $ ReindexFromAnotherIndexError $ "Error response while getting task: " <> show e
     isTaskComplete (Right taskRes) = pure $ ES.taskResponseCompleted taskRes
 
-    errTaskGet :: MonadThrow m => ES.EsError -> m x
+    errTaskGet :: ES.EsError -> m x
     errTaskGet e = throwM $ ReindexFromAnotherIndexError $ "Error response while getting task: " <> show e
 
 newtype ReindexFromAnotherIndexError = ReindexFromAnotherIndexError String

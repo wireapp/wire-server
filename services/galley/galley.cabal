@@ -32,6 +32,7 @@ library
     Galley.API.Message
     Galley.API.MLS
     Galley.API.MLS.KeyPackage
+    Galley.API.MLS.Keys
     Galley.API.MLS.Message
     Galley.API.MLS.Welcome
     Galley.API.One2One
@@ -57,10 +58,8 @@ library
     Galley.Cassandra.CustomBackend
     Galley.Cassandra.Instances
     Galley.Cassandra.LegalHold
-    Galley.Cassandra.Paging
     Galley.Cassandra.Proposal
     Galley.Cassandra.Queries
-    Galley.Cassandra.ResultSet
     Galley.Cassandra.SearchVisibility
     Galley.Cassandra.Services
     Galley.Cassandra.Store
@@ -87,7 +86,6 @@ library
     Galley.Effects.LegalHoldStore
     Galley.Effects.ListItems
     Galley.Effects.MemberStore
-    Galley.Effects.Paging
     Galley.Effects.ProposalStore
     Galley.Effects.Queue
     Galley.Effects.RemoteConversationListStore
@@ -115,6 +113,7 @@ library
     Galley.Intra.Team
     Galley.Intra.User
     Galley.Intra.Util
+    Galley.Keys
     Galley.Monad
     Galley.Options
     Galley.Queue
@@ -175,6 +174,8 @@ library
       aeson                      >=2.0.1.0
     , amazonka                   >=1.4.5
     , amazonka-sqs               >=1.4.5
+    , asn1-encoding
+    , asn1-types
     , async                      >=2.0
     , base                       >=4.6     && <5
     , base64-bytestring          >=1.0
@@ -270,6 +271,7 @@ library
     , warp                       >=3.0
     , wire-api
     , wire-api-federation
+    , x509
 
   default-language:   Haskell2010
 

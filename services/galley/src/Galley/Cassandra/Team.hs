@@ -41,9 +41,7 @@ import Data.UUID.V4 (nextRandom)
 import qualified Galley.Aws as Aws
 import qualified Galley.Cassandra.Conversation as C
 import Galley.Cassandra.LegalHold (isTeamLegalholdWhitelisted)
-import Galley.Cassandra.Paging
 import qualified Galley.Cassandra.Queries as Cql
-import Galley.Cassandra.ResultSet
 import Galley.Cassandra.Store
 import Galley.Effects.ListItems
 import Galley.Effects.TeamMemberStore
@@ -61,6 +59,7 @@ import Wire.API.Team
 import Wire.API.Team.Conversation
 import Wire.API.Team.Member
 import Wire.API.Team.Permission (Perm (SetBilling), Permissions, self)
+import Wire.Sem.Paging.Cassandra
 
 interpretTeamStoreToCassandra ::
   Members '[Embed IO, Input Env, Input ClientState] r =>

@@ -148,7 +148,7 @@ import Util.Options
 import Wire.API.User
 
 schemaVersion :: Int32
-schemaVersion = 71
+schemaVersion = 72
 
 -------------------------------------------------------------------------------
 -- Environment
@@ -494,7 +494,7 @@ instance MonadLogger (AppT r) where
 instance MonadLogger (ExceptT err (AppT r)) where
   log l m = lift (LC.log l m)
 
-instance MonadIO m => MonadHttp (AppT r) where
+instance MonadHttp (AppT r) where
   handleRequestWithCont req handler = do
     manager <- view httpManager
     liftIO $ withResponse req manager handler
@@ -577,7 +577,7 @@ instance MonadIndexIO (AppT r) where
 instance MonadIndexIO (AppT r) => MonadIndexIO (ExceptT err (AppT r)) where
   liftIndexIO m = view indexEnv >>= \e -> runIndexIO e m
 
-instance Monad m => HasRequestId (AppT r) where
+instance HasRequestId (AppT r) where
   getRequestId = view requestId
 
 locationOf :: (MonadIO m, MonadReader Env m) => IP -> m (Maybe Location)

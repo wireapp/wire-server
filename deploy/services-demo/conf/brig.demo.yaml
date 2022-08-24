@@ -116,6 +116,7 @@ optSettings:
   setMaxConvSize: 128
   setEmailVisibility: visible_to_self
   setFederationDomain: example.com
+  setNonceTtlSecs: 300 # 5 minutes
 
 logLevel: Debug
 logNetStrings: false

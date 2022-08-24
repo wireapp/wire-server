@@ -48,7 +48,6 @@ import qualified Brig.User.Auth.DB.Cookie as DB
 import qualified Brig.ZAuth as ZAuth
 import Cassandra
 import Control.Lens (to, view)
-import Control.Monad.Catch
 import Data.ByteString.Conversion
 import Data.Id
 import qualified Data.List as List
@@ -70,9 +69,7 @@ import Wire.API.User.Auth
 newCookie ::
   ( ZAuth.UserTokenLike u,
     MonadReader Env m,
-    MonadIO m,
     ZAuth.MonadZAuth m,
-    MonadThrow m,
     MonadClient m
   ) =>
   UserId ->
@@ -103,8 +100,6 @@ newCookie uid typ label = do
 nextCookie ::
   ( ZAuth.UserTokenLike u,
     MonadReader Env m,
-    MonadIO m,
-    MonadIO m,
     Log.MonadLogger m,
     ZAuth.MonadZAuth m,
     MonadClient m
@@ -161,7 +156,7 @@ renewCookie old = do
 -- 'suspendCookiesOlderThanSecs'.  Call this always before 'newCookie', 'nextCookie',
 -- 'newCookieLimited' if there is a chance that the user should be suspended (we don't do it
 -- implicitly because of cyclical dependencies).
-mustSuspendInactiveUser :: (MonadReader Env m, MonadIO m, MonadClient m) => UserId -> m Bool
+mustSuspendInactiveUser :: (MonadReader Env m, MonadClient m) => UserId -> m Bool
 mustSuspendInactiveUser uid =
   view (settings . to setSuspendInactiveUsers) >>= \case
     Nothing -> pure False
@@ -232,7 +227,6 @@ revokeCookies u ids labels = do
 newCookieLimited ::
   ( ZAuth.UserTokenLike t,
     MonadReader Env m,
-    MonadIO m,
     MonadClient m,
     ZAuth.MonadZAuth m
   ) =>

@@ -61,7 +61,7 @@ library
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
 
-  pkgconfig-depends:  libsodium ==0.4.5 || >0.4.5
+  pkgconfig-depends:  libsodium >=0.4.5
   build-depends:
       base               >=4.6  && <5
     , base64-bytestring  >=1.0

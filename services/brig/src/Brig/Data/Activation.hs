@@ -132,7 +132,7 @@ activateKey k c u = verifyCode k c >>= pickUser >>= activate
         for_ oldKey $ lift . deleteKey
         pure . Just $ foldKey (EmailActivated uid) (PhoneActivated uid) key
       where
-        updateEmailAndDeleteEmailUnvalidated :: MonadClient m => UserId -> Email -> m ()
+        updateEmailAndDeleteEmailUnvalidated :: UserId -> Email -> m ()
         updateEmailAndDeleteEmailUnvalidated u' email =
           updateEmail u' email <* deleteEmailUnvalidated u'
     claim key uid = do

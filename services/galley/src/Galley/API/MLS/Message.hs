@@ -365,7 +365,7 @@ processCommit qusr con lconv epoch sender commit = do
               senderRef <-
                 maybe
                   (pure currentRef)
-                  ( (& note (mlsProtocolError "Could not compute key package ref"))
+                  ( note (mlsProtocolError "Could not compute key package ref")
                       . kpRef'
                       . upLeaf
                   )
@@ -437,7 +437,7 @@ applyProposalRef conv _groupId _epoch (Inline p) = do
   suite <-
     preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) conv
       & noteS @'ConvNotFound
-  checkProposal suite p
+  checkProposalCipherSuite suite p
   applyProposal p
 
 applyProposal :: HasProposalEffects r => Proposal -> Sem r ProposalAction
@@ -452,7 +452,7 @@ applyProposal (RemoveProposal ref) = do
   pure (paRemoveClient qclient)
 applyProposal _ = throwS @'MLSUnsupportedProposal
 
-checkProposal ::
+checkProposalCipherSuite ::
   Members
     '[ Error MLSProtocolError,
        ProposalStore
@@ -461,7 +461,7 @@ checkProposal ::
   CipherSuiteTag ->
   Proposal ->
   Sem r ()
-checkProposal suite (AddProposal kpRaw) = do
+checkProposalCipherSuite suite (AddProposal kpRaw) = do
   let kp = rmValue kpRaw
   unless (kpCipherSuite kp == tagCipherSuite suite)
     . throw
@@ -472,7 +472,7 @@ checkProposal suite (AddProposal kpRaw) = do
       <> " and the cipher suite of the proposal's key package "
       <> show (cipherSuiteNumber (kpCipherSuite kp))
       <> " do not match."
-checkProposal _suite _prop = pure ()
+checkProposalCipherSuite _suite _prop = pure ()
 
 processProposal ::
   HasProposalEffects r =>
@@ -500,13 +500,83 @@ processProposal qusr conv msg prop = do
   --
   -- is the user a member of the conversation?
   loc <- qualifyLocal ()
-  isMember' <- foldQualified loc (fmap isJust . getLocalMember (convId conv) . tUnqualified) (fmap isJust . getRemoteMember (convId conv)) qusr
+  isMember' <-
+    foldQualified
+      loc
+      ( fmap isJust
+          . getLocalMember (convId conv)
+          . tUnqualified
+      )
+      ( fmap isJust
+          . getRemoteMember (convId conv)
+      )
+      qusr
   unless isMember' $ throwS @'ConvNotFound
 
   -- FUTUREWORK: validate the member's conversation role
+  let propValue = rmValue prop
+  checkProposalCipherSuite suiteTag propValue
+  when (isExternalProposal msg) $ do
+    checkExternalProposalSignature suiteTag msg prop
+    checkExternalProposalUser qusr propValue
   let propRef = proposalRef suiteTag prop
-  checkProposal suiteTag (rmValue prop)
   storeProposal (msgGroupId msg) (msgEpoch msg) propRef prop
+
+checkExternalProposalSignature ::
+  Members
+    '[ ErrorS 'MLSUnsupportedProposal
+     ]
+    r =>
+  CipherSuiteTag ->
+  Message 'MLSPlainText ->
+  RawMLS Proposal ->
+  Sem r ()
+checkExternalProposalSignature csTag msg prop = case rmValue prop of
+  AddProposal kp -> do
+    let pubKey = bcSignatureKey . kpCredential $ rmValue kp
+    unless (verifyMessageSignature csTag msg pubKey) $ throwS @'MLSUnsupportedProposal
+  _ -> pure () -- FUTUREWORK: check signature of other proposals as well
+
+isExternalProposal :: Message 'MLSPlainText -> Bool
+isExternalProposal msg = case msgSender msg of
+  NewMemberSender -> True
+  PreconfiguredSender _ -> True
+  _ -> False
+
+-- check owner/subject of the key package exists and belongs to the user
+checkExternalProposalUser ::
+  Members
+    '[ BrigAccess,
+       ErrorS 'MLSUnsupportedProposal,
+       Input (Local ())
+     ]
+    r =>
+  Qualified UserId ->
+  Proposal ->
+  Sem r ()
+checkExternalProposalUser qusr prop = do
+  loc <- qualifyLocal ()
+  foldQualified
+    loc
+    ( \lusr -> case prop of
+        AddProposal keyPackage -> do
+          ClientIdentity {ciUser, ciClient} <-
+            either
+              (const $ throwS @'MLSUnsupportedProposal)
+              pure
+              $ decodeMLS' @ClientIdentity (bcIdentity . kpCredential . rmValue $ keyPackage)
+          -- requesting user must match key package owner
+          when (tUnqualified lusr /= ciUser) $ throwS @'MLSUnsupportedProposal
+          -- client referenced in key package must be one of the user's clients
+          UserClients {userClients} <- lookupClients [ciUser]
+          maybe
+            (throwS @'MLSUnsupportedProposal)
+            (flip when (throwS @'MLSUnsupportedProposal) . Set.null . Set.filter (== ciClient))
+            $ userClients Map.!? ciUser
+        _ -> throwS @'MLSUnsupportedProposal
+    )
+    (const $ pure ()) -- FUTUREWORK: check external proposals from remote backends
+    qusr
 
 executeProposalAction ::
   forall r.
@@ -600,7 +670,7 @@ executeProposalAction qusr con lconv action = do
         $ ConversationJoin users roleNameWireMember
 
     removeMembers :: NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
-    removeMembers users =
+    removeMembers =
       handleNoChanges
         . handleMLSProposalFailures @ProposalErrors
         . fmap pure
@@ -609,7 +679,6 @@ executeProposalAction qusr con lconv action = do
           lconv
           qusr
           con
-        $ users
 
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError
@@ -658,9 +727,8 @@ propagateMessage loc qusr conv con raw = do
     foldMap (uncurry mkPush) (cToList =<< lclients)
 
   -- send to remotes
-  (traverse_ handleError =<<)
-    . runFederatedConcurrentlyEither (map remoteMemberQualify (Data.convRemoteMembers conv))
-    $ \(tUnqualified -> rs) ->
+  traverse_ handleError <=< runFederatedConcurrentlyEither (map remoteMemberQualify (Data.convRemoteMembers conv)) $
+    \(tUnqualified -> rs) ->
       fedClient @'Galley @"on-mls-message-sent" $
         RemoteMLSMessage
           { rmmTime = now,

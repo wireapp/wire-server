@@ -49,7 +49,6 @@ import Galley.API.Teams.Features
 import qualified Galley.API.Update as Update
 import Galley.API.Util
 import Galley.App
-import Galley.Cassandra.Paging
 import Galley.Cassandra.TeamFeatures
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
@@ -59,7 +58,6 @@ import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore
-import Galley.Effects.Paging
 import Galley.Effects.TeamStore
 import qualified Galley.Intra.Push as Intra
 import Galley.Monad
@@ -107,6 +105,8 @@ import Wire.API.Team
 import Wire.API.Team.Feature
 import Wire.API.Team.Member
 import Wire.API.Team.SearchVisibility
+import Wire.Sem.Paging
+import Wire.Sem.Paging.Cassandra
 
 type LegalHoldFeatureStatusChangeErrors =
   '( 'ActionDenied 'RemoveConversationMember,

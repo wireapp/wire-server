@@ -161,6 +161,7 @@ servantSitemap =
       mkNamedAPI @"mls-welcome-message" postMLSWelcome
         <@> mkNamedAPI @"mls-message-v1" postMLSMessageFromLocalUserV1
         <@> mkNamedAPI @"mls-message" postMLSMessageFromLocalUser
+        <@> mkNamedAPI @"mls-public-keys" getMLSPublicKeys
 
     customBackend :: API CustomBackendAPI GalleyEffects
     customBackend = mkNamedAPI @"get-custom-backend-by-domain" getCustomBackendByDomain
