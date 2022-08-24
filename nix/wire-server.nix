@@ -34,7 +34,7 @@ let lib = pkgs.lib;
       fetchgit = pkgs.fetchgit;
       inherit lib;
     };
-    localPackages = import ./local-overrides.nix;
+    localPackages = import ./local-haskell-packages.nix;
     manualOverrides = import ./manual-overrides.nix (with pkgs; {
       inherit hlib libsodium protobuf snappy;
     });

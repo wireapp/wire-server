@@ -5,12 +5,12 @@ set -euo pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR=$(cd -- "$SCRIPT_DIR/../../" &> /dev/null && pwd)
 cabalFiles=$(find "$ROOT_DIR" -name '*.cabal' \
-                 | grep -v dist-newstyle)
+                 | grep -v dist-newstyle | sort)
 
 echo "$cabalFiles" \
     | xargs -I {} bash -c 'cd $(dirname {}); cabal2nix . --no-hpack > default.nix'
 
-overridesFile="$ROOT_DIR/nix/local-overrides.nix"
+overridesFile="$ROOT_DIR/nix/local-haskell-packages.nix"
 
 echo "hsuper: hself: {" > "$overridesFile"
 echo "$cabalFiles" \

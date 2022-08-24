@@ -1,5 +1,5 @@
-{ mkDerivation, aeson, aeson-pretty, aeson-qq, attoparsec, base
-, base64-bytestring, binary, binary-parsers, bytestring
+{ mkDerivation, aeson, aeson-pretty, aeson-qq, async, attoparsec
+, base, base64-bytestring, binary, binary-parsers, bytestring
 , bytestring-arbitrary, bytestring-conversion, case-insensitive
 , cassandra-util, cassava, cereal, comonad, conduit, constraints
 , containers, cookie, cryptonite, currency-codes, deriving-aeson
@@ -8,14 +8,14 @@
 , hashable, hex, hostname-validate, hscim, http-api-data
 , http-media, http-types, imports, insert-ordered-containers
 , iproute, iso3166-country-codes, iso639, lens, lib, memory
-, metrics-wai, mime, mtl, pem, polysemy, pretty, proto-lens
-, protobuf, QuickCheck, quickcheck-instances, random, resourcet
-, saml2-web-sso, schema-profunctor, scientific, servant
+, metrics-wai, mime, mtl, pem, polysemy, pretty, process
+, proto-lens, protobuf, QuickCheck, quickcheck-instances, random
+, resourcet, saml2-web-sso, schema-profunctor, scientific, servant
 , servant-client, servant-client-core, servant-conduit
 , servant-multipart, servant-server, servant-swagger
 , servant-swagger-ui, singletons, sop-core, string-conversions
 , swagger, swagger2, tagged, tasty, tasty-expected-failure
-, tasty-hunit, tasty-quickcheck, text, time, types-common
+, tasty-hunit, tasty-quickcheck, text, time, types-common, unliftio
 , unordered-containers, uri-bytestring, utf8-string, uuid, vector
 , wai, wai-extra, wai-utilities, wai-websockets, websockets
 , wire-message-proto-lens, x509
@@ -44,15 +44,15 @@ mkDerivation {
     wire-message-proto-lens x509
   ];
   testHaskellDepends = [
-    aeson aeson-pretty aeson-qq base bytestring bytestring-arbitrary
-    bytestring-conversion case-insensitive cassava containers
-    currency-codes directory either filepath hex hscim imports
-    iso3166-country-codes iso639 lens metrics-wai mime pem pretty
-    proto-lens QuickCheck saml2-web-sso schema-profunctor servant
-    servant-swagger-ui string-conversions swagger2 tasty
-    tasty-expected-failure tasty-hunit tasty-quickcheck text time
-    types-common unordered-containers uri-bytestring uuid vector
-    wire-message-proto-lens
+    aeson aeson-pretty aeson-qq async base binary bytestring
+    bytestring-arbitrary bytestring-conversion case-insensitive cassava
+    containers cryptonite currency-codes directory either filepath hex
+    hscim imports iso3166-country-codes iso639 lens memory metrics-wai
+    mime pem pretty process proto-lens QuickCheck saml2-web-sso
+    schema-profunctor servant servant-swagger-ui string-conversions
+    swagger2 tasty tasty-expected-failure tasty-hunit tasty-quickcheck
+    text time types-common unliftio unordered-containers uri-bytestring
+    uuid vector wire-message-proto-lens
   ];
   license = lib.licenses.agpl3Only;
 }
