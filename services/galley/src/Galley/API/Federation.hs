@@ -81,6 +81,7 @@ import Wire.API.Federation.API.Galley (ConversationUpdateResponse)
 import qualified Wire.API.Federation.API.Galley as F
 import Wire.API.Federation.Error
 import Wire.API.MLS.Credential
+import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 import Wire.API.Message
@@ -581,9 +582,13 @@ sendMLSMessage remoteDomain msr =
       loc <- qualifyLocal ()
       let sender = toRemoteUnsafe remoteDomain (F.msrSender msr)
       raw <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.msrRawMessage msr))
-      mapToGalleyError @MLSMessageStaticErrors $
-        F.MLSMessageResponseUpdates . map lcuUpdate
-          <$> postMLSMessage loc (qUntagged sender) (Just $ F.msrConvId msr) Nothing raw
+      mapToGalleyError @MLSMessageStaticErrors $ do
+        case rmValue raw of
+          SomeMessage _ msg -> do
+            qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+            when (qUnqualified qcnv /= F.msrConvId msr) $ throwS @'MLSUnsupportedMessage
+            F.MLSMessageResponseUpdates . map lcuUpdate
+              <$> postMLSMessage loc (qUntagged sender) qcnv Nothing raw
 
 class ToGalleyRuntimeError (effs :: EffectRow) r where
   mapToGalleyError ::
