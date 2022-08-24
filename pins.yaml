@@ -73,6 +73,9 @@ gitPins:
   - location: https://gitlab.com/twittner/wai-routing
     commit: 7e996a93fec5901767f845a50316b3c18e51a61d
 
+  - location: https://github.com/wireapp/tasty
+    commit: 394943c7672e5ad269e5587528b7678caf3b0720
+
   # this block is not reflected in cabal.project
 
   - location: https://github.com/wireapp/snappy
