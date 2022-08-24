@@ -121,7 +121,8 @@ tests s =
             ],
           testGroup
             "Local Sender/Remote Conversation"
-            [ test s "send application message" testLocalToRemote
+            [ test s "send application message" testLocalToRemote,
+              test s "non-member sends application message" testLocalToRemoteNonMember
             ],
           testGroup
             "Remote Sender/Local Conversation"
@@ -1037,6 +1038,65 @@ testLocalToRemote = withSystemTempDirectory "mls" $ \tmp -> do
     msrConvId bdy @?= qUnqualified qcnv
     msrSender bdy @?= qUnqualified (pUserId bob)
     msrRawMessage bdy @?= Base64ByteString message
+
+testLocalToRemoteNonMember :: TestM ()
+testLocalToRemoteNonMember = withSystemTempDirectory "mls" $ \tmp -> do
+  let domain = Domain "faraway.example.com"
+  -- step 2
+  MessagingSetup {creator = alice, users = [bob], ..} <-
+    aliceInvitesBobWithTmp
+      tmp
+      (1, LocalUser)
+      def
+        { creatorOrigin = RemoteUser domain
+        }
+
+  -- step 10
+  liftIO $ mergeWelcome tmp (pClientQid bob) "group" "groupB.json" "welcome"
+  -- step 11
+  message <-
+    liftIO $
+      spawn
+        ( cli
+            (pClientQid bob)
+            tmp
+            ["message", "--group", tmp </> "groupB.json", "hi"]
+        )
+        Nothing
+
+  fedGalleyClient <- view tsFedGalleyClient
+
+  -- register remote conversation: step 4
+  qcnv <- randomQualifiedId (qDomain (pUserId alice))
+  let nrc =
+        NewRemoteConversation (qUnqualified qcnv) $
+          ProtocolMLS (ConversationMLSData groupId (Epoch 1) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
+  void $
+    runFedClient
+      @"on-new-remote-conversation"
+      fedGalleyClient
+      (qDomain (pUserId alice))
+      nrc
+
+  let mock req = case frRPC req of
+        "send-mls-message" -> pure (Aeson.encode (MLSMessageResponseUpdates []))
+        rpc -> assertFailure $ "unmocked RPC called: " <> T.unpack rpc
+
+  void $
+    withTempMockFederator' mock $ do
+      galley <- viewGalley
+
+      -- bob sends a message: step 12
+      post
+        ( galley . paths ["mls", "messages"]
+            . zUser (qUnqualified (pUserId bob))
+            . zConn "conn"
+            . content "message/mls"
+            . bytes message
+        )
+        !!! do
+          const 404 === statusCode
+          const (Just "no-conversation-member") === fmap Wai.label . responseJsonError
 
 testAppMessage :: TestM ()
 testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
