@@ -535,11 +535,8 @@ type UserClientAPI =
                :> "prekeys"
                :> Get '[JSON] [PrekeyId]
            )
-    :<|> NonceAPI
-
-type NonceAPI =
-  -- be aware that the order matters, if get was first, then head requests would be routed to the get handler
-  NewNonce "head-nonce" 'HEAD 200
+    -- be aware that the order of the head-nonce and get-nonce matters, if get was first, then head requests would be routed to the get handler
+    :<|> NewNonce "head-nonce" 'HEAD 200
     :<|> NewNonce "get-nonce" 'GET 204
 
 type NewNonce name method statusCode =
