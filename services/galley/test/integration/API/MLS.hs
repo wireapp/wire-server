@@ -417,9 +417,21 @@ testAddUserWithProteusClients = do
 
 testAddUserPartial :: TestM ()
 testAddUserPartial = do
-  (creator, commit) <- withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, commit) <- withSystemTempDirectory "mls" $ \_tmp -> do
+    let tmp = "/tmp/mls"
     -- Bob has 3 clients, Charlie has 2
     (alice, [bob, charlie]) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [3, 2])
+
+    -- upload one more key package for each of bob's clients
+    -- this makes sure the unused client has at least one key package, and
+    -- therefore will be considered MLS-capable
+    for_ (pClients bob) $ \(cid, c) -> do
+      kp <-
+        liftIO $
+          decodeMLSError
+            =<< spawn (cli cid tmp ["key-package", "create"]) Nothing
+      addKeyPackage def {mapKeyPackage = False, setPublicKey = False} (pUserId bob) c kp
+
     void $ setupGroup tmp CreateConv alice "group"
     (commit, _) <-
       liftIO . setupCommit tmp alice "group" "group" $
@@ -600,13 +612,13 @@ testAddRemoteUser = do
         "on-conversation-updated" -> pure (Aeson.encode ())
         "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
         "get-mls-clients" ->
-          pure
-            . Aeson.encode
-            . Set.fromList
-            . map snd
-            . toList
-            . pClients
-            $ bob
+          let clients =
+                Set.fromList
+                  . map snd
+                  . toList
+                  . pClients
+                  $ bob
+           in pure (Aeson.encode (clients, clients))
         ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
   (events, reqs) <- withTempMockFederator' mock $ do
     postCommit setup
@@ -922,13 +934,13 @@ testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
         "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
         "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
         "get-mls-clients" ->
-          pure
-            . Aeson.encode
-            . Set.fromList
-            . map snd
-            . toList
-            . pClients
-            $ bob
+          let clients =
+                Set.fromList
+                  . map snd
+                  . toList
+                  . pClients
+                  $ bob
+           in pure (Aeson.encode (clients, clients))
         ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
   (events :: [Event], reqs) <- fmap (first mmssEvents) . withTempMockFederator' mock $ do
     galley <- viewGalley
@@ -1308,13 +1320,13 @@ testRemoteToLocal = do
             "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
             "on-conversation-updated" -> pure (Aeson.encode ())
             "get-mls-clients" ->
-              pure
-                . Aeson.encode
-                . Set.fromList
-                . map snd
-                . toList
-                . pClients
-                $ bob
+              let clients =
+                    Set.fromList
+                      . map snd
+                      . toList
+                      . pClients
+                      $ bob
+               in pure (Aeson.encode (clients, clients))
             ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
 
     void . withTempMockFederator' mockedResponse $

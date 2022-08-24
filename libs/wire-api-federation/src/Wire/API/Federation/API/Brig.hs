@@ -68,7 +68,7 @@ type BrigApi =
     -- (handles can be up to 256 chars currently)
     :<|> FedEndpoint "search-users" SearchRequest SearchResponse
     :<|> FedEndpoint "get-user-clients" GetUserClients (UserMap (Set PubClient))
-    :<|> FedEndpoint "get-mls-clients" MLSClientsRequest (Set ClientId)
+    :<|> FedEndpoint "get-mls-clients" MLSClientsRequest (Set ClientId, Set ClientId)
     :<|> FedEndpoint "send-connection-action" NewConnectionRequest NewConnectionResponse
     :<|> FedEndpoint "on-user-deleted-connections" UserDeletedConnectionsNotification EmptyResponse
     :<|> FedEndpoint "claim-key-packages" ClaimKeyPackageRequest (Maybe KeyPackageBundle)

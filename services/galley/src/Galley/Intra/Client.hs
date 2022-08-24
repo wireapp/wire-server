@@ -185,7 +185,7 @@ getClientByKeyPackageRef ref = do
     else pure Nothing
 
 -- | Calls 'Brig.API.Internal.getMLSClients'.
-getLocalMLSClients :: Local UserId -> SignatureSchemeTag -> App (Set ClientId)
+getLocalMLSClients :: Local UserId -> SignatureSchemeTag -> App (Set ClientId, Set ClientId)
 getLocalMLSClients lusr ss =
   call
     Brig

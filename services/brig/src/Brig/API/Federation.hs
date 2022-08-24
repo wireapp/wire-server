@@ -213,7 +213,7 @@ searchUsers domain (SearchRequest searchTerm) = do
 getUserClients :: Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
 getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
 
-getMLSClients :: Domain -> MLSClientsRequest -> Handler r (Set ClientId)
+getMLSClients :: Domain -> MLSClientsRequest -> Handler r (Set ClientId, Set ClientId)
 getMLSClients _domain mcr = do
   Internal.getMLSClients (mcrUserId mcr) (mcrSignatureScheme mcr)
 
