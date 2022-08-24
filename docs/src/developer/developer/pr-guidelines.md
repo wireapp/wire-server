@@ -20,7 +20,7 @@ If a cassandra schema migration has been added then
 
  - [ ] Run **`make git-add-cassandra-schema`** to update the cassandra schema documentation
 
-## Incompatible schema migrations and data migrations
+### Incompatible schema migrations and data migrations
 
 If the PR contains a cassandra *schema* migration which is backwards incompatible, a changelog entry should be added to the release notes. See [notes on Cassandra](https://github.com/wireapp/wire-server/blob/develop/docs/developer/cassandra-interaction.md#cassandra-schema-migrations) for more details on how to implement such schema changes. A similar entry should be added if the PR contains a *data* migration.
 
