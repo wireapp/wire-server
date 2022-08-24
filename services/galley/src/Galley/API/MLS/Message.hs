@@ -84,6 +84,7 @@ import Wire.API.Message
 
 type MLSMessageStaticErrors =
   '[ ErrorS 'ConvAccessDenied,
+     ErrorS 'ConvMemberNotFound,
      ErrorS 'ConvNotFound,
      ErrorS 'MLSUnsupportedMessage,
      ErrorS 'MLSStaleMessage,
@@ -172,6 +173,7 @@ postMLSMessage ::
          Error InternalError,
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvNotFound,
+         ErrorS 'ConvMemberNotFound,
          ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSProposalNotFound,
@@ -307,7 +309,7 @@ postMLSMessageToRemoteConv loc qusr con smsg rcnv = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
   -- only members may send messages to the remote conversation
-  flip unless (throwS @'MLSUnsupportedMessage) =<< checkLocalMemberRemoteConv (tUnqualified lusr) rcnv
+  flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) rcnv
 
   resp <-
     runFederated rcnv $
