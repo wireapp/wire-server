@@ -9,7 +9,7 @@ hself: hsuper: {
   invertible = hlib.markUnbroken hsuper.invertible;
   polysemy-check = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-check);
   swagger = hlib.doJailbreak hsuper.swagger;
-  multihash = hlib.doJailbreak hsuper.multihash;
+  multihash = hlib.markUnbroken (hlib.doJailbreak hsuper.multihash);
   wire-message-proto-lens = hlib.addBuildTool hsuper.wire-message-proto-lens protobuf;
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
   hashable = hsuper.hashable_1_4_0_2;

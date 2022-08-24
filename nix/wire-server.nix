@@ -29,27 +29,31 @@ let lib = pkgs.lib;
     };
 
     attrsets = lib.attrsets;
-    externalOverrides = import ./haskell-overrides.nix;
-    localOverrides = import ./local-overrides.nix;
+
+    pinnedPackages = import ./haskell-pins.nix {
+      fetchgit = pkgs.fetchgit;
+      inherit lib;
+    };
+    localPackages = import ./local-overrides.nix;
     manualOverrides = import ./manual-overrides.nix (with pkgs; {
       inherit hlib libsodium protobuf snappy;
     });
 
-    executableOverrides = hself: hsuper:
+    executables = hself: hsuper:
       attrsets.genAttrs (builtins.attrNames executablesMap) (e: withCleanedPath hsuper.${e});
 
-    staticExecutableOverrides = hself: hsuper:
+    staticExecutables = hself: hsuper:
       attrsets.mapAttrs' (name: _:
         attrsets.nameValuePair "${name}-static" (hlib.justStaticExecutables hsuper."${name}")
       ) executablesMap;
 
     hPkgs = pkgs.haskell.packages.ghc8107.override{
       overrides = lib.composeManyExtensions [
-        externalOverrides
-        localOverrides
+        pinnedPackages
+        localPackages
         manualOverrides
-        executableOverrides
-        staticExecutableOverrides
+        executables
+        staticExecutables
       ];
     };
 
@@ -99,7 +103,7 @@ let lib = pkgs.lib;
           '';
       };
     };
-    wireServerPackages = (builtins.attrNames (localOverrides {} {}));
+    wireServerPackages = (builtins.attrNames (localPackages {} {}));
 in {
   images = imagesWithBrigTemplates;
 
@@ -132,6 +136,7 @@ in {
       pkgs.cabal-install
       pkgs.haskellPackages.cabal-plan
       pkgs.haskellPackages.cabal-fmt
+      pkgs.nix-prefetch-git
     ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
       # linux-only, not strictly required tools
 
