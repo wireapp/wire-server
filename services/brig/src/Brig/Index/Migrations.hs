@@ -95,7 +95,7 @@ mkEnv l es cas galleyEndpoint = do
           $ C.defSettings
     initLogger = pure l
 
-createMigrationsIndexIfNotPresent :: (MonadThrow m, MonadIO m, ES.MonadBH m, Log.MonadLogger m) => m ()
+createMigrationsIndexIfNotPresent :: (MonadThrow m, ES.MonadBH m, Log.MonadLogger m) => m ()
 createMigrationsIndexIfNotPresent =
   do
     unlessM (ES.indexExists indexName) $ do
@@ -111,7 +111,7 @@ createMigrationsIndexIfNotPresent =
         throwM $
           err (show response)
 
-failIfIndexAbsent :: (MonadThrow m, MonadIO m, ES.MonadBH m) => ES.IndexName -> m ()
+failIfIndexAbsent :: (MonadThrow m, ES.MonadBH m) => ES.IndexName -> m ()
 failIfIndexAbsent targetIndex =
   unlessM
     (ES.indexExists targetIndex)
@@ -135,7 +135,7 @@ runMigration ver = do
           . Log.field "expectedVersion" vmax
           . Log.field "foundVersion" ver
 
-persistVersion :: (Monad m, MonadThrow m, MonadIO m) => MigrationVersion -> MigrationActionT m ()
+persistVersion :: (MonadThrow m, MonadIO m) => MigrationVersion -> MigrationActionT m ()
 persistVersion v =
   let docId = ES.DocId . Text.pack . show $ migrationVersion v
    in do

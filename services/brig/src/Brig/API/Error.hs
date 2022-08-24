@@ -18,7 +18,6 @@
 module Brig.API.Error where
 
 import Brig.API.Types
-import Brig.Options (DomainsBlockedForRegistration)
 import Brig.Phone (PhoneException (..))
 import Brig.Types.Common (PhoneBudgetTimeout (..))
 import Control.Monad.Error.Class hiding (Error)
@@ -414,7 +413,7 @@ legalHoldNotEnabled = Wai.mkError status403 "legalhold-not-enabled" "LegalHold m
 
 -- (the tautological constraint in the type signature is added so that once we remove the
 -- feature, ghc will guide us here.)
-customerExtensionBlockedDomain :: (DomainsBlockedForRegistration ~ DomainsBlockedForRegistration) => Domain -> Wai.Error
+customerExtensionBlockedDomain :: Domain -> Wai.Error
 customerExtensionBlockedDomain domain = Wai.mkError (mkStatus 451 "Unavailable For Legal Reasons") "domain-blocked-for-registration" msg
   where
     msg =
