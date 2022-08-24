@@ -23,7 +23,6 @@ let pkgs = (import ./nix).pkgs;
       spar = ["spar" "spar-integration" "spar-schema" "spar-migrate-data"];
       stern = ["stern"];
 
-      bonanza = ["bonanza"];
       billing-team-member-backfill = ["billing-team-member-backfill"];
       api-smoketest = ["api-smoketest"];
       zauth = ["zauth"];
@@ -35,12 +34,15 @@ let pkgs = (import ./nix).pkgs;
     manualOverrides = import ./nix/manual-overrides.nix (with pkgs; {
       inherit hlib libsodium protobuf snappy;
     });
+
     executableOverrides = hself: hsuper:
       attrsets.genAttrs (builtins.attrNames executablesMap) (e: withCleanedPath hsuper.${e});
+
     staticExecutableOverrides = hself: hsuper:
       attrsets.mapAttrs' (name: _:
         attrsets.nameValuePair "${name}-static" (hlib.justStaticExecutables hsuper."${name}")
       ) executablesMap;
+
     hPkgs = pkgs.haskell.packages.ghc8107.override{
       overrides = lib.composeManyExtensions [
         externalOverrides
