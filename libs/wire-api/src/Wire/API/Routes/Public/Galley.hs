@@ -1333,6 +1333,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSStaleMessage
                :> CanThrow 'MLSUnsupportedMessage
                :> CanThrow 'MLSUnsupportedProposal
+               :> CanThrow 'MLSClientSenderUserMismatch
                :> CanThrow 'MLSGroupConversationMismatch
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
@@ -1358,6 +1359,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSStaleMessage
                :> CanThrow 'MLSUnsupportedMessage
                :> CanThrow 'MLSUnsupportedProposal
+               :> CanThrow 'MLSClientSenderUserMismatch
                :> CanThrow 'MLSGroupConversationMismatch
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure

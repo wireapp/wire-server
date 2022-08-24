@@ -80,6 +80,7 @@ data GalleyError
   | MLSCommitMissingReferences
   | MLSSelfRemovalNotAllowed
   | MLSGroupConversationMismatch
+  | MLSClientSenderUserMismatch
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -196,6 +197,8 @@ type instance MapError 'MLSCommitMissingReferences = 'StaticError 409 "mls-commi
 type instance MapError 'MLSSelfRemovalNotAllowed = 'StaticError 409 "mls-self-removal-not-allowed" "Self removal from group is not allowed"
 
 type instance MapError 'MLSGroupConversationMismatch = 'StaticError 409 "mls-group-conversation-mismatch" "Conversation ID resolved from Group ID does not match submitted Conversation ID"
+
+type instance MapError 'MLSClientSenderUserMismatch = 'StaticError 409 "mls-client-sender-user-mismatch" "User ID resolved from Client ID does not match message's sender user ID"
 
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 

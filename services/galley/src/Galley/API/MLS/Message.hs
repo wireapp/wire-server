@@ -94,6 +94,7 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSUnsupportedProposal,
      ErrorS 'MLSCommitMissingReferences,
      ErrorS 'MLSSelfRemovalNotAllowed,
+     ErrorS 'MLSClientSenderUserMismatch,
      ErrorS 'MLSGroupConversationMismatch
    ]
 
@@ -110,6 +111,7 @@ postMLSMessageFromLocalUserV1 ::
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSGroupConversationMismatch,
          ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
@@ -142,6 +144,7 @@ postMLSMessageFromLocalUser ::
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSGroupConversationMismatch,
          ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
@@ -175,6 +178,7 @@ postMLSMessage ::
          ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSSelfRemovalNotAllowed,
+         ErrorS 'MLSClientSenderUserMismatch,
          ErrorS 'MLSGroupConversationMismatch,
          Resource,
          TinyLog,
@@ -192,7 +196,7 @@ postMLSMessage ::
 postMLSMessage loc qusr qcnv con smsg = case rmValue smsg of
   SomeMessage _ msg -> do
     unless (msgEpoch msg == Epoch 0) $
-      flip unless (throwS @'MLSUnsupportedMessage) =<< isUserSender qusr smsg
+      flip unless (throwS @'MLSClientSenderUserMismatch) =<< isUserSender qusr smsg
     foldQualified
       loc
       (postMLSMessageToLocalConv qusr con smsg)
