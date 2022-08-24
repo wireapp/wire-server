@@ -93,7 +93,8 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSClientMismatch,
      ErrorS 'MLSUnsupportedProposal,
      ErrorS 'MLSCommitMissingReferences,
-     ErrorS 'MLSSelfRemovalNotAllowed
+     ErrorS 'MLSSelfRemovalNotAllowed,
+     ErrorS 'MLSGroupConversationMismatch
    ]
 
 postMLSMessageFromLocalUserV1 ::
@@ -109,6 +110,7 @@ postMLSMessageFromLocalUserV1 ::
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSGroupConversationMismatch,
          ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
@@ -140,6 +142,7 @@ postMLSMessageFromLocalUser ::
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSGroupConversationMismatch,
          ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
@@ -172,6 +175,7 @@ postMLSMessage ::
          ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSSelfRemovalNotAllowed,
+         ErrorS 'MLSGroupConversationMismatch,
          Resource,
          TinyLog,
          ProposalStore,

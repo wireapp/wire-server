@@ -586,7 +586,7 @@ sendMLSMessage remoteDomain msr =
         case rmValue raw of
           SomeMessage _ msg -> do
             qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
-            when (qUnqualified qcnv /= F.msrConvId msr) $ throwS @'MLSUnsupportedMessage
+            when (qUnqualified qcnv /= F.msrConvId msr) $ throwS @'MLSGroupConversationMismatch
             F.MLSMessageResponseUpdates . map lcuUpdate
               <$> postMLSMessage loc (qUntagged sender) qcnv Nothing raw
 
