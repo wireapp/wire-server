@@ -99,11 +99,12 @@ let lib = pkgs.lib;
           '';
       };
     };
+    wireServerPackages = (builtins.attrNames (localOverrides {} {}));
 in {
   images = imagesWithBrigTemplates;
 
   devShell = hPkgs.shellFor {
-    packages = p: builtins.map (e: p.${e}) (builtins.attrNames (import ./local-overrides.nix {} {}));
+    packages = p: builtins.map (e: p.${e}) wireServerPackages;
     buildInputs = [
       (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
       pkgs.cabal2nix
@@ -139,4 +140,4 @@ in {
     ];
   };
   haskellPackages = hPkgs;
-} // attrsets.genAttrs (builtins.attrNames executablesMap) (e: hPkgs.${e})
+} // attrsets.genAttrs wireServerPackages (e: hPkgs.${e})
