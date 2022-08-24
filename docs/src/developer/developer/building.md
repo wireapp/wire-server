@@ -7,33 +7,33 @@ All following commands expect that you've entered the nix-provided build-environ
 
 1. Create a `.envrc.local` file with these contents
 
-    ```
+```
     export COMPILE_NGINX_USING_NIX=1
     export WIRE_BUILD_WITH_CABAL=1
-    ```
+```
 
    and reload the direnv via `direnv reload`
 
 2. Create a `cabal.project.local`. This file is not included in wire-server because it disables optimization.
 
-   ```
+
    make cabal.project.local
-   ```
+
 
    This should be re-run whenver a new local cabal package is added to the cabal project.
 
 Then the following Makefile targets can be used to compile and test wire-server locally:
 
-```
-# to compile all binaries to ./dist run
-make
 
-# to build and install all of galley's executables
-make c package=galley
+    # to compile all binaries to ./dist run
+    make
+    
+    # to build and install all of galley's executables
+    make c package=galley
+    
+    # also run galley's unit tests
+    make c package=galley test=1
 
-# also run galley's unit tests
-make c package=galley test=1
-```
 
 ## Troubleshooting
 
@@ -49,7 +49,7 @@ The easiest course of action is to to remove these directories via:
 make full-clean
 ```
 
-# How to run integration tests
+## How to run integration tests
 
 Integration tests require all of the haskell services (brig, galley, cannon, gundeck, proxy, cargohold, spar) to be correctly configured and running, before being able to execute e.g. the `brig-integration` binary. The test for brig also starts nginz, so make sure it has been built before.
 These services require most of the deployment dependencies as seen in the architecture diagram to also be available:

@@ -1,4 +1,6 @@
-# Editor setup {#DevEditor}
+# Editor setup
+
+Reference: {#DevEditor}
 
 This page provides tips for setting up editors to work with the Wire codebase.
 

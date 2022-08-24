@@ -1,4 +1,6 @@
-# Dependencies {#DevDeps}
+# Dependencies
+
+Reference: {#DevDeps}
 
 This page documents how to install necessary dependencies to work with the wire-server code base.
 
@@ -78,11 +80,11 @@ If `openssl-dev` does not work for you, try `libssl-dev`.
 
 ### Arch:
 
-```
-# You might also need 'sudo pacman -S base-devel' if you haven't
-# installed the base-devel group already.
-sudo pacman -S geoip snappy icu openssl ncurses-compat-libs
-```
+    ```
+    # You might also need 'sudo pacman -S base-devel' if you haven't
+    # installed the base-devel group already.
+    sudo pacman -S geoip snappy icu openssl ncurses-compat-libs
+    ```
 
 ### macOS:
 
@@ -129,11 +131,11 @@ sudo apt install haskell-stack -y
 
 ### Generic
 
-```bash
-curl -sSL https://get.haskellstack.org/ | sh
-# or
-wget -qO- https://get.haskellstack.org/ | sh
-```
+   ```bash
+   curl -sSL https://get.haskellstack.org/ | sh
+   # or
+   wget -qO- https://get.haskellstack.org/ | sh
+   ```
 
 ## Rust
 
@@ -168,18 +170,18 @@ dpkg -i target/release/cryptobox*.deb
 ```
 
 ### Generic
-```bash
-export TARGET_LIB="$HOME/.wire-dev/lib"
-export TARGET_INCLUDE="$HOME/.wire-dev/include"
-mkdir -p "$TARGET_LIB"
-mkdir -p "$TARGET_INCLUDE"
-git clone https://github.com/wireapp/cryptobox-c && cd cryptobox-c
-make install
-
-# Add cryptobox-c to ldconfig
-sudo bash -c "echo \"${TARGET_LIB}\" > /etc/ld.so.conf.d/cryptobox.conf"
-sudo ldconfig
-```
+    ```bash
+    export TARGET_LIB="$HOME/.wire-dev/lib"
+    export TARGET_INCLUDE="$HOME/.wire-dev/include"
+    mkdir -p "$TARGET_LIB"
+    mkdir -p "$TARGET_INCLUDE"
+    git clone https://github.com/wireapp/cryptobox-c && cd cryptobox-c
+    make install
+    
+    # Add cryptobox-c to ldconfig
+    sudo bash -c "echo \"${TARGET_LIB}\" > /etc/ld.so.conf.d/cryptobox.conf"
+    sudo ldconfig
+    ```
 
 Make sure stack knows where to find it. In `~/.stack/config.yaml` add:
 
@@ -228,22 +230,22 @@ Requirements:
 
 ### Telepresence example usage:
 
-```
-# terminal 1
-telepresence --namespace "$NAMESPACE" --also-proxy cassandra-ephemeral
-```
+    ```
+    # terminal 1
+    telepresence --namespace "$NAMESPACE" --also-proxy cassandra-ephemeral
+    ```
 
-```
-# terminal 2
-curl http://elasticsearch-ephemeral:9200
-```
+    ```
+    # terminal 2
+    curl http://elasticsearch-ephemeral:9200
+    ```
 
 ### Telepresence example usage 2:
 
-```
-# just one terminal
-telepresence --namespace "$NAMESPACE" --also-proxy cassandra-ephemeral --run bash -c "curl http://elasticsearch-ephemeral:9200"
-```
+    ```
+    # just one terminal
+    telepresence --namespace "$NAMESPACE" --also-proxy cassandra-ephemeral --run bash -c "curl http://elasticsearch-ephemeral:9200"
+    ```
 
 ### Telepresence usage discussion:
 

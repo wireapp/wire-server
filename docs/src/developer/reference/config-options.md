@@ -1,4 +1,6 @@
-# Config Options {#RefConfigOptions}
+# Config Options
+
+Reference: {#RefConfigOptions}
 
 Fragment.
 

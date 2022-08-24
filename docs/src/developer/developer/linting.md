@@ -1,6 +1,6 @@
 # Linting
 
-# HLint
+## HLint
 
 To run [HLint](https://github.com/ndmitchell/hlint) you need it's binary, e.g.
 by executing:
@@ -21,7 +21,7 @@ To run it on a sub-project:
 hlint services/federator
 ```
 
-# Stan
+## Stan
 
 To run [Stan](https://github.com/kowainik/stan), you need it's binary compiled
 by the same GHC version as used in the project.

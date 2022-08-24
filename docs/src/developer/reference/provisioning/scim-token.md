@@ -1,4 +1,6 @@
-# SCIM tokens {#RefScimToken}
+# SCIM tokens
+
+Reference: {#RefScimToken}
 
 _Author: Artyom Kazak_
 

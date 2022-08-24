@@ -1,10 +1,10 @@
-# Spar braindump {#SparBrainDump}
+# Spar braindump
+
+Reference: {#SparBrainDump}
 
 _Author: Matthias Fischmann_
 
 ---
-
-# the spar service for user provisioning (scim) and authentication (saml) - a brain dump
 
 this is a mix of information on inmplementation details, architecture,
 and operation.  it should probably be sorted into different places in

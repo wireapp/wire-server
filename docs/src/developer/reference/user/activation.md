@@ -1,4 +1,6 @@
-# Activation {#RefActivation}
+# User Activation
+
+Reference: {#RefActivation}
 
 _Author: Artyom Kazak_
 

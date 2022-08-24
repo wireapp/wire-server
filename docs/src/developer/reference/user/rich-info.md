@@ -1,4 +1,6 @@
-# Rich info {#RefRichInfo}
+# User Rich info
+
+Reference: {#RefRichInfo}
 
 _Author: Artyom Kazak_
 

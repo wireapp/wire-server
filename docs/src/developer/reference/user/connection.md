@@ -1,4 +1,6 @@
-# Connection {#RefConnection}
+# Connection
+
+Reference: {#RefConnection}
 
 Two users can be _connected_ or not. If the users are connected, each of them can:
 

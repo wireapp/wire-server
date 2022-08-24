@@ -1,5 +1,3 @@
-<!--  Referenced from /libs/wire-api-federation/src/Wire/API/Federation/API/Galley.hs -->
-<!--  Referenced from /libs/wire-api-federation/src/Wire/API/Federation/API/Brig.hs -->
 # Federation API Conventions
 
 - All endpoints must start with `/federation/`

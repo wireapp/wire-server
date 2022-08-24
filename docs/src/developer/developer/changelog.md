@@ -1,4 +1,4 @@
-# changelog
+# Changelog
 
 The wire-server repo has a process for changelog editing that prevents
 merge conflicts and enforces a consistent structure to the release

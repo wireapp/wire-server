@@ -1,4 +1,4 @@
-# Registration
+# User Registration
 (RefRegistration)=
 
 _Authors: Artyom Kazak, Matthias Fischmann_
