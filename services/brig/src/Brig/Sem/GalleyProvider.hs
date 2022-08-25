@@ -18,7 +18,6 @@ import Wire.API.Team.Feature
 import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
-import Wire.API.User
 
 data GalleyProvider m a where
   CreateSelfConv ::
@@ -54,15 +53,7 @@ data GalleyProvider m a where
     TeamId ->
     ConvId ->
     GalleyProvider m (Maybe Conv.TeamConversation)
-  RmUser ::
-    UserId ->
-    [Asset] ->
-    GalleyProvider m ()
   NewClient ::
-    UserId ->
-    ClientId ->
-    GalleyProvider m ()
-  RmClient ::
     UserId ->
     ClientId ->
     GalleyProvider m ()
