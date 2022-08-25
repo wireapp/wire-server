@@ -24,6 +24,7 @@ import Imports
 import qualified Test.Tasty as T
 import Test.Tasty.QuickCheck
 import Type.Reflection (typeRep)
+import Wire.API.MLS.Extension
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
@@ -35,7 +36,9 @@ tests =
     [ testRoundTrip @KeyPackageRef,
       testRoundTrip @RemoveProposalSender,
       testRoundTrip @RemoveProposalMessage,
-      testRoundTrip @RemoveProposalPayload
+      testRoundTrip @RemoveProposalPayload,
+      testRoundTrip @AppAckProposalTest,
+      testRoundTrip @ExtensionVector
     ]
 
 testRoundTrip ::
@@ -86,3 +89,23 @@ newtype RemoveProposalSender = RemoveProposalSender
 
 instance Arbitrary RemoveProposalSender where
   arbitrary = RemoveProposalSender . PreconfiguredSender <$> arbitrary
+
+newtype AppAckProposalTest = AppAckProposalTest Proposal
+  deriving newtype (ParseMLS, Eq, Show)
+
+instance Arbitrary AppAckProposalTest where
+  arbitrary = AppAckProposalTest . AppAckProposal <$> arbitrary
+
+instance SerialiseMLS AppAckProposalTest where
+  serialiseMLS (AppAckProposalTest (AppAckProposal mrs)) = serialiseAppAckProposal mrs
+  serialiseMLS _ = serialiseAppAckProposal []
+
+newtype ExtensionVector = ExtensionVector [Extension]
+  deriving newtype (Arbitrary, Eq, Show)
+
+instance ParseMLS ExtensionVector where
+  parseMLS = ExtensionVector <$> parseMLSVector @Word32 (parseMLS @Extension)
+
+instance SerialiseMLS ExtensionVector where
+  serialiseMLS (ExtensionVector exts) = do
+    serialiseMLSVector @Word32 serialiseMLS exts

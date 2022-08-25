@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -18,6 +19,7 @@
 
 module Wire.API.MLS.Proposal where
 
+import Control.Arrow
 import Control.Lens (makePrisms)
 import Data.Binary
 import Data.Binary.Get
@@ -81,6 +83,16 @@ mkRemoveProposal ref = RawMLS bytes (RemoveProposal ref)
       serialiseMLS RemoveProposalTag
       serialiseMLS ref
 
+serialiseAppAckProposal :: [MessageRange] -> Put
+serialiseAppAckProposal mrs = do
+  serialiseMLS AppAckProposalTag
+  serialiseMLSVector @Word32 serialiseMLS mrs
+
+mkAppAckProposal :: [MessageRange] -> RawMLS Proposal
+mkAppAckProposal = uncurry RawMLS . (bytes &&& AppAckProposal)
+  where
+    bytes = LBS.toStrict . runPut . serialiseAppAckProposal
+
 -- | Compute the proposal ref given a ciphersuite and the raw proposal data.
 proposalRef :: CipherSuiteTag -> RawMLS Proposal -> ProposalRef
 proposalRef cs =
@@ -137,9 +149,12 @@ instance ParseMLS ReInit where
 data MessageRange = MessageRange
   { mrSender :: KeyPackageRef,
     mrFirstGeneration :: Word32,
-    mrLastGenereation :: Word32
+    mrLastGeneration :: Word32
   }
   deriving stock (Eq, Show)
+
+instance Arbitrary MessageRange where
+  arbitrary = MessageRange <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance ParseMLS MessageRange where
   parseMLS =
@@ -147,6 +162,12 @@ instance ParseMLS MessageRange where
       <$> parseMLS
       <*> parseMLS
       <*> parseMLS
+
+instance SerialiseMLS MessageRange where
+  serialiseMLS MessageRange {..} = do
+    serialiseMLS mrSender
+    serialiseMLS mrFirstGeneration
+    serialiseMLS mrLastGeneration
 
 data ProposalOrRefTag = InlineTag | RefTag
   deriving stock (Bounded, Enum, Eq, Show)
