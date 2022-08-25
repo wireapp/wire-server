@@ -89,7 +89,7 @@ let lib = pkgs.lib;
 
     brig-templates = pkgs.srcOnly {
       name = "brig-templates";
-      src = ./services/brig/deb/opt/brig/templates;
+      src = ../services/brig/deb/opt/brig/templates;
     };
 
     imagesWithBrigTemplates = images // {
