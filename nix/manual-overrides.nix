@@ -2,7 +2,6 @@
 hself: hsuper: {
   network-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.network-arbitrary);
   cql = hlib.markUnbroken hsuper.cql;
-  cql-io =  hlib.markUnbroken (hlib.dontCheck hsuper.cql-io);
   lens-datetime = hlib.markUnbroken (hlib.doJailbreak hsuper.lens-datetime);
   wai-predicates = hlib.markUnbroken hsuper.wai-predicates;
   bytestring-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.bytestring-arbitrary);
