@@ -261,7 +261,6 @@ rmClient u con clt pw =
 
 claimPrekey ::
   ( MonadReader Env m,
-    MonadIO m,
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
@@ -300,10 +299,6 @@ claimLocalPrekey protectee user client = do
 
 claimRemotePrekey ::
   ( MonadReader Env m,
-    MonadIO m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m,
     Log.MonadLogger m,
     MonadClient m
   ) =>
@@ -432,7 +427,6 @@ execDelete u con c = do
 -- (and possibly duplicated) client data.
 noPrekeys ::
   ( MonadReader Env m,
-    MonadIO m,
     MonadMask m,
     MonadHttp m,
     HasRequestId m,

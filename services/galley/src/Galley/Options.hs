@@ -29,6 +29,7 @@ module Galley.Options
     setDeleteConvThrottleMillis,
     setFederationDomain,
     setEnableIndexedBillingTeamMembers,
+    setMlsPrivateKeyPaths,
     setFeatureFlags,
     defConcurrentDeletionEvents,
     defDeleteConvThrottleMillis,
@@ -57,6 +58,7 @@ import Data.Aeson.TH (deriveFromJSON)
 import Data.Domain (Domain)
 import Data.Misc
 import Data.Range
+import Galley.Keys
 import Galley.Types.Teams
 import Imports
 import System.Logger.Extended (Level, LogFormat)
@@ -103,6 +105,7 @@ data Settings = Settings
     -- the owners.
     -- Defaults to false.
     _setEnableIndexedBillingTeamMembers :: !(Maybe Bool),
+    _setMlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _setFeatureFlags :: !FeatureFlags
   }

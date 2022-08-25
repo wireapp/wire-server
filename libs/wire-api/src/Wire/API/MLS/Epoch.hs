@@ -19,6 +19,7 @@
 
 module Wire.API.MLS.Epoch where
 
+import Data.Binary
 import Data.Schema
 import Imports
 import Wire.API.Arbitrary
@@ -30,3 +31,6 @@ newtype Epoch = Epoch {epochNumber :: Word64}
 
 instance ParseMLS Epoch where
   parseMLS = Epoch <$> parseMLS
+
+instance SerialiseMLS Epoch where
+  serialiseMLS (Epoch n) = put n

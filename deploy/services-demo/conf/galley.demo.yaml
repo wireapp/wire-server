@@ -28,6 +28,9 @@ settings:
   conversationCodeURI: https://127.0.0.1/conversation-join/
   concurrentDeletionEvents: 1024
   deleteConvThrottleMillis: 0
+  mlsPrivateKeyPaths:
+    removal:
+      ed25519: conf/ed25519.pem
 
   featureFlags:  # see #RefConfigOptions in `/docs/reference`
     sso: disabled-by-default

@@ -24,9 +24,9 @@ module Galley.Effects.ListItems
 where
 
 import Data.Id
-import Galley.Effects.Paging
 import Imports
 import Polysemy
+import Wire.Sem.Paging
 
 -- | General pagination-aware list-by-user effect
 data ListItems p i m a where

@@ -17,5 +17,10 @@ spec:
       port: {{ .Values.coturnTurnListenPort }}
       targetPort: coturn-udp
       protocol: UDP
+    {{- if .Values.tls.enabled }}
+    - name: coturn-tls
+      port: {{ .Values.coturnTurnTlsListenPort }}
+      targetPort: coturn-tls
+    {{- end }}
   selector:
     {{- include "coturn.selectorLabels" . | nindent 4 }}

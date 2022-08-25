@@ -28,6 +28,10 @@ spec:
     spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.tls.enabled }}
+      # Needed for automatic certificate reload handling
+      shareProcessNamespace: true
+      {{- end }}
       hostNetwork: true
       serviceAccountName: {{ include "coturn.fullname" . }}
       volumes:
@@ -41,6 +45,11 @@ spec:
         - name: secrets
           secret:
             secretName: coturn
+        {{- if .Values.tls.enabled }}
+        - name: secrets-tls
+          secret:
+            secretName: {{ .Values.tls.secretRef }}
+        {{- end }}
       initContainers:
         - name: get-external-ip
           image: bitnami/kubectl:1.19.7
@@ -84,6 +93,11 @@ spec:
             - name: secrets
               mountPath: /secrets/
               readOnly: true
+          {{- if .Values.tls.enabled }}
+            - name: secrets-tls
+              mountPath: /secrets-tls/
+              readOnly: true
+          {{- end }}
           command:
             - /bin/sh
             - -c
@@ -110,6 +124,11 @@ spec:
             - name: coturn-udp
               containerPort: {{ .Values.coturnTurnListenPort }}
               protocol: UDP
+            {{- if .Values.tls.enabled }}
+            - name: coturn-tls
+              containerPort: {{ .Values.coturnTurnTlsListenPort }}
+              protocol: TCP
+            {{- end }}
             - name: status-http
               containerPort: {{ .Values.coturnMetricsListenPort }}
               protocol: TCP
@@ -126,6 +145,24 @@ spec:
 
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+
+        {{- if .Values.tls.enabled }}
+        - name: {{ .Chart.Name }}-cert-reloader
+          image: "{{ .Values.tls.reloaderImage.repository }}:{{ .Values.tls.reloaderImage.tag }}"
+          imagePullPolicy: {{ .Values.tls.reloaderImage.pullPolicy }}
+          env:
+            - name: CONFIG_DIR
+              value: /secrets-tls
+            - name: PROCESS_NAME
+              value: /usr/bin/turnserver
+            - name: RELOAD_SIGNAL
+              value: SIGUSR2
+          volumeMounts:
+            - name: secrets-tls
+              mountPath: /secrets-tls/
+              readOnly: true
+        {{- end }}
+
       {{- if .Values.coturnGracefulTermination }}
       terminationGracePeriodSeconds: {{ .Values.coturnGracePeriodSeconds }}
       {{- end }}

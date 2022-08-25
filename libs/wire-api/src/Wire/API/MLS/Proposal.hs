@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -18,9 +19,12 @@
 
 module Wire.API.MLS.Proposal where
 
+import Control.Arrow
 import Control.Lens (makePrisms)
 import Data.Binary
 import Data.Binary.Get
+import Data.Binary.Put
+import qualified Data.ByteString.Lazy as LBS
 import Imports
 import Wire.API.Arbitrary
 import Wire.API.MLS.CipherSuite
@@ -45,6 +49,9 @@ data ProposalTag
 instance ParseMLS ProposalTag where
   parseMLS = parseMLSEnum @Word16 "proposal type"
 
+instance SerialiseMLS ProposalTag where
+  serialiseMLS = serialiseMLSEnum @Word16
+
 data Proposal
   = AddProposal (RawMLS KeyPackage)
   | UpdateProposal KeyPackage
@@ -68,6 +75,23 @@ instance ParseMLS Proposal where
       AppAckProposalTag -> AppAckProposal <$> parseMLSVector @Word32 parseMLS
       GroupContextExtensionsProposalTag ->
         GroupContextExtensionsProposal <$> parseMLSVector @Word32 parseMLS
+
+mkRemoveProposal :: KeyPackageRef -> RawMLS Proposal
+mkRemoveProposal ref = RawMLS bytes (RemoveProposal ref)
+  where
+    bytes = LBS.toStrict . runPut $ do
+      serialiseMLS RemoveProposalTag
+      serialiseMLS ref
+
+serialiseAppAckProposal :: [MessageRange] -> Put
+serialiseAppAckProposal mrs = do
+  serialiseMLS AppAckProposalTag
+  serialiseMLSVector @Word32 serialiseMLS mrs
+
+mkAppAckProposal :: [MessageRange] -> RawMLS Proposal
+mkAppAckProposal = uncurry RawMLS . (bytes &&& AppAckProposal)
+  where
+    bytes = LBS.toStrict . runPut . serialiseAppAckProposal
 
 -- | Compute the proposal ref given a ciphersuite and the raw proposal data.
 proposalRef :: CipherSuiteTag -> RawMLS Proposal -> ProposalRef
@@ -125,9 +149,12 @@ instance ParseMLS ReInit where
 data MessageRange = MessageRange
   { mrSender :: KeyPackageRef,
     mrFirstGeneration :: Word32,
-    mrLastGenereation :: Word32
+    mrLastGeneration :: Word32
   }
   deriving stock (Eq, Show)
+
+instance Arbitrary MessageRange where
+  arbitrary = MessageRange <$> arbitrary <*> arbitrary <*> arbitrary
 
 instance ParseMLS MessageRange where
   parseMLS =
@@ -135,6 +162,12 @@ instance ParseMLS MessageRange where
       <$> parseMLS
       <*> parseMLS
       <*> parseMLS
+
+instance SerialiseMLS MessageRange where
+  serialiseMLS MessageRange {..} = do
+    serialiseMLS mrSender
+    serialiseMLS mrFirstGeneration
+    serialiseMLS mrLastGeneration
 
 data ProposalOrRefTag = InlineTag | RefTag
   deriving stock (Bounded, Enum, Eq, Show)

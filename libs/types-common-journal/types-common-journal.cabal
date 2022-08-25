@@ -78,7 +78,7 @@ library
     -fno-warn-redundant-constraints
 
   ghc-prof-options:   -fprof-auto-exported
-  build-tool-depends: proto-lens-protoc:proto-lens-protoc -any
+  build-tool-depends: proto-lens-protoc:proto-lens-protoc
   build-depends:
       base                >=4 && <5
     , bytestring

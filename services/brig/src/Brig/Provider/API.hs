@@ -751,7 +751,6 @@ deleteService pid sid del = do
 
 finishDeleteService ::
   ( MonadReader Env m,
-    MonadIO m,
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
@@ -777,7 +776,6 @@ finishDeleteService pid sid = do
 
 deleteAccountH ::
   ( MonadReader Env m,
-    MonadIO m,
     MonadMask m,
     MonadHttp m,
     MonadClient m,
@@ -792,7 +790,6 @@ deleteAccountH (pid ::: req) = do
 
 deleteAccount ::
   ( MonadReader Env m,
-    MonadIO m,
     MonadMask m,
     MonadHttp m,
     MonadClient m,
@@ -1215,7 +1212,6 @@ deleteBot ::
   forall m.
   ( MonadHttp m,
     MonadReader Env m,
-    MonadIO m,
     MonadMask m,
     HasRequestId m,
     MonadLogger m,

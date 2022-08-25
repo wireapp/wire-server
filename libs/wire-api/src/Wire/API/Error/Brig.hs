@@ -146,7 +146,7 @@ type instance
     'StaticError
       403
       "mls-identity-mismatch"
-      "Prekey credential does not match qualified client ID"
+      "Key package credential does not match qualified client ID"
 
 -- | docs/reference/user/registration.md {#RefRestrictRegistration}.
 type instance MapError 'UserCreationRestricted = 'StaticError 403 "user-creation-restricted" "This instance does not allow creation of personal users or teams."

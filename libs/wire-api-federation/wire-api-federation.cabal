@@ -181,7 +181,7 @@ test-suite spec
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
     -threaded -rtsopts -with-rtsopts=-N
 
-  build-tool-depends: hspec-discover:hspec-discover -any
+  build-tool-depends: hspec-discover:hspec-discover
   build-depends:
       aeson                  >=2.0.1.0
     , aeson-pretty

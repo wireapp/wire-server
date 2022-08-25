@@ -210,11 +210,8 @@ onClientEvent orig conn e = do
 
 updateSearchIndex ::
   ( MonadClient m,
-    MonadLogger m,
     MonadCatch m,
     MonadLogger m,
-    MonadCatch m,
-    MonadThrow m,
     MonadIndexIO m
   ) =>
   UserId ->
@@ -313,7 +310,6 @@ notifyUserDeletionLocals deleted conn event = do
 notifyUserDeletionRemotes ::
   forall m.
   ( MonadReader Env m,
-    MonadIO m,
     MonadClient m,
     MonadLogger m
   ) =>
@@ -340,7 +336,7 @@ notifyUserDeletionRemotes deleted = do
           whenLeft eitherFErr $
             logFederationError (tDomain uids)
 
-    logFederationError :: Log.MonadLogger m => Domain -> FederationError -> m ()
+    logFederationError :: Domain -> FederationError -> m ()
     logFederationError domain fErr =
       Log.err $
         Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)
@@ -742,8 +738,7 @@ upsertOne2OneConversation ::
     MonadIO m,
     MonadMask m,
     MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
+    HasRequestId m
   ) =>
   UpsertOne2OneConversationRequest ->
   m UpsertOne2OneConversationResponse
@@ -892,8 +887,7 @@ lookupPushToken ::
     MonadIO m,
     MonadMask m,
     MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
+    HasRequestId m
   ) =>
   UserId ->
   m [Push.PushToken]

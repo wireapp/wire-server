@@ -82,6 +82,7 @@ brig:
         - domain: federation-test-helper.{{ .Release.Namespace }}.svc.cluster.local
           search_policy: full_search
       set2FACodeGenerationDelaySecs: 5
+      setNonceTtlSecs: 300
     aws:
       sesEndpoint: http://fake-aws-ses:4569
       sqsEndpoint: http://fake-aws-sqs:4568
@@ -167,6 +168,13 @@ galley:
   secrets:
     awsKeyId: dummykey
     awsSecretKey: dummysecret
+    mlsPrivateKeys:
+      removal:
+        ed25519: |
+          -----BEGIN PRIVATE KEY-----
+          MC4CAQAwBQYDK2VwBCIEIAocCDXsKIAjb65gOUn5vEF0RIKnVJkKR4ebQzuZ709c
+          -----END PRIVATE KEY-----
+
 gundeck:
   replicaCount: 1
   imagePullPolicy: {{ .Values.imagePullPolicy }}

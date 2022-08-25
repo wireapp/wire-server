@@ -61,18 +61,6 @@ onEvent ::
        UserQuery
      ]
     r =>
-  -- ( Log.MonadLogger m,
-  --   MonadCatch m,
-  --   MonadThrow m,
-  --   MonadIndexIO m,
-  --   MonadReader Env m,
-  --   MonadIO m,
-  --   MonadMask m,
-  --   MonadHttp m,
-  --   HasRequestId m,
-  --   MonadUnliftIO m,
-  --   MonadClient m
-  -- ) =>
   InternalNotification ->
   AppT r ()
 onEvent n = do

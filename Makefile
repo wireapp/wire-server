@@ -50,11 +50,32 @@ else
 	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
 endif
 
-.PHONY: delete-cache-on-linker-errors
-delete-cache-on-linker-errors:
+# Clean
+.PHONY: full-clean
+full-clean: clean
 	rm -rf ~/.cache/hie-bios
+ifdef CABAL_DIR
+	rm -rf $(CABAL_DIR)/store
+else
 	rm -rf ~/.cabal/store
-	rm -rf ./dist-newstyle
+endif
+
+.PHONY: clean
+clean:
+ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
+	cabal clean
+else
+	stack clean
+endif
+	$(MAKE) -C services/nginz clean
+	-rm -rf dist
+	-rm -f .metadata
+
+.PHONY: clean-hint
+clean-hint:
+	@echo -e "\n\n\n>>> PSA: if you get errors that are hard to explain,"
+	@echo -e ">>> try 'make full-clean' and run your command again."
+	@echo -e ">>> see https://github.com/wireapp/wire-server/blob/develop/docs/developer/building.md#linker-errors-while-compiling\n\n\n"
 
 .PHONY: cabal.project.local
 cabal.project.local:
@@ -73,7 +94,7 @@ endif
 # Usage: make c package=brig test=1
 .PHONY: c
 c: cabal-fmt
-	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package)
+	cabal build $(WIRE_CABAL_BUILD_OPTIONS) $(package) || ( make clean-hint; false )
 ifeq ($(test), 1)
 	./hack/bin/cabal-run-tests.sh $(package) $(testargs)
 endif
@@ -151,18 +172,6 @@ add-license:
 .PHONY: shellcheck
 shellcheck:
 	./hack/bin/shellcheck.sh
-
-# Clean
-.PHONY: clean
-clean:
-ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
-	cabal clean
-else
-	stack clean
-endif
-	$(MAKE) -C services/nginz clean
-	-rm -rf dist
-	-rm -f .metadata
 
 #################################
 ## running integration tests

@@ -372,6 +372,17 @@ packages:
     git: https://gitlab.com/axeman/swagger
     commit: e2d3f5b5274b8d8d301b5377b0af4319cea73f9e
 - completed:
+    name: cql-io
+    version: 1.1.1
+    git: https://gitlab.com/axeman/cql-io
+    pantry-tree:
+      size: 2172
+      sha256: 4eead69907e2fc081d66b9d0ab4f73234f7636220c995147f499777dd14b9250
+    commit: c2b6aa995b5817ed7c78c53f72d5aa586ef87c36
+  original:
+    git: https://gitlab.com/axeman/cql-io
+    commit: c2b6aa995b5817ed7c78c53f72d5aa586ef87c36
+- completed:
     name: cryptobox-haskell
     version: 0.1.1
     git: https://github.com/wireapp/cryptobox-haskell
@@ -728,13 +739,6 @@ packages:
       sha256: 94433b7c7c46bea532fdc64c6988643a48e39b643948003b27e5bde1bdad3b24
   original:
     hackage: cql-4.0.3
-- completed:
-    hackage: cql-io-1.1.1@sha256:897ef0811b227c8b1a269b29b9c1ebfb09c46f00d66834e2e8c6f19ea7f90f7d,4611
-    pantry-tree:
-      size: 2067
-      sha256: 7ced76ae95b51fa1669b4fcaeec3825b5cb8cf1f4e37c53d0bddf6234742eba8
-  original:
-    hackage: cql-io-1.1.1
 - completed:
     hackage: primitive-extras-0.10.1.1@sha256:47c4d211166bc31ebdb053f610e4b5387c01d00bde81840e59438469cef6c94e,2955
     pantry-tree:

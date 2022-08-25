@@ -27,10 +27,10 @@ module Galley.Effects.TeamMemberStore
 where
 
 import Data.Id
-import Galley.Effects.Paging
 import Imports
 import Polysemy
 import Wire.API.Team.Member
+import Wire.Sem.Paging
 
 data TeamMemberStore p m a where
   ListTeamMembers ::

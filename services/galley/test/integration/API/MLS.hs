@@ -26,10 +26,16 @@ import Bilge hiding (head)
 import Bilge.Assert
 import Cassandra
 import Control.Arrow
-import Control.Lens (view)
+import Control.Lens (view, (^..))
+import Crypto.Error
+import qualified Crypto.PubKey.Ed25519 as C
 import qualified Data.Aeson as Aeson
+import Data.Aeson.Lens
+import Data.Binary.Put
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Base64.URL as B64U
 import Data.ByteString.Conversion
+import qualified Data.ByteString.Lazy as LBS
 import Data.Default
 import Data.Domain
 import Data.Id
@@ -37,6 +43,7 @@ import Data.Json.Util hiding ((#))
 import qualified Data.List.NonEmpty as NE
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 hiding (head)
+import qualified Data.Map as Map
 import Data.Qualified
 import Data.Range
 import qualified Data.Set as Set
@@ -64,8 +71,12 @@ import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Credential
 import Wire.API.MLS.Group (convToGroupId)
+import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
+import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import Wire.API.Routes.Version
 
@@ -134,7 +145,14 @@ tests s =
         "Proposal"
         [ test s "add a new client to a non-existing conversation" propNonExistingConv,
           test s "add a new client to an existing conversation" propExistingConv,
-          test s "add a new client in an invalid epoch" propInvalidEpoch
+          test s "add a new client in an invalid epoch" propInvalidEpoch,
+          test s "forward an unsupported proposal" propUnsupported
+        ],
+      testGroup
+        "External Proposal"
+        [ test s "member adds new client" testExternalAddProposal,
+          test s "non-member adds new client" testExternalAddProposalWrongUser,
+          test s "member adds unknown new client" testExternalAddProposalWrongClient
         ],
       testGroup
         "Protocol mismatch"
@@ -142,7 +160,8 @@ tests s =
           test s "add users bypassing MLS" testAddUsersDirectly,
           test s "remove users bypassing MLS" testRemoveUsersDirectly,
           test s "send proteus message to an MLS conversation" testProteusMessage
-        ]
+        ],
+      test s "public keys" testPublicKeys
     ]
 
 postMLSConvFail :: TestM ()
@@ -186,21 +205,7 @@ testSenderNotInConversation = do
       liftIO $
         setupCommit tmp alice "group" "group" $
           toList (pClients bob)
-
-    void . liftIO $
-      spawn
-        ( cli
-            (pClientQid bob)
-            tmp
-            [ "group",
-              "from-welcome",
-              "--group-out",
-              tmp </> "group",
-              tmp </> "welcome"
-            ]
-        )
-        Nothing
-
+    liftIO $ mergeWelcome tmp (pClientQid bob) "group" "group" "welcome"
     message <- liftIO $ createMessage tmp bob "group" "some text"
 
     -- send the message as bob, who is not in the conversation
@@ -931,19 +936,7 @@ testLocalToRemote = withSystemTempDirectory "mls" $ \tmp -> do
         }
 
   -- step 10
-  void . liftIO $
-    spawn
-      ( cli
-          (pClientQid bob)
-          tmp
-          [ "group",
-            "from-welcome",
-            "--group-out",
-            tmp </> "groupB.json",
-            tmp </> "welcome"
-          ]
-      )
-      Nothing
+  liftIO $ mergeWelcome tmp (pClientQid bob) "group" "groupB.json" "welcome"
   -- step 11
   message <-
     liftIO $
@@ -1050,19 +1043,7 @@ testAppMessage2 = do
     void $ postCommit setup
 
     let bob = head users
-    void . liftIO $
-      spawn
-        ( cli
-            (pClientQid bob)
-            tmp
-            [ "group",
-              "from-welcome",
-              "--group-out",
-              tmp </> "group",
-              tmp </> "welcome"
-            ]
-        )
-        Nothing
+    liftIO $ mergeWelcome tmp (pClientQid bob) "group" "group" "welcome"
     message <-
       liftIO $
         createMessage tmp bob "group" "some text"
@@ -1191,19 +1172,7 @@ testRemoteToLocal = do
 
     void . withTempMockFederator' mockedResponse $
       postCommit setup
-    void . liftIO $
-      spawn
-        ( cli
-            (pClientQid bob)
-            tmp
-            [ "group",
-              "from-welcome",
-              "--group-out",
-              tmp </> "groupB.json",
-              tmp </> "welcome"
-            ]
-        )
-        Nothing
+    liftIO $ mergeWelcome tmp (pClientQid bob) "group" "groupB.json" "welcome"
     message <-
       liftIO $
         spawn
@@ -1258,19 +1227,7 @@ testRemoteNonMemberToLocal = do
           { createConv = CreateConv
           }
     bob <- assertOne (users setup)
-    void . liftIO $
-      spawn
-        ( cli
-            (pClientQid bob)
-            tmp
-            [ "group",
-              "from-welcome",
-              "--group-out",
-              tmp </> "groupB.json",
-              tmp </> "welcome"
-            ]
-        )
-        Nothing
+    liftIO $ mergeWelcome tmp (pClientQid bob) "group" "groupB.json" "welcome"
     message <-
       liftIO $
         spawn
@@ -1384,3 +1341,138 @@ propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
     prop <- liftIO $ bareAddProposal tmp creator dee "group.1.json" "group.1.json"
     postMessage (qUnqualified (pUserId creator)) prop
       !!! const 201 === statusCode
+
+testExternalAddProposal :: TestM ()
+testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
+
+  bobClient1 <- assertOne . toList $ pClients bob
+  (commit, welcome) <-
+    liftIO $
+      setupCommit tmp creator "group" "group" $
+        NonEmpty.tail (pClients creator) <> [bobClient1]
+  testSuccessfulCommit MessagingSetup {users = [bob], ..}
+
+  liftIO $ mergeWelcome tmp (fst bobClient1) "group" "group" "welcome"
+
+  bobClient2Qid <-
+    userClientQid (pUserId bob)
+      <$> withLastPrekeys (setupUserClient tmp CreateWithKey True (pUserId bob))
+  externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "group"
+  postMessage (qUnqualified (pUserId bob)) externalProposal !!! const 201 === statusCode
+
+testExternalAddProposalWrongUser :: TestM ()
+testExternalAddProposalWrongUser = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, [bob, charly]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser), (1, LocalUser)]
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
+
+  bobClient1 <- assertOne . toList $ pClients bob
+  charlyClient1 <- assertOne . toList $ pClients charly
+  (commit, welcome) <-
+    liftIO $
+      setupCommit tmp creator "group" "group" $
+        NonEmpty.tail (pClients creator) <> [bobClient1, charlyClient1]
+  testSuccessfulCommit MessagingSetup {users = [bob, charly], ..}
+
+  liftIO $ mergeWelcome tmp (fst bobClient1) "group" "group" "welcome"
+
+  bobClient2Qid <-
+    userClientQid (pUserId bob)
+      <$> withLastPrekeys (setupUserClient tmp CreateWithKey True (pUserId bob))
+  externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "group"
+  postMessage (qUnqualified (pUserId charly)) externalProposal !!! do
+    const 422 === statusCode
+    const (Just "mls-unsupported-proposal") === fmap Wai.label . responseJsonError
+
+testExternalAddProposalWrongClient :: TestM ()
+testExternalAddProposalWrongClient = withSystemTempDirectory "mls" $ \tmp -> do
+  (creator, [bob, charly]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser), (1, LocalUser)]
+  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
+
+  bobClient1 <- assertOne . toList $ pClients bob
+  charlyClient1 <- assertOne . toList $ pClients charly
+  (commit, welcome) <-
+    liftIO $
+      setupCommit tmp creator "group" "group" $
+        NonEmpty.tail (pClients creator) <> [bobClient1, charlyClient1]
+  testSuccessfulCommit MessagingSetup {users = [bob, charly], ..}
+
+  liftIO $ mergeWelcome tmp (fst bobClient1) "group" "group" "welcome"
+
+  bobClient2Qid <-
+    userClientQid (pUserId bob)
+      <$> withLastPrekeys (setupUserClient tmp CreateWithoutKey True (pUserId bob))
+  externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "group"
+  postMessage (qUnqualified (pUserId charly)) externalProposal !!! do
+    const 422 === statusCode
+    const (Just "mls-unsupported-proposal") === fmap Wai.label . responseJsonError
+
+-- FUTUREWORK: test processing a commit containing the external proposal
+testPublicKeys :: TestM ()
+testPublicKeys = do
+  u <- randomId
+  g <- viewGalley
+  keys <-
+    responseJsonError
+      =<< get
+        ( g
+            . paths ["mls", "public-keys"]
+            . zUser u
+        )
+      <!! const 200 === statusCode
+
+  liftIO $
+    Map.keys
+      ( Map.findWithDefault
+          mempty
+          RemovalPurpose
+          (unMLSPublicKeys keys)
+      )
+      @?= [Ed25519]
+
+-- | The test manually reads from mls-test-cli's store and extracts a private
+-- key. The key is needed for signing an AppAck proposal, which as of August 24,
+-- 2022 only gets forwarded by the backend, i.e., there's no action taken by the
+-- backend.
+propUnsupported :: TestM ()
+propUnsupported = withSystemTempDirectory "mls" $ \tmp -> do
+  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (1, LocalUser) def {createConv = CreateConv}
+  aliceKP <- liftIO $ do
+    d <- BS.readFile (tmp </> pClientQid creator)
+    either (\e -> assertFailure ("could not parse key package: " <> T.unpack e)) pure $
+      decodeMLS' d
+  let alicePublicKey = bcSignatureKey $ kpCredential aliceKP
+
+  -- "\0 " corresponds to 0020 in TLS encoding, which is the length of the
+  -- following public key
+  file <-
+    liftIO . BS.readFile $
+      tmp </> pClientQid creator <> ".db" </> cs (B64U.encode $ "\0 " <> alicePublicKey)
+  let s =
+        file ^.. key "signature_private_key" . key "value" . _Array . traverse . _Integer
+          & fmap fromIntegral
+          & BS.pack
+  let (privKey, pubKey) = BS.splitAt 32 s
+  liftIO $ alicePublicKey @?= pubKey
+  let aliceRef =
+        kpRef
+          MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+          . KeyPackageData
+          . rmRaw
+          . kpTBS
+          $ aliceKP
+  let Just appAckMsg =
+        maybeCryptoError $
+          mkAppAckProposalMessage
+            groupId
+            (Epoch 0)
+            aliceRef
+            []
+            <$> C.secretKey privKey
+            <*> C.publicKey pubKey
+      msgSerialised =
+        LBS.toStrict . runPut . serialiseMLS $ appAckMsg
+
+  postMessage (qUnqualified . pUserId $ creator) msgSerialised
+    !!! const 201 === statusCode
