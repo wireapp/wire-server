@@ -543,6 +543,7 @@ executable brig-integration
     , optparse-applicative
     , pem
     , polysemy
+    , polysemy-wire-zoo
     , process
     , proto-lens
     , QuickCheck
