@@ -88,8 +88,14 @@ library
     Brig.Run
     Brig.Sem.CodeStore
     Brig.Sem.CodeStore.Cassandra
+    Brig.Sem.GalleyProvider
+    Brig.Sem.GalleyProvider.RPC
     Brig.Sem.PasswordResetStore
     Brig.Sem.PasswordResetStore.CodeStore
+    Brig.Sem.RPC
+    Brig.Sem.RPC.IO
+    Brig.Sem.ServiceRPC
+    Brig.Sem.ServiceRPC.IO
     Brig.SMTP
     Brig.Team.API
     Brig.Team.DB
