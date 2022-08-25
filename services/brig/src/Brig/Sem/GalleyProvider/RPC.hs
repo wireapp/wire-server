@@ -2,14 +2,18 @@
 
 module Brig.Sem.GalleyProvider.RPC where
 
-
 import Bilge hiding (head, options, requestId)
 import Brig.API.Types
 import Brig.App
 import Brig.RPC
+import Brig.Sem.GalleyProvider (GalleyProvider (..))
+import Brig.Sem.ServiceRPC (Service (Galley), ServiceRPC)
+import qualified Brig.Sem.ServiceRPC as ServiceRPC
+import Control.Error (hush)
 import Control.Lens ((^.))
 import Data.Aeson hiding (json)
 import Data.ByteString.Conversion
+import qualified Data.ByteString.Lazy as BL
 import Data.Coerce (coerce)
 import qualified Data.Currency as Currency
 import Data.Id
@@ -21,6 +25,9 @@ import Imports
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import qualified Network.Wai.Utilities.Error as Wai
+import Polysemy
+import Polysemy.Error
+import System.Logger (Msg, field, msg, val)
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Team
 import qualified Wire.API.Team.Conversation as Conv
@@ -29,41 +36,36 @@ import qualified Wire.API.Team.Member as Member
 import qualified Wire.API.Team.Member as Team
 import Wire.API.Team.Role
 import Wire.API.Team.SearchVisibility
-import Brig.Sem.GalleyProvider (GalleyProvider(..))
-import Polysemy
-import System.Logger (Msg, val, msg, field)
 import Wire.Sem.Logger
-import Brig.Sem.ServiceRPC (ServiceRPC, Service(Galley))
-import qualified Brig.Sem.ServiceRPC as ServiceRPC
-import qualified Data.ByteString.Lazy as BL
-import Polysemy.Error
-import Control.Error (hush)
 
-interpretGalleyProviderToRPC
-    :: Members '[
-  Error ParseException,
-      ServiceRPC 'Galley,
-      Logger (Msg -> Msg)] r
-    => Sem (GalleyProvider ': r) a -> Sem r a
+interpretGalleyProviderToRPC ::
+  Members
+    '[ Error ParseException,
+       ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
+  Sem (GalleyProvider ': r) a ->
+  Sem r a
 interpretGalleyProviderToRPC = interpret $ \case
-   CreateSelfConv id'                         -> createSelfConv id'
-   GetConv id' id''                           -> getConv id' id''
-   GetTeamConv id' id'' id'2                  -> getTeamConv id' id'' id'2
-   NewClient id' ci                           -> newClient id' ci
-   CheckUserCanJoinTeam id'                   -> checkUserCanJoinTeam id'
-   AddTeamMember id' id'' x0                  -> addTeamMember id' id'' x0
-   CreateTeam id' bnt id''                    -> createTeam id' bnt id''
-   GetTeamMember id' id''                     -> getTeamMember id' id''
-   GetTeamMembers id'                         -> getTeamMembers id'
-   GetTeamId id'                              -> getTeamId id'
-   GetTeam id'                                -> getTeam id'
-   GetTeamName id'                            -> getTeamName id'
-   GetTeamLegalHoldStatus id'                 -> getTeamLegalHoldStatus id'
-   GetTeamSearchVisibility id'                -> getTeamSearchVisibility id'
-   ChangeTeamStatus id' ts m_al               -> changeTeamStatus id' ts m_al
-   MemberIsTeamOwner id' id''                 -> memberIsTeamOwner id' id''
-   GetAllFeatureConfigsForUser m_id'          -> getAllFeatureConfigsForUser m_id'
-   GetVerificationCodeEnabled id'             -> getVerificationCodeEnabled id'
+  CreateSelfConv id' -> createSelfConv id'
+  GetConv id' id'' -> getConv id' id''
+  GetTeamConv id' id'' id'2 -> getTeamConv id' id'' id'2
+  NewClient id' ci -> newClient id' ci
+  CheckUserCanJoinTeam id' -> checkUserCanJoinTeam id'
+  AddTeamMember id' id'' x0 -> addTeamMember id' id'' x0
+  CreateTeam id' bnt id'' -> createTeam id' bnt id''
+  GetTeamMember id' id'' -> getTeamMember id' id''
+  GetTeamMembers id' -> getTeamMembers id'
+  GetTeamId id' -> getTeamId id'
+  GetTeam id' -> getTeam id'
+  GetTeamName id' -> getTeamName id'
+  GetTeamLegalHoldStatus id' -> getTeamLegalHoldStatus id'
+  GetTeamSearchVisibility id' -> getTeamSearchVisibility id'
+  ChangeTeamStatus id' ts m_al -> changeTeamStatus id' ts m_al
+  MemberIsTeamOwner id' id'' -> memberIsTeamOwner id' id''
+  GetAllFeatureConfigsForUser m_id' -> getAllFeatureConfigsForUser m_id'
+  GetVerificationCodeEnabled id' -> getVerificationCodeEnabled id'
 
 runIt :: HttpClientIO a -> Sem r a
 runIt = undefined
@@ -72,10 +74,11 @@ runIt = undefined
 
 -- | Calls 'Galley.API.createSelfConversationH'.
 createSelfConv ::
-  Members '[
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   UserId ->
   Sem r ()
 createSelfConv u = do
@@ -91,11 +94,12 @@ createSelfConv u = do
 
 -- | Calls 'Galley.API.getConversationH'.
 getConv ::
-  Members '[
-  Error ParseException,
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ Error ParseException,
+       ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   UserId ->
   ConvId ->
   Sem r (Maybe Conversation)
@@ -116,11 +120,12 @@ getConv usr cnv = do
 
 -- | Calls 'Galley.API.getTeamConversationH'.
 getTeamConv ::
-  Members '[
-  Error ParseException,
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ Error ParseException,
+       ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   UserId ->
   TeamId ->
   ConvId ->
@@ -142,10 +147,11 @@ getTeamConv usr tid cnv = do
 
 -- | Calls 'Galley.API.addClientH'.
 newClient ::
-  Members '[
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   UserId ->
   ClientId ->
   Sem r ()
@@ -160,10 +166,11 @@ newClient u c = do
 
 -- | Calls 'Galley.API.canUserJoinTeamH'.
 checkUserCanJoinTeam ::
-  Members '[
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   TeamId ->
   Sem r (Maybe Wai.Error)
 checkUserCanJoinTeam tid = do
@@ -183,10 +190,11 @@ checkUserCanJoinTeam tid = do
 
 -- | Calls 'Galley.API.uncheckedAddTeamMemberH'.
 addTeamMember ::
-  Members '[
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   UserId ->
   TeamId ->
   (Maybe (UserId, UTCTimeMillis), Role) ->
@@ -211,10 +219,11 @@ addTeamMember u tid (minvmeta, role) = do
 
 -- | Calls 'Galley.API.createBindingTeamH'.
 createTeam ::
-  Members '[
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   UserId ->
   BindingNewTeam ->
   TeamId ->
@@ -239,11 +248,12 @@ createTeam u t@(BindingNewTeam bt) teamid = do
 
 -- | Calls 'Galley.API.uncheckedGetTeamMemberH'.
 getTeamMember ::
-  Members '[
-  Error ParseException,
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ Error ParseException,
+       ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   UserId ->
   TeamId ->
   Sem r (Maybe Team.TeamMember)
@@ -267,11 +277,12 @@ getTeamMember u tid = do
 -- means that only the first 2000 members of a team (according to some arbitrary order) will
 -- be suspended, and the rest will remain active.
 getTeamMembers ::
-  Members '[
-  Error ParseException,
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ Error ParseException,
+       ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   TeamId ->
   Sem r Team.TeamMemberList
 getTeamMembers tid = do
@@ -283,10 +294,11 @@ getTeamMembers tid = do
         . expect2xx
 
 memberIsTeamOwner ::
-  Members '[
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   TeamId ->
   UserId ->
   Sem r Bool
@@ -298,11 +310,12 @@ memberIsTeamOwner tid uid = do
 
 -- | Calls 'Galley.API.getBindingTeamIdH'.
 getTeamId ::
-  Members '[
-  Error ParseException,
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ Error ParseException,
+       ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   UserId ->
   Sem r (Maybe TeamId)
 getTeamId u = do
@@ -318,11 +331,12 @@ getTeamId u = do
 
 -- | Calls 'Galley.API.getTeamInternalH'.
 getTeam ::
-  Members '[
-  Error ParseException,
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ Error ParseException,
+       ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   TeamId ->
   Sem r Team.TeamData
 getTeam tid = do
@@ -335,11 +349,12 @@ getTeam tid = do
 
 -- | Calls 'Galley.API.getTeamInternalH'.
 getTeamName ::
-  Members '[
-  Error ParseException,
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ Error ParseException,
+       ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   TeamId ->
   Sem r Team.TeamName
 getTeamName tid = do
@@ -352,11 +367,12 @@ getTeamName tid = do
 
 -- | Calls 'Galley.API.getTeamFeatureStatusH'.
 getTeamLegalHoldStatus ::
-  Members '[
-  Error ParseException,
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ Error ParseException,
+       ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   TeamId ->
   Sem r (WithStatus LegalholdConfig)
 getTeamLegalHoldStatus tid = do
@@ -369,11 +385,12 @@ getTeamLegalHoldStatus tid = do
 
 -- | Calls 'Galley.API.getSearchVisibilityInternalH'.
 getTeamSearchVisibility ::
-  Members '[
-  Error ParseException,
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ Error ParseException,
+       ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   TeamId ->
   Sem r TeamSearchVisibility
 getTeamSearchVisibility tid =
@@ -386,11 +403,12 @@ getTeamSearchVisibility tid =
         . expect2xx
 
 getVerificationCodeEnabled ::
-  Members '[
-  Error ParseException,
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ Error ParseException,
+       ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   TeamId ->
   Sem r Bool
 getVerificationCodeEnabled tid = do
@@ -418,10 +436,11 @@ decodeBodyMaybe :: (Typeable a, FromJSON a) => Text -> Response (Maybe BL.ByteSt
 decodeBodyMaybe t r = hush $ decodeBody t r
 
 getAllFeatureConfigsForUser ::
-  Members '[
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   Maybe UserId ->
   Sem r AllFeatureConfigs
 getAllFeatureConfigsForUser mbUserId =
@@ -434,10 +453,11 @@ getAllFeatureConfigsForUser mbUserId =
 
 -- | Calls 'Galley.API.updateTeamStatusH'.
 changeTeamStatus ::
-  Members '[
-  ServiceRPC 'Galley,
-  Logger (Msg -> Msg)
-           ] r =>
+  Members
+    '[ ServiceRPC 'Galley,
+       Logger (Msg -> Msg)
+     ]
+    r =>
   TeamId ->
   Team.TeamStatus ->
   Maybe Currency.Alpha ->
