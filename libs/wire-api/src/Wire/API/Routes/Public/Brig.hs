@@ -695,7 +695,11 @@ type UserClientAPI =
     :<|> NewNonce "get-nonce" 'GET 204
     :<|> Named
            "create-access-token"
-           ( Summary "Create an access token for a client "
+           ( Summary "Create a JWT DPoP access token"
+               :> Description
+                    ( "Create an JWT DPoP access token for the client CSR, given a JWT DPoP proof, specified in the `DPoP` header. \
+                      \The access token will be returned as JWT DPoP token in the `DPoP` header."
+                    )
                :> ZUser
                :> "clients"
                :> CaptureClientId "client"
@@ -710,7 +714,8 @@ type UserClientAPI =
 type NewNonce name method statusCode =
   Named
     name
-    ( Summary "Get a new nonce for a client CSR, specified in the response header `Replay-Nonce` as a uuidv4 in base64url encoding"
+    ( Summary "Get a new nonce for a client CSR"
+        :> Description "Get a new nonce for a client CSR, specified in the response header `Replay-Nonce` as a uuidv4 in base64url encoding."
         :> ZUser
         :> "clients"
         :> CaptureClientId "client"
