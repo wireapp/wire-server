@@ -41,14 +41,10 @@ init:
 # Build all Haskell services and executables, run unit tests
 .PHONY: install
 install: init
-ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
 	cabal update
 	cabal build all
 	./hack/bin/cabal-run-all-tests.sh
 	./hack/bin/cabal-install-artefacts.sh all
-else
-	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist
-endif
 
 # Clean
 .PHONY: full-clean
@@ -62,14 +58,9 @@ endif
 
 .PHONY: clean
 clean:
-ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
 	cabal clean
-else
-	stack clean
-endif
 	$(MAKE) -C services/nginz clean
 	-rm -rf dist
-	-rm -f .metadata
 
 .PHONY: clean-hint
 clean-hint:
@@ -81,15 +72,6 @@ clean-hint:
 cabal.project.local:
 	echo "optimization: False" > ./cabal.project.local
 	./hack/bin/cabal-project-local-template.sh "ghc-options: -O0" >> ./cabal.project.local
-
-# Build all Haskell services and executables with -O0, run unit tests
-.PHONY: fast
-fast: init
-ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
-	make install
-else
-	stack install --pedantic --test --bench --no-run-benchmarks --local-bin-path=dist --fast $(WIRE_STACK_OPTIONS)
-endif
 
 # Usage: make c package=brig test=1
 .PHONY: c
@@ -158,16 +140,6 @@ db-migrate-package: c
 .PHONY: services
 services: init install
 	$(MAKE) -C services/nginz
-
-# Build haddocks
-.PHONY: haddock
-haddock:
-	WIRE_STACK_OPTIONS="$(WIRE_STACK_OPTIONS) --haddock --haddock-internal" make fast
-
-# Build haddocks only for wire-server
-.PHONY: haddock-shallow
-haddock-shallow:
-	WIRE_STACK_OPTIONS="$(WIRE_STACK_OPTIONS) --haddock --haddock-internal --no-haddock-deps" make fast
 
 # formats all Haskell files (which don't contain CPP)
 .PHONY: format
@@ -323,17 +295,10 @@ cqlsh:
 .PHONY: db-reset
 db-reset:
 	@echo "make sure you have ./deploy/dockerephemeral/run.sh running in another window!"
-ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
 	make db-reset-package package=brig
 	make db-reset-package package=galley
 	make db-reset-package package=gundeck
 	make db-reset-package package=spar
-else
-	make -C services/brig db-reset
-	make -C services/galley db-reset
-	make -C services/gundeck db-reset
-	make -C services/spar db-reset
-endif
 
 #################################
 ## dependencies
@@ -348,14 +313,7 @@ libzauth:
 # Run this again after changes to libraries or dependencies.
 .PHONY: hie.yaml
 hie.yaml:
-ifeq ($(WIRE_BUILD_WITH_CABAL), 1)
 	echo -e 'cradle:\n  cabal: {}' > hie.yaml
-else
-	cp stack.yaml stack-dev.yaml
-	echo -e '\n\nghc-options:\n "$$locals": -O0 -Wall -Werror' >> stack-dev.yaml
-	stack build implicit-hie
-	stack exec gen-hie | yq "{cradle: {stack: {stackYaml: \"./stack-dev.yaml\", components: .cradle.stack}}}" > hie.yaml
-endif
 
 #####################################
 # Today we pretend to be CI and run integration tests on kubernetes
