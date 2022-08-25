@@ -140,7 +140,7 @@ let lib = pkgs.lib;
       pkgs.kubectl
       pkgs.ormolu
       pkgs.shellcheck
-      pkgs.haskellPackages.cabal-fmt
+      (hlib.justStaticExecutables pkgs.haskellPackages.cabal-fmt)
     ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
       pkgs.skopeo
     ];
