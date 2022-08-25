@@ -33,7 +33,6 @@ module Brig.IO.Intra
     upsertOne2OneConversation,
 
     -- * Clients
-    -- Brig.IO.Intra.newClient,
     rmClient,
     lookupPushToken,
 
