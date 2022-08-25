@@ -111,37 +111,59 @@ let lib = pkgs.lib;
       };
     };
     wireServerPackages = (builtins.attrNames (localPackages {} {}));
-in {
-  images = imagesWithBrigTemplates;
 
-  devShell = hPkgs.shellFor {
-    packages = p: builtins.map (e: p.${e}) wireServerPackages;
-    buildInputs = [
-      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
+    # Tools common between CI and developers
+    commonTools =  [
       pkgs.cabal2nix
-      pkgs.cfssl
-      pkgs.ghcid
       pkgs.gnumake
       pkgs.gnused
       pkgs.helm
       pkgs.helmfile
       pkgs.hlint
       pkgs.jq
-      pkgs.kind
       pkgs.kubectl
-      pkgs.netcat
-      pkgs.niv
       pkgs.ormolu
       pkgs.shellcheck
+      pkgs.haskellPackages.cabal-fmt
+    ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+      pkgs.skopeo
+    ];
+
+    ciImage = pkgs.dockerTools.buildImageWithNixDb {
+      name = "quay.io/wire/wire-server-ci";
+      copyToRoot = pkgs.buildEnv {
+        name = "image-root";
+        paths = commonTools ++ [
+          pkgs.cacert
+          pkgs.coreutils
+          pkgs.bashInteractive
+          pkgs.base64
+          pkgs.nix
+          pkgs.cachix
+        ];
+      };
+    };
+in {
+  inherit ciImage;
+
+  images = with imagesWithBrigTemplates; {inherit brig brig-integration galley;};
+
+  devShell = hPkgs.shellFor {
+    packages = p: builtins.map (e: p.${e}) wireServerPackages;
+    buildInputs = commonTools ++ [
+      (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
+      pkgs.ghcid
+      pkgs.cfssl
+      pkgs.kind
+      pkgs.netcat
+      pkgs.niv
       pkgs.python3
       pkgs.rsync
-      pkgs.shellcheck
       pkgs.wget
       pkgs.yq
 
       pkgs.cabal-install
       pkgs.haskellPackages.cabal-plan
-      pkgs.haskellPackages.cabal-fmt
       pkgs.nix-prefetch-git
     ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
       # linux-only, not strictly required tools
