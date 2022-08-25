@@ -26,16 +26,16 @@ module Brig.IO.Intra
     onClientEvent,
 
     -- * Conversations
-    createSelfConv,
+    -- createSelfConv,
     createConnectConv,
     acceptConnectConv,
     blockConv,
     unblockConv,
-    getConv,
+    -- getConv,
     upsertOne2OneConversation,
 
     -- * Clients
-    Brig.IO.Intra.newClient,
+    -- Brig.IO.Intra.newClient,
     rmClient,
     lookupPushToken,
 
@@ -43,22 +43,22 @@ module Brig.IO.Intra
     rmUser,
 
     -- * Teams
-    addTeamMember,
-    checkUserCanJoinTeam,
-    createTeam,
-    getTeamMember,
-    getTeamMembers,
-    memberIsTeamOwner,
-    getTeam,
-    getTeamConv,
-    getTeamName,
-    getTeamId,
-    getTeamContacts,
-    getTeamLegalHoldStatus,
-    changeTeamStatus,
-    getTeamSearchVisibility,
-    getAllFeatureConfigsForUser,
-    getVerificationCodeEnabled,
+    -- addTeamMember,
+    -- checkUserCanJoinTeam,
+    -- createTeam,
+    -- getTeamMember,
+    -- getTeamMembers,
+    -- memberIsTeamOwner,
+    -- getTeam,
+    -- getTeamConv,
+    -- getTeamName,
+    -- getTeamId,
+    -- getTeamContacts,
+    -- getTeamLegalHoldStatus,
+    -- changeTeamStatus,
+    -- getTeamSearchVisibility,
+    -- getAllFeatureConfigsForUser,
+    -- getVerificationCodeEnabled,
 
     -- * Legalhold
     guardLegalhold,

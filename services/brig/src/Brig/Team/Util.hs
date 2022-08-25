@@ -19,7 +19,6 @@ module Brig.Team.Util where -- TODO: remove this module and move contents to Bri
 
 import Brig.API.Error
 import Brig.App
-import qualified Brig.IO.Intra as Intra
 import Control.Error
 import Control.Lens
 import Data.Id
@@ -28,10 +27,13 @@ import Galley.Types.Teams
 import Imports
 import Wire.API.Team.Member
 import Wire.API.Team.Permission
+import qualified Brig.Sem.GalleyProvider as GalleyProvider
+import Polysemy (Member)
+import Brig.Sem.GalleyProvider (GalleyProvider)
 
-ensurePermissions :: UserId -> TeamId -> [Perm] -> ExceptT Error (AppT r) ()
+ensurePermissions :: Member GalleyProvider r => UserId -> TeamId -> [Perm] -> ExceptT Error (AppT r) ()
 ensurePermissions u t perms = do
-  m <- lift $ wrapHttp $ Intra.getTeamMember u t
+  m <- lift $ liftSem $ GalleyProvider.getTeamMember u t
   unless (check m) $
     throwStd insufficientTeamPermissions
   where
@@ -42,9 +44,9 @@ ensurePermissions u t perms = do
 -- | Privilege escalation detection (make sure no `RoleMember` user creates a `RoleOwner`).
 --
 -- There is some code duplication with 'Galley.API.Teams.ensureNotElevated'.
-ensurePermissionToAddUser :: UserId -> TeamId -> Permissions -> ExceptT Error (AppT r) ()
+ensurePermissionToAddUser :: Member GalleyProvider r => UserId -> TeamId -> Permissions -> ExceptT Error (AppT r) ()
 ensurePermissionToAddUser u t inviteePerms = do
-  minviter <- lift $ wrapHttp $ Intra.getTeamMember u t
+  minviter <- lift $ liftSem $ GalleyProvider.getTeamMember u t
   unless (check minviter) $
     throwStd insufficientTeamPermissions
   where
