@@ -33,6 +33,7 @@ import qualified Cassandra as DB
 import Control.Lens (at, preview, (.~), (^.), (^?))
 import Data.Aeson hiding (json)
 import Data.Aeson.Lens
+import qualified Data.ByteString.Base64.URL as Base64
 import Data.ByteString.Conversion
 import Data.Default
 import Data.Id hiding (client)
@@ -60,6 +61,7 @@ import Wire.API.User
 import qualified Wire.API.User as Public
 import Wire.API.User.Auth
 import Wire.API.User.Client
+import Wire.API.User.Client.DPoPAccessToken (Proof (Proof))
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
@@ -107,7 +109,8 @@ tests _cl _at opts p db b c g =
       test p "get /clients/:client - 200" $ testMLSClient b,
       test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g c,
       test p "client/prekeys/race" $ testPreKeyRace b,
-      test p "get/head nonce/clients" $ testNewNonce b
+      test p "get/head nonce/clients" $ testNewNonce b,
+      test p "post /clients/:cid/access-token" $ testCreateAccessToken b
     ]
 
 testAddGetClientVerificationCode :: DB.ClientState -> Brig -> Galley -> Http ()
@@ -970,6 +973,29 @@ testNewNonce brig = do
         assertBool "Replay-Nonce header should contain a valid base64url encoded uuidv4" $ any isValidBase64UrlEncodedUUID nonceBs
         Just "no-store" @=? getHeader "Cache-Control" response
       pure nonceBs
+
+-- todo(leif): work in progress
+testCreateAccessToken :: Brig -> Http ()
+testCreateAccessToken brig = do
+  uid <- userId <$> randomUser brig
+  cid <- randomClient
+  let proof = Proof $ "xxxx." <> Base64.encode claims <> ".zzzz"
+  response <- Util.createAccessToken brig uid cid proof <!! const 204 === statusCode
+  liftIO $
+    assertBool "DPoP header should contain a byte string" $ isJust (getHeader "DPoP" response)
+  where
+    claims =
+      ""
+        <> "{"
+        <> "    \"jti\": \"7535d380-673e-4219-8410-b8df679c306e\","
+        <> "    \"iat\": 1653455836315,"
+        <> "    \"htm\": \"POST\","
+        <> "    \"htu\": \"https://wire.example.com/client/token\","
+        <> "    \"nonce\": \"OZ-5WL9vR5CxaaXoMWpcZQ\","
+        <> "    \"chal\": \"okAJ33Ym/XS2qmmhhh7aWSbBlYy4Ttm1EysqW8I/9ng\","
+        <> "    \"sub\": \"URI:wireapp:SvPfLlwBQi-6oddVRrkqpw/04c7@example.com\","
+        <> "    \"exp\": 1661231836315"
+        <> "}    "
 
 testCan'tDeleteLegalHoldClient :: Brig -> Http ()
 testCan'tDeleteLegalHoldClient brig = do

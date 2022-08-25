@@ -56,6 +56,7 @@ import Wire.API.Routes.Version
 import Wire.API.User hiding (NoIdentity)
 import Wire.API.User.Activation
 import Wire.API.User.Client
+import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Handle
 import Wire.API.User.Password (CompletePasswordReset, NewPasswordReset, PasswordReset, PasswordResetKey)
@@ -692,6 +693,19 @@ type UserClientAPI =
     -- be aware that the order of the head-nonce and get-nonce matters, if get was first, then head requests would be routed to the get handler
     :<|> NewNonce "head-nonce" 'HEAD 200
     :<|> NewNonce "get-nonce" 'GET 204
+    :<|> Named
+           "create-access-token"
+           ( Summary "Create an access token for a client "
+               :> ZUser
+               :> "clients"
+               :> CaptureClientId "client"
+               :> "access-token"
+               :> Header "DPoP" Proof
+               :> MultiVerb1
+                    'POST
+                    '[JSON]
+                    (WithHeaders '[Header "DPoP" DPoPAccessToken] DPoPAccessToken (RespondEmpty 204 "No Content"))
+           )
 
 type NewNonce name method statusCode =
   Named
