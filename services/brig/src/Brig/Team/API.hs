@@ -34,6 +34,8 @@ import qualified Brig.Effects.BlacklistStore as BlacklistStore
 import qualified Brig.Email as Email
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import qualified Brig.Phone as Phone
+import Brig.Sem.GalleyProvider (GalleyProvider)
+import qualified Brig.Sem.GalleyProvider as GalleyProvider
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
@@ -76,13 +78,14 @@ import qualified Wire.API.Team.Role as Public
 import qualified Wire.API.Team.Size as Public
 import Wire.API.User hiding (fromEmail)
 import qualified Wire.API.User as Public
-import qualified Brig.Sem.GalleyProvider as GalleyProvider
-import Brig.Sem.GalleyProvider (GalleyProvider)
 
-routesPublic
-  :: Members '[BlacklistStore
-    , GalleyProvider
-              ] r => Routes Doc.ApiBuilder (Handler r) ()
+routesPublic ::
+  Members
+    '[ BlacklistStore,
+       GalleyProvider
+     ]
+    r =>
+  Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   post "/teams/:tid/invitations" (continue createInvitationPublicH) $
     accept "application" "json"
@@ -193,10 +196,12 @@ routesPublic = do
     Doc.response 403 "No permission (not admin or owner of this team)." Doc.end
 
 routesInternal ::
-  Members '[BlacklistStore
-    , GalleyProvider
-           ] r
-             => Routes a (Handler r) ()
+  Members
+    '[ BlacklistStore,
+       GalleyProvider
+     ]
+    r =>
+  Routes a (Handler r) ()
 routesInternal = do
   get "/i/teams/invitations/by-email" (continue getInvitationByEmailH) $
     accept "application" "json"
@@ -253,10 +258,13 @@ instance ToJSON FoundInvitationCode where
   toJSON (FoundInvitationCode c) = object ["code" .= c]
 
 createInvitationPublicH ::
-  Members '[BlacklistStore
-    , GalleyProvider
-           ] r
-  => JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest -> (Handler r) Response
+  Members
+    '[ BlacklistStore,
+       GalleyProvider
+     ]
+    r =>
+  JSON ::: UserId ::: TeamId ::: JsonRequest Public.InvitationRequest ->
+  (Handler r) Response
 createInvitationPublicH (_ ::: uid ::: tid ::: req) = do
   body <- parseJsonBody req
   newInv <- createInvitationPublic uid tid body
@@ -273,10 +281,15 @@ data CreateInvitationInviter = CreateInvitationInviter
   deriving (Eq, Show)
 
 createInvitationPublic ::
-  Members '[BlacklistStore
-    , GalleyProvider
-           ] r
-  => UserId -> TeamId -> Public.InvitationRequest -> Handler r Public.Invitation
+  Members
+    '[ BlacklistStore,
+       GalleyProvider
+     ]
+    r =>
+  UserId ->
+  TeamId ->
+  Public.InvitationRequest ->
+  Handler r Public.Invitation
 createInvitationPublic uid tid body = do
   let inviteeRole = fromMaybe defaultRole . irRole $ body
   inviter <- do
@@ -463,13 +476,15 @@ suspendTeam tid = do
 
 unsuspendTeamH ::
   Members '[GalleyProvider] r =>
-  JSON ::: TeamId -> (Handler r) Response
+  JSON ::: TeamId ->
+  (Handler r) Response
 unsuspendTeamH (_ ::: tid) = do
   empty <$ unsuspendTeam tid
 
 unsuspendTeam ::
   Members '[GalleyProvider] r =>
-  TeamId -> (Handler r) ()
+  TeamId ->
+  (Handler r) ()
 unsuspendTeam tid = do
   changeTeamAccountStatuses tid Active
   lift $ liftSem $ GalleyProvider.changeTeamStatus tid Team.Active Nothing
@@ -477,10 +492,11 @@ unsuspendTeam tid = do
 -------------------------------------------------------------------------------
 -- Internal
 
-changeTeamAccountStatuses
-  ::
+changeTeamAccountStatuses ::
   Members '[GalleyProvider] r =>
-  TeamId -> AccountStatus -> (Handler r) ()
+  TeamId ->
+  AccountStatus ->
+  (Handler r) ()
 changeTeamAccountStatuses tid s = do
   team <- Team.tdTeam <$> lift (liftSem $ GalleyProvider.getTeam tid)
   unless (team ^. teamBinding == Binding) $

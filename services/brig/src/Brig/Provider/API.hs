@@ -46,6 +46,8 @@ import qualified Brig.Provider.DB as DB
 import Brig.Provider.Email
 import qualified Brig.Provider.RPC as RPC
 import qualified Brig.Queue as Queue
+import Brig.Sem.GalleyProvider (GalleyProvider)
+import qualified Brig.Sem.GalleyProvider as GalleyProvider
 import Brig.Team.Util
 import Brig.Types.Intra (AccountStatus (..), UserAccount (..))
 import Brig.Types.User
@@ -90,6 +92,7 @@ import qualified OpenSSL.EVP.PKey as SSL
 import qualified OpenSSL.PEM as SSL
 import qualified OpenSSL.RSA as SSL
 import OpenSSL.Random (randBytes)
+import Polysemy (Members)
 import qualified Ssl.Util as SSL
 import System.Logger.Class (MonadLogger)
 import UnliftIO.Async (pooledMapConcurrentlyN_)
@@ -119,9 +122,6 @@ import Wire.API.User.Client
 import qualified Wire.API.User.Client as Public (Client, ClientCapability (ClientSupportsLegalholdImplicitConsent), PubClient (..), UserClientPrekeyMap, UserClients, userClients)
 import qualified Wire.API.User.Client.Prekey as Public (PrekeyId)
 import qualified Wire.API.User.Identity as Public (Email)
-import qualified Brig.Sem.GalleyProvider as GalleyProvider
-import Brig.Sem.GalleyProvider (GalleyProvider)
-import Polysemy (Members)
 
 routesPublic :: Members '[GalleyProvider] r => Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
@@ -715,7 +715,8 @@ finishDeleteService pid sid = do
     kick (bid, cid, _) = deleteBot (botUserId bid) Nothing bid cid
 
 deleteAccountH ::
-  Members '[GalleyProvider] r => ProviderId ::: JsonRequest Public.DeleteProvider ->
+  Members '[GalleyProvider] r =>
+  ProviderId ::: JsonRequest Public.DeleteProvider ->
   ExceptT Error (AppT r) Response
 deleteAccountH (pid ::: req) = do
   guardSecondFactorDisabled Nothing
@@ -795,7 +796,8 @@ searchServiceProfiles Nothing Nothing _ = do
   throwStd $ badRequest "At least `tags` or `start` must be provided."
 
 searchTeamServiceProfilesH ::
-  Members '[GalleyProvider] r => UserId ::: TeamId ::: Maybe (Range 1 128 Text) ::: Bool ::: Range 10 100 Int32 ->
+  Members '[GalleyProvider] r =>
+  UserId ::: TeamId ::: Maybe (Range 1 128 Text) ::: Bool ::: Range 10 100 Int32 ->
   (Handler r) Response
 searchTeamServiceProfilesH (uid ::: tid ::: prefix ::: filterDisabled ::: size) = do
   guardSecondFactorDisabled (Just uid)

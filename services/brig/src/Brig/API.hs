@@ -26,11 +26,11 @@ import qualified Brig.API.Public as Public
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Sem.CodeStore
+import Brig.Sem.GalleyProvider (GalleyProvider)
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Data.Swagger.Build.Api as Doc
 import Network.Wai.Routing (Routes)
 import Polysemy
-import Brig.Sem.GalleyProvider (GalleyProvider)
 
 sitemap ::
   Members

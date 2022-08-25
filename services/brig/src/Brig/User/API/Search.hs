@@ -28,6 +28,8 @@ import Brig.App
 import qualified Brig.Data.User as DB
 import qualified Brig.Federation.Client as Federation
 import qualified Brig.Options as Opts
+import Brig.Sem.GalleyProvider (GalleyProvider)
+import qualified Brig.Sem.GalleyProvider as GalleyProvider
 import Brig.Team.Util (ensurePermissions)
 import Brig.Types.Search as Search
 import qualified Brig.User.API.Handle as HandleAPI
@@ -44,6 +46,7 @@ import Imports
 import Network.Wai.Routing
 import Network.Wai.Utilities ((!>>))
 import Network.Wai.Utilities.Response (empty)
+import Polysemy
 import System.Logger (field, msg)
 import System.Logger.Class (val, (~~))
 import qualified System.Logger.Class as Log
@@ -53,9 +56,6 @@ import qualified Wire.API.Team.Permission as Public
 import Wire.API.Team.SearchVisibility (TeamSearchVisibility (..))
 import Wire.API.User.Search
 import qualified Wire.API.User.Search as Public
-import qualified Brig.Sem.GalleyProvider as GalleyProvider
-import Brig.Sem.GalleyProvider (GalleyProvider)
-import Polysemy
 
 routesInternal :: Routes a (Handler r) ()
 routesInternal = do
@@ -86,7 +86,11 @@ routesInternal = do
 -- for all results. This is tracked in https://wearezeta.atlassian.net/browse/SQCORE-599
 search ::
   Members '[GalleyProvider] r =>
-  UserId -> Text -> Maybe Domain -> Maybe (Range 1 500 Int32) -> (Handler r) (Public.SearchResult Public.Contact)
+  UserId ->
+  Text ->
+  Maybe Domain ->
+  Maybe (Range 1 500 Int32) ->
+  (Handler r) (Public.SearchResult Public.Contact)
 search searcherId searchTerm maybeDomain maybeMaxResults = do
   federationDomain <- viewFederationDomain
   let queryDomain = fromMaybe federationDomain maybeDomain
@@ -112,9 +116,13 @@ searchRemotely domain searchTerm = do
         searchPolicy = S.searchPolicy searchResponse
       }
 
-searchLocally :: forall r.
+searchLocally ::
+  forall r.
   Members '[GalleyProvider] r =>
-  UserId -> Text -> Maybe (Range 1 500 Int32) -> (Handler r) (Public.SearchResult Public.Contact)
+  UserId ->
+  Text ->
+  Maybe (Range 1 500 Int32) ->
+  (Handler r) (Public.SearchResult Public.Contact)
 searchLocally searcherId searchTerm maybeMaxResults = do
   let maxResults = maybe 15 (fromIntegral . fromRange) maybeMaxResults
   searcherTeamId <- lift $ wrapClient $ DB.lookupUserTeam searcherId

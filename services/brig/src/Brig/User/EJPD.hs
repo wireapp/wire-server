@@ -22,10 +22,12 @@ module Brig.User.EJPD (ejpdRequest) where
 
 import Brig.API.Handler
 import Brig.API.User (lookupHandle)
-import Brig.App (AppT, wrapClient, wrapHttp, liftSem)
+import Brig.App (AppT, liftSem, wrapClient, wrapHttp)
 import qualified Brig.Data.Connection as Conn
 import Brig.Data.User (lookupUser)
 import qualified Brig.IO.Intra as Intra
+import Brig.Sem.GalleyProvider (GalleyProvider)
+import qualified Brig.Sem.GalleyProvider as GalleyProvider
 import Brig.Types.User (HavePendingInvitations (NoPendingInvitations))
 import Control.Error hiding (bool)
 import Control.Lens (view, (^.))
@@ -33,15 +35,13 @@ import Data.Handle (Handle)
 import Data.Id (UserId)
 import qualified Data.Set as Set
 import Imports hiding (head)
+import Polysemy (Member)
 import Servant.Swagger.Internal.Orphans ()
 import Wire.API.Connection (Relation, RelationWithHistory (..), relationDropHistory)
 import qualified Wire.API.Push.Token as PushTok
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDRequestBody (EJPDRequestBody), EJPDResponseBody (EJPDResponseBody), EJPDResponseItem (EJPDResponseItem))
 import qualified Wire.API.Team.Member as Team
 import Wire.API.User (User, userDisplayName, userEmail, userHandle, userId, userPhone, userTeam)
-import qualified Brig.Sem.GalleyProvider as GalleyProvider
-import Polysemy (Member)
-import Brig.Sem.GalleyProvider (GalleyProvider)
 
 ejpdRequest :: forall r. Member GalleyProvider r => Maybe Bool -> EJPDRequestBody -> (Handler r) EJPDResponseBody
 ejpdRequest includeContacts (EJPDRequestBody handles) = do

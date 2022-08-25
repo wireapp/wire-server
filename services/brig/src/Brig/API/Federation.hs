@@ -31,6 +31,7 @@ import Brig.App
 import qualified Brig.Data.Connection as Data
 import qualified Brig.Data.User as Data
 import Brig.IO.Intra (notify)
+import Brig.Sem.GalleyProvider (GalleyProvider)
 import Brig.Types.User.Event
 import Brig.User.API.Handle
 import qualified Brig.User.Search.SearchIndex as Q
@@ -46,6 +47,7 @@ import Data.Range
 import qualified Gundeck.Types.Push as Push
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
+import Polysemy (Members)
 import Servant (ServerT)
 import Servant.API
 import UnliftIO.Async (pooledForConcurrentlyN_)
@@ -63,14 +65,15 @@ import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
-import Brig.Sem.GalleyProvider (GalleyProvider)
-import Polysemy (Members)
 
 type FederationAPI = "federation" :> BrigApi
 
 federationSitemap ::
-  Members '[ GalleyProvider
-           ] r => ServerT FederationAPI (Handler r)
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  ServerT FederationAPI (Handler r)
 federationSitemap =
   Named @"api-version" (\_ _ -> pure versionInfo)
     :<|> Named @"get-user-by-handle" (\d h -> getUserByHandle d h)
@@ -98,9 +101,11 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
     else pure NewConnectionResponseUserNotActivated
 
 getUserByHandle ::
-
-    Members '[ GalleyProvider
-             ] r => Domain ->
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  Domain ->
   Handle ->
   ExceptT Error (AppT r) (Maybe UserProfile)
 getUserByHandle domain handle = do
@@ -122,8 +127,11 @@ getUserByHandle domain handle = do
           listToMaybe <$> API.lookupLocalProfiles Nothing [ownerId]
 
 getUsersByIds ::
-    Members '[ GalleyProvider
-             ] r => Domain ->
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  Domain ->
   [UserId] ->
   ExceptT Error (AppT r) [UserProfile]
 getUsersByIds _ uids =

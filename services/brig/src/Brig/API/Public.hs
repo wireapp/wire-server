@@ -49,6 +49,8 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import Brig.Sem.CodeStore (CodeStore)
+import Brig.Sem.GalleyProvider (GalleyProvider)
+import qualified Brig.Sem.GalleyProvider as GalleyProvider
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
@@ -135,8 +137,6 @@ import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
-import qualified Brig.Sem.GalleyProvider as GalleyProvider
-import Brig.Sem.GalleyProvider (GalleyProvider)
 
 -- User API -----------------------------------------------------------
 
@@ -547,8 +547,15 @@ getMultiUserPrekeyBundleH zusr qualUserClients = do
   API.claimMultiPrekeyBundles (ProtectedUser zusr) qualUserClients !>> clientError
 
 addClient ::
-  Members '[ GalleyProvider
-           ] r => UserId -> ConnId -> Maybe IpAddr -> Public.NewClient -> (Handler r) NewClientResponse
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  ConnId ->
+  Maybe IpAddr ->
+  Public.NewClient ->
+  (Handler r) NewClientResponse
 addClient usr con ip new = do
   -- Users can't add legal hold clients
   when (Public.newClientType new == Public.LegalHoldClientType) $
@@ -631,10 +638,14 @@ newNonce _ = do
   pure nonce
 
 -- | docs/reference/user/registration.md {#RefRegistration}
-createUser :: Members '[BlacklistStore,
-  GalleyProvider
-                       ] r
-                         => Public.NewUserPublic -> (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
+createUser ::
+  Members
+    '[ BlacklistStore,
+       GalleyProvider
+     ]
+    r =>
+  Public.NewUserPublic ->
+  (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
 createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
   for_ (Public.newUserEmail new) $ mapExceptT wrapHttp . checkWhitelistWithError RegisterErrorWhitelistError . Left
@@ -709,23 +720,39 @@ getSelf self =
     >>= ifNothing (errorToWai @'E.UserNotFound)
 
 getUserUnqualifiedH ::
-  Members '[ GalleyProvider
-           ] r => UserId -> UserId -> (Handler r) (Maybe Public.UserProfile)
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  UserId ->
+  (Handler r) (Maybe Public.UserProfile)
 getUserUnqualifiedH self uid = do
   domain <- viewFederationDomain
   getUser self (Qualified uid domain)
 
 getUser ::
-  Members '[ GalleyProvider
-           ] r => UserId -> Qualified UserId -> (Handler r) (Maybe Public.UserProfile)
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  Qualified UserId ->
+  (Handler r) (Maybe Public.UserProfile)
 getUser self qualifiedUserId = do
   lself <- qualifyLocal self
   API.lookupProfile lself qualifiedUserId !>> fedError
 
 -- FUTUREWORK: Make servant understand that at least one of these is required
 listUsersByUnqualifiedIdsOrHandles ::
-  Members '[ GalleyProvider
-           ] r => UserId -> Maybe (CommaSeparatedList UserId) -> Maybe (Range 1 4 (CommaSeparatedList Handle)) -> (Handler r) [Public.UserProfile]
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  Maybe (CommaSeparatedList UserId) ->
+  Maybe (Range 1 4 (CommaSeparatedList Handle)) ->
+  (Handler r) [Public.UserProfile]
 listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
   domain <- viewFederationDomain
   case (mUids, mHandles) of
@@ -741,9 +768,15 @@ listUsersByUnqualifiedIdsOrHandles self mUids mHandles = do
        in listUsersByIdsOrHandles self (Public.ListUsersByHandles qualifiedRangedList)
     (Nothing, Nothing) -> throwStd $ badRequest "at least one ids or handles must be provided"
 
-listUsersByIdsOrHandles :: forall r.
-  Members '[ GalleyProvider
-           ] r => UserId -> Public.ListUsersQuery -> (Handler r) [Public.UserProfile]
+listUsersByIdsOrHandles ::
+  forall r.
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  Public.ListUsersQuery ->
+  (Handler r) [Public.UserProfile]
 listUsersByIdsOrHandles self q = do
   lself <- qualifyLocal self
   foundUsers <- case q of
@@ -830,8 +863,13 @@ checkHandles _ (Public.CheckHandles hs num) = do
 -- 'Handle.getHandleInfo') returns UserProfile to reduce traffic between backends
 -- in a federated scenario.
 getHandleInfoUnqualifiedH ::
-  Members '[ GalleyProvider
-           ] r => UserId -> Handle -> (Handler r) (Maybe Public.UserHandleInfo)
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  Handle ->
+  (Handler r) (Maybe Public.UserHandleInfo)
 getHandleInfoUnqualifiedH self handle = do
   domain <- viewFederationDomain
   Public.UserHandleInfo . Public.profileQualifiedId
@@ -873,7 +911,8 @@ completePasswordResetH (_ ::: req) = do
 sendActivationCodeH ::
   Members
     '[ BlacklistStore,
-       BlacklistPhonePrefixStore, GalleyProvider
+       BlacklistPhonePrefixStore,
+       GalleyProvider
      ]
     r =>
   JsonRequest Public.SendActivationCode ->
@@ -886,7 +925,8 @@ sendActivationCodeH req =
 sendActivationCode ::
   Members
     '[ BlacklistStore,
-       BlacklistPhonePrefixStore, GalleyProvider
+       BlacklistPhonePrefixStore,
+       GalleyProvider
      ]
     r =>
   Public.SendActivationCode ->
@@ -912,16 +952,28 @@ customerExtensionCheckBlockedDomains email = do
           throwM $ customerExtensionBlockedDomain domain
 
 createConnectionUnqualified ::
-  Members '[ GalleyProvider
-           ] r => UserId -> ConnId -> Public.ConnectionRequest -> (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  ConnId ->
+  Public.ConnectionRequest ->
+  (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
 createConnectionUnqualified self conn cr = do
   lself <- qualifyLocal self
   target <- qualifyLocal (Public.crUser cr)
   API.createConnection lself conn (qUntagged target) !>> connError
 
 createConnection ::
-  Members '[ GalleyProvider
-           ] r => UserId -> ConnId -> Qualified UserId -> (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  ConnId ->
+  Qualified UserId ->
+  (Handler r) (Public.ResponseForExistedCreated Public.UserConnection)
 createConnection self conn target = do
   lself <- qualifyLocal self
   API.createConnection lself conn target !>> connError
@@ -997,9 +1049,11 @@ getConnection self other = do
   lift . wrapClient $ Data.lookupConnection lself other
 
 deleteSelfUser ::
-
-    Members '[ GalleyProvider
-             ] r => UserId ->
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
   Public.DeleteUser ->
   (Handler r) (Maybe Code.Timeout)
 deleteSelfUser u body =
@@ -1011,9 +1065,17 @@ verifyDeleteUserH (r ::: _) = do
   API.verifyDeleteUser body !>> deleteUserError
   pure (setStatus status200 empty)
 
-updateUserEmail :: forall r. Members '[BlacklistStore,
- GalleyProvider ]
- r => UserId -> UserId -> Public.EmailUpdate -> (Handler r) ()
+updateUserEmail ::
+  forall r.
+  Members
+    '[ BlacklistStore,
+       GalleyProvider
+     ]
+    r =>
+  UserId ->
+  UserId ->
+  Public.EmailUpdate ->
+  (Handler r) ()
 updateUserEmail zuserId emailOwnerId (Public.EmailUpdate email) = do
   maybeZuserTeamId <- lift $ wrapClient $ Data.lookupUserTeam zuserId
   whenM (not <$> assertHasPerm maybeZuserTeamId) $ throwStd insufficientTeamPermissions
@@ -1051,22 +1113,34 @@ respFromActivationRespWithStatus = \case
 
 -- docs/reference/user/activation.md {#RefActivationSubmit}
 activateKeyH ::
-  Members '[ GalleyProvider
-           ] r => JSON ::: JsonRequest Public.Activate -> (Handler r) Response
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  JSON ::: JsonRequest Public.Activate ->
+  (Handler r) Response
 activateKeyH (_ ::: req) = do
   activationRequest <- parseJsonBody req
   respFromActivationRespWithStatus <$> activate activationRequest
 
 activateH ::
-  Members '[ GalleyProvider
-           ] r => Public.ActivationKey ::: Public.ActivationCode -> (Handler r) Response
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  Public.ActivationKey ::: Public.ActivationCode ->
+  (Handler r) Response
 activateH (k ::: c) = do
   let activationRequest = Public.Activate (Public.ActivateKey k) c False
   respFromActivationRespWithStatus <$> activate activationRequest
 
 activate ::
-  Members '[ GalleyProvider
-           ] r => Public.Activate -> (Handler r) ActivationRespWithStatus
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  Public.Activate ->
+  (Handler r) ActivationRespWithStatus
 activate (Public.Activate tgt code dryrun)
   | dryrun = do
     wrapClientE (API.preverify tgt code) !>> actError
@@ -1082,8 +1156,12 @@ activate (Public.Activate tgt code dryrun)
 
 sendVerificationCode ::
   forall r.
-  Members '[ GalleyProvider
-           ] r => Public.SendVerificationCode -> (Handler r) ()
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  Public.SendVerificationCode ->
+  (Handler r) ()
 sendVerificationCode req = do
   let email = Public.svcEmail req
   let action = Public.svcAction req

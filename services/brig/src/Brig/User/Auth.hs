@@ -51,6 +51,8 @@ import qualified Brig.Data.UserKey as Data
 import Brig.Email
 import qualified Brig.Options as Opt
 import Brig.Phone
+import Brig.Sem.GalleyProvider (GalleyProvider)
+import qualified Brig.Sem.GalleyProvider as GalleyProvider
 import Brig.Types.Intra
 import Brig.Types.User.Auth
 import Brig.User.Auth.Cookie
@@ -72,15 +74,13 @@ import Data.Misc (PlainTextPassword (..))
 import qualified Data.ZAuth.Token as ZAuth
 import Imports
 import Network.Wai.Utilities.Error ((!>>))
+import Polysemy
 import System.Logger (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import Wire.API.User.Auth
-import qualified Brig.Sem.GalleyProvider as GalleyProvider
-import Polysemy
-import Brig.Sem.GalleyProvider (GalleyProvider)
 
 data Access u = Access
   { accessToken :: !AccessToken,
@@ -144,12 +144,13 @@ login (PasswordLogin li pw label code) typ = do
   uid <- wrapHttpClientE $ resolveLoginId li
   lift . Log.debug $ field "user" (toByteString uid) . field "action" (Log.val "User.login")
   wrapHttpClientE $ checkRetryLimit uid
-  wrapHttpClientE $ Data.authenticate uid pw `catchE` \case
-    AuthInvalidUser -> loginFailed uid
-    AuthInvalidCredentials -> loginFailed uid
-    AuthSuspended -> throwE LoginSuspended
-    AuthEphemeral -> throwE LoginEphemeral
-    AuthPendingInvitation -> throwE LoginPendingActivation
+  wrapHttpClientE $
+    Data.authenticate uid pw `catchE` \case
+      AuthInvalidUser -> loginFailed uid
+      AuthInvalidCredentials -> loginFailed uid
+      AuthSuspended -> throwE LoginSuspended
+      AuthEphemeral -> throwE LoginEphemeral
+      AuthPendingInvitation -> throwE LoginPendingActivation
   verifyLoginCode code uid
   wrapHttpClientE $ newAccess @ZAuth.User @ZAuth.Access uid typ label
   where

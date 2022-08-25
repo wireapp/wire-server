@@ -120,6 +120,8 @@ import Brig.Password
 import qualified Brig.Queue as Queue
 import Brig.Sem.CodeStore (CodeStore)
 import qualified Brig.Sem.CodeStore as E
+import Brig.Sem.GalleyProvider (GalleyProvider)
+import qualified Brig.Sem.GalleyProvider as GalleyProvider
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Brig.Sem.PasswordResetStore as E
 import qualified Brig.Team.DB as Team
@@ -180,8 +182,6 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
-import qualified Brig.Sem.GalleyProvider as GalleyProvider
-import Brig.Sem.GalleyProvider (GalleyProvider)
 
 data AllowSCIMUpdates
   = AllowSCIMUpdates
@@ -220,10 +220,14 @@ verifyUniquenessAndCheckBlacklist uk = do
       unless av $
         throwE IdentityErrorUserKeyExists
 
-createUserSpar :: forall r. Members
-  '[GalleyProvider
-   ] r
-     => NewUserSpar -> ExceptT CreateUserSparError (AppT r) CreateUserResult
+createUserSpar ::
+  forall r.
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  NewUserSpar ->
+  ExceptT CreateUserSparError (AppT r) CreateUserResult
 createUserSpar new = do
   let handle' = newUserSparHandle new
       new' = newUserFromSpar new
@@ -282,12 +286,15 @@ createUserSpar new = do
       pure $ CreateUserTeam tid nm
 
 -- docs/reference/user/registration.md {#RefRegistration}
-createUser
-  :: forall r.
-    Members '[ BlacklistStore
-             , GalleyProvider
-             ] r
-      => NewUser -> ExceptT RegisterError (AppT r) CreateUserResult
+createUser ::
+  forall r.
+  Members
+    '[ BlacklistStore,
+       GalleyProvider
+     ]
+    r =>
+  NewUser ->
+  ExceptT RegisterError (AppT r) CreateUserResult
 createUser new = do
   (email, phone) <- validateEmailAndPhone new
 
@@ -1144,9 +1151,15 @@ mkPasswordResetKey ident = case ident of
 -- delete them in the team settings.  This protects teams against orphanhood.
 --
 -- TODO: communicate deletions of SSO users to SSO service.
-deleteSelfUser :: forall r. Members
-  '[GalleyProvider
-   ] r  => UserId -> Maybe PlainTextPassword -> ExceptT DeleteUserError (AppT r) (Maybe Timeout)
+deleteSelfUser ::
+  forall r.
+  Members
+    '[ GalleyProvider
+     ]
+    r =>
+  UserId ->
+  Maybe PlainTextPassword ->
+  ExceptT DeleteUserError (AppT r) (Maybe Timeout)
 deleteSelfUser uid pwd = do
   account <- lift . wrapClient $ Data.lookupAccount uid
   case account of
@@ -1403,7 +1416,7 @@ lookupRemoteProfiles (qUntagged -> Qualified uids domain) =
 -- pure function and writing tests for that.
 lookupLocalProfiles ::
   forall r.
-    Members '[GalleyProvider] r =>
+  Members '[GalleyProvider] r =>
   -- | This is present only when an authenticated user is requesting access.
   Maybe UserId ->
   -- | The users ('others') for which to obtain the profiles.

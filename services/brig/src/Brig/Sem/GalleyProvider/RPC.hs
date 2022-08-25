@@ -2,12 +2,11 @@
 
 module Brig.Sem.GalleyProvider.RPC where
 
+import Bilge (Request)
 import Brig.Sem.GalleyProvider
 import Brig.Sem.RPC
-import Polysemy
 import Imports
-import Bilge (Request)
-
+import Polysemy
 
 interpretGalleyProviderToRPC :: Member RPC r => Request -> Sem (GalleyProvider ': r) a -> Sem r a
 interpretGalleyProviderToRPC req = interpret undefined

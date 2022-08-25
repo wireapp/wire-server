@@ -30,24 +30,25 @@ import Brig.App
 import qualified Brig.Data.User as Data
 import qualified Brig.Federation.Client as Federation
 import Brig.Options (searchSameTeamOnly)
+import Brig.Sem.GalleyProvider (GalleyProvider)
 import Control.Lens (view)
 import Data.Handle (Handle, fromHandle)
 import Data.Id (UserId)
 import Data.Qualified
 import Imports
 import Network.Wai.Utilities ((!>>))
+import Polysemy
 import qualified System.Logger.Class as Log
 import Wire.API.User
 import qualified Wire.API.User as Public
 import Wire.API.User.Search
 import qualified Wire.API.User.Search as Public
-import Polysemy
-import Brig.Sem.GalleyProvider (GalleyProvider)
 
-getHandleInfo
-  ::
+getHandleInfo ::
   Members '[GalleyProvider] r =>
-  UserId -> Qualified Handle -> (Handler r) (Maybe Public.UserProfile)
+  UserId ->
+  Qualified Handle ->
+  (Handler r) (Maybe Public.UserProfile)
 getHandleInfo self handle = do
   lself <- qualifyLocal self
   foldQualified
@@ -63,11 +64,11 @@ getRemoteHandleInfo handle = do
       . Log.field "domain" (show (tDomain handle))
   Federation.getUserHandleInfo handle !>> fedError
 
-getLocalHandleInfo
-  ::
+getLocalHandleInfo ::
   Members '[GalleyProvider] r =>
-  Local UserId
-  -> Handle -> (Handler r) (Maybe Public.UserProfile)
+  Local UserId ->
+  Handle ->
+  (Handler r) (Maybe Public.UserProfile)
 getLocalHandleInfo self handle = do
   lift . Log.info $ Log.msg $ Log.val "getHandleInfo - local lookup"
   maybeOwnerId <- lift . wrapClient $ API.lookupHandle handle

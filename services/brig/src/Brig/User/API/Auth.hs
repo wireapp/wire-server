@@ -28,6 +28,7 @@ import qualified Brig.API.User as User
 import Brig.App
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Phone
+import Brig.Sem.GalleyProvider (GalleyProvider)
 import Brig.Types.Intra (ReAuthUser, reAuthCode, reAuthCodeAction, reAuthPassword)
 import Brig.Types.User.Auth
 import qualified Brig.User.Auth as Auth
@@ -64,12 +65,13 @@ import qualified Wire.API.Error.Brig as E
 import qualified Wire.API.User as Public
 import Wire.API.User.Auth as Public
 import Wire.Swagger as Doc (pendingLoginError)
-import Brig.Sem.GalleyProvider (GalleyProvider)
 
 routesPublic ::
-  Members '[ BlacklistStore
-           , GalleyProvider
-           ] r =>
+  Members
+    '[ BlacklistStore,
+       GalleyProvider
+     ]
+    r =>
   Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   -- Note: this endpoint should always remain available at its unversioned
@@ -240,15 +242,17 @@ getLoginCode phone = do
 
 reAuthUserH ::
   Members '[GalleyProvider] r =>
-  UserId ::: JsonRequest ReAuthUser -> (Handler r) Response
+  UserId ::: JsonRequest ReAuthUser ->
+  (Handler r) Response
 reAuthUserH (uid ::: req) = do
   reAuthUser uid =<< parseJsonBody req
   pure empty
 
-reAuthUser
-  ::
+reAuthUser ::
   Members '[GalleyProvider] r =>
-  UserId -> ReAuthUser -> (Handler r) ()
+  UserId ->
+  ReAuthUser ->
+  (Handler r) ()
 reAuthUser uid body = do
   wrapClientE (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
   case reAuthCodeAction body of
@@ -262,13 +266,16 @@ reAuthUser uid body = do
 
 loginH ::
   Members '[GalleyProvider] r =>
-  JsonRequest Public.Login ::: Bool ::: JSON -> (Handler r) Response
+  JsonRequest Public.Login ::: Bool ::: JSON ->
+  (Handler r) Response
 loginH (req ::: persist ::: _) = do
   lift . tokenResponse =<< flip login persist =<< parseJsonBody req
 
 login ::
   Members '[GalleyProvider] r =>
-  Public.Login -> Bool -> (Handler r) (Auth.Access ZAuth.User)
+  Public.Login ->
+  Bool ->
+  (Handler r) (Auth.Access ZAuth.User)
 login l persist = do
   let typ = if persist then PersistentCookie else SessionCookie
   Auth.login l typ !>> loginError
@@ -284,13 +291,15 @@ ssoLogin l persist = do
 
 legalHoldLoginH ::
   Members '[GalleyProvider] r =>
-  JsonRequest LegalHoldLogin ::: JSON -> (Handler r) Response
+  JsonRequest LegalHoldLogin ::: JSON ->
+  (Handler r) Response
 legalHoldLoginH (req ::: _) = do
   lift . tokenResponse =<< legalHoldLogin =<< parseJsonBody req
 
 legalHoldLogin ::
   Members '[GalleyProvider] r =>
-  LegalHoldLogin -> (Handler r) (Auth.Access ZAuth.LegalHoldUser)
+  LegalHoldLogin ->
+  (Handler r) (Auth.Access ZAuth.LegalHoldUser)
 legalHoldLogin l = do
   let typ = PersistentCookie -- Session cookie isn't a supported use case here
   Auth.legalHoldLogin l typ !>> legalHoldLoginError

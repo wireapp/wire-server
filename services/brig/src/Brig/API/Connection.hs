@@ -40,6 +40,8 @@ import qualified Brig.Data.Connection as Data
 import Brig.Data.Types (resultHasMore, resultList)
 import qualified Brig.Data.User as Data
 import qualified Brig.IO.Intra as Intra
+import Brig.Sem.GalleyProvider (GalleyProvider)
+import qualified Brig.Sem.GalleyProvider as GalleyProvider
 import Brig.Types.Connection
 import Brig.Types.User.Event
 import Control.Error
@@ -51,6 +53,7 @@ import Data.Qualified
 import Data.Range
 import qualified Data.UUID.V4 as UUID
 import Imports
+import Polysemy (Members)
 import qualified System.Logger.Class as Log
 import System.Logger.Message
 import Wire.API.Connection hiding (relationWithHistory)
@@ -58,9 +61,6 @@ import Wire.API.Conversation
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Routes.Public.Util (ResponseForExistedCreated (..))
-import qualified Brig.Sem.GalleyProvider as GalleyProvider
-import Polysemy (Members)
-import Brig.Sem.GalleyProvider (GalleyProvider)
 
 ensureIsActivated :: Local UserId -> MaybeT (AppT r) ()
 ensureIsActivated lusr = do
@@ -183,9 +183,11 @@ createConnectionToLocalUser self conn target = do
 --
 -- FUTUREWORK: we may want to move this to the LH application logic, so we can recycle it for
 -- group conv creation and possibly other situations.
-checkLegalholdPolicyConflict
-  :: Members '[GalleyProvider] r
-  => UserId -> UserId -> ExceptT ConnectionError (AppT r) ()
+checkLegalholdPolicyConflict ::
+  Members '[GalleyProvider] r =>
+  UserId ->
+  UserId ->
+  ExceptT ConnectionError (AppT r) ()
 checkLegalholdPolicyConflict uid1 uid2 = do
   let catchProfileNotFound =
         -- Does not fit into 'ExceptT', so throw in '(AppT r)'.  Anyway at the time of writing

@@ -57,6 +57,8 @@ import qualified Brig.Federation.Client as Federation
 import Brig.IO.Intra (guardLegalhold)
 import qualified Brig.IO.Intra as Intra
 import qualified Brig.Options as Opt
+import Brig.Sem.GalleyProvider (GalleyProvider)
+import qualified Brig.Sem.GalleyProvider as GalleyProvider
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Event
@@ -80,6 +82,7 @@ import Data.Qualified
 import qualified Data.Set as Set
 import Imports
 import Network.Wai.Utilities
+import Polysemy (Members)
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
@@ -92,9 +95,6 @@ import qualified Wire.API.User as Code
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
-import qualified Brig.Sem.GalleyProvider as GalleyProvider
-import Polysemy (Members)
-import Brig.Sem.GalleyProvider (GalleyProvider)
 
 lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)
 lookupLocalClient uid = wrapClient . Data.lookupClient uid
