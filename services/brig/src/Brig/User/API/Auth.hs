@@ -58,15 +58,18 @@ import Network.Wai.Utilities.Response (empty, json)
 import qualified Network.Wai.Utilities.Response as WaiResp
 import Network.Wai.Utilities.Swagger (document)
 import qualified Network.Wai.Utilities.Swagger as Doc
-import Polysemy (Member)
+import Polysemy (Member, Members)
 import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import qualified Wire.API.User as Public
 import Wire.API.User.Auth as Public
 import Wire.Swagger as Doc (pendingLoginError)
+import Brig.Sem.GalleyProvider (GalleyProvider)
 
 routesPublic ::
-  Member BlacklistStore r =>
+  Members '[ BlacklistStore
+           , GalleyProvider
+           ] r =>
   Routes Doc.ApiBuilder (Handler r) ()
 routesPublic = do
   -- Note: this endpoint should always remain available at its unversioned
@@ -193,7 +196,9 @@ routesPublic = do
     Doc.body (Doc.ref Public.modelRemoveCookies) Doc.end
     Doc.errorResponse (errorToWai @'E.BadCredentials)
 
-routesInternal :: Routes a (Handler r) ()
+routesInternal ::
+  Members '[GalleyProvider] r =>
+  Routes a (Handler r) ()
 routesInternal = do
   -- galley can query this endpoint at the right moment in the LegalHold flow
   post "/i/legalhold-login" (continue legalHoldLoginH) $
@@ -233,31 +238,40 @@ getLoginCode phone = do
   code <- lift $ wrapClient $ Auth.lookupLoginCode phone
   maybe (throwStd loginCodeNotFound) pure code
 
-reAuthUserH :: UserId ::: JsonRequest ReAuthUser -> (Handler r) Response
+reAuthUserH ::
+  Members '[GalleyProvider] r =>
+  UserId ::: JsonRequest ReAuthUser -> (Handler r) Response
 reAuthUserH (uid ::: req) = do
   reAuthUser uid =<< parseJsonBody req
   pure empty
 
-reAuthUser :: UserId -> ReAuthUser -> (Handler r) ()
+reAuthUser
+  ::
+  Members '[GalleyProvider] r =>
+  UserId -> ReAuthUser -> (Handler r) ()
 reAuthUser uid body = do
   wrapClientE (User.reauthenticate uid (reAuthPassword body)) !>> reauthError
   case reAuthCodeAction body of
     Just action ->
-      wrapHttpClientE (Auth.verifyCode (reAuthCode body) action uid)
+      Auth.verifyCode (reAuthCode body) action uid
         `catchE` \case
           VerificationCodeRequired -> throwE $ reauthError ReAuthCodeVerificationRequired
           VerificationCodeNoPendingCode -> throwE $ reauthError ReAuthCodeVerificationNoPendingCode
           VerificationCodeNoEmail -> throwE $ reauthError ReAuthCodeVerificationNoEmail
     Nothing -> pure ()
 
-loginH :: JsonRequest Public.Login ::: Bool ::: JSON -> (Handler r) Response
+loginH ::
+  Members '[GalleyProvider] r =>
+  JsonRequest Public.Login ::: Bool ::: JSON -> (Handler r) Response
 loginH (req ::: persist ::: _) = do
   lift . tokenResponse =<< flip login persist =<< parseJsonBody req
 
-login :: Public.Login -> Bool -> (Handler r) (Auth.Access ZAuth.User)
+login ::
+  Members '[GalleyProvider] r =>
+  Public.Login -> Bool -> (Handler r) (Auth.Access ZAuth.User)
 login l persist = do
   let typ = if persist then PersistentCookie else SessionCookie
-  wrapHttpClientE (Auth.login l typ) !>> loginError
+  Auth.login l typ !>> loginError
 
 ssoLoginH :: JsonRequest SsoLogin ::: Bool ::: JSON -> (Handler r) Response
 ssoLoginH (req ::: persist ::: _) = do
@@ -268,14 +282,18 @@ ssoLogin l persist = do
   let typ = if persist then PersistentCookie else SessionCookie
   wrapHttpClientE (Auth.ssoLogin l typ) !>> loginError
 
-legalHoldLoginH :: JsonRequest LegalHoldLogin ::: JSON -> (Handler r) Response
+legalHoldLoginH ::
+  Members '[GalleyProvider] r =>
+  JsonRequest LegalHoldLogin ::: JSON -> (Handler r) Response
 legalHoldLoginH (req ::: _) = do
   lift . tokenResponse =<< legalHoldLogin =<< parseJsonBody req
 
-legalHoldLogin :: LegalHoldLogin -> (Handler r) (Auth.Access ZAuth.LegalHoldUser)
+legalHoldLogin ::
+  Members '[GalleyProvider] r =>
+  LegalHoldLogin -> (Handler r) (Auth.Access ZAuth.LegalHoldUser)
 legalHoldLogin l = do
   let typ = PersistentCookie -- Session cookie isn't a supported use case here
-  wrapHttpClientE (Auth.legalHoldLogin l typ) !>> legalHoldLoginError
+  Auth.legalHoldLogin l typ !>> legalHoldLoginError
 
 logoutH :: JSON ::: Maybe (Either (List1 ZAuth.UserToken) (List1 ZAuth.LegalHoldUserToken)) ::: Maybe (Either ZAuth.AccessToken ZAuth.LegalHoldAccessToken) -> (Handler r) Response
 logoutH (_ ::: ut ::: at) = empty <$ logout ut at

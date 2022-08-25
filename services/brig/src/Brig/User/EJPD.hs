@@ -22,7 +22,7 @@ module Brig.User.EJPD (ejpdRequest) where
 
 import Brig.API.Handler
 import Brig.API.User (lookupHandle)
-import Brig.App (AppT, wrapClient, wrapHttp)
+import Brig.App (AppT, wrapClient, wrapHttp, liftSem)
 import qualified Brig.Data.Connection as Conn
 import Brig.Data.User (lookupUser)
 import qualified Brig.IO.Intra as Intra
@@ -39,8 +39,11 @@ import qualified Wire.API.Push.Token as PushTok
 import Wire.API.Routes.Internal.Brig.EJPD (EJPDRequestBody (EJPDRequestBody), EJPDResponseBody (EJPDResponseBody), EJPDResponseItem (EJPDResponseItem))
 import qualified Wire.API.Team.Member as Team
 import Wire.API.User (User, userDisplayName, userEmail, userHandle, userId, userPhone, userTeam)
+import qualified Brig.Sem.GalleyProvider as GalleyProvider
+import Polysemy (Member)
+import Brig.Sem.GalleyProvider (GalleyProvider)
 
-ejpdRequest :: Maybe Bool -> EJPDRequestBody -> (Handler r) EJPDResponseBody
+ejpdRequest :: forall r. Member GalleyProvider r => Maybe Bool -> EJPDRequestBody -> (Handler r) EJPDResponseBody
 ejpdRequest includeContacts (EJPDRequestBody handles) = do
   ExceptT $ Right . EJPDResponseBody . catMaybes <$> forM handles (go1 (fromMaybe False includeContacts))
   where
@@ -77,7 +80,7 @@ ejpdRequest includeContacts (EJPDRequestBody handles) = do
       mbTeamContacts <-
         case (includeContacts', userTeam target) of
           (True, Just tid) -> do
-            memberList <- wrapHttp $ Intra.getTeamMembers tid
+            memberList <- liftSem $ GalleyProvider.getTeamMembers tid
             let members = (view Team.userId <$> (memberList ^. Team.teamMembers)) \\ [uid]
 
             contactsFull :: [Maybe EJPDResponseItem] <-

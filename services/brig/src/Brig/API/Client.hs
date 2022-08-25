@@ -92,6 +92,9 @@ import qualified Wire.API.User as Code
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
+import qualified Brig.Sem.GalleyProvider as GalleyProvider
+import Polysemy (Members)
+import Brig.Sem.GalleyProvider (GalleyProvider)
 
 lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)
 lookupLocalClient uid = wrapClient . Data.lookupClient uid
@@ -129,6 +132,7 @@ lookupLocalPubClientsBulk :: [UserId] -> ExceptT ClientError (AppT r) (UserMap (
 lookupLocalPubClientsBulk = lift . wrapClient . Data.lookupPubClientsBulk
 
 addClient ::
+  Members '[GalleyProvider] r =>
   UserId ->
   Maybe ConnId ->
   Maybe IP ->
@@ -139,6 +143,8 @@ addClient = addClientWithReAuthPolicy Data.reAuthForNewClients
 -- nb. We must ensure that the set of clients known to brig is always
 -- a superset of the clients known to galley.
 addClientWithReAuthPolicy ::
+  forall r.
+  Members '[GalleyProvider] r =>
   Data.ReAuthPolicy ->
   UserId ->
   Maybe ConnId ->
@@ -147,7 +153,7 @@ addClientWithReAuthPolicy ::
   ExceptT ClientError (AppT r) Client
 addClientWithReAuthPolicy policy u con ip new = do
   acc <- lift (wrapClient $ Data.lookupAccount u) >>= maybe (throwE (ClientUserNotFound u)) pure
-  wrapHttpClientE $ verifyCode (newClientVerificationCode new) (userId . accountUser $ acc)
+  verifyCode (newClientVerificationCode new) (userId . accountUser $ acc)
   loc <- maybe (pure Nothing) locationOf ip
   maxPermClients <- fromMaybe Opt.defUserMaxPermClients . Opt.setUserMaxPermClients <$> view settings
   let caps :: Maybe (Set ClientCapability)
@@ -166,7 +172,7 @@ addClientWithReAuthPolicy policy u con ip new = do
   let usr = accountUser acc
   lift $ do
     for_ old $ execDelete u con
-    wrapHttp $ Intra.newClient u (clientId clt)
+    liftSem $ GalleyProvider.newClient u (clientId clt)
     Intra.onClientEvent u con (ClientAdded u clt)
     when (clientType clt == LegalHoldClientType) $ wrapHttpClient $ Intra.onUserEvent u con (UserLegalHoldEnabled u)
     when (count > 1) $
@@ -178,16 +184,9 @@ addClientWithReAuthPolicy policy u con ip new = do
     clientId' = clientIdFromPrekey (unpackLastPrekey $ newClientLastKey new)
 
     verifyCode ::
-      ( MonadReader Env m,
-        MonadMask m,
-        MonadHttp m,
-        HasRequestId m,
-        Log.MonadLogger m,
-        MonadClient m
-      ) =>
       Maybe Code.Value ->
       UserId ->
-      ExceptT ClientError m ()
+      ExceptT ClientError (AppT r) ()
     verifyCode mbCode userId =
       -- this only happens inside the login flow (in particular, when logging in from a new device)
       -- the code obtained for logging in is used a second time for adding the device
