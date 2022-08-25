@@ -92,6 +92,7 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
+import Debug.Trace (traceM)
 import FileEmbedLzma
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
@@ -131,6 +132,7 @@ import qualified Wire.API.User as Public
 import qualified Wire.API.User.Activation as Public
 import qualified Wire.API.User.Auth as Public
 import qualified Wire.API.User.Client as Public
+import Wire.API.User.Client.DPoPAccessToken
 import qualified Wire.API.User.Client.Prekey as Public
 import qualified Wire.API.User.Handle as Public
 import qualified Wire.API.User.Password as Public
@@ -254,6 +256,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"get-client-prekeys" getClientPrekeys
         :<|> Named @"head-nonce" newNonce
         :<|> Named @"get-nonce" newNonce
+        :<|> Named @"create-access-token" createAccessToken
 
     connectionAPI :: ServerT ConnectionAPI (Handler r)
     connectionAPI =
@@ -625,6 +628,18 @@ newNonce uid cid = do
   nonce <- randomNonce
   lift $ wrapClient $ Nonce.insertNonce ttl uid (client cid) nonce
   pure nonce
+
+createAccessToken ::
+  UserId ->
+  ClientId ->
+  Maybe Proof ->
+  (Handler r) DPoPAccessToken
+createAccessToken _userId _clientId = \case
+  Just proof -> do
+    let cs = claims proof
+    traceM $ "CLAIMS: " <> show cs
+    pure $ DPoPAccessToken $ unProof proof
+  Nothing -> error "todo(leif)"
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser ::
