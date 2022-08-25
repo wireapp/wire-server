@@ -156,12 +156,20 @@ let lib = pkgs.lib;
           pkgs.nix
           pkgs.cachix
           pkgs.dockerTools.usrBinEnv
-          pkgs.dockerTools.fakeNss
         ];
       };
       config.Env = [
         "SSL_CERT_FILE=${toString pkgs.cacert.out}/etc/ssl/certs/ca-bundle.crt"
       ];
+
+      runAsRoot = ''
+        #!${pkgs.runtimeShell}
+        ${pkgs.dockerTools.shadowSetup}
+        groupadd -g 30000 nixbld
+        for n in `seq 1 32`; do
+          useradd -c "Nix build user $n" -d /var/empty -g nixbld -G nixbld -M -N -r -s "${pkgs.shadow}/bin/nologin" -u "$((30000 + $n))" "nixbld$n";
+        done
+      '';
     };
 in {
   inherit ciImage;
