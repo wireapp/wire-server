@@ -78,7 +78,7 @@ let
         sha256 = "0dgizj1kc135yzzqdf5l7f5ax0qpvrr8mxvg7s1dbm01cf11aqzn";
       };
     };
-    haskell-multihash = {
+    multihash = {
       src = fetchgit {
         url = "https://github.com/wireapp/haskell-multihash.git";
         rev = "300a6f46384bfca33e545c8bab52ef3717452d12";
