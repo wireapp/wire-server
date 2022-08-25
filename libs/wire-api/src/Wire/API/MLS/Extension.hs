@@ -75,6 +75,11 @@ data Extension = Extension
 instance ParseMLS Extension where
   parseMLS = Extension <$> parseMLS <*> parseMLSBytes @Word32
 
+instance SerialiseMLS Extension where
+  serialiseMLS (Extension ty d) = do
+    put ty
+    serialiseMLSBytes @Word32 d
+
 data ExtensionTag
   = CapabilitiesExtensionTag
   | LifetimeExtensionTag
