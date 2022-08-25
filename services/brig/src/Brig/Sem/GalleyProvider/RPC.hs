@@ -6,10 +6,11 @@ import Brig.Sem.GalleyProvider
 import Brig.Sem.RPC
 import Polysemy
 import Imports
+import Bilge (Request)
 
 
-interpretGalleyProviderToRPC :: Member RPC r => Sem (GalleyProvider ': r) a -> Sem r a
-interpretGalleyProviderToRPC = interpret undefined
+interpretGalleyProviderToRPC :: Member RPC r => Request -> Sem (GalleyProvider ': r) a -> Sem r a
+interpretGalleyProviderToRPC req = interpret undefined
    -- CreateSelfConv uid                         -> undefined
    -- CreateLocalConnectConv qwt qwt' m_txt m_ci -> undefined
    -- AcceptLocalConnectConv qwt m_ci uid        -> undefined

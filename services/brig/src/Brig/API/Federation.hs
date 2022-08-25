@@ -19,8 +19,6 @@
 
 module Brig.API.Federation (federationSitemap, FederationAPI) where
 
-import Bilge.IO
-import Bilge.RPC
 import qualified Brig.API.Client as API
 import Brig.API.Connection.Remote (performRemoteAction)
 import Brig.API.Error
@@ -35,11 +33,8 @@ import qualified Brig.Data.User as Data
 import Brig.IO.Intra (notify)
 import Brig.Types.User.Event
 import Brig.User.API.Handle
-import Brig.User.Search.Index
 import qualified Brig.User.Search.SearchIndex as Q
-import Cassandra (MonadClient)
 import Control.Error.Util
-import Control.Monad.Catch (MonadMask)
 import Control.Monad.Trans.Except
 import Data.Domain
 import Data.Handle (Handle (..), parseHandle)
@@ -53,7 +48,6 @@ import Imports
 import Network.Wai.Utilities.Error ((!>>))
 import Servant (ServerT)
 import Servant.API
-import qualified System.Logger.Class as Log
 import UnliftIO.Async (pooledForConcurrentlyN_)
 import Wire.API.Connection
 import Wire.API.Federation.API.Brig
@@ -69,18 +63,22 @@ import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
+import Brig.Sem.GalleyProvider (GalleyProvider)
+import Polysemy (Members)
 
 type FederationAPI = "federation" :> BrigApi
 
-federationSitemap :: ServerT FederationAPI (Handler r)
+federationSitemap ::
+  Members '[ GalleyProvider
+           ] r => ServerT FederationAPI (Handler r)
 federationSitemap =
   Named @"api-version" (\_ _ -> pure versionInfo)
-    :<|> Named @"get-user-by-handle" (\d h -> wrapHttpClientE $ getUserByHandle d h)
-    :<|> Named @"get-users-by-ids" (\d us -> wrapHttpClientE $ getUsersByIds d us)
+    :<|> Named @"get-user-by-handle" (\d h -> getUserByHandle d h)
+    :<|> Named @"get-users-by-ids" (\d us -> getUsersByIds d us)
     :<|> Named @"claim-prekey" claimPrekey
     :<|> Named @"claim-prekey-bundle" claimPrekeyBundle
     :<|> Named @"claim-multi-prekey-bundle" claimMultiPrekeyBundle
-    :<|> Named @"search-users" (\d sr -> wrapHttpClientE $ searchUsers d sr)
+    :<|> Named @"search-users" (\d sr -> searchUsers d sr)
     :<|> Named @"get-user-clients" getUserClients
     :<|> Named @"get-mls-clients" getMLSClients
     :<|> Named @"send-connection-action" sendConnectionAction
@@ -100,16 +98,11 @@ sendConnectionAction originDomain NewConnectionRequest {..} = do
     else pure NewConnectionResponseUserNotActivated
 
 getUserByHandle ::
-  ( HasRequestId m,
-    Log.MonadLogger m,
-    MonadClient m,
-    MonadHttp m,
-    MonadMask m,
-    MonadReader Env m
-  ) =>
-  Domain ->
+
+    Members '[ GalleyProvider
+             ] r => Domain ->
   Handle ->
-  ExceptT Error m (Maybe UserProfile)
+  ExceptT Error (AppT r) (Maybe UserProfile)
 getUserByHandle domain handle = do
   searchPolicy <- lookupSearchPolicy domain
 
@@ -121,7 +114,7 @@ getUserByHandle domain handle = do
   if not performHandleLookup
     then pure Nothing
     else lift $ do
-      maybeOwnerId <- API.lookupHandle handle
+      maybeOwnerId <- wrapClient $ API.lookupHandle handle
       case maybeOwnerId of
         Nothing ->
           pure Nothing
@@ -129,16 +122,10 @@ getUserByHandle domain handle = do
           listToMaybe <$> API.lookupLocalProfiles Nothing [ownerId]
 
 getUsersByIds ::
-  ( MonadClient m,
-    MonadReader Env m,
-    Log.MonadLogger m,
-    MonadMask m,
-    MonadHttp m,
-    HasRequestId m
-  ) =>
-  Domain ->
+    Members '[ GalleyProvider
+             ] r => Domain ->
   [UserId] ->
-  ExceptT Error m [UserProfile]
+  ExceptT Error (AppT r) [UserProfile]
 getUsersByIds _ uids =
   lift (API.lookupLocalProfiles Nothing uids)
 
@@ -164,18 +151,11 @@ fedClaimKeyPackages domain ckpr = do
 -- only search by exact handle search, not in elasticsearch.
 -- (This decision may change in the future)
 searchUsers ::
-  forall m.
-  ( HasRequestId m,
-    Log.MonadLogger m,
-    MonadClient m,
-    MonadHttp m,
-    MonadIndexIO m,
-    MonadMask m,
-    MonadReader Env m
-  ) =>
+  forall r.
+  Members '[GalleyProvider] r =>
   Domain ->
   SearchRequest ->
-  ExceptT Error m SearchResponse
+  ExceptT Error (AppT r) SearchResponse
 searchUsers domain (SearchRequest searchTerm) = do
   searchPolicy <- lift $ lookupSearchPolicy domain
 
@@ -189,22 +169,22 @@ searchUsers domain (SearchRequest searchTerm) = do
   contacts <- go [] maxResults searches
   pure $ SearchResponse contacts searchPolicy
   where
-    go :: [Contact] -> Int -> [Int -> ExceptT Error m [Contact]] -> ExceptT Error m [Contact]
+    go :: [Contact] -> Int -> [Int -> ExceptT Error (AppT r) [Contact]] -> ExceptT Error (AppT r) [Contact]
     go contacts _ [] = pure contacts
     go contacts maxResult (search : searches) = do
       contactsNew <- search maxResult
       go (contacts <> contactsNew) (maxResult - length contactsNew) searches
 
-    fullSearch :: Int -> ExceptT Error m [Contact]
+    fullSearch :: Int -> ExceptT Error (AppT r) [Contact]
     fullSearch n
       | n > 0 = lift $ searchResults <$> Q.searchIndex Q.FederatedSearch searchTerm n
       | otherwise = pure []
 
-    exactHandleSearch :: Int -> ExceptT Error m [Contact]
+    exactHandleSearch :: Int -> ExceptT Error (AppT r) [Contact]
     exactHandleSearch n
       | n > 0 = do
         let maybeHandle = parseHandle searchTerm
-        maybeOwnerId <- maybe (pure Nothing) (lift . API.lookupHandle) maybeHandle
+        maybeOwnerId <- maybe (pure Nothing) (wrapHttpClientE . API.lookupHandle) maybeHandle
         case maybeOwnerId of
           Nothing -> pure []
           Just foundUser -> lift $ contactFromProfile <$$> API.lookupLocalProfiles Nothing [foundUser]

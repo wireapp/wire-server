@@ -30,13 +30,15 @@ import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Data.Swagger.Build.Api as Doc
 import Network.Wai.Routing (Routes)
 import Polysemy
+import Brig.Sem.GalleyProvider (GalleyProvider)
 
 sitemap ::
   Members
     '[ CodeStore,
        PasswordResetStore,
        BlacklistStore,
-       BlacklistPhonePrefixStore
+       BlacklistPhonePrefixStore,
+       GalleyProvider
      ]
     r =>
   Routes Doc.ApiBuilder (Handler r) ()

@@ -96,14 +96,20 @@ import Wire.API.User.Activation
 import Wire.API.User.Client
 import Wire.API.User.Password
 import Wire.API.User.RichInfo
+import Brig.Sem.GalleyProvider (GalleyProvider)
 
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
 
-servantSitemap :: Members '[BlacklistStore] r => ServerT BrigIRoutes.API (Handler r)
+servantSitemap
+  :: Members '[BlacklistStore,
+  GalleyProvider] r
+    => ServerT BrigIRoutes.API (Handler r)
 servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI :<|> userAPI
 
-ejpdAPI :: ServerT BrigIRoutes.EJPD_API (Handler r)
+ejpdAPI ::
+  Members '[ GalleyProvider
+           ] r => ServerT BrigIRoutes.EJPD_API (Handler r)
 ejpdAPI =
   Brig.User.EJPD.ejpdRequest
     :<|> Named @"get-account-conference-calling-config" getAccountConferenceCallingConfig
@@ -125,7 +131,10 @@ mlsAPI =
     :<|> getMLSClients
     :<|> mapKeyPackageRefsInternal
 
-accountAPI :: Member BlacklistStore r => ServerT BrigIRoutes.AccountAPI (Handler r)
+accountAPI :: Members '[
+  BlacklistStore,
+  GalleyProvider
+                       ] r => ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
   Named @"createUserNoVerify" createUserNoVerify
     :<|> Named @"createUserNoVerifySpar" createUserNoVerifySpar
@@ -214,7 +223,8 @@ sitemap ::
     '[ CodeStore,
        PasswordResetStore,
        BlacklistStore,
-       BlacklistPhonePrefixStore
+       BlacklistPhonePrefixStore,
+       GalleyProvider
      ]
     r =>
   Routes a (Handler r) ()
@@ -380,12 +390,16 @@ sitemap = do
 -- Handlers
 
 -- | Add a client without authentication checks
-addClientInternalH :: UserId ::: Maybe Bool ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON -> (Handler r) Response
+addClientInternalH ::
+  Members '[ GalleyProvider
+           ] r => UserId ::: Maybe Bool ::: JsonRequest NewClient ::: Maybe ConnId ::: JSON -> (Handler r) Response
 addClientInternalH (usr ::: mSkipReAuth ::: req ::: connId ::: _) = do
   new <- parseJsonBody req
   setStatus status201 . json <$> addClientInternal usr mSkipReAuth new connId
 
-addClientInternal :: UserId -> Maybe Bool -> NewClient -> Maybe ConnId -> (Handler r) Client
+addClientInternal ::
+  Members '[ GalleyProvider
+           ] r => UserId -> Maybe Bool -> NewClient -> Maybe ConnId -> (Handler r) Client
 addClientInternal usr mSkipReAuth new connId = do
   let policy
         | mSkipReAuth == Just True = \_ _ -> False
@@ -420,7 +434,10 @@ internalListFullClients :: UserSet -> (AppT r) UserClientsFull
 internalListFullClients (UserSet usrs) =
   UserClientsFull <$> wrapClient (Data.lookupClientsBulk (Set.toList usrs))
 
-createUserNoVerify :: Member BlacklistStore r => NewUser -> (Handler r) (Either RegisterError SelfProfile)
+createUserNoVerify :: Members '[
+  BlacklistStore,
+  GalleyProvider
+                               ] r => NewUser -> (Handler r) (Either RegisterError SelfProfile)
 createUserNoVerify uData = lift . runExceptT $ do
   result <- API.createUser uData
   let acc = createdAccount result
@@ -434,7 +451,9 @@ createUserNoVerify uData = lift . runExceptT $ do
      in API.activate key code (Just uid) !>> activationErrorToRegisterError
   pure . SelfProfile $ usr
 
-createUserNoVerifySpar :: NewUserSpar -> (Handler r) (Either CreateUserSparError SelfProfile)
+createUserNoVerifySpar ::
+  Members '[ GalleyProvider
+           ] r => NewUserSpar -> (Handler r) (Either CreateUserSparError SelfProfile)
 createUserNoVerifySpar uData =
   lift . runExceptT $ do
     result <- API.createUserSpar uData

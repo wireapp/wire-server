@@ -17,8 +17,8 @@ import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
 import Brig.Sem.RPC.IO (interpretRpcToIO)
 import Brig.Sem.RPC (RPC)
-import Brig.Sem.ServiceRPC
-import Brig.Sem.ServiceRPC.IO (interpretServiceRpcToRpc)
+import Brig.Sem.GalleyProvider (GalleyProvider)
+import Brig.Sem.GalleyProvider.RPC (interpretGalleyProviderToRPC)
 
 type BrigCanonicalEffects =
   '[ BlacklistPhonePrefixStore,
@@ -26,7 +26,7 @@ type BrigCanonicalEffects =
      PasswordResetStore,
      Now,
      CodeStore,
-     ServiceRPC 'Galley,
+     GalleyProvider,
      RPC,
      Embed Cas.Client,
      Embed IO,
@@ -39,7 +39,7 @@ runBrigToIO e (AppT ma) =
     . embedToFinal
     . interpretClientToIO (e ^. casClient)
     . interpretRpcToIO (e ^. httpManager) (e ^. requestId)
-    . interpretServiceRpcToRpc @'Galley "galley" (e ^. galley)
+    . interpretGalleyProviderToRPC (e ^. galley)
     . codeStoreToCassandra @Cas.Client
     . nowToIOAction (e ^. currentTime)
     . passwordResetStoreToCodeStore
