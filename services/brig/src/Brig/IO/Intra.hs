@@ -26,12 +26,10 @@ module Brig.IO.Intra
     onClientEvent,
 
     -- * Conversations
-    -- createSelfConv,
     createConnectConv,
     acceptConnectConv,
     blockConv,
     unblockConv,
-    -- getConv,
     upsertOne2OneConversation,
 
     -- * Clients
@@ -41,24 +39,6 @@ module Brig.IO.Intra
 
     -- * Account Deletion
     rmUser,
-
-    -- * Teams
-    -- addTeamMember,
-    -- checkUserCanJoinTeam,
-    -- createTeam,
-    -- getTeamMember,
-    -- getTeamMembers,
-    -- memberIsTeamOwner,
-    -- getTeam,
-    -- getTeamConv,
-    -- getTeamName,
-    -- getTeamId,
-    -- getTeamContacts,
-    -- getTeamLegalHoldStatus,
-    -- changeTeamStatus,
-    -- getTeamSearchVisibility,
-    -- getAllFeatureConfigsForUser,
-    -- getVerificationCodeEnabled,
 
     -- * Legalhold
     guardLegalhold,

@@ -19,6 +19,13 @@ import Imports
 import Polysemy (Embed, Final, embedToFinal, runFinal)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
+import Brig.Sem.ServiceRPC (ServiceRPC, Service(Galley))
+import Brig.Sem.ServiceRPC.IO (interpretServiceRpcToRpc)
+import Polysemy.Error (runError, mapError, Error)
+import Brig.RPC (ParseException)
+import Control.Monad.Catch (throwM)
+import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
+import Polysemy.TinyLog (TinyLog)
 
 type BrigCanonicalEffects =
   '[ BlacklistPhonePrefixStore,
@@ -27,19 +34,28 @@ type BrigCanonicalEffects =
      Now,
      CodeStore,
      GalleyProvider,
+     ServiceRPC 'Galley,
      RPC,
      Embed Cas.Client,
+     Error ParseException,
+     Error SomeException,
+     TinyLog,
      Embed IO,
      Final IO
    ]
 
 runBrigToIO :: Env -> AppT BrigCanonicalEffects a -> IO a
-runBrigToIO e (AppT ma) =
-  runFinal
+runBrigToIO e (AppT ma) = do
+  (either throwM pure =<<)
+    . runFinal
     . embedToFinal
+    . loggerToTinyLog (e ^. applog)
+    . runError @SomeException
+    . mapError @ParseException SomeException
     . interpretClientToIO (e ^. casClient)
     . interpretRpcToIO (e ^. httpManager) (e ^. requestId)
-    . interpretGalleyProviderToRPC (e ^. galley)
+    . interpretServiceRpcToRpc @'Galley "galley" (e ^. galley)
+    . interpretGalleyProviderToRPC
     . codeStoreToCassandra @Cas.Client
     . nowToIOAction (e ^. currentTime)
     . passwordResetStoreToCodeStore

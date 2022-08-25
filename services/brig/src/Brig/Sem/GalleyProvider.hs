@@ -6,7 +6,6 @@ import Brig.API.Types
 import qualified Data.Currency as Currency
 import Data.Id
 import Data.Json.Util (UTCTimeMillis)
-import Data.Qualified
 import qualified Galley.Types.Teams.Intra as Team
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
@@ -23,27 +22,6 @@ data GalleyProvider m a where
   CreateSelfConv ::
     UserId ->
     GalleyProvider m ()
-  CreateLocalConnectConv ::
-    Local UserId ->
-    Local UserId ->
-    Maybe Text ->
-    Maybe ConnId ->
-    GalleyProvider m ConvId
-  AcceptLocalConnectConv ::
-    Local UserId ->
-    Maybe ConnId ->
-    ConvId ->
-    GalleyProvider m Conversation
-  BlockLocalConv ::
-    Local UserId ->
-    Maybe ConnId ->
-    ConvId ->
-    GalleyProvider m ()
-  UnblockLocalConv ::
-    Local UserId ->
-    Maybe ConnId ->
-    ConvId ->
-    GalleyProvider m Conversation
   GetConv ::
     UserId ->
     ConvId ->
@@ -77,9 +55,6 @@ data GalleyProvider m a where
   GetTeamMembers ::
     TeamId ->
     GalleyProvider m Team.TeamMemberList
-  GetTeamContacts ::
-    UserId ->
-    GalleyProvider m (Maybe Team.TeamMemberList)
   GetTeamId ::
     UserId ->
     GalleyProvider m (Maybe TeamId)
