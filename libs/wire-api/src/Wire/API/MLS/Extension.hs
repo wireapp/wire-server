@@ -77,7 +77,7 @@ instance ParseMLS Extension where
 
 instance SerialiseMLS Extension where
   serialiseMLS (Extension ty d) = do
-    put ty
+    serialiseMLS ty
     serialiseMLSBytes @Word32 d
 
 data ExtensionTag

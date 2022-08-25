@@ -159,6 +159,8 @@ instance ParseMLS Word32 where parseMLS = get
 
 instance ParseMLS Word64 where parseMLS = get
 
+instance SerialiseMLS Word16 where serialiseMLS = put
+
 instance SerialiseMLS Word32 where serialiseMLS = put
 
 -- | A wrapper to generate a 'ParseMLS' instance given a 'Binary' instance.
