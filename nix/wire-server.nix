@@ -161,7 +161,7 @@ let lib = pkgs.lib;
 in {
   inherit ciImage;
 
-  images = with imagesWithPatches;
+  images = imagesWithPatches;
 
   devShell = hPkgs.shellFor {
     packages = p: builtins.map (e: p.${e}) wireServerPackages;
