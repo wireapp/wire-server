@@ -53,7 +53,7 @@ in
 self: super: {
   cryptobox = self.callPackage ./pkgs/cryptobox { };
   zauth = self.callPackage ./pkgs/zauth { };
-  mls_test_cli = self.callPackage ./pkgs/mls_test_cli { };
+  mls-test-cli = self.callPackage ./pkgs/mls-test-cli { };
 
   nginxModules = super.nginxModules // {
     zauth = {

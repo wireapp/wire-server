@@ -36,7 +36,7 @@ let lib = pkgs.lib;
     };
     localPackages = import ./local-haskell-packages.nix;
     manualOverrides = import ./manual-overrides.nix (with pkgs; {
-      inherit hlib libsodium protobuf snappy mls_test_cli;
+      inherit hlib libsodium protobuf snappy mls-test-cli;
     });
 
     executables = hself: hsuper:
@@ -113,7 +113,6 @@ in {
       (pkgs.haskell-language-server.override { supportedGhcVersions = [ "8107" ]; })
       pkgs.cabal2nix
       pkgs.cfssl
-      pkgs.mls_test_cli
       pkgs.ghcid
       pkgs.gnumake
       pkgs.gnused

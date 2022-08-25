@@ -62,5 +62,5 @@ let
         pkgs.entr
       ] ++ docsPkgs;
     };
-  mls_test_cli = pkgs.mls_test_cli;
-in {inherit pkgs profileEnv wireServer docs docsEnv mls_test_cli;}
+  mls-test-cli = pkgs.mls-test-cli;
+in {inherit pkgs profileEnv wireServer docs docsEnv mls-test-cli;}

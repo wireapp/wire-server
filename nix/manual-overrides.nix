@@ -1,4 +1,4 @@
-{ libsodium, protobuf, snappy, hlib, mls_test_cli }:
+{ libsodium, protobuf, snappy, hlib, mls-test-cli }:
 hself: hsuper: {
   network-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.network-arbitrary);
   cql = hlib.markUnbroken hsuper.cql;
@@ -33,5 +33,5 @@ hself: hsuper: {
   # Build toool dependencies of local packages
   wire-message-proto-lens = hlib.addBuildTool hsuper.wire-message-proto-lens protobuf;
   types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
-  wire-api = hlib.addBuildTool hsuper.wire-api mls_test_cli;
+  wire-api = hlib.addBuildTool hsuper.wire-api mls-test-cli;
 }

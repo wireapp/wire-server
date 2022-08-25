@@ -8,7 +8,7 @@ self: super: rec {
     };
   });
 
-  mls_test_cli = self.callPackage ./pkgs/mls_test_cli { };
+  mls-test-cli = self.callPackage ./pkgs/mls-test-cli { };
 
   python3Packages = python3.pkgs;
 }
