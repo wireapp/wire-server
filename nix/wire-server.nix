@@ -155,6 +155,8 @@ let lib = pkgs.lib;
           pkgs.bashInteractive
           pkgs.nix
           pkgs.cachix
+          pkgs.dockerTools.usrBinEnv
+          pkgs.dockerTools.fakeNss
         ];
       };
     };
