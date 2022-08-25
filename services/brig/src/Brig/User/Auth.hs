@@ -69,7 +69,6 @@ import qualified Brig.ZAuth as ZAuth
 import Cassandra
 import Control.Error hiding (bool)
 import Control.Lens (to, view)
-import Control.Monad.Trans.Except
 import Data.ByteString.Conversion (toByteString)
 import Data.Either.Combinators
 import Data.Handle (Handle)
@@ -87,6 +86,7 @@ import Polysemy.Async
 import Polysemy.Error
 import qualified Polysemy.Error as P
 import Polysemy.Input
+import Polysemy.TinyLog
 import qualified Polysemy.TinyLog as P
 import qualified Ropes.Twilio as Twilio
 import System.Logger (field, msg, val, (~~))
@@ -342,20 +342,20 @@ renewAccess uts at = do
   pure $ Access at' ck'
 
 revokeAccess ::
-  forall m.
-  (MonadClient m, Log.MonadLogger m, MonadReader Env m) =>
+  Members '[Input (Local ()), TinyLog, UserQuery] r =>
   UserId ->
   PlainTextPassword ->
   [CookieId] ->
   [CookieLabel] ->
-  ExceptT AuthError m ()
+  ExceptT AuthError (AppT r) ()
 revokeAccess u pw cc ll = do
-  lift $ Log.debug $ field "user" (toByteString u) . field "action" (Log.val "User.revokeAccess")
-  locDomain <- qualifyLocal ()
+  lift . liftSem $
+    debug $ field "user" (toByteString u) . field "action" (Log.val "User.revokeAccess")
   locale <- Opt.setDefaultUserLocale <$> view settings
-  unlessM (lift . runM . userQueryToCassandra @m @'[Embed m] $ runInputConst locDomain $ Data.isSamlUser locale u) $
-    runUserQueryAction (Data.authenticate u pw) >>= except
-  lift $ revokeCookies u cc ll
+  unlessM (lift . liftSem $ Data.isSamlUser locale u)
+    . mapExceptT liftSem
+    . semErrToExceptT $Data.authenticate u pw
+  lift . wrapClient $ revokeCookies u cc ll
 
 --------------------------------------------------------------------------------
 -- Internal
@@ -601,24 +601,3 @@ assertLegalHoldEnabled tid =
   wsStatus <$> getTeamLegalHoldStatus tid >>= \case
     FeatureStatusDisabled -> throw LegalHoldLoginLegalHoldNotEnabled
     FeatureStatusEnabled -> pure ()
-
---------------------------------------------------------------------------------
--- Polysemy crutches
---
--- These can be removed once functions in this module run in 'Sem r' instead of
--- 'ExceptT e m' or 'm' for some constrained 'm'.
-
-runUserQueryAction ::
-  forall m e a t.
-  (MonadClient m, MonadTrans t) =>
-  Sem '[Error e, UserQuery, Embed m] a ->
-  t m (Either e a)
-runUserQueryAction = runStoreAction (userQueryToCassandra @m)
-
-runStoreAction ::
-  forall m e a t store.
-  (MonadClient m, MonadTrans t) =>
-  (forall n b. (MonadClient n, n ~ m) => Sem '[store, Embed n] b -> Sem '[Embed n] b) ->
-  Sem '[Error e, store, Embed m] a ->
-  t m (Either e a)
-runStoreAction interpreter = lift . runM . interpreter @m . runError @e

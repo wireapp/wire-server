@@ -76,6 +76,7 @@ import Polysemy
 import Polysemy.Async
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.TinyLog (TinyLog)
 import qualified Polysemy.TinyLog as P
 import qualified Ropes.Twilio as Twilio
 import Wire.API.Error
@@ -512,13 +513,20 @@ listCookies :: UserId -> Maybe (List Public.CookieLabel) -> (AppT r) Public.Cook
 listCookies u ll = do
   Public.CookieList <$> wrapClient (Auth.listCookies u (maybe [] fromList ll))
 
-rmCookiesH :: UserId ::: JsonRequest Public.RemoveCookies -> (Handler r) Response
+rmCookiesH ::
+  Members '[Input (Local ()), TinyLog, UserQuery] r =>
+  UserId ::: JsonRequest Public.RemoveCookies ->
+  Handler r Response
 rmCookiesH (uid ::: req) = do
   empty <$ (rmCookies uid =<< parseJsonBody req)
 
-rmCookies :: UserId -> Public.RemoveCookies -> (Handler r) ()
+rmCookies ::
+  Members '[Input (Local ()), TinyLog, UserQuery] r =>
+  UserId ->
+  Public.RemoveCookies ->
+  Handler r ()
 rmCookies uid (Public.RemoveCookies pw lls ids) =
-  wrapClientE (Auth.revokeAccess uid pw ids lls) !>> authError
+  Auth.revokeAccess uid pw ids lls !>> authError
 
 renewH ::
   Members
