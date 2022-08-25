@@ -50,6 +50,7 @@ import Data.Aeson (FromJSON (..))
 import qualified Data.Aeson as Aeson
 import Data.Bifunctor
 import Data.Binary
+import Data.Binary.Builder
 import Data.Binary.Get
 import Data.Binary.Put
 import qualified Data.ByteString as BS
@@ -88,12 +89,10 @@ serialiseMLSVector ::
   (a -> Put) ->
   [a] ->
   Put
-serialiseMLSVector p as = do
-  -- every element is long the same number of bytes when serialised. If there is
-  -- no single element in the vector, the whole length is 0 anyways.
-  let elLen = maybe 0 (LBS.length . runPut . p) . listToMaybe $ as
-  put @w . fromIntegral $ elLen * fromIntegral (length as)
-  traverse_ p as
+serialiseMLSVector p =
+  serialiseMLSBytes @w . LBS.toStrict . toLazyByteString
+    . execPut
+    . traverse_ p
 
 parseMLSBytes :: forall w. (Binary w, Integral w) => Get ByteString
 parseMLSBytes = do
