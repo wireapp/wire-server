@@ -1,4 +1,4 @@
-{ libsodium, protobuf, snappy, hlib }:
+{ libsodium, protobuf, snappy, hlib, mls_test_cli }:
 hself: hsuper: {
   network-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.network-arbitrary);
   cql = hlib.markUnbroken hsuper.cql;
@@ -10,8 +10,6 @@ hself: hsuper: {
   polysemy-check = hlib.markUnbroken (hlib.doJailbreak hsuper.polysemy-check);
   swagger = hlib.doJailbreak hsuper.swagger;
   multihash = hlib.markUnbroken (hlib.doJailbreak hsuper.multihash);
-  wire-message-proto-lens = hlib.addBuildTool hsuper.wire-message-proto-lens protobuf;
-  types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
   hashable = hsuper.hashable_1_4_0_2;
   hashable-time = hsuper.hashable-time_0_3;
   text-short = hlib.dontCheck hsuper.text-short;
@@ -32,4 +30,9 @@ hself: hsuper: {
 
   # Avoid infinite recursion
   snappy = hself.callPackage ./nix/haskell-overrides/snappy.nix { snappy = snappy; };
+
+  # Build toool dependencies of local packages
+  wire-message-proto-lens = hlib.addBuildTool hsuper.wire-message-proto-lens protobuf;
+  types-common-journal = hlib.addBuildTool hsuper.types-common-journal protobuf;
+  wire-api = hlib.addBuildTool hsuper.wire-api mls_test_cli;
 }

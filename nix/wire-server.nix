@@ -36,7 +36,7 @@ let lib = pkgs.lib;
     };
     localPackages = import ./local-haskell-packages.nix;
     manualOverrides = import ./manual-overrides.nix (with pkgs; {
-      inherit hlib libsodium protobuf snappy;
+      inherit hlib libsodium protobuf snappy mls_test_cli;
     });
 
     executables = hself: hsuper:
