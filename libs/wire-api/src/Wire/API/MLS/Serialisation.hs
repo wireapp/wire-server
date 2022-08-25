@@ -22,6 +22,7 @@ module Wire.API.MLS.Serialisation
     serialiseMLSVector,
     parseMLSBytes,
     serialiseMLSBytes,
+    serialiseMLSBytesLazy,
     parseMLSOptional,
     serialiseMLSOptional,
     parseMLSEnum,
@@ -90,9 +91,7 @@ serialiseMLSVector ::
   [a] ->
   Put
 serialiseMLSVector p =
-  serialiseMLSBytes @w . LBS.toStrict . toLazyByteString
-    . execPut
-    . traverse_ p
+  serialiseMLSBytesLazy @w . toLazyByteString . execPut . traverse_ p
 
 parseMLSBytes :: forall w. (Binary w, Integral w) => Get ByteString
 parseMLSBytes = do
@@ -103,6 +102,11 @@ serialiseMLSBytes :: forall w. (Binary w, Integral w) => ByteString -> Put
 serialiseMLSBytes x = do
   put @w (fromIntegral (BS.length x))
   putByteString x
+
+serialiseMLSBytesLazy :: forall w. (Binary w, Integral w) => LBS.ByteString -> Put
+serialiseMLSBytesLazy x = do
+  put @w (fromIntegral (LBS.length x))
+  putLazyByteString x
 
 parseMLSOptional :: Get a -> Get (Maybe a)
 parseMLSOptional g = do
