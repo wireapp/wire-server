@@ -99,7 +99,7 @@ let lib = pkgs.lib;
       src = ../services/brig/deb/opt/brig/templates;
     };
 
-    imagesWithBrigTemplates = images // {
+    imagesWithPatches = images // {
       brig = pkgs.dockerTools.buildImage {
         name = "quay.io/wire/brig";
         fromImage = images.brig;
@@ -108,6 +108,22 @@ let lib = pkgs.lib;
           mkdir -p /usr/share/wire/
           ln -s ${brig-templates} /usr/share/wire/templates
           '';
+      };
+      brig-integration = pkgs.dockerTools.buildImage {
+        name = "quay.io/wire/brig-integration";
+        fromImage = images.brig-integration;
+        copyToRoot = pkgs.buildEnv {
+          name = "mls-test-cli";
+          paths = [pkgs.mls-test-cli];
+        };
+      };
+      galley-integration = pkgs.dockerTools.buildImage {
+        name = "quay.io/wire/galley-integration";
+        fromImage = images.galley-integration;
+        copyToRoot = pkgs.buildEnv {
+          name = "mls-test-cli";
+          paths = [pkgs.mls-test-cli];
+        };
       };
     };
     wireServerPackages = (builtins.attrNames (localPackages {} {}));
@@ -145,7 +161,7 @@ let lib = pkgs.lib;
 in {
   inherit ciImage;
 
-  images = with imagesWithBrigTemplates; {inherit brig brig-integration galley;};
+  images = with imagesWithPatches;
 
   devShell = hPkgs.shellFor {
     packages = p: builtins.map (e: p.${e}) wireServerPackages;
