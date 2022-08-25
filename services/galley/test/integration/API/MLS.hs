@@ -1721,13 +1721,13 @@ testBackendRemoveProposalLocalConvLocalUser = withSystemTempDirectory "mls" $ \t
   kprefs <- (fromJust . kpRef' . snd) <$$> liftIO (readKeyPackages tmp bobParticipant)
 
   c <- view tsCannon
-  WS.bracketR2 c (qUnqualified alice) (qUnqualified bob) $ \(wsA, wsB) -> do
+
+  WS.bracketR c (qUnqualified alice) $ \wsA -> do
     deleteUser (qUnqualified bob) !!! const 200 === statusCode
 
-    for_ [(wsA, alice), (wsB, bob)] $ \(ws, receivingUser) ->
-      for_ kprefs $ \kp ->
-        WS.assertMatch_ (5 # WS.Second) ws $ \notification ->
-          wsAssertBackendRemoveProposal receivingUser conversation kp notification
+    for_ kprefs $ \kp ->
+      WS.assertMatch_ (5 # WS.Second) wsA $ \notification ->
+        wsAssertBackendRemoveProposal bob conversation kp notification
 
 testBackendRemoveProposalRemoteConvLocalUser :: TestM ()
 testBackendRemoveProposalRemoteConvLocalUser = do

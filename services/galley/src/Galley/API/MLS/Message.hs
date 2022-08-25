@@ -20,12 +20,13 @@ module Galley.API.MLS.Message
   ( postMLSMessageFromLocalUser,
     postMLSMessageFromLocalUserV1,
     postMLSMessage,
+    mlsRemoveUser,
     MLSMessageStaticErrors,
   )
 where
 
 import Control.Comonad
-import Control.Lens (preview, to)
+import Control.Lens (preview, to, view)
 import Data.Bifunctor
 import Data.Domain
 import Data.Id
@@ -51,6 +52,7 @@ import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
+import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Imports
@@ -76,6 +78,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import qualified Wire.API.MLS.Proposal as Proposal
@@ -948,3 +951,32 @@ withCommitLock gid epoch ttl action =
     )
     (const $ releaseCommitLock gid epoch)
     (const action)
+
+mlsRemoveUser ::
+  ( Members
+      '[ Input UTCTime,
+         TinyLog,
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         Error InternalError,
+         Input Env
+       ]
+      r
+  ) =>
+  Data.Conversation ->
+  Local UserId ->
+  Sem r ()
+mlsRemoveUser c lusr = do
+  case Data.convProtocol c of
+    ProtocolProteus -> pure ()
+    ProtocolMLS meta -> do
+      keyPair <- mlsKeyPair_ed25519 <$> (inputs (view mlsKeys) <*> pure RemovalPurpose)
+      (secKey, pubKey) <- note (InternalErrorWithDescription "backend removal key missing") $ keyPair
+      for_ (getConvMember lusr c lusr) $ \member ->
+        for_ (lmMLSClients member) $ \(_client, kpref) -> do
+          proposal <-
+            note (InternalErrorWithDescription "could not construct signed proposal") $
+              mkRemoveProposalMessage secKey pubKey (cnvmlsGroupId meta) (cnvmlsEpoch meta) kpref
+          let proposalRaw = encodeMLS' proposal
+          propagateMessage lusr (qUntagged lusr) c Nothing proposalRaw

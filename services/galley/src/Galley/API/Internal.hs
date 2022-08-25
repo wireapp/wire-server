@@ -37,8 +37,10 @@ import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
+import Galley.API.Error
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
+import Galley.API.MLS.Message (mlsRemoveUser)
 import Galley.API.One2One
 import Galley.API.Public
 import Galley.API.Public.Servant
@@ -629,6 +631,7 @@ rmUser ::
          FederatorAccess,
          GundeckAccess,
          Input UTCTime,
+         Input Env,
          ListItems p1 ConvId,
          ListItems p1 (Remote ConvId),
          ListItems p2 TeamId,
@@ -678,6 +681,10 @@ rmUser lusr conn = do
         ConnectConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
           | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
+            -- TODO: this happens before the events are pushed. Is this okay?
+            runError (mlsRemoveUser c lusr) >>= \case
+              Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
+              Right _ -> pure ()
             deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
             let e =
                   Event
@@ -686,10 +693,11 @@ rmUser lusr conn = do
                     now
                     (EdMembersLeave (QualifiedUserIdList [qUser]))
             for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
-            pure $
-              Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
-                <&> set Intra.pushConn conn
-                  . set Intra.pushRoute Intra.RouteDirect
+            let events =
+                  Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
+                    <&> set Intra.pushConn conn
+                      . set Intra.pushRoute Intra.RouteDirect
+            pure events
           | otherwise -> pure Nothing
 
       for_
