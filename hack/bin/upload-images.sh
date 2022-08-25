@@ -5,6 +5,9 @@
 # repository name specified in the image derivation and tag specified by
 # environment variable "$DOCKER_TAG".
 #
+# If $DOCKER_USER and $DOCKER_PASSWORD are provided, the script will use them to
+# upload the images.
+#
 # This script is intended to be run by CI/CD pipelines.
 
 set -euo pipefail
@@ -15,21 +18,14 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR=$(cd -- "$SCRIPT_DIR/../../" &> /dev/null && pwd)
 readonly SCRIPT_DIR ROOT_DIR
 
+credsArgs=""
 if [[ "${DOCKER_USER+x}" != "" ]]; then
-
     DOCKER_PASSWORD=${DOCKER_PASSWORD:?"DOCKER_PASSWORD must be provided when DOCKER_USER is provided"}
-    DOCKER_SERVER=${DOCKER_SERVER:-"quay.io"}
-
-    docker_cred=$(echo -n "$DOCKER_USER:$DOCKER_PASSWORD" | base64)
-    authfile=$(mktemp)
-    jq -n > "$authfile" \
-       '{auths: { "\($docker_server)": { auth: "\($docker_cred)"  }}}' \
-       --arg docker_server "$DOCKER_SERVER" \
-       --arg docker_cred "$docker_cred"
-    export REGISTRY_AUTH_FILE=$authfile
+    credsArgs="--dest-creds=$DOCKER_USER:$DOCKER_PASSWORD"
 fi
 
 while IFS='' read -r image; do
     repo=$(skopeo list-tags "docker-archive://$image" | jq -r '.Tags[0] | split(":") | .[0]')
-    skopeo copy "docker-archive://$image" "docker://$repo:$DOCKER_TAG"
+    # shellcheck disable=SC2086
+    skopeo copy $credsArgs "docker-archive://$image" "docker://$repo:$DOCKER_TAG"
 done < <(nix-build "$ROOT_DIR/nix" -A wireServer.images)
