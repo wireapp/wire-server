@@ -660,6 +660,7 @@ executable galley-schema
     V68_MLSCommitLock
     V69_MLSProposal
     V70_MLSCipherSuite
+    V71_MemberClientKeypackage
 
   hs-source-dirs:     schema/src
   default-extensions:

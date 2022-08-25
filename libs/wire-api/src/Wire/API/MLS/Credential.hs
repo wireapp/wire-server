@@ -19,6 +19,7 @@
 
 module Wire.API.MLS.Credential where
 
+import Cassandra.CQL
 import Control.Error.Util
 import Control.Lens ((?~))
 import Data.Aeson (FromJSON (..), FromJSONKey (..), ToJSON (..), ToJSONKey (..))
@@ -83,6 +84,14 @@ signatureScheme = SignatureScheme . signatureSchemeNumber
 data SignatureSchemeTag = Ed25519
   deriving stock (Bounded, Enum, Eq, Ord, Show, Generic)
   deriving (Arbitrary) via GenericUniform SignatureSchemeTag
+
+instance Cql SignatureSchemeTag where
+  ctype = Tagged TextColumn
+  toCql = CqlText . signatureSchemeName
+  fromCql (CqlText name) =
+    note ("Unexpected signature scheme: " <> T.unpack name) $
+      signatureSchemeFromName name
+  fromCql _ = Left "SignatureScheme: Text expected"
 
 signatureSchemeNumber :: SignatureSchemeTag -> Word16
 signatureSchemeNumber Ed25519 = 0x807

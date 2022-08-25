@@ -169,7 +169,7 @@ CREATE TABLE galley_test.member (
     conversation_role text,
     hidden boolean,
     hidden_ref text,
-    mls_clients set<text>,
+    mls_clients_keypackages set<frozen<tuple<text, blob>>>,
     otr_archived boolean,
     otr_archived_ref text,
     otr_muted boolean,

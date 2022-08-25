@@ -346,7 +346,7 @@ type HasProposalEffects r =
     Member TeamStore r
   )
 
-type ClientMap = Map (Qualified UserId) (Set ClientId)
+type ClientMap = Map (Qualified UserId) (Set (ClientId, KeyPackageRef))
 
 data ProposalAction = ProposalAction
   { paAdd :: ClientMap,
@@ -362,10 +362,10 @@ instance Semigroup ProposalAction where
 instance Monoid ProposalAction where
   mempty = ProposalAction mempty mempty
 
-paAddClient :: Qualified (UserId, ClientId) -> ProposalAction
+paAddClient :: Qualified (UserId, (ClientId, KeyPackageRef)) -> ProposalAction
 paAddClient quc = mempty {paAdd = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
 
-paRemoveClient :: Qualified (UserId, ClientId) -> ProposalAction
+paRemoveClient :: Qualified (UserId, (ClientId, KeyPackageRef)) -> ProposalAction
 paRemoveClient quc = mempty {paRemove = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
 
 processCommit ::
@@ -411,7 +411,7 @@ processCommit qusr con lconv epoch sender commit = do
         then do
           -- this is a newly created conversation, and it should contain exactly one
           -- client (the creator)
-          case (sender, first (toList . lmMLSClients) self) of
+          case (sender, first (fmap fst . toList . lmMLSClients) self) of
             (MemberSender currentRef, Left [creatorClient]) -> do
               -- use update path as sender reference and if not existing fall back to sender
               senderRef <-
@@ -498,10 +498,10 @@ applyProposal (AddProposal kp) = do
     kpRef' kp
       & note (mlsProtocolError "Could not compute ref of a key package in an Add proposal")
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
-  pure (paAddClient qclient)
+  pure (paAddClient (fmap (fmap (,ref)) qclient))
 applyProposal (RemoveProposal ref) = do
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
-  pure (paRemoveClient qclient)
+  pure (paRemoveClient (fmap (fmap (,ref)) qclient))
 applyProposal _ = pure mempty
 
 checkProposalCipherSuite ::
@@ -673,7 +673,7 @@ executeProposalAction qusr con lconv action = do
     -- new user
     Nothing -> do
       -- final set of clients in the conversation
-      let clients = newclients <> Map.findWithDefault mempty qtarget cm
+      let clients = Set.map fst (newclients <> Map.findWithDefault mempty qtarget cm)
       -- get list of mls clients from brig
       clientInfo <- getMLSClients lconv qtarget ss
       let allClients = Set.map ciId clientInfo
@@ -711,8 +711,13 @@ executeProposalAction qusr con lconv action = do
   where
     -- This also filters out client removals for clients that don't exist anymore
     -- For these clients there is nothing left to do
-    checkRemoval :: Local x -> SignatureSchemeTag -> Qualified UserId -> Set ClientId -> Sem r (Maybe (Qualified UserId))
-    checkRemoval loc ss qtarget clients = do
+    checkRemoval ::
+      Local x ->
+      SignatureSchemeTag ->
+      Qualified UserId ->
+      Set (ClientId, KeyPackageRef) ->
+      Sem r (Maybe (Qualified UserId))
+    checkRemoval loc ss qtarget (Set.map fst -> clients) = do
       allClients <- Set.map ciId <$> getMLSClients loc qtarget ss
       let allClientsDontExist = Set.null (clients `Set.intersection` allClients)
       if allClientsDontExist
@@ -814,13 +819,13 @@ propagateMessage loc qusr conv con raw = do
     cToList (u, s) = (u,) <$> Set.toList s
 
     clients :: LocalMember -> Local (UserId, Set ClientId)
-    clients LocalMember {..} = qualifyAs loc (lmId, lmMLSClients)
+    clients LocalMember {..} = qualifyAs loc (lmId, Set.map fst lmMLSClients)
 
     remoteMemberMLSClients :: RemoteMember -> [(UserId, ClientId)]
     remoteMemberMLSClients rm =
       map
         (tUnqualified (rmId rm),)
-        (toList (rmMLSClients rm))
+        (toList (Set.map fst (rmMLSClients rm)))
 
     handleError :: Member TinyLog r => Either (Remote [a], FederationError) x -> Sem r ()
     handleError (Right _) = pure ()

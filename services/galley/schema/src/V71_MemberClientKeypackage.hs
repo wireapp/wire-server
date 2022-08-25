@@ -15,9 +15,36 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V71_MemberClientKeypackage where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 71
+migration :: Migration
+migration =
+  Migration 71 "Replace mls_clients with mls_clients_keypackages in member table" $ do
+    schema'
+      [r|
+        ALTER TABLE member ADD (
+          mls_clients_keypackages set<frozen<tuple<text, blob>>>
+        );
+      |]
+    schema'
+      [r|
+        ALTER TABLE member DROP (
+          mls_clients
+        );
+      |]
+    schema'
+      [r|
+        ALTER TABLE member_remote_user ADD (
+          mls_clients_keypackages set<frozen<tuple<text, blob>>>
+        );
+      |]
+    schema'
+      [r|
+        ALTER TABLE member_remote_user DROP (
+          mls_clients
+        );
+      |]
