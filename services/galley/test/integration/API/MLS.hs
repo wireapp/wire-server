@@ -153,10 +153,16 @@ tests s =
           test s "forward an unsupported proposal" propUnsupported
         ],
       testGroup
-        "External Proposal"
+        "External Add Proposal"
         [ test s "member adds new client" testExternalAddProposal,
           test s "non-member adds new client" testExternalAddProposalWrongUser,
           test s "member adds unknown new client" testExternalAddProposalWrongClient
+        ],
+      testGroup
+        "Backend-side External Remove Proposals"
+        [ test s "local conversation, local user deleted" testBackendRemoveProposalLocalConvLocalUser,
+          test s "remote conversation, local user deleted" testBackendRemoveProposalRemoteConvLocalUser,
+          test s "local conversation, remote user deleted" testBackendRemoveProposalLocalConvRemoteUser
         ],
       testGroup
         "Protocol mismatch"
@@ -1701,3 +1707,38 @@ propUnsupported = withSystemTempDirectory "mls" $ \tmp -> do
 
   postMessage (qUnqualified . pUserId $ creator) msgSerialised
     !!! const 201 === statusCode
+
+testBackendRemoveProposalLocalConvLocalUser :: TestM ()
+testBackendRemoveProposalLocalConvLocalUser = withSystemTempDirectory "mls" $ \tmp -> do
+  -- 1. Setup: local local conv alice, bob
+  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
+  let [bobParticipant] = users
+  print bobParticipant
+  let bob = pUserId bobParticipant
+  let alice = pUserId creator
+  testSuccessfulCommit MessagingSetup {users = [bobParticipant], ..}
+
+  kprefs <- (fromJust . kpRef' . snd) <$$> liftIO (readKeyPackages tmp bobParticipant)
+
+  c <- view tsCannon
+  WS.bracketR2 c (qUnqualified alice) (qUnqualified bob) $ \(wsA, wsB) -> do
+    deleteUser (qUnqualified bob) !!! const 200 === statusCode
+
+    for_ [(wsA, alice), (wsB, bob)] $ \(ws, receivingUser) ->
+      for_ kprefs $ \kp ->
+        WS.assertMatch_ (5 # WS.Second) ws $ \notification ->
+          wsAssertBackendRemoveProposal receivingUser conversation kp notification
+
+testBackendRemoveProposalRemoteConvLocalUser :: TestM ()
+testBackendRemoveProposalRemoteConvLocalUser = do
+  -- 1. Setup: fake remote conv alice with local bob
+  -- 2. delete user bob
+  -- 3. Assert that RPC is being called
+  pure ()
+
+testBackendRemoveProposalLocalConvRemoteUser :: TestM ()
+testBackendRemoveProposalLocalConvRemoteUser = do
+  -- 1. Setup: local conv with alice and remote bob
+  -- 2. fake RPC call to local backend
+  -- 3. Assert that alice receives an external proposal by backend
+  pure ()

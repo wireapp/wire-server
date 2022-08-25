@@ -142,6 +142,11 @@ pClientQid p = userClientQid (pUserId p) (NonEmpty.head (pClientIds p))
 pClientId :: Participant -> ClientId
 pClientId = NonEmpty.head . pClientIds
 
+readKeyPackages :: FilePath -> Participant -> IO (NonEmpty (ClientId, RawMLS KeyPackage))
+readKeyPackages tmp participant = for (pClients participant) $ \(qcid, cid) -> do
+  b <- BS.readFile (tmp </> qcid)
+  pure (cid, fromRight (error "parsing RawMLS KeyPackage") (decodeMLS' b))
+
 setupUserClient ::
   HasCallStack =>
   FilePath ->
