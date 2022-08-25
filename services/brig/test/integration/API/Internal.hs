@@ -228,7 +228,7 @@ testGetMlsClients :: Brig -> Http ()
 testGetMlsClients brig = do
   qusr <- userQualifiedId <$> randomUser brig
   c <- createClient brig qusr 0
-  (cs0 :: Set ClientId) <-
+  (cs0 :: Set ClientId, cs0all :: Set ClientId) <-
     responseJsonError
       =<< get
         ( brig
@@ -236,11 +236,12 @@ testGetMlsClients brig = do
             . queryItem "sig_scheme" "ed25519"
         )
   liftIO $ cs0 @?= mempty
+  liftIO $ toList cs0all @?= [c]
 
   withSystemTempDirectory "mls" $ \tmp ->
     uploadKeyPackages brig tmp def qusr c 2
 
-  (cs1 :: Set ClientId) <-
+  (cs1 :: Set ClientId, cs1all :: Set ClientId) <-
     responseJsonError
       =<< get
         ( brig
@@ -248,6 +249,7 @@ testGetMlsClients brig = do
             . queryItem "sig_scheme" "ed25519"
         )
   liftIO $ toList cs1 @?= [c]
+  liftIO $ toList cs1all @?= [c]
 
 keyPackageCreate :: HasCallStack => Brig -> Http KeyPackageRef
 keyPackageCreate brig = do
