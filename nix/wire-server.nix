@@ -159,6 +159,9 @@ let lib = pkgs.lib;
           pkgs.dockerTools.fakeNss
         ];
       };
+      config.Env = [
+        "SSL_CERT_FILE=${toString pkgs.cacert.out}/etc/ssl/certs/ca-bundle.crt"
+      ];
     };
 in {
   inherit ciImage;
