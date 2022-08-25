@@ -137,7 +137,6 @@ let lib = pkgs.lib;
           pkgs.cacert
           pkgs.coreutils
           pkgs.bashInteractive
-          pkgs.base64
           pkgs.nix
           pkgs.cachix
         ];
