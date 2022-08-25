@@ -78,12 +78,19 @@ let lib = pkgs.lib;
     images = attrsets.mapAttrs (execName: drv:
       pkgs.dockerTools.buildImage {
         name = "quay.io/wire/${execName}";
-        contents = [
-          pkgs.cacert
-          pkgs.coreutils
-          pkgs.bashInteractive
-          drv
-        ];
+        copyToRoot = pkgs.buildEnv {
+          name = "image-root";
+          paths = [
+            pkgs.cacert
+            pkgs.coreutils
+            pkgs.bashInteractive
+            pkgs.dumb-init
+            drv
+          ];
+        };
+        config = {
+          Entrypoint = ["${pkgs.dumb-init}/bin/dumb-init" "--" "${drv}/bin/${execName}"];
+        };
       }
     ) staticExecs;
 
