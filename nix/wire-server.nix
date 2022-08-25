@@ -24,7 +24,7 @@ let lib = pkgs.lib;
       stern = ["stern"];
 
       billing-team-member-backfill = ["billing-team-member-backfill"];
-      api-smoketest = ["api-smoketest"];
+      api-simulations = ["api-smoketest" "api-loadtest"];
       zauth = ["zauth"];
     };
 
