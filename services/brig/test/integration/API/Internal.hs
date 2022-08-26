@@ -57,6 +57,7 @@ import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as ApiFt
 import qualified Wire.API.Team.Member as Team
 import Wire.API.User
+import Wire.API.User.Client
 
 tests :: Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Gundeck -> Galley -> IO TestTree
 tests opts mgr db brig brigep gundeck galley = do
@@ -228,28 +229,26 @@ testGetMlsClients :: Brig -> Http ()
 testGetMlsClients brig = do
   qusr <- userQualifiedId <$> randomUser brig
   c <- createClient brig qusr 0
-  (cs0 :: Set ClientId, cs0all :: Set ClientId) <-
+  (cs0 :: Set ClientInfo) <-
     responseJsonError
       =<< get
         ( brig
             . paths ["i", "mls", "clients", toByteString' (qUnqualified qusr)]
             . queryItem "sig_scheme" "ed25519"
         )
-  liftIO $ cs0 @?= mempty
-  liftIO $ toList cs0all @?= [c]
+  liftIO $ toList cs0 @?= [ClientInfo c False]
 
   withSystemTempDirectory "mls" $ \tmp ->
     uploadKeyPackages brig tmp def qusr c 2
 
-  (cs1 :: Set ClientId, cs1all :: Set ClientId) <-
+  (cs1 :: Set ClientInfo) <-
     responseJsonError
       =<< get
         ( brig
             . paths ["i", "mls", "clients", toByteString' (qUnqualified qusr)]
             . queryItem "sig_scheme" "ed25519"
         )
-  liftIO $ toList cs1 @?= [c]
-  liftIO $ toList cs1all @?= [c]
+  liftIO $ toList cs1 @?= [ClientInfo c True]
 
 keyPackageCreate :: HasCallStack => Brig -> Http KeyPackageRef
 keyPackageCreate brig = do
