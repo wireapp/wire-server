@@ -84,6 +84,7 @@ import Wire.API.Message
 
 type MLSMessageStaticErrors =
   '[ ErrorS 'ConvAccessDenied,
+     ErrorS 'ConvMemberNotFound,
      ErrorS 'ConvNotFound,
      ErrorS 'MLSUnsupportedMessage,
      ErrorS 'MLSStaleMessage,
@@ -93,7 +94,9 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSClientMismatch,
      ErrorS 'MLSUnsupportedProposal,
      ErrorS 'MLSCommitMissingReferences,
-     ErrorS 'MLSSelfRemovalNotAllowed
+     ErrorS 'MLSSelfRemovalNotAllowed,
+     ErrorS 'MLSClientSenderUserMismatch,
+     ErrorS 'MLSGroupConversationMismatch
    ]
 
 postMLSMessageFromLocalUserV1 ::
@@ -109,6 +112,8 @@ postMLSMessageFromLocalUserV1 ::
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSClientSenderUserMismatch,
+         ErrorS 'MLSGroupConversationMismatch,
          ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
@@ -121,9 +126,11 @@ postMLSMessageFromLocalUserV1 ::
   ConnId ->
   RawMLS SomeMessage ->
   Sem r [Event]
-postMLSMessageFromLocalUserV1 lusr conn msg =
-  map lcuEvent
-    <$> postMLSMessage lusr (qUntagged lusr) (Just conn) msg
+postMLSMessageFromLocalUserV1 lusr conn smsg = case rmValue smsg of
+  SomeMessage _ msg -> do
+    qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+    map lcuEvent
+      <$> postMLSMessage lusr (qUntagged lusr) qcnv (Just conn) smsg
 
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
@@ -138,6 +145,8 @@ postMLSMessageFromLocalUser ::
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSClientSenderUserMismatch,
+         ErrorS 'MLSGroupConversationMismatch,
          ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
@@ -164,12 +173,15 @@ postMLSMessage ::
          Error InternalError,
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvNotFound,
+         ErrorS 'ConvMemberNotFound,
          ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSSelfRemovalNotAllowed,
+         ErrorS 'MLSClientSenderUserMismatch,
+         ErrorS 'MLSGroupConversationMismatch,
          Resource,
          TinyLog,
          ProposalStore,
@@ -179,18 +191,54 @@ postMLSMessage ::
   ) =>
   Local x ->
   Qualified UserId ->
+  Qualified ConvId ->
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Sem r [LocalConversationUpdate]
-postMLSMessage loc qusr con smsg = case rmValue smsg of
+postMLSMessage loc qusr qcnv con smsg = case rmValue smsg of
   SomeMessage _ msg -> do
-    -- fetch conversation ID
-    qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+    unless (msgEpoch msg == Epoch 0) $
+      flip unless (throwS @'MLSClientSenderUserMismatch) =<< isUserSender qusr smsg
     foldQualified
       loc
       (postMLSMessageToLocalConv qusr con smsg)
       (postMLSMessageToRemoteConv loc qusr con smsg)
       qcnv
+
+-- | Check that the MLS client who created the message belongs to the user who
+-- is the sender of the REST request, identified by HTTP header.
+--
+-- This is only relevant in an ongoing conversation. The check should be skipped
+-- in case of
+-- * encrypted messages in which we don't have access to the sending client's
+--   key package,
+-- * messages sent by the backend, and
+-- * external add proposals which propose fresh key packages for new clients and
+--   thus the validity of the key package cannot be known at the time of this
+--   check.
+-- For these cases the function will return True.
+isUserSender ::
+  ( Members
+      '[ ErrorS 'MLSKeyPackageRefNotFound,
+         BrigAccess
+       ]
+      r
+  ) =>
+  Qualified UserId ->
+  RawMLS SomeMessage ->
+  Sem r Bool
+isUserSender qusr smsg = case rmValue smsg of
+  SomeMessage tag msg -> case tag of
+    -- skip encrypted message
+    SMLSCipherText -> pure True
+    SMLSPlainText -> case msgSender msg of
+      -- skip message sent by backend
+      PreconfiguredSender _ -> pure True
+      -- skip external add proposal
+      NewMemberSender -> pure True
+      MemberSender ref -> do
+        ci <- derefKeyPackage ref
+        pure $ fmap fst (cidQualifiedClient ci) == qusr
 
 postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
@@ -258,6 +306,9 @@ postMLSMessageToRemoteConv ::
 postMLSMessageToRemoteConv loc qusr con smsg rcnv = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
+  -- only members may send messages to the remote conversation
+  flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) rcnv
+
   resp <-
     runFederated rcnv $
       fedClient @'Galley @"send-mls-message" $
