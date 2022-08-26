@@ -153,7 +153,7 @@ onUserEvent ::
 onUserEvent orig conn e =
   wrapClient (updateSearchIndex orig e)
     *> dispatchNotifications orig conn e
-    *> wrapClient (journalEvent orig e) -- TODO(md): this just needs MonadIO m and MonadReader
+    *> wrapClient (journalEvent orig e) -- FUTUREWORK: this just needs MonadIO m and MonadReader
     -- Env m. It seems to access AWS, so
     -- perhaps that's an effect on its own.
 
