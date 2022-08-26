@@ -171,7 +171,7 @@ clientError ClientCodeAuthenticationFailed = StdError verificationCodeAuthFailed
 clientError ClientCodeAuthenticationRequired = StdError verificationCodeRequired
 
 certEnrollmentError :: CertEnrollmentError -> Error
-certEnrollmentError CertEnrollmentError = undefined
+certEnrollmentError CertEnrollmentError = StdError $ Wai.mkError status400 "generic-cer-enrollment-error" "generic error" --todo(leif): implement all possible errors
 
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai
