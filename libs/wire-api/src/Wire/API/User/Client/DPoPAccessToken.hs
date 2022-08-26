@@ -20,21 +20,18 @@
 
 module Wire.API.User.Client.DPoPAccessToken where
 
-import Data.Aeson (FromJSON, ToJSON, eitherDecode)
-import qualified Data.ByteString.Base64.URL as Base64
-import Data.ByteString.Char8 (split)
-import Data.ByteString.Conversion (FromByteString (..), ToByteString, fromByteString', toByteString')
-import Data.Misc (HttpsUrl)
-import Data.Nonce (Nonce)
-import Data.Proxy (Proxy (Proxy))
+import Data.Aeson (FromJSON, ToJSON)
+import Data.ByteString.Conversion (FromByteString (..), ToByteString (..), fromByteString', toByteString')
+import Data.Json.Util (base64Schema)
+import Data.SOP
 import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
-import Data.Swagger.ParamSchema
-import Data.UUID (UUID)
+import Data.Swagger.ParamSchema (ToParamSchema (..))
+import Data.Text as T
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
-import Wire.API.MLS.Epoch
+import Wire.API.Routes.MultiVerb
 
 newtype Proof = Proof {unProof :: ByteString}
   deriving (Eq, Show, Generic)
@@ -49,46 +46,13 @@ instance FromHttpApiData Proof where
 instance ToParamSchema Proof where
   toParamSchema _ = toParamSchema (Proxy @Text)
 
-claims :: Proof -> Either String Claims
-claims =
-  claimsBs >=> (fmap cs <$> Base64.decode) >=> eitherDecode
-  where
-    claimsBs :: Proof -> Either String ByteString
-    claimsBs (Proof bs) =
-      case split '.' bs of
-        [_, c, _] -> pure c
-        _ : _ : _ : _ -> Left "expected 3 parts, but got more"
-        _ -> Left "expected 3 parts, but got less"
-
-data Claims = Claims
-  { cJti :: UUID,
-    cIat :: Epoch,
-    cHtm :: Text,
-    cHtu :: HttpsUrl,
-    cNonce :: Nonce,
-    cChal :: Text,
-    cSub :: Text,
-    cExp :: Epoch
-  }
-  deriving (Eq, Show, Generic)
-  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema Claims)
-
-instance ToSchema Claims where
-  schema =
-    object "Claims" $
-      Claims
-        <$> cJti .= field "jti" genericToSchema
-        <*> cIat .= field "iat" schema
-        <*> cHtm .= field "htm" schema
-        <*> cHtu .= field "htu" schema
-        <*> cNonce .= field "nonce" schema
-        <*> cChal .= field "chal" schema
-        <*> cSub .= field "sub" schema
-        <*> cExp .= field "exp" schema
-
 newtype DPoPAccessToken = DPoPAccessToken {unDPoPAccessToken :: ByteString}
   deriving (Eq, Show, Generic)
   deriving newtype (FromByteString, ToByteString)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema DPoPAccessToken)
+
+instance ToSchema DPoPAccessToken where
+  schema = named "DPoPAccessToken" $ unDPoPAccessToken .= fmap DPoPAccessToken base64Schema
 
 instance ToParamSchema DPoPAccessToken where
   toParamSchema _ = toParamSchema (Proxy @Text)
@@ -98,3 +62,56 @@ instance ToHttpApiData DPoPAccessToken where
 
 instance FromHttpApiData DPoPAccessToken where
   parseQueryParam = maybe (Left "Invalid DPoPAccessToken") Right . fromByteString' . cs
+
+data AccessTokenType = DPoP
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AccessTokenType)
+
+instance ToSchema AccessTokenType where
+  schema =
+    enum @Text "AccessTokenType" $
+      mconcat
+        [ element "DPoP" DPoP
+        ]
+
+data DPoPAccessTokenResponse = DPoPAccessTokenResponse
+  { datrToken :: DPoPAccessToken,
+    datrType :: AccessTokenType,
+    datrExpiresIn :: Word32
+  }
+  deriving (Eq, Show, Generic)
+  deriving (FromJSON, ToJSON, S.ToSchema) via (Schema DPoPAccessTokenResponse)
+
+instance ToSchema DPoPAccessTokenResponse where
+  schema =
+    object "DPoPAccessTokenResponse" $
+      DPoPAccessTokenResponse
+        <$> datrToken .= field "token" schema
+        <*> datrType .= field "type" schema
+        <*> datrExpiresIn .= field "expires_in" schema
+
+data CacheControl = NoStore
+  deriving (Eq, Show, Generic)
+
+instance ToByteString CacheControl where
+  builder NoStore = "no-store"
+
+instance FromByteString CacheControl where
+  parser = do
+    t :: Text <- parser
+    case t & T.toLower of
+      "no-store" -> pure NoStore
+      _ -> fail $ "Invalid CacheControl type: " ++ show t
+
+instance ToHttpApiData CacheControl where
+  toQueryParam = cs . toByteString'
+
+instance FromHttpApiData CacheControl where
+  parseQueryParam = maybe (Left "Invalid CacheControl") Right . fromByteString' . cs
+
+instance ToParamSchema CacheControl where
+  toParamSchema _ = toParamSchema (Proxy @Text)
+
+instance AsHeaders '[CacheControl] DPoPAccessTokenResponse (DPoPAccessTokenResponse, CacheControl) where
+  toHeaders (t, cc) = (I cc :* Nil, t)
+  fromHeaders (I cc :* Nil, t) = (t, cc)
