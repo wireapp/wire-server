@@ -431,6 +431,7 @@ processCommit qusr con lconv epoch sender commit = do
                 qusr
                 creatorClient
                 (qUntagged (fmap Data.convId lconv))
+            -- FUTUREWORK: update keypackage ref also in conversation state
             -- remote clients cannot send the first commit
             (_, Right _) -> throwS @'MLSStaleMessage
             -- uninitialised conversations should contain exactly one client
@@ -443,6 +444,7 @@ processCommit qusr con lconv epoch sender commit = do
           (MemberSender senderRef, Just updatedKeyPackage) -> do
             updatedRef <- kpRef' updatedKeyPackage & note (mlsProtocolError "Could not compute key package ref")
             -- postpone key package ref update until other checks/processing passed
+            -- FUTUREWORK: update keypackage ref also in conversation state
             pure . updateKeyPackageRef $
               KeyPackageUpdate
                 { kpupPrevious = senderRef,
@@ -960,23 +962,25 @@ mlsRemoveUser ::
          FederatorAccess,
          GundeckAccess,
          Error InternalError,
-         Input Env
+         Input Env,
+         Input (Local ())
        ]
       r
   ) =>
   Data.Conversation ->
-  Local UserId ->
+  Qualified UserId ->
   Sem r ()
-mlsRemoveUser c lusr = do
+mlsRemoveUser c qusr = do
+  loc <- qualifyLocal ()
   case Data.convProtocol c of
     ProtocolProteus -> pure ()
     ProtocolMLS meta -> do
       keyPair <- mlsKeyPair_ed25519 <$> (inputs (view mlsKeys) <*> pure RemovalPurpose)
       (secKey, pubKey) <- note (InternalErrorWithDescription "backend removal key missing") $ keyPair
-      for_ (getConvMember lusr c lusr) $ \member ->
-        for_ (lmMLSClients member) $ \(_client, kpref) -> do
+      for_ (getConvMemberMLSClients loc c qusr) $ \cpks ->
+        for_ cpks $ \(_client, kpref) -> do
           proposal <-
             note (InternalErrorWithDescription "could not construct signed proposal") $
               mkRemoveProposalMessage secKey pubKey (cnvmlsGroupId meta) (cnvmlsEpoch meta) kpref
           let proposalRaw = encodeMLS' proposal
-          propagateMessage lusr (qUntagged lusr) c Nothing proposalRaw
+          propagateMessage loc qusr c Nothing proposalRaw

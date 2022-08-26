@@ -161,7 +161,6 @@ tests s =
       testGroup
         "Backend-side External Remove Proposals"
         [ test s "local conversation, local user deleted" testBackendRemoveProposalLocalConvLocalUser,
-          test s "remote conversation, local user deleted" testBackendRemoveProposalRemoteConvLocalUser,
           test s "local conversation, remote user deleted" testBackendRemoveProposalLocalConvRemoteUser
         ],
       testGroup
@@ -1710,7 +1709,6 @@ propUnsupported = withSystemTempDirectory "mls" $ \tmp -> do
 
 testBackendRemoveProposalLocalConvLocalUser :: TestM ()
 testBackendRemoveProposalLocalConvLocalUser = withSystemTempDirectory "mls" $ \tmp -> do
-  -- 1. Setup: local local conv alice, bob
   MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
   let [bobParticipant] = users
   print bobParticipant
@@ -1721,7 +1719,6 @@ testBackendRemoveProposalLocalConvLocalUser = withSystemTempDirectory "mls" $ \t
   kprefs <- (fromJust . kpRef' . snd) <$$> liftIO (readKeyPackages tmp bobParticipant)
 
   c <- view tsCannon
-
   WS.bracketR c (qUnqualified alice) $ \wsA -> do
     deleteUser (qUnqualified bob) !!! const 200 === statusCode
 
@@ -1729,16 +1726,53 @@ testBackendRemoveProposalLocalConvLocalUser = withSystemTempDirectory "mls" $ \t
       WS.assertMatch_ (5 # WS.Second) wsA $ \notification ->
         wsAssertBackendRemoveProposal bob conversation kp notification
 
-testBackendRemoveProposalRemoteConvLocalUser :: TestM ()
-testBackendRemoveProposalRemoteConvLocalUser = do
-  -- 1. Setup: fake remote conv alice with local bob
-  -- 2. delete user bob
-  -- 3. Assert that RPC is being called
-  pure ()
-
 testBackendRemoveProposalLocalConvRemoteUser :: TestM ()
-testBackendRemoveProposalLocalConvRemoteUser = do
-  -- 1. Setup: local conv with alice and remote bob
-  -- 2. fake RPC call to local backend
-  -- 3. Assert that alice receives an external proposal by backend
-  pure ()
+testBackendRemoveProposalLocalConvRemoteUser = withSystemTempDirectory "mls" $ \tmp -> do
+  let opts =
+        def
+          { createClients = DontCreateClients,
+            createConv = CreateConv
+          }
+  (alice, [bob]) <-
+    withLastPrekeys $
+      setupParticipants tmp opts [(1, RemoteUser (Domain "faraway.example.com"))]
+  (groupId, conversation) <- setupGroup tmp CreateConv alice "group"
+  (commit, welcome) <- liftIO $ setupCommit tmp alice "group" "group" (pClients bob)
+
+  let mock req = case frRPC req of
+        "on-conversation-updated" -> pure (Aeson.encode ())
+        "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+        "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
+        "get-mls-clients" ->
+          pure
+            . Aeson.encode
+            . Set.fromList
+            . map (flip ClientInfo True . snd)
+            . toList
+            . pClients
+            $ bob
+        ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+  void $
+    withTempMockFederator' mock $ do
+      c <- view tsCannon
+      WS.bracketR c (qUnqualified (pUserId alice)) $ \wsA -> do
+        void $ postCommit MessagingSetup {creator = alice, users = [bob], ..}
+
+        kprefs <- (fromJust . kpRef' . snd) <$$> liftIO (readKeyPackages tmp bob)
+
+        fedGalleyClient <- view tsFedGalleyClient
+        void $
+          runFedClient
+            @"on-user-deleted-conversations"
+            fedGalleyClient
+            (qDomain (pUserId bob))
+            ( UserDeletedConversationsNotification
+                { udcvUser = qUnqualified (pUserId bob),
+                  udcvConversations = unsafeRange [qUnqualified conversation]
+                }
+            )
+
+        for_ kprefs $ \kp ->
+          WS.assertMatch_ (5 # WS.Second) wsA $ \notification -> do
+            wsAssertBackendRemoveProposal (pUserId bob) conversation kp notification

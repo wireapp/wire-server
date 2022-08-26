@@ -635,6 +635,7 @@ rmUser ::
          ListItems p1 ConvId,
          ListItems p1 (Remote ConvId),
          ListItems p2 TeamId,
+         Input (Local ()),
          MemberStore,
          TeamStore,
          P.TinyLog
@@ -681,8 +682,7 @@ rmUser lusr conn = do
         ConnectConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
           | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
-            -- TODO: this happens before the events are pushed. Is this okay?
-            runError (mlsRemoveUser c lusr) >>= \case
+            runError (mlsRemoveUser c (qUntagged lusr)) >>= \case
               Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
               Right _ -> pure ()
             deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
