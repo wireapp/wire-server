@@ -92,7 +92,6 @@ import qualified Data.Text.Ascii as Ascii
 import Data.Text.Encoding (decodeLatin1)
 import Data.Text.Lazy (pack)
 import qualified Data.ZAuth.Token as ZAuth
-import Debug.Trace (traceM)
 import FileEmbedLzma
 import Galley.Types.Teams (HiddenPerm (..), hasPermission)
 import Imports hiding (head)
@@ -627,18 +626,16 @@ newNonce uid cid = do
   ttl <- setNonceTtlSecs <$> view settings
   nonce <- randomNonce
   lift $ wrapClient $ Nonce.insertNonce ttl uid (client cid) nonce
-  pure nonce
+  pure (nonce, NoStore)
 
 createAccessToken ::
-  UserId ->
+  Qualified UserId ->
   ClientId ->
   Maybe Proof ->
-  (Handler r) DPoPAccessToken
+  (Handler r) (DPoPAccessTokenResponse, CacheControl)
 createAccessToken _userId _clientId = \case
-  Just proof -> do
-    let cs = claims proof
-    traceM $ "CLAIMS: " <> show cs
-    pure $ DPoPAccessToken $ unProof proof
+  Just _proof -> do
+    pure $ (undefined, NoStore)
   Nothing -> error "todo(leif)"
 
 -- | docs/reference/user/registration.md {#RefRegistration}
