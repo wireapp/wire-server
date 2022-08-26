@@ -46,6 +46,7 @@ import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
+import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.Team.API as Team
 import Brig.Team.DB (lookupInvitationByEmail)
 import Brig.Types.Connection
@@ -100,7 +101,13 @@ import Wire.API.User.RichInfo
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
 
-servantSitemap :: Members '[BlacklistStore] r => ServerT BrigIRoutes.API (Handler r)
+servantSitemap ::
+  Members
+    '[ BlacklistStore,
+       UserPendingActivationStore p
+     ]
+    r =>
+  ServerT BrigIRoutes.API (Handler r)
 servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI :<|> userAPI
 
 ejpdAPI :: ServerT BrigIRoutes.EJPD_API (Handler r)
@@ -125,7 +132,13 @@ mlsAPI =
     :<|> getMLSClients
     :<|> mapKeyPackageRefsInternal
 
-accountAPI :: Member BlacklistStore r => ServerT BrigIRoutes.AccountAPI (Handler r)
+accountAPI ::
+  Members
+    '[ BlacklistStore,
+       UserPendingActivationStore p
+     ]
+    r =>
+  ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
   Named @"createUserNoVerify" createUserNoVerify
     :<|> Named @"createUserNoVerifySpar" createUserNoVerifySpar
@@ -214,7 +227,8 @@ sitemap ::
     '[ CodeStore,
        PasswordResetStore,
        BlacklistStore,
-       BlacklistPhonePrefixStore
+       BlacklistPhonePrefixStore,
+       UserPendingActivationStore p
      ]
     r =>
   Routes a (Handler r) ()
@@ -420,7 +434,14 @@ internalListFullClients :: UserSet -> (AppT r) UserClientsFull
 internalListFullClients (UserSet usrs) =
   UserClientsFull <$> wrapClient (Data.lookupClientsBulk (Set.toList usrs))
 
-createUserNoVerify :: Member BlacklistStore r => NewUser -> (Handler r) (Either RegisterError SelfProfile)
+createUserNoVerify ::
+  Members
+    '[ BlacklistStore,
+       UserPendingActivationStore p
+     ]
+    r =>
+  NewUser ->
+  (Handler r) (Either RegisterError SelfProfile)
 createUserNoVerify uData = lift . runExceptT $ do
   result <- API.createUser uData
   let acc = createdAccount result

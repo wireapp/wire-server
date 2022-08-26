@@ -61,6 +61,7 @@ import Util
 import Util.Options
 import Util.Test
 import Wire.API.Federation.API
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 data BackendConf = BackendConf
   { remoteBrig :: Endpoint,
@@ -157,7 +158,7 @@ runTests iConf brigOpts otherArgs = do
             assertEqual
               "inconcistent sitemap"
               mempty
-              (pathsConsistencyCheck . treeToPaths . compile $ Brig.API.sitemap @BrigCanonicalEffects),
+              (pathsConsistencyCheck . treeToPaths . compile $ Brig.API.sitemap @BrigCanonicalEffects @InternalPaging),
           userApi,
           providerApi,
           searchApis,

@@ -51,6 +51,7 @@ import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
+import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
@@ -185,10 +186,11 @@ swaggerDocsAPI (Just V1) =
 swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
 
 servantSitemap ::
-  forall r.
+  forall r p.
   Members
     '[ BlacklistStore,
-       BlacklistPhonePrefixStore
+       BlacklistPhonePrefixStore,
+       UserPendingActivationStore p
      ]
     r =>
   ServerT BrigAPI (Handler r)
@@ -625,7 +627,14 @@ newNonce _ = do
   pure nonce
 
 -- | docs/reference/user/registration.md {#RefRegistration}
-createUser :: Member BlacklistStore r => Public.NewUserPublic -> (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
+createUser ::
+  Members
+    '[ BlacklistStore,
+       UserPendingActivationStore p
+     ]
+    r =>
+  Public.NewUserPublic ->
+  (Handler r) (Either Public.RegisterError Public.RegisterSuccess)
 createUser (Public.NewUserPublic new) = lift . runExceptT $ do
   API.checkRestrictedUserCreation new
   for_ (Public.newUserEmail new) $ mapExceptT wrapHttp . checkWhitelistWithError RegisterErrorWhitelistError . Left
