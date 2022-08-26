@@ -17,6 +17,7 @@
 
 module Brig.Sem.ActivationKeyStore.Cassandra (activationKeyStoreToCassandra) where
 
+import Brig.Data.Instances ()
 import Brig.Sem.ActivationKeyStore
 import Cassandra
 import Data.Id
@@ -24,12 +25,9 @@ import Imports
 import Polysemy
 import Wire.API.User.Activation
 
--- TODO(md): See why there's no instance for 'Cql ActivationKey', yet the
--- Brig.Data.User module sees one. Then remove all explicitly spelled out Cql
--- constraints in this module.
 activationKeyStoreToCassandra ::
   forall m r a.
-  (MonadClient m, Member (Embed m) r, Cql ActivationKey, Cql ActivationCode) =>
+  (MonadClient m, Member (Embed m) r) =>
   Sem (ActivationKeyStore ': r) a ->
   Sem r a
 activationKeyStoreToCassandra =
@@ -39,13 +37,13 @@ activationKeyStoreToCassandra =
       InsertActivationKey tuple -> keyInsertQuery tuple
       DeleteActivationPair k -> keyDelete k
 
-getKey :: (MonadClient m, Cql ActivationKey, Cql ActivationCode) => ActivationKey -> m (Maybe GetKeyTuple)
+getKey :: MonadClient m => ActivationKey -> m (Maybe GetKeyTuple)
 getKey key = retry x1 . query1 keySelect $ params LocalQuorum (Identity key)
   where
     keySelect :: PrepQuery R (Identity ActivationKey) (Int32, Ascii, Text, ActivationCode, Maybe UserId, Int32)
     keySelect = "SELECT ttl(code) as ttl, key_type, key_text, code, user, retries FROM activation_keys WHERE key = ?"
 
-keyInsertQuery :: (MonadClient m, Cql ActivationKey, Cql ActivationCode) => InsertKeyTuple -> m ()
+keyInsertQuery :: MonadClient m => InsertKeyTuple -> m ()
 keyInsertQuery (key, t, k, c, u, attempts, timeout) =
   retry x5 . write keyInsert $ params LocalQuorum (key, t, k, c, u, attempts, timeout)
   where
@@ -55,7 +53,7 @@ keyInsertQuery (key, t, k, c, u, attempts, timeout) =
       \(key, key_type, key_text, code, user, retries) VALUES \
       \(?  , ?       , ?       , ?   , ?   , ?      ) USING TTL ?"
 
-keyDelete :: (MonadClient m, Cql ActivationKey) => ActivationKey -> m ()
+keyDelete :: MonadClient m => ActivationKey -> m ()
 keyDelete = write q . params LocalQuorum . Identity
   where
     q :: PrepQuery W (Identity ActivationKey) ()
