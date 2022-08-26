@@ -204,6 +204,8 @@ data AccountStatusError
 data VerificationCodeThrottledError
   = VerificationCodeThrottled RetryAfter
 
+data CertEnrollmentError = CertEnrollmentError
+
 -------------------------------------------------------------------------------
 -- Exceptions
 

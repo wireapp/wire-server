@@ -33,6 +33,7 @@ module Brig.API.Client
     lookupLocalPubClientsBulk,
     Data.lookupPrekeyIds,
     Data.lookupUsersClientIds,
+    createAccessToken,
 
     -- * Prekeys
     claimLocalMultiPrekeyBundles,
@@ -92,6 +93,7 @@ import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User
 import qualified Wire.API.User as Code
 import Wire.API.User.Client
+import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
 
@@ -438,3 +440,21 @@ removeLegalHoldClient uid = do
   -- maybe log if this isn't the case
   forM_ legalHoldClients (execDelete uid Nothing)
   wrapHttpClient $ Intra.onUserEvent uid Nothing (UserLegalHoldDisabled uid)
+
+createAccessToken ::
+  Qualified UserId ->
+  ClientId ->
+  Maybe Proof ->
+  ExceptT CertEnrollmentError (AppT r) (DPoPAccessTokenResponse, CacheControl)
+createAccessToken _userId _clientId = \case
+  Just (Proof proof) -> do
+    token <- withExceptT mapError (ExceptT $ liftIO $ ffiStubGenerateDPoPToken proof)
+    let accessToken = DPoPAccessTokenResponse token DPoP 360
+    pure $ (accessToken, NoStore)
+  Nothing -> throwE CertEnrollmentError
+  where
+    mapError :: Int16 -> CertEnrollmentError
+    mapError = undefined
+
+ffiStubGenerateDPoPToken :: ByteString -> IO (Either Int16 DPoPAccessToken)
+ffiStubGenerateDPoPToken = pure . Right . DPoPAccessToken
