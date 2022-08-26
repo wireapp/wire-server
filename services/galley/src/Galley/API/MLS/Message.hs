@@ -665,7 +665,7 @@ executeProposalAction qusr con lconv action = do
   -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
   foldQualified lconv (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
 
-  -- check that all clients of each user are added to the conversation
+  -- for each user, we compare their clients with the ones being added to the conversation
   for_ newUserClients $ \(qtarget, newclients) -> case Map.lookup qtarget cm of
     -- user is already present, skip check in this case
     Just _ -> pure ()

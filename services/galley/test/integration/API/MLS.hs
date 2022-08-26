@@ -417,8 +417,7 @@ testAddUserWithProteusClients = do
 
 testAddUserPartial :: TestM ()
 testAddUserPartial = do
-  (creator, commit) <- withSystemTempDirectory "mls" $ \_tmp -> do
-    let tmp = "/tmp/mls"
+  (creator, commit) <- withSystemTempDirectory "mls" $ \tmp -> do
     -- Bob has 3 clients, Charlie has 2
     (alice, [bob, charlie]) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [3, 2])
 
