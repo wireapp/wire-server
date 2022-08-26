@@ -633,10 +633,7 @@ createAccessToken ::
   ClientId ->
   Maybe Proof ->
   (Handler r) (DPoPAccessTokenResponse, CacheControl)
-createAccessToken _userId _clientId = \case
-  Just _proof -> do
-    pure $ (undefined, NoStore)
-  Nothing -> error "todo(leif)"
+createAccessToken quid cid mProof = API.createAccessToken quid cid mProof !>> certEnrollmentError
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser ::

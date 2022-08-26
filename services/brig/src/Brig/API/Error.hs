@@ -170,6 +170,9 @@ clientError ClientMissingLegalholdConsent = StdError (errorToWai @'E.MissingLega
 clientError ClientCodeAuthenticationFailed = StdError verificationCodeAuthFailed
 clientError ClientCodeAuthenticationRequired = StdError verificationCodeRequired
 
+certEnrollmentError :: CertEnrollmentError -> Error
+certEnrollmentError CertEnrollmentError = undefined
+
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai
 
