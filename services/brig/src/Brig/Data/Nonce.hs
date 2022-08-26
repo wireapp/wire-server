@@ -43,7 +43,16 @@ lookupAndDeleteNonce ::
   (MonadClient m, MonadReader Env m) =>
   Text ->
   m (Maybe Nonce)
-lookupAndDeleteNonce = fmap undefined . deleteNonce
+lookupAndDeleteNonce key = lookupNonce key <* deleteNonce key
+
+lookupNonce ::
+  (MonadClient m, MonadReader Env m) =>
+  Text ->
+  m (Maybe Nonce)
+lookupNonce key = (runIdentity <$$>) . retry x5 . query1 get $ params LocalQuorum (Identity key)
+  where
+    get :: PrepQuery R (Identity Text) (Identity Nonce)
+    get = "SELECT nonce FROM nonce WHERE key = ?"
 
 deleteNonce ::
   (MonadClient m, MonadReader Env m) =>

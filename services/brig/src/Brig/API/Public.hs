@@ -85,6 +85,7 @@ import Data.Misc (IpAddr (..))
 import Data.Nonce (Nonce, randomNonce)
 import Data.Qualified
 import Data.Range
+import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
@@ -621,9 +622,11 @@ getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
 newNonce :: UserId -> (Handler r) Nonce
 newNonce _ = do
+  let cid :: ByteString
+      cid = "123" -- TODO: this requires a change in API.  we need to be given the client id from the client.
   ttl <- setNonceTtlSecs <$> view settings
   nonce <- randomNonce
-  lift $ wrapClient $ Nonce.insertNonce ttl undefined nonce
+  lift $ wrapClient $ Nonce.insertNonce ttl (cs cid) nonce
   pure nonce
 
 -- | docs/reference/user/registration.md {#RefRegistration}

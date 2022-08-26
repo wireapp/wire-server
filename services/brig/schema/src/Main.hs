@@ -82,6 +82,7 @@ import qualified V69_MLSKeyPackageRefMapping
 import qualified V70_UserEmailUnvalidated
 import qualified V71_AddTableVCodesThrottle
 import qualified V72_AddNonceTable
+import qualified V73_ReplaceNonceTable
 import qualified V9
 
 main :: IO ()
@@ -153,7 +154,8 @@ main = do
       V69_MLSKeyPackageRefMapping.migration,
       V70_UserEmailUnvalidated.migration,
       V71_AddTableVCodesThrottle.migration,
-      V72_AddNonceTable.migration
+      V72_AddNonceTable.migration,
+      V73_ReplaceNonceTable.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Brig.App
 

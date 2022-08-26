@@ -655,6 +655,7 @@ executable brig-schema
     V70_UserEmailUnvalidated
     V71_AddTableVCodesThrottle
     V72_AddNonceTable
+    V73_ReplaceNonceTable
     V9
 
   hs-source-dirs:     schema/src
