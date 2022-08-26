@@ -23,6 +23,9 @@ module Wire.API.User.Client
     ClientCapability (..),
     ClientCapabilityList (..),
 
+    -- * ClientInfo
+    ClientInfo (..),
+
     -- * UserClients
     UserClientMap (..),
     UserClientPrekeyMap (..),
@@ -331,6 +334,26 @@ qualifiedUserClientPrekeyMapFromList ::
   QualifiedUserClientPrekeyMap
 qualifiedUserClientPrekeyMapFromList =
   mkQualifiedUserClientPrekeyMap . Map.fromList . map qToPair
+
+--------------------------------------------------------------------------------
+-- ClientInfo
+
+-- | A client, together with extra information about it.
+data ClientInfo = ClientInfo
+  { -- | The ID of this client.
+    ciId :: ClientId,
+    -- | Whether this client is MLS-capable.
+    ciMLS :: Bool
+  }
+  deriving stock (Eq, Ord, Show)
+  deriving (Swagger.ToSchema, FromJSON, ToJSON) via Schema ClientInfo
+
+instance ToSchema ClientInfo where
+  schema =
+    object "ClientInfo" $
+      ClientInfo
+        <$> ciId .= field "id" schema
+        <*> ciMLS .= field "mls" schema
 
 --------------------------------------------------------------------------------
 -- UserClients

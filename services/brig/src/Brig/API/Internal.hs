@@ -184,14 +184,13 @@ getConvIdByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.keyPackageRe
 postKeyPackageRef :: KeyPackageRef -> KeyPackageRef -> Handler r ()
 postKeyPackageRef ref = lift . wrapClient . Data.updateKeyPackageRef ref
 
-getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientId, Set ClientId)
+getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientInfo)
 getMLSClients usr _ss = do
   -- FUTUREWORK: check existence of key packages with a given ciphersuite
   lusr <- qualifyLocal usr
   allClients <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult
-  validClients <- lift . wrapClient $ pooledMapConcurrentlyN 16 (getValidity lusr) (toList allClients)
-  let mlsClients = Set.fromList . map fst . filter snd $ validClients
-  pure (mlsClients, allClients)
+  clientInfo <- lift . wrapClient $ pooledMapConcurrentlyN 16 (getValidity lusr) (toList allClients)
+  pure . Set.fromList . map (uncurry ClientInfo) $ clientInfo
   where
     getResult [] = pure mempty
     getResult ((u, cs) : rs)

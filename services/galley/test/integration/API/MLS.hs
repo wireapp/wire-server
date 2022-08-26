@@ -79,6 +79,7 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import Wire.API.Routes.Version
+import Wire.API.User.Client
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -467,7 +468,7 @@ testAddClientPartial = withSystemTempDirectory "mls" $ \tmp -> do
     lift $ testSuccessfulCommit setup
 
     -- create more clients for Bob, only take the first one
-    newClient <- fmap head . replicateM 2 $ do
+    nc <- fmap head . replicateM 2 $ do
       setupUserClient tmp CreateWithKey True (pUserId bob)
 
     -- add new client
@@ -478,7 +479,7 @@ testAddClientPartial = withSystemTempDirectory "mls" $ \tmp -> do
           alice
           "group"
           "group"
-          [(userClientQid (pUserId bob) newClient, newClient)]
+          [(userClientQid (pUserId bob) nc, nc)]
 
     lift $ testSuccessfulCommitWithNewUsers setup {commit = commit', welcome = welcome'} []
 
@@ -611,13 +612,13 @@ testAddRemoteUser = do
         "on-conversation-updated" -> pure (Aeson.encode ())
         "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
         "get-mls-clients" ->
-          let clients =
-                Set.fromList
-                  . map snd
-                  . toList
-                  . pClients
-                  $ bob
-           in pure (Aeson.encode (clients, clients))
+          pure
+            . Aeson.encode
+            . Set.fromList
+            . map (flip ClientInfo True . snd)
+            . toList
+            . pClients
+            $ bob
         ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
   (events, reqs) <- withTempMockFederator' mock $ do
     postCommit setup
@@ -933,13 +934,13 @@ testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
         "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
         "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
         "get-mls-clients" ->
-          let clients =
-                Set.fromList
-                  . map snd
-                  . toList
-                  . pClients
-                  $ bob
-           in pure (Aeson.encode (clients, clients))
+          pure
+            . Aeson.encode
+            . Set.fromList
+            . map (flip ClientInfo True . snd)
+            . toList
+            . pClients
+            $ bob
         ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
   (events :: [Event], reqs) <- fmap (first mmssEvents) . withTempMockFederator' mock $ do
     galley <- viewGalley
@@ -1319,13 +1320,13 @@ testRemoteToLocal = do
             "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
             "on-conversation-updated" -> pure (Aeson.encode ())
             "get-mls-clients" ->
-              let clients =
-                    Set.fromList
-                      . map snd
-                      . toList
-                      . pClients
-                      $ bob
-               in pure (Aeson.encode (clients, clients))
+              pure
+                . Aeson.encode
+                . Set.fromList
+                . map (flip ClientInfo True . snd)
+                . toList
+                . pClients
+                $ bob
             ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
 
     void . withTempMockFederator' mockedResponse $
@@ -1394,7 +1395,7 @@ testRemoteToLocalWrongConversation = do
               pure
                 . Aeson.encode
                 . Set.fromList
-                . map snd
+                . map (flip ClientInfo True . snd)
                 . toList
                 . pClients
                 $ bob

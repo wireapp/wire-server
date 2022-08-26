@@ -81,6 +81,7 @@ import Wire.API.MLS.Proposal
 import qualified Wire.API.MLS.Proposal as Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
+import Wire.API.User.Client
 
 type MLSMessageStaticErrors =
   '[ ErrorS 'ConvAccessDenied,
@@ -674,7 +675,9 @@ executeProposalAction qusr con lconv action = do
       -- final set of clients in the conversation
       let clients = newclients <> Map.findWithDefault mempty qtarget cm
       -- get list of mls clients from brig
-      (allMLSClients, allClients) <- getMLSClients lconv qtarget ss
+      clientInfo <- getMLSClients lconv qtarget ss
+      let allClients = Set.map ciId clientInfo
+      let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
       -- We check the following condition:
       --   allMLSClients ⊆ clients ⊆ allClients
       -- i.e.
@@ -710,7 +713,7 @@ executeProposalAction qusr con lconv action = do
     -- For these clients there is nothing left to do
     checkRemoval :: Local x -> SignatureSchemeTag -> Qualified UserId -> Set ClientId -> Sem r (Maybe (Qualified UserId))
     checkRemoval loc ss qtarget clients = do
-      (_, allClients) <- getMLSClients loc qtarget ss
+      allClients <- Set.map ciId <$> getMLSClients loc qtarget ss
       let allClientsDontExist = Set.null (clients `Set.intersection` allClients)
       if allClientsDontExist
         then pure Nothing
@@ -832,14 +835,14 @@ getMLSClients ::
   Local x ->
   Qualified UserId ->
   SignatureSchemeTag ->
-  Sem r (Set ClientId, Set ClientId)
+  Sem r (Set ClientInfo)
 getMLSClients loc = foldQualified loc getLocalMLSClients getRemoteMLSClients
 
 getRemoteMLSClients ::
   Member FederatorAccess r =>
   Remote UserId ->
   SignatureSchemeTag ->
-  Sem r (Set ClientId, Set ClientId)
+  Sem r (Set ClientInfo)
 getRemoteMLSClients rusr ss = do
   runFederated rusr $
     fedClient @'Brig @"get-mls-clients" $
