@@ -75,8 +75,7 @@ import Polysemy.Input
 import Polysemy.Resource (Resource, resourceToIO)
 import qualified Polysemy.TinyLog as P
 import qualified Ropes.Twilio as Twilio
-import qualified UnliftIO.Exception as UnliftIO
-import Wire.API.Error
+import Wire.Sem.Error
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO
@@ -158,20 +157,6 @@ interpretHttpToIO e = interpret $ \case
       . flip runReaderT e
       . runHttpClientIO
       $ action
-
--- TODO(md): Copied from Galley.App. Move this utility function to a library.
-interpretErrorToException ::
-  (Exception exc, Member (Embed IO) r) =>
-  (err -> exc) ->
-  Sem (P.Error err ': r) a ->
-  Sem r a
-interpretErrorToException f = either (embed @IO . UnliftIO.throwIO . f) pure <=< P.runError
-
-interpretWaiErrorToException ::
-  (APIError e, Member (Embed IO) r) =>
-  Sem (P.Error e ': r) a ->
-  Sem r a
-interpretWaiErrorToException = interpretErrorToException toWai
 
 twilioToWai :: Twilio.ErrorResponse -> Wai.Error
 twilioToWai e =

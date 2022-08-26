@@ -13,6 +13,7 @@ build-type:    Simple
 library
   exposed-modules:
     Polysemy.TinyLog
+    Wire.Sem.Error
     Wire.Sem.FromUTC
     Wire.Sem.Logger
     Wire.Sem.Logger.Level
@@ -86,6 +87,7 @@ library
     , time
     , tinylog
     , types-common
+    , unliftio
     , uuid
     , wire-api
 
