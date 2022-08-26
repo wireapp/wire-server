@@ -54,7 +54,7 @@ module Brig.API.User
     deleteUsersNoVerify,
     deleteSelfUser,
     verifyDeleteUser,
-    verifyDeleteUserInternal,
+    ensureAccountDeleted,
     deleteAccount,
     checkHandles,
     isBlacklistedHandle,
@@ -1233,7 +1233,7 @@ verifyDeleteUser d = do
   lift . wrapClient $ Code.delete key Code.AccountDeletion
 
 -- | Check if `deleteAccount` succeeded and run it again if needed
-verifyDeleteUserInternal ::
+ensureAccountDeleted ::
   ( MonadLogger m,
     MonadCatch m,
     MonadThrow m,
@@ -1249,7 +1249,7 @@ verifyDeleteUserInternal ::
   ) =>
   UserId ->
   m VerifyAccountDeletedResult
-verifyDeleteUserInternal uid = do
+ensureAccountDeleted uid = do
   mbAcc <- lookupAccount uid
   case mbAcc of
     Nothing -> pure NoUser
@@ -1269,10 +1269,9 @@ verifyDeleteUserInternal uid = do
         || conCount > 0
         || (not . null) cookies
         then do
-          -- TODO: Catch errors?
           deleteAccount acc
-          pure RanDeletionAgain
-        else pure FullyDeletedUser
+          pure AccountDeleted
+        else pure AccountAlreadyDeleted
 
 -- | Internal deletion without validation.
 --

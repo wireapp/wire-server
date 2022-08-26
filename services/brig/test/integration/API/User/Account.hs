@@ -1654,7 +1654,7 @@ testVerifyAccountDeletedWithCompletelyDeletedUser brig cannon aws = do
       )
       !!! do
         const 200 === statusCode
-        const (Right FullyDeletedUser) === responseJsonEither
+        const (Right AccountAlreadyDeleted) === responseJsonEither
 
 testVerifyAccountDeletedWithNoUser :: Brig -> Http ()
 testVerifyAccountDeletedWithNoUser brig =
@@ -1678,7 +1678,7 @@ testVerifyAccountDeletedWithNotDeletedUser brig cannon aws = do
       ( \uid' ->
           verifyAccountDeleted brig uid' !!! do
             const 200 === statusCode
-            const (Right RanDeletionAgain) === responseJsonEither
+            const (Right AccountDeleted) === responseJsonEither
       )
 
 testVerifyAccountDeletedWithDanglingProperty :: Brig -> Cannon -> AWS.Env -> Http ()
@@ -1708,7 +1708,7 @@ testVerifyAccountDeletedWithDanglingProperty brig cannon aws = do
       )
       !!! do
         const 200 === statusCode
-        const (Right RanDeletionAgain) === responseJsonEither
+        const (Right AccountDeleted) === responseJsonEither
 
   getProperty brig (userId u) "foo" !!! do
     const 404 === statusCode

@@ -157,7 +157,7 @@ type AccountAPI =
                :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
            )
     :<|> Named
-           "verify-user-deleted"
+           "ensure-account-deleted"
            ( "users"
                :> Capture "uid" UserId
                :> "verify-deleted"

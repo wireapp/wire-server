@@ -1358,7 +1358,7 @@ instance FromJSON DeletionCodeTimeout where
   parseJSON = A.withObject "DeletionCodeTimeout" $ \o ->
     DeletionCodeTimeout <$> o A..: "expires_in"
 
-data VerifyAccountDeletedResult = NoUser | FullyDeletedUser | RanDeletionAgain
+data VerifyAccountDeletedResult = NoUser | AccountAlreadyDeleted | AccountDeleted
   deriving (Eq, Show)
   deriving (S.ToSchema) via (Schema VerifyAccountDeletedResult)
 
@@ -1367,8 +1367,8 @@ instance ToSchema VerifyAccountDeletedResult where
     enum @Text "VerifyAccountDeletedResult" $
       mconcat
         [ element "no-user" NoUser,
-          element "fully-deleted-user" FullyDeletedUser,
-          element "had-to-run-deletion-again" RanDeletionAgain
+          element "already-deleted" AccountAlreadyDeleted,
+          element "deleted" AccountDeleted
         ]
 
 instance ToJSON VerifyAccountDeletedResult where
@@ -1376,8 +1376,8 @@ instance ToJSON VerifyAccountDeletedResult where
     where
       toTag :: VerifyAccountDeletedResult -> A.Value
       toTag NoUser = "no-user"
-      toTag FullyDeletedUser = "fully-deleted-user"
-      toTag RanDeletionAgain = "had-to-run-deletion-again"
+      toTag AccountAlreadyDeleted = "already-deleted"
+      toTag AccountDeleted = "deleted"
 
 instance FromJSON VerifyAccountDeletedResult where
   parseJSON (A.Object o) = do
@@ -1388,8 +1388,8 @@ instance FromJSON VerifyAccountDeletedResult where
     where
       fromTag :: String -> Maybe VerifyAccountDeletedResult
       fromTag "no-user" = Just NoUser
-      fromTag "fully-deleted-user" = Just FullyDeletedUser
-      fromTag "had-to-run-deletion-again" = Just RanDeletionAgain
+      fromTag "already-deleted" = Just AccountAlreadyDeleted
+      fromTag "deleted" = Just AccountDeleted
       fromTag _ = Nothing
   parseJSON _ = parseFail "Invalid VerifyAccountDeletedResult"
 

@@ -35,7 +35,7 @@ module Spar.Sem.BrigAccess
     getRichInfo,
     checkHandleAvailable,
     delete,
-    verifyUserDeleted,
+    ensureAccountDeleted,
     ensureReAuthorised,
     ssoLogin,
     getStatus,
@@ -79,7 +79,7 @@ data BrigAccess m a where
   GetRichInfo :: UserId -> BrigAccess m RichInfo
   CheckHandleAvailable :: Handle -> BrigAccess m Bool
   Delete :: UserId -> BrigAccess m ()
-  VerifyUserDeleted :: UserId -> BrigAccess m VerifyAccountDeletedResult
+  EnsureAccountDeleted :: UserId -> BrigAccess m VerifyAccountDeletedResult
   EnsureReAuthorised :: Maybe UserId -> Maybe PlainTextPassword -> Maybe Code.Value -> Maybe VerificationAction -> BrigAccess m ()
   SsoLogin :: UserId -> BrigAccess m SetCookie
   GetStatus :: UserId -> BrigAccess m AccountStatus

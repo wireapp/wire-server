@@ -702,7 +702,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
       case mbBrigUser of
         Nothing -> do
           -- Ensure there's no left-over of this user in brig.
-          _ <- lift $ Brig.verifyBrigUserDeletion uid
+          _ <- lift $ Brig.ensureAccountDeletedInBrig uid
           throwError $ Scim.notFound "user" (idToText uid)
         Just brigUser -> do
           -- FUTUREWORK: currently it's impossible to delete the last available team owner via SCIM
@@ -718,15 +718,15 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
           -- dependency prevents us from cleaning up users with deleted accounts
           -- in brig here in spar.
           deleteUserInSpar brigUser
-          deletionStatus <- lift $ Brig.verifyBrigUserDeletion uid
+          deletionStatus <- lift $ Brig.ensureAccountDeletedInBrig uid
           case deletionStatus of
             NoUser ->
               throwError $
                 Scim.notFound "user" (idToText uid)
-            FullyDeletedUser ->
+            AccountAlreadyDeleted ->
               throwError $
                 Scim.notFound "user" (idToText uid)
-            RanDeletionAgain ->
+            AccountDeleted ->
               pure ()
   where
     deleteUserInSpar ::

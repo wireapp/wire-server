@@ -57,7 +57,7 @@ brigAccessToHttp mgr req =
       GetRichInfo itlu -> Intra.getBrigUserRichInfo itlu
       CheckHandleAvailable h -> Intra.checkHandleAvailable h
       Delete itlu -> Intra.deleteBrigUser itlu
-      VerifyUserDeleted itlu -> Itra.verifyDeletionBrigUser itlu
+      EnsureAccountDeleted itlu -> Itra.verifyDeletionBrigUser itlu
       EnsureReAuthorised mitlu mp mc ma -> Intra.ensureReAuthorised mitlu mp mc ma
       SsoLogin itlu -> Intra.ssoLogin itlu
       GetStatus itlu -> Intra.getStatus itlu
