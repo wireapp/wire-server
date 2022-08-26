@@ -700,7 +700,10 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
     $ do
       mbBrigUser <- lift $ Brig.getBrigUserIncludeAll uid
       case mbBrigUser of
-        Nothing -> throwError $ Scim.notFound "user" (idToText uid)
+        Nothing -> do
+          -- Ensure there's no left-over of this user in brig.
+          _ <- lift $ Brig.verifyBrigUserDeletion uid
+          throwError $ Scim.notFound "user" (idToText uid)
         Just brigUser -> do
           -- FUTUREWORK: currently it's impossible to delete the last available team owner via SCIM
           -- (because that owner won't be managed by SCIM in the first place), but if it ever becomes
@@ -710,22 +713,20 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
             throwError $
               Scim.notFound "user" (idToText uid)
 
-          if userDeleted brigUser
-            then do
-              deletionStatus <- lift $ Brig.verifyBrigUserDeletion uid
-              case deletionStatus of
-                NoUser ->
-                  throwError $
-                    Scim.notFound "user" (idToText uid)
-                FullyDeletedUser ->
-                  throwError $
-                    Scim.notFound "user" (idToText uid)
-                RanDeletionAgain ->
-                  deleteUserInSpar brigUser
-            else do
-              deleteUserInSpar brigUser
-              -- SQPIT-1189: N.B.: this emits a deletion event and then immediately returns
-              lift $ BrigAccess.delete uid
+          -- This deletion needs data from the non-deleted User in brig. So,
+          -- execute it first, then delete the user in brig. Unfortunately, this
+          -- dependency prevents us from cleaning up users with deleted accounts
+          -- in brig here in spar.
+          deleteUserInSpar brigUser
+          deletionStatus <- lift $ Brig.verifyBrigUserDeletion uid
+          case deletionStatus of
+            NoUser ->
+              throwError $
+                Scim.notFound "user" (idToText uid)
+            FullyDeletedUser ->
+              throwError $
+                Scim.notFound "user" (idToText uid)
+            RanDeletionAgain ->
               pure ()
   where
     deleteUserInSpar ::
