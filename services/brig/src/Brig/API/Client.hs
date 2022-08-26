@@ -454,7 +454,7 @@ createAccessToken _userId _clientId = \case
   Nothing -> throwE CertEnrollmentError
   where
     mapError :: Int16 -> CertEnrollmentError
-    mapError = undefined
+    mapError = const CertEnrollmentError
 
 ffiStubGenerateDPoPToken :: ByteString -> IO (Either Int16 DPoPAccessToken)
 ffiStubGenerateDPoPToken = pure . Right . DPoPAccessToken
