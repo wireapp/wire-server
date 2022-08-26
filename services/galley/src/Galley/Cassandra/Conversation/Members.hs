@@ -324,11 +324,12 @@ filterRemoteConvMembers users (qUntagged -> Qualified conv dom) =
 lookupLocalMemberRemoteConv ::
   UserId ->
   Remote ConvId ->
-  Client [UserId]
+  Client (Maybe UserId)
 lookupLocalMemberRemoteConv userId (qUntagged -> Qualified conv dom) =
-  fmap (map runIdentity)
-    . retry x5
-    $ query Cql.selectRemoteConvMembers (params LocalQuorum (userId, dom, conv))
+  runIdentity
+    <$$> retry
+      x5
+      (query1 Cql.selectRemoteConvMembers (params LocalQuorum (userId, dom, conv)))
 
 removeLocalMembersFromRemoteConv ::
   -- | The conversation to remove members from
