@@ -623,7 +623,7 @@ newNonce :: UserId -> (Handler r) Nonce
 newNonce _ = do
   ttl <- setNonceTtlSecs <$> view settings
   nonce <- randomNonce
-  lift $ wrapClient $ Nonce.insertNonce ttl nonce
+  lift $ wrapClient $ Nonce.insertNonce ttl undefined nonce
   pure nonce
 
 -- | docs/reference/user/registration.md {#RefRegistration}

@@ -17,7 +17,7 @@
 
 module Brig.Data.Nonce
   ( insertNonce,
-    deleteNonce,
+    lookupAndDeleteNonce,
   )
 where
 
@@ -31,18 +31,25 @@ import Imports
 insertNonce ::
   (MonadClient m, MonadReader Brig.App.Env m) =>
   Word64 ->
+  Text ->
   Nonce ->
   m ()
-insertNonce ttl nonce = retry x5 . write insert $ params LocalQuorum (Identity nonce)
+insertNonce ttl key nonce = retry x5 . write insert $ params LocalQuorum (key, nonce)
   where
-    insert :: PrepQuery W (Identity Nonce) ()
-    insert = fromString $ "INSERT INTO client_nonce (nonce) VALUES (?) USING TTL " <> show ttl
+    insert :: PrepQuery W (Text, Nonce) ()
+    insert = fromString $ "INSERT INTO nonce (key, nonce) VALUES (?) USING TTL " <> show ttl
+
+lookupAndDeleteNonce ::
+  (MonadClient m, MonadReader Env m) =>
+  Text ->
+  m (Maybe Nonce)
+lookupAndDeleteNonce = fmap undefined . deleteNonce
 
 deleteNonce ::
   (MonadClient m, MonadReader Env m) =>
-  Nonce ->
+  Text ->
   m ()
-deleteNonce nonce = retry x5 . write delete $ params LocalQuorum (Identity nonce)
+deleteNonce key = retry x5 . write delete $ params LocalQuorum (Identity key)
   where
-    delete :: PrepQuery W (Identity Nonce) ()
-    delete = "DELETE FROM client_nonce WHERE nonce = ?"
+    delete :: PrepQuery W (Identity Text) ()
+    delete = "DELETE FROM nonce WHERE key = ?"
