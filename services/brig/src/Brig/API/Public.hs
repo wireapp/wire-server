@@ -1269,6 +1269,7 @@ deleteSelfUser ::
        Input (Local ()),
        UniqueClaimsStore,
        UserHandleStore,
+       UserKeyStore,
        UserQuery,
        VerificationCodeStore
      ]
@@ -1287,6 +1288,7 @@ verifyDeleteUserH ::
        Input (Local ()),
        UniqueClaimsStore,
        UserHandleStore,
+       UserKeyStore,
        UserQuery,
        VerificationCodeStore
      ]

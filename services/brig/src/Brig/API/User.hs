@@ -1444,6 +1444,7 @@ deleteSelfUser ::
        Input (Local ()),
        UniqueClaimsStore,
        UserHandleStore,
+       UserKeyStore,
        UserQuery,
        VerificationCodeStore
      ]
@@ -1533,6 +1534,7 @@ verifyDeleteUser ::
        Input (Local ()),
        UniqueClaimsStore,
        UserHandleStore,
+       UserKeyStore,
        UserQuery,
        VerificationCodeStore
      ]
@@ -1561,6 +1563,7 @@ deleteAccount ::
        GundeckAccess,
        UniqueClaimsStore,
        UserHandleStore,
+       UserKeyStore,
        UserQuery
      ]
     r =>
@@ -1582,10 +1585,9 @@ deleteAccount account@(accountUser -> user) = do
   let uid = userId user
   Log.info $ field "user" (toByteString uid) . msg (val "Deleting account")
   -- Free unique keys
-  -- d <- view digestSHA256
-  -- TODO: Bring these two for loops back
-  -- for_ (userEmail user) $ deleteKey d . userEmailKey
-  -- for_ (userPhone user) $ deleteKey d . userPhoneKey
+  d <- view digestSHA256
+  for_ (userEmail user) $ liftSem . deleteKey d . userEmailKey
+  for_ (userPhone user) $ liftSem . deleteKey d . userPhoneKey
   liftSem $ for_ (userHandle user) $ freeHandle (userId user)
   -- Wipe data
   wrapClient $ Data.clearProperties uid

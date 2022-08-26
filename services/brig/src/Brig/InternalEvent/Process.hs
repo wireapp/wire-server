@@ -29,6 +29,7 @@ import Brig.Sem.GalleyAccess (GalleyAccess)
 import Brig.Sem.GundeckAccess (GundeckAccess)
 import Brig.Sem.UniqueClaimsStore
 import Brig.Sem.UserHandleStore
+import Brig.Sem.UserKeyStore (UserKeyStore)
 import Brig.Sem.UserQuery
 import Control.Lens (view)
 import Control.Monad.Catch
@@ -58,6 +59,7 @@ onEvent ::
        Race,
        UniqueClaimsStore,
        UserHandleStore,
+       UserKeyStore,
        UserQuery
      ]
     r =>
