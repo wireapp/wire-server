@@ -36,13 +36,13 @@ import qualified Brig.AWS.SesNotification as SesNotification
 import Brig.App
 import qualified Brig.Calling as Calling
 import Brig.CanonicalInterpreter
-import Brig.Data.UserPendingActivation (UserPendingActivation (..), usersPendingActivationList, usersPendingActivationRemoveMultiple)
 import qualified Brig.InternalEvent.Process as Internal
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Queue as Queue
+import Brig.Sem.UserPendingActivationStore (UserPendingActivation (UserPendingActivation), UserPendingActivationStore)
+import qualified Brig.Sem.UserPendingActivationStore as UsersPendingActivationStore
 import Brig.Types.Intra (AccountStatus (PendingInvitation))
 import Brig.Version
-import Cassandra (Page (Page))
 import qualified Control.Concurrent.Async as Async
 import Control.Exception.Safe (catchAny)
 import Control.Lens (view, (.~), (^.))
@@ -67,6 +67,7 @@ import Network.Wai.Routing.Route (App)
 import Network.Wai.Utilities (lookupRequestId)
 import Network.Wai.Utilities.Server
 import qualified Network.Wai.Utilities.Server as Server
+import Polysemy (Members)
 import Servant (Context ((:.)), (:<|>) (..))
 import qualified Servant
 import System.Logger (msg, val, (.=), (~~))
@@ -76,6 +77,7 @@ import Wire.API.Routes.API
 import Wire.API.Routes.Public.Brig
 import Wire.API.Routes.Version
 import Wire.API.Routes.Version.Wai
+import qualified Wire.Sem.Paging as P
 
 -- FUTUREWORK: If any of these async threads die, we will have no clue about it
 -- and brig could start misbehaving. We should ensure that brig dies whenever a
@@ -180,7 +182,7 @@ bodyParserErrorFormatter _ _ errMsg =
       Servant.errHeaders = [(HTTP.hContentType, HTTPMedia.renderHeader (Servant.contentType (Proxy @Servant.JSON)))]
     }
 
-pendingActivationCleanup :: forall r. AppT r ()
+pendingActivationCleanup :: forall r p. (P.Paging p, Members '[UserPendingActivationStore p] r) => AppT r ()
 pendingActivationCleanup = do
   safeForever "pendingActivationCleanup" $ do
     now <- liftIO =<< view currentTime
@@ -200,7 +202,7 @@ pendingActivationCleanup = do
               if isExpired && isPendingInvitation then Just uid else Nothing
           )
 
-      wrapClient . usersPendingActivationRemoveMultiple $
+      liftSem . UsersPendingActivationStore.removeMultiple $
         catMaybes
           ( uids <&> \(isExpired, _isPendingInvitation, uid) ->
               if isExpired then Just uid else Nothing
@@ -218,13 +220,13 @@ pendingActivationCleanup = do
 
     forExpirationsPaged :: ([UserPendingActivation] -> (AppT r) ()) -> (AppT r) ()
     forExpirationsPaged f = do
-      go =<< wrapClient usersPendingActivationList
+      go =<< liftSem (UsersPendingActivationStore.list Nothing)
       where
-        go :: Page UserPendingActivation -> (AppT r) ()
-        go (Page hasMore result nextPage) = do
-          f result
-          when hasMore $
-            go =<< wrapClient (lift nextPage)
+        go :: P.Page p UserPendingActivation -> (AppT r) ()
+        go p = do
+          f (P.pageItems p)
+          when (P.pageHasMore p) $ do
+            go =<< liftSem (UsersPendingActivationStore.list $ Just $ P.pageState p)
 
     threadDelayRandom :: (AppT r) ()
     threadDelayRandom = do

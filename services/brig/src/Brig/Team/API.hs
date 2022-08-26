@@ -36,6 +36,7 @@ import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import qualified Brig.Phone as Phone
 import Brig.Sem.GalleyProvider (GalleyProvider)
 import qualified Brig.Sem.GalleyProvider as GalleyProvider
+import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)
@@ -198,7 +199,8 @@ routesPublic = do
 routesInternal ::
   Members
     '[ BlacklistStore,
-       GalleyProvider
+       GalleyProvider,
+       UserPendingActivationStore p
      ]
     r =>
   Routes a (Handler r) ()
@@ -309,12 +311,26 @@ createInvitationPublic uid tid body = do
       context
       (createInvitation' tid inviteeRole (Just (inviterUid inviter)) (inviterEmail inviter) body)
 
-createInvitationViaScimH :: Member BlacklistStore r => JSON ::: JsonRequest NewUserScimInvitation -> (Handler r) Response
+createInvitationViaScimH ::
+  Members
+    '[ BlacklistStore,
+       UserPendingActivationStore p
+     ]
+    r =>
+  JSON ::: JsonRequest NewUserScimInvitation ->
+  (Handler r) Response
 createInvitationViaScimH (_ ::: req) = do
   body <- parseJsonBody req
   setStatus status201 . json <$> createInvitationViaScim body
 
-createInvitationViaScim :: Member BlacklistStore r => NewUserScimInvitation -> (Handler r) UserAccount
+createInvitationViaScim ::
+  Members
+    '[ BlacklistStore,
+       UserPendingActivationStore p
+     ]
+    r =>
+  NewUserScimInvitation ->
+  (Handler r) UserAccount
 createInvitationViaScim newUser@(NewUserScimInvitation tid loc name email) = do
   env <- ask
   let inviteeRole = defaultRole

@@ -16,6 +16,8 @@ import Brig.Sem.RPC (RPC)
 import Brig.Sem.RPC.IO (interpretRpcToIO)
 import Brig.Sem.ServiceRPC (Service (Galley), ServiceRPC)
 import Brig.Sem.ServiceRPC.IO (interpretServiceRpcToRpc)
+import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
+import Brig.Sem.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import qualified Cassandra as Cas
 import Control.Lens ((^.))
 import Control.Monad.Catch (throwM)
@@ -26,11 +28,13 @@ import Polysemy.TinyLog (TinyLog)
 import Wire.Sem.Logger.TinyLog (loggerToTinyLog)
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO (nowToIOAction)
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 type BrigCanonicalEffects =
   '[ BlacklistPhonePrefixStore,
      BlacklistStore,
      PasswordResetStore,
+     UserPendingActivationStore InternalPaging,
      Now,
      CodeStore,
      GalleyProvider,
@@ -58,6 +62,7 @@ runBrigToIO e (AppT ma) = do
     . interpretGalleyProviderToRPC
     . codeStoreToCassandra @Cas.Client
     . nowToIOAction (e ^. currentTime)
+    . userPendingActivationStoreToCassandra
     . passwordResetStoreToCodeStore
     . interpretBlacklistStoreToCassandra @Cas.Client
     . interpretBlacklistPhonePrefixStoreToCassandra @Cas.Client

@@ -47,6 +47,7 @@ import qualified Brig.Provider.API as Provider
 import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.GalleyProvider (GalleyProvider)
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
+import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.Team.API as Team
 import Brig.Team.DB (lookupInvitationByEmail)
 import Brig.Types.Connection
@@ -104,7 +105,8 @@ import Wire.API.User.RichInfo
 servantSitemap ::
   Members
     '[ BlacklistStore,
-       GalleyProvider
+       GalleyProvider,
+       UserPendingActivationStore p
      ]
     r =>
   ServerT BrigIRoutes.API (Handler r)
@@ -140,7 +142,8 @@ mlsAPI =
 accountAPI ::
   Members
     '[ BlacklistStore,
-       GalleyProvider
+       GalleyProvider,
+       UserPendingActivationStore p
      ]
     r =>
   ServerT BrigIRoutes.AccountAPI (Handler r)
@@ -233,7 +236,8 @@ sitemap ::
        PasswordResetStore,
        BlacklistStore,
        BlacklistPhonePrefixStore,
-       GalleyProvider
+       GalleyProvider,
+       UserPendingActivationStore p
      ]
     r =>
   Routes a (Handler r) ()
@@ -457,7 +461,8 @@ internalListFullClients (UserSet usrs) =
 createUserNoVerify ::
   Members
     '[ BlacklistStore,
-       GalleyProvider
+       GalleyProvider,
+       UserPendingActivationStore p
      ]
     r =>
   NewUser ->

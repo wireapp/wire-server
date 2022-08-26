@@ -52,6 +52,7 @@ import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.GalleyProvider (GalleyProvider)
 import qualified Brig.Sem.GalleyProvider as GalleyProvider
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
+import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
@@ -186,11 +187,12 @@ swaggerDocsAPI (Just V1) =
 swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
 
 servantSitemap ::
-  forall r.
+  forall r p.
   Members
     '[ BlacklistStore,
        BlacklistPhonePrefixStore,
-       GalleyProvider
+       GalleyProvider,
+       UserPendingActivationStore p
      ]
     r =>
   ServerT BrigAPI (Handler r)
@@ -641,7 +643,8 @@ newNonce _ = do
 createUser ::
   Members
     '[ BlacklistStore,
-       GalleyProvider
+       GalleyProvider,
+       UserPendingActivationStore p
      ]
     r =>
   Public.NewUserPublic ->

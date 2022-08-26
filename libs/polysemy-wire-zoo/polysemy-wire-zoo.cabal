@@ -74,9 +74,9 @@ library
 
   build-depends:
       base             >=4.6 && <5.0
+    , cassandra-util
     , HsOpenSSL
     , hspec
-    , cassandra-util
     , imports
     , polysemy
     , polysemy-check
