@@ -30,14 +30,14 @@ import Imports
 
 insertNonce ::
   (MonadClient m, MonadReader Brig.App.Env m) =>
-  Word64 ->
+  Int32 ->
   Text ->
   Nonce ->
   m ()
-insertNonce ttl key nonce = retry x5 . write insert $ params LocalQuorum (key, nonce)
+insertNonce ttl key nonce = retry x5 . write insert $ params LocalQuorum (key, nonce, ttl)
   where
-    insert :: PrepQuery W (Text, Nonce) ()
-    insert = fromString $ "INSERT INTO nonce (key, nonce) VALUES (?) USING TTL " <> show ttl
+    insert :: PrepQuery W (Text, Nonce, Int32) ()
+    insert = "INSERT INTO nonce (key, nonce) VALUES (?, ?) USING TTL ?"
 
 lookupAndDeleteNonce ::
   (MonadClient m, MonadReader Env m) =>
