@@ -237,10 +237,8 @@ isUserSender qusr smsg = case rmValue smsg of
       -- skip external add proposal
       NewMemberSender -> pure True
       MemberSender ref -> do
-        ClientIdentity {ciUser, ciDomain} <- derefKeyPackage ref
-        pure $
-          ciUser == qUnqualified qusr
-            && ciDomain == qDomain qusr
+        ci <- derefKeyPackage ref
+        pure $ fmap fst (cidQualifiedClient ci) == qusr
 
 postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
