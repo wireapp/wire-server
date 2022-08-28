@@ -495,8 +495,9 @@ mlsPublicKeysSchema :: ObjectSchema SwaggerDoc MLSPublicKeys
 mlsPublicKeysSchema =
   fmap
     (fromMaybe mempty)
-    ( optField
+    ( optFieldWithDocModifier
         "mls_public_keys"
+        (description ?~ "Mapping from signature scheme (tags) to public key data")
         (map_ base64Schema)
     )
 
