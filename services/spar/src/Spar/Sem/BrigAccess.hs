@@ -55,7 +55,7 @@ import Imports
 import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Web.Cookie
-import Wire.API.User (VerificationAction, VerifyAccountDeletedResult)
+import Wire.API.User (EnsureAccountDeletedResult, VerificationAction)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo as RichInfo
@@ -79,7 +79,7 @@ data BrigAccess m a where
   GetRichInfo :: UserId -> BrigAccess m RichInfo
   CheckHandleAvailable :: Handle -> BrigAccess m Bool
   Delete :: UserId -> BrigAccess m ()
-  EnsureAccountDeleted :: UserId -> BrigAccess m VerifyAccountDeletedResult
+  EnsureAccountDeleted :: UserId -> BrigAccess m EnsureAccountDeletedResult
   EnsureReAuthorised :: Maybe UserId -> Maybe PlainTextPassword -> Maybe Code.Value -> Maybe VerificationAction -> BrigAccess m ()
   SsoLogin :: UserId -> BrigAccess m SetCookie
   GetStatus :: UserId -> BrigAccess m AccountStatus

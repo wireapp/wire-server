@@ -520,7 +520,7 @@ deleteUserNoVerify uid = do
       >>= ifNothing (errorToWai @'E.UserNotFound)
   lift $ API.deleteUserNoVerify uid
 
-ensureAccountDeleted :: UserId -> (Handler r) VerifyAccountDeletedResult
+ensureAccountDeleted :: UserId -> (Handler r) EnsureAccountDeletedResult
 ensureAccountDeleted uid = lift $ wrapHttp $ API.ensureAccountDeleted uid
 
 changeSelfEmailMaybeSendH :: Member BlacklistStore r => UserId ::: Bool ::: JsonRequest EmailUpdate -> (Handler r) Response

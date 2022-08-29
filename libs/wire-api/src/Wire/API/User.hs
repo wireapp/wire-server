@@ -95,7 +95,7 @@ module Wire.API.User
     VerifyDeleteUser (..),
     mkVerifyDeleteUser,
     DeletionCodeTimeout (..),
-    VerifyAccountDeletedResult (..),
+    EnsureAccountDeletedResult (..),
 
     -- * List Users
     ListUsersQuery (..),
@@ -1358,40 +1358,40 @@ instance FromJSON DeletionCodeTimeout where
   parseJSON = A.withObject "DeletionCodeTimeout" $ \o ->
     DeletionCodeTimeout <$> o A..: "expires_in"
 
-data VerifyAccountDeletedResult = NoUser | AccountAlreadyDeleted | AccountDeleted
+data EnsureAccountDeletedResult = NoUser | AccountAlreadyDeleted | AccountDeleted
   deriving (Eq, Show)
-  deriving (S.ToSchema) via (Schema VerifyAccountDeletedResult)
+  deriving (S.ToSchema) via (Schema EnsureAccountDeletedResult)
 
-instance ToSchema VerifyAccountDeletedResult where
+instance ToSchema EnsureAccountDeletedResult where
   schema =
-    enum @Text "VerifyAccountDeletedResult" $
+    enum @Text "EnsureAccountDeletedResult" $
       mconcat
         [ element "no-user" NoUser,
           element "already-deleted" AccountAlreadyDeleted,
           element "deleted" AccountDeleted
         ]
 
-instance ToJSON VerifyAccountDeletedResult where
+instance ToJSON EnsureAccountDeletedResult where
   toJSON t = A.object ["tag" A..= toTag t]
     where
-      toTag :: VerifyAccountDeletedResult -> A.Value
+      toTag :: EnsureAccountDeletedResult -> A.Value
       toTag NoUser = "no-user"
       toTag AccountAlreadyDeleted = "already-deleted"
       toTag AccountDeleted = "deleted"
 
-instance FromJSON VerifyAccountDeletedResult where
+instance FromJSON EnsureAccountDeletedResult where
   parseJSON (A.Object o) = do
     tagString <- o A..: "tag"
     case fromTag tagString of
       Just t -> pure t
       Nothing -> A.parseFail $ "Unknown tag: " ++ tagString
     where
-      fromTag :: String -> Maybe VerifyAccountDeletedResult
+      fromTag :: String -> Maybe EnsureAccountDeletedResult
       fromTag "no-user" = Just NoUser
       fromTag "already-deleted" = Just AccountAlreadyDeleted
       fromTag "deleted" = Just AccountDeleted
       fromTag _ = Nothing
-  parseJSON _ = parseFail "Invalid VerifyAccountDeletedResult"
+  parseJSON _ = parseFail "Invalid EnsureAccountDeletedResult"
 
 data ListUsersQuery
   = ListUsersByIds [Qualified UserId]
