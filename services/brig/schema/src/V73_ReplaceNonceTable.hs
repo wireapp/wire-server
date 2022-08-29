@@ -36,7 +36,9 @@ migration =
     schema'
       [r|
         CREATE TABLE IF NOT EXISTS nonce
-          ( key text PRIMARY KEY
+          ( user uuid,
+          , key text,
           , nonce uuid
+          , primary key (user, key)
           ) WITH default_time_to_live = 300;
      |]

@@ -620,10 +620,10 @@ getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
 newNonce :: UserId -> ClientId -> (Handler r) Nonce
-newNonce _ cid = do
+newNonce uid cid = do
   ttl <- setNonceTtlSecs <$> view settings
   nonce <- randomNonce
-  lift $ wrapClient $ Nonce.insertNonce ttl (client cid) nonce
+  lift $ wrapClient $ Nonce.insertNonce ttl uid (client cid) nonce
   pure nonce
 
 -- | docs/reference/user/registration.md {#RefRegistration}

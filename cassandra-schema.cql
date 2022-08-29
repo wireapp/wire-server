@@ -1093,9 +1093,12 @@ CREATE TABLE brig_test.invitee_info (
     AND speculative_retry = '99PERCENTILE';
 
 CREATE TABLE brig_test.nonce (
-    key text PRIMARY KEY,
-    nonce uuid
-) WITH bloom_filter_fp_chance = 0.01
+    user uuid,
+    key text,
+    nonce uuid,
+    PRIMARY KEY (user, key)
+) WITH CLUSTERING ORDER BY (key ASC)
+    AND bloom_filter_fp_chance = 0.01
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
