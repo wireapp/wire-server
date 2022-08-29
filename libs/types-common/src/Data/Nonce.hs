@@ -18,7 +18,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Data.Nonce where
+module Data.Nonce
+  ( Nonce (..),
+    NonceTtlSecs (..),
+    randomNonce,
+    isValidBase64UrlEncodedUUID,
+  )
+where
 
 import Cassandra hiding (Value)
 import qualified Data.Aeson as A
@@ -26,6 +32,7 @@ import qualified Data.ByteString.Base64.URL as Base64
 import Data.ByteString.Conversion
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Proxy (Proxy (Proxy))
+import Data.Schema
 import Data.String.Conversions (cs)
 import qualified Data.Swagger as S
 import Data.Swagger.ParamSchema
@@ -70,3 +77,24 @@ instance Cql Nonce where
   ctype = Tagged UuidColumn
   toCql = toCql . unNonce
   fromCql v = Nonce <$> fromCql v
+
+newtype NonceTtlSecs = NonceTtlSecs {unNonceTtlSecs :: Word32}
+  deriving (Eq, Show, Generic)
+  deriving (A.FromJSON, A.ToJSON, S.ToSchema) via (Schema NonceTtlSecs)
+
+-- | Convert 'Word32' to 'Int32', with clipping if it doesn't fit.
+word32ToInt32 :: Word32 -> Int32
+word32ToInt32 = fromIntegral . min (fromIntegral (maxBound @Int32))
+
+-- | Convert 'Int32' to 'Word32', rounding negative values to 0.
+int32ToWord32 :: Int32 -> Word32
+int32ToWord32 = fromIntegral . max 0
+
+instance ToSchema NonceTtlSecs where
+  schema = NonceTtlSecs . int32ToWord32 <$> (word32ToInt32 . unNonceTtlSecs) .= schema
+
+instance Cql NonceTtlSecs where
+  ctype = Tagged IntColumn
+  toCql = CqlInt . (word32ToInt32 . unNonceTtlSecs)
+  fromCql (CqlInt i) = pure $ NonceTtlSecs $ int32ToWord32 i
+  fromCql _ = Left "fromCql: NonceTtlSecs expects CqlInt"

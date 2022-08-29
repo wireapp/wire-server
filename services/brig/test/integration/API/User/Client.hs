@@ -955,7 +955,9 @@ testNewNonce brig = do
   lift $ assertBool "nonces are should not be equal" (n1 /= n2)
   where
     check f status = do
-      response <- (randomUser brig >>= f brig . userId) <!! const status === statusCode
+      uid <- userId <$> randomUser brig
+      cid <- randomClient
+      response <- f brig uid cid <!! const status === statusCode
       let nonceBs = getHeader "Replay-Nonce" response
       liftIO $ do
         assertBool "Replay-Nonce header should contain a valid base64url encoded uuidv4" $ any isValidBase64UrlEncodedUUID nonceBs

@@ -619,11 +619,11 @@ getRichInfo self user = do
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
-newNonce :: UserId -> (Handler r) Nonce
-newNonce _ = do
+newNonce :: UserId -> ClientId -> (Handler r) Nonce
+newNonce uid cid = do
   ttl <- setNonceTtlSecs <$> view settings
   nonce <- randomNonce
-  lift $ wrapClient $ Nonce.insertNonce ttl nonce
+  lift $ wrapClient $ Nonce.insertNonce ttl uid (client cid) nonce
   pure nonce
 
 -- | docs/reference/user/registration.md {#RefRegistration}
