@@ -547,8 +547,9 @@ type NewNonce name method statusCode =
     name
     ( Summary "Get a new nonce for a client CSR, specified in the response header `Replay-Nonce` as a uuidv4 in base64url encoding"
         :> ZUser
-        :> "nonce"
         :> "clients"
+        :> CaptureClientId "client"
+        :> "nonce"
         :> MultiVerb1
              method
              '[JSON]
