@@ -448,8 +448,9 @@ createAccessToken ::
   ExceptT CertEnrollmentError (AppT r) (DPoPAccessTokenResponse, CacheControl)
 createAccessToken _userId _clientId = \case
   Just (Proof proof) -> do
+    let expiresAt = 360 -- todo(leif): read from config
     token <- withExceptT mapError (ExceptT $ liftIO $ ffiStubGenerateDPoPToken proof)
-    let accessToken = DPoPAccessTokenResponse token DPoP 360
+    let accessToken = DPoPAccessTokenResponse token DPoP expiresAt
     pure $ (accessToken, NoStore)
   Nothing -> throwE CertEnrollmentError
   where
