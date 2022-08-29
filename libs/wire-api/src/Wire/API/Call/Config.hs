@@ -91,7 +91,7 @@ import Data.Time.Clock.POSIX
 import Imports
 import qualified Test.QuickCheck as QC
 import Text.Hostname (validHostname)
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- RTCConfiguration

@@ -24,7 +24,6 @@ import Data.Range
 import Imports
 import Servant.API
 import Test.QuickCheck (Arbitrary)
-import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Endpoint
 import Wire.API.Federation.Version
@@ -36,6 +35,7 @@ import Wire.API.User.Client.Prekey (ClientPrekey, PrekeyBundle)
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
 import Wire.API.Util.Aeson (CustomEncoded (..))
+import Wire.Arbitrary (GenericUniform (..))
 
 newtype SearchRequest = SearchRequest {term :: Text}
   deriving (Show, Eq, Generic, Typeable)

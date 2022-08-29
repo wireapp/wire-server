@@ -22,7 +22,7 @@ import qualified Data.Aeson.KeyMap as KeyMap
 import Imports
 import Test.Tasty
 import Test.Tasty.QuickCheck hiding (total)
-import Wire.API.Arbitrary ()
+import Wire.Arbitrary ()
 import Wire.API.Call.Config (RTCConfiguration, TurnURI, isTcp, isTls, isUdp, limitServers)
 
 tests :: TestTree

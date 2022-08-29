@@ -37,7 +37,7 @@ import Data.Schema
 import qualified Data.Swagger as S hiding (info)
 import Deriving.Aeson
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Provider
 import Wire.API.Provider.Service (ServiceKeyPEM)
 import Wire.API.User.Client.Prekey

@@ -57,7 +57,7 @@ import Data.Singletons.TH
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Util.Aeson (CustomEncoded (..))
 
 --------------------------------------------------------------------------------

@@ -89,7 +89,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Encoding as T
 import Imports
 import Test.QuickCheck.Gen (suchThat)
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Asset (AssetKey)
 import Wire.API.Team.Member (TeamMember)
 

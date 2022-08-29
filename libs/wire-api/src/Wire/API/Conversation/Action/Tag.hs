@@ -26,7 +26,7 @@ import Data.Schema hiding (tag)
 import Data.Singletons.TH
 import Imports
 import Test.QuickCheck (elements)
-import Wire.API.Arbitrary (Arbitrary (..))
+import Wire.Arbitrary (Arbitrary (..))
 
 data ConversationActionTag
   = ConversationJoinTag

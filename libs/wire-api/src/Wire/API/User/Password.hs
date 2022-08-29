@@ -42,7 +42,7 @@ import Data.Range (Ranged (..))
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.User.Identity
 
 --------------------------------------------------------------------------------

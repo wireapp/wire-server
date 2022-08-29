@@ -22,8 +22,8 @@ module Wire.API.MLS.Epoch where
 import Data.Binary
 import Data.Schema
 import Imports
-import Wire.API.Arbitrary
 import Wire.API.MLS.Serialisation
+import Wire.Arbitrary
 
 newtype Epoch = Epoch {epochNumber :: Word64}
   deriving stock (Eq, Show)

@@ -51,7 +51,7 @@ import Imports
 import qualified Network.DNS as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
-import Wire.API.Arbitrary (Arbitrary, arbitrary)
+import Wire.Arbitrary (Arbitrary, arbitrary)
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy)

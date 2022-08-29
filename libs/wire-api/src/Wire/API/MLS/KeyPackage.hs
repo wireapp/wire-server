@@ -52,12 +52,12 @@ import qualified Data.Swagger as S
 import Imports
 import Test.QuickCheck
 import Web.HttpApiData
-import Wire.API.Arbitrary
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Context
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Extension
 import Wire.API.MLS.Serialisation
+import Wire.Arbitrary
 
 data KeyPackageUpload = KeyPackageUpload
   {kpuKeyPackages :: [RawMLS KeyPackage]}

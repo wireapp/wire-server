@@ -64,7 +64,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.User.Auth2
 import Wire.API.User.Identity (Phone)
 

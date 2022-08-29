@@ -32,7 +32,7 @@ import Data.Aeson
 import Data.Id (UserId)
 import Data.Qualified
 import Imports
-import Wire.API.Arbitrary
+import Wire.Arbitrary
 
 -- | Response type for endpoints returning lists of users with a specific connection state.
 -- E.g. 'getContactList' returns a 'UserIds' containing the list of connections in an

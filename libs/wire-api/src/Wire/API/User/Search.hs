@@ -54,7 +54,7 @@ import qualified Data.Text as T
 import Imports
 import Servant.API (FromHttpApiData)
 import Web.Internal.HttpApiData (parseQueryParam)
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Team.Role (Role)
 import Wire.API.User (ManagedBy)
 import Wire.API.User.Identity (Email (..))

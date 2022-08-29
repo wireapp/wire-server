@@ -84,7 +84,7 @@ import Web.Scim.Schema.Schema (Schema (CustomSchema))
 import qualified Web.Scim.Schema.Schema as Scim
 import qualified Web.Scim.Schema.User as Scim
 import qualified Web.Scim.Schema.User as Scim.User
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile as BT
 import qualified Wire.API.User.RichInfo as RI

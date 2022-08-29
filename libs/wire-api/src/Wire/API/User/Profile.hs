@@ -68,7 +68,7 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Imports
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Asset (AssetKey (..))
 import Wire.API.User.Orphans ()
 

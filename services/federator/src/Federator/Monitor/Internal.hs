@@ -45,7 +45,7 @@ import qualified System.Logger.Message as Log
 import System.Posix.ByteString (RawFilePath)
 import System.Posix.Files
 import System.X509
-import Wire.API.Arbitrary
+import Wire.Arbitrary
 import qualified Wire.Sem.Logger.TinyLog as Log
 
 data Monitor = Monitor

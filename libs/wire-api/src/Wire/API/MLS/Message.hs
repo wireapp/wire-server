@@ -57,7 +57,6 @@ import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Imports
 import Test.QuickCheck hiding (label)
-import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Event.Conversation
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
@@ -66,6 +65,7 @@ import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
+import Wire.Arbitrary (GenericUniform (..))
 
 data WireFormatTag = MLSPlainText | MLSCipherText
   deriving (Bounded, Enum, Eq, Show)
