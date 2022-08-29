@@ -41,7 +41,7 @@ import Data.Schema
 import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 newtype PrekeyId = PrekeyId {keyId :: Word16}
   deriving stock (Eq, Ord, Show, Generic)

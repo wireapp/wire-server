@@ -112,12 +112,12 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import System.Random (randomRIO)
-import Wire.API.Arbitrary
 import Wire.API.Conversation.Member
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
 import Wire.API.MLS.Group
 import Wire.API.Routes.MultiTablePaging
+import Wire.Arbitrary
 
 --------------------------------------------------------------------------------
 -- Conversation

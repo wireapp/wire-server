@@ -19,7 +19,7 @@ module Wire.API.Federation.Component where
 
 import Imports
 import Test.QuickCheck (Arbitrary)
-import Wire.API.Arbitrary (GenericUniform (..))
+import Wire.Arbitrary (GenericUniform (..))
 
 data Component
   = Brig

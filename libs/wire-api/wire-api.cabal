@@ -13,7 +13,6 @@ build-type:    Simple
 library
   -- cabal-fmt: expand src
   exposed-modules:
-    Wire.API.Arbitrary
     Wire.API.Asset
     Wire.API.Call.Config
     Wire.API.Connection

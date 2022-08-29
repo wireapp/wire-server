@@ -59,12 +59,12 @@ import Data.Json.Util
 import Data.Misc (HttpsUrl (..), PlainTextPassword (..))
 import Data.Range
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation.Code as Code
 import Wire.API.Provider.Service (ServiceToken (..))
 import Wire.API.Provider.Service.Tag (ServiceTag (..))
 import Wire.API.User.Identity (Email)
 import Wire.API.User.Profile (Name)
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- Provider

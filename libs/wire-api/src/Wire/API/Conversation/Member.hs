@@ -51,9 +51,9 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import qualified Test.QuickCheck as QC
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Conversation.Role
 import Wire.API.Provider.Service (ServiceRef, modelServiceRef)
+import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 data ConvMembers = ConvMembers
   { cmSelf :: Member,

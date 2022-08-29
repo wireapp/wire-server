@@ -58,8 +58,8 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Text as Text
 import Imports
 import Servant.API
-import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 import Wire.API.Routes.MultiTablePaging
+import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- UserConnectionList

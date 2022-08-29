@@ -43,11 +43,11 @@ import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Data.Time.Clock
 import Imports
-import Wire.API.Arbitrary (Arbitrary (..))
 import Wire.API.Conversation
 import Wire.API.Conversation.Action.Tag
 import Wire.API.Conversation.Role
 import Wire.API.Event.Conversation
+import Wire.Arbitrary (Arbitrary (..))
 
 -- | We use this type family instead of a sum type to be able to define
 -- individual effects per conversation action. See 'HasConversationActionEffects'.

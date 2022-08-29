@@ -31,9 +31,9 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Internal.Schema as S
 import Data.Word
 import Imports
-import Wire.API.Arbitrary
 import Wire.API.MLS.Credential
 import Wire.API.MLS.Serialisation
+import Wire.Arbitrary
 
 newtype CipherSuite = CipherSuite {cipherSuiteNumber :: Word16}
   deriving stock (Eq, Show)

@@ -51,7 +51,7 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Data.Time.Clock (UTCTime)
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 type NotificationId = Id QueuedNotification
 
