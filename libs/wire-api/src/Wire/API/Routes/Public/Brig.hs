@@ -585,8 +585,8 @@ newtype NonceHeader = NonceHeader Nonce
   deriving newtype (FromByteString, ToByteString, ToParamSchema, ToHttpApiData, FromHttpApiData)
 
 instance AsHeaders '[NonceHeader, CacheControl] () (Nonce, CacheControl) where
-  toHeaders (n, cc) = (I (NonceHeader n) :* (I cc :* Nil), ())
   fromHeaders (I (NonceHeader n) :* (I cc :* Nil), ()) = (n, cc)
+  toHeaders (n, cc) = (I (NonceHeader n) :* (I cc :* Nil), ())
 
 type ClientAPI =
   Named
