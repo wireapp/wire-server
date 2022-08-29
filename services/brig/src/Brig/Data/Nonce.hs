@@ -26,19 +26,19 @@ import Brig.Data.Instances ()
 import Cassandra
 import Control.Lens hiding (from)
 import Data.Id (UserId)
-import Data.Nonce (Nonce)
+import Data.Nonce (Nonce, NonceTtlSecs)
 import Imports
 
 insertNonce ::
   (MonadClient m, MonadReader Brig.App.Env m) =>
-  Int32 ->
+  NonceTtlSecs ->
   UserId ->
   Text ->
   Nonce ->
   m ()
 insertNonce ttl uid key nonce = retry x5 . write insert $ params LocalQuorum (uid, key, nonce, ttl)
   where
-    insert :: PrepQuery W (UserId, Text, Nonce, Int32) ()
+    insert :: PrepQuery W (UserId, Text, Nonce, NonceTtlSecs) ()
     insert = "INSERT INTO nonce (user, key, nonce) VALUES (?, ?, ?) USING TTL ?"
 
 lookupAndDeleteNonce ::

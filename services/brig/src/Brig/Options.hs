@@ -38,6 +38,7 @@ import Data.Domain (Domain (..))
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.Misc (HttpsUrl)
+import Data.Nonce
 import Data.Range
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
@@ -592,7 +593,7 @@ data Settings = Settings
     set2FACodeGenerationDelaySecsInternal :: !(Maybe Int),
     -- | The time-to-live of a nonce in seconds.
     -- use `setNonceTtlSecs` as the getter function which always provides a default value
-    setNonceTtlSecsInternal :: !(Maybe Int32)
+    setNonceTtlSecsInternal :: !(Maybe NonceTtlSecs)
   }
   deriving (Show, Generic)
 
@@ -620,10 +621,10 @@ def2FACodeGenerationDelaySecs = 5 * 60 -- 5 minutes
 set2FACodeGenerationDelaySecs :: Settings -> Int
 set2FACodeGenerationDelaySecs = fromMaybe def2FACodeGenerationDelaySecs . set2FACodeGenerationDelaySecsInternal
 
-defaultNonceTtlSecs :: Int32
-defaultNonceTtlSecs = 5 * 60 -- 5 minutes
+defaultNonceTtlSecs :: NonceTtlSecs
+defaultNonceTtlSecs = NonceTtlSecs $ 5 * 60 -- 5 minutes
 
-setNonceTtlSecs :: Settings -> Int32
+setNonceTtlSecs :: Settings -> NonceTtlSecs
 setNonceTtlSecs = fromMaybe defaultNonceTtlSecs . setNonceTtlSecsInternal
 
 -- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
