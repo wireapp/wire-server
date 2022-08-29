@@ -514,7 +514,7 @@ getRichInfo self user = do
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
-newNonce :: UserId -> ClientId -> (Handler r) Nonce
+newNonce :: UserId -> ClientId -> (Handler r) (Nonce, CacheControl)
 newNonce uid cid = do
   ttl <- setNonceTtlSecs <$> view settings
   nonce <- randomNonce
