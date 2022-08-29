@@ -72,7 +72,6 @@ module Wire.API.User.Client
     modelClientCapabilityList,
     typeClientCapability,
     modelDeleteClient,
-    modelClient,
     modelSigkeys,
     modelLocation, -- re-export from types-common
   )
@@ -500,32 +499,6 @@ mlsPublicKeysSchema =
         "mls_public_keys"
         (map_ base64Schema)
     )
-
-modelClient :: Doc.Model
-modelClient = Doc.defineModel "Client" $ do
-  Doc.description "A registered client."
-  Doc.property "type" typeClientType $
-    Doc.description "The client type."
-  Doc.property "id" Doc.string' $
-    Doc.description "The client ID."
-  Doc.property "label" Doc.string' $ do
-    Doc.description "An optional label associated with the client."
-    Doc.optional
-  Doc.property "time" Doc.dateTime' $
-    Doc.description "The date and time when this client was registered."
-  Doc.property "class" typeClientClass $
-    Doc.description "The device class this client belongs to."
-  Doc.property "cookie" Doc.string' $
-    Doc.description "The cookie label of this client."
-  Doc.property "address" Doc.string' $ do
-    Doc.description "IP address from which this client has been registered"
-    Doc.optional
-  Doc.property "location" (Doc.ref modelLocation) $ do
-    Doc.description "Location from which this client has been registered."
-    Doc.optional
-  Doc.property "model" Doc.string' $ do
-    Doc.description "Optional model information of this client"
-    Doc.optional
 
 --------------------------------------------------------------------------------
 -- PubClient
