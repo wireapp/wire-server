@@ -192,7 +192,8 @@ testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
 
   secretKey <- Ed25519.generateSecretKey
   let publicKey = Ed25519.toPublic secretKey
-  let message = fromJust (mkRemoveProposalMessage secretKey publicKey gid (Epoch 1) (fromJust (kpRef' kp)))
+  let message = mkSignedMessage secretKey publicKey gid (Epoch 1) (ProposalMessage (mkRemoveProposal (fromJust (kpRef' kp))))
+
   let messageFilename = "signed-message.mls"
   BS.writeFile (tmp </> messageFilename) (rmRaw (mkRawMLS message))
   let signerKeyFilename = "signer-key.bin"

@@ -428,6 +428,7 @@ onUserDeleted ::
        Input UTCTime,
        Input Env,
        MemberStore,
+       ProposalStore,
        TinyLog
      ]
     r =>

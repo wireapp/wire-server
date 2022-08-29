@@ -962,6 +962,7 @@ mlsRemoveUser ::
          FederatorAccess,
          GundeckAccess,
          Error InternalError,
+         ProposalStore,
          Input Env,
          Input (Local ())
        ]
@@ -979,8 +980,12 @@ mlsRemoveUser c qusr = do
       (secKey, pubKey) <- note (InternalErrorWithDescription "backend removal key missing") $ keyPair
       for_ (getConvMemberMLSClients loc c qusr) $ \cpks ->
         for_ cpks $ \(_client, kpref) -> do
-          proposal <-
-            note (InternalErrorWithDescription "could not construct signed proposal") $
-              mkRemoveProposalMessage secKey pubKey (cnvmlsGroupId meta) (cnvmlsEpoch meta) kpref
-          let proposalRaw = encodeMLS' proposal
-          propagateMessage loc qusr c Nothing proposalRaw
+          let proposal = mkRemoveProposal kpref
+              msg = mkSignedMessage secKey pubKey (cnvmlsGroupId meta) (cnvmlsEpoch meta) (ProposalMessage proposal)
+              msgEncoded = encodeMLS' msg
+          storeProposal
+            (cnvmlsGroupId meta)
+            (cnvmlsEpoch meta)
+            (proposalRef (cnvmlsCipherSuite meta) proposal)
+            proposal
+          propagateMessage loc qusr c Nothing msgEncoded

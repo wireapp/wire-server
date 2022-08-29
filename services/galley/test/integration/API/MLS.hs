@@ -1726,6 +1726,9 @@ testBackendRemoveProposalLocalConvLocalUser = withSystemTempDirectory "mls" $ \t
       WS.assertMatch_ (5 # WS.Second) wsA $ \notification ->
         wsAssertBackendRemoveProposal bob conversation kp notification
 
+  -- TODO: Add to test: commit  proposal (get ref from the notification) and check that commit is sucessful
+  pure ()
+
 testBackendRemoveProposalLocalConvRemoteUser :: TestM ()
 testBackendRemoveProposalLocalConvRemoteUser = withSystemTempDirectory "mls" $ \tmp -> do
   let opts =
