@@ -580,6 +580,6 @@ verifyAccountDeleted :: (MonadIO m, MonadHttp m) => Brig -> UserId -> m Response
 verifyAccountDeleted brig uid =
   post
     ( brig
-        . paths ["/i/users", toByteString' uid, "verify-deleted"]
+        . paths ["/i/users", toByteString' uid, "ensure-deleted"]
         . expect2xx
     )

@@ -163,7 +163,7 @@ tests _ at opts p b c ch g aws =
         [ test' aws p "put /users/:uid/email" $ testUpdateUserEmailByTeamOwner b
         ],
       testGroup
-        "/i/users/:uid/verify-deleted"
+        "/i/users/:uid/ensure-deleted"
         [ test' aws p "does nothing for completely deleted user" $ testVerifyAccountDeletedWithCompletelyDeletedUser b c aws,
           test' aws p "does nothing when the uses doesn't exist" $ testVerifyAccountDeletedWithNoUser b,
           test' aws p "deletes a not deleted user" $ testVerifyAccountDeletedWithNotDeletedUser b c aws,
@@ -1650,7 +1650,7 @@ testVerifyAccountDeletedWithCompletelyDeletedUser brig cannon aws = do
     let uid = userId u
     post
       ( brig
-          . paths ["/i/users", toByteString' uid, "verify-deleted"]
+          . paths ["/i/users", toByteString' uid, "ensure-deleted"]
       )
       !!! do
         const 200 === statusCode
@@ -1662,7 +1662,7 @@ testVerifyAccountDeletedWithNoUser brig =
     Right nonExistingUid ->
       post
         ( brig
-            . paths ["/i/users", toByteString' nonExistingUid, "verify-deleted"]
+            . paths ["/i/users", toByteString' nonExistingUid, "ensure-deleted"]
         )
         !!! do
           const 200 === statusCode
@@ -1704,7 +1704,7 @@ testVerifyAccountDeletedWithDanglingProperty brig cannon aws = do
   execAndAssertUserDeletion brig cannon u (Handle hdl) [] aws $ \uid' -> do
     post
       ( brig
-          . paths ["/i/users", toByteString' uid', "verify-deleted"]
+          . paths ["/i/users", toByteString' uid', "ensure-deleted"]
       )
       !!! do
         const 200 === statusCode

@@ -160,7 +160,7 @@ type AccountAPI =
            "ensure-account-deleted"
            ( "users"
                :> Capture "uid" UserId
-               :> "verify-deleted"
+               :> "ensure-deleted"
                :> Post '[Servant.JSON] VerifyAccountDeletedResult
            )
 

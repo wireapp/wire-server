@@ -372,7 +372,7 @@ verifyDeletionBrigUser buid = do
   resp <-
     call $
       method POST
-        . paths ["/i/users", toByteString' buid, "verify-deleted"]
+        . paths ["/i/users", toByteString' buid, "ensure-deleted"]
   case statusCode resp of
     200 -> parseResponse "brig" resp
     _ -> rethrow "brig" resp
