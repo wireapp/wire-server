@@ -519,13 +519,25 @@ applyProposalRef conv _groupId _epoch (Inline p) = do
   checkProposalCipherSuite suite p
   applyProposal p
 
-applyProposal :: HasProposalEffects r => Proposal -> Sem r ProposalAction
+applyProposal ::
+  HasProposalEffects r =>
+  Proposal ->
+  Sem r ProposalAction
 applyProposal (AddProposal kp) = do
-  ref <-
-    kpRef' kp
-      & note (mlsProtocolError "Could not compute ref of a key package in an Add proposal")
-  qclient <- cidQualifiedClient <$> derefKeyPackage ref
-  pure (paAddClient ((,ref) <$$> qclient))
+  ref <- kpRef' kp & note (mlsProtocolError "Could not compute ref of a key package in an Add proposal")
+  mbClientIdentity <- getClientByKeyPackageRef ref
+  clientIdentity <- case mbClientIdentity of
+    Nothing ->
+      -- external add proposal, the key package has not been claimed yet
+      ( either
+          (throw . mlsProtocolError . (<>) "Could not derive identity from key package: ")
+          pure
+          (kpIdentity (rmValue kp))
+      )
+    Just ci ->
+      -- ad-hoc add proposal in commit, the key package has been claimed before
+      pure ci
+  pure (paAddClient . fmap (fmap (,ref)) . cidQualifiedClient $ clientIdentity)
 applyProposal (RemoveProposal ref) = do
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
   pure (paRemoveClient ((,ref) <$$> qclient))
@@ -643,7 +655,9 @@ checkExternalProposalUser qusr prop = do
             either
               (const $ throwS @'MLSUnsupportedProposal)
               pure
-              $ decodeMLS' @ClientIdentity (bcIdentity . kpCredential . rmValue $ keyPackage)
+              . kpIdentity
+              . rmValue
+              $ keyPackage
           -- requesting user must match key package owner
           when (tUnqualified lusr /= ciUser) $ throwS @'MLSUnsupportedProposal
           -- client referenced in key package must be one of the user's clients
