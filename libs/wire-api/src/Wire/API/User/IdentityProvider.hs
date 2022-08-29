@@ -39,8 +39,8 @@ import SAML2.WebSSO (IdPConfig)
 import qualified SAML2.WebSSO as SAML
 import SAML2.WebSSO.Types.TH (deriveJSONOptions)
 import Servant.API as Servant hiding (MkLink, URI (..))
-import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 import Wire.API.User.Orphans (samlSchemaOptions)
+import Wire.Arbitrary (Arbitrary, GenericUniform (GenericUniform))
 
 -- | The identity provider type used in Spar.
 type IdP = IdPConfig WireIdP

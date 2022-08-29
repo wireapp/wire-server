@@ -157,7 +157,6 @@ import Servant (FromHttpApiData (..), ToHttpApiData (..), type (.++))
 import qualified Test.QuickCheck as QC
 import URI.ByteString (serializeURIRef)
 import qualified Web.Cookie as Web
-import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Error
 import Wire.API.Error.Brig
 import qualified Wire.API.Error.Brig as E
@@ -169,6 +168,7 @@ import Wire.API.User.Auth (CookieLabel)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo
+import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- UserIdList

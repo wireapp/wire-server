@@ -71,8 +71,8 @@ import Data.Schema
 import qualified Data.Swagger.Schema as S
 import GHC.TypeLits
 import Imports
-import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Team.Permission (Permissions)
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 data PermissionTag = Required | Optional
 

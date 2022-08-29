@@ -34,10 +34,10 @@ import Data.Id
 import Data.Json.Util
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
-import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Team.Role (Role, defaultRole, typeRole)
 import Wire.API.User.Identity (Email, Phone)
 import Wire.API.User.Profile (Locale, Name)
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- InvitationRequest

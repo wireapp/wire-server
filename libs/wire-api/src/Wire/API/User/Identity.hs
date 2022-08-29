@@ -79,8 +79,8 @@ import qualified Test.QuickCheck as QC
 import qualified Text.Email.Validate as Email.V
 import qualified URI.ByteString as URI
 import URI.ByteString.QQ (uri)
-import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.User.Profile (fromName, mkName)
+import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- UserIdentity

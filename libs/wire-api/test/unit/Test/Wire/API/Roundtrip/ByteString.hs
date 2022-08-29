@@ -22,7 +22,6 @@ import Imports
 import qualified Test.Tasty as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
 import Type.Reflection (typeRep)
-import qualified Wire.Arbitrary as Arbitrary ()
 import qualified Wire.API.Asset as Asset
 import qualified Wire.API.Call.Config as Call.Config
 import qualified Wire.API.Conversation.Code as Conversation.Code
@@ -42,6 +41,7 @@ import qualified Wire.API.User.IdentityProvider as User.IdentityProvider
 import qualified Wire.API.User.Password as User.Password
 import qualified Wire.API.User.Profile as User.Profile
 import qualified Wire.API.User.Search as User.Search
+import qualified Wire.Arbitrary as Arbitrary ()
 
 tests :: T.TestTree
 tests =
