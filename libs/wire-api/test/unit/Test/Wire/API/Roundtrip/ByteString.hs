@@ -22,7 +22,7 @@ import Imports
 import qualified Test.Tasty as T
 import Test.Tasty.QuickCheck (Arbitrary, counterexample, testProperty, (===))
 import Type.Reflection (typeRep)
-import qualified Wire.API.Arbitrary as Arbitrary ()
+import qualified Wire.Arbitrary as Arbitrary ()
 import qualified Wire.API.Asset as Asset
 import qualified Wire.API.Call.Config as Call.Config
 import qualified Wire.API.Conversation.Code as Conversation.Code
