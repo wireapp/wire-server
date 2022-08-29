@@ -164,10 +164,10 @@ tests _ at opts p b c ch g aws =
         ],
       testGroup
         "/i/users/:uid/ensure-deleted"
-        [ test' aws p "does nothing for completely deleted user" $ testVerifyAccountDeletedWithCompletelyDeletedUser b c aws,
-          test' aws p "does nothing when the uses doesn't exist" $ testVerifyAccountDeletedWithNoUser b,
-          test' aws p "deletes a not deleted user" $ testVerifyAccountDeletedWithNotDeletedUser b c aws,
-          test' aws p "delete again because of dangling property" $ testVerifyAccountDeletedWithDanglingProperty b c aws
+        [ test' aws p "does nothing for completely deleted user" $ testEnsureAccountDeletedWithCompletelyDeletedUser b c aws,
+          test' aws p "does nothing when the uses doesn't exist" $ testEnsureAccountDeletedWithNoUser b,
+          test' aws p "deletes a not deleted user" $ testEnsureAccountDeletedWithNotDeletedUser b c aws,
+          test' aws p "delete again because of dangling property" $ testEnsureAccountDeletedWithDanglingProperty b c aws
         ]
     ]
 
@@ -1640,8 +1640,8 @@ testTooManyMembersForLegalhold opts brig = do
         const 403 === statusCode
         const (Right "too-many-members-for-legalhold") === fmap Wai.label . responseJsonEither
 
-testVerifyAccountDeletedWithCompletelyDeletedUser :: Brig -> Cannon -> AWS.Env -> Http ()
-testVerifyAccountDeletedWithCompletelyDeletedUser brig cannon aws = do
+testEnsureAccountDeletedWithCompletelyDeletedUser :: Brig -> Cannon -> AWS.Env -> Http ()
+testEnsureAccountDeletedWithCompletelyDeletedUser brig cannon aws = do
   u <- randomUser brig
   liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal1: " aws (userActivateJournaled u)
   setHandleAndDeleteUser brig cannon u [] aws $
@@ -1656,8 +1656,8 @@ testVerifyAccountDeletedWithCompletelyDeletedUser brig cannon aws = do
         const 200 === statusCode
         const (Right AccountAlreadyDeleted) === responseJsonEither
 
-testVerifyAccountDeletedWithNoUser :: Brig -> Http ()
-testVerifyAccountDeletedWithNoUser brig =
+testEnsureAccountDeletedWithNoUser :: Brig -> Http ()
+testEnsureAccountDeletedWithNoUser brig =
   case parseIdFromText "19166173-49eb-49bc-962f-72c95f27a428" of
     Right nonExistingUid ->
       post
@@ -1669,8 +1669,8 @@ testVerifyAccountDeletedWithNoUser brig =
           const (Right NoUser) === responseJsonEither
     Left _ -> fail "Invalid test data! (This should never happen.)"
 
-testVerifyAccountDeletedWithNotDeletedUser :: HasCallStack => Brig -> Cannon -> AWS.Env -> Http ()
-testVerifyAccountDeletedWithNotDeletedUser brig cannon aws = do
+testEnsureAccountDeletedWithNotDeletedUser :: HasCallStack => Brig -> Cannon -> AWS.Env -> Http ()
+testEnsureAccountDeletedWithNotDeletedUser brig cannon aws = do
   u <- randomUser brig
   liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled u)
   do
@@ -1681,8 +1681,8 @@ testVerifyAccountDeletedWithNotDeletedUser brig cannon aws = do
             const (Right AccountDeleted) === responseJsonEither
       )
 
-testVerifyAccountDeletedWithDanglingProperty :: Brig -> Cannon -> AWS.Env -> Http ()
-testVerifyAccountDeletedWithDanglingProperty brig cannon aws = do
+testEnsureAccountDeletedWithDanglingProperty :: Brig -> Cannon -> AWS.Env -> Http ()
+testEnsureAccountDeletedWithDanglingProperty brig cannon aws = do
   u <- randomUser brig
   liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal1: " aws (userActivateJournaled u)
 
