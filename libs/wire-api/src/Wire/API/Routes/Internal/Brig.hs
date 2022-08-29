@@ -59,6 +59,7 @@ import Wire.API.Routes.MultiVerb
 import Wire.API.Routes.Named
 import Wire.API.Team.Feature
 import Wire.API.User
+import Wire.API.User.Client
 
 type EJPDRequest =
   Summary
@@ -244,7 +245,7 @@ type GetConversationByKeyPackageRef =
     )
 
 type GetMLSClients =
-  Summary "Return all MLS-enabled clients of a user"
+  Summary "Return all clients and all MLS-capable clients of a user"
     :> "clients"
     :> CanThrow 'UserNotFound
     :> Capture "user" UserId
@@ -252,7 +253,7 @@ type GetMLSClients =
     :> MultiVerb1
          'GET
          '[Servant.JSON]
-         (Respond 200 "MLS clients" (Set ClientId))
+         (Respond 200 "MLS clients" (Set ClientInfo))
 
 type MapKeyPackageRefs =
   Summary "Insert bundle into the KeyPackage ref mapping. Only for tests."

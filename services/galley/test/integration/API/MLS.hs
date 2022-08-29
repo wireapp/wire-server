@@ -79,6 +79,7 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import Wire.API.Routes.Version
+import Wire.API.User.Client
 
 tests :: IO TestSetup -> TestTree
 tests s =
@@ -105,6 +106,7 @@ tests s =
         [ test s "add user to a conversation" testAddUser,
           test s "add user (not connected)" testAddUserNotConnected,
           test s "add user (partial client list)" testAddUserPartial,
+          test s "add client of existing user" testAddClientPartial,
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
           test s "add new client of an already-present user to a conversation" testAddNewClient,
           test s "send a stale commit" testStaleCommit,
@@ -419,6 +421,17 @@ testAddUserPartial = do
   (creator, commit) <- withSystemTempDirectory "mls" $ \tmp -> do
     -- Bob has 3 clients, Charlie has 2
     (alice, [bob, charlie]) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [3, 2])
+
+    -- upload one more key package for each of bob's clients
+    -- this makes sure the unused client has at least one key package, and
+    -- therefore will be considered MLS-capable
+    for_ (pClients bob) $ \(cid, c) -> do
+      kp <-
+        liftIO $
+          decodeMLSError
+            =<< spawn (cli cid tmp ["key-package", "create"]) Nothing
+      addKeyPackage def {mapKeyPackage = False, setPublicKey = False} (pUserId bob) c kp
+
     void $ setupGroup tmp CreateConv alice "group"
     (commit, _) <-
       liftIO . setupCommit tmp alice "group" "group" $
@@ -439,6 +452,36 @@ testAddUserPartial = do
         )
       <!! const 409 === statusCode
   liftIO $ Wai.label err @?= "mls-client-mismatch"
+
+testAddClientPartial :: TestM ()
+testAddClientPartial = withSystemTempDirectory "mls" $ \tmp -> do
+  withLastPrekeys $ do
+    (alice, [bob]) <- setupParticipants tmp def ((,LocalUser) <$> [1])
+    (groupId, conversation) <- lift $ setupGroup tmp CreateConv alice "group"
+    (commit, welcome) <- liftIO . setupCommit tmp alice "group" "group" $ pClients bob
+    let setup =
+          MessagingSetup
+            { creator = alice,
+              users = [bob],
+              ..
+            }
+    lift $ testSuccessfulCommit setup
+
+    -- create more clients for Bob, only take the first one
+    nc <- fmap head . replicateM 2 $ do
+      setupUserClient tmp CreateWithKey True (pUserId bob)
+
+    -- add new client
+    (commit', welcome') <-
+      liftIO $
+        setupCommit
+          tmp
+          alice
+          "group"
+          "group"
+          [(userClientQid (pUserId bob) nc, nc)]
+
+    lift $ testSuccessfulCommitWithNewUsers setup {commit = commit', welcome = welcome'} []
 
 testAddNewClient :: TestM ()
 testAddNewClient = do
@@ -572,7 +615,7 @@ testAddRemoteUser = do
           pure
             . Aeson.encode
             . Set.fromList
-            . map snd
+            . map (flip ClientInfo True . snd)
             . toList
             . pClients
             $ bob
@@ -894,7 +937,7 @@ testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
           pure
             . Aeson.encode
             . Set.fromList
-            . map snd
+            . map (flip ClientInfo True . snd)
             . toList
             . pClients
             $ bob
@@ -1280,7 +1323,7 @@ testRemoteToLocal = do
               pure
                 . Aeson.encode
                 . Set.fromList
-                . map snd
+                . map (flip ClientInfo True . snd)
                 . toList
                 . pClients
                 $ bob
@@ -1352,7 +1395,7 @@ testRemoteToLocalWrongConversation = do
               pure
                 . Aeson.encode
                 . Set.fromList
-                . map snd
+                . map (flip ClientInfo True . snd)
                 . toList
                 . pClients
                 $ bob
