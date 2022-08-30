@@ -1,0 +1,4 @@
+Add additional checks on incoming MLS messages:
+* if the sender matches the authenticated user
+* if the sender of message to a remote conversation is a member
+* if the group ID of a remote conversation matches the local mapping

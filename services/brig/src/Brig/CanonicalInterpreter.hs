@@ -54,6 +54,8 @@ import Brig.Sem.UserHandleStore (UserHandleStore)
 import Brig.Sem.UserHandleStore.Cassandra
 import Brig.Sem.UserKeyStore (UserKeyStore)
 import Brig.Sem.UserKeyStore.Cassandra
+import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
+import Brig.Sem.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
 import Brig.Sem.UserQuery (UserQuery)
 import Brig.Sem.UserQuery.Cassandra
 import Brig.Sem.VerificationCodeStore (VerificationCodeStore)
@@ -79,6 +81,7 @@ import Wire.Sem.Error
 import Wire.Sem.Logger.TinyLog
 import Wire.Sem.Now (Now)
 import Wire.Sem.Now.IO
+import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 type BrigCanonicalEffects =
   '[ BlacklistPhonePrefixStore,
@@ -95,6 +98,7 @@ type BrigCanonicalEffects =
      Embed HttpClientIO,
      UserQuery,
      PasswordResetStore,
+     UserPendingActivationStore InternalPaging,
      Now,
      PasswordResetSupply,
      CodeStore,
@@ -127,6 +131,7 @@ runBrigToIO e (AppT ma) =
     . codeStoreToCassandra @Cas.Client
     . passwordResetSupplyToIO
     . nowToIOAction (e ^. currentTime)
+    . userPendingActivationStoreToCassandra
     . passwordResetStoreToCodeStore
     . userQueryToCassandra @Cas.Client
     . interpretHttpToIO e

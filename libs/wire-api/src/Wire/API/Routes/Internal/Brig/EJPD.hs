@@ -32,11 +32,11 @@ import Data.Swagger (ToSchema)
 import Deriving.Swagger (CamelToSnake, CustomSwagger (..), FieldLabelModifier, StripSuffix)
 import Imports hiding (head)
 import Test.QuickCheck (Arbitrary)
-import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Connection (Relation)
 import Wire.API.Team.Member (NewListType)
 import Wire.API.User.Identity (Email, Phone)
 import Wire.API.User.Profile (Name)
+import Wire.Arbitrary (GenericUniform (..))
 
 newtype EJPDRequestBody = EJPDRequestBody {ejpdRequestBody :: [Handle]}
   deriving stock (Eq, Show, Generic)

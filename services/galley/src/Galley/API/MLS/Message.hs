@@ -81,9 +81,11 @@ import Wire.API.MLS.Proposal
 import qualified Wire.API.MLS.Proposal as Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
+import Wire.API.User.Client
 
 type MLSMessageStaticErrors =
   '[ ErrorS 'ConvAccessDenied,
+     ErrorS 'ConvMemberNotFound,
      ErrorS 'ConvNotFound,
      ErrorS 'MLSUnsupportedMessage,
      ErrorS 'MLSStaleMessage,
@@ -93,7 +95,9 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSClientMismatch,
      ErrorS 'MLSUnsupportedProposal,
      ErrorS 'MLSCommitMissingReferences,
-     ErrorS 'MLSSelfRemovalNotAllowed
+     ErrorS 'MLSSelfRemovalNotAllowed,
+     ErrorS 'MLSClientSenderUserMismatch,
+     ErrorS 'MLSGroupConversationMismatch
    ]
 
 postMLSMessageFromLocalUserV1 ::
@@ -109,6 +113,8 @@ postMLSMessageFromLocalUserV1 ::
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSClientSenderUserMismatch,
+         ErrorS 'MLSGroupConversationMismatch,
          ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
@@ -121,9 +127,11 @@ postMLSMessageFromLocalUserV1 ::
   ConnId ->
   RawMLS SomeMessage ->
   Sem r [Event]
-postMLSMessageFromLocalUserV1 lusr conn msg =
-  map lcuEvent
-    <$> postMLSMessage lusr (qUntagged lusr) (Just conn) msg
+postMLSMessageFromLocalUserV1 lusr conn smsg = case rmValue smsg of
+  SomeMessage _ msg -> do
+    qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+    map lcuEvent
+      <$> postMLSMessage lusr (qUntagged lusr) qcnv (Just conn) smsg
 
 postMLSMessageFromLocalUser ::
   ( HasProposalEffects r,
@@ -138,6 +146,8 @@ postMLSMessageFromLocalUser ::
          ErrorS 'MLSSelfRemovalNotAllowed,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSUnsupportedMessage,
+         ErrorS 'MLSClientSenderUserMismatch,
+         ErrorS 'MLSGroupConversationMismatch,
          ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          ProposalStore,
@@ -164,12 +174,15 @@ postMLSMessage ::
          Error InternalError,
          ErrorS 'ConvAccessDenied,
          ErrorS 'ConvNotFound,
+         ErrorS 'ConvMemberNotFound,
          ErrorS 'MLSUnsupportedMessage,
          ErrorS 'MLSStaleMessage,
          ErrorS 'MLSProposalNotFound,
          ErrorS 'MissingLegalholdConsent,
          ErrorS 'MLSCommitMissingReferences,
          ErrorS 'MLSSelfRemovalNotAllowed,
+         ErrorS 'MLSClientSenderUserMismatch,
+         ErrorS 'MLSGroupConversationMismatch,
          Resource,
          TinyLog,
          ProposalStore,
@@ -179,18 +192,54 @@ postMLSMessage ::
   ) =>
   Local x ->
   Qualified UserId ->
+  Qualified ConvId ->
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Sem r [LocalConversationUpdate]
-postMLSMessage loc qusr con smsg = case rmValue smsg of
+postMLSMessage loc qusr qcnv con smsg = case rmValue smsg of
   SomeMessage _ msg -> do
-    -- fetch conversation ID
-    qcnv <- getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
+    unless (msgEpoch msg == Epoch 0) $
+      flip unless (throwS @'MLSClientSenderUserMismatch) =<< isUserSender qusr smsg
     foldQualified
       loc
       (postMLSMessageToLocalConv qusr con smsg)
       (postMLSMessageToRemoteConv loc qusr con smsg)
       qcnv
+
+-- | Check that the MLS client who created the message belongs to the user who
+-- is the sender of the REST request, identified by HTTP header.
+--
+-- This is only relevant in an ongoing conversation. The check should be skipped
+-- in case of
+-- * encrypted messages in which we don't have access to the sending client's
+--   key package,
+-- * messages sent by the backend, and
+-- * external add proposals which propose fresh key packages for new clients and
+--   thus the validity of the key package cannot be known at the time of this
+--   check.
+-- For these cases the function will return True.
+isUserSender ::
+  ( Members
+      '[ ErrorS 'MLSKeyPackageRefNotFound,
+         BrigAccess
+       ]
+      r
+  ) =>
+  Qualified UserId ->
+  RawMLS SomeMessage ->
+  Sem r Bool
+isUserSender qusr smsg = case rmValue smsg of
+  SomeMessage tag msg -> case tag of
+    -- skip encrypted message
+    SMLSCipherText -> pure True
+    SMLSPlainText -> case msgSender msg of
+      -- skip message sent by backend
+      PreconfiguredSender _ -> pure True
+      -- skip external add proposal
+      NewMemberSender -> pure True
+      MemberSender ref -> do
+        ci <- derefKeyPackage ref
+        pure $ fmap fst (cidQualifiedClient ci) == qusr
 
 postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
@@ -258,6 +307,9 @@ postMLSMessageToRemoteConv ::
 postMLSMessageToRemoteConv loc qusr con smsg rcnv = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
+  -- only members may send messages to the remote conversation
+  flip unless (throwS @'ConvMemberNotFound) =<< checkLocalMemberRemoteConv (tUnqualified lusr) rcnv
+
   resp <-
     runFederated rcnv $
       fedClient @'Galley @"send-mls-message" $
@@ -614,16 +666,35 @@ executeProposalAction qusr con lconv action = do
   -- FUTUREWORK: remove this check after remote admins are implemented in federation https://wearezeta.atlassian.net/browse/FS-216
   foldQualified lconv (\_ -> pure ()) (\_ -> throwS @'MLSUnsupportedProposal) qusr
 
-  -- check that all clients of each user are added to the conversation
-  for_ newUserClients $ \(qtarget, newclients) -> do
-    -- final set of clients in the conversation
-    let clients = newclients <> Map.findWithDefault mempty qtarget cm
-    -- get list of mls clients from brig
-    allClients <- getMLSClients lconv qtarget ss
-    -- if not all clients have been added to the conversation, return an error
-    when (clients /= allClients) $ do
-      -- FUTUREWORK: turn this error into a proper response
-      throwS @'MLSClientMismatch
+  -- for each user, we compare their clients with the ones being added to the conversation
+  for_ newUserClients $ \(qtarget, newclients) -> case Map.lookup qtarget cm of
+    -- user is already present, skip check in this case
+    Just _ -> pure ()
+    -- new user
+    Nothing -> do
+      -- final set of clients in the conversation
+      let clients = newclients <> Map.findWithDefault mempty qtarget cm
+      -- get list of mls clients from brig
+      clientInfo <- getMLSClients lconv qtarget ss
+      let allClients = Set.map ciId clientInfo
+      let allMLSClients = Set.map ciId (Set.filter ciMLS clientInfo)
+      -- We check the following condition:
+      --   allMLSClients ⊆ clients ⊆ allClients
+      -- i.e.
+      -- - if a client has at least 1 key package, it has to be added
+      -- - if a client is being added, it has to still exist
+      --
+      -- The reason why we can't simply check that clients == allMLSClients is
+      -- that a client with no remaining key packages might be added by a user
+      -- who just fetched its last key package.
+      unless
+        ( Set.isSubsetOf allMLSClients clients
+            && Set.isSubsetOf clients allClients
+        )
+        $ do
+          -- unless (Set.isSubsetOf allClients clients) $ do
+          -- FUTUREWORK: turn this error into a proper response
+          throwS @'MLSClientMismatch
 
   membersToRemove <- catMaybes <$> for removeUserClients (uncurry (checkRemoval lconv ss))
 
@@ -642,7 +713,7 @@ executeProposalAction qusr con lconv action = do
     -- For these clients there is nothing left to do
     checkRemoval :: Local x -> SignatureSchemeTag -> Qualified UserId -> Set ClientId -> Sem r (Maybe (Qualified UserId))
     checkRemoval loc ss qtarget clients = do
-      allClients <- getMLSClients loc qtarget ss
+      allClients <- Set.map ciId <$> getMLSClients loc qtarget ss
       let allClientsDontExist = Set.null (clients `Set.intersection` allClients)
       if allClientsDontExist
         then pure Nothing
@@ -764,10 +835,14 @@ getMLSClients ::
   Local x ->
   Qualified UserId ->
   SignatureSchemeTag ->
-  Sem r (Set ClientId)
+  Sem r (Set ClientInfo)
 getMLSClients loc = foldQualified loc getLocalMLSClients getRemoteMLSClients
 
-getRemoteMLSClients :: Member FederatorAccess r => Remote UserId -> SignatureSchemeTag -> Sem r (Set ClientId)
+getRemoteMLSClients ::
+  Member FederatorAccess r =>
+  Remote UserId ->
+  SignatureSchemeTag ->
+  Sem r (Set ClientInfo)
 getRemoteMLSClients rusr ss = do
   runFederated rusr $
     fedClient @'Brig @"get-mls-clients" $

@@ -127,7 +127,7 @@ data BrigAccess m a where
   RemoveLegalHoldClientFromUser :: UserId -> BrigAccess m ()
   GetAccountConferenceCallingConfigClient :: UserId -> BrigAccess m (WithStatusNoLock ConferenceCallingConfig)
   GetClientByKeyPackageRef :: KeyPackageRef -> BrigAccess m (Maybe ClientIdentity)
-  GetLocalMLSClients :: Local UserId -> SignatureSchemeTag -> BrigAccess m (Set ClientId)
+  GetLocalMLSClients :: Local UserId -> SignatureSchemeTag -> BrigAccess m (Set ClientInfo)
   AddKeyPackageRef :: KeyPackageRef -> Qualified UserId -> ClientId -> Qualified ConvId -> BrigAccess m ()
   UpdateKeyPackageRef :: KeyPackageUpdate -> BrigAccess m ()
   UpdateSearchVisibilityInbound ::

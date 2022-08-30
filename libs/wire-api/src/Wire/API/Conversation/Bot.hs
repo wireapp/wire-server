@@ -30,10 +30,10 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util ((#))
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Event.Conversation (Event)
 import Wire.API.User.Client.Prekey (Prekey)
 import Wire.API.User.Profile (Asset, ColourId, Locale, Name)
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- AddBot

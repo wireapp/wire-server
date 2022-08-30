@@ -61,6 +61,7 @@ import Brig.Sem.Twilio
 import Brig.Sem.UniqueClaimsStore
 import Brig.Sem.UserHandleStore
 import Brig.Sem.UserKeyStore
+import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Sem.UserQuery (UserQuery)
 import Brig.Sem.VerificationCodeStore
 import qualified Brig.Team.API as Team
@@ -204,7 +205,7 @@ swaggerDocsAPI (Just V1) =
 swaggerDocsAPI Nothing = swaggerDocsAPI (Just maxBound)
 
 servantSitemap ::
-  forall r.
+  forall r p.
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
@@ -224,6 +225,7 @@ servantSitemap ::
        UniqueClaimsStore,
        UserHandleStore,
        UserKeyStore,
+       UserPendingActivationStore p,
        UserQuery,
        VerificationCodeStore
      ]
@@ -744,11 +746,11 @@ getRichInfo self user = do
 getClientPrekeys :: UserId -> ClientId -> (Handler r) [Public.PrekeyId]
 getClientPrekeys usr clt = lift (wrapClient $ API.lookupPrekeyIds usr clt)
 
-newNonce :: UserId -> (Handler r) Nonce
-newNonce _ = do
+newNonce :: UserId -> ClientId -> (Handler r) Nonce
+newNonce uid cid = do
   ttl <- setNonceTtlSecs <$> view settings
   nonce <- randomNonce
-  lift $ wrapClient $ Nonce.insertNonce ttl nonce
+  lift $ wrapClient $ Nonce.insertNonce ttl uid (client cid) nonce
   pure nonce
 
 -- | docs/reference/user/registration.md {#RefRegistration}
@@ -766,6 +768,7 @@ createUser ::
        PasswordResetSupply,
        Twilio,
        UserKeyStore,
+       UserPendingActivationStore p,
        UserQuery
      ]
     r =>

@@ -99,6 +99,19 @@ data MessagingSetup = MessagingSetup
   }
   deriving (Show)
 
+data AddKeyPackage = AddKeyPackage
+  { mapKeyPackage :: Bool,
+    setPublicKey :: Bool
+  }
+  deriving (Show)
+
+instance Default AddKeyPackage where
+  def =
+    AddKeyPackage
+      { mapKeyPackage = True,
+        setPublicKey = True
+      }
+
 cli :: String -> FilePath -> [String] -> CreateProcess
 cli store tmp args =
   proc "mls-test-cli" $
@@ -160,7 +173,7 @@ setupUserClient tmp doCreateClients mapKeyPackage usr = do
     -- does not have to be created and it is remote, pretend to have claimed its
     -- key package.
     case doCreateClients of
-      CreateWithKey -> addKeyPackage mapKeyPackage usr c kp
+      CreateWithKey -> addKeyPackage def {mapKeyPackage = mapKeyPackage} usr c kp
       DontCreateClients | localDomain /= qDomain usr -> do
         brig <- view tsBrig
         let bundle =
@@ -476,18 +489,26 @@ aliceInvitesBobWithTmp tmp bobConf opts@SetupOptions {..} = do
         ..
       }
 
-addKeyPackage :: HasCallStack => Bool -> Qualified UserId -> ClientId -> RawMLS KeyPackage -> TestM ()
-addKeyPackage mapKeyPackage u c kp = do
-  let update = defUpdateClient {updateClientMLSPublicKeys = Map.singleton Ed25519 (bcSignatureKey (kpCredential (rmValue kp)))}
-  -- set public key
+addKeyPackage ::
+  HasCallStack =>
+  AddKeyPackage ->
+  Qualified UserId ->
+  ClientId ->
+  RawMLS KeyPackage ->
+  TestM ()
+addKeyPackage AddKeyPackage {..} u c kp = do
   brig <- view tsBrig
-  put
-    ( brig
-        . paths ["clients", toByteString' c]
-        . zUser (qUnqualified u)
-        . json update
-    )
-    !!! const 200 === statusCode
+
+  when setPublicKey $ do
+    -- set public key
+    let update = defUpdateClient {updateClientMLSPublicKeys = Map.singleton Ed25519 (bcSignatureKey (kpCredential (rmValue kp)))}
+    put
+      ( brig
+          . paths ["clients", toByteString' c]
+          . zUser (qUnqualified u)
+          . json update
+      )
+      !!! const 200 === statusCode
 
   -- upload key package
   post

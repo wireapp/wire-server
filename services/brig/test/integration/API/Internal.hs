@@ -59,6 +59,7 @@ import Wire.API.Team.Feature
 import qualified Wire.API.Team.Feature as ApiFt
 import qualified Wire.API.Team.Member as Team
 import Wire.API.User
+import Wire.API.User.Client
 
 tests :: Opt.Opts -> Manager -> Cass.ClientState -> Brig -> Endpoint -> Gundeck -> Galley -> IO TestTree
 tests opts mgr db brig brigep gundeck galley = do
@@ -70,13 +71,15 @@ tests opts mgr db brig brigep gundeck galley = do
         test mgr "suspend and unsuspend user" $ testSuspendUser db brig,
         test mgr "suspend non existing user and verify no db entry" $
           testSuspendNonExistingUser db brig,
-        testGroup "mls/key-packages" $
-          [ test mgr "fresh get" $ testKpcFreshGet brig,
-            test mgr "put,get" $ testKpcPutGet brig,
-            test mgr "get,get" $ testKpcGetGet brig,
-            test mgr "put,put" $ testKpcPutPut brig,
-            test mgr "add key package ref" $ testAddKeyPackageRef brig
-          ]
+        test mgr "mls/clients" $ testGetMlsClients brig,
+        testGroup
+          "mls/key-packages"
+          $ [ test mgr "fresh get" $ testKpcFreshGet brig,
+              test mgr "put,get" $ testKpcPutGet brig,
+              test mgr "get,get" $ testKpcGetGet brig,
+              test mgr "put,put" $ testKpcPutPut brig,
+              test mgr "add key package ref" $ testAddKeyPackageRef brig
+            ]
       ]
 
 testSuspendUser :: forall m. TestConstraints m => Cass.ClientState -> Brig -> m ()
@@ -223,6 +226,31 @@ testFeatureConferenceCallingByAccount (Opt.optSettings -> settings) mgr db brig 
   check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusEnabled ApiFt.ConferenceCallingConfig ApiFt.FeatureTTLUnlimited
   check $ ApiFt.WithStatusNoLock ApiFt.FeatureStatusDisabled ApiFt.ConferenceCallingConfig ApiFt.FeatureTTLUnlimited
   check'
+
+testGetMlsClients :: Brig -> Http ()
+testGetMlsClients brig = do
+  qusr <- userQualifiedId <$> randomUser brig
+  c <- createClient brig qusr 0
+  (cs0 :: Set ClientInfo) <-
+    responseJsonError
+      =<< get
+        ( brig
+            . paths ["i", "mls", "clients", toByteString' (qUnqualified qusr)]
+            . queryItem "sig_scheme" "ed25519"
+        )
+  liftIO $ toList cs0 @?= [ClientInfo c False]
+
+  withSystemTempDirectory "mls" $ \tmp ->
+    uploadKeyPackages brig tmp def qusr c 2
+
+  (cs1 :: Set ClientInfo) <-
+    responseJsonError
+      =<< get
+        ( brig
+            . paths ["i", "mls", "clients", toByteString' (qUnqualified qusr)]
+            . queryItem "sig_scheme" "ed25519"
+        )
+  liftIO $ toList cs1 @?= [ClientInfo c True]
 
 keyPackageCreate :: HasCallStack => Brig -> Http KeyPackageRef
 keyPackageCreate brig = do

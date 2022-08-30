@@ -32,6 +32,7 @@ module Galley.Effects.MemberStore
     getLocalMembers,
     getRemoteMember,
     getRemoteMembers,
+    checkLocalMemberRemoteConv,
     selectRemoteMembers,
 
     -- * Update members
@@ -64,6 +65,7 @@ data MemberStore m a where
   GetLocalMembers :: ConvId -> MemberStore m [LocalMember]
   GetRemoteMember :: ConvId -> Remote UserId -> MemberStore m (Maybe RemoteMember)
   GetRemoteMembers :: ConvId -> MemberStore m [RemoteMember]
+  CheckLocalMemberRemoteConv :: UserId -> Remote ConvId -> MemberStore m Bool
   SelectRemoteMembers :: [UserId] -> Remote ConvId -> MemberStore m ([UserId], Bool)
   SetSelfMember :: Qualified ConvId -> Local UserId -> MemberUpdate -> MemberStore m ()
   SetOtherMember :: Local ConvId -> Qualified UserId -> OtherMemberUpdate -> MemberStore m ()

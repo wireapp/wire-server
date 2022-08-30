@@ -88,9 +88,9 @@ import qualified Data.UUID as UUID
 import Imports
 import Servant
 import URI.ByteString
-import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 import Wire.API.Error
 import Wire.API.Routes.MultiVerb
+import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- Asset

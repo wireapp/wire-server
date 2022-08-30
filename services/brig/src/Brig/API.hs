@@ -38,6 +38,7 @@ import Brig.Sem.Twilio
 import Brig.Sem.UniqueClaimsStore
 import Brig.Sem.UserHandleStore
 import Brig.Sem.UserKeyStore
+import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Sem.UserQuery
 import Brig.Sem.VerificationCodeStore
 import Data.Qualified
@@ -53,6 +54,7 @@ import qualified Polysemy.TinyLog as P
 import qualified Ropes.Twilio as Twilio
 
 sitemap ::
+  forall r p.
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
@@ -75,6 +77,7 @@ sitemap ::
        UniqueClaimsStore,
        UserHandleStore,
        UserKeyStore,
+       UserPendingActivationStore p,
        UserQuery,
        VerificationCodeStore
      ]

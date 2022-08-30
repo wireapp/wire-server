@@ -74,9 +74,9 @@ import qualified Data.Text as Text
 import Data.Text.Ascii
 import qualified Data.Text.Encoding as Text
 import Imports
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Provider.Service.Tag (ServiceTag (..))
 import Wire.API.User.Profile (Asset, Name)
+import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- ServiceRef

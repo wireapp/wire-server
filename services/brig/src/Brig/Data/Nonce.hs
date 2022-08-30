@@ -17,7 +17,7 @@
 
 module Brig.Data.Nonce
   ( insertNonce,
-    deleteNonce,
+    lookupAndDeleteNonce,
   )
 where
 
@@ -25,24 +25,45 @@ import Brig.App (Env)
 import Brig.Data.Instances ()
 import Cassandra
 import Control.Lens hiding (from)
-import Data.Nonce (Nonce)
+import Data.Id (UserId)
+import Data.Nonce (Nonce, NonceTtlSecs)
 import Imports
 
 insertNonce ::
   (MonadClient m, MonadReader Brig.App.Env m) =>
-  Word64 ->
+  NonceTtlSecs ->
+  UserId ->
+  Text ->
   Nonce ->
   m ()
-insertNonce ttl nonce = retry x5 . write insert $ params LocalQuorum (Identity nonce)
+insertNonce ttl uid key nonce = retry x5 . write insert $ params LocalQuorum (uid, key, nonce, ttl)
   where
-    insert :: PrepQuery W (Identity Nonce) ()
-    insert = fromString $ "INSERT INTO client_nonce (nonce) VALUES (?) USING TTL " <> show ttl
+    insert :: PrepQuery W (UserId, Text, Nonce, NonceTtlSecs) ()
+    insert = "INSERT INTO nonce (user, key, nonce) VALUES (?, ?, ?) USING TTL ?"
+
+lookupAndDeleteNonce ::
+  (MonadClient m, MonadReader Env m) =>
+  UserId ->
+  Text ->
+  m (Maybe Nonce)
+lookupAndDeleteNonce uid key = lookupNonce uid key <* deleteNonce uid key
+
+lookupNonce ::
+  (MonadClient m, MonadReader Env m) =>
+  UserId ->
+  Text ->
+  m (Maybe Nonce)
+lookupNonce uid key = (runIdentity <$$>) . retry x5 . query1 get $ params LocalQuorum (uid, key)
+  where
+    get :: PrepQuery R (UserId, Text) (Identity Nonce)
+    get = "SELECT nonce FROM nonce WHERE user = ? AND key = ?"
 
 deleteNonce ::
   (MonadClient m, MonadReader Env m) =>
-  Nonce ->
+  UserId ->
+  Text ->
   m ()
-deleteNonce nonce = retry x5 . write delete $ params LocalQuorum (Identity nonce)
+deleteNonce uid key = retry x5 . write delete $ params LocalQuorum (uid, key)
   where
-    delete :: PrepQuery W (Identity Nonce) ()
-    delete = "DELETE FROM client_nonce WHERE nonce = ?"
+    delete :: PrepQuery W (UserId, Text) ()
+    delete = "DELETE FROM nonce WHERE user = ? AND key = ?"

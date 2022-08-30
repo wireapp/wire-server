@@ -62,12 +62,11 @@ import Wire.API.Federation.API.Brig
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.Version
 import Wire.API.MLS.KeyPackage
-import Wire.API.Message (UserClients)
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.Team.LegalHold (LegalholdProtectee (LegalholdPlusFederationNotImplemented))
 import Wire.API.User (UserProfile)
-import Wire.API.User.Client (PubClient, UserClientPrekeyMap)
+import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
 import Wire.API.User.Search
 import Wire.API.UserMap (UserMap)
@@ -214,7 +213,7 @@ searchUsers domain (SearchRequest searchTerm) = do
 getUserClients :: Domain -> GetUserClients -> (Handler r) (UserMap (Set PubClient))
 getUserClients _ (GetUserClients uids) = API.lookupLocalPubClientsBulk uids !>> clientError
 
-getMLSClients :: Domain -> MLSClientsRequest -> Handler r (Set ClientId)
+getMLSClients :: Domain -> MLSClientsRequest -> Handler r (Set ClientInfo)
 getMLSClients _domain mcr = do
   Internal.getMLSClients (mcrUserId mcr) (mcrSignatureScheme mcr)
 

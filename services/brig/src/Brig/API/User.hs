@@ -106,8 +106,6 @@ import Brig.Data.User
 import qualified Brig.Data.User as Data
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
-import Brig.Data.UserPendingActivation
-import qualified Brig.Data.UserPendingActivation as Data
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import qualified Brig.Effects.BlacklistPhonePrefixStore as BlacklistPhonePrefixStore
 import Brig.Effects.BlacklistStore (BlacklistStore)
@@ -130,6 +128,8 @@ import Brig.Sem.Twilio (Twilio)
 import Brig.Sem.UniqueClaimsStore
 import Brig.Sem.UserHandleStore
 import Brig.Sem.UserKeyStore (UserKeyStore)
+import Brig.Sem.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
+import qualified Brig.Sem.UserPendingActivationStore as UserPendingActivationStore
 import Brig.Sem.UserQuery (UserQuery)
 import Brig.Sem.UserQuery.Cassandra
 import Brig.Sem.VerificationCodeStore
@@ -317,7 +317,7 @@ createUserSpar new = do
 
 -- docs/reference/user/registration.md {#RefRegistration}
 createUser ::
-  forall r.
+  forall r p.
   Members
     '[ ActivationKeyStore,
        ActivationSupply,
@@ -331,6 +331,7 @@ createUser ::
        PasswordResetStore,
        Twilio,
        UserKeyStore,
+       UserPendingActivationStore p,
        UserQuery
      ]
     r =>
@@ -512,8 +513,8 @@ createUser new = do
           field "user" (toByteString uid)
             . field "team" (toByteString $ Team.iiTeam ii)
             . msg (val "Accepting invitation")
+        liftSem $ UserPendingActivationStore.remove uid
         wrapClient $ do
-          Data.usersPendingActivationRemove uid
           Team.deleteInvitation (Team.inTeam inv) (Team.inInvitation inv)
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
@@ -580,6 +581,7 @@ createUserInviteViaScim ::
   Members
     '[ BlacklistStore,
        UserKeyStore,
+       UserPendingActivationStore p,
        UserQuery
      ]
     r =>
@@ -599,7 +601,7 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = do
     ttl <- setTeamInvitationTimeout <$> view settings
     now <- liftIO =<< view currentTime
     pure $ addUTCTime (realToFrac ttl) now
-  lift . wrapClient $ Data.usersPendingActivationAdd (UserPendingActivation uid expiresAt)
+  lift . liftSem $ UserPendingActivationStore.add (UserPendingActivation uid expiresAt)
 
   let activated =
         -- treating 'PendingActivation' as 'Active', but then 'Brig.Data.User.toIdentity'

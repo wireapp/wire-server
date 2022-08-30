@@ -53,7 +53,6 @@ library
     Brig.Data.Types
     Brig.Data.User
     Brig.Data.UserKey
-    Brig.Data.UserPendingActivation
     Brig.Effects.BlacklistPhonePrefixStore
     Brig.Effects.BlacklistPhonePrefixStore.Cassandra
     Brig.Effects.BlacklistStore
@@ -111,6 +110,8 @@ library
     Brig.Sem.UserHandleStore.Cassandra
     Brig.Sem.UserKeyStore
     Brig.Sem.UserKeyStore.Cassandra
+    Brig.Sem.UserPendingActivationStore
+    Brig.Sem.UserPendingActivationStore.Cassandra
     Brig.Sem.UserQuery
     Brig.Sem.UserQuery.Cassandra
     Brig.Sem.VerificationCodeStore
@@ -192,7 +193,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields
+    -funbox-strict-fields -fplugin=Polysemy.Plugin
 
   build-depends:
       aeson                      >=2.0.1.0
@@ -267,6 +268,7 @@ library
     , pem                        >=0.2
     , polysemy
     , polysemy-conc
+    , polysemy-plugin
     , polysemy-time
     , polysemy-wire-zoo
     , proto-lens                 >=0.1
@@ -569,6 +571,7 @@ executable brig-integration
     , optparse-applicative
     , pem
     , polysemy
+    , polysemy-wire-zoo
     , process
     , proto-lens
     , QuickCheck
@@ -680,6 +683,7 @@ executable brig-schema
     V70_UserEmailUnvalidated
     V71_AddTableVCodesThrottle
     V72_AddNonceTable
+    V73_ReplaceNonceTable
     V9
 
   hs-source-dirs:     schema/src

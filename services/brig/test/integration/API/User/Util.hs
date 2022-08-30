@@ -563,6 +563,7 @@ getNonce ::
   (MonadIO m, MonadHttp m) =>
   Brig ->
   UserId ->
+  ClientId ->
   m ResponseLBS
 getNonce = nonce get
 
@@ -570,13 +571,14 @@ headNonce ::
   (MonadIO m, MonadHttp m) =>
   Brig ->
   UserId ->
+  ClientId ->
   m ResponseLBS
 headNonce = nonce Bilge.head
 
-nonce :: ((Request -> c) -> t) -> (Request -> c) -> UserId -> t
-nonce m brig uid =
+nonce :: ((Request -> c) -> t) -> (Request -> c) -> UserId -> ClientId -> t
+nonce m brig uid cid =
   m
     ( brig
-        . paths ["nonce", "clients"]
+        . paths ["clients", toByteString' cid, "nonce"]
         . zUser uid
     )

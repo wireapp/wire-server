@@ -38,8 +38,8 @@ import qualified Data.Text as T
 import Data.UUID
 import Imports
 import Web.HttpApiData
-import Wire.API.Arbitrary
 import Wire.API.MLS.Serialisation
+import Wire.Arbitrary
 
 -- | An MLS credential.
 --

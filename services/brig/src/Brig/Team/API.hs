@@ -39,6 +39,7 @@ import Brig.Sem.GalleyAccess
 import Brig.Sem.GundeckAccess
 import Brig.Sem.Twilio (Twilio)
 import Brig.Sem.UserKeyStore (UserKeyStore)
+import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Sem.UserQuery (UserQuery)
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
@@ -217,6 +218,7 @@ routesInternal ::
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
+       UserPendingActivationStore p,
        UserQuery
      ]
     r =>
@@ -342,6 +344,7 @@ createInvitationViaScimH ::
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
+       UserPendingActivationStore p,
        UserQuery
      ]
     r =>
@@ -357,6 +360,7 @@ createInvitationViaScim ::
        P.Error Twilio.ErrorResponse,
        Twilio,
        UserKeyStore,
+       UserPendingActivationStore p,
        UserQuery
      ]
     r =>

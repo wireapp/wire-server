@@ -55,6 +55,7 @@ import Brig.Sem.Twilio
 import Brig.Sem.UniqueClaimsStore
 import Brig.Sem.UserHandleStore
 import Brig.Sem.UserKeyStore
+import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Sem.UserQuery (UserQuery)
 import Brig.Sem.VerificationCodeStore
 import qualified Brig.Team.API as Team
@@ -68,7 +69,6 @@ import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.EJPD
 import qualified Brig.User.Search.Index as Index
-import Cassandra (MonadClient)
 import Control.Error hiding (bool)
 import Control.Lens (view)
 import Data.Aeson hiding (json)
@@ -136,6 +136,7 @@ servantSitemap ::
        UniqueClaimsStore,
        UserHandleStore,
        UserKeyStore,
+       UserPendingActivationStore p,
        UserQuery,
        VerificationCodeStore
      ]
@@ -185,6 +186,7 @@ accountAPI ::
        UniqueClaimsStore,
        UserHandleStore,
        UserKeyStore,
+       UserPendingActivationStore p,
        UserQuery
      ]
     r =>
@@ -235,19 +237,22 @@ getConvIdByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.keyPackageRe
 postKeyPackageRef :: KeyPackageRef -> KeyPackageRef -> Handler r ()
 postKeyPackageRef ref = lift . wrapClient . Data.updateKeyPackageRef ref
 
-getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientId)
-getMLSClients usr ss = do
-  results <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult
-  keys <- lift . wrapClient $ pooledMapConcurrentlyN 16 getKey' (toList results)
-  pure . Set.fromList . map fst . filter (isJust . snd) $ keys
+getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientInfo)
+getMLSClients usr _ss = do
+  -- FUTUREWORK: check existence of key packages with a given ciphersuite
+  lusr <- qualifyLocal usr
+  allClients <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult
+  clientInfo <- lift . wrapClient $ pooledMapConcurrentlyN 16 (getValidity lusr) (toList allClients)
+  pure . Set.fromList . map (uncurry ClientInfo) $ clientInfo
   where
     getResult [] = pure mempty
     getResult ((u, cs) : rs)
       | u == usr = pure cs
       | otherwise = getResult rs
 
-    getKey' :: MonadClient m => ClientId -> m (ClientId, Maybe LByteString)
-    getKey' cid = (cid,) <$> Data.lookupMLSPublicKey usr cid ss
+    getValidity lusr cid =
+      fmap ((cid,) . (> 0)) $
+        Data.countKeyPackages lusr cid
 
 mapKeyPackageRefsInternal :: KeyPackageBundle -> Handler r ()
 mapKeyPackageRefsInternal bundle = do
@@ -260,7 +265,7 @@ getVerificationCode ::
   Members '[VerificationCodeStore, UserQuery] r =>
   UserId ->
   VerificationAction ->
-  (Handler r) (Maybe Code.Value)
+  Handler r (Maybe Code.Value)
 getVerificationCode uid action = do
   loc <- fmap (qTagUnsafe @'QLocal) $ Qualified () <$> viewFederationDomain
   locale <- setDefaultUserLocale <$> view settings
@@ -301,6 +306,7 @@ sitemap ::
        UniqueClaimsStore,
        UserHandleStore,
        UserKeyStore,
+       UserPendingActivationStore p,
        UserQuery,
        VerificationCodeStore
      ]
@@ -553,6 +559,7 @@ createUserNoVerify ::
        PasswordResetStore,
        Twilio,
        UserKeyStore,
+       UserPendingActivationStore p,
        UserQuery
      ]
     r =>
