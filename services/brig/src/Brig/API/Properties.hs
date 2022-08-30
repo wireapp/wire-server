@@ -48,7 +48,7 @@ setProperty ::
   ExceptT PropertiesDataError (AppT r) ()
 setProperty u c k v = do
   wrapClientE $ Data.insertProperty u k (propertyRaw v)
-  lift $ Intra.onPropertyEvent u c (PropertySet u k v)
+  lift . liftSem $ Intra.onPropertyEvent u c (PropertySet u k v)
 
 deleteProperty ::
   Members '[Async, GundeckAccess] r =>
@@ -58,7 +58,7 @@ deleteProperty ::
   AppT r ()
 deleteProperty u c k = do
   wrapClient $ Data.deleteProperty u k
-  Intra.onPropertyEvent u c (PropertyDeleted u k)
+  liftSem $ Intra.onPropertyEvent u c (PropertyDeleted u k)
 
 clearProperties ::
   Members '[Async, GundeckAccess] r =>
@@ -67,4 +67,4 @@ clearProperties ::
   AppT r ()
 clearProperties u c = do
   wrapClient $ Data.clearProperties u
-  Intra.onPropertyEvent u c (PropertiesCleared u)
+  liftSem $ Intra.onPropertyEvent u c (PropertiesCleared u)

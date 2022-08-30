@@ -234,6 +234,6 @@ onUserDeleted origDomain udcn = lift $ do
   --   pooledForConcurrentlyN_ 16 (nonEmpty acceptedLocals) $ \(List1 -> recipients) ->
   -- TODO(md): run this in an effect interpreter because this is purely an optimisation
   for_ (nonEmpty acceptedLocals) $ \recipients ->
-    notify event (tUnqualified deletedUser) Push.RouteDirect Nothing (pure recipients)
+    liftSem $ notify event (tUnqualified deletedUser) Push.RouteDirect Nothing recipients
   wrapClient $ Data.deleteRemoteConnections deletedUser connections
   pure EmptyResponse

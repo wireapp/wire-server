@@ -170,7 +170,7 @@ transitionTo self mzcon other Nothing (Just rel) actor = lift $ do
         qcnv
 
   -- send event
-  pushEvent self mzcon connection
+  liftSem $ pushEvent self mzcon connection
   pure (Created connection, True)
 transitionTo _self _zcon _other (Just connection) Nothing _actor = pure (Existed connection, False)
 transitionTo self mzcon other (Just connection) (Just rel) actor = lift $ do
@@ -181,7 +181,7 @@ transitionTo self mzcon other (Just connection) (Just rel) actor = lift $ do
   connection' <- wrapClient $ Data.updateConnection connection (relationWithHistory rel)
 
   -- send event
-  pushEvent self mzcon connection'
+  liftSem $ pushEvent self mzcon connection'
   pure (Existed connection', True)
 
 -- | Send an event to the local user when the state of a connection changes.
@@ -190,7 +190,7 @@ pushEvent ::
   Local UserId ->
   Maybe ConnId ->
   UserConnection ->
-  AppT r ()
+  Sem r ()
 pushEvent self mzcon connection = do
   let event = ConnectionUpdated connection Nothing Nothing
   Intra.onConnectionEvent (tUnqualified self) mzcon event

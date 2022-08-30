@@ -165,7 +165,7 @@ onConnectionEvent ::
   Maybe ConnId ->
   -- | The event.
   ConnectionEvent ->
-  AppT r ()
+  Sem r ()
 onConnectionEvent orig conn evt = do
   let from = ucFrom (ucConn evt)
   notify
@@ -173,7 +173,7 @@ onConnectionEvent orig conn evt = do
     orig
     Push.RouteAny
     conn
-    (pure $ pure from)
+    (pure from)
 
 onPropertyEvent ::
   Members '[Async, GundeckAccess] r =>
@@ -182,14 +182,14 @@ onPropertyEvent ::
   -- | Client connection ID.
   ConnId ->
   PropertyEvent ->
-  AppT r ()
+  Sem r ()
 onPropertyEvent orig conn e =
   notify
     (pure $ PropertyEvent e)
     orig
     Push.RouteDirect
     (Just conn)
-    (pure $ pure orig)
+    (pure orig)
 
 onClientEvent ::
   Members '[GundeckAccess] r =>
@@ -199,14 +199,14 @@ onClientEvent ::
   Maybe ConnId ->
   -- | The event.
   ClientEvent ->
-  AppT r ()
+  Sem r ()
 onClientEvent orig conn e = do
   let events = pure (ClientEvent e)
   let rcps = pure orig
   -- Synchronous push for better delivery guarantees of these
   -- events and to make sure new clients have a first notification
   -- in the stream.
-  liftSem $ pushEvents events rcps orig Push.RouteAny conn
+  pushEvents events rcps orig Push.RouteAny conn
 
 updateSearchIndex ::
   ( MonadClient m,
@@ -284,11 +284,11 @@ dispatchNotifications orig conn e = case e of
   UserLegalHoldEnabled {} -> notifyContacts event orig Push.RouteAny conn
   UserUpdated UserUpdatedData {..}
     -- This relies on the fact that we never change the locale AND something else.
-    | isJust eupLocale -> notifySelf event orig Push.RouteDirect conn
+    | isJust eupLocale -> liftSem $ notifySelf event orig Push.RouteDirect conn
     | otherwise -> notifyContacts event orig Push.RouteDirect conn
-  UserActivated {} -> notifySelf event orig Push.RouteAny conn
-  UserIdentityUpdated {} -> notifySelf event orig Push.RouteDirect conn
-  UserIdentityRemoved {} -> notifySelf event orig Push.RouteDirect conn
+  UserActivated {} -> liftSem $ notifySelf event orig Push.RouteAny conn
+  UserIdentityUpdated {} -> liftSem $ notifySelf event orig Push.RouteDirect conn
+  UserIdentityRemoved {} -> liftSem $ notifySelf event orig Push.RouteDirect conn
   UserDeleted {} -> do
     -- n.b. Synchronously fetch the contact list on the current thread.
     -- If done asynchronously, the connections may already have been deleted.
@@ -305,7 +305,7 @@ notifyUserDeletionLocals ::
   AppT r ()
 notifyUserDeletionLocals deleted conn event = do
   recipients <- wrapClient $ (deleted :|) <$> lookupContactList deleted
-  notify event deleted Push.RouteDirect conn (pure recipients)
+  liftSem $ notify event deleted Push.RouteDirect conn recipients
 
 notifyUserDeletionRemotes ::
   forall m.
@@ -355,25 +355,24 @@ notify ::
   -- | Origin device connection, if any.
   Maybe ConnId ->
   -- | Users to notify.
-  AppT r (NonEmpty UserId) ->
-  AppT r ()
+  NonEmpty UserId ->
+  Sem r ()
 notify events orig route conn recipients = do
-  rs <- recipients
   fork (Just orig) $ do
-    pushEvents events rs orig route conn
+    pushEvents events recipients orig route conn
 
 fork ::
   Members '[Async] r =>
   Maybe UserId ->
   Sem r a ->
-  AppT r ()
+  Sem r ()
 fork _u act = do
   -- g <- view applog
   -- r <- view requestId
   -- let logErr e = P.err $ request r ~~ user u ~~ msg (show e)
   -- TODO(md): see what exceptions (if any) I can catch here. This is used
   -- exclusively in making a call to Gundeck, which is an effect
-  void $ liftSem (async act) -- >>= \case
+  void $ async act -- >>= \case
   -- Nothing -> liftSem $ logErr "sending events via Gundeck failed"
   -- Just _ -> pure ()
   where
@@ -395,9 +394,9 @@ notifySelf ::
   Push.Route ->
   -- | Origin device connection, if any.
   Maybe ConnId ->
-  AppT r ()
+  Sem r ()
 notifySelf events orig route conn =
-  notify events orig route conn (pure (pure orig))
+  notify events orig route conn (pure orig)
 
 notifyContacts ::
   Members
@@ -414,9 +413,9 @@ notifyContacts ::
   -- | Origin device connection, if any.
   Maybe ConnId ->
   AppT r ()
-notifyContacts events orig route conn =
-  notify events orig route conn $
-    (orig :|) <$> liftA2 (++) (wrapClient contacts) (liftSem teamContacts)
+notifyContacts events orig route conn = do
+  rs <- (orig :|) <$> liftA2 (++) (wrapClient contacts) (liftSem teamContacts)
+  liftSem $ notify events orig route conn rs
   where
     contacts :: MonadClient m => m [UserId]
     contacts = lookupContactList orig

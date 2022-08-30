@@ -187,14 +187,14 @@ addClientWithReAuthPolicy policy u con ip new = do
               else id
           lhcaps = ClientSupportsLegalholdImplicitConsent
   (clt0, old, count) <-
-    (Data.addClientWithReAuthPolicy policy u clientId' new maxPermClients loc caps)
+    Data.addClientWithReAuthPolicy policy u clientId' new maxPermClients loc caps
       !>> ClientDataError
   let clt = clt0 {clientMLSPublicKeys = newClientMLSPublicKeys new}
   let usr = accountUser acc
   lift $ do
     for_ old $ execDelete u con
     wrapHttp $ Intra.newClient u (clientId clt)
-    Intra.onClientEvent u con (ClientAdded u clt)
+    liftSem $ Intra.onClientEvent u con (ClientAdded u clt)
     when (clientType clt == LegalHoldClientType) $
       Intra.onUserEvent u con (UserLegalHoldEnabled u)
     when (count > 1) $
@@ -417,7 +417,7 @@ execDelete ::
 execDelete u con c = do
   wrapHttp $ Intra.rmClient u (clientId c)
   for_ (clientCookie c) $ \l -> wrapClient $ Auth.revokeCookies u [] [l]
-  Intra.onClientEvent u con (ClientRemoved u c)
+  liftSem $ Intra.onClientEvent u con (ClientRemoved u c)
   wrapClient $ Data.rmClient u (clientId c)
 
 -- | Defensive measure when no prekey is found for a
