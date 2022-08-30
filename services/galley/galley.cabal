@@ -81,7 +81,6 @@ library
     Galley.Effects.CustomBackendStore
     Galley.Effects.ExternalAccess
     Galley.Effects.FederatorAccess
-    Galley.Effects.FireAndForget
     Galley.Effects.GundeckAccess
     Galley.Effects.LegalHoldStore
     Galley.Effects.ListItems

@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,33 +15,22 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Effects.FireAndForget
-  ( FireAndForget,
-    fireAndForget,
-    spawnMany,
-    interpretFireAndForget,
-  )
-where
+module Wire.Sem.FireAndForget.IO (interpretFireAndForget) where
 
 import Imports
 import Polysemy
 import Polysemy.Final
 import UnliftIO.Async (pooledMapConcurrentlyN_)
-
-data FireAndForget m a where
-  FireAndForgetOne :: m () -> FireAndForget m ()
-  SpawnMany :: [m ()] -> FireAndForget m ()
-
-makeSem ''FireAndForget
-
-fireAndForget :: Member FireAndForget r => Sem r () -> Sem r ()
-fireAndForget = fireAndForgetOne
+import Wire.Sem.FireAndForget
 
 -- | Run actions in separate threads and ignore results.
 --
 -- /Note/: this will also ignore any state and error effects contained in the
 -- 'FireAndForget' action. Use with care.
-interpretFireAndForget :: Member (Final IO) r => Sem (FireAndForget ': r) a -> Sem r a
+interpretFireAndForget ::
+  Member (Final IO) r =>
+  Sem (FireAndForget ': r) a ->
+  Sem r a
 interpretFireAndForget = interpretFinal @IO $ \case
   FireAndForgetOne action -> do
     action' <- runS action

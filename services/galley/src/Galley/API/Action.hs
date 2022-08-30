@@ -62,7 +62,6 @@ import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.CodeStore as E
 import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
-import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
 import qualified Galley.Effects.TeamStore as E
 import Galley.Options
@@ -88,6 +87,7 @@ import Wire.API.Federation.Error
 import Wire.API.Team.LegalHold
 import Wire.API.Team.Member
 import qualified Wire.API.User as User
+import qualified Wire.Sem.FireAndForget as E
 
 data NoChanges = NoChanges
 

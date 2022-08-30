@@ -74,7 +74,6 @@ import Galley.Cassandra.Team
 import Galley.Cassandra.TeamFeatures
 import Galley.Cassandra.TeamNotifications
 import Galley.Effects
-import Galley.Effects.FireAndForget (interpretFireAndForget)
 import Galley.Effects.WaiRoutes.IO
 import Galley.Env
 import Galley.External
@@ -106,6 +105,7 @@ import qualified UnliftIO.Exception as UnliftIO
 import Util.Options
 import Wire.API.Error
 import Wire.API.Federation.Error
+import Wire.Sem.FireAndForget.IO (interpretFireAndForget)
 import qualified Wire.Sem.Logger
 
 -- Effects needed by the interpretation of other effects

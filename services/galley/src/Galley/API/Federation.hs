@@ -50,7 +50,6 @@ import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import qualified Galley.Effects.BrigAccess as E
 import qualified Galley.Effects.ConversationStore as E
-import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
 import Galley.Effects.ProposalStore (ProposalStore)
 import Galley.Options
@@ -88,6 +87,7 @@ import Wire.API.Message
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
 import Wire.API.ServantProto
+import qualified Wire.Sem.FireAndForget as E
 
 type FederationAPI = "federation" :> FedApi 'Galley
 

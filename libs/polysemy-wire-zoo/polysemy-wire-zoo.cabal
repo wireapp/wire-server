@@ -14,6 +14,8 @@ library
   exposed-modules:
     Polysemy.TinyLog
     Wire.Sem.Error
+    Wire.Sem.FireAndForget
+    Wire.Sem.FireAndForget.IO
     Wire.Sem.FromUTC
     Wire.Sem.Logger
     Wire.Sem.Logger.Level

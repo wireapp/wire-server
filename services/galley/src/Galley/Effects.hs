@@ -71,7 +71,6 @@ import Galley.Effects.ConversationStore
 import Galley.Effects.CustomBackendStore
 import Galley.Effects.ExternalAccess
 import Galley.Effects.FederatorAccess
-import Galley.Effects.FireAndForget
 import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore
 import Galley.Effects.ListItems
@@ -93,6 +92,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.TinyLog
 import Wire.API.Error
+import Wire.Sem.FireAndForget
 import Wire.Sem.Paging.Cassandra
 
 -- All the possible high-level effects.

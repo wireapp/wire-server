@@ -51,7 +51,6 @@ import Galley.API.Util
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import Galley.Effects.BrigAccess
-import Galley.Effects.FireAndForget
 import qualified Galley.Effects.LegalHoldStore as LegalHoldData
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
 import Galley.Effects.TeamMemberStore
@@ -79,6 +78,7 @@ import qualified Wire.API.Team.LegalHold as Public
 import Wire.API.Team.LegalHold.External hiding (userId)
 import Wire.API.Team.Member
 import Wire.API.User.Client.Prekey
+import Wire.Sem.FireAndForget
 import Wire.Sem.Paging
 import Wire.Sem.Paging.Cassandra
 
