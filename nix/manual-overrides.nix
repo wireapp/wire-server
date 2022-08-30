@@ -1,4 +1,5 @@
 { libsodium, protobuf, snappy, hlib, mls-test-cli }:
+# TODO: make sure the things marked unbroken are actually broken.
 hself: hsuper: {
   network-arbitrary = hlib.markUnbroken (hlib.doJailbreak hsuper.network-arbitrary);
   cql = hlib.markUnbroken hsuper.cql;
@@ -14,7 +15,6 @@ hself: hsuper: {
   text-short = hlib.dontCheck hsuper.text-short;
   aeson = hsuper.aeson_2_1_0_0;
   lens-aeson = hsuper.lens-aeson_1_2_1;
-  attoparsec = hsuper.attoparsec;
   swagger2 = hlib.doJailbreak hsuper.swagger2;
   servant-swagger-ui-core = hlib.doJailbreak hsuper.servant-swagger-ui-core;
   servant-swagger-ui = hlib.doJailbreak hsuper.servant-swagger-ui;

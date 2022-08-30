@@ -29,7 +29,8 @@ let
         servant-client = "servant-client";
         servant-client-core = "servant-client-core";
         servant-server = "servant-server";
-      };};
+      };
+    };
     hs-collectd = {
       src = fetchgit {
         url = "https://github.com/kim/hs-collectd";
@@ -171,6 +172,7 @@ let
       };
     };
   };
+  # TODO: This depends on <some-hardcoded-list-of-sha56sum-for-each-package-version-combo>, make it not depend on it.
   hackagePins = {
     kind-generics = "0.4.1.0";
     wai-route = "0.4.0";
@@ -179,10 +181,12 @@ let
     th-desugar = "1.11";
     one-liner = "1.0";
   };
+  # Name -> Source -> Maybe Subpath -> Drv
   mkGitDrv = name: src: subpath:
     let subpathArg = if subpath == null
                      then ""
                      else "--subpath='${subpath}'";
+    # TODO: Check things and do haddocks
     in hself.callCabal2nixWithOptions name src "--no-check --no-haddock ${subpathArg}" {};
   # [[AtrrSet]]
   gitPackages = lib.attrsets.mapAttrsToList (name: pin:
