@@ -1593,6 +1593,23 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
   externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "group"
   postMessage (qUnqualified (pUserId bob)) externalProposal !!! const 201 === statusCode
 
+  liftIO $ BS.writeFile (tmp </> "ext-proposal") externalProposal
+  void . liftIO $
+    spawn
+      ( cli
+          (pClientQid creator)
+          tmp
+          [ "consume",
+            "--group",
+            tmp </> "group",
+            "--in-place",
+            "--signer-key",
+            "TODO",
+            tmp </> "ext-proposal"
+          ]
+      )
+      Nothing
+
   (commitExternalAdd, Nothing) <-
     liftIO $
       pendingProposalsCommit tmp creator "group"
