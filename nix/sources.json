@@ -1,4 +1,16 @@
 {
+    "nix": {
+        "branch": "master",
+        "description": "Nix, the purely functional package manager",
+        "homepage": "https://nixos.org/",
+        "owner": "NixOS",
+        "repo": "nix",
+        "rev": "2.11.0",
+        "sha256": "0d4hwi0jxy1g9dad2vdnkmr19bxzqqc666z1kx4nqjiy69iykspp",
+        "type": "tarball",
+        "url": "https://github.com/NixOS/nix/archive/2.11.0.tar.gz",
+        "url_template": "https://github.com/<owner>/<repo>/archive/<rev>.tar.gz"
+    },
     "nixpkgs": {
         "branch": "hls-hlint-plugin-workaround",
         "description": "Wire's fork of NixOS/nixpkgs. Use until HLS > 1.7.0.0 is available in NixOS/nixpkgs",

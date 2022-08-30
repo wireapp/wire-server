@@ -145,31 +145,16 @@ let lib = pkgs.lib;
       pkgs.skopeo
     ];
 
-    ciImage = pkgs.dockerTools.buildImageWithNixDb {
+    sources = import ./sources.nix;
+    ciImage = import "${sources.nix}/docker.nix" {
+      inherit pkgs;
       name = "quay.io/wire/wire-server-ci";
-      copyToRoot = pkgs.buildEnv {
-        name = "image-root";
-        paths = commonTools ++ [
-          pkgs.cacert
-          pkgs.coreutils
-          pkgs.bashInteractive
-          pkgs.nix
-          pkgs.cachix
-          pkgs.dockerTools.usrBinEnv
-        ];
-      };
-      config.Env = [
-        "SSL_CERT_FILE=${toString pkgs.cacert.out}/etc/ssl/certs/ca-bundle.crt"
-      ];
-
-      runAsRoot = ''
-        #!${pkgs.runtimeShell}
-        ${pkgs.dockerTools.shadowSetup}
-        groupadd -g 30000 nixbld
-        for n in `seq 1 32`; do
-          useradd -c "Nix build user $n" -d /var/empty -g nixbld -G nixbld -M -N -r -s "${pkgs.shadow}/bin/nologin" -u "$((30000 + $n))" "nixbld$n";
-        done
-      '';
+      maxLayers = 2;
+      # We don't need to push the "latest" tag, every step in CI should depend
+      # deterministically on a specific image.
+      tag = null;
+      bundleNixpkgs = false;
+      extraPkgs = commonTools ++ [pkgs.cachix];
     };
 in {
   inherit ciImage;
