@@ -1586,11 +1586,27 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
 
   liftIO $ mergeWelcome tmp (fst bobClient1) "group" "group" "welcome"
 
-  bobClient2Qid <-
-    userClientQid (pUserId bob)
-      <$> withLastPrekeys (setupUserClient tmp CreateWithKey True (pUserId bob))
+  bobClient2 <- withLastPrekeys (setupUserClient tmp CreateWithKey True (pUserId bob))
+  let bobClient2Qid = userClientQid (pUserId bob) bobClient2
+  let bobWithClient2 = Participant (pUserId bob) (bobClient2 NonEmpty.<| pClientIds bob)
+
   externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "group"
   postMessage (qUnqualified (pUserId bob)) externalProposal !!! const 201 === statusCode
+
+  (commitExternalAdd, Nothing) <-
+    liftIO $
+      pendingProposalsCommit tmp creator "group"
+
+  testSuccessfulCommit MessagingSetup {users = [bobWithClient2], commit = commitExternalAdd, ..}
+
+  -- check that bob can now see the conversation
+  convs <-
+    responseJsonError =<< getConvs (qUnqualified (pUserId bob)) Nothing Nothing
+      <!! const 200 === statusCode
+  liftIO $
+    assertBool
+      "Users added to an MLS group should find it when listing conversations"
+      (conversation `elem` map cnvQualifiedId (convList convs))
 
 testExternalAddProposalWrongUser :: TestM ()
 testExternalAddProposalWrongUser = withSystemTempDirectory "mls" $ \tmp -> do
