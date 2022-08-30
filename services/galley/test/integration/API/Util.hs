@@ -2764,7 +2764,7 @@ wsAssertConvReceiptModeUpdate conv usr new n = do
   evtFrom e @?= usr
   evtData e @?= EdConvReceiptModeUpdate (ConversationReceiptModeUpdate new)
 
-wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Notification -> IO ()
+wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Notification -> IO ByteString
 wsAssertBackendRemoveProposal fromUser convId kpref n = do
   let e = List1.head (WS.unpackPayload n)
   ntfTransient n @?= False
@@ -2782,6 +2782,7 @@ wsAssertBackendRemoveProposal fromUser convId kpref n = do
           kpRefRemove @?= kpref
         otherProp -> error ("Exepected RemoveProposal but got " <> show otherProp)
     otherPayload -> error ("Exepected ProposalMessage but got " <> show otherPayload)
+  pure bs
   where
     getMLSMessageData :: Conv.EventData -> ByteString
     getMLSMessageData (EdMLSMessage bs) = bs

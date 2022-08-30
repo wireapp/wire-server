@@ -192,7 +192,7 @@ type instance MapError 'MLSClientMismatch = 'StaticError 409 "mls-client-mismatc
 
 type instance MapError 'MLSStaleMessage = 'StaticError 409 "mls-stale-message" "The conversation epoch in a message is too old"
 
-type instance MapError 'MLSCommitMissingReferences = 'StaticError 409 "mls-commit-missing-references" "The commit is not refrencing all pending proposals"
+type instance MapError 'MLSCommitMissingReferences = 'StaticError 409 "mls-commit-missing-references" "The commit is not referencing all pending proposals"
 
 type instance MapError 'MLSSelfRemovalNotAllowed = 'StaticError 409 "mls-self-removal-not-allowed" "Self removal from group is not allowed"
 

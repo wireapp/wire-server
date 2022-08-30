@@ -1709,9 +1709,9 @@ propUnsupported = withSystemTempDirectory "mls" $ \tmp -> do
 
 testBackendRemoveProposalLocalConvLocalUser :: TestM ()
 testBackendRemoveProposalLocalConvLocalUser = withSystemTempDirectory "mls" $ \tmp -> do
+  saveRemovalKey (tmp </> "removal.key")
   MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
   let [bobParticipant] = users
-  print bobParticipant
   let bob = pUserId bobParticipant
   let alice = pUserId creator
   testSuccessfulCommit MessagingSetup {users = [bobParticipant], ..}
@@ -1723,11 +1723,33 @@ testBackendRemoveProposalLocalConvLocalUser = withSystemTempDirectory "mls" $ \t
     deleteUser (qUnqualified bob) !!! const 200 === statusCode
 
     for_ kprefs $ \kp ->
-      WS.assertMatch_ (5 # WS.Second) wsA $ \notification ->
-        wsAssertBackendRemoveProposal bob conversation kp notification
+      WS.assertMatch_ (5 # WS.Second) wsA $ \notification -> do
+        msg <- wsAssertBackendRemoveProposal bob conversation kp notification
+        void . liftIO $
+          spawn
+            ( cli
+                (pClientQid creator)
+                tmp
+                $ [ "consume",
+                    "--group",
+                    tmp </> "group",
+                    "--in-place",
+                    "--signer-key",
+                    tmp </> "removal.key",
+                    "-"
+                  ]
+            )
+            (Just msg)
 
-  -- TODO: Add to test: commit  proposal (get ref from the notification) and check that commit is sucessful
-  pure ()
+  -- alice commits the external proposals
+  (commit', _) <- liftIO $ pendingProposalsCommit tmp creator "group"
+  events <-
+    postCommit
+      MessagingSetup
+        { commit = commit',
+          ..
+        }
+  liftIO $ events @?= []
 
 testBackendRemoveProposalLocalConvRemoteUser :: TestM ()
 testBackendRemoveProposalLocalConvRemoteUser = withSystemTempDirectory "mls" $ \tmp -> do
@@ -1777,5 +1799,6 @@ testBackendRemoveProposalLocalConvRemoteUser = withSystemTempDirectory "mls" $ \
             )
 
         for_ kprefs $ \kp ->
-          WS.assertMatch_ (5 # WS.Second) wsA $ \notification -> do
-            wsAssertBackendRemoveProposal (pUserId bob) conversation kp notification
+          WS.assertMatch_ (5 # WS.Second) wsA $ \notification ->
+            void $
+              wsAssertBackendRemoveProposal (pUserId bob) conversation kp notification
