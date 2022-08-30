@@ -9,17 +9,17 @@
 
 rustPlatform.buildRustPackage rec {
   name = "mls-test-cli-${version}";
-  version = "0.3.0";
+  version = "0.4.0";
   nativeBuildInputs = [ pkg-config perl ];
   buildInputs = [ libsodium ];
   src = fetchFromGitHub {
     owner = "wireapp";
     repo = "mls-test-cli";
-    sha256 = "sha256:1x8i39ivhf458jsz690rx2zsn01rkq3kvf7l5w1lfxxgypszd1lv";
-    rev = "0f3ae8c5256570b197f0f4e3a51b5e6f371bb38f";
+    sha256 = "sha256-6G01eONZb/61MrO/Py+ix7Psz+jl+3Cn7xUMez3osxw=";
+    rev = "d01258a290546a01a62dca21ba3d0e3863a288b4";
   };
   doCheck = false;
-  cargoSha256 = "sha256:1fi5cvbsvwa0z3fldr2xb86m6gv9paz3f0lx7xa6rkz345z7xq2h";
+  cargoSha256 = "sha256-frzVXP0lxXhPhfNL4zleHj2WSMwmQfCdTqkTbHXBFEI=";
   cargoDepsHook = ''
     mkdir -p mls-test-cli-${version}-vendor.tar.gz/ring/.git
   '';
