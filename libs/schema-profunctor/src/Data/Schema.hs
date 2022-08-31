@@ -888,8 +888,11 @@ instance S.HasSchema NamedSwaggerDoc S.Schema where
 instance S.HasSchema d S.Schema => S.HasSchema (SchemaP d v w a b) S.Schema where
   schema = doc . S.schema
 
-instance S.HasDescription SwaggerDoc (Maybe Text) where
-  description = declared . S.description
-
 instance S.HasDescription NamedSwaggerDoc (Maybe Text) where
   description = declared . S.schema . S.description
+
+instance {-# OVERLAPPABLE #-} S.HasDescription s a => S.HasDescription (WithDeclare s) a where
+  description = declared . S.description
+
+instance S.HasExample s a => S.HasExample (WithDeclare s) a where
+  example = declared . S.example
