@@ -76,6 +76,7 @@ import Wire.API.MLS.Group (convToGroupId)
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
+import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import Wire.API.Routes.Version
@@ -1591,9 +1592,20 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
   let bobWithClient2 = Participant (pUserId bob) (bobClient2 NonEmpty.<| pClientIds bob)
 
   externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "group"
+  msg <- liftIO $ decodeMLSError @(Message 'MLSPlainText) externalProposal
+  let payload = tbsMsgPayload . rmValue . msgTBS $ msg
+  let proposal =
+        case payload of
+          ProposalMessage rprop -> rmValue rprop
+          x -> error ("Expected ProposalMessage but got <> " <> show x)
+  let kp = case proposal of
+        (AddProposal kp') -> kp'
+        x -> error ("Expected AddProposal but got <> " <> show x)
+  let signerKey = bcSignatureKey . kpuCredential . rmValue . kpTBS . rmValue $ kp
+  liftIO $ BS.writeFile (tmp </> "proposal-signer.key") signerKey
+
   postMessage (qUnqualified (pUserId bob)) externalProposal !!! const 201 === statusCode
 
-  liftIO $ BS.writeFile (tmp </> "ext-proposal") externalProposal
   void . liftIO $
     spawn
       ( cli
@@ -1604,11 +1616,11 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
             tmp </> "group",
             "--in-place",
             "--signer-key",
-            "TODO",
-            tmp </> "ext-proposal"
+            tmp </> "proposal-signer.key",
+            "-"
           ]
       )
-      Nothing
+      (Just externalProposal)
 
   (commitExternalAdd, Nothing) <-
     liftIO $
