@@ -51,6 +51,7 @@ import Data.Singletons
 import Data.String.Conversions
 import qualified Data.Text as T
 import Data.Time
+import Debug.Trace
 import Federator.MockServer hiding (withTempMockFederator)
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
@@ -1575,34 +1576,30 @@ propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
 
 testExternalAddProposal :: TestM ()
 testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
-  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
-
-  bobClient1 <- assertOne . toList $ pClients bob
-  (commit, welcome) <-
-    liftIO $
-      setupCommit tmp creator "group" "group" $
-        NonEmpty.tail (pClients creator) <> [bobClient1]
-  testSuccessfulCommit MessagingSetup {users = [bob], ..}
-
-  liftIO $ mergeWelcome tmp (fst bobClient1) "group" "group" "welcome"
+  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (1, LocalUser) def {createConv = CreateConv}
+  bob <- assertOne . toList $ users
+  testSuccessfulCommit MessagingSetup {..}
 
   bobClient2 <- withLastPrekeys (setupUserClient tmp CreateWithKey True (pUserId bob))
   let bobClient2Qid = userClientQid (pUserId bob) bobClient2
-  let bobWithClient2 = Participant (pUserId bob) (bobClient2 NonEmpty.<| pClientIds bob)
 
-  externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "group"
-  msg <- liftIO $ decodeMLSError @(Message 'MLSPlainText) externalProposal
-  let payload = tbsMsgPayload . rmValue . msgTBS $ msg
-  let proposal =
-        case payload of
-          ProposalMessage rprop -> rmValue rprop
-          x -> error ("Expected ProposalMessage but got <> " <> show x)
-  let kp = case proposal of
-        (AddProposal kp') -> kp'
-        x -> error ("Expected AddProposal but got <> " <> show x)
-  let signerKey = bcSignatureKey . kpuCredential . rmValue . kpTBS . rmValue $ kp
-  liftIO $ BS.writeFile (tmp </> "proposal-signer.key") signerKey
+  -- we use "group" here, because bob can get the group state from the backend
+  externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "bobClient2-group"
+
+  -- extract signature key from proposal
+  do
+    msg <- liftIO $ decodeMLSError @(Message 'MLSPlainText) externalProposal
+    let payload = tbsMsgPayload . rmValue . msgTBS $ msg
+    let proposal =
+          case payload of
+            ProposalMessage rprop -> rmValue rprop
+            x -> error ("Expected ProposalMessage but got <> " <> show x)
+    let kp = case proposal of
+          (AddProposal kp') -> kp'
+          x -> error ("Expected AddProposal but got <> " <> show x)
+    traceM ("*** testExternalAddProposal 1 " <> (T.unpack . toBase64Text . unKeyPackageRef . fromJust . kpRef' $ kp))
+    let signerKey = bcSignatureKey . kpuCredential . rmValue . kpTBS . rmValue $ kp
+    liftIO $ BS.writeFile (tmp </> "proposal-signer.key") signerKey
 
   postMessage (qUnqualified (pUserId bob)) externalProposal !!! const 201 === statusCode
 
@@ -1622,20 +1619,42 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
       )
       (Just externalProposal)
 
-  (commitExternalAdd, Nothing) <-
+  (commitExternalAdd, Just welcomeBobClient2) <-
     liftIO $
       pendingProposalsCommit tmp creator "group"
 
-  testSuccessfulCommit MessagingSetup {users = [bobWithClient2], commit = commitExternalAdd, ..}
+  -- Create bobWithClient2 here so that the new client of bob is used
+  let bobWithClient2 = Participant (pUserId bob) (bobClient2 NonEmpty.<| pClientIds bob)
+  void $ postCommit MessagingSetup {users = [bobWithClient2], commit = commitExternalAdd, ..}
+  liftIO $ BS.writeFile (tmp </> "welcomeBobClient2") welcomeBobClient2
+  -- reset bob's group state
+  void . liftIO $
+    spawn
+      ( cli
+          (pClientQid bobWithClient2)
+          tmp
+          [ "group",
+            "from-welcome",
+            "--group-out",
+            tmp </> "bobClient2-group",
+            tmp </> "welcomeBobClient2"
+          ]
+      )
+      Nothing
 
-  -- check that bob can now see the conversation
-  convs <-
-    responseJsonError =<< getConvs (qUnqualified (pUserId bob)) Nothing Nothing
-      <!! const 200 === statusCode
-  liftIO $
-    assertBool
-      "Users added to an MLS group should find it when listing conversations"
-      (conversation `elem` map cnvQualifiedId (convList convs))
+  -- Bob's bobClient2 and its keypackage ref is known to backend, so this client
+  -- is able able to send an unencrypted message, e.g. a bare add proposal
+  bobClient3 <- withLastPrekeys (setupUserClient tmp CreateWithKey True (pUserId bob))
+  prop <-
+    liftIO $
+      bareAddProposal
+        tmp
+        bobWithClient2
+        (Participant (pUserId bob) (pure bobClient3))
+        "bobClient2-group"
+        "bobClient2-group"
+  postMessage (qUnqualified (pUserId bobWithClient2)) prop
+    !!! const 201 === statusCode
 
 testExternalAddProposalWrongUser :: TestM ()
 testExternalAddProposalWrongUser = withSystemTempDirectory "mls" $ \tmp -> do
