@@ -17,6 +17,7 @@
 
 module Galley.API.MLS.KeyPackage where
 
+import qualified Data.ByteString as BS
 import Galley.Effects.BrigAccess
 import Imports
 import Polysemy
@@ -24,6 +25,9 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+
+dummyCreatorKeyPackageRef :: KeyPackageRef
+dummyCreatorKeyPackageRef = KeyPackageRef (BS.replicate 16 0)
 
 derefKeyPackage ::
   Members

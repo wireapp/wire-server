@@ -31,7 +31,6 @@ module Galley.API.Create
 where
 
 import Control.Lens hiding ((??))
-import qualified Data.ByteString as BS
 import Data.Id
 import Data.List1 (list1)
 import Data.Misc (FutureWork (FutureWork))
@@ -41,6 +40,7 @@ import qualified Data.Set as Set
 import Data.Time
 import qualified Data.UUID.Tagged as U
 import Galley.API.Error
+import Galley.API.MLS.KeyPackage (dummyCreatorKeyPackageRef)
 import Galley.API.Mapping
 import Galley.API.One2One
 import Galley.API.Util
@@ -69,7 +69,6 @@ import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
 import Wire.API.Federation.Error
-import Wire.API.MLS.KeyPackage
 import Wire.API.Routes.Public.Galley (ConversationResponse)
 import Wire.API.Routes.Public.Util
 import Wire.API.Team
@@ -119,7 +118,7 @@ createGroupConversation lusr conn newConv = do
   case (newConvProtocol newConv, newConvCreatorClient newConv) of
     (ProtocolProteusTag, _) -> pure ()
     (ProtocolMLSTag, Just c) ->
-      E.addMLSClients lcnv (qUntagged lusr) (Set.singleton (c, KeyPackageRef (BS.replicate 16 0)))
+      E.addMLSClients lcnv (qUntagged lusr) (Set.singleton (c, dummyCreatorKeyPackageRef))
     (ProtocolMLSTag, Nothing) ->
       throw (InvalidPayload "Missing creator_client field when creating an MLS conversation")
 
