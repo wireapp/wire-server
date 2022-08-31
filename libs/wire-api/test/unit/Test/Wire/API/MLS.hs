@@ -199,7 +199,20 @@ testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
   let signerKeyFilename = "signer-key.bin"
   BS.writeFile (tmp </> signerKeyFilename) (convert publicKey)
 
-  void . liftIO $ spawn (cli qcid tmp ["consume", "--group", tmp </> groupFilename, "--signer-key", tmp </> signerKeyFilename, tmp </> messageFilename]) Nothing
+  void . liftIO $
+    spawn
+      ( cli
+          qcid
+          tmp
+          [ "consume",
+            "--group",
+            tmp </> groupFilename,
+            "--signer-key",
+            tmp </> signerKeyFilename,
+            tmp </> messageFilename
+          ]
+      )
+      Nothing
 
 createGroup :: FilePath -> String -> String -> GroupId -> IO ()
 createGroup tmp store groupName gid = do
