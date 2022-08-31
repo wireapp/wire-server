@@ -198,8 +198,8 @@ getMLSClients usr _ss = do
       | otherwise = getResult rs
 
     getValidity lusr cid =
-      (cid,) . (> 0) <$>
-        Data.countKeyPackages lusr cid
+      (cid,) . (> 0)
+        <$> Data.countKeyPackages lusr cid
 
 mapKeyPackageRefsInternal :: KeyPackageBundle -> Handler r ()
 mapKeyPackageRefsInternal bundle = do

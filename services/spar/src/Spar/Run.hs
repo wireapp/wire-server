@@ -65,7 +65,9 @@ initCassandra opts lgr = do
   let cassOpts = Types.cassandra opts
   connectString <-
     maybe
-      (Cas.initialContactsPlain (cassOpts ^. casEndpoint . epHost)) (Cas.initialContactsDisco "cassandra_spar" . cs) (Types.discoUrl opts)
+      (Cas.initialContactsPlain (cassOpts ^. casEndpoint . epHost))
+      (Cas.initialContactsDisco "cassandra_spar" . cs)
+      (Types.discoUrl opts)
   cas <-
     Cas.init $
       Cas.defSettings

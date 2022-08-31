@@ -164,7 +164,9 @@ initCassandra :: Opts -> Logger -> IO ClientState
 initCassandra o l = do
   c <-
     maybe
-      (C.initialContactsPlain (o ^. optCassandra . casEndpoint . epHost)) (C.initialContactsDisco "cassandra_galley" . unpack) (o ^. optDiscoUrl)
+      (C.initialContactsPlain (o ^. optCassandra . casEndpoint . epHost))
+      (C.initialContactsDisco "cassandra_galley" . unpack)
+      (o ^. optDiscoUrl)
   C.init
     . C.setLogger (C.mkLogger (Logger.clone (Just "cassandra.galley") l))
     . C.setContacts (NE.head c) (NE.tail c)

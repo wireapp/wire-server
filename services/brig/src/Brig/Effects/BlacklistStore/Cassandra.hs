@@ -1,5 +1,3 @@
-
-
 module Brig.Effects.BlacklistStore.Cassandra
   ( interpretBlacklistStoreToCassandra,
   )

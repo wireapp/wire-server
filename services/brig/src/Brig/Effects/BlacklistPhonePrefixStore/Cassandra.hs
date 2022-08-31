@@ -1,5 +1,3 @@
-
-
 module Brig.Effects.BlacklistPhonePrefixStore.Cassandra
   ( interpretBlacklistPhonePrefixStoreToCassandra,
   )
