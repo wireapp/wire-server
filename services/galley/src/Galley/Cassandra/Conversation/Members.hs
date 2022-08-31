@@ -372,6 +372,33 @@ addLocalMLSClients cid lusr cs =
           (Cassandra.Set (toList cs), cid, tUnqualified lusr)
       )
 
+removeMLSClients :: Local ConvId -> Qualified UserId -> Set.Set (ClientId, KeyPackageRef) -> Client ()
+removeMLSClients lcnv =
+  foldQualified
+    lcnv
+    (removeLocalMLSClients (tUnqualified lcnv))
+    (removeRemoteMLSClients (tUnqualified lcnv))
+
+removeLocalMLSClients :: ConvId -> Local UserId -> Set.Set (ClientId, KeyPackageRef) -> Client ()
+removeLocalMLSClients cid lusr cs =
+  retry x5 $
+    write
+      Cql.addLocalMLSClients
+      ( params
+          LocalQuorum
+          (Cassandra.Set (toList cs), cid, tUnqualified lusr)
+      )
+
+removeRemoteMLSClients :: ConvId -> Remote UserId -> Set.Set (ClientId, KeyPackageRef) -> Client ()
+removeRemoteMLSClients cid rusr cs =
+  retry x5 $
+    write
+      Cql.removeRemoteMLSClients
+      ( params
+          LocalQuorum
+          (Cassandra.Set (toList cs), cid, tDomain rusr, tUnqualified rusr)
+      )
+
 interpretMemberStoreToCassandra ::
   Members '[Embed IO, Input ClientState] r =>
   Sem (MemberStore ': r) a ->
@@ -395,3 +422,4 @@ interpretMemberStoreToCassandra = interpret $ \case
     embedClient $
       removeLocalMembersFromRemoteConv rcnv uids
   AddMLSClients lcnv quid cs -> embedClient $ addMLSClients lcnv quid cs
+  RemoveMLSClients lcnv quid cs -> embedClient $ removeMLSClients lcnv quid cs

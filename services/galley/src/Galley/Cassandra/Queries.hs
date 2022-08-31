@@ -374,6 +374,12 @@ addLocalMLSClients = "update member set mls_clients_keypackages = mls_clients_ke
 addRemoteMLSClients :: PrepQuery W (C.Set (ClientId, KeyPackageRef), ConvId, Domain, UserId) ()
 addRemoteMLSClients = "update member_remote_user set mls_clients_keypackages = mls_clients_keypackages + ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
 
+removeLocalMLSClients :: PrepQuery W (C.Set (ClientId, KeyPackageRef), ConvId, UserId) ()
+removeLocalMLSClients = "update member set mls_clients_keypackages = mls_clients_keypackages - ? where conv = ? and user = ?"
+
+removeRemoteMLSClients :: PrepQuery W (C.Set (ClientId, KeyPackageRef), ConvId, Domain, UserId) ()
+removeRemoteMLSClients = "update member_remote_user set mls_clients_keypackages = mls_clients_keypackages - ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
+
 acquireCommitLock :: PrepQuery W (GroupId, Epoch, Int32) Row
 acquireCommitLock = "insert into mls_commit_locks (group_id, epoch) values (?, ?) if not exists using ttl ?"
 
