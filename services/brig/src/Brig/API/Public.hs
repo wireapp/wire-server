@@ -522,7 +522,7 @@ newNonce uid cid = do
   pure (nonce, NoStore)
 
 createAccessToken ::
-  Qualified UserId ->
+  Local UserId ->
   ClientId ->
   Maybe Proof ->
   (Handler r) (DPoPAccessTokenResponse, CacheControl)

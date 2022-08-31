@@ -700,7 +700,7 @@ type UserClientAPI =
                     ( "Create an JWT DPoP access token for the client CSR, given a JWT DPoP proof, specified in the `DPoP` header. \
                       \The access token will be returned as JWT DPoP token in the `DPoP` header."
                     )
-               :> QualifiedCaptureUserId "uid"
+               :> ZLocalUser
                :> "clients"
                :> CaptureClientId "client"
                :> "access-token"

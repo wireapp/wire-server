@@ -442,7 +442,7 @@ removeLegalHoldClient uid = do
   wrapHttpClient $ Intra.onUserEvent uid Nothing (UserLegalHoldDisabled uid)
 
 createAccessToken ::
-  Qualified UserId ->
+  Local UserId ->
   ClientId ->
   Maybe Proof ->
   ExceptT CertEnrollmentError (AppT r) (DPoPAccessTokenResponse, CacheControl)
@@ -458,4 +458,5 @@ createAccessToken _userId _clientId = \case
     mapError = const CertEnrollmentError
 
 ffiStubGenerateDPoPToken :: ByteString -> IO (Either Int16 DPoPAccessToken)
-ffiStubGenerateDPoPToken = pure . Right . DPoPAccessToken
+ffiStubGenerateDPoPToken bs = do
+  pure . Right . DPoPAccessToken $ bs
