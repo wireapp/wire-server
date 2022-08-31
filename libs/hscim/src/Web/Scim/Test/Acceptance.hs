@@ -264,7 +264,7 @@ microsoftAzure AcceptanceConfig {..} = do
       -- Delete User
       delete' queryConfig ("/Users/" <> testuid) "" `shouldRespondWith` 204
       delete' queryConfig ("/Users/" <> testuid) "" `shouldEventuallyRespondWith` 404
-    it "Group operations" $ \_ -> pending
+    it "Group operations" $ const pending
 
 sampleUser1 :: Text -> L.ByteString
 sampleUser1 userName1 =

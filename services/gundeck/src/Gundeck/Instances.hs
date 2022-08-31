@@ -63,7 +63,7 @@ instance Cql ConnId where
 instance Cql EndpointArn where
   ctype = Tagged TextColumn
   toCql = CqlText . toText
-  fromCql (CqlText txt) = either Left pure (fromText txt)
+  fromCql (CqlText txt) = fromText txt
   fromCql _ = Left "EndpointArn: Text expected"
 
 instance Cql Token where

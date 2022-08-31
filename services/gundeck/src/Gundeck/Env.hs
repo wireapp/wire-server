@@ -70,9 +70,7 @@ createEnv m o = do
   l <- Logger.mkLogger (o ^. optLogLevel) (o ^. optLogNetStrings) (o ^. optLogFormat)
   c <-
     maybe
-      (C.initialContactsPlain (o ^. optCassandra . casEndpoint . epHost))
-      (C.initialContactsDisco "cassandra_gundeck")
-      (unpack <$> o ^. optDiscoUrl)
+      (C.initialContactsPlain (o ^. optCassandra . casEndpoint . epHost)) (C.initialContactsDisco "cassandra_gundeck" . unpack) (o ^. optDiscoUrl)
   n <-
     newManager
       tlsManagerSettings
