@@ -34,7 +34,6 @@ module Spar.Intra.BrigApp
     authorizeScimTokenManagement,
     parseResponse,
     giveDefaultHandle,
-    ensureAccountDeletedInBrig,
 
     -- * re-exports, mostly for historical reasons and lazyness
     emailFromSAML,
@@ -174,6 +173,3 @@ giveDefaultHandle usr = case userHandle usr of
         uid = userId usr
     BrigAccess.setHandle uid handle
     pure handle
-
-ensureAccountDeletedInBrig :: (HasCallStack, Member BrigAccess r) => UserId -> Sem r EnsureAccountDeletedResult
-ensureAccountDeletedInBrig = BrigAccess.ensureAccountDeleted
