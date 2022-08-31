@@ -73,6 +73,7 @@ import qualified Network.HTTP.Types as Http
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Utilities.Error as Error
 import qualified Network.Wai.Utilities.Error as Wai
+import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty hiding (Timeout)
 import Test.Tasty.Cannon hiding (Cannon)
 import qualified Test.Tasty.Cannon as WS
@@ -1657,17 +1658,15 @@ testEnsureAccountDeletedWithCompletelyDeletedUser brig cannon aws = do
         const (Right AccountAlreadyDeleted) === responseJsonEither
 
 testEnsureAccountDeletedWithNoUser :: Brig -> Http ()
-testEnsureAccountDeletedWithNoUser brig =
-  case parseIdFromText "19166173-49eb-49bc-962f-72c95f27a428" of
-    Right nonExistingUid ->
-      post
-        ( brig
-            . paths ["/i/users", toByteString' nonExistingUid, "ensure-deleted"]
-        )
-        !!! do
-          const 200 === statusCode
-          const (Right NoUser) === responseJsonEither
-    Left _ -> fail "Invalid test data! (This should never happen.)"
+testEnsureAccountDeletedWithNoUser brig = do
+  nonExistingUid :: UserId <- liftIO $ generate arbitrary
+  post
+    ( brig
+        . paths ["/i/users", toByteString' nonExistingUid, "ensure-deleted"]
+    )
+    !!! do
+      const 200 === statusCode
+      const (Right NoUser) === responseJsonEither
 
 testEnsureAccountDeletedWithNotDeletedUser :: HasCallStack => Brig -> Cannon -> AWS.Env -> Http ()
 testEnsureAccountDeletedWithNotDeletedUser brig cannon aws = do
