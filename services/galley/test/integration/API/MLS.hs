@@ -1580,7 +1580,10 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
   bob <- assertOne . toList $ users
   testSuccessfulCommit MessagingSetup {..}
 
-  bobClient2 <- withLastPrekeys (setupUserClient tmp CreateWithKey True (pUserId bob))
+  let pk1 : pk2 : _ = drop 3 someLastPrekeys
+  -- let withTheseLastPrekeys
+
+  bobClient2 <- withTheseLastPrekeys [pk1] (setupUserClient tmp CreateWithKey True (pUserId bob))
   let bobClient2Qid = userClientQid (pUserId bob) bobClient2
 
   -- we use "group" here, because bob can get the group state from the backend
@@ -1644,7 +1647,7 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
 
   -- Bob's bobClient2 and its keypackage ref is known to backend, so this client
   -- is able able to send an unencrypted message, e.g. a bare add proposal
-  bobClient3 <- withLastPrekeys (setupUserClient tmp CreateWithKey True (pUserId bob))
+  bobClient3 <- withTheseLastPrekeys [pk2] (setupUserClient tmp CreateWithKey True (pUserId bob))
   prop <-
     liftIO $
       bareAddProposal
