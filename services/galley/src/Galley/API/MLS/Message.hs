@@ -429,7 +429,7 @@ processCommit qusr senderClient con lconv epoch sender commit = do
                   )
                   $ cPath commit
               -- register the creator client
-              updateKeyPackageMapping lconv qusr creatorClient Nothing senderRef
+              updateKeyPackageMapping lconv qusr creatorClient (Just dummyCreatorKeyPackageRef) senderRef
             -- remote clients cannot send the first commit
             (_, Right _) -> throwS @'MLSStaleMessage
             -- uninitialised conversations should contain exactly one client
