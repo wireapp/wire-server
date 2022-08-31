@@ -383,7 +383,7 @@ removeLocalMLSClients :: ConvId -> Local UserId -> Set.Set (ClientId, KeyPackage
 removeLocalMLSClients cid lusr cs =
   retry x5 $
     write
-      Cql.addLocalMLSClients
+      Cql.removeLocalMLSClients
       ( params
           LocalQuorum
           (Cassandra.Set (toList cs), cid, tUnqualified lusr)
