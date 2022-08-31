@@ -79,7 +79,7 @@ where
 
 import qualified Cassandra as Cql
 import Control.Applicative
-import Control.Lens (over, view, (?~), (^.))
+import Control.Lens hiding (element, enum, set, (#), (.=))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Key as Key
@@ -96,6 +96,7 @@ import Data.Qualified
 import Data.Schema
 import qualified Data.Semigroup as Semigroup
 import qualified Data.Set as Set
+import Data.Swagger hiding (Schema, ToSchema, schema)
 import qualified Data.Swagger as Swagger
 import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text.Encoding as Text.E
@@ -497,9 +498,14 @@ mlsPublicKeysSchema =
     (fromMaybe mempty)
     ( optFieldWithDocModifier
         "mls_public_keys"
-        (description ?~ "Mapping from signature scheme (tags) to public key data")
+        ( (description ?~ "Mapping from signature scheme (tags) to public key data")
+            . fmap (example ?~ toJSON (Map.fromList $ map (,"base64==" :: Text) keys))
+        )
         (map_ base64Schema)
     )
+  where
+    keys :: [SignatureSchemeTag]
+    keys = [minBound .. maxBound]
 
 --------------------------------------------------------------------------------
 -- PubClient
