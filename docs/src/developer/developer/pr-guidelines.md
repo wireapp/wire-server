@@ -8,7 +8,9 @@ The recommended way to use this document is to copy the relevant checklists belo
 
 Every PR should add a new file in the appropriate subdirectory of `changelog.d`, containing just the text of the corresponding changelog entry. There is no need to explicitly write a PR number, because the `mk-changelog.sh` script (used on release) will add it automatically at the end. The name of the file does not matter, but it should be unique to avoid unnecessary conflicts (e.g. use the branch name).
 
-It is still possible to write the PR number manually if so desired, which is useful in case the entry is shared by multiple PRs. In that case, the script would leave the PR number reference intact, as long as it is at the very end of the entry, with no period afterwards, in brackets, and preceded by a `#` symbol (e.g. #2646). It is also possible to use the pattern `##` to refer to the current PR number. This will be replaced throughout.
+It is still possible to write the PR number manually if so desired, which is useful in case the entry is shared by multiple PRs, or if the PR is merged with a merge commit rather than by squashing. In that case, the script would leave the PR number reference intact, as long as it is at the very end of the entry, with no period afterwards, in brackets, and preceded by a `#` symbol (e.g. #2646).
+
+As long as the PR is merged by squashing, it is also possible to use the pattern `##` to refer to the current PR number. This will be replaced throughout.
 
 Multiline entries are supported, and are handled correctly by the script. Again, the PR reference should either be omitted or put at the very end. If multiple entries for a single PR are desired, there should be a different file for each of them.
 
