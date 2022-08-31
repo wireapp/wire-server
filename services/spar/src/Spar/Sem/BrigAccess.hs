@@ -34,7 +34,6 @@ module Spar.Sem.BrigAccess
     setLocale,
     getRichInfo,
     checkHandleAvailable,
-    delete,
     ensureAccountDeleted,
     ensureReAuthorised,
     ssoLogin,
@@ -78,7 +77,6 @@ data BrigAccess m a where
   SetLocale :: UserId -> Maybe Locale -> BrigAccess m ()
   GetRichInfo :: UserId -> BrigAccess m RichInfo
   CheckHandleAvailable :: Handle -> BrigAccess m Bool
-  Delete :: UserId -> BrigAccess m ()
   EnsureAccountDeleted :: UserId -> BrigAccess m EnsureAccountDeletedResult
   EnsureReAuthorised :: Maybe UserId -> Maybe PlainTextPassword -> Maybe Code.Value -> Maybe VerificationAction -> BrigAccess m ()
   SsoLogin :: UserId -> BrigAccess m SetCookie

@@ -443,8 +443,8 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
         when (mUserTeam == Just team) $ do
           if purge
             then do
-              BrigAccess.delete uid
               SAMLUserStore.delete uid uref
+              void $ BrigAccess.ensureAccountDeleted uid
             else do
               throwSparSem SparIdPHasBoundUsers
       when (Cas.hasMore page) $

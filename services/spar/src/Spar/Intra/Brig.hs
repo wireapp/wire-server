@@ -30,7 +30,6 @@ module Spar.Intra.Brig
     setBrigUserRichInfo,
     setBrigUserLocale,
     checkHandleAvailable,
-    deleteBrigUser,
     verifyDeletionBrigUser,
     createBrigUserSAML,
     createBrigUserNoSAML,
@@ -354,16 +353,6 @@ checkHandleAvailable hnd = do
         pure True
       | otherwise ->
         rethrow "brig" resp
-
--- | Call brig to delete a user
-deleteBrigUser :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m ()
-deleteBrigUser buid = do
-  resp :: ResponseLBS <-
-    call $
-      method DELETE
-        . paths ["/i/users", toByteString' buid]
-  unless (statusCode resp == 202) $
-    rethrow "brig" resp
 
 -- | Call brig to verify that a user has been completely deleted.
 -- Otherwise, do another deletion.
