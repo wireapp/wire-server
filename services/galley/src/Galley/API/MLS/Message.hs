@@ -348,7 +348,8 @@ type HasProposalEffects r =
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member MemberStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input (Local ())) r
   )
 
 type ClientMap = Map (Qualified UserId) (Set (ClientId, KeyPackageRef))
@@ -511,37 +512,42 @@ applyProposalRef conv groupId epoch (Ref ref) = do
   p <- getProposal groupId epoch ref >>= noteS @'MLSProposalNotFound
   checkEpoch epoch conv
   checkGroup groupId conv
-  applyProposal (rmValue p)
+  applyProposal (convId conv) (rmValue p)
 applyProposalRef conv _groupId _epoch (Inline p) = do
   suite <-
     preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) conv
       & noteS @'ConvNotFound
   checkProposalCipherSuite suite p
-  applyProposal p
+  applyProposal (convId conv) p
 
 applyProposal ::
   HasProposalEffects r =>
+  ConvId ->
   Proposal ->
   Sem r ProposalAction
-applyProposal (AddProposal kp) = do
+applyProposal convId (AddProposal kp) = do
   ref <- kpRef' kp & note (mlsProtocolError "Could not compute ref of a key package in an Add proposal")
   mbClientIdentity <- getClientByKeyPackageRef ref
   clientIdentity <- case mbClientIdentity of
-    Nothing ->
+    Nothing -> do
       -- external add proposal, the key package has not been claimed yet
-      ( either
+      ci <-
+        either
           (throw . mlsProtocolError . (<>) "Could not derive identity from key package: ")
           pure
           (kpIdentity (rmValue kp))
-      )
+      let qcid = cidQualifiedClient ci
+      lconvId <- qualifyLocal convId
+      addKeyPackageRef ref (fst <$> qcid) (snd (qUnqualified qcid)) (qUntagged lconvId)
+      pure ci
     Just ci ->
       -- ad-hoc add proposal in commit, the key package has been claimed before
       pure ci
   pure (paAddClient . fmap (fmap (,ref)) . cidQualifiedClient $ clientIdentity)
-applyProposal (RemoveProposal ref) = do
+applyProposal _conv (RemoveProposal ref) = do
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
   pure (paRemoveClient ((,ref) <$$> qclient))
-applyProposal _ = pure mempty
+applyProposal _conv _ = pure mempty
 
 checkProposalCipherSuite ::
   Members
