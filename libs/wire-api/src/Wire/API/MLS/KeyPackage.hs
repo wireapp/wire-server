@@ -189,6 +189,9 @@ data KeyPackage = KeyPackage
   }
   deriving stock (Eq, Show)
 
+instance S.ToSchema KeyPackage where
+  declareNamedSchema _ = pure (mlsSwagger "KeyPackage")
+
 kpProtocolVersion :: KeyPackage -> ProtocolVersion
 kpProtocolVersion = kpuProtocolVersion . rmValue . kpTBS
 

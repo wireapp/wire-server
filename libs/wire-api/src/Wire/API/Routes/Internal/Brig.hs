@@ -30,6 +30,7 @@ module Wire.API.Routes.Internal.Brig
     swaggerDoc,
     module Wire.API.Routes.Internal.Brig.EJPD,
     NewKeyPackageRef (..),
+    NewKeyPackage (..),
   )
 where
 
@@ -155,6 +156,7 @@ type AccountAPI =
                :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
            )
 
+-- | The missing ref is implicit by the capture
 data NewKeyPackageRef = NewKeyPackageRef
   { nkprUserId :: Qualified UserId,
     nkprClientId :: ClientId,
@@ -170,6 +172,24 @@ instance ToSchema NewKeyPackageRef where
         <$> nkprUserId .= field "user_id" schema
           <*> nkprClientId .= field "client_id" schema
           <*> nkprConversation .= field "conversation" schema
+
+data NewKeyPackage = NewKeyPackage
+  { nkpUserId :: Qualified UserId,
+    nkpClientId :: ClientId,
+    nkpConversation :: Qualified ConvId,
+    nkpKeyPackage :: KeyPackageData
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewKeyPackage)
+
+instance ToSchema NewKeyPackage where
+  schema =
+    object "NewKeyPackage" $
+      NewKeyPackage
+        <$> nkpUserId .= field "user_id" schema
+          <*> nkpClientId .= field "client_id" schema
+          <*> nkpConversation .= field "conversation" schema
+          <*> nkpKeyPackage .= field "key_package" schema
 
 type MLSAPI =
   "mls"
@@ -214,6 +234,14 @@ type MLSAPI =
          )
            :<|> GetMLSClients
            :<|> MapKeyPackageRefs
+           :<|> ( "key-packages"
+                    :> "add"
+                    :> ReqBody '[Servant.JSON] NewKeyPackage
+                    :> MultiVerb1
+                         'PUT
+                         '[Servant.JSON]
+                         (Respond 200 "Key package ref mapping updated" KeyPackageRef)
+                )
        )
 
 type PutConversationByKeyPackageRef =

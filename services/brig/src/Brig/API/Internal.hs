@@ -28,6 +28,7 @@ import qualified Brig.API.Client as API
 import qualified Brig.API.Connection as API
 import Brig.API.Error
 import Brig.API.Handler
+import Brig.API.MLS.KeyPackages.Validation
 import Brig.API.Types
 import qualified Brig.API.User as API
 import qualified Brig.API.User as Api
@@ -86,7 +87,8 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
-import Wire.API.Routes.Internal.Brig (NewKeyPackageRef)
+import Wire.API.MLS.Serialisation (RawMLS, decodeMLS')
+import Wire.API.Routes.Internal.Brig (NewKeyPackage (..), NewKeyPackageRef (..))
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
@@ -130,6 +132,7 @@ mlsAPI =
   )
     :<|> getMLSClients
     :<|> mapKeyPackageRefsInternal
+    :<|> upsertKeyPackage
 
 accountAPI ::
   Members
@@ -184,6 +187,24 @@ getConvIdByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.keyPackageRe
 postKeyPackageRef :: KeyPackageRef -> KeyPackageRef -> Handler r ()
 postKeyPackageRef ref = lift . wrapClient . Data.updateKeyPackageRef ref
 
+-- Used by galley to update key package refs and also validate
+upsertKeyPackage :: NewKeyPackage -> Handler r KeyPackageRef
+upsertKeyPackage nkp = do
+  kp :: RawMLS KeyPackage <- decodeMLS' (kpData . nkpKeyPackage $ nkp) & hush & noteH "Cannot decocode keypackage"
+  ref <- kpRef' kp & noteH "Unsupported ciphersuite"
+
+  let identity = mkClientIdentity (nkpUserId nkp) (nkpClientId nkp)
+  mp <- lift . wrapClient . runMaybeT $ Data.derefKeyPackage ref
+  when (isNothing mp) $ do
+    void $ validateKeyPackage identity kp
+    lift . wrapClient $ Data.addKeyPackageRef ref (NewKeyPackageRef (nkpUserId nkp) (nkpClientId nkp) (nkpConversation nkp))
+
+  pure ref
+  where
+    noteH :: Text -> Maybe a -> Handler r a
+    noteH errMsg Nothing = mlsProtocolError errMsg
+    noteH _ (Just y) = pure y
+
 getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientInfo)
 getMLSClients usr _ss = do
   -- FUTUREWORK: check existence of key packages with a given ciphersuite
@@ -198,8 +219,8 @@ getMLSClients usr _ss = do
       | otherwise = getResult rs
 
     getValidity lusr cid =
-      fmap ((cid,) . (> 0)) $
-        Data.countKeyPackages lusr cid
+      (cid,) . (> 0)
+        <$> Data.countKeyPackages lusr cid
 
 mapKeyPackageRefsInternal :: KeyPackageBundle -> Handler r ()
 mapKeyPackageRefsInternal bundle = do
