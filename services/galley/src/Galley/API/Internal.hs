@@ -40,7 +40,7 @@ import qualified Galley.API.CustomBackend as CustomBackend
 import Galley.API.Error
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
-import Galley.API.MLS.Message (mlsRemoveUser)
+import Galley.API.MLS.Removal
 import Galley.API.One2One
 import Galley.API.Public
 import Galley.API.Public.Servant
@@ -684,7 +684,7 @@ rmUser lusr conn = do
         ConnectConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
           | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
-            runError (mlsRemoveUser c (qUntagged lusr)) >>= \case
+            runError (removeUser (qualifyAs lusr c) (qUntagged lusr)) >>= \case
               Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
               Right _ -> pure ()
             deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])

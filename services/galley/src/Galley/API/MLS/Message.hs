@@ -20,15 +20,13 @@ module Galley.API.MLS.Message
   ( postMLSMessageFromLocalUser,
     postMLSMessageFromLocalUserV1,
     postMLSMessage,
-    mlsRemoveUser,
     MLSMessageStaticErrors,
   )
 where
 
 import Control.Comonad
-import Control.Lens (preview, to, view)
+import Control.Lens (preview, to)
 import Data.Bifunctor
-import Data.Domain
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
@@ -40,11 +38,10 @@ import Data.Time
 import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.KeyPackage
-import Galley.API.Push
+import Galley.API.MLS.Propagate
 import Galley.API.Util
 import Galley.Data.Conversation.Types hiding (Conversation)
 import qualified Galley.Data.Conversation.Types as Data
-import Galley.Data.Services
 import Galley.Data.Types
 import Galley.Effects
 import Galley.Effects.BrigAccess
@@ -56,14 +53,12 @@ import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Imports
-import Network.Wai.Utilities.Server
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal
 import Polysemy.Resource (Resource, bracket)
 import Polysemy.TinyLog
-import qualified System.Logger.Class as Logger
 import Wire.API.Conversation hiding (Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
@@ -78,7 +73,6 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import qualified Wire.API.MLS.Proposal as Proposal
@@ -294,7 +288,7 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
         Left _ -> throwS @'MLSUnsupportedMessage
 
     -- forward message
-    propagateMessage lcnv qusr conv con (rmRaw smsg)
+    propagateMessage qusr (qualifyAs loc conv) con (rmRaw smsg)
 
     pure events
 
@@ -337,20 +331,25 @@ postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
 type HasProposalEffects r =
   ( Member BrigAccess r,
     Member ConversationStore r,
+    Member (Error InternalError) r,
     Member (Error MLSProposalFailure) r,
     Member (Error MLSProtocolError) r,
-    Member (ErrorS 'MLSKeyPackageRefNotFound) r,
     Member (ErrorS 'MLSClientMismatch) r,
+    Member (ErrorS 'MLSKeyPackageRefNotFound) r,
     Member (ErrorS 'MLSUnsupportedProposal) r,
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
+    Member (Input Env) r,
+    Member (Input (Local ())) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member MemberStore r,
+    Member ProposalStore r,
     Member TeamStore r,
-    Member (Input (Local ())) r
+    Member TeamStore r,
+    Member TinyLog r
   )
 
 type ClientMap = Map (Qualified UserId) (Set (ClientId, KeyPackageRef))
@@ -692,6 +691,7 @@ executeProposalAction ::
   forall r.
   ( Member BrigAccess r,
     Member ConversationStore r,
+    Member (Error InternalError) r,
     Member (ErrorS 'ConvNotFound) r,
     Member (Error FederationError) r,
     Member (ErrorS 'MLSClientMismatch) r,
@@ -703,11 +703,14 @@ executeProposalAction ::
     Member ExternalAccess r,
     Member FederatorAccess r,
     Member GundeckAccess r,
+    Member (Input Env) r,
     Member (Input Opts) r,
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member MemberStore r,
-    Member TeamStore r
+    Member ProposalStore r,
+    Member TeamStore r,
+    Member TinyLog r
   ) =>
   Qualified UserId ->
   Maybe ConnId ->
@@ -833,71 +836,6 @@ convClientMap lconv =
     localMember lm = Map.singleton (qUntagged (qualifyAs lconv (lmId lm))) (lmMLSClients lm)
     remoteMember rm = Map.singleton (qUntagged (rmId rm)) (rmMLSClients rm)
 
--- | Propagate a message.
-propagateMessage ::
-  ( Member ExternalAccess r,
-    Member FederatorAccess r,
-    Member GundeckAccess r,
-    Member (Input UTCTime) r,
-    Member TinyLog r
-  ) =>
-  Local x ->
-  Qualified UserId ->
-  Data.Conversation ->
-  Maybe ConnId ->
-  ByteString ->
-  Sem r ()
-propagateMessage loc qusr conv con raw = do
-  -- FUTUREWORK: check the epoch
-  let lmems = Data.convLocalMembers conv
-      botMap = Map.fromList $ do
-        m <- lmems
-        b <- maybeToList $ newBotMember m
-        pure (lmId m, b)
-      mm = defMessageMetadata
-  now <- input @UTCTime
-  let lcnv = qualifyAs loc (Data.convId conv)
-      qcnv = qUntagged lcnv
-      e = Event qcnv qusr now $ EdMLSMessage raw
-      lclients = tUnqualified . clients <$> lmems
-      mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
-      mkPush u c = newMessagePush lcnv botMap con mm (u, c) e
-  runMessagePush loc (Just qcnv) $
-    foldMap (uncurry mkPush) (cToList =<< lclients)
-
-  -- send to remotes
-  traverse_ handleError <=< runFederatedConcurrentlyEither (map remoteMemberQualify (Data.convRemoteMembers conv)) $
-    \(tUnqualified -> rs) ->
-      fedClient @'Galley @"on-mls-message-sent" $
-        RemoteMLSMessage
-          { rmmTime = now,
-            rmmSender = qusr,
-            rmmMetadata = mm,
-            rmmConversation = tUnqualified lcnv,
-            rmmRecipients = rs >>= remoteMemberMLSClients,
-            rmmMessage = Base64ByteString raw
-          }
-  where
-    cToList :: (UserId, Set ClientId) -> [(UserId, ClientId)]
-    cToList (u, s) = (u,) <$> Set.toList s
-
-    clients :: LocalMember -> Local (UserId, Set ClientId)
-    clients LocalMember {..} = qualifyAs loc (lmId, Set.map fst lmMLSClients)
-
-    remoteMemberMLSClients :: RemoteMember -> [(UserId, ClientId)]
-    remoteMemberMLSClients rm =
-      map
-        (tUnqualified (rmId rm),)
-        (toList (Set.map fst (rmMLSClients rm)))
-
-    handleError :: Member TinyLog r => Either (Remote [a], FederationError) x -> Sem r ()
-    handleError (Right _) = pure ()
-    handleError (Left (r, e)) =
-      warn $
-        Logger.msg ("A message could not be delivered to a remote backend" :: ByteString)
-          . Logger.field "remote_domain" (domainText (tDomain r))
-          . logErrorMsg (toWai e)
-
 getMLSClients ::
   Members '[BrigAccess, FederatorAccess] r =>
   Local x ->
@@ -1011,39 +949,3 @@ withCommitLock gid epoch ttl action =
     )
     (const $ releaseCommitLock gid epoch)
     (const action)
-
-mlsRemoveUser ::
-  ( Members
-      '[ Input UTCTime,
-         TinyLog,
-         ExternalAccess,
-         FederatorAccess,
-         GundeckAccess,
-         Error InternalError,
-         ProposalStore,
-         Input Env,
-         Input (Local ())
-       ]
-      r
-  ) =>
-  Data.Conversation ->
-  Qualified UserId ->
-  Sem r ()
-mlsRemoveUser c qusr = do
-  loc <- qualifyLocal ()
-  case Data.convProtocol c of
-    ProtocolProteus -> pure ()
-    ProtocolMLS meta -> do
-      keyPair <- mlsKeyPair_ed25519 <$> (inputs (view mlsKeys) <*> pure RemovalPurpose)
-      (secKey, pubKey) <- note (InternalErrorWithDescription "backend removal key missing") $ keyPair
-      for_ (getConvMemberMLSClients loc c qusr) $ \cpks ->
-        for_ cpks $ \(_client, kpref) -> do
-          let proposal = mkRemoveProposal kpref
-              msg = mkSignedMessage secKey pubKey (cnvmlsGroupId meta) (cnvmlsEpoch meta) (ProposalMessage proposal)
-              msgEncoded = encodeMLS' msg
-          storeProposal
-            (cnvmlsGroupId meta)
-            (cnvmlsEpoch meta)
-            (proposalRef (cnvmlsCipherSuite meta) proposal)
-            proposal
-          propagateMessage loc qusr c Nothing msgEncoded

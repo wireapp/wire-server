@@ -40,6 +40,7 @@ import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Message
+import Galley.API.MLS.Removal
 import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
@@ -291,13 +292,17 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 leaveConversation ::
   Members
     '[ ConversationStore,
+       Error InternalError,
        Error InvalidInput,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input (Local ()),
        Input UTCTime,
-       MemberStore
+       MemberStore,
+       ProposalStore,
+       TinyLog
      ]
     r =>
   Domain ->
@@ -459,7 +464,7 @@ onUserDeleted origDomain udcn = do
             Public.RegularConv -> do
               let action = pure untaggedDeletedUser
                   botsAndMembers = convBotsAndMembers conv
-              mlsRemoveUser conv (qUntagged deletedUser)
+              removeUser (qualifyAs lc conv) (qUntagged deletedUser)
               void $
                 notifyConversationAction
                   (sing @'ConversationLeaveTag)
@@ -483,11 +488,14 @@ updateConversation ::
          FederatorAccess,
          Error InternalError,
          GundeckAccess,
+         Input Env,
          Input Opts,
          Input UTCTime,
          LegalHoldStore,
          MemberStore,
+         ProposalStore,
          TeamStore,
+         TinyLog,
          ConversationStore,
          Input (Local ())
        ]
@@ -563,6 +571,7 @@ sendMLSMessage ::
         FederatorAccess,
         GundeckAccess,
         Input (Local ()),
+        Input Env,
         Input Opts,
         Input UTCTime,
         LegalHoldStore,

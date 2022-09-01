@@ -51,7 +51,9 @@ import qualified Data.Set as Set
 import Data.Singletons
 import Data.Time.Clock
 import Galley.API.Error
+import Galley.API.MLS.Removal
 import Galley.API.Util
+import Galley.App
 import Galley.Data.Conversation
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services
@@ -64,6 +66,7 @@ import qualified Galley.Effects.ConversationStore as E
 import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.FireAndForget as E
 import qualified Galley.Effects.MemberStore as E
+import Galley.Effects.ProposalStore
 import qualified Galley.Effects.TeamStore as E
 import Galley.Options
 import Galley.Types.Conversations.Members
@@ -73,6 +76,7 @@ import Imports
 import Polysemy
 import Polysemy.Error
 import Polysemy.Input
+import Polysemy.TinyLog
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger as Log
 import Wire.API.Conversation hiding (Conversation, Member)
@@ -96,6 +100,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
     Members
       '[ BrigAccess,
          Error FederationError,
+         Error InternalError,
          ErrorS 'NotATeamMember,
          ErrorS 'NotConnected,
          ErrorS ('ActionDenied 'LeaveConversation),
@@ -108,17 +113,33 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
+         Input Env,
          Input Opts,
          Input UTCTime,
          LegalHoldStore,
          MemberStore,
+         ProposalStore,
          TeamStore,
+         TinyLog,
          ConversationStore,
          Error NoChanges
        ]
       r
   HasConversationActionEffects 'ConversationLeaveTag r =
-    (Members '[MemberStore, Error NoChanges] r)
+    ( Members
+        '[ MemberStore,
+           Error InternalError,
+           Error NoChanges,
+           ExternalAccess,
+           FederatorAccess,
+           GundeckAccess,
+           Input UTCTime,
+           Input Env,
+           ProposalStore,
+           TinyLog
+         ]
+        r
+    )
   HasConversationActionEffects 'ConversationRemoveMembersTag r =
     (Members '[MemberStore, Error NoChanges] r)
   HasConversationActionEffects 'ConversationMemberUpdateTag r =
@@ -132,6 +153,7 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
       '[ BotAccess,
          BrigAccess,
          CodeStore,
+         Error InternalError,
          Error InvalidInput,
          Error NoChanges,
          ErrorS 'InvalidTargetAccess,
@@ -140,8 +162,11 @@ type family HasConversationActionEffects (tag :: ConversationActionTag) r :: Con
          FederatorAccess,
          FireAndForget,
          GundeckAccess,
+         Input Env,
          MemberStore,
+         ProposalStore,
          TeamStore,
+         TinyLog,
          Input UTCTime,
          ConversationStore
        ]
@@ -267,6 +292,7 @@ performAction tag origUser lconv action = do
       let presentVictims = filter (isConvMemberL lconv) (toList action)
       when (null presentVictims) noChanges
       E.deleteMembers (tUnqualified lcnv) (toUserList lconv presentVictims)
+      traverse_ (removeUser lconv) presentVictims
       pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?
     SConversationRemoveMembersTag -> do
       let presentVictims = filter (isConvMemberL lconv) (toList action)
@@ -368,6 +394,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
     checkLHPolicyConflictsLocal ::
       Members
         '[ ConversationStore,
+           Error InternalError,
            ErrorS ('ActionDenied 'LeaveConversation),
            ErrorS 'InvalidOperation,
            ErrorS 'ConvNotFound,
@@ -375,11 +402,14 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
            ExternalAccess,
            FederatorAccess,
            GundeckAccess,
+           Input Env,
            Input Opts,
            Input UTCTime,
            LegalHoldStore,
            MemberStore,
-           TeamStore
+           ProposalStore,
+           TeamStore,
+           TinyLog
          ]
         r =>
       [UserId] ->
@@ -519,6 +549,7 @@ updateLocalConversation ::
          ExternalAccess,
          FederatorAccess,
          GundeckAccess,
+         Input Env,
          Input UTCTime
        ]
       r,

@@ -85,6 +85,7 @@ import Galley.API.Mapping
 import Galley.API.Message
 import qualified Galley.API.Query as Query
 import Galley.API.Util
+import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Services as Data
 import Galley.Data.Types hiding (Conversation)
@@ -96,6 +97,7 @@ import qualified Galley.Effects.ExternalAccess as E
 import qualified Galley.Effects.FederatorAccess as E
 import qualified Galley.Effects.GundeckAccess as E
 import qualified Galley.Effects.MemberStore as E
+import Galley.Effects.ProposalStore
 import qualified Galley.Effects.ServiceStore as E
 import Galley.Effects.TeamFeatureStore (FeaturePersistentConstraint)
 import Galley.Effects.WaiRoutes
@@ -265,20 +267,24 @@ type UpdateConversationAccessEffects =
      BrigAccess,
      CodeStore,
      ConversationStore,
-     ExternalAccess,
-     FederatorAccess,
-     FireAndForget,
-     GundeckAccess,
-     MemberStore,
-     TeamStore,
-     Error InvalidInput,
      Error FederationError,
+     Error InternalError,
+     Error InvalidInput,
      ErrorS ('ActionDenied 'ModifyConversationAccess),
      ErrorS ('ActionDenied 'RemoveConversationMember),
      ErrorS 'ConvNotFound,
      ErrorS 'InvalidOperation,
      ErrorS 'InvalidTargetAccess,
-     Input UTCTime
+     ExternalAccess,
+     FederatorAccess,
+     FireAndForget,
+     GundeckAccess,
+     Input Env,
+     Input UTCTime,
+     MemberStore,
+     ProposalStore,
+     TeamStore,
+     TinyLog
    ]
 
 updateConversationAccess ::
@@ -310,18 +316,19 @@ updateConversationAccessUnqualified lusr con cnv update =
 
 updateConversationReceiptMode ::
   Members
-    '[ Error FederationError,
+    '[ BrigAccess,
+       ConversationStore,
+       Error FederationError,
        ErrorS ('ActionDenied 'ModifyConversationReceiptMode),
        ErrorS 'ConvNotFound,
        ErrorS 'InvalidOperation,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
-       BrigAccess,
-       ConversationStore,
-       MemberStore,
-       Input UTCTime,
        Input (Local ()),
+       Input Env,
+       Input UTCTime,
+       MemberStore,
        TinyLog
      ]
     r =>
@@ -385,7 +392,8 @@ updateRemoteConversation rcnv lusr conn action = getUpdateResult $ do
 
 updateConversationReceiptModeUnqualified ::
   Members
-    '[ ConversationStore,
+    '[ BrigAccess,
+       ConversationStore,
        Error FederationError,
        ErrorS ('ActionDenied 'ModifyConversationReceiptMode),
        ErrorS 'ConvNotFound,
@@ -393,10 +401,10 @@ updateConversationReceiptModeUnqualified ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
-       BrigAccess,
-       MemberStore,
-       Input UTCTime,
        Input (Local ()),
+       Input Env,
+       Input UTCTime,
+       MemberStore,
        TinyLog
      ]
     r =>
@@ -417,6 +425,7 @@ updateConversationMessageTimer ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input UTCTime
      ]
     r =>
@@ -451,6 +460,7 @@ updateConversationMessageTimerUnqualified ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input UTCTime
      ]
     r =>
@@ -473,6 +483,7 @@ deleteLocalConversation ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input UTCTime,
        TeamStore
      ]
@@ -775,6 +786,7 @@ addMembers ::
     '[ BrigAccess,
        ConversationStore,
        Error FederationError,
+       Error InternalError,
        ErrorS ('ActionDenied 'AddConversationMember),
        ErrorS ('ActionDenied 'LeaveConversation),
        ErrorS 'ConvAccessDenied,
@@ -787,11 +799,14 @@ addMembers ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input Opts,
        Input UTCTime,
        LegalHoldStore,
        MemberStore,
-       TeamStore
+       ProposalStore,
+       TeamStore,
+       TinyLog
      ]
     r =>
   Local UserId ->
@@ -810,6 +825,7 @@ addMembersUnqualifiedV2 ::
     '[ BrigAccess,
        ConversationStore,
        Error FederationError,
+       Error InternalError,
        ErrorS ('ActionDenied 'AddConversationMember),
        ErrorS ('ActionDenied 'LeaveConversation),
        ErrorS 'ConvAccessDenied,
@@ -822,11 +838,14 @@ addMembersUnqualifiedV2 ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input Opts,
        Input UTCTime,
        LegalHoldStore,
        MemberStore,
-       TeamStore
+       ProposalStore,
+       TeamStore,
+       TinyLog
      ]
     r =>
   Local UserId ->
@@ -845,6 +864,7 @@ addMembersUnqualified ::
     '[ BrigAccess,
        ConversationStore,
        Error FederationError,
+       Error InternalError,
        ErrorS ('ActionDenied 'AddConversationMember),
        ErrorS ('ActionDenied 'LeaveConversation),
        ErrorS 'ConvAccessDenied,
@@ -857,11 +877,14 @@ addMembersUnqualified ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input Opts,
        Input UTCTime,
        LegalHoldStore,
        MemberStore,
-       TeamStore
+       ProposalStore,
+       TeamStore,
+       TinyLog
      ]
     r =>
   Local UserId ->
@@ -952,6 +975,7 @@ updateOtherMemberLocalConv ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input UTCTime,
        MemberStore
      ]
@@ -979,6 +1003,7 @@ updateOtherMemberUnqualified ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input UTCTime,
        MemberStore
      ]
@@ -1006,6 +1031,7 @@ updateOtherMember ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input UTCTime,
        MemberStore
      ]
@@ -1033,14 +1059,18 @@ updateOtherMemberRemoteConv _ _ _ _ _ = throw FederationNotImplemented
 removeMemberUnqualified ::
   Members
     '[ ConversationStore,
+       Error InternalError,
        ErrorS ('ActionDenied 'RemoveConversationMember),
        ErrorS 'ConvNotFound,
        ErrorS 'InvalidOperation,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input UTCTime,
-       MemberStore
+       MemberStore,
+       ProposalStore,
+       TinyLog
      ]
     r =>
   Local UserId ->
@@ -1056,14 +1086,18 @@ removeMemberUnqualified lusr con cnv victim = do
 removeMemberQualified ::
   Members
     '[ ConversationStore,
+       Error InternalError,
        ErrorS ('ActionDenied 'RemoveConversationMember),
        ErrorS 'ConvNotFound,
        ErrorS 'InvalidOperation,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input UTCTime,
-       MemberStore
+       MemberStore,
+       ProposalStore,
+       TinyLog
      ]
     r =>
   Local UserId ->
@@ -1120,6 +1154,7 @@ removeMemberFromRemoteConv cnv lusr victim
 removeMemberFromLocalConv ::
   Members
     '[ ConversationStore,
+       Error InternalError,
        ErrorS ('ActionDenied 'LeaveConversation),
        ErrorS ('ActionDenied 'RemoveConversationMember),
        ErrorS 'ConvNotFound,
@@ -1127,8 +1162,11 @@ removeMemberFromLocalConv ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input UTCTime,
-       MemberStore
+       MemberStore,
+       ProposalStore,
+       TinyLog
      ]
     r =>
   Local ConvId ->
@@ -1335,6 +1373,7 @@ updateConversationName ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input UTCTime
      ]
     r =>
@@ -1361,6 +1400,7 @@ updateUnqualifiedConversationName ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input UTCTime
      ]
     r =>
@@ -1383,6 +1423,7 @@ updateLocalConversationName ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input UTCTime
      ]
     r =>

@@ -46,10 +46,13 @@ data NewConversation = NewConversation
     ncProtocol :: ProtocolTag
   }
 
-getConvMemberMLSClients :: Local () -> Conversation -> Qualified UserId -> Maybe (Set (ClientId, KeyPackageRef))
-getConvMemberMLSClients loc conv qusr =
+getConvMemberMLSClients ::
+  Local Conversation ->
+  Qualified UserId ->
+  Maybe (Set (ClientId, KeyPackageRef))
+getConvMemberMLSClients lconv qusr =
   foldQualified
-    loc
-    (\lusr -> lmMLSClients <$> find ((==) (tUnqualified lusr) . lmId) (convLocalMembers conv))
-    (\rusr -> rmMLSClients <$> find ((==) rusr . rmId) (convRemoteMembers conv))
+    lconv
+    (\lusr -> lmMLSClients <$> find ((==) (tUnqualified lusr) . lmId) (convLocalMembers . tUnqualified $ lconv))
+    (\rusr -> rmMLSClients <$> find ((==) rusr . rmId) (convRemoteMembers . tUnqualified $ lconv))
     qusr
