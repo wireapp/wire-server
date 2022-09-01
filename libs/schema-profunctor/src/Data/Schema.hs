@@ -894,5 +894,5 @@ instance S.HasDescription NamedSwaggerDoc (Maybe Text) where
 instance {-# OVERLAPPABLE #-} S.HasDescription s a => S.HasDescription (WithDeclare s) a where
   description = declared . S.description
 
-instance S.HasExample s a => S.HasExample (WithDeclare s) a where
+instance {-# OVERLAPPABLE #-} S.HasExample s a => S.HasExample (WithDeclare s) a where
   example = declared . S.example
