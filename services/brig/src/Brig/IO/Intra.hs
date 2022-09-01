@@ -127,6 +127,7 @@ import Wire.API.Event.Conversation (Connect (Connect))
 import Wire.API.Federation.API.Brig
 import Wire.API.Federation.Error
 import Wire.API.Properties
+import Wire.API.Routes.Version
 import Wire.API.Team
 import qualified Wire.API.Team.Conversation as Conv
 import Wire.API.Team.Feature
@@ -942,7 +943,7 @@ getTeamConv ::
   UserId ->
   TeamId ->
   ConvId ->
-  m (Maybe Conv.TeamConversation)
+  m (Maybe (Conv.TeamConversation (From 'V2)))
 getTeamConv usr tid cnv = do
   debug $
     remote "galley"
@@ -953,8 +954,15 @@ getTeamConv usr tid cnv = do
     200 -> Just <$> decodeBody "galley" rs
     _ -> pure Nothing
   where
+    v2 = toByteString' (toLower <$> show V2)
     req =
-      paths ["teams", toByteString' tid, "conversations", toByteString' cnv]
+      paths
+        [ v2,
+          "teams",
+          toByteString' tid,
+          "conversations",
+          toByteString' cnv
+        ]
         . zUser usr
         . expect [status200, status404]
 

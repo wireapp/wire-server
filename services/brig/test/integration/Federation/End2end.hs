@@ -65,6 +65,7 @@ import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.Routes.Version
 import Wire.API.User hiding (assetKey)
 import Wire.API.User.Client
 import Wire.API.User.Client.Prekey
@@ -262,7 +263,7 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
   alice <- randomUser brig1
   bob <- randomUser brig2
 
-  let newConv =
+  let newConv :: NewConv (From 'V2) =
         NewConv
           []
           []
@@ -275,11 +276,12 @@ testAddRemoteUsersToLocalConv brig1 galley1 brig2 galley2 = do
           roleNameWireAdmin
           ProtocolProteusTag
           Nothing
+      v2 = toByteString' (toLower <$> show V2)
   convId <-
     fmap cnvQualifiedId . responseJsonError
       =<< post
         ( galley1
-            . path "/conversations"
+            . paths [v2, "conversations"]
             . zUser (userId alice)
             . zConn "conn"
             . header "Z-Type" "access"

@@ -111,6 +111,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.Domain
 import Wire.API.Internal.Notification
 import Wire.API.Routes.MultiTablePaging
+import Wire.API.Routes.Version
 import Wire.API.Team.Member hiding (userId)
 import Wire.API.User
 import Wire.API.User.Activation
@@ -684,7 +685,7 @@ getConversationQualified galley usr cnv =
 
 createMLSConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> ClientId -> m ResponseLBS
 createMLSConversation galley zusr c = do
-  let conv =
+  let conv :: NewConv (From 'V2) =
         NewConv
           []
           mempty
@@ -697,16 +698,17 @@ createMLSConversation galley zusr c = do
           roleNameWireAdmin
           ProtocolMLSTag
           (Just c)
+      v2 = toByteString' (toLower <$> show V2)
   post $
     galley
-      . path "/conversations"
+      . paths [v2, "conversations"]
       . zUser zusr
       . zConn "conn"
       . json conv
 
 createConversation :: (MonadIO m, MonadHttp m) => Galley -> UserId -> [Qualified UserId] -> m ResponseLBS
 createConversation galley zusr usersToAdd = do
-  let conv =
+  let conv :: NewConv (From 'V2) =
         NewConv
           []
           usersToAdd
@@ -719,9 +721,10 @@ createConversation galley zusr usersToAdd = do
           roleNameWireAdmin
           ProtocolProteusTag
           Nothing
+      v2 = toByteString' (toLower <$> show V2)
   post $
     galley
-      . path "/conversations"
+      . paths [v2, "conversations"]
       . zUser zusr
       . zConn "conn"
       . json conv

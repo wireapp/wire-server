@@ -48,6 +48,7 @@ import Wire.API.Conversation.Protocol as M
 import Wire.API.Conversation.Role (roleNameWireAdmin)
 import Wire.API.Event.Conversation as M (MemberUpdateData)
 import Wire.API.Message as M
+import Wire.API.Routes.Version
 
 postOtrMessage :: MonadSession m => ConvId -> NewOtrMessage -> m ClientMismatch
 postOtrMessage cnv msg = sessionRequest req rsc readBody
@@ -137,10 +138,24 @@ createConv ::
   m Conversation
 createConv users name = sessionRequest req rsc readBody
   where
+    v2 = toByteString' (toLower <$> show V2)
     req =
       method POST
-        . path "conversations"
+        . paths [v2, "conversations"]
         . acceptJson
-        . json (NewConv users [] (name >>= checked) mempty Nothing Nothing Nothing Nothing roleNameWireAdmin M.ProtocolProteusTag Nothing)
+        . json
+          ( NewConv @(From 'V2)
+              users
+              []
+              (name >>= checked)
+              mempty
+              Nothing
+              Nothing
+              Nothing
+              Nothing
+              roleNameWireAdmin
+              M.ProtocolProteusTag
+              Nothing
+          )
         $ empty
     rsc = status201 :| []
