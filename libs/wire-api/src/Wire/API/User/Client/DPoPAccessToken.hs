@@ -115,3 +115,6 @@ instance ToParamSchema CacheControl where
 instance AsHeaders '[CacheControl] DPoPAccessTokenResponse (DPoPAccessTokenResponse, CacheControl) where
   toHeaders (t, cc) = (I cc :* Nil, t)
   fromHeaders (I cc :* Nil, t) = (t, cc)
+
+data DPoPTokenGenerationError = DPoPTokenGenerationError
+  deriving (Eq, Show, Generic)
