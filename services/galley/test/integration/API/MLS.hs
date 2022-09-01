@@ -51,7 +51,6 @@ import Data.Singletons
 import Data.String.Conversions
 import qualified Data.Text as T
 import Data.Time
-import Debug.Trace
 import Federator.MockServer hiding (withTempMockFederator)
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
@@ -1581,7 +1580,6 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
   testSuccessfulCommit MessagingSetup {..}
 
   let pk1 : pk2 : _ = drop 3 someLastPrekeys
-  -- let withTheseLastPrekeys
 
   bobClient2 <- withTheseLastPrekeys [pk1] (setupUserClient tmp CreateWithKey True (pUserId bob))
   let bobClient2Qid = userClientQid (pUserId bob) bobClient2
@@ -1600,7 +1598,6 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
     let kp = case proposal of
           (AddProposal kp') -> kp'
           x -> error ("Expected AddProposal but got <> " <> show x)
-    traceM ("*** testExternalAddProposal 1 " <> (T.unpack . toBase64Text . unKeyPackageRef . fromJust . kpRef' $ kp))
     let signerKey = bcSignatureKey . kpuCredential . rmValue . kpTBS . rmValue $ kp
     liftIO $ BS.writeFile (tmp </> "proposal-signer.key") signerKey
 

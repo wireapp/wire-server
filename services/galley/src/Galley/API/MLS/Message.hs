@@ -467,6 +467,7 @@ processCommit qusr senderClient con lconv epoch sender commit = do
 
     pure updates
 
+-- | Note: Use this only for KeyPackage that are already validated
 updateKeyPackageMapping ::
   Members '[BrigAccess, MemberStore] r =>
   Local Data.Conversation ->
@@ -493,27 +494,6 @@ updateKeyPackageMapping lconv qusr cid mOld new = do
   removeMLSClients lcnv qusr (Set.singleton (cid, old))
   -- add new (client, key package) pair
   addMLSClients lcnv qusr (Set.singleton (cid, new))
-
-addKeyPackage ::
-  Members '[BrigAccess, MemberStore, Error MLSProtocolError] r =>
-  Local ConvId ->
-  Qualified UserId ->
-  ClientId ->
-  KeyPackageData ->
-  Sem r KeyPackageRef
-addKeyPackage lconv qusr cid kpdata = do
-  mRef <-
-    validateAndAddKeyPackageRef
-      ( NewKeyPackage
-          { nkpUserId = qusr,
-            nkpClientId = cid,
-            nkpConversation = qUntagged lconv,
-            nkpKeyPackage = kpdata
-          }
-      )
-  ref <- mRef & note (mlsProtocolError "Tried to add invalid KeyPackage")
-  addMLSClients lconv qusr (Set.singleton (cid, ref))
-  pure ref
 
 applyProposalRef ::
   ( HasProposalEffects r,
@@ -560,12 +540,28 @@ applyProposal convId (AddProposal kp) = do
           (kpIdentity (rmValue kp))
       let qcid = cidQualifiedClient ci
       lconvId <- qualifyLocal convId
-      void $ addKeyPackage lconvId (fst <$> qcid) (snd (qUnqualified qcid)) (KeyPackageData (rmRaw kp))
+      void $ addKeyPackageMapping lconvId (fst <$> qcid) (snd (qUnqualified qcid)) (KeyPackageData (rmRaw kp))
       pure ci
     Just ci ->
       -- ad-hoc add proposal in commit, the key package has been claimed before
       pure ci
   pure (paAddClient . (<$$>) (,ref) . cidQualifiedClient $ clientIdentity)
+  where
+    addKeyPackageMapping lconv qusr cid kpdata = do
+      -- validate and update mapping in brig
+      mRef <-
+        validateAndAddKeyPackageRef
+          ( NewKeyPackage
+              { nkpUserId = qusr,
+                nkpClientId = cid,
+                nkpConversation = qUntagged lconv,
+                nkpKeyPackage = kpdata
+              }
+          )
+      ref <- mRef & note (mlsProtocolError "Tried to add invalid KeyPackage")
+      -- update mapping in galley
+      addMLSClients lconv qusr (Set.singleton (cid, ref))
+      pure ref
 applyProposal _conv (RemoveProposal ref) = do
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
   pure (paRemoveClient ((,ref) <$$> qclient))
