@@ -3,7 +3,7 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to Wire's (self-hosting) documentation!
+Welcome to Wire's documentation!
 ===============================================
 
 If you are a Wire end-user, please check out our `support pages <https://support.wire.com/>`_.
