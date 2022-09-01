@@ -356,7 +356,7 @@ checkHandleAvailable hnd = do
 
 -- | Call brig to delete a user.
 -- If the user wasn't deleted completely before, another deletion attempt will be made.
-deleteBrigUserInternal :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m EnsureAccountDeletedResult
+deleteBrigUserInternal :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m DeleteUserResult
 deleteBrigUserInternal buid = do
   resp <-
     call $

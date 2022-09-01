@@ -510,23 +510,11 @@ createUserNoVerifySpar uData =
 
 deleteUserNoVerifyH :: UserId -> (Handler r) Response
 deleteUserNoVerifyH uid = do
-  r <- ensureAccountDeleted uid
+  r <- lift $ wrapHttp $ API.ensureAccountDeleted uid
   pure $ case r of
     NoUser -> setStatus status404 $ json r
     AccountAlreadyDeleted -> setStatus status200 $ json r
     AccountDeleted -> setStatus status202 $ json r
-
---  setStatus status202 empty <$ deleteUserNoVerify uid
-
---deleteUserNoVerify :: UserId -> (Handler r) ()
---deleteUserNoVerify uid = do
---  void $
---    lift (wrapClient $ API.lookupAccount uid)
---      >>= ifNothing (errorToWai @'E.UserNotFound)
---  lift $ API.deleteUserNoVerify uid
-
-ensureAccountDeleted :: UserId -> (Handler r) EnsureAccountDeletedResult
-ensureAccountDeleted uid = lift $ wrapHttp $ API.ensureAccountDeleted uid
 
 changeSelfEmailMaybeSendH :: Member BlacklistStore r => UserId ::: Bool ::: JsonRequest EmailUpdate -> (Handler r) Response
 changeSelfEmailMaybeSendH (u ::: validate ::: req) = do

@@ -444,7 +444,7 @@ idpDelete mbzusr idpid (fromMaybe False -> purge) = withDebugLog "idpDelete" (co
           if purge
             then do
               SAMLUserStore.delete uid uref
-              void $ BrigAccess.ensureAccountDeleted uid
+              void $ BrigAccess.deleteUser uid
             else do
               throwSparSem SparIdPHasBoundUsers
       when (Cas.hasMore page) $

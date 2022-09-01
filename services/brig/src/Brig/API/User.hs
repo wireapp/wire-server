@@ -1248,7 +1248,7 @@ ensureAccountDeleted ::
     MonadReader Env m
   ) =>
   UserId ->
-  m EnsureAccountDeletedResult
+  m DeleteUserResult
 ensureAccountDeleted uid = do
   mbAcc <- lookupAccount uid
   case mbAcc of

@@ -95,7 +95,7 @@ module Wire.API.User
     VerifyDeleteUser (..),
     mkVerifyDeleteUser,
     DeletionCodeTimeout (..),
-    EnsureAccountDeletedResult (..),
+    DeleteUserResult (..),
 
     -- * List Users
     ListUsersQuery (..),
@@ -1358,30 +1358,30 @@ instance FromJSON DeletionCodeTimeout where
   parseJSON = A.withObject "DeletionCodeTimeout" $ \o ->
     DeletionCodeTimeout <$> o A..: "expires_in"
 
-data EnsureAccountDeletedResult = NoUser | AccountAlreadyDeleted | AccountDeleted
+data DeleteUserResult = NoUser | AccountAlreadyDeleted | AccountDeleted
   deriving (Eq, Show)
 
-instance ToJSON EnsureAccountDeletedResult where
+instance ToJSON DeleteUserResult where
   toJSON t = A.object ["tag" A..= toTag t]
     where
-      toTag :: EnsureAccountDeletedResult -> A.Value
+      toTag :: DeleteUserResult -> A.Value
       toTag NoUser = "no-user"
       toTag AccountAlreadyDeleted = "already-deleted"
       toTag AccountDeleted = "deleted"
 
-instance FromJSON EnsureAccountDeletedResult where
+instance FromJSON DeleteUserResult where
   parseJSON (A.Object o) = do
     tagString <- o A..: "tag"
     case fromTag tagString of
       Just t -> pure t
       Nothing -> A.parseFail $ "Unknown tag: " ++ tagString
     where
-      fromTag :: String -> Maybe EnsureAccountDeletedResult
+      fromTag :: String -> Maybe DeleteUserResult
       fromTag "no-user" = Just NoUser
       fromTag "already-deleted" = Just AccountAlreadyDeleted
       fromTag "deleted" = Just AccountDeleted
       fromTag _ = Nothing
-  parseJSON _ = parseFail "Invalid EnsureAccountDeletedResult"
+  parseJSON _ = parseFail "Invalid DeleteUserResult"
 
 data ListUsersQuery
   = ListUsersByIds [Qualified UserId]

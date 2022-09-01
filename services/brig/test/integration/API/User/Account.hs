@@ -165,10 +165,10 @@ tests _ at opts p b c ch g aws =
         ],
       testGroup
         "delete /i/users/:uid"
-        [ test' aws p "does nothing for completely deleted user" $ testEnsureAccountDeletedWithCompletelyDeletedUser b c aws,
-          test' aws p "does nothing when the user doesn't exist" $ testEnsureAccountDeletedWithNoUser b,
-          test' aws p "deletes a not deleted user" $ testEnsureAccountDeletedWithNotDeletedUser b c aws,
-          test' aws p "delete again because of dangling property" $ testEnsureAccountDeletedWithDanglingProperty b c aws
+        [ test' aws p "does nothing for completely deleted user" $ testDeleteUserWithCompletelyDeletedUser b c aws,
+          test' aws p "does nothing when the user doesn't exist" $ testDeleteUserWithNoUser b,
+          test' aws p "deletes a not deleted user" $ testDeleteUserWithNotDeletedUser b c aws,
+          test' aws p "delete again because of dangling property" $ testDeleteUserWithDanglingProperty b c aws
         ]
     ]
 
@@ -1641,10 +1641,10 @@ testTooManyMembersForLegalhold opts brig = do
         const 403 === statusCode
         const (Right "too-many-members-for-legalhold") === fmap Wai.label . responseJsonEither
 
-testEnsureAccountDeletedWithCompletelyDeletedUser :: Brig -> Cannon -> AWS.Env -> Http ()
-testEnsureAccountDeletedWithCompletelyDeletedUser brig cannon aws = do
+testDeleteUserWithCompletelyDeletedUser :: Brig -> Cannon -> AWS.Env -> Http ()
+testDeleteUserWithCompletelyDeletedUser brig cannon aws = do
   u <- randomUser brig
-  liftIO $ Util.assertUserJournalQueue "user activate testEnsureAccountDeletedWithCompletelyDeletedUser" aws (userActivateJournaled u)
+  liftIO $ Util.assertUserJournalQueue "user activate testDeleteUserWithCompletelyDeletedUser" aws (userActivateJournaled u)
   setHandleAndDeleteUser brig cannon u [] aws $
     \uid -> deleteUserInternal uid brig !!! const 202 === statusCode
   do
@@ -1657,18 +1657,18 @@ testEnsureAccountDeletedWithCompletelyDeletedUser brig cannon aws = do
         const 200 === statusCode
         const (Right AccountAlreadyDeleted) === responseJsonEither
 
-testEnsureAccountDeletedWithNoUser :: Brig -> Http ()
-testEnsureAccountDeletedWithNoUser brig = do
+testDeleteUserWithNoUser :: Brig -> Http ()
+testDeleteUserWithNoUser brig = do
   nonExistingUid :: UserId <- liftIO $ generate arbitrary
   deleteUserInternal nonExistingUid brig
     !!! do
       const 404 === statusCode
       const (Right NoUser) === responseJsonEither
 
-testEnsureAccountDeletedWithNotDeletedUser :: HasCallStack => Brig -> Cannon -> AWS.Env -> Http ()
-testEnsureAccountDeletedWithNotDeletedUser brig cannon aws = do
+testDeleteUserWithNotDeletedUser :: HasCallStack => Brig -> Cannon -> AWS.Env -> Http ()
+testDeleteUserWithNotDeletedUser brig cannon aws = do
   u <- randomUser brig
-  liftIO $ Util.assertUserJournalQueue "user activate testEnsureAccountDeletedWithNotDeletedUser" aws (userActivateJournaled u)
+  liftIO $ Util.assertUserJournalQueue "user activate testDeleteUserWithNotDeletedUser" aws (userActivateJournaled u)
   do
     setHandleAndDeleteUser brig cannon u [] aws $
       ( \uid' ->
@@ -1678,10 +1678,10 @@ testEnsureAccountDeletedWithNotDeletedUser brig cannon aws = do
               const (Right AccountDeleted) === responseJsonEither
       )
 
-testEnsureAccountDeletedWithDanglingProperty :: Brig -> Cannon -> AWS.Env -> Http ()
-testEnsureAccountDeletedWithDanglingProperty brig cannon aws = do
+testDeleteUserWithDanglingProperty :: Brig -> Cannon -> AWS.Env -> Http ()
+testDeleteUserWithDanglingProperty brig cannon aws = do
   u <- randomUser brig
-  liftIO $ Util.assertUserJournalQueue "user activate testEnsureAccountDeletedWithDanglingProperty" aws (userActivateJournaled u)
+  liftIO $ Util.assertUserJournalQueue "user activate testDeleteUserWithDanglingProperty" aws (userActivateJournaled u)
 
   let uid = userId u
   -- First set a unique handle (to verify freeing of the handle)
@@ -1691,7 +1691,7 @@ testEnsureAccountDeletedWithDanglingProperty brig cannon aws = do
     !!! const 200 === statusCode
 
   deleteUserInternal uid brig !!! const 202 === statusCode
-  liftIO $ Util.assertUserJournalQueue "user deletion testEnsureAccountDeletedWithDanglingProperty" aws (userDeleteJournaled uid)
+  liftIO $ Util.assertUserJournalQueue "user deletion testDeleteUserWithDanglingProperty" aws (userDeleteJournaled uid)
 
   setProperty brig (userId u) "foo" objectProp
     !!! const 200 === statusCode

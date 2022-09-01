@@ -25,11 +25,11 @@ import Data.Id (Id (Id), UserId)
 import qualified Data.UUID as UUID
 import Imports hiding (head)
 import qualified Spar.Intra.BrigApp as Intra
-import Spar.Sem.BrigAccess (ensureAccountDeleted)
+import qualified Spar.Sem.BrigAccess as BrigAccess
 import Test.QuickCheck
 import Util
 import qualified Web.Scim.Schema.User as Scim.User
-import Wire.API.User (EnsureAccountDeletedResult (..), fromEmail)
+import Wire.API.User (DeleteUserResult (..), fromEmail)
 
 spec :: SpecWith TestEnv
 spec = do
@@ -42,7 +42,7 @@ spec = do
   describe "deleteBrigUserInternal" $ do
     it "does not throw for non-existing users" $ do
       uid :: UserId <- liftIO $ generate arbitrary
-      r <- runSpar $ ensureAccountDeleted uid
+      r <- runSpar $ BrigAccess.deleteUser uid
       liftIO $ r `shouldBe` NoUser
 
   describe "getBrigUser" $ do

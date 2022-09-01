@@ -34,7 +34,7 @@ module Spar.Sem.BrigAccess
     setLocale,
     getRichInfo,
     checkHandleAvailable,
-    ensureAccountDeleted,
+    deleteUser,
     ensureReAuthorised,
     ssoLogin,
     getStatus,
@@ -54,7 +54,7 @@ import Imports
 import Polysemy
 import qualified SAML2.WebSSO as SAML
 import Web.Cookie
-import Wire.API.User (EnsureAccountDeletedResult, VerificationAction)
+import Wire.API.User (DeleteUserResult, VerificationAction)
 import Wire.API.User.Identity
 import Wire.API.User.Profile
 import Wire.API.User.RichInfo as RichInfo
@@ -77,7 +77,7 @@ data BrigAccess m a where
   SetLocale :: UserId -> Maybe Locale -> BrigAccess m ()
   GetRichInfo :: UserId -> BrigAccess m RichInfo
   CheckHandleAvailable :: Handle -> BrigAccess m Bool
-  EnsureAccountDeleted :: UserId -> BrigAccess m EnsureAccountDeletedResult
+  DeleteUser :: UserId -> BrigAccess m DeleteUserResult
   EnsureReAuthorised :: Maybe UserId -> Maybe PlainTextPassword -> Maybe Code.Value -> Maybe VerificationAction -> BrigAccess m ()
   SsoLogin :: UserId -> BrigAccess m SetCookie
   GetStatus :: UserId -> BrigAccess m AccountStatus
