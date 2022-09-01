@@ -68,7 +68,6 @@ import qualified Data.Set as Set
 import Galley.API.Error
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Util
-import Galley.Cassandra.Paging
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Types (Code (codeConversation))
 import Galley.Effects
@@ -105,6 +104,7 @@ import Wire.API.Federation.Error
 import qualified Wire.API.Provider.Bot as Public
 import qualified Wire.API.Routes.MultiTablePaging as Public
 import Wire.API.Team.Feature as Public hiding (setStatus)
+import Wire.Sem.Paging.Cassandra
 
 getBotConversationH ::
   Members '[ConversationStore, ErrorS 'ConvNotFound, Input (Local ())] r =>

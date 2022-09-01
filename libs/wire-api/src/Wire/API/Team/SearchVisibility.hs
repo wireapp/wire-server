@@ -35,7 +35,7 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Deriving.Aeson
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- TeamSearchVisibility
@@ -60,7 +60,7 @@ import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 --     Name: can be found by same team only
 -- @
 --
--- See also: 'FeatureTeamSearchVisibility', 'TeamSearchVisibilityEnabled'.
+-- See also: 'FeatureTeamSearchVisibilityAvailability'.
 data TeamSearchVisibility
   = SearchVisibilityStandard
   | SearchVisibilityNoNameOutsideTeam

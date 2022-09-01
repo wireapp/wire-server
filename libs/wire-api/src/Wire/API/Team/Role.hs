@@ -38,7 +38,7 @@ import qualified Data.Swagger.Model.Api as Doc
 import qualified Data.Text as T
 import Imports
 import Servant.API (FromHttpApiData, parseQueryParam)
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 -- Note [team roles]
 -- ~~~~~~~~~~~~

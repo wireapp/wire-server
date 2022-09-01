@@ -111,3 +111,6 @@ smv_released_pattern = r'^remotes/.+$'
 
 smv_outputdir_format = 'versions/{ref.name}'
 smv_prefer_remote_refs = True
+
+# As per https://myst-parser.readthedocs.io/en/latest/syntax/optional.html?highlight=anchor#auto-generated-header-anchors
+myst_heading_anchors = 4

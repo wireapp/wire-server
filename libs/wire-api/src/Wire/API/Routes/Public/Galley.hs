@@ -41,6 +41,7 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as BrigError
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Servant
@@ -1332,6 +1333,8 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSStaleMessage
                :> CanThrow 'MLSUnsupportedMessage
                :> CanThrow 'MLSUnsupportedProposal
+               :> CanThrow 'MLSClientSenderUserMismatch
+               :> CanThrow 'MLSGroupConversationMismatch
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
                :> "messages"
@@ -1356,12 +1359,20 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSStaleMessage
                :> CanThrow 'MLSUnsupportedMessage
                :> CanThrow 'MLSUnsupportedProposal
+               :> CanThrow 'MLSClientSenderUserMismatch
+               :> CanThrow 'MLSGroupConversationMismatch
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
                :> "messages"
                :> ZConn
                :> ReqBody '[MLS] (RawMLS SomeMessage)
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" MLSMessageSendingStatus)
+           )
+    :<|> Named
+           "mls-public-keys"
+           ( Summary "Get public keys used by the backend to sign external proposals"
+               :> "public-keys"
+               :> MultiVerb1 'GET '[JSON] (Respond 200 "Public keys" MLSPublicKeys)
            )
 
 type MLSAPI = LiftNamed (ZLocalUser :> "mls" :> MLSMessagingAPI)

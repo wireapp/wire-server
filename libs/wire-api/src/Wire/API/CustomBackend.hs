@@ -28,7 +28,7 @@ import Data.Schema
 import qualified Data.Swagger as S
 import Deriving.Aeson
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 data CustomBackend = CustomBackend
   { backendConfigJsonUrl :: HttpsUrl,

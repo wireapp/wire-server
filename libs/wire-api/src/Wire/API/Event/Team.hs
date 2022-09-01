@@ -54,9 +54,9 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Time (UTCTime)
 import Imports
 import qualified Test.QuickCheck as QC
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 import Wire.API.Team (Team, TeamUpdateData, modelUpdateData)
 import Wire.API.Team.Permission (Permissions)
+import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- Event

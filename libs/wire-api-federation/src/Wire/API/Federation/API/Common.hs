@@ -20,7 +20,7 @@ module Wire.API.Federation.API.Common where
 import Data.Aeson
 import Imports
 import Test.QuickCheck
-import Wire.API.Arbitrary
+import Wire.Arbitrary
 
 -- | This is equivalent to '()', but JSONifies to an empty object instead of an
 -- empty array.

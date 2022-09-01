@@ -26,10 +26,10 @@ where
 
 import Data.Id
 import Data.Qualified
-import Galley.Effects.Paging
 import Galley.Types.Conversations.Members
 import Imports
 import Polysemy
+import Wire.Sem.Paging
 
 data RemoteConversationListStore p m a where
   ListRemoteConversations ::

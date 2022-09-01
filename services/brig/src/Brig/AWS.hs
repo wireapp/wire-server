@@ -245,7 +245,7 @@ throwA :: Either AWS.Error a -> Amazon a
 throwA = either (throwM . GeneralError) pure
 
 execCatch ::
-  (AWSRequest a, MonadUnliftIO m, MonadCatch m, MonadThrow m, MonadIO m) =>
+  (AWSRequest a, MonadUnliftIO m, MonadCatch m) =>
   AWS.Env ->
   a ->
   m (Either AWS.Error (AWSResponse a))
@@ -255,7 +255,7 @@ execCatch e cmd =
       AWS.send e cmd
 
 exec ::
-  (AWSRequest a, MonadCatch m, MonadThrow m, MonadIO m) =>
+  (AWSRequest a, MonadCatch m, MonadIO m) =>
   AWS.Env ->
   a ->
   m (AWSResponse a)

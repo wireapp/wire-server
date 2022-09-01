@@ -36,19 +36,27 @@ module Wire.API.MLS.Message
     MLSPlainTextSym0,
     MLSCipherTextSym0,
     MLSMessageSendingStatus (..),
+    KnownFormatTag (..),
     verifyMessageSignature,
+    mkRemoveProposalMessage,
   )
 where
 
 import Control.Lens ((?~))
+import Crypto.Error
+import Crypto.PubKey.Ed25519
 import qualified Data.Aeson as A
 import Data.Binary
 import Data.Binary.Get
+import Data.Binary.Put
+import qualified Data.ByteArray as BA
+-- import qualified Data.ByteString as BS
 import Data.Json.Util
 import Data.Schema
 import Data.Singletons.TH
 import qualified Data.Swagger as S
 import Imports
+import Test.QuickCheck hiding (label)
 import Wire.API.Event.Conversation
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
@@ -57,6 +65,7 @@ import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
+import Wire.Arbitrary (GenericUniform (..))
 
 data WireFormatTag = MLSPlainText | MLSCipherText
   deriving (Bounded, Enum, Eq, Show)
@@ -73,26 +82,55 @@ data instance MessageExtraFields 'MLSPlainText = MessageExtraFields
     msgConfirmation :: Maybe ByteString,
     msgMembership :: Maybe ByteString
   }
+  deriving (Generic)
+  deriving (Arbitrary) via (GenericUniform (MessageExtraFields 'MLSPlainText))
 
 instance ParseMLS (MessageExtraFields 'MLSPlainText) where
   parseMLS =
     MessageExtraFields
-      <$> parseMLSBytes @Word16
-      <*> parseMLSOptional (parseMLSBytes @Word8)
-      <*> parseMLSOptional (parseMLSBytes @Word8)
+      <$> label "msgSignature" (parseMLSBytes @Word16)
+      <*> label "msgConfirmation" (parseMLSOptional (parseMLSBytes @Word8))
+      <*> label "msgMembership" (parseMLSOptional (parseMLSBytes @Word8))
+
+instance SerialiseMLS (MessageExtraFields 'MLSPlainText) where
+  serialiseMLS (MessageExtraFields sig mconf mmemb) = do
+    serialiseMLSBytes @Word16 sig
+    serialiseMLSOptional (serialiseMLSBytes @Word8) mconf
+    serialiseMLSOptional (serialiseMLSBytes @Word8) mmemb
 
 data instance MessageExtraFields 'MLSCipherText = NoExtraFields
 
 instance ParseMLS (MessageExtraFields 'MLSCipherText) where
   parseMLS = pure NoExtraFields
 
+deriving instance Eq (MessageExtraFields 'MLSPlainText)
+
+deriving instance Eq (MessageExtraFields 'MLSCipherText)
+
+deriving instance Show (MessageExtraFields 'MLSPlainText)
+
+deriving instance Show (MessageExtraFields 'MLSCipherText)
+
 data Message (tag :: WireFormatTag) = Message
   { msgTBS :: RawMLS (MessageTBS tag),
     msgExtraFields :: MessageExtraFields tag
   }
 
+deriving instance Eq (Message 'MLSPlainText)
+
+deriving instance Eq (Message 'MLSCipherText)
+
+deriving instance Show (Message 'MLSPlainText)
+
+deriving instance Show (Message 'MLSCipherText)
+
 instance ParseMLS (Message 'MLSPlainText) where
-  parseMLS = Message <$> parseMLS <*> parseMLS
+  parseMLS = Message <$> label "tbs" parseMLS <*> label "MessageExtraFields" parseMLS
+
+instance SerialiseMLS (Message 'MLSPlainText) where
+  serialiseMLS (Message msgTBS msgExtraFields) = do
+    putByteString (rmRaw msgTBS)
+    serialiseMLS msgExtraFields
 
 instance ParseMLS (Message 'MLSCipherText) where
   parseMLS = Message <$> parseMLS <*> parseMLS
@@ -104,6 +142,20 @@ data KnownFormatTag (tag :: WireFormatTag) = KnownFormatTag
 
 instance ParseMLS (KnownFormatTag tag) where
   parseMLS = parseMLS @WireFormatTag $> KnownFormatTag
+
+instance SerialiseMLS (KnownFormatTag 'MLSPlainText) where
+  serialiseMLS _ = put (fromMLSEnum @Word8 MLSPlainText)
+
+instance SerialiseMLS (KnownFormatTag 'MLSCipherText) where
+  serialiseMLS _ = put (fromMLSEnum @Word8 MLSCipherText)
+
+deriving instance Eq (KnownFormatTag 'MLSPlainText)
+
+deriving instance Eq (KnownFormatTag 'MLSCipherText)
+
+deriving instance Show (KnownFormatTag 'MLSPlainText)
+
+deriving instance Show (KnownFormatTag 'MLSCipherText)
 
 data MessageTBS (tag :: WireFormatTag) = MessageTBS
   { tbsMsgFormat :: KnownFormatTag tag,
@@ -146,6 +198,23 @@ instance ParseMLS (MessageTBS 'MLSCipherText) where
     p <- parseMLSBytes @Word32
     pure $ MessageTBS f g e d s (CipherText ct p)
 
+instance SerialiseMLS (MessageTBS 'MLSPlainText) where
+  serialiseMLS (MessageTBS f g e d s p) = do
+    serialiseMLS f
+    serialiseMLS g
+    serialiseMLS e
+    serialiseMLS s
+    serialiseMLSBytes @Word32 d
+    serialiseMLS p
+
+deriving instance Eq (MessageTBS 'MLSPlainText)
+
+deriving instance Eq (MessageTBS 'MLSCipherText)
+
+deriving instance Show (MessageTBS 'MLSPlainText)
+
+deriving instance Show (MessageTBS 'MLSCipherText)
+
 data SomeMessage where
   SomeMessage :: Sing tag -> Message tag -> SomeMessage
 
@@ -161,6 +230,7 @@ instance ParseMLS SomeMessage where
 data family Sender (tag :: WireFormatTag) :: *
 
 data instance Sender 'MLSCipherText = EncryptedSender {esData :: ByteString}
+  deriving (Eq, Show)
 
 instance ParseMLS (Sender 'MLSCipherText) where
   parseMLS = EncryptedSender <$> parseMLSBytes @Word8
@@ -171,19 +241,43 @@ data SenderTag = MemberSenderTag | PreconfiguredSenderTag | NewMemberSenderTag
 instance ParseMLS SenderTag where
   parseMLS = parseMLSEnum @Word8 "sender type"
 
+instance SerialiseMLS SenderTag where
+  serialiseMLS = serialiseMLSEnum @Word8
+
+-- NOTE: according to the spec, the preconfigured sender case contains a
+-- bytestring, not a u32. However, as of 2022-08-02, the openmls fork used by
+-- the clients is using a u32 here.
 data instance Sender 'MLSPlainText
   = MemberSender KeyPackageRef
-  | PreconfiguredSender ByteString
+  | PreconfiguredSender Word32
   | NewMemberSender
+  deriving (Eq, Show, Generic)
 
 instance ParseMLS (Sender 'MLSPlainText) where
   parseMLS =
     parseMLS >>= \case
       MemberSenderTag -> MemberSender <$> parseMLS
-      PreconfiguredSenderTag -> PreconfiguredSender <$> parseMLSBytes @Word8
+      PreconfiguredSenderTag -> PreconfiguredSender <$> get
       NewMemberSenderTag -> pure NewMemberSender
 
+instance SerialiseMLS (Sender 'MLSPlainText) where
+  serialiseMLS (MemberSender r) = do
+    serialiseMLS MemberSenderTag
+    serialiseMLS r
+  serialiseMLS (PreconfiguredSender x) = do
+    serialiseMLS PreconfiguredSenderTag
+    put x
+  serialiseMLS NewMemberSender = serialiseMLS NewMemberSender
+
 data family MessagePayload (tag :: WireFormatTag) :: *
+
+deriving instance Eq (MessagePayload 'MLSPlainText)
+
+deriving instance Eq (MessagePayload 'MLSCipherText)
+
+deriving instance Show (MessagePayload 'MLSPlainText)
+
+deriving instance Show (MessagePayload 'MLSCipherText)
 
 data instance MessagePayload 'MLSCipherText = CipherText
   { msgContentType :: Word8,
@@ -211,6 +305,17 @@ instance ParseMLS (MessagePayload 'MLSPlainText) where
       ProposalMessageTag -> ProposalMessage <$> parseMLS
       CommitMessageTag -> CommitMessage <$> parseMLS
 
+instance SerialiseMLS ContentType where
+  serialiseMLS = serialiseMLSEnum @Word8
+
+instance SerialiseMLS (MessagePayload 'MLSPlainText) where
+  serialiseMLS (ProposalMessage raw) = do
+    serialiseMLS ProposalMessageTag
+    putByteString (rmRaw raw)
+  -- We do not need to serialise Commit and Application messages,
+  -- so the next case is left as a stub
+  serialiseMLS _ = pure ()
+
 data MLSMessageSendingStatus = MLSMessageSendingStatus
   { mmssEvents :: [Event],
     mmssTime :: UTCTimeMillis
@@ -235,3 +340,24 @@ instance ToSchema MLSMessageSendingStatus where
 verifyMessageSignature :: CipherSuiteTag -> Message 'MLSPlainText -> ByteString -> Bool
 verifyMessageSignature cs msg pubkey =
   csVerifySignature cs pubkey (rmRaw (msgTBS msg)) (msgSignature (msgExtraFields msg))
+
+mkRemoveProposalMessage ::
+  SecretKey ->
+  PublicKey ->
+  GroupId ->
+  Epoch ->
+  KeyPackageRef ->
+  Maybe (Message 'MLSPlainText)
+mkRemoveProposalMessage priv pub gid epoch ref = maybeCryptoError $ do
+  let tbs =
+        mkRawMLS $
+          MessageTBS
+            { tbsMsgFormat = KnownFormatTag,
+              tbsMsgGroupId = gid,
+              tbsMsgEpoch = epoch,
+              tbsMsgAuthData = mempty,
+              tbsMsgSender = PreconfiguredSender 0,
+              tbsMsgPayload = ProposalMessage (mkRemoveProposal ref)
+            }
+  let sig = BA.convert $ sign priv pub (rmRaw tbs)
+  pure (Message tbs (MessageExtraFields sig Nothing Nothing))

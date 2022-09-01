@@ -109,9 +109,9 @@ import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
 import Test.QuickCheck.Arbitrary (arbitrary)
 import Test.QuickCheck.Gen (suchThat)
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolProteusTag))
 import Wire.API.MLS.CipherSuite (CipherSuiteTag (MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519))
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 ----------------------------------------------------------------------
 -- FeatureTag
@@ -997,6 +997,7 @@ data AllFeatureConfigs = AllFeatureConfigs
   { afcLegalholdStatus :: WithStatus LegalholdConfig,
     afcSSOStatus :: WithStatus SSOConfig,
     afcTeamSearchVisibilityAvailable :: WithStatus SearchVisibilityAvailableConfig,
+    afcSearchVisibilityInboundConfig :: WithStatus SearchVisibilityInboundConfig,
     afcValidateSAMLEmails :: WithStatus ValidateSAMLEmailsConfig,
     afcDigitalSignatures :: WithStatus DigitalSignaturesConfig,
     afcAppLock :: WithStatus AppLockConfig,
@@ -1006,8 +1007,7 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcSelfDeletingMessages :: WithStatus SelfDeletingMessagesConfig,
     afcGuestLink :: WithStatus GuestLinksConfig,
     afcSndFactorPasswordChallenge :: WithStatus SndFactorPasswordChallengeConfig,
-    afcMLS :: WithStatus MLSConfig,
-    afcSearchVisibilityInboundConfig :: WithStatus SearchVisibilityInboundConfig
+    afcMLS :: WithStatus MLSConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -1019,6 +1019,7 @@ instance ToSchema AllFeatureConfigs where
         <$> afcLegalholdStatus .= featureField
         <*> afcSSOStatus .= featureField
         <*> afcTeamSearchVisibilityAvailable .= featureField
+        <*> afcSearchVisibilityInboundConfig .= featureField
         <*> afcValidateSAMLEmails .= featureField
         <*> afcDigitalSignatures .= featureField
         <*> afcAppLock .= featureField
@@ -1029,7 +1030,6 @@ instance ToSchema AllFeatureConfigs where
         <*> afcGuestLink .= featureField
         <*> afcSndFactorPasswordChallenge .= featureField
         <*> afcMLS .= featureField
-        <*> afcSearchVisibilityInboundConfig .= featureField
     where
       featureField ::
         forall cfg.

@@ -49,11 +49,11 @@ library
     Brig.Data.Instances
     Brig.Data.LoginCode
     Brig.Data.MLS.KeyPackage
+    Brig.Data.Nonce
     Brig.Data.Properties
     Brig.Data.Types
     Brig.Data.User
     Brig.Data.UserKey
-    Brig.Data.UserPendingActivation
     Brig.Effects.BlacklistPhonePrefixStore
     Brig.Effects.BlacklistPhonePrefixStore.Cassandra
     Brig.Effects.BlacklistStore
@@ -89,6 +89,8 @@ library
     Brig.Sem.CodeStore.Cassandra
     Brig.Sem.PasswordResetStore
     Brig.Sem.PasswordResetStore.CodeStore
+    Brig.Sem.UserPendingActivationStore
+    Brig.Sem.UserPendingActivationStore.Cassandra
     Brig.SMTP
     Brig.Team.API
     Brig.Team.DB
@@ -166,7 +168,7 @@ library
   ghc-options:
     -O2 -Wall -Wincomplete-uni-patterns -Wincomplete-record-updates
     -Wpartial-fields -fwarn-tabs -optP-Wno-nonportable-include-path
-    -funbox-strict-fields
+    -funbox-strict-fields -fplugin=Polysemy.Plugin
 
   build-depends:
       aeson                      >=2.0.1.0
@@ -239,6 +241,7 @@ library
     , optparse-applicative       >=0.11
     , pem                        >=0.2
     , polysemy
+    , polysemy-plugin
     , polysemy-wire-zoo
     , proto-lens                 >=0.1
     , random-shuffle             >=0.0.3
@@ -540,6 +543,7 @@ executable brig-integration
     , optparse-applicative
     , pem
     , polysemy
+    , polysemy-wire-zoo
     , process
     , proto-lens
     , QuickCheck
@@ -650,6 +654,8 @@ executable brig-schema
     V69_MLSKeyPackageRefMapping
     V70_UserEmailUnvalidated
     V71_AddTableVCodesThrottle
+    V72_AddNonceTable
+    V73_ReplaceNonceTable
     V9
 
   hs-source-dirs:     schema/src

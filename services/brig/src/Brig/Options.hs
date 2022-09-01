@@ -38,6 +38,7 @@ import Data.Domain (Domain (..))
 import Data.Id
 import Data.LanguageCodes (ISO639_1 (EN))
 import Data.Misc (HttpsUrl)
+import Data.Nonce
 import Data.Range
 import Data.Schema
 import Data.Scientific (toBoundedInteger)
@@ -51,10 +52,10 @@ import Imports
 import qualified Network.DNS as DNS
 import System.Logger.Extended (Level, LogFormat)
 import Util.Options
-import Wire.API.Arbitrary (Arbitrary, arbitrary)
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import Wire.API.User.Search (FederatedUserSearchPolicy)
+import Wire.Arbitrary (Arbitrary, arbitrary)
 
 newtype Timeout = Timeout
   { timeoutDiff :: NominalDiffTime
@@ -589,7 +590,10 @@ data Settings = Settings
     setEnableDevelopmentVersions :: Maybe Bool,
     -- | Minimum delay in seconds between consecutive attempts to generate a new verification code.
     -- use `set2FACodeGenerationDelaySecs` as the getter function which always provides a default value
-    set2FACodeGenerationDelaySecsInternal :: !(Maybe Int)
+    set2FACodeGenerationDelaySecsInternal :: !(Maybe Int),
+    -- | The time-to-live of a nonce in seconds.
+    -- use `setNonceTtlSecs` as the getter function which always provides a default value
+    setNonceTtlSecsInternal :: !(Maybe NonceTtlSecs)
   }
   deriving (Show, Generic)
 
@@ -616,6 +620,12 @@ def2FACodeGenerationDelaySecs = 5 * 60 -- 5 minutes
 
 set2FACodeGenerationDelaySecs :: Settings -> Int
 set2FACodeGenerationDelaySecs = fromMaybe def2FACodeGenerationDelaySecs . set2FACodeGenerationDelaySecsInternal
+
+defaultNonceTtlSecs :: NonceTtlSecs
+defaultNonceTtlSecs = NonceTtlSecs $ 5 * 60 -- 5 minutes
+
+setNonceTtlSecs :: Settings -> NonceTtlSecs
+setNonceTtlSecs = fromMaybe defaultNonceTtlSecs . setNonceTtlSecsInternal
 
 -- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
 -- express our current cloud business logic.
@@ -797,6 +807,7 @@ instance FromJSON Settings where
               "setDefaultTemplateLocaleInternal" -> "setDefaultTemplateLocale"
               "setVerificationCodeTimeoutInternal" -> "setVerificationTimeout"
               "set2FACodeGenerationDelaySecsInternal" -> "set2FACodeGenerationDelaySecs"
+              "setNonceTtlSecsInternal" -> "setNonceTtlSecs"
               other -> other
           }
 

@@ -89,10 +89,10 @@ import Imports
 import qualified Proto.Otr
 import qualified Proto.Otr_Fields as Proto.Otr
 import Servant (FromHttpApiData (..))
-import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
 import qualified Wire.API.Message.Proto as Proto
 import Wire.API.ServantProto (FromProto (..), ToProto (..))
 import Wire.API.User.Client (QualifiedUserClientMap (QualifiedUserClientMap), QualifiedUserClients, UserClientMap (..), UserClients (..), modelOtrClientMap, modelUserClients)
+import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- Message

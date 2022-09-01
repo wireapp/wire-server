@@ -1,12 +1,3 @@
-FROM rust:1.63 as mls-test-cli-builder
-
-# compile mls-test-cli tool
-RUN cd /tmp && \
-    git clone https://github.com/wireapp/mls-test-cli && \
-    cd mls-test-cli && \
-    cargo build --release
-
-
 FROM ubuntu:20.04 as cryptobox-builder
 
 # compile cryptobox-c
@@ -19,15 +10,21 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     export SODIUM_USE_PKG_CONFIG=1 && \
     cargo build --release
 
+FROM rust:1.63 as mls-test-cli-builder
+
+# compile mls-test-cli tool
+RUN cd /tmp && \
+    git clone https://github.com/wireapp/mls-test-cli && \
+    cd mls-test-cli && \
+    git rev-parse HEAD
+
+RUN cd /tmp/mls-test-cli && RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --target x86_64-unknown-linux-gnu
 
 # Minimal dependencies for ubuntu-compiled, dynamically linked wire-server Haskell services
 FROM ubuntu:20.04
 
 COPY --from=cryptobox-builder /tmp/cryptobox-c/target/release/libcryptobox.so /usr/lib
-
-# FUTUREWORK: only copy mls-test-cli executables if we are building an
-# integration test image
-COPY --from=mls-test-cli-builder /tmp/mls-test-cli/target/release/mls-test-cli /usr/bin
+COPY --from=mls-test-cli-builder /tmp/mls-test-cli/target/x86_64-unknown-linux-gnu/release/mls-test-cli /usr/bin/mls-test-cli
 
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update && \

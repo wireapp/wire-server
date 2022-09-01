@@ -3,13 +3,18 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to Wire's (self-hosting) documentation!
+Welcome to Wire's documentation!
 ===============================================
+
+If you are a Wire end-user, please check out our `support pages <https://support.wire.com/>`_.
 
 The targeted audience of this documentation is:
 
-* people wanting to understand how the server components of Wire work
-* people wishing to self-host Wire on their own datacentres or cloud
+* the curious power-user (people who want to understand how the server components of Wire work)
+* on-premise operators/administrators (people who want to self-host Wire-Server on their own datacentres or cloud)
+* developers (people who are working with the wire-server source code)
+
+If you are a developer, you may want to check out the "Notes for developers" first.
 
 This documentation may be expanded in the future to cover other aspects of Wire.
 
@@ -26,6 +31,7 @@ This documentation may be expanded in the future to cover other aspects of Wire.
    How to set up user provisioning with LDAP or SCIM <how-to/scim/index.rst>
    Client API documentation <understand/api-client-perspective/index.rst>
    Security responses <security-responses/index.rst>
+   Notes for developers <developer/index.rst>
 
 ..   Overview <understand/overview>
 

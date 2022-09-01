@@ -17,10 +17,16 @@
 
 module Wire.API.MLS.Serialisation
   ( ParseMLS (..),
+    SerialiseMLS (..),
     parseMLSVector,
+    serialiseMLSVector,
     parseMLSBytes,
+    serialiseMLSBytes,
+    serialiseMLSBytesLazy,
     parseMLSOptional,
+    serialiseMLSOptional,
     parseMLSEnum,
+    serialiseMLSEnum,
     BinaryMLS (..),
     MLSEnumError (..),
     fromMLSEnum,
@@ -34,6 +40,7 @@ module Wire.API.MLS.Serialisation
     rawMLSSchema,
     mlsSwagger,
     parseRawMLS,
+    mkRawMLS,
   )
 where
 
@@ -44,7 +51,10 @@ import Data.Aeson (FromJSON (..))
 import qualified Data.Aeson as Aeson
 import Data.Bifunctor
 import Data.Binary
+import Data.Binary.Builder
 import Data.Binary.Get
+import Data.Binary.Put
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Json.Util
 import Data.Proxy
@@ -56,6 +66,10 @@ import Imports
 -- | Parse a value encoded using the "TLS presentation" format.
 class ParseMLS a where
   parseMLS :: Get a
+
+-- | Convert a value to "TLS presentation" format.
+class SerialiseMLS a where
+  serialiseMLS :: a -> Put
 
 parseMLSVector :: forall w a. (Binary w, Integral w) => Get a -> Get [a]
 parseMLSVector getItem = do
@@ -70,15 +84,40 @@ parseMLSVector getItem = do
       pos <- bytesRead
       (:) x <$> (if pos < endPos then go endPos else pure [])
 
+serialiseMLSVector ::
+  forall w a.
+  (Binary w, Integral w) =>
+  (a -> Put) ->
+  [a] ->
+  Put
+serialiseMLSVector p =
+  serialiseMLSBytesLazy @w . toLazyByteString . execPut . traverse_ p
+
 parseMLSBytes :: forall w. (Binary w, Integral w) => Get ByteString
 parseMLSBytes = do
   len <- fromIntegral <$> get @w
   getByteString len
 
+serialiseMLSBytes :: forall w. (Binary w, Integral w) => ByteString -> Put
+serialiseMLSBytes x = do
+  put @w (fromIntegral (BS.length x))
+  putByteString x
+
+serialiseMLSBytesLazy :: forall w. (Binary w, Integral w) => LBS.ByteString -> Put
+serialiseMLSBytesLazy x = do
+  put @w (fromIntegral (LBS.length x))
+  putLazyByteString x
+
 parseMLSOptional :: Get a -> Get (Maybe a)
 parseMLSOptional g = do
   b <- getWord8
   sequenceA $ guard (b /= 0) $> g
+
+serialiseMLSOptional :: (a -> Put) -> Maybe a -> Put
+serialiseMLSOptional _p Nothing = putWord8 0
+serialiseMLSOptional p (Just x) = do
+  putWord8 1
+  p x
 
 -- | Parse a positive tag for an enumeration. The value 0 is considered
 -- "reserved", and all other values are shifted down by 1 to get the
@@ -90,6 +129,13 @@ parseMLSEnum ::
   String ->
   Get a
 parseMLSEnum name = toMLSEnum name =<< get @w
+
+serialiseMLSEnum ::
+  forall w a.
+  (Enum a, Integral w, Binary w) =>
+  a ->
+  Put
+serialiseMLSEnum = put . fromMLSEnum @w
 
 data MLSEnumError = MLSEnumUnknown | MLSEnumInvalid
 
@@ -116,6 +162,10 @@ instance ParseMLS Word16 where parseMLS = get
 instance ParseMLS Word32 where parseMLS = get
 
 instance ParseMLS Word64 where parseMLS = get
+
+instance SerialiseMLS Word16 where serialiseMLS = put
+
+instance SerialiseMLS Word32 where serialiseMLS = put
 
 -- | A wrapper to generate a 'ParseMLS' instance given a 'Binary' instance.
 newtype BinaryMLS a = BinaryMLS a
@@ -201,3 +251,9 @@ parseRawMLS p = do
 
 instance ParseMLS a => ParseMLS (RawMLS a) where
   parseMLS = parseRawMLS parseMLS
+
+instance SerialiseMLS (RawMLS a) where
+  serialiseMLS = putByteString . rmRaw
+
+mkRawMLS :: SerialiseMLS a => a -> RawMLS a
+mkRawMLS x = RawMLS (LBS.toStrict (runPut (serialiseMLS x))) x

@@ -38,6 +38,7 @@ import Data.Default
 import Data.Id hiding (client)
 import qualified Data.List1 as List1
 import qualified Data.Map as Map
+import Data.Nonce (isValidBase64UrlEncodedUUID)
 import Data.Qualified (Qualified (..))
 import Data.Range (unsafeRange)
 import qualified Data.Set as Set
@@ -105,7 +106,8 @@ tests _cl _at opts p db b c g =
       test p "get /clients/:client - 404" $ testMissingClient b,
       test p "get /clients/:client - 200" $ testMLSClient b,
       test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g,
-      test p "client/prekeys/race" $ testPreKeyRace b
+      test p "client/prekeys/race" $ testPreKeyRace b,
+      test p "get/head nonce/clients" $ testNewNonce b
     ]
 
 testAddGetClientVerificationCode :: DB.ClientState -> Brig -> Galley -> Http ()
@@ -945,6 +947,22 @@ testPreKeyRace brig = do
   let regular = filter (/= lastPrekeyId) actual
   liftIO $ assertEqual "duplicate prekeys" (length regular) (length (nub regular))
   deleteClient brig uid (clientId c) (Just defPasswordText) !!! const 200 === statusCode
+
+testNewNonce :: Brig -> Http ()
+testNewNonce brig = do
+  n1 <- check Util.getNonce 204
+  n2 <- check Util.headNonce 200
+  lift $ assertBool "nonces are should not be equal" (n1 /= n2)
+  where
+    check f status = do
+      uid <- userId <$> randomUser brig
+      cid <- randomClient
+      response <- f brig uid cid <!! const status === statusCode
+      let nonceBs = getHeader "Replay-Nonce" response
+      liftIO $ do
+        assertBool "Replay-Nonce header should contain a valid base64url encoded uuidv4" $ any isValidBase64UrlEncodedUUID nonceBs
+        Just "no-store" @=? getHeader "Cache-Control" response
+      pure nonceBs
 
 testCan'tDeleteLegalHoldClient :: Brig -> Http ()
 testCan'tDeleteLegalHoldClient brig = do

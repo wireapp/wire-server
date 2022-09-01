@@ -63,7 +63,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import qualified Data.Text as Text
 import Imports
 import qualified Test.QuickCheck as QC
-import Wire.API.Arbitrary (Arbitrary (arbitrary))
+import Wire.Arbitrary (Arbitrary (arbitrary))
 
 --------------------------------------------------------------------------------
 -- RichInfo

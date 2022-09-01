@@ -47,9 +47,9 @@ import Data.Binary
 import Data.Singletons.TH
 import Data.Time.Clock.POSIX
 import Imports
-import Wire.API.Arbitrary
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Serialisation
+import Wire.Arbitrary
 
 newtype ProtocolVersion = ProtocolVersion {pvNumber :: Word8}
   deriving newtype (Eq, Ord, Show, Binary, Arbitrary)
@@ -74,6 +74,11 @@ data Extension = Extension
 
 instance ParseMLS Extension where
   parseMLS = Extension <$> parseMLS <*> parseMLSBytes @Word32
+
+instance SerialiseMLS Extension where
+  serialiseMLS (Extension ty d) = do
+    serialiseMLS ty
+    serialiseMLSBytes @Word32 d
 
 data ExtensionTag
   = CapabilitiesExtensionTag

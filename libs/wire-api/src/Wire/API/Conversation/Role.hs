@@ -83,7 +83,7 @@ import qualified Deriving.Swagger as S
 import GHC.TypeLits
 import Imports
 import qualified Test.QuickCheck as QC
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
+import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- Role

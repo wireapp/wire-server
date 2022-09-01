@@ -143,11 +143,8 @@ import Wire.API.User.Client
 
 onUserEvent ::
   ( MonadLogger m,
-    MonadCatch m,
-    MonadThrow m,
     MonadIndexIO m,
     MonadReader Env m,
-    MonadIO m,
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
@@ -215,11 +212,8 @@ onClientEvent orig conn e = do
 
 updateSearchIndex ::
   ( MonadClient m,
-    MonadLogger m,
     MonadCatch m,
     MonadLogger m,
-    MonadCatch m,
-    MonadThrow m,
     MonadIndexIO m
   ) =>
   UserId ->
@@ -277,7 +271,6 @@ dispatchNotifications ::
     Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
-    MonadCatch m,
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
@@ -314,7 +307,6 @@ notifyUserDeletionLocals ::
     Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
-    MonadCatch m,
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m,
@@ -331,7 +323,6 @@ notifyUserDeletionLocals deleted conn event = do
 notifyUserDeletionRemotes ::
   forall m.
   ( MonadReader Env m,
-    MonadIO m,
     MonadClient m,
     MonadLogger m
   ) =>
@@ -358,7 +349,7 @@ notifyUserDeletionRemotes deleted = do
           whenLeft eitherFErr $
             logFederationError (tDomain uids)
 
-    logFederationError :: Log.MonadLogger m => Domain -> FederationError -> m ()
+    logFederationError :: Domain -> FederationError -> m ()
     logFederationError domain fErr =
       Log.err $
         Log.msg ("Federation error while notifying remote backends of a user deletion." :: ByteString)
@@ -372,7 +363,6 @@ push ::
     Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
-    MonadCatch m,
     MonadHttp m,
     HasRequestId m
   ) =>
@@ -404,7 +394,6 @@ rawPush ::
     Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
-    MonadCatch m,
     MonadHttp m,
     HasRequestId m
   ) =>
@@ -458,7 +447,6 @@ notify ::
     Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
-    MonadCatch m,
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m
@@ -499,7 +487,6 @@ notifySelf ::
     Log.MonadLogger m,
     MonadReader Env m,
     MonadMask m,
-    MonadCatch m,
     MonadHttp m,
     HasRequestId m,
     MonadUnliftIO m
@@ -518,7 +505,6 @@ notifySelf events orig route conn =
 notifyContacts ::
   forall m.
   ( MonadReader Env m,
-    MonadIO m,
     MonadMask m,
     MonadHttp m,
     HasRequestId m,
@@ -538,7 +524,7 @@ notifyContacts events orig route conn = do
   notify events orig route conn $
     list1 orig <$> liftA2 (++) contacts teamContacts
   where
-    contacts :: MonadClient m => m [UserId]
+    contacts :: m [UserId]
     contacts = lookupContactList orig
 
     teamContacts :: m [UserId]
@@ -929,8 +915,7 @@ upsertOne2OneConversation ::
     MonadIO m,
     MonadMask m,
     MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
+    HasRequestId m
   ) =>
   UpsertOne2OneConversationRequest ->
   m UpsertOne2OneConversationResponse
@@ -1079,8 +1064,7 @@ lookupPushToken ::
     MonadIO m,
     MonadMask m,
     MonadHttp m,
-    HasRequestId m,
-    MonadLogger m
+    HasRequestId m
   ) =>
   UserId ->
   m [Push.PushToken]

@@ -34,10 +34,10 @@ import Data.Json.Util
 import Data.Time (UTCTime)
 import Imports
 import Test.QuickCheck.Arbitrary (Arbitrary)
-import Wire.API.Arbitrary (GenericUniform (..))
 import Wire.API.Message (UserClients)
 import Wire.API.Team (Team)
 import Wire.API.Team.LegalHold (LegalholdProtectee)
+import Wire.Arbitrary (GenericUniform (..))
 
 data TeamStatus
   = Active

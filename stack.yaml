@@ -146,6 +146,10 @@ extra-deps:
 - git: https://gitlab.com/axeman/swagger
   commit: e2d3f5b5274b8d8d301b5377b0af4319cea73f9e
 
+# Use forked cql-io for https://gitlab.com/twittner/cql-io/-/merge_requests/20
+- git: https://gitlab.com/axeman/cql-io
+  commit: c2b6aa995b5817ed7c78c53f72d5aa586ef87c36
+
 ############################################################
 # Wire packages
 ############################################################
@@ -215,7 +219,6 @@ extra-deps:
 
 - HsOpenSSL-x509-system-0.1.0.4
 - cql-4.0.3
-- cql-io-1.1.1
 - primitive-extras-0.10.1.1
 - text-format-0.3.2
 - hex-0.2.0

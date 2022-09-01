@@ -50,7 +50,7 @@ import qualified Data.Set as Set
 import qualified Data.Text.Encoding as Text
 import GHC.TypeLits (KnownNat, Nat)
 import Imports
-import Wire.API.Arbitrary (Arbitrary (..), GenericUniform (..))
+import Wire.Arbitrary (Arbitrary (..), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- ServiceTag

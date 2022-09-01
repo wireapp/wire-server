@@ -43,7 +43,7 @@ import qualified Data.Swagger as S
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
 import qualified URI.ByteString as URI
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 data ConversationCode = ConversationCode
   { conversationKey :: Code.Key,

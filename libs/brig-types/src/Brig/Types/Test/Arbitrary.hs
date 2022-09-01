@@ -18,7 +18,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 module Brig.Types.Test.Arbitrary
-  ( module Wire.API.Arbitrary,
+  ( module Wire.Arbitrary,
   )
 where
 
@@ -27,7 +27,7 @@ import Brig.Types.Team.LegalHold
 import Data.String.Conversions (cs)
 import Imports
 import Test.QuickCheck
-import Wire.API.Arbitrary
+import Wire.Arbitrary
 
 instance Arbitrary ExcludedPrefix where
   arbitrary = ExcludedPrefix <$> arbitrary <*> arbitrary

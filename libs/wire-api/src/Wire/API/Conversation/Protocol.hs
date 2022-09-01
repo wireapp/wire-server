@@ -37,11 +37,11 @@ import Control.Lens (makePrisms, (?~))
 import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Schema
 import Imports
-import Wire.API.Arbitrary
 import Wire.API.Conversation.Action.Tag
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Group
+import Wire.Arbitrary
 
 data ProtocolTag = ProtocolProteusTag | ProtocolMLSTag
   deriving stock (Eq, Show, Enum, Bounded, Generic)

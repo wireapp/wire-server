@@ -27,8 +27,8 @@ import Data.Qualified
 import Data.Schema
 import qualified Data.Swagger as S
 import Imports
-import Wire.API.Arbitrary
 import Wire.API.MLS.Serialisation
+import Wire.Arbitrary
 
 newtype GroupId = GroupId {unGroupId :: ByteString}
   deriving (Eq, Show, Generic)
@@ -40,6 +40,9 @@ instance IsString GroupId where
 
 instance ParseMLS GroupId where
   parseMLS = GroupId <$> parseMLSBytes @Word8
+
+instance SerialiseMLS GroupId where
+  serialiseMLS (GroupId gid) = serialiseMLSBytes @Word8 gid
 
 instance ToSchema GroupId where
   schema =

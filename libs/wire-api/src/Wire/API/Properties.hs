@@ -39,7 +39,7 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Ascii
 import Imports
 import Servant
-import Wire.API.Arbitrary (Arbitrary)
+import Wire.Arbitrary (Arbitrary)
 
 newtype PropertyKeysAndValues = PropertyKeysAndValues (Map PropertyKey PropertyValue)
   deriving newtype (ToJSON)

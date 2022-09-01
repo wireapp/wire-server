@@ -27,7 +27,6 @@ import Data.Time.Clock (UTCTime)
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Servant.API
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
@@ -38,6 +37,7 @@ import Wire.API.Federation.Endpoint
 import Wire.API.Message
 import Wire.API.Routes.Public.Galley
 import Wire.API.Util.Aeson (CustomEncoded (..))
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 -- FUTUREWORK: data types, json instances, more endpoints. See
 -- https://wearezeta.atlassian.net/wiki/spaces/CORE/pages/356090113/Federation+Galley+Conversation+API

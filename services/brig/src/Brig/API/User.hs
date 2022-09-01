@@ -106,8 +106,6 @@ import Brig.Data.User
 import qualified Brig.Data.User as Data
 import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
-import Brig.Data.UserPendingActivation
-import qualified Brig.Data.UserPendingActivation as Data
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import qualified Brig.Effects.BlacklistPhonePrefixStore as BlacklistPhonePrefixStore
 import Brig.Effects.BlacklistStore (BlacklistStore)
@@ -122,6 +120,8 @@ import Brig.Sem.CodeStore (CodeStore)
 import qualified Brig.Sem.CodeStore as E
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
 import qualified Brig.Sem.PasswordResetStore as E
+import Brig.Sem.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
+import qualified Brig.Sem.UserPendingActivationStore as UserPendingActivationStore
 import qualified Brig.Team.DB as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Connection
@@ -277,7 +277,15 @@ createUserSpar new = do
       pure $ CreateUserTeam tid nm
 
 -- docs/reference/user/registration.md {#RefRegistration}
-createUser :: forall r. Member BlacklistStore r => NewUser -> ExceptT RegisterError (AppT r) CreateUserResult
+createUser ::
+  forall r p.
+  Members
+    '[ BlacklistStore,
+       UserPendingActivationStore p
+     ]
+    r =>
+  NewUser ->
+  ExceptT RegisterError (AppT r) CreateUserResult
 createUser new = do
   (email, phone) <- validateEmailAndPhone new
 
@@ -448,8 +456,8 @@ createUser new = do
           field "user" (toByteString uid)
             . field "team" (toByteString $ Team.iiTeam ii)
             . msg (val "Accepting invitation")
+        liftSem $ UserPendingActivationStore.remove uid
         wrapClient $ do
-          Data.usersPendingActivationRemove uid
           Team.deleteInvitation (Team.inTeam inv) (Team.inInvitation inv)
 
     addUserToTeamSSO :: UserAccount -> TeamId -> UserIdentity -> ExceptT RegisterError (AppT r) CreateUserTeam
@@ -512,7 +520,15 @@ initAccountFeatureConfig uid = do
 -- | 'createUser' is becoming hard to maintian, and instead of adding more case distinctions
 -- all over the place there, we add a new function that handles just the one new flow where
 -- users are invited to the team via scim.
-createUserInviteViaScim :: Member BlacklistStore r => UserId -> NewUserScimInvitation -> ExceptT Error.Error (AppT r) UserAccount
+createUserInviteViaScim ::
+  Members
+    '[ BlacklistStore,
+       UserPendingActivationStore p
+     ]
+    r =>
+  UserId ->
+  NewUserScimInvitation ->
+  ExceptT Error.Error (AppT r) UserAccount
 createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = do
   email <- either (const . throwE . Error.StdError $ errorToWai @'E.InvalidEmail) pure (validateEmail rawEmail)
   let emKey = userEmailKey email
@@ -526,7 +542,7 @@ createUserInviteViaScim uid (NewUserScimInvitation tid loc name rawEmail) = do
     ttl <- setTeamInvitationTimeout <$> view settings
     now <- liftIO =<< view currentTime
     pure $ addUTCTime (realToFrac ttl) now
-  lift . wrapClient $ Data.usersPendingActivationAdd (UserPendingActivation uid expiresAt)
+  lift . liftSem $ UserPendingActivationStore.add (UserPendingActivation uid expiresAt)
 
   let activated =
         -- treating 'PendingActivation' as 'Active', but then 'Brig.Data.User.toIdentity'
@@ -1220,11 +1236,8 @@ verifyDeleteUser d = do
 -- other owner left.
 deleteAccount ::
   ( MonadLogger m,
-    MonadCatch m,
-    MonadThrow m,
     MonadIndexIO m,
     MonadReader Env m,
-    MonadIO m,
     MonadMask m,
     MonadHttp m,
     HasRequestId m,

@@ -36,9 +36,9 @@ import Data.Handle (Handle)
 import Data.Id
 import Data.Json.Util ((#))
 import Imports
-import Wire.API.Arbitrary (Arbitrary, GenericUniform (..))
 import Wire.API.Conversation.Member (OtherMember (..))
 import Wire.API.User.Profile (ColourId, Name)
+import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- BotConvView

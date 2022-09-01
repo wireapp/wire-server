@@ -230,7 +230,7 @@ test-suite spec
     TypeSynonymInstances
 
   ghc-options:        -Wall -Werror -threaded -rtsopts -with-rtsopts=-N
-  build-tool-depends: hspec-discover:hspec-discover -any
+  build-tool-depends: hspec-discover:hspec-discover
   build-depends:
       aeson                 >=2
     , aeson-qq              >=0.8.2   && <0.9

@@ -56,7 +56,6 @@ import Data.Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.ByteString.Conversion
 import Data.Code as Code
-import Data.Handle (Handle)
 import Data.Id (UserId)
 import Data.Misc (PlainTextPassword (..))
 import Data.Schema (ToSchema)
@@ -65,8 +64,9 @@ import qualified Data.Swagger.Build.Api as Doc
 import Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Clock (UTCTime)
 import Imports
-import Wire.API.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
-import Wire.API.User.Identity (Email, Phone)
+import Wire.API.User.Auth2
+import Wire.API.User.Identity (Phone)
+import Wire.Arbitrary (Arbitrary (arbitrary), GenericUniform (..))
 
 --------------------------------------------------------------------------------
 -- Login
@@ -131,41 +131,11 @@ loginLabel :: Login -> Maybe CookieLabel
 loginLabel (PasswordLogin _ _ l _) = l
 loginLabel (SmsLogin _ _ l) = l
 
---------------------------------------------------------------------------------
--- LoginId
-
-data LoginId
-  = LoginByEmail Email
-  | LoginByPhone Phone
-  | LoginByHandle Handle
-  deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via (GenericUniform LoginId)
-
-instance FromJSON LoginId where
-  parseJSON = withObject "LoginId" $ \o -> do
-    email <- fmap LoginByEmail <$> (o .:? "email")
-    phone <- fmap LoginByPhone <$> (o .:? "phone")
-    handle <- fmap LoginByHandle <$> (o .:? "handle")
-    maybe
-      (fail "'email', 'phone' or 'handle' required")
-      pure
-      (email <|> phone <|> handle)
-
--- NB. You might be tempted to rewrite this by applying (<|>) to
--- parsers themselves. However, the code as it is right now has a
--- property that if (e.g.) the email is present but unparseable,
--- parsing will fail. If you change it to use (<|>), unparseable
--- email (or phone, etc) will just cause the next parser to be
--- chosen, instead of failing early.
-
 loginIdPair :: LoginId -> Aeson.Pair
 loginIdPair = \case
   LoginByEmail s -> "email" .= s
   LoginByPhone s -> "phone" .= s
   LoginByHandle s -> "handle" .= s
-
-instance ToJSON LoginId where
-  toJSON loginId = object [loginIdPair loginId]
 
 --------------------------------------------------------------------------------
 -- LoginCode

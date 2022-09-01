@@ -43,10 +43,8 @@ import UnliftIO (timeout)
 onEvent ::
   ( Log.MonadLogger m,
     MonadCatch m,
-    MonadThrow m,
     MonadIndexIO m,
     MonadReader Env m,
-    MonadIO m,
     MonadMask m,
     MonadHttp m,
     HasRequestId m,

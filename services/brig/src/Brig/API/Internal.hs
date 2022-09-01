@@ -46,6 +46,7 @@ import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
 import Brig.Sem.CodeStore (CodeStore)
 import Brig.Sem.PasswordResetStore (PasswordResetStore)
+import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.Team.API as Team
 import Brig.Team.DB (lookupInvitationByEmail)
 import Brig.Types.Connection
@@ -57,7 +58,6 @@ import qualified Brig.User.API.Auth as Auth
 import qualified Brig.User.API.Search as Search
 import qualified Brig.User.EJPD
 import qualified Brig.User.Search.Index as Index
-import Cassandra (MonadClient)
 import Control.Error hiding (bool)
 import Control.Lens (view)
 import Data.Aeson hiding (json)
@@ -100,7 +100,13 @@ import Wire.API.User.RichInfo
 ---------------------------------------------------------------------------
 -- Sitemap (servant)
 
-servantSitemap :: Members '[BlacklistStore] r => ServerT BrigIRoutes.API (Handler r)
+servantSitemap ::
+  Members
+    '[ BlacklistStore,
+       UserPendingActivationStore p
+     ]
+    r =>
+  ServerT BrigIRoutes.API (Handler r)
 servantSitemap = ejpdAPI :<|> accountAPI :<|> mlsAPI :<|> getVerificationCode :<|> teamsAPI :<|> userAPI
 
 ejpdAPI :: ServerT BrigIRoutes.EJPD_API (Handler r)
@@ -125,7 +131,13 @@ mlsAPI =
     :<|> getMLSClients
     :<|> mapKeyPackageRefsInternal
 
-accountAPI :: Member BlacklistStore r => ServerT BrigIRoutes.AccountAPI (Handler r)
+accountAPI ::
+  Members
+    '[ BlacklistStore,
+       UserPendingActivationStore p
+     ]
+    r =>
+  ServerT BrigIRoutes.AccountAPI (Handler r)
 accountAPI =
   Named @"createUserNoVerify" createUserNoVerify
     :<|> Named @"createUserNoVerifySpar" createUserNoVerifySpar
@@ -172,19 +184,22 @@ getConvIdByKeyPackageRef = runMaybeT . mapMaybeT wrapClientE . Data.keyPackageRe
 postKeyPackageRef :: KeyPackageRef -> KeyPackageRef -> Handler r ()
 postKeyPackageRef ref = lift . wrapClient . Data.updateKeyPackageRef ref
 
-getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientId)
-getMLSClients usr ss = do
-  results <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult
-  keys <- lift . wrapClient $ pooledMapConcurrentlyN 16 getKey (toList results)
-  pure . Set.fromList . map fst . filter (isJust . snd) $ keys
+getMLSClients :: UserId -> SignatureSchemeTag -> Handler r (Set ClientInfo)
+getMLSClients usr _ss = do
+  -- FUTUREWORK: check existence of key packages with a given ciphersuite
+  lusr <- qualifyLocal usr
+  allClients <- lift (wrapClient (API.lookupUsersClientIds (pure usr))) >>= getResult
+  clientInfo <- lift . wrapClient $ pooledMapConcurrentlyN 16 (getValidity lusr) (toList allClients)
+  pure . Set.fromList . map (uncurry ClientInfo) $ clientInfo
   where
     getResult [] = pure mempty
     getResult ((u, cs) : rs)
       | u == usr = pure cs
       | otherwise = getResult rs
 
-    getKey :: MonadClient m => ClientId -> m (ClientId, Maybe LByteString)
-    getKey cid = (cid,) <$> Data.lookupMLSPublicKey usr cid ss
+    getValidity lusr cid =
+      fmap ((cid,) . (> 0)) $
+        Data.countKeyPackages lusr cid
 
 mapKeyPackageRefsInternal :: KeyPackageBundle -> Handler r ()
 mapKeyPackageRefsInternal bundle = do
@@ -192,7 +207,7 @@ mapKeyPackageRefsInternal bundle = do
     for_ (kpbEntries bundle) $ \e ->
       Data.mapKeyPackageRef (kpbeRef e) (kpbeUser e) (kpbeClient e)
 
-getVerificationCode :: UserId -> VerificationAction -> (Handler r) (Maybe Code.Value)
+getVerificationCode :: UserId -> VerificationAction -> Handler r (Maybe Code.Value)
 getVerificationCode uid action = do
   user <- wrapClientE $ Api.lookupUser NoPendingInvitations uid
   maybe (pure Nothing) (lookupCode action) (userEmail =<< user)
@@ -214,7 +229,8 @@ sitemap ::
     '[ CodeStore,
        PasswordResetStore,
        BlacklistStore,
-       BlacklistPhonePrefixStore
+       BlacklistPhonePrefixStore,
+       UserPendingActivationStore p
      ]
     r =>
   Routes a (Handler r) ()
@@ -420,7 +436,14 @@ internalListFullClients :: UserSet -> (AppT r) UserClientsFull
 internalListFullClients (UserSet usrs) =
   UserClientsFull <$> wrapClient (Data.lookupClientsBulk (Set.toList usrs))
 
-createUserNoVerify :: Member BlacklistStore r => NewUser -> (Handler r) (Either RegisterError SelfProfile)
+createUserNoVerify ::
+  Members
+    '[ BlacklistStore,
+       UserPendingActivationStore p
+     ]
+    r =>
+  NewUser ->
+  (Handler r) (Either RegisterError SelfProfile)
 createUserNoVerify uData = lift . runExceptT $ do
   result <- API.createUser uData
   let acc = createdAccount result

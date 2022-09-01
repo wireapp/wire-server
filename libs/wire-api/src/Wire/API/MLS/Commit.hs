@@ -26,6 +26,7 @@ data Commit = Commit
   { cProposals :: [ProposalOrRef],
     cPath :: Maybe UpdatePath
   }
+  deriving (Eq, Show)
 
 instance ParseMLS Commit where
   parseMLS = Commit <$> parseMLSVector @Word32 parseMLS <*> parseMLSOptional parseMLS
@@ -34,6 +35,7 @@ data UpdatePath = UpdatePath
   { upLeaf :: RawMLS KeyPackage,
     upNodes :: [UpdatePathNode]
   }
+  deriving (Eq, Show)
 
 instance ParseMLS UpdatePath where
   parseMLS = UpdatePath <$> parseMLS <*> parseMLSVector @Word32 parseMLS
@@ -42,6 +44,7 @@ data UpdatePathNode = UpdatePathNode
   { upnPublicKey :: ByteString,
     upnSecret :: [HPKECiphertext]
   }
+  deriving (Eq, Show)
 
 instance ParseMLS UpdatePathNode where
   parseMLS = UpdatePathNode <$> parseMLSBytes @Word16 <*> parseMLSVector @Word32 parseMLS
@@ -50,6 +53,7 @@ data HPKECiphertext = HPKECiphertext
   { hcOutput :: ByteString,
     hcCiphertext :: ByteString
   }
+  deriving (Eq, Show)
 
 instance ParseMLS HPKECiphertext where
   parseMLS = HPKECiphertext <$> parseMLSBytes @Word16 <*> parseMLSBytes @Word16
