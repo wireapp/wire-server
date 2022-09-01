@@ -390,13 +390,13 @@ instance Bounds (List1 a) where
   within x = within (toNonEmpty x)
 
 instance Bounds (Set a) where
-  within x y z = rangeCheck (Set.size x) y z
+  within x = rangeCheck (Set.size x)
 
 instance Bounds (Seq a) where
-  within x y z = rangeCheck (Seq.length x) y z
+  within x = rangeCheck (Seq.length x)
 
 instance Bounds (Map k a) where
-  within x y z = rangeCheck (Map.size x) y z
+  within x = rangeCheck (Map.size x)
 
 instance Bounds (HashMap k a) where
   within x y z = rangeCheck (length (take (fromIntegral z + 1) (HashMap.toList x))) y z
@@ -409,7 +409,7 @@ instance Bounds a => Bounds (Maybe a) where
   within (Just x) y z = within x y z
 
 instance Bounds (AsciiText r) where
-  within x y z = within (Ascii.toText x) y z
+  within x = within (Ascii.toText x)
 
 -----------------------------------------------------------------------------
 

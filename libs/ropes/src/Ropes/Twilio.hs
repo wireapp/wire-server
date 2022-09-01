@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- This file is part of the Wire Server implementation.
@@ -140,12 +141,11 @@ instance FromJSON CarrierInfo where
       <*> o .:? "type"
 
 instance FromJSON PhoneType where
-  parseJSON = withText "PhoneType" $ \t ->
-    case t of
-      "mobile" -> pure Mobile
-      "landline" -> pure Landline
-      "voip" -> pure VoIp
-      x -> fail $ "Unexpected phone type: " ++ show x
+  parseJSON = withText "PhoneType" $ \case
+    "mobile" -> pure Mobile
+    "landline" -> pure Landline
+    "voip" -> pure VoIp
+    x -> fail $ "Unexpected phone type: " ++ show x
 
 -- * Functions
 

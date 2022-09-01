@@ -101,7 +101,7 @@ runGalleyTeamMembers env@Env {..} =
 handleTeamMembers :: Env -> (Int32, [RowGalleyTeamMember]) -> IO [RowGalleyTeamMember]
 handleTeamMembers env@Env {..} (i, members) = do
   Log.info envLogger (Log.field "number of team members loaded: " (show (i * envPageSize)))
-  let uids = catMaybes $ fmap Id . view _2 <$> members
+  let uids = mapMaybe (fmap Id . view _2) members
 
   appendJsonLines (envTargetPath </> "brig.clients") (readBrigClients env uids)
   appendJsonLines (envTargetPath </> "brig.connection") (readBrigConnection env uids)
@@ -131,7 +131,7 @@ runGalleyTeamConv env@Env {..} =
 handleTeamConv :: Env -> (Int32, [RowGalleyTeamConv]) -> IO [RowGalleyTeamConv]
 handleTeamConv env@Env {..} (i, convs) = do
   Log.info envLogger (Log.field "number of team convs loaded: " (show (i * envPageSize)))
-  let cids = catMaybes $ fmap Id . view _2 <$> convs
+  let cids = mapMaybe (fmap Id . view _2) convs
   appendJsonLines (envTargetPath </> "galley.conversation") (readGalleyConversation env cids)
   appendJsonLines (envTargetPath </> "galley.member") (readGalleyMember env cids)
   pure convs

@@ -84,7 +84,8 @@ let
     pkgs.gnused
     pkgs.helm
     pkgs.helmfile
-    pkgs.hlint
+    pkgs.haskellPackages.hlint_3_4_1
+    pkgs.haskellPackages.apply-refact
     pkgs.jq
     pkgs.kind
     pkgs.kubectl

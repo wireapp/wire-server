@@ -400,11 +400,10 @@ eventObjectSchema =
     mk (_, d) cid uid tm = Event cid uid tm d
 
 instance ToJSONObject Event where
-  toJSONObject e =
+  toJSONObject =
     KeyMap.fromList
       . fromMaybe []
       . schemaOut eventObjectSchema
-      $ e
 
 instance FromJSON Event where
   parseJSON = schemaParseJSON
