@@ -488,10 +488,12 @@ mlsPublicKeysSchema =
   where
     keys :: [SignatureSchemeTag]
     keys = [minBound .. maxBound]
-    exampleValue = fromMaybe (toJSON ("base64==" :: Text)) (valueSchema ^. doc . example)
-    valueSchema = base64Schema
+
+    exampleValue :: A.Value
+    exampleValue = fromMaybe (toJSON ("base64==" :: Text)) (base64Schema ^. doc . example)
+
     mapSchema :: ValueSchema SwaggerDoc MLSPublicKeys
-    mapSchema = map_ valueSchema
+    mapSchema = map_ base64Schema
 
 instance ToSchema Client where
   schema =
