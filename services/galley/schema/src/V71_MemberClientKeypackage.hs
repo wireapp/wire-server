@@ -15,26 +15,36 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.API.MLS.KeyPackage where
+module V71_MemberClientKeypackage where
 
-import qualified Data.ByteString as BS
-import Galley.Effects.BrigAccess
+import Cassandra.Schema
 import Imports
-import Polysemy
-import Wire.API.Error
-import Wire.API.Error.Galley
-import Wire.API.MLS.Credential
-import Wire.API.MLS.KeyPackage
+import Text.RawString.QQ
 
-nullKeyPackageRef :: KeyPackageRef
-nullKeyPackageRef = KeyPackageRef (BS.replicate 16 0)
-
-derefKeyPackage ::
-  Members
-    '[ BrigAccess,
-       ErrorS 'MLSKeyPackageRefNotFound
-     ]
-    r =>
-  KeyPackageRef ->
-  Sem r ClientIdentity
-derefKeyPackage = noteS @'MLSKeyPackageRefNotFound <=< getClientByKeyPackageRef
+migration :: Migration
+migration =
+  Migration 71 "Replace mls_clients with mls_clients_keypackages in member table" $ do
+    schema'
+      [r|
+        ALTER TABLE member ADD (
+          mls_clients_keypackages set<frozen<tuple<text, blob>>>
+        );
+      |]
+    schema'
+      [r|
+        ALTER TABLE member DROP (
+          mls_clients
+        );
+      |]
+    schema'
+      [r|
+        ALTER TABLE member_remote_user ADD (
+          mls_clients_keypackages set<frozen<tuple<text, blob>>>
+        );
+      |]
+    schema'
+      [r|
+        ALTER TABLE member_remote_user DROP (
+          mls_clients
+        );
+      |]

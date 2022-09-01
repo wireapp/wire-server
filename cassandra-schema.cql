@@ -169,7 +169,7 @@ CREATE TABLE galley_test.member (
     conversation_role text,
     hidden boolean,
     hidden_ref text,
-    mls_clients set<text>,
+    mls_clients_keypackages set<frozen<tuple<text, blob>>>,
     otr_archived boolean,
     otr_archived_ref text,
     otr_muted boolean,
@@ -263,7 +263,7 @@ CREATE TABLE galley_test.member_remote_user (
     user_remote_domain text,
     user_remote_id uuid,
     conversation_role text,
-    mls_clients set<text>,
+    mls_clients_keypackages set<frozen<tuple<text, blob>>>,
     PRIMARY KEY (conv, user_remote_domain, user_remote_id)
 ) WITH CLUSTERING ORDER BY (user_remote_domain ASC, user_remote_id ASC)
     AND bloom_filter_fp_chance = 0.1

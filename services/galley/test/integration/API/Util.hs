@@ -111,6 +111,9 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Galley
 import Wire.API.Federation.Domain (originDomainHeaderName)
 import Wire.API.Internal.Notification hiding (target)
+import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Message
+import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import qualified Wire.API.Message.Proto as Proto
@@ -2760,3 +2763,27 @@ wsAssertConvReceiptModeUpdate conv usr new n = do
   evtType e @?= ConvReceiptModeUpdate
   evtFrom e @?= usr
   evtData e @?= EdConvReceiptModeUpdate (ConversationReceiptModeUpdate new)
+
+wsAssertBackendRemoveProposal :: HasCallStack => Qualified UserId -> Qualified ConvId -> KeyPackageRef -> Notification -> IO ByteString
+wsAssertBackendRemoveProposal fromUser convId kpref n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  evtConv e @?= convId
+  evtType e @?= MLSMessageAdd
+  evtFrom e @?= fromUser
+  let bs = getMLSMessageData (evtData e)
+  let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' bs
+  let tbs = rmValue . msgTBS $ msg
+  tbsMsgSender tbs @?= PreconfiguredSender 0
+  case tbsMsgPayload tbs of
+    ProposalMessage rp ->
+      case rmValue rp of
+        RemoveProposal kpRefRemove ->
+          kpRefRemove @?= kpref
+        otherProp -> error ("Exepected RemoveProposal but got " <> show otherProp)
+    otherPayload -> error ("Exepected ProposalMessage but got " <> show otherPayload)
+  pure bs
+  where
+    getMLSMessageData :: Conv.EventData -> ByteString
+    getMLSMessageData (EdMLSMessage bs) = bs
+    getMLSMessageData d = error ("Excepected EdMLSMessage, but got " <> show d)

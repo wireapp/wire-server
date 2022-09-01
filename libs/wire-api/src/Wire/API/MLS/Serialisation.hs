@@ -32,6 +32,8 @@ module Wire.API.MLS.Serialisation
     fromMLSEnum,
     toMLSEnum',
     toMLSEnum,
+    encodeMLS,
+    encodeMLS',
     decodeMLS,
     decodeMLS',
     decodeMLSWith,
@@ -172,6 +174,13 @@ newtype BinaryMLS a = BinaryMLS a
 
 instance Binary a => ParseMLS (BinaryMLS a) where
   parseMLS = BinaryMLS <$> get
+
+-- | Encode an MLS value to a lazy bytestring.
+encodeMLS :: SerialiseMLS a => a -> LByteString
+encodeMLS = runPut . serialiseMLS
+
+encodeMLS' :: SerialiseMLS a => a -> ByteString
+encodeMLS' = LBS.toStrict . encodeMLS
 
 -- | Decode an MLS value from a lazy bytestring. Return an error message in case of failure.
 decodeMLS :: ParseMLS a => LByteString -> Either Text a

@@ -20,12 +20,13 @@ module Galley.API.MLS.Message
   ( postMLSMessageFromLocalUser,
     postMLSMessageFromLocalUserV1,
     postMLSMessage,
+    mlsRemoveUser,
     MLSMessageStaticErrors,
   )
 where
 
 import Control.Comonad
-import Control.Lens (preview, to)
+import Control.Lens (preview, to, view)
 import Data.Bifunctor
 import Data.Domain
 import Data.Id
@@ -51,6 +52,7 @@ import Galley.Effects.ConversationStore
 import Galley.Effects.FederatorAccess
 import Galley.Effects.MemberStore
 import Galley.Effects.ProposalStore
+import Galley.Env
 import Galley.Options
 import Galley.Types.Conversations.Members
 import Imports
@@ -76,6 +78,7 @@ import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Commit
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import qualified Wire.API.MLS.Proposal as Proposal
@@ -198,48 +201,48 @@ postMLSMessage ::
   Sem r [LocalConversationUpdate]
 postMLSMessage loc qusr qcnv con smsg = case rmValue smsg of
   SomeMessage _ msg -> do
-    unless (msgEpoch msg == Epoch 0) $
-      flip unless (throwS @'MLSClientSenderUserMismatch) =<< isUserSender qusr smsg
+    mcid <- if msgEpoch msg == Epoch 0 then pure Nothing else getSenderClient smsg
+    -- Check that the MLS client who created the message belongs to the user who
+    -- is the sender of the REST request, identified by HTTP header.
+    --
+    -- This is only relevant in an ongoing conversation. The check should be skipped
+    -- in case of
+    -- encrypted messages in which we don't have access to the sending client's
+    --   key package,
+    -- messages sent by the backend, and
+    -- external add proposals which propose fresh key packages for new clients and
+    --   thus the validity of the key package cannot be known at the time of this
+    --   check.
+    -- For these cases the function will return True.
+    for_ mcid $ \cid ->
+      when (fmap fst (cidQualifiedClient cid) /= qusr) $
+        throwS @'MLSClientSenderUserMismatch
+
     foldQualified
       loc
-      (postMLSMessageToLocalConv qusr con smsg)
-      (postMLSMessageToRemoteConv loc qusr con smsg)
+      (postMLSMessageToLocalConv qusr (fmap ciClient mcid) con smsg)
+      (postMLSMessageToRemoteConv loc qusr (fmap ciClient mcid) con smsg)
       qcnv
 
--- | Check that the MLS client who created the message belongs to the user who
--- is the sender of the REST request, identified by HTTP header.
---
--- This is only relevant in an ongoing conversation. The check should be skipped
--- in case of
--- * encrypted messages in which we don't have access to the sending client's
---   key package,
--- * messages sent by the backend, and
--- * external add proposals which propose fresh key packages for new clients and
---   thus the validity of the key package cannot be known at the time of this
---   check.
--- For these cases the function will return True.
-isUserSender ::
+getSenderClient ::
   ( Members
       '[ ErrorS 'MLSKeyPackageRefNotFound,
          BrigAccess
        ]
       r
   ) =>
-  Qualified UserId ->
   RawMLS SomeMessage ->
-  Sem r Bool
-isUserSender qusr smsg = case rmValue smsg of
+  Sem r (Maybe ClientIdentity)
+getSenderClient smsg = case rmValue smsg of
   SomeMessage tag msg -> case tag of
     -- skip encrypted message
-    SMLSCipherText -> pure True
+    SMLSCipherText -> pure Nothing
     SMLSPlainText -> case msgSender msg of
       -- skip message sent by backend
-      PreconfiguredSender _ -> pure True
+      PreconfiguredSender _ -> pure Nothing
       -- skip external add proposal
-      NewMemberSender -> pure True
-      MemberSender ref -> do
-        ci <- derefKeyPackage ref
-        pure $ fmap fst (cidQualifiedClient ci) == qusr
+      NewMemberSender -> pure Nothing
+      MemberSender ref -> Just <$> derefKeyPackage ref
 
 postMLSMessageToLocalConv ::
   ( HasProposalEffects r,
@@ -261,11 +264,12 @@ postMLSMessageToLocalConv ::
       r
   ) =>
   Qualified UserId ->
+  Maybe ClientId ->
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Local ConvId ->
   Sem r [LocalConversationUpdate]
-postMLSMessageToLocalConv qusr con smsg lcnv = case rmValue smsg of
+postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
   SomeMessage tag msg -> do
     conv <- getConversation (tUnqualified lcnv) >>= noteS @'ConvNotFound
 
@@ -278,7 +282,7 @@ postMLSMessageToLocalConv qusr con smsg lcnv = case rmValue smsg of
     events <- case tag of
       SMLSPlainText -> case msgPayload msg of
         CommitMessage c ->
-          processCommit qusr con (qualifyAs lcnv conv) (msgEpoch msg) (msgSender msg) c
+          processCommit qusr senderClient con (qualifyAs lcnv conv) (msgEpoch msg) (msgSender msg) c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
         ProposalMessage prop ->
           processProposal qusr conv msg prop $> mempty
@@ -300,11 +304,12 @@ postMLSMessageToRemoteConv ::
   ) =>
   Local x ->
   Qualified UserId ->
+  Maybe ClientId ->
   Maybe ConnId ->
   RawMLS SomeMessage ->
   Remote ConvId ->
   Sem r [LocalConversationUpdate]
-postMLSMessageToRemoteConv loc qusr con smsg rcnv = do
+postMLSMessageToRemoteConv loc qusr _senderClient con smsg rcnv = do
   -- only local users can send messages to remote conversations
   lusr <- foldQualified loc pure (\_ -> throwS @'ConvAccessDenied) qusr
   -- only members may send messages to the remote conversation
@@ -346,7 +351,7 @@ type HasProposalEffects r =
     Member TeamStore r
   )
 
-type ClientMap = Map (Qualified UserId) (Set ClientId)
+type ClientMap = Map (Qualified UserId) (Set (ClientId, KeyPackageRef))
 
 data ProposalAction = ProposalAction
   { paAdd :: ClientMap,
@@ -362,10 +367,10 @@ instance Semigroup ProposalAction where
 instance Monoid ProposalAction where
   mempty = ProposalAction mempty mempty
 
-paAddClient :: Qualified (UserId, ClientId) -> ProposalAction
+paAddClient :: Qualified (UserId, (ClientId, KeyPackageRef)) -> ProposalAction
 paAddClient quc = mempty {paAdd = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
 
-paRemoveClient :: Qualified (UserId, ClientId) -> ProposalAction
+paRemoveClient :: Qualified (UserId, (ClientId, KeyPackageRef)) -> ProposalAction
 paRemoveClient quc = mempty {paRemove = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
 
 processCommit ::
@@ -384,13 +389,14 @@ processCommit ::
     Member Resource r
   ) =>
   Qualified UserId ->
+  Maybe ClientId ->
   Maybe ConnId ->
   Local Data.Conversation ->
   Epoch ->
   Sender 'MLSPlainText ->
   Commit ->
   Sem r [LocalConversationUpdate]
-processCommit qusr con lconv epoch sender commit = do
+processCommit qusr senderClient con lconv epoch sender commit = do
   self <- noteS @'ConvNotFound $ getConvMember lconv (tUnqualified lconv) qusr
 
   -- check epoch number
@@ -411,7 +417,7 @@ processCommit qusr con lconv epoch sender commit = do
         then do
           -- this is a newly created conversation, and it should contain exactly one
           -- client (the creator)
-          case (sender, first (toList . lmMLSClients) self) of
+          case (sender, first (fmap fst . toList . lmMLSClients) self) of
             (MemberSender currentRef, Left [creatorClient]) -> do
               -- use update path as sender reference and if not existing fall back to sender
               senderRef <-
@@ -423,11 +429,7 @@ processCommit qusr con lconv epoch sender commit = do
                   )
                   $ cPath commit
               -- register the creator client
-              addKeyPackageRef
-                senderRef
-                qusr
-                creatorClient
-                (qUntagged (fmap Data.convId lconv))
+              updateKeyPackageMapping lconv qusr creatorClient Nothing senderRef
             -- remote clients cannot send the first commit
             (_, Right _) -> throwS @'MLSStaleMessage
             -- uninitialised conversations should contain exactly one client
@@ -440,11 +442,9 @@ processCommit qusr con lconv epoch sender commit = do
           (MemberSender senderRef, Just updatedKeyPackage) -> do
             updatedRef <- kpRef' updatedKeyPackage & note (mlsProtocolError "Could not compute key package ref")
             -- postpone key package ref update until other checks/processing passed
-            pure . updateKeyPackageRef $
-              KeyPackageUpdate
-                { kpupPrevious = senderRef,
-                  kpupNext = updatedRef
-                }
+            case senderClient of
+              Just cli -> pure $ updateKeyPackageMapping lconv qusr cli (Just senderRef) updatedRef
+              Nothing -> pure $ pure ()
           (_, Nothing) -> pure $ pure () -- ignore commits without update path
           _ -> throw (mlsProtocolError "Unexpected sender")
 
@@ -464,6 +464,33 @@ processCommit qusr con lconv epoch sender commit = do
     setConversationEpoch (Data.convId (tUnqualified lconv)) (succ epoch)
 
     pure updates
+
+updateKeyPackageMapping ::
+  Members '[BrigAccess, MemberStore] r =>
+  Local Data.Conversation ->
+  Qualified UserId ->
+  ClientId ->
+  Maybe KeyPackageRef ->
+  KeyPackageRef ->
+  Sem r ()
+updateKeyPackageMapping lconv qusr cid mOld new = do
+  let lcnv = fmap Data.convId lconv
+  -- update actual mapping in brig
+  case mOld of
+    Nothing ->
+      addKeyPackageRef new qusr cid (qUntagged lcnv)
+    Just old ->
+      updateKeyPackageRef
+        KeyPackageUpdate
+          { kpupPrevious = old,
+            kpupNext = new
+          }
+
+  -- remove old (client, key package) pair
+  let old = fromMaybe nullKeyPackageRef mOld
+  removeMLSClients lcnv qusr (Set.singleton (cid, old))
+  -- add new (client, key package) pair
+  addMLSClients lcnv qusr (Set.singleton (cid, new))
 
 applyProposalRef ::
   ( HasProposalEffects r,
@@ -498,10 +525,10 @@ applyProposal (AddProposal kp) = do
     kpRef' kp
       & note (mlsProtocolError "Could not compute ref of a key package in an Add proposal")
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
-  pure (paAddClient qclient)
+  pure (paAddClient ((,ref) <$$> qclient))
 applyProposal (RemoveProposal ref) = do
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
-  pure (paRemoveClient qclient)
+  pure (paRemoveClient ((,ref) <$$> qclient))
 applyProposal _ = pure mempty
 
 checkProposalCipherSuite ::
@@ -673,7 +700,7 @@ executeProposalAction qusr con lconv action = do
     -- new user
     Nothing -> do
       -- final set of clients in the conversation
-      let clients = newclients <> Map.findWithDefault mempty qtarget cm
+      let clients = Set.map fst (newclients <> Map.findWithDefault mempty qtarget cm)
       -- get list of mls clients from brig
       clientInfo <- getMLSClients lconv qtarget ss
       let allClients = Set.map ciId clientInfo
@@ -700,19 +727,29 @@ executeProposalAction qusr con lconv action = do
 
   -- add users to the conversation and send events
   addEvents <- foldMap addMembers . nonEmpty . map fst $ newUserClients
-  -- add clients to the database
+
+  -- add clients in the conversation state
   for_ newUserClients $ \(qtarget, newClients) -> do
     addMLSClients (fmap convId lconv) qtarget newClients
 
   -- remove users from the conversation and send events
   removeEvents <- foldMap removeMembers (nonEmpty membersToRemove)
 
+  -- remove clients in the conversation state
+  for_ removeUserClients $ \(qtarget, clients) -> do
+    removeMLSClients (fmap convId lconv) qtarget clients
+
   pure (addEvents <> removeEvents)
   where
     -- This also filters out client removals for clients that don't exist anymore
     -- For these clients there is nothing left to do
-    checkRemoval :: Local x -> SignatureSchemeTag -> Qualified UserId -> Set ClientId -> Sem r (Maybe (Qualified UserId))
-    checkRemoval loc ss qtarget clients = do
+    checkRemoval ::
+      Local x ->
+      SignatureSchemeTag ->
+      Qualified UserId ->
+      Set (ClientId, KeyPackageRef) ->
+      Sem r (Maybe (Qualified UserId))
+    checkRemoval loc ss qtarget (Set.map fst -> clients) = do
       allClients <- Set.map ciId <$> getMLSClients loc qtarget ss
       let allClientsDontExist = Set.null (clients `Set.intersection` allClients)
       if allClientsDontExist
@@ -814,13 +851,13 @@ propagateMessage loc qusr conv con raw = do
     cToList (u, s) = (u,) <$> Set.toList s
 
     clients :: LocalMember -> Local (UserId, Set ClientId)
-    clients LocalMember {..} = qualifyAs loc (lmId, lmMLSClients)
+    clients LocalMember {..} = qualifyAs loc (lmId, Set.map fst lmMLSClients)
 
     remoteMemberMLSClients :: RemoteMember -> [(UserId, ClientId)]
     remoteMemberMLSClients rm =
       map
         (tUnqualified (rmId rm),)
-        (toList (rmMLSClients rm))
+        (toList (Set.map fst (rmMLSClients rm)))
 
     handleError :: Member TinyLog r => Either (Remote [a], FederationError) x -> Sem r ()
     handleError (Right _) = pure ()
@@ -943,3 +980,39 @@ withCommitLock gid epoch ttl action =
     )
     (const $ releaseCommitLock gid epoch)
     (const action)
+
+mlsRemoveUser ::
+  ( Members
+      '[ Input UTCTime,
+         TinyLog,
+         ExternalAccess,
+         FederatorAccess,
+         GundeckAccess,
+         Error InternalError,
+         ProposalStore,
+         Input Env,
+         Input (Local ())
+       ]
+      r
+  ) =>
+  Data.Conversation ->
+  Qualified UserId ->
+  Sem r ()
+mlsRemoveUser c qusr = do
+  loc <- qualifyLocal ()
+  case Data.convProtocol c of
+    ProtocolProteus -> pure ()
+    ProtocolMLS meta -> do
+      keyPair <- mlsKeyPair_ed25519 <$> (inputs (view mlsKeys) <*> pure RemovalPurpose)
+      (secKey, pubKey) <- note (InternalErrorWithDescription "backend removal key missing") $ keyPair
+      for_ (getConvMemberMLSClients loc c qusr) $ \cpks ->
+        for_ cpks $ \(_client, kpref) -> do
+          let proposal = mkRemoveProposal kpref
+              msg = mkSignedMessage secKey pubKey (cnvmlsGroupId meta) (cnvmlsEpoch meta) (ProposalMessage proposal)
+              msgEncoded = encodeMLS' msg
+          storeProposal
+            (cnvmlsGroupId meta)
+            (cnvmlsEpoch meta)
+            (proposalRef (cnvmlsCipherSuite meta) proposal)
+            proposal
+          propagateMessage loc qusr c Nothing msgEncoded

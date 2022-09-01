@@ -39,6 +39,8 @@ import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.Text as T
+import Galley.Keys
+import Galley.Options
 import Imports
 import System.FilePath
 import System.IO.Temp
@@ -52,6 +54,7 @@ import Wire.API.Conversation.Protocol
 import Wire.API.Event.Conversation
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
@@ -141,6 +144,11 @@ pClientQid p = userClientQid (pUserId p) (NonEmpty.head (pClientIds p))
 
 pClientId :: Participant -> ClientId
 pClientId = NonEmpty.head . pClientIds
+
+readKeyPackages :: FilePath -> Participant -> IO (NonEmpty (ClientId, RawMLS KeyPackage))
+readKeyPackages tmp participant = for (pClients participant) $ \(qcid, cid) -> do
+  b <- BS.readFile (tmp </> qcid)
+  pure (cid, fromRight (error "parsing RawMLS KeyPackage") (decodeMLS' b))
 
 setupUserClient ::
   HasCallStack =>
@@ -606,3 +614,10 @@ mkAppAckProposalMessage gid epoch ref mrs priv pub = do
             }
       sig = BA.convert $ sign priv pub (rmRaw tbs)
    in (Message tbs (MessageExtraFields sig Nothing Nothing))
+
+saveRemovalKey :: FilePath -> TestM ()
+saveRemovalKey fp = do
+  keys <- fromJust <$> view (tsGConf . optSettings . setMlsPrivateKeyPaths)
+  keysByPurpose <- liftIO $ loadAllMLSKeys keys
+  let (_, pub) = fromJust (mlsKeyPair_ed25519 (keysByPurpose RemovalPurpose))
+  liftIO $ BS.writeFile fp (BA.convert pub)

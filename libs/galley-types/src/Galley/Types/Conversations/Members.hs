@@ -37,13 +37,14 @@ import qualified Data.Set as Set
 import Imports
 import Wire.API.Conversation
 import Wire.API.Conversation.Role (RoleName, roleNameWireAdmin)
+import Wire.API.MLS.KeyPackage
 import Wire.API.Provider.Service (ServiceRef)
 
 -- | Internal (cassandra) representation of a remote conversation member.
 data RemoteMember = RemoteMember
   { rmId :: Remote UserId,
     rmConvRoleName :: RoleName,
-    rmMLSClients :: Set ClientId
+    rmMLSClients :: Set (ClientId, KeyPackageRef)
   }
   deriving stock (Show)
 
@@ -64,7 +65,7 @@ data LocalMember = LocalMember
     lmStatus :: MemberStatus,
     lmService :: Maybe ServiceRef,
     lmConvRoleName :: RoleName,
-    lmMLSClients :: Set ClientId
+    lmMLSClients :: Set (ClientId, KeyPackageRef)
   }
   deriving stock (Show)
 

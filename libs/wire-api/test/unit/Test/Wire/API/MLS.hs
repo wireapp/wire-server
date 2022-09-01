@@ -192,13 +192,27 @@ testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
 
   secretKey <- Ed25519.generateSecretKey
   let publicKey = Ed25519.toPublic secretKey
-  let message = fromJust (mkRemoveProposalMessage secretKey publicKey gid (Epoch 1) (fromJust (kpRef' kp)))
+  let message = mkSignedMessage secretKey publicKey gid (Epoch 1) (ProposalMessage (mkRemoveProposal (fromJust (kpRef' kp))))
+
   let messageFilename = "signed-message.mls"
   BS.writeFile (tmp </> messageFilename) (rmRaw (mkRawMLS message))
   let signerKeyFilename = "signer-key.bin"
   BS.writeFile (tmp </> signerKeyFilename) (convert publicKey)
 
-  void . liftIO $ spawn (cli qcid tmp ["check-signature", "--group", tmp </> groupFilename, "--message", tmp </> messageFilename, "--signer-key", tmp </> signerKeyFilename]) Nothing
+  void . liftIO $
+    spawn
+      ( cli
+          qcid
+          tmp
+          [ "consume",
+            "--group",
+            tmp </> groupFilename,
+            "--signer-key",
+            tmp </> signerKeyFilename,
+            tmp </> messageFilename
+          ]
+      )
+      Nothing
 
 createGroup :: FilePath -> String -> String -> GroupId -> IO ()
 createGroup tmp store groupName gid = do

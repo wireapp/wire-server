@@ -46,6 +46,7 @@ import Polysemy.Input
 import qualified UnliftIO
 import Wire.API.Conversation.Member hiding (Member)
 import Wire.API.Conversation.Role
+import Wire.API.MLS.KeyPackage
 import Wire.API.Provider.Service
 
 -- | Add members to a local conversation.
@@ -157,7 +158,7 @@ toMember ::
     Maybe Text,
     -- conversation role name
     Maybe RoleName,
-    Maybe (Cassandra.Set ClientId)
+    Maybe (Cassandra.Set (ClientId, KeyPackageRef))
   ) ->
   Maybe LocalMember
 toMember (usr, srv, prv, Just 0, omus, omur, oar, oarr, hid, hidr, crn, cs) =
@@ -344,14 +345,14 @@ removeLocalMembersFromRemoteConv (qUntagged -> Qualified conv convDomain) victim
     setConsistency LocalQuorum
     for_ victims $ \u -> addPrepQuery Cql.deleteUserRemoteConv (u, convDomain, conv)
 
-addMLSClients :: Local ConvId -> Qualified UserId -> Set.Set ClientId -> Client ()
+addMLSClients :: Local ConvId -> Qualified UserId -> Set.Set (ClientId, KeyPackageRef) -> Client ()
 addMLSClients lcnv =
   foldQualified
     lcnv
     (addLocalMLSClients (tUnqualified lcnv))
     (addRemoteMLSClients (tUnqualified lcnv))
 
-addRemoteMLSClients :: ConvId -> Remote UserId -> Set.Set ClientId -> Client ()
+addRemoteMLSClients :: ConvId -> Remote UserId -> Set.Set (ClientId, KeyPackageRef) -> Client ()
 addRemoteMLSClients cid ruid cs =
   retry x5 $
     write
@@ -361,7 +362,7 @@ addRemoteMLSClients cid ruid cs =
           (Cassandra.Set (toList cs), cid, tDomain ruid, tUnqualified ruid)
       )
 
-addLocalMLSClients :: ConvId -> Local UserId -> Set.Set ClientId -> Client ()
+addLocalMLSClients :: ConvId -> Local UserId -> Set.Set (ClientId, KeyPackageRef) -> Client ()
 addLocalMLSClients cid lusr cs =
   retry x5 $
     write
@@ -369,6 +370,33 @@ addLocalMLSClients cid lusr cs =
       ( params
           LocalQuorum
           (Cassandra.Set (toList cs), cid, tUnqualified lusr)
+      )
+
+removeMLSClients :: Local ConvId -> Qualified UserId -> Set.Set (ClientId, KeyPackageRef) -> Client ()
+removeMLSClients lcnv =
+  foldQualified
+    lcnv
+    (removeLocalMLSClients (tUnqualified lcnv))
+    (removeRemoteMLSClients (tUnqualified lcnv))
+
+removeLocalMLSClients :: ConvId -> Local UserId -> Set.Set (ClientId, KeyPackageRef) -> Client ()
+removeLocalMLSClients cid lusr cs =
+  retry x5 $
+    write
+      Cql.removeLocalMLSClients
+      ( params
+          LocalQuorum
+          (Cassandra.Set (toList cs), cid, tUnqualified lusr)
+      )
+
+removeRemoteMLSClients :: ConvId -> Remote UserId -> Set.Set (ClientId, KeyPackageRef) -> Client ()
+removeRemoteMLSClients cid rusr cs =
+  retry x5 $
+    write
+      Cql.removeRemoteMLSClients
+      ( params
+          LocalQuorum
+          (Cassandra.Set (toList cs), cid, tDomain rusr, tUnqualified rusr)
       )
 
 interpretMemberStoreToCassandra ::
@@ -394,3 +422,4 @@ interpretMemberStoreToCassandra = interpret $ \case
     embedClient $
       removeLocalMembersFromRemoteConv rcnv uids
   AddMLSClients lcnv quid cs -> embedClient $ addMLSClients lcnv quid cs
+  RemoveMLSClients lcnv quid cs -> embedClient $ removeMLSClients lcnv quid cs
