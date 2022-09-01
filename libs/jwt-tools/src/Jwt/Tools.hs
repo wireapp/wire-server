@@ -19,6 +19,7 @@
 
 module Jwt.Tools (testHaskellApi, generateDpopToken) where
 
+import Control.Monad.Trans.Except
 import Data.ByteString.Conversion (ToByteString, toByteString')
 import Data.Id (ClientId (client))
 import Data.Misc (HttpsUrl)
@@ -45,11 +46,13 @@ generateDpopToken ::
   Word64 ->
   Epoch ->
   ByteString ->
-  m (Either DPoPTokenGenerationError DPoPAccessToken)
+  ExceptT DPoPTokenGenerationError m DPoPAccessToken
 generateDpopToken dpopProof cid nonce uri method maxSkewSecs maxExpiration now backendPubkeyBundle = do
   dpopProofCStr <- liftIO $ toCStr dpopProof
   uidCStr <- liftIO $ toCStr $ ciUser cid
-  let cidCUShort = head $ CUShort . fst <$> readHex @Word16 (cs $ client $ ciClient cid) -- todo(leif): do not use head
+  cidCUShort <- case readHex @Word16 (cs $ client $ ciClient cid) of
+    [(a, "")] -> pure (CUShort a)
+    _ -> throwE DPoPTokenGenerationError
   domainCStr <- liftIO $ toCStr $ ciDomain cid
   nonceCStr <- liftIO $ toCStr nonce
   uriCStr <- liftIO $ toCStr uri
@@ -71,9 +74,7 @@ generateDpopToken dpopProof cid nonce uri method maxSkewSecs maxExpiration now b
         backendPubkeyBundleCStr
   responseStr <- liftIO $ peekCString responseCStr
   let mbError = readMaybe @Word8 (cs responseStr) >>= mapError
-  let tokenOrError = maybe (Right $ DPoPAccessToken $ cs responseStr) Left mbError
-  putStrLn $ "token: " <> show tokenOrError
-  pure tokenOrError
+  maybe (pure $ DPoPAccessToken $ cs responseStr) throwE mbError
   where
     mapError :: Word8 -> Maybe DPoPTokenGenerationError
     mapError 0 = Nothing
@@ -124,16 +125,17 @@ testHaskellApi = do
   nonce <- generate arbitrary
   uri <- generate arbitrary
   result <-
-    generateDpopToken
-      (Proof "xxxx.yyyy.zzzz")
-      cid
-      nonce
-      uri
-      POST
-      16
-      360
-      now
-      (cs pubKeyBundle)
+    runExceptT $
+      generateDpopToken
+        (Proof "xxxx.yyyy.zzzz")
+        cid
+        nonce
+        uri
+        POST
+        16
+        360
+        now
+        (cs pubKeyBundle)
   putStrLn $ "result: " <> show result
 
 pubKeyBundle :: String
