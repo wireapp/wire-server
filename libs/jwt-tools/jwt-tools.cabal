@@ -124,6 +124,7 @@ library
     , bytestring
     , http-types
     , imports
+    , QuickCheck
     , types-common
     , wire-api
 
