@@ -38,12 +38,11 @@ module Wire.API.MLS.Message
     MLSMessageSendingStatus (..),
     KnownFormatTag (..),
     verifyMessageSignature,
-    mkRemoveProposalMessage,
+    mkSignedMessage,
   )
 where
 
 import Control.Lens ((?~))
-import Crypto.Error
 import Crypto.PubKey.Ed25519
 import qualified Data.Aeson as A
 import Data.Binary
@@ -341,14 +340,14 @@ verifyMessageSignature :: CipherSuiteTag -> Message 'MLSPlainText -> ByteString 
 verifyMessageSignature cs msg pubkey =
   csVerifySignature cs pubkey (rmRaw (msgTBS msg)) (msgSignature (msgExtraFields msg))
 
-mkRemoveProposalMessage ::
+mkSignedMessage ::
   SecretKey ->
   PublicKey ->
   GroupId ->
   Epoch ->
-  KeyPackageRef ->
-  Maybe (Message 'MLSPlainText)
-mkRemoveProposalMessage priv pub gid epoch ref = maybeCryptoError $ do
+  MessagePayload 'MLSPlainText ->
+  Message 'MLSPlainText
+mkSignedMessage priv pub gid epoch payload =
   let tbs =
         mkRawMLS $
           MessageTBS
@@ -357,7 +356,7 @@ mkRemoveProposalMessage priv pub gid epoch ref = maybeCryptoError $ do
               tbsMsgEpoch = epoch,
               tbsMsgAuthData = mempty,
               tbsMsgSender = PreconfiguredSender 0,
-              tbsMsgPayload = ProposalMessage (mkRemoveProposal ref)
+              tbsMsgPayload = payload
             }
-  let sig = BA.convert $ sign priv pub (rmRaw tbs)
-  pure (Message tbs (MessageExtraFields sig Nothing Nothing))
+      sig = BA.convert $ sign priv pub (rmRaw tbs)
+   in Message tbs (MessageExtraFields sig Nothing Nothing)

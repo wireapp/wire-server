@@ -660,7 +660,8 @@ executable galley-schema
     V68_MLSCommitLock
     V69_MLSProposal
     V70_MLSCipherSuite
-    V71_DropManagedConversations
+    V71_MemberClientKeypackage
+    V72_DropManagedConversations
 
   hs-source-dirs:     schema/src
   default-extensions:

@@ -62,6 +62,7 @@ import Polysemy.Error
 import Polysemy.Input
 import Polysemy.Internal.Kind (Append)
 import Polysemy.Resource
+import Polysemy.TinyLog
 import qualified Polysemy.TinyLog as P
 import Servant (ServerT)
 import Servant.API
@@ -422,9 +423,13 @@ onUserDeleted ::
        FireAndForget,
        ExternalAccess,
        GundeckAccess,
+       Error InternalError,
        Input (Local ()),
        Input UTCTime,
-       MemberStore
+       Input Env,
+       MemberStore,
+       ProposalStore,
+       TinyLog
      ]
     r =>
   Domain ->
@@ -454,6 +459,7 @@ onUserDeleted origDomain udcn = do
             Public.RegularConv -> do
               let action = pure untaggedDeletedUser
                   botsAndMembers = convBotsAndMembers conv
+              mlsRemoveUser conv (qUntagged deletedUser)
               void $
                 notifyConversationAction
                   (sing @'ConversationLeaveTag)
@@ -575,6 +581,8 @@ sendMLSMessage remoteDomain msr =
   fmap (either (F.MLSMessageResponseProtocolError . unTagged) id)
     . runError @MLSProtocolError
     . fmap (either F.MLSMessageResponseError id)
+    . runError
+    . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
     . runError
     . fmap (either (F.MLSMessageResponseProposalFailure . pfInner) id)
     . runError

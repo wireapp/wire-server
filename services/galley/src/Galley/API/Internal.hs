@@ -37,8 +37,10 @@ import GHC.TypeLits (AppendSymbol)
 import qualified Galley.API.Clients as Clients
 import qualified Galley.API.Create as Create
 import qualified Galley.API.CustomBackend as CustomBackend
+import Galley.API.Error
 import Galley.API.LegalHold (unsetTeamLegalholdWhitelistedH)
 import Galley.API.LegalHold.Conflicts
+import Galley.API.MLS.Message (mlsRemoveUser)
 import Galley.API.One2One
 import Galley.API.Public
 import Galley.API.Public.Servant
@@ -58,6 +60,7 @@ import Galley.Effects.FederatorAccess
 import Galley.Effects.GundeckAccess
 import Galley.Effects.LegalHoldStore as LegalHoldStore
 import Galley.Effects.MemberStore
+import Galley.Effects.ProposalStore
 import Galley.Effects.TeamStore
 import qualified Galley.Intra.Push as Intra
 import Galley.Monad
@@ -630,10 +633,13 @@ rmUser ::
          FederatorAccess,
          GundeckAccess,
          Input UTCTime,
+         Input Env,
          ListItems p1 ConvId,
          ListItems p1 (Remote ConvId),
          ListItems p2 TeamId,
+         Input (Local ()),
          MemberStore,
+         ProposalStore,
          TeamStore,
          P.TinyLog
        ]
@@ -679,6 +685,9 @@ rmUser lusr conn = do
         ConnectConv -> deleteMembers (Data.convId c) (UserList [tUnqualified lusr] []) $> Nothing
         RegularConv
           | tUnqualified lusr `isMember` Data.convLocalMembers c -> do
+            runError (mlsRemoveUser c (qUntagged lusr)) >>= \case
+              Left e -> P.err $ Log.msg ("failed to send remove proposal: " <> internalErrorDescription e)
+              Right _ -> pure ()
             deleteMembers (Data.convId c) (UserList [tUnqualified lusr] [])
             let e =
                   Event

@@ -168,7 +168,7 @@ CREATE TABLE galley_test.member (
     conversation_role text,
     hidden boolean,
     hidden_ref text,
-    mls_clients set<text>,
+    mls_clients_keypackages set<frozen<tuple<text, blob>>>,
     otr_archived boolean,
     otr_archived_ref text,
     otr_muted boolean,
@@ -262,7 +262,7 @@ CREATE TABLE galley_test.member_remote_user (
     user_remote_domain text,
     user_remote_id uuid,
     conversation_role text,
-    mls_clients set<text>,
+    mls_clients_keypackages set<frozen<tuple<text, blob>>>,
     PRIMARY KEY (conv, user_remote_domain, user_remote_id)
 ) WITH CLUSTERING ORDER BY (user_remote_domain ASC, user_remote_id ASC)
     AND bloom_filter_fp_chance = 0.1
@@ -601,7 +601,7 @@ CREATE TABLE gundeck_test.notifications (
     AND bloom_filter_fp_chance = 0.1
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
-    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy', 'tombstone_threshold': '0.1'}
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy', 'compaction_window_size': '1', 'compaction_window_unit': 'DAYS', 'max_threshold': '32', 'min_threshold': '4'}
     AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1

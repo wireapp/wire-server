@@ -73,7 +73,8 @@ import qualified V67_MLSFeature
 import qualified V68_MLSCommitLock
 import qualified V69_MLSProposal
 import qualified V70_MLSCipherSuite
-import qualified V71_DropManagedConversations
+import qualified V71_MemberClientKeypackage
+import qualified V72_DropManagedConversations
 
 main :: IO ()
 main = do
@@ -133,7 +134,8 @@ main = do
       V68_MLSCommitLock.migration,
       V69_MLSProposal.migration,
       V70_MLSCipherSuite.migration,
-      V71_DropManagedConversations.migration
+      V71_MemberClientKeypackage.migration,
+      V72_DropManagedConversations.migration
       -- When adding migrations here, don't forget to update
       -- 'schemaVersion' in Galley.Cassandra
       -- (see also docs/developer/cassandra-interaction.md)

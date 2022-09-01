@@ -15,9 +15,16 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V72_DropManagedConversations where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 72
+migration :: Migration
+migration = Migration 72 "Drop the managed column from team_conv" $ do
+  schema'
+    [r| ALTER TABLE team_conv DROP (
+          managed
+      );
+    |]

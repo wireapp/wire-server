@@ -1,3 +1,95 @@
+# [2022-09-01] (Chart Release 4.23.0)
+
+## Release notes
+
+
+* The internal endpoint `GET i/mls/clients` has been changed, and it now returns a list of `ClientInfo` instead of a list of `ClientId`. (#2631)
+
+
+## API changes
+
+
+* Fix key package error description (#2651)
+
+* Expose MLS public keys in a new endpoint `GET /mls/public-keys`. (#2602)
+
+
+## Features
+
+
+* The coturn chart now supports exposing the control port over TLS. (#2620)
+
+* Forward all MLS default proposal types (#2628)
+
+* New endpoints `HEAD` and `GET /nonce/clients` to request new nonces for client certificate requests (coming up soon). (#2641, #2655)
+
+## Bug fixes and other updates
+
+
+* Fix cql-io bug where restarting whole cassandra cluster could cause downtime. Upstream changes in https://gitlab.com/twittner/cql-io/-/merge_requests/20 (#2640)
+
+* Improve client check when adding clients to MLS conversations (#2631)
+
+
+## Documentation
+
+
+* Move developer docs onto docs.wire.com (instead of exposing them on github only) (#2622, #2649)
+
+* Add build instructions for developers (#2621)
+
+* Make target audience explicit on docs.wire.com (#2662)
+
+
+## Internal changes
+
+
+* Support for external Add proposals (#2567)
+
+* Add additional checks on incoming MLS messages:
+  * if the sender matches the authenticated user
+  * if the sender of message to a remote conversation is a member
+  * if the group ID of a remote conversation matches the local mapping (#2618)
+
+* Apply changes introduced by cabal-fmt. (#2624)
+
+* Remove some redudant constraints in brig (#2638)
+
+* Brig Polysemy: Port UserPendingActivationStore to polysemy (#2636)
+
+
+* Add make target `delete-cache-on-linker-errors` to delete all Haskell compilation related caches. This is useful in cases where the development environment gets into an inconsistent state. (#2623)
+
+
+* Move Paging effect from galley into polysemy-wire-zoo (#2648)
+
+* Fix broken hls-hlint-plugin in nix env (#2629)
+
+* Adjust developer PR template and document config and API procedures in-tree. (#2617)
+
+* Add mls-test-cli to builder image (#2626)
+
+* Add mls-test-cli to deps image (#2630)
+
+* mls-test-cli: Use Cargo.lock file when building (#2634)
+
+* Move common Arbitrary instances to types-common package for compilation speed (#2658)
+
+* `LoginId` migrated to schema-profunctor (#2633, #2645)
+
+* Improve cleaning rules in Makefile. (#2639)
+
+* Fix typos, dangling reference in source code haddocs, etc. (#2586)
+
+* Update the Elastic Search version used for running integration tests to the one that is delivered by wire-server-deploy. (#2656)
+
+
+## Federation changes
+
+
+* Add mlsPrivateKeyPaths setting to galley (#2602)
+
+
 # [2022-08-16] (Chart Release 4.22.0)
 
 ## API changes
