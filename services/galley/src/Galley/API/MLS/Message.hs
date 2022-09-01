@@ -525,10 +525,10 @@ applyProposal (AddProposal kp) = do
     kpRef' kp
       & note (mlsProtocolError "Could not compute ref of a key package in an Add proposal")
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
-  pure (paAddClient (fmap (fmap (,ref)) qclient))
+  pure (paAddClient ((,ref) <$$> qclient))
 applyProposal (RemoveProposal ref) = do
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
-  pure (paRemoveClient (fmap (fmap (,ref)) qclient))
+  pure (paRemoveClient ((,ref) <$$> qclient))
 applyProposal _ = pure mempty
 
 checkProposalCipherSuite ::
