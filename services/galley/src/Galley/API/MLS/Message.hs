@@ -543,7 +543,7 @@ applyProposal convId (AddProposal kp) = do
     Just ci ->
       -- ad-hoc add proposal in commit, the key package has been claimed before
       pure ci
-  pure (paAddClient . fmap (fmap (,ref)) . cidQualifiedClient $ clientIdentity)
+  pure (paAddClient . (<$$>) (,ref) . cidQualifiedClient $ clientIdentity)
 applyProposal _conv (RemoveProposal ref) = do
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
   pure (paRemoveClient ((,ref) <$$> qclient))
