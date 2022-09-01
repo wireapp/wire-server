@@ -1360,7 +1360,6 @@ instance FromJSON DeletionCodeTimeout where
 
 data EnsureAccountDeletedResult = NoUser | AccountAlreadyDeleted | AccountDeleted
   deriving (Eq, Show)
-  deriving (S.ToSchema) via (Schema EnsureAccountDeletedResult)
 
 instance ToSchema EnsureAccountDeletedResult where
   schema =
