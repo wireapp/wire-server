@@ -127,6 +127,7 @@ library
     , imports
     , QuickCheck
     , string-conversions
+    , transformers
     , types-common
     , wire-api
 
