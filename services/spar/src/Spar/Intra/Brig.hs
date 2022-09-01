@@ -354,8 +354,8 @@ checkHandleAvailable hnd = do
       | otherwise ->
         rethrow "brig" resp
 
--- | Call brig to verify that a user has been completely deleted.
--- Otherwise, do another deletion.
+-- | Call brig to delete a user.
+-- If the user wasn't deleted completely before, another deletion attempt will be made.
 deleteBrigUserInternal :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m EnsureAccountDeletedResult
 deleteBrigUserInternal buid = do
   resp <-
@@ -363,7 +363,7 @@ deleteBrigUserInternal buid = do
       method DELETE
         . paths ["/i/users", toByteString' buid]
   case statusCode resp of
-    i | i == 200 || i == 202 -> parseResponse "brig" resp
+    i | i == 200 || i == 202 || i == 404 -> parseResponse "brig" resp
     _ -> rethrow "brig" resp
 
 -- | Verify user's password (needed for certain powerful operations).
