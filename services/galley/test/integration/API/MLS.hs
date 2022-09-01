@@ -1584,7 +1584,7 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
   bobClient2 <- withTheseLastPrekeys [pk1] (setupUserClient tmp CreateWithKey True (pUserId bob))
   let bobClient2Qid = userClientQid (pUserId bob) bobClient2
 
-  -- we use "group" here, because bob can get the group state from the backend
+  -- we use alice's group state "group" here, so that the mls client knows the group id
   externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "bobClient2-group"
 
   -- extract signature key from proposal
@@ -1627,7 +1627,7 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
   let bobWithClient2 = Participant (pUserId bob) (bobClient2 NonEmpty.<| pClientIds bob)
   void $ postCommit MessagingSetup {users = [bobWithClient2], commit = commitExternalAdd, ..}
   liftIO $ BS.writeFile (tmp </> "welcomeBobClient2") welcomeBobClient2
-  -- reset bob's group state
+  -- reset bobWithClient2's group state
   void . liftIO $
     spawn
       ( cli
