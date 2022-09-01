@@ -40,7 +40,7 @@ import qualified Data.Set as Set
 import Data.Time
 import qualified Data.UUID.Tagged as U
 import Galley.API.Error
-import Galley.API.MLS.KeyPackage (dummyCreatorKeyPackageRef)
+import Galley.API.MLS.KeyPackage (nullKeyPackageRef)
 import Galley.API.Mapping
 import Galley.API.One2One
 import Galley.API.Util
@@ -118,7 +118,7 @@ createGroupConversation lusr conn newConv = do
   case (newConvProtocol newConv, newConvCreatorClient newConv) of
     (ProtocolProteusTag, _) -> pure ()
     (ProtocolMLSTag, Just c) ->
-      E.addMLSClients lcnv (qUntagged lusr) (Set.singleton (c, dummyCreatorKeyPackageRef))
+      E.addMLSClients lcnv (qUntagged lusr) (Set.singleton (c, nullKeyPackageRef))
     (ProtocolMLSTag, Nothing) ->
       throw (InvalidPayload "Missing creator_client field when creating an MLS conversation")
 

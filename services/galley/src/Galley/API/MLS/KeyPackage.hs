@@ -26,8 +26,8 @@ import Wire.API.Error.Galley
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 
-dummyCreatorKeyPackageRef :: KeyPackageRef
-dummyCreatorKeyPackageRef = KeyPackageRef (BS.replicate 16 0)
+nullKeyPackageRef :: KeyPackageRef
+nullKeyPackageRef = KeyPackageRef (BS.replicate 16 0)
 
 derefKeyPackage ::
   Members

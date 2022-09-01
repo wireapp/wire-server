@@ -429,7 +429,7 @@ processCommit qusr senderClient con lconv epoch sender commit = do
                   )
                   $ cPath commit
               -- register the creator client
-              updateKeyPackageMapping lconv qusr creatorClient (Just dummyCreatorKeyPackageRef) senderRef
+              updateKeyPackageMapping lconv qusr creatorClient Nothing senderRef
             -- remote clients cannot send the first commit
             (_, Right _) -> throwS @'MLSStaleMessage
             -- uninitialised conversations should contain exactly one client
@@ -487,9 +487,8 @@ updateKeyPackageMapping lconv qusr cid mOld new = do
           }
 
   -- remove old (client, key package) pair
-  for_ mOld $ \old ->
-    removeMLSClients lcnv qusr (Set.singleton (cid, old))
-
+  let old = fromMaybe nullKeyPackageRef mOld
+  removeMLSClients lcnv qusr (Set.singleton (cid, old))
   -- add new (client, key package) pair
   addMLSClients lcnv qusr (Set.singleton (cid, new))
 
