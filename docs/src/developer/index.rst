@@ -1,7 +1,7 @@
 Notes for developers
 ====================
 
-If you are a site operator, you may want to go back to `docs.wire.com <https://docs.wire.com/>`_ and ignore this section of the docs.
+If you are an on-premise operator (administrating your own self-hosted installation of wire-server), you may want to go back to `docs.wire.com <https://docs.wire.com/>`_ and ignore this section of the docs.
 
 If you are a wire end-user, please check out our `support pages <https://support.wire.com/>`_.
 
