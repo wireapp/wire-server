@@ -164,9 +164,9 @@ tests _ at opts p b c ch g aws =
         [ test' aws p "put /users/:uid/email" $ testUpdateUserEmailByTeamOwner b
         ],
       testGroup
-        "/i/users/:uid/ensure-deleted"
+        "delete /i/users/:uid"
         [ test' aws p "does nothing for completely deleted user" $ testEnsureAccountDeletedWithCompletelyDeletedUser b c aws,
-          test' aws p "does nothing when the uses doesn't exist" $ testEnsureAccountDeletedWithNoUser b,
+          test' aws p "does nothing when the user doesn't exist" $ testEnsureAccountDeletedWithNoUser b,
           test' aws p "deletes a not deleted user" $ testEnsureAccountDeletedWithNotDeletedUser b c aws,
           test' aws p "delete again because of dangling property" $ testEnsureAccountDeletedWithDanglingProperty b c aws
         ]
@@ -1644,14 +1644,14 @@ testTooManyMembersForLegalhold opts brig = do
 testEnsureAccountDeletedWithCompletelyDeletedUser :: Brig -> Cannon -> AWS.Env -> Http ()
 testEnsureAccountDeletedWithCompletelyDeletedUser brig cannon aws = do
   u <- randomUser brig
-  liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal1: " aws (userActivateJournaled u)
+  liftIO $ Util.assertUserJournalQueue "user activate testEnsureAccountDeletedWithCompletelyDeletedUser" aws (userActivateJournaled u)
   setHandleAndDeleteUser brig cannon u [] aws $
-    \uid -> delete (brig . paths ["/i/users", toByteString' uid]) !!! const 202 === statusCode
+    \uid -> deleteUserInternal uid brig !!! const 202 === statusCode
   do
     let uid = userId u
-    post
+    delete
       ( brig
-          . paths ["/i/users", toByteString' uid, "ensure-deleted"]
+          . paths ["/i/users", toByteString' uid]
       )
       !!! do
         const 200 === statusCode
@@ -1660,30 +1660,28 @@ testEnsureAccountDeletedWithCompletelyDeletedUser brig cannon aws = do
 testEnsureAccountDeletedWithNoUser :: Brig -> Http ()
 testEnsureAccountDeletedWithNoUser brig = do
   nonExistingUid :: UserId <- liftIO $ generate arbitrary
-  post
-    ( brig
-        . paths ["/i/users", toByteString' nonExistingUid, "ensure-deleted"]
-    )
+  deleteUserInternal nonExistingUid brig
     !!! do
-      const 200 === statusCode
+      const 404 === statusCode
       const (Right NoUser) === responseJsonEither
 
 testEnsureAccountDeletedWithNotDeletedUser :: HasCallStack => Brig -> Cannon -> AWS.Env -> Http ()
 testEnsureAccountDeletedWithNotDeletedUser brig cannon aws = do
   u <- randomUser brig
-  liftIO $ Util.assertUserJournalQueue "user activate" aws (userActivateJournaled u)
+  liftIO $ Util.assertUserJournalQueue "user activate testEnsureAccountDeletedWithNotDeletedUser" aws (userActivateJournaled u)
   do
     setHandleAndDeleteUser brig cannon u [] aws $
       ( \uid' ->
-          verifyAccountDeleted brig uid' !!! do
-            const 200 === statusCode
-            const (Right AccountDeleted) === responseJsonEither
+          deleteUserInternal uid' brig
+            !!! do
+              const 202 === statusCode
+              const (Right AccountDeleted) === responseJsonEither
       )
 
 testEnsureAccountDeletedWithDanglingProperty :: Brig -> Cannon -> AWS.Env -> Http ()
 testEnsureAccountDeletedWithDanglingProperty brig cannon aws = do
   u <- randomUser brig
-  liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal1: " aws (userActivateJournaled u)
+  liftIO $ Util.assertUserJournalQueue "user activate testEnsureAccountDeletedWithDanglingProperty" aws (userActivateJournaled u)
 
   let uid = userId u
   -- First set a unique handle (to verify freeing of the handle)
@@ -1693,6 +1691,7 @@ testEnsureAccountDeletedWithDanglingProperty brig cannon aws = do
     !!! const 200 === statusCode
 
   deleteUserInternal uid brig !!! const 202 === statusCode
+  liftIO $ Util.assertUserJournalQueue "user deletion testEnsureAccountDeletedWithDanglingProperty" aws (userDeleteJournaled uid)
 
   setProperty brig (userId u) "foo" objectProp
     !!! const 200 === statusCode
@@ -1701,12 +1700,9 @@ testEnsureAccountDeletedWithDanglingProperty brig cannon aws = do
     const (Just objectProp) === responseJsonMaybe
 
   execAndAssertUserDeletion brig cannon u (Handle hdl) [] aws $ \uid' -> do
-    post
-      ( brig
-          . paths ["/i/users", toByteString' uid', "ensure-deleted"]
-      )
+    deleteUserInternal uid' brig
       !!! do
-        const 200 === statusCode
+        const 202 === statusCode
         const (Right AccountDeleted) === responseJsonEither
 
   getProperty brig (userId u) "foo" !!! do
@@ -1770,7 +1766,7 @@ execAndAssertUserDeletion brig cannon u hdl others aws execDelete = do
           ]
   -- This will generate a new event, we need to consume it here
   usr <- postUserInternal o brig
-  liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal: " aws (userActivateJournaled usr)
+  liftIO $ Util.assertUserJournalQueue "user activate execAndAssertUserDeletion" aws (userActivateJournaled usr)
   -- Handle is available again
   Bilge.head (brig . paths ["users", "handles", toByteString' hdl] . zUser uid)
     !!! const 404 === statusCode

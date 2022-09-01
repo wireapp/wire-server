@@ -156,13 +156,6 @@ type AccountAPI =
                :> ReqBody '[Servant.JSON] NewUserSpar
                :> MultiVerb 'POST '[Servant.JSON] CreateUserSparInternalResponses (Either CreateUserSparError SelfProfile)
            )
-    :<|> Named
-           "ensure-account-deleted"
-           ( "users"
-               :> Capture "uid" UserId
-               :> "ensure-deleted"
-               :> Post '[Servant.JSON] EnsureAccountDeletedResult
-           )
 
 -- | The missing ref is implicit by the capture
 data NewKeyPackageRef = NewKeyPackageRef

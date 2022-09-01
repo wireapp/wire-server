@@ -575,11 +575,3 @@ nonce m brig uid cid =
         . paths ["clients", toByteString' cid, "nonce"]
         . zUser uid
     )
-
-verifyAccountDeleted :: (MonadIO m, MonadHttp m) => Brig -> UserId -> m ResponseLBS
-verifyAccountDeleted brig uid =
-  post
-    ( brig
-        . paths ["/i/users", toByteString' uid, "ensure-deleted"]
-        . expect2xx
-    )

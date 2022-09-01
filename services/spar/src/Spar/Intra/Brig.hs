@@ -30,7 +30,7 @@ module Spar.Intra.Brig
     setBrigUserRichInfo,
     setBrigUserLocale,
     checkHandleAvailable,
-    verifyDeletionBrigUser,
+    deleteBrigUserInternal,
     createBrigUserSAML,
     createBrigUserNoSAML,
     updateEmail,
@@ -356,14 +356,14 @@ checkHandleAvailable hnd = do
 
 -- | Call brig to verify that a user has been completely deleted.
 -- Otherwise, do another deletion.
-verifyDeletionBrigUser :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m EnsureAccountDeletedResult
-verifyDeletionBrigUser buid = do
+deleteBrigUserInternal :: (HasCallStack, MonadSparToBrig m, MonadIO m) => UserId -> m EnsureAccountDeletedResult
+deleteBrigUserInternal buid = do
   resp <-
     call $
-      method POST
-        . paths ["/i/users", toByteString' buid, "ensure-deleted"]
+      method DELETE
+        . paths ["/i/users", toByteString' buid]
   case statusCode resp of
-    200 -> parseResponse "brig" resp
+    i | i == 200 || i == 202 -> parseResponse "brig" resp
     _ -> rethrow "brig" resp
 
 -- | Verify user's password (needed for certain powerful operations).
