@@ -190,7 +190,11 @@ postKeyPackageRef ref = lift . wrapClient . Data.updateKeyPackageRef ref
 -- Used by galley to update key package refs and also validate
 upsertKeyPackage :: NewKeyPackage -> Handler r KeyPackageRef
 upsertKeyPackage nkp = do
-  kp :: RawMLS KeyPackage <- decodeMLS' (kpData . nkpKeyPackage $ nkp) & hush & noteH "upsertKeyPackage: Cannot decode KeyPackage"
+  kp <-
+    either
+      (const $ mlsProtocolError "upsertKeyPackage: Cannot decocode KeyPackage")
+      pure
+      $ decodeMLS' @(RawMLS KeyPackage) (kpData . nkpKeyPackage $ nkp)
   ref <- kpRef' kp & noteH "upsertKeyPackage: Unsupported CipherSuite"
 
   let identity = mkClientIdentity (nkpUserId nkp) (nkpClientId nkp)
