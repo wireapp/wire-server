@@ -14,7 +14,7 @@ while getopts ':f:m:' opt
               echo "WARNING: not linting tests."
             elif [ "$f" = "changeset" ]; then
               files=$(git diff --name-only HEAD | grep \.hs\$)
-              echo "WARNING: linting all test files with changes.  this may lead to some hard to fix warnings/errors, it is safe to ignore these!"
+              echo "WARNING: linting test files with changes. This may lead to some hard to fix warnings/errors, it is safe to ignore those!"
             else
               usage
             fi
