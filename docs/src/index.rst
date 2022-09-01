@@ -6,7 +6,7 @@
 Welcome to Wire's (self-hosting) documentation!
 ===============================================
 
-If you are a wire end-user, please check out our `support pages <https://support.wire.com/>`_.
+If you are a Wire end-user, please check out our `support pages <https://support.wire.com/>`_.
 
 The targeted audience of this documentation is:
 
