@@ -1,1 +1,0 @@
-Add make target `delete-cache-on-linker-errors` to delete all Haskell compilation related caches. This is useful in cases where the development environment gets into an inconsistent state.
