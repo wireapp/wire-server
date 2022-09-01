@@ -532,7 +532,7 @@ applyProposal convId (AddProposal kp) = do
   mbClientIdentity <- getClientByKeyPackageRef ref
   clientIdentity <- case mbClientIdentity of
     Nothing -> do
-      -- external add proposal, the key package has not been claimed yet
+      -- external add proposal for a new key package unknown to the backend
       ci <-
         either
           (throw . mlsProtocolError . (<>) "Could not derive identity from key package: ")
