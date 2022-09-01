@@ -10,9 +10,9 @@ while getopts ':f:m:' opt
      case $opt in
          f) f=${OPTARG}
             if [ "$f" = "all" ]; then
-              files=$(find libs/ services/ -not -path "*/test/*" | grep \.hs\$)
+              files=$(find libs/ services/ -not -path "*/test/*" -name "*.hs")
             elif [ "$f" = "changeset" ]; then
-              files=$(git diff --name-only HEAD~ | grep \.hs\$)
+              files=$(git diff --name-only HEAD | grep \.hs\$)
             else
               usage
             fi
@@ -34,7 +34,7 @@ if [ -z "${f}" ] || [ -z "${m}" ]; then
     usage
 fi
 
-count=$(echo "$files" | wc -l | xargs echo)
+count=$(echo "$files" | grep -c -v -e '^[[:space:]]*$')
 
 echo "Analysing $count file(s)…"
 
