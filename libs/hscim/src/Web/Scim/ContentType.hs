@@ -14,6 +14,9 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use list literal" #-}
 
 -- | SCIM defines its own content type (application/scim+json). It's
 -- intended to be used for all requests and responses; see the first
