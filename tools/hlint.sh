@@ -11,8 +11,10 @@ while getopts ':f:m:' opt
          f) f=${OPTARG}
             if [ "$f" = "all" ]; then
               files=$(find libs/ services/ -not -path "*/test/*" -name "*.hs")
+              echo "WARNING: not linting tests."
             elif [ "$f" = "changeset" ]; then
               files=$(git diff --name-only HEAD | grep \.hs\$)
+              echo "WARNING: linting all test files with changes.  this may lead to some hard to fix warnings/errors, it is safe to ignore these!"
             else
               usage
             fi
