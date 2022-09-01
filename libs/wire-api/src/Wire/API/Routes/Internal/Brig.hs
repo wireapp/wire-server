@@ -234,8 +234,7 @@ type MLSAPI =
          )
            :<|> GetMLSClients
            :<|> MapKeyPackageRefs
-           :<|> ( "key-packages"
-                    :> "add"
+           :<|> ( "key-package-add"
                     :> ReqBody '[Servant.JSON] NewKeyPackage
                     :> MultiVerb1
                          'PUT

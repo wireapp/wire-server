@@ -26,6 +26,7 @@ module Galley.Intra.Client
     getLocalMLSClients,
     addKeyPackageRef,
     updateKeyPackageRef,
+    validateAndAddKeyPackageRef,
   )
 where
 
@@ -34,6 +35,7 @@ import Bilge.RPC
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Auth (LegalHoldLogin (..))
+import Control.Monad.Catch
 import Data.ByteString.Conversion (toByteString')
 import Data.Id
 import Data.Misc
@@ -47,6 +49,8 @@ import Galley.External.LegalHoldService.Types
 import Galley.Intra.Util
 import Galley.Monad
 import Imports
+import qualified Network.HTTP.Client as Rq
+import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Method
 import Network.HTTP.Types.Status
 import Network.Wai.Utilities.Error hiding (Error)
@@ -222,3 +226,18 @@ updateKeyPackageRef keyPackageRef =
           . json (kpupNext keyPackageRef)
           . expect2xx
       )
+
+validateAndAddKeyPackageRef :: NewKeyPackage -> App (Maybe KeyPackageRef)
+validateAndAddKeyPackageRef nkp = do
+  res <-
+    call
+      Brig
+      ( method PUT
+          . paths ["i", "mls", "key-package-add"]
+          . json nkp
+      )
+  let statusCode = HTTP.statusCode (Rq.responseStatus res)
+  if
+      | statusCode `div` 100 == 2 -> Just <$> parseResponse (mkError status502 "server-error") res
+      | statusCode `div` 100 == 4 -> pure Nothing
+      | otherwise -> throwM (mkError status502 "server-error" "Unexpected http status returned from /i/mls/key-packages/add")

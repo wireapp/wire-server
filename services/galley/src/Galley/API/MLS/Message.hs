@@ -84,6 +84,7 @@ import Wire.API.MLS.Proposal
 import qualified Wire.API.MLS.Proposal as Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
+import Wire.API.Routes.Internal.Brig (NewKeyPackage (..))
 import Wire.API.User.Client
 
 type MLSMessageStaticErrors =
@@ -493,6 +494,27 @@ updateKeyPackageMapping lconv qusr cid mOld new = do
   -- add new (client, key package) pair
   addMLSClients lcnv qusr (Set.singleton (cid, new))
 
+addKeyPackage ::
+  Members '[BrigAccess, MemberStore, Error MLSProtocolError] r =>
+  Local ConvId ->
+  Qualified UserId ->
+  ClientId ->
+  KeyPackageData ->
+  Sem r KeyPackageRef
+addKeyPackage lconv qusr cid kpdata = do
+  mRef <-
+    validateAndAddKeyPackageRef
+      ( NewKeyPackage
+          { nkpUserId = qusr,
+            nkpClientId = cid,
+            nkpConversation = qUntagged lconv,
+            nkpKeyPackage = kpdata
+          }
+      )
+  ref <- mRef & note (mlsProtocolError "Tried to add invalid KeyPackage")
+  addMLSClients lconv qusr (Set.singleton (cid, ref))
+  pure ref
+
 applyProposalRef ::
   ( HasProposalEffects r,
     Members
@@ -538,7 +560,7 @@ applyProposal convId (AddProposal kp) = do
           (kpIdentity (rmValue kp))
       let qcid = cidQualifiedClient ci
       lconvId <- qualifyLocal convId
-      addKeyPackageRef ref (fst <$> qcid) (snd (qUnqualified qcid)) (qUntagged lconvId)
+      void $ addKeyPackage lconvId (fst <$> qcid) (snd (qUnqualified qcid)) (KeyPackageData (rmRaw kp))
       pure ci
     Just ci ->
       -- ad-hoc add proposal in commit, the key package has been claimed before
