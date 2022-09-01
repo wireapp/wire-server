@@ -695,11 +695,10 @@ rmUser lusr conn = do
                     now
                     (EdMembersLeave (QualifiedUserIdList [qUser]))
             for_ (bucketRemote (fmap rmId (Data.convRemoteMembers c))) $ notifyRemoteMembers now qUser (Data.convId c)
-            let events =
-                  Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
-                    <&> set Intra.pushConn conn
-                      . set Intra.pushRoute Intra.RouteDirect
-            pure events
+            pure $
+              Intra.newPushLocal ListComplete (tUnqualified lusr) (Intra.ConvEvent e) (Intra.recipient <$> Data.convLocalMembers c)
+                <&> set Intra.pushConn conn
+                  . set Intra.pushRoute Intra.RouteDirect
           | otherwise -> pure Nothing
 
       for_
