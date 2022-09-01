@@ -1361,15 +1361,6 @@ instance FromJSON DeletionCodeTimeout where
 data EnsureAccountDeletedResult = NoUser | AccountAlreadyDeleted | AccountDeleted
   deriving (Eq, Show)
 
-instance ToSchema EnsureAccountDeletedResult where
-  schema =
-    enum @Text "EnsureAccountDeletedResult" $
-      mconcat
-        [ element "no-user" NoUser,
-          element "already-deleted" AccountAlreadyDeleted,
-          element "deleted" AccountDeleted
-        ]
-
 instance ToJSON EnsureAccountDeletedResult where
   toJSON t = A.object ["tag" A..= toTag t]
     where
