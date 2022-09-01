@@ -15,41 +15,19 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main where
+module V9
+  ( migration,
+  )
+where
 
 import Cassandra.Schema
-import Control.Exception (finally)
 import Imports
-import qualified System.Logger.Extended as Log
-import Util.Options
-import qualified V1
-import qualified V2
-import qualified V3
-import qualified V4
-import qualified V5
-import qualified V6
-import qualified V7
-import qualified V8
-import qualified V9
+import Text.RawString.QQ
 
-main :: IO ()
-main = do
-  o <- getOptions desc (Just migrationOptsParser) defaultPath
-  l <- Log.mkLogger'
-  migrateSchema
-    l
-    o
-    [ V1.migration,
-      V2.migration,
-      V3.migration,
-      V4.migration,
-      V5.migration,
-      V6.migration,
-      V7.migration,
-      V8.migration,
-      V9.migration
-    ]
-    `finally` Log.close l
-  where
-    desc = "Gundeck Cassandra Schema Migrations"
-    defaultPath = "/etc/wire/gundeck/conf/gundeck-schema.yaml"
+migration :: Migration
+migration = Migration 9 "Remove deprecated tables" $ do
+  -- all data in notifications is written with a TTL, therefore should be a good fit for TWCS.
+  -- TTL is 28 days (see https://github.com/wireapp/wire-server/blob/434f7a874ce5e3f7e3e57aa98afb6441d4a53169/charts/gundeck/templates/configmap.yaml#L51)
+  -- so 28 windows of 1 day each fits well with the suggestion of 20-30 windows.
+  -- https://cassandra.apache.org/doc/latest/cassandra/operating/compaction/twcs.html
+  schema' [r| ALTER TABLE notifications WITH compaction = {'class': 'TimeWindowCompactionStrategy', 'compaction_window_unit': 'DAYS', 'compaction_window_size': 1}; |]
