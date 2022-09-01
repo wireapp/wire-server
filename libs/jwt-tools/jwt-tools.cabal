@@ -122,9 +122,11 @@ library
       base
     , base64-bytestring
     , bytestring
+    , bytestring-conversion
     , http-types
     , imports
     , QuickCheck
+    , string-conversions
     , types-common
     , wire-api
 

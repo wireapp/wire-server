@@ -1,8 +1,8 @@
 import Imports
-import Jwt.Tools (testFfi)
+import Jwt.Tools (testHaskellApi)
 
 main :: IO ()
 main = do
   putStrLn "test FFI"
-  testFfi
+  testHaskellApi
   putStrLn "finished"
