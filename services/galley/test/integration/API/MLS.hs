@@ -1575,8 +1575,17 @@ propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
 
 testExternalAddProposal :: TestM ()
 testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
-  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (1, LocalUser) def {createConv = CreateConv}
-  bob <- assertOne . toList $ users
+  let opts@SetupOptions {..} = def {createConv = CreateConv}
+  (creator, users@[bob]) <- withLastPrekeys $ setupParticipants tmp opts [(1, LocalUser)]
+  -- create a group
+  (groupId, conversation) <- setupGroup tmp createConv creator "group"
+
+  -- add clients to it and get welcome message
+  (commit, welcome) <-
+    liftIO $
+      setupCommit tmp creator "group" "group" $
+        NonEmpty.tail (pClients creator) <> toList (pClients bob)
+
   testSuccessfulCommit MessagingSetup {..}
 
   let pk1 : pk2 : _ = drop 3 someLastPrekeys
