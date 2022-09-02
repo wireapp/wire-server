@@ -31,6 +31,7 @@ module Wire.API.Routes.Internal.Brig
     module Wire.API.Routes.Internal.Brig.EJPD,
     NewKeyPackageRef (..),
     NewKeyPackage (..),
+    NewKeyPackageResult (..),
   )
 where
 
@@ -174,9 +175,7 @@ instance ToSchema NewKeyPackageRef where
           <*> nkprConversation .= field "conversation" schema
 
 data NewKeyPackage = NewKeyPackage
-  { nkpUserId :: Qualified UserId,
-    nkpClientId :: ClientId,
-    nkpConversation :: Qualified ConvId,
+  { nkpConversation :: Qualified ConvId,
     nkpKeyPackage :: KeyPackageData
   }
   deriving stock (Eq, Show, Generic)
@@ -186,10 +185,22 @@ instance ToSchema NewKeyPackage where
   schema =
     object "NewKeyPackage" $
       NewKeyPackage
-        <$> nkpUserId .= field "user_id" schema
-          <*> nkpClientId .= field "client_id" schema
-          <*> nkpConversation .= field "conversation" schema
+        <$> nkpConversation .= field "conversation" schema
           <*> nkpKeyPackage .= field "key_package" schema
+
+data NewKeyPackageResult = NewKeyPackageResult
+  { nkpresClientIdentity :: ClientIdentity,
+    nkpresKeyPackageRef :: KeyPackageRef
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema NewKeyPackageResult)
+
+instance ToSchema NewKeyPackageResult where
+  schema =
+    object "NewKeyPackageResult" $
+      NewKeyPackageResult
+        <$> nkpresClientIdentity .= field "client_identity" schema
+          <*> nkpresKeyPackageRef .= field "key_package_ref" schema
 
 type MLSAPI =
   "mls"
@@ -234,13 +245,15 @@ type MLSAPI =
          )
            :<|> GetMLSClients
            :<|> MapKeyPackageRefs
-           :<|> ( "key-package-add"
-                    :> ReqBody '[Servant.JSON] NewKeyPackage
-                    :> MultiVerb1
-                         'PUT
-                         '[Servant.JSON]
-                         (Respond 200 "Key package ref mapping updated" KeyPackageRef)
-                )
+           :<|> Named
+                  "put-key-package-add"
+                  ( "key-package-add"
+                      :> ReqBody '[Servant.JSON] NewKeyPackage
+                      :> MultiVerb1
+                           'PUT
+                           '[Servant.JSON]
+                           (Respond 200 "Key package ref mapping updated" NewKeyPackageResult)
+                  )
        )
 
 type PutConversationByKeyPackageRef =

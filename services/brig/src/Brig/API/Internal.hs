@@ -87,8 +87,8 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
-import Wire.API.MLS.Serialisation (RawMLS, decodeMLS')
-import Wire.API.Routes.Internal.Brig (NewKeyPackage (..), NewKeyPackageRef (..))
+import Wire.API.MLS.Serialisation
+import Wire.API.Routes.Internal.Brig
 import qualified Wire.API.Routes.Internal.Brig as BrigIRoutes
 import Wire.API.Routes.Internal.Brig.Connection
 import Wire.API.Routes.Named
@@ -132,7 +132,7 @@ mlsAPI =
   )
     :<|> getMLSClients
     :<|> mapKeyPackageRefsInternal
-    :<|> upsertKeyPackage
+    :<|> Named @"put-key-package-add" upsertKeyPackage
 
 accountAPI ::
   Members
@@ -188,7 +188,7 @@ postKeyPackageRef :: KeyPackageRef -> KeyPackageRef -> Handler r ()
 postKeyPackageRef ref = lift . wrapClient . Data.updateKeyPackageRef ref
 
 -- Used by galley to update key package refs and also validate
-upsertKeyPackage :: NewKeyPackage -> Handler r KeyPackageRef
+upsertKeyPackage :: NewKeyPackage -> Handler r NewKeyPackageResult
 upsertKeyPackage nkp = do
   kp <-
     either
@@ -197,13 +197,24 @@ upsertKeyPackage nkp = do
       $ decodeMLS' @(RawMLS KeyPackage) (kpData . nkpKeyPackage $ nkp)
   ref <- kpRef' kp & noteH "upsertKeyPackage: Unsupported CipherSuite"
 
-  let identity = mkClientIdentity (nkpUserId nkp) (nkpClientId nkp)
+  identity <-
+    either
+      (const $ mlsProtocolError "upsertKeyPackage: Cannot decode ClientIdentity")
+      pure
+      $ kpIdentity (rmValue kp)
   mp <- lift . wrapClient . runMaybeT $ Data.derefKeyPackage ref
   when (isNothing mp) $ do
     void $ validateKeyPackage identity kp
-    lift . wrapClient $ Data.addKeyPackageRef ref (NewKeyPackageRef (nkpUserId nkp) (nkpClientId nkp) (nkpConversation nkp))
+    lift . wrapClient $
+      Data.addKeyPackageRef
+        ref
+        ( NewKeyPackageRef
+            (fst <$> cidQualifiedClient identity)
+            (ciClient identity)
+            (nkpConversation nkp)
+        )
 
-  pure ref
+  pure $ NewKeyPackageResult identity ref
   where
     noteH :: Text -> Maybe a -> Handler r a
     noteH errMsg Nothing = mlsProtocolError errMsg

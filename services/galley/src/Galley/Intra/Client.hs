@@ -227,7 +227,7 @@ updateKeyPackageRef keyPackageRef =
           . expect2xx
       )
 
-validateAndAddKeyPackageRef :: NewKeyPackage -> App (Maybe KeyPackageRef)
+validateAndAddKeyPackageRef :: NewKeyPackage -> App (Maybe NewKeyPackageResult)
 validateAndAddKeyPackageRef nkp = do
   res <-
     call

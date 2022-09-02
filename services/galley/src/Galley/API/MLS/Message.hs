@@ -84,7 +84,7 @@ import Wire.API.MLS.Proposal
 import qualified Wire.API.MLS.Proposal as Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
-import Wire.API.Routes.Internal.Brig (NewKeyPackage (..))
+import Wire.API.Routes.Internal.Brig
 import Wire.API.User.Client
 
 type MLSMessageStaticErrors =
@@ -533,35 +533,29 @@ applyProposal convId (AddProposal kp) = do
   clientIdentity <- case mbClientIdentity of
     Nothing -> do
       -- external add proposal for a new key package unknown to the backend
-      ci <-
-        either
-          (throw . mlsProtocolError . (<>) "Could not derive identity from key package: ")
-          pure
-          (kpIdentity (rmValue kp))
-      let qcid = cidQualifiedClient ci
       lconvId <- qualifyLocal convId
-      void $ addKeyPackageMapping lconvId (fst <$> qcid) (snd (qUnqualified qcid)) (KeyPackageData (rmRaw kp))
+      ci <- addKeyPackageMapping lconvId ref (KeyPackageData (rmRaw kp))
       pure ci
     Just ci ->
       -- ad-hoc add proposal in commit, the key package has been claimed before
       pure ci
   pure (paAddClient . (<$$>) (,ref) . cidQualifiedClient $ clientIdentity)
   where
-    addKeyPackageMapping lconv qusr cid kpdata = do
+    addKeyPackageMapping lconv ref kpdata = do
       -- validate and update mapping in brig
-      mRef <-
-        validateAndAddKeyPackageRef
-          ( NewKeyPackage
-              { nkpUserId = qusr,
-                nkpClientId = cid,
-                nkpConversation = qUntagged lconv,
+      mCid <-
+        nkpresClientIdentity
+          <$$> validateAndAddKeyPackageRef
+            NewKeyPackage
+              { nkpConversation = qUntagged lconv,
                 nkpKeyPackage = kpdata
               }
-          )
-      ref <- mRef & note (mlsProtocolError "Tried to add invalid KeyPackage")
+      cid <- mCid & note (mlsProtocolError "Tried to add invalid KeyPackage")
+      let qcid = cidQualifiedClient cid
+      let qusr = fst <$> qcid
       -- update mapping in galley
-      addMLSClients lconv qusr (Set.singleton (cid, ref))
-      pure ref
+      addMLSClients lconv qusr (Set.singleton (ciClient cid, ref))
+      pure cid
 applyProposal _conv (RemoveProposal ref) = do
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
   pure (paRemoveClient ((,ref) <$$> qclient))
