@@ -76,6 +76,7 @@ import Wire.API.MLS.Group (convToGroupId)
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
+import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import Wire.API.Routes.Version
@@ -1574,23 +1575,95 @@ propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
 
 testExternalAddProposal :: TestM ()
 testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
-  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
+  let opts@SetupOptions {..} = def {createConv = CreateConv}
+  (creator, users@[bob], bobClient2, bobClient3) <- withLastPrekeys $ do
+    (creator, users@[bob]) <- setupParticipants tmp opts [(1, LocalUser)]
+    userClient2 <- setupUserClient tmp CreateWithKey True (pUserId bob)
+    userClient3 <- setupUserClient tmp CreateWithKey True (pUserId bob)
+    pure (creator, users, userClient2, userClient3)
+  let bobClient2Qid = userClientQid (pUserId bob) bobClient2
 
-  bobClient1 <- assertOne . toList $ pClients bob
+  -- create a group
+  (groupId, conversation) <- setupGroup tmp createConv creator "group"
+
+  -- add clients to it and get welcome message
   (commit, welcome) <-
     liftIO $
       setupCommit tmp creator "group" "group" $
-        NonEmpty.tail (pClients creator) <> [bobClient1]
-  testSuccessfulCommit MessagingSetup {users = [bob], ..}
+        NonEmpty.tail (pClients creator) <> toList (pClients bob)
 
-  liftIO $ mergeWelcome tmp (fst bobClient1) "group" "group" "welcome"
+  testSuccessfulCommit MessagingSetup {..}
 
-  bobClient2Qid <-
-    userClientQid (pUserId bob)
-      <$> withLastPrekeys (setupUserClient tmp CreateWithKey True (pUserId bob))
-  externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "group"
+  -- we use alice's group state "group" here, so that the mls client knows the group id
+  externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "bobClient2-group"
+
+  -- extract signature key from proposal
+  do
+    msg <- liftIO $ decodeMLSError @(Message 'MLSPlainText) externalProposal
+    let payload = tbsMsgPayload . rmValue . msgTBS $ msg
+    let proposal =
+          case payload of
+            ProposalMessage rprop -> rmValue rprop
+            x -> error ("Expected ProposalMessage but got <> " <> show x)
+    let kp = case proposal of
+          (AddProposal kp') -> kp'
+          x -> error ("Expected AddProposal but got <> " <> show x)
+    let signerKey = bcSignatureKey . kpuCredential . rmValue . kpTBS . rmValue $ kp
+    liftIO $ BS.writeFile (tmp </> "proposal-signer.key") signerKey
+
   postMessage (qUnqualified (pUserId bob)) externalProposal !!! const 201 === statusCode
+
+  void . liftIO $
+    spawn
+      ( cli
+          (pClientQid creator)
+          tmp
+          [ "consume",
+            "--group",
+            tmp </> "group",
+            "--in-place",
+            "--signer-key",
+            tmp </> "proposal-signer.key",
+            "-"
+          ]
+      )
+      (Just externalProposal)
+
+  (commitExternalAdd, Just welcomeBobClient2) <-
+    liftIO $
+      pendingProposalsCommit tmp creator "group"
+
+  -- Create bobWithClient2 here so that the new client of bob is used
+  let bobWithClient2 = Participant (pUserId bob) (bobClient2 NonEmpty.<| pClientIds bob)
+  void $ postCommit MessagingSetup {users = [bobWithClient2], commit = commitExternalAdd, ..}
+  liftIO $ BS.writeFile (tmp </> "welcomeBobClient2") welcomeBobClient2
+  -- reset bobWithClient2's group state
+  void . liftIO $
+    spawn
+      ( cli
+          (pClientQid bobWithClient2)
+          tmp
+          [ "group",
+            "from-welcome",
+            "--group-out",
+            tmp </> "bobClient2-group",
+            tmp </> "welcomeBobClient2"
+          ]
+      )
+      Nothing
+
+  -- Bob's bobClient2 and its keypackage ref is known to backend, so this client
+  -- is able able to send an unencrypted message, e.g. a bare add proposal
+  prop <-
+    liftIO $
+      bareAddProposal
+        tmp
+        bobWithClient2
+        (Participant (pUserId bob) (pure bobClient3))
+        "bobClient2-group"
+        "bobClient2-group"
+  postMessage (qUnqualified (pUserId bobWithClient2)) prop
+    !!! const 201 === statusCode
 
 testExternalAddProposalWrongUser :: TestM ()
 testExternalAddProposalWrongUser = withSystemTempDirectory "mls" $ \tmp -> do
