@@ -1233,6 +1233,7 @@ verifyDeleteUser d = do
   lift . wrapClient $ Code.delete key Code.AccountDeletion
 
 -- | Check if `deleteAccount` succeeded and run it again if needed
+-- Called via @delete /i/user/:uid@.
 ensureAccountDeleted ::
   ( MonadLogger m,
     MonadCatch m,
@@ -1275,9 +1276,9 @@ ensureAccountDeleted uid = do
 
 -- | Internal deletion without validation.
 --
--- Called via @delete /i/user/:uid@, or indirectly via deleting self. Team
--- owners can be deleted if the team is not orphaned, i.e. there is at least one
--- other owner left.
+-- Called via @delete /i/user/:uid@ (through `ensureAccountDeleted`), or
+-- indirectly via deleting self. Team owners can be deleted if the team is not
+-- orphaned, i.e. there is at least one other owner left.
 --
 -- N.B.: As Cassandra doesn't support transactions, the order of database
 -- statements matters! Other functions reason upon some states to imply other
