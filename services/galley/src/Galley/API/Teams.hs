@@ -582,12 +582,12 @@ getTeamMembersCSV lusr tid = do
     lookupInviterHandle :: Member BrigAccess r => [TeamMember] -> Sem r (UserId -> Maybe Handle.Handle)
     lookupInviterHandle members = do
       let inviterIds :: [UserId]
-          inviterIds = nub $ catMaybes $ fmap fst . view invitation <$> members
+          inviterIds = nub $ mapMaybe (fmap fst . view invitation) members
 
       userList :: [User] <- accountUser <$$> E.getUsers inviterIds
 
       let userMap :: M.Map UserId Handle.Handle
-          userMap = M.fromList . catMaybes $ extract <$> userList
+          userMap = M.fromList (mapMaybe extract userList)
             where
               extract u = (U.userId u,) <$> U.userHandle u
 

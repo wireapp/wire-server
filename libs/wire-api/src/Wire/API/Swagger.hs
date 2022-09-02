@@ -118,7 +118,6 @@ models =
     User.Client.modelNewClient,
     User.Client.modelUpdateClient,
     User.Client.modelDeleteClient,
-    User.Client.modelClient,
     User.Client.modelSigkeys,
     User.Client.modelLocation, -- re-export from types-common
     User.Client.Prekey.modelPrekey,

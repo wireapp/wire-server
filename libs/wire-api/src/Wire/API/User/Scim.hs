@@ -462,7 +462,7 @@ instance ToSchema ScimTokenInfo where
     pure $
       NamedSchema (Just "ScimTokenInfo") $
         mempty
-          & type_ .~ Just SwaggerObject
+          & type_ ?~ SwaggerObject
           & properties
             .~ [ ("team", teamSchema),
                  ("id", idSchema),
@@ -478,7 +478,7 @@ instance ToSchema CreateScimToken where
     pure $
       NamedSchema (Just "CreateScimToken") $
         mempty
-          & type_ .~ Just SwaggerObject
+          & type_ ?~ SwaggerObject
           & properties
             .~ [ ("description", textSchema),
                  ("password", textSchema),
@@ -493,7 +493,7 @@ instance ToSchema CreateScimTokenResponse where
     pure $
       NamedSchema (Just "CreateScimTokenResponse") $
         mempty
-          & type_ .~ Just SwaggerObject
+          & type_ ?~ SwaggerObject
           & properties
             .~ [ ("token", tokenSchema),
                  ("info", infoSchema)
@@ -506,7 +506,7 @@ instance ToSchema ScimTokenList where
     pure $
       NamedSchema (Just "ScimTokenList") $
         mempty
-          & type_ .~ Just SwaggerObject
+          & type_ ?~ SwaggerObject
           & properties
             .~ [ ("tokens", infoListSchema)
                ]

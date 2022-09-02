@@ -75,7 +75,7 @@ type HasScimClient tag =
   )
 
 scimClients :: HasScimClient tag => ClientEnv -> Site tag (AsClientT IO)
-scimClients env = genericClientHoist $ \x -> runClientM x env >>= either throwIO return
+scimClients env = genericClientHoist $ \x -> runClientM x env >>= either throwIO pure
 
 -- config
 
@@ -130,7 +130,7 @@ postUser ::
   HasScimClient tag =>
   ClientEnv ->
   Maybe (AuthData tag) ->
-  (User tag) ->
+  User tag ->
   IO (StoredUser tag)
 postUser env tok = case users (scimClients env) tok of ((_ :<|> (_ :<|> r)) :<|> (_ :<|> (_ :<|> _))) -> r
 
@@ -139,7 +139,7 @@ putUser ::
   ClientEnv ->
   Maybe (AuthData tag) ->
   UserId tag ->
-  (User tag) ->
+  User tag ->
   IO (StoredUser tag)
 putUser env tok = case users (scimClients env) tok of ((_ :<|> (_ :<|> _)) :<|> (r :<|> (_ :<|> _))) -> r
 

@@ -94,7 +94,7 @@ instance
                   requestHeaders request
         case canHandleCTypeH (Proxy :: Proxy list) (cs contentTypeH) :: Maybe (BL.ByteString -> Either String a) of
           Nothing -> delayedFail err415
-          Just f -> return f
+          Just f -> pure f
       -- Body check, we get a body parsing functions as the first argument.
       bodyCheck ::
         (BL.ByteString -> Either String a) ->
@@ -102,10 +102,10 @@ instance
       bodyCheck f = withRequest $ \request -> do
         mrqbody <- fmapL (makeCustomError @tag @a) . f <$> liftIO (lazyRequestBody request)
         case sbool :: SBool (FoldLenient mods) of
-          STrue -> return mrqbody
+          STrue -> pure mrqbody
           SFalse -> case mrqbody of
             Left e -> delayedFailFatal e
-            Right v -> return v
+            Right v -> pure v
 
 instance
   HasSwagger (ReqBody' '[Required, Strict] cts a :> api) =>

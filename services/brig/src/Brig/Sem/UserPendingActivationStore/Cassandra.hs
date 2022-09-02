@@ -21,7 +21,7 @@ userPendingActivationStoreToCassandra =
   interpretH $
     liftT . embed @Client . \case
       Add upa -> usersPendingActivationAdd upa
-      List Nothing -> (flip PC.mkInternalPage pure) =<< usersPendingActivationList
+      List Nothing -> flip PC.mkInternalPage pure =<< usersPendingActivationList
       List (Just ps) -> PC.ipNext ps
       RemoveMultiple uids -> usersPendingActivationRemoveMultiple uids
 

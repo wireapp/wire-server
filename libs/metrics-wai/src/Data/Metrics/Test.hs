@@ -48,7 +48,7 @@ pathsConsistencyCheck (Paths forest) = mconcat $ go [] <$> forest
       where
         here = findSiteConsistencyError (reverse $ root : prefix) trees
     findSiteConsistencyError :: [PathSegment] -> Tree.Forest PathSegment -> Maybe SiteConsistencyError
-    findSiteConsistencyError prefix subtrees = case catMaybes $ captureVars <$> subtrees of
+    findSiteConsistencyError prefix subtrees = case mapMaybe captureVars subtrees of
       [] -> Nothing
       [_] -> Nothing
       bad@(_ : _ : _) -> Just $ SiteConsistencyError (either cs cs <$> prefix) bad
