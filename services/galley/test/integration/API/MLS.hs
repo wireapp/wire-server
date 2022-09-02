@@ -1576,7 +1576,13 @@ propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
 testExternalAddProposal :: TestM ()
 testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
   let opts@SetupOptions {..} = def {createConv = CreateConv}
-  (creator, users@[bob]) <- withLastPrekeys $ setupParticipants tmp opts [(1, LocalUser)]
+  (creator, users@[bob], bobClient2, bobClient3) <- withLastPrekeys $ do
+    (creator, users@[bob]) <- setupParticipants tmp opts [(1, LocalUser)]
+    userClient2 <- setupUserClient tmp CreateWithKey True (pUserId bob)
+    userClient3 <- setupUserClient tmp CreateWithKey True (pUserId bob)
+    pure (creator, users, userClient2, userClient3)
+  let bobClient2Qid = userClientQid (pUserId bob) bobClient2
+
   -- create a group
   (groupId, conversation) <- setupGroup tmp createConv creator "group"
 
@@ -1587,11 +1593,6 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
         NonEmpty.tail (pClients creator) <> toList (pClients bob)
 
   testSuccessfulCommit MessagingSetup {..}
-
-  let pk1 : pk2 : _ = drop 3 someLastPrekeys
-
-  bobClient2 <- withTheseLastPrekeys [pk1] (setupUserClient tmp CreateWithKey True (pUserId bob))
-  let bobClient2Qid = userClientQid (pUserId bob) bobClient2
 
   -- we use alice's group state "group" here, so that the mls client knows the group id
   externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "bobClient2-group"
@@ -1653,7 +1654,6 @@ testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
 
   -- Bob's bobClient2 and its keypackage ref is known to backend, so this client
   -- is able able to send an unencrypted message, e.g. a bare add proposal
-  bobClient3 <- withTheseLastPrekeys [pk2] (setupUserClient tmp CreateWithKey True (pUserId bob))
   prop <-
     liftIO $
       bareAddProposal

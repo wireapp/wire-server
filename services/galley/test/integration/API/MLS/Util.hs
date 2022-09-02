@@ -256,10 +256,7 @@ setupParticipants tmp SetupOptions {..} ns = do
     createClientsForUR (RemoteUser _) _ = DontCreateClients
 
 withLastPrekeys :: Monad m => State.StateT [LastPrekey] m a -> m a
-withLastPrekeys m = withTheseLastPrekeys someLastPrekeys m
-
-withTheseLastPrekeys :: Monad m => [LastPrekey] -> State.StateT [LastPrekey] m a -> m a
-withTheseLastPrekeys pkeys m = State.evalStateT m pkeys
+withLastPrekeys m = State.evalStateT m someLastPrekeys
 
 setupGroup ::
   HasCallStack =>
