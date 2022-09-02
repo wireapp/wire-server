@@ -45,7 +45,6 @@ brigAccessToHttp mgr req =
       CreateNoSAML e itlt n ml -> Intra.createBrigUserNoSAML e itlt n ml
       UpdateEmail itlu e -> Intra.updateEmail itlu e
       GetAccount h itlu -> Intra.getBrigUserAccount h itlu
-      GetAccountIncludeAll h -> Intra.getBrigUserAccountIncludeAll h
       GetByHandle h -> Intra.getBrigUserByHandle h
       GetByEmail e -> Intra.getBrigUserByEmail e
       SetName itlu n -> Intra.setBrigUserName itlu n

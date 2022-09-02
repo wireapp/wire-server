@@ -28,7 +28,6 @@ module Spar.Intra.BrigApp
     renderValidExternalId,
     HavePendingInvitations (..),
     getBrigUser,
-    getBrigUserIncludeAll,
     getBrigUserTeam,
     getZUsrCheckPerm,
     authorizeScimTokenManagement,
@@ -115,9 +114,6 @@ renderValidExternalId = runValidExternalIdEither urefToExternalId (Just . fromEm
 
 getBrigUser :: (HasCallStack, Member BrigAccess r) => HavePendingInvitations -> UserId -> Sem r (Maybe User)
 getBrigUser ifpend = (accountUser <$$>) . BrigAccess.getAccount ifpend
-
-getBrigUserIncludeAll :: (HasCallStack, Member BrigAccess r) => UserId -> Sem r (Maybe User)
-getBrigUserIncludeAll = (accountUser <$$>) . BrigAccess.getAccountIncludeAll
 
 -- | Check that an id maps to an user on brig that is 'Active' (or optionally
 -- 'PendingInvitation') and has a team id.

@@ -19,7 +19,6 @@
 module Spar.Intra.Brig
   ( MonadSparToBrig (..),
     getBrigUserAccount,
-    getBrigUserAccountIncludeAll,
     getBrigUserByHandle,
     getBrigUserByEmail,
     getBrigUserRichInfo,
@@ -180,30 +179,6 @@ getBrigUserAccount havePending buid = do
             if userDeleted $ accountUser account
               then Nothing
               else Just account
-        _ -> pure Nothing
-    404 -> pure Nothing
-    _ -> rethrow "brig" resp
-
--- | Get a user; returns 'Nothing' if the user was not found.
--- Includes users with deleted accounts and pending invitations.
-getBrigUserAccountIncludeAll :: (HasCallStack, MonadSparToBrig m) => UserId -> m (Maybe UserAccount)
-getBrigUserAccountIncludeAll buid = do
-  resp :: ResponseLBS <-
-    call $
-      method GET
-        . paths ["/i/users"]
-        . query
-          [ ("ids", Just $ toByteString' buid),
-            ( "includePendingInvitations",
-              Just $ toByteString' True
-            )
-          ]
-
-  case statusCode resp of
-    200 ->
-      parseResponse @[UserAccount] "brig" resp >>= \case
-        [account] ->
-          pure $ Just account
         _ -> pure Nothing
     404 -> pure Nothing
     _ -> rethrow "brig" resp

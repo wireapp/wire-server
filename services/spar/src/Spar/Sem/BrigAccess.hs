@@ -23,7 +23,6 @@ module Spar.Sem.BrigAccess
     createNoSAML,
     updateEmail,
     getAccount,
-    getAccountIncludeAll,
     getByHandle,
     getByEmail,
     setName,
@@ -65,8 +64,6 @@ data BrigAccess m a where
   CreateNoSAML :: Email -> TeamId -> Name -> Maybe Locale -> BrigAccess m UserId
   UpdateEmail :: UserId -> Email -> BrigAccess m ()
   GetAccount :: HavePendingInvitations -> UserId -> BrigAccess m (Maybe UserAccount)
-  -- | Includes deleted accounts and those with pending invitation
-  GetAccountIncludeAll :: UserId -> BrigAccess m (Maybe UserAccount)
   GetByHandle :: Handle -> BrigAccess m (Maybe UserAccount)
   GetByEmail :: Email -> BrigAccess m (Maybe UserAccount)
   SetName :: UserId -> Name -> BrigAccess m ()

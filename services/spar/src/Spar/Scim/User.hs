@@ -42,6 +42,7 @@ module Spar.Scim.User
 where
 
 import Brig.Types.Intra (AccountStatus, UserAccount (accountStatus, accountUser))
+import Brig.Types.User (HavePendingInvitations (..))
 import qualified Control.Applicative as Applicative (empty)
 import Control.Lens (view, (^.))
 import Control.Monad.Error.Class (MonadError)
@@ -698,7 +699,11 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
     )
     (const id)
     $ do
-      mbBrigUser <- lift $ Brig.getBrigUserIncludeAll uid
+      -- `getBrigUser` does not include deleted users. However, these
+      -- ("tombstones") would not have the needed values (`userIdentity =
+      -- Nothing`) to delete a user in spar. I.e. `SAML.UserRef` and `Email`
+      -- cannot be figured out when a `User` has status `Deleted`.
+      mbBrigUser <- lift $ Brig.getBrigUser WithPendingInvitations uid
       case mbBrigUser of
         Nothing -> do
           -- Ensure there's no left-over of this user in brig.
