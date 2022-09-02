@@ -150,7 +150,6 @@ tests _ at opts p b c ch g aws =
       test' aws p "delete/with-legalhold" $ testDeleteUserWithLegalHold b c aws,
       test' aws p "delete/by-code" $ testDeleteUserByCode b,
       test' aws p "delete/anonymous" $ testDeleteAnonUser b,
-      test' aws p "delete /i/users/:uid - 202" $ testDeleteInternal b c aws,
       test' aws p "delete with profile pic" $ testDeleteWithProfilePic b ch,
       test' aws p "delete with connected remote users" $ testDeleteWithRemotes opts b,
       test' aws p "delete with connected remote users and failed remote notifcations" $ testDeleteWithRemotesAndFailedNotifications opts b c,
@@ -1344,13 +1343,6 @@ testDeleteAnonUser brig = do
   uid <- userId <$> createAnonUser "anon" brig
   deleteUser uid Nothing brig
     !!! const 200 === statusCode
-
-testDeleteInternal :: Brig -> Cannon -> AWS.Env -> Http ()
-testDeleteInternal brig cannon aws = do
-  u <- randomUser brig
-  liftIO $ Util.assertUserJournalQueue "user activate testDeleteInternal1: " aws (userActivateJournaled u)
-  setHandleAndDeleteUser brig cannon u [] aws $
-    \uid -> delete (brig . paths ["/i/users", toByteString' uid]) !!! const 202 === statusCode
 
 testDeleteWithProfilePic :: Brig -> CargoHold -> Http ()
 testDeleteWithProfilePic brig cargohold = do
