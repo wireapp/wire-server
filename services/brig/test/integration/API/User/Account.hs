@@ -1592,7 +1592,7 @@ testRestrictedUserCreation opts brig = do
             ]
     postUserRegister' ssoUser brig !!! const 400 === statusCode
 
--- FUTUREWORK: @setRestrictUserCreation@ perhaps needs to be tested in one place only, since it's the
+-- | FUTUREWORK: @setRestrictUserCreation@ perhaps needs to be tested in one place only, since it's the
 -- first thing that we check on the /register endpoint. Other tests that make use of @setRestrictUserCreation@
 -- can probably be removed and simplified. It's probably a good candidate for Quickcheck.
 testTooManyMembersForLegalhold :: Opt.Opts -> Brig -> Http ()
