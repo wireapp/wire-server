@@ -4,15 +4,15 @@
 # dependencies are added or removed.
 { mkDerivation, aeson, attoparsec, base, bytestring
 , bytestring-conversion, cassandra-util, containers
-, deriving-swagger2, imports, lib, QuickCheck, servant-server
-, servant-swagger, string-conversions, swagger2, tasty
-, tasty-quickcheck, text, time, tinylog, types-common
+, deriving-swagger2, gitignoreSource, imports, lib, QuickCheck
+, servant-server, servant-swagger, string-conversions, swagger2
+, tasty, tasty-quickcheck, text, time, tinylog, types-common
 , unordered-containers, wire-api
 }:
 mkDerivation {
   pname = "brig-types";
   version = "1.35.0";
-  src = ./.;
+  src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson attoparsec base bytestring bytestring-conversion
     cassandra-util containers deriving-swagger2 imports QuickCheck

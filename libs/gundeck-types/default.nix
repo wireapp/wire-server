@@ -3,13 +3,14 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { mkDerivation, aeson, attoparsec, base, bytestring
-, bytestring-conversion, containers, imports, lens, lib
-, network-uri, text, types-common, unordered-containers, wire-api
+, bytestring-conversion, containers, gitignoreSource, imports, lens
+, lib, network-uri, text, types-common, unordered-containers
+, wire-api
 }:
 mkDerivation {
   pname = "gundeck-types";
   version = "1.45.0";
-  src = ./.;
+  src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson attoparsec base bytestring bytestring-conversion containers
     imports lens network-uri text types-common unordered-containers

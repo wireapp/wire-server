@@ -3,15 +3,15 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { mkDerivation, aeson, ansi-terminal, base, bytestring
-, case-insensitive, cookie, errors, exceptions, http-client
-, http-types, imports, lens, lib, monad-control, mtl, text, tinylog
-, transformers-base, types-common, unliftio, uri-bytestring, wai
-, wai-extra
+, case-insensitive, cookie, errors, exceptions, gitignoreSource
+, http-client, http-types, imports, lens, lib, monad-control, mtl
+, text, tinylog, transformers-base, types-common, unliftio
+, uri-bytestring, wai, wai-extra
 }:
 mkDerivation {
   pname = "bilge";
   version = "0.22.0";
-  src = ./.;
+  src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson ansi-terminal base bytestring case-insensitive cookie errors
     exceptions http-client http-types imports lens monad-control mtl

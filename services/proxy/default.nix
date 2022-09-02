@@ -3,16 +3,16 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { mkDerivation, aeson, base, bilge, bytestring, case-insensitive
-, configurator, data-default, exceptions, extended, http-client
-, http-client-tls, http-reverse-proxy, http-types, imports, lens
-, lib, metrics-wai, retry, text, tinylog, types-common
-, unliftio-core, wai, wai-predicates, wai-routing, wai-utilities
-, warp, wire-api
+, configurator, data-default, exceptions, extended, gitignoreSource
+, http-client, http-client-tls, http-reverse-proxy, http-types
+, imports, lens, lib, metrics-wai, retry, text, tinylog
+, types-common, unliftio-core, wai, wai-predicates, wai-routing
+, wai-utilities, warp, wire-api
 }:
 mkDerivation {
   pname = "proxy";
   version = "0.9.0";
-  src = ./.;
+  src = gitignoreSource ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

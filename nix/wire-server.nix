@@ -11,6 +11,17 @@ let lib = pkgs.lib;
         };
       });
 
+    gitignoreSource =
+      let gitignoreSrc = pkgs.fetchFromGitHub {
+        owner = "hercules-ci";
+        repo = "gitignore.nix";
+        # put the latest commit sha of gitignore Nix library here:
+        rev = "a20de23b925fd8264fd7fad6454652e142fd7f73";
+        # use what nix suggests in the mismatch message here:
+        sha256 = "sha256:07vg2i9va38zbld9abs9lzqblz193vc5wvqd6h7amkmwf66ljcgh";
+      };
+      in (import gitignoreSrc { inherit (pkgs) lib; }).gitignoreSource;
+
     # Mapping from package -> executbale
     executablesMap = {
       brig = ["brig" "brig-index" "brig-integration" "brig-schema"];
@@ -34,7 +45,9 @@ let lib = pkgs.lib;
       fetchgit = pkgs.fetchgit;
       inherit lib;
     };
-    localPackages = import ./local-haskell-packages.nix;
+    localPackages = import ./local-haskell-packages.nix {
+      inherit gitignoreSource;
+    };
     manualOverrides = import ./manual-overrides.nix (with pkgs; {
       inherit hlib libsodium protobuf snappy mls-test-cli;
     });

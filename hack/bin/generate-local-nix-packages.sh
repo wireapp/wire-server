@@ -15,18 +15,20 @@ cat >"$warningFile" <<EOF
 # dependencies are added or removed.
 EOF
 
+# cabalFiles="/home/stefan/repos/wire-server/libs/wire-api/wire-api.cabal"
+
 # shellcheck disable=SC2016
 echo "$cabalFiles" \
     | xargs -I {} bash -c 'cd $(dirname {}); cat $0 > default.nix' "$warningFile"
 
-# shellcheck disable=SC2016
+# shellcheck disable=SC2016,SC1001
 echo "$cabalFiles" \
-    | xargs -I {} bash -c 'cd $(dirname {}); cabal2nix . --no-hpack >> default.nix'
+    | xargs -I {} bash -c 'cd $(dirname {}); cabal2nix . --no-hpack --extra-arguments gitignoreSource | sed "s/.\/./gitignoreSource .\/./g" >> default.nix'
 
 overridesFile="$ROOT_DIR/nix/local-haskell-packages.nix"
 
-echo "hsuper: hself: {" > "$overridesFile"
+echo "{ gitignoreSource }: hsuper: hself: {" > "$overridesFile"
 # shellcheck disable=SC2016
 echo "$cabalFiles" \
-    | xargs -I {} bash -c 'name=$(basename {} | sed "s|.cabal||"); echo "  $name = hself.callPackage $(realpath --relative-to='"$ROOT_DIR/nix"' "$(dirname {})")/default.nix { };"' >> "$overridesFile"
+    | xargs -I {} bash -c 'name=$(basename {} | sed "s|.cabal||"); echo "  $name = hself.callPackage $(realpath --relative-to='"$ROOT_DIR/nix"' "$(dirname {})")/default.nix { inherit gitignoreSource; };"' >> "$overridesFile"
 echo "}" >> "$overridesFile"

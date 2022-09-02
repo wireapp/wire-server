@@ -5,8 +5,8 @@
 { mkDerivation, aeson, api-field-json-th, async, base, bilge
 , bytestring, bytestring-conversion, conduit, criterion
 , data-default, data-timeout, exceptions, extended, extra
-, gundeck-types, hashable, http-types, imports, lens
-, lens-family-core, lib, metrics-wai, mwc-random, QuickCheck
+, gitignoreSource, gundeck-types, hashable, http-types, imports
+, lens, lens-family-core, lib, metrics-wai, mwc-random, QuickCheck
 , random, retry, safe-exceptions, servant, servant-conduit
 , servant-server, strict, swagger, tasty, tasty-hunit
 , tasty-quickcheck, text, tinylog, types-common, unix, unliftio
@@ -16,7 +16,7 @@
 mkDerivation {
   pname = "cannon";
   version = "0.31.0";
-  src = ./.;
+  src = gitignoreSource ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

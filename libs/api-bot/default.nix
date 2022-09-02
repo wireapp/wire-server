@@ -5,16 +5,16 @@
 { mkDerivation, aeson, ansi-terminal, api-client, async, attoparsec
 , base, base64-bytestring, bilge, bytestring, bytestring-conversion
 , cereal, containers, cryptobox-haskell, cryptonite, exceptions
-, filepath, HaskellNet, HaskellNet-SSL, http-client, imports
-, iso639, lib, memory, metrics-core, mime, monad-control
-, mwc-random, optparse-applicative, resource-pool, stm, text, time
-, tinylog, transformers-base, types-common, unordered-containers
-, uuid, vector
+, filepath, gitignoreSource, HaskellNet, HaskellNet-SSL
+, http-client, imports, iso639, lib, memory, metrics-core, mime
+, monad-control, mwc-random, optparse-applicative, resource-pool
+, stm, text, time, tinylog, transformers-base, types-common
+, unordered-containers, uuid, vector
 }:
 mkDerivation {
   pname = "api-bot";
   version = "0.4.2";
-  src = ./.;
+  src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson ansi-terminal api-client async attoparsec base
     base64-bytestring bilge bytestring bytestring-conversion cereal

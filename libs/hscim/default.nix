@@ -3,19 +3,19 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { mkDerivation, aeson, aeson-qq, attoparsec, base, bytestring
-, case-insensitive, email-validate, hashable, hedgehog, hspec
-, hspec-discover, hspec-expectations, hspec-wai, http-api-data
-, http-media, http-types, hw-hspec-hedgehog, indexed-traversable
-, lib, list-t, microlens, mmorph, mtl, network-uri, retry
-, scientific, servant, servant-client, servant-client-core
-, servant-server, stm, stm-containers, string-conversions
-, template-haskell, text, time, unordered-containers, uuid, wai
-, wai-extra, warp
+, case-insensitive, email-validate, gitignoreSource, hashable
+, hedgehog, hspec, hspec-discover, hspec-expectations, hspec-wai
+, http-api-data, http-media, http-types, hw-hspec-hedgehog
+, indexed-traversable, lib, list-t, microlens, mmorph, mtl
+, network-uri, retry, scientific, servant, servant-client
+, servant-client-core, servant-server, stm, stm-containers
+, string-conversions, template-haskell, text, time
+, unordered-containers, uuid, wai, wai-extra, warp
 }:
 mkDerivation {
   pname = "hscim";
   version = "0.3.6";
-  src = ./.;
+  src = gitignoreSource ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
@@ -47,7 +47,7 @@ mkDerivation {
     warp
   ];
   testToolDepends = [ hspec-discover ];
-  homepage = "https://github.com/wireapp/wire-server/libs/hscim/README.md";
+  homepage = "httpsgitignoreSource ./.github.cogitignoreSource ./.ireapgitignoreSource ./.ire-servegitignoreSource ./.ibgitignoreSource ./.scigitignoreSource ./.EADME.md";
   description = "hscim json schema and server implementation";
   license = lib.licenses.agpl3Only;
   mainProgram = "hscim-server";

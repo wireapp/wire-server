@@ -3,16 +3,16 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { mkDerivation, aeson, async, base, bytestring
-, bytestring-conversion, errors, exceptions, http-types, imports
-, kan-extensions, lib, metrics-core, metrics-wai, pipes
-, prometheus-client, streaming-commons, string-conversions, swagger
-, text, tinylog, types-common, unix, wai, wai-predicates
-, wai-routing, warp, warp-tls
+, bytestring-conversion, errors, exceptions, gitignoreSource
+, http-types, imports, kan-extensions, lib, metrics-core
+, metrics-wai, pipes, prometheus-client, streaming-commons
+, string-conversions, swagger, text, tinylog, types-common, unix
+, wai, wai-predicates, wai-routing, warp, warp-tls
 }:
 mkDerivation {
   pname = "wai-utilities";
   version = "0.16.1";
-  src = ./.;
+  src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson async base bytestring bytestring-conversion errors exceptions
     http-types imports kan-extensions metrics-core metrics-wai pipes

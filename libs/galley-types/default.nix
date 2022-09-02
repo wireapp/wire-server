@@ -4,14 +4,14 @@
 # dependencies are added or removed.
 { mkDerivation, aeson, base, bytestring, bytestring-conversion
 , containers, cryptonite, currency-codes, errors, exceptions
-, imports, lens, lib, memory, QuickCheck, schema-profunctor
-, string-conversions, tagged, tasty, tasty-hunit, tasty-quickcheck
-, text, time, types-common, uuid, wire-api
+, gitignoreSource, imports, lens, lib, memory, QuickCheck
+, schema-profunctor, string-conversions, tagged, tasty, tasty-hunit
+, tasty-quickcheck, text, time, types-common, uuid, wire-api
 }:
 mkDerivation {
   pname = "galley-types";
   version = "0.81.0";
-  src = ./.;
+  src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson base bytestring bytestring-conversion containers cryptonite
     currency-codes errors exceptions imports lens memory QuickCheck

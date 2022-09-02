@@ -3,14 +3,14 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { mkDerivation, aeson, async, base, bilge, bytestring
-, bytestring-conversion, data-timeout, exceptions, http-client
-, http-types, imports, lib, random, tasty-hunit, types-common
-, websockets, wire-api
+, bytestring-conversion, data-timeout, exceptions, gitignoreSource
+, http-client, http-types, imports, lib, random, tasty-hunit
+, types-common, websockets, wire-api
 }:
 mkDerivation {
   pname = "tasty-cannon";
   version = "0.4.0";
-  src = ./.;
+  src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson async base bilge bytestring bytestring-conversion
     data-timeout exceptions http-client http-types imports random

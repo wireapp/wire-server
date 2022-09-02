@@ -3,14 +3,15 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { mkDerivation, aeson, base, brig-types, bytestring, cassandra-util
-, conduit, containers, filepath, galley, imports, iproute, lens
-, lib, megaparsec, optparse-applicative, process, raw-strings-qq
-, stache, text, time, tinylog, types-common, uuid, vector, wire-api
+, conduit, containers, filepath, galley, gitignoreSource, imports
+, iproute, lens, lib, megaparsec, optparse-applicative, process
+, raw-strings-qq, stache, text, time, tinylog, types-common, uuid
+, vector, wire-api
 }:
 mkDerivation {
   pname = "move-team";
   version = "1.0.0";
-  src = ./.;
+  src = gitignoreSource ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

@@ -3,14 +3,14 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { mkDerivation, async, attoparsec, base, bytestring, clock, dns
-, exceptions, http-types, iproute, lib, mtl, network
-, optparse-applicative, prometheus, text, tinylog
+, exceptions, gitignoreSource, http-types, iproute, lib, mtl
+, network, optparse-applicative, prometheus, text, tinylog
 , unordered-containers, wai, warp
 }:
 mkDerivation {
   pname = "rex";
   version = "0.3.0";
-  src = ./.;
+  src = gitignoreSource ./.;
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [

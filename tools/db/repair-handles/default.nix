@@ -3,13 +3,13 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { mkDerivation, base, brig, cassandra-util, conduit, containers
-, imports, lens, lib, mtl, optparse-applicative, string-conversions
-, text, tinylog, types-common, uuid
+, gitignoreSource, imports, lens, lib, mtl, optparse-applicative
+, string-conversions, text, tinylog, types-common, uuid
 }:
 mkDerivation {
   pname = "repair-handles";
   version = "1.0.0";
-  src = ./.;
+  src = gitignoreSource ./.;
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [

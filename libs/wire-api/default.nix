@@ -9,13 +9,13 @@
 , containers, cookie, cryptonite, currency-codes, deriving-aeson
 , deriving-swagger2, directory, either, email-validate, errors
 , extended, extra, filepath, generic-random, generics-sop, ghc-prim
-, hashable, hex, hostname-validate, hscim, http-api-data
-, http-media, http-types, imports, insert-ordered-containers
-, iproute, iso3166-country-codes, iso639, lens, lib, memory
-, metrics-wai, mime, mtl, pem, polysemy, pretty, process
-, proto-lens, protobuf, QuickCheck, quickcheck-instances, random
-, resourcet, saml2-web-sso, schema-profunctor, scientific, servant
-, servant-client, servant-client-core, servant-conduit
+, gitignoreSource, hashable, hex, hostname-validate, hscim
+, http-api-data, http-media, http-types, imports
+, insert-ordered-containers, iproute, iso3166-country-codes, iso639
+, lens, lib, memory, metrics-wai, mime, mtl, pem, polysemy, pretty
+, process, proto-lens, protobuf, QuickCheck, quickcheck-instances
+, random, resourcet, saml2-web-sso, schema-profunctor, scientific
+, servant, servant-client, servant-client-core, servant-conduit
 , servant-multipart, servant-server, servant-swagger
 , servant-swagger-ui, singletons, sop-core, string-conversions
 , swagger, swagger2, tagged, tasty, tasty-expected-failure
@@ -27,7 +27,7 @@
 mkDerivation {
   pname = "wire-api";
   version = "0.1.0";
-  src = ./.;
+  src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson attoparsec base base64-bytestring binary binary-parsers
     bytestring bytestring-conversion case-insensitive cassandra-util

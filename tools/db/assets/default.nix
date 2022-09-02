@@ -4,14 +4,15 @@
 # dependencies are added or removed.
 { mkDerivation, aeson, attoparsec, base, brig, brig-types
 , bytestring, bytestring-conversion, cassandra-util, conduit
-, containers, filepath, galley, imports, iproute, lens, lib
-, megaparsec, optparse-applicative, process, raw-strings-qq, stache
-, text, time, tinylog, types-common, uuid, vector, wire-api
+, containers, filepath, galley, gitignoreSource, imports, iproute
+, lens, lib, megaparsec, optparse-applicative, process
+, raw-strings-qq, stache, text, time, tinylog, types-common, uuid
+, vector, wire-api
 }:
 mkDerivation {
   pname = "assets";
   version = "1.0.0";
-  src = ./.;
+  src = gitignoreSource ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

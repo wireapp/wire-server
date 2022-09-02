@@ -4,14 +4,14 @@
 # dependencies are added or removed.
 { mkDerivation, api-bot, api-client, base, bytestring
 , bytestring-conversion, cereal, containers, exceptions, extended
-, http-client, http-client-tls, imports, lens, lib, metrics-core
-, mime, mwc-random, optparse-applicative, text, tinylog
-, types-common, unliftio, uuid
+, gitignoreSource, http-client, http-client-tls, imports, lens, lib
+, metrics-core, mime, mwc-random, optparse-applicative, text
+, tinylog, types-common, unliftio, uuid
 }:
 mkDerivation {
   pname = "api-simulations";
   version = "0.4.2";
-  src = ./.;
+  src = gitignoreSource ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [

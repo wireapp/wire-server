@@ -3,13 +3,13 @@
 # must be regenerated whenever local packages are added or removed, or
 # dependencies are added or removed.
 { mkDerivation, base, brig-types, cassandra-util, conduit, galley
-, imports, lens, lib, optparse-applicative, tinylog, types-common
-, unliftio, wire-api
+, gitignoreSource, imports, lens, lib, optparse-applicative
+, tinylog, types-common, unliftio, wire-api
 }:
 mkDerivation {
   pname = "migrate-sso-feature-flag";
   version = "1.0.0";
-  src = ./.;
+  src = gitignoreSource ./.;
   isLibrary = false;
   isExecutable = true;
   executableHaskellDepends = [

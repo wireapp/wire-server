@@ -4,14 +4,15 @@
 # dependencies are added or removed.
 { mkDerivation, aeson, async, base, bilge, bytestring
 , bytestring-conversion, connection, cookie, data-default-class
-, errors, exceptions, http-client, http-types, imports, lib, mime
-, retry, text, time, tinylog, transformers, types-common, unliftio
-, unordered-containers, uuid, websockets, wire-api
+, errors, exceptions, gitignoreSource, http-client, http-types
+, imports, lib, mime, retry, text, time, tinylog, transformers
+, types-common, unliftio, unordered-containers, uuid, websockets
+, wire-api
 }:
 mkDerivation {
   pname = "api-client";
   version = "0.4.2";
-  src = ./.;
+  src = gitignoreSource ./.;
   libraryHaskellDepends = [
     aeson async base bilge bytestring bytestring-conversion connection
     cookie data-default-class errors exceptions http-client http-types

@@ -6,11 +6,11 @@
 , amazonka-sqs, async, attoparsec, auto-update, base
 , base16-bytestring, bilge, bytestring, bytestring-conversion
 , cassandra-util, containers, criterion, data-default, errors
-, exceptions, extended, extra, gundeck-types, hedis, HsOpenSSL
-, http-client, http-client-tls, http-types, imports, kan-extensions
-, lens, lens-aeson, lib, metrics-core, metrics-wai, MonadRandom
-, mtl, multiset, network, network-uri, optparse-applicative
-, psqueues, QuickCheck, quickcheck-instances
+, exceptions, extended, extra, gitignoreSource, gundeck-types
+, hedis, HsOpenSSL, http-client, http-client-tls, http-types
+, imports, kan-extensions, lens, lens-aeson, lib, metrics-core
+, metrics-wai, MonadRandom, mtl, multiset, network, network-uri
+, optparse-applicative, psqueues, QuickCheck, quickcheck-instances
 , quickcheck-state-machine, random, raw-strings-qq, resourcet
 , retry, safe, safe-exceptions, scientific, streaming-commons
 , string-conversions, swagger, tagged, tasty, tasty-hunit
@@ -23,7 +23,7 @@
 mkDerivation {
   pname = "gundeck";
   version = "1.45.0";
-  src = ./.;
+  src = gitignoreSource ./.;
   isLibrary = true;
   isExecutable = true;
   libraryHaskellDepends = [
