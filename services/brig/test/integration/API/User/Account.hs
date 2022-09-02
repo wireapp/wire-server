@@ -1641,10 +1641,7 @@ testDeleteUserWithCompletelyDeletedUser brig cannon aws = do
     \uid -> deleteUserInternal uid brig !!! const 202 === statusCode
   do
     let uid = userId u
-    delete
-      ( brig
-          . paths ["/i/users", toByteString' uid]
-      )
+    deleteUserInternal uid brig
       !!! do
         const 200 === statusCode
         const (Right AccountAlreadyDeleted) === responseJsonEither
