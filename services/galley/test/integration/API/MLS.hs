@@ -150,7 +150,9 @@ tests s =
       testGroup
         "Backend-side External Remove Proposals"
         [ test s "local conversation, local user deleted" testBackendRemoveProposalLocalConvLocalUser,
-          test s "local conversation, remote user deleted" testBackendRemoveProposalLocalConvRemoteUser
+          test s "local conversation, remote user deleted" testBackendRemoveProposalLocalConvRemoteUser,
+          test s "local conversation, local user leaving" testBackendRemoveProposalLocalConvLocalLeaver,
+          test s "local conversation, remote user leaving" testBackendRemoveProposalLocalConvRemoteLeaver
         ],
       testGroup
         "Protocol mismatch"
@@ -1386,13 +1388,9 @@ testBackendRemoveProposalLocalConvLocalUser = do
     [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
     traverse_ uploadNewKeyPackage [bob1, bob2]
     (_, qcnv) <- setupMLSGroup alice1
-
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
 
-    bobClients <-
-      fmap (filter (\(cid, _) -> cidQualifiedUser cid == bob)) $
-        currentGroupFile alice1 >>= liftIO . readGroupState
-
+    bobClients <- getClientsFromGroupState alice1 bob
     mlsBracket [alice1] $ \wss -> void $ do
       liftTest $ deleteUser (qUnqualified bob) !!! const 200 === statusCode
       -- remove bob clients from the test state
@@ -1434,10 +1432,7 @@ testBackendRemoveProposalLocalConvRemoteUser = do
       mlsBracket [alice1] $ \[wsA] -> do
         void $ sendAndConsumeCommit commit
 
-        bobClients <-
-          fmap (filter (\(cid, _) -> cidQualifiedUser cid == bob)) $
-            currentGroupFile alice1 >>= liftIO . readGroupState
-
+        bobClients <- getClientsFromGroupState alice1 bob
         fedGalleyClient <- view tsFedGalleyClient
         void $
           runFedClient
@@ -1503,3 +1498,45 @@ sendRemoteMLSWelcomeKPNotFound = do
     liftIO $ do
       -- check that no event is received
       WS.assertNoEvent (1 # Second) [wsB]
+
+testBackendRemoveProposalLocalConvLocalLeaver :: TestM ()
+testBackendRemoveProposalLocalConvLocalLeaver = do
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+
+  runMLSTest $ do
+    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+    traverse_ uploadNewKeyPackage [bob1, bob2]
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+
+    bobClients <- getClientsFromGroupState alice1 bob
+    mlsBracket [alice1, bob1, bob2] $ \wss -> void $ do
+      liftTest $
+        deleteMemberQualified (qUnqualified bob) bob qcnv
+          !!! const 200 === statusCode
+      -- remove bob clients from the test state
+      State.modify $ \mls ->
+        mls
+          { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [bob1, bob2])
+          }
+
+      for_ bobClients $ \(_, ref) -> do
+        -- only alice should receive the external proposals
+        [msg] <- WS.assertMatchN (5 # Second) (take 1 wss) $ \n ->
+          wsAssertBackendRemoveProposal bob qcnv ref n
+        consumeMessage1 alice1 msg
+
+      -- but everyone should receive leave events
+      WS.assertMatchN_ (5 # WS.Second) wss $
+        wsAssertMembersLeave qcnv bob [bob]
+
+      -- check that no more events are sent, so in particular bob does not
+      -- receive any MLS messages
+      WS.assertNoEvent (1 # WS.Second) wss
+
+    -- alice commits the external proposals
+    events <- createPendingProposalCommit alice1 >>= sendAndConsumeCommit
+    liftIO $ events @?= []
+
+testBackendRemoveProposalLocalConvRemoteLeaver :: TestM ()
+testBackendRemoveProposalLocalConvRemoteLeaver = pure ()
