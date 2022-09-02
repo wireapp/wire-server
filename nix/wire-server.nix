@@ -126,6 +126,7 @@ let lib = pkgs.lib;
         };
       };
     };
+    imagesList = pkgs.writeTextFile { name = "imagesList"; text = "${lib.concatStringsSep "\n" (builtins.attrNames imagesWithPatches)}"; };
     wireServerPackages = (builtins.attrNames (localPackages {} {}));
 
     # Tools common between CI and developers
@@ -160,6 +161,7 @@ in {
   inherit ciImage;
 
   images = imagesWithPatches;
+  imagesList = imagesList;
 
   devShell = hPkgs.shellFor {
     packages = p: builtins.map (e: p.${e}) wireServerPackages;
@@ -186,4 +188,4 @@ in {
     ];
   };
   haskellPackages = hPkgs;
-} // attrsets.genAttrs wireServerPackages (e: hPkgs.${e})
+} // attrsets.genAttrs (wireServerPackages) (e: hPkgs.${e})

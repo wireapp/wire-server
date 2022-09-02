@@ -24,9 +24,13 @@ if [[ "${DOCKER_USER+x}" != "" ]]; then
     credsArgs="--dest-creds=$DOCKER_USER:$DOCKER_PASSWORD"
 fi
 
-nix-build "$ROOT_DIR/nix" -A wireServer.images |
-    while IFS='' read -r image; do
-        repo=$(skopeo list-tags "docker-archive://$image" | jq -r '.Tags[0] | split(":") | .[0]')
-        # shellcheck disable=SC2086
-        skopeo copy $credsArgs "docker-archive://$image" "docker://$repo:$DOCKER_TAG"
-    done
+images_list="$(nix-build "$ROOT_DIR/nix" -A wireServer.imagesList)"
+
+while IFS="" read -r image_name || [ -n "$image_name" ]
+do
+    printf '*** Building image %s\n' "$image_name"
+    image=$(nix-build "$ROOT_DIR/nix" -A "wireServer.images.$image_name")
+    repo=$(skopeo list-tags "docker-archive://$image" | jq -r '.Tags[0] | split(":") | .[0]')
+    # shellcheck disable=SC2086
+    skopeo copy $credsArgs "docker-archive://$image" "docker://$repo:$DOCKER_TAG"
+done < "$images_list"
