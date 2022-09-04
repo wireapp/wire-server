@@ -607,3 +607,40 @@ Where:
 * `$EMAIL_CODE` is the validation code received by email after running the previous script/command
 * `$TEAM_CURRENCY` is the currency of the team
 * `$TEAM_NAME` is the name of the team
+
+Enabling debugging for backend services
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+By default, backend services (pods) might not output as much information as needed to resolve specific issues.
+
+You can change this for any of the services by editing its configuration.
+
+For example, to enable debugging for the `cargohold` service, you can edit the `cargohold` configuration in your ``values.yaml``:
+
+.. code:: yaml
+
+   cargohold:
+      replicaCount: 3
+      config:
+         logLevel: Debug
+         aws:
+            s3Bucket: prod-assets-test
+            s3Endpoint: https://s3.us-east-1.amazonaws.com
+            s3DownloadEndpoint: https://s3.us-east-1.amazonaws.com
+
+The possible values for ``logLevel`` are:
+
+* ``Debug``
+* ``Info``
+* ``Warn``
+* ``Error``
+* ``Fatal``
+* ``Trace``
+
+You can set ``logLevel`` for various services, such as:
+
+* ``brig``
+* ``galley``
+* ``gundeck``
+* ``cargohold``
+* etc...
