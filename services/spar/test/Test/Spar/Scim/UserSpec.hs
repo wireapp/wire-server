@@ -22,7 +22,6 @@ import Spar.Sem.ScimUserTimesStore.Mem (scimUserTimesStoreToMem)
 import System.Logger (Msg)
 import Test.Hspec
 import Test.QuickCheck
-import qualified Web.Scim.Handler as Scim
 import Web.Scim.Schema.Error
 import Wire.API.User
 import qualified Wire.API.User.Identity
@@ -34,9 +33,9 @@ spec = describe "deleteScimUser" $ do
   it "runs deletion for deleted brig users again" $ do
     uid <- generate arbitrary
     tokenInfo <- generate arbitrary
-    r <- (interpretWithBrigAccessMock mockBrigForDeletedUser . toSem) $ deleteScimUser tokenInfo uid
+    r <- (interpretWithBrigAccessMock mockBrigForDeletedUser . runExceptT) $ deleteScimUser tokenInfo uid
     handlerResult r `shouldBe` Left (notFound "user" (idToText uid))
-  it "returns no error when the account was deleted for the first time" $ do
+  it "returns no error when the account was deleted for the first time or partially" $ do
     uid <- generate arbitrary
     tokenInfo <- generate arbitrary
     r <-
@@ -44,7 +43,7 @@ spec = describe "deleteScimUser" $ do
         (mockBrigForActiveUser tokenInfo AccountDeleted)
         (deleteUserAndAssertDeletionInSpar uid tokenInfo)
     handlerResult r `shouldBe` Right ()
-  it "returns an error when the account was partitially(!) deleted before" $ do
+  it "returns an error when the account was deleted before" $ do
     uid <- generate arbitrary
     tokenInfo <- generate arbitrary
     r <-
@@ -72,25 +71,10 @@ deleteUserAndAssertDeletionInSpar uid tokenInfo = do
   let tid = stiTeam tokenInfo
       email = (fromJust . parseEmail) "someone@wire.com"
   ScimExternalIdStore.insert tid email uid
-  r <- toSem $ deleteScimUser tokenInfo uid
+  r <- runExceptT $ deleteScimUser tokenInfo uid
   lr <- ScimExternalIdStore.lookup tid email
   liftIO $ lr `shouldBe` Nothing
   pure r
-
-toSem ::
-  forall (r :: EffectRow).
-  Members
-    '[ Logger (Msg -> Msg),
-       BrigAccess,
-       ScimExternalIdStore.ScimExternalIdStore,
-       ScimUserTimesStore,
-       SAMLUserStore,
-       IdPConfigStore
-     ]
-    r =>
-  Scim.ScimHandler (Sem r) () ->
-  Sem r (Either ScimError ())
-toSem = runExceptT
 
 type EffsWithoutBrigAccess =
   '[ IdPConfigStore,
@@ -147,10 +131,10 @@ mockBrigForDeletedUser ::
   Sem r1 (Either ScimError ())
 mockBrigForDeletedUser = interpret $ \case
   (GetAccount WithPendingInvitations _) -> pure Nothing
-  (Spar.Sem.BrigAccess.DeleteUser _) -> pure AccountAlreadyDeleted
+  (Spar.Sem.BrigAccess.DeleteUser _) -> pure NoUser
   _ -> do
     liftIO $ expectationFailure $ "Unexpected effect (call to brig)"
-    error "Make typechecker happy. This won't be reached."
+    error "Throw error here to avoid implementation of all cases."
 
 mockBrigForActiveUser ::
   forall (r1 :: EffectRow).
@@ -174,7 +158,7 @@ mockBrigForActiveUser tokenInfo deletionResult = interpret $ \case
   (Spar.Sem.BrigAccess.DeleteUser _) -> pure deletionResult
   _ -> do
     liftIO $ expectationFailure $ "Unexpected effect (call to brig)"
-    error "Make typechecker happy. This won't be reached."
+    error "Throw error here to avoid implementation of all cases."
 
 someActiveUser :: UserId -> ScimTokenInfo -> IO UserAccount
 someActiveUser uid tokenInfo = do
