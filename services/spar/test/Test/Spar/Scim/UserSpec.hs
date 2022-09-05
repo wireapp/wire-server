@@ -26,6 +26,7 @@ import qualified Web.Scim.Handler as Scim
 import Web.Scim.Schema.Error
 import Wire.API.User
 import qualified Wire.API.User.Identity
+import Wire.API.User.Scim
 import Wire.Sem.Logger.TinyLog (discardTinyLogs)
 
 spec :: Spec
@@ -38,8 +39,10 @@ spec = describe "deleteScimUser" $ do
   it "returns no error when the account was deleted for the first time" $ do
     uid <- generate arbitrary
     tokenInfo <- generate arbitrary
-    r <- (simulateActiveBrigUser . toSem) $ deleteScimUser tokenInfo uid
-    handlerResult r `shouldBe` Left (notFound "user" (idToText uid))
+    r <- simulateActiveBrigUser tokenInfo . toSem $ deleteScimUser tokenInfo uid
+    handlerResult r `shouldBe` Right ()
+
+--    handlerResult r `shouldBe` Left (notFound "user" (idToText uid))
 
 toSem ::
   forall (r :: EffectRow).
@@ -113,9 +116,10 @@ mockBrigForDeletedUser = interpret $ \case
     error "Make typechecker happy. This won't be reached."
 
 simulateActiveBrigUser ::
+  ScimTokenInfo ->
   Sem Effs (Either ScimError ()) ->
   IO InterpreterState
-simulateActiveBrigUser =
+simulateActiveBrigUser tokenInfo =
   runFinal
     . embedToFinal @IO
     . discardTinyLogs
@@ -123,7 +127,7 @@ simulateActiveBrigUser =
     . scimUserTimesStoreToMem
     . samlUserStoreToMem
     . idPToMem
-    . mockBrigForDeletedUser
+    . mockBrigForActiveUser tokenInfo
 
 mockBrigForActiveUser ::
   forall (r1 :: EffectRow).
@@ -136,9 +140,10 @@ mockBrigForActiveUser ::
        Embed IO
      ]
     r1 =>
+  ScimTokenInfo ->
   Sem (BrigAccess ': r1) (Either ScimError ()) ->
   Sem r1 (Either ScimError ())
-mockBrigForActiveUser = interpret $ \case
+mockBrigForActiveUser tokenInfo = interpret $ \case
   (GetAccount WithPendingInvitations uid) -> do
     acc <- liftIO $ someActiveUser uid
     pure $ Just acc
@@ -161,7 +166,8 @@ mockBrigForActiveUser = interpret $ \case
                   userHandle = Nothing,
                   userLocale = defLoc,
                   userIdentity = Nothing,
-                  userId = uid
+                  userId = uid,
+                  userTeam = Just $ stiTeam tokenInfo
                 }
           }
     defLoc = fromJust $ parseLocale "De-de"
