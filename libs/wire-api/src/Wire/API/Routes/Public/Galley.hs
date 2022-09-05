@@ -310,26 +310,8 @@ type ConversationAPI =
                :> Get '[Servant.JSON] ConversationCoverView
            )
     :<|> Named
-           "create-group-conversation-v1"
-           ( Summary "Create a new conversation"
-               :> Until 'V2
-               :> CanThrow 'ConvAccessDenied
-               :> CanThrow 'MLSNonEmptyMemberList
-               :> CanThrow 'NotConnected
-               :> CanThrow 'NotATeamMember
-               :> CanThrow OperationDenied
-               :> CanThrow 'MissingLegalholdConsent
-               :> Description "This returns 201 when a new conversation is created, and 200 when the conversation already existed"
-               :> ZLocalUser
-               :> ZConn
-               :> "conversations"
-               :> ReqBody '[Servant.JSON] (NewConv (Until 'V2))
-               :> ConversationVerb
-           )
-    :<|> Named
            "create-group-conversation"
            ( Summary "Create a new conversation"
-               :> From 'V2
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'MLSNonEmptyMemberList
                :> CanThrow 'NotConnected
@@ -340,7 +322,7 @@ type ConversationAPI =
                :> ZLocalUser
                :> ZConn
                :> "conversations"
-               :> ReqBody '[Servant.JSON] (NewConv (From 'V2))
+               :> ReqBody '[Servant.JSON] NewConv
                :> ConversationVerb
            )
     :<|> Named
@@ -355,32 +337,8 @@ type ConversationAPI =
     -- - ConvCreate event to members
     -- TODO: add note: "On 201, the conversation ID is the `Location` header"
     :<|> Named
-           "create-one-to-one-conversation-v1"
-           ( Summary "Create a 1:1 conversation"
-               :> Until 'V2
-               :> CanThrow 'ConvAccessDenied
-               :> CanThrow 'InvalidOperation
-               :> CanThrow 'NoBindingTeamMembers
-               :> CanThrow 'NonBindingTeam
-               :> CanThrow 'NotATeamMember
-               :> CanThrow 'NotConnected
-               :> CanThrow OperationDenied
-               :> CanThrow 'TeamNotFound
-               :> CanThrow 'MissingLegalholdConsent
-               :> ZLocalUser
-               :> ZConn
-               :> "conversations"
-               :> "one2one"
-               :> ReqBody '[Servant.JSON] (NewConv (Until 'V2))
-               :> ConversationVerb
-           )
-    -- This endpoint can lead to the following events being sent:
-    -- - ConvCreate event to members
-    -- TODO: add note: "On 201, the conversation ID is the `Location` header"
-    :<|> Named
            "create-one-to-one-conversation"
            ( Summary "Create a 1:1 conversation"
-               :> From 'V2
                :> CanThrow 'ConvAccessDenied
                :> CanThrow 'InvalidOperation
                :> CanThrow 'NoBindingTeamMembers
@@ -394,7 +352,7 @@ type ConversationAPI =
                :> ZConn
                :> "conversations"
                :> "one2one"
-               :> ReqBody '[Servant.JSON] (NewConv (From 'V2))
+               :> ReqBody '[Servant.JSON] NewConv
                :> ConversationVerb
            )
     -- This endpoint can lead to the following events being sent:

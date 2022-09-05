@@ -98,7 +98,6 @@ import Wire.API.Message
 import qualified Wire.API.Message as Message
 import Wire.API.Routes.MultiTablePaging
 import Wire.API.Routes.Named
-import Wire.API.Routes.Version
 import qualified Wire.API.Team.Feature as Public
 import qualified Wire.API.Team.Member as Teams
 import Wire.API.User
@@ -2043,20 +2042,8 @@ postConvQualifiedFederationNotEnabled = do
 -- FUTUREWORK: figure out how to use functions in the TestM monad inside withSettingsOverrides and remove this duplication
 postConvHelper :: (MonadIO m, MonadHttp m) => (Request -> Request) -> UserId -> [Qualified UserId] -> m ResponseLBS
 postConvHelper g zusr newUsers = do
-  let conv :: NewConv (From 'V2) =
-        NewConv
-          []
-          newUsers
-          (checked "gossip")
-          (Set.fromList [])
-          Nothing
-          Nothing
-          Nothing
-          Nothing
-          roleNameWireAdmin
-          ProtocolProteusTag
-          Nothing
-  post $ g . path "/v2/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv
+  let conv = NewConv [] newUsers (checked "gossip") (Set.fromList []) Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
+  post $ g . path "/conversations" . zUser zusr . zConn "conn" . zType "access" . json conv
 
 postSelfConvOk :: TestM ()
 postSelfConvOk = do
@@ -2084,20 +2071,8 @@ postConvO2OFailWithSelf :: TestM ()
 postConvO2OFailWithSelf = do
   g <- view tsGalley
   alice <- randomUser
-  let inv :: NewConv (From 'V2) =
-        NewConv
-          [alice]
-          []
-          Nothing
-          mempty
-          Nothing
-          Nothing
-          Nothing
-          Nothing
-          roleNameWireAdmin
-          ProtocolProteusTag
-          Nothing
-  post (g . path "/v2/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
+  let inv = NewConv [alice] [] Nothing mempty Nothing Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
+  post (g . path "/conversations/one2one" . zUser alice . zConn "conn" . zType "access" . json inv) !!! do
     const 403 === statusCode
     const (Just "invalid-op") === fmap label . responseJsonUnsafe
 

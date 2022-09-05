@@ -235,7 +235,6 @@ import qualified Test.Wire.API.Golden.Generated.WithStatusPatch_team
 import qualified Test.Wire.API.Golden.Generated.WithStatus_team
 import qualified Test.Wire.API.Golden.Generated.Wrapped_20_22some_5fint_22_20Int_user
 import Test.Wire.API.Golden.Runner
-import Wire.API.Routes.Version
 
 tests :: TestTree
 tests =
@@ -388,14 +387,10 @@ tests =
           [ (Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_1, "testObject_Conversation_user_1.json"),
             (Test.Wire.API.Golden.Generated.Conversation_user.testObject_Conversation_user_2, "testObject_Conversation_user_2.json")
           ],
-      testGroup "Golden: NewConv_user (Until 'V2)" $
+      testGroup "Golden: NewConv_user" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.NewConv_user.testObject_NewConv_user_1_2 @(Until 'V2), "testObject_NewConv_user_1.json"),
+          [ (Test.Wire.API.Golden.Generated.NewConv_user.testObject_NewConv_user_1, "testObject_NewConv_user_1.json"),
             (Test.Wire.API.Golden.Generated.NewConv_user.testObject_NewConv_user_3, "testObject_NewConv_user_3.json")
-          ],
-      testGroup "Golden: NewConv_user (From 'V2)" $
-        testObjects
-          [ (Test.Wire.API.Golden.Generated.NewConv_user.testObject_NewConv_user_1_2 @(From 'V2), "testObject_NewConv_user_2.json")
           ],
       testGroup "Golden: ConversationList_20_28Id_20_2a_20C_29_user" $
         testObjects
@@ -441,13 +436,9 @@ tests =
           [ (Test.Wire.API.Golden.Generated.ReceiptMode_user.testObject_ReceiptMode_user_1, "testObject_ReceiptMode_user_1.json"),
             (Test.Wire.API.Golden.Generated.ReceiptMode_user.testObject_ReceiptMode_user_2, "testObject_ReceiptMode_user_2.json")
           ],
-      testGroup "Golden: ConvTeamInfo_user (Until 'V2)" $
+      testGroup "Golden: ConvTeamInfo_user" $
         testObjects
-          [ (Test.Wire.API.Golden.Generated.ConvTeamInfo_user.testObject_ConvTeamInfo_user_1_2 @(Until 'V2), "testObject_ConvTeamInfo_user_1.json")
-          ],
-      testGroup "Golden: ConvTeamInfo_user (From 'V2)" $
-        testObjects
-          [ (Test.Wire.API.Golden.Generated.ConvTeamInfo_user.testObject_ConvTeamInfo_user_1_2 @(From 'V2), "testObject_ConvTeamInfo_user_2.json")
+          [ (Test.Wire.API.Golden.Generated.ConvTeamInfo_user.testObject_ConvTeamInfo_user_1, "testObject_ConvTeamInfo_user_1.json")
           ],
       testGroup "Golden: Invite_user" $
         testObjects

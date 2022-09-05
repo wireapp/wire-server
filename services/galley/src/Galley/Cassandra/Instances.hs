@@ -113,7 +113,7 @@ instance Cql AccessRoleV2 where
     n -> Left $ "Unexpected AccessRoleV2 value: " ++ show n
   fromCql _ = Left "AccessRoleV2 value: int expected"
 
-instance Cql (ConvTeamInfo v) where
+instance Cql ConvTeamInfo where
   ctype = Tagged $ UdtColumn "teaminfo" [("teamid", UuidColumn), ("managed", BooleanColumn)]
 
   toCql t = CqlUdt [("teamid", toCql (cnvTeamId t)), ("managed", toCql False)]

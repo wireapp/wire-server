@@ -69,7 +69,7 @@ data CreateConv = CreateConv | CreateProteusConv | DontCreateConv
 
 data UserOrigin = LocalUser | RemoteUser Domain
 
-createNewConv :: ClientId -> CreateConv -> Maybe (NewConv v)
+createNewConv :: ClientId -> CreateConv -> Maybe NewConv
 createNewConv c CreateConv = Just (defNewMLSConv c)
 createNewConv _ CreateProteusConv = Just defNewProteusConv
 createNewConv _ DontCreateConv = Nothing
