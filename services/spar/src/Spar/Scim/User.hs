@@ -38,6 +38,7 @@ module Spar.Scim.User
     toScimStoredUser',
     mkValidExternalId,
     scimFindUserByEmail,
+    deleteScimUser,
   )
 where
 

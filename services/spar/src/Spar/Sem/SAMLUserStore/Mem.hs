@@ -19,6 +19,7 @@
 
 module Spar.Sem.SAMLUserStore.Mem
   ( samlUserStoreToMem,
+    UserRefOrd,
   )
 where
 
