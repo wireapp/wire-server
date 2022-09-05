@@ -511,6 +511,7 @@ performConversationAccessData lconv action = do
       notifyConversationAction
         (sing @'ConversationLeaveTag)
         userToRemove
+        True
         Nothing
         lconv
         (bmToNotify <> extraTargets)
@@ -638,6 +639,7 @@ updateLocalConversationUnchecked lconv qusr con action = do
   notifyConversationAction
     (sing @tag)
     qusr
+    False
     con
     lconv
     (convBotsAndMembers conv <> extraTargets)
@@ -692,12 +694,13 @@ notifyConversationAction ::
   Members '[FederatorAccess, ExternalAccess, GundeckAccess, Input UTCTime] r =>
   Sing tag ->
   Qualified UserId ->
+  Bool ->
   Maybe ConnId ->
   Local Conversation ->
   BotsAndMembers ->
   ConversationAction (tag :: ConversationActionTag) ->
   Sem r LocalConversationUpdate
-notifyConversationAction tag quid con lconv targets action = do
+notifyConversationAction tag quid notifyOrigDomain con lconv targets action = do
   now <- input
   let lcnv = fmap convId lconv
       conv = tUnqualified lconv
@@ -729,12 +732,12 @@ notifyConversationAction tag quid con lconv targets action = do
     . E.runFederatedConcurrently (toList (bmRemotes targets))
     $ \ruids -> do
       let update = mkUpdate (tUnqualified ruids)
-      -- filter out user from quid's domain, because quid's backend will update
-      -- local state and notify its users itself using the ConversationUpdate
-      -- returned by this function
-      if tDomain ruids == qDomain quid
-        then pure (Just update)
-        else fedClient @'Galley @"on-conversation-updated" update $> Nothing
+      -- if notifyOrigDomain is false, filter out user from quid's domain,
+      -- because quid's backend will update local state and notify its users
+      -- itself using the ConversationUpdate returned by this function
+      if notifyOrigDomain || tDomain ruids /= qDomain quid
+        then fedClient @'Galley @"on-conversation-updated" update $> Nothing
+        else pure (Just update)
 
   -- notify local participants and bots
   pushConversationEvent con e (qualifyAs lcnv (bmLocals targets)) (bmBots targets)

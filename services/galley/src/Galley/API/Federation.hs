@@ -339,6 +339,7 @@ leaveConversation requestingDomain lc = do
         notifyConversationAction
           SConversationLeaveTag
           (qUntagged leaver)
+          False
           Nothing
           (qualifyAs lcnv conv)
           botsAndMembers
@@ -466,6 +467,7 @@ onUserDeleted origDomain udcn = do
                 notifyConversationAction
                   (sing @'ConversationLeaveTag)
                   untaggedDeletedUser
+                  False
                   Nothing
                   (qualifyAs lc conv)
                   botsAndMembers

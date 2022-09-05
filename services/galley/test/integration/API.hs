@@ -1452,7 +1452,7 @@ postConvertTeamConv = do
   dave <- view Teams.userId <$> addUserToTeam alice tid
   assertQueue "team member (dave) join" $ tUpdate 3 [alice]
   refreshIndex
-  eve <- randomUser
+  (eve, qeve) <- randomUserTuple
   connectUsers alice (singleton eve)
   let acc = Just $ Set.fromList [InviteAccess, CodeAccess]
   -- creating a team-only conversation containing eve should fail
@@ -1481,9 +1481,11 @@ postConvertTeamConv = do
       WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
         wsAssertConvAccessUpdate qconv qalice teamAccess
     -- non-team members get kicked out
-    void . liftIO $
-      WS.assertMatchN (5 # Second) [wsA, wsB, wsE, wsM] $
-        wsAssertMemberLeave qconv qalice $ (`Qualified` localDomain) <$> [eve, mallory]
+    liftIO $ do
+      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsE, wsM] $
+        wsAssertMemberLeave qconv qeve (pure qeve)
+      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsE, wsM] $
+        wsAssertMemberLeave qconv qmallory (pure qmallory)
     -- joining (for mallory) is no longer possible
     postJoinCodeConv mallory j !!! const 403 === statusCode
     -- team members (dave) can still join
@@ -1535,19 +1537,41 @@ testAccessUpdateGuestRemoved = do
       -- note that removing users happens asynchronously, so this check should
       -- happen while the mock federator is still available
       WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
-        wsAssertMembersLeave (cnvQualifiedId conv) alice [charlie, dee]
+        wsAssertMembersLeave (cnvQualifiedId conv) charlie [charlie]
+      WS.assertMatchN_ (5 # Second) [wsA, wsB, wsC] $
+        wsAssertMembersLeave (cnvQualifiedId conv) dee [dee]
 
     -- dee's remote receives a notification
     liftIO $
-      map
-        ( \fr -> do
-            cu <- eitherDecode (frBody fr)
-            pure (F.cuOrigUserId cu, F.cuAction cu)
+      sortOn
+        (fmap fst)
+        ( map
+            ( \fr -> do
+                cu <- eitherDecode (frBody fr)
+                pure (F.cuOrigUserId cu, F.cuAction cu)
+            )
+            ( filter
+                ( \fr ->
+                    frComponent fr == Galley
+                      && frRPC fr == "on-conversation-updated"
+                )
+                reqs
+            )
         )
-        (filter (\fr -> frComponent fr == Galley && frRPC fr == "on-conversation-updated") reqs)
-        @?= [ Right (charlie, SomeConversationAction (sing @'ConversationLeaveTag) ()),
-              Right (dee, SomeConversationAction (sing @'ConversationLeaveTag) ())
-            ]
+        @?= sortOn
+          (fmap fst)
+          [ Right (charlie, SomeConversationAction (sing @'ConversationLeaveTag) ()),
+            Right (dee, SomeConversationAction (sing @'ConversationLeaveTag) ()),
+            Right
+              ( alice,
+                SomeConversationAction
+                  (sing @'ConversationAccessDataTag)
+                  ConversationAccessData
+                    { cupAccess = mempty,
+                      cupAccessRoles = Set.fromList [TeamMemberAccessRole]
+                    }
+              )
+          ]
 
   -- only alice and bob remain
   conv2 <-
