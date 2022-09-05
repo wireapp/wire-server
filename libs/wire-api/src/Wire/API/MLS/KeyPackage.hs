@@ -29,6 +29,7 @@ module Wire.API.MLS.KeyPackage
     kpInitKey,
     kpCredential,
     kpExtensions,
+    kpIdentity,
     kpRef,
     kpRef',
     KeyPackageTBS (..),
@@ -188,6 +189,9 @@ data KeyPackage = KeyPackage
   }
   deriving stock (Eq, Show)
 
+instance S.ToSchema KeyPackage where
+  declareNamedSchema _ = pure (mlsSwagger "KeyPackage")
+
 kpProtocolVersion :: KeyPackage -> ProtocolVersion
 kpProtocolVersion = kpuProtocolVersion . rmValue . kpTBS
 
@@ -202,6 +206,9 @@ kpCredential = kpuCredential . rmValue . kpTBS
 
 kpExtensions :: KeyPackage -> [Extension]
 kpExtensions = kpuExtensions . rmValue . kpTBS
+
+kpIdentity :: KeyPackage -> Either Text ClientIdentity
+kpIdentity = decodeMLS' @ClientIdentity . bcIdentity . kpCredential
 
 rawKeyPackageSchema :: ValueSchema NamedSwaggerDoc (RawMLS KeyPackage)
 rawKeyPackageSchema =

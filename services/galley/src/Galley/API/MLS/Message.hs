@@ -84,6 +84,7 @@ import Wire.API.MLS.Proposal
 import qualified Wire.API.MLS.Proposal as Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
+import Wire.API.Routes.Internal.Brig
 import Wire.API.User.Client
 
 type MLSMessageStaticErrors =
@@ -348,7 +349,8 @@ type HasProposalEffects r =
     Member (Input UTCTime) r,
     Member LegalHoldStore r,
     Member MemberStore r,
-    Member TeamStore r
+    Member TeamStore r,
+    Member (Input (Local ())) r
   )
 
 type ClientMap = Map (Qualified UserId) (Set (ClientId, KeyPackageRef))
@@ -465,6 +467,7 @@ processCommit qusr senderClient con lconv epoch sender commit = do
 
     pure updates
 
+-- | Note: Use this only for KeyPackage that are already validated
 updateKeyPackageMapping ::
   Members '[BrigAccess, MemberStore] r =>
   Local Data.Conversation ->
@@ -511,25 +514,52 @@ applyProposalRef conv groupId epoch (Ref ref) = do
   p <- getProposal groupId epoch ref >>= noteS @'MLSProposalNotFound
   checkEpoch epoch conv
   checkGroup groupId conv
-  applyProposal (rmValue p)
+  applyProposal (convId conv) (rmValue p)
 applyProposalRef conv _groupId _epoch (Inline p) = do
   suite <-
     preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) conv
       & noteS @'ConvNotFound
   checkProposalCipherSuite suite p
-  applyProposal p
+  applyProposal (convId conv) p
 
-applyProposal :: HasProposalEffects r => Proposal -> Sem r ProposalAction
-applyProposal (AddProposal kp) = do
-  ref <-
-    kpRef' kp
-      & note (mlsProtocolError "Could not compute ref of a key package in an Add proposal")
-  qclient <- cidQualifiedClient <$> derefKeyPackage ref
-  pure (paAddClient ((,ref) <$$> qclient))
-applyProposal (RemoveProposal ref) = do
+applyProposal ::
+  HasProposalEffects r =>
+  ConvId ->
+  Proposal ->
+  Sem r ProposalAction
+applyProposal convId (AddProposal kp) = do
+  ref <- kpRef' kp & note (mlsProtocolError "Could not compute ref of a key package in an Add proposal")
+  mbClientIdentity <- getClientByKeyPackageRef ref
+  clientIdentity <- case mbClientIdentity of
+    Nothing -> do
+      -- external add proposal for a new key package unknown to the backend
+      lconvId <- qualifyLocal convId
+      ci <- addKeyPackageMapping lconvId ref (KeyPackageData (rmRaw kp))
+      pure ci
+    Just ci ->
+      -- ad-hoc add proposal in commit, the key package has been claimed before
+      pure ci
+  pure (paAddClient . (<$$>) (,ref) . cidQualifiedClient $ clientIdentity)
+  where
+    addKeyPackageMapping lconv ref kpdata = do
+      -- validate and update mapping in brig
+      mCid <-
+        nkpresClientIdentity
+          <$$> validateAndAddKeyPackageRef
+            NewKeyPackage
+              { nkpConversation = qUntagged lconv,
+                nkpKeyPackage = kpdata
+              }
+      cid <- mCid & note (mlsProtocolError "Tried to add invalid KeyPackage")
+      let qcid = cidQualifiedClient cid
+      let qusr = fst <$> qcid
+      -- update mapping in galley
+      addMLSClients lconv qusr (Set.singleton (ciClient cid, ref))
+      pure cid
+applyProposal _conv (RemoveProposal ref) = do
   qclient <- cidQualifiedClient <$> derefKeyPackage ref
   pure (paRemoveClient ((,ref) <$$> qclient))
-applyProposal _ = pure mempty
+applyProposal _conv _ = pure mempty
 
 checkProposalCipherSuite ::
   Members
@@ -643,7 +673,9 @@ checkExternalProposalUser qusr prop = do
             either
               (const $ throwS @'MLSUnsupportedProposal)
               pure
-              $ decodeMLS' @ClientIdentity (bcIdentity . kpCredential . rmValue $ keyPackage)
+              . kpIdentity
+              . rmValue
+              $ keyPackage
           -- requesting user must match key package owner
           when (tUnqualified lusr /= ciUser) $ throwS @'MLSUnsupportedProposal
           -- client referenced in key package must be one of the user's clients

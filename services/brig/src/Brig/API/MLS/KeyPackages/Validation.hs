@@ -19,6 +19,7 @@ module Brig.API.MLS.KeyPackages.Validation
   ( -- * Main key package validation function
     validateKeyPackage,
     reLifetime,
+    mlsProtocolError,
 
     -- * Exported for unit tests
     findExtensions,
