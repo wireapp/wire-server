@@ -139,6 +139,7 @@ import qualified Wire.API.User.Password as Public
 import qualified Wire.API.User.RichInfo as Public
 import qualified Wire.API.UserMap as Public
 import qualified Wire.API.Wrapped as Public
+import Wire.Sem.Now (Now)
 
 -- User API -----------------------------------------------------------
 
@@ -193,7 +194,8 @@ servantSitemap ::
     '[ BlacklistStore,
        BlacklistPhonePrefixStore,
        UserPendingActivationStore p,
-       JwtTools
+       JwtTools,
+       Now
      ]
     r =>
   ServerT BrigAPI (Handler r)
@@ -257,7 +259,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"get-client-prekeys" getClientPrekeys
         :<|> Named @"head-nonce" newNonce
         :<|> Named @"get-nonce" newNonce
-        :<|> Named @"create-access-token" createAccessToken
+        :<|> Named @"create-access-token" (createAccessToken POST)
 
     connectionAPI :: ServerT ConnectionAPI (Handler r)
     connectionAPI =
@@ -631,12 +633,14 @@ newNonce uid cid = do
   pure (nonce, NoStore)
 
 createAccessToken ::
-  Member JwtTools r =>
+  (Member JwtTools r, Member Now r) =>
+  StdMethod ->
   Local UserId ->
   ClientId ->
   Maybe Proof ->
   (Handler r) (DPoPAccessTokenResponse, CacheControl)
-createAccessToken quid cid mProof = API.createAccessToken quid cid mProof !>> certEnrollmentError
+createAccessToken method quid cid mProof = do
+  API.createAccessToken method quid cid mProof !>> certEnrollmentError
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser ::

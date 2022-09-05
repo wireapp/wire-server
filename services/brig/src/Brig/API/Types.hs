@@ -45,6 +45,7 @@ import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import Wire.API.Federation.Error
 import Wire.API.User
+import Wire.API.User.Client.DPoPAccessToken (DPoPTokenGenerationError)
 
 -------------------------------------------------------------------------------
 -- Successes
@@ -204,7 +205,10 @@ data AccountStatusError
 data VerificationCodeThrottledError
   = VerificationCodeThrottled RetryAfter
 
-data CertEnrollmentError = CertEnrollmentError
+data CertEnrollmentError
+  = MissingProof
+  | NonceNotFound
+  | TokenGenerationError DPoPTokenGenerationError
 
 -------------------------------------------------------------------------------
 -- Exceptions

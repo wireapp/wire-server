@@ -52,6 +52,7 @@ import Brig.API.Types
 import Brig.API.Util
 import Brig.App
 import qualified Brig.Data.Client as Data
+import Brig.Data.Nonce as Nonce
 import qualified Brig.Data.User as Data
 import Brig.Federation.Client (getUserClients)
 import qualified Brig.Federation.Client as Federation
@@ -61,6 +62,7 @@ import qualified Brig.InternalEvent.Types as Internal
 import qualified Brig.Options as Opt
 import qualified Brig.Queue as Queue
 import Brig.Sem.JwtTools (JwtTools)
+import qualified Brig.Sem.JwtTools as JwtTools
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Event
@@ -82,7 +84,9 @@ import qualified Data.Map.Strict as Map
 import Data.Misc (PlainTextPassword (..))
 import Data.Qualified
 import qualified Data.Set as Set
+import Data.String.Conversions (cs)
 import Imports
+import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
 import Polysemy (Member)
 import System.Logger.Class (field, msg, val, (~~))
@@ -90,6 +94,8 @@ import qualified System.Logger.Class as Log
 import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
 import Wire.API.Federation.API.Brig (GetUserClients (GetUserClients))
 import Wire.API.Federation.Error
+import Wire.API.MLS.Credential (mkClientIdentity)
+import Wire.API.MLS.Epoch (addToEpoch)
 import qualified Wire.API.Message as Message
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
 import Wire.API.User
@@ -98,6 +104,8 @@ import Wire.API.User.Client
 import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (QualifiedUserMap, qualifiedUserMap), UserMap (userMap))
+import Wire.Sem.FromUTC (FromUTC (fromUTCTime))
+import Wire.Sem.Now as Now
 
 lookupLocalClient :: UserId -> ClientId -> (AppT r) (Maybe Client)
 lookupLocalClient uid = wrapClient . Data.lookupClient uid
@@ -444,22 +452,36 @@ removeLegalHoldClient uid = do
   wrapHttpClient $ Intra.onUserEvent uid Nothing (UserLegalHoldDisabled uid)
 
 createAccessToken ::
-  Member JwtTools r =>
+  (Member JwtTools r, Member Now r) =>
+  StdMethod ->
   Local UserId ->
   ClientId ->
   Maybe Proof ->
   ExceptT CertEnrollmentError (AppT r) (DPoPAccessTokenResponse, CacheControl)
-createAccessToken _userId _clientId = \case
-  Just (Proof proof) -> do
-    let expiresAt = 360 -- todo(leif): read from config
-    token <- withExceptT mapError (ExceptT $ liftIO $ ffiStubGenerateDPoPToken proof)
-    let accessToken = DPoPAccessTokenResponse token DPoP expiresAt
-    pure $ (accessToken, NoStore)
-  Nothing -> throwE CertEnrollmentError
-  where
-    mapError :: Int16 -> CertEnrollmentError
-    mapError = const CertEnrollmentError
-
-ffiStubGenerateDPoPToken :: ByteString -> IO (Either Int16 DPoPAccessToken)
-ffiStubGenerateDPoPToken bs = do
-  pure . Right . DPoPAccessToken $ bs
+createAccessToken method lusr cid = \case
+  Just proof -> do
+    let uid = tUnqualified lusr
+    let identity = mkClientIdentity (qUntagged lusr) cid
+    nonce <- withExceptT (const NonceNotFound) $ ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
+    let httpsUrl = error "todo(leif): how to get the url of this handler?"
+    let maxSkewSeconds = 1 -- todo(leif): read from config
+    let expiresIn = 360 -- todo(leif): read from config
+    now <- fromUTCTime <$> lift (liftSem Now.get)
+    let expiresAt = now & addToEpoch expiresIn
+    let pubKeyBundle = error "todo(leif): how to get the public key bundle?"
+    token <-
+      withExceptT TokenGenerationError $
+        ExceptT $
+          liftSem $
+            JwtTools.generateDPoPAccessToken
+              proof
+              identity
+              nonce
+              httpsUrl
+              method
+              maxSkewSeconds
+              expiresAt
+              now
+              pubKeyBundle
+    pure $ (DPoPAccessTokenResponse token DPoP expiresIn, NoStore)
+  Nothing -> throwE MissingProof
