@@ -202,8 +202,11 @@ onClientEvent ::
     MonadHttp m,
     HasRequestId m
   ) =>
+  -- | Originator of the event.
   UserId ->
+  -- | Client connection ID.
   Maybe ConnId ->
+  -- | The event.
   ClientEvent ->
   m ()
 onClientEvent orig conn e = do
