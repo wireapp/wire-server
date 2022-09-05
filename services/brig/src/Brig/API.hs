@@ -25,9 +25,9 @@ import qualified Brig.API.Internal as Internal
 import qualified Brig.API.Public as Public
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
-import Brig.Sem.CodeStore
-import Brig.Sem.PasswordResetStore (PasswordResetStore)
-import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
+import Brig.Effects.CodeStore
+import Brig.Effects.PasswordResetStore (PasswordResetStore)
+import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Data.Swagger.Build.Api as Doc
 import Network.Wai.Routing (Routes)
 import Polysemy

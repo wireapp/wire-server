@@ -49,9 +49,9 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
-import Brig.Sem.CodeStore (CodeStore)
-import Brig.Sem.PasswordResetStore (PasswordResetStore)
-import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
+import Brig.Effects.CodeStore (CodeStore)
+import Brig.Effects.PasswordResetStore (PasswordResetStore)
+import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)

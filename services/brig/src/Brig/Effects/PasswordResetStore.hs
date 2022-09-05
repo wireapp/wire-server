@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE TemplateHaskell #-}
 
-module Brig.Sem.PasswordResetStore where
+module Brig.Effects.PasswordResetStore where
 
 import Brig.Types.User (PasswordResetPair)
 import Data.Id

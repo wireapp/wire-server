@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Brig.Sem.UserPendingActivationStore where
+module Brig.Effects.UserPendingActivationStore where
 
 import Data.Id
 import Data.Time.Clock
