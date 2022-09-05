@@ -110,12 +110,12 @@
       "targets": [
         {
           "exemplar": false,
-          "expr": "sum(increase(http_request_duration_seconds_count{status_code=~\"5..\", namespace=\"$namespace\"}[5m])) by (role)",
+          "expr": "sum(increase(http_request_duration_seconds_count{status_code=~\"5..\"}[5m])) by (service)",
           "format": "time_series",
           "instant": false,
           "interval": "",
           "intervalFactor": 5,
-          "legendFormat": "{{role}}",
+          "legendFormat": "{{service}}",
           "refId": "A"
         }
       ],
@@ -225,7 +225,7 @@
       "targets": [
         {
           "exemplar": false,
-          "expr": "sum(increase(http_request_duration_seconds_count{status_code=~\"5..\", namespace=\"$namespace\"}[$__range])) by (role, handler)",
+          "expr": "sum(increase(http_request_duration_seconds_count{status_code=~\"5..\"}[$__range])) by (service, method, handler)",
           "format": "table",
           "instant": true,
           "interval": "",
@@ -306,7 +306,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(increase(http_request_duration_seconds_count{status_code=~\"2..\", role=\"$service\", namespace=\"$namespace\"}[5m])) # Disabled because it's way too slow",
+          "expr": "sum(increase(http_request_duration_seconds_count{status_code=~\"2..\", service=\"$service\"}[1m])) # Disabled because it's way too slow",
           "format": "time_series",
           "hide": true,
           "instant": false,
@@ -315,7 +315,7 @@
           "refId": "A"
         },
         {
-          "expr": "sum(increase(http_request_duration_seconds_count{status_code=~\"4..\", role=\"$service\", namespace=\"$namespace\"}[5m]))",
+          "expr": "sum(increase(http_request_duration_seconds_count{status_code=~\"4..\", service=\"$service\"}[1m]))",
           "format": "time_series",
           "hide": false,
           "instant": false,
@@ -324,7 +324,7 @@
           "refId": "B"
         },
         {
-          "expr": "sum(increase(http_request_duration_seconds_count{status_code=~\"5..\", role=\"$service\", namespace=\"$namespace\"}[5m]))",
+          "expr": "sum(increase(http_request_duration_seconds_count{status_code=~\"5..\", service=\"$service\"}[1m]))",
           "format": "time_series",
           "hide": false,
           "instant": false,
@@ -438,11 +438,11 @@
       ],
       "targets": [
         {
-          "expr": "sum(increase(http_request_duration_seconds_count{status_code=~\"4..\", role=\"$service\", namespace=\"$namespace\"}[$__range])) by (handler)",
+          "expr": "sum(increase(http_request_duration_seconds_count{status_code=~\"4..\", service=\"$service\"}[$__range])) by (handler)",
           "format": "table",
           "instant": true,
           "intervalFactor": 1,
-          "legendFormat": "# 5XXs",
+          "legendFormat": "# 4XXs",
           "refId": "A"
         }
       ],
@@ -516,7 +516,7 @@
       ],
       "targets": [
         {
-          "expr": "sum(increase(http_request_duration_seconds_count{status_code=~\"5..\", role=\"$service\", namespace=\"$namespace\"}[$__range])) by (handler)",
+          "expr": "sum(increase(http_request_duration_seconds_count{status_code=~\"5..\", service=\"$service\"}[$__range])) by (handler)",
           "format": "table",
           "instant": true,
           "intervalFactor": 1,
@@ -578,12 +578,12 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "sum(rate(container_network_receive_bytes_total{pod=~\"$service.*\", namespace=\"$namespace\"}[5m])) by (pod_name)",
+          "expr": "sum(rate(container_network_receive_bytes_total{pod=~\"$service.*\", namespace=\"$namespace\"}[5m])) by (pod)",
           "format": "time_series",
           "hide": false,
           "interval": "",
           "intervalFactor": 2,
-          "legendFormat": "{{pod_name}}",
+          "legendFormat": "{{pod}}",
           "refId": "A",
           "step": 3600,
           "target": "alias(scale(scaleToSeconds(nonNegativeDerivative(sumSeries(gundeck.*.eu-west-1.compute.internal.interface.eth0.if_octets.rx)), 1), 0.001), 'kb/s - inbound')"
@@ -696,13 +696,13 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "sum(container_cpu_load_average_10s{pod=~\"$service.*\", namespace=\"$namespace\"}) by (pod_name) * 100",
+          "expr": "sum(container_cpu_load_average_10s{pod=~\"$service.*\", namespace=\"$namespace\"}) by (pod) * 100",
           "format": "time_series",
           "hide": false,
           "instant": false,
           "interval": "",
           "intervalFactor": 2,
-          "legendFormat": "{{ pod_name }}",
+          "legendFormat": "{{ pod }}",
           "refId": "B",
           "step": 2400,
           "target": "alias(averageSeries(gundeck.*.eu-west-1.compute.internal.load.load.shortterm), 'load - shorterm')"
@@ -808,12 +808,12 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "sum(container_memory_usage_bytes{namespace=\"$namespace\", pod=~\"$service.*\", namespace=\"$namespace\"}) by (pod_name) / (1024 * 1024)",
+          "expr": "sum(container_memory_usage_bytes{namespace=\"$namespace\", pod=~\"$service.*\", namespace=\"$namespace\"}) by (pod) / (1024 * 1024)",
           "format": "time_series",
           "hide": false,
           "interval": "",
           "intervalFactor": 2,
-          "legendFormat": "{{ pod_name }}",
+          "legendFormat": "{{ pod }}",
           "refId": "A",
           "step": 2400,
           "target": "alias(scale(averageSeries(gundeck.*.eu-west-1.compute.internal.memory.memory.used), 0.000001), 'used')"
@@ -904,7 +904,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(net_connections{role=\"$service\", namespace=\"$namespace\"})",
+          "expr": "net_connections{service=\"$service\"}",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "Inbound Connections",
