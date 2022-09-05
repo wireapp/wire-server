@@ -228,8 +228,8 @@ onConversationUpdated requestingDomain cu = do
           [] -> pure (Nothing, []) -- If no users get added, its like no action was performed.
           (u : us) -> pure (Just (SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (u :| us) role)), addedLocalUsers)
       SConversationLeaveTag -> do
-        let localUsers = getLocalUsers (tDomain loc) action
-        E.deleteMembersInRemoteConversation rconvId localUsers
+        let users = foldQualified loc (pure . tUnqualified) (const []) (F.cuOrigUserId cu)
+        E.deleteMembersInRemoteConversation rconvId users
         pure (Just sca, [])
       SConversationRemoveMembersTag -> do
         let localUsers = getLocalUsers (tDomain loc) action
@@ -327,14 +327,12 @@ leaveConversation requestingDomain lc = do
               lcnv
               (qUntagged leaver)
               Nothing
-              (pure (qUntagged leaver))
+              ()
         pure (update, conv)
 
   case res of
     Left e -> pure $ F.LeaveConversationResponse (Left e)
     Right (_update, conv) -> do
-      let action = pure (qUntagged leaver)
-
       let remotes = filter ((== tDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
       _ <-
@@ -344,7 +342,7 @@ leaveConversation requestingDomain lc = do
           Nothing
           (qualifyAs lcnv conv)
           botsAndMembers
-          action
+          ()
 
       pure $ F.LeaveConversationResponse (Right ())
 
@@ -462,8 +460,7 @@ onUserDeleted origDomain udcn = do
             -- The self conv cannot be on a remote backend.
             Public.SelfConv -> pure ()
             Public.RegularConv -> do
-              let action = pure untaggedDeletedUser
-                  botsAndMembers = convBotsAndMembers conv
+              let botsAndMembers = convBotsAndMembers conv
               removeUser (qualifyAs lc conv) (qUntagged deletedUser)
               void $
                 notifyConversationAction
@@ -472,7 +469,7 @@ onUserDeleted origDomain udcn = do
                   Nothing
                   (qualifyAs lc conv)
                   botsAndMembers
-                  action
+                  ()
   pure EmptyResponse
 
 updateConversation ::

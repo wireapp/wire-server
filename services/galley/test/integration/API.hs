@@ -1538,13 +1538,16 @@ testAccessUpdateGuestRemoved = do
         wsAssertMembersLeave (cnvQualifiedId conv) alice [charlie, dee]
 
     -- dee's remote receives a notification
-    liftIO . assertBool "remote users are not notified" . isJust . flip find reqs $ \freq ->
-      (frComponent freq == Galley)
-        && ( frRPC freq == "on-conversation-updated"
-           )
-        && ( fmap F.cuAction (eitherDecode (frBody freq))
-               == Right (SomeConversationAction (sing @'ConversationLeaveTag) (charlie :| [dee]))
-           )
+    liftIO $
+      map
+        ( \fr -> do
+            cu <- eitherDecode (frBody fr)
+            pure (F.cuOrigUserId cu, F.cuAction cu)
+        )
+        (filter (\fr -> frComponent fr == Galley && frRPC fr == "on-conversation-updated") reqs)
+        @?= [ Right (charlie, SomeConversationAction (sing @'ConversationLeaveTag) ()),
+              Right (dee, SomeConversationAction (sing @'ConversationLeaveTag) ())
+            ]
 
   -- only alice and bob remain
   conv2 <-
@@ -3742,25 +3745,29 @@ removeUser = do
       bConvUpdates <- mapM (assertRight . eitherDecode . frBody) bConvUpdateRPCs
 
       bConvUpdatesA2 <- assertOne $ filter (\cu -> cuConvId cu == convA2) bConvUpdates
-      cuAction bConvUpdatesA2 @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure alexDel)
+      cuOrigUserId bConvUpdatesA2 @?= alexDel
+      cuAction bConvUpdatesA2 @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
       cuAlreadyPresentUsers bConvUpdatesA2 @?= [qUnqualified berta]
 
       bConvUpdatesA4 <- assertOne $ filter (\cu -> cuConvId cu == convA4) bConvUpdates
-      cuAction bConvUpdatesA4 @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure alexDel)
+      cuOrigUserId bConvUpdatesA4 @?= alexDel
+      cuAction bConvUpdatesA4 @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
       cuAlreadyPresentUsers bConvUpdatesA4 @?= [qUnqualified bart]
 
     liftIO $ do
       cConvUpdateRPC <- assertOne $ filter (matchFedRequest cDomain "on-conversation-updated") fedRequests
       Right convUpdate <- pure . eitherDecode . frBody $ cConvUpdateRPC
       cuConvId convUpdate @?= convA4
-      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure alexDel)
+      cuOrigUserId convUpdate @?= alexDel
+      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
       cuAlreadyPresentUsers convUpdate @?= [qUnqualified carl]
 
     liftIO $ do
       dConvUpdateRPC <- assertOne $ filter (matchFedRequest dDomain "on-conversation-updated") fedRequests
       Right convUpdate <- pure . eitherDecode . frBody $ dConvUpdateRPC
       cuConvId convUpdate @?= convA2
-      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure alexDel)
+      cuOrigUserId convUpdate @?= alexDel
+      cuAction convUpdate @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
       cuAlreadyPresentUsers convUpdate @?= [qUnqualified dwight]
 
   -- Check memberships

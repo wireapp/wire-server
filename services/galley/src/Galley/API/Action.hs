@@ -289,11 +289,10 @@ performAction tag origUser lconv action = do
     SConversationJoinTag -> do
       performConversationJoin origUser lconv action
     SConversationLeaveTag -> do
-      let presentVictims = filter (isConvMemberL lconv) (toList action)
-      when (null presentVictims) noChanges
-      E.deleteMembers (tUnqualified lcnv) (toUserList lconv presentVictims)
-      traverse_ (removeUser lconv) presentVictims
-      pure (mempty, action) -- FUTUREWORK: should we return the filtered action here?
+      let victims = [origUser]
+      E.deleteMembers (tUnqualified lcnv) (toUserList lconv victims)
+      traverse_ (removeUser lconv) victims
+      pure (mempty, action)
     SConversationRemoveMembersTag -> do
       let presentVictims = filter (isConvMemberL lconv) (toList action)
       when (null presentVictims) noChanges
@@ -323,7 +322,7 @@ performAction tag origUser lconv action = do
       E.setConversationReceiptMode (tUnqualified lcnv) (cruReceiptMode action)
       pure (mempty, action)
     SConversationAccessDataTag -> do
-      (bm, act) <- performConversationAccessData origUser lconv action
+      (bm, act) <- performConversationAccessData lconv action
       pure (bm, act)
 
 performConversationJoin ::
@@ -447,7 +446,7 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
                     (fmap convId lconv)
                     (qUntagged lvictim)
                     Nothing
-                    $ pure (qUntagged lvictim)
+                    ()
           else throwS @'MissingLegalholdConsent
 
     checkLHPolicyConflictsRemote ::
@@ -457,11 +456,10 @@ performConversationJoin qusr lconv (ConversationJoin invited role) = do
 
 performConversationAccessData ::
   (HasConversationActionEffects 'ConversationAccessDataTag r) =>
-  Qualified UserId ->
   Local Conversation ->
   ConversationAccessData ->
   Sem r (BotsAndMembers, ConversationAccessData)
-performConversationAccessData qusr lconv action = do
+performConversationAccessData lconv action = do
   when (convAccessData conv == action) noChanges
   -- Remove conversation codes if CodeAccess is revoked
   when
@@ -490,9 +488,16 @@ performConversationAccessData qusr lconv action = do
     let bmToNotify = current {bmBots = bmBots desired}
 
     -- Remove users and notify everyone
-    void . for_ (nonEmpty (bmQualifiedMembers lcnv toRemove)) $ \usersToRemove -> do
-      void . runError @NoChanges $ performAction SConversationLeaveTag qusr lconv usersToRemove
-      notifyConversationAction (sing @'ConversationLeaveTag) qusr Nothing lconv bmToNotify usersToRemove
+    for_ (bmQualifiedMembers lcnv toRemove) $ \userToRemove -> do
+      (extraTargets, action') <- performAction SConversationLeaveTag userToRemove lconv ()
+      notifyConversationAction
+        (sing @'ConversationLeaveTag)
+        userToRemove
+        Nothing
+        lconv
+        (bmToNotify <> extraTargets)
+        action'
+
   pure (mempty, action)
   where
     lcnv = fmap convId lconv

@@ -1179,8 +1179,7 @@ removeMemberFromLocalConv lcnv lusr con victim
     fmap (fmap lcuEvent . hush)
       . runError @NoChanges
       . updateLocalConversation @'ConversationLeaveTag lcnv (qUntagged lusr) con
-      . pure
-      $ victim
+      $ ()
   | otherwise =
     fmap (fmap lcuEvent . hush)
       . runError @NoChanges
