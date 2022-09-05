@@ -22,17 +22,13 @@
   "fiscalYearStartMonth": 0,
   "gnetId": null,
   "graphTooltip": 0,
-  "iteration": 1637052673609,
+  "iteration": 1662376697254,
   "links": [],
   "liveNow": false,
   "panels": [
     {
       "collapsed": false,
       "datasource": null,
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -155,94 +151,72 @@
       }
     },
     {
+      "cards": {
+        "cardPadding": null,
+        "cardRound": null
+      },
+      "color": {
+        "cardColor": "#b4ff00",
+        "colorScale": "sqrt",
+        "colorScheme": "interpolateOranges",
+        "exponent": 0.5,
+        "mode": "spectrum"
+      },
+      "dataFormat": "tsbuckets",
       "datasource": null,
       "description": "A client can fetch many prekeys with one API call, so the count here just represents how many calls are made to the API",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
       "gridPos": {
         "h": 7,
         "w": 12,
         "x": 12,
         "y": 1
       },
+      "heatmap": {},
+      "hideZeroBuckets": false,
+      "highlightCards": true,
       "id": 34,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single"
-        }
+      "legend": {
+        "show": false
       },
+      "reverseYBuckets": false,
       "targets": [
         {
           "exemplar": true,
-          "expr": "sum(rate(http_request_duration_seconds_count{namespace=\"$namespace\", handler=~\"/federation/claim-multi-prekey-bundle|/users/:uid/prekeys/:client|/users/:uid_domain/:uid/prekeys/:client|/users/:uid/prekeys|/users/:uid_domain/:uid/prekeys/users/prekys|/users/list-prekeys\"}[5m]))",
+          "expr": "sum(increase(http_request_duration_seconds_bucket{handler=\"/users/prekeys\"}[5m])) by (le)",
+          "format": "heatmap",
           "interval": "",
-          "legendFormat": "API Calls",
+          "intervalFactor": 10,
+          "legendFormat": "{{ le }}",
           "refId": "A"
         }
       ],
       "title": "Prekey fetch count",
-      "type": "timeseries"
+      "tooltip": {
+        "show": true,
+        "showHistogram": false
+      },
+      "type": "heatmap",
+      "xAxis": {
+        "show": true
+      },
+      "xBucketNumber": null,
+      "xBucketSize": null,
+      "yAxis": {
+        "decimals": null,
+        "format": "short",
+        "logBase": 1,
+        "max": null,
+        "min": null,
+        "show": true,
+        "splitFactor": null
+      },
+      "yBucketBound": "auto",
+      "yBucketNumber": null,
+      "yBucketSize": null
     },
     {
       "collapsed": false,
       "datasource": null,
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -287,7 +261,7 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "sum(increase(http_request_duration_seconds_bucket{handler=~\"(/conversations/:cnv/otr/messages|/conversations/:cnv_domain/:cnv/proteus/messages|/federation/send-message)\", namespace=\"$namespace\"}[5m])) by (le)",
+          "expr": "sum(increase(http_request_duration_seconds_bucket{handler=\"/conversations/:cnv/otr/messages\"}[5m])) by (le)",
           "format": "heatmap",
           "instant": false,
           "interval": "",
@@ -298,7 +272,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Message sending latencies for local and remote conversations",
+      "title": "Message sending latencies",
       "tooltip": {
         "show": true,
         "showHistogram": false
@@ -529,7 +503,7 @@
       "targets": [
         {
           "exemplar": true,
-          "expr": "sum(increase(http_request_duration_seconds_count{role=\"galley\", handler=~\"(/conversations/:cnv/otr/messages|/conversations/:cnv_domain/:cnv/proteus/messages)\", status_code=~\"2..\", namespace=\"$namespace\"}[10m]))",
+          "expr": "sum(increase(http_request_duration_seconds_count{service=\"galley\", handler=\"/conversations/:cnv/otr/messages\", status_code=~\"2..\"}[10m]))",
           "format": "time_series",
           "interval": "",
           "intervalFactor": 5,
@@ -538,7 +512,7 @@
         },
         {
           "exemplar": true,
-          "expr": "sum(increase(http_request_duration_seconds_count{role=\"galley\", handler=~\"(/conversations/:cnv/otr/messages|/conversations/:cnv_domain/:cnv/proteus/messages)\", status_code=~\"4..\", namespace=\"$namespace\"}[10m]))",
+          "expr": "sum(increase(http_request_duration_seconds_count{service=\"galley\", handler=\"/conversations/:cnv/otr/messages\", status_code=~\"400\"}[10m]))",
           "format": "time_series",
           "hide": false,
           "interval": "",
@@ -548,7 +522,7 @@
         },
         {
           "exemplar": true,
-          "expr": "sum(increase(http_request_duration_seconds_count{role=\"galley\", handler=~\"(/conversations/:cnv/otr/messages|/conversations/:cnv_domain/:cnv/proteus/messages)\", status_code=~\"5..\", namespace=\"$namespace\"}[10m]))",
+          "expr": "sum(increase(http_request_duration_seconds_count{service=\"galley\", handler=\"/conversations/:cnv/otr/messages\", status_code=~\"5..\"}[10m]))",
           "format": "time_series",
           "interval": "",
           "intervalFactor": 5,
@@ -600,10 +574,6 @@
     {
       "collapsed": false,
       "datasource": null,
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -711,10 +681,6 @@
     {
       "collapsed": false,
       "datasource": null,
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -769,25 +735,37 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(rate(http_request_duration_seconds_count{handler=\"/assets/v3\", status_code=\"201\", namespace=\"$namespace\"}[5m]))",
+          "exemplar": true,
+          "expr": "sum(increase(http_request_duration_seconds_count{service=\"cargohold\", handler=\"/assets/v3\", status_code=~\"2..\"}[10m]))",
           "format": "time_series",
+          "interval": "",
           "intervalFactor": 1,
-          "legendFormat": "uploaded/sec",
+          "legendFormat": "2XX",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(http_request_duration_seconds_count{handler=\"/assets/v3/:key\", status_code=\"302\", namespace=\"$namespace\"}[5m]))\n",
+          "exemplar": true,
+          "expr": "sum(increase(http_request_duration_seconds_count{service=\"cargohold\", handler=\"/assets/v3\", status_code=~\"4..\"}[10m]))",
           "format": "time_series",
+          "interval": "",
           "intervalFactor": 1,
-          "legendFormat": "downloaded/sec",
+          "legendFormat": "4XX",
           "refId": "B"
+        },
+        {
+          "exemplar": true,
+          "expr": "sum(increase(http_request_duration_seconds_count{service=\"cargohold\", handler=\"/assets/v3\", status_code=~\"5..\"}[10m]))",
+          "hide": false,
+          "interval": "",
+          "legendFormat": "5XX",
+          "refId": "C"
         }
       ],
       "thresholds": [],
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Assets",
+      "title": "Asset uploads as % by Status Code (cargohold)",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -827,10 +805,6 @@
     {
       "collapsed": false,
       "datasource": null,
-      "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -1069,8 +1043,10 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(increase(http_request_duration_seconds_count{role=\"gundeck\", handler=\"/i/push/v2\", namespace=\"$namespace\"}[5m])) by (status_code)",
+          "exemplar": true,
+          "expr": "sum(increase(http_request_duration_seconds_count{service=\"gundeck\", handler=\"/i/push/v2\"}[5m])) by (status_code)",
           "format": "time_series",
+          "interval": "",
           "intervalFactor": 1,
           "legendFormat": "{{ status_code }}",
           "refId": "A"
@@ -1161,8 +1137,10 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(http_request_duration_seconds_count{handler=\"/i/push/v2\", namespace=\"$namespace\"}) by (status_code)",
+          "exemplar": true,
+          "expr": "sum(http_request_duration_seconds_count{service=\"gundeck\", handler=\"/i/push/v2\", namespace=\"$namespace\"}) by (status_code)",
           "format": "time_series",
+          "interval": "",
           "intervalFactor": 1,
           "legendFormat": "{{ status_code }}",
           "refId": "A"
@@ -1219,8 +1197,8 @@
         "allValue": null,
         "current": {
           "selected": true,
-          "text": "wire-a",
-          "value": "wire-a"
+          "text": "default",
+          "value": "default"
         },
         "datasource": "Prometheus",
         "definition": "kube_namespace_labels",
