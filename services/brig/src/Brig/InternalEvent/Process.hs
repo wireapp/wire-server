@@ -25,6 +25,7 @@ import Bilge.RPC (HasRequestId)
 import qualified Brig.API.User as API
 import Brig.App
 import qualified Brig.Data.Client as Data
+import Brig.IO.Intra (rmClient)
 import qualified Brig.IO.Intra as Intra
 import Brig.InternalEvent.Types
 import Brig.Options (defDeleteThrottleMillis, setDeleteThrottleMillis)
@@ -62,8 +63,9 @@ onEvent n = handleTimeout $ case n of
     maybe
       (pure ())
       ( \c -> do
-          Intra.onClientEvent uid mcon (ClientRemoved uid c)
+          rmClient uid cid
           Data.rmClient uid cid
+          Intra.onClientEvent uid mcon (ClientRemoved uid c)
       )
       mc
   DeleteUser uid -> do

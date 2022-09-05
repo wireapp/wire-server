@@ -379,7 +379,6 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 -- | Perform an orderly deletion of an existing client.
 execDelete :: UserId -> Maybe ConnId -> Client -> (AppT r) ()
 execDelete u con c = do
-  wrapHttp $ Intra.rmClient u (clientId c)
   for_ (clientCookie c) $ \l -> wrapClient $ Auth.revokeCookies u [] [l]
   queue <- view internalEvents
   Queue.enqueue queue (Internal.DeleteClient (clientId c) u con)
