@@ -90,7 +90,6 @@ import qualified Wire.API.Provider.Bot as Ext
 import qualified Wire.API.Provider.External as Ext
 import Wire.API.Provider.Service
 import Wire.API.Provider.Service.Tag
-import Wire.API.Routes.Version
 import Wire.API.Team.Feature (featureNameBS)
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.Team.Permission
@@ -1322,27 +1321,14 @@ createConvWithAccessRoles ::
 createConvWithAccessRoles ars g u us =
   post $
     g
-      . paths [v2, "conversations"]
+      . path "/conversations"
       . header "Z-User" (toByteString' u)
       . header "Z-Type" "access"
       . header "Z-Connection" "conn"
       . contentJson
       . body (RequestBodyLBS (encode conv))
   where
-    v2 = toByteString' (toLower <$> show V2)
-    conv :: NewConv (From 'V2) =
-      NewConv
-        us
-        []
-        Nothing
-        Set.empty
-        ars
-        Nothing
-        Nothing
-        Nothing
-        roleNameWireAdmin
-        ProtocolProteusTag
-        Nothing
+    conv = NewConv us [] Nothing Set.empty ars Nothing Nothing Nothing roleNameWireAdmin ProtocolProteusTag Nothing
 
 postMessage ::
   Galley ->

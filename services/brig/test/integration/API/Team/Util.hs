@@ -42,7 +42,6 @@ import Wire.API.Connection
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
-import Wire.API.Routes.Version
 import Wire.API.Team hiding (newTeam)
 import Wire.API.Team.Feature (FeatureStatus (..))
 import qualified Wire.API.Team.Feature as Public
@@ -214,24 +213,12 @@ updatePermissions from tid (to, perm) galley =
 createTeamConv :: HasCallStack => Galley -> TeamId -> UserId -> [UserId] -> Maybe Milliseconds -> Http ConvId
 createTeamConv g tid u us mtimer = do
   let tinfo = Just $ ConvTeamInfo tid
-  let conv :: NewConv (From 'V2) =
-        NewConv
-          us
-          []
-          Nothing
-          (Set.fromList [])
-          Nothing
-          tinfo
-          mtimer
-          Nothing
-          roleNameWireAdmin
-          ProtocolProteusTag
-          Nothing
-      v2 = toByteString' (toLower <$> show V2)
+  let conv =
+        NewConv us [] Nothing (Set.fromList []) Nothing tinfo mtimer Nothing roleNameWireAdmin ProtocolProteusTag Nothing
   r <-
     post
       ( g
-          . paths [v2, "conversations"]
+          . path "/conversations"
           . zUser u
           . zConn "conn"
           . contentJson
