@@ -1574,6 +1574,18 @@ wsAssertMLSMessage conv u message n = do
   ntfTransient n @?= False
   assertMLSMessageEvent conv u message e
 
+wsAssertClientRemoved ::
+  HasCallStack =>
+  ClientId ->
+  Notification ->
+  IO ()
+wsAssertClientRemoved cid n = do
+  let j = Object $ List1.head (ntfPayload n)
+  let etype = j ^? key "type" . _String
+  let eclient = j ^? key "client" . key "id" . _String
+  etype @?= Just "user.client-remove"
+  fmap ClientId eclient @?= Just cid
+
 assertMLSMessageEvent ::
   HasCallStack =>
   Qualified ConvId ->

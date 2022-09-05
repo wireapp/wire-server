@@ -851,9 +851,21 @@ testRemoveDeletedClient deleteClientBefore = withSystemTempDirectory "mls" $ \tm
 
   let (_bobClient1, bobClient2) = assertTwo (toList (pClients bob))
 
-  when deleteClientBefore $
-    deleteClient (qUnqualified (pUserId bob)) (snd bobClient2) (Just defPassword)
-      !!! statusCode === const 200
+  when deleteClientBefore $ do
+    cannon <- view tsCannon
+    WS.bracketR
+      cannon
+      (qUnqualified . pUserId $ bob)
+      $ \ws -> do
+        deleteClient (qUnqualified (pUserId bob)) (snd bobClient2) (Just defPassword)
+          !!! statusCode
+            === const
+              200
+        -- check that the corresponding event is received
+
+        liftIO $
+          WS.assertMatch_ (5 # WS.Second) ws $
+            wsAssertClientRemoved (snd bobClient2)
 
   void . liftIO $
     spawn
