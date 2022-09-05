@@ -91,6 +91,7 @@ library
     Brig.Queue.Types
     Brig.RPC
     Brig.Run
+    Brig.Sem.JwtTools
     Brig.SMTP
     Brig.Team.API
     Brig.Team.DB

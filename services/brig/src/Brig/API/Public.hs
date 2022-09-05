@@ -52,6 +52,7 @@ import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
 import qualified Brig.Provider.API as Provider
+import Brig.Sem.JwtTools (JwtTools)
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)
@@ -189,7 +190,8 @@ servantSitemap ::
        BlacklistPhonePrefixStore,
        UserPendingActivationStore p,
        PasswordResetStore,
-       CodeStore
+       CodeStore,
+       JwtTools
      ]
     r =>
   ServerT BrigAPI (Handler r)
@@ -522,6 +524,7 @@ newNonce uid cid = do
   pure (nonce, NoStore)
 
 createAccessToken ::
+  Member JwtTools r =>
   Local UserId ->
   ClientId ->
   Maybe Proof ->
