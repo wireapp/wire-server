@@ -60,14 +60,10 @@ onEvent ::
 onEvent n = handleTimeout $ case n of
   DeleteClient cid uid mcon -> do
     mc <- Data.lookupClient uid cid
-    maybe
-      (pure ())
-      ( \c -> do
-          rmClient uid cid
-          Data.rmClient uid cid
-          Intra.onClientEvent uid mcon (ClientRemoved uid c)
-      )
-      mc
+    for_ mc $ \c -> do
+      rmClient uid cid
+      Data.rmClient uid cid
+      Intra.onClientEvent uid mcon (ClientRemoved uid c)
   DeleteUser uid -> do
     Log.info $
       msg (val "Processing user delete event")
