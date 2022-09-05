@@ -36,7 +36,7 @@ import qualified Control.Concurrent.Async as Async
 import Control.Concurrent.Chan
 import Control.Concurrent.Timeout hiding (threadDelay)
 import Control.Exception (asyncExceptionFromException)
-import Control.Lens
+import Control.Lens hiding ((#))
 import Control.Monad.Catch
 import Control.Retry (RetryPolicy, RetryStatus, exponentialBackoff, limitRetries, retrying)
 import qualified Data.Aeson as Aeson
@@ -59,6 +59,7 @@ import qualified Data.Set as Set
 import Data.String.Conversions (LBS, cs)
 import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Time.Clock as Time
+import Data.Timeout
 import Galley.Cassandra.Client
 import Galley.Cassandra.LegalHold
 import qualified Galley.Cassandra.LegalHold as LegalHoldData
@@ -150,9 +151,16 @@ testsPublic s =
             [ test s "happy flow" testInWhitelist,
               test s "handshake between LH device and user with old clients is blocked" testOldClientsBlockDeviceHandshake,
               testGroup "no-consent" $
-                flip fmap [(a, b, c, d) | a <- [minBound ..], b <- [minBound ..], c <- [minBound ..], d <- [minBound ..]] $
-                  \args@(a, b, c, d) ->
-                    test s (show args) $ testNoConsentBlockOne2OneConv a b c d,
+                ( ( (,,,)
+                      <$> (("connectFirst" :: String,) <$> [False, True])
+                      <*> (("teamPeer" :: String,) <$> [False, True])
+                      <*> (("approveLH" :: String,) <$> [False, True])
+                      <*> (("testPendingConnection" :: String,) <$> [False, True])
+                  )
+                    <&> \(connectFirst, teamPeer, approveLH, testPendingConnection) -> do
+                      let name = intercalate ", " $ map (\(n, b) -> n <> "=" <> show b) [connectFirst, teamPeer, approveLH, testPendingConnection]
+                      test s name $ testNoConsentBlockOne2OneConv (snd connectFirst) (snd teamPeer) (snd approveLH) (snd testPendingConnection)
+                ),
               testGroup
                 "Legalhold is activated for user A in a group conversation"
                 [ test s "All admins are consenting: all non-consenters get removed from conversation" (onlyIfLhWhitelisted (testNoConsentRemoveFromGroupConv LegalholderIsAdmin)),
@@ -908,6 +916,12 @@ testNoConsentBlockOne2OneConv connectFirst teamPeer approveLH testPendingConnect
 
         do
           doDisableLH
+
+          when approveLH $ do
+            legalholderLHDevice <- assertJust mbLegalholderLHDevice
+            WS.assertMatch_ (5 # Second) legalholderWs $
+              wsAssertClientRemoved legalholderLHDevice
+
           assertConnections
             legalholder
             [ ConnectionStatus legalholder peer $
