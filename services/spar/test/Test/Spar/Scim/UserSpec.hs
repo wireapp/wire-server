@@ -4,6 +4,7 @@ import Arbitrary ()
 import Brig.Types.Intra
 import Brig.Types.User
 import Control.Monad.Except (runExceptT)
+import Data.Handle (parseHandle)
 import Data.Id
 import qualified Data.Json.Util
 import Imports
@@ -31,21 +32,21 @@ import Wire.Sem.Logger.TinyLog (discardTinyLogs)
 spec :: Spec
 spec = describe "deleteScimUser" $ do
   it "returns no error when the account was deleted for the first time (or partially)" $ do
-    uid <- generate arbitrary
     tokenInfo <- generate arbitrary
+    acc <- someActiveUser tokenInfo
     r <-
       interpretWithBrigAccessMock
-        (mockBrigForActiveUser tokenInfo AccountDeleted)
-        (deleteUserAndAssertDeletionInSpar uid tokenInfo)
+        (mockBrigForActiveUser acc AccountDeleted)
+        (deleteUserAndAssertDeletionInSpar acc tokenInfo)
     handlerResult r `shouldBe` Right ()
   it "returns an error when the account was deleted before" $ do
-    uid <- generate arbitrary
     tokenInfo <- generate arbitrary
+    acc <- someActiveUser tokenInfo
     r <-
       interpretWithBrigAccessMock
-        (mockBrigForActiveUser tokenInfo AccountAlreadyDeleted)
-        (deleteUserAndAssertDeletionInSpar uid tokenInfo)
-    handlerResult r `shouldBe` Left (notFound "user" (idToText uid))
+        (mockBrigForActiveUser acc AccountAlreadyDeleted)
+        (deleteUserAndAssertDeletionInSpar acc tokenInfo)
+    handlerResult r `shouldBe` Left (notFound "user" ((idToText . userId . accountUser) acc))
   it "returns an error when there never was an account" $ do
     uid <- generate arbitrary
     tokenInfo <- generate arbitrary
@@ -67,12 +68,13 @@ deleteUserAndAssertDeletionInSpar ::
        Embed IO
      ]
     r =>
-  UserId ->
+  UserAccount ->
   ScimTokenInfo ->
   Sem r (Either ScimError ())
-deleteUserAndAssertDeletionInSpar uid tokenInfo = do
+deleteUserAndAssertDeletionInSpar acc tokenInfo = do
   let tid = stiTeam tokenInfo
-      email = (fromJust . parseEmail) "someone@wire.com"
+      email = (fromJust . emailIdentity . fromJust . userIdentity . accountUser) acc
+      uid = (userId . accountUser) acc
   ScimExternalIdStore.insert tid email uid
   r <- runExceptT $ deleteScimUser tokenInfo uid
   lr <- ScimExternalIdStore.lookup tid email
@@ -120,7 +122,7 @@ interpretWithBrigAccessMock mock =
     . mock
 
 mockBrigForNonExistendUser ::
-  forall (r1 :: EffectRow).
+  forall (r :: EffectRow).
   Members
     '[ Logger (Msg -> Msg),
        ScimExternalIdStore.ScimExternalIdStore,
@@ -129,9 +131,9 @@ mockBrigForNonExistendUser ::
        IdPConfigStore,
        Embed IO
      ]
-    r1 =>
-  Sem (BrigAccess ': r1) (Either ScimError ()) ->
-  Sem r1 (Either ScimError ())
+    r =>
+  Sem (BrigAccess ': r) (Either ScimError ()) ->
+  Sem r (Either ScimError ())
 mockBrigForNonExistendUser = interpret $ \case
   (GetAccount WithPendingInvitations _) -> pure Nothing
   (Spar.Sem.BrigAccess.DeleteUser _) -> pure NoUser
@@ -140,7 +142,7 @@ mockBrigForNonExistendUser = interpret $ \case
     error "Throw error here to avoid implementation of all cases."
 
 mockBrigForActiveUser ::
-  forall (r1 :: EffectRow).
+  forall (r :: EffectRow).
   Members
     '[ Logger (Msg -> Msg),
        ScimExternalIdStore.ScimExternalIdStore,
@@ -149,38 +151,35 @@ mockBrigForActiveUser ::
        IdPConfigStore,
        Embed IO
      ]
-    r1 =>
-  ScimTokenInfo ->
+    r =>
+  UserAccount ->
   DeleteUserResult ->
-  Sem (BrigAccess ': r1) (Either ScimError ()) ->
-  Sem r1 (Either ScimError ())
-mockBrigForActiveUser tokenInfo deletionResult = interpret $ \case
-  (GetAccount WithPendingInvitations uid) -> do
-    acc <- liftIO $ someActiveUser uid tokenInfo
-    pure $ Just acc
+  Sem (BrigAccess ': r) (Either ScimError ()) ->
+  Sem r (Either ScimError ())
+mockBrigForActiveUser acc deletionResult = interpret $ \case
+  (GetAccount WithPendingInvitations uid) ->
+    if uid == (userId . accountUser) acc
+      then pure $ Just acc
+      else pure Nothing
   (Spar.Sem.BrigAccess.DeleteUser _) -> pure deletionResult
   _ -> do
     liftIO $ expectationFailure $ "Unexpected effect (call to brig)"
     error "Throw error here to avoid implementation of all cases."
 
-someActiveUser :: UserId -> ScimTokenInfo -> IO UserAccount
-someActiveUser uid tokenInfo = do
+someActiveUser :: ScimTokenInfo -> IO UserAccount
+someActiveUser tokenInfo = do
   user <- generate arbitrary
   pure $
     UserAccount
       { accountStatus = Active,
         accountUser =
           user
-            { userDisplayName = Name "default",
+            { userDisplayName = Name "Some User",
               userAccentId = defaultAccentId,
               userPict = noPict,
               userAssets = [],
-              userHandle = Nothing,
-              userLocale = defLoc,
+              userHandle = parseHandle "some-handle",
               userIdentity = (Just . EmailIdentity . fromJust . parseEmail) "someone@wire.com",
-              userId = uid,
               userTeam = Just $ stiTeam tokenInfo
             }
       }
-  where
-    defLoc = fromJust $ parseLocale "De-de"
