@@ -15,7 +15,7 @@ import Spar.Sem.IdPConfigStore
 import Spar.Sem.IdPConfigStore.Mem (TypedState, idPToMem)
 import Spar.Sem.SAMLUserStore
 import Spar.Sem.SAMLUserStore.Mem (UserRefOrd, samlUserStoreToMem)
-import Spar.Sem.ScimExternalIdStore
+import qualified Spar.Sem.ScimExternalIdStore as ScimExternalIdStore
 import Spar.Sem.ScimExternalIdStore.Mem (scimExternalIdStoreToMem)
 import Spar.Sem.ScimUserTimesStore
 import Spar.Sem.ScimUserTimesStore.Mem (scimUserTimesStoreToMem)
@@ -34,25 +34,55 @@ spec = describe "deleteScimUser" $ do
   it "runs deletion for deleted brig users again" $ do
     uid <- generate arbitrary
     tokenInfo <- generate arbitrary
-    r <- (simulateDeletedBrigUser . toSem) $ deleteScimUser tokenInfo uid
+    r <- (interpretWithBrigAccessMock mockBrigForDeletedUser . toSem) $ deleteScimUser tokenInfo uid
     handlerResult r `shouldBe` Left (notFound "user" (idToText uid))
   it "returns no error when the account was deleted for the first time" $ do
     uid <- generate arbitrary
     tokenInfo <- generate arbitrary
-    r <- simulateActiveBrigUser tokenInfo AccountDeleted . toSem $ deleteScimUser tokenInfo uid
+    r <-
+      interpretWithBrigAccessMock
+        (mockBrigForActiveUser tokenInfo AccountDeleted)
+        (deleteUserAndAssertDeletionInSpar uid tokenInfo)
     handlerResult r `shouldBe` Right ()
   it "returns an error when the account was partitially(!) deleted before" $ do
     uid <- generate arbitrary
     tokenInfo <- generate arbitrary
-    r <- simulateActiveBrigUser tokenInfo AccountAlreadyDeleted . toSem $ deleteScimUser tokenInfo uid
+    r <-
+      interpretWithBrigAccessMock
+        (mockBrigForActiveUser tokenInfo AccountAlreadyDeleted)
+        (deleteUserAndAssertDeletionInSpar uid tokenInfo)
     handlerResult r `shouldBe` Left (notFound "user" (idToText uid))
+
+deleteUserAndAssertDeletionInSpar ::
+  forall (r :: EffectRow).
+  Members
+    '[ Logger (Msg -> Msg),
+       BrigAccess,
+       ScimExternalIdStore.ScimExternalIdStore,
+       ScimUserTimesStore,
+       SAMLUserStore,
+       IdPConfigStore,
+       Embed IO
+     ]
+    r =>
+  UserId ->
+  ScimTokenInfo ->
+  Sem r (Either ScimError ())
+deleteUserAndAssertDeletionInSpar uid tokenInfo = do
+  let tid = stiTeam tokenInfo
+      email = (fromJust . parseEmail) "someone@wire.com"
+  ScimExternalIdStore.insert tid email uid
+  r <- toSem $ deleteScimUser tokenInfo uid
+  lr <- ScimExternalIdStore.lookup tid email
+  liftIO $ lr `shouldBe` Nothing
+  pure r
 
 toSem ::
   forall (r :: EffectRow).
   Members
     '[ Logger (Msg -> Msg),
        BrigAccess,
-       ScimExternalIdStore,
+       ScimExternalIdStore.ScimExternalIdStore,
        ScimUserTimesStore,
        SAMLUserStore,
        IdPConfigStore
@@ -62,16 +92,17 @@ toSem ::
   Sem r (Either ScimError ())
 toSem = runExceptT
 
-type Effs =
-  '[ BrigAccess,
-     IdPConfigStore,
+type EffsWithoutBrigAccess =
+  '[ IdPConfigStore,
      SAMLUserStore,
      ScimUserTimesStore,
-     ScimExternalIdStore,
+     ScimExternalIdStore.ScimExternalIdStore,
      Logger (Msg -> Msg),
      Embed IO,
      Final IO
    ]
+
+type Effs = BrigAccess ': EffsWithoutBrigAccess
 
 type InterpreterState =
   ( Map (Data.Id.TeamId, Wire.API.User.Identity.Email) Data.Id.UserId,
@@ -85,10 +116,13 @@ type InterpreterState =
 handlerResult :: InterpreterState -> Either ScimError ()
 handlerResult = snd . snd . snd . snd
 
-simulateDeletedBrigUser ::
+interpretWithBrigAccessMock ::
+  ( Sem Effs (Either ScimError ()) ->
+    Sem EffsWithoutBrigAccess (Either ScimError ())
+  ) ->
   Sem Effs (Either ScimError ()) ->
   IO InterpreterState
-simulateDeletedBrigUser =
+interpretWithBrigAccessMock mock =
   runFinal
     . embedToFinal @IO
     . discardTinyLogs
@@ -96,13 +130,13 @@ simulateDeletedBrigUser =
     . scimUserTimesStoreToMem
     . samlUserStoreToMem
     . idPToMem
-    . mockBrigForDeletedUser
+    . mock
 
 mockBrigForDeletedUser ::
   forall (r1 :: EffectRow).
   Members
     '[ Logger (Msg -> Msg),
-       ScimExternalIdStore,
+       ScimExternalIdStore.ScimExternalIdStore,
        ScimUserTimesStore,
        SAMLUserStore,
        IdPConfigStore,
@@ -118,26 +152,11 @@ mockBrigForDeletedUser = interpret $ \case
     liftIO $ expectationFailure $ "Unexpected effect (call to brig)"
     error "Make typechecker happy. This won't be reached."
 
-simulateActiveBrigUser ::
-  ScimTokenInfo ->
-  DeleteUserResult ->
-  Sem Effs (Either ScimError ()) ->
-  IO InterpreterState
-simulateActiveBrigUser tokenInfo deletionResult =
-  runFinal
-    . embedToFinal @IO
-    . discardTinyLogs
-    . scimExternalIdStoreToMem
-    . scimUserTimesStoreToMem
-    . samlUserStoreToMem
-    . idPToMem
-    . mockBrigForActiveUser tokenInfo deletionResult
-
 mockBrigForActiveUser ::
   forall (r1 :: EffectRow).
   Members
     '[ Logger (Msg -> Msg),
-       ScimExternalIdStore,
+       ScimExternalIdStore.ScimExternalIdStore,
        ScimUserTimesStore,
        SAMLUserStore,
        IdPConfigStore,
@@ -150,29 +169,31 @@ mockBrigForActiveUser ::
   Sem r1 (Either ScimError ())
 mockBrigForActiveUser tokenInfo deletionResult = interpret $ \case
   (GetAccount WithPendingInvitations uid) -> do
-    acc <- liftIO $ someActiveUser uid
+    acc <- liftIO $ someActiveUser uid tokenInfo
     pure $ Just acc
   (Spar.Sem.BrigAccess.DeleteUser _) -> pure deletionResult
   _ -> do
     liftIO $ expectationFailure $ "Unexpected effect (call to brig)"
     error "Make typechecker happy. This won't be reached."
+
+someActiveUser :: UserId -> ScimTokenInfo -> IO UserAccount
+someActiveUser uid tokenInfo = do
+  user <- generate arbitrary
+  pure $
+    UserAccount
+      { accountStatus = Active,
+        accountUser =
+          user
+            { userDisplayName = Name "default",
+              userAccentId = defaultAccentId,
+              userPict = noPict,
+              userAssets = [],
+              userHandle = Nothing,
+              userLocale = defLoc,
+              userIdentity = (Just . EmailIdentity . fromJust . parseEmail) "someone@wire.com",
+              userId = uid,
+              userTeam = Just $ stiTeam tokenInfo
+            }
+      }
   where
-    someActiveUser uid = do
-      user <- generate arbitrary
-      pure $
-        UserAccount
-          { accountStatus = Active,
-            accountUser =
-              user
-                { userDisplayName = Name "default",
-                  userAccentId = defaultAccentId,
-                  userPict = noPict,
-                  userAssets = [],
-                  userHandle = Nothing,
-                  userLocale = defLoc,
-                  userIdentity = Nothing,
-                  userId = uid,
-                  userTeam = Just $ stiTeam tokenInfo
-                }
-          }
     defLoc = fromJust $ parseLocale "De-de"
