@@ -1,7 +1,6 @@
 module Test.Spar.Scim.UserSpec where
 
 import Arbitrary ()
-import Brig.Types.Intra (AccountStatus (Deleted), UserAccount (..))
 import Brig.Types.User
 import Control.Monad.Except (runExceptT)
 import Data.Id
@@ -97,30 +96,8 @@ mockBrigForDeletedUser ::
   Sem (BrigAccess ': r1) (Either ScimError ()) ->
   Sem r1 (Either ScimError ())
 mockBrigForDeletedUser = interpret $ \case
-  (GetAccount WithPendingInvitations uid) -> do
-    userAcc <- liftIO $ someUserAccountTombstone uid
-    pure $ Just userAcc
+  (GetAccount WithPendingInvitations _) -> pure Nothing
   (Spar.Sem.BrigAccess.DeleteUser _) -> pure AccountDeleted
   _ -> do
     liftIO $ expectationFailure $ "Unexpected effect (call to brig)"
     error "Make typechecker happy. This won't be reached."
-  where
-    someUserAccountTombstone :: UserId -> IO UserAccount
-    someUserAccountTombstone uid = do
-      user <- generate arbitrary
-      pure $
-        UserAccount
-          { accountStatus = Deleted,
-            accountUser =
-              user
-                { userDisplayName = Name "default",
-                  userAccentId = defaultAccentId,
-                  userPict = noPict,
-                  userAssets = [],
-                  userHandle = Nothing,
-                  userLocale = defLoc,
-                  userIdentity = Nothing,
-                  userId = uid
-                }
-          }
-    defLoc = fromJust $ parseLocale "De-de"
