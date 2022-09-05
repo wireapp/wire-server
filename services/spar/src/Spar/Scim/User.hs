@@ -707,8 +707,9 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
       mbBrigUser <- lift $ Brig.getBrigUser WithPendingInvitations uid
       case mbBrigUser of
         Nothing -> do
-          -- Ensure there's no left-over of this user in brig.
-          _ <- lift $ BrigAccess.deleteUser uid
+          -- Impossible to check that the user belongs to the token's team
+          -- (otherwise, a malicious user could delete all users...). Thus,
+          -- nothing can be done here, except returning an error.
           throwError $ Scim.notFound "user" (idToText uid)
         Just brigUser -> do
           -- FUTUREWORK: currently it's impossible to delete the last available team owner via SCIM
