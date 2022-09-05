@@ -123,15 +123,7 @@ interpretWithBrigAccessMock mock =
 
 mockBrigForNonExistendUser ::
   forall (r :: EffectRow).
-  Members
-    '[ Logger (Msg -> Msg),
-       ScimExternalIdStore.ScimExternalIdStore,
-       ScimUserTimesStore,
-       SAMLUserStore,
-       IdPConfigStore,
-       Embed IO
-     ]
-    r =>
+  Members '[Embed IO] r =>
   Sem (BrigAccess ': r) (Either ScimError ()) ->
   Sem r (Either ScimError ())
 mockBrigForNonExistendUser = interpret $ \case
@@ -143,15 +135,7 @@ mockBrigForNonExistendUser = interpret $ \case
 
 mockBrigForActiveUser ::
   forall (r :: EffectRow).
-  Members
-    '[ Logger (Msg -> Msg),
-       ScimExternalIdStore.ScimExternalIdStore,
-       ScimUserTimesStore,
-       SAMLUserStore,
-       IdPConfigStore,
-       Embed IO
-     ]
-    r =>
+  Members '[Embed IO] r =>
   UserAccount ->
   DeleteUserResult ->
   Sem (BrigAccess ': r) (Either ScimError ()) ->
