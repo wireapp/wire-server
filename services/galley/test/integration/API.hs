@@ -388,6 +388,9 @@ postCryptoMessageVerifyMsgSentAndRejectIfMissingClient = do
   -- Deleted eve
   WS.bracketR2 c bob eve $ \(wsB, wsE) -> do
     deleteClient eve ec (Just defPassword) !!! const 200 === statusCode
+    liftIO $
+      WS.assertMatch_ (5 # WS.Second) wsE $
+        wsAssertClientRemoved ec
     let m4 = [(bob, bc, toBase64Text "ciphertext4"), (eve, ec, toBase64Text "ciphertext4")]
     postOtrMessage id alice ac conv m4 !!! do
       const 201 === statusCode
