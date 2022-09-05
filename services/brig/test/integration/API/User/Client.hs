@@ -60,7 +60,7 @@ import Wire.API.User
 import qualified Wire.API.User as Public
 import Wire.API.User.Auth
 import Wire.API.User.Client
-import Wire.API.User.Client.DPoPAccessToken (Proof (Proof))
+import Wire.API.User.Client.DPoPAccessToken
 import Wire.API.User.Client.Prekey
 import Wire.API.UserMap (QualifiedUserMap (..), UserMap (..), WrappedQualifiedUserMap)
 import Wire.API.Wrapped (Wrapped (..))
@@ -977,11 +977,16 @@ testNewNonce brig = do
 testCreateAccessToken :: Brig -> Http ()
 testCreateAccessToken brig = do
   uid <- userId <$> randomUser brig
-  cid <- randomClient
+  let (pk, lk) = (head somePrekeys, head someLastPrekeys)
+  cid <- clientId <$> (responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [pk] lk))
   let proof = Proof $ "xxxx.yyyy.zzzz"
-  response <- Util.createAccessToken brig uid cid proof <!! const 200 === statusCode
+  response <- responseJsonError =<< Util.createAccessToken brig uid cid proof <!! const 200 === statusCode
+  let expectedToken = DPoPAccessToken "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+  liftIO $ do
+    expectedToken @=? datrToken response
+    DPoP @=? datrType response
+    360 @=? datrExpiresIn response
   print response
-  pure ()
 
 testCan'tDeleteLegalHoldClient :: Brig -> Http ()
 testCan'tDeleteLegalHoldClient brig = do

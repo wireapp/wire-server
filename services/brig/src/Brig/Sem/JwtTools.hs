@@ -13,15 +13,22 @@ import Wire.API.User.Client.DPoPAccessToken (DPoPAccessToken (..), DPoPTokenGene
 
 data JwtTools m a where
   GenerateDPoPAccessToken ::
+    -- | A DPoP proof in JWS Compact Serialization format
+    -- Note that the proof consists of three runs of base64url characters
+    -- (header, claims, signature) separated by period characters.
     Proof ->
+    -- | The qualified client ID associated with the currently logged on user
     ClientIdentity ->
+    -- | The most recent DPoP nonce provided by the backend to the current client
     Nonce ->
+    -- |  The HTTPS URI on the backend for the DPoP auth token endpoint
     HttpsUrl ->
+    -- | The HTTPS method used on the backend for the DPoP auth token endpoint
     StdMethod ->
     -- | The maximum number of seconds of clock skew the implementation will allow
     Word16 ->
     -- | The expiration date and time, in seconds since "the epoch"
-    Word64 ->
+    Epoch ->
     -- | Current time in seconds since "the epoch"
     Epoch ->
     -- | PEM format concatenated private key and public key of the Wire backend
