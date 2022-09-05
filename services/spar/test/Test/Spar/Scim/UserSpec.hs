@@ -30,12 +30,7 @@ import Wire.Sem.Logger.TinyLog (discardTinyLogs)
 
 spec :: Spec
 spec = describe "deleteScimUser" $ do
-  it "runs deletion for deleted brig users again" $ do
-    uid <- generate arbitrary
-    tokenInfo <- generate arbitrary
-    r <- (interpretWithBrigAccessMock mockBrigForDeletedUser . runExceptT) $ deleteScimUser tokenInfo uid
-    handlerResult r `shouldBe` Left (notFound "user" (idToText uid))
-  it "returns no error when the account was deleted for the first time or partially" $ do
+  it "returns no error when the account was deleted for the first time (or partially)" $ do
     uid <- generate arbitrary
     tokenInfo <- generate arbitrary
     r <-
@@ -50,6 +45,14 @@ spec = describe "deleteScimUser" $ do
       interpretWithBrigAccessMock
         (mockBrigForActiveUser tokenInfo AccountAlreadyDeleted)
         (deleteUserAndAssertDeletionInSpar uid tokenInfo)
+    handlerResult r `shouldBe` Left (notFound "user" (idToText uid))
+  it "returns an error when there never was an account" $ do
+    uid <- generate arbitrary
+    tokenInfo <- generate arbitrary
+    r <-
+      interpretWithBrigAccessMock
+        mockBrigForNonExistendUser
+        (runExceptT $ deleteScimUser tokenInfo uid)
     handlerResult r `shouldBe` Left (notFound "user" (idToText uid))
 
 deleteUserAndAssertDeletionInSpar ::
@@ -116,7 +119,7 @@ interpretWithBrigAccessMock mock =
     . idPToMem
     . mock
 
-mockBrigForDeletedUser ::
+mockBrigForNonExistendUser ::
   forall (r1 :: EffectRow).
   Members
     '[ Logger (Msg -> Msg),
@@ -129,7 +132,7 @@ mockBrigForDeletedUser ::
     r1 =>
   Sem (BrigAccess ': r1) (Either ScimError ()) ->
   Sem r1 (Either ScimError ())
-mockBrigForDeletedUser = interpret $ \case
+mockBrigForNonExistendUser = interpret $ \case
   (GetAccount WithPendingInvitations _) -> pure Nothing
   (Spar.Sem.BrigAccess.DeleteUser _) -> pure NoUser
   _ -> do
