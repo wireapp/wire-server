@@ -52,7 +52,7 @@ generateDpopToken dpopProof cid nonce uri method maxSkewSecs maxExpiration now b
   uidCStr <- liftIO $ toCStr $ ciUser cid
   cidCUShort <- case readHex @Word16 (cs $ client $ ciClient cid) of
     [(a, "")] -> pure (CUShort a)
-    _ -> throwE DPoPTokenGenerationError
+    _ -> throwE InvalidClientId
   domainCStr <- liftIO $ toCStr $ ciDomain cid
   nonceCStr <- liftIO $ toCStr nonce
   uriCStr <- liftIO $ toCStr uri
@@ -78,15 +78,11 @@ generateDpopToken dpopProof cid nonce uri method maxSkewSecs maxExpiration now b
   where
     mapError :: Word8 -> Maybe DPoPTokenGenerationError
     mapError 0 = Nothing
-    mapError 1 = Just DPoPTokenGenerationError
-    mapError 2 = Just DPoPTokenGenerationError
-    mapError 3 = Just DPoPTokenGenerationError
-    mapError 4 = Just DPoPTokenGenerationError
-    mapError 5 = Just DPoPTokenGenerationError
-    mapError 6 = Just DPoPTokenGenerationError
-    mapError 7 = Just DPoPTokenGenerationError
-    mapError 8 = Just DPoPTokenGenerationError
-    mapError _ = Just DPoPTokenGenerationError
+    mapError 1 = Just InvalidDPoPProofSyntax
+    mapError 2 = Just InvalidHeaderTyp
+    mapError 3 = Just AlgNotSupported
+    mapError 4 = Just BadSignature
+    mapError _ = error "todo(leif): map other errors"
 
     toCStr :: forall a. (ToByteString a) => a -> IO CString
     toCStr = newCString . cs . toByteString'
