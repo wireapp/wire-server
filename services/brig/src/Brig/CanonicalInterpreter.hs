@@ -11,6 +11,7 @@ import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
+import Brig.Sem.JwtTools
 import qualified Cassandra as Cas
 import Control.Lens ((^.))
 import Imports
@@ -20,7 +21,8 @@ import Wire.Sem.Now.IO (nowToIOAction)
 import Wire.Sem.Paging.Cassandra (InternalPaging)
 
 type BrigCanonicalEffects =
-  '[ BlacklistPhonePrefixStore,
+  '[ JwtTools,
+     BlacklistPhonePrefixStore,
      BlacklistStore,
      PasswordResetStore,
      UserPendingActivationStore InternalPaging,
@@ -42,4 +44,5 @@ runBrigToIO e (AppT ma) =
     . passwordResetStoreToCodeStore
     . interpretBlacklistStoreToCassandra @Cas.Client
     . interpretBlacklistPhonePrefixStoreToCassandra @Cas.Client
+    . interpretJwtToolsStub
     $ runReaderT ma e
