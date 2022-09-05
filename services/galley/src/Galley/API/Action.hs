@@ -291,7 +291,25 @@ performAction tag origUser lconv action = do
     SConversationLeaveTag -> do
       let victims = [origUser]
       E.deleteMembers (tUnqualified lcnv) (toUserList lconv victims)
-      traverse_ (removeUser lconv) victims
+      -- update in-memory view of the conversation
+      let lconv' =
+            lconv <&> \c ->
+              foldQualified
+                lconv
+                ( \lu ->
+                    c
+                      { convLocalMembers =
+                          filter (\lm -> lmId lm /= tUnqualified lu) (convLocalMembers c)
+                      }
+                )
+                ( \ru ->
+                    c
+                      { convRemoteMembers =
+                          filter (\rm -> rmId rm /= ru) (convRemoteMembers c)
+                      }
+                )
+                origUser
+      traverse_ (removeUser lconv') victims
       pure (mempty, action)
     SConversationRemoveMembersTag -> do
       let presentVictims = filter (isConvMemberL lconv) (toList action)
