@@ -39,10 +39,13 @@ spec = describe "deleteScimUser" $ do
   it "returns no error when the account was deleted for the first time" $ do
     uid <- generate arbitrary
     tokenInfo <- generate arbitrary
-    r <- simulateActiveBrigUser tokenInfo . toSem $ deleteScimUser tokenInfo uid
+    r <- simulateActiveBrigUser tokenInfo AccountDeleted . toSem $ deleteScimUser tokenInfo uid
     handlerResult r `shouldBe` Right ()
-
---    handlerResult r `shouldBe` Left (notFound "user" (idToText uid))
+  it "returns an error when the account was partitially(!) deleted before" $ do
+    uid <- generate arbitrary
+    tokenInfo <- generate arbitrary
+    r <- simulateActiveBrigUser tokenInfo AccountAlreadyDeleted . toSem $ deleteScimUser tokenInfo uid
+    handlerResult r `shouldBe` Left (notFound "user" (idToText uid))
 
 toSem ::
   forall (r :: EffectRow).
@@ -117,9 +120,10 @@ mockBrigForDeletedUser = interpret $ \case
 
 simulateActiveBrigUser ::
   ScimTokenInfo ->
+  DeleteUserResult ->
   Sem Effs (Either ScimError ()) ->
   IO InterpreterState
-simulateActiveBrigUser tokenInfo =
+simulateActiveBrigUser tokenInfo deletionResult =
   runFinal
     . embedToFinal @IO
     . discardTinyLogs
@@ -127,7 +131,7 @@ simulateActiveBrigUser tokenInfo =
     . scimUserTimesStoreToMem
     . samlUserStoreToMem
     . idPToMem
-    . mockBrigForActiveUser tokenInfo
+    . mockBrigForActiveUser tokenInfo deletionResult
 
 mockBrigForActiveUser ::
   forall (r1 :: EffectRow).
@@ -141,13 +145,14 @@ mockBrigForActiveUser ::
      ]
     r1 =>
   ScimTokenInfo ->
+  DeleteUserResult ->
   Sem (BrigAccess ': r1) (Either ScimError ()) ->
   Sem r1 (Either ScimError ())
-mockBrigForActiveUser tokenInfo = interpret $ \case
+mockBrigForActiveUser tokenInfo deletionResult = interpret $ \case
   (GetAccount WithPendingInvitations uid) -> do
     acc <- liftIO $ someActiveUser uid
     pure $ Just acc
-  (Spar.Sem.BrigAccess.DeleteUser _) -> pure AccountDeleted
+  (Spar.Sem.BrigAccess.DeleteUser _) -> pure deletionResult
   _ -> do
     liftIO $ expectationFailure $ "Unexpected effect (call to brig)"
     error "Make typechecker happy. This won't be reached."
