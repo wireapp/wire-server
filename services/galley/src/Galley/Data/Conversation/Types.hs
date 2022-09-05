@@ -18,14 +18,12 @@
 module Galley.Data.Conversation.Types where
 
 import Data.Id
-import Data.Qualified
 import Galley.Types.Conversations.Members
 import Galley.Types.UserList
 import Imports
 import Wire.API.Conversation hiding (Conversation)
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
-import Wire.API.MLS.KeyPackage
 
 -- | Internal conversation type, corresponding directly to database schema.
 -- Should never be sent to users (and therefore doesn't have 'FromJSON' or
@@ -45,14 +43,3 @@ data NewConversation = NewConversation
     ncUsers :: UserList (UserId, RoleName),
     ncProtocol :: ProtocolTag
   }
-
-getConvMemberMLSClients ::
-  Local Conversation ->
-  Qualified UserId ->
-  Maybe (Set (ClientId, KeyPackageRef))
-getConvMemberMLSClients lconv qusr =
-  foldQualified
-    lconv
-    (\lusr -> lmMLSClients <$> find ((==) (tUnqualified lusr) . lmId) (convLocalMembers . tUnqualified $ lconv))
-    (\rusr -> rmMLSClients <$> find ((==) rusr . rmId) (convRemoteMembers . tUnqualified $ lconv))
-    qusr

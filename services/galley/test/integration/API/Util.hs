@@ -54,7 +54,7 @@ import qualified Data.Map.Strict as Map
 import Data.Misc
 import qualified Data.ProtoLens as Protolens
 import Data.ProtocolBuffers (encodeMessage)
-import Data.Qualified
+import Data.Qualified hiding (isLocal)
 import Data.Range
 import Data.Serialize (runPut)
 import qualified Data.Set as Set

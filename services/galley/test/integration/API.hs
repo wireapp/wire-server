@@ -2412,7 +2412,7 @@ testGetQualifiedRemoteConv = do
       remoteConvId = Qualified convId remoteDomain
       bobAsOtherMember = OtherMember bobQ Nothing roleNameWireAdmin
       aliceAsLocal =
-        LocalMember aliceId defMemberStatus Nothing roleNameWireAdmin Set.empty
+        LocalMember aliceId defMemberStatus Nothing roleNameWireAdmin
       aliceAsOtherMember = localMemberToOther (qDomain aliceQ) aliceAsLocal
       aliceAsSelfMember = localMemberToSelf loc aliceAsLocal
 
@@ -3375,7 +3375,6 @@ putRemoteConvMemberOk update = do
           defMemberStatus
           Nothing
           roleNameWireAdmin
-          Set.empty
   let mockConversation =
         mkProteusConv
           (qUnqualified qconv)

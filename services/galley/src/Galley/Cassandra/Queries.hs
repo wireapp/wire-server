@@ -272,14 +272,14 @@ lookupGroupId = "SELECT conv_id, domain from group_id_conv_id where group_id = ?
 
 type MemberStatus = Int32
 
-selectMember :: PrepQuery R (ConvId, UserId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName, Maybe (C.Set (ClientId, KeyPackageRef)))
-selectMember = "select user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role, mls_clients_keypackages from member where conv = ? and user = ?"
+selectMember :: PrepQuery R (ConvId, UserId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
+selectMember = "select user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv = ? and user = ?"
 
-selectMembers :: PrepQuery R (Identity ConvId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName, Maybe (C.Set (ClientId, KeyPackageRef)))
-selectMembers = "select user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role, mls_clients_keypackages from member where conv = ?"
+selectMembers :: PrepQuery R (Identity ConvId) (UserId, Maybe ServiceId, Maybe ProviderId, Maybe MemberStatus, Maybe MutedStatus, Maybe Text, Maybe Bool, Maybe Text, Maybe Bool, Maybe Text, Maybe RoleName)
+selectMembers = "select user, service, provider, status, otr_muted_status, otr_muted_ref, otr_archived, otr_archived_ref, hidden, hidden_ref, conversation_role from member where conv = ?"
 
-insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, RoleName, Maybe (C.Set (ClientId, KeyPackageRef))) ()
-insertMember = "insert into member (conv, user, service, provider, status, conversation_role, mls_clients_keypackages) values (?, ?, ?, ?, 0, ?, ?)"
+insertMember :: PrepQuery W (ConvId, UserId, Maybe ServiceId, Maybe ProviderId, RoleName) ()
+insertMember = "insert into member (conv, user, service, provider, status, conversation_role) values (?, ?, ?, ?, 0, ?)"
 
 removeMember :: PrepQuery W (ConvId, UserId) ()
 removeMember = "delete from member where conv = ? and user = ?"
@@ -308,11 +308,11 @@ insertRemoteMember = "insert into member_remote_user (conv, user_remote_domain, 
 removeRemoteMember :: PrepQuery W (ConvId, Domain, UserId) ()
 removeRemoteMember = "delete from member_remote_user where conv = ? and user_remote_domain = ? and user_remote_id = ?"
 
-selectRemoteMember :: PrepQuery R (ConvId, Domain, UserId) (RoleName, C.Set (ClientId, KeyPackageRef))
-selectRemoteMember = "select conversation_role, mls_clients_keypackages from member_remote_user where conv = ? and user_remote_domain = ? and user_remote_id = ?"
+selectRemoteMember :: PrepQuery R (ConvId, Domain, UserId) (Identity RoleName)
+selectRemoteMember = "select conversation_role from member_remote_user where conv = ? and user_remote_domain = ? and user_remote_id = ?"
 
-selectRemoteMembers :: PrepQuery R (Identity ConvId) (Domain, UserId, RoleName, C.Set (ClientId, KeyPackageRef))
-selectRemoteMembers = "select user_remote_domain, user_remote_id, conversation_role, mls_clients_keypackages from member_remote_user where conv = ?"
+selectRemoteMembers :: PrepQuery R (Identity ConvId) (Domain, UserId, RoleName)
+selectRemoteMembers = "select user_remote_domain, user_remote_id, conversation_role from member_remote_user where conv = ?"
 
 updateRemoteMemberConvRoleName :: PrepQuery W (RoleName, ConvId, Domain, UserId) ()
 updateRemoteMemberConvRoleName = "update member_remote_user set conversation_role = ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
@@ -368,17 +368,14 @@ rmMemberClient c =
 
 -- MLS Clients --------------------------------------------------------------
 
-addLocalMLSClients :: PrepQuery W (C.Set (ClientId, KeyPackageRef), ConvId, UserId) ()
-addLocalMLSClients = "update member set mls_clients_keypackages = mls_clients_keypackages + ? where conv = ? and user = ?"
+addMLSClient :: PrepQuery W (ConvId, Domain, UserId, ClientId, KeyPackageRef) ()
+addMLSClient = "insert into member_client (conv, user_domain, user, client, key_package_ref) values (?, ?, ?, ?, ?)"
 
-addRemoteMLSClients :: PrepQuery W (C.Set (ClientId, KeyPackageRef), ConvId, Domain, UserId) ()
-addRemoteMLSClients = "update member_remote_user set mls_clients_keypackages = mls_clients_keypackages + ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
+removeMLSClient :: PrepQuery W (ConvId, Domain, UserId, ClientId) ()
+removeMLSClient = "delete from member_client where conv = ? and user_domain = ? and user = ? and client = ?"
 
-removeLocalMLSClients :: PrepQuery W (C.Set (ClientId, KeyPackageRef), ConvId, UserId) ()
-removeLocalMLSClients = "update member set mls_clients_keypackages = mls_clients_keypackages - ? where conv = ? and user = ?"
-
-removeRemoteMLSClients :: PrepQuery W (C.Set (ClientId, KeyPackageRef), ConvId, Domain, UserId) ()
-removeRemoteMLSClients = "update member_remote_user set mls_clients_keypackages = mls_clients_keypackages - ? where conv = ? and user_remote_domain = ? and user_remote_id = ?"
+lookupMLSClients :: PrepQuery R (Identity ConvId) (Domain, UserId, ClientId, KeyPackageRef)
+lookupMLSClients = "select user_domain, user, client, key_package_ref from member_client where conv = ?"
 
 acquireCommitLock :: PrepQuery W (GroupId, Epoch, Int32) Row
 acquireCommitLock = "insert into mls_commit_locks (group_id, epoch) values (?, ?) if not exists using ttl ?"

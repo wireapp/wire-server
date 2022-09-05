@@ -27,7 +27,6 @@ where
 import Data.Domain (Domain)
 import Data.Id (UserId, idToText)
 import Data.Qualified
-import qualified Data.Set as Set
 import Galley.API.Error
 import qualified Galley.Data.Conversation as Data
 import Galley.Data.Types (convId)
@@ -95,8 +94,7 @@ remoteConversationView uid status (qUntagged -> Qualified rconv rDomain) =
             { lmId = tUnqualified uid,
               lmService = Nothing,
               lmStatus = status,
-              lmConvRoleName = rcmSelfRole mems,
-              lmMLSClients = Set.empty
+              lmConvRoleName = rcmSelfRole mems
             }
    in Conversation
         (Qualified (rcnvId rconv) rDomain)

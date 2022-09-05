@@ -36,6 +36,7 @@ library
     Galley.API.MLS.Message
     Galley.API.MLS.Propagate
     Galley.API.MLS.Removal
+    Galley.API.MLS.Types
     Galley.API.MLS.Welcome
     Galley.API.One2One
     Galley.API.Public
@@ -667,6 +668,7 @@ executable galley-schema
     V70_MLSCipherSuite
     V71_MemberClientKeypackage
     V72_DropManagedConversations
+    V73_MemberClientTable
 
   hs-source-dirs:     schema/src
   default-extensions:

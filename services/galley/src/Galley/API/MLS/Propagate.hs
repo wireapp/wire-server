@@ -25,8 +25,8 @@ import Data.Id
 import Data.Json.Util
 import qualified Data.Map as Map
 import Data.Qualified
-import qualified Data.Set as Set
 import Data.Time
+import Galley.API.MLS.Types
 import Galley.API.Push
 import qualified Galley.Data.Conversation.Types as Data
 import Galley.Data.Services
@@ -56,10 +56,11 @@ propagateMessage ::
   ) =>
   Qualified UserId ->
   Local Data.Conversation ->
+  ClientMap ->
   Maybe ConnId ->
   ByteString ->
   Sem r ()
-propagateMessage qusr lconv con raw = do
+propagateMessage qusr lconv cm con raw = do
   -- FUTUREWORK: check the epoch
   let lmems = Data.convLocalMembers . tUnqualified $ lconv
       botMap = Map.fromList $ do
@@ -71,11 +72,10 @@ propagateMessage qusr lconv con raw = do
   let lcnv = fmap Data.convId lconv
       qcnv = qUntagged lcnv
       e = Event qcnv qusr now $ EdMLSMessage raw
-      lclients = tUnqualified . clients <$> lmems
       mkPush :: UserId -> ClientId -> MessagePush 'NormalMessage
       mkPush u c = newMessagePush lcnv botMap con mm (u, c) e
   runMessagePush lconv (Just qcnv) $
-    foldMap (uncurry mkPush) (cToList =<< lclients)
+    foldMap (uncurry mkPush) (lmems >>= localMemberMLSClients lcnv)
 
   -- send to remotes
   traverse_ handleError
@@ -91,17 +91,21 @@ propagateMessage qusr lconv con raw = do
             rmmMessage = Base64ByteString raw
           }
   where
-    cToList :: (UserId, Set ClientId) -> [(UserId, ClientId)]
-    cToList (u, s) = (u,) <$> Set.toList s
-
-    clients :: LocalMember -> Local (UserId, Set ClientId)
-    clients LocalMember {..} = qualifyAs lconv (lmId, Set.map fst lmMLSClients)
+    localMemberMLSClients :: Local x -> LocalMember -> [(UserId, ClientId)]
+    localMemberMLSClients loc lm =
+      let localUserQId = qUntagged (qualifyAs loc localUserId)
+          localUserId = lmId lm
+       in map
+            (\(c, _) -> (localUserId, c))
+            (toList (Map.findWithDefault mempty localUserQId cm))
 
     remoteMemberMLSClients :: RemoteMember -> [(UserId, ClientId)]
     remoteMemberMLSClients rm =
-      map
-        (tUnqualified (rmId rm),)
-        (toList (Set.map fst (rmMLSClients rm)))
+      let remoteUserQId = qUntagged (rmId rm)
+          remoteUserId = qUnqualified remoteUserQId
+       in map
+            (\(c, _) -> (remoteUserId, c))
+            (toList (Map.findWithDefault mempty remoteUserQId cm))
 
     handleError :: Member TinyLog r => Either (Remote [a], FederationError) x -> Sem r ()
     handleError (Right _) = pure ()

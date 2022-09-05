@@ -15,9 +15,35 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V73_MemberClientTable where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 73
+migration :: Migration
+migration =
+  Migration 73 "Move mls_clients_keypackages to its own table" $ do
+    schema'
+      [r|
+        CREATE TABLE member_client (
+          conv uuid,
+          user_domain text,
+          user uuid,
+          client text,
+          key_package_ref blob,
+          PRIMARY KEY (conv, user_domain, user, client)
+        );
+      |]
+    schema'
+      [r|
+        ALTER TABLE member DROP (
+          mls_clients_keypackages
+        );
+      |]
+    schema'
+      [r|
+        ALTER TABLE member_remote_user DROP (
+          mls_clients_keypackages
+        );
+      |]

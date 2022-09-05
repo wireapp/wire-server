@@ -59,7 +59,7 @@ import Data.List1 (List1)
 import qualified Data.List1 as List1
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
-import Data.Qualified
+import Data.Qualified hiding (isLocal)
 import Data.Range
 import qualified Data.Sequence as Seq
 import Data.String.Conversions (cs)

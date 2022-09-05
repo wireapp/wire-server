@@ -26,7 +26,6 @@ where
 
 import Control.Comonad
 import Control.Lens (preview, to)
-import Data.Bifunctor
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
@@ -39,6 +38,7 @@ import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Propagate
+import Galley.API.MLS.Types
 import Galley.API.Util
 import Galley.Data.Conversation.Types hiding (Conversation)
 import qualified Galley.Data.Conversation.Types as Data
@@ -273,11 +273,15 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
     isMember' <- foldQualified loc (fmap isJust . getLocalMember (convId conv) . tUnqualified) (fmap isJust . getRemoteMember (convId conv)) qusr
     unless isMember' $ throwS @'ConvNotFound
 
+    -- construct client map
+    cm <- lookupMLSClients lcnv
+    let lconv = qualifyAs lcnv conv
+
     -- validate message
     events <- case tag of
       SMLSPlainText -> case msgPayload msg of
         CommitMessage c ->
-          processCommit qusr senderClient con (qualifyAs lcnv conv) (msgEpoch msg) (msgSender msg) c
+          processCommit qusr senderClient con lconv cm (msgEpoch msg) (msgSender msg) c
         ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
         ProposalMessage prop ->
           processProposal qusr conv msg prop $> mempty
@@ -288,7 +292,7 @@ postMLSMessageToLocalConv qusr senderClient con smsg lcnv = case rmValue smsg of
         Left _ -> throwS @'MLSUnsupportedMessage
 
     -- forward message
-    propagateMessage qusr (qualifyAs loc conv) con (rmRaw smsg)
+    propagateMessage qusr lconv cm con (rmRaw smsg)
 
     pure events
 
@@ -352,8 +356,6 @@ type HasProposalEffects r =
     Member TinyLog r
   )
 
-type ClientMap = Map (Qualified UserId) (Set (ClientId, KeyPackageRef))
-
 data ProposalAction = ProposalAction
   { paAdd :: ClientMap,
     paRemove :: ClientMap
@@ -393,11 +395,12 @@ processCommit ::
   Maybe ClientId ->
   Maybe ConnId ->
   Local Data.Conversation ->
+  ClientMap ->
   Epoch ->
   Sender 'MLSPlainText ->
   Commit ->
   Sem r [LocalConversationUpdate]
-processCommit qusr senderClient con lconv epoch sender commit = do
+processCommit qusr senderClient con lconv cm epoch sender commit = do
   self <- noteS @'ConvNotFound $ getConvMember lconv (tUnqualified lconv) qusr
 
   -- check epoch number
@@ -418,23 +421,24 @@ processCommit qusr senderClient con lconv epoch sender commit = do
         then do
           -- this is a newly created conversation, and it should contain exactly one
           -- client (the creator)
-          case (sender, first (fmap fst . toList . lmMLSClients) self) of
-            (MemberSender currentRef, Left [creatorClient]) -> do
-              -- use update path as sender reference and if not existing fall back to sender
-              senderRef <-
-                maybe
-                  (pure currentRef)
-                  ( note (mlsProtocolError "Could not compute key package ref")
-                      . kpRef'
-                      . upLeaf
-                  )
-                  $ cPath commit
-              -- register the creator client
-              updateKeyPackageMapping lconv qusr creatorClient Nothing senderRef
+          case (sender, self, cmAssocs cm) of
+            (MemberSender currentRef, Left lm, [(qu, (creatorClient, _))])
+              | qu == qUntagged (qualifyAs lconv (lmId lm)) -> do
+                -- use update path as sender reference and if not existing fall back to sender
+                senderRef <-
+                  maybe
+                    (pure currentRef)
+                    ( note (mlsProtocolError "Could not compute key package ref")
+                        . kpRef'
+                        . upLeaf
+                    )
+                    $ cPath commit
+                -- register the creator client
+                updateKeyPackageMapping lconv qusr creatorClient Nothing senderRef
             -- remote clients cannot send the first commit
-            (_, Right _) -> throwS @'MLSStaleMessage
+            (_, Right _, _) -> throwS @'MLSStaleMessage
             -- uninitialised conversations should contain exactly one client
-            (MemberSender _, _) ->
+            (MemberSender _, _, _) ->
               throw (InternalErrorWithDescription "Unexpected creator client set")
             -- the sender of the first commit must be a member
             _ -> throw (mlsProtocolError "Unexpected sender")
@@ -457,7 +461,7 @@ processCommit qusr senderClient con lconv epoch sender commit = do
 
     -- process and execute proposals
     action <- foldMap (applyProposalRef (tUnqualified lconv) groupId epoch) (cProposals commit)
-    updates <- executeProposalAction qusr con lconv action
+    updates <- executeProposalAction qusr con lconv cm action
 
     -- update key package ref if necessary
     postponedKeyPackageRefUpdate
@@ -489,8 +493,7 @@ updateKeyPackageMapping lconv qusr cid mOld new = do
           }
 
   -- remove old (client, key package) pair
-  let old = fromMaybe nullKeyPackageRef mOld
-  removeMLSClients lcnv qusr (Set.singleton (cid, old))
+  removeMLSClients lcnv qusr (Set.singleton cid)
   -- add new (client, key package) pair
   addMLSClients lcnv qusr (Set.singleton (cid, new))
 
@@ -715,12 +718,12 @@ executeProposalAction ::
   Qualified UserId ->
   Maybe ConnId ->
   Local Data.Conversation ->
+  ClientMap ->
   ProposalAction ->
   Sem r [LocalConversationUpdate]
-executeProposalAction qusr con lconv action = do
+executeProposalAction qusr con lconv cm action = do
   cs <- preview (to convProtocol . _ProtocolMLS . to cnvmlsCipherSuite) (tUnqualified lconv) & noteS @'ConvNotFound
   let ss = csSignatureScheme cs
-      cm = convClientMap lconv
       newUserClients = Map.assocs (paAdd action)
       removeUserClients = Map.assocs (paRemove action)
 
@@ -771,7 +774,7 @@ executeProposalAction qusr con lconv action = do
 
   -- remove clients in the conversation state
   for_ removeUserClients $ \(qtarget, clients) -> do
-    removeMLSClients (fmap convId lconv) qtarget clients
+    removeMLSClients (fmap convId lconv) qtarget (Set.map fst clients)
 
   pure (addEvents <> removeEvents)
   where
@@ -824,17 +827,6 @@ executeProposalAction qusr con lconv action = do
 
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError
-
-convClientMap :: Local Data.Conversation -> ClientMap
-convClientMap lconv =
-  mconcat
-    [ foldMap localMember . convLocalMembers,
-      foldMap remoteMember . convRemoteMembers
-    ]
-    (tUnqualified lconv)
-  where
-    localMember lm = Map.singleton (qUntagged (qualifyAs lconv (lmId lm))) (lmMLSClients lm)
-    remoteMember rm = Map.singleton (qUntagged (rmId rm)) (rmMLSClients rm)
 
 getMLSClients ::
   Members '[BrigAccess, FederatorAccess] r =>
