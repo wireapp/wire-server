@@ -376,7 +376,7 @@ claimLocalMultiPrekeyBundles protectee userClients = do
 
 -- Utilities
 
--- | Perform an orderly deletion of an existing client.
+-- | Enqueue an orderly deletion of an existing client.
 execDelete :: UserId -> Maybe ConnId -> Client -> (AppT r) ()
 execDelete u con c = do
   for_ (clientCookie c) $ \l -> wrapClient $ Auth.revokeCookies u [] [l]
