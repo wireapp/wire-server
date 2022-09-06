@@ -700,7 +700,7 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
     )
     (const id)
     $ do
-      -- `getBrigUser` does not include deleted users. However, these
+      -- `getBrigUser` does not include deleted users. This is fine: these
       -- ("tombstones") would not have the needed values (`userIdentity =
       -- Nothing`) to delete a user in spar. I.e. `SAML.UserRef` and `Email`
       -- cannot be figured out when a `User` has status `Deleted`.
