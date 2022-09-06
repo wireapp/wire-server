@@ -26,7 +26,6 @@ import Polysemy
 import Polysemy.Error (Error)
 import Spar.Error (SparError)
 import qualified Spar.Intra.Brig as Intra
-import qualified Spar.Intra.Brig as Itra
 import Spar.Sem.BrigAccess
 import Spar.Sem.Utils (RunHttpEnv (..), viaRunHttp)
 import qualified System.Logger as TinyLog
