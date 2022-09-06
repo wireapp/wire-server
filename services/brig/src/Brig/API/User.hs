@@ -1232,7 +1232,7 @@ verifyDeleteUser d = do
   for_ account $ lift . wrapHttpClient . deleteAccount
   lift . wrapClient $ Code.delete key Code.AccountDeletion
 
--- | Check if `deleteAccount` succeeded and run it again if needed
+-- | Check if `deleteAccount` succeeded and run it again if needed.
 -- Called via @delete /i/user/:uid@.
 ensureAccountDeleted ::
   ( MonadLogger m,
