@@ -725,8 +725,10 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
 
           -- This deletion needs data from the non-deleted User in brig. So,
           -- execute it first, then delete the user in brig. Unfortunately, this
-          -- dependency prevents us from cleaning up users with deleted accounts
-          -- in brig here in spar.
+          -- dependency prevents us from cleaning up the spar fragments of users
+          -- that have been deleted in brig.  Deleting scim-managed users in brig
+          -- (via the TM app) is blocked, though, so there is no legal way to enter
+          -- that situation.
           deleteUserInSpar brigUser
           lift $ BrigAccess.deleteUser uid
       case deletionStatus of
