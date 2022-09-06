@@ -1539,4 +1539,42 @@ testBackendRemoveProposalLocalConvLocalLeaver = do
     liftIO $ events @?= []
 
 testBackendRemoveProposalLocalConvRemoteLeaver :: TestM ()
-testBackendRemoveProposalLocalConvRemoteLeaver = pure ()
+testBackendRemoveProposalLocalConvRemoteLeaver = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
+
+  runMLSTest $ do
+    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+    (_, qcnv) <- setupMLSGroup alice1
+    commit <- createAddCommit alice1 [bob]
+
+    let mock req = case frRPC req of
+          "on-conversation-updated" -> pure (Aeson.encode ())
+          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+          "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
+          "get-mls-clients" ->
+            pure
+              . Aeson.encode
+              . Set.fromList
+              . map (flip ClientInfo True . ciClient)
+              $ [bob1, bob2]
+          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+    bobClients <- getClientsFromGroupState alice1 bob
+    void . withTempMockFederator' mock $ do
+      mlsBracket [alice1] $ \[wsA] -> void $ do
+        void $ sendAndConsumeCommit commit
+        fedGalleyClient <- view tsFedGalleyClient
+        void $
+          runFedClient
+            @"update-conversation"
+            fedGalleyClient
+            (qDomain bob)
+            ConversationUpdateRequest
+              { curUser = qUnqualified bob,
+                curConvId = qUnqualified qcnv,
+                curAction = SomeConversationAction SConversationLeaveTag ()
+              }
+
+        for_ bobClients $ \(_, ref) ->
+          WS.assertMatch_ (5 # WS.Second) wsA $
+            wsAssertBackendRemoveProposal bob qcnv ref
