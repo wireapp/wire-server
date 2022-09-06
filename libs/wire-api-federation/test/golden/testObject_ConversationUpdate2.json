@@ -1,13 +1,6 @@
 {
     "cuAction": {
-        "action": {
-            "users": [
-                {
-                    "domain": "golden.example.com",
-                    "id": "00000000-0000-0000-0000-000100004007"
-                }
-            ]
-        },
+        "action": {},
         "tag": "ConversationLeaveTag"
     },
     "cuAlreadyPresentUsers": [
