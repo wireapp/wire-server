@@ -705,12 +705,15 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
       -- Nothing`) to delete a user in spar. I.e. `SAML.UserRef` and `Email`
       -- cannot be figured out when a `User` has status `Deleted`.
       mbBrigUser <- lift $ Brig.getBrigUser WithPendingInvitations uid
-      case mbBrigUser of
-        Nothing -> do
-          -- Impossible to check that the user belongs to the token's team
-          -- (otherwise, a malicious user could delete all users...). Thus,
-          -- nothing can be done here, except returning an error.
-          throwError $ Scim.notFound "user" (idToText uid)
+      deletionStatus <- case mbBrigUser of
+        Nothing ->
+          -- Ensure there's no left-over of this user in brig. This is safe
+          -- because the user has either been deleted (tombstone) or does not
+          -- exist. Asserting the correct team id here is not needed (and would
+          -- be hard as the check relies on the data of `mbBrigUser`): The worst
+          -- thing that could happen is that foreign users cleanup particially
+          -- deleted users.
+          lift $ BrigAccess.deleteUser uid
         Just brigUser -> do
           -- FUTUREWORK: currently it's impossible to delete the last available team owner via SCIM
           -- (because that owner won't be managed by SCIM in the first place), but if it ever becomes
@@ -725,16 +728,16 @@ deleteScimUser tokeninfo@ScimTokenInfo {stiTeam, stiIdP} uid =
           -- dependency prevents us from cleaning up users with deleted accounts
           -- in brig here in spar.
           deleteUserInSpar brigUser
-          deletionStatus <- lift $ BrigAccess.deleteUser uid
-          case deletionStatus of
-            NoUser ->
-              throwError $
-                Scim.notFound "user" (idToText uid)
-            AccountAlreadyDeleted ->
-              throwError $
-                Scim.notFound "user" (idToText uid)
-            AccountDeleted ->
-              pure ()
+          lift $ BrigAccess.deleteUser uid
+      case deletionStatus of
+        NoUser ->
+          throwError $
+            Scim.notFound "user" (idToText uid)
+        AccountAlreadyDeleted ->
+          throwError $
+            Scim.notFound "user" (idToText uid)
+        AccountDeleted ->
+          pure ()
   where
     deleteUserInSpar ::
       Members
