@@ -25,6 +25,9 @@ spec:
       port: {{ .Values.coturnTurnTlsListenPort }}
       targetPort: coturn-tls
     {{- end }}
+    - name: status-http
+      port: {{ .Values.coturnMetricsListenPort }}
+      targetPort: status-http
   selector:
     app: coturn
     release: {{ .Release.Name }}
