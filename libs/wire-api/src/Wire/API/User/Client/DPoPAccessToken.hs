@@ -77,7 +77,7 @@ instance ToSchema AccessTokenType where
 data DPoPAccessTokenResponse = DPoPAccessTokenResponse
   { datrToken :: DPoPAccessToken,
     datrType :: AccessTokenType,
-    datrExpiresIn :: Word32
+    datrExpiresIn :: Word64
   }
   deriving (Eq, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema DPoPAccessTokenResponse)

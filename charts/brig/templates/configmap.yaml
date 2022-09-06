@@ -287,5 +287,11 @@ data:
       {{- if .setNonceTtlSecs }}
       setNonceTtlSecs: {{ .setNonceTtlSecs }}
       {{- end }}
+      {{- if .setDpopMaxSkewSecs }}
+      setDpopMaxSkewSecs: {{ .setDpopMaxSkewSecs }}
+      {{- end }}
+      {{- if .setDpopTokenExpirationTimeSecs }}
+      setDpopTokenExpirationTimeSecs: {{ .setDpopTokenExpirationTimeSecs }}
+      {{- end }}
     {{- end }}
   {{- end }}

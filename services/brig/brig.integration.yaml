@@ -189,6 +189,8 @@ optSettings:
       search_policy: full_search
   set2FACodeGenerationDelaySecs: 5
   setNonceTtlSecs: 5
+  setDpopMaxSkewSecs: 1
+  setDpopTokenExpirationTimeSecs: 300 # 5 minutes
 
 logLevel: Warn
 # ^ NOTE: We log too much in brig, if we set this to Info like other services, running tests
