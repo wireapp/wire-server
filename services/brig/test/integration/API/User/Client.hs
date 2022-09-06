@@ -986,7 +986,7 @@ testCreateAccessToken brig = do
   liftIO $ do
     expectedToken @=? datrToken response
     DPoP @=? datrType response
-    360 @=? datrExpiresIn response
+    300 @=? datrExpiresIn response
   print response
 
 testCan'tDeleteLegalHoldClient :: Brig -> Http ()

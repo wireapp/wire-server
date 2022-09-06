@@ -117,6 +117,8 @@ optSettings:
   setEmailVisibility: visible_to_self
   setFederationDomain: example.com
   setNonceTtlSecs: 300 # 5 minutes
+  setDpopMaxSkewSecs: 1
+  setDpopTokenExpirationTimeSecs: 300 # 5 minutes
 
 logLevel: Debug
 logNetStrings: false

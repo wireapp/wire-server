@@ -468,8 +468,8 @@ createAccessToken uid cid method link = \case
     httpsUrl <- do
       let urlBs = "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)
       maybe (throwE InternalError) pure $ fromByteString $ urlBs
-    let maxSkewSeconds = 1 -- todo(leif): read from config
-    let expiresIn = 360 -- todo(leif): read from config
+    maxSkewSeconds <- Opt.setDpopMaxSkewSecs <$> view settings
+    expiresIn <- Opt.setDpopTokenExpirationTimeSecs <$> view settings
     now <- fromUTCTime <$> lift (liftSem Now.get)
     let expiresAt = now & addToEpoch expiresIn
     let pubKeyBundle = "" -- todo(leif): how to get the public key bundle?

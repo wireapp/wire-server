@@ -593,7 +593,13 @@ data Settings = Settings
     set2FACodeGenerationDelaySecsInternal :: !(Maybe Int),
     -- | The time-to-live of a nonce in seconds.
     -- use `setNonceTtlSecs` as the getter function which always provides a default value
-    setNonceTtlSecsInternal :: !(Maybe NonceTtlSecs)
+    setNonceTtlSecsInternal :: !(Maybe NonceTtlSecs),
+    -- | The maximum number of seconds of clock skew the implementation of generate_dpop_access_token in jwt-tools will allow
+    -- use `setDpopMaxSkewSecs` as the getter function which always provides a default value
+    setDpopMaxSkewSecsInternal :: !(Maybe Word16),
+    -- | The expiration time of a JWT DPoP token in seconds.
+    -- use `setDpopTokenExpirationTimeSecs` as the getter function which always provides a default value
+    setDpopTokenExpirationTimeSecsInternal :: !(Maybe Word64)
   }
   deriving (Show, Generic)
 
@@ -626,6 +632,18 @@ defaultNonceTtlSecs = NonceTtlSecs $ 5 * 60 -- 5 minutes
 
 setNonceTtlSecs :: Settings -> NonceTtlSecs
 setNonceTtlSecs = fromMaybe defaultNonceTtlSecs . setNonceTtlSecsInternal
+
+defaultDpopMaxSkewSecs :: Word16
+defaultDpopMaxSkewSecs = 1
+
+setDpopMaxSkewSecs :: Settings -> Word16
+setDpopMaxSkewSecs = fromMaybe defaultDpopMaxSkewSecs . setDpopMaxSkewSecsInternal
+
+defaultDpopTokenExpirationTimeSecs :: Word64
+defaultDpopTokenExpirationTimeSecs = 5 * 60 -- 5 minutes
+
+setDpopTokenExpirationTimeSecs :: Settings -> Word64
+setDpopTokenExpirationTimeSecs = fromMaybe defaultDpopTokenExpirationTimeSecs . setDpopTokenExpirationTimeSecsInternal
 
 -- | The analog to `GT.FeatureFlags`.  This type tracks only the things that we need to
 -- express our current cloud business logic.
@@ -808,6 +826,8 @@ instance FromJSON Settings where
               "setVerificationCodeTimeoutInternal" -> "setVerificationTimeout"
               "set2FACodeGenerationDelaySecsInternal" -> "set2FACodeGenerationDelaySecs"
               "setNonceTtlSecsInternal" -> "setNonceTtlSecs"
+              "setDpopMaxSkewSecsInternal" -> "setDpopMaxSkewSecs"
+              "setDpopTokenExpirationTimeSecsInternal" -> "setDpopTokenExpirationTimeSecs"
               other -> other
           }
 
