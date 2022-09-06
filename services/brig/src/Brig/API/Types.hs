@@ -209,6 +209,7 @@ data CertEnrollmentError
   = MissingProof
   | NonceNotFound
   | TokenGenerationError DPoPTokenGenerationError
+  | InternalError
 
 -------------------------------------------------------------------------------
 -- Exceptions

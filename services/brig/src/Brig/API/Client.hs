@@ -89,12 +89,13 @@ import Imports
 import Network.HTTP.Types.Method (StdMethod)
 import Network.Wai.Utilities
 import Polysemy (Member)
+import Servant (Link, ToHttpApiData (toUrlPiece))
 import System.Logger.Class (field, msg, val, (~~))
 import qualified System.Logger.Class as Log
 import UnliftIO.Async (Concurrently (Concurrently, runConcurrently))
 import Wire.API.Federation.API.Brig (GetUserClients (GetUserClients))
 import Wire.API.Federation.Error
-import Wire.API.MLS.Credential (mkClientIdentity)
+import Wire.API.MLS.Credential (ClientIdentity (..))
 import Wire.API.MLS.Epoch (addToEpoch)
 import qualified Wire.API.Message as Message
 import Wire.API.Team.LegalHold (LegalholdProtectee (..))
@@ -453,29 +454,32 @@ removeLegalHoldClient uid = do
 
 createAccessToken ::
   (Member JwtTools r, Member Now r) =>
-  StdMethod ->
-  Local UserId ->
+  UserId ->
   ClientId ->
+  StdMethod ->
+  Link ->
   Maybe Proof ->
   ExceptT CertEnrollmentError (AppT r) (DPoPAccessTokenResponse, CacheControl)
-createAccessToken method lusr cid = \case
+createAccessToken uid cid method link = \case
+  Nothing -> throwE MissingProof
   Just proof -> do
-    let uid = tUnqualified lusr
-    let identity = mkClientIdentity (qUntagged lusr) cid
+    domain <- Opt.setFederationDomain <$> view settings
     nonce <- withExceptT (const NonceNotFound) $ ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
-    let httpsUrl = error "todo(leif): how to get the url of this handler?"
+    httpsUrl <- do
+      let urlBs = "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)
+      maybe (throwE InternalError) pure $ fromByteString $ urlBs
     let maxSkewSeconds = 1 -- todo(leif): read from config
     let expiresIn = 360 -- todo(leif): read from config
     now <- fromUTCTime <$> lift (liftSem Now.get)
     let expiresAt = now & addToEpoch expiresIn
-    let pubKeyBundle = error "todo(leif): how to get the public key bundle?"
+    let pubKeyBundle = "" -- todo(leif): how to get the public key bundle?
     token <-
       withExceptT TokenGenerationError $
         ExceptT $
           liftSem $
             JwtTools.generateDPoPAccessToken
               proof
-              identity
+              (ClientIdentity domain uid cid)
               nonce
               httpsUrl
               method
@@ -484,4 +488,3 @@ createAccessToken method lusr cid = \case
               now
               pubKeyBundle
     pure $ (DPoPAccessTokenResponse token DPoP expiresIn, NoStore)
-  Nothing -> throwE MissingProof

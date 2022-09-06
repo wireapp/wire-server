@@ -172,8 +172,9 @@ clientError ClientCodeAuthenticationRequired = StdError verificationCodeRequired
 
 certEnrollmentError :: CertEnrollmentError -> Error
 certEnrollmentError (TokenGenerationError _) = StdError $ Wai.mkError status400 "generic-cert-enrollment-error" "generic error" --todo(leif): implement all possible errors
-certEnrollmentError MissingProof = StdError $ error "todo(leif)"
-certEnrollmentError NonceNotFound = StdError $ error "todo(leif)"
+certEnrollmentError MissingProof = StdError $ Wai.mkError status400 "client-token-missing" "The DPoP header should be present and contain a JWT DPoP token"
+certEnrollmentError NonceNotFound = StdError $ Wai.mkError status400 "bad-nonce" "The client sent an unacceptable anti-replay nonce"
+certEnrollmentError InternalError = StdError $ Wai.mkError status500 "internal-error" "Internal Server Error"
 
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai
