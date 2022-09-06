@@ -39,6 +39,10 @@ instance HasServer api ctx => HasServer (Named name api) ctx where
   hoistServerWithContext _ ctx f =
     fmap (hoistServerWithContext (Proxy @api) ctx f)
 
+instance HasLink endpoint => HasLink (Named name endpoint) where
+  type MkLink (Named name endpoint) a = MkLink endpoint a
+  toLink toA _ = toLink toA (Proxy @endpoint)
+
 instance RoutesToPaths api => RoutesToPaths (Named name api) where
   getRoutes = getRoutes @api
 

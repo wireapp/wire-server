@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -539,27 +540,30 @@ type UserClientAPI =
     -- be aware that the order of the head-nonce and get-nonce matters, if get was first, then head requests would be routed to the get handler
     :<|> NewNonce "head-nonce" 'HEAD 200
     :<|> NewNonce "get-nonce" 'GET 204
-    :<|> Named
-           "create-access-token"
-           ( Summary "Create a JWT DPoP access token"
-               :> Description
-                    ( "Create an JWT DPoP access token for the client CSR, given a JWT DPoP proof, specified in the `DPoP` header. \
-                      \The access token will be returned as JWT DPoP token in the `DPoP` header."
-                    )
-               :> ZLocalUser
-               :> "clients"
-               :> CaptureClientId "client"
-               :> "access-token"
-               :> Header "DPoP" Proof
-               :> MultiVerb1
-                    'POST
-                    '[JSON]
-                    ( WithHeaders
-                        '[Header "Cache-Control" CacheControl]
-                        (DPoPAccessTokenResponse, CacheControl)
-                        (Respond 200 "Access token created" DPoPAccessTokenResponse)
-                    )
-           )
+    :<|> CreateAccessToken
+
+type CreateAccessToken =
+  Named
+    "create-access-token"
+    ( Summary "Create a JWT DPoP access token"
+        :> Description
+             ( "Create an JWT DPoP access token for the client CSR, given a JWT DPoP proof, specified in the `DPoP` header. \
+               \The access token will be returned as JWT DPoP token in the `DPoP` header."
+             )
+        :> ZUser
+        :> "clients"
+        :> CaptureClientId "client"
+        :> "access-token"
+        :> Header "DPoP" Proof
+        :> MultiVerb1
+             'POST
+             '[JSON]
+             ( WithHeaders
+                 '[Header "Cache-Control" CacheControl]
+                 (DPoPAccessTokenResponse, CacheControl)
+                 (Respond 200 "Access token created" DPoPAccessTokenResponse)
+             )
+    )
 
 type NewNonce name method statusCode =
   Named

@@ -259,7 +259,7 @@ servantSitemap = userAPI :<|> selfAPI :<|> accountAPI :<|> clientAPI :<|> prekey
         :<|> Named @"get-client-prekeys" getClientPrekeys
         :<|> Named @"head-nonce" newNonce
         :<|> Named @"get-nonce" newNonce
-        :<|> Named @"create-access-token" (createAccessToken POST)
+        :<|> Named @"create-access-token" (createAccessToken @UserClientAPI @CreateAccessToken POST)
 
     connectionAPI :: ServerT ConnectionAPI (Handler r)
     connectionAPI =
@@ -633,14 +633,21 @@ newNonce uid cid = do
   pure (nonce, NoStore)
 
 createAccessToken ::
-  (Member JwtTools r, Member Now r) =>
+  forall api endpoint r.
+  ( Member JwtTools r,
+    Member Now r,
+    IsElem endpoint api,
+    HasLink endpoint,
+    MkLink endpoint Link ~ (ClientId -> Link)
+  ) =>
   StdMethod ->
-  Local UserId ->
+  UserId ->
   ClientId ->
   Maybe Proof ->
   (Handler r) (DPoPAccessTokenResponse, CacheControl)
-createAccessToken method quid cid mProof = do
-  API.createAccessToken method quid cid mProof !>> certEnrollmentError
+createAccessToken method uid cid mProof = do
+  let link = safeLink (Proxy @api) (Proxy @endpoint) cid
+  API.createAccessToken uid cid method link mProof !>> certEnrollmentError
 
 -- | docs/reference/user/registration.md {#RefRegistration}
 createUser ::

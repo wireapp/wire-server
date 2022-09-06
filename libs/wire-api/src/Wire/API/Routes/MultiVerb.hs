@@ -858,3 +858,7 @@ instance
 
 instance RoutesToPaths (MultiVerb method cs as r) where
   getRoutes = []
+
+instance HasLink (MultiVerb method cs as r) where
+  type MkLink (MultiVerb method cs as r) a = a
+  toLink toA _ = toA
