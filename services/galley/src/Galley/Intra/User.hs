@@ -205,7 +205,7 @@ getUsers = chunkify $ \uids -> do
         . expect2xx
   pure . fromMaybe [] . responseJsonMaybe $ resp
 
--- | Calls 'Brig.API.deleteUserNoVerifyH'.
+-- | Calls 'Brig.API.deleteUserNoAuthH'.
 deleteUser :: UserId -> App ()
 deleteUser uid = do
   void $

@@ -286,7 +286,7 @@ sitemap = do
   -- This endpoint will lead to the following events being sent:
   -- - UserDeleted event to all of its contacts
   -- - MemberLeave event to members for all conversations the user was in (via galley)
-  delete "/i/users/:uid" (continue deleteUserNoVerifyH) $
+  delete "/i/users/:uid" (continue deleteUserNoAuthH) $
     capture "uid"
 
   put "/i/connections/connection-update" (continue updateConnectionInternalH) $
@@ -508,8 +508,8 @@ createUserNoVerifySpar uData =
        in API.activate key code (Just uid) !>> CreateUserSparRegistrationError . activationErrorToRegisterError
     pure . SelfProfile $ usr
 
-deleteUserNoVerifyH :: UserId -> (Handler r) Response
-deleteUserNoVerifyH uid = do
+deleteUserNoAuthH :: UserId -> (Handler r) Response
+deleteUserNoAuthH uid = do
   r <- lift $ wrapHttp $ API.ensureAccountDeleted uid
   pure $ case r of
     NoUser -> setStatus status404 $ json r
