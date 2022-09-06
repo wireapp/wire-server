@@ -1261,7 +1261,7 @@ ensureAccountDeleted uid = do
       clients <- Data.lookupClients uid
 
       localUid <- qualifyLocal uid
-      conCount <- countConnections localUid [minBound .. maxBound]
+      conCount <- countConnections localUid [(minBound @Relation) .. maxBound]
       cookies <- listCookies uid []
 
       if (not . null) probs
