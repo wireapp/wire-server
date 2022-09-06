@@ -476,6 +476,9 @@ nginx_conf:
     - path: /mls/messages
       envs:
       - all
+    - path: /mls/public-keys
+      envs:
+      - all
     - path: /nonce/clients
       envs:
       - all
