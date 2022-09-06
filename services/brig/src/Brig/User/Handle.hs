@@ -65,7 +65,7 @@ freeHandle uid h = do
       retry x5 $ write handleDelete (params LocalQuorum (Identity h))
       let key = "@" <> fromHandle h
       deleteClaim uid key (30 # Minute)
-    _ -> pure ()
+    _ -> pure ()  -- this shouldn't happen, the call side should always check that `h` and `uid` belong to the same account.
 
 -- | Lookup the current owner of a 'Handle'.
 lookupHandle :: MonadClient m => Handle -> m (Maybe UserId)
