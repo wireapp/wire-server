@@ -1264,7 +1264,7 @@ ensureAccountDeleted uid = do
       conCount <- countConnections localUid [(minBound @Relation) .. maxBound]
       cookies <- listCookies uid []
 
-      if (not . null) probs
+      if notNull probs
         || not accIsDeleted
         || (not . null) clients
         || conCount > 0
