@@ -116,12 +116,12 @@ import qualified Brig.InternalEvent.Types as Internal
 import Brig.Options hiding (Timeout, internalEvents)
 import Brig.Password
 import qualified Brig.Queue as Queue
-import Brig.Sem.CodeStore (CodeStore)
-import qualified Brig.Sem.CodeStore as E
-import Brig.Sem.PasswordResetStore (PasswordResetStore)
-import qualified Brig.Sem.PasswordResetStore as E
-import Brig.Sem.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
-import qualified Brig.Sem.UserPendingActivationStore as UserPendingActivationStore
+import Brig.Effects.CodeStore (CodeStore)
+import qualified Brig.Effects.CodeStore as E
+import Brig.Effects.PasswordResetStore (PasswordResetStore)
+import qualified Brig.Effects.PasswordResetStore as E
+import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
+import qualified Brig.Effects.UserPendingActivationStore as UserPendingActivationStore
 import qualified Brig.Team.DB as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Connection

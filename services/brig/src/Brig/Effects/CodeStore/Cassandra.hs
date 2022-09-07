@@ -16,14 +16,14 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE RecordWildCards #-}
 
-module Brig.Sem.CodeStore.Cassandra
+module Brig.Effects.CodeStore.Cassandra
   ( codeStoreToCassandra,
     interpretClientToIO,
   )
 where
 
 import Brig.Data.Instances ()
-import Brig.Sem.CodeStore
+import Brig.Effects.CodeStore
 import Cassandra
 import Data.ByteString.Conversion (toByteString')
 import Data.Id

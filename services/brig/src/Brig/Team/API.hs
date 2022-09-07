@@ -35,7 +35,7 @@ import qualified Brig.Email as Email
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import qualified Brig.Phone as Phone
-import Brig.Sem.UserPendingActivationStore (UserPendingActivationStore)
+import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)

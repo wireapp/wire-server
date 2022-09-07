@@ -15,13 +15,13 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Brig.Sem.PasswordResetStore.CodeStore
+module Brig.Effects.PasswordResetStore.CodeStore
   ( passwordResetStoreToCodeStore,
   )
 where
 
-import Brig.Sem.CodeStore
-import Brig.Sem.PasswordResetStore
+import Brig.Effects.CodeStore
+import Brig.Effects.PasswordResetStore
 import Brig.Types.User (PasswordResetPair)
 import Data.Id
 import Data.Time

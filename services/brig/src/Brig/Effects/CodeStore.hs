@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE TemplateHaskell #-}
 
-module Brig.Sem.CodeStore where
+module Brig.Effects.CodeStore where
 
 import Data.Id
 import Data.Time.Clock

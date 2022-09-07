@@ -1,9 +1,9 @@
-module Brig.Sem.UserPendingActivationStore.Cassandra
+module Brig.Effects.UserPendingActivationStore.Cassandra
   ( userPendingActivationStoreToCassandra,
   )
 where
 
-import Brig.Sem.UserPendingActivationStore
+import Brig.Effects.UserPendingActivationStore
 import Cassandra
 import Data.Id (UserId)
 import Data.Time (UTCTime)

@@ -58,8 +58,14 @@ library
     Brig.Effects.BlacklistPhonePrefixStore.Cassandra
     Brig.Effects.BlacklistStore
     Brig.Effects.BlacklistStore.Cassandra
+    Brig.Effects.CodeStore
+    Brig.Effects.CodeStore.Cassandra
     Brig.Effects.Delay
+    Brig.Effects.PasswordResetStore
+    Brig.Effects.PasswordResetStore.CodeStore
     Brig.Effects.SFT
+    Brig.Effects.UserPendingActivationStore
+    Brig.Effects.UserPendingActivationStore.Cassandra
     Brig.Email
     Brig.Federation.Client
     Brig.Index.Eval
@@ -85,12 +91,6 @@ library
     Brig.Queue.Types
     Brig.RPC
     Brig.Run
-    Brig.Sem.CodeStore
-    Brig.Sem.CodeStore.Cassandra
-    Brig.Sem.PasswordResetStore
-    Brig.Sem.PasswordResetStore.CodeStore
-    Brig.Sem.UserPendingActivationStore
-    Brig.Sem.UserPendingActivationStore.Cassandra
     Brig.SMTP
     Brig.Team.API
     Brig.Team.DB
