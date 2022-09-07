@@ -55,6 +55,14 @@ spec = describe "deleteScimUser" $ do
         mockBrigForNonExistendUser
         (runExceptT $ deleteScimUser tokenInfo uid)
     handlerResult r `shouldBe` Left (notFound "user" (idToText uid))
+  it "returns no error when there was a partially deleted account" $ do
+    uid <- generate arbitrary
+    tokenInfo <- generate arbitrary
+    r <-
+      interpretWithBrigAccessMock
+        mockBrigForPartiallyDeletedUser
+        (runExceptT $ deleteScimUser tokenInfo uid)
+    handlerResult r `shouldBe` Right ()
 
 deleteUserAndAssertDeletionInSpar ::
   forall (r :: EffectRow).
@@ -129,6 +137,18 @@ mockBrigForNonExistendUser ::
 mockBrigForNonExistendUser = interpret $ \case
   (GetAccount WithPendingInvitations _) -> pure Nothing
   (Spar.Sem.BrigAccess.DeleteUser _) -> pure NoUser
+  _ -> do
+    liftIO $ expectationFailure $ "Unexpected effect (call to brig)"
+    error "Throw error here to avoid implementation of all cases."
+
+mockBrigForPartiallyDeletedUser ::
+  forall (r :: EffectRow).
+  Members '[Embed IO] r =>
+  Sem (BrigAccess ': r) (Either ScimError ()) ->
+  Sem r (Either ScimError ())
+mockBrigForPartiallyDeletedUser = interpret $ \case
+  (GetAccount WithPendingInvitations _) -> pure Nothing
+  (Spar.Sem.BrigAccess.DeleteUser _) -> pure AccountDeleted
   _ -> do
     liftIO $ expectationFailure $ "Unexpected effect (call to brig)"
     error "Throw error here to avoid implementation of all cases."
