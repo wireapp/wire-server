@@ -1,6 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,6 +16,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wwarn #-}
 
 module API.MLS (tests) where
 
@@ -1585,8 +1585,49 @@ propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
     postMessage (qUnqualified (pUserId creator)) prop
       !!! const 201 === statusCode
 
+-- scenario:
+-- alice1 creates a group and adds bob1
+-- bob2 joins with external proposal (alice1 commits it)
+-- bob2 adds charlie1
 testExternalAddProposal :: TestM ()
-testExternalAddProposal = withSystemTempDirectory "mls" $ \tmp -> do
+testExternalAddProposal = do
+  -- create users
+  [alice, bob, charlie] <-
+    createAndConnectUsers [Nothing, Nothing, Nothing]
+
+  void . runMLSTest $ do
+    -- create clients
+    alice1 <- createMLSClient alice
+    [bob1, bob2] <- replicateM 2 (createMLSClient bob)
+    charlie1 <- createMLSClient charlie
+
+    -- upload key packages
+    uploadNewKeyPackage bob1
+    uploadNewKeyPackage charlie1
+
+    -- create group with alice1 and bob1
+    (_, qcnv) <- setupMLSGroup alice1
+    createAddCommit alice1 [bob]
+      >>= sendAndConsumeCommit alice1 [] [bob1]
+
+    -- bob joins with an external proposal
+    createExternalAddProposal bob2
+      >>= consumeMessage [alice1, bob1]
+    createPendingProposalCommit alice1
+      >>= sendAndConsumeCommit alice1 [bob1] [bob2]
+
+    -- bob adds charlie
+    putOtherMemberQualified
+      (qUnqualified alice)
+      bob
+      (OtherMemberUpdate (Just roleNameWireAdmin))
+      qcnv
+      !!! const 200 === statusCode
+    createAddCommit bob2 [charlie]
+      >>= sendAndConsumeCommit bob2 [alice1, bob1] [charlie1]
+
+testExternalAddProposal_old :: TestM ()
+testExternalAddProposal_old = withSystemTempDirectory "mls" $ \tmp -> do
   let opts@SetupOptions {..} = def {createConv = CreateConv}
   (creator, users@[bob], bobClient2, bobClient3) <- withLastPrekeys $ do
     (creator, users@[bob]) <- setupParticipants tmp opts [(1, LocalUser)]

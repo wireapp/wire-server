@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- This file is part of the Wire Server implementation.
@@ -24,6 +25,7 @@ import Bilge
 import Bilge.Assert
 import Control.Lens (preview, to, view)
 import Control.Monad.Catch
+import Control.Monad.State (StateT, evalStateT)
 import qualified Control.Monad.State as State
 import Crypto.PubKey.Ed25519
 import qualified Data.ByteArray as BA
@@ -31,6 +33,7 @@ import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
 import Data.Default
 import Data.Domain
+import Data.Hex
 import Data.Id
 import Data.Json.Util
 import Data.List.NonEmpty (NonEmpty (..))
@@ -39,9 +42,11 @@ import qualified Data.Map as Map
 import Data.Qualified
 import qualified Data.Set as Set
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import Galley.Keys
 import Galley.Options
 import Imports
+import System.Directory (getSymbolicLinkTarget)
 import System.FilePath
 import System.IO.Temp
 import System.Process
@@ -133,6 +138,14 @@ userClientQid usr c =
     <> T.unpack (client c)
     <> "@"
     <> T.unpack (domainText (qDomain usr))
+
+cid2Str :: ClientIdentity -> String
+cid2Str cid =
+  show (ciUser cid)
+    <> ":"
+    <> T.unpack (client . ciClient $ cid)
+    <> "@"
+    <> T.unpack (domainText (ciDomain cid))
 
 pClients :: Participant -> NonEmpty (String, ClientId)
 pClients p =
@@ -621,3 +634,337 @@ saveRemovalKey fp = do
   keysByPurpose <- liftIO $ loadAllMLSKeys keys
   let (_, pub) = fromJust (mlsKeyPair_ed25519 (keysByPurpose RemovalPurpose))
   liftIO $ BS.writeFile fp (BA.convert pub)
+
+data MLSState = MLSState
+  { mlsBaseDir :: FilePath,
+    -- | for creating clients
+    mlsUnusedPrekeys :: [LastPrekey],
+    mlsClientsInGroup :: [ClientIdentity],
+    mlsConv :: Maybe (Qualified ConvId),
+    mlsGroupId :: Maybe GroupId,
+    mlsEpoch :: Word64
+  }
+
+newtype MLSTest a = MLSTest {unMLSTest :: StateT MLSState TestM a}
+  deriving newtype
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadThrow,
+      MonadHttp,
+      MonadIO,
+      MonadCatch,
+      MonadFail,
+      State.MonadState MLSState,
+      MonadReader TestSetup
+    )
+
+instance HasGalley MLSTest where
+  viewGalley = MLSTest $ lift viewGalley
+  viewGalleyOpts = MLSTest $ lift viewGalleyOpts
+
+liftTest :: TestM a -> MLSTest a
+liftTest = MLSTest . lift
+
+runMLSTest :: MLSTest a -> TestM a
+runMLSTest (MLSTest m) =
+  withSystemTempDirectory "mls" $ \tmp -> do
+    saveRemovalKey (tmp </> "removal.key")
+    evalStateT
+      m
+      MLSState
+        { mlsBaseDir = tmp,
+          mlsUnusedPrekeys = someLastPrekeys,
+          mlsClientsInGroup = [],
+          mlsConv = Nothing,
+          mlsGroupId = Nothing,
+          mlsEpoch = 0
+        }
+
+data CommitWelcome = CommitWelcome
+  { cwCommit :: ByteString,
+    cwWelcome :: Maybe ByteString
+  }
+
+takeLastPrekeyNG :: HasCallStack => MLSTest LastPrekey
+takeLastPrekeyNG = do
+  s <- State.get
+  case mlsUnusedPrekeys s of
+    (pk : pks) -> do
+      State.modify (\s' -> s' {mlsUnusedPrekeys = pks})
+      pure pk
+    [] -> error "no prekeys left"
+
+mlscli :: HasCallStack => ClientIdentity -> [String] -> Maybe ByteString -> MLSTest ByteString
+mlscli qcid args mbstdin = do
+  bd <- State.gets mlsBaseDir
+  let cdir = bd </> cid2Str qcid
+  liftIO $ spawn (proc "mls-test-cli" (["--store", cdir </> "store"] <> args)) mbstdin
+
+createWireClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
+createWireClient qusr = do
+  lpk <- takeLastPrekeyNG
+  clientId <- liftTest $ randomClient (qUnqualified qusr) lpk
+  pure $ mkClientIdentity qusr clientId
+
+-- | create new mls client and register with backend
+createMLSClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
+createMLSClient qusr = do
+  qcid <- createWireClient qusr
+  bd <- State.gets mlsBaseDir
+  createDirectory $ bd </> cid2Str qcid
+  void $ mlscli qcid ["init", cid2Str qcid] Nothing
+
+  -- set public key
+  pkey <- mlscli qcid ["public-key"] Nothing
+  brig <- view tsBrig
+  let update = defUpdateClient {updateClientMLSPublicKeys = Map.singleton Ed25519 pkey}
+  put
+    ( brig
+        . paths ["clients", toByteString' . ciClient $ qcid]
+        . zUser (ciUser qcid)
+        . json update
+    )
+    !!! const 200 === statusCode
+  pure qcid
+
+-- | create and upload to backend
+uploadNewKeyPackage :: HasCallStack => ClientIdentity -> MLSTest KeyPackageRef
+uploadNewKeyPackage qcid = do
+  brig <- view tsBrig
+  kp <- liftIO . decodeMLSError =<< mlscli qcid ["key-package", "create"] Nothing
+  -- upload key package
+  post
+    ( brig
+        . paths ["mls", "key-packages", "self", toByteString' . ciClient $ qcid]
+        . zUser (ciUser qcid)
+        . json (KeyPackageUpload [kp])
+    )
+    !!! const 201 === statusCode
+  pure $ fromJust (kpRef' kp)
+
+groupFileLink :: HasCallStack => ClientIdentity -> MLSTest FilePath
+groupFileLink qcid = State.gets $ \mls ->
+  mlsBaseDir mls </> cid2Str qcid </> "group.latest"
+
+currentGroupFile :: HasCallStack => ClientIdentity -> MLSTest FilePath
+currentGroupFile = liftIO . getSymbolicLinkTarget <=< groupFileLink
+
+-- sets symlink and creates empty file
+nextGroupFile :: HasCallStack => ClientIdentity -> MLSTest FilePath
+nextGroupFile qcid = do
+  bd <- State.gets mlsBaseDir
+  link <- groupFileLink qcid
+  exists <- doesFileExist link
+  base' <-
+    liftIO $
+      if exists
+        then -- group file exists, bump version and update link
+        do
+          base <- liftIO $ takeFileName <$> getSymbolicLinkTarget link
+          (prefix, version) <- case break (== '.') base of
+            (p, '.' : v) -> pure (p, v)
+            _ -> assertFailure "invalid group file name"
+          n <- case reads version of
+            [(v, "")] -> pure (v :: Int)
+            _ -> assertFailure "could not parse group file version"
+          removeFile link
+          pure $ prefix <> "." <> show (n + 1)
+        else -- group file does not exist yet, point link to version 0
+          pure "group.0"
+
+  let groupFile = bd </> cid2Str qcid </> base'
+  createFileLink groupFile link
+  pure groupFile
+
+-- | create conv
+setupMLSGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
+setupMLSGroup creator = do
+  ownDomain <- liftTest viewFederationDomain
+  liftIO $ assertEqual "creator is not local" (ciDomain creator) ownDomain
+  conv <-
+    responseJsonError
+      =<< liftTest
+        ( postConvQualified
+            (ciUser creator)
+            (defNewMLSConv (ciClient creator))
+        )
+      <!! const 201 === statusCode
+  let groupId = fromJust (preview (to cnvProtocol . _ProtocolMLS . to cnvmlsGroupId) conv)
+
+  groupJSON <- mlscli creator ["group", "create", T.unpack (toBase64Text (unGroupId groupId))] Nothing
+  g <- nextGroupFile creator
+  liftIO $ BS.writeFile g groupJSON
+  State.modify $ \s -> s {mlsGroupId = Just groupId, mlsConv = Just (cnvQualifiedId conv)}
+  pure (groupId, cnvQualifiedId conv)
+
+-- | Claim keypackages and create a commit/welcome pair on a given client.
+-- Note that this alters the state of the group immediately. If we want to test
+-- a scenario where the commit is rejected by the backend, we can restore the
+-- group to the previous state by using an older version of the group file.
+createAddCommit :: HasCallStack => ClientIdentity -> [Qualified UserId] -> MLSTest CommitWelcome
+createAddCommit committer usersToAdd = do
+  brig <- view tsBrig
+  bundles :: [KeyPackageBundle] <- for usersToAdd $ \userToAdd ->
+    responseJsonError
+      =<< post
+        ( brig
+            . paths ["mls", "key-packages", "claim", toByteString' (qDomain userToAdd), toByteString' (qUnqualified userToAdd)]
+            . zUser (ciUser committer)
+        )
+      <!! const 200 === statusCode
+
+  g <- currentGroupFile committer
+  gNew <- nextGroupFile committer
+
+  bd <- State.gets mlsBaseDir
+
+  welcomeFile <- liftIO $ emptyTempFile bd "welcome"
+
+  let bundleEntries = concatMap (toList . kpbEntries) bundles
+  let kpFile qcid ref =
+        bd </> cid2Str qcid
+          </> T.unpack (T.decodeUtf8 (hex (unKeyPackageRef ref)))
+
+  kpFiles <- for bundleEntries $ \be -> do
+    let d = kpData . kpbeKeyPackage $ be
+        qcid = mkClientIdentity (kpbeUser be) (kpbeClient be)
+        fn = kpFile qcid (kpbeRef be)
+    liftIO $ BS.writeFile fn d
+    pure fn
+
+  commit <-
+    mlscli
+      committer
+      ( [ "member",
+          "add",
+          "--group",
+          g,
+          "--welcome-out",
+          welcomeFile,
+          "--group-out",
+          gNew
+        ]
+          <> kpFiles
+      )
+      Nothing
+
+  welcome <- liftIO $ BS.readFile welcomeFile
+
+  pure $ CommitWelcome commit (Just welcome)
+
+createPendingProposalCommit :: HasCallStack => ClientIdentity -> MLSTest CommitWelcome
+createPendingProposalCommit qcid = do
+  bd <- State.gets mlsBaseDir
+  welcomeFile <- liftIO $ emptyTempFile bd "welcome"
+  g <- currentGroupFile qcid
+  gNew <- nextGroupFile qcid
+  commit <-
+    mlscli
+      qcid
+      [ "commit",
+        "--group",
+        g,
+        "--group-out",
+        gNew,
+        "--welcome-out",
+        welcomeFile
+      ]
+      Nothing
+  welcome <-
+    liftIO $
+      doesFileExist welcomeFile >>= \case
+        False -> pure Nothing
+        True -> Just <$> BS.readFile welcomeFile
+  pure (CommitWelcome commit welcome)
+
+createRemoveCommit :: HasCallStack => ClientIdentity -> [ClientIdentity] -> MLSTest CommitWelcome
+createRemoveCommit = error "TODO"
+
+createExternalAddProposal :: HasCallStack => ClientIdentity -> MLSTest ByteString
+createExternalAddProposal qcid = do
+  groupId <-
+    State.gets mlsGroupId >>= \case
+      Nothing -> liftIO $ assertFailure "Creating add proposal for non-existing group"
+      Just g -> pure g
+  epoch <- State.gets mlsEpoch
+  proposal <-
+    mlscli
+      qcid
+      [ "proposal-external",
+        "--group-id",
+        T.unpack (toBase64Text (unGroupId groupId)),
+        "--epoch",
+        show epoch,
+        "add"
+      ]
+      Nothing
+  postMessage (ciUser qcid) proposal
+    !!! const 201 === statusCode
+  pure proposal
+
+consumeWelcome :: HasCallStack => [ClientIdentity] -> ByteString -> MLSTest ()
+consumeWelcome qcids welcome = for_ qcids $ \qcid -> do
+  link <- groupFileLink qcid
+  liftIO $
+    doesFileExist link >>= \e ->
+      assertBool "Existing clients in a conversation should not consume commits" (not e)
+  groupFile <- nextGroupFile qcid
+  void $
+    mlscli
+      qcid
+      [ "group",
+        "from-welcome",
+        "--group-out",
+        groupFile,
+        "-"
+      ]
+      (Just welcome)
+
+consumeMessage :: HasCallStack => [ClientIdentity] -> ByteString -> MLSTest ()
+consumeMessage qcids msg = for_ qcids $ \qcid -> do
+  bd <- State.gets mlsBaseDir
+  g <- currentGroupFile qcid
+  gNew <- nextGroupFile qcid
+  void $
+    mlscli
+      qcid
+      [ "consume",
+        "--group",
+        g,
+        "--group-out",
+        gNew,
+        "--signer-key",
+        bd </> "removal.key",
+        "-"
+      ]
+      (Just msg)
+
+sendAndConsumeCommit ::
+  HasCallStack =>
+  ClientIdentity ->
+  [ClientIdentity] ->
+  [ClientIdentity] ->
+  CommitWelcome ->
+  MLSTest [Event]
+sendAndConsumeCommit committer existingClients newClients cw = do
+  events <-
+    fmap mmssEvents . responseJsonError
+      =<< postMessage (qUnqualified (cidQualifiedUser committer)) (cwCommit cw)
+        <!! const 201 === statusCode
+
+  -- increment epoch
+  State.modify $ \mls ->
+    mls
+      { mlsEpoch = mlsEpoch mls + 1
+      }
+
+  case (newClients, cwWelcome cw) of
+    (_, Just welcome) -> consumeWelcome newClients welcome
+    ([], Nothing) -> pure ()
+    _ ->
+      liftIO . assertFailure $
+        "Expected welcome message for new clients: " <> show newClients
+  consumeMessage existingClients (cwCommit cw)
+
+  pure events

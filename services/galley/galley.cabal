@@ -442,6 +442,7 @@ executable galley-integration
     , currency-codes
     , data-default
     , data-timeout
+    , directory
     , errors
     , exceptions
     , extended
@@ -451,6 +452,7 @@ executable galley-integration
     , galley
     , galley-types
     , gundeck-types
+    , hex
     , HsOpenSSL
     , HsOpenSSL-x509-system
     , hspec

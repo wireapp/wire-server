@@ -26,7 +26,7 @@ import Brig.Types.Connection
 import Brig.Types.Intra (UserAccount (..))
 import Control.Concurrent.Async
 import Control.Exception (throw)
-import Control.Lens hiding (from, to, (#), (.=))
+import Control.Lens hiding (from, to, uncons, (#), (.=))
 import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.Codensity (lowerCodensity)
 import Control.Monad.Except (ExceptT, runExceptT)
@@ -2799,3 +2799,21 @@ wsAssertBackendRemoveProposal fromUser convId kpref n = do
     getMLSMessageData :: Conv.EventData -> ByteString
     getMLSMessageData (EdMLSMessage bs) = bs
     getMLSMessageData d = error ("Excepected EdMLSMessage, but got " <> show d)
+
+createAndConnectUsers :: [Maybe Domain] -> TestM [Qualified UserId]
+createAndConnectUsers domains = do
+  localDomain <- viewFederationDomain
+  users <- for domains $ maybe randomQualifiedUser randomQualifiedId
+  let userPairs = do
+        t <- tails users
+        (a, others) <- maybeToList (uncons t)
+        b <- others
+        pure (a, b)
+  for_ userPairs $ \(a, b) ->
+    case (qDomain a == localDomain, qDomain b == localDomain) of
+      (True, True) ->
+        connectUsers (qUnqualified a) (pure (qUnqualified b))
+      (True, False) -> connectWithRemoteUser (qUnqualified a) b
+      (False, True) -> connectWithRemoteUser (qUnqualified b) a
+      (False, False) -> pure ()
+  pure users

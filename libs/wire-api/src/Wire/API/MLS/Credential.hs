@@ -145,6 +145,9 @@ data ClientIdentity = ClientIdentity
 cidQualifiedClient :: ClientIdentity -> Qualified (UserId, ClientId)
 cidQualifiedClient cid = Qualified (ciUser cid, ciClient cid) (ciDomain cid)
 
+cidQualifiedUser :: ClientIdentity -> Qualified UserId
+cidQualifiedUser = fmap fst . cidQualifiedClient
+
 instance ToSchema ClientIdentity where
   schema =
     object "ClientIdentity" $
