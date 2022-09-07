@@ -60,7 +60,7 @@ generateDpopToken dpopProof cid nonce uri method maxSkewSecs maxExpiration now b
   backendPubkeyBundleCStr <- liftIO $ newCString $ cs backendPubkeyBundle
   responseCStr <-
     liftIO $
-      generateDpopTokenFFI
+      undefined
         dpopProofCStr
         uidCStr
         cidCUShort
@@ -99,20 +99,20 @@ generateDpopToken dpopProof cid nonce uri method maxSkewSecs maxExpiration now b
       OPTIONS -> "OPTIONS"
       PATCH -> "PATCH"
 
-foreign import ccall "generate_dpop_token"
-  generateDpopTokenFFI ::
-    CString ->
-    CString ->
-    CUShort ->
-    CString ->
-    CString ->
-    CString ->
-    CString ->
-    CUShort ->
-    CULong ->
-    CULong ->
-    CString ->
-    IO CString
+-- foreign import ccall "generate_dpop_token"
+--   generateDpopTokenFFI ::
+--     CString ->
+--     CString ->
+--     CUShort ->
+--     CString ->
+--     CString ->
+--     CString ->
+--     CString ->
+--     CUShort ->
+--     CULong ->
+--     CULong ->
+--     CString ->
+--     IO CString
 
 testHaskellApi :: IO ()
 testHaskellApi = do
