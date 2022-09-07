@@ -175,6 +175,8 @@ certEnrollmentError (TokenGenerationError _) = StdError $ Wai.mkError status400 
 certEnrollmentError MissingProof = StdError $ Wai.mkError status400 "client-token-missing" "The DPoP header should be present and contain a JWT DPoP token"
 certEnrollmentError NonceNotFound = StdError $ Wai.mkError status400 "bad-nonce" "The client sent an unacceptable anti-replay nonce"
 certEnrollmentError InternalError = StdError $ Wai.mkError status500 "internal-error" "Internal Server Error"
+certEnrollmentError PathToKeyBundleNotFound = StdError $ Wai.mkError status500 "internal-error" "Path to public key bundle not found"
+certEnrollmentError BadKeys = StdError $ Wai.mkError status500 "internal-error" "Public key bundle is invalid"
 
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai

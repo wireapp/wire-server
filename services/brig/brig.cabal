@@ -64,6 +64,7 @@ library
     Brig.Effects.JwtTools
     Brig.Effects.PasswordResetStore
     Brig.Effects.PasswordResetStore.CodeStore
+    Brig.Effects.PublicKeyBundle
     Brig.Effects.SFT
     Brig.Effects.UserPendingActivationStore
     Brig.Effects.UserPendingActivationStore.Cassandra

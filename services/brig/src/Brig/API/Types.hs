@@ -210,6 +210,8 @@ data CertEnrollmentError
   | NonceNotFound
   | TokenGenerationError DPoPTokenGenerationError
   | InternalError
+  | PathToKeyBundleNotFound
+  | BadKeys
 
 -------------------------------------------------------------------------------
 -- Exceptions
