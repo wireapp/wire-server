@@ -293,5 +293,8 @@ data:
       {{- if .setDpopTokenExpirationTimeSecs }}
       setDpopTokenExpirationTimeSecs: {{ .setDpopTokenExpirationTimeSecs }}
       {{- end }}
+      {{- if .setPublicKeyBundle }}
+      setPublicKeyBundle: {{ .setPublicKeyBundle }}
+      {{- end }}
     {{- end }}
   {{- end }}
