@@ -149,6 +149,7 @@ import Data.Handle (Handle (fromHandle), parseHandle)
 import Data.Id as Id
 import Data.Json.Util
 import Data.LegalHold (UserLegalHoldStatus (..), defUserLegalHoldStatus)
+import Data.List.Extra
 import Data.List1 as List1 (List1, singleton)
 import qualified Data.Map.Strict as Map
 import qualified Data.Metrics as Metrics
@@ -1266,9 +1267,9 @@ ensureAccountDeleted uid = do
 
       if notNull probs
         || not accIsDeleted
-        || (not . null) clients
+        || notNull clients
         || conCount > 0
-        || (not . null) cookies
+        || notNull cookies
         then do
           deleteAccount acc
           pure AccountDeleted
