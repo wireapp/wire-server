@@ -973,7 +973,6 @@ testNewNonce brig = do
         Just "no-store" @=? getHeader "Cache-Control" response
       pure nonceBs
 
--- todo(leif): work in progress
 testCreateAccessToken :: Brig -> Http ()
 testCreateAccessToken brig = do
   uid <- userId <$> randomUser brig
