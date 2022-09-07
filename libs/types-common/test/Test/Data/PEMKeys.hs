@@ -15,29 +15,31 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Main
-  ( main,
+module Test.Data.PEMKeys
+  ( tests,
   )
 where
 
+import Data.ByteString.Conversion
+import Data.PEMKeys
+import Data.String.Conversions (cs)
 import Imports
-import qualified Test.Data.PEMKeys as PEMKeys
-import qualified Test.Domain as Domain
-import qualified Test.Handle as Handle
-import qualified Test.Properties as Properties
-import qualified Test.Qualified as Qualified
-import qualified Test.SizedHashMap as SizedHashMap
 import Test.Tasty
+import Test.Tasty.HUnit
 
-main :: IO ()
-main =
-  defaultMain $
-    testGroup
-      "Tests"
-      [ Properties.tests,
-        SizedHashMap.tests,
-        Domain.tests,
-        Handle.tests,
-        Qualified.tests,
-        PEMKeys.tests
-      ]
+tests :: TestTree
+tests =
+  testGroup
+    "PEMKeys"
+    [ testCase "ByteString conversion" $ do
+        Just (cs pem) @=? (toByteString <$> fromByteString @PEMKeys pem)
+    ]
+  where
+    pem :: ByteString
+    pem =
+      "-----BEGIN PRIVATE KEY-----\n"
+        <> "MC4CAQAwBQYDK2VwBCIEIFANnxZLNE4p+GDzWzR3wm/v8x/0bxZYkCyke1aTRucX\n"
+        <> "-----END PRIVATE KEY-----\n"
+        <> "-----BEGIN PUBLIC KEY-----\n"
+        <> "MCowBQYDK2VwAyEACPvhIdimF20tOPjbb+fXJrwS2RKDp7686T90AZ0+Th8=\n"
+        <> "-----END PUBLIC KEY-----\n"
