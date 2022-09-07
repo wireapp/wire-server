@@ -149,6 +149,7 @@ test-suite tests
   main-is:            Main.hs
   other-modules:
     Paths_types_common
+    Test.Data.PEMKeys
     Test.Domain
     Test.Handle
     Test.Properties
