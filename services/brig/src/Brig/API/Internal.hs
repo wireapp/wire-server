@@ -513,8 +513,8 @@ deleteUserNoAuthH uid = do
   r <- lift $ wrapHttp $ API.ensureAccountDeleted uid
   case r of
     NoUser -> throwStd (errorToWai @'E.UserNotFound)
-    AccountAlreadyDeleted -> pure $ setStatus status200 empty
-    AccountDeleted -> pure $ setStatus status202 empty
+    AccountAlreadyDeleted -> pure $ setStatus ok200 empty
+    AccountDeleted -> pure $ setStatus accepted202 empty
 
 changeSelfEmailMaybeSendH :: Member BlacklistStore r => UserId ::: Bool ::: JsonRequest EmailUpdate -> (Handler r) Response
 changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
