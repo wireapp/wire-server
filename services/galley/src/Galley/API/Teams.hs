@@ -15,9 +15,6 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# LANGUAGE LambdaCase #-}
--- NOTE: GHC incorrectly infers that the 'v' type variable in the signature of
--- 'uncheckedDeleteTeam' is unused.
-{-# OPTIONS_GHC -Wno-unused-foralls #-}
 
 module Galley.API.Teams
   ( createBindingTeam,
@@ -400,7 +397,7 @@ internalDeleteBindingTeam tid force = do
 
 -- This function is "unchecked" because it does not validate that the user has the `DeleteTeam` permission.
 uncheckedDeleteTeam ::
-  forall (v :: *) r.
+  forall r.
   Members
     '[ BrigAccess,
        ExternalAccess,
