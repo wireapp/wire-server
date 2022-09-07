@@ -54,6 +54,8 @@ import Brig.App
 import qualified Brig.Data.Client as Data
 import Brig.Data.Nonce as Nonce
 import qualified Brig.Data.User as Data
+import Brig.Effects.JwtTools (JwtTools)
+import qualified Brig.Effects.JwtTools as JwtTools
 import Brig.Federation.Client (getUserClients)
 import qualified Brig.Federation.Client as Federation
 import Brig.IO.Intra (guardLegalhold)
@@ -61,8 +63,6 @@ import qualified Brig.IO.Intra as Intra
 import qualified Brig.InternalEvent.Types as Internal
 import qualified Brig.Options as Opt
 import qualified Brig.Queue as Queue
-import Brig.Sem.JwtTools (JwtTools)
-import qualified Brig.Sem.JwtTools as JwtTools
 import Brig.Types.Intra
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import Brig.Types.User.Event

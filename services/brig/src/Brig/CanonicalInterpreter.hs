@@ -11,7 +11,7 @@ import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.PasswordResetStore.CodeStore (passwordResetStoreToCodeStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import Brig.Effects.UserPendingActivationStore.Cassandra (userPendingActivationStoreToCassandra)
-import Brig.Sem.JwtTools
+import Brig.Effects.JwtTools
 import qualified Cassandra as Cas
 import Control.Lens ((^.))
 import Imports

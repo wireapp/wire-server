@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Brig.Sem.JwtTools where
+module Brig.Effects.JwtTools where
 
 import Data.Misc (HttpsUrl)
 import Data.Nonce (Nonce)
