@@ -61,6 +61,7 @@ library
     Brig.Effects.CodeStore
     Brig.Effects.CodeStore.Cassandra
     Brig.Effects.Delay
+    Brig.Effects.JwtTools
     Brig.Effects.PasswordResetStore
     Brig.Effects.PasswordResetStore.CodeStore
     Brig.Effects.SFT
@@ -91,7 +92,6 @@ library
     Brig.Queue.Types
     Brig.RPC
     Brig.Run
-    Brig.Sem.JwtTools
     Brig.SMTP
     Brig.Team.API
     Brig.Team.DB
