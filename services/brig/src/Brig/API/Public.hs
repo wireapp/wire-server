@@ -49,6 +49,7 @@ import Brig.Effects.BlacklistStore (BlacklistStore)
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.JwtTools (JwtTools)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
+import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.IO.Intra as Intra
 import Brig.Options hiding (internalEvents, sesQueue)
@@ -193,6 +194,7 @@ servantSitemap ::
        PasswordResetStore,
        CodeStore,
        JwtTools,
+       PublicKeyBundle,
        Now
      ]
     r =>
@@ -529,6 +531,7 @@ createAccessToken ::
   forall api endpoint r.
   ( Member JwtTools r,
     Member Now r,
+    Member PublicKeyBundle r,
     IsElem endpoint api,
     HasLink endpoint,
     MkLink endpoint Link ~ (ClientId -> Link)

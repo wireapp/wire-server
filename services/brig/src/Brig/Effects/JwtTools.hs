@@ -4,6 +4,7 @@ module Brig.Effects.JwtTools where
 
 import Data.Misc (HttpsUrl)
 import Data.Nonce (Nonce)
+import Data.PEMKeys
 import Imports
 import Network.HTTP.Types (StdMethod (..))
 import Polysemy
@@ -32,7 +33,7 @@ data JwtTools m a where
     -- | Current time in seconds since "the epoch"
     Epoch ->
     -- | PEM format concatenated private key and public key of the Wire backend
-    ByteString ->
+    PEMKeys ->
     JwtTools m (Either DPoPTokenGenerationError DPoPAccessToken)
 
 makeSem ''JwtTools

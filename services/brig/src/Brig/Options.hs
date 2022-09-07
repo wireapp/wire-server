@@ -599,7 +599,10 @@ data Settings = Settings
     setDpopMaxSkewSecsInternal :: !(Maybe Word16),
     -- | The expiration time of a JWT DPoP token in seconds.
     -- use `setDpopTokenExpirationTimeSecs` as the getter function which always provides a default value
-    setDpopTokenExpirationTimeSecsInternal :: !(Maybe Word64)
+    setDpopTokenExpirationTimeSecsInternal :: !(Maybe Word64),
+    -- | Path to a .pem file containing the server's public key and private key
+    -- e.g. to sign JWT tokens
+    setPublicKeyBundle :: !(Maybe FilePath)
   }
   deriving (Show, Generic)
 

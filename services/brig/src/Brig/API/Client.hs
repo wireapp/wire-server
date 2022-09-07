@@ -56,6 +56,8 @@ import Brig.Data.Nonce as Nonce
 import qualified Brig.Data.User as Data
 import Brig.Effects.JwtTools (JwtTools)
 import qualified Brig.Effects.JwtTools as JwtTools
+import Brig.Effects.PublicKeyBundle (PublicKeyBundle)
+import qualified Brig.Effects.PublicKeyBundle as PublicKeyBundle
 import Brig.Federation.Client (getUserClients)
 import qualified Brig.Federation.Client as Federation
 import Brig.IO.Intra (guardLegalhold)
@@ -453,7 +455,7 @@ removeLegalHoldClient uid = do
   wrapHttpClient $ Intra.onUserEvent uid Nothing (UserLegalHoldDisabled uid)
 
 createAccessToken ::
-  (Member JwtTools r, Member Now r) =>
+  (Member JwtTools r, Member Now r, Member PublicKeyBundle r) =>
   UserId ->
   ClientId ->
   StdMethod ->
@@ -464,7 +466,7 @@ createAccessToken uid cid method link = \case
   Nothing -> throwE MissingProof
   Just proof -> do
     domain <- Opt.setFederationDomain <$> view settings
-    nonce <- withExceptT (const NonceNotFound) $ ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
+    nonce <- ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
     httpsUrl <- do
       let urlBs = "https://" <> toByteString' domain <> "/" <> cs (toUrlPiece link)
       maybe (throwE InternalError) pure $ fromByteString $ urlBs
@@ -472,7 +474,8 @@ createAccessToken uid cid method link = \case
     expiresIn <- Opt.setDpopTokenExpirationTimeSecs <$> view settings
     now <- fromUTCTime <$> lift (liftSem Now.get)
     let expiresAt = now & addToEpoch expiresIn
-    let pubKeyBundle = "" -- todo(leif): how to get the public key bundle?
+    pathToKeys <- ExceptT $ note PathToKeyBundleNotFound . Opt.setPublicKeyBundle <$> view settings
+    pubKeyBundle <- ExceptT $ note BadKeys <$> liftSem (PublicKeyBundle.get pathToKeys)
     token <-
       withExceptT TokenGenerationError $
         ExceptT $
