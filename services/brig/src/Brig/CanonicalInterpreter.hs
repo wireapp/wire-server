@@ -47,5 +47,5 @@ runBrigToIO e (AppT ma) =
     . interpretBlacklistStoreToCassandra @Cas.Client
     . interpretBlacklistPhonePrefixStoreToCassandra @Cas.Client
     . interpretJwtToolsStub
-    . interpretPublicKeyBundleStub
+    . interpretPublicKeyBundle
     $ runReaderT ma e
