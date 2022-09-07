@@ -954,6 +954,7 @@ getTeamConv usr tid cnv = do
     200 -> Just <$> decodeBody "galley" rs
     _ -> pure Nothing
   where
+    -- Ensure we get a type error, and not a runtime error once we drop V2.
     v2 = toByteString' (toLower <$> show V2)
     req =
       paths
