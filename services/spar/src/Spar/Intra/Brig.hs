@@ -338,7 +338,9 @@ deleteBrigUserInternal buid = do
       method DELETE
         . paths ["/i/users", toByteString' buid]
   case statusCode resp of
-    i | i == 200 || i == 202 || i == 404 -> parseResponse "brig" resp
+    200 -> pure AccountAlreadyDeleted
+    202 -> pure AccountDeleted
+    404 -> pure NoUser
     _ -> rethrow "brig" resp
 
 -- | Verify user's password (needed for certain powerful operations).

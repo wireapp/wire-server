@@ -121,7 +121,6 @@ import Control.Applicative
 import Control.Error.Safe (rightMay)
 import Control.Lens (over, view, (.~), (?~), (^.))
 import Data.Aeson (FromJSON (..), ToJSON (..))
-import Data.Aeson.Types (parseFail)
 import qualified Data.Aeson.Types as A
 import qualified Data.Attoparsec.ByteString as Parser
 import Data.ByteString.Builder (toLazyByteString)
@@ -1358,30 +1357,15 @@ instance FromJSON DeletionCodeTimeout where
   parseJSON = A.withObject "DeletionCodeTimeout" $ \o ->
     DeletionCodeTimeout <$> o A..: "expires_in"
 
-data DeleteUserResult = NoUser | AccountAlreadyDeleted | AccountDeleted
+-- | Result of an internal user/account deletion
+data DeleteUserResult
+  = -- | User never existed
+    NoUser
+  | -- | User/account was deleted before
+    AccountAlreadyDeleted
+  | -- | User/account was deleted in this call
+    AccountDeleted
   deriving (Eq, Show)
-
-instance ToJSON DeleteUserResult where
-  toJSON t = A.object ["tag" A..= toTag t]
-    where
-      toTag :: DeleteUserResult -> A.Value
-      toTag NoUser = "no-user"
-      toTag AccountAlreadyDeleted = "already-deleted"
-      toTag AccountDeleted = "deleted"
-
-instance FromJSON DeleteUserResult where
-  parseJSON (A.Object o) = do
-    tagString <- o A..: "tag"
-    case fromTag tagString of
-      Just t -> pure t
-      Nothing -> A.parseFail $ "Unknown tag: " ++ tagString
-    where
-      fromTag :: String -> Maybe DeleteUserResult
-      fromTag "no-user" = Just NoUser
-      fromTag "already-deleted" = Just AccountAlreadyDeleted
-      fromTag "deleted" = Just AccountDeleted
-      fromTag _ = Nothing
-  parseJSON _ = parseFail "Invalid DeleteUserResult"
 
 data ListUsersQuery
   = ListUsersByIds [Qualified UserId]

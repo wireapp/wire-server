@@ -511,10 +511,10 @@ createUserNoVerifySpar uData =
 deleteUserNoAuthH :: UserId -> (Handler r) Response
 deleteUserNoAuthH uid = do
   r <- lift $ wrapHttp $ API.ensureAccountDeleted uid
-  pure $ case r of
-    NoUser -> setStatus status404 $ json r
-    AccountAlreadyDeleted -> setStatus status200 $ json r
-    AccountDeleted -> setStatus status202 $ json r
+  case r of
+    NoUser -> throwStd (errorToWai @'E.UserNotFound)
+    AccountAlreadyDeleted -> pure $ setStatus status200 empty
+    AccountDeleted -> pure $ setStatus status202 empty
 
 changeSelfEmailMaybeSendH :: Member BlacklistStore r => UserId ::: Bool ::: JsonRequest EmailUpdate -> (Handler r) Response
 changeSelfEmailMaybeSendH (u ::: validate ::: req) = do

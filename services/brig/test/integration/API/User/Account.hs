@@ -1644,7 +1644,6 @@ testDeleteUserWithCompletelyDeletedUser brig cannon aws = do
     deleteUserInternal uid brig
       !!! do
         const 200 === statusCode
-        const (Right AccountAlreadyDeleted) === responseJsonEither
 
 testDeleteUserWithNoUser :: Brig -> Http ()
 testDeleteUserWithNoUser brig = do
@@ -1652,7 +1651,6 @@ testDeleteUserWithNoUser brig = do
   deleteUserInternal nonExistingUid brig
     !!! do
       const 404 === statusCode
-      const (Right NoUser) === responseJsonEither
 
 testDeleteUserWithNotDeletedUser :: HasCallStack => Brig -> Cannon -> AWS.Env -> Http ()
 testDeleteUserWithNotDeletedUser brig cannon aws = do
@@ -1664,7 +1662,6 @@ testDeleteUserWithNotDeletedUser brig cannon aws = do
           deleteUserInternal uid' brig
             !!! do
               const 202 === statusCode
-              const (Right AccountDeleted) === responseJsonEither
       )
 
 testDeleteUserWithDanglingProperty :: Brig -> Cannon -> AWS.Env -> Http ()
@@ -1692,7 +1689,6 @@ testDeleteUserWithDanglingProperty brig cannon aws = do
     deleteUserInternal uid' brig
       !!! do
         const 202 === statusCode
-        const (Right AccountDeleted) === responseJsonEither
 
   getProperty brig (userId u) "foo" !!! do
     const 404 === statusCode
