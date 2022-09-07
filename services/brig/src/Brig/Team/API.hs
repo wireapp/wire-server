@@ -31,11 +31,11 @@ import Brig.Data.UserKey
 import qualified Brig.Data.UserKey as Data
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.Effects.BlacklistStore as BlacklistStore
+import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.Email as Email
 import qualified Brig.IO.Intra as Intra
 import Brig.Options (setMaxTeamSize, setTeamInvitationTimeout)
 import qualified Brig.Phone as Phone
-import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
 import qualified Brig.Team.DB as DB
 import Brig.Team.Email
 import Brig.Team.Util (ensurePermissionToAddUser, ensurePermissions)

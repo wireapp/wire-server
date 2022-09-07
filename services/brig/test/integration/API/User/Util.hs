@@ -22,9 +22,9 @@ module API.User.Util where
 import Bilge hiding (accept, timeout)
 import Bilge.Assert
 import qualified Brig.Code as Code
-import Brig.Options (Opts)
 import Brig.Effects.CodeStore
 import Brig.Effects.CodeStore.Cassandra
+import Brig.Options (Opts)
 import Brig.Types.Team.LegalHold (LegalHoldClientRequest (..))
 import qualified Brig.ZAuth
 import qualified Cassandra as DB

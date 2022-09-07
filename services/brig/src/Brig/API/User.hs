@@ -112,18 +112,18 @@ import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import qualified Brig.Effects.BlacklistPhonePrefixStore as BlacklistPhonePrefixStore
 import Brig.Effects.BlacklistStore (BlacklistStore)
 import qualified Brig.Effects.BlacklistStore as BlacklistStore
-import qualified Brig.Federation.Client as Federation
-import qualified Brig.IO.Intra as Intra
-import qualified Brig.InternalEvent.Types as Internal
-import Brig.Options hiding (Timeout, internalEvents)
-import Brig.Password
-import qualified Brig.Queue as Queue
 import Brig.Effects.CodeStore (CodeStore)
 import qualified Brig.Effects.CodeStore as E
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import qualified Brig.Effects.PasswordResetStore as E
 import Brig.Effects.UserPendingActivationStore (UserPendingActivation (..), UserPendingActivationStore)
 import qualified Brig.Effects.UserPendingActivationStore as UserPendingActivationStore
+import qualified Brig.Federation.Client as Federation
+import qualified Brig.IO.Intra as Intra
+import qualified Brig.InternalEvent.Types as Internal
+import Brig.Options hiding (Timeout, internalEvents)
+import Brig.Password
+import qualified Brig.Queue as Queue
 import qualified Brig.Team.DB as Team
 import Brig.Types.Activation (ActivationPair)
 import Brig.Types.Connection
