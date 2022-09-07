@@ -51,6 +51,7 @@ import Wire.Arbitrary (Arbitrary, GenericUniform (..))
 
 -- FUTUREWORK: The version tag type argument can be dropped as soon as versions
 -- below V2 are not supported any more.
+-- Derivation of various JSON instances is verbose with this version tag type variable, but this can be simplified once the old version can be dropped.
 newtype TeamConversation (v :: *) = TeamConversation
   { _conversationId :: ConvId
   }
