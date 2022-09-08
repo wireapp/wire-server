@@ -900,7 +900,7 @@ testAddMultipleTemporary brig galley cannon = do
           { newClientClass = Just PhoneClient,
             newClientModel = Just "featurephone1"
           }
-  c <- responseJsonError =<< addClient brig uid clt1
+  client <- responseJsonError =<< addClient brig uid clt1
   brigClients1 <- numOfBrigClients uid
   galleyClients1 <- numOfGalleyClients uid
   liftIO $ assertEqual "Too many clients found" (Just 1) brigClients1
@@ -917,7 +917,7 @@ testAddMultipleTemporary brig galley cannon = do
       let etype = j ^? key "type" . _String
       let eclient = j ^? key "client" . key "id" . _String
       etype @?= Just "user.client-remove"
-      fmap ClientId eclient @?= Just (clientId c)
+      fmap ClientId eclient @?= Just (clientId client)
   brigClients2 <- numOfBrigClients uid
   galleyClients2 <- numOfGalleyClients uid
   liftIO $ assertEqual "Too many clients found" (Just 1) brigClients2
