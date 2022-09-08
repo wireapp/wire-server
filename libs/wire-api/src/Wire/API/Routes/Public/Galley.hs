@@ -1136,6 +1136,8 @@ type FeatureAPI =
     :<|> FeatureStatusPut '() SndFactorPasswordChallengeConfig
     :<|> FeatureStatusGet MLSConfig
     :<|> FeatureStatusPut '() MLSConfig
+    :<|> FeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
+    :<|> FeatureStatusPut '() ExposeInvitationURLsToTeamAdminConfig
     :<|> FeatureStatusGet SearchVisibilityInboundConfig
     :<|> FeatureStatusPut '() SearchVisibilityInboundConfig
     :<|> AllFeatureConfigsUserGet
