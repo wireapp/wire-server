@@ -16,13 +16,14 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
 import Control.Monad.Trans.Except
-import Data.String.Conversions (cs)
+import Data.ByteString.Conversion
 import Imports
 import Jwt.Tools
 import Network.HTTP.Types (StdMethod (..))
 import Test.Hspec
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Wire.API.MLS.Credential (ClientIdentity (..))
+import Wire.API.MLS.Epoch
 import Wire.API.User.Client.DPoPAccessToken
 
 main :: IO ()
@@ -36,6 +37,7 @@ callFFIWithRandomValues :: IO (Either DPoPTokenGenerationError DPoPAccessToken)
 callFFIWithRandomValues = do
   cid <- ClientIdentity <$> generate arbitrary <*> generate arbitrary <*> generate arbitrary
   now <- generate arbitrary
+  let expires = now & addToEpoch (360 :: Word32)
   nonce <- generate arbitrary
   uri <- generate arbitrary
   runExceptT $
@@ -46,12 +48,12 @@ callFFIWithRandomValues = do
       uri
       POST
       16
-      360
+      expires
       now
-      (cs pubKeyBundle)
+      (fromMaybe undefined $ fromByteString pem)
   where
-    pubKeyBundle :: String
-    pubKeyBundle =
+    pem :: ByteString
+    pem =
       "-----BEGIN PRIVATE KEY-----\n"
         <> "MC4CAQAwBQYDK2VwBCIEIFANnxZLNE4p+GDzWzR3wm/v8x/0bxZYkCyke1aTRucX\n"
         <> "-----END PRIVATE KEY-----\n"

@@ -228,6 +228,7 @@ library
     , insert-ordered-containers
     , iproute                    >=1.5
     , iso639                     >=0.1
+    , jwt-tools
     , lens                       >=3.8
     , lens-aeson                 >=1.0
     , metrics-core               >=0.3

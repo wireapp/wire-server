@@ -39,5 +39,5 @@ data JwtTools m a where
 makeSem ''JwtTools
 
 interpretJwtToolsStub :: Members '[Embed IO] r => Sem (JwtTools ': r) a -> Sem r a
-interpretJwtToolsStub = interpret $ \(GenerateDPoPAccessToken _ _ _ _ _ _ _ _ _) -> do
+interpretJwtToolsStub = interpret $ \GenerateDPoPAccessToken {} -> do
   pure $ Right $ DPoPAccessToken "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"

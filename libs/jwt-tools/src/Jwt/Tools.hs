@@ -24,6 +24,7 @@ import Data.ByteString.Conversion (ToByteString, toByteString')
 import Data.Id (ClientId (client))
 import Data.Misc (HttpsUrl)
 import Data.Nonce (Nonce)
+import Data.PEMKeys
 import Data.String.Conversions (cs)
 import Foreign.C.String (CString, newCString, peekCString)
 import Foreign.C.Types (CULong (..), CUShort (..))
@@ -42,9 +43,9 @@ generateDpopToken ::
   HttpsUrl ->
   StdMethod ->
   Word16 ->
-  Word64 ->
   Epoch ->
-  ByteString ->
+  Epoch ->
+  PEMKeys ->
   ExceptT DPoPTokenGenerationError m DPoPAccessToken
 generateDpopToken dpopProof cid nonce uri method maxSkewSecs maxExpiration now backendPubkeyBundle = do
   dpopProofCStr <- liftIO $ toCStr dpopProof
@@ -56,7 +57,7 @@ generateDpopToken dpopProof cid nonce uri method maxSkewSecs maxExpiration now b
   nonceCStr <- liftIO $ toCStr nonce
   uriCStr <- liftIO $ toCStr uri
   methodCStr <- liftIO $ newCString $ cs $ methodToBS method
-  backendPubkeyBundleCStr <- liftIO $ newCString $ cs backendPubkeyBundle
+  backendPubkeyBundleCStr <- liftIO $ newCString $ cs $ toByteString' backendPubkeyBundle
   responseCStr <-
     liftIO $
       generateDpopTokenFFI
@@ -68,7 +69,7 @@ generateDpopToken dpopProof cid nonce uri method maxSkewSecs maxExpiration now b
         uriCStr
         methodCStr
         (CUShort maxSkewSecs)
-        (CULong maxExpiration)
+        (CULong $ epochNumber maxExpiration)
         (CULong $ epochNumber now)
         backendPubkeyBundleCStr
   responseStr <- liftIO $ peekCString responseCStr
