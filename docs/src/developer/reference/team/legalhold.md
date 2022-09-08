@@ -146,7 +146,7 @@ Instead, an "implict consent" can be given by the site operator by setting
     legalhold: whitelist-teams-and-implicit-consent
 ```
 
-in galleys' config and then using non-exposed, internal endpoints on the galley
+in galley's config and then using non-exposed, internal endpoints on the galley
 pod to update the set of teams whose users are considered to have given their
 initial consent:
 
