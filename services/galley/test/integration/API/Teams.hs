@@ -1910,6 +1910,9 @@ postCryptoBroadcastMessage2 bcast = do
   -- Deleted charlie
   WS.bracketR2 c bob charlie $ \(wsB, wsE) -> do
     deleteClient charlie cc (Just defPassword) !!! const 200 === statusCode
+    liftIO $
+      WS.assertMatch_ (5 # WS.Second) wsE $
+        wsAssertClientRemoved cc
     let m4 = [(bob, bc, toBase64Text "ciphertext4"), (charlie, cc, toBase64Text "ciphertext4")]
     Util.postBroadcast (q alice) ac bcast {bMessage = m4} !!! do
       const 201 === statusCode

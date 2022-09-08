@@ -195,20 +195,27 @@ onPropertyEvent orig conn e =
       (pure $ list1 orig [])
 
 onClientEvent ::
+  ( MonadIO m,
+    Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
   -- | Originator of the event.
   UserId ->
   -- | Client connection ID.
   Maybe ConnId ->
   -- | The event.
   ClientEvent ->
-  (AppT r) ()
+  m ()
 onClientEvent orig conn e = do
   let events = singleton (ClientEvent e)
   let rcps = list1 orig []
   -- Synchronous push for better delivery guarantees of these
   -- events and to make sure new clients have a first notification
   -- in the stream.
-  wrapHttp $ push events rcps orig Push.RouteAny conn
+  push events rcps orig Push.RouteAny conn
 
 updateSearchIndex ::
   ( MonadClient m,

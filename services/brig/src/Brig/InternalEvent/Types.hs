@@ -25,22 +25,26 @@ import Data.Aeson
 import Data.Id
 
 data InternalNotification
-  = DeleteUser !UserId
+  = DeleteClient !ClientId !UserId !(Maybe ConnId)
+  | DeleteUser !UserId
   | DeleteService !ProviderId !ServiceId
   deriving (Eq, Show)
 
 data InternalNotificationType
-  = UserDeletion
+  = ClientDeletion
+  | UserDeletion
   | ServiceDeletion
   deriving (Eq, Show)
 
 instance FromJSON InternalNotificationType where
   parseJSON = \case
+    "client.delete" -> pure ClientDeletion
     "user.delete" -> pure UserDeletion
     "service.delete" -> pure ServiceDeletion
     x -> fail $ "InternalNotificationType: Unknown type " <> show x
 
 instance ToJSON InternalNotificationType where
+  toJSON ClientDeletion = "client.delete"
   toJSON UserDeletion = "user.delete"
   toJSON ServiceDeletion = "service.delete"
 
@@ -48,10 +52,18 @@ instance FromJSON InternalNotification where
   parseJSON = withObject "InternalNotification" $ \o -> do
     t <- o .: "type"
     case (t :: InternalNotificationType) of
+      ClientDeletion -> DeleteClient <$> o .: "client" <*> o .: "user" <*> o .: "connection"
       UserDeletion -> DeleteUser <$> o .: "user"
       ServiceDeletion -> DeleteService <$> o .: "provider" <*> o .: "service"
 
 instance ToJSON InternalNotification where
+  toJSON (DeleteClient cid uid con) =
+    object
+      [ "client" .= cid,
+        "user" .= uid,
+        "connection" .= con,
+        "type" .= ClientDeletion
+      ]
   toJSON (DeleteUser uid) =
     object
       [ "user" .= uid,
