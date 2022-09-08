@@ -23,6 +23,7 @@ module API.MLS.Util where
 import API.Util
 import Bilge
 import Bilge.Assert
+import Control.Arrow ((&&&))
 import Control.Lens (preview, to, view, (^..))
 import Control.Monad.Catch
 import Control.Monad.State (StateT, evalStateT)
@@ -52,6 +53,7 @@ import System.FilePath
 import System.IO.Temp
 import System.Process
 import Test.QuickCheck (arbitrary, generate)
+import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
 import TestHelpers
 import TestSetup
@@ -654,6 +656,7 @@ newtype MLSTest a = MLSTest {unMLSTest :: StateT MLSState TestM a}
       MonadIO,
       MonadCatch,
       MonadFail,
+      MonadMask,
       State.MonadState MLSState,
       MonadReader TestSetup
     )
@@ -1014,6 +1017,15 @@ sendAndConsumeCommit cw = do
   consumeMessage cw
 
   pure events
+
+mlsBracket ::
+  HasCallStack =>
+  [ClientIdentity] ->
+  ([WS.WebSocket] -> MLSTest a) ->
+  MLSTest a
+mlsBracket clients k = do
+  c <- view tsCannon
+  WS.bracketAsClientRN c (map (ciUser &&& ciClient) clients) k
 
 readGroupState :: FilePath -> IO [(ClientIdentity, KeyPackageRef)]
 readGroupState fp = do
