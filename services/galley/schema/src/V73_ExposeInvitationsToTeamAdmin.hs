@@ -15,9 +15,20 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module V73_ExposeInvitationsToTeamAdmin
+  ( migration,
+  )
+where
 
+import Cassandra.Schema
 import Imports
+import Text.RawString.QQ
 
-schemaVersion :: Int32
-schemaVersion = 73
+migration :: Migration
+migration = Migration 73 "Add feature config for team feature exposing invitation URLs to team admins" $ do
+  schema'
+    [r| ALTER TABLE team_features ADD (
+          expose_invitation_urls_to_team_admin int,
+          expose_invitation_urls_to_team_admin_lock_status int
+        )
+     |]
