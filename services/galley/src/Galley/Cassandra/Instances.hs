@@ -118,9 +118,8 @@ instance Cql ConvTeamInfo where
 
   toCql t = CqlUdt [("teamid", toCql (cnvTeamId t)), ("managed", toCql False)]
 
-  fromCql (CqlUdt u) = do
-    t <- note "missing 'teamid' in teaminfo" ("teamid" `lookup` u) >>= fromCql
-    pure (ConvTeamInfo t)
+  fromCql (CqlUdt u) =
+    note "missing 'teamid' in teaminfo" ("teamid" `lookup` u) >>= fmap ConvTeamInfo . fromCql
   fromCql _ = Left "teaminfo: udt expected"
 
 instance Cql TeamBinding where
