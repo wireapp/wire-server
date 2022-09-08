@@ -2,10 +2,12 @@
 
 module Brig.Effects.JwtTools where
 
+import Control.Monad.Trans.Except
 import Data.Misc (HttpsUrl)
 import Data.Nonce (Nonce)
 import Data.PEMKeys
 import Imports
+import Jwt.Tools (generateDpopToken)
 import Network.HTTP.Types (StdMethod (..))
 import Polysemy
 import Wire.API.MLS.Credential (ClientIdentity)
@@ -41,3 +43,7 @@ makeSem ''JwtTools
 interpretJwtToolsStub :: Members '[Embed IO] r => Sem (JwtTools ': r) a -> Sem r a
 interpretJwtToolsStub = interpret $ \GenerateDPoPAccessToken {} -> do
   pure $ Right $ DPoPAccessToken "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+
+interpretJwtTools :: Members '[Embed IO] r => Sem (JwtTools ': r) a -> Sem r a
+interpretJwtTools = interpret $ \(GenerateDPoPAccessToken proof ci n uri m skew ex now pem) -> do
+  runExceptT $ generateDpopToken proof ci n uri m skew ex now pem
