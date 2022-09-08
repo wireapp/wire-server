@@ -724,6 +724,11 @@ newtype ConvTeamInfo = ConvTeamInfo
   deriving (Arbitrary) via (GenericUniform ConvTeamInfo)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema ConvTeamInfo)
 
+managedDesc :: Text
+managedDesc =
+  "This field MUST NOT be used by clients. "
+    <> "It is here only for backwards compatibility of the interface."
+
 instance ToSchema ConvTeamInfo where
   schema =
     objectWithDocModifier
@@ -734,7 +739,7 @@ instance ToSchema ConvTeamInfo where
         <* const ()
           .= fieldWithDocModifier
             "managed"
-            (description ?~ "(Not parsed any more) Whether this is a managed team conversation")
+            (description ?~ managedDesc)
             (c (False :: Bool))
     where
       c :: ToJSON a => a -> ValueSchema SwaggerDoc ()
@@ -746,7 +751,7 @@ modelTeamInfo = Doc.defineModel "TeamInfo" $ do
   Doc.property "teamid" Doc.bytes' $
     Doc.description "Team ID"
   Doc.property "managed" Doc.bool' $
-    Doc.description "(Not parsed any more) Is this a managed team conversation?"
+    Doc.description managedDesc
 
 --------------------------------------------------------------------------------
 -- invite

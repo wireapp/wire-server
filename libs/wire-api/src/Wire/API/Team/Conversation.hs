@@ -55,6 +55,11 @@ newtype TeamConversation = TeamConversation
   deriving (Arbitrary) via (GenericUniform TeamConversation)
   deriving (A.ToJSON, A.FromJSON, S.ToSchema) via (Schema TeamConversation)
 
+managedDesc :: Text
+managedDesc =
+  "This field MUST NOT be used by clients. "
+    <> "It is here only for backwards compatibility of the interface."
+
 instance ToSchema TeamConversation where
   schema =
     objectWithDocModifier
@@ -65,9 +70,7 @@ instance ToSchema TeamConversation where
         <* const ()
           .= fieldWithDocModifier
             "managed"
-            ( description ?~ "This field MUST not be used by clients. "
-                <> "It is here only for backwards compatibility of the interface."
-            )
+            (description ?~ managedDesc)
             (c (False :: Bool))
     where
       c :: A.ToJSON a => a -> ValueSchema SwaggerDoc ()
@@ -82,9 +85,7 @@ modelTeamConversation = Doc.defineModel "TeamConversation" $ do
   Doc.property "conversation" Doc.bytes' $
     Doc.description "conversation ID"
   Doc.property "managed" Doc.bytes' $
-    Doc.description $
-      "This field MUST not be used by clients. "
-        <> "It is here only for backwards compatibility of the interface."
+    Doc.description managedDesc
 
 --------------------------------------------------------------------------------
 -- TeamConversationList
