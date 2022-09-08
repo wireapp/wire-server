@@ -23,11 +23,12 @@ module API.MLS.Util where
 import API.Util
 import Bilge
 import Bilge.Assert
-import Control.Lens (preview, to, view)
+import Control.Lens (preview, to, view, (^..))
 import Control.Monad.Catch
 import Control.Monad.State (StateT, evalStateT)
 import qualified Control.Monad.State as State
 import Crypto.PubKey.Ed25519
+import Data.Aeson.Lens
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
@@ -36,7 +37,7 @@ import Data.Domain
 import Data.Hex
 import Data.Id
 import Data.Json.Util
-import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
 import Data.Qualified
@@ -639,8 +640,6 @@ data MLSState = MLSState
   { mlsBaseDir :: FilePath,
     -- | for creating clients
     mlsUnusedPrekeys :: [LastPrekey],
-    mlsClientsInGroup :: [ClientIdentity],
-    mlsConv :: Maybe (Qualified ConvId),
     mlsGroupId :: Maybe GroupId,
     mlsEpoch :: Word64
   }
@@ -675,15 +674,19 @@ runMLSTest (MLSTest m) =
       MLSState
         { mlsBaseDir = tmp,
           mlsUnusedPrekeys = someLastPrekeys,
-          mlsClientsInGroup = [],
-          mlsConv = Nothing,
           mlsGroupId = Nothing,
           mlsEpoch = 0
         }
 
-data CommitWelcome = CommitWelcome
-  { cwCommit :: ByteString,
-    cwWelcome :: Maybe ByteString
+data WelcomePackage = WelcomePackage
+  { wpWelcome :: ByteString,
+    wpRecipients :: NonEmpty ClientIdentity
+  }
+
+data MessagePackage = MessagePackage
+  { mpSender :: ClientIdentity,
+    mpMessage :: ByteString,
+    mpWelcomePackage :: Maybe WelcomePackage
   }
 
 takeLastPrekeyNG :: HasCallStack => MLSTest LastPrekey
@@ -795,14 +798,14 @@ setupMLSGroup creator = do
   groupJSON <- mlscli creator ["group", "create", T.unpack (toBase64Text (unGroupId groupId))] Nothing
   g <- nextGroupFile creator
   liftIO $ BS.writeFile g groupJSON
-  State.modify $ \s -> s {mlsGroupId = Just groupId, mlsConv = Just (cnvQualifiedId conv)}
+  State.modify $ \s -> s {mlsGroupId = Just groupId}
   pure (groupId, cnvQualifiedId conv)
 
 -- | Claim keypackages and create a commit/welcome pair on a given client.
 -- Note that this alters the state of the group immediately. If we want to test
 -- a scenario where the commit is rejected by the backend, we can restore the
 -- group to the previous state by using an older version of the group file.
-createAddCommit :: HasCallStack => ClientIdentity -> [Qualified UserId] -> MLSTest CommitWelcome
+createAddCommit :: HasCallStack => ClientIdentity -> [Qualified UserId] -> MLSTest MessagePackage
 createAddCommit committer usersToAdd = do
   brig <- view tsBrig
   bundles :: [KeyPackageBundle] <- for usersToAdd $ \userToAdd ->
@@ -822,13 +825,14 @@ createAddCommit committer usersToAdd = do
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
 
   let bundleEntries = concatMap (toList . kpbEntries) bundles
+      entryIdentity be = mkClientIdentity (kpbeUser be) (kpbeClient be)
   let kpFile qcid ref =
         bd </> cid2Str qcid
           </> T.unpack (T.decodeUtf8 (hex (unKeyPackageRef ref)))
 
   kpFiles <- for bundleEntries $ \be -> do
     let d = kpData . kpbeKeyPackage $ be
-        qcid = mkClientIdentity (kpbeUser be) (kpbeClient be)
+        qcid = entryIdentity be
         fn = kpFile qcid (kpbeRef be)
     liftIO $ BS.writeFile fn d
     pure fn
@@ -850,11 +854,22 @@ createAddCommit committer usersToAdd = do
       Nothing
 
   welcome <- liftIO $ BS.readFile welcomeFile
+  let welcomePackage =
+        nonEmpty bundleEntries <&> \entries ->
+          WelcomePackage
+            { wpWelcome = welcome,
+              wpRecipients = fmap entryIdentity entries
+            }
 
-  pure $ CommitWelcome commit (Just welcome)
+  pure $
+    MessagePackage
+      { mpSender = committer,
+        mpMessage = commit,
+        mpWelcomePackage = welcomePackage
+      }
 
-createPendingProposalCommit :: HasCallStack => ClientIdentity -> MLSTest CommitWelcome
-createPendingProposalCommit qcid = do
+createPendingProposalCommit :: HasCallStack => ClientIdentity -> [ClientIdentity] -> MLSTest MessagePackage
+createPendingProposalCommit qcid newClients = do
   bd <- State.gets mlsBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
   g <- currentGroupFile qcid
@@ -876,13 +891,25 @@ createPendingProposalCommit qcid = do
       doesFileExist welcomeFile >>= \case
         False -> pure Nothing
         True -> Just <$> BS.readFile welcomeFile
-  pure (CommitWelcome commit welcome)
+  pure
+    MessagePackage
+      { mpSender = qcid,
+        mpMessage = commit,
+        mpWelcomePackage = do
+          w <- welcome
+          nc <- nonEmpty newClients
+          pure
+            WelcomePackage
+              { wpWelcome = w,
+                wpRecipients = nc
+              }
+      }
 
-createRemoveCommit :: HasCallStack => ClientIdentity -> [ClientIdentity] -> MLSTest CommitWelcome
+createRemoveCommit :: HasCallStack => ClientIdentity -> [ClientIdentity] -> MLSTest MessagePackage
 createRemoveCommit = error "TODO"
 
-createExternalAddProposal :: HasCallStack => ClientIdentity -> MLSTest ByteString
-createExternalAddProposal qcid = do
+createExternalAddProposal :: HasCallStack => ClientIdentity -> MLSTest MessagePackage
+createExternalAddProposal joiner = do
   groupId <-
     State.gets mlsGroupId >>= \case
       Nothing -> liftIO $ assertFailure "Creating add proposal for non-existing group"
@@ -890,7 +917,7 @@ createExternalAddProposal qcid = do
   epoch <- State.gets mlsEpoch
   proposal <-
     mlscli
-      qcid
+      joiner
       [ "proposal-external",
         "--group-id",
         T.unpack (toBase64Text (unGroupId groupId)),
@@ -899,12 +926,17 @@ createExternalAddProposal qcid = do
         "add"
       ]
       Nothing
-  postMessage (ciUser qcid) proposal
+  postMessage (ciUser joiner) proposal
     !!! const 201 === statusCode
-  pure proposal
+  pure
+    MessagePackage
+      { mpSender = joiner,
+        mpMessage = proposal,
+        mpWelcomePackage = Nothing
+      }
 
-consumeWelcome :: HasCallStack => [ClientIdentity] -> ByteString -> MLSTest ()
-consumeWelcome qcids welcome = for_ qcids $ \qcid -> do
+consumeWelcome :: HasCallStack => WelcomePackage -> MLSTest ()
+consumeWelcome (WelcomePackage welcome qcids) = for_ qcids $ \qcid -> do
   link <- groupFileLink qcid
   liftIO $
     doesFileExist link >>= \e ->
@@ -921,36 +953,55 @@ consumeWelcome qcids welcome = for_ qcids $ \qcid -> do
       ]
       (Just welcome)
 
-consumeMessage :: HasCallStack => [ClientIdentity] -> ByteString -> MLSTest ()
-consumeMessage qcids msg = for_ qcids $ \qcid -> do
-  bd <- State.gets mlsBaseDir
-  g <- currentGroupFile qcid
-  gNew <- nextGroupFile qcid
-  void $
-    mlscli
-      qcid
-      [ "consume",
-        "--group",
-        g,
-        "--group-out",
-        gNew,
-        "--signer-key",
-        bd </> "removal.key",
-        "-"
-      ]
-      (Just msg)
+-- | Make all member clients consume a given message. The list of members is
+-- obtained by inspecting the current state of the group from the point of view
+-- of the sender.
+consumeMessage :: HasCallStack => MessagePackage -> MLSTest ()
+consumeMessage msg = consumeMessage' (mpSender msg) msg
+
+-- | Make all member clients consume a given message. The list of members is
+-- obtained by inspecting the current state of the group from the point of view
+-- of 'member'.
+consumeMessage' :: HasCallStack => ClientIdentity -> MessagePackage -> MLSTest ()
+consumeMessage' member msg = do
+  gSender <- currentGroupFile member
+  mems <-
+    liftIO $ do
+      let excluded =
+            Set.fromList
+              ( mpSender msg :
+                (maybeToList (mpWelcomePackage msg) >>= toList . wpRecipients)
+              )
+      filter (\(qcid, _) -> Set.notMember qcid excluded)
+        <$> readGroupState gSender
+  for_ mems $ \(qcid, _) -> do
+    bd <- State.gets mlsBaseDir
+    g <- currentGroupFile qcid
+    gNew <- nextGroupFile qcid
+    void $
+      mlscli
+        qcid
+        [ "consume",
+          "--group",
+          g,
+          "--group-out",
+          gNew,
+          "--signer-key",
+          bd </> "removal.key",
+          "-"
+        ]
+        (Just (mpMessage msg))
 
 sendAndConsumeCommit ::
   HasCallStack =>
-  ClientIdentity ->
-  [ClientIdentity] ->
-  [ClientIdentity] ->
-  CommitWelcome ->
+  MessagePackage ->
   MLSTest [Event]
-sendAndConsumeCommit committer existingClients newClients cw = do
+sendAndConsumeCommit cw = do
+  let commit = mpMessage cw
+      committer = mpSender cw
   events <-
     fmap mmssEvents . responseJsonError
-      =<< postMessage (qUnqualified (cidQualifiedUser committer)) (cwCommit cw)
+      =<< postMessage (qUnqualified (cidQualifiedUser committer)) commit
         <!! const 201 === statusCode
 
   -- increment epoch
@@ -959,12 +1010,19 @@ sendAndConsumeCommit committer existingClients newClients cw = do
       { mlsEpoch = mlsEpoch mls + 1
       }
 
-  case (newClients, cwWelcome cw) of
-    (_, Just welcome) -> consumeWelcome newClients welcome
-    ([], Nothing) -> pure ()
-    _ ->
-      liftIO . assertFailure $
-        "Expected welcome message for new clients: " <> show newClients
-  consumeMessage existingClients (cwCommit cw)
+  traverse_ consumeWelcome (mpWelcomePackage cw)
+  consumeMessage cw
 
   pure events
+
+readGroupState :: FilePath -> IO [(ClientIdentity, KeyPackageRef)]
+readGroupState fp = do
+  j <- BS.readFile fp
+  pure $ do
+    node <- j ^.. key "group" . key "tree" . key "tree" . key "nodes" . _Array . traverse
+    leafNode <- node ^.. key "node" . key "LeafNode"
+    identity <-
+      either (const []) pure . decodeMLS' . BS.pack . map fromIntegral $
+        leafNode ^.. key "key_package" . key "payload" . key "credential" . key "credential" . key "Basic" . key "identity" . key "vec" . _Array . traverse . _Integer
+    kpr <- (unhexM . T.encodeUtf8 =<<) $ leafNode ^.. key "key_package_ref" . _String
+    pure (identity, KeyPackageRef kpr)

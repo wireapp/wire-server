@@ -1,5 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -16,7 +17,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wwarn #-}
 
 module API.MLS (tests) where
 
@@ -1602,19 +1602,20 @@ testExternalAddProposal = do
     charlie1 <- createMLSClient charlie
 
     -- upload key packages
-    uploadNewKeyPackage bob1
-    uploadNewKeyPackage charlie1
+    void $ uploadNewKeyPackage bob1
+    void $ uploadNewKeyPackage charlie1
 
     -- create group with alice1 and bob1
     (_, qcnv) <- setupMLSGroup alice1
-    createAddCommit alice1 [bob]
-      >>= sendAndConsumeCommit alice1 [] [bob1]
+    void $
+      createAddCommit alice1 [bob]
+        >>= sendAndConsumeCommit
 
     -- bob joins with an external proposal
-    createExternalAddProposal bob2
-      >>= consumeMessage [alice1, bob1]
-    createPendingProposalCommit alice1
-      >>= sendAndConsumeCommit alice1 [bob1] [bob2]
+    createExternalAddProposal bob2 >>= consumeMessage' alice1
+    void $
+      createPendingProposalCommit alice1 [bob2]
+        >>= sendAndConsumeCommit
 
     -- bob adds charlie
     putOtherMemberQualified
@@ -1624,10 +1625,10 @@ testExternalAddProposal = do
       qcnv
       !!! const 200 === statusCode
     createAddCommit bob2 [charlie]
-      >>= sendAndConsumeCommit bob2 [alice1, bob1] [charlie1]
+      >>= sendAndConsumeCommit
 
-testExternalAddProposal_old :: TestM ()
-testExternalAddProposal_old = withSystemTempDirectory "mls" $ \tmp -> do
+_testExternalAddProposal_old :: TestM ()
+_testExternalAddProposal_old = withSystemTempDirectory "mls" $ \tmp -> do
   let opts@SetupOptions {..} = def {createConv = CreateConv}
   (creator, users@[bob], bobClient2, bobClient3) <- withLastPrekeys $ do
     (creator, users@[bob]) <- setupParticipants tmp opts [(1, LocalUser)]
