@@ -20,13 +20,12 @@ module Test.Wire.API.Golden.Generated.TeamConversation_team where
 import Data.Id (Id (Id))
 import qualified Data.UUID as UUID (fromString)
 import Imports
-import Wire.API.Routes.Version
 import Wire.API.Team.Conversation (TeamConversation, newTeamConversation)
 
-testObject_TeamConversation_team_until_v2 :: TeamConversation (Until 'V2)
-testObject_TeamConversation_team_until_v2 =
+testObject_TeamConversation_team_1 :: TeamConversation
+testObject_TeamConversation_team_1 =
   newTeamConversation (Id (fromJust (UUID.fromString "00000054-0000-0032-0000-001d0000003e")))
 
-testObject_TeamConversation_team_from_v2 :: TeamConversation (From 'V2)
-testObject_TeamConversation_team_from_v2 =
+testObject_TeamConversation_team_2 :: TeamConversation
+testObject_TeamConversation_team_2 =
   newTeamConversation (Id (fromJust (UUID.fromString "00000021-0000-0059-0000-00390000004c")))

@@ -46,7 +46,6 @@ import qualified Wire.API.Provider.External as Provider.External
 import qualified Wire.API.Provider.Service as Provider.Service
 import qualified Wire.API.Provider.Service.Tag as Provider.Service.Tag
 import qualified Wire.API.Push.Token as Push.Token
-import Wire.API.Routes.Version
 import qualified Wire.API.Team as Team
 import qualified Wire.API.Team.Conversation as Team.Conversation
 import qualified Wire.API.Team.Feature as Team.Feature
@@ -187,10 +186,8 @@ tests =
       testRoundTrip @Team.TeamList,
       testRoundTrip @Team.TeamUpdateData,
       testRoundTrip @Team.TeamDeleteData,
-      testRoundTrip @(Team.Conversation.TeamConversation (Until 'V2)),
-      testRoundTrip @(Team.Conversation.TeamConversation (From 'V2)),
-      testRoundTrip @(Team.Conversation.TeamConversationList (Until 'V2)),
-      testRoundTrip @(Team.Conversation.TeamConversationList (From 'V2)),
+      testRoundTrip @Team.Conversation.TeamConversation,
+      testRoundTrip @Team.Conversation.TeamConversationList,
       testRoundTrip @(Team.Feature.WithStatus Team.Feature.LegalholdConfig),
       testRoundTrip @(Team.Feature.WithStatusPatch Team.Feature.LegalholdConfig),
       testRoundTrip @(Team.Feature.WithStatusPatch Team.Feature.SelfDeletingMessagesConfig),

@@ -456,7 +456,7 @@ uncheckedDeleteTeam lusr zcon tid = do
     createConvDeleteEvents ::
       UTCTime ->
       [TeamMember] ->
-      TeamConversation v ->
+      TeamConversation ->
       ([Push], [(BotMember, Conv.Event)]) ->
       Sem r ([Push], [(BotMember, Conv.Event)])
     createConvDeleteEvents now teamMembs c (pp, ee) = do
@@ -1018,7 +1018,7 @@ getTeamConversations ::
     r =>
   UserId ->
   TeamId ->
-  Sem r (Public.TeamConversationList v)
+  Sem r Public.TeamConversationList
 getTeamConversations zusr tid = do
   tm <-
     E.getTeamMember tid zusr
@@ -1038,7 +1038,7 @@ getTeamConversation ::
   UserId ->
   TeamId ->
   ConvId ->
-  Sem r (Public.TeamConversation v)
+  Sem r Public.TeamConversation
 getTeamConversation zusr tid cid = do
   tm <-
     E.getTeamMember tid zusr

@@ -107,8 +107,8 @@ data TeamStore m a where
   GetBillingTeamMembers :: TeamId -> TeamStore m [UserId]
   GetTeam :: TeamId -> TeamStore m (Maybe TeamData)
   GetTeamName :: TeamId -> TeamStore m (Maybe Text)
-  GetTeamConversation :: TeamId -> ConvId -> TeamStore m (Maybe (TeamConversation v))
-  GetTeamConversations :: TeamId -> TeamStore m [TeamConversation v]
+  GetTeamConversation :: TeamId -> ConvId -> TeamStore m (Maybe TeamConversation)
+  GetTeamConversations :: TeamId -> TeamStore m [TeamConversation]
   SelectTeams :: UserId -> [TeamId] -> TeamStore m [TeamId]
   GetTeamMember :: TeamId -> UserId -> TeamStore m (Maybe TeamMember)
   GetTeamMembersWithLimit :: TeamId -> Range 1 HardTruncationLimit Int32 -> TeamStore m TeamMemberList

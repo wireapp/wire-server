@@ -874,47 +874,19 @@ type TeamConversationAPI =
         :> Get '[Servant.JSON] ConversationRolesList
     )
     :<|> Named
-           "get-team-conversations-v1"
-           ( Summary "Get team conversations"
-               :> Until 'V2
-               :> CanThrow OperationDenied
-               :> CanThrow 'NotATeamMember
-               :> ZUser
-               :> "teams"
-               :> Capture "tid" TeamId
-               :> "conversations"
-               :> Get '[Servant.JSON] (TeamConversationList (Until 'V2))
-           )
-    :<|> Named
            "get-team-conversations"
            ( Summary "Get team conversations"
-               :> From 'V2
                :> CanThrow OperationDenied
                :> CanThrow 'NotATeamMember
                :> ZUser
                :> "teams"
                :> Capture "tid" TeamId
                :> "conversations"
-               :> Get '[Servant.JSON] (TeamConversationList (From 'V2))
-           )
-    :<|> Named
-           "get-team-conversation-v1"
-           ( Summary "Get one team conversation"
-               :> Until 'V2
-               :> CanThrow 'ConvNotFound
-               :> CanThrow OperationDenied
-               :> CanThrow 'NotATeamMember
-               :> ZUser
-               :> "teams"
-               :> Capture "tid" TeamId
-               :> "conversations"
-               :> Capture "cid" ConvId
-               :> Get '[Servant.JSON] (TeamConversation (Until 'V2))
+               :> Get '[Servant.JSON] TeamConversationList
            )
     :<|> Named
            "get-team-conversation"
            ( Summary "Get one team conversation"
-               :> From 'V2
                :> CanThrow 'ConvNotFound
                :> CanThrow OperationDenied
                :> CanThrow 'NotATeamMember
@@ -923,7 +895,7 @@ type TeamConversationAPI =
                :> Capture "tid" TeamId
                :> "conversations"
                :> Capture "cid" ConvId
-               :> Get '[Servant.JSON] (TeamConversation (From 'V2))
+               :> Get '[Servant.JSON] TeamConversation
            )
     :<|> Named
            "delete-team-conversation"

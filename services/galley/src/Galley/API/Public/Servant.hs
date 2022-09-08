@@ -89,9 +89,7 @@ servantSitemap =
     teamConversations :: API TeamConversationAPI GalleyEffects
     teamConversations =
       mkNamedAPI @"get-team-conversation-roles" getTeamConversationRoles
-        <@> mkNamedAPI @"get-team-conversations-v1" getTeamConversations
         <@> mkNamedAPI @"get-team-conversations" getTeamConversations
-        <@> mkNamedAPI @"get-team-conversation-v1" getTeamConversation
         <@> mkNamedAPI @"get-team-conversation" getTeamConversation
         <@> mkNamedAPI @"delete-team-conversation" deleteTeamConversation
 
