@@ -507,7 +507,7 @@ testMultiUserGetPrekeys brig = do
         mkUserClientPrekeyMap $
           Map.fromList $
             xs <&> \(uid, c, _lpk, cpk) ->
-              (uid, Map.singleton (clientId c) (Just (prekeyData cpk)))
+              (uid, Map.singleton (clientId c) (prekeyData cpk))
 
   uid <- userId <$> randomUser brig
 
@@ -542,7 +542,7 @@ testMultiUserGetPrekeysQualified brig opts = do
             mkUserClientPrekeyMap $
               Map.fromList $
                 xs <&> \(uid', c, _lpk, cpk) ->
-                  (uid', Map.singleton (clientId c) (Just (prekeyData cpk)))
+                  (uid', Map.singleton (clientId c) (prekeyData cpk))
 
   post
     ( brig

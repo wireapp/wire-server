@@ -247,12 +247,12 @@ userClientMapSchema sch =
     UserClientMap <$> userClientMap .= map_ (map_ sch)
 
 newtype UserClientPrekeyMap = UserClientPrekeyMap
-  {getUserClientPrekeyMap :: UserClientMap (Maybe Prekey)}
+  {getUserClientPrekeyMap :: UserClientMap Prekey}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary, Semigroup, Monoid)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema UserClientPrekeyMap
 
-mkUserClientPrekeyMap :: Map UserId (Map ClientId (Maybe Prekey)) -> UserClientPrekeyMap
+mkUserClientPrekeyMap :: Map UserId (Map ClientId Prekey) -> UserClientPrekeyMap
 mkUserClientPrekeyMap = coerce
 
 instance ToSchema UserClientPrekeyMap where
@@ -260,7 +260,7 @@ instance ToSchema UserClientPrekeyMap where
     where
       sch =
         named "UserClientPrekeyMap" $
-          userClientMapSchema (nullable (unnamed schema))
+          userClientMapSchema (unnamed schema)
       addDoc =
         Swagger.schema . Swagger.example
           ?~ toJSON
@@ -268,7 +268,7 @@ instance ToSchema UserClientPrekeyMap where
                 (generateExample @UserId)
                 ( Map.singleton
                     (newClientId 4940483633899001999)
-                    (Just (Prekey (PrekeyId 1) "pQABAQECoQBYIOjl7hw0D8YRNq..."))
+                    (Prekey (PrekeyId 1) "pQABAQECoQBYIOjl7hw0D8YRNq...")
                 )
             )
 
@@ -312,11 +312,11 @@ qualifiedUserClientMapSchema sch =
           )
 
 newtype QualifiedUserClientPrekeyMap = QualifiedUserClientPrekeyMap
-  {getQualifiedUserClientPrekeyMap :: QualifiedUserClientMap (Maybe Prekey)}
+  {getQualifiedUserClientPrekeyMap :: QualifiedUserClientMap Prekey}
   deriving stock (Eq, Show)
   deriving newtype (Arbitrary)
   deriving (FromJSON, ToJSON, Swagger.ToSchema) via Schema QualifiedUserClientPrekeyMap
-  deriving (Semigroup, Monoid) via (QualifiedUserClientMap (Semigroup.Option (Semigroup.First Prekey)))
+  deriving (Semigroup, Monoid) via (QualifiedUserClientMap (Semigroup.First Prekey))
 
 instance ToSchema QualifiedUserClientPrekeyMap where
   schema =

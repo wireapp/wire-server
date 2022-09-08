@@ -71,7 +71,7 @@ claimPrekey ::
   (MonadReader Env m, MonadIO m, Log.MonadLogger m) =>
   Qualified UserId ->
   ClientId ->
-  ExceptT FederationError m (Maybe ClientPrekey)
+  ExceptT FederationError m ClientPrekey
 claimPrekey (Qualified user domain) client = do
   lift $ Log.info $ Log.msg @Text "Brig-federation: claiming remote prekey"
   runBrigFederatorClient domain $ fedClient @'Brig @"claim-prekey" (user, client)

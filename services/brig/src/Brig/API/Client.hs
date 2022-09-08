@@ -237,7 +237,7 @@ claimPrekey ::
   UserId ->
   Domain ->
   ClientId ->
-  ExceptT ClientError m (Maybe ClientPrekey)
+  ExceptT ClientError m ClientPrekey
 claimPrekey protectee u d c = do
   isLocalDomain <- (d ==) <$> viewFederationDomain
   if isLocalDomain
@@ -255,13 +255,12 @@ claimLocalPrekey ::
   LegalholdProtectee ->
   UserId ->
   ClientId ->
-  ExceptT ClientError m (Maybe ClientPrekey)
+  ExceptT ClientError m ClientPrekey
 claimLocalPrekey protectee user client = do
   guardLegalhold protectee (mkUserClients [(user, [client])])
   lift $ do
     prekey <- Data.claimPrekey user client
-    when (isNothing prekey) (noPrekeys user client)
-    pure prekey
+    maybe (noPrekeys user client) pure prekey
 
 claimRemotePrekey ::
   ( MonadReader Env m,
@@ -270,7 +269,7 @@ claimRemotePrekey ::
   ) =>
   Qualified UserId ->
   ClientId ->
-  ExceptT ClientError m (Maybe ClientPrekey)
+  ExceptT ClientError m ClientPrekey
 claimRemotePrekey quser client = fmapLT ClientFederationError $ Federation.claimPrekey quser client
 
 claimPrekeyBundle :: LegalholdProtectee -> Domain -> UserId -> ExceptT ClientError (AppT r) PrekeyBundle
@@ -339,9 +338,10 @@ claimLocalMultiPrekeyBundles protectee userClients = do
     . Message.userClients
     $ userClients
   where
-    getChunk :: Map UserId (Set ClientId) -> AppT r (Map UserId (Map ClientId (Maybe Prekey)))
+    getChunk :: Map UserId (Set ClientId) -> AppT r (Map UserId (Map ClientId Prekey))
     getChunk =
       wrapHttpClient . runConcurrently . Map.traverseWithKey (\u -> Concurrently . getUserKeys u)
+
     getUserKeys ::
       ( MonadClient m,
         Log.MonadLogger m,
@@ -352,9 +352,10 @@ claimLocalMultiPrekeyBundles protectee userClients = do
       ) =>
       UserId ->
       Set ClientId ->
-      m (Map ClientId (Maybe Prekey))
+      m (Map ClientId Prekey)
     getUserKeys u =
       sequenceA . Map.fromSet (getClientKeys u)
+
     getClientKeys ::
       ( MonadClient m,
         Log.MonadLogger m,
@@ -365,11 +366,10 @@ claimLocalMultiPrekeyBundles protectee userClients = do
       ) =>
       UserId ->
       ClientId ->
-      m (Maybe Prekey)
+      m Prekey
     getClientKeys u c = do
       key <- fmap prekeyData <$> Data.claimPrekey u c
-      when (isNothing key) $ noPrekeys u c
-      pure key
+      maybe (noPrekeys u c) pure key
 
 -- Utilities
 
@@ -396,7 +396,7 @@ noPrekeys ::
   ) =>
   UserId ->
   ClientId ->
-  m ()
+  m a
 noPrekeys u c = do
   Log.info $
     field "user" (toByteString u)
@@ -409,6 +409,7 @@ noPrekeys u c = do
       field "user" (toByteString u)
         ~~ field "client" (toByteString c)
         ~~ msg (val "Client exists without prekeys.")
+  error "TODO: make this an error in Sem and throw it as a ClientError that makes the response go status...  what?  500?"
 
 pubClient :: Client -> PubClient
 pubClient c =
