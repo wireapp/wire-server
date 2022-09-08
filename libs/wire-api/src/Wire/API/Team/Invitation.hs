@@ -33,6 +33,7 @@ import Data.Aeson
 import Data.Id
 import Data.Json.Util
 import qualified Data.Swagger.Build.Api as Doc
+import Data.Text
 import Imports
 import Wire.API.Team.Role (Role, defaultRole, typeRole)
 import Wire.API.User.Identity (Email, Phone)
@@ -104,7 +105,8 @@ data Invitation = Invitation
     inCreatedBy :: Maybe UserId,
     inInviteeEmail :: Email,
     inInviteeName :: Maybe Name,
-    inInviteePhone :: Maybe Phone
+    inInviteePhone :: Maybe Phone,
+    inInviteeUrl :: Maybe Text
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Invitation)
@@ -134,6 +136,9 @@ modelTeamInvitation = Doc.defineModel "TeamInvitation" $ do
   Doc.property "phone" Doc.string' $ do
     Doc.description "Phone number of the invitee, in the E.164 format"
     Doc.optional
+  Doc.property "url" Doc.string' $ do
+    Doc.description "URL of the invitation link to be sent to the invitee"
+    Doc.optional
 
 instance ToJSON Invitation where
   toJSON i =
@@ -145,7 +150,8 @@ instance ToJSON Invitation where
         "created_by" .= inCreatedBy i,
         "email" .= inInviteeEmail i,
         "name" .= inInviteeName i,
-        "phone" .= inInviteePhone i
+        "phone" .= inInviteePhone i,
+        "url" .= inInviteeUrl i
       ]
 
 instance FromJSON Invitation where
@@ -160,6 +166,7 @@ instance FromJSON Invitation where
       <*> o .: "email"
       <*> o .:? "name"
       <*> o .:? "phone"
+      <*> o .:? "url"
 
 --------------------------------------------------------------------------------
 -- InvitationList
