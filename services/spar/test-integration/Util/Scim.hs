@@ -409,7 +409,7 @@ patchUser_ auth muid patchop spar_ =
         . acceptScim
     )
 
--- | Update a user.
+-- | Delete a user.
 deleteUser_ ::
   -- | Authentication
   Maybe ScimToken ->

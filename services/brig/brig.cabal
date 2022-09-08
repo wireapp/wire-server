@@ -204,6 +204,7 @@ library
     , errors                     >=1.4
     , exceptions                 >=0.5
     , extended
+    , extra
     , file-embed
     , file-embed-lzma
     , filepath                   >=1.3

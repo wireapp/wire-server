@@ -42,12 +42,12 @@ import qualified Brig.Data.MLS.KeyPackage as Data
 import qualified Brig.Data.User as Data
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
-import qualified Brig.IO.Intra as Intra
-import Brig.Options hiding (internalEvents, sesQueue)
-import qualified Brig.Provider.API as Provider
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
+import qualified Brig.IO.Intra as Intra
+import Brig.Options hiding (internalEvents, sesQueue)
+import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
 import Brig.Team.DB (lookupInvitationByEmail)
 import Brig.Types.Connection
@@ -286,7 +286,7 @@ sitemap = do
   -- This endpoint will lead to the following events being sent:
   -- - UserDeleted event to all of its contacts
   -- - MemberLeave event to members for all conversations the user was in (via galley)
-  delete "/i/users/:uid" (continue deleteUserNoVerifyH) $
+  delete "/i/users/:uid" (continue deleteUserNoAuthH) $
     capture "uid"
 
   put "/i/connections/connection-update" (continue updateConnectionInternalH) $
@@ -508,16 +508,13 @@ createUserNoVerifySpar uData =
        in API.activate key code (Just uid) !>> CreateUserSparRegistrationError . activationErrorToRegisterError
     pure . SelfProfile $ usr
 
-deleteUserNoVerifyH :: UserId -> (Handler r) Response
-deleteUserNoVerifyH uid = do
-  setStatus status202 empty <$ deleteUserNoVerify uid
-
-deleteUserNoVerify :: UserId -> (Handler r) ()
-deleteUserNoVerify uid = do
-  void $
-    lift (wrapClient $ API.lookupAccount uid)
-      >>= ifNothing (errorToWai @'E.UserNotFound)
-  lift $ API.deleteUserNoVerify uid
+deleteUserNoAuthH :: UserId -> (Handler r) Response
+deleteUserNoAuthH uid = do
+  r <- lift $ wrapHttp $ API.ensureAccountDeleted uid
+  case r of
+    NoUser -> throwStd (errorToWai @'E.UserNotFound)
+    AccountAlreadyDeleted -> pure $ setStatus ok200 empty
+    AccountDeleted -> pure $ setStatus accepted202 empty
 
 changeSelfEmailMaybeSendH :: Member BlacklistStore r => UserId ::: Bool ::: JsonRequest EmailUpdate -> (Handler r) Response
 changeSelfEmailMaybeSendH (u ::: validate ::: req) = do
@@ -796,8 +793,3 @@ getContactListH :: JSON ::: UserId -> (Handler r) Response
 getContactListH (_ ::: uid) = do
   contacts <- lift . wrapClient $ API.lookupContactList uid
   pure $ json $ UserIds contacts
-
--- Utilities
-
-ifNothing :: Utilities.Error -> Maybe a -> (Handler r) a
-ifNothing e = maybe (throwStd e) pure

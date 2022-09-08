@@ -95,6 +95,7 @@ module Wire.API.User
     VerifyDeleteUser (..),
     mkVerifyDeleteUser,
     DeletionCodeTimeout (..),
+    DeleteUserResult (..),
 
     -- * List Users
     ListUsersQuery (..),
@@ -1355,6 +1356,16 @@ instance ToJSON DeletionCodeTimeout where
 instance FromJSON DeletionCodeTimeout where
   parseJSON = A.withObject "DeletionCodeTimeout" $ \o ->
     DeletionCodeTimeout <$> o A..: "expires_in"
+
+-- | Result of an internal user/account deletion
+data DeleteUserResult
+  = -- | User never existed
+    NoUser
+  | -- | User/account was deleted before
+    AccountAlreadyDeleted
+  | -- | User/account was deleted in this call
+    AccountDeleted
+  deriving (Eq, Show)
 
 data ListUsersQuery
   = ListUsersByIds [Qualified UserId]

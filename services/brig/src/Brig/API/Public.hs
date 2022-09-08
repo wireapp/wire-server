@@ -46,12 +46,12 @@ import qualified Brig.Data.User as Data
 import qualified Brig.Data.UserKey as UserKey
 import Brig.Effects.BlacklistPhonePrefixStore (BlacklistPhonePrefixStore)
 import Brig.Effects.BlacklistStore (BlacklistStore)
-import qualified Brig.IO.Intra as Intra
-import Brig.Options hiding (internalEvents, sesQueue)
-import qualified Brig.Provider.API as Provider
 import Brig.Effects.CodeStore (CodeStore)
 import Brig.Effects.PasswordResetStore (PasswordResetStore)
 import Brig.Effects.UserPendingActivationStore (UserPendingActivationStore)
+import qualified Brig.IO.Intra as Intra
+import Brig.Options hiding (internalEvents, sesQueue)
+import qualified Brig.Provider.API as Provider
 import qualified Brig.Team.API as Team
 import qualified Brig.Team.Email as Team
 import Brig.Types.Activation (ActivationPair)

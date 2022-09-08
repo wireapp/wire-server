@@ -534,8 +534,7 @@ applyProposal convId (AddProposal kp) = do
     Nothing -> do
       -- external add proposal for a new key package unknown to the backend
       lconvId <- qualifyLocal convId
-      ci <- addKeyPackageMapping lconvId ref (KeyPackageData (rmRaw kp))
-      pure ci
+      addKeyPackageMapping lconvId ref (KeyPackageData (rmRaw kp))
     Just ci ->
       -- ad-hoc add proposal in commit, the key package has been claimed before
       pure ci
