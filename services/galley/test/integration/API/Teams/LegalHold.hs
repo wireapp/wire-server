@@ -150,17 +150,13 @@ testsPublic s =
             "teams listed"
             [ test s "happy flow" testInWhitelist,
               test s "handshake between LH device and user with old clients is blocked" testOldClientsBlockDeviceHandshake,
-              testGroup "no-consent" $
-                ( ( (,,,)
-                      <$> (("connectFirst" :: String,) <$> [False, True])
-                      <*> (("teamPeer" :: String,) <$> [False, True])
-                      <*> (("approveLH" :: String,) <$> [False, True])
-                      <*> (("testPendingConnection" :: String,) <$> [False, True])
-                  )
-                    <&> \(connectFirst, teamPeer, approveLH, testPendingConnection) -> do
-                      let name = intercalate ", " $ map (\(n, b) -> n <> "=" <> show b) [connectFirst, teamPeer, approveLH, testPendingConnection]
-                      test s name $ testNoConsentBlockOne2OneConv (snd connectFirst) (snd teamPeer) (snd approveLH) (snd testPendingConnection)
-                ),
+              testGroup "no-consent" $ do
+                connectFirst <- ("connectFirst",) <$> [False, True]
+                teamPeer <- ("teamPeer",) <$> [False, True]
+                approveLH <- ("approveLH",) <$> [False, True]
+                testPendingConnection <- ("testPendingConnection",) <$> [False, True]
+                let name = intercalate ", " $ map (\(n, b) -> n <> "=" <> show b) [connectFirst, teamPeer, approveLH, testPendingConnection]
+                pure . test s name $ testNoConsentBlockOne2OneConv (snd connectFirst) (snd teamPeer) (snd approveLH) (snd testPendingConnection),
               testGroup
                 "Legalhold is activated for user A in a group conversation"
                 [ test s "All admins are consenting: all non-consenters get removed from conversation" (onlyIfLhWhitelisted (testNoConsentRemoveFromGroupConv LegalholderIsAdmin)),
