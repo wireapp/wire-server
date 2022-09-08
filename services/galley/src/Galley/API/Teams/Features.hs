@@ -142,7 +142,7 @@ class GetFeatureConfig (db :: *) cfg where
 -- | Don't export methods of this typeclass
 class GetFeatureConfig (db :: *) cfg => SetFeatureConfig (db :: *) cfg where
   type SetConfigForTeamConstraints db cfg (r :: EffectRow) :: Constraint
-  type SetConfigForTeamConstraints db cfg (r :: EffectRow) = ()
+  type SetConfigForTeamConstraints db cfg (r :: EffectRow) = (Member (ErrorS OperationDenied) r)
 
   -- | This method should generate the side-effects of changing the feature and
   -- also (depending on the feature) persist the new setting to the database and
@@ -855,8 +855,15 @@ instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
     input <&> view (optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsToTeamAdmin . unDefaults . unImplicitLockStatus)
 
 instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
-  setConfigForTeam tid wsnl = persistAndPushEvent @db tid wsnl
-
+  setConfigForTeam tid wsnl =
+    -- Only allow enabling this feature for teams which are in the admin-configured allowlist.
+    case wssStatus wsnl of
+      FeatureStatusDisabled -> persistAndPushEvent @db tid wsnl
+      FeatureStatusEnabled -> do
+        allowedTeams <- input <&> view (optSettings . setAllowExposingInvitationURLsInTeams)
+        if maybe False (elem tid) allowedTeams
+          then persistAndPushEvent @db tid wsnl
+          else throwS @OperationDenied
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --
