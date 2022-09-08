@@ -192,6 +192,10 @@ type IFeatureAPI =
     :<|> IFeatureStatusGet MLSConfig
     :<|> IFeatureStatusPut '() MLSConfig
     :<|> IFeatureStatusPatch '() MLSConfig
+    -- ExposeInvitationURLsToTeamAdminConfig
+    :<|> IFeatureStatusGet ExposeInvitationURLsToTeamAdminConfig
+    :<|> IFeatureStatusPut '() ExposeInvitationURLsToTeamAdminConfig
+    :<|> IFeatureStatusPatch '() ExposeInvitationURLsToTeamAdminConfig
     -- SearchVisibilityInboundConfig
     :<|> IFeatureStatusGet SearchVisibilityInboundConfig
     :<|> IFeatureStatusPut '() SearchVisibilityInboundConfig
@@ -530,6 +534,9 @@ featureAPI =
     <@> mkNamedAPI @'("iget", MLSConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", MLSConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ipatch", MLSConfig) (patchFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("iget", ExposeInvitationURLsToTeamAdminConfig) (getFeatureStatus @Cassandra DontDoAuth)
+    <@> mkNamedAPI @'("iput", ExposeInvitationURLsToTeamAdminConfig) (setFeatureStatusInternal @Cassandra)
+    <@> mkNamedAPI @'("ipatch", ExposeInvitationURLsToTeamAdminConfig) (patchFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("iget", SearchVisibilityInboundConfig) (getFeatureStatus @Cassandra DontDoAuth)
     <@> mkNamedAPI @'("iput", SearchVisibilityInboundConfig) (setFeatureStatusInternal @Cassandra)
     <@> mkNamedAPI @'("ipatch", SearchVisibilityInboundConfig) (patchFeatureStatusInternal @Cassandra)
