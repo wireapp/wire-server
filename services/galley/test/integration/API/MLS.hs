@@ -1159,40 +1159,46 @@ testLocalToRemoteNonMember = withSystemTempDirectory "mls" $ \tmp -> do
           const (Just "no-conversation-member") === fmap Wai.label . responseJsonError
 
 testAppMessage :: TestM ()
-testAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [1, 2, 3])
-  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
+testAppMessage = do
+  -- create users
+  alice : otherUsers <- createAndConnectUsers (replicate 4 Nothing)
 
-  (commit, welcome) <-
-    liftIO $
-      setupCommit tmp creator "group" "group" $
-        users >>= toList . pClients
+  runMLSTest $ do
+    alice1 : otherClients <-
+      let cus = concatMap (uncurry replicate) ([1 ..] `zip` otherUsers)
+       in traverse createMLSClient (alice : cus)
 
-  void $ postCommit MessagingSetup {..}
-  message <- liftIO $ createMessage tmp creator "group" "some text"
+    -- upload key packages
+    traverse_ uploadNewKeyPackage otherClients
 
-  galley <- viewGalley
-  cannon <- view tsCannon
+    -- create group with alice1 and otherClients
+    qcnv <- snd <$> setupMLSGroup alice1
+    createAddCommit alice1 otherUsers >>= void . sendAndConsumeCommit
 
-  WS.bracketRN
-    cannon
-    (map (qUnqualified . pUserId) (creator : users))
-    $ \wss -> do
-      post
-        ( galley . paths ["mls", "messages"]
-            . zUser (qUnqualified (pUserId creator))
-            . zConn "conn"
-            . content "message/mls"
-            . bytes message
-        )
-        !!! const 201
-        === statusCode
+    message <- createApplicationMessage alice1 "some text"
 
-      -- check that the corresponding event is received
+    galley <- viewGalley
+    cannon <- view tsCannon
 
-      liftIO $
-        WS.assertMatchN_ (5 # WS.Second) wss $
-          wsAssertMLSMessage conversation (pUserId creator) message
+    WS.bracketRN
+      cannon
+      (map qUnqualified (alice : otherUsers))
+      $ \wss -> do
+        post
+          ( galley . paths ["mls", "messages"]
+              . zUser (qUnqualified alice)
+              . zConn "conn"
+              . content "message/mls"
+              . bytes message
+          )
+          !!! const 201
+          === statusCode
+
+        -- check that the corresponding event is received
+
+        liftIO $
+          WS.assertMatchN_ (5 # WS.Second) wss $
+            wsAssertMLSMessage qcnv alice message
 
 testAppMessage2 :: TestM ()
 testAppMessage2 = do
