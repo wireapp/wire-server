@@ -46,6 +46,7 @@ import Data.Handle (Handle (Handle))
 import Data.Id
 import Data.Misc (PlainTextPassword (..))
 import Data.Proxy
+import Data.Qualified (Qualified (qUnqualified))
 import Data.Range (unsafeRange)
 import qualified Data.Text as Text
 import Data.Text.Ascii (AsciiChars (validate))
@@ -62,6 +63,7 @@ import Test.Tasty.HUnit
 import qualified Test.Tasty.HUnit as HUnit
 import UnliftIO.Async hiding (wait)
 import Util
+import Wire.API.Conversation (Conversation (..))
 import qualified Wire.API.Team.Feature as Public
 import Wire.API.User
 import qualified Wire.API.User as Public
@@ -226,6 +228,10 @@ testNginzLegalHold b g n = do
         cUsr = decodeCookie rsUsr
     pure (c, t)
 
+  qconv <-
+    fmap cnvQualifiedId . responseJsonError
+      =<< createConversation g (userId alice) [] <!! const 201 === statusCode
+
   -- ensure nginz allows passing legalhold cookies / tokens through to /access
   post (n . path "/access" . cookie c . header "Authorization" ("Bearer " <> toByteString' t)) !!! do
     const 200 === statusCode
@@ -234,6 +240,8 @@ testNginzLegalHold b g n = do
   get (n . path "/self" . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 403 === statusCode
   -- ensure legal hold tokens can fetch notifications
   get (n . path "/notifications" . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 200 === statusCode
+
+  get (n . paths ["legalhold", "conversations", toByteString' (qUnqualified qconv)] . header "Authorization" ("Bearer " <> toByteString' t)) !!! const 200 === statusCode
 
 -- | Corner case for 'testNginz': when upgrading a wire backend from the old behavior (setting
 -- cookie domain to eg. @*.wire.com@) to the new behavior (leaving cookie domain empty,

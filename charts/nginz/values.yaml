@@ -397,6 +397,9 @@ nginx_conf:
       envs:
       - all
       doc: true
+    - path: /legalhold/conversations/(.*)
+      envs:
+      - all
     - path: /teams$
       envs:
       - all
