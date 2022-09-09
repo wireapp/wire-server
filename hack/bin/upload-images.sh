@@ -31,6 +31,7 @@ do
     printf '*** Building image %s\n' "$image_name"
     image=$(nix-build "$ROOT_DIR/nix" -A "wireServer.images.$image_name")
     repo=$(skopeo list-tags "docker-archive://$image" | jq -r '.Tags[0] | split(":") | .[0]')
+    echo "Uploading $image to $repo:$DOCKER_TAG"
     # shellcheck disable=SC2086
     skopeo --insecure-policy copy $credsArgs "docker-archive://$image" "docker://$repo:$DOCKER_TAG"
 done < "$images_list"
