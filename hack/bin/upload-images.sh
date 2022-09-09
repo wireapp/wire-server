@@ -18,10 +18,16 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 ROOT_DIR=$(cd -- "$SCRIPT_DIR/../../" &> /dev/null && pwd)
 readonly SCRIPT_DIR ROOT_DIR
 
-credsArgs=""
 if [[ "${DOCKER_USER+x}" != "" ]]; then
-    DOCKER_PASSWORD=${DOCKER_PASSWORD:?"DOCKER_PASSWORD must be provided when DOCKER_USER is provided"}
-    credsArgs="--dest-creds=$DOCKER_USER:$DOCKER_PASSWORD"
+    DOCKER_SERVER=${DOCKER_SERVER:-"quay.io"}
+    docker_cred=$(echo -n "$DOCKER_USER:$DOCKER_PASSWORD" | base64)
+    authfile=$(mktemp)
+    jq -n > "$authfile" \
+       '{auths: { "\($docker_server)": { auth: "\($docker_cred)"  }}}' \
+       --arg docker_server "$DOCKER_SERVER" \
+       --arg docker_cred "$docker_cred"
+    export REGISTRY_AUTH_FILE=$authfile
+    echo "setting REGISTRY_AUTH_FILE"
 fi
 
 images_list="$(nix-build "$ROOT_DIR/nix" -A wireServer.imagesList)"
@@ -32,5 +38,5 @@ do
     image=$(nix-build "$ROOT_DIR/nix" -A "wireServer.images.$image_name")
     repo=$(skopeo list-tags "docker-archive://$image" | jq -r '.Tags[0] | split(":") | .[0]')
     # shellcheck disable=SC2086
-    skopeo --insecure-policy copy $credsArgs "docker-archive://$image" "docker://$repo:$DOCKER_TAG"
+    skopeo --insecure-policy copy "docker-archive://$image" "docker://$repo:$DOCKER_TAG"
 done < "$images_list"
