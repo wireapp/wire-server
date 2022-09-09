@@ -476,19 +476,6 @@ createMessage ::
 createMessage tmp sender groupName msgText =
   spawn (cli (pClientQid sender) tmp ["message", "--group", tmp </> groupName, msgText]) Nothing
 
--- | Create an application message.
-createApplicationMessage ::
-  HasCallStack =>
-  ClientIdentity ->
-  String ->
-  MLSTest ByteString
-createApplicationMessage cid msgText = do
-  groupFile <- currentGroupFile cid
-  mlscli
-    cid
-    ["message", "--group", groupFile, msgText]
-    Nothing
-
 takeLastPrekey :: MonadFail m => State.StateT [LastPrekey] m LastPrekey
 takeLastPrekey = do
   (lpk : lpks) <- State.get
@@ -948,6 +935,27 @@ createAddCommit committer usersToAdd = do
     pure (qcid, fn)
 
   createAddCommitWithKeyPackages committer clientsAndKeyPackages
+
+-- | Create an application message.
+createApplicationMessage ::
+  HasCallStack =>
+  ClientIdentity ->
+  String ->
+  MLSTest MessagePackage
+createApplicationMessage cid messageContent = do
+  groupFile <- currentGroupFile cid
+  message <-
+    mlscli
+      cid
+      ["message", "--group", groupFile, messageContent]
+      Nothing
+
+  pure $
+    MessagePackage
+      { mpSender = cid,
+        mpMessage = message,
+        mpWelcome = Nothing
+      }
 
 createAddCommitWithKeyPackages ::
   ClientIdentity ->

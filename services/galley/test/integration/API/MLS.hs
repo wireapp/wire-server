@@ -25,7 +25,6 @@ import API.Util
 import Bilge hiding (head)
 import Bilge.Assert
 import Cassandra
-import Control.Arrow
 import Control.Lens (view, (^..))
 import Crypto.Error
 import qualified Crypto.PubKey.Ed25519 as C
@@ -34,7 +33,6 @@ import Data.Aeson.Lens
 import Data.Binary.Put
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64.URL as B64U
-import Data.ByteString.Conversion
 import qualified Data.ByteString.Lazy as LBS
 import Data.Default
 import Data.Domain
@@ -78,7 +76,6 @@ import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
-import Wire.API.Routes.Version
 import Wire.API.User.Client
 
 tests :: IO TestSetup -> TestTree
@@ -225,7 +222,7 @@ testSenderNotInConversation = do
     -- send the message as bob, who is not in the conversation
     err <-
       responseJsonError
-        =<< postMessage (qUnqualified bob) message
+        =<< postMessage (qUnqualified bob) (mpMessage message)
         <!! const 404 === statusCode
 
     liftIO $ Wai.label err @?= "no-conversation"
@@ -921,62 +918,43 @@ testRemoveSubset = withSystemTempDirectory "mls" $ \tmp -> do
   liftIO $ Wai.label err @?= "mls-client-mismatch"
 
 testRemoteAppMessage :: TestM ()
-testRemoteAppMessage = withSystemTempDirectory "mls" $ \tmp -> do
-  let opts =
-        def
-          { createClients = DontCreateClients,
-            createConv = CreateConv
-          }
-  (alice, [bob]) <-
-    withLastPrekeys $
-      setupParticipants tmp opts [(1, RemoteUser (Domain "faraway.example.com"))]
-  (groupId, conversation) <- setupGroup tmp CreateConv alice "group"
-  (commit, welcome) <- liftIO $ setupCommit tmp alice "group" "group" (pClients bob)
-  message <-
-    liftIO $
-      spawn (cli (pClientQid alice) tmp ["message", "--group", tmp </> "group", "some text"]) Nothing
+testRemoteAppMessage = do
+  users@[alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
 
-  let mock req = case frRPC req of
-        "on-conversation-updated" -> pure (Aeson.encode ())
-        "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-        "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
-        "get-mls-clients" ->
-          pure
-            . Aeson.encode
-            . Set.fromList
-            . map (flip ClientInfo True . snd)
-            . toList
-            . pClients
-            $ bob
-        ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
-  (events :: [Event], reqs) <- fmap (first mmssEvents) . withTempMockFederator' mock $ do
-    galley <- viewGalley
-    void $ postCommit MessagingSetup {creator = alice, users = [bob], ..}
-    let v2 = toByteString' (toLower <$> show V2)
-    responseJsonError
-      =<< post
-        ( galley . paths [v2, "mls", "messages"]
-            . zUser (qUnqualified (pUserId alice))
-            . zConn "conn"
-            . content "message/mls"
-            . bytes message
-        )
-      <!! const 201
-      === statusCode
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient users
 
-  liftIO $ do
-    req <- assertOne $ filter ((== "on-mls-message-sent") . frRPC) reqs
-    frTargetDomain req @?= qDomain (pUserId bob)
-    bdy <- case Aeson.eitherDecode (frBody req) of
-      Right b -> pure b
-      Left e -> assertFailure $ "Could not parse on-mls-message-sent request body: " <> e
-    rmmSender bdy @?= pUserId alice
-    rmmConversation bdy @?= qUnqualified conversation
-    rmmRecipients bdy
-      @?= [(qUnqualified (pUserId bob), c) | (_, c) <- toList (pClients bob)]
-    rmmMessage bdy @?= Base64ByteString message
+    (_, qcnv) <- setupMLSGroup alice1
 
-  liftIO $ assertBool "Unexpected events returned" (null events)
+    let mock req = case frRPC req of
+          "on-conversation-updated" -> pure (Aeson.encode ())
+          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+          "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
+          "get-mls-clients" ->
+            pure
+              . Aeson.encode
+              . Set.singleton
+              $ ClientInfo (ciClient bob1) True
+          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+    ((message, events), reqs) <- withTempMockFederator' mock $ do
+      void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+      message <- createApplicationMessage alice1 "hello"
+      events <- sendAndConsumeMessage message
+      pure (message, events)
+
+    liftIO $ do
+      req <- assertOne $ filter ((== "on-mls-message-sent") . frRPC) reqs
+      frTargetDomain req @?= qDomain bob
+      bdy <- case Aeson.eitherDecode (frBody req) of
+        Right b -> pure b
+        Left e -> assertFailure $ "Could not parse on-mls-message-sent request body: " <> e
+      rmmSender bdy @?= alice
+      rmmConversation bdy @?= qUnqualified qcnv
+      rmmRecipients bdy @?= [(ciUser bob1, ciClient bob1)]
+      rmmMessage bdy @?= Base64ByteString (mpMessage message)
+
+    liftIO $ assertBool "Unexpected events returned" (null events)
 
 -- The following test happens within backend B
 -- Alice@A is remote and Bob@B is local
@@ -1176,29 +1154,13 @@ testAppMessage = do
     createAddCommit alice1 otherUsers >>= void . sendAndConsumeCommit
 
     message <- createApplicationMessage alice1 "some text"
+    events <- sendAndConsumeMessage message
+    liftIO $ events @?= []
 
-    galley <- viewGalley
-    cannon <- view tsCannon
-
-    WS.bracketRN
-      cannon
-      (map qUnqualified (alice : otherUsers))
-      $ \wss -> do
-        post
-          ( galley . paths ["mls", "messages"]
-              . zUser (qUnqualified alice)
-              . zConn "conn"
-              . content "message/mls"
-              . bytes message
-          )
-          !!! const 201
-          === statusCode
-
-        -- check that the corresponding event is received
-
-        liftIO $
-          WS.assertMatchN_ (5 # WS.Second) wss $
-            wsAssertMLSMessage qcnv alice message
+    mlsBracket (alice1 : otherClients) $ \wss ->
+      liftIO $
+        WS.assertMatchN_ (5 # WS.Second) wss $
+          wsAssertMLSMessage qcnv alice (mpMessage message)
 
 testAppMessage2 :: TestM ()
 testAppMessage2 = do
