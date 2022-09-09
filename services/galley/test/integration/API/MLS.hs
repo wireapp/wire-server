@@ -539,25 +539,30 @@ testAddNewClient = do
 
 testSendAnotherUsersCommit :: TestM ()
 testSendAnotherUsersCommit = do
-  withSystemTempDirectory "mls" $ \tmp -> withLastPrekeys $ do
-    -- bob starts with a single client
-    (creator, users@[bob]) <- setupParticipants tmp def [(1, LocalUser)]
-    (groupId, conversation) <- lift $ setupGroup tmp CreateConv creator "group"
+  -- create users
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
 
-    -- creator sends first commit message
-    do
-      (commit, welcome) <- liftIO $ setupCommit tmp creator "group" "group" (pClients bob)
-      lift $ testSuccessfulCommit MessagingSetup {..}
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
 
-    do
-      -- then bob adds a new client
-      c <- setupUserClient tmp CreateWithKey True (pUserId bob)
-      let bobC = (userClientQid (pUserId bob) c, c)
-      -- which gets added to the group
-      (commit, _welcome) <- liftIO $ setupCommit tmp creator "group" "group" [bobC]
-      -- and the corresponding commit is sent from bob instead of the creator
-      err <- lift (responseJsonError =<< postMessage (qUnqualified (pUserId bob)) commit <!! const 409 === statusCode)
-      liftIO $ Wai.label err @?= "mls-client-sender-user-mismatch"
+    -- upload key packages
+    void $ uploadNewKeyPackage bob1
+
+    -- create group with alice1 and bob1
+    void $ setupMLSGroup alice1
+    createAddCommit alice1 [bob] >>= void . sendAndConsumeCommit
+
+    -- Alice creates a commit that adds bob2
+    bob2 <- createMLSClient bob
+    -- upload key packages
+    void $ uploadNewKeyPackage bob2
+    mp <- createAddCommit alice1 [bob]
+    -- and the corresponding commit is sent from Bob instead of Alice
+    err <-
+      responseJsonError
+        =<< postMessage (qUnqualified bob) (mpMessage mp)
+          <!! const 409 === statusCode
+    liftIO $ Wai.label err @?= "mls-client-sender-user-mismatch"
 
 testAddUsersToProteus :: TestM ()
 testAddUsersToProteus = do
