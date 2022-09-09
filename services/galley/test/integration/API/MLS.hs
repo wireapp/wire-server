@@ -1592,7 +1592,7 @@ testExternalAddProposal :: TestM ()
 testExternalAddProposal = do
   -- create users
   [alice, bob, charlie] <-
-    createAndConnectUsers [Nothing, Nothing, Nothing]
+    createAndConnectUsers (replicate 3 Nothing)
 
   void . runMLSTest $ do
     -- create clients
@@ -1632,51 +1632,56 @@ testExternalAddProposal = do
     createAddCommit bob2 [charlie]
       >>= sendAndConsumeCommit
 
-testExternalAddProposalWrongUser :: TestM ()
-testExternalAddProposalWrongUser = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, [bob, charly]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser), (1, LocalUser)]
-  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
-
-  bobClient1 <- assertOne . toList $ pClients bob
-  charlyClient1 <- assertOne . toList $ pClients charly
-  (commit, welcome) <-
-    liftIO $
-      setupCommit tmp creator "group" "group" $
-        NonEmpty.tail (pClients creator) <> [bobClient1, charlyClient1]
-  testSuccessfulCommit MessagingSetup {users = [bob, charly], ..}
-
-  liftIO $ mergeWelcome tmp (fst bobClient1) "group" "group" "welcome"
-
-  bobClient2Qid <-
-    userClientQid (pUserId bob)
-      <$> withLastPrekeys (setupUserClient tmp CreateWithKey True (pUserId bob))
-  externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "group"
-  postMessage (qUnqualified (pUserId charly)) externalProposal !!! do
-    const 422 === statusCode
-    const (Just "mls-unsupported-proposal") === fmap Wai.label . responseJsonError
-
+-- scenario:
+-- alice adds bob and charlie
+-- charlie sends an external proposal for bob
 testExternalAddProposalWrongClient :: TestM ()
-testExternalAddProposalWrongClient = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, [bob, charly]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser), (1, LocalUser)]
-  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
+testExternalAddProposalWrongClient = do
+  [alice, bob, charlie] <-
+    createAndConnectUsers (replicate 3 Nothing)
 
-  bobClient1 <- assertOne . toList $ pClients bob
-  charlyClient1 <- assertOne . toList $ pClients charly
-  (commit, welcome) <-
-    liftIO $
-      setupCommit tmp creator "group" "group" $
-        NonEmpty.tail (pClients creator) <> [bobClient1, charlyClient1]
-  testSuccessfulCommit MessagingSetup {users = [bob, charly], ..}
+  runMLSTest $ do
+    -- setup clients
+    [alice1, bob1, bob2, charlie1] <-
+      traverse
+        createMLSClient
+        [alice, bob, bob, charlie]
+    void $ uploadNewKeyPackage bob1
+    void $ uploadNewKeyPackage charlie1
 
-  liftIO $ mergeWelcome tmp (fst bobClient1) "group" "group" "welcome"
+    void $ setupMLSGroup alice1
+    void $
+      createAddCommit alice1 [bob, charlie]
+        >>= sendAndConsumeCommit
 
-  bobClient2Qid <-
-    userClientQid (pUserId bob)
-      <$> withLastPrekeys (setupUserClient tmp CreateWithoutKey True (pUserId bob))
-  externalProposal <- liftIO $ createExternalProposal tmp bobClient2Qid "group" "group"
-  postMessage (qUnqualified (pUserId charly)) externalProposal !!! do
-    const 422 === statusCode
-    const (Just "mls-unsupported-proposal") === fmap Wai.label . responseJsonError
+    prop <- createExternalAddProposal bob2
+    postMessage (qUnqualified charlie) (mpMessage prop)
+      !!! do
+        const 422 === statusCode
+        const (Just "mls-unsupported-proposal") === fmap Wai.label . responseJsonError
+
+-- scenario:
+-- alice adds bob
+-- charlie attempts to join with an external add proposal
+testExternalAddProposalWrongUser :: TestM ()
+testExternalAddProposalWrongUser = do
+  users@[_, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
+
+  runMLSTest $ do
+    -- setup clients
+    [alice1, bob1, charlie1] <- traverse createMLSClient users
+    void $ uploadNewKeyPackage bob1
+
+    void $ setupMLSGroup alice1
+    void $
+      createAddCommit alice1 [bob]
+        >>= sendAndConsumeCommit
+
+    prop <- createExternalAddProposal charlie1
+    postMessage (qUnqualified charlie) (mpMessage prop)
+      !!! do
+        const 404 === statusCode
+        const (Just "no-conversation") === fmap Wai.label . responseJsonError
 
 -- FUTUREWORK: test processing a commit containing the external proposal
 testPublicKeys :: TestM ()
