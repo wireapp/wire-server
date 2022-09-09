@@ -47,6 +47,7 @@ servantSitemap =
   where
     conversations =
       mkNamedAPI @"get-unqualified-conversation" getUnqualifiedConversation
+        <@> mkNamedAPI @"get-unqualified-conversation-legalhold-alias" getUnqualifiedConversation
         <@> mkNamedAPI @"get-conversation" getConversation
         <@> mkNamedAPI @"get-conversation-roles" getConversationRoles
         <@> mkNamedAPI @"list-conversation-ids-unqualified" conversationIdsPageFromUnqualified
