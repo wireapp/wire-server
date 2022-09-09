@@ -798,6 +798,17 @@ groupFileLink qcid = State.gets $ \mls ->
 currentGroupFile :: HasCallStack => ClientIdentity -> MLSTest FilePath
 currentGroupFile = liftIO . getSymbolicLinkTarget <=< groupFileLink
 
+parseGroupFileName :: FilePath -> IO (FilePath, Int)
+parseGroupFileName fp = do
+  let base = takeFileName fp
+  (prefix, version) <- case break (== '.') base of
+    (p, '.' : v) -> pure (p, v)
+    _ -> assertFailure "invalid group file name"
+  n <- case reads version of
+    [(v, "")] -> pure (v :: Int)
+    _ -> assertFailure "could not parse group file version"
+  pure $ (prefix, n)
+
 -- sets symlink and creates empty file
 nextGroupFile :: HasCallStack => ClientIdentity -> MLSTest FilePath
 nextGroupFile qcid = do
@@ -809,13 +820,7 @@ nextGroupFile qcid = do
       if exists
         then -- group file exists, bump version and update link
         do
-          base <- liftIO $ takeFileName <$> getSymbolicLinkTarget link
-          (prefix, version) <- case break (== '.') base of
-            (p, '.' : v) -> pure (p, v)
-            _ -> assertFailure "invalid group file name"
-          n <- case reads version of
-            [(v, "")] -> pure (v :: Int)
-            _ -> assertFailure "could not parse group file version"
+          (prefix, n) <- parseGroupFileName =<< getSymbolicLinkTarget link
           removeFile link
           pure $ prefix <> "." <> show (n + 1)
         else -- group file does not exist yet, point link to version 0
@@ -824,6 +829,18 @@ nextGroupFile qcid = do
   let groupFile = bd </> cid2Str qcid </> base'
   createFileLink groupFile link
   pure groupFile
+
+rollBackClient :: HasCallStack => ClientIdentity -> MLSTest ()
+rollBackClient cid = do
+  link <- groupFileLink cid
+  (prefix, n) <-
+    liftIO $ parseGroupFileName =<< getSymbolicLinkTarget link
+  when (n == 0) $ do
+    liftIO . assertFailure $ "Cannot roll back client " <> cid2Str cid
+  removeFile link
+  bd <- State.gets mlsBaseDir
+  let groupFile = bd </> cid2Str cid </> (prefix <> "." <> show (n - 1))
+  createFileLink groupFile link
 
 -- | Create conversation and corresponding group.
 setupMLSGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
@@ -917,22 +934,20 @@ createAddCommit committer usersToAdd = do
   let bundleEntries = concatMap (toList . kpbEntries) bundles
       entryIdentity be = mkClientIdentity (kpbeUser be) (kpbeClient be)
 
-  kpFiles <- for bundleEntries $ \be -> do
+  clientsAndKeyPackages <- for bundleEntries $ \be -> do
     let d = kpData . kpbeKeyPackage $ be
         qcid = entryIdentity be
     fn <- keyPackageFile qcid (kpbeRef be)
     liftIO $ BS.writeFile fn d
-    pure fn
+    pure (qcid, fn)
 
-  State.modify $ \mls ->
-    mls
-      { mlsNewMembers = Set.fromList (fmap entryIdentity bundleEntries)
-      }
+  createAddCommitWithKeyPackages committer clientsAndKeyPackages
 
-  createAddCommitWithKeyPackages committer kpFiles
-
-createAddCommitWithKeyPackages :: ClientIdentity -> [FilePath] -> MLSTest MessagePackage
-createAddCommitWithKeyPackages qcid kpFiles = do
+createAddCommitWithKeyPackages ::
+  ClientIdentity ->
+  [(ClientIdentity, FilePath)] ->
+  MLSTest MessagePackage
+createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
   bd <- State.gets mlsBaseDir
   g <- currentGroupFile qcid
   gNew <- nextGroupFile qcid
@@ -949,9 +964,14 @@ createAddCommitWithKeyPackages qcid kpFiles = do
           "--group-out",
           gNew
         ]
-          <> kpFiles
+          <> map snd clientsAndKeyPackages
       )
       Nothing
+
+  State.modify $ \mls ->
+    mls
+      { mlsNewMembers = Set.fromList (map fst clientsAndKeyPackages)
+      }
 
   welcome <- liftIO $ BS.readFile welcomeFile
   pure $

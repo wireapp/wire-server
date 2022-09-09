@@ -108,7 +108,6 @@ tests s =
           test s "add user (partial client list)" testAddUserPartial,
           test s "add client of existing user" testAddClientPartial,
           test s "add user with some non-MLS clients" testAddUserWithProteusClients,
-          test s "add new client of an already-present user to a conversation" testAddNewClient,
           test s "send a stale commit" testStaleCommit,
           test s "add remote user to a conversation" testAddRemoteUser,
           test s "return error when commit is locked" testCommitLock,
@@ -263,7 +262,7 @@ testWelcomeNoKey = do
     -- add bob using an "out-of-band" key package
     (_, ref) <- generateKeyPackage bob1
     kp <- keyPackageFile bob1 ref
-    commit <- createAddCommitWithKeyPackages alice1 [kp]
+    commit <- createAddCommitWithKeyPackages alice1 [(bob1, kp)]
     welcome <- liftIO $ case mpWelcome commit of
       Nothing -> assertFailure "Expected welcome message"
       Just w -> pure w
@@ -397,145 +396,109 @@ testSuccessfulCommit setup = testSuccessfulCommitWithNewUsers setup (map pUserId
 
 testAddUser :: TestM ()
 testAddUser = do
-  setup@MessagingSetup {..} <-
-    aliceInvitesBob
-      (1, LocalUser)
-      def
-        { createConv = CreateConv,
-          numCreatorClients = 3
-        }
-  testSuccessfulCommit setup
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+
+  qcnv <- runMLSTest $ do
+    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+    traverse_ uploadNewKeyPackage [bob1, bob2]
+    (_, qcnv) <- setupMLSGroup alice1
+    events <- createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    event <- assertOne events
+    liftIO $ assertJoinEvent qcnv alice [bob] roleNameWireMember event
+    pure qcnv
 
   -- check that bob can now see the conversation
-  let bob = head users
   convs <-
-    responseJsonError =<< getConvs (qUnqualified (pUserId bob)) Nothing Nothing
+    responseJsonError =<< getConvs (qUnqualified bob) Nothing Nothing
       <!! const 200 === statusCode
   liftIO $
     assertBool
       "Users added to an MLS group should find it when listing conversations"
-      (conversation `elem` map cnvQualifiedId (convList convs))
+      (qcnv `elem` map cnvQualifiedId (convList convs))
 
 testAddUserNotConnected :: TestM ()
 testAddUserNotConnected = do
-  setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv, makeConnections = False}
-  let bob = head users
+  users@[alice, bob] <- replicateM 2 randomQualifiedUser
 
-  -- try to add unconnected user
-  err <- testFailedCommit setup 403
-  liftIO $ Wai.label err @?= "not-connected"
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient users
+    void $ uploadNewKeyPackage bob1
+    void $ setupMLSGroup alice1
+    -- add unconnected user with a commit
+    commit <- createAddCommit alice1 [bob]
+    err <- mlsBracket [alice1, bob1] $ \wss -> do
+      err <-
+        responseJsonError
+          =<< postMessage (ciUser (mpSender commit)) (mpMessage commit)
+          <!! const 403 === statusCode
+      void . liftIO $ WS.assertNoEvent (1 # WS.Second) wss
+      pure err
+    liftIO $ Wai.label err @?= "not-connected"
 
-  -- now connect and retry
-  connectUsers (qUnqualified (pUserId creator)) (pure (qUnqualified (pUserId bob)))
-  testSuccessfulCommit setup
+    -- now connect and retry
+    liftTest $ connectUsers (qUnqualified alice) (pure (qUnqualified bob))
+    void $ sendAndConsumeCommit commit
 
 testAddUserWithProteusClients :: TestM ()
 testAddUserWithProteusClients = do
-  setup <- withSystemTempDirectory "mls" $ \tmp -> do
-    (alice, users@[bob]) <- withLastPrekeys $ do
-      -- bob has 2 MLS clients
-      participants@(_, [bob]) <- setupParticipants tmp def [(2, LocalUser)]
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+  runMLSTest $ do
+    alice1 <- createMLSClient alice
+    -- bob has 2 MLS clients
+    [bob1, bob2] <- replicateM 2 (createMLSClient bob)
+    traverse_ uploadNewKeyPackage [bob1, bob2]
+    -- and a non-MLS client
+    _bob3 <- createWireClient bob
 
-      -- and a non-MLS client
-      void $ takeLastPrekey >>= lift . randomClient (qUnqualified (pUserId bob))
-
-      pure participants
-
-    -- alice creates a conversation and adds Bob's MLS clients
-    (groupId, conversation) <- setupGroup tmp CreateConv alice "group"
-    (commit, welcome) <- liftIO $ setupCommit tmp alice "group" "group" (pClients bob)
-
-    pure MessagingSetup {creator = alice, ..}
-
-  testSuccessfulCommit setup
+    void $ setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
 
 testAddUserPartial :: TestM ()
 testAddUserPartial = do
-  (creator, commit) <- withSystemTempDirectory "mls" $ \tmp -> do
+  [alice, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
+
+  runMLSTest $ do
     -- Bob has 3 clients, Charlie has 2
-    (alice, [bob, charlie]) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [3, 2])
+    alice1 <- createMLSClient alice
+    bobClients@[_bob1, _bob2, bob3] <- replicateM 3 (createMLSClient bob)
+    charlieClients <- replicateM 2 (createMLSClient charlie)
 
-    -- upload one more key package for each of bob's clients
-    -- this makes sure the unused client has at least one key package, and
-    -- therefore will be considered MLS-capable
-    for_ (pClients bob) $ \(cid, c) -> do
-      kp <-
-        liftIO $
-          decodeMLSError
-            =<< spawn (cli cid tmp ["key-package", "create"]) Nothing
-      addKeyPackage def {mapKeyPackage = False, setPublicKey = False} (pUserId bob) c kp
+    -- Only the first 2 clients of Bob's have uploaded key packages
+    traverse_ uploadNewKeyPackage (take 2 bobClients <> charlieClients)
 
-    void $ setupGroup tmp CreateConv alice "group"
-    (commit, _) <-
-      liftIO . setupCommit tmp alice "group" "group" $
-        -- only 2 out of the 3 clients of Bob's are added to the conversation
-        NonEmpty.take 2 (pClients bob) <> toList (pClients charlie)
-    pure (alice, commit)
+    -- alice adds bob's first 2 clients
+    void $ setupMLSGroup alice1
+    commit <- createAddCommit alice1 [bob, charlie]
 
-  galley <- viewGalley
+    -- before alice can commit, bob3 uploads a key package
+    void $ uploadNewKeyPackage bob3
 
-  err <-
-    responseJsonError
-      =<< post
-        ( galley . paths ["mls", "messages"]
-            . zUser (qUnqualified (pUserId creator))
-            . zConn "conn"
-            . content "message/mls"
-            . bytes commit
-        )
-      <!! const 409 === statusCode
-  liftIO $ Wai.label err @?= "mls-client-mismatch"
+    -- alice sends a commit now, and should get a conflict error
+    err <-
+      responseJsonError
+        =<< postMessage (ciUser (mpSender commit)) (mpMessage commit)
+        <!! const 409 === statusCode
+    liftIO $ Wai.label err @?= "mls-client-mismatch"
 
 testAddClientPartial :: TestM ()
-testAddClientPartial = withSystemTempDirectory "mls" $ \tmp -> do
-  withLastPrekeys $ do
-    (alice, [bob]) <- setupParticipants tmp def ((,LocalUser) <$> [1])
-    (groupId, conversation) <- lift $ setupGroup tmp CreateConv alice "group"
-    (commit, welcome) <- liftIO . setupCommit tmp alice "group" "group" $ pClients bob
-    let setup =
-          MessagingSetup
-            { creator = alice,
-              users = [bob],
-              ..
-            }
-    lift $ testSuccessfulCommit setup
+testAddClientPartial = do
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+  runMLSTest $ do
+    alice1 <- createMLSClient alice
+    -- bob only has 1 usable client
+    [bob1, bob2, bob3] <- replicateM 3 (createMLSClient bob)
+    void $ uploadNewKeyPackage bob1
 
-    -- create more clients for Bob, only take the first one
-    nc <- fmap head . replicateM 2 $ do
-      setupUserClient tmp CreateWithKey True (pUserId bob)
+    -- alice1 creates a group with bob1
+    void $ setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
 
-    -- add new client
-    (commit', welcome') <-
-      liftIO $
-        setupCommit
-          tmp
-          alice
-          "group"
-          "group"
-          [(userClientQid (pUserId bob) nc, nc)]
-
-    lift $ testSuccessfulCommitWithNewUsers setup {commit = commit', welcome = welcome'} []
-
-testAddNewClient :: TestM ()
-testAddNewClient = do
-  withSystemTempDirectory "mls" $ \tmp -> withLastPrekeys $ do
-    -- bob starts with a single client
-    (creator, users@[bob]) <- setupParticipants tmp def [(1, LocalUser)]
-    (groupId, conversation) <- lift $ setupGroup tmp CreateConv creator "group"
-
-    -- creator sends first commit message
-    do
-      (commit, welcome) <- liftIO $ setupCommit tmp creator "group" "group" (pClients bob)
-      lift $ testSuccessfulCommit MessagingSetup {..}
-
-    do
-      -- then bob adds a new client
-      c <- setupUserClient tmp CreateWithKey True (pUserId bob)
-      let bobC = (userClientQid (pUserId bob) c, c)
-      -- which gets added to the group
-      (commit, welcome) <- liftIO $ setupCommit tmp creator "group" "group" [bobC]
-      -- and the corresponding commit is sent
-      lift $ testSuccessfulCommitWithNewUsers MessagingSetup {..} []
+    -- now bob2 and bob3 upload key packages, and alice adds bob2 only
+    kp <- uploadNewKeyPackage bob2 >>= keyPackageFile bob2
+    void $ uploadNewKeyPackage bob3
+    void $
+      createAddCommitWithKeyPackages alice1 [(bob2, kp)]
+        >>= sendAndConsumeCommit
 
 testSendAnotherUsersCommit :: TestM ()
 testSendAnotherUsersCommit = do
@@ -614,26 +577,25 @@ testProteusMessage = do
   liftIO $ Wai.label e @?= "no-conversation"
 
 testStaleCommit :: TestM ()
-testStaleCommit = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [2, 3])
-  (groupId, conversation) <- setupGroup tmp CreateConv creator "group.0"
-  let (users1, users2) = splitAt 1 users
+testStaleCommit = do
+  (alice : users) <- createAndConnectUsers (replicate 5 Nothing)
+  let (users1, users2) = splitAt 2 users
 
-  -- add the first batch of users to the conversation, but do not overwrite group
-  do
-    (commit, welcome) <-
-      liftIO $
-        setupCommit tmp creator "group.0" "group.1" $
-          users1 >>= toList . pClients
-    testSuccessfulCommit MessagingSetup {users = users1, ..}
+  runMLSTest $ do
+    (alice1 : clients) <- traverse createMLSClient (alice : users)
+    traverse_ uploadNewKeyPackage clients
+    void $ setupMLSGroup alice1
 
-  -- now add the rest of the users to the original group state
-  do
-    (commit, welcome) <-
-      liftIO $
-        setupCommit tmp creator "group.0" "group.2" $
-          users2 >>= toList . pClients
-    err <- testFailedCommit MessagingSetup {..} 409
+    -- add the first batch of users to the conversation
+    void $ createAddCommit alice1 users1 >>= sendAndConsumeCommit
+
+    -- now roll back alice1 and try to add the second batch of users
+    rollBackClient alice1
+    commit <- createAddCommit alice1 users2
+    err <-
+      responseJsonError
+        =<< postMessage (ciUser (mpSender commit)) (mpMessage commit)
+        <!! const 409 === statusCode
     liftIO $ Wai.label err @?= "mls-stale-message"
 
 testAddRemoteUser :: TestM ()
