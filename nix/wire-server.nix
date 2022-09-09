@@ -169,6 +169,9 @@ let lib = pkgs.lib;
       tag = null;
       bundleNixpkgs = false;
       extraPkgs = commonTools ++ [pkgs.cachix];
+      nixConf = {
+        system-features = "nixos-test benchmark big-parallel kvm";
+      };
     };
 in {
   inherit ciImage;
