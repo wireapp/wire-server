@@ -206,12 +206,11 @@ data VerificationCodeThrottledError
   = VerificationCodeThrottled RetryAfter
 
 data CertEnrollmentError
-  = MissingProof
+  = ProofMissing
   | NonceNotFound
   | TokenGenerationError DPoPTokenGenerationError
+  | KeyBundleError
   | InternalError
-  | PathToKeyBundleNotFound
-  | BadKeys
 
 -------------------------------------------------------------------------------
 -- Exceptions

@@ -100,11 +100,20 @@ generateDpopToken dpopProof cid nonce uri method maxSkewSecs maxExpiration now b
   where
     mapError :: Word8 -> Maybe DPoPTokenGenerationError
     mapError 0 = Nothing
-    mapError 1 = Just InvalidDPoPProofSyntax
-    mapError 2 = Just InvalidHeaderTyp
+    mapError 1 = Just BadProof
+    mapError 2 = Just BadDPoPHeader
     mapError 3 = Just AlgNotSupported
     mapError 4 = Just BadSignature
-    mapError _ = error "todo(leif): map other errors"
+    mapError 5 = Just BadQualifiedClientId
+    mapError 6 = Just BadNonce
+    mapError 7 = Just BadUri
+    mapError 8 = Just BadMethod
+    mapError 9 = Just JtiClaimMissing
+    mapError 10 = Just ChalClaimMissing
+    mapError 11 = Just BadIatClaim
+    mapError 12 = Just BadExpClaim
+    mapError 13 = Just BadExpClaim
+    mapError _ = Just UnknownError
 
     toCStr :: forall a m. (ToByteString a, MonadIO m) => a -> m CString
     toCStr = liftIO . newCString . cs . toByteString'

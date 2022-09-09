@@ -463,7 +463,7 @@ createAccessToken ::
   Maybe Proof ->
   ExceptT CertEnrollmentError (AppT r) (DPoPAccessTokenResponse, CacheControl)
 createAccessToken uid cid method link = \case
-  Nothing -> throwE MissingProof
+  Nothing -> throwE ProofMissing
   Just proof -> do
     domain <- Opt.setFederationDomain <$> view settings
     nonce <- ExceptT $ note NonceNotFound <$> wrapClient (Nonce.lookupAndDeleteNonce uid (cs $ toByteString cid))
@@ -474,8 +474,8 @@ createAccessToken uid cid method link = \case
     expiresIn <- Opt.setDpopTokenExpirationTimeSecs <$> view settings
     now <- fromUTCTime <$> lift (liftSem Now.get)
     let expiresAt = now & addToEpoch expiresIn
-    pathToKeys <- ExceptT $ note PathToKeyBundleNotFound . Opt.setPublicKeyBundle <$> view settings
-    pubKeyBundle <- ExceptT $ note BadKeys <$> liftSem (PublicKeyBundle.get pathToKeys)
+    pathToKeys <- ExceptT $ note KeyBundleError . Opt.setPublicKeyBundle <$> view settings
+    pubKeyBundle <- ExceptT $ note KeyBundleError <$> liftSem (PublicKeyBundle.get pathToKeys)
     token <-
       withExceptT TokenGenerationError $
         ExceptT $
