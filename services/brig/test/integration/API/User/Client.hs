@@ -109,7 +109,12 @@ tests _cl _at opts p db b c g =
       test p "post /clients - 200 multiple temporary" $ testAddMultipleTemporary b g c,
       test p "client/prekeys/race" $ testPreKeyRace b,
       test p "get/head nonce/clients" $ testNewNonce b,
-      test p "post /clients/:cid/access-token" $ testCreateAccessToken b
+      testGroup
+        "post /clients/:cid/access-token"
+        [ test p "success" $ testCreateAccessToken b,
+          test p "proof missing" $ testCreateAccessTokenMissingProof b,
+          test p "no nonce" $ testCreateAccessTokenNoNonce b
+        ]
     ]
 
 testAddGetClientVerificationCode :: DB.ClientState -> Brig -> Galley -> Http ()
@@ -976,8 +981,7 @@ testNewNonce brig = do
 testCreateAccessToken :: Brig -> Http ()
 testCreateAccessToken brig = do
   uid <- userId <$> randomUser brig
-  let (pk, lk) = (head somePrekeys, head someLastPrekeys)
-  cid <- clientId <$> (responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [pk] lk))
+  cid <- createClientForUser brig uid
   _ <- Util.headNonce brig uid cid <!! const 200 === statusCode
   let proof = Proof $ "xxxx.yyyy.zzzz"
   response <- responseJsonError =<< Util.createAccessToken brig uid cid proof <!! const 200 === statusCode
@@ -987,6 +991,28 @@ testCreateAccessToken brig = do
     DPoP @=? datrType response
     300 @=? datrExpiresIn response
   print response
+
+testCreateAccessTokenMissingProof :: Brig -> Http ()
+testCreateAccessTokenMissingProof brig = do
+  uid <- userId <$> randomUser brig
+  cid <- createClientForUser brig uid
+  post (brig . paths ["clients", toByteString' cid, "access-token"] . zUser uid)
+    !!! do
+      const 400 === statusCode
+      const (Just "client-token-proof-missing") === fmap Error.label . responseJsonMaybe
+
+testCreateAccessTokenNoNonce :: Brig -> Http ()
+testCreateAccessTokenNoNonce brig = do
+  uid <- userId <$> randomUser brig
+  cid <- createClientForUser brig uid
+  Util.createAccessToken brig uid cid (Proof $ "xxxx.yyyy.zzzz")
+    !!! do
+      const 400 === statusCode
+      const (Just "client-token-bad-nonce") === fmap Error.label . responseJsonMaybe
+
+createClientForUser :: Brig -> UserId -> Http ClientId
+createClientForUser brig uid =
+  clientId <$> (responseJsonError =<< addClient brig uid (defNewClient PermanentClientType [head somePrekeys] (head someLastPrekeys)))
 
 testCan'tDeleteLegalHoldClient :: Brig -> Http ()
 testCan'tDeleteLegalHoldClient brig = do
