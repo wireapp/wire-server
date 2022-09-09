@@ -31,7 +31,6 @@ import Data.Swagger.ParamSchema (ToParamSchema (..))
 import Data.Text as T
 import Imports
 import Servant (FromHttpApiData (..), ToHttpApiData (..))
-import Wire.API.Routes.MultiVerb
 
 newtype Proof = Proof {unProof :: ByteString}
   deriving (Eq, Show, Generic)
@@ -89,32 +88,6 @@ instance ToSchema DPoPAccessTokenResponse where
         <$> datrToken .= field "token" schema
         <*> datrType .= field "type" schema
         <*> datrExpiresIn .= field "expires_in" schema
-
-data CacheControl = NoStore
-  deriving (Eq, Show, Generic)
-
-instance ToByteString CacheControl where
-  builder NoStore = "no-store"
-
-instance FromByteString CacheControl where
-  parser = do
-    t :: Text <- parser
-    case t & T.toLower of
-      "no-store" -> pure NoStore
-      _ -> fail $ "Invalid CacheControl type: " ++ show t
-
-instance ToHttpApiData CacheControl where
-  toQueryParam = cs . toByteString'
-
-instance FromHttpApiData CacheControl where
-  parseQueryParam = maybe (Left "Invalid CacheControl") Right . fromByteString' . cs
-
-instance ToParamSchema CacheControl where
-  toParamSchema _ = toParamSchema (Proxy @Text)
-
-instance AsHeaders '[CacheControl] DPoPAccessTokenResponse (DPoPAccessTokenResponse, CacheControl) where
-  toHeaders (t, cc) = (I cc :* Nil, t)
-  fromHeaders (I cc :* Nil, t) = (t, cc)
 
 data DPoPTokenGenerationError
   = BadProof

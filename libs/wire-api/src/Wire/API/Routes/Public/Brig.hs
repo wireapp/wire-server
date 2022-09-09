@@ -33,6 +33,7 @@ import Data.Range
 import Data.SOP
 import Data.Swagger hiding (Contact, Header)
 import Imports hiding (head)
+import Network.Wai.Utilities
 import Servant (JSON)
 import Servant hiding (Handler, JSON, addHeader, respond)
 import Servant.Swagger (HasSwagger (toSwagger))
@@ -552,7 +553,7 @@ type CreateAccessToken =
              )
         :> ZUser
         :> "clients"
-        :> CaptureClientId "client"
+        :> CaptureClientId "cid"
         :> "access-token"
         :> Header "DPoP" Proof
         :> MultiVerb1
