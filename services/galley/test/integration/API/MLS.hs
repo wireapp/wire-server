@@ -1611,15 +1611,15 @@ testExternalAddProposal = do
         >>= sendAndConsumeCommit
 
     -- bob joins with an external proposal
-    prop <- mlsBracket [alice1, bob1] $ \wss -> do
-      p <- createExternalAddProposal bob2
+    mlsBracket [alice1, bob1] $ \wss -> do
+      void $
+        createExternalAddProposal bob2
+          >>= sendAndConsumeMessage
       liftTest $
         WS.assertMatchN_ (5 # Second) wss $
           void . wsAssertAddProposal bob qcnv
-      pure p
-    consumeMessage' alice1 prop
     void $
-      createPendingProposalCommit alice1 [bob2]
+      createPendingProposalCommit alice1
         >>= sendAndConsumeCommit
 
     -- bob adds charlie

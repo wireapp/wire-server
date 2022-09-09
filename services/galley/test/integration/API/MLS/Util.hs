@@ -24,12 +24,11 @@ import API.Util
 import Bilge
 import Bilge.Assert
 import Control.Arrow ((&&&))
-import Control.Lens (preview, to, view, (^..))
+import Control.Lens (preview, to, view)
 import Control.Monad.Catch
 import Control.Monad.State (StateT, evalStateT)
 import qualified Control.Monad.State as State
 import Crypto.PubKey.Ed25519
-import Data.Aeson.Lens
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString as BS
 import Data.ByteString.Conversion
@@ -38,7 +37,7 @@ import Data.Domain
 import Data.Hex
 import Data.Id
 import Data.Json.Util
-import Data.List.NonEmpty (NonEmpty (..), nonEmpty)
+import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
 import Data.Qualified
@@ -642,6 +641,8 @@ data MLSState = MLSState
   { mlsBaseDir :: FilePath,
     -- | for creating clients
     mlsUnusedPrekeys :: [LastPrekey],
+    mlsMembers :: Set ClientIdentity,
+    mlsNewMembers :: Set ClientIdentity,
     mlsGroupId :: Maybe GroupId,
     mlsEpoch :: Word64
   }
@@ -677,19 +678,16 @@ runMLSTest (MLSTest m) =
       MLSState
         { mlsBaseDir = tmp,
           mlsUnusedPrekeys = someLastPrekeys,
+          mlsMembers = mempty,
+          mlsNewMembers = mempty,
           mlsGroupId = Nothing,
           mlsEpoch = 0
         }
 
-data WelcomePackage = WelcomePackage
-  { wpWelcome :: ByteString,
-    wpRecipients :: NonEmpty ClientIdentity
-  }
-
 data MessagePackage = MessagePackage
   { mpSender :: ClientIdentity,
     mpMessage :: ByteString,
-    mpWelcomePackage :: Maybe WelcomePackage
+    mpWelcome :: Maybe ByteString
   }
 
 takeLastPrekeyNG :: HasCallStack => MLSTest LastPrekey
@@ -783,9 +781,13 @@ nextGroupFile qcid = do
   createFileLink groupFile link
   pure groupFile
 
--- | create conv
+-- | Create conversation and corresponding group.
 setupMLSGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
 setupMLSGroup creator = do
+  State.gets mlsGroupId >>= \case
+    Just _ -> liftIO $ assertFailure "only one group can be created"
+    Nothing -> pure ()
+
   ownDomain <- liftTest viewFederationDomain
   liftIO $ assertEqual "creator is not local" (ciDomain creator) ownDomain
   conv <-
@@ -801,7 +803,11 @@ setupMLSGroup creator = do
   groupJSON <- mlscli creator ["group", "create", T.unpack (toBase64Text (unGroupId groupId))] Nothing
   g <- nextGroupFile creator
   liftIO $ BS.writeFile g groupJSON
-  State.modify $ \s -> s {mlsGroupId = Just groupId}
+  State.modify $ \s ->
+    s
+      { mlsGroupId = Just groupId,
+        mlsMembers = Set.singleton creator
+      }
   pure (groupId, cnvQualifiedId conv)
 
 -- | Claim keypackages and create a commit/welcome pair on a given client.
@@ -856,23 +862,21 @@ createAddCommit committer usersToAdd = do
       )
       Nothing
 
-  welcome <- liftIO $ BS.readFile welcomeFile
-  let welcomePackage =
-        nonEmpty bundleEntries <&> \entries ->
-          WelcomePackage
-            { wpWelcome = welcome,
-              wpRecipients = fmap entryIdentity entries
-            }
+  State.modify $ \mls ->
+    mls
+      { mlsNewMembers = Set.fromList (fmap entryIdentity bundleEntries)
+      }
 
+  welcome <- liftIO $ BS.readFile welcomeFile
   pure $
     MessagePackage
       { mpSender = committer,
         mpMessage = commit,
-        mpWelcomePackage = welcomePackage
+        mpWelcome = Just welcome
       }
 
-createPendingProposalCommit :: HasCallStack => ClientIdentity -> [ClientIdentity] -> MLSTest MessagePackage
-createPendingProposalCommit qcid newClients = do
+createPendingProposalCommit :: HasCallStack => ClientIdentity -> MLSTest MessagePackage
+createPendingProposalCommit qcid = do
   bd <- State.gets mlsBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
   g <- currentGroupFile qcid
@@ -889,6 +893,7 @@ createPendingProposalCommit qcid newClients = do
         welcomeFile
       ]
       Nothing
+
   welcome <-
     liftIO $
       doesFileExist welcomeFile >>= \case
@@ -898,14 +903,7 @@ createPendingProposalCommit qcid newClients = do
     MessagePackage
       { mpSender = qcid,
         mpMessage = commit,
-        mpWelcomePackage = do
-          w <- welcome
-          nc <- nonEmpty newClients
-          pure
-            WelcomePackage
-              { wpWelcome = w,
-                wpRecipients = nc
-              }
+        mpWelcome = welcome
       }
 
 createRemoveCommit :: HasCallStack => ClientIdentity -> [ClientIdentity] -> MLSTest MessagePackage
@@ -929,55 +927,43 @@ createExternalAddProposal joiner = do
         "add"
       ]
       Nothing
-  postMessage (ciUser joiner) proposal
-    !!! const 201 === statusCode
+
+  State.modify $ \mls ->
+    mls
+      { mlsNewMembers = mlsNewMembers mls <> Set.singleton joiner
+      }
   pure
     MessagePackage
       { mpSender = joiner,
         mpMessage = proposal,
-        mpWelcomePackage = Nothing
+        mpWelcome = Nothing
       }
 
-consumeWelcome :: HasCallStack => WelcomePackage -> MLSTest ()
-consumeWelcome (WelcomePackage welcome qcids) = for_ qcids $ \qcid -> do
-  link <- groupFileLink qcid
-  liftIO $
-    doesFileExist link >>= \e ->
-      assertBool "Existing clients in a conversation should not consume commits" (not e)
-  groupFile <- nextGroupFile qcid
-  void $
-    mlscli
-      qcid
-      [ "group",
-        "from-welcome",
-        "--group-out",
-        groupFile,
-        "-"
-      ]
-      (Just welcome)
+consumeWelcome :: HasCallStack => ByteString -> MLSTest ()
+consumeWelcome welcome = do
+  qcids <- State.gets mlsNewMembers
+  for_ qcids $ \qcid -> do
+    link <- groupFileLink qcid
+    liftIO $
+      doesFileExist link >>= \e ->
+        assertBool "Existing clients in a conversation should not consume commits" (not e)
+    groupFile <- nextGroupFile qcid
+    void $
+      mlscli
+        qcid
+        [ "group",
+          "from-welcome",
+          "--group-out",
+          groupFile,
+          "-"
+        ]
+        (Just welcome)
 
--- | Make all member clients consume a given message. The list of members is
--- obtained by inspecting the current state of the group from the point of view
--- of the sender.
+-- | Make all member clients consume a given message.
 consumeMessage :: HasCallStack => MessagePackage -> MLSTest ()
-consumeMessage msg = consumeMessage' (mpSender msg) msg
-
--- | Make all member clients consume a given message. The list of members is
--- obtained by inspecting the current state of the group from the point of view
--- of 'member'.
-consumeMessage' :: HasCallStack => ClientIdentity -> MessagePackage -> MLSTest ()
-consumeMessage' member msg = do
-  gSender <- currentGroupFile member
-  mems <-
-    liftIO $ do
-      let excluded =
-            Set.fromList
-              ( mpSender msg :
-                (maybeToList (mpWelcomePackage msg) >>= toList . wpRecipients)
-              )
-      filter (\(qcid, _) -> Set.notMember qcid excluded)
-        <$> readGroupState gSender
-  for_ mems $ \(qcid, _) -> do
+consumeMessage msg = do
+  mems <- State.gets mlsMembers
+  for_ (Set.delete (mpSender msg) mems) $ \qcid -> do
     bd <- State.gets mlsBaseDir
     g <- currentGroupFile qcid
     gNew <- nextGroupFile qcid
@@ -995,26 +981,34 @@ consumeMessage' member msg = do
         ]
         (Just (mpMessage msg))
 
+-- | Send an MLS message and simulate clients receiving it. If the message is a
+-- commit, the 'sendAndConsumeCommit' function should be used instead.
+sendAndConsumeMessage :: HasCallStack => MessagePackage -> MLSTest [Event]
+sendAndConsumeMessage mp = do
+  events <-
+    fmap mmssEvents . responseJsonError
+      =<< postMessage (ciUser (mpSender mp)) (mpMessage mp)
+      <!! const 201 === statusCode
+  consumeMessage mp
+  traverse_ consumeWelcome (mpWelcome mp)
+  pure events
+
+-- | Send an MLS commit message, simulate clients receiving it, and update the
+-- test state accordingly.
 sendAndConsumeCommit ::
   HasCallStack =>
   MessagePackage ->
   MLSTest [Event]
-sendAndConsumeCommit cw = do
-  let commit = mpMessage cw
-      committer = mpSender cw
-  events <-
-    fmap mmssEvents . responseJsonError
-      =<< postMessage (qUnqualified (cidQualifiedUser committer)) commit
-        <!! const 201 === statusCode
+sendAndConsumeCommit mp = do
+  events <- sendAndConsumeMessage mp
 
-  -- increment epoch
+  -- increment epoch and add new clients
   State.modify $ \mls ->
     mls
-      { mlsEpoch = mlsEpoch mls + 1
+      { mlsEpoch = mlsEpoch mls + 1,
+        mlsMembers = mlsMembers mls <> mlsNewMembers mls,
+        mlsNewMembers = mempty
       }
-
-  traverse_ consumeWelcome (mpWelcomePackage cw)
-  consumeMessage cw
 
   pure events
 
@@ -1026,15 +1020,3 @@ mlsBracket ::
 mlsBracket clients k = do
   c <- view tsCannon
   WS.bracketAsClientRN c (map (ciUser &&& ciClient) clients) k
-
-readGroupState :: FilePath -> IO [(ClientIdentity, KeyPackageRef)]
-readGroupState fp = do
-  j <- BS.readFile fp
-  pure $ do
-    node <- j ^.. key "group" . key "tree" . key "tree" . key "nodes" . _Array . traverse
-    leafNode <- node ^.. key "node" . key "LeafNode"
-    identity <-
-      either (const []) pure . decodeMLS' . BS.pack . map fromIntegral $
-        leafNode ^.. key "key_package" . key "payload" . key "credential" . key "credential" . key "Basic" . key "identity" . key "vec" . _Array . traverse . _Integer
-    kpr <- (unhexM . T.encodeUtf8 =<<) $ leafNode ^.. key "key_package_ref" . _String
-    pure (identity, KeyPackageRef kpr)
