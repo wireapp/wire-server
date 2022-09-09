@@ -308,7 +308,7 @@ instance AsHeaders '[a] () a where
 -- single-header non-empty response, return value is a tuple of the response and the header
 instance AsHeaders '[h] a (a, h) where
   toHeaders (t, cc) = (I cc :* Nil, t)
-  fromHeaders (I cc :* Nil, t) = (t, cc)  
+  fromHeaders (I cc :* Nil, t) = (t, cc)
 
 data DescHeader (name :: Symbol) (desc :: Symbol) (a :: *)
 
