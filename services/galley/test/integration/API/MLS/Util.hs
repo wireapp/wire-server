@@ -24,6 +24,7 @@ import API.Util
 import Bilge
 import Bilge.Assert
 import Control.Arrow ((&&&))
+import Control.Error.Util
 import Control.Lens (preview, to, view)
 import Control.Monad.Catch
 import Control.Monad.State (StateT, evalStateT)
@@ -564,7 +565,11 @@ addKeyPackage AddKeyPackage {..} u c kp = do
       )
       !!! const 200 === statusCode
 
-mapRemoteKeyPackageRef :: (MonadIO m, MonadHttp m, MonadCatch m) => (Request -> Request) -> KeyPackageBundle -> m ()
+mapRemoteKeyPackageRef ::
+  (MonadIO m, MonadHttp m, MonadCatch m) =>
+  (Request -> Request) ->
+  KeyPackageBundle ->
+  m ()
 mapRemoteKeyPackageRef brig bundle =
   void $
     put
@@ -679,6 +684,11 @@ instance HasGalley MLSTest where
   viewGalley = MLSTest $ lift viewGalley
   viewGalleyOpts = MLSTest $ lift viewGalleyOpts
 
+instance HasSettingsOverrides MLSTest where
+  withSettingsOverrides f (MLSTest action) = MLSTest $
+    State.StateT $ \s ->
+      withSettingsOverrides f (State.runStateT action s)
+
 liftTest :: TestM a -> MLSTest a
 liftTest = MLSTest . lift
 
@@ -724,13 +734,17 @@ createWireClient qusr = do
   clientId <- liftTest $ randomClient (qUnqualified qusr) lpk
   pure $ mkClientIdentity qusr clientId
 
+initMLSClient :: HasCallStack => ClientIdentity -> MLSTest ()
+initMLSClient cid = do
+  bd <- State.gets mlsBaseDir
+  createDirectory $ bd </> cid2Str cid
+  void $ mlscli cid ["init", cid2Str cid] Nothing
+
 -- | create new mls client and register with backend
 createMLSClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
 createMLSClient qusr = do
   qcid <- createWireClient qusr
-  bd <- State.gets mlsBaseDir
-  createDirectory $ bd </> cid2Str qcid
-  void $ mlscli qcid ["init", cid2Str qcid] Nothing
+  initMLSClient qcid
 
   -- set public key
   pkey <- mlscli qcid ["public-key"] Nothing
@@ -745,12 +759,21 @@ createMLSClient qusr = do
     !!! const 200 === statusCode
   pure qcid
 
+-- | Like 'createMLSClient', but do not actually register client with backend.
+createFakeMLSClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
+createFakeMLSClient qusr = do
+  c <- liftIO $ generate arbitrary
+  let cid = mkClientIdentity qusr c
+  initMLSClient cid
+  pure cid
+
 -- | create and upload to backend
 uploadNewKeyPackage :: HasCallStack => ClientIdentity -> MLSTest KeyPackageRef
 uploadNewKeyPackage qcid = do
-  brig <- view tsBrig
-  kp <- liftIO . decodeMLSError =<< mlscli qcid ["key-package", "create"] Nothing
+  (kp, _) <- generateKeyPackage qcid
+
   -- upload key package
+  brig <- view tsBrig
   post
     ( brig
         . paths ["mls", "key-packages", "self", toByteString' . ciClient $ qcid]
@@ -759,6 +782,14 @@ uploadNewKeyPackage qcid = do
     )
     !!! const 201 === statusCode
   pure $ fromJust (kpRef' kp)
+
+generateKeyPackage :: HasCallStack => ClientIdentity -> MLSTest (RawMLS KeyPackage, KeyPackageRef)
+generateKeyPackage qcid = do
+  kp <- liftIO . decodeMLSError =<< mlscli qcid ["key-package", "create"] Nothing
+  let ref = fromJust (kpRef' kp)
+  fp <- keyPackageFile qcid ref
+  liftIO $ BS.writeFile fp (rmRaw kp)
+  pure (kp, ref)
 
 groupFileLink :: HasCallStack => ClientIdentity -> MLSTest FilePath
 groupFileLink qcid = State.gets $ \mls ->
@@ -823,45 +854,92 @@ setupMLSGroup creator = do
       }
   pure (groupId, cnvQualifiedId conv)
 
+keyPackageFile :: HasCallStack => ClientIdentity -> KeyPackageRef -> MLSTest FilePath
+keyPackageFile qcid ref =
+  State.gets $ \mls ->
+    mlsBaseDir mls </> cid2Str qcid
+      </> T.unpack (T.decodeUtf8 (hex (unKeyPackageRef ref)))
+
+claimLocalKeyPackages :: HasCallStack => ClientIdentity -> Local UserId -> MLSTest KeyPackageBundle
+claimLocalKeyPackages qcid lusr = do
+  brig <- view tsBrig
+  responseJsonError
+    =<< post
+      ( brig
+          . paths ["mls", "key-packages", "claim", toByteString' (tDomain lusr), toByteString' (tUnqualified lusr)]
+          . zUser (ciUser qcid)
+      )
+    <!! const 200 === statusCode
+
+-- | Get all test clients of a user by listing the temporary MLS directory.
+getUserClients :: HasCallStack => Qualified UserId -> MLSTest [ClientIdentity]
+getUserClients qusr = do
+  bd <- State.gets mlsBaseDir
+  files <- getDirectoryContents bd
+  let toClient f = do
+        cid <- hush . decodeMLS' . T.encodeUtf8 . T.pack $ f
+        guard (cidQualifiedUser cid == qusr)
+        pure cid
+  pure . catMaybes . map toClient $ files
+
+-- | Generate one key package for each client of a remote user
+claimRemoteKeyPackages :: HasCallStack => Remote UserId -> MLSTest KeyPackageBundle
+claimRemoteKeyPackages (qUntagged -> qusr) = do
+  brig <- view tsBrig
+  clients <- getUserClients qusr
+  bundle <- fmap (KeyPackageBundle . Set.fromList) $
+    for clients $ \cid -> do
+      (kp, ref) <- generateKeyPackage cid
+      pure $
+        KeyPackageBundleEntry
+          { kpbeUser = qusr,
+            kpbeClient = ciClient cid,
+            kpbeRef = ref,
+            kpbeKeyPackage = KeyPackageData (rmRaw kp)
+          }
+  mapRemoteKeyPackageRef brig bundle
+  pure bundle
+
+-- | Claim key package for a local user, or generate and map key packages for remote ones.
+claimKeyPackages :: HasCallStack => ClientIdentity -> Qualified UserId -> MLSTest KeyPackageBundle
+claimKeyPackages cid qusr = do
+  loc <- liftTest $ qualifyLocal ()
+  foldQualified loc (claimLocalKeyPackages cid) claimRemoteKeyPackages qusr
+
 -- | Claim keypackages and create a commit/welcome pair on a given client.
 -- Note that this alters the state of the group immediately. If we want to test
 -- a scenario where the commit is rejected by the backend, we can restore the
 -- group to the previous state by using an older version of the group file.
 createAddCommit :: HasCallStack => ClientIdentity -> [Qualified UserId] -> MLSTest MessagePackage
 createAddCommit committer usersToAdd = do
-  brig <- view tsBrig
-  bundles :: [KeyPackageBundle] <- for usersToAdd $ \userToAdd ->
-    responseJsonError
-      =<< post
-        ( brig
-            . paths ["mls", "key-packages", "claim", toByteString' (qDomain userToAdd), toByteString' (qUnqualified userToAdd)]
-            . zUser (ciUser committer)
-        )
-      <!! const 200 === statusCode
-
-  g <- currentGroupFile committer
-  gNew <- nextGroupFile committer
-
-  bd <- State.gets mlsBaseDir
-
-  welcomeFile <- liftIO $ emptyTempFile bd "welcome"
+  bundles <- traverse (claimKeyPackages committer) usersToAdd
 
   let bundleEntries = concatMap (toList . kpbEntries) bundles
       entryIdentity be = mkClientIdentity (kpbeUser be) (kpbeClient be)
-  let kpFile qcid ref =
-        bd </> cid2Str qcid
-          </> T.unpack (T.decodeUtf8 (hex (unKeyPackageRef ref)))
 
   kpFiles <- for bundleEntries $ \be -> do
     let d = kpData . kpbeKeyPackage $ be
         qcid = entryIdentity be
-        fn = kpFile qcid (kpbeRef be)
+    fn <- keyPackageFile qcid (kpbeRef be)
     liftIO $ BS.writeFile fn d
     pure fn
 
+  State.modify $ \mls ->
+    mls
+      { mlsNewMembers = Set.fromList (fmap entryIdentity bundleEntries)
+      }
+
+  createAddCommitWithKeyPackages committer kpFiles
+
+createAddCommitWithKeyPackages :: ClientIdentity -> [FilePath] -> MLSTest MessagePackage
+createAddCommitWithKeyPackages qcid kpFiles = do
+  bd <- State.gets mlsBaseDir
+  g <- currentGroupFile qcid
+  gNew <- nextGroupFile qcid
+  welcomeFile <- liftIO $ emptyTempFile bd "welcome"
   commit <-
     mlscli
-      committer
+      qcid
       ( [ "member",
           "add",
           "--group",
@@ -875,15 +953,10 @@ createAddCommit committer usersToAdd = do
       )
       Nothing
 
-  State.modify $ \mls ->
-    mls
-      { mlsNewMembers = Set.fromList (fmap entryIdentity bundleEntries)
-      }
-
   welcome <- liftIO $ BS.readFile welcomeFile
   pure $
     MessagePackage
-      { mpSender = committer,
+      { mpSender = qcid,
         mpMessage = commit,
         mpWelcome = Just welcome
       }
@@ -1003,7 +1076,12 @@ sendAndConsumeMessage mp = do
       =<< postMessage (ciUser (mpSender mp)) (mpMessage mp)
       <!! const 201 === statusCode
   consumeMessage mp
-  traverse_ consumeWelcome (mpWelcome mp)
+
+  for_ (mpWelcome mp) $ \welcome -> do
+    postWelcome (ciUser (mpSender mp)) welcome
+      !!! const 201 === statusCode
+    consumeWelcome welcome
+
   pure events
 
 -- | Send an MLS commit message, simulate clients receiving it, and update the

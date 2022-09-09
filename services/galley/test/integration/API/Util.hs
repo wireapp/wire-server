@@ -2312,20 +2312,23 @@ postSSOUser name hasEmail ssoid teamid = do
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"
 
-withSettingsOverrides :: (Opts.Opts -> Opts.Opts) -> TestM a -> TestM a
-withSettingsOverrides f action = do
-  ts :: TestSetup <- ask
-  let opts = f (ts ^. tsGConf)
-  liftIO . lowerCodensity $ do
-    (galleyApp, _env) <- Run.mkApp opts
-    port' <- withMockServer galleyApp
-    liftIO $
-      runReaderT
-        (runTestM action)
-        ( ts
-            & tsGalley .~ Bilge.host "127.0.0.1" . Bilge.port port'
-            & tsFedGalleyClient .~ FedClient (ts ^. tsManager) (Endpoint "127.0.0.1" port')
-        )
+class HasSettingsOverrides m where
+  withSettingsOverrides :: (Opts.Opts -> Opts.Opts) -> m a -> m a
+
+instance HasSettingsOverrides TestM where
+  withSettingsOverrides f action = do
+    ts :: TestSetup <- ask
+    let opts = f (ts ^. tsGConf)
+    liftIO . lowerCodensity $ do
+      (galleyApp, _env) <- Run.mkApp opts
+      port' <- withMockServer galleyApp
+      liftIO $
+        runReaderT
+          (runTestM action)
+          ( ts
+              & tsGalley .~ Bilge.host "127.0.0.1" . Bilge.port port'
+              & tsFedGalleyClient .~ FedClient (ts ^. tsManager) (Endpoint "127.0.0.1" port')
+          )
 
 waitForMemberDeletion :: UserId -> TeamId -> UserId -> TestM ()
 waitForMemberDeletion zusr tid uid = do
@@ -2470,9 +2473,10 @@ withTempMockFederator ::
 withTempMockFederator resp = withTempMockFederator' $ pure . encode . resp
 
 withTempMockFederator' ::
+  (MonadIO m, MonadMask m, HasSettingsOverrides m) =>
   (FederatedRequest -> IO LByteString) ->
-  TestM b ->
-  TestM (b, [FederatedRequest])
+  m b ->
+  m (b, [FederatedRequest])
 withTempMockFederator' resp action = do
   Mock.withTempMockFederator
     [("Content-Type", "application/json")]
@@ -2832,10 +2836,10 @@ wsAssertAddProposal fromUser convId n = do
     getMLSMessageData (EdMLSMessage bs) = bs
     getMLSMessageData d = error ("Excepected EdMLSMessage, but got " <> show d)
 
-createAndConnectUsers :: [Maybe Domain] -> TestM [Qualified UserId]
+createAndConnectUsers :: [Maybe Text] -> TestM [Qualified UserId]
 createAndConnectUsers domains = do
   localDomain <- viewFederationDomain
-  users <- for domains $ maybe randomQualifiedUser randomQualifiedId
+  users <- for domains $ maybe randomQualifiedUser (randomQualifiedId . Domain)
   let userPairs = do
         t <- tails users
         (a, others) <- maybeToList (uncons t)

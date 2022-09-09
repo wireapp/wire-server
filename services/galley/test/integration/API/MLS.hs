@@ -233,51 +233,73 @@ testSenderNotInConversation = do
 
 testLocalWelcome :: TestM ()
 testLocalWelcome = do
-  MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def
-  let bob = head users
+  users@[alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient users
+    void $ uploadNewKeyPackage bob1
+    (_, qcnv) <- setupMLSGroup alice1
+    commit <- createAddCommit alice1 [bob]
+    welcome <- liftIO $ case mpWelcome commit of
+      Nothing -> assertFailure "Expected welcome message"
+      Just w -> pure w
+    events <- mlsBracket [bob1] $ \wss -> do
+      es <- sendAndConsumeCommit commit
 
-  cannon <- view tsCannon
+      WS.assertMatchN_ (5 # Second) wss $
+        wsAssertMLSWelcome (cidQualifiedUser bob1) welcome
 
-  WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
-    -- send welcome message
-    postWelcome (qUnqualified $ pUserId creator) welcome
-      !!! const 201 === statusCode
+      pure es
 
-    -- check that the corresponding event is received
-    void . liftIO $
-      WS.assertMatch (5 # WS.Second) wsB $
-        wsAssertMLSWelcome (pUserId bob) welcome
+    event <- assertOne events
+    liftIO $ assertJoinEvent qcnv alice [bob] roleNameWireMember event
 
 testWelcomeNoKey :: TestM ()
 testWelcomeNoKey = do
-  MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createClients = CreateWithoutKey}
+  users <- createAndConnectUsers [Nothing, Nothing]
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient users
+    void $ setupMLSGroup alice1
 
-  postWelcome (qUnqualified (pUserId creator)) welcome
-    !!! const 404 === statusCode
+    -- add bob using an "out-of-band" key package
+    (_, ref) <- generateKeyPackage bob1
+    kp <- keyPackageFile bob1 ref
+    commit <- createAddCommitWithKeyPackages alice1 [kp]
+    welcome <- liftIO $ case mpWelcome commit of
+      Nothing -> assertFailure "Expected welcome message"
+      Just w -> pure w
+
+    err <-
+      responseJsonError =<< postWelcome (ciUser alice1) welcome
+        <!! do
+          const 404 === statusCode
+    liftIO $ Wai.label err @?= "mls-key-package-ref-not-found"
 
 testRemoteWelcome :: TestM ()
 testRemoteWelcome = do
-  -- 1. Create a conversation with Alice and Bob
-  let bobDomain = Domain "b.far-away.example.com"
-      opts = def {createConv = CreateConv, createClients = DontCreateClients}
-  MessagingSetup {..} <- aliceInvitesBob (1, RemoteUser bobDomain) opts
-  let alice = creator
+  [alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
 
-  let okResp = EmptyResponse
   let mockedResponse fedReq =
         case frRPC fedReq of
-          "mls-welcome" -> pure (Aeson.encode okResp)
+          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
           ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
 
-  (_resp, reqs) <-
-    withTempMockFederator' mockedResponse $
-      postWelcome (qUnqualified $ pUserId alice) welcome
-        !!! const 201 === statusCode
+  runMLSTest $ do
+    alice1 <- createMLSClient alice
+    _bob1 <- createFakeMLSClient bob
 
-  --  Assert the correct federated call is made.
-  fedWelcome <- assertOne (filter ((== "mls-welcome") . frRPC) reqs)
-  let req :: Maybe MLSWelcomeRequest = Aeson.decode (frBody fedWelcome)
-  liftIO $ req @?= (Just . MLSWelcomeRequest . Base64ByteString) welcome
+    void $ setupMLSGroup alice1
+    commit <- createAddCommit alice1 [bob]
+    welcome <- liftIO $ case mpWelcome commit of
+      Nothing -> assertFailure "Expected welcome message"
+      Just w -> pure w
+    (_, reqs) <-
+      withTempMockFederator' mockedResponse $
+        postWelcome (ciUser (mpSender commit)) welcome
+          !!! const 201 === statusCode
+    consumeWelcome welcome
+    fedWelcome <- assertOne (filter ((== "mls-welcome") . frRPC) reqs)
+    let req :: Maybe MLSWelcomeRequest = Aeson.decode (frBody fedWelcome)
+    liftIO $ req @?= (Just . MLSWelcomeRequest . Base64ByteString) welcome
 
 -- | Send a commit message, and assert that all participants see an event with
 -- the given list of new members.
