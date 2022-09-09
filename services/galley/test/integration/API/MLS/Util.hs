@@ -475,6 +475,19 @@ createMessage ::
 createMessage tmp sender groupName msgText =
   spawn (cli (pClientQid sender) tmp ["message", "--group", tmp </> groupName, msgText]) Nothing
 
+-- | Create an application message.
+createApplicationMessage ::
+  HasCallStack =>
+  ClientIdentity ->
+  String ->
+  MLSTest ByteString
+createApplicationMessage cid msgText = do
+  groupFile <- currentGroupFile cid
+  mlscli
+    cid
+    ["message", "--group", groupFile, msgText]
+    Nothing
+
 takeLastPrekey :: MonadFail m => State.StateT [LastPrekey] m LastPrekey
 takeLastPrekey = do
   (lpk : lpks) <- State.get

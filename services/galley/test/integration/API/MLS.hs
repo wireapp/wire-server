@@ -206,21 +206,27 @@ postMLSConvOk = do
 
 testSenderNotInConversation :: TestM ()
 testSenderNotInConversation = do
-  withSystemTempDirectory "mls" $ \tmp -> do
-    (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
-    _ <- setupGroup tmp CreateConv alice "group"
+  -- create users
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
 
-    (_commit, _welcome) <-
-      liftIO $
-        setupCommit tmp alice "group" "group" $
-          toList (pClients bob)
-    liftIO $ mergeWelcome tmp (pClientQid bob) "group" "group" "welcome"
-    message <- liftIO $ createMessage tmp bob "group" "some text"
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+
+    -- upload key packages
+    void $ uploadNewKeyPackage bob1
+
+    -- create group with alice1 and bob1, but do not commit adding Bob
+    void $ setupMLSGroup alice1
+    mp <- createAddCommit alice1 [bob]
+
+    traverse_ consumeWelcome (mpWelcome mp)
+
+    message <- createApplicationMessage bob1 "some text"
 
     -- send the message as bob, who is not in the conversation
     err <-
       responseJsonError
-        =<< postMessage (qUnqualified (pUserId bob)) message
+        =<< postMessage (qUnqualified bob) message
         <!! const 404 === statusCode
 
     liftIO $ Wai.label err @?= "no-conversation"
