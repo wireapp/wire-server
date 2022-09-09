@@ -600,54 +600,49 @@ testStaleCommit = do
 
 testAddRemoteUser :: TestM ()
 testAddRemoteUser = do
-  setup <-
-    aliceInvitesBob
-      (1, RemoteUser (Domain "faraway.example.com"))
-      def
-        { createClients = DontCreateClients,
-          createConv = CreateConv
-        }
-  bob <- assertOne (users setup)
-  let mock req = case frRPC req of
-        "on-conversation-updated" -> pure (Aeson.encode ())
-        "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-        "get-mls-clients" ->
-          pure
-            . Aeson.encode
-            . Set.fromList
-            . map (flip ClientInfo True . snd)
-            . toList
-            . pClients
-            $ bob
-        ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
-  (events, reqs) <- withTempMockFederator' mock $ do
-    postCommit setup
+  users@[alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
+  (events, reqs, qcnv) <- runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient users
+    (_, qcnv) <- setupMLSGroup alice1
+
+    let mock req = case frRPC req of
+          "on-conversation-updated" -> pure (Aeson.encode ())
+          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+          "get-mls-clients" ->
+            pure
+              . Aeson.encode
+              . Set.fromList
+              . map (flip ClientInfo True . ciClient)
+              $ [bob1]
+          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+    commit <- createAddCommit alice1 [bob]
+    (events, reqs) <-
+      withTempMockFederator' mock $
+        sendAndConsumeCommit commit
+    pure (events, reqs, qcnv)
 
   liftIO $ do
     req <- assertOne $ filter ((== "on-conversation-updated") . frRPC) reqs
-    frTargetDomain req @?= qDomain (pUserId bob)
+    frTargetDomain req @?= qDomain bob
     bdy <- case Aeson.eitherDecode (frBody req) of
       Right b -> pure b
       Left e -> assertFailure $ "Could not parse on-conversation-updated request body: " <> e
-    cuOrigUserId bdy @?= pUserId (creator setup)
-    cuConvId bdy @?= qUnqualified (conversation setup)
-    cuAlreadyPresentUsers bdy @?= [qUnqualified (pUserId bob)]
+    cuOrigUserId bdy @?= alice
+    cuConvId bdy @?= qUnqualified qcnv
+    cuAlreadyPresentUsers bdy @?= [qUnqualified bob]
     cuAction bdy
       @?= SomeConversationAction
         SConversationJoinTag
         ConversationJoin
-          { cjUsers = pure (pUserId bob),
+          { cjUsers = pure bob,
             cjRole = roleNameWireMember
           }
 
   liftIO $ do
     event <- assertOne events
-    assertJoinEvent
-      (conversation setup)
-      (pUserId (creator setup))
-      [pUserId bob]
-      roleNameWireMember
-      event
+    assertJoinEvent qcnv alice [bob] roleNameWireMember event
 
 testCommitLock :: TestM ()
 testCommitLock = withSystemTempDirectory "mls" $ \tmp -> do

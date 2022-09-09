@@ -740,9 +740,8 @@ initMLSClient cid = do
   createDirectory $ bd </> cid2Str cid
   void $ mlscli cid ["init", cid2Str cid] Nothing
 
--- | create new mls client and register with backend
-createMLSClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
-createMLSClient qusr = do
+createLocalMLSClient :: Local UserId -> MLSTest ClientIdentity
+createLocalMLSClient (qUntagged -> qusr) = do
   qcid <- createWireClient qusr
   initMLSClient qcid
 
@@ -758,6 +757,13 @@ createMLSClient qusr = do
     )
     !!! const 200 === statusCode
   pure qcid
+
+-- | Create new mls client and register with backend. If the user is remote,
+-- this only creates a fake client (see 'createFakeMLSClient').
+createMLSClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
+createMLSClient qusr = do
+  loc <- liftTest $ qualifyLocal ()
+  foldQualified loc createLocalMLSClient (createFakeMLSClient . qUntagged) qusr
 
 -- | Like 'createMLSClient', but do not actually register client with backend.
 createFakeMLSClient :: HasCallStack => Qualified UserId -> MLSTest ClientIdentity
