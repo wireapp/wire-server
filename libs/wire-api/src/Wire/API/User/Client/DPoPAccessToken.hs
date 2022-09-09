@@ -117,17 +117,18 @@ instance AsHeaders '[CacheControl] DPoPAccessTokenResponse (DPoPAccessTokenRespo
   fromHeaders (I cc :* Nil, t) = (t, cc)
 
 data DPoPTokenGenerationError
-  = InvalidDPoPProofSyntax
-  | InvalidHeaderTyp
+  = BadProof
+  | BadDPoPHeader
   | AlgNotSupported
   | BadSignature
-  | QualifiedClientIdMismatch
-  | InvalidBackendNonce
-  | UriMismatch
-  | MethodMismatch
+  | BadQualifiedClientId
+  | BadNonce
+  | BadUri
+  | BadMethod
   | JtiClaimMissing
   | ChalClaimMissing
-  | IatClaimMissingOrInvalid
-  | ExpClaimMissingOrInvalid
+  | BadIatClaim
+  | BadExpClaim
   | InvalidClientId
+  | UnknownError
   deriving (Eq, Show, Generic)

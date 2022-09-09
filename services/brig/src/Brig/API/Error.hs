@@ -35,6 +35,7 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as E
 import Wire.API.Federation.Error
 import Wire.API.User
+import Wire.API.User.Client.DPoPAccessToken
 
 data Error where
   StdError :: !Wai.Error -> Error
@@ -171,12 +172,24 @@ clientError ClientCodeAuthenticationFailed = StdError verificationCodeAuthFailed
 clientError ClientCodeAuthenticationRequired = StdError verificationCodeRequired
 
 certEnrollmentError :: CertEnrollmentError -> Error
-certEnrollmentError (TokenGenerationError _) = StdError $ Wai.mkError status400 "generic-cert-enrollment-error" "generic error" --todo(leif): implement all possible errors
-certEnrollmentError MissingProof = StdError $ Wai.mkError status400 "client-token-missing" "The DPoP header should be present and contain a JWT DPoP token"
-certEnrollmentError NonceNotFound = StdError $ Wai.mkError status400 "bad-nonce" "The client sent an unacceptable anti-replay nonce"
-certEnrollmentError InternalError = StdError $ Wai.mkError status500 "internal-error" "Internal Server Error"
-certEnrollmentError PathToKeyBundleNotFound = StdError $ Wai.mkError status500 "internal-error" "Bad server keys"
-certEnrollmentError BadKeys = StdError $ Wai.mkError status500 "internal-error" "Bad server keys"
+certEnrollmentError (TokenGenerationError BadProof) = StdError $ Wai.mkError status400 "client-token-parse-error" "The client JWT DPoP could not be parsed"
+certEnrollmentError (TokenGenerationError BadDPoPHeader) = StdError $ Wai.mkError status400 "client-token-type-error" "The client token must have type dpop+jwt"
+certEnrollmentError (TokenGenerationError AlgNotSupported) = StdError $ Wai.mkError status400 "client-token-unsupported-alg" "The JWS was signed with an algorithm the server does not support"
+certEnrollmentError (TokenGenerationError BadSignature) = StdError $ Wai.mkError status400 "client-token-bad-signature" "The client's JWT DPoP self-signature could not be verified"
+certEnrollmentError (TokenGenerationError BadQualifiedClientId) = StdError $ Wai.mkError status400 "client-token-bad-client-id" "The qualified client id could not be verified"
+certEnrollmentError (TokenGenerationError BadNonce) = StdError $ Wai.mkError status400 "client-token-bad-nonce" "The client sent an unacceptable anti-replay nonce"
+certEnrollmentError (TokenGenerationError BadUri) = StdError $ Wai.mkError status400 "client-token-bad-uri" "The request uri does not correspond to the (htu) claim"
+certEnrollmentError (TokenGenerationError BadMethod) = StdError $ Wai.mkError status400 "client-token-bad-method" "The request method does not correspond to the (htm) claim"
+certEnrollmentError (TokenGenerationError JtiClaimMissing) = StdError $ Wai.mkError status400 "client-token-jti-missing" "The client token is missing the (jti) claim"
+certEnrollmentError (TokenGenerationError ChalClaimMissing) = StdError $ Wai.mkError status400 "client-token-chal-missing" "The client token is missing the (chal) claim"
+certEnrollmentError (TokenGenerationError BadIatClaim) = StdError $ Wai.mkError status400 "client-token-bad-iat" "(iat) claim is either missing or invalid"
+certEnrollmentError (TokenGenerationError BadExpClaim) = StdError $ Wai.mkError status400 "client-token-bad-exp" "(exp) claim is either missing or invalid"
+certEnrollmentError (TokenGenerationError InvalidClientId) = StdError $ Wai.mkError status400 "client-token-id-parse-error" "The client id could not be parsed"
+certEnrollmentError (TokenGenerationError UnknownError) = StdError $ Wai.mkError status500 "internal-error" "The server experienced an internal error during DPoP token generation"
+certEnrollmentError ProofMissing = StdError $ Wai.mkError status400 "client-token-proof-missing" "The DPoP message header is missing"
+certEnrollmentError NonceNotFound = StdError $ Wai.mkError status400 "client-token-bad-nonce" "The client sent an unacceptable anti-replay nonce"
+certEnrollmentError InternalError = StdError $ Wai.mkError status500 "internal-error" "The server experienced an internal error during the certificate enrollment process"
+certEnrollmentError KeyBundleError = StdError $ Wai.mkError status500 "internal-error" "The server experienced an internal error during the certificate enrollment process"
 
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai
