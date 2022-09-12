@@ -860,15 +860,17 @@ instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
 
 instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
   type SetConfigForTeamConstraints db ExposeInvitationURLsToTeamAdminConfig (r :: EffectRow) = (Member (ErrorS OperationDenied) r)
-  setConfigForTeam tid wsnl =
-    -- Only allow enabling this feature for teams which are in the admin-configured allowlist.
-    case wssStatus wsnl of
-      FeatureStatusDisabled -> persistAndPushEvent @db tid wsnl
-      FeatureStatusEnabled -> do
-        allowedTeams <- exposeInvitationURLsTeamAllowlist <$> wsConfig <$> getConfigForServer @db
-        if elem tid allowedTeams
-          then persistAndPushEvent @db tid wsnl
-          else throwS @OperationDenied
+  setConfigForTeam tid wsnl = do
+    -- Only allow enabling this feature for teams which are in the
+    -- admin-configured allowlist. If a team has the feature enabled, but is not
+    -- currently in the allowlist, permit them to disable the feature.
+    teamAllowed <- getConfigForServer @db <&> wsConfig <&> exposeInvitationURLsTeamAllowlist <&> elem tid
+    oldState <- getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid <&> wsStatus
+    let newState = wssStatus wsnl
+    case (teamAllowed, oldState, newState) of
+      (True,  _                   , _)                     -> persistAndPushEvent @db tid wsnl
+      (False, FeatureStatusEnabled, FeatureStatusDisabled) -> persistAndPushEvent @db tid wsnl
+      (_,     _                   , _)                     -> throwS @OperationDenied
 
 instance GetFeatureConfig db ExposeInvitationURLsTeamAllowlistConfig where
   getConfigForServer =
