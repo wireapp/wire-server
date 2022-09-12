@@ -70,7 +70,6 @@ import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
-import Wire.API.MLS.Group (convToGroupId)
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
@@ -337,35 +336,6 @@ testSuccessfulCommitWithNewUsers setup@MessagingSetup {..} newUsers = do
     for_ alreadyPresent $ \ws -> do
       WS.assertMatch_ (5 # WS.Second) ws $
         wsAssertMLSMessage conversation (pUserId creator) commit
-
-testSuccessfulRemoveMemberFromConvCommit ::
-  HasCallStack =>
-  Participant ->
-  [Participant] ->
-  Qualified ConvId ->
-  ByteString ->
-  [Participant] ->
-  TestM ()
-testSuccessfulRemoveMemberFromConvCommit admin users conv commit participantsToRemove = do
-  cannon <- view tsCannon
-
-  WS.bracketRN cannon (map (qUnqualified . pUserId) users) $ \wss -> do
-    events :: [Event] <-
-      fmap mmssEvents . responseJsonError
-        =<< postMessage (qUnqualified (pUserId admin)) commit
-        <!! statusCode === const 201
-
-    e <- assertOne events
-    liftIO $ assertLeaveEvent conv (pUserId admin) (map pUserId participantsToRemove) e
-
-    for_ wss $ \ws ->
-      WS.assertMatch_ (5 # WS.Second) ws $
-        wsAssertMembersLeave conv (pUserId admin) (map pUserId participantsToRemove)
-
-    -- all users (including the removed ones) receive the commit
-    for_ wss $ \ws -> do
-      WS.assertMatch_ (5 # WS.Second) ws $
-        wsAssertMLSMessage conv (pUserId admin) commit
 
 testFailedCommit :: HasCallStack => MessagingSetup -> Int -> TestM Wai.Error
 testFailedCommit MessagingSetup {..} status = do
@@ -642,51 +612,36 @@ testAddRemoteUser = do
     assertJoinEvent qcnv alice [bob] roleNameWireMember event
 
 testCommitLock :: TestM ()
-testCommitLock = withSystemTempDirectory "mls" $ \tmp -> do
-  -- create MLS conversation
-  (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [2, 2, 2])
-  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
-  let (users1, usersX) = splitAt 1 users
-  let (users2, users3) = splitAt 1 usersX
-  void $ assertOne users1
-  void $ assertOne users2
-  void $ assertOne users3
+testCommitLock = do
+  users <- createAndConnectUsers (replicate 4 Nothing)
 
-  -- initial user can be added
-  do
-    (commit, welcome) <-
-      liftIO $
-        setupCommit tmp creator "group" "group" $
-          users1 >>= toList . pClients
-    testSuccessfulCommit MessagingSetup {users = users1, ..}
+  runMLSTest $ do
+    [alice1, bob1, charlie1, dee1] <- traverse createMLSClient users
+    (groupId, _) <- setupMLSGroup alice1
+    traverse_ uploadNewKeyPackage [bob1, charlie1, dee1]
 
-  -- can commit without blocking
-  do
-    (commit, welcome) <-
-      liftIO $
-        setupCommit tmp creator "group" "group" $
-          users2 >>= toList . pClients
-    testSuccessfulCommit MessagingSetup {users = users2, ..}
+    -- alice adds add bob
+    void $ createAddCommit alice1 [cidQualifiedUser bob1] >>= sendAndConsumeCommit
 
-  -- block epoch
-  casClient <- view tsCass
-  runClient casClient $ insertLock (convToGroupId (qTagUnsafe conversation)) (Epoch 2)
+    -- alice adds charlie
+    void $ createAddCommit alice1 [cidQualifiedUser charlie1] >>= sendAndConsumeCommit
 
-  -- commit fails due to competing lock
-  do
-    (commit, welcome) <-
-      liftIO $
-        setupCommit tmp creator "group" "group" $
-          users3 >>= toList . pClients
-    -- assert HTTP 409 on next attempt to commit
-    err <- testFailedCommit MessagingSetup {..} 409
-    liftIO $ Wai.label err @?= "mls-stale-message"
+    -- simulate concurrent commit by blocking epoch
+    casClient <- view tsCass
+    runClient casClient $ insertLock groupId (Epoch 2)
 
-  -- unblock epoch
-  runClient casClient $ deleteLock (convToGroupId (qTagUnsafe conversation)) (Epoch 2)
+    -- commit should fail due to competing lock
+    do
+      commit <- createAddCommit alice1 [cidQualifiedUser dee1]
+      err <-
+        responseJsonError
+          =<< postMessage (ciUser alice1) (mpMessage commit)
+          <!! const 409 === statusCode
+      liftIO $ Wai.label err @?= "mls-stale-message"
   where
     lock :: PrepQuery W (GroupId, Epoch) ()
     lock = "insert into mls_commit_locks (group_id, epoch) values (?, ?)"
+
     insertLock groupId epoch =
       retry x5 $
         write
@@ -695,113 +650,93 @@ testCommitLock = withSystemTempDirectory "mls" $ \tmp -> do
               LocalQuorum
               (groupId, epoch)
           )
-    unlock :: PrepQuery W (GroupId, Epoch) ()
-    unlock = "delete from mls_commit_locks where group_id = ? and epoch = ?"
-    deleteLock groupId epoch =
-      retry x5 $
-        write
-          unlock
-          ( params
-              LocalQuorum
-              (groupId, epoch)
-          )
 
 testAddUserBareProposalCommit :: TestM ()
-testAddUserBareProposalCommit = withSystemTempDirectory "mls" $ \tmp -> do
-  (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
+testAddUserBareProposalCommit = do
+  users <- createAndConnectUsers (replicate 2 Nothing)
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient users
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ uploadNewKeyPackage bob1
 
-  (groupId, conversation) <- setupGroup tmp CreateConv alice "group"
+    createAddProposals alice1 [cidQualifiedUser bob1]
+      >>= traverse_ sendAndConsumeMessage
+    commit <- createPendingProposalCommit alice1
+    void $ assertJust (mpWelcome commit)
+    void $ sendAndConsumeCommit commit
 
-  prop <- liftIO $ bareAddProposal tmp alice bob "group" "group"
-  postMessage (qUnqualified (pUserId alice)) prop
-    !!! const 201 === statusCode
-
-  (commit, mbWelcome) <-
-    liftIO $
-      pendingProposalsCommit tmp alice "group"
-
-  welcome <- assertJust mbWelcome
-
-  testSuccessfulCommit MessagingSetup {creator = alice, users = [bob], ..}
-
-  -- check that bob can now see the conversation
-  convs <-
-    responseJsonError =<< getConvs (qUnqualified (pUserId bob)) Nothing Nothing
-      <!! const 200 === statusCode
-  liftIO $
-    assertBool
-      "Users added to an MLS group should find it when listing conversations"
-      (conversation `elem` map cnvQualifiedId (convList convs))
+    -- check that bob can now see the conversation
+    liftTest $ do
+      convs <-
+        responseJsonError =<< getConvs (ciUser bob1) Nothing Nothing
+          <!! const 200 === statusCode
+      liftIO $
+        assertBool
+          "Users added to an MLS group should find it when listing conversations"
+          (qcnv `elem` map cnvQualifiedId (convList convs))
 
 testUnknownProposalRefCommit :: TestM ()
-testUnknownProposalRefCommit = withSystemTempDirectory "mls" $ \tmp -> do
-  (alice, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
+testUnknownProposalRefCommit = do
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ setupMLSGroup alice1
+    void $ uploadNewKeyPackage bob1
 
-  (groupId, conversation) <- setupGroup tmp CreateConv alice "group"
+    -- create proposal, but don't send it to group
+    void $ createAddProposals alice1 [bob]
+    commit <- createPendingProposalCommit alice1
 
-  -- create proposal, but don't send it to group
-  void $ liftIO $ bareAddProposal tmp alice bob "group" "group"
-
-  (commit, mbWelcome) <-
-    liftIO $
-      pendingProposalsCommit tmp alice "group"
-
-  welcome <- assertJust mbWelcome
-
-  err <- testFailedCommit (MessagingSetup {creator = alice, users = [bob], ..}) 404
-  liftIO $ Wai.label err @?= "mls-proposal-not-found"
+    -- send commit before proposal
+    err <-
+      responseJsonError =<< postMessage (ciUser alice1) (mpMessage commit)
+        <!! const 404 === statusCode
+    liftIO $ Wai.label err @?= "mls-proposal-not-found"
 
 testCommitNotReferencingAllProposals :: TestM ()
-testCommitNotReferencingAllProposals = withSystemTempDirectory "mls" $ \tmp -> do
-  (alice, [bob, dee]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser), (1, LocalUser)]
+testCommitNotReferencingAllProposals = do
+  users@[_alice, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
 
-  (groupId, conversation) <- setupGroup tmp CreateConv alice "group"
+  runMLSTest $ do
+    [alice1, bob1, charlie1] <- traverse createMLSClient users
+    void $ setupMLSGroup alice1
+    traverse_ uploadNewKeyPackage [bob1, charlie1]
 
-  propBob <- liftIO $ bareAddProposal tmp alice bob "group" "group"
-  postMessage (qUnqualified (pUserId alice)) propBob
-    !!! const 201 === statusCode
+    -- create proposals for bob and charlie
+    createAddProposals alice1 [bob, charlie]
+      >>= traverse_ sendAndConsumeMessage
 
-  propDee <- liftIO $ bareAddProposal tmp alice dee "group" "group2"
-  postMessage (qUnqualified (pUserId alice)) propDee
-    !!! const 201 === statusCode
+    -- now create a commit referencing only the first proposal
+    rollBackClient alice1
+    commit <- createPendingProposalCommit alice1
 
-  (commit, mbWelcome) <-
-    liftIO $
-      pendingProposalsCommit tmp alice "group"
-
-  welcome <- assertJust mbWelcome
-
-  err <- testFailedCommit (MessagingSetup {creator = alice, users = [bob, dee], ..}) 409
-  liftIO $ Wai.label err @?= "mls-commit-missing-references"
+    -- send commit and expect and error
+    err <-
+      responseJsonError =<< postMessage (ciUser alice1) (mpMessage commit)
+        <!! const 409 === statusCode
+    liftIO $ Wai.label err @?= "mls-commit-missing-references"
 
 testAdminRemovesUserFromConv :: TestM ()
-testAdminRemovesUserFromConv = withSystemTempDirectory "mls" $ \tmp -> do
-  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
-  let [bob] = users
+testAdminRemovesUserFromConv = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+  (qcnv, events) <- runMLSTest $ do
+    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+    traverse_ uploadNewKeyPackage [bob1, bob2]
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    events <- createRemoveCommit alice1 [bob1, bob2] >>= sendAndConsumeCommit
+    pure (qcnv, events)
 
-  testSuccessfulCommit MessagingSetup {users = [bob], ..}
-
-  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" (pClients bob)
-
-  do
-    convs <-
-      responseJsonError =<< getConvs (qUnqualified (pUserId bob)) Nothing Nothing
-        <!! const 200 === statusCode
-    liftIO $
-      assertBool
-        "bob is in conversation before he gets removed"
-        (conversation `elem` map cnvQualifiedId (convList convs))
-
-  testSuccessfulRemoveMemberFromConvCommit creator [bob] conversation removalCommit [bob]
+  liftIO $ assertOne events >>= assertLeaveEvent qcnv alice [bob]
 
   do
     convs <-
-      responseJsonError =<< getConvs (qUnqualified (pUserId bob)) Nothing Nothing
+      responseJsonError =<< getConvs (qUnqualified bob) Nothing Nothing
         <!! const 200 === statusCode
     liftIO $
       assertBool
         "bob is not longer part of conversation after the commit"
-        (conversation `notElem` map cnvQualifiedId (convList convs))
+        (qcnv `notElem` map cnvQualifiedId (convList convs))
 
 testRemoveClientsIncomplete :: TestM ()
 testRemoveClientsIncomplete = withSystemTempDirectory "mls" $ \tmp -> do

@@ -502,6 +502,7 @@ executable galley-integration
     , transformers
     , types-common
     , types-common-journal
+    , unix
     , unliftio
     , unordered-containers
     , uri-bytestring
