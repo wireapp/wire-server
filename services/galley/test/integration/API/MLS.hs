@@ -38,7 +38,6 @@ import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
-import qualified Data.List.NonEmpty as NE
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 hiding (head)
 import qualified Data.Map as Map
@@ -112,9 +111,7 @@ tests s =
           test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
           test s "admin removes user from a conversation" testAdminRemovesUserFromConv,
           test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete,
-          test s "anyone removes a non-existing client from a group" (testRemoveDeletedClient True),
-          test s "anyone removes an existing client from group, but the user has other clients" (testRemoveDeletedClient False),
-          test s "admin removes only strict subset of clients from a user" testRemoveSubset
+          test s "anyone removes a non-existing client from a group" testRemoveDeletedClient
         ],
       testGroup
         "Application Message"
@@ -739,118 +736,43 @@ testAdminRemovesUserFromConv = do
         (qcnv `notElem` map cnvQualifiedId (convList convs))
 
 testRemoveClientsIncomplete :: TestM ()
-testRemoveClientsIncomplete = withSystemTempDirectory "mls" $ \tmp -> do
-  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
-  let [bob] = users
+testRemoveClientsIncomplete = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+  runMLSTest $ do
+    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+    traverse_ uploadNewKeyPackage [bob1, bob2]
+    void $ setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    commit <- createRemoveCommit alice1 [bob1]
 
-  testSuccessfulCommit MessagingSetup {users = [bob], ..}
+    err <-
+      responseJsonError
+        =<< postMessage (qUnqualified alice) (mpMessage commit)
+          <!! statusCode === const 409
+    liftIO $ Wai.label err @?= "mls-client-mismatch"
 
-  -- remove only first client of bob
-  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" [NE.head (pClients bob)]
+testRemoveDeletedClient :: TestM ()
+testRemoveDeletedClient = do
+  [alice, bob, charlie] <- createAndConnectUsers [Nothing, Nothing, Nothing]
 
-  err <-
-    responseJsonError
-      =<< postMessage (qUnqualified (pUserId creator)) removalCommit
-        <!! statusCode === const 409
+  runMLSTest $ do
+    clients@[alice1, _bob1, bob2, charlie1] <- traverse createMLSClient [alice, bob, bob, charlie]
+    traverse_ uploadNewKeyPackage (tail clients)
+    void $ setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommit
 
-  liftIO $ Wai.label err @?= "mls-client-mismatch"
-
-testRemoveDeletedClient :: Bool -> TestM ()
-testRemoveDeletedClient deleteClientBefore = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, [bob, dee]) <- withLastPrekeys $ setupParticipants tmp def [(2, LocalUser), (1, LocalUser)]
-
-  -- create a group
-  (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
-
-  -- add clients to it and get welcome message
-  (addCommit, welcome) <-
-    liftIO $
-      setupCommit tmp creator "group" "group" $
-        NonEmpty.tail (pClients creator) <> toList (pClients bob) <> toList (pClients dee)
-
-  testSuccessfulCommit MessagingSetup {users = [bob, dee], commit = addCommit, ..}
-
-  let (_bobClient1, bobClient2) = assertTwo (toList (pClients bob))
-
-  when deleteClientBefore $ do
-    cannon <- view tsCannon
-    WS.bracketR
-      cannon
-      (qUnqualified . pUserId $ bob)
-      $ \ws -> do
-        deleteClient (qUnqualified (pUserId bob)) (snd bobClient2) (Just defPassword)
-          !!! statusCode
-            === const
-              200
+    liftTest $ do
+      cannon <- view tsCannon
+      WS.bracketR cannon (qUnqualified bob) $ \ws -> do
+        deleteClient (qUnqualified bob) (ciClient bob2) (Just defPassword)
+          !!! statusCode === const 200
         -- check that the corresponding event is received
-
         liftIO $
           WS.assertMatch_ (5 # WS.Second) ws $
-            wsAssertClientRemoved (snd bobClient2)
+            wsAssertClientRemoved (ciClient bob2)
 
-  void . liftIO $
-    spawn
-      ( cli
-          (pClientQid bob)
-          tmp
-          [ "group",
-            "from-welcome",
-            "--group-out",
-            tmp </> "group",
-            tmp </> "welcome"
-          ]
-      )
-      Nothing
-
-  void . liftIO $
-    spawn
-      ( cli
-          (pClientQid dee)
-          tmp
-          [ "group",
-            "from-welcome",
-            "--group-out",
-            tmp </> "group",
-            tmp </> "welcome"
-          ]
-      )
-      Nothing
-
-  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp dee "group" "group" [bobClient2]
-
-  -- dee (which is not an admin) commits removal of bob's deleted client
-  let doCommitRemoval = postMessage (qUnqualified (pUserId dee)) removalCommit
-
-  if deleteClientBefore
-    then do
-      events :: [Event] <-
-        fmap mmssEvents . responseJsonError
-          =<< doCommitRemoval
-            <!! statusCode === const 201
-      liftIO $ assertEqual "a non-admin received conversation events when removing a client" [] events
-    else do
-      err <-
-        responseJsonError
-          =<< doCommitRemoval
-            <!! statusCode === const 409
-      liftIO $ Wai.label err @?= "mls-client-mismatch"
-
-testRemoveSubset :: TestM ()
-testRemoveSubset = withSystemTempDirectory "mls" $ \tmp -> do
-  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
-  let [bob] = users
-
-  testSuccessfulCommit MessagingSetup {users = [bob], ..}
-
-  -- attempt to remove only first client of bob
-  (removalCommit, _mbWelcome) <- liftIO $ setupRemoveCommit tmp creator "group" "group" [NonEmpty.head (pClients bob)]
-
-  err <-
-    responseJsonError
-      =<< postMessage (qUnqualified (pUserId creator)) removalCommit
-        <!! statusCode === const 409
-
-  liftIO $ Wai.label err @?= "mls-client-mismatch"
+    events <- createRemoveCommit charlie1 [bob2] >>= sendAndConsumeCommit
+    liftIO $ assertEqual "a non-admin received conversation events when removing a client" [] events
 
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = do
