@@ -662,6 +662,7 @@ executable galley-schema
     V70_MLSCipherSuite
     V71_MemberClientKeypackage
     V72_DropManagedConversations
+    V73_ExposeInvitationsToTeamAdmin
 
   hs-source-dirs:     schema/src
   default-extensions:
