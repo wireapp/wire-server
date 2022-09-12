@@ -28,7 +28,6 @@ migration :: Migration
 migration = Migration 73 "Add feature config for team feature exposing invitation URLs to team admins" $ do
   schema'
     [r| ALTER TABLE team_features ADD (
-          expose_invitation_urls_to_team_admin int,
-          expose_invitation_urls_to_team_admin_lock_status int
+          expose_invitation_urls_to_team_admin int
         )
      |]
