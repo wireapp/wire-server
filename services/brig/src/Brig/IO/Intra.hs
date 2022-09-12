@@ -59,6 +59,7 @@ module Brig.IO.Intra
     getTeamSearchVisibility,
     getAllFeatureConfigsForUser,
     getVerificationCodeEnabled,
+    getTeamExposeInvitationURLsToTeamAdmin,
 
     -- * Legalhold
     guardLegalhold,
@@ -1365,6 +1366,28 @@ getTeamSearchVisibility tid =
   where
     req =
       paths ["i", "teams", toByteString' tid, "search-visibility"]
+        . expect2xx
+
+getTeamExposeInvitationURLsToTeamAdmin ::
+  ( MonadLogger m,
+    MonadReader Env m,
+    MonadIO m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m
+  ) =>
+  TeamId ->
+  m Bool
+getTeamExposeInvitationURLsToTeamAdmin tid = do
+  debug $ remote "galley" . msg (val "Get expose invitation URLs to team admin settings")
+  response <- galleyRequest GET req
+  status <- wsStatus <$> decodeBody @(WithStatus ExposeInvitationURLsToTeamAdminConfig) "galley" response
+  case status of
+    FeatureStatusEnabled -> pure True
+    FeatureStatusDisabled -> pure False
+  where
+    req =
+      paths ["i", "teams", toByteString' tid, "features", featureNameBS @ExposeInvitationURLsToTeamAdminConfig]
         . expect2xx
 
 getVerificationCodeEnabled ::
