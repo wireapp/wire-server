@@ -178,7 +178,8 @@ type FeaturePersistentAllFeatures db =
     FeaturePersistentConstraint db SndFactorPasswordChallengeConfig,
     FeaturePersistentConstraint db MLSConfig,
     FeaturePersistentConstraint db SearchVisibilityInboundConfig,
-    FeaturePersistentConstraint db ExposeInvitationURLsToTeamAdminConfig
+    FeaturePersistentConstraint db ExposeInvitationURLsToTeamAdminConfig,
+    FeaturePersistentConstraint db ExposeInvitationURLsTeamAllowlistConfig
   )
 
 getFeatureStatus ::
@@ -440,6 +441,7 @@ getAllFeatureConfigsForServer =
     <*> getConfigForServer @db @SndFactorPasswordChallengeConfig
     <*> getConfigForServer @db @MLSConfig
     <*> getConfigForServer @db @ExposeInvitationURLsToTeamAdminConfig
+    <*> getConfigForServer @db @ExposeInvitationURLsTeamAllowlistConfig
 
 getAllFeatureConfigsUser ::
   forall db r.
@@ -474,6 +476,7 @@ getAllFeatureConfigsUser uid =
     <*> getConfigForUser @db @SndFactorPasswordChallengeConfig uid
     <*> getConfigForUser @db @MLSConfig uid
     <*> getConfigForUser @db @ExposeInvitationURLsToTeamAdminConfig uid
+    <*> getConfigForUser @db @ExposeInvitationURLsTeamAllowlistConfig uid
 
 getAllFeatureConfigsTeam ::
   forall db r.
@@ -507,6 +510,7 @@ getAllFeatureConfigsTeam tid =
     <*> getConfigForTeam @db @SndFactorPasswordChallengeConfig tid
     <*> getConfigForTeam @db @MLSConfig tid
     <*> getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid
+    <*> getConfigForTeam @db @ExposeInvitationURLsTeamAllowlistConfig tid
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
 genericGetConfigForTeam ::
@@ -865,6 +869,10 @@ instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
         if maybe False (elem tid) allowedTeams
           then persistAndPushEvent @db tid wsnl
           else throwS @OperationDenied
+
+instance GetFeatureConfig db ExposeInvitationURLsTeamAllowlistConfig where
+  getConfigForServer =
+    input <&> view (optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist . unImplicitLockStatus)
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --
