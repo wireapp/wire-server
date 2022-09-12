@@ -857,7 +857,9 @@ setupMLSGroup creator = do
             (defNewMLSConv (ciClient creator))
         )
       <!! const 201 === statusCode
-  let groupId = fromJust (preview (to cnvProtocol . _ProtocolMLS . to cnvmlsGroupId) conv)
+  let groupId =
+        fromJust
+          (preview (to cnvProtocol . _ProtocolMLS . to cnvmlsGroupId) conv)
 
   createGroup creator groupId
   pure (groupId, cnvQualifiedId conv)

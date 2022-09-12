@@ -27,10 +27,12 @@ import Bilge.Assert
 import Cassandra
 import Control.Lens (view)
 import Control.Monad.State (modify)
+import qualified Control.Monad.State as State
 import Crypto.Error
 import qualified Crypto.PubKey.Ed25519 as Ed25519
 import qualified Data.Aeson as Aeson
 import Data.Binary.Put
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Default
 import Data.Domain
@@ -51,6 +53,7 @@ import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import System.FilePath
 import System.IO.Temp
+import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (Second), (#))
 import qualified Test.Tasty.Cannon as WS
@@ -839,96 +842,110 @@ testRemoteAppMessage = do
 -- faked: 4
 -- actual test step: 12 14
 testLocalToRemote :: TestM ()
-testLocalToRemote = withSystemTempDirectory "mls" $ \tmp -> do
-  let domain = Domain "faraway.example.com"
-  -- step 2
-  MessagingSetup {creator = alice, users = [bob], ..} <-
-    aliceInvitesBobWithTmp
-      tmp
-      (1, LocalUser)
-      def
-        { creatorOrigin = RemoteUser domain
-        }
+testLocalToRemote = do
+  -- create users
+  let aliceDomain = "faraway.example.com"
+  [alice, bob] <- createAndConnectUsers [Just aliceDomain, Nothing]
 
-  -- step 10
-  liftIO $ mergeWelcome tmp (pClientQid bob) "group" "groupB.json" "welcome"
-  -- step 11
-  message <-
-    liftIO $
-      spawn
-        ( cli
-            (pClientQid bob)
-            tmp
-            ["message", "--group", tmp </> "groupB.json", "hi"]
-        )
-        Nothing
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
 
-  fedGalleyClient <- view tsFedGalleyClient
+    -- upload key packages
+    traverse_ uploadNewKeyPackage [bob1]
 
-  -- register remote conversation: step 4
-  qcnv <- randomQualifiedId (qDomain (pUserId alice))
-  let nrc =
-        NewRemoteConversation (qUnqualified qcnv) $
-          ProtocolMLS (ConversationMLSData groupId (Epoch 1) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
-  void $
-    runFedClient
-      @"on-new-remote-conversation"
-      fedGalleyClient
-      (qDomain (pUserId alice))
-      nrc
+    -- step 2
+    (groupId, qcnv) <- setupFakeMLSGroup alice1
+    mp <- createAddCommit alice1 [bob]
+    -- step 10
+    traverse_ consumeWelcome (mpWelcome mp)
+    -- step 11
+    message <- createApplicationMessage bob1 "hi"
 
-  -- A notifies B about bob being in the conversation (Join event): step 5
-  now <- liftIO getCurrentTime
-  let cu =
-        ConversationUpdate
-          { cuTime = now,
-            cuOrigUserId = pUserId alice,
-            cuConvId = qUnqualified qcnv,
-            cuAlreadyPresentUsers = [qUnqualified $ pUserId bob],
-            cuAction =
-              SomeConversationAction
-                SConversationJoinTag
-                ConversationJoin
-                  { cjUsers = pure (pUserId bob),
-                    cjRole = roleNameWireMember
-                  }
+    -- register remote conversation: step 4
+    receiveNewRemoteConv qcnv groupId
+    -- A notifies B about bob being in the conversation (Join event): step 5
+    receiveOnConvUpdated qcnv alice bob
+
+    let mock req = case frRPC req of
+          "send-mls-message" -> pure (Aeson.encode (MLSMessageResponseUpdates []))
+          rpc -> assertFailure $ "unmocked RPC called: " <> T.unpack rpc
+
+    (_, reqs) <-
+      withTempMockFederator' mock $
+        -- bob sends a message: step 12
+        sendAndConsumeMessage message
+
+    -- check requests to mock federator: step 14
+    liftIO $ do
+      req <- assertOne reqs
+      frRPC req @?= "send-mls-message"
+      frTargetDomain req @?= qDomain qcnv
+      bdy <- case Aeson.eitherDecode (frBody req) of
+        Right b -> pure b
+        Left e -> assertFailure $ "Could not parse send-mls-message request body: " <> e
+      msrConvId bdy @?= qUnqualified qcnv
+      msrSender bdy @?= qUnqualified bob
+      msrRawMessage bdy @?= Base64ByteString (mpMessage message)
+  where
+    setupFakeMLSGroup creator = do
+      groupId <-
+        liftIO $
+          fmap (GroupId . BS.pack) (replicateM 32 (generate arbitrary))
+      groupJSON <-
+        mlscli
+          creator
+          ["group", "create", T.unpack (toBase64Text (unGroupId groupId))]
+          Nothing
+      g <- nextGroupFile creator
+      liftIO $ BS.writeFile g groupJSON
+      State.modify $ \s ->
+        s
+          { mlsGroupId = Just groupId,
+            mlsMembers = Set.singleton creator
           }
-  void $
-    runFedClient
-      @"on-conversation-updated"
-      fedGalleyClient
-      (qDomain (pUserId alice))
-      cu
+      qcnv <- randomQualifiedId (ciDomain creator)
+      pure (groupId, qcnv)
 
-  let mock req = case frRPC req of
-        "send-mls-message" -> pure (Aeson.encode (MLSMessageResponseUpdates []))
-        rpc -> assertFailure $ "unmocked RPC called: " <> T.unpack rpc
+    receiveNewRemoteConv conv gid = do
+      client <- view tsFedGalleyClient
+      let nrc =
+            NewRemoteConversation (qUnqualified conv) $
+              ProtocolMLS
+                ( ConversationMLSData
+                    gid
+                    (Epoch 1)
+                    MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+                )
+      void $
+        runFedClient
+          @"on-new-remote-conversation"
+          client
+          (qDomain conv)
+          nrc
 
-  (_, reqs) <- withTempMockFederator' mock $ do
-    galley <- viewGalley
-
-    -- bob sends a message: step 12
-    post
-      ( galley . paths ["mls", "messages"]
-          . zUser (qUnqualified (pUserId bob))
-          . zConn "conn"
-          . content "message/mls"
-          . bytes message
-      )
-      !!! const 201
-      === statusCode
-
-  -- check requests to mock federator: step 14
-  liftIO $ do
-    req <- assertOne reqs
-    frRPC req @?= "send-mls-message"
-    frTargetDomain req @?= qDomain qcnv
-    bdy <- case Aeson.eitherDecode (frBody req) of
-      Right b -> pure b
-      Left e -> assertFailure $ "Could not parse send-mls-message request body: " <> e
-    msrConvId bdy @?= qUnqualified qcnv
-    msrSender bdy @?= qUnqualified (pUserId bob)
-    msrRawMessage bdy @?= Base64ByteString message
+    receiveOnConvUpdated conv origUser joiner = do
+      client <- view tsFedGalleyClient
+      now <- liftIO getCurrentTime
+      let cu =
+            ConversationUpdate
+              { cuTime = now,
+                cuOrigUserId = origUser,
+                cuConvId = qUnqualified conv,
+                cuAlreadyPresentUsers = [qUnqualified joiner],
+                cuAction =
+                  SomeConversationAction
+                    SConversationJoinTag
+                    ConversationJoin
+                      { cjUsers = pure joiner,
+                        cjRole = roleNameWireMember
+                      }
+              }
+      void $
+        runFedClient
+          @"on-conversation-updated"
+          client
+          (qDomain conv)
+          cu
 
 testLocalToRemoteNonMember :: TestM ()
 testLocalToRemoteNonMember = withSystemTempDirectory "mls" $ \tmp -> do
