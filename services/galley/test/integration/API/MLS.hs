@@ -1013,55 +1013,34 @@ testAppMessage = do
 
 testAppMessage2 :: TestM ()
 testAppMessage2 = do
-  (MessagingSetup {..}, message) <- withSystemTempDirectory "mls" $ \tmp -> do
-    (creator, users) <- withLastPrekeys $ setupParticipants tmp def ((,LocalUser) <$> [2, 1])
-    (groupId, conversation) <- setupGroup tmp CreateConv creator "group"
+  -- create users
+  [alice, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
 
-    (commit, welcome) <-
-      liftIO $
-        setupCommit tmp creator "group" "group" $
-          users >>= toList . pClients
+  runMLSTest $ do
+    alice1 : clients@[bob1, _bob2, _charlie1] <-
+      traverse createMLSClient [alice, bob, bob, charlie]
 
-    let setup = MessagingSetup {..}
-    void $ postCommit setup
+    -- upload key packages
+    traverse_ uploadNewKeyPackage clients
 
-    let bob = head users
-    liftIO $ mergeWelcome tmp (pClientQid bob) "group" "group" "welcome"
-    message <-
-      liftIO $
-        createMessage tmp bob "group" "some text"
-    pure (setup, message)
+    -- create group with alice1 and other clients
+    conversation <- snd <$> setupMLSGroup alice1
+    mp <- createAddCommit alice1 [bob, charlie]
+    void $ sendAndConsumeCommit mp
 
-  let (bob, charlie) = assertTwo users
-  galley <- viewGalley
-  cannon <- view tsCannon
+    traverse_ consumeWelcome (mpWelcome mp)
 
-  let mkClients p = do
-        c <- pClients p
-        pure (qUnqualified (pUserId p), snd c)
+    message <- createApplicationMessage bob1 "some text"
 
-  WS.bracketAsClientRN
-    cannon
-    ( toList (mkClients creator)
-        <> NonEmpty.tail (mkClients bob)
-        <> toList (mkClients charlie)
-    )
-    $ \wss -> do
-      post
-        ( galley . paths ["mls", "messages"]
-            . zUser (qUnqualified (pUserId bob))
-            . zConn "conn"
-            . content "message/mls"
-            . bytes message
-        )
-        !!! const 201
-        === statusCode
+    mlsBracket (alice1 : clients) $ \wss -> do
+      events <- sendAndConsumeMessage message
+      liftIO $ events @?= []
 
       -- check that the corresponding event is received
 
       liftIO $
         WS.assertMatchN_ (5 # WS.Second) wss $
-          wsAssertMLSMessage conversation (pUserId bob) message
+          wsAssertMLSMessage conversation bob (mpMessage message)
 
 testRemoteToRemote :: TestM ()
 testRemoteToRemote = do
