@@ -858,6 +858,10 @@ instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsToTeamAdmin)
 
+  -- TODO(sysvinit): override getConfigForTeam here to prevent teams not in the
+  -- allowlist from using this feature? or do we just trust that what's in the db
+  -- is validated?
+
 instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
   type SetConfigForTeamConstraints db ExposeInvitationURLsToTeamAdminConfig (r :: EffectRow) = (Member (ErrorS OperationDenied) r)
   setConfigForTeam tid wsnl = do
