@@ -1061,20 +1061,20 @@ testRemoteToLocal = do
   -- bob then sends a message to the conversation
 
   let bobDomain = Domain "faraway.example.com"
+  -- create users
+  [alice, bob] <- createAndConnectUsers [Nothing, Just (domainText bobDomain)]
 
   -- Simulate the whole MLS setup for both clients first. In reality,
   -- backend calls would need to happen in order for bob to get ahold of a
   -- welcome message, but that should not affect the correctness of the test.
 
-  (MessagingSetup {..}, message) <- withSystemTempDirectory "mls" $ \tmp -> do
-    setup <-
-      aliceInvitesBobWithTmp
-        tmp
-        (1, RemoteUser bobDomain)
-        def
-          { createConv = CreateConv
-          }
-    bob <- assertOne (users setup)
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+
+    (_groupId, qcnv) <- setupMLSGroup alice1
+    kpb <- claimKeyPackages alice1 bob
+    mp <- createAddCommit alice1 [bob]
+
     let mockedResponse fedReq =
           case frRPC fedReq of
             "mls-welcome" -> pure (Aeson.encode EmptyResponse)
@@ -1083,48 +1083,35 @@ testRemoteToLocal = do
             "get-mls-clients" ->
               pure
                 . Aeson.encode
-                . Set.fromList
-                . map (flip ClientInfo True . snd)
-                . toList
-                . pClients
-                $ bob
+                . Set.singleton
+                $ ClientInfo (ciClient bob1) True
+            "claim-key-packages" -> pure . Aeson.encode $ kpb
             ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
 
     void . withTempMockFederator' mockedResponse $
-      postCommit setup
-    liftIO $ mergeWelcome tmp (pClientQid bob) "group" "groupB.json" "welcome"
-    message <-
-      liftIO $
-        spawn
-          ( cli
-              (pClientQid bob)
-              tmp
-              ["message", "--group", tmp </> "groupB.json", "hello from another backend"]
-          )
-          Nothing
-    pure (setup, message)
+      sendAndConsumeCommit mp
 
-  let bob = head users
-  let alice = creator
+    traverse_ consumeWelcome (mpWelcome mp)
+    message <- createApplicationMessage bob1 "hello from another backend"
 
-  fedGalleyClient <- view tsFedGalleyClient
-  cannon <- view tsCannon
+    fedGalleyClient <- view tsFedGalleyClient
+    cannon <- view tsCannon
 
-  -- actual test
+    -- actual test
 
-  let msr =
-        MessageSendRequest
-          { msrConvId = qUnqualified conversation,
-            msrSender = qUnqualified (pUserId bob),
-            msrRawMessage = Base64ByteString message
-          }
+    let msr =
+          MessageSendRequest
+            { msrConvId = qUnqualified qcnv,
+              msrSender = qUnqualified bob,
+              msrRawMessage = Base64ByteString (mpMessage message)
+            }
 
-  WS.bracketR cannon (qUnqualified (pUserId alice)) $ \ws -> do
-    resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
-    liftIO $ do
-      resp @?= MLSMessageResponseUpdates []
-      WS.assertMatch_ (5 # Second) ws $
-        wsAssertMLSMessage conversation (pUserId bob) message
+    WS.bracketR cannon (qUnqualified alice) $ \ws -> do
+      resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
+      liftIO $ do
+        resp @?= MLSMessageResponseUpdates []
+        WS.assertMatch_ (5 # Second) ws $
+          wsAssertMLSMessage qcnv bob (mpMessage message)
 
 testRemoteToLocalWrongConversation :: TestM ()
 testRemoteToLocalWrongConversation = do
