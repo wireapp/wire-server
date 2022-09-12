@@ -153,8 +153,7 @@ data FeatureFlags = FeatureFlags
     _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (WithStatus SndFactorPasswordChallengeConfig)),
     _flagTeamFeatureSearchVisibilityInbound :: !(Defaults (ImplicitLockStatus SearchVisibilityInboundConfig)),
     _flagMLS :: !(Defaults (ImplicitLockStatus MLSConfig)),
-    -- TODO(sysvinit): v-- default locked status?
-    _flagTeamFeatureExposeInvitationURLsToTeamAdmin :: !(Defaults (ImplicitLockStatus ExposeInvitationURLsToTeamAdminConfig)),
+    _flagTeamFeatureExposeInvitationURLsToTeamAdmin :: !(WithStatus ExposeInvitationURLsToTeamAdminConfig),
     _flagTeamFeatureExposeInvitationURLsTeamAllowlist :: !(ImplicitLockStatus ExposeInvitationURLsTeamAllowlistConfig)
   }
   deriving (Eq, Show, Generic)
@@ -205,7 +204,7 @@ instance FromJSON FeatureFlags where
       <*> (fromMaybe (Defaults (defFeatureStatus @SndFactorPasswordChallengeConfig)) <$> (obj .:? "sndFactorPasswordChallenge"))
       <*> withImplicitLockStatusOrDefault obj "searchVisibilityInbound"
       <*> withImplicitLockStatusOrDefault obj "mls"
-      <*> withImplicitLockStatusOrDefault obj "exposeInvitationURLsToTeamAdmin"
+      <*> (fromMaybe (defFeatureStatus @ExposeInvitationURLsToTeamAdminConfig) <$> (obj .:? "exposeInvitationURLsToTeamAdmin"))
       <*> (fromMaybe (ImplicitLockStatus (defFeatureStatus @ExposeInvitationURLsTeamAllowlistConfig)) <$> (obj .:? "exposeInvitationURLsTeamAllowlist"))
     where
       withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg, Schema.ToSchema cfg) => Object -> Key -> A.Parser (Defaults (ImplicitLockStatus cfg))

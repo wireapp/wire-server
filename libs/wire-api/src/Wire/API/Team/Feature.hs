@@ -956,8 +956,7 @@ data ExposeInvitationURLsToTeamAdminConfig = ExposeInvitationURLsToTeamAdminConf
 
 instance IsFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
   type FeatureSymbol ExposeInvitationURLsToTeamAdminConfig = "exposeInvitationURLsToTeamAdmin"
-  -- TODO(sysvinit): lock by default?
-  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
+  defFeatureStatus = withStatus FeatureStatusDisabled LockStatusLocked ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
   objectSchema = pure ExposeInvitationURLsToTeamAdminConfig
 
 instance ToSchema ExposeInvitationURLsToTeamAdminConfig where

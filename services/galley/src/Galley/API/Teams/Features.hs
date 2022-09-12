@@ -856,7 +856,7 @@ instance SetFeatureConfig db MLSConfig where
 
 instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsToTeamAdmin . unDefaults . unImplicitLockStatus)
+    input <&> view (optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsToTeamAdmin)
 
 instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
   type SetConfigForTeamConstraints db ExposeInvitationURLsToTeamAdminConfig (r :: EffectRow) = (Member (ErrorS OperationDenied) r)
