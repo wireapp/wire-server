@@ -34,6 +34,7 @@ import Crypto.PubKey.Ed25519
 import Data.Aeson.Lens
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Base64.URL as B64U
 import Data.ByteString.Conversion
 import Data.Default
 import Data.Domain
@@ -630,7 +631,7 @@ mkAppAckProposalMessage gid epoch ref mrs priv pub = do
               tbsMsgPayload = ProposalMessage (mkAppAckProposal mrs)
             }
       sig = BA.convert $ sign priv pub (rmRaw tbs)
-   in (Message tbs (MessageExtraFields sig Nothing Nothing))
+   in Message tbs (MessageExtraFields sig Nothing Nothing)
 
 saveRemovalKey :: FilePath -> TestM ()
 saveRemovalKey fp = do
@@ -644,6 +645,7 @@ data MLSState = MLSState
     -- | for creating clients
     mlsUnusedPrekeys :: [LastPrekey],
     mlsMembers :: Set ClientIdentity,
+    -- | users expected to receive a welcome message after the next commit
     mlsNewMembers :: Set ClientIdentity,
     mlsGroupId :: Maybe GroupId,
     mlsEpoch :: Word64
@@ -821,25 +823,30 @@ nextGroupFile qcid = do
   createFileLink groupFile link
   pure groupFile
 
-rollBackClient :: HasCallStack => ClientIdentity -> MLSTest ()
+rollBackClient :: HasCallStack => ClientIdentity -> MLSTest ByteString
 rollBackClient cid = do
   link <- groupFileLink cid
+  groupFile <- liftIO $ getSymbolicLinkTarget link
   (prefix, n) <-
-    liftIO $ parseGroupFileName =<< getSymbolicLinkTarget link
+    liftIO $ parseGroupFileName groupFile
   when (n == 0) $ do
     liftIO . assertFailure $ "Cannot roll back client " <> cid2Str cid
+  state <- liftIO $ BS.readFile groupFile
+  removeFile groupFile
   removeFile link
   bd <- State.gets mlsBaseDir
-  let groupFile = bd </> cid2Str cid </> (prefix <> "." <> show (n - 1))
-  createFileLink groupFile link
+  let newGroupFile = bd </> cid2Str cid </> (prefix <> "." <> show (n - 1))
+  createFileLink newGroupFile link
+  pure state
+
+setGroupState :: HasCallStack => ClientIdentity -> ByteString -> MLSTest ()
+setGroupState cid state = do
+  fp <- nextGroupFile cid
+  liftIO $ BS.writeFile fp state
 
 -- | Create conversation and corresponding group.
 setupMLSGroup :: HasCallStack => ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
 setupMLSGroup creator = do
-  State.gets mlsGroupId >>= \case
-    Just _ -> liftIO $ assertFailure "only one group can be created"
-    Nothing -> pure ()
-
   ownDomain <- liftTest viewFederationDomain
   liftIO $ assertEqual "creator is not local" (ciDomain creator) ownDomain
   conv <-
@@ -852,15 +859,23 @@ setupMLSGroup creator = do
       <!! const 201 === statusCode
   let groupId = fromJust (preview (to cnvProtocol . _ProtocolMLS . to cnvmlsGroupId) conv)
 
-  groupJSON <- mlscli creator ["group", "create", T.unpack (toBase64Text (unGroupId groupId))] Nothing
-  g <- nextGroupFile creator
+  createGroup creator groupId
+  pure (groupId, cnvQualifiedId conv)
+
+createGroup :: ClientIdentity -> GroupId -> MLSTest ()
+createGroup cid gid = do
+  State.gets mlsGroupId >>= \case
+    Just _ -> liftIO $ assertFailure "only one group can be created"
+    Nothing -> pure ()
+
+  groupJSON <- mlscli cid ["group", "create", T.unpack (toBase64Text (unGroupId gid))] Nothing
+  g <- nextGroupFile cid
   liftIO $ BS.writeFile g groupJSON
   State.modify $ \s ->
     s
-      { mlsGroupId = Just groupId,
-        mlsMembers = Set.singleton creator
+      { mlsGroupId = Just gid,
+        mlsMembers = Set.singleton cid
       }
-  pure (groupId, cnvQualifiedId conv)
 
 keyPackageFile :: HasCallStack => ClientIdentity -> KeyPackageRef -> MLSTest FilePath
 keyPackageFile qcid ref =
@@ -1217,3 +1232,15 @@ readGroupState fp = do
         leafNode ^.. key "key_package" . key "payload" . key "credential" . key "credential" . key "Basic" . key "identity" . key "vec" . _Array . traverse . _Integer
     kpr <- (unhexM . T.encodeUtf8 =<<) $ leafNode ^.. key "key_package_ref" . _String
     pure (identity, KeyPackageRef kpr)
+
+clientKeyPair :: ClientIdentity -> MLSTest (ByteString, ByteString)
+clientKeyPair cid = do
+  bd <- State.gets mlsBaseDir
+  credential <-
+    liftIO . BS.readFile $
+      bd </> cid2Str cid </> "store" </> T.unpack (T.decodeUtf8 (B64U.encode "self"))
+  let s =
+        credential ^.. key "signature_private_key" . key "value" . _Array . traverse . _Integer
+          & fmap fromIntegral
+          & BS.pack
+  pure $ BS.splitAt 32 s

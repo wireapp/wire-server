@@ -1,6 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -17,6 +16,7 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# OPTIONS_GHC -Wwarn #-}
 
 module API.MLS (tests) where
 
@@ -25,14 +25,12 @@ import API.Util
 import Bilge hiding (head)
 import Bilge.Assert
 import Cassandra
-import Control.Lens (view, (^..))
+import Control.Lens (view)
+import Control.Monad.State (modify)
 import Crypto.Error
-import qualified Crypto.PubKey.Ed25519 as C
+import qualified Crypto.PubKey.Ed25519 as Ed25519
 import qualified Data.Aeson as Aeson
-import Data.Aeson.Lens
 import Data.Binary.Put
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Base64.URL as B64U
 import qualified Data.ByteString.Lazy as LBS
 import Data.Default
 import Data.Domain
@@ -64,14 +62,12 @@ import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol
 import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
-import Wire.API.Event.Conversation
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Keys
-import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
 import Wire.API.Message
 import Wire.API.User.Client
@@ -554,7 +550,7 @@ testStaleCommit = do
     void $ createAddCommit alice1 users1 >>= sendAndConsumeCommit
 
     -- now roll back alice1 and try to add the second batch of users
-    rollBackClient alice1
+    void $ rollBackClient alice1
     commit <- createAddCommit alice1 users2
     err <-
       responseJsonError
@@ -704,7 +700,7 @@ testCommitNotReferencingAllProposals = do
       >>= traverse_ sendAndConsumeMessage
 
     -- now create a commit referencing only the first proposal
-    rollBackClient alice1
+    void $ rollBackClient alice1
     commit <- createPendingProposalCommit alice1
 
     -- send commit and expect and error
@@ -1285,90 +1281,71 @@ testRemoteNonMemberToLocal = do
 
 -- | The group exists in mls-test-cli's store, but not in wire-server's database.
 propNonExistingConv :: TestM ()
-propNonExistingConv = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
+propNonExistingConv = do
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+    createGroup alice1 "test_group"
 
-  let groupId = toBase64Text "test_group"
-  groupJSON <-
-    liftIO $
-      spawn (cli (pClientQid creator) tmp ["group", "create", T.unpack groupId]) Nothing
-  liftIO $ BS.writeFile (tmp </> cs groupId) groupJSON
-
-  prop <-
-    liftIO $
-      spawn
-        ( cli
-            (pClientQid creator)
-            tmp
-            [ "proposal",
-              "--group-in",
-              tmp </> cs groupId,
-              "--in-place",
-              "add",
-              tmp </> pClientQid bob
-            ]
-        )
-        Nothing
-  postMessage (qUnqualified (pUserId creator)) prop !!! do
-    const 404 === statusCode
-    const (Just "no-conversation") === fmap Wai.label . responseJsonError
+    [prop] <- createAddProposals alice1 [bob]
+    postMessage (ciUser alice1) (mpMessage prop) !!! do
+      const 404 === statusCode
+      const (Just "no-conversation") === fmap Wai.label . responseJsonError
 
 propExistingConv :: TestM ()
-propExistingConv = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, [bob]) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser)]
-  -- setupGroup :: HasCallStack => FilePath -> CreateConv -> Participant -> String -> TestM (Qualified ConvId)
-  void $ setupGroup tmp CreateConv creator "group.json"
+propExistingConv = do
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+    void $ setupMLSGroup alice1
+    events <- createAddProposals alice1 [bob] >>= traverse sendAndConsumeMessage
 
-  prop <- liftIO $ bareAddProposal tmp creator bob "group.json" "group.json"
-
-  events <-
-    fmap mmssEvents . responseJsonError
-      =<< postMessage (qUnqualified (pUserId creator)) prop
-      <!! const 201 === statusCode
-  liftIO $ events @?= ([] :: [Event])
+    liftIO $ events @?= [[]]
 
 propInvalidEpoch :: TestM ()
-propInvalidEpoch = withSystemTempDirectory "mls" $ \tmp -> do
-  (creator, users) <- withLastPrekeys $ setupParticipants tmp def [(1, LocalUser), (1, LocalUser), (1, LocalUser)]
-  (groupId, conversation) <- setupGroup tmp CreateConv creator "group.0.json"
+propInvalidEpoch = do
+  users@[alice, bob, charlie, dee] <- createAndConnectUsers (replicate 4 Nothing)
+  runMLSTest $ do
+    [alice1, bob1, charlie1, dee1] <- traverse createMLSClient users
+    void $ setupMLSGroup alice1
 
-  let (bob, charlie, dee) = assertThree users
+    -- Add bob -> epoch 1
+    void $ uploadNewKeyPackage bob1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
 
-  -- Add bob -> epoch 1
-  do
-    (commit, welcome) <-
-      liftIO $
-        setupCommit tmp creator "group.0.json" "group.1.json" $
-          toList (pClients bob)
-    testSuccessfulCommit MessagingSetup {users = [bob], ..}
+    -- try to send a proposal from an old epoch (0)
+    do
+      groupState <- rollBackClient alice1
+      void $ uploadNewKeyPackage dee1
+      [prop] <- createAddProposals alice1 [dee]
+      err <-
+        responseJsonError
+          =<< postMessage (qUnqualified alice) (mpMessage prop)
+          <!! const 409 === statusCode
+      liftIO $ Wai.label err @?= "mls-stale-message"
+      setGroupState alice1 groupState
 
-  -- try to request a proposal that with too old epoch (0)
-  do
-    prop <- liftIO $ bareAddProposal tmp creator charlie "group.0.json" "group.0.json"
-    err <-
-      responseJsonError
-        =<< postMessage (qUnqualified (pUserId creator)) prop
-        <!! const 409 === statusCode
-    liftIO $ Wai.label err @?= "mls-stale-message"
+    -- try to send a proposal from a newer epoch (2)
+    do
+      void $ uploadNewKeyPackage dee1
+      void $ uploadNewKeyPackage charlie1
+      void $ createAddCommit alice1 [charlie]
+      [prop] <- createAddProposals alice1 [dee]
+      err <-
+        responseJsonError
+          =<< postMessage (qUnqualified alice) (mpMessage prop)
+          <!! const 404 === statusCode
+      liftIO $ Wai.label err @?= "mls-key-package-ref-not-found"
+      replicateM_ 2 (rollBackClient alice1)
+      -- remove charlie from users expected to get a welcome message
+      modify $ \mls -> mls {mlsNewMembers = mempty}
 
-  -- try to request a proposal that is too new epoch (2)
-  do
-    void $
-      liftIO $
-        setupCommit tmp creator "group.1.json" "group.2.json" $
-          toList (pClients charlie)
-    prop <- liftIO $ bareAddProposal tmp creator dee "group.2.json" "group.2.json"
-    err <-
-      responseJsonError
-        =<< postMessage (qUnqualified (pUserId creator)) prop
-        <!! const 404 === statusCode
-    liftIO $ Wai.label err @?= "mls-key-package-ref-not-found"
-
-  -- same proposal with correct epoch (1)
-  do
-    prop <- liftIO $ bareAddProposal tmp creator dee "group.1.json" "group.1.json"
-    postMessage (qUnqualified (pUserId creator)) prop
-      !!! const 201 === statusCode
+    -- alice send a well-formed proposal and commits it
+    void $ uploadNewKeyPackage dee1
+    createAddProposals alice1 [dee] >>= traverse_ sendAndConsumeMessage
+    void $ createPendingProposalCommit alice1 >>= sendAndConsumeCommit
 
 -- scenario:
 -- alice1 creates a group and adds bob1
@@ -1497,46 +1474,32 @@ testPublicKeys = do
 -- 2022 only gets forwarded by the backend, i.e., there's no action taken by the
 -- backend.
 propUnsupported :: TestM ()
-propUnsupported = withSystemTempDirectory "mls" $ \tmp -> do
-  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (1, LocalUser) def {createConv = CreateConv}
-  aliceKP <- liftIO $ do
-    d <- BS.readFile (tmp </> pClientQid creator)
-    either (\e -> assertFailure ("could not parse key package: " <> T.unpack e)) pure $
-      decodeMLS' d
-  let alicePublicKey = bcSignatureKey $ kpCredential aliceKP
+propUnsupported = do
+  users@[_alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient users
+    void $ uploadNewKeyPackage bob1
+    (gid, _) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
 
-  -- "\0 " corresponds to 0020 in TLS encoding, which is the length of the
-  -- following public key
-  file <-
-    liftIO . BS.readFile $
-      tmp </> pClientQid creator <> ".db" </> cs (B64U.encode $ "\0 " <> alicePublicKey)
-  let s =
-        file ^.. key "signature_private_key" . key "value" . _Array . traverse . _Integer
-          & fmap fromIntegral
-          & BS.pack
-  let (privKey, pubKey) = BS.splitAt 32 s
-  liftIO $ alicePublicKey @?= pubKey
-  let aliceRef =
-        kpRef
-          MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-          . KeyPackageData
-          . rmRaw
-          . kpTBS
-          $ aliceKP
-  let Just appAckMsg =
+    mems <- currentGroupFile alice1 >>= liftIO . readGroupState
+    (_, ref) <- assertJust $ find ((== alice1) . fst) mems
+    (priv, pub) <- clientKeyPair alice1
+    msg <-
+      assertJust $
         maybeCryptoError $
           mkAppAckProposalMessage
-            groupId
-            (Epoch 0)
-            aliceRef
+            gid
+            (Epoch 1)
+            ref
             []
-            <$> C.secretKey privKey
-            <*> C.publicKey pubKey
-      msgSerialised =
-        LBS.toStrict . runPut . serialiseMLS $ appAckMsg
+            <$> Ed25519.secretKey priv
+            <*> Ed25519.publicKey pub
+    let msgData = LBS.toStrict (runPut (serialiseMLS msg))
 
-  postMessage (qUnqualified . pUserId $ creator) msgSerialised
-    !!! const 201 === statusCode
+    -- we cannot use sendAndConsumeMessage here, because openmls does not yet
+    -- support AppAck proposals
+    postMessage (ciUser alice1) msgData !!! const 201 === statusCode
 
 testBackendRemoveProposalLocalConvLocalUser :: TestM ()
 testBackendRemoveProposalLocalConvLocalUser = withSystemTempDirectory "mls" $ \tmp -> do
