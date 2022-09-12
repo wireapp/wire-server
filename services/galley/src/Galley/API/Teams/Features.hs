@@ -865,8 +865,8 @@ instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
     case wssStatus wsnl of
       FeatureStatusDisabled -> persistAndPushEvent @db tid wsnl
       FeatureStatusEnabled -> do
-        allowedTeams <- input <&> view (optSettings . setAllowExposingInvitationURLsInTeams)
-        if maybe False (elem tid) allowedTeams
+        allowedTeams <- exposeInvitationURLsTeamAllowlist <$> wsConfig <$> getConfigForServer @db
+        if elem tid allowedTeams
           then persistAndPushEvent @db tid wsnl
           else throwS @OperationDenied
 
