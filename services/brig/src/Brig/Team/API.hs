@@ -383,7 +383,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
     now <- liftIO =<< view currentTime
     timeout <- setTeamInvitationTimeout <$> view settings
     (newInv, code) <-
-      wrapClient $
+      wrapHttp $
         DB.insertInvitation
           iid
           tid
@@ -412,7 +412,7 @@ listInvitationsH (_ ::: uid ::: tid ::: start ::: size) = do
 listInvitations :: UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> (Handler r) Public.InvitationList
 listInvitations uid tid start size = do
   ensurePermissions uid tid [AddTeamMember]
-  rs <- lift $ wrapClient $ DB.lookupInvitations tid start size
+  rs <- lift $ wrapHttp $ DB.lookupInvitations tid start size
   pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
 getInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
@@ -425,7 +425,7 @@ getInvitationH (_ ::: uid ::: tid ::: iid) = do
 getInvitation :: UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.Invitation)
 getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
-  lift $ wrapClient $ DB.lookupInvitation tid iid
+  lift $ wrapHttp $ DB.lookupInvitation tid iid
 
 getInvitationByCodeH :: JSON ::: Public.InvitationCode -> (Handler r) Response
 getInvitationByCodeH (_ ::: c) = do
@@ -433,7 +433,7 @@ getInvitationByCodeH (_ ::: c) = do
 
 getInvitationByCode :: Public.InvitationCode -> (Handler r) Public.Invitation
 getInvitationByCode c = do
-  inv <- lift . wrapClient $ DB.lookupInvitationByCode c
+  inv <- lift . wrapHttp $ DB.lookupInvitationByCode c
   maybe (throwStd $ errorToWai @'E.InvalidInvitationCode) pure inv
 
 headInvitationByEmailH :: JSON ::: Email -> (Handler r) Response
@@ -453,7 +453,7 @@ getInvitationByEmailH (_ ::: email) =
 
 getInvitationByEmail :: Email -> (Handler r) Public.Invitation
 getInvitationByEmail email = do
-  inv <- lift $ wrapClient $ DB.lookupInvitationByEmail email
+  inv <- lift $ wrapHttp $ DB.lookupInvitationByEmail email
   maybe (throwStd (notFound "Invitation not found")) pure inv
 
 suspendTeamH :: JSON ::: TeamId -> (Handler r) Response

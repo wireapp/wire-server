@@ -413,7 +413,7 @@ createUser new = do
     findTeamInvitation (Just e) c =
       lift (wrapClient $ Team.lookupInvitationInfo c) >>= \case
         Just ii -> do
-          inv <- lift . wrapClient $ Team.lookupInvitation (Team.iiTeam ii) (Team.iiInvId ii)
+          inv <- lift . wrapHttp $ Team.lookupInvitation (Team.iiTeam ii) (Team.iiInvId ii)
           case (inv, Team.inInviteeEmail <$> inv) of
             (Just invite, Just em)
               | e == userEmailKey em -> do
