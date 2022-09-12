@@ -142,7 +142,7 @@ class GetFeatureConfig (db :: *) cfg where
 -- | Don't export methods of this typeclass
 class GetFeatureConfig (db :: *) cfg => SetFeatureConfig (db :: *) cfg where
   type SetConfigForTeamConstraints db cfg (r :: EffectRow) :: Constraint
-  type SetConfigForTeamConstraints db cfg (r :: EffectRow) = (Member (ErrorS OperationDenied) r)
+  type SetConfigForTeamConstraints db cfg (r :: EffectRow) = ()
 
   -- | This method should generate the side-effects of changing the feature and
   -- also (depending on the feature) persist the new setting to the database and
@@ -855,6 +855,7 @@ instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
     input <&> view (optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsToTeamAdmin . unDefaults . unImplicitLockStatus)
 
 instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
+  type SetConfigForTeamConstraints db ExposeInvitationURLsToTeamAdminConfig (r :: EffectRow) = (Member (ErrorS OperationDenied) r)
   setConfigForTeam tid wsnl =
     -- Only allow enabling this feature for teams which are in the admin-configured allowlist.
     case wssStatus wsnl of
