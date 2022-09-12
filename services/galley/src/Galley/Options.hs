@@ -30,7 +30,6 @@ module Galley.Options
     setFederationDomain,
     setEnableIndexedBillingTeamMembers,
     setMlsPrivateKeyPaths,
-    setAllowExposingInvitationURLsInTeams,
     setFeatureFlags,
     defConcurrentDeletionEvents,
     defDeleteConvThrottleMillis,
@@ -57,7 +56,6 @@ where
 import Control.Lens hiding (Level, (.=))
 import Data.Aeson.TH (deriveFromJSON)
 import Data.Domain (Domain)
-import Data.Id (TeamId)
 import Data.Misc
 import Data.Range
 import Galley.Keys
@@ -108,7 +106,6 @@ data Settings = Settings
     -- Defaults to false.
     _setEnableIndexedBillingTeamMembers :: !(Maybe Bool),
     _setMlsPrivateKeyPaths :: !(Maybe MLSPrivateKeyPaths),
-    _setAllowExposingInvitationURLsInTeams :: !(Maybe [TeamId]),
     -- | FUTUREWORK: 'setFeatureFlags' should be renamed to 'setFeatureConfigs' in all types.
     _setFeatureFlags :: !FeatureFlags
   }
