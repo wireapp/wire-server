@@ -64,6 +64,8 @@ import TestSetup
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Event.Conversation
+import Wire.API.Federation.API.Galley
+import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Keys
@@ -879,6 +881,28 @@ createGroup cid gid = do
         mlsMembers = Set.singleton cid
       }
 
+-- | Create a local group only without a conversation. This simulates creating
+-- an MLS conversation on a remote backend.
+setupFakeMLSGroup :: ClientIdentity -> MLSTest (GroupId, Qualified ConvId)
+setupFakeMLSGroup creator = do
+  groupId <-
+    liftIO $
+      fmap (GroupId . BS.pack) (replicateM 32 (generate arbitrary))
+  groupJSON <-
+    mlscli
+      creator
+      ["group", "create", T.unpack (toBase64Text (unGroupId groupId))]
+      Nothing
+  g <- nextGroupFile creator
+  liftIO $ BS.writeFile g groupJSON
+  State.modify $ \s ->
+    s
+      { mlsGroupId = Just groupId,
+        mlsMembers = Set.singleton creator
+      }
+  qcnv <- randomQualifiedId (ciDomain creator)
+  pure (groupId, qcnv)
+
 keyPackageFile :: HasCallStack => ClientIdentity -> KeyPackageRef -> MLSTest FilePath
 keyPackageFile qcid ref =
   State.gets $ \mls ->
@@ -1246,3 +1270,25 @@ clientKeyPair cid = do
           & fmap fromIntegral
           & BS.pack
   pure $ BS.splitAt 32 s
+
+receiveNewRemoteConv ::
+  (MonadReader TestSetup m, MonadIO m) =>
+  Qualified ConvId ->
+  GroupId ->
+  m ()
+receiveNewRemoteConv conv gid = do
+  client <- view tsFedGalleyClient
+  let nrc =
+        NewRemoteConversation (qUnqualified conv) $
+          ProtocolMLS
+            ( ConversationMLSData
+                gid
+                (Epoch 1)
+                MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
+            )
+  void $
+    runFedClient
+      @"on-new-remote-conversation"
+      client
+      (qDomain conv)
+      nrc

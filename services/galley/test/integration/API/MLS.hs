@@ -26,13 +26,11 @@ import Bilge hiding (head)
 import Bilge.Assert
 import Cassandra
 import Control.Lens (view)
-import Control.Monad.State (modify)
 import qualified Control.Monad.State as State
 import Crypto.Error
 import qualified Crypto.PubKey.Ed25519 as Ed25519
 import qualified Data.Aeson as Aeson
 import Data.Binary.Put
-import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Default
 import Data.Domain
@@ -53,7 +51,6 @@ import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import System.FilePath
 import System.IO.Temp
-import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (Second), (#))
 import qualified Test.Tasty.Cannon as WS
@@ -67,7 +64,6 @@ import Wire.API.Conversation.Role
 import Wire.API.Error.Galley
 import Wire.API.Federation.API.Common
 import Wire.API.Federation.API.Galley
-import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Keys
@@ -844,14 +840,14 @@ testRemoteAppMessage = do
 testLocalToRemote :: TestM ()
 testLocalToRemote = do
   -- create users
-  let aliceDomain = "faraway.example.com"
-  [alice, bob] <- createAndConnectUsers [Just aliceDomain, Nothing]
+  let aliceDomain = Domain "faraway.example.com"
+  [alice, bob] <- createAndConnectUsers [Just (domainText aliceDomain), Nothing]
 
   runMLSTest $ do
     [alice1, bob1] <- traverse createMLSClient [alice, bob]
 
     -- upload key packages
-    traverse_ uploadNewKeyPackage [bob1]
+    void $ uploadNewKeyPackage bob1
 
     -- step 2
     (groupId, qcnv) <- setupFakeMLSGroup alice1
@@ -887,42 +883,6 @@ testLocalToRemote = do
       msrSender bdy @?= qUnqualified bob
       msrRawMessage bdy @?= Base64ByteString (mpMessage message)
   where
-    setupFakeMLSGroup creator = do
-      groupId <-
-        liftIO $
-          fmap (GroupId . BS.pack) (replicateM 32 (generate arbitrary))
-      groupJSON <-
-        mlscli
-          creator
-          ["group", "create", T.unpack (toBase64Text (unGroupId groupId))]
-          Nothing
-      g <- nextGroupFile creator
-      liftIO $ BS.writeFile g groupJSON
-      State.modify $ \s ->
-        s
-          { mlsGroupId = Just groupId,
-            mlsMembers = Set.singleton creator
-          }
-      qcnv <- randomQualifiedId (ciDomain creator)
-      pure (groupId, qcnv)
-
-    receiveNewRemoteConv conv gid = do
-      client <- view tsFedGalleyClient
-      let nrc =
-            NewRemoteConversation (qUnqualified conv) $
-              ProtocolMLS
-                ( ConversationMLSData
-                    gid
-                    (Epoch 1)
-                    MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519
-                )
-      void $
-        runFedClient
-          @"on-new-remote-conversation"
-          client
-          (qDomain conv)
-          nrc
-
     receiveOnConvUpdated conv origUser joiner = do
       client <- view tsFedGalleyClient
       now <- liftIO getCurrentTime
@@ -948,63 +908,48 @@ testLocalToRemote = do
           cu
 
 testLocalToRemoteNonMember :: TestM ()
-testLocalToRemoteNonMember = withSystemTempDirectory "mls" $ \tmp -> do
+testLocalToRemoteNonMember = do
+  -- create users
   let domain = Domain "faraway.example.com"
-  -- step 2
-  MessagingSetup {creator = alice, users = [bob], ..} <-
-    aliceInvitesBobWithTmp
-      tmp
-      (1, LocalUser)
-      def
-        { creatorOrigin = RemoteUser domain
-        }
+  [alice, bob] <- createAndConnectUsers [Just (domainText domain), Nothing]
 
-  -- step 10
-  liftIO $ mergeWelcome tmp (pClientQid bob) "group" "groupB.json" "welcome"
-  -- step 11
-  message <-
-    liftIO $
-      spawn
-        ( cli
-            (pClientQid bob)
-            tmp
-            ["message", "--group", tmp </> "groupB.json", "hi"]
-        )
-        Nothing
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
 
-  fedGalleyClient <- view tsFedGalleyClient
+    void $ uploadNewKeyPackage bob1
 
-  -- register remote conversation: step 4
-  qcnv <- randomQualifiedId (qDomain (pUserId alice))
-  let nrc =
-        NewRemoteConversation (qUnqualified qcnv) $
-          ProtocolMLS (ConversationMLSData groupId (Epoch 1) MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519)
-  void $
-    runFedClient
-      @"on-new-remote-conversation"
-      fedGalleyClient
-      (qDomain (pUserId alice))
-      nrc
+    -- step 2
+    (groupId, qcnv) <- setupFakeMLSGroup alice1
 
-  let mock req = case frRPC req of
-        "send-mls-message" -> pure (Aeson.encode (MLSMessageResponseUpdates []))
-        rpc -> assertFailure $ "unmocked RPC called: " <> T.unpack rpc
+    mp <- createAddCommit alice1 [bob]
+    -- step 10
+    traverse_ consumeWelcome (mpWelcome mp)
+    -- step 11
+    message <- createApplicationMessage bob1 "hi"
 
-  void $
-    withTempMockFederator' mock $ do
-      galley <- viewGalley
+    -- register remote conversation: step 4
+    receiveNewRemoteConv qcnv groupId
 
-      -- bob sends a message: step 12
-      post
-        ( galley . paths ["mls", "messages"]
-            . zUser (qUnqualified (pUserId bob))
-            . zConn "conn"
-            . content "message/mls"
-            . bytes message
-        )
-        !!! do
-          const 404 === statusCode
-          const (Just "no-conversation-member") === fmap Wai.label . responseJsonError
+    let mock req = case frRPC req of
+          "send-mls-message" -> pure (Aeson.encode (MLSMessageResponseUpdates []))
+          rpc -> assertFailure $ "unmocked RPC called: " <> T.unpack rpc
+
+    void $
+      withTempMockFederator' mock $ do
+        galley <- viewGalley
+
+        -- bob sends a message: step 12
+        post
+          ( galley . paths ["mls", "messages"]
+              . zUser (qUnqualified bob)
+              . zConn "conn"
+              . content "message/mls"
+              . bytes (mpMessage message)
+          )
+          !!! do
+            const 404 === statusCode
+            const (Just "no-conversation-member")
+              === fmap Wai.label . responseJsonError
 
 testAppMessage :: TestM ()
 testAppMessage = do
@@ -1357,7 +1302,7 @@ propInvalidEpoch = do
       liftIO $ Wai.label err @?= "mls-key-package-ref-not-found"
       replicateM_ 2 (rollBackClient alice1)
       -- remove charlie from users expected to get a welcome message
-      modify $ \mls -> mls {mlsNewMembers = mempty}
+      State.modify $ \mls -> mls {mlsNewMembers = mempty}
 
     -- alice send a well-formed proposal and commits it
     void $ uploadNewKeyPackage dee1
