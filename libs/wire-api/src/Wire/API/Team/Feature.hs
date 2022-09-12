@@ -68,6 +68,7 @@ module Wire.API.Team.Feature
     ConferenceCallingConfig (..),
     GuestLinksConfig (..),
     ExposeInvitationURLsToTeamAdminConfig (..),
+    ExposeInvitationURLsTeamAllowlistConfig (..),
     SndFactorPasswordChallengeConfig (..),
     SearchVisibilityInboundConfig (..),
     ClassifiedDomainsConfig (..),
@@ -581,6 +582,7 @@ allFeatureModels =
     withStatusNoLockModel @SearchVisibilityInboundConfig,
     withStatusNoLockModel @MLSConfig,
     withStatusNoLockModel @ExposeInvitationURLsToTeamAdminConfig,
+    withStatusNoLockModel @ExposeInvitationURLsTeamAllowlistConfig,
     withStatusModel @LegalholdConfig,
     withStatusModel @SSOConfig,
     withStatusModel @SearchVisibilityAvailableConfig,
@@ -595,7 +597,8 @@ allFeatureModels =
     withStatusModel @SndFactorPasswordChallengeConfig,
     withStatusModel @SearchVisibilityInboundConfig,
     withStatusModel @MLSConfig,
-    withStatusModel @ExposeInvitationURLsToTeamAdminConfig
+    withStatusModel @ExposeInvitationURLsToTeamAdminConfig,
+    withStatusModel @ExposeInvitationURLsTeamAllowlistConfig
   ]
     <> catMaybes
       [ configModel @LegalholdConfig,
@@ -612,7 +615,8 @@ allFeatureModels =
         configModel @SndFactorPasswordChallengeConfig,
         configModel @SearchVisibilityInboundConfig,
         configModel @MLSConfig,
-        configModel @ExposeInvitationURLsToTeamAdminConfig
+        configModel @ExposeInvitationURLsToTeamAdminConfig,
+        configModel @ExposeInvitationURLsTeamAllowlistConfig
       ]
 
 --------------------------------------------------------------------------------
@@ -951,7 +955,8 @@ data ExposeInvitationURLsToTeamAdminConfig = ExposeInvitationURLsToTeamAdminConf
   deriving (Arbitrary) via (GenericUniform ExposeInvitationURLsToTeamAdminConfig)
 
 instance IsFeatureConfig ExposeInvitationURLsToTeamAdminConfig where
-  type FeatureSymbol ExposeInvitationURLsToTeamAdminConfig = "exposeInvitationURLsToTeamAdmins"
+  type FeatureSymbol ExposeInvitationURLsToTeamAdminConfig = "exposeInvitationURLsToTeamAdmin"
+  -- TODO(sysvinit): lock by default?
   defFeatureStatus = withStatus FeatureStatusDisabled LockStatusUnlocked ExposeInvitationURLsToTeamAdminConfig FeatureTTLUnlimited
   objectSchema = pure ExposeInvitationURLsToTeamAdminConfig
 
@@ -960,6 +965,37 @@ instance ToSchema ExposeInvitationURLsToTeamAdminConfig where
 
 instance FeatureTrivialConfig ExposeInvitationURLsToTeamAdminConfig where
   trivialConfig = ExposeInvitationURLsToTeamAdminConfig
+
+----------------------------------------------------------------------
+-- ExposeInvitationURLsTeamAllowlistConfig
+
+data ExposeInvitationURLsTeamAllowlistConfig = ExposeInvitationURLsTeamAllowlistConfig
+  { exposeInvitationURLsTeamAllowlist :: [TeamId]
+  }
+  deriving stock (Show, Eq, Generic)
+  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ExposeInvitationURLsTeamAllowlistConfig)
+
+deriving via (GenericUniform ExposeInvitationURLsTeamAllowlistConfig) instance Arbitrary ExposeInvitationURLsTeamAllowlistConfig
+
+instance ToSchema ExposeInvitationURLsTeamAllowlistConfig where
+  schema =
+    object "ExposeInvitationURLsTeamAllowlistConfig" $
+      ExposeInvitationURLsTeamAllowlistConfig
+        <$> exposeInvitationURLsTeamAllowlist .= field "teams" (array schema)
+
+instance IsFeatureConfig ExposeInvitationURLsTeamAllowlistConfig where
+  type FeatureSymbol ExposeInvitationURLsTeamAllowlistConfig = "exposeInvitationURLsTeamAllowlist"
+
+  defFeatureStatus =
+    withStatus
+      FeatureStatusDisabled
+      LockStatusUnlocked
+      (ExposeInvitationURLsTeamAllowlistConfig [])
+      FeatureTTLUnlimited
+  configModel = Just $
+    Doc.defineModel "ExposeInvitationURLsTeamAllowlistConfig" $ do
+      Doc.property "teams" (Doc.array Doc.string') $ Doc.description "teams"
+  objectSchema = field "config" schema
 
 ----------------------------------------------------------------------
 -- FeatureStatus
@@ -1030,7 +1066,8 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcGuestLink :: WithStatus GuestLinksConfig,
     afcSndFactorPasswordChallenge :: WithStatus SndFactorPasswordChallengeConfig,
     afcMLS :: WithStatus MLSConfig,
-    afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig
+    afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig,
+    afcExposeInvitationURLsTeamAllowlist :: WithStatus ExposeInvitationURLsTeamAllowlistConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -1054,6 +1091,7 @@ instance ToSchema AllFeatureConfigs where
         <*> afcSndFactorPasswordChallenge .= featureField
         <*> afcMLS .= featureField
         <*> afcExposeInvitationURLsToTeamAdmin .= featureField
+        <*> afcExposeInvitationURLsTeamAllowlist .= featureField
     where
       featureField ::
         forall cfg.
@@ -1065,6 +1103,7 @@ instance Arbitrary AllFeatureConfigs where
   arbitrary =
     AllFeatureConfigs
       <$> arbitrary
+      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary
