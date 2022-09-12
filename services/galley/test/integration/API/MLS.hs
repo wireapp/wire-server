@@ -1073,26 +1073,18 @@ testLocalToRemoteNonMember = withSystemTempDirectory "mls" $ \tmp -> do
 
 testAppMessage :: TestM ()
 testAppMessage = do
-  -- create users
-  alice : otherUsers <- createAndConnectUsers (replicate 4 Nothing)
+  users@(alice : _) <- createAndConnectUsers (replicate 4 Nothing)
 
   runMLSTest $ do
-    alice1 : otherClients <-
-      let cus = concatMap (uncurry replicate) ([1 ..] `zip` otherUsers)
-       in traverse createMLSClient (alice : cus)
-
-    -- upload key packages
-    traverse_ uploadNewKeyPackage otherClients
-
-    -- create group with alice1 and otherClients
-    qcnv <- snd <$> setupMLSGroup alice1
-    createAddCommit alice1 otherUsers >>= void . sendAndConsumeCommit
-
+    clients@(alice1 : _) <- traverse createMLSClient users
+    traverse_ uploadNewKeyPackage (tail clients)
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 (tail users) >>= sendAndConsumeCommit
     message <- createApplicationMessage alice1 "some text"
-    events <- sendAndConsumeMessage message
-    liftIO $ events @?= []
 
-    mlsBracket (alice1 : otherClients) $ \wss ->
+    mlsBracket clients $ \wss -> do
+      events <- sendAndConsumeMessage message
+      liftIO $ events @?= []
       liftIO $
         WS.assertMatchN_ (5 # WS.Second) wss $
           wsAssertMLSMessage qcnv alice (mpMessage message)
