@@ -888,18 +888,7 @@ setupFakeMLSGroup creator = do
   groupId <-
     liftIO $
       fmap (GroupId . BS.pack) (replicateM 32 (generate arbitrary))
-  groupJSON <-
-    mlscli
-      creator
-      ["group", "create", T.unpack (toBase64Text (unGroupId groupId))]
-      Nothing
-  g <- nextGroupFile creator
-  liftIO $ BS.writeFile g groupJSON
-  State.modify $ \s ->
-    s
-      { mlsGroupId = Just groupId,
-        mlsMembers = Set.singleton creator
-      }
+  createGroup creator groupId
   qcnv <- randomQualifiedId (ciDomain creator)
   pure (groupId, qcnv)
 
