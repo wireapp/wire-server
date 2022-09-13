@@ -512,16 +512,20 @@ testAddUsersDirectly = do
 
 testRemoveUsersDirectly :: TestM ()
 testRemoveUsersDirectly = do
-  setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
-  void $ postCommit setup
-  e <-
-    responseJsonError
-      =<< deleteMemberQualified
-        (qUnqualified (pUserId creator))
-        (pUserId (head users))
-        conversation
-      <!! const 403 === statusCode
-  liftIO $ Wai.label e @?= "invalid-op"
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+    qcnv <- snd <$> setupMLSGroup alice1
+    createAddCommit alice1 [bob] >>= void . sendAndConsumeCommit
+    e <-
+      responseJsonError
+        =<< deleteMemberQualified
+          (qUnqualified alice)
+          bob
+          qcnv
+        <!! const 403 === statusCode
+    liftIO $ Wai.label e @?= "invalid-op"
 
 testProteusMessage :: TestM ()
 testProteusMessage = do
