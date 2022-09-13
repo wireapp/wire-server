@@ -39,11 +39,11 @@ where
 
 import Bilge.IO
 import Bilge.RPC
+import Brig.App as App
 import Brig.Data.Instances ()
 import Brig.Data.Types as T
-import Brig.App as App
-import Brig.Options
 import Brig.IO.Intra
+import Brig.Options
 import Brig.Team.Template
 import Brig.Template (renderTextWithBranding)
 import Cassandra as C
@@ -85,7 +85,13 @@ data InvitationByEmail
   | InvitationByEmailMoreThanOne
 
 insertInvitation ::
-  (Log.MonadLogger m, MonadReader Env m, MonadMask m, MonadHttp m, HasRequestId m, MonadClient m) =>
+  ( Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadClient m
+  ) =>
   InvitationId ->
   TeamId ->
   Role ->
@@ -118,17 +124,35 @@ insertInvitation iid t role (toUTCTimeMillis -> now) minviter email inviteeName 
     cqlInvitationByEmail :: PrepQuery W (Email, TeamId, InvitationId, InvitationCode, Int32) ()
     cqlInvitationByEmail = "INSERT INTO team_invitation_email (email, team, invitation, code) VALUES (?, ?, ?, ?) USING TTL ?"
 
-lookupInvitation :: (Log.MonadLogger m, MonadReader Env m, MonadMask m, MonadHttp m, HasRequestId m, MonadClient m) => TeamId -> InvitationId -> m (Maybe Invitation)
+lookupInvitation ::
+  ( Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadClient m
+  ) =>
+  TeamId ->
+  InvitationId ->
+  m (Maybe Invitation)
 lookupInvitation t r = do
   showUrl <- getTeamExposeInvitationURLsToTeamAdmin t
   inv <- retry x1 (query1 cqlInvitation (params LocalQuorum (t, r)))
-  inv' <- traverse (toInvitation showUrl) inv
-  pure inv'
+  traverse (toInvitation showUrl) inv
   where
     cqlInvitation :: PrepQuery R (TeamId, InvitationId) (TeamId, Maybe Role, InvitationId, UTCTimeMillis, Maybe UserId, Email, Maybe Name, Maybe Phone, InvitationCode)
     cqlInvitation = "SELECT team, role, id, created_at, created_by, email, name, phone, code FROM team_invitation WHERE team = ? AND id = ?"
 
-lookupInvitationByCode :: (Log.MonadLogger m, MonadReader Env m, MonadMask m, MonadHttp m, HasRequestId m, MonadClient m) => InvitationCode -> m (Maybe Invitation)
+lookupInvitationByCode ::
+  ( Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadClient m
+  ) =>
+  InvitationCode ->
+  m (Maybe Invitation)
 lookupInvitationByCode i =
   lookupInvitationInfo i >>= \case
     Just InvitationInfo {..} -> lookupInvitation iiTeam iiInvId
@@ -148,7 +172,18 @@ lookupInvitationCodeEmail t r = retry x1 (query1 cqlInvitationCodeEmail (params 
     cqlInvitationCodeEmail :: PrepQuery R (TeamId, InvitationId) (InvitationCode, Email)
     cqlInvitationCodeEmail = "SELECT code, email FROM team_invitation WHERE team = ? AND id = ?"
 
-lookupInvitations :: (Log.MonadLogger m, MonadReader Env m, MonadMask m, MonadHttp m, HasRequestId m, MonadClient m) => TeamId -> Maybe InvitationId -> Range 1 500 Int32 -> m (ResultPage Invitation)
+lookupInvitations ::
+  ( Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadClient m
+  ) =>
+  TeamId ->
+  Maybe InvitationId ->
+  Range 1 500 Int32 ->
+  m (ResultPage Invitation)
 lookupInvitations team start (fromRange -> size) = do
   page <- case start of
     Just ref -> retry x1 $ paginate cqlSelectFrom (paramsP LocalQuorum (team, ref) (size + 1))
@@ -209,7 +244,16 @@ lookupInvitationInfo ic@(InvitationCode c)
     cqlInvitationInfo :: PrepQuery R (Identity InvitationCode) (TeamId, InvitationId)
     cqlInvitationInfo = "SELECT team, id FROM team_invitation_info WHERE code = ?"
 
-lookupInvitationByEmail :: (Log.MonadLogger m, MonadReader Env m, MonadMask m, MonadHttp m, HasRequestId m, MonadClient m) => Email -> m (Maybe Invitation)
+lookupInvitationByEmail ::
+  ( Log.MonadLogger m,
+    MonadReader Env m,
+    MonadMask m,
+    MonadHttp m,
+    HasRequestId m,
+    MonadClient m
+  ) =>
+  Email ->
+  m (Maybe Invitation)
 lookupInvitationByEmail e =
   lookupInvitationInfoByEmail e >>= \case
     InvitationByEmail InvitationInfo {..} -> lookupInvitation iiTeam iiInvId
@@ -277,4 +321,3 @@ mkInviteUrl team (InvitationCode c) = do
     replace "team" = idToText team
     replace "code" = toText c
     replace x = x
-
