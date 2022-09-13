@@ -196,8 +196,7 @@ liftTest = MLSTest . lift
 
 runMLSTest :: MLSTest a -> TestM a
 runMLSTest (MLSTest m) =
-  withSystemTempDirectory "mls" $ \_tmp -> do
-    let tmp = "/tmp/mls"
+  withSystemTempDirectory "mls" $ \tmp -> do
     saveRemovalKey (tmp </> "removal.key")
     evalStateT
       m
