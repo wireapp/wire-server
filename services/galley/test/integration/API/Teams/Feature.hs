@@ -991,7 +991,9 @@ testAllFeatures = do
           Public.afcGuestLink = Public.withStatus FeatureStatusEnabled Public.LockStatusUnlocked Public.GuestLinksConfig Public.FeatureTTLUnlimited,
           Public.afcSndFactorPasswordChallenge = Public.withStatus FeatureStatusDisabled Public.LockStatusLocked Public.SndFactorPasswordChallengeConfig Public.FeatureTTLUnlimited,
           Public.afcMLS = Public.withStatus FeatureStatusDisabled Public.LockStatusUnlocked (Public.MLSConfig [] ProtocolProteusTag [MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519] MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519) Public.FeatureTTLUnlimited,
-          Public.afcSearchVisibilityInboundConfig = Public.withStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SearchVisibilityInboundConfig Public.FeatureTTLUnlimited
+          Public.afcSearchVisibilityInboundConfig = Public.withStatus FeatureStatusDisabled Public.LockStatusUnlocked Public.SearchVisibilityInboundConfig Public.FeatureTTLUnlimited,
+          Public.afcExposeInvitationURLsToTeamAdmin = Public.withStatus FeatureStatusDisabled Public.LockStatusLocked Public.ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited,
+          Public.afcExposeInvitationURLsTeamAllowlist = Public.withStatus FeatureStatusDisabled Public.LockStatusLocked (Public.ExposeInvitationURLsTeamAllowlistConfig []) Public.FeatureTTLUnlimited
         }
 
 testFeatureConfigConsistency :: TestM ()
