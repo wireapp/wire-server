@@ -137,6 +137,12 @@ turn:
   configTTL: 3600
   tokenTTL: 21600
 
+# for galley integration tests
+settings:
+  mlsPrivateKeyPaths:
+    removal:
+      ed25519: test/resources/ed25519.pem
+
 optSettings:
   setActivationTimeout: 5
   setVerificationTimeout: 5
