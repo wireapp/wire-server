@@ -858,16 +858,44 @@ instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
   getConfigForServer =
     input <&> view (optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsToTeamAdmin)
 
-  -- TODO(sysvinit): override getConfigForTeam here to prevent teams not in the
-  -- allowlist from using this feature? or do we just trust that what's in the db
-  -- is validated?
+  getConfigForTeam tid = do
+    serverConfig <- getConfigForServer @db @ExposeInvitationURLsToTeamAdminConfig
+    teamAllowed <- getConfigForServer @db <&> wsConfig <&> exposeInvitationURLsTeamAllowlist <&> elem tid
+    teamDbStatus <- TeamFeatures.getFeatureConfig @db (Proxy @ExposeInvitationURLsToTeamAdminConfig) tid <&> fmap wssStatus
+    pure $ computeConfigForTeam teamAllowed teamDbStatus serverConfig
+    where
+      computeConfigForTeam teamAllowed teamDbStatus defConfig =
+        case wsLockStatus defConfig of
+          LockStatusLocked ->
+            makeConfig LockStatusLocked (if teamAllowed then wsStatus defConfig else FeatureStatusDisabled)
+          LockStatusUnlocked ->
+            makeConfig
+              (computeTeamLockStatus teamAllowed teamDbStatus)
+              (computeTeamStatus teamAllowed teamDbStatus $ wsStatus defConfig)
+
+      makeConfig lockStatus status =
+        withStatus
+          status
+          lockStatus
+          ExposeInvitationURLsToTeamAdminConfig
+          FeatureTTLUnlimited
+
+      computeTeamLockStatus True _ = LockStatusUnlocked
+      computeTeamLockStatus False (Just FeatureStatusEnabled) = LockStatusUnlocked
+      computeTeamLockStatus _ _ = LockStatusLocked
+
+      computeTeamStatus True Nothing defaultStatus = defaultStatus
+      computeTeamStatus True (Just status) _ = status
+      computeTeamStatus False (Just FeatureStatusEnabled) _ = FeatureStatusEnabled
+      computeTeamStatus False _ _ = FeatureStatusDisabled
+
 
 instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
   type SetConfigForTeamConstraints db ExposeInvitationURLsToTeamAdminConfig (r :: EffectRow) = (Member (ErrorS OperationDenied) r)
   setConfigForTeam tid wsnl = do
-    -- Only allow enabling this feature for teams which are in the
-    -- admin-configured allowlist. If a team has the feature enabled, but is not
-    -- currently in the allowlist, permit them to disable the feature.
+    -- Only allow enabling this feature for teams which are in the admin-configured allowlist. If
+    -- a team has the feature enabled, but is not currently in the allowlist, permit them to
+    -- disable the feature.
     teamAllowed <- getConfigForServer @db <&> wsConfig <&> exposeInvitationURLsTeamAllowlist <&> elem tid
     oldState <- getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid <&> wsStatus
     let newState = wssStatus wsnl
