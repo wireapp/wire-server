@@ -317,7 +317,7 @@ getPhoneLoginCode brig p = do
   let lbs = fromMaybe "" $ responseBody r
   pure (LoginCode <$> (lbs ^? key "code" . _String))
 
-assertUpdateNotification :: WS.WebSocket -> UserId -> UserUpdate -> IO Notification
+assertUpdateNotification :: WS.WebSocket -> UserId -> UserUpdate -> IO ()
 assertUpdateNotification ws uid upd = WS.assertMatch (5 # Second) ws $ \n -> do
   let j = Object $ List1.head (ntfPayload n)
   j ^? key "type" . _String @?= Just "user.update"

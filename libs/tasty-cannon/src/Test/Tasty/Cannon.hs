@@ -288,8 +288,8 @@ awaitMatch ::
   (HasCallStack, MonadIO m, MonadCatch m) =>
   Timeout ->
   WebSocket ->
-  (Notification -> Assertion) ->
-  m (Either MatchTimeout Notification)
+  (Notification -> IO a) ->
+  m (Either MatchTimeout a)
 awaitMatch t ws match = go [] []
   where
     go buf errs = do
@@ -297,9 +297,9 @@ awaitMatch t ws match = go [] []
       case mn of
         Just n ->
           do
-            liftIO (match n)
+            a <- liftIO (match n)
             refill buf
-            pure (Right n)
+            pure (Right a)
             `catchAll` \e -> case asyncExceptionFromException e of
               Just x -> throwM (x :: SomeAsyncException)
               Nothing ->
@@ -322,15 +322,15 @@ assertMatch ::
   (HasCallStack, MonadIO m, MonadCatch m) =>
   Timeout ->
   WebSocket ->
-  (Notification -> Assertion) ->
-  m Notification
+  (Notification -> IO a) ->
+  m a
 assertMatch t ws f = awaitMatch t ws f >>= assertSuccess
 
 assertMatch_ ::
   (HasCallStack, MonadIO m, MonadCatch m) =>
   Timeout ->
   WebSocket ->
-  (Notification -> Assertion) ->
+  (Notification -> IO a) ->
   m ()
 assertMatch_ t w = void . assertMatch t w
 
@@ -338,40 +338,40 @@ awaitMatchN ::
   (HasCallStack, MonadIO m) =>
   Timeout ->
   [WebSocket] ->
-  (Notification -> Assertion) ->
-  m [Either MatchTimeout Notification]
+  (Notification -> IO a) ->
+  m [Either MatchTimeout a]
 awaitMatchN t wss f = snd <$$> awaitMatchN' t (((),) <$> wss) f
 
 awaitMatchN' ::
   (HasCallStack, MonadIO m) =>
   Timeout ->
   [(extra, WebSocket)] ->
-  (Notification -> Assertion) ->
-  m [(extra, Either MatchTimeout Notification)]
+  (Notification -> IO a) ->
+  m [(extra, Either MatchTimeout a)]
 awaitMatchN' t wss f = liftIO $ mapConcurrently (\(extra, ws) -> (extra,) <$> awaitMatch t ws f) wss
 
 assertMatchN ::
   (HasCallStack, MonadIO m, MonadThrow m) =>
   Timeout ->
   [WebSocket] ->
-  (Notification -> Assertion) ->
-  m [Notification]
+  (Notification -> IO a) ->
+  m [a]
 assertMatchN t wss f = awaitMatchN t wss f >>= mapM assertSuccess
 
 assertMatchN_ ::
   (HasCallStack, MonadIO m, MonadThrow m) =>
   Timeout ->
   [WebSocket] ->
-  (Notification -> Assertion) ->
+  (Notification -> IO a) ->
   m ()
 assertMatchN_ t wss f = void $ assertMatchN t wss f
 
-assertSuccess :: (HasCallStack, MonadIO m, MonadThrow m) => Either MatchTimeout Notification -> m Notification
+assertSuccess :: (HasCallStack, MonadIO m, MonadThrow m) => Either MatchTimeout a -> m a
 assertSuccess = either throwM pure
 
 assertNoEvent :: (HasCallStack, MonadIO m, MonadCatch m) => Timeout -> [WebSocket] -> m ()
 assertNoEvent t ww = do
-  results <- awaitMatchN' t (zip [(0 :: Int) ..] ww) (const $ pure ())
+  results <- awaitMatchN' t (zip [(0 :: Int) ..] ww) pure
   for_ results $ \(ix, result) ->
     either (const $ pure ()) (liftIO . f ix) result
   where
