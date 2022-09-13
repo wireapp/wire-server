@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API
+module GalleyTest.API
   ( tests,
   )
 where
@@ -27,7 +27,7 @@ import qualified API.Federation as Federation
 import API.Federation.Util
 import qualified API.MLS
 import qualified API.MessageTimer as MessageTimer
-import qualified API.Roles as Roles
+import qualified GalleyTest.API.Roles as Roles
 import API.SQS
 import qualified API.Teams as Teams
 import qualified API.Teams.Feature as TeamFeature

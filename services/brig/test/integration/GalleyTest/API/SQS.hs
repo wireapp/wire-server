@@ -17,7 +17,7 @@
 
 -- | TODO: most of this module is deprecated; use "Util.Test.SQS" from the types-common-aws package
 -- instead.
-module API.SQS where
+module GalleyTest.API.SQS where
 
 import qualified Amazonka as AWS
 import qualified Amazonka.SQS as SQS

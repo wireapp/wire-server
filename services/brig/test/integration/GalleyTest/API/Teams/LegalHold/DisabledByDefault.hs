@@ -34,7 +34,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.Teams.LegalHold.DisabledByDefault
+module GalleyTest.API.Teams.LegalHold.DisabledByDefault
   ( tests,
   )
 where

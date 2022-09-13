@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module TestHelpers where
+module GalleyTest.TestHelpers where
 
 import API.SQS
 import Control.Lens (view)

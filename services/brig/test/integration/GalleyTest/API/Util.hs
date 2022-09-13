@@ -16,7 +16,7 @@
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
-module API.Util where
+module GalleyTest.API.Util where
 
 import qualified API.SQS as SQS
 import Bilge hiding (timeout)

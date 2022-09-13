@@ -18,7 +18,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.MLS (tests) where
+module GalleyTest.API.MLS (tests) where
 
 import API.MLS.Util
 import API.Util

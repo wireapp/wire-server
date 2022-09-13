@@ -15,7 +15,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.Util.TeamFeature where
+module GalleyTest.API.Util.TeamFeature where
 
 import API.Util (HasGalley (viewGalley), zUser)
 import qualified API.Util as Util

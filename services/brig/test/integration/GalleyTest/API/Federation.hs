@@ -17,7 +17,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
-module API.Federation where
+module GalleyTest.API.Federation where
 
 import API.MLS.Util
 import API.Util

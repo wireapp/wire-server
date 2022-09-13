@@ -46,6 +46,7 @@ import Data.Metrics.WaiRoute (treeToPaths)
 import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import qualified Federation.End2end
+import qualified GalleyTest.Main
 import Imports hiding (local)
 import qualified Index.Create
 import Network.HTTP.Client.TLS (tlsManagerSettings)
@@ -184,7 +185,12 @@ runTests iConf brigOpts otherArgs = do
       (Opts.EmailSMTP _) -> pure Nothing
 
 main :: IO ()
-main = withOpenSSL $ do
+main = do
+  Galley.Main.main
+  brigMain
+
+brigMain :: IO ()
+brigMain = withOpenSSL $ do
   -- For command line arguments to the configPaths and tasty parser not to interfere,
   -- split arguments into configArgs and otherArgs
   args <- getArgs

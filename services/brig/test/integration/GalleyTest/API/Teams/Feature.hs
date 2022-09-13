@@ -16,7 +16,7 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module API.Teams.Feature (tests) where
+module GalleyTest.API.Teams.Feature (tests) where
 
 import API.Util (HasGalley, getFeatureStatusMulti, withSettingsOverrides)
 import qualified API.Util as Util
