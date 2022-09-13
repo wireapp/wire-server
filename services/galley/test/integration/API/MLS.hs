@@ -1409,53 +1409,46 @@ testBackendRemoveProposalLocalConvLocalUser = do
     liftIO $ events @?= []
 
 testBackendRemoveProposalLocalConvRemoteUser :: TestM ()
-testBackendRemoveProposalLocalConvRemoteUser = withSystemTempDirectory "mls" $ \tmp -> do
-  let opts =
-        def
-          { createClients = DontCreateClients,
-            createConv = CreateConv
-          }
-  (alice, [bob]) <-
-    withLastPrekeys $
-      setupParticipants tmp opts [(1, RemoteUser (Domain "faraway.example.com"))]
-  (groupId, conversation) <- setupGroup tmp CreateConv alice "group"
-  (commit, welcome) <- liftIO $ setupCommit tmp alice "group" "group" (pClients bob)
+testBackendRemoveProposalLocalConvRemoteUser = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
+  runMLSTest $ do
+    clients@[alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+    (_, qcnv) <- setupMLSGroup alice1
+    commit <- createAddCommit alice1 [bob]
 
-  let mock req = case frRPC req of
-        "on-conversation-updated" -> pure (Aeson.encode ())
-        "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
-        "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
-        "get-mls-clients" ->
-          pure
-            . Aeson.encode
-            . Set.fromList
-            . map (flip ClientInfo True . snd)
-            . toList
-            . pClients
-            $ bob
-        ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+    let mock req = case frRPC req of
+          "on-conversation-updated" -> pure (Aeson.encode ())
+          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+          "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
+          "get-mls-clients" ->
+            pure
+              . Aeson.encode
+              . Set.fromList
+              . map (flip ClientInfo True . ciClient)
+              $ [bob1, bob2]
+          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
 
-  void $
-    withTempMockFederator' mock $ do
+    void . withTempMockFederator' mock $ do
       c <- view tsCannon
-      WS.bracketR c (qUnqualified (pUserId alice)) $ \wsA -> do
-        void $ postCommit MessagingSetup {creator = alice, users = [bob], ..}
+      mlsBracket [alice1] $ \[wsA] -> do
+        sendAndConsumeCommit commit
 
-        kprefs <- (fromJust . kpRef' . snd) <$$> liftIO (readKeyPackages tmp bob)
+        bobClients <-
+          fmap (filter (\(cid, _) -> cidQualifiedUser cid == bob)) $
+            currentGroupFile alice1 >>= liftIO . readGroupState
 
         fedGalleyClient <- view tsFedGalleyClient
         void $
           runFedClient
             @"on-user-deleted-conversations"
             fedGalleyClient
-            (qDomain (pUserId bob))
+            (qDomain bob)
             ( UserDeletedConversationsNotification
-                { udcvUser = qUnqualified (pUserId bob),
-                  udcvConversations = unsafeRange [qUnqualified conversation]
+                { udcvUser = qUnqualified bob,
+                  udcvConversations = unsafeRange [qUnqualified qcnv]
                 }
             )
 
-        void $
-          for_ kprefs $ \kp ->
-            WS.assertMatch (5 # WS.Second) wsA $
-              wsAssertBackendRemoveProposal (pUserId bob) conversation kp
+        for_ bobClients $ \(_, ref) ->
+          WS.assertMatch (5 # WS.Second) wsA $
+            wsAssertBackendRemoveProposal bob qcnv ref
