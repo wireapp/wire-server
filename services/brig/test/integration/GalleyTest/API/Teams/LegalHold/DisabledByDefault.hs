@@ -39,8 +39,6 @@ module GalleyTest.API.Teams.LegalHold.DisabledByDefault
   )
 where
 
-import GalleyTest.API.SQS
-import GalleyTest.API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
 import Brig.Types.Intra (UserSet (..))
@@ -78,6 +76,10 @@ import qualified Galley.Env as Galley
 import Galley.Options (optSettings, setFeatureFlags)
 import qualified Galley.Types.Clients as Clients
 import Galley.Types.Teams
+import GalleyTest.API.SQS
+import GalleyTest.API.Util
+import GalleyTest.TestHelpers
+import GalleyTest.TestSetup
 import Imports
 import Network.HTTP.Types.Status (status200, status400, status404)
 import Network.Wai as Wai
@@ -91,8 +93,6 @@ import Test.QuickCheck.Instances ()
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import GalleyTest.TestHelpers
-import GalleyTest.TestSetup
 import Wire.API.Internal.Notification (ntfPayload)
 import qualified Wire.API.Message as Msg
 import Wire.API.Provider.Service

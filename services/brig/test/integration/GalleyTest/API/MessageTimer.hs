@@ -20,7 +20,6 @@ module GalleyTest.API.MessageTimer
   )
 where
 
-import GalleyTest.API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Lens (view)
@@ -33,14 +32,15 @@ import Data.Misc
 import Data.Qualified
 import Data.Singletons
 import Federator.MockServer (FederatedRequest (..))
+import GalleyTest.API.Util
+import GalleyTest.TestHelpers
+import GalleyTest.TestSetup
 import Imports hiding (head)
 import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import GalleyTest.TestHelpers
-import GalleyTest.TestSetup
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role

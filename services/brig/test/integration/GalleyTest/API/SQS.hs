@@ -38,6 +38,7 @@ import Data.UUID.V4 (nextRandom)
 import Galley.Aws
 import qualified Galley.Aws as Aws
 import Galley.Options (JournalOpts)
+import GalleyTest.TestSetup
 import Imports
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
@@ -50,7 +51,6 @@ import Ssl.Util
 import System.Logger.Class
 import qualified System.Logger.Class as L
 import Test.Tasty.HUnit
-import GalleyTest.TestSetup
 
 ensureQueueEmpty :: TestM ()
 ensureQueueEmpty = view tsAwsEnv >>= ensureQueueEmptyIO

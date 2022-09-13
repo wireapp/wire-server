@@ -20,8 +20,6 @@
 
 module GalleyTest.API.MLS (tests) where
 
-import GalleyTest.API.MLS.Util
-import GalleyTest.API.Util
 import Bilge hiding (head)
 import Bilge.Assert
 import Cassandra
@@ -52,6 +50,10 @@ import Data.String.Conversions
 import qualified Data.Text as T
 import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
+import GalleyTest.API.MLS.Util
+import GalleyTest.API.Util
+import GalleyTest.TestHelpers
+import GalleyTest.TestSetup
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import System.FilePath
@@ -60,8 +62,6 @@ import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (Second), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import GalleyTest.TestHelpers
-import GalleyTest.TestSetup
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Protocol

@@ -19,7 +19,6 @@
 
 module GalleyTest.API.MLS.Util where
 
-import GalleyTest.API.Util
 import Bilge
 import Bilge.Assert
 import Control.Lens (preview, to, view)
@@ -41,14 +40,15 @@ import qualified Data.Set as Set
 import qualified Data.Text as T
 import Galley.Keys
 import Galley.Options
+import GalleyTest.API.Util
+import GalleyTest.TestHelpers
+import GalleyTest.TestSetup
 import Imports
 import System.FilePath
 import System.IO.Temp
 import System.Process
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty.HUnit
-import GalleyTest.TestHelpers
-import GalleyTest.TestSetup
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.Event.Conversation

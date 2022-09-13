@@ -22,10 +22,6 @@ module GalleyTest.API.Teams
   )
 where
 
-import GalleyTest.API.SQS
-import GalleyTest.API.Util hiding (deleteTeam)
-import qualified GalleyTest.API.Util as Util
-import qualified GalleyTest.API.Util.TeamFeature as Util
 import Bilge hiding (head, timeout)
 import Bilge.Assert
 import Brig.Types.Intra (fromAccountStatusResp)
@@ -64,6 +60,12 @@ import Galley.Options (optSettings, setEnableIndexedBillingTeamMembers, setFeatu
 import Galley.Types.Conversations.Roles
 import Galley.Types.Teams
 import Galley.Types.Teams.Intra as TeamsIntra
+import GalleyTest.API.SQS
+import GalleyTest.API.Util hiding (deleteTeam)
+import qualified GalleyTest.API.Util as Util
+import qualified GalleyTest.API.Util.TeamFeature as Util
+import GalleyTest.TestHelpers (test, viewFederationDomain)
+import GalleyTest.TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import Imports
 import Network.HTTP.Types.Status (status403)
 import qualified Network.Wai.Utilities.Error as Error
@@ -75,8 +77,6 @@ import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import GalleyTest.TestHelpers (test, viewFederationDomain)
-import GalleyTest.TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently)
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol

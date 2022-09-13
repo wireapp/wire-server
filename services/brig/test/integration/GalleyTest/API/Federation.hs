@@ -19,8 +19,6 @@
 
 module GalleyTest.API.Federation where
 
-import GalleyTest.API.MLS.Util
-import GalleyTest.API.Util
 import Bilge hiding (head)
 import Bilge.Assert
 import Control.Lens hiding ((#))
@@ -46,13 +44,15 @@ import Data.Timeout (TimeoutUnit (..), (#))
 import Data.UUID.V4 (nextRandom)
 import Federator.MockServer (FederatedRequest (..))
 import Galley.Types.Conversations.Intra
+import GalleyTest.API.MLS.Util
+import GalleyTest.API.Util
+import GalleyTest.TestHelpers
+import GalleyTest.TestSetup
 import Imports
 import Test.QuickCheck (arbitrary, generate)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import GalleyTest.TestHelpers
-import GalleyTest.TestSetup
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role

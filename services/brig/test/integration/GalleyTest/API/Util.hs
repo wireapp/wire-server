@@ -18,7 +18,6 @@
 
 module GalleyTest.API.Util where
 
-import qualified GalleyTest.API.SQS as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Bilge.TestSession
@@ -78,6 +77,9 @@ import Galley.Types.Conversations.One2One
 import qualified Galley.Types.Teams as Team
 import Galley.Types.Teams.Intra
 import Galley.Types.UserList
+import qualified GalleyTest.API.SQS as SQS
+import GalleyTest.TestHelpers (viewFederationDomain)
+import GalleyTest.TestSetup
 import Imports
 import Network.HTTP.Media.MediaType
 import qualified Network.HTTP.Types as HTTP
@@ -93,8 +95,6 @@ import qualified Test.QuickCheck as Q
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import GalleyTest.TestHelpers (viewFederationDomain)
-import GalleyTest.TestSetup
 import UnliftIO.Timeout
 import Util.Options
 import Web.Cookie

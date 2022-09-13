@@ -18,10 +18,6 @@
 
 module GalleyTest.API.Teams.Feature (tests) where
 
-import GalleyTest.API.Util (HasGalley, getFeatureStatusMulti, withSettingsOverrides)
-import qualified GalleyTest.API.Util as Util
-import GalleyTest.API.Util.TeamFeature (patchFeatureStatusInternal)
-import qualified GalleyTest.API.Util.TeamFeature as Util
 import Bilge
 import Bilge.Assert
 import Brig.Types.Test.Arbitrary (Arbitrary (arbitrary))
@@ -42,6 +38,12 @@ import Data.Timeout (TimeoutUnit (Second), (#))
 import GHC.TypeLits (KnownSymbol)
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
+import GalleyTest.API.Util (HasGalley, getFeatureStatusMulti, withSettingsOverrides)
+import qualified GalleyTest.API.Util as Util
+import GalleyTest.API.Util.TeamFeature (patchFeatureStatusInternal)
+import qualified GalleyTest.API.Util.TeamFeature as Util
+import GalleyTest.TestHelpers (test)
+import GalleyTest.TestSetup
 import Imports
 import Network.Wai.Utilities (label)
 import Test.Hspec (expectationFailure)
@@ -49,8 +51,6 @@ import Test.QuickCheck (Gen, generate, suchThat)
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit (assertFailure, (@?=))
-import GalleyTest.TestHelpers (test)
-import GalleyTest.TestSetup
 import Wire.API.Conversation.Protocol (ProtocolTag (ProtocolMLSTag, ProtocolProteusTag))
 import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 import Wire.API.Internal.Notification (Notification)

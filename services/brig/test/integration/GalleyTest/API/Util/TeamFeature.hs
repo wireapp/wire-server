@@ -17,8 +17,6 @@
 
 module GalleyTest.API.Util.TeamFeature where
 
-import GalleyTest.API.Util (HasGalley (viewGalley), zUser)
-import qualified GalleyTest.API.Util as Util
 import Bilge
 import Control.Lens (view, (.~), (^?))
 import Control.Monad.Catch (MonadThrow)
@@ -30,8 +28,10 @@ import Data.Schema
 import GHC.TypeLits (KnownSymbol)
 import Galley.Options (optSettings, setFeatureFlags)
 import Galley.Types.Teams
-import Imports
+import GalleyTest.API.Util (HasGalley (viewGalley), zUser)
+import qualified GalleyTest.API.Util as Util
 import GalleyTest.TestSetup
+import Imports
 import Wire.API.Team.Feature (IsFeatureConfig)
 import qualified Wire.API.Team.Feature as Public
 

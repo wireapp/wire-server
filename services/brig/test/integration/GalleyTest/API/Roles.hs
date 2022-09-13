@@ -17,7 +17,6 @@
 
 module GalleyTest.API.Roles where
 
-import GalleyTest.API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Lens (view)
@@ -31,14 +30,15 @@ import Data.Qualified
 import qualified Data.Set as Set
 import Data.Singletons
 import Federator.MockServer (FederatedRequest (..))
+import GalleyTest.API.Util
+import GalleyTest.TestHelpers
+import GalleyTest.TestSetup
 import Imports
 import Network.Wai.Utilities.Error
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import GalleyTest.TestHelpers
-import GalleyTest.TestSetup
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role

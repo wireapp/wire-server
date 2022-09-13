@@ -20,8 +20,6 @@ module GalleyTest.Main
   )
 where
 
-import qualified GalleyTest.API
-import qualified GalleyTest.API.SQS as SQS
 import Bilge hiding (body, header)
 import Cassandra.Util
 import Control.Lens
@@ -36,6 +34,9 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Yaml (decodeFileEither)
 import Galley.API (sitemap)
 import Galley.Options
+import qualified GalleyTest.API
+import qualified GalleyTest.API.SQS as SQS
+import GalleyTest.TestSetup
 import Imports hiding (local)
 import Network.HTTP.Client (responseTimeoutMicro)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
@@ -46,7 +47,6 @@ import qualified System.Logger.Class as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.Options
-import GalleyTest.TestSetup
 import Util.Options
 import Util.Options.Common
 import Util.Test

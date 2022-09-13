@@ -25,10 +25,10 @@ import Bilge.Assert
 import Control.Lens (view)
 import Data.Aeson hiding (json)
 import Data.Aeson.QQ (aesonQQ)
-import Imports
-import Test.Tasty
 import GalleyTest.TestHelpers
 import GalleyTest.TestSetup
+import Imports
+import Test.Tasty
 
 tests :: IO TestSetup -> TestTree
 tests s =
