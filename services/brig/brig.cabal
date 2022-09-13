@@ -521,11 +521,16 @@ executable brig-integration
 
   build-depends:
       aeson
+    , aeson-qq
+    , amazonka
+    , amazonka-sqs
     , async
     , attoparsec
     , base
     , base16-bytestring
+    , base64-bytestring
     , bilge
+    , binary
     , bloodhound
     , brig
     , brig-types
@@ -534,12 +539,17 @@ executable brig-integration
     , cargohold-types
     , case-insensitive
     , cassandra-util
+    , cassava
+    , cereal
     , containers
     , cookie
+    , cryptonite
+    , currency-codes
     , data-default
     , data-timeout
     , email-validate
     , exceptions
+    , extra
     , federator
     , filepath               >=1.4
     , galley
@@ -547,15 +557,20 @@ executable brig-integration
     , gundeck-types
     , hscim
     , HsOpenSSL
+    , HsOpenSSL-x509-system
+    , hspec
     , http-api-data
     , http-client
+    , http-client-openssl
     , http-client-tls        >=0.2
     , http-media
     , http-reverse-proxy
     , http-types
     , imports
+    , kan-extensions
     , lens                   >=3.9
     , lens-aeson
+    , memory
     , metrics-wai
     , mime                   >=0.4
     , MonadRandom            >=0.5
@@ -567,18 +582,26 @@ executable brig-integration
     , polysemy-wire-zoo
     , process
     , proto-lens
+    , protobuf
     , QuickCheck
+    , quickcheck-instances
     , random                 >=1.0
     , random-shuffle
     , raw-strings-qq
     , retry                  >=0.6
     , safe
     , saml2-web-sso
+    , schema-profunctor
     , servant
     , servant-client
     , servant-client-core
+    , servant-server
+    , singletons
+    , sop-core
     , spar
+    , ssl-util
     , string-conversions
+    , tagged
     , tasty                  >=1.0
     , tasty-cannon           >=0.3.4
     , tasty-hunit            >=0.2
