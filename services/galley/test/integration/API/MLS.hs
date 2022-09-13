@@ -151,7 +151,14 @@ tests s =
         "Backend-side External Remove Proposals"
         [ test s "local conversation, local user deleted" testBackendRemoveProposalLocalConvLocalUser,
           test s "local conversation, remote user deleted" testBackendRemoveProposalLocalConvRemoteUser,
-          test s "local conversation, local user leaving" testBackendRemoveProposalLocalConvLocalLeaver,
+          test
+            s
+            "local conversation, creator leaving"
+            testBackendRemoveProposalLocalConvLocalLeaverCreator,
+          test
+            s
+            "local conversation, local committer leaving"
+            testBackendRemoveProposalLocalConvLocalLeaverCommitter,
           test s "local conversation, remote user leaving" testBackendRemoveProposalLocalConvRemoteLeaver
         ],
       testGroup
@@ -1499,8 +1506,8 @@ sendRemoteMLSWelcomeKPNotFound = do
       -- check that no event is received
       WS.assertNoEvent (1 # Second) [wsB]
 
-testBackendRemoveProposalLocalConvLocalLeaver :: TestM ()
-testBackendRemoveProposalLocalConvLocalLeaver = do
+testBackendRemoveProposalLocalConvLocalLeaverCreator :: TestM ()
+testBackendRemoveProposalLocalConvLocalLeaverCreator = do
   [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
 
   runMLSTest $ do
@@ -1509,8 +1516,53 @@ testBackendRemoveProposalLocalConvLocalLeaver = do
     (_, qcnv) <- setupMLSGroup alice1
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
 
-    bobClients <- getClientsFromGroupState alice1 bob
+    aliceClients <- getClientsFromGroupState alice1 alice
     mlsBracket [alice1, bob1, bob2] $ \wss -> void $ do
+      liftTest $
+        deleteMemberQualified (qUnqualified alice) alice qcnv
+          !!! const 200 === statusCode
+      -- remove alice's client from the test state
+      State.modify $ \mls ->
+        mls
+          { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [alice1])
+          }
+
+      for_ aliceClients $ \(_, ref) -> do
+        -- only bob's clients should receive the external proposals
+        msgs <- WS.assertMatchN (5 # Second) (drop 1 wss) $ \n ->
+          wsAssertBackendRemoveProposal alice qcnv ref n
+        traverse_ (uncurry consumeMessage1) (zip [bob1, bob2] msgs)
+
+      -- but everyone should receive leave events
+      WS.assertMatchN_ (5 # WS.Second) wss $
+        wsAssertMembersLeave qcnv alice [alice]
+
+      -- check that no more events are sent, so in particular alice does not
+      -- receive any MLS messages
+      WS.assertNoEvent (1 # WS.Second) wss
+
+    -- bob commits the external proposals
+    events <- createPendingProposalCommit bob1 >>= sendAndConsumeCommit
+    liftIO $ events @?= []
+
+testBackendRemoveProposalLocalConvLocalLeaverCommitter :: TestM ()
+testBackendRemoveProposalLocalConvLocalLeaverCommitter = do
+  [alice, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
+
+  runMLSTest $ do
+    [alice1, bob1, bob2, charlie1] <- traverse createMLSClient [alice, bob, bob, charlie]
+    traverse_ uploadNewKeyPackage [bob1, bob2, charlie1]
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+
+    -- promote bob
+    putOtherMemberQualified (ciUser alice1) bob (OtherMemberUpdate (Just roleNameWireAdmin)) qcnv
+      !!! const 200 === statusCode
+
+    void $ createAddCommit bob1 [charlie] >>= sendAndConsumeCommit
+
+    bobClients <- getClientsFromGroupState alice1 bob
+    mlsBracket [alice1, charlie1, bob1, bob2] $ \wss -> void $ do
       liftTest $
         deleteMemberQualified (qUnqualified bob) bob qcnv
           !!! const 200 === statusCode
@@ -1521,10 +1573,10 @@ testBackendRemoveProposalLocalConvLocalLeaver = do
           }
 
       for_ bobClients $ \(_, ref) -> do
-        -- only alice should receive the external proposals
-        [msg] <- WS.assertMatchN (5 # Second) (take 1 wss) $ \n ->
+        -- only alice and charlie should receive the external proposals
+        msgs <- WS.assertMatchN (5 # Second) (take 2 wss) $ \n ->
           wsAssertBackendRemoveProposal bob qcnv ref n
-        consumeMessage1 alice1 msg
+        traverse_ (uncurry consumeMessage1) (zip [alice1, charlie1] msgs)
 
       -- but everyone should receive leave events
       WS.assertMatchN_ (5 # WS.Second) wss $
