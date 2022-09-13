@@ -529,19 +529,23 @@ testRemoveUsersDirectly = do
 
 testProteusMessage :: TestM ()
 testProteusMessage = do
-  setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
-  void $ postCommit setup
-  e <-
-    responseJsonError
-      =<< postProteusMessageQualified
-        (qUnqualified (pUserId creator))
-        (snd (NonEmpty.head (pClients creator)))
-        conversation
-        []
-        "data"
-        MismatchReportAll
-      <!! const 404 === statusCode
-  liftIO $ Wai.label e @?= "no-conversation"
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+    qcnv <- snd <$> setupMLSGroup alice1
+    createAddCommit alice1 [bob] >>= void . sendAndConsumeCommit
+    e <-
+      responseJsonError
+        =<< postProteusMessageQualified
+          (qUnqualified alice)
+          (ciClient bob1)
+          qcnv
+          []
+          "data"
+          MismatchReportAll
+        <!! const 404 === statusCode
+    liftIO $ Wai.label e @?= "no-conversation"
 
 testStaleCommit :: TestM ()
 testStaleCommit = do
