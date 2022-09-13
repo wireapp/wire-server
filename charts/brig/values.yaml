@@ -20,6 +20,8 @@ config:
   logNetStrings: false
   cassandra:
     host: aws-cassandra
+  cassandraGalley:
+    host: aws-cassandra
   elasticsearch:
     host: elasticsearch-client
     port: 9200

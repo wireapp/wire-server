@@ -428,6 +428,8 @@ data Opts = Opts
 
     -- | Cassandra settings
     cassandra :: !CassandraOpts,
+    -- | Cassandra settings for galley
+    cassandraGalley :: !CassandraOpts,
     -- | ElasticSearch settings
     elasticsearch :: !ElasticSearchOpts,
     -- | AWS settings

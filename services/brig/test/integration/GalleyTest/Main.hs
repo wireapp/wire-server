@@ -113,9 +113,9 @@ main = withOpenSSL $ runTests go
       awsEnv <- initAwsEnv e q
       SQS.ensureQueueEmptyIO awsEnv
       -- Initialize cassandra
-      let ch = fromJust gConf ^. optCassandra . casEndpoint . epHost
-      let cp = fromJust gConf ^. optCassandra . casEndpoint . epPort
-      let ck = fromJust gConf ^. optCassandra . casKeyspace
+      let ch = fromJust gConf ^. optCassandraGalley . casEndpoint . epHost
+      let cp = fromJust gConf ^. optCassandraGalley . casEndpoint . epPort
+      let ck = fromJust gConf ^. optCassandraGalley . casKeyspace
       lg <- Logger.new Logger.defSettings
       db <- defInitCassandra ck ch cp lg
       pure $ TestSetup (fromJust gConf) (fromJust iConf) m g b c awsEnv convMaxSize db (FedClient m galleyEndpoint)

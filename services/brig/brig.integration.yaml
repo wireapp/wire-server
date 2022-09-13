@@ -11,7 +11,7 @@ cassandra:
 # cassandra above is for brig; this is for galley.  introduced for
 # integration tests, but may also be needed later by brig when it will
 # replace galley.
-cassandra_galley:
+cassandraGalley:
   endpoint:
     host: 127.0.0.1
     port: 9042

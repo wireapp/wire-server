@@ -29,6 +29,18 @@ data:
       filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
       {{- end }}
 
+    # cassandra above is for brig; this is for galley.  introduced for
+    # integration tests, but may also be needed later by brig when it will
+    # replace galley.
+    cassandraGalley:
+      endpoint:
+        host: {{ .cassandraGalley.host }}
+        port: 9042
+      keyspace: galley
+      {{- if hasKey .cassandra "filterNodesByDatacentre" }}
+      filterNodesByDatacentre: {{ .cassandra.filterNodesByDatacentre }}
+      {{- end }}
+
     elasticsearch:
       url: http://{{ .elasticsearch.host }}:{{ .elasticsearch.port }}
       index: {{ .elasticsearch.index }}
