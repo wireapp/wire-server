@@ -91,7 +91,7 @@ main = withOpenSSL $ runTests go
               "inconcistent sitemap"
               mempty
               (pathsConsistencyCheck . treeToPaths . compile $ Galley.API.sitemap),
-          API.tests setup
+          GalleyTest.API.tests setup
         ]
     getOpts gFile iFile = do
       m <- newManager tlsManagerSettings {managerResponseTimeout = responseTimeoutMicro 300000000}

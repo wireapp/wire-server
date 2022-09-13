@@ -109,7 +109,7 @@ tests s =
   testGroup
     "Galley integration tests"
     [ Teams.LegalHold.tests s,
-      API.Teams.LegalHold.DisabledByDefault.tests s,
+      GalleyTest.API.Teams.LegalHold.DisabledByDefault.tests s,
       mainTests,
       Teams.tests s,
       MessageTimer.tests s,
@@ -117,7 +117,7 @@ tests s =
       CustomBackend.tests s,
       TeamFeature.tests s,
       Federation.tests s,
-      API.MLS.tests s
+      GalleyTest.API.MLS.tests s
     ]
   where
     mainTests =

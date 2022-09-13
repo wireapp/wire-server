@@ -1066,14 +1066,14 @@ testGroupConvInvitationHandlesLHConflicts inviteCase = do
 
     case inviteCase of
       InviteOnlyConsenters -> do
-        API.Util.postMembers userWithConsent (qLegalHolder :| [userWithConsent2]) qconvId
+        GalleyTest.API.Util.postMembers userWithConsent (qLegalHolder :| [userWithConsent2]) qconvId
           !!! const 200 === statusCode
 
         assertConvMember qLegalHolder convId
         assertConvMember userWithConsent2 convId
         assertNotConvMember peer convId
       InviteAlsoNonConsenters -> do
-        API.Util.postMembers userWithConsent (qLegalHolder :| [qpeer2]) qconvId
+        GalleyTest.API.Util.postMembers userWithConsent (qLegalHolder :| [qpeer2]) qconvId
           >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
 testNoConsentCannotBeInvited :: HasCallStack => TestM ()
@@ -1103,7 +1103,7 @@ testNoConsentCannotBeInvited = do
     convId <- createTeamConvWithRole userLHNotActivated tid [legalholder] (Just "corp + us") Nothing Nothing roleNameWireAdmin
     let qconvId = Qualified convId localDomain
 
-    API.Util.postMembers userLHNotActivated (pure qpeer) qconvId
+    GalleyTest.API.Util.postMembers userLHNotActivated (pure qpeer) qconvId
       !!! const 200 === statusCode
 
     -- activate legalhold for legalholder
@@ -1114,11 +1114,11 @@ testNoConsentCannotBeInvited = do
       UserLegalHoldStatusResponse userStatus _ _ <- getUserStatusTyped' galley legalholder tid
       liftIO $ assertEqual "approving should change status" UserLegalHoldEnabled userStatus
 
-    API.Util.postMembers userLHNotActivated (pure qpeer2) qconvId
+    GalleyTest.API.Util.postMembers userLHNotActivated (pure qpeer2) qconvId
       >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
     localdomain <- viewFederationDomain
-    API.Util.postQualifiedMembers userLHNotActivated (Qualified peer2 localdomain :| []) convId
+    GalleyTest.API.Util.postQualifiedMembers userLHNotActivated (Qualified peer2 localdomain :| []) convId
       >>= errWith 403 (\err -> Error.label err == "missing-legalhold-consent")
 
 testCannotCreateGroupWithUsersInConflict :: HasCallStack => TestM ()
