@@ -814,16 +814,30 @@ executeProposalAction qusr con lconv cm action = do
           con
         $ ConversationJoin users roleNameWireMember
 
+    existingLocalMembers :: Set (Qualified UserId)
+    existingLocalMembers =
+      Set.fromList . map (fmap lmId . qUntagged) . sequenceA $
+        fmap convLocalMembers lconv
+
+    existingRemoteMembers :: Set (Qualified UserId)
+    existingRemoteMembers =
+      Set.fromList . map (qUntagged . rmId) . convRemoteMembers . tUnqualified $
+        lconv
+
+    existingMembers :: Set (Qualified UserId)
+    existingMembers = existingLocalMembers <> existingRemoteMembers
+
     removeMembers :: NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
     removeMembers =
-      handleNoChanges
-        . handleMLSProposalFailures @ProposalErrors
-        . fmap pure
-        . updateLocalConversationUnchecked
-          @'ConversationRemoveMembersTag
-          lconv
-          qusr
-          con
+      foldMap
+        ( handleNoChanges
+            . handleMLSProposalFailures @ProposalErrors
+            . fmap pure
+            . updateLocalConversationUnchecked @'ConversationRemoveMembersTag lconv qusr con
+        )
+        . nonEmpty
+        . filter (flip Set.member existingMembers)
+        . toList
 
 handleNoChanges :: Monoid a => Sem (Error NoChanges ': r) a -> Sem r a
 handleNoChanges = fmap fold . runError
