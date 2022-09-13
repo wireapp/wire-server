@@ -186,7 +186,7 @@ runTests iConf brigOpts otherArgs = do
 
 main :: IO ()
 main = do
-  Galley.Main.main
+  GalleyTest.Main.main
   brigMain
 
 brigMain :: IO ()
