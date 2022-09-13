@@ -8,7 +8,7 @@ data:
       # Full URL is set so that there can be a common cookiedomain between nginz and brig
       # needed by some integration tests
       host: brig.{{ .Release.Namespace }}.svc.cluster.local
-      port: {{ .Values.service.internalPort }}
+      port: 8080
 
     cannon:
       host: cannon

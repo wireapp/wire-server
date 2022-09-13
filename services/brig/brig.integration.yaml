@@ -7,7 +7,15 @@ cassandra:
     host: 127.0.0.1
     port: 9042
   keyspace: brig_test
-  # filterNodesByDatacentre: datacenter1
+
+# cassandra above is for brig; this is for galley.  introduced for
+# integration tests, but may also be needed later by brig when it will
+# replace galley.
+cassandra_galley:
+  endpoint:
+    host: 127.0.0.1
+    port: 9042
+  keyspace: galley_test
 
 elasticsearch:
   url: http://127.0.0.1:9200
@@ -20,6 +28,10 @@ cargohold:
 galley:
   host: 127.0.0.1
   port: 8085
+
+spar:
+  host: 127.0.0.1
+  port: 8088
 
 gundeck:
   host: 127.0.0.1
@@ -139,9 +151,47 @@ turn:
 
 # for galley integration tests
 settings:
+  httpPoolSize: 128
+  maxTeamSize: 32
+  maxFanoutSize: 18
+  maxConvSize: 16
+  intraListing: false
+  conversationCodeURI: https://account.wire.com/conversation-join/
+  concurrentDeletionEvents: 1024
+  deleteConvThrottleMillis: 0
+  enableIndexedBillingTeamMembers: true
+  #   Federation domain is used to qualify local IDs and handles,
+  #   e.g. 0c4d8944-70fa-480e-a8b7-9d929862d18c@wire.com and somehandle@wire.com.
+  #   It should also match the SRV DNS records under which other wire-server installations can find this backend:
+  #      _wire-server-federator._tcp.<federationDomain>
+  #   Once set, DO NOT change it: if you do, existing users may have a broken experience and/or stop working
+  #   Remember to keep it the same in Brig
+  federationDomain: example.com
   mlsPrivateKeyPaths:
     removal:
       ed25519: test/resources-galley/ed25519.pem
+
+  featureFlags:  # see #RefConfigOptions in `/docs/reference`
+    sso: disabled-by-default
+    legalhold: whitelist-teams-and-implicit-consent
+    teamSearchVisibility: disabled-by-default
+    appLock:
+      defaults:
+        status: enabled
+        config:
+          enforceAppLock: false
+          inactivityTimeoutSecs: 60
+    classifiedDomains:
+      status: enabled
+      config:
+        domains: ["example.com"]
+    fileSharing:
+      defaults:
+        status: enabled
+        lockStatus: unlocked
+    conferenceCalling:
+      defaults:
+        status: enabled
 
 optSettings:
   setActivationTimeout: 5
