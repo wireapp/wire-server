@@ -27,8 +27,8 @@ import Data.Aeson hiding (json)
 import Data.Aeson.QQ (aesonQQ)
 import Imports
 import Test.Tasty
-import TestHelpers
-import TestSetup
+import GalleyTest.TestHelpers
+import GalleyTest.TestSetup
 
 tests :: IO TestSetup -> TestTree
 tests s =

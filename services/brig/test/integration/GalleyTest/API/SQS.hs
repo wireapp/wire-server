@@ -50,7 +50,7 @@ import Ssl.Util
 import System.Logger.Class
 import qualified System.Logger.Class as L
 import Test.Tasty.HUnit
-import TestSetup
+import GalleyTest.TestSetup
 
 ensureQueueEmpty :: TestM ()
 ensureQueueEmpty = view tsAwsEnv >>= ensureQueueEmptyIO

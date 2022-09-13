@@ -22,10 +22,10 @@ module GalleyTest.API.Teams
   )
 where
 
-import API.SQS
-import API.Util hiding (deleteTeam)
-import qualified API.Util as Util
-import qualified API.Util.TeamFeature as Util
+import GalleyTest.API.SQS
+import GalleyTest.API.Util hiding (deleteTeam)
+import qualified GalleyTest.API.Util as Util
+import qualified GalleyTest.API.Util.TeamFeature as Util
 import Bilge hiding (head, timeout)
 import Bilge.Assert
 import Brig.Types.Intra (fromAccountStatusResp)
@@ -75,8 +75,8 @@ import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import TestHelpers (test, viewFederationDomain)
-import TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
+import GalleyTest.TestHelpers (test, viewFederationDomain)
+import GalleyTest.TestSetup (TestM, TestSetup, tsBrig, tsCannon, tsGConf, tsGalley)
 import UnliftIO (mapConcurrently)
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol

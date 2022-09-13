@@ -22,21 +22,21 @@ module GalleyTest.API
   )
 where
 
-import qualified API.CustomBackend as CustomBackend
-import qualified API.Federation as Federation
-import API.Federation.Util
-import qualified API.MLS
-import qualified API.MessageTimer as MessageTimer
+import qualified GalleyTest.API.CustomBackend as CustomBackend
+import qualified GalleyTest.API.Federation as Federation
+import GalleyTest.API.Federation.Util
+import qualified GalleyTest.API.MLS
+import qualified GalleyTest.API.MessageTimer as MessageTimer
 import qualified GalleyTest.API.Roles as Roles
-import API.SQS
-import qualified API.Teams as Teams
-import qualified API.Teams.Feature as TeamFeature
-import qualified API.Teams.LegalHold as Teams.LegalHold
-import qualified API.Teams.LegalHold.DisabledByDefault
-import API.Util
-import qualified API.Util as Util
-import API.Util.TeamFeature as TeamFeatures
-import qualified API.Util.TeamFeature as Util
+import GalleyTest.API.SQS
+import qualified GalleyTest.API.Teams as Teams
+import qualified GalleyTest.API.Teams.Feature as TeamFeature
+import qualified GalleyTest.API.Teams.LegalHold as Teams.LegalHold
+import qualified GalleyTest.API.Teams.LegalHold.DisabledByDefault
+import GalleyTest.API.Util
+import qualified GalleyTest.API.Util as Util
+import GalleyTest.API.Util.TeamFeature as TeamFeatures
+import qualified GalleyTest.API.Util.TeamFeature as Util
 import Bilge hiding (head, timeout)
 import qualified Bilge
 import Bilge.Assert
@@ -78,8 +78,8 @@ import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import TestHelpers
-import TestSetup
+import GalleyTest.TestHelpers
+import GalleyTest.TestSetup
 import Util.Options (Endpoint (Endpoint))
 import Wire.API.Connection
 import Wire.API.Conversation

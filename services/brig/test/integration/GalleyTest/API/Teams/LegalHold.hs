@@ -23,9 +23,9 @@ module GalleyTest.API.Teams.LegalHold
   )
 where
 
-import API.SQS
-import qualified API.SQS as SQS
-import API.Util
+import GalleyTest.API.SQS
+import qualified GalleyTest.API.SQS as SQS
+import GalleyTest.API.Util
 import Bilge hiding (accept, head, timeout, trace)
 import Bilge.Assert
 import Brig.Types.Intra (UserSet (..))
@@ -80,8 +80,8 @@ import Test.QuickCheck.Instances ()
 import Test.Tasty
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import TestHelpers
-import TestSetup
+import GalleyTest.TestHelpers
+import GalleyTest.TestSetup
 import Wire.API.Connection (UserConnection)
 import qualified Wire.API.Connection as Conn
 import Wire.API.Conversation.Role (roleNameWireAdmin, roleNameWireMember)

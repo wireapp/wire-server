@@ -18,7 +18,7 @@
 
 module GalleyTest.API.Util where
 
-import qualified API.SQS as SQS
+import qualified GalleyTest.API.SQS as SQS
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Bilge.TestSession
@@ -93,8 +93,8 @@ import qualified Test.QuickCheck as Q
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import TestHelpers (viewFederationDomain)
-import TestSetup
+import GalleyTest.TestHelpers (viewFederationDomain)
+import GalleyTest.TestSetup
 import UnliftIO.Timeout
 import Util.Options
 import Web.Cookie

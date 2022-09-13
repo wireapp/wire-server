@@ -19,7 +19,7 @@
 
 module GalleyTest.TestHelpers where
 
-import API.SQS
+import GalleyTest.API.SQS
 import Control.Lens (view)
 import Data.Domain (Domain)
 import qualified Galley.Aws as Aws
@@ -27,7 +27,7 @@ import Galley.Options (optSettings, setFederationDomain)
 import Imports
 import Test.Tasty (TestName, TestTree)
 import Test.Tasty.HUnit (Assertion, assertBool, testCase)
-import TestSetup
+import GalleyTest.TestSetup
 import UnliftIO.Exception (finally)
 
 test :: IO TestSetup -> TestName -> TestM a -> TestTree

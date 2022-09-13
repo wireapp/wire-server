@@ -20,8 +20,8 @@ module GalleyTest.Main
   )
 where
 
-import qualified API
-import qualified API.SQS as SQS
+import qualified GalleyTest.API
+import qualified GalleyTest.API.SQS as SQS
 import Bilge hiding (body, header)
 import Cassandra.Util
 import Control.Lens
@@ -46,7 +46,7 @@ import qualified System.Logger.Class as Logger
 import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.Options
-import TestSetup
+import GalleyTest.TestSetup
 import Util.Options
 import Util.Options.Common
 import Util.Test

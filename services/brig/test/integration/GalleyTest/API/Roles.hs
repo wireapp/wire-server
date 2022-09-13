@@ -17,7 +17,7 @@
 
 module GalleyTest.API.Roles where
 
-import API.Util
+import GalleyTest.API.Util
 import Bilge hiding (timeout)
 import Bilge.Assert
 import Control.Lens (view)
@@ -37,8 +37,8 @@ import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (..), (#))
 import qualified Test.Tasty.Cannon as WS
 import Test.Tasty.HUnit
-import TestHelpers
-import TestSetup
+import GalleyTest.TestHelpers
+import GalleyTest.TestSetup
 import Wire.API.Conversation
 import Wire.API.Conversation.Action
 import Wire.API.Conversation.Role
