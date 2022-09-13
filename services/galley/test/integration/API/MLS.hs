@@ -1186,47 +1186,33 @@ testRemoteNonMemberToLocal = do
   -- bob then sends a message to the conversation
 
   let bobDomain = Domain "faraway.example.com"
+  [alice, bob] <- createAndConnectUsers [Nothing, Just (domainText bobDomain)]
 
   -- Simulate the whole MLS setup for both clients first. In reality,
   -- backend calls would need to happen in order for bob to get ahold of a
   -- welcome message, but that should not affect the correctness of the test.
 
-  (MessagingSetup {..}, message) <- withSystemTempDirectory "mls" $ \tmp -> do
-    setup <-
-      aliceInvitesBobWithTmp
-        tmp
-        (1, RemoteUser bobDomain)
-        def
-          { createConv = CreateConv
-          }
-    bob <- assertOne (users setup)
-    liftIO $ mergeWelcome tmp (pClientQid bob) "group" "groupB.json" "welcome"
-    message <-
-      liftIO $
-        spawn
-          ( cli
-              (pClientQid bob)
-              tmp
-              ["message", "--group", tmp </> "groupB.json", "hello from another backend"]
-          )
-          Nothing
-    pure (setup, message)
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
 
-  let bob = head users
-  fedGalleyClient <- view tsFedGalleyClient
+    qcnv <- snd <$> setupMLSGroup alice1
+    void $ claimKeyPackages alice1 bob
+    mp <- createAddCommit alice1 [bob]
+    traverse_ consumeWelcome (mpWelcome mp)
 
-  -- actual test
+    message <- createApplicationMessage bob1 "hello from another backend"
 
-  let msr =
-        MessageSendRequest
-          { msrConvId = qUnqualified conversation,
-            msrSender = qUnqualified (pUserId bob),
-            msrRawMessage = Base64ByteString message
-          }
+    let msr =
+          MessageSendRequest
+            { msrConvId = qUnqualified qcnv,
+              msrSender = qUnqualified bob,
+              msrRawMessage = Base64ByteString (mpMessage message)
+            }
 
-  resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
-  liftIO $ do
-    resp @?= MLSMessageResponseError ConvNotFound
+    fedGalleyClient <- view tsFedGalleyClient
+    resp <- runFedClient @"send-mls-message" fedGalleyClient bobDomain msr
+    liftIO $ do
+      resp @?= MLSMessageResponseError ConvNotFound
 
 -- | The group exists in mls-test-cli's store, but not in wire-server's database.
 propNonExistingConv :: TestM ()
