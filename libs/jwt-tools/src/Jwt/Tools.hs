@@ -1,4 +1,5 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
+{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -27,8 +28,10 @@ import Data.Misc (HttpsUrl)
 import Data.Nonce (Nonce)
 import Data.PEMKeys
 import Data.String.Conversions (cs)
+import Foreign.C (CUChar (..))
 import Foreign.C.String (CString, newCString, peekCString)
-import Foreign.C.Types (CULong (..), CUShort (..))
+import Foreign.Ptr (Ptr, nullPtr)
+import Foreign.Storable (peek)
 import Imports
 import Network.HTTP.Types (StdMethod (..))
 import Numeric (readHex)
@@ -36,22 +39,61 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.Epoch (Epoch (..))
 import Wire.API.User.Client.DPoPAccessToken
 
-foreign import ccall "generate_dpop_access_token"
-  generateDpopTokenFFI ::
-    CString ->
-    CString ->
-    CUShort ->
-    CString ->
-    CString ->
-    CString ->
-    CString ->
-    CUShort ->
-    CULong ->
-    CULong ->
-    CString ->
-    IO CString
+data JwtResponse = JwtResponse
 
-foreign import ccall unsafe "free_dpop_access_token" freeDpopAccessToken :: CString -> IO ()
+foreign import ccall unsafe "generate_dpop_access_token"
+  generate_dpop_access_token ::
+    CString ->
+    CString ->
+    Word16 ->
+    CString ->
+    CString ->
+    CString ->
+    CString ->
+    Word16 ->
+    Word64 ->
+    Word64 ->
+    CString ->
+    IO (Ptr JwtResponse)
+
+foreign import ccall unsafe "free_dpop_access_token" free_dpop_access_token :: Ptr JwtResponse -> IO ()
+
+foreign import ccall unsafe "get_error" get_error :: Ptr JwtResponse -> Ptr CUChar
+
+foreign import ccall unsafe "get_token" get_token :: Ptr JwtResponse -> CString
+
+createToken ::
+  CString ->
+  CString ->
+  Word16 ->
+  CString ->
+  CString ->
+  CString ->
+  CString ->
+  Word16 ->
+  Word64 ->
+  Word64 ->
+  CString ->
+  IO (Maybe (Ptr JwtResponse))
+createToken dpopProof user client domain nonce uri method maxSkewSecs expiration now backendKeys = do
+  ptr <- generate_dpop_access_token dpopProof user client domain nonce uri method maxSkewSecs expiration now backendKeys
+  if ptr /= nullPtr
+    then pure $ Just ptr
+    else pure Nothing
+
+getError :: Ptr JwtResponse -> IO (Maybe Word8)
+getError ptr = do
+  let errorPtr = get_error ptr
+  if errorPtr /= nullPtr
+    then Just . fromIntegral <$> peek errorPtr
+    else pure Nothing
+
+getToken :: Ptr JwtResponse -> IO (Maybe String)
+getToken ptr = do
+  let tokenPtr = get_token ptr
+  if tokenPtr /= nullPtr
+    then Just <$> peekCString tokenPtr
+    else pure Nothing
 
 generateDpopToken ::
   (MonadIO m) =>
@@ -69,7 +111,7 @@ generateDpopToken dpopProof cid nonce uri method maxSkewSecs maxExpiration now b
   dpopProofCStr <- toCStr dpopProof
   uidCStr <- toCStr $ ciUser cid
   cidCUShort <- case readHex @Word16 (cs $ client $ ciClient cid) of
-    [(a, "")] -> pure (CUShort a)
+    [(a, "")] -> pure a
     _ -> throwE InvalidClientId
   domainCStr <- toCStr $ ciDomain cid
   nonceCStr <- toCStr nonce
@@ -77,8 +119,8 @@ generateDpopToken dpopProof cid nonce uri method maxSkewSecs maxExpiration now b
   methodCStr <- liftIO $ newCString $ cs $ methodToBS method
   backendPubkeyBundleCStr <- toCStr backendPubkeyBundle
 
-  let getToken =
-        generateDpopTokenFFI
+  let before =
+        createToken
           dpopProofCStr
           uidCStr
           cidCUShort
@@ -86,18 +128,29 @@ generateDpopToken dpopProof cid nonce uri method maxSkewSecs maxExpiration now b
           nonceCStr
           uriCStr
           methodCStr
-          (CUShort maxSkewSecs)
-          (CULong $ epochNumber maxExpiration)
-          (CULong $ epochNumber now)
+          maxSkewSecs
+          (epochNumber maxExpiration)
+          (epochNumber now)
           backendPubkeyBundleCStr
 
-  let mkAccessToken responseCStr = do
-        responseStr <- peekCString responseCStr
-        let mbError = readMaybe @Word8 (cs responseStr) >>= mapError
-        pure $ maybe (Right $ DPoPAccessToken $ cs responseStr) Left mbError
+  let mkAccessToken response = do
+        case response of
+          Nothing -> pure $ Left UnknownError
+          Just r -> do
+            mErr <- getError r
+            print mErr
+            mToken <- getToken r
+            pure $ toResult mErr mToken
 
-  ExceptT $ liftIO $ bracket getToken freeDpopAccessToken mkAccessToken
+  let free = maybe (pure ()) free_dpop_access_token
+
+  ExceptT $ liftIO $ bracket before free mkAccessToken
   where
+    toResult :: Maybe Word8 -> Maybe String -> Either DPoPTokenGenerationError DPoPAccessToken
+    toResult (Just err) _ = maybe (Left UnknownError) Left (mapError err)
+    toResult _ (Just token) = Right $ DPoPAccessToken $ cs token
+    toResult _ _ = Left UnknownError
+
     mapError :: Word8 -> Maybe DPoPTokenGenerationError
     mapError 0 = Nothing
     mapError 1 = Just BadProof

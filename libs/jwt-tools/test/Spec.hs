@@ -30,8 +30,9 @@ main :: IO ()
 main = hspec $ do
   describe "generateDpopToken FFI" $ do
     it "should return a value" $ do
-      response <- callFFIWithRandomValues
-      response `shouldSatisfy` (\r -> isRight r || isLeft r)
+      actual <- callFFIWithRandomValues
+      let expected = Right $ DPoPAccessToken "eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+      actual `shouldBe` expected
 
 callFFIWithRandomValues :: IO (Either DPoPTokenGenerationError DPoPAccessToken)
 callFFIWithRandomValues = do

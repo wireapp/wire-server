@@ -9,10 +9,10 @@ rustPlatform.buildRustPackage rec {
   src = fetchFromGitHub {
     owner = "wireapp";
     repo = "rusty-jwt-tools";
-    rev = "6e6e741c3e44270cc08bf625504dab7e418ef3e9";
-    sha256 = "sha256-xOlN9+kqDa94b1UzpUrr6WvmrUkqWO1weze5Gsu7KaQ=";
+    rev = "6370cd556f03f6834d0b8043615ffaf0044ef1fa";
+    sha256 = "sha256-vnTvKITie4pu+ISIl/RdYPfb/yWCdCI9eHl1KcZb050=";
   };
-  cargoSha256 = "sha256-kx2SQ61sVKo6PW54nGIeSSXgdoCt0UmYZ+2bIQ0n1sE=";
+  cargoSha256 = "sha256-gR9XKcJslCcXo3EnD3MweWm+pQr4/EAEuFyOq3/l97g=";
   cargoPatches = [
     # a patch file to add/update Cargo.lock in the source code
     ./add-Cargo.lock.patch
