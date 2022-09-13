@@ -859,10 +859,10 @@ instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
     input <&> view (optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsToTeamAdmin)
 
   getConfigForTeam tid = do
-    serverConfig <- getConfigForServer @db @ExposeInvitationURLsToTeamAdminConfig
-    teamAllowed <- getConfigForServer @db <&> wsConfig <&> exposeInvitationURLsTeamAllowlist <&> elem tid
-    teamDbStatus <- TeamFeatures.getFeatureConfig @db (Proxy @ExposeInvitationURLsToTeamAdminConfig) tid <&> fmap wssStatus
-    pure $ computeConfigForTeam teamAllowed teamDbStatus serverConfig
+    computeConfigForTeam
+      <$> (getConfigForServer @db <&> wsConfig <&> exposeInvitationURLsTeamAllowlist <&> elem tid)
+      <*> (TeamFeatures.getFeatureConfig @db (Proxy @ExposeInvitationURLsToTeamAdminConfig) tid <&> fmap wssStatus)
+      <*> getConfigForServer @db @ExposeInvitationURLsToTeamAdminConfig
     where
       computeConfigForTeam teamAllowed teamDbStatus defConfig =
         case wsLockStatus defConfig of
