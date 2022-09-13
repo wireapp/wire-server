@@ -889,7 +889,6 @@ instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
       computeTeamStatus False (Just FeatureStatusEnabled) _ = FeatureStatusEnabled
       computeTeamStatus False _ _ = FeatureStatusDisabled
 
-
 instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
   type SetConfigForTeamConstraints db ExposeInvitationURLsToTeamAdminConfig (r :: EffectRow) = (Member (ErrorS OperationDenied) r)
   setConfigForTeam tid wsnl = do
@@ -900,9 +899,9 @@ instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
     oldState <- getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid <&> wsStatus
     let newState = wssStatus wsnl
     case (teamAllowed, oldState, newState) of
-      (True,  _                   , _)                     -> persistAndPushEvent @db tid wsnl
+      (True, _, _) -> persistAndPushEvent @db tid wsnl
       (False, FeatureStatusEnabled, FeatureStatusDisabled) -> persistAndPushEvent @db tid wsnl
-      (_,     _                   , _)                     -> throwS @OperationDenied
+      (_, _, _) -> throwS @OperationDenied
 
 instance GetFeatureConfig db ExposeInvitationURLsTeamAllowlistConfig where
   getConfigForServer =
