@@ -141,7 +141,7 @@ turn:
 settings:
   mlsPrivateKeyPaths:
     removal:
-      ed25519: test/resources/ed25519.pem
+      ed25519: test/resources-galley/ed25519.pem
 
 optSettings:
   setActivationTimeout: 5
