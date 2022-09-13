@@ -31,12 +31,12 @@ import Crypto.Error
 import qualified Crypto.PubKey.Ed25519 as Ed25519
 import qualified Data.Aeson as Aeson
 import Data.Binary.Put
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Default
 import Data.Domain
 import Data.Id
 import Data.Json.Util hiding ((#))
-import qualified Data.List.NonEmpty as NonEmpty
 import Data.List1 hiding (head)
 import qualified Data.Map as Map
 import Data.Qualified
@@ -51,6 +51,7 @@ import Imports
 import qualified Network.Wai.Utilities.Error as Wai
 import System.FilePath
 import System.IO.Temp
+import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
 import Test.Tasty.Cannon (TimeoutUnit (Second), (#))
 import qualified Test.Tasty.Cannon as WS
@@ -329,17 +330,23 @@ testSuccessfulCommitWithNewUsers setup@MessagingSetup {..} newUsers = do
       WS.assertMatch_ (5 # WS.Second) ws $
         wsAssertMLSMessage conversation (pUserId creator) commit
 
-testFailedCommit :: HasCallStack => MessagingSetup -> Int -> TestM Wai.Error
-testFailedCommit MessagingSetup {..} status = do
+testFailedCommit ::
+  HasCallStack =>
+  [Qualified UserId] ->
+  Qualified UserId ->
+  ByteString ->
+  Int ->
+  MLSTest Wai.Error
+testFailedCommit users committer commit status = do
   cannon <- view tsCannon
 
-  WS.bracketRN cannon (map (qUnqualified . pUserId) users) $ \wss -> do
+  WS.bracketRN cannon (map qUnqualified users) $ \wss -> do
     galley <- viewGalley
     err <-
       responseJsonError
         =<< post
           ( galley . paths ["mls", "messages"]
-              . zUser (qUnqualified (pUserId creator))
+              . zUser (qUnqualified committer)
               . zConn "conn"
               . content "message/mls"
               . bytes commit
@@ -488,9 +495,17 @@ testSendAnotherUsersCommit = do
 
 testAddUsersToProteus :: TestM ()
 testAddUsersToProteus = do
-  setup <- aliceInvitesBob (1, LocalUser) def {createConv = CreateProteusConv}
-  err <- testFailedCommit setup 404
-  liftIO $ Wai.label err @?= "no-conversation"
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+  void $ postConvQualified (qUnqualified alice) defNewProteusConv
+  groupId <-
+    liftIO $ fmap (GroupId . BS.pack) (replicateM 32 (generate arbitrary))
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+    createGroup alice1 groupId
+    mp <- createAddCommit alice1 [bob]
+    err <- testFailedCommit [bob] alice (mpMessage mp) 404
+    liftIO $ Wai.label err @?= "no-conversation"
 
 testAddUsersDirectly :: TestM ()
 testAddUsersDirectly = do
