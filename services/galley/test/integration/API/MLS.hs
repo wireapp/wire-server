@@ -49,7 +49,6 @@ import Data.Time
 import Federator.MockServer hiding (withTempMockFederator)
 import Imports
 import qualified Network.Wai.Utilities.Error as Wai
-import System.FilePath
 import System.IO.Temp
 import Test.QuickCheck (Arbitrary (arbitrary), generate)
 import Test.Tasty
@@ -289,77 +288,6 @@ testRemoteWelcome = do
     let req :: Maybe MLSWelcomeRequest = Aeson.decode (frBody fedWelcome)
     liftIO $ req @?= (Just . MLSWelcomeRequest . Base64ByteString) welcome
 
--- | Send a commit message, and assert that all participants see an event with
--- the given list of new members.
-testSuccessfulCommitWithNewUsers :: HasCallStack => MessagingSetup -> [Qualified UserId] -> TestM ()
-testSuccessfulCommitWithNewUsers setup@MessagingSetup {..} newUsers = do
-  cannon <- view tsCannon
-
-  WS.bracketRN cannon (map (qUnqualified . pUserId) users) $ \wss -> do
-    -- send commit message
-    events <- postCommit setup
-
-    let alreadyPresent =
-          map snd
-            . filter (\(p, _) -> pUserId p `notElem` newUsers)
-            $ zip users wss
-
-    liftIO $
-      if null newUsers
-        then do
-          -- check that alice receives no events
-          events @?= []
-
-          -- check that no users receive join events
-          when (null alreadyPresent) $
-            WS.assertNoEvent (1 # WS.Second) wss
-        else do
-          -- check that alice receives a join event
-          case events of
-            [e] -> assertJoinEvent conversation (pUserId creator) newUsers roleNameWireMember e
-            [] -> assertFailure "expected join event to be returned to alice"
-            es -> assertFailure $ "expected one event, found: " <> show es
-
-          -- check that all users receive a join event,
-          for_ wss $ \ws -> do
-            WS.assertMatch_ (5 # WS.Second) ws $
-              wsAssertMemberJoinWithRole conversation (pUserId creator) newUsers roleNameWireMember
-
-    -- and that the already-present users in the conversation receive a commit
-    for_ alreadyPresent $ \ws -> do
-      WS.assertMatch_ (5 # WS.Second) ws $
-        wsAssertMLSMessage conversation (pUserId creator) commit
-
-testFailedCommit ::
-  HasCallStack =>
-  [Qualified UserId] ->
-  Qualified UserId ->
-  ByteString ->
-  Int ->
-  MLSTest Wai.Error
-testFailedCommit users committer commit status = do
-  cannon <- view tsCannon
-
-  WS.bracketRN cannon (map qUnqualified users) $ \wss -> do
-    galley <- viewGalley
-    err <-
-      responseJsonError
-        =<< post
-          ( galley . paths ["mls", "messages"]
-              . zUser (qUnqualified committer)
-              . zConn "conn"
-              . content "message/mls"
-              . bytes commit
-          )
-        <!! const status === statusCode
-
-    -- check that users did not receive any event
-    void . liftIO $ WS.assertNoEvent (1 # WS.Second) wss
-    pure err
-
-testSuccessfulCommit :: HasCallStack => MessagingSetup -> TestM ()
-testSuccessfulCommit setup = testSuccessfulCommitWithNewUsers setup (map pUserId (users setup))
-
 testAddUser :: TestM ()
 testAddUser = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
@@ -504,7 +432,9 @@ testAddUsersToProteus = do
     void $ uploadNewKeyPackage bob1
     createGroup alice1 groupId
     mp <- createAddCommit alice1 [bob]
-    err <- testFailedCommit [bob] alice (mpMessage mp) 404
+    err <-
+      responseJsonError
+        =<< postMessage (ciUser alice1) (mpMessage mp) <!! const 404 === statusCode
     liftIO $ Wai.label err @?= "no-conversation"
 
 testAddUsersDirectly :: TestM ()
@@ -1448,48 +1378,35 @@ propUnsupported = do
     postMessage (ciUser alice1) msgData !!! const 201 === statusCode
 
 testBackendRemoveProposalLocalConvLocalUser :: TestM ()
-testBackendRemoveProposalLocalConvLocalUser = withSystemTempDirectory "mls" $ \tmp -> do
-  saveRemovalKey (tmp </> "removal.key")
-  MessagingSetup {..} <- aliceInvitesBobWithTmp tmp (2, LocalUser) def {createConv = CreateConv}
-  let [bobParticipant] = users
-  let bob = pUserId bobParticipant
-  let alice = pUserId creator
-  testSuccessfulCommit MessagingSetup {users = [bobParticipant], ..}
+testBackendRemoveProposalLocalConvLocalUser = do
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
+  runMLSTest $ do
+    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+    traverse_ uploadNewKeyPackage [bob1, bob2]
+    (_, qcnv) <- setupMLSGroup alice1
 
-  kprefs <- (fromJust . kpRef' . snd) <$$> liftIO (readKeyPackages tmp bobParticipant)
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
 
-  c <- view tsCannon
-  WS.bracketR c (qUnqualified alice) $ \wsA -> do
-    deleteUser (qUnqualified bob) !!! const 200 === statusCode
+    bobClients <-
+      fmap (filter (\(cid, _) -> cidQualifiedUser cid == bob)) $
+        currentGroupFile alice1 >>= liftIO . readGroupState
 
-    for_ kprefs $ \kp ->
-      WS.assertMatch_ (5 # WS.Second) wsA $ \notification -> do
-        msg <- wsAssertBackendRemoveProposal bob conversation kp notification
-        void . liftIO $
-          spawn
-            ( cli
-                (pClientQid creator)
-                tmp
-                $ [ "consume",
-                    "--group",
-                    tmp </> "group",
-                    "--in-place",
-                    "--signer-key",
-                    tmp </> "removal.key",
-                    "-"
-                  ]
-            )
-            (Just msg)
+    mlsBracket [alice1] $ \wss -> void $ do
+      liftTest $ deleteUser (qUnqualified bob) !!! const 200 === statusCode
+      -- remove bob clients from the test state
+      State.modify $ \mls ->
+        mls
+          { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [bob1, bob2])
+          }
 
-  -- alice commits the external proposals
-  (commit', _) <- liftIO $ pendingProposalsCommit tmp creator "group"
-  events <-
-    postCommit
-      MessagingSetup
-        { commit = commit',
-          ..
-        }
-  liftIO $ events @?= []
+      for bobClients $ \(_, ref) -> do
+        [msg] <- WS.assertMatchN (5 # Second) wss $ \n ->
+          wsAssertBackendRemoveProposal bob qcnv ref n
+        consumeMessage1 alice1 msg
+
+    -- alice commits the external proposals
+    events <- createPendingProposalCommit alice1 >>= sendAndConsumeCommit
+    liftIO $ events @?= []
 
 testBackendRemoveProposalLocalConvRemoteUser :: TestM ()
 testBackendRemoveProposalLocalConvRemoteUser = withSystemTempDirectory "mls" $ \tmp -> do
@@ -1538,7 +1455,7 @@ testBackendRemoveProposalLocalConvRemoteUser = withSystemTempDirectory "mls" $ \
                 }
             )
 
-        for_ kprefs $ \kp ->
-          WS.assertMatch_ (5 # WS.Second) wsA $ \notification ->
-            void $
-              wsAssertBackendRemoveProposal (pUserId bob) conversation kp notification
+        void $
+          for_ kprefs $ \kp ->
+            WS.assertMatch (5 # WS.Second) wsA $
+              wsAssertBackendRemoveProposal (pUserId bob) conversation kp

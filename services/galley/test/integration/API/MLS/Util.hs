@@ -40,7 +40,7 @@ import Data.Default
 import Data.Domain
 import Data.Hex
 import Data.Id
-import Data.Json.Util
+import Data.Json.Util hiding ((#))
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Map as Map
@@ -1184,23 +1184,27 @@ consumeWelcome welcome = do
 consumeMessage :: HasCallStack => MessagePackage -> MLSTest ()
 consumeMessage msg = do
   mems <- State.gets mlsMembers
-  for_ (Set.delete (mpSender msg) mems) $ \qcid -> do
-    bd <- State.gets mlsBaseDir
-    g <- currentGroupFile qcid
-    gNew <- nextGroupFile qcid
-    void $
-      mlscli
-        qcid
-        [ "consume",
-          "--group",
-          g,
-          "--group-out",
-          gNew,
-          "--signer-key",
-          bd </> "removal.key",
-          "-"
-        ]
-        (Just (mpMessage msg))
+  for_ (Set.delete (mpSender msg) mems) $ \cid ->
+    consumeMessage1 cid (mpMessage msg)
+
+consumeMessage1 :: HasCallStack => ClientIdentity -> ByteString -> MLSTest ()
+consumeMessage1 cid msg = do
+  bd <- State.gets mlsBaseDir
+  g <- currentGroupFile cid
+  gNew <- nextGroupFile cid
+  void $
+    mlscli
+      cid
+      [ "consume",
+        "--group",
+        g,
+        "--group-out",
+        gNew,
+        "--signer-key",
+        bd </> "removal.key",
+        "-"
+      ]
+      (Just msg)
 
 -- | Send an MLS message and simulate clients receiving it. If the message is a
 -- commit, the 'sendAndConsumeCommit' function should be used instead.
