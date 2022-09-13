@@ -1013,10 +1013,21 @@ postQualifiedMembers zusr invitees conv = do
       . zType "access"
       . json invite
 
-postMembers :: UserId -> NonEmpty (Qualified UserId) -> Qualified ConvId -> TestM ResponseLBS
+postMembers ::
+  (MonadIO m, MonadHttp m, MonadReader TestSetup m) =>
+  UserId ->
+  NonEmpty (Qualified UserId) ->
+  Qualified ConvId ->
+  m ResponseLBS
 postMembers u us c = postMembersWithRole u us c roleNameWireAdmin
 
-postMembersWithRole :: UserId -> NonEmpty (Qualified UserId) -> Qualified ConvId -> RoleName -> TestM ResponseLBS
+postMembersWithRole ::
+  (MonadIO m, MonadHttp m, MonadReader TestSetup m) =>
+  UserId ->
+  NonEmpty (Qualified UserId) ->
+  Qualified ConvId ->
+  RoleName ->
+  m ResponseLBS
 postMembersWithRole u us c r = do
   g <- view tsGalley
   let i = InviteQualified us r

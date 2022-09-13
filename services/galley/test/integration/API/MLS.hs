@@ -494,17 +494,21 @@ testAddUsersToProteus = do
 
 testAddUsersDirectly :: TestM ()
 testAddUsersDirectly = do
-  setup@MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {createConv = CreateConv}
-  void $ postCommit setup
+  [alice, bob] <- createAndConnectUsers (replicate 2 Nothing)
   charlie <- randomQualifiedUser
-  e <-
-    responseJsonError
-      =<< postMembers
-        (qUnqualified (pUserId creator))
-        (pure charlie)
-        conversation
-      <!! const 403 === statusCode
-  liftIO $ Wai.label e @?= "invalid-op"
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    void $ uploadNewKeyPackage bob1
+    qcnv <- snd <$> setupMLSGroup alice1
+    createAddCommit alice1 [bob] >>= void . sendAndConsumeCommit
+    e <-
+      responseJsonError
+        =<< postMembers
+          (qUnqualified alice)
+          (pure charlie)
+          qcnv
+        <!! const 403 === statusCode
+    liftIO $ Wai.label e @?= "invalid-op"
 
 testRemoveUsersDirectly :: TestM ()
 testRemoveUsersDirectly = do
