@@ -293,8 +293,8 @@ data:
       {{- if .setDpopTokenExpirationTimeSecs }}
       setDpopTokenExpirationTimeSecs: {{ .setDpopTokenExpirationTimeSecs }}
       {{- end }}
-      {{- if .setPublicKeyBundle }}
-      setPublicKeyBundle: {{ .setPublicKeyBundle }}
+      {{- if $.Values.secrets.dpopSigKeyBundle }}
+      setPublicKeyBundle: /etc/wire/brig/secrets/dpop_sig_key_bundle.pem
       {{- end }}
     {{- end }}
   {{- end }}
