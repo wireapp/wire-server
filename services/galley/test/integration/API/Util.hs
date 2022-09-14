@@ -54,7 +54,7 @@ import qualified Data.Map.Strict as Map
 import Data.Misc
 import qualified Data.ProtoLens as Protolens
 import Data.ProtocolBuffers (encodeMessage)
-import Data.Qualified
+import Data.Qualified hiding (isLocal)
 import Data.Range
 import Data.Serialize (runPut)
 import qualified Data.Set as Set
@@ -1716,15 +1716,15 @@ assertRemoveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
   sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
   cuAction cu @?= SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure victim)
 
-assertLeaveUpdate :: (MonadIO m, HasCallStack) => FederatedRequest -> Qualified ConvId -> Qualified UserId -> [UserId] -> Qualified UserId -> m ()
-assertLeaveUpdate req qconvId remover alreadyPresentUsers victim = liftIO $ do
+assertLeaveUpdate :: (MonadIO m, HasCallStack) => FederatedRequest -> Qualified ConvId -> Qualified UserId -> [UserId] -> m ()
+assertLeaveUpdate req qconvId remover alreadyPresentUsers = liftIO $ do
   frRPC req @?= "on-conversation-updated"
   frOriginDomain req @?= qDomain qconvId
   let Just cu = decode (frBody req)
   cuOrigUserId cu @?= remover
   cuConvId cu @?= qUnqualified qconvId
   sort (cuAlreadyPresentUsers cu) @?= sort alreadyPresentUsers
-  cuAction cu @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure victim)
+  cuAction cu @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
 
 -------------------------------------------------------------------------------
 -- Helpers

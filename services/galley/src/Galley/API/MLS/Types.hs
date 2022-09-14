@@ -15,9 +15,29 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Galley.Cassandra (schemaVersion) where
+module Galley.API.MLS.Types
+  ( ClientMap,
+    mkClientMap,
+    cmAssocs,
+  )
+where
 
+import Data.Domain
+import Data.Id
+import qualified Data.Map as Map
+import Data.Qualified
+import qualified Data.Set as Set
 import Imports
+import Wire.API.MLS.KeyPackage
 
-schemaVersion :: Int32
-schemaVersion = 73
+type ClientMap = Map (Qualified UserId) (Set (ClientId, KeyPackageRef))
+
+mkClientMap :: [(Domain, UserId, ClientId, KeyPackageRef)] -> ClientMap
+mkClientMap = foldr addEntry mempty
+  where
+    addEntry :: (Domain, UserId, ClientId, KeyPackageRef) -> ClientMap -> ClientMap
+    addEntry (dom, usr, c, kpr) =
+      Map.insertWith (<>) (Qualified usr dom) (Set.singleton (c, kpr))
+
+cmAssocs :: ClientMap -> [(Qualified UserId, (ClientId, KeyPackageRef))]
+cmAssocs cm = Map.assocs cm >>= traverse toList

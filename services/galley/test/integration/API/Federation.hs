@@ -331,11 +331,11 @@ removeLocalUser = do
       cuRemove =
         FedGalley.ConversationUpdate
           { FedGalley.cuTime = addUTCTime (secondsToNominalDiffTime 5) now,
-            FedGalley.cuOrigUserId = qBob,
+            FedGalley.cuOrigUserId = qAlice,
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [alice],
             FedGalley.cuAction =
-              SomeConversationAction (sing @'ConversationLeaveTag) (pure qAlice)
+              SomeConversationAction (sing @'ConversationLeaveTag) ()
           }
 
   connectWithRemoteUser alice qBob
@@ -347,7 +347,7 @@ removeLocalUser = do
       void . WS.assertMatch (3 # Second) ws $
         wsAssertMemberJoinWithRole qconv qBob [qAlice] roleNameWireMember
       void . WS.assertMatch (3 # Second) ws $
-        wsAssertMembersLeave qconv qBob [qAlice]
+        wsAssertMembersLeave qconv qAlice [qAlice]
     afterRemoval <- listRemoteConvs remoteDomain alice
     liftIO $ do
       afterAddition @?= [qconv]
@@ -399,7 +399,7 @@ removeRemoteUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [alice, charlie, dee],
             FedGalley.cuAction =
-              SomeConversationAction (sing @'ConversationLeaveTag) (pure user)
+              SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure user)
           }
 
   WS.bracketRN c [alice, charlie, dee, flo] $ \[wsA, wsC, wsD, wsF] -> do
@@ -682,7 +682,7 @@ leaveConversationSuccess = do
 
   liftIO $ fedRequestsForDomain remoteDomain1 Galley federatedRequests @?= []
   let [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 Galley federatedRequests
-  assertLeaveUpdate remote2GalleyFederatedRequest qconvId qChad [qUnqualified qEve] qChad
+  assertLeaveUpdate remote2GalleyFederatedRequest qconvId qChad [qUnqualified qEve]
 
 leaveConversationNonExistent :: TestM ()
 leaveConversationNonExistent = do
@@ -1031,7 +1031,7 @@ onUserDeleted = do
       FedGalley.cuOrigUserId cDomainRPCReq @?= qUntagged bob
       FedGalley.cuConvId cDomainRPCReq @?= qUnqualified groupConvId
       FedGalley.cuAlreadyPresentUsers cDomainRPCReq @?= [qUnqualified carl]
-      FedGalley.cuAction cDomainRPCReq @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure $ qUntagged bob)
+      FedGalley.cuAction cDomainRPCReq @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
 
 -- | We test only ReceiptMode update here
 --

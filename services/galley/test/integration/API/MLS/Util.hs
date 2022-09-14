@@ -765,6 +765,15 @@ readGroupState fp = do
     kpr <- (unhexM . T.encodeUtf8 =<<) $ leafNode ^.. key "key_package_ref" . _String
     pure (identity, KeyPackageRef kpr)
 
+getClientsFromGroupState ::
+  ClientIdentity ->
+  Qualified UserId ->
+  MLSTest [(ClientIdentity, KeyPackageRef)]
+getClientsFromGroupState cid u = do
+  groupFile <- currentGroupFile cid
+  groupState <- liftIO $ readGroupState groupFile
+  pure $ filter (\(cid', _) -> cidQualifiedUser cid' == u) groupState
+
 clientKeyPair :: ClientIdentity -> MLSTest (ByteString, ByteString)
 clientKeyPair cid = do
   bd <- State.gets mlsBaseDir

@@ -40,6 +40,7 @@ import Galley.API.Action
 import Galley.API.Error
 import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Message
+import Galley.API.MLS.Removal
 import Galley.API.MLS.Welcome
 import qualified Galley.API.Mapping as Mapping
 import Galley.API.Message
@@ -227,8 +228,8 @@ onConversationUpdated requestingDomain cu = do
           [] -> pure (Nothing, []) -- If no users get added, its like no action was performed.
           (u : us) -> pure (Just (SomeConversationAction (sing @'ConversationJoinTag) (ConversationJoin (u :| us) role)), addedLocalUsers)
       SConversationLeaveTag -> do
-        let localUsers = getLocalUsers (tDomain loc) action
-        E.deleteMembersInRemoteConversation rconvId localUsers
+        let users = foldQualified loc (pure . tUnqualified) (const []) (F.cuOrigUserId cu)
+        E.deleteMembersInRemoteConversation rconvId users
         pure (Just sca, [])
       SConversationRemoveMembersTag -> do
         let localUsers = getLocalUsers (tDomain loc) action
@@ -291,13 +292,17 @@ addLocalUsersToRemoteConv remoteConvId qAdder localUsers = do
 leaveConversation ::
   Members
     '[ ConversationStore,
+       Error InternalError,
        Error InvalidInput,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input (Local ()),
        Input UTCTime,
-       MemberStore
+       MemberStore,
+       ProposalStore,
+       TinyLog
      ]
     r =>
   Domain ->
@@ -322,24 +327,23 @@ leaveConversation requestingDomain lc = do
               lcnv
               (qUntagged leaver)
               Nothing
-              (pure (qUntagged leaver))
+              ()
         pure (update, conv)
 
   case res of
     Left e -> pure $ F.LeaveConversationResponse (Left e)
     Right (_update, conv) -> do
-      let action = pure (qUntagged leaver)
-
       let remotes = filter ((== tDomain leaver) . tDomain) (rmId <$> Data.convRemoteMembers conv)
       let botsAndMembers = BotsAndMembers mempty (Set.fromList remotes) mempty
       _ <-
         notifyConversationAction
           SConversationLeaveTag
           (qUntagged leaver)
+          False
           Nothing
           (qualifyAs lcnv conv)
           botsAndMembers
-          action
+          ()
 
       pure $ F.LeaveConversationResponse (Right ())
 
@@ -457,17 +461,17 @@ onUserDeleted origDomain udcn = do
             -- The self conv cannot be on a remote backend.
             Public.SelfConv -> pure ()
             Public.RegularConv -> do
-              let action = pure untaggedDeletedUser
-                  botsAndMembers = convBotsAndMembers conv
-              mlsRemoveUser conv (qUntagged deletedUser)
+              let botsAndMembers = convBotsAndMembers conv
+              removeUser (qualifyAs lc conv) (qUntagged deletedUser)
               void $
                 notifyConversationAction
                   (sing @'ConversationLeaveTag)
                   untaggedDeletedUser
+                  False
                   Nothing
                   (qualifyAs lc conv)
                   botsAndMembers
-                  action
+                  ()
   pure EmptyResponse
 
 updateConversation ::
@@ -483,11 +487,14 @@ updateConversation ::
          FederatorAccess,
          Error InternalError,
          GundeckAccess,
+         Input Env,
          Input Opts,
          Input UTCTime,
          LegalHoldStore,
          MemberStore,
+         ProposalStore,
          TeamStore,
+         TinyLog,
          ConversationStore,
          Input (Local ())
        ]
@@ -563,6 +570,7 @@ sendMLSMessage ::
         FederatorAccess,
         GundeckAccess,
         Input (Local ()),
+        Input Env,
         Input Opts,
         Input UTCTime,
         LegalHoldStore,

@@ -1061,6 +1061,7 @@ deleteTeamConversation ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input UTCTime,
        TeamStore
      ]

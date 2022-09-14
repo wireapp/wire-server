@@ -78,7 +78,7 @@ protocolTag (ProtocolMLS _) = ProtocolMLSTag
 protocolValidAction :: Protocol -> ConversationActionTag -> Bool
 protocolValidAction ProtocolProteus _ = True
 protocolValidAction (ProtocolMLS _) ConversationJoinTag = False
-protocolValidAction (ProtocolMLS _) ConversationLeaveTag = False
+protocolValidAction (ProtocolMLS _) ConversationLeaveTag = True
 protocolValidAction (ProtocolMLS _) ConversationRemoveMembersTag = False
 protocolValidAction (ProtocolMLS _) ConversationDeleteTag = False
 protocolValidAction (ProtocolMLS _) _ = True
