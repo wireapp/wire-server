@@ -49,6 +49,7 @@ import Brig.Template (renderTextWithBranding)
 import Cassandra as C
 import Control.Lens (view)
 import Control.Monad.Catch (MonadMask)
+import Data.Bifunctor
 import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.List as C
 import Data.Id
@@ -328,15 +329,9 @@ mkInviteUrl team (InvitationCode c) = do
     replace x = x
 
     parseHttpsUrl :: Log.MonadLogger m => Text -> m (Maybe HttpsUrl)
-    parseHttpsUrl url = case parseURI laxURIParserOptions (encodeUtf8 url) of
-      (Left e) -> do
-        logError url e
-        pure Nothing
-      (Right s) -> case mkHttpsUrl s of
-        Left e -> do
-          logError url e
-          pure Nothing
-        (Right s') -> pure $ Just s'
+    parseHttpsUrl url = either (\e -> logError url e >> pure Nothing) (\s' -> pure $ Just s') $ do
+      uri <- first show $ parseURI laxURIParserOptions (encodeUtf8 url)
+      mkHttpsUrl uri
 
     logError :: (Log.MonadLogger m, Show e) => Text -> e -> m ()
     logError url e =
