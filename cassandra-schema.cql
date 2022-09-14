@@ -128,6 +128,7 @@ CREATE TABLE galley_test.team_features (
     app_lock_status int,
     conference_calling int,
     digital_signatures int,
+    expose_invitation_urls_to_team_admin int,
     file_sharing int,
     file_sharing_lock_status int,
     guest_links_lock_status int,
