@@ -90,18 +90,38 @@ instance ToSchema DPoPAccessTokenResponse where
         <*> datrExpiresIn .= field "expires_in" schema
 
 data DPoPTokenGenerationError
-  = BadProof
-  | BadDPoPHeader
-  | AlgNotSupported
-  | BadSignature
-  | BadQualifiedClientId
-  | BadNonce
-  | BadUri
-  | BadMethod
-  | JtiClaimMissing
-  | ChalClaimMissing
-  | BadIatClaim
-  | BadExpClaim
-  | InvalidClientId
-  | UnknownError
+  = -- | DPoP token has an invalid syntax
+    DpopSyntaxError
+  | -- | DPoP header 'typ' is not 'dpop+jwt'
+    DpopTypError
+  | -- | DPoP signature algorithm (alg) in JWT header is not a supported algorithm (ES256, ES384, Ed25519)
+    DpopUnsupportedAlgorithmError
+  | -- | DPoP signature does not correspond to the public key (jwk) in the JWT header
+    DpopInvalidSignatureError
+  | -- | [client_id] does not correspond to the (sub) claim expressed as URI
+    ClientIdMismatchError
+  | -- | [backend_nonce] does not correspond to the (nonce) claim in DPoP token (base64url encoded)
+    BackendNonceMismatchError
+  | -- | [uri] does not correspond to the (htu) claim in DPoP token
+    HtuMismatchError
+  | -- | method does not correspond to the (htm) claim in DPoP token
+    HtmMismatchError
+  | -- | (jti) claim is absent in DPoP token
+    MissingJtiError
+  | -- | (chal) claim is absent in DPoP token
+    MissingChallengeError
+  | -- | (iat) claim is absent in DPoP token
+    MissingIatError
+  | -- | (iat) claim in DPoP token is not earlier of now (with [max_skew_secs] leeway)
+    IatError
+  | -- | (exp) claim is absent in DPoP token
+    MissingExpError
+  | -- | (exp) claim in DPoP token is larger than supplied [max_expiration]
+    ExpMismatchError
+  | -- | (exp) claim in DPoP token is sooner than now (with [max_skew_secs] leeway)
+    ExpError
+  | -- | the client id has an invalid syntax
+    ClientIdSyntaxError
+  | -- | Error at FFI boundary, probably related to raw pointer
+    FfiError
   deriving (Eq, Show, Generic)

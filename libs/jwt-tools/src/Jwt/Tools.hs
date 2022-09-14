@@ -112,7 +112,7 @@ generateDpopToken dpopProof cid nonce uri method maxSkewSecs maxExpiration now b
   uidCStr <- toCStr $ ciUser cid
   cidCUShort <- case readHex @Word16 (cs $ client $ ciClient cid) of
     [(a, "")] -> pure a
-    _ -> throwE InvalidClientId
+    _ -> throwE ClientIdSyntaxError
   domainCStr <- toCStr $ ciDomain cid
   nonceCStr <- toCStr nonce
   uriCStr <- toCStr uri
@@ -135,7 +135,7 @@ generateDpopToken dpopProof cid nonce uri method maxSkewSecs maxExpiration now b
 
   let mkAccessToken response = do
         case response of
-          Nothing -> pure $ Left UnknownError
+          Nothing -> pure $ Left FfiError
           Just r -> do
             mErr <- getError r
             print mErr
@@ -147,26 +147,31 @@ generateDpopToken dpopProof cid nonce uri method maxSkewSecs maxExpiration now b
   ExceptT $ liftIO $ bracket before free mkAccessToken
   where
     toResult :: Maybe Word8 -> Maybe String -> Either DPoPTokenGenerationError DPoPAccessToken
-    toResult (Just err) _ = maybe (Left UnknownError) Left (mapError err)
-    toResult _ (Just token) = Right $ DPoPAccessToken $ cs token
-    toResult _ _ = Left UnknownError
-
-    mapError :: Word8 -> Maybe DPoPTokenGenerationError
-    mapError 0 = Nothing
-    mapError 1 = Just BadProof
-    mapError 2 = Just BadDPoPHeader
-    mapError 3 = Just AlgNotSupported
-    mapError 4 = Just BadSignature
-    mapError 5 = Just BadQualifiedClientId
-    mapError 6 = Just BadNonce
-    mapError 7 = Just BadUri
-    mapError 8 = Just BadMethod
-    mapError 9 = Just JtiClaimMissing
-    mapError 10 = Just ChalClaimMissing
-    mapError 11 = Just BadIatClaim
-    mapError 12 = Just BadExpClaim
-    mapError 13 = Just BadExpClaim
-    mapError _ = Just UnknownError
+    -- the only valid case is when the error=0 (meaning no error) and the token is not null
+    toResult Nothing (Just token) = Right $ DPoPAccessToken $ cs token
+    -- error=1 corresponds to an unknown error on FFI side
+    toResult (Just 1) _ = Left FfiError
+    -- error=2 corresponds to 'FfiError' on FFI side
+    toResult (Just 2) _ = Left FfiError
+    -- error=3 corresponds to 'ImplementationError' on FFI side
+    toResult (Just 3) _ = Left FfiError
+    toResult (Just 4) _ = Left DpopSyntaxError
+    toResult (Just 5) _ = Left DpopTypError
+    toResult (Just 6) _ = Left DpopUnsupportedAlgorithmError
+    toResult (Just 7) _ = Left DpopInvalidSignatureError
+    toResult (Just 8) _ = Left ClientIdMismatchError
+    toResult (Just 9) _ = Left BackendNonceMismatchError
+    toResult (Just 10) _ = Left HtuMismatchError
+    toResult (Just 11) _ = Left HtmMismatchError
+    toResult (Just 12) _ = Left MissingJtiError
+    toResult (Just 13) _ = Left MissingChallengeError
+    toResult (Just 14) _ = Left MissingIatError
+    toResult (Just 15) _ = Left IatError
+    toResult (Just 16) _ = Left MissingExpError
+    toResult (Just 17) _ = Left ExpMismatchError
+    toResult (Just 18) _ = Left ExpError
+    -- this should also not happen, but apparently something went wrong
+    toResult _ _ = Left FfiError
 
     toCStr :: forall a m. (ToByteString a, MonadIO m) => a -> m CString
     toCStr = liftIO . newCString . cs . toByteString'
