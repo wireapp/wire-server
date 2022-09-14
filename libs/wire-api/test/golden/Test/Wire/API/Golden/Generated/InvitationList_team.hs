@@ -19,6 +19,7 @@
 
 module Test.Wire.API.Golden.Generated.InvitationList_team where
 
+import Data.ByteString.Conversion (fromByteString')
 import Data.Id (Id (Id))
 import Data.Json.Util (readUTCTimeMillis)
 import qualified Data.UUID as UUID (fromString)
@@ -64,7 +65,7 @@ testObject_InvitationList_team_2 =
                       }
                   ),
               inInviteePhone = Just (Phone {fromPhone = "+851333011"}),
-              inInviteeUrl = Nothing
+              inInviteeUrl = fromByteString' "https://example.com/inv14"
             }
         ],
       ilHasMore = True
