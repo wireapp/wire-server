@@ -15,19 +15,35 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module V73_ExposeInvitationsToTeamAdmin
-  ( migration,
-  )
-where
+module V73_MemberClientTable where
 
 import Cassandra.Schema
 import Imports
 import Text.RawString.QQ
 
 migration :: Migration
-migration = Migration 73 "Add feature config for team feature exposing invitation URLs to team admins" $ do
-  schema'
-    [r| ALTER TABLE team_features ADD (
-          expose_invitation_urls_to_team_admin int
-        )
-     |]
+migration =
+  Migration 73 "Move mls_clients_keypackages to its own table" $ do
+    schema'
+      [r|
+        CREATE TABLE member_client (
+          conv uuid,
+          user_domain text,
+          user uuid,
+          client text,
+          key_package_ref blob,
+          PRIMARY KEY (conv, user_domain, user, client)
+        );
+      |]
+    schema'
+      [r|
+        ALTER TABLE member DROP (
+          mls_clients_keypackages
+        );
+      |]
+    schema'
+      [r|
+        ALTER TABLE member_remote_user DROP (
+          mls_clients_keypackages
+        );
+      |]

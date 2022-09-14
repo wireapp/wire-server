@@ -19,7 +19,6 @@
 
 module API.Federation where
 
-import API.MLS.Util
 import API.Util
 import Bilge hiding (head)
 import Bilge.Assert
@@ -27,7 +26,6 @@ import Control.Lens hiding ((#))
 import Data.Aeson (ToJSON (..))
 import qualified Data.Aeson as A
 import Data.ByteString.Conversion (toByteString')
-import Data.Default
 import Data.Domain
 import Data.Id (ConvId, Id (..), UserId, newClientId, randomId)
 import Data.Json.Util hiding ((#))
@@ -90,9 +88,7 @@ tests s =
       test s "POST /federation/on-message-sent : Receive a message from another backend" onMessageSent,
       test s "POST /federation/send-message : Post a message sent from another backend" sendMessage,
       test s "POST /federation/on-user-deleted-conversations : Remove deleted remote user from local conversations" onUserDeleted,
-      test s "POST /federation/update-conversation : Update local conversation by a remote admin " updateConversationByRemoteAdmin,
-      test s "POST /federation/mls-welcome : Post an MLS welcome message received from another backend" sendMLSWelcome,
-      test s "POST /federation/mls-welcome : Post an MLS welcome message (key package ref not found)" sendMLSWelcomeKeyPackageNotFound
+      test s "POST /federation/update-conversation : Update local conversation by a remote admin " updateConversationByRemoteAdmin
     ]
 
 getConversationsAllFound :: TestM ()
@@ -335,11 +331,11 @@ removeLocalUser = do
       cuRemove =
         FedGalley.ConversationUpdate
           { FedGalley.cuTime = addUTCTime (secondsToNominalDiffTime 5) now,
-            FedGalley.cuOrigUserId = qBob,
+            FedGalley.cuOrigUserId = qAlice,
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [alice],
             FedGalley.cuAction =
-              SomeConversationAction (sing @'ConversationLeaveTag) (pure qAlice)
+              SomeConversationAction (sing @'ConversationLeaveTag) ()
           }
 
   connectWithRemoteUser alice qBob
@@ -351,7 +347,7 @@ removeLocalUser = do
       void . WS.assertMatch (3 # Second) ws $
         wsAssertMemberJoinWithRole qconv qBob [qAlice] roleNameWireMember
       void . WS.assertMatch (3 # Second) ws $
-        wsAssertMembersLeave qconv qBob [qAlice]
+        wsAssertMembersLeave qconv qAlice [qAlice]
     afterRemoval <- listRemoteConvs remoteDomain alice
     liftIO $ do
       afterAddition @?= [qconv]
@@ -403,7 +399,7 @@ removeRemoteUser = do
             FedGalley.cuConvId = conv,
             FedGalley.cuAlreadyPresentUsers = [alice, charlie, dee],
             FedGalley.cuAction =
-              SomeConversationAction (sing @'ConversationLeaveTag) (pure user)
+              SomeConversationAction (sing @'ConversationRemoveMembersTag) (pure user)
           }
 
   WS.bracketRN c [alice, charlie, dee, flo] $ \[wsA, wsC, wsD, wsF] -> do
@@ -686,7 +682,7 @@ leaveConversationSuccess = do
 
   liftIO $ fedRequestsForDomain remoteDomain1 Galley federatedRequests @?= []
   let [remote2GalleyFederatedRequest] = fedRequestsForDomain remoteDomain2 Galley federatedRequests
-  assertLeaveUpdate remote2GalleyFederatedRequest qconvId qChad [qUnqualified qEve] qChad
+  assertLeaveUpdate remote2GalleyFederatedRequest qconvId qChad [qUnqualified qEve]
 
 leaveConversationNonExistent :: TestM ()
 leaveConversationNonExistent = do
@@ -1035,7 +1031,7 @@ onUserDeleted = do
       FedGalley.cuOrigUserId cDomainRPCReq @?= qUntagged bob
       FedGalley.cuConvId cDomainRPCReq @?= qUnqualified groupConvId
       FedGalley.cuAlreadyPresentUsers cDomainRPCReq @?= [qUnqualified carl]
-      FedGalley.cuAction cDomainRPCReq @?= SomeConversationAction (sing @'ConversationLeaveTag) (pure $ qUntagged bob)
+      FedGalley.cuAction cDomainRPCReq @?= SomeConversationAction (sing @'ConversationLeaveTag) ()
 
 -- | We test only ReceiptMode update here
 --
@@ -1133,55 +1129,6 @@ updateConversationByRemoteAdmin = do
       frRPC rpc @?= "on-conversation-updated"
       let convUpdate :: ConversationUpdate = fromRight (error $ "Could not parse ConversationUpdate from " <> show (frBody rpc)) $ A.eitherDecode (frBody rpc)
       pure (rpc, convUpdate)
-
-sendMLSWelcome :: TestM ()
-sendMLSWelcome = do
-  let aliceDomain = Domain "a.far-away.example.com"
-  -- Alice is from the originating domain and Bob is local, i.e., on the receiving domain
-  MessagingSetup {..} <- aliceInvitesBob (1, LocalUser) def {creatorOrigin = RemoteUser aliceDomain}
-  let bob = head users
-
-  fedGalleyClient <- view tsFedGalleyClient
-  cannon <- view tsCannon
-
-  WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
-    -- send welcome message
-    void $
-      runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
-        MLSWelcomeRequest
-          (Base64ByteString welcome)
-
-    -- check that the corresponding event is received
-    liftIO $ do
-      WS.assertMatch_ (5 # WS.Second) wsB $
-        wsAssertMLSWelcome (pUserId bob) welcome
-
-sendMLSWelcomeKeyPackageNotFound :: TestM ()
-sendMLSWelcomeKeyPackageNotFound = do
-  let aliceDomain = Domain "a.far-away.example.com"
-  -- Alice is from the originating domain and Bob is local, i.e., on the receiving domain
-  MessagingSetup {..} <-
-    aliceInvitesBob
-      (1, LocalUser)
-      def
-        { creatorOrigin = RemoteUser aliceDomain,
-          createClients = DontCreateClients -- no key package upload will happen
-        }
-  let bob = head users
-
-  fedGalleyClient <- view tsFedGalleyClient
-  cannon <- view tsCannon
-
-  WS.bracketR cannon (qUnqualified (pUserId bob)) $ \wsB -> do
-    -- send welcome message
-    void $
-      runFedClient @"mls-welcome" fedGalleyClient aliceDomain $
-        MLSWelcomeRequest
-          (Base64ByteString welcome)
-
-    liftIO $ do
-      -- check that no event is received
-      WS.assertNoEvent (1 # Second) [wsB]
 
 getConvAction :: Sing tag -> SomeConversationAction -> Maybe (ConversationAction tag)
 getConvAction tquery (SomeConversationAction tag action) =

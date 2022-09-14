@@ -53,7 +53,7 @@ import Wire.Arbitrary (Arbitrary (..))
 -- individual effects per conversation action. See 'HasConversationActionEffects'.
 type family ConversationAction (tag :: ConversationActionTag) :: * where
   ConversationAction 'ConversationJoinTag = ConversationJoin
-  ConversationAction 'ConversationLeaveTag = NonEmptyList.NonEmpty (Qualified UserId)
+  ConversationAction 'ConversationLeaveTag = ()
   ConversationAction 'ConversationMemberUpdateTag = ConversationMemberUpdate
   ConversationAction 'ConversationDeleteTag = ()
   ConversationAction 'ConversationRenameTag = ConversationRename
@@ -87,7 +87,7 @@ conversationActionSchema SConversationLeaveTag =
   objectWithDocModifier
     "ConversationLeave"
     (S.description ?~ "The action of some users leaving a conversation on their own")
-    $ field "users" (nonEmptyArray schema)
+    $ pure ()
 conversationActionSchema SConversationRemoveMembersTag =
   objectWithDocModifier
     "ConversationRemoveMembers"
@@ -151,7 +151,7 @@ conversationActionToEvent tag now quid qcnv action =
           let ConversationJoin newMembers role = action
            in EdMembersJoin $ SimpleMembers (map (`SimpleMember` role) (toList newMembers))
         SConversationLeaveTag ->
-          EdMembersLeave (QualifiedUserIdList (toList action))
+          EdMembersLeave (QualifiedUserIdList [quid])
         SConversationRemoveMembersTag ->
           EdMembersLeave (QualifiedUserIdList (toList action))
         SConversationMemberUpdateTag ->

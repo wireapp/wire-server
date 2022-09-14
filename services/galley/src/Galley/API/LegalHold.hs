@@ -48,11 +48,13 @@ import Galley.API.Error
 import Galley.API.Query (iterateConversations)
 import Galley.API.Update (removeMemberFromLocalConv)
 import Galley.API.Util
+import Galley.App
 import qualified Galley.Data.Conversation as Data
 import Galley.Effects
 import Galley.Effects.BrigAccess
 import Galley.Effects.FireAndForget
 import qualified Galley.Effects.LegalHoldStore as LegalHoldData
+import Galley.Effects.ProposalStore
 import qualified Galley.Effects.TeamFeatureStore as TeamFeatures
 import Galley.Effects.TeamMemberStore
 import Galley.Effects.TeamStore
@@ -187,30 +189,32 @@ removeSettingsInternalPaging ::
        BrigAccess,
        CodeStore,
        ConversationStore,
-       Error InternalError,
        Error AuthenticationError,
-       ErrorS OperationDenied,
-       ErrorS 'NotATeamMember,
+       Error InternalError,
        ErrorS ('ActionDenied 'RemoveConversationMember),
        ErrorS 'InvalidOperation,
-       ErrorS 'LegalHoldNotEnabled,
-       ErrorS 'LegalHoldDisableUnimplemented,
-       ErrorS 'LegalHoldServiceNotRegistered,
-       ErrorS 'UserLegalHoldIllegalOperation,
        ErrorS 'LegalHoldCouldNotBlockConnections,
+       ErrorS 'LegalHoldDisableUnimplemented,
+       ErrorS 'LegalHoldNotEnabled,
+       ErrorS 'LegalHoldServiceNotRegistered,
+       ErrorS 'NotATeamMember,
+       ErrorS OperationDenied,
+       ErrorS 'UserLegalHoldIllegalOperation,
        ExternalAccess,
        FederatorAccess,
        FireAndForget,
        GundeckAccess,
-       Input UTCTime,
+       Input Env,
        Input (Local ()),
+       Input UTCTime,
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
+       ProposalStore,
+       P.TinyLog,
        TeamFeatureStore db,
        TeamMemberStore InternalPaging,
        TeamStore,
-       P.TinyLog,
        WaiRoutes
      ]
     r =>
@@ -230,30 +234,32 @@ removeSettings ::
          BrigAccess,
          CodeStore,
          ConversationStore,
-         Error InternalError,
          Error AuthenticationError,
-         ErrorS 'NotATeamMember,
-         ErrorS OperationDenied,
+         Error InternalError,
          ErrorS ('ActionDenied 'RemoveConversationMember),
          ErrorS 'InvalidOperation,
-         ErrorS 'LegalHoldNotEnabled,
-         ErrorS 'LegalHoldDisableUnimplemented,
-         ErrorS 'LegalHoldServiceNotRegistered,
-         ErrorS 'UserLegalHoldIllegalOperation,
          ErrorS 'LegalHoldCouldNotBlockConnections,
+         ErrorS 'LegalHoldDisableUnimplemented,
+         ErrorS 'LegalHoldNotEnabled,
+         ErrorS 'LegalHoldServiceNotRegistered,
+         ErrorS 'NotATeamMember,
+         ErrorS OperationDenied,
+         ErrorS 'UserLegalHoldIllegalOperation,
          ExternalAccess,
          FederatorAccess,
          FireAndForget,
          GundeckAccess,
-         Input UTCTime,
+         Input Env,
          Input (Local ()),
+         Input UTCTime,
          LegalHoldStore,
          ListItems LegacyPaging ConvId,
          MemberStore,
+         ProposalStore,
+         P.TinyLog,
          TeamFeatureStore db,
          TeamMemberStore p,
-         TeamStore,
-         P.TinyLog
+         TeamStore
        ]
       r
   ) =>
@@ -305,11 +311,13 @@ removeSettings' ::
          GundeckAccess,
          Input UTCTime,
          Input (Local ()),
+         Input Env,
          LegalHoldStore,
          ListItems LegacyPaging ConvId,
          MemberStore,
          TeamMemberStore p,
          TeamStore,
+         ProposalStore,
          P.TinyLog
        ]
       r
@@ -386,18 +394,20 @@ grantConsent ::
        Error InternalError,
        ErrorS ('ActionDenied 'RemoveConversationMember),
        ErrorS 'InvalidOperation,
+       ErrorS 'LegalHoldCouldNotBlockConnections,
        ErrorS 'TeamMemberNotFound,
        ErrorS 'UserLegalHoldIllegalOperation,
-       ErrorS 'LegalHoldCouldNotBlockConnections,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input UTCTime,
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
-       TeamStore,
-       P.TinyLog
+       ProposalStore,
+       P.TinyLog,
+       TeamStore
      ]
     r =>
   Local UserId ->
@@ -422,27 +432,29 @@ requestDevice ::
        ConversationStore,
        Error InternalError,
        ErrorS ('ActionDenied 'RemoveConversationMember),
-       ErrorS 'NotATeamMember,
-       ErrorS OperationDenied,
-       ErrorS 'TeamMemberNotFound,
+       ErrorS 'LegalHoldCouldNotBlockConnections,
        ErrorS 'LegalHoldNotEnabled,
-       ErrorS 'UserLegalHoldAlreadyEnabled,
-       ErrorS 'NoUserLegalHoldConsent,
        ErrorS 'LegalHoldServiceBadResponse,
        ErrorS 'LegalHoldServiceNotRegistered,
-       ErrorS 'LegalHoldCouldNotBlockConnections,
+       ErrorS 'NotATeamMember,
+       ErrorS 'NoUserLegalHoldConsent,
+       ErrorS OperationDenied,
+       ErrorS 'TeamMemberNotFound,
+       ErrorS 'UserLegalHoldAlreadyEnabled,
        ErrorS 'UserLegalHoldIllegalOperation,
-       Input (Local ()),
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input (Local ()),
+       Input Env,
        Input UTCTime,
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
+       ProposalStore,
+       P.TinyLog,
        TeamFeatureStore db,
-       TeamStore,
-       P.TinyLog
+       TeamStore
      ]
     r =>
   TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
@@ -498,29 +510,31 @@ approveDevice ::
   Members
     '[ BrigAccess,
        ConversationStore,
-       Error InternalError,
        Error AuthenticationError,
+       Error InternalError,
        ErrorS 'AccessDenied,
        ErrorS ('ActionDenied 'RemoveConversationMember),
-       ErrorS 'NotATeamMember,
+       ErrorS 'LegalHoldCouldNotBlockConnections,
        ErrorS 'LegalHoldNotEnabled,
-       ErrorS 'UserLegalHoldNotPending,
-       ErrorS 'NoLegalHoldDeviceAllocated,
        ErrorS 'LegalHoldServiceNotRegistered,
+       ErrorS 'NoLegalHoldDeviceAllocated,
+       ErrorS 'NotATeamMember,
        ErrorS 'UserLegalHoldAlreadyEnabled,
        ErrorS 'UserLegalHoldIllegalOperation,
-       ErrorS 'LegalHoldCouldNotBlockConnections,
-       Input (Local ()),
+       ErrorS 'UserLegalHoldNotPending,
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input (Local ()),
+       Input Env,
        Input UTCTime,
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
+       ProposalStore,
+       P.TinyLog,
        TeamFeatureStore db,
-       TeamStore,
-       P.TinyLog
+       TeamStore
      ]
     r =>
   TeamFeatures.FeaturePersistentConstraint db Public.LegalholdConfig =>
@@ -577,24 +591,26 @@ disableForUser ::
   Members
     '[ BrigAccess,
        ConversationStore,
-       Error InternalError,
        Error AuthenticationError,
+       Error InternalError,
        ErrorS ('ActionDenied 'RemoveConversationMember),
+       ErrorS 'LegalHoldCouldNotBlockConnections,
+       ErrorS 'LegalHoldServiceNotRegistered,
        ErrorS 'NotATeamMember,
        ErrorS OperationDenied,
-       ErrorS 'LegalHoldServiceNotRegistered,
        ErrorS 'UserLegalHoldIllegalOperation,
-       ErrorS 'LegalHoldCouldNotBlockConnections,
-       Input (Local ()),
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
+       Input (Local ()),
        Input UTCTime,
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
-       TeamStore,
-       P.TinyLog
+       ProposalStore,
+       P.TinyLog,
+       TeamStore
      ]
     r =>
   Local UserId ->
@@ -640,11 +656,13 @@ changeLegalholdStatus ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input UTCTime,
        LegalHoldStore,
        ListItems LegacyPaging ConvId,
        MemberStore,
        TeamStore,
+       ProposalStore,
        P.TinyLog
      ]
     r =>
@@ -755,9 +773,12 @@ handleGroupConvPolicyConflicts ::
        ExternalAccess,
        FederatorAccess,
        GundeckAccess,
+       Input Env,
        Input UTCTime,
        ListItems LegacyPaging ConvId,
        MemberStore,
+       ProposalStore,
+       P.TinyLog,
        TeamStore
      ]
     r =>

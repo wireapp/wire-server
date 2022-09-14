@@ -169,7 +169,6 @@ CREATE TABLE galley_test.member (
     conversation_role text,
     hidden boolean,
     hidden_ref text,
-    mls_clients_keypackages set<frozen<tuple<text, blob>>>,
     otr_archived boolean,
     otr_archived_ref text,
     otr_muted boolean,
@@ -263,7 +262,6 @@ CREATE TABLE galley_test.member_remote_user (
     user_remote_domain text,
     user_remote_id uuid,
     conversation_role text,
-    mls_clients_keypackages set<frozen<tuple<text, blob>>>,
     PRIMARY KEY (conv, user_remote_domain, user_remote_id)
 ) WITH CLUSTERING ORDER BY (user_remote_domain ASC, user_remote_id ASC)
     AND bloom_filter_fp_chance = 0.1
@@ -366,15 +364,18 @@ CREATE TABLE galley_test.group_id_conv_id (
     AND read_repair_chance = 0.0
     AND speculative_retry = '99PERCENTILE';
 
-CREATE TABLE galley_test.user (
-    user uuid,
+CREATE TABLE galley_test.member_client (
     conv uuid,
-    PRIMARY KEY (user, conv)
-) WITH CLUSTERING ORDER BY (conv ASC)
-    AND bloom_filter_fp_chance = 0.1
+    user_domain text,
+    user uuid,
+    client text,
+    key_package_ref blob,
+    PRIMARY KEY (conv, user_domain, user, client)
+) WITH CLUSTERING ORDER BY (user_domain ASC, user ASC, client ASC)
+    AND bloom_filter_fp_chance = 0.01
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
-    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
     AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1
@@ -555,6 +556,26 @@ CREATE TABLE galley_test.mls_proposal_refs (
     AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
     AND comment = ''
     AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
+    AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+    AND crc_check_chance = 1.0
+    AND dclocal_read_repair_chance = 0.1
+    AND default_time_to_live = 0
+    AND gc_grace_seconds = 864000
+    AND max_index_interval = 2048
+    AND memtable_flush_period_in_ms = 0
+    AND min_index_interval = 128
+    AND read_repair_chance = 0.0
+    AND speculative_retry = '99PERCENTILE';
+
+CREATE TABLE galley_test.user (
+    user uuid,
+    conv uuid,
+    PRIMARY KEY (user, conv)
+) WITH CLUSTERING ORDER BY (conv ASC)
+    AND bloom_filter_fp_chance = 0.1
+    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
+    AND comment = ''
+    AND compaction = {'class': 'org.apache.cassandra.db.compaction.LeveledCompactionStrategy'}
     AND compression = {'chunk_length_in_kb': '64', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
     AND crc_check_chance = 1.0
     AND dclocal_read_repair_chance = 0.1

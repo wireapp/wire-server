@@ -1,0 +1,1 @@
+Leaving an MLS conversation is now possible using the regular endpoint `DELETE /conversations/{cnv_domain}/{cnv}/members/{usr_domain}/{usr}`. When a user leaves, the backend sends external remove proposals for all their clients in the corresponding MLS group.
