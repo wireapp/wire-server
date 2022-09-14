@@ -53,14 +53,17 @@ import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.List as C
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
+import Data.Misc
 import Data.Range
 import Data.Text.Ascii (encodeBase64Url, toText)
+import Data.Text.Encoding
 import Data.Text.Lazy (toStrict)
 import Data.Time.Clock
 import Data.UUID.V4
 import Imports
 import OpenSSL.Random (randBytes)
 import qualified System.Logger.Class as Log
+import URI.ByteString
 import UnliftIO.Async (pooledMapConcurrentlyN_)
 import Wire.API.Team.Invitation
 import Wire.API.Team.Role
@@ -106,7 +109,7 @@ insertInvitation ::
 insertInvitation iid t role (toUTCTimeMillis -> now) minviter email inviteeName phone timeout = do
   code <- liftIO mkInvitationCode
   showUrl <- getTeamExposeInvitationURLsToTeamAdmin t
-  url <- if showUrl then Just <$> mkInviteUrl t code else pure Nothing
+  url <- if showUrl then mkInviteUrl t code else pure Nothing
   let inv = Invitation t role iid now minviter email inviteeName phone url
   retry x5 . batch $ do
     setType BatchLogged
@@ -288,7 +291,8 @@ countInvitations t =
 -- | brig used to not store the role, so for migration we allow this to be empty and fill in the
 -- default here.
 toInvitation ::
-  ( MonadReader Env m
+  ( MonadReader Env m,
+    Log.MonadLogger m
   ) =>
   Bool ->
   ( TeamId,
@@ -303,21 +307,41 @@ toInvitation ::
   ) ->
   m Invitation
 toInvitation showUrl (t, r, i, tm, minviter, e, inviteeName, p, code) = do
-  url <- if showUrl then Just <$> mkInviteUrl t code else pure Nothing
+  url <- if showUrl then mkInviteUrl t code else pure Nothing
   pure $ Invitation t (fromMaybe defaultRole r) i tm minviter e inviteeName p url
 
 mkInviteUrl ::
-  ( MonadReader Env m
+  ( MonadReader Env m,
+    Log.MonadLogger m
   ) =>
   TeamId ->
   InvitationCode ->
-  m Text
+  m (Maybe HttpsUrl)
 mkInviteUrl team (InvitationCode c) = do
   template <- invitationEmailUrl . invitationEmail . snd <$> teamTemplates Nothing
   branding <- view App.templateBranding
   let url = toStrict $ renderTextWithBranding template replace branding
-  pure url
+  parseHttpsUrl url
   where
     replace "team" = idToText team
     replace "code" = toText c
     replace x = x
+
+    parseHttpsUrl :: Log.MonadLogger m => Text -> m (Maybe HttpsUrl)
+    parseHttpsUrl url = case parseURI laxURIParserOptions (encodeUtf8 url) of
+      (Left e) -> do
+        logError url e
+        pure Nothing
+      (Right s) -> case mkHttpsUrl s of
+        Left e -> do
+          logError url e
+          pure Nothing
+        (Right s') -> pure $ Just s'
+
+    logError :: (Log.MonadLogger m, Show e) => Text -> e -> m ()
+    logError url e =
+      Log.err $
+        Log.msg
+          (Log.val "Unable to create invitation url. Please check configuration.")
+          . Log.field "url" url
+          . Log.field "error" (show e)
