@@ -26,7 +26,7 @@ import Brig.Types.Connection
 import Brig.Types.Intra (UserAccount (..))
 import Control.Concurrent.Async
 import Control.Exception (throw)
-import Control.Lens hiding (from, to, (#), (.=))
+import Control.Lens hiding (from, to, uncons, (#), (.=))
 import Control.Monad.Catch (MonadCatch, MonadMask)
 import Control.Monad.Codensity (lowerCodensity)
 import Control.Monad.Except (ExceptT, runExceptT)
@@ -1013,10 +1013,21 @@ postQualifiedMembers zusr invitees conv = do
       . zType "access"
       . json invite
 
-postMembers :: UserId -> NonEmpty (Qualified UserId) -> Qualified ConvId -> TestM ResponseLBS
+postMembers ::
+  (MonadIO m, MonadHttp m, MonadReader TestSetup m) =>
+  UserId ->
+  NonEmpty (Qualified UserId) ->
+  Qualified ConvId ->
+  m ResponseLBS
 postMembers u us c = postMembersWithRole u us c roleNameWireAdmin
 
-postMembersWithRole :: UserId -> NonEmpty (Qualified UserId) -> Qualified ConvId -> RoleName -> TestM ResponseLBS
+postMembersWithRole ::
+  (MonadIO m, MonadHttp m, MonadReader TestSetup m) =>
+  UserId ->
+  NonEmpty (Qualified UserId) ->
+  Qualified ConvId ->
+  RoleName ->
+  m ResponseLBS
 postMembersWithRole u us c r = do
   g <- view tsGalley
   let i = InviteQualified us r
@@ -2312,20 +2323,23 @@ postSSOUser name hasEmail ssoid teamid = do
 defCookieLabel :: CookieLabel
 defCookieLabel = CookieLabel "auth"
 
-withSettingsOverrides :: (Opts.Opts -> Opts.Opts) -> TestM a -> TestM a
-withSettingsOverrides f action = do
-  ts :: TestSetup <- ask
-  let opts = f (ts ^. tsGConf)
-  liftIO . lowerCodensity $ do
-    (galleyApp, _env) <- Run.mkApp opts
-    port' <- withMockServer galleyApp
-    liftIO $
-      runReaderT
-        (runTestM action)
-        ( ts
-            & tsGalley .~ Bilge.host "127.0.0.1" . Bilge.port port'
-            & tsFedGalleyClient .~ FedClient (ts ^. tsManager) (Endpoint "127.0.0.1" port')
-        )
+class HasSettingsOverrides m where
+  withSettingsOverrides :: (Opts.Opts -> Opts.Opts) -> m a -> m a
+
+instance HasSettingsOverrides TestM where
+  withSettingsOverrides f action = do
+    ts :: TestSetup <- ask
+    let opts = f (ts ^. tsGConf)
+    liftIO . lowerCodensity $ do
+      (galleyApp, _env) <- Run.mkApp opts
+      port' <- withMockServer galleyApp
+      liftIO $
+        runReaderT
+          (runTestM action)
+          ( ts
+              & tsGalley .~ Bilge.host "127.0.0.1" . Bilge.port port'
+              & tsFedGalleyClient .~ FedClient (ts ^. tsManager) (Endpoint "127.0.0.1" port')
+          )
 
 waitForMemberDeletion :: UserId -> TeamId -> UserId -> TestM ()
 waitForMemberDeletion zusr tid uid = do
@@ -2470,9 +2484,10 @@ withTempMockFederator ::
 withTempMockFederator resp = withTempMockFederator' $ pure . encode . resp
 
 withTempMockFederator' ::
+  (MonadIO m, MonadMask m, HasSettingsOverrides m) =>
   (FederatedRequest -> IO LByteString) ->
-  TestM b ->
-  TestM (b, [FederatedRequest])
+  m b ->
+  m (b, [FederatedRequest])
 withTempMockFederator' resp action = do
   Mock.withTempMockFederator
     [("Content-Type", "application/json")]
@@ -2792,10 +2807,60 @@ wsAssertBackendRemoveProposal fromUser convId kpref n = do
       case rmValue rp of
         RemoveProposal kpRefRemove ->
           kpRefRemove @?= kpref
-        otherProp -> error ("Exepected RemoveProposal but got " <> show otherProp)
-    otherPayload -> error ("Exepected ProposalMessage but got " <> show otherPayload)
+        otherProp -> assertFailure $ "Expected RemoveProposal but got " <> show otherProp
+    otherPayload -> assertFailure $ "Expected ProposalMessage but got " <> show otherPayload
   pure bs
   where
     getMLSMessageData :: Conv.EventData -> ByteString
     getMLSMessageData (EdMLSMessage bs) = bs
     getMLSMessageData d = error ("Excepected EdMLSMessage, but got " <> show d)
+
+wsAssertAddProposal ::
+  HasCallStack =>
+  Qualified UserId ->
+  Qualified ConvId ->
+  Notification ->
+  IO ByteString
+wsAssertAddProposal fromUser convId n = do
+  let e = List1.head (WS.unpackPayload n)
+  ntfTransient n @?= False
+  evtConv e @?= convId
+  evtType e @?= MLSMessageAdd
+  evtFrom e @?= fromUser
+  let bs = getMLSMessageData (evtData e)
+  let msg = fromRight (error "Failed to parse Message 'MLSPlaintext") $ decodeMLS' bs
+  let tbs = rmValue . msgTBS $ msg
+  tbsMsgSender tbs @?= NewMemberSender
+  case tbsMsgPayload tbs of
+    ProposalMessage rp ->
+      case rmValue rp of
+        AddProposal _ -> pure ()
+        otherProp ->
+          assertFailure $
+            "Expected AddProposal but got " <> show otherProp
+    otherPayload ->
+      assertFailure $
+        "Expected ProposalMessage but got " <> show otherPayload
+  pure bs
+  where
+    getMLSMessageData :: Conv.EventData -> ByteString
+    getMLSMessageData (EdMLSMessage bs) = bs
+    getMLSMessageData d = error ("Excepected EdMLSMessage, but got " <> show d)
+
+createAndConnectUsers :: [Maybe Text] -> TestM [Qualified UserId]
+createAndConnectUsers domains = do
+  localDomain <- viewFederationDomain
+  users <- for domains $ maybe randomQualifiedUser (randomQualifiedId . Domain)
+  let userPairs = do
+        t <- tails users
+        (a, others) <- maybeToList (uncons t)
+        b <- others
+        pure (a, b)
+  for_ userPairs $ \(a, b) ->
+    case (qDomain a == localDomain, qDomain b == localDomain) of
+      (True, True) ->
+        connectUsers (qUnqualified a) (pure (qUnqualified b))
+      (True, False) -> connectWithRemoteUser (qUnqualified a) b
+      (False, True) -> connectWithRemoteUser (qUnqualified b) a
+      (False, False) -> pure ()
+  pure users

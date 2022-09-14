@@ -22,6 +22,7 @@ module TestHelpers where
 import API.SQS
 import Control.Lens (view)
 import Data.Domain (Domain)
+import Data.Qualified
 import qualified Galley.Aws as Aws
 import Galley.Options (optSettings, setFederationDomain)
 import Imports
@@ -54,3 +55,8 @@ test s n h = testCase n runTest
 
 viewFederationDomain :: TestM Domain
 viewFederationDomain = view (tsGConf . optSettings . setFederationDomain)
+
+qualifyLocal :: a -> TestM (Local a)
+qualifyLocal x = do
+  domain <- viewFederationDomain
+  pure $ toLocalUnsafe domain x

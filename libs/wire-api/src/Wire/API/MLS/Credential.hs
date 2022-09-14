@@ -139,11 +139,14 @@ data ClientIdentity = ClientIdentity
     ciUser :: UserId,
     ciClient :: ClientId
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Ord, Show, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientIdentity
 
 cidQualifiedClient :: ClientIdentity -> Qualified (UserId, ClientId)
 cidQualifiedClient cid = Qualified (ciUser cid, ciClient cid) (ciDomain cid)
+
+cidQualifiedUser :: ClientIdentity -> Qualified UserId
+cidQualifiedUser = fmap fst . cidQualifiedClient
 
 instance ToSchema ClientIdentity where
   schema =
