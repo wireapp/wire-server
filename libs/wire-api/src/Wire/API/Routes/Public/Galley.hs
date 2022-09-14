@@ -41,6 +41,7 @@ import Wire.API.Error
 import qualified Wire.API.Error.Brig as BrigError
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
+import Wire.API.MLS.CommitBundle
 import Wire.API.MLS.Keys
 import Wire.API.MLS.Message
 import Wire.API.MLS.Serialisation
@@ -1381,6 +1382,32 @@ type MLSMessagingAPI =
                :> ZConn
                :> ReqBody '[MLS] (RawMLS SomeMessage)
                :> MultiVerb1 'POST '[JSON] (Respond 201 "Message sent" MLSMessageSendingStatus)
+           )
+    :<|> Named
+           "mls-commit-bundle"
+           ( Summary "Post a MLS CommitBundle"
+               :> From 'V2
+               :> CanThrow 'ConvAccessDenied
+               :> CanThrow 'ConvMemberNotFound
+               :> CanThrow 'ConvNotFound
+               :> CanThrow 'LegalHoldNotEnabled
+               :> CanThrow 'MLSClientMismatch
+               :> CanThrow 'MLSCommitMissingReferences
+               :> CanThrow 'MLSKeyPackageRefNotFound
+               :> CanThrow 'MLSProposalNotFound
+               :> CanThrow 'MLSProtocolErrorTag
+               :> CanThrow 'MLSSelfRemovalNotAllowed
+               :> CanThrow 'MLSStaleMessage
+               :> CanThrow 'MLSUnsupportedMessage
+               :> CanThrow 'MLSUnsupportedProposal
+               :> CanThrow 'MLSClientSenderUserMismatch
+               :> CanThrow 'MLSGroupConversationMismatch
+               :> CanThrow 'MissingLegalholdConsent
+               :> CanThrow MLSProposalFailure
+               :> "commit-bundle"
+               :> ZConn
+               :> ReqBody '[MLS] CommitBundle
+               :> MultiVerb1 'POST '[JSON] (Respond 201 "Commit accepted and forwarded" MLSMessageSendingStatus)
            )
     :<|> Named
            "mls-public-keys"
