@@ -17,14 +17,41 @@
 
 module Wire.API.MLS.PublicGroupState where
 
+import Data.Binary.Get (label)
 import Imports
-import Test.QuickCheck
+import Wire.API.MLS.CipherSuite
+import Wire.API.MLS.Epoch
+import Wire.API.MLS.Extension
+import Wire.API.MLS.Group
+import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
-import Wire.Arbitrary
 
-newtype PublicGroupState = PublicGroupState {unPublicGroupState :: ByteString}
+data PublicGroupState = PublicGroupState
+  { pgsVersion :: ProtocolVersion,
+    pgsCipherSuite :: CipherSuite,
+    pgsGroupId :: GroupId,
+    pgsEpoch :: Epoch,
+    pgsTreeHash :: ByteString,
+    pgsInterimTranscriptHash :: ByteString,
+    pgsGroupContextExtensions :: ByteString,
+    pgsOtherExtensions :: ByteString,
+    pgsExternalPub :: ByteString,
+    pgsSinger :: KeyPackageRef,
+    pgsSignature :: ByteString
+  }
   deriving stock (Eq, Show, Generic)
-  deriving (Arbitrary) via GenericUniform PublicGroupState
 
 instance ParseMLS PublicGroupState where
-  parseMLS = PublicGroupState <$> parseMLSBytes @Word16
+  parseMLS =
+    PublicGroupState
+      <$> label "pgsVersion" parseMLS
+      <*> label "pgsCipherSuite" parseMLS
+      <*> label "pgsGroupId" parseMLS
+      <*> label "pgsEpoch" parseMLS
+      <*> label "pgsTreeHash" (parseMLSBytes @Word8)
+      <*> label "pgsInterimTranscriptHash" (parseMLSBytes @Word8)
+      <*> label "pgsGroupContextExtensions" (parseMLSBytes @Word32)
+      <*> label "pgsOtherExtensions" (parseMLSBytes @Word32)
+      <*> label "pgsExternalPub" (parseMLSBytes @Word16)
+      <*> label "pgsSinger" parseMLS
+      <*> label "pgsSignature" (parseMLSBytes @Word16)
