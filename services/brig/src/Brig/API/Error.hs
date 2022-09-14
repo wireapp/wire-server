@@ -182,6 +182,8 @@ clientDataError (ClientReAuthError e) = reauthError e
 clientDataError ClientMissingAuth = StdError (errorToWai @'E.MissingAuth)
 clientDataError MalformedPrekeys = StdError (errorToWai @'E.MalformedPrekeys)
 clientDataError MLSPublicKeyDuplicate = StdError (errorToWai @'E.MLSDuplicatePublicKey)
+clientDataError KeyPackageDecodingError = StdError (errorToWai @'E.KeyPackageDecoding)
+clientDataError InvalidKeyPackageRef = StdError (errorToWai @'E.InvalidKeyPackageRef)
 
 deleteUserError :: DeleteUserError -> Error
 deleteUserError DeleteUserInvalid = StdError (errorToWai @'E.InvalidUser)

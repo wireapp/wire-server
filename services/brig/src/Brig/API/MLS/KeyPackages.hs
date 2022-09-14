@@ -42,6 +42,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Serialisation
 import Wire.API.Team.LegalHold
 import Wire.API.User.Client
 
@@ -109,12 +110,22 @@ claimRemoteKeyPackages lusr target = do
               }
 
   -- set up mappings for all claimed key packages
-  wrapClientE $
-    for_ (kpbEntries bundle) $ \e ->
+  for_ (kpbEntries bundle) $ \e -> do
+    let cid = mkClientIdentity (kpbeUser e) (kpbeClient e)
+    kpRaw <- case decodeMLS' (kpData (kpbeKeyPackage e)) of
+      Left _ -> throwE (ClientDataError KeyPackageDecodingError)
+      Right v -> pure v
+    (refVal, _) <- mapErrors $ validateKeyPackage cid kpRaw
+    unless (refVal == kpbeRef e)
+      . throwE
+      . ClientDataError
+      $ InvalidKeyPackageRef
+    wrapClientE $
       Data.mapKeyPackageRef (kpbeRef e) (kpbeUser e) (kpbeClient e)
 
   pure bundle
   where
+    mapErrors = undefined
     handleFailure :: Monad m => Maybe x -> ExceptT ClientError m x
     handleFailure = maybe (throwE (ClientUserNotFound (tUnqualified target))) pure
 
