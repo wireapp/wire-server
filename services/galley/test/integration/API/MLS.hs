@@ -83,10 +83,7 @@ tests s =
           test s "local welcome (client with no public key)" testWelcomeNoKey,
           test s "remote welcome" testRemoteWelcome,
           test s "post a remote MLS welcome message" sendRemoteMLSWelcome,
-          test
-            s
-            "post a remote MLS welcome message (key package ref not found)"
-            sendRemoteMLSWelcomeKPNotFound
+          test s "post a remote MLS welcome message (key package ref not found)" sendRemoteMLSWelcomeKPNotFound
         ],
       testGroup
         "Creation"
@@ -151,14 +148,8 @@ tests s =
         "Backend-side External Remove Proposals"
         [ test s "local conversation, local user deleted" testBackendRemoveProposalLocalConvLocalUser,
           test s "local conversation, remote user deleted" testBackendRemoveProposalLocalConvRemoteUser,
-          test
-            s
-            "local conversation, creator leaving"
-            testBackendRemoveProposalLocalConvLocalLeaverCreator,
-          test
-            s
-            "local conversation, local committer leaving"
-            testBackendRemoveProposalLocalConvLocalLeaverCommitter,
+          test s "local conversation, creator leaving" testBackendRemoveProposalLocalConvLocalLeaverCreator,
+          test s "local conversation, local committer leaving" testBackendRemoveProposalLocalConvLocalLeaverCommitter,
           test s "local conversation, remote user leaving" testBackendRemoveProposalLocalConvRemoteLeaver,
           test s "local conversation, local client deleted" testBackendRemoveProposalLocalConvLocalClient,
           test s "local conversation, remote client deleted" testBackendRemoveProposalLocalConvRemoteClient
@@ -752,6 +743,7 @@ testRemoteAppMessage = do
           "on-conversation-updated" -> pure (Aeson.encode ())
           "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
           "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
+          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
           "get-mls-clients" ->
             pure
               . Aeson.encode
@@ -1429,6 +1421,7 @@ testBackendRemoveProposalLocalConvRemoteUser = do
           "on-conversation-updated" -> pure (Aeson.encode ())
           "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
           "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
+          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
           "get-mls-clients" ->
             pure
               . Aeson.encode
@@ -1605,6 +1598,7 @@ testBackendRemoveProposalLocalConvRemoteLeaver = do
           "on-conversation-updated" -> pure (Aeson.encode ())
           "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
           "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
+          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
           "get-mls-clients" ->
             pure
               . Aeson.encode
@@ -1632,11 +1626,6 @@ testBackendRemoveProposalLocalConvRemoteLeaver = do
         for_ bobClients $ \(_, ref) ->
           WS.assertMatch_ (5 # WS.Second) wsA $
             wsAssertBackendRemoveProposal bob qcnv ref
-
--- for_ kprefs $ \kp ->
---   WS.assertMatch_ (5 # WS.Second) wsA $ \notification ->
---     void $
---       wsAssertBackendRemoveProposal (pUserId bob) conversation kp notification
 
 testBackendRemoveProposalLocalConvLocalClient :: TestM ()
 testBackendRemoveProposalLocalConvLocalClient = do
@@ -1684,6 +1673,8 @@ testBackendRemoveProposalLocalConvRemoteClient = do
     let mock req = case frRPC req of
           "on-conversation-updated" -> pure (Aeson.encode ())
           "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+          "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
           "get-mls-clients" ->
             pure
               . Aeson.encode
