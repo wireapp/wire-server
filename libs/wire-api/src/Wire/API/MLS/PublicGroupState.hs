@@ -26,32 +26,44 @@ import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 
-data PublicGroupState = PublicGroupState
+data PublicGroupStateTBS = PublicGroupStateTBS
   { pgsVersion :: ProtocolVersion,
     pgsCipherSuite :: CipherSuite,
     pgsGroupId :: GroupId,
     pgsEpoch :: Epoch,
     pgsTreeHash :: ByteString,
     pgsInterimTranscriptHash :: ByteString,
+    pgsConfirmedInterimTranscriptHash :: ByteString,
     pgsGroupContextExtensions :: ByteString,
     pgsOtherExtensions :: ByteString,
     pgsExternalPub :: ByteString,
-    pgsSinger :: KeyPackageRef,
-    pgsSignature :: ByteString
+    pgsSigner :: KeyPackageRef
   }
-  deriving stock (Eq, Show, Generic)
+  deriving stock (Eq, Show)
 
-instance ParseMLS PublicGroupState where
+instance ParseMLS PublicGroupStateTBS where
   parseMLS =
-    PublicGroupState
+    PublicGroupStateTBS
       <$> label "pgsVersion" parseMLS
       <*> label "pgsCipherSuite" parseMLS
       <*> label "pgsGroupId" parseMLS
       <*> label "pgsEpoch" parseMLS
       <*> label "pgsTreeHash" (parseMLSBytes @Word8)
       <*> label "pgsInterimTranscriptHash" (parseMLSBytes @Word8)
+      <*> label "pgsConfirmedInterimTranscriptHash" (parseMLSBytes @Word8)
       <*> label "pgsGroupContextExtensions" (parseMLSBytes @Word32)
       <*> label "pgsOtherExtensions" (parseMLSBytes @Word32)
       <*> label "pgsExternalPub" (parseMLSBytes @Word16)
-      <*> label "pgsSinger" parseMLS
-      <*> label "pgsSignature" (parseMLSBytes @Word16)
+      <*> label "pgsSigner" parseMLS
+
+data PublicGroupState = PublicGroupState
+  { pgTBS :: RawMLS PublicGroupStateTBS,
+    pgSignature :: ByteString
+  }
+  deriving stock (Eq, Show)
+
+instance ParseMLS PublicGroupState where
+  parseMLS =
+    PublicGroupState
+      <$> label "pgTBS" parseMLS
+      <*> label "pgSignature" (parseMLSBytes @Word16)
