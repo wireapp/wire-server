@@ -28,6 +28,7 @@ import Wire.API.MLS.Extension
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
+import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 
 tests :: T.TestTree
@@ -38,7 +39,9 @@ tests =
       testRoundTrip @RemoveProposalMessage,
       testRoundTrip @RemoveProposalPayload,
       testRoundTrip @AppAckProposalTest,
-      testRoundTrip @ExtensionVector
+      testRoundTrip @ExtensionVector,
+      testRoundTrip @PublicGroupStateTBS,
+      testRoundTrip @PublicGroupState
     ]
 
 testRoundTrip ::

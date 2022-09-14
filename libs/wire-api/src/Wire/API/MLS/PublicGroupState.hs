@@ -14,17 +14,20 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
+{-# LANGUAGE RecordWildCards #-}
 
 module Wire.API.MLS.PublicGroupState where
 
 import Data.Binary.Get (label)
 import Imports
+import Test.QuickCheck hiding (label)
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Extension
 import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
+import Wire.Arbitrary
 
 data PublicGroupStateTBS = PublicGroupStateTBS
   { pgsVersion :: ProtocolVersion,
@@ -39,7 +42,8 @@ data PublicGroupStateTBS = PublicGroupStateTBS
     pgsExternalPub :: ByteString,
     pgsSigner :: KeyPackageRef
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform PublicGroupStateTBS)
 
 instance ParseMLS PublicGroupStateTBS where
   parseMLS =
@@ -56,14 +60,39 @@ instance ParseMLS PublicGroupStateTBS where
       <*> label "pgsExternalPub" (parseMLSBytes @Word16)
       <*> label "pgsSigner" parseMLS
 
+instance SerialiseMLS PublicGroupStateTBS where
+  serialiseMLS (PublicGroupStateTBS {..}) = do
+    serialiseMLS pgsVersion
+    serialiseMLS pgsCipherSuite
+    serialiseMLS pgsGroupId
+    serialiseMLS pgsEpoch
+    serialiseMLSBytes @Word8 pgsTreeHash
+    serialiseMLSBytes @Word8 pgsInterimTranscriptHash
+    serialiseMLSBytes @Word8 pgsConfirmedInterimTranscriptHash
+    serialiseMLSBytes @Word32 pgsGroupContextExtensions
+    serialiseMLSBytes @Word32 pgsOtherExtensions
+    serialiseMLSBytes @Word16 pgsExternalPub
+    serialiseMLS pgsSigner
+
 data PublicGroupState = PublicGroupState
   { pgTBS :: RawMLS PublicGroupStateTBS,
     pgSignature :: ByteString
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+
+instance Arbitrary PublicGroupState where
+  arbitrary =
+    PublicGroupState
+      <$> (mkRawMLS <$> arbitrary)
+      <*> arbitrary
 
 instance ParseMLS PublicGroupState where
   parseMLS =
     PublicGroupState
       <$> label "pgTBS" parseMLS
       <*> label "pgSignature" (parseMLSBytes @Word16)
+
+instance SerialiseMLS PublicGroupState where
+  serialiseMLS PublicGroupState {..} = do
+    serialiseMLS pgTBS
+    serialiseMLSBytes @Word16 pgSignature
