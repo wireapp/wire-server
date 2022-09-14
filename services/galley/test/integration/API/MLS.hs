@@ -159,7 +159,9 @@ tests s =
             s
             "local conversation, local committer leaving"
             testBackendRemoveProposalLocalConvLocalLeaverCommitter,
-          test s "local conversation, remote user leaving" testBackendRemoveProposalLocalConvRemoteLeaver
+          test s "local conversation, remote user leaving" testBackendRemoveProposalLocalConvRemoteLeaver,
+          test s "local conversation, local client deleted" testBackendRemoveProposalLocalConvLocalClient,
+          test s "local conversation, remote client deleted" testBackendRemoveProposalLocalConvRemoteClient
         ],
       testGroup
         "Protocol mismatch"
@@ -1630,3 +1632,81 @@ testBackendRemoveProposalLocalConvRemoteLeaver = do
         for_ bobClients $ \(_, ref) ->
           WS.assertMatch_ (5 # WS.Second) wsA $
             wsAssertBackendRemoveProposal bob qcnv ref
+
+-- for_ kprefs $ \kp ->
+--   WS.assertMatch_ (5 # WS.Second) wsA $ \notification ->
+--     void $
+--       wsAssertBackendRemoveProposal (pUserId bob) conversation kp notification
+
+testBackendRemoveProposalLocalConvLocalClient :: TestM ()
+testBackendRemoveProposalLocalConvLocalClient = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+
+  runMLSTest $ do
+    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+    traverse_ uploadNewKeyPackage [bob1, bob2]
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    [(bobA, kpBobA), (bobB, _kpBobB)] <- getClientsFromGroupState alice1 bob
+
+    mlsBracket [alice1, bobA] $ \[wsA, wsB] -> do
+      liftTest $
+        deleteClient (ciUser bobA) (ciClient bobA) (Just defPassword)
+          !!! statusCode === const 200
+
+      State.modify $ \mls ->
+        mls
+          { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [bobA])
+          }
+
+      WS.assertMatch_ (5 # WS.Second) wsB $
+        wsAssertClientRemoved (ciClient bobA)
+
+      msg <- WS.assertMatch (5 # WS.Second) wsA $ \notification -> do
+        wsAssertBackendRemoveProposal bob qcnv kpBobA notification
+
+      for_ [alice1, bobB] $
+        flip consumeMessage1 msg
+
+      mp <- createPendingProposalCommit alice1
+      events <- sendAndConsumeCommit mp
+      liftIO $ events @?= []
+
+testBackendRemoveProposalLocalConvRemoteClient :: TestM ()
+testBackendRemoveProposalLocalConvRemoteClient = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Just "faraway.example.com"]
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    (_, qcnv) <- setupMLSGroup alice1
+    commit <- createAddCommit alice1 [bob]
+
+    let mock req = case frRPC req of
+          "on-conversation-updated" -> pure (Aeson.encode ())
+          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+          "get-mls-clients" ->
+            pure
+              . Aeson.encode
+              . Set.fromList
+              . map (flip ClientInfo True)
+              . toList
+              $ [ciClient bob1]
+          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+    [(_, bob1KP)] <- getClientsFromGroupState alice1 bob
+
+    void . withTempMockFederator' mock $ do
+      mlsBracket [alice1] $ \[wsA] -> void $ do
+        void $ sendAndConsumeCommit commit
+
+        fedGalleyClient <- view tsFedGalleyClient
+        void $
+          runFedClient
+            @"on-client-removed"
+            fedGalleyClient
+            (ciDomain bob1)
+            (ClientRemovedRequest (ciUser bob1) (ciClient bob1) [qUnqualified qcnv])
+
+        WS.assertMatch_ (5 # WS.Second) wsA $
+          \notification ->
+            void $ wsAssertBackendRemoveProposal bob qcnv bob1KP notification
