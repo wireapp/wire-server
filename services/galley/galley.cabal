@@ -669,7 +669,6 @@ executable galley-schema
     V70_MLSCipherSuite
     V71_MemberClientKeypackage
     V72_DropManagedConversations
-    V73_GroupInfoBundle
     V73_MemberClientTable
     V74_ExposeInvitationsToTeamAdmin
 

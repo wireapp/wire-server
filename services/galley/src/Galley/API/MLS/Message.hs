@@ -243,18 +243,18 @@ postMLSCommitBundleToLocalConv lusr conn bundle lcnv = do
       msg = rmValue (cbCommitMsg bundle)
   conv <- getLocalConvForUser qusr lcnv
 
-  senderClient <- getSenderClient qusr msg
+  senderClient <- fmap ciClient <$> getSenderClient qusr SMLSPlainText msg
 
   events <- case msgPayload msg of
     CommitMessage commit ->
-      processCommit qusr (fmap ciClient senderClient) (Just conn) (qualifyAs lcnv conv) (msgEpoch msg) (msgSender msg) commit
+      processCommit qusr senderClient (Just conn) (qualifyAs lcnv conv) (msgEpoch msg) (msgSender msg) commit
     ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
     ProposalMessage _ -> throwS @'MLSUnsupportedMessage
 
+  propagateMessage lcnv qusr conv (Just conn) (rmRaw (cbCommitMsg bundle))
+
   for_ (cbWelcome bundle) $
     postMLSWelcome lusr conn
-
-  setConversationGroupInfoBundle (tUnqualified lcnv) (cbGroupInfoBundle bundle)
 
   t <- toUTCTimeMillis <$> input
   pure $ MLSMessageSendingStatus (map lcuEvent events) t
@@ -315,25 +315,17 @@ postMLSMessage ::
   Sem r [LocalConversationUpdate]
 postMLSMessage loc qusr qcnv con smsg = case rmValue smsg of
   SomeMessage tag msg -> do
-    -- Check that the MLS client who created the message belongs to the user who
-    -- is the sender of the REST request, identified by HTTP header.
-    --
-    -- The check is skipped in case of conversation creation and encrypted messages.
-    mcid <-
-      if msgEpoch msg == Epoch 0
-        then pure Nothing
-        else do
-          case tag of
-            -- skip encrypted message
-            SMLSCipherText -> pure Nothing
-            SMLSPlainText -> getSenderClient qusr msg
-
+    mcid <- fmap ciClient <$> getSenderClient qusr tag msg
     foldQualified
       loc
-      (postMLSMessageToLocalConv qusr (fmap ciClient mcid) con smsg)
-      (postMLSMessageToRemoteConv loc qusr (fmap ciClient mcid) con smsg)
+      (postMLSMessageToLocalConv qusr mcid con smsg)
+      (postMLSMessageToRemoteConv loc qusr mcid con smsg)
       qcnv
 
+-- Check that the MLS client who created the message belongs to the user who
+-- is the sender of the REST request, identified by HTTP header.
+--
+-- The check is skipped in case of conversation creation and encrypted messages.
 getSenderClient ::
   ( Members
       '[ ErrorS 'MLSKeyPackageRefNotFound,
@@ -343,17 +335,19 @@ getSenderClient ::
       r
   ) =>
   Qualified UserId ->
-  Message 'MLSPlainText ->
+  SWireFormatTag tag ->
+  Message tag ->
   Sem r (Maybe ClientIdentity)
-getSenderClient qusr msg =
-  case msgSender msg of
-    PreconfiguredSender _ -> pure Nothing
-    NewMemberSender -> pure Nothing
-    MemberSender ref -> do
-      cid <- derefKeyPackage ref
-      when (fmap fst (cidQualifiedClient cid) /= qusr) $
-        throwS @'MLSClientSenderUserMismatch
-      pure (Just cid)
+getSenderClient _ SMLSCipherText _ = pure Nothing
+getSenderClient _ _ msg | msgEpoch msg == Epoch 0 = pure Nothing
+getSenderClient qusr SMLSPlainText msg = case msgSender msg of
+  PreconfiguredSender _ -> pure Nothing
+  NewMemberSender -> pure Nothing
+  MemberSender ref -> do
+    cid <- derefKeyPackage ref
+    when (fmap fst (cidQualifiedClient cid) /= qusr) $
+      throwS @'MLSClientSenderUserMismatch
+    pure (Just cid)
 
 postMLSMessageToLocalConv ::
   ( HasProposalEffects r,

@@ -43,7 +43,6 @@ module Galley.Effects.ConversationStore
     setConversationEpoch,
     acceptConnectConversation,
     setGroupId,
-    setConversationGroupInfoBundle,
 
     -- * Delete conversation
     deleteConversation,
@@ -66,7 +65,6 @@ import Imports
 import Polysemy
 import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.MLS.Epoch
-import Wire.API.MLS.GroupInfoBundle
 
 data ConversationStore m a where
   CreateConversationId :: ConversationStore m ConvId
@@ -91,7 +89,6 @@ data ConversationStore m a where
   SetGroupId :: GroupId -> Qualified ConvId -> ConversationStore m ()
   AcquireCommitLock :: GroupId -> Epoch -> NominalDiffTime -> ConversationStore m LockAcquired
   ReleaseCommitLock :: GroupId -> Epoch -> ConversationStore m ()
-  SetConversationGroupInfoBundle :: ConvId -> GroupInfoBundle -> ConversationStore m ()
 
 makeSem ''ConversationStore
 

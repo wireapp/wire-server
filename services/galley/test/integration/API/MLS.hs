@@ -93,6 +93,7 @@ tests s =
       testGroup
         "Commit"
         [ test s "add user to a conversation" testAddUser,
+          test s "add user with a commit bundle" testAddUserWithBundle,
           test s "add user (not connected)" testAddUserNotConnected,
           test s "add user (partial client list)" testAddUserPartial,
           test s "add client of existing user" testAddClientPartial,
@@ -291,6 +292,28 @@ testRemoteWelcome = do
     fedWelcome <- assertOne (filter ((== "mls-welcome") . frRPC) reqs)
     let req :: Maybe MLSWelcomeRequest = Aeson.decode (frBody fedWelcome)
     liftIO $ req @?= (Just . MLSWelcomeRequest . Base64ByteString) welcome
+
+testAddUserWithBundle :: TestM ()
+testAddUserWithBundle = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+
+  qcnv <- runMLSTest $ do
+    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+    traverse_ uploadNewKeyPackage [bob1, bob2]
+    (_, qcnv) <- setupMLSGroup alice1
+    events <- createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
+    event <- assertOne events
+    liftIO $ assertJoinEvent qcnv alice [bob] roleNameWireMember event
+    pure qcnv
+
+  -- check that bob can now see the conversation
+  convs <-
+    responseJsonError =<< getConvs (qUnqualified bob) Nothing Nothing
+      <!! const 200 === statusCode
+  liftIO $
+    assertBool
+      "Users added to an MLS group should find it when listing conversations"
+      (qcnv `elem` map cnvQualifiedId (convList convs))
 
 testAddUser :: TestM ()
 testAddUser = do

@@ -19,12 +19,35 @@ module Wire.API.MLS.GroupInfoBundle where
 
 import Imports
 import Test.QuickCheck
+import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.Arbitrary
 
-newtype GroupInfoBundle = GroupInfoBundle {unGroupInfoBundle :: ByteString}
+data GroupInfoEncryption = UnencryptedGroupInfo | JweEncryptedGroupInfo
+  deriving stock (Eq, Show, Generic, Bounded, Enum)
+  deriving (Arbitrary) via (GenericUniform GroupInfoEncryption)
+
+data GroupInfoTreeType = TreeFull | TreeDelta | TreeByRef
+  deriving stock (Eq, Show, Generic, Bounded, Enum)
+  deriving (Arbitrary) via (GenericUniform GroupInfoTreeType)
+
+data GroupInfoBundle = GroupInfoBundle
+  { gipEncryptionType :: GroupInfoEncryption,
+    gipTreeType :: GroupInfoTreeType,
+    gipGroupState :: PublicGroupState
+  }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via GenericUniform GroupInfoBundle
 
 instance ParseMLS GroupInfoBundle where
-  parseMLS = GroupInfoBundle <$> parseMLSBytes @Word16
+  parseMLS =
+    GroupInfoBundle
+      <$> parseMLSEnum @Word8 "GroupInfoEncryptionEnum"
+      <*> parseMLSEnum @Word8 "RatchetTreeEnum"
+      <*> parseMLS
+
+instance SerialiseMLS GroupInfoBundle where
+  serialiseMLS (GroupInfoBundle e t pgs) = do
+    serialiseMLSEnum @Word8 e
+    serialiseMLSEnum @Word8 t
+    serialiseMLS pgs

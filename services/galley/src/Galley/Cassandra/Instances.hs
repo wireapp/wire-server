@@ -38,7 +38,6 @@ import Wire.API.Asset (AssetKey, assetKeyToText)
 import Wire.API.Conversation
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
-import Wire.API.MLS.GroupInfoBundle
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.Serialisation
 import Wire.API.Team
@@ -247,9 +246,3 @@ instance Cql CipherSuite where
       then Right . CipherSuite . fromIntegral $ i
       else Left "CipherSuite: an out of bounds value for Word16"
   fromCql _ = Left "CipherSuite: int expected"
-
-instance Cql GroupInfoBundle where
-  ctype = Tagged BlobColumn
-  toCql = CqlBlob . LBS.fromStrict . unGroupInfoBundle
-  fromCql (CqlBlob b) = mapLeft T.unpack $ decodeMLS b
-  fromCql _ = Left "GroupInfoBundle: blob expected"

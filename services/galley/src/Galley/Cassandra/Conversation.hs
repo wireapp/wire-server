@@ -54,7 +54,6 @@ import Wire.API.Conversation hiding (Conversation, Member)
 import Wire.API.Conversation.Protocol
 import Wire.API.MLS.CipherSuite
 import Wire.API.MLS.Group
-import Wire.API.MLS.GroupInfoBundle
 
 createConversation :: Local ConvId -> NewConversation -> Client Conversation
 createConversation lcnv nc = do
@@ -242,11 +241,6 @@ remoteConversationStatusOnDomain uid rconvs =
         toMemberStatus (omus, omur, oar, oarr, hid, hidr)
       )
 
-setConversationGroupInfoBundle :: ConvId -> GroupInfoBundle -> Client ()
-setConversationGroupInfoBundle cid bundle =
-  retry x5 $
-    write Cql.updateGroupInfoBundle (params LocalQuorum (bundle, cid))
-
 toProtocol ::
   Maybe ProtocolTag ->
   Maybe GroupId ->
@@ -321,4 +315,3 @@ interpretConversationStoreToCassandra = interpret $ \case
   SetGroupId gId cid -> embedClient $ mapGroupId gId cid
   AcquireCommitLock gId epoch ttl -> embedClient $ acquireCommitLock gId epoch ttl
   ReleaseCommitLock gId epoch -> embedClient $ releaseCommitLock gId epoch
-  SetConversationGroupInfoBundle cid bundle -> embedClient $ setConversationGroupInfoBundle cid bundle

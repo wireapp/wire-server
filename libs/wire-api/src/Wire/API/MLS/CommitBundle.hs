@@ -37,3 +37,9 @@ instance ParseMLS CommitBundle where
 
 instance S.ToSchema CommitBundle where
   declareNamedSchema _ = pure (mlsSwagger "CommitBundle")
+
+instance SerialiseMLS CommitBundle where
+  serialiseMLS (CommitBundle commit welcome gi) = do
+    serialiseMLS commit
+    serialiseMLSOptional serialiseMLS welcome
+    serialiseMLS gi
