@@ -1,5 +1,4 @@
 {-# LANGUAGE ForeignFunctionInterface #-}
-{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 
 -- This file is part of the Wire Server implementation.
 --
@@ -39,7 +38,7 @@ import Wire.API.MLS.Credential
 import Wire.API.MLS.Epoch (Epoch (..))
 import Wire.API.User.Client.DPoPAccessToken
 
-data JwtResponse = JwtResponse
+data JwtResponse
 
 foreign import ccall unsafe "generate_dpop_access_token"
   generate_dpop_access_token ::
