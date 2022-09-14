@@ -27,7 +27,6 @@ module Wire.API.MLS.Serialisation
     serialiseMLSOptional,
     parseMLSEnum,
     serialiseMLSEnum,
-    BinaryMLS (..),
     MLSEnumError (..),
     fromMLSEnum,
     toMLSEnum',
@@ -165,15 +164,13 @@ instance ParseMLS Word32 where parseMLS = get
 
 instance ParseMLS Word64 where parseMLS = get
 
+instance SerialiseMLS Word8 where serialiseMLS = put
+
 instance SerialiseMLS Word16 where serialiseMLS = put
 
 instance SerialiseMLS Word32 where serialiseMLS = put
 
--- | A wrapper to generate a 'ParseMLS' instance given a 'Binary' instance.
-newtype BinaryMLS a = BinaryMLS a
-
-instance Binary a => ParseMLS (BinaryMLS a) where
-  parseMLS = BinaryMLS <$> get
+instance SerialiseMLS Word64 where serialiseMLS = put
 
 -- | Encode an MLS value to a lazy bytestring.
 encodeMLS :: SerialiseMLS a => a -> LByteString
