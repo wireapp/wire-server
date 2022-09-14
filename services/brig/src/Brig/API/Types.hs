@@ -210,7 +210,7 @@ data CertEnrollmentError
   | NonceNotFound
   | TokenGenerationError DPoPTokenGenerationError
   | KeyBundleError
-  | InternalError
+  | MisconfiguredRequestUrl
 
 -------------------------------------------------------------------------------
 -- Exceptions

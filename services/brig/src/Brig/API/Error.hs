@@ -191,8 +191,8 @@ certEnrollmentError (TokenGenerationError ClientIdSyntaxError) = StdError $ Wai.
 certEnrollmentError (TokenGenerationError FfiError) = StdError $ Wai.mkError status500 "internal-error" "The server experienced an internal error during DPoP token generation"
 certEnrollmentError ProofMissing = StdError $ Wai.mkError status400 "client-token-proof-missing" "The DPoP message header is missing"
 certEnrollmentError NonceNotFound = StdError $ Wai.mkError status400 "client-token-bad-nonce" "The client sent an unacceptable anti-replay nonce"
-certEnrollmentError InternalError = StdError $ Wai.mkError status500 "internal-error" "The server experienced an internal error during the certificate enrollment process"
-certEnrollmentError KeyBundleError = StdError $ Wai.mkError status500 "internal-error" "The server experienced an internal error during the certificate enrollment process"
+certEnrollmentError MisconfiguredRequestUrl = StdError $ Wai.mkError status500 "misconfigured-request-url" "The request url cannot be derived from optSettings.setFederationDomain in brig.yaml"
+certEnrollmentError KeyBundleError = StdError $ Wai.mkError status404 "no-server-key-bundle" "The key bundle required for the certificate enrollment process could not be found"
 
 fedError :: FederationError -> Error
 fedError = StdError . federationErrorToWai
