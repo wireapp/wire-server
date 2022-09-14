@@ -30,6 +30,7 @@ data Welcome = Welcome
     welSecrets :: [GroupSecrets],
     welGroupInfo :: ByteString
   }
+  deriving (Show, Eq)
 
 instance S.ToSchema Welcome where
   declareNamedSchema _ = pure (mlsSwagger "Welcome")
@@ -47,6 +48,7 @@ data GroupSecrets = GroupSecrets
   { gsNewMember :: KeyPackageRef,
     gsSecrets :: HPKECiphertext
   }
+  deriving (Show, Eq)
 
 instance ParseMLS GroupSecrets where
   parseMLS = GroupSecrets <$> parseMLS <*> parseMLS

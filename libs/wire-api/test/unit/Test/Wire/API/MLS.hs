@@ -48,6 +48,7 @@ import Wire.API.MLS.Group
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
+import Wire.API.MLS.PublicGroupState
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 
@@ -60,7 +61,8 @@ tests =
       testCase "parse welcome message" testParseWelcome,
       testCase "key package ref" testKeyPackageRef,
       testCase "validate message signature" testVerifyMLSPlainTextWithKey,
-      testCase "create signed remove proposal" testRemoveProposalMessageSignature
+      testCase "create signed remove proposal" testRemoveProposalMessageSignature,
+      testCase "parse GroupInfoBundle" testParseGroupInfoBundle
     ]
 
 testParseKeyPackage :: IO ()
@@ -213,6 +215,49 @@ testRemoveProposalMessageSignature = withSystemTempDirectory "mls" $ \tmp -> do
           ]
       )
       Nothing
+
+testParseGroupInfoBundle :: IO ()
+testParseGroupInfoBundle = withSystemTempDirectory "mls" $ \tmp -> do
+  qcid <- do
+    let c = newClientId 0x3ae58155
+    usr <- flip Qualified (Domain "example.com") <$> (Id <$> UUID.nextRandom)
+    pure (userClientQid usr c)
+  void . liftIO $ spawn (cli qcid tmp ["init", qcid]) Nothing
+
+  qcid2 <- do
+    let c = newClientId 0x4ae58157
+    usr <- flip Qualified (Domain "example.com") <$> (Id <$> UUID.nextRandom)
+    pure (userClientQid usr c)
+  void . liftIO $ spawn (cli qcid2 tmp ["init", qcid2]) Nothing
+  kp :: RawMLS KeyPackage <- liftIO $ decodeMLSError <$> spawn (cli qcid2 tmp ["key-package", "create"]) Nothing
+  liftIO $ BS.writeFile (tmp </> qcid2) (rmRaw kp)
+
+  let groupFilename = "group"
+  let gid = GroupId "abcd"
+  createGroup tmp qcid groupFilename gid
+
+  void $
+    liftIO $
+      spawn
+        ( cli
+            qcid
+            tmp
+            [ "member",
+              "add",
+              "--group",
+              tmp </> groupFilename,
+              "--in-place",
+              tmp </> qcid2,
+              "--group-state-out",
+              tmp </> "group-info-bundle"
+            ]
+        )
+        Nothing
+
+  bundleBS <- BS.readFile (tmp </> "group-info-bundle")
+  case decodeMLS' @PublicGroupState bundleBS of
+    Left err -> assertFailure ("Failed parsing PublicGroupState: " <> T.unpack err)
+    Right _ -> pure ()
 
 createGroup :: FilePath -> String -> String -> GroupId -> IO ()
 createGroup tmp store groupName gid = do
