@@ -104,8 +104,7 @@ tests s =
           test s "post commit that references a unknown proposal" testUnknownProposalRefCommit,
           test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
           test s "admin removes user from a conversation" testAdminRemovesUserFromConv,
-          test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete,
-          test s "anyone removes a non-existing client from a group" testRemoveDeletedClient
+          test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete
         ],
       testGroup
         "Application Message"
@@ -706,29 +705,6 @@ testRemoveClientsIncomplete = do
         =<< postMessage (qUnqualified alice) (mpMessage commit)
           <!! statusCode === const 409
     liftIO $ Wai.label err @?= "mls-client-mismatch"
-
-testRemoveDeletedClient :: TestM ()
-testRemoveDeletedClient = do
-  [alice, bob, charlie] <- createAndConnectUsers [Nothing, Nothing, Nothing]
-
-  runMLSTest $ do
-    clients@[alice1, _bob1, bob2, charlie1] <- traverse createMLSClient [alice, bob, bob, charlie]
-    traverse_ uploadNewKeyPackage (tail clients)
-    void $ setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommit
-
-    liftTest $ do
-      cannon <- view tsCannon
-      WS.bracketR cannon (qUnqualified bob) $ \ws -> do
-        deleteClient (qUnqualified bob) (ciClient bob2) (Just defPassword)
-          !!! statusCode === const 200
-        -- check that the corresponding event is received
-        liftIO $
-          WS.assertMatch_ (5 # WS.Second) ws $
-            wsAssertClientRemoved (ciClient bob2)
-
-    events <- createRemoveCommit charlie1 [bob2] >>= sendAndConsumeCommit
-    liftIO $ assertEqual "a non-admin received conversation events when removing a client" [] events
 
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = do
