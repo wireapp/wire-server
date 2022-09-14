@@ -388,6 +388,11 @@ execDelete u con c = do
 -- not exist, since there must be no client without prekeys,
 -- thus repairing any inconsistencies related to distributed
 -- (and possibly duplicated) client data.
+--
+-- FUTUREWORK: As of 2022-09-14, we see a lot of clients without prekeys. Also,
+-- this function does not delete clients in Brig, but only in Galley and
+-- Gundeck. To debug the issue properly, we stop deleting clients and log
+-- occurances instead in which we would otherwise delete the client.
 noPrekeys ::
   ( MonadReader Env m,
     MonadMask m,
@@ -404,7 +409,8 @@ noPrekeys u c = do
     field "user" (toByteString u)
       ~~ field "client" (toByteString c)
       ~~ msg (val "No prekey found. Ensuring client does not exist.")
-  Intra.rmClient u c
+  -- Intra.rmClient u c
+  -- FUTUREWORK also delete the client from Brig's Cassandra
   client <- Data.lookupClient u c
   for_ client $ \_ ->
     Log.err $
