@@ -68,7 +68,7 @@ module Wire.API.Team.Feature
     ConferenceCallingConfig (..),
     GuestLinksConfig (..),
     ExposeInvitationURLsToTeamAdminConfig (..),
-    ExposeInvitationURLsTeamAllowlistConfig (..),
+    ExposeInvitationURLsTeamAllowlistConfig,
     SndFactorPasswordChallengeConfig (..),
     SearchVisibilityInboundConfig (..),
     ClassifiedDomainsConfig (..),
@@ -965,19 +965,7 @@ instance FeatureTrivialConfig ExposeInvitationURLsToTeamAdminConfig where
 ----------------------------------------------------------------------
 -- ExposeInvitationURLsTeamAllowlistConfig
 
-data ExposeInvitationURLsTeamAllowlistConfig = ExposeInvitationURLsTeamAllowlistConfig
-  { exposeInvitationURLsTeamAllowlist :: [TeamId]
-  }
-  deriving stock (Show, Eq, Generic)
-  deriving (ToJSON, FromJSON, S.ToSchema) via (Schema ExposeInvitationURLsTeamAllowlistConfig)
-
-deriving via (GenericUniform ExposeInvitationURLsTeamAllowlistConfig) instance Arbitrary ExposeInvitationURLsTeamAllowlistConfig
-
-instance ToSchema ExposeInvitationURLsTeamAllowlistConfig where
-  schema =
-    object "ExposeInvitationURLsTeamAllowlistConfig" $
-      ExposeInvitationURLsTeamAllowlistConfig
-        <$> exposeInvitationURLsTeamAllowlist .= field "teams" (array schema)
+type ExposeInvitationURLsTeamAllowlistConfig = [TeamId]
 
 ----------------------------------------------------------------------
 -- FeatureStatus

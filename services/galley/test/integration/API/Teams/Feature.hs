@@ -58,7 +58,7 @@ import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 import Wire.API.Internal.Notification (Notification)
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
-import Wire.API.Team.Feature (ExposeInvitationURLsTeamAllowlistConfig (..), ExposeInvitationURLsToTeamAdminConfig (..), FeatureStatus (..), FeatureTTL, FeatureTTL' (..), LockStatus (LockStatusUnlocked), MLSConfig (MLSConfig))
+import Wire.API.Team.Feature (ExposeInvitationURLsToTeamAdminConfig (..), FeatureStatus (..), FeatureTTL, FeatureTTL' (..), LockStatus (LockStatusUnlocked), MLSConfig (MLSConfig))
 import qualified Wire.API.Team.Feature as Public
 
 tests :: IO TestSetup -> TestTree
@@ -1146,7 +1146,7 @@ testExposeInvitationURLsToTeamAdminTeamIdInAllowList = do
   tid <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
   void $
-    withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist .~ ExposeInvitationURLsTeamAllowlistConfig [tid]) $ do
+    withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist .~ [tid]) $ do
       g <- view tsGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusUnlocked
       let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited
@@ -1161,7 +1161,7 @@ testExposeInvitationURLsToTeamAdminEmptyAllowList = do
   tid <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
   void $
-    withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist .~ ExposeInvitationURLsTeamAllowlistConfig []) $ do
+    withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist .~ []) $ do
       g <- view tsGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusLocked
       let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited
@@ -1176,7 +1176,7 @@ testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence = do
   tid <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
   void $
-    withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist .~ ExposeInvitationURLsTeamAllowlistConfig [tid]) $ do
+    withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist .~ [tid]) $ do
       g <- view tsGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusUnlocked
       let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited
@@ -1185,7 +1185,7 @@ testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence = do
           const 200 === statusCode
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusEnabled Public.LockStatusUnlocked
   void $
-    withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist .~ ExposeInvitationURLsTeamAllowlistConfig []) $ do
+    withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist .~ []) $ do
       g <- view tsGalley
       assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusLocked
       let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited
