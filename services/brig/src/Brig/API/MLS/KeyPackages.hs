@@ -42,6 +42,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Serialisation
 import Wire.API.Team.LegalHold
 import Wire.API.User.Client
 
@@ -108,10 +109,22 @@ claimRemoteKeyPackages lusr target = do
                 ckprTarget = tUnqualified target
               }
 
-  -- set up mappings for all claimed key packages
-  wrapClientE $
-    for_ (kpbEntries bundle) $ \e ->
-      Data.mapKeyPackageRef (kpbeRef e) (kpbeUser e) (kpbeClient e)
+  -- validate and set up mappings for all claimed key packages
+  for_ (kpbEntries bundle) $ \e -> do
+    let cid = mkClientIdentity (kpbeUser e) (kpbeClient e)
+    kpRaw <-
+      withExceptT (const . clientDataError $ KeyPackageDecodingError)
+        . except
+        . decodeMLS'
+        . kpData
+        . kpbeKeyPackage
+        $ e
+    (refVal, _) <- validateKeyPackage cid kpRaw
+    unless (refVal == kpbeRef e)
+      . throwE
+      . clientDataError
+      $ InvalidKeyPackageRef
+    wrapClientE $ Data.mapKeyPackageRef (kpbeRef e) (kpbeUser e) (kpbeClient e)
 
   pure bundle
   where
