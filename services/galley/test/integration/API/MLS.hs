@@ -83,10 +83,7 @@ tests s =
           test s "local welcome (client with no public key)" testWelcomeNoKey,
           test s "remote welcome" testRemoteWelcome,
           test s "post a remote MLS welcome message" sendRemoteMLSWelcome,
-          test
-            s
-            "post a remote MLS welcome message (key package ref not found)"
-            sendRemoteMLSWelcomeKPNotFound
+          test s "post a remote MLS welcome message (key package ref not found)" sendRemoteMLSWelcomeKPNotFound
         ],
       testGroup
         "Creation"
@@ -107,8 +104,7 @@ tests s =
           test s "post commit that references a unknown proposal" testUnknownProposalRefCommit,
           test s "post commit that is not referencing all proposals" testCommitNotReferencingAllProposals,
           test s "admin removes user from a conversation" testAdminRemovesUserFromConv,
-          test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete,
-          test s "anyone removes a non-existing client from a group" testRemoveDeletedClient
+          test s "admin removes user from a conversation but doesn't list all clients" testRemoveClientsIncomplete
         ],
       testGroup
         "Application Message"
@@ -151,15 +147,11 @@ tests s =
         "Backend-side External Remove Proposals"
         [ test s "local conversation, local user deleted" testBackendRemoveProposalLocalConvLocalUser,
           test s "local conversation, remote user deleted" testBackendRemoveProposalLocalConvRemoteUser,
-          test
-            s
-            "local conversation, creator leaving"
-            testBackendRemoveProposalLocalConvLocalLeaverCreator,
-          test
-            s
-            "local conversation, local committer leaving"
-            testBackendRemoveProposalLocalConvLocalLeaverCommitter,
-          test s "local conversation, remote user leaving" testBackendRemoveProposalLocalConvRemoteLeaver
+          test s "local conversation, creator leaving" testBackendRemoveProposalLocalConvLocalLeaverCreator,
+          test s "local conversation, local committer leaving" testBackendRemoveProposalLocalConvLocalLeaverCommitter,
+          test s "local conversation, remote user leaving" testBackendRemoveProposalLocalConvRemoteLeaver,
+          test s "local conversation, local client deleted" testBackendRemoveProposalLocalConvLocalClient,
+          test s "local conversation, remote client deleted" testBackendRemoveProposalLocalConvRemoteClient
         ],
       testGroup
         "Protocol mismatch"
@@ -714,29 +706,6 @@ testRemoveClientsIncomplete = do
           <!! statusCode === const 409
     liftIO $ Wai.label err @?= "mls-client-mismatch"
 
-testRemoveDeletedClient :: TestM ()
-testRemoveDeletedClient = do
-  [alice, bob, charlie] <- createAndConnectUsers [Nothing, Nothing, Nothing]
-
-  runMLSTest $ do
-    clients@[alice1, _bob1, bob2, charlie1] <- traverse createMLSClient [alice, bob, bob, charlie]
-    traverse_ uploadNewKeyPackage (tail clients)
-    void $ setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommit
-
-    liftTest $ do
-      cannon <- view tsCannon
-      WS.bracketR cannon (qUnqualified bob) $ \ws -> do
-        deleteClient (qUnqualified bob) (ciClient bob2) (Just defPassword)
-          !!! statusCode === const 200
-        -- check that the corresponding event is received
-        liftIO $
-          WS.assertMatch_ (5 # WS.Second) ws $
-            wsAssertClientRemoved (ciClient bob2)
-
-    events <- createRemoveCommit charlie1 [bob2] >>= sendAndConsumeCommit
-    liftIO $ assertEqual "a non-admin received conversation events when removing a client" [] events
-
 testRemoteAppMessage :: TestM ()
 testRemoteAppMessage = do
   users@[alice, bob] <- createAndConnectUsers [Nothing, Just "bob.example.com"]
@@ -750,6 +719,7 @@ testRemoteAppMessage = do
           "on-conversation-updated" -> pure (Aeson.encode ())
           "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
           "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
+          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
           "get-mls-clients" ->
             pure
               . Aeson.encode
@@ -1427,6 +1397,7 @@ testBackendRemoveProposalLocalConvRemoteUser = do
           "on-conversation-updated" -> pure (Aeson.encode ())
           "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
           "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
+          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
           "get-mls-clients" ->
             pure
               . Aeson.encode
@@ -1603,6 +1574,7 @@ testBackendRemoveProposalLocalConvRemoteLeaver = do
           "on-conversation-updated" -> pure (Aeson.encode ())
           "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
           "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
+          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
           "get-mls-clients" ->
             pure
               . Aeson.encode
@@ -1630,3 +1602,77 @@ testBackendRemoveProposalLocalConvRemoteLeaver = do
         for_ bobClients $ \(_, ref) ->
           WS.assertMatch_ (5 # WS.Second) wsA $
             wsAssertBackendRemoveProposal bob qcnv ref
+
+testBackendRemoveProposalLocalConvLocalClient :: TestM ()
+testBackendRemoveProposalLocalConvLocalClient = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+
+  runMLSTest $ do
+    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
+    traverse_ uploadNewKeyPackage [bob1, bob2]
+    (_, qcnv) <- setupMLSGroup alice1
+    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    Just (_, kpBob1) <- find (\(ci, _) -> ci == bob1) <$> getClientsFromGroupState alice1 bob
+
+    mlsBracket [alice1, bob1] $ \[wsA, wsB] -> do
+      liftTest $
+        deleteClient (ciUser bob1) (ciClient bob1) (Just defPassword)
+          !!! statusCode === const 200
+
+      State.modify $ \mls ->
+        mls
+          { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [bob1])
+          }
+
+      WS.assertMatch_ (5 # WS.Second) wsB $
+        wsAssertClientRemoved (ciClient bob1)
+
+      msg <- WS.assertMatch (5 # WS.Second) wsA $ \notification -> do
+        wsAssertBackendRemoveProposal bob qcnv kpBob1 notification
+
+      for_ [alice1, bob2] $
+        flip consumeMessage1 msg
+
+      mp <- createPendingProposalCommit alice1
+      events <- sendAndConsumeCommit mp
+      liftIO $ events @?= []
+
+testBackendRemoveProposalLocalConvRemoteClient :: TestM ()
+testBackendRemoveProposalLocalConvRemoteClient = do
+  [alice, bob] <- createAndConnectUsers [Nothing, Just "faraway.example.com"]
+
+  runMLSTest $ do
+    [alice1, bob1] <- traverse createMLSClient [alice, bob]
+    (_, qcnv) <- setupMLSGroup alice1
+    commit <- createAddCommit alice1 [bob]
+
+    let mock req = case frRPC req of
+          "on-conversation-updated" -> pure (Aeson.encode ())
+          "on-new-remote-conversation" -> pure (Aeson.encode EmptyResponse)
+          "mls-welcome" -> pure (Aeson.encode EmptyResponse)
+          "on-mls-message-sent" -> pure (Aeson.encode EmptyResponse)
+          "get-mls-clients" ->
+            pure
+              . Aeson.encode
+              . Set.fromList
+              . map (flip ClientInfo True)
+              $ [ciClient bob1]
+          ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
+
+    [(_, bob1KP)] <- getClientsFromGroupState alice1 bob
+
+    void . withTempMockFederator' mock $ do
+      mlsBracket [alice1] $ \[wsA] -> void $ do
+        void $ sendAndConsumeCommit commit
+
+        fedGalleyClient <- view tsFedGalleyClient
+        void $
+          runFedClient
+            @"on-client-removed"
+            fedGalleyClient
+            (ciDomain bob1)
+            (ClientRemovedRequest (ciUser bob1) (ciClient bob1) [qUnqualified qcnv])
+
+        WS.assertMatch_ (5 # WS.Second) wsA $
+          \notification ->
+            void $ wsAssertBackendRemoveProposal bob qcnv bob1KP notification
