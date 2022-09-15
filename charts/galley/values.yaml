@@ -79,7 +79,8 @@ config:
       validateSAMLemails:
         defaults:
           status: enabled
-      exposeInvitationURLsTeamAllowlist: []
+      exposeInvitationURLsTeamAllowlist:
+        teams: []
 
   aws:
     region: "eu-west-1"
