@@ -180,8 +180,7 @@ type FeaturePersistentAllFeatures db =
     FeaturePersistentConstraint db SndFactorPasswordChallengeConfig,
     FeaturePersistentConstraint db MLSConfig,
     FeaturePersistentConstraint db SearchVisibilityInboundConfig,
-    FeaturePersistentConstraint db ExposeInvitationURLsToTeamAdminConfig,
-    FeaturePersistentConstraint db ExposeInvitationURLsTeamAllowlistConfig
+    FeaturePersistentConstraint db ExposeInvitationURLsToTeamAdminConfig
   )
 
 getFeatureStatus ::

@@ -317,7 +317,3 @@ instance FeatureStatusCassandra MLSConfig where
 instance FeatureStatusCassandra ExposeInvitationURLsToTeamAdminConfig where
   getFeatureConfig _ = getTrivialConfigC "expose_invitation_urls_to_team_admin"
   setFeatureConfig _ tid statusNoLock = setFeatureStatusC "expose_invitation_urls_to_team_admin" tid (wssStatus statusNoLock)
-
-instance FeatureStatusCassandra ExposeInvitationURLsTeamAllowlistConfig where
-  getFeatureConfig _ _tid = pure Nothing
-  setFeatureConfig _ _tid _statusNoLock = pure ()
