@@ -29,7 +29,7 @@ RUN cd /tmp && \
     git checkout 6370cd556f03f6834d0b8043615ffaf0044ef1fa && \
     git rev-parse HEAD
 
-RUN cd /tmp/rusty-jwt-tools && cargo build --feature haskell --release --target x86_64-unknown-linux-gnu
+RUN cd /tmp/rusty-jwt-tools && cargo build --features haskell --release --target x86_64-unknown-linux-gnu
 
 
 # Minimal dependencies for ubuntu-compiled, dynamically linked wire-server Haskell services
@@ -43,16 +43,16 @@ COPY --from=rusty-jwt-tools-builder /tmp/rusty-jwt-tools/target/x86_64-unknown-l
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update && \
     apt-get install -y \
-            libsodium23 \
-            libssl1.1 \
-            libgmp10 \
-            libffi7 \
-            libicu66 \
-            geoip-database \
-            ca-certificates \
-            dumb-init \
-            libxml2 \
-            libncurses6 \
-            zlib1g \
-            netbase && \
+    libsodium23 \
+    libssl1.1 \
+    libgmp10 \
+    libffi7 \
+    libicu66 \
+    geoip-database \
+    ca-certificates \
+    dumb-init \
+    libxml2 \
+    libncurses6 \
+    zlib1g \
+    netbase && \
     rm -rf /var/lib/apt/lists/*
