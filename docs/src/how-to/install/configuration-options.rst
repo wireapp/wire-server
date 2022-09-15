@@ -938,3 +938,24 @@ The table assumes the following:
 * When backend level config says that this feature is disabled, the list of domains is ignored.
 * When team level feature is disabled, the accompanying domains are ignored.
 
+Configuration options for JWT DPoP access-token creation
+--------------------------------------------------------
+
+As part of the end-to-end client identity certificate enrollment process, a JWT DPoP access-token can be created via the `POST /clients/{cid}/access-token` endpoint, given a provided DPoP proof by the client.
+
+The path to the server-side key bundle (PEM format concatenated private key and public key) for signing the token must be specified in the wire-server chart by setting `setPublicKeyBundle` (see example below).
+
+The expiration time of the token can be configured by setting `setDpopTokenExpirationTimeSecs`. And the maximum leeway for the "iat" (issued at) and "exp" (expiration time) verification can be configured by setting `setDpopMaxSkewSecs`.
+
+.. code:: yaml
+
+  brig:
+    # ...
+    config:
+      # ...
+      optSettings:
+        # ...
+        setDpopMaxSkewSecs: 2
+        setDpopTokenExpirationTimeSecs: 360
+        setPublicKeyBundle: /etc/wire/brig/secrets/dpop_sig_key_bundle.pem
+
