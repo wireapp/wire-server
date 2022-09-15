@@ -18,15 +18,17 @@
 
 module API.Teams.Feature (tests) where
 
+import API.SQS (assertQueue, tActivate)
 import API.Util (HasGalley, getFeatureStatusMulti, withSettingsOverrides)
 import qualified API.Util as Util
-import API.Util.TeamFeature (patchFeatureStatusInternal)
+import API.Util.TeamFeature (patchFeatureStatusInternal, putTeamFeatureFlagWithGalley)
 import qualified API.Util.TeamFeature as Util
 import Bilge
 import Bilge.Assert
 import Brig.Types.Test.Arbitrary (Arbitrary (arbitrary))
 import Cassandra as Cql
-import Control.Lens (over, to, view)
+import Control.Lens (over, to, view, (.~))
+import Control.Lens.Operators ()
 import Control.Monad.Catch (MonadCatch)
 import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.Aeson as Aeson
@@ -56,7 +58,7 @@ import qualified Wire.API.Event.FeatureConfig as FeatureConfig
 import Wire.API.Internal.Notification (Notification)
 import Wire.API.MLS.CipherSuite
 import Wire.API.Routes.Internal.Galley.TeamFeatureNoConfigMulti as Multi
-import Wire.API.Team.Feature (FeatureStatus (..), FeatureTTL, FeatureTTL' (..), LockStatus (LockStatusUnlocked), MLSConfig (MLSConfig))
+import Wire.API.Team.Feature (ExposeInvitationURLsTeamAllowlistConfig (..), ExposeInvitationURLsToTeamAdminConfig (..), FeatureStatus (..), FeatureTTL, FeatureTTL' (..), LockStatus (LockStatusUnlocked), MLSConfig (MLSConfig))
 import qualified Wire.API.Team.Feature as Public
 
 tests :: IO TestSetup -> TestTree
@@ -135,8 +137,50 @@ tests s =
             testPatch AssertLockStatusChange Public.FeatureStatusDisabled Public.SndFactorPasswordChallengeConfig,
           test s (unpack $ Public.featureNameBS @Public.SelfDeletingMessagesConfig) $
             testPatch AssertLockStatusChange Public.FeatureStatusEnabled (Public.SelfDeletingMessagesConfig 0)
+        ],
+      testGroup
+        "ExposeInvitationURLsToTeamAdmin"
+        [ test s "can be set when TeamId is in allow list" testExposeInvitationURLsToTeamAdminTeamIdInAllowList,
+          test s "can not be set when allow list is empty" testExposeInvitationURLsToTeamAdminEmptyAllowList
         ]
     ]
+
+testExposeInvitationURLsToTeamAdminTeamIdInAllowList :: TestM ()
+testExposeInvitationURLsToTeamAdminTeamIdInAllowList = do
+  owner <- Util.randomUser
+  tid <- Util.createBindingTeamInternal "foo" owner
+  assertQueue "create team" tActivate
+  void $
+    withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist .~ ExposeInvitationURLsTeamAllowlistConfig [tid]) $ do
+      g <- view tsGalley
+      assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusUnlocked
+      let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited
+      void $
+        putTeamFeatureFlagWithGalley @ExposeInvitationURLsToTeamAdminConfig g owner tid enabled !!! do
+          const 200 === statusCode
+      assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusEnabled Public.LockStatusUnlocked
+
+assertExposeInvitationURLsToTeamAdminConfigStatus :: UserId -> TeamId -> FeatureStatus -> LockStatus -> TestM ()
+assertExposeInvitationURLsToTeamAdminConfigStatus owner tid fStatus lStatus = do
+  g <- view tsGalley
+  Util.getTeamFeatureFlagWithGalley @ExposeInvitationURLsToTeamAdminConfig g owner tid !!! do
+    const 200 === statusCode
+    const (Right (Public.withStatus fStatus lStatus Public.ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited)) === responseJsonEither
+
+testExposeInvitationURLsToTeamAdminEmptyAllowList :: TestM ()
+testExposeInvitationURLsToTeamAdminEmptyAllowList = do
+  owner <- Util.randomUser
+  tid <- Util.createBindingTeamInternal "foo" owner
+  assertQueue "create team" tActivate
+  void $
+    withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist .~ ExposeInvitationURLsTeamAllowlistConfig []) $ do
+      g <- view tsGalley
+      assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusLocked
+      let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited
+      void $
+        putTeamFeatureFlagWithGalley @ExposeInvitationURLsToTeamAdminConfig g owner tid enabled !!! do
+          const 409 === statusCode
+      assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusLocked
 
 -- | Provides a `Gen` with test objects that are realistic and can easily be asserted
 validMLSConfigGen :: Gen (Public.WithStatusPatch MLSConfig)
