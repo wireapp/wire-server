@@ -602,6 +602,7 @@ sendMLSCommitBundle ::
         FederatorAccess,
         GundeckAccess,
         Input (Local ()),
+        Input Env,
         Input Opts,
         Input UTCTime,
         LegalHoldStore,

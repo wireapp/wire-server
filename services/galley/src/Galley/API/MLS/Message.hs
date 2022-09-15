@@ -42,7 +42,6 @@ import Galley.API.MLS.KeyPackage
 import Galley.API.MLS.Propagate
 import Galley.API.MLS.Types
 import Galley.API.MLS.Welcome (postMLSWelcome)
-import Galley.API.Push
 import Galley.API.Util
 import Galley.Data.Conversation.Types hiding (Conversation)
 import qualified Galley.Data.Conversation.Types as Data
@@ -276,16 +275,17 @@ postMLSCommitBundleToLocalConv ::
 postMLSCommitBundleToLocalConv qusr conn bundle lcnv = do
   let msg = rmValue (cbCommitMsg bundle)
   conv <- getLocalConvForUser qusr lcnv
+  cm <- lookupMLSClients lcnv
 
   senderClient <- fmap ciClient <$> getSenderClient qusr SMLSPlainText msg
 
   events <- case msgPayload msg of
     CommitMessage commit ->
-      processCommit qusr senderClient conn (qualifyAs lcnv conv) (msgEpoch msg) (msgSender msg) commit
+      processCommit qusr senderClient conn (qualifyAs lcnv conv) cm (msgEpoch msg) (msgSender msg) commit
     ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
     ProposalMessage _ -> throwS @'MLSUnsupportedMessage
 
-  propagateMessage lcnv qusr conv conn (rmRaw (cbCommitMsg bundle))
+  propagateMessage qusr (qualifyAs lcnv conv) cm conn (rmRaw (cbCommitMsg bundle))
 
   for_ (cbWelcome bundle) $
     postMLSWelcome lcnv conn
