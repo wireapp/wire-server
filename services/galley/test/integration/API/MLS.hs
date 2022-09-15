@@ -1647,13 +1647,13 @@ testBackendRemoveProposalLocalConvRemoteLeaver = do
 
 testBackendRemoveProposalLocalConvLocalClient :: TestM ()
 testBackendRemoveProposalLocalConvLocalClient = do
-  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+  [alice, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
 
   runMLSTest $ do
-    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
-    traverse_ uploadNewKeyPackage [bob1, bob2]
+    [alice1, bob1, bob2, charlie1] <- traverse createMLSClient [alice, bob, bob, charlie]
+    traverse_ uploadNewKeyPackage [bob1, bob2, charlie1]
     (_, qcnv) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommit
     Just (_, kpBob1) <- find (\(ci, _) -> ci == bob1) <$> getClientsFromGroupState alice1 bob
 
     mlsBracket [alice1, bob1] $ \[wsA, wsB] -> do
@@ -1672,10 +1672,10 @@ testBackendRemoveProposalLocalConvLocalClient = do
       msg <- WS.assertMatch (5 # WS.Second) wsA $ \notification -> do
         wsAssertBackendRemoveProposal bob qcnv kpBob1 notification
 
-      for_ [alice1, bob2] $
+      for_ [alice1, bob2, charlie1] $
         flip consumeMessage1 msg
 
-      mp <- createPendingProposalCommit alice1
+      mp <- createPendingProposalCommit charlie1
       events <- sendAndConsumeCommit mp
       liftIO $ events @?= []
 
