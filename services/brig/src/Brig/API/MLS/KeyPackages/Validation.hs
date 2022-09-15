@@ -106,17 +106,35 @@ instance Alternative f => Semigroup (RequiredExtensions f) where
 instance Alternative f => Monoid (RequiredExtensions f) where
   mempty = RequiredExtensions empty empty
 
+data MissingExtensionError
+  = MELifetime
+  | MECapability
+
 checkRequiredExtensions :: RequiredExtensions Maybe -> Either Text (RequiredExtensions Identity)
 checkRequiredExtensions re =
   RequiredExtensions
     <$> maybe (Left "Missing lifetime extension") (pure . Identity) (reLifetime re)
     <*> maybe (Left "Missing capability extension") (pure . Identity) (reCapabilities re)
 
+checkRequiredExtensions' :: RequiredExtensions Maybe -> Either MissingExtensionError (RequiredExtensions Identity)
+checkRequiredExtensions' re =
+  RequiredExtensions
+    <$> maybe (Left MELifetime) (pure . Identity) (reLifetime re)
+    <*> maybe (Left MECapability) (pure . Identity) (reCapabilities re)
+
 findExtensions :: [Extension] -> Either Text (RequiredExtensions Identity)
 findExtensions = checkRequiredExtensions <=< (getAp . foldMap findExtension)
 
+findExtensions' :: [Extension] -> Either ('MLSDecodingError :: k) (RequiredExtensions Identity)
+findExtensions' = checkRequiredExtensions' <=< (getAp . foldMap findExtension')
+
 findExtension :: Extension -> Ap (Either Text) (RequiredExtensions Maybe)
 findExtension ext = (Ap (decodeExtension ext) >>=) . foldMap $ \case
+  (SomeExtension SLifetimeExtensionTag lt) -> pure $ RequiredExtensions (Just lt) Nothing
+  (SomeExtension SCapabilitiesExtensionTag _) -> pure $ RequiredExtensions Nothing (Just ())
+
+findExtension' :: Extension -> Ap (Either ('MLSDecodingError :: k)) (RequiredExtensions Maybe)
+findExtension' ext = (Ap (first (const MLSDecodingError) . decodeExtension ext) >>=) . foldMap $ \case
   (SomeExtension SLifetimeExtensionTag lt) -> pure $ RequiredExtensions (Just lt) Nothing
   (SomeExtension SCapabilitiesExtensionTag _) -> pure $ RequiredExtensions Nothing (Just ())
 
