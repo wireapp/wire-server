@@ -794,6 +794,8 @@ sendAndConsumeCommitBundle mp = do
             . bytes (encodeMLS' bundle)
         )
         <!! const 201 === statusCode
+  consumeMessage mp
+  traverse_ consumeWelcome (mpWelcome mp)
 
   -- increment epoch and add new clients
   State.modify $ \mls ->
