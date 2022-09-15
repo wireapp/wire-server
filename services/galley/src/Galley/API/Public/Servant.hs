@@ -21,7 +21,6 @@ import Galley.API.Create
 import Galley.API.CustomBackend
 import Galley.API.LegalHold
 import Galley.API.MLS
-import Galley.API.MLS.Message (postMLSCommitBundle)
 import Galley.API.Query
 import Galley.API.Teams
 import Galley.API.Teams.Features
@@ -163,10 +162,10 @@ servantSitemap =
 
     mls :: API MLSAPI GalleyEffects
     mls =
-      mkNamedAPI @"mls-welcome-message" postMLSWelcome
+      mkNamedAPI @"mls-welcome-message" postMLSWelcomeFromLocalUser
         <@> mkNamedAPI @"mls-message-v1" postMLSMessageFromLocalUserV1
         <@> mkNamedAPI @"mls-message" postMLSMessageFromLocalUser
-        <@> mkNamedAPI @"mls-commit-bundle" postMLSCommitBundle
+        <@> mkNamedAPI @"mls-commit-bundle" postMLSCommitBundleFromLocalUser
         <@> mkNamedAPI @"mls-public-keys" getMLSPublicKeys
 
     customBackend :: API CustomBackendAPI GalleyEffects
