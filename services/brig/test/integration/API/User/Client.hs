@@ -990,7 +990,6 @@ testCreateAccessToken brig = do
     expectedToken @=? datrToken response
     DPoP @=? datrType response
     300 @=? datrExpiresIn response
-  print response
 
 testCreateAccessTokenMissingProof :: Brig -> Http ()
 testCreateAccessTokenMissingProof brig = do
