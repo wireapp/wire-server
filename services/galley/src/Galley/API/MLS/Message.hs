@@ -275,13 +275,17 @@ postMLSCommitBundleToLocalConv ::
 postMLSCommitBundleToLocalConv qusr conn bundle lcnv = do
   let msg = rmValue (cbCommitMsg bundle)
   conv <- getLocalConvForUser qusr lcnv
+  let lconv = qualifyAs lcnv conv
   cm <- lookupMLSClients lcnv
 
   senderClient <- fmap ciClient <$> getSenderClient qusr SMLSPlainText msg
 
   events <- case msgPayload msg of
     CommitMessage commit ->
-      processCommit qusr senderClient conn (qualifyAs lcnv conv) cm (msgEpoch msg) (msgSender msg) commit
+      do
+        (groupId, action) <- getCommitData lconv (msgEpoch msg) commit
+        -- TODO: check that the welcome message matches the action
+        processCommitWithAction qusr senderClient conn lconv cm (msgEpoch msg) groupId action (msgSender msg) commit
     ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
     ProposalMessage _ -> throwS @'MLSUnsupportedMessage
 
@@ -554,6 +558,35 @@ paAddClient quc = mempty {paAdd = Map.singleton (fmap fst quc) (Set.singleton (s
 paRemoveClient :: Qualified (UserId, (ClientId, KeyPackageRef)) -> ProposalAction
 paRemoveClient quc = mempty {paRemove = Map.singleton (fmap fst quc) (Set.singleton (snd (qUnqualified quc)))}
 
+getCommitData ::
+  ( HasProposalEffects r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (Error MLSProtocolError) r,
+    Member (ErrorS 'MLSProposalNotFound) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (Input (Local ())) r,
+    Member (Input Env) r,
+    Member (Input Opts) r,
+    Member (Input UTCTime) r,
+    Member TinyLog r
+  ) =>
+  Local Data.Conversation ->
+  Epoch ->
+  Commit ->
+  Sem r (GroupId, ProposalAction)
+getCommitData lconv epoch commit = do
+  convMeta <-
+    preview (to convProtocol . _ProtocolMLS) (tUnqualified lconv)
+      & noteS @'ConvNotFound
+
+  let curEpoch = cnvmlsEpoch convMeta
+      groupId = cnvmlsGroupId convMeta
+
+  -- check epoch number
+  when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
+  action <- foldMap (applyProposalRef (tUnqualified lconv) groupId epoch) (cProposals commit)
+  pure (groupId, action)
+
 processCommit ::
   ( HasProposalEffects r,
     Member (Error FederationError) r,
@@ -579,17 +612,37 @@ processCommit ::
   Commit ->
   Sem r [LocalConversationUpdate]
 processCommit qusr senderClient con lconv cm epoch sender commit = do
+  (groupId, action) <- getCommitData lconv epoch commit
+  processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender commit
+
+processCommitWithAction ::
+  ( HasProposalEffects r,
+    Member (Error FederationError) r,
+    Member (Error InternalError) r,
+    Member (ErrorS 'ConvNotFound) r,
+    Member (ErrorS 'MLSCommitMissingReferences) r,
+    Member (ErrorS 'MLSProposalNotFound) r,
+    Member (ErrorS 'MLSSelfRemovalNotAllowed) r,
+    Member (ErrorS 'MLSStaleMessage) r,
+    Member (ErrorS 'MissingLegalholdConsent) r,
+    Member (Input (Local ())) r,
+    Member ProposalStore r,
+    Member BrigAccess r,
+    Member Resource r
+  ) =>
+  Qualified UserId ->
+  Maybe ClientId ->
+  Maybe ConnId ->
+  Local Data.Conversation ->
+  ClientMap ->
+  Epoch ->
+  GroupId ->
+  ProposalAction ->
+  Sender 'MLSPlainText ->
+  Commit ->
+  Sem r [LocalConversationUpdate]
+processCommitWithAction qusr senderClient con lconv cm epoch groupId action sender commit = do
   self <- noteS @'ConvNotFound $ getConvMember lconv (tUnqualified lconv) qusr
-
-  -- check epoch number
-  convMeta <-
-    preview (to convProtocol . _ProtocolMLS) (tUnqualified lconv)
-      & noteS @'ConvNotFound
-
-  let curEpoch = cnvmlsEpoch convMeta
-      groupId = cnvmlsGroupId convMeta
-
-  when (epoch /= curEpoch) $ throwS @'MLSStaleMessage
 
   let ttlSeconds :: Int = 600 -- 10 minutes
   withCommitLock groupId epoch (fromIntegral ttlSeconds) $ do
@@ -638,7 +691,6 @@ processCommit qusr senderClient con lconv cm epoch sender commit = do
       throwS @'MLSCommitMissingReferences
 
     -- process and execute proposals
-    action <- foldMap (applyProposalRef (tUnqualified lconv) groupId epoch) (cProposals commit)
     updates <- executeProposalAction qusr con lconv cm action
 
     -- update key package ref if necessary
