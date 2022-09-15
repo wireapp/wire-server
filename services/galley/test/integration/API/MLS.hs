@@ -1612,25 +1612,25 @@ testBackendRemoveProposalLocalConvLocalClient = do
     traverse_ uploadNewKeyPackage [bob1, bob2]
     (_, qcnv) <- setupMLSGroup alice1
     void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
-    [(bobA, kpBobA), (bobB, _kpBobB)] <- getClientsFromGroupState alice1 bob
+    Just (_, kpBob1) <- find (\(ci, _) -> ci == bob1) <$> getClientsFromGroupState alice1 bob
 
-    mlsBracket [alice1, bobA] $ \[wsA, wsB] -> do
+    mlsBracket [alice1, bob1] $ \[wsA, wsB] -> do
       liftTest $
-        deleteClient (ciUser bobA) (ciClient bobA) (Just defPassword)
+        deleteClient (ciUser bob1) (ciClient bob1) (Just defPassword)
           !!! statusCode === const 200
 
       State.modify $ \mls ->
         mls
-          { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [bobA])
+          { mlsMembers = Set.difference (mlsMembers mls) (Set.fromList [bob1])
           }
 
       WS.assertMatch_ (5 # WS.Second) wsB $
-        wsAssertClientRemoved (ciClient bobA)
+        wsAssertClientRemoved (ciClient bob1)
 
       msg <- WS.assertMatch (5 # WS.Second) wsA $ \notification -> do
-        wsAssertBackendRemoveProposal bob qcnv kpBobA notification
+        wsAssertBackendRemoveProposal bob qcnv kpBob1 notification
 
-      for_ [alice1, bobB] $
+      for_ [alice1, bob2] $
         flip consumeMessage1 msg
 
       mp <- createPendingProposalCommit alice1
@@ -1656,7 +1656,6 @@ testBackendRemoveProposalLocalConvRemoteClient = do
               . Aeson.encode
               . Set.fromList
               . map (flip ClientInfo True)
-              . toList
               $ [ciClient bob1]
           ms -> assertFailure ("unmocked endpoint called: " <> cs ms)
 

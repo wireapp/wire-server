@@ -22,6 +22,7 @@ module Galley.API.Clients
   )
 where
 
+import Data.Either.Combinators (whenLeft)
 import Data.Hex
 import Data.Id
 import Data.Proxy
@@ -44,10 +45,10 @@ import Galley.Env
 import Galley.Types.Clients (clientIds, fromUserClients)
 import Imports
 import Network.Wai
-import Network.Wai.Predicate hiding (setStatus)
-import Network.Wai.Utilities
+import Network.Wai.Predicate hiding (Error, setStatus)
+import Network.Wai.Utilities hiding (Error)
 import Polysemy
-import qualified Polysemy.Error as Poly
+import Polysemy.Error
 import Polysemy.Input
 import qualified Polysemy.TinyLog as P
 import qualified System.Logger as Log
@@ -99,7 +100,7 @@ rmClientH ::
          ListItems p1 ConvId,
          ListItems p1 (Remote ConvId),
          MemberStore,
-         Poly.Error InternalError,
+         Error InternalError,
          ProposalStore,
          P.TinyLog
        ]
@@ -119,8 +120,7 @@ rmClientH (usr ::: cid) = do
     rpc = fedClient @'Galley @"on-client-removed"
     goConvs :: Range 1 1000 Int32 -> ConvIdsPage -> Local UserId -> Sem r ()
     goConvs range page lusr = do
-      loc :: Local () <- input
-      let (localConvs, remoteConvs) = partitionQualified loc (mtpResults page)
+      let (localConvs, remoteConvs) = partitionQualified lusr (mtpResults page)
       for_ localConvs $ \convId -> do
         mConv <- getConversation convId
         for_ mConv $ \conv -> do
@@ -134,22 +134,20 @@ rmClientH (usr ::: cid) = do
         goConvs range newCids lusr
 
     removeRemoteMLSClients :: Range 1 1000 [Remote ConvId] -> Sem r ()
-    removeRemoteMLSClients cids = do
-      for_ (bucketRemote (fromRange cids)) $ \remoteConvs -> do
+    removeRemoteMLSClients convIds = do
+      for_ (bucketRemote (fromRange convIds)) $ \remoteConvs -> do
         runFederatedEither remoteConvs (rpc (ClientRemovedRequest usr cid (tUnqualified remoteConvs)))
           >>= logAndIgnoreError "Error in onConversationUpdated call" usr
 
-    logAndIgnoreError message usr' res = do
-      case res of
-        Left federationError ->
-          P.err
-            ( Log.msg
-                ( "Federation error while notifying remote backends of a client deletion (Galley). "
-                    <> message
-                    <> " "
-                    <> show federationError
-                )
-                . Log.field "user" (show usr')
-                . Log.field "client" (hex . T.unpack . client $ cid)
-            )
-        Right _ -> pure ()
+    logAndIgnoreError message usr' res =
+      whenLeft res $ \federationError ->
+        P.err
+          ( Log.msg
+              ( "Federation error while notifying remote backends of a client deletion (Galley). "
+                  <> message
+                  <> " "
+                  <> show federationError
+              )
+              . Log.field "user" (show usr')
+              . Log.field "client" (hex . T.unpack . client $ cid)
+          )
