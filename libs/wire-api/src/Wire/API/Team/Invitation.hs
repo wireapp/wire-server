@@ -32,9 +32,9 @@ where
 import Data.Aeson
 import Data.Id
 import Data.Json.Util
-import Data.Misc (HttpsUrl)
 import qualified Data.Swagger.Build.Api as Doc
 import Imports
+import URI.ByteString
 import Wire.API.Team.Role (Role, defaultRole, typeRole)
 import Wire.API.User.Identity (Email, Phone)
 import Wire.API.User.Profile (Locale, Name)
@@ -106,7 +106,7 @@ data Invitation = Invitation
     inInviteeEmail :: Email,
     inInviteeName :: Maybe Name,
     inInviteePhone :: Maybe Phone,
-    inInviteeUrl :: Maybe HttpsUrl
+    inInviteeUrl :: Maybe (URIRef Absolute)
   }
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform Invitation)

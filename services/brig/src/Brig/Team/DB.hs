@@ -54,7 +54,6 @@ import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.List as C
 import Data.Id
 import Data.Json.Util (UTCTimeMillis, toUTCTimeMillis)
-import Data.Misc
 import Data.Range
 import Data.Text.Ascii (encodeBase64Url, toText)
 import Data.Text.Encoding
@@ -317,7 +316,7 @@ mkInviteUrl ::
   ) =>
   TeamId ->
   InvitationCode ->
-  m (Maybe HttpsUrl)
+  m (Maybe (URIRef Absolute))
 mkInviteUrl team (InvitationCode c) = do
   template <- invitationEmailUrl . invitationEmail . snd <$> teamTemplates Nothing
   branding <- view App.templateBranding
@@ -328,10 +327,10 @@ mkInviteUrl team (InvitationCode c) = do
     replace "code" = toText c
     replace x = x
 
-    parseHttpsUrl :: Log.MonadLogger m => Text -> m (Maybe HttpsUrl)
-    parseHttpsUrl url = either (\e -> logError url e >> pure Nothing) (\s' -> pure $ Just s') $ do
-      uri <- first show $ parseURI laxURIParserOptions (encodeUtf8 url)
-      mkHttpsUrl uri
+    parseHttpsUrl :: Log.MonadLogger m => Text -> m (Maybe (URIRef Absolute))
+    parseHttpsUrl url =
+      either (\e -> logError url e >> pure Nothing) (\s' -> pure $ Just s') $
+        first show $ parseURI laxURIParserOptions (encodeUtf8 url)
 
     logError :: (Log.MonadLogger m, Show e) => Text -> e -> m ()
     logError url e =

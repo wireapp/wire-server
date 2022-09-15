@@ -19,11 +19,12 @@
 
 module Test.Wire.API.Golden.Generated.InvitationList_team where
 
-import Data.ByteString.Conversion (fromByteString')
+import Data.Either.Combinators
 import Data.Id (Id (Id))
 import Data.Json.Util (readUTCTimeMillis)
 import qualified Data.UUID as UUID (fromString)
 import Imports (Bool (False, True), Maybe (Just, Nothing), fromJust)
+import URI.ByteString (parseURI, strictURIParserOptions)
 import Wire.API.Team.Invitation
   ( Invitation
       ( Invitation,
@@ -65,7 +66,7 @@ testObject_InvitationList_team_2 =
                       }
                   ),
               inInviteePhone = Just (Phone {fromPhone = "+851333011"}),
-              inInviteeUrl = fromByteString' "https://example.com/inv14"
+              inInviteeUrl = Just (fromRight' (parseURI strictURIParserOptions "https://example.com/inv14"))
             }
         ],
       ilHasMore = True
