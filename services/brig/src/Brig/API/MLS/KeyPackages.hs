@@ -57,12 +57,11 @@ claimKeyPackages ::
   Maybe ClientId ->
   Handler r KeyPackageBundle
 claimKeyPackages lusr target skipOwn =
-  withExceptT clientError $
-    foldQualified
-      lusr
-      (claimLocalKeyPackages (qUntagged lusr) skipOwn)
-      (claimRemoteKeyPackages lusr)
-      target
+  foldQualified
+    lusr
+    (withExceptT clientError . claimLocalKeyPackages (qUntagged lusr) skipOwn)
+    (claimRemoteKeyPackages lusr)
+    target
 
 claimLocalKeyPackages ::
   Qualified UserId ->
@@ -96,11 +95,12 @@ claimLocalKeyPackages qusr skipOwn target = do
 claimRemoteKeyPackages ::
   Local UserId ->
   Remote UserId ->
-  ExceptT ClientError (AppT r) KeyPackageBundle
+  Handler r KeyPackageBundle
 claimRemoteKeyPackages lusr target = do
   bundle <-
-    (handleFailure =<<) $
-      withExceptT ClientFederationError $
+    withExceptT clientError
+      . (handleFailure =<<)
+      $ withExceptT ClientFederationError $
         runBrigFederatorClient (tDomain target) $
           fedClient @'Brig @"claim-key-packages" $
             ClaimKeyPackageRequest
