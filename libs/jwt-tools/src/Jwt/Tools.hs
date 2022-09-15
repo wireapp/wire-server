@@ -40,19 +40,41 @@ import Wire.API.User.Client.DPoPAccessToken
 
 data JwtResponse
 
+type ProofCStr = CString
+
+type UserIdCStr = CString
+
+type ClientIdWord16 = Word16
+
+type DomainCStr = CString
+
+type NonceCStr = CString
+
+type UrlCStr = CString
+
+type MethodCStr = CString
+
+type MaxSkewSecsWord16 = Word16
+
+type ExpiryWord64 = Word64
+
+type EpochWord64 = Word64
+
+type BackendBundleCStr = CString
+
 foreign import ccall unsafe "generate_dpop_access_token"
   generate_dpop_access_token ::
-    CString ->
-    CString ->
-    Word16 ->
-    CString ->
-    CString ->
-    CString ->
-    CString ->
-    Word16 ->
-    Word64 ->
-    Word64 ->
-    CString ->
+    ProofCStr ->
+    UserIdCStr ->
+    ClientIdWord16 ->
+    DomainCStr ->
+    NonceCStr ->
+    UrlCStr ->
+    MethodCStr ->
+    MaxSkewSecsWord16 ->
+    ExpiryWord64 ->
+    EpochWord64 ->
+    BackendBundleCStr ->
     IO (Ptr JwtResponse)
 
 foreign import ccall unsafe "free_dpop_access_token" free_dpop_access_token :: Ptr JwtResponse -> IO ()
@@ -62,17 +84,17 @@ foreign import ccall unsafe "get_error" get_error :: Ptr JwtResponse -> Ptr CUCh
 foreign import ccall unsafe "get_token" get_token :: Ptr JwtResponse -> CString
 
 createToken ::
-  CString ->
-  CString ->
-  Word16 ->
-  CString ->
-  CString ->
-  CString ->
-  CString ->
-  Word16 ->
-  Word64 ->
-  Word64 ->
-  CString ->
+  ProofCStr ->
+  UserIdCStr ->
+  ClientIdWord16 ->
+  DomainCStr ->
+  NonceCStr ->
+  UrlCStr ->
+  MethodCStr ->
+  MaxSkewSecsWord16 ->
+  ExpiryWord64 ->
+  EpochWord64 ->
+  BackendBundleCStr ->
   IO (Maybe (Ptr JwtResponse))
 createToken dpopProof user client domain nonce uri method maxSkewSecs expiration now backendKeys = do
   ptr <- generate_dpop_access_token dpopProof user client domain nonce uri method maxSkewSecs expiration now backendKeys
@@ -135,11 +157,7 @@ generateDpopToken dpopProof cid nonce uri method maxSkewSecs maxExpiration now b
   let mkAccessToken response = do
         case response of
           Nothing -> pure $ Left FfiError
-          Just r -> do
-            mErr <- getError r
-            print mErr
-            mToken <- getToken r
-            pure $ toResult mErr mToken
+          Just r -> toResult <$> getError r <*> getToken r
 
   let free = maybe (pure ()) free_dpop_access_token
 
