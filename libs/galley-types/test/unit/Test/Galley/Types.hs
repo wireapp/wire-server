@@ -99,7 +99,6 @@ instance Arbitrary FeatureFlags where
       <*> fmap (fmap unlocked) arbitrary
       <*> fmap (fmap unlocked) arbitrary
       <*> arbitrary
-      <*> fmap unlocked arbitrary
     where
       unlocked :: ImplicitLockStatus a -> ImplicitLockStatus a
       unlocked = ImplicitLockStatus . Public.setLockStatus Public.LockStatusUnlocked . _unImplicitLockStatus

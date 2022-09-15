@@ -582,7 +582,6 @@ allFeatureModels =
     withStatusNoLockModel @SearchVisibilityInboundConfig,
     withStatusNoLockModel @MLSConfig,
     withStatusNoLockModel @ExposeInvitationURLsToTeamAdminConfig,
-    withStatusNoLockModel @ExposeInvitationURLsTeamAllowlistConfig,
     withStatusModel @LegalholdConfig,
     withStatusModel @SSOConfig,
     withStatusModel @SearchVisibilityAvailableConfig,
@@ -597,8 +596,7 @@ allFeatureModels =
     withStatusModel @SndFactorPasswordChallengeConfig,
     withStatusModel @SearchVisibilityInboundConfig,
     withStatusModel @MLSConfig,
-    withStatusModel @ExposeInvitationURLsToTeamAdminConfig,
-    withStatusModel @ExposeInvitationURLsTeamAllowlistConfig
+    withStatusModel @ExposeInvitationURLsToTeamAdminConfig
   ]
     <> catMaybes
       [ configModel @LegalholdConfig,
@@ -615,8 +613,7 @@ allFeatureModels =
         configModel @SndFactorPasswordChallengeConfig,
         configModel @SearchVisibilityInboundConfig,
         configModel @MLSConfig,
-        configModel @ExposeInvitationURLsToTeamAdminConfig,
-        configModel @ExposeInvitationURLsTeamAllowlistConfig
+        configModel @ExposeInvitationURLsToTeamAdminConfig
       ]
 
 --------------------------------------------------------------------------------
@@ -982,20 +979,6 @@ instance ToSchema ExposeInvitationURLsTeamAllowlistConfig where
       ExposeInvitationURLsTeamAllowlistConfig
         <$> exposeInvitationURLsTeamAllowlist .= field "teams" (array schema)
 
-instance IsFeatureConfig ExposeInvitationURLsTeamAllowlistConfig where
-  type FeatureSymbol ExposeInvitationURLsTeamAllowlistConfig = "exposeInvitationURLsTeamAllowlist"
-
-  defFeatureStatus =
-    withStatus
-      FeatureStatusDisabled
-      LockStatusUnlocked
-      (ExposeInvitationURLsTeamAllowlistConfig [])
-      FeatureTTLUnlimited
-  configModel = Just $
-    Doc.defineModel "ExposeInvitationURLsTeamAllowlistConfig" $ do
-      Doc.property "teams" (Doc.array Doc.string') $ Doc.description "teams"
-  objectSchema = field "config" schema
-
 ----------------------------------------------------------------------
 -- FeatureStatus
 
@@ -1065,8 +1048,7 @@ data AllFeatureConfigs = AllFeatureConfigs
     afcGuestLink :: WithStatus GuestLinksConfig,
     afcSndFactorPasswordChallenge :: WithStatus SndFactorPasswordChallengeConfig,
     afcMLS :: WithStatus MLSConfig,
-    afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig,
-    afcExposeInvitationURLsTeamAllowlist :: WithStatus ExposeInvitationURLsTeamAllowlistConfig
+    afcExposeInvitationURLsToTeamAdmin :: WithStatus ExposeInvitationURLsToTeamAdminConfig
   }
   deriving stock (Eq, Show)
   deriving (FromJSON, ToJSON, S.ToSchema) via (Schema AllFeatureConfigs)
@@ -1090,7 +1072,6 @@ instance ToSchema AllFeatureConfigs where
         <*> afcSndFactorPasswordChallenge .= featureField
         <*> afcMLS .= featureField
         <*> afcExposeInvitationURLsToTeamAdmin .= featureField
-        <*> afcExposeInvitationURLsTeamAllowlist .= featureField
     where
       featureField ::
         forall cfg.
@@ -1102,7 +1083,6 @@ instance Arbitrary AllFeatureConfigs where
   arbitrary =
     AllFeatureConfigs
       <$> arbitrary
-      <*> arbitrary
       <*> arbitrary
       <*> arbitrary
       <*> arbitrary

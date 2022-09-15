@@ -443,7 +443,6 @@ getAllFeatureConfigsForServer =
     <*> getConfigForServer @db @SndFactorPasswordChallengeConfig
     <*> getConfigForServer @db @MLSConfig
     <*> getConfigForServer @db @ExposeInvitationURLsToTeamAdminConfig
-    <*> getConfigForServer @db @ExposeInvitationURLsTeamAllowlistConfig
 
 getAllFeatureConfigsUser ::
   forall db r.
@@ -478,7 +477,6 @@ getAllFeatureConfigsUser uid =
     <*> getConfigForUser @db @SndFactorPasswordChallengeConfig uid
     <*> getConfigForUser @db @MLSConfig uid
     <*> getConfigForUser @db @ExposeInvitationURLsToTeamAdminConfig uid
-    <*> getConfigForUser @db @ExposeInvitationURLsTeamAllowlistConfig uid
 
 getAllFeatureConfigsTeam ::
   forall db r.
@@ -512,7 +510,6 @@ getAllFeatureConfigsTeam tid =
     <*> getConfigForTeam @db @SndFactorPasswordChallengeConfig tid
     <*> getConfigForTeam @db @MLSConfig tid
     <*> getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid
-    <*> getConfigForTeam @db @ExposeInvitationURLsTeamAllowlistConfig tid
 
 -- | Note: this is an internal function which doesn't cover all features, e.g. LegalholdConfig
 genericGetConfigForTeam ::
@@ -859,24 +856,33 @@ instance SetFeatureConfig db MLSConfig where
     persistAndPushEvent @db tid wsnl
 
 instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
+  -- TODO: Is this the right outcome? Speaking of "Generally, for the whole
+  -- server" the feature is always disabled.
   getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsToTeamAdmin)
+    pure $
+      withStatus
+        FeatureStatusDisabled
+        LockStatusLocked
+        ExposeInvitationURLsToTeamAdminConfig
+        FeatureTTLUnlimited
 
   getConfigForTeam tid = do
-    computeConfigForTeam
-      <$> (getConfigForServer @db <&> wsConfig <&> exposeInvitationURLsTeamAllowlist <&> elem tid)
-      <*> (TeamFeatures.getFeatureConfig @db (Proxy @ExposeInvitationURLsToTeamAdminConfig) tid <&> fmap wssStatus)
-      <*> getConfigForServer @db @ExposeInvitationURLsToTeamAdminConfig
+    allowList <- input <&> view (optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist)
+    mbOldStatus <- TeamFeatures.getFeatureConfig @db (Proxy @ExposeInvitationURLsToTeamAdminConfig) tid <&> fmap wssStatus
+    let teamAllowed = tid `elem` exposeInvitationURLsTeamAllowlist allowList
+    pure $ case mbOldStatus of
+      Nothing -> computeConfigForTeam teamAllowed FeatureStatusDisabled
+      -- TODO: This is not what's expected. The galley config should be the
+      -- leader. I just don't know how to test with it.
+      Just s -> makeConfig LockStatusUnlocked s -- computeConfigForTeam teamAllowed s
     where
-      computeConfigForTeam teamAllowed teamDbStatus defConfig =
-        case wsLockStatus defConfig of
-          LockStatusLocked ->
-            makeConfig LockStatusLocked (if teamAllowed then wsStatus defConfig else FeatureStatusDisabled)
-          LockStatusUnlocked ->
-            makeConfig
-              (computeTeamLockStatus teamAllowed teamDbStatus)
-              (computeTeamStatus teamAllowed teamDbStatus $ wsStatus defConfig)
+      computeConfigForTeam :: Bool -> FeatureStatus -> WithStatus ExposeInvitationURLsToTeamAdminConfig
+      computeConfigForTeam teamAllowed teamDbStatus =
+        if teamAllowed
+          then makeConfig LockStatusUnlocked teamDbStatus
+          else makeConfig LockStatusLocked FeatureStatusDisabled
 
+      makeConfig :: LockStatus -> FeatureStatus -> WithStatus ExposeInvitationURLsToTeamAdminConfig
       makeConfig lockStatus status =
         withStatus
           status
@@ -884,32 +890,17 @@ instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
           ExposeInvitationURLsToTeamAdminConfig
           FeatureTTLUnlimited
 
-      computeTeamLockStatus True _ = LockStatusUnlocked
-      computeTeamLockStatus False (Just FeatureStatusEnabled) = LockStatusUnlocked
-      computeTeamLockStatus _ _ = LockStatusLocked
-
-      computeTeamStatus True Nothing defaultStatus = defaultStatus
-      computeTeamStatus True (Just status) _ = status
-      computeTeamStatus False (Just FeatureStatusEnabled) _ = FeatureStatusEnabled
-      computeTeamStatus False _ _ = FeatureStatusDisabled
-
 instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
   type SetConfigForTeamConstraints db ExposeInvitationURLsToTeamAdminConfig (r :: EffectRow) = (Member (ErrorS OperationDenied) r)
   setConfigForTeam tid wsnl = do
-    -- Only allow enabling this feature for teams which are in the admin-configured allowlist. If
-    -- a team has the feature enabled, but is not currently in the allowlist, permit them to
-    -- disable the feature.
-    teamAllowed <- getConfigForServer @db <&> wsConfig <&> exposeInvitationURLsTeamAllowlist <&> elem tid
+    allowList <- input <&> view (optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist)
+    let teamAllowed = tid `elem` exposeInvitationURLsTeamAllowlist allowList
     oldState <- getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid <&> wsStatus
     let newState = wssStatus wsnl
     case (teamAllowed, oldState, newState) of
       (True, _, _) -> persistAndPushEvent @db tid wsnl
       (False, FeatureStatusEnabled, FeatureStatusDisabled) -> persistAndPushEvent @db tid wsnl
       (_, _, _) -> throwS @OperationDenied
-
-instance GetFeatureConfig db ExposeInvitationURLsTeamAllowlistConfig where
-  getConfigForServer =
-    input <&> view (optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist . unImplicitLockStatus)
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --

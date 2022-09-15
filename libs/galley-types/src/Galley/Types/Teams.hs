@@ -39,7 +39,6 @@ module Galley.Types.Teams
     flagTeamFeatureSndFactorPasswordChallengeStatus,
     flagTeamFeatureSearchVisibilityInbound,
     flagMLS,
-    flagTeamFeatureExposeInvitationURLsToTeamAdmin,
     flagTeamFeatureExposeInvitationURLsTeamAllowlist,
     Defaults (..),
     ImplicitLockStatus (..),
@@ -153,8 +152,7 @@ data FeatureFlags = FeatureFlags
     _flagTeamFeatureSndFactorPasswordChallengeStatus :: !(Defaults (WithStatus SndFactorPasswordChallengeConfig)),
     _flagTeamFeatureSearchVisibilityInbound :: !(Defaults (ImplicitLockStatus SearchVisibilityInboundConfig)),
     _flagMLS :: !(Defaults (ImplicitLockStatus MLSConfig)),
-    _flagTeamFeatureExposeInvitationURLsToTeamAdmin :: !(WithStatus ExposeInvitationURLsToTeamAdminConfig),
-    _flagTeamFeatureExposeInvitationURLsTeamAllowlist :: !(ImplicitLockStatus ExposeInvitationURLsTeamAllowlistConfig)
+    _flagTeamFeatureExposeInvitationURLsTeamAllowlist :: !ExposeInvitationURLsTeamAllowlistConfig
   }
   deriving (Eq, Show, Generic)
 
@@ -204,8 +202,7 @@ instance FromJSON FeatureFlags where
       <*> (fromMaybe (Defaults (defFeatureStatus @SndFactorPasswordChallengeConfig)) <$> (obj .:? "sndFactorPasswordChallenge"))
       <*> withImplicitLockStatusOrDefault obj "searchVisibilityInbound"
       <*> withImplicitLockStatusOrDefault obj "mls"
-      <*> (fromMaybe (defFeatureStatus @ExposeInvitationURLsToTeamAdminConfig) <$> (obj .:? "exposeInvitationURLsToTeamAdmin"))
-      <*> (fromMaybe (ImplicitLockStatus (defFeatureStatus @ExposeInvitationURLsTeamAllowlistConfig)) <$> (obj .:? "exposeInvitationURLsTeamAllowlist"))
+      <*> (fromMaybe (ExposeInvitationURLsTeamAllowlistConfig []) <$> (obj .:? "exposeInvitationURLsTeamAllowlist"))
     where
       withImplicitLockStatusOrDefault :: forall cfg. (IsFeatureConfig cfg, Schema.ToSchema cfg) => Object -> Key -> A.Parser (Defaults (ImplicitLockStatus cfg))
       withImplicitLockStatusOrDefault obj fieldName = fromMaybe (Defaults (ImplicitLockStatus (defFeatureStatus @cfg))) <$> obj .:? fieldName
@@ -226,7 +223,6 @@ instance ToJSON FeatureFlags where
         sndFactorPasswordChallenge
         searchVisibilityInbound
         mls
-        exposeInvitationURLsToTeamAdmin
         exposeInvitationURLsTeamAllowlist
       ) =
       object
@@ -243,7 +239,6 @@ instance ToJSON FeatureFlags where
           "sndFactorPasswordChallenge" .= sndFactorPasswordChallenge,
           "searchVisibilityInbound" .= searchVisibilityInbound,
           "mls" .= mls,
-          "exposeInvitationURLsToTeamAdmin" .= exposeInvitationURLsToTeamAdmin,
           "exposeInvitationURLsTeamAllowlist" .= exposeInvitationURLsTeamAllowlist
         ]
 
