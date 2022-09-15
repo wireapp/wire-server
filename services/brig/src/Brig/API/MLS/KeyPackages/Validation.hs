@@ -46,6 +46,9 @@ import Wire.API.MLS.Extension
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.Serialisation
 
+
+-- TODO: remove Handler, use Sem instead
+-- with a timestamp, errors and settings constraint.
 validateKeyPackage :: ClientIdentity -> RawMLS KeyPackage -> Handler r (KeyPackageRef, KeyPackageData)
 validateKeyPackage identity (RawMLS (KeyPackageData -> kpd) kp) = do
   -- get ciphersuite
@@ -138,14 +141,16 @@ findExtension' ext = (Ap (first (const MLSDecodingError) . decodeExtension ext) 
   (SomeExtension SLifetimeExtensionTag lt) -> pure $ RequiredExtensions (Just lt) Nothing
   (SomeExtension SCapabilitiesExtensionTag _) -> pure $ RequiredExtensions Nothing (Just ())
 
+-- TODO: only needs the same constraints as validateLifetime
 validateExtensions :: [Extension] -> Handler r ()
 validateExtensions exts = do
   re <- either mlsProtocolError pure $ findExtensions exts
   validateLifetime . runIdentity . reLifetime $ re
 
+-- TODO: needs settings and current time from Sem, no need to be in Handler m a
 validateLifetime :: Lifetime -> Handler r ()
 validateLifetime lt = do
-  now <- liftIO getPOSIXTime
+  now <- liftIO getPOSIXTime -- use Sem's get time
   mMaxLifetime <- setKeyPackageMaximumLifetime <$> view settings
   either mlsProtocolError pure $
     validateLifetime' now mMaxLifetime lt

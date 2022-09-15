@@ -97,7 +97,7 @@ claimLocalKeyPackages qusr skipOwn target = do
 claimRemoteKeyPackages ::
   Local UserId ->
   Remote UserId ->
-  ExceptT ClientError (AppT r) KeyPackageBundle
+  Handler r KeyPackageBundle
 claimRemoteKeyPackages lusr target = do
   bundle <-
     (handleFailure =<<) $
@@ -115,9 +115,10 @@ claimRemoteKeyPackages lusr target = do
     kpRaw <- case decodeMLS' (kpData (kpbeKeyPackage e)) of
       Left _ -> throwE (ClientDataError KeyPackageDecodingError)
       Right v -> pure v
-    (refVal, _) <- mapErrors $ validateKeyPackage cid kpRaw
+    (refVal, _) <- validateKeyPackage cid kpRaw
     unless (refVal == kpbeRef e)
       . throwE
+      . clientError
       . ClientDataError
       $ InvalidKeyPackageRef
     wrapClientE $
@@ -125,7 +126,6 @@ claimRemoteKeyPackages lusr target = do
 
   pure bundle
   where
-    mapErrors = undefined
     handleFailure :: Monad m => Maybe x -> ExceptT ClientError m x
     handleFailure = maybe (throwE (ClientUserNotFound (tUnqualified target))) pure
 
