@@ -13,7 +13,7 @@ while getopts ':f:m:' opt
               files=$(find libs/ services/ -not -path "*/test/*" -name "*.hs")
               echo "WARNING: not linting tests."
             elif [ "$f" = "pr" ]; then
-              files=$(git diff --name-only develop | grep \.hs\$)
+              files=$(git diff --name-only origin/develop... | grep \.hs\$)
               echo "WARNING: linting test files with changes. This may lead to some hard to fix warnings/errors, it is safe to ignore those!"
             elif [ "$f" = "changeset" ]; then
               files=$(git diff --name-only HEAD | grep \.hs\$)
