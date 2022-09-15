@@ -856,8 +856,6 @@ instance SetFeatureConfig db MLSConfig where
     persistAndPushEvent @db tid wsnl
 
 instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
-  -- TODO: Is this the right outcome? Speaking of "Generally, for the whole
-  -- server" the feature is always disabled.
   getConfigForServer =
     pure $
       withStatus
@@ -872,9 +870,7 @@ instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
     let teamAllowed = tid `elem` exposeInvitationURLsTeamAllowlist allowList
     pure $ case mbOldStatus of
       Nothing -> computeConfigForTeam teamAllowed FeatureStatusDisabled
-      -- TODO: This is not what's expected. The galley config should be the
-      -- leader. I just don't know how to test with it.
-      Just s -> makeConfig LockStatusUnlocked s -- computeConfigForTeam teamAllowed s
+      Just s -> computeConfigForTeam teamAllowed s
     where
       computeConfigForTeam :: Bool -> FeatureStatus -> WithStatus ExposeInvitationURLsToTeamAdminConfig
       computeConfigForTeam teamAllowed teamDbStatus =
@@ -893,14 +889,10 @@ instance GetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
 instance SetFeatureConfig db ExposeInvitationURLsToTeamAdminConfig where
   type SetConfigForTeamConstraints db ExposeInvitationURLsToTeamAdminConfig (r :: EffectRow) = (Member (ErrorS OperationDenied) r)
   setConfigForTeam tid wsnl = do
-    allowList <- input <&> view (optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist)
-    let teamAllowed = tid `elem` exposeInvitationURLsTeamAllowlist allowList
-    oldState <- getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid <&> wsStatus
-    let newState = wssStatus wsnl
-    case (teamAllowed, oldState, newState) of
-      (True, _, _) -> persistAndPushEvent @db tid wsnl
-      (False, FeatureStatusEnabled, FeatureStatusDisabled) -> persistAndPushEvent @db tid wsnl
-      (_, _, _) -> throwS @OperationDenied
+    lockStatus <- getConfigForTeam @db @ExposeInvitationURLsToTeamAdminConfig tid <&> wsLockStatus
+    case lockStatus of
+      LockStatusLocked -> throwS @OperationDenied
+      LockStatusUnlocked -> persistAndPushEvent @db tid wsnl
 
 -- -- | If second factor auth is enabled, make sure that end-points that don't support it, but should, are blocked completely.  (This is a workaround until we have 2FA for those end-points as well.)
 -- --

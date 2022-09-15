@@ -141,7 +141,8 @@ tests s =
       testGroup
         "ExposeInvitationURLsToTeamAdmin"
         [ test s "can be set when TeamId is in allow list" testExposeInvitationURLsToTeamAdminTeamIdInAllowList,
-          test s "can not be set when allow list is empty" testExposeInvitationURLsToTeamAdminEmptyAllowList
+          test s "can not be set when allow list is empty" testExposeInvitationURLsToTeamAdminEmptyAllowList,
+          test s "server config takes precendece over team feature config" testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence
         ]
     ]
 
@@ -172,6 +173,30 @@ testExposeInvitationURLsToTeamAdminEmptyAllowList = do
   owner <- Util.randomUser
   tid <- Util.createBindingTeamInternal "foo" owner
   assertQueue "create team" tActivate
+  void $
+    withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist .~ ExposeInvitationURLsTeamAllowlistConfig []) $ do
+      g <- view tsGalley
+      assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusLocked
+      let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited
+      void $
+        putTeamFeatureFlagWithGalley @ExposeInvitationURLsToTeamAdminConfig g owner tid enabled !!! do
+          const 409 === statusCode
+      assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusLocked
+
+testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence :: TestM ()
+testExposeInvitationURLsToTeamAdminServerConfigTakesPrecedence = do
+  owner <- Util.randomUser
+  tid <- Util.createBindingTeamInternal "foo" owner
+  assertQueue "create team" tActivate
+  void $
+    withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist .~ ExposeInvitationURLsTeamAllowlistConfig [tid]) $ do
+      g <- view tsGalley
+      assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusDisabled Public.LockStatusUnlocked
+      let enabled = Public.WithStatusNoLock Public.FeatureStatusEnabled ExposeInvitationURLsToTeamAdminConfig Public.FeatureTTLUnlimited
+      void $
+        putTeamFeatureFlagWithGalley @ExposeInvitationURLsToTeamAdminConfig g owner tid enabled !!! do
+          const 200 === statusCode
+      assertExposeInvitationURLsToTeamAdminConfigStatus owner tid FeatureStatusEnabled Public.LockStatusUnlocked
   void $
     withSettingsOverrides (\opts -> opts & optSettings . setFeatureFlags . flagTeamFeatureExposeInvitationURLsTeamAllowlist .~ ExposeInvitationURLsTeamAllowlistConfig []) $ do
       g <- view tsGalley
