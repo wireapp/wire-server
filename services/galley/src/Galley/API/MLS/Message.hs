@@ -23,6 +23,7 @@ module Galley.API.MLS.Message
     postMLSMessageFromLocalUserV1,
     postMLSMessage,
     MLSMessageStaticErrors,
+    MLSBundleStaticErrors,
   )
 where
 
@@ -81,6 +82,7 @@ import Wire.API.MLS.Message
 import Wire.API.MLS.Proposal
 import qualified Wire.API.MLS.Proposal as Proposal
 import Wire.API.MLS.Serialisation
+import Wire.API.MLS.Welcome
 import Wire.API.Message
 import Wire.API.Routes.Internal.Brig
 import Wire.API.User.Client
@@ -101,6 +103,11 @@ type MLSMessageStaticErrors =
      ErrorS 'MLSClientSenderUserMismatch,
      ErrorS 'MLSGroupConversationMismatch
    ]
+
+type MLSBundleStaticErrors =
+  Append
+    MLSMessageStaticErrors
+    '[ErrorS 'MLSWelcomeMismatch]
 
 postMLSMessageFromLocalUserV1 ::
   ( HasProposalEffects r,
@@ -171,23 +178,12 @@ postMLSMessageFromLocalUser lusr conn msg = do
 
 postMLSCommitBundle ::
   ( HasProposalEffects r,
+    Members MLSBundleStaticErrors r,
     Members
       '[ BrigAccess,
          Error FederationError,
          Error InternalError,
          Error MLSProtocolError,
-         ErrorS 'ConvNotFound,
-         ErrorS 'ConvMemberNotFound,
-         ErrorS 'ConvAccessDenied,
-         ErrorS 'MLSClientSenderUserMismatch,
-         ErrorS 'MLSCommitMissingReferences,
-         ErrorS 'MLSKeyPackageRefNotFound,
-         ErrorS 'MLSGroupConversationMismatch,
-         ErrorS 'MLSProposalNotFound,
-         ErrorS 'MLSSelfRemovalNotAllowed,
-         ErrorS 'MLSStaleMessage,
-         ErrorS 'MLSUnsupportedMessage,
-         ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          Input Opts,
          Input UTCTime,
@@ -213,7 +209,7 @@ postMLSCommitBundle loc qusr qcnv conn rawBundle =
 
 postMLSCommitBundleFromLocalUser ::
   ( HasProposalEffects r,
-    Members MLSMessageStaticErrors r,
+    Members MLSBundleStaticErrors r,
     Members
       '[ BrigAccess,
          Error FederationError,
@@ -243,20 +239,12 @@ postMLSCommitBundleFromLocalUser lusr conn bundle = do
 
 postMLSCommitBundleToLocalConv ::
   ( HasProposalEffects r,
+    Members MLSBundleStaticErrors r,
     Members
       '[ BrigAccess,
          Error FederationError,
          Error InternalError,
          Error MLSProtocolError,
-         ErrorS 'ConvNotFound,
-         ErrorS 'MLSCommitMissingReferences,
-         ErrorS 'MLSClientSenderUserMismatch,
-         ErrorS 'MLSKeyPackageRefNotFound,
-         ErrorS 'MLSProposalNotFound,
-         ErrorS 'MLSSelfRemovalNotAllowed,
-         ErrorS 'MLSUnsupportedMessage,
-         ErrorS 'MLSStaleMessage,
-         ErrorS 'MissingLegalholdConsent,
          Input (Local ()),
          Input UTCTime,
          Input Opts,
@@ -284,7 +272,13 @@ postMLSCommitBundleToLocalConv qusr conn bundle lcnv = do
     CommitMessage commit ->
       do
         (groupId, action) <- getCommitData lconv (msgEpoch msg) commit
-        -- TODO: check that the welcome message matches the action
+        -- check that the welcome message matches the action
+        for_ (cbWelcome bundle) $ \welcome ->
+          when
+            ( Set.fromList (map gsNewMember (welSecrets (rmValue welcome)))
+                /= Set.fromList (map (snd . snd) (cmAssocs (paAdd action)))
+            )
+            $ throwS @'MLSWelcomeMismatch
         processCommitWithAction qusr senderClient conn lconv cm (msgEpoch msg) groupId action (msgSender msg) commit
     ApplicationMessage _ -> throwS @'MLSUnsupportedMessage
     ProposalMessage _ -> throwS @'MLSUnsupportedMessage
@@ -297,7 +291,7 @@ postMLSCommitBundleToLocalConv qusr conn bundle lcnv = do
   pure events
 
 postMLSCommitBundleToRemoteConv ::
-  ( Members MLSMessageStaticErrors r,
+  ( Members MLSBundleStaticErrors r,
     Members
       '[ Error FederationError,
          Error MLSProtocolError,
@@ -331,7 +325,7 @@ postMLSCommitBundleToRemoteConv loc qusr con bundle rcnv = do
             msrRawMessage = Base64ByteString (rmRaw bundle)
           }
   updates <- case resp of
-    MLSMessageResponseError e -> rethrowErrors @MLSMessageStaticErrors e
+    MLSMessageResponseError e -> rethrowErrors @MLSBundleStaticErrors e
     MLSMessageResponseProtocolError e -> throw (mlsProtocolError e)
     MLSMessageResponseProposalFailure e -> throw (MLSProposalFailure e)
     MLSMessageResponseUpdates updates -> pure updates

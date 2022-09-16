@@ -628,7 +628,7 @@ sendMLSCommitBundle remoteDomain msr =
       loc <- qualifyLocal ()
       let sender = toRemoteUnsafe remoteDomain (F.msrSender msr)
       bundle <- either (throw . mlsProtocolError) pure $ decodeMLS' (fromBase64ByteString (F.msrRawMessage msr))
-      mapToGalleyError @MLSMessageStaticErrors $ do
+      mapToGalleyError @MLSBundleStaticErrors $ do
         let msg = rmValue (cbCommitMsg (rmValue bundle))
         qcnv <- E.getConversationIdByGroupId (msgGroupId msg) >>= noteS @'ConvNotFound
         when (qUnqualified qcnv /= F.msrConvId msr) $ throwS @'MLSGroupConversationMismatch

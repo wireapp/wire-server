@@ -81,6 +81,7 @@ data GalleyError
   | MLSSelfRemovalNotAllowed
   | MLSGroupConversationMismatch
   | MLSClientSenderUserMismatch
+  | MLSWelcomeMismatch
   | --
     NoBindingTeamMembers
   | NoBindingTeam
@@ -199,6 +200,8 @@ type instance MapError 'MLSSelfRemovalNotAllowed = 'StaticError 400 "mls-self-re
 type instance MapError 'MLSGroupConversationMismatch = 'StaticError 400 "mls-group-conversation-mismatch" "Conversation ID resolved from Group ID does not match submitted Conversation ID"
 
 type instance MapError 'MLSClientSenderUserMismatch = 'StaticError 400 "mls-client-sender-user-mismatch" "User ID resolved from Client ID does not match message's sender user ID"
+
+type instance MapError 'MLSWelcomeMismatch = 'StaticError 400 "mls-welcome-mismatch" "The list of targets of a welcome message does not match the list of new clients in a group"
 
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 

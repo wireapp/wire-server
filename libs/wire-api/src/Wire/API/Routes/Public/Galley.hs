@@ -1402,6 +1402,7 @@ type MLSMessagingAPI =
                :> CanThrow 'MLSUnsupportedProposal
                :> CanThrow 'MLSClientSenderUserMismatch
                :> CanThrow 'MLSGroupConversationMismatch
+               :> CanThrow 'MLSWelcomeMismatch
                :> CanThrow 'MissingLegalholdConsent
                :> CanThrow MLSProposalFailure
                :> "commit-bundles"
