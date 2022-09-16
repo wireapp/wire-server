@@ -89,6 +89,7 @@ import Wire.API.Federation.API.Brig (UserDeletedConnectionsNotification (..))
 import qualified Wire.API.Federation.API.Brig as FedBrig
 import Wire.API.Federation.API.Common (EmptyResponse (EmptyResponse))
 import Wire.API.Internal.Notification
+import Wire.API.Team.Feature (ExposeInvitationURLsToTeamAdminConfig (..), FeatureStatus (..), FeatureTTL' (..), LockStatus (LockStatusLocked), withStatus)
 import Wire.API.Team.Invitation (Invitation (inInvitation))
 import Wire.API.Team.Permission hiding (self)
 import Wire.API.User
@@ -1620,7 +1621,19 @@ testTooManyMembersForLegalhold opts brig = do
                     "too-many-members-for-legalhold"
                     "cannot add more members to team when legalhold service is enabled."
                 )
-          else pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
+          else
+            if mth == "GET"
+              && pth == ["i", "teams", Text.pack (show tid), "features", "exposeInvitationURLsToTeamAdmin"]
+              then
+                pure . Wai.responseLBS HTTP.status200 mempty $
+                  encode
+                    ( withStatus
+                        FeatureStatusDisabled
+                        LockStatusLocked
+                        ExposeInvitationURLsToTeamAdminConfig
+                        FeatureTTLUnlimited
+                    )
+              else pure $ Wai.responseLBS HTTP.status500 mempty "Unexpected request to mocked galley"
 
   void . withMockedGalley opts mockGalley $ do
     post
