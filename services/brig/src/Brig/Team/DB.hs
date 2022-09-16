@@ -91,6 +91,7 @@ insertInvitation ::
     MonadReader Env m,
     MonadClient m
   ) =>
+  ShowOrHideInvitationUrl ->
   InvitationId ->
   TeamId ->
   Role ->
@@ -101,11 +102,10 @@ insertInvitation ::
   Maybe Phone ->
   -- | The timeout for the invitation code.
   Timeout ->
-  ShowOrHideInvitationUrl ->
   m (Invitation, InvitationCode)
-insertInvitation iid t role (toUTCTimeMillis -> now) minviter email inviteeName phone timeout showUrl = do
+insertInvitation showUrl iid t role (toUTCTimeMillis -> now) minviter email inviteeName phone timeout = do
   code <- liftIO mkInvitationCode
-  url <- mkInviteUrl t code showUrl
+  url <- mkInviteUrl showUrl t code
   let inv = Invitation t role iid now minviter email inviteeName phone url
   retry x5 . batch $ do
     setType BatchLogged
@@ -128,11 +128,11 @@ lookupInvitation ::
     MonadReader Env m,
     Log.MonadLogger m
   ) =>
+  ShowOrHideInvitationUrl ->
   TeamId ->
   InvitationId ->
-  ShowOrHideInvitationUrl ->
   m (Maybe Invitation)
-lookupInvitation t r showUrl = do
+lookupInvitation showUrl t r = do
   inv <- retry x1 (query1 cqlInvitation (params LocalQuorum (t, r)))
   traverse (toInvitation showUrl) inv
   where
@@ -148,7 +148,7 @@ lookupInvitationByCode ::
   m (Maybe Invitation)
 lookupInvitationByCode i =
   lookupInvitationInfo i >>= \case
-    Just InvitationInfo {..} -> lookupInvitation iiTeam iiInvId HideInvitationUrl
+    Just InvitationInfo {..} -> lookupInvitation HideInvitationUrl iiTeam iiInvId
     _ -> pure Nothing
 
 lookupInvitationCode :: MonadClient m => TeamId -> InvitationId -> m (Maybe InvitationCode)
@@ -170,12 +170,12 @@ lookupInvitations ::
     MonadReader Env m,
     MonadClient m
   ) =>
+  ShowOrHideInvitationUrl ->
   TeamId ->
   Maybe InvitationId ->
   Range 1 500 Int32 ->
-  ShowOrHideInvitationUrl ->
   m (ResultPage Invitation)
-lookupInvitations team start (fromRange -> size) showUrl = do
+lookupInvitations showUrl team start (fromRange -> size) = do
   page <- case start of
     Just ref -> retry x1 $ paginate cqlSelectFrom (paramsP LocalQuorum (team, ref) (size + 1))
     Nothing -> retry x1 $ paginate cqlSelect (paramsP LocalQuorum (Identity team) (size + 1))
@@ -243,7 +243,7 @@ lookupInvitationByEmail ::
   m (Maybe Invitation)
 lookupInvitationByEmail e =
   lookupInvitationInfoByEmail e >>= \case
-    InvitationByEmail InvitationInfo {..} -> lookupInvitation iiTeam iiInvId HideInvitationUrl
+    InvitationByEmail InvitationInfo {..} -> lookupInvitation HideInvitationUrl iiTeam iiInvId
     _ -> pure Nothing
 
 lookupInvitationInfoByEmail :: (Log.MonadLogger m, MonadClient m) => Email -> m InvitationByEmail
@@ -291,19 +291,19 @@ toInvitation ::
   ) ->
   m Invitation
 toInvitation showUrl (t, r, i, tm, minviter, e, inviteeName, p, code) = do
-  url <- mkInviteUrl t code showUrl
+  url <- mkInviteUrl showUrl t code
   pure $ Invitation t (fromMaybe defaultRole r) i tm minviter e inviteeName p url
 
 mkInviteUrl ::
   ( MonadReader Env m,
     Log.MonadLogger m
   ) =>
+  ShowOrHideInvitationUrl ->
   TeamId ->
   InvitationCode ->
-  ShowOrHideInvitationUrl ->
   m (Maybe (URIRef Absolute))
-mkInviteUrl _ _ HideInvitationUrl = pure Nothing
-mkInviteUrl team (InvitationCode c) ShowInvitationUrl = do
+mkInviteUrl HideInvitationUrl _ _ = pure Nothing
+mkInviteUrl ShowInvitationUrl team (InvitationCode c) = do
   template <- invitationEmailUrl . invitationEmail . snd <$> teamTemplates Nothing
   branding <- view App.templateBranding
   let url = toStrict $ renderTextWithBranding template replace branding

@@ -387,6 +387,7 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
     (newInv, code) <-
       wrapHttp $
         DB.insertInvitation
+          showInvitationUrl
           iid
           tid
           inviteeRole
@@ -396,7 +397,6 @@ createInvitation' tid inviteeRole mbInviterUid fromEmail body = do
           inviteeName
           inviteePhone
           timeout
-          showInvitationUrl
     (newInv, code) <$ sendInvitationMail inviteeEmail tid fromEmail code locale
 
 deleteInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
@@ -416,7 +416,7 @@ listInvitations :: UserId -> TeamId -> Maybe InvitationId -> Range 1 500 Int32 -
 listInvitations uid tid start size = do
   ensurePermissions uid tid [AddTeamMember]
   showInvitationUrl <- lift $ wrapHttp $ getTeamExposeInvitationURLsToTeamAdmin tid
-  rs <- lift $ wrapClient $ DB.lookupInvitations tid start size showInvitationUrl
+  rs <- lift $ wrapClient $ DB.lookupInvitations showInvitationUrl tid start size
   pure $! Public.InvitationList (DB.resultList rs) (DB.resultHasMore rs)
 
 getInvitationH :: JSON ::: UserId ::: TeamId ::: InvitationId -> (Handler r) Response
@@ -430,7 +430,7 @@ getInvitation :: UserId -> TeamId -> InvitationId -> (Handler r) (Maybe Public.I
 getInvitation uid tid iid = do
   ensurePermissions uid tid [AddTeamMember]
   showInvitationUrl <- lift $ wrapHttp $ getTeamExposeInvitationURLsToTeamAdmin tid
-  lift $ wrapClient $ DB.lookupInvitation tid iid showInvitationUrl
+  lift $ wrapClient $ DB.lookupInvitation showInvitationUrl tid iid
 
 getInvitationByCodeH :: JSON ::: Public.InvitationCode -> (Handler r) Response
 getInvitationByCodeH (_ ::: c) = do
