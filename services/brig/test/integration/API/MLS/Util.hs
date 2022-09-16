@@ -23,12 +23,10 @@ import Bilge.Assert
 import Data.Aeson (object, toJSON, (.=))
 import Data.ByteString.Conversion
 import Data.Default
-import Data.Domain
 import Data.Id
 import Data.Json.Util
 import qualified Data.Map as Map
 import Data.Qualified
-import qualified Data.Text as T
 import Data.Timeout
 import Imports
 import System.FilePath
@@ -59,15 +57,10 @@ uploadKeyPackages ::
   Int ->
   Http ()
 uploadKeyPackages brig tmp KeyingInfo {..} u c n = do
-  let cmd0 = ["mls-test-cli", "--store", tmp </> (clientId <> ".db")]
-      clientId =
-        show (qUnqualified u)
-          <> ":"
-          <> T.unpack (client c)
-          <> "@"
-          <> T.unpack (domainText (qDomain u))
+  let cmd0 = ["mls-test-cli", "--store", tmp </> (show cid <> ".db")]
+      cid = mkClientIdentity u c
   void . liftIO . flip spawn Nothing . shell . unwords $
-    cmd0 <> ["init", clientId]
+    cmd0 <> ["init", show cid]
   kps <-
     replicateM n . liftIO . flip spawn Nothing . shell . unwords $
       cmd0
