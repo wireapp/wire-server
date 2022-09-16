@@ -394,7 +394,7 @@ type AccountAPI =
                :> CanThrow 'InvalidCode
                :> "delete"
                :> ReqBody '[JSON] VerifyDeleteUser
-               :> MultiVerb 'DELETE '[JSON] '[RespondEmpty 200 "Deletion is initiated."] ()
+               :> MultiVerb 'POST '[JSON] '[RespondEmpty 200 "Deletion is initiated."] ()
            )
 
 type PrekeyAPI =

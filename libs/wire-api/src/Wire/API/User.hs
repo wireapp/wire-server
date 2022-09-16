@@ -109,7 +109,6 @@ module Wire.API.User
     modelEmailUpdate,
     modelUser,
     modelUserIdList,
-    modelVerifyDelete,
 
     -- * 2nd factor auth
     VerificationAction (..),
@@ -1313,14 +1312,6 @@ data VerifyDeleteUser = VerifyDeleteUser
   deriving stock (Eq, Show, Generic)
   deriving (Arbitrary) via (GenericUniform VerifyDeleteUser)
   deriving (ToJSON, FromJSON, S.ToSchema) via (Schema VerifyDeleteUser)
-
-modelVerifyDelete :: Doc.Model
-modelVerifyDelete = Doc.defineModel "VerifyDelete" $ do
-  Doc.description "Data for verifying an account deletion."
-  Doc.property "key" Doc.string' $
-    Doc.description "The identifying key of the account (i.e. user ID)."
-  Doc.property "code" Doc.string' $
-    Doc.description "The verification code."
 
 mkVerifyDeleteUser :: Code.Key -> Code.Value -> VerifyDeleteUser
 mkVerifyDeleteUser = VerifyDeleteUser
