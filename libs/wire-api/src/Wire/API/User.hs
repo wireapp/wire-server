@@ -1318,10 +1318,10 @@ mkVerifyDeleteUser = VerifyDeleteUser
 
 instance ToSchema VerifyDeleteUser where
   schema =
-    object "VerifyDeleteUser" $
+    objectWithDocModifier "VerifyDeleteUser" (description ?~ "Data for verifying an account deletion.") $
       VerifyDeleteUser
-        <$> verifyDeleteUserKey .= field "key" schema
-        <*> verifyDeleteUserCode .= field "code" schema
+        <$> verifyDeleteUserKey .= fieldWithDocModifier "key" (description ?~ "The identifying key of the account (i.e. user ID).") schema
+        <*> verifyDeleteUserCode .= fieldWithDocModifier "code" (description ?~ "The verification code.") schema
 
 -- | A response for a pending deletion code.
 newtype DeletionCodeTimeout = DeletionCodeTimeout
