@@ -455,7 +455,7 @@ testSendAnotherUsersCommit = do
     err <-
       responseJsonError
         =<< postMessage (qUnqualified bob) (mpMessage mp)
-          <!! const 409 === statusCode
+          <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-client-sender-user-mismatch"
 
 testAddUsersToProteus :: TestM ()
@@ -745,7 +745,7 @@ testCommitNotReferencingAllProposals = do
     -- send commit and expect and error
     err <-
       responseJsonError =<< postMessage (ciUser alice1) (mpMessage commit)
-        <!! const 409 === statusCode
+        <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-commit-missing-references"
 
 testAdminRemovesUserFromConv :: TestM ()

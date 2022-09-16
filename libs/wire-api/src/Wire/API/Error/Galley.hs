@@ -192,13 +192,13 @@ type instance MapError 'MLSClientMismatch = 'StaticError 409 "mls-client-mismatc
 
 type instance MapError 'MLSStaleMessage = 'StaticError 409 "mls-stale-message" "The conversation epoch in a message is too old"
 
-type instance MapError 'MLSCommitMissingReferences = 'StaticError 409 "mls-commit-missing-references" "The commit is not referencing all pending proposals"
+type instance MapError 'MLSCommitMissingReferences = 'StaticError 400 "mls-commit-missing-references" "The commit is not referencing all pending proposals"
 
-type instance MapError 'MLSSelfRemovalNotAllowed = 'StaticError 409 "mls-self-removal-not-allowed" "Self removal from group is not allowed"
+type instance MapError 'MLSSelfRemovalNotAllowed = 'StaticError 400 "mls-self-removal-not-allowed" "Self removal from group is not allowed"
 
-type instance MapError 'MLSGroupConversationMismatch = 'StaticError 409 "mls-group-conversation-mismatch" "Conversation ID resolved from Group ID does not match submitted Conversation ID"
+type instance MapError 'MLSGroupConversationMismatch = 'StaticError 400 "mls-group-conversation-mismatch" "Conversation ID resolved from Group ID does not match submitted Conversation ID"
 
-type instance MapError 'MLSClientSenderUserMismatch = 'StaticError 409 "mls-client-sender-user-mismatch" "User ID resolved from Client ID does not match message's sender user ID"
+type instance MapError 'MLSClientSenderUserMismatch = 'StaticError 400 "mls-client-sender-user-mismatch" "User ID resolved from Client ID does not match message's sender user ID"
 
 type instance MapError 'NoBindingTeamMembers = 'StaticError 403 "non-binding-team-members" "Both users must be members of the same binding team"
 
