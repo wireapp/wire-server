@@ -302,7 +302,7 @@ testListTeamMembersCsv numMembers = do
 
     addClient :: UserId -> Int -> TestM ()
     addClient uid i = do
-      brig <- view tsBrig
+      brig <- viewBrig
       post (brig . paths ["i", "clients", toByteString' uid] . contentJson . json (newClient (someLastPrekeys !! i)) . queryItem "skip_reauth" "true") !!! const 201 === statusCode
 
     newClient :: PC.LastPrekey -> C.NewClient
@@ -983,7 +983,7 @@ testDeleteBindingTeamNoMembers = do
 testDeleteBindingTeamMoreThanOneMember :: TestM ()
 testDeleteBindingTeamMoreThanOneMember = do
   g <- viewGalley
-  b <- view tsBrig
+  b <- viewBrig
   c <- view tsCannon
   (alice, tid, members) <- Util.createBindingTeamWithNMembers 10
   ensureQueueEmpty
@@ -1116,7 +1116,7 @@ setFeatureLockStatus tid status = do
 
 generateVerificationCode :: Public.SendVerificationCode -> TestM ()
 generateVerificationCode req = do
-  brig <- view tsBrig
+  brig <- viewBrig
   let js = RequestBodyLBS $ encode req
   post (brig . paths ["verification-code", "send"] . contentJson . body js) !!! const 200 === statusCode
 
@@ -1128,7 +1128,7 @@ setTeamSndFactorPasswordChallenge tid status = do
 
 getVerificationCode :: UserId -> Public.VerificationAction -> TestM Code.Value
 getVerificationCode uid action = do
-  brig <- view tsBrig
+  brig <- viewBrig
   resp <-
     get (brig . paths ["i", "users", toByteString' uid, "verification-code", toByteString' action])
       <!! const 200 === statusCode
@@ -1402,7 +1402,7 @@ testTeamAddRemoveMemberAboveThresholdNoEvents = do
     modifyUserProfileAndExpectEvent :: HasCallStack => Bool -> UserId -> [UserId] -> TestM ()
     modifyUserProfileAndExpectEvent expect target listeners = do
       c <- view tsCannon
-      b <- view tsBrig
+      b <- viewBrig
       WS.bracketRN c listeners $ \wsListeners -> do
         -- Do something
         let u = U.UserUpdate (Just $ U.Name "name") Nothing Nothing Nothing

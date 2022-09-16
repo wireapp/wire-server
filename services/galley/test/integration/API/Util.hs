@@ -138,6 +138,13 @@ import Wire.API.User.Client.Prekey
 -------------------------------------------------------------------------------
 -- API Operations
 
+addPrefix :: Request -> Request
+addPrefix r = r {HTTP.path = "v2/" <> removeSlash (HTTP.path r)}
+  where
+    removeSlash s = case B8.uncons s of
+      Just ('/', s') -> s'
+      _ -> s
+
 -- | A class for monads with access to a Sem r instance
 class HasGalley m where
   viewGalley :: m GalleyR
@@ -145,16 +152,17 @@ class HasGalley m where
 
 instance HasGalley TestM where
   viewGalley = fmap (addPrefix .) (view tsUnversionedGalley)
-    where
-      addPrefix r = r {HTTP.path = "v2/" <> removeSlash (HTTP.path r)}
-      removeSlash s = case B8.uncons s of
-        Just ('/', s') -> s'
-        _ -> s
   viewGalleyOpts = view tsGConf
 
 instance (HasGalley m, Monad m) => HasGalley (SessionT m) where
   viewGalley = lift viewGalley
   viewGalleyOpts = lift viewGalleyOpts
+
+class HasBrig m where
+  viewBrig :: m BrigR
+
+instance HasBrig TestM where
+  viewBrig = fmap (addPrefix .) (view tsUnversionedBrig)
 
 symmPermissions :: [Perm] -> Permissions
 symmPermissions p = let s = Set.fromList p in fromJust (newPermissions s s)
@@ -230,7 +238,7 @@ createBindingTeamWithNMembersWithHandles withHandles n = do
 
     setHandle :: UserId -> TestM ()
     setHandle uid = when withHandles $ do
-      b <- view tsBrig
+      b <- viewBrig
       randomHandle <- mkRandomHandle
       put
         ( b
@@ -400,7 +408,7 @@ addUserToTeamWithRole role inviter tid = do
 
 addUserToTeamWithRole' :: HasCallStack => Maybe Role -> UserId -> TeamId -> TestM (Invitation, ResponseLBS)
 addUserToTeamWithRole' role inviter tid = do
-  brig <- view tsBrig
+  brig <- viewBrig
   inviteeEmail <- randomEmail
   let invite = InvitationRequest Nothing role Nothing inviteeEmail Nothing
   invResponse <- postInvitation tid inviter invite
@@ -447,7 +455,7 @@ acceptInviteBody email code =
 
 postInvitation :: TeamId -> UserId -> InvitationRequest -> TestM ResponseLBS
 postInvitation t u i = do
-  brig <- view tsBrig
+  brig <- viewBrig
   post $
     brig
       . paths ["teams", toByteString' t, "invitations"]
@@ -463,7 +471,7 @@ zAuthAccess u conn =
 
 getInvitationCode :: HasCallStack => TeamId -> InvitationId -> TestM InvitationCode
 getInvitationCode t ref = do
-  brig <- view tsBrig
+  brig <- viewBrig
 
   let getm :: TestM (Maybe InvitationCode)
       getm = do
@@ -1826,13 +1834,13 @@ connectUsersWith ::
 connectUsersWith fn u = mapM connectTo
   where
     connectTo v = do
-      b <- view tsBrig
+      b <- view tsUnversionedBrig
       r1 <-
         post
           ( b
               . zUser u
               . zConn "conn"
-              . path "/connections"
+              . paths ["v1", "connections"]
               . json (ConnectionRequest v (unsafeRange "chat"))
               . fn
           )
@@ -1841,20 +1849,20 @@ connectUsersWith fn u = mapM connectTo
           ( b
               . zUser v
               . zConn "conn"
-              . paths ["connections", toByteString' u]
+              . paths ["v1", "connections", toByteString' u]
               . json (ConnectionUpdate Accepted)
               . fn
           )
       pure (r1, r2)
 
 connectWithRemoteUser ::
-  (MonadReader TestSetup m, MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) =>
+  (HasBrig m, MonadIO m, MonadHttp m, MonadCatch m, HasCallStack) =>
   UserId ->
   Qualified UserId ->
   m ()
 connectWithRemoteUser self other = do
   let req = CreateConnectionForTest self other
-  b <- view tsBrig
+  b <- viewBrig
   put
     ( b
         . zUser self
@@ -1869,10 +1877,10 @@ connectWithRemoteUser self other = do
 -- | A copy of 'postConnection' from Brig integration tests.
 postConnection :: UserId -> UserId -> TestM ResponseLBS
 postConnection from to = do
-  brig <- view tsBrig
+  brig <- view tsUnversionedBrig
   post $
     brig
-      . path "/connections"
+      . paths ["v1", "connections"]
       . contentJson
       . body payload
       . zUser from
@@ -1884,10 +1892,10 @@ postConnection from to = do
 
 postConnectionQualified :: UserId -> Qualified UserId -> TestM ResponseLBS
 postConnectionQualified from (Qualified toUser toDomain) = do
-  brig <- view tsBrig
+  brig <- viewBrig
   post $
     brig
-      . paths ["/connections", toByteString' toDomain, toByteString' toUser]
+      . paths ["connections", toByteString' toDomain, toByteString' toUser]
       . contentJson
       . zUser from
       . zConn "conn"
@@ -1895,10 +1903,10 @@ postConnectionQualified from (Qualified toUser toDomain) = do
 -- | A copy of 'putConnection' from Brig integration tests.
 putConnection :: UserId -> UserId -> Relation -> TestM ResponseLBS
 putConnection from to r = do
-  brig <- view tsBrig
+  brig <- view tsUnversionedBrig
   put $
     brig
-      . paths ["/connections", toByteString' to]
+      . paths ["v1", "connections", toByteString' to]
       . contentJson
       . body payload
       . zUser from
@@ -1916,10 +1924,10 @@ putConnectionQualified fromQualified to r = do
       "The qualified user's domain is not local"
       localDomain
       qualifiedDomain
-  brig <- view tsBrig
+  brig <- view tsUnversionedBrig
   put $
     brig
-      . paths ["/connections", toByteString' to]
+      . paths ["v1", "connections", toByteString' to]
       . contentJson
       . body payload
       . zUser from
@@ -1930,7 +1938,7 @@ putConnectionQualified fromQualified to r = do
 -- | A copy of `assertConnections from Brig integration tests.
 assertConnections :: HasCallStack => UserId -> [ConnectionStatus] -> TestM ()
 assertConnections u cstat = do
-  brig <- view tsBrig
+  brig <- view tsUnversionedBrig
   resp <- listConnections brig u <!! const 200 === statusCode
   let cstat' :: [ConnectionStatus]
       cstat' = fmap status . clConnections . fromMaybe (error "bad response") . responseJsonMaybe $ resp
@@ -1938,7 +1946,7 @@ assertConnections u cstat = do
     error $ "connection check failed: " <> show cstat <> " is not a subset of " <> show cstat'
   where
     status c = ConnectionStatus (ucFrom c) (qUnqualified $ ucTo c) (ucStatus c)
-    listConnections brig usr = get $ brig . path "connections" . zUser usr
+    listConnections brig usr = get $ brig . paths ["v1", "connections"] . zUser usr
 
 randomUsers :: Int -> TestM [UserId]
 randomUsers n = replicateM n randomUser
@@ -1971,7 +1979,7 @@ randomUser'' isCreator hasPassword hasEmail = selfUser <$> randomUserProfile' is
 
 randomUserProfile' :: HasCallStack => Bool -> Bool -> Bool -> TestM SelfProfile
 randomUserProfile' isCreator hasPassword hasEmail = do
-  b <- view tsBrig
+  b <- viewBrig
   e <- liftIO randomEmail
   let p =
         object $
@@ -1983,7 +1991,7 @@ randomUserProfile' isCreator hasPassword hasEmail = do
 
 ephemeralUser :: HasCallStack => TestM UserId
 ephemeralUser = do
-  b <- view tsBrig
+  b <- viewBrig
   name <- UUID.toText <$> liftIO nextRandom
   let p = object ["name" .= name]
   r <- post (b . path "/register" . json p) <!! const 201 === statusCode
@@ -1995,7 +2003,7 @@ randomClient uid lk = randomClientWithCaps uid lk Nothing
 
 randomClientWithCaps :: HasCallStack => UserId -> LastPrekey -> Maybe (Set Client.ClientCapability) -> TestM ClientId
 randomClientWithCaps uid lk caps = do
-  b <- view tsBrig
+  b <- viewBrig
   resp <-
     post
       ( b
@@ -2022,18 +2030,18 @@ ensureDeletedState check from u = do
 
 getDeletedState :: HasCallStack => UserId -> UserId -> TestM (Maybe Bool)
 getDeletedState from u = do
-  b <- view tsBrig
+  b <- view tsUnversionedBrig
   fmap profileDeleted . responseJsonMaybe
     <$> get
       ( b
-          . paths ["users", toByteString' u]
+          . paths ["v1", "users", toByteString' u]
           . zUser from
           . zConn "conn"
       )
 
 getClients :: UserId -> TestM ResponseLBS
 getClients u = do
-  b <- view tsBrig
+  b <- viewBrig
   get $
     b
       . paths ["clients"]
@@ -2042,7 +2050,7 @@ getClients u = do
 
 getInternalClientsFull :: UserSet -> TestM UserClientsFull
 getInternalClientsFull userSet = do
-  b <- view tsBrig
+  b <- viewBrig
   res <-
     post $
       b
@@ -2060,7 +2068,7 @@ ensureClientCaps uid cid caps = do
 -- TODO: Refactor, as used also in brig
 deleteClient :: UserId -> ClientId -> Maybe PlainTextPassword -> TestM ResponseLBS
 deleteClient u c pw = do
-  b <- view tsBrig
+  b <- viewBrig
   delete $
     b
       . paths ["clients", toByteString' c]
@@ -2078,7 +2086,7 @@ deleteClient u c pw = do
 -- TODO: Refactor, as used also in brig
 isUserDeleted :: HasCallStack => UserId -> TestM Bool
 isUserDeleted u = do
-  b <- view tsBrig
+  b <- viewBrig
   r <-
     get (b . paths ["i", "users", toByteString' u, "status"])
       <!! const 200 === statusCode
@@ -2309,12 +2317,12 @@ mkProteusConv cnvId creator selfRole otherMembers =
 -- | ES is only refreshed occasionally; we don't want to wait for that in tests.
 refreshIndex :: TestM ()
 refreshIndex = do
-  brig <- view tsBrig
+  brig <- viewBrig
   post (brig . path "/i/index/refresh") !!! const 200 === statusCode
 
 postSSOUser :: Text -> Bool -> UserSSOId -> TeamId -> TestM ResponseLBS
 postSSOUser name hasEmail ssoid teamid = do
-  brig <- view tsBrig
+  brig <- viewBrig
   email <- randomEmail
   let o =
         object $
@@ -2396,7 +2404,7 @@ getUsersByHandle = getUsersBy "handles"
 
 getUsersBy :: forall uidsOrHandles. (ToByteString uidsOrHandles) => ByteString -> [uidsOrHandles] -> TestM [User]
 getUsersBy keyName = chunkify $ \keys -> do
-  brig <- view tsBrig
+  brig <- viewBrig
   let users = BS.intercalate "," $ toByteString' <$> keys
   res <-
     get
@@ -2410,8 +2418,8 @@ getUsersBy keyName = chunkify $ \keys -> do
 
 getUserProfile :: UserId -> UserId -> TestM UserProfile
 getUserProfile zusr uid = do
-  brig <- view tsBrig
-  res <- get (brig . zUser zusr . paths ["users", toByteString' uid])
+  brig <- view tsUnversionedBrig
+  res <- get (brig . zUser zusr . paths ["v1", "users", toByteString' uid])
   responseJsonError res
 
 upgradeClientToLH :: HasCallStack => UserId -> ClientId -> TestM ()
@@ -2420,7 +2428,7 @@ upgradeClientToLH zusr cid =
 
 putCapabilities :: HasCallStack => UserId -> ClientId -> [ClientCapability] -> TestM ()
 putCapabilities zusr cid caps = do
-  brig <- view tsBrig
+  brig <- viewBrig
   void $
     put
       ( brig
@@ -2432,29 +2440,29 @@ putCapabilities zusr cid caps = do
 
 getUsersPrekeysClientUnqualified :: HasCallStack => UserId -> UserId -> ClientId -> TestM ResponseLBS
 getUsersPrekeysClientUnqualified zusr uid cid = do
-  brig <- view tsBrig
+  brig <- view tsUnversionedBrig
   get
     ( brig
         . zUser zusr
-        . paths ["users", toByteString' uid, "prekeys", toByteString' cid]
+        . paths ["v1", "users", toByteString' uid, "prekeys", toByteString' cid]
     )
 
 getUsersPrekeyBundleUnqualified :: HasCallStack => UserId -> UserId -> TestM ResponseLBS
 getUsersPrekeyBundleUnqualified zusr uid = do
-  brig <- view tsBrig
+  brig <- view tsUnversionedBrig
   get
     ( brig
         . zUser zusr
-        . paths ["users", toByteString' uid, "prekeys"]
+        . paths ["v1", "users", toByteString' uid, "prekeys"]
     )
 
 getMultiUserPrekeyBundleUnqualified :: HasCallStack => UserId -> UserClients -> TestM ResponseLBS
 getMultiUserPrekeyBundleUnqualified zusr userClients = do
-  brig <- view tsBrig
+  brig <- view tsUnversionedBrig
   post
     ( brig
         . zUser zusr
-        . paths ["users", "prekeys"]
+        . paths ["v1", "users", "prekeys"]
         . json userClients
     )
 

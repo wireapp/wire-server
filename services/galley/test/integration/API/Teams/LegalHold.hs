@@ -621,7 +621,7 @@ testCannotCreateLegalHoldDeviceOldAPI = do
   where
     tryout :: UserId -> TestM ()
     tryout uid = do
-      brg <- view tsBrig
+      brg <- viewBrig
       let newClientBody =
             (newClient LegalHoldClientType (head someLastPrekeys))
               { newClientPassword = Just defPassword
@@ -1312,7 +1312,7 @@ getEnabled tid = do
 
 renewToken :: HasCallStack => Text -> TestM ()
 renewToken tok = do
-  b <- view tsBrig
+  b <- viewBrig
   void . post $
     b
       . paths ["access"]

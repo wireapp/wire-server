@@ -441,7 +441,6 @@ postCryptoMessageVerifyMsgSentAndRejectIfMissingClient = do
 -- This test verifies basic mismatch behavior of the the JSON endpoint.
 postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson :: TestM ()
 postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson = do
-  b <- view tsBrig
   (alice, ac) <- randomUserWithClient (head someLastPrekeys)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
@@ -455,8 +454,9 @@ postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson = do
       assertMismatchWithMessage (Just "client mismatch") [(eve, Set.singleton ec)] [] []
   let x = responseJsonUnsafeWithMsg "ClientMismatch" r1
   -- Fetch all missing clients prekeys
+  b <- view tsUnversionedBrig
   r2 <-
-    post (b . zUser alice . path "/users/prekeys" . json (missingClients x))
+    post (b . zUser alice . path "v1/users/prekeys" . json (missingClients x))
       <!! const 200 === statusCode
   let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientPrekeyMap
   liftIO $ do
@@ -469,7 +469,6 @@ postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysJson = do
 -- This test verifies basic mismatch behaviour of the protobuf endpoint.
 postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto :: TestM ()
 postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto = do
-  b <- view tsBrig
   (alice, ac) <- randomUserWithClient (head someLastPrekeys)
   (bob, bc) <- randomUserWithClient (someLastPrekeys !! 1)
   (eve, ec) <- randomUserWithClient (someLastPrekeys !! 2)
@@ -485,8 +484,9 @@ postCryptoMessageVerifyRejectMissingClientAndRepondMissingPrekeysProto = do
   pure r1
     !!! assertMismatchWithMessage (Just "client mismatch") [(eve, Set.singleton ec)] [] []
   -- Fetch all missing clients prekeys
+  b <- view tsUnversionedBrig
   r2 <-
-    post (b . zUser alice . path "/users/prekeys" . json (missingClients x))
+    post (b . zUser alice . path "v1/users/prekeys" . json (missingClients x))
       <!! const 200 === statusCode
   let p = responseJsonUnsafeWithMsg "prekeys" r2 :: UserClientPrekeyMap
   liftIO $ do
