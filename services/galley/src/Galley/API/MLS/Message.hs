@@ -801,19 +801,6 @@ executeProposalAction qusr con lconv cm action = do
             throwS @'MLSSelfRemovalNotAllowed
           pure (Just qtarget)
 
-    addMembers :: NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
-    addMembers users =
-      -- FUTUREWORK: update key package ref mapping to reflect conversation membership
-      handleNoChanges
-        . handleMLSProposalFailures @ProposalErrors
-        . fmap pure
-        . updateLocalConversationUnchecked
-          @'ConversationJoinTag
-          lconv
-          qusr
-          con
-        $ ConversationJoin users roleNameWireMember
-
     existingLocalMembers :: Set (Qualified UserId)
     existingLocalMembers =
       Set.fromList . map (fmap lmId . qUntagged) . sequenceA $
@@ -826,6 +813,20 @@ executeProposalAction qusr con lconv cm action = do
 
     existingMembers :: Set (Qualified UserId)
     existingMembers = existingLocalMembers <> existingRemoteMembers
+
+    addMembers :: NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
+    addMembers =
+      -- FUTUREWORK: update key package ref mapping to reflect conversation membership
+      foldMap
+        ( handleNoChanges
+            . handleMLSProposalFailures @ProposalErrors
+            . fmap pure
+            . updateLocalConversationUnchecked @'ConversationJoinTag lconv qusr con
+            . flip ConversationJoin roleNameWireMember
+        )
+        . nonEmpty
+        . filter (flip Set.notMember existingMembers)
+        . toList
 
     removeMembers :: NonEmpty (Qualified UserId) -> Sem r [LocalConversationUpdate]
     removeMembers =
