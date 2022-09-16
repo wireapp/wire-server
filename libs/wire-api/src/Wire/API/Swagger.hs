@@ -102,7 +102,6 @@ models =
     User.modelUser,
     User.modelEmailUpdate,
     User.modelDelete,
-    User.Activation.modelActivate,
     User.Activation.modelSendActivationCode,
     User.Activation.modelActivationResponse,
     User.Auth.modelSendLoginCode,
