@@ -139,8 +139,16 @@ data ClientIdentity = ClientIdentity
     ciUser :: UserId,
     ciClient :: ClientId
   }
-  deriving stock (Eq, Ord, Show, Generic)
+  deriving stock (Eq, Ord, Generic)
   deriving (FromJSON, ToJSON, S.ToSchema) via Schema ClientIdentity
+
+instance Show ClientIdentity where
+  show (ClientIdentity dom u c) =
+    show u
+      <> ":"
+      <> T.unpack (client c)
+      <> "@"
+      <> T.unpack (domainText dom)
 
 cidQualifiedClient :: ClientIdentity -> Qualified (UserId, ClientId)
 cidQualifiedClient cid = Qualified (ciUser cid, ciClient cid) (ciDomain cid)

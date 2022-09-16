@@ -42,6 +42,7 @@ import Wire.API.Federation.API
 import Wire.API.Federation.API.Brig
 import Wire.API.MLS.Credential
 import Wire.API.MLS.KeyPackage
+import Wire.API.MLS.Serialisation
 import Wire.API.Team.LegalHold
 import Wire.API.User.Client
 
@@ -57,12 +58,11 @@ claimKeyPackages ::
   Maybe ClientId ->
   Handler r KeyPackageBundle
 claimKeyPackages lusr target skipOwn =
-  withExceptT clientError $
-    foldQualified
-      lusr
-      (claimLocalKeyPackages (qUntagged lusr) skipOwn)
-      (claimRemoteKeyPackages lusr)
-      target
+  foldQualified
+    lusr
+    (withExceptT clientError . claimLocalKeyPackages (qUntagged lusr) skipOwn)
+    (claimRemoteKeyPackages lusr)
+    target
 
 claimLocalKeyPackages ::
   Qualified UserId ->
@@ -96,11 +96,12 @@ claimLocalKeyPackages qusr skipOwn target = do
 claimRemoteKeyPackages ::
   Local UserId ->
   Remote UserId ->
-  ExceptT ClientError (AppT r) KeyPackageBundle
+  Handler r KeyPackageBundle
 claimRemoteKeyPackages lusr target = do
   bundle <-
-    (handleFailure =<<) $
-      withExceptT ClientFederationError $
+    withExceptT clientError
+      . (handleFailure =<<)
+      $ withExceptT ClientFederationError $
         runBrigFederatorClient (tDomain target) $
           fedClient @'Brig @"claim-key-packages" $
             ClaimKeyPackageRequest
@@ -108,10 +109,22 @@ claimRemoteKeyPackages lusr target = do
                 ckprTarget = tUnqualified target
               }
 
-  -- set up mappings for all claimed key packages
-  wrapClientE $
-    for_ (kpbEntries bundle) $ \e ->
-      Data.mapKeyPackageRef (kpbeRef e) (kpbeUser e) (kpbeClient e)
+  -- validate and set up mappings for all claimed key packages
+  for_ (kpbEntries bundle) $ \e -> do
+    let cid = mkClientIdentity (kpbeUser e) (kpbeClient e)
+    kpRaw <-
+      withExceptT (const . clientDataError $ KeyPackageDecodingError)
+        . except
+        . decodeMLS'
+        . kpData
+        . kpbeKeyPackage
+        $ e
+    (refVal, _) <- validateKeyPackage cid kpRaw
+    unless (refVal == kpbeRef e)
+      . throwE
+      . clientDataError
+      $ InvalidKeyPackageRef
+    wrapClientE $ Data.mapKeyPackageRef (kpbeRef e) (kpbeUser e) (kpbeClient e)
 
   pure bundle
   where

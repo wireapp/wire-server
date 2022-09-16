@@ -157,6 +157,12 @@ source-repository-package
     location: https://gitlab.com/twittner/wai-routing
     tag: 7e996a93fec5901767f845a50316b3c18e51a61d
 
+source-repository-package
+    type: git
+    location: https://github.com/wireapp/tasty.git
+    tag: 3934275585a084fd263c9564090e36c5319e5fde
+    subdir: hunit
+
 allow-older: *
 allow-newer: *
 

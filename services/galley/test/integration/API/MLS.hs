@@ -1,5 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
+
 -- This file is part of the Wire Server implementation.
 --
 -- Copyright (C) 2022 Wire Swiss GmbH <opensource@wire.com>
@@ -16,7 +17,6 @@
 --
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
-{-# OPTIONS_GHC -Wwarn #-}
 
 module API.MLS (tests) where
 
@@ -140,6 +140,7 @@ tests s =
       testGroup
         "External Add Proposal"
         [ test s "member adds new client" testExternalAddProposal,
+          test s "non-admin commits external add proposal" testExternalAddProposalNonAdminCommit,
           test s "non-member adds new client" testExternalAddProposalWrongUser,
           test s "member adds unknown new client" testExternalAddProposalWrongClient
         ],
@@ -1208,8 +1209,64 @@ propInvalidEpoch = do
 -- alice1 creates a group and adds bob1
 -- bob2 joins with external proposal (alice1 commits it)
 -- bob2 adds charlie1
+-- alice1 sends a message
 testExternalAddProposal :: TestM ()
 testExternalAddProposal = do
+  -- create users
+  [alice, bob, charlie] <-
+    createAndConnectUsers (replicate 3 Nothing)
+
+  void . runMLSTest $ do
+    -- create clients
+    alice1 <- createMLSClient alice
+    bob1 <- createMLSClient bob
+    charlie1 <- createMLSClient charlie
+
+    -- upload key packages
+    void $ uploadNewKeyPackage bob1
+    void $ uploadNewKeyPackage charlie1
+
+    -- create group with alice1 and bob1
+    (_, qcnv) <- setupMLSGroup alice1
+    void $
+      createAddCommit alice1 [bob]
+        >>= sendAndConsumeCommit
+
+    -- bob joins with an external proposal
+    bob2 <- createMLSClient bob
+    mlsBracket [alice1, bob1] $ \wss -> do
+      void $
+        createExternalAddProposal bob2
+          >>= sendAndConsumeMessage
+      liftTest $
+        WS.assertMatchN_ (5 # Second) wss $
+          void . wsAssertAddProposal bob qcnv
+
+    void $
+      createPendingProposalCommit alice1
+        >>= sendAndConsumeCommit
+
+    -- alice sends a message
+    do
+      msg <- createApplicationMessage alice1 "hi bob"
+      mlsBracket [bob1, bob2] $ \wss -> do
+        void $ sendAndConsumeMessage msg
+        liftTest $
+          WS.assertMatchN_ (5 # Second) wss $
+            wsAssertMLSMessage qcnv alice (mpMessage msg)
+
+    -- bob adds charlie
+    putOtherMemberQualified
+      (qUnqualified alice)
+      bob
+      (OtherMemberUpdate (Just roleNameWireAdmin))
+      qcnv
+      !!! const 200 === statusCode
+    createAddCommit bob2 [charlie]
+      >>= sendAndConsumeCommit
+
+testExternalAddProposalNonAdminCommit :: TestM ()
+testExternalAddProposalNonAdminCommit = do
   -- create users
   [alice, bob, charlie] <-
     createAndConnectUsers (replicate 3 Nothing)
@@ -1238,19 +1295,11 @@ testExternalAddProposal = do
       liftTest $
         WS.assertMatchN_ (5 # Second) wss $
           void . wsAssertAddProposal bob qcnv
-    void $
-      createPendingProposalCommit alice1
-        >>= sendAndConsumeCommit
 
-    -- bob adds charlie
-    putOtherMemberQualified
-      (qUnqualified alice)
-      bob
-      (OtherMemberUpdate (Just roleNameWireAdmin))
-      qcnv
-      !!! const 200 === statusCode
-    createAddCommit bob2 [charlie]
-      >>= sendAndConsumeCommit
+    -- bob1 commits
+    void $
+      createPendingProposalCommit bob1
+        >>= sendAndConsumeCommit
 
 -- scenario:
 -- alice adds bob and charlie
@@ -1605,13 +1654,13 @@ testBackendRemoveProposalLocalConvRemoteLeaver = do
 
 testBackendRemoveProposalLocalConvLocalClient :: TestM ()
 testBackendRemoveProposalLocalConvLocalClient = do
-  [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
+  [alice, bob, charlie] <- createAndConnectUsers (replicate 3 Nothing)
 
   runMLSTest $ do
-    [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
-    traverse_ uploadNewKeyPackage [bob1, bob2]
+    [alice1, bob1, bob2, charlie1] <- traverse createMLSClient [alice, bob, bob, charlie]
+    traverse_ uploadNewKeyPackage [bob1, bob2, charlie1]
     (_, qcnv) <- setupMLSGroup alice1
-    void $ createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    void $ createAddCommit alice1 [bob, charlie] >>= sendAndConsumeCommit
     Just (_, kpBob1) <- find (\(ci, _) -> ci == bob1) <$> getClientsFromGroupState alice1 bob
 
     mlsBracket [alice1, bob1] $ \[wsA, wsB] -> do
@@ -1630,10 +1679,10 @@ testBackendRemoveProposalLocalConvLocalClient = do
       msg <- WS.assertMatch (5 # WS.Second) wsA $ \notification -> do
         wsAssertBackendRemoveProposal bob qcnv kpBob1 notification
 
-      for_ [alice1, bob2] $
+      for_ [alice1, bob2, charlie1] $
         flip consumeMessage1 msg
 
-      mp <- createPendingProposalCommit alice1
+      mp <- createPendingProposalCommit charlie1
       events <- sendAndConsumeCommit mp
       liftIO $ events @?= []
 

@@ -97,6 +97,8 @@ data ClientDataError
   | ClientMissingAuth
   | MalformedPrekeys
   | MLSPublicKeyDuplicate
+  | KeyPackageDecodingError
+  | InvalidKeyPackageRef
 
 -- | Re-authentication policy.
 --
